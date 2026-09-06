@@ -24,9 +24,14 @@ import (
 var tcmCtx = tcmCmd.TcmCtx{}
 
 const (
-	tcmPidFile      = "tcm.pid"
-	watchdogPidFile = "watchdog.pid"
-	logFileName     = "tcm.log"
+	tcmPidFile             = "tcm.pid"
+	watchdogPidFile        = "watchdog.pid"
+	logFileName            = "tcm.log"
+	tcmDefaultLogLines     = 10
+	watchdogRestartDelay   = 5 * time.Second
+	statusPIDColumn        = 2
+	statusExecutableColumn = 3
+	statusStateColumn      = 4
 )
 
 func newTcmStartCmd() *cobra.Command {
@@ -75,7 +80,7 @@ func newTcmLogCmd() *cobra.Command {
 		Run:   RunModuleFunc(internalTcmLog),
 	}
 
-	cmd.Flags().IntVarP(&tcmCtx.Log.Lines, "lines", "n", 10,
+	cmd.Flags().IntVarP(&tcmCtx.Log.Lines, "lines", "n", tcmDefaultLogLines,
 		"Count of last lines to output")
 	cmd.Flags().BoolVarP(&tcmCtx.Log.IsFollow, "follow", "f", false,
 		"Output appended data as the log file grows")
@@ -132,7 +137,7 @@ func startTcmInteractive(logLevel string) error {
 }
 
 func startTcmUnderWatchDog() error {
-	wd := libwatchdog.NewWatchdog(tcmPidFile, watchdogPidFile, 5*time.Second)
+	wd := libwatchdog.NewWatchdog(tcmPidFile, watchdogPidFile, watchdogRestartDelay)
 	if err := wd.Start(tcmCtx.Executable); err != nil {
 		return err
 	}
@@ -181,9 +186,9 @@ func internalTcmStatus(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	ts.SetColumnConfigs([]table.ColumnConfig{
 		{Number: 1, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
-		{Number: 2, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
-		{Number: 3, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
-		{Number: 4, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
+		{Number: statusPIDColumn, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
+		{Number: statusExecutableColumn, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
+		{Number: statusStateColumn, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
 	})
 
 	status := process_utils.ProcessStatus(pidAbsPath)

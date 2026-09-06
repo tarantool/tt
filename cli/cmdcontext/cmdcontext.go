@@ -39,6 +39,8 @@ type TcmCli struct {
 	ConfigPath string
 }
 
+const minVersionFields = 2
+
 // GetVersion returns and caches the tarantool version.
 func (tntCli *TarantoolCli) GetVersion() (version.Version, error) {
 	if tntCli.version.Str != "" {
@@ -58,7 +60,7 @@ func (tntCli *TarantoolCli) GetVersion() (version.Version, error) {
 	versionOut := strings.Split(string(output), "\n")
 	versionLine := strings.Split(versionOut[0], " ")
 
-	if len(versionLine) < 2 {
+	if len(versionLine) < minVersionFields {
 		return tntCli.version, fmt.Errorf("failed to get tarantool version: corrupted data")
 	}
 

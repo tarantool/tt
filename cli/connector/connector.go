@@ -18,6 +18,7 @@ const (
 	greetingOperationTimeout = 3 * time.Second
 	maxSocketPathLinux       = 108
 	maxSocketPathMac         = 106
+	socketPathPrefixLength   = 3
 )
 
 // RequestOpts describes the parameters of a request to be executed.
@@ -64,7 +65,7 @@ func Connect(opts ConnectOpts) (Connector, error) {
 		opts.Address = "./" + filepath.Base(opts.Address)
 		if len(opts.Address)+1 > maxSocketPath {
 			return nil, fmt.Errorf("socket name is longer than %d symbols: %s",
-				maxSocketPath-3, filepath.Base(opts.Address))
+				maxSocketPath-socketPathPrefixLength, filepath.Base(opts.Address))
 		}
 		defer os.Chdir(workDir)
 	}

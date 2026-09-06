@@ -54,7 +54,8 @@ type Watchdog struct {
 }
 
 const (
-	signalBufferSize = 128
+	signalBufferSize  = 128
+	signalStopTimeout = 30 * time.Second
 )
 
 // NewWatchdog creates a new instance of Watchdog.
@@ -210,7 +211,7 @@ func (wd *Watchdog) sendSignal(sig os.Signal) bool {
 	switch sig {
 	case syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
 		if wd.instance.IsAlive() {
-			wd.instance.StopWithSignal(30*time.Second, sig)
+			wd.instance.StopWithSignal(signalStopTimeout, sig)
 		}
 		return true
 	case syscall.SIGHUP:

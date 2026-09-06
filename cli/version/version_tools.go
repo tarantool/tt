@@ -22,7 +22,9 @@ const (
 	// CliSeparator is used in commands to specify version. E.g: program=version.
 	CliSeparator = "="
 	// FsSeparator is used in file names to specify version. E.g: program_version.
-	FsSeparator = "_"
+	FsSeparator          = "_"
+	optionalVersionParts = 3
+	semanticVersionParts = 3
 )
 
 type Release struct {
@@ -89,7 +91,7 @@ func createVersionRegexp(isStrict bool) *regexp.Regexp {
 		`(?:-(?P<additional>\d+))?` +
 		`(?:-(?P<hash>g[a-f0-9]+))?(?:-r(?P<revision>\d+))?(-gc64|-nogc64)?$`
 	if !isStrict {
-		matchString = strings.Replace(matchString, "{1}", "?", 3)
+		matchString = strings.Replace(matchString, "{1}", "?", optionalVersionParts)
 	}
 	return regexp.MustCompile(matchString)
 }
@@ -161,7 +163,7 @@ func ParseTt(verStr string) (Version, error) {
 
 	verStr = verToParse[:sepIndex]
 	numVersions := strings.Split(verStr, ".")
-	if len(numVersions) != 3 {
+	if len(numVersions) != semanticVersionParts {
 		return Version{}, fmt.Errorf("the version of %q does not match"+
 			" <major>.<minor>.<patch> format", verStr)
 	}

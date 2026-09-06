@@ -11,6 +11,11 @@ import (
 )
 
 const (
+	logDirectoryMode = 0o755
+	logFileMode      = 0o640
+)
+
+const (
 	logOpenFlags   = os.O_CREATE | os.O_WRONLY | os.O_APPEND
 	logCreatePerms = 0o640
 )
@@ -90,12 +95,12 @@ func NewFileLogger(opts LoggerOpts) (Logger, error) {
 	dir := filepath.Dir(opts.Filename)
 	if _, err := os.Stat(dir); err != nil &&
 		errors.Is(err, os.ErrNotExist) {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, logDirectoryMode); err != nil {
 			return nil, err
 		}
 	}
 
-	file, err := os.OpenFile(opts.Filename, logOpenFlags, 0o640)
+	file, err := os.OpenFile(opts.Filename, logOpenFlags, logFileMode)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open the log file %q: %s", opts.Filename, err)
 	}

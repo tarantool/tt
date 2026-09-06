@@ -9,6 +9,13 @@ import (
 	"github.com/jedib0t/go-pretty/v6/text"
 )
 
+const (
+	statusRowCapacity = 7
+	statusColumn      = 2
+	pidColumn         = 3
+	modeColumn        = 4
+)
+
 var (
 	printYellow = color.New(color.FgYellow).SprintFunc()
 	printRed    = color.New(color.FgRed).SprintFunc()
@@ -80,7 +87,7 @@ func (t TablePrinter) Print(instances map[string]*instanceStatus) error {
 		table.Row{"INSTANCE", "STATUS", "PID", "MODE", "CONFIG", "BOX", "UPSTREAM"})
 
 	for instName, instData := range instances {
-		row := make([]any, 0, 7)
+		row := make([]any, 0, statusRowCapacity)
 		row = append(row, instName)
 		row = append(row, instData.procStatus.FormattedStatus())
 		if instData.PID == nil {
@@ -110,9 +117,9 @@ func (t TablePrinter) Print(instances map[string]*instanceStatus) error {
 	}
 	ts.SetColumnConfigs([]table.ColumnConfig{
 		{Number: 1, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
-		{Number: 2, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
-		{Number: 3, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
-		{Number: 4, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
+		{Number: statusColumn, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
+		{Number: pidColumn, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
+		{Number: modeColumn, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
 	})
 	ts.Render()
 

@@ -26,6 +26,9 @@ const (
 
 	tagPushPrefixYAML = `%TAG`
 	tagPushPrefixLua  = `-- Push`
+
+	decodeBufferSize = 256
+	pushLineParts    = 2
 )
 
 type EvalPlainTextOpts struct {
@@ -195,7 +198,7 @@ func readFromPlainTextConn(conn net.Conn, opts EvalPlainTextOpts) ([]byte, error
 func readDataPortionFromPlainTextConn(conn net.Conn, buffer *bytes.Buffer,
 	readTimeout time.Duration,
 ) ([]byte, error) {
-	tmp := make([]byte, 256)
+	tmp := make([]byte, decodeBufferSize)
 	data := make([]byte, 0)
 
 	if readTimeout > 0 {
@@ -290,7 +293,7 @@ func getPushedData(pushedDataBytes []byte) (interface{}, error) {
 		// Lua.
 
 		// remove first line (-- Push).
-		pushedDataString = strings.SplitN(pushedDataString, "\n", 2)[1]
+		pushedDataString = strings.SplitN(pushedDataString, "\n", pushLineParts)[1]
 		// remove ";".
 		pushedDataString = strings.TrimRight(pushedDataString, ";")
 

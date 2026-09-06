@@ -9,9 +9,15 @@ type genState struct {
 	port, metricsPort int
 }
 
+const (
+	defaultPort        = 3301
+	defaultMetricsPort = 8081
+	alphabetSize       = 26
+)
+
 // newGenState creates genState.
 func newGenState() *genState {
-	return &genState{port: 3301, metricsPort: 8081}
+	return &genState{port: defaultPort, metricsPort: defaultMetricsPort}
 }
 
 // genPort generates port.
@@ -57,7 +63,7 @@ func genReplicasets(
 		replicasetName := fmt.Sprintf("%s-%03d", baseName, i+1)
 		instNames := make([]string, replicasetSize)
 		for j := range instNames {
-			if replicasetSize <= 26 {
+			if replicasetSize <= alphabetSize {
 				instNames[j] = fmt.Sprintf("%s-%c", replicasetName, 'a'+byte(j))
 			} else {
 				instNames[j] = fmt.Sprintf("%s-%03d", replicasetName, j+1)

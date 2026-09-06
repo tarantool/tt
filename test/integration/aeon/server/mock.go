@@ -22,6 +22,8 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
+const defaultServerPort = 50051
+
 var args = struct {
 	isSsl      *bool
 	caFile     *string
@@ -34,7 +36,7 @@ var args = struct {
 	caFile:     flag.String("ca", "", "The CA file"),
 	certFile:   flag.String("cert", "", "The TLS cert file"),
 	keyFile:    flag.String("key", "", "The TLS key file"),
-	port:       flag.Int("port", 50051, "The server port"),
+	port:       flag.Int("port", defaultServerPort, "The server port"),
 	unixSocket: flag.String("unix", "", "The Unix socket name"),
 }
 

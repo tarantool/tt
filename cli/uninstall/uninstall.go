@@ -19,6 +19,8 @@ import (
 	"github.com/tarantool/tt/cli/version"
 )
 
+const binaryNameMatchGroups = 2
+
 const (
 	progRegexp = "(?P<prog>.+)"
 
@@ -261,7 +263,7 @@ func searchLatestVersion(program search.Program, binDst, headerDst string) (stri
 		matches := util.FindNamedMatches(programRegex, binaryName)
 
 		// Need to match for the program and version.
-		if len(matches) != 2 {
+		if len(matches) != binaryNameMatchGroups {
 			log.Debugf("%q skipped: unexpected format", binaryName)
 			continue
 		}

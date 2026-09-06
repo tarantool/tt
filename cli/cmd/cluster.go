@@ -93,6 +93,11 @@ environment variables < command flags < URL credentials.`,
 )
 
 func newClusterReplicasetCmd() *cobra.Command {
+	const (
+		targetArgs = 2
+		roleArgs   = 2
+	)
+
 	cmd := &cobra.Command{
 		Use:     "replicaset",
 		Short:   "manage replicaset via 3.0 cluster config source",
@@ -105,7 +110,7 @@ func newClusterReplicasetCmd() *cobra.Command {
 		Short:                 "Promote an instance",
 		Long:                  "Promote an instance\n\n" + clusterURIHelp,
 		Run:                   RunModuleFunc(internalClusterReplicasetPromoteModule),
-		Args:                  cobra.ExactArgs(2),
+		Args:                  cobra.ExactArgs(targetArgs),
 	}
 	promoteCmd.Flags().StringVarP(&promoteCtx.Username, "username", "u", "",
 		"username (used as etcd/tarantool config storage credentials)")
@@ -121,7 +126,7 @@ func newClusterReplicasetCmd() *cobra.Command {
 		Short:                 "Demote an instance",
 		Long:                  "Demote an instance\n\n" + clusterURIHelp,
 		Run:                   RunModuleFunc(internalClusterReplicasetDemoteModule),
-		Args:                  cobra.ExactArgs(2),
+		Args:                  cobra.ExactArgs(targetArgs),
 	}
 
 	demoteCmd.Flags().StringVarP(&demoteCtx.Username, "username", "u", "",
@@ -138,7 +143,7 @@ func newClusterReplicasetCmd() *cobra.Command {
 		Short:                 "Expel an instance",
 		Long:                  "Expel an instance\n\n" + clusterURIHelp,
 		Run:                   RunModuleFunc(internalClusterReplicasetExpelModule),
-		Args:                  cobra.ExactArgs(2),
+		Args:                  cobra.ExactArgs(targetArgs),
 	}
 
 	expelCmd.Flags().StringVarP(&expelCtx.Username, "username", "u", "",
@@ -161,7 +166,7 @@ func newClusterReplicasetCmd() *cobra.Command {
 		Run:   RunModuleFunc(internalClusterReplicasetRolesAddModule),
 		Example: "tt cluster replicaset roles add http://user:pass@localhost:3301" +
 			" roles.metrics-export --instance_name master",
-		Args: cobra.ExactArgs(2),
+		Args: cobra.ExactArgs(roleArgs),
 	}
 
 	addRolesCmd.Flags().StringVarP(&rolesChangeCtx.ReplicasetName, "replicaset", "r", "",
@@ -188,7 +193,7 @@ func newClusterReplicasetCmd() *cobra.Command {
 		Run:   RunModuleFunc(internalClusterReplicasetRolesRemoveModule),
 		Example: "tt cluster replicaset roles remove http://user:pass@localhost:3301" +
 			" roles.metrics-export --instance_name master",
-		Args: cobra.ExactArgs(2),
+		Args: cobra.ExactArgs(roleArgs),
 	}
 
 	removeRolesCmd.Flags().StringVarP(&rolesChangeCtx.ReplicasetName, "replicaset", "r", "",
@@ -220,6 +225,8 @@ func newClusterReplicasetCmd() *cobra.Command {
 }
 
 func newClusterFailoverCmd() *cobra.Command {
+	const commandArgs = 2
+
 	cmd := &cobra.Command{
 		Use:     "failover",
 		Short:   "Manage supervised failover",
@@ -233,7 +240,7 @@ func newClusterFailoverCmd() *cobra.Command {
 		Long:                  "Switch master instance\n\n" + failoverURIHelp,
 		Example:               "tt cluster failover switch http://localhost:2379/app instance_name",
 		Run:                   RunModuleFunc(internalClusterFailoverSwitchModule),
-		Args:                  cobra.ExactArgs(2),
+		Args:                  cobra.ExactArgs(commandArgs),
 	}
 
 	switchCmd.Flags().StringVarP(&switchCtx.Username, "username", "u", "",
@@ -251,7 +258,7 @@ func newClusterFailoverCmd() *cobra.Command {
 		Short:                 "Show master switching status",
 		Long:                  "Show master switching status\n\n" + failoverURIHelp,
 		Run:                   RunModuleFunc(internalClusterFailoverSwitchStatusModule),
-		Args:                  cobra.ExactArgs(2),
+		Args:                  cobra.ExactArgs(commandArgs),
 	}
 
 	cmd.AddCommand(switchCmd)
@@ -261,6 +268,8 @@ func newClusterFailoverCmd() *cobra.Command {
 }
 
 func NewClusterCmd() *cobra.Command {
+	const publishArgs = 2
+
 	clusterCmd := &cobra.Command{
 		Use:   "cluster",
 		Short: "Manage cluster configuration",
@@ -319,7 +328,7 @@ func NewClusterCmd() *cobra.Command {
 			"https://user:pass@localhost:2379/tt?name=instance " +
 			"instance.yaml",
 		Run:  RunModuleFunc(internalClusterPublishModule),
-		Args: cobra.ExactArgs(2),
+		Args: cobra.ExactArgs(publishArgs),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,

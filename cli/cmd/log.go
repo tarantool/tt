@@ -20,6 +20,8 @@ var logOpts struct {
 	follow bool // Follow logs output.
 }
 
+const defaultLogLines = 10
+
 // NewLogCmd creates log command.
 func NewLogCmd() *cobra.Command {
 	logCmd := &cobra.Command{
@@ -38,7 +40,7 @@ func NewLogCmd() *cobra.Command {
 		},
 	}
 
-	logCmd.Flags().IntVarP(&logOpts.nLines, "lines", "n", 10,
+	logCmd.Flags().IntVarP(&logOpts.nLines, "lines", "n", defaultLogLines,
 		"Count of last lines to output")
 	logCmd.Flags().BoolVarP(&logOpts.follow, "follow", "f", false,
 		"Output appended data as the log file grows")

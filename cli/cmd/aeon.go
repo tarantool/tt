@@ -23,6 +23,7 @@ import (
 const (
 	aeonHistoryFileName = ".aeon_history"
 	aeonHistoryLines    = console.DefaultHistoryLines
+	aeonConnectMaxArgs  = 2
 )
 
 var aeonHelp = libconnect.MakeURLHelp(map[string]any{
@@ -58,7 +59,7 @@ func newAeonConnectCmd() *cobra.Command {
 				internalAeonConnect, args)
 			util.HandleCmdErr(cmd, err)
 		},
-		Args: cobra.MatchAll(cobra.RangeArgs(1, 2), aeonConnectValidateArgs),
+		Args: cobra.MatchAll(cobra.RangeArgs(1, aeonConnectMaxArgs), aeonConnectValidateArgs),
 	}
 	aeonCmd.Flags().StringVarP(&connectCtx.Username, "username", "u", "",
 		"username (used as etcd credentials only)")

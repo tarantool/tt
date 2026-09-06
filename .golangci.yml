@@ -22,36 +22,40 @@ linters:
   default: all
 
   disable:
-    - cyclop
+    - cyclop # Cyclop is disabled, since cyclomatic complexity is a very abstract metric
+      # that sometimes leads to strange linter behavior.
     - depguard
-    - dupl
+    - dupl # Dupl is disabled, since we're generating a lot of boilerplate code.
     - err113
     - errcheck
     - errorlint
     - exhaustruct
     - exhaustruct_v5
-    - forbidigo
-    - funlen
+    - forbidigo # Forbidigo is disabled because direct stdout output is intentional
+      # in the CLI and Mage targets.
+    - funlen # Funlen is disabled, function length limits are too restrictive.
     - gochecknoglobals
-    - gocognit
+    - gocognit # Gocognit is disabled, cognitive complexity is too restrictive.
     - goconst
-    - godox
+    - godox # Godox is disabled to allow TODO comments for unimplemented functionality.
     - gomodguard
     - gosec
-    - ireturn
-    - maintidx
-    - mnd
+    - ireturn # Ireturn is disabled, since it's not needed.
+    - maintidx # Maintidx is disabled, purpose of this metric is unknown.
     - modernize
-    - nlreturn
+    - nlreturn # Nlreturn is disabled, since it's duplicated by wsl_v5.return check.
     - noinlineerr
     - paralleltest
     - perfsprint
     - testifylint
+    # TODO: Enable after internal tests are converted to external test packages
+    # without exporting production internals solely to satisfy the linter.
     - testpackage
     - tparallel
     - varnamelen
     - wrapcheck
-    - wsl
+    - wsl # WSL is disabled, since it's obsolete; its replacement is disabled
+      # separately below.
     - wsl_v5
 
   exclusions:

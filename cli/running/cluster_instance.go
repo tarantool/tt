@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"time"
 
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/util"
@@ -58,7 +57,7 @@ func (inst *clusterInstance) Start(ctx context.Context) error {
 	cmd.Cancel = func() error {
 		return cmd.Process.Signal(os.Interrupt)
 	}
-	cmd.WaitDelay = 30 * time.Second
+	cmd.WaitDelay = instanceCommandWaitDelay
 	cmd.Stdout = inst.stdOut
 	cmd.Stderr = inst.stdErr
 

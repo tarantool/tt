@@ -53,6 +53,8 @@ var (
 		"  To specify relative path without `unix://` use `./`."
 )
 
+const defaultLSNSyncTimeout = 5
+
 // newUpgradeCmd creates a "replicaset upgrade" command.
 func newUpgradeCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -69,7 +71,7 @@ func newUpgradeCmd() *cobra.Command {
 	cmd.Flags().StringArrayVarP(&chosenReplicasetAliases, "replicaset", "r",
 		[]string{}, "specify the replicaset name(s) to upgrade")
 
-	cmd.Flags().IntVarP(&lsnTimeout, "timeout", "t", 5,
+	cmd.Flags().IntVarP(&lsnTimeout, "timeout", "t", defaultLSNSyncTimeout,
 		"timeout for waiting the LSN synchronization (in seconds)")
 
 	addOrchestratorFlags(cmd)
@@ -79,6 +81,8 @@ func newUpgradeCmd() *cobra.Command {
 
 // newDowngradeCmd creates a "replicaset downgrade" command.
 func newDowngradeCmd() *cobra.Command {
+	const commandArgs = 2
+
 	validateVersion := func(i int) cobra.PositionalArgs {
 		return func(cmd *cobra.Command, args []string) error {
 			versionPattern := regexp.MustCompile(`^\d+\.\d+\.\d+$`)
@@ -100,13 +104,13 @@ func newDowngradeCmd() *cobra.Command {
 		Long: "Downgrade tarantool cluster.\n\n" +
 			libconnect.EnvTarantoolCredentialsHelp + "\n\n",
 		Run:  RunModuleFunc(internalReplicasetDowngradeModule),
-		Args: cobra.MatchAll(cobra.ExactArgs(2), validateVersion(1)),
+		Args: cobra.MatchAll(cobra.ExactArgs(commandArgs), validateVersion(1)),
 	}
 
 	cmd.Flags().StringArrayVarP(&chosenReplicasetAliases, "replicaset", "r",
 		[]string{}, "specify the replicaset name(s) to downgrade")
 
-	cmd.Flags().IntVarP(&lsnTimeout, "timeout", "t", 5,
+	cmd.Flags().IntVarP(&lsnTimeout, "timeout", "t", defaultLSNSyncTimeout,
 		"timeout for waiting the LSN synchronization (in seconds)")
 
 	addOrchestratorFlags(cmd)
@@ -283,13 +287,15 @@ func newRolesCmd() *cobra.Command {
 
 // newRolesAddCmd creates a "replicaset roles add" command.
 func newRolesAddCmd() *cobra.Command {
+	const commandArgs = 2
+
 	cmd := &cobra.Command{
 		Use: "add [--config|--custom] [-f] [--timeout secs]" +
 			"<APP_NAME:INSTANCE_NAME> <ROLE_NAME> [flags]",
 		Short: "Adds a role for Tarantool 3 orchestrator",
 		Long:  "Adds a role for Tarantool 3 orchestrator",
 		Run:   RunModuleFunc(internalReplicasetRolesAddModule),
-		Args:  cobra.ExactArgs(2),
+		Args:  cobra.ExactArgs(commandArgs),
 	}
 
 	cmd.Flags().StringVarP(&replicasetReplicasetName, "replicaset", "r", "",
@@ -315,13 +321,15 @@ func newRolesAddCmd() *cobra.Command {
 
 // newRolesRemoveCmd creates a "replicaset roles remove" command.
 func newRolesRemoveCmd() *cobra.Command {
+	const commandArgs = 2
+
 	cmd := &cobra.Command{
 		Use: "remove [--config|--custom] [-f] [--timeout secs]" +
 			"<APP_NAME:INSTANCE_NAME> <ROLE_NAME> [flags]",
 		Short: "Removes a role for Tarantool 3 orchestrator",
 		Long:  "Removes a role for Tarantool 3 orchestrator",
 		Run:   RunModuleFunc(internalReplicasetRolesRemoveModule),
-		Args:  cobra.ExactArgs(2),
+		Args:  cobra.ExactArgs(commandArgs),
 	}
 
 	cmd.Flags().StringVarP(&replicasetReplicasetName, "replicaset", "r", "",

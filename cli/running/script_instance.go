@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"time"
 
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/lib/integrity"
@@ -102,7 +101,7 @@ func (inst *scriptInstance) Start(ctx context.Context) error {
 	cmd.Cancel = func() error {
 		return cmd.Process.Signal(os.Interrupt)
 	}
-	cmd.WaitDelay = 30 * time.Second
+	cmd.WaitDelay = instanceCommandWaitDelay
 	cmd.Stdout = inst.stdOut
 	cmd.Stderr = inst.stdErr
 	StdinPipe, err := cmd.StdinPipe()

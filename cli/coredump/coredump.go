@@ -23,8 +23,11 @@ var coreScripts embed.FS
 var extensions embed.FS
 
 const (
-	packEmbedPath    = "scripts/tarabrt.sh" // spell-checker:disable-line
-	inspectEmbedPath = "scripts/gdb.sh"
+	packEmbedPath       = "scripts/tarabrt.sh" // spell-checker:disable-line
+	inspectEmbedPath    = "scripts/gdb.sh"
+	scriptFileMode      = 0o755
+	extensionFileMode   = 0o644
+	commandArgsCapacity = 2
 )
 
 // Pack packs coredump into a tar.gz archive.
@@ -48,7 +51,7 @@ func Pack(corePath, executable, outputDir string, pid uint, time string) error {
 
 	// Prepare gdb wrapper for packing.
 	inspectPath := filepath.Join(tmpDir, filepath.Base(inspectEmbedPath))
-	err = util.FsCopyFileChangePerms(coreScripts, inspectEmbedPath, inspectPath, 0o755)
+	err = util.FsCopyFileChangePerms(coreScripts, inspectEmbedPath, inspectPath, scriptFileMode)
 	if err != nil {
 		return fmt.Errorf("failed to put the inspecting script into the archive: %v", err)
 	}
@@ -63,7 +66,7 @@ func Pack(corePath, executable, outputDir string, pid uint, time string) error {
 	for _, extEntry := range extEntries {
 		extSrc := filepath.Join(extDirName, extEntry.Name())
 		extDst := filepath.Join(tmpDir, extEntry.Name())
-		err = util.FsCopyFileChangePerms(extensions, extSrc, extDst, 0o644)
+		err = util.FsCopyFileChangePerms(extensions, extSrc, extDst, extensionFileMode)
 		if err != nil {
 			return fmt.Errorf("failed to put GDB-extension into the archive: %v", err)
 		}
@@ -74,7 +77,7 @@ func Pack(corePath, executable, outputDir string, pid uint, time string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open pack script: %v", err)
 	}
-	cmdArgs := make([]string, 0, 2+len(scriptArgs))
+	cmdArgs := make([]string, 0, commandArgsCapacity+len(scriptArgs))
 	cmdArgs = append(cmdArgs, "-s", "--")
 	cmd := exec.CommandContext(context.Background(), "bash", append(cmdArgs, scriptArgs...)...)
 	cmd.Stdin = script
@@ -133,7 +136,7 @@ func Inspect(archiveOrDir, sourceDir string) error {
 	_, err = os.Stat(scriptPath)
 	if errors.Is(err, fs.ErrNotExist) {
 		// If the wrapper is missing in archive, then use the embedded one.
-		err = util.FsCopyFileChangePerms(coreScripts, inspectEmbedPath, scriptPath, 0o755)
+		err = util.FsCopyFileChangePerms(coreScripts, inspectEmbedPath, scriptPath, scriptFileMode)
 	}
 
 	if err != nil {
