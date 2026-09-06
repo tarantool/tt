@@ -178,8 +178,7 @@ func TestFollow2_ContextCancellation(t *testing.T) {
 }
 
 func TestFollow2_NonExistentFile(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	f := tail.NewTailFollower("/path/to/nonexistent/file")
 

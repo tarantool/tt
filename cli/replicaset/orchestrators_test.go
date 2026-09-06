@@ -16,8 +16,8 @@ type instanceMockEvaler struct {
 }
 
 func (e *instanceMockEvaler) Eval(expr string,
-	args []interface{}, opts connector.RequestOpts,
-) ([]interface{}, error) {
+	args []any, opts connector.RequestOpts,
+) ([]any, error) {
 	defer func() { e.Called++ }()
 
 	var ret []any

@@ -91,10 +91,10 @@ func TestConnect_Eval(t *testing.T) {
 			eval := "local val = 'testtest'\n return val"
 			opts := RequestOpts{}
 
-			ret, err := c.connect.Eval(eval, []interface{}{}, opts)
+			ret, err := c.connect.Eval(eval, []any{}, opts)
 
 			assert.NoError(t, err)
-			assert.Equal(t, []interface{}{"testtest"}, ret)
+			assert.Equal(t, []any{"testtest"}, ret)
 		})
 	}
 }
@@ -110,10 +110,10 @@ func TestBinaryConnector_Eval_args(t *testing.T) {
 			eval := "return ..."
 			opts := RequestOpts{}
 
-			ret, err := c.connect.Eval(eval, []interface{}{"test1", "test2"}, opts)
+			ret, err := c.connect.Eval(eval, []any{"test1", "test2"}, opts)
 
 			assert.NoError(t, err)
-			assert.Equal(t, []interface{}{"test1", "test2"}, ret)
+			assert.Equal(t, []any{"test1", "test2"}, ret)
 		})
 	}
 }
@@ -131,7 +131,7 @@ func TestBinaryConnector_Eval_readTimeout(t *testing.T) {
 				ReadTimeout: 10 * time.Millisecond,
 			}
 
-			_, err := c.connect.Eval(eval, []interface{}{}, opts)
+			_, err := c.connect.Eval(eval, []any{}, opts)
 
 			assert.ErrorContains(t, err, "i/o timeout")
 		})
@@ -153,7 +153,7 @@ func TestBinaryConnector_Eval_resData(t *testing.T) {
 			opts := RequestOpts{
 				ResData: &result,
 			}
-			ret, err := c.connect.Eval(eval, []interface{}{}, opts)
+			ret, err := c.connect.Eval(eval, []any{}, opts)
 
 			assert.NoError(t, err)
 			assert.Nil(t, ret)
@@ -170,21 +170,21 @@ func TestBinaryConnector_Eval_pushCallback(t *testing.T) {
 
 	for _, c := range connects {
 		t.Run(c.protocol.String(), func(t *testing.T) {
-			var pushes []interface{}
+			var pushes []any
 
 			eval := "box.session.push('hello')\n" +
 				"box.session.push('world')\n" +
 				"return 'return'"
 			opts := RequestOpts{
-				PushCallback: func(push interface{}) {
+				PushCallback: func(push any) {
 					pushes = append(pushes, push)
 				},
 			}
-			ret, err := c.connect.Eval(eval, []interface{}{}, opts)
+			ret, err := c.connect.Eval(eval, []any{}, opts)
 
 			assert.NoError(t, err)
-			assert.Equal(t, []interface{}{"return"}, ret)
-			assert.Equal(t, []interface{}{"hello", "world"}, pushes)
+			assert.Equal(t, []any{"return"}, ret)
+			assert.Equal(t, []any{"hello", "world"}, pushes)
 		})
 	}
 }
@@ -200,9 +200,9 @@ func TestConnect_binary(t *testing.T) {
 	defer conn.Close()
 
 	eval := "return 'hello', 'world'"
-	ret, err := conn.Eval(eval, []interface{}{}, RequestOpts{})
+	ret, err := conn.Eval(eval, []any{}, RequestOpts{})
 	assert.NoError(t, err)
-	assert.Equal(t, []interface{}{"hello", "world"}, ret)
+	assert.Equal(t, []any{"hello", "world"}, ret)
 }
 
 func TestConnect_binaryTlsToNoTls(t *testing.T) {
@@ -232,9 +232,9 @@ func TestConnect_binaryTlsToTls(t *testing.T) {
 	defer conn.Close()
 
 	eval := "return 'hello', 'world'"
-	ret, err := conn.Eval(eval, []interface{}{}, RequestOpts{})
+	ret, err := conn.Eval(eval, []any{}, RequestOpts{})
 	assert.NoError(t, err)
-	assert.Equal(t, []interface{}{"hello", "world"}, ret)
+	assert.Equal(t, []any{"hello", "world"}, ret)
 }
 
 func TestConnect_text(t *testing.T) {
@@ -246,9 +246,9 @@ func TestConnect_text(t *testing.T) {
 	defer conn.Close()
 
 	eval := "return 'hello', 'world'"
-	ret, err := conn.Eval(eval, []interface{}{}, RequestOpts{})
+	ret, err := conn.Eval(eval, []any{}, RequestOpts{})
 	assert.NoError(t, err)
-	assert.Equal(t, []interface{}{"hello", "world"}, ret)
+	assert.Equal(t, []any{"hello", "world"}, ret)
 }
 
 func TestConnect_textTls(t *testing.T) {

@@ -209,10 +209,7 @@ func (c *Console) complete(input prompt.Document) []prompt.Suggest {
 func (c *Console) setPrefix() {
 	c.prefix = fmt.Sprintf("%s> ", c.title())
 
-	livePrefixIndent := len(c.title())
-	if livePrefixIndent > maxLivePrefixIndent {
-		livePrefixIndent = maxLivePrefixIndent
-	}
+	livePrefixIndent := min(len(c.title()), maxLivePrefixIndent)
 
 	c.livePrefix = fmt.Sprintf("%s> ", strings.Repeat(" ", livePrefixIndent))
 }

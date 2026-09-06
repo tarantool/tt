@@ -112,7 +112,7 @@ func newErrRolesChangeByAppNotSupported(orchestrator Orchestrator,
 // parseRoles is a function to convert roles type 'any'
 // from yaml config. Returns slice of roles and error.
 func parseRoles(value any) ([]string, error) {
-	sliceVal, ok := value.([]interface{})
+	sliceVal, ok := value.([]any)
 	if !ok {
 		return []string{}, fmt.Errorf("%v is not a slice", value)
 	}

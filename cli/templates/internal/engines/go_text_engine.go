@@ -28,7 +28,7 @@ func makeTemplate(name string) *template.Template {
 }
 
 // RenderFile renders srcPath template to dstPath using go text/template engine.
-func (GoTextEngine) RenderFile(srcPath, dstPath string, data interface{}) error {
+func (GoTextEngine) RenderFile(srcPath, dstPath string, data any) error {
 	stat, err := os.Stat(srcPath)
 	if err != nil {
 		return fmt.Errorf("error getting file info %s: %s", srcPath, err)
@@ -62,7 +62,7 @@ func (GoTextEngine) RenderFile(srcPath, dstPath string, data interface{}) error 
 }
 
 // RenderText renders in text using go tex/template engine.
-func (GoTextEngine) RenderText(in string, data interface{}) (string, error) {
+func (GoTextEngine) RenderText(in string, data any) (string, error) {
 	parsedTemplate, err := makeTemplate("file").Parse(in)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse %s: %s", in, err)

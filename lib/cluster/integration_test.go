@@ -502,31 +502,31 @@ func TestEtcdAllDataPublisher_collect_publish_collect(t *testing.T) {
 var testsIntegrity = []struct {
 	Name         string
 	Applicable   func(t *testing.T) bool
-	Setup        func(t *testing.T) interface{}
-	Shutdown     func(t *testing.T, inst interface{})
+	Setup        func(t *testing.T) any
+	Shutdown     func(t *testing.T, inst any)
 	NewPublisher func(
 		t *testing.T,
 		integrityOpts cluster.IntegrityOptions,
 		prefix, key string,
-		inst interface{},
+		inst any,
 	) (cluster.DataPublisher, func())
 	NewCollector func(
 		t *testing.T,
 		integrityOpts cluster.IntegrityOptions,
 		prefix, key string,
-		inst interface{},
+		inst any,
 	) (cluster.DataCollector, func())
 }{
 	{
 		Name:       "tarantool",
 		Applicable: tcsIsSupported,
-		Setup: func(t *testing.T) interface{} {
+		Setup: func(t *testing.T) any {
 			t.Helper()
 
 			inst := startTcs(t)
 			return inst
 		},
-		Shutdown: func(t *testing.T, inst interface{}) {
+		Shutdown: func(t *testing.T, inst any) {
 			t.Helper()
 
 			stopTcs(t, inst)
@@ -536,7 +536,7 @@ var testsIntegrity = []struct {
 			integrityOpts cluster.IntegrityOptions,
 			prefix,
 			key string,
-			inst interface{},
+			inst any,
 		) (cluster.DataPublisher, func()) {
 			t.Helper()
 
@@ -575,7 +575,7 @@ var testsIntegrity = []struct {
 			integrityOpts cluster.IntegrityOptions,
 			prefix,
 			key string,
-			inst interface{},
+			inst any,
 		) (cluster.DataCollector, func()) {
 			t.Helper()
 
@@ -620,13 +620,13 @@ var testsIntegrity = []struct {
 
 			return true
 		},
-		Setup: func(t *testing.T) interface{} {
+		Setup: func(t *testing.T) any {
 			t.Helper()
 
 			inst := startEtcd(t)
 			return inst
 		},
-		Shutdown: func(t *testing.T, inst interface{}) {
+		Shutdown: func(t *testing.T, inst any) {
 			t.Helper()
 
 			etcdInst, ok := inst.(*etcdtest.LazyCluster)
@@ -638,7 +638,7 @@ var testsIntegrity = []struct {
 			integrityOpts cluster.IntegrityOptions,
 			prefix,
 			key string,
-			inst interface{},
+			inst any,
 		) (cluster.DataPublisher, func()) {
 			t.Helper()
 
@@ -665,7 +665,7 @@ var testsIntegrity = []struct {
 			integrityOpts cluster.IntegrityOptions,
 			prefix,
 			key string,
-			inst interface{},
+			inst any,
 		) (cluster.DataCollector, func()) {
 			t.Helper()
 

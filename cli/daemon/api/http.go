@@ -23,7 +23,7 @@ type DaemonHandler struct {
 
 // resResult describes a failure during the command execution.
 type resResult struct {
-	Res interface{} `json:"res"`
+	Res any `json:"res"`
 }
 
 // errorResult describes a failure during the command execution.
@@ -48,7 +48,7 @@ func (handler *DaemonHandler) Logger(logger ttlog.Logger) *DaemonHandler {
 // ServeHTTP handles requests to the tt daemon.
 func (handler *DaemonHandler) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 	// Parse, check and call the command.
-	var res interface{}
+	var res any
 	var status int
 	var cmd command
 
@@ -135,8 +135,7 @@ func (handler *DaemonHandler) getClientIP(req *http.Request) (string, error) {
 	// Note: it can also be easily spoofed
 	// by the client.
 	ips := req.Header.Get("X-Forwarded-For")
-	splitIps := strings.Split(ips, ",")
-	for _, ip := range splitIps {
+	for ip := range strings.SplitSeq(ips, ",") {
 		// Check IP is correct.
 		netIP := net.ParseIP(ip)
 		if netIP != nil {

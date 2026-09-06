@@ -25,7 +25,7 @@ func clearAmbientTTEnv(t *testing.T) {
 		if !strings.HasPrefix(kv, "TT_") {
 			continue
 		}
-		k := strings.SplitN(kv, "=", 2)[0]
+		k, _, _ := strings.Cut(kv, "=")
 		saved := os.Getenv(k)
 		t.Setenv(k, saved)
 		require.NoError(t, os.Unsetenv(k))

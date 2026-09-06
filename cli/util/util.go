@@ -134,7 +134,7 @@ func Find(src []string, find string) int {
 }
 
 // InternalError shows error information, version of tt and call stack.
-func InternalError(format string, f VersionFunc, err ...interface{}) error {
+func InternalError(format string, f VersionFunc, err ...any) error {
 	errorFmt := `whoops! It looks like something is wrong with this version of Tarantool CLI.
 Error: %s
 Version: %s
@@ -146,13 +146,13 @@ Stacktrace:
 }
 
 // ParseYAML parse yaml file at specified path.
-func ParseYAML(path string) (map[string]interface{}, error) {
+func ParseYAML(path string) (map[string]any, error) {
 	fileContent, err := GetFileContentBytes(path)
 	if err != nil {
 		return nil, fmt.Errorf(`failed to read "%s" file: %s`, path, err)
 	}
 
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := yaml.Unmarshal(fileContent, &raw); err != nil {
 		return nil, fmt.Errorf("failed to parse YAML: %s", err)
 	}
@@ -756,7 +756,7 @@ func CreateDirectory(dirName string, fileMode os.FileMode) error {
 }
 
 // WriteYaml writes YAML encoding of object o to fileName.
-func WriteYaml(fileName string, o interface{}) error {
+func WriteYaml(fileName string, o any) error {
 	file, err := os.Create(fileName)
 	if err != nil {
 		return err

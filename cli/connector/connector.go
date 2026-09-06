@@ -24,17 +24,17 @@ const (
 // RequestOpts describes the parameters of a request to be executed.
 type RequestOpts struct {
 	// PushCallback is the cb that will be called when a "push" message is received.
-	PushCallback func(interface{})
+	PushCallback func(any)
 	// ReadTimeout timeout for the operation.
 	ReadTimeout time.Duration
 	// ResData describes the typed result of the operation executed.
-	ResData interface{}
+	ResData any
 }
 
 // Evaler is an interface that wraps Eval method.
 type Evaler interface {
 	// Eval passes Lua expression for evaluation.
-	Eval(expr string, args []interface{}, opts RequestOpts) ([]interface{}, error)
+	Eval(expr string, args []any, opts RequestOpts) ([]any, error)
 }
 
 // Connector is an interface that wraps all method required for a

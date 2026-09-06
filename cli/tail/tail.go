@@ -188,9 +188,7 @@ func Follow(ctx context.Context, out chan<- string, logFormatter LogFormatter, f
 		return err
 	}
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for {
 			select {
 			case <-ctx.Done():
@@ -210,6 +208,6 @@ func Follow(ctx context.Context, out chan<- string, logFormatter LogFormatter, f
 				out <- logFormatter(line.Text)
 			}
 		}
-	}()
+	})
 	return nil
 }

@@ -22,7 +22,7 @@ import (
 )
 
 // EvalFunc defines a function type for evaluating an expression via connection.
-type EvalFunc func(console *Console, funcBodyFmt string, args ...interface{}) (interface{}, error)
+type EvalFunc func(console *Console, funcBodyFmt string, args ...any) (any, error)
 
 const (
 	HistoryFileName       = ".tarantool_history"
@@ -228,12 +228,12 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 		var results []string
 		needMetaInfo := console.format == formatter.TableFormat ||
 			console.format == formatter.TTableFormat
-		args := []interface{}{
+		args := []any{
 			console.input, console.language == SQLLanguage,
 			needMetaInfo,
 		}
 		opts := connector.RequestOpts{
-			PushCallback: func(pushedData interface{}) {
+			PushCallback: func(pushedData any) {
 				encodedData, err := yaml.Marshal(pushedData)
 				if err != nil {
 					log.Warnf("Failed to encode pushed data: %s", err)
@@ -324,7 +324,7 @@ func getCompleter(console *Console, connectCtx ConnectCtx) prompt.Completer {
 		}
 
 		var suggestionsTexts []string
-		args := []interface{}{lastWord, len(lastWord)}
+		args := []any{lastWord, len(lastWord)}
 		opts := connector.RequestOpts{
 			ReadTimeout: suggestionReadTimeout,
 			ResData:     &suggestionsTexts,
@@ -364,10 +364,7 @@ func setTitle(console *Console, title string) {
 func setPrefix(console *Console) {
 	console.prefix = fmt.Sprintf("%s> ", console.title)
 
-	livePrefixIndent := len(console.title)
-	if livePrefixIndent > MaxLivePrefixIndent {
-		livePrefixIndent = MaxLivePrefixIndent
-	}
+	livePrefixIndent := min(len(console.title), MaxLivePrefixIndent)
 
 	console.livePrefix = fmt.Sprintf("%s> ", strings.Repeat(" ", livePrefixIndent))
 

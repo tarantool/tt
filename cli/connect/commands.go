@@ -261,7 +261,8 @@ func newHelpCmd(infos []cmdInfo) helpCmd {
 	shorts = append(shorts, strings.Join(getHelp, ", "))
 	longs := make([]string, 0, 1+len(infos))
 	longs = append(longs, "show this screen")
-	msg := `
+	var msg strings.Builder
+	msg.WriteString(`
   To get help, see the Tarantool manual at https://tarantool.io/en/doc/
   To start the interactive Tarantool tutorial, type 'tutorial()' here.
 
@@ -270,7 +271,7 @@ func newHelpCmd(infos []cmdInfo) helpCmd {
 
   Available backslash commands:
 
-`
+`)
 
 	shortMaxLen := len(shorts[0])
 	for _, info := range infos {
@@ -282,15 +283,18 @@ func newHelpCmd(infos []cmdInfo) helpCmd {
 	}
 
 	for i := range shorts {
-		msg += "  " + shorts[i]
+		msg.WriteString("  ")
+		msg.WriteString(shorts[i])
 		for j := len(shorts[i]); j < shortMaxLen; j++ {
-			msg += " "
+			msg.WriteByte(' ')
 		}
-		msg += " -- " + longs[i] + "\n"
+		msg.WriteString(" -- ")
+		msg.WriteString(longs[i])
+		msg.WriteByte('\n')
 	}
 
 	return helpCmd{
-		help: msg,
+		help: msg.String(),
 	}
 }
 

@@ -304,11 +304,11 @@ func getInstanceName(fullInstanceName string, isClusterInstance bool) string {
 		// If we have a cluster instance, delimiters are ignored.
 		return fullInstanceName
 	}
-	sepIndex := strings.Index(fullInstanceName, ".")
-	if sepIndex == -1 {
+	_, instanceName, hasDelimiter := strings.Cut(fullInstanceName, ".")
+	if !hasDelimiter {
 		return fullInstanceName
 	}
-	return fullInstanceName[sepIndex+1:]
+	return instanceName
 }
 
 // findInstanceScriptInAppDir searches for instance script.

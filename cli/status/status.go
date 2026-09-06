@@ -23,8 +23,7 @@ var defaultModuleStatus = "--"
 
 func filterComments(script string) string {
 	var filteredLines []string
-	lines := strings.Split(script, "\n")
-	for _, line := range lines {
+	for line := range strings.SplitSeq(script, "\n") {
 		trimmedLine := strings.TrimSpace(line)
 		if !strings.HasPrefix(trimmedLine, "--") {
 			filteredLines = append(filteredLines, line)
