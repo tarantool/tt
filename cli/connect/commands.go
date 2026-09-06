@@ -315,7 +315,7 @@ func (command helpCmd) Run(console *Console,
 func setLanguageFunc(console *Console, cmd string, args []string) (string, error) {
 	if lang, ok := ParseLanguage(args[0]); ok {
 		if err := ChangeLanguage(console.conn, lang); err != nil {
-			return "", fmt.Errorf("failed to change language: %s", err)
+			return "", fmt.Errorf("failed to change language: %w", err)
 		} else {
 			console.language = lang
 		}

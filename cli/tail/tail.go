@@ -97,7 +97,7 @@ func newTailReader(ctx context.Context, reader io.ReadSeeker, count int) (io.Rea
 		}
 		readBytes, err := limitedReader.Read(buf)
 		if err != nil && !errors.Is(err, io.EOF) {
-			return nil, startPos, fmt.Errorf("failed to read: %s", err)
+			return nil, startPos, fmt.Errorf("failed to read: %w", err)
 		}
 		for i := readBytes - 1; i > 0; i-- {
 			if buf[i] == '\n' {

@@ -73,7 +73,7 @@ func Connect(opts ConnectOpts) (Connector, error) {
 	greetingConn, err := (&net.Dialer{}).DialContext(
 		context.Background(), opts.Network, opts.Address)
 	if err != nil {
-		return nil, fmt.Errorf("failed to dial: %s", err)
+		return nil, fmt.Errorf("failed to dial: %w", err)
 	}
 
 	// Set a deadline for the greeting.
@@ -87,7 +87,7 @@ func Connect(opts ConnectOpts) (Connector, error) {
 		if ssl {
 			protocol = BinaryProtocol
 		} else {
-			return nil, fmt.Errorf("failed to get protocol: %s", err)
+			return nil, fmt.Errorf("failed to get protocol: %w", err)
 		}
 	} else if ssl {
 		greetingConn.Close()

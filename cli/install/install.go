@@ -379,10 +379,10 @@ func copyBuildedTT(binDir, path, version string, installCtx InstallCtx) error {
 	if _, err := os.Stat(binDir); os.IsNotExist(err) {
 		err = os.MkdirAll(binDir, defaultDirPermissions)
 		if err != nil {
-			return fmt.Errorf("unable to create %s\n Error: %s", binDir, err)
+			return fmt.Errorf("unable to create %s\n Error: %w", binDir, err)
 		}
 	} else if err != nil {
-		return fmt.Errorf("unable to create %s\n Error: %s", binDir, err)
+		return fmt.Errorf("unable to create %s\n Error: %w", binDir, err)
 	}
 	if installCtx.Reinstall {
 		err = os.Remove(filepath.Join(binDir, version))
@@ -439,12 +439,12 @@ func checkCommit(input, programName string, installCtx InstallCtx,
 func gitCheckout(repoDir, checkout string, verbose bool, logWriter io.Writer) error {
 	err := util.ExecuteCommand("git", verbose, logWriter, repoDir, "checkout", checkout)
 	if err != nil {
-		return fmt.Errorf("failed to checkout: %s", err)
+		return fmt.Errorf("failed to checkout: %w", err)
 	}
 	err = util.ExecuteCommand("git", verbose, logWriter, repoDir, "submodule", "update",
 		"--init", "--recursive")
 	if err != nil {
-		return fmt.Errorf("failed to update submodules: %s", err)
+		return fmt.Errorf("failed to update submodules: %w", err)
 	}
 	return nil
 }
@@ -870,10 +870,10 @@ func copyBuildedTarantool(binPath, incPath, binDir, includeDir, version string) 
 	if _, err := os.Stat(binDir); os.IsNotExist(err) {
 		err = os.MkdirAll(binDir, defaultDirPermissions)
 		if err != nil {
-			return fmt.Errorf("unable to create %s\n Error: %s", binDir, err)
+			return fmt.Errorf("unable to create %s\n Error: %w", binDir, err)
 		}
 	} else if err != nil {
-		return fmt.Errorf("unable to create %s\n Error: %s", binDir, err)
+		return fmt.Errorf("unable to create %s\n Error: %w", binDir, err)
 	}
 
 	execPath := filepath.Join(binDir, version)
@@ -886,10 +886,10 @@ func copyBuildedTarantool(binPath, incPath, binDir, includeDir, version string) 
 	if _, err := os.Stat(includeDir); os.IsNotExist(err) {
 		err = os.MkdirAll(includeDir, defaultDirPermissions)
 		if err != nil {
-			return fmt.Errorf("unable to create %s\n Error: %s", includeDir, err)
+			return fmt.Errorf("unable to create %s\n Error: %w", includeDir, err)
 		}
 	} else if err != nil {
-		return fmt.Errorf("unable to create %s\n Error: %s", includeDir, err)
+		return fmt.Errorf("unable to create %s\n Error: %w", includeDir, err)
 	}
 
 	if incPath != "" {
@@ -1290,7 +1290,7 @@ func installTarantoolDev(ttBinDir, ttIncludeDir, buildDir,
 
 	// Validate build directory.
 	if buildDir, err = filepath.Abs(buildDir); err != nil {
-		return fmt.Errorf("failed to get absolute path: %v", err)
+		return fmt.Errorf("failed to get absolute path: %w", err)
 	}
 	if !util.IsDir(buildDir) {
 		return fmt.Errorf("directory %v doesn't exist, or isn't directory", buildDir)

@@ -133,7 +133,7 @@ func (h *History) writeToFile() error {
 		fmt.Fprintf(&buff, "#%d\n%s\n", h.timestamps[i], c)
 	}
 	if err := os.WriteFile(h.filepath, buff.Bytes(), historyFileMode); err != nil {
-		return fmt.Errorf("failed to write to history file: %s", err)
+		return fmt.Errorf("failed to write to history file: %w", err)
 	}
 
 	return nil

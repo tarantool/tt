@@ -99,7 +99,7 @@ func validateRawClusterConfig(yamlBytes []byte) error {
 func validateGoConfig(view goconfig.Config, _ bool) error {
 	var errs []error
 	if err := cluster.Validate(view); err != nil {
-		errs = append(errs, fmt.Errorf("an invalid cluster configuration: %s", err))
+		errs = append(errs, fmt.Errorf("an invalid cluster configuration: %w", err))
 	}
 
 	names, err := cluster.Instances(view)

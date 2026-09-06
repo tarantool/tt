@@ -47,7 +47,7 @@ func (CreateTemporaryAppDirectory) Run(createCtx *create_ctx.CreateCtx,
 
 	templateCtx.AppPath, err = os.MkdirTemp("", createCtx.AppName+"*")
 	if err != nil {
-		return fmt.Errorf("failed to create temporary application directory: %s", err)
+		return fmt.Errorf("failed to create temporary application directory: %w", err)
 	}
 
 	return nil

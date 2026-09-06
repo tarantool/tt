@@ -85,7 +85,7 @@ func BootstrapVShard(ctx VShardCmdCtx) error {
 		return discoverApp(orchestrator)
 	}
 	if err := retry.Do(discoverAppFunc, retryOpts...); err != nil {
-		return fmt.Errorf("failed to bootstrap vshard: %s", err)
+		return fmt.Errorf("failed to bootstrap vshard: %w", err)
 	}
 
 	fmt.Fprintln(os.Stdout, "")

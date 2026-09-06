@@ -65,7 +65,7 @@ func ChooseVersion(binDir string, program search.Program) (string, error) {
 	if len(binDirFilesList) == 0 || errors.Is(err, fs.ErrNotExist) {
 		return "", fmt.Errorf("there are no binaries installed in this environment of 'tt'")
 	} else if err != nil {
-		return "", fmt.Errorf("error reading directory %q: %s", binDir, err)
+		return "", fmt.Errorf("error reading directory %q: %w", binDir, err)
 	}
 	versions, err := ParseBinaries(binDirFilesList, program, binDir)
 	if err != nil {
@@ -106,7 +106,7 @@ func switchHeaders(switchCtx *SwitchCtx, versionStr string) error {
 		filepath.Join(includeDir, switchCtx.Program.Exec()),
 		true)
 	if err != nil {
-		return fmt.Errorf("failed create symlink: %s", err)
+		return fmt.Errorf("failed create symlink: %w", err)
 	}
 	return nil
 }
@@ -122,7 +122,7 @@ func switchBinary(switchCtx *SwitchCtx, versionStr string) error {
 		filepath.Join(switchCtx.BinDir, switchCtx.Program.Exec()),
 		true)
 	if err != nil {
-		return fmt.Errorf("failed create symlink: %s", err)
+		return fmt.Errorf("failed create symlink: %w", err)
 	}
 	return nil
 }
@@ -146,13 +146,13 @@ func Switch(switchCtx *SwitchCtx) error {
 
 	err := switchBinary(switchCtx, versionStr)
 	if err != nil {
-		return fmt.Errorf("failed to switch binary: %s", err)
+		return fmt.Errorf("failed to switch binary: %w", err)
 	}
 
 	if switchCtx.Program.IsTarantool() {
 		err = switchHeaders(switchCtx, versionStr)
 		if err != nil {
-			return fmt.Errorf("failed to switch headers: %s", err)
+			return fmt.Errorf("failed to switch headers: %w", err)
 		}
 	}
 

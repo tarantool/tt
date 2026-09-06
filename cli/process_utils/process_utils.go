@@ -77,19 +77,19 @@ func GetPIDFromFile(pidFileName string) (int, error) {
 
 	pidFile, err := os.Open(pidFileName)
 	if err != nil {
-		return 0, fmt.Errorf(`can't open the PID file. Error: "%v"`, err)
+		return 0, fmt.Errorf(`can't open the PID file. Error: "%w"`, err)
 	}
 	defer pidFile.Close()
 
 	pidBytes, err := io.ReadAll(pidFile)
 	if err != nil {
-		return 0, fmt.Errorf(`can't read the PID file. Error: "%v"`, err)
+		return 0, fmt.Errorf(`can't read the PID file. Error: "%w"`, err)
 	}
 
 	pid, err := strconv.Atoi(strings.TrimSpace(string(pidBytes)))
 	if err != nil {
 		return 0,
-			fmt.Errorf(`pID file exists with unknown format. Error: "%s"`, err)
+			fmt.Errorf(`pID file exists with unknown format. Error: "%w"`, err)
 	}
 
 	return pid, nil
@@ -103,7 +103,7 @@ func CheckPIDFile(pidFileName string) error {
 		// The PID file already exists. We have to check if the process is alive.
 		pid, err := GetPIDFromFile(pidFileName)
 		if err != nil {
-			return fmt.Errorf(`pID file exists, but PID can't be read. Error: "%v"`, err)
+			return fmt.Errorf(`pID file exists, but PID can't be read. Error: "%w"`, err)
 		}
 		if res, _ := IsProcessAlive(pid); res {
 			return fmt.Errorf("the process already exists. PID: %d", pid)
@@ -111,7 +111,7 @@ func CheckPIDFile(pidFileName string) error {
 			os.Remove(pidFileName)
 		}
 	} else if !os.IsNotExist(err) {
-		return fmt.Errorf(`something went wrong while trying to read the PID file. Error: "%v"`,
+		return fmt.Errorf(`something went wrong while trying to read the PID file. Error: "%w"`,
 			err)
 	}
 
@@ -126,7 +126,7 @@ func ExistsAndRecord(pidFileName string) (bool, error) {
 		// The PID file already exists. We have to check if the process is alive.
 		pid, err := GetPIDFromFile(pidFileName)
 		if err != nil {
-			return false, fmt.Errorf(`PID file exists, but PID can't be read. Error: "%v"`, err)
+			return false, fmt.Errorf(`PID file exists, but PID can't be read. Error: "%w"`, err)
 		}
 		if res, _ := IsProcessAlive(pid); res {
 			return true, nil
@@ -151,10 +151,10 @@ func CreatePIDFile(pidFileName string, pid int) error {
 		if os.IsNotExist(err) {
 			err = os.MkdirAll(pidAbsDir, defaultDirPerms)
 			if err != nil {
-				return fmt.Errorf(`can't crete PID file directory. Error: "%v"`, err)
+				return fmt.Errorf(`can't crete PID file directory. Error: "%w"`, err)
 			}
 		} else {
-			return fmt.Errorf(`can't stat PID file directory. Error: "%v"`, err)
+			return fmt.Errorf(`can't stat PID file directory. Error: "%w"`, err)
 		}
 	}
 
@@ -166,7 +166,7 @@ func CreatePIDFile(pidFileName string, pid int) error {
 	pidFile, err := os.OpenFile(pidFileName,
 		syscall.O_EXCL|syscall.O_CREAT|syscall.O_RDWR, pidFileMode)
 	if err != nil {
-		return fmt.Errorf(`can't create a new PID file. Error: "%v"`, err)
+		return fmt.Errorf(`can't create a new PID file. Error: "%w"`, err)
 	}
 	defer pidFile.Close()
 
@@ -185,7 +185,7 @@ func getRunningPid(pidFile string) (int, error) {
 	}
 
 	if alive, err := IsProcessAlive(pid); err != nil {
-		return 0, fmt.Errorf("failed to check if the process %v is running: %s", pid, err)
+		return 0, fmt.Errorf("failed to check if the process %v is running: %w", pid, err)
 	} else if !alive {
 		return 0, fmt.Errorf("the process %v is not running", pid)
 	}
@@ -201,7 +201,7 @@ func StopProcess(pidFile string) (int, error) {
 	}
 
 	if err = syscall.Kill(pid, syscall.SIGINT); err != nil {
-		return 0, fmt.Errorf(`can't terminate the process. Error: "%v"`, err)
+		return 0, fmt.Errorf(`can't terminate the process. Error: "%w"`, err)
 	}
 
 	if res := waitProcessTermination(pid, processTerminationTimeout, processPollInterval); !res {
@@ -215,11 +215,11 @@ func StopProcess(pidFile string) (int, error) {
 func QuitProcess(pidFile string) (int, error) {
 	pid, err := getRunningPid(pidFile)
 	if err != nil {
-		return 0, fmt.Errorf("can't get pid of running process: %s", err)
+		return 0, fmt.Errorf("can't get pid of running process: %w", err)
 	}
 
 	if err = syscall.Kill(pid, syscall.SIGQUIT); err != nil {
-		return 0, fmt.Errorf("can't terminate the process with SIGQUIT: %s", err)
+		return 0, fmt.Errorf("can't terminate the process with SIGQUIT: %w", err)
 	}
 
 	if res := waitProcessTermination(pid, processTerminationTimeout, processPollInterval); !res {
@@ -233,16 +233,16 @@ func QuitProcess(pidFile string) (int, error) {
 func KillProcessGroup(pidFile string) (int, error) {
 	pid, err := getRunningPid(pidFile)
 	if err != nil {
-		return 0, fmt.Errorf("can't get pid of running process: %s", err)
+		return 0, fmt.Errorf("can't get pid of running process: %w", err)
 	}
 
 	pgid, err := syscall.Getpgid(pid)
 	if err != nil {
-		return 0, fmt.Errorf("can't get a process group of the %d process: %s", pid, err)
+		return 0, fmt.Errorf("can't get a process group of the %d process: %w", pid, err)
 	}
 
 	if err = syscall.Kill(-pgid, syscall.SIGKILL); err != nil {
-		return 0, fmt.Errorf("can't kill the process: %s", err)
+		return 0, fmt.Errorf("can't kill the process: %w", err)
 	}
 
 	return pid, nil

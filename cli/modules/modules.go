@@ -63,16 +63,16 @@ func readManifest(dir, manifest string) (Manifest, error) {
 	mf := Manifest{}
 	data, err := os.ReadFile(manifest)
 	if err != nil {
-		return mf, fmt.Errorf("failed to read manifest: %s", err)
+		return mf, fmt.Errorf("failed to read manifest: %w", err)
 	}
 
 	if err := yaml.Unmarshal(data, &mf); err != nil {
-		return mf, fmt.Errorf("failed to parse manifest: %s", err)
+		return mf, fmt.Errorf("failed to parse manifest: %w", err)
 	}
 
 	mf.Main, err = exec.LookPath(filepath.Join(dir, mf.Main))
 	if err != nil {
-		return mf, fmt.Errorf("failed to find module executable: %s", err)
+		return mf, fmt.Errorf("failed to find module executable: %w", err)
 	}
 
 	if mf.Version == "" {
@@ -113,7 +113,7 @@ func GetModulesInfo(
 	externalModules, err := getExternalModules(modulesDirs)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"failed to get available external modules information: %s", err)
+			"failed to get available external modules information: %w", err)
 	}
 
 	modulesInfo := ModulesInfo{}
@@ -199,7 +199,7 @@ func isPossibleModule(dir string) (modulesEntry, bool) {
 func readSubDirectories(path string) ([]string, error) {
 	entries, err := os.ReadDir(path)
 	if err != nil {
-		return nil, fmt.Errorf(`failed to read "%s" directory: %s`, path, err)
+		return nil, fmt.Errorf(`failed to read "%s" directory: %w`, path, err)
 	}
 
 	entries = slices.DeleteFunc(entries, func(e os.DirEntry) bool {

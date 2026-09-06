@@ -29,7 +29,7 @@ func createArchive(buf io.Writer, files ...string) error {
 	for _, fileName := range files {
 		err := addToArchive(tarWriter, fileName)
 		if err != nil {
-			return fmt.Errorf("error adding %s to archive: %s", fileName, err)
+			return fmt.Errorf("error adding %s to archive: %w", fileName, err)
 		}
 	}
 

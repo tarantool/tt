@@ -175,7 +175,7 @@ func internalTcmStatus(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	if _, err := os.Stat(pidAbsPath); err != nil {
-		return fmt.Errorf("path does not exist: %v", err)
+		return fmt.Errorf("path does not exist: %w", err)
 	}
 
 	ts := table.NewWriter()

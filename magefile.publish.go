@@ -95,13 +95,13 @@ func PublishRWS() error {
 
 		patterns, err := getPatterns(targetDistro)
 		if err != nil {
-			return fmt.Errorf("failed to publish package for %s/%s: %s",
+			return fmt.Errorf("failed to publish package for %s/%s: %w",
 				targetDistro.OS, targetDistro.Dist, err)
 		}
 
 		files, err := walkMatch(distPath, patterns)
 		if err != nil {
-			return fmt.Errorf("failed to publish package for %s/%s: %s",
+			return fmt.Errorf("failed to publish package for %s/%s: %w",
 				targetDistro.OS, targetDistro.Dist, err)
 		}
 
@@ -133,7 +133,7 @@ func PublishRWS() error {
 
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			return fmt.Errorf("failed to publish package for %s/%s: %s, %s",
+			return fmt.Errorf("failed to publish package for %s/%s: %w, %s",
 				targetDistro.OS, targetDistro.Dist, err, output)
 		}
 	}

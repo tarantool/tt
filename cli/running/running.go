@@ -704,11 +704,11 @@ func RunInstance(ctx context.Context, cmdCtx *cmdcontext.CmdCtx, inst InstanceCt
 	}
 	instance, err := createInstance(*cmdCtx, inst, opts...)
 	if err != nil {
-		return fmt.Errorf("failed to create the instance %q: %s", inst.InstName, err)
+		return fmt.Errorf("failed to create the instance %q: %w", inst.InstName, err)
 	}
 	logger.Println("(INFO) Start")
 	if err = instance.Start(ctx); err != nil {
-		return fmt.Errorf("failed to start the instance %q: %s", inst.InstName, err)
+		return fmt.Errorf("failed to start the instance %q: %w", inst.InstName, err)
 	}
 
 	defer func() {
@@ -717,7 +717,7 @@ func RunInstance(ctx context.Context, cmdCtx *cmdcontext.CmdCtx, inst InstanceCt
 
 	if err := process_utils.CreatePIDFile(inst.PIDFile, instance.GetPid()); err != nil {
 		instance.Stop(instanceCleanupTimeout)
-		return fmt.Errorf("cannot create the pid file %q: %s", inst.PIDFile, err)
+		return fmt.Errorf("cannot create the pid file %q: %w", inst.PIDFile, err)
 	}
 
 	return instance.Wait()
@@ -726,11 +726,11 @@ func RunInstance(ctx context.Context, cmdCtx *cmdcontext.CmdCtx, inst InstanceCt
 // Start an Instance.
 func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx) error {
 	if err := createInstanceDataDirectories(*inst); err != nil {
-		return fmt.Errorf("failed to create a directory: %s", err)
+		return fmt.Errorf("failed to create a directory: %w", err)
 	}
 	logger, err := createLogger(inst)
 	if err != nil {
-		return fmt.Errorf("cannot create a logger: %s", err)
+		return fmt.Errorf("cannot create a logger: %w", err)
 	}
 	logger.Println("[INFO] Start") // Create a log file before any other actions.
 
@@ -775,7 +775,7 @@ func Stop(run *InstanceCtx) error {
 func Kill(run InstanceCtx) error {
 	pid, err := process_utils.KillProcessGroup(run.PIDFile)
 	if err != nil {
-		return fmt.Errorf("failed to kill the processes: %s", err)
+		return fmt.Errorf("failed to kill the processes: %w", err)
 	}
 
 	// Remove PID files because due to SIGKILL watchdog can't cleanup itself.
@@ -791,7 +791,7 @@ func Kill(run InstanceCtx) error {
 func Quit(run InstanceCtx) error {
 	pid, err := process_utils.QuitProcess(run.PIDFile)
 	if err != nil {
-		return fmt.Errorf("failed to quit the process: %s", err)
+		return fmt.Errorf("failed to quit the process: %w", err)
 	}
 
 	if _, err := os.Stat(run.ConsoleSocket); err == nil {
@@ -834,7 +834,7 @@ func Logrotate(run *InstanceCtx) error {
 	}
 
 	if err := syscall.Kill(pid, syscall.SIGHUP); err != nil {
-		return fmt.Errorf(`can't rotate logs: "%v"`, err)
+		return fmt.Errorf(`can't rotate logs: "%w"`, err)
 	}
 
 	// Rotates logs [instance name pid].

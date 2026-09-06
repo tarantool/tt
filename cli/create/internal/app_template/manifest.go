@@ -59,7 +59,7 @@ func validateManifest(manifest *TemplateManifest) error {
 func LoadManifest(manifestPath string) (TemplateManifest, error) {
 	var templateManifest TemplateManifest
 	if _, err := os.Stat(manifestPath); err != nil {
-		return templateManifest, fmt.Errorf("failed to get access to manifest file: %s", err)
+		return templateManifest, fmt.Errorf("failed to get access to manifest file: %w", err)
 	}
 
 	rawConfigOpts, err := util.ParseYAML(manifestPath)
@@ -68,11 +68,11 @@ func LoadManifest(manifestPath string) (TemplateManifest, error) {
 	}
 
 	if err := mapstructure.Decode(rawConfigOpts, &templateManifest); err != nil {
-		return templateManifest, fmt.Errorf("failed to decode template manifest: %s", err)
+		return templateManifest, fmt.Errorf("failed to decode template manifest: %w", err)
 	}
 
 	if err := validateManifest(&templateManifest); err != nil {
-		return templateManifest, fmt.Errorf("invalid manifest format: %s", err)
+		return templateManifest, fmt.Errorf("invalid manifest format: %w", err)
 	}
 
 	return templateManifest, nil

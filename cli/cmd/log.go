@@ -81,7 +81,7 @@ func follow(instances []running.InstanceCtx, n int) error {
 				continue
 			}
 			stop()
-			return fmt.Errorf("cannot read log file %q: %s", inst.Log, err)
+			return fmt.Errorf("cannot read log file %q: %w", inst.Log, err)
 		}
 		tailRoutinesStarted++
 		color = nextColor()
@@ -111,7 +111,7 @@ func printLastN(instances []running.InstanceCtx, n int) error {
 				continue
 			}
 			stop()
-			return fmt.Errorf("cannot read log file %q: %s", inst.Log, err)
+			return fmt.Errorf("cannot read log file %q: %w", inst.Log, err)
 		}
 		if err := printLines(ctx, logLines); err != nil {
 			return err

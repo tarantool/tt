@@ -516,7 +516,7 @@ func makeTableOutput(input string, transpose bool, opts Opts) (string, error) {
 	// convert any value to metadataRows type.
 	lazyNodes, err := lazyDecodeYaml(input)
 	if err != nil {
-		return "", fmt.Errorf("not yaml array, cannot render tables: %s", err)
+		return "", fmt.Errorf("not yaml array, cannot render tables: %w", err)
 	}
 
 	var metaFields metadataRows
@@ -542,7 +542,7 @@ func makeTableOutput(input string, transpose bool, opts Opts) (string, error) {
 			var node any
 			err = lazyNode.Unmarshal(&node)
 			if err != nil {
-				return "", fmt.Errorf("not yaml any: %s", err)
+				return "", fmt.Errorf("not yaml any: %w", err)
 			}
 			nodes = append(nodes, node)
 		}

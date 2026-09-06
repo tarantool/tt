@@ -28,7 +28,6 @@ linters:
     - dupl # Dupl is disabled, since we're generating a lot of boilerplate code.
     - err113
     - errcheck
-    - errorlint
     - exhaustruct
     - exhaustruct_v5
     - funlen # Funlen is disabled, function length limits are too restrictive.

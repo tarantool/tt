@@ -36,7 +36,7 @@ func searchSDKVersionToDownload(downloadCtx DownloadCtx, cliOpts *config.CliOpts
 
 	bundles, err := search.FetchBundlesInfo(&searchCtx, cliOpts)
 	if err != nil {
-		return search.BundleInfo{}, fmt.Errorf("cannot get SDK bundles list: %s", err)
+		return search.BundleInfo{}, fmt.Errorf("cannot get SDK bundles list: %w", err)
 	}
 	return search.SelectVersion(bundles, downloadCtx.Version)
 }
@@ -55,12 +55,12 @@ func DownloadSDK(cmdCtx *cmdcontext.CmdCtx, downloadCtx DownloadCtx,
 	}
 
 	if err = unix.Access(downloadCtx.DirectoryPrefix, unix.W_OK); err != nil {
-		return fmt.Errorf("bad directory prefix: %s", err)
+		return fmt.Errorf("bad directory prefix: %w", err)
 	}
 
 	ver, err := searchSDKVersionToDownload(downloadCtx, cliOpts)
 	if err != nil {
-		return fmt.Errorf("no version for download: %s", err)
+		return fmt.Errorf("no version for download: %w", err)
 	}
 
 	bundleName := ver.Version.Tarball
@@ -88,13 +88,13 @@ func DownloadSDK(cmdCtx *cmdcontext.CmdCtx, downloadCtx DownloadCtx,
 
 	bundleSource, err := search.TntIoMakePkgURI(&searchCtx, bundleName)
 	if err != nil {
-		return fmt.Errorf("failed to make URI for downloading: %s", err)
+		return fmt.Errorf("failed to make URI for downloading: %w", err)
 	}
 
 	err = install_ee.DownloadBundle(searchCtx.TntIoDoer,
 		bundleName, bundleSource, downloadCtx.DirectoryPrefix)
 	if err != nil {
-		return fmt.Errorf("download error: %s", err)
+		return fmt.Errorf("download error: %w", err)
 	}
 
 	log.Infof("Downloaded to: %q", bundlePath)

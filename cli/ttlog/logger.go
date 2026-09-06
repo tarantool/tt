@@ -102,7 +102,7 @@ func NewFileLogger(opts LoggerOpts) (Logger, error) {
 
 	file, err := os.OpenFile(opts.Filename, logOpenFlags, logFileMode)
 	if err != nil {
-		return nil, fmt.Errorf("cannot open the log file %q: %s", opts.Filename, err)
+		return nil, fmt.Errorf("cannot open the log file %q: %w", opts.Filename, err)
 	}
 	return &fileLogger{
 		Logger:  log.New(file, opts.Prefix, log.LstdFlags),
@@ -138,7 +138,7 @@ func (logger *fileLogger) Rotate() error {
 
 	if logger.logFile, err = os.OpenFile(logger.opts.Filename, logOpenFlags,
 		logCreatePerms); err != nil {
-		return fmt.Errorf("cannot open the log file %q: %s", logger.opts.Filename, err)
+		return fmt.Errorf("cannot open the log file %q: %w", logger.opts.Filename, err)
 	}
 	logger.Logger = log.New(logger.logFile, logger.opts.Prefix, log.LstdFlags)
 	logger.Println("(INFO) log file has been reopened")

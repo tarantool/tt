@@ -78,7 +78,7 @@ func getEvalCmd(connectCtx ConnectCtx) (string, error) {
 // Connect establishes a connection to the instance and starts the console.
 func Connect(connectCtx ConnectCtx, connOpts connector.ConnectOpts) error {
 	if err := runConsole(connOpts, connectCtx, ""); err != nil {
-		return fmt.Errorf("failed to run interactive console: %s", err)
+		return fmt.Errorf("failed to run interactive console: %w", err)
 	}
 	return nil
 }
@@ -93,7 +93,7 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 	// Connecting to the instance.
 	conn, err := connector.Connect(connOpts)
 	if err != nil {
-		return nil, fmt.Errorf("unable to establish connection: %s", err)
+		return nil, fmt.Errorf("unable to establish connection: %w", err)
 	}
 	defer conn.Close()
 
@@ -101,7 +101,7 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 	if connectCtx.Language != DefaultLanguage {
 		// Change a language.
 		if err := ChangeLanguage(conn, connectCtx.Language); err != nil {
-			return nil, fmt.Errorf("unable to change a language: %s", err)
+			return nil, fmt.Errorf("unable to change a language: %w", err)
 		}
 		evalArgs = append(evalArgs, false)
 	} else {
@@ -146,12 +146,12 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 func runConsole(connOpts connector.ConnectOpts, connectCtx ConnectCtx, title string) error {
 	console, err := NewConsole(connOpts, connectCtx, title)
 	if err != nil {
-		return fmt.Errorf("failed to create new console: %s", err)
+		return fmt.Errorf("failed to create new console: %w", err)
 	}
 	defer console.Close()
 
 	if err := console.Run(); err != nil {
-		return fmt.Errorf("failed to start new console: %s", err)
+		return fmt.Errorf("failed to start new console: %w", err)
 	}
 
 	return nil

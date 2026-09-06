@@ -66,7 +66,7 @@ func internalKillModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	confirm, err := askConfirmation(args)
 	if err != nil {
-		return fmt.Errorf("error asking for confirmation: %s", err)
+		return fmt.Errorf("error asking for confirmation: %w", err)
 	}
 
 	if !confirm {

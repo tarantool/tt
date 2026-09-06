@@ -81,7 +81,7 @@ func buildDockerImage(dockerClient *mobyclient.Client, imageTag, buildContextDir
 	defer interruptHandler(cancelFunc)()
 	buildResult, err := dockerClient.ImageBuild(ctx, buildCtx, opts)
 	if err != nil {
-		return fmt.Errorf("docker image build failed: %s", err)
+		return fmt.Errorf("docker image build failed: %w", err)
 	}
 	if buildResult.Body == nil {
 		return nil
