@@ -111,26 +111,38 @@ func sortAliases(replicasets replicaset.Replicasets) replicaset.Replicasets {
 
 // replicasetToString returns a string representation of a replicaset.
 func replicasetToString(replicas replicaset.Replicaset) string {
-	ret := "• " + replicas.Alias + "\n"
-	ret += "  Failover: " + replicas.Failover.String() + "\n"
+	var result strings.Builder
+	result.WriteString("• ")
+	result.WriteString(replicas.Alias)
+	result.WriteByte('\n')
+	result.WriteString("  Failover: ")
+	result.WriteString(replicas.Failover.String())
+	result.WriteByte('\n')
 	if replicas.StateProvider != replicaset.StateProviderUnknown {
-		ret += "  Provider: " + replicas.StateProvider.String() + "\n"
+		result.WriteString("  Provider: ")
+		result.WriteString(replicas.StateProvider.String())
+		result.WriteByte('\n')
 	}
 	if replicas.Master != replicaset.MasterUnknown {
-		ret += "  Master:   " + replicas.Master.String() + "\n"
+		result.WriteString("  Master:   ")
+		result.WriteString(replicas.Master.String())
+		result.WriteByte('\n')
 	}
 	if len(replicas.Roles) > 0 {
-		ret += "  Roles:    " + strings.Join(replicas.Roles, ", ") + "\n"
+		result.WriteString("  Roles:    ")
+		result.WriteString(strings.Join(replicas.Roles, ", "))
+		result.WriteByte('\n')
 	}
 	for _, instance := range replicas.Instances {
 		if replicas.LeaderUUID != "" && replicas.LeaderUUID == instance.UUID {
-			ret += "    ★ "
+			result.WriteString("    ★ ")
 		} else {
-			ret += "    • "
+			result.WriteString("    • ")
 		}
-		ret += instanceToString(instance) + "\n"
+		result.WriteString(instanceToString(instance))
+		result.WriteByte('\n')
 	}
-	return ret
+	return result.String()
 }
 
 // instanceToString returns a string representation of an instance.

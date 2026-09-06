@@ -2,6 +2,7 @@ package version
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/tarantool/tt/cli/util"
 )
@@ -169,8 +170,7 @@ func MatchVersion(expected string, sortedVersions []Version) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	for i := len(sortedVersions) - 1; i >= 0; i-- {
-		ver := sortedVersions[i]
+	for _, ver := range slices.Backward(sortedVersions) {
 		if compareVersions(reference, ver, fields) {
 			return ver.Str, nil
 		}

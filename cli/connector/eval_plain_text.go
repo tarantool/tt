@@ -33,8 +33,8 @@ const (
 
 type EvalPlainTextOpts struct {
 	ReadTimeout  time.Duration
-	PushCallback func(interface{})
-	ResData      interface{}
+	PushCallback func(any)
+	ResData      any
 }
 
 type PlainTextEvalRes struct {
@@ -44,9 +44,9 @@ type PlainTextEvalRes struct {
 // evalPlainTextConnYAML calls function on Tarantool instance
 // Function should return `interface{}`, `string` (res, err)
 // to be correctly processed.
-func evalPlainTextConn(conn net.Conn, funcBody string, args []interface{},
+func evalPlainTextConn(conn net.Conn, funcBody string, args []any,
 	opts EvalPlainTextOpts,
-) ([]interface{}, error) {
+) ([]any, error) {
 	if err := formatAndSendEvalFunc(conn, funcBody, args, evalFuncTmpl); err != nil {
 		return nil, err
 	}
@@ -69,11 +69,11 @@ func evalPlainTextConn(conn net.Conn, funcBody string, args []interface{},
 	return data, nil
 }
 
-func formatAndSendEvalFunc(conn net.Conn, funcBody string, args []interface{},
+func formatAndSendEvalFunc(conn net.Conn, funcBody string, args []any,
 	evalFuncTmpl string,
 ) error {
 	if args == nil {
-		args = []interface{}{}
+		args = []any{}
 	}
 
 	argsEncoded, err := msgpack.Marshal(args)
@@ -181,7 +181,7 @@ func readFromPlainTextConn(conn net.Conn, opts EvalPlainTextOpts) ([]byte, error
 		}
 
 		if opts.PushCallback != nil {
-			var pushedData interface{}
+			var pushedData any
 
 			pushedData, err := getPushedData(dataPortionBytes)
 			if err != nil {
@@ -280,8 +280,8 @@ func pushTagIsReceived(dataPortion string) bool {
 	return false
 }
 
-func getPushedData(pushedDataBytes []byte) (interface{}, error) {
-	var pushedData interface{}
+func getPushedData(pushedDataBytes []byte) (any, error) {
+	var pushedData any
 	pushedDataString := string(pushedDataBytes)
 
 	if strings.HasPrefix(pushedDataString, tagPushPrefixYAML) {
@@ -303,7 +303,7 @@ func getPushedData(pushedDataBytes []byte) (interface{}, error) {
 	return pushedData, nil
 }
 
-func processEvalTarantoolRes(resBytes []byte, result interface{}) ([]interface{}, error) {
+func processEvalTarantoolRes(resBytes []byte, result any) ([]any, error) {
 	var err error
 	var evalResultEncBase64 string
 
@@ -355,7 +355,7 @@ func processEvalTarantoolRes(resBytes []byte, result interface{}) ([]interface{}
 		return nil, nil
 	}
 
-	var data []interface{}
+	var data []any
 	if err := msgpack.Unmarshal(dataEnc, &data); err != nil {
 		return nil, fmt.Errorf("failed to parse eval result: %s", err)
 	}

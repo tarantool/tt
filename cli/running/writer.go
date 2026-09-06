@@ -35,7 +35,7 @@ func NewColorizedPrefixWriter(writer io.Writer, color color.Color, prefix string
 	buf := bytes.Buffer{}
 	buf.Grow(writerInitialCapacity)
 	return colorizedWriter(func(msg []byte) (int, error) {
-		for _, line := range bytes.Split(msg, []byte{'\n'}) {
+		for line := range bytes.SplitSeq(msg, []byte{'\n'}) {
 			if len(line) == 0 {
 				continue
 			}

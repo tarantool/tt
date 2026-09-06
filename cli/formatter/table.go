@@ -54,7 +54,7 @@ func castMapToUMap(src map[any]any) unorderedMap[any] {
 }
 
 // deepCastAnyMapToStringMap casts all map[any]any to map[string]any deeply.
-func deepCastAnyMapToStringMap(v any) interface{} {
+func deepCastAnyMapToStringMap(v any) any {
 	switch x := v.(type) {
 	case []any:
 		for i, v2 := range x {
@@ -210,7 +210,7 @@ func newTableWriter(opts Opts) table.Writer {
 
 // handleColumnWidth handles width max value for tables columns.
 func handleColumnWidth(t table.Writer, columns int, opts Opts) {
-	colWidthTransformer := text.Transformer(func(val interface{}) string {
+	colWidthTransformer := text.Transformer(func(val any) string {
 		str := fmt.Sprintf("%v", val)
 		widthMax := opts.ColumnWidthMax
 		if utf8.RuneCountInString(str) > widthMax {
@@ -275,23 +275,25 @@ func transposeRows(rowsRaw []table.Row) []table.Row {
 
 // createMarkdownTable creates a table in markdown notation.
 func createMarkdownTable(table []string, columns int) string {
-	empty := "| "
-	separator := "|-"
+	var empty, separator strings.Builder
+	empty.WriteString("| ")
+	separator.WriteString("|-")
 	for i := 1; i < columns; i++ {
-		empty += "| "
-		separator += "|-"
+		empty.WriteString("| ")
+		separator.WriteString("|-")
 	}
-	empty += "|"
-	separator += "|"
+	empty.WriteByte('|')
+	separator.WriteByte('|')
 
-	var result string
-	for _, rows := range [][]string{{empty, separator}, table} {
+	var result strings.Builder
+	for _, rows := range [][]string{{empty.String(), separator.String()}, table} {
 		for _, row := range rows {
-			result += row + "\n"
+			result.WriteString(row)
+			result.WriteByte('\n')
 		}
 	}
 
-	return result
+	return result.String()
 }
 
 // renderEqualMaps returns maps with equal keys as single table string.
@@ -428,21 +430,21 @@ func renderBatch(batch []any, transpose bool, opts Opts) (string, error) {
 
 // renderBatches combines multiple batches into one string.
 func renderBatches(batches [][]any, transpose bool, opts Opts) (string, error) {
-	var result string
+	var result strings.Builder
 	for _, batch := range batches {
 		if len(batch) != 0 {
 			batchStr, err := renderBatch(batch, transpose, opts)
 			if err != nil {
 				return "", fmt.Errorf("cannot render tables: %w", err)
 			}
-			result += batchStr
+			result.WriteString(batchStr)
 			if !opts.Graphics {
-				result += "\n"
+				result.WriteByte('\n')
 			}
 		}
 	}
 
-	return result, nil
+	return result.String(), nil
 }
 
 type metadataField struct {

@@ -98,8 +98,8 @@ The command supports the following environment variables:
 
 	makeEnvVars := func(key, info string) {
 		h := template.HTML(info)
-		if strings.HasSuffix(key, "_auth") {
-			envAuth[strings.TrimSuffix(key, "_auth")] = h
+		if authKey, isAuth := strings.CutSuffix(key, "_auth"); isAuth {
+			envAuth[authKey] = h
 		} else {
 			envVars[key] = h
 		}

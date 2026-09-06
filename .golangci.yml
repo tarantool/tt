@@ -42,7 +42,6 @@ linters:
     - gosec
     - ireturn # Ireturn is disabled, since it's not needed.
     - maintidx # Maintidx is disabled, purpose of this metric is unknown.
-    - modernize
     - nlreturn # Nlreturn is disabled, since it's duplicated by wsl_v5.return check.
     - noinlineerr
     - paralleltest

@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/apex/log"
@@ -995,9 +996,9 @@ func installTarantoolInDocker(tntVersion, binDir, incDir string, installCtx Inst
 func getLatestRelease(versions []version.Version) string {
 	latestRelease := ""
 
-	for n := len(versions) - 1; n >= 0; n-- {
-		if versions[n].Release.Type == version.TypeRelease {
-			latestRelease = versions[n].Str
+	for _, candidate := range slices.Backward(versions) {
+		if candidate.Release.Type == version.TypeRelease {
+			latestRelease = candidate.Str
 			break
 		}
 	}

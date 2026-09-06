@@ -360,7 +360,7 @@ func TestInstantiateFileFromTemplate(t *testing.T) {
 	type args struct {
 		unitPath     string
 		unitTemplate string
-		ctx          map[string]interface{}
+		ctx          map[string]any
 	}
 	tests := []struct {
 		name            string
@@ -373,11 +373,11 @@ func TestInstantiateFileFromTemplate(t *testing.T) {
 			args: args{
 				unitPath:     templatePath,
 				unitTemplate: templateContent,
-				ctx: map[string]interface{}{
+				ctx: map[string]any{
 					"TestName": 1,
 				},
 			},
-			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+			wantErr: func(t assert.TestingT, err error, i ...any) bool {
 				return err != nil
 			},
 			expectedContent: "1",
@@ -415,7 +415,7 @@ func TestParseYaml(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    map[string]interface{}
+		want    map[string]any
 		wantErr bool
 	}{
 		{

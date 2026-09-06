@@ -2,6 +2,7 @@ package formatter
 
 import (
 	"fmt"
+	"strings"
 
 	"gopkg.in/yaml.v2"
 )
@@ -10,29 +11,33 @@ import (
 func luaEncodeElement(elem any) string {
 	switch t := elem.(type) {
 	case map[any]any:
-		res := "{"
+		var res strings.Builder
+		res.WriteByte('{')
 		first := true
 		for k, v := range t {
 			if !first {
-				res += ", "
+				res.WriteString(", ")
 			}
 			if str, ok := k.(string); ok {
-				res += fmt.Sprintf("%s = %s", str, luaEncodeElement(v))
+				fmt.Fprintf(&res, "%s = %s", str, luaEncodeElement(v))
 			} else {
-				res += fmt.Sprintf("[%v] = %s", k, luaEncodeElement(v))
+				fmt.Fprintf(&res, "[%v] = %s", k, luaEncodeElement(v))
 			}
 			first = false
 		}
-		return res + "}"
+		res.WriteByte('}')
+		return res.String()
 	case []any:
-		res := "{"
+		var res strings.Builder
+		res.WriteByte('{')
 		for k, v := range t {
-			res += luaEncodeElement(v)
+			res.WriteString(luaEncodeElement(v))
 			if k < len(t)-1 {
-				res += ", "
+				res.WriteString(", ")
 			}
 		}
-		return res + "}"
+		res.WriteByte('}')
+		return res.String()
 	default:
 		if elem == nil {
 			return "nil"
@@ -53,15 +58,15 @@ func makeLuaOutput(input string) (string, error) {
 
 	var decoded []any
 	if err := yaml.Unmarshal([]byte(input), &decoded); err == nil {
-		var res string
+		var res strings.Builder
 		for i, unpackedVal := range decoded {
+			res.WriteString(luaEncodeElement(unpackedVal))
 			if i < len(decoded)-1 {
-				res += luaEncodeElement(unpackedVal) + ", "
-			} else {
-				res += luaEncodeElement(unpackedVal)
+				res.WriteString(", ")
 			}
 		}
-		return res + ";\n", nil
+		res.WriteString(";\n")
+		return res.String(), nil
 	} else {
 		return "", fmt.Errorf("cannot render lua: %w", err)
 	}

@@ -97,7 +97,7 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 	}
 	defer conn.Close()
 
-	evalArgs := []interface{}{command, connectCtx.Language == SQLLanguage}
+	evalArgs := []any{command, connectCtx.Language == SQLLanguage}
 	if connectCtx.Language != DefaultLanguage {
 		// Change a language.
 		if err := ChangeLanguage(conn, connectCtx.Language); err != nil {
@@ -134,7 +134,7 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 			return nil, fmt.Errorf("unexpected response type: %T", response[0])
 		}
 	}
-	var checkMock interface{}
+	var checkMock any
 	if err = yaml.Unmarshal([]byte(resYAML), &checkMock); err != nil {
 		return nil, err
 	}

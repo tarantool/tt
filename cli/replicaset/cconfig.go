@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/apex/log"
@@ -420,13 +421,7 @@ func (c *CConfigApplication) BootstrapVShard(ctx VShardBootstrapCtx) error {
 			// Try again with another instance.
 			return false, nil
 		}
-		isRouter := false
-		for _, role := range roles {
-			if role == "router" {
-				isRouter = true
-				break
-			}
-		}
+		isRouter := slices.Contains(roles, "router")
 		if !isRouter {
 			// Try again with another instance.
 			return false, nil

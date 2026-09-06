@@ -16,7 +16,7 @@ var evalFuncBody string
 var getSuggestionsFuncBody string
 
 // GetTemplatedStr returns a templated string.
-func GetTemplatedStr(text string, obj interface{}) (string, error) {
+func GetTemplatedStr(text string, obj any) (string, error) {
 	tmpl, err := template.New("s").Parse(text)
 	if err != nil {
 		return "", err
@@ -36,8 +36,8 @@ func GetTemplatedStr(text string, obj interface{}) (string, error) {
 func GetEvalFuncBody(evaler string) (string, error) {
 	mapping := map[string]string{}
 	if len(evaler) != 0 {
-		if strings.HasPrefix(evaler, "@") {
-			evalerFileBytes, err := os.ReadFile(strings.TrimPrefix(evaler, "@"))
+		if evalerPath, isFile := strings.CutPrefix(evaler, "@"); isFile {
+			evalerFileBytes, err := os.ReadFile(evalerPath)
 			if err != nil {
 				return "", fmt.Errorf("failed to read the evaler file: %s", err)
 			}

@@ -28,9 +28,9 @@ func NewBinaryConnector(conn tarantool.Connector) *BinaryConnector {
 }
 
 // Eval sends an eval request.
-func (conn *BinaryConnector) Eval(expr string, args []interface{},
+func (conn *BinaryConnector) Eval(expr string, args []any,
 	opts RequestOpts,
-) ([]interface{}, error) {
+) ([]any, error) {
 	// Create a request.
 	evalReq := tarantool.NewEvalRequest(expr).Args(args)
 	if opts.ReadTimeout != 0 {
@@ -43,7 +43,7 @@ func (conn *BinaryConnector) Eval(expr string, args []interface{},
 
 	// Execute the request.
 	var err error
-	var data []interface{}
+	var data []any
 	future := conn.conn.Do(evalReq)
 	if opts.PushCallback != nil {
 		if err := processPushes(future, opts); err != nil {

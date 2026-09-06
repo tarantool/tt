@@ -227,10 +227,10 @@ func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 	return nil
 }
 
-func decodeStringAsArrayField(from, to reflect.Type, value interface{}) (
-	interface{}, error,
+func decodeStringAsArrayField(from, to reflect.Type, value any) (
+	any, error,
 ) {
-	if to != reflect.TypeOf(config.FieldStringArrayType{}) || from.Kind() != reflect.String {
+	if to != reflect.TypeFor[config.FieldStringArrayType]() || from.Kind() != reflect.String {
 		return value, nil
 	}
 	str, ok := value.(string)

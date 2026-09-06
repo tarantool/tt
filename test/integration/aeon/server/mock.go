@@ -114,13 +114,11 @@ func main() {
 
 	// Run gRPC server.
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		if err := srv.Serve(getListener()); err != nil {
 			log.Fatalf("Failed to serve: %v", err)
 		}
-		wg.Done()
-	}()
+	})
 
 	// Shutdown on signals.
 	exitSig := make(chan os.Signal, 1)

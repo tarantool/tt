@@ -27,8 +27,7 @@ var downgradeMasterLua string
 
 func filterComments(script string) string {
 	var filteredLines []string
-	lines := strings.Split(script, "\n")
-	for _, line := range lines {
+	for line := range strings.SplitSeq(script, "\n") {
 		trimmedLine := strings.TrimSpace(line)
 		if !strings.HasPrefix(trimmedLine, "--") {
 			filteredLines = append(filteredLines, line)
@@ -75,7 +74,7 @@ func downgradeMaster(master *instanceMeta, version string) (syncInfo, error) {
 	var downgradeInfo syncInfo
 	fullMasterName := running.GetAppInstanceName(master.run)
 	res, err := master.conn.Eval(filterComments(downgradeMasterLua),
-		[]interface{}{version}, connector.RequestOpts{})
+		[]any{version}, connector.RequestOpts{})
 	if err != nil {
 		return downgradeInfo, fmt.Errorf(
 			"failed to execute downgrade script on master instance - %s: %w",
