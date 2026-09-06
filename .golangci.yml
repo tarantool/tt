@@ -31,8 +31,6 @@ linters:
     - errorlint
     - exhaustruct
     - exhaustruct_v5
-    - forbidigo # Forbidigo is disabled because direct stdout output is intentional
-      # in the CLI and Mage targets.
     - funlen # Funlen is disabled, function length limits are too restrictive.
     - gochecknoglobals
     - gocognit # Gocognit is disabled, cognitive complexity is too restrictive.

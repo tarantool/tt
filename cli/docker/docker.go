@@ -50,7 +50,7 @@ func interruptHandler(cancelFunc context.CancelFunc) func() {
 	go func() {
 		_, ok := <-signals
 		if ok {
-			fmt.Println("Canceling operation...")
+			fmt.Fprintln(os.Stdout, "Canceling operation...")
 			cancelFunc()
 		}
 	}()

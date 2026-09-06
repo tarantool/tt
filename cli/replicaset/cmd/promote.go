@@ -2,6 +2,7 @@ package replicasetcmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/connector"
@@ -59,7 +60,7 @@ func Promote(ctx PromoteCtx) error {
 	}
 
 	log.Info("Discovery application...")
-	fmt.Println()
+	fmt.Fprintln(os.Stdout)
 
 	// Get and print status.
 	replicasets, err := orchestrator.Discovery(replicaset.SkipCache)
@@ -67,7 +68,7 @@ func Promote(ctx PromoteCtx) error {
 		return err
 	}
 	statusReplicasets(replicasets)
-	fmt.Println()
+	fmt.Fprintln(os.Stdout)
 
 	if ctx.InstName != "" {
 		log.Infof("Promote instance: %s", ctx.InstName)

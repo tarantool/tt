@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
@@ -29,6 +30,6 @@ func NewVersionCmd() *cobra.Command {
 
 // internalVersionModule is a default (internal) version module function.
 func internalVersionModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	fmt.Println(version.GetVersion(showShort, needCommit))
+	fmt.Fprintln(os.Stdout, version.GetVersion(showShort, needCommit))
 	return nil
 }

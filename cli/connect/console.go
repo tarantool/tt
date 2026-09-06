@@ -240,7 +240,7 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 					return
 				}
 
-				fmt.Printf("%s\n", encodedData)
+				fmt.Fprintf(os.Stdout, "%s\n", encodedData)
 			},
 			ResData: &results,
 		}
@@ -268,7 +268,7 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 			log.Errorf("Unable to format output: %s", err)
 			log.Infof("Source YAML:\n%s", data)
 		} else {
-			fmt.Print(output)
+			fmt.Fprint(os.Stdout, output)
 		}
 
 		console.input = ""
@@ -403,7 +403,7 @@ func getPromptOptions(console *Console) []prompt.Option {
 				Fn: func(buf *prompt.Buffer) {
 					console.input = ""
 					console.livePrefixEnabled = false
-					fmt.Println("^C")
+					fmt.Fprintln(os.Stdout, "^C")
 				},
 			},
 		),

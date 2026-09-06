@@ -292,7 +292,7 @@ func AskConfirm(ioReader io.Reader, question string) (bool, error) {
 	reader := bufio.NewReader(ioReader)
 
 	for {
-		fmt.Printf("%s [y/n]: ", question)
+		fmt.Fprintf(os.Stdout, "%s [y/n]: ", question)
 
 		resp, err := reader.ReadString('\n')
 		resp = strings.ToLower(strings.TrimSpace(resp))

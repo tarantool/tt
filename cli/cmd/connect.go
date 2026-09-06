@@ -224,7 +224,7 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		}
 		// "Println" is used instead of "log..." to print the result without
 		// any decoration.
-		fmt.Println(string(res))
+		fmt.Fprintln(os.Stdout, string(res))
 		if !connectInteractive || !terminal.IsTerminal(syscall.Stdin) {
 			return nil
 		}

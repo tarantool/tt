@@ -3,6 +3,7 @@ package connect
 import (
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -625,7 +626,7 @@ func (executor cmdExecutor) Execute(console *Console, in string) bool {
 			if err != nil {
 				log.Errorf("%s\n", err)
 			} else if msg != "" {
-				fmt.Printf("%s\n", msg)
+				fmt.Fprintf(os.Stdout, "%s\n", msg)
 			}
 			return true
 		}

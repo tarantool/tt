@@ -143,10 +143,10 @@ func runPackageAdd(name, constraint string) error {
 	}
 
 	if result.Change.Existed {
-		fmt.Printf("changed %s in [%s]: %s -> %s\n",
+		fmt.Fprintf(os.Stdout, "changed %s in [%s]: %s -> %s\n",
 			name, table, result.Change.Previous, declared)
 	} else {
-		fmt.Printf("added %s %s to [%s]\n", name, declared, table)
+		fmt.Fprintf(os.Stdout, "added %s %s to [%s]\n", name, declared, table)
 	}
 
 	printMoves(result.Moves)
@@ -191,7 +191,7 @@ func runPackageRemove(name string) error {
 		return err
 	}
 
-	fmt.Printf("removed %s %s\n", name, result.Change.Previous)
+	fmt.Fprintf(os.Stdout, "removed %s %s\n", name, result.Change.Previous)
 	printMoves(result.Moves)
 
 	return nil
@@ -240,7 +240,7 @@ func runPackageUpdate(name string) error {
 	}
 
 	if len(result.Moves) == 0 {
-		fmt.Println("everything is already up to date")
+		fmt.Fprintln(os.Stdout, "everything is already up to date")
 
 		return nil
 	}
@@ -281,11 +281,11 @@ func printMoves(moves []deps.Move) {
 	for _, move := range moves {
 		switch {
 		case move.From == "":
-			fmt.Printf("  %s %s\n", move.Name, move.To)
+			fmt.Fprintf(os.Stdout, "  %s %s\n", move.Name, move.To)
 		case move.To == "":
-			fmt.Printf("  %s %s -> (dropped)\n", move.Name, move.From)
+			fmt.Fprintf(os.Stdout, "  %s %s -> (dropped)\n", move.Name, move.From)
 		default:
-			fmt.Printf("  %s %s -> %s\n", move.Name, move.From, move.To)
+			fmt.Fprintf(os.Stdout, "  %s %s -> %s\n", move.Name, move.From, move.To)
 		}
 	}
 }
@@ -401,14 +401,15 @@ func runPackageUninstall(name string) error {
 		return err
 	}
 
-	fmt.Printf("removed %s %s from %s scope\n", result.Package, result.Version, result.Scope)
+	fmt.Fprintf(os.Stdout, "removed %s %s from %s scope\n",
+		result.Package, result.Version, result.Scope)
 
 	for _, dep := range result.RemovedDependencies {
-		fmt.Printf("  removed unused dependency %s\n", dep)
+		fmt.Fprintf(os.Stdout, "  removed unused dependency %s\n", dep)
 	}
 
 	for _, dep := range result.KeptDependencies {
-		fmt.Printf("  kept %s (%s)\n", dep.Name, keptReason(dep))
+		fmt.Fprintf(os.Stdout, "  kept %s (%s)\n", dep.Name, keptReason(dep))
 	}
 
 	return nil
@@ -514,7 +515,8 @@ func runPackageInstall(archives []string) error {
 			continue
 		}
 
-		fmt.Printf("installed %s %s into %s scope\n", one.Package, one.Version, one.Scope)
+		fmt.Fprintf(os.Stdout, "installed %s %s into %s scope\n",
+			one.Package, one.Version, one.Scope)
 	}
 
 	return nil
@@ -624,7 +626,7 @@ func runPackagePack() error {
 		return err
 	}
 
-	fmt.Println(result.Path)
+	fmt.Fprintln(os.Stdout, result.Path)
 
 	return nil
 }

@@ -57,7 +57,7 @@ func printLines(ctx context.Context, in <-chan string) error {
 			if !ok {
 				return nil
 			}
-			fmt.Println(line)
+			fmt.Fprintln(os.Stdout, line)
 		}
 	}
 }

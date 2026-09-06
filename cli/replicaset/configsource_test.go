@@ -3,6 +3,7 @@ package replicaset_test
 import (
 	"embed"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -518,7 +519,7 @@ func TestCConfigSource_Promote_many_keys_choose_affects(t *testing.T) {
 	source := replicaset.NewCConfigSource(collector, publisher, picker)
 	err := source.Promote(replicaset.PromoteCtx{InstName: "instance-002"})
 	require.NoError(t, err)
-	fmt.Println(string(publisher.Data[0]))
+	fmt.Fprintln(os.Stdout, string(publisher.Data[0]))
 	assertPublished(t, publisher, "b", expected)
 }
 
@@ -686,7 +687,7 @@ func TestCConfigSource_Demote_many_keys(t *testing.T) {
 			source := replicaset.NewCConfigSource(collector, publisher, picker)
 			err := source.Demote(replicaset.DemoteCtx{InstName: "instance-002"})
 			require.NoError(t, err)
-			fmt.Println(string(publisher.Data[0]))
+			fmt.Fprintln(os.Stdout, string(publisher.Data[0]))
 			assertPublished(t, publisher, tc.keys[0], expected)
 		})
 	}

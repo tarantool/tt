@@ -2,6 +2,7 @@ package replicasetcmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/apex/log"
 
@@ -48,7 +49,7 @@ func Expel(expelCtx ExpelCtx) error {
 	}
 
 	log.Info("Discovery application...")
-	fmt.Println("")
+	fmt.Fprintln(os.Stdout, "")
 
 	// Get and print status.
 	replicasets, err := orchestrator.Discovery(replicaset.SkipCache)
@@ -57,7 +58,7 @@ func Expel(expelCtx ExpelCtx) error {
 	}
 	statusReplicasets(replicasets)
 
-	fmt.Println("")
+	fmt.Fprintln(os.Stdout, "")
 	log.Infof("Expel instance: %s", expelCtx.Instance)
 
 	// Try to expel the instance.

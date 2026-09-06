@@ -24,9 +24,9 @@ import (
 // printBinaries outputs installed versions of the program.
 func printVersion(versionString string) {
 	if strings.HasSuffix(versionString, "[active]") {
-		fmt.Printf("	%s\n", util.Bold(color.GreenString(versionString)))
+		fmt.Fprintf(os.Stdout, "	%s\n", util.Bold(color.GreenString(versionString)))
 	} else {
-		fmt.Printf("	%s\n", color.YellowString(versionString))
+		fmt.Fprintf(os.Stdout, "	%s\n", color.YellowString(versionString))
 	}
 }
 
@@ -118,7 +118,7 @@ func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
 		search.ProgramEe,
 		search.ProgramTcm,
 	}
-	fmt.Println("List of installed binaries:")
+	fmt.Fprintln(os.Stdout, "List of installed binaries:")
 	for _, program := range programs {
 		binaryVersions, err := ParseBinaries(binDirFilesList, program, binDir)
 		if err != nil {

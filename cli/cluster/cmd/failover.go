@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/apex/log"
@@ -129,7 +130,7 @@ func Switch(url string, switchCtx SwitchCtx) error {
 		return err
 	}
 
-	fmt.Printf("%s\n%s '%s' %s\n",
+	fmt.Fprintf(os.Stdout, "%s\n%s '%s' %s\n",
 		"To check the switching status, run:",
 		"tt cluster failover switch-status",
 		url, uuid)
@@ -160,7 +161,7 @@ func waitForSwitch(conn *libcluster.RawStorage, key string, yamlCmd []byte, time
 		if err != nil {
 			return err
 		}
-		fmt.Printf("%s", ev.Value)
+		fmt.Fprintf(os.Stdout, "%s", ev.Value)
 		if result.Status == "success" || result.Status == "failed" {
 			return nil
 		}
@@ -200,7 +201,7 @@ func SwitchStatus(url string, switchCtx SwitchStatusCtx) error {
 		return fmt.Errorf("task with id `%s` is not found", switchCtx.TaskID)
 	}
 
-	fmt.Print(string(result[0].Value))
+	fmt.Fprint(os.Stdout, string(result[0].Value))
 
 	return nil
 }

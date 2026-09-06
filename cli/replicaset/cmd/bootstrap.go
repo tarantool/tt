@@ -2,6 +2,7 @@ package replicasetcmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/replicaset"
@@ -65,7 +66,7 @@ func Bootstrap(ctx BootstrapCtx) error {
 			return err
 		}
 		statusReplicasets(replicasets)
-		fmt.Println()
+		fmt.Fprintln(os.Stdout)
 		log.Info("Done.")
 	}
 	return err

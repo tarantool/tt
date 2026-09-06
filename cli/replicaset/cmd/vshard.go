@@ -2,6 +2,7 @@ package replicasetcmd
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/apex/log"
@@ -73,7 +74,7 @@ func BootstrapVShard(ctx VShardCmdCtx) error {
 	}
 
 	log.Info("Discovery application...")
-	fmt.Println("")
+	fmt.Fprintln(os.Stdout, "")
 
 	retryOpts := []retry.Option{
 		retry.Delay(1 * time.Second),
@@ -87,7 +88,7 @@ func BootstrapVShard(ctx VShardCmdCtx) error {
 		return fmt.Errorf("failed to bootstrap vshard: %s", err)
 	}
 
-	fmt.Println("")
+	fmt.Fprintln(os.Stdout, "")
 	log.Info("Bootstrapping vshard")
 
 	err = orchestrator.BootstrapVShard(replicaset.VShardBootstrapCtx{Timeout: ctx.Timeout})

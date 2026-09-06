@@ -516,7 +516,7 @@ func TestEvalAny_error(t *testing.T) {
 func runTestMain(m *testing.M) int {
 	absWorkDir, err := filepath.Abs(workDir)
 	if err != nil {
-		fmt.Println("Failed to prepare test work dir:", err)
+		fmt.Fprintln(os.Stdout, "Failed to prepare test work dir:", err)
 		return 1
 	}
 
@@ -530,21 +530,21 @@ func runTestMain(m *testing.M) int {
 		RetryTimeout: 100 * time.Millisecond,
 	})
 	if err != nil {
-		fmt.Println("Failed to prepare test tarantool:", err)
+		fmt.Fprintln(os.Stdout, "Failed to prepare test tarantool:", err)
 		return 1
 	}
 	defer test_helpers.StopTarantoolWithCleanup(inst)
 
 	conn, err := tarantool.Connect(context.Background(), dialer, opts)
 	if err != nil {
-		fmt.Println("Failed to check tarantool version:", err)
+		fmt.Fprintln(os.Stdout, "Failed to check tarantool version:", err)
 		return 1
 	}
 
 	_, err = conn.Do(tarantool.NewPingRequest()).Get()
 	conn.Close()
 	if err != nil {
-		fmt.Println("Failed to ping tarantool server:", err)
+		fmt.Fprintln(os.Stdout, "Failed to ping tarantool server:", err)
 		return 1
 	}
 

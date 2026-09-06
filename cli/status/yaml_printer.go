@@ -2,6 +2,7 @@ package status
 
 import (
 	"fmt"
+	"os"
 
 	"gopkg.in/yaml.v3"
 )
@@ -20,6 +21,6 @@ func (y YAMLPrinter) Print(instances map[string]*instanceStatus) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal instances to YAML: %w", err)
 	}
-	fmt.Println(string(yamlData))
+	fmt.Fprintln(os.Stdout, string(yamlData))
 	return nil
 }

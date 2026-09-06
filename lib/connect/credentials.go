@@ -27,21 +27,21 @@ func getCredsInteractive() (UserCredentials, error) {
 	res := UserCredentials{}
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Println("Signing in to Customer zone.")
-	fmt.Printf("Enter Email: ")
+	fmt.Fprintln(os.Stdout, "Signing in to Customer zone.")
+	fmt.Fprintf(os.Stdout, "Enter Email: ")
 	resp, err := reader.ReadString('\n')
 	if err != nil {
 		return res, err
 	}
 	res.Username = strings.TrimSpace(resp)
 
-	fmt.Printf("Enter Password: ")
+	fmt.Fprintf(os.Stdout, "Enter Password: ")
 	bytePass, err := term.ReadPassword(syscall.Stdin)
 	if err != nil {
 		return res, err
 	}
 	res.Password = strings.TrimSpace(string(bytePass))
-	fmt.Println("")
+	fmt.Fprintln(os.Stdout, "")
 
 	return res, nil
 }
