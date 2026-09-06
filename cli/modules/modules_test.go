@@ -200,7 +200,7 @@ func TestGetModulesInfo(t *testing.T) {
 		},
 	}
 
-	os.Unsetenv("TT_CLI_MODULES_PATH")
+	_ = os.Unsetenv("TT_CLI_MODULES_PATH")
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			cmdCtx := cmdcontext.CmdCtx{
@@ -223,7 +223,7 @@ func TestGetModulesInfo(t *testing.T) {
 			}()
 
 			got, err := modules.GetModulesInfo(&cmdCtx, "root", &cliOpts)
-			os.Unsetenv("TT_CLI_MODULES_PATH")
+			_ = os.Unsetenv("TT_CLI_MODULES_PATH")
 			t.Log(buf.String())
 
 			if err != nil || tt.err != "" {

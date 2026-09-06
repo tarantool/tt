@@ -87,7 +87,9 @@ func GetPIDFromFile(pidFileName string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf(`can't open the PID file. Error: "%w"`, err)
 	}
-	defer pidFile.Close()
+	defer func() {
+		_ = pidFile.Close()
+	}()
 
 	pidBytes, err := io.ReadAll(pidFile)
 	if err != nil {
@@ -116,7 +118,7 @@ func CheckPIDFile(pidFileName string) error {
 		if res, _ := IsProcessAlive(pid); res {
 			return fmt.Errorf("%w%d", errTheProcessAlreadyExistsPID, pid)
 		} else {
-			os.Remove(pidFileName)
+			_ = os.Remove(pidFileName)
 		}
 	} else if !os.IsNotExist(err) {
 		return fmt.Errorf(`something went wrong while trying to read the PID file. Error: "%w"`,
@@ -176,7 +178,9 @@ func CreatePIDFile(pidFileName string, pid int) error {
 	if err != nil {
 		return fmt.Errorf(`can't create a new PID file. Error: "%w"`, err)
 	}
-	defer pidFile.Close()
+	defer func() {
+		_ = pidFile.Close()
+	}()
 
 	if _, err = pidFile.WriteString(strconv.Itoa(pid)); err != nil {
 		return err

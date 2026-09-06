@@ -215,9 +215,11 @@ five
 		t.Run(tt.name, func(t *testing.T) {
 			outFile, err := os.CreateTemp(tmpDir, "*.txt")
 			require.NoError(t, err)
-			defer outFile.Close()
-			outFile.WriteString(tt.text)
-			outFile.Close()
+			defer func() {
+				_ = outFile.Close()
+			}()
+			_, _ = outFile.WriteString(tt.text)
+			_ = outFile.Close()
 
 			in, err := TailN(context.Background(), func(str string) string {
 				return str
@@ -303,9 +305,11 @@ five
 			outFile, err := os.CreateTemp(tmpDir, "*.txt")
 			require.NoError(t, err)
 
-			defer outFile.Close()
-			outFile.WriteString(tt.text)
-			outFile.Close()
+			defer func() {
+				_ = outFile.Close()
+			}()
+			_, _ = outFile.WriteString(tt.text)
+			_ = outFile.Close()
 
 			r := NewTailReader(outFile.Name())
 			in, err := r.Read(context.Background(), tt.args.n)
@@ -380,10 +384,12 @@ func TestFollow(t *testing.T) {
 			t.Parallel()
 			outFile, err := os.CreateTemp(tmpDir, "*.txt")
 			require.NoError(t, err)
-			defer outFile.Close()
+			defer func() {
+				_ = outFile.Close()
+			}()
 
-			outFile.WriteString(tt.initialText)
-			outFile.Sync()
+			_, _ = outFile.WriteString(tt.initialText)
+			_ = outFile.Sync()
 
 			ctx, stop := context.WithTimeout(context.Background(), time.Second*2)
 			defer stop()
@@ -410,7 +416,7 @@ func TestFollow(t *testing.T) {
 			// Need some time to start watching for changes after reading last lines.
 			time.Sleep(time.Millisecond * 500)
 			for _, line := range tt.linesToAppend {
-				outFile.WriteString(line + "\n")
+				_, _ = outFile.WriteString(line + "\n")
 			}
 			assert.NoError(t, outFile.Sync())
 

@@ -65,7 +65,9 @@ func TestIsDir(t *testing.T) {
 
 	tmpFile, err := os.CreateTemp(t.TempDir(), "")
 	require.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
 
 	assert.False(IsDir(tmpFile.Name()))
 	assert.False(IsDir("./non-existing-dir"))
@@ -76,7 +78,9 @@ func TestIsRegularFile(t *testing.T) {
 
 	tmpFile, err := os.CreateTemp(t.TempDir(), "")
 	require.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
 
 	require.True(t, IsRegularFile(tmpFile.Name()))
 
@@ -99,12 +103,16 @@ func TestCreateDirectory(t *testing.T) {
 
 	f, err := os.Create(filepath.Join(tempDir, "file"))
 	require.NoError(t, err)
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 	assert.Error(t, CreateDirectory(f.Name(), 0o750))
 
 	// Permissions denied.
 	require.NoError(t, os.Chmod(tempDir, 0o444))
-	defer os.Chmod(tempDir, 0o777)
+	defer func() {
+		_ = os.Chmod(tempDir, 0o777)
+	}()
 	assert.Error(t, CreateDirectory(filepath.Join(tempDir, "dir3"), 0o750))
 }
 
@@ -128,7 +136,9 @@ func TestWriteYaml(t *testing.T) {
 	require.NoError(t, WriteYaml(filepath.Join(tempDir, "library"), &lib))
 	f, err := os.Open(filepath.Join(tempDir, "library"))
 	require.NoError(t, err)
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	scanner := bufio.NewScanner(f)
 	scanner.Scan()
@@ -185,7 +195,7 @@ func TestCreateSymlink(t *testing.T) {
 	tempDir := t.TempDir()
 	targetFile, err := os.Create(filepath.Join(tempDir, "tgtFile.txt"))
 	require.NoError(t, err)
-	targetFile.Close()
+	_ = targetFile.Close()
 
 	// No overwrite.
 	require.NoError(t, CreateSymlink(targetFile.Name(), filepath.Join(tempDir, "first_link"),

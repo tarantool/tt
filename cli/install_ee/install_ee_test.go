@@ -135,7 +135,7 @@ func TestDownloadBundle(t *testing.T) {
 				file, err := os.CreateTemp(baseDir, "destination_as_file_*")
 				require.NoError(t, err)
 				filePath := file.Name()
-				file.Close()
+				_ = file.Close()
 				return filePath
 			},
 			doer: &mockBundleDoer{
@@ -163,7 +163,7 @@ func TestDownloadBundle(t *testing.T) {
 				conflictingFile := filepath.Join(baseDir, "conflict_dir")
 				f, err := os.Create(conflictingFile)
 				require.NoError(t, err)
-				f.Close()
+				_ = f.Close()
 				return baseDir
 			},
 			doer: &mockBundleDoer{

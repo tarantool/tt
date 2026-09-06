@@ -87,7 +87,7 @@ func (mf *mockFollower) Wait() {
 	select {
 	case <-mf.done:
 		// Got notification about finished reading file lines.
-		syscall.Kill(os.Getpid(), syscall.SIGINT)
+		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
 
 	case <-mf.ctxDone:
 		return
@@ -121,7 +121,9 @@ func fileReaderByLine(
 		if err != nil {
 			return
 		}
-		defer log.Close()
+		defer func() {
+			_ = log.Close()
+		}()
 
 		scanner := bufio.NewScanner(log)
 
@@ -352,8 +354,8 @@ func TestMain(m *testing.M) {
 	flag.Parse()
 
 	if *updateTestdata {
-		fmt.Fprintln(os.Stdout, "Updating testdata files...")
-		os.RemoveAll(filepath.Join(testDataDir, expectedSubDir))
+		_, _ = fmt.Fprintln(os.Stdout, "Updating testdata files...")
+		_ = os.RemoveAll(filepath.Join(testDataDir, expectedSubDir))
 	}
 
 	os.Exit(m.Run())

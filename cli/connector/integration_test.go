@@ -83,7 +83,9 @@ func createTestConnects(t *testing.T) []testConnect {
 func TestConnect_Eval(t *testing.T) {
 	connects := createTestConnects(t)
 	for _, c := range connects {
-		defer c.connect.Close()
+		defer func() {
+			_ = c.connect.Close()
+		}()
 	}
 
 	for _, c := range connects {
@@ -102,7 +104,9 @@ func TestConnect_Eval(t *testing.T) {
 func TestBinaryConnector_Eval_args(t *testing.T) {
 	connects := createTestConnects(t)
 	for _, c := range connects {
-		defer c.connect.Close()
+		defer func() {
+			_ = c.connect.Close()
+		}()
 	}
 
 	for _, c := range connects {
@@ -121,7 +125,9 @@ func TestBinaryConnector_Eval_args(t *testing.T) {
 func TestBinaryConnector_Eval_readTimeout(t *testing.T) {
 	connects := createTestConnects(t)
 	for _, c := range connects {
-		defer c.connect.Close()
+		defer func() {
+			_ = c.connect.Close()
+		}()
 	}
 
 	for _, c := range connects {
@@ -141,7 +147,9 @@ func TestBinaryConnector_Eval_readTimeout(t *testing.T) {
 func TestBinaryConnector_Eval_resData(t *testing.T) {
 	connects := createTestConnects(t)
 	for _, c := range connects {
-		defer c.connect.Close()
+		defer func() {
+			_ = c.connect.Close()
+		}()
 	}
 
 	for _, c := range connects {
@@ -165,7 +173,9 @@ func TestBinaryConnector_Eval_resData(t *testing.T) {
 func TestBinaryConnector_Eval_pushCallback(t *testing.T) {
 	connects := createTestConnects(t)
 	for _, c := range connects {
-		defer c.connect.Close()
+		defer func() {
+			_ = c.connect.Close()
+		}()
 	}
 
 	for _, c := range connects {
@@ -197,7 +207,9 @@ func TestConnect_binary(t *testing.T) {
 		Password: "password",
 	})
 	require.NoError(t, err)
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	eval := "return 'hello', 'world'"
 	ret, err := conn.Eval(eval, []any{}, RequestOpts{})
@@ -229,7 +241,9 @@ func TestConnect_binaryTlsToTls(t *testing.T) {
 		Ssl:      sslOpts,
 	})
 	require.NoError(t, err)
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	eval := "return 'hello', 'world'"
 	ret, err := conn.Eval(eval, []any{}, RequestOpts{})
@@ -243,7 +257,9 @@ func TestConnect_text(t *testing.T) {
 		Address: console,
 	})
 	require.NoError(t, err)
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	eval := "return 'hello', 'world'"
 	ret, err := conn.Eval(eval, []any{}, RequestOpts{})
@@ -301,7 +317,7 @@ func TestPoolConnect_success(t *testing.T) {
 			pool, err := ConnectPool(tc.Opts)
 			require.NoError(t, err)
 			require.NotNil(t, pool)
-			pool.Close()
+			_ = pool.Close()
 		})
 	}
 }
@@ -312,7 +328,9 @@ func TestPoolEval_success(t *testing.T) {
 			pool, err := ConnectPool(tc.Opts)
 			require.NoError(t, err)
 			require.NotNil(t, pool)
-			defer pool.Close()
+			defer func() {
+				_ = pool.Close()
+			}()
 
 			ret, err := pool.Eval("return ...", []any{"foo"}, RequestOpts{})
 			assert.NoError(t, err)
@@ -327,7 +345,9 @@ func TestPoolEval_error(t *testing.T) {
 			pool, err := ConnectPool(tc.Opts)
 			require.NoError(t, err)
 			require.NotNil(t, pool)
-			defer pool.Close()
+			defer func() {
+				_ = pool.Close()
+			}()
 
 			for range 10 {
 				_, err = pool.Eval("error('foo')", []any{"foo"}, RequestOpts{})
@@ -340,7 +360,7 @@ func TestPoolEval_error(t *testing.T) {
 func runTestMain(m *testing.M) int {
 	absWorkDir, err := filepath.Abs(workDir)
 	if err != nil {
-		fmt.Fprintln(os.Stdout, "Failed to prepare test work dir:", err)
+		_, _ = fmt.Fprintln(os.Stdout, "Failed to prepare test work dir:", err)
 		return 1
 	}
 
@@ -354,7 +374,7 @@ func runTestMain(m *testing.M) int {
 		Dialer:       dialer,
 	})
 	if err != nil {
-		fmt.Fprintln(os.Stdout, "Failed to prepare test tarantool:", err)
+		_, _ = fmt.Fprintln(os.Stdout, "Failed to prepare test tarantool:", err)
 		return 1
 	}
 	defer test_helpers.StopTarantoolWithCleanup(inst)
@@ -363,15 +383,15 @@ func runTestMain(m *testing.M) int {
 	defer cancel()
 	conn, err := tarantool.Connect(ctx, dialer, opts)
 	if err != nil {
-		fmt.Fprintln(os.Stdout, "Failed to check tarantool version:", err)
+		_, _ = fmt.Fprintln(os.Stdout, "Failed to check tarantool version:", err)
 		return 1
 	}
 	req := tarantool.NewEvalRequest("return box.info.package")
 	data, err := conn.Do(req).Get()
-	conn.Close()
+	_ = conn.Close()
 
 	if err != nil {
-		fmt.Fprintln(os.Stdout, "Failed to get box.info.package:", err)
+		_, _ = fmt.Fprintln(os.Stdout, "Failed to get box.info.package:", err)
 		return 1
 	}
 
@@ -384,7 +404,7 @@ func runTestMain(m *testing.M) int {
 	if tarantoolEe {
 		absTLSWorkDir, err := filepath.Abs(workDir + "_tls")
 		if err != nil {
-			fmt.Fprintln(os.Stdout, "Failed to prepare TLS test work dir:", err)
+			_, _ = fmt.Fprintln(os.Stdout, "Failed to prepare TLS test work dir:", err)
 			return 1
 		}
 
@@ -413,7 +433,7 @@ func runTestMain(m *testing.M) int {
 			Dialer:       tlsDialer,
 		})
 		if err != nil {
-			fmt.Fprintln(os.Stdout, "Failed to prepare test tarantool with TLS:", err)
+			_, _ = fmt.Fprintln(os.Stdout, "Failed to prepare test tarantool with TLS:", err)
 			return 1
 		}
 		defer test_helpers.StopTarantoolWithCleanup(inst)

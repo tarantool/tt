@@ -113,7 +113,7 @@ func evalForeach(instances []running.InstanceCtx,
 
 		connected++
 		done, err := iEvaler.Eval(instance, conn)
-		conn.Close()
+		_ = conn.Close()
 
 		if err != nil {
 			return err

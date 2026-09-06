@@ -56,7 +56,7 @@ func interruptHandler(cancelFunc context.CancelFunc) func() {
 	go func() {
 		_, ok := <-signals
 		if ok {
-			fmt.Fprintln(os.Stdout, "Canceling operation...")
+			_, _ = fmt.Fprintln(os.Stdout, "Canceling operation...")
 			cancelFunc()
 		}
 	}()
@@ -93,7 +93,9 @@ func buildDockerImage(dockerClient *mobyclient.Client, imageTag, buildContextDir
 		return nil
 	}
 
-	defer buildResult.Body.Close()
+	defer func() {
+		_ = buildResult.Body.Close()
+	}()
 	if !verbose {
 		writer = io.Discard
 	}
@@ -151,7 +153,9 @@ func RunContainer(runOptions RunOptions, writer io.Writer) error {
 	if err != nil {
 		return err
 	}
-	defer dockerClient.Close()
+	defer func() {
+		_ = dockerClient.Close()
+	}()
 
 	log.Infof("Building docker image '%s'.", runOptions.ImageTag)
 	if err = buildDockerImage(dockerClient, runOptions.ImageTag, runOptions.BuildCtxDir,
@@ -191,8 +195,8 @@ func RunContainer(runOptions RunOptions, writer io.Writer) error {
 	if err != nil {
 		return err
 	}
-	stdcopy.StdCopy(writer, writer, out)
-	out.Close()
+	_, _ = stdcopy.StdCopy(writer, writer, out)
+	_ = out.Close()
 
 	waitResult := dockerClient.ContainerWait(ctx, containerID,
 		mobyclient.ContainerWaitOptions{Condition: container.WaitConditionNotRunning})

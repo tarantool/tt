@@ -47,7 +47,7 @@ func discoverApp(orchestrator replicasetOrchestrator) error {
 		return err
 	}
 
-	statusReplicasets(replicasets)
+	_ = statusReplicasets(replicasets)
 
 	return nil
 }
@@ -74,7 +74,7 @@ func BootstrapVShard(ctx VShardCmdCtx) error {
 	}
 
 	log.Info("Discovery application...")
-	fmt.Fprintln(os.Stdout, "")
+	_, _ = fmt.Fprintln(os.Stdout, "")
 
 	retryOpts := []retry.Option{
 		retry.Delay(1 * time.Second),
@@ -88,7 +88,7 @@ func BootstrapVShard(ctx VShardCmdCtx) error {
 		return fmt.Errorf("failed to bootstrap vshard: %w", err)
 	}
 
-	fmt.Fprintln(os.Stdout, "")
+	_, _ = fmt.Fprintln(os.Stdout, "")
 	log.Info("Bootstrapping vshard")
 
 	err = orchestrator.BootstrapVShard(replicaset.VShardBootstrapCtx{Timeout: ctx.Timeout})

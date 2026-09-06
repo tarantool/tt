@@ -260,7 +260,7 @@ groups:
 	// temp file that has the above content.
 	f, err := os.CreateTemp(t.TempDir(), "tt-tcs-test-*.yaml")
 	require.NoError(t, err)
-	t.Cleanup(func() { os.Remove(f.Name()) })
+	t.Cleanup(func() { _ = os.Remove(f.Name()) })
 	_, err = f.WriteString(cfgYAML)
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
@@ -299,7 +299,7 @@ groups:
 `
 	f, err := os.CreateTemp(t.TempDir(), "tt-etcd-env-test-*.yaml")
 	require.NoError(t, err)
-	t.Cleanup(func() { os.Remove(f.Name()) })
+	t.Cleanup(func() { _ = os.Remove(f.Name()) })
 	_, err = f.WriteString(cfgYAML)
 	require.NoError(t, err)
 	require.NoError(t, f.Close())

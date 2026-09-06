@@ -32,7 +32,9 @@ func (LoadVarsFile) Run(ctx *create_ctx.CreateCtx,
 	if err != nil {
 		return fmt.Errorf("vars file loading error: %w", err)
 	}
-	defer varsFile.Close()
+	defer func() {
+		_ = varsFile.Close()
+	}()
 
 	scanner := bufio.NewScanner(varsFile)
 	for scanner.Scan() {

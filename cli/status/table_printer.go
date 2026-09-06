@@ -127,7 +127,7 @@ func (t TablePrinter) Print(instances map[string]*instanceStatus) error {
 		msg := "\nThe status of some instances requires attention.\n" +
 			"Please rerun the command with the --details flag to see " +
 			"more information"
-		fmt.Fprintln(os.Stdout, msg)
+		_, _ = fmt.Fprintln(os.Stdout, msg)
 	}
 
 	return nil
@@ -138,9 +138,9 @@ func (t TablePrinter) printInstanceAlerts(instanceName string, instStatus *insta
 	if len(instStatus.Alerts) == 0 {
 		return
 	}
-	fmt.Fprintf(os.Stdout, "Alerts for %s:\n", instanceName)
+	_, _ = fmt.Fprintf(os.Stdout, "Alerts for %s:\n", instanceName)
 	for _, alert := range instStatus.Alerts {
-		fmt.Fprintf(os.Stdout, "  • %s\n", formatAlert(alert))
+		_, _ = fmt.Fprintf(os.Stdout, "  • %s\n", formatAlert(alert))
 	}
-	fmt.Fprintln(os.Stdout)
+	_, _ = fmt.Fprintln(os.Stdout)
 }

@@ -78,7 +78,7 @@ func newBaseInstance(tarantoolPath string, instanceCtx InstanceCtx,
 		stdErr:        os.Stderr,
 	}
 	for _, opt := range opts {
-		opt(&baseInst)
+		_ = opt(&baseInst)
 	}
 	return baseInst
 }
@@ -162,7 +162,7 @@ func (inst *baseInstance) Run(opts RunOpts) error {
 		}
 		return err
 	}
-	f.Close()
+	_ = f.Close()
 	newInstanceEnv := os.Environ()
 	args := make([]string, 0, 1+len(opts.RunArgs))
 	args = append(args, inst.tarantoolPath)

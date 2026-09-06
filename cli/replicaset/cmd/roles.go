@@ -67,15 +67,15 @@ func RolesChange(ctx RolesChangeCtx, changeRoleAction replicaset.RolesChangerAct
 	}
 
 	log.Info("Discovery application...")
-	fmt.Fprintln(os.Stdout)
+	_, _ = fmt.Fprintln(os.Stdout)
 
 	// Get and print status.
 	replicasets, err := orchestrator.Discovery(replicaset.SkipCache)
 	if err != nil {
 		return err
 	}
-	statusReplicasets(replicasets)
-	fmt.Fprintln(os.Stdout)
+	_ = statusReplicasets(replicasets)
+	_, _ = fmt.Fprintln(os.Stdout)
 
 	action := []string{"Add", "to"}
 	if changeRoleAction.Action() == replicaset.RemoveAction {

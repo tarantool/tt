@@ -43,13 +43,17 @@ func copyEmbedFs(srcFs fs.FS, dst string) error {
 		if err != nil {
 			return fmt.Errorf("open template file %q: %w", path, err)
 		}
-		defer inFile.Close()
+		defer func() {
+			_ = inFile.Close()
+		}()
 
 		outFile, err := os.OpenFile(filepath.Join(dst, path), os.O_CREATE|os.O_WRONLY, filePerm)
 		if err != nil {
 			return fmt.Errorf("create %q: %w", path, err)
 		}
-		defer outFile.Close()
+		defer func() {
+			_ = outFile.Close()
+		}()
 
 		if _, err := io.Copy(outFile, inFile); err != nil {
 			return fmt.Errorf("copy %q: %w", path, err)

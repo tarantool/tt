@@ -91,7 +91,9 @@ func GetFileContentBytes(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	fileContent, err := io.ReadAll(file)
 	if err != nil {
@@ -208,7 +210,9 @@ func GetLastNLinesBegin(filepath string, lines int) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to open file: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	var fileSize int64
 	if fileInfo, err := os.Stat(filepath); err != nil {
@@ -304,7 +308,7 @@ func AskConfirm(ioReader io.Reader, question string) (bool, error) {
 	reader := bufio.NewReader(ioReader)
 
 	for {
-		fmt.Fprintf(os.Stdout, "%s [y/n]: ", question)
+		_, _ = fmt.Fprintf(os.Stdout, "%s [y/n]: ", question)
 
 		resp, err := reader.ReadString('\n')
 		resp = strings.ToLower(strings.TrimSpace(resp))
@@ -471,7 +475,7 @@ func Chdir(newPath string) (func() error, error) {
 		if err = os.Chdir(cwd); err != nil {
 			return nil, fmt.Errorf("failed to change directory back: %w", err)
 		}
-		os.Setenv("PWD", cwd) // Return PWD back.
+		_ = os.Setenv("PWD", cwd) // Return PWD back.
 		return nil, fmt.Errorf("failed to change PWD environment variable: %w", err)
 	}
 
@@ -566,7 +570,9 @@ func ExtractTar(tarName string) error {
 	if err != nil {
 		return err
 	}
-	defer archive.Close()
+	defer func() {
+		_ = archive.Close()
+	}()
 
 	uncompressedStream, err := gzip.NewReader(archive)
 	if err != nil {
@@ -603,18 +609,18 @@ func ExtractTar(tarName string) error {
 				//    user:   read/write/execute
 				//    group:  read/execute
 				//    others: read/execute
-				os.MkdirAll(dir+header.Name[0:pos], archiveDirectoryMode)
+				_ = os.MkdirAll(dir+header.Name[0:pos], archiveDirectoryMode)
 			}
 			outFile, err := os.Create(dir + header.Name)
 			if err != nil {
-				outFile.Close()
+				_ = outFile.Close()
 				return err
 			}
 			if _, err := io.Copy(outFile, tarReader); err != nil {
-				outFile.Close()
+				_ = outFile.Close()
 				return err
 			}
-			outFile.Close()
+			_ = outFile.Close()
 
 		default:
 			return fmt.Errorf("%w%b in %s",
@@ -687,8 +693,8 @@ func ExecuteCommandStdin(program string, isVerbose bool, logFile *os.File, workD
 		return err
 	}
 
-	stdin.Write(stdinData)
-	stdin.Close()
+	_, _ = stdin.Write(stdinData)
+	_ = stdin.Close()
 
 	err = cmd.Wait()
 	return err
@@ -805,7 +811,9 @@ func MergeFiles(destFilePath string, srcFilePaths ...string) error {
 		_ = os.Remove(destFilePath)
 		return fmt.Errorf("failed to create result file %s: %w", destFilePath, err)
 	}
-	defer destFile.Close()
+	defer func() {
+		_ = destFile.Close()
+	}()
 
 	for _, srcFilePath := range srcFilePaths {
 		srcFile, err := os.Open(srcFilePath)
@@ -815,7 +823,7 @@ func MergeFiles(destFilePath string, srcFilePaths ...string) error {
 		}
 
 		_, err = io.Copy(destFile, srcFile)
-		srcFile.Close()
+		_ = srcFile.Close()
 
 		if err != nil {
 			return err
@@ -875,7 +883,9 @@ func InstantiateFileFromTemplate(templatePath, templateContent string, params an
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	unitContent, err := GetTextTemplatedStr(&templateContent, params)
 	if err != nil {
@@ -933,7 +943,7 @@ func HandleCmdErr(cmd *cobra.Command, err error) {
 		var argError *ArgError
 		if errors.As(err, &argError) {
 			log.Error(argError.Error())
-			cmd.Usage()
+			_ = cmd.Usage()
 			os.Exit(1)
 		}
 		if errors.Is(err, ErrCmdAbort) {

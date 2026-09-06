@@ -63,7 +63,9 @@ func TestClusterInstance_Start(t *testing.T) {
 	tmpDir := t.TempDir()
 	cancelChdir, err := util.Chdir(tmpDir)
 	require.NoError(t, err)
-	defer cancelChdir()
+	defer func() {
+		_ = cancelChdir()
+	}()
 
 	outputBuf := bytes.Buffer{}
 	outputBuf.Grow(1024)
@@ -97,7 +99,9 @@ func TestClusterInstance_StartChangeDefaults(t *testing.T) {
 	tmpDir := t.TempDir()
 	cancelChdir, err := util.Chdir(tmpDir)
 	require.NoError(t, err)
-	defer cancelChdir()
+	defer func() {
+		_ = cancelChdir()
+	}()
 
 	tmpAppDir := filepath.Join(tmpDir, "appdir")
 	require.NoError(t, os.Mkdir(tmpAppDir, 0o755))
@@ -142,7 +146,9 @@ func TestClusterInstance_StartChangeSomeDefaults(t *testing.T) {
 	tmpDir := t.TempDir()
 	cancelChdir, err := util.Chdir(tmpDir)
 	require.NoError(t, err)
-	defer cancelChdir()
+	defer func() {
+		_ = cancelChdir()
+	}()
 
 	tmpAppDir := filepath.Join(tmpDir, "appdir")
 	require.NoError(t, os.Mkdir(tmpAppDir, 0o755))
@@ -194,7 +200,9 @@ func TestClusterInstance_StopByContext(t *testing.T) {
 	tmpDir := t.TempDir()
 	cancelChdir, err := util.Chdir(tmpDir)
 	require.NoError(t, err)
-	defer cancelChdir()
+	defer func() {
+		_ = cancelChdir()
+	}()
 
 	outputBuf := bytes.Buffer{}
 	outputBuf.Grow(1024)

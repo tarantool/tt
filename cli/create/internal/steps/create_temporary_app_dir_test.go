@@ -19,7 +19,9 @@ func TestCreateTmpAppDirBasic(t *testing.T) {
 	createCtx.WorkDir = workDir
 	createAppDir := CreateTemporaryAppDirectory{}
 	require.NoError(t, createAppDir.Run(&createCtx, &templateCtx))
-	defer os.RemoveAll(templateCtx.AppPath)
+	defer func() {
+		_ = os.RemoveAll(templateCtx.AppPath)
+	}()
 
 	require.Equal(t, templateCtx.TargetAppPath, filepath.Join(workDir, createCtx.AppName))
 	require.DirExists(t, templateCtx.AppPath)
@@ -38,7 +40,9 @@ func TestCreateTmpAppDirMissingAppName(t *testing.T) {
 	// Set template name.
 	createCtx.AppName = "sample"
 	require.NoError(t, createAppDir.Run(&createCtx, &templateCtx))
-	defer os.RemoveAll(templateCtx.AppPath)
+	defer func() {
+		_ = os.RemoveAll(templateCtx.AppPath)
+	}()
 
 	require.Equal(t, templateCtx.TargetAppPath, filepath.Join(workDir, createCtx.AppName))
 	require.DirExists(t, templateCtx.AppPath)
@@ -53,7 +57,9 @@ func TestCreateTmpAppDirDestinationSet(t *testing.T) {
 	createCtx.AppName = "app1"
 	createCtx.DestinationDir = workDir
 	require.NoError(t, createAppDir.Run(&createCtx, &templateCtx))
-	defer os.RemoveAll(templateCtx.AppPath)
+	defer func() {
+		_ = os.RemoveAll(templateCtx.AppPath)
+	}()
 
 	require.Equal(t, templateCtx.TargetAppPath, filepath.Join(workDir, "app1"))
 }

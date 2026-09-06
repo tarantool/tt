@@ -214,9 +214,9 @@ func readDataPortionFromPlainTextConn(conn net.Conn, buffer *bytes.Buffer,
 	data := make([]byte, 0)
 
 	if readTimeout > 0 {
-		conn.SetReadDeadline(time.Now().Add(readTimeout))
+		_ = conn.SetReadDeadline(time.Now().Add(readTimeout))
 	} else {
-		conn.SetReadDeadline(time.Time{})
+		_ = conn.SetReadDeadline(time.Time{})
 	}
 
 	hasYAMLOutputPrefix := false

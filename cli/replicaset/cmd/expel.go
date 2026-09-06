@@ -49,16 +49,16 @@ func Expel(expelCtx ExpelCtx) error {
 	}
 
 	log.Info("Discovery application...")
-	fmt.Fprintln(os.Stdout, "")
+	_, _ = fmt.Fprintln(os.Stdout, "")
 
 	// Get and print status.
 	replicasets, err := orchestrator.Discovery(replicaset.SkipCache)
 	if err != nil {
 		return err
 	}
-	statusReplicasets(replicasets)
+	_ = statusReplicasets(replicasets)
 
-	fmt.Fprintln(os.Stdout, "")
+	_, _ = fmt.Fprintln(os.Stdout, "")
 	log.Infof("Expel instance: %s", expelCtx.Instance)
 
 	// Try to expel the instance.

@@ -117,7 +117,9 @@ func startEtcd(t *testing.T) *etcdtest.LazyCluster {
 		Endpoints: inst.EndpointsGRPC(),
 	})
 	require.NoError(t, err)
-	defer etcd.Close()
+	defer func() {
+		_ = etcd.Close()
+	}()
 
 	if err := doWithCtx(func(ctx context.Context) error {
 		_, err := etcd.UserAdd(ctx, opts.Username, opts.Password)
@@ -171,7 +173,7 @@ func etcdPut(t *testing.T, etcd *clientv3.Client, key, value string) {
 		pResp *clientv3.PutResponse
 		err   error
 	)
-	doWithCtx(func(ctx context.Context) error {
+	_ = doWithCtx(func(ctx context.Context) error {
 		pResp, err = etcd.Put(ctx, key, value)
 		return nil
 	})
@@ -185,7 +187,7 @@ func etcdGet(t *testing.T, etcd *clientv3.Client, key string) ([]byte, int64) {
 		resp *clientv3.GetResponse
 		err  error
 	)
-	doWithCtx(func(ctx context.Context) error {
+	_ = doWithCtx(func(ctx context.Context) error {
 		resp, err = etcd.Get(ctx, key)
 		return nil
 	})
@@ -229,7 +231,9 @@ func TestEtcdCollectors_single(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
 	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
-	defer etcd.Close()
+	defer func() {
+		_ = etcd.Close()
+	}()
 
 	etcdPut(t, etcd, "/foo/config/bar", "foo: bar")
 
@@ -262,7 +266,9 @@ func TestEtcdAllCollector_merge(t *testing.T) {
 	require.NoError(t, err)
 	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
 	require.NotNil(t, etcd)
-	defer etcd.Close()
+	defer func() {
+		_ = etcd.Close()
+	}()
 
 	etcdPut(t, etcd, "/foo/config/a", "foo: bar")
 	etcdPut(t, etcd, "/foo/config/b", "foo: car\nzoo: car")
@@ -292,7 +298,9 @@ func TestEtcdCollectors_empty(t *testing.T) {
 	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
-	defer etcd.Close()
+	defer func() {
+		_ = etcd.Close()
+	}()
 
 	cases := []struct {
 		Name      string
@@ -320,7 +328,9 @@ func TestEtcdDataPublishers_Publish_single(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
 	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
-	defer etcd.Close()
+	defer func() {
+		_ = etcd.Close()
+	}()
 
 	data := []byte("foo bar")
 	cases := []struct {
@@ -352,7 +362,9 @@ func TestEtcdDataPublishers_Publish_rewrite(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
 	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
-	defer etcd.Close()
+	defer func() {
+		_ = etcd.Close()
+	}()
 
 	oldData := []byte("foo bar zoo")
 	newData := []byte("zoo bar foo")
@@ -386,7 +398,9 @@ func TestEtcdAllDataPublisher_Publish_rewrite_prefix(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
 	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
-	defer etcd.Close()
+	defer func() {
+		_ = etcd.Close()
+	}()
 
 	etcdPut(t, etcd, "/foo/config/foo", "foo")
 	etcdPut(t, etcd, "/foo/config/zoo", "zoo")
@@ -414,7 +428,9 @@ func TestEtcdKeyDataPublisher_Publish_modRevision_specified(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
 	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
-	defer etcd.Close()
+	defer func() {
+		_ = etcd.Close()
+	}()
 
 	etcdPut(t, etcd, "/foo/config/key", "bar")
 	_, modRevision := etcdGet(t, etcd, "/foo/config/key")
@@ -444,7 +460,9 @@ func TestEtcdAllDataPublisher_Publish_ignore_prefix(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
 	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
-	defer etcd.Close()
+	defer func() {
+		_ = etcd.Close()
+	}()
 
 	etcdPut(t, etcd, "/foo/config/", "foo")
 	etcdPut(t, etcd, "/foo/config/foo", "zoo")
@@ -473,7 +491,9 @@ func TestEtcdAllDataPublisher_collect_publish_collect(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
 	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
-	defer etcd.Close()
+	defer func() {
+		_ = etcd.Close()
+	}()
 
 	etcdPut(t, etcd, "/foo/config/foo", "zoo: bar")
 
@@ -574,7 +594,7 @@ var testsIntegrity = []struct {
 			)
 			require.NoError(t, err)
 
-			return pub, func() { conn.Close() }
+			return pub, func() { _ = conn.Close() }
 		},
 		NewCollector: func(
 			t *testing.T,
@@ -616,7 +636,7 @@ var testsIntegrity = []struct {
 			)
 			require.NoError(t, err)
 
-			return coll, func() { conn.Close() }
+			return coll, func() { _ = conn.Close() }
 		},
 	},
 	{
@@ -664,7 +684,7 @@ var testsIntegrity = []struct {
 			pub, err := publisherFactory.NewRemoteStorage(stor, prefix, key, 10*time.Second, "etcd")
 			require.NoError(t, err)
 
-			return pub, func() { etcd.Close() }
+			return pub, func() { _ = etcd.Close() }
 		},
 		NewCollector: func(
 			t *testing.T,
@@ -697,7 +717,7 @@ var testsIntegrity = []struct {
 			)
 			require.NoError(t, err)
 
-			return coll, func() { etcd.Close() }
+			return coll, func() { _ = etcd.Close() }
 		},
 	},
 }

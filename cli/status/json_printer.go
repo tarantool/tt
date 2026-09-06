@@ -20,6 +20,6 @@ func (j JSONPrinter) Print(instances map[string]*instanceStatus) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal instances to JSON: %w", err)
 	}
-	fmt.Fprintln(os.Stdout, string(jsonData))
+	_, _ = fmt.Fprintln(os.Stdout, string(jsonData))
 	return nil
 }

@@ -98,8 +98,12 @@ func RunCommand(cmd *exec.Cmd, workingDir string, showOutput bool) error {
 		}
 		cmd.Stdout = outputBuf
 		cmd.Stderr = outputBuf
-		defer outputBuf.Close()
-		defer os.Remove(outputBuf.Name())
+		defer func() {
+			_ = outputBuf.Close()
+		}()
+		defer func() {
+			_ = os.Remove(outputBuf.Name())
+		}()
 
 		if isatty.IsTerminal(os.Stdout.Fd()) {
 			workGroup.Add(1)
@@ -199,8 +203,8 @@ func ExecuteCommandGetOutput(program, workDir string, stdinData []byte,
 		return out.Bytes(), err
 	}
 
-	stdin.Write(stdinData)
-	stdin.Close()
+	_, _ = stdin.Write(stdinData)
+	_ = stdin.Close()
 
 	err = cmd.Wait()
 	return out.Bytes(), err

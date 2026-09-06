@@ -30,9 +30,9 @@ var (
 // printBinaries outputs installed versions of the program.
 func printVersion(versionString string) {
 	if strings.HasSuffix(versionString, "[active]") {
-		fmt.Fprintf(os.Stdout, "	%s\n", util.Bold(color.GreenString(versionString)))
+		_, _ = fmt.Fprintf(os.Stdout, "	%s\n", util.Bold(color.GreenString(versionString)))
 	} else {
-		fmt.Fprintf(os.Stdout, "	%s\n", color.YellowString(versionString))
+		_, _ = fmt.Fprintf(os.Stdout, "	%s\n", color.YellowString(versionString))
 	}
 }
 
@@ -124,7 +124,7 @@ func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
 		search.ProgramEe,
 		search.ProgramTcm,
 	}
-	fmt.Fprintln(os.Stdout, "List of installed binaries:")
+	_, _ = fmt.Fprintln(os.Stdout, "List of installed binaries:")
 	for _, program := range programs {
 		binaryVersions, err := ParseBinaries(binDirFilesList, program, binDir)
 		if err != nil {

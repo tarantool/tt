@@ -23,7 +23,7 @@ func printGoConfig(cfg goconfig.Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
-	fmt.Fprint(os.Stdout, string(b))
+	_, _ = fmt.Fprint(os.Stdout, string(b))
 	return nil
 }
 

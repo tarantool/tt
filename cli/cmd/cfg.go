@@ -12,7 +12,7 @@ func NewCfgCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Environment configuration management utility",
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Help()
+			_ = cmd.Help()
 		},
 		Example: `# Print tt environment configuration:
 

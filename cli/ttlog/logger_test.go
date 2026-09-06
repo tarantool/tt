@@ -24,16 +24,16 @@ func TestLoggerBase(t *testing.T) {
 	// Check the count of the log files (must be 1).
 	assert.FileExists(t, fileName)
 
-	logger.Rotate()
+	_ = logger.Rotate()
 
 	// Check that the rotation does not create new file.
 	files, _ := os.ReadDir(tmpDir)
 	assert.Equal(t, len(files), 1)
 
-	os.Rename(fileName, fileName+".old")
+	_ = os.Rename(fileName, fileName+".old")
 	assert.NoFileExists(t, fileName)
 	logger.Println(`Test msg 2`)
-	logger.Rotate()
+	_ = logger.Rotate()
 
 	// Check that file is re-created.
 	assert.FileExists(t, fileName)

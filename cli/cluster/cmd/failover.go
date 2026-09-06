@@ -107,7 +107,9 @@ func Switch(url string, switchCtx SwitchCtx) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	cmd := switchCmd{
 		Command:   "switch",
@@ -135,7 +137,7 @@ func Switch(url string, switchCtx SwitchCtx) error {
 		return err
 	}
 
-	fmt.Fprintf(os.Stdout, "%s\n%s '%s' %s\n",
+	_, _ = fmt.Fprintf(os.Stdout, "%s\n%s '%s' %s\n",
 		"To check the switching status, run:",
 		"tt cluster failover switch-status",
 		url, uuid)
@@ -166,7 +168,7 @@ func waitForSwitch(conn *libcluster.RawStorage, key string, yamlCmd []byte, time
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(os.Stdout, "%s", ev.Value)
+		_, _ = fmt.Fprintf(os.Stdout, "%s", ev.Value)
 		if result.Status == "success" || result.Status == "failed" {
 			return nil
 		}
@@ -190,7 +192,9 @@ func SwitchStatus(url string, switchCtx SwitchStatusCtx) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	key := uriOpts.Prefix + failoverPath + switchCtx.TaskID
 
@@ -206,7 +210,7 @@ func SwitchStatus(url string, switchCtx SwitchStatusCtx) error {
 		return fmt.Errorf("%w%s` is not found", errTaskWithIDIsNotFound, switchCtx.TaskID)
 	}
 
-	fmt.Fprint(os.Stdout, string(result[0].Value))
+	_, _ = fmt.Fprint(os.Stdout, string(result[0].Value))
 
 	return nil
 }

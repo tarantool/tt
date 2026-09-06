@@ -50,7 +50,7 @@ func (s *Server) SQLStream(in *pb.SQLRequest, stream pb.SQLService_SQLStreamServ
 		return errSQLStreamRequestIsNil
 	}
 	res := makeSQLResponse(in.GetQuery())
-	stream.Send(&res)
+	_ = stream.Send(&res)
 	return nil
 }
 

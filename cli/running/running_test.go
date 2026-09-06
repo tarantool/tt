@@ -217,7 +217,7 @@ func Test_collectAppDirFiles(t *testing.T) {
 	expectedClusterConfig := filepath.Join(tmpdir, "config.yml")
 
 	// Cluster config exists, but no instances config.
-	os.Create(expectedClusterConfig)
+	_, _ = os.Create(expectedClusterConfig)
 	appDirFiles, err := collectAppDirFiles(tmpdir)
 	require.NoError(t, err)
 	require.Equal(t, expectedClusterConfig, appDirFiles.clusterCfgPath)
@@ -225,7 +225,7 @@ func Test_collectAppDirFiles(t *testing.T) {
 	require.Equal(t, "", appDirFiles.instCfgPath)
 
 	// Cluster config and default instance script exist, but no instances config.
-	os.Create(expectedDefaultScript)
+	_, _ = os.Create(expectedDefaultScript)
 	appDirFiles, err = collectAppDirFiles(tmpdir)
 	require.NoError(t, err)
 	require.Equal(t, expectedClusterConfig, appDirFiles.clusterCfgPath)
@@ -233,7 +233,7 @@ func Test_collectAppDirFiles(t *testing.T) {
 	require.Equal(t, "", appDirFiles.instCfgPath)
 
 	// All files exist.
-	os.Create(expectedInstancesConfig)
+	_, _ = os.Create(expectedInstancesConfig)
 	appDirFiles, err = collectAppDirFiles(tmpdir)
 	require.NoError(t, err)
 	require.Equal(t, expectedClusterConfig, appDirFiles.clusterCfgPath)
@@ -241,7 +241,7 @@ func Test_collectAppDirFiles(t *testing.T) {
 	require.Equal(t, expectedInstancesConfig, appDirFiles.instCfgPath)
 
 	// No default script.
-	os.Remove(expectedDefaultScript)
+	_ = os.Remove(expectedDefaultScript)
 	appDirFiles, err = collectAppDirFiles(tmpdir)
 	require.NoError(t, err)
 	require.Equal(t, expectedClusterConfig, appDirFiles.clusterCfgPath)
@@ -249,7 +249,7 @@ func Test_collectAppDirFiles(t *testing.T) {
 	require.Equal(t, expectedInstancesConfig, appDirFiles.instCfgPath)
 
 	// Only instances config.
-	os.Remove(expectedClusterConfig)
+	_ = os.Remove(expectedClusterConfig)
 	appDirFiles, err = collectAppDirFiles(tmpdir)
 	require.NoError(t, err)
 	require.Equal(t, "", appDirFiles.clusterCfgPath)

@@ -35,7 +35,7 @@ func FillCtx(cliOpts *config.CliOpts, createCtx *create_ctx.CreateCtx) error {
 // RollbackOnErr removes temporary application directory.
 func rollbackOnErr(templateCtx *app_template.TemplateCtx) {
 	if templateCtx.AppPath != "" {
-		os.RemoveAll(templateCtx.AppPath)
+		_ = os.RemoveAll(templateCtx.AppPath)
 	}
 	templateCtx.AppPath = ""
 }

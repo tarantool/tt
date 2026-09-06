@@ -37,8 +37,10 @@ func TestGetCredsFromFile(t *testing.T) {
 
 	file, err := os.CreateTemp("/tmp", "tt-unittest-*.bat")
 	assert.Nil(err)
-	file.WriteString("user\npass")
-	defer os.Remove(file.Name())
+	_, _ = file.WriteString("user\npass")
+	defer func() {
+		_ = os.Remove(file.Name())
+	}()
 
 	testCases[getCredsFromFileInputValue{path: file.Name()}] = getCredsFromFileOutputValue{
 		result: UserCredentials{
@@ -50,8 +52,10 @@ func TestGetCredsFromFile(t *testing.T) {
 
 	file, err = os.CreateTemp("/tmp", "tt-unittest-*.bat")
 	assert.Nil(err)
-	file.WriteString("")
-	defer os.Remove(file.Name())
+	_, _ = file.WriteString("")
+	defer func() {
+		_ = os.Remove(file.Name())
+	}()
 
 	testCases[getCredsFromFileInputValue{path: file.Name()}] = getCredsFromFileOutputValue{
 		result: UserCredentials{},
@@ -60,8 +64,10 @@ func TestGetCredsFromFile(t *testing.T) {
 
 	file, err = os.CreateTemp("/tmp", "tt-unittest-*.bat")
 	assert.Nil(err)
-	file.WriteString("user")
-	defer os.Remove(file.Name())
+	_, _ = file.WriteString("user")
+	defer func() {
+		_ = os.Remove(file.Name())
+	}()
 
 	testCases[getCredsFromFileInputValue{path: file.Name()}] = getCredsFromFileOutputValue{
 		result: UserCredentials{},

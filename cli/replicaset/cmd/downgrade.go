@@ -68,10 +68,10 @@ func internalDowngrade(replicasets []replicaset.Replicaset, lsnTimeout int, vers
 	for _, replicaset := range replicasets {
 		err := downgradeReplicaset(replicaset, lsnTimeout, version, connOpts)
 		if err != nil {
-			fmt.Fprintf(os.Stdout, "• %s: error\n", replicaset.Alias)
+			_, _ = fmt.Fprintf(os.Stdout, "• %s: error\n", replicaset.Alias)
 			return fmt.Errorf("replicaset %s: %w", replicaset.Alias, err)
 		}
-		fmt.Fprintf(os.Stdout, "• %s: ok\n", replicaset.Alias)
+		_, _ = fmt.Fprintf(os.Stdout, "• %s: ok\n", replicaset.Alias)
 	}
 	return nil
 }

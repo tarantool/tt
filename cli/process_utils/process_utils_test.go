@@ -14,7 +14,7 @@ func Test_ExistsAndRecord(t *testing.T) {
 	cmd := exec.CommandContext(t.Context(), "sleep", "10")
 
 	t.Cleanup(func() {
-		os.Remove(testFile)
+		_ = os.Remove(testFile)
 	})
 
 	err := cmd.Start()

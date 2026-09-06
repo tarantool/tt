@@ -31,8 +31,8 @@ func dumpRaw(writer io.Writer, cmdCtx *cmdcontext.CmdCtx) error {
 		if err != nil {
 			return err
 		}
-		writer.Write([]byte(cmdCtx.Cli.ConfigPath + ":\n"))
-		writer.Write(fileContent)
+		_, _ = writer.Write([]byte(cmdCtx.Cli.ConfigPath + ":\n"))
+		_, _ = writer.Write(fileContent)
 	} else {
 		return errTTConfigurationFileIsNotFound
 	}
@@ -46,7 +46,7 @@ func dumpConfiguration(writer io.Writer, cmdCtx *cmdcontext.CmdCtx,
 ) error {
 	if cmdCtx.Cli.ConfigPath != "" {
 		if _, err := os.Stat(cmdCtx.Cli.ConfigPath); err == nil {
-			writer.Write([]byte(cmdCtx.Cli.ConfigPath + ":\n"))
+			_, _ = writer.Write([]byte(cmdCtx.Cli.ConfigPath + ":\n"))
 		}
 	}
 	err := yaml.NewEncoder(writer).Encode(cliOpts)

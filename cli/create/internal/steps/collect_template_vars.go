@@ -44,7 +44,7 @@ func validateExistingValue(createCtx *create_ctx.CreateCtx, varInfo app_template
 	if createCtx.SilentMode {
 		return false, fmt.Errorf("%w%s variable", errInvalidFormatOfVariable, varInfo.Name)
 	}
-	fmt.Fprintf(os.Stdout, "Invalid format of %s variable.\n", varInfo.Name)
+	_, _ = fmt.Fprintf(os.Stdout, "Invalid format of %s variable.\n", varInfo.Name)
 	return false, nil
 }
 
@@ -74,12 +74,13 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 				if createCtx.SilentMode {
 					return fmt.Errorf("%s%w", varInfo.Name, errVariableValueIsNotSet)
 				}
-				fmt.Fprintf(os.Stdout, "%s: ", varInfo.Prompt)
+				_, _ = fmt.Fprintf(os.Stdout, "%s: ", varInfo.Prompt)
 			} else {
 				if createCtx.SilentMode {
 					input = varInfo.Default
 				} else {
-					fmt.Fprintf(os.Stdout, "%s (default: %s): ", varInfo.Prompt, varInfo.Default)
+					_, _ = fmt.Fprintf(os.Stdout, "%s (default: %s): ",
+						varInfo.Prompt, varInfo.Default)
 				}
 			}
 
@@ -93,7 +94,7 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 
 			if input == "" {
 				if varInfo.Default == "" {
-					fmt.Fprintln(os.Stdout, "Please enter a value.")
+					_, _ = fmt.Fprintln(os.Stdout, "Please enter a value.")
 				} else {
 					input = varInfo.Default
 				}
@@ -113,7 +114,7 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 				if createCtx.SilentMode {
 					return fmt.Errorf("%w%s variable", errInvalidFormatOfVariable, varInfo.Name)
 				}
-				fmt.Fprintln(os.Stdout, "Invalid format. Try again.")
+				_, _ = fmt.Fprintln(os.Stdout, "Invalid format. Try again.")
 			}
 		}
 		templateCtx.Vars[varInfo.Name] = input

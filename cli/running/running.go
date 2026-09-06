@@ -236,7 +236,7 @@ func (provider *providerImpl) UpdateLogger(logger ttlog.Logger) (ttlog.Logger, e
 		return logger, err
 	}
 	if updateLogger {
-		logger.Close()
+		_ = logger.Close()
 		return createLogger(provider.instanceCtx)
 	}
 	return logger, nil
@@ -422,7 +422,7 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 	if err != nil {
 		return nil, fmt.Errorf("can't check integrity of %q: %w", appDirFiles.instCfgPath, err)
 	}
-	f.Close()
+	_ = f.Close()
 
 	instParams, err := util.ParseYAML(appDirFiles.instCfgPath)
 	if err != nil {
@@ -503,11 +503,11 @@ func collectInstances(appName, applicationDir string,
 // cleanup removes runtime artifacts.
 func cleanup(run *InstanceCtx) {
 	if _, err := os.Stat(run.PIDFile); err == nil {
-		os.Remove(run.PIDFile)
+		_ = os.Remove(run.PIDFile)
 	}
 
 	if _, err := os.Stat(run.ConsoleSocket); err == nil {
-		os.Remove(run.ConsoleSocket)
+		_ = os.Remove(run.ConsoleSocket)
 	}
 
 	if _, err := os.Stat(run.BinaryPort); err == nil {
@@ -750,7 +750,7 @@ func RunInstance(ctx context.Context, cmdCtx *cmdcontext.CmdCtx, inst InstanceCt
 	}()
 
 	if err := process_utils.CreatePIDFile(inst.PIDFile, instance.GetPid()); err != nil {
-		instance.Stop(instanceCleanupTimeout)
+		_ = instance.Stop(instanceCleanupTimeout)
 		return fmt.Errorf("cannot create the pid file %q: %w", inst.PIDFile, err)
 	}
 
@@ -880,7 +880,7 @@ func Logrotate(run *InstanceCtx) error {
 // Check returns the result of checking the syntax of the application file.
 func Check(cmdCtx *cmdcontext.CmdCtx, run *InstanceCtx) error {
 	var errBuff bytes.Buffer
-	os.Setenv("TT_CLI_INSTANCE", run.InstanceScript)
+	_ = os.Setenv("TT_CLI_INSTANCE", run.InstanceScript)
 
 	cmd := exec.CommandContext(
 		context.Background(), cmdCtx.Cli.TarantoolCli.Executable, "-e", checkSyntax)
@@ -949,7 +949,7 @@ func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance Inst
 	if err != nil {
 		return err
 	}
-	f.Close()
+	_ = f.Close()
 
 	log.Infof("Starting an instance [%s]...", appName)
 

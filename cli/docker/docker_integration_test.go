@@ -26,7 +26,7 @@ func findAndRemoveBuiltImage(t *testing.T, dockerClient *mobyclient.Client) {
 		for _, imgTag := range img.RepoTags {
 			if imgTag == "ubuntu:tt_test" {
 				imgFound = true
-				dockerClient.ImageRemove(ctx, img.ID, mobyclient.ImageRemoveOptions{})
+				_, _ = dockerClient.ImageRemove(ctx, img.ID, mobyclient.ImageRemoveOptions{})
 			}
 		}
 	}
@@ -36,7 +36,9 @@ func findAndRemoveBuiltImage(t *testing.T, dockerClient *mobyclient.Client) {
 func TestBuildImage(t *testing.T) {
 	dockerClient, err := mobyclient.New(mobyclient.FromEnv)
 	require.NoError(t, err)
-	defer dockerClient.Close()
+	defer func() {
+		_ = dockerClient.Close()
+	}()
 
 	require.NoError(t, buildDockerImage(dockerClient, "ubuntu:tt_test", "testdata", false,
 		os.Stdout))
@@ -53,7 +55,9 @@ func TestBuildImageFail(t *testing.T) {
 
 	dockerClient, err := mobyclient.New(mobyclient.FromEnv)
 	require.NoError(t, err)
-	defer dockerClient.Close()
+	defer func() {
+		_ = dockerClient.Close()
+	}()
 
 	err = buildDockerImage(dockerClient, "ubuntu:tt_test", tmpDir, false, os.Stdout)
 	require.Error(t, err)
@@ -63,19 +67,23 @@ func TestBuildImageFail(t *testing.T) {
 func TestBuildImageOutputVerbose(t *testing.T) {
 	dockerClient, err := mobyclient.New(mobyclient.FromEnv)
 	require.NoError(t, err)
-	defer dockerClient.Close()
+	defer func() {
+		_ = dockerClient.Close()
+	}()
 
 	tmpDir := t.TempDir()
 	out, err := os.Create(filepath.Join(tmpDir, "out.log"))
 	require.NoError(t, err)
 
 	require.NoError(t, buildDockerImage(dockerClient, "ubuntu:tt_test", "testdata", true, out))
-	out.Close()
+	_ = out.Close()
 	findAndRemoveBuiltImage(t, dockerClient)
 
 	in, err := os.Open(filepath.Join(tmpDir, "out.log"))
 	require.NoError(t, err)
-	defer in.Close()
+	defer func() {
+		_ = in.Close()
+	}()
 	scanner := bufio.NewScanner(in)
 	require.True(t, scanner.Scan())
 	require.Equal(t, "Step 1/1 : FROM ubuntu:16.04", scanner.Text())
@@ -89,19 +97,23 @@ func TestBuildImageOutputVerbose(t *testing.T) {
 func TestBuildImageOutput(t *testing.T) {
 	dockerClient, err := mobyclient.New(mobyclient.FromEnv)
 	require.NoError(t, err)
-	defer dockerClient.Close()
+	defer func() {
+		_ = dockerClient.Close()
+	}()
 
 	tmpDir := t.TempDir()
 	out, err := os.Create(filepath.Join(tmpDir, "out.log"))
 	require.NoError(t, err)
 
 	require.NoError(t, buildDockerImage(dockerClient, "ubuntu:tt_test", "testdata", false, out))
-	out.Close()
+	_ = out.Close()
 	findAndRemoveBuiltImage(t, dockerClient)
 
 	in, err := os.Open(filepath.Join(tmpDir, "out.log"))
 	require.NoError(t, err)
-	defer in.Close()
+	defer func() {
+		_ = in.Close()
+	}()
 	scanner := bufio.NewScanner(in)
 	require.False(t, scanner.Scan())
 }
@@ -112,7 +124,9 @@ func checkNoContainers(t *testing.T, imageTag string) {
 	ctx := context.Background()
 	cli, err := mobyclient.New(mobyclient.FromEnv)
 	require.NoError(t, err)
-	defer cli.Close()
+	defer func() {
+		_ = cli.Close()
+	}()
 
 	containerListResult, err := cli.ContainerList(ctx, mobyclient.ContainerListOptions{
 		Filters: mobyclient.Filters{

@@ -124,7 +124,9 @@ func GetCommitFromGitRemote(repo, input string) (string, error) {
 		return "", fmt.Errorf("failed to get commits from %q: %w", repo, err)
 	}
 
-	defer os.RemoveAll(tempRepoPath)
+	defer func() {
+		_ = os.RemoveAll(tempRepoPath)
+	}()
 
 	cmd := exec.CommandContext(context.Background(), "git", "clone",
 		"--filter=blob:none", "--no-checkout", repo, tempRepoPath)

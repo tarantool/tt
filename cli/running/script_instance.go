@@ -91,7 +91,7 @@ func (inst *scriptInstance) Start(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		f.Close()
+		_ = f.Close()
 	}
 
 	cmdArgs := []string{}
@@ -161,8 +161,8 @@ func (inst *scriptInstance) Start(ctx context.Context) error {
 	if inst.processController, err = newProcessController(cmd); err != nil {
 		return err
 	}
-	StdinPipe.Write(instanceLauncher)
-	StdinPipe.Close()
+	_, _ = StdinPipe.Write(instanceLauncher)
+	_ = StdinPipe.Close()
 
 	return nil
 }

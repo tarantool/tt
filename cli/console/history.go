@@ -60,7 +60,7 @@ func (h *History) AppendCommand(input string) {
 		h.commands = h.commands[1:]
 		h.timestamps = h.timestamps[1:]
 	}
-	h.writeToFile()
+	_ = h.writeToFile()
 }
 
 // Commands implements HistoryKeeper.Commands interface method.

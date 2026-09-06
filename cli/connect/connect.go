@@ -103,7 +103,9 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 	if err != nil {
 		return nil, fmt.Errorf("unable to establish connection: %w", err)
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	evalArgs := []any{command, connectCtx.Language == SQLLanguage}
 	if connectCtx.Language != DefaultLanguage {

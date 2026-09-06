@@ -36,7 +36,9 @@ func (collector FileCollector) Collect() ([]Data, error) {
 	if err != nil {
 		return nil, fmt.Errorf(fmtErr, collector.path, err)
 	}
-	defer reader.Close()
+	defer func() {
+		_ = reader.Close()
+	}()
 
 	data, err := io.ReadAll(reader)
 	if err != nil {

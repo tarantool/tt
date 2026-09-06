@@ -49,7 +49,7 @@ func RunCmd(cmdCtx *cmdcontext.CmdCtx, cmdPath string, modulesInfo *ModulesInfo,
 	if err != nil {
 		return fmt.Errorf("integrity check failed for %q: %w", manifest.Main, err)
 	}
-	f.Close()
+	_ = f.Close()
 	if rc := RunExec(manifest.Main, args); rc != 0 {
 		os.Exit(rc)
 	}

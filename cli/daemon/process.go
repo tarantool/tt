@@ -120,7 +120,7 @@ func (process *Process) Stop() {
 		done <- process.worker.Stop()
 	}()
 
-	os.Remove(process.pidFileName)
+	_ = os.Remove(process.pidFileName)
 	_ = os.Unsetenv(process.DaemonTag)
 
 	err := <-done

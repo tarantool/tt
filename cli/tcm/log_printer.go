@@ -74,10 +74,10 @@ func (l *logPrinter) Print(ctx context.Context, in <-chan string) error {
 				return nil
 			}
 
-			fmt.Fprintln(l.out, l.format(line))
+			_, _ = fmt.Fprintln(l.out, l.format(line))
 
 			if l.sync != nil {
-				l.sync()
+				_ = l.sync()
 			}
 		}
 	}

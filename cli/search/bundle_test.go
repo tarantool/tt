@@ -14,8 +14,12 @@ import (
 func TestFetchBundlesInfo(t *testing.T) {
 	t.Setenv("TT_CLI_EE_USERNAME", testingUsername)
 	t.Setenv("TT_CLI_EE_PASSWORD", testingPassword)
-	defer os.Unsetenv("TT_CLI_EE_USERNAME")
-	defer os.Unsetenv("TT_CLI_EE_PASSWORD")
+	defer func() {
+		_ = os.Unsetenv("TT_CLI_EE_USERNAME")
+	}()
+	defer func() {
+		_ = os.Unsetenv("TT_CLI_EE_PASSWORD")
+	}()
 
 	tests := map[string]struct {
 		program         search.Program

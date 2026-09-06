@@ -22,9 +22,13 @@ const subdirName = "subdir"
 
 func createArchive(buf io.Writer, files ...string) error {
 	gzipWriter := gzip.NewWriter(buf)
-	defer gzipWriter.Close()
+	defer func() {
+		_ = gzipWriter.Close()
+	}()
 	tarWriter := tar.NewWriter(gzipWriter)
-	defer tarWriter.Close()
+	defer func() {
+		_ = tarWriter.Close()
+	}()
 
 	for _, fileName := range files {
 		err := addToArchive(tarWriter, fileName)
@@ -41,7 +45,9 @@ func addToArchive(tarWriter *tar.Writer, fileName string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	stat, err := file.Stat()
 	if err != nil {
@@ -127,7 +133,9 @@ func TestExtractTemplateArchive(t *testing.T) {
 	archivePath := filepath.Join(workDir, "tmpl.tgz")
 	archiveOut, err := os.Create(archivePath)
 	require.NoError(t, err)
-	defer archiveOut.Close()
+	defer func() {
+		_ = archiveOut.Close()
+	}()
 
 	require.NoError(t, createArchive(archiveOut, filepath.Join(srcDir, "file1.txt")))
 

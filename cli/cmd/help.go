@@ -19,7 +19,7 @@ func configureHelpCommand(rootCmd *cobra.Command, modulesInfo *modules.ModulesIn
 		if err != nil {
 			return err
 		}
-		cmd.Help()
+		_ = cmd.Help()
 		return nil
 	}
 
