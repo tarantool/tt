@@ -53,7 +53,7 @@ func ExtractTarGz(tarName, dstDir string) error {
 				//    user:   read/write/execute
 				//    group:  read/execute
 				//    others: read/execute
-				os.MkdirAll(filepath.Join(dstDir, dirName), 0o755)
+				os.MkdirAll(filepath.Join(dstDir, dirName), archiveDirectoryMode)
 			}
 			outFile, err := os.OpenFile(filepath.Join(dstDir, header.Name),
 				os.O_CREATE|os.O_WRONLY, header.FileInfo().Mode().Perm())

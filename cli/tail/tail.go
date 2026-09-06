@@ -15,7 +15,11 @@ import (
 	"github.com/nxadm/tail"
 )
 
-const blockSize = 8192
+const (
+	blockSize               = 8192
+	formatterBufferCapacity = 512
+	outputChannelCapacity   = 8
+)
 
 // Reader is an interface for reading the last `lines` lines from a file.
 type Reader interface {
@@ -47,7 +51,7 @@ type LogFormatter func(str string) string
 // NewLogFormatter creates a function to make log prefix colored.
 func NewLogFormatter(prefix string, color color.Color) LogFormatter {
 	buf := strings.Builder{}
-	buf.Grow(512)
+	buf.Grow(formatterBufferCapacity)
 	return func(str string) string {
 		buf.Reset()
 		color.Fprint(&buf, prefix)
@@ -139,7 +143,7 @@ func TailN(ctx context.Context, logFormatter LogFormatter, fileName string,
 	}
 
 	scanner := bufio.NewScanner(reader)
-	out := make(chan string, 8)
+	out := make(chan string, outputChannelCapacity)
 	go func() {
 		defer close(out)
 		defer file.Close()

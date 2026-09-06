@@ -150,7 +150,9 @@ func appendTags(args []string) ([]string, error) {
 // Building tt executable. Supported environment variables:
 // TT_CLI_BUILD_SSL=(no|static|shared).
 func buildTt(argUpdaters ...optsUpdater) error {
-	args := make([]string, 0, 8)
+	const buildArgsCapacity = 8
+
+	args := make([]string, 0, buildArgsCapacity)
 	args = append(args, "build", "-o", ttExecutableName)
 	var err error
 	for _, updateArguments := range argUpdaters {
@@ -388,9 +390,11 @@ func (Unit) Coverage() error {
 }
 
 func ensureCoverageDir(coverDir string) error {
+	const coverageDirectoryMode = 0o750
+
 	coverageDirInfo, err := os.Stat(coverDir)
 	if os.IsNotExist(err) {
-		return os.MkdirAll(coverDir, 0o750)
+		return os.MkdirAll(coverDir, coverageDirectoryMode)
 	}
 	if err != nil {
 		return err

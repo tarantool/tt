@@ -25,7 +25,8 @@ import (
 type EvalFunc func(console *Console, funcBodyFmt string, args ...interface{}) (interface{}, error)
 
 const (
-	HistoryFileName = ".tarantool_history"
+	HistoryFileName       = ".tarantool_history"
+	suggestionReadTimeout = 3 * time.Second
 
 	MaxLivePrefixIndent = 15
 	MaxHistoryLines     = 10000
@@ -325,7 +326,7 @@ func getCompleter(console *Console, connectCtx ConnectCtx) prompt.Completer {
 		var suggestionsTexts []string
 		args := []interface{}{lastWord, len(lastWord)}
 		opts := connector.RequestOpts{
-			ReadTimeout: 3 * time.Second,
+			ReadTimeout: suggestionReadTimeout,
 			ResData:     &suggestionsTexts,
 		}
 

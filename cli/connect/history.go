@@ -13,6 +13,8 @@ import (
 	"github.com/tarantool/tt/cli/util"
 )
 
+const historyFileMode = 0o640
+
 // commandHistory stores console command history.
 type commandHistory struct {
 	filepath    string
@@ -100,7 +102,7 @@ func (history *commandHistory) writeToFile() error {
 	for i, command := range history.commands {
 		fmt.Fprintf(&historyContent, "#%d\n%s\n", history.timestamps[i], command)
 	}
-	if err := os.WriteFile(history.filepath, historyContent.Bytes(), 0o640); err != nil {
+	if err := os.WriteFile(history.filepath, historyContent.Bytes(), historyFileMode); err != nil {
 		return fmt.Errorf("failed to write to history file: %s", err)
 	}
 

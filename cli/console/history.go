@@ -18,6 +18,7 @@ const (
 	DefaultHistoryFileName = ".tarantool_history"
 	// DefaultHistoryLines is used for the DefaultHistoryFile() helping method.
 	DefaultHistoryLines = 10000
+	historyFileMode     = 0o640
 )
 
 // History implementation of active history handler.
@@ -131,7 +132,7 @@ func (h *History) writeToFile() error {
 	for i, c := range h.commands {
 		fmt.Fprintf(&buff, "#%d\n%s\n", h.timestamps[i], c)
 	}
-	if err := os.WriteFile(h.filepath, buff.Bytes(), 0o640); err != nil {
+	if err := os.WriteFile(h.filepath, buff.Bytes(), historyFileMode); err != nil {
 		return fmt.Errorf("failed to write to history file: %s", err)
 	}
 

@@ -18,7 +18,12 @@ import (
 // user:   read/write/execute
 // group:  read/write/execute
 // others: nil
-const defaultDirPerms = 0o770
+const (
+	defaultDirPerms           = 0o770
+	pidFileMode               = 0o644
+	processTerminationTimeout = 30 * time.Second
+	processPollInterval       = 100 * time.Millisecond
+)
 
 type ProcessState struct {
 	Code        int
@@ -159,7 +164,7 @@ func CreatePIDFile(pidFileName string, pid int) error {
 	//    group:  read
 	//    others: read
 	pidFile, err := os.OpenFile(pidFileName,
-		syscall.O_EXCL|syscall.O_CREAT|syscall.O_RDWR, 0o644)
+		syscall.O_EXCL|syscall.O_CREAT|syscall.O_RDWR, pidFileMode)
 	if err != nil {
 		return fmt.Errorf(`can't create a new PID file. Error: "%v"`, err)
 	}
@@ -199,7 +204,7 @@ func StopProcess(pidFile string) (int, error) {
 		return 0, fmt.Errorf(`can't terminate the process. Error: "%v"`, err)
 	}
 
-	if res := waitProcessTermination(pid, 30*time.Second, 100*time.Millisecond); !res {
+	if res := waitProcessTermination(pid, processTerminationTimeout, processPollInterval); !res {
 		return 0, fmt.Errorf("can't terminate the process")
 	}
 
@@ -217,7 +222,7 @@ func QuitProcess(pidFile string) (int, error) {
 		return 0, fmt.Errorf("can't terminate the process with SIGQUIT: %s", err)
 	}
 
-	if res := waitProcessTermination(pid, 30*time.Second, 100*time.Millisecond); !res {
+	if res := waitProcessTermination(pid, processTerminationTimeout, processPollInterval); !res {
 		return 0, fmt.Errorf("can't terminate the process with SIGQUIT")
 	}
 

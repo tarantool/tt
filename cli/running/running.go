@@ -28,7 +28,11 @@ import (
 	"github.com/tarantool/tt/lib/integrity"
 )
 
-const defaultDirPerms = 0o770
+const (
+	defaultDirPerms        = 0o770
+	instanceCleanupTimeout = 10 * time.Second
+	watchdogRestartTimeout = 5 * time.Second
+)
 
 const (
 	// clusterConfigDefaultFileName is a default filename for the cluster config.
@@ -712,7 +716,7 @@ func RunInstance(ctx context.Context, cmdCtx *cmdcontext.CmdCtx, inst InstanceCt
 	}()
 
 	if err := process_utils.CreatePIDFile(inst.PIDFile, instance.GetPid()); err != nil {
-		instance.Stop(10 * time.Second)
+		instance.Stop(instanceCleanupTimeout)
 		return fmt.Errorf("cannot create the pid file %q: %s", inst.PIDFile, err)
 	}
 
@@ -737,7 +741,7 @@ func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx) error {
 		}
 		return nil
 	}
-	wd := NewWatchdog(inst.Restartable, 5*time.Second, logger,
+	wd := NewWatchdog(inst.Restartable, watchdogRestartTimeout, logger,
 		&provider, preStartAction, cmdCtx.Integrity,
 		time.Duration(cmdCtx.Cli.IntegrityCheckPeriod*int(time.Second)))
 

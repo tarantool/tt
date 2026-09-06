@@ -8,6 +8,8 @@ import (
 	"github.com/fatih/color"
 )
 
+const writerInitialCapacity = 1024
+
 var (
 	errorColor     = color.New(color.FgRed, color.Bold)
 	logLevelColors = map[string]*color.Color{
@@ -31,7 +33,7 @@ func (f colorizedWriter) Write(msg []byte) (int, error) {
 // line depending on its log level.
 func NewColorizedPrefixWriter(writer io.Writer, color color.Color, prefix string) io.Writer {
 	buf := bytes.Buffer{}
-	buf.Grow(1024)
+	buf.Grow(writerInitialCapacity)
 	return colorizedWriter(func(msg []byte) (int, error) {
 		for _, line := range bytes.Split(msg, []byte{'\n'}) {
 			if len(line) == 0 {

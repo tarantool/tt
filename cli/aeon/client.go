@@ -29,6 +29,8 @@ type Client struct {
 	client pb.SQLServiceClient
 }
 
+const requestTimeout = 10 * time.Second
+
 func makeAddress(ctx cmd.ConnectCtx) string {
 	if ctx.Network == connector.UnixNetwork {
 		if strings.HasPrefix(ctx.Address, "@") {
@@ -121,7 +123,7 @@ func (c *Client) Title() string {
 
 // Validate implements console.Handler interface.
 func (c *Client) Validate(input string) bool {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	defer cancel()
 
 	check, err := c.client.SQLCheck(ctx, &pb.SQLRequest{Query: input})
@@ -139,7 +141,7 @@ func (c *Client) Validate(input string) bool {
 
 // Execute implements console.Handler interface.
 func (c *Client) Execute(input string) any {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	defer cancel()
 
 	resp, err := c.client.SQL(ctx, &pb.SQLRequest{Query: input})
@@ -162,7 +164,7 @@ func (c *Client) Complete(input prompt.Document) []prompt.Suggest {
 
 func (c *Client) ping() error {
 	log.Infof("Start ping aeon server")
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	defer cancel()
 
 	diag := pb.NewDiagServiceClient(c.conn)

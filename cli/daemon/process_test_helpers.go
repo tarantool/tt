@@ -18,13 +18,14 @@ const (
 const (
 	TestProcessLogPath = "test_process.log"
 	TestProcessPidFile = "test_process.pid"
+	processStartDelay  = 500 * time.Millisecond
 )
 
 // waitProcessChanges waits for the new process to set signal handlers.
 func waitProcessChanges() {
 	// We need to wait for the new process (tarantool instance) to set handlers.
 	// It is necessary to update for more correct synchronization.
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(processStartDelay)
 }
 
 // cleanupDaemonFiles cleans up daemon artifacts.

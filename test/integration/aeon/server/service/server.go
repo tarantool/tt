@@ -49,6 +49,8 @@ func (s *Server) SQLStream(in *pb.SQLRequest, stream pb.SQLService_SQLStreamServ
 }
 
 func makeSQLResponse(query string) pb.SQLResponse {
+	const secondEntryID = 2
+
 	switch strings.ToLower(query) {
 	case "ok":
 		return pb.SQLResponse{
@@ -62,7 +64,7 @@ func makeSQLResponse(query string) pb.SQLResponse {
 				},
 				{
 					Fields: []*pb.Value{
-						{Kind: &pb.Value_IntegerValue{IntegerValue: 2}},
+						{Kind: &pb.Value_IntegerValue{IntegerValue: secondEntryID}},
 						{Kind: &pb.Value_StringValue{StringValue: "entry2"}},
 					},
 				},

@@ -17,6 +17,8 @@ var binariesSupportedPrograms = []string{
 	search.ProgramTcm.String(),
 }
 
+const binariesSwitchMaxArgs = 2
+
 // NewBinariesCmd creates binaries command.
 func NewBinariesCmd() *cobra.Command {
 	binariesCmd := &cobra.Command{
@@ -43,8 +45,9 @@ You will need to choose version using arrow keys in your console.
 # Switch with program and version.
 
 	$ tt binaries switch tarantool 3.0.0`,
-		Run:       RunModuleFunc(internalSwitchModule),
-		Args:      cobra.MatchAll(cobra.MaximumNArgs(2), binariesSwitchValidateArgs),
+		Run: RunModuleFunc(internalSwitchModule),
+		Args: cobra.MatchAll(
+			cobra.MaximumNArgs(binariesSwitchMaxArgs), binariesSwitchValidateArgs),
 		ValidArgs: binariesSupportedPrograms,
 	}
 	listCmd := &cobra.Command{

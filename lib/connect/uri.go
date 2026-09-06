@@ -62,6 +62,8 @@ const (
 
 	// defaultTimeoutParam is a default TimeoutParam.
 	defaultTimeoutParam = 3 * time.Second
+
+	credentialURISections = 2
 )
 
 // URIOpts is a universal list of connect options retrieved from a URI.
@@ -191,7 +193,7 @@ func ParseCredentialsURI(str string) (string, string, string) {
 	re := regexp.MustCompile(userPassRe + `@`)
 	// Split the string into two parts by credentials to create a string
 	// without the credentials.
-	split := re.Split(str, 2)
+	split := re.Split(str, credentialURISections)
 	newStr := split[0] + split[1]
 
 	// Parse credentials.

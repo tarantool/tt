@@ -26,6 +26,7 @@ const (
 	repoRocksPathEnvVarName   = "TT_CLI_REPO_ROCKS"
 	tarantoolPrefixEnvVarName = "TT_CLI_TARANTOOL_PREFIX"
 	tarantoolDefaultPrefixDir = "/usr"
+	minVersionOutputLines     = 3
 )
 
 // addLuarocksRepoOpts adds --server option to luarocks command line if rocks repository
@@ -95,7 +96,7 @@ func GetTarantoolPrefix(cli *cmdcontext.CliCtx, cliOpts *config.CliOpts) (string
 	}
 
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-	if len(lines) < 3 {
+	if len(lines) < minVersionOutputLines {
 		return "", fmt.Errorf("failed to get prefix path: expected more data")
 	}
 

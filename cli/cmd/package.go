@@ -53,6 +53,8 @@ var (
 // Flags specific to `tt package add`.
 var packageDev bool
 
+const packageAddMaxArgs = 2
+
 // NewPackageCmd creates the `tt package` command group: the manifest build
 // pipeline (build, fetch and pack), the dependency-changing commands (add,
 // remove and update), installation, and the inventory over what is installed
@@ -98,10 +100,10 @@ func newPackageAddCmd() *cobra.Command {
 			"the others — that is what tt package update is for. Nothing is " +
 			"fetched into .rocks/; the next tt package build picks the new lock " +
 			"up.",
-		Args: cobra.RangeArgs(1, 2),
+		Args: cobra.RangeArgs(1, packageAddMaxArgs),
 		Run: func(cmd *cobra.Command, args []string) {
 			constraint := ""
-			if len(args) == 2 {
+			if len(args) == packageAddMaxArgs {
 				constraint = args[1]
 			}
 

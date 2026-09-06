@@ -34,6 +34,8 @@ const (
 	// We need to give permission for all to execute
 	// read,write for user and only read for others.
 	defaultDirPermissions = 0o755
+	gitCloneArgsCapacity  = 10
+	dockerfileMode        = 0o664
 )
 
 // programGitRepoUrls contains URLs of programs git repositories.
@@ -354,7 +356,7 @@ func programDependenciesInstalled(program search.Program) error {
 
 // downloadRepo downloads git repository.
 func downloadRepo(repoLink, tag, dst string, logFile *os.File, verbose bool) error {
-	gitCloneArgs := make([]string, 0, 10)
+	gitCloneArgs := make([]string, 0, gitCloneArgsCapacity)
 	if tag == "master" {
 		gitCloneArgs = append(gitCloneArgs, "clone", repoLink,
 			"--recursive", dst)
@@ -931,7 +933,7 @@ func installTarantoolInDocker(tntVersion, binDir, incDir string, installCtx Inst
 
 	// Write docker file (rw-rw-r-- permissions).
 	if err = os.WriteFile(filepath.Join(tmpDir, "Dockerfile"), []byte(dockerfileText),
-		0o664); err != nil {
+		dockerfileMode); err != nil {
 		return err
 	}
 

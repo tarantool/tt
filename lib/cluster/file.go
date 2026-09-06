@@ -6,6 +6,8 @@ import (
 	"os"
 )
 
+const publishedFileMode = 0o644
+
 type FileReadFunc func(path string) (io.ReadCloser, error)
 
 // FileCollector collects data from a YAML file.
@@ -63,7 +65,7 @@ func (publisher FilePublisher) Publish(revision int64, data []byte) error {
 			publisher.path)
 	}
 
-	if err := os.WriteFile(publisher.path, data, 0o644); err != nil {
+	if err := os.WriteFile(publisher.path, data, publishedFileMode); err != nil {
 		return fmt.Errorf("failed to publish data into %q: %w", publisher.path, err)
 	}
 	return nil

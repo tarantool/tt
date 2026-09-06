@@ -13,6 +13,8 @@ import (
 	libcluster "github.com/tarantool/tt/lib/cluster"
 )
 
+const configPathSuffixSegments = 2
+
 // KeyPicker picks a key to patch.
 type KeyPicker func(keys []string, force bool, pathMsg string) (int, error)
 
@@ -324,7 +326,7 @@ func getCConfigPromotePath(inst cconfigInstance) (goconfig.KeyPath, int, error) 
 		path = goconfig.NewKeyPath(fmt.Sprintf(
 			"groups/%s/replicasets/%s/instances/%s/database/mode",
 			groupName, replicasetName, instName))
-		depth = len(path) - 2
+		depth = len(path) - configPathSuffixSegments
 	case FailoverManual:
 		path = goconfig.NewKeyPath(fmt.Sprintf(
 			"groups/%s/replicasets/%s/leader",
@@ -355,7 +357,7 @@ func getCConfigDemotePath(inst cconfigInstance) (goconfig.KeyPath, int, error) {
 		path = goconfig.NewKeyPath(fmt.Sprintf(
 			"groups/%s/replicasets/%s/instances/%s/database/mode",
 			groupName, replicasetName, instName))
-		depth = len(path) - 2
+		depth = len(path) - configPathSuffixSegments
 	case FailoverManual, FailoverElection:
 		err = fmt.Errorf(`unsupported failover: %q, supported: "off"`, failover)
 	default:
@@ -375,7 +377,7 @@ func getCConfigExpelPath(inst cconfigInstance) (goconfig.KeyPath, int, error) {
 	path := goconfig.NewKeyPath(fmt.Sprintf(
 		"groups/%s/replicasets/%s/instances/%s/iproto/listen",
 		groupName, replicasetName, instName))
-	depth := len(path) - 2
+	depth := len(path) - configPathSuffixSegments
 	return path, depth, nil
 }
 

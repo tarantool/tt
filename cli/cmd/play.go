@@ -30,6 +30,8 @@ var playFlags = checkpoint.Opts{
 	Recursive:  false,
 }
 
+const playMinArgs = 2
+
 var (
 	// playUsername contains username flag.
 	playUsername string
@@ -90,7 +92,7 @@ func NewPlayCmd() *cobra.Command {
 
 // playValidateArgs validates non-flag arguments 'play' command.
 func playValidateArgs(cmd *cobra.Command, args []string) error {
-	if len(args) < 2 {
+	if len(args) < playMinArgs {
 		return errors.New("it is required to specify an URI and at least one .xlog/.snap file " +
 			"or directory")
 	}

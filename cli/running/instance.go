@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const instanceCommandWaitDelay = 30 * time.Second
+
 // Instance describes a running tarantool instance.
 type Instance interface {
 	// Start starts the Instance with the specified parameters.

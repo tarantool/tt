@@ -14,14 +14,15 @@ import (
 )
 
 const (
-	GitRepoTarantool = "https://github.com/tarantool/tarantool.git"
-	GitRepoTT        = "https://github.com/tarantool/tt.git"
+	GitRepoTarantool         = "https://github.com/tarantool/tarantool.git"
+	GitRepoTT                = "https://github.com/tarantool/tt.git"
+	minSupportedMajorVersion = 3
 )
 
 // isMasked function checks that the given version of tarantool is masked.
 // Tarantool 1.x and 2.x are no longer supported.
 func isMasked(version version.Version) bool {
-	return version.Major < 3
+	return version.Major < minSupportedMajorVersion
 }
 
 // GetVersionsFromGitRemote returns sorted versions list from specified remote git repo.

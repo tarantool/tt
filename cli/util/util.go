@@ -33,6 +33,8 @@ import (
 
 const bufSize int64 = 10000
 
+const archiveDirectoryMode = 0o755
+
 type OsType uint16
 
 const (
@@ -589,7 +591,7 @@ func ExtractTar(tarName string) error {
 				//    user:   read/write/execute
 				//    group:  read/execute
 				//    others: read/execute
-				os.MkdirAll(dir+header.Name[0:pos], 0o755)
+				os.MkdirAll(dir+header.Name[0:pos], archiveDirectoryMode)
 			}
 			outFile, err := os.Create(dir + header.Name)
 			if err != nil {

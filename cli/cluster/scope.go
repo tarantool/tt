@@ -7,6 +7,8 @@ import (
 	goconfig "github.com/tarantool/go-config"
 )
 
+const instancePathSegments = 6
+
 // splitInstancePath parses a full structural path of the form
 // "groups/<g>/replicasets/<r>/instances/<i>" and returns the group,
 // replicaset, and instance name segments.
@@ -16,7 +18,7 @@ import (
 // 4=="instances").
 func splitInstancePath(path string) (string, string, string) {
 	kp := goconfig.NewKeyPath(path)
-	if len(kp) != 6 {
+	if len(kp) != instancePathSegments {
 		return "", "", ""
 	}
 	if kp[0] != "groups" || kp[2] != "replicasets" || kp[4] != "instances" {

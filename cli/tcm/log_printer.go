@@ -15,7 +15,8 @@ import (
 )
 
 const (
-	indentSpaces = "  "
+	indentSpaces          = "  "
+	emptyJSONObjectLength = 2
 
 	logHeaderTime  = "time"
 	logHeaderLevel = "level"
@@ -108,7 +109,7 @@ func (l *logPrinter) format(str string) string {
 		return str
 	}
 
-	if len(json) > 2 { // If the JSON contains more than empty `{}`.
+	if len(json) > emptyJSONObjectLength { // If the JSON contains more than empty `{}`.
 		lines := strings.Split(string(json), "\n")
 		lines = lines[1 : len(lines)-1]
 		resultLines = append(resultLines, colorizeJSONLines(lines, color, colorFaint)...)
