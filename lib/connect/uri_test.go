@@ -149,8 +149,8 @@ func TestIsCredentialsURIInvalid(t *testing.T) {
 
 func TestParseCredentialsURI(t *testing.T) {
 	cases := []struct {
-		srcUri string
-		newUri string
+		srcURI string
+		newURI string
 	}{
 		{"tcp://" + testUserPass + "@localhost:3013", "tcp://localhost:3013"},
 		{testUserPass + "@localhost:3013", "localhost:3013"},
@@ -169,9 +169,9 @@ func TestParseCredentialsURI(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		t.Run(c.srcUri, func(t *testing.T) {
-			newUri, user, pass := connect.ParseCredentialsURI(c.srcUri)
-			assert.Equal(t, c.newUri, newUri, "a unexpected new URI")
+		t.Run(c.srcURI, func(t *testing.T) {
+			newURI, user, pass := connect.ParseCredentialsURI(c.srcURI)
+			assert.Equal(t, c.newURI, newURI, "a unexpected new URI")
 			assert.Equal(t, testUser, user, "a unexpected username")
 			assert.Equal(t, testPass, pass, "a unexpected password")
 		})
@@ -181,8 +181,8 @@ func TestParseCredentialsURI(t *testing.T) {
 func TestParseCredentialsURI_parseValid(t *testing.T) {
 	for _, uri := range validCredentialsUris {
 		t.Run(uri, func(t *testing.T) {
-			newUri, user, pass := connect.ParseCredentialsURI(uri)
-			assert.NotEqual(t, uri, newUri, "URI must change")
+			newURI, user, pass := connect.ParseCredentialsURI(uri)
+			assert.NotEqual(t, uri, newURI, "URI must change")
 			assert.NotEqual(t, "", user, "username must not be empty")
 			assert.NotEqual(t, "", pass, "password must not be empty")
 		})
@@ -198,8 +198,8 @@ func TestParseCredentialsURI_notParseInvalid(t *testing.T) {
 
 	for _, uri := range invalid {
 		t.Run(uri, func(t *testing.T) {
-			newUri, user, pass := connect.ParseCredentialsURI(uri)
-			assert.Equal(t, uri, newUri, "URI must no change")
+			newURI, user, pass := connect.ParseCredentialsURI(uri)
+			assert.Equal(t, uri, newURI, "URI must no change")
 			assert.Equal(t, "", user, "username must be empty")
 			assert.Equal(t, "", pass, "password must be empty")
 		})
@@ -251,39 +251,39 @@ func TestParseUriOpts(t *testing.T) {
 	const defaultTimeout = 3 * time.Second
 
 	cases := map[string]struct {
-		Url    string
-		Opts   connect.UriOpts
+		URL    string
+		Opts   connect.URIOpts
 		params map[string]string
 		Err    string
 	}{
 		"empty url": {
-			Url:  "",
-			Opts: connect.UriOpts{},
+			URL:  "",
+			Opts: connect.URIOpts{},
 			Err:  "URL must contain the scheme and the host parts",
 		},
 		"no scheme": {
-			Url:  "host",
-			Opts: connect.UriOpts{},
+			URL:  "host",
+			Opts: connect.URIOpts{},
 			Err:  "URL must contain the scheme and the host parts",
 		},
 		"invalid scheme": {
-			Url:  ":host",
-			Opts: connect.UriOpts{},
+			URL:  ":host",
+			Opts: connect.URIOpts{},
 			Err:  "missing protocol scheme",
 		},
 		"no host": {
-			Url:  "scheme:///prefix",
-			Opts: connect.UriOpts{},
+			URL:  "scheme:///prefix",
+			Opts: connect.URIOpts{},
 			Err:  "URL must contain the scheme and the host parts",
 		},
 		"with opaque": {
-			Url:  "scheme:host.com/prefix",
-			Opts: connect.UriOpts{},
+			URL:  "scheme:host.com/prefix",
+			Opts: connect.URIOpts{},
 			Err:  "URL must contain the scheme and the host parts",
 		},
 		"simple": {
-			Url: "scheme://localhost",
-			Opts: connect.UriOpts{
+			URL: "scheme://localhost",
+			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
 				Host:     "localhost",
 				Timeout:  defaultTimeout,
@@ -291,8 +291,8 @@ func TestParseUriOpts(t *testing.T) {
 			Err: "",
 		},
 		"with port": {
-			Url: "scheme://localhost:3013",
-			Opts: connect.UriOpts{
+			URL: "scheme://localhost:3013",
+			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost:3013",
 				Host:     "localhost:3013",
 				Timeout:  defaultTimeout,
@@ -300,8 +300,8 @@ func TestParseUriOpts(t *testing.T) {
 			Err: "",
 		},
 		"user auth": {
-			Url: "scheme://user@localhost",
-			Opts: connect.UriOpts{
+			URL: "scheme://user@localhost",
+			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
 				Host:     "localhost",
 				Username: "user",
@@ -310,8 +310,8 @@ func TestParseUriOpts(t *testing.T) {
 			Err: "",
 		},
 		"user and pass": {
-			Url: "scheme://user:pass@localhost",
-			Opts: connect.UriOpts{
+			URL: "scheme://user:pass@localhost",
+			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
 				Host:     "localhost",
 				Username: "user",
@@ -321,8 +321,8 @@ func TestParseUriOpts(t *testing.T) {
 			Err: "",
 		},
 		"prefix root": {
-			Url: "scheme://localhost/",
-			Opts: connect.UriOpts{
+			URL: "scheme://localhost/",
+			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
 				Host:     "localhost",
 				Prefix:   "/",
@@ -331,8 +331,8 @@ func TestParseUriOpts(t *testing.T) {
 			Err: "",
 		},
 		"with prefix": {
-			Url: "scheme://localhost/prefix",
-			Opts: connect.UriOpts{
+			URL: "scheme://localhost/prefix",
+			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
 				Host:     "localhost",
 				Prefix:   "/prefix",
@@ -341,8 +341,8 @@ func TestParseUriOpts(t *testing.T) {
 			Err: "",
 		},
 		"with prefix and fragment": {
-			Url: "scheme://localhost/prefix#Fragment",
-			Opts: connect.UriOpts{
+			URL: "scheme://localhost/prefix#Fragment",
+			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
 				Host:     "localhost",
 				Prefix:   "/prefix",
@@ -352,8 +352,8 @@ func TestParseUriOpts(t *testing.T) {
 			Err: "",
 		},
 		"only fragment": {
-			Url: "scheme://localhost#Fragment",
-			Opts: connect.UriOpts{
+			URL: "scheme://localhost#Fragment",
+			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
 				Host:     "localhost",
 				Tag:      "Fragment",
@@ -362,8 +362,8 @@ func TestParseUriOpts(t *testing.T) {
 			Err: "",
 		},
 		"with param key": {
-			Url: "scheme://localhost/prefix?key=anykey",
-			Opts: connect.UriOpts{
+			URL: "scheme://localhost/prefix?key=anykey",
+			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
 				Host:     "localhost",
 				Prefix:   "/prefix",
@@ -373,8 +373,8 @@ func TestParseUriOpts(t *testing.T) {
 			Err: "",
 		},
 		"with param name": {
-			Url: "scheme://localhost/prefix?name=anyname",
-			Opts: connect.UriOpts{
+			URL: "scheme://localhost/prefix?name=anyname",
+			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
 				Host:     "localhost",
 				Prefix:   "/prefix",
@@ -384,8 +384,8 @@ func TestParseUriOpts(t *testing.T) {
 			Err: "",
 		},
 		"no prefix with params": {
-			Url: "scheme://localhost?name=anyname#Fragment",
-			Opts: connect.UriOpts{
+			URL: "scheme://localhost?name=anyname#Fragment",
+			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
 				Host:     "localhost",
 				Tag:      "Fragment",
@@ -395,8 +395,8 @@ func TestParseUriOpts(t *testing.T) {
 			Err: "",
 		},
 		"with empty param": {
-			Url: "scheme://localhost/prefix?name=",
-			Opts: connect.UriOpts{
+			URL: "scheme://localhost/prefix?name=",
+			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
 				Host:     "localhost",
 				Prefix:   "/prefix",
@@ -406,8 +406,8 @@ func TestParseUriOpts(t *testing.T) {
 			Err: "",
 		},
 		"ssl_key_file": {
-			Url: "scheme://localhost?ssl_key_file=/any/kfile",
-			Opts: connect.UriOpts{
+			URL: "scheme://localhost?ssl_key_file=/any/kfile",
+			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
 				Host:     "localhost",
 				KeyFile:  "/any/kfile",
@@ -416,8 +416,8 @@ func TestParseUriOpts(t *testing.T) {
 			Err: "",
 		},
 		"ssl_cert_file": {
-			Url: "scheme://localhost?ssl_cert_file=/any/certfile",
-			Opts: connect.UriOpts{
+			URL: "scheme://localhost?ssl_cert_file=/any/certfile",
+			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
 				Host:     "localhost",
 				CertFile: "/any/certfile",
@@ -426,8 +426,8 @@ func TestParseUriOpts(t *testing.T) {
 			Err: "",
 		},
 		"ssl_ca_path": {
-			Url: "scheme://localhost?ssl_ca_path=/any/capath",
-			Opts: connect.UriOpts{
+			URL: "scheme://localhost?ssl_ca_path=/any/capath",
+			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
 				Host:     "localhost",
 				CaPath:   "/any/capath",
@@ -436,8 +436,8 @@ func TestParseUriOpts(t *testing.T) {
 			Err: "",
 		},
 		"ssl_ca_file": {
-			Url: "scheme://localhost?ssl_ca_file=/any/cafile",
-			Opts: connect.UriOpts{
+			URL: "scheme://localhost?ssl_ca_file=/any/cafile",
+			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
 				Host:     "localhost",
 				CaFile:   "/any/cafile",
@@ -446,8 +446,8 @@ func TestParseUriOpts(t *testing.T) {
 			Err: "",
 		},
 		"verify peer and host": {
-			Url: "scheme://localhost?verify_peer=true&verify_host=true",
-			Opts: connect.UriOpts{
+			URL: "scheme://localhost?verify_peer=true&verify_host=true",
+			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
 				Host:     "localhost",
 				Timeout:  defaultTimeout,
@@ -455,8 +455,8 @@ func TestParseUriOpts(t *testing.T) {
 			Err: "",
 		},
 		"verify peer and host is empty": {
-			Url: "scheme://localhost?verify_peer=&verify_host=",
-			Opts: connect.UriOpts{
+			URL: "scheme://localhost?verify_peer=&verify_host=",
+			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
 				Host:     "localhost",
 				Timeout:  defaultTimeout,
@@ -464,8 +464,8 @@ func TestParseUriOpts(t *testing.T) {
 			Err: "",
 		},
 		"skip verify peer": {
-			Url: "scheme://localhost?verify_peer=false",
-			Opts: connect.UriOpts{
+			URL: "scheme://localhost?verify_peer=false",
+			Opts: connect.URIOpts{
 				Endpoint:       "scheme://localhost",
 				Host:           "localhost",
 				SkipPeerVerify: true,
@@ -474,13 +474,13 @@ func TestParseUriOpts(t *testing.T) {
 			Err: "",
 		},
 		"invalid verify_peer": {
-			Url:  "scheme://localhost?verify_peer=asd",
-			Opts: connect.UriOpts{},
+			URL:  "scheme://localhost?verify_peer=asd",
+			Opts: connect.URIOpts{},
 			Err:  `invalid "verify_peer" param, boolean expected:`,
 		},
 		"skip verify host": {
-			Url: "scheme://localhost?verify_host=false",
-			Opts: connect.UriOpts{
+			URL: "scheme://localhost?verify_host=false",
+			Opts: connect.URIOpts{
 				Endpoint:       "scheme://localhost",
 				Host:           "localhost",
 				SkipHostVerify: true,
@@ -489,13 +489,13 @@ func TestParseUriOpts(t *testing.T) {
 			Err: "",
 		},
 		"invalid verify_host": {
-			Url:  "scheme://localhost?verify_host=asd",
-			Opts: connect.UriOpts{},
+			URL:  "scheme://localhost?verify_host=asd",
+			Opts: connect.URIOpts{},
 			Err:  `invalid "verify_host" param, boolean expected:`,
 		},
 		"timeout": {
-			Url: "scheme://localhost?timeout=5.5",
-			Opts: connect.UriOpts{
+			URL: "scheme://localhost?timeout=5.5",
+			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
 				Host:     "localhost",
 				Timeout:  time.Duration(float64(5.5) * float64(time.Second)),
@@ -503,8 +503,8 @@ func TestParseUriOpts(t *testing.T) {
 			Err: "",
 		},
 		"empty timeout": {
-			Url: "scheme://localhost?timeout=",
-			Opts: connect.UriOpts{
+			URL: "scheme://localhost?timeout=",
+			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
 				Host:     "localhost",
 				Timeout:  defaultTimeout,
@@ -512,19 +512,19 @@ func TestParseUriOpts(t *testing.T) {
 			Err: "",
 		},
 		"invalid timeout": {
-			Url:  "scheme://localhost?timeout=asd",
-			Opts: connect.UriOpts{},
+			URL:  "scheme://localhost?timeout=asd",
+			Opts: connect.URIOpts{},
 			Err:  `invalid "timeout" param, float (in seconds) expected:`,
 		},
 		"full set": {
-			Url: "scheme://user:pass@localhost:2012/prefix" +
+			URL: "scheme://user:pass@localhost:2012/prefix" +
 				"?key=anykey&name=anyname" +
 				"&ssl_key_file=kfile&ssl_cert_file=certfile" +
 				"&ssl_ca_path=capath&ssl_ca_file=cafile" +
 				"&ssl_ciphers=foo:bar:ciphers" +
 				"&verify_peer=true&verify_host=false&timeout=2" +
 				"#Fragment",
-			Opts: connect.UriOpts{
+			Opts: connect.URIOpts{
 				Endpoint:       "scheme://localhost:2012",
 				Host:           "localhost:2012",
 				Prefix:         "/prefix",
@@ -549,7 +549,7 @@ func TestParseUriOpts(t *testing.T) {
 			if tc.Opts.Params == nil {
 				tc.Opts.Params = make(map[string]string)
 			}
-			opts, err := connect.CreateUriOpts(tc.Url)
+			opts, err := connect.CreateURIOpts(tc.URL)
 			if tc.Err != "" {
 				assert.ErrorContains(t, err, tc.Err)
 			} else {

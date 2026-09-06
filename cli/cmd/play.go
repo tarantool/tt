@@ -150,14 +150,14 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	uriAndWalFiles := append([]string{args[0]}, walFiles...)
 
 	// List of files and URI is passed to lua play script via environment variable in json format.
-	filesAndUriJson, err := json.Marshal(uriAndWalFiles)
+	filesAndURIJSON, err := json.Marshal(uriAndWalFiles)
 	if err != nil {
 		return util.InternalError(
 			"Internal error: problem with creating json params with files and uri: %s",
 			version.GetVersion, err)
 	}
 
-	os.Setenv("TT_CLI_PLAY_FILES_AND_URI", string(filesAndUriJson))
+	os.Setenv("TT_CLI_PLAY_FILES_AND_URI", string(filesAndURIJSON))
 	if playUsername != "" {
 		os.Setenv("TT_CLI_PLAY_USERNAME", playUsername)
 	}
@@ -185,14 +185,14 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	os.Setenv("TT_CLI_PLAY_SHOW_SYS", strconv.FormatBool(playFlags.ShowSystem))
 
 	// List of spaces is passed to lua play script via environment variable in json format.
-	spacesJson, err := json.Marshal(playFlags.Space)
+	spacesJSON, err := json.Marshal(playFlags.Space)
 	if err != nil {
 		return util.InternalError(
 			"Internal error: problem with creating json params with spaces: %s",
 			version.GetVersion, err)
 	}
-	if string(spacesJson) != "null" {
-		os.Setenv("TT_CLI_PLAY_SPACES", string(spacesJson))
+	if string(spacesJSON) != "null" {
+		os.Setenv("TT_CLI_PLAY_SPACES", string(spacesJSON))
 	}
 
 	os.Setenv("TT_CLI_PLAY_FROM", strconv.FormatUint(playFlags.From, 10))
@@ -205,14 +205,14 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	os.Setenv("TT_CLI_PLAY_TIMESTAMP", timestamp)
 
 	// List of replicas is passed to lua play script via environment variable in json format.
-	replicasJson, err := json.Marshal(playFlags.Replica)
+	replicasJSON, err := json.Marshal(playFlags.Replica)
 	if err != nil {
 		return util.InternalError(
 			"Internal error: problem with creating json params with replicas: %s",
 			version.GetVersion, err)
 	}
-	if string(replicasJson) != "null" {
-		os.Setenv("TT_CLI_PLAY_REPLICAS", string(replicasJson))
+	if string(replicasJSON) != "null" {
+		os.Setenv("TT_CLI_PLAY_REPLICAS", string(replicasJSON))
 	}
 
 	log.Infof("Running play with URI=%s and files: %s\n", args[0], args[1:])

@@ -7,8 +7,8 @@ import (
 	"github.com/tarantool/tt/cli/version"
 )
 
-// GetApiPackage returns the package name at tarantool.io for the given program.
-func GetApiPackage(program Program) string {
+// GetAPIPackage returns the package name at tarantool.io for the given program.
+func GetAPIPackage(program Program) string {
 	switch program {
 	case ProgramEe:
 		return "enterprise"

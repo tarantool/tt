@@ -440,11 +440,11 @@ func collectInstances(appName, applicationDir string,
 	// The user can select a specific instance from the application.
 	// Example: `tt status application:server`.
 	selectedInstName := ""
-	colonIds := strings.Index(appName, string(InstanceDelimiter))
-	if colonIds != -1 {
+	colonIDs := strings.Index(appName, string(InstanceDelimiter))
+	if colonIDs != -1 {
 		appNameTmp := appName
-		appName = appNameTmp[:colonIds]
-		selectedInstName = appNameTmp[colonIds+1:]
+		appName = appNameTmp[:colonIDs]
+		selectedInstName = appNameTmp[colonIDs+1:]
 	}
 	appName = strings.TrimSuffix(appName, ".lua")
 	expectedAppName := filepath.Base(filepath.Clean(applicationDir))

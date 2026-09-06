@@ -65,7 +65,7 @@ type SwitchStatusCtx struct {
 // RawStorage scoped to the configured prefix. Used by the failover commands
 // which talk to the storage directly via Get/Put/Watch. Close on the returned
 // storage releases the underlying connection.
-func connectFailoverStorage(uriOpts connect.UriOpts,
+func connectFailoverStorage(uriOpts connect.URIOpts,
 	connOpts libcluster.ConnectOpts,
 ) (*libcluster.RawStorage, error) {
 	stor, cleanup, storageType, err := libcluster.NewStorageConnection(connOpts, uriOpts)
@@ -88,7 +88,7 @@ func connectFailoverStorage(uriOpts connect.UriOpts,
 
 // Switch master instance.
 func Switch(url string, switchCtx SwitchCtx) error {
-	uriOpts, err := connect.CreateUriOpts(url)
+	uriOpts, err := connect.CreateURIOpts(url)
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
@@ -175,7 +175,7 @@ func waitForSwitch(conn *libcluster.RawStorage, key string, yamlCmd []byte, time
 
 // SwitchStatus shows master switching status.
 func SwitchStatus(url string, switchCtx SwitchStatusCtx) error {
-	uriOpts, err := connect.CreateUriOpts(url)
+	uriOpts, err := connect.CreateURIOpts(url)
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}

@@ -111,7 +111,7 @@ func (l *logPrinter) format(str string) string {
 	if len(json) > 2 { // If the JSON contains more than empty `{}`.
 		lines := strings.Split(string(json), "\n")
 		lines = lines[1 : len(lines)-1]
-		resultLines = append(resultLines, colorizeJsonLines(lines, color, colorFaint)...)
+		resultLines = append(resultLines, colorizeJSONLines(lines, color, colorFaint)...)
 	}
 
 	resultLines = append(resultLines, color.Sprint("}"))
@@ -119,7 +119,7 @@ func (l *logPrinter) format(str string) string {
 	return strings.Join(resultLines, "\n")
 }
 
-func colorizeJsonLines(lines []string, cKey, cVal color.Color) []string {
+func colorizeJSONLines(lines []string, cKey, cVal color.Color) []string {
 	resultLines := make([]string, 0, len(lines))
 
 	for _, line := range lines {

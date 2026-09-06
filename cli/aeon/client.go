@@ -43,14 +43,14 @@ func getCertificate(args cmd.Ssl) (tls.Certificate, error) {
 	if args.CertFile == "" && args.KeyFile == "" {
 		return tls.Certificate{}, nil
 	}
-	tls_cert, err := tls.LoadX509KeyPair(args.CertFile, args.KeyFile)
+	tlsCert, err := tls.LoadX509KeyPair(args.CertFile, args.KeyFile)
 	if err != nil {
-		return tls_cert, fmt.Errorf("could not load client key pair: %w", err)
+		return tlsCert, fmt.Errorf("could not load client key pair: %w", err)
 	}
-	return tls_cert, nil
+	return tlsCert, nil
 }
 
-func getTlsConfig(args cmd.Ssl) (*tls.Config, error) {
+func getTLSConfig(args cmd.Ssl) (*tls.Config, error) {
 	var pool *x509.CertPool
 
 	if args.CaFile != "" {
@@ -80,7 +80,7 @@ func getTlsConfig(args cmd.Ssl) (*tls.Config, error) {
 func getDialOpts(ctx cmd.ConnectCtx) (grpc.DialOption, error) {
 	var creds credentials.TransportCredentials
 	if ctx.Transport == cmd.TransportSsl {
-		config, err := getTlsConfig(ctx.Ssl)
+		config, err := getTLSConfig(ctx.Ssl)
 		if err != nil {
 			return nil, fmt.Errorf("not tls config: %w", err)
 		}

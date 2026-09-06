@@ -154,15 +154,15 @@ func RunContainer(runOptions RunOptions, writer io.Writer) error {
 	}
 	log.Info("Docker image is built.")
 
-	containerId, err := createContainer(dockerClient, runOptions)
+	containerID, err := createContainer(dockerClient, runOptions)
 	if err != nil {
 		return fmt.Errorf("failed to create container: %w", err)
 	}
 	defer func() {
-		log.Debugf("Removing container %s", containerId[:12])
-		if _, err := dockerClient.ContainerRemove(context.Background(), containerId,
+		log.Debugf("Removing container %s", containerID[:12])
+		if _, err := dockerClient.ContainerRemove(context.Background(), containerID,
 			mobyclient.ContainerRemoveOptions{}); err != nil {
-			log.Warnf("Failed to remove container %s", containerId[:12])
+			log.Warnf("Failed to remove container %s", containerID[:12])
 		}
 	}()
 
@@ -170,14 +170,14 @@ func RunContainer(runOptions RunOptions, writer io.Writer) error {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	log.Debugf("The following command is going to be invoked in the container: %s.",
 		strings.Join(runOptions.Command, " "))
-	if _, err := dockerClient.ContainerStart(ctx, containerId,
+	if _, err := dockerClient.ContainerStart(ctx, containerID,
 		mobyclient.ContainerStartOptions{}); err != nil {
 		cancelFunc()
 		return err
 	}
 	defer interruptHandler(cancelFunc)()
 
-	out, err := dockerClient.ContainerLogs(ctx, containerId, mobyclient.ContainerLogsOptions{
+	out, err := dockerClient.ContainerLogs(ctx, containerID, mobyclient.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     true,
@@ -188,14 +188,14 @@ func RunContainer(runOptions RunOptions, writer io.Writer) error {
 	stdcopy.StdCopy(writer, writer, out)
 	out.Close()
 
-	waitResult := dockerClient.ContainerWait(ctx, containerId,
+	waitResult := dockerClient.ContainerWait(ctx, containerID,
 		mobyclient.ContainerWaitOptions{Condition: container.WaitConditionNotRunning})
 	select {
 	case err := <-waitResult.Error:
 		if ctx.Err() == context.Canceled {
-			if _, err = dockerClient.ContainerStop(context.Background(), containerId,
+			if _, err = dockerClient.ContainerStop(context.Background(), containerID,
 				mobyclient.ContainerStopOptions{}); err != nil {
-				log.Warnf("Failed to stop the container %s", containerId[:12])
+				log.Warnf("Failed to stop the container %s", containerID[:12])
 			}
 			return fmt.Errorf("the operation is interrupted")
 		}

@@ -64,8 +64,8 @@ const (
 	defaultTimeoutParam = 3 * time.Second
 )
 
-// UriOpts is a universal list of connect options retrieved from an URI.
-type UriOpts struct {
+// URIOpts is a universal list of connect options retrieved from a URI.
+type URIOpts struct {
 	// Endpoint is a an endpoint to connect: [scheme://]host[:port].
 	Endpoint string
 	// Host is a an address to connect: host[:port].
@@ -224,13 +224,13 @@ func getDurationParam(param string, defaultValue time.Duration) (time.Duration, 
 }
 
 // parseUriOpts extract options from a URL to UriOpts.
-func parseUriOpts(uri *url.URL) (UriOpts, error) {
+func parseURIOpts(uri *url.URL) (URIOpts, error) {
 	var err error
 	endpoint := url.URL{
 		Scheme: uri.Scheme,
 		Host:   uri.Host,
 	}
-	opts := UriOpts{
+	opts := URIOpts{
 		Endpoint: endpoint.String(),
 		Host:     uri.Host,
 		Prefix:   uri.Path,
@@ -288,7 +288,7 @@ func parseUriOpts(uri *url.URL) (UriOpts, error) {
 
 // parseUrl returns a URL, nil if string could be recognized as a URL,
 // otherwise nil, an error.
-func parseUrl(str string) (*url.URL, error) {
+func parseURL(str string) (*url.URL, error) {
 	uri, err := url.Parse(str)
 	// The URL general form represented is:
 	// [scheme:][//[userinfo@]host][/]path[?query][#fragment]
@@ -306,12 +306,12 @@ func parseUrl(str string) (*url.URL, error) {
 	return uri, nil
 }
 
-// CreateUriOpts parse URL string and creates appropriated UriOpts.
-func CreateUriOpts(url string) (UriOpts, error) {
-	uri, err := parseUrl(url)
+// CreateURIOpts parses a URL string and creates appropriate URIOpts.
+func CreateURIOpts(url string) (URIOpts, error) {
+	uri, err := parseURL(url)
 	if err != nil {
-		return UriOpts{}, err
+		return URIOpts{}, err
 	}
 
-	return parseUriOpts(uri)
+	return parseURIOpts(uri)
 }

@@ -28,8 +28,8 @@ type ConnectCtx struct {
 
 // Advertise structure groups connection parameters.
 type Advertise struct {
-	// Uri is a connection URL, unix socket address and etc.
-	Uri string `mapstructure:"uri"`
+	// URI is a connection URL, unix socket address and etc.
+	URI string `mapstructure:"uri"`
 	// Group of connection parameters.
 	Params AdvertiseParams `mapstructure:"params"`
 }

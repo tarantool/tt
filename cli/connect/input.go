@@ -93,10 +93,10 @@ func cleanupDelimiter(stmt, delim string) (string, bool) {
 	if delim == "" {
 		return stmt, true
 	}
-	no_space := strings.TrimRightFunc(stmt, unicode.IsSpace)
-	no_delim := strings.TrimSuffix(no_space, delim)
-	if len(no_space) > len(no_delim) {
-		return no_delim, true
+	noSpace := strings.TrimRightFunc(stmt, unicode.IsSpace)
+	noDelim := strings.TrimSuffix(noSpace, delim)
+	if len(noSpace) > len(noDelim) {
+		return noDelim, true
 	}
 	return stmt, false
 }

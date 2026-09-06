@@ -53,11 +53,11 @@ func (handler *DaemonHandler) ServeHTTP(wr http.ResponseWriter, req *http.Reques
 	var cmd command
 
 	// Construct client IP msg.
-	var clientIpMsg string
+	var clientIPMsg string
 	if ip, err := handler.getClientIP(req); err != nil {
-		clientIpMsg = err.Error()
+		clientIPMsg = err.Error()
 	} else {
-		clientIpMsg = ip
+		clientIPMsg = ip
 	}
 
 	rawBody, err := parseCommand(req.Body, &cmd)
@@ -86,7 +86,7 @@ func (handler *DaemonHandler) ServeHTTP(wr http.ResponseWriter, req *http.Reques
 
 	// Log client IP, raw json request body, raw json response body.
 	handler.logger.Printf("Client IP: %s; Request body: %s; Response body: %s",
-		clientIpMsg, rawBody, jsonResMsg)
+		clientIPMsg, rawBody, jsonResMsg)
 
 	// Write the result.
 	wr.Header().Set("Content-Type", "application/json")

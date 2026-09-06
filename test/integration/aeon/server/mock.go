@@ -23,41 +23,41 @@ import (
 )
 
 var args = struct {
-	is_ssl      *bool
-	ca_file     *string
-	cert_file   *string
-	key_file    *string
-	port        *int
-	unix_socket *string
+	isSsl      *bool
+	caFile     *string
+	certFile   *string
+	keyFile    *string
+	port       *int
+	unixSocket *string
 }{
-	is_ssl:      flag.Bool("ssl", false, "Connection uses SSL if set, (default plain TCP)"),
-	ca_file:     flag.String("ca", "", "The CA file"),
-	cert_file:   flag.String("cert", "", "The TLS cert file"),
-	key_file:    flag.String("key", "", "The TLS key file"),
-	port:        flag.Int("port", 50051, "The server port"),
-	unix_socket: flag.String("unix", "", "The Unix socket name"),
+	isSsl:      flag.Bool("ssl", false, "Connection uses SSL if set, (default plain TCP)"),
+	caFile:     flag.String("ca", "", "The CA file"),
+	certFile:   flag.String("cert", "", "The TLS cert file"),
+	keyFile:    flag.String("key", "", "The TLS key file"),
+	port:       flag.Int("port", 50051, "The server port"),
+	unixSocket: flag.String("unix", "", "The Unix socket name"),
 }
 
 func getCertificate() tls.Certificate {
-	if *args.cert_file == "" || *args.key_file == "" {
+	if *args.certFile == "" || *args.keyFile == "" {
 		log.Fatalln("Both 'key_file' and 'cert_file' required")
 	}
-	tls_cert, err := tls.LoadX509KeyPair(*args.cert_file, *args.key_file)
+	tlsCert, err := tls.LoadX509KeyPair(*args.certFile, *args.keyFile)
 	if err != nil {
 		log.Fatalf("Could not load server key pair: %v", err)
 	}
-	return tls_cert
+	return tlsCert
 }
 
-func getTlsConfig() *tls.Config {
-	if *args.ca_file == "" {
+func getTLSConfig() *tls.Config {
+	if *args.caFile == "" {
 		return &tls.Config{
 			Certificates: []tls.Certificate{getCertificate()},
 			ClientAuth:   tls.NoClientCert,
 		}
 	}
 
-	ca, err := os.ReadFile(*args.ca_file)
+	ca, err := os.ReadFile(*args.caFile)
 	if err != nil {
 		log.Fatalf("Failed to read CA file: %v", err)
 	}
@@ -73,10 +73,10 @@ func getTlsConfig() *tls.Config {
 }
 
 func getServerOpts() []grpc.ServerOption {
-	if !*args.is_ssl {
+	if !*args.isSsl {
 		return []grpc.ServerOption{}
 	}
-	creds := credentials.NewTLS(getTlsConfig())
+	creds := credentials.NewTLS(getTLSConfig())
 	return []grpc.ServerOption{grpc.Creds(creds)}
 }
 
@@ -84,9 +84,9 @@ func getListener() net.Listener {
 	var protocol string
 	var address string
 
-	if *args.unix_socket != "" {
+	if *args.unixSocket != "" {
 		protocol = "unix"
-		address = *args.unix_socket
+		address = *args.unixSocket
 		if strings.HasPrefix(address, "@") {
 			address = "\x00" + address[1:]
 		}
@@ -121,14 +121,14 @@ func main() {
 	}()
 
 	// Shutdown on signals.
-	exit_sig := make(chan os.Signal, 1)
-	signal.Notify(exit_sig,
+	exitSig := make(chan os.Signal, 1)
+	signal.Notify(exitSig,
 		syscall.SIGTERM,
 		syscall.SIGINT,
 		syscall.SIGQUIT,
 		syscall.SIGHUP,
 	)
-	s := <-exit_sig
+	s := <-exitSig
 	log.Println("Got terminate signal:", s)
 
 	srv.GracefulStop()

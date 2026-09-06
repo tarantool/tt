@@ -87,7 +87,7 @@ func pickPatchKey(keys []string, force bool, pathMsg string) (int, error) {
 func createDataCollectorAndKeyPublisher(
 	collectors libcluster.Factory,
 	publishers libcluster.Factory,
-	opts connect.UriOpts, connOpts libcluster.ConnectOpts,
+	opts connect.URIOpts, connOpts libcluster.ConnectOpts,
 ) (libcluster.DataCollector, replicaset.DataPublisher, func(), error) {
 	prefix, key, timeout := opts.Prefix, opts.Params["key"], opts.Timeout
 	stor, closeFunc, storageType, err := libcluster.NewStorageConnection(connOpts, opts)
@@ -108,7 +108,7 @@ func createDataCollectorAndKeyPublisher(
 
 // Promote promotes an instance by patching the cluster config.
 func Promote(url string, ctx PromoteCtx) error {
-	opts, err := connect.CreateUriOpts(url)
+	opts, err := connect.CreateURIOpts(url)
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
@@ -155,7 +155,7 @@ type DemoteCtx struct {
 
 // Demote demotes an instance by patching the cluster config.
 func Demote(url string, ctx DemoteCtx) error {
-	opts, err := connect.CreateUriOpts(url)
+	opts, err := connect.CreateURIOpts(url)
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
@@ -202,7 +202,7 @@ type ExpelCtx struct {
 
 // Expel expels an instance by patching the cluster config.
 func Expel(url string, ctx ExpelCtx) error {
-	opts, err := connect.CreateUriOpts(url)
+	opts, err := connect.CreateURIOpts(url)
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
@@ -256,7 +256,7 @@ type RolesChangeCtx struct {
 
 // ChangeRole adds/removes a role by patching the cluster config.
 func ChangeRole(url string, ctx RolesChangeCtx, action replicaset.RolesChangerAction) error {
-	opts, err := connect.CreateUriOpts(url)
+	opts, err := connect.CreateURIOpts(url)
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}

@@ -290,60 +290,60 @@ func programDependenciesInstalled(program search.Program) error {
 	case search.ProgramUnknown, search.ProgramEe, search.ProgramDev, search.ProgramTcm:
 		// These programs have no source-build dependency checks.
 	}
-	missing_pack := []string{}
+	missingPack := []string{}
 	// Programs that are installed from source.
-	missing_pack_src := []string{}
+	missingPackSrc := []string{}
 	for _, program := range programs {
 		if !isProgramInstalled(program.sysName) {
 			// Mage is installed from source instead of package manager.
 			if program.sysName == "mage" {
-				missing_pack_src = append(missing_pack_src, program.installName)
+				missingPackSrc = append(missingPackSrc, program.installName)
 			} else {
-				missing_pack = append(missing_pack, program.installName)
+				missingPack = append(missingPack, program.installName)
 			}
 		}
 	}
 
 	for _, packageName := range packages {
 		if !isPackageInstalled(packageName) {
-			missing_pack = append(missing_pack, packageName)
+			missingPack = append(missingPack, packageName)
 		}
 	}
 
-	if len(missing_pack) != 0 || len(missing_pack_src) != 0 {
+	if len(missingPack) != 0 || len(missingPackSrc) != 0 {
 		log.Error("The operation requires some dependencies.")
 		var errMsg strings.Builder
-		errMsg.WriteString("Missing packages: " + strings.Join(missing_pack, " ") + " " +
-			strings.Join(missing_pack_src, " ") + "\n")
+		errMsg.WriteString("Missing packages: " + strings.Join(missingPack, " ") + " " +
+			strings.Join(missingPackSrc, " ") + "\n")
 		switch {
 		case osName == "darwin":
 			errMsg.WriteString(
 				"You can install them by running commands:\nbrew install " + strings.Join(
-					missing_pack,
+					missingPack,
 					" ",
 				) +
 					strings.Join(
-						missing_pack_src,
+						missingPackSrc,
 						" ",
 					) + "\n",
 			)
 		case strings.Contains(osName, "CentOs"):
 			errMsg.WriteString("You can install them by running command:\n")
-			if len(missing_pack) != 0 {
-				errMsg.WriteString(" sudo yum install " + strings.Join(missing_pack, " ") + "\n")
+			if len(missingPack) != 0 {
+				errMsg.WriteString(" sudo yum install " + strings.Join(missingPack, " ") + "\n")
 			}
-			if len(missing_pack_src) != 0 {
+			if len(missingPackSrc) != 0 {
 				errMsg.WriteString("install from sources: " +
-					strings.Join(missing_pack_src, " ") + "\n")
+					strings.Join(missingPackSrc, " ") + "\n")
 			}
 		case strings.Contains(osName, "Ubuntu") || strings.Contains(osName, "Debian"):
 			errMsg.WriteString("You can install them by running command:\n")
-			if len(missing_pack) != 0 {
-				errMsg.WriteString(" sudo apt install " + strings.Join(missing_pack, " ") + "\n")
+			if len(missingPack) != 0 {
+				errMsg.WriteString(" sudo apt install " + strings.Join(missingPack, " ") + "\n")
 			}
-			if len(missing_pack_src) != 0 {
+			if len(missingPackSrc) != 0 {
 				errMsg.WriteString("install from sources: " +
-					strings.Join(missing_pack_src, " ") + "\n")
+					strings.Join(missingPackSrc, " ") + "\n")
 			}
 		}
 		errMsg.WriteString("Usage: tt install -f if you already have those packages installed")

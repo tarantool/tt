@@ -133,7 +133,7 @@ func validateInstanceConfig(instCfg goconfig.Config, name string) error {
 // collector-flavored *RawStorage using the given factory's integrity options.
 // The returned cleanup releases the connection.
 func openRemoteCollector(factory libcluster.Factory,
-	connOpts libcluster.ConnectOpts, opts libconnect.UriOpts,
+	connOpts libcluster.ConnectOpts, opts libconnect.URIOpts,
 ) (libcluster.DataCollector, func(), error) {
 	stor, cleanup, storageType, err := libcluster.NewStorageConnection(connOpts, opts)
 	if err != nil {
@@ -155,7 +155,7 @@ func openRemoteCollector(factory libcluster.Factory,
 func openCollectorAndPublisher(
 	collectors, publishers libcluster.Factory,
 	connOpts libcluster.ConnectOpts,
-	opts libconnect.UriOpts,
+	opts libconnect.URIOpts,
 ) (libcluster.DataCollector, libcluster.DataPublisher, func(), error) {
 	prefix, key, timeout := opts.Prefix, opts.Params["key"], opts.Timeout
 

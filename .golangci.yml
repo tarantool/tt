@@ -46,7 +46,6 @@ linters:
     - noinlineerr
     - paralleltest
     - perfsprint
-    - revive
     - testifylint
     - testpackage
     - tparallel

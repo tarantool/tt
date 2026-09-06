@@ -401,7 +401,7 @@ func connectTarantoolConnector(cfg gsconnect.Config) (tarantool.Connector, error
 // getEtcdCfg builds an etcd connection configuration from the given
 // connect options and URI options, resolving credentials from options
 // or environment variables as a fallback.
-func getEtcdCfg(connOpts ConnectOpts, uriOpts libconnect.UriOpts) gsconnect.Config {
+func getEtcdCfg(connOpts ConnectOpts, uriOpts libconnect.URIOpts) gsconnect.Config {
 	var endpoints []string
 	if uriOpts.Endpoint != "" {
 		endpoints = []string{uriOpts.Endpoint}
@@ -437,7 +437,7 @@ func getEtcdCfg(connOpts ConnectOpts, uriOpts libconnect.UriOpts) gsconnect.Conf
 // getTarantoolCfg builds a tarantool connection configuration from the given
 // connect options and URI options, resolving credentials from options
 // or environment variables as a fallback.
-func getTarantoolCfg(connOpts ConnectOpts, uriOpts libconnect.UriOpts) gsconnect.Config {
+func getTarantoolCfg(connOpts ConnectOpts, uriOpts libconnect.URIOpts) gsconnect.Config {
 	if uriOpts.Username == "" && uriOpts.Password == "" {
 		uriOpts.Username = connOpts.Username
 		uriOpts.Password = connOpts.Password
@@ -467,7 +467,7 @@ func getTarantoolCfg(connOpts ConnectOpts, uriOpts libconnect.UriOpts) gsconnect
 
 // NewStorageConnection determines a storage based on the opts.
 func NewStorageConnection(
-	connOpts ConnectOpts, opts libconnect.UriOpts,
+	connOpts ConnectOpts, opts libconnect.URIOpts,
 ) (gstorage.Storage, gsconnect.CleanupFunc, string, error) {
 	etcdCfg := getEtcdCfg(connOpts, opts)
 	etcdClient, errEtcd := connectEtcdClient(etcdCfg)

@@ -45,7 +45,7 @@ func TestGetApiPackage(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			result := search.GetApiPackage(tc.input)
+			result := search.GetAPIPackage(tc.input)
 			require.Equal(t, tc.expected, result)
 		})
 	}

@@ -26,7 +26,7 @@ func NewTntIoDownloader(token string) *httpDoer {
 			Timeout: 0,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				req.Host = req.URL.Hostname()
-				addSessionIdCookie(req, token)
+				addSessionIDCookie(req, token)
 				return nil
 			},
 		},
@@ -73,7 +73,7 @@ func validateDestination(dst string) error {
 }
 
 // addSessionIdCookie adds a session ID cookie to the request if the token is not empty.
-func addSessionIdCookie(req *http.Request, token string) {
+func addSessionIDCookie(req *http.Request, token string) {
 	if token != "" {
 		cookie := &http.Cookie{
 			Name:  "sessionid",
@@ -84,14 +84,14 @@ func addSessionIdCookie(req *http.Request, token string) {
 }
 
 // createHttpRequest creates a new GET HTTP request with the necessary headers and cookies.
-func createHttpRequest(bundleSource, token string) (*http.Request, error) {
+func createHTTPRequest(bundleSource, token string) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(
 		context.Background(), http.MethodGet, bundleSource, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
-	addSessionIdCookie(req, token)
+	addSessionIDCookie(req, token)
 	req.Header.Set("User-Agent", "tt")
 	return req, nil
 }
@@ -131,7 +131,7 @@ func DownloadBundle(doer search.TntIoDoer, bundleName, bundleSource, dst string)
 		return err
 	}
 
-	req, err := createHttpRequest(bundleSource, doer.Token())
+	req, err := createHTTPRequest(bundleSource, doer.Token())
 	if err != nil {
 		return err
 	}

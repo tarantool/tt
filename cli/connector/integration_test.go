@@ -23,7 +23,7 @@ import (
 const (
 	workDir   = "work_dir"
 	server    = "127.0.0.1:3013"
-	serverTls = "127.0.0.1:3014"
+	serverTLS = "127.0.0.1:3014"
 	console   = workDir + "/" + "console.control"
 )
 
@@ -223,7 +223,7 @@ func TestConnect_binaryTlsToTls(t *testing.T) {
 	}
 	conn, err := Connect(ConnectOpts{
 		Network:  "tcp",
-		Address:  serverTls,
+		Address:  serverTLS,
 		Username: "test",
 		Password: "password",
 		Ssl:      sslOpts,
@@ -389,13 +389,13 @@ func runTestMain(m *testing.M) int {
 		}
 
 		// Try to start Tarantool instance with TLS.
-		listen := serverTls + "?transport=ssl&" +
+		listen := serverTLS + "?transport=ssl&" +
 			"ssl_key_file=testdata/localhost.key&" +
 			"ssl_cert_file=testdata/localhost.crt&" +
 			"ssl_ca_file=testdata/ca.crt"
 
 		tlsDialer := tlsdialer.OpenSSLDialer{
-			Address:     serverTls,
+			Address:     serverTLS,
 			User:        dialer.User,
 			Password:    dialer.Password,
 			SslKeyFile:  sslOpts.KeyFile,
