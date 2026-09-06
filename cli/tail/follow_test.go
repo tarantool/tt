@@ -32,11 +32,11 @@ func readWithTimeout(t *testing.T, ch <-chan string, timeout time.Duration) (str
 	}
 }
 
-func writeLogLines(t *testing.T, f *os.File, count int, line_fmt string) {
+func writeLogLines(t *testing.T, f *os.File, count int, lineFmt string) {
 	t.Helper()
 
 	for i := range count {
-		_, err := fmt.Fprintln(f, fmt.Sprintf(line_fmt, i+1))
+		_, err := fmt.Fprintln(f, fmt.Sprintf(lineFmt, i+1))
 		if err != nil {
 			t.Fatalf("Failed to write line %d: %v", i+1, err)
 		}
@@ -57,7 +57,7 @@ func createTmpLogFile(t *testing.T) string {
 	return f.Name()
 }
 
-func checksLinesInFile(t *testing.T, ch <-chan string, exp_fmt string) error {
+func checksLinesInFile(t *testing.T, ch <-chan string, expFmt string) error {
 	t.Helper()
 
 	for i := range linesPerStep {
@@ -68,7 +68,7 @@ func checksLinesInFile(t *testing.T, ch <-chan string, exp_fmt string) error {
 			return fmt.Errorf("failed to read line %d: %w", n, err)
 		}
 
-		expected := fmt.Sprintf(exp_fmt, n)
+		expected := fmt.Sprintf(expFmt, n)
 		if line != expected {
 			return fmt.Errorf("line %d mismatch: got %q, want %q", n, line, expected)
 		}
@@ -189,7 +189,7 @@ func TestFollow2_NonExistentFile(t *testing.T) {
 	}
 }
 
-func rotationTest(t *testing.T, use_delay bool) {
+func rotationTest(t *testing.T, useDelay bool) {
 	t.Helper()
 
 	lf := createTmpLogFile(t)
@@ -215,7 +215,7 @@ func rotationTest(t *testing.T, use_delay bool) {
 		t.Fatalf("Failed to rotate log file: %v", err)
 	}
 
-	if use_delay {
+	if useDelay {
 		time.Sleep(500 * time.Millisecond) // Add delay to avoid flaky fails.
 	}
 
@@ -252,23 +252,23 @@ func TestFollow2_FileRotation_Flaky(t *testing.T) {
 
 	const flakyRepeatCount = 3
 
-	test_pass := false
+	testPass := false
 
 	for i := range flakyRepeatCount {
 		t.Run(fmt.Sprintf("Rotation-%d", i+1), func(t *testing.T) {
 			rotationTest(t, i > 0)
 
-			test_pass = !t.Skipped()
+			testPass = !t.Skipped()
 		})
 
-		if test_pass {
+		if testPass {
 			break
 		}
 
 		t.Logf("FLAKY test %s failed, retrying flaky test iteration", t.Name())
 	}
 
-	if !test_pass {
+	if !testPass {
 		t.Fatalf("Test failed after all flaky iterations")
 	}
 }

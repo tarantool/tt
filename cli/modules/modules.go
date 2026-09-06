@@ -168,31 +168,31 @@ func getConfigModulesDirs(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) ([
 
 // getEnvironmentModulesDirs returns the list of modules directory based on environment info.
 func getEnvironmentModulesDirs() ([]string, error) {
-	env_var := os.Getenv("TT_CLI_MODULES_PATH")
-	if env_var == "" {
+	envVar := os.Getenv("TT_CLI_MODULES_PATH")
+	if envVar == "" {
 		return []string{}, nil
 	}
 
-	paths := strings.Split(env_var, ":")
+	paths := strings.Split(envVar, ":")
 	return collectDirectoriesList(paths)
 }
 
 // isPossibleModule checks is exists any manifest or executable `main` file inside dir.
 func isPossibleModule(dir string) (modulesEntry, bool) {
-	is_module := false
+	isModule := false
 	entries := modulesEntry{Directory: dir}
 	manifest, _ := util.GetYamlFileName(filepath.Join(dir, manifestFileName), false)
 	if manifest != "" {
 		entries.Manifest = manifest
-		is_module = true
+		isModule = true
 	}
 
 	if main, err := exec.LookPath(filepath.Join(dir, mainEntryPoint)); err == nil {
 		entries.Main = main
-		is_module = true
+		isModule = true
 	}
 
-	return entries, is_module
+	return entries, isModule
 }
 
 // readSubDirectories returns sorted list of subdirectories in the specified path.
@@ -229,11 +229,11 @@ func getExternalModules(paths []string) (possibleModules, error) {
 		}
 
 		for _, d := range dirs {
-			mod_path := filepath.Join(path, d)
+			modPath := filepath.Join(path, d)
 
 			e, exists := modules[d]
 			if exists {
-				log.Warnf("Ignore duplicate module %q overlap with %q", mod_path, e.Directory)
+				log.Warnf("Ignore duplicate module %q overlap with %q", modPath, e.Directory)
 				continue
 			}
 
@@ -241,8 +241,8 @@ func getExternalModules(paths []string) (possibleModules, error) {
 				return modules, fmt.Errorf("module %q is disabled to override", d)
 			}
 
-			if mod_entry, is_module := isPossibleModule(mod_path); is_module {
-				modules[d] = mod_entry
+			if modEntry, isModule := isPossibleModule(modPath); isModule {
+				modules[d] = modEntry
 			}
 		}
 	}

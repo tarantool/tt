@@ -129,10 +129,10 @@ func (c *Console) cleanupDelimiter() bool {
 	if c.delimiter == "" {
 		return true
 	}
-	no_space := strings.TrimRightFunc(c.input, unicode.IsSpace)
-	no_delim := strings.TrimSuffix(no_space, c.delimiter)
-	if len(no_space) > len(no_delim) {
-		c.input = no_delim
+	noSpace := strings.TrimRightFunc(c.input, unicode.IsSpace)
+	noDelim := strings.TrimSuffix(noSpace, c.delimiter)
+	if len(noSpace) > len(noDelim) {
+		c.input = noDelim
 		return true
 	}
 	return false
@@ -150,8 +150,8 @@ func (c *Console) addStmt(part string) bool {
 		c.input += "\n" + part
 	}
 
-	has_delim := c.cleanupDelimiter()
-	c.livePrefixEnabled = !has_delim || !c.impl.Handler.Validate(c.input)
+	hasDelim := c.cleanupDelimiter()
+	c.livePrefixEnabled = !hasDelim || !c.impl.Handler.Validate(c.input)
 	return !c.livePrefixEnabled
 }
 

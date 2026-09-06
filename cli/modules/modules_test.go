@@ -14,12 +14,12 @@ import (
 
 func TestGetModulesInfo(t *testing.T) {
 	tests := map[string]struct {
-		config      string
-		modules     []string
-		env_modules string
-		want        modules.ModulesInfo
-		err         string
-		log         []string
+		config     string
+		modules    []string
+		envModules string
+		want       modules.ModulesInfo
+		err        string
+		log        []string
 	}{
 		"no config": {
 			config: "",
@@ -58,8 +58,8 @@ func TestGetModulesInfo(t *testing.T) {
 		},
 
 		"env modules": {
-			config:      "some/config/tt.yaml",
-			env_modules: "testdata/modules1:testdata/modules2",
+			config:     "some/config/tt.yaml",
+			envModules: "testdata/modules1:testdata/modules2",
 			want: modules.ModulesInfo{
 				"root ext_mod": modules.Manifest{
 					Name:    "ext_mod",
@@ -83,8 +83,8 @@ func TestGetModulesInfo(t *testing.T) {
 		},
 
 		"no config but env modules": {
-			config:      "",
-			env_modules: "testdata/modules1",
+			config:     "",
+			envModules: "testdata/modules1",
 			want: modules.ModulesInfo{
 				"root ext_mod": modules.Manifest{
 					Name:    "ext_mod",
@@ -102,9 +102,9 @@ func TestGetModulesInfo(t *testing.T) {
 		},
 
 		"config and env modules": {
-			config:      "some/config/tt.yaml",
-			modules:     []string{"testdata/modules1"},
-			env_modules: "testdata/modules2",
+			config:     "some/config/tt.yaml",
+			modules:    []string{"testdata/modules1"},
+			envModules: "testdata/modules2",
 			want: modules.ModulesInfo{
 				"root ext_mod": modules.Manifest{
 					Name:    "ext_mod",
@@ -128,9 +128,9 @@ func TestGetModulesInfo(t *testing.T) {
 		},
 
 		"config duplicate env modules": {
-			config:      "some/config/tt.yaml",
-			modules:     []string{"testdata/modules1"},
-			env_modules: "testdata/modules1",
+			config:     "some/config/tt.yaml",
+			modules:    []string{"testdata/modules1"},
+			envModules: "testdata/modules1",
 			want: modules.ModulesInfo{
 				"root ext_mod": modules.Manifest{
 					Name:    "ext_mod",
@@ -174,10 +174,10 @@ func TestGetModulesInfo(t *testing.T) {
 		},
 
 		"not a directory in env ": {
-			config:      "some/config/tt.yaml",
-			env_modules: "testdata/modules1/simple/main",
-			want:        modules.ModulesInfo{},
-			err:         "specified path in configuration file is not a directory",
+			config:     "some/config/tt.yaml",
+			envModules: "testdata/modules1/simple/main",
+			want:       modules.ModulesInfo{},
+			err:        "specified path in configuration file is not a directory",
 		},
 
 		"override internal": {
@@ -193,10 +193,10 @@ func TestGetModulesInfo(t *testing.T) {
 			},
 		},
 		"disabled override ": {
-			config:      "some/config/tt.yaml",
-			env_modules: "testdata/disabled_override",
-			want:        modules.ModulesInfo{},
-			err:         `module "modules" is disabled to override`,
+			config:     "some/config/tt.yaml",
+			envModules: "testdata/disabled_override",
+			want:       modules.ModulesInfo{},
+			err:        `module "modules" is disabled to override`,
 		},
 	}
 
@@ -213,8 +213,8 @@ func TestGetModulesInfo(t *testing.T) {
 					Directories: tt.modules,
 				},
 			}
-			if tt.env_modules != "" {
-				t.Setenv("TT_CLI_MODULES_PATH", tt.env_modules)
+			if tt.envModules != "" {
+				t.Setenv("TT_CLI_MODULES_PATH", tt.envModules)
 			}
 			var buf bytes.Buffer
 			log.SetOutput(&buf)

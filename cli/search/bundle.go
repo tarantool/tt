@@ -170,7 +170,7 @@ func getBundles(rawBundleInfoList map[string][]string, searchCtx *SearchCtx) (
 func FetchBundlesInfo(searchCtx *SearchCtx, cliOpts *config.CliOpts) (
 	BundleInfoSlice, error,
 ) {
-	searchCtx.Package = GetApiPackage(searchCtx.Program)
+	searchCtx.Package = GetAPIPackage(searchCtx.Program)
 	if searchCtx.Package == "" {
 		return nil, fmt.Errorf("there is no tarantool.io package for program: %s",
 			searchCtx.Program)

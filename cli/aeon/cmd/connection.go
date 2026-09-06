@@ -17,7 +17,7 @@ import (
 // collected configuration by given instanceName and libconnect.UriOpts.
 // It returns an error if fails to collect a configuration,
 // instantiate a cluster config or find an instance in the cluster.
-func FillConnectCtx(connectCtx *ConnectCtx, uriOpts libconnect.UriOpts,
+func FillConnectCtx(connectCtx *ConnectCtx, uriOpts libconnect.URIOpts,
 	instanceName string, factory libcluster.Factory,
 ) error {
 	connOpts := libcluster.ConnectOpts{
@@ -62,11 +62,11 @@ func FillConnectCtx(connectCtx *ConnectCtx, uriOpts libconnect.UriOpts,
 		return fmt.Errorf("failed to decode aeon advertise: %w", err)
 	}
 
-	if advertise.Uri == "" {
+	if advertise.URI == "" {
 		return errors.New("invalid connection url")
 	}
 
-	cleanedURL, err := util.RemoveScheme(advertise.Uri)
+	cleanedURL, err := util.RemoveScheme(advertise.URI)
 	if err != nil {
 		return err
 	}

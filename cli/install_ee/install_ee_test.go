@@ -23,7 +23,7 @@ type mockBundleDoer struct {
 	token       string
 	resBody     []byte
 	resErr      error
-	expectedUrl string
+	expectedURL string
 }
 
 // Do mocks the Do method of search.TntIoDoer.
@@ -31,7 +31,7 @@ type mockBundleDoer struct {
 func (m *mockBundleDoer) Do(req *http.Request) ([]byte, error) {
 	m.t.Helper()
 
-	require.Equal(m.t, m.expectedUrl, req.URL.String(), "Request URL mismatch")
+	require.Equal(m.t, m.expectedURL, req.URL.String(), "Request URL mismatch")
 	require.Equal(m.t, http.MethodGet, req.Method, "Request method mismatch")
 	require.Equal(m.t, "tt", req.Header.Get("User-Agent"), "User-Agent header mismatch")
 
@@ -177,7 +177,7 @@ func TestDownloadBundle(t *testing.T) {
 
 			if tc.doer != nil {
 				tc.doer.t = t
-				tc.doer.expectedUrl = tc.bundleSource
+				tc.doer.expectedURL = tc.bundleSource
 			}
 			err := DownloadBundle(tc.doer, tc.bundleName, tc.bundleSource, dst)
 

@@ -105,15 +105,15 @@ func PublishRWS() error {
 				targetDistro.OS, targetDistro.Dist, err)
 		}
 
-		rwsUrlPart := os.Getenv("RWS_URL_PART")
-		if rwsUrlPart == "" {
+		rwsURLPart := os.Getenv("RWS_URL_PART")
+		if rwsURLPart == "" {
 			return fmt.Errorf("failed to publish package: RWS_URL_PART is not set")
 		}
 
 		flags := []string{
 			"-v",
 			"-LfsS",
-			"-X", "PUT", fmt.Sprintf("%s/%s/%s", rwsUrlPart, targetDistro.OS, targetDistro.Dist),
+			"-X", "PUT", fmt.Sprintf("%s/%s/%s", rwsURLPart, targetDistro.OS, targetDistro.Dist),
 			"-F", fmt.Sprintf("product=%s", packageName),
 		}
 

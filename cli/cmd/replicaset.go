@@ -47,7 +47,7 @@ var (
 	chosenReplicasetAliases []string
 	lsnTimeout              int
 
-	replicasetUriHelp = "  The URI can be specified in the following formats:\n" +
+	replicasetURIHelp = "  The URI can be specified in the following formats:\n" +
 		"  * [tcp://][username:password@][host:port]\n" +
 		"  * [unix://][username:password@]socketpath\n" +
 		"  To specify relative path without `unix://` use `./`."
@@ -57,7 +57,7 @@ var (
 func newUpgradeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "upgrade (<APP_NAME> | <URI>) [flags]\n\n" +
-			replicasetUriHelp,
+			replicasetURIHelp,
 		DisableFlagsInUseLine: true,
 		Short:                 "Upgrade tarantool cluster",
 		Long: "Upgrade tarantool cluster.\n\n" +
@@ -94,7 +94,7 @@ func newDowngradeCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use: "downgrade (<APP_NAME> | <URI>) VERSION [flags]\n\n" +
-			replicasetUriHelp,
+			replicasetURIHelp,
 		DisableFlagsInUseLine: true,
 		Short:                 "Downgrade tarantool cluster",
 		Long: "Downgrade tarantool cluster.\n\n" +
@@ -119,7 +119,7 @@ func newStatusCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "status [--config|--custom] [flags] " +
 			"(<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)\n\n" +
-			replicasetUriHelp,
+			replicasetURIHelp,
 		DisableFlagsInUseLine: true,
 		Short:                 "Show a replicaset status",
 		Long: "Show a replicaset status.\n\n" +
@@ -138,7 +138,7 @@ func newPromoteCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "promote [--config|--custom] [-f] [--timeout secs] [flags] " +
 			"(<APP_NAME:INSTANCE_NAME> | <URI>)\n\n" +
-			replicasetUriHelp,
+			replicasetURIHelp,
 		DisableFlagsInUseLine: true,
 		Short:                 "Promote an instance",
 		Long: "Promote an instance.\n\n" +
@@ -224,7 +224,7 @@ func newBootstrapVShardCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "bootstrap [--config|--custom] [--timeout secs] [flags] " +
 			"(<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)\n\n" +
-			replicasetUriHelp,
+			replicasetURIHelp,
 		DisableFlagsInUseLine: true,
 		Short:                 "Bootstrap vshard in the cluster",
 		Long: "Bootstrap vshard in the cluster.\n\n" +

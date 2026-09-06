@@ -92,7 +92,7 @@ func encodeScalar(val any) string {
 }
 
 // encodeJson encodes a value into json.
-func encodeJson(val any) (string, error) {
+func encodeJSON(val any) (string, error) {
 	jsonData, err := json.Marshal(deepCastAnyMapToStringMap(val))
 	if err != nil {
 		return "", err
@@ -106,7 +106,7 @@ func encodeCell(val any) (string, error) {
 	if getNodeType(val) == scalarNodeType {
 		return encodeScalar(val), nil
 	}
-	return encodeJson(val)
+	return encodeJSON(val)
 }
 
 // isSingleType returns true if all elements of the batch belongs to

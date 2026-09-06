@@ -108,7 +108,7 @@ func aeonConnectValidateArgs(cmd *cobra.Command, args []string) error {
 		}
 		connectCtx.Network, connectCtx.Address = libconnect.ParseBaseURI(url)
 	case len(args) == 2 && libconnect.IsCredentialsURI(args[0]):
-		err := getConfigUri(&cmdCtx, args[0], args[1])
+		err := getConfigURI(&cmdCtx, args[0], args[1])
 		if err != nil {
 			return err
 		}
@@ -227,11 +227,11 @@ func readConfigFilePath(configPath, instance string) error {
 		return err
 	}
 
-	if advertise.Uri == "" {
+	if advertise.URI == "" {
 		return errors.New("invalid connection url")
 	}
 
-	cleanedURL, err := util.RemoveScheme(advertise.Uri)
+	cleanedURL, err := util.RemoveScheme(advertise.URI)
 	if err != nil {
 		return err
 	}
@@ -262,13 +262,13 @@ func readConfigFilePath(configPath, instance string) error {
 	return nil
 }
 
-func getConfigUri(cmdCtx *cmdcontext.CmdCtx, url, instanceName string) error {
+func getConfigURI(cmdCtx *cmdcontext.CmdCtx, url, instanceName string) error {
 	factory, err := cluster.NewCollectorFactory(cmdCtx.Integrity)
 	if err != nil {
 		return err
 	}
 
-	if uri, err := libconnect.CreateUriOpts(url); err == nil {
+	if uri, err := libconnect.CreateURIOpts(url); err == nil {
 		aeoncmd.FillConnectCtx(&connectCtx, uri, instanceName, factory)
 	}
 

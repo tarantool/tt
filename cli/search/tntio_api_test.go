@@ -84,20 +84,20 @@ func (m *mockDoer) Do(req *http.Request) ([]byte, error) {
 	// Restore the body for potential re-reads.
 	req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
-	type expectedApiRequest struct {
+	type expectedAPIRequest struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
 		Query    string `json:"query"`
 	}
 
-	var actualRequest expectedApiRequest
+	var actualRequest expectedAPIRequest
 	err = json.Unmarshal(bodyBytes, &actualRequest)
 	if err != nil {
 		m.t.Errorf("failed to unmarshal request body: %v. Body: %s", err, string(bodyBytes))
 		return nil, fmt.Errorf("failed to unmarshal request body: %w", err)
 	}
 
-	expectedRequest := expectedApiRequest{
+	expectedRequest := expectedAPIRequest{
 		Username: testingUsername,
 		Password: testingPassword,
 		Query:    m.query,

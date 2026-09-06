@@ -26,8 +26,8 @@ type ShowCtx struct {
 	Validate bool
 }
 
-// ShowUri shows a configuration from URI.
-func ShowUri(showCtx ShowCtx, opts connect.UriOpts) error {
+// ShowURI shows a configuration from URI.
+func ShowURI(showCtx ShowCtx, opts connect.URIOpts) error {
 	connOpts := libcluster.ConnectOpts{
 		Username: showCtx.Username,
 		Password: showCtx.Password,

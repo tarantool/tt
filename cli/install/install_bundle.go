@@ -348,7 +348,7 @@ func acquireBundleInfoToInstall(bp *bundleParams) error {
 		searchCtx := search.NewSearchCtx(search.NewPlatformInformer(), search.NewTntIoDoer())
 		searchCtx.Program = bp.inst.Program
 		searchCtx.Filter = search.SearchAll
-		searchCtx.Package = search.GetApiPackage(bp.inst.Program)
+		searchCtx.Package = search.GetAPIPackage(bp.inst.Program)
 		searchCtx.DevBuilds = bp.inst.DevBuild
 
 		bundles, err = search.FetchBundlesInfo(&searchCtx, bp.opts)

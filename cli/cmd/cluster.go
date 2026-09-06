@@ -69,7 +69,7 @@ var rolesChangeCtx = clustercmd.RolesChangeCtx{}
 var (
 	defaultSwitchTimeout       uint64 = 30
 	clusterIntegrityPrivateKey string
-	clusterUriHelp             = libconnect.MakeURLHelp(map[string]any{
+	clusterURIHelp             = libconnect.MakeURLHelp(map[string]any{
 		"service": "etcd or tarantool config storage",
 		"prefix": "a base path to Tarantool configuration in" +
 			" etcd or tarantool config storage",
@@ -81,7 +81,7 @@ var (
 environment variables < command flags < URL credentials.`,
 	})
 
-	failoverUriHelp = libconnect.MakeURLHelp(map[string]any{
+	failoverURIHelp = libconnect.MakeURLHelp(map[string]any{
 		"service": "etcd or tarantool config storage",
 		"prefix": "a base path to Tarantool configuration in" +
 			" etcd or tarantool config storage",
@@ -103,7 +103,7 @@ func newClusterReplicasetCmd() *cobra.Command {
 		Use:                   "promote [-f] [flags] <URI> <INSTANCE_NAME>",
 		DisableFlagsInUseLine: true,
 		Short:                 "Promote an instance",
-		Long:                  "Promote an instance\n\n" + clusterUriHelp,
+		Long:                  "Promote an instance\n\n" + clusterURIHelp,
 		Run:                   RunModuleFunc(internalClusterReplicasetPromoteModule),
 		Args:                  cobra.ExactArgs(2),
 	}
@@ -119,7 +119,7 @@ func newClusterReplicasetCmd() *cobra.Command {
 		Use:                   "demote [-f] [flags] <URI> <INSTANCE_NAME>",
 		DisableFlagsInUseLine: true,
 		Short:                 "Demote an instance",
-		Long:                  "Demote an instance\n\n" + clusterUriHelp,
+		Long:                  "Demote an instance\n\n" + clusterURIHelp,
 		Run:                   RunModuleFunc(internalClusterReplicasetDemoteModule),
 		Args:                  cobra.ExactArgs(2),
 	}
@@ -136,7 +136,7 @@ func newClusterReplicasetCmd() *cobra.Command {
 		Use:                   "expel [-f] [flags] <URI> <INSTANCE_NAME>",
 		DisableFlagsInUseLine: true,
 		Short:                 "Expel an instance",
-		Long:                  "Expel an instance\n\n" + clusterUriHelp,
+		Long:                  "Expel an instance\n\n" + clusterURIHelp,
 		Run:                   RunModuleFunc(internalClusterReplicasetExpelModule),
 		Args:                  cobra.ExactArgs(2),
 	}
@@ -157,7 +157,7 @@ func newClusterReplicasetCmd() *cobra.Command {
 	addRolesCmd := &cobra.Command{
 		Use:   "add <URI> <ROLE_NAME> [flags]",
 		Short: "Add role to an instance, group or instance",
-		Long:  "Add role to an instance, group or instance\n\n" + clusterUriHelp,
+		Long:  "Add role to an instance, group or instance\n\n" + clusterURIHelp,
 		Run:   RunModuleFunc(internalClusterReplicasetRolesAddModule),
 		Example: "tt cluster replicaset roles add http://user:pass@localhost:3301" +
 			" roles.metrics-export --instance_name master",
@@ -184,7 +184,7 @@ func newClusterReplicasetCmd() *cobra.Command {
 	removeRolesCmd := &cobra.Command{
 		Use:   "remove <URI> <ROLE_NAME> [flags]",
 		Short: "Remove role from instance, group, instance or globally",
-		Long:  "Remove role from instance, group, instance or globally\n\n" + clusterUriHelp,
+		Long:  "Remove role from instance, group, instance or globally\n\n" + clusterURIHelp,
 		Run:   RunModuleFunc(internalClusterReplicasetRolesRemoveModule),
 		Example: "tt cluster replicaset roles remove http://user:pass@localhost:3301" +
 			" roles.metrics-export --instance_name master",
@@ -230,7 +230,7 @@ func newClusterFailoverCmd() *cobra.Command {
 		Use:                   "switch <URI> <INSTANCE_NAME> [flags]",
 		DisableFlagsInUseLine: true,
 		Short:                 "Switch master instance",
-		Long:                  "Switch master instance\n\n" + failoverUriHelp,
+		Long:                  "Switch master instance\n\n" + failoverURIHelp,
 		Example:               "tt cluster failover switch http://localhost:2379/app instance_name",
 		Run:                   RunModuleFunc(internalClusterFailoverSwitchModule),
 		Args:                  cobra.ExactArgs(2),
@@ -249,7 +249,7 @@ func newClusterFailoverCmd() *cobra.Command {
 		Use:                   "switch-status <URI> <TASK_ID>",
 		DisableFlagsInUseLine: true,
 		Short:                 "Show master switching status",
-		Long:                  "Show master switching status\n\n" + failoverUriHelp,
+		Long:                  "Show master switching status\n\n" + failoverURIHelp,
 		Run:                   RunModuleFunc(internalClusterFailoverSwitchStatusModule),
 		Args:                  cobra.ExactArgs(2),
 	}
@@ -270,7 +270,7 @@ func NewClusterCmd() *cobra.Command {
 		Use:   "show (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)",
 		Short: "Show a cluster configuration",
 		Long: "Show a cluster configuration for an application, instance," +
-			" from etcd URI or from tarantool config storage URI.\n\n" + clusterUriHelp,
+			" from etcd URI or from tarantool config storage URI.\n\n" + clusterURIHelp,
 		Example: "tt cluster show application_name\n" +
 			"  tt cluster show application_name:instance_name\n" +
 			"  tt cluster show https://user:pass@localhost:2379/tt\n" +
@@ -304,7 +304,7 @@ func NewClusterCmd() *cobra.Command {
 		Short: "Publish a cluster configuration",
 		Long: "Publish an application or an instance configuration to a cluster " +
 			"configuration file, to a etcd URI or to a tarantool config storage URI.\n\n" +
-			clusterUriHelp + "\n" +
+			clusterURIHelp + "\n" +
 			"By default, the command removes all keys in etcd with prefix " +
 			"'/prefix/config/' and writes the result to '/prefix/config/all'. " +
 			"You could work and update a target key with the 'key' argument.",
@@ -351,13 +351,13 @@ func NewClusterCmd() *cobra.Command {
 
 // internalClusterShowModule is an entrypoint for `cluster show` command.
 func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if opts, err := libconnect.CreateUriOpts(args[0]); err == nil {
+	if opts, err := libconnect.CreateURIOpts(args[0]); err == nil {
 		factory, cerr := cluster.NewCollectorFactory(cmdCtx.Integrity)
 		if cerr != nil {
 			return cerr
 		}
 		showCtx.Collectors = factory
-		return clustercmd.ShowUri(showCtx, opts)
+		return clustercmd.ShowURI(showCtx, opts)
 	}
 
 	// It looks like an application or an application:instance.
@@ -390,8 +390,8 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 	publishCtx.Src = data
 	publishCtx.Config = config
 
-	if opts, err := libconnect.CreateUriOpts(args[0]); err == nil {
-		return clustercmd.PublishUri(publishCtx, opts)
+	if opts, err := libconnect.CreateURIOpts(args[0]); err == nil {
+		return clustercmd.PublishURI(publishCtx, opts)
 	}
 
 	// It looks like an application or an application:instance.

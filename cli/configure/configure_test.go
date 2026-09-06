@@ -338,61 +338,61 @@ func TestUpdateCliOpts(t *testing.T) {
 }
 
 func TestGetCliOpts_modules_directory(t *testing.T) {
-	work_dir, err := os.Getwd()
+	workDir, err := os.Getwd()
 	require.NoError(t, err)
-	work_dir = filepath.Join(work_dir, "testdata/modules_cfg")
+	workDir = filepath.Join(workDir, "testdata/modules_cfg")
 
 	tests := []struct {
-		name        string
-		config      string
-		modules_dir config.FieldStringArrayType
-		cfg_path    string
+		name       string
+		config     string
+		modulesDir config.FieldStringArrayType
+		cfgPath    string
 	}{
 		{
-			name:        "Single string relative path",
-			config:      "tt-modules1",
-			modules_dir: []string{filepath.Join(work_dir, "modules-dir")},
-			cfg_path:    "tt-modules1.yaml",
+			name:       "Single string relative path",
+			config:     "tt-modules1",
+			modulesDir: []string{filepath.Join(workDir, "modules-dir")},
+			cfgPath:    "tt-modules1.yaml",
 		},
 		{
-			name:        "Single entry list",
-			config:      "tt-modules2",
-			modules_dir: []string{filepath.Join(work_dir, "modules-dir")},
-			cfg_path:    "tt-modules2.yml",
+			name:       "Single entry list",
+			config:     "tt-modules2",
+			modulesDir: []string{filepath.Join(workDir, "modules-dir")},
+			cfgPath:    "tt-modules2.yml",
 		},
 		{
 			name:   "Multiple entries list",
 			config: "tt-modules3.",
-			modules_dir: []string{
-				filepath.Join(work_dir, "modules-dir"),
+			modulesDir: []string{
+				filepath.Join(workDir, "modules-dir"),
 				"/ext/path/modules",
-				filepath.Join(work_dir, "local_modules"),
+				filepath.Join(workDir, "local_modules"),
 			},
-			cfg_path: "tt-modules3.yaml",
+			cfgPath: "tt-modules3.yaml",
 		},
 		{
-			name:        "Empty list = default value",
-			config:      "tt-modules4.yaml",
-			modules_dir: []string{filepath.Join(work_dir, "modules")},
-			cfg_path:    "tt-modules4.yml",
+			name:       "Empty list = default value",
+			config:     "tt-modules4.yaml",
+			modulesDir: []string{filepath.Join(workDir, "modules")},
+			cfgPath:    "tt-modules4.yml",
 		},
 		{
-			name:        "Single string absolute path",
-			config:      "tt-modules5.yml",
-			modules_dir: []string{"/ext/path/modules"},
-			cfg_path:    "tt-modules5.yaml",
+			name:       "Single string absolute path",
+			config:     "tt-modules5.yml",
+			modulesDir: []string{"/ext/path/modules"},
+			cfgPath:    "tt-modules5.yaml",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := newMockRepository()
-			config := filepath.Join(work_dir, tt.config)
+			config := filepath.Join(workDir, tt.config)
 			opts, cfg, err := GetCliOpts(config, &mockRepo)
 			require.NoError(t, err)
 			require.NotNil(t, opts.Modules)
-			require.Equal(t, tt.modules_dir, opts.Modules.Directories)
-			require.Equal(t, filepath.Join(work_dir, tt.cfg_path), cfg)
+			require.Equal(t, tt.modulesDir, opts.Modules.Directories)
+			require.Equal(t, filepath.Join(workDir, tt.cfgPath), cfg)
 		})
 	}
 }

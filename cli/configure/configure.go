@@ -241,11 +241,11 @@ func decodeStringAsArrayField(from, to reflect.Type, value interface{}) (
 }
 
 func decodeConfig(input map[string]any, cfg *config.CliOpts) error {
-	decoder_config := mapstructure.DecoderConfig{
+	decoderConfig := mapstructure.DecoderConfig{
 		Result:     cfg,
 		DecodeHook: mapstructure.ComposeDecodeHookFunc(decodeStringAsArrayField),
 	}
-	decoder, err := mapstructure.NewDecoder(&decoder_config)
+	decoder, err := mapstructure.NewDecoder(&decoderConfig)
 	if err != nil {
 		return err
 	}

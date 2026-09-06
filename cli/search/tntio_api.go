@@ -17,7 +17,7 @@ import (
 
 const (
 	TntIoURI = "https://www.tarantool.io/en/accounts/customer_zone"
-	ApiURI   = TntIoURI + "/api"
+	APIURI   = TntIoURI + "/api"
 	PkgURI   = TntIoURI + "/packages"
 )
 
@@ -103,7 +103,7 @@ func (d *httpDoer) Token() string {
 }
 
 // getOsForApi determines the OS type string required by the tarantool.io API.
-func getOsForApi(informer PlatformInformer) (string, error) {
+func getOsForAPI(informer PlatformInformer) (string, error) {
 	os, err := informer.GetOs()
 	if err != nil {
 		return "", fmt.Errorf("failed to get OS: %w", err)
@@ -120,7 +120,7 @@ func getOsForApi(informer PlatformInformer) (string, error) {
 }
 
 // getArchForApi determines the architecture type string required by the tarantool.io API.
-func getArchForApi(informer PlatformInformer, program Program) (string, error) {
+func getArchForAPI(informer PlatformInformer, program Program) (string, error) {
 	arch, err := informer.GetArch()
 	if err != nil {
 		return "", fmt.Errorf("failed to get architecture: %w", err)
@@ -163,19 +163,19 @@ func TntIoMakePkgURI(searchCtx *SearchCtx, tarball string) (string, error) {
 		return "", fmt.Errorf("no platform informer was applied")
 	}
 
-	arch, err := getArchForApi(searchCtx.platformInformer, searchCtx.Program)
+	arch, err := getArchForAPI(searchCtx.platformInformer, searchCtx.Program)
 	if err != nil {
 		return "", err
 	}
 
-	osType, err := getOsForApi(searchCtx.platformInformer)
+	osType, err := getOsForAPI(searchCtx.platformInformer)
 	if err != nil {
 		return "", err
 	}
 
 	uri = fmt.Sprintf("%s/%s/%s/%s/%s/%s/%s",
 		PkgURI,
-		GetApiPackage(searchCtx.Program),
+		GetAPIPackage(searchCtx.Program),
 		getBuildType(searchCtx.DevBuilds),
 		osType,
 		arch,
@@ -187,17 +187,17 @@ func TntIoMakePkgURI(searchCtx *SearchCtx, tarball string) (string, error) {
 }
 
 // buildApiQuery constructs the query string for the tarantool.io API.
-func buildApiQuery(searchCtx *SearchCtx, credentials connect.UserCredentials) (
+func buildAPIQuery(searchCtx *SearchCtx, credentials connect.UserCredentials) (
 	apiRequest, error,
 ) {
 	buildType := getBuildType(searchCtx.DevBuilds)
 
-	arch, err := getArchForApi(searchCtx.platformInformer, searchCtx.Program)
+	arch, err := getArchForAPI(searchCtx.platformInformer, searchCtx.Program)
 	if err != nil {
 		return apiRequest{}, fmt.Errorf("failed to get architecture: %w", err)
 	}
 
-	osType, err := getOsForApi(searchCtx.platformInformer)
+	osType, err := getOsForAPI(searchCtx.platformInformer)
 	if err != nil {
 		return apiRequest{}, fmt.Errorf("failed to get OS type for API: %w", err)
 	}
@@ -218,14 +218,14 @@ func buildApiQuery(searchCtx *SearchCtx, credentials connect.UserCredentials) (
 }
 
 // sendApiRequest prepares and sends the request to the tarantool.io API.
-func sendApiRequest(request apiRequest, doer TntIoDoer) ([]byte, error) {
+func sendAPIRequest(request apiRequest, doer TntIoDoer) ([]byte, error) {
 	postData, err := json.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal API request: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(
-		context.Background(), http.MethodPost, ApiURI, bytes.NewBuffer(postData))
+		context.Background(), http.MethodPost, APIURI, bytes.NewBuffer(postData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
@@ -262,7 +262,7 @@ func filterChecksums(apiReply map[string][]string) {
 }
 
 // parseApiResponse processes the HTTP response from the tarantool.io API.
-func parseApiResponse(respBody []byte) (map[string][]string, error) {
+func parseAPIResponse(respBody []byte) (map[string][]string, error) {
 	var apiReply map[string][]string
 	err := json.Unmarshal(respBody, &apiReply)
 	if err != nil {
@@ -286,17 +286,17 @@ func tntIoGetPkgVersions(credentials connect.UserCredentials, searchCtx *SearchC
 		return nil, fmt.Errorf("no platform informer was applied")
 	}
 
-	request, err := buildApiQuery(searchCtx, credentials)
+	request, err := buildAPIQuery(searchCtx, credentials)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := sendApiRequest(request, searchCtx.TntIoDoer)
+	resp, err := sendAPIRequest(request, searchCtx.TntIoDoer)
 	if err != nil {
 		return nil, err
 	}
 
-	apiReply, err := parseApiResponse(resp)
+	apiReply, err := parseAPIResponse(resp)
 	if err != nil {
 		return nil, err
 	}

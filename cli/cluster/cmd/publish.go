@@ -36,8 +36,8 @@ type PublishCtx struct {
 	Replicaset string
 }
 
-// PublishUri publishes a configuration to URI.
-func PublishUri(publishCtx PublishCtx, opts connect.UriOpts) error {
+// PublishURI publishes a configuration to URI.
+func PublishURI(publishCtx PublishCtx, opts connect.URIOpts) error {
 	instance := opts.Params["name"]
 	if err := publishCtxValidateConfig(publishCtx, instance); err != nil {
 		return err
