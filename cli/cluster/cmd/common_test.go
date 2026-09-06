@@ -184,7 +184,7 @@ groups:
 				err = validateGoConfig(view, full)
 
 				for k := range tc.Env {
-					os.Unsetenv(k)
+					_ = os.Unsetenv(k)
 				}
 
 				if tc.Err == nil {

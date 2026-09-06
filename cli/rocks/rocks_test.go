@@ -103,7 +103,7 @@ func TestAddLuarocksRepoOpts(t *testing.T) {
 }
 
 func TestGetRocksRepoPath(t *testing.T) {
-	os.Unsetenv(repoRocksPathEnvVarName)
+	_ = os.Unsetenv(repoRocksPathEnvVarName)
 	assert.EqualValues(t, "./testdata/repo", getRocksRepoPath("./testdata/repo"))
 	assert.EqualValues(t, "./testdata/emptyrepo", getRocksRepoPath("./testdata/emptyrepo"))
 
@@ -112,7 +112,7 @@ func TestGetRocksRepoPath(t *testing.T) {
 	assert.EqualValues(t, "./other_repo", getRocksRepoPath("./testdata/emptyrepo"))
 	// Return passed repo path, since manifest exists. Env var is ignored.
 	assert.EqualValues(t, "./testdata/repo", getRocksRepoPath("./testdata/repo"))
-	os.Unsetenv(repoRocksPathEnvVarName)
+	_ = os.Unsetenv(repoRocksPathEnvVarName)
 }
 
 func TestSetupTarantoolPrefix(t *testing.T) {
@@ -205,13 +205,13 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 	}
 
 	for input, output := range testCases {
-		os.Unsetenv(tarantoolPrefixEnvVarName)
+		_ = os.Unsetenv(tarantoolPrefixEnvVarName)
 		tntFile, err := os.Create(tntBinPath)
 		require.NoError(t, err)
 
 		_, err = tntFile.Write(*input.data)
 		require.NoError(t, err)
-		tntFile.Close()
+		_ = tntFile.Close()
 
 		err = os.Chmod(tntFile.Name(), 0o755)
 		require.NoError(t, err)
@@ -220,7 +220,7 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 			t.Setenv(tarantoolPrefixEnvVarName, input.tntPrefixEnv)
 		}
 		tarantoolPrefix, err := GetTarantoolPrefix(&input.cli, input.cliOpts)
-		os.Unsetenv(tarantoolPrefixEnvVarName)
+		_ = os.Unsetenv(tarantoolPrefixEnvVarName)
 		if err == nil {
 			assert.Nil(err)
 			assert.Equal(output.prefix, tarantoolPrefix)
@@ -228,6 +228,6 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 			assert.Equal(output.err, err)
 		}
 
-		os.Remove(tntBinPath)
+		_ = os.Remove(tntBinPath)
 	}
 }

@@ -161,7 +161,9 @@ func getDistroInfo() (DistroInfo, error) {
 	if err != nil {
 		return distroInfo, err
 	}
-	defer releaseFile.Close()
+	defer func() {
+		_ = releaseFile.Close()
+	}()
 
 	scanner := bufio.NewScanner(releaseFile)
 	for scanner.Scan() {
@@ -234,7 +236,7 @@ func isProgramInstalled(program string) bool {
 // isPackageInstalledDebian checks if package is installed on Debian/Ubuntu.
 func isPackageInstalledDebian(packageName string) bool {
 	cmd := exec.CommandContext(context.Background(), "dpkg", "-L", packageName)
-	cmd.Start()
+	_ = cmd.Start()
 	if cmd.Wait() == nil {
 		return true
 	} else {
@@ -248,7 +250,7 @@ func printLog(logName string) error {
 	if err != nil {
 		return err
 	}
-	os.Stdout.Write(logs)
+	_, _ = os.Stdout.Write(logs)
 	return nil
 }
 
@@ -685,7 +687,7 @@ func downloadTtSource(path, ttVersion, distfiles string, resolved resolvedInstal
 		}
 		err := gitCheckout(path, ttVersion, installCtx.verbose, logFile)
 		if err != nil {
-			printLog(logFile.Name())
+			_ = printLog(logFile.Name())
 		}
 		return err
 	}
@@ -694,26 +696,26 @@ func downloadTtSource(path, ttVersion, distfiles string, resolved resolvedInstal
 	if resolved.versionFound {
 		err := downloadRepo(search.GitRepoTT, ttVersion, path, logFile, installCtx.verbose)
 		if err != nil {
-			printLog(logFile.Name())
+			_ = printLog(logFile.Name())
 		}
 		return err
 	}
 	if err := downloadRepo(search.GitRepoTT, "master", path, logFile,
 		installCtx.verbose); err != nil {
-		printLog(logFile.Name())
+		_ = printLog(logFile.Name())
 		return err
 	}
 	if resolved.isPullRequest {
 		pullRequestCommand := "pull/" + resolved.pullRequestID + "/head:" + ttVersion
 		if err := util.ExecuteCommand("git", installCtx.verbose, logFile, path,
 			"fetch", "origin", pullRequestCommand); err != nil {
-			printLog(logFile.Name())
+			_ = printLog(logFile.Name())
 			return err
 		}
 	}
 	err := gitCheckout(path, ttVersion, installCtx.verbose, logFile)
 	if err != nil {
-		printLog(logFile.Name())
+		_ = printLog(logFile.Name())
 	}
 	return err
 }
@@ -749,7 +751,9 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 		return err
 	}
 
-	defer os.Remove(logFile.Name())
+	defer func() {
+		_ = os.Remove(logFile.Name())
+	}()
 	log.Infof("Installing tt=" + ttVersion)
 
 	// Check tt dependencies.
@@ -764,10 +768,12 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 	if err != nil {
 		return err
 	}
-	os.Chmod(path, defaultDirPermissions)
+	_ = os.Chmod(path, defaultDirPermissions)
 
 	if !installCtx.KeepTemp {
-		defer os.RemoveAll(path)
+		defer func() {
+			_ = os.RemoveAll(path)
+		}()
 	}
 
 	// Download tt.
@@ -780,7 +786,7 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 	err = util.ExecuteCommand("mage", installCtx.verbose, logFile, path,
 		"build")
 	if err != nil {
-		printLog(logFile.Name())
+		_ = printLog(logFile.Name())
 		return err
 	}
 
@@ -792,7 +798,7 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 	log.Infof("Copying executable...")
 	err = copyBuildedTT(binDir, path, versionStr, installCtx)
 	if err != nil {
-		printLog(logFile.Name())
+		_ = printLog(logFile.Name())
 		return err
 	}
 
@@ -800,7 +806,7 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 	symlinkPath := filepath.Join(binDir, "tt")
 	err = util.CreateSymlink(versionStr, symlinkPath, true)
 	if err != nil {
-		printLog(logFile.Name())
+		_ = printLog(logFile.Name())
 		return err
 	}
 
@@ -945,7 +951,9 @@ func installTarantoolInDocker(tntVersion, binDir, incDir string, installCtx Inst
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	currentUser, err := user.Current()
 	if err != nil {
@@ -1135,7 +1143,9 @@ func installTarantool(binDir string, installCtx InstallCtx, distfiles string) er
 	if err != nil {
 		return err
 	}
-	defer os.Remove(logFile.Name())
+	defer func() {
+		_ = os.Remove(logFile.Name())
+	}()
 
 	log.Infof("Installing tarantool=" + tarVersion)
 	// Check dependencies.
@@ -1150,16 +1160,18 @@ func installTarantool(binDir string, installCtx InstallCtx, distfiles string) er
 	if err != nil {
 		return err
 	}
-	os.Chmod(path, defaultDirPermissions)
+	_ = os.Chmod(path, defaultDirPermissions)
 
 	if !installCtx.KeepTemp {
-		defer os.RemoveAll(path)
+		defer func() {
+			_ = os.RemoveAll(path)
+		}()
 	}
 
 	// Download tarantool.
 	err = downloadTarantoolSource(path, tarVersion, distfiles, resolved, installCtx, logFile)
 	if err != nil {
-		printLog(logFile.Name())
+		_ = printLog(logFile.Name())
 		return err
 	}
 
@@ -1167,7 +1179,7 @@ func installTarantool(binDir string, installCtx InstallCtx, distfiles string) er
 	log.Infof("Building tarantool...")
 	buildPath, err := buildTarantool(path, installCtx, logFile)
 	if err != nil {
-		printLog(logFile.Name())
+		_ = printLog(logFile.Name())
 		return err
 	}
 
@@ -1181,21 +1193,21 @@ func installTarantool(binDir string, installCtx InstallCtx, distfiles string) er
 				versionStr)
 			err = os.RemoveAll(filepath.Join(binDir, versionStr))
 			if err != nil {
-				printLog(logFile.Name())
+				_ = printLog(logFile.Name())
 				return err
 			}
 			err = os.RemoveAll(filepath.Join(incDir, versionStr))
 		}
 	}
 	if err != nil {
-		printLog(logFile.Name())
+		_ = printLog(logFile.Name())
 		return err
 	}
 	binPath := filepath.Join(buildPath, "tarantool-prefix", "bin", "tarantool")
 	incPath := filepath.Join(buildPath, "tarantool-prefix", "include", "tarantool")
 	err = copyBuildedTarantool(binPath, incPath, binDir, incDir, versionStr)
 	if err != nil {
-		printLog(logFile.Name())
+		_ = printLog(logFile.Name())
 		return err
 	}
 
@@ -1203,7 +1215,7 @@ func installTarantool(binDir string, installCtx InstallCtx, distfiles string) er
 	log.Infof("Changing symlinks...")
 	err = changeActiveTarantoolVersion(versionStr, binDir, incDir)
 	if err != nil {
-		printLog(logFile.Name())
+		_ = printLog(logFile.Name())
 		return err
 	}
 

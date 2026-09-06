@@ -138,7 +138,7 @@ func (f *fileFollower) handleTailerStopStatus(ctx context.Context, curT *tail.Ta
 		}
 
 		if ctx.Err() != nil {
-			t.Stop()
+			_ = t.Stop()
 			return nil, fmt.Errorf("context (%w) while reopening tailer %q",
 				ctx.Err(), f.name)
 		}
@@ -215,7 +215,9 @@ func (f *fileFollower) startFollowing(ctx context.Context, out chan<- string, li
 	if err != nil {
 		return fmt.Errorf("cannot open %q: %w", f.name, err)
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	_, startPos, err := newTailReader(ctx, file, lines)
 	if err != nil {

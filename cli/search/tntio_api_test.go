@@ -155,8 +155,12 @@ func checkOutputVersionOrder(t *testing.T, got string, expected []string) {
 func TestSearchVersions_TntIo(t *testing.T) {
 	t.Setenv("TT_CLI_EE_USERNAME", testingUsername)
 	t.Setenv("TT_CLI_EE_PASSWORD", testingPassword)
-	defer os.Unsetenv("TT_CLI_EE_USERNAME")
-	defer os.Unsetenv("TT_CLI_EE_PASSWORD")
+	defer func() {
+		_ = os.Unsetenv("TT_CLI_EE_USERNAME")
+	}()
+	defer func() {
+		_ = os.Unsetenv("TT_CLI_EE_PASSWORD")
+	}()
 
 	tests := map[string]struct {
 		program          search.Program
@@ -432,7 +436,7 @@ func TestSearchVersions_TntIo(t *testing.T) {
 
 			err := search.SearchVersions(sCtx, &opts)
 
-			w.Close()
+			_ = w.Close()
 			var outBuf bytes.Buffer
 			_, readErr := outBuf.ReadFrom(r)
 			require.NoError(t, readErr, "Failed to read from stdout pipe")

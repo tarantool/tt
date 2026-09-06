@@ -16,7 +16,9 @@ func FileSHA256Hex(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	hasher := sha256.New()
 	if _, err := io.Copy(hasher, file); err != nil {
@@ -33,7 +35,9 @@ func FileSHA1Hex(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	hasher := sha1.New()
 	if _, err := io.Copy(hasher, file); err != nil {
@@ -50,7 +54,9 @@ func FileMD5(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	hasher := md5.New()
 	if _, err := io.Copy(hasher, file); err != nil {

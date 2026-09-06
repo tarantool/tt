@@ -26,7 +26,9 @@ func ExtractTarGz(tarName, dstDir string) error {
 	if err != nil {
 		return err
 	}
-	defer archive.Close()
+	defer func() {
+		_ = archive.Close()
+	}()
 	tarReader, err := makeTarGzReader(archive)
 	if err != nil {
 		return err
@@ -53,7 +55,7 @@ func ExtractTarGz(tarName, dstDir string) error {
 				//    user:   read/write/execute
 				//    group:  read/execute
 				//    others: read/execute
-				os.MkdirAll(filepath.Join(dstDir, dirName), archiveDirectoryMode)
+				_ = os.MkdirAll(filepath.Join(dstDir, dirName), archiveDirectoryMode)
 			}
 			outFile, err := os.OpenFile(filepath.Join(dstDir, header.Name),
 				os.O_CREATE|os.O_WRONLY, header.FileInfo().Mode().Perm())
@@ -61,10 +63,10 @@ func ExtractTarGz(tarName, dstDir string) error {
 				return err
 			}
 			if _, err := io.Copy(outFile, tarReader); err != nil {
-				outFile.Close()
+				_ = outFile.Close()
 				return err
 			}
-			outFile.Close()
+			_ = outFile.Close()
 		case tar.TypeSymlink:
 			if err := os.Symlink(header.Linkname, filepath.Join(dstDir, header.Name)); err != nil {
 				return err

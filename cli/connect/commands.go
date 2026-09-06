@@ -637,7 +637,7 @@ func (executor cmdExecutor) Execute(console *Console, in string) bool {
 			if err != nil {
 				log.Errorf("%s\n", err)
 			} else if msg != "" {
-				fmt.Fprintf(os.Stdout, "%s\n", msg)
+				_, _ = fmt.Fprintf(os.Stdout, "%s\n", msg)
 			}
 			return true
 		}

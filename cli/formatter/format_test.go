@@ -361,7 +361,7 @@ func TestFormatter_MakeOutputFormat(t *testing.T) {
 			}
 			if c.panic {
 				assert.PanicsWithValue(t, "Unknown render case", func() {
-					formatter.MakeOutput(c.outputFormat, c.input, formatterOpts)
+					_, _ = formatter.MakeOutput(c.outputFormat, c.input, formatterOpts)
 				})
 			} else {
 				output, err := formatter.MakeOutput(c.outputFormat, c.input, formatterOpts)

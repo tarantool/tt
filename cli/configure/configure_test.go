@@ -89,7 +89,9 @@ func TestConfigureCli(t *testing.T) {
 		expectedTarantoolPath, []byte("I am [fake] local Tarantool!"), 0o777,
 	))
 
-	defer os.Remove(expectedTarantoolPath)
+	defer func() {
+		_ = os.Remove(expectedTarantoolPath)
+	}()
 
 	require.NoError(t, Cli(&cmdCtx))
 	assert.Equal(cmdCtx.Cli.ConfigPath, expectedConfigPath)
@@ -115,7 +117,9 @@ func TestConfigureCli(t *testing.T) {
 		expectedConfigPath, []byte("app:"), 0o755,
 	))
 
-	defer os.Remove(expectedConfigPath)
+	defer func() {
+		_ = os.Remove(expectedConfigPath)
+	}()
 
 	assert.Nil(Cli(&cmdCtx))
 	// I don't know why, but go tests run in /private folder (when running on MacOS).
@@ -254,7 +258,7 @@ func TestDetectLocalTarantool(t *testing.T) {
 
 	// Tarantool executable is in PATH.
 	cliOpts.Env.BinDir = "./testdata"
-	Cli(&cmdCtx)
+	_ = Cli(&cmdCtx)
 	require.NoError(t, detectLocalTarantool(&cmdCtx, &cliOpts))
 	expected, err = exec.LookPath("tarantool")
 	require.NoError(t, err)

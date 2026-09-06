@@ -95,7 +95,7 @@ func newAeonConnectCmd() *cobra.Command {
 		"path to a trusted certificate authorities (CA) file")
 	aeonCmd.Flags().Var(&connectCtx.Transport, "transport",
 		"allowed "+aeoncmd.ListValidTransports())
-	aeonCmd.RegisterFlagCompletionFunc("transport", aeonTransportCompletion)
+	_ = aeonCmd.RegisterFlagCompletionFunc("transport", aeonTransportCompletion)
 
 	return aeonCmd
 }
@@ -292,7 +292,7 @@ func getConfigURI(cmdCtx *cmdcontext.CmdCtx, url, instanceName string) error {
 	}
 
 	if uri, err := libconnect.CreateURIOpts(url); err == nil {
-		aeoncmd.FillConnectCtx(&connectCtx, uri, instanceName, factory)
+		_ = aeoncmd.FillConnectCtx(&connectCtx, uri, instanceName, factory)
 	}
 
 	return nil

@@ -159,7 +159,7 @@ func (c *Client) Execute(input string) any {
 
 // Close implements console.Handler interface.
 func (c *Client) Close() {
-	c.conn.Close()
+	_ = c.conn.Close()
 }
 
 // Complete implements console.Handler interface.

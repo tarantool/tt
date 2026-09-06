@@ -45,7 +45,7 @@ func TestGetList(t *testing.T) {
 	for _, file := range files {
 		f, err := os.Create(filepath.Join(binDir, file))
 		require.NoError(t, err)
-		f.Close()
+		_ = f.Close()
 	}
 
 	cliOpts, _, err := configure.GetCliOpts(cfgPath, &mockRepository{})

@@ -114,7 +114,7 @@ func NewConnectCmd() *cobra.Command {
 		`use the provided Lua expression as an interpreter for user's input of the connection.
 If the evaler code is prefixed with @, the rest should be a file name to read the evaler
 code from`)
-	connectCmd.Flags().MarkHidden("evaler")
+	_ = connectCmd.Flags().MarkHidden("evaler")
 
 	return connectCmd
 }
@@ -234,7 +234,7 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		}
 		// "Println" is used instead of "log..." to print the result without
 		// any decoration.
-		fmt.Fprintln(os.Stdout, string(res))
+		_, _ = fmt.Fprintln(os.Stdout, string(res))
 		if !connectInteractive || !terminal.IsTerminal(syscall.Stdin) {
 			return nil
 		}

@@ -70,17 +70,17 @@ func statusReplicasets(replicasets replicaset.Replicasets) error {
 		return errUnknownOrEmptyReplicasetsConfiguration
 	}
 
-	fmt.Fprintln(os.Stdout, "Orchestrator:     ", replicasets.Orchestrator)
-	fmt.Fprintln(os.Stdout, "Replicasets state:", replicasets.State)
+	_, _ = fmt.Fprintln(os.Stdout, "Orchestrator:     ", replicasets.Orchestrator)
+	_, _ = fmt.Fprintln(os.Stdout, "Replicasets state:", replicasets.State)
 
 	replicasets = fillAliases(replicasets)
 	replicasets = sortAliases(replicasets)
 
 	if len(replicasets.Replicasets) > 0 {
-		fmt.Fprintln(os.Stdout)
+		_, _ = fmt.Fprintln(os.Stdout)
 	}
 	for _, replicaset := range replicasets.Replicasets {
-		fmt.Fprint(os.Stdout, replicasetToString(replicaset))
+		_, _ = fmt.Fprint(os.Stdout, replicasetToString(replicaset))
 	}
 	return nil
 }

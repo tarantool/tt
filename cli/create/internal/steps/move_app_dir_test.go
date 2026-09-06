@@ -73,7 +73,9 @@ func TestMoveAppDirTargetDirRemovalFailure(t *testing.T) {
 
 	// Make parent dir read-only.
 	require.NoError(t, os.Chmod(filepath.Join(dstAppDir, "parent"), 0o444))
-	defer os.Chmod(filepath.Join(dstAppDir, "parent"), 0o755)
+	defer func() {
+		_ = os.Chmod(filepath.Join(dstAppDir, "parent"), 0o755)
+	}()
 
 	templateCtx.TargetAppPath = filepath.Join(dstAppDir, "parent", "apps")
 	templateCtx.AppPath = srcAppDir
@@ -82,7 +84,7 @@ func TestMoveAppDirTargetDirRemovalFailure(t *testing.T) {
 		fmt.Sprintf("stat %[1]s: permission denied", templateCtx.TargetAppPath))
 
 	// Check subdir is still there.
-	os.Chmod(filepath.Join(dstAppDir, "parent"), 0o755)
+	_ = os.Chmod(filepath.Join(dstAppDir, "parent"), 0o755)
 	require.DirExists(t, templateCtx.TargetAppPath)
 }
 

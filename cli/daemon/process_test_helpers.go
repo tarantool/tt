@@ -36,11 +36,11 @@ func waitProcessChanges() {
 // cleanupDaemonFiles cleans up daemon artifacts.
 func cleanupDaemonFiles(logFilename, pidFilename string) {
 	if _, err := os.Stat(logFilename); !os.IsNotExist(err) {
-		os.Remove(logFilename)
+		_ = os.Remove(logFilename)
 	}
 
 	if _, err := os.Stat(pidFilename); !os.IsNotExist(err) {
-		os.Remove(pidFilename)
+		_ = os.Remove(pidFilename)
 	}
 }
 

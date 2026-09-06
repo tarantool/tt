@@ -544,7 +544,7 @@ func fillReplicasetAppCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, target 
 		conn, err = connector.Connect(connOpts)
 		if err == nil {
 			ctx.IsInstanceConnect = true
-			conn.Close()
+			_ = conn.Close()
 			break
 		}
 	}
@@ -591,7 +591,9 @@ func internalReplicasetUpgradeModule(cmdCtx *cmdcontext.CmdCtx, args []string) e
 		return err
 	}
 	if ctx.IsInstanceConnect {
-		defer ctx.Conn.Close()
+		defer func() {
+			_ = ctx.Conn.Close()
+		}()
 	}
 
 	connectCtx := connect.ConnectCtx{
@@ -626,7 +628,9 @@ func internalReplicasetDowngradeModule(cmdCtx *cmdcontext.CmdCtx, args []string)
 		return err
 	}
 	if ctx.IsInstanceConnect {
-		defer ctx.Conn.Close()
+		defer func() {
+			_ = ctx.Conn.Close()
+		}()
 	}
 
 	connectCtx := connect.ConnectCtx{
@@ -661,7 +665,9 @@ func internalReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) e
 	if !ctx.IsInstanceConnect {
 		return errSpecifyAnInstanceToPromote
 	}
-	defer ctx.Conn.Close()
+	defer func() {
+		_ = ctx.Conn.Close()
+	}()
 
 	collectors, publishers, err := cluster.NewCollectorAndPublisherFactories(
 		cmdCtx.Integrity, replicasetIntegrityPrivateKey)
@@ -695,7 +701,9 @@ func internalReplicasetDemoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) er
 	if !ctx.IsInstanceConnect {
 		return errSpecifyAnInstanceToDemote
 	}
-	defer ctx.Conn.Close()
+	defer func() {
+		_ = ctx.Conn.Close()
+	}()
 
 	collectors, publishers, err := cluster.NewCollectorAndPublisherFactories(
 		cmdCtx.Integrity, replicasetIntegrityPrivateKey)
@@ -723,7 +731,9 @@ func internalReplicasetStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) er
 		return err
 	}
 	if ctx.IsInstanceConnect {
-		defer ctx.Conn.Close()
+		defer func() {
+			_ = ctx.Conn.Close()
+		}()
 	}
 	return replicasetcmd.Status(replicasetcmd.DiscoveryCtx{
 		IsApplication: ctx.IsApplication,
@@ -743,7 +753,9 @@ func internalReplicasetExpelModule(cmdCtx *cmdcontext.CmdCtx, args []string) err
 		return err
 	}
 	if ctx.IsInstanceConnect {
-		defer ctx.Conn.Close()
+		defer func() {
+			_ = ctx.Conn.Close()
+		}()
 	}
 	collectors, publishers, err := cluster.NewCollectorAndPublisherFactories(
 		cmdCtx.Integrity, replicasetIntegrityPrivateKey)
@@ -771,7 +783,9 @@ func internalReplicasetBootstrapVShardModule(cmdCtx *cmdcontext.CmdCtx, args []s
 		return err
 	}
 	if ctx.IsInstanceConnect {
-		defer ctx.Conn.Close()
+		defer func() {
+			_ = ctx.Conn.Close()
+		}()
 	}
 	collectors, publishers, err := cluster.NewCollectorAndPublisherFactories(
 		cmdCtx.Integrity, replicasetIntegrityPrivateKey)
@@ -799,7 +813,9 @@ func internalReplicasetBootstrapModule(cmdCtx *cmdcontext.CmdCtx, args []string)
 		return err
 	}
 	if ctx.IsInstanceConnect {
-		defer ctx.Conn.Close()
+		defer func() {
+			_ = ctx.Conn.Close()
+		}()
 	}
 	bootstrapCtx := replicasetcmd.BootstrapCtx{
 		Orchestrator:    ctx.Orchestrator,
@@ -861,7 +877,9 @@ func internalReplicasetRolesAddModule(cmdCtx *cmdcontext.CmdCtx, args []string) 
 	if err := replicasetFillCtx(cmdCtx, &ctx, args[0], false, running.ConfigLoadAll); err != nil {
 		return err
 	}
-	defer ctx.Conn.Close()
+	defer func() {
+		_ = ctx.Conn.Close()
+	}()
 	if ctx.IsApplication && replicasetInstanceName == "" && ctx.InstName == "" &&
 		!replicasetIsGlobal && replicasetGroupName == "" && replicasetReplicasetName == "" {
 		return errThereIsNoDestinationProvidedInWhichToAddRole
@@ -904,7 +922,9 @@ func internalReplicasetRolesRemoveModule(cmdCtx *cmdcontext.CmdCtx, args []strin
 	if err := replicasetFillCtx(cmdCtx, &ctx, args[0], false, running.ConfigLoadAll); err != nil {
 		return err
 	}
-	defer ctx.Conn.Close()
+	defer func() {
+		_ = ctx.Conn.Close()
+	}()
 	if ctx.IsApplication && replicasetInstanceName == "" && ctx.InstName == "" &&
 		!replicasetIsGlobal && replicasetGroupName == "" && replicasetReplicasetName == "" {
 		return errThereIsNoDestinationProvidedWhereToRemoveRole

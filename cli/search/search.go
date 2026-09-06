@@ -62,12 +62,12 @@ func printVersion(bindir string, program Program, versionStr string) {
 		target, _ := util.ResolveSymlink(filepath.Join(bindir, program.Exec()))
 
 		if path.Base(target) == program.String()+version.FsSeparator+versionStr {
-			fmt.Fprintf(os.Stdout, "%s [active]\n", versionStr)
+			_, _ = fmt.Fprintf(os.Stdout, "%s [active]\n", versionStr)
 		} else {
-			fmt.Fprintf(os.Stdout, "%s [installed]\n", versionStr)
+			_, _ = fmt.Fprintf(os.Stdout, "%s [installed]\n", versionStr)
 		}
 	} else {
-		fmt.Fprintln(os.Stdout, versionStr)
+		_, _ = fmt.Fprintln(os.Stdout, versionStr)
 	}
 }
 

@@ -40,8 +40,8 @@ func Cat(tntCli cmdcontext.TarantoolCli) error {
 	if err != nil {
 		return err
 	}
-	stdinPipe.Write([]byte(catFile))
-	stdinPipe.Close()
+	_, _ = stdinPipe.Write([]byte(catFile))
+	_ = stdinPipe.Close()
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("result of cat: %w", err)
@@ -65,8 +65,8 @@ func Play(tntCli cmdcontext.TarantoolCli) error {
 	if err != nil {
 		return err
 	}
-	stdinPipe.Write([]byte(playFile))
-	stdinPipe.Close()
+	_, _ = stdinPipe.Write([]byte(playFile))
+	_ = stdinPipe.Close()
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("%w%s", errResultOfPlay, errBuff.String())
@@ -75,9 +75,9 @@ func Play(tntCli cmdcontext.TarantoolCli) error {
 	scanner := bufio.NewScanner(stdoutPipe)
 	scanner.Split(bufio.ScanLines)
 	for scanner.Scan() {
-		fmt.Fprintln(os.Stdout, scanner.Text())
+		_, _ = fmt.Fprintln(os.Stdout, scanner.Text())
 	}
-	cmd.Wait()
+	_ = cmd.Wait()
 
 	if len(errBuff.String()) > 0 {
 		return fmt.Errorf("%w%s", errResultOfPlay, errBuff.String())

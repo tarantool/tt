@@ -163,32 +163,32 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			version.GetVersion, err)
 	}
 
-	os.Setenv("TT_CLI_PLAY_FILES_AND_URI", string(filesAndURIJSON))
+	_ = os.Setenv("TT_CLI_PLAY_FILES_AND_URI", string(filesAndURIJSON))
 	if playUsername != "" {
-		os.Setenv("TT_CLI_PLAY_USERNAME", playUsername)
+		_ = os.Setenv("TT_CLI_PLAY_USERNAME", playUsername)
 	}
 	if playPassword != "" {
-		os.Setenv("TT_CLI_PLAY_PASSWORD", playPassword)
+		_ = os.Setenv("TT_CLI_PLAY_PASSWORD", playPassword)
 	}
 
 	if playSslCertFile != "" {
-		os.Setenv("TT_CLI_PLAY_SSL_CERT_FILE", playSslCertFile)
+		_ = os.Setenv("TT_CLI_PLAY_SSL_CERT_FILE", playSslCertFile)
 	}
 	if playSslKeyFile != "" {
-		os.Setenv("TT_CLI_PLAY_SSL_KEY_FILE", playSslKeyFile)
+		_ = os.Setenv("TT_CLI_PLAY_SSL_KEY_FILE", playSslKeyFile)
 	}
 	if playSslCaFile != "" {
-		os.Setenv("TT_CLI_PLAY_SSL_CA_FILE", playSslCaFile)
+		_ = os.Setenv("TT_CLI_PLAY_SSL_CA_FILE", playSslCaFile)
 	}
 	if playSslCiphers != "" {
-		os.Setenv("TT_CLI_PLAY_SSL_CIPHERS", playSslCiphers)
+		_ = os.Setenv("TT_CLI_PLAY_SSL_CIPHERS", playSslCiphers)
 	}
 	if playSslCertFile != "" || playSslKeyFile != "" ||
 		playSslCaFile != "" || playSslCiphers != "" {
-		os.Setenv("TT_CLI_PLAY_TRANSPORT", "ssl")
+		_ = os.Setenv("TT_CLI_PLAY_TRANSPORT", "ssl")
 	}
 
-	os.Setenv("TT_CLI_PLAY_SHOW_SYS", strconv.FormatBool(playFlags.ShowSystem))
+	_ = os.Setenv("TT_CLI_PLAY_SHOW_SYS", strconv.FormatBool(playFlags.ShowSystem))
 
 	// List of spaces is passed to lua play script via environment variable in json format.
 	spacesJSON, err := json.Marshal(playFlags.Space)
@@ -198,17 +198,17 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			version.GetVersion, err)
 	}
 	if string(spacesJSON) != "null" {
-		os.Setenv("TT_CLI_PLAY_SPACES", string(spacesJSON))
+		_ = os.Setenv("TT_CLI_PLAY_SPACES", string(spacesJSON))
 	}
 
-	os.Setenv("TT_CLI_PLAY_FROM", strconv.FormatUint(playFlags.From, 10))
-	os.Setenv("TT_CLI_PLAY_TO", strconv.FormatUint(playFlags.To, 10))
+	_ = os.Setenv("TT_CLI_PLAY_FROM", strconv.FormatUint(playFlags.From, 10))
+	_ = os.Setenv("TT_CLI_PLAY_TO", strconv.FormatUint(playFlags.To, 10))
 
 	timestamp, err := util.StringToTimestamp(playFlags.Timestamp)
 	if err != nil {
 		return fmt.Errorf("failed to parse a timestamp: %w", err)
 	}
-	os.Setenv("TT_CLI_PLAY_TIMESTAMP", timestamp)
+	_ = os.Setenv("TT_CLI_PLAY_TIMESTAMP", timestamp)
 
 	// List of replicas is passed to lua play script via environment variable in json format.
 	replicasJSON, err := json.Marshal(playFlags.Replica)
@@ -218,7 +218,7 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			version.GetVersion, err)
 	}
 	if string(replicasJSON) != "null" {
-		os.Setenv("TT_CLI_PLAY_REPLICAS", string(replicasJSON))
+		_ = os.Setenv("TT_CLI_PLAY_REPLICAS", string(replicasJSON))
 	}
 
 	log.Infof("Running play with URI=%s and files: %s\n", args[0], args[1:])

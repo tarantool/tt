@@ -56,7 +56,9 @@ func createTmpLogFile(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	writeLogLines(t, f, linesPerStep, logLineFormat)
 
@@ -136,7 +138,7 @@ func TestFollow2_FollowNewContent(t *testing.T) {
 
 	writeLogLines(t, appendFile, linesPerStep, logNewLineFormat)
 
-	appendFile.Close()
+	_ = appendFile.Close()
 
 	err = checksLinesInFile(t, outCh, logNewLineFormat)
 	if err != nil {
@@ -232,9 +234,9 @@ func rotationTest(t *testing.T, useDelay bool) {
 
 	writeLogLines(t, newFile, linesPerStep, logNewLineFormat)
 
-	newFile.Close()
+	_ = newFile.Close()
 
-	newFile.Close()
+	_ = newFile.Close()
 
 	err = checksLinesInFile(t, outCh, logNewLineFormat)
 	if err != nil {

@@ -26,7 +26,7 @@ func (printFollowUpMsgStep PrintFollowUpMessage) Run(createCtx *create_ctx.Creat
 			return err
 		}
 
-		printFollowUpMsgStep.Writer.Write([]byte(followUpText + "\n"))
+		_, _ = printFollowUpMsgStep.Writer.Write([]byte(followUpText + "\n"))
 	}
 
 	return nil

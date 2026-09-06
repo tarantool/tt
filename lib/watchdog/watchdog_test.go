@@ -12,8 +12,8 @@ import (
 )
 
 func cleanupPidFiles() {
-	os.Remove("test.pid")
-	os.Remove("wd.pid")
+	_ = os.Remove("test.pid")
+	_ = os.Remove("wd.pid")
 }
 
 func verifyProcessRunning(t *testing.T, wd *Watchdog) {

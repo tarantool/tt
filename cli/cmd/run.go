@@ -25,7 +25,7 @@ are passed after '--'.
 		Run: func(cmd *cobra.Command, args []string) {
 			for _, opt := range args {
 				if opt == "-h" || opt == "--help" {
-					cmd.Help()
+					_ = cmd.Help()
 					return
 				}
 			}

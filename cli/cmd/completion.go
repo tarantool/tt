@@ -111,7 +111,7 @@ func internalCompletionCmd(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprint(os.Stdout, string(res))
+		_, _ = fmt.Fprint(os.Stdout, string(res))
 
 	case shellZsh:
 		if err := rootCmd.GenZshCompletion(&buf); err != nil {
@@ -121,7 +121,7 @@ func internalCompletionCmd(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprint(os.Stdout, string(res))
+		_, _ = fmt.Fprint(os.Stdout, string(res))
 
 	case shellFish:
 		if err := rootCmd.GenFishCompletion(&buf, true); err != nil {
@@ -131,7 +131,7 @@ func internalCompletionCmd(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprint(os.Stdout, string(res))
+		_, _ = fmt.Fprint(os.Stdout, string(res))
 
 	default:
 		return fmt.Errorf("%w%s", errSpecifiedShellTypeIsNotSupportedAvailable, listShells())

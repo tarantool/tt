@@ -175,11 +175,11 @@ func (console *Console) Run() error {
 // Close frees up resources used by the console.
 func (console *Console) Close() {
 	for _, v := range console.validators {
-		v.Close()
+		_ = v.Close()
 	}
 	console.validators = nil
 	if console.conn != nil {
-		console.conn.Close()
+		_ = console.conn.Close()
 	}
 }
 
@@ -241,7 +241,7 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 					return
 				}
 
-				fmt.Fprintf(os.Stdout, "%s\n", encodedData)
+				_, _ = fmt.Fprintf(os.Stdout, "%s\n", encodedData)
 			},
 			ResData: &results,
 		}
@@ -269,7 +269,7 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 			log.Errorf("Unable to format output: %s", err)
 			log.Infof("Source YAML:\n%s", data)
 		} else {
-			fmt.Fprint(os.Stdout, output)
+			_, _ = fmt.Fprint(os.Stdout, output)
 		}
 
 		console.input = ""
@@ -404,7 +404,7 @@ func getPromptOptions(console *Console) []prompt.Option {
 				Fn: func(buf *prompt.Buffer) {
 					console.input = ""
 					console.livePrefixEnabled = false
-					fmt.Fprintln(os.Stdout, "^C")
+					_, _ = fmt.Fprintln(os.Stdout, "^C")
 				},
 			},
 		),

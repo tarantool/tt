@@ -74,7 +74,9 @@ func startEtcd(t *testing.T, opts etcdOpts) *etcdtest.LazyCluster {
 		Endpoints: inst.EndpointsGRPC(),
 	})
 	require.NoError(t, err)
-	defer etcd.Close()
+	defer func() {
+		_ = etcd.Close()
+	}()
 
 	if err := doWithCtx(func(ctx context.Context) error {
 		_, err := etcd.UserAdd(ctx, opts.Username, opts.Password)
@@ -128,7 +130,7 @@ func etcdPut(t *testing.T, etcd *clientv3.Client, key, value string) {
 		pResp *clientv3.PutResponse
 		err   error
 	)
-	doWithCtx(func(ctx context.Context) error {
+	_ = doWithCtx(func(ctx context.Context) error {
 		pResp, err = etcd.Put(ctx, key, value)
 		return nil
 	})
@@ -175,7 +177,9 @@ func TestGetClusterConfig_etcd(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
-	defer etcd.Close()
+	defer func() {
+		_ = etcd.Close()
+	}()
 
 	etcdPut(t, etcd, "/test/config/all", `wal:
   dir: etcddir
@@ -242,7 +246,9 @@ func TestGetClusterConfig_etcd_connect_from_env(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
-	defer etcd.Close()
+	defer func() {
+		_ = etcd.Close()
+	}()
 
 	etcdPut(t, etcd, prefix+"/config/all", `wal:
   dir: etcddir

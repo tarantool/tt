@@ -99,10 +99,11 @@ func getPatterns(distro Distro) ([]string, error) {
 
 // PublishRWS puts packages to RWS (Repository Web Service).
 func PublishRWS() error {
-	fmt.Fprintf(os.Stdout, "Publish packages to RWS...\n")
+	_, _ = fmt.Fprintf(os.Stdout, "Publish packages to RWS...\n")
 
 	for _, targetDistro := range targetDistros {
-		fmt.Fprintf(os.Stdout, "Publish package for %s/%s...\n", targetDistro.OS, targetDistro.Dist)
+		_, _ = fmt.Fprintf(os.Stdout, "Publish package for %s/%s...\n",
+			targetDistro.OS, targetDistro.Dist)
 
 		patterns, err := getPatterns(targetDistro)
 		if err != nil {
@@ -132,7 +133,7 @@ func PublishRWS() error {
 			flags = append(flags, "-F", fmt.Sprintf("%s=@./%s", filepath.Base(file), file))
 		}
 
-		fmt.Fprintf(os.Stdout, "curl flags (excluding secrets): %s\n", flags)
+		_, _ = fmt.Fprintf(os.Stdout, "curl flags (excluding secrets): %s\n", flags)
 
 		rwsAuth := os.Getenv("RWS_AUTH")
 		if rwsAuth == "" {

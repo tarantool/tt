@@ -304,7 +304,7 @@ func GetCliOpts(configurePath string, repository integrity.Repository) (
 				return nil, "",
 					fmt.Errorf("failed to validate integrity of %q: %w", configPath, err)
 			}
-			f.Close()
+			_ = f.Close()
 		}
 		rawConfigOpts, err := util.ParseYAML(configPath)
 		if err != nil {
@@ -625,7 +625,7 @@ func switchToLocalCli(cmdCtx *cmdcontext.CmdCtx, localCli, currentCli, launchDir
 	if err != nil {
 		return err
 	}
-	f.Close()
+	_ = f.Close()
 
 	// We are not using the "RunExec" function because we have no reason to have several
 	// "tt" processes. Moreover, it looks strange when we start "tt", which starts "tt",

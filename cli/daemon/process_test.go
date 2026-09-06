@@ -27,7 +27,7 @@ func TestProcessBase(t *testing.T) {
 
 	// Kill daemon if test fails.
 	defer func() {
-		syscall.Kill(pid, syscall.SIGINT)
+		_ = syscall.Kill(pid, syscall.SIGINT)
 		waitProcessChanges()
 	}()
 
@@ -36,7 +36,7 @@ func TestProcessBase(t *testing.T) {
 	require.True(t, alive, "Can't start daemon.")
 
 	// Stop daemon.
-	syscall.Kill(pid, syscall.SIGINT)
+	_ = syscall.Kill(pid, syscall.SIGINT)
 
 	// Check is daemon alive.
 	waitProcessChanges()

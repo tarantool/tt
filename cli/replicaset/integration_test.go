@@ -45,7 +45,9 @@ func doRequest(req tarantool.Request) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	_, err = conn.Do(req).Get()
 	return err
@@ -97,7 +99,9 @@ func TestEvalOrchestrator_cconfig(t *testing.T) {
 	defer reset()
 
 	conn := testConnect(t)
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	evaled, err := replicaset.EvalOrchestrator(conn)
 	require.NoError(t, err)
@@ -111,7 +115,9 @@ func TestEvalOrchestrator_custom(t *testing.T) {
 			defer reset()
 
 			conn := testConnect(t)
-			defer conn.Close()
+			defer func() {
+				_ = conn.Close()
+			}()
 
 			evaled, err := replicaset.EvalOrchestrator(conn)
 			require.NoError(t, err)
@@ -517,7 +523,7 @@ func TestEvalAny_error(t *testing.T) {
 func runTestMain(m *testing.M) int {
 	absWorkDir, err := filepath.Abs(workDir)
 	if err != nil {
-		fmt.Fprintln(os.Stdout, "Failed to prepare test work dir:", err)
+		_, _ = fmt.Fprintln(os.Stdout, "Failed to prepare test work dir:", err)
 		return 1
 	}
 
@@ -531,21 +537,21 @@ func runTestMain(m *testing.M) int {
 		RetryTimeout: 100 * time.Millisecond,
 	})
 	if err != nil {
-		fmt.Fprintln(os.Stdout, "Failed to prepare test tarantool:", err)
+		_, _ = fmt.Fprintln(os.Stdout, "Failed to prepare test tarantool:", err)
 		return 1
 	}
 	defer test_helpers.StopTarantoolWithCleanup(inst)
 
 	conn, err := tarantool.Connect(context.Background(), dialer, opts)
 	if err != nil {
-		fmt.Fprintln(os.Stdout, "Failed to check tarantool version:", err)
+		_, _ = fmt.Fprintln(os.Stdout, "Failed to check tarantool version:", err)
 		return 1
 	}
 
 	_, err = conn.Do(tarantool.NewPingRequest()).Get()
-	conn.Close()
+	_ = conn.Close()
 	if err != nil {
-		fmt.Fprintln(os.Stdout, "Failed to ping tarantool server:", err)
+		_, _ = fmt.Fprintln(os.Stdout, "Failed to ping tarantool server:", err)
 		return 1
 	}
 

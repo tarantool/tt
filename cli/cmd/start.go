@@ -55,7 +55,7 @@ func NewStartCmd() *cobra.Command {
 	}
 
 	startCmd.Flags().BoolVar(&watchdog, "watchdog", false, "")
-	startCmd.Flags().MarkHidden("watchdog")
+	_ = startCmd.Flags().MarkHidden("watchdog")
 	startCmd.Flags().BoolVarP(&startInteractive, "interactive", "i", false, "")
 
 	integrity.RegisterIntegrityCheckPeriodFlag(startCmd.Flags(), &cmdCtx.Cli.IntegrityCheckPeriod)
@@ -96,7 +96,7 @@ func startInstancesInteractive(cmdCtx *cmdcontext.CmdCtx, instances []running.In
 		prefix := running.GetAppInstanceName(instCtx) + " "
 		wg.Add(1)
 		go func(inst running.InstanceCtx) {
-			running.RunInstance(ctx, cmdCtx, inst,
+			_ = running.RunInstance(ctx, cmdCtx, inst,
 				running.NewColorizedPrefixWriter(os.Stdout, clr, prefix),
 				running.NewColorizedPrefixWriter(os.Stderr, clr, prefix))
 			wg.Done()

@@ -112,11 +112,11 @@ func prepareTemporaryDirs(bp *bundleParams) error {
 	if err != nil {
 		return fmt.Errorf("failed to create temporary install directory: %w", err)
 	}
-	os.Chmod(bp.tmpDir, defaultDirPermissions)
+	_ = os.Chmod(bp.tmpDir, defaultDirPermissions)
 
 	bp.logFile, err = os.CreateTemp("", bp.inst.Program.String()+"_install_log_*")
 	if err != nil {
-		os.RemoveAll(bp.tmpDir)
+		_ = os.RemoveAll(bp.tmpDir)
 		return fmt.Errorf("failed to create temporary log file: %w", err)
 	}
 
@@ -155,7 +155,7 @@ func copyBundle(bp *bundleParams) error {
 	log.Infof("Local files found, installing from %s...", bundleName)
 	err := util.CopyFilePreserve(localBundlePath, filepath.Join(bp.tmpDir, bundleName))
 	if err != nil {
-		fmt.Fprintf(bp.logFile, "Error copying local bundle: %v\n", err)
+		_, _ = fmt.Fprintf(bp.logFile, "Error copying local bundle: %v\n", err)
 		return fmt.Errorf("failed to copy local bundle: %w", err)
 	}
 	return nil
@@ -181,7 +181,7 @@ func downloadBundle(bp *bundleParams) error {
 	log.Infof("Downloading %s... (%s)", bp.inst.Program, bundleSource)
 	err = install_ee.DownloadBundle(searchCtx.TntIoDoer, bundleName, bundleSource, bp.tmpDir)
 	if err != nil {
-		fmt.Fprintf(bp.logFile, "Error downloading bundle: %v\n", err)
+		_, _ = fmt.Fprintf(bp.logFile, "Error downloading bundle: %v\n", err)
 		return fmt.Errorf("failed to download bundle: %w", err)
 	}
 	return nil
@@ -200,7 +200,7 @@ func unpackBundle(bundlePath string, logFile io.Writer) error {
 	log.Infof("Unpacking archive %s...", filepath.Base(bundlePath))
 	err := util.ExtractTar(bundlePath)
 	if err != nil {
-		fmt.Fprintf(logFile, "Error unpacking bundle: %v\n", err)
+		_, _ = fmt.Fprintf(logFile, "Error unpacking bundle: %v\n", err)
 		return fmt.Errorf("failed to extract bundle %s: %w", filepath.Base(bundlePath), err)
 	}
 
@@ -256,7 +256,7 @@ func prepareForReinstall(bp *bundleParams) error {
 			bp.prgVersion, bp.inst.Program)
 
 		if err := os.RemoveAll(destBinPath); err != nil {
-			fmt.Fprintf(bp.logFile, "Error removing binary: %v\n", err)
+			_, _ = fmt.Fprintf(bp.logFile, "Error removing binary: %v\n", err)
 			return fmt.Errorf("failed to remove binary %s: %w", destBinPath, err)
 		}
 	}
@@ -265,7 +265,7 @@ func prepareForReinstall(bp *bundleParams) error {
 		log.Infof("Include directory for %s version already exists, removing...",
 			bp.prgVersion)
 		if err := os.RemoveAll(destIncPath); err != nil {
-			fmt.Fprintf(bp.logFile, "Error removing include dir: %v\n", err)
+			_, _ = fmt.Fprintf(bp.logFile, "Error removing include dir: %v\n", err)
 			return fmt.Errorf("failed to remove include directory %s: %w",
 				destIncPath, err)
 		}
@@ -281,13 +281,13 @@ func prepareForReinstall(bp *bundleParams) error {
 func copyNewArtifacts(bp *bundleParams) error {
 	srcBinPath, srcIncPath, err := findBundlePathsInDir(bp.tmpDir, bp.inst.Program)
 	if err != nil {
-		fmt.Fprintf(bp.logFile, "Error finding artifacts: %v\n", err)
+		_, _ = fmt.Fprintf(bp.logFile, "Error finding artifacts: %v\n", err)
 		return fmt.Errorf("failed to locate artifacts after extraction: %w", err)
 	}
 
 	err = prepareForReinstall(bp)
 	if err != nil {
-		fmt.Fprintf(bp.logFile, "Error preparing for reinstall: %v\n", err)
+		_, _ = fmt.Fprintf(bp.logFile, "Error preparing for reinstall: %v\n", err)
 		return fmt.Errorf("failed to prepare for reinstall: %w", err)
 	}
 
@@ -402,9 +402,9 @@ func executeBundleInstallation(bp *bundleParams) (string, error) {
 
 	if !bp.inst.KeepTemp {
 		defer func() {
-			bp.logFile.Close()
-			os.Remove(bp.logFile.Name())
-			os.RemoveAll(bp.tmpDir)
+			_ = bp.logFile.Close()
+			_ = os.Remove(bp.logFile.Name())
+			_ = os.RemoveAll(bp.tmpDir)
 		}()
 	}
 
@@ -413,7 +413,7 @@ func executeBundleInstallation(bp *bundleParams) (string, error) {
 		if err != nil {
 			log.Errorf("Installation failed: %v", err)
 			log.Infof("See log for details: %s", logFilePath)
-			printLog(logFilePath) // Attempt to print log content.
+			_ = printLog(logFilePath) // Attempt to print log content.
 		}
 	}()
 
@@ -424,35 +424,35 @@ func executeBundleInstallation(bp *bundleParams) (string, error) {
 // executeBundleInstallationSteps installs the bundle using the prepared temporary files.
 func executeBundleInstallationSteps(bp *bundleParams) error {
 	log.Infof("Starting installation steps in %s...", bp.tmpDir)
-	fmt.Fprintf(bp.logFile, "Installation started for %s version %s\n",
+	_, _ = fmt.Fprintf(bp.logFile, "Installation started for %s version %s\n",
 		bp.inst.Program, bp.bundleInfo.Version.Str)
 
 	if err := checkDependencies(bp.inst.Program, bp.inst.Force); err != nil {
-		fmt.Fprintf(bp.logFile, "Dependency check failed: %v\n", err)
+		_, _ = fmt.Fprintf(bp.logFile, "Dependency check failed: %v\n", err)
 		return err
 	}
-	fmt.Fprintf(bp.logFile, "Dependency check passed.\n")
+	_, _ = fmt.Fprintf(bp.logFile, "Dependency check passed.\n")
 
 	err := obtainBundle(bp)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(bp.logFile, "Bundle obtained successfully.\n")
+	_, _ = fmt.Fprintf(bp.logFile, "Bundle obtained successfully.\n")
 	bundlePath := filepath.Join(bp.tmpDir, bp.bundleInfo.Version.Tarball)
 
 	if err = unpackBundle(bundlePath, bp.logFile); err != nil {
 		return err
 	}
-	fmt.Fprintf(bp.logFile, "Bundle unpacked successfully.\n")
+	_, _ = fmt.Fprintf(bp.logFile, "Bundle unpacked successfully.\n")
 
 	err = copyNewArtifacts(bp)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(bp.logFile, "Artifacts copied successfully.\n")
+	_, _ = fmt.Fprintf(bp.logFile, "Artifacts copied successfully.\n")
 
 	log.Infof("Core installation steps completed successfully.")
-	fmt.Fprintf(bp.logFile, "Core installation steps completed successfully.\n")
+	_, _ = fmt.Fprintf(bp.logFile, "Core installation steps completed successfully.\n")
 	return nil
 }
 

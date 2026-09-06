@@ -91,9 +91,9 @@ func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			version.GetVersion, err)
 	}
 
-	os.Setenv("TT_CLI_CAT_FILES", string(filesJSON))
-	os.Setenv("TT_CLI_CAT_SHOW_SYS", strconv.FormatBool(catFlags.ShowSystem))
-	os.Setenv("TT_CLI_CAT_FORMAT", catFlags.Format)
+	_ = os.Setenv("TT_CLI_CAT_FILES", string(filesJSON))
+	_ = os.Setenv("TT_CLI_CAT_SHOW_SYS", strconv.FormatBool(catFlags.ShowSystem))
+	_ = os.Setenv("TT_CLI_CAT_FORMAT", catFlags.Format)
 
 	// List of spaces is passed to lua cat script via environment variable in json format.
 	spacesJSON, err := json.Marshal(catFlags.Space)
@@ -103,17 +103,17 @@ func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			version.GetVersion, err)
 	}
 	if string(spacesJSON) != "null" {
-		os.Setenv("TT_CLI_CAT_SPACES", string(spacesJSON))
+		_ = os.Setenv("TT_CLI_CAT_SPACES", string(spacesJSON))
 	}
 
-	os.Setenv("TT_CLI_CAT_FROM", strconv.FormatUint(catFlags.From, 10))
-	os.Setenv("TT_CLI_CAT_TO", strconv.FormatUint(catFlags.To, 10))
+	_ = os.Setenv("TT_CLI_CAT_FROM", strconv.FormatUint(catFlags.From, 10))
+	_ = os.Setenv("TT_CLI_CAT_TO", strconv.FormatUint(catFlags.To, 10))
 
 	timestamp, err := util.StringToTimestamp(catFlags.Timestamp)
 	if err != nil {
 		return fmt.Errorf("failed to parse a timestamp: %w", err)
 	}
-	os.Setenv("TT_CLI_CAT_TIMESTAMP", timestamp)
+	_ = os.Setenv("TT_CLI_CAT_TIMESTAMP", timestamp)
 
 	// List of replicas is passed to lua cat script via environment variable in json format.
 	replicasJSON, err := json.Marshal(catFlags.Replica)
@@ -123,7 +123,7 @@ func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			version.GetVersion, err)
 	}
 	if string(replicasJSON) != "null" {
-		os.Setenv("TT_CLI_CAT_REPLICAS", string(replicasJSON))
+		_ = os.Setenv("TT_CLI_CAT_REPLICAS", string(replicasJSON))
 	}
 
 	log.Infof("Running cat with files: %s\n", args)

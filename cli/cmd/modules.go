@@ -63,17 +63,17 @@ func internalModulesList(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		m := modulesInfo[path]
 
 		if showVersion {
-			fmt.Fprintf(os.Stdout, "%-5s\t", m.Version)
+			_, _ = fmt.Fprintf(os.Stdout, "%-5s\t", m.Version)
 		}
-		fmt.Fprintf(os.Stdout, "%s - ", m.Name)
+		_, _ = fmt.Fprintf(os.Stdout, "%s - ", m.Name)
 
 		if showPath {
-			fmt.Fprint(os.Stdout, m.Main)
+			_, _ = fmt.Fprint(os.Stdout, m.Main)
 		} else {
-			fmt.Fprint(os.Stdout, m.Help)
+			_, _ = fmt.Fprint(os.Stdout, m.Help)
 		}
 
-		fmt.Fprint(os.Stdout, "\n")
+		_, _ = fmt.Fprint(os.Stdout, "\n")
 	}
 	return nil
 }

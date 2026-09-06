@@ -53,7 +53,9 @@ func startTestInstance(t *testing.T, ctx context.Context, app, consoleSock strin
 
 	require.NoErrorf(t, err, `Can't get the path to the executable. Error: "%v".`, err)
 	t.Setenv("started_flag_file", filepath.Join(binDir, app))
-	defer os.Remove(os.Getenv("started_flag_file"))
+	defer func() {
+		_ = os.Remove(os.Getenv("started_flag_file"))
+	}()
 	err = inst.Start(ctx)
 	assert.Nilf(err, `Can't start the instance. Error: "%v".`, err)
 
@@ -74,7 +76,7 @@ func cleanupTestInstance(t *testing.T, inst *scriptInstance) {
 		assert.NoError(t, err)
 	}
 	if _, err := os.Stat(inst.consoleSocket); err == nil {
-		os.Remove(inst.consoleSocket)
+		_ = os.Remove(inst.consoleSocket)
 	}
 }
 
@@ -93,7 +95,7 @@ func TestInstanceBase(t *testing.T) {
 
 	conn, err := (&net.Dialer{}).DialContext(t.Context(), "unix", consoleSock)
 	assert.Nilf(err, `Can't connect to console socket. Error: "%v".`, err)
-	conn.Close()
+	_ = conn.Close()
 }
 
 func TestInstanceLogger(t *testing.T) {
@@ -105,8 +107,12 @@ func TestInstanceLogger(t *testing.T) {
 	inst := startTestInstance(t, context.Background(), "log_check_test_app", consoleSock, "",
 		logger)
 	t.Cleanup(func() {
-		defer reader.Close()
-		defer writer.Close()
+		defer func() {
+			_ = reader.Close()
+		}()
+		defer func() {
+			_ = writer.Close()
+		}()
 		cleanupTestInstance(t, inst)
 	})
 
@@ -239,7 +245,9 @@ func TestInstanceLogs(t *testing.T) {
 
 	require.NoErrorf(t, err, `Can't get the path to the executable. Error: "%v".`, err)
 	t.Setenv("started_flag_file", filepath.Join(binDir, app))
-	defer os.Remove(os.Getenv("started_flag_file"))
+	defer func() {
+		_ = os.Remove(os.Getenv("started_flag_file"))
+	}()
 	err = inst.Start(context.Background())
 	require.NoError(t, err)
 

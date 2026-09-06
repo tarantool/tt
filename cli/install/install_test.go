@@ -139,22 +139,22 @@ func Test_installTarantoolDev(t *testing.T) {
 		tempsDir := t.TempDir()
 
 		ttBinDir := filepath.Join(tempsDir, ttBinDir)
-		os.Mkdir(ttBinDir, os.ModePerm)
+		_ = os.Mkdir(ttBinDir, os.ModePerm)
 
 		ttIncDir := filepath.Join(tempsDir, ttIncDir)
-		os.Mkdir(ttIncDir, os.ModePerm)
+		_ = os.Mkdir(ttIncDir, os.ModePerm)
 
 		buildDir1 := filepath.Join(tempsDir, "build_ce")
-		os.MkdirAll(filepath.Join(buildDir1, "src"), os.ModePerm)
+		_ = os.MkdirAll(filepath.Join(buildDir1, "src"), os.ModePerm)
 		binaryPath1 := filepath.Join(buildDir1, "src/tarantool")
-		os.Create(binaryPath1)
-		os.Chmod(binaryPath1, 0o700)
+		_, _ = os.Create(binaryPath1)
+		_ = os.Chmod(binaryPath1, 0o700)
 
 		buildDir2 := filepath.Join(tempsDir, "build_invalid")
-		os.MkdirAll(filepath.Join(buildDir2, "tarantool/src"), os.ModePerm)
+		_ = os.MkdirAll(filepath.Join(buildDir2, "tarantool/src"), os.ModePerm)
 		binaryPath2 := filepath.Join(buildDir2, "tarantool/src/tarantool")
-		os.Create(binaryPath2)
-		os.Chmod(binaryPath2, 0o700)
+		_, _ = os.Create(binaryPath2)
+		_ = os.Chmod(binaryPath2, 0o700)
 
 		return tempsDir
 	}
@@ -193,13 +193,13 @@ func Test_installTarantoolDev(t *testing.T) {
 		ttIncPath := filepath.Join(tempDirectory, ttIncDir)
 
 		// Default include-dir.
-		os.MkdirAll(filepath.Join(tempDirectory, "build_ce", "tarantool-prefix", "include",
+		_ = os.MkdirAll(filepath.Join(tempDirectory, "build_ce", "tarantool-prefix", "include",
 			"tarantool"), os.ModePerm,
 		)
 
 		// Custom include-dir.
 		customIncDirectoryPath := filepath.Join(tempDirectory, "build_invalid", "custom_inc")
-		os.MkdirAll(customIncDirectoryPath, os.ModePerm)
+		_ = os.MkdirAll(customIncDirectoryPath, os.ModePerm)
 		cases := []struct {
 			buildDir        string
 			incDir          string
@@ -241,7 +241,7 @@ func Test_installTarantoolDev(t *testing.T) {
 		ttIncPath := filepath.Join(tempDirectory, ttIncDir)
 
 		buildDir := filepath.Join(tempDirectory, "build_ee")
-		os.MkdirAll(buildDir, os.ModePerm)
+		_ = os.MkdirAll(buildDir, os.ModePerm)
 		err := installTarantoolDev(ttBinPath, ttIncPath, buildDir, "")
 		assert.Error(t, err)
 	})
@@ -251,20 +251,20 @@ func TestSearchTarantoolHeaders(t *testing.T) {
 	tempsDir := t.TempDir()
 
 	buildEmptyPath := filepath.Join(tempsDir, "build_empty")
-	os.MkdirAll(buildEmptyPath, os.ModePerm)
+	_ = os.MkdirAll(buildEmptyPath, os.ModePerm)
 
 	buildBasicPath := filepath.Join(tempsDir, "build_basic")
-	os.MkdirAll(filepath.Join(buildBasicPath, "tarantool-prefix", "include", "tarantool"),
+	_ = os.MkdirAll(filepath.Join(buildBasicPath, "tarantool-prefix", "include", "tarantool"),
 		os.ModePerm)
-	os.MkdirAll(filepath.Join(buildBasicPath, "custom-prefix", "include", "tarantool"),
+	_ = os.MkdirAll(filepath.Join(buildBasicPath, "custom-prefix", "include", "tarantool"),
 		os.ModePerm)
 
 	buildInvalidPath := filepath.Join(tempsDir, "build_invalid")
-	os.MkdirAll(buildInvalidPath, os.ModePerm)
-	os.MkdirAll(filepath.Join(buildInvalidPath, "tarantool-prefix", "include"),
+	_ = os.MkdirAll(buildInvalidPath, os.ModePerm)
+	_ = os.MkdirAll(filepath.Join(buildInvalidPath, "tarantool-prefix", "include"),
 		os.ModePerm)
-	os.Create(filepath.Join(buildInvalidPath, "tarantool-prefix", "include", "tarantool"))
-	os.Create(filepath.Join(buildInvalidPath, "invalid_inc"))
+	_, _ = os.Create(filepath.Join(buildInvalidPath, "tarantool-prefix", "include", "tarantool"))
+	_, _ = os.Create(filepath.Join(buildInvalidPath, "invalid_inc"))
 
 	cases := []struct {
 		buildDir           string

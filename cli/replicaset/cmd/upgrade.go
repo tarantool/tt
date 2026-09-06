@@ -97,20 +97,20 @@ func internalUpgrade(replicasets []replicaset.Replicaset, lsnTimeout int,
 	for _, replicaset := range replicasets {
 		err := upgradeReplicaset(replicaset, lsnTimeout, connOpts)
 		if err != nil {
-			fmt.Fprintf(os.Stdout, "• %s: error\n", replicaset.Alias)
+			_, _ = fmt.Fprintf(os.Stdout, "• %s: error\n", replicaset.Alias)
 			return fmt.Errorf("replicaset %s: %w", replicaset.Alias, err)
 		}
-		fmt.Fprintf(os.Stdout, "• %s: ok\n", replicaset.Alias)
+		_, _ = fmt.Fprintf(os.Stdout, "• %s: ok\n", replicaset.Alias)
 	}
 	return nil
 }
 
 func closeConnectors(master *instanceMeta, replicas []instanceMeta) {
 	if master != nil {
-		master.conn.Close()
+		_ = master.conn.Close()
 	}
 	for _, replica := range replicas {
-		replica.conn.Close()
+		_ = replica.conn.Close()
 	}
 }
 
@@ -178,7 +178,7 @@ func collectRwRoInfo(rs replicaset.Replicaset,
 			}
 			isReadOnly, ok := res[0].(bool)
 			if !ok {
-				conn.Close()
+				_ = conn.Close()
 				closeConnectors(master, replicas)
 				return nil, nil, fmt.Errorf(
 					"%w %s: expected bool, got %T",

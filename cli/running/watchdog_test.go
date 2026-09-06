@@ -92,8 +92,8 @@ func killAndCheckRestart(t *testing.T, wd *Watchdog, signal syscall.Signal) {
 	t.Helper()
 
 	// Remove the file. It must be created again by the restarted instance.
-	os.Remove(os.Getenv("started_flag_file"))
-	wd.instance.SendSignal(signal)
+	_ = os.Remove(os.Getenv("started_flag_file"))
+	_ = wd.instance.SendSignal(signal)
 	// No need to check for PID changes. If the file is created again, new process is started.
 	require.NotZero(t, waitForFile(os.Getenv("started_flag_file")), "Instance is not started")
 	assert.True(t, wd.instance.IsAlive(), "Instance doesn't restart.")
@@ -106,9 +106,9 @@ func cleanupWatchdog(t *testing.T, wd *Watchdog) {
 	require.True(t, ok, "unexpected watchdog provider type: %T", wd.provider)
 	provider.restartable = false
 	if wd.instance != nil && wd.instance.IsAlive() {
-		wd.instance.Stop(5 * time.Second)
+		_ = wd.instance.Stop(5 * time.Second)
 	}
-	os.Remove(os.Getenv("started_flag_file"))
+	_ = os.Remove(os.Getenv("started_flag_file"))
 }
 
 func TestWatchdogBase(t *testing.T) {
@@ -136,7 +136,7 @@ func TestWatchdogBase(t *testing.T) {
 	killAndCheckRestart(t, wd, syscall.SIGKILL)
 
 	// Let's try to stop the watchdog by a signal.
-	syscall.Kill(syscall.Getpid(), syscall.SIGINT)
+	_ = syscall.Kill(syscall.Getpid(), syscall.SIGINT)
 	select {
 	case <-time.After(wdTestStopTimeout):
 		assert.Fail("Can't stop the watchdog.")
@@ -164,7 +164,7 @@ func TestWatchdogNotRestartable(t *testing.T) {
 	alive := wd.instance.IsAlive()
 	assert.True(alive, "Can't start the instance under watchdog.")
 
-	wd.instance.SendSignal(syscall.SIGINT)
+	_ = wd.instance.SendSignal(syscall.SIGINT)
 
 	// The watchdog should stop because the instance was killed and
 	// the "Restartable" flag is false.

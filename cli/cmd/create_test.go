@@ -23,13 +23,13 @@ func TestCreateValidArgsFunction(t *testing.T) {
 	defer func() {
 		cliOpts = oldOpts
 	}()
-	os.Create(tempsDir1 + "/" + "excess.A")
-	os.Create(tempsDir1 + "/" + "archive.tgz")
+	_, _ = os.Create(tempsDir1 + "/" + "excess.A")
+	_, _ = os.Create(tempsDir1 + "/" + "archive.tgz")
 	tDir1 := filepath.Join(tempsDir1, "template1")
 	assert.NoError(t, os.Mkdir(tDir1, 0o755))
 
-	os.Create(tempsDir2 + "/" + "excess.B")
-	os.Create(tempsDir2 + "/" + "template2.tar.gz")
+	_, _ = os.Create(tempsDir2 + "/" + "excess.B")
+	_, _ = os.Create(tempsDir2 + "/" + "template2.tar.gz")
 	tDir2 := filepath.Join(tempsDir2, "template2")
 	assert.NoError(t, os.Mkdir(tDir2, 0o755))
 

@@ -37,21 +37,21 @@ func getCredsInteractive() (UserCredentials, error) {
 	res := UserCredentials{}
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Fprintln(os.Stdout, "Signing in to Customer zone.")
-	fmt.Fprintf(os.Stdout, "Enter Email: ")
+	_, _ = fmt.Fprintln(os.Stdout, "Signing in to Customer zone.")
+	_, _ = fmt.Fprintf(os.Stdout, "Enter Email: ")
 	resp, err := reader.ReadString('\n')
 	if err != nil {
 		return res, err
 	}
 	res.Username = strings.TrimSpace(resp)
 
-	fmt.Fprintf(os.Stdout, "Enter Password: ")
+	_, _ = fmt.Fprintf(os.Stdout, "Enter Password: ")
 	bytePass, err := term.ReadPassword(syscall.Stdin)
 	if err != nil {
 		return res, err
 	}
 	res.Password = strings.TrimSpace(string(bytePass))
-	fmt.Fprintln(os.Stdout, "")
+	_, _ = fmt.Fprintln(os.Stdout, "")
 
 	return res, nil
 }
@@ -64,7 +64,9 @@ func getCredsFromFile(path string) (UserCredentials, error) {
 	if err != nil {
 		return res, err
 	}
-	defer fh.Close()
+	defer func() {
+		_ = fh.Close()
+	}()
 
 	info, err := fh.Stat()
 	if err != nil {

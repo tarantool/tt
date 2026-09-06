@@ -36,7 +36,9 @@ func Pack(corePath, executable, outputDir string, pid uint, time string) error {
 	if err != nil {
 		return fmt.Errorf("cannot create a temporary directory for archiving: %w", err)
 	}
-	defer os.RemoveAll(tmpDir) // Clean up on function return.
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}() // Clean up on function return.
 
 	scriptArgs := []string{"-c", corePath}
 	if executable != "" {
@@ -118,7 +120,9 @@ func Inspect(archiveOrDir, sourceDir string) error {
 		if err != nil {
 			return fmt.Errorf("cannot create a temporary directory for unpacking: %w", err)
 		}
-		defer os.RemoveAll(tmpDir) // Clean up on function return.
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}() // Clean up on function return.
 
 		err = util.ExtractTarGz(archiveOrDir, tmpDir)
 		if err != nil {

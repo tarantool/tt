@@ -51,8 +51,8 @@ func (GoTextEngine) RenderFile(srcPath, dstPath string, data any) error {
 		return fmt.Errorf("error creating %s: %w", dstPath, err)
 	}
 	defer func() {
-		outFile.Close()
-		os.Chmod(outFile.Name(), originFileMode)
+		_ = outFile.Close()
+		_ = os.Chmod(outFile.Name(), originFileMode)
 	}()
 
 	if err := parsedTemplate.Execute(outFile, data); err != nil {

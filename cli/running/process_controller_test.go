@@ -22,7 +22,7 @@ func TestProcessController(t *testing.T) {
 	dpc, err := newProcessController(cmd)
 	require.NoError(t, err)
 
-	dpc.Wait()
+	_ = dpc.Wait()
 	require.NoError(t, err)
 	assert.False(t, dpc.IsAlive())
 	assert.Equal(t, "hello\n", out.String())
@@ -42,7 +42,7 @@ func TestProcessController(t *testing.T) {
 
 	// Test sending signal.
 	require.NoError(t, waitForMsgInBuffer(&outBuf, "started", 5*time.Second))
-	dpc.SendSignal(syscall.SIGUSR1)
+	_ = dpc.SendSignal(syscall.SIGUSR1)
 	require.NoError(t, waitForMsgInBuffer(&outBuf, "sigusr1", 5*time.Second))
 	assert.True(t, dpc.IsAlive())
 

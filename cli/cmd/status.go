@@ -65,7 +65,7 @@ Columns:
 	statusCmd.Flags().BoolVarP(&opts.details, "details", "d", false, "print detailed alerts.")
 	statusCmd.Flags().BoolVarP(&opts.pretty, "pretty", "p", false,
 		"output a pretty-formatted table (deprecated, use --format instead)")
-	statusCmd.Flags().MarkDeprecated("pretty", "use --format instead")
+	_ = statusCmd.Flags().MarkDeprecated("pretty", "use --format instead")
 
 	return statusCmd
 }

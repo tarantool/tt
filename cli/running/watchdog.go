@@ -211,18 +211,18 @@ func (wd *Watchdog) sendSignal(sig os.Signal) bool {
 	switch sig {
 	case syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
 		if wd.instance.IsAlive() {
-			wd.instance.StopWithSignal(signalStopTimeout, sig)
+			_ = wd.instance.StopWithSignal(signalStopTimeout, sig)
 		}
 		return true
 	case syscall.SIGHUP:
 		// Rotate the log files.
-		wd.logger.Rotate()
+		_ = wd.logger.Rotate()
 		if wd.instance.IsAlive() {
-			wd.instance.SendSignal(sig)
+			_ = wd.instance.SendSignal(sig)
 		}
 	default:
 		if wd.instance.IsAlive() {
-			wd.instance.SendSignal(sig)
+			_ = wd.instance.SendSignal(sig)
 		}
 	}
 
@@ -245,7 +245,7 @@ func (wd *Watchdog) startIntegrityChecks(ctx context.Context) {
 				if err != nil {
 					// Integrity check failed.
 					wd.logger.Printf("(ERROR): periodic integrity check failed: %q.", err)
-					wd.instance.SendSignal(syscall.SIGKILL)
+					_ = wd.instance.SendSignal(syscall.SIGKILL)
 					return
 				}
 			case <-ctx.Done():

@@ -226,7 +226,7 @@ func Execute() {
 		var argError *util.ArgError
 		if errors.As(err, &argError) {
 			log.Error(argError.Error())
-			rootCmd.Usage()
+			_ = rootCmd.Usage()
 		}
 		os.Exit(1)
 	}
@@ -237,7 +237,7 @@ func Execute() {
 // modules and configure `help` module.
 func InitRoot() {
 	rootCmd = NewCmdRoot()
-	rootCmd.ParseFlags(os.Args[1:])
+	_ = rootCmd.ParseFlags(os.Args[1:])
 
 	var err error
 

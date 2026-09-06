@@ -69,13 +69,15 @@ func Connect(opts ConnectOpts) (Connector, error) {
 	}
 
 	if _, err := os.Stat(opts.Address); err == nil {
-		os.Chdir(filepath.Dir(opts.Address))
+		_ = os.Chdir(filepath.Dir(opts.Address))
 		opts.Address = "./" + filepath.Base(opts.Address)
 		if len(opts.Address)+1 > maxSocketPath {
 			return nil, fmt.Errorf("%w%d symbols: %s", errSocketNameIsLongerThanSymbols,
 				maxSocketPath-socketPathPrefixLength, filepath.Base(opts.Address))
 		}
-		defer os.Chdir(workDir)
+		defer func() {
+			_ = os.Chdir(workDir)
+		}()
 	}
 	// Connect to specified address.
 	greetingConn, err := (&net.Dialer{}).DialContext(
@@ -85,7 +87,7 @@ func Connect(opts ConnectOpts) (Connector, error) {
 	}
 
 	// Set a deadline for the greeting.
-	greetingConn.SetReadDeadline(time.Now().Add(greetingOperationTimeout))
+	_ = greetingConn.SetReadDeadline(time.Now().Add(greetingOperationTimeout))
 
 	// Detect transport and protocol.
 	ssl := opts.Ssl.KeyFile != "" || opts.Ssl.CertFile != "" ||
@@ -98,20 +100,20 @@ func Connect(opts ConnectOpts) (Connector, error) {
 			return nil, fmt.Errorf("failed to get protocol: %w", err)
 		}
 	} else if ssl {
-		greetingConn.Close()
+		_ = greetingConn.Close()
 		return nil, errEncryptionRequired
 	}
 
 	// Reset the deadline. From the SetDeadline doc:
 	// "A zero value for t means I/O operations will not time out.".
-	greetingConn.SetDeadline(time.Time{})
+	_ = greetingConn.SetDeadline(time.Time{})
 
 	// Initialize connection.
 	switch protocol {
 	case TextProtocol:
 		return NewTextConnector(greetingConn), nil
 	case BinaryProtocol:
-		greetingConn.Close()
+		_ = greetingConn.Close()
 
 		addr := fmt.Sprintf("%s://%s", opts.Network, opts.Address)
 

@@ -127,6 +127,6 @@ The command supports the following environment variables:
 	params["env_vars"] = envVars
 
 	var sb strings.Builder
-	t.Execute(&sb, params)
+	_ = t.Execute(&sb, params)
 	return sb.String()
 }

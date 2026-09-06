@@ -60,15 +60,15 @@ func Promote(ctx PromoteCtx) error {
 	}
 
 	log.Info("Discovery application...")
-	fmt.Fprintln(os.Stdout)
+	_, _ = fmt.Fprintln(os.Stdout)
 
 	// Get and print status.
 	replicasets, err := orchestrator.Discovery(replicaset.SkipCache)
 	if err != nil {
 		return err
 	}
-	statusReplicasets(replicasets)
-	fmt.Fprintln(os.Stdout)
+	_ = statusReplicasets(replicasets)
+	_, _ = fmt.Fprintln(os.Stdout)
 
 	if ctx.InstName != "" {
 		log.Infof("Promote instance: %s", ctx.InstName)

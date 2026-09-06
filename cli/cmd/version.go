@@ -30,6 +30,6 @@ func NewVersionCmd() *cobra.Command {
 
 // internalVersionModule is a default (internal) version module function.
 func internalVersionModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	fmt.Fprintln(os.Stdout, version.GetVersion(showShort, needCommit))
+	_, _ = fmt.Fprintln(os.Stdout, version.GetVersion(showShort, needCommit))
 	return nil
 }

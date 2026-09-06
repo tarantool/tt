@@ -15,7 +15,9 @@ func TestNewLuaValidator(t *testing.T) {
 
 func TestNewLuaValidator_implementsValidateCloser(t *testing.T) {
 	var s ValidateCloser = NewLuaValidator()
-	defer s.Close()
+	defer func() {
+		_ = s.Close()
+	}()
 }
 
 func TestLuaValidator_Close_notCreated(t *testing.T) {
@@ -31,13 +33,15 @@ func TestLuaValidator_Close_multipleTimes(t *testing.T) {
 
 func TestLuaValidator_Validate_afterClose(t *testing.T) {
 	s := NewLuaValidator()
-	s.Close()
+	_ = s.Close()
 	assert.Panics(t, func() { s.Validate("any string") })
 }
 
 func TestLuaValidator_Validate_true(t *testing.T) {
 	s := NewLuaValidator()
-	defer s.Close()
+	defer func() {
+		_ = s.Close()
+	}()
 
 	cases := []string{
 		"\"string\"",
@@ -71,7 +75,9 @@ func TestLuaValidator_Validate_true(t *testing.T) {
 
 func TestLuaValidator_Validate_false(t *testing.T) {
 	s := NewLuaValidator()
-	defer s.Close()
+	defer func() {
+		_ = s.Close()
+	}()
 
 	cases := []string{
 		"\"string",
@@ -94,7 +100,9 @@ func TestLuaValidator_Validate_false(t *testing.T) {
 
 func TestLuaValidatorValidate_mixed(t *testing.T) {
 	s := NewLuaValidator()
-	defer s.Close()
+	defer func() {
+		_ = s.Close()
+	}()
 
 	ret := s.Validate("do")
 	assert.False(t, ret)
@@ -159,7 +167,9 @@ func TestAddStmtPart(t *testing.T) {
 
 func TestAddStmtPart_luaValidator(t *testing.T) {
 	validator := NewLuaValidator()
-	defer validator.Close()
+	defer func() {
+		_ = validator.Close()
+	}()
 
 	parts := []struct {
 		str       string
@@ -187,7 +197,9 @@ func TestAddStmtPart_luaValidator(t *testing.T) {
 
 func TestAddStmtPart_luaValidator_Delimiter(t *testing.T) {
 	validator := NewLuaValidator()
-	defer validator.Close()
+	defer func() {
+		_ = validator.Close()
+	}()
 
 	parts := []struct {
 		str       string

@@ -49,7 +49,9 @@ func (d *httpDoer) Do(req *http.Request) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
-	defer res.Body.Close()
+	defer func() {
+		_ = res.Body.Close()
+	}()
 
 	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("%w%s", errHTTPRequestError, http.StatusText(res.StatusCode))
@@ -120,8 +122,8 @@ func saveResponseBodyToFile(body []byte, destFilePath string) (errRet error) {
 
 	_, err = file.Write(body)
 	if err != nil {
-		file.Close()
-		os.Remove(destFilePath)
+		_ = file.Close()
+		_ = os.Remove(destFilePath)
 		return fmt.Errorf("failed to write downloaded content to %s: %w", destFilePath, err)
 	}
 

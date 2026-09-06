@@ -156,11 +156,11 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) err
 	// build/local.go) read these at compile time via extra/hardcoded.lua's
 	// contract. The library never sets process env; only this shim does,
 	// mirroring the previous embedded-luarocks behavior.
-	os.Setenv("TT_CLI_TARANTOOL_VERSION", version.Str)
-	os.Setenv("TT_CLI_TARANTOOL_PREFIX", tarantoolPrefixDir)
-	os.Setenv("TT_CLI_TARANTOOL_INCLUDE", tarantoolIncludeDir)
-	os.Setenv("TARANTOOL_DIR", filepath.Dir(tarantoolIncludeDir))
-	os.Setenv("TT_CLI_TARANTOOL_PATH", filepath.Dir(cmdCtx.Cli.TarantoolCli.Executable))
+	_ = os.Setenv("TT_CLI_TARANTOOL_VERSION", version.Str)
+	_ = os.Setenv("TT_CLI_TARANTOOL_PREFIX", tarantoolPrefixDir)
+	_ = os.Setenv("TT_CLI_TARANTOOL_INCLUDE", tarantoolIncludeDir)
+	_ = os.Setenv("TARANTOOL_DIR", filepath.Dir(tarantoolIncludeDir))
+	_ = os.Setenv("TT_CLI_TARANTOOL_PATH", filepath.Dir(cmdCtx.Cli.TarantoolCli.Executable))
 
 	cfg := luarocks.Config{
 		Tree:       filepath.Join(workingDir, ".rocks"),

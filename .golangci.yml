@@ -24,33 +24,20 @@ linters:
   disable:
     - cyclop # Cyclop is disabled, since cyclomatic complexity is a very abstract metric
       # that sometimes leads to strange linter behavior.
-    - depguard
     - dupl # Dupl is disabled, since we're generating a lot of boilerplate code.
-    - errcheck
-    - exhaustruct
-    - exhaustruct_v5
+    - exhaustruct # Deprecated since golangci-lint v2.13.0; exhaustruct_v5 is enabled instead.
     - funlen # Funlen is disabled, function length limits are too restrictive.
-    - gochecknoglobals
+    - gochecknoglobals # Gochecknoglobals is disabled until cli/cmd is refactored.
+      # Re-enable it after the refactoring.
     - gocognit # Gocognit is disabled, cognitive complexity is too restrictive.
-    - goconst
     - godox # Godox is disabled to allow TODO comments for unimplemented functionality.
-    - gomodguard
-    - gosec
+    - gomodguard # Deprecated since golangci-lint v2.12.0; gomodguard_v2 is enabled instead.
     - ireturn # Ireturn is disabled, since it's not needed.
     - maintidx # Maintidx is disabled, purpose of this metric is unknown.
     - nlreturn # Nlreturn is disabled, since it's duplicated by wsl_v5.return check.
-    - noinlineerr
-    - paralleltest
-    - testifylint
-    # TODO: Enable after internal tests are converted to external test packages
-    # without exporting production internals solely to satisfy the linter.
-    - testpackage
-    - tparallel
-    - varnamelen
-    - wrapcheck
-    - wsl # WSL is disabled, since it's obsolete; its replacement is disabled
-      # separately below.
-    - wsl_v5
+    - paralleltest # Paralleltest is disabled because some tests use shared process-wide state.
+    - tparallel # Tests intentionally run serially because they share process-wide state.
+    - wsl # Deprecated since golangci-lint v2.2.0; wsl_v5 is enabled instead.
 
   exclusions:
     generated: lax
@@ -62,11 +49,36 @@ linters:
       # and pack are the ones still outstanding.
       - path-except: (^|/)cli/manifest/((deps|install|resolve|rocks|state|version)/|[^/]+\.go$)
         text: ".*"
+      # Manifest fixtures deliberately construct partial model values; keep the
+      # stricter exhaustruct variant enabled everywhere else.
+      - path: (^|/)cli/manifest/
+        linters:
+          - exhaustruct_v5
+      # The project directory is selected by the caller and the lock-file name
+      # is constant, so writing the lock next to the manifest is intentional.
+      - path: ^cli/manifest/deps/deps\.go$
+        text: "G703: Path traversal via taint analysis"
+        linters:
+          - gosec
+      # Keep the existing source-level suppression compatible with nolintlint
+      # without changing manifest code.
+      - path: ^cli/manifest/deps/deps\.go$
+        text: 'directive `//nolint:gosec'
+        linters:
+          - nolintlint
+      # Keep established compact error checks while applying every other WSL
+      # rule, including future findings in these files.
+      - path: ^cli/manifest/(install/reconcile_internal_test|manifest|resolve/resolve|version/version_test)\.go$
+        source: '^\s*(var exit \*ExitError|var strict \*toml\.StrictMissingError|var conflict \*pinConflictError|t\.Helper\(\))$'
+        linters:
+          - wsl_v5
       - path: _test.go
         linters:
           - wrapcheck
           - err113
           - funlen
+          # Test fixtures intentionally repeat representative values.
+          - goconst
           # Table-driven and fixture tests build partial structs on purpose;
           # requiring every field spelled out is noise in tests.
           - exhaustruct
@@ -74,6 +86,13 @@ linters:
       # its existing compatibility directive is intentionally retained.
       - path: ^cli/manifest/constraint\.go$
         text: 'directive `//nolint:recvcheck'
+        linters:
+          - nolintlint
+      # The resolver deliberately adds dependency context above its cache
+      # boundary; keep its existing wrapcheck suppressions without touching
+      # manifest code.
+      - path: ^cli/manifest/resolve/cache\.go$
+        text: 'directive `//nolint:wrapcheck'
         linters:
           - nolintlint
       # This repeated word is intentional YAML test data, not prose.
@@ -110,6 +129,12 @@ linters:
           - staticcheck
 
   settings:
+    wrapcheck:
+      # Errors returned by tt packages are already contextualized at the
+      # external boundary. Wrapping them again at every internal package
+      # boundary only duplicates context in user-facing messages.
+      ignore-package-globs:
+        - github.com/tarantool/tt/*
     gomoddirectives:
       replace-local: true
       replace-allow-list:

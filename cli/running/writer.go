@@ -43,16 +43,16 @@ func NewColorizedPrefixWriter(writer io.Writer, color color.Color, prefix string
 
 			// spell-checker:ignore submatch
 			if submatch := logLevelRgx.FindSubmatch(line); submatch != nil {
-				color.Fprint(&buf, prefix)
-				logLevelColors[string(submatch[1])].Fprintln(&buf, string(line))
-				writer.Write(buf.Bytes())
+				_, _ = color.Fprint(&buf, prefix)
+				_, _ = logLevelColors[string(submatch[1])].Fprintln(&buf, string(line))
+				_, _ = writer.Write(buf.Bytes())
 				continue
 			}
 
-			color.Fprint(&buf, prefix)
+			_, _ = color.Fprint(&buf, prefix)
 			buf.Write(line)
 			buf.WriteByte('\n')
-			writer.Write(buf.Bytes())
+			_, _ = writer.Write(buf.Bytes())
 		}
 		return len(msg), nil
 	})

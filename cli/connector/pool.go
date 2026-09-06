@@ -54,7 +54,7 @@ func (pool *Pool) Eval(expr string, args []any, opts RequestOpts) ([]any, error)
 			return ret, nil
 		}
 
-		pool.current.Close()
+		_ = pool.current.Close()
 		pool.current = nil
 		pool.currentIndex = (pool.currentIndex + 1) % len(pool.opts)
 	}
