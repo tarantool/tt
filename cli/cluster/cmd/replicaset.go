@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,6 +11,10 @@ import (
 	"github.com/tarantool/tt/cli/replicaset"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 	"github.com/tarantool/tt/lib/connect"
+)
+
+var (
+	errNoKeysForTheConfigPatching = errors.New("no keys for the config patching")
 )
 
 // dataKeyPublisher is a function implements replicaset.DataPublisher.
@@ -56,7 +61,7 @@ type PromoteCtx struct {
 // appears prompt with message of path in config to patch.
 func pickPatchKey(keys []string, force bool, pathMsg string) (int, error) {
 	if len(keys) == 0 {
-		return 0, fmt.Errorf("no keys for the config patching")
+		return 0, errNoKeysForTheConfigPatching
 	}
 	var (
 		pos = 0

@@ -14,6 +14,12 @@ import (
 	"github.com/tarantool/tt/lib/integrity"
 )
 
+var (
+	errEndpointUnexpectedType       = errors.New("endpoint[")
+	errEndpointUnknownTransportType = errors.New("endpoint[")
+	errEtcdEndpointIsNotAString     = errors.New("etcd endpoint is not a string: ")
+)
+
 const defaultEtcdTimeout = 3 * time.Second
 
 // cfgGetString is a small helper that reads a string value at path from cfg.
@@ -203,7 +209,7 @@ func readEtcdEndpoints(
 		for _, e := range v {
 			s, ok := e.(string)
 			if !ok {
-				return nil, nil, fmt.Errorf("etcd endpoint is not a string: %T", e)
+				return nil, nil, fmt.Errorf("%w%T", errEtcdEndpointIsNotAString, e)
 			}
 			endpoints = append(endpoints, s)
 		}
@@ -348,7 +354,7 @@ func readTcsEndpoints(
 		epMap, ok := rawEp.(map[string]any)
 		if !ok {
 			connectionErrors = append(connectionErrors,
-				fmt.Errorf("endpoint[%d]: unexpected type %T", i, rawEp))
+				fmt.Errorf("%w%d]: unexpected type %T", errEndpointUnexpectedType, i, rawEp))
 			continue
 		}
 
@@ -387,8 +393,9 @@ func readTcsEndpoints(
 			sslEnable = sslKeyFile != "" || sslCertFile != "" || sslCaFile != "" ||
 				sslCiphers != "" || sslPassword != "" || sslPasswordFile != ""
 		default:
-			connectionErrors = append(connectionErrors,
-				fmt.Errorf("endpoint[%d] %q: unknown transport type: %s", i, addr, transport))
+			connectionErrors = append(connectionErrors, fmt.Errorf(
+				"%w%d] %q: unknown transport type: %s",
+				errEndpointUnknownTransportType, i, addr, transport))
 			continue
 		}
 

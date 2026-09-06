@@ -1,9 +1,14 @@
 package connector
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
+)
+
+var (
+	errFailedToParseTarantoolGreeting = errors.New("failed to parse Tarantool greeting: ")
 )
 
 const (
@@ -49,7 +54,7 @@ func GetProtocol(reader io.Reader) (Protocol, error) {
 	}
 
 	if protocol, ok := ParseProtocol(string(greeting)); !ok {
-		err := fmt.Errorf("failed to parse Tarantool greeting: %s", greeting)
+		err := fmt.Errorf("%w%s", errFailedToParseTarantoolGreeting, greeting)
 		return BinaryProtocol, err
 	} else {
 		return protocol, nil

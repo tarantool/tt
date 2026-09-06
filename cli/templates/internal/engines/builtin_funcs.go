@@ -1,7 +1,13 @@
 package engines
 
 import (
+	"errors"
 	"fmt"
+)
+
+var (
+	errReplicasetsizeMustBeIn    = errors.New("replicasetSize must be in [")
+	errReplicasetsnumberMustBeIn = errors.New("replicasetsNumber must be in [")
 )
 
 // genState describes template generation state.
@@ -52,10 +58,10 @@ func genReplicasets(
 	replicasetSize int,
 ) ([]replicaset, error) {
 	if replicasetsNumber <= 0 || replicasetsNumber > maxReplicasetsNumber {
-		return nil, fmt.Errorf("replicasetsNumber must be in [%d, %d]", 0, maxReplicasetsNumber)
+		return nil, fmt.Errorf("%w%d, %d]", errReplicasetsnumberMustBeIn, 0, maxReplicasetsNumber)
 	}
 	if replicasetSize <= 0 || replicasetSize > maxReplicasetSize {
-		return nil, fmt.Errorf("replicasetSize must be in [%d, %d]", 0, maxReplicasetSize)
+		return nil, fmt.Errorf("%w%d, %d]", errReplicasetsizeMustBeIn, 0, maxReplicasetSize)
 	}
 
 	replicasets := make([]replicaset, replicasetsNumber)

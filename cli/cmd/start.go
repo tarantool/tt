@@ -19,6 +19,10 @@ import (
 )
 
 var (
+	errTarantoolBinaryNotFound = errors.New("tarantool binary is not found")
+)
+
+var (
 	// "watchdog" is a hidden flag used to daemonize a process.
 	// In go, we can't just fork the process (reason - goroutines).
 	// So, for daemonize, we restarts the process with "watchdog" flag.
@@ -117,7 +121,7 @@ func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	if cmdCtx.Cli.TarantoolCli.Executable == "" {
-		return fmt.Errorf("cannot start: tarantool binary is not found")
+		return fmt.Errorf("cannot start: %w", errTarantoolBinaryNotFound)
 	}
 
 	var runningCtx running.RunningCtx
@@ -126,8 +130,8 @@ func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	if canStart, reason := running.IsAbleToStartInstances(runningCtx.Instances, cmdCtx); !canStart {
-		return errors.New(reason)
+	if canStart, err := running.IsAbleToStartInstances(runningCtx.Instances, cmdCtx); !canStart {
+		return err
 	}
 
 	if !watchdog {

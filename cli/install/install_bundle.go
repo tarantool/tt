@@ -1,6 +1,7 @@
 package install
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -13,6 +14,27 @@ import (
 	"github.com/tarantool/tt/cli/search"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
+)
+
+var (
+	errASpecificVersionMustBeProvidedToInstall = errors.New(
+		"a specific version must be provided to install ",
+	)
+	errCouldNotFindBinaryAt                         = errors.New("could not find binary at ")
+	errIncludeDirIsNotSetCheck                      = errors.New("include_dir is not set, check ")
+	errInstallationFailedDuringExecutionPhaseSeeLog = errors.New(
+		"installation failed during execution phase (see log: ",
+	)
+	errInstallationFailedDuringFinaleUpdateSymlinks = errors.New(
+		"installation failed during finale update symlinks",
+	)
+	errInstallationPathOrAlreadyExists       = errors.New("installation path ")
+	errLocalBundleFileNotFound               = errors.New("local bundle file not found: ")
+	errLocalRepositoryInstallDirectoryNotSet = errors.New(
+		"cannot install from local repository: " +
+			"distribution files directory (repo.install) is not set",
+	)
+	errTheDirectoryIsNotWriteableForTheCurrentUser = errors.New("the directory ")
 )
 
 // bundleParams holds the parameters required for the bundle installation process.
@@ -41,12 +63,12 @@ type bundleParams struct {
 // checkInstallDirs validates that binary and include directories are configured and writable.
 func checkInstallDirs(binDir, includeDir string) error {
 	if binDir == "" {
-		return fmt.Errorf("bin_dir is not set, check %s", configure.ConfigName)
+		return fmt.Errorf("%w%s", errBinDirNotSet, configure.ConfigName)
 	}
 
 	if includeDir == "" {
 		// For bundle installs, includeDir is usually required.
-		return fmt.Errorf("include_dir is not set, check %s", configure.ConfigName)
+		return fmt.Errorf("%w%s", errIncludeDirIsNotSetCheck, configure.ConfigName)
 	}
 
 	// Reuse the writability checks from the main Install function.
@@ -56,7 +78,8 @@ func checkInstallDirs(binDir, includeDir string) error {
 		}
 
 		if !dirIsWritable(dir) {
-			return fmt.Errorf("the directory %s is not writeable for the current user", dir)
+			return fmt.Errorf("%w%s is not writeable for the current user",
+				errTheDirectoryIsNotWriteableForTheCurrentUser, dir)
 		}
 	}
 	return nil
@@ -119,15 +142,14 @@ func checkDependencies(program search.Program, force bool) error {
 func copyBundle(bp *bundleParams) error {
 	distfiles := bp.opts.Repo.Install
 	if distfiles == "" {
-		return fmt.Errorf("cannot install from local repository: " +
-			"distribution files directory (repo.install) is not set")
+		return errLocalRepositoryInstallDirectoryNotSet
 	}
 
 	log.Infof("Checking local files...")
 	bundleName := bp.bundleInfo.Version.Tarball
 	localBundlePath := filepath.Join(distfiles, bundleName)
 	if !util.IsRegularFile(localBundlePath) {
-		return fmt.Errorf("local bundle file not found: %s", localBundlePath)
+		return fmt.Errorf("%w%s", errLocalBundleFileNotFound, localBundlePath)
 	}
 
 	log.Infof("Local files found, installing from %s...", bundleName)
@@ -206,7 +228,7 @@ func findBundlePathsInDir(baseDir string, program search.Program) (
 
 	binPath := filepath.Join(baseDir, subDir, program.Exec())
 	if !util.IsRegularFile(binPath) {
-		return "", "", fmt.Errorf("could not find binary at %q", binPath)
+		return "", "", fmt.Errorf("%w%q", errCouldNotFindBinaryAt, binPath)
 	}
 
 	incPath := filepath.Join(baseDir, subDir, "include", program.Exec())
@@ -223,8 +245,8 @@ func prepareForReinstall(bp *bundleParams) error {
 
 	if !bp.inst.Reinstall {
 		if util.IsRegularFile(destBinPath) || util.IsDir(destIncPath) {
-			return fmt.Errorf("installation path %s or %s already exists",
-				destBinPath, destIncPath)
+			return fmt.Errorf("%w%s or %s already exists",
+				errInstallationPathOrAlreadyExists, destBinPath, destIncPath)
 		}
 		return nil
 	}
@@ -321,7 +343,7 @@ func updateSymlinks(bp *bundleParams) error {
 // performInitialChecks performs initial validation before starting the installation.
 func performInitialChecks(bp *bundleParams) error {
 	if bp.inst.version == "" {
-		return fmt.Errorf("a specific version must be provided to install %s", bp.inst.Program)
+		return fmt.Errorf("%w%s", errASpecificVersionMustBeProvidedToInstall, bp.inst.Program)
 	}
 
 	if err := checkInstallDirs(bp.opts.Env.BinDir, bp.inst.IncDir); err != nil {
@@ -465,12 +487,12 @@ func installBundleProgram(installCtx *InstallCtx, cliOpts *config.CliOpts) error
 	log.Infof("Installing %s=%s", bp.inst.Program, bp.bundleInfo.Version.Str)
 	logFilePath, err := executeBundleInstallation(&bp)
 	if err != nil {
-		return fmt.Errorf("installation failed during execution phase (see log: %s)", logFilePath)
+		return fmt.Errorf("%w%s)", errInstallationFailedDuringExecutionPhaseSeeLog, logFilePath)
 	}
 
 	err = updateSymlinks(&bp)
 	if err != nil {
-		return fmt.Errorf("installation failed during finale update symlinks")
+		return errInstallationFailedDuringFinaleUpdateSymlinks
 	}
 
 	log.Infof("Successfully installed %s version %s", bp.inst.Program, bp.bundleInfo.Version.Str)

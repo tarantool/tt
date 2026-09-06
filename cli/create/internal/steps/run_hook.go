@@ -2,6 +2,7 @@ package steps
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +11,10 @@ import (
 	"github.com/apex/log"
 	create_ctx "github.com/tarantool/tt/cli/create/context"
 	"github.com/tarantool/tt/cli/create/internal/app_template"
+)
+
+var (
+	errInvalidHookType = errors.New("invalid hook type ")
 )
 
 // RunHook represents run hook step.
@@ -31,7 +36,7 @@ func (hook RunHook) Run(ctx *create_ctx.CreateCtx, templateCtx *app_template.Tem
 	case "post":
 		hookPath = templateCtx.Manifest.PostHook
 	default:
-		return fmt.Errorf("invalid hook type %s", hook.HookType)
+		return fmt.Errorf("%w%s", errInvalidHookType, hook.HookType)
 	}
 
 	// Check if hook is present.

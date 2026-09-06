@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -18,6 +19,11 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+var (
+	errConnectionWasClosed    = errors.New("connection was closed")
+	errExpectedOneResultFound = errors.New("expected one result, found ")
+)
+
 const (
 	startOfYamlOutput = "---\n"
 
@@ -30,6 +36,12 @@ const (
 	decodeBufferSize = 256
 	pushLineParts    = 2
 )
+
+type evaluationError string
+
+func (err evaluationError) Error() string {
+	return string(err)
+}
 
 type EvalPlainTextOpts struct {
 	ReadTimeout  time.Duration
@@ -83,7 +95,7 @@ func formatAndSendEvalFunc(conn net.Conn, funcBody string, args []any,
 
 	evalFunc, err := util.GetTextTemplatedStr(&evalFuncTmpl, map[string]string{
 		"FunctionBody": funcBody,
-		"ArgsEncoded":  fmt.Sprintf("%x", argsEncoded),
+		"ArgsEncoded":  hex.EncodeToString(argsEncoded),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to instantiate eval function template: %w", err)
@@ -262,7 +274,7 @@ func readDataPortionFromPlainTextConn(conn net.Conn, buffer *bytes.Buffer,
 	}
 
 	if len(data) == 0 {
-		return nil, fmt.Errorf("connection was closed")
+		return nil, errConnectionWasClosed
 	}
 
 	return data, nil
@@ -370,7 +382,7 @@ func getPlainTextEvalResYaml(resBytes []byte) (string, error) {
 	}
 
 	if len(evalResults) != 1 {
-		return "", fmt.Errorf("expected one result, found %d", len(evalResults))
+		return "", fmt.Errorf("%w%d", errExpectedOneResultFound, len(evalResults))
 	}
 
 	evalResult := evalResults[0]
@@ -389,7 +401,7 @@ func getPlainTextEvalError(resBytes []byte, parseErr error) error {
 	if !found {
 		return fmt.Errorf("failed to parse eval result: %w", parseErr)
 	}
-	return errors.New(errStr)
+	return evaluationError(errStr)
 }
 
 func getPlainTextEvalResLua(resBytes []byte) (string, error) {
@@ -405,7 +417,7 @@ func getPlainTextEvalResLua(resBytes []byte) (string, error) {
 	luaRes := L.Env.RawGetString("res")
 
 	if luaRes.Type() == lua.LTString {
-		return "", errors.New(lua.LVAsString(luaRes))
+		return "", evaluationError(lua.LVAsString(luaRes))
 	}
 
 	encodedDataLV := L.GetTable(luaRes, lua.LString("data_enc"))

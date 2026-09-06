@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,6 +15,13 @@ import (
 	"github.com/apex/log"
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
+)
+
+var (
+	errCannotParseAVersionOutOf                  = errors.New("cannot parse a version out of ")
+	errIsGolangciLintWantTheProjectPinnedVersion = errors.New(" is golangci-lint ")
+	errIsNotADirectory                           = errors.New(" is not a directory")
+	errUnsupportedBuildType                      = errors.New("unsupported build type: ")
 )
 
 // spell-checker:ignore trimpath extldflags asmflags covdata GOEXE TTEXE GOCOVERDIR
@@ -139,9 +147,10 @@ func appendTags(args []string) ([]string, error) {
 		tags = append(tags, "openssl_static")
 	case BuildTypeShared:
 	default:
-		return []string{}, fmt.Errorf("unsupported build type: %s, supported: "+
+		return []string{}, fmt.Errorf("%w%s, supported: "+
 			"%s, %s, %s",
-			buildType, BuildTypeNoCgo, BuildTypeStatic, BuildTypeShared)
+			errUnsupportedBuildType, buildType,
+			BuildTypeNoCgo, BuildTypeStatic, BuildTypeShared)
 	}
 	return append(append(args, "-tags"), strings.Join(tags, ",")), nil
 }
@@ -275,8 +284,8 @@ func resolveLinter() (string, error) {
 
 	if version != lintVersion {
 		return "", fmt.Errorf(
-			"%s is golangci-lint %s, want the project-pinned version %s",
-			linter, version, lintVersion)
+			"%s%w%s, want the project-pinned version %s",
+			linter, errIsGolangciLintWantTheProjectPinnedVersion, version, lintVersion)
 	}
 
 	return linter, nil
@@ -295,7 +304,7 @@ func linterVersionOf(exe string) (string, error) {
 
 	match := lintVersionRe.FindStringSubmatch(out)
 	if match == nil {
-		return "", fmt.Errorf("cannot parse a version out of %q", strings.TrimSpace(out))
+		return "", fmt.Errorf("%w%q", errCannotParseAVersionOutOf, strings.TrimSpace(out))
 	}
 
 	return match[1] + "." + match[2] + "." + match[3], nil
@@ -371,7 +380,7 @@ func (Unit) Coverage() error {
 	err = runUnitTests([]string{
 		"-tags", "integration,integration_docker",
 		"-cover",
-		"-args", fmt.Sprintf(`-test.gocoverdir=%s`, coverDir),
+		"-args", "-test.gocoverdir=" + coverDir,
 	})
 	if err != nil {
 		return err
@@ -399,7 +408,7 @@ func ensureCoverageDir(coverDir string) error {
 		return err
 	}
 	if !coverageDirInfo.IsDir() {
-		return fmt.Errorf("%q is not a directory", coverDir)
+		return fmt.Errorf("%q%w", coverDir, errIsNotADirectory)
 	}
 	return nil
 }

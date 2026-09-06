@@ -10,6 +10,10 @@ import (
 	. "github.com/tarantool/tt/cli/connector"
 )
 
+var (
+	errAnyError = errors.New("any error")
+)
+
 func TestProtocol_String(t *testing.T) {
 	cases := []struct {
 		protocol Protocol
@@ -50,7 +54,7 @@ func (stub *greetingReadStub) Read(dst []byte) (int, error) {
 
 func TestGetProtocol(t *testing.T) {
 	// spell-checker:ignore asdasdasd asdasdasdqwe
-	err := errors.New("any error")
+	err := errAnyError
 	cases := []struct {
 		greeting string
 		err      error

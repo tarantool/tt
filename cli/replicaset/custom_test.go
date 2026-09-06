@@ -1,7 +1,6 @@
 package replicaset_test
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -404,7 +403,7 @@ func TestCustomInstance_Discovery_errors(t *testing.T) {
 	}{
 		{
 			Name:     "error",
-			Evaler:   &instanceMockEvaler{Error: []error{errors.New("foo")}},
+			Evaler:   &instanceMockEvaler{Error: []error{errFoo}},
 			Expected: "foo",
 		},
 		{

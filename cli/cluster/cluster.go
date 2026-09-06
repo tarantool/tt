@@ -13,6 +13,10 @@ import (
 	"github.com/tarantool/tt/lib/integrity"
 )
 
+var (
+	errAConfigurationFileMustBeSet = errors.New("a configuration file must be set")
+)
+
 // fillOnlyMerge copies leaf values from src into dst only when the key is not
 // already present in dst (fill-only semantics: never overwrite existing keys).
 func fillOnlyMerge(ctx context.Context, dst *goconfig.MutableConfig, src goconfig.Config) error {
@@ -57,7 +61,7 @@ func GetClusterConfig(
 	integ integrity.IntegrityCtx,
 ) (*goconfig.MutableConfig, error) {
 	if path == "" {
-		return nil, fmt.Errorf("a configuration file must be set")
+		return nil, errAConfigurationFileMustBeSet
 	}
 
 	// Phase-1: env (excluding *_DEFAULT) + file → mut.
@@ -110,7 +114,7 @@ func GetInstanceConfig(
 ) (goconfig.Config, error) {
 	if !HasInstance(cfg.Snapshot(), instance) {
 		return goconfig.Config{},
-			fmt.Errorf("an instance %q not found", instance)
+			fmt.Errorf("an %w%q not found", errInstanceNotFound, instance)
 	}
 	return InstanceConfig(cfg.Snapshot(), instance)
 }

@@ -11,6 +11,10 @@ import (
 	"github.com/tarantool/go-config/validators/jsonschema"
 )
 
+var (
+	errNoTarantoolSchemasRegistered = errors.New("no Tarantool schemas registered")
+)
+
 // Validate validates a goconfig.Config against the embedded JSON Schema for
 // the newest known Tarantool version.
 func Validate(cfg goconfig.Config) error {
@@ -24,7 +28,7 @@ func Validate(cfg goconfig.Config) error {
 
 	versions := gcttarantool.SchemaVersions()
 	if len(versions) == 0 {
-		return fmt.Errorf("no Tarantool schemas registered")
+		return errNoTarantoolSchemasRegistered
 	}
 	newest := versions[len(versions)-1]
 	schemaBytes, err := gcttarantool.Schema(newest)

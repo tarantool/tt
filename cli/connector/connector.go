@@ -14,6 +14,14 @@ import (
 	"github.com/tarantool/tt/lib/dial"
 )
 
+var (
+	errEncryptionRequired = errors.New(
+		"unencrypted connection established, but encryption required",
+	)
+	errSocketNameIsLongerThanSymbols = errors.New("socket name is longer than ")
+	errUnsupportedProtocol           = errors.New("unsupported protocol: ")
+)
+
 const (
 	greetingOperationTimeout = 3 * time.Second
 	maxSocketPathLinux       = 108
@@ -64,7 +72,7 @@ func Connect(opts ConnectOpts) (Connector, error) {
 		os.Chdir(filepath.Dir(opts.Address))
 		opts.Address = "./" + filepath.Base(opts.Address)
 		if len(opts.Address)+1 > maxSocketPath {
-			return nil, fmt.Errorf("socket name is longer than %d symbols: %s",
+			return nil, fmt.Errorf("%w%d symbols: %s", errSocketNameIsLongerThanSymbols,
 				maxSocketPath-socketPathPrefixLength, filepath.Base(opts.Address))
 		}
 		defer os.Chdir(workDir)
@@ -91,8 +99,7 @@ func Connect(opts ConnectOpts) (Connector, error) {
 		}
 	} else if ssl {
 		greetingConn.Close()
-		errMsg := "unencrypted connection established, but encryption required"
-		return nil, errors.New(errMsg)
+		return nil, errEncryptionRequired
 	}
 
 	// Reset the deadline. From the SetDeadline doc:
@@ -129,6 +136,6 @@ func Connect(opts ConnectOpts) (Connector, error) {
 		}
 		return NewBinaryConnector(conn), nil
 	default:
-		return nil, fmt.Errorf("unsupported protocol: %s", protocol)
+		return nil, fmt.Errorf("%w%s", errUnsupportedProtocol, protocol)
 	}
 }

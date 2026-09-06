@@ -363,11 +363,11 @@ func setTitle(console *Console, title string) {
 }
 
 func setPrefix(console *Console) {
-	console.prefix = fmt.Sprintf("%s> ", console.title)
+	console.prefix = console.title + "> "
 
 	livePrefixIndent := min(len(console.title), MaxLivePrefixIndent)
 
-	console.livePrefix = fmt.Sprintf("%s> ", strings.Repeat(" ", livePrefixIndent))
+	console.livePrefix = strings.Repeat(" ", livePrefixIndent) + "> "
 
 	console.livePrefixFunc = func() (string, bool) {
 		return console.livePrefix, console.livePrefixEnabled

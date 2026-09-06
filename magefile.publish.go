@@ -4,10 +4,21 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+)
+
+var (
+	errFailedToPublishPackageRWSAuthIsNotSet = errors.New(
+		"failed to publish package: RWS_AUTH is not set",
+	)
+	errFailedToPublishPackageRWSURLPartIsNotSet = errors.New(
+		"failed to publish package: RWS_URL_PART is not set",
+	)
+	errUnknownOS = errors.New("unknown OS: ")
 )
 
 const distPath = "dist"
@@ -83,7 +94,7 @@ func getPatterns(distro Distro) ([]string, error) {
 		return []string{"*.deb", "*.dsc"}, nil
 	}
 
-	return nil, fmt.Errorf("unknown OS: %s", distro.OS)
+	return nil, fmt.Errorf("%w%s", errUnknownOS, distro.OS)
 }
 
 // PublishRWS puts packages to RWS (Repository Web Service).
@@ -107,14 +118,14 @@ func PublishRWS() error {
 
 		rwsURLPart := os.Getenv("RWS_URL_PART")
 		if rwsURLPart == "" {
-			return fmt.Errorf("failed to publish package: RWS_URL_PART is not set")
+			return errFailedToPublishPackageRWSURLPartIsNotSet
 		}
 
 		flags := []string{
 			"-v",
 			"-LfsS",
 			"-X", "PUT", fmt.Sprintf("%s/%s/%s", rwsURLPart, targetDistro.OS, targetDistro.Dist),
-			"-F", fmt.Sprintf("product=%s", packageName),
+			"-F", "product=" + packageName,
 		}
 
 		for _, file := range files {
@@ -125,7 +136,7 @@ func PublishRWS() error {
 
 		rwsAuth := os.Getenv("RWS_AUTH")
 		if rwsAuth == "" {
-			return fmt.Errorf("failed to publish package: RWS_AUTH is not set")
+			return errFailedToPublishPackageRWSAuthIsNotSet
 		}
 		flags = append(flags, "-u", rwsAuth)
 

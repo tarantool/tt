@@ -1,6 +1,15 @@
 package replicaset
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+var (
+	errBootstrapVshardIsNotSupported = errors.New(
+		"bootstrap vshard is not supported for ",
+	)
+)
 
 // VShardBootstrapCtx describes context to bootstrap vshard.
 type VShardBootstrapCtx struct {
@@ -18,13 +27,13 @@ type VShardBootstrapper interface {
 // newErrBootstrapVShardByInstanceNotSupported creates a new error that vshard bootstrap is not
 // supported by the orchestrator for a single instance.
 func newErrBootstrapVShardByInstanceNotSupported(orchestrator Orchestrator) error {
-	return fmt.Errorf("bootstrap vshard is not supported for a single instance by %q orchestrator",
-		orchestrator)
+	return fmt.Errorf("%wa single instance by %q orchestrator",
+		errBootstrapVshardIsNotSupported, orchestrator)
 }
 
 // newErrBootstrapVShardByAppNotSupported creates a new error that vshard bootstrap is not
 // supported by the orchestrator for an application.
 func newErrBootstrapVShardByAppNotSupported(orchestrator Orchestrator) error {
-	return fmt.Errorf("bootstrap vshard is not supported for an application by %q orchestrator",
-		orchestrator)
+	return fmt.Errorf("%wan application by %q orchestrator",
+		errBootstrapVshardIsNotSupported, orchestrator)
 }

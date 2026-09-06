@@ -1,6 +1,7 @@
 package steps
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -9,6 +10,11 @@ import (
 	"github.com/apex/log"
 	create_ctx "github.com/tarantool/tt/cli/create/context"
 	"github.com/tarantool/tt/cli/create/internal/app_template"
+)
+
+var (
+	errApplicationAlreadyExists     = errors.New("application ")
+	errApplicationNameCannotBeEmpty = errors.New("application name cannot be empty")
 )
 
 // CreateTemporaryAppDirectory represents create temporary application directory step.
@@ -22,7 +28,7 @@ func (CreateTemporaryAppDirectory) Run(createCtx *create_ctx.CreateCtx,
 	var err error
 
 	if createCtx.AppName == "" {
-		return fmt.Errorf("application name cannot be empty")
+		return errApplicationNameCannotBeEmpty
 	}
 
 	if createCtx.DestinationDir != "" {
@@ -33,7 +39,8 @@ func (CreateTemporaryAppDirectory) Run(createCtx *create_ctx.CreateCtx,
 
 	if _, err = os.Stat(appDirectory); err == nil {
 		if !createCtx.ForceMode {
-			return fmt.Errorf("application %s already exists: %s", createCtx.AppName, appDirectory)
+			return fmt.Errorf("%w%s already exists: %s",
+				errApplicationAlreadyExists, createCtx.AppName, appDirectory)
 		}
 	}
 

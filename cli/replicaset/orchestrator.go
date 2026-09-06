@@ -2,10 +2,16 @@ package replicaset
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/tarantool/tt/cli/connector"
+)
+
+var (
+	errUnexpectedResponse  = errors.New("unexpected response")
+	errUnknownOrchestrator = errors.New("unknown orchestrator: ")
 )
 
 //go:embed lua/get_orchestrator.lua
@@ -54,10 +60,10 @@ func EvalOrchestrator(evaler connector.Evaler) (Orchestrator, error) {
 		if str, ok := data[0].(string); ok {
 			parsed := ParseOrchestrator(str)
 			if parsed == OrchestratorUnknown {
-				return parsed, fmt.Errorf("unknown orchestrator: %s", str)
+				return parsed, fmt.Errorf("%w%s", errUnknownOrchestrator, str)
 			}
 			return parsed, nil
 		}
 	}
-	return OrchestratorCustom, fmt.Errorf("unexpected response")
+	return OrchestratorCustom, errUnexpectedResponse
 }

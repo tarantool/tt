@@ -2,6 +2,7 @@ package cluster_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,6 +26,11 @@ import (
 	tcs_helper "github.com/tarantool/go-tarantool/v2/test_helpers/tcs"
 
 	"github.com/tarantool/tt/lib/cluster"
+)
+
+var (
+	errAnyError = errors.New("any error")
+	errDataSig  = errors.New("data ")
 )
 
 // yamlUnmarshal is a thin wrapper for unmarshalling YAML in tests.
@@ -723,7 +729,7 @@ func (sv echoSignerVerifier) Sign(data []byte) ([]byte, error) {
 
 func (sv echoSignerVerifier) Verify(data []byte, sig []byte) error {
 	if string(data) != string(sig) {
-		return fmt.Errorf("data %q != sig %q", string(data), string(sig))
+		return fmt.Errorf("%w%q != sig %q", errDataSig, string(data), string(sig))
 	}
 
 	return nil
@@ -1006,7 +1012,7 @@ func TestIntegrityDataPublisher_CollectorAll_check_error(t *testing.T) {
 					Verifiers: []gcrypto.Verifier{
 						failingSignerVerifier{
 							name: "sig",
-							err:  fmt.Errorf("any error"),
+							err:  errAnyError,
 						},
 					},
 				},
@@ -1054,7 +1060,7 @@ func TestIntegrityDataPublisher_CollectorKey_check_error(t *testing.T) {
 					Verifiers: []gcrypto.Verifier{
 						failingSignerVerifier{
 							name: "sig",
-							err:  fmt.Errorf("any error"),
+							err:  errAnyError,
 						},
 					},
 				}, testPrefix, "all", inst)
@@ -1085,7 +1091,7 @@ func TestIntegrityDataPublisherKey_sign_error(t *testing.T) {
 					SignerVerifiers: []gcrypto.SignerVerifier{
 						failingSignerVerifier{
 							name: "sig",
-							err:  fmt.Errorf("any error"),
+							err:  errAnyError,
 						},
 					},
 				}, testPrefix, "bar", inst)
@@ -1116,7 +1122,7 @@ func TestIntegrityDataPublisherAll_sign_error(t *testing.T) {
 					SignerVerifiers: []gcrypto.SignerVerifier{
 						failingSignerVerifier{
 							name: "sig",
-							err:  fmt.Errorf("any error"),
+							err:  errAnyError,
 						},
 					},
 				}, testPrefix, "", inst)

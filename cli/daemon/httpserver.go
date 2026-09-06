@@ -2,7 +2,7 @@ package daemon
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net"
 	"net/http"
 	"strconv"
@@ -10,6 +10,12 @@ import (
 
 	"github.com/tarantool/tt/cli/daemon/api"
 	"github.com/tarantool/tt/cli/ttlog"
+)
+
+var (
+	errInterfaceDown          = errors.New("interface down")
+	errListenIPIsNotAvailable = errors.New("listen IP is not available")
+	errServerIsNotStarted     = errors.New("server is not started")
 )
 
 const (
@@ -76,7 +82,7 @@ func (httpServer *HTTPServer) Start(ttPath string) {
 		httpServer.logger.Fatal(err)
 	}
 
-	if err := httpServer.srv.Serve(socket); err != http.ErrServerClosed {
+	if err := httpServer.srv.Serve(socket); !errors.Is(err, http.ErrServerClosed) {
 		httpServer.logger.Fatalf("Can't start HTTP server")
 	}
 }
@@ -86,7 +92,7 @@ func (httpServer *HTTPServer) Stop() error {
 	var err error
 
 	if httpServer.srv == nil {
-		return fmt.Errorf("server is not started")
+		return errServerIsNotStarted
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), httpServer.timeout)
@@ -112,7 +118,7 @@ func (httpServer *HTTPServer) listenIP() (string, error) {
 	}
 
 	if iface.Flags&net.FlagUp == 0 {
-		return "", fmt.Errorf("interface down")
+		return "", errInterfaceDown
 	}
 
 	addrs, err := iface.Addrs()
@@ -144,5 +150,5 @@ func (httpServer *HTTPServer) listenIP() (string, error) {
 		return ip.String(), nil
 	}
 
-	return "", fmt.Errorf("listen IP is not available")
+	return "", errListenIPIsNotAvailable
 }

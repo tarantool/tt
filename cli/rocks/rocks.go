@@ -3,6 +3,7 @@ package rocks
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -16,6 +17,11 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/util"
+)
+
+var (
+	errPrefixPathExpectedMoreData = errors.New("failed to get prefix path: expected more data")
+	errPrefixPathRegexpMismatch   = errors.New("failed to get prefix path: regexp does not match")
 )
 
 //go:embed completions/*
@@ -97,13 +103,13 @@ func GetTarantoolPrefix(cli *cmdcontext.CliCtx, cliOpts *config.CliOpts) (string
 
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	if len(lines) < minVersionOutputLines {
-		return "", fmt.Errorf("failed to get prefix path: expected more data")
+		return "", errPrefixPathExpectedMoreData
 	}
 
 	re := regexp.MustCompile(`^.*\s-DCMAKE_INSTALL_PREFIX=(?P<prefix>\/.*)\s.*$`)
 	matches := util.FindNamedMatches(re, lines[2])
 	if len(matches) == 0 {
-		return "", fmt.Errorf("failed to get prefix path: regexp does not match")
+		return "", errPrefixPathRegexpMismatch
 	}
 
 	prefixDir := matches["prefix"]

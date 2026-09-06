@@ -5,7 +5,6 @@ package docker
 import (
 	"bufio"
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -132,7 +131,7 @@ func TestRunContainer(t *testing.T) {
 		BuildCtxDir: "testdata",
 		ImageTag:    "ubuntu:tt_test",
 		Command:     []string{"touch", "/work/file_from_container"},
-		Binds:       []string{fmt.Sprintf("%s:/work", tmpDir)},
+		Binds:       []string{tmpDir + ":/work"},
 	}, os.Stdout)
 	require.NoError(t, err)
 	assert.FileExists(t, filepath.Join(tmpDir, "file_from_container"))
@@ -149,7 +148,7 @@ func TestRunContainerInvalidDockerfile(t *testing.T) {
 		BuildCtxDir: tmpDir,
 		ImageTag:    "ubuntu:tt_test",
 		Command:     []string{"touch", "/work/file_from_container"},
-		Binds:       []string{fmt.Sprintf("%s:/work", tmpDir)},
+		Binds:       []string{tmpDir + ":/work"},
 	}, os.Stdout)
 	require.True(t, strings.Contains(err.Error(), "dockerfile parse error"))
 	assert.NoFileExists(t, filepath.Join(tmpDir, "file_from_container"))
@@ -162,7 +161,7 @@ func TestRunContainerFailContainerCommand(t *testing.T) {
 		BuildCtxDir: "testdata",
 		ImageTag:    "ubuntu:tt_test",
 		Command:     []string{"touch", "/file_in_root"},
-		Binds:       []string{fmt.Sprintf("%s:/work", tmpDir)},
+		Binds:       []string{tmpDir + ":/work"},
 	}, os.Stdout)
 	require.Error(t, err)
 
@@ -176,7 +175,7 @@ func TestRunContainerNotExistingBind(t *testing.T) {
 		BuildCtxDir: "testdata",
 		ImageTag:    "ubuntu:tt_test",
 		Command:     []string{"touch", "/work/file_from_container"},
-		Binds:       []string{fmt.Sprintf("%s:/work", filepath.Join(tmpDir, "non_existing_dir"))},
+		Binds:       []string{filepath.Join(tmpDir, "non_existing_dir") + ":/work"},
 	}, os.Stdout)
 	require.NoError(t, err)
 	assert.FileExists(t, filepath.Join(tmpDir, "non_existing_dir", "file_from_container"))

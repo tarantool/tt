@@ -3,6 +3,7 @@ package running
 import (
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,6 +12,10 @@ import (
 
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/lib/integrity"
+)
+
+var (
+	errSocketPathIsLongerThanSymbols = errors.New("socket path is longer than ")
 )
 
 const (
@@ -54,8 +59,8 @@ func verifySocketLength(socketPath string) error {
 
 	if socketPath != "" {
 		if len(socketPath) >= maxSocketPath {
-			return fmt.Errorf("socket path is longer than %d symbols: %q",
-				maxSocketPath-1, socketPath)
+			return fmt.Errorf("%w%d symbols: %q",
+				errSocketPathIsLongerThanSymbols, maxSocketPath-1, socketPath)
 		}
 		return nil
 	}

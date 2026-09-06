@@ -1,6 +1,7 @@
 package download
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +13,10 @@ import (
 	"github.com/tarantool/tt/cli/search"
 	"github.com/tarantool/tt/cli/util"
 	"golang.org/x/sys/unix"
+)
+
+var (
+	errCurrentDirectoryUnavailable = errors.New("can't get current dir: ")
 )
 
 type DownloadCtx struct {
@@ -50,7 +55,7 @@ func DownloadSDK(cmdCtx *cmdcontext.CmdCtx, downloadCtx DownloadCtx,
 	if len(downloadCtx.DirectoryPrefix) == 0 {
 		downloadCtx.DirectoryPrefix, err = os.Getwd()
 		if err != nil {
-			return fmt.Errorf("can't get current dir: %s", err.Error())
+			return fmt.Errorf("%w%s", errCurrentDirectoryUnavailable, err.Error())
 		}
 	}
 
@@ -66,8 +71,7 @@ func DownloadSDK(cmdCtx *cmdcontext.CmdCtx, downloadCtx DownloadCtx,
 	bundleName := ver.Version.Tarball
 	bundlePath := filepath.Join(downloadCtx.DirectoryPrefix, bundleName)
 	if _, err := os.Stat(bundlePath); err == nil {
-		confirmed, err := util.AskConfirm(os.Stdin, fmt.Sprintf("Confirm overwrite %s",
-			bundlePath))
+		confirmed, err := util.AskConfirm(os.Stdin, "Confirm overwrite "+bundlePath)
 		if err != nil {
 			return err
 		}

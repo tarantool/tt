@@ -1,6 +1,7 @@
 package steps
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -8,6 +9,11 @@ import (
 
 	create_ctx "github.com/tarantool/tt/cli/create/context"
 	"github.com/tarantool/tt/cli/create/internal/app_template"
+)
+
+var (
+	errInvalidFormatOfVariable = errors.New("invalid format of ")
+	errVariableValueIsNotSet   = errors.New(" variable value is not set")
 )
 
 // stringReader is the interface that wraps the ReadString method.
@@ -36,7 +42,7 @@ func validateExistingValue(createCtx *create_ctx.CreateCtx, varInfo app_template
 		return true, nil
 	}
 	if createCtx.SilentMode {
-		return false, fmt.Errorf("invalid format of %s variable", varInfo.Name)
+		return false, fmt.Errorf("%w%s variable", errInvalidFormatOfVariable, varInfo.Name)
 	}
 	fmt.Fprintf(os.Stdout, "Invalid format of %s variable.\n", varInfo.Name)
 	return false, nil
@@ -66,7 +72,7 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 		for !matched {
 			if varInfo.Default == "" {
 				if createCtx.SilentMode {
-					return fmt.Errorf("%s variable value is not set", varInfo.Name)
+					return fmt.Errorf("%s%w", varInfo.Name, errVariableValueIsNotSet)
 				}
 				fmt.Fprintf(os.Stdout, "%s: ", varInfo.Prompt)
 			} else {
@@ -105,7 +111,7 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 			}
 			if !matched {
 				if createCtx.SilentMode {
-					return fmt.Errorf("invalid format of %s variable", varInfo.Name)
+					return fmt.Errorf("%w%s variable", errInvalidFormatOfVariable, varInfo.Name)
 				}
 				fmt.Fprintln(os.Stdout, "Invalid format. Try again.")
 			}

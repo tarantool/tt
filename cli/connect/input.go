@@ -1,7 +1,6 @@
 package connect
 
 import (
-	"fmt"
 	"strings"
 	"unicode"
 
@@ -51,7 +50,7 @@ func (s *LuaValidator) Validate(str string) bool {
 		return true
 	}
 
-	if _, err := s.state.LoadString(fmt.Sprintf("return %s", str)); err == nil {
+	if _, err := s.state.LoadString("return " + str); err == nil {
 		// Certain obscure inputs like '(42\n)' yield the same error as
 		// incomplete statement.
 		return true

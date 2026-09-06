@@ -13,6 +13,10 @@ import (
 	_ "github.com/tarantool/go-tarantool/v2/uuid"
 )
 
+var (
+	errIOTimeout = errors.New("i/o timeout")
+)
+
 // BinaryConnector implements Connector interface for a connection that sends
 // and receives data via IPROTO.
 type BinaryConnector struct {
@@ -106,5 +110,5 @@ func replaceContextDone(err error) error {
 	if err == nil || !strings.HasPrefix(err.Error(), "context is done") {
 		return err
 	}
-	return errors.New("i/o timeout")
+	return errIOTimeout
 }

@@ -1,6 +1,15 @@
 package replicaset
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+var (
+	errBootstrapIsNotSupported = errors.New(
+		"bootstrap is not supported for ",
+	)
+)
 
 // BootstrapCtx describes the context to bootstrap an instance/application.
 type BootstrapCtx struct {
@@ -24,13 +33,13 @@ type Bootstrapper interface {
 // newErrBootstrapByInstanceNotSupported creates a new error that bootstrap is not
 // supported by the orchestrator for a single instance.
 func newErrBootstrapByInstanceNotSupported(orchestrator Orchestrator) error {
-	return fmt.Errorf("bootstrap is not supported for a single instance by %q orchestrator",
-		orchestrator)
+	return fmt.Errorf("%wa single instance by %q orchestrator",
+		errBootstrapIsNotSupported, orchestrator)
 }
 
 // newErrBootstrapByAppNotSupported creates a new error that bootstrap is not
 // supported by the orchestrator for an application.
 func newErrBootstrapByAppNotSupported(orchestrator Orchestrator) error {
-	return fmt.Errorf("bootstrap is not supported for an application by %q orchestrator",
-		orchestrator)
+	return fmt.Errorf("%wan application by %q orchestrator",
+		errBootstrapIsNotSupported, orchestrator)
 }

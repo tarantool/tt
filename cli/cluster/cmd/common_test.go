@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -174,7 +174,7 @@ groups:
 
 	for _, tc := range cases {
 		for _, full := range tc.Full {
-			t.Run(tc.Name+"_"+fmt.Sprint(full), func(t *testing.T) {
+			t.Run(tc.Name+"_"+strconv.FormatBool(full), func(t *testing.T) {
 				for k, v := range tc.Env {
 					t.Setenv(k, v)
 				}

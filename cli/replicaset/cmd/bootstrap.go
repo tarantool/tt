@@ -1,6 +1,7 @@
 package replicasetcmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -9,6 +10,15 @@ import (
 	"github.com/tarantool/tt/cli/running"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 	"github.com/tarantool/tt/lib/integrity"
+)
+
+var (
+	errTheReplicasetCanNotBeSpecifiedInTheCaseOfApplicationBootstrapping = errors.New(
+		"the replicaset can not be specified in the case of application bootstrapping",
+	)
+	errTheReplicasetMustBeSpecifiedToBootstrapAnInstance = errors.New(
+		"the replicaset must be specified to bootstrap an instance",
+	)
 )
 
 // BootstrapCtx describes context to bootstrap an instance or application.
@@ -32,12 +42,11 @@ type BootstrapCtx struct {
 func Bootstrap(ctx BootstrapCtx) error {
 	if ctx.Instance != "" {
 		if ctx.Replicaset == "" {
-			return fmt.Errorf("the replicaset must be specified to bootstrap an instance")
+			return errTheReplicasetMustBeSpecifiedToBootstrapAnInstance
 		}
 	} else {
 		if ctx.Replicaset != "" {
-			return fmt.Errorf(
-				"the replicaset can not be specified in the case of application bootstrapping")
+			return errTheReplicasetCanNotBeSpecifiedInTheCaseOfApplicationBootstrapping
 		}
 	}
 

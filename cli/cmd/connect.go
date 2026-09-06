@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"syscall"
@@ -17,6 +18,17 @@ import (
 	"github.com/tarantool/tt/cli/util"
 	libconnect "github.com/tarantool/tt/lib/connect"
 	terminal "golang.org/x/term"
+)
+
+var (
+	errControlSocketCredentialsUnsupported = errors.New(
+		"username and password are not supported with a connection via a control socket",
+	)
+	errCredentialsSpecifiedByFlagsAndURI = errors.New(
+		"username and password are specified with flags and a URI",
+	)
+	errConnectionStringRequired = errors.New("should be specified one connection string")
+	errSpecifyInstanceName      = errors.New("specify instance name")
 )
 
 var (
@@ -140,12 +152,11 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 	switch {
 	case fillErr == nil:
 		if len(runningCtx.Instances) > 1 {
-			err = fmt.Errorf("specify instance name")
+			err = errSpecifyInstanceName
 			return connOpts, err
 		}
 		if (connectCtx.Username != "" || connectCtx.Password != "") && !connectCtx.Binary {
-			err = fmt.Errorf("username and password are not supported" +
-				" with a connection via a control socket")
+			err = errControlSocketCredentialsUnsupported
 			return connOpts, err
 		}
 		if connectCtx.Binary {
@@ -159,8 +170,7 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 		}
 	case libconnect.IsCredentialsURI(target):
 		if connectCtx.Username != "" || connectCtx.Password != "" {
-			err = fmt.Errorf("username and password are specified with" +
-				" flags and a URI")
+			err = errCredentialsSpecifiedByFlagsAndURI
 			return connOpts, err
 		}
 		newURI, user, pass := libconnect.ParseCredentialsURI(target)
@@ -206,10 +216,10 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	var ok bool
 	if connectCtx.Language, ok = connect.ParseLanguage(connectLanguage); !ok {
-		return util.NewArgError(fmt.Sprintf("unsupported language: %s", connectLanguage))
+		return util.NewArgError("unsupported language: " + connectLanguage)
 	}
 	if connectCtx.Format, ok = formatter.ParseFormat(connectFormat); !ok {
-		return util.NewArgError(fmt.Sprintf("unsupported output format: %s", connectFormat))
+		return util.NewArgError("unsupported output format: " + connectFormat)
 	}
 
 	connOpts, err := resolveConnectOpts(cmdCtx, cliOpts, &connectCtx, args[0])
@@ -229,7 +239,7 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			return nil
 		}
 	} else if len(args) != 1 {
-		return fmt.Errorf("should be specified one connection string")
+		return errConnectionStringRequired
 	}
 
 	if terminal.IsTerminal(syscall.Stdin) {

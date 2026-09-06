@@ -1,7 +1,7 @@
 package aeon
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,13 +10,22 @@ import (
 	"github.com/tarantool/tt/cli/aeon/pb"
 )
 
+var (
+	errProtobufArrayValueIsNil    = errors.New("protobuf array value is nil")
+	errProtobufDatetimeValueIsNil = errors.New("protobuf datetime value is nil")
+	errProtobufIntervalValueIsNil = errors.New("protobuf interval value is nil")
+	errProtobufMapValueIsNil      = errors.New("protobuf map value is nil")
+	errProtobufValueIsNil         = errors.New("protobuf value is nil")
+	errUnsupportedTypeForValue    = errors.New("unsupported type for value")
+)
+
 // decodeValue convert a value obtained from protobuf into a value that can be used as an
 // argument to Tarantool functions.
 //
 // Copy from https://github.com/tarantool/aeon/blob/master/aeon/grpc/server/pb/decode.go
 func decodeValue(val *pb.Value) (any, error) {
 	if val == nil {
-		return nil, fmt.Errorf("protobuf value is nil")
+		return nil, errProtobufValueIsNil
 	}
 
 	switch val.GetKind().(type) {
@@ -49,7 +58,7 @@ func decodeValue(val *pb.Value) (any, error) {
 	case *pb.Value_DatetimeValue:
 		dateTime := val.GetDatetimeValue()
 		if dateTime == nil {
-			return nil, fmt.Errorf("protobuf datetime value is nil")
+			return nil, errProtobufDatetimeValueIsNil
 		}
 		sec := dateTime.GetSeconds()
 		nsec := dateTime.GetNsec()
@@ -70,7 +79,7 @@ func decodeValue(val *pb.Value) (any, error) {
 	case *pb.Value_IntervalValue:
 		interval := val.GetIntervalValue()
 		if interval == nil {
-			return nil, fmt.Errorf("protobuf interval value is nil")
+			return nil, errProtobufIntervalValueIsNil
 		}
 		res := datetime.Interval{
 			Year:   interval.GetYear(),
@@ -87,7 +96,7 @@ func decodeValue(val *pb.Value) (any, error) {
 	case *pb.Value_ArrayValue:
 		array := val.GetArrayValue()
 		if array == nil {
-			return nil, fmt.Errorf("protobuf array value is nil")
+			return nil, errProtobufArrayValueIsNil
 		}
 		fields := array.GetFields()
 		res := make([]any, len(fields))
@@ -102,7 +111,7 @@ func decodeValue(val *pb.Value) (any, error) {
 	case *pb.Value_MapValue:
 		mapValue := val.GetMapValue()
 		if mapValue == nil {
-			return nil, fmt.Errorf("protobuf map value is nil")
+			return nil, errProtobufMapValueIsNil
 		}
 		fields := mapValue.GetFields()
 		res := make(map[any]any, len(fields))
@@ -117,6 +126,6 @@ func decodeValue(val *pb.Value) (any, error) {
 	case *pb.Value_NullValue:
 		return nil, nil
 	default:
-		return nil, fmt.Errorf("unsupported type for value")
+		return nil, errUnsupportedTypeForValue
 	}
 }

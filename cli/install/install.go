@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/apex/log"
@@ -29,6 +30,26 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+var (
+	errBinDirNotSet                          = errors.New("bin_dir is not set, check ")
+	errDistfilesDirectoryNotFound            = errors.New("can't find distfiles directory")
+	errCouldNotGetInstalledVersionCommitHash = errors.New(
+		"could not get commit hash of the versionof an installed ",
+	)
+	errInvalidDirectory                     = errors.New("directory ")
+	errHashHasAWrongFormat                  = errors.New("hash has a wrong format")
+	errIncDirIsNotSetCheck                  = errors.New("inc_dir is not set, check ")
+	errNoVersionFound                       = errors.New("no version found")
+	errNoVersionsWereFetched                = errors.New("no versions were fetched")
+	errTarantoolBinaryWasNotFoundInThePaths = errors.New(
+		"tarantool binary was not found in the paths",
+	)
+	errUnableToGetHashInfo        = errors.New(": unable to get hash info")
+	errUnableToGetPullRequestInfo = errors.New(": unable to get pull-request info")
+	errUnknownApplication         = errors.New("unknown application: ")
+	errUnknownOS                  = errors.New("unknown OS")
+)
+
 const (
 	// defaultDirPermissions is rights used to create folders.
 	// 0755 - drwxr-xr-x
@@ -38,6 +59,12 @@ const (
 	gitCloneArgsCapacity  = 10
 	dockerfileMode        = 0o664
 )
+
+type missingPackagesError string
+
+func (err missingPackagesError) Error() string {
+	return string(err)
+}
 
 // programGitRepoUrls contains URLs of programs git repositories.
 var programGitRepoUrls = map[string]string{
@@ -161,7 +188,7 @@ func detectOsName() (string, error) {
 		distroInfo, err := getDistroInfo()
 		return distroInfo.Name, err
 	}
-	return "", fmt.Errorf("unknown OS")
+	return "", errUnknownOS
 }
 
 // getVersionsFromRepo returns all available versions from github repository.
@@ -350,7 +377,7 @@ func programDependenciesInstalled(program search.Program) error {
 			}
 		}
 		errMsg.WriteString("Usage: tt install -f if you already have those packages installed")
-		return errors.New(errMsg.String())
+		return missingPackagesError(errMsg.String())
 	}
 	return nil
 }
@@ -412,7 +439,7 @@ func checkCommit(input, programName string, installCtx InstallCtx,
 			programName, input)
 		if err != nil {
 			return input, pullRequestHash,
-				fmt.Errorf("%s: unable to get pull-request info", input)
+				fmt.Errorf("%s%w", input, errUnableToGetPullRequestInfo)
 		}
 		pullRequestHash = pullRequestHash[0:util.MinCommitHashLength]
 		return input, pullRequestHash, nil
@@ -424,12 +451,12 @@ func checkCommit(input, programName string, installCtx InstallCtx,
 	}
 
 	if !isRightFormat {
-		return input, pullRequestHash, fmt.Errorf("hash has a wrong format")
+		return input, pullRequestHash, errHashHasAWrongFormat
 	}
 
 	returnedHash, err := getCommit(installCtx.Local, distfiles, programName, input)
 	if err != nil {
-		return input, pullRequestHash, fmt.Errorf("%s: unable to get hash info", input)
+		return input, pullRequestHash, fmt.Errorf("%s%w", input, errUnableToGetHashInfo)
 	}
 
 	return returnedHash, pullRequestHash, nil
@@ -526,7 +553,7 @@ func resolveTtInstallVersion(installCtx InstallCtx, distfiles string) (
 			return resolvedInstallVersion{}, err
 		}
 		if len(versions) == 0 {
-			return resolvedInstallVersion{}, fmt.Errorf("no versions were fetched")
+			return resolvedInstallVersion{}, errNoVersionsWereFetched
 		}
 		result.version = versions[len(versions)-1].Str
 	}
@@ -568,7 +595,7 @@ func resolveTarantoolInstallVersion(installCtx InstallCtx, distfiles string) (
 		}
 		result.version = getLatestRelease(versions)
 		if result.version == "" {
-			return resolvedInstallVersion{}, fmt.Errorf("no version found")
+			return resolvedInstallVersion{}, errNoVersionFound
 		}
 	}
 
@@ -598,11 +625,11 @@ func prepareTarantoolInstall(binDir, incDir string, installCtx InstallCtx, distf
 ) {
 	if binDir == "" {
 		return resolvedInstallVersion{},
-			fmt.Errorf("bin_dir is not set, check %s", configure.ConfigName)
+			fmt.Errorf("%w%s", errBinDirNotSet, configure.ConfigName)
 	}
 	if incDir == "" {
 		return resolvedInstallVersion{},
-			fmt.Errorf("inc_dir is not set, check %s", configure.ConfigName)
+			fmt.Errorf("%w%s", errIncDirIsNotSetCheck, configure.ConfigName)
 	}
 	return resolveTarantoolInstallVersion(installCtx, distfiles)
 }
@@ -649,7 +676,7 @@ func downloadTtSource(path, ttVersion, distfiles string, resolved resolvedInstal
 ) error {
 	if installCtx.Local {
 		if !util.IsDir(filepath.Join(distfiles, "tt")) {
-			return fmt.Errorf("can't find distfiles directory")
+			return errDistfilesDirectoryNotFound
 		}
 		log.Infof("Local files found, installing from them...")
 		localPath, _ := util.JoinAbspath(distfiles, "tt")
@@ -714,7 +741,7 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 
 	// Check binary directory.
 	if binDir == "" {
-		return fmt.Errorf("bin_dir is not set, check %s", configure.ConfigName)
+		return fmt.Errorf("%w%s", errBinDirNotSet, configure.ConfigName)
 	}
 
 	logFile, err := os.CreateTemp("", "tarantool_install")
@@ -812,7 +839,7 @@ func prepareMakeOpts(installCtx InstallCtx) []string {
 		makeOpts = append(makeOpts, "install")
 	}
 	if _, isMakeFlagsSet := os.LookupEnv("MAKEFLAGS"); !isMakeFlagsSet {
-		maxThreads := fmt.Sprint(runtime.NumCPU())
+		maxThreads := strconv.Itoa(runtime.NumCPU())
 		makeOpts = append(makeOpts, "-j", maxThreads)
 	}
 	return makeOpts
@@ -858,7 +885,7 @@ func copyLocalTarantool(distfiles, path, tarVersion string,
 		}
 		err = gitCheckout(path, tarVersion, installCtx.verbose, logFile)
 	} else {
-		return fmt.Errorf("can't find distfiles directory")
+		return errDistfilesDirectoryNotFound
 	}
 	return err
 }
@@ -1233,8 +1260,7 @@ func isUpdatePossible(installCtx InstallCtx,
 		// We need to trim first rune to get commit hash
 		// from string structure 'g<commitHash>'.
 		if len(binVersion.Hash) < 1 {
-			return false, fmt.Errorf("could not get commit hash of the version"+
-				"of an installed %s", program)
+			return false, fmt.Errorf("%w%s", errCouldNotGetInstalledVersionCommitHash, program)
 		}
 		curBinHash = binVersion.Hash[1:]
 	case search.ProgramTt:
@@ -1269,8 +1295,8 @@ func searchTarantoolHeaders(buildDir, includeDir string) (string, error) {
 			return "", err
 		}
 		if !util.IsDir(includeDir) {
-			return "", fmt.Errorf("directory %v doesn't exist, "+
-				"or isn't a directory", includeDir)
+			return "", fmt.Errorf("%w%v doesn't exist, or isn't a directory",
+				errInvalidDirectory, includeDir)
 		}
 		return includeDir, nil
 	}
@@ -1293,7 +1319,8 @@ func installTarantoolDev(ttBinDir, ttIncludeDir, buildDir,
 		return fmt.Errorf("failed to get absolute path: %w", err)
 	}
 	if !util.IsDir(buildDir) {
-		return fmt.Errorf("directory %v doesn't exist, or isn't directory", buildDir)
+		return fmt.Errorf("%w%v doesn't exist, or isn't directory",
+			errInvalidDirectory, buildDir)
 	}
 
 	checkedBinaryPaths := make([]string, 0)
@@ -1353,8 +1380,8 @@ func installTarantoolDev(ttBinDir, ttIncludeDir, buildDir,
 		return nil
 	}
 
-	return fmt.Errorf("tarantool binary was not found in the paths:\n%s",
-		strings.Join(checkedBinaryPaths, "\n"))
+	return fmt.Errorf("%w:\n%s",
+		errTarantoolBinaryWasNotFoundInThePaths, strings.Join(checkedBinaryPaths, "\n"))
 }
 
 // subDirIsWritable checks if the passed dir doesn't exist but can be created.
@@ -1385,9 +1412,9 @@ func Install(installCtx InstallCtx, cliOpts *config.CliOpts) error {
 			continue
 		}
 		if !dirIsWritable(dir) {
-			return fmt.Errorf("the directory %s is not writeable for the current user.\n"+
+			return fmt.Errorf("%w%s is not writeable for the current user.\n"+
 				"     Please, update rights to the directory or use 'sudo' for successful install",
-				dir)
+				errTheDirectoryIsNotWriteableForTheCurrentUser, dir)
 		}
 	}
 	includeDir = filepath.Join(includeDir, "include")
@@ -1406,7 +1433,7 @@ func Install(installCtx InstallCtx, cliOpts *config.CliOpts) error {
 		err = installTarantoolDev(binDir, includeDir, installCtx.buildDir,
 			installCtx.IncDir)
 	default:
-		return fmt.Errorf("unknown application: %s", installCtx.Program)
+		return fmt.Errorf("%w%s", errUnknownApplication, installCtx.Program)
 	}
 
 	return err

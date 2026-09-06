@@ -1,12 +1,18 @@
 package cluster
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/tarantool/go-storage"
 	gcrypto "github.com/tarantool/go-storage/crypto"
 	"github.com/tarantool/go-storage/hasher"
+)
+
+var (
+	errPublishingIntoAFileWithIntegrityDataIsNotSupported = errors.New(
+		"publishing into a file with integrity data is not supported",
+	)
 )
 
 // IntegrityOptions configure integrity-aware typed storage builder options.
@@ -73,7 +79,7 @@ func (f Factory) NewFileCollector(path string) DataCollector {
 // auxiliary data needed for signatures).
 func (f Factory) NewFilePublisher(path string) (DataPublisher, error) {
 	if f.integrity != nil {
-		return nil, fmt.Errorf("publishing into a file with integrity data is not supported")
+		return nil, errPublishingIntoAFileWithIntegrityDataIsNotSupported
 	}
 	return NewFilePublisher(path), nil
 }

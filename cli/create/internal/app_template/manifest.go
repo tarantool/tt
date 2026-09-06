@@ -1,11 +1,17 @@
 package app_template
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/tarantool/tt/cli/util"
+)
+
+var (
+	errMissingUserPrompt   = errors.New("missing user prompt")
+	errMissingVariableName = errors.New("missing variable name")
 )
 
 const (
@@ -46,10 +52,10 @@ type TemplateManifest struct {
 func validateManifest(manifest *TemplateManifest) error {
 	for _, varInfo := range manifest.Vars {
 		if varInfo.Prompt == "" {
-			return fmt.Errorf("missing user prompt")
+			return errMissingUserPrompt
 		}
 		if varInfo.Name == "" {
-			return fmt.Errorf("missing variable name")
+			return errMissingVariableName
 		}
 	}
 	return nil

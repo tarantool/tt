@@ -1,10 +1,15 @@
 package cluster
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 
 	goconfig "github.com/tarantool/go-config"
+)
+
+var (
+	errInstanceNotFound = errors.New("instance ")
 )
 
 const instancePathSegments = 6
@@ -104,5 +109,5 @@ func InstanceConfig(cfg goconfig.Config, name string) (goconfig.Config, error) {
 			return instCfg, nil
 		}
 	}
-	return goconfig.Config{}, fmt.Errorf("instance %q not found", name)
+	return goconfig.Config{}, fmt.Errorf("%w%q not found", errInstanceNotFound, name)
 }

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -11,6 +12,10 @@ import (
 	libcluster "github.com/tarantool/tt/lib/cluster"
 	"github.com/tarantool/tt/lib/connect"
 	"gopkg.in/yaml.v2"
+)
+
+var (
+	errTaskWithIDIsNotFound = errors.New("task with id `")
 )
 
 const (
@@ -166,7 +171,7 @@ func waitForSwitch(conn *libcluster.RawStorage, key string, yamlCmd []byte, time
 			return nil
 		}
 	}
-	if ctxWatch.Err() == context.DeadlineExceeded {
+	if errors.Is(ctxWatch.Err(), context.DeadlineExceeded) {
 		log.Info("Timeout for command execution reached.")
 		return nil
 	}
@@ -198,7 +203,7 @@ func SwitchStatus(url string, switchCtx SwitchStatusCtx) error {
 	}
 
 	if len(result) != 1 {
-		return fmt.Errorf("task with id `%s` is not found", switchCtx.TaskID)
+		return fmt.Errorf("%w%s` is not found", errTaskWithIDIsNotFound, switchCtx.TaskID)
 	}
 
 	fmt.Fprint(os.Stdout, string(result[0].Value))

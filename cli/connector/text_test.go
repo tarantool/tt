@@ -1,7 +1,6 @@
 package connector_test
 
 import (
-	"errors"
 	"net"
 	"testing"
 
@@ -42,7 +41,7 @@ func TestTextConnector_Close(t *testing.T) {
 
 func TestTextConnector_Close_error(t *testing.T) {
 	const errMsg = "any error"
-	stub := &plainConnectorStub{err: errors.New(errMsg)}
+	stub := &plainConnectorStub{err: errAnyError}
 	conn := NewTextConnector(stub)
 
 	assert.EqualError(t, conn.Close(), errMsg)

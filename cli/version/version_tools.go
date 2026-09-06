@@ -1,12 +1,25 @@
 package version
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/tarantool/tt/cli/util"
 )
+
+var (
+	errFailedToParseVersionFormatIsNotValid = errors.New("failed to parse version ")
+	errHashHasAWrongFormat                  = errors.New("hash ")
+	errVersionDoesNotMatchSemanticFormat    = errors.New("the version of ")
+	errUnknownReleaseType                   = errors.New("unknown release type ")
+)
+
+func newInvalidVersionError(version string) error {
+	return fmt.Errorf("%w%q: format is not valid",
+		errFailedToParseVersionFormatIsNotValid, version)
+}
 
 type ReleaseType uint16
 
@@ -47,7 +60,7 @@ func newRelease(release, releaseNum string) (Release, error) {
 		case "entrypoint":
 			newRelease.Type = TypeNightly
 		default:
-			return newRelease, fmt.Errorf("unknown release type %q", release)
+			return newRelease, fmt.Errorf("%w%q", errUnknownReleaseType, release)
 		}
 		if releaseNum != "" {
 			var err error
@@ -100,7 +113,7 @@ func matchVersionParts(version string, isStrict bool) (map[string]string, error)
 	re := createVersionRegexp(isStrict)
 	matches := util.FindNamedMatches(re, version)
 	if len(matches) == 0 {
-		return nil, fmt.Errorf("failed to parse version %q: format is not valid", version)
+		return nil, newInvalidVersionError(version)
 	}
 	return matches, nil
 }
@@ -158,14 +171,14 @@ func ParseTt(verStr string) (Version, error) {
 	verToParse := strings.Trim(verStr, "\n")
 	sepIndex := strings.LastIndex(verToParse, ".")
 	if sepIndex == -1 {
-		return Version{}, fmt.Errorf("failed to parse version %q: format is not valid", verStr)
+		return Version{}, newInvalidVersionError(verStr)
 	}
 
 	verStr = verToParse[:sepIndex]
 	numVersions := strings.Split(verStr, ".")
 	if len(numVersions) != semanticVersionParts {
-		return Version{}, fmt.Errorf("the version of %q does not match"+
-			" <major>.<minor>.<patch> format", verStr)
+		return Version{}, fmt.Errorf("%w%q does not match <major>.<minor>.<patch> format",
+			errVersionDoesNotMatchSemanticFormat, verStr)
 	}
 
 	var err error
@@ -190,7 +203,7 @@ func ParseTt(verStr string) (Version, error) {
 		return Version{}, err
 	}
 	if !isHashValid {
-		return Version{}, fmt.Errorf("hash %q has a wrong format", hashStr)
+		return Version{}, fmt.Errorf("%w%q has a wrong format", errHashHasAWrongFormat, hashStr)
 	}
 	ttVersion.Hash = hashStr
 	ttVersion.Str = verToParse

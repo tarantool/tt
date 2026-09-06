@@ -1,6 +1,13 @@
 package dial
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+var (
+	errUnknownTransportType = errors.New("unknown Transport type: ")
+)
 
 const (
 	transportDefault string = ""
@@ -31,7 +38,7 @@ func Parse(tr string) (Transport, error) {
 	case transportSsl:
 		return TransportSsl, nil
 	default:
-		return TransportDefault, fmt.Errorf("unknown Transport type: %s", tr)
+		return TransportDefault, fmt.Errorf("%w%s", errUnknownTransportType, tr)
 	}
 }
 

@@ -2,7 +2,6 @@ package replicaset_test
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,6 +11,10 @@ import (
 	"github.com/tarantool/tt/cli/running"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 	"github.com/tarantool/tt/lib/integrity"
+)
+
+var (
+	errSomeError = errors.New("some error")
 )
 
 // spell-checker:ignore somealias someinstanceuuid someleaderuuid somereplicasetuuid anyuri
@@ -413,7 +416,7 @@ func TestCConfigInstance_Discovery_errors(t *testing.T) {
 	}{
 		{
 			Name:     "error",
-			Evaler:   &instanceMockEvaler{Error: []error{errors.New("foo")}},
+			Evaler:   &instanceMockEvaler{Error: []error{errFoo}},
 			Expected: "foo",
 		},
 		{
@@ -456,7 +459,7 @@ func TestCConfigInstance_Discovery_errors(t *testing.T) {
 }
 
 func TestCConfigInstance_Promote_error(t *testing.T) {
-	err := fmt.Errorf("some error")
+	err := errSomeError
 	evaler := &instanceMockEvaler{
 		Error: []error{err},
 	}

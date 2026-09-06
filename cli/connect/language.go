@@ -1,6 +1,7 @@
 package connect
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -8,6 +9,11 @@ import (
 
 	"github.com/tarantool/tt/cli/connect/internal/luabody"
 	"github.com/tarantool/tt/cli/connector"
+)
+
+var (
+	errReturnsFalse       = errors.New(" returns false")
+	errUnexpectedResponse = errors.New("unexpected response: ")
 )
 
 const (
@@ -74,15 +80,15 @@ func ChangeLanguage(evaler connector.Evaler, lang Language) error {
 	}
 
 	if len(response) == 0 {
-		return fmt.Errorf("unexpected response: empty")
+		return fmt.Errorf("%wempty", errUnexpectedResponse)
 	} else if len(response) > 1 {
-		return fmt.Errorf("unexpected response: %v", response)
+		return fmt.Errorf("%w%v", errUnexpectedResponse, response)
 	}
 
 	var ret string
 	var ok bool
 	if ret, ok = response[0].(string); !ok {
-		return fmt.Errorf("unexpected response: %v", response)
+		return fmt.Errorf("%w%v", errUnexpectedResponse, response)
 	}
 
 	var decoded any
@@ -92,16 +98,16 @@ func ChangeLanguage(evaler connector.Evaler, lang Language) error {
 
 	var decodedArray []any
 	if decodedArray, ok = decoded.([]any); !ok || len(decodedArray) != 1 {
-		return fmt.Errorf("unexpected response: %s", ret)
+		return fmt.Errorf("%w%s", errUnexpectedResponse, ret)
 	}
 
 	var value bool
 	if value, ok = decodedArray[0].(bool); !ok {
-		return fmt.Errorf("unexpected response: %s", ret)
+		return fmt.Errorf("%w%s", errUnexpectedResponse, ret)
 	}
 
 	if !value {
-		return fmt.Errorf("%s returns false", languageCmd)
+		return fmt.Errorf("%s%w", languageCmd, errReturnsFalse)
 	}
 
 	return nil

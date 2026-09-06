@@ -12,6 +12,12 @@ import (
 	"time"
 )
 
+var (
+	errURLMustContainTheSchemeAndTheHostParts = errors.New(
+		"URL must contain the scheme and the host parts",
+	)
+)
+
 const (
 	TCPNetwork  = "tcp"
 	UnixNetwork = "unix"
@@ -303,7 +309,7 @@ func parseURL(str string) (*url.URL, error) {
 		return nil, err
 	}
 	if uri.Scheme == "" || uri.Host == "" {
-		return nil, errors.New("URL must contain the scheme and the host parts")
+		return nil, errURLMustContainTheSchemeAndTheHostParts
 	}
 	return uri, nil
 }

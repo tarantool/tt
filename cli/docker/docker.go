@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -16,6 +17,11 @@ import (
 	mobyclient "github.com/moby/moby/client"
 	"github.com/moby/moby/client/pkg/jsonmessage"
 	"github.com/moby/term"
+)
+
+var (
+	errContainerExitCodeIs       = errors.New("container exit code is ")
+	errTheOperationIsInterrupted = errors.New("the operation is interrupted")
 )
 
 // spell-checker:ignore jsonmessage stdcopy
@@ -94,8 +100,8 @@ func buildDockerImage(dockerClient *mobyclient.Client, imageTag, buildContextDir
 	termFd, isTerm := term.GetFdInfo(writer)
 	if err = jsonmessage.DisplayJSONMessagesStream(buildResult.Body,
 		writer, termFd, isTerm, nil); err != nil {
-		if ctx.Err() == context.Canceled {
-			return fmt.Errorf("the operation is interrupted")
+		if errors.Is(ctx.Err(), context.Canceled) {
+			return errTheOperationIsInterrupted
 		}
 		return err
 	}
@@ -192,17 +198,17 @@ func RunContainer(runOptions RunOptions, writer io.Writer) error {
 		mobyclient.ContainerWaitOptions{Condition: container.WaitConditionNotRunning})
 	select {
 	case err := <-waitResult.Error:
-		if ctx.Err() == context.Canceled {
+		if errors.Is(ctx.Err(), context.Canceled) {
 			if _, err = dockerClient.ContainerStop(context.Background(), containerID,
 				mobyclient.ContainerStopOptions{}); err != nil {
 				log.Warnf("Failed to stop the container %s", containerID[:12])
 			}
-			return fmt.Errorf("the operation is interrupted")
+			return errTheOperationIsInterrupted
 		}
 		return err
 	case st := <-waitResult.Result:
 		if st.StatusCode != 0 {
-			return fmt.Errorf("container exit code is %d", st.StatusCode)
+			return fmt.Errorf("%w%d", errContainerExitCodeIs, st.StatusCode)
 		}
 	}
 	return nil

@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/apex/log"
@@ -47,10 +46,9 @@ func internalStopWithConfirmationModule(cmdCtx *cmdcontext.CmdCtx, args []string
 		if len(args) == 0 {
 			instancesToConfirm = "all instances"
 		} else {
-			instancesToConfirm = fmt.Sprintf("'%s'", args[0])
+			instancesToConfirm = "'" + args[0] + "'"
 		}
-		confirmed, err := util.AskConfirm(os.Stdin, fmt.Sprintf("Confirm stop of %s",
-			instancesToConfirm))
+		confirmed, err := util.AskConfirm(os.Stdin, "Confirm stop of "+instancesToConfirm)
 		if err != nil {
 			return err
 		}

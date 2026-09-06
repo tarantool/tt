@@ -1,6 +1,7 @@
 package modules
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,6 +14,19 @@ import (
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/util"
 	"gopkg.in/yaml.v3"
+)
+
+var (
+	errHelpFieldIsMandatoryForModuleManifest = errors.New(
+		"help field is mandatory for module Manifest",
+	)
+	errModuleIsDisabledToOverride                      = errors.New("module ")
+	errSpecifiedPathInConfigurationFileIsNotADirectory = errors.New(
+		"specified path in configuration file is not a directory",
+	)
+	errVersionFieldIsMandatoryForModuleManifest = errors.New(
+		"version field is mandatory for module Manifest",
+	)
 )
 
 const (
@@ -76,10 +90,10 @@ func readManifest(dir, manifest string) (Manifest, error) {
 	}
 
 	if mf.Version == "" {
-		return mf, fmt.Errorf("version field is mandatory for module Manifest")
+		return mf, errVersionFieldIsMandatoryForModuleManifest
 	}
 	if mf.Help == "" {
-		return mf, fmt.Errorf("help field is mandatory for module Manifest")
+		return mf, errHelpFieldIsMandatoryForModuleManifest
 	}
 
 	return mf, nil
@@ -141,7 +155,7 @@ func collectDirectoriesList(paths []string) ([]string, error) {
 	for _, dir := range paths {
 		if info, err := os.Stat(dir); err == nil {
 			if !info.IsDir() {
-				return dirs, fmt.Errorf("specified path in configuration file is not a directory")
+				return dirs, errSpecifiedPathInConfigurationFileIsNotADirectory
 			}
 			dirs = append(dirs, dir)
 		}
@@ -238,7 +252,8 @@ func getExternalModules(paths []string) (possibleModules, error) {
 			}
 
 			if slices.Contains(disabledOverride, d) {
-				return modules, fmt.Errorf("module %q is disabled to override", d)
+				return modules, fmt.Errorf("%w%q is disabled to override",
+					errModuleIsDisabledToOverride, d)
 			}
 
 			if modEntry, isModule := isPossibleModule(modPath); isModule {

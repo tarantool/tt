@@ -3,6 +3,7 @@ package util
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -16,6 +17,10 @@ import (
 
 	"github.com/apex/log"
 	"github.com/briandowns/spinner"
+)
+
+var (
+	errHookShouldBeExecutable = errors.New("hook `")
 )
 
 type emptyStruct struct{}
@@ -62,7 +67,7 @@ func StartCommandSpinner(readyChannel readyChan, wg *sync.WaitGroup, prefix stri
 
 	spinner := spinner.New(spinnerPicture, spinnerUpdateTime)
 	if prefix != "" {
-		spinner.Prefix = fmt.Sprintf("%s ", strings.TrimSpace(prefix))
+		spinner.Prefix = strings.TrimSpace(prefix) + " "
 	}
 
 	spinner.Start()
@@ -131,7 +136,7 @@ func RunHook(hookPath string, showOutput bool) error {
 	if isExec, err := IsExecOwner(hookPath); err != nil {
 		return fmt.Errorf("failed go check hook file `%s`: %w", hookName, err)
 	} else if !isExec {
-		return fmt.Errorf("hook `%s` should be executable", hookName)
+		return fmt.Errorf("%w%s` should be executable", errHookShouldBeExecutable, hookName)
 	}
 
 	hookCmd := exec.CommandContext(context.Background(), hookPath)

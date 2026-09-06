@@ -1,6 +1,15 @@
 package replicaset
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+var (
+	errExpelIsNotSupported = errors.New(
+		"expel is not supported for ",
+	)
+)
 
 // ExpelCtx describes a context for an instance expelling.
 type ExpelCtx struct {
@@ -23,13 +32,13 @@ type Expeller interface {
 // newErrExpelByInstanceNotSupported creates a new error that expel is not
 // supported by the orchestrator for a single instance.
 func newErrExpelByInstanceNotSupported(orchestrator Orchestrator) error {
-	return fmt.Errorf("expel is not supported for a single instance by %q orchestrator",
-		orchestrator)
+	return fmt.Errorf("%wa single instance by %q orchestrator",
+		errExpelIsNotSupported, orchestrator)
 }
 
 // newErrExpelByAppNotSupported creates a new error that expel by URI is not
 // supported by the orchestrator for an application.
 func newErrExpelByAppNotSupported(orchestrator Orchestrator) error {
-	return fmt.Errorf("expel is not supported for an application by %q orchestrator",
-		orchestrator)
+	return fmt.Errorf("%wan application by %q orchestrator",
+		errExpelIsNotSupported, orchestrator)
 }

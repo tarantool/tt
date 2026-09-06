@@ -1,6 +1,7 @@
 package search
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -12,6 +13,11 @@ import (
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
+)
+
+var (
+	errLocalSDKFileSearchNotSupportedFor = errors.New("local SDK file search not supported for ")
+	errLocalSearchNotSupportedForProgram = errors.New("local search not supported for program '")
 )
 
 // searchVersionsLocalGit handles searching versions from a local Git repository clone.
@@ -100,7 +106,7 @@ func FindLocalBundles(program Program, fsys fs.FS) (BundleInfoSlice, error) {
 	case ProgramTcm:
 		prefix = "tcm-"
 	default:
-		return nil, fmt.Errorf("local SDK file search not supported for %q", program)
+		return nil, fmt.Errorf("%w%q", errLocalSDKFileSearchNotSupportedFor, program)
 	}
 
 	for _, v := range localFiles {
@@ -155,7 +161,7 @@ func SearchVersionsLocal(searchCtx SearchCtx, cliOpts *config.CliOpts, cfgPath s
 	case ProgramEe, ProgramTcm:
 		vers, err = searchVersionsLocalSDK(prg, localDir)
 	default:
-		return fmt.Errorf("local search not supported for program '%s'", prg)
+		return fmt.Errorf("%w%s'", errLocalSearchNotSupportedForProgram, prg)
 	}
 
 	if err != nil {

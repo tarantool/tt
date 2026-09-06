@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -26,6 +27,16 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+)
+
+var (
+	errAConfigurationDataNotFoundInForPrefix = errors.New(
+		"a configuration data not found in ",
+	)
+	errFailedToConnectToTarantoolAtLeastOneEndpointIsRequired = errors.New(
+		"failed to connect to tarantool: at least one endpoint is required",
+	)
+	errTargetRevisionIsNotSupported = errors.New("target revision ")
 )
 
 // WatchEvent is delivered on Watch channels when a watched key changes.
@@ -135,8 +146,8 @@ func (r *RawStorage) Collect() ([]Data, error) {
 		return nil, fmt.Errorf("failed to fetch data from %s: %w", r.storageType, err)
 	}
 	if len(kvs) == 0 {
-		return nil, fmt.Errorf("a configuration data not found in %s for prefix %q",
-			r.storageType, r.prefix)
+		return nil, fmt.Errorf("%w%s for prefix %q",
+			errAConfigurationDataNotFoundInForPrefix, r.storageType, r.prefix)
 	}
 
 	data := make([]Data, 0, len(kvs))
@@ -171,8 +182,8 @@ func (r *RawStorage) Publish(revision int64, data []byte) error {
 	}
 
 	if revision != 0 {
-		return fmt.Errorf("failed to publish data into %s: target revision %d is not supported",
-			r.storageType, revision)
+		return fmt.Errorf("failed to publish data into %s: %w%d is not supported",
+			r.storageType, errTargetRevisionIsNotSupported, revision)
 	}
 	if err := r.storage.Delete(ctx, "/", integrity.WithPrefix()); err != nil {
 		return fmt.Errorf("failed to clean data from %s: %w", r.storageType, err)
@@ -361,7 +372,7 @@ func makeEtcdTLSConfig(sslCfg gsconnect.SSLConfig) (*tls.Config, error) {
 // using the provided configuration for address, credentials and TLS.
 func connectTarantoolConnector(cfg gsconnect.Config) (tarantool.Connector, error) {
 	if len(cfg.Endpoints) == 0 {
-		return nil, fmt.Errorf("failed to connect to tarantool: at least one endpoint is required")
+		return nil, errFailedToConnectToTarantoolAtLeastOneEndpointIsRequired
 	}
 
 	dialOpts := dial.Opts{
@@ -449,7 +460,7 @@ func getTarantoolCfg(connOpts ConnectOpts, uriOpts libconnect.URIOpts) gsconnect
 		}
 	}
 
-	addr := fmt.Sprintf("tcp://%s", uriOpts.Host)
+	addr := "tcp://" + uriOpts.Host
 
 	return gsconnect.Config{
 		Endpoints:   []string{addr},

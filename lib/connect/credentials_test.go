@@ -1,11 +1,17 @@
 package connect
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+)
+
+var (
+	errMissingCredentialsFile = errors.New(
+		"open ./testdata/nonexisting: no such file or directory",
+	)
 )
 
 type getCredsFromFileInputValue struct {
@@ -26,7 +32,7 @@ func TestGetCredsFromFile(t *testing.T) {
 		path: "./testdata/nonexisting",
 	}] = getCredsFromFileOutputValue{
 		result: UserCredentials{},
-		err:    fmt.Errorf("open ./testdata/nonexisting: no such file or directory"),
+		err:    errMissingCredentialsFile,
 	}
 
 	file, err := os.CreateTemp("/tmp", "tt-unittest-*.bat")
@@ -49,7 +55,7 @@ func TestGetCredsFromFile(t *testing.T) {
 
 	testCases[getCredsFromFileInputValue{path: file.Name()}] = getCredsFromFileOutputValue{
 		result: UserCredentials{},
-		err:    fmt.Errorf("login not set"),
+		err:    errLoginNotSet,
 	}
 
 	file, err = os.CreateTemp("/tmp", "tt-unittest-*.bat")
@@ -59,7 +65,7 @@ func TestGetCredsFromFile(t *testing.T) {
 
 	testCases[getCredsFromFileInputValue{path: file.Name()}] = getCredsFromFileOutputValue{
 		result: UserCredentials{},
-		err:    fmt.Errorf("password not set"),
+		err:    errPasswordNotSet,
 	}
 
 	for input, output := range testCases {

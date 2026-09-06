@@ -1,9 +1,14 @@
 package console
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/tarantool/tt/cli/formatter"
+)
+
+var (
+	errUnsupportedFormatType = errors.New("can't format type=")
 )
 
 // Format aggregate formatter options.
@@ -38,7 +43,7 @@ func (f Format) Sprint(data any) (string, error) {
 		return s, nil
 	} else if eo, ok := data.(error); ok {
 		// Then checking is it has `Error` method.
-		return fmt.Sprintf("Error: %s", eo.Error()), nil
+		return "Error: " + eo.Error(), nil
 	}
-	return "", fmt.Errorf("can't format type=%T", data)
+	return "", fmt.Errorf("%w%T", errUnsupportedFormatType, data)
 }

@@ -2,6 +2,7 @@ package install_ee
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +12,13 @@ import (
 
 	"github.com/tarantool/tt/cli/search"
 	"github.com/tarantool/tt/cli/util"
+)
+
+var (
+	errDestinationDirectoryMissing    = errors.New("destination directory doesn't exist: ")
+	errDestinationPathIsNotADirectory = errors.New("destination path is not a directory: ")
+	errHTTPRequestError               = errors.New("HTTP request error: ")
+	errTarantoolIODoerMissing         = errors.New("no tarantool.io doer was applied")
 )
 
 // httpDoer is a struct that implements the search.TntIoDoer interface using the http package.
@@ -44,7 +52,7 @@ func (d *httpDoer) Do(req *http.Request) ([]byte, error) {
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP request error: %s", http.StatusText(res.StatusCode))
+		return nil, fmt.Errorf("%w%s", errHTTPRequestError, http.StatusText(res.StatusCode))
 	}
 
 	respBody, err := io.ReadAll(res.Body)
@@ -62,11 +70,11 @@ func (d *httpDoer) Token() string {
 // validateDestination checks if the destination path exists and is a directory.
 func validateDestination(dst string) error {
 	if _, err := os.Stat(dst); os.IsNotExist(err) {
-		return fmt.Errorf("destination directory doesn't exist: %s", dst)
+		return fmt.Errorf("%w%s", errDestinationDirectoryMissing, dst)
 	}
 
 	if !util.IsDir(dst) {
-		return fmt.Errorf("destination path is not a directory: %s", dst)
+		return fmt.Errorf("%w%s", errDestinationPathIsNotADirectory, dst)
 	}
 
 	return nil
@@ -124,7 +132,7 @@ func saveResponseBodyToFile(body []byte, destFilePath string) (errRet error) {
 // It handles potential redirects and uses the provided token for authentication via cookies.
 func DownloadBundle(doer search.TntIoDoer, bundleName, bundleSource, dst string) error {
 	if doer == nil || reflect.ValueOf(doer).IsNil() {
-		return fmt.Errorf("no tarantool.io doer was applied")
+		return errTarantoolIODoerMissing
 	}
 
 	if err := validateDestination(dst); err != nil {

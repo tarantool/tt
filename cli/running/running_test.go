@@ -351,7 +351,7 @@ echo "Tarantool 3.0.0"`),
 		[]byte(`#!/bin/bash
 echo "Tarantool 3.0.0"`), 0o644)
 	require.NoError(t, err)
-	canStart, reason := IsAbleToStartInstances([]InstanceCtx{
+	canStart, err = IsAbleToStartInstances([]InstanceCtx{
 		{
 			InstanceScript: "init.lua",
 		},
@@ -363,7 +363,7 @@ echo "Tarantool 3.0.0"`), 0o644)
 		},
 	})
 	assert.False(t, canStart)
-	assert.Contains(t, reason, "permission denied")
+	assert.ErrorContains(t, err, "permission denied")
 }
 
 func TestCollectInstancesForFileApp(t *testing.T) {

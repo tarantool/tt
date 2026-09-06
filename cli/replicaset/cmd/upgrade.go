@@ -13,6 +13,17 @@ import (
 	"github.com/tarantool/tt/cli/running"
 )
 
+var (
+	errAndAreBothMasters           = errors.New(" are both masters")
+	errCannotDetermineInstanceMode = errors.New(
+		"can't determine RO/RW mode on instance",
+	)
+	errCurrentLSNIsBehindRequiredMasterLSN  = errors.New("current LSN ")
+	errEmptyResultFromLSNQuery              = errors.New("empty result from LSN query")
+	errReplicasetNotFound                   = errors.New("replicaset with alias ")
+	errSnapshotCommandReturnedInvalidResult = errors.New("snapshot command on ")
+)
+
 // UpgradeOpts contains options used for the upgrade process.
 type UpgradeOpts struct {
 	// List of replicaset names specified by the user for the upgrade.
@@ -55,7 +66,7 @@ func filterReplicasetsByAliases(replicasets replicaset.Replicasets,
 	for _, alias := range chosenReplicasetAliases {
 		rs, exists := replicasetMap[alias]
 		if !exists {
-			return nil, fmt.Errorf("replicaset with alias %q doesn't exist", alias)
+			return nil, fmt.Errorf("%w%q doesn't exist", errReplicasetNotFound, alias)
 		}
 		chosenReplicasets = append(chosenReplicasets, rs)
 	}
@@ -162,16 +173,16 @@ func collectRwRoInfo(rs replicaset.Replicaset,
 				[]any{}, connector.RequestOpts{})
 			if err != nil || len(res) == 0 {
 				return nil, nil, fmt.Errorf(
-					"can't determine RO/RW mode on instance: %s",
-					fullInstanceName)
+					"%w: %s",
+					errCannotDetermineInstanceMode, fullInstanceName)
 			}
 			isReadOnly, ok := res[0].(bool)
 			if !ok {
 				conn.Close()
 				closeConnectors(master, replicas)
 				return nil, nil, fmt.Errorf(
-					"can't determine RO/RW mode on instance %s: expected bool, got %T",
-					fullInstanceName, res[0])
+					"%w %s: expected bool, got %T",
+					errCannotDetermineInstanceMode, fullInstanceName, res[0])
 			}
 			isRW = !isReadOnly
 		} else {
@@ -181,8 +192,8 @@ func collectRwRoInfo(rs replicaset.Replicaset,
 		switch {
 		case isRW && master != nil:
 			closeConnectors(master, replicas)
-			return nil, nil, fmt.Errorf("%s and %s are both masters",
-				running.GetAppInstanceName(master.run), fullInstanceName)
+			return nil, nil, fmt.Errorf("%s and %s%w",
+				running.GetAppInstanceName(master.run), fullInstanceName, errAndAreBothMasters)
 		case isRW:
 			master = &instanceMeta{run, conn}
 		default:
@@ -203,7 +214,7 @@ func waitLSN(conn connector.Connector, masterIID uint32, masterLSN uint64, lsnTi
 		case err != nil:
 			lastError = fmt.Errorf("failed to evaluate LSN query: %w", err)
 		case len(res) == 0:
-			lastError = errors.New("empty result from LSN query")
+			lastError = errEmptyResultFromLSNQuery
 		default:
 			var lsn uint64
 			if err := mapstructure.Decode(res[0], &lsn); err != nil {
@@ -211,8 +222,8 @@ func waitLSN(conn connector.Connector, masterIID uint32, masterLSN uint64, lsnTi
 			} else if lsn >= masterLSN {
 				return nil
 			} else {
-				lastError = fmt.Errorf("current LSN %d is behind required "+
-					"master LSN %d", lsn, masterLSN)
+				lastError = fmt.Errorf("%w%d is behind required master LSN %d",
+					errCurrentLSNIsBehindRequiredMasterLSN, lsn, masterLSN)
 			}
 		}
 
@@ -257,13 +268,15 @@ func snapshot(instance *instanceMeta) error {
 		return fmt.Errorf("failed to execute snapshot on replica: %w", err)
 	}
 	if len(res) == 0 {
-		return fmt.Errorf("snapshot command on %s returned an empty result, "+
-			"'ok' expected", running.GetAppInstanceName(instance.run))
+		return fmt.Errorf("%w%s returned an empty result, 'ok' expected",
+			errSnapshotCommandReturnedInvalidResult,
+			running.GetAppInstanceName(instance.run))
 	}
 
 	if result, ok := res[0].(string); !ok || result != "ok" {
-		return fmt.Errorf("snapshot command on %s returned unexpected result: '%v', "+
-			"'ok' expected", running.GetAppInstanceName(instance.run), res[0])
+		return fmt.Errorf("%w%s returned unexpected result: '%v', 'ok' expected",
+			errSnapshotCommandReturnedInvalidResult,
+			running.GetAppInstanceName(instance.run), res[0])
 	}
 	return nil
 }

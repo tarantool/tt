@@ -1,6 +1,7 @@
 package steps
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -14,6 +15,10 @@ import (
 	create_ctx "github.com/tarantool/tt/cli/create/context"
 	"github.com/tarantool/tt/cli/create/internal/app_template"
 	"github.com/tarantool/tt/cli/util"
+)
+
+var (
+	errTemplateIsNotFound = errors.New("template '")
 )
 
 // CopyAppTemplate represents template -> app directory copy step.
@@ -105,5 +110,5 @@ func (CopyAppTemplate) Run(createCtx *create_ctx.CreateCtx,
 		}
 	}
 
-	return fmt.Errorf("template '%s' is not found", templateName)
+	return fmt.Errorf("%w%s' is not found", errTemplateIsNotFound, templateName)
 }

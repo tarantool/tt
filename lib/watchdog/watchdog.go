@@ -15,6 +15,10 @@ import (
 	"github.com/tarantool/tt/cli/process_utils"
 )
 
+var (
+	errProcessIsNotRunning = errors.New("process is not running")
+)
+
 // Watchdog manages a child process, ensuring reliable startup, automatic restarts on failure,
 // and graceful shutdown. It handles system signals, maintains PID file consistency,
 // and provides thread-safe operations for concurrent process management.
@@ -232,7 +236,7 @@ func (wd *Watchdog) writePIDFiles() error {
 	defer wd.pidFileMutex.Unlock()
 
 	if wd.cmd == nil || wd.cmd.Process == nil {
-		return errors.New("process is not running")
+		return errProcessIsNotRunning
 	}
 
 	if err := process_utils.CreatePIDFile(wd.pidFile, wd.cmd.Process.Pid); err != nil {

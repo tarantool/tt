@@ -13,6 +13,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var (
+	errReplyForDescriptionIsMandatoryForModule = errors.New(
+		"reply for --description is mandatory for module",
+	)
+	errReplyForVersionIsMandatoryForModule = errors.New(
+		"reply for --version is mandatory for module",
+	)
+)
+
 // InternalFunc is a type of function that implements
 // the external behavior of the module.
 type InternalFunc func(*cmdcontext.CmdCtx, []string) error
@@ -104,10 +113,10 @@ func fillManifest(mf Manifest) (Manifest, error) {
 	}
 
 	if info.Version == "" {
-		return mf, fmt.Errorf("reply for --version is mandatory for module")
+		return mf, errReplyForVersionIsMandatoryForModule
 	}
 	if info.Help == "" {
-		return mf, fmt.Errorf("reply for --description is mandatory for module")
+		return mf, errReplyForDescriptionIsMandatoryForModule
 	}
 
 	mf.Version = info.Version

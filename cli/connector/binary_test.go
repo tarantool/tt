@@ -1,7 +1,6 @@
 package connector_test
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -42,7 +41,7 @@ func TestBinaryConnector_Close(t *testing.T) {
 
 func TestBinaryConnector_Close_error(t *testing.T) {
 	const errMsg = "any error"
-	stub := &binaryConnectorStub{err: errors.New(errMsg)}
+	stub := &binaryConnectorStub{err: errAnyError}
 	conn := NewBinaryConnector(stub)
 
 	assert.EqualError(t, conn.Close(), errMsg)

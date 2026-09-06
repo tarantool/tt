@@ -75,7 +75,7 @@ func Rebootstrap(cmdCtx cmdcontext.CmdCtx, cliOpts config.CliOpts, rbCtx Reboots
 	}
 
 	if !found {
-		return fmt.Errorf("instance %q is not found", rbCtx.InstanceName)
+		return fmt.Errorf("%w%q is not found", errInstanceNotFound, rbCtx.InstanceName)
 	}
 
 	if !rbCtx.Confirmed {

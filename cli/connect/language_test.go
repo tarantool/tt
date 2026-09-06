@@ -13,6 +13,10 @@ import (
 	"github.com/tarantool/tt/cli/connector"
 )
 
+var (
+	errAnyError = errors.New("any error")
+)
+
 func TestLanguage_ParseLanguage(t *testing.T) {
 	cases := []struct {
 		str      string
@@ -81,7 +85,7 @@ func (evaler *inputEvaler) Eval(fun string,
 	evaler.args = args
 	evaler.opts = opts
 
-	return nil, errors.New("any error")
+	return nil, errAnyError
 }
 
 func TestChangeLanguage_requestInputs(t *testing.T) {
@@ -135,7 +139,7 @@ func TestChangeLanguage_requestOutputsInvalid(t *testing.T) {
 		expected string
 	}{
 		{nil, nil, "unexpected response: empty"},
-		{nil, errors.New("any error"), "any error"},
+		{nil, errAnyError, "any error"},
 		{[]any{true}, nil, "unexpected response: [true]"},
 		{[]any{",,,"}, nil, "unable to decode response: yaml:" +
 			" did not find expected node content"},

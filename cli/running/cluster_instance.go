@@ -2,6 +2,7 @@ package running
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +11,10 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/lib/integrity"
+)
+
+var (
+	errApplicationIsNotADirectory = errors.New("application ")
 )
 
 // clusterInstance describes tarantool 3 instance running using cluster config.
@@ -80,7 +85,7 @@ func (inst *clusterInstance) Start(ctx context.Context) error {
 		cmd.Env = append(cmd.Env, "TT_CONSOLE_SOCKET_DEFAULT="+consoleSocket)
 		cmd.Env = append(cmd.Env, "TT_IPROTO_LISTEN_DEFAULT="+"[{\"uri\":\""+inst.binaryPort+"\"}]")
 	} else {
-		return fmt.Errorf("application %q is not a directory", inst.appDir)
+		return fmt.Errorf("%w%q is not a directory", errApplicationIsNotADirectory, inst.appDir)
 	}
 
 	var err error

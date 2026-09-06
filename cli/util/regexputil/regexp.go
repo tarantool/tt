@@ -1,11 +1,16 @@
 package regexputil
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"regexp"
 	"slices"
 	"strings"
+)
+
+var (
+	errMissingVarsInTemplateString = errors.New("missing vars: ")
 )
 
 var varPattern = regexp.MustCompile(`{{\s*([^ ]+)\s*}}`)
@@ -25,7 +30,8 @@ func ApplyVars(templateStr string, data map[string]string) (string, error) {
 	})
 
 	if len(missingVars) > 0 {
-		return renderedStr, fmt.Errorf("missing vars: %s\nin template string: %q",
+		return renderedStr, fmt.Errorf("%w%s\nin template string: %q",
+			errMissingVarsInTemplateString,
 			strings.Join(slices.Collect(maps.Keys(missingVars)), ","), templateStr)
 	}
 

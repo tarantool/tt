@@ -13,6 +13,10 @@ import (
 	libconnect "github.com/tarantool/tt/lib/connect"
 )
 
+var (
+	errInstanceNotFound = errors.New("instance ")
+)
+
 // printGoConfig prints a goconfig.Config to stdout as YAML.
 func printGoConfig(cfg goconfig.Config) error {
 	b, err := cfg.MarshalYAML()
@@ -56,7 +60,7 @@ func printInstanceConfig(goView goconfig.Config,
 ) error {
 	instView, err := cluster.InstanceConfig(goView, instance)
 	if err != nil {
-		return fmt.Errorf("instance %q not found", instance)
+		return fmt.Errorf("%w%q not found", errInstanceNotFound, instance)
 	}
 
 	var validateErr error

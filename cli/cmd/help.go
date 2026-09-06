@@ -40,15 +40,18 @@ func configureHelpCommand(rootCmd *cobra.Command, modulesInfo *modules.ModulesIn
 // getExternalCommandsString returns a pretty string
 // of descriptions for external modules.
 func getExternalCommandsString(modulesInfo *modules.ModulesInfo) string {
-	str := ""
+	var output strings.Builder
 	for _, path := range sortExternalModules() {
 		mf := (*modulesInfo)[path]
-		str += fmt.Sprintf("  %s\t%s\n", mf.Name, mf.Help)
+		output.WriteString("  ")
+		output.WriteString(mf.Name)
+		output.WriteByte('\t')
+		output.WriteString(mf.Help)
+		output.WriteByte('\n')
 	}
 
-	if str != "" {
-		str = util.Bold("\nEXTERNAL COMMANDS\n") + str
-		return strings.Trim(str, "\n")
+	if output.Len() != 0 {
+		return strings.Trim(util.Bold("\nEXTERNAL COMMANDS\n")+output.String(), "\n")
 	}
 
 	return ""

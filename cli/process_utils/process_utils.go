@@ -1,6 +1,7 @@
 package process_utils
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +12,13 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+)
+
+var (
+	errProcessTermination         = errors.New("can't terminate the process")
+	errProcessSIGQUIT             = errors.New("can't terminate the process with SIGQUIT")
+	errTheProcessAlreadyExistsPID = errors.New("the process already exists. PID: ")
+	errTheProcessIsNotRunning     = errors.New("the process ")
 )
 
 // Create a new directory.
@@ -106,7 +114,7 @@ func CheckPIDFile(pidFileName string) error {
 			return fmt.Errorf(`pID file exists, but PID can't be read. Error: "%w"`, err)
 		}
 		if res, _ := IsProcessAlive(pid); res {
-			return fmt.Errorf("the process already exists. PID: %d", pid)
+			return fmt.Errorf("%w%d", errTheProcessAlreadyExistsPID, pid)
 		} else {
 			os.Remove(pidFileName)
 		}
@@ -133,7 +141,7 @@ func ExistsAndRecord(pidFileName string) (bool, error) {
 		}
 	} else if !os.IsNotExist(err) {
 		return false, fmt.Errorf(`something went wrong while trying to read the`+
-			`PID file. Error: "%v"`, err)
+			`PID file. Error: "%w"`, err)
 	}
 
 	return false, nil
@@ -187,7 +195,7 @@ func getRunningPid(pidFile string) (int, error) {
 	if alive, err := IsProcessAlive(pid); err != nil {
 		return 0, fmt.Errorf("failed to check if the process %v is running: %w", pid, err)
 	} else if !alive {
-		return 0, fmt.Errorf("the process %v is not running", pid)
+		return 0, fmt.Errorf("%w%v is not running", errTheProcessIsNotRunning, pid)
 	}
 
 	return pid, nil
@@ -205,7 +213,7 @@ func StopProcess(pidFile string) (int, error) {
 	}
 
 	if res := waitProcessTermination(pid, processTerminationTimeout, processPollInterval); !res {
-		return 0, fmt.Errorf("can't terminate the process")
+		return 0, errProcessTermination
 	}
 
 	return pid, nil
@@ -223,7 +231,7 @@ func QuitProcess(pidFile string) (int, error) {
 	}
 
 	if res := waitProcessTermination(pid, processTerminationTimeout, processPollInterval); !res {
-		return 0, fmt.Errorf("can't terminate the process with SIGQUIT")
+		return 0, errProcessSIGQUIT
 	}
 
 	return pid, nil

@@ -2,12 +2,22 @@ package connect
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"syscall"
 
 	"golang.org/x/term"
+)
+
+var (
+	errLoginNotSet                                  = errors.New("login not set")
+	errNoCredentialsInEnvironmentVariablesWereFound = errors.New(
+		"no credentials in environment variables were found",
+	)
+	errPasswordNotSet           = errors.New("password not set")
+	errPermissionsForAreTooOpen = errors.New("permissions ")
 )
 
 const forbiddenCredentialPermissions = 0o077
@@ -63,8 +73,8 @@ func getCredsFromFile(path string) (UserCredentials, error) {
 
 	// Check file permissions. Error if `group` or `other` bits are set.
 	if info.Mode().Perm()&os.FileMode(forbiddenCredentialPermissions) != 0 {
-		return res, fmt.Errorf("permissions %q for %q are too open.\n\t%s\n\t%s %s'",
-			info.Mode(),
+		return res, fmt.Errorf("%w%q for %q are too open.\n\t%s\n\t%s %s'",
+			errPermissionsForAreTooOpen, info.Mode(),
 			path,
 			"It is required that the credential file is NOT accessible by others.",
 			"Can be fixed by running: 'chmod 0600",
@@ -83,10 +93,10 @@ func getCredsFromFile(path string) (UserCredentials, error) {
 	}
 
 	if len(res.Username) == 0 {
-		return res, fmt.Errorf("login not set")
+		return res, errLoginNotSet
 	}
 	if len(res.Password) == 0 {
-		return res, fmt.Errorf("password not set")
+		return res, errPasswordNotSet
 	}
 
 	return res, nil
@@ -98,7 +108,7 @@ func getCredsFromEnvVars() (UserCredentials, error) {
 	res.Username = os.Getenv(EnvSdkUsername)
 	res.Password = os.Getenv(EnvSdkPassword)
 	if res.Username == "" || res.Password == "" {
-		return res, fmt.Errorf("no credentials in environment variables were found")
+		return res, errNoCredentialsInEnvironmentVariablesWereFound
 	}
 	return res, nil
 }

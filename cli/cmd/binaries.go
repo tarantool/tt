@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 
@@ -8,6 +9,10 @@ import (
 	"github.com/tarantool/tt/cli/binary"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/search"
+)
+
+var (
+	errNotSupportedProgram = errors.New("not supported program: ")
 )
 
 var binariesSupportedPrograms = []string{
@@ -64,7 +69,7 @@ You will need to choose version using arrow keys in your console.
 func binariesSwitchValidateArgs(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		if !slices.Contains(binariesSupportedPrograms, args[0]) {
-			return fmt.Errorf("not supported program: %s", args[0])
+			return fmt.Errorf("%w%s", errNotSupportedProgram, args[0])
 		}
 	}
 	return nil

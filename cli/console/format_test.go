@@ -8,6 +8,11 @@ import (
 	"github.com/tarantool/tt/cli/console"
 )
 
+var (
+	errFormatterErrorMessage = errors.New("formatter error message")
+	errJustErrorMessage      = errors.New("just error message")
+)
+
 type formatterImpl struct {
 	data string
 }
@@ -16,7 +21,7 @@ func (f formatterImpl) Format(_ console.Format) (string, error) {
 	if len(f.data) > 0 {
 		return f.data, nil
 	}
-	return "", errors.New("formatter error message")
+	return "", errFormatterErrorMessage
 }
 
 type stringerImpl int
@@ -54,7 +59,7 @@ func TestFormat_Print(t *testing.T) {
 		},
 		{
 			"error",
-			errors.New("just error message"),
+			errJustErrorMessage,
 			"Error: just error message",
 			false,
 		},

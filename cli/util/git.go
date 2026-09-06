@@ -3,7 +3,7 @@ package util
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"errors"
 	"os"
 	"os/exec"
 	"regexp"
@@ -13,6 +13,12 @@ import (
 	"github.com/hashicorp/go-version"
 )
 
+var (
+	errEmptyPathIsPassed  = errors.New("empty path is passed")
+	errNoGitVersionFound  = errors.New("no git version found")
+	errCommitHashTooShort = errors.New("the hash must contain at least 7 characters")
+)
+
 // MinCommitHashLength is the Git default for a short SHA.
 const MinCommitHashLength = 7
 
@@ -20,7 +26,7 @@ const MinCommitHashLength = 7
 // it is a git repo, parses and returns a normalized string.
 func CheckVersionFromGit(basePath string) (string, error) {
 	if basePath == "" {
-		return "", fmt.Errorf("empty path is passed")
+		return "", errEmptyPathIsPassed
 	}
 	startPath, _ := os.Getwd()
 	defer func() {
@@ -36,7 +42,7 @@ func CheckVersionFromGit(basePath string) (string, error) {
 	cmd.Stdout = &out
 	err = cmd.Run()
 	if err != nil {
-		return "", fmt.Errorf("no git version found")
+		return "", errNoGitVersionFound
 	}
 
 	version := strings.TrimSpace(out.String())
@@ -75,7 +81,7 @@ func IsGitFetchJobsSupported() bool {
 // IsValidCommitHash checks hash format.
 func IsValidCommitHash(hash string) (bool, error) {
 	if len(hash) < MinCommitHashLength {
-		return false, fmt.Errorf("the hash must contain at least 7 characters")
+		return false, errCommitHashTooShort
 	}
 	return regexp.MatchString(`^[0-9a-f]+$`, hash)
 }

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -8,6 +9,10 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/status"
+)
+
+var (
+	errInvalidFormatValidFormatsAreJSONYAMLTablePrettyTable = errors.New("invalid format: ")
 )
 
 // statusOpts contains options for tt status.
@@ -84,8 +89,8 @@ func internalStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		"pretty-table": true,
 	}
 	if !validFormats[opts.format] {
-		return fmt.Errorf("invalid format: %s. Valid formats are: json, yaml, table, pretty-table",
-			opts.format)
+		return fmt.Errorf("%w%s. Valid formats are: json, yaml, table, pretty-table",
+			errInvalidFormatValidFormatsAreJSONYAMLTablePrettyTable, opts.format)
 	}
 
 	var runningCtx running.RunningCtx

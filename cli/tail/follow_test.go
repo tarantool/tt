@@ -2,12 +2,18 @@ package tail_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/tarantool/tt/cli/tail"
+)
+
+var (
+	errLineMismatchGotWant   = errors.New("line ")
+	errTimeoutWaitingForData = errors.New("timeout waiting for data")
 )
 
 const (
@@ -28,7 +34,7 @@ func readWithTimeout(t *testing.T, ch <-chan string, timeout time.Duration) (str
 	case s := <-ch:
 		return s, nil
 	case <-timer.C:
-		return "", fmt.Errorf("timeout waiting for data")
+		return "", errTimeoutWaitingForData
 	}
 }
 
@@ -70,7 +76,8 @@ func checksLinesInFile(t *testing.T, ch <-chan string, expFmt string) error {
 
 		expected := fmt.Sprintf(expFmt, n)
 		if line != expected {
-			return fmt.Errorf("line %d mismatch: got %q, want %q", n, line, expected)
+			return fmt.Errorf("%w%d mismatch: got %q, want %q",
+				errLineMismatchGotWant, n, line, expected)
 		}
 	}
 
