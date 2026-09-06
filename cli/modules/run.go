@@ -1,6 +1,7 @@
 package modules
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -56,7 +57,7 @@ func GetDefaultCmdArgs(cmdName string) []string {
 // RunExec exec command with the supplied arguments.
 // returns an error code from exec command.
 func RunExec(command string, args []string) int {
-	cmd := exec.Command(command, args...)
+	cmd := exec.CommandContext(context.Background(), command, args...)
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -77,14 +78,15 @@ func RunExec(command string, args []string) int {
 // GetExternalModuleHelp calls external module with
 // the --help flag and returns an output.
 func GetExternalModuleHelp(module string) (string, error) {
-	out, err := exec.Command(module, "--help").Output()
+	out, err := exec.CommandContext(context.Background(), module, "--help").Output()
 	return string(out), err
 }
 
 // fillManifest update Manifest required fields, by calls external module `main`
 // with both `description` and `version` flags and parse reply.
 func fillManifest(mf Manifest) (Manifest, error) {
-	out, err := exec.Command(mf.Main, "--description", "--version").Output()
+	out, err := exec.CommandContext(
+		context.Background(), mf.Main, "--description", "--version").Output()
 	if err != nil {
 		return mf, fmt.Errorf("failed to get module info: %w", err)
 	}

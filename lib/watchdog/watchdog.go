@@ -96,7 +96,7 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 
 		// Start the managed process.
 		wd.cmdMutex.Lock()
-		wd.cmd = exec.Command(bin, args...)
+		wd.cmd = exec.CommandContext(context.Background(), bin, args...)
 		// Create new process group for proper signal handling.
 		wd.cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 

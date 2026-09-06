@@ -43,7 +43,6 @@ linters:
     - mnd
     - modernize
     - nlreturn
-    - noctx
     - noinlineerr
     - paralleltest
     - perfsprint

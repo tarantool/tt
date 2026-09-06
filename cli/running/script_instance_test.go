@@ -91,7 +91,7 @@ func TestInstanceBase(t *testing.T) {
 		binaryPort, logger)
 	t.Cleanup(func() { cleanupTestInstance(t, inst) })
 
-	conn, err := net.Dial("unix", consoleSock)
+	conn, err := (&net.Dialer{}).DialContext(t.Context(), "unix", consoleSock)
 	assert.Nilf(err, `Can't connect to console socket. Error: "%v".`, err)
 	conn.Close()
 }

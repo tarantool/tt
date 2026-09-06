@@ -236,7 +236,8 @@ func TestNewTntIoDownloader(t *testing.T) {
 
 			// Using a dummy request to test the CheckRedirect behavior.
 			requestURL := fmt.Sprintf("http://%s/testpath", tc.requestHost)
-			dummyReq, err := http.NewRequest(http.MethodGet, requestURL, nil)
+			dummyReq, err := http.NewRequestWithContext(
+				t.Context(), http.MethodGet, requestURL, nil)
 			require.NoError(t, err, "Failed to create dummy HTTP request")
 
 			// Call the CheckRedirect to add cookies to dummyReq and set Host.

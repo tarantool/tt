@@ -88,7 +88,8 @@ func GetTarantoolPrefix(cli *cmdcontext.CliCtx, cliOpts *config.CliOpts) (string
 		return prefixPathFromEnv, nil
 	}
 
-	output, err := exec.Command(cli.TarantoolCli.Executable, "--version").Output()
+	output, err := exec.CommandContext(
+		context.Background(), cli.TarantoolCli.Executable, "--version").Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to get tarantool version: %s", err)
 	}

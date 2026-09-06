@@ -2,6 +2,7 @@ package util
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -133,7 +134,7 @@ func RunHook(hookPath string, showOutput bool) error {
 		return fmt.Errorf("hook `%s` should be executable", hookName)
 	}
 
-	hookCmd := exec.Command(hookPath)
+	hookCmd := exec.CommandContext(context.Background(), hookPath)
 	err := RunCommand(hookCmd, hookDir, showOutput)
 	if err != nil {
 		return fmt.Errorf("failed to run hook `%s`: %s", hookName, err)
@@ -169,7 +170,7 @@ func PrintFromStart(file *os.File) error {
 func ExecuteCommandGetOutput(program, workDir string, stdinData []byte,
 	args ...string,
 ) ([]byte, error) {
-	cmd := exec.Command(program, args...)
+	cmd := exec.CommandContext(context.Background(), program, args...)
 
 	var out bytes.Buffer
 	cmd.Stdout = &out

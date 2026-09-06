@@ -69,7 +69,8 @@ func Connect(opts ConnectOpts) (Connector, error) {
 		defer os.Chdir(workDir)
 	}
 	// Connect to specified address.
-	greetingConn, err := net.Dial(opts.Network, opts.Address)
+	greetingConn, err := (&net.Dialer{}).DialContext(
+		context.Background(), opts.Network, opts.Address)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial: %s", err)
 	}

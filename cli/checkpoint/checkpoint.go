@@ -3,6 +3,7 @@ package checkpoint
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -26,7 +27,7 @@ type Opts struct {
 // Cat print the contents of .snap/.xlog files.
 // Returns an error if such occur during reading files.
 func Cat(tntCli cmdcontext.TarantoolCli) error {
-	cmd := exec.Command(tntCli.Executable, "-")
+	cmd := exec.CommandContext(context.Background(), tntCli.Executable, "-")
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 
@@ -48,7 +49,7 @@ func Cat(tntCli cmdcontext.TarantoolCli) error {
 // Returns an error if such occur during playing.
 func Play(tntCli cmdcontext.TarantoolCli) error {
 	var errBuff bytes.Buffer
-	cmd := exec.Command(tntCli.Executable, "-")
+	cmd := exec.CommandContext(context.Background(), tntCli.Executable, "-")
 	cmd.Stderr = &errBuff
 
 	stdoutPipe, err := cmd.StdoutPipe()

@@ -11,7 +11,7 @@ import (
 func Test_ExistsAndRecord(t *testing.T) {
 	testFile := "test.pid"
 	invalid := "invalid.pid"
-	cmd := exec.Command("sleep", "10")
+	cmd := exec.CommandContext(t.Context(), "sleep", "10")
 
 	t.Cleanup(func() {
 		os.Remove(testFile)
@@ -29,6 +29,7 @@ func Test_ExistsAndRecord(t *testing.T) {
 
 	err = cmd.Process.Kill()
 	require.NoError(t, err)
+	require.Error(t, cmd.Wait())
 
 	statusInvalid, err := ExistsAndRecord(invalid)
 	require.False(t, statusInvalid)
