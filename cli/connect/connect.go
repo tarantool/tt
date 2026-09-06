@@ -1,6 +1,7 @@
 package connect
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +13,13 @@ import (
 	"github.com/tarantool/tt/cli/formatter"
 	terminal "golang.org/x/term"
 	"gopkg.in/yaml.v2"
+)
+
+var (
+	errInteractiveInputSource = errors.New(
+		"can't use interactive input as a source file",
+	)
+	errUnexpectedResponseType = errors.New("unexpected response type: ")
 )
 
 // ConnectCtx contains information for connecting to the instance.
@@ -55,7 +63,7 @@ const (
 func getEvalCmd(connectCtx ConnectCtx) (string, error) {
 	if connectCtx.SrcFile == "-" {
 		if terminal.IsTerminal(syscall.Stdin) {
-			return "", fmt.Errorf("can't use interactive input as a source file")
+			return "", errInteractiveInputSource
 		}
 		cmdByte, err := io.ReadAll(os.Stdin)
 		if err != nil {
@@ -131,7 +139,7 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 		if str, ok := response[0].(string); ok {
 			resYAML = str
 		} else {
-			return nil, fmt.Errorf("unexpected response type: %T", response[0])
+			return nil, fmt.Errorf("%w%T", errUnexpectedResponseType, response[0])
 		}
 	}
 	var checkMock any

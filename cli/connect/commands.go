@@ -13,6 +13,17 @@ import (
 	"github.com/tarantool/tt/cli/formatter"
 )
 
+var (
+	errTheCommandDoesNotExpectArguments      = errors.New("the command does not expect arguments")
+	errTheCommandExpectsOneOf                = errors.New("the command expects one of: ")
+	errTheCommandExpectsZeroOrSingleArgument = errors.New(
+		"the command expects zero or single argument",
+	)
+	errUnsupportedDialect  = errors.New("unsupported dialect: ")
+	errUnsupportedFormat   = errors.New("unsupported format: ")
+	errUnsupportedLanguage = errors.New("unsupported language: ")
+)
+
 // cmd is the interface that must be implemented by a console command.
 type cmd interface {
 	// Aliases returns a list of all command's aliases.
@@ -131,7 +142,7 @@ func (command noArgsCmdDecorator) Run(console *Console,
 	cmd string, args []string,
 ) (string, error) {
 	if len(args) != 0 {
-		return "", fmt.Errorf("the command does not expect arguments")
+		return "", errTheCommandDoesNotExpectArguments
 	}
 	return command.base.Run(console, cmd, args)
 }
@@ -166,8 +177,8 @@ func (command argSetCmdDecorator) Run(console *Console,
 	cmd string, args []string,
 ) (string, error) {
 	if len(command.sorted) > 0 && (len(args) != 1 || !find(command.sorted, args[0])) {
-		return "", fmt.Errorf("the command expects one of: %s",
-			strings.Join(command.sorted, ", "))
+		return "", fmt.Errorf("%w%s",
+			errTheCommandExpectsOneOf, strings.Join(command.sorted, ", "))
 	}
 
 	return command.base.Run(console, cmd, args)
@@ -320,7 +331,7 @@ func setLanguageFunc(console *Console, cmd string, args []string) (string, error
 			console.language = lang
 		}
 	} else {
-		return "", fmt.Errorf("unsupported language: %s", args[0])
+		return "", fmt.Errorf("%w%s", errUnsupportedLanguage, args[0])
 	}
 	return "", nil
 }
@@ -332,7 +343,7 @@ func setFormatFunc(console *Console, cmd string, args []string) (string, error) 
 		console.format = newFormat
 	} else {
 		// It should not happen in practice.
-		return "", fmt.Errorf("unsupported format: %s", formatStr)
+		return "", fmt.Errorf("%w%s", errUnsupportedFormat, formatStr)
 	}
 	return "", nil
 }
@@ -344,7 +355,7 @@ func setTableDialectFunc(console *Console, cmd string, args []string) (string, e
 		console.formatOpts.TableDialect = dialect
 	} else {
 		// It should not happen in practice.
-		return "", fmt.Errorf("unsupported dialect: %s", dialectStr)
+		return "", fmt.Errorf("%w%s", errUnsupportedDialect, dialectStr)
 	}
 	return "", nil
 }
@@ -385,7 +396,7 @@ func setDelimiterMarker(console *Console, cmd string, args []string) (string, er
 	case 1:
 		console.delimiter = args[0]
 	default:
-		return "", fmt.Errorf("the command expects zero or single argument")
+		return "", errTheCommandExpectsZeroOrSingleArgument
 	}
 	return "", nil
 }

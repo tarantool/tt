@@ -3,10 +3,16 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 
 	"github.com/mitchellh/mapstructure"
+)
+
+var (
+	errFailedToParseCommandParams = errors.New("failed to parse command params: \"")
+	errFailedToReadRequestBody    = errors.New("failed to read request body: ")
 )
 
 // commandJSON describes the tt command sent using the HTTP API.
@@ -32,7 +38,7 @@ func parseCommand(r io.Reader, cmd *command) (string, error) {
 	// Read data to log raw JSON request.
 	bodyBytes, err := io.ReadAll(r)
 	if err != nil {
-		return err.Error(), fmt.Errorf(`failed to read request body: %s`, err.Error())
+		return err.Error(), fmt.Errorf("%w%s", errFailedToReadRequestBody, err.Error())
 	}
 
 	rawBody := string(bodyBytes)
@@ -49,7 +55,7 @@ func parseCommand(r io.Reader, cmd *command) (string, error) {
 	// Parse cmdJSON to a "command" structure.
 	// Additionally, all types of parameters will be checked.
 	if err := mapstructure.Decode(cmdJSON, cmd); err != nil {
-		return rawBody, fmt.Errorf(`failed to parse command params: "%v"`, err.Error())
+		return rawBody, fmt.Errorf("%w%v\"", errFailedToParseCommandParams, err.Error())
 	}
 
 	return rawBody, nil

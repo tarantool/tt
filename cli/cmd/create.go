@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -11,6 +11,10 @@ import (
 	"github.com/tarantool/tt/cli/create/builtin_templates"
 	create_ctx "github.com/tarantool/tt/cli/create/context"
 	"github.com/tarantool/tt/cli/util"
+)
+
+var (
+	errRequiresTemplateNameArgument = errors.New("requires template name argument")
 )
 
 var (
@@ -34,7 +38,7 @@ func NewCreateCmd() *cobra.Command {
 		Run:   RunModuleFunc(internalCreateModule),
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
-				return fmt.Errorf("requires template name argument")
+				return errRequiresTemplateNameArgument
 			}
 			return nil
 		},

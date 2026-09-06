@@ -15,6 +15,11 @@ import (
 	"github.com/tarantool/go-prompt"
 )
 
+var (
+	errConsoleStopped                 = errors.New("can't run on stopped console")
+	errNoHandlerForCommandsHasBeenSet = errors.New("no handler for commands has been set")
+)
+
 const (
 	maxLivePrefixIndent = 15
 	// See https://github.com/tarantool/tarantool/blob/b53cb2aeceedc39f356ceca30bd0087ee8de7c16/
@@ -53,7 +58,7 @@ type Console struct {
 // NewConsole creates a new console connected to the tarantool instance.
 func NewConsole(opts ConsoleOpts) (Console, error) {
 	if opts.Handler == nil {
-		return Console{quit: true}, errors.New("no handler for commands has been set")
+		return Console{quit: true}, errNoHandlerForCommandsHasBeenSet
 	}
 	c := Console{
 		impl: opts,
@@ -66,7 +71,7 @@ func NewConsole(opts ConsoleOpts) (Console, error) {
 // Run starts console.
 func (c *Console) Run() error {
 	if c.quit {
-		return errors.New("can't run on stopped console")
+		return errConsoleStopped
 	}
 	if !term.IsTerminal(syscall.Stdin) {
 		return c.runOnPipe()
@@ -207,11 +212,11 @@ func (c *Console) complete(input prompt.Document) []prompt.Suggest {
 
 // setPrefix adjust console prefix string.
 func (c *Console) setPrefix() {
-	c.prefix = fmt.Sprintf("%s> ", c.title())
+	c.prefix = c.title() + "> "
 
 	livePrefixIndent := min(len(c.title()), maxLivePrefixIndent)
 
-	c.livePrefix = fmt.Sprintf("%s> ", strings.Repeat(" ", livePrefixIndent))
+	c.livePrefix = strings.Repeat(" ", livePrefixIndent) + "> "
 }
 
 // getPromptOptions prepare option for prompt.

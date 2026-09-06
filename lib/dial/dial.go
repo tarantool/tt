@@ -1,9 +1,14 @@
 package dial
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/tarantool/go-tarantool/v2"
+)
+
+var (
+	errUnsupportedTransportType = errors.New("unsupported transport type: ")
 )
 
 // New creates new dialer according to the options.
@@ -32,6 +37,6 @@ func New(opts Opts) (tarantool.Dialer, error) {
 	case TransportSsl:
 		return ssl(opts)
 	default:
-		return nil, fmt.Errorf("unsupported transport type: %s", opts.Transport)
+		return nil, fmt.Errorf("%w%s", errUnsupportedTransportType, opts.Transport)
 	}
 }

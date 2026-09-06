@@ -1,6 +1,7 @@
 package search
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -11,6 +12,18 @@ import (
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
 	"github.com/tarantool/tt/lib/connect"
+)
+
+var (
+	errNoAvailableVersions                      = errors.New("no available versions")
+	errNoPackagesFoundForThisOSOrReleaseVersion = errors.New(
+		"no packages found for this OS or release version",
+	)
+	errTarantoolIOPackageNotFound = errors.New(
+		"there is no tarantool.io package for program: ",
+	)
+	errUnknownVersionFormatForProgram = errors.New("unknown version format for program: ")
+	errVersionNotFound                = errors.New(" version doesn't found")
 )
 
 // BundleInfo is a structure that contains specific information about SDK bundle.
@@ -89,7 +102,7 @@ func compileVersionRegexp(prg Program) (*regexp.Regexp, error) {
 	case ProgramTcm:
 		expr = `^(?P<tarball>tcm-(?P<version>\d+\.\d+\.\d+[^.]*).*\.tar\.gz)$`
 	default:
-		return nil, fmt.Errorf("unknown version format for program: %q", prg)
+		return nil, fmt.Errorf("%w%q", errUnknownVersionFormatForProgram, prg)
 	}
 
 	re := regexp.MustCompile(expr)
@@ -157,7 +170,7 @@ func getBundles(rawBundleInfoList map[string][]string, searchCtx *SearchCtx) (
 	}
 
 	if len(bundles) == 0 {
-		return nil, fmt.Errorf("no packages found for this OS or release version")
+		return nil, errNoPackagesFoundForThisOSOrReleaseVersion
 	}
 
 	sort.Sort(bundles)
@@ -172,8 +185,8 @@ func FetchBundlesInfo(searchCtx *SearchCtx, cliOpts *config.CliOpts) (
 ) {
 	searchCtx.Package = GetAPIPackage(searchCtx.Program)
 	if searchCtx.Package == "" {
-		return nil, fmt.Errorf("there is no tarantool.io package for program: %s",
-			searchCtx.Program)
+		return nil, fmt.Errorf("%w%s",
+			errTarantoolIOPackageNotFound, searchCtx.Program)
 	}
 
 	var credPath string
@@ -203,7 +216,7 @@ func FetchBundlesInfo(searchCtx *SearchCtx, cliOpts *config.CliOpts) (
 // If no version is specified, it returns the latest version.
 func SelectVersion(bs BundleInfoSlice, ver string) (BundleInfo, error) {
 	if bs == nil || bs.Len() == 0 {
-		return BundleInfo{}, fmt.Errorf("no available versions")
+		return BundleInfo{}, errNoAvailableVersions
 	}
 	if ver == "" {
 		// No version specified, return the latest one.
@@ -216,5 +229,5 @@ func SelectVersion(bs BundleInfoSlice, ver string) (BundleInfo, error) {
 		}
 	}
 
-	return BundleInfo{}, fmt.Errorf("%q version doesn't found", ver)
+	return BundleInfo{}, fmt.Errorf("%q%w", ver, errVersionNotFound)
 }

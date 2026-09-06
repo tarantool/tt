@@ -22,6 +22,12 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+var (
+	errEmptyAeonSQLResponse = errors.New("empty Aeon SQL response")
+	errFailedToAppendCAData = errors.New("failed to append CA data")
+	errTupleIsNil           = errors.New("tuple ")
+)
+
 // Client structure with parameters for gRPC connection to Aeon.
 type Client struct {
 	title  string
@@ -63,7 +69,7 @@ func getTLSConfig(args cmd.Ssl) (*tls.Config, error) {
 
 		pool = x509.NewCertPool()
 		if !pool.AppendCertsFromPEM(ca) {
-			return nil, errors.New("failed to append CA data")
+			return nil, errFailedToAppendCAData
 		}
 	}
 	// Else if RootCAs is nil, TLS uses the host's root CA set.
@@ -180,7 +186,7 @@ func (c *Client) ping() error {
 // On any issue return an error.
 func parseSQLResponse(resp *pb.SQLResponse) any {
 	if resp == nil {
-		return errors.New("empty Aeon SQL response")
+		return errEmptyAeonSQLResponse
 	}
 	if responseError := resp.GetError(); responseError != nil {
 		return resultError{responseError}
@@ -201,7 +207,7 @@ func parseSQLResponse(resp *pb.SQLResponse) any {
 
 	for r, row := range tuples {
 		if row == nil {
-			return fmt.Errorf("tuple %d is nil", r)
+			return fmt.Errorf("%w%d is nil", errTupleIsNil, r)
 		}
 		for _, v := range row.GetFields() {
 			val, err := decodeValue(v)

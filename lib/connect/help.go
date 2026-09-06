@@ -3,6 +3,7 @@ package connect
 import (
 	"fmt"
 	"html/template"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -89,8 +90,8 @@ The command supports the following environment variables:
 		"ssl_ciphers":         sslCiphersParam,
 		"verify_host":         verifyHostParam,
 		"verify_peer":         verifyPeerParam,
-		"default_verify_host": fmt.Sprintf("%t", defaultVerifyHostParam),
-		"default_verify_peer": fmt.Sprintf("%t", defaultVerifyPeerParam),
+		"default_verify_host": strconv.FormatBool(defaultVerifyHostParam),
+		"default_verify_peer": strconv.FormatBool(defaultVerifyPeerParam),
 	}
 
 	envAuth := map[string]template.HTML{}

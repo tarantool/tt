@@ -1,6 +1,7 @@
 package configure
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,6 +15,36 @@ import (
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/lib/integrity"
+)
+
+var (
+	errExpectedAStringValueGot = errors.New(
+		"expected a string value, got ",
+	)
+	errFailedToFindTarantoolCLIConfigFor = errors.New(
+		"failed to find Tarantool CLI config for '",
+	)
+	errFailedToParseDaemonConfigurationMissingDaemonSection = errors.New(
+		"failed to parse daemon configuration: missing daemon section",
+	)
+	errFailedToParseTarantoolCLIConfigurationMissingTTSection = errors.New(
+		"failed to parse Tarantool CLI configuration: missing tt section",
+	)
+	errIntegrityCheckPeriodMustTakeNonNegativeValue = errors.New(
+		"--integrity-check-period must take non-negative value",
+	)
+	errIntegrityCheckPublicKeyRequired = errors.New(
+		"need to specify public key in --integrity-check to use --integrity-check-period",
+	)
+	errYouCanSpecifyOnlyOneOfLLocalAndSSystemOptions = errors.New(
+		"you can specify only one of -L(--local) and -S(--system) options",
+	)
+	errYouCanSpecifyOnlyOneOfLLocalCCfgAndTTCLICfgOptions = errors.New(
+		"you can specify only one of -L(--local), -c(--cfg) and 'TT_CLI_CFG' options",
+	)
+	errYouCanSpecifyOnlyOneOfSSystemCCfgAndTTCLICfgOptions = errors.New(
+		"you can specify only one of -S(--system), -c(--cfg) and 'TT_CLI_CFG' options",
+	)
 )
 
 const (
@@ -235,7 +266,7 @@ func decodeStringAsArrayField(from, to reflect.Type, value any) (
 	}
 	str, ok := value.(string)
 	if !ok {
-		return nil, fmt.Errorf("expected a string value, got %T", value)
+		return nil, fmt.Errorf("%w%T", errExpectedAStringValueGot, value)
 	}
 	return []string{str}, nil
 }
@@ -286,7 +317,7 @@ func GetCliOpts(configurePath string, repository integrity.Repository) (
 
 		if cfg == nil {
 			return nil, "",
-				fmt.Errorf("failed to parse Tarantool CLI configuration: missing tt section")
+				errFailedToParseTarantoolCLIConfigurationMissingTTSection
 		}
 	case err != nil && !os.IsNotExist(err):
 		// TODO: Add warning in next patches, discussion
@@ -339,7 +370,7 @@ func GetDaemonOpts(configurePath string) (*config.DaemonOpts, error) {
 	}
 
 	if cfg.DaemonConfig == nil {
-		return nil, fmt.Errorf("failed to parse daemon configuration: missing daemon section")
+		return nil, errFailedToParseDaemonConfigurationMissingDaemonSection
 	}
 
 	if cfg.DaemonConfig.PIDFile == "" {
@@ -370,22 +401,19 @@ func GetDaemonOpts(configurePath string) (*config.DaemonOpts, error) {
 func ValidateCliOpts(cliCtx *cmdcontext.CliCtx) error {
 	if cliCtx.LocalLaunchDir != "" {
 		if cliCtx.IsSystem {
-			return fmt.Errorf("you can specify only one of -L(--local) and -S(--system) options")
+			return errYouCanSpecifyOnlyOneOfLLocalAndSSystemOptions
 		}
 		if cliCtx.ConfigPath != "" {
-			return fmt.Errorf(
-				"you can specify only one of -L(--local), -c(--cfg) and 'TT_CLI_CFG' options")
+			return errYouCanSpecifyOnlyOneOfLLocalCCfgAndTTCLICfgOptions
 		}
 	} else if cliCtx.IsSystem && cliCtx.ConfigPath != "" {
-		return fmt.Errorf(
-			"you can specify only one of -S(--system), -c(--cfg) and 'TT_CLI_CFG' options")
+		return errYouCanSpecifyOnlyOneOfSSystemCCfgAndTTCLICfgOptions
 	}
 	if len(cliCtx.IntegrityCheck) == 0 && cliCtx.IntegrityCheckPeriod != 0 {
-		return fmt.Errorf("need to specify public key in --integrity-check to " +
-			"use --integrity-check-period")
+		return errIntegrityCheckPublicKeyRequired
 	}
 	if cliCtx.IntegrityCheckPeriod < 0 {
-		return fmt.Errorf("--integrity-check-period must take non-negative value")
+		return errIntegrityCheckPeriodMustTakeNonNegativeValue
 	}
 	return nil
 }
@@ -569,8 +597,8 @@ func ensureCliConfigPath(cmdCtx *cmdcontext.CmdCtx, launchDir string) error {
 		return nil
 	}
 	if cmdCtx.Cli.LocalLaunchDir != "" {
-		return fmt.Errorf("failed to find Tarantool CLI config for '%s'",
-			cmdCtx.Cli.LocalLaunchDir)
+		return fmt.Errorf("%w%s'",
+			errFailedToFindTarantoolCLIConfigFor, cmdCtx.Cli.LocalLaunchDir)
 	}
 	cmdCtx.Cli.ConfigPath = getSystemConfigPath()
 	return nil
@@ -730,13 +758,13 @@ func getDaemonCfgPath(configName string) (string, error) {
 	homeDir := os.Getenv("HOME")
 
 	if xdgConfigHome != "" {
-		xdgConfigDir = fmt.Sprintf("%s/tt", xdgConfigHome)
+		xdgConfigDir = xdgConfigHome + "/tt"
 	} else {
-		xdgConfigDir = fmt.Sprintf("%s/.config/tt", homeDir)
+		xdgConfigDir = homeDir + "/.config/tt"
 	}
 
 	// Config in $XDG_CONFIG_HOME.
-	configPath := fmt.Sprintf("%s/%s", xdgConfigDir, configName)
+	configPath := xdgConfigDir + "/" + configName
 	if _, err := os.Stat(configPath); err == nil {
 		return configPath, nil
 	}

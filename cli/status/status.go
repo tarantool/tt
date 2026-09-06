@@ -2,13 +2,19 @@ package status
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/process_utils"
 	"github.com/tarantool/tt/cli/running"
+)
+
+var (
+	errNoDataReturnedFromLuaScript = errors.New("no data returned from Lua script")
 )
 
 // InstanceStatusPrinter interface defines methods to output instance status information.
@@ -120,11 +126,9 @@ func processReplicationInfo(instStatus *instanceStatus, uuid2name map[string]str
 
 		var upstreamInstanceDesc string
 		if ok || repl.Name != nil {
-			upstreamInstanceDesc = fmt.Sprintf("instance with name %q",
-				fullInstanceUpstreamName)
+			upstreamInstanceDesc = "instance with name " + strconv.Quote(fullInstanceUpstreamName)
 		} else {
-			upstreamInstanceDesc = fmt.Sprintf("instance with UUID %s",
-				fullInstanceUpstreamName)
+			upstreamInstanceDesc = "instance with UUID " + fullInstanceUpstreamName
 		}
 		instStatus.addAlert(fmt.Sprintf(
 			"[upstream][warning]: replication from %s is in %q status: %q",
@@ -177,10 +181,9 @@ func collectInstanceState(run running.InstanceCtx, fullInstanceName string,
 	}
 
 	if len(res) == 0 {
-		instStatus.addAlert(fmt.Sprintf(
-			"No data returned from Lua script on instance %s",
-			fullInstanceName), severityError)
-		return instanceState, fmt.Errorf("no data returned from Lua script")
+		instStatus.addAlert("No data returned from Lua script on instance "+fullInstanceName,
+			severityError)
+		return instanceState, errNoDataReturnedFromLuaScript
 	}
 
 	err = mapstructure.Decode(res[0], &instanceState)

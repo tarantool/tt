@@ -1,6 +1,7 @@
 package replicasetcmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -11,6 +12,12 @@ import (
 	"github.com/tarantool/tt/cli/running"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 	"github.com/tarantool/tt/lib/integrity"
+)
+
+var (
+	errUnknownOrEmptyReplicasetsConfiguration = errors.New(
+		"unknown or empty replicasets configuration",
+	)
 )
 
 // DiscoveryCtx contains information about replicaset discovery.
@@ -60,7 +67,7 @@ func Status(discoveryCtx DiscoveryCtx) error {
 // statusReplicasets show the current status of known replicasets.
 func statusReplicasets(replicasets replicaset.Replicasets) error {
 	if replicasets.State == replicaset.StateUnknown {
-		return fmt.Errorf("unknown or empty replicasets configuration")
+		return errUnknownOrEmptyReplicasetsConfiguration
 	}
 
 	fmt.Fprintln(os.Stdout, "Orchestrator:     ", replicasets.Orchestrator)

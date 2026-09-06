@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/apex/log"
@@ -46,7 +45,7 @@ func internalRestartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	if cmdCtx.Cli.TarantoolCli.Executable == "" {
-		return fmt.Errorf("tarantool binary is not found")
+		return errTarantoolBinaryNotFound
 	}
 
 	if !autoYes {
@@ -54,10 +53,9 @@ func internalRestartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		if len(args) == 0 {
 			instancesToConfirm = "all instances"
 		} else {
-			instancesToConfirm = fmt.Sprintf("'%s'", args[0])
+			instancesToConfirm = "'" + args[0] + "'"
 		}
-		confirmed, err := util.AskConfirm(os.Stdin, fmt.Sprintf("Confirm restart of %s",
-			instancesToConfirm))
+		confirmed, err := util.AskConfirm(os.Stdin, "Confirm restart of "+instancesToConfirm)
 		if err != nil {
 			return err
 		}

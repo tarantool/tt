@@ -1,6 +1,7 @@
 package steps
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -8,6 +9,10 @@ import (
 	"github.com/otiai10/copy"
 	create_ctx "github.com/tarantool/tt/cli/create/context"
 	"github.com/tarantool/tt/cli/create/internal/app_template"
+)
+
+var (
+	errAlreadyExists = errors.New("already exists")
 )
 
 // MoveAppDirectory represents temporary application directory move step.
@@ -23,7 +28,7 @@ func (MoveAppDirectory) Run(createCtx *create_ctx.CreateCtx,
 
 	if _, err := os.Stat(templateCtx.TargetAppPath); err == nil {
 		if !createCtx.ForceMode {
-			return fmt.Errorf("'%s' already exists", templateCtx.TargetAppPath)
+			return fmt.Errorf("'%s' %w", templateCtx.TargetAppPath, errAlreadyExists)
 		}
 		if err = os.RemoveAll(templateCtx.TargetAppPath); err != nil {
 			return fmt.Errorf("failed to remove %s: %w", templateCtx.TargetAppPath, err)

@@ -2,6 +2,7 @@ package replicasetcmd
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -10,6 +11,10 @@ import (
 	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/replicaset"
 	"github.com/tarantool/tt/cli/running"
+)
+
+var (
+	errMasterInstanceDowngradeFailed = errors.New("master instance downgrade failed - ")
 )
 
 // DowngradeOpts contains options used for the downgrade process.
@@ -90,8 +95,8 @@ func downgradeMaster(master *instanceMeta, version string) (syncInfo, error) {
 
 	if downgradeInfo.Err != nil {
 		return downgradeInfo, fmt.Errorf(
-			"master instance downgrade failed - %s: %s",
-			fullMasterName, *downgradeInfo.Err)
+			"%w%s: %s",
+			errMasterInstanceDowngradeFailed, fullMasterName, *downgradeInfo.Err)
 	}
 	return downgradeInfo, nil
 }

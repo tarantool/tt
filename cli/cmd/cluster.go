@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -17,6 +18,16 @@ import (
 	"github.com/tarantool/tt/cli/util"
 	libconnect "github.com/tarantool/tt/lib/connect"
 	"github.com/tarantool/tt/lib/integrity"
+)
+
+var (
+	errCannotUpdateInstanceConfigurationWithoutClusterConfiguration = errors.New(
+		"can not to update an instance configuration " +
+			"if a cluster configuration file does not exist for the application",
+	)
+	errClusterConfigurationFileDoesNotExistForTheApplication = errors.New(
+		"cluster configuration file does not exist for the application",
+	)
 )
 
 const addAction = true
@@ -375,7 +386,7 @@ func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 	if configPath == "" {
-		return fmt.Errorf("cluster configuration file does not exist for the application")
+		return errClusterConfigurationFileDoesNotExistForTheApplication
 	}
 
 	showCtx.Integrity = cmdCtx.Integrity
@@ -410,8 +421,7 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 	}
 	if configPath == "" {
 		if instName != "" {
-			return fmt.Errorf("can not to update an instance configuration " +
-				"if a cluster configuration file does not exist for the application")
+			return errCannotUpdateInstanceConfigurationWithoutClusterConfiguration
 		}
 		configPath, err = running.GetClusterConfigPath(cmdCtx.Cli.ConfigDir, false)
 		if err != nil {
@@ -563,8 +573,7 @@ func checkRolesChangeFlags(isAdd bool) error {
 	}
 	if !rolesChangeCtx.IsGlobal && rolesChangeCtx.GroupName == "" &&
 		rolesChangeCtx.ReplicasetName == "" && rolesChangeCtx.InstName == "" {
-		return util.NewArgError(fmt.Sprintf("need to provide flag(s) with scope roles will %s",
-			action))
+		return util.NewArgError("need to provide flag(s) with scope roles will " + action)
 	}
 	return nil
 }

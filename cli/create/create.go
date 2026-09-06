@@ -2,7 +2,7 @@ package create
 
 import (
 	"bufio"
-	"fmt"
+	"errors"
 	"os"
 
 	"github.com/tarantool/tt/cli/config"
@@ -11,6 +11,10 @@ import (
 	"github.com/tarantool/tt/cli/create/internal/steps"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
+)
+
+var (
+	errTemplateNameIsMissing = errors.New("template name is missing")
 )
 
 // FillCtx fills create context.
@@ -74,7 +78,7 @@ func Run(createCtx *create_ctx.CreateCtx) error {
 // checkCtx checks create context for validity.
 func checkCtx(ctx *create_ctx.CreateCtx) error {
 	if ctx.TemplateName == "" {
-		return fmt.Errorf("template name is missing")
+		return errTemplateNameIsMissing
 	}
 
 	return nil

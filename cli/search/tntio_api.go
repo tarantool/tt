@@ -15,6 +15,14 @@ import (
 	"github.com/tarantool/tt/lib/connect"
 )
 
+var (
+	errNoAPIDoerWasApplied          = errors.New("no API doer was applied")
+	errNoPlatformInformerWasApplied = errors.New("no platform informer was applied")
+	errTarantoolIODoerMissing       = errors.New("no tarantool.io doer was applied")
+	errUnsupportedArchitecture      = errors.New("unsupported architecture: ")
+	errUnsupportedOS                = errors.New("unsupported OS: ")
+)
+
 const (
 	TntIoURI = "https://www.tarantool.io/en/accounts/customer_zone"
 	APIURI   = TntIoURI + "/api"
@@ -115,7 +123,7 @@ func getOsForAPI(informer PlatformInformer) (string, error) {
 	case util.OsMacos:
 		return "macos", nil
 	default:
-		return "", fmt.Errorf("unsupported OS: %d", os)
+		return "", fmt.Errorf("%w%d", errUnsupportedOS, os)
 	}
 }
 
@@ -145,7 +153,7 @@ func getArchForAPI(informer PlatformInformer, program Program) (string, error) {
 		// Return arch only if it in valid mapping.
 		return arch, nil
 	}
-	return "", fmt.Errorf("unsupported architecture: %s", arch)
+	return "", fmt.Errorf("%w%s", errUnsupportedArchitecture, arch)
 }
 
 func getBuildType(isDev bool) string {
@@ -160,7 +168,7 @@ func TntIoMakePkgURI(searchCtx *SearchCtx, tarball string) (string, error) {
 	var uri string
 
 	if searchCtx.platformInformer == nil || reflect.ValueOf(searchCtx.platformInformer).IsNil() {
-		return "", fmt.Errorf("no platform informer was applied")
+		return "", errNoPlatformInformerWasApplied
 	}
 
 	arch, err := getArchForAPI(searchCtx.platformInformer, searchCtx.Program)
@@ -235,7 +243,7 @@ func sendAPIRequest(request apiRequest, doer TntIoDoer) ([]byte, error) {
 	if doer != nil {
 		return doer.Do(req)
 	}
-	return nil, errors.New("no API doer was applied")
+	return nil, errNoAPIDoerWasApplied
 }
 
 // getSessionToken parse cookies to get session token.
@@ -280,10 +288,10 @@ func tntIoGetPkgVersions(credentials connect.UserCredentials, searchCtx *SearchC
 	map[string][]string, error,
 ) {
 	if searchCtx.TntIoDoer == nil {
-		return nil, fmt.Errorf("no tarantool.io doer was applied")
+		return nil, errTarantoolIODoerMissing
 	}
 	if searchCtx.platformInformer == nil {
-		return nil, fmt.Errorf("no platform informer was applied")
+		return nil, errNoPlatformInformerWasApplied
 	}
 
 	request, err := buildAPIQuery(searchCtx, credentials)

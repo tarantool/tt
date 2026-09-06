@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -17,6 +18,11 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/ttlog"
 	"github.com/tarantool/tt/cli/util"
+)
+
+var (
+	errTarantoolExited    = errors.New("tarantool exited: ")
+	errTimedOutWaitingFor = errors.New("timed out waiting for ")
 )
 
 var tntCli = cmdcontext.TarantoolCli{Executable: "tarantool"}
@@ -39,11 +45,11 @@ func waitForMsgInBuffer(reader io.Reader, msgToWait string, waitFor time.Duratio
 		if strings.Contains(line, msgToWait) {
 			break
 		} else if strings.Contains(line, "exiting") {
-			return fmt.Errorf("tarantool exited: %q", previousLine)
+			return fmt.Errorf("%w%q", errTarantoolExited, previousLine)
 		}
 		previousLine = line
 		if time.Now().After(waitUntil) { // Timeout.
-			return fmt.Errorf("timed out waiting for %q", msgToWait)
+			return fmt.Errorf("%w%q", errTimedOutWaitingFor, msgToWait)
 		}
 	}
 	return nil

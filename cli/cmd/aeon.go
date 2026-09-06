@@ -20,6 +20,28 @@ import (
 	libconnect "github.com/tarantool/tt/lib/connect"
 )
 
+var (
+	errFailedToRecognizeAConnectDestinationSeeTheCommandExamples = errors.New(
+		"failed to recognize a connect destination, see the command examples",
+	)
+	errFilesKeyAndCertMustBeSpecifiedBoth = errors.New(
+		"files Key and Cert must be specified both",
+	)
+	errInvalidConnectionURL             = errors.New("invalid connection url")
+	errNotValidPathToAPrivateSSLKeyFile = errors.New(
+		"not valid path to a private SSL key file=",
+	)
+	errNotValidPathToAnSSLCertificateFile = errors.New(
+		"not valid path to an SSL certificate file=",
+	)
+	errNotValidPathToTrustedCertificateAuthoritiesCAFile = errors.New(
+		"not valid path to trusted certificate authorities (CA) file=",
+	)
+	errTransportMustBeSSLOrPlain = errors.New(
+		"transport must be ssl or plain",
+	)
+)
+
 const (
 	aeonHistoryFileName = ".aeon_history"
 	aeonHistoryLines    = console.DefaultHistoryLines
@@ -72,7 +94,7 @@ func newAeonConnectCmd() *cobra.Command {
 	aeonCmd.Flags().StringVar(&connectCtx.Ssl.CaFile, "sslcafile", "",
 		"path to a trusted certificate authorities (CA) file")
 	aeonCmd.Flags().Var(&connectCtx.Transport, "transport",
-		fmt.Sprintf("allowed %s", aeoncmd.ListValidTransports()))
+		"allowed "+aeoncmd.ListValidTransports())
 	aeonCmd.RegisterFlagCompletionFunc("transport", aeonTransportCompletion)
 
 	return aeonCmd
@@ -132,7 +154,7 @@ func aeonConnectValidateArgs(cmd *cobra.Command, args []string) error {
 			return err
 		}
 	default:
-		return fmt.Errorf("failed to recognize a connect destination, see the command examples")
+		return errFailedToRecognizeAConnectDestinationSeeTheCommandExamples
 	}
 
 	if !cmd.Flags().Changed("transport") && (connectCtx.Ssl.KeyFile != "" ||
@@ -146,20 +168,20 @@ func aeonConnectValidateArgs(cmd *cobra.Command, args []string) error {
 
 	if connectCtx.Transport != aeoncmd.TransportPlain {
 		if cmd.Flags().Changed("sslkeyfile") != cmd.Flags().Changed("sslcertfile") {
-			return errors.New("files Key and Cert must be specified both")
+			return errFilesKeyAndCertMustBeSpecifiedBoth
 		}
 
 		if !checkFile(connectCtx.Ssl.KeyFile) {
-			return fmt.Errorf("not valid path to a private SSL key file=%q",
-				connectCtx.Ssl.KeyFile)
+			return fmt.Errorf("%w%q",
+				errNotValidPathToAPrivateSSLKeyFile, connectCtx.Ssl.KeyFile)
 		}
 		if !checkFile(connectCtx.Ssl.CertFile) {
-			return fmt.Errorf("not valid path to an SSL certificate file=%q",
-				connectCtx.Ssl.CertFile)
+			return fmt.Errorf("%w%q",
+				errNotValidPathToAnSSLCertificateFile, connectCtx.Ssl.CertFile)
 		}
 		if !checkFile(connectCtx.Ssl.CaFile) {
-			return fmt.Errorf("not valid path to trusted certificate authorities (CA) file=%q",
-				connectCtx.Ssl.CaFile)
+			return fmt.Errorf("%w%q",
+				errNotValidPathToTrustedCertificateAuthoritiesCAFile, connectCtx.Ssl.CaFile)
 		}
 	}
 	return nil
@@ -229,7 +251,7 @@ func readConfigFilePath(configPath, instance string) error {
 	}
 
 	if advertise.URI == "" {
-		return errors.New("invalid connection url")
+		return errInvalidConnectionURL
 	}
 
 	cleanedURL, err := util.RemoveScheme(advertise.URI)
@@ -240,7 +262,7 @@ func readConfigFilePath(configPath, instance string) error {
 	connectCtx.Network, connectCtx.Address = libconnect.ParseBaseURI(cleanedURL)
 
 	if (advertise.Params.Transport != "ssl") && (advertise.Params.Transport != "plain") {
-		return errors.New("transport must be ssl or plain")
+		return errTransportMustBeSSLOrPlain
 	}
 
 	if advertise.Params.Transport == "ssl" {

@@ -1,9 +1,14 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
+)
+
+var (
+	errMustBe = errors.New("must be ")
 )
 
 // Transport is a type, with a restriction on the list of supported connection modes.
@@ -37,7 +42,7 @@ var ValidTransport = map[Transport]string{
 func (t *Transport) Set(v string) error {
 	_, ok := ValidTransport[Transport(v)]
 	if !ok {
-		return fmt.Errorf(`must be %s`, ListValidTransports())
+		return fmt.Errorf("%w%s", errMustBe, ListValidTransports())
 	}
 	*t = Transport(v)
 	return nil

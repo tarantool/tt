@@ -13,6 +13,14 @@ import (
 	libcluster "github.com/tarantool/tt/lib/cluster"
 )
 
+var (
+	errCannotFindGroup                             = errors.New("cannot find group ")
+	errCannotFindInstanceAboveGroupAndOrReplicaset = errors.New("cannot find instance ")
+	errCannotFindReplicasetAboveGroup              = errors.New("cannot find replicaset ")
+	errUnknownFailover                             = errors.New("unknown failover")
+	errUnsupportedFailover                         = errors.New("unsupported failover")
+)
+
 const configPathSuffixSegments = 2
 
 // KeyPicker picks a key to patch.
@@ -267,9 +275,9 @@ func getCConfigRolesPath(goView goconfig.Config,
 		})
 	}
 	if ctx.GroupName != "" {
-		p := goconfig.NewKeyPath(fmt.Sprintf("groups/%s", ctx.GroupName))
+		p := goconfig.NewKeyPath("groups/" + ctx.GroupName)
 		if _, ok := goView.Lookup(p); !ok {
-			return []path{}, fmt.Errorf("cannot find group %q", ctx.GroupName)
+			return []path{}, fmt.Errorf("%w%q", errCannotFindGroup, ctx.GroupName)
 		}
 		paths = append(paths, path{
 			path:  append(p, "roles"),
@@ -280,7 +288,8 @@ func getCConfigRolesPath(goView goconfig.Config,
 		var group string
 		var ok bool
 		if group, ok = cluster.FindGroupByReplicaset(goView, ctx.ReplicasetName); !ok {
-			return []path{}, fmt.Errorf("cannot find replicaset %q above group", ctx.ReplicasetName)
+			return []path{}, fmt.Errorf("%w%q above group",
+				errCannotFindReplicasetAboveGroup, ctx.ReplicasetName)
 		}
 		p := goconfig.NewKeyPath(fmt.Sprintf("groups/%s/replicasets/%s", group, ctx.ReplicasetName))
 		paths = append(paths, path{
@@ -292,8 +301,8 @@ func getCConfigRolesPath(goView goconfig.Config,
 		var group, replicaset string
 		var ok bool
 		if group, replicaset, ok = cluster.FindInstance(goView, ctx.InstName); !ok {
-			return []path{}, fmt.Errorf("cannot find instance %q above group and/or replicaset",
-				ctx.InstName)
+			return []path{}, fmt.Errorf("%w%q above group and/or replicaset",
+				errCannotFindInstanceAboveGroupAndOrReplicaset, ctx.InstName)
 		}
 		p := goconfig.NewKeyPath(fmt.Sprintf(
 			"groups/%s/replicasets/%s/instances/%s", group, replicaset, ctx.InstName))
@@ -333,9 +342,10 @@ func getCConfigPromotePath(inst cconfigInstance) (goconfig.KeyPath, int, error) 
 			groupName, replicasetName))
 		depth = len(path) - 1
 	case FailoverElection:
-		err = fmt.Errorf(`unsupported failover: %q, supported: "manual", "off"`, failover)
+		err = fmt.Errorf("%w: %q, supported: \"manual\", \"off\"",
+			errUnsupportedFailover, failover)
 	default:
-		err = fmt.Errorf(`unknown failover, supported: "manual", "off"`)
+		err = fmt.Errorf("%w, supported: \"manual\", \"off\"", errUnknownFailover)
 	}
 	return path, depth, err
 }
@@ -359,9 +369,9 @@ func getCConfigDemotePath(inst cconfigInstance) (goconfig.KeyPath, int, error) {
 			groupName, replicasetName, instName))
 		depth = len(path) - configPathSuffixSegments
 	case FailoverManual, FailoverElection:
-		err = fmt.Errorf(`unsupported failover: %q, supported: "off"`, failover)
+		err = fmt.Errorf("%w: %q, supported: \"off\"", errUnsupportedFailover, failover)
 	default:
-		err = fmt.Errorf(`unknown failover, supported: "off"`)
+		err = fmt.Errorf("%w, supported: \"off\"", errUnknownFailover)
 	}
 	return path, depth, err
 }

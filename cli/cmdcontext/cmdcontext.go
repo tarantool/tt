@@ -2,6 +2,7 @@ package cmdcontext
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -9,6 +10,16 @@ import (
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
 	"github.com/tarantool/tt/lib/integrity"
+)
+
+var (
+	errFailedToGetTarantoolVersionCorruptedData = errors.New(
+		"failed to get tarantool version: corrupted data",
+	)
+	errFileNotFound                                           = errors.New("file ")
+	errTarantoolExecutableIsNotSetUnableToGetTarantoolVersion = errors.New(
+		"tarantool executable is not set, unable to get tarantool version",
+	)
 )
 
 // CmdCtx is the main structure of the program context.
@@ -48,8 +59,7 @@ func (tntCli *TarantoolCli) GetVersion() (version.Version, error) {
 	}
 
 	if tntCli.Executable == "" {
-		return tntCli.version, fmt.Errorf(
-			"tarantool executable is not set, unable to get tarantool version")
+		return tntCli.version, errTarantoolExecutableIsNotSetUnableToGetTarantoolVersion
 	}
 	output, err := exec.CommandContext(
 		context.Background(), tntCli.Executable, "--version").Output()
@@ -61,7 +71,7 @@ func (tntCli *TarantoolCli) GetVersion() (version.Version, error) {
 	versionLine := strings.Split(versionOut[0], " ")
 
 	if len(versionLine) < minVersionFields {
-		return tntCli.version, fmt.Errorf("failed to get tarantool version: corrupted data")
+		return tntCli.version, errFailedToGetTarantoolVersionCorruptedData
 	}
 
 	tntVersion, err := version.Parse(versionLine[len(versionLine)-1])
@@ -77,7 +87,7 @@ func (tntCli *TarantoolCli) GetVersion() (version.Version, error) {
 // GetTtVersion returns version of Tt provided by its executable path.
 func GetTtVersion(pathToBin string) (version.Version, error) {
 	if !util.IsRegularFile(pathToBin) {
-		return version.Version{}, fmt.Errorf("file %q not found", pathToBin)
+		return version.Version{}, fmt.Errorf("%w%q not found", errFileNotFound, pathToBin)
 	}
 
 	output, err := exec.CommandContext(context.Background(), pathToBin, "--self", "version",

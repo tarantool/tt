@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -230,7 +231,7 @@ func TestEvalForeach_stops_after_evaler_error(t *testing.T) {
 		validInstance,
 	}
 
-	evaler := &instanceEvalerMock{T: t, Error: fmt.Errorf("foo")}
+	evaler := &instanceEvalerMock{T: t, Error: errFoo}
 	err := replicaset.EvalForeach(instances, evaler)
 	assert.EqualError(t, err, "foo")
 	assert.Equal(t, evaler.Instances, []running.InstanceCtx{validInstance})
@@ -360,7 +361,7 @@ func TestEvalForeachAlive_stops_after_evaler_err(t *testing.T) {
 		validInstance,
 	}
 
-	evaler := &instanceEvalerMock{T: t, Error: fmt.Errorf("foo")}
+	evaler := &instanceEvalerMock{T: t, Error: errFoo}
 	err := replicaset.EvalForeachAlive(instances, evaler)
 	assert.EqualError(t, err, "foo")
 	assert.Equal(t, evaler.Instances, []running.InstanceCtx{validInstance})
@@ -455,7 +456,7 @@ func TestEvalAny_ignore_evaler_done(t *testing.T) {
 		},
 	}
 	for _, tc := range []bool{true, false} {
-		t.Run(fmt.Sprintf("%t", tc), func(t *testing.T) {
+		t.Run(strconv.FormatBool(tc), func(t *testing.T) {
 			evaler := &instanceEvalerMock{T: t, Done: tc}
 			err := replicaset.EvalAny(instances, evaler)
 			assert.NoError(t, err)
@@ -472,7 +473,7 @@ func TestEvalAny_stop_after_evaler_error(t *testing.T) {
 		},
 	}
 
-	evaler := &instanceEvalerMock{T: t, Error: fmt.Errorf("foo")}
+	evaler := &instanceEvalerMock{T: t, Error: errFoo}
 	err := replicaset.EvalAny(instances, evaler)
 	assert.EqualError(t, err, "foo")
 }

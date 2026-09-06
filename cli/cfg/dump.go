@@ -1,13 +1,17 @@
 package cfg
 
 import (
-	"fmt"
+	"errors"
 	"io"
 	"os"
 
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"gopkg.in/yaml.v2"
+)
+
+var (
+	errTTConfigurationFileIsNotFound = errors.New("tt configuration file is not found")
 )
 
 // DumpCtx contains information for tt config dump.
@@ -30,7 +34,7 @@ func dumpRaw(writer io.Writer, cmdCtx *cmdcontext.CmdCtx) error {
 		writer.Write([]byte(cmdCtx.Cli.ConfigPath + ":\n"))
 		writer.Write(fileContent)
 	} else {
-		return fmt.Errorf("tt configuration file is not found")
+		return errTTConfigurationFileIsNotFound
 	}
 
 	return nil

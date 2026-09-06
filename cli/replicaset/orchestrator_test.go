@@ -12,6 +12,10 @@ import (
 	"github.com/tarantool/tt/cli/replicaset"
 )
 
+var (
+	errFoo = errors.New("foo")
+)
+
 func TestOrchestrator_String(t *testing.T) {
 	cases := []struct {
 		Orchestrator replicaset.Orchestrator
@@ -108,7 +112,7 @@ func TestEvalOrchestrator_unknown(t *testing.T) {
 func TestEvalOrchestrator_error(t *testing.T) {
 	_, err := replicaset.EvalOrchestrator(orchestratorEvalerMock{
 		ret: []any{"unknown"},
-		err: errors.New("foo"),
+		err: errFoo,
 	})
 	require.EqualError(t, err, "failed to recognize orchestrator: foo")
 }

@@ -8,6 +8,12 @@ import (
 	"github.com/tarantool/tt/cli/aeon/pb"
 )
 
+var (
+	errSQLCheckRequestIsNil  = errors.New("sql check request is nil")
+	errSQLRequestIsNil       = errors.New("sql request is nil")
+	errSQLStreamRequestIsNil = errors.New("sql stream request is nil")
+)
+
 // Server mock functions: SQL[Check|Stream] accepts SQL request with string ["ok", "error", ""].
 // SQLCheck returns appropriate SQLCheckStatus value: "VALID", "INVALID", "INCOMPLETE".
 // SQL[Stream] returns SQLResponse with two tuples on "ok" request and with Error other way.
@@ -19,7 +25,7 @@ func (s *Server) SQLCheck(ctx context.Context,
 	request *pb.SQLRequest,
 ) (*pb.SQLCheckResponse, error) {
 	if request == nil {
-		return nil, errors.New("sql check request is nil")
+		return nil, errSQLCheckRequestIsNil
 	}
 	status := pb.SQLCheckStatus_SQL_QUERY_INCOMPLETE
 	switch strings.ToLower(request.GetQuery()) {
@@ -33,7 +39,7 @@ func (s *Server) SQLCheck(ctx context.Context,
 
 func (s *Server) SQL(ctx context.Context, in *pb.SQLRequest) (*pb.SQLResponse, error) {
 	if in == nil {
-		return nil, errors.New("sql request is nil")
+		return nil, errSQLRequestIsNil
 	}
 	res := makeSQLResponse(in.GetQuery())
 	return &res, nil
@@ -41,7 +47,7 @@ func (s *Server) SQL(ctx context.Context, in *pb.SQLRequest) (*pb.SQLResponse, e
 
 func (s *Server) SQLStream(in *pb.SQLRequest, stream pb.SQLService_SQLStreamServer) error {
 	if in == nil {
-		return errors.New("sql stream request is nil")
+		return errSQLStreamRequestIsNil
 	}
 	res := makeSQLResponse(in.GetQuery())
 	stream.Send(&res)

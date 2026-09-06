@@ -20,6 +20,55 @@ import (
 )
 
 var (
+	errAnInstanceNameIsNotSpecifiedPleaseUseAppInstanceFormat = errors.New(
+		"an instance name is not specified. Please use app:instance format",
+	)
+	errCannotConnectToAnyInstanceFromReplicaset = errors.New(
+		"cannot connect to any instance from replicaset",
+	)
+	errDifferentInstanceNames = errors.New(
+		"there are different instance names passed after app name and in flag arg",
+	)
+	errInstanceForRebootstrapIsNotSpecified = errors.New(
+		"instance for rebootstrap is not specified",
+	)
+	errInstanceNotFound                     = errors.New("instance ")
+	errNeedToSpecifyTheVersionToDowngradeTo = errors.New(
+		"need to specify the version to downgrade to",
+	)
+	errOnlyOneInstanceSupportedForReBootstrap = errors.New(
+		"only one instance supported for re-bootstrap",
+	)
+	errOnlyOneTypeOfOrchestratorCanBeForced = errors.New(
+		"only one type of orchestrator can be forced",
+	)
+	errRemoteInstanceDemotingIsNotSupported = errors.New(
+		"remote instance demoting is not supported",
+	)
+	errSpecifyAnInstanceToDemote = errors.New(
+		"specify an instance to demote",
+	)
+	errSpecifyAnInstanceToPromote = errors.New(
+		"specify an instance to promote",
+	)
+	errTheCommandExpectsArgumentApplicationNameInstanceName = errors.New(
+		"the command expects argument application_name:instance_name",
+	)
+	errThereAreNoRunningInstances = errors.New(
+		"there are no running instances",
+	)
+	errThereIsNoDestinationProvidedInWhichToAddRole = errors.New(
+		"there is no destination provided in which to add role",
+	)
+	errThereIsNoDestinationProvidedWhereToRemoveRole = errors.New(
+		"there is no destination provided where to remove role",
+	)
+	errVersionMustBeInTheFormatXXXWhereXIsANumber = errors.New(
+		"version must be in the format 'x.x.x', where x is a number",
+	)
+)
+
+var (
 	orchestratorCentralizedConfig bool
 	orchestratorCustom            bool
 	orchestratorsEnabled          = map[replicaset.Orchestrator]*bool{
@@ -87,10 +136,9 @@ func newDowngradeCmd() *cobra.Command {
 		return func(cmd *cobra.Command, args []string) error {
 			versionPattern := regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 			if args[i] == "" {
-				return errors.New("need to specify the version to downgrade to")
+				return errNeedToSpecifyTheVersionToDowngradeTo
 			} else if !versionPattern.MatchString(args[i]) {
-				return errors.New("version must be in the format " +
-					"'x.x.x', where x is a number")
+				return errVersionMustBeInTheFormatXXXWhereXIsANumber
 			}
 			return nil
 		}
@@ -482,7 +530,7 @@ func fillReplicasetAppCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, target 
 		return connOpts, nil
 	}
 	if len(ctx.RunningCtx.Instances) == 0 {
-		return connOpts, fmt.Errorf("there are no running instances")
+		return connOpts, errThereAreNoRunningInstances
 	}
 	// Trying to find alive instance to create connection with it.
 	var err error
@@ -501,7 +549,7 @@ func fillReplicasetAppCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, target 
 		}
 	}
 	if err != nil {
-		return connOpts, fmt.Errorf("cannot connect to any instance from replicaset")
+		return connOpts, errCannotConnectToAnyInstanceFromReplicaset
 	}
 	return connOpts, nil
 }
@@ -511,8 +559,7 @@ func fillSingleReplicasetInstance(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx,
 ) (connector.ConnectOpts, error) {
 	var connOpts connector.ConnectOpts
 	if connectCtx.Username != "" || connectCtx.Password != "" {
-		return connOpts, fmt.Errorf("username and password are not supported" +
-			" with a connection via a control socket")
+		return connOpts, errControlSocketCredentialsUnsupported
 	}
 	connOpts = makeConnOpts(
 		connector.UnixNetwork,
@@ -525,7 +572,7 @@ func fillSingleReplicasetInstance(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx,
 		return connOpts, nil
 	}
 	if instName != ctx.RunningCtx.Instances[0].InstName {
-		return connOpts, fmt.Errorf("instance %q not found", instName)
+		return connOpts, fmt.Errorf("%w%q not found", errInstanceNotFound, instName)
 	}
 	// Re-fill context for an application.
 	ctx.InstName = instName
@@ -612,7 +659,7 @@ func internalReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) e
 		return err
 	}
 	if !ctx.IsInstanceConnect {
-		return fmt.Errorf("specify an instance to promote")
+		return errSpecifyAnInstanceToPromote
 	}
 	defer ctx.Conn.Close()
 
@@ -643,10 +690,10 @@ func internalReplicasetDemoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) er
 		return err
 	}
 	if !ctx.IsApplication {
-		return fmt.Errorf("remote instance demoting is not supported")
+		return errRemoteInstanceDemotingIsNotSupported
 	}
 	if !ctx.IsInstanceConnect {
-		return fmt.Errorf("specify an instance to demote")
+		return errSpecifyAnInstanceToDemote
 	}
 	defer ctx.Conn.Close()
 
@@ -689,7 +736,7 @@ func internalReplicasetStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) er
 // internalReplicasetExpelModule is a "expel" command for the replicaset module.
 func internalReplicasetExpelModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if _, _, found := strings.Cut(args[0], string(running.InstanceDelimiter)); !found {
-		return fmt.Errorf("the command expects argument application_name:instance_name")
+		return errTheCommandExpectsArgumentApplicationNameInstanceName
 	}
 	var ctx replicasetCtx
 	if err := replicasetFillCtx(cmdCtx, &ctx, args[0], true, running.ConfigLoadAll); err != nil {
@@ -779,7 +826,7 @@ func getOrchestrator() (replicaset.Orchestrator, error) {
 		}
 	}
 	if cnt > 1 {
-		return orchestrator, fmt.Errorf("only one type of orchestrator can be forced")
+		return orchestrator, errOnlyOneTypeOfOrchestratorCanBeForced
 	}
 	return orchestrator, nil
 }
@@ -787,13 +834,13 @@ func getOrchestrator() (replicaset.Orchestrator, error) {
 // replicasetRebootstrapValidateArgs validates "rebootstrap" command arguments.
 func replicasetRebootstrapValidateArgs(cmd *cobra.Command, args []string) error {
 	if len(args) > 1 {
-		return errors.New("only one instance supported for re-bootstrap")
+		return errOnlyOneInstanceSupportedForReBootstrap
 	}
 	if len(args) < 1 {
-		return errors.New("instance for rebootstrap is not specified")
+		return errInstanceForRebootstrapIsNotSpecified
 	}
 	if !strings.Contains(args[0], string(running.InstanceDelimiter)) {
-		return errors.New("an instance name is not specified. Please use app:instance format")
+		return errAnInstanceNameIsNotSpecifiedPleaseUseAppInstanceFormat
 	}
 	return nil
 }
@@ -817,12 +864,11 @@ func internalReplicasetRolesAddModule(cmdCtx *cmdcontext.CmdCtx, args []string) 
 	defer ctx.Conn.Close()
 	if ctx.IsApplication && replicasetInstanceName == "" && ctx.InstName == "" &&
 		!replicasetIsGlobal && replicasetGroupName == "" && replicasetReplicasetName == "" {
-		return fmt.Errorf("there is no destination provided in which to add role")
+		return errThereIsNoDestinationProvidedInWhichToAddRole
 	}
 	if ctx.InstName != "" && replicasetInstanceName != "" &&
 		replicasetInstanceName != ctx.InstName {
-		return fmt.Errorf("there are different instance names passed after" +
-			" app name and in flag arg")
+		return errDifferentInstanceNames
 	}
 	if replicasetInstanceName != "" {
 		ctx.InstName = replicasetInstanceName
@@ -861,12 +907,11 @@ func internalReplicasetRolesRemoveModule(cmdCtx *cmdcontext.CmdCtx, args []strin
 	defer ctx.Conn.Close()
 	if ctx.IsApplication && replicasetInstanceName == "" && ctx.InstName == "" &&
 		!replicasetIsGlobal && replicasetGroupName == "" && replicasetReplicasetName == "" {
-		return fmt.Errorf("there is no destination provided where to remove role")
+		return errThereIsNoDestinationProvidedWhereToRemoveRole
 	}
 	if ctx.InstName != "" && replicasetInstanceName != "" &&
 		replicasetInstanceName != ctx.InstName {
-		return fmt.Errorf("there are different instance names passed after" +
-			" app name and in flag arg")
+		return errDifferentInstanceNames
 	}
 	if replicasetInstanceName != "" {
 		ctx.InstName = replicasetInstanceName

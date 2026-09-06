@@ -13,6 +13,16 @@ import (
 	"github.com/tarantool/tt/cli/version"
 )
 
+var (
+	errGitRequired = errors.New(
+		"'git' is required for 'tt search' to work",
+	)
+	errUnableToGetCommitsGitCommandIsMissing = errors.New(
+		"unable to get commits: `git` command is missing",
+	)
+	errUnexpectedDataFrom = errors.New("unexpected Data from ")
+)
+
 const (
 	GitRepoTarantool         = "https://github.com/tarantool/tarantool.git"
 	GitRepoTT                = "https://github.com/tarantool/tt.git"
@@ -30,7 +40,7 @@ func GetVersionsFromGitRemote(repo string) (version.VersionSlice, error) {
 	versions := version.VersionSlice{}
 
 	if _, err := exec.LookPath("git"); err != nil {
-		return nil, errors.New("'git' is required for 'tt search' to work")
+		return nil, errGitRequired
 	}
 
 	output, err := exec.CommandContext(
@@ -49,7 +59,7 @@ func GetVersionsFromGitRemote(repo string) (version.VersionSlice, error) {
 	for _, line := range lines {
 		slashIdx := strings.LastIndex(line, "/")
 		if slashIdx == -1 {
-			return nil, fmt.Errorf("unexpected Data from %s", repo)
+			return nil, fmt.Errorf("%w%s", errUnexpectedDataFrom, repo)
 		} else {
 			slashIdx += 1
 		}
@@ -72,7 +82,7 @@ func GetVersionsFromGitRemote(repo string) (version.VersionSlice, error) {
 // GetCommitFromGitLocal returns hash or pr/ID info from specified local git repo.
 func GetCommitFromGitLocal(repo, input string) (string, error) {
 	if _, err := exec.LookPath("git"); err != nil {
-		return "", errors.New("unable to get commits: `git` command is missing")
+		return "", errUnableToGetCommitsGitCommandIsMissing
 	}
 
 	isPullRequest, pullRequestID := util.IsPullRequest(input)
@@ -106,7 +116,7 @@ func GetCommitFromGitLocal(repo, input string) (string, error) {
 // GetCommitFromGitRemote returns hash or pr/ID info from specified remote git repo.
 func GetCommitFromGitRemote(repo, input string) (string, error) {
 	if _, err := exec.LookPath("git"); err != nil {
-		return "", errors.New("unable to get commits: `git` command is missing")
+		return "", errUnableToGetCommitsGitCommandIsMissing
 	}
 
 	tempRepoPath, err := os.MkdirTemp("", "tt_install_repo")
@@ -132,7 +142,7 @@ func GetVersionsFromGitLocal(repo string) (version.VersionSlice, error) {
 	versions := version.VersionSlice{}
 
 	if _, err := exec.LookPath("git"); err != nil {
-		return nil, errors.New("'git' is required for 'tt search' to work")
+		return nil, errGitRequired
 	}
 
 	output, err := exec.CommandContext(context.Background(), "git", "-C", repo, "tag").Output()

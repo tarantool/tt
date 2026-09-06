@@ -1,9 +1,14 @@
 package cluster
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
+)
+
+var (
+	errFilePathIsEmpty = errors.New("file path is empty")
 )
 
 const publishedFileMode = 0o644
@@ -54,15 +59,14 @@ func NewFilePublisher(path string) FilePublisher {
 // Publish publishes the data to a file for the given path.
 func (publisher FilePublisher) Publish(revision int64, data []byte) error {
 	if revision != 0 {
-		return fmt.Errorf("failed to publish data into file: target revision %d is not supported",
-			revision)
+		return fmt.Errorf("failed to publish data into file: %w%d is not supported",
+			errTargetRevisionIsNotSupported, revision)
 	}
 	if publisher.path == "" {
-		return fmt.Errorf("file path is empty")
+		return errFilePathIsEmpty
 	}
 	if data == nil {
-		return fmt.Errorf("failed to publish data into %q: data does not exist",
-			publisher.path)
+		return fmt.Errorf("failed to publish data into %q: %w", publisher.path, errDataMissing)
 	}
 
 	if err := os.WriteFile(publisher.path, data, publishedFileMode); err != nil {

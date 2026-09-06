@@ -15,6 +15,10 @@ import (
 	"github.com/tarantool/tt/cli/ttlog"
 )
 
+var (
+	errNoValidIPFound = errors.New("no valid IP found")
+)
+
 // DaemonHandler is used to communicate with the daemon over HTTP.
 type DaemonHandler struct {
 	cmdPath string
@@ -109,7 +113,7 @@ func (handler *DaemonHandler) callCommand(ctx context.Context, ttCmd *command) (
 	cmd.Stdout = &stdout
 	err := cmd.Run()
 	if err != nil {
-		err = errors.New(fmt.Sprint(err) + ": " + stderr.String())
+		err = fmt.Errorf("%w: %s", err, stderr.String())
 	}
 
 	return stdout.String() + stderr.String(), err
@@ -159,5 +163,5 @@ func (handler *DaemonHandler) getClientIP(req *http.Request) (string, error) {
 		return req.RemoteAddr, nil
 	}
 
-	return "", fmt.Errorf("no valid IP found")
+	return "", errNoValidIPFound
 }

@@ -19,6 +19,14 @@ import (
 	"github.com/tarantool/tt/cli/version"
 )
 
+var (
+	errDirectoryNotFound                = errors.New("couldn't find ")
+	errHasNoInstalledVersion            = errors.New(" has no installed version")
+	errMultipleInstalledVersions        = errors.New(" has more than one installed version, ")
+	errThereWasSomeProblemLocating      = errors.New("there was some problem locating ")
+	errThereWasSomeProblemWithDirectory = errors.New("there was some problem with ")
+)
+
 const binaryNameMatchGroups = 2
 
 const (
@@ -29,7 +37,7 @@ const (
 	MajorMinorPatchRegexp = `^[0-9]+\.[0-9]+\.[0-9]+`
 )
 
-var errNotInstalled = errors.New("program is not installed")
+var errNotInstalled = errors.New("not installed")
 
 // remove removes binary/directory and symlinks from directory.
 // It returns true if symlink was removed, error.
@@ -42,18 +50,18 @@ func remove(program search.Program, programVersion, directory string) (bool, err
 	}
 
 	if _, err := os.Stat(directory); os.IsNotExist(err) {
-		return false, fmt.Errorf("couldn't find %s directory", directory)
+		return false, fmt.Errorf("%w%s directory", errDirectoryNotFound, directory)
 	} else if err != nil {
-		return false, fmt.Errorf("there was some problem with %s directory", directory)
+		return false, fmt.Errorf("%w%s directory", errThereWasSomeProblemWithDirectory, directory)
 	}
 
 	fileName := program.String() + version.FsSeparator + programVersion
 	path := filepath.Join(directory, fileName)
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return false, errNotInstalled
+		return false, fmt.Errorf("program is %w", errNotInstalled)
 	} else if err != nil {
-		return false, fmt.Errorf("there was some problem locating %s", path)
+		return false, fmt.Errorf("%w%s", errThereWasSomeProblemLocating, path)
 	}
 
 	var isSymlinkRemoved bool
@@ -103,7 +111,7 @@ func UninstallProgram(
 			return err
 		}
 		if !isTarantoolDevInstalled {
-			return fmt.Errorf("%s is not installed", program)
+			return fmt.Errorf("%s is %w", program, errNotInstalled)
 		}
 		if err := os.Remove(tarantoolBinarySymlink); err != nil {
 			return err
@@ -194,15 +202,15 @@ func getDefault(program search.Program, dir string) (string, error) {
 	for _, file := range installedPrograms {
 		matches := util.FindNamedMatches(re, file.Name())
 		if ver != "" {
-			return "", fmt.Errorf("%s has more than one installed version, "+
-				"please specify the version to uninstall", program)
+			return "", fmt.Errorf("%s%wplease specify the version to uninstall",
+				program, errMultipleInstalledVersions)
 		} else {
 			ver = matches["ver"]
 		}
 	}
 
 	if ver == "" {
-		return "", fmt.Errorf("%s has no installed version", program)
+		return "", fmt.Errorf("%s%w", program, errHasNoInstalledVersion)
 	}
 	return ver, nil
 }

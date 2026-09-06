@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	goconfig "github.com/tarantool/go-config"
@@ -9,6 +10,19 @@ import (
 	"github.com/tarantool/tt/cli/cluster"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 	"github.com/tarantool/tt/lib/connect"
+)
+
+var (
+	errFailedToDetermineTheGroupOfTheReplicaset = errors.New(
+		"failed to determine the group of the ",
+	)
+	errReplicasetNameIsNotSpecifiedForInstanceConfiguration = errors.New(
+		"replicaset name is not specified for ",
+	)
+	errWrongGroupNameExpectedHave      = errors.New("wrong group name, expected ")
+	errWrongReplicasetNameExpectedHave = errors.New(
+		"wrong replicaset name, expected ",
+	)
 )
 
 // PublishCtx contains information about cluster publish command execution
@@ -131,24 +145,26 @@ func setInstanceConfig(group, replicaset, instance string, instanceMap map[strin
 	if !found {
 		// Instance not found: resolve group/replicaset.
 		if replicaset == "" {
-			return fmt.Errorf(
-				"replicaset name is not specified for %q instance configuration", instance)
+			return fmt.Errorf("%w%q instance configuration",
+				errReplicasetNameIsNotSpecifiedForInstanceConfiguration, instance)
 		}
 		if group == "" {
 			var ok bool
 			group, ok = cluster.FindGroupByReplicaset(snap, replicaset)
 			if !ok {
-				return fmt.Errorf("failed to determine the group of the %q replicaset", replicaset)
+				return fmt.Errorf("%w%q replicaset",
+					errFailedToDetermineTheGroupOfTheReplicaset, replicaset)
 			}
 		}
 	}
 	if found {
 		// Instance already exists: validate group/replicaset names.
 		if replicaset != "" && replicaset != rname {
-			return fmt.Errorf("wrong replicaset name, expected %q, have %q", rname, replicaset)
+			return fmt.Errorf("%w%q, have %q",
+				errWrongReplicasetNameExpectedHave, rname, replicaset)
 		}
 		if group != "" && group != gname {
-			return fmt.Errorf("wrong group name, expected %q, have %q", gname, group)
+			return fmt.Errorf("%w%q, have %q", errWrongGroupNameExpectedHave, gname, group)
 		}
 		group = gname
 		replicaset = rname

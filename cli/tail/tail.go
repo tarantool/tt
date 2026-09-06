@@ -15,6 +15,10 @@ import (
 	"github.com/nxadm/tail"
 )
 
+var (
+	errNegativeLinesCountIsNotSupported = errors.New("negative lines count is not supported")
+)
+
 const (
 	blockSize               = 8192
 	formatterBufferCapacity = 512
@@ -128,7 +132,7 @@ func TailN(ctx context.Context, logFormatter LogFormatter, fileName string,
 	n int,
 ) (<-chan string, error) {
 	if n < 0 {
-		return nil, fmt.Errorf("negative lines count is not supported")
+		return nil, errNegativeLinesCountIsNotSupported
 	}
 
 	file, err := os.Open(fileName)

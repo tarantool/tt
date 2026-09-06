@@ -1,12 +1,17 @@
 package running
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"sync"
 	"syscall"
 	"time"
+)
+
+var (
+	errTheInstanceHasnTStartedYet = errors.New("the instance hasn't started yet")
 )
 
 // newProcessController create new process controller.
@@ -51,7 +56,7 @@ func (pc *processController) Wait() error {
 // SendSignal sends a signal to tarantool instance.
 func (pc *processController) SendSignal(sig os.Signal) error {
 	if pc.Cmd == nil || pc.Process == nil {
-		return fmt.Errorf("the instance hasn't started yet")
+		return errTheInstanceHasnTStartedYet
 	}
 	return pc.Process.Signal(sig)
 }

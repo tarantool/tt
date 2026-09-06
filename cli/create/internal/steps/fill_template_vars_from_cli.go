@@ -1,6 +1,7 @@
 package steps
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -9,14 +10,14 @@ import (
 	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
 
-const varDefFormatError = `wrong variable definition format: %s
-Format: var-name=value`
+var errWrongVariableDefinitionFormat = errors.New("wrong variable definition format: ")
 
 func parseVarDefinition(varDefText string) (struct{ name, value string }, error) {
 	varDefinition := strings.TrimSpace(strings.TrimSuffix(varDefText, "\n"))
 	varName, value, found := strings.Cut(varDefinition, "=")
 	if !found || varName == "" || value == "" {
-		return struct{ name, value string }{}, fmt.Errorf(varDefFormatError, varDefText)
+		return struct{ name, value string }{}, fmt.Errorf("%w%s\nFormat: var-name=value",
+			errWrongVariableDefinitionFormat, varDefText)
 	}
 	return struct{ name, value string }{name: varName, value: value}, nil
 }

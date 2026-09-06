@@ -1,10 +1,15 @@
 package search
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/version"
+)
+
+var (
+	errNoVersionsFoundForMatchingTheCriteria = errors.New("no versions found for ")
 )
 
 // GetAPIPackage returns the package name at tarantool.io for the given program.
@@ -31,8 +36,8 @@ func searchVersionsTntIo(cliOpts *config.CliOpts, searchCtx *SearchCtx) (
 	}
 
 	if len(bundles) == 0 {
-		return nil, fmt.Errorf("no versions found for %s matching the criteria",
-			searchCtx.Program)
+		return nil, fmt.Errorf("%w%s matching the criteria",
+			errNoVersionsFoundForMatchingTheCriteria, searchCtx.Program)
 	}
 
 	vers := make(version.VersionSlice, bundles.Len())

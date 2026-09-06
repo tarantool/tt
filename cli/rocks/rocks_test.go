@@ -1,7 +1,6 @@
 package rocks
 
 import (
-	"fmt"
 	"os"
 	"testing"
 
@@ -175,7 +174,7 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 		IsTarantoolBinFromRepo: false,
 		TarantoolCli:           cmdcontext.TarantoolCli{Executable: tntBinPath},
 	}, data: &tntBadData0}] = prefixOutput{
-		err: fmt.Errorf("failed to get prefix path: regexp does not match"),
+		err: errPrefixPathRegexpMismatch,
 	}
 
 	tntBadData1 := []byte("#!/bin/sh\n" +
@@ -186,7 +185,7 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 		IsTarantoolBinFromRepo: false,
 		TarantoolCli:           cmdcontext.TarantoolCli{Executable: tntBinPath},
 	}, data: &tntBadData1}] = prefixOutput{
-		err: fmt.Errorf("failed to get prefix path: expected more data"),
+		err: errPrefixPathExpectedMoreData,
 	}
 
 	appOpts := config.TtEnvOpts{IncludeDir: "hdr"}

@@ -1,10 +1,16 @@
 package layout
 
 import (
-	"fmt"
+	"errors"
 	"path/filepath"
 
 	"github.com/tarantool/tt/cli/util"
+)
+
+var (
+	errApplicationNameCannotBeEmpty = errors.New("application name cannot be empty")
+	errBaseDirectoryCannotBeEmpty   = errors.New("base directory cannot be empty")
+	errInstanceNameCannotBeEmpty    = errors.New("instance name cannot be empty")
 )
 
 // MultiInstLayout implements Layout interface for multi-instance applications.
@@ -17,13 +23,13 @@ type MultiInstLayout struct {
 // NewMultiInstLayout creates new multi-instance layout.
 func NewMultiInstLayout(baseDir, appName, instanceName string) (*MultiInstLayout, error) {
 	if baseDir == "" {
-		return nil, fmt.Errorf("base directory cannot be empty")
+		return nil, errBaseDirectoryCannotBeEmpty
 	}
 	if appName == "" {
-		return nil, fmt.Errorf("application name cannot be empty")
+		return nil, errApplicationNameCannotBeEmpty
 	}
 	if instanceName == "" {
-		return nil, fmt.Errorf("instance name cannot be empty")
+		return nil, errInstanceNameCannotBeEmpty
 	}
 
 	return &MultiInstLayout{

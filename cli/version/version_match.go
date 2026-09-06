@@ -1,10 +1,20 @@
 package version
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 
 	"github.com/tarantool/tt/cli/util"
+)
+
+var (
+	errMinorVersionRequiresMajorToBeSpecified = errors.New(
+		"minor version requires major to be specified",
+	)
+	errPatchVersionRequiresMinorToBeSpecified = errors.New(
+		"patch version requires minor to be specified",
+	)
 )
 
 type (
@@ -62,7 +72,7 @@ func exploreMatchVersion(verStr string) (Version, requiredFields, error) {
 
 	if matches["minor"] != "" {
 		if matches["major"] == "" {
-			return version, fields, fmt.Errorf("minor version requires major to be specified")
+			return version, fields, errMinorVersionRequiresMajorToBeSpecified
 		}
 		if version.Minor, err = util.AtoiUint64(matches["minor"]); err != nil {
 			return version, fields, fmt.Errorf("can't parse Minor: %w", err)
@@ -72,7 +82,7 @@ func exploreMatchVersion(verStr string) (Version, requiredFields, error) {
 
 	if matches["patch"] != "" {
 		if matches["minor"] == "" {
-			return version, fields, fmt.Errorf("patch version requires minor to be specified")
+			return version, fields, errPatchVersionRequiresMinorToBeSpecified
 		}
 		if version.Patch, err = util.AtoiUint64(matches["patch"]); err != nil {
 			return version, fields, fmt.Errorf("can't parse Patch version: %w", err)

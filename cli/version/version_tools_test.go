@@ -1,7 +1,6 @@
 package version
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -192,18 +191,17 @@ func TestParseVersion(t *testing.T) {
 
 	testCases["2.8"] = returnValueParseVersion{
 		Version{},
-		fmt.Errorf("failed to parse version \"2.8\": format is not valid"),
+		newInvalidVersionError("2.8"),
 	}
 
 	testCases["42"] = returnValueParseVersion{
 		Version{},
-		fmt.Errorf("failed to parse version \"42\": format is not valid"),
+		newInvalidVersionError("42"),
 	}
 
 	testCases["2.11.0-0-gc9673ebb7-r575-gc32"] = returnValueParseVersion{
 		Version{},
-		fmt.Errorf("failed to parse version \"2.11.0-0-gc9673ebb7-r575-gc32\": " +
-			"format is not valid"),
+		newInvalidVersionError("2.11.0-0-gc9673ebb7-r575-gc32"),
 	}
 
 	for input, output := range testCases {
@@ -253,16 +251,16 @@ func TestParseTt(t *testing.T) {
 			inputVer:    "2131f7cc1de",
 			expectedVer: Version{},
 			isErr:       true,
-			expectedErrMsg: fmt.Sprintf(`failed to parse version "2131f7cc1de":` +
-				` format is not valid`),
+			expectedErrMsg: `failed to parse version "2131f7cc1de":` +
+				` format is not valid`,
 		},
 		{
 			name:        "version does not match",
 			inputVer:    "2.1.3.1.f7cc1de",
 			expectedVer: Version{},
 			isErr:       true,
-			expectedErrMsg: fmt.Sprintf(`the version of "2.1.3.1" does not match` +
-				` <major>.<minor>.<patch> format`),
+			expectedErrMsg: `the version of "2.1.3.1" does not match` +
+				` <major>.<minor>.<patch> format`,
 		},
 		{
 			name:           "hash does not match",

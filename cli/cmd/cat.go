@@ -16,6 +16,12 @@ import (
 	"github.com/tarantool/tt/cli/version"
 )
 
+var (
+	errItIsRequiredToSpecifyAtLeastOneXlogSnapFileOrDirectory = errors.New(
+		"it is required to specify at least one .xlog/.snap file or directory",
+	)
+)
+
 // catFlags contains flags for cat command.
 // Initialized with default values at creation.
 var catFlags = checkpoint.Opts{
@@ -42,8 +48,7 @@ func NewCatCmd() *cobra.Command {
 			"  tt cat --recursive /path/to/dir1 /path/to/dir2",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return errors.New("it is required to specify at least one .xlog/.snap file " +
-					"or directory")
+				return errItIsRequiredToSpecifyAtLeastOneXlogSnapFileOrDirectory
 			}
 			return nil
 		},

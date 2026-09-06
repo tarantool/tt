@@ -1,7 +1,6 @@
 package binary
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -31,7 +30,7 @@ func TestParseBinaries(t *testing.T) {
 func TestParseBinariesTarantoolDev(t *testing.T) {
 	for _, dir := range []string{"bin", "bin_symlink_broken"} {
 		t.Run(dir, func(t *testing.T) {
-			testDir := fmt.Sprintf("./testdata/tarantool_dev/%s", dir)
+			testDir := "./testdata/tarantool_dev/" + dir
 			fileList, err := os.ReadDir(testDir)
 			assert.NoError(t, err)
 			versions, err := ParseBinaries(fileList, search.ProgramDev, testDir)

@@ -22,6 +22,45 @@ import (
 )
 
 var (
+	errAllInstancesInTheTargetReplicasetShouldBeOnline = errors.New(
+		"all instances in the target replicaset should be online, ",
+	)
+	errAllOtherInstancesInTheTargetReplicasetShouldBeOnline = errors.New(
+		"all other instances in the target replicaset should be online, ",
+	)
+	errAnInstanceMustBeTheLeaderOfTheReplicasetToDemoteIt = errors.New(
+		"an instance must be the leader of the replicaset to demote it",
+	)
+	errFailedToReloadInstanceConfiguration = errors.New(
+		"failed to reload instance configuration for: ",
+	)
+	errInstanceNotFound                = errors.New("instance ")
+	errInstanceShouldBeOnline          = errors.New("instance ")
+	errNoInstanceFoundInTheApplication = errors.New(
+		"no instance found in the application",
+	)
+	errNotFoundAnyOtherInstanceJoinedToAReplicaset = errors.New(
+		"not found any other instance joined to a replicaset",
+	)
+	errNotFoundAnyVshardRouterInReplicaset = errors.New(
+		"not found any vshard router in replicaset",
+	)
+	errPathReplicationIsNotAMap = errors.New(
+		"path [\"replication\"] is not a map",
+	)
+	errThereAreNoRunningInstances = errors.New(
+		"there are no running instances",
+	)
+	errUnexpectedElectionModeCandidateExpected  = errors.New("unexpected election_mode: ")
+	errUnexpectedElectionModeTypeStringExpected = errors.New(
+		"unexpected election_mode type: ",
+	)
+	errUnexpectedFailover                   = errors.New("unexpected failover: ")
+	errUnexpectedFailoverTypeStringExpected = errors.New("unexpected failover type: ")
+	errUnexpectedRoleType                   = errors.New("unexpected role type: ")
+)
+
+var (
 	//go:embed lua/cconfig/get_instance_topology_body.lua
 	cconfigGetInstanceTopologyBody string
 
@@ -187,13 +226,14 @@ func (c *CConfigApplication) Expel(ctx ExpelCtx) error {
 
 	targetReplicaset, targetInstance, found := findInstanceByAlias(replicasets, ctx.InstName)
 	if !found {
-		return fmt.Errorf("instance %q not found in a configured replicaset", ctx.InstName)
+		return fmt.Errorf("%w%q not found in a configured replicaset",
+			errInstanceNotFound, ctx.InstName)
 	}
 	if !targetInstance.InstanceCtxFound {
-		return fmt.Errorf("instance %q should be online", ctx.InstName)
+		return fmt.Errorf("%w%q should be online", errInstanceShouldBeOnline, ctx.InstName)
 	}
 	if len(targetReplicaset.Instances) == 1 {
-		return fmt.Errorf("not found any other instance joined to a replicaset")
+		return errNotFoundAnyOtherInstanceJoinedToAReplicaset
 	}
 
 	var instances []running.InstanceCtx
@@ -209,10 +249,10 @@ func (c *CConfigApplication) Expel(ctx ExpelCtx) error {
 		}
 	}
 	if len(unavailable) > 0 {
-		msg := fmt.Sprintf("could not connect to: %s", strings.Join(unavailable, ","))
+		msg := "could not connect to: " + strings.Join(unavailable, ",")
 		if !ctx.Force {
 			return fmt.Errorf(
-				"all other instances in the target replicaset should be online, %s", msg)
+				"%w%s", errAllOtherInstancesInTheTargetReplicasetShouldBeOnline, msg)
 		}
 		log.Warn(msg)
 	}
@@ -237,7 +277,7 @@ func getCConfigInstanceTopology(evaler connector.Evaler) (cconfigTopology, error
 	}
 
 	if len(data) != 1 {
-		return topology, fmt.Errorf("unexpected response: %v", data)
+		return topology, fmt.Errorf("%w: %v", errUnexpectedResponse, data)
 	}
 
 	if err := mapstructure.Decode(data[0], &topology); err != nil {
@@ -338,10 +378,11 @@ func (c *CConfigApplication) Promote(ctx PromoteCtx) error {
 	}
 	targetReplicaset, targetInstance, found := findInstanceByAlias(replicasets, ctx.InstName)
 	if !found {
-		return fmt.Errorf("instance %q not found in a configured replicaset", ctx.InstName)
+		return fmt.Errorf("%w%q not found in a configured replicaset",
+			errInstanceNotFound, ctx.InstName)
 	}
 	if !targetInstance.InstanceCtxFound {
-		return fmt.Errorf("instance %q should be online", ctx.InstName)
+		return fmt.Errorf("%w%q should be online", errInstanceShouldBeOnline, ctx.InstName)
 	}
 
 	var instances []running.InstanceCtx
@@ -354,9 +395,9 @@ func (c *CConfigApplication) Promote(ctx PromoteCtx) error {
 		}
 	}
 	if len(unavailable) > 0 {
-		msg := fmt.Sprintf("could not connect to: %s", strings.Join(unavailable, ","))
+		msg := "could not connect to: " + strings.Join(unavailable, ",")
 		if !ctx.Force {
-			return fmt.Errorf("all instances in the target replicaset should be online, %s", msg)
+			return fmt.Errorf("%w%s", errAllInstancesInTheTargetReplicasetShouldBeOnline, msg)
 		}
 		log.Warn(msg)
 	}
@@ -377,10 +418,11 @@ func (c *CConfigApplication) Demote(ctx DemoteCtx) error {
 	}
 	targetReplicaset, targetInstance, found := findInstanceByAlias(replicasets, ctx.InstName)
 	if !found {
-		return fmt.Errorf("instance %q not found in a configured replicaset", ctx.InstName)
+		return fmt.Errorf("%w%q not found in a configured replicaset",
+			errInstanceNotFound, ctx.InstName)
 	}
 	if !targetInstance.InstanceCtxFound {
-		return fmt.Errorf("instance %q should be online", ctx.InstName)
+		return fmt.Errorf("%w%q should be online", errInstanceShouldBeOnline, ctx.InstName)
 	}
 
 	var instances []running.InstanceCtx
@@ -393,9 +435,9 @@ func (c *CConfigApplication) Demote(ctx DemoteCtx) error {
 		}
 	}
 	if len(unavailable) > 0 {
-		msg := fmt.Sprintf("could not connect to: %s", strings.Join(unavailable, ","))
+		msg := "could not connect to: " + strings.Join(unavailable, ",")
 		if !ctx.Force {
-			return fmt.Errorf("all instances in the target replicaset should be online, %s", msg)
+			return fmt.Errorf("%w%s", errAllInstancesInTheTargetReplicasetShouldBeOnline, msg)
 		}
 		log.Warn(msg)
 	}
@@ -437,7 +479,7 @@ func (c *CConfigApplication) BootstrapVShard(ctx VShardBootstrapCtx) error {
 		}
 	}
 	if !found {
-		return fmt.Errorf("not found any vshard router in replicaset")
+		return errNotFoundAnyVshardRouterInReplicaset
 	}
 	return nil
 }
@@ -477,10 +519,11 @@ func (c *CConfigApplication) RolesChange(ctx RolesChangeCtx,
 		targetReplicaset, targetInstance, found :=
 			findInstanceByAlias(replicasets, ctx.InstName)
 		if !found {
-			return fmt.Errorf("instance %q not found in a configured replicaset", ctx.InstName)
+			return fmt.Errorf("%w%q not found in a configured replicaset",
+				errInstanceNotFound, ctx.InstName)
 		}
 		if !targetInstance.InstanceCtxFound {
-			return fmt.Errorf("instance %q should be online", ctx.InstName)
+			return fmt.Errorf("%w%q should be online", errInstanceShouldBeOnline, ctx.InstName)
 		}
 		for _, inst := range targetReplicaset.Instances {
 			if !inst.InstanceCtxFound {
@@ -493,7 +536,7 @@ func (c *CConfigApplication) RolesChange(ctx RolesChangeCtx,
 	if len(unavailable) > 0 {
 		msg := "could not connect to: " + strings.Join(unavailable, ",")
 		if !ctx.Force {
-			return fmt.Errorf("all instances in the target replicaset should be online, %s", msg)
+			return fmt.Errorf("%w%s", errAllInstancesInTheTargetReplicasetShouldBeOnline, msg)
 		}
 		log.Warn(msg)
 	}
@@ -531,7 +574,7 @@ func (c *CConfigApplication) discovery() (Replicasets, error) {
 	}
 
 	if len(topologies) == 0 {
-		return Replicasets{}, fmt.Errorf("no instance found in the application")
+		return Replicasets{}, errNoInstanceFoundInTheApplication
 	}
 
 	return mergeCConfigTopologies(topologies)
@@ -566,18 +609,18 @@ func cconfigGetShardingRoles(evaler connector.Evaler) ([]string, error) {
 		return nil, err
 	}
 	if len(resp) != 1 {
-		return nil, fmt.Errorf("unexpected response length: %d", len(resp))
+		return nil, fmt.Errorf("%w length: %d", errUnexpectedResponse, len(resp))
 	}
 	rolesAnyArray, ok := resp[0].([]any)
 	if !ok {
-		return nil, fmt.Errorf("unexpected response type: %T", resp[0])
+		return nil, fmt.Errorf("%w type: %T", errUnexpectedResponse, resp[0])
 	}
 	var ret []string
 	for _, role := range rolesAnyArray {
 		if roleStr, ok := role.(string); ok {
 			ret = append(ret, roleStr)
 		} else {
-			return nil, fmt.Errorf("unexpected role type: %T", role)
+			return nil, fmt.Errorf("%w%T", errUnexpectedRoleType, role)
 		}
 	}
 	return ret, nil
@@ -601,9 +644,9 @@ func reloadCConfig(instances []running.InstanceCtx) error {
 			", please try to do it manually with `require('config'):reload()`: %w", err)
 	}
 	if len(errored) > 0 {
-		return fmt.Errorf("failed to reload instance configuration for: %s, "+
+		return fmt.Errorf("%w%s, "+
 			"please try to do it manually with `require('config'):reload()`",
-			strings.Join(errored, ", "))
+			errFailedToReloadInstanceConfiguration, strings.Join(errored, ", "))
 	}
 	return nil
 }
@@ -670,12 +713,12 @@ func (c *CConfigApplication) demote(instance Instance,
 			return false, err
 		}
 		if electionMode != ElectionModeCandidate {
-			return false,
-				fmt.Errorf(`unexpected election_mode: %q, "candidate" expected`, electionMode)
+			return false, fmt.Errorf("%w%q, \"candidate\" expected",
+				errUnexpectedElectionModeCandidateExpected, electionMode)
 		}
 		if replicaset.LeaderUUID != instance.UUID {
 			return false,
-				fmt.Errorf("an instance must be the leader of the replicaset to demote it")
+				errAnInstanceMustBeTheLeaderOfTheReplicasetToDemoteIt
 		}
 		return c.demoteElection(instance.InstanceCtx, cconfigInstance, ctx.Timeout)
 	}
@@ -772,7 +815,7 @@ func (c *CConfigApplication) rolesChange(ctx RolesChangeCtx,
 	action RolesChangerAction,
 ) (bool, error) {
 	if len(c.runningCtx.Instances) == 0 {
-		return false, fmt.Errorf("there are no running instances")
+		return false, errThereAreNoRunningInstances
 	}
 	clusterCfgPath := c.runningCtx.Instances[0].ClusterConfigPath
 
@@ -873,7 +916,7 @@ func cconfigGetFailover(cfg goconfig.Config, instName string) (Failover, error) 
 		failoverStr, ok := raw.(string)
 		if !ok {
 			return FailoverOff,
-				fmt.Errorf("unexpected failover type: %T, string expected", raw)
+				fmt.Errorf("%w%T, string expected", errUnexpectedFailoverTypeStringExpected, raw)
 		}
 		return ParseFailover(failoverStr), nil
 	}
@@ -890,7 +933,7 @@ func cconfigGetFailover(cfg goconfig.Config, instName string) (Failover, error) 
 	}
 	var repMap map[string]any
 	if innerErr := repVal.Get(&repMap); innerErr != nil {
-		return FailoverOff, fmt.Errorf(`path ["replication"] is not a map`)
+		return FailoverOff, errPathReplicationIsNotAMap
 	}
 	return FailoverOff, nil
 }
@@ -917,7 +960,7 @@ func cconfigGetElectionMode(cfg goconfig.Config, instName string) (ElectionMode,
 	electionModeStr, ok := raw.(string)
 	if !ok {
 		return ElectionModeCandidate,
-			fmt.Errorf("unexpected election_mode type: %T, string expected", raw)
+			fmt.Errorf("%w%T, string expected", errUnexpectedElectionModeTypeStringExpected, raw)
 	}
 	return ParseElectionMode(electionModeStr), nil
 }
@@ -972,7 +1015,7 @@ func patchCConfigPromote(config *goconfig.MutableConfig,
 			"groups/%s/replicasets/%s/leader",
 			groupName, replicasetName)), instName)
 	default:
-		return nil, fmt.Errorf("unexpected failover: %q", failover)
+		return nil, fmt.Errorf("%w%q", errUnexpectedFailover, failover)
 	}
 	return config, err
 }
@@ -1015,7 +1058,7 @@ func patchCConfigDemote(config *goconfig.MutableConfig,
 		instName       = inst.name
 	)
 	if failover != FailoverOff {
-		return nil, fmt.Errorf("unexpected failover: %q", failover)
+		return nil, fmt.Errorf("%w%q", errUnexpectedFailover, failover)
 	}
 	instPath := goconfig.NewKeyPath(fmt.Sprintf(
 		"groups/%s/replicasets/%s/instances/%s", groupName, replicasetName, instName))
@@ -1067,7 +1110,8 @@ func getCConfigInstance(cfg goconfig.Config, instName string) (cconfigInstance, 
 
 	g, r, found := cluster.FindInstance(cfg, instName)
 	if !found {
-		return inst, fmt.Errorf("instance %q not found in the cluster configuration", instName)
+		return inst, fmt.Errorf("%w%q not found in the cluster configuration",
+			errInstanceNotFound, instName)
 	}
 	inst.groupName = g
 	inst.replicasetName = r

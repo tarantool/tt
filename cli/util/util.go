@@ -31,6 +31,22 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+var (
+	errAlreadyExistsAndIsNotADirectory = errors.New("already exists and is not a directory")
+	errInternal                        = errors.New(
+		"whoops! It looks like something is wrong with this version of Tarantool CLI.\nError: ",
+	)
+	errMissedRequiredBinaries                         = errors.New("missed required binaries ")
+	errMoreThanOneYAMLFilesAreFoundAmbiguousSelection = errors.New(
+		"more than one YAML files are found",
+	)
+	errInvalidYAMLFileExtension                 = errors.New("provided file '")
+	errSymbolicLinkCannotBeCreatedAlreadyExists = errors.New(
+		"symbolic link cannot be created: '",
+	)
+	errUnknownArchiveEntryType = errors.New("unknown type: ")
+)
+
 const bufSize int64 = 10000
 
 const archiveDirectoryMode = 0o755
@@ -135,14 +151,10 @@ func Find(src []string, find string) int {
 
 // InternalError shows error information, version of tt and call stack.
 func InternalError(format string, f VersionFunc, err ...any) error {
-	errorFmt := `whoops! It looks like something is wrong with this version of Tarantool CLI.
-Error: %s
-Version: %s
-Stacktrace:
-%s`
 	version := f(false, false)
 
-	return fmt.Errorf(errorFmt, fmt.Sprintf(format, err...), version, debug.Stack())
+	return fmt.Errorf("%w%s\nVersion: %s\nStacktrace:\n%s",
+		errInternal, fmt.Sprintf(format, err...), version, debug.Stack())
 }
 
 // ParseYAML parse yaml file at specified path.
@@ -605,7 +617,8 @@ func ExtractTar(tarName string) error {
 			outFile.Close()
 
 		default:
-			return fmt.Errorf("unknown type: %b in %s", header.Typeflag, header.Name)
+			return fmt.Errorf("%w%b in %s",
+				errUnknownArchiveEntryType, header.Typeflag, header.Name)
 		}
 	}
 	return nil
@@ -692,7 +705,8 @@ func CreateSymlink(oldName, newName string, overwrite bool) error {
 		return os.Symlink(oldName, newName)
 	}
 	if !overwrite {
-		return fmt.Errorf("symbolic link cannot be created: '%s' already exists", newName)
+		return fmt.Errorf("%w%s' already exists",
+			errSymbolicLinkCannotBeCreatedAlreadyExists, newName)
 	}
 	log.Debugf("Replace existing '%s' with new symlink.", newName)
 	if err := os.Remove(newName); err != nil {
@@ -730,7 +744,7 @@ func CheckRequiredBinaries(binaries ...string) error {
 	missedBinaries := getMissedBinaries(binaries...)
 
 	if len(missedBinaries) > 0 {
-		return fmt.Errorf("missed required binaries %s", strings.Join(missedBinaries, ", "))
+		return fmt.Errorf("%w%s", errMissedRequiredBinaries, strings.Join(missedBinaries, ", "))
 	}
 
 	return nil
@@ -745,7 +759,7 @@ func CreateDirectory(dirName string, fileMode os.FileMode) error {
 		}
 	} else {
 		if !stat.IsDir() {
-			return fmt.Errorf("'%s' already exists and is not a directory", dirName)
+			return fmt.Errorf("'%s' %w", dirName, errAlreadyExistsAndIsNotADirectory)
 		}
 		return nil
 	}
@@ -826,10 +840,11 @@ func GetYamlFileName(fileName string, mustExist bool) (string, error) {
 	case "":
 		fileBaseName = fileName
 	default:
-		return "", fmt.Errorf("provided file '%s' has no .yaml/.yml extension", fileName)
+		return "", fmt.Errorf("%w%s' has no .yaml/.yml extension",
+			errInvalidYAMLFileExtension, fileName)
 	}
 	foundYamlFiles := []string{}
-	if foundFiles, err := filepath.Glob(fmt.Sprintf("%s.y*ml", fileBaseName)); err == nil {
+	if foundFiles, err := filepath.Glob(fileBaseName + ".y*ml"); err == nil {
 		for _, fileName := range foundFiles {
 			switch filepath.Ext(fileName) {
 			case ".yaml", ".yml":
@@ -842,8 +857,8 @@ func GetYamlFileName(fileName string, mustExist bool) (string, error) {
 	yamlFilesCount := len(foundYamlFiles)
 	switch {
 	case yamlFilesCount > 1:
-		return "", fmt.Errorf("more than one YAML files are found:\n%s\nAmbiguous selection",
-			strings.Join(foundYamlFiles, ", "))
+		return "", fmt.Errorf("%w:\n%s\nAmbiguous selection",
+			errMoreThanOneYAMLFilesAreFoundAmbiguousSelection, strings.Join(foundYamlFiles, ", "))
 	case yamlFilesCount == 1:
 		return foundYamlFiles[0], nil
 	case !mustExist:

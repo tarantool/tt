@@ -2,7 +2,6 @@ package cluster_test
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -19,6 +18,8 @@ const (
 	testYamlPath    = "testdata/test.yaml"
 )
 
+var errFoo = errors.New("foo")
+
 func TestNewFileCollector(t *testing.T) {
 	var collector cluster.DataCollector = cluster.NewFileCollector(testYamlPath)
 
@@ -30,7 +31,7 @@ func TestNewFileCollector_fileReadFunc_error(t *testing.T) {
 
 	factory := cluster.NewFactory(
 		cluster.WithFileReadFunc(func(path string) (io.ReadCloser, error) {
-			return nil, errors.New(errMsg)
+			return nil, errFoo
 		}),
 	)
 	collector := factory.NewFileCollector("foo")
@@ -39,7 +40,7 @@ func TestNewFileCollector_fileReadFunc_error(t *testing.T) {
 	data, err := collector.Collect()
 
 	assert.Nil(t, data)
-	assert.EqualError(t, err, fmt.Sprintf("unable to read file \"foo\": %s", errMsg))
+	assert.EqualError(t, err, "unable to read file \"foo\": "+errMsg)
 }
 
 func TestFileCollector_valid(t *testing.T) {

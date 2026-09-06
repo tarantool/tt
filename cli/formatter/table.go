@@ -2,6 +2,7 @@ package formatter
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -12,6 +13,14 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
 	"gopkg.in/yaml.v2"
+)
+
+var (
+	errExpectedAMapGot                          = errors.New("expected a map, got ")
+	errExpectedAnArrayGot                       = errors.New("expected an array, got ")
+	errUnknownParsingCaseWithCurrentRenderBatch = errors.New(
+		"unknown parsing case with current render batch",
+	)
 )
 
 // lazyDecodeYaml decodes yaml string as []lazyMessage content.
@@ -149,7 +158,7 @@ func renderArrays(batch []any, transpose bool, opts Opts) (string, error) {
 	if isSingleArrayOfArrays(batch) {
 		array, ok := batch[0].([]any)
 		if !ok {
-			return "", fmt.Errorf("expected an array, got %T", batch[0])
+			return "", fmt.Errorf("%w%T", errExpectedAnArrayGot, batch[0])
 		}
 		return renderArraysAsTable(array, transpose, opts)
 	} else {
@@ -163,7 +172,7 @@ func renderArraysAsTable(batch []any, transpose bool, opts Opts) (string, error)
 	for _, item := range batch {
 		array, ok := item.([]any)
 		if !ok {
-			return "", fmt.Errorf("expected an array, got %T", item)
+			return "", fmt.Errorf("%w%T", errExpectedAnArrayGot, item)
 		}
 		itemLen := len(array)
 		if itemLen > maxLen {
@@ -179,7 +188,7 @@ func renderArraysAsTable(batch []any, transpose bool, opts Opts) (string, error)
 	for _, item := range batch {
 		array, ok := item.([]any)
 		if !ok {
-			return "", fmt.Errorf("expected an array, got %T", item)
+			return "", fmt.Errorf("%w%T", errExpectedAnArrayGot, item)
 		}
 		itemMap := createUnorderedMap[any](maxLen)
 
@@ -389,7 +398,7 @@ func renderBatch(batch []any, transpose bool, opts Opts) (string, error) {
 			case map[any]any:
 				castedMap = castMapToUMap(n)
 			default:
-				return "", fmt.Errorf("expected a map, got %T", node)
+				return "", fmt.Errorf("%w%T", errExpectedAMapGot, node)
 			}
 			anyMaps = append(anyMaps, castedMap)
 		}
@@ -424,7 +433,7 @@ func renderBatch(batch []any, transpose bool, opts Opts) (string, error) {
 	case isSingleType(batch, arrayNodeType):
 		return renderArrays(batch, transpose, opts)
 	default:
-		return "", fmt.Errorf("unknown parsing case with current render batch")
+		return "", errUnknownParsingCaseWithCurrentRenderBatch
 	}
 }
 

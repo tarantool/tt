@@ -20,6 +20,10 @@ import (
 	"github.com/tarantool/tt/cli/tcm"
 )
 
+var (
+	errFileOpen = errors.New("can't open file")
+)
+
 var updateTestdata = flag.Bool("update-testdata", false,
 	`Update "golden" data files for specified test(s)`)
 
@@ -262,7 +266,7 @@ var testCases = map[string]testCase{
 		isColor:  true,
 		lines:    10,
 		log:      "not-readable-file.log",
-		error:    errors.New("can't open file"),
+		error:    errFileOpen,
 		wantErr:  true,
 	},
 }

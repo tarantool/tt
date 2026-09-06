@@ -8,6 +8,13 @@ import (
 	"github.com/tarantool/tt/cli/download"
 )
 
+var (
+	errInvalidNumberOfParameters                        = errors.New("invalid number of parameters")
+	errToDownloadTarantoolSDKYouNeedToSpecifyTheVersion = errors.New(
+		"to download Tarantool SDK, you need to specify the version",
+	)
+)
+
 var downloadCtx download.DownloadCtx
 
 // NewDownloadCmd creates a command that downloads and saves the Tarantool SDK.
@@ -23,9 +30,9 @@ func NewDownloadCmd() *cobra.Command {
 		Run: RunModuleFunc(internalDownloadModule),
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return errors.New("to download Tarantool SDK, you need to specify the version")
+				return errToDownloadTarantoolSDKYouNeedToSpecifyTheVersion
 			} else if len(args) > 1 {
-				return errors.New("invalid number of parameters")
+				return errInvalidNumberOfParameters
 			}
 			return nil
 		},

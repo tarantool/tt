@@ -1,8 +1,17 @@
 package replicaset
 
 import (
+	"errors"
 	"fmt"
 	"slices"
+)
+
+var (
+	errIsNotASlice              = errors.New(" is not a slice")
+	errIsNotAString             = errors.New(" is not a string")
+	errRoleAlreadyExists        = errors.New("role ")
+	errRoleChangeIsNotSupported = errors.New("roles ")
+	errRoleNotFound             = errors.New("role ")
 )
 
 // RoleAction is a type that describes an action that will
@@ -29,7 +38,7 @@ type RolesAdder struct{}
 // Change implements addition of role.
 func (RolesAdder) Change(roles []string, r string) ([]string, error) {
 	if len(roles) > 0 && slices.Index(roles, r) != -1 {
-		return []string{}, fmt.Errorf("role %q already exists", r)
+		return []string{}, fmt.Errorf("%w%q already exists", errRoleAlreadyExists, r)
 	}
 	return append(roles, r), nil
 }
@@ -46,7 +55,7 @@ type RolesRemover struct{}
 func (RolesRemover) Change(roles []string, r string) ([]string, error) {
 	idx := slices.Index(roles, r)
 	if idx == -1 {
-		return []string{}, fmt.Errorf("role %q not found", r)
+		return []string{}, fmt.Errorf("%w%q not found", errRoleNotFound, r)
 	}
 	if len(roles) == 1 {
 		return []string{}, nil
@@ -90,11 +99,12 @@ type RolesChanger interface {
 func newErrRolesChangeByInstanceNotSupported(orchestrator Orchestrator,
 	changeRoleAction RolesChangerAction,
 ) error {
-	msg := "roles %s is not supported for a single instance by %q orchestrator"
 	if changeRoleAction.Action() == RemoveAction {
-		return fmt.Errorf(msg, "remove", orchestrator)
+		return fmt.Errorf("%w%s is not supported for a single instance by %q orchestrator",
+			errRoleChangeIsNotSupported, "remove", orchestrator)
 	}
-	return fmt.Errorf(msg, "add", orchestrator)
+	return fmt.Errorf("%w%s is not supported for a single instance by %q orchestrator",
+		errRoleChangeIsNotSupported, "add", orchestrator)
 }
 
 // newErrRolesChangeByAppNotSupported creates a new error that 'roles add/remove' by URI is not
@@ -102,11 +112,12 @@ func newErrRolesChangeByInstanceNotSupported(orchestrator Orchestrator,
 func newErrRolesChangeByAppNotSupported(orchestrator Orchestrator,
 	changeRoleAction RolesChangerAction,
 ) error {
-	msg := "roles %s is not supported for an application by %q orchestrator"
 	if changeRoleAction.Action() == RemoveAction {
-		return fmt.Errorf(msg, "remove", orchestrator)
+		return fmt.Errorf("%w%s is not supported for an application by %q orchestrator",
+			errRoleChangeIsNotSupported, "remove", orchestrator)
 	}
-	return fmt.Errorf(msg, "add", orchestrator)
+	return fmt.Errorf("%w%s is not supported for an application by %q orchestrator",
+		errRoleChangeIsNotSupported, "add", orchestrator)
 }
 
 // parseRoles is a function to convert roles type 'any'
@@ -114,13 +125,13 @@ func newErrRolesChangeByAppNotSupported(orchestrator Orchestrator,
 func parseRoles(value any) ([]string, error) {
 	sliceVal, ok := value.([]any)
 	if !ok {
-		return []string{}, fmt.Errorf("%v is not a slice", value)
+		return []string{}, fmt.Errorf("%v%w", value, errIsNotASlice)
 	}
 	existingRoles := make([]string, 0, len(sliceVal)+1)
 	for _, v := range sliceVal {
 		vStr, ok := v.(string)
 		if !ok {
-			return []string{}, fmt.Errorf("%v is not a string", v)
+			return []string{}, fmt.Errorf("%v%w", v, errIsNotAString)
 		}
 		existingRoles = append(existingRoles, vStr)
 	}

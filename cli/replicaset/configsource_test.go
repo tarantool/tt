@@ -2,6 +2,7 @@ package replicaset_test
 
 import (
 	"embed"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/replicaset"
 	libcluster "github.com/tarantool/tt/lib/cluster"
+)
+
+var (
+	errFailed            = errors.New("failed")
+	errItSTooLate        = errors.New("it's too late")
+	errSharksChewedWires = errors.New("sharks chewed wires")
+	errUnexpectedCall    = errors.New("unexpected call")
 )
 
 // spell-checker:ignore lexi
@@ -54,7 +62,7 @@ type mockDataCollector struct {
 
 func (m *mockDataCollector) Collect() ([]libcluster.Data, error) {
 	if m.Called >= len(m.Ret) {
-		return nil, fmt.Errorf("unexpected call")
+		return nil, errUnexpectedCall
 	}
 	data := m.Ret[m.Called].Data
 	err := m.Ret[m.Called].Err
@@ -83,7 +91,7 @@ type mockDataPublisher struct {
 
 func (m *mockDataPublisher) Publish(key string, revision int64, data []byte) error {
 	if m.Called >= len(m.Err) {
-		return fmt.Errorf("unexpected call")
+		return errUnexpectedCall
 	}
 	m.Keys = append(m.Keys, key)
 	m.Revisions = append(m.Revisions, revision)
@@ -139,7 +147,7 @@ func TestCConfigSource_collect_config_error(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-		err := fmt.Errorf("sharks chewed wires")
+		err := errSharksChewedWires
 		collector := newOnceMockDataCollector(nil, err)
 		source := replicaset.NewCConfigSource(collector, nil, nil)
 		actual := tc.runFunc(source)
@@ -194,7 +202,7 @@ func TestCConfigSource_Promote_unexpected_failover(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		t.Run(fmt.Sprint(tc.failover), func(t *testing.T) {
+		t.Run(tc.failover, func(t *testing.T) {
 			cfg := []byte(fmt.Sprintf(`groups:
   group-001:
     replication:
@@ -344,7 +352,7 @@ func TestCConfigSource_publish_error(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-		err := fmt.Errorf("failed")
+		err := errFailed
 		publisher := newOnceMockDataPublisher(err)
 		collector := newOnceMockDataCollector([]libcluster.Data{
 			{Source: "all", Value: cfg},
@@ -397,7 +405,7 @@ func TestCConfigSource_keypick_error(t *testing.T) {
 		collector := newOnceMockDataCollector([]libcluster.Data{
 			{Source: "all", Value: cfg},
 		}, nil)
-		err := fmt.Errorf("it's too late")
+		err := errItSTooLate
 		keyPicker := replicaset.KeyPicker(func(_ []string, _ bool, _ string) (int, error) {
 			return 0, err
 		})
@@ -591,7 +599,7 @@ func TestCConfigSource_Demote_unexpected_failover(t *testing.T) {
 		{"true", "unexpected failover type: bool, string expected"},
 	}
 	for _, tc := range cases {
-		t.Run(fmt.Sprint(tc.failover), func(t *testing.T) {
+		t.Run(tc.failover, func(t *testing.T) {
 			cfg := []byte(fmt.Sprintf(`groups:
   group-001:
     replication:

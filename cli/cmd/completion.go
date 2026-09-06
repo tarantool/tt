@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -10,6 +11,15 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/rocks"
+)
+
+var (
+	errLuaRocksCompletionInjection = errors.New(
+		"failed to inject LuaRocks completions",
+	)
+	errSpecifiedShellTypeIsNotSupportedAvailable = errors.New(
+		"specified shell type is not supported. Available: ",
+	)
 )
 
 const (
@@ -29,7 +39,7 @@ func NewCompletionCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "completion <SHELL_TYPE>",
 		Short: "Generate autocomplete for a specified shell. " +
-			fmt.Sprintf("Supported shell type: %s", listShells()),
+			"Supported shell type: " + listShells(),
 		ValidArgs: shellSupported,
 		Run:       RunModuleFunc(internalCompletionCmd),
 		Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
@@ -77,7 +87,7 @@ func injectRocksCompletion(shell string, completion []byte) ([]byte, error) {
 		label := []byte(`    # The user could have moved the cursor backwards on the command-line.`)
 		idx := bytes.Index(completion, label)
 		if idx == -1 {
-			return nil, fmt.Errorf("failed to inject LuaRocks completions")
+			return nil, errLuaRocksCompletionInjection
 		}
 
 		res.Write(completion[:idx])
@@ -124,7 +134,7 @@ func internalCompletionCmd(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		fmt.Fprint(os.Stdout, string(res))
 
 	default:
-		return fmt.Errorf("specified shell type is not supported. Available: %s", listShells())
+		return fmt.Errorf("%w%s", errSpecifiedShellTypeIsNotSupportedAvailable, listShells())
 	}
 
 	return nil

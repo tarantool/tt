@@ -13,6 +13,12 @@ import (
 	"github.com/nxadm/tail"
 )
 
+var (
+	errFailedToReEstablishTailingForAfterRetries = errors.New("failed to re-establish tailing for ")
+	errNotFoundFile                              = errors.New("not found file ")
+	errTailerForIsNilAfterReopening              = errors.New("tailer for ")
+)
+
 const (
 	linesChannelCapacity = 64
 	maxRetriesReopen     = 5
@@ -50,7 +56,7 @@ func (f *fileFollower) Follow(ctx context.Context, lines int) (<-chan string, er
 
 	if err := f.startFollowing(ctx, out, lines); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("not found file %q", f.name)
+			return nil, fmt.Errorf("%w%q", errNotFoundFile, f.name)
 		}
 
 		return nil, fmt.Errorf("cannot read file %q: %w", f.name, err)
@@ -107,8 +113,8 @@ func (f *fileFollower) tryReopenTailer(ctx context.Context, cfg *tail.Config) (*
 		log.Warnf("Retry(%d) for %q: failed to re-initialize tailer: %v.", i, f.name, err)
 	}
 
-	return nil, fmt.Errorf("failed to re-establish tailing for %q after %d retries",
-		f.name, maxRetriesReopen)
+	return nil, fmt.Errorf("%w%q after %d retries",
+		errFailedToReEstablishTailingForAfterRetries, f.name, maxRetriesReopen)
 }
 
 func (f *fileFollower) handleTailerStopStatus(ctx context.Context, curT *tail.Tail) (
@@ -127,7 +133,8 @@ func (f *fileFollower) handleTailerStopStatus(ctx context.Context, curT *tail.Ta
 		}
 
 		if t == nil || t.Lines == nil {
-			return nil, fmt.Errorf("tailer for %q is nil after reopening", f.name)
+			return nil, fmt.Errorf("%w%q is nil after reopening",
+				errTailerForIsNilAfterReopening, f.name)
 		}
 
 		if ctx.Err() != nil {

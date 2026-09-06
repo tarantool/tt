@@ -17,6 +17,13 @@ import (
 	"github.com/tarantool/tt/cli/version"
 )
 
+var (
+	errBinaryIsNotInstalledInCurrentEnvironment  = errors.New("binary ")
+	errHeadersIsNotInstalledInCurrentEnvironment = errors.New("headers ")
+	errThereAreNoInstalledInThisEnvironmentOfTT  = errors.New("there are no ")
+	errUnknownApplication                        = errors.New("unknown application: ")
+)
+
 // SwitchCtx contains information for switch command.
 type SwitchCtx struct {
 	// BinDir is a directory witch stores binaries.
@@ -63,7 +70,7 @@ func ChooseVersion(binDir string, program search.Program) (string, error) {
 	binDirFilesList, err := os.ReadDir(binDir)
 
 	if len(binDirFilesList) == 0 || errors.Is(err, fs.ErrNotExist) {
-		return "", fmt.Errorf("there are no binaries installed in this environment of 'tt'")
+		return "", errNoBinariesInstalled
 	} else if err != nil {
 		return "", fmt.Errorf("error reading directory %q: %w", binDir, err)
 	}
@@ -72,7 +79,8 @@ func ChooseVersion(binDir string, program search.Program) (string, error) {
 		return "", err
 	}
 	if len(versions) == 0 {
-		return "", fmt.Errorf("there are no %s installed in this environment of 'tt'", program)
+		return "", fmt.Errorf("%w%s installed in this environment of 'tt'",
+			errThereAreNoInstalledInThisEnvironmentOfTT, program)
 	}
 	var versionStr []string
 	for _, version := range versions {
@@ -99,7 +107,8 @@ func switchHeaders(switchCtx *SwitchCtx, versionStr string) error {
 	includeDir := filepath.Join(switchCtx.IncDir, "include")
 
 	if !util.IsDir(filepath.Join(includeDir, versionStr)) {
-		return fmt.Errorf("headers %s is not installed in current environment", versionStr)
+		return fmt.Errorf("%w%s is not installed in current environment",
+			errHeadersIsNotInstalledInCurrentEnvironment, versionStr)
 	}
 
 	err := util.CreateSymlink(versionStr,
@@ -115,7 +124,8 @@ func switchHeaders(switchCtx *SwitchCtx, versionStr string) error {
 func switchBinary(switchCtx *SwitchCtx, versionStr string) error {
 	newBinary := filepath.Join(switchCtx.BinDir, versionStr)
 	if !util.IsRegularFile(newBinary) {
-		return fmt.Errorf("binary %s is not installed in current environment", newBinary)
+		return fmt.Errorf("%w%s is not installed in current environment",
+			errBinaryIsNotInstalledInCurrentEnvironment, newBinary)
 	}
 
 	err := util.CreateSymlink(versionStr,
@@ -136,7 +146,7 @@ func Switch(switchCtx *SwitchCtx) error {
 		}
 
 	case search.ProgramUnknown:
-		return fmt.Errorf("unknown application: %s", switchCtx.Program)
+		return fmt.Errorf("%w%s", errUnknownApplication, switchCtx.Program)
 	case search.ProgramCe, search.ProgramEe, search.ProgramDev, search.ProgramTcm:
 		// These programs do not require tt version normalization.
 	}

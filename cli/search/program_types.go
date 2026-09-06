@@ -1,6 +1,13 @@
 package search
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+var (
+	errUnknownProgram = errors.New("unknown program: ")
+)
 
 // Program represents a strictly typed enum for program types.
 type Program int
@@ -54,7 +61,7 @@ func ParseProgram(s string) (Program, error) {
 	if p, ok := stringToProgram[s]; ok {
 		return p, nil
 	}
-	return ProgramUnknown, fmt.Errorf("unknown program: %q", s)
+	return ProgramUnknown, fmt.Errorf("%w%q", errUnknownProgram, s)
 }
 
 // Exec returns an executable name of the Program.

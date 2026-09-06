@@ -4,7 +4,7 @@ import (
 	"crypto/md5"
 	"crypto/sha1"
 	"crypto/sha256"
-	"fmt"
+	"encoding/hex"
 	"io"
 	"os"
 )
@@ -23,7 +23,7 @@ func FileSHA256Hex(path string) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%x", hasher.Sum(nil)), nil
+	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
 // FileSHA1Hex computes SHA1 for a given file.
@@ -40,7 +40,7 @@ func FileSHA1Hex(path string) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%x", hasher.Sum(nil)), nil
+	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
 // FileMD5 computes MD5 for a given file.
@@ -68,7 +68,7 @@ func FileMD5Hex(path string) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%x", fileMD5), nil
+	return hex.EncodeToString(fileMD5), nil
 }
 
 // StringSHA1Hex computes SHA1 for a given string
@@ -77,5 +77,5 @@ func StringSHA1Hex(source string) string {
 	hasher := sha1.New()
 	hasher.Write([]byte(source))
 
-	return fmt.Sprintf("%x", hasher.Sum(nil))
+	return hex.EncodeToString(hasher.Sum(nil))
 }

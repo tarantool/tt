@@ -189,7 +189,7 @@ func getCustomInstanceTopology(name string,
 	}
 
 	if len(data) != 1 {
-		return topology, fmt.Errorf("unexpected response: %v", data)
+		return topology, fmt.Errorf("%w: %v", errUnexpectedResponse, data)
 	}
 
 	if err := mapstructure.Decode(data[0], &topology); err != nil {

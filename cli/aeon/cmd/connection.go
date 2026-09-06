@@ -13,6 +13,11 @@ import (
 	libconnect "github.com/tarantool/tt/lib/connect"
 )
 
+var (
+	errInvalidConnectionURL      = errors.New("invalid connection url")
+	errTransportMustBeSSLOrPlain = errors.New("transport must be ssl or plain")
+)
+
 // FillConnectCtx takes a ConnectCtx object and fills it with data from a
 // collected configuration by given instanceName and libconnect.UriOpts.
 // It returns an error if fails to collect a configuration,
@@ -63,7 +68,7 @@ func FillConnectCtx(connectCtx *ConnectCtx, uriOpts libconnect.URIOpts,
 	}
 
 	if advertise.URI == "" {
-		return errors.New("invalid connection url")
+		return errInvalidConnectionURL
 	}
 
 	cleanedURL, err := util.RemoveScheme(advertise.URI)
@@ -74,7 +79,7 @@ func FillConnectCtx(connectCtx *ConnectCtx, uriOpts libconnect.URIOpts,
 	connectCtx.Network, connectCtx.Address = libconnect.ParseBaseURI(cleanedURL)
 
 	if (advertise.Params.Transport != "ssl") && (advertise.Params.Transport != "plain") {
-		return errors.New("transport must be ssl or plain")
+		return errTransportMustBeSSLOrPlain
 	}
 
 	if advertise.Params.Transport == "ssl" {

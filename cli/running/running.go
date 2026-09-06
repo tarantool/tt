@@ -28,6 +28,34 @@ import (
 	"github.com/tarantool/tt/lib/integrity"
 )
 
+var (
+	errApplicationNotFound      = errors.New("application ")
+	errCannotGetConfigValueAtAs = errors.New(
+		"cannot get config value at ",
+	)
+	errClusterConfigRequiresInstancesYAML = errors.New("cluster config ")
+	errInvalidApplicationDirectory        = errors.New(
+		" doesn't exist or not a directory",
+	)
+	errInitLuaOrInitLuaIsMissing = errors.New("init.lua or ")
+	errInstanceDead              = errors.New(
+		process_utils.ProcStateDead.String(),
+	)
+	errInstancesNotFound = errors.New(
+		"instance(s) not found",
+	)
+	errLoggerChangedCheckFailedPassingNullAsAnInstanceContext = errors.New(
+		"logger changed check failed: passing null as an instance context",
+	)
+	errNotFound                                   = errors.New(" not found")
+	errRequiredFilesMissingInApplicationDirectory = errors.New(
+		"require files are missing in application directory ",
+	)
+	errTheInstanceIsNotRunningItMustBeStarted = errors.New(
+		": the instance is not running, it must be started",
+	)
+)
+
 const (
 	defaultDirPerms        = 0o770
 	instanceCleanupTimeout = 10 * time.Second
@@ -40,7 +68,11 @@ const (
 	clusterConfigDefaultFileName = "config.yml"
 )
 
-var instStateDead = process_utils.ProcStateDead
+type syntaxCheckError string
+
+func (err syntaxCheckError) Error() string {
+	return string(err)
+}
 
 // RunningCtx contains information about application instances.
 type RunningCtx struct {
@@ -186,7 +218,7 @@ func isLoggerChanged(logger ttlog.Logger, instanceCtx *InstanceCtx) (bool, error
 		return true, nil
 	}
 	if instanceCtx == nil {
-		return true, fmt.Errorf("logger changed check failed: passing null as an instance context")
+		return true, errLoggerChangedCheckFailedPassingNullAsAnInstanceContext
 	}
 	loggerOpts := logger.GetOpts()
 
@@ -324,7 +356,8 @@ func findInstanceScriptInAppDir(appDir, instName, clusterCfgPath, defaultScript 
 		if defaultScript != "" {
 			return defaultScript, nil
 		} else {
-			return "", fmt.Errorf("init.lua or %s.init.lua is missing", instName)
+			return "", fmt.Errorf("%w%s.init.lua is missing",
+				errInitLuaOrInitLuaIsMissing, instName)
 		}
 	}
 	return script, nil
@@ -353,7 +386,7 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 ) {
 	log.Debugf("Collecting instances from application directory %q", appDir)
 	if !util.IsDir(appDir) {
-		return nil, fmt.Errorf("%q doesn't exist or not a directory", appDir)
+		return nil, fmt.Errorf("%q%w", appDir, errInvalidApplicationDirectory)
 	}
 
 	appDirFiles, err := collectAppDirFiles(appDir)
@@ -365,7 +398,8 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 		if appDirFiles.clusterCfgPath != "" {
 			// Cluster config will work only if instances.yml exists nearby.
 			return nil, fmt.Errorf(
-				"cluster config %q is found, but instances config (instances.yml) is missing",
+				"%w%q is found, but instances config (instances.yml) is missing",
+				errClusterConfigRequiresInstancesYAML,
 				appDirFiles.clusterCfgPath)
 		}
 		if appDirFiles.defaultLuaPath != "" {
@@ -378,9 +412,9 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 			}}, nil
 		}
 		if loadConfig == ConfigLoadAll || loadConfig == ConfigLoadScripts {
-			return nil, fmt.Errorf("require files are missing in application directory %q: "+
+			return nil, fmt.Errorf("%w%q: "+
 				"there must be instances config or the default instance script (%q)",
-				appDir, "init.lua")
+				errRequiredFilesMissingInApplicationDirectory, appDir, "init.lua")
 		}
 	}
 
@@ -430,7 +464,7 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 	}
 
 	if len(instances) == 0 {
-		return nil, fmt.Errorf("instance(s) not found")
+		return nil, errInstancesNotFound
 	}
 
 	return instances, nil
@@ -453,7 +487,7 @@ func collectInstances(appName, applicationDir string,
 	appName = strings.TrimSuffix(appName, ".lua")
 	expectedAppName := filepath.Base(filepath.Clean(applicationDir))
 	if appName != expectedAppName {
-		return nil, fmt.Errorf("application %q not found", appName)
+		return nil, fmt.Errorf("%w%q not found", errApplicationNotFound, appName)
 	}
 
 	// A single application can be represented by `<appName>.lua` or by
@@ -516,7 +550,7 @@ func mapValuesFromConfig[T any](cfg goconfig.Config, mapFunc func(val T) (T, err
 		}
 		castedValue, ok := raw.(T)
 		if !ok {
-			return fmt.Errorf("cannot get config value at %q as %T", cfgMapping.path, *new(T))
+			return fmt.Errorf("%w%q as %T", errCannotGetConfigValueAtAs, cfgMapping.path, *new(T))
 		}
 		newValue, err := mapFunc(castedValue)
 		if err != nil {
@@ -663,7 +697,7 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 	// All relative paths are built from the path of the tt.yaml file.
 	// If tt.yaml does not exists we must return error.
 	if cmdCtx.Cli.ConfigPath == "" {
-		return fmt.Errorf(`%s not found`, configure.ConfigName)
+		return fmt.Errorf("%s%w", configure.ConfigName, errNotFound)
 	}
 
 	var appName string
@@ -825,12 +859,12 @@ func Logrotate(run *InstanceCtx) error {
 
 	pid, err := process_utils.GetPIDFromFile(run.PIDFile)
 	if err != nil {
-		return fmt.Errorf("%s: the instance is not running, it must be started", fullInstanceName)
+		return fmt.Errorf("%s%w", fullInstanceName, errTheInstanceIsNotRunningItMustBeStarted)
 	}
 
 	alive, _ := process_utils.IsProcessAlive(pid)
 	if !alive {
-		return errors.New(instStateDead.String())
+		return errInstanceDead
 	}
 
 	if err := syscall.Kill(pid, syscall.SIGHUP); err != nil {
@@ -852,7 +886,7 @@ func Check(cmdCtx *cmdcontext.CmdCtx, run *InstanceCtx) error {
 		context.Background(), cmdCtx.Cli.TarantoolCli.Executable, "-e", checkSyntax)
 	cmd.Stderr = &errBuff
 	if err := cmd.Run(); err != nil {
-		return errors.New(errBuff.String())
+		return syntaxCheckError(errBuff.String())
 	}
 
 	return nil
@@ -873,12 +907,12 @@ func GetAppInstanceName(instance InstanceCtx) string {
 
 // IsAbleToStartInstances checks if it is possible to start instances.
 func IsAbleToStartInstances(instances []InstanceCtx, cmdCtx *cmdcontext.CmdCtx) (
-	bool, string,
+	bool, error,
 ) {
 	if _, err := cmdCtx.Cli.TarantoolCli.GetVersion(); err != nil {
-		return false, err.Error()
+		return false, err
 	}
-	return true, ""
+	return true, nil
 }
 
 // StartWatchdog starts tarantool instance with watchdog.

@@ -2,12 +2,17 @@ package daemon
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strconv"
 	"syscall"
 	"time"
+)
+
+var (
+	errInvalidPID = errors.New("invalid pid ")
 )
 
 const (
@@ -62,7 +67,7 @@ func readPID(filePath string) (int, error) {
 // IsDaemonAlive checks is daemon alive by process pid.
 func IsDaemonAlive(pid int) (bool, error) {
 	if pid <= 0 {
-		return false, fmt.Errorf("invalid pid %v", pid)
+		return false, fmt.Errorf("%w%v", errInvalidPID, pid)
 	}
 
 	proc, err := os.FindProcess(pid)

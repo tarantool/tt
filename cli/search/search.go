@@ -1,6 +1,7 @@
 package search
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -10,6 +11,10 @@ import (
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
+)
+
+var (
+	errRemoteSearchForProgramIsNotImplemented = errors.New("remote search for program '")
 )
 
 type SearchFlags int64
@@ -81,7 +86,8 @@ func SearchVersions(searchCtx SearchCtx, cliOpts *config.CliOpts) error {
 	case ProgramEe, ProgramTcm: // Group of API-based searches.
 		vers, err = searchVersionsTntIo(cliOpts, &searchCtx)
 	default:
-		return fmt.Errorf("remote search for program '%s' is not implemented", prg)
+		return fmt.Errorf("%w%s' is not implemented",
+			errRemoteSearchForProgramIsNotImplemented, prg)
 	}
 
 	if err != nil {

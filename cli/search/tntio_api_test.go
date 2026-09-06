@@ -20,6 +20,15 @@ import (
 	"github.com/tarantool/tt/cli/util"
 )
 
+var (
+	errInvalidContentType         = errors.New("invalid content type")
+	errInvalidRequestBodyContent  = errors.New("invalid request body content")
+	errInvalidRequestMethod       = errors.New("invalid request method")
+	errInvalidRequestPath         = errors.New("invalid request path")
+	errMissingRequestBody         = errors.New("missing request body")
+	errMockArchitectureNotApplied = errors.New("mock architecture not applied")
+)
+
 const (
 	testingUsername = "test-user"
 	testingPassword = "test-pass"
@@ -36,7 +45,7 @@ func (p *platformInfo) GetOs() (util.OsType, error) {
 
 func (p *platformInfo) GetArch() (string, error) {
 	if p.arch == "" {
-		return "", errors.New("mock architecture not applied")
+		return "", errMockArchitectureNotApplied
 	}
 	return p.arch, nil
 }
@@ -57,24 +66,24 @@ func (m *mockDoer) Do(req *http.Request) ([]byte, error) {
 
 	if req.Method != http.MethodPost {
 		m.t.Errorf("expected POST method, got %s", req.Method)
-		return nil, errors.New("invalid request method")
+		return nil, errInvalidRequestMethod
 	}
 
 	if req.URL.Path != "/en/accounts/customer_zone/api" {
 		m.t.Errorf("expected /en/accounts/customer_zone/api path, got %s", req.URL.Path)
-		return nil, errors.New("invalid request path")
+		return nil, errInvalidRequestPath
 	}
 
 	if req.Header.Get("Content-Type") != "application/json" {
 		m.t.Errorf("expected application/json content type, got %s",
 			req.Header.Get("Content-Type"))
-		return nil, errors.New("invalid content type")
+		return nil, errInvalidContentType
 	}
 
 	// Read and check the request body.
 	if req.Body == nil {
 		m.t.Error("expected request body, got nil")
-		return nil, errors.New("missing request body")
+		return nil, errMissingRequestBody
 	}
 	bodyBytes, err := io.ReadAll(req.Body)
 	if err != nil {
@@ -105,7 +114,7 @@ func (m *mockDoer) Do(req *http.Request) ([]byte, error) {
 
 	require.Equal(m.t, expectedRequest, actualRequest, "request body mismatch")
 	if m.t.Failed() {
-		return nil, errors.New("invalid request body content")
+		return nil, errInvalidRequestBodyContent
 	}
 
 	return json.Marshal(m.content)

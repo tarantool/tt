@@ -1,6 +1,7 @@
 package replicasetcmd
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/tarantool/tt/cli/connector"
@@ -8,6 +9,10 @@ import (
 	"github.com/tarantool/tt/cli/running"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 	"github.com/tarantool/tt/lib/integrity"
+)
+
+var (
+	errUnsupportedOrchestrator = errors.New("unsupported orchestrator: ")
 )
 
 const (
@@ -44,7 +49,7 @@ func makeApplicationOrchestrator(
 	case replicaset.OrchestratorCustom:
 		orchestrator = replicaset.NewCustomApplication(runningCtx)
 	default:
-		err = fmt.Errorf("unsupported orchestrator: %s", orchestratorType)
+		err = fmt.Errorf("%w%s", errUnsupportedOrchestrator, orchestratorType)
 	}
 	return orchestrator, err
 }
@@ -63,7 +68,7 @@ func makeInstanceOrchestrator(orchestratorType replicaset.Orchestrator,
 	case replicaset.OrchestratorCustom:
 		orchestrator = replicaset.NewCustomInstance(conn)
 	default:
-		err = fmt.Errorf("unsupported orchestrator: %s", orchestratorType)
+		err = fmt.Errorf("%w%s", errUnsupportedOrchestrator, orchestratorType)
 	}
 	return orchestrator, err
 }

@@ -70,7 +70,8 @@ func ExtractTarGz(tarName, dstDir string) error {
 				return err
 			}
 		default:
-			return fmt.Errorf("unknown type: %b in %s", header.Typeflag, header.Name)
+			return fmt.Errorf("%w%b in %s",
+				errUnknownArchiveEntryType, header.Typeflag, header.Name)
 		}
 	}
 	return nil

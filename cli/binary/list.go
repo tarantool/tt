@@ -21,6 +21,12 @@ import (
 	"github.com/tarantool/tt/cli/version"
 )
 
+var (
+	errNoBinariesInstalled = errors.New(
+		"there are no binaries installed in this environment of 'tt'",
+	)
+)
+
 // printBinaries outputs installed versions of the program.
 func printVersion(versionString string) {
 	if strings.HasSuffix(versionString, "[active]") {
@@ -106,7 +112,7 @@ func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
 	binDirFilesList, err := os.ReadDir(binDir)
 
 	if len(binDirFilesList) == 0 || errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("there are no binaries installed in this environment of 'tt'")
+		return errNoBinariesInstalled
 	} else if err != nil {
 		return fmt.Errorf("error reading directory %q: %w", binDir, err)
 	}

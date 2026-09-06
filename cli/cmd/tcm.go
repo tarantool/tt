@@ -21,6 +21,11 @@ import (
 	libwatchdog "github.com/tarantool/tt/lib/watchdog"
 )
 
+var (
+	errCannotStartTCMBinaryIsNotFound = errors.New("cannot start: tcm binary is not found")
+	errProcessIsNotRunning            = errors.New("process is not running")
+)
+
 var tcmCtx = tcmCmd.TcmCtx{}
 
 const (
@@ -124,7 +129,7 @@ func startTcmInteractive(logLevel string) error {
 	}
 
 	if tcmApp == nil || tcmApp.Process == nil {
-		return errors.New("process is not running")
+		return errProcessIsNotRunning
 	}
 
 	err := process_utils.CreatePIDFile(tcmPidFile, tcmApp.Process.Pid)
@@ -146,11 +151,11 @@ func startTcmUnderWatchDog() error {
 
 func internalStartTcm(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if cmdCtx.Cli.TarantoolCli.Executable == "" {
-		return errors.New("cannot start: tarantool binary is not found")
+		return fmt.Errorf("cannot start: %w", errTarantoolBinaryNotFound)
 	}
 
 	if cmdCtx.Cli.TcmCli.Executable == "" {
-		return errors.New("cannot start: tcm binary is not found")
+		return errCannotStartTCMBinaryIsNotFound
 	}
 
 	tcmCtx.Executable = cmdCtx.Cli.TcmCli.Executable

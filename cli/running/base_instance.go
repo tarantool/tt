@@ -2,7 +2,6 @@ package running
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -12,6 +11,11 @@ import (
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/ttlog"
 	"github.com/tarantool/tt/lib/integrity"
+)
+
+var (
+	errInstanceIsNotStarted          = errors.New("instance is not started")
+	errTarantoolExecutableIsNotFound = errors.New("tarantool executable is not found")
 )
 
 // baseInstance represents a tarantool instance.
@@ -120,7 +124,7 @@ func StdLoggerOpt(logger ttlog.Logger) InstanceOption {
 // Wait waits for the child process to complete.
 func (inst *baseInstance) Wait() error {
 	if inst.processController == nil {
-		return fmt.Errorf("instance is not started")
+		return errInstanceIsNotStarted
 	}
 	return inst.processController.Wait()
 }
@@ -128,7 +132,7 @@ func (inst *baseInstance) Wait() error {
 // SendSignal sends a signal to tarantool instance.
 func (inst *baseInstance) SendSignal(sig os.Signal) error {
 	if inst.processController == nil {
-		return fmt.Errorf("instance is not started")
+		return errInstanceIsNotStarted
 	}
 	return inst.processController.SendSignal(sig)
 }
@@ -154,7 +158,7 @@ func (inst *baseInstance) Run(opts RunOpts) error {
 	f, err := inst.integrityCtx.Repository.Read(inst.tarantoolPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return errors.New("tarantool executable is not found")
+			return errTarantoolExecutableIsNotFound
 		}
 		return err
 	}

@@ -1,12 +1,18 @@
 package replicaset
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/apex/log"
 
 	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/running"
+)
+
+var (
+	errFailedToConnectToAnyInstance = errors.New("failed to connect to any instance")
+	errNoInstancesToConnect         = errors.New("no instances to connect")
 )
 
 // EvalFunc is a function that implements connector.Evaler.
@@ -85,7 +91,7 @@ func evalForeach(instances []running.InstanceCtx,
 	iEvaler InstanceEvaler, skipConnectError bool,
 ) error {
 	if len(instances) == 0 {
-		return fmt.Errorf("no instances to connect")
+		return errNoInstancesToConnect
 	}
 
 	connected := 0
@@ -117,7 +123,7 @@ func evalForeach(instances []running.InstanceCtx,
 		}
 	}
 	if connected == 0 {
-		return fmt.Errorf("failed to connect to any instance")
+		return errFailedToConnectToAnyInstance
 	}
 	return nil
 }

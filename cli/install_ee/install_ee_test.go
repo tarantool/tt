@@ -12,6 +12,10 @@ import (
 	"github.com/tarantool/tt/cli/search"
 )
 
+var (
+	errSimulatedNetworkError = errors.New("simulated network error")
+)
+
 const (
 	// testToken is a token for the TntIoDownloader.
 	testToken = "test-token"
@@ -96,7 +100,7 @@ func TestDownloadBundle(t *testing.T) {
 			dstSetup:     defaultDstSetup,
 			doer: &mockBundleDoer{
 				token:  testToken,
-				resErr: errors.New("simulated network error"),
+				resErr: errSimulatedNetworkError,
 			},
 			errMsg: "simulated network error",
 		},

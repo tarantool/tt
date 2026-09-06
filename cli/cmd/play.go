@@ -18,6 +18,12 @@ import (
 	libconnect "github.com/tarantool/tt/lib/connect"
 )
 
+var (
+	errReplaySourceRequired = errors.New(
+		"it is required to specify an URI and at least one .xlog/.snap file or directory",
+	)
+)
+
 // playFlags contains flags for play command.
 // Initialized with default values at creation.
 var playFlags = checkpoint.Opts{
@@ -93,8 +99,7 @@ func NewPlayCmd() *cobra.Command {
 // playValidateArgs validates non-flag arguments 'play' command.
 func playValidateArgs(cmd *cobra.Command, args []string) error {
 	if len(args) < playMinArgs {
-		return errors.New("it is required to specify an URI and at least one .xlog/.snap file " +
-			"or directory")
+		return errReplaySourceRequired
 	}
 	return nil
 }
@@ -122,8 +127,7 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		args[0] = runningCtx.Instances[0].BinaryPort
 	case libconnect.IsCredentialsURI(args[0]):
 		if playUsername != "" || playPassword != "" {
-			return errors.New("username and password are specified with" +
-				" flags and a URI")
+			return errCredentialsSpecifiedByFlagsAndURI
 		}
 		uri, user, pass := libconnect.ParseCredentialsURI(args[0])
 		playUsername = user

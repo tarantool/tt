@@ -14,6 +14,10 @@ import (
 	"github.com/tarantool/tt/cli/version"
 )
 
+var (
+	errNotImplemented = errors.New("not implemented")
+)
+
 // mockDirEntry is a mock implementation of fs.DirEntry for testing.
 type mockDirEntry struct {
 	name  string
@@ -24,7 +28,7 @@ func (m mockDirEntry) Name() string      { return m.name }
 func (m mockDirEntry) IsDir() bool       { return m.isDir }
 func (m mockDirEntry) Type() fs.FileMode { return 0 }
 func (m mockDirEntry) Info() (fs.FileInfo, error) {
-	return nil, errors.New("not implemented")
+	return nil, errNotImplemented
 }
 
 // mockFS is a mock implementation of fs.FS for testing.
@@ -47,7 +51,7 @@ func (m mockFS) ReadDir(name string) ([]fs.DirEntry, error) {
 
 // Open returns a dummy file for compatibility with interface [fs.FS].
 func (m mockFS) Open(name string) (fs.File, error) {
-	return nil, errors.New("not implemented")
+	return nil, errNotImplemented
 }
 
 func TestFindLocalBundles(t *testing.T) {

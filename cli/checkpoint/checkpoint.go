@@ -4,11 +4,16 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 
 	"github.com/tarantool/tt/cli/cmdcontext"
+)
+
+var (
+	errResultOfPlay = errors.New("result of play: ")
 )
 
 // Opts contains flags for managing checkpoint files commands.
@@ -64,7 +69,7 @@ func Play(tntCli cmdcontext.TarantoolCli) error {
 	stdinPipe.Close()
 
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("result of play: %s", errBuff.String())
+		return fmt.Errorf("%w%s", errResultOfPlay, errBuff.String())
 	}
 
 	scanner := bufio.NewScanner(stdoutPipe)
@@ -75,7 +80,7 @@ func Play(tntCli cmdcontext.TarantoolCli) error {
 	cmd.Wait()
 
 	if len(errBuff.String()) > 0 {
-		return fmt.Errorf("result of play: %s", errBuff.String())
+		return fmt.Errorf("%w%s", errResultOfPlay, errBuff.String())
 	}
 
 	return nil

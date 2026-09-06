@@ -103,7 +103,7 @@ func (process *Process) Start() error {
 	}
 
 	cmd := exec.CommandContext(context.Background(), process.cmdPath, process.cmdArgs...)
-	cmd.Env = append(os.Environ(), fmt.Sprintf("%s=true", process.DaemonTag))
+	cmd.Env = append(os.Environ(), process.DaemonTag+"=true")
 
 	if err := cmd.Start(); err != nil {
 		return err
