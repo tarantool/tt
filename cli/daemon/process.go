@@ -83,7 +83,7 @@ func (process *Process) Start() error {
 	if process.IsChild() {
 		var err error
 		if process.logger, err = ttlog.NewFileLogger(process.logOpts); err != nil {
-			return fmt.Errorf("failed to create log: %s", err)
+			return fmt.Errorf("failed to create log: %w", err)
 		}
 
 		if err := process_utils.CreatePIDFile(process.pidFileName, os.Getpid()); err != nil {

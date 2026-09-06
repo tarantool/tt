@@ -516,12 +516,12 @@ func internalClusterFailoverSwitchStatusModule(cmdCtx *cmdcontext.CmdCtx, args [
 func readSourceFile(path string) ([]byte, map[string]any, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to read path %q: %s", path, err)
+		return nil, nil, fmt.Errorf("failed to read path %q: %w", path, err)
 	}
 
 	var decoded map[string]any
 	if err := yaml.Unmarshal(data, &decoded); err != nil {
-		return nil, nil, fmt.Errorf("failed to read a configuration from path %q: %s", path, err)
+		return nil, nil, fmt.Errorf("failed to read a configuration from path %q: %w", path, err)
 	}
 
 	return data, decoded, nil

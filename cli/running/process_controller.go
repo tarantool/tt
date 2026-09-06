@@ -87,7 +87,7 @@ func (pc *processController) StopWithSignal(waitTimeout time.Duration, stopSigna
 	// Trying to terminate the process by using a stopSignal.
 	// In case of failure a "SIGKILL" signal will be used.
 	if err := pc.SendSignal(stopSignal); err != nil {
-		return fmt.Errorf("failed to send %v to instance: %s", stopSignal, err)
+		return fmt.Errorf("failed to send %v to instance: %w", stopSignal, err)
 	}
 
 	// Terminate the process at any cost.
@@ -96,7 +96,7 @@ func (pc *processController) StopWithSignal(waitTimeout time.Duration, stopSigna
 		if pc.IsAlive() {
 			// Send "SIGKILL" signal if process is still alive.
 			if err := pc.Process.Kill(); err != nil {
-				return fmt.Errorf("failed to send SIGKILL to instance: %s", err)
+				return fmt.Errorf("failed to send SIGKILL to instance: %w", err)
 			} else {
 				// Wait for the process to terminate.
 				<-waitDone

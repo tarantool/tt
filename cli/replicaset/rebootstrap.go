@@ -43,11 +43,11 @@ func cleanDataFiles(instCtx running.InstanceCtx) error {
 			if os.IsNotExist(err) {
 				continue
 			}
-			return fmt.Errorf("cannot get info of %q: %s", fileToRemove, err)
+			return fmt.Errorf("cannot get info of %q: %w", fileToRemove, err)
 		}
 		if stat.Mode().IsRegular() {
 			if err = os.Remove(fileToRemove); err != nil {
-				return fmt.Errorf("cannot remove %q: %s", fileToRemove, err)
+				return fmt.Errorf("cannot remove %q: %w", fileToRemove, err)
 			}
 			log.Debugf("Removed %q", fileToRemove)
 		}
@@ -62,7 +62,7 @@ func Rebootstrap(cmdCtx cmdcontext.CmdCtx, cliOpts config.CliOpts, rbCtx Reboots
 	instances, err := running.CollectInstancesForApp(rbCtx.AppName, &cliOpts,
 		cmdCtx.Cli.ConfigDir, cmdCtx.Integrity, running.ConfigLoadAll)
 	if err != nil {
-		return fmt.Errorf("cannot collect application instances info: %s", err)
+		return fmt.Errorf("cannot collect application instances info: %w", err)
 	}
 
 	found := false
@@ -89,11 +89,11 @@ func Rebootstrap(cmdCtx cmdcontext.CmdCtx, cliOpts config.CliOpts, rbCtx Reboots
 
 	log.Debugf("Stopping the instance")
 	if err = running.Stop(&instCtx); err != nil {
-		return fmt.Errorf("failed to stop the instance %s: %s", rbCtx.InstanceName, err)
+		return fmt.Errorf("failed to stop the instance %s: %w", rbCtx.InstanceName, err)
 	}
 
 	if err = cleanDataFiles(instCtx); err != nil {
-		return fmt.Errorf("failed to remove instance's artifacts: %s", err)
+		return fmt.Errorf("failed to remove instance's artifacts: %w", err)
 	}
 
 	// TODO: need to support integrity check continuation on this start.
@@ -104,7 +104,7 @@ func Rebootstrap(cmdCtx cmdcontext.CmdCtx, cliOpts config.CliOpts, rbCtx Reboots
 		return err
 	}
 	if err = running.StartWatchdog(&cmdCtx, ttBin, instCtx, []string{}); err != nil {
-		return fmt.Errorf("failed to start the instance: %s", err)
+		return fmt.Errorf("failed to start the instance: %w", err)
 	}
 
 	return nil

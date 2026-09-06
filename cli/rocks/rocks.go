@@ -92,7 +92,7 @@ func GetTarantoolPrefix(cli *cmdcontext.CliCtx, cliOpts *config.CliOpts) (string
 	output, err := exec.CommandContext(
 		context.Background(), cli.TarantoolCli.Executable, "--version").Output()
 	if err != nil {
-		return "", fmt.Errorf("failed to get tarantool version: %s", err)
+		return "", fmt.Errorf("failed to get tarantool version: %w", err)
 	}
 
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")

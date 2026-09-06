@@ -48,7 +48,7 @@ func EvalOrchestrator(evaler connector.Evaler) (Orchestrator, error) {
 	data, err := evaler.Eval(getOrchestratorBody, []any{}, opts)
 	if err != nil {
 		return OrchestratorCustom,
-			fmt.Errorf("failed to recognize orchestrator: %s", err)
+			fmt.Errorf("failed to recognize orchestrator: %w", err)
 	}
 	if len(data) == 1 {
 		if str, ok := data[0].(string); ok {

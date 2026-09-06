@@ -103,7 +103,7 @@ func (history *commandHistory) writeToFile() error {
 		fmt.Fprintf(&historyContent, "#%d\n%s\n", history.timestamps[i], command)
 	}
 	if err := os.WriteFile(history.filepath, historyContent.Bytes(), historyFileMode); err != nil {
-		return fmt.Errorf("failed to write to history file: %s", err)
+		return fmt.Errorf("failed to write to history file: %w", err)
 	}
 
 	return nil
@@ -113,7 +113,7 @@ func (history *commandHistory) writeToFile() error {
 func newCommandHistory(historyFileName string, maxCommands int) (*commandHistory, error) {
 	homeDir, err := util.GetHomeDir()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get home directory: %s", err)
+		return nil, fmt.Errorf("failed to get home directory: %w", err)
 	}
 
 	history := commandHistory{

@@ -26,7 +26,7 @@ func (MoveAppDirectory) Run(createCtx *create_ctx.CreateCtx,
 			return fmt.Errorf("'%s' already exists", templateCtx.TargetAppPath)
 		}
 		if err = os.RemoveAll(templateCtx.TargetAppPath); err != nil {
-			return fmt.Errorf("failed to remove %s: %s", templateCtx.TargetAppPath, err)
+			return fmt.Errorf("failed to remove %s: %w", templateCtx.TargetAppPath, err)
 		}
 	}
 

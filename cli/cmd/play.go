@@ -202,7 +202,7 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	timestamp, err := util.StringToTimestamp(playFlags.Timestamp)
 	if err != nil {
-		return fmt.Errorf("failed to parse a timestamp: %s", err)
+		return fmt.Errorf("failed to parse a timestamp: %w", err)
 	}
 	os.Setenv("TT_CLI_PLAY_TIMESTAMP", timestamp)
 

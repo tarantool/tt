@@ -53,12 +53,12 @@ func evalPlainTextConn(conn net.Conn, funcBody string, args []any,
 
 	// recv from socket.
 	resBytes, err := readFromPlainTextConn(conn, opts)
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return nil, err
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to check returned data: %s", err)
+		return nil, fmt.Errorf("failed to check returned data: %w", err)
 	}
 
 	data, err := processEvalTarantoolRes(resBytes, opts.ResData)
@@ -78,7 +78,7 @@ func formatAndSendEvalFunc(conn net.Conn, funcBody string, args []any,
 
 	argsEncoded, err := msgpack.Marshal(args)
 	if err != nil {
-		return fmt.Errorf("failed to encode args: %s", err)
+		return fmt.Errorf("failed to encode args: %w", err)
 	}
 
 	evalFunc, err := util.GetTextTemplatedStr(&evalFuncTmpl, map[string]string{
@@ -86,7 +86,7 @@ func formatAndSendEvalFunc(conn net.Conn, funcBody string, args []any,
 		"ArgsEncoded":  fmt.Sprintf("%x", argsEncoded),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to instantiate eval function template: %s", err)
+		return fmt.Errorf("failed to instantiate eval function template: %w", err)
 	}
 
 	evalFuncFormatted := strings.Join(
@@ -96,7 +96,7 @@ func formatAndSendEvalFunc(conn net.Conn, funcBody string, args []any,
 
 	// write to socket.
 	if err := writeToPlainTextConn(conn, evalFuncFormatted); err != nil {
-		return fmt.Errorf("failed to send eval function to socket: %s", err)
+		return fmt.Errorf("failed to send eval function to socket: %w", err)
 	}
 
 	return nil
@@ -105,11 +105,11 @@ func formatAndSendEvalFunc(conn net.Conn, funcBody string, args []any,
 func writeToPlainTextConn(conn net.Conn, data string) error {
 	writer := bufio.NewWriter(conn)
 	if _, err := writer.WriteString(data); err != nil {
-		return fmt.Errorf("failed to send to socket: %s", err)
+		return fmt.Errorf("failed to send to socket: %w", err)
 	}
 
 	if err := writer.Flush(); err != nil {
-		return fmt.Errorf("failed to flush: %s", err)
+		return fmt.Errorf("failed to flush: %w", err)
 	}
 
 	return nil
@@ -165,12 +165,12 @@ func readFromPlainTextConn(conn net.Conn, opts EvalPlainTextOpts) ([]byte, error
 		// received tag string can be handled via pushCallback function.
 		//
 		dataPortionBytes, err := readDataPortionFromPlainTextConn(conn, &buffer, opts.ReadTimeout)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return nil, err
 		}
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to read from instance socket: %s", err)
+			return nil, fmt.Errorf("failed to read from instance socket: %w", err)
 		}
 
 		dataPortion := string(dataPortionBytes)
@@ -223,9 +223,9 @@ func readDataPortionFromPlainTextConn(conn net.Conn, buffer *bytes.Buffer,
 		//
 
 		if buffer.Len() == 0 {
-			if n, err := conn.Read(tmp); err != nil && err != io.EOF {
-				return nil, fmt.Errorf("failed to read: %s", err)
-			} else if n == 0 || err == io.EOF {
+			if n, err := conn.Read(tmp); err != nil && !errors.Is(err, io.EOF) {
+				return nil, fmt.Errorf("failed to read: %w", err)
+			} else if n == 0 || errors.Is(err, io.EOF) {
 				return nil, io.EOF
 			} else {
 				buffer.Write(tmp[:n])
@@ -234,7 +234,7 @@ func readDataPortionFromPlainTextConn(conn net.Conn, buffer *bytes.Buffer,
 
 		nextByte, err := buffer.ReadByte()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get byte from buffer: %s", err)
+			return nil, fmt.Errorf("failed to get byte from buffer: %w", err)
 		}
 
 		data = append(data, nextByte)
@@ -287,7 +287,7 @@ func getPushedData(pushedDataBytes []byte) (any, error) {
 	if strings.HasPrefix(pushedDataString, tagPushPrefixYAML) {
 		// YAML - just decode tag.
 		if err := yaml.Unmarshal(pushedDataBytes, &pushedData); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal pushed data: %s", err)
+			return nil, fmt.Errorf("failed to unmarshal pushed data: %w", err)
 		}
 	} else {
 		// Lua.
@@ -344,12 +344,12 @@ func processEvalTarantoolRes(resBytes []byte, result any) ([]any, error) {
 
 	dataEnc, err := base64.StdEncoding.DecodeString(evalResultEncBase64)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode hex value: %s", err)
+		return nil, fmt.Errorf("failed to decode hex value: %w", err)
 	}
 
 	if result != nil {
 		if err := msgpack.Unmarshal(dataEnc, result); err != nil {
-			return nil, fmt.Errorf("failed to parse eval result: %s", err)
+			return nil, fmt.Errorf("failed to parse eval result: %w", err)
 		}
 
 		return nil, nil
@@ -357,7 +357,7 @@ func processEvalTarantoolRes(resBytes []byte, result any) ([]any, error) {
 
 	var data []any
 	if err := msgpack.Unmarshal(dataEnc, &data); err != nil {
-		return nil, fmt.Errorf("failed to parse eval result: %s", err)
+		return nil, fmt.Errorf("failed to parse eval result: %w", err)
 	}
 
 	return data, nil
@@ -380,14 +380,14 @@ func getPlainTextEvalResYaml(resBytes []byte) (string, error) {
 func getPlainTextEvalError(resBytes []byte, parseErr error) error {
 	errorStrings := make([]map[string]string, 0)
 	if err := yaml.UnmarshalStrict(resBytes, &errorStrings); err != nil {
-		return fmt.Errorf("failed to parse eval result: %s", parseErr)
+		return fmt.Errorf("failed to parse eval result: %w", parseErr)
 	}
 	if len(errorStrings) == 0 {
-		return fmt.Errorf("failed to parse eval result: %s", parseErr)
+		return fmt.Errorf("failed to parse eval result: %w", parseErr)
 	}
 	errStr, found := errorStrings[0]["error"]
 	if !found {
-		return fmt.Errorf("failed to parse eval result: %s", parseErr)
+		return fmt.Errorf("failed to parse eval result: %w", parseErr)
 	}
 	return errors.New(errStr)
 }

@@ -165,7 +165,7 @@ func buildTt(argUpdaters ...optsUpdater) error {
 		packagePath)
 	err = sh.RunWith(getBuildEnvironment(), goExecutableName, args...)
 	if err != nil {
-		return fmt.Errorf("failed to build tt executable: %s", err)
+		return fmt.Errorf("failed to build tt executable: %w", err)
 	}
 
 	return nil

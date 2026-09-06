@@ -54,7 +54,7 @@ func (tntCli *TarantoolCli) GetVersion() (version.Version, error) {
 	output, err := exec.CommandContext(
 		context.Background(), tntCli.Executable, "--version").Output()
 	if err != nil {
-		return tntCli.version, fmt.Errorf("failed to get tarantool version: %s", err)
+		return tntCli.version, fmt.Errorf("failed to get tarantool version: %w", err)
 	}
 
 	versionOut := strings.Split(string(output), "\n")
@@ -83,7 +83,7 @@ func GetTtVersion(pathToBin string) (version.Version, error) {
 	output, err := exec.CommandContext(context.Background(), pathToBin, "--self", "version",
 		"--commit").Output()
 	if err != nil {
-		return version.Version{}, fmt.Errorf("failed to get tt version: %s", err)
+		return version.Version{}, fmt.Errorf("failed to get tt version: %w", err)
 	}
 
 	ttVersion, err := version.ParseTt(string(output))

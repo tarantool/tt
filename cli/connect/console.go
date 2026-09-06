@@ -2,6 +2,7 @@ package connect
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -108,20 +109,20 @@ func NewConsole(connOpts connector.ConnectOpts, connectCtx ConnectCtx, title str
 	// Connect to specified address.
 	console.conn, err = connector.Connect(connOpts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect: %s", err)
+		return nil, fmt.Errorf("failed to connect: %w", err)
 	}
 
 	// Change a language.
 	if connectCtx.Language != DefaultLanguage {
 		if err := ChangeLanguage(console.conn, connectCtx.Language); err != nil {
-			return nil, fmt.Errorf("unable to change a language: %s", err)
+			return nil, fmt.Errorf("unable to change a language: %w", err)
 		}
 	}
 
 	// Initialize user commands executor.
 	console.executor, err = getExecutor(console, connectCtx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to init prompt: %s", err)
+		return nil, fmt.Errorf("failed to init prompt: %w", err)
 	}
 
 	// Initialize commands completer.
@@ -247,7 +248,7 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 
 		var data string
 		if _, err := console.conn.Eval(evalBody, args, opts); err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				// We need to call 'console.Close()' here because in some cases (e.g 'os.exit()')
 				// it won't be called from 'defer console.Close' in 'connect.runConsole()'.
 				console.Close()

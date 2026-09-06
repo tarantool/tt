@@ -114,7 +114,7 @@ func JoinAbspath(paths ...string) (string, error) {
 	var err error
 	path := JoinPaths(paths...)
 	if path, err = filepath.Abs(path); err != nil {
-		return "", fmt.Errorf("failed to get absolute path: %s", err)
+		return "", fmt.Errorf("failed to get absolute path: %w", err)
 	}
 
 	return path, nil
@@ -149,12 +149,12 @@ Stacktrace:
 func ParseYAML(path string) (map[string]any, error) {
 	fileContent, err := GetFileContentBytes(path)
 	if err != nil {
-		return nil, fmt.Errorf(`failed to read "%s" file: %s`, path, err)
+		return nil, fmt.Errorf(`failed to read "%s" file: %w`, path, err)
 	}
 
 	var raw map[string]any
 	if err := yaml.Unmarshal(fileContent, &raw); err != nil {
-		return nil, fmt.Errorf("failed to parse YAML: %s", err)
+		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
 	return raw, nil
@@ -171,12 +171,12 @@ func GetHomeDir() (string, error) {
 
 func readFromPos(readSeeker io.ReadSeeker, pos int64, buf *[]byte) (int, error) {
 	if _, err := readSeeker.Seek(pos, io.SeekStart); err != nil {
-		return 0, fmt.Errorf("failed to seek: %s", err)
+		return 0, fmt.Errorf("failed to seek: %w", err)
 	}
 
 	n, err := readSeeker.Read(*buf)
 	if err != nil {
-		return n, fmt.Errorf("failed to read: %s", err)
+		return n, fmt.Errorf("failed to read: %w", err)
 	}
 
 	return n, nil
@@ -194,13 +194,13 @@ func GetLastNLinesBegin(filepath string, lines int) (int64, error) {
 
 	f, err := os.Open(filepath)
 	if err != nil {
-		return 0, fmt.Errorf("failed to open file: %s", err)
+		return 0, fmt.Errorf("failed to open file: %w", err)
 	}
 	defer f.Close()
 
 	var fileSize int64
 	if fileInfo, err := os.Stat(filepath); err != nil {
-		return 0, fmt.Errorf("failed to get fileinfo: %s", err)
+		return 0, fmt.Errorf("failed to get fileinfo: %w", err)
 	} else {
 		fileSize = fileInfo.Size()
 	}
@@ -270,11 +270,11 @@ func GetLastNLines(filepath string, linesN int) ([]string, error) {
 
 	file, err := os.Open(filepath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %s", err)
+		return nil, fmt.Errorf("failed to open file: %w", err)
 	}
 
 	if _, err := file.Seek(lastNLinesBeginPos, io.SeekStart); err != nil {
-		return nil, fmt.Errorf("failed to seek in file: %s", err)
+		return nil, fmt.Errorf("failed to seek in file: %w", err)
 	}
 
 	lines := []string{}
@@ -451,7 +451,7 @@ func Chdir(newPath string) (func() error, error) {
 		return nil, fmt.Errorf("failed to get current directory: %w", err)
 	}
 	if err = os.Chdir(newPath); err != nil {
-		return nil, fmt.Errorf("failed to change directory: %s", err)
+		return nil, fmt.Errorf("failed to change directory: %w", err)
 	}
 
 	// Update PWD environment var.
@@ -686,7 +686,7 @@ func ExecuteCommandStdin(program string, isVerbose bool, logFile *os.File, workD
 func CreateSymlink(oldName, newName string, overwrite bool) error {
 	_, err := os.Stat(newName)
 	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("symbolic link cannot be created: %s", err)
+		return fmt.Errorf("symbolic link cannot be created: %w", err)
 	}
 	if os.IsNotExist(err) {
 		return os.Symlink(oldName, newName)
@@ -789,7 +789,7 @@ func MergeFiles(destFilePath string, srcFilePaths ...string) error {
 	destFile, err := os.Create(destFilePath)
 	if err != nil {
 		_ = os.Remove(destFilePath)
-		return fmt.Errorf("failed to create result file %s: %s", destFilePath, err)
+		return fmt.Errorf("failed to create result file %s: %w", destFilePath, err)
 	}
 	defer destFile.Close()
 
@@ -797,7 +797,7 @@ func MergeFiles(destFilePath string, srcFilePaths ...string) error {
 		srcFile, err := os.Open(srcFilePath)
 		if err != nil {
 			_ = os.Remove(destFilePath)
-			return fmt.Errorf("failed to open source file %s: %s", srcFilePath, err)
+			return fmt.Errorf("failed to open source file %s: %w", srcFilePath, err)
 		}
 
 		_, err = io.Copy(destFile, srcFile)
@@ -873,7 +873,7 @@ func InstantiateFileFromTemplate(templatePath, templateContent string, params an
 
 	parsedTemplate, err := template.New(templatePath).Parse(unitContent)
 	if err != nil {
-		return fmt.Errorf("error parsing %s: %s", templatePath, err)
+		return fmt.Errorf("error parsing %s: %w", templatePath, err)
 	}
 	// spell-checker:ignore missingkey
 	parsedTemplate.Option("missingkey=error") // Treat missing variable as error.

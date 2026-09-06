@@ -30,7 +30,7 @@ func validateExistingValue(createCtx *create_ctx.CreateCtx, varInfo app_template
 
 	matched, err := regexp.MatchString(varInfo.Re, existingValue)
 	if err != nil {
-		return false, fmt.Errorf("failed to validate user input: %s", err)
+		return false, fmt.Errorf("failed to validate user input: %w", err)
 	}
 	if matched {
 		return true, nil
@@ -80,7 +80,7 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 			// User input.
 			if !createCtx.SilentMode {
 				if input, err = collectTemplateVarsFromUser.Reader.ReadString('\n'); err != nil {
-					return fmt.Errorf("error reading user input: %s", err)
+					return fmt.Errorf("error reading user input: %w", err)
 				}
 				input = strings.TrimSuffix(input, "\n")
 			}
@@ -101,7 +101,7 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 			}
 			matched, err = regexp.MatchString(varInfo.Re, input)
 			if err != nil {
-				return fmt.Errorf("failed to validate user input: %s", err)
+				return fmt.Errorf("failed to validate user input: %w", err)
 			}
 			if !matched {
 				if createCtx.SilentMode {

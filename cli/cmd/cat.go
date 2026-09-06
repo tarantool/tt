@@ -106,7 +106,7 @@ func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	timestamp, err := util.StringToTimestamp(catFlags.Timestamp)
 	if err != nil {
-		return fmt.Errorf("failed to parse a timestamp: %s", err)
+		return fmt.Errorf("failed to parse a timestamp: %w", err)
 	}
 	os.Setenv("TT_CLI_CAT_TIMESTAMP", timestamp)
 

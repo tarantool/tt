@@ -182,7 +182,7 @@ func NewCConfigApplication(
 func (c *CConfigApplication) Expel(ctx ExpelCtx) error {
 	replicasets, err := c.Discovery(UseCache)
 	if err != nil {
-		return fmt.Errorf("failed to get replicasets: %s", err)
+		return fmt.Errorf("failed to get replicasets: %w", err)
 	}
 
 	targetReplicaset, targetInstance, found := findInstanceByAlias(replicasets, ctx.InstName)

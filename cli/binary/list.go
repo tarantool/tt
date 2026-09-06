@@ -108,7 +108,7 @@ func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
 	if len(binDirFilesList) == 0 || errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("there are no binaries installed in this environment of 'tt'")
 	} else if err != nil {
-		return fmt.Errorf("error reading directory %q: %s", binDir, err)
+		return fmt.Errorf("error reading directory %q: %w", binDir, err)
 	}
 
 	programs := [...]search.Program{

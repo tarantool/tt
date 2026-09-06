@@ -262,21 +262,21 @@ func parseURIOpts(uri *url.URL) (URIOpts, error) {
 		case timeoutParam:
 			opts.Timeout, err = getDurationParam(v[0], defaultTimeoutParam)
 			if err != nil {
-				return opts, fmt.Errorf("invalid %q param, float (in seconds) expected: %s",
+				return opts, fmt.Errorf("invalid %q param, float (in seconds) expected: %w",
 					k, err)
 			}
 
 		case verifyHostParam:
 			verify, err := getBooleanParam(v[0], defaultVerifyHostParam)
 			if err != nil {
-				return opts, fmt.Errorf("invalid %q param, boolean expected: %s", k, err)
+				return opts, fmt.Errorf("invalid %q param, boolean expected: %w", k, err)
 			}
 			opts.SkipHostVerify = !verify
 
 		case verifyPeerParam:
 			verify, err := getBooleanParam(v[0], defaultVerifyHostParam)
 			if err != nil {
-				return opts, fmt.Errorf("invalid %q param, boolean expected: %s", k, err)
+				return opts, fmt.Errorf("invalid %q param, boolean expected: %w", k, err)
 			}
 			opts.SkipPeerVerify = !verify
 

@@ -70,7 +70,7 @@ func (CopyAppTemplate) Run(createCtx *create_ctx.CreateCtx,
 		if util.IsDir(templatePath) {
 			log.Infof("Using template from %s", templatePath)
 			if err := copy.Copy(templatePath, templateCtx.AppPath); err != nil {
-				return fmt.Errorf("template copying failed: %s", err)
+				return fmt.Errorf("template copying failed: %w", err)
 			}
 			return nil
 		}

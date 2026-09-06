@@ -220,7 +220,7 @@ func (c *CConfigSource) patchConfigWithRoles(ctx RolesChangeCtx,
 		}
 
 		if updatedRoles, err = updateRolesFunc(updatedRoles, ctx.RoleName); err != nil {
-			return fmt.Errorf("cannot update roles by path %s: %s", path.path, err)
+			return fmt.Errorf("cannot update roles by path %s: %w", path.path, err)
 		}
 
 		targets, err := getCConfigPatchTargets(configData, path.path, path.depth)

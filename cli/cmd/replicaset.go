@@ -456,7 +456,7 @@ func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, target str
 		var err error
 		ctx.Conn, err = connector.Connect(connOpts)
 		if err != nil {
-			return fmt.Errorf("unable to establish connection: %s", err)
+			return fmt.Errorf("unable to establish connection: %w", err)
 		}
 	}
 
