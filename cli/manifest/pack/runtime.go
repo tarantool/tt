@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -176,37 +177,67 @@ type activeBinary struct {
 	flavor string
 }
 
+// acceptedFlavors lists the build flavors that satisfy a requirement, in the
+// order the cache is searched. Enterprise is a superset of Community, so a
+// [ce] requirement is met by either build; an [ee] requirement only by an
+// Enterprise one, since a CE build lacks what the manifest asked for in a way
+// nothing downstream detects. The requirement's own flavor comes first so that
+// a [ce] project bundles the CE tree whenever one is cached, and reaches for
+// EE only when nothing else satisfies it.
+func acceptedFlavors(flavor string) []string {
+	if flavor == flavorCE {
+		return []string{flavorCE, flavorEE}
+	}
+
+	return []string{flavor}
+}
+
 // resolveRuntime picks the source for one runtime component: cache first,
-// active binary second. Both must match the constraint's flavor as well as its
-// version - bundling a CE build for an [ee] requirement produces an archive
-// that is wrong in a way nothing downstream detects.
+// active binary second. Both must satisfy the constraint's flavor as well as
+// its version; see acceptedFlavors for what satisfies a flavor.
 func resolveRuntime(
 	req RuntimeOptions, name string, constraint manifest.Constraint,
 	active activeBinary,
 ) (runtimeSource, error) {
 	flavor := constraint.EffectiveFlavor()
+	accepted := acceptedFlavors(flavor)
 
-	dir, ver, ok, err := findInCache(req.CacheDir, name, flavor, constraint)
+	for _, f := range accepted {
+		dir, ver, ok, err := findInCache(req.CacheDir, name, f, constraint)
+		if err != nil {
+			return runtimeSource{}, err
+		}
+
+		if ok {
+			return runtimeSource{Name: name, Version: ver, Dir: dir}, nil
+		}
+	}
+
+	versionOK, err := activeVersionOK(active, constraint)
 	if err != nil {
 		return runtimeSource{}, err
 	}
 
-	if ok {
-		return runtimeSource{Name: name, Version: ver, Dir: dir}, nil
-	}
-
-	usable, err := activeUsable(active, flavor, constraint)
-	if err != nil {
-		return runtimeSource{}, err
-	}
-
-	if usable {
+	if versionOK && activeFlavorOK(active, flavor) {
 		return runtimeSource{
 			Name:     name,
 			Version:  normalizeVersion(active.version),
 			Binary:   active.path,
 			Fallback: true,
 		}, nil
+	}
+
+	// The version matched and only the flavor did not: say so, because the
+	// generic "does not satisfy" reads as a version mismatch, and the fix is a
+	// different one - the manifest's [flavor], not the cache.
+	if versionOK {
+		return runtimeSource{}, stateErrorf(
+			"%w: no %s satisfying %s found in the runtime cache %s, and the active "+
+				"%s (%s) matches the version but not the flavor: %s requires %s; "+
+				"place a matching build under %s or change [platform].%s",
+			errNoRuntime, name, constraint.String(), req.CacheDir, name,
+			describeActive(active), "["+flavor+"]", describeFlavors(accepted),
+			filepath.Join(req.CacheDir, name, flavor, "<version>"), name)
 	}
 
 	return runtimeSource{}, stateErrorf(
@@ -217,34 +248,38 @@ func resolveRuntime(
 		filepath.Join(req.CacheDir, name, flavor, "<version>"))
 }
 
-// activeUsable reports whether the active binary may stand in for the cache.
-// An undetermined flavor is accepted only for a [ce] requirement: ce is the
-// default and overwhelmingly the common case, whereas silently treating an
-// unverified build as Enterprise would be a licensing error, not just a bug.
-func activeUsable(
-	active activeBinary, flavor string, constraint manifest.Constraint,
-) (bool, error) {
+// activeVersionOK reports whether the active binary exists and its version
+// satisfies the constraint.
+func activeVersionOK(active activeBinary, constraint manifest.Constraint) (bool, error) {
 	if active.path == "" {
 		return false, nil
 	}
 
-	versionOK, err := satisfies(active.version, constraint)
-	if err != nil {
-		return false, err
+	return satisfies(active.version, constraint)
+}
+
+// activeFlavorOK reports whether the active binary's flavor satisfies the
+// requirement's. An undetermined flavor is accepted only for a [ce]
+// requirement: ce is the default and overwhelmingly the common case, whereas
+// silently treating an unverified build as Enterprise would be a licensing
+// error, not just a bug.
+func activeFlavorOK(active activeBinary, flavor string) bool {
+	if active.flavor == "" {
+		return flavor == flavorCE
 	}
 
-	if !versionOK {
-		return false, nil
+	return slices.Contains(acceptedFlavors(flavor), active.flavor)
+}
+
+// describeFlavors renders the accepted flavors for an error message, e.g.
+// "a [ce] or [ee] build".
+func describeFlavors(flavors []string) string {
+	parts := make([]string, 0, len(flavors))
+	for _, f := range flavors {
+		parts = append(parts, "["+f+"]")
 	}
 
-	switch active.flavor {
-	case flavor:
-		return true, nil
-	case "":
-		return flavor == flavorCE, nil
-	default:
-		return false, nil
-	}
+	return "a " + strings.Join(parts, " or ") + " build"
 }
 
 // describeActive renders the active binary for an error message, saying plainly
@@ -263,9 +298,9 @@ func describeActive(active activeBinary) string {
 }
 
 // findInCache returns the highest cached version of a component satisfying the
-// constraint. Cache entries are directories laid out as
+// constraint within one flavor. Cache entries are directories laid out as
 // <cache>/<component>/<flavor>/<version>/, so a CE and an EE build of the same
-// version can coexist and a [ce] requirement can never resolve to an EE tree.
+// version can coexist and an [ee] requirement can never resolve to a CE tree.
 func findInCache(
 	cacheDir, name, flavor string, constraint manifest.Constraint,
 ) (string, string, bool, error) {

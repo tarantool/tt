@@ -24,7 +24,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   installing it needs no network. `--without-deps` drops both and leaves the
   `bundled_*_version` lock fields empty. Runtime components are taken from
   `<user cache>/tt/runtimes/<component>/<flavor>/<version>/`, falling back to
-  the active tt environment when it satisfies `[platform]`, with a warning.
+  the active tt environment when it satisfies `[platform]`, with a warning. An
+  Enterprise build satisfies a `[ce]` requirement (the default) as well as an
+  `[ee]` one; a Community build satisfies only `[ce]`.
   Archives are byte-reproducible for a given commit; set `SOURCE_DATE_EPOCH` to
   pin the build timestamp explicitly.
 - `tt package install`: unpack a `.tt` archive into a scope and bring the tree
