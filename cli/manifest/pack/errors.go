@@ -44,9 +44,6 @@ var (
 	// files flat in the rocks tree, where its own files cannot be separated
 	// from its dependencies'.
 	errFlatNamespace = errors.New("cannot pack a flat namespace without deps")
-	// errNoTarantoolLicense reports a bundled Tarantool whose LICENSE file is
-	// missing; shipping the binary without it is not permitted.
-	errNoTarantoolLicense = errors.New("bundled Tarantool has no LICENSE")
 	// errMissingInclude reports an include or license_files entry that matched
 	// nothing on disk.
 	errMissingInclude = errors.New("no such file")

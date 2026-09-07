@@ -27,7 +27,7 @@ const (
 )
 
 // tarantoolLicenseNames are the file names a bundled Tarantool's license may
-// carry. Shipping the binary without one is refused.
+// carry. The first one found beside the binary is bundled as LICENSE.
 var tarantoolLicenseNames = []string{"LICENSE", "LICENSE.md", "LICENSE.txt", "COPYING"}
 
 // runtimeSource describes one resolved runtime component ready to be bundled.
@@ -42,6 +42,9 @@ type runtimeSource struct {
 	Dir string
 	// Binary is a single executable to copy into <name>/bin/.
 	Binary string
+	// Prefix is the install prefix of Binary as the caller knows it; empty
+	// when the caller has none, in which case it is guessed from Binary.
+	Prefix string
 	// Fallback marks a component resolved from the active tt environment
 	// rather than the runtime cache, which is worth warning about.
 	Fallback bool
@@ -63,11 +66,16 @@ type RuntimeOptions struct {
 	ActiveTarantool        string
 	ActiveTarantoolVersion string
 	ActiveTarantoolFlavor  string
-	ActiveTt               string
-	ActiveTtVersion        string
-	ActiveTtFlavor         string
-	ActiveTcm              string
-	ActiveTcmVersion       string
+	// ActiveTarantoolPrefix is the install prefix tt resolved for the active
+	// Tarantool (TT_CLI_TARANTOOL_PREFIX or the build banner), where its
+	// LICENSE and share/tarantool are looked for first. Empty means unknown,
+	// and the binary's own location is searched instead.
+	ActiveTarantoolPrefix string
+	ActiveTt              string
+	ActiveTtVersion       string
+	ActiveTtFlavor        string
+	ActiveTcm             string
+	ActiveTcmVersion      string
 	// Warn receives the fallback diagnostics; nil drops them.
 	Warn func(string)
 }
@@ -102,21 +110,25 @@ func bundleRuntime(stageDir string, req RuntimeOptions) (BundledVersions, error)
 	wanted := []struct {
 		name       string
 		constraint manifest.Constraint
-		binary     string
-		binVersion string
-		binFlavor  string
+		active     activeBinary
 	}{
-		{
-			runtimeTarantool, req.Platform.Tarantool,
-			req.ActiveTarantool, req.ActiveTarantoolVersion, req.ActiveTarantoolFlavor,
-		},
-		{
-			runtimeTt, req.Platform.Tt,
-			req.ActiveTt, req.ActiveTtVersion, req.ActiveTtFlavor,
-		},
+		{runtimeTarantool, req.Platform.Tarantool, activeBinary{
+			path:    req.ActiveTarantool,
+			version: req.ActiveTarantoolVersion,
+			flavor:  req.ActiveTarantoolFlavor,
+			prefix:  req.ActiveTarantoolPrefix,
+		}},
+		{runtimeTt, req.Platform.Tt, activeBinary{
+			path:    req.ActiveTt,
+			version: req.ActiveTtVersion,
+			flavor:  req.ActiveTtFlavor,
+		}},
 		// TCM is Enterprise-only and carries no flavor (manifest validation
 		// rejects one), so its effective flavor is never compared.
-		{runtimeTcm, req.Platform.Tcm, req.ActiveTcm, req.ActiveTcmVersion, ""},
+		{runtimeTcm, req.Platform.Tcm, activeBinary{
+			path:    req.ActiveTcm,
+			version: req.ActiveTcmVersion,
+		}},
 	}
 
 	var bundled BundledVersions
@@ -127,8 +139,7 @@ func bundleRuntime(stageDir string, req RuntimeOptions) (BundledVersions, error)
 			continue
 		}
 
-		src, err := resolveRuntime(req, w.name, w.constraint,
-			activeBinary{path: w.binary, version: w.binVersion, flavor: w.binFlavor})
+		src, err := resolveRuntime(req, w.name, w.constraint, w.active)
 		if err != nil {
 			return BundledVersions{}, err
 		}
@@ -148,7 +159,7 @@ func bundleRuntime(stageDir string, req RuntimeOptions) (BundledVersions, error)
 				w.name, src.Version, w.constraint.Version))
 		}
 
-		if err := placeRuntime(stageDir, src); err != nil {
+		if err := placeRuntime(stageDir, src, req.Warn); err != nil {
 			return BundledVersions{}, err
 		}
 
@@ -175,6 +186,8 @@ type activeBinary struct {
 	version string
 	// flavor is "ce", "ee", or "" for undetermined.
 	flavor string
+	// prefix is the install prefix as the caller knows it; empty for unknown.
+	prefix string
 }
 
 // acceptedFlavors lists the build flavors that satisfy a requirement, in the
@@ -223,6 +236,7 @@ func resolveRuntime(
 			Name:     name,
 			Version:  normalizeVersion(active.version),
 			Binary:   active.path,
+			Prefix:   active.prefix,
 			Fallback: true,
 		}, nil
 	}
@@ -432,7 +446,7 @@ func normalizeVersion(ver string) string {
 }
 
 // placeRuntime copies one resolved component into <stage>/_runtime/<name>/.
-func placeRuntime(stageDir string, src runtimeSource) error {
+func placeRuntime(stageDir string, src runtimeSource, warn func(string)) error {
 	dst := filepath.Join(stageDir, runtimeDirName, src.Name)
 
 	if src.Dir != "" {
@@ -444,7 +458,7 @@ func placeRuntime(stageDir string, src runtimeSource) error {
 	}
 
 	if src.Name == runtimeTarantool {
-		return checkTarantoolLicense(dst, src)
+		return bundleTarantoolLicense(dst, src, warn)
 	}
 
 	return nil
@@ -464,24 +478,52 @@ func placeBinaryRuntime(dst string, src runtimeSource) error {
 		return nil
 	}
 
-	prefix := filepath.Dir(filepath.Dir(src.Binary))
+	for _, prefix := range binaryPrefixes(src) {
+		share := filepath.Join(prefix, "share", "tarantool")
+		if _, err := os.Stat(share); err != nil {
+			continue
+		}
 
-	share := filepath.Join(prefix, "share", "tarantool")
-	if _, err := os.Stat(share); err != nil {
-		return nil //nolint:nilerr // No share tree to bundle.
-	}
+		if err := copyTree(share, filepath.Join(dst, "share", "tarantool")); err != nil {
+			return fmt.Errorf("bundling Tarantool share/: %w", err)
+		}
 
-	if err := copyTree(share, filepath.Join(dst, "share", "tarantool")); err != nil {
-		return fmt.Errorf("bundling Tarantool share/: %w", err)
+		return nil
 	}
 
 	return nil
 }
 
-// checkTarantoolLicense enforces that a bundled Tarantool ships its LICENSE.
-// A cache entry is expected to carry one; the single-binary fallback cannot, so
-// the license is looked up next to the binary's install prefix.
-func checkTarantoolLicense(dst string, src runtimeSource) error {
+// binaryPrefixes lists the directories that may be the install prefix of a
+// single-binary source, most trustworthy first: the prefix the caller
+// resolved, then the parent of the binary's directory (the <prefix>/bin/
+// layout of a packaged install), then the binary's own directory (the flat
+// layout of the Enterprise SDK, where tarantool sits beside env.sh with no
+// bin/ in between). Duplicates are dropped so a caller prefix that equals
+// one of the guesses is not searched twice.
+func binaryPrefixes(src runtimeSource) []string {
+	binDir := filepath.Dir(src.Binary)
+	candidates := []string{src.Prefix, filepath.Dir(binDir), binDir}
+
+	prefixes := make([]string, 0, len(candidates))
+	for _, c := range candidates {
+		if c != "" && !slices.Contains(prefixes, c) {
+			prefixes = append(prefixes, c)
+		}
+	}
+
+	return prefixes
+}
+
+// bundleTarantoolLicense brings a bundled Tarantool's LICENSE along. A cache
+// entry is expected to carry one already; the single-binary fallback cannot, so
+// the license is looked up next to the binary's install prefix and copied in.
+//
+// A missing license is reported and does not stop the pack: the Enterprise SDK
+// ships no license file at all - not in the unpacked bundle and not in the
+// tarball - so refusing here would make an EE runtime unpackable rather than
+// making a license appear.
+func bundleTarantoolLicense(dst string, src runtimeSource, warn func(string)) error {
 	for _, name := range tarantoolLicenseNames {
 		if _, err := os.Stat(filepath.Join(dst, name)); err == nil {
 			return nil
@@ -489,14 +531,20 @@ func checkTarantoolLicense(dst string, src runtimeSource) error {
 	}
 
 	if src.Dir != "" {
-		return stateErrorf("%w: none of %s found in %s",
-			errNoTarantoolLicense, strings.Join(tarantoolLicenseNames, ", "), src.Dir)
+		if warn != nil {
+			warn(fmt.Sprintf("bundling Tarantool without a license: none of %s in %s",
+				strings.Join(tarantoolLicenseNames, ", "), src.Dir))
+		}
+
+		return nil
 	}
 
-	// Fallback path: look beside the binary, i.e. <prefix>/bin/tarantool =>
-	// <prefix>/ and <prefix>/share/tarantool/.
-	prefix := filepath.Dir(filepath.Dir(src.Binary))
-	candidates := []string{prefix, filepath.Join(prefix, "share", "tarantool")}
+	// Fallback path: look in every directory that may be the binary's install
+	// prefix, and in its share/tarantool/, where a packaged install keeps it.
+	var candidates []string
+	for _, prefix := range binaryPrefixes(src) {
+		candidates = append(candidates, prefix, filepath.Join(prefix, "share", "tarantool"))
+	}
 
 	for _, dir := range candidates {
 		for _, name := range tarantoolLicenseNames {
@@ -507,6 +555,10 @@ func checkTarantoolLicense(dst string, src runtimeSource) error {
 		}
 	}
 
-	return stateErrorf("%w: looked beside %s in %s", errNoTarantoolLicense,
-		src.Binary, strings.Join(candidates, ", "))
+	if warn != nil {
+		warn(fmt.Sprintf("bundling Tarantool without a license: looked beside %s in %s",
+			src.Binary, strings.Join(candidates, ", ")))
+	}
+
+	return nil
 }

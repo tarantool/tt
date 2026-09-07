@@ -651,6 +651,7 @@ func runtimeRequest(ctx context.Context, tntInfo manifestrocks.TarantoolInfo) pa
 		ActiveTarantool:        tntInfo.Executable,
 		ActiveTarantoolVersion: tntInfo.Version,
 		ActiveTarantoolFlavor:  pack.DetectTarantoolFlavor(ctx, tntInfo.Executable),
+		ActiveTarantoolPrefix:  tntInfo.Prefix,
 		ActiveTt:               selfPath,
 		// The short form is the bare "x.y.z"; the long form is a human-readable
 		// sentence that no version constraint can match.

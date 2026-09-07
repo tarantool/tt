@@ -26,7 +26,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `<user cache>/tt/runtimes/<component>/<flavor>/<version>/`, falling back to
   the active tt environment when it satisfies `[platform]`, with a warning. An
   Enterprise build satisfies a `[ce]` requirement (the default) as well as an
-  `[ee]` one; a Community build satisfies only `[ce]`.
+  `[ee]` one; a Community build satisfies only `[ce]`. The bundled Tarantool's
+  license file travels with it when the build ships one, wherever it sits
+  relative to the binary; the Enterprise SDK ships none, and the pack then says
+  so and continues.
   Archives are byte-reproducible for a given commit; set `SOURCE_DATE_EPOCH` to
   pin the build timestamp explicitly.
 - `tt package install`: unpack a `.tt` archive into a scope and bring the tree
