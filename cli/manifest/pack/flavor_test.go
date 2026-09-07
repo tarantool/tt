@@ -35,9 +35,9 @@ func TestFlavorFromBanner(t *testing.T) {
 	}
 }
 
-// TestFindInCacheSeparatesFlavors is the core of the flavor fix: a [ce]
-// requirement must never resolve to an EE tree, and vice versa. Before the
-// cache grew a flavor level the two were indistinguishable.
+// TestFindInCacheSeparatesFlavors pins the cache layout: findInCache searches
+// exactly one flavor tree, so the two flavors of one version can coexist.
+// Which trees a requirement may draw from is resolveRuntime's decision.
 func TestFindInCacheSeparatesFlavors(t *testing.T) {
 	cache := fakeFlavorCache(t, flavorEE, map[string][]string{
 		runtimeTarantool: {"3.0.5"},
@@ -45,13 +45,89 @@ func TestFindInCacheSeparatesFlavors(t *testing.T) {
 
 	_, _, ok, err := findInCache(cache, runtimeTarantool, flavorCE, constraint(">=3.0.0"))
 	require.NoError(t, err)
-	assert.False(t, ok, "a ce requirement must not resolve to the ee tree")
+	assert.False(t, ok, "the ce tree is empty, so a ce lookup misses")
 
 	dir, ver, ok, err := findInCache(cache, runtimeTarantool, flavorEE, constraint(">=3.0.0"))
 	require.NoError(t, err)
 	require.True(t, ok)
 	assert.Equal(t, "3.0.5", ver)
 	assert.Equal(t, filepath.Join(cache, runtimeTarantool, flavorEE, "3.0.5"), dir)
+}
+
+// TestResolveRuntimeCEAcceptsEETree: Enterprise is a superset of Community, so
+// a [ce] requirement is satisfied by a cached EE build when no CE one is.
+func TestResolveRuntimeCEAcceptsEETree(t *testing.T) {
+	cache := fakeFlavorCache(t, flavorEE, map[string][]string{
+		runtimeTarantool: {"3.0.5"},
+	})
+
+	src, err := resolveRuntime(RuntimeOptions{CacheDir: cache}, runtimeTarantool,
+		constraint(">=3.0.0"), activeBinary{})
+	require.NoError(t, err)
+	assert.Equal(t, "3.0.5", src.Version)
+	assert.Equal(t, filepath.Join(cache, runtimeTarantool, flavorEE, "3.0.5"), src.Dir)
+	assert.False(t, src.Fallback)
+}
+
+// TestResolveRuntimeCEPrefersCETree: with both trees populated, a [ce]
+// requirement takes the CE build even when the EE tree holds a higher version.
+// The requirement's own flavor is what the project asked for; EE is a
+// stand-in, not an upgrade.
+func TestResolveRuntimeCEPrefersCETree(t *testing.T) {
+	cache := fakeFlavorCache(t, flavorCE, map[string][]string{
+		runtimeTarantool: {"3.0.5"},
+	})
+	writeTree(t, filepath.Join(cache, runtimeTarantool, flavorEE, "3.9.0"), map[string]string{
+		"bin/tarantool": "#!/bin/sh\n",
+		"LICENSE":       "Tarantool Enterprise",
+	})
+
+	src, err := resolveRuntime(RuntimeOptions{CacheDir: cache}, runtimeTarantool,
+		constraint(">=3.0.0"), activeBinary{})
+	require.NoError(t, err)
+	assert.Equal(t, "3.0.5", src.Version)
+	assert.Equal(t, filepath.Join(cache, runtimeTarantool, flavorCE, "3.0.5"), src.Dir)
+}
+
+// TestResolveRuntimeEERejectsCETree is the other direction, which stays
+// strict: an [ee] requirement never resolves to a CE build.
+func TestResolveRuntimeEERejectsCETree(t *testing.T) {
+	cache := fakeFlavorCache(t, flavorCE, map[string][]string{
+		runtimeTarantool: {"3.0.5"},
+	})
+
+	_, err := resolveRuntime(RuntimeOptions{CacheDir: cache}, runtimeTarantool,
+		flavored(">=3.0.0", flavorEE), activeBinary{})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errNoRuntime)
+}
+
+// TestBundleRuntimeCEAcceptsEEFallback covers the SDK case: a manifest with no
+// flavor (the [ce] default) packed in an Enterprise environment bundles the
+// active EE Tarantool instead of refusing.
+func TestBundleRuntimeCEAcceptsEEFallback(t *testing.T) {
+	prefix := t.TempDir()
+	writeTree(t, prefix, map[string]string{
+		"bin/tarantool": "#!/bin/sh\n",
+		"LICENSE":       "Tarantool Enterprise",
+		"bin/tt":        "#!/bin/sh\n",
+	})
+
+	bundled, err := bundleRuntime(t.TempDir(), RuntimeOptions{
+		CacheDir: filepath.Join(t.TempDir(), "empty"),
+		Platform: manifest.Platform{
+			Tarantool: constraint(">=3.0.0,<4.0.0"),
+			Tt:        constraint(">=2.0.0,<3.0.0"),
+		},
+		ActiveTarantool:        filepath.Join(prefix, "bin", "tarantool"),
+		ActiveTarantoolVersion: "3.5.0-0-g0823718c2",
+		ActiveTarantoolFlavor:  flavorEE,
+		ActiveTt:               filepath.Join(prefix, "bin", "tt"),
+		ActiveTtVersion:        "2.4.0",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "3.5.0-0-g0823718c2", bundled.Tarantool)
 }
 
 // TestBundleRuntimeRejectsWrongFlavorFallback is the regression test for the
@@ -76,7 +152,38 @@ func TestBundleRuntimeRejectsWrongFlavorFallback(t *testing.T) {
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errNoRuntime)
-	assert.Contains(t, err.Error(), "[ee]", "the error must name the wanted flavor")
+	assert.Contains(t, err.Error(), "[ee] requires a [ee] build",
+		"the error must name the wanted flavor")
+	assert.Contains(t, err.Error(), "matches the version but not the flavor",
+		"a version that fits must not be reported as a version mismatch")
+	assert.Contains(t, err.Error(), "3.0.5[ce]", "the error must describe the active build")
+}
+
+// TestBundleRuntimeVersionMismatchIsNotAFlavorMismatch keeps the two failure
+// texts apart: a version that does not fit is reported as such, without the
+// flavor hint that would send the user to edit the wrong field.
+func TestBundleRuntimeVersionMismatchIsNotAFlavorMismatch(t *testing.T) {
+	prefix := t.TempDir()
+	writeTree(t, prefix, map[string]string{
+		"bin/tarantool": "#!/bin/sh\n",
+		"LICENSE":       "BSD-2-Clause",
+	})
+
+	_, err := bundleRuntime(t.TempDir(), RuntimeOptions{
+		CacheDir: filepath.Join(t.TempDir(), "empty"),
+		Platform: manifest.Platform{
+			Tarantool: constraint(">=3.0.0,<4.0.0"),
+			Tt:        constraint(">=2.0.0,<3.0.0"),
+		},
+		ActiveTarantool:        filepath.Join(prefix, "bin", "tarantool"),
+		ActiveTarantoolVersion: "2.11.0",
+		ActiveTarantoolFlavor:  flavorCE,
+	})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errNoRuntime)
+	assert.Contains(t, err.Error(), "does not satisfy it")
+	assert.NotContains(t, err.Error(), "not the flavor")
 }
 
 // TestBundleRuntimeAcceptsMatchingFlavorFallback is the positive counterpart.
