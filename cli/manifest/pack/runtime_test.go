@@ -16,8 +16,8 @@ func constraint(spec string) manifest.Constraint {
 }
 
 // fakeCache builds a runtime cache with the given component versions, all under
-// the ce flavor. Every tarantool entry gets a LICENSE, since bundling one
-// without it is refused.
+// the ce flavor. Every tarantool entry gets a LICENSE, the shape of a CE
+// install; an entry without one is packed with a warning instead.
 func fakeCache(t *testing.T, entries map[string][]string) string {
 	t.Helper()
 
@@ -287,25 +287,33 @@ func TestBundleRuntimeNoSourceAtAll(t *testing.T) {
 	assert.ErrorIs(t, err, errNoRuntime)
 }
 
-// TestBundleRuntimeRequiresTarantoolLicense pins that a bundled Tarantool
-// ships its LICENSE: an archive that redistributes the binary carries the
-// terms it is redistributed under.
-func TestBundleRuntimeRequiresTarantoolLicense(t *testing.T) {
-	cache := t.TempDir()
+// TestBundleRuntimeWarnsWithoutTarantoolLicense pins that a cache entry with
+// no license file is packed and reported rather than refused: an archive that
+// redistributes the binary should carry the terms it is redistributed under,
+// but a bundle that ships none - the Enterprise SDK does not - must still be
+// packable.
+func TestBundleRuntimeWarnsWithoutTarantoolLicense(t *testing.T) {
+	cache := fakeCache(t, map[string][]string{runtimeTt: {"2.0.0"}})
 	writeTree(t, filepath.Join(cache, runtimeTarantool, flavorCE, "3.0.5"), map[string]string{
 		"bin/tarantool": "#!/bin/sh\n",
 	})
 
-	_, err := bundleRuntime(t.TempDir(), RuntimeOptions{
+	var warnings []string
+
+	stage := t.TempDir()
+	_, err := bundleRuntime(stage, RuntimeOptions{
 		CacheDir: cache,
 		Platform: manifest.Platform{
 			Tarantool: constraint(">=3.0.0,<4.0.0"),
 			Tt:        constraint(">=2.0.0,<3.0.0"),
 		},
+		Warn: func(msg string) { warnings = append(warnings, msg) },
 	})
 
-	require.Error(t, err)
-	assert.ErrorIs(t, err, errNoTarantoolLicense)
+	require.NoError(t, err)
+	assert.FileExists(t, filepath.Join(stage, runtimeDirName, runtimeTarantool, "bin", "tarantool"))
+	require.Len(t, warnings, 1)
+	assert.Contains(t, warnings[0], "bundling Tarantool without a license")
 }
 
 func TestPlaceRuntimeKeepsExecutableBit(t *testing.T) {
@@ -317,7 +325,7 @@ func TestPlaceRuntimeKeepsExecutableBit(t *testing.T) {
 	stageDir := t.TempDir()
 	require.NoError(t, placeRuntime(stageDir, runtimeSource{
 		Name: runtimeTt, Version: "2.0.0", Dir: src,
-	}))
+	}, nil))
 
 	info, err := os.Stat(filepath.Join(stageDir, "_runtime", "tt", "bin", "tt"))
 	require.NoError(t, err)

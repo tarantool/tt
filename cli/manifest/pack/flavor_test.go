@@ -2,6 +2,7 @@ package pack
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -157,6 +158,133 @@ func TestBundleRuntimeRejectsWrongFlavorFallback(t *testing.T) {
 	assert.Contains(t, err.Error(), "matches the version but not the flavor",
 		"a version that fits must not be reported as a version mismatch")
 	assert.Contains(t, err.Error(), "3.0.5[ce]", "the error must describe the active build")
+}
+
+// TestBundleRuntimeFallbackSDKLayout covers the Enterprise SDK layout, where
+// tarantool sits at the root of the unpacked bundle beside env.sh with no bin/
+// level: a license and a share/ tree there must be found next to the binary,
+// not one directory above the bundle.
+//
+// The bundle here carries a LICENSE, which a released SDK does not - see
+// TestBundleRuntimeFallbackSDKWithoutLicense for that shape. What this pins is
+// the search path, which is also what a hand-populated cache entry relies on.
+func TestBundleRuntimeFallbackSDKLayout(t *testing.T) {
+	sdk := filepath.Join(t.TempDir(), "te350")
+	writeTree(t, sdk, map[string]string{
+		"tarantool":             "#!/bin/sh\n",
+		"LICENSE":               "Tarantool Enterprise",
+		"env.sh":                "export PATH=$PATH\n",
+		"share/tarantool/x.lua": "return 1\n",
+		"bin/tt":                "#!/bin/sh\n",
+	})
+
+	stage := t.TempDir()
+
+	bundled, err := bundleRuntime(stage, RuntimeOptions{
+		CacheDir: filepath.Join(t.TempDir(), "empty"),
+		Platform: manifest.Platform{
+			Tarantool: constraint(">=3.0.0,<4.0.0"),
+			Tt:        constraint(">=2.0.0,<3.0.0"),
+		},
+		ActiveTarantool:        filepath.Join(sdk, "tarantool"),
+		ActiveTarantoolVersion: "3.5.0-0-g0823718c2",
+		ActiveTarantoolFlavor:  flavorEE,
+		ActiveTt:               filepath.Join(sdk, "bin", "tt"),
+		ActiveTtVersion:        "2.4.0",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "3.5.0-0-g0823718c2", bundled.Tarantool)
+
+	tnt := filepath.Join(stage, runtimeDirName, runtimeTarantool)
+	assert.FileExists(t, filepath.Join(tnt, "LICENSE"))
+	assert.FileExists(t, filepath.Join(tnt, "share", "tarantool", "x.lua"),
+		"the SDK's share/ tree lives beside the binary and must come along")
+}
+
+// TestBundleRuntimeFallbackSDKWithoutLicense covers the Enterprise SDK as it
+// is actually shipped: no LICENSE, no COPYING and no share/tarantool anywhere
+// in the bundle or in the tarball it comes from. Requiring a license here would
+// make an EE runtime unpackable, so the pack goes through and says what it
+// could not find.
+func TestBundleRuntimeFallbackSDKWithoutLicense(t *testing.T) {
+	sdk := filepath.Join(t.TempDir(), "3.7.0-r137")
+	writeTree(t, sdk, map[string]string{
+		"tarantool":   "#!/bin/sh\n",
+		"tt":          "#!/bin/sh\n",
+		"tcm":         "#!/bin/sh\n",
+		"env.sh":      "export PATH=$PATH\n",
+		"VERSION":     "TARANTOOL_EE=3.7.0-0-g1f1ec9fdf\n",
+		"README.md":   "# Tarantool Enterprise\n",
+		"include/x.h": "\n",
+	})
+
+	var warnings []string
+
+	stage := t.TempDir()
+
+	bundled, err := bundleRuntime(stage, RuntimeOptions{
+		CacheDir: filepath.Join(t.TempDir(), "empty"),
+		Platform: manifest.Platform{
+			Tarantool: constraint(">=3.0.0,<4.0.0"),
+			Tt:        constraint(">=2.0.0,<3.0.0"),
+		},
+		ActiveTarantool:        filepath.Join(sdk, "tarantool"),
+		ActiveTarantoolVersion: "3.7.0-0-g1f1ec9fdf",
+		ActiveTarantoolFlavor:  flavorEE,
+		ActiveTt:               filepath.Join(sdk, "tt"),
+		ActiveTtVersion:        "2.4.0",
+		Warn:                   func(msg string) { warnings = append(warnings, msg) },
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "3.7.0-0-g1f1ec9fdf", bundled.Tarantool)
+
+	tnt := filepath.Join(stage, runtimeDirName, runtimeTarantool)
+	assert.FileExists(t, filepath.Join(tnt, "bin", runtimeTarantool))
+	assert.NoFileExists(t, filepath.Join(tnt, "LICENSE"))
+
+	var licenseWarnings []string
+
+	for _, w := range warnings {
+		if strings.Contains(w, "without a license") {
+			licenseWarnings = append(licenseWarnings, w)
+		}
+	}
+
+	require.Len(t, licenseWarnings, 1)
+	assert.Contains(t, licenseWarnings[0], sdk,
+		"the warning must name where the license was looked for")
+}
+
+// TestBundleRuntimeFallbackUsesResolvedPrefix: when tt already knows the
+// install prefix (TT_CLI_TARANTOOL_PREFIX, the build banner), that is where
+// the license and share/ are looked for first, ahead of any guess from the
+// binary's location.
+func TestBundleRuntimeFallbackUsesResolvedPrefix(t *testing.T) {
+	bin := t.TempDir()
+	writeTree(t, bin, map[string]string{"tarantool": "#!/bin/sh\n", "tt": "#!/bin/sh\n"})
+
+	prefix := t.TempDir()
+	writeTree(t, prefix, map[string]string{"LICENSE": "BSD-2-Clause"})
+
+	stage := t.TempDir()
+
+	_, err := bundleRuntime(stage, RuntimeOptions{
+		CacheDir: filepath.Join(t.TempDir(), "empty"),
+		Platform: manifest.Platform{
+			Tarantool: constraint(">=3.0.0,<4.0.0"),
+			Tt:        constraint(">=2.0.0,<3.0.0"),
+		},
+		ActiveTarantool:        filepath.Join(bin, "tarantool"),
+		ActiveTarantoolVersion: "3.0.5",
+		ActiveTarantoolPrefix:  prefix,
+		ActiveTt:               filepath.Join(bin, "tt"),
+		ActiveTtVersion:        "2.4.0",
+	})
+
+	require.NoError(t, err)
+	assert.FileExists(t, filepath.Join(stage, runtimeDirName, runtimeTarantool, "LICENSE"))
 }
 
 // TestBundleRuntimeVersionMismatchIsNotAFlavorMismatch keeps the two failure
