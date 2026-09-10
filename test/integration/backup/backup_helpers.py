@@ -105,6 +105,7 @@ def start_backup(
     ttl=None,
     config=None,
     directory=None,
+    extra_args=None,
     **kwargs,
 ):
     """Run tt backup start.
@@ -113,9 +114,11 @@ def start_backup(
     "2026/08/02-full" are passed through unsanitised, because rejecting them is
     the command's job, not the helper's. Pass None to leave --backup-id off the
     command line entirely. directory becomes --dir, and is passed verbatim as
-    well, so a relative path stays relative. Extra keyword arguments go to
-    tt.exec (cwd, env, input); note that env there replaces the environment
-    rather than extending it, so pass dict(os.environ, VAR=...).
+    well, so a relative path stays relative. extra_args is appended to the
+    command line as it stands, for flags this helper knows nothing about (the
+    --ssl* ones, say). Extra keyword arguments go to tt.exec (cwd, env, input);
+    note that env there replaces the environment rather than extending it, so
+    pass dict(os.environ, VAR=...).
     """
     args = ["backup", "start", target]
     if backup_id is not None:
@@ -128,12 +131,23 @@ def start_backup(
         args.extend(["-c", str(config)])
     if directory is not None:
         args.extend(["--dir", str(directory)])
+    if extra_args:
+        args.extend(extra_args)
     return tt.exec(*args, **kwargs)
 
 
-def finalize_backup(tt, target, backup_id, config=None, force=False, directory=None, **kwargs):
-    """Run tt backup finalize. Same backup_id, directory and kwargs contract as
-    start_backup."""
+def finalize_backup(
+    tt,
+    target,
+    backup_id,
+    config=None,
+    force=False,
+    directory=None,
+    extra_args=None,
+    **kwargs,
+):
+    """Run tt backup finalize. Same backup_id, directory, extra_args and kwargs
+    contract as start_backup."""
     args = ["backup", "finalize", target]
     if force:
         args.append("--force")
@@ -143,6 +157,8 @@ def finalize_backup(tt, target, backup_id, config=None, force=False, directory=N
         args.extend(["-c", str(config)])
     if directory is not None:
         args.extend(["--dir", str(directory)])
+    if extra_args:
+        args.extend(extra_args)
     return tt.exec(*args, **kwargs)
 
 
