@@ -105,11 +105,11 @@ func TestResolveDevExtraKeepsTheDeclaredDevClosure(t *testing.T) {
 	t.Parallel()
 
 	fake := newFakeAdapter().
-		add("luacov", "0.15.0-1", "aaa").
+		add("checks", "3.1.0-1", "aaa").
 		add("luatest", "1.0.1-1", "bbb")
 
 	man := parseManifest(t, oneProduct+`[dev_dependencies]
-luacov = '>=0.15.0'
+checks = '>=3.0.0'
 `)
 
 	engine := resolve.NewEngine(fake, "", "tt 3.4.0")
@@ -117,7 +117,7 @@ luacov = '>=0.15.0'
 	closure, _, err := engine.ResolveDevExtra(
 		context.Background(), man, nil, implicitLuatest)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"luacov", "luatest"}, depNames(closure))
+	assert.Equal(t, []string{"checks", "luatest"}, depNames(closure))
 }
 
 // TestResolveDevExtraWithNothingToAddIsEmpty covers the degenerate call: no
