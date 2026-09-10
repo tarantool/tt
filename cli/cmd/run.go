@@ -2,63 +2,65 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/running"
+	"github.com/tarantool/tt/cli/manifest/run"
 )
 
-func newRunInfo(cmdCtx cmdcontext.CmdCtx) *running.RunInfo {
-	return &running.RunInfo{
-		CmdCtx: cmdCtx,
-	}
-}
-
-// NewRunCmd creates run command.
+// NewRunCmd creates `tt run`: the project's Tarantool, with the arguments
+// passed straight through.
 func NewRunCmd() *cobra.Command {
 	runCmd := &cobra.Command{
-		Use:   "run [SCRIPT.lua [flags] [-- ARGS]]",
-		Short: "Run Tarantool instance",
-		Long: `Run Tarantool instance.
-All command line arguments are passed to the interpreted SCRIPT. Options to process in the SCRIPT
-are passed after '--'.
+		Use:   "run [ARGS...]",
+		Short: "Run the current package under its Tarantool",
+		Long: `Run the package in the current directory under Tarantool.
+
+The directory must hold app.manifest.toml; no tt environment and no tt.yaml are
+involved. The interpreter is the one the package bundles under _runtime/ when it
+has one, and the host's tarantool otherwise — TT_USE_SYSTEM_TARANTOOL=1 forces
+the host's either way.
+
+Every argument is handed to Tarantool untouched, '--' included, and the
+environment is inherited unchanged: no LUA_PATH or LUA_CPATH is composed, since
+Tarantool finds .rocks/ from the project directory by itself. tt replaces itself
+with the interpreter, so signals and the exit code are Tarantool's own.
 `,
 		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
 			for _, opt := range args {
 				if opt == "-h" || opt == "--help" {
 					_ = cmd.Help()
+
 					return
 				}
 			}
+
 			RunModuleFunc(internalRunModule)(cmd, args)
 		},
 		Example: `
-# Print current environment Tarantool version:
+# Start an interactive console in the project.
+
+    $ tt run
+
+# Print the version of the Tarantool the project runs under:
 
     $ tt run --version
     Tarantool 3.0.0-entrypoint-724-gd2d7f4de3
     . . .
 
-# Run a script (which print passed arguments) with 3 arguments and 2 options:
+# Run a script with arguments. Everything after the script name is the
+# script's, '--' included, because Tarantool itself is what reads them:
 
-    $ tt run script.lua a b c -- -a -b
-    a	b	c	-a	-b
-
-# Run a script, pass '-i' argument to it, and enter interactive mode after script execution:
-
-    $ tt run -i script.lua -- -i
-    -i
-    Tarantool 3.0.0-entrypoint-724-gd2d7f4de3
-    type 'help' for interactive help
-    tarantool>
-
-First '-i' option is parsed by 'tt run' and means 'enter interactive mode'. The second '-i'
-is after '--', so passed to script.lua as is.
+    $ tt run script.lua a b c
+    a	b	c
 
 # Execute stdin:
 
     $ echo 'print(42)' | tt run -
-    42
 
+# Ignore the bundled runtime and use the host's tarantool:
+
+    $ TT_USE_SYSTEM_TARANTOOL=1 tt run script.lua
 `,
 		DisableFlagsInUseLine: true,
 	}
@@ -68,17 +70,38 @@ is after '--', so passed to script.lua as is.
 
 // internalRunModule is a default run module.
 func internalRunModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if !isConfigExist(cmdCtx) {
-		return errNoConfig
-	}
-
-	runInfo := newRunInfo(*cmdCtx)
-
-	runInfo.RunOpts.RunArgs = args
-
-	if err := running.Run(runInfo); err != nil {
+	root, tarantool, err := selectProjectTarantool(cmdCtx)
+	if err != nil {
 		return err
 	}
 
-	return nil
+	return run.Exec(root, tarantool, args)
+}
+
+// selectProjectTarantool resolves the project root and the interpreter it runs
+// under, shared by tt run and tt test.
+//
+// cmdCtx supplies the tt environment's own answer, which is how bin_dir keeps
+// working for a project inside a tt environment; it is empty when tt resolved
+// none, and the selection then falls back to PATH.
+func selectProjectTarantool(cmdCtx *cmdcontext.CmdCtx) (string, string, error) {
+	workingDir, err := absoluteWorkingDir()
+	if err != nil {
+		return "", "", err
+	}
+
+	root, err := run.ProjectRoot(workingDir)
+	if err != nil {
+		return "", "", err
+	}
+
+	tarantool, err := run.SelectTarantool(root, run.Environment{
+		Executable: cmdCtx.Cli.TarantoolCli.Executable,
+		UseSystem:  run.UseSystemFromEnv(),
+	})
+	if err != nil {
+		return "", "", err
+	}
+
+	return root, tarantool, nil
 }
