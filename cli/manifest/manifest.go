@@ -61,6 +61,13 @@ type Platform struct {
 	Tt        Constraint `toml:"tt"`                  // Required.
 	Tcm       Constraint `toml:"tcm,omitempty"`       // No flavor - TCM is Enterprise only.
 	Platforms []string   `toml:"platforms,omitempty"` // One of linux/darwin-amd64/arm64 or any.
+
+	// Registries is the ordered rock-server list the project resolves
+	// against, replacing the built-in defaults. An entry is an HTTP(S) URL
+	// or a local directory - a path without a scheme, or a file:// URL - and
+	// a relative path is taken relative to the directory holding the
+	// manifest. Omitted uses the defaults.
+	Registries []string `toml:"registries,omitempty"`
 }
 
 // GenerateVersionLuaValue reports the effective value of
