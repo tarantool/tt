@@ -13,9 +13,6 @@ type Instance interface {
 	// Start starts the Instance with the specified parameters.
 	Start(ctx context.Context) error
 
-	// Run runs tarantool interpreter.
-	Run(opts RunOpts) error
-
 	// Wait waits for the process to complete.
 	Wait() error
 

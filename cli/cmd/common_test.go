@@ -9,6 +9,10 @@ import (
 	"github.com/tarantool/tt/cli/configure"
 )
 
+// TestCheckConfig covers the commands that act on a tt environment and so
+// cannot proceed without its config. tt run and tt test are deliberately not
+// here: they act on the package in the working directory and need no
+// environment at all.
 func TestCheckConfig(t *testing.T) {
 	const expected = configure.ConfigName +
 		" not found, you need to create a tt environment config" +
@@ -26,7 +30,6 @@ func TestCheckConfig(t *testing.T) {
 		{"install", internalInstallModule(&cmdcontext.CmdCtx{}, nil)},
 		{"logrotate", internalLogrotateModule(&cmdcontext.CmdCtx{}, nil)},
 		{"restart", internalRestartModule(&cmdcontext.CmdCtx{}, nil)},
-		{"run", internalRunModule(&cmdcontext.CmdCtx{}, nil)},
 		{"start", internalStartModule(&cmdcontext.CmdCtx{}, nil)},
 		{"status", internalStatusModule(&cmdcontext.CmdCtx{}, nil)},
 		{"stop", internalStopModule(&cmdcontext.CmdCtx{}, nil)},

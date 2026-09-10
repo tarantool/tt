@@ -4,19 +4,13 @@ import (
 	"errors"
 	"io"
 	"os"
-	"strings"
-	"syscall"
 	"time"
 
-	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/ttlog"
 	"github.com/tarantool/tt/lib/integrity"
 )
 
-var (
-	errInstanceIsNotStarted          = errors.New("instance is not started")
-	errTarantoolExecutableIsNotFound = errors.New("tarantool executable is not found")
-)
+var errInstanceIsNotStarted = errors.New("instance is not started")
 
 // baseInstance represents a tarantool instance.
 type baseInstance struct {
@@ -151,26 +145,4 @@ func (inst *baseInstance) StopWithSignal(waitTimeout time.Duration, usedSignal o
 		return nil
 	}
 	return inst.processController.StopWithSignal(waitTimeout, usedSignal)
-}
-
-// Run runs tarantool instance.
-func (inst *baseInstance) Run(opts RunOpts) error {
-	f, err := inst.integrityCtx.Repository.Read(inst.tarantoolPath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return errTarantoolExecutableIsNotFound
-		}
-		return err
-	}
-	_ = f.Close()
-	newInstanceEnv := os.Environ()
-	args := make([]string, 0, 1+len(opts.RunArgs))
-	args = append(args, inst.tarantoolPath)
-	args = append(args, opts.RunArgs...)
-	log.Debugf("Running Tarantool with args: %s", strings.Join(args[1:], " "))
-	execErr := syscall.Exec(inst.tarantoolPath, args, newInstanceEnv)
-	if execErr != nil {
-		return execErr
-	}
-	return nil
 }

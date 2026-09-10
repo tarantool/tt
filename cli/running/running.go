@@ -137,19 +137,6 @@ type InstanceCtx struct {
 	Configuration *goconfig.Config
 }
 
-// RunOpts contains flags and args for tt run.
-type RunOpts struct {
-	// RunArgs contains command args.
-	RunArgs []string
-}
-
-// RunInfo contains information for tt run.
-type RunInfo struct {
-	CmdCtx     cmdcontext.CmdCtx
-	RunningCtx RunningCtx
-	RunOpts    RunOpts
-}
-
 // providerImpl is an implementation of Provider interface.
 type providerImpl struct {
 	cmdCtx *cmdcontext.CmdCtx
@@ -838,15 +825,6 @@ func Quit(run InstanceCtx) error {
 	log.Infof("The instance %s (PID = %v) has been terminated with dump.", fullInstanceName, pid)
 
 	return nil
-}
-
-func Run(runInfo *RunInfo) error {
-	inst := scriptInstance{baseInstance: baseInstance{
-		tarantoolPath: runInfo.CmdCtx.Cli.TarantoolCli.Executable,
-		integrityCtx:  runInfo.CmdCtx.Integrity,
-	}}
-	err := inst.Run(runInfo.RunOpts)
-	return err
 }
 
 func Status(run *InstanceCtx) process_utils.ProcessState {

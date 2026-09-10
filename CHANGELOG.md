@@ -120,6 +120,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   closure is filled in on the next resolve.
 - `tt status`: add `--format` option to support JSON and YAML output formats
 for machine-readable output.
+- `tt test`: build the package in the current directory and run its tests with
+  luatest. Tests come from `test/`, or from `tests/` when there is no `test/`;
+  a sub-path relative to the project narrows the run to one directory or one
+  file and must exist. Everything after `--` is handed to luatest, and the exit
+  code is luatest's own. luatest itself need not be declared: when
+  `[dev_dependencies]` does not name it and the project tree does not already
+  hold it, it is resolved as an implicit `*` requirement and installed —
+  without being written to `app.manifest.toml` or `app.manifest.lock`, so
+  running the tests never makes the lock stale. The interpreter is chosen the
+  way `tt run` chooses it.
 
 ### Changed
 
@@ -130,6 +140,14 @@ for machine-readable output.
   selected environment root and no longer creates a symlink in
   `instances.enabled`.
 - `tt enable` and `tt instances` commands removed.
+- `tt run` now runs the package in the current directory rather than an
+  instance of a tt environment. The directory must hold `app.manifest.toml`; no
+  `tt.yaml` and no tt environment are needed, and none is looked for. The
+  interpreter is the one the package bundles under `_runtime/` when it has one
+  and the host's `tarantool` otherwise, with `TT_USE_SYSTEM_TARANTOOL=1`
+  forcing the host's either way. Arguments still reach Tarantool untouched,
+  `--` included, and tt still replaces itself with the interpreter, so signals
+  and the exit code are Tarantool's own.
 - `tt init`, `tt pack`, and `tt build` commands removed. Use
   `tt package build` and `tt package pack` for manifest-based applications.
 - `tt package list`: the table's `KIND` column is now `ORIGIN`. `kind` names
