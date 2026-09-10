@@ -148,6 +148,38 @@ func (e *Engine) ResolvePinned(
 	}
 }
 
+// ResolveDevExtra resolves the dev closure of man widened by extra direct
+// requirements, holding the versions lock already chose. Nothing is written:
+// the caller receives a closure to materialize, and both the manifest and the
+// lock on disk are left exactly as they were.
+//
+// This is how a command adds a dependency the project needs but never declared
+// - the test runner tt test drives, above all. Such a requirement is not a
+// statement the author made about the package, so it must not reach
+// app.manifest.toml or app.manifest.lock: writing either would change the
+// manifest hash, make the lock stale, and turn running the tests into an edit
+// of the project.
+//
+// A name man already declares wins over its entry in extra, which is why extra
+// reads as "in addition to" rather than "instead of": a project that pins its
+// own test runner keeps that pin, and an implicit requirement never widens a
+// constraint behind the author's back.
+func (e *Engine) ResolveDevExtra(
+	ctx context.Context, man *manifest.Manifest, lock *manifest.Lock,
+	extra map[string]manifest.Dependency,
+) ([]manifest.LockDependency, []string, error) {
+	directs, err := devDepsWith(man, extra)
+	if err != nil {
+		return nil, nil, fmt.Errorf("resolving dev dependencies: %w", err)
+	}
+
+	if len(directs) == 0 {
+		return nil, nil, nil
+	}
+
+	return e.devClosure(ctx, directs, PinsFromLock(lock))
+}
+
 // resolveOnce is one full resolution pass over every product against a fixed
 // pin set.
 //
@@ -228,8 +260,22 @@ func (e *Engine) resolveDev(
 		return nil, nil, fmt.Errorf("resolving dev dependencies: %w", err)
 	}
 
-	attempt := pins.merge(PinsFromLock(lock))
+	return e.devClosure(ctx, directs, pins.merge(PinsFromLock(lock)))
+}
 
+// devClosure walks a set of direct dev requirements into a pinned closure,
+// dropping one pin per retry when a pinned pick cannot satisfy every dev
+// dependency on it.
+//
+// The pin retry lives here rather than in ResolvePinned because these pins are
+// derived from a lock's own products: dropping one from the caller's set would
+// not remove it, since the next pass would re-derive it from the same products.
+// Each attempt gets a fresh cache for the reason resolveOnce documents - the
+// cache carries the warning dedup, and a discarded attempt must not mark
+// warnings the surviving one then owes the caller and never emits.
+func (e *Engine) devClosure(
+	ctx context.Context, directs []depReq, attempt Pins,
+) ([]manifest.LockDependency, []string, error) {
 	var dropped []string
 
 	for {
