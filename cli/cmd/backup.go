@@ -38,6 +38,12 @@ var (
 	backupFinalizeForce bool
 	backupFinalizeDir   string
 
+	// Shared by every backup subcommand that dials an instance.
+	backupSslKeyFile  string
+	backupSslCertFile string
+	backupSslCaFile   string
+	backupSslCiphers  string
+
 	backupStorageConfig string
 	backupClusterName   string
 	backupEnvironment   string
@@ -274,7 +280,10 @@ is printed to stdout. Closing box.backup is done by 'tt backup finalize' after
 the manifest has been uploaded.
 
 --dir writes both artifacts directly into the given directory, which is created
-if it does not exist. Without it they go to $TMPDIR/tt-backup/<backup-id>/.`,
+if it does not exist. Without it they go to $TMPDIR/tt-backup/<backup-id>/.
+
+--sslkeyfile, --sslcertfile, --sslcafile and --sslciphers reach an instance
+whose iproto listener has TLS enabled.`,
 		Args: cobra.ExactArgs(1),
 		RunE: runBackupStart,
 	}
@@ -290,6 +299,7 @@ if it does not exist. Without it they go to $TMPDIR/tt-backup/<backup-id>/.`,
 	cmd.Flags().StringVar(&backupStartDir, "dir", "",
 		"directory for the archive and the manifest fragment; "+
 			"defaults to $TMPDIR/tt-backup/<backup-id>")
+	addBackupSslFlags(cmd)
 
 	cmd.MarkFlagRequired("backup-id")
 
@@ -310,7 +320,10 @@ $TMPDIR/tt-backup/<backup-id>/, which is removed once it is empty.
 
 --force closes whatever backup is open on the instance without naming a
 --backup-id, for when the id that opened it is unknown or not trusted. It
-only runs box.backup.stop(): no local archive or fragment is removed.`,
+only runs box.backup.stop(): no local archive or fragment is removed.
+
+--sslkeyfile, --sslcertfile, --sslcafile and --sslciphers reach an instance
+whose iproto listener has TLS enabled.`,
 		Args: cobra.ExactArgs(1),
 		RunE: runBackupFinalize,
 	}
@@ -324,6 +337,8 @@ only runs box.backup.stop(): no local archive or fragment is removed.`,
 	cmd.Flags().StringVar(&backupFinalizeDir, "dir", "",
 		"directory holding the artifacts to remove; "+
 			"defaults to $TMPDIR/tt-backup/<backup-id>")
+	addBackupSslFlags(cmd)
+
 	cmd.MarkFlagsOneRequired("backup-id", "force")
 	cmd.MarkFlagsMutuallyExclusive("backup-id", "force")
 	// --force removes no local artifact, so a directory to remove them from
@@ -1257,6 +1272,32 @@ func applyBackupConfig(localCfg string) error {
 	return nil
 }
 
+// addBackupSslFlags registers the iproto TLS flags on a backup subcommand that
+// dials an instance. The names match the ones `tt connect` takes.
+func addBackupSslFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&backupSslKeyFile, "sslkeyfile", "",
+		"path to a private SSL key file")
+	cmd.Flags().StringVar(&backupSslCertFile, "sslcertfile", "",
+		"path to an SSL certificate file")
+	cmd.Flags().StringVar(&backupSslCaFile, "sslcafile", "",
+		"path to a trusted certificate authorities (CA) file")
+	cmd.Flags().StringVar(&backupSslCiphers, "sslciphers", "",
+		"colon-separated (:) list of SSL cipher suites")
+}
+
+// backupConnectCtx describes the connection a backup subcommand makes: the
+// binary port, with TLS when the --ssl* flags name the material for it. Any
+// non-empty SSL field makes the dial a TLS one.
+func backupConnectCtx() connect.ConnectCtx {
+	return connect.ConnectCtx{
+		Binary:      true,
+		SslKeyFile:  backupSslKeyFile,
+		SslCertFile: backupSslCertFile,
+		SslCaFile:   backupSslCaFile,
+		SslCiphers:  backupSslCiphers,
+	}
+}
+
 // dialBackupTarget resolves <APP:INSTANCE> or <URI> and dials the binary port
 // (box.backup.* is a binary-protocol eval surface).
 func dialBackupTarget(cfg, target string) (connector.Connector, error) {
@@ -1264,7 +1305,7 @@ func dialBackupTarget(cfg, target string) (connector.Connector, error) {
 		return nil, fmt.Errorf("failed to apply backup config: %w", err)
 	}
 
-	connCtx := connect.ConnectCtx{Binary: true}
+	connCtx := backupConnectCtx()
 	connOpts, err := resolveConnectOpts(&cmdCtx, cliOpts, &connCtx, target)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve connection options for %q: %w", target, err)
