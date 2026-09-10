@@ -47,7 +47,7 @@ linters:
       # cli/manifest/, or anything under one of the named sub-packages. Add a
       # sub-package here once it lints clean; build, build/backend, inventory
       # and pack are the ones still outstanding.
-      - path-except: (^|/)cli/manifest/((deps|install|resolve|rocks|state|version)/|[^/]+\.go$)
+      - path-except: (^|/)cli/manifest/((deps|install|resolve|rocks|run|state|version)/|[^/]+\.go$)
         text: ".*"
       # Manifest fixtures deliberately construct partial model values; keep the
       # stricter exhaustruct variant enabled everywhere else.
