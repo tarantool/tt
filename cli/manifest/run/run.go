@@ -52,9 +52,15 @@ const (
 	luatestName = "luatest"
 )
 
+// TestDirNames are the directories a test run looks for, in order. Both spell
+// the same convention and projects in the wild use both.
+var TestDirNames = []string{"test", "tests"}
+
 var (
 	// ErrNoManifest reports a directory that is not a package root.
 	ErrNoManifest = errors.New("not a tt package directory")
+	// ErrNoTestDir reports a project with nowhere to run tests from.
+	ErrNoTestDir = errors.New("no test directory")
 	// ErrNoTarantool reports that neither the bundled nor the host interpreter
 	// could be found.
 	ErrNoTarantool = errors.New("no tarantool executable found")
@@ -197,6 +203,68 @@ func Exec(root, tarantool string, argv []string) error {
 
 	// Unreachable: a successful exec never returns to this process.
 	return nil
+}
+
+// TestDir resolves what a test run is pointed at, as a path relative to root.
+//
+// subPath narrows the run and is itself relative to the project root; it may
+// name a directory or a single test file, and it must exist — a typo that
+// silently ran the whole suite, or nothing at all, is worse than an error. With
+// no subPath the conventional directories are tried in order.
+//
+// The result stays relative so it reads in the runner's own output the way the
+// developer typed it, and because the run happens in root anyway. A directory
+// comes back with a trailing separator, which luatest requires: without one it
+// reads the argument as a test group name and refuses it as invalid.
+func TestDir(root, subPath string) (string, error) {
+	if subPath != "" {
+		return checkedSubPath(root, subPath)
+	}
+
+	for _, name := range TestDirNames {
+		info, err := os.Stat(filepath.Join(root, name))
+		if err == nil && info.IsDir() {
+			return name + string(filepath.Separator), nil
+		}
+	}
+
+	wanted := make([]string, 0, len(TestDirNames))
+	for _, name := range TestDirNames {
+		wanted = append(wanted, name+"/")
+	}
+
+	return "", fmt.Errorf("%w: no %s directory in %s",
+		ErrNoTestDir, strings.Join(wanted, " or "), root)
+}
+
+// checkedSubPath validates a caller-supplied test path against root.
+func checkedSubPath(root, subPath string) (string, error) {
+	clean := filepath.Clean(subPath)
+	if filepath.IsAbs(clean) {
+		relative, err := filepath.Rel(root, clean)
+		if err != nil {
+			return "", fmt.Errorf("%w: %s is outside %s", ErrNoTestDir, subPath, root)
+		}
+
+		clean = relative
+	}
+
+	// A path that climbs out of the project would run tests from somewhere the
+	// project's own .rocks/ tree does not describe.
+	if clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("%w: %s is outside %s", ErrNoTestDir, subPath, root)
+	}
+
+	info, err := os.Stat(filepath.Join(root, clean))
+	if err != nil {
+		return "", fmt.Errorf("%w: %s does not exist in %s", ErrNoTestDir, subPath, root)
+	}
+
+	if info.IsDir() {
+		return clean + string(filepath.Separator), nil
+	}
+
+	return clean, nil
 }
 
 // LuatestScript locates the luatest entry script in root's rocks tree, so it

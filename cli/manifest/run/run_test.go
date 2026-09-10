@@ -223,3 +223,95 @@ func TestUseSystemFromEnvReadsTheDocumentedValues(t *testing.T) {
 		assert.Equal(t, want, run.UseSystemFromEnv(), "value %q", value)
 	}
 }
+
+// The trailing separator is load-bearing: luatest reads a bare "test" as a
+// group name and refuses it, so the directory has to arrive as "test/".
+func TestTestDirPrefersTestOverTests(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(root, "test"), dirMode))
+	require.NoError(t, os.Mkdir(filepath.Join(root, "tests"), dirMode))
+
+	dir, err := run.TestDir(root, "")
+	require.NoError(t, err)
+	assert.Equal(t, "test"+string(filepath.Separator), dir)
+}
+
+func TestTestDirFallsBackToTests(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(root, "tests"), dirMode))
+
+	dir, err := run.TestDir(root, "")
+	require.NoError(t, err)
+	assert.Equal(t, "tests"+string(filepath.Separator), dir)
+}
+
+// A file named test/ is not a test directory, and running it would fail deep
+// inside the runner rather than here.
+func TestTestDirIgnoresAFileNamedTest(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "test"), []byte("x"), fileMode))
+
+	_, err := run.TestDir(root, "")
+	require.ErrorIs(t, err, run.ErrNoTestDir)
+}
+
+func TestTestDirReportsAProjectWithNoTests(t *testing.T) {
+	_, err := run.TestDir(t.TempDir(), "")
+
+	require.ErrorIs(t, err, run.ErrNoTestDir)
+	assert.Contains(t, err.Error(), "test")
+}
+
+func TestTestDirNarrowsToASubPath(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "test", "integration"), dirMode))
+
+	dir, err := run.TestDir(root, "test/integration")
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join("test", "integration")+string(filepath.Separator), dir)
+}
+
+// luatest takes a single file as readily as a directory, and narrowing to one
+// test file is the common case while writing it.
+func TestTestDirAcceptsASingleFile(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(root, "test"), dirMode))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(root, "test", "unit_test.lua"), []byte("return {}\n"), fileMode))
+
+	dir, err := run.TestDir(root, "test/unit_test.lua")
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join("test", "unit_test.lua"), dir)
+}
+
+// A sub-path that does not exist is an error rather than a run of nothing,
+// which the runner would report as a pass.
+func TestTestDirRefusesAMissingSubPath(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(root, "test"), dirMode))
+
+	_, err := run.TestDir(root, "test/nowhere")
+	require.ErrorIs(t, err, run.ErrNoTestDir)
+}
+
+// A path climbing out of the project would run tests the project's own .rocks/
+// tree does not describe.
+func TestTestDirRefusesAnEscapingSubPath(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "project")
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "test"), dirMode))
+	require.NoError(t, os.Mkdir(filepath.Join(filepath.Dir(root), "elsewhere"), dirMode))
+
+	_, err := run.TestDir(root, "../elsewhere")
+	require.ErrorIs(t, err, run.ErrNoTestDir)
+}
+
+// An absolute path inside the project is relativized rather than refused: it is
+// what shell completion produces.
+func TestTestDirAcceptsAnAbsolutePathInsideTheProject(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "test", "unit"), dirMode))
+
+	dir, err := run.TestDir(root, filepath.Join(root, "test", "unit"))
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join("test", "unit")+string(filepath.Separator), dir)
+}
