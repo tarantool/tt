@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,11 +13,13 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 
+	"github.com/tarantool/tt/cli/manifest"
 	"github.com/tarantool/tt/cli/manifest/build"
 	"github.com/tarantool/tt/cli/manifest/deps"
 	"github.com/tarantool/tt/cli/manifest/install"
 	"github.com/tarantool/tt/cli/manifest/inventory"
 	"github.com/tarantool/tt/cli/manifest/pack"
+	"github.com/tarantool/tt/cli/manifest/registry"
 	manifestrocks "github.com/tarantool/tt/cli/manifest/rocks"
 	"github.com/tarantool/tt/cli/manifest/state"
 	oldrocks "github.com/tarantool/tt/cli/rocks"
@@ -63,6 +66,10 @@ var packageDownloadDir string
 
 const packageAddMaxArgs = 2
 
+// manifestFileName is the package manifest the directory-scoped registry
+// commands read [platform].registries from.
+const manifestFileName = "app.manifest.toml"
+
 // NewPackageCmd creates the `tt package` command group: the manifest build
 // pipeline (build, fetch and pack), the dependency-changing commands (add,
 // remove and update), installation, and the inventory over what is installed
@@ -88,6 +95,8 @@ func NewPackageCmd() *cobra.Command {
 		newPackageInstallCmd(),
 		newPackageListCmd(),
 		newPackageUninstallCmd(),
+		newPackageSearchCmd(),
+		newPackageDownloadCmd(),
 	)
 
 	return packageCmd
@@ -881,6 +890,206 @@ func registrySources() (manifestrocks.Sources, error) {
 		WorkingDir: workingDir,
 		ProjectDir: "",
 	}, nil
+}
+
+// newPackageSearchCmd wires `tt package search TERM`.
+func newPackageSearchCmd() *cobra.Command {
+	searchCmd := &cobra.Command{
+		Use:   "search TERM",
+		Short: "Find rocks whose name contains TERM on the configured servers",
+		Long: "Search the rock servers for rocks whose name contains TERM, " +
+			"reporting every version each server offers. Unlike resolution, " +
+			"which stops at the first server that has a rock, a search asks all " +
+			"of them: the point is to see what exists. Nothing is downloaded " +
+			"and nothing is written. A term nothing matches is not an error.",
+		Args: cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := runPackageSearch(args[0]); err != nil {
+				log.Error(err.Error())
+				os.Exit(registry.ExitCode(err))
+			}
+		},
+	}
+
+	searchCmd.Flags().StringVarP(&packageFormat, "format", "o", "",
+		"output format: table, json or yaml (default: table on a terminal, yaml otherwise)")
+	addRegistryFlag(searchCmd)
+
+	return searchCmd
+}
+
+// runPackageSearch queries the effective servers and renders the matches.
+func runPackageSearch(term string) error {
+	format, err := registry.ParseFormat(packageFormat, isatty.IsTerminal(os.Stdout.Fd()))
+	if err != nil {
+		return err
+	}
+
+	registries, err := effectiveRegistries()
+	if err != nil {
+		return err
+	}
+
+	tntInfo, err := tarantoolInfo()
+	if err != nil {
+		return err
+	}
+
+	workingDir, err := absoluteWorkingDir()
+	if err != nil {
+		return err
+	}
+
+	matches, err := registry.Search(context.Background(), registry.SearchOptions{
+		Term:       term,
+		Registries: registries,
+		Tarantool:  tntInfo,
+		WorkingDir: workingDir,
+	})
+	if err != nil {
+		return err
+	}
+
+	return registry.RenderSearch(os.Stdout, os.Stderr, matches, term, format)
+}
+
+// newPackageDownloadCmd wires `tt package download [REF...]`.
+func newPackageDownloadCmd() *cobra.Command {
+	downloadCmd := &cobra.Command{
+		Use:   "download [NAME[@VERSION]...]",
+		Short: "Download rock files into a directory and index it as a server",
+		Long: "Fetch rock files from the configured servers into --dir and " +
+			"write the LuaRocks manifest that indexes them, so the directory is " +
+			"itself a rock server: point --registry or " +
+			manifestrocks.EnvRegistries + " at it and the project builds with " +
+			"no network at all. With no arguments the project's locked closure " +
+			"is mirrored at its exact versions — every product's dependencies " +
+			"and the dev closure — which needs a lock, so run tt package " +
+			"resolve first. A dependency that does not come from a registry has " +
+			"no rock file to mirror and is skipped with a warning. Re-running " +
+			"overwrites and re-indexes, so a mirror can be extended in place. " +
+			"Each written path is printed to stdout.",
+		Args: cobra.ArbitraryArgs,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := runPackageDownload(args); err != nil {
+				log.Error(err.Error())
+				os.Exit(registry.ExitCode(err))
+			}
+		},
+	}
+
+	downloadCmd.Flags().StringVar(&packageDownloadDir, "dir", "",
+		"directory to download into (default: the current directory)")
+	addRegistryFlag(downloadCmd)
+
+	return downloadCmd
+}
+
+// runPackageDownload builds or extends a mirror and prints what it wrote.
+func runPackageDownload(args []string) error {
+	refs := make([]registry.Ref, 0, len(args))
+
+	for _, arg := range args {
+		ref, err := registry.ParseRef(arg)
+		if err != nil {
+			return err
+		}
+
+		refs = append(refs, ref)
+	}
+
+	registries, err := effectiveRegistries()
+	if err != nil {
+		return err
+	}
+
+	tntInfo, err := tarantoolInfo()
+	if err != nil {
+		return err
+	}
+
+	workingDir, err := absoluteWorkingDir()
+	if err != nil {
+		return err
+	}
+
+	dir := workingDir
+	if packageDownloadDir != "" {
+		dir, err = filepath.Abs(packageDownloadDir)
+		if err != nil {
+			return err
+		}
+	}
+
+	written, err := registry.Download(context.Background(), registry.DownloadOptions{
+		Refs:       refs,
+		Dir:        dir,
+		ProjectDir: workingDir,
+		Registries: registries,
+		Tarantool:  tntInfo,
+		Warn:       func(msg string) { log.Warn(msg) },
+	})
+	if err != nil {
+		return err
+	}
+
+	for _, path := range written {
+		_, _ = fmt.Fprintln(os.Stdout, path)
+	}
+
+	_, _ = fmt.Fprintf(os.Stderr, "indexed %d rock(s) in %s\n", len(written), dir)
+
+	return nil
+}
+
+// effectiveRegistries settles the rock-server list for the commands that have
+// no build pipeline to settle it for them: the flag and the environment over
+// the manifest in the working directory, over the built-in defaults.
+func effectiveRegistries() ([]manifestrocks.Registry, error) {
+	sources, err := registrySources()
+	if err != nil {
+		return nil, err
+	}
+
+	// These commands are directory-scoped rather than project-scoped, so the
+	// manifest they read is the one where they were run.
+	sources.ProjectDir = sources.WorkingDir
+
+	sources.Manifest, err = manifestRegistries(sources.WorkingDir)
+	if err != nil {
+		return nil, err
+	}
+
+	registries, err := manifestrocks.EffectiveRegistries(sources)
+	if err != nil {
+		return nil, err
+	}
+
+	return registries, nil
+}
+
+// manifestRegistries reads [platform].registries out of the manifest in dir.
+//
+// A directory holding no manifest configures no registries: these commands are
+// meant to work outside a project too, where that layer is empty rather than
+// missing. A manifest that is there and cannot be parsed is an error, because
+// nothing else in these commands would ever report it.
+func manifestRegistries(dir string) ([]string, error) {
+	data, err := os.ReadFile(filepath.Join(dir, manifestFileName))
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf("reading %s: %w", manifestFileName, err)
+	}
+
+	man, _, err := manifest.ParseManifest(data)
+	if err != nil {
+		return nil, fmt.Errorf("parsing %s: %w", manifestFileName, err)
+	}
+
+	return man.Platform.Registries, nil
 }
 
 // tarantoolInfo gathers the Tarantool facts the rocks adapter needs from the

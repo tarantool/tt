@@ -26,6 +26,7 @@ tt_root_command: set[str] = set(
         "completion",
         "env",
         "modules",
+        "registry",
         "search",
         "connect",
         "package",
