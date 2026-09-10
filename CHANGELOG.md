@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   beside the snapshot directory as
   `<absolute snapshot directory>.restore_state.json` and records all three,
   resolved.
+- `tt backup start` / `tt backup finalize`: added `--dir` flag to choose the
+  directory of the local archive and manifest fragment instead of
+  `$TMPDIR/tt-backup/<backup-id>`.
 
 ### Changed
 
