@@ -9,16 +9,25 @@ import (
 )
 
 // Stop closes box.backup on the instance and removes only this replicaset's
-// local archive and manifest fragment. Stop is idempotent: if the backup is
-// already closed, stop() is skipped and stale local artifacts are still
-// removed. A backupID that is not a safe path component (see ValidateBackupID)
-// is rejected before the instance is touched.
-func Stop(conn connector.Connector, backupID string) error {
+// local archive and manifest fragment from dir, or from
+// <os.TempDir()>/tt-backup/<backup-id> when dir is empty. Stop is idempotent:
+// if the backup is already closed, stop() is skipped and stale local artifacts
+// are still removed. A backupID that is not a safe path component (see
+// ValidateBackupID) is rejected before the instance is touched.
+//
+// The directory itself is removed only in the default layout, where tt owns
+// it; a directory named by the caller belongs to the caller and stays.
+func Stop(conn connector.Connector, backupID, dir string) error {
 	// Both the artifacts to unlink and the directory to rmdir are named by the
 	// id, so it is checked before box.backup.stop() is issued: a run that
 	// released the lease and then refused to clean up would strand the archive
 	// with no way to finish the backup.
 	if err := ValidateBackupID(backupID); err != nil {
+		return err //nolint:wrapcheck
+	}
+
+	backupDir, err := resolveArchiveDir(dir, backupID)
+	if err != nil {
 		return err //nolint:wrapcheck
 	}
 
@@ -31,7 +40,6 @@ func Stop(conn connector.Connector, backupID string) error {
 		return fmt.Errorf("failed to resolve instance metadata: %w", err)
 	}
 
-	backupDir := filepath.Join(os.TempDir(), localBackupRootDir, backupID)
 	basePath := filepath.Join(backupDir, backupID+"-"+inst.ReplicasetUUID)
 	archivePath := basePath + ".tar.zst"
 	fragmentPath := basePath + ".json"
@@ -40,6 +48,10 @@ func Stop(conn connector.Connector, backupID string) error {
 		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("failed to remove backup artifact %q: %w", path, err)
 		}
+	}
+
+	if dir != "" {
+		return nil
 	}
 
 	// Delete the backup directory if it is empty.

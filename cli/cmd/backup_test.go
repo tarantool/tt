@@ -102,6 +102,36 @@ func TestBackupSubcommandsSilenceUsage(t *testing.T) {
 	}
 }
 
+// TestBackupFinalizeRejectsDirWithForce checks the combination is refused
+// rather than half-honoured: --force removes no local artifact, so a run that
+// took a directory and cleaned nothing out of it would report success over an
+// archive that is still there.
+func TestBackupFinalizeRejectsDirWithForce(t *testing.T) {
+	cmd := newBackupFinalizeCmd()
+	setFlag(t, &backupFinalizeDir, "")
+	setFlag(t, &backupFinalizeForce, false)
+
+	cmd.SetArgs([]string{"127.0.0.1:1", "--force", "--dir", t.TempDir()})
+	cmd.SetOut(&strings.Builder{})
+	cmd.SetErr(&strings.Builder{})
+
+	err := cmd.Execute()
+	require.ErrorContains(t, err, "[dir force]")
+}
+
+// TestBackupStartAndFinalizeShareTheDirFlag checks both ends of a backup take
+// the same flag: a start that writes elsewhere and a finalize that cannot be
+// told about it leaves the archive for nobody to reclaim.
+func TestBackupStartAndFinalizeShareTheDirFlag(t *testing.T) {
+	for _, cmd := range []*cobra.Command{newBackupStartCmd(), newBackupFinalizeCmd()} {
+		t.Run(cmd.Name(), func(t *testing.T) {
+			flag := cmd.Flags().Lookup("dir")
+			require.NotNil(t, flag, "the command must accept --dir")
+			assert.Empty(t, flag.DefValue, "the default layout is chosen by an unset flag")
+		})
+	}
+}
+
 // setFlag points a package-level cobra flag variable at value for one test.
 // Build the command first: registering a flag resets its variable to the
 // flag's default value.

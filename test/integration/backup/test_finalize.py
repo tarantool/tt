@@ -129,6 +129,48 @@ def test_finalize_wrong_id_closes_the_lease_but_keeps_other_artifacts(tt, tt_app
 
 @pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
 @pytest.mark.tt_app(**TT_BACKUP_APP)
+def test_finalize_dir_removes_artifacts_and_keeps_the_directory(tt, tt_app, tmp_path):
+    """A start that wrote into --dir can only be cleaned up by a finalize told
+    the same directory: without the flag it sweeps the temporary layout, closes
+    the lease and reports success over an archive that is still there. The
+    directory itself was named by the operator and stays, with whatever else it
+    holds."""
+    target = app_instance(tt_app, STORAGE_1_A)
+    backup_id = "itest-fin-dir"
+    dest = tmp_path / "artifacts"
+
+    rc, out = start_backup(tt, target, backup_id, directory=dest)
+    assert rc == 0, f"backup start --dir failed:\n{out}"
+
+    archive_path = Path(archive_path_from_output(out))
+    fragment_path = Path(str(archive_path).removesuffix(".tar.zst") + ".json")
+    neighbour = dest / "not-a-backup-artifact"
+    neighbour.write_text("the operator's own file")
+
+    # Without the flag the artifacts are looked up elsewhere, so this run
+    # closes the lease and removes nothing.
+    rc, out = finalize_backup(tt, target, backup_id)
+    assert rc == 0, f"tt backup finalize failed:\n{out}"
+    assert get_backup_info_app(tt, target) is None
+    assert archive_path.is_file(), "the artifacts are not in the temporary layout"
+    assert fragment_path.is_file()
+
+    rc, out = finalize_backup(tt, target, backup_id, directory=dest)
+    assert rc == 0, f"tt backup finalize --dir failed:\n{out}"
+    assert not archive_path.exists()
+    assert not fragment_path.exists()
+    assert dest.is_dir(), "a directory named by the operator is not tt's to remove"
+    assert neighbour.read_text() == "the operator's own file"
+
+    # --force removes no local artifact, so naming a directory to remove them
+    # from asks for a cleanup the run would not do.
+    rc, out = finalize_backup(tt, target, None, force=True, directory=dest)
+    assert rc != 0, f"--dir with --force was accepted:\n{out}"
+    assert "[dir force]" in out, out
+
+
+@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
+@pytest.mark.tt_app(**TT_BACKUP_APP)
 def test_finalize_rejects_empty_backup_id(tt, tt_app):
     """An orchestrator template that expands an unset $BACKUP_ID must not be
     able to end the backup: releasing the lease while removing nothing leaks a

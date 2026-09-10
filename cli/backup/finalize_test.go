@@ -33,7 +33,7 @@ func TestStop_closesAndRemovesOnlyOwnArtifacts(t *testing.T) {
 	inst := instanceMap("router-001", "", "")
 	m := &mockEvaler{queue: [][]any{{info}, nil, {inst}}}
 
-	require.NoError(t, Stop(m, backupID))
+	require.NoError(t, Stop(m, backupID, ""))
 	require.True(t, slices.Contains(m.exprs, "box.backup.stop()"), "stop must be called")
 	require.NoFileExists(t, archivePath)
 	require.NoFileExists(t, fragmentPath)
@@ -54,9 +54,44 @@ func TestStop_alreadyClosedRemovesStaleOwnArtifactsAndEmptyDir(t *testing.T) {
 	inst := instanceMap("router-001", "", "")
 	m := &mockEvaler{queue: [][]any{nil, {inst}}}
 
-	require.NoError(t, Stop(m, backupID))
+	require.NoError(t, Stop(m, backupID, ""))
 	require.False(t, slices.Contains(m.exprs, "box.backup.stop()"), "stop must not be called")
 	require.NoDirExists(t, backupDir)
+}
+
+// TestStop_dirRemovesArtifactsAndKeepsTheDirectory pins both halves of the
+// --dir contract: the artifacts are looked up in the directory the caller
+// named, and that directory survives the cleanup because it is the caller's,
+// not tt's. Artifacts of the same id in the default layout stand in for a
+// backup this run was not pointed at and must be left alone.
+func TestStop_dirRemovesArtifactsAndKeepsTheDirectory(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+	const backupID = "dir-bid"
+
+	dir := t.TempDir()
+	basePath := filepath.Join(dir, backupID+"-"+testReplicasetUUID)
+	archivePath := basePath + ".tar.zst"
+	fragmentPath := basePath + ".json"
+	require.NoError(t, os.WriteFile(archivePath, []byte("own archive"), 0o644))
+	require.NoError(t, os.WriteFile(fragmentPath, []byte("own fragment"), 0o644))
+
+	defaultDir := filepath.Join(os.TempDir(), localBackupRootDir, backupID)
+	require.NoError(t, os.MkdirAll(defaultDir, 0o755))
+	defaultBase := filepath.Join(defaultDir, backupID+"-"+testReplicasetUUID)
+	require.NoError(t, os.WriteFile(defaultBase+".tar.zst", []byte("default archive"), 0o644))
+	require.NoError(t, os.WriteFile(defaultBase+".json", []byte("default fragment"), 0o644))
+
+	info := infoMap(walFiles, Vclock{1: 1500}, Vclock{1: 1502}, nil)
+	inst := instanceMap("router-001", "", "")
+	m := &mockEvaler{queue: [][]any{{info}, nil, {inst}}}
+
+	require.NoError(t, Stop(m, backupID, dir))
+	require.True(t, slices.Contains(m.exprs, "box.backup.stop()"), "stop must be called")
+	require.NoFileExists(t, archivePath)
+	require.NoFileExists(t, fragmentPath)
+	require.DirExists(t, dir, "a directory named by the caller is not tt's to remove")
+	require.FileExists(t, defaultBase+".tar.zst")
+	require.FileExists(t, defaultBase+".json")
 }
 
 // TestStop_emptyBackupIDIsRejected replaces TestStop_noBackupID, which pinned
@@ -73,7 +108,7 @@ func TestStop_emptyBackupIDIsRejected(t *testing.T) {
 	info := infoMap(walFiles, Vclock{1: 1500}, Vclock{1: 1502}, nil)
 	m := &mockEvaler{queue: [][]any{{info}, nil}}
 
-	err := Stop(m, "")
+	err := Stop(m, "", "")
 	require.ErrorIs(t, err, ErrInvalidBackupID)
 	require.ErrorContains(t, err, `""`, "the error must name the id it rejected")
 	require.False(t, slices.Contains(m.exprs, "box.backup.stop()"),
@@ -93,7 +128,7 @@ func TestStop_rejectsUnsafeBackupID(t *testing.T) {
 			inst := instanceMap("router-001", "", "")
 			m := &mockEvaler{queue: [][]any{{info}, nil, {inst}}}
 
-			err := Stop(m, tc.id)
+			err := Stop(m, tc.id, "")
 			require.ErrorIs(t, err, ErrInvalidBackupID)
 			require.Empty(t, m.exprs, "the instance must not be touched")
 			requireSandboxIntact(t, base, root, tmpDir)
@@ -104,7 +139,7 @@ func TestStop_rejectsUnsafeBackupID(t *testing.T) {
 func TestStop_infoError(t *testing.T) {
 	m := &mockEvaler{err: errors.New("boom"), errOn: 1}
 
-	err := Stop(m, "info-err-bid")
+	err := Stop(m, "info-err-bid", "")
 	require.ErrorContains(t, err, "boom")
 }
 
@@ -119,7 +154,7 @@ func TestStop_stopErrorLeavesArtifacts(t *testing.T) {
 	info := infoMap(walFiles, Vclock{1: 1500}, Vclock{1: 1502}, nil)
 	m := &mockEvaler{err: errors.New("boom"), errOn: 2, queue: [][]any{{info}}}
 
-	err := Stop(m, backupID)
+	err := Stop(m, backupID, "")
 	require.ErrorContains(t, err, "boom")
 	require.FileExists(t, archivePath, "artifacts must remain after stop failure")
 }
@@ -134,7 +169,7 @@ func TestStop_instanceInfoErrorLeavesArtifacts(t *testing.T) {
 
 	m := &mockEvaler{err: errors.New("boom"), errOn: 2, queue: [][]any{nil}}
 
-	err := Stop(m, backupID)
+	err := Stop(m, backupID, "")
 	require.ErrorContains(t, err, "failed to resolve instance metadata")
 	require.FileExists(t, archivePath)
 }
