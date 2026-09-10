@@ -62,11 +62,13 @@ type Adapter struct {
 
 // New builds an Adapter around cfg. The ordered multi-server index is derived
 // from cfg.Servers / cfg.InsecureServers and reused across Resolve calls that
-// do not pin a registry.
+// do not pin a registry. A server entry that names a local directory (a bare
+// path or a file:// URL) is read off disk, so an offline mirror sits in the
+// list wherever an https:// server does.
 func New(cfg luarocks.Config) *Adapter {
 	return &Adapter{
 		cfg:   cfg,
-		index: newOrderedIndex(httpIndexes(cfg.Servers, cfg.InsecureServers)...),
+		index: serverIndex(cfg.Servers, cfg.InsecureServers),
 	}
 }
 

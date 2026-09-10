@@ -119,6 +119,45 @@ func TestFlagsMatchDeriveFlags(t *testing.T) {
 	}
 }
 
+func TestFlagsLuaBinDirFromExecutable(t *testing.T) {
+	t.Parallel()
+
+	// A Tarantool SDK is flat: the binary sits at the root next to env.sh and
+	// there is no bin/ under the prefix at all, so LUA_BINDIR has to follow the
+	// executable rather than the prefix.
+	adapter := rocks.New(rocks.BuildConfig(rocks.TarantoolInfo{
+		Executable: "/opt/sdk/tarantool",
+		Prefix:     "/opt/sdk",
+		Version:    "3.1.0",
+	}, rocks.ConfigOptions{
+		Tree:       "/app/.rocks",
+		WorkingDir: "/app",
+		Servers:    nil,
+		Logger:     nil,
+	}))
+
+	assert.Equal(t, "/opt/sdk", adapter.Flags().LuaBinDir)
+}
+
+func TestFlagsLuaBinDirFallsBackToPrefix(t *testing.T) {
+	t.Parallel()
+
+	// A bare command name resolved through PATH carries no directory, so the
+	// prefix is all there is to go on.
+	adapter := rocks.New(rocks.BuildConfig(rocks.TarantoolInfo{
+		Executable: "tarantool",
+		Prefix:     "/usr",
+		Version:    "3.1.0",
+	}, rocks.ConfigOptions{
+		Tree:       "/app/.rocks",
+		WorkingDir: "/app",
+		Servers:    nil,
+		Logger:     nil,
+	}))
+
+	assert.Equal(t, filepath.Join("/usr", "bin"), adapter.Flags().LuaBinDir)
+}
+
 func TestChecksum(t *testing.T) {
 	t.Parallel()
 

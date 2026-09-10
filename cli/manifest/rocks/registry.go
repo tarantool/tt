@@ -79,12 +79,11 @@ func (a *Adapter) FetchSource(
 }
 
 // Search queries the configured registries for rocks matching pattern. It runs
-// on the lua backend (the native backend does not implement search); the caller
-// need not know which backend is used.
+// on the native backend; the caller need not know which backend is used.
 func (a *Adapter) Search(
 	ctx context.Context, pattern string, opts client.SearchOpts,
 ) ([]client.SearchResult, error) {
-	rocksClient, err := a.Client(client.BackendLua)
+	rocksClient, err := a.Client(client.BackendNative)
 	if err != nil {
 		return nil, err
 	}
@@ -98,11 +97,11 @@ func (a *Adapter) Search(
 }
 
 // Download fetches a rock file for name into the working directory and returns
-// its path. Like Search it runs on the lua backend behind the wrapper.
+// its path. Like Search it runs on the native backend behind the wrapper.
 func (a *Adapter) Download(
 	ctx context.Context, name string, opts client.DownloadOpts,
 ) (string, error) {
-	rocksClient, err := a.Client(client.BackendLua)
+	rocksClient, err := a.Client(client.BackendNative)
 	if err != nil {
 		return "", err
 	}
