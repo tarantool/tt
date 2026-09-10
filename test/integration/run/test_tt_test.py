@@ -126,8 +126,12 @@ def test_test_leaves_the_manifest_and_the_lock_alone(run_tt, project: Path, fake
     """The build may write the lock; a second run must not move it again.
 
     A lock that changed on every test run would make each run's build re-resolve
-    and would break the next --locked build, which is the reason the implicit
-    requirement is never written down.
+    and would break the next --locked build.
+
+    This covers the build half only. The runner is already in the tree here, so
+    the implicit requirement is never resolved and a version that wrote it into
+    the lock would still pass: that case is the slow one below, and the Go test
+    over ResolveDevExtra.
     """
     fake_luatest()
     (project / "test").mkdir()
