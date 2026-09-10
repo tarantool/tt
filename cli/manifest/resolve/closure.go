@@ -333,9 +333,39 @@ func effectiveDeps(man *manifest.Manifest, product manifest.Product) ([]depReq, 
 // is no per-component dev table, so the dev closure is global too - one per
 // manifest, not one per product.
 func devDeps(man *manifest.Manifest) ([]depReq, error) {
+	return devDepsWith(man, nil)
+}
+
+// devDepsWith assembles the dev closure's direct dependencies from the global
+// [dev_dependencies] table plus extra requirements the caller supplies, which
+// the manifest does not declare and which are never written back to it.
+//
+// A name the manifest already declares is not merged again: merging would AND
+// the two constraints together and mark the dependency multiply-declared, so an
+// implicit "*" would turn a declaration the author made into one they did not.
+// Skipping it makes the declaration authoritative, which is the rule
+// ResolveDevExtra states.
+func devDepsWith(
+	man *manifest.Manifest, extra map[string]manifest.Dependency,
+) ([]depReq, error) {
 	byName := map[string]*depReq{}
 
 	err := mergeDeps(byName, "dev_dependencies", man.DevDependencies)
+	if err != nil {
+		return nil, err
+	}
+
+	added := map[string]manifest.Dependency{}
+
+	for name, dependency := range extra {
+		if _, declared := man.DevDependencies[name]; declared {
+			continue
+		}
+
+		added[name] = dependency
+	}
+
+	err = mergeDeps(byName, "dev_dependencies", added)
 	if err != nil {
 		return nil, err
 	}
