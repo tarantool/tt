@@ -202,11 +202,7 @@ func runFetch(
 			"lock has no closure for product %q; run tt package build", productName)
 	}
 
-	// Registry materialization must preserve LuaRocks' install semantics:
-	// in particular, prefer ready-to-install .all.rock artifacts and deploy
-	// CMake-produced Lua modules into the public tree, so materialized
-	// dependencies are visible to Tarantool at runtime.
-	registryClient, err := adapter.Client(client.BackendLua)
+	registryClient, err := adapter.Client(client.BackendNative)
 	if err != nil {
 		return nil, fmt.Errorf("rocks registry client: %w", err)
 	}
@@ -269,7 +265,7 @@ func runBuild(
 			"lock has no closure for product %q", productName)
 	}
 
-	registryClient, err := adapter.Client(client.BackendLua)
+	registryClient, err := adapter.Client(client.BackendNative)
 	if err != nil {
 		return nil, fmt.Errorf("rocks registry client: %w", err)
 	}
