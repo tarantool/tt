@@ -31,10 +31,18 @@ var (
 	backupStartID         string
 	backupStartFromVclock string
 	backupStartTTL        time.Duration
+	backupStartDir        string
 
 	backupFinalizeCfg   string
 	backupFinalizeID    string
 	backupFinalizeForce bool
+	backupFinalizeDir   string
+
+	// Shared by every backup subcommand that dials an instance.
+	backupSslKeyFile  string
+	backupSslCertFile string
+	backupSslCaFile   string
+	backupSslCiphers  string
 
 	backupStorageConfig string
 	backupClusterName   string
@@ -156,6 +164,16 @@ without them, and those commands report an empty storage rather than an
 error. The exception is upload, which reads the pair out of the plan and
 needs the flags only to override it.`
 
+// backupClusterConfigHelp documents the --config flag of the commands that read
+// the cluster configuration to learn the topology: a file path or a config
+// storage URI, told apart by whether the value parses as a URI.
+var backupClusterConfigHelp = `cluster configuration source: a path to the cluster
+configuration file (cluster.yaml), or a URI of etcd or Tarantool Config Storage.
+A value that parses as a URI is fetched from the storage; anything else is read
+as a file.
+
+` + clusterUriHelp
+
 // addBackupStorageFlags binds the storage a command works on: the URI or
 // config file, and the cluster and environment naming the subtree inside it.
 // Every command that touches a storage gets all three, so a backup written
@@ -267,14 +285,21 @@ func newBackupStartCmd() *cobra.Command {
 		Use:   "start (<APP:INSTANCE>|<URI>) [flags]",
 		Short: "Open a backup on the instance and build a local archive",
 		Long: `Open box.backup on the instance, pack WAL files and a per-shard manifest
-fragment into a .tar.zst archive under /tmp/tt-backup/<backup-id>/, and leave
-box.backup open. The archive path is printed to stdout. Closing box.backup is
-done by 'tt backup finalize' after the manifest has been uploaded.`,
+fragment into a .tar.zst archive, and leave box.backup open. The archive path
+is printed to stdout. Closing box.backup is done by 'tt backup finalize' after
+the manifest has been uploaded.
+
+--dir writes both artifacts directly into the given directory, which is created
+if it does not exist. Without it they go to $TMPDIR/tt-backup/<backup-id>/.
+
+--sslkeyfile, --sslcertfile, --sslcafile and --sslciphers reach an instance
+whose iproto listener has TLS enabled.`,
 		Args: cobra.ExactArgs(1),
 		RunE: runBackupStart,
 	}
 	cmd.Flags().StringVarP(&backupStartCfg, "config", "c", "",
-		"path to the cluster configuration file (for <APP:INSTANCE>)")
+		"path to the tt environment configuration (tt.yaml) that resolves an "+
+			"<APP:INSTANCE> target; a <URI> target needs none")
 	cmd.Flags().StringVar(&backupStartID, "backup-id", "",
 		"backup identifier (required)")
 	cmd.Flags().StringVar(&backupStartFromVclock, "from-vclock", "",
@@ -282,6 +307,10 @@ done by 'tt backup finalize' after the manifest has been uploaded.`,
 			"incremental only")
 	cmd.Flags().DurationVar(&backupStartTTL, "ttl", time.Hour,
 		"force the backup to complete after this duration")
+	cmd.Flags().StringVar(&backupStartDir, "dir", "",
+		"directory for the archive and the manifest fragment; "+
+			"defaults to $TMPDIR/tt-backup/<backup-id>")
+	addBackupSslFlags(cmd)
 
 	cmd.MarkFlagRequired("backup-id")
 
@@ -296,21 +325,37 @@ func newBackupFinalizeCmd() *cobra.Command {
 		Long: `Run box.backup.stop() on the instance and remove the local .tar.zst
 archive. Idempotent: if the backup is already closed, it does not fail.
 
+--dir removes the artifacts from the directory 'tt backup start --dir' wrote
+them to and leaves that directory in place. Without it they are looked up in
+$TMPDIR/tt-backup/<backup-id>/, which is removed once it is empty.
+
 --force closes whatever backup is open on the instance without naming a
 --backup-id, for when the id that opened it is unknown or not trusted. It
-only runs box.backup.stop(): no local archive or fragment is removed.`,
+only runs box.backup.stop(): no local archive or fragment is removed.
+
+--sslkeyfile, --sslcertfile, --sslcafile and --sslciphers reach an instance
+whose iproto listener has TLS enabled.`,
 		Args: cobra.ExactArgs(1),
 		RunE: runBackupFinalize,
 	}
 
 	cmd.Flags().StringVarP(&backupFinalizeCfg, "config", "c", "",
-		"path to the cluster configuration file (for <APP:INSTANCE>)")
+		"path to the tt environment configuration (tt.yaml) that resolves an "+
+			"<APP:INSTANCE> target; a <URI> target needs none")
 	cmd.Flags().StringVar(&backupFinalizeID, "backup-id", "",
 		"backup identifier; local artifacts of the target replicaset are removed")
 	cmd.Flags().BoolVar(&backupFinalizeForce, "force", false,
 		"close whatever backup is open on the instance; removes no local file")
+	cmd.Flags().StringVar(&backupFinalizeDir, "dir", "",
+		"directory holding the artifacts to remove; "+
+			"defaults to $TMPDIR/tt-backup/<backup-id>")
+	addBackupSslFlags(cmd)
+
 	cmd.MarkFlagsOneRequired("backup-id", "force")
 	cmd.MarkFlagsMutuallyExclusive("backup-id", "force")
+	// --force removes no local artifact, so a directory to remove them from
+	// says the caller expects a cleanup this run will not do.
+	cmd.MarkFlagsMutuallyExclusive("dir", "force")
 
 	return cmd
 }
@@ -349,9 +394,17 @@ func newBackupPlanCmd() *cobra.Command {
 		Use:   "plan --target=(incremental|full) --backup-storage=<uri> [flags]",
 		Short: "Plan the next backup: mode, master source, from_vclock",
 		Long: `Compute a backup plan from the current cluster topology and the latest
-		manifest in the storage.`,
-		Example: `$ tt backup plan --target=incremental --backup-storage=file:///var/backups
-  $ tt backup plan --target=full --backup-storage=file:///var/backups --format json
+manifest in the storage.
+
+The cluster configuration comes from --config: either the cluster
+configuration file (cluster.yaml) or the URI of the etcd or Tarantool Config
+Storage the cluster is configured from.`,
+		Example: `$ tt backup plan --target=incremental --backup-storage=file:///var/backups \
+    -c cluster.yaml
+  $ tt backup plan --target=incremental --backup-storage=file:///var/backups \
+    -c http://user:pass@etcd.example.com:2379/tt
+  $ tt backup plan --target=full --backup-storage=file:///var/backups --format json \
+    -c cluster.yaml
   $ tt backup plan --target=incremental --backup-storage=s3+https://... -c cluster.yaml
   $ tt backup plan --target=incremental --backup-storage=file:///var/backups \
     -c cluster.yaml --cluster-name payments-cluster --environment production`,
@@ -364,7 +417,7 @@ func newBackupPlanCmd() *cobra.Command {
 		backupPlanTargetHelp)
 	addBackupStorageFlags(cmd)
 	cmd.Flags().StringVarP(&backupPlanCfg, "config", "c", "",
-		clusterUriHelp)
+		backupClusterConfigHelp)
 	cmd.Flags().StringVar(&backupPlanFormat, "format", formatJSON,
 		"output format: table or json")
 	cmd.Flags().DurationVar(&backupPlanTimeout, "timeout", time.Minute,
@@ -1239,6 +1292,32 @@ func applyBackupConfig(localCfg string) error {
 	return nil
 }
 
+// addBackupSslFlags registers the iproto TLS flags on a backup subcommand that
+// dials an instance. The names match the ones `tt connect` takes.
+func addBackupSslFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&backupSslKeyFile, "sslkeyfile", "",
+		"path to a private SSL key file")
+	cmd.Flags().StringVar(&backupSslCertFile, "sslcertfile", "",
+		"path to an SSL certificate file")
+	cmd.Flags().StringVar(&backupSslCaFile, "sslcafile", "",
+		"path to a trusted certificate authorities (CA) file")
+	cmd.Flags().StringVar(&backupSslCiphers, "sslciphers", "",
+		"colon-separated (:) list of SSL cipher suites")
+}
+
+// backupConnectCtx describes the connection a backup subcommand makes: the
+// binary port, with TLS when the --ssl* flags name the material for it. Any
+// non-empty SSL field makes the dial a TLS one.
+func backupConnectCtx() connect.ConnectCtx {
+	return connect.ConnectCtx{
+		Binary:      true,
+		SslKeyFile:  backupSslKeyFile,
+		SslCertFile: backupSslCertFile,
+		SslCaFile:   backupSslCaFile,
+		SslCiphers:  backupSslCiphers,
+	}
+}
+
 // dialBackupTarget resolves <APP:INSTANCE> or <URI> and dials the binary port
 // (box.backup.* is a binary-protocol eval surface).
 func dialBackupTarget(cfg, target string) (connector.Connector, error) {
@@ -1246,7 +1325,7 @@ func dialBackupTarget(cfg, target string) (connector.Connector, error) {
 		return nil, fmt.Errorf("failed to apply backup config: %w", err)
 	}
 
-	connCtx := connect.ConnectCtx{Binary: true}
+	connCtx := backupConnectCtx()
 	connOpts, err := resolveConnectOpts(&cmdCtx, cliOpts, &connCtx, target)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve connection options for %q: %w", target, err)
@@ -1316,6 +1395,7 @@ func runBackupStartInner(args []string) (string, error) {
 		FromVclock: fromVclock,
 		TTL:        backupStartTTL,
 		InstName:   instanceNameFromTarget(args[0]),
+		Dir:        backupStartDir,
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to start backup: %w", err)
@@ -1346,7 +1426,7 @@ func runBackupFinalize(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if err := backup.Stop(conn, backupFinalizeID); err != nil {
+	if err := backup.Stop(conn, backupFinalizeID, backupFinalizeDir); err != nil {
 		return fmt.Errorf("failed to finalize backup: %w", err)
 	}
 

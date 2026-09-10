@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/cli/backup"
+	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/util"
 )
 
@@ -100,6 +101,84 @@ func TestBackupSubcommandsSilenceUsage(t *testing.T) {
 				"a runtime error must not be buried under the flag list")
 		})
 	}
+}
+
+// TestBackupFinalizeRejectsDirWithForce checks the combination is refused
+// rather than half-honoured: --force removes no local artifact, so a run that
+// took a directory and cleaned nothing out of it would report success over an
+// archive that is still there.
+func TestBackupFinalizeRejectsDirWithForce(t *testing.T) {
+	cmd := newBackupFinalizeCmd()
+	setFlag(t, &backupFinalizeDir, "")
+	setFlag(t, &backupFinalizeForce, false)
+
+	cmd.SetArgs([]string{"127.0.0.1:1", "--force", "--dir", t.TempDir()})
+	cmd.SetOut(&strings.Builder{})
+	cmd.SetErr(&strings.Builder{})
+
+	err := cmd.Execute()
+	require.ErrorContains(t, err, "[dir force]")
+}
+
+// TestBackupStartAndFinalizeShareTheDirFlag checks both ends of a backup take
+// the same flag: a start that writes elsewhere and a finalize that cannot be
+// told about it leaves the archive for nobody to reclaim.
+func TestBackupStartAndFinalizeShareTheDirFlag(t *testing.T) {
+	for _, cmd := range []*cobra.Command{newBackupStartCmd(), newBackupFinalizeCmd()} {
+		t.Run(cmd.Name(), func(t *testing.T) {
+			flag := cmd.Flags().Lookup("dir")
+			require.NotNil(t, flag, "the command must accept --dir")
+			assert.Empty(t, flag.DefValue, "the default layout is chosen by an unset flag")
+		})
+	}
+}
+
+// TestBackupStartAndFinalizeShareTheSslFlags checks both ends of a backup can
+// reach an instance whose iproto listener has TLS enabled: a start that can
+// connect and a finalize that cannot leaves the backup open on the instance.
+func TestBackupStartAndFinalizeShareTheSslFlags(t *testing.T) {
+	for _, cmd := range []*cobra.Command{newBackupStartCmd(), newBackupFinalizeCmd()} {
+		t.Run(cmd.Name(), func(t *testing.T) {
+			for _, name := range []string{
+				"sslkeyfile",
+				"sslcertfile",
+				"sslcafile",
+				"sslciphers",
+			} {
+				flag := cmd.Flags().Lookup(name)
+				require.NotNil(t, flag, "the command must accept --%s", name)
+				assert.Empty(t, flag.DefValue, "a plain TCP dial is chosen by unset flags")
+			}
+		})
+	}
+}
+
+// TestBackupConnectCtxCarriesSslFlags checks the flag values reach the dial.
+// dialBackupTarget itself needs a live instance, so the check is split between
+// the context it builds and makeConnOpts, which every target form goes through.
+func TestBackupConnectCtxCarriesSslFlags(t *testing.T) {
+	t.Run("set", func(t *testing.T) {
+		setFlag(t, &backupSslKeyFile, "/certs/localhost.key")
+		setFlag(t, &backupSslCertFile, "/certs/localhost.crt")
+		setFlag(t, &backupSslCaFile, "/certs/ca.crt")
+		setFlag(t, &backupSslCiphers, "ECDHE-RSA-AES256-GCM-SHA384")
+
+		connCtx := backupConnectCtx()
+		assert.True(t, connCtx.Binary, "box.backup.* is a binary-protocol surface")
+
+		opts := makeConnOpts(connector.TCPNetwork, "localhost:3301", connCtx)
+		assert.Equal(t, connector.SslOpts{
+			KeyFile:  "/certs/localhost.key",
+			CertFile: "/certs/localhost.crt",
+			CaFile:   "/certs/ca.crt",
+			Ciphers:  "ECDHE-RSA-AES256-GCM-SHA384",
+		}, opts.Ssl)
+	})
+
+	t.Run("unset", func(t *testing.T) {
+		opts := makeConnOpts(connector.TCPNetwork, "localhost:3301", backupConnectCtx())
+		assert.Zero(t, opts.Ssl, "without the flags the dial stays plain TCP")
+	})
 }
 
 // setFlag points a package-level cobra flag variable at value for one test.

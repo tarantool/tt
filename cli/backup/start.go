@@ -40,13 +40,16 @@ type BackupStartOpts struct {
 	TTL time.Duration
 	// InstName is a fallback instance name (from <APP:INSTANCE>).
 	InstName string
+	// Dir is the directory the archive and the manifest fragment are written
+	// to. Empty means <os.TempDir()>/tt-backup/<backup-id>.
+	Dir string
 }
 
-// Start opens box.backup on the instance, packs the WAL files and a
-// per-shard fragment into a .tar.zst archive under
-// /tmp/tt-backup/<backup-id>/, and leaves box.backup open. The archive path is
-// returned; the caller is expected to print it to stdout. A run that produces
-// no archive closes box.backup again.
+// Start opens box.backup on the instance, packs the WAL files and a per-shard
+// fragment into a .tar.zst archive in opts.Dir (or under
+// <os.TempDir()>/tt-backup/<backup-id>/ when it is empty), and leaves
+// box.backup open. The archive path is returned; the caller is expected to
+// print it to stdout. A run that produces no archive closes box.backup again.
 func Start(conn connector.Connector, opts BackupStartOpts) (string, error) {
 	// The id names both the archive directory and the file base name below it.
 	// Checking it before box.backup is opened keeps a malformed run from
@@ -74,6 +77,24 @@ func Start(conn connector.Connector, opts BackupStartOpts) (string, error) {
 	return archivePath, nil
 }
 
+// resolveArchiveDir returns the directory that holds the archive and the
+// manifest fragment of backupID: dir itself when the caller named one, and
+// <os.TempDir()>/tt-backup/<backup-id> otherwise. A named dir is made absolute,
+// so the archive path printed to stdout addresses the same file from any
+// working directory.
+func resolveArchiveDir(dir, backupID string) (string, error) {
+	if dir == "" {
+		return filepath.Join(os.TempDir(), localBackupRootDir, backupID), nil
+	}
+
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve backup directory %q: %w", dir, err)
+	}
+
+	return absDir, nil
+}
+
 // buildArchive packs the open backup into a local archive. Every error it
 // returns leaves box.backup open for the caller to roll back.
 func buildArchive(
@@ -86,7 +107,10 @@ func buildArchive(
 		return "", fmt.Errorf("failed to resolve instance: %w", err)
 	}
 
-	archiveDir := filepath.Join(os.TempDir(), localBackupRootDir, opts.BackupID)
+	archiveDir, err := resolveArchiveDir(opts.Dir, opts.BackupID)
+	if err != nil {
+		return "", err //nolint:wrapcheck
+	}
 	if err := os.MkdirAll(archiveDir, 0o755); err != nil {
 		return "", fmt.Errorf("failed to create archive directory %q: %w", archiveDir, err)
 	}
