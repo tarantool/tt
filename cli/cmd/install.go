@@ -75,7 +75,7 @@ func newInstallTarantoolDevCmd() *cobra.Command {
 			"  Consider the following use case:\n\n" +
 			"  make -j16 -C ~/src/tarantool/build\n" +
 			"  tt install tarantool-dev ~/src/tarantool/build\n" +
-			"  tt run # runs the binary compiled above",
+			"  tt binaries list # shows the binary installed above",
 		Run:  RunModuleFunc(internalInstallModule),
 		Args: cobra.ExactArgs(1),
 	}
