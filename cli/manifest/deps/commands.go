@@ -24,7 +24,12 @@ import (
 func Add(
 	ctx context.Context, opts Options, name, constraint string, dev bool,
 ) (*Result, error) {
-	return addWith(ctx, opts, engineFor(opts), name, constraint, dev)
+	engine, err := engineFor(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return addWith(ctx, opts, engine, name, constraint, dev)
 }
 
 // addWith is Add against an injected resolver.
@@ -96,7 +101,12 @@ func warnOtherTable(opts Options, editor *manifest.Editor, target manifest.DepTa
 // Every remaining rock is pinned, so the result differs from the old lock only
 // by what the removed rock was holding up.
 func Remove(ctx context.Context, opts Options, name string) (*Result, error) {
-	return removeWith(ctx, opts, engineFor(opts), name)
+	engine, err := engineFor(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return removeWith(ctx, opts, engine, name)
 }
 
 // removeWith is Remove against an injected resolver.
@@ -173,7 +183,12 @@ func warnComponentDeclarations(opts Options, man *manifest.Manifest, name string
 // the manifest declares, in any of its tables including a component's: an
 // update names a dependency, and a dependency a component declares is one.
 func Update(ctx context.Context, opts Options, name string) (*Result, error) {
-	return updateWith(ctx, opts, engineFor(opts), name)
+	engine, err := engineFor(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return updateWith(ctx, opts, engine, name)
 }
 
 // updateWith is Update against an injected resolver.
@@ -215,7 +230,12 @@ func updateWith(
 // lock is rewritten from the same inputs, so it comes out identical and the
 // caller sees no moves.
 func Resolve(ctx context.Context, opts Options) (*Result, error) {
-	return resolveWith(ctx, opts, engineFor(opts))
+	engine, err := engineFor(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return resolveWith(ctx, opts, engine)
 }
 
 // resolveWith is Resolve against an injected resolver.

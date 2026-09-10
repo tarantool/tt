@@ -90,8 +90,10 @@ type Options struct {
 	// evaluates rockspecs, which are Lua and can branch on the Tarantool
 	// version, so this is required even though nothing is built here.
 	Tarantool rocks.TarantoolInfo
-	// Servers overrides the rock-server list; nil uses the adapter default.
-	Servers []string
+	// Registries carries the rock servers the caller collected from the
+	// command line and the environment. The manifest's own list and the
+	// project directory are filled in here.
+	Registries rocks.Sources
 	// Logger receives the adapter's structured operation logs; nil disables it.
 	Logger *slog.Logger
 	// Warn receives non-fatal diagnostics: parse and validation warnings, and
@@ -156,15 +158,55 @@ type resolver interface {
 // engineFor builds the resolution engine the commands drive: the rocks adapter
 // bound to the project's own tree, wrapped in a resolve.Engine anchored at the
 // project directory so path dependencies resolve relative to the manifest.
-func engineFor(opts Options) *resolve.Engine {
+//
+// A registry list that cannot be used is reported here rather than at the first
+// query, so the run stops before it edits the manifest.
+func engineFor(opts Options) (*resolve.Engine, error) {
+	sources := opts.Registries
+
+	sources.Manifest = manifestRegistries(opts.ProjectDir)
+	sources.ProjectDir = opts.ProjectDir
+
+	if sources.WorkingDir == "" {
+		sources.WorkingDir = opts.ProjectDir
+	}
+
+	registries, err := rocks.EffectiveRegistries(sources)
+	if err != nil {
+		return nil, stateErrorf("%w", err)
+	}
+
 	adapter := rocks.New(rocks.BuildConfig(opts.Tarantool, rocks.ConfigOptions{
 		Tree:       filepath.Join(opts.ProjectDir, rocksDirName),
 		WorkingDir: opts.ProjectDir,
-		Servers:    opts.Servers,
+		Servers:    rocks.URLs(registries),
 		Logger:     opts.Logger,
 	}))
 
-	return resolve.NewEngine(adapter, opts.ProjectDir, opts.TtVersion)
+	return resolve.NewEngine(adapter, opts.ProjectDir, opts.TtVersion), nil
+}
+
+// manifestRegistries reads [platform].registries out of the project manifest.
+//
+// It parses without validating and reports nothing: the command's own load runs
+// a moment later over the same bytes and both validates and emits the warnings,
+// so a manifest that cannot be read is still refused exactly once, by the
+// reader that owns that job. Reporting it here as well would duplicate every
+// diagnostic.
+func manifestRegistries(projectDir string) []string {
+	path := filepath.Join(projectDir, manifestFileName)
+
+	data, err := os.ReadFile(path) //nolint:gosec // Reads the caller's own manifest.
+	if err != nil {
+		return nil
+	}
+
+	man, _, err := manifest.ParseManifest(data)
+	if err != nil {
+		return nil
+	}
+
+	return man.Platform.Registries
 }
 
 // project is the on-disk state a run starts from.
