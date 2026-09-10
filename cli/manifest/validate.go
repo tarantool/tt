@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strings"
 )
 
 // nameRe is the identifier shape shared by package, component and product
@@ -126,7 +127,43 @@ func (m *Manifest) validatePlatform() error {
 		return invalid("platform.tcm", "must not have a flavor; TCM is Enterprise only")
 	}
 
-	return m.validatePlatforms()
+	err := m.validatePlatforms()
+	if err != nil {
+		return err
+	}
+
+	return m.validateRegistries()
+}
+
+// validateRegistries rejects a registry list that cannot be queried: an empty
+// table, a blank entry, or the same server twice. A duplicate is refused rather
+// than deduplicated because the order is the resolution order, and a list that
+// names one server twice says the author meant two different ones.
+func (m *Manifest) validateRegistries() error {
+	registries := m.Platform.Registries
+	if registries == nil {
+		return nil
+	}
+
+	if len(registries) == 0 {
+		return invalid("platform.registries", "must be omitted or non-empty")
+	}
+
+	seen := make(map[string]bool, len(registries))
+
+	for _, registry := range registries {
+		if strings.TrimSpace(registry) == "" {
+			return invalid("platform.registries", "must not contain an empty entry")
+		}
+
+		if seen[registry] {
+			return invalid("platform.registries", "%q is listed twice", registry)
+		}
+
+		seen[registry] = true
+	}
+
+	return nil
 }
 
 func (m *Manifest) validatePlatforms() error {
