@@ -20,63 +20,17 @@ type ResolvedRock struct {
 	URL string
 }
 
-// orderedIndex queries a list of single-server indexes in order and returns
-// the first server's results for a name (first-found-wins), instead of
-// aggregating across all servers the way a multi-server HTTPRemoteIndex would.
-// A server that errors (e.g. unreachable) is skipped; the last error is
-// surfaced only when no server yields a rock.
-type orderedIndex struct {
-	indexes []luarocks.RemoteIndex
-}
-
-// newOrderedIndex builds an ordered index over the given per-server indexes.
-func newOrderedIndex(indexes ...luarocks.RemoteIndex) *orderedIndex {
-	return &orderedIndex{indexes: indexes}
-}
-
-// httpIndexes builds one HTTPRemoteIndex per server so they can be queried in
-// order, each carrying the shared insecure-server list.
-func httpIndexes(servers, insecure []string) []luarocks.RemoteIndex {
-	out := make([]luarocks.RemoteIndex, 0, len(servers))
-
-	for _, server := range servers {
-		out = append(out, &remote.HTTPRemoteIndex{
-			Servers:         []string{server},
-			InsecureServers: insecure,
-			UserAgent:       "",
-			LuaVersion:      "",
-			Arch:            "",
-		})
-	}
-
-	return out
-}
-
-// Query asks each server in order and returns the first non-empty result,
-// satisfying luarocks.RemoteIndex so the resolver can consume it too.
-func (o *orderedIndex) Query(
-	ctx context.Context, name, namespace string,
-) ([]luarocks.VersionedRock, error) {
-	var lastErr error
-
-	for _, index := range o.indexes {
-		found, err := index.Query(ctx, name, namespace)
-		if err != nil {
-			lastErr = err
-
-			continue
-		}
-
-		if len(found) > 0 {
-			return found, nil
-		}
-	}
-
-	if lastErr != nil {
-		return nil, fmt.Errorf("query %q across servers: %w", name, lastErr)
-	}
-
-	return nil, nil
+// serverIndex builds the ordered first-found-wins index over servers. Each
+// entry is dispatched by remote.NewIndex on its form, so a bare directory path
+// or a file:// URL is read off disk as a rock server while an http(s) server
+// goes over the network; both compose in one ordered list.
+func serverIndex(servers, insecure []string) luarocks.RemoteIndex {
+	return remote.NewOrderedIndex(remote.NewIndexes(servers, remote.IndexOptions{
+		InsecureServers: insecure,
+		UserAgent:       "",
+		LuaVersion:      "",
+		Arch:            "",
+	})...)
 }
 
 // Resolve finds the newest version of name that satisfies constraintExpr,
@@ -88,7 +42,7 @@ func (a *Adapter) Resolve(
 ) (ResolvedRock, error) {
 	index := a.index
 	if registry != "" {
-		index = newOrderedIndex(httpIndexes([]string{registry}, a.cfg.InsecureServers)...)
+		index = serverIndex([]string{registry}, a.cfg.InsecureServers)
 	}
 
 	return resolveWith(ctx, index, name, constraintExpr)
