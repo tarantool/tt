@@ -150,6 +150,14 @@ for machine-readable output.
 - `tt rocks` now runs on the pure-Go go-luarocks engine
   (`github.com/tarantool/go-luarocks`) instead of the bundled LuaRocks git submodule.
   Behavior is unchanged; the `cli/rocks/third_party/luarocks` submodule is removed.
+- The `tt package` dependency pipeline (resolve, fetch, build) now runs on the
+  pure-Go rock engine end to end instead of dispatching installs through the
+  embedded Lua interpreter. `tt rocks` keeps the Lua engine, which is what
+  serves the full LuaRocks command line.
+- A rock server may now be a local directory: any entry that is a filesystem
+  path or a `file://` URL — in a dependency's `registry` key or in the server
+  list — is read off disk, so a directory holding a LuaRocks `manifest` works
+  offline exactly as an `https://` server does.
 
 ### Fixed
 
