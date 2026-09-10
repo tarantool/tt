@@ -97,15 +97,25 @@ def exec_split(tt, *args, **kwargs):
     return proc.returncode, proc.stdout, proc.stderr
 
 
-def start_backup(tt, target, backup_id, from_vclock=None, ttl=None, config=None, **kwargs):
+def start_backup(
+    tt,
+    target,
+    backup_id,
+    from_vclock=None,
+    ttl=None,
+    config=None,
+    directory=None,
+    **kwargs,
+):
     """Run tt backup start.
 
     backup_id reaches the command line verbatim: "", "../escape" and
     "2026/08/02-full" are passed through unsanitised, because rejecting them is
     the command's job, not the helper's. Pass None to leave --backup-id off the
-    command line entirely. Extra keyword arguments go to tt.exec (cwd, env,
-    input); note that env there replaces the environment rather than extending
-    it, so pass dict(os.environ, VAR=...).
+    command line entirely. directory becomes --dir, and is passed verbatim as
+    well, so a relative path stays relative. Extra keyword arguments go to
+    tt.exec (cwd, env, input); note that env there replaces the environment
+    rather than extending it, so pass dict(os.environ, VAR=...).
     """
     args = ["backup", "start", target]
     if backup_id is not None:
@@ -116,11 +126,14 @@ def start_backup(tt, target, backup_id, from_vclock=None, ttl=None, config=None,
         args.extend(["--ttl", ttl])
     if config is not None:
         args.extend(["-c", str(config)])
+    if directory is not None:
+        args.extend(["--dir", str(directory)])
     return tt.exec(*args, **kwargs)
 
 
-def finalize_backup(tt, target, backup_id, config=None, force=False, **kwargs):
-    """Run tt backup finalize. Same backup_id and kwargs contract as start_backup."""
+def finalize_backup(tt, target, backup_id, config=None, force=False, directory=None, **kwargs):
+    """Run tt backup finalize. Same backup_id, directory and kwargs contract as
+    start_backup."""
     args = ["backup", "finalize", target]
     if force:
         args.append("--force")
@@ -128,6 +141,8 @@ def finalize_backup(tt, target, backup_id, config=None, force=False, **kwargs):
         args.extend(["--backup-id", backup_id])
     if config is not None:
         args.extend(["-c", str(config)])
+    if directory is not None:
+        args.extend(["--dir", str(directory)])
     return tt.exec(*args, **kwargs)
 
 
@@ -347,9 +362,12 @@ def assert_fragment_matches_golden(fragment, golden_path):
     assert actual == golden
 
 
-def inspect_backup_artifact(archive_path, unpack_dir, backup_id):
-    expected_dir = backup_dir(backup_id)
-    assert os.path.dirname(archive_path) == expected_dir
+def inspect_backup_artifact(archive_path, unpack_dir, backup_id, expected_dir=None):
+    """Check the archive and its fragment. expected_dir names the directory the
+    two must sit in; it defaults to the layout a start without --dir uses."""
+    if expected_dir is None:
+        expected_dir = backup_dir(backup_id)
+    assert os.path.dirname(archive_path) == str(expected_dir)
     assert os.path.isfile(archive_path), f"archive not found: {archive_path}"
 
     fragment_path = archive_path.removesuffix(".tar.zst") + ".json"

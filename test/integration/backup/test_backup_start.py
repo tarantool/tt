@@ -257,6 +257,67 @@ def test_start_with_explicit_config(tt, tt_app, tmp_path):
 
 @pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
 @pytest.mark.tt_app(**TT_BACKUP_APP)
+def test_start_dir_holds_both_artifacts_directly(tt, tt_app, tmp_path):
+    """--dir names the directory the orchestrator collects from, so both
+    artifacts land in it and nothing goes anywhere else: a <backup-id> level
+    below it, or a copy under TMPDIR, is a file nobody picks up."""
+    target = app_instance(tt_app, STORAGE_1_A)
+    backup_id = "itest-dir"
+
+    # A private TMPDIR: "the default layout was not used" is then an exact
+    # statement about the whole tree the command could have written into.
+    tmp_root = tmp_path / "tmproot"
+    tmp_root.mkdir()
+    # A directory that does not exist yet -- creating it is part of the flag.
+    dest = tmp_path / "artifacts" / "nested"
+    env = dict(os.environ, TMPDIR=str(tmp_root))
+
+    rc, out = start_backup(tt, target, backup_id, directory=dest, env=env)
+    assert rc == 0, f"tt backup start --dir failed:\n{out}"
+
+    try:
+        archive_path = archive_path_from_output(out)
+        fragment = inspect_backup_artifact(
+            archive_path,
+            tmp_path / "unpacked",
+            backup_id,
+            expected_dir=dest,
+        )
+
+        base = f"{backup_id}-{fragment['replicaset_uuid']}"
+        assert sorted(p.name for p in dest.iterdir()) == [f"{base}.json", f"{base}.tar.zst"]
+        assert list(tmp_root.iterdir()) == [], "the temporary layout must stay untouched"
+    finally:
+        rc, cleanup_out = finalize_backup(tt, target, backup_id, directory=dest, env=env)
+        assert rc == 0, f"backup cleanup failed:\n{cleanup_out}"
+
+
+@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
+@pytest.mark.tt_app(**TT_BACKUP_APP)
+def test_start_relative_dir_is_printed_absolute(tt, tt_app):
+    """The printed path is what an orchestrator feeds to its next step, which
+    need not run where the start ran, so a relative --dir has to be resolved
+    before the path reaches stdout."""
+    target = app_instance(tt_app, STORAGE_1_A)
+    backup_id = "itest-reldir"
+
+    rc, out = start_backup(tt, target, backup_id, directory="backup-out")
+    assert rc == 0, f"tt backup start --dir failed:\n{out}"
+
+    try:
+        # archive_path_from_output already refuses a relative path.
+        archive_path = archive_path_from_output(out)
+        assert os.path.isfile(archive_path)
+        assert os.path.realpath(os.path.dirname(archive_path)) == os.path.realpath(
+            os.path.join(tt.work_dir, "backup-out"),
+        )
+    finally:
+        rc, cleanup_out = finalize_backup(tt, target, backup_id, directory="backup-out")
+        assert rc == 0, f"backup cleanup failed:\n{cleanup_out}"
+
+
+@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
+@pytest.mark.tt_app(**TT_BACKUP_APP)
 def test_start_ttl_expiry_releases_the_lease(tt, tt_app):
     """The --ttl lease expires on the instance side, so an orchestrator that
     died between start and finalize does not pin the instance's gc forever.

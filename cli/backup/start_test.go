@@ -258,6 +258,66 @@ func TestStartBackup_buildsArchiveAndLeavesBackupOpen(t *testing.T) {
 	require.False(t, slices.Contains(m.exprs, "box.backup.stop()"), "stop must not be called")
 }
 
+// TestStartBackup_dirHoldsBothArtifactsDirectly checks that a named directory
+// is where the artifacts land, with no <backup-id> level below it: an
+// orchestrator points the flag at the directory it collects from, so anything
+// tt adds underneath is a file nobody picks up.
+func TestStartBackup_dirHoldsBothArtifactsDirectly(t *testing.T) {
+	tmpRoot := t.TempDir()
+	t.Setenv("TMPDIR", tmpRoot)
+	walDir := t.TempDir()
+	writeWalFiles(t, walDir)
+
+	// A path that does not exist yet: creating it is part of the contract.
+	dir := filepath.Join(t.TempDir(), "archives", "nested")
+
+	info := infoMap(walFiles, nil, Vclock{1: 1502}, nil)
+	inst := instanceMap("router-001", walDir, "")
+	m := &mockEvaler{queue: startQueue(info, inst)}
+
+	archivePath, err := Start(m, BackupStartOpts{BackupID: "dir-bid", Dir: dir})
+	require.NoError(t, err)
+
+	require.Equal(t,
+		filepath.Join(dir, "dir-bid-"+testReplicasetUUID+".tar.zst"),
+		archivePath)
+	require.FileExists(t, archivePath)
+	require.FileExists(t, fragmentPathFor(archivePath))
+	require.NoDirExists(t, filepath.Join(dir, "dir-bid"))
+	require.NoDirExists(t, filepath.Join(tmpRoot, localBackupRootDir),
+		"a named directory replaces the temporary layout instead of adding to it")
+}
+
+// TestStartBackup_relativeDirIsMadeAbsolute checks the printed path resolves
+// from anywhere. It is what an orchestrator reads from stdout and feeds to a
+// later step, which need not run in the directory the start ran in.
+func TestStartBackup_relativeDirIsMadeAbsolute(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+	walDir := t.TempDir()
+	writeWalFiles(t, walDir)
+
+	workDir := t.TempDir()
+	t.Chdir(workDir)
+
+	info := infoMap(walFiles, nil, Vclock{1: 1502}, nil)
+	inst := instanceMap("router-001", walDir, "")
+	m := &mockEvaler{queue: startQueue(info, inst)}
+
+	archivePath, err := Start(m, BackupStartOpts{BackupID: "rel-bid", Dir: "archives"})
+	require.NoError(t, err)
+	require.True(t, filepath.IsAbs(archivePath),
+		"the archive path goes to stdout and must be absolute: %s", archivePath)
+	require.FileExists(t, archivePath)
+
+	// EvalSymlinks: a temporary directory is reached through a symlink on
+	// macOS (/var -> /private/var), so the two spellings differ as strings.
+	wantDir, err := filepath.EvalSymlinks(filepath.Join(workDir, "archives"))
+	require.NoError(t, err)
+	gotDir, err := filepath.EvalSymlinks(filepath.Dir(archivePath))
+	require.NoError(t, err)
+	require.Equal(t, wantDir, gotDir)
+}
+
 func TestStartBackup_fragmentFields(t *testing.T) {
 	t.Setenv("TMPDIR", t.TempDir())
 	walDir := t.TempDir()

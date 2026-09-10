@@ -31,10 +31,12 @@ var (
 	backupStartID         string
 	backupStartFromVclock string
 	backupStartTTL        time.Duration
+	backupStartDir        string
 
 	backupFinalizeCfg   string
 	backupFinalizeID    string
 	backupFinalizeForce bool
+	backupFinalizeDir   string
 
 	backupStorageConfig string
 	backupClusterName   string
@@ -267,9 +269,12 @@ func newBackupStartCmd() *cobra.Command {
 		Use:   "start (<APP:INSTANCE>|<URI>) [flags]",
 		Short: "Open a backup on the instance and build a local archive",
 		Long: `Open box.backup on the instance, pack WAL files and a per-shard manifest
-fragment into a .tar.zst archive under /tmp/tt-backup/<backup-id>/, and leave
-box.backup open. The archive path is printed to stdout. Closing box.backup is
-done by 'tt backup finalize' after the manifest has been uploaded.`,
+fragment into a .tar.zst archive, and leave box.backup open. The archive path
+is printed to stdout. Closing box.backup is done by 'tt backup finalize' after
+the manifest has been uploaded.
+
+--dir writes both artifacts directly into the given directory, which is created
+if it does not exist. Without it they go to $TMPDIR/tt-backup/<backup-id>/.`,
 		Args: cobra.ExactArgs(1),
 		RunE: runBackupStart,
 	}
@@ -282,6 +287,9 @@ done by 'tt backup finalize' after the manifest has been uploaded.`,
 			"incremental only")
 	cmd.Flags().DurationVar(&backupStartTTL, "ttl", time.Hour,
 		"force the backup to complete after this duration")
+	cmd.Flags().StringVar(&backupStartDir, "dir", "",
+		"directory for the archive and the manifest fragment; "+
+			"defaults to $TMPDIR/tt-backup/<backup-id>")
 
 	cmd.MarkFlagRequired("backup-id")
 
@@ -296,6 +304,10 @@ func newBackupFinalizeCmd() *cobra.Command {
 		Long: `Run box.backup.stop() on the instance and remove the local .tar.zst
 archive. Idempotent: if the backup is already closed, it does not fail.
 
+--dir removes the artifacts from the directory 'tt backup start --dir' wrote
+them to and leaves that directory in place. Without it they are looked up in
+$TMPDIR/tt-backup/<backup-id>/, which is removed once it is empty.
+
 --force closes whatever backup is open on the instance without naming a
 --backup-id, for when the id that opened it is unknown or not trusted. It
 only runs box.backup.stop(): no local archive or fragment is removed.`,
@@ -309,8 +321,14 @@ only runs box.backup.stop(): no local archive or fragment is removed.`,
 		"backup identifier; local artifacts of the target replicaset are removed")
 	cmd.Flags().BoolVar(&backupFinalizeForce, "force", false,
 		"close whatever backup is open on the instance; removes no local file")
+	cmd.Flags().StringVar(&backupFinalizeDir, "dir", "",
+		"directory holding the artifacts to remove; "+
+			"defaults to $TMPDIR/tt-backup/<backup-id>")
 	cmd.MarkFlagsOneRequired("backup-id", "force")
 	cmd.MarkFlagsMutuallyExclusive("backup-id", "force")
+	// --force removes no local artifact, so a directory to remove them from
+	// says the caller expects a cleanup this run will not do.
+	cmd.MarkFlagsMutuallyExclusive("dir", "force")
 
 	return cmd
 }
@@ -1316,6 +1334,7 @@ func runBackupStartInner(args []string) (string, error) {
 		FromVclock: fromVclock,
 		TTL:        backupStartTTL,
 		InstName:   instanceNameFromTarget(args[0]),
+		Dir:        backupStartDir,
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to start backup: %w", err)
@@ -1346,7 +1365,7 @@ func runBackupFinalize(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if err := backup.Stop(conn, backupFinalizeID); err != nil {
+	if err := backup.Stop(conn, backupFinalizeID, backupFinalizeDir); err != nil {
 		return fmt.Errorf("failed to finalize backup: %w", err)
 	}
 
