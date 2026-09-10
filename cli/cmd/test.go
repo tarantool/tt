@@ -119,10 +119,16 @@ func runTest(subPath string, luatestArgs []string) error {
 		return err
 	}
 
+	sources, err := registrySources()
+	if err != nil {
+		return err
+	}
+
 	opts := build.Options{
 		ProjectDir: root,
 		TtVersion:  "tt " + ttversion.GetVersion(true, false),
 		Tarantool:  tntInfo,
+		Registries: sources,
 		ShowOutput: cmdCtx.Cli.Verbose,
 		Warn:       func(msg string) { log.Warn(msg) },
 	}

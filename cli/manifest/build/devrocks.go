@@ -49,11 +49,16 @@ func EnsureDevRocks(
 		return err
 	}
 
+	registries, err := effectiveRegistries(opts, man)
+	if err != nil {
+		return err
+	}
+
 	tree := filepath.Join(opts.ProjectDir, rocksDirName)
 	adapter := rocks.New(rocks.BuildConfig(opts.Tarantool, rocks.ConfigOptions{
 		Tree:       tree,
 		WorkingDir: opts.ProjectDir,
-		Servers:    opts.Servers,
+		Servers:    rocks.URLs(registries),
 		Logger:     opts.Logger,
 	}))
 
