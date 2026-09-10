@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -230,4 +232,122 @@ func TestResolveNoMatch(t *testing.T) {
 
 	_, err := adapter.Resolve(context.Background(), "metrics", ">=2.0.0", "")
 	assert.ErrorIs(t, err, rocks.ErrNoMatch)
+}
+
+// localRock is the rock name the directory-server tests publish.
+const localRock = "stat"
+
+// localRepo writes a directory rock server: a Lua-source `manifest` listing
+// localRock at every version as an "all" arch, plus the .all.rock file each
+// row points at. This is the shape `luarocks admin make_manifest` produces,
+// which is what makes a downloaded mirror usable as a server.
+func localRepo(t *testing.T, versions ...string) string {
+	t.Helper()
+
+	dir := t.TempDir()
+
+	entries := make([]string, 0, len(versions))
+
+	for _, version := range versions {
+		entries = append(entries,
+			`      ["`+version+`"] = {`+"\n"+
+				`         { arch = "all" }`+"\n"+
+				`      }`)
+
+		rock := filepath.Join(dir, localRock+"-"+version+".all.rock")
+		require.NoError(t, os.WriteFile(rock, []byte("rock"), 0o600))
+	}
+
+	body := "commands = {}\nmodules = {}\nrepository = {\n   " + localRock + " = {\n" +
+		strings.Join(entries, ",\n") + "\n   }\n}\n"
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "manifest"), []byte(body), 0o600))
+
+	return dir
+}
+
+func TestResolveLocalDirectoryServer(t *testing.T) {
+	t.Parallel()
+
+	dir := localRepo(t, "0.3.1-1", "0.3.2-1")
+
+	adapter := newAdapter(dir)
+
+	resolved, err := adapter.Resolve(context.Background(), "stat", "", "")
+	require.NoError(t, err)
+
+	assert.Equal(t, "0.3.2-1", resolved.Version.Raw)
+	assert.Equal(t, filepath.Join(dir, "stat-0.3.2-1.all.rock"), resolved.URL)
+}
+
+func TestResolveLocalDirectoryBeforeHTTP(t *testing.T) {
+	t.Parallel()
+
+	var hits int32
+
+	dir := localRepo(t, "0.3.1-1")
+	server := manifestServer(t, repoJSON("stat", "9.9.9-1"), &hits)
+
+	adapter := newAdapter(dir, server.URL)
+
+	resolved, err := adapter.Resolve(context.Background(), "stat", "", "")
+	require.NoError(t, err)
+
+	// A directory and an HTTP server compose in one ordered list: the
+	// directory answers first, so the network is never touched.
+	assert.Equal(t, "0.3.1-1", resolved.Version.Raw)
+	assert.Zero(t, atomic.LoadInt32(&hits))
+}
+
+func TestResolveRegistryOverrideLocalDirectory(t *testing.T) {
+	t.Parallel()
+
+	var hits int32
+
+	dir := localRepo(t, "0.3.1-1")
+	server := manifestServer(t, repoJSON("stat", "9.9.9-1"), &hits)
+
+	adapter := newAdapter(server.URL)
+
+	// A per-dependency registry may name a directory as well as a URL.
+	resolved, err := adapter.Resolve(context.Background(), "stat", "", dir)
+	require.NoError(t, err)
+
+	assert.Equal(t, "0.3.1-1", resolved.Version.Raw)
+	assert.Zero(t, atomic.LoadInt32(&hits))
+}
+
+func TestResolveFileURLServer(t *testing.T) {
+	t.Parallel()
+
+	dir := localRepo(t, "0.3.1-1")
+
+	adapter := newAdapter("file://" + dir)
+
+	resolved, err := adapter.Resolve(context.Background(), "stat", "", "")
+	require.NoError(t, err)
+
+	assert.Equal(t, "0.3.1-1", resolved.Version.Raw)
+}
+
+func TestResolveNoServersConfigured(t *testing.T) {
+	t.Parallel()
+
+	adapter := rocks.New(rocks.BuildConfig(rocks.TarantoolInfo{
+		Executable: "tarantool",
+		Prefix:     "/usr",
+		Version:    "3.1.0",
+	}, rocks.ConfigOptions{
+		Tree:       "/app/.rocks",
+		WorkingDir: "/app",
+		Servers:    []string{},
+		Logger:     nil,
+	}))
+
+	// An empty server list is a configuration error, not "no such rock":
+	// answering ErrNotFound would send the caller hunting a missing rock.
+	_, err := adapter.Resolve(context.Background(), "stat", "", "")
+	require.Error(t, err)
+	require.NotErrorIs(t, err, rocks.ErrNotFound)
+	assert.Contains(t, err.Error(), "no servers configured")
 }
