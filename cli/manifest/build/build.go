@@ -65,8 +65,11 @@ type Options struct {
 	TtVersion string
 	// Tarantool carries the Tarantool facts the rocks adapter needs.
 	Tarantool rocks.TarantoolInfo
-	// Servers overrides the rock-server list; nil uses the adapter default.
-	Servers []string
+	// Registries carries the rock servers the caller collected from the
+	// command line and the environment. The manifest's own list and the
+	// project directory are filled in here, so the caller need not parse the
+	// manifest to know which servers a build will query.
+	Registries rocks.Sources
 	// ShowOutput streams child (backend / hook) output when true.
 	ShowOutput bool
 	// Now stamps version.lua's built_at; the zero value uses the wall clock.
@@ -143,11 +146,16 @@ func RunResult(ctx context.Context, opts Options) (*Result, error) {
 		return nil, err
 	}
 
+	registries, err := effectiveRegistries(opts, man)
+	if err != nil {
+		return nil, err
+	}
+
 	tree := filepath.Join(opts.ProjectDir, rocksDirName)
 	adapter := rocks.New(rocks.BuildConfig(opts.Tarantool, rocks.ConfigOptions{
 		Tree:       tree,
 		WorkingDir: opts.ProjectDir,
-		Servers:    opts.Servers,
+		Servers:    rocks.URLs(registries),
 		Logger:     opts.Logger,
 	}))
 
@@ -156,6 +164,26 @@ func RunResult(ctx context.Context, opts Options) (*Result, error) {
 	}
 
 	return runBuild(ctx, opts, man, adapter, tree, productName, product)
+}
+
+// effectiveRegistries settles the rock-server list for this run: the caller's
+// command-line and environment lists over the manifest's own, over the
+// built-in defaults.
+func effectiveRegistries(opts Options, man *manifest.Manifest) ([]rocks.Registry, error) {
+	sources := opts.Registries
+	sources.Manifest = man.Platform.Registries
+	sources.ProjectDir = opts.ProjectDir
+
+	if sources.WorkingDir == "" {
+		sources.WorkingDir = opts.ProjectDir
+	}
+
+	registries, err := rocks.EffectiveRegistries(sources)
+	if err != nil {
+		return nil, exitErrorf(exitStateError, "%w", err)
+	}
+
+	return registries, nil
 }
 
 // readManifest reads, parses and validates app.manifest.toml from projectDir,

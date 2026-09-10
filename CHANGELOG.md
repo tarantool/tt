@@ -118,6 +118,39 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   keeps dev-only rocks out of the archive. A lock written before this change,
   against a manifest that declares dev dependencies, is reported stale so the
   closure is filled in on the next resolve.
+- Configurable rock registries. `[platform].registries` in
+  `app.manifest.toml` declares the ordered server list a project resolves
+  against, the `TT_REGISTRIES` environment variable (comma-separated)
+  overrides it, and `--registry <url|dir>` on `tt package build`, `fetch`,
+  `pack`, `resolve`, `add`, `remove`, `update`, `search` and `download`
+  overrides both. The layers replace one another rather than merging: the
+  list is ordered and resolution takes the first server that has a rock, so
+  an appended server would change the answer instead of adding a fallback.
+  With nothing configured the built-in defaults are used, and a dependency's
+  own `registry` key still wins for that dependency. An entry is an HTTP(S)
+  URL or a local directory; a relative path is taken relative to the manifest
+  for the manifest's own list, and to the current directory otherwise.
+- `tt registry list`: print the effective rock-server list in the order it is
+  queried, each server with the layer it was configured in — the flag, the
+  environment, the manifest or the built-in defaults. `-o` selects the format
+  (table, json or yaml; the default is the table on a terminal and YAML
+  otherwise).
+- `tt package search <term>`: find rocks whose name contains the term on the
+  configured servers, reporting every version each server offers. Unlike
+  resolution, which stops at the first server that has a rock, a search asks
+  all of them. A term that matches nothing is not an error: the table form
+  says so on stderr and writes nothing to stdout, and the machine forms print
+  an empty list.
+- `tt package download [<name>[@<version>]...]`: fetch rock files into
+  `--dir` (the current directory by default) and write the LuaRocks
+  `manifest` that indexes them, so the directory is itself a rock server —
+  point `--registry` or `TT_REGISTRIES` at it and the project builds with no
+  network at all. With no arguments the project's locked closure is mirrored
+  at its exact versions: every product's dependencies and the dev closure,
+  which needs a lock, so `tt package resolve` comes first. A dependency that
+  does not come from a registry has no rock file to mirror and is skipped
+  with a warning. Re-running overwrites and re-indexes, so a mirror can be
+  extended in place. Each written path is printed to stdout.
 - `tt status`: add `--format` option to support JSON and YAML output formats
 for machine-readable output.
 

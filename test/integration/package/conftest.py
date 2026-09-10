@@ -238,23 +238,56 @@ def system_staging(tmp_path: Path) -> Tree:
 
 
 @pytest.fixture()
-def rock_server():
-    """Serve the fixture rock repository over loopback and yield its base URL.
+def _rock_server_running():
+    """Serve the fixture rock repository over loopback.
 
-    The dependency commands re-resolve, and resolution talks to a rock server.
-    Pointing a dependency's `registry` key at this one keeps the suite offline
-    while still exercising the HTTP path.
+    Yields the server and a callable that shuts it down, so a test can take the
+    "internet" away halfway through. Shutting down twice is harmless: the test
+    that stops it early and the teardown that stops it late both run.
     """
     handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(ROCKS_REPO))
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    try:
-        yield f"http://127.0.0.1:{server.server_address[1]}/"
-    finally:
+
+    stopped = False
+
+    def stop() -> None:
+        nonlocal stopped
+        if stopped:
+            return
+        stopped = True
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+    try:
+        yield server, stop
+    finally:
+        stop()
+
+
+@pytest.fixture()
+def rock_server(_rock_server_running):
+    """The base URL of the loopback rock repository.
+
+    The dependency commands re-resolve, and resolution talks to a rock server.
+    Pointing a dependency's `registry` key at this one keeps the suite offline
+    while still exercising the HTTP path.
+    """
+    server, _ = _rock_server_running
+    return f"http://127.0.0.1:{server.server_address[1]}/"
+
+
+@pytest.fixture()
+def stop_rock_server(_rock_server_running):
+    """Take the loopback server down mid-test.
+
+    This is what makes an offline assertion mean something: a command that
+    succeeds after the server is gone cannot have reached it.
+    """
+    _, stop = _rock_server_running
+    return stop
 
 
 @pytest.fixture()
