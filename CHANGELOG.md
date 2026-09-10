@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt backup start` / `tt backup finalize`: added `--dir` flag to choose the
   directory of the local archive and manifest fragment instead of
   `$TMPDIR/tt-backup/<backup-id>`.
+- `tt backup start` / `tt backup finalize`: added `--sslkeyfile`,
+  `--sslcertfile`, `--sslcafile` and `--sslciphers` flags to connect to an
+  instance with iproto TLS enabled.
 
 ### Changed
 

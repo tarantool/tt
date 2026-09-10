@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/cli/backup"
+	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/util"
 )
 
@@ -130,6 +131,54 @@ func TestBackupStartAndFinalizeShareTheDirFlag(t *testing.T) {
 			assert.Empty(t, flag.DefValue, "the default layout is chosen by an unset flag")
 		})
 	}
+}
+
+// TestBackupStartAndFinalizeShareTheSslFlags checks both ends of a backup can
+// reach an instance whose iproto listener has TLS enabled: a start that can
+// connect and a finalize that cannot leaves the backup open on the instance.
+func TestBackupStartAndFinalizeShareTheSslFlags(t *testing.T) {
+	for _, cmd := range []*cobra.Command{newBackupStartCmd(), newBackupFinalizeCmd()} {
+		t.Run(cmd.Name(), func(t *testing.T) {
+			for _, name := range []string{
+				"sslkeyfile",
+				"sslcertfile",
+				"sslcafile",
+				"sslciphers",
+			} {
+				flag := cmd.Flags().Lookup(name)
+				require.NotNil(t, flag, "the command must accept --%s", name)
+				assert.Empty(t, flag.DefValue, "a plain TCP dial is chosen by unset flags")
+			}
+		})
+	}
+}
+
+// TestBackupConnectCtxCarriesSslFlags checks the flag values reach the dial.
+// dialBackupTarget itself needs a live instance, so the check is split between
+// the context it builds and makeConnOpts, which every target form goes through.
+func TestBackupConnectCtxCarriesSslFlags(t *testing.T) {
+	t.Run("set", func(t *testing.T) {
+		setFlag(t, &backupSslKeyFile, "/certs/localhost.key")
+		setFlag(t, &backupSslCertFile, "/certs/localhost.crt")
+		setFlag(t, &backupSslCaFile, "/certs/ca.crt")
+		setFlag(t, &backupSslCiphers, "ECDHE-RSA-AES256-GCM-SHA384")
+
+		connCtx := backupConnectCtx()
+		assert.True(t, connCtx.Binary, "box.backup.* is a binary-protocol surface")
+
+		opts := makeConnOpts(connector.TCPNetwork, "localhost:3301", connCtx)
+		assert.Equal(t, connector.SslOpts{
+			KeyFile:  "/certs/localhost.key",
+			CertFile: "/certs/localhost.crt",
+			CaFile:   "/certs/ca.crt",
+			Ciphers:  "ECDHE-RSA-AES256-GCM-SHA384",
+		}, opts.Ssl)
+	})
+
+	t.Run("unset", func(t *testing.T) {
+		opts := makeConnOpts(connector.TCPNetwork, "localhost:3301", backupConnectCtx())
+		assert.Zero(t, opts.Ssl, "without the flags the dial stays plain TCP")
+	})
 }
 
 // setFlag points a package-level cobra flag variable at value for one test.
