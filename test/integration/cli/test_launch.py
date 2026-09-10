@@ -13,6 +13,30 @@ from utils import config_name, create_external_module, create_tt_config, run_com
 # of modules that have an internal implementation.
 # `version` module is the lightest module, so we test using it.
 
+# `tt run` acts on the package in the working directory, so the tests that
+# reach the interpreter through it need a manifest there. With `-L <dir>` the
+# working directory is <dir>, since local launch changes into it. Which
+# interpreter runs still comes from the tt environment (env.bin_dir first,
+# then PATH), which is what those tests check.
+MANIFEST = """manifest_version = '0.1'
+
+[package]
+name = 'launch'
+
+[platform]
+tarantool = '>=3.0.0'
+tt = '>=3.1.0'
+
+[products.default]
+components = ['lua']
+default = true
+"""
+
+
+def write_manifest(directory) -> None:
+    with open(os.path.join(directory, "app.manifest.toml"), "w") as f:
+        f.write(MANIFEST)
+
 
 # ##### #
 # Tests #
@@ -209,7 +233,9 @@ def test_launch_local_tarantool(tt_cmd, tmp_path):
         [tt_cmd, "--cfg", config_path, "run", "--version"],
     ]
 
+    write_manifest(tmp_path)
     with tempfile.TemporaryDirectory() as tmp_working_dir:
+        write_manifest(tmp_working_dir)
         for cmd in commands:
             rc, output = run_command_and_get_output(cmd, cwd=tmp_working_dir)
             assert rc == 0
@@ -232,6 +258,7 @@ def test_launch_local_tarantool_missing_in_bin_dir(tt_cmd, tmp_path):
         [tt_cmd, "--cfg", config_path, "run", "--version"],
     ]
 
+    write_manifest(tmp_path)
     for cmd in commands_in_tmp:
         rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
         # Missing binaries is not a error. Default Tarantool is used.
@@ -239,6 +266,7 @@ def test_launch_local_tarantool_missing_in_bin_dir(tt_cmd, tmp_path):
         assert "Tarantool" in output
 
     with tempfile.TemporaryDirectory() as tmp_working_dir:
+        write_manifest(tmp_working_dir)
         for cmd in commands_external:
             rc, output = run_command_and_get_output(cmd, cwd=tmp_working_dir)
             # Missing binaries is not a error. Default Tarantool is used.
@@ -262,6 +290,7 @@ def test_launch_local_launch_tarantool_with_config_in_parent_dir(tt_cmd, tmp_pat
         [tt_cmd, "-L", tmpdir_without_config, "run", "--version"],
     ]
 
+    write_manifest(tmpdir_without_config)
     with tempfile.TemporaryDirectory() as tmp_working_dir:
         for cmd in commands:
             rc, output = run_command_and_get_output(cmd, cwd=tmp_working_dir)
@@ -286,6 +315,7 @@ def test_launch_local_launch_tarantool_with_yml_config_in_parent_dir(tt_cmd, tmp
         [tt_cmd, "-L", tmpdir_without_config, "run", "--version"],
     ]
 
+    write_manifest(tmpdir_without_config)
     with tempfile.TemporaryDirectory() as tmp_working_dir:
         for cmd in commands:
             rc, output = run_command_and_get_output(cmd, cwd=tmp_working_dir)
@@ -308,6 +338,7 @@ def test_launch_system_tarantool(tt_cmd, tmp_path):
     command = [tt_cmd, "-S", "run"]
 
     with tempfile.TemporaryDirectory() as tmp_working_dir:
+        write_manifest(tmp_working_dir)
         with open(os.path.join(tmp_working_dir, config_name), "w") as f:
             yaml.dump({"modules": {"directory": f"{tmp_path}"}, "env": {"bin_dir": ""}}, f)
         my_env = os.environ.copy()
@@ -331,6 +362,7 @@ def test_launch_system_tarantool_yml_system_config(tt_cmd, tmp_path):
     command = [tt_cmd, "-S", "run"]
 
     with tempfile.TemporaryDirectory() as tmp_working_dir:
+        write_manifest(tmp_working_dir)
         with open(os.path.join(tmp_working_dir, config_name.replace("yaml", "yml")), "w") as f:
             yaml.dump({"tt": {"modules": {"directory": f"{tmp_path}"}, "env": {"bin_dir": ""}}}, f)
         my_env = os.environ.copy()
@@ -348,6 +380,7 @@ def test_launch_system_tarantool_missing_executable(tt_cmd, tmp_path):
     command = [tt_cmd, "-S", "run", "--version"]
 
     with tempfile.TemporaryDirectory() as tmp_working_dir:
+        write_manifest(tmp_working_dir)
         my_env = os.environ.copy()
         my_env["TT_SYSTEM_CONFIG_DIR"] = tmp_path
         rc, output = run_command_and_get_output(command, cwd=tmp_working_dir, env=my_env)
