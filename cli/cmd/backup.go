@@ -164,6 +164,16 @@ without them, and those commands report an empty storage rather than an
 error. The exception is upload, which reads the pair out of the plan and
 needs the flags only to override it.`
 
+// backupClusterConfigHelp documents the --config flag of the commands that read
+// the cluster configuration to learn the topology: a file path or a config
+// storage URI, told apart by whether the value parses as a URI.
+var backupClusterConfigHelp = `cluster configuration source: a path to the cluster
+configuration file (cluster.yaml), or a URI of etcd or Tarantool Config Storage.
+A value that parses as a URI is fetched from the storage; anything else is read
+as a file.
+
+` + clusterUriHelp
+
 // addBackupStorageFlags binds the storage a command works on: the URI or
 // config file, and the cluster and environment naming the subtree inside it.
 // Every command that touches a storage gets all three, so a backup written
@@ -288,7 +298,8 @@ whose iproto listener has TLS enabled.`,
 		RunE: runBackupStart,
 	}
 	cmd.Flags().StringVarP(&backupStartCfg, "config", "c", "",
-		"path to the cluster configuration file (for <APP:INSTANCE>)")
+		"path to the tt environment configuration (tt.yaml) that resolves an "+
+			"<APP:INSTANCE> target; a <URI> target needs none")
 	cmd.Flags().StringVar(&backupStartID, "backup-id", "",
 		"backup identifier (required)")
 	cmd.Flags().StringVar(&backupStartFromVclock, "from-vclock", "",
@@ -329,7 +340,8 @@ whose iproto listener has TLS enabled.`,
 	}
 
 	cmd.Flags().StringVarP(&backupFinalizeCfg, "config", "c", "",
-		"path to the cluster configuration file (for <APP:INSTANCE>)")
+		"path to the tt environment configuration (tt.yaml) that resolves an "+
+			"<APP:INSTANCE> target; a <URI> target needs none")
 	cmd.Flags().StringVar(&backupFinalizeID, "backup-id", "",
 		"backup identifier; local artifacts of the target replicaset are removed")
 	cmd.Flags().BoolVar(&backupFinalizeForce, "force", false,
@@ -382,9 +394,17 @@ func newBackupPlanCmd() *cobra.Command {
 		Use:   "plan --target=(incremental|full) --backup-storage=<uri> [flags]",
 		Short: "Plan the next backup: mode, master source, from_vclock",
 		Long: `Compute a backup plan from the current cluster topology and the latest
-		manifest in the storage.`,
-		Example: `$ tt backup plan --target=incremental --backup-storage=file:///var/backups
-  $ tt backup plan --target=full --backup-storage=file:///var/backups --format json
+manifest in the storage.
+
+The cluster configuration comes from --config: either the cluster
+configuration file (cluster.yaml) or the URI of the etcd or Tarantool Config
+Storage the cluster is configured from.`,
+		Example: `$ tt backup plan --target=incremental --backup-storage=file:///var/backups \
+    -c cluster.yaml
+  $ tt backup plan --target=incremental --backup-storage=file:///var/backups \
+    -c http://user:pass@etcd.example.com:2379/tt
+  $ tt backup plan --target=full --backup-storage=file:///var/backups --format json \
+    -c cluster.yaml
   $ tt backup plan --target=incremental --backup-storage=s3+https://... -c cluster.yaml
   $ tt backup plan --target=incremental --backup-storage=file:///var/backups \
     -c cluster.yaml --cluster-name payments-cluster --environment production`,
@@ -397,7 +417,7 @@ func newBackupPlanCmd() *cobra.Command {
 		backupPlanTargetHelp)
 	addBackupStorageFlags(cmd)
 	cmd.Flags().StringVarP(&backupPlanCfg, "config", "c", "",
-		clusterUriHelp)
+		backupClusterConfigHelp)
 	cmd.Flags().StringVar(&backupPlanFormat, "format", formatJSON,
 		"output format: table or json")
 	cmd.Flags().DurationVar(&backupPlanTimeout, "timeout", time.Minute,

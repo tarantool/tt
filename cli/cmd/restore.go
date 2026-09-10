@@ -328,7 +328,7 @@ func newRestorePlanCmd() *cobra.Command {
 	addBackupStorageFlags(cmd)
 	cmd.Flags().StringVarP(&restorePlanCfg, "config", "c", "",
 		"cluster configuration of the cluster being restored, to check the "+
-			"topology of the recovery point against.\n"+clusterUriHelp)
+			"topology of the recovery point against.\n"+backupClusterConfigHelp)
 	cmd.Flags().StringVarP(&restorePlanDir, "dir", "d", "",
 		"local directory to download the manifests and archives into")
 	cmd.Flags().StringVar(&restorePlanFormat, "format", formatJSON,
