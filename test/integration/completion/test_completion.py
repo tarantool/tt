@@ -21,6 +21,7 @@ tt_root_command: set[str] = set(
         "cluster",
         "logrotate",
         "run",
+        "test",
         "version",
         "completion",
         "env",

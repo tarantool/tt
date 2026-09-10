@@ -184,6 +184,7 @@ func NewCmdRoot() *cobra.Command {
 		NewCoredumpCmd(),
 		NewReplicasetCmd(),
 		NewRunCmd(),
+		NewTestCmd(),
 		NewSearchCmd(),
 		NewCleanCmd(),
 		NewCreateCmd(),
