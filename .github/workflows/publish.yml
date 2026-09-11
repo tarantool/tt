@@ -8,7 +8,7 @@ on:
 
 env:
   # Note: Use exactly match version of tool, to avoid unexpected issues with test on CI.
-  GO_VERSION: '1.25.7'
+  GO_VERSION: '1.26.5'
 
 jobs:
   validate-tag:
@@ -44,14 +44,6 @@ jobs:
           cd mage
           go run bootstrap.go
 
-      - name: Build OpenSSL 3.0
-        run: |
-          wget https://github.com/openssl/openssl/releases/download/openssl-3.0.8/openssl-3.0.8.tar.gz
-          tar -xvf openssl-3.0.8.tar.gz
-          cd openssl-3.0.8/
-          ./Configure --prefix=${GITHUB_WORKSPACE}/openssl no-shared
-          make && make install
-
       - name: Setup GoReleaser
         run: |
           curl -O -L https://github.com/goreleaser/goreleaser/releases/download/v1.12.3/goreleaser_1.12.3_amd64.deb
@@ -69,9 +61,6 @@ jobs:
 
       # These scripts will be picked up while building packages with goreleaser.
       - name: Generate ZSH, Bash and Fish completion scripts
-        env:
-          CGO_LDFLAGS: "-L${{ env.GITHUB_WORKSPACE }}/openssl/lib64"
-          CGO_CFLAGS: "-I${{ env.GITHUB_WORKSPACE }}/openssl/include"
         run: |
           mage build
           ./tt completion bash > tt-completion.bash
@@ -80,8 +69,6 @@ jobs:
 
       - name: Build packages
         env:
-          CGO_LDFLAGS: "-L${{ env.GITHUB_WORKSPACE }}/openssl/lib64"
-          CGO_CFLAGS: "-I${{ env.GITHUB_WORKSPACE }}/openssl/include"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           goreleaser release ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }} --skip-publish --config ./goreleaser/.goreleaser_linux.yml
@@ -119,10 +106,6 @@ jobs:
 
       # These scripts will be picked up while building packages with goreleaser.
       - name: Generate ZSH, Bash and Fish completion scripts
-        env:
-          TT_CLI_BUILD_SSL: 'static'
-          CGO_LDFLAGS: "-L/opt/openssl/lib"
-          CGO_CFLAGS: "-I/opt/openssl/include"
         run: |
           mage build
           ./tt completion bash > tt-completion.bash
@@ -131,8 +114,6 @@ jobs:
 
       - name: Build packages
         env:
-          CGO_LDFLAGS: "-L/opt/openssl/lib"
-          CGO_CFLAGS: "-I/opt/openssl/include"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           goreleaser release ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }} \
@@ -163,16 +144,6 @@ jobs:
           git clone https://github.com/magefile/mage
           cd mage
           go run bootstrap.go
-
-      - name: Build OpenSSL 3.0
-        run: |
-          wget https://github.com/openssl/openssl/releases/download/openssl-3.0.8/openssl-3.0.8.tar.gz
-          tar -xvf openssl-3.0.8.tar.gz
-          cd openssl-3.0.8/
-          ./Configure --prefix=${GITHUB_WORKSPACE}/openssl no-shared
-          make && make install
-          echo "CGO_LDFLAGS=-L${GITHUB_WORKSPACE}/openssl/lib" >> $GITHUB_ENV
-          echo "CGO_CFLAGS=-I${GITHUB_WORKSPACE}/openssl/include" >> $GITHUB_ENV
 
       - name: Set GoReleaser flags
         id: set-goreleaser-flags

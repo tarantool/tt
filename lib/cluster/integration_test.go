@@ -15,15 +15,15 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"gopkg.in/yaml.v3"
 
-	pkgstorage "github.com/tarantool/go-storage"
-	gcrypto "github.com/tarantool/go-storage/crypto"
-	etcddriver "github.com/tarantool/go-storage/driver/etcd"
-	tcsdriver "github.com/tarantool/go-storage/driver/tcs"
-	"github.com/tarantool/go-storage/hasher"
-	etcdtest "github.com/tarantool/go-storage/test_helpers/etcd"
-	"github.com/tarantool/go-tarantool/v2"
-	"github.com/tarantool/go-tarantool/v2/test_helpers"
-	tcs_helper "github.com/tarantool/go-tarantool/v2/test_helpers/tcs"
+	pkgstorage "github.com/tarantool/go-storage/v2"
+	gcrypto "github.com/tarantool/go-storage/v2/crypto"
+	etcddriver "github.com/tarantool/go-storage/v2/driver/etcd"
+	tcsdriver "github.com/tarantool/go-storage/v2/driver/tcs"
+	"github.com/tarantool/go-storage/v2/hasher"
+	etcdtest "github.com/tarantool/go-storage/v2/test_helpers/etcd"
+	"github.com/tarantool/go-tarantool/v3"
+	"github.com/tarantool/go-tarantool/v3/test_helpers"
+	tcs_helper "github.com/tarantool/go-tarantool/v3/test_helpers/tcs"
 
 	"github.com/tarantool/tt/lib/cluster"
 )
@@ -303,18 +303,19 @@ func TestEtcdCollectors_empty(t *testing.T) {
 	}()
 
 	cases := []struct {
-		Name      string
-		Collector cluster.DataCollector
+		Name          string
+		Collector     cluster.DataCollector
+		ExpectedError string
 	}{
-		{"all", newEtcdCollector(t, stor, "")},
-		{"key", newEtcdCollector(t, stor, "bar")},
+		{"all", newEtcdCollector(t, stor, ""), `a configuration data not found in etcd for prefix "/foo"`},
+		{"key", newEtcdCollector(t, stor, "bar"), "failed to fetch data from etcd: integrity: not found"},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			data, err := tc.Collector.Collect()
 			assert.Nil(t, data)
-			assert.Error(t, err)
+			assert.EqualError(t, err, tc.ExpectedError)
 		})
 	}
 }
@@ -733,6 +734,14 @@ func (h staticHasher) Name() string {
 
 func (h staticHasher) Hash(data []byte) ([]byte, error) {
 	return h.hash(data), nil
+}
+
+func (h staticHasher) Verify(data, stored []byte) error {
+	if string(h.hash(data)) != string(stored) {
+		return hasher.ErrHashMismatch
+	}
+
+	return nil
 }
 
 type echoSignerVerifier struct {

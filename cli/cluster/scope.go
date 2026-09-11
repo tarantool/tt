@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	goconfig "github.com/tarantool/go-config"
+	goconfig "github.com/tarantool/go-config/v2"
 )
 
 var (

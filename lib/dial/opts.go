@@ -1,6 +1,6 @@
 package dial
 
-import "github.com/tarantool/go-tarantool/v2"
+import "github.com/tarantool/go-tarantool/v3"
 
 // Opts represents set of dialer parameters.
 type Opts struct {
