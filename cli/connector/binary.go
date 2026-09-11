@@ -3,14 +3,11 @@ package connector
 import (
 	"context"
 	"errors"
-	"math"
-	"strings"
-	"time"
 
-	"github.com/tarantool/go-tarantool/v2"
-	_ "github.com/tarantool/go-tarantool/v2/datetime"
-	_ "github.com/tarantool/go-tarantool/v2/decimal"
-	_ "github.com/tarantool/go-tarantool/v2/uuid"
+	"github.com/tarantool/go-tarantool/v3"
+	_ "github.com/tarantool/go-tarantool/v3/datetime"
+	_ "github.com/tarantool/go-tarantool/v3/decimal"
+	_ "github.com/tarantool/go-tarantool/v3/uuid"
 )
 
 var (
@@ -49,11 +46,7 @@ func (conn *BinaryConnector) Eval(expr string, args []any,
 	var err error
 	var data []any
 	future := conn.conn.Do(evalReq)
-	if opts.PushCallback != nil {
-		if err := processPushes(future, opts); err != nil {
-			return nil, err
-		}
-	}
+	defer future.Release()
 
 	// Get response once.
 	if opts.ResData != nil {
@@ -73,30 +66,6 @@ func (conn *BinaryConnector) Eval(expr string, args []any,
 	return data, nil
 }
 
-func processPushes(future *tarantool.Future, opts RequestOpts) error {
-	var timeout time.Duration
-	if opts.ReadTimeout != 0 {
-		timeout = opts.ReadTimeout
-	} else {
-		timeout = time.Duration(math.MaxInt64)
-	}
-	for it := future.GetIterator().WithTimeout(timeout); it.Next(); {
-		if err := it.Err(); err != nil {
-			return replaceContextDone(err)
-		}
-		if !it.IsPush() {
-			break
-		}
-		resp := it.Value()
-		pushData, err := resp.Decode()
-		if err != nil {
-			return replaceContextDone(err)
-		}
-		opts.PushCallback(pushData[0])
-	}
-	return nil
-}
-
 // Close closes the tarantool.Connector created from.
 func (conn *BinaryConnector) Close() error {
 	if conn.conn != nil {
@@ -107,7 +76,7 @@ func (conn *BinaryConnector) Close() error {
 
 // replaceContextDone replaces "context done" error by "i/o timeout" error.
 func replaceContextDone(err error) error {
-	if err == nil || !strings.HasPrefix(err.Error(), "context is done") {
+	if !errors.Is(err, context.DeadlineExceeded) {
 		return err
 	}
 	return errIOTimeout

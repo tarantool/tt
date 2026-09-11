@@ -6,8 +6,8 @@ import (
 	"os"
 
 	"github.com/spf13/pflag"
-	gcrypto "github.com/tarantool/go-storage/crypto"
-	"github.com/tarantool/go-storage/hasher"
+	gcrypto "github.com/tarantool/go-storage/v2/crypto"
+	"github.com/tarantool/go-storage/v2/hasher"
 )
 
 // IntegrityCtx is context required for integrity checks.

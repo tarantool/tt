@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/mitchellh/mapstructure"
-	goconfig "github.com/tarantool/go-config"
+	goconfig "github.com/tarantool/go-config/v2"
 	"github.com/tarantool/tt/cli/cluster"
 	"github.com/tarantool/tt/cli/util"
 	libcluster "github.com/tarantool/tt/lib/cluster"

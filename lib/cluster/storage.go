@@ -14,13 +14,13 @@ import (
 	"strings"
 	"time"
 
-	gstorage "github.com/tarantool/go-storage"
-	gsconnect "github.com/tarantool/go-storage/connect"
-	"github.com/tarantool/go-storage/driver/etcd"
-	"github.com/tarantool/go-storage/driver/tcs"
-	"github.com/tarantool/go-storage/integrity"
-	"github.com/tarantool/go-storage/marshaller"
-	"github.com/tarantool/go-tarantool/v2"
+	gstorage "github.com/tarantool/go-storage/v2"
+	gsconnect "github.com/tarantool/go-storage/v2/connect"
+	"github.com/tarantool/go-storage/v2/driver/etcd"
+	"github.com/tarantool/go-storage/v2/driver/tcs"
+	"github.com/tarantool/go-storage/v2/integrity"
+	"github.com/tarantool/go-storage/v2/marshaller"
+	"github.com/tarantool/go-tarantool/v3"
 	libconnect "github.com/tarantool/tt/lib/connect"
 	"github.com/tarantool/tt/lib/dial"
 	"go.etcd.io/etcd/client/pkg/v3/transport"
@@ -86,7 +86,7 @@ func NewStorage(
 	prefix = strings.TrimRight(prefix, "/")
 
 	codec := integrity.NewCodecBuilder[StorageDataType]().
-		WithMarshaller(marshaller.NewTypedBytesMarshaller())
+		WithMarshaller(marshaller.NewBytesMarshaller())
 	if objectLocation != "" {
 		codec = codec.WithObjectLocation(objectLocation)
 	}
@@ -233,7 +233,7 @@ func (r *RawStorage) Watch(ctx context.Context, key string) (<-chan WatchEvent, 
 		defer close(ch)
 
 		for resp := range innerCh {
-			value, _ := r.Get(ctx, string(resp.Prefix))
+			value, _ := r.Get(ctx, string(resp.Key))
 			ch <- WatchEvent{
 				Key:   key,
 				Value: value[0].Value,

@@ -11,7 +11,7 @@ on:
 
 env:
   # Note: Use exactly match version of tool, to avoid unexpected issues with test on CI.
-  GO_VERSION: '1.26.0'
+  GO_VERSION: '1.26.5'
   PYTHON_VERSION: '3.10'
 
 jobs:
@@ -218,8 +218,6 @@ jobs:
         uses: ./.github/actions/setup-etcd
 
       - name: Build tt
-        env:
-          TT_CLI_BUILD_SSL: 'static'
         run: mage build
 
       - name: Install tarantool
