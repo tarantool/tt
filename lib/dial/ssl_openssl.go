@@ -1,16 +1,16 @@
-//go:build !openssl
-// +build !openssl
+//go:build openssl
+// +build openssl
 
 package dial
 
 import (
 	"github.com/tarantool/go-tarantool/v3"
 	"github.com/tarantool/go-tlsdialer/v2"
-	"github.com/tarantool/go-tlsdialer/v2/backend/gostls"
+	"github.com/tarantool/go-tlsdialer/v2/backend/openssl"
 )
 
 func newTLSBackend() tlsdialer.Backend {
-	return gostls.New()
+	return openssl.New()
 }
 
 func ssl(opts Opts) (tarantool.Dialer, error) {

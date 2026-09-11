@@ -3,8 +3,6 @@ version: "2"
 run:
   timeout: 3m
   build-tags:
-    - go_tarantool_ssl_disable
-    - tt_ssl_disable
     - integration
     - integration_docker
     - mage

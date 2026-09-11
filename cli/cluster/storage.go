@@ -7,8 +7,8 @@ import (
 	"io"
 	"time"
 
-	goconfig "github.com/tarantool/go-config"
-	gsconnect "github.com/tarantool/go-storage/connect"
+	goconfig "github.com/tarantool/go-config/v2"
+	gsconnect "github.com/tarantool/go-storage/v2/connect"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 	"github.com/tarantool/tt/lib/connect"
 	"github.com/tarantool/tt/lib/integrity"

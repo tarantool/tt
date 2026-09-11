@@ -123,6 +123,13 @@ for machine-readable output.
 
 ### Changed
 
+- Updated Go client dependencies to `go-tarantool/v3`, `go-config/v2`,
+  `go-storage/v2`, and `go-tlsdialer/v2`.
+- TLS build modes are now selected through `TT_CLI_BUILD_SSL`: leave it unset or
+  set it to `default` for pure-Go `gostls`, use `openssl` for dynamically linked
+  OpenSSL, or `openssl_static` for OpenSSL and a statically linked binary. The
+  static mode requires OpenSSL static libraries at build time. The former `no`,
+  `shared`, and `static` values are no longer accepted.
 - Application discovery now uses only the directory containing `tt.yaml` as
   the application root. The multi-application layout is no longer supported;
   `env.instances_enabled` is retained as an ignored compatibility option.

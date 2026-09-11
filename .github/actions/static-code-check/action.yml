@@ -19,8 +19,6 @@ runs:
     # This step is used to perform source generation, so subsequent check is done
     # against the "complete" source set.
     - name: Build tt
-      env:
-        TT_CLI_BUILD_SSL: 'static'
       run: mage build
       shell: bash
 

@@ -85,7 +85,6 @@ def tt_cmd(tmp_path_factory: TempPathFactory, request: pytest.FixtureRequest) ->
 
     build_env = os.environ.copy()
     build_env["TTEXE"] = str(tt_path)  # spell-checker:ignore TTEXE
-    build_env.setdefault("TT_CLI_BUILD_SSL", "static")
 
     process = subprocess.run(["mage", "-v", "build"], cwd=tt_base_path, env=build_env, text=True)
     assert process.returncode == 0, "Failed to build Tarantool CLI executable"

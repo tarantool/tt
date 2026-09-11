@@ -13,8 +13,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/go-tarantool/v2"
-	"github.com/tarantool/go-tarantool/v2/test_helpers"
+	"github.com/tarantool/go-tarantool/v3"
+	"github.com/tarantool/go-tarantool/v3/test_helpers"
 
 	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/replicaset"
@@ -49,7 +49,10 @@ func doRequest(req tarantool.Request) error {
 		_ = conn.Close()
 	}()
 
-	_, err = conn.Do(req).Get()
+	future := conn.Do(req)
+	defer future.Release()
+
+	_, err = future.Get()
 	return err
 }
 
@@ -548,7 +551,9 @@ func runTestMain(m *testing.M) int {
 		return 1
 	}
 
-	_, err = conn.Do(tarantool.NewPingRequest()).Get()
+	future := conn.Do(tarantool.NewPingRequest())
+	_, err = future.Get()
+	future.Release()
 	_ = conn.Close()
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stdout, "Failed to ping tarantool server:", err)

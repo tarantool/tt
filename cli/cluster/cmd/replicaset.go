@@ -7,7 +7,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/manifoldco/promptui"
-	"github.com/tarantool/go-storage"
+	"github.com/tarantool/go-storage/v2"
 	"github.com/tarantool/tt/cli/replicaset"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 	"github.com/tarantool/tt/lib/connect"

@@ -318,7 +318,7 @@ def test_cluster_show_config_no_key(
     )
     show_output = instance_process.stdout.read()
 
-    expected = f"failed to fetch data from {storage_name}: not found"
+    expected = f"failed to fetch data from {storage_name}: integrity: not found"
     assert expected in show_output
 
 

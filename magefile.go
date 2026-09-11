@@ -85,10 +85,9 @@ var (
 type BuildType string
 
 const (
-	BuildTypeDefault BuildType = ""
-	BuildTypeNoCgo   BuildType = "no"
-	BuildTypeShared  BuildType = "shared"
-	BuildTypeStatic  BuildType = "static"
+	BuildTypeDefault       BuildType = "default"
+	BuildTypeOpenSSL       BuildType = "openssl"
+	BuildTypeOpenSSLStatic BuildType = "openssl_static"
 )
 
 func init() {
@@ -126,7 +125,7 @@ func appendLdFlags(flags ...string) optsUpdater {
 		buildLdflags = append(buildLdflags, flags...)
 
 		buildType := os.Getenv(buildTypeEnv)
-		if BuildType(buildType) == BuildTypeStatic && runtime.GOOS != "darwin" {
+		if BuildType(buildType) == BuildTypeOpenSSLStatic && runtime.GOOS != "darwin" {
 			buildLdflags = append(buildLdflags, staticLdflags...)
 		}
 		return append(append(args, "-ldflags"), strings.Join(buildLdflags, " ")), nil
@@ -135,28 +134,25 @@ func appendLdFlags(flags ...string) optsUpdater {
 
 // appendTags appends tags.
 func appendTags(args []string) ([]string, error) {
-	tags := []string{"netgo", "osusergo", "go_tarantool_msgpack_v5"}
+	tags := []string{"netgo", "osusergo"}
 
 	buildType := os.Getenv(buildTypeEnv)
 	switch BuildType(buildType) {
-	case BuildTypeDefault:
-		fallthrough
-	case BuildTypeNoCgo:
-		tags = append(tags, "go_tarantool_ssl_disable", "tt_ssl_disable")
-	case BuildTypeStatic:
-		tags = append(tags, "openssl_static")
-	case BuildTypeShared:
+	case "", BuildTypeDefault:
+	case BuildTypeOpenSSL:
+		tags = append(tags, "openssl")
+	case BuildTypeOpenSSLStatic:
+		tags = append(tags, "openssl", "openssl_static")
 	default:
-		return []string{}, fmt.Errorf("%w%s, supported: "+
-			"%s, %s, %s",
+		return []string{}, fmt.Errorf("%w%s, supported: default, %s, %s",
 			errUnsupportedBuildType, buildType,
-			BuildTypeNoCgo, BuildTypeStatic, BuildTypeShared)
+			BuildTypeOpenSSL, BuildTypeOpenSSLStatic)
 	}
 	return append(append(args, "-tags"), strings.Join(tags, ",")), nil
 }
 
 // Building tt executable. Supported environment variables:
-// TT_CLI_BUILD_SSL=(no|static|shared).
+// TT_CLI_BUILD_SSL=(default|openssl|openssl_static); unset aliases default.
 func buildTt(argUpdaters ...optsUpdater) error {
 	const buildArgsCapacity = 8
 

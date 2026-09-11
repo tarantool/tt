@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/tarantool/go-tarantool/v2/datetime"
-	"github.com/tarantool/go-tarantool/v2/decimal"
+	"github.com/tarantool/go-tarantool/v3/datetime"
+	"github.com/tarantool/go-tarantool/v3/decimal"
 	"github.com/tarantool/tt/cli/aeon/pb"
 )
 
@@ -43,7 +43,7 @@ func decodeValue(val *pb.Value) (any, error) {
 		return val.GetVarbinaryValue(), nil
 	case *pb.Value_DecimalValue:
 		decStr := val.GetDecimalValue()
-		res, err := decimal.MakeDecimalFromString(decStr)
+		res, err := decimal.NewDecimalFromString(decStr)
 		if err != nil {
 			return nil, err
 		}
@@ -71,7 +71,7 @@ func decodeValue(val *pb.Value) (any, error) {
 			}
 			t = t.In(loc)
 		}
-		res, err := datetime.MakeDatetime(t)
+		res, err := datetime.NewDatetime(t)
 		if err != nil {
 			return nil, err
 		}

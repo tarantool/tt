@@ -13,9 +13,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/go-tarantool/v2"
-	"github.com/tarantool/go-tarantool/v2/test_helpers"
-	"github.com/tarantool/go-tlsdialer"
+	"github.com/tarantool/go-tarantool/v3"
+	"github.com/tarantool/go-tarantool/v3/test_helpers"
+	libdial "github.com/tarantool/tt/lib/dial"
 
 	. "github.com/tarantool/tt/cli/connector"
 )
@@ -194,7 +194,12 @@ func TestBinaryConnector_Eval_pushCallback(t *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Equal(t, []any{"return"}, ret)
-			assert.Equal(t, []any{"hello", "world"}, pushes)
+			// box.session.push() support was removed in go-tarantool v3.
+			if c.protocol == TextProtocol {
+				assert.Equal(t, []any{"hello", "world"}, pushes)
+			} else {
+				assert.Empty(t, pushes)
+			}
 		})
 	}
 }
@@ -387,7 +392,9 @@ func runTestMain(m *testing.M) int {
 		return 1
 	}
 	req := tarantool.NewEvalRequest("return box.info.package")
-	data, err := conn.Do(req).Get()
+	future := conn.Do(req)
+	data, err := future.Get()
+	future.Release()
 	_ = conn.Close()
 
 	if err != nil {
@@ -414,13 +421,18 @@ func runTestMain(m *testing.M) int {
 			"ssl_cert_file=testdata/localhost.crt&" +
 			"ssl_ca_file=testdata/ca.crt"
 
-		tlsDialer := tlsdialer.OpenSSLDialer{
+		tlsDialer, err := libdial.New(libdial.Opts{
 			Address:     serverTLS,
 			User:        dialer.User,
 			Password:    dialer.Password,
+			Transport:   "ssl",
 			SslKeyFile:  sslOpts.KeyFile,
 			SslCertFile: sslOpts.CertFile,
 			SslCaFile:   sslOpts.CaFile,
+		})
+		if err != nil {
+			_, _ = fmt.Fprintln(os.Stdout, "Failed to prepare TLS dialer:", err)
+			return 1
 		}
 		inst, err = test_helpers.StartTarantool(test_helpers.StartOpts{
 			InitScript:   "testdata/config.lua",

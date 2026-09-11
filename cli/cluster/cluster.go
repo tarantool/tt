@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"io"
 
-	goconfig "github.com/tarantool/go-config"
-	"github.com/tarantool/go-config/collectors"
-	gcttarantool "github.com/tarantool/go-config/tarantool"
+	goconfig "github.com/tarantool/go-config/v2"
+	"github.com/tarantool/go-config/v2/collectors"
+	gcttarantool "github.com/tarantool/go-config/v2/tarantool"
 	"github.com/tarantool/tt/lib/integrity"
 )
 

@@ -17,8 +17,6 @@ builds:
     tags:
       - netgo
       - osusergo
-      - openssl_static
-      - go_tarantool_msgpack_v5
 
     ldflags:
       - -linkmode=external -extldflags -static

@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/go-tarantool/v2"
-	"github.com/tarantool/go-tlsdialer"
+	"github.com/tarantool/go-tarantool/v3"
+	"github.com/tarantool/go-tlsdialer/v2"
 )
 
 func TestNew(t *testing.T) {
@@ -24,7 +24,8 @@ func TestNew(t *testing.T) {
 			opts: Opts{
 				SslCaFile: "any.key",
 			},
-			expected: tlsdialer.OpenSSLDialer{
+			expected: tlsdialer.TLSDialer{
+				Backend:   newTLSBackend(),
 				SslCaFile: "any.key",
 			},
 		},
@@ -33,7 +34,8 @@ func TestNew(t *testing.T) {
 			opts: Opts{
 				SslCaFile: "any_ca.crt",
 			},
-			expected: tlsdialer.OpenSSLDialer{
+			expected: tlsdialer.TLSDialer{
+				Backend:   newTLSBackend(),
 				SslCaFile: "any_ca.crt",
 			},
 		},
@@ -50,7 +52,8 @@ func TestNew(t *testing.T) {
 				SslKeyFile: "any.key",
 				Transport:  "",
 			},
-			expected: tlsdialer.OpenSSLDialer{
+			expected: tlsdialer.TLSDialer{
+				Backend:    newTLSBackend(),
 				SslKeyFile: "any.key",
 			},
 		},
@@ -59,7 +62,9 @@ func TestNew(t *testing.T) {
 			opts: Opts{
 				Transport: "ssl",
 			},
-			expected: tlsdialer.OpenSSLDialer{},
+			expected: tlsdialer.TLSDialer{
+				Backend: newTLSBackend(),
+			},
 		},
 		{
 			name: "transport_plain",
@@ -90,8 +95,9 @@ func TestNew(t *testing.T) {
 				Auth:      tarantool.ChapSha1Auth,
 				Transport: "ssl",
 			},
-			expected: tlsdialer.OpenSSLDialer{
-				Auth: tarantool.ChapSha1Auth,
+			expected: tlsdialer.TLSDialer{
+				Backend: newTLSBackend(),
+				Auth:    tarantool.ChapSha1Auth,
 			},
 		},
 	}

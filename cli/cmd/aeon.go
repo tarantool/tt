@@ -9,7 +9,7 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/cobra"
-	goconfig "github.com/tarantool/go-config"
+	goconfig "github.com/tarantool/go-config/v2"
 	aeon "github.com/tarantool/tt/cli/aeon"
 	aeoncmd "github.com/tarantool/tt/cli/aeon/cmd"
 	"github.com/tarantool/tt/cli/cluster"

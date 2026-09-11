@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/tarantool/go-tarantool/v2"
+	"github.com/tarantool/go-tarantool/v3"
 	"github.com/tarantool/tt/lib/dial"
 )
 
@@ -31,7 +31,8 @@ const (
 
 // RequestOpts describes the parameters of a request to be executed.
 type RequestOpts struct {
-	// PushCallback is the cb that will be called when a "push" message is received.
+	// PushCallback is called when a push message is received by the text protocol.
+	// The binary protocol ignores it because go-tarantool v3 does not expose pushes.
 	PushCallback func(any)
 	// ReadTimeout timeout for the operation.
 	ReadTimeout time.Duration

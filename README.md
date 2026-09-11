@@ -177,26 +177,25 @@ git clone https://github.com/tarantool/tt --recursive
 cd tt
 ```
 
-You can build a binary without OpenSSL and TLS support for development
-purposes:
+By default, tt uses the pure-Go TLS backend and does not require OpenSSL.
+Use the explicit `default` value to override another exported build mode:
 
 ``` console
-TT_CLI_BUILD_SSL=no mage build
 mage build
+TT_CLI_BUILD_SSL=default mage build
 ```
 
-You can build a binary with statically linked OpenSSL. This build type
-is used for releases:
+To use the dynamically linked OpenSSL backend:
 
 ``` console
-TT_CLI_BUILD_SSL=static mage build
+TT_CLI_BUILD_SSL=openssl mage build
 ```
 
-Finally, you can build a binary with dynamically linked OpenSSL for
-development purposes:
+To build a statically linked binary with the OpenSSL backend, install the
+OpenSSL static libraries and run:
 
 ``` console
-TT_CLI_BUILD_SSL=shared mage build
+TT_CLI_BUILD_SSL=openssl_static mage build
 ```
 
 #### Dependencies

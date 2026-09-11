@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/apex/log"
-	goconfig "github.com/tarantool/go-config"
+	goconfig "github.com/tarantool/go-config/v2"
 	"github.com/tarantool/tt/cli/cluster"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
