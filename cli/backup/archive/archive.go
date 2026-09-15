@@ -4,6 +4,7 @@ package archive
 
 import (
 	"archive/tar"
+	"errors"
 	"fmt"
 	"io"
 	"iter"
@@ -16,6 +17,49 @@ import (
 
 	"github.com/tarantool/tt/cli/util"
 )
+
+// The extensions a file's kind is read off. A file Tarantool is still writing
+// carries inProgressExt on top of the extension of its finished form, so the
+// suffix is stripped before the kind is read.
+const (
+	snapExt       = ".snap"
+	sortDataExt   = ".sortdata"
+	xlogExt       = ".xlog"
+	inProgressExt = ".inprogress"
+)
+
+// Kind is the kind of data file Tarantool keeps, which is what decides the
+// directory a file belongs in: each kind is written into one directory only,
+// and a restore has to put every file back into the directory its kind is
+// read from.
+type Kind int
+
+const (
+	// KindVinyl is the vinyl metadata log and the per-space run and index
+	// trees, all of which live in vinyl_dir. It is also what a file of no
+	// recognized kind counts as, so that neither a backup nor a restore drops
+	// a file it cannot name.
+	KindVinyl Kind = iota
+	// KindSnapshot is a memtx snapshot and the sort data file written beside
+	// it, both of which live in memtx_dir.
+	KindSnapshot
+	// KindWAL is a write-ahead log, which lives in wal_dir.
+	KindWAL
+)
+
+// KindOf reads a file's kind off its name. Packing and unpacking both classify
+// by it, and they have to agree: a file packed as one kind and unpacked as
+// another lands in a directory the instance does not read it from.
+func KindOf(name string) Kind {
+	switch filepath.Ext(strings.TrimSuffix(name, inProgressExt)) {
+	case snapExt, sortDataExt:
+		return KindSnapshot
+	case xlogExt:
+		return KindWAL
+	default:
+		return KindVinyl
+	}
+}
 
 // Entry is a single record inside an archive.
 type Entry struct {
@@ -166,14 +210,24 @@ func writeFile(tw *tar.Writer, path, name string) error {
 	return nil
 }
 
-// ensureSafeEntryName rejects any archive entry name that could write outside
-// destDir once its parent directories are created, or that is not already in
-// canonical form: absolute paths, ".." traversal, "./" prefixes, redundant
-// separators and (on Windows) reserved names.
-func ensureSafeEntryName(name string) error {
+// ErrUnsafeEntryName is what CheckEntryName refuses a name with, and through it
+// every reader of an archive. It is a sentinel so that a consumer can tell an
+// archive naming a file it cannot place -- something about the archive, which
+// the caller has to answer for -- from a failure to read the archive at all.
+var ErrUnsafeEntryName = errors.New("unsafe archive entry name")
+
+// CheckEntryName rejects any archive entry name that could write outside the
+// directory it is extracted into once its parent directories are created, or
+// that is not already in canonical form: absolute paths, ".." traversal, "./"
+// prefixes, redundant separators and (on Windows) reserved names.
+//
+// It is exported because a consumer that joins an entry name onto a directory
+// of its own answers for the same question, and must not have to restate the
+// rule.
+func CheckEntryName(name string) error {
 	local := filepath.FromSlash(name)
 	if !filepath.IsLocal(local) || filepath.Clean(local) != local {
-		return fmt.Errorf("unsafe archive entry name %q", name)
+		return fmt.Errorf("%w %q", ErrUnsafeEntryName, name)
 	}
 
 	return nil
@@ -188,7 +242,7 @@ func checkEntry(header *tar.Header) (skip bool, err error) {
 	case tar.TypeDir:
 		return true, nil
 	case tar.TypeReg:
-		return false, ensureSafeEntryName(header.Name) //nolint:wrapcheck
+		return false, CheckEntryName(header.Name) //nolint:wrapcheck
 	default:
 		return false, fmt.Errorf("unsupported tar entry %q (type %d)", header.Name, header.Typeflag)
 	}

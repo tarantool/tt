@@ -42,8 +42,8 @@ const trimTmpSuffix = ".trimmed"
 // go-xlog leave behind when they are interrupted. Cleanup removes exactly
 // these, so a work directory holding an instance's config or logs keeps them.
 var restoreArtifactExts = []string{
-	".snap", ".xlog", ".vylog", ".run", ".index",
-	".inprogress", ".uuidbak", patchTmpSuffix, trimTmpSuffix,
+	".snap", ".xlog", ".vylog", ".run", ".index", sortDataExt,
+	inProgressExt, ".uuidbak", patchTmpSuffix, trimTmpSuffix,
 }
 
 // patchedExts are the files whose header carries an instance UUID. Every one
@@ -65,8 +65,16 @@ type ApplyOpts struct {
 	// Checksums are the sha256 of each archive, in the same order. Empty
 	// skips the check.
 	Checksums []string
-	// WorkDir is the instance directory to rebuild.
+	// Layout is where each kind of file is put. All three directories have
+	// to be named; FlatLayout is the one directory case.
+	Layout Layout
+	// WorkDir is what the caller called the restore's base directory. It is
+	// recorded in the marker and nothing else: the data goes where Layout
+	// says. Empty records the snapshot directory instead.
 	WorkDir string
+	// InstanceName is the instance the directories were resolved for, empty
+	// when they were given directly. It is recorded in the marker.
+	InstanceName string
 	// Point is where the final xlog is cut. Nil replays the chain whole.
 	Point *Point
 	// PointName is the cluster recovery point the position came from; it is
@@ -79,9 +87,10 @@ type ApplyOpts struct {
 
 // ApplyResult reports what a run produced.
 type ApplyResult struct {
-	// Files are the entry names landed in the work directory, relative to it
-	// and in the order they were unpacked. Flat for snap/xlog, but vinyl's
-	// .run/.index carry a <space_id>/<index_id>/ prefix.
+	// Files are the entry names landed, in the order they were unpacked and
+	// relative to the directory of their own kind -- Layout.DirFor says which
+	// one that is. Flat for snap/xlog, but vinyl's .run/.index carry a
+	// <space_id>/<index_id>/ prefix.
 	Files []string
 	// Patched counts the headers restamped with the new instance UUID.
 	Patched int
@@ -94,11 +103,12 @@ type ApplyResult struct {
 	StatePath string
 }
 
-// Apply rebuilds WorkDir from the archive chain: it verifies the inputs,
-// clears the previous attempt, unpacks the chain in order, stamps the
-// instance UUID into every header, cuts the final xlog at the recovery point,
-// and leaves a restore_state.json marker beside the directory. Archives that
-// do not continue one another are refused rather than applied.
+// Apply rebuilds the layout's directories from the archive chain: it verifies
+// the inputs, clears the previous attempt, unpacks the chain in order --
+// routing every file into the directory of its kind -- stamps the instance
+// UUID into every header, cuts the final xlog at the recovery point, and
+// leaves a restore_state.json marker beside the snapshot directory. Archives
+// that do not continue one another are refused rather than applied.
 //
 // It is idempotent: a re-run for the same point clears what the last one left
 // and repeats the work. Stopping the instance beforehand is the caller's job;
@@ -108,31 +118,43 @@ func Apply(opts ApplyOpts) (*ApplyResult, error) {
 		return nil, err //nolint:wrapcheck
 	}
 
+	// Resolved once, here, and used for everything that follows: routing,
+	// cleanup, the trim, the marker's path and the directories it records. A
+	// directory named relative to the process's working directory names the
+	// same place, but only while that working directory is what it was, and the
+	// marker outlives the process that wrote it.
+	layout := opts.Layout.Resolved()
+
 	// Every rejection happens before the work directory is touched, so a
 	// rejected input leaves the previous attempt intact -- which is what an
-	// orchestrator retrying on that exit code relies on. The chain check needs
-	// the archives read through to say anything, so they are read twice: once
+	// orchestrator retrying on that exit code relies on. Saying anything about
+	// the archives means reading them through, so they are read twice: once
 	// here for their entry names and manifest fragments, and once again to
 	// unpack. The first pass writes nothing.
 	if err := verifyChecksums(opts.Archives, opts.Checksums); err != nil {
 		return nil, err //nolint:wrapcheck
 	}
 
-	if err := checkChain(opts.Archives); err != nil {
+	contents, err := inspectChain(opts.Archives)
+	if err != nil {
 		return nil, err //nolint:wrapcheck
 	}
 
-	if err := prepareWorkDir(opts.WorkDir); err != nil {
+	if err := checkChain(contents); err != nil {
 		return nil, err //nolint:wrapcheck
 	}
 
-	result, err := unpackChain(opts)
+	if err := prepareLayout(layout); err != nil {
+		return nil, err //nolint:wrapcheck
+	}
+
+	result, err := unpackChain(opts, layout)
 	if err != nil {
 		return nil, err //nolint:wrapcheck
 	}
 
 	if opts.Point != nil {
-		trimmed, dropped, err := trimAtPoint(opts.WorkDir, *opts.Point)
+		trimmed, dropped, err := trimAtPoint(layout, *opts.Point)
 		if err != nil {
 			return nil, err //nolint:wrapcheck
 		}
@@ -142,9 +164,24 @@ func Apply(opts ApplyOpts) (*ApplyResult, error) {
 		result.Files = removeNames(result.Files, dropped)
 	}
 
+	// The three directories are recorded absolute because the marker is read
+	// somewhere else: by an orchestrator comparing the nodes of a cluster, and
+	// by an operator working out what a node was restored from. WorkDir is
+	// recorded as the cleaned form of what the caller passed and stays relative
+	// when the caller's spelling was: nothing is resolved against it, and the
+	// field is there to say which call produced the marker.
+	recordedWorkDir := opts.WorkDir
+	if recordedWorkDir == "" {
+		recordedWorkDir = layout.Snapshot
+	}
+
 	state := &State{
 		SchemaVersion: StateSchemaVersion,
-		WorkDir:       filepath.Clean(opts.WorkDir),
+		WorkDir:       filepath.Clean(recordedWorkDir),
+		SnapshotDir:   layout.Snapshot,
+		WALDir:        layout.WAL,
+		VinylDir:      layout.Vinyl,
+		InstanceName:  opts.InstanceName,
 		PointName:     opts.PointName,
 		TargetPoint:   opts.Point,
 		InstanceUUID:  opts.PatchUUID,
@@ -152,11 +189,11 @@ func Apply(opts ApplyOpts) (*ApplyResult, error) {
 		AppliedAt:     time.Now().UTC(),
 	}
 
-	if err := writeState(state); err != nil {
+	result.StatePath = StatePath(layout.Snapshot)
+
+	if err := writeState(result.StatePath, state); err != nil {
 		return nil, err //nolint:wrapcheck
 	}
-
-	result.StatePath = StatePath(opts.WorkDir)
 
 	return result, nil
 }
@@ -167,8 +204,17 @@ func validate(opts ApplyOpts) error {
 		return fmt.Errorf("%w: no archives given", ErrValidation)
 	}
 
-	if opts.WorkDir == "" {
-		return fmt.Errorf("%w: no work directory given", ErrValidation)
+	for _, dir := range []struct {
+		kind  string
+		value string
+	}{
+		{kind: "snapshot", value: opts.Layout.Snapshot},
+		{kind: "wal", value: opts.Layout.WAL},
+		{kind: "vinyl", value: opts.Layout.Vinyl},
+	} {
+		if dir.value == "" {
+			return fmt.Errorf("%w: no %s directory given", ErrValidation, dir.kind)
+		}
 	}
 
 	if len(opts.Checksums) != 0 && len(opts.Checksums) != len(opts.Archives) {
@@ -223,20 +269,70 @@ func verifyChecksums(archives, checksums []string) error {
 	return nil
 }
 
-// prepareWorkDir drops the marker of a previous run and then the files that
-// run left, so what follows starts from a clean directory.
-func prepareWorkDir(workDir string) error {
-	if err := os.MkdirAll(workDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create work directory %q: %w", workDir, err)
-	}
+// prepareLayout drops the marker of a previous run and then the files that run
+// left in each of the layout's directories, so what follows starts from clean
+// ones.
+//
+// The layout's own directories are kept through the sweep even when it empties
+// them. A restore is given the directories an instance is configured with, and
+// one of them can be a mount point or a directory an operator created with a
+// mode and an owner of their own; removing and recreating it would answer with
+// a fresh directory owned by whoever ran the restore, and on a mount point the
+// removal fails outright with the files already gone.
+func prepareLayout(layout Layout) error {
+	dirs := layout.dataDirs()
 
-	// The marker goes first: between here and the end of the run the
-	// directory is incomplete, and nothing should claim otherwise.
-	if err := removeState(workDir); err != nil {
+	if err := makeDataDirs(dirs); err != nil {
 		return err //nolint:wrapcheck
 	}
 
-	return removeRestoreArtifacts(workDir) //nolint:wrapcheck
+	keep, err := statDirs(dirs)
+	if err != nil {
+		return err //nolint:wrapcheck
+	}
+
+	// The marker goes first: between here and the end of the run the
+	// directories are incomplete, and nothing should claim otherwise.
+	if err := removeState(layout.Snapshot); err != nil {
+		return err //nolint:wrapcheck
+	}
+
+	for _, dir := range dirs {
+		if err := removeRestoreArtifacts(dir, keep); err != nil {
+			return err //nolint:wrapcheck
+		}
+	}
+
+	return nil
+}
+
+// statDirs stats every directory of a layout, so that the sweep can recognize
+// one of them by what the filesystem says it is rather than by the name it was
+// reached under.
+func statDirs(dirs []string) ([]os.FileInfo, error) {
+	infos := make([]os.FileInfo, 0, len(dirs))
+
+	for _, dir := range dirs {
+		info, err := os.Stat(dir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read work directory %q: %w", dir, err)
+		}
+
+		infos = append(infos, info)
+	}
+
+	return infos, nil
+}
+
+// makeDataDirs creates every directory of a layout.
+func makeDataDirs(dirs []string) error {
+	for _, dir := range dirs {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("failed to create work directory %q: %w", dir, err)
+		}
+	}
+
+	return nil
 }
 
 // removeRestoreArtifacts recursively removes every file cleanup owns
@@ -247,7 +343,19 @@ func prepareWorkDir(workDir string) error {
 // stale data a fresh instance would replay right along with the real thing.
 // Files cleanup does not own, wherever they live, are left untouched, and so
 // is any directory that still holds one.
-func removeRestoreArtifacts(dir string) error {
+//
+// keep is what the filesystem says each of the layout's own directories is.
+// They are emptied like any other directory and then left standing, whichever
+// name the sweep reaches them under: they were named by the caller, and a
+// restore is not entitled to replace one with a directory of its own making.
+//
+// The comparison is by identity rather than by path because a layout's
+// directories are made absolute and cleaned but not resolved through symbolic
+// links: with the snapshots in /srv/alias, a symlink to /srv/data, and the
+// vinyl data in /srv/data/vinyl, the sweep of the first meets the second as
+// /srv/alias/vinyl -- a name no directory of the layout carries, and the one
+// directory under it that must survive.
+func removeRestoreArtifacts(dir string, keep []os.FileInfo) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return fmt.Errorf("failed to read directory %q: %w", dir, err)
@@ -257,8 +365,16 @@ func removeRestoreArtifacts(dir string) error {
 		path := filepath.Join(dir, entry.Name())
 
 		if entry.IsDir() {
-			if err := removeRestoreArtifacts(path); err != nil {
+			if err := removeRestoreArtifacts(path, keep); err != nil {
 				return fmt.Errorf("failed to remove restore artifacts from %q: %w", path, err)
+			}
+
+			kept, err := isKeptDir(path, keep)
+			if err != nil {
+				return err //nolint:wrapcheck
+			}
+			if kept {
+				continue
 			}
 
 			empty, err := isEmptyDir(path)
@@ -286,6 +402,27 @@ func removeRestoreArtifacts(dir string) error {
 	return nil
 }
 
+// isKeptDir reports whether path is one of the layout's own directories,
+// reached under whatever name the sweep arrived at it by.
+func isKeptDir(path string, keep []os.FileInfo) (bool, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+
+		return false, fmt.Errorf("failed to read directory %q: %w", path, err)
+	}
+
+	for _, kept := range keep {
+		if os.SameFile(info, kept) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 // isEmptyDir reports whether dir holds no entries.
 func isEmptyDir(dir string) (bool, error) {
 	entries, err := os.ReadDir(dir)
@@ -309,48 +446,60 @@ func isRestoreArtifact(name string) bool {
 	return false
 }
 
-// checkChain reads the archives without unpacking them and refuses a chain
-// whose archives do not continue one another, so the refusal comes while the
-// work directory still holds whatever the last run left there.
+// inspectChain reads every archive through without unpacking it, so that an
+// archive naming an entry the restore cannot place, and a chain whose archives
+// do not continue one another, are both refused while the directories still
+// hold whatever the last run left there.
 //
-// A single archive is no chain and is not read here: the pass costs a full
-// zstd decode of every archive given, and restoring one full backup is a
-// common enough case to be worth the exception.
-func checkChain(paths []string) error {
-	if len(paths) < 2 {
-		return nil
-	}
+// It costs a full zstd decode of every archive given, which is the price of a
+// rejection that arrives before the previous attempt is cleared -- the promise
+// an orchestrator reads out of that exit code.
+func inspectChain(paths []string) ([]archiveContent, error) {
+	contents := make([]archiveContent, 0, len(paths))
 
-	var previous archiveContent
-
-	for i, path := range paths {
+	for _, path := range paths {
 		content, err := inspectArchive(path)
 		if err != nil {
+			return nil, err //nolint:wrapcheck
+		}
+
+		contents = append(contents, content)
+	}
+
+	return contents, nil
+}
+
+// checkChain refuses a chain whose archives do not continue one another. A
+// single archive is no chain and nothing is compared.
+func checkChain(contents []archiveContent) error {
+	for i := 1; i < len(contents); i++ {
+		if err := checkChainOrder(contents[i-1], contents[i]); err != nil {
 			return err //nolint:wrapcheck
 		}
-
-		if i > 0 {
-			if err := checkChainOrder(previous, content); err != nil {
-				return err //nolint:wrapcheck
-			}
-		}
-
-		previous = content
 	}
 
 	return nil
 }
 
-// inspectArchive reads one archive for what the chain check needs -- the names
-// it would land and the manifest fragment describing the backup -- without
+// inspectArchive reads one archive for what the checks need -- the names it
+// would land and the manifest fragment describing the backup -- without
 // writing anything. Entry bodies are left unread: the tar reader skips over
 // the ones nobody consumed.
 func inspectArchive(src string) (archiveContent, error) {
 	content := archiveContent{path: src}
 
+	// Two entries of one archive reducing to one name are refused. Unpacking
+	// truncates what it writes, so the second would replace the first under a
+	// name that then stands for whichever of the two came last, and the report
+	// -- which counts a name once -- would say nothing about the file that is
+	// missing. Archives of a chain naming the same file is another matter
+	// entirely: they overlap on the boundary journal by construction, and the
+	// later copy is the longer one.
+	named := make(map[string]string)
+
 	for entry, err := range archive.Entries(src) {
 		if err != nil {
-			return archiveContent{}, fmt.Errorf("failed to read archive %q: %w", src, err)
+			return archiveContent{}, readArchiveError(src, err) //nolint:wrapcheck
 		}
 
 		if entry.Name == fragmentEntryName {
@@ -359,29 +508,55 @@ func inspectArchive(src string) (archiveContent, error) {
 			continue
 		}
 
-		content.files = append(content.files, entry.Name)
+		name, err := canonicalEntryName(entry.Name)
+		if err != nil {
+			return archiveContent{}, fmt.Errorf("archive %q: %w", src, err)
+		}
+
+		if previous, taken := named[name]; taken {
+			return archiveContent{}, fmt.Errorf(
+				"%w: archive %q names both %q and %q, and both are restored as %q",
+				ErrValidation, src, previous, entry.Name, name)
+		}
+
+		named[name] = entry.Name
+
+		content.files = append(content.files, name)
 	}
 
 	return content, nil
 }
 
-// unpackChain writes the archives into the work directory in the order they
-// were given, stamping the instance UUID into every header that lands, and
-// reports what the work directory ended up holding. The order itself has
-// already been checked, by checkChain, before the directory was cleared.
-func unpackChain(opts ApplyOpts) (*ApplyResult, error) {
+// readArchiveError says what a failure to read an archive was. A name the
+// archive package itself refuses is the archive naming a file that cannot be
+// placed, which is a rejected input like every other name that cannot be
+// placed: the caller is told to correct the call, and the previous attempt is
+// left where it is.
+func readArchiveError(src string, err error) error {
+	if errors.Is(err, archive.ErrUnsafeEntryName) {
+		return fmt.Errorf("%w: archive %q: %w", ErrValidation, src, err)
+	}
+
+	return fmt.Errorf("failed to read archive %q: %w", src, err)
+}
+
+// unpackChain writes the archives into the layout in the order they were
+// given, stamping the instance UUID into every header that lands, and reports
+// what the directories ended up holding. The order itself has already been
+// checked, by checkChain, before the directories were cleared.
+func unpackChain(opts ApplyOpts, layout Layout) (*ApplyResult, error) {
 	result := &ApplyResult{}
 	landed := make(map[string]struct{})
 
 	for _, path := range opts.Archives {
-		content, err := unpackArchive(path, opts.WorkDir)
+		content, err := unpackArchive(path, layout)
 		if err != nil {
 			return nil, err //nolint:wrapcheck
 		}
 
 		for _, name := range content.files {
 			patched, err := patchHeader(
-				filepath.Join(opts.WorkDir, filepath.FromSlash(name)),
+				entryPath(layout, name),
 				opts.PatchUUID,
 			)
 			if err != nil {
@@ -416,15 +591,21 @@ type archiveContent struct {
 	fragment *backup.Fragment
 }
 
-// unpackArchive streams one archive into workDir and returns what it holds.
+// entryPath is where an entry lands: under the directory of its own kind, at
+// the canonical name it was reduced to.
+func entryPath(layout Layout, entryName string) string {
+	return filepath.Join(layout.DirFor(entryName), filepath.FromSlash(entryName))
+}
+
+// unpackArchive streams one archive into the layout and returns what it holds.
 // Entries go straight to their final path: there is no staging directory, so a
 // chain is never written twice.
-func unpackArchive(src, workDir string) (archiveContent, error) {
+func unpackArchive(src string, layout Layout) (archiveContent, error) {
 	content := archiveContent{path: src}
 
 	for entry, err := range archive.Entries(src) {
 		if err != nil {
-			return archiveContent{}, fmt.Errorf("failed to read archive %q: %w", src, err)
+			return archiveContent{}, readArchiveError(src, err) //nolint:wrapcheck
 		}
 
 		if entry.Name == fragmentEntryName {
@@ -433,15 +614,17 @@ func unpackArchive(src, workDir string) (archiveContent, error) {
 			continue
 		}
 
-		if err := writeEntry(
-			filepath.Join(workDir, filepath.FromSlash(entry.Name)),
-			entry.Body,
-		); err != nil {
+		name, err := canonicalEntryName(entry.Name)
+		if err != nil {
+			return archiveContent{}, fmt.Errorf("archive %q: %w", src, err)
+		}
+
+		if err := writeEntry(entryPath(layout, name), entry.Body); err != nil {
 			return archiveContent{}, fmt.Errorf("failed to unpack %q from %q: %w",
 				entry.Name, src, err)
 		}
 
-		content.files = append(content.files, entry.Name)
+		content.files = append(content.files, name)
 	}
 
 	return content, nil
@@ -659,11 +842,11 @@ func patchHeader(path, newUUID string) (bool, error) {
 // The trimmed file replaces the original under its own name: a journal file
 // is indexed by the vclock signature in its name, so it has to stay where it
 // was.
-func trimAtPoint(workDir string, point Point) (string, []string, error) {
-	src, err := xlog.FindTrimFile(workDir, point.ReplicaID, int64(point.LSN))
+func trimAtPoint(layout Layout, point Point) (string, []string, error) {
+	src, err := xlog.FindTrimFile(layout.WAL, point.ReplicaID, int64(point.LSN))
 	if err != nil {
 		if errors.Is(err, xlog.ErrTrimFileNotFound) {
-			return "", nil, fmt.Errorf("%w: %s in %q", ErrNoTrimFile, point, workDir)
+			return "", nil, fmt.Errorf("%w: %s in %q", ErrNoTrimFile, point, layout.WAL)
 		}
 
 		return "", nil, fmt.Errorf("failed to locate the xlog to trim: %w", err)
@@ -674,7 +857,7 @@ func trimAtPoint(workDir string, point Point) (string, []string, error) {
 	// Tarantool replays every journal it finds, so leaving them would carry
 	// the instance straight through the point it was restored to — and the
 	// result looks healthy, it is simply the wrong state.
-	dropped, err := dropJournalsAfter(workDir, src)
+	dropped, err := dropJournalsAfter(layout, src)
 	if err != nil {
 		return "", nil, err //nolint:wrapcheck
 	}
@@ -692,18 +875,32 @@ func trimAtPoint(workDir string, point Point) (string, []string, error) {
 }
 
 // dropJournalsAfter removes the snapshots and xlogs that start past the file
-// holding the point, and returns their base names. It runs before the trim so
-// the directory is only ever indexed while every file still matches its name.
-func dropJournalsAfter(workDir, trimFile string) ([]string, error) {
+// holding the point, and returns their base names. Each kind is looked for in
+// its own directory, because a snapshot past the point carries the instance
+// beyond it exactly as an xlog does and the two need not live together. It
+// runs before the trim so a directory is only ever indexed while every file
+// still matches its name.
+//
+// A snapshot's sort data goes with the snapshot it belongs to: it is named
+// after the same signature and describes that snapshot's indexes, so one left
+// behind describes a file that is no longer there.
+func dropJournalsAfter(layout Layout, trimFile string) ([]string, error) {
 	signature, err := xlog.SignatureOf(trimFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the position of %q: %w", trimFile, err)
 	}
 
-	paths, err := xlog.JournalsAfter(workDir, signature)
+	paths, err := xlog.JournalsAfter(layout.Snapshot, layout.WAL, signature)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the files past the recovery point: %w", err)
 	}
+
+	sortData, err := sortDataAfter(layout.Snapshot, signature)
+	if err != nil {
+		return nil, err //nolint:wrapcheck
+	}
+
+	paths = append(paths, sortData...)
 
 	dropped := make([]string, 0, len(paths))
 
@@ -716,6 +913,41 @@ func dropJournalsAfter(workDir, trimFile string) ([]string, error) {
 	}
 
 	return dropped, nil
+}
+
+// sortDataAfter returns the memtx sort data files in dir whose snapshot starts
+// past signature. Tarantool names <signature>.sortdata after the snapshot it
+// was written beside, which is what lets it be matched against a recovery
+// point without being read; it is not a journal, and nothing about a chain's
+// order is decided by it.
+func sortDataAfter(dir string, signature int64) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read directory %q: %w", dir, err)
+	}
+
+	var after []string
+
+	for _, entry := range entries {
+		name := entry.Name()
+
+		if entry.IsDir() || filepath.Ext(name) != sortDataExt {
+			continue
+		}
+
+		// A name that is not a signature is somebody else's file, and cleanup
+		// is the only thing entitled to it.
+		position, err := strconv.ParseInt(strings.TrimSuffix(name, sortDataExt), 10, 64)
+		if err != nil {
+			continue
+		}
+
+		if position > signature {
+			after = append(after, filepath.Join(dir, name))
+		}
+	}
+
+	return after, nil
 }
 
 // removeNames returns names without the entries listed in drop.
