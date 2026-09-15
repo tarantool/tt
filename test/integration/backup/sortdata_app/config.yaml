@@ -1,0 +1,28 @@
+credentials:
+  users:
+    guest:
+      roles: [super]
+    client:
+      password: 'secret'
+      roles: [super]
+# A checkpoint on an instance with this option on writes a <signature>.sortdata
+# file beside the snapshot, which recovery reads instead of rebuilding the
+# memtx indexes. It is a separate app because the file changes what a backup
+# of the instance contains, and the other apps' tests name the files they
+# expect one by one.
+memtx:
+  use_sort_data: true
+groups:
+  storages:
+    app:
+      file: 'storage.lua'
+    replicasets:
+      storage-001:
+        instances:
+          storage-001-a:
+            iproto:
+              advertise:
+                client: 'unix://./var/run/storage-001-a/tarantool.sock'
+            database:
+              instance_uuid: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+              replicaset_uuid: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'

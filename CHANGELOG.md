@@ -11,11 +11,31 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `status`: added `--instance-timeout` flag to bound how long collecting a single
   instance's status may take.
+- `tt restore apply`: restore into the three data directories Tarantool
+  configures separately. `--snapshot-dir`, `--wal-dir` and `--vinyl-dir` name
+  one directory each, and `-c`/`--config` with `--instance` reads them out of a
+  cluster configuration, resolving `snapshot.dir`, `wal.dir`, `vinyl.dir`,
+  their `var/lib/{{ instance_name }}` defaults and `process.work_dir` the way
+  Tarantool does. Each directory is decided on its own, taking the flag that
+  names it, else the configuration, else `--work-dir`. The marker is written
+  beside the snapshot directory as
+  `<absolute snapshot directory>.restore_state.json` and records all three,
+  resolved.
 
 ### Changed
 
 - `status`: status requests now have a default timeout of 5 seconds.
 - `status`: status requests were parallelized for faster collection.
+- `tt restore apply`: `--work-dir` is no longer required. It still puts every
+  kind of file in one directory when used alone; with `--config` it is the
+  directory the instance is launched from, which the configuration's relative
+  paths resolve against. A call that does not add up to three directories is
+  rejected with exit code 3 and touches nothing.
+- `tt backup` / `tt restore apply`: a memtx sort data file
+  (`<signature>.sortdata`, Tarantool 3.8+) counts as a snapshot, so it is
+  backed up against `memtx_dir` and restored beside the snapshot it belongs
+  to. `--target-point` drops the sort data of a snapshot it drops, instead of
+  leaving a file describing a snapshot that is no longer there.
 
 ### Fixed
 

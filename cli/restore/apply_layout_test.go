@@ -130,8 +130,8 @@ func TestApply_RoutesEveryKindIntoItsOwnDir(t *testing.T) {
 }
 
 // The stamp reaches every file wherever it landed: a .vylog left carrying
-// another instance's UUID fails recovery before any data is replayed, and it
-// no longer sits next to the snapshot that was patched.
+// another instance's UUID fails recovery before any data is replayed, and on a
+// split layout it sits in a directory of its own, away from the snapshot.
 func TestApply_PatchesHeadersInEveryDir(t *testing.T) {
 	layout := splitLayout(t)
 

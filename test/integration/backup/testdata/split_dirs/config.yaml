@@ -1,0 +1,28 @@
+# A restore target that keeps its three kinds of data apart, the way a
+# Tarantool 3.x deployment does. It is not started by tt: the test restores
+# into it with `tt restore apply -c` and boots Tarantool on the result.
+#
+# Every directory is relative, so all three resolve against process.work_dir
+# and that against the directory Tarantool is launched from -- which is what
+# `tt restore apply --work-dir` stands in for.
+credentials:
+  users:
+    guest:
+      roles: [super]
+process:
+  work_dir: base
+snapshot:
+  dir: memtx/{{ instance_name }}
+groups:
+  storages:
+    wal:
+      dir: wal/{{ instance_name }}
+    replicasets:
+      storage-001:
+        vinyl:
+          dir: vinyl/{{ instance_name }}
+        instances:
+          storage-001-a:
+            database:
+              instance_uuid: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+              replicaset_uuid: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
