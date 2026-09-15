@@ -104,15 +104,25 @@ func SignatureOf(path string) (int64, error) {
 	return meta.VClock.Signature(), nil
 }
 
-// JournalsAfter returns the .snap and .xlog files in dir that start strictly
-// after signature — the part of a backup that reaches past a recovery point.
-func JournalsAfter(dir string, signature int64) ([]string, error) {
+// JournalsAfter returns the .snap files in snapshotDir and the .xlog files in
+// walDir that start strictly after signature — the part of a backup that
+// reaches past a recovery point. The two are separate arguments because
+// Tarantool keeps snapshots and journals in directories of their own
+// (snapshot.dir and wal.dir); passing one directory twice is the case where
+// they are configured to the same place.
+func JournalsAfter(snapshotDir, walDir string, signature int64) ([]string, error) {
 	var after []string
 
-	for _, filetype := range []format.Filetype{format.FiletypeSNAP, format.FiletypeXLOG} {
-		d, err := xdir.OpenDir(dir, filetype)
+	for _, source := range []struct {
+		dir      string
+		filetype format.Filetype
+	}{
+		{dir: snapshotDir, filetype: format.FiletypeSNAP},
+		{dir: walDir, filetype: format.FiletypeXLOG},
+	} {
+		d, err := xdir.OpenDir(source.dir, source.filetype)
 		if err != nil {
-			return nil, fmt.Errorf("xlog: index dir %q: %w", dir, err)
+			return nil, fmt.Errorf("xlog: index dir %q: %w", source.dir, err)
 		}
 
 		for _, entry := range d.Files() {

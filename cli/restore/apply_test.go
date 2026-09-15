@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/go-xlog/dir"
@@ -23,7 +24,7 @@ func applyOpts(t *testing.T, workDir string, point *Point) ApplyOpts {
 	return ApplyOpts{
 		Archives:  []string{full, inc},
 		Checksums: []string{checksumOf(t, full), checksumOf(t, inc)},
-		WorkDir:   workDir,
+		Layout:    FlatLayout(workDir),
 		Point:     point,
 		PatchUUID: replicaUUID,
 	}
@@ -90,7 +91,7 @@ func TestApply_PatchesVinylHeadersToo(t *testing.T) {
 
 	result, err := Apply(ApplyOpts{
 		Archives:  []string{packArchive(t, filepath.Join(t.TempDir(), "v.tar.zst"), files...)},
-		WorkDir:   workDir,
+		Layout:    FlatLayout(workDir),
 		PatchUUID: replicaUUID,
 	})
 	require.NoError(t, err)
@@ -121,7 +122,7 @@ func TestApply_InProgressEntryKeepsTheBackedUpMastersUUID(t *testing.T) {
 			writeSnap(t, src, format.VClock{1: 0}),
 			writeXlog(t, src, format.VClock{1: 0}, nil, txsOf(1, 1, 2)),
 			open+".inprogress")},
-		WorkDir:   workDir,
+		Layout:    FlatLayout(workDir),
 		PatchUUID: replicaUUID,
 	})
 	require.NoError(t, err)
@@ -249,7 +250,7 @@ func TestApply_DropsFilesPastThePoint(t *testing.T) {
 
 	result, err := Apply(ApplyOpts{
 		Archives:  []string{chainPastPoint(t)},
-		WorkDir:   workDir,
+		Layout:    FlatLayout(workDir),
 		Point:     &Point{ReplicaID: 1, LSN: 5},
 		PatchUUID: replicaUUID,
 	})
@@ -306,7 +307,7 @@ func TestApply_MultiReplicaPointOnSecondaryAxis(t *testing.T) {
 
 			result, err := Apply(ApplyOpts{
 				Archives:  []string{twoReplicaChain(t)},
-				WorkDir:   workDir,
+				Layout:    FlatLayout(workDir),
 				Point:     &tc.point,
 				PatchUUID: replicaUUID,
 			})
@@ -334,7 +335,7 @@ func TestApply_DropsPastThePointBySignatureNotByReplicaLSN(t *testing.T) {
 	// takes the trimmed file down with the tail.
 	result, err := Apply(ApplyOpts{
 		Archives:  []string{twoReplicaChain(t)},
-		WorkDir:   workDir,
+		Layout:    FlatLayout(workDir),
 		Point:     &Point{ReplicaID: 2, LSN: 3},
 		PatchUUID: replicaUUID,
 	})
@@ -366,7 +367,7 @@ func TestApply_RefusesANonCanonicalEntryName(t *testing.T) {
 
 	workDir := filepath.Join(t.TempDir(), "instance-001")
 
-	_, err := Apply(ApplyOpts{Archives: []string{arch}, WorkDir: workDir})
+	_, err := Apply(ApplyOpts{Archives: []string{arch}, Layout: FlatLayout(workDir)})
 	require.ErrorContains(t, err, "./"+filepath.Base(snap), "the refused entry is named")
 
 	require.NoFileExists(t, StatePath(workDir))
@@ -387,7 +388,7 @@ func TestApply_AcceptsAndPatchesNestedVinylEntry(t *testing.T) {
 
 	result, err := Apply(ApplyOpts{
 		Archives:  []string{arch},
-		WorkDir:   workDir,
+		Layout:    FlatLayout(workDir),
 		PatchUUID: replicaUUID,
 	})
 	require.NoError(t, err)
@@ -420,7 +421,7 @@ func TestApply_PointBelowChainIsReported(t *testing.T) {
 
 	_, err := Apply(ApplyOpts{
 		Archives:  []string{arch},
-		WorkDir:   workDir,
+		Layout:    FlatLayout(workDir),
 		Point:     &Point{ReplicaID: 1, LSN: 5},
 		PatchUUID: replicaUUID,
 	})
@@ -551,6 +552,12 @@ func TestApply_WritesStateMarker(t *testing.T) {
 
 	require.Equal(t, StateSchemaVersion, state.SchemaVersion)
 	require.Equal(t, workDir, state.WorkDir)
+	// One directory holds every kind of file, so the marker says so three
+	// times over rather than leaving a reader to infer it.
+	require.Equal(t, workDir, state.SnapshotDir)
+	require.Equal(t, workDir, state.WALDir)
+	require.Equal(t, workDir, state.VinylDir)
+	require.Empty(t, state.InstanceName, "no instance was named")
 	require.Equal(t, "7c9e6679-7425-40de-944b-e07fc1f90ae7", state.PointName)
 	require.Equal(t, point, state.TargetPoint)
 	require.Equal(t, replicaUUID, state.InstanceUUID)
@@ -609,25 +616,52 @@ func TestApply_WritesTheMarkerBesideARelativeWorkDir(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// The marker is now written beside the directory a relative --work-dir names,
-// but the work_dir it records is still the spelling from the command line: a
-// marker written for "--work-dir ." says ".", and once it is collected off the
-// node it no longer says which directory it describes -- the one thing the
-// field is for. Flip this when the recorded path is resolved like its own.
-func TestApply_MarkerOfARelativeWorkDirRecordsItUnresolved(t *testing.T) {
-	workDir := filepath.Join(t.TempDir(), "instance-001")
-	require.NoError(t, os.MkdirAll(workDir, 0o755))
+// A marker is read away from the directory the restore ran in -- collected off
+// the node, compared against the marker of another node -- so the three
+// directories it records are resolved ones. A relative spelling names the same
+// place only while the working directory is what it was, and the marker
+// outlives the process that wrote it.
+func TestApply_MarkerRecordsResolvedDirs(t *testing.T) {
+	root := t.TempDir()
+	opts := applyOpts(t, ".", nil)
 
-	t.Chdir(workDir)
+	t.Chdir(root)
 
-	_, err := Apply(applyOpts(t, ".", nil))
+	opts.Layout = Layout{Snapshot: "memtx", WAL: "./wal", Vinyl: "vinyl/"}
+
+	_, err := Apply(opts)
 	require.NoError(t, err)
 
-	state, err := ReadState(".")
+	state, err := ReadState("memtx")
 	require.NoError(t, err)
 
-	require.Equal(t, ".", state.WorkDir,
-		"today the marker records the work directory unresolved")
+	assert.Equal(t, filepath.Join(root, "memtx"), state.SnapshotDir)
+	assert.Equal(t, filepath.Join(root, "wal"), state.WALDir)
+	assert.Equal(t, filepath.Join(root, "vinyl"), state.VinylDir)
+
+	// No work directory was given, so the field falls back on the directory
+	// the marker is named after rather than recording an empty one.
+	assert.Equal(t, filepath.Join(root, "memtx"), state.WorkDir)
+}
+
+// The work directory is recorded as the caller spelled it. Nothing resolves
+// against it and nothing is written into it on a split layout: it is what the
+// caller called this restore's base directory, and the field exists to say so.
+func TestApply_MarkerRecordsTheWorkDirAsGiven(t *testing.T) {
+	root := t.TempDir()
+	opts := applyOpts(t, filepath.Join(root, "data"), nil)
+
+	t.Chdir(root)
+
+	opts.WorkDir = "launch/dir"
+
+	_, err := Apply(opts)
+	require.NoError(t, err)
+
+	state, err := ReadState(filepath.Join(root, "data"))
+	require.NoError(t, err)
+
+	assert.Equal(t, filepath.Join("launch", "dir"), state.WorkDir)
 }
 
 // A run that dies partway must not leave the previous run's marker claiming
@@ -646,7 +680,7 @@ func TestApply_FailedRunLeavesNoMarker(t *testing.T) {
 
 	_, err = Apply(ApplyOpts{
 		Archives: []string{arch},
-		WorkDir:  workDir,
+		Layout:   FlatLayout(workDir),
 		Point:    &Point{ReplicaID: 1, LSN: 5},
 	})
 	require.ErrorIs(t, err, ErrNoTrimFile)
@@ -695,7 +729,7 @@ func TestApply_RejectsBadInput(t *testing.T) {
 	}{
 		{
 			name: "no archives",
-			opts: ApplyOpts{WorkDir: workDir},
+			opts: ApplyOpts{Layout: FlatLayout(workDir)},
 		},
 		{
 			name: "no work dir",
@@ -706,19 +740,22 @@ func TestApply_RejectsBadInput(t *testing.T) {
 			opts: ApplyOpts{
 				Archives:  []string{full, inc},
 				Checksums: []string{checksumOf(t, full)},
-				WorkDir:   workDir,
+				Layout:    FlatLayout(workDir),
 			},
 		},
 		{
 			name: "archive missing",
 			opts: ApplyOpts{
 				Archives: []string{filepath.Join(t.TempDir(), "absent.tar.zst")},
-				WorkDir:  workDir,
+				Layout:   FlatLayout(workDir),
 			},
 		},
 		{
 			name: "archive is a directory",
-			opts: ApplyOpts{Archives: []string{t.TempDir()}, WorkDir: workDir},
+			opts: ApplyOpts{
+				Archives: []string{t.TempDir()},
+				Layout:   FlatLayout(workDir),
+			},
 		},
 	}
 
@@ -782,7 +819,7 @@ func TestApply_LaterArchiveWinsOnOverlap(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			workDir := filepath.Join(t.TempDir(), "instance-001")
 
-			_, err := Apply(ApplyOpts{Archives: tc.archives, WorkDir: workDir})
+			_, err := Apply(ApplyOpts{Archives: tc.archives, Layout: FlatLayout(workDir)})
 			require.NoError(t, err)
 
 			require.Equal(t, tc.want,
@@ -844,7 +881,7 @@ func TestApply_RefusesAChainThatIsNotAChain(t *testing.T) {
 
 			_, err := Apply(ApplyOpts{
 				Archives:  tc.archives,
-				WorkDir:   workDir,
+				Layout:    FlatLayout(workDir),
 				PatchUUID: replicaUUID,
 			})
 			require.ErrorIs(t, err, ErrValidation)
@@ -889,7 +926,7 @@ func TestApply_AppliesADescribedChainInOrder(t *testing.T) {
 	workDir := filepath.Join(t.TempDir(), "instance-001")
 	full, inc := describedChain(t)
 
-	result, err := Apply(ApplyOpts{Archives: []string{full, inc}, WorkDir: workDir})
+	result, err := Apply(ApplyOpts{Archives: []string{full, inc}, Layout: FlatLayout(workDir)})
 	require.NoError(t, err)
 
 	require.Equal(t, []rowKey{{1, 1}, {1, 2}, {1, 3}, {1, 4}},
@@ -932,7 +969,7 @@ func TestApply_PatchesHeaderOfNonCanonicalWidth(t *testing.T) {
 
 	result, err := Apply(ApplyOpts{
 		Archives:  []string{packArchive(t, filepath.Join(t.TempDir(), "a.tar.zst"), snap, xlog)},
-		WorkDir:   workDir,
+		Layout:    FlatLayout(workDir),
 		PatchUUID: replicaUUID,
 	})
 	require.NoError(t, err)
@@ -957,7 +994,7 @@ func TestApply_CorruptXlogIsNotAMissingPoint(t *testing.T) {
 
 	_, err := Apply(ApplyOpts{
 		Archives: []string{arch},
-		WorkDir:  workDir,
+		Layout:   FlatLayout(workDir),
 		Point:    &Point{ReplicaID: 1, LSN: 1},
 	})
 	require.Error(t, err)
@@ -976,7 +1013,7 @@ func TestApply_CorruptJournalFailsPatching(t *testing.T) {
 
 	_, err := Apply(ApplyOpts{
 		Archives:  []string{arch},
-		WorkDir:   workDir,
+		Layout:    FlatLayout(workDir),
 		PatchUUID: replicaUUID,
 	})
 	require.ErrorContains(t, err, "failed to patch instance uuid")
@@ -994,7 +1031,7 @@ func TestApply_LeavesFilesWithoutAHeaderAlone(t *testing.T) {
 	result, err := Apply(ApplyOpts{
 		Archives: []string{packArchive(t, filepath.Join(t.TempDir(), "a.tar.zst"),
 			writeSnap(t, src, format.VClock{1: 0}), notes)},
-		WorkDir:   workDir,
+		Layout:    FlatLayout(workDir),
 		PatchUUID: replicaUUID,
 	})
 	require.NoError(t, err)

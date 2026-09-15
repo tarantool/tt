@@ -374,6 +374,20 @@ func compactInstanceUUID(t *testing.T, path string) {
 	require.NoError(t, os.WriteFile(path, []byte(patched), 0o644))
 }
 
+// writeSortData writes a memtx sort data file, which Tarantool names after the
+// snapshot it belongs to and stores beside it. Its content is opaque here: the
+// restore never reads one, it only puts it where the snapshot went and drops
+// it when that snapshot goes.
+func writeSortData(t *testing.T, dir string, signature int64) string {
+	t.Helper()
+
+	path := filepath.Join(dir, fmt.Sprintf("%020d%s", signature, sortDataExt))
+	require.NoError(t, os.WriteFile(path,
+		[]byte("Instance: "+masterUUID+"\n\n"), 0o644))
+
+	return path
+}
+
 // writeGarbageXlog writes a file named like a journal but holding no header.
 func writeGarbageXlog(t *testing.T, dir string, signature int64) string {
 	t.Helper()

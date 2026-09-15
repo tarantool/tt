@@ -23,7 +23,7 @@ func TestApply_TruncatedArchiveFails(t *testing.T) {
 
 	workDir := filepath.Join(t.TempDir(), "wd")
 
-	_, err = Apply(ApplyOpts{Archives: []string{trunc}, WorkDir: workDir})
+	_, err = Apply(ApplyOpts{Archives: []string{trunc}, Layout: FlatLayout(workDir)})
 	require.Error(t, err)
 	require.ErrorContains(t, err, trunc)
 	require.False(t, errors.Is(err, ErrValidation),
@@ -53,7 +53,7 @@ func TestApply_TruncatedArchiveInAChainLeavesWorkDirIntact(t *testing.T) {
 
 	_, err = Apply(ApplyOpts{
 		Archives:  []string{full, trunc},
-		WorkDir:   workDir,
+		Layout:    FlatLayout(workDir),
 		PatchUUID: replicaUUID,
 	})
 	require.Error(t, err)
@@ -77,7 +77,7 @@ func TestApply_UnwritableWorkDirFailsOnUnpack(t *testing.T) {
 	require.NoError(t, os.MkdirAll(workDir, 0o555))
 	t.Cleanup(func() { _ = os.Chmod(workDir, 0o755) })
 
-	_, err := Apply(ApplyOpts{Archives: []string{full}, WorkDir: workDir})
+	_, err := Apply(ApplyOpts{Archives: []string{full}, Layout: FlatLayout(workDir)})
 	require.ErrorContains(t, err, "failed to unpack")
 
 	_, err = ReadState(workDir)
@@ -95,7 +95,7 @@ func TestApply_WorkDirIsAFileIsReportedWithoutTouchingIt(t *testing.T) {
 	workDir := filepath.Join(t.TempDir(), "instance-001")
 	require.NoError(t, os.WriteFile(workDir, []byte("not a directory"), 0o644))
 
-	_, err := Apply(ApplyOpts{Archives: []string{full}, WorkDir: workDir})
+	_, err := Apply(ApplyOpts{Archives: []string{full}, Layout: FlatLayout(workDir)})
 	require.ErrorContains(t, err, "failed to create work directory")
 	require.False(t, errors.Is(err, ErrValidation),
 		"today an unusable work directory is not reported as a rejected input")
@@ -113,7 +113,7 @@ func TestApply_CorruptMarkerIsReplacedOnRerun(t *testing.T) {
 	full, inc := archiveChain(t)
 	workDir := filepath.Join(t.TempDir(), "wd")
 
-	opts := ApplyOpts{Archives: []string{full, inc}, WorkDir: workDir}
+	opts := ApplyOpts{Archives: []string{full, inc}, Layout: FlatLayout(workDir)}
 
 	_, err := Apply(opts)
 	require.NoError(t, err)
@@ -145,6 +145,6 @@ func TestApply_UndeletableMarkerIsReported(t *testing.T) {
 	marker := StatePath(workDir)
 	require.NoError(t, os.MkdirAll(filepath.Join(marker, "occupied"), 0o755))
 
-	_, err := Apply(ApplyOpts{Archives: []string{full}, WorkDir: workDir})
+	_, err := Apply(ApplyOpts{Archives: []string{full}, Layout: FlatLayout(workDir)})
 	require.ErrorContains(t, err, "failed to remove stale restore state")
 }

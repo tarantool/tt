@@ -215,6 +215,7 @@ func runRestoreApplyInner() (*restore.ApplyResult, error) {
 	return restore.Apply(restore.ApplyOpts{ //nolint:wrapcheck
 		Archives:  restoreApplyArchives,
 		Checksums: restoreApplyChecksums,
+		Layout:    restore.FlatLayout(restoreApplyWorkDir),
 		WorkDir:   restoreApplyWorkDir,
 		Point:     point,
 		PointName: restoreApplyPointName,
