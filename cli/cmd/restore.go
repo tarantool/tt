@@ -19,12 +19,17 @@ import (
 // tt restore apply / plan flags. They are package-level because cobra flag
 // bindings need stable addresses; only one restore subcommand runs per process.
 var (
-	restoreApplyArchives  []string
-	restoreApplyChecksums []string
-	restoreApplyWorkDir   string
-	restoreApplyPoint     string
-	restoreApplyPointName string
-	restoreApplyPatchUUID string
+	restoreApplyArchives    []string
+	restoreApplyChecksums   []string
+	restoreApplyWorkDir     string
+	restoreApplySnapshotDir string
+	restoreApplyWALDir      string
+	restoreApplyVinylDir    string
+	restoreApplyCfg         string
+	restoreApplyInstance    string
+	restoreApplyPoint       string
+	restoreApplyPointName   string
+	restoreApplyPatchUUID   string
 
 	restorePlanTargetTime string
 	restorePlanCfg        string
@@ -73,12 +78,16 @@ func NewRestoreCmd() *cobra.Command {
 }
 
 // restoreApplyLong is the help text of `tt restore apply`.
-const restoreApplyLong = `Rebuild an instance's work directory from a backup chain so Tarantool can
-start on a chosen recovery point.
+const restoreApplyLong = `Rebuild an instance's data directories from a backup chain,
+so Tarantool can start on a chosen recovery point.
 
 Usage:
   tt restore apply --archives <full,inc1,inc2> --work-dir <path> \
       [--target-point '{"replica_id":N,"lsn":M}'] [--patch-uuid <uuid>]
+  tt restore apply --archives <chain> -c <cluster config> --instance <name> \
+      [--work-dir <launch dir>] [...]
+  tt restore apply --archives <chain> --snapshot-dir <path> \
+      --wal-dir <path> --vinyl-dir <path> [...]
 
 Run once per replicaset, on the node it is restored onto, after the
 orchestrator has copied the archives over and stopped the instance. That node
@@ -101,28 +110,122 @@ confirms rather than changes them. Omitting the flag keeps whatever the
 headers carry, which is right for that same case and wrong as soon as the
 archives are replayed onto a differently named node.
 
-Re-running for the same point is idempotent: apply clears what the previous
-run left in the work directory and repeats the work. Cleanup removes only the
-files a restore owns -- snapshots, xlogs, vinyl data and interrupted
-leftovers -- so an instance config or log kept in the same directory survives.
+Tarantool keeps three kinds of file in three directories it configures
+separately: snapshots in snapshot.dir, journals in wal.dir, and the vylog
+together with the vinyl run/index files in vinyl.dir. Apply routes every file
+of the backup into the directory of its own kind, and there are three ways to
+say which directories those are.
 
-On success a restore_state.json marker is written next to the work directory
-(named after it, not inside it). Compare the markers of every restored node
-before starting the cluster: a restore that silently skipped one replicaset
-brings up shards sitting on different states, each self-consistent and
-replicating happily, which surfaces much later as diverged buckets.
+--work-dir alone puts all three in one directory, which is what an instance
+that configures none of the keys uses. The directory is the data directory
+itself: nothing is appended to it, and the files land in it directly.
+
+-c and --instance read the three directories out of a cluster configuration,
+the same file or URI 'tt restore plan -c' takes. --instance names the instance
+whose configuration is read -- the node this replicaset is restored onto,
+which 'tt restore plan' lists as
+restore_targets[<replicaset_uuid>].instance_name. The keys are resolved the
+way Tarantool resolves them: a key the configuration does not set defaults to
+var/lib/{{ instance_name }}, {{ instance_name }} is substituted (and it is the
+only variable that is; any other one is refused rather than passed through as
+part of a path), a relative directory is taken against process.work_dir, and a
+relative or absent process.work_dir against --work-dir. --work-dir means the
+directory Tarantool is launched from in this mode, not a place to put files,
+and it is needed only by a directory that is still relative once
+process.work_dir and the per-directory flags have been taken into account: a
+configuration whose three directories are absolute needs none, and neither
+does one whose process.work_dir is absolute.
+
+--snapshot-dir, --wal-dir and --vinyl-dir name one directory each. Each one
+overrides its own directory and nothing else, whether it came from -c or from
+--work-dir: '--work-dir /data --wal-dir /wal' keeps snapshots and vinyl data
+under /data and puts the journal in /wal. A directory named this way is used
+as it stands: a relative one is taken against the directory tt itself is
+running in, exactly like --work-dir and --archives, never against --work-dir,
+and {{ instance_name }} is not substituted into it. An overridden key is never
+read out of the configuration and never has to resolve, so naming all three
+leaves -c with nothing to answer -- and leaves --work-dir recording the
+restore's base directory in the marker and doing nothing else.
+
+Whichever way the directories were named, apply prints where each kind of file
+is about to go and what decided it -- a flag, or a key of the configuration --
+before it writes anything. The report is informational and the run goes
+straight on from it, so it is where a restore aimed at the wrong directories
+is visible in the log, rather than later as an instance that comes up on part
+of its data. A call whose directories have to be checked before anything is
+written is checked by reading the flags, or by making the same call a rejected
+one -- an --archives that names a file which does not exist prints the layout
+and then refuses the run with nothing touched.
+
+A layout that cannot be completed is refused, and nothing is touched. That
+covers naming nothing at all, -c without --instance, --instance without -c,
+a configuration file that cannot be read or does not parse, an instance the
+configuration does not declare, a configuration holding something other than a
+path where one of the keys belongs, some of the three directories with no
+--work-dir to fill in the rest, and a directory of the configuration that
+stays relative with no --work-dir to resolve it against.
+
+Re-running for the same point is idempotent: apply clears what the previous
+run left in each of the directories and repeats the work. Cleanup removes only
+the files a restore owns -- snapshots, journals, sort data, vinyl data and
+interrupted leftovers -- so an instance config or log kept in the same
+directory survives. It reaches every depth of each of the three directories
+and prunes the subdirectories it empties, which is what vinyl's
+<space_id>/<index_id>/ trees need; never name the directory of an instance
+that is running, or of one whose data is not meant to be replaced.
+
+On success a marker is written beside the snapshot directory, named after it:
+<absolute snapshot directory>.restore_state.json, so a snapshot directory
+/srv/memtx/storage-001-a gets /srv/memtx/storage-001-a.restore_state.json. The
+snapshot directory is the anchor because it belongs to one instance, while the
+directory --work-dir names can be shared by every instance of an application.
+The marker records schema_version, work_dir, snapshot_dir, wal_dir, vinyl_dir,
+target_point, archives and applied_at, plus instance_name, point_name and
+instance_uuid -- these three only when the run was given them, so a marker
+written without --instance, --point-name or --patch-uuid leaves them out
+rather than recording them empty. The three directories are absolute; work_dir
+is the cleaned value of --work-dir, kept relative when it was given relative,
+or the snapshot directory when the flag was omitted. Compare point_name,
+target_point and archives across the restored nodes before starting the
+cluster: a restore that silently skipped one replicaset brings up shards
+sitting on different states, each self-consistent and replicating happily,
+which surfaces much later as diverged buckets.
+
+A marker is removed only from beside the snapshot directory of the run that
+removes it. Pointing a later run at a different snapshot directory therefore
+leaves the earlier marker where it was, still claiming its own directory is
+ready; delete it by hand after moving an instance's data directories.
+
+A sort data file (<signature>.sortdata) is restored beside the snapshot it
+belongs to and is never stamped with --patch-uuid: it carries the UUID of the
+instance the backup was taken on, so a restore onto another node leaves
+Tarantool ignoring it with an error line and rebuilding the indexes from the
+snapshot. That costs startup time and nothing else.
 
 Exit codes:
-  0  the work directory is ready
+  0  the directories are ready
   2  no xlog covers --target-point
-  3  an input was rejected; the work directory was not touched
-  1  unpacking, patching or trimming failed
+  3  an input was rejected; nothing was touched -- a layout that does not add
+     up, -c without --instance or --instance without -c, an unreadable or
+     malformed configuration file, an instance the configuration does not
+     declare, a --checksums list that does not pair with --archives, a
+     malformed --target-point or --patch-uuid, a missing archive, or an
+     archive naming an entry that cannot be placed
+  1  unpacking, patching or trimming failed, or a configuration named by URI
+     could not be fetched or read
 
 Examples:
   tt restore apply --archives /opt/restore/full.tar.zst,/opt/restore/inc1.tar.zst \
       --work-dir /var/lib/tarantool/router-001 \
       --target-point '{"replica_id":1,"lsn":1502}' \
-      --patch-uuid 550e8400-e29b-41d4-a716-446655440000`
+      --patch-uuid 550e8400-e29b-41d4-a716-446655440000
+  tt restore apply --archives /opt/restore/full.tar.zst \
+      -c /etc/tarantool/config.yaml --instance storage-001-a \
+      --work-dir /opt/tarantool
+  tt restore apply --archives /opt/restore/full.tar.zst \
+      -c /etc/tarantool/config.yaml --instance storage-001-a
+  tt restore apply --archives /opt/restore/full.tar.zst \
+      --snapshot-dir /data/memtx --wal-dir /ssd/wal --vinyl-dir /data/vinyl`
 
 // newRestoreApplyCmd creates `tt restore apply`.
 func newRestoreApplyCmd() *cobra.Command {
@@ -142,7 +245,26 @@ func newRestoreApplyCmd() *cobra.Command {
 	cmd.Flags().StringSliceVar(&restoreApplyChecksums, "checksums", nil,
 		"sha256 of each archive, in the same order as --archives")
 	cmd.Flags().StringVar(&restoreApplyWorkDir, "work-dir", "",
-		"instance work directory to rebuild")
+		"directory to put every kind of file in; with --config, the directory "+
+			"the instance is launched from, which its relative paths resolve "+
+			"against; recorded in the marker either way")
+	cmd.Flags().StringVar(&restoreApplySnapshotDir, "snapshot-dir", "",
+		"directory for the .snap files and the sort data beside them, "+
+			"overriding snapshot.dir and --work-dir; a relative path is taken "+
+			"against the current directory")
+	cmd.Flags().StringVar(&restoreApplyWALDir, "wal-dir", "",
+		"directory for the .xlog files, overriding wal.dir and --work-dir; a "+
+			"relative path is taken against the current directory")
+	cmd.Flags().StringVar(&restoreApplyVinylDir, "vinyl-dir", "",
+		"directory for the .vylog and the vinyl run/index files, overriding "+
+			"vinyl.dir and --work-dir; a relative path is taken against the "+
+			"current directory")
+	cmd.Flags().StringVarP(&restoreApplyCfg, "config", "c", "",
+		"cluster configuration to read the data directories of --instance out "+
+			"of.\n"+clusterUriHelp)
+	cmd.Flags().StringVar(&restoreApplyInstance, "instance", "",
+		"instance whose data directories are read from --config: the node this "+
+			"replicaset is restored onto")
 	cmd.Flags().StringVar(&restoreApplyPoint, "target-point", "",
 		`recovery point position to cut the final xlog at, `+
 			`as '{"replica_id":N,"lsn":M}'`)
@@ -152,7 +274,6 @@ func newRestoreApplyCmd() *cobra.Command {
 		"new instance UUID to stamp into every snap/xlog header")
 
 	cmd.MarkFlagRequired("archives")
-	cmd.MarkFlagRequired("work-dir")
 
 	return cmd
 }
@@ -160,7 +281,7 @@ func newRestoreApplyCmd() *cobra.Command {
 func runRestoreApply(cmd *cobra.Command, args []string) error {
 	cmdCtx.CommandName = cmd.Name()
 
-	result, err := runRestoreApplyInner()
+	result, layout, err := runRestoreApplyInner()
 	if err != nil {
 		switch {
 		case errors.Is(err, restore.ErrNoTrimFile):
@@ -174,21 +295,40 @@ func runRestoreApply(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("restore apply: %w", err)
 	}
 
-	reportRestoreApply(result)
+	reportRestoreApply(result, layout)
 
 	return nil
 }
 
-// runRestoreApplyInner parses the flags and runs the restore.
-func runRestoreApplyInner() (*restore.ApplyResult, error) {
+// runRestoreApplyInner parses the flags and runs the restore, returning the
+// layout it resolved along with the result so that the report can say where
+// each file went.
+func runRestoreApplyInner() (*restore.ApplyResult, restore.Layout, error) {
 	var (
 		point *restore.Point
 		err   error
 	)
 
+	// Before anything else: the layout decides where a whole instance's data
+	// goes, and a rejected one must be reported while the previous attempt is
+	// still intact.
+	layout, sources, err := resolveRestoreLayout(restoreLayoutFlags{
+		WorkDir:     restoreApplyWorkDir,
+		SnapshotDir: restoreApplySnapshotDir,
+		WALDir:      restoreApplyWALDir,
+		VinylDir:    restoreApplyVinylDir,
+		Config:      restoreApplyCfg,
+		Instance:    restoreApplyInstance,
+	}, clusterConfigDirs)
+	if err != nil {
+		return nil, restore.Layout{}, err //nolint:wrapcheck
+	}
+
+	reportRestoreLayout(layout, sources)
+
 	if restoreApplyPoint != "" {
 		if point, err = restore.ParsePoint(restoreApplyPoint); err != nil {
-			return nil, err //nolint:wrapcheck
+			return nil, layout, err //nolint:wrapcheck
 		}
 	} else {
 		// Loud, because the difference is invisible afterwards: the instance
@@ -212,21 +352,69 @@ func runRestoreApplyInner() (*restore.ApplyResult, error) {
 			"a copy to this node that went wrong will not be noticed")
 	}
 
-	return restore.Apply(restore.ApplyOpts{ //nolint:wrapcheck
-		Archives:  restoreApplyArchives,
-		Checksums: restoreApplyChecksums,
-		Layout:    restore.FlatLayout(restoreApplyWorkDir),
-		WorkDir:   restoreApplyWorkDir,
-		Point:     point,
-		PointName: restoreApplyPointName,
-		PatchUUID: restoreApplyPatchUUID,
+	result, err := restore.Apply(restore.ApplyOpts{
+		Archives:     restoreApplyArchives,
+		Checksums:    restoreApplyChecksums,
+		Layout:       layout,
+		WorkDir:      restoreApplyWorkDir,
+		InstanceName: restoreApplyInstance,
+		Point:        point,
+		PointName:    restoreApplyPointName,
+		PatchUUID:    restoreApplyPatchUUID,
 	})
+
+	return result, layout, err //nolint:wrapcheck
+}
+
+// reportRestoreLayout says where each kind of file is about to go and what
+// decided it, before anything is written. Nothing waits on the line: it is
+// what a restore aimed at the wrong directories is found by in the log, which
+// is otherwise visible only as an instance that comes up on part of its data.
+func reportRestoreLayout(layout restore.Layout, sources restoreLayoutSources) {
+	for _, dir := range []struct {
+		kind   string
+		path   string
+		source string
+	}{
+		{kind: "snapshots", path: layout.Snapshot, source: sources.Snapshot},
+		{kind: "journals ", path: layout.WAL, source: sources.WAL},
+		{kind: "vinyl    ", path: layout.Vinyl, source: sources.Vinyl},
+	} {
+		log.Infof("%s -> %s (from %s)", dir.kind, dir.path, dir.source)
+	}
 }
 
 // reportRestoreApply prints what the run produced.
-func reportRestoreApply(result *restore.ApplyResult) {
-	log.Infof("unpacked %d file(s) into %s: %s",
-		len(result.Files), restoreApplyWorkDir, strings.Join(result.Files, ", "))
+//
+// A layout that is one directory is reported as one directory: the per-kind
+// breakdown below would name that same directory three times, and an operator
+// restoring an instance that configures none of the three keys has no split to
+// be told about. That one directory is named the way nameOfFlatDir names it; a
+// split layout is named resolved, because there the operator is being told
+// where three separate places are.
+func reportRestoreApply(result *restore.ApplyResult, layout restore.Layout) {
+	dirs := layoutDirs(layout)
+	subject := "data directories"
+
+	if len(dirs) == 1 {
+		subject = "work directory"
+
+		log.Infof("unpacked %d file(s) into %s: %s",
+			len(result.Files), nameOfFlatDir(dirs[0], restoreApplyWorkDir),
+			strings.Join(result.Files, ", "))
+	} else {
+		log.Infof("unpacked %d file(s): %s",
+			len(result.Files), strings.Join(result.Files, ", "))
+
+		// Per directory rather than as one list: on a split layout the name of
+		// a file says nothing about where it went, and where it went is what
+		// decides whether the instance will find it.
+		for _, dir := range dirs {
+			if landed := countLandedIn(result.Files, layout, dir); landed > 0 {
+				log.Infof("  %d in %s", landed, dir)
+			}
+		}
+	}
 
 	if result.Patched > 0 {
 		log.Infof("stamped instance uuid %s into %d header(s)",
@@ -242,7 +430,58 @@ func reportRestoreApply(result *restore.ApplyResult) {
 			len(result.DroppedFiles), strings.Join(result.DroppedFiles, ", "))
 	}
 
-	log.Infof("work directory ready, marker written to %s", result.StatePath)
+	log.Infof("%s ready, marker written to %s", subject, result.StatePath)
+}
+
+// nameOfFlatDir names the single directory a one-directory layout writes into.
+//
+// The verbatim --work-dir spelling is used when that flag is the directory the
+// files land in, because the line is read against the command it came from: an
+// operator who named a relative directory is told about the directory they
+// named. A --work-dir that is not the destination is not what the line is
+// about -- with a cluster configuration it is the directory the instance is
+// launched from, and with three per-directory flags it decides nothing at all
+// -- so the resolved destination is named instead, and printing the flag there
+// would point at a directory the restore never wrote into.
+func nameOfFlatDir(dir, workDir string) string {
+	if workDir != "" && restore.FlatLayout(workDir).Resolved().Snapshot == dir {
+		return workDir
+	}
+
+	return dir
+}
+
+// layoutDirs returns the directories a layout writes into, resolved and
+// without repeats, in the order a report reads best: snapshots, journals,
+// vinyl data. Two spellings of one directory are one directory, and reporting
+// them apart would have an operator looking for a split that is not there.
+func layoutDirs(layout restore.Layout) []string {
+	resolved := layout.Resolved()
+	dirs := make([]string, 0, 3)
+
+	for _, dir := range []string{resolved.Snapshot, resolved.WAL, resolved.Vinyl} {
+		if !slices.Contains(dirs, dir) {
+			dirs = append(dirs, dir)
+		}
+	}
+
+	return dirs
+}
+
+// countLandedIn counts the entries that went into one directory of a layout.
+// Both sides of the comparison are resolved, so that a layout naming one
+// directory twice counts every file that landed in it once.
+func countLandedIn(files []string, layout restore.Layout, dir string) int {
+	resolved := layout.Resolved()
+	landed := 0
+
+	for _, name := range files {
+		if resolved.DirFor(name) == dir {
+			landed++
+		}
+	}
+
+	return landed
 }
 
 // restorePlanLong is the help text of `tt restore plan`.
