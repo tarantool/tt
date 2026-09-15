@@ -125,9 +125,9 @@ func TestPackStoresBaseNameOnlyWithoutRoots(t *testing.T) {
 	assert.Equal(t, want, got)
 }
 
-// TestPackWithRootsPreservesNestedPath checks that a file under one of roots
-// keeps its subdirectory structure inside the archive -- the shape vinyl's
-// .run/.index files need, since they live under
+// TestPackWithRootsPreservesNestedPath checks that a file under its own data
+// directory keeps its subdirectory structure inside the archive -- the shape
+// vinyl's .run/.index files need, since they live under
 // <vinyl_dir>/<space_id>/<index_id>/, not flat like snap/xlog.
 func TestPackWithRootsPreservesNestedPath(t *testing.T) {
 	vinylDir := t.TempDir()
@@ -136,28 +136,234 @@ func TestPackWithRootsPreservesNestedPath(t *testing.T) {
 	path := writeFixture(t, nested, "00000000000000000001.run", []byte("run-data"))
 
 	archivePath := filepath.Join(t.TempDir(), "backup.tar.zst")
-	require.NoError(t, Pack(archivePath, []string{path}, 3, vinylDir))
+	require.NoError(t, Pack(archivePath, []string{path}, 3, DataDirs{Vinyl: vinylDir}))
 
 	got := readArchiveRaw(t, archivePath)
 	want := map[string][]byte{"512/0/00000000000000000001.run": []byte("run-data")}
 	assert.Equal(t, want, got)
 }
 
-// TestEntryName checks the relative-path-under-root and base-name-fallback
-// behaviors directly.
+// TestEntryName checks that a file is named relative to the data directory of
+// its own kind, and falls back to its base name when that directory is unknown
+// or does not hold it.
 func TestEntryName(t *testing.T) {
-	assert.Equal(t, "00000000000000000001.snap",
-		EntryName("/data/wal/00000000000000000001.snap"))
-	assert.Equal(t, "00000000000000000001.snap",
-		EntryName("/data/wal/00000000000000000001.snap", "/data/wal"))
-	assert.Equal(t, "512/0/00000000000000000001.run",
-		EntryName("/data/vinyl/512/0/00000000000000000001.run", "/data/vinyl"))
-	// A file under none of the given roots falls back to its base name.
-	assert.Equal(t, "00000000000000000001.run",
-		EntryName("/data/vinyl/512/0/00000000000000000001.run", "/data/wal", "/data/memtx"))
-	// An empty root (e.g. an instance with no vinyl_dir configured) is skipped.
-	assert.Equal(t, "00000000000000000001.run",
-		EntryName("/data/vinyl/512/0/00000000000000000001.run", ""))
+	const (
+		snap     = "00000000000000000001.snap"
+		sortData = "00000000000000000001.sortdata"
+		xlog     = "00000000000000000001.xlog"
+		vylog    = "00000000000000000001.vylog"
+		runBase  = "00000000000000000001.run"
+		run      = "512/0/" + runBase
+	)
+
+	flat := DataDirs{WAL: "/data", Memtx: "/data", Vinyl: "/data"}
+	split := DataDirs{WAL: "/data/wal", Memtx: "/data/memtx", Vinyl: "/data/vinyl"}
+	// vinyl_dir and memtx_dir nested inside wal_dir: a prefix match against
+	// wal_dir must not win over the directory of the file's own kind.
+	nested := DataDirs{WAL: "/data", Memtx: "/data/memtx", Vinyl: "/data/vinyl"}
+	// wal_dir and memtx_dir nested inside vinyl_dir, the layout that tells a
+	// file named against its own directory from one named against the vinyl
+	// directory it happens to sit under: the second keeps a directory in front
+	// of the name, and the base-name fallback is never reached.
+	underVinyl := DataDirs{
+		WAL:   "/data/vinyl/wal",
+		Memtx: "/data/vinyl/memtx",
+		Vinyl: "/data/vinyl",
+	}
+
+	tests := []struct {
+		name string
+		file string
+		dirs DataDirs
+		want string
+	}{
+		{"no dirs at all", "/data/wal/" + snap, DataDirs{}, snap},
+		{"flat snap", "/data/" + snap, flat, snap},
+		{"flat xlog", "/data/" + xlog, flat, xlog},
+		{"flat vylog", "/data/" + vylog, flat, vylog},
+		{"flat run", "/data/" + run, flat, run},
+		{"split snap", "/data/memtx/" + snap, split, snap},
+		{"split xlog", "/data/wal/" + xlog, split, xlog},
+		{"split run", "/data/vinyl/" + run, split, run},
+		{"nested memtx snap", "/data/memtx/" + snap, nested, snap},
+		{"nested vinyl run", "/data/vinyl/" + run, nested, run},
+		{"nested xlog", "/data/" + xlog, nested, xlog},
+		// Sort data is written beside the snapshot it describes, so it is
+		// named against memtx_dir like the snapshot.
+		{"split sort data", "/data/memtx/" + sortData, split, sortData},
+		{"nested sort data", "/data/memtx/" + sortData, nested, sortData},
+		{
+			"sort data with memtx_dir under vinyl_dir",
+			"/data/vinyl/memtx/" + sortData,
+			underVinyl,
+			sortData,
+		},
+		{
+			"a snapshot with memtx_dir under vinyl_dir",
+			"/data/vinyl/memtx/" + snap,
+			underVinyl,
+			snap,
+		},
+		// A file Tarantool was still writing is named against the directory
+		// its finished form lives in: a restore strips the suffix before it
+		// routes the entry, and the two have to agree.
+		{
+			"an open journal",
+			"/data/wal/" + xlog + ".inprogress",
+			split,
+			xlog + ".inprogress",
+		},
+		{
+			"an open journal with wal_dir under vinyl_dir",
+			"/data/vinyl/wal/" + xlog + ".inprogress",
+			underVinyl,
+			xlog + ".inprogress",
+		},
+		{
+			"an open snapshot with memtx_dir under vinyl_dir",
+			"/data/vinyl/memtx/" + snap + ".inprogress",
+			underVinyl,
+			snap + ".inprogress",
+		},
+		{
+			"an open snapshot",
+			"/data/memtx/" + snap + ".inprogress",
+			split,
+			snap + ".inprogress",
+		},
+		// A file outside the directory of its own kind keeps only its base
+		// name, even when another kind's directory does contain it.
+		{"snap outside memtx_dir", "/data/wal/" + snap, split, snap},
+		{"run outside vinyl_dir", "/data/wal/" + run, split, runBase},
+		// An instance with no vinyl_dir configured.
+		{"empty own dir", "/data/vinyl/" + run, DataDirs{WAL: "/data/wal"}, runBase},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, EntryName(filepath.FromSlash(tc.file), tc.dirs))
+		})
+	}
+}
+
+// packLayout is one instance data-directory layout: where each kind of file
+// lives, relative to a single base directory.
+type packLayout struct {
+	name  string
+	wal   string
+	memtx string
+	vinyl string
+}
+
+// TestPackNamesEntriesByFileKind packs one file of every kind a backup carries
+// -- a snapshot, the sort data beside it, a journal, a journal Tarantool was
+// still writing, and a nested vinyl run -- through Pack and reads the entries
+// back, over the data-directory layouts an instance can have. Every layout
+// must yield the same names: a restore routes an entry to a target directory
+// by file kind, so a name taken relative to another kind's directory would
+// land the file in the wrong place.
+func TestPackNamesEntriesByFileKind(t *testing.T) {
+	layouts := []packLayout{
+		{
+			name:  "all dirs equal",
+			wal:   ".",
+			memtx: ".",
+			vinyl: ".",
+		},
+		{
+			name:  "all dirs distinct",
+			wal:   "wal",
+			memtx: "memtx",
+			vinyl: "vinyl",
+		},
+		{
+			name:  "vinyl_dir nested inside wal_dir",
+			wal:   "wal",
+			memtx: "memtx",
+			vinyl: "wal/vinyl",
+		},
+		{
+			name:  "memtx_dir nested inside wal_dir",
+			wal:   "wal",
+			memtx: "wal/memtx",
+			vinyl: "vinyl",
+		},
+		{
+			// The layout a wrong classification shows up in: a file named
+			// against vinyl_dir keeps a directory in front of its name here,
+			// instead of falling back on the base name and looking right.
+			name:  "wal_dir and memtx_dir nested inside vinyl_dir",
+			wal:   "vinyl/wal",
+			memtx: "vinyl/memtx",
+			vinyl: "vinyl",
+		},
+	}
+
+	for _, layout := range layouts {
+		t.Run(layout.name, func(t *testing.T) {
+			base := t.TempDir()
+			dirs := DataDirs{
+				WAL:   filepath.Join(base, filepath.FromSlash(layout.wal)),
+				Memtx: filepath.Join(base, filepath.FromSlash(layout.memtx)),
+				Vinyl: filepath.Join(base, filepath.FromSlash(layout.vinyl)),
+			}
+
+			runDir := filepath.Join(dirs.Vinyl, "512", "0")
+			for _, dir := range []string{dirs.WAL, dirs.Memtx, runDir} {
+				require.NoError(t, os.MkdirAll(dir, 0o755))
+			}
+
+			files := []string{
+				writeFixture(t, dirs.Memtx, "00000000000000000001.snap", []byte("snap")),
+				writeFixture(t, dirs.Memtx, "00000000000000000001.sortdata",
+					[]byte("sortdata")),
+				writeFixture(t, dirs.WAL, "00000000000000000001.xlog", []byte("xlog")),
+				writeFixture(t, dirs.WAL, "00000000000000000002.xlog.inprogress",
+					[]byte("open")),
+				writeFixture(t, runDir, "00000000000000000001.run", []byte("run")),
+			}
+
+			archivePath := filepath.Join(t.TempDir(), "backup.tar.zst")
+			require.NoError(t, Pack(archivePath, files, 3, dirs))
+
+			got := map[string]string{}
+			for entry, err := range Entries(archivePath) {
+				require.NoError(t, err)
+				body, err := io.ReadAll(entry.Body)
+				require.NoError(t, err)
+				got[entry.Name] = string(body)
+			}
+
+			want := map[string]string{
+				"00000000000000000001.snap":            "snap",
+				"00000000000000000001.sortdata":        "sortdata",
+				"00000000000000000001.xlog":            "xlog",
+				"00000000000000000002.xlog.inprogress": "open",
+				"512/0/00000000000000000001.run":       "run",
+			}
+			assert.Equal(t, want, got)
+		})
+	}
+}
+
+// TestPackFileOutsideEveryDirUsesBaseName checks a file that lies under none of
+// the instance's data directories is stored flat, so it can never be extracted
+// outside the directory its kind is restored into.
+func TestPackFileOutsideEveryDirUsesBaseName(t *testing.T) {
+	stray := t.TempDir()
+	nested := filepath.Join(stray, "512", "0")
+	require.NoError(t, os.MkdirAll(nested, 0o755))
+	path := writeFixture(t, nested, "00000000000000000001.run", []byte("run"))
+
+	dirs := DataDirs{
+		WAL:   filepath.Join(t.TempDir(), "wal"),
+		Memtx: filepath.Join(t.TempDir(), "memtx"),
+		Vinyl: filepath.Join(t.TempDir(), "vinyl"),
+	}
+
+	archivePath := filepath.Join(t.TempDir(), "backup.tar.zst")
+	require.NoError(t, Pack(archivePath, []string{path}, 3, dirs))
+
+	assert.Equal(t, []string{"00000000000000000001.run"}, readArchiveNames(t, archivePath))
 }
 
 func TestPackMissingFile(t *testing.T) {

@@ -75,14 +75,48 @@ type Entry struct {
 	Body io.Reader
 }
 
-// Pack packs files into dst as a flat .tar.zst archive.
-func Pack(dst string, files []string, level int, roots ...string) (err error) {
+// DataDirs are an instance's data directories, one per kind of file Tarantool
+// stores: snapshots in Memtx, write-ahead logs in WAL, and the vinyl metadata
+// log together with the per-space run/index trees in Vinyl. An empty field
+// means that directory is unknown.
+type DataDirs struct {
+	WAL   string
+	Memtx string
+	Vinyl string
+}
+
+// rootFor returns the directory holding files of the same kind as file:
+// memtx_dir for a snapshot and the sort data beside it, wal_dir for a
+// write-ahead log, vinyl_dir for everything else. It reads the kind off the
+// name the same way unpacking does, so that a file Tarantool was still writing
+// when the backup was taken -- <name>.<ext>.inprogress -- is named against the
+// directory its finished form lives in rather than against the vinyl one.
+func (dirs DataDirs) rootFor(file string) string {
+	switch KindOf(file) {
+	case KindSnapshot:
+		return dirs.Memtx
+	case KindWAL:
+		return dirs.WAL
+	default:
+		return dirs.Vinyl
+	}
+}
+
+// Pack packs files into dst as a .tar.zst archive, naming each entry with
+// EntryName against dirs. At most one DataDirs is meaningful and the first one
+// given is used; with none, every file is stored under its base name.
+func Pack(dst string, files []string, level int, dirs ...DataDirs) (err error) {
+	var roots DataDirs
+	if len(dirs) > 0 {
+		roots = dirs[0]
+	}
+
 	ordered := slices.Clone(files)
 	sortWalFiles(ordered)
 
 	names := make([]string, len(ordered))
 	for i, file := range ordered {
-		names[i] = EntryName(file, roots...)
+		names[i] = EntryName(file, roots)
 	}
 
 	if err := checkUniqueNames(ordered, names); err != nil {
@@ -131,24 +165,31 @@ func Pack(dst string, files []string, level int, roots ...string) (err error) {
 	return nil
 }
 
-// EntryName returns the name file gets inside an archive packed with roots:
-// its path relative to whichever of roots contains it, or its base name when
-// none does (or none are given).
-func EntryName(file string, roots ...string) string {
-	for _, root := range roots {
-		if root == "" {
-			continue
-		}
-
-		rel, err := filepath.Rel(root, file)
-		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-			continue
-		}
-
-		return filepath.ToSlash(rel)
+// EntryName returns the name file gets inside an archive packed with dirs: its
+// path relative to the data directory holding files of its kind, or its base
+// name when that directory is unknown or does not contain the file.
+//
+// A file is never named relative to a directory of another kind, even when that
+// directory contains it. Unpacking routes an entry to a target directory by the
+// same file kind, so a vinyl run named against a wal_dir that happens to hold
+// vinyl_dir would be restored one level too deep under the target vinyl_dir.
+// The base name is what is left when the file lies under no directory of its
+// own kind: it says nothing about where inside that directory the file sat --
+// a vinyl run flattened this way loses the <space_id>/<index_id>/ pair it is
+// indexed by -- and is chosen only because it cannot place the file anywhere
+// but in the one directory that could hold it.
+func EntryName(file string, dirs DataDirs) string {
+	root := dirs.rootFor(file)
+	if root == "" {
+		return filepath.Base(file)
 	}
 
-	return filepath.Base(file)
+	rel, err := filepath.Rel(root, file)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return filepath.Base(file)
+	}
+
+	return filepath.ToSlash(rel)
 }
 
 // checkUniqueNames rejects inputs that resolve to the same archive entry

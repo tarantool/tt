@@ -40,6 +40,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - `status`: replication errors were ignored.
+- `tt backup start`: an archive entry is named against the data directory that
+  holds files of its own kind, so an instance keeping one data directory inside
+  another no longer names a vinyl run against `wal_dir` and has it restored a
+  level too deep. `tt restore apply` normalizes the names older archives carry,
+  so a backup already taken from such an instance restores correctly too.
 - `tt cluster publish` / `tt cluster show`: fix a connection timeout to an
   `https://` Tarantool Config Storage or etcd endpoint with SSL enabled but no
   client certificate configured.

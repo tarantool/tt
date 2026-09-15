@@ -209,9 +209,13 @@ func packArchive(
 	archivePath := filepath.Join(archiveDir, baseName+".tar.zst")
 	fragmentPath := filepath.Join(archiveDir, baseName+".json")
 
-	dataDirs := []string{inst.WalDir, inst.MemtxDir, inst.VinylDir}
+	dataDirs := archive.DataDirs{
+		WAL:   inst.WalDir,
+		Memtx: inst.MemtxDir,
+		Vinyl: inst.VinylDir,
+	}
 
-	if err := archive.Pack(archivePath, filePaths, zstdCompressionLevel, dataDirs...); err != nil {
+	if err := archive.Pack(archivePath, filePaths, zstdCompressionLevel, dataDirs); err != nil {
 		return "", fmt.Errorf("failed to pack archive %q: %w", archivePath, err)
 	}
 
@@ -239,7 +243,7 @@ func packArchive(
 		Type:           info.Type,
 		VclockBegin:    info.PrevVclock,
 		VclockEnd:      info.Vclock,
-		Files:          archiveEntryNames(filePaths, dataDirs...),
+		Files:          archiveEntryNames(filePaths, dataDirs),
 		RecoveryPoints: info.RecoveryPoints,
 		ChecksumSHA256: checksum,
 	}
@@ -290,10 +294,10 @@ func resolveFiles(files []string, dataDirs ...string) ([]string, error) {
 }
 
 // archiveEntryNames returns the name each path would get inside the archive.
-func archiveEntryNames(paths []string, dataDirs ...string) []string {
+func archiveEntryNames(paths []string, dataDirs archive.DataDirs) []string {
 	names := make([]string, len(paths))
 	for i, p := range paths {
-		names[i] = archive.EntryName(p, dataDirs...)
+		names[i] = archive.EntryName(p, dataDirs)
 	}
 
 	return names
