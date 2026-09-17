@@ -23,6 +23,22 @@ type Dependency struct {
 	Kind     string `toml:"kind,omitempty"`     // In v0 only "library".
 }
 
+// applyDefaults fills in the fields a dependency may leave out. An omitted
+// source is "registry".
+//
+// UnmarshalTOML below does the same for the forms it sees, but go-toml only
+// hands a value to an Unmarshaler when the value is a node of its own: a bare
+// string or an inline table. A dependency written as a standard sub-table
+// ([dependencies.<name>] with the fields beneath it) is decoded key by key
+// into the struct directly, so UnmarshalTOML never runs and the default never
+// applied. Defaulting after the decode covers every form at one point, whatever
+// route the decoder took to build the value.
+func (d *Dependency) applyDefaults() {
+	if d.Source == "" {
+		d.Source = sourceRegistry
+	}
+}
+
 // UnmarshalTOML implements the go-toml unstable.Unmarshaler interface so a
 // dependency can decode from either a bare string or a table. The decoder must
 // have EnableUnmarshalerInterface set (ParseManifest/ParseLock do).
@@ -68,9 +84,7 @@ func (d *Dependency) unmarshalTable(node *unstable.Node) error {
 		}
 	}
 
-	if d.Source == "" {
-		d.Source = sourceRegistry
-	}
+	d.applyDefaults()
 
 	return nil
 }

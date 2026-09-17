@@ -52,6 +52,18 @@ inline    = { source = "registry", version = ">=1.0.0" }
 [dependencies.local-helper]
 source = "path"
 path   = "../helper"
+
+[dependencies.sub-table]
+version = ">=2.0.0"
+
+[dev_dependencies.dev-sub-table]
+version = ">=3.0.0"
+
+[components.lua]
+path = "src"
+
+[components.lua.dependencies.component-sub-table]
+version = ">=4.0.0"
 `
 	mfst, _, err := manifest.ParseManifest([]byte(src))
 	require.NoError(t, err)
@@ -68,6 +80,18 @@ path   = "../helper"
 	assert.Equal(t, manifest.Dependency{
 		Source: "path", Version: "", Path: "../helper", Registry: "", Kind: "",
 	}, mfst.Dependencies["local-helper"])
+	// Long form written as a standard sub-table, source left out: the
+	// registry default applies here exactly as it does to the inline table,
+	// in every table a dependency can be declared in.
+	assert.Equal(t, manifest.Dependency{
+		Source: "registry", Version: ">=2.0.0", Path: "", Registry: "", Kind: "",
+	}, mfst.Dependencies["sub-table"])
+	assert.Equal(t, manifest.Dependency{
+		Source: "registry", Version: ">=3.0.0", Path: "", Registry: "", Kind: "",
+	}, mfst.DevDependencies["dev-sub-table"])
+	assert.Equal(t, manifest.Dependency{
+		Source: "registry", Version: ">=4.0.0", Path: "", Registry: "", Kind: "",
+	}, mfst.Components["lua"].Dependencies["component-sub-table"])
 
 	_, err = mfst.Validate()
 	require.NoError(t, err)
