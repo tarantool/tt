@@ -113,6 +113,8 @@ func ParseManifest(data []byte) (*Manifest, []string, error) {
 		}
 	}
 
+	out.applyDependencyDefaults()
+
 	out.raw = append([]byte(nil), data...)
 
 	return out, warnings, nil
@@ -161,6 +163,27 @@ func (m *Manifest) Hash() string {
 // Raw returns the raw source bytes the manifest was parsed from.
 func (m *Manifest) Raw() []byte {
 	return m.raw
+}
+
+// applyDependencyDefaults defaults every declared dependency, in the global
+// tables and in each component's, so a dependency reads the same whichever
+// TOML form it was written in. See Dependency.applyDefaults for why the
+// decoder alone does not get this right.
+func (m *Manifest) applyDependencyDefaults() {
+	defaults := func(deps map[string]Dependency) {
+		for name, dep := range deps {
+			dep.applyDefaults()
+
+			deps[name] = dep
+		}
+	}
+
+	defaults(m.Dependencies)
+	defaults(m.DevDependencies)
+
+	for _, component := range m.Components {
+		defaults(component.Dependencies)
+	}
 }
 
 // HashBytes returns the "sha256:<hex>" hash of arbitrary manifest bytes.
