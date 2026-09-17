@@ -111,3 +111,4 @@ vylog
 warnf
 xcall
 xlog*
+zstandard
