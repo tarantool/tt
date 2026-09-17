@@ -99,6 +99,8 @@ func NewPackageCmd() *cobra.Command {
 		newPackageDownloadCmd(),
 	)
 
+	addPersistentProjectDirFlag(packageCmd)
+
 	return packageCmd
 }
 
@@ -561,17 +563,6 @@ func keptReason(dep inventory.KeptDependency) string {
 	default:
 		return "required by " + strings.Join(dep.HeldBy, ", ")
 	}
-}
-
-// absoluteWorkingDir returns the caller's working directory as an absolute
-// path, which is the install-root every project-scope command works against.
-func absoluteWorkingDir() (string, error) {
-	dir, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-
-	return filepath.Abs(dir)
 }
 
 // newPackageInstallCmd wires `tt package install ARCHIVE...`.
