@@ -35,8 +35,8 @@ func NewCoredumpCmd() *cobra.Command {
 	packCmd.Flags().StringVarP(&coredumpPackTime, "time", "t", "",
 		"Time of dump, expressed as seconds since the Epoch (1970-01-01 00:00 UTC)")
 	packCmd.Flags().UintVarP(&coredumpPackPID, "pid", "p", 0,
-		"PID of the dumped process, as seen in the PID namespace in which\n"+
-			"the given process resides (see %p in core(5) for more info). This flag\n"+
+		"PID of the dumped process, as seen in the PID namespace in which "+
+			"the given process resides (see %p in core(5) for more info). This flag "+
 			"is to be used when tt is used as kernel.core_pattern pipeline script")
 
 	unpackCmd := &cobra.Command{
