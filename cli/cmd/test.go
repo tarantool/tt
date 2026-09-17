@@ -68,6 +68,8 @@ Everything after '--' is handed to luatest, and the exit code is luatest's own.
 `,
 	}
 
+	addProjectDirFlag(testCmd)
+
 	return testCmd
 }
 

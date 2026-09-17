@@ -50,6 +50,7 @@ func NewNewCmd() *cobra.Command {
 
 	newCmd.Flags().StringVarP(&newPackageName, "name", "n", "",
 		"package name to declare; defaults to the directory name")
+	addProjectDirFlag(newCmd)
 
 	return newCmd
 }
