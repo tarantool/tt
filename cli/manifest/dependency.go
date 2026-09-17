@@ -41,6 +41,22 @@ func (d *Dependency) UnmarshalTOML(node *unstable.Node) error {
 	}
 }
 
+// applyDefaults fills in the fields a dependency may leave out. An omitted
+// source is "registry".
+//
+// UnmarshalTOML above does the same for the forms it sees, but go-toml only
+// hands a value to an Unmarshaler when the value is a node of its own: a bare
+// string or an inline table. A dependency written as a standard sub-table
+// ([dependencies.<name>] with the fields beneath it) is decoded key by key
+// into the struct directly, so UnmarshalTOML never runs and the default never
+// applied. Defaulting after the decode covers every form at one point, whatever
+// route the decoder took to build the value.
+func (d *Dependency) applyDefaults() {
+	if d.Source == "" {
+		d.Source = sourceRegistry
+	}
+}
+
 // unmarshalTable decodes the long form: a table with source/version/path/
 // registry/kind fields. An empty source defaults to "registry".
 func (d *Dependency) unmarshalTable(node *unstable.Node) error {
@@ -68,9 +84,7 @@ func (d *Dependency) unmarshalTable(node *unstable.Node) error {
 		}
 	}
 
-	if d.Source == "" {
-		d.Source = sourceRegistry
-	}
+	d.applyDefaults()
 
 	return nil
 }
