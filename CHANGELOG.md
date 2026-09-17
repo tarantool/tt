@@ -151,6 +151,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   does not come from a registry has no rock file to mirror and is skipped
   with a warning. Re-running overwrites and re-indexes, so a mirror can be
   extended in place. Each written path is printed to stdout.
+- `-C <dir>` on `tt package` and its subcommands, `tt new` and `tt test`:
+  work on the project in `<dir>` as if it were the current directory. A
+  relative path resolves against the working directory, and a path that is
+  not a usable directory is refused naming the flag, rather than surfacing
+  later as a missing manifest. `tt run` does not take it: that command parses
+  no flags of its own, since every argument is Tarantool's.
 - `tt status`: add `--format` option to support JSON and YAML output formats
 for machine-readable output.
 - `tt test`: build the package in the current directory and run its tests with
