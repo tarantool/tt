@@ -279,6 +279,36 @@ func NewBackupCmd() *cobra.Command {
 	return backupCmd
 }
 
+// NewBackupIDCmd creates `tt backup-id`.
+func NewBackupIDCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "backup-id",
+		Short: "Print an identifier for a new backup",
+		Long: `Print an identifier for a new backup: the current UTC time as
+20060102T150405Z, followed by a newline. Pass it as is to --backup-id of
+'tt backup start', 'tt backup upload' and 'tt backup finalize'.
+
+Identifiers sort as text in the order they are generated, which is the order
+'tt backup upload' requires. The command exits once the second it printed is
+over, so the next call prints a later one.
+
+That holds for calls made one after another on one host. Calls running at the
+same time, calls on different hosts, or a clock stepped back can print the same
+identifier; generate one per backup run and hand it to every step.`,
+		Args:         cobra.NoArgs,
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			cmdCtx.CommandName = cmd.Name()
+			// An orchestrator captures stdout: an id that did not reach it
+			// must fail the call, not exit 0 with nothing printed.
+			if _, err := fmt.Fprintln(cmd.OutOrStdout(), backup.NewBackupID()); err != nil {
+				return fmt.Errorf("failed to print the backup id: %w", err)
+			}
+			return nil
+		},
+	}
+}
+
 // newBackupStartCmd creates `tt backup start`.
 func newBackupStartCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -301,7 +331,7 @@ whose iproto listener has TLS enabled.`,
 		"path to the tt environment configuration (tt.yaml) that resolves an "+
 			"<APP:INSTANCE> target; a <URI> target needs none")
 	cmd.Flags().StringVar(&backupStartID, "backup-id", "",
-		"backup identifier (required)")
+		"backup identifier (required); 'tt backup-id' prints a new one")
 	cmd.Flags().StringVar(&backupStartFromVclock, "from-vclock", "",
 		"vclock of the last manifest (JSON object, e.g. '{\"1\":1500}'); "+
 			"incremental only")
