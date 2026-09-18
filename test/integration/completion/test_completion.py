@@ -77,7 +77,8 @@ ROOT_TT_TEST_CASES: CompletionCases = [
             "-h",
         },
     ),
-    ("tt help ", tt_root_command),
+    # `tt help` also completes the additional help topics.
+    ("tt help ", {*tt_root_command, "errors"}),
 ]
 
 # Cases for testing `tt rocks` command.
