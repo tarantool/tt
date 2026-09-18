@@ -77,6 +77,14 @@ func (f *fakeResolver) ResolvePinned(
 	if f.lock != nil {
 		out.Products = f.lock.Products
 		out.DevDependencies = f.lock.DevDependencies
+	} else {
+		// The real engine writes an entry for every effective product, empty
+		// or not; a lock missing one is stale, so the fake must not produce
+		// one either.
+		out.Products = map[string]manifest.LockProduct{}
+		for name := range man.EffectiveProducts() {
+			out.Products[name] = manifest.LockProduct{Dependencies: nil}
+		}
 	}
 
 	return &out, f.warnings, nil

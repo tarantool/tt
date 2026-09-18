@@ -39,8 +39,6 @@ var (
 	// errUnknownComponent reports that a component argument names a component
 	// the selected product does not build.
 	errUnknownComponent = errors.New("unknown component")
-	// errNoProducts reports that the manifest defines no products at all.
-	errNoProducts = errors.New("manifest defines no products")
 	// errUnknownSource reports a lock dependency whose source is neither
 	// registry nor path.
 	errUnknownSource = errors.New("unknown dependency source")

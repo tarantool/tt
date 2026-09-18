@@ -209,8 +209,9 @@ func (e *Engine) resolveOnce(
 	// fetch and hash it once, not once per product.
 	cache := newResolveCache()
 
-	for _, name := range sortedKeys(man.Products) {
-		dependencies, warns, err := e.resolveProduct(ctx, cache, man, man.Products[name], pins)
+	products := man.EffectiveProducts()
+	for _, name := range sortedKeys(products) {
+		dependencies, warns, err := e.resolveProduct(ctx, cache, man, products[name], pins)
 		if err != nil {
 			return nil, nil, fmt.Errorf("resolving product %q: %w", name, err)
 		}
