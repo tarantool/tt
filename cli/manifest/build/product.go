@@ -7,18 +7,18 @@ import (
 	"github.com/tarantool/tt/cli/manifest"
 )
 
-// selectProduct picks the product the build acts on. A non-empty name selects
-// that product (errUnknownProduct if it does not exist). With no name: a single
-// product is used implicitly; otherwise the one flagged default is chosen
-// (errNoDefaultProduct if none is, which Validate normally rejects first). It
-// returns the product name so callers can index the lock's per-product closure.
+// selectProduct picks the product the build acts on, among the manifest's
+// effective products - so a manifest declaring none builds its implicit one. A
+// non-empty name selects that product (errUnknownProduct if it does not exist).
+// With no name: a single product is used implicitly; otherwise the one flagged
+// default is chosen (errNoDefaultProduct if none is, which Validate normally
+// rejects first). It returns the product name so callers can index the lock's
+// per-product closure.
 func selectProduct(man *manifest.Manifest, name string) (string, manifest.Product, error) {
-	if len(man.Products) == 0 {
-		return "", manifest.Product{}, errNoProducts
-	}
+	products := man.EffectiveProducts()
 
 	if name != "" {
-		product, ok := man.Products[name]
+		product, ok := products[name]
 		if !ok {
 			return "", manifest.Product{}, fmt.Errorf("%w: %q", errUnknownProduct, name)
 		}
@@ -26,13 +26,13 @@ func selectProduct(man *manifest.Manifest, name string) (string, manifest.Produc
 		return name, product, nil
 	}
 
-	if len(man.Products) == 1 {
-		for only, product := range man.Products {
+	if len(products) == 1 {
+		for only, product := range products {
 			return only, product, nil
 		}
 	}
 
-	for chosen, product := range man.Products {
+	for chosen, product := range products {
 		if product.Default {
 			return chosen, product, nil
 		}

@@ -92,7 +92,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   a directory named anything else is refused with the name it would have to be,
   rather than being silently rewritten. Components and products are left as
   commented examples, since their contents depend on a layout only the author
-  knows. An existing manifest is never overwritten: the command fails instead.
+  knows; until products are declared, the manifest has one implicit product,
+  `default`, built from every component, so `tt package add` and
+  `tt package build` work on the skeleton as written. An existing manifest is
+  never overwritten: the command fails instead.
   This is not `tt create`, which lays out a whole application from a template.
 - `tt package resolve`: rewrite `app.manifest.lock` from the manifest without
   building — the way to bring the lock back in step after editing

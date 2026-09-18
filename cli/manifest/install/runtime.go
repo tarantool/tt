@@ -32,23 +32,23 @@ func versionHigher(candidate, current string) bool {
 }
 
 // selectProduct picks the product whose closure the archive's lock carries: the
-// only product, or the one marked default. A build/pack always resolves against
-// one product, so the archive lock normally holds exactly one.
+// only product, or the one marked default, among the manifest's effective
+// products - so an archive built from a manifest declaring none selects its
+// implicit one. A build/pack always resolves against one product, so the
+// archive lock normally holds exactly one.
 func selectProduct(man *manifest.Manifest) (string, error) {
-	if len(man.Products) == 1 {
-		for name := range man.Products {
+	products := man.EffectiveProducts()
+
+	if len(products) == 1 {
+		for name := range products {
 			return name, nil
 		}
 	}
 
-	for name, prod := range man.Products {
+	for name, prod := range products {
 		if prod.Default {
 			return name, nil
 		}
-	}
-
-	if len(man.Products) == 0 {
-		return "", stateErrorf("archive manifest defines no products")
 	}
 
 	return "", stateErrorf("archive manifest has several products and none is default")
