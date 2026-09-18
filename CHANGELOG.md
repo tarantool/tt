@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt backup-id`: prints an identifier for a new backup, the current UTC time
+  as `20060102T150405Z`, to pass as `--backup-id` to `tt backup start`,
+  `upload` and `finalize`. Identifiers sort in the order they are generated,
+  and the command exits once the printed second is over, so two consecutive
+  calls never print the same one.
 - `status`: added `--instance-timeout` flag to bound how long collecting a single
   instance's status may take.
 - `tt restore apply`: restore into the three data directories Tarantool

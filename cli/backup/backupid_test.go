@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -60,6 +61,85 @@ func TestValidateBackupID_acceptsOrchestratorIDs(t *testing.T) {
 		t.Run(id, func(t *testing.T) {
 			require.NoError(t, ValidateBackupID(id))
 		})
+	}
+}
+
+// fakeClock is a wall clock that moves only when slept on. Each sleep advances
+// it by step(d), so a test can model a sleep that ends early.
+type fakeClock struct {
+	t      time.Time
+	step   func(d time.Duration) time.Duration
+	sleeps []time.Duration
+}
+
+func (c *fakeClock) now() time.Time { return c.t }
+
+func (c *fakeClock) sleep(d time.Duration) {
+	c.sleeps = append(c.sleeps, d)
+	c.t = c.t.Add(c.step(d))
+}
+
+func TestNewBackupID_waitsOutItsSecond(t *testing.T) {
+	clock := &fakeClock{
+		t:    time.Date(2026, 9, 18, 14, 30, 0, 400*int(time.Millisecond), time.UTC),
+		step: func(d time.Duration) time.Duration { return d },
+	}
+
+	id := newBackupID(clock.now, clock.sleep)
+
+	require.Equal(t, "20260918T143000Z", id)
+	require.Equal(t, []time.Duration{600 * time.Millisecond}, clock.sleeps)
+	require.Equal(t, "20260918T143001Z", newBackupID(clock.now, clock.sleep),
+		"the next call must land in the next second")
+}
+
+// TestNewBackupID_outlastsAShortSleep covers a sleep that returns before the
+// wall clock has left the second: returning then would let the next call
+// print the same id.
+func TestNewBackupID_outlastsAShortSleep(t *testing.T) {
+	short := true
+	clock := &fakeClock{
+		t: time.Date(2026, 9, 18, 14, 30, 0, 0, time.UTC),
+		step: func(d time.Duration) time.Duration {
+			if short {
+				short = false
+				return d / 2
+			}
+			return d
+		},
+	}
+
+	id := newBackupID(clock.now, clock.sleep)
+
+	require.Equal(t, "20260918T143000Z", id)
+	require.Equal(t, time.Date(2026, 9, 18, 14, 30, 1, 0, time.UTC), clock.t,
+		"must not return before the wall clock leaves the second")
+	require.Equal(t, []time.Duration{time.Second, time.Second / 2}, clock.sleeps)
+}
+
+func TestNewBackupID_isUTC(t *testing.T) {
+	zone := time.FixedZone("UTC+3", 3*60*60)
+	clock := &fakeClock{
+		t:    time.Date(2026, 9, 18, 17, 30, 0, 999*int(time.Millisecond), zone),
+		step: func(d time.Duration) time.Duration { return d },
+	}
+
+	require.Equal(t, "20260918T143000Z", newBackupID(clock.now, clock.sleep))
+}
+
+// TestNewBackupID_consecutiveCallsSortUp runs the real clock: two ids taken
+// one after the other differ, sort in the order they were taken, and are
+// accepted as backup ids as they are.
+func TestNewBackupID_consecutiveCallsSortUp(t *testing.T) {
+	t.Parallel()
+
+	first := NewBackupID()
+	second := NewBackupID()
+
+	require.Less(t, first, second)
+	for _, id := range []string{first, second} {
+		require.Regexp(t, `^\d{8}T\d{6}Z$`, id)
+		require.NoError(t, ValidateBackupID(id))
 	}
 }
 

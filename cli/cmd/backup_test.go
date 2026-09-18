@@ -103,6 +103,45 @@ func TestBackupSubcommandsSilenceUsage(t *testing.T) {
 	}
 }
 
+// TestBackupIDPrintsOneID pins the stdout contract orchestrators capture:
+// exactly one id and a newline.
+func TestBackupIDPrintsOneID(t *testing.T) {
+	cmd := NewBackupIDCmd()
+	out := &strings.Builder{}
+	cmd.SetArgs(nil)
+	cmd.SetOut(out)
+	cmd.SetErr(&strings.Builder{})
+
+	require.NoError(t, cmd.Execute())
+	require.Regexp(t, `^\d{8}T\d{6}Z\n$`, out.String())
+	require.NoError(t, backup.ValidateBackupID(strings.TrimSuffix(out.String(), "\n")))
+}
+
+// failingWriter refuses every write, like a closed or read-only stdout.
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("write refused") }
+
+// TestBackupIDFailsWhenOutputFails pins that an id which could not be
+// printed fails the command instead of exiting 0 with an empty stdout.
+func TestBackupIDFailsWhenOutputFails(t *testing.T) {
+	cmd := NewBackupIDCmd()
+	cmd.SetArgs(nil)
+	cmd.SetOut(failingWriter{})
+	cmd.SetErr(&strings.Builder{})
+
+	require.ErrorContains(t, cmd.Execute(), "write refused")
+}
+
+func TestBackupIDRejectsArgs(t *testing.T) {
+	cmd := NewBackupIDCmd()
+	cmd.SetArgs([]string{"extra"})
+	cmd.SetOut(&strings.Builder{})
+	cmd.SetErr(&strings.Builder{})
+
+	require.Error(t, cmd.Execute())
+}
+
 // TestBackupFinalizeRejectsDirWithForce checks the combination is refused
 // rather than half-honoured: --force removes no local artifact, so a run that
 // took a directory and cleaned nothing out of it would report success over an
