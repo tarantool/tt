@@ -80,7 +80,7 @@ func NewPackageCmd() *cobra.Command {
 		Short: "Manage tt manifest packages",
 		Long: "Build, fetch, pack and install Tarantool packages described by " +
 			"app.manifest.toml, manage their dependencies, and manage what is " +
-			"installed.",
+			"installed. What the exit codes mean is in tt help errors.",
 	}
 
 	packageCmd.AddCommand(
