@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
@@ -16,6 +18,7 @@ import (
 
 var (
 	forceRemove       bool
+	verboseList       bool
 	ErrCanceledByUser = errors.New("canceled by user")
 )
 
@@ -38,11 +41,13 @@ func NewCleanCmd() *cobra.Command {
 	}
 
 	cleanCmd.Flags().BoolVarP(&forceRemove, "force", "f", false, "do not ask for confirmation")
+	cleanCmd.Flags().BoolVarP(&verboseList, "verbose", "V", false, "list all files to remove before confirmation")
 
 	return cleanCmd
 }
 
-func collectFiles(files map[string]bool, dirname string) (map[string]bool, error) {
+func collectFiles(files map[string]bool, dirname string) (map[string]bool, uint32, error) {
+	var nFiles uint32
 	err := filepath.Walk(dirname,
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -51,29 +56,50 @@ func collectFiles(files map[string]bool, dirname string) (map[string]bool, error
 
 			if !info.IsDir() {
 				files[path] = true
+				nFiles++
 			}
 			return nil
 		})
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	return files, nil
+	return files, nFiles, nil
 }
 
 func clean(run *running.InstanceCtx) error {
 	removeFiles := map[string]bool{}
+	nFilesPerDir := map[string]uint32{}
 	confirm := false
+	var nFiles uint32
 	var err error
 
 	for _, dir := range [...]string{run.LogDir, run.WalDir, run.VinylDir, run.MemtxDir} {
-		removeFiles, err = collectFiles(removeFiles, dir)
+		removeFiles, nFiles, err = collectFiles(removeFiles, dir)
 		if err != nil {
 			return err
 		}
+		nFilesPerDir[dir] = nFiles
 	}
 
 	if !forceRemove {
+		fmt.Printf("\nTotal files to remove: %d", len(removeFiles))
+		if len(removeFiles) == 0 {
+			return nil
+		}
+
+		for path, nF := range nFilesPerDir {
+			fmt.Printf("\nto remove %d file(s) in %q", nF, path)
+			if !verboseList {
+				continue
+			}
+			for file := range removeFiles {
+				if strings.HasPrefix(file, path) {
+					fmt.Printf("\nto remove %q", "."+file[len(path):])
+				}
+			}
+		}
+
 		confirm, err = util.AskConfirm(os.Stdin, "\nConfirm")
 		if err != nil {
 			return err

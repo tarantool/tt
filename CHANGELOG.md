@@ -54,6 +54,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt cluster publish` / `tt cluster show`: fix a connection timeout to an
   `https://` Tarantool Config Storage or etcd endpoint with SSL enabled but no
   client certificate configured.
+- `tt clean`: fixed showing files to delete before confirmation. Verbose option
+  added.
 
 ## [2.14.0] - 2026-08-06
 
