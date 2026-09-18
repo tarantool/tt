@@ -22,11 +22,12 @@ const (
 // when tt package add splices a dependency in. A skeleton quoted differently
 // would make the first add look like a reformat in the diff.
 //
-// Components and products are commented rather than declared. A package needs
-// both before tt package build has anything to build, but their contents depend
-// on a layout only the author knows, and a wrong products.default is worse than
-// an absent one: it builds, quietly, from the wrong files. The commented block
-// is there so the next step is visible without a trip to the documentation.
+// Components and products are commented rather than declared. Their contents
+// depend on a layout only the author knows, and a wrong component path is worse
+// than an absent one: it builds, quietly, from the wrong files. Without them
+// the skeleton still works as written, since its [dependencies] resolve into
+// the implicit product. The commented block is there so the next step is
+// visible without a trip to the documentation.
 const skeleton = `manifest_version = "%s"
 
 [package]
@@ -46,8 +47,9 @@ tt = "%s"
 # [dev_dependencies]
 # luatest = "*"
 
-# A package is built per product, and a product is built from components.
-# Declare at least one of each to make tt package build do something:
+# A package is built from components: declare one for the code of this
+# package. Products select which components a build uses; until one is
+# declared, a single implicit product named default takes them all.
 #
 # [components.app]
 # path = "."

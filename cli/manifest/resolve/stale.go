@@ -8,21 +8,23 @@ import (
 )
 
 // IsStale reports whether lock no longer reflects m, and why. A lock goes stale
-// from exactly three things: the manifest's raw bytes changed (manifest_hash
+// from exactly four things: the manifest's raw bytes changed (manifest_hash
 // diverged), a path dependency's local content changed (its content_hash
-// diverged), or the manifest declares dev dependencies the lock holds no
-// closure for. New registry versions never make a lock stale - only an explicit
-// tt package update pulls them; a changed tt version or package VERSION does
-// not either.
+// diverged), the manifest declares dev dependencies the lock holds no closure
+// for, or one of the manifest's effective products has no closure in the lock.
+// New registry versions never make a lock stale - only an explicit tt package
+// update pulls them; a changed tt version or package VERSION does not either.
 //
-// The third case is not a change in the project at all but a change in tt: a
-// lock written before tt resolved [dev_dependencies] carries none, and its
-// manifest_hash still matches because the manifest never changed. Without this
-// case such a project would silently never get its dev dependencies again -
-// nothing else can notice, because the only evidence is the lock's own
-// emptiness. The check is one-directional on purpose: a dev closure in the lock
-// for a manifest that declares none is not staleness (nothing to install), and
-// dev picks that merely aged are not either, by the rule above.
+// The last two cases are not a change in the project at all but a change in
+// tt: a lock written before tt resolved [dev_dependencies], or before a
+// manifest without [products] resolved into its implicit product, carries
+// nothing for them, and its manifest_hash still matches because the manifest
+// never changed. Without these cases such a project would silently never get
+// those dependencies again - nothing else can notice, because the only
+// evidence is the lock's own emptiness. The checks are one-directional on
+// purpose: a closure in the lock the manifest no longer asks for is not
+// staleness (nothing to install), and picks that merely aged are not either, by
+// the rule above.
 //
 // What to do with a stale lock is the caller's call: an unflagged build
 // re-resolves and rewrites it (Engine.Resolve); a --locked build treats
@@ -49,6 +51,15 @@ func IsStale(
 
 	if len(man.DevDependencies) > 0 && len(lock.DevDependencies) == 0 {
 		return true, "manifest declares dev dependencies the lock has no closure for", nil
+	}
+
+	// The same holds for a product: a lock written while a manifest without
+	// [products] resolved into no product at all carries no closure for the
+	// implicit one, and its hash still matches.
+	for _, product := range sortedKeys(man.EffectiveProducts()) {
+		if _, locked := lock.Products[product]; !locked {
+			return true, fmt.Sprintf("the lock holds no closure for product %q", product), nil
+		}
 	}
 
 	// A path dependency shared by several products, or by a product and the dev

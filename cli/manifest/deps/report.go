@@ -150,20 +150,14 @@ func lockState(projectDir string, proj *project) (LockState, string, error) {
 	return LockCurrent, "", nil
 }
 
-// productEntries builds one group per product, merging what the product
-// declares with what its locked closure holds.
-//
-// A manifest declaring no products still reports its [dependencies]: they are
-// declared, the user asked what this project depends on, and answering
-// "nothing" over a populated [dependencies] table would be wrong. The group is
-// then unnamed, which is what it is — no product owns them yet.
+// productEntries builds one group per effective product, merging what the
+// product declares with what its locked closure holds. A manifest declaring no
+// products is reported under its implicit one - the same product the resolver
+// locks its [dependencies] into.
 func productEntries(proj *project) []ProductEntries {
 	man := proj.manifest
 
-	names := sortedKeys(man.Products)
-	if len(names) == 0 {
-		names = []string{""}
-	}
+	names := sortedKeys(man.EffectiveProducts())
 
 	out := make([]ProductEntries, 0, len(names))
 
@@ -210,17 +204,14 @@ func devEntries(proj *project) []Entry {
 // is built from. It mirrors the resolver's effectiveDeps — same tables, same
 // comma-joined merge — without reaching for the resolver's unexported types.
 //
-// An empty product name is the no-products case: only the global table applies.
+// A manifest declaring no products is reported under its implicit one, which
+// is built from every component, so their tables apply as well.
 func declaredFor(man *manifest.Manifest, product string) map[string]*declaration {
 	out := map[string]*declaration{}
 
 	mergeDeclarations(out, "[dependencies]", man.Dependencies)
 
-	if product == "" {
-		return out
-	}
-
-	for _, name := range man.Products[product].Components {
+	for _, name := range man.EffectiveProducts()[product].Components {
 		component, defined := man.Components[name]
 		if !defined {
 			// Validation refuses this; a report over an unvalidated manifest

@@ -111,6 +111,30 @@ def test_build_materializes_the_tree(tt_cmd, tmp_path):
     assert DEPENDENCY in lock.read_text()
 
 
+def test_new_add_build_installs_the_dependency(tt_cmd, tmp_path):
+    """The first thing a user does: tt new, add a dependency, build.
+
+    tt new writes no [products], so the dependency lands in the implicit
+    product. It used to land in no product at all: the lock came out empty yet
+    read as current, and the build installed nothing.
+    """
+    project = tmp_path / "demo"
+    project.mkdir()
+
+    assert run(tt_cmd, project, "new").returncode == 0
+
+    added = run(tt_cmd, project, "package", "add", DEPENDENCY, "--registry", str(ROCKS_REPO))
+    assert added.returncode == 0, added.stderr
+
+    lock = (project / "app.manifest.lock").read_text()
+    assert "[lock.products.default]" in lock
+    assert f"name = '{DEPENDENCY}'" in lock
+
+    built = build(tt_cmd, project)
+    assert built.returncode == 0, built.stderr
+    assert (project / ".rocks" / "share" / "tarantool" / DEPENDENCY).is_dir()
+
+
 def test_build_locked_refuses_a_stale_lock(tt_cmd, tmp_path):
     """--locked is the CI gate: a manifest edited after the lock stops it."""
     project = make_project(tmp_path / "project")
