@@ -160,6 +160,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   not a usable directory is refused naming the flag, rather than surfacing
   later as a missing manifest. `tt run` does not take it: that command parses
   no flags of its own, since every argument is Tarantool's.
+- Exit codes of the manifest commands (`tt package`, `tt registry`, `tt new`
+  and `tt test`): 1 for what the user can fix - a bad manifest, a stale lock
+  under `--locked`, a dependency that does not resolve, a malformed registry
+  URL; 2 for the system the command ran on - a build backend that failed, a
+  rock server that cannot be reached or does not answer in time, a filesystem
+  that refuses an operation for want of permission or space; 3 for a
+  multi-package install that partly succeeded.
 - `tt status`: add `--format` option to support JSON and YAML output formats
 for machine-readable output.
 - `tt test`: build the package in the current directory and run its tests with

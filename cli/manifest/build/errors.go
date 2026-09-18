@@ -3,6 +3,10 @@ package build
 import (
 	"errors"
 	"fmt"
+	"io/fs"
+	"net"
+	"net/url"
+	"syscall"
 )
 
 // File names the build reads and writes in the project root.
@@ -11,12 +15,16 @@ const (
 	lockFileName     = "app.manifest.lock"
 )
 
-// Process exit codes the build maps failures to: a usage or state error (stale
-// lock under --locked, version.lua collision, bad manifest) exits 1; a
-// component build backend that fails exits 2.
+// Process exit codes the manifest commands map failures to: a usage or state
+// error (stale lock under --locked, version.lua collision, bad manifest,
+// unresolvable dependency) exits 1; a failure of the system the command ran on
+// rather than of what it was asked - a component build backend that fails, a
+// rock server that cannot be reached, a filesystem that refuses a write -
+// exits 2.
 const (
 	exitStateError   = 1
 	exitBackendError = 2
+	exitSystemError  = 2
 )
 
 var (
@@ -69,17 +77,78 @@ func exitErrorf(code int, format string, args ...any) *ExitError {
 	return &ExitError{Code: code, Err: fmt.Errorf(format, args...)}
 }
 
-// ExitCode returns the process exit code for err: the code carried by an
-// ExitError in its chain, or 1 for any other non-nil error. A nil error is 0.
+// ExitCode returns the process exit code for err. A nil error is 0. Otherwise
+// it is the first code in the chain other than 1 that an ExitError carries; 2
+// when the chain holds a system failure (see systemFailure); and 1 for
+// anything else.
+//
+// Code 1 is the generic one every command wraps its errors in, so it is the
+// weakest: a registry that cannot be reached, wrapped as "resolving
+// dependencies" with code 1, is still a system failure and exits 2. A code
+// other than 1 is a deliberate verdict - a build backend that failed, a
+// multi-package install that partly succeeded - and stands.
+//
+// Every manifest command reaches its exit code through here, so a system
+// failure is classified once, by what the error is, instead of at each of the
+// many places a registry is queried or a file written.
 func ExitCode(err error) int {
 	if err == nil {
 		return 0
 	}
 
-	var exit *ExitError
-	if errors.As(err, &exit) {
-		return exit.Code
+	if code, ok := explicitCode(err); ok {
+		return code
+	}
+
+	if systemFailure(err) {
+		return exitSystemError
 	}
 
 	return exitStateError
+}
+
+// explicitCode returns the first code other than 1 carried by an ExitError in
+// err's chain, looking past the generic code-1 wrappers to what they wrap.
+func explicitCode(err error) (int, bool) {
+	var exit *ExitError
+	if !errors.As(err, &exit) {
+		return 0, false
+	}
+
+	if exit.Code != exitStateError {
+		return exit.Code, true
+	}
+
+	return explicitCode(exit.Err)
+}
+
+// systemFailure reports whether err is a failure of the network or the machine
+// rather than of the request: a rock server that could not be reached or did
+// not answer in time, or a filesystem that refused an operation for want of
+// permission or space.
+//
+// It matches the transport and OS error types, never *url.Error as a whole:
+// the HTTP client wraps a malformed --registry URL in *url.Error too, and that
+// is the user's to fix. A missing file is not matched either - a project
+// without a manifest is a usage error, not a broken machine.
+func systemFailure(err error) bool {
+	var (
+		opErr  *net.OpError
+		dnsErr *net.DNSError
+		urlErr *url.Error
+	)
+
+	switch {
+	case errors.As(err, &opErr), errors.As(err, &dnsErr):
+		return true
+	case errors.As(err, &urlErr) && urlErr.Timeout():
+		return true
+	case errors.Is(err, fs.ErrPermission):
+		return true
+	case errors.Is(err, syscall.ENOSPC), errors.Is(err, syscall.EDQUOT),
+		errors.Is(err, syscall.EROFS):
+		return true
+	default:
+		return false
+	}
 }
