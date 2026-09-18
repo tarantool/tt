@@ -178,6 +178,16 @@ var usageTemplate = util.Bold("USAGE") + `
 {{end}}
 {{end -}}
 
+{{if .HasHelpSubCommands}}` + util.Bold("\nHELP TOPICS") + `
+{{- range .Commands}}
+
+{{- if .IsAdditionalHelpTopicCommand}}
+  {{rpad .Name .NamePadding }} {{.Short}}
+{{- end -}}
+
+{{end}}
+{{end -}}
+
 {{- if not .HasParent}} %s
 {{end -}}
 

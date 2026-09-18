@@ -166,7 +166,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   URL; 2 for the system the command ran on - a build backend that failed, a
   rock server that cannot be reached or does not answer in time, a filesystem
   that refuses an operation for want of permission or space; 3 for a
-  multi-package install that partly succeeded.
+  multi-package install that partly succeeded. `tt help errors` describes
+  them, and the root help lists it under a new HELP TOPICS section.
 - `tt status`: add `--format` option to support JSON and YAML output formats
 for machine-readable output.
 - `tt test`: build the package in the current directory and run its tests with

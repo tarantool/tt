@@ -68,6 +68,37 @@ func TestWrapHelp(t *testing.T) {
 	}
 }
 
+// TestErrorsHelpTopic checks that tt help errors describes every exit code the
+// manifest commands use, and that it is listed as a help topic rather than as
+// a command, since there is nothing to run.
+func TestErrorsHelpTopic(t *testing.T) {
+	root := NewCmdRoot()
+	configureHelpCommand(root, &modules.ModulesInfo{})
+
+	topic, _, err := root.Find([]string{"errors"})
+	require.NoError(t, err)
+	require.Equal(t, "errors", topic.Name())
+	assert.True(t, topic.IsAdditionalHelpTopicCommand())
+
+	var out strings.Builder
+	topic.SetOut(&out)
+	require.NoError(t, topic.Help())
+
+	for _, code := range []string{"  0  ", "  1  ", "  2  ", "  3  "} {
+		assert.Contains(t, out.String(), code)
+	}
+
+	var rootOut strings.Builder
+	root.SetOut(&rootOut)
+	require.NoError(t, root.Help())
+
+	help := rootOut.String()
+	topics := strings.Index(help, "HELP TOPICS")
+	require.NotEqual(t, -1, topics, "the root help must list help topics")
+	assert.Contains(t, help[topics:], "errors")
+	assert.NotContains(t, help[:topics], "\n  errors ", "a topic is not a command")
+}
+
 func TestHelpFitsWidth(t *testing.T) {
 	root := NewCmdRoot()
 	configureHelpCommand(root, &modules.ModulesInfo{})
