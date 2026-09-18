@@ -64,11 +64,29 @@ func TestSelectProduct_singleImplicitDefault(t *testing.T) {
 	assert.Equal(t, "solo", name)
 }
 
+// TestSelectProduct_noProducts covers a manifest declaring no [products]: the
+// build acts on the implicit product, built from every component, instead of
+// refusing.
 func TestSelectProduct_noProducts(t *testing.T) {
 	t.Parallel()
 
-	_, _, err := selectProduct(&manifest.Manifest{}, "")
-	assert.True(t, errors.Is(err, errNoProducts))
+	man := &manifest.Manifest{
+		Components: map[string]manifest.Component{
+			"native": {Path: "native"},
+			"lua":    {Path: "."},
+		},
+	}
+
+	name, product, err := selectProduct(man, "")
+	require.NoError(t, err)
+	assert.Equal(t, manifest.ImplicitProduct, name)
+	assert.Equal(t, []string{"lua", "native"}, product.Components)
+	assert.True(t, product.Default)
+
+	// The implicit product is selectable by name like a declared one.
+	name, _, err = selectProduct(man, manifest.ImplicitProduct)
+	require.NoError(t, err)
+	assert.Equal(t, manifest.ImplicitProduct, name)
 }
 
 func TestSelectComponents_all(t *testing.T) {

@@ -52,6 +52,18 @@ inline    = { source = "registry", version = ">=1.0.0" }
 [dependencies.local-helper]
 source = "path"
 path   = "../helper"
+
+[dependencies.sub-table]
+version = ">=2.0.0"
+
+[dev_dependencies.dev-sub-table]
+version = ">=3.0.0"
+
+[components.lua]
+path = "src"
+
+[components.lua.dependencies.component-sub-table]
+version = ">=4.0.0"
 `
 	mfst, _, err := manifest.ParseManifest([]byte(src))
 	require.NoError(t, err)
@@ -68,9 +80,89 @@ path   = "../helper"
 	assert.Equal(t, manifest.Dependency{
 		Source: "path", Version: "", Path: "../helper", Registry: "", Kind: "",
 	}, mfst.Dependencies["local-helper"])
+	// Long form written as a standard sub-table, source left out: the
+	// registry default applies here exactly as it does to the inline table,
+	// in every table a dependency can be declared in.
+	assert.Equal(t, manifest.Dependency{
+		Source: "registry", Version: ">=2.0.0", Path: "", Registry: "", Kind: "",
+	}, mfst.Dependencies["sub-table"])
+	assert.Equal(t, manifest.Dependency{
+		Source: "registry", Version: ">=3.0.0", Path: "", Registry: "", Kind: "",
+	}, mfst.DevDependencies["dev-sub-table"])
+	assert.Equal(t, manifest.Dependency{
+		Source: "registry", Version: ">=4.0.0", Path: "", Registry: "", Kind: "",
+	}, mfst.Components["lua"].Dependencies["component-sub-table"])
 
 	_, err = mfst.Validate()
 	require.NoError(t, err)
+}
+
+// TestEffectiveProducts covers the two shapes a manifest's products come in:
+// declared ones are returned as written, and a manifest declaring none gets a
+// single implicit default product built from every component.
+func TestEffectiveProducts(t *testing.T) {
+	t.Parallel()
+
+	head := `
+manifest_version = "0.1"
+[package]
+name = "demo"
+[platform]
+tarantool = ">=3.0.0"
+tt = ">=3.0.0"
+
+[components.lua]
+path = "."
+
+[components.native]
+path = "native"
+`
+
+	t.Run("none declared", func(t *testing.T) {
+		t.Parallel()
+
+		mfst, _, err := manifest.ParseManifest([]byte(head))
+		require.NoError(t, err)
+
+		assert.Equal(t, map[string]manifest.Product{
+			manifest.ImplicitProduct: {Components: []string{"lua", "native"}, Default: true},
+		}, mfst.EffectiveProducts())
+
+		// The implicit product is not declared, so it is not written back.
+		assert.Empty(t, mfst.Products)
+	})
+
+	t.Run("declared", func(t *testing.T) {
+		t.Parallel()
+
+		mfst, _, err := manifest.ParseManifest([]byte(head +
+			"\n[products.lite]\ncomponents = [\"lua\"]\ndefault = true\n"))
+		require.NoError(t, err)
+
+		assert.Equal(t, map[string]manifest.Product{
+			"lite": {Components: []string{"lua"}, Default: true},
+		}, mfst.EffectiveProducts())
+	})
+
+	t.Run("no components either", func(t *testing.T) {
+		t.Parallel()
+
+		mfst, _, err := manifest.ParseManifest([]byte(`
+manifest_version = "0.1"
+[package]
+name = "demo"
+[platform]
+tarantool = ">=3.0.0"
+tt = ">=3.0.0"
+`))
+		require.NoError(t, err)
+
+		// What tt new writes: the product exists so the global
+		// [dependencies] have somewhere to be locked, with no component.
+		products := mfst.EffectiveProducts()
+		require.Contains(t, products, manifest.ImplicitProduct)
+		assert.Empty(t, products[manifest.ImplicitProduct].Components)
+	})
 }
 
 // TestPlatformFlavors covers the flavor suffix variants and the tcm rule.

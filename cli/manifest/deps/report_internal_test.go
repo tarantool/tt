@@ -278,7 +278,8 @@ func TestDeps_staleLockIsReportedNotHidden(t *testing.T) {
 }
 
 // TestDeps_manifestWithoutProductsStillReportsDeclarations covers the skeleton
-// tt new writes: dependencies declared, no product to resolve them into.
+// tt new writes: dependencies declared and no [products]. They are reported
+// under the implicit product, the one the resolver locks them into.
 func TestDeps_manifestWithoutProductsStillReportsDeclarations(t *testing.T) {
 	t.Parallel()
 
@@ -288,7 +289,7 @@ func TestDeps_manifestWithoutProductsStillReportsDeclarations(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, report.Products, 1)
-	assert.Empty(t, report.Products[0].Name)
+	assert.Equal(t, manifest.ImplicitProduct, report.Products[0].Name)
 	require.Len(t, report.Products[0].Dependencies, 1)
 	assert.Equal(t, "checks", report.Products[0].Dependencies[0].Name)
 }

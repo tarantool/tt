@@ -92,7 +92,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   a directory named anything else is refused with the name it would have to be,
   rather than being silently rewritten. Components and products are left as
   commented examples, since their contents depend on a layout only the author
-  knows. An existing manifest is never overwritten: the command fails instead.
+  knows; until products are declared, the manifest has one implicit product,
+  `default`, built from every component, so `tt package add` and
+  `tt package build` work on the skeleton as written. An existing manifest is
+  never overwritten: the command fails instead.
   This is not `tt create`, which lays out a whole application from a template.
 - `tt package resolve`: rewrite `app.manifest.lock` from the manifest without
   building — the way to bring the lock back in step after editing
@@ -151,6 +154,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   does not come from a registry has no rock file to mirror and is skipped
   with a warning. Re-running overwrites and re-indexes, so a mirror can be
   extended in place. Each written path is printed to stdout.
+- `-C <dir>` on `tt package` and its subcommands, `tt new` and `tt test`:
+  work on the project in `<dir>` as if it were the current directory. A
+  relative path resolves against the working directory, and a path that is
+  not a usable directory is refused naming the flag, rather than surfacing
+  later as a missing manifest. `tt run` does not take it: that command parses
+  no flags of its own, since every argument is Tarantool's.
+- Exit codes of the manifest commands (`tt package`, `tt registry`, `tt new`
+  and `tt test`): 1 for what the user can fix - a bad manifest, a stale lock
+  under `--locked`, a dependency that does not resolve, a malformed registry
+  URL; 2 for the system the command ran on - a build backend that failed, a
+  rock server that cannot be reached or does not answer in time, a filesystem
+  that refuses an operation for want of permission or space; 3 for a
+  multi-package install that partly succeeded. `tt help errors` describes
+  them, and the root help lists it under a new HELP TOPICS section.
 - `tt status`: add `--format` option to support JSON and YAML output formats
 for machine-readable output.
 - `tt test`: build the package in the current directory and run its tests with

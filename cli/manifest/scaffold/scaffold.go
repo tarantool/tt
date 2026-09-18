@@ -10,9 +10,10 @@
 // What it writes is the minimum a manifest needs to be valid — the format
 // version, the package identity, the platform requirements and an empty
 // [dependencies] table for tt package add to write into. Components and
-// products, which a package needs before it can be built, are left as commented
-// examples: guessing a layout for an existing directory would be wrong more
-// often than right, and a wrong guess costs more than an absent one.
+// products are left as commented examples: guessing a layout for an existing
+// directory would be wrong more often than right, and a wrong guess costs more
+// than an absent one. Until products are declared, the manifest's implicit
+// product carries its dependencies, so the skeleton builds as written.
 package scaffold
 
 import (

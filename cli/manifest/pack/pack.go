@@ -253,7 +253,7 @@ func packageNamespaces(man *manifest.Manifest, productName string) ([]string, bo
 	// when no component lays anything there.
 	add(man.Package.Name)
 
-	product, ok := man.Products[productName]
+	product, ok := man.EffectiveProducts()[productName]
 	if !ok {
 		return namespaces, false
 	}

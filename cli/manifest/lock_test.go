@@ -143,6 +143,32 @@ func TestLockWithoutDevDependenciesOmitsKey(t *testing.T) {
 	assert.Empty(t, back.DevDependencies)
 }
 
+// TestLockKeepsAnEmptyProduct pins that a product resolved to no dependencies
+// still has its entry after a write and a read. The staleness check treats a
+// product with no entry as unresolved, so losing the empty entry on the way
+// through the file would make every such lock stale forever.
+func TestLockKeepsAnEmptyProduct(t *testing.T) {
+	t.Parallel()
+
+	lock := &manifest.Lock{
+		LockVersion:     manifest.LockVersion,
+		ManifestVersion: manifest.ManifestVersion,
+		GeneratedBy:     "tt 3.1.0",
+		ManifestHash:    "sha256:abc123",
+		Products: map[string]manifest.LockProduct{
+			manifest.ImplicitProduct: {Dependencies: nil},
+		},
+	}
+
+	out, err := lock.Marshal()
+	require.NoError(t, err)
+
+	back, err := manifest.ParseLock(out)
+	require.NoError(t, err)
+	assert.Contains(t, back.Products, manifest.ImplicitProduct)
+	assert.Empty(t, back.Products[manifest.ImplicitProduct].Dependencies)
+}
+
 func TestLockNewerMajorRefused(t *testing.T) {
 	t.Parallel()
 

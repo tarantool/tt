@@ -63,6 +63,28 @@ type Product struct {
 	Default    bool     `toml:"default,omitempty"`
 }
 
+// ImplicitProduct names the product a manifest without [products] gets.
+const ImplicitProduct = "default"
+
+// EffectiveProducts returns the products the pipeline acts on: the declared
+// ones, or, when [products] is absent, a single implicit product named
+// ImplicitProduct that is the default and is built from every component.
+//
+// A manifest without products is not an edge case but the first shape a
+// project has: tt new writes one, and tt package add writes into its
+// [dependencies]. Every command has to agree on what that manifest means, or
+// one resolves its dependencies into nothing while another refuses to build
+// it. Validate still checks only what is declared.
+func (m *Manifest) EffectiveProducts() map[string]Product {
+	if len(m.Products) > 0 {
+		return m.Products
+	}
+
+	return map[string]Product{
+		ImplicitProduct: {Components: sortedKeys(m.Components), Default: true},
+	}
+}
+
 // Hook is a lifecycle hook ([hooks.pre_build]/[hooks.post_build]). It shares
 // the Build shape, but only the make/shell backends are valid and there is no
 // module/sources.
