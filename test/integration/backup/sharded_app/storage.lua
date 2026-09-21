@@ -26,3 +26,8 @@ function put(id, bucket_id, data)
     box.space.backup_test:replace({id, bucket_id, data})
     box.space.backup_test_vinyl:replace({id, bucket_id, 'vinyl-' .. data})
 end
+
+-- Called by the router to read a row back off the shard owning its bucket.
+function get(id)
+    return box.space.backup_test:get(id)
+end
