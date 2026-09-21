@@ -7,10 +7,10 @@ import (
 
 // buildSegments partitions groups into time-ordered segments and records, for
 // each, why it is separated from the previous one.
-func buildSegments(groups []Group) []segment {
+func buildSegments(groups []Group, sel *Selection) []segment {
 	var segments []segment
 	for g := range groups {
-		groupSegments := segmentsFromGroup(groups[g])
+		groupSegments := segmentsFromGroup(groups[g], sel)
 		if len(groupSegments) == 0 {
 			continue
 		}
@@ -45,14 +45,14 @@ func buildClusterPoints(segments []segment) []ClusterPoint {
 
 // segmentsFromGroup splits one group into topology segments, carrying each
 // segment's separation reason.
-func segmentsFromGroup(group Group) []segment {
+func segmentsFromGroup(group Group, sel *Selection) []segment {
 	runs := splitIntoRuns(group.Entries)
 
 	var segments []segment
 	pendingGap := gapNone
 
 	for _, run := range runs {
-		points := pointsFromSegment(run.entries)
+		points := pointsFromSegment(run.entries, sel)
 		if len(points) == 0 {
 			pendingGap = maxGap(pendingGap, run.gapBefore)
 			continue
@@ -169,38 +169,34 @@ func collectShardEntries(entries []*Entry) map[string]map[string]shardEntry {
 }
 
 // pointsFromSegment collects cluster points from one topology-homogeneous
-// segment: a name becomes a point only when present on every replicaset in the
-// segment's topology.
-func pointsFromSegment(entries []*Entry) []ClusterPoint {
+// segment: a name becomes a point only when present on every selected
+// replicaset of the segment's topology. A selection covering nothing in this
+// segment leaves it without points - no replicaset means no agreement to
+// stitch.
+func pointsFromSegment(entries []*Entry, sel *Selection) []ClusterPoint {
 	if len(entries) == 0 {
 		return nil
 	}
 
-	uuids := replicasetUUIDs(entries[0].Manifest)
-	required := len(uuids)
 	segmentTopology := entries[0].Manifest.Topology
+	uuids := sel.uuids(segmentTopology)
+
+	if len(uuids) == 0 {
+		return nil
+	}
+
 	pointShards := collectShardEntries(entries)
 
 	var points []ClusterPoint
 	for name, byReplicaset := range pointShards {
-		if len(byReplicaset) < required {
+		shards, timestamp, complete := shardPositions(byReplicaset, uuids)
+		if !complete {
 			continue
-		}
-
-		shards := make(map[string]Position, required)
-		minTS := time.Time{}
-
-		for _, replicasetUUID := range uuids {
-			se := byReplicaset[replicasetUUID]
-			shards[replicasetUUID] = se.position
-			if minTS.IsZero() || se.timestamp.Before(minTS) {
-				minTS = se.timestamp
-			}
 		}
 
 		points = append(points, ClusterPoint{
 			Name:      name,
-			Timestamp: minTS,
+			Timestamp: timestamp,
 			Topology:  segmentTopology,
 			Shards:    shards,
 		})
@@ -211,4 +207,31 @@ func pointsFromSegment(entries []*Entry) []ClusterPoint {
 	})
 
 	return points
+}
+
+// shardPositions returns the positions the required replicasets hold at one
+// point name, together with the earliest of their timestamps. It reports false
+// when any of them is missing the name, which is what keeps a cluster point
+// cluster-wide.
+func shardPositions(
+	byReplicaset map[string]shardEntry,
+	uuids []string,
+) (map[string]Position, time.Time, bool) {
+	shards := make(map[string]Position, len(uuids))
+
+	var earliest time.Time
+
+	for _, replicasetUUID := range uuids {
+		shard, ok := byReplicaset[replicasetUUID]
+		if !ok {
+			return nil, time.Time{}, false
+		}
+
+		shards[replicasetUUID] = shard.position
+		if earliest.IsZero() || shard.timestamp.Before(earliest) {
+			earliest = shard.timestamp
+		}
+	}
+
+	return shards, earliest, true
 }
