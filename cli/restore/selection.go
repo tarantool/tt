@@ -133,6 +133,53 @@ func (s *selection) instances(current ClusterTopology) []string {
 	return names
 }
 
+// absent returns the selected replicasets no manifest of the storage has a
+// counterpart for, in name order, shaped the way the topology diff names them.
+//
+// Such a replicaset never reaches the topology comparison: a point is
+// stitched over the selected replicasets, a replicaset the backup has nowhere
+// leaves nothing to stitch, and the plan would answer that no recovery point
+// exists. That is true and useless - the operator asked for a replicaset by
+// name, and the answer has to name it back.
+func (s *selection) absent(
+	current ClusterTopology,
+	manifests []*backup.ClusterManifest,
+) []ReplicasetDiff {
+	if s == nil {
+		return nil
+	}
+
+	backedUp := make(map[string]bool)
+
+	for _, manifest := range manifests {
+		for _, instances := range manifest.Topology.Replicasets {
+			for _, instance := range instances {
+				backedUp[instance.InstanceName] = true
+			}
+		}
+	}
+
+	isBackedUp := func(name string) bool { return backedUp[name] }
+
+	var absent []ReplicasetDiff
+
+	for _, replicaset := range s.configured(current).Replicasets {
+		if slices.ContainsFunc(replicaset.Instances, isBackedUp) {
+			continue
+		}
+
+		instances := slices.Clone(replicaset.Instances)
+		slices.Sort(instances)
+		absent = append(absent, ReplicasetDiff{Name: replicaset.Name, Instances: instances})
+	}
+
+	slices.SortFunc(absent, func(a, b ReplicasetDiff) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+
+	return absent
+}
+
 // chainSelection renders the selection the way chain.Load takes it. A nil
 // selection stays nil there too, and the chain then stitches points over every
 // replicaset it finds.

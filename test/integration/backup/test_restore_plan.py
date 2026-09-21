@@ -61,6 +61,12 @@ PLAN_CHAIN_BROKEN = 4
 PLAN_OUT_OF_RANGE = 5
 PLAN_TOPOLOGY_MISMATCH = 6
 
+# A storage URI the command cannot even open. A test that claims a refusal
+# happens before the storage is touched hands the command this one: if the
+# refusal came second, this is the error that would be reported instead.
+UNOPENABLE_STORAGE = "bogus://nowhere"
+UNOPENABLE_STORAGE_ERROR = "unsupported storage scheme"
+
 # The synthetic timeline. The manifests are created at CREATED, so a target
 # before it is outside the storage's coverage, while one between CREATED and
 # EARLY is inside it with no point to land on -- two different statuses.
@@ -830,22 +836,25 @@ def test_plan_replicasets_needs_config(tt, tmp_path):
 
     A manifest knows instance names and replicaset UUIDs, so without -c there
     is nothing to resolve a replicaset name against. Refusing before the
-    storage is opened keeps a missing flag from costing a chain walk.
+    storage is opened keeps a missing flag from costing a chain walk -- which
+    is why the storage here cannot be opened at all: the flag's error is the
+    one that has to win, and an absent download directory alone would not
+    tell the two orders apart.
     """
-    storage = file_storage(tmp_path)
-    store_router_chain(storage)
     dest = tmp_path / "restore"
 
     rc, out, err = run_plan(
         tt,
-        storage.uri,
+        UNOPENABLE_STORAGE,
         rfc3339(LATE),
         dest,
         replicasets=f"{REPLICASET_1},{REPLICASET_2}",
     )
+    report = out + err
 
-    assert rc == PLAN_FAILED, out + err
-    assert "-c" in out + err
+    assert rc == PLAN_FAILED, report
+    assert "-c" in report
+    assert UNOPENABLE_STORAGE_ERROR not in report, report
     assert not dest.exists(), "a refused flag reads no storage"
 
 
@@ -854,11 +863,10 @@ def test_plan_replicasets_unknown_name(tt, tmp_path):
 
     Silently restoring fewer replicasets than were asked for is the failure
     here: the operator would find out from the cluster. The refusal happens
-    before the storage is read, so the message has to carry the alternatives
-    itself -- and the download directory must not even exist afterwards.
+    before the storage is opened, so the message has to carry the alternatives
+    itself. The storage given here cannot be opened, which is what pins the
+    order: the name's error has to be the one reported.
     """
-    storage = file_storage(tmp_path)
-    store_router_chain(storage)
     config = cluster_config(
         tmp_path,
         {
@@ -871,7 +879,7 @@ def test_plan_replicasets_unknown_name(tt, tmp_path):
 
     rc, out, err = run_plan(
         tt,
-        storage.uri,
+        UNOPENABLE_STORAGE,
         rfc3339(LATE),
         dest,
         config=config,
@@ -883,6 +891,7 @@ def test_plan_replicasets_unknown_name(tt, tmp_path):
     assert "storage-999" in report
     for name in (REPLICASET_1, REPLICASET_2, REPLICASET_ROUTER):
         assert name in report, report
+    assert UNOPENABLE_STORAGE_ERROR not in report, report
     assert not dest.exists(), "a name that can be refused costs no storage"
 
 
@@ -920,6 +929,49 @@ def test_plan_replicasets_missing_from_backup(tt, tmp_path):
     assert doc["status"] == "topology_mismatch"
     assert [item["name"] for item in doc["topology_diff"]["extra_replicasets"]] == [
         REPLICASET_UNBACKED,
+    ], doc
+    assert "restore_targets" not in doc, doc
+    assert not dest.exists()
+
+
+def test_plan_replicasets_only_missing(tt, tmp_path):
+    """The same mismatch when the missing replicaset is the whole selection.
+
+    With nothing else selected there is no cluster point at all, and the
+    resolver alone would answer no_recovery_point -- true, and useless to the
+    operator who asked for a replicaset by name and gets an answer that never
+    names it. The refusal has to be the same as beside a backed-up one: the
+    mismatch, the name in extra_replicasets, exit code 6.
+    """
+    storage = file_storage(tmp_path)
+    store_router_chain(storage)
+    config = cluster_config(
+        tmp_path,
+        {
+            REPLICASET_1: [STORAGE_1_A],
+            REPLICASET_2: [STORAGE_2_A],
+            REPLICASET_ROUTER: [ROUTER_1_A],
+            REPLICASET_UNBACKED: [STORAGE_42_A],
+        },
+    )
+    dest = tmp_path / "restore"
+
+    rc, doc = plan_document(
+        tt,
+        storage.uri,
+        rfc3339(LATE),
+        dest,
+        config=config,
+        replicasets=REPLICASET_UNBACKED,
+    )
+
+    assert rc == PLAN_TOPOLOGY_MISMATCH, doc
+    assert doc["status"] == "topology_mismatch"
+    assert [item["name"] for item in doc["topology_diff"]["extra_replicasets"]] == [
+        REPLICASET_UNBACKED,
+    ], doc
+    assert doc["warnings"] == [
+        unselected_warning(name) for name in sorted((REPLICASET_ROUTER, REPLICASET_1, REPLICASET_2))
     ], doc
     assert "restore_targets" not in doc, doc
     assert not dest.exists()
