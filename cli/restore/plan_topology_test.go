@@ -537,6 +537,67 @@ func TestPlanSelectionRefusesAReplicasetTheBackupHasNot(t *testing.T) {
 	require.Nil(t, result.NearestSafe)
 }
 
+// TestPlanSelectionRefusesAReplicasetNoManifestHolds is the selection made of
+// nothing the storage has: a replicaset the config declares and no manifest
+// ever saw, asked for alone. No point is stitched over it, so the chain has no
+// point to resolve, and left to the resolver the plan would say so - a true
+// answer that never names the replicaset the operator typed. Named alone or
+// beside a backed-up one, it is the same mismatch.
+func TestPlanSelectionRefusesAReplicasetNoManifestHolds(t *testing.T) {
+	f := newPlanFixture(t)
+	f.chainWithAStatelessRouter()
+
+	current := shardedCluster(configuredReplicaset("storage-c", masterOfC))
+
+	result := f.planSelected(550, current, "storage-c")
+
+	require.Equal(t, StatusTopologyMismatch, result.Status)
+	require.NotNil(t, result.TopologyDiff)
+	require.Equal(t, []ReplicasetDiff{{
+		Name:      "storage-c",
+		Instances: []string{masterOfC},
+	}}, result.TopologyDiff.ExtraReplicasets)
+	require.Equal(t, []string{
+		routerWarning,
+		unselectedWarning("storage-a"),
+		unselectedWarning("storage-b"),
+	}, result.Warnings)
+	require.Nil(t, result.NearestSafe)
+	require.Empty(t, result.RestoreTargets)
+	require.Empty(t, f.downloaded())
+}
+
+// TestPlanSelectionRefusesARenamedReplicaset is the same refusal reached from
+// the other side: the replicaset is in every manifest, but the config names its
+// instances differently now, so nothing matches it by name any more.
+func TestPlanSelectionRefusesARenamedReplicaset(t *testing.T) {
+	f := newPlanFixture(t)
+	f.chainWithAStatelessRouter()
+
+	current := configuredCluster(
+		configuredReplicaset("storage-a", "renamed-a-001"),
+		configuredReplicaset("storage-b", masterOfB),
+		configuredReplicaset("router-001", routerOfR),
+	)
+
+	result := f.planSelected(550, current, "storage-a")
+
+	require.Equal(t, StatusTopologyMismatch, result.Status)
+	require.NotNil(t, result.TopologyDiff)
+	require.Equal(t, []ReplicasetDiff{{
+		Name:      "storage-a",
+		Instances: []string{"renamed-a-001"},
+	}}, result.TopologyDiff.ExtraReplicasets)
+	require.Empty(t, result.RestoreTargets)
+}
+
+// unselectedWarning renders the warning a configured replicaset left out of the
+// selection produces.
+func unselectedWarning(name string) string {
+	return `replicaset "` + name + `" is configured but not selected: ` +
+		`it is not restored, bootstrap it fresh`
+}
+
 // TestPlanSelectionWarnsAboutAReplicasetNoBackupHolds covers a replicaset the
 // config declares and no manifest ever saw - a router deployed after the last
 // backup, say. Left out of the selection it is not a difference between the

@@ -200,6 +200,22 @@ func Plan(ctx context.Context, opts PlanOpts) (*PlanResult, error) {
 		Warnings:   make([]string, 0),
 	}
 
+	// A selected replicaset the storage holds nowhere fails every point alike,
+	// and it fails them before there is a point: nothing is stitched over it.
+	// Named here, it is the same refusal the comparison would have given.
+	if selected != nil {
+		absent := selected.absent(*opts.Current, backupChain.Manifests())
+		if len(absent) > 0 {
+			result.Status = StatusTopologyMismatch
+			result.Reason = reasonFor(StatusTopologyMismatch)
+			result.TopologyDiff = &TopologyDiff{ExtraReplicasets: absent}
+			result.Warnings = append(result.Warnings,
+				selected.unselectedWarnings(*opts.Current)...)
+
+			return result, nil
+		}
+	}
+
 	resolution := backupChain.Resolve(opts.TargetTime)
 	if resolution.Status != chain.StatusOK {
 		result.Status = Status(resolution.Status.String())
