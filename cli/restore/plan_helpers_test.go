@@ -32,6 +32,11 @@ const (
 	// can be laid against a cluster that no longer looks like that.
 	shardC = "cccccccc-3333-3333-3333-333333333333"
 
+	// shardR is a replicaset that holds no data: the shape a stateless vshard
+	// router gives a backup, backed up like any other and carrying no recovery
+	// point of its own.
+	shardR = "dddddddd-4444-4444-4444-444444444444"
+
 	// masterOfA and masterOfB are the instance names the archives were taken on.
 	masterOfA = "storage-a-001"
 	masterOfB = "storage-b-001"
@@ -39,6 +44,8 @@ const (
 	// secondOfA is the other member of replicaset A: a replica the backups never
 	// saw, and the instance a master change promotes.
 	secondOfA = "storage-a-002"
+	// routerOfR is the instance name the router replicaset is backed up on.
+	routerOfR = "router-001"
 
 	// replicaOfA and replicaOfB are the axes the two masters count their LSNs
 	// on. They differ so that a position taken from the wrong shard cannot pass
@@ -46,6 +53,7 @@ const (
 	replicaOfA uint32 = 1
 	replicaOfB uint32 = 3
 	replicaOfC uint32 = 5
+	replicaOfR uint32 = 7
 )
 
 // Backup ids of the standard chain, spelled the way tt backup names them.
@@ -399,6 +407,58 @@ func shardOfB(begin, end uint64, points ...backup.RecoveryPoint) shardBackup {
 	}
 }
 
+// shardOfRouter describes the router's share of one backup. It carries an
+// archive like every other replicaset and never a recovery point: a stateless
+// router holds no data to take one on.
+func shardOfRouter(begin, end uint64) shardBackup {
+	return shardBackup{
+		replicaset: shardR, master: routerOfR, generation: "deploy-1",
+		replicaID: replicaOfR, vclockBegin: begin, vclockEnd: end,
+	}
+}
+
+// chainWithAStatelessRouter stores the standard chain of a sharded cluster: the
+// two storages plus a router that is backed up and carries no recovery point.
+// No label is then present on every replicaset, so the chain has no cluster
+// point to offer until a selection leaves the router out.
+func (f *planFixture) chainWithAStatelessRouter() {
+	f.t.Helper()
+
+	f.addBackup(clusterBackup{
+		id: fullBackupID, base: fullBackupID,
+		backupType: backup.BackupTypeFull, createdAt: 200,
+		shards: []shardBackup{
+			shardOfA(0, 1000, recoveryPointAt("p1", replicaOfA, 500, 110)),
+			shardOfB(0, 900, recoveryPointAt("p1", replicaOfB, 400, 111)),
+			shardOfRouter(0, 100),
+		},
+	})
+
+	f.addBackup(clusterBackup{
+		id: incOneID, previous: fullBackupID, base: fullBackupID,
+		backupType: backup.BackupTypeIncremental, createdAt: 400,
+		shards: []shardBackup{
+			shardOfA(1000, 2000, recoveryPointAt("p2", replicaOfA, 1502, 310)),
+			shardOfB(900, 1800, recoveryPointAt("p2", replicaOfB, 1377, 311)),
+			shardOfRouter(100, 200),
+		},
+	})
+
+	f.addBackup(clusterBackup{
+		id: incTwoID, previous: incOneID, base: fullBackupID,
+		backupType: backup.BackupTypeIncremental, createdAt: 600,
+		shards: []shardBackup{
+			shardOfA(2000, 3000,
+				recoveryPointAt("p3", replicaOfA, 2500, 510),
+				recoveryPointAt("p4", replicaOfA, 2900, 610)),
+			shardOfB(1800, 2700,
+				recoveryPointAt("p3", replicaOfB, 2000, 511),
+				recoveryPointAt("p4", replicaOfB, 2600, 611)),
+			shardOfRouter(200, 300),
+		},
+	})
+}
+
 // chainWithAnUnreachableShard stores the chain of the RFC's own example: one
 // replicaset was unreachable when the middle backup was taken, so its archives
 // skip from the full straight to the last increment.
@@ -600,16 +660,43 @@ func (f *planFixture) plan(at int64, current *ClusterTopology) *PlanResult {
 	return result
 }
 
-// run resolves at against the fixture's storage and asserts the storage came
-// out untouched: planning a restore reads backups, it never rewrites them.
+// planSelected runs the command restricted to the named replicasets and asserts
+// it succeeded.
+func (f *planFixture) planSelected(
+	at int64,
+	current *ClusterTopology,
+	replicasets ...string,
+) *PlanResult {
+	f.t.Helper()
+
+	result, err := f.runSelected(at, current, replicasets)
+	require.NoError(f.t, err)
+
+	return result
+}
+
+// run resolves at against the fixture's storage over every replicaset.
 func (f *planFixture) run(at int64, current *ClusterTopology) (*PlanResult, error) {
 	f.t.Helper()
 
+	return f.runSelected(at, current, nil) //nolint:wrapcheck
+}
+
+// runSelected resolves at against the fixture's storage and asserts the storage
+// came out untouched: planning a restore reads backups, it never rewrites them.
+func (f *planFixture) runSelected(
+	at int64,
+	current *ClusterTopology,
+	replicasets []string,
+) (*PlanResult, error) {
+	f.t.Helper()
+
 	result, err := Plan(f.t.Context(), PlanOpts{
-		Storage:    f.store,
-		TargetTime: time.Unix(at, 0).UTC(),
-		Dir:        f.dir,
-		Current:    current,
+		Storage:     f.store,
+		TargetTime:  time.Unix(at, 0).UTC(),
+		Dir:         f.dir,
+		Current:     current,
+		Replicasets: replicasets,
 	})
 
 	require.Empty(f.t, f.store.puts, "restore plan must not write to the backup storage")

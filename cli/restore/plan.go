@@ -43,6 +43,10 @@ type PlanOpts struct {
 	// check and says so in the warnings: the check is worth having, but the
 	// storage is worth reading without a cluster config at hand.
 	Current *ClusterTopology
+	// Replicasets restricts the restore to the named replicasets, the rest
+	// being left to be bootstrapped fresh. The names are the configuration's,
+	// so it requires Current; empty restores every replicaset the backup holds.
+	Replicasets []string
 }
 
 // PlanResult is the plan as it is printed. Everything an operator needs to see
@@ -148,6 +152,7 @@ func refuseTopology(
 	diff *TopologyDiff,
 	backupChain *chain.Chain,
 	opts PlanOpts,
+	selected *selection,
 ) {
 	result.Status = StatusTopologyMismatch
 	result.Reason = reasonFor(StatusTopologyMismatch)
@@ -160,7 +165,7 @@ func refuseTopology(
 	// that fails for the identical reason.
 	if diff.replicasetLevel() {
 		result.NearestSafe = nearestMatching(backupChain, *opts.Current,
-			opts.TargetTime)
+			opts.TargetTime, selected)
 	}
 }
 
@@ -179,7 +184,13 @@ func Plan(ctx context.Context, opts PlanOpts) (*PlanResult, error) {
 		return nil, fmt.Errorf("failed to resolve --dir %q: %w", opts.Dir, err)
 	}
 
-	backupChain, err := chain.Load(ctx, opts.Storage)
+	selected, err := resolveSelection(opts.Current, opts.Replicasets)
+	if err != nil {
+		return nil, err //nolint:wrapcheck
+	}
+
+	backupChain, err := chain.Load(ctx, opts.Storage,
+		chain.WithSelection(selected.chainSelection(opts.Current)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to build the backup chain: %w", err)
 	}
@@ -206,11 +217,11 @@ func Plan(ctx context.Context, opts PlanOpts) (*PlanResult, error) {
 		return nil, fmt.Errorf("failed to build the recovery plan: %w", err)
 	}
 
-	topology := checkTopology(point, recoveryPlan, opts.Current)
+	topology := checkTopology(point, recoveryPlan, opts.Current, selected)
 	result.Warnings = append(result.Warnings, topology.warnings...)
 
 	if diff := topology.diff; diff != nil {
-		refuseTopology(result, diff, backupChain, opts)
+		refuseTopology(result, diff, backupChain, opts, selected)
 
 		return result, nil
 	}
@@ -283,10 +294,15 @@ type planTopology struct {
 // aimed at, and names the node each replicaset's chain goes to. Without a
 // cluster config only the naming is possible: the target comes from the backup,
 // the list of nodes to wipe from the configuration.
+//
+// Both sides are narrowed to the selection, so that the comparison weighs the
+// replicasets being restored against the ones asked for. What the selection
+// leaves out is reported afterwards, once per configured replicaset.
 func checkTopology(
 	point chain.ClusterPoint,
 	plan chain.Plan,
 	current *ClusterTopology,
+	selected *selection,
 ) planTopology {
 	instances, warnings := planInstances(plan)
 
@@ -300,14 +316,15 @@ func checkTopology(
 		}
 	}
 
-	match := matchTopology(point.Topology, *current)
+	match := matchTopology(pointTopology(point), selected.configured(*current))
 	match.diff.UncoveredMasters = uncoveredMasters(masterNames(instances), match.matched)
 
 	targets, unrecorded := restoreTargets(instances, match.matched)
 
 	result := planTopology{
-		targets:  targets,
-		warnings: append(append(match.warnings, warnings...), unrecorded...),
+		targets: targets,
+		warnings: append(append(append(match.warnings, warnings...), unrecorded...),
+			selected.unselectedWarnings(*current)...),
 	}
 
 	if !match.diff.Empty() {
@@ -405,11 +422,14 @@ func nearestMatching(
 	backupChain *chain.Chain,
 	current ClusterTopology,
 	target time.Time,
+	selected *selection,
 ) *NearestSafe {
 	var before, after *time.Time
 
+	configured := selected.configured(current)
+
 	for _, point := range backupChain.ClusterPoints() {
-		if matchTopology(point.Topology, current).diff.replicasetLevel() {
+		if matchTopology(pointTopology(point), configured).diff.replicasetLevel() {
 			continue
 		}
 

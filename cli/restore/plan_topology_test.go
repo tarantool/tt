@@ -1,7 +1,9 @@
 package restore
 
 import (
+	"maps"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -438,7 +440,8 @@ func TestPlanNeverContactsTheClusterBeingRestored(t *testing.T) {
 		names = append(names, field.Name)
 	}
 
-	require.Equal(t, []string{"Storage", "TargetTime", "Dir", "Current"}, names,
+	require.Equal(t,
+		[]string{"Storage", "TargetTime", "Dir", "Current", "Replicasets"}, names,
 		"a new PlanOpts field must not give the plan a way to reach the cluster")
 
 	// Current is a plain description, not a connection: it carries no addresses
@@ -447,4 +450,236 @@ func TestPlanNeverContactsTheClusterBeingRestored(t *testing.T) {
 	f.standardChain()
 
 	require.Equal(t, StatusOK, f.plan(550, masterOnlyCluster()).Status)
+}
+
+// routerWarning is what a configured replicaset left out of the selection is
+// reported as.
+const routerWarning = `replicaset "router-001" is configured but not selected: ` +
+	`it is not restored, bootstrap it fresh`
+
+// shardedCluster is the configuration of the cluster chainWithAStatelessRouter
+// backs up: two storages and the router, each on its own master.
+func shardedCluster(extra ...ConfiguredReplicaset) *ClusterTopology {
+	replicasets := []ConfiguredReplicaset{
+		configuredReplicaset("storage-a", masterOfA),
+		configuredReplicaset("storage-b", masterOfB),
+		configuredReplicaset("router-001", routerOfR),
+	}
+
+	return configuredCluster(append(replicasets, extra...)...)
+}
+
+// TestPlanSelectionLeavesOutAStatelessRouter is what the flag exists for. The
+// router is backed up and carries no recovery point, so no label is present on
+// every replicaset and the chain has no cluster point to resolve against;
+// naming the storages makes the point cluster-wide over them alone, and the
+// whole plan - downloads, targets, trim positions - covers them and no one
+// else.
+func TestPlanSelectionLeavesOutAStatelessRouter(t *testing.T) {
+	f := newPlanFixture(t)
+	f.chainWithAStatelessRouter()
+
+	require.Equal(t, StatusNoRecoveryPoint, f.plan(550, shardedCluster()).Status,
+		"without a selection the router is what there is no cluster point around")
+
+	result := f.planSelected(550, shardedCluster(), "storage-a", "storage-b")
+
+	require.Equal(t, StatusOK, result.Status)
+	require.Nil(t, result.TopologyDiff)
+	require.Equal(t, []string{routerWarning}, result.Warnings)
+
+	require.NotNil(t, result.RecoveryPoint)
+	require.Equal(t, "p3", result.RecoveryPoint.Label)
+	require.Equal(t, []string{shardA, shardB},
+		slices.Sorted(maps.Keys(result.RecoveryPoint.TrimToByReplicaset)))
+
+	require.Equal(t, []string{shardA, shardB},
+		slices.Sorted(maps.Keys(result.RestoreTargets)))
+	require.Equal(t, masterOfA, result.RestoreTargets[shardA].InstanceName)
+	require.Equal(t, masterOfB, result.RestoreTargets[shardB].InstanceName)
+
+	require.Equal(t, []string{shardA, shardB},
+		slices.Sorted(maps.Keys(result.DownloadPlan)))
+
+	for _, name := range f.downloaded() {
+		require.NotContains(t, name, shardR,
+			"an unselected replicaset's archive was downloaded")
+	}
+}
+
+// TestPlanSelectionRefusesAReplicasetTheBackupHasNot covers a name that is in
+// the config and in no backup. A replicaset left out of the selection is a
+// decision; one that was asked for and cannot be restored is a plan that would
+// come back short, so it blocks rather than warns.
+func TestPlanSelectionRefusesAReplicasetTheBackupHasNot(t *testing.T) {
+	f := newPlanFixture(t)
+	f.chainWithAStatelessRouter()
+
+	current := shardedCluster(configuredReplicaset("storage-c", masterOfC))
+
+	result := f.planSelected(550, current, "storage-a", "storage-b", "storage-c")
+
+	require.Equal(t, StatusTopologyMismatch, result.Status)
+	require.NotNil(t, result.TopologyDiff)
+	require.Equal(t, []ReplicasetDiff{{
+		Name:      "storage-c",
+		Instances: []string{masterOfC},
+	}}, result.TopologyDiff.ExtraReplicasets)
+	require.Empty(t, result.TopologyDiff.MissingReplicasets,
+		"the router is not part of the comparison, so it is no difference")
+
+	require.Equal(t, []string{routerWarning}, result.Warnings)
+	require.Empty(t, result.RestoreTargets)
+	require.Empty(t, f.downloaded())
+
+	// Every point of the chain is weighed by the same selection, and storage-c
+	// is in none of them, so there is no neighbouring point to offer.
+	require.Nil(t, result.NearestSafe)
+}
+
+// TestPlanSelectionWarnsAboutAReplicasetNoBackupHolds covers a replicaset the
+// config declares and no manifest ever saw - a router deployed after the last
+// backup, say. Left out of the selection it is not a difference between the
+// point and the cluster: it is a replicaset the operator is bootstrapping
+// themselves, and the plan says so.
+func TestPlanSelectionWarnsAboutAReplicasetNoBackupHolds(t *testing.T) {
+	f := newPlanFixture(t)
+	f.standardChain()
+
+	result := f.planSelected(550, shardedCluster(), "storage-a", "storage-b")
+
+	require.Equal(t, StatusOK, result.Status)
+	require.Nil(t, result.TopologyDiff)
+	require.Equal(t, []string{routerWarning}, result.Warnings)
+	require.Equal(t, []string{shardA, shardB},
+		slices.Sorted(maps.Keys(result.RestoreTargets)))
+}
+
+// TestPlanSelectionAcceptsAReplicaNoBackupSaw covers the ordinary shape of a
+// selected replicaset: a master the backup was taken on and a replica it never
+// saw. One backed-up instance is what makes a replicaset present in the backup;
+// the replica is restored by rejoining, as it is without a selection.
+func TestPlanSelectionAcceptsAReplicaNoBackupSaw(t *testing.T) {
+	f := newPlanFixture(t)
+	f.chainWithAStatelessRouter()
+
+	current := configuredCluster(
+		configuredReplicaset("storage-a", masterOfA, secondOfA),
+		configuredReplicaset("storage-b", masterOfB),
+		configuredReplicaset("router-001", routerOfR),
+	)
+
+	result := f.planSelected(550, current, "storage-a", "storage-b")
+
+	require.Equal(t, StatusOK, result.Status, result.TopologyDiff)
+	require.Equal(t, []string{shardA, shardB},
+		slices.Sorted(maps.Keys(result.RestoreTargets)))
+	require.Equal(t, masterOfA, result.RestoreTargets[shardA].InstanceName)
+	require.Equal(t, []string{secondOfA}, result.RestoreTargets[shardA].Rejoin)
+}
+
+// TestPlanSelectionKeepsAReplicasetWithAReplacedMember covers a manifest whose
+// replicaset lists two instances while the config has replaced one of them. The
+// replicaset is still selected through the instance both sides share: a point
+// is stitched over it, and the plan restores it.
+func TestPlanSelectionKeepsAReplicasetWithAReplacedMember(t *testing.T) {
+	f := newPlanFixture(t)
+	f.chainWithAStatelessRouter()
+
+	for _, id := range []string{fullBackupID, incOneID, incTwoID} {
+		manifest := f.storedManifest(id)
+		manifest.Topology.Replicasets[shardA] = topologyOf(shardBackup{
+			master:     masterOfA,
+			members:    []string{masterOfA, secondOfA},
+			generation: "deploy-1",
+		})
+		f.putManifest(manifest)
+	}
+
+	current := configuredCluster(
+		configuredReplicaset("storage-a", masterOfA, "storage-a-003"),
+		configuredReplicaset("storage-b", masterOfB),
+		configuredReplicaset("router-001", routerOfR),
+	)
+
+	result := f.planSelected(550, current, "storage-a", "storage-b")
+
+	require.Equal(t, StatusOK, result.Status, result.TopologyDiff)
+	require.NotNil(t, result.RecoveryPoint)
+	require.Equal(t, "p3", result.RecoveryPoint.Label)
+	require.Equal(t, []string{shardA, shardB},
+		slices.Sorted(maps.Keys(result.RecoveryPoint.TrimToByReplicaset)))
+	require.Equal(t, []string{shardA, shardB},
+		slices.Sorted(maps.Keys(result.RestoreTargets)))
+}
+
+// TestPlanSelectionOffersTheNearestPointOverTheSelection covers a mismatch the
+// topology comparison finds rather than the check for replicasets no backup
+// holds: storage-c joined the cluster between two full backups, so the point
+// before it lacks the replicaset and the one after has it. The neighbouring
+// point is weighed by the same selection, so the router, configured and in no
+// backup at all, does not rule out the point that would do.
+func TestPlanSelectionOffersTheNearestPointOverTheSelection(t *testing.T) {
+	f := newPlanFixture(t)
+
+	const earlierID = "20260324T000000Z"
+
+	f.addBackup(clusterBackup{
+		id: earlierID, base: earlierID,
+		backupType: backup.BackupTypeFull, createdAt: 200,
+		shards: []shardBackup{
+			shardOfA(0, 1000, recoveryPointAt("p1", replicaOfA, 500, 110)),
+			shardOfB(0, 900, recoveryPointAt("p1", replicaOfB, 400, 111)),
+		},
+	})
+
+	f.addBackup(clusterBackup{
+		id: fullBackupID, base: fullBackupID,
+		backupType: backup.BackupTypeFull, createdAt: 600,
+		shards: []shardBackup{
+			shardOfA(0, 4000, recoveryPointAt("p3", replicaOfA, 3500, 510)),
+			shardOfB(0, 3600, recoveryPointAt("p3", replicaOfB, 3000, 511)),
+			{
+				replicaset: shardC, master: masterOfC, generation: "deploy-1",
+				replicaID: replicaOfC, vclockBegin: 0, vclockEnd: 1800,
+				points: []backup.RecoveryPoint{
+					recoveryPointAt("p3", replicaOfC, 877, 512),
+				},
+			},
+		},
+	})
+
+	current := shardedCluster(configuredReplicaset("storage-c", masterOfC))
+
+	// A cluster point stands at the earliest of its shards' times, and the
+	// first full backup ends there: any later moment falls into the gap between
+	// the two unrelated chains.
+	result := f.planSelected(110, current, "storage-a", "storage-b", "storage-c")
+
+	require.Equal(t, StatusTopologyMismatch, result.Status)
+	require.NotNil(t, result.TopologyDiff)
+	require.Equal(t, []ReplicasetDiff{{
+		Name:      "storage-c",
+		Instances: []string{masterOfC},
+	}}, result.TopologyDiff.ExtraReplicasets)
+	require.Empty(t, result.TopologyDiff.MissingReplicasets)
+	require.Equal(t, []string{routerWarning}, result.Warnings)
+
+	require.NotNil(t, result.NearestSafe)
+	require.Nil(t, result.NearestSafe.Before)
+	require.NotNil(t, result.NearestSafe.After)
+	require.Equal(t, time.Unix(510, 0).UTC(), *result.NearestSafe.After)
+	require.Empty(t, f.downloaded())
+}
+
+// TestPlanSelectionNeedsAClusterConfig pins that the refusal happens in the
+// plan itself, not only in the command that parses the flag.
+func TestPlanSelectionNeedsAClusterConfig(t *testing.T) {
+	f := newPlanFixture(t)
+	f.standardChain()
+
+	_, err := f.runSelected(550, nil, []string{"storage-a"})
+
+	require.ErrorContains(t, err, "--replicasets requires -c")
+	require.Empty(t, f.downloaded(), "a refused plan must not download anything")
 }

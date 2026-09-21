@@ -32,6 +32,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt backup start` / `tt backup finalize`: added `--sslkeyfile`,
   `--sslcertfile`, `--sslcafile` and `--sslciphers` flags to connect to an
   instance with iproto TLS enabled.
+- `tt restore plan`: added `--replicasets` to restrict the restore to the
+  named replicasets, by the names the cluster config gives them, which is why
+  it requires `-c`. The cluster recovery point is then searched over those
+  replicasets alone, and so are the downloads, the restore targets and the
+  trim positions. The others -- a stateless router, say -- are not restored
+  and are reported in the warnings.
 
 ### Changed
 
