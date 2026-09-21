@@ -12,6 +12,7 @@ AKIAs
 anykey
 autoexpel
 bootstrapper
+callrw
 ccluster
 cconfig
 clientv3
@@ -66,6 +67,7 @@ MAKEFLAGS
 mapstructure
 memtx
 moby
+mpcrc
 multireturn
 mvcc
 mvccpb

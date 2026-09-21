@@ -19,12 +19,16 @@ STORAGE_URIS = {
     "storage-002-a": "client:secret@localhost:3342",
 }
 ROUTER_INSTANCE = f"{SHARDED_APP_NAME}:router-001-a"
+# The router listens on iproto like the storages do, so a backup command
+# addresses it the same way; what it never holds is a recovery point.
+ROUTER_URI = "client:secret@localhost:3343"
 
 # Replicaset UUIDs pinned in sharded_app/config.yaml, keyed by storage leader.
 STORAGE_REPLICASET_UUIDS = {
     "storage-001-a": "11111111-1111-1111-1111-111111111111",
     "storage-002-a": "22222222-2222-2222-2222-222222222222",
 }
+ROUTER_REPLICASET_UUID = "33333333-3333-3333-3333-333333333333"
 
 
 class ShardedApp:
@@ -111,14 +115,29 @@ def _wait_ready(app, timeout=60):
 
 
 def _wait_buckets_discovered(app, timeout=60):
+    """Wait until the router reaches every bucket over a live connection.
+
+    No unknown buckets is not enough after storages restart: the router keeps
+    the bucket map it had, so the buckets of a storage it has not reconnected
+    to yet count as unreachable rather than unknown, with an alert beside them.
+    """
+
     def check():
         info = app.eval_router(
             "local i = require('vshard').router.info() "
-            "return {unknown = i.bucket.unknown, available_rw = i.bucket.available_rw}",
+            "return {unknown = i.bucket.unknown, "
+            "unreachable = i.bucket.unreachable, "
+            "available_rw = i.bucket.available_rw, alerts = #i.alerts}",
         )
         if not isinstance(info, dict):
             return False, info
-        return info.get("unknown") == 0 and info.get("available_rw", 0) > 0, info
+        ok = (
+            info.get("unknown") == 0
+            and info.get("unreachable") == 0
+            and info.get("alerts") == 0
+            and info.get("available_rw", 0) > 0
+        )
+        return ok, info
 
     _wait(timeout, check, "vshard router did not discover all buckets")
 
