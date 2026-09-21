@@ -92,6 +92,18 @@ STORAGE_2_A = "storage-002-a"
 REPLICASET_1 = "storage-001"
 REPLICASET_2 = "storage-002"
 
+# A third replicaset holding no data: a stateless vshard router. Its backup
+# carries an archive like any other and no recovery point at all, which is the
+# shape --replicasets exists for.
+ROUTER = "33333333-3333-3333-3333-333333333333"
+ROUTER_INSTANCE = "dddddddd-0000-0000-0000-000000000001"
+ROUTER_1_A = "router-001-a"
+REPLICASET_ROUTER = "router-001"
+
+# A replicaset the cluster config declares and no backup ever covered.
+REPLICASET_UNBACKED = "storage-042"
+STORAGE_42_A = "storage-042-a"
+
 # A second instance of REPLICASET, so that a manifest can hand the master role
 # over and make the topology of two adjacent manifests differ.
 INSTANCE_2 = "aaaaaaaa-0000-0000-0000-000000000002"
@@ -146,7 +158,7 @@ def rfc3339(moment):
     return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def run_plan(tt, storage_uri, target, dest, config=None, fmt="json"):
+def run_plan(tt, storage_uri, target, dest, config=None, fmt="json", replicasets=None):
     """Run tt restore plan, returning (exit code, stdout, stderr)."""
     args = [
         "restore",
@@ -160,20 +172,29 @@ def run_plan(tt, storage_uri, target, dest, config=None, fmt="json"):
     ]
     if config is not None:
         args.extend(["-c", str(config)])
+    if replicasets is not None:
+        args.extend(["--replicasets", replicasets])
     if fmt is not None:
         args.extend(["--format", fmt])
 
     return exec_split(tt, *args)
 
 
-def plan_document(tt, storage_uri, target, dest, config=None):
+def plan_document(tt, storage_uri, target, dest, config=None, replicasets=None):
     """Run the command and return (exit code, parsed plan).
 
     The document is the command's product whatever the verdict, so it is parsed
     for a refusing status too: nearest_safe and the topology diff live there,
     and an orchestrator reads them off exactly this output.
     """
-    rc, out, err = run_plan(tt, storage_uri, target, dest, config=config)
+    rc, out, err = run_plan(
+        tt,
+        storage_uri,
+        target,
+        dest,
+        config=config,
+        replicasets=replicasets,
+    )
     assert out.strip(), f"tt restore plan printed no plan (exit {rc}):\n{err}"
 
     return rc, json.loads(out)
@@ -296,6 +317,47 @@ def store_chain(storage):
         backup_type="incremental",
         vclock_begin=100,
         vclock_end=200,
+    )
+
+
+def router_cluster_point(label, lsn_a, lsn_b, at):
+    """The same cluster point plus a router shard that carries none.
+
+    The router is backed up -- it has an archive and a place in the topology --
+    but writes no recovery point, so no label is ever held by every replicaset
+    of this cluster.
+    """
+    return {
+        **cluster_point(label, lsn_a, lsn_b, at),
+        ROUTER: shard(ROUTER_INSTANCE, ROUTER_1_A),
+    }
+
+
+def store_router_chain(storage):
+    """store_chain with a stateless router beside the two storages."""
+    store_backup(storage, FULL_ID, router_cluster_point(EARLY_LABEL, 50, 55, EARLY))
+    store_backup(
+        storage,
+        INC_ID,
+        router_cluster_point(LATE_LABEL, 150, 177, LATE),
+        previous=FULL_ID,
+        base=FULL_ID,
+        backup_type="incremental",
+        vclock_begin=100,
+        vclock_end=200,
+    )
+
+
+def unselected_warning(name):
+    """The warning a configured but unselected replicaset is reported with.
+
+    Asserted verbatim: it is the only place the operator is told that a
+    replicaset of their cluster comes back empty, so a reworded or dropped
+    line is a silent data loss they would find out about on the live cluster.
+    """
+    return (
+        f'replicaset "{name}" is configured but not selected: '
+        "it is not restored, bootstrap it fresh"
     )
 
 
@@ -699,6 +761,227 @@ def test_plan_targets_wipe_every_other_member(tt, tmp_path):
             "rejoin": ["storage-002-b"],
         },
     }, doc
+
+
+# -- Restoring a named subset of the replicasets ----------------------------
+
+
+def test_plan_replicasets_selects_the_storages(tt, tmp_path):
+    """A cluster with a stateless router has no cluster-wide point to land on.
+
+    A recovery point is a label every replicaset agrees on, and a router writes
+    none, so such a cluster cannot be restored at all until the replicasets
+    holding data are named. That makes the flag the whole difference between no
+    plan and a plan, which is why both runs are here. The router must then stay
+    out of every part of the product -- the point, the targets, the trim
+    positions -- down to the archive that is never fetched, because an operator
+    who copies the restore directory onto their nodes would otherwise carry a
+    replicaset nobody is restoring.
+    """
+    storage = file_storage(tmp_path)
+    store_router_chain(storage)
+    stored = storage.keys()
+    config = cluster_config(
+        tmp_path,
+        {
+            REPLICASET_1: [STORAGE_1_A],
+            REPLICASET_2: [STORAGE_2_A],
+            REPLICASET_ROUTER: [ROUTER_1_A],
+        },
+    )
+    dest = tmp_path / "restore"
+
+    rc, doc = plan_document(tt, storage.uri, rfc3339(LATE), dest, config=config)
+
+    assert rc == PLAN_NO_RECOVERY_POINT, doc
+    assert doc["status"] == "no_recovery_point"
+    assert not dest.exists()
+
+    rc, doc = plan_document(
+        tt,
+        storage.uri,
+        rfc3339(LATE),
+        dest,
+        config=config,
+        replicasets=f"{REPLICASET_1},{REPLICASET_2}",
+    )
+
+    assert rc == PLAN_OK, doc
+    assert doc["status"] == "ok"
+    assert doc["recovery_point"]["label"] == LATE_LABEL
+    assert doc["recovery_point"]["trim_to_by_replicaset"] == {
+        REPLICASET: {"replica_id": 1, "lsn": 150},
+        REPLICASET_B: {"replica_id": 1, "lsn": 177},
+    }, doc
+    assert sorted(doc["download_plan"]) == [REPLICASET, REPLICASET_B]
+    assert doc["restore_targets"] == {
+        REPLICASET: {"instance_name": STORAGE_1_A, "patch_uuid": INSTANCE},
+        REPLICASET_B: {"instance_name": STORAGE_2_A, "patch_uuid": INSTANCE_B},
+    }, doc
+    assert doc["warnings"] == [unselected_warning(REPLICASET_ROUTER)], doc
+
+    for backup_id in (FULL_ID, INC_ID):
+        assert not downloaded(dest, backup_id, ROUTER).exists()
+    assert storage.keys() == stored, "tt restore plan must not modify the storage"
+
+
+def test_plan_replicasets_needs_config(tt, tmp_path):
+    """The names live in the cluster config and nowhere else.
+
+    A manifest knows instance names and replicaset UUIDs, so without -c there
+    is nothing to resolve a replicaset name against. Refusing before the
+    storage is opened keeps a missing flag from costing a chain walk.
+    """
+    storage = file_storage(tmp_path)
+    store_router_chain(storage)
+    dest = tmp_path / "restore"
+
+    rc, out, err = run_plan(
+        tt,
+        storage.uri,
+        rfc3339(LATE),
+        dest,
+        replicasets=f"{REPLICASET_1},{REPLICASET_2}",
+    )
+
+    assert rc == PLAN_FAILED, out + err
+    assert "-c" in out + err
+    assert not dest.exists(), "a refused flag reads no storage"
+
+
+def test_plan_replicasets_unknown_name(tt, tmp_path):
+    """A mistyped name is refused with the names that would have worked.
+
+    Silently restoring fewer replicasets than were asked for is the failure
+    here: the operator would find out from the cluster. The refusal happens
+    before the storage is read, so the message has to carry the alternatives
+    itself -- and the download directory must not even exist afterwards.
+    """
+    storage = file_storage(tmp_path)
+    store_router_chain(storage)
+    config = cluster_config(
+        tmp_path,
+        {
+            REPLICASET_1: [STORAGE_1_A],
+            REPLICASET_2: [STORAGE_2_A],
+            REPLICASET_ROUTER: [ROUTER_1_A],
+        },
+    )
+    dest = tmp_path / "restore"
+
+    rc, out, err = run_plan(
+        tt,
+        storage.uri,
+        rfc3339(LATE),
+        dest,
+        config=config,
+        replicasets=f"{REPLICASET_1},storage-999",
+    )
+    report = out + err
+
+    assert rc == PLAN_FAILED, report
+    assert "storage-999" in report
+    for name in (REPLICASET_1, REPLICASET_2, REPLICASET_ROUTER):
+        assert name in report, report
+    assert not dest.exists(), "a name that can be refused costs no storage"
+
+
+def test_plan_replicasets_missing_from_backup(tt, tmp_path):
+    """A named replicaset the backup has no counterpart for blocks the plan.
+
+    Leaving it out of the warnings the way an unselected one is left out would
+    turn an explicit request into a quiet omission. It was asked for by name,
+    so it is a topology mismatch with its own exit code and nothing to restore
+    onto.
+    """
+    storage = file_storage(tmp_path)
+    store_router_chain(storage)
+    config = cluster_config(
+        tmp_path,
+        {
+            REPLICASET_1: [STORAGE_1_A],
+            REPLICASET_2: [STORAGE_2_A],
+            REPLICASET_ROUTER: [ROUTER_1_A],
+            REPLICASET_UNBACKED: [STORAGE_42_A],
+        },
+    )
+    dest = tmp_path / "restore"
+
+    rc, doc = plan_document(
+        tt,
+        storage.uri,
+        rfc3339(LATE),
+        dest,
+        config=config,
+        replicasets=f"{REPLICASET_1},{REPLICASET_UNBACKED}",
+    )
+
+    assert rc == PLAN_TOPOLOGY_MISMATCH, doc
+    assert doc["status"] == "topology_mismatch"
+    assert [item["name"] for item in doc["topology_diff"]["extra_replicasets"]] == [
+        REPLICASET_UNBACKED,
+    ], doc
+    assert "restore_targets" not in doc, doc
+    assert not dest.exists()
+
+
+def test_plan_replicasets_empty(tt, tmp_path):
+    """--replicasets="" is an unset shell variable, not "restore everything".
+
+    The flag parses into no name at all, and taking that for an absent flag
+    would restore the whole cluster on the strength of a typo in the caller's
+    script -- the opposite of what was written down.
+    """
+    storage = file_storage(tmp_path)
+    store_router_chain(storage)
+    config = cluster_config(tmp_path, {REPLICASET_1: [STORAGE_1_A]})
+    dest = tmp_path / "restore"
+
+    rc, out, err = run_plan(
+        tt,
+        storage.uri,
+        rfc3339(LATE),
+        dest,
+        config=config,
+        replicasets="",
+    )
+
+    assert rc == PLAN_FAILED, out + err
+    assert "no replicaset" in out + err
+    assert not dest.exists()
+
+
+def test_plan_replicasets_table(tt, tmp_path):
+    """The human form has to name the replicasets that are not coming back.
+
+    An operator reading the table is the one who has to bootstrap them, and the
+    JSON document they never open is no use to them.
+    """
+    storage = file_storage(tmp_path)
+    store_router_chain(storage)
+    config = cluster_config(
+        tmp_path,
+        {
+            REPLICASET_1: [STORAGE_1_A],
+            REPLICASET_2: [STORAGE_2_A],
+            REPLICASET_ROUTER: [ROUTER_1_A],
+        },
+    )
+    dest = tmp_path / "restore"
+
+    rc, out, err = run_plan(
+        tt,
+        storage.uri,
+        rfc3339(LATE),
+        dest,
+        config=config,
+        fmt="table",
+        replicasets=f"{REPLICASET_1},{REPLICASET_2}",
+    )
+    report = out + err
+
+    assert rc == PLAN_OK, report
+    assert unselected_warning(REPLICASET_ROUTER) in report, report
 
 
 # -- Refusals that are not a verdict on the storage -------------------------
