@@ -3,6 +3,7 @@ package chain
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/backup"
 )
@@ -359,6 +360,29 @@ func TestBuildHandlesCycleInPreviousBackupID(t *testing.T) {
 	chain := buildFixtureChain(t, a, b)
 	require.Len(t, chain.Manifests(), 2)
 	require.NotEmpty(t, chain.Problems())
+}
+
+func TestBuildSelectionLeavesGroupsAndProblemsIntact(t *testing.T) {
+	full := shardedFixture("point")
+	orphan := namedFixture("orphan", "missing", "full",
+		backup.BackupTypeIncremental, 30, 20, 30,
+		replicasetFixture{uuid: replicasetA, master: masterA, instance: instanceA},
+		replicasetFixture{uuid: replicasetB, master: masterB, instance: instanceB},
+		replicasetFixture{uuid: replicasetR, master: masterR, instance: instanceR},
+	)
+
+	plain := buildFixtureChain(t, full, orphan)
+	selected := buildSelectedChain(t,
+		SelectInstances([]string{instanceA, instanceB}), full, orphan)
+
+	require.NotEmpty(t, plain.Problems())
+	assert.Equal(t, plain.Groups(), selected.Groups())
+	assert.Equal(t, plain.Problems(), selected.Problems())
+
+	// The selection is not inert here: it is what turns the router-bearing
+	// topology into a point.
+	assert.Empty(t, plain.ClusterPoints())
+	assert.Len(t, selected.ClusterPoints(), 1)
 }
 
 type problemExpectation struct {

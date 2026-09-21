@@ -14,6 +14,36 @@ import (
 	"github.com/tarantool/tt/cli/backup/storage"
 )
 
+// buildOptions holds the tunable parts of chain building.
+type buildOptions struct {
+	// selection restricts the replicasets cluster points are stitched over.
+	selection *Selection
+}
+
+// Option tunes how a chain is built.
+type Option func(*buildOptions)
+
+// WithSelection stitches cluster points over the selected replicasets only: a
+// point name becomes a cluster point once it is present on each selected
+// replicaset, whatever the others carry, and the point holds positions for the
+// selected ones alone. Grouping and chain problems are unaffected - every
+// manifest is still read whole.
+func WithSelection(selection *Selection) Option {
+	return func(options *buildOptions) {
+		options.selection = selection
+	}
+}
+
+// newBuildOptions applies the given options over the defaults.
+func newBuildOptions(opts []Option) buildOptions {
+	var options buildOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	return options
+}
+
 // Unreadable is a listed manifest that could not be turned into a chain entry.
 type Unreadable struct {
 	// Key is the storage key of the manifest.
@@ -26,8 +56,8 @@ type Unreadable struct {
 // that cannot be read or decoded fails the whole load: a chain silently missing
 // a link would send its caller down a broken recovery path. Callers that
 // diagnose the storage rather than recover from it use LoadPartial.
-func Load(ctx context.Context, store storage.Storage) (*Chain, error) {
-	chain, unreadable, err := LoadPartial(ctx, store)
+func Load(ctx context.Context, store storage.Storage, opts ...Option) (*Chain, error) {
+	chain, unreadable, err := LoadPartial(ctx, store, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("load chain: %w", err)
 	}
@@ -47,6 +77,7 @@ func Load(ctx context.Context, store storage.Storage) (*Chain, error) {
 func LoadPartial(
 	ctx context.Context,
 	store storage.Storage,
+	opts ...Option,
 ) (*Chain, []Unreadable, error) {
 	loaded, unreadable, err := loadManifests(ctx, store)
 	if err != nil {
@@ -68,7 +99,7 @@ func LoadPartial(
 	manifests, unusable := splitUnusable(loaded)
 	unreadable = append(unreadable, unusable...)
 
-	chain, err := Build(manifests)
+	chain, err := Build(manifests, opts...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("build chain: %w", err)
 	}
@@ -187,7 +218,9 @@ func loadManifest(
 
 // Build groups manifests, attaches own and inherited chain problems, and
 // stitches cluster recovery points.
-func Build(manifests []*backup.ClusterManifest) (*Chain, error) {
+func Build(manifests []*backup.ClusterManifest, opts ...Option) (*Chain, error) {
+	options := newBuildOptions(opts)
+
 	// Index every backup_id first, then reverse the previous_backup_id links.
 	entries := make(map[backup.BackupID]*Entry, len(manifests))
 	groups := make(map[backup.BackupID]*Group)
@@ -234,7 +267,7 @@ func Build(manifests []*backup.ClusterManifest) (*Chain, error) {
 		}
 	}
 
-	segments := buildSegments(orderedGroups)
+	segments := buildSegments(orderedGroups, options.selection)
 
 	return &Chain{
 		groups:        orderedGroups,

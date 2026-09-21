@@ -1,9 +1,12 @@
 package chain
 
 import (
+	"maps"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/backup"
 )
@@ -182,4 +185,196 @@ func TestClusterPointsIgnoreReplicaSetChange(t *testing.T) {
 	points := buildFixtureChain(t, full, incremental).ClusterPoints()
 	require.Len(t, points, 1)
 	require.Equal(t, "point", points[0].Name)
+}
+
+const (
+	replicasetR = "33333333-3333-3333-3333-333333333333"
+	masterR     = "cccccccc-0000-0000-0000-000000000001"
+
+	instanceA = "storage-a-001"
+	instanceB = "storage-b-001"
+	instanceR = "router-001"
+)
+
+// replicasetFixture describes one replicaset of a fixture manifest: the UUID it
+// is backed up under, its master, the instance name a selection addresses it
+// by, and the recovery points its shard carries.
+type replicasetFixture struct {
+	uuid     string
+	master   string
+	instance string
+	points   []backup.RecoveryPoint
+}
+
+// namedFixture builds a manifest whose topology instances carry names. The
+// shared fixtures leave them nameless, and a selection can only address an
+// instance that has a name.
+func namedFixture(
+	id, previous, base string,
+	backupType backup.BackupType,
+	createdAt, vclockBegin, vclockEnd int64,
+	replicasets ...replicasetFixture,
+) backup.ClusterManifest {
+	manifest := backup.ClusterManifest{
+		SchemaVersion:    backup.SchemaVersion,
+		BackupID:         backup.BackupID(id),
+		PreviousBackupID: backup.OptionalBackupID(previous),
+		BaseFullBackupID: backup.BackupID(base),
+		Status:           backup.StatusOK,
+		CreationTime:     time.Unix(createdAt, 0).UTC(),
+		Shards:           make(map[string]backup.Shard, len(replicasets)),
+		Topology: backup.Topology{
+			Replicasets: make(map[string][]backup.TopologyInstance, len(replicasets)),
+		},
+		Warnings: []backup.Warning{},
+	}
+
+	for i, replicaset := range replicasets {
+		manifest.Topology.Replicasets[replicaset.uuid] = []backup.TopologyInstance{{
+			InstanceUUID: replicaset.master,
+			InstanceName: replicaset.instance,
+		}}
+
+		addShard(&manifest, replicaset.uuid, replicaset.master, uint32(i+1),
+			backupType, vclockBegin, vclockEnd, replicaset.points)
+	}
+
+	return manifest
+}
+
+// shardedFixture builds a manifest for two storage replicasets and a router
+// replicaset, with the label on the storages only - the shape a stateless
+// router gives a backup.
+func shardedFixture(label string) backup.ClusterManifest {
+	return namedFixture("full", "", "full", backup.BackupTypeFull, 20, 0, 20,
+		replicasetFixture{
+			uuid:     replicasetA,
+			master:   masterA,
+			instance: instanceA,
+			points:   []backup.RecoveryPoint{recoveryPoint(label, 1, 100, 10)},
+		},
+		replicasetFixture{
+			uuid:     replicasetB,
+			master:   masterB,
+			instance: instanceB,
+			points:   []backup.RecoveryPoint{recoveryPoint(label, 2, 100, 11)},
+		},
+		replicasetFixture{uuid: replicasetR, master: masterR, instance: instanceR},
+	)
+}
+
+// buildSelectedChain builds a chain over the given selection.
+func buildSelectedChain(
+	t *testing.T,
+	selection *Selection,
+	manifests ...backup.ClusterManifest,
+) *Chain {
+	t.Helper()
+
+	pointers := make([]*backup.ClusterManifest, len(manifests))
+	for i := range manifests {
+		pointers[i] = &manifests[i]
+	}
+
+	chain, err := Build(pointers, WithSelection(selection))
+	require.NoError(t, err)
+
+	return chain
+}
+
+func TestClusterPointsWithoutSelectionRequireEveryReplicaset(t *testing.T) {
+	// The router carries no recovery points, so nothing is cluster-wide.
+	full := shardedFixture("point")
+
+	require.Empty(t, buildFixtureChain(t, full).ClusterPoints())
+}
+
+func TestClusterPointsSelectionExcludesUnselectedReplicaset(t *testing.T) {
+	full := shardedFixture("point")
+
+	points := buildSelectedChain(t,
+		SelectInstances([]string{instanceA, instanceB}), full).ClusterPoints()
+
+	require.Len(t, points, 1)
+	require.Equal(t, "point", points[0].Name)
+	require.Equal(t, time.Unix(10, 0).UTC(), points[0].Timestamp)
+	assert.Equal(t, Position{ReplicaID: 1, LSN: 100}, points[0].Shards[replicasetA])
+	assert.Equal(t, Position{ReplicaID: 2, LSN: 100}, points[0].Shards[replicasetB])
+	assert.ElementsMatch(t,
+		[]string{replicasetA, replicasetB}, slices.Collect(maps.Keys(points[0].Shards)))
+
+	// The point still carries the whole segment topology; a consumer that wants
+	// the restored replicasets alone narrows it by the keys of Shards.
+	assert.Equal(t, full.Topology, points[0].Topology)
+	assert.Len(t, points[0].Topology.Replicasets, 3)
+}
+
+func TestClusterPointsSelectionRequiresEverySelectedReplicaset(t *testing.T) {
+	// The label is on one selected storage only: still not cluster-wide.
+	full := namedFixture("full", "", "full", backup.BackupTypeFull, 20, 0, 20,
+		replicasetFixture{
+			uuid:     replicasetA,
+			master:   masterA,
+			instance: instanceA,
+			points:   []backup.RecoveryPoint{recoveryPoint("point", 1, 100, 10)},
+		},
+		replicasetFixture{uuid: replicasetB, master: masterB, instance: instanceB},
+		replicasetFixture{uuid: replicasetR, master: masterR, instance: instanceR},
+	)
+
+	points := buildSelectedChain(t,
+		SelectInstances([]string{instanceA, instanceB}), full).ClusterPoints()
+
+	require.Empty(t, points)
+}
+
+func TestClusterPointsSelectionOutsideSegmentHasNoPoints(t *testing.T) {
+	// No replicaset of the segment answers to the selected names, so there is no
+	// set of replicasets that could agree on a point.
+	full := shardedFixture("point")
+
+	points := buildSelectedChain(t,
+		SelectInstances([]string{"storage-c-001"}), full).ClusterPoints()
+
+	require.Empty(t, points)
+}
+
+func TestClusterPointsSelectionResolvesPerSegment(t *testing.T) {
+	// A redeployed cluster keeps its instance names and gets new replicaset
+	// UUIDs, so each segment resolves the selection against its own topology.
+	const (
+		redeployedA = "aaaa1111-1111-1111-1111-111111111111"
+		redeployedB = "bbbb2222-2222-2222-2222-222222222222"
+	)
+
+	before := shardedFixture("before")
+	after := namedFixture("full-after", "", "full-after", backup.BackupTypeFull, 40, 0, 20,
+		replicasetFixture{
+			uuid:     redeployedA,
+			master:   masterA,
+			instance: instanceA,
+			points:   []backup.RecoveryPoint{recoveryPoint("after", 1, 200, 30)},
+		},
+		replicasetFixture{
+			uuid:     redeployedB,
+			master:   masterB,
+			instance: instanceB,
+			points:   []backup.RecoveryPoint{recoveryPoint("after", 2, 200, 31)},
+		},
+		replicasetFixture{uuid: replicasetR, master: masterR, instance: instanceR},
+	)
+
+	chain := buildSelectedChain(t,
+		SelectInstances([]string{instanceA, instanceB}), before, after)
+
+	points := chain.ClusterPoints()
+	require.Len(t, points, 2)
+
+	require.Equal(t, "before", points[0].Name)
+	assert.ElementsMatch(t,
+		[]string{replicasetA, replicasetB}, slices.Collect(maps.Keys(points[0].Shards)))
+
+	require.Equal(t, "after", points[1].Name)
+	assert.ElementsMatch(t,
+		[]string{redeployedA, redeployedB}, slices.Collect(maps.Keys(points[1].Shards)))
 }
