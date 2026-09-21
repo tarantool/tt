@@ -31,11 +31,12 @@ var (
 	restoreApplyPointName   string
 	restoreApplyPatchUUID   string
 
-	restorePlanTargetTime string
-	restorePlanCfg        string
-	restorePlanDir        string
-	restorePlanFormat     string
-	restorePlanTimeout    time.Duration
+	restorePlanTargetTime  string
+	restorePlanCfg         string
+	restorePlanDir         string
+	restorePlanFormat      string
+	restorePlanReplicasets []string
+	restorePlanTimeout     time.Duration
 )
 
 const (
@@ -491,7 +492,7 @@ the backups that would do it.
 Usage:
   tt restore plan --target-time <T> --backup-storage <config> -d <dir> \
       [--cluster-name <name> --environment <env>] \
-      [-c <cluster config>] [--format table|json]
+      [-c <cluster config>] [--replicasets <names>] [--format table|json]
 
 Run on the manager host, before anything is stopped. The command lists the
 storage itself -- it is not handed a list of manifests -- walks the chain of
@@ -519,6 +520,17 @@ every UUID is new and 'tt restore apply' stamps one into the restored node of
 each replicaset. A replicaset
 that has no counterpart blocks the plan; an instance the config no longer
 carries is a warning.
+
+--replicasets names the replicasets to restore, by the names the cluster
+config gives them, and requires -c for that reason. The recovery point is
+then stitched over those replicasets alone, and so is everything built on
+it: the downloads, the restore targets and the trim positions. A cluster
+that keeps a replicaset holding no data -- a stateless vshard router, which
+writes no recovery point -- has no cluster-wide point at all until the
+storages are named here. A configured replicaset left out is reported in the
+warnings and is the operator's to bootstrap fresh; a named replicaset the
+backup has no counterpart for is code 6, because a restore that was asked
+for and cannot happen must not pass silently.
 
 Every replicaset is restored onto one node: the instance its backup was taken
 on, whose headers the archives already fit. restore_targets names that node
@@ -548,7 +560,10 @@ Examples:
       --backup-storage file:///var/backups -d /tmp/restore/ --format table
   tt restore plan --target-time 2026-03-25T10:30:00Z \
       --backup-storage file:///var/backups -d /tmp/restore/ \
-      --cluster-name payments-cluster --environment production`
+      --cluster-name payments-cluster --environment production
+  tt restore plan --target-time 2026-03-25T10:30:00Z -c cluster.yaml \
+      --replicasets storage-a,storage-b \
+      --backup-storage file:///var/backups -d /tmp/restore/`
 
 // newRestorePlanCmd creates `tt restore plan`.
 func newRestorePlanCmd() *cobra.Command {
@@ -571,6 +586,9 @@ func newRestorePlanCmd() *cobra.Command {
 			"topology of the recovery point against.\n"+backupClusterConfigHelp)
 	cmd.Flags().StringVarP(&restorePlanDir, "dir", "d", "",
 		"local directory to download the manifests and archives into")
+	cmd.Flags().StringSliceVar(&restorePlanReplicasets, "replicasets", nil,
+		"replicasets to restore, by the names the cluster config gives them; the "+
+			"rest are left to bootstrap fresh. Requires -c")
 	cmd.Flags().StringVar(&restorePlanFormat, "format", formatJSON,
 		"output format: table or json")
 	cmd.Flags().DurationVar(&restorePlanTimeout, "timeout", defaultWholeStorageTimeout,
@@ -585,6 +603,13 @@ func newRestorePlanCmd() *cobra.Command {
 
 func runRestorePlan(cmd *cobra.Command, args []string) error {
 	cmdCtx.CommandName = cmd.Name()
+
+	// --replicasets="" parses into no names at all, which would otherwise read
+	// as "restore everything" - the opposite of what was asked for, and what an
+	// unset shell variable expands to.
+	if cmd.Flags().Changed("replicasets") && len(restorePlanReplicasets) == 0 {
+		return errors.New("restore plan: --replicasets names no replicaset")
+	}
 
 	result, err := runRestorePlanInner()
 	if err != nil {
@@ -616,14 +641,9 @@ func runRestorePlanInner() (*restore.PlanResult, error) {
 		return nil, err //nolint:wrapcheck
 	}
 
-	store, err := openBackupStorage()
-	if err != nil {
-		return nil, err //nolint:wrapcheck
-	}
-
 	// Everything that can be rejected without touching the storage is rejected
-	// first: a mistyped cluster config would otherwise surface after a whole
-	// chain has been downloaded.
+	// first: a mistyped cluster config or replicaset name would otherwise
+	// surface after a whole chain has been downloaded.
 	var current *restore.ClusterTopology
 	if restorePlanCfg != "" {
 		if current, err = currentClusterTopology(); err != nil {
@@ -631,14 +651,24 @@ func runRestorePlanInner() (*restore.PlanResult, error) {
 		}
 	}
 
+	if err := restore.CheckReplicasets(current, restorePlanReplicasets); err != nil {
+		return nil, err //nolint:wrapcheck
+	}
+
+	store, err := openBackupStorage()
+	if err != nil {
+		return nil, err //nolint:wrapcheck
+	}
+
 	ctx, cancel := storageContext(restorePlanTimeout)
 	defer cancel()
 
 	result, err := restore.Plan(ctx, restore.PlanOpts{
-		Storage:    store,
-		TargetTime: targetTime,
-		Dir:        restorePlanDir,
-		Current:    current,
+		Storage:     store,
+		TargetTime:  targetTime,
+		Dir:         restorePlanDir,
+		Current:     current,
+		Replicasets: restorePlanReplicasets,
 	})
 	if err != nil {
 		return nil, err //nolint:wrapcheck
