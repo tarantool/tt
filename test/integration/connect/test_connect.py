@@ -511,7 +511,28 @@ def test_connect_to_ssl_app(tt_cmd, tmpdir_with_cfg):
             "--sslcafile": "ca.crt",
         }
         ret, output = try_execute_on_instance(tt_cmd, tmpdir, server, empty_file, opts=opts)
-        assert ret
+        assert ret, output
+
+        encrypted_opts = {
+            "--sslkeyfile": "localhost.enc.key",
+            "--sslcertfile": "localhost.crt",
+            "--sslcafile": "ca.crt",
+        }
+        password_cases = [
+            ("--sslpassword", "secret"),
+            ("--sslpasswordfile", "passwords"),
+        ]
+        for password_flag, password_value in password_cases:
+            opts = dict(encrypted_opts)
+            opts[password_flag] = password_value
+            ret, output = try_execute_on_instance(
+                tt_cmd,
+                tmpdir,
+                server,
+                empty_file,
+                opts=opts,
+            )
+            assert ret, f"connect with {password_flag} failed:\n{output}"
 
     finally:
         # Stop the Instance.

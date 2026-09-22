@@ -135,7 +135,8 @@ func Connect(opts ConnectOpts) (Connector, error) {
 
 	// Detect transport and protocol.
 	ssl := opts.Ssl.KeyFile != "" || opts.Ssl.CertFile != "" ||
-		opts.Ssl.CaFile != "" || opts.Ssl.Ciphers != ""
+		opts.Ssl.CaFile != "" || opts.Ssl.Ciphers != "" || opts.Ssl.Password != "" ||
+		opts.Ssl.PasswordFile != ""
 	protocol, err := GetProtocol(greetingConn)
 	if err != nil {
 		if ssl {
@@ -163,19 +164,24 @@ func Connect(opts ConnectOpts) (Connector, error) {
 		addr := fmt.Sprintf("%s://%s", opts.Network, opts.Address)
 
 		dialer, err := dial.New(dial.Opts{
-			Address:     addr,
-			User:        opts.Username,
-			Password:    opts.Password,
-			SslKeyFile:  opts.Ssl.KeyFile,
-			SslCertFile: opts.Ssl.CertFile,
-			SslCaFile:   opts.Ssl.CaFile,
-			SslCiphers:  opts.Ssl.Ciphers,
+			Address:         addr,
+			User:            opts.Username,
+			Password:        opts.Password,
+			SslKeyFile:      opts.Ssl.KeyFile,
+			SslCertFile:     opts.Ssl.CertFile,
+			SslCaFile:       opts.Ssl.CaFile,
+			SslCiphers:      opts.Ssl.Ciphers,
+			SslPassword:     opts.Ssl.Password,
+			SslPasswordFile: opts.Ssl.PasswordFile,
 		})
 		if err != nil {
 			return nil, err
 		}
 
-		conn, err := tarantool.Connect(context.Background(), dialer, tarantool.Opts{
+		ctx, cancel := context.WithTimeout(context.Background(), getConnectTimeout(opts))
+		defer cancel()
+
+		conn, err := tarantool.Connect(ctx, dialer, tarantool.Opts{
 			SkipSchema: true, // We don't need a schema for eval requests.
 		})
 		if err != nil {
