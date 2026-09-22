@@ -340,7 +340,7 @@ whose iproto listener has TLS enabled.`,
 	cmd.Flags().StringVar(&backupStartDir, "dir", "",
 		"directory for the archive and the manifest fragment; "+
 			"defaults to $TMPDIR/tt-backup/<backup-id>")
-	addBackupSslFlags(cmd)
+	addBackupConnectFlags(cmd)
 
 	cmd.MarkFlagRequired("backup-id")
 
@@ -379,7 +379,7 @@ whose iproto listener has TLS enabled.`,
 	cmd.Flags().StringVar(&backupFinalizeDir, "dir", "",
 		"directory holding the artifacts to remove; "+
 			"defaults to $TMPDIR/tt-backup/<backup-id>")
-	addBackupSslFlags(cmd)
+	addBackupConnectFlags(cmd)
 
 	cmd.MarkFlagsOneRequired("backup-id", "force")
 	cmd.MarkFlagsMutuallyExclusive("backup-id", "force")
@@ -1322,9 +1322,9 @@ func applyBackupConfig(localCfg string) error {
 	return nil
 }
 
-// addBackupSslFlags registers the iproto TLS flags on a backup subcommand that
-// dials an instance. The names match the ones `tt connect` takes.
-func addBackupSslFlags(cmd *cobra.Command) {
+// addBackupConnectFlags registers the connection flags on a backup subcommand
+// that dials an instance. The names match the ones `tt connect` takes.
+func addBackupConnectFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&backupSslKeyFile, "sslkeyfile", "",
 		"path to a private SSL key file")
 	cmd.Flags().StringVar(&backupSslCertFile, "sslcertfile", "",
