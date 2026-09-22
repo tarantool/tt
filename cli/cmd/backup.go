@@ -39,10 +39,13 @@ var (
 	backupFinalizeDir   string
 
 	// Shared by every backup subcommand that dials an instance.
-	backupSslKeyFile  string
-	backupSslCertFile string
-	backupSslCaFile   string
-	backupSslCiphers  string
+	backupSslKeyFile      string
+	backupSslCertFile     string
+	backupSslCaFile       string
+	backupSslCiphers      string
+	backupSslPassword     string
+	backupSslPasswordFile string
+	backupConnectTimeout  = connector.DefaultConnectTimeout
 
 	backupStorageConfig string
 	backupClusterName   string
@@ -1333,6 +1336,12 @@ func addBackupConnectFlags(cmd *cobra.Command) {
 		"path to a trusted certificate authorities (CA) file")
 	cmd.Flags().StringVar(&backupSslCiphers, "sslciphers", "",
 		"colon-separated (:) list of SSL cipher suites")
+	cmd.Flags().StringVar(&backupSslPassword, "sslpassword", "",
+		"password for decrypting the private SSL key file")
+	cmd.Flags().StringVar(&backupSslPasswordFile, "sslpasswordfile", "",
+		"path to a file containing the password for decrypting the private SSL key file")
+	cmd.Flags().DurationVar(&backupConnectTimeout, "connect-timeout",
+		connector.DefaultConnectTimeout, "timeout for establishing a binary connection")
 }
 
 // backupConnectCtx describes the connection a backup subcommand makes: the
@@ -1340,11 +1349,14 @@ func addBackupConnectFlags(cmd *cobra.Command) {
 // non-empty SSL field makes the dial a TLS one.
 func backupConnectCtx() connect.ConnectCtx {
 	return connect.ConnectCtx{
-		Binary:      true,
-		SslKeyFile:  backupSslKeyFile,
-		SslCertFile: backupSslCertFile,
-		SslCaFile:   backupSslCaFile,
-		SslCiphers:  backupSslCiphers,
+		Binary:          true,
+		ConnectTimeout:  backupConnectTimeout,
+		SslKeyFile:      backupSslKeyFile,
+		SslCertFile:     backupSslCertFile,
+		SslCaFile:       backupSslCaFile,
+		SslCiphers:      backupSslCiphers,
+		SslPassword:     backupSslPassword,
+		SslPasswordFile: backupSslPasswordFile,
 	}
 }
 
@@ -1498,12 +1510,15 @@ func parseFromVclock(s string) (backup.Vclock, error) {
 // replicasets it has and which instance of each is writable right now.
 func discoverLiveTopology() (backup.LiveTopology, error) {
 	connectCtx := connect.ConnectCtx{
-		Username:    replicasetUser,
-		Password:    replicasetPassword,
-		SslKeyFile:  replicasetSslKeyFile,
-		SslCertFile: replicasetSslCertFile,
-		SslCaFile:   replicasetSslCaFile,
-		SslCiphers:  replicasetSslCiphers,
+		Username:        replicasetUser,
+		Password:        replicasetPassword,
+		ConnectTimeout:  replicasetConnectTimeout,
+		SslKeyFile:      replicasetSslKeyFile,
+		SslCertFile:     replicasetSslCertFile,
+		SslCaFile:       replicasetSslCaFile,
+		SslCiphers:      replicasetSslCiphers,
+		SslPassword:     replicasetSslPassword,
+		SslPasswordFile: replicasetSslPasswordFile,
 	}
 
 	merged, hostnames, reachable, err := discoverClusterTopology(&cmdCtx, backupPlanCfg, connectCtx)

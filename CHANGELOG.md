@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt connect`, `tt replicaset`, `tt cluster topology`, `tt backup`:
+  added `--sslpassword` and `--sslpasswordfile` to decrypt
+  password-protected private SSL keys.
+- `tt connect`, `tt replicaset`, `tt cluster topology`, `tt backup`:
+  added `--connect-timeout`, with a default of one second, to bound
+  binary connection establishment.
+
 ### Changed
 
 ### Fixed

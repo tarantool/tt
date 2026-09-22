@@ -34,6 +34,9 @@ var (
 	replicasetSslCertFile              string
 	replicasetSslCaFile                string
 	replicasetSslCiphers               string
+	replicasetSslPassword              string
+	replicasetSslPasswordFile          string
+	replicasetConnectTimeout           = connector.DefaultConnectTimeout
 	replicasetForce                    bool
 	replicasetTimeout                  int
 	replicasetBootstrapTimeout         int
@@ -398,6 +401,12 @@ func addTarantoolConnectFlags(cmd *cobra.Command) {
 		`path to a trusted certificate authorities (CA) file for a cluster connection`)
 	cmd.Flags().StringVar(&replicasetSslCiphers, "sslciphers", "",
 		`colon-separated (:) list of SSL cipher suites for a cluster connection`)
+	cmd.Flags().StringVar(&replicasetSslPassword, "sslpassword", "",
+		`password for decrypting the private SSL key file for a cluster connection`)
+	cmd.Flags().StringVar(&replicasetSslPasswordFile, "sslpasswordfile", "",
+		`path to a file containing the private SSL key password for a cluster connection`)
+	cmd.Flags().DurationVar(&replicasetConnectTimeout, "connect-timeout",
+		connector.DefaultConnectTimeout, `timeout for establishing a binary connection`)
 }
 
 // replicasetCtx describes a context for the replicaset command.
@@ -427,12 +436,15 @@ func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, target str
 	}
 
 	connectCtx := connect.ConnectCtx{
-		Username:    replicasetUser,
-		Password:    replicasetPassword,
-		SslKeyFile:  replicasetSslKeyFile,
-		SslCertFile: replicasetSslCertFile,
-		SslCaFile:   replicasetSslCaFile,
-		SslCiphers:  replicasetSslCiphers,
+		Username:        replicasetUser,
+		Password:        replicasetPassword,
+		ConnectTimeout:  replicasetConnectTimeout,
+		SslKeyFile:      replicasetSslKeyFile,
+		SslCertFile:     replicasetSslCertFile,
+		SslCaFile:       replicasetSslCaFile,
+		SslCiphers:      replicasetSslCiphers,
+		SslPassword:     replicasetSslPassword,
+		SslPasswordFile: replicasetSslPasswordFile,
 	}
 	var connOpts connector.ConnectOpts
 	err = running.FillCtx(cliOpts, cmdCtx, &ctx.RunningCtx, []string{target}, loadConfig)
@@ -524,12 +536,15 @@ func internalReplicasetUpgradeModule(cmdCtx *cmdcontext.CmdCtx, args []string) e
 	}
 
 	connectCtx := connect.ConnectCtx{
-		Username:    replicasetUser,
-		Password:    replicasetPassword,
-		SslKeyFile:  replicasetSslKeyFile,
-		SslCertFile: replicasetSslCertFile,
-		SslCaFile:   replicasetSslCaFile,
-		SslCiphers:  replicasetSslCiphers,
+		Username:        replicasetUser,
+		Password:        replicasetPassword,
+		ConnectTimeout:  replicasetConnectTimeout,
+		SslKeyFile:      replicasetSslKeyFile,
+		SslCertFile:     replicasetSslCertFile,
+		SslCaFile:       replicasetSslCaFile,
+		SslCiphers:      replicasetSslCiphers,
+		SslPassword:     replicasetSslPassword,
+		SslPasswordFile: replicasetSslPasswordFile,
 	}
 	var connOpts connector.ConnectOpts
 	connOpts, _ = resolveConnectOpts(cmdCtx, cliOpts, &connectCtx, args[0])
@@ -559,12 +574,15 @@ func internalReplicasetDowngradeModule(cmdCtx *cmdcontext.CmdCtx, args []string)
 	}
 
 	connectCtx := connect.ConnectCtx{
-		Username:    replicasetUser,
-		Password:    replicasetPassword,
-		SslKeyFile:  replicasetSslKeyFile,
-		SslCertFile: replicasetSslCertFile,
-		SslCaFile:   replicasetSslCaFile,
-		SslCiphers:  replicasetSslCiphers,
+		Username:        replicasetUser,
+		Password:        replicasetPassword,
+		ConnectTimeout:  replicasetConnectTimeout,
+		SslKeyFile:      replicasetSslKeyFile,
+		SslCertFile:     replicasetSslCertFile,
+		SslCaFile:       replicasetSslCaFile,
+		SslCiphers:      replicasetSslCiphers,
+		SslPassword:     replicasetSslPassword,
+		SslPasswordFile: replicasetSslPasswordFile,
 	}
 	var connOpts connector.ConnectOpts
 	connOpts, _ = resolveConnectOpts(cmdCtx, cliOpts, &connectCtx, target)

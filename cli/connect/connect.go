@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"syscall"
+	"time"
 
 	"github.com/tarantool/tt/cli/connect/internal/luabody"
 	"github.com/tarantool/tt/cli/connector"
@@ -20,6 +21,8 @@ type ConnectCtx struct {
 	Username string
 	// Password of the tarantool.user.
 	Password string
+	// ConnectTimeout bounds establishing a binary connection.
+	ConnectTimeout time.Duration
 	// SrcFile describes the source of code for the evaluation.
 	SrcFile string
 	// Language to use for execution.
@@ -35,6 +38,11 @@ type ConnectCtx struct {
 	// SslCiphers is a colon-separated (:) list of SSL cipher suites the
 	// connection can use.
 	SslCiphers string
+	// SslPassword is a password for decrypting the private SSL key file.
+	SslPassword string
+	// SslPasswordFile is a path to a file containing a password for decrypting
+	// the private SSL key file.
+	SslPasswordFile string
 	// Interactive mode is used.
 	Interactive bool
 	// ConnectTarget contains connection target string: URI or instance name.
