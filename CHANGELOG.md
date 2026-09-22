@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt connect`, `tt replicaset`:
+  added `--sslpassword` and `--sslpasswordfile` to decrypt
+  password-protected private SSL keys.
+- `tt connect`, `tt replicaset`:
+  added `--connect-timeout`, with a default of one second, to bound
+  binary connection establishment.
 - `status`: added `--instance-timeout` flag to bound how long collecting a single
   instance's status may take.
 - `tt package build`: build a manifest package (`app.manifest.toml`) into

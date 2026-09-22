@@ -186,7 +186,15 @@ func collectInstanceState(run running.InstanceCtx, fullInstanceName string,
 		Address:  run.ConsoleSocket,
 		Username: "",
 		Password: "",
-		Ssl:      connector.SslOpts{KeyFile: "", CertFile: "", CaFile: "", Ciphers: ""},
+		Ssl: connector.SslOpts{
+			KeyFile:      "",
+			CertFile:     "",
+			CaFile:       "",
+			Ciphers:      "",
+			Password:     "",
+			PasswordFile: "",
+		},
+		ConnectTimeout: 0,
 	})
 	if err != nil {
 		if instStatus.procStatus.Code == process_utils.ProcessRunningCode {
