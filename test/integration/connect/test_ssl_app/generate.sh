@@ -23,3 +23,13 @@ openssl x509 -outform pem -in ca.pem -out ca.crt
 
 openssl req -new -nodes -newkey rsa:2048 -keyout localhost.key -out localhost.csr -subj "/C=US/ST=YourState/L=YourCity/O=Example-Certificates/CN=localhost"
 openssl x509 -req -sha256 -days 8192 -in localhost.csr -CA ca.pem -CAkey ca.key -CAcreateserial -extfile domains.ext -out localhost.crt
+
+password=secret
+
+# Tarantool and go-tlsdialer try every non-empty line from the password file.
+cat <<EOF > passwords
+unusedpassword
+$password
+EOF
+
+openssl rsa -aes256 -passout "pass:${password}" -in localhost.key -out localhost.enc.key
