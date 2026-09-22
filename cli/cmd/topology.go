@@ -170,12 +170,15 @@ func internalClusterTopologyModule(cmdCtx *cmdcontext.CmdCtx, args []string) err
 	}
 
 	connectCtx := connect.ConnectCtx{
-		Username:    replicasetUser,
-		Password:    replicasetPassword,
-		SslKeyFile:  replicasetSslKeyFile,
-		SslCertFile: replicasetSslCertFile,
-		SslCaFile:   replicasetSslCaFile,
-		SslCiphers:  replicasetSslCiphers,
+		Username:        replicasetUser,
+		Password:        replicasetPassword,
+		ConnectTimeout:  replicasetConnectTimeout,
+		SslKeyFile:      replicasetSslKeyFile,
+		SslCertFile:     replicasetSslCertFile,
+		SslCaFile:       replicasetSslCaFile,
+		SslCiphers:      replicasetSslCiphers,
+		SslPassword:     replicasetSslPassword,
+		SslPasswordFile: replicasetSslPasswordFile,
 	}
 
 	merged, hostnames, reachable, err := discoverClusterTopology(

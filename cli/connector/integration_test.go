@@ -233,6 +233,50 @@ func TestConnect_binaryTlsToTls(t *testing.T) {
 	assert.Equal(t, []interface{}{"hello", "world"}, ret)
 }
 
+func TestConnect_binaryTlsToTlsWithEncryptedKey(t *testing.T) {
+	if !tarantoolEe {
+		t.Skip("Only for Tarantool Enterprise.")
+	}
+
+	cases := []struct {
+		name         string
+		password     string
+		passwordFile string
+	}{
+		{
+			name:     "password",
+			password: "secret",
+		},
+		{
+			name:         "password_file",
+			passwordFile: "testdata/passwords",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			encryptedSslOpts := sslOpts
+			encryptedSslOpts.KeyFile = "testdata/localhost.enc.key"
+			encryptedSslOpts.Password = tc.password
+			encryptedSslOpts.PasswordFile = tc.passwordFile
+
+			conn, err := Connect(ConnectOpts{
+				Network:  "tcp",
+				Address:  serverTls,
+				Username: "test",
+				Password: "password",
+				Ssl:      encryptedSslOpts,
+			})
+			require.NoError(t, err)
+			defer conn.Close()
+
+			ret, err := conn.Eval("return 'hello', 'world'", []interface{}{}, RequestOpts{})
+			require.NoError(t, err)
+			assert.Equal(t, []interface{}{"hello", "world"}, ret)
+		})
+	}
+}
+
 func TestConnect_text(t *testing.T) {
 	conn, err := Connect(ConnectOpts{
 		Network: "unix",
