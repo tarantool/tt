@@ -183,11 +183,23 @@ func TestBackupStartAndFinalizeShareTheSslFlags(t *testing.T) {
 				"sslcertfile",
 				"sslcafile",
 				"sslciphers",
+				"sslpassword",
+				"sslpasswordfile",
 			} {
 				flag := cmd.Flags().Lookup(name)
 				require.NotNil(t, flag, "the command must accept --%s", name)
 				assert.Empty(t, flag.DefValue, "a plain TCP dial is chosen by unset flags")
 			}
+		})
+	}
+}
+
+func TestBackupStartAndFinalizeShareTheConnectTimeout(t *testing.T) {
+	for _, cmd := range []*cobra.Command{newBackupStartCmd(), newBackupFinalizeCmd()} {
+		t.Run(cmd.Name(), func(t *testing.T) {
+			flag := cmd.Flags().Lookup("connect-timeout")
+			require.NotNil(t, flag)
+			assert.Equal(t, "1s", flag.DefValue)
 		})
 	}
 }
@@ -201,17 +213,23 @@ func TestBackupConnectCtxCarriesSslFlags(t *testing.T) {
 		setFlag(t, &backupSslCertFile, "/certs/localhost.crt")
 		setFlag(t, &backupSslCaFile, "/certs/ca.crt")
 		setFlag(t, &backupSslCiphers, "ECDHE-RSA-AES256-GCM-SHA384")
+		setFlag(t, &backupSslPassword, "secret")
+		setFlag(t, &backupSslPasswordFile, "/run/secrets/key-password")
+		setFlag(t, &backupConnectTimeout, 2*time.Second)
 
 		connCtx := backupConnectCtx()
 		assert.True(t, connCtx.Binary, "box.backup.* is a binary-protocol surface")
 
 		opts := makeConnOpts(connector.TCPNetwork, "localhost:3301", connCtx)
 		assert.Equal(t, connector.SslOpts{
-			KeyFile:  "/certs/localhost.key",
-			CertFile: "/certs/localhost.crt",
-			CaFile:   "/certs/ca.crt",
-			Ciphers:  "ECDHE-RSA-AES256-GCM-SHA384",
+			KeyFile:      "/certs/localhost.key",
+			CertFile:     "/certs/localhost.crt",
+			CaFile:       "/certs/ca.crt",
+			Ciphers:      "ECDHE-RSA-AES256-GCM-SHA384",
+			Password:     "secret",
+			PasswordFile: "/run/secrets/key-password",
 		}, opts.Ssl)
+		assert.Equal(t, 2*time.Second, opts.ConnectTimeout)
 	})
 
 	t.Run("unset", func(t *testing.T) {

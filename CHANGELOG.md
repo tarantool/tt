@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt connect`, `tt replicaset`, `tt cluster topology`, `tt backup`:
+  added `--sslpassword` and `--sslpasswordfile` to decrypt
+  password-protected private SSL keys.
+- `tt connect`, `tt replicaset`, `tt cluster topology`, `tt backup`:
+  added `--connect-timeout`, with a default of one second, to bound
+  binary connection establishment.
 - `tt backup-id`: prints an identifier for a new backup, the current UTC time
   as `20060102T150405Z`, to pass as `--backup-id` to `tt backup start`,
   `upload` and `finalize`. Identifiers sort in the order they are generated,
