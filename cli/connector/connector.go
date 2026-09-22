@@ -1,6 +1,7 @@
 package connector
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -10,7 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tarantool/go-tarantool"
+	"github.com/tarantool/go-tarantool/v2"
+	"github.com/tarantool/tt/lib/dial"
 )
 
 const (
@@ -151,11 +153,21 @@ func Connect(opts ConnectOpts) (Connector, error) {
 		greetingConn.Close()
 
 		addr := fmt.Sprintf("%s://%s", opts.Network, opts.Address)
-		conn, err := tarantool.Connect(addr, tarantool.Opts{
-			User:       opts.Username,
-			Pass:       opts.Password,
-			Transport:  transport,
-			Ssl:        tarantool.SslOpts(opts.Ssl),
+		dialer, err := dial.New(dial.Opts{
+			Address:     addr,
+			User:        opts.Username,
+			Password:    opts.Password,
+			SslKeyFile:  opts.Ssl.KeyFile,
+			SslCertFile: opts.Ssl.CertFile,
+			SslCaFile:   opts.Ssl.CaFile,
+			SslCiphers:  opts.Ssl.Ciphers,
+			Transport:   transport,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create dialer: %w", err)
+		}
+
+		conn, err := tarantool.Connect(context.Background(), dialer, tarantool.Opts{
 			SkipSchema: true, // We don't need a schema for eval requests.
 		})
 		if err != nil {
