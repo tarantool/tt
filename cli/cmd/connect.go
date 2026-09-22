@@ -32,18 +32,21 @@ var (
 )
 
 var (
-	connectUser        string
-	connectPassword    string
-	connectFile        string
-	connectLanguage    string
-	connectFormat      string
-	connectSslKeyFile  string
-	connectSslCertFile string
-	connectSslCaFile   string
-	connectSslCiphers  string
-	connectInteractive bool
-	connectBinary      bool
-	connectEvaler      string
+	connectUser            string
+	connectPassword        string
+	connectFile            string
+	connectLanguage        string
+	connectFormat          string
+	connectSslKeyFile      string
+	connectSslCertFile     string
+	connectSslCaFile       string
+	connectSslCiphers      string
+	connectSslPassword     string
+	connectSslPasswordFile string
+	connectTimeout         = connector.DefaultConnectTimeout
+	connectInteractive     bool
+	connectBinary          bool
+	connectEvaler          string
 )
 
 // NewConnectCmd creates connect command.
@@ -106,6 +109,12 @@ func NewConnectCmd() *cobra.Command {
 		`path to a trusted certificate authorities (CA) file`)
 	connectCmd.Flags().StringVar(&connectSslCiphers, "sslciphers", "",
 		`colon-separated (:) list of SSL cipher suites the connection`)
+	connectCmd.Flags().StringVar(&connectSslPassword, "sslpassword", "",
+		`password for decrypting the private SSL key file`)
+	connectCmd.Flags().StringVar(&connectSslPasswordFile, "sslpasswordfile", "",
+		`path to a file containing the password for decrypting the private SSL key file`)
+	connectCmd.Flags().DurationVar(&connectTimeout, "connect-timeout",
+		connector.DefaultConnectTimeout, `timeout for establishing a binary connection`)
 	connectCmd.Flags().BoolVarP(&connectInteractive, "interactive", "i",
 		false, `enter interactive mode after executing 'FILE'`)
 	connectCmd.Flags().BoolVarP(&connectBinary, "binary", "",
@@ -122,17 +131,20 @@ code from`)
 // makeConnOpts makes and returns connect options from the arguments.
 func makeConnOpts(network, address string, connCtx connect.ConnectCtx) connector.ConnectOpts {
 	ssl := connector.SslOpts{
-		KeyFile:  connCtx.SslKeyFile,
-		CertFile: connCtx.SslCertFile,
-		CaFile:   connCtx.SslCaFile,
-		Ciphers:  connCtx.SslCiphers,
+		KeyFile:      connCtx.SslKeyFile,
+		CertFile:     connCtx.SslCertFile,
+		CaFile:       connCtx.SslCaFile,
+		Ciphers:      connCtx.SslCiphers,
+		Password:     connCtx.SslPassword,
+		PasswordFile: connCtx.SslPasswordFile,
 	}
 	return connector.ConnectOpts{
-		Network:  network,
-		Address:  address,
-		Username: connCtx.Username,
-		Password: connCtx.Password,
-		Ssl:      ssl,
+		Network:        network,
+		Address:        address,
+		Username:       connCtx.Username,
+		Password:       connCtx.Password,
+		Ssl:            ssl,
+		ConnectTimeout: connCtx.ConnectTimeout,
 	}
 }
 
@@ -202,16 +214,19 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 // internalConnectModule is a default connect module.
 func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	connectCtx := connect.ConnectCtx{
-		Username:    connectUser,
-		Password:    connectPassword,
-		SrcFile:     connectFile,
-		SslKeyFile:  connectSslKeyFile,
-		SslCertFile: connectSslCertFile,
-		SslCaFile:   connectSslCaFile,
-		SslCiphers:  connectSslCiphers,
-		Interactive: connectInteractive,
-		Binary:      connectBinary,
-		Evaler:      connectEvaler,
+		Username:        connectUser,
+		Password:        connectPassword,
+		ConnectTimeout:  connectTimeout,
+		SrcFile:         connectFile,
+		SslKeyFile:      connectSslKeyFile,
+		SslCertFile:     connectSslCertFile,
+		SslCaFile:       connectSslCaFile,
+		SslCiphers:      connectSslCiphers,
+		SslPassword:     connectSslPassword,
+		SslPasswordFile: connectSslPasswordFile,
+		Interactive:     connectInteractive,
+		Binary:          connectBinary,
+		Evaler:          connectEvaler,
 	}
 
 	var ok bool
