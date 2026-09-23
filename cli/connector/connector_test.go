@@ -5,9 +5,17 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestGetConnectTimeout(t *testing.T) {
+	require.Equal(t, DefaultConnectTimeout, getConnectTimeout(ConnectOpts{}))
+	require.Equal(t, 2*time.Second, getConnectTimeout(ConnectOpts{
+		ConnectTimeout: 2 * time.Second,
+	}))
+}
 
 func TestPrepareUnixAddressShortAbsolutePath(t *testing.T) {
 	address := filepath.Join(t.TempDir(), "instance.sock")

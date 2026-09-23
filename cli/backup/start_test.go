@@ -16,7 +16,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/go-iproto"
-	"github.com/tarantool/go-tarantool"
+	"github.com/tarantool/go-tarantool/v2"
 
 	"github.com/tarantool/tt/cli/backup/archive"
 	"github.com/tarantool/tt/cli/connector"
@@ -585,14 +585,14 @@ func TestStartBackup_mapsAlreadyInProgressByErrorCode(t *testing.T) {
 		{
 			name: "response code",
 			err: tarantool.Error{
-				Code: uint32(iproto.ER_BACKUP_IN_PROGRESS),
+				Code: iproto.Error(iproto.ER_BACKUP_IN_PROGRESS),
 				Msg:  "reworded in a later version",
 			},
 		},
 		{
 			name: "box error code",
 			err: tarantool.Error{
-				Code: uint32(iproto.ER_PROC_LUA),
+				Code: iproto.Error(iproto.ER_PROC_LUA),
 				Msg:  "reworded in a later version",
 				ExtendedInfo: &tarantool.BoxError{
 					Type: "ClientError",

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/tarantool/go-iproto"
-	"github.com/tarantool/go-tarantool"
+	"github.com/tarantool/go-tarantool/v2"
 
 	"github.com/tarantool/tt/cli/backup/archive"
 	"github.com/tarantool/tt/cli/connector"
@@ -185,7 +185,7 @@ func openBackup(conn connector.Connector, opts BackupStartOpts) (*BackupInfo, er
 // as plain text, with no code to inspect.
 func isAlreadyInProgress(err error) bool {
 	const (
-		code = uint32(iproto.ER_BACKUP_IN_PROGRESS)
+		code = iproto.Error(iproto.ER_BACKUP_IN_PROGRESS)
 		// Lowercased, so the match survives a change of case upstream.
 		msg = "backup is already in progress"
 	)
