@@ -9,13 +9,27 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [2.15.0] - 2026-09-24
+
+This release extends cluster backup and restore: `tt backup-id` generates
+backup identifiers, `tt backup start` and `finalize` gain `--dir` and iproto
+TLS flags, and `tt restore` can restore a subset of replicasets into separate
+snapshot, WAL and vinyl directories. It also parallelizes `tt status` and fixes
+duplicated lines and stalls in `tt log -f` after log rotation.
+
+### Added
+
 - `tt backup-id`: prints an identifier for a new backup, the current UTC time
   as `20060102T150405Z`, to pass as `--backup-id` to `tt backup start`,
   `upload` and `finalize`. Identifiers sort in the order they are generated,
   and the command exits once the printed second is over, so two consecutive
   calls never print the same one.
-- `status`: added `--instance-timeout` flag to bound how long collecting a single
-  instance's status may take.
+- `status`: added `--instance-timeout` flag to bound how long collecting a
+  single instance's status may take.
 - `tt restore apply`: restore into the three data directories Tarantool
   configures separately. `--snapshot-dir`, `--wal-dir` and `--vinyl-dir` name
   one directory each, and `-c`/`--config` with `--instance` reads them out of a
@@ -53,6 +67,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   backed up against `memtx_dir` and restored beside the snapshot it belongs
   to. `--target-point` drops the sort data of a snapshot it drops, instead of
   leaving a file describing a snapshot that is no longer there.
+- `tt log -f` / `tt tcm log --follow`: only complete lines are printed. A
+  half-written line stays buffered until its newline arrives instead of
+  being split into two records.
+- Commands working with a Tarantool 3 application (`tt start`, `tt status`
+  and others) read its cluster configuration once instead of once per
+  instance, which was slow on applications with hundreds of instances.
 
 ### Fixed
 
@@ -65,6 +85,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt cluster publish` / `tt cluster show`: fix a connection timeout to an
   `https://` Tarantool Config Storage or etcd endpoint with SSL enabled but no
   client certificate configured.
+- `tt log -f` / `tt tcm log --follow`: a line could be delivered twice
+  right after a log rotation, and the follow could stall, never picking
+  up the rotated file.
+- `tt log -f`: the message about an unavailable log file printed
+  `%!q(MISSING)` instead of the file name.
 
 ## [2.14.0] - 2026-08-06
 
@@ -200,18 +225,12 @@ and fixes line loss and hangs in `tt log -f` around log rotation.
   backup take a cluster-wide recovery point.
 - `tt backup`: remove `creation_duration` from the cluster manifest — the
   field was unused and is no longer serialized.
-- `tt log -f` / `tt tcm log --follow`: only complete lines are printed. A
-  half-written line stays buffered until its newline arrives instead of
-  being split into two records.
 
 ### Fixed
 
 - `tt log -f`: possible line loss/duplication on rename, hanging after
   a watched log directory is removed, and lines written just as the
   file was read to the end not showing up until the next write.
-- `tt log -f` / `tt tcm log --follow`: a line could be delivered twice
-  right after a log rotation, and the follow could stall, never picking
-  up the rotated file (go-tail v1.4.15).
 
 ## [2.13.0] - 2026-05-21
 
