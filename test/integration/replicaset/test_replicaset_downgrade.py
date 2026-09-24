@@ -6,7 +6,6 @@ import tempfile
 import pytest
 from cartridge_helper import cartridge_name
 from replicaset_helpers import start_application, stop_application
-from vshard_cluster import VshardCluster
 
 from utils import get_tarantool_version, run_command_and_get_output, wait_event, wait_file
 
@@ -106,16 +105,15 @@ def test_downgrade_t2_app_dummy_replicaset(tt_cmd):
     tarantool_major_version < 3,
     reason="skip test with cluster config for Tarantool < 3",
 )
-def test_cluster_replicasets(tt_cmd, tmp_path):
-    app_name = "vshard_app"
+def test_cluster_replicasets(tt_cmd, tmp_path, vshard_app):
+    app = vshard_app
+    app_name = app.app_name
     replicasets = {
         "router-001": ["router-001-a"],
         "storage-001": ["storage-001-a", "storage-001-b"],
         "storage-002": ["storage-002-a", "storage-002-b"],
     }
-    app = VshardCluster(tt_cmd, tmp_path, app_name)
     try:
-        app.build()
         app.start()
         # This is necessary to downgrade a Tarantool 3.x cluster to 2.x.
         for replicaset in replicasets.values():
@@ -158,11 +156,10 @@ def test_cluster_replicasets(tt_cmd, tmp_path):
     tarantool_major_version < 3,
     reason="skip test with cluster config for Tarantool < 3",
 )
-def test_downgrade_invalid_version(tt_cmd, tmp_path):
-    app_name = "vshard_app"
-    app = VshardCluster(tt_cmd, tmp_path, app_name)
+def test_downgrade_invalid_version(tt_cmd, tmp_path, vshard_app):
+    app = vshard_app
+    app_name = app.app_name
     try:
-        app.build()
         app.start()
 
         downgrade_cmd = [tt_cmd, "replicaset", "downgrade", app_name, "1.1.1", "-t=15"]

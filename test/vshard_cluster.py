@@ -1,6 +1,7 @@
 import os
 import platform
 import subprocess
+import time
 from pathlib import Path
 
 from utils import log_file, log_path, run_command_and_get_output, wait_string_in_file
@@ -30,12 +31,20 @@ class VshardCluster:
         )
         assert rc == 0
 
-    def build(self):
-        rc, out = run_command_and_get_output(
-            [self.tt_cmd, "build", self.app_name],
-            cwd=self.env_dir,
-        )
-        assert rc == 0
+    def build(self, attempts=3):
+        # The build downloads vshard from rocks.tarantool.org, which drops a
+        # download now and then; rerunning it is safe.
+        for attempt in range(1, attempts + 1):
+            rc, out = run_command_and_get_output(
+                [self.tt_cmd, "build", self.app_name],
+                cwd=self.env_dir,
+            )
+            if rc == 0:
+                return
+            print(f"tt build attempt {attempt}/{attempts} failed:\n{out}")
+            if attempt < attempts:
+                time.sleep(5)
+        assert rc == 0, out
 
     def start(self):
         start_cmd = [self.tt_cmd, "start", self.app_name]
