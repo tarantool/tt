@@ -31,7 +31,7 @@ func NewNewCmd() *cobra.Command {
 			"file to a directory that may already hold a project.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return manifestError(cmd, runNew())
+			return commandError(cmd, runNew())
 		},
 		Example: `
 # Create a manifest for the project in the current directory.

@@ -191,6 +191,12 @@ for machine-readable output.
   with trailing spaces. A debug line is marked `·`, the continuation lines of
   a multi-line message are indented to the message, and colour is used only
   when stderr is a terminal and `NO_COLOR` is not set.
+- A failure of the system a command ran on exits 2 from every command, not
+  only from the manifest commands: a server that cannot be reached or does
+  not answer in time, a host name that does not resolve, a filesystem that
+  refuses an operation for want of permission or space. `tt connect` to a
+  port nothing listens on exits 2 where it exited 1. Everything else that
+  exited 1 still does; `tt help errors` describes the codes for all commands.
 - Credentials are masked as `[REDACTED]` in every log record: the userinfo of
   URIs such as `admin:secret@host:3301` or `https://token@host`, in the
   message and in attributes, in both log formats.

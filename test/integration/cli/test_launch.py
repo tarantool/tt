@@ -137,7 +137,9 @@ def test_launch_local_tt_executable(tt_cmd, tmp_path):
     with open(os.path.join(tmp_path, "bin/tt"), "w") as f:
         f.write(f'#!/bin/sh\necho "{tt_message}"')
 
-    # tt found but not executable - there should be an error.
+    # tt found but not executable - there should be an error. The system
+    # refusing the exec for want of permission exits 2, as any permission
+    # refusal does.
     commands = [
         [tt_cmd, "version"],
         [tt_cmd, "-L", tmp_path, "version"],
@@ -146,7 +148,7 @@ def test_launch_local_tt_executable(tt_cmd, tmp_path):
 
     for cmd in commands:
         rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
-        assert rc == 1
+        assert rc == 2
         assert "permission denied" in output
 
     # tt found and executable.

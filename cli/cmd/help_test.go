@@ -68,9 +68,9 @@ func TestWrapHelp(t *testing.T) {
 	}
 }
 
-// TestErrorsHelpTopic checks that tt help errors describes every exit code the
-// manifest commands use, and that it is listed as a help topic rather than as
-// a command, since there is nothing to run.
+// TestErrorsHelpTopic checks that tt help errors describes every exit code tt
+// commands use, and that it is listed as a help topic rather than as a
+// command, since there is nothing to run.
 func TestErrorsHelpTopic(t *testing.T) {
 	root := NewCmdRoot()
 	configureHelpCommand(root, &modules.ModulesInfo{})

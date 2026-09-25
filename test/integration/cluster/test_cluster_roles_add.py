@@ -102,7 +102,9 @@ def test_cluster_rs_roles_add_bad_auth(
         "-G",
     ]
     rc, output = run_command_and_get_output(roles_add_cmd, cwd=tmpdir_with_cfg)
-    assert rc == 1
+    # The connection is never established: the dial fails, and a failed dial
+    # is a failure of the system, which exits 2.
+    assert rc == 2
 
     expected = r"   ⨯ failed to establish a connection to tarantool or etcd:"
     assert expected in output

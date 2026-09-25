@@ -46,7 +46,7 @@ Everything after '--' is handed to luatest, and the exit code is luatest's own.
 				err = runTest(subPath, luatestArgs)
 			}
 
-			return manifestError(cmd, err)
+			return commandError(cmd, err)
 		},
 		Example: `
 # Build and run everything under test/ (or tests/).

@@ -100,17 +100,19 @@ func TestReportError(t *testing.T) {
 		assert.Empty(t, got.out, "no usage for a failure of the command itself")
 	})
 
-	t.Run("legacy commands keep exit 1 for a system failure", func(t *testing.T) {
+	t.Run("an uncoded system failure exits 2", func(t *testing.T) {
 		got := runExit(t, func(cmd *cobra.Command, _ []string) error {
 			return commandError(cmd, fmt.Errorf("connecting: %w", refused))
 		}, "sub")
 
-		assert.Equal(t, 1, got.code)
+		assert.Equal(t, 2, got.code)
+		assert.Equal(t, 1, strings.Count(got.logged, "\n"), got.logged)
+		assert.Contains(t, got.logged, "connecting: dial tcp: connect: connection refused")
 	})
 
-	t.Run("manifest commands exit 2 for a system failure", func(t *testing.T) {
+	t.Run("a system failure beneath code 1 exits 2", func(t *testing.T) {
 		got := runExit(t, func(cmd *cobra.Command, _ []string) error {
-			return manifestError(cmd, sdk.WithCode(sdk.ExitFailure,
+			return commandError(cmd, sdk.WithCode(sdk.ExitFailure,
 				fmt.Errorf("resolving: %w", refused)))
 		}, "sub")
 
@@ -119,9 +121,27 @@ func TestReportError(t *testing.T) {
 		assert.Contains(t, got.logged, "resolving: dial tcp: connect: connection refused")
 	})
 
+	t.Run("a permission refusal exits 2", func(t *testing.T) {
+		got := runExit(t, func(cmd *cobra.Command, _ []string) error {
+			return commandError(cmd, fmt.Errorf("writing pid file: %w",
+				&os.PathError{Op: "open", Path: "/run/tt.pid", Err: syscall.EACCES}))
+		}, "sub")
+
+		assert.Equal(t, 2, got.code)
+	})
+
+	t.Run("a missing file stays 1", func(t *testing.T) {
+		got := runExit(t, func(cmd *cobra.Command, _ []string) error {
+			return commandError(cmd, fmt.Errorf("reading: %w",
+				&os.PathError{Op: "open", Path: "tt.yaml", Err: syscall.ENOENT}))
+		}, "sub")
+
+		assert.Equal(t, 1, got.code)
+	})
+
 	t.Run("explicit code stands", func(t *testing.T) {
 		got := runExit(t, func(cmd *cobra.Command, _ []string) error {
-			return manifestError(cmd, sdk.Errorf(sdk.ExitPartial, "one of two failed"))
+			return commandError(cmd, sdk.WithCode(sdk.ExitPartial, refused))
 		}, "sub")
 
 		assert.Equal(t, 3, got.code)

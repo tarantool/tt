@@ -77,6 +77,11 @@ func TestCode(t *testing.T) {
 		{"missing file", fmt.Errorf("reading: %w", missing), 1},
 		{"cancelled", context.Canceled, 1},
 		{"deadline alone", context.DeadlineExceeded, 1},
+
+		// An external module's own status is its verdict, not tt's to
+		// reclassify.
+		{"module status 7", sdk.WithCode(7, exitcode.Silent(errors.New("module"))), 7},
+		{"module status 1", sdk.WithCode(1, exitcode.Silent(errors.New("module"))), 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -84,48 +89,6 @@ func TestCode(t *testing.T) {
 			assert.Equal(t, tc.want, exitcode.Code(tc.err))
 		})
 	}
-}
-
-// TestClassify pins that a classified error exits, through the SDK's own
-// reading of the code, with what Code decided, and that it is still the
-// same error to errors.Is and to the user.
-func TestClassify(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		name string
-		err  error
-		want int
-	}{
-		{"plain error", errors.New("bad manifest"), 1},
-		{"state code", state(errors.New("lock is out of date")), 1},
-		{"refused behind state", state(fmt.Errorf("resolving: %w", refused)), 2},
-		{"permission", fmt.Errorf("reading: %w", denied), 2},
-		{"partial over refused", sdk.WithCode(sdk.ExitPartial, refused), 3},
-		{"malformed registry url", state(badScheme), 1},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			classified := exitcode.Classify(tc.err)
-			assert.Equal(t, tc.want, sdk.ExitCode(classified))
-			assert.Equal(t, tc.err.Error(), classified.Error())
-			assert.ErrorIs(t, classified, tc.err)
-		})
-	}
-
-	t.Run("nil", func(t *testing.T) {
-		t.Parallel()
-
-		assert.NoError(t, exitcode.Classify(nil))
-	})
-
-	t.Run("unchanged when the code already stands", func(t *testing.T) {
-		t.Parallel()
-
-		err := state(errors.New("lock is out of date"))
-		assert.Same(t, err, exitcode.Classify(err))
-	})
 }
 
 // TestSilent pins that a silenced error keeps its code and its identity.

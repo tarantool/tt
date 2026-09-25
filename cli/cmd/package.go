@@ -128,7 +128,7 @@ func newPackageAddCmd() *cobra.Command {
 				constraint = args[1]
 			}
 
-			return manifestError(cmd, runPackageAdd(args[0], constraint))
+			return commandError(cmd, runPackageAdd(args[0], constraint))
 		},
 	}
 
@@ -188,7 +188,7 @@ func newPackageRemoveCmd() *cobra.Command {
 			"deleted from .rocks/; tt package uninstall is what removes files.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return manifestError(cmd, runPackageRemove(args[0]))
+			return commandError(cmd, runPackageRemove(args[0]))
 		},
 	}
 
@@ -235,7 +235,7 @@ func newPackageUpdateCmd() *cobra.Command {
 				name = args[0]
 			}
 
-			return manifestError(cmd, runPackageUpdate(name))
+			return commandError(cmd, runPackageUpdate(name))
 		},
 	}
 
@@ -280,7 +280,7 @@ func newPackageResolveCmd() *cobra.Command {
 			"pulling newer registry versions is what tt package update is for.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return manifestError(cmd, runPackageResolve())
+			return commandError(cmd, runPackageResolve())
 		},
 	}
 
@@ -326,7 +326,7 @@ func newPackageDepsCmd() *cobra.Command {
 			"is reported as stale rather than silently re-resolved.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return manifestError(cmd, runPackageDeps())
+			return commandError(cmd, runPackageDeps())
 		},
 	}
 
@@ -426,7 +426,7 @@ func newPackageListCmd() *cobra.Command {
 			"along with the package or stay.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return manifestError(cmd, runPackageList())
+			return commandError(cmd, runPackageList())
 		},
 	}
 
@@ -480,7 +480,7 @@ func newPackageUninstallCmd() *cobra.Command {
 			"declares — is not a guest, and uninstall refuses to remove it.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return manifestError(cmd, runPackageUninstall(args[0]))
+			return commandError(cmd, runPackageUninstall(args[0]))
 		},
 	}
 
@@ -558,7 +558,7 @@ func newPackageInstallCmd() *cobra.Command {
 			"accept, or the install fails with an explanation.",
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return manifestError(cmd, runPackageInstall(args))
+			return commandError(cmd, runPackageInstall(args))
 		},
 	}
 
@@ -632,7 +632,7 @@ func newPackageBuildCmd() *cobra.Command {
 			"of the product is built; a component name narrows the build to one.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return manifestError(cmd, runPackage(args, false))
+			return commandError(cmd, runPackage(args, false))
 		},
 	}
 
@@ -655,7 +655,7 @@ func newPackageFetchCmd() *cobra.Command {
 			"build backends.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return manifestError(cmd, runPackage(nil, true))
+			return commandError(cmd, runPackage(nil, true))
 		},
 	}
 
@@ -679,7 +679,7 @@ func newPackagePackCmd() *cobra.Command {
 			"beforehand is not needed. The archive path is printed to stdout.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return manifestError(cmd, runPackagePack())
+			return commandError(cmd, runPackagePack())
 		},
 	}
 
@@ -858,7 +858,7 @@ func newPackageSearchCmd() *cobra.Command {
 			"and nothing is written. A term nothing matches is not an error.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return manifestError(cmd, runPackageSearch(args[0]))
+			return commandError(cmd, runPackageSearch(args[0]))
 		},
 	}
 
@@ -922,7 +922,7 @@ func newPackageDownloadCmd() *cobra.Command {
 			"Each written path is printed to stdout.",
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return manifestError(cmd, runPackageDownload(args))
+			return commandError(cmd, runPackageDownload(args))
 		},
 	}
 

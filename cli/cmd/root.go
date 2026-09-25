@@ -188,13 +188,13 @@ func NewCmdRoot() *cobra.Command {
 // the process exit code, having reported the error the run failed with.
 //
 // Commands return their error here instead of ending the process
-// themselves; reportError and sdk.ExitCode turn it into what the user sees
+// themselves; reportError and exitcode.Code turn it into what the user sees
 // and the code tt exits with.
 func Main() int {
 	if err := initRoot(); err != nil {
 		exitcode.Report(err)
 
-		return sdk.ExitCode(err)
+		return exitcode.Code(err)
 	}
 
 	return execute()

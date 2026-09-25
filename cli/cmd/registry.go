@@ -43,7 +43,7 @@ func newRegistryListCmd() *cobra.Command {
 			"in a project directory to see what its manifest configures.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return manifestError(cmd, runRegistryList())
+			return commandError(cmd, runRegistryList())
 		},
 	}
 

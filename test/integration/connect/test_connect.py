@@ -4,6 +4,7 @@ import platform
 import re
 import shutil
 import signal
+import socket
 import subprocess
 import tempfile
 from pathlib import Path
@@ -3370,3 +3371,21 @@ def test_disconnect_by_signal(tt, tt_app, sig):
 
     # Make sure the instance is stopped.
     tt.exec("kill", "-f", "test_app")
+
+
+def test_connect_refused_exits_2(tt_cmd, tmp_path):
+    """A port nothing listens on is a failure of the system, not of the request."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+
+    result = subprocess.run(
+        [str(tt_cmd), "connect", f"127.0.0.1:{port}"],
+        cwd=tmp_path,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 2, result.stderr
+    assert result.stderr.count("connection refused") == 1, result.stderr
+    assert result.stdout == ""

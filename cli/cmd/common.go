@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/configure"
@@ -63,15 +62,10 @@ func commandError(cmd *cobra.Command, err error) error {
 	return err
 }
 
-// manifestError is commandError for the manifest commands, which promise the
-// exit codes `tt help errors` describes: a failure of the system the command
-// ran on exits 2 even when nothing on its way up said so.
-func manifestError(cmd *cobra.Command, err error) error {
-	return commandError(cmd, exitcode.Classify(err))
-}
-
 // reportError tells the user about err, the error cmd failed with, and returns
-// the process exit code for it.
+// the process exit code for it: exitcode.Code, the codes `tt help errors`
+// describes, so a failure of the system the command ran on exits 2 from any
+// command even when nothing on its way up said so.
 //
 // An error cobra detected itself - an unknown flag, a wrong number of
 // arguments - has already been printed by cobra, with the usage, so it is
@@ -90,5 +84,5 @@ func reportError(cmd *cobra.Command, err error) int {
 		exitcode.Report(err)
 	}
 
-	return sdk.ExitCode(err)
+	return exitcode.Code(err)
 }
