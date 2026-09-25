@@ -1,10 +1,11 @@
-package env
+package env_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/tarantool/tt/v3/cli/configure"
+	"github.com/tarantool/tt/v3/cli/env"
 )
 
 func Test_CreateEnvString(t *testing.T) {
@@ -12,8 +13,8 @@ func Test_CreateEnvString(t *testing.T) {
 
 	cliOpts.Env.BinDir = "foo/bin/"
 	cliOpts.Env.IncludeDir = "bar/include/"
-	assert.Contains(t, CreateEnvString(cliOpts),
+	assert.Contains(t, env.CreateEnvString(cliOpts),
 		"\nexport TARANTOOL_DIR=bar/include/include\n")
-	assert.Contains(t, CreateEnvString(cliOpts),
+	assert.Contains(t, env.CreateEnvString(cliOpts),
 		"export PATH=foo/bin/:")
 }

@@ -19,18 +19,18 @@ func TestRoles_AddRole(t *testing.T) {
 		{"already exists", []string{"role"}, "role", []string{}, "role \"role\" already exists"},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
 			adder := replicaset.RolesAdder{}
 
-			require.Equal(t, adder.Action(), replicaset.AddAction)
+			require.Equal(t, replicaset.AddAction, adder.Action())
 
-			res, err := adder.Change(tc.roles, tc.roleToAdd)
-			if tc.errMsg != "" {
-				require.EqualError(t, err, tc.errMsg)
+			res, err := adder.Change(testCase.roles, testCase.roleToAdd)
+			if testCase.errMsg != "" {
+				require.EqualError(t, err, testCase.errMsg)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, res, tc.expected)
+				require.Equal(t, testCase.expected, res)
 			}
 		})
 	}
@@ -49,18 +49,18 @@ func TestRoles_RemoveRole(t *testing.T) {
 		{"not found", []string{"role"}, "other_role", []string{}, "role \"other_role\" not found"},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
 			remover := replicaset.RolesRemover{}
 
-			require.Equal(t, remover.Action(), replicaset.RemoveAction)
+			require.Equal(t, replicaset.RemoveAction, remover.Action())
 
-			res, err := remover.Change(tc.roles, tc.roleToRemove)
-			if tc.errMsg != "" {
-				require.EqualError(t, err, tc.errMsg)
+			res, err := remover.Change(testCase.roles, testCase.roleToRemove)
+			if testCase.errMsg != "" {
+				require.EqualError(t, err, testCase.errMsg)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, res, tc.expected)
+				require.Equal(t, testCase.expected, res)
 			}
 		})
 	}

@@ -305,12 +305,12 @@ func TestCConfigInstance_Discovery(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.Name, func(t *testing.T) {
-			instance := replicaset.NewCConfigInstance(tc.Evaler)
+	for _, testCase := range cases {
+		t.Run(testCase.Name, func(t *testing.T) {
+			instance := replicaset.NewCConfigInstance(testCase.Evaler)
 			replicasets, err := instance.Discovery(replicaset.SkipCache)
-			assert.NoError(t, err)
-			assert.Equal(t, tc.Expected, replicasets)
+			require.NoError(t, err)
+			assert.Equal(t, testCase.Expected, replicasets)
 		})
 	}
 }
@@ -377,14 +377,14 @@ func TestCConfigInstance_Discovery_failover(t *testing.T) {
 		{"supervised", replicaset.FailoverSupervised},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.Failover, func(t *testing.T) {
+	for _, testCase := range cases {
+		t.Run(testCase.Failover, func(t *testing.T) {
 			evaler := &instanceMockEvaler{
 				Ret: [][]any{
 					{
 						map[any]any{
 							"uuid":     "foo",
-							"failover": tc.Failover,
+							"failover": testCase.Failover,
 						},
 					},
 				},
@@ -396,7 +396,7 @@ func TestCConfigInstance_Discovery_failover(t *testing.T) {
 					{
 						UUID:     "foo",
 						Master:   replicaset.MasterNo,
-						Failover: tc.Expected,
+						Failover: testCase.Expected,
 					},
 				},
 			}
@@ -404,7 +404,7 @@ func TestCConfigInstance_Discovery_failover(t *testing.T) {
 			getter := replicaset.NewCConfigInstance(evaler)
 
 			replicasets, err := getter.Discovery(replicaset.SkipCache)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, expected, replicasets)
 		})
 	}
@@ -451,11 +451,11 @@ func TestCConfigInstance_Discovery_errors(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.Name, func(t *testing.T) {
-			instance := replicaset.NewCConfigInstance(tc.Evaler)
+	for _, testCase := range cases {
+		t.Run(testCase.Name, func(t *testing.T) {
+			instance := replicaset.NewCConfigInstance(testCase.Evaler)
 			_, err := instance.Discovery(replicaset.SkipCache)
-			assert.ErrorContains(t, err, tc.Expected)
+			assert.ErrorContains(t, err, testCase.Expected)
 		})
 	}
 }
@@ -506,10 +506,10 @@ func TestCConfigInstance_RolesChange(t *testing.T) {
 
 	instance := replicaset.NewCConfigInstance(nil)
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			err := instance.RolesChange(replicaset.RolesChangeCtx{}, tc.changeAction)
-			assert.EqualError(t, err, tc.errMsg)
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			err := instance.RolesChange(replicaset.RolesChangeCtx{}, testCase.changeAction)
+			assert.EqualError(t, err, testCase.errMsg)
 		})
 	}
 }

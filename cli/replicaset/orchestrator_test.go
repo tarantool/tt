@@ -27,9 +27,9 @@ func TestOrchestrator_String(t *testing.T) {
 		{replicaset.Orchestrator(123), "Orchestrator(123)"},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.Expected, func(t *testing.T) {
-			assert.Equal(t, tc.Expected, tc.Orchestrator.String())
+	for _, testCase := range cases {
+		t.Run(testCase.Expected, func(t *testing.T) {
+			assert.Equal(t, testCase.Expected, testCase.Orchestrator.String())
 		})
 	}
 }
@@ -47,10 +47,10 @@ func TestParseOrchestrator(t *testing.T) {
 		{"CUSTOM", replicaset.OrchestratorCustom},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.String, func(t *testing.T) {
-			parsed := replicaset.ParseOrchestrator(tc.String)
-			require.Equal(t, tc.Expected, parsed)
+	for _, testCase := range cases {
+		t.Run(testCase.String, func(t *testing.T) {
+			parsed := replicaset.ParseOrchestrator(testCase.String)
+			require.Equal(t, testCase.Expected, parsed)
 		})
 	}
 }
@@ -74,13 +74,13 @@ func TestEvalOrchestrator(t *testing.T) {
 		{replicaset.OrchestratorCentralizedConfig, []any{"centralized config"}},
 		{replicaset.OrchestratorCustom, []any{"custom"}},
 	}
-	for _, tc := range cases {
-		t.Run(tc.Expected.String(), func(t *testing.T) {
+	for _, testCase := range cases {
+		t.Run(testCase.Expected.String(), func(t *testing.T) {
 			orchestrator, err := replicaset.EvalOrchestrator(orchestratorEvalerMock{
-				ret: tc.Ret,
+				ret: testCase.Ret,
 			})
-			assert.NoError(t, err)
-			assert.Equal(t, tc.Expected, orchestrator)
+			require.NoError(t, err)
+			assert.Equal(t, testCase.Expected, orchestrator)
 		})
 	}
 }
@@ -92,10 +92,10 @@ func TestEvalOrchestrator_invalid_response(t *testing.T) {
 		{1},
 		{"unknown", 2},
 	}
-	for _, tc := range cases {
-		t.Run(fmt.Sprintf("%v", tc), func(t *testing.T) {
+	for _, testCase := range cases {
+		t.Run(fmt.Sprintf("%v", testCase), func(t *testing.T) {
 			_, err := replicaset.EvalOrchestrator(orchestratorEvalerMock{
-				ret: tc,
+				ret: testCase,
 			})
 			assert.EqualError(t, err, "unexpected response")
 		})

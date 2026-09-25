@@ -62,7 +62,8 @@ func RolesChange(ctx RolesChangeCtx, changeRoleAction replicaset.RolesChangerAct
 			return err
 		}
 	} else {
-		if orchestrator, err = makeInstanceOrchestrator(orchestratorType, ctx.Conn); err != nil {
+		orchestrator, err = makeInstanceOrchestrator(orchestratorType, ctx.Conn)
+		if err != nil {
 			return err
 		}
 	}

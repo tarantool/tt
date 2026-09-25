@@ -1,4 +1,4 @@
-package running
+package running_test
 
 import (
 	"bytes"
@@ -6,12 +6,13 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/stretchr/testify/assert"
+	"github.com/tarantool/tt/v3/cli/running"
 )
 
 func TestNewColorizedPrefixWriter(t *testing.T) {
 	var buf bytes.Buffer
 
-	wr := NewColorizedPrefixWriter(&buf, *color.New(color.FgGreen), "prefix ")
+	wr := running.NewColorizedPrefixWriter(&buf, *color.New(color.FgGreen), "prefix ")
 
 	_, _ = wr.Write([]byte("hello\n"))
 	_, _ = wr.Write([]byte(" E> world\n"))

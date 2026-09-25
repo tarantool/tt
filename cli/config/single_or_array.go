@@ -22,13 +22,15 @@ func (o *SingleOrArray[T]) UnmarshalJSON(data []byte) error {
 	var ret []T
 
 	if json.Unmarshal(data, &ret) != nil {
-		var s T
+		var single T
 
-		if err := json.Unmarshal(data, &s); err != nil {
-			return err
+		err := json.Unmarshal(data, &single)
+		if err != nil {
+			// The decoder adds the field context to its own error types only.
+			return err //nolint:wrapcheck // Unmarshaler must return the codec's error as is.
 		}
 
-		ret = []T{s}
+		ret = []T{single}
 	}
 
 	*o = ret
@@ -39,10 +41,10 @@ func (o *SingleOrArray[T]) UnmarshalJSON(data []byte) error {
 // MarshalJSON implements json.Marshaler interface.
 func (o SingleOrArray[T]) MarshalJSON() ([]byte, error) {
 	if len(o) == 1 {
-		return json.Marshal(o[0])
+		return json.Marshal(o[0]) //nolint:wrapcheck // The encoder adds the type context itself.
 	}
 
-	return json.Marshal([]T(o))
+	return json.Marshal([]T(o)) //nolint:wrapcheck // The encoder adds the type context itself.
 }
 
 // UnmarshalYAML implements yaml.Unmarshaler interface.
@@ -50,13 +52,15 @@ func (o *SingleOrArray[T]) UnmarshalYAML(node *yaml.Node) error {
 	var ret []T
 
 	if node.Decode(&ret) != nil {
-		var s T
+		var single T
 
-		if err := node.Decode(&s); err != nil {
-			return err
+		err := node.Decode(&single)
+		if err != nil {
+			// The decoder merges *yaml.TypeError values and keeps decoding.
+			return err //nolint:wrapcheck // Unmarshaler must return the codec's error as is.
 		}
 
-		ret = []T{s}
+		ret = []T{single}
 	}
 
 	*o = ret
@@ -66,15 +70,15 @@ func (o *SingleOrArray[T]) UnmarshalYAML(node *yaml.Node) error {
 
 // MarshalYAML implements yaml.Marshaler interface.
 func (o SingleOrArray[T]) MarshalYAML() (any, error) {
-	var v any
+	var value any
 
-	v = []T(o)
+	value = []T(o)
 
 	if len(o) == 1 {
-		v = o[0]
+		value = o[0]
 	}
 
-	return v, nil
+	return value, nil
 }
 
 // FieldStringArrayType is alias for the custom type used `SingleOrArray` with strings

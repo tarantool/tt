@@ -1,4 +1,4 @@
-package cmd
+package cmd_test
 
 import (
 	"testing"
@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	sdkcluster "github.com/tarantool/tt/sdk/cluster"
+	clustercmd "github.com/tarantool/tt/v3/cli/cluster/cmd"
 )
 
 // TestPublishCluster_FileWithIntegrity_Errors verifies that PublishCluster
@@ -20,7 +21,7 @@ func TestPublishCluster_FileWithIntegrity_Errors(t *testing.T) {
           inst: {}
 `)
 
-	ctx := PublishCtx{
+	ctx := clustercmd.PublishCtx{
 		Force: true, // skip validation.
 		Publishers: sdkcluster.NewFactory(
 			sdkcluster.WithIntegrity(sdkcluster.IntegrityOptions{}),
@@ -31,6 +32,6 @@ func TestPublishCluster_FileWithIntegrity_Errors(t *testing.T) {
 
 	// Publish without instance — goes through the "easy" path: publisher.Publish.
 	// IntegrityDataPublisherFactory.NewFile returns an error, so this must fail.
-	err := PublishCluster(ctx, "any/path.yaml", "")
+	err := clustercmd.PublishCluster(ctx, "any/path.yaml", "")
 	require.ErrorContains(t, err, "publishing into a file with integrity data is not supported")
 }

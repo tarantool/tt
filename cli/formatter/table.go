@@ -30,7 +30,7 @@ func lazyDecodeYaml(input string) ([]lazyMessage, error) {
 
 	err := yaml.Unmarshal([]byte(input), &decoded)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("not yaml array, cannot render tables: %w", err)
 	}
 
 	return decoded, nil
@@ -42,13 +42,13 @@ func castMapToUMap(src map[any]any) unorderedMap[any] {
 	convertedSrc := make(map[any]any)
 	sortedKeys := make([]any, 0, len(src))
 
-	for k, v := range src {
-		if strKey, ok := k.(string); ok {
-			convertedSrc[strKey] = v
+	for key, value := range src {
+		if strKey, ok := key.(string); ok {
+			convertedSrc[strKey] = value
 			sortedKeys = append(sortedKeys, strKey)
 		} else {
-			convertedSrc[fmt.Sprint(k)] = v
-			sortedKeys = append(sortedKeys, fmt.Sprint(k))
+			convertedSrc[fmt.Sprint(key)] = value
+			sortedKeys = append(sortedKeys, fmt.Sprint(key))
 		}
 	}
 
@@ -65,29 +65,29 @@ func castMapToUMap(src map[any]any) unorderedMap[any] {
 }
 
 // deepCastAnyMapToStringMap casts all map[any]any to map[string]any deeply.
-func deepCastAnyMapToStringMap(v any) any {
-	switch x := v.(type) {
+func deepCastAnyMapToStringMap(node any) any {
+	switch typed := node.(type) {
 	case []any:
-		for i, v2 := range x {
-			x[i] = deepCastAnyMapToStringMap(v2)
+		for i, v2 := range typed {
+			typed[i] = deepCastAnyMapToStringMap(v2)
 		}
 
 	case map[any]any:
-		m := map[string]any{}
+		converted := map[string]any{}
 
-		for k, v2 := range x {
+		for k, v2 := range typed {
 			switch k2 := k.(type) {
 			case string:
-				m[k2] = deepCastAnyMapToStringMap(v2)
+				converted[k2] = deepCastAnyMapToStringMap(v2)
 			default:
-				m[fmt.Sprint(k)] = deepCastAnyMapToStringMap(v2)
+				converted[fmt.Sprint(k)] = deepCastAnyMapToStringMap(v2)
 			}
 		}
 
-		v = m
+		node = converted
 	}
 
-	return v
+	return node
 }
 
 // encodeScalar encodes a scalar into a string.
@@ -108,7 +108,7 @@ func encodeScalar(val any) string {
 func encodeJSON(val any) (string, error) {
 	jsonData, err := json.Marshal(deepCastAnyMapToStringMap(val))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("cannot encode a cell as JSON: %w", err)
 	}
 
 	return string(jsonData), nil
@@ -219,19 +219,19 @@ func renderArraysAsTable(batch []any, transpose bool, opts Opts) (string, error)
 
 // newTableWriter creates and configures new table writer.
 func newTableWriter(opts Opts) table.Writer {
-	t := table.NewWriter()
+	writer := table.NewWriter()
 
-	t.Style().Options.SeparateRows = true
+	writer.Style().Options.SeparateRows = true
 
 	if !opts.Graphics {
-		t.SetStyle(table.Style{Box: StyleWithoutGraphics})
+		writer.SetStyle(table.Style{Box: StyleWithoutGraphics})
 	}
 
-	return t
+	return writer
 }
 
 // handleColumnWidth handles width max value for tables columns.
-func handleColumnWidth(t table.Writer, columns int, opts Opts) {
+func handleColumnWidth(writer table.Writer, columns int, opts Opts) {
 	colWidthTransformer := text.Transformer(func(val any) string {
 		str := fmt.Sprintf("%v", val)
 		widthMax := opts.ColumnWidthMax
@@ -258,7 +258,7 @@ func handleColumnWidth(t table.Writer, columns int, opts Opts) {
 		)
 	}
 
-	t.SetColumnConfigs(configs)
+	writer.SetColumnConfigs(configs)
 }
 
 // createHeader creates a header row.
@@ -335,7 +335,7 @@ func createMarkdownTable(table []string, columns int) string {
 
 // renderEqualMaps returns maps with equal keys as single table string.
 func renderEqualMaps(maps []unorderedMap[any], transpose bool, opts Opts) (string, error) {
-	t := newTableWriter(opts)
+	writer := newTableWriter(opts)
 
 	var commonKeys []any
 
@@ -351,11 +351,12 @@ func renderEqualMaps(maps []unorderedMap[any], transpose bool, opts Opts) (strin
 		var rowVals table.Row
 
 		for _, key := range commonKeys {
-			if cellValue, err := encodeCell(mapVal.innerMap[key]); err != nil {
+			cellValue, err := encodeCell(mapVal.innerMap[key])
+			if err != nil {
 				return "", err
-			} else {
-				rowVals = append(rowVals, cellValue)
 			}
+
+			rowVals = append(rowVals, cellValue)
 		}
 
 		rows = append(rows, rowVals)
@@ -369,32 +370,32 @@ func renderEqualMaps(maps []unorderedMap[any], transpose bool, opts Opts) (strin
 		columnsAmount = rowsAmount
 	}
 
-	t.AppendRows(rows)
+	writer.AppendRows(rows)
 
 	if opts.ColumnWidthMax > 0 {
-		handleColumnWidth(t, columnsAmount, opts)
+		handleColumnWidth(writer, columnsAmount, opts)
 	}
 
 	if opts.TableDialect == MarkdownTableDialect {
-		markdown := strings.Split(t.RenderMarkdown(), "\n")
+		markdown := strings.Split(writer.RenderMarkdown(), "\n")
 		return createMarkdownTable(markdown, columnsAmount) + "\n", nil
 	}
 
 	if opts.TableDialect == JiraTableDialect {
-		return t.RenderMarkdown() + "\n\n", nil
+		return writer.RenderMarkdown() + "\n\n", nil
 	}
 
-	return t.Render() + "\n", nil
+	return writer.Render() + "\n", nil
 }
 
 // isMapKeysEqual checks keys equal for two unorderedMap[any].
-func isMapKeysEqual(x, y unorderedMap[any]) bool {
+func isMapKeysEqual(left, right unorderedMap[any]) bool {
 	var keysX, keysY []any
 
-	x.forEach(func(k, _ any) {
+	left.forEach(func(k, _ any) {
 		keysX = append(keysX, k)
 	})
-	y.forEach(func(k, _ any) {
+	right.forEach(func(k, _ any) {
 		keysY = append(keysY, k)
 	})
 
@@ -528,8 +529,8 @@ func remapMetadataRows(meta metadataRows) []any {
 		index := 1
 		mapped := createUnorderedMap[any](len(row))
 
-		for i := range maxLen {
-			if i >= len(row) {
+		for pos := range maxLen {
+			if pos >= len(row) {
 				mapped.insert(index, "")
 
 				index++
@@ -537,9 +538,9 @@ func remapMetadataRows(meta metadataRows) []any {
 				continue
 			}
 
-			column := row[i]
-			if len(meta.Metadata) > i && meta.Metadata[i].Name != "" {
-				mapped.insert(meta.Metadata[i].Name, column)
+			column := row[pos]
+			if len(meta.Metadata) > pos && meta.Metadata[pos].Name != "" {
+				mapped.insert(meta.Metadata[pos].Name, column)
 			} else {
 				mapped.insert(index, column)
 
@@ -582,7 +583,7 @@ func makeTableOutput(input string, transpose bool, opts Opts) (string, error) {
 	// convert any value to metadataRows type.
 	lazyNodes, err := lazyDecodeYaml(input)
 	if err != nil {
-		return "", fmt.Errorf("not yaml array, cannot render tables: %w", err)
+		return "", err
 	}
 
 	var metaFields metadataRows
@@ -602,7 +603,7 @@ func makeTableOutput(input string, transpose bool, opts Opts) (string, error) {
 			}
 		} else {
 			nodes = insertCollectedFields(metaFields, nodes)
-			metaFields = metadataRows{}
+			metaFields = metadataRows{Metadata: nil, Rows: nil}
 
 			// Failed. Try to read it as an any.
 			var node any

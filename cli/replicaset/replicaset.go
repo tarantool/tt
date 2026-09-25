@@ -93,5 +93,10 @@ func findInstance(replicasets Replicasets,
 		}
 	}
 
-	return Replicaset{}, Instance{}, false
+	var (
+		notFoundReplicaset Replicaset
+		notFoundInstance   Instance
+	)
+
+	return notFoundReplicaset, notFoundInstance, false
 }

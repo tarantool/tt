@@ -239,6 +239,6 @@ func TestClusterInstance_StopByContext(t *testing.T) {
 	})
 	require.NoError(t, waitForMsgInBuffer(&outputBuf, "entering the event loop", 10*time.Second))
 	cancel()
-	assert.Error(t, clusterInstance.Wait(), context.Canceled)
+	require.ErrorIs(t, clusterInstance.Wait(), context.Canceled)
 	assert.True(t, clusterInstance.ProcessState().Success())
 }

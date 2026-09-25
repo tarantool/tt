@@ -172,26 +172,27 @@ groups:
 		},
 	}
 
-	for _, tc := range cases {
-		for _, full := range tc.Full {
-			t.Run(tc.Name+"_"+strconv.FormatBool(full), func(t *testing.T) {
-				for k, v := range tc.Env {
+	for _, testCase := range cases {
+		for _, full := range testCase.Full {
+			t.Run(testCase.Name+"_"+strconv.FormatBool(full), func(t *testing.T) {
+				for k, v := range testCase.Env {
 					t.Setenv(k, v)
 				}
 
-				view, err := cluster.BuildGoConfigFromBytes(context.Background(), []byte(tc.Data))
+				view, err := cluster.BuildGoConfigFromBytes(context.Background(),
+					[]byte(testCase.Data))
 				require.NoError(t, err)
 
 				err = validateGoConfig(view, full)
 
-				for k := range tc.Env {
+				for k := range testCase.Env {
 					_ = os.Unsetenv(k)
 				}
 
-				if tc.Err == nil {
+				if testCase.Err == nil {
 					require.NoError(t, err)
 				} else {
-					for _, errStr := range tc.Err {
+					for _, errStr := range testCase.Err {
 						require.ErrorContains(t, err, errStr)
 					}
 				}

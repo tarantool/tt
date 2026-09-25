@@ -59,16 +59,27 @@ type Console struct {
 // NewConsole creates a new console connected to the tarantool instance.
 func NewConsole(opts ConsoleOpts) (Console, error) {
 	if opts.Handler == nil {
-		return Console{quit: true}, errNoHandlerForCommandsHasBeenSet
+		var stopped Console
+
+		stopped.quit = true
+
+		return stopped, errNoHandlerForCommandsHasBeenSet
 	}
 
-	c := Console{
-		impl: opts,
-		quit: false,
+	created := Console{
+		impl:              opts,
+		internal:          nil,
+		input:             "",
+		quit:              false,
+		prefix:            "",
+		livePrefixEnabled: false,
+		livePrefix:        "",
+		delimiter:         "",
+		prompt:            nil,
 	}
-	c.setPrefix()
+	created.setPrefix()
 
-	return c, nil
+	return created, nil
 }
 
 // Run starts console.
@@ -113,13 +124,15 @@ func (c *Console) runOnPipe() error {
 	}
 
 	err := pipe.Err()
-	if err == nil {
-		log.Info("EOF on pipe")
-	} else {
+	if err != nil {
 		log.Warnf("Error on pipe %v", err)
+
+		return fmt.Errorf("failed to read piped input: %w", err)
 	}
 
-	return err
+	log.Info("EOF on pipe")
+
+	return nil
 }
 
 // executeEmbeddedCommand try process additional backslash commands.
@@ -190,7 +203,8 @@ func (c *Console) execute(in string) {
 	}
 
 	if c.prompt != nil {
-		if err := c.prompt.PushToHistory(trimmed); err != nil {
+		err := c.prompt.PushToHistory(trimmed)
+		if err != nil {
 			log.Debug(err.Error())
 		}
 	}

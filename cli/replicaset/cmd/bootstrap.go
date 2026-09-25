@@ -57,7 +57,8 @@ func Bootstrap(ctx BootstrapCtx) error {
 	}
 
 	orchestrator, err := makeApplicationOrchestrator(orchestratorType,
-		ctx.RunningCtx, sdkcluster.Factory{}, sdkcluster.Factory{}, integrity.IntegrityCtx{})
+		ctx.RunningCtx, sdkcluster.Factory{}, sdkcluster.Factory{},
+		integrity.IntegrityCtx{Repository: nil})
 	if err != nil {
 		return err
 	}

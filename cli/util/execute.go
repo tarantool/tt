@@ -35,7 +35,8 @@ func RunCommand(cmd *exec.Cmd, workingDir string, showOutput bool) error {
 	} else {
 		var err error
 
-		if outputBuf, err = os.CreateTemp("", "out"); err != nil {
+		outputBuf, err = os.CreateTemp("", "out")
+		if err != nil {
 			return fmt.Errorf("failed to create tmp file to store command output: %w", err)
 		}
 
@@ -59,8 +60,9 @@ func RunCommand(cmd *exec.Cmd, workingDir string, showOutput bool) error {
 
 	if err != nil {
 		if outputBuf != nil {
-			if err := PrintFromStart(outputBuf); err != nil {
-				log.Warnf("Failed to show command output: %s", err)
+			printErr := PrintFromStart(outputBuf)
+			if printErr != nil {
+				log.Warnf("Failed to show command output: %s", printErr)
 			}
 		}
 
@@ -78,15 +80,18 @@ func RunHook(hookPath string, showOutput bool) error {
 	hookName := filepath.Base(hookPath)
 	hookDir := filepath.Dir(hookPath)
 
-	if isExec, err := IsExecOwner(hookPath); err != nil {
+	isExec, err := IsExecOwner(hookPath)
+	if err != nil {
 		return fmt.Errorf("failed go check hook file `%s`: %w", hookName, err)
-	} else if !isExec {
+	}
+
+	if !isExec {
 		return fmt.Errorf("%w%s` should be executable", errHookShouldBeExecutable, hookName)
 	}
 
 	hookCmd := exec.CommandContext(context.Background(), hookPath)
 
-	err := RunCommand(hookCmd, hookDir, showOutput)
+	err = RunCommand(hookCmd, hookDir, showOutput)
 	if err != nil {
 		return fmt.Errorf("failed to run hook `%s`: %w", hookName, err)
 	}
@@ -98,7 +103,7 @@ func RunHook(hookPath string, showOutput bool) error {
 func IsExecOwner(path string) (bool, error) {
 	fileInfo, err := os.Stat(path)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("cannot stat the file: %w", err)
 	}
 
 	perm := fileInfo.Mode().Perm()
@@ -107,11 +112,13 @@ func IsExecOwner(path string) (bool, error) {
 }
 
 func PrintFromStart(file *os.File) error {
-	if _, err := file.Seek(0, io.SeekStart); err != nil {
+	_, err := file.Seek(0, io.SeekStart)
+	if err != nil {
 		return fmt.Errorf("failed to seek file begin: %w", err)
 	}
 
-	if _, err := io.Copy(os.Stdout, file); err != nil {
+	_, err = io.Copy(os.Stdout, file)
+	if err != nil {
 		log.Warnf("Failed to print file content: %s", err)
 	}
 
@@ -133,7 +140,8 @@ func ExecuteCommandGetOutput(program, workDir string, stdinData []byte,
 	if workDir == "" {
 		var err error
 
-		if workDir, err = os.Getwd(); err != nil {
+		workDir, err = os.Getwd()
+		if err != nil {
 			return out.Bytes(), err
 		}
 	}

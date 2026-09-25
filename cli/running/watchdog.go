@@ -63,9 +63,10 @@ func NewWatchdog(restartable bool, restartTimeout time.Duration, logger ttlog.Lo
 	provider Provider, preStartAction func() error,
 	integrityCtx integrity.IntegrityCtx, integrityCheckPeriod time.Duration,
 ) *Watchdog {
-	wd := Watchdog{
+	return &Watchdog{
 		instance:             nil,
 		logger:               logger,
+		doneBarrier:          sync.WaitGroup{},
 		restartTimeout:       restartTimeout,
 		provider:             provider,
 		preStartAction:       preStartAction,
@@ -74,8 +75,6 @@ func NewWatchdog(restartable bool, restartTimeout time.Duration, logger ttlog.Lo
 		instTerminatedCh:     make(chan struct{}),
 		osSignalCh:           make(chan os.Signal, 1),
 	}
-
-	return &wd
 }
 
 func (wd *Watchdog) Start() {
@@ -87,7 +86,8 @@ func (wd *Watchdog) eventLoop() {
 	wd.startSignalHandling()
 	defer signal.Stop(wd.osSignalCh)
 
-	if err := wd.preStartAction(); err != nil {
+	err := wd.preStartAction()
+	if err != nil {
 		wd.logger.Printf(`(ERROR): Pre-start action error: %v`, err)
 
 		return
@@ -143,13 +143,14 @@ outer:
 					return
 				}
 
-				if logger, err := wd.provider.UpdateLogger(wd.logger); err != nil {
+				logger, err := wd.provider.UpdateLogger(wd.logger)
+				if err != nil {
 					wd.logger.Println("(ERROR): can't update logger parameters.")
 
 					return
-				} else {
-					wd.logger = logger
 				}
+
+				wd.logger = logger
 
 				wd.logger.Printf(`(INFO): waiting for restart timeout %s.`, wd.restartTimeout)
 				time.Sleep(wd.restartTimeout)
@@ -178,7 +179,8 @@ func (wd *Watchdog) startInstance(ctx context.Context) bool {
 	var err error
 
 	// Create Instance.
-	if wd.instance, err = wd.provider.CreateInstance(wd.logger); err != nil {
+	wd.instance, err = wd.provider.CreateInstance(wd.logger)
+	if err != nil {
 		wd.logger.Printf(`(ERROR): instance creation failed: %v.`, err)
 
 		return false
@@ -192,7 +194,8 @@ func (wd *Watchdog) startInstance(ctx context.Context) bool {
 	}
 
 	// Start the Instance.
-	if err := wd.instance.Start(ctx); err != nil {
+	err = wd.instance.Start(ctx)
+	if err != nil {
 		wd.logger.Printf(`(ERROR):  instance start failed: %v.`, err)
 
 		return false
@@ -200,7 +203,8 @@ func (wd *Watchdog) startInstance(ctx context.Context) bool {
 
 	// Wait for the instance to terminate.
 	go func() {
-		if err := wd.instance.Wait(); err != nil {
+		err := wd.instance.Wait()
+		if err != nil {
 			wd.logger.Printf(`(WARN): "%v".`, err)
 		}
 
@@ -287,14 +291,14 @@ func (wd *Watchdog) dropPendingSignals() {
 }
 
 // signalHandler handles OS signals and sends them to the event loop.
-func (wd *Watchdog) signalHandler(ctx context.Context, ch chan os.Signal) {
+func (wd *Watchdog) signalHandler(ctx context.Context, signalCh chan os.Signal) {
 	wd.doneBarrier.Go(func() {
 		for {
 			select {
 			case sig := <-wd.osSignalCh:
 				select {
 				// Send signal event to the eventloop.
-				case ch <- sig:
+				case signalCh <- sig:
 				default:
 					// If signals are sent to the instance without control,
 					// when the buffer is filled, the signals will be dropped.

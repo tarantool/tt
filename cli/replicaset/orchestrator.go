@@ -50,7 +50,7 @@ func ParseOrchestrator(str string) Orchestrator {
 // EvalOrchestrator returns an orchestrator version determined from an
 // evaler.
 func EvalOrchestrator(evaler connector.Evaler) (Orchestrator, error) {
-	opts := connector.RequestOpts{}
+	opts := connector.RequestOpts{PushCallback: nil, ReadTimeout: 0, ResData: nil}
 
 	data, err := evaler.Eval(getOrchestratorBody, []any{}, opts)
 	if err != nil {

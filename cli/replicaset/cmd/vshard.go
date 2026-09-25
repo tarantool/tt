@@ -68,8 +68,8 @@ func BootstrapVShard(ctx VShardCmdCtx) error {
 			return err
 		}
 	} else {
-		if orchestrator, err = makeInstanceOrchestrator(
-			orchestratorType, ctx.Conn); err != nil {
+		orchestrator, err = makeInstanceOrchestrator(orchestratorType, ctx.Conn)
+		if err != nil {
 			return err
 		}
 	}
@@ -87,7 +87,8 @@ func BootstrapVShard(ctx VShardCmdCtx) error {
 		return discoverApp(orchestrator)
 	}
 
-	if err := retry.Do(discoverAppFunc, retryOpts...); err != nil {
+	err = retry.Do(discoverAppFunc, retryOpts...)
+	if err != nil {
 		return fmt.Errorf("failed to bootstrap vshard: %w", err)
 	}
 

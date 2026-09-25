@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"regexp"
@@ -22,6 +23,9 @@ var (
 // MinCommitHashLength is the Git default for a short SHA.
 const MinCommitHashLength = 7
 
+// commitHashPattern matches a full or abbreviated lowercase commit hash.
+var commitHashPattern = regexp.MustCompile(`^[0-9a-f]+$`)
+
 // CheckVersionFromGit enters the passed path, tries to get a git version
 // it is a git repo, parses and returns a normalized string.
 func CheckVersionFromGit(basePath string) (string, error) {
@@ -37,7 +41,7 @@ func CheckVersionFromGit(basePath string) (string, error) {
 
 	err := os.Chdir(basePath)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("cannot enter %q: %w", basePath, err)
 	}
 
 	cmd := exec.CommandContext(context.Background(), "git", "describe", "--tags", "--long")
@@ -98,7 +102,7 @@ func IsValidCommitHash(hash string) (bool, error) {
 		return false, errCommitHashTooShort
 	}
 
-	return regexp.MatchString(`^[0-9a-f]+$`, hash)
+	return commitHashPattern.MatchString(hash), nil
 }
 
 // IsPullRequest returns is this pull-request format and pr num.

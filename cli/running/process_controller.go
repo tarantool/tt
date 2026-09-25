@@ -16,8 +16,10 @@ var (
 
 // newProcessController create new process controller.
 func newProcessController(cmd *exec.Cmd) (*processController, error) {
-	dpc := processController{Cmd: cmd}
-	if err := dpc.start(); err != nil {
+	dpc := processController{Cmd: cmd, waitMutex: sync.Mutex{}, done: false}
+
+	err := dpc.start()
+	if err != nil {
 		return nil, err
 	}
 
@@ -50,11 +52,13 @@ func (pc *processController) Wait() error {
 	defer pc.waitMutex.Unlock()
 
 	err := pc.Cmd.Wait()
-	if err == nil {
-		pc.done = true
+	if err != nil {
+		return fmt.Errorf("waiting for the process: %w", err)
 	}
 
-	return err
+	pc.done = true
+
+	return nil
 }
 
 // SendSignal sends a signal to tarantool instance.
@@ -63,7 +67,12 @@ func (pc *processController) SendSignal(sig os.Signal) error {
 		return errTheInstanceHasnTStartedYet
 	}
 
-	return pc.Process.Signal(sig)
+	err := pc.Process.Signal(sig)
+	if err != nil {
+		return fmt.Errorf("failed to send %v to instance: %w", sig, err)
+	}
+
+	return nil
 }
 
 // IsAlive verifies that the Instance is alive by sending a "0" signal.
@@ -96,8 +105,9 @@ func (pc *processController) StopWithSignal(waitTimeout time.Duration, stopSigna
 
 	// Trying to terminate the process by using a stopSignal.
 	// In case of failure a "SIGKILL" signal will be used.
-	if err := pc.SendSignal(stopSignal); err != nil {
-		return fmt.Errorf("failed to send %v to instance: %w", stopSignal, err)
+	err := pc.SendSignal(stopSignal)
+	if err != nil {
+		return err
 	}
 
 	// Terminate the process at any cost.
@@ -105,14 +115,15 @@ func (pc *processController) StopWithSignal(waitTimeout time.Duration, stopSigna
 	case <-time.After(waitTimeout):
 		if pc.IsAlive() {
 			// Send "SIGKILL" signal if process is still alive.
-			if err := pc.Process.Kill(); err != nil {
+			err = pc.Process.Kill()
+			if err != nil {
 				return fmt.Errorf("failed to send SIGKILL to instance: %w", err)
-			} else {
-				// Wait for the process to terminate.
-				<-waitDone
-
-				return nil
 			}
+
+			// Wait for the process to terminate.
+			<-waitDone
+
+			return nil
 		}
 	case err := <-waitDone:
 		return err
@@ -134,8 +145,9 @@ func (pc *processController) ProcessState() *os.ProcessState {
 // start starts the process.
 func (pc *processController) start() error {
 	// Start an Instance.
-	if err := pc.Start(); err != nil {
-		return err
+	err := pc.Start()
+	if err != nil {
+		return fmt.Errorf("starting the process: %w", err)
 	}
 
 	pc.done = false

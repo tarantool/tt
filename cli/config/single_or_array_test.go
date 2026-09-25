@@ -24,9 +24,9 @@ func testSingleOrArrayJSON[T any](t *testing.T, tests []singleOrArrayCase[T]) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var o config.SingleOrArray[T]
+			var value config.SingleOrArray[T]
 
-			err := json.Unmarshal(tt.data, &o)
+			err := json.Unmarshal(tt.data, &value)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -34,10 +34,10 @@ func testSingleOrArrayJSON[T any](t *testing.T, tests []singleOrArrayCase[T]) {
 				return
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, tt.expected, o)
+				require.Equal(t, tt.expected, value)
 			}
 
-			newData, err := json.Marshal(&o)
+			newData, err := json.Marshal(&value)
 			require.NoError(t, err)
 			require.Equal(t, tt.data, newData)
 		})
@@ -160,9 +160,9 @@ func testSingleOrArrayYAML[T any](t *testing.T, tests []singleOrArrayCase[T]) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var o config.SingleOrArray[T]
+			var value config.SingleOrArray[T]
 
-			err := yaml.Unmarshal(tt.data, &o)
+			err := yaml.Unmarshal(tt.data, &value)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -170,10 +170,10 @@ func testSingleOrArrayYAML[T any](t *testing.T, tests []singleOrArrayCase[T]) {
 				return
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, tt.expected, o)
+				require.Equal(t, tt.expected, value)
 			}
 
-			newData, err := yaml.Marshal(&o)
+			newData, err := yaml.Marshal(&value)
 
 			newData = bytes.TrimSpace(newData)
 

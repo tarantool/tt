@@ -2,6 +2,7 @@ package util
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	textTemplate "text/template"
 )
@@ -14,12 +15,14 @@ func GetTextTemplatedStr(text *string, obj any) (string, error) {
 
 	tmpl, err := textTemplate.New("s").Funcs(funcMap).Parse(*text)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("cannot parse the template: %w", err)
 	}
 
 	buf := new(bytes.Buffer)
-	if err = tmpl.Execute(buf, obj); err != nil {
-		return "", err
+
+	err = tmpl.Execute(buf, obj)
+	if err != nil {
+		return "", fmt.Errorf("cannot execute the template: %w", err)
 	}
 
 	return buf.String(), nil

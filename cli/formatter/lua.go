@@ -9,22 +9,22 @@ import (
 
 // luaEncodeElement encodes element to a Lua-compatible string.
 func luaEncodeElement(elem any) string {
-	switch t := elem.(type) {
+	switch typed := elem.(type) {
 	case map[any]any:
 		var res strings.Builder
 
 		res.WriteByte('{')
 
 		first := true
-		for k, v := range t {
+		for key, value := range typed {
 			if !first {
 				res.WriteString(", ")
 			}
 
-			if str, ok := k.(string); ok {
-				fmt.Fprintf(&res, "%s = %s", str, luaEncodeElement(v))
+			if str, ok := key.(string); ok {
+				fmt.Fprintf(&res, "%s = %s", str, luaEncodeElement(value))
 			} else {
-				fmt.Fprintf(&res, "[%v] = %s", k, luaEncodeElement(v))
+				fmt.Fprintf(&res, "[%v] = %s", key, luaEncodeElement(value))
 			}
 
 			first = false
@@ -38,10 +38,10 @@ func luaEncodeElement(elem any) string {
 
 		res.WriteByte('{')
 
-		for k, v := range t {
+		for k, v := range typed {
 			res.WriteString(luaEncodeElement(v))
 
-			if k < len(t)-1 {
+			if k < len(typed)-1 {
 				res.WriteString(", ")
 			}
 		}
@@ -71,21 +71,22 @@ func makeLuaOutput(input string) (string, error) {
 
 	var decoded []any
 
-	if err := yaml.Unmarshal([]byte(input), &decoded); err == nil {
-		var res strings.Builder
-
-		for i, unpackedVal := range decoded {
-			res.WriteString(luaEncodeElement(unpackedVal))
-
-			if i < len(decoded)-1 {
-				res.WriteString(", ")
-			}
-		}
-
-		res.WriteString(";\n")
-
-		return res.String(), nil
-	} else {
+	err := yaml.Unmarshal([]byte(input), &decoded)
+	if err != nil {
 		return "", fmt.Errorf("cannot render lua: %w", err)
 	}
+
+	var res strings.Builder
+
+	for i, unpackedVal := range decoded {
+		res.WriteString(luaEncodeElement(unpackedVal))
+
+		if i < len(decoded)-1 {
+			res.WriteString(", ")
+		}
+	}
+
+	res.WriteString(";\n")
+
+	return res.String(), nil
 }

@@ -28,6 +28,20 @@ type cachedDiscoverer struct {
 	replicasets Replicasets
 }
 
+// newCachedDiscoverer returns a cache with nothing discovered yet. Its owner
+// sets the discoverer once the owner itself exists.
+func newCachedDiscoverer() cachedDiscoverer {
+	return cachedDiscoverer{
+		discoverer: nil,
+		cached:     false,
+		replicasets: Replicasets{
+			State:        StateUnknown,
+			Orchestrator: OrchestratorUnknown,
+			Replicasets:  nil,
+		},
+	}
+}
+
 // Discovery discovers via underlying type.
 // If behavior is UseCache and there is a cached result, returns it.
 func (c *cachedDiscoverer) Discovery(behavior CacheBehavior) (Replicasets, error) {

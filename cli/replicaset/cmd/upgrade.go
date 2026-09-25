@@ -136,8 +136,11 @@ func getInstanceConnector(instance replicaset.Instance,
 
 	// Try to connect via unix socket.
 	conn, err := connector.Connect(connector.ConnectOpts{
-		Network: "unix",
-		Address: run.ConsoleSocket,
+		Network:  "unix",
+		Address:  run.ConsoleSocket,
+		Username: "",
+		Password: "",
+		Ssl:      connector.SslOpts{KeyFile: "", CertFile: "", CaFile: "", Ciphers: ""},
 	})
 	if err != nil {
 		fErr := err
@@ -158,7 +161,7 @@ func getInstanceConnector(instance replicaset.Instance,
 	return conn, nil
 }
 
-func collectRwRoInfo(rs replicaset.Replicaset,
+func collectRwRoInfo(replicaSet replicaset.Replicaset,
 	connOpts connector.ConnectOpts) (*instanceMeta, []instanceMeta,
 	error,
 ) {
@@ -167,7 +170,7 @@ func collectRwRoInfo(rs replicaset.Replicaset,
 		replicas []instanceMeta
 	)
 
-	for _, instance := range rs.Instances {
+	for _, instance := range replicaSet.Instances {
 		run := instance.InstanceCtx
 		fullInstanceName := running.GetAppInstanceName(run)
 
@@ -184,7 +187,7 @@ func collectRwRoInfo(rs replicaset.Replicaset,
 			// this case properly.
 			res, err := conn.Eval(
 				"return (type(box.cfg) == 'function') or box.info.ro",
-				[]any{}, connector.RequestOpts{})
+				[]any{}, connector.RequestOpts{PushCallback: nil, ReadTimeout: 0, ResData: nil})
 			if err != nil || len(res) == 0 {
 				return nil, nil, fmt.Errorf(
 					"%w: %s",
@@ -231,7 +234,8 @@ func waitLSN(conn connector.Connector, masterIID uint32, masterLSN uint64, lsnTi
 	deadline := time.Now().Add(time.Duration(lsnTimeout) * time.Second)
 
 	for {
-		res, err := conn.Eval(query, []any{}, connector.RequestOpts{})
+		res, err := conn.Eval(query, []any{},
+			connector.RequestOpts{PushCallback: nil, ReadTimeout: 0, ResData: nil})
 		switch {
 		case err != nil:
 			lastError = fmt.Errorf("failed to evaluate LSN query: %w", err)
@@ -240,11 +244,14 @@ func waitLSN(conn connector.Connector, masterIID uint32, masterLSN uint64, lsnTi
 		default:
 			var lsn uint64
 
-			if err := mapstructure.Decode(res[0], &lsn); err != nil {
+			err = mapstructure.Decode(res[0], &lsn)
+
+			switch {
+			case err != nil:
 				lastError = fmt.Errorf("failed to decode LSN: %w", err)
-			} else if lsn >= masterLSN {
+			case lsn >= masterLSN:
 				return nil
-			} else {
+			default:
 				lastError = fmt.Errorf("%w%d is behind required master LSN %d",
 					errCurrentLSNIsBehindRequiredMasterLSN, lsn, masterLSN)
 			}
@@ -265,14 +272,16 @@ func upgradeMaster(master *instanceMeta) (syncInfo, error) {
 
 	fullMasterName := running.GetAppInstanceName(master.run)
 
-	res, err := master.conn.Eval(upgradeMasterLua, []any{}, connector.RequestOpts{})
+	res, err := master.conn.Eval(upgradeMasterLua, []any{},
+		connector.RequestOpts{PushCallback: nil, ReadTimeout: 0, ResData: nil})
 	if err != nil {
 		return upgradeInfo, fmt.Errorf(
 			"failed to execute upgrade script on master instance - %s: %w",
 			fullMasterName, err)
 	}
 
-	if err := mapstructure.Decode(res[0], &upgradeInfo); err != nil {
+	err = mapstructure.Decode(res[0], &upgradeInfo)
+	if err != nil {
 		return upgradeInfo, fmt.Errorf(
 			"failed to decode response from master instance - %s: %w",
 			fullMasterName, err)
@@ -289,7 +298,7 @@ func upgradeMaster(master *instanceMeta) (syncInfo, error) {
 
 func snapshot(instance *instanceMeta) error {
 	res, err := instance.conn.Eval("return box.snapshot()", []any{},
-		connector.RequestOpts{})
+		connector.RequestOpts{PushCallback: nil, ReadTimeout: 0, ResData: nil})
 	if err != nil {
 		return fmt.Errorf("failed to execute snapshot on replica: %w", err)
 	}

@@ -25,49 +25,52 @@ const defaultEtcdTimeout = 3 * time.Second
 // cfgGetString is a small helper that reads a string value at path from cfg.
 // Returns "" and no error when the path is not found.
 func cfgGetString(cfg goconfig.Config, path string) (string, error) {
-	var v string
+	var value string
 
-	if _, err := cfg.Get(goconfig.NewKeyPath(path), &v); err != nil {
+	_, err := cfg.Get(goconfig.NewKeyPath(path), &value)
+	if err != nil {
 		if errors.Is(err, goconfig.ErrKeyNotFound) {
 			return "", nil
 		}
 
-		return "", err
+		return "", fmt.Errorf("get %q: %w", path, err)
 	}
 
-	return v, nil
+	return value, nil
 }
 
 // cfgGetFloat64 is a small helper that reads a float64 value at path from cfg.
 // Returns 0 and no error when the path is not found.
 func cfgGetFloat64(cfg goconfig.Config, path string) (float64, error) {
-	var v float64
+	var value float64
 
-	if _, err := cfg.Get(goconfig.NewKeyPath(path), &v); err != nil {
+	_, err := cfg.Get(goconfig.NewKeyPath(path), &value)
+	if err != nil {
 		if errors.Is(err, goconfig.ErrKeyNotFound) {
 			return 0, nil
 		}
 
-		return 0, err
+		return 0, fmt.Errorf("get %q: %w", path, err)
 	}
 
-	return v, nil
+	return value, nil
 }
 
 // cfgGetBool is a small helper that reads a bool value at path from cfg.
 // Returns false and no error when the path is not found.
 func cfgGetBool(cfg goconfig.Config, path string) (bool, error) {
-	var v bool
+	var value bool
 
-	if _, err := cfg.Get(goconfig.NewKeyPath(path), &v); err != nil {
+	_, err := cfg.Get(goconfig.NewKeyPath(path), &value)
+	if err != nil {
 		if errors.Is(err, goconfig.ErrKeyNotFound) {
 			return false, nil
 		}
 
-		return false, err
+		return false, fmt.Errorf("get %q: %w", path, err)
 	}
 
-	return v, nil
+	return value, nil
 }
 
 // NewCollectorFactory creates a cluster Factory configured for collecting
@@ -89,8 +92,10 @@ func NewCollectorFactory(integ integrity.IntegrityCtx) (sdkcluster.Factory, erro
 			return integ.Repository.Read(path)
 		}),
 		sdkcluster.WithIntegrity(sdkcluster.IntegrityOptions{
-			Hashers:   hashers,
-			Verifiers: verifiers,
+			Hashers:         hashers,
+			Signers:         nil,
+			Verifiers:       verifiers,
+			SignerVerifiers: nil,
 		}),
 	), nil
 }
@@ -111,6 +116,8 @@ func NewPublisherFactory(privateKey string) (sdkcluster.Factory, error) {
 	return sdkcluster.NewFactory(
 		sdkcluster.WithIntegrity(sdkcluster.IntegrityOptions{
 			Hashers:         hashers,
+			Signers:         nil,
+			Verifiers:       nil,
 			SignerVerifiers: signerVerifiers,
 		}),
 	), nil
@@ -153,20 +160,26 @@ func CollectDataBytes(ctx context.Context, collector sdkcluster.DataCollector) (
 		return nil, fmt.Errorf("collect data: parse %q: %w", data[0].Source, err)
 	}
 
-	for _, d := range data[1:] {
-		extra, err := BuildGoConfigFromBytes(ctx, d.Value)
+	for _, item := range data[1:] {
+		extra, err := BuildGoConfigFromBytes(ctx, item.Value)
 		if err != nil {
-			return nil, fmt.Errorf("collect data: parse %q: %w", d.Source, err)
+			return nil, fmt.Errorf("collect data: parse %q: %w", item.Source, err)
 		}
 
-		if err := fillOnlyMerge(ctx, mut, extra); err != nil {
-			return nil, fmt.Errorf("collect data: merge %q: %w", d.Source, err)
+		err = fillOnlyMerge(ctx, mut, extra)
+		if err != nil {
+			return nil, fmt.Errorf("collect data: merge %q: %w", item.Source, err)
 		}
 	}
 
 	snap := mut.Snapshot()
 
-	return snap.MarshalYAML()
+	merged, err := snap.MarshalYAML()
+	if err != nil {
+		return nil, fmt.Errorf("collect data: marshal: %w", err)
+	}
+
+	return merged, nil
 }
 
 // readStorageFromConfig extracts etcd or TCS endpoints from cfg, dials, reads
@@ -218,7 +231,8 @@ func readEtcdEndpoints(
 	// Read endpoints list.
 	var rawEndpoints any
 
-	if _, err := cfg.Get(goconfig.NewKeyPath("config/etcd/endpoints"), &rawEndpoints); err != nil {
+	_, err := cfg.Get(goconfig.NewKeyPath("config/etcd/endpoints"), &rawEndpoints)
+	if err != nil {
 		if errors.Is(err, goconfig.ErrKeyNotFound) {
 			return nil, nil, nil
 		}
@@ -229,9 +243,9 @@ func readEtcdEndpoints(
 	// Convert to []string.
 	var endpoints []string
 
-	switch v := rawEndpoints.(type) {
+	switch typed := rawEndpoints.(type) {
 	case []any:
-		for _, e := range v {
+		for _, e := range typed {
 			s, ok := e.(string)
 			if !ok {
 				return nil, nil, fmt.Errorf("%w%T", errEtcdEndpointIsNotAString, e)
@@ -240,7 +254,7 @@ func readEtcdEndpoints(
 			endpoints = append(endpoints, s)
 		}
 	case []string:
-		endpoints = v
+		endpoints = typed
 	}
 
 	if len(endpoints) == 0 {
@@ -395,11 +409,11 @@ func readTcsEndpoints(
 
 	var connectionErrors []error
 
-	for i, rawEp := range endpointList {
+	for idx, rawEp := range endpointList {
 		epMap, ok := rawEp.(map[string]any)
 		if !ok {
 			connectionErrors = append(connectionErrors,
-				fmt.Errorf("%w%d]: unexpected type %T", errEndpointUnexpectedType, i, rawEp))
+				fmt.Errorf("%w%d]: unexpected type %T", errEndpointUnexpectedType, idx, rawEp))
 
 			continue
 		}
@@ -446,7 +460,7 @@ func readTcsEndpoints(
 		default:
 			connectionErrors = append(connectionErrors, fmt.Errorf(
 				"%w%d] %q: unknown transport type: %s",
-				errEndpointUnknownTransportType, i, addr, transport))
+				errEndpointUnknownTransportType, idx, addr, transport))
 
 			continue
 		}
@@ -470,7 +484,7 @@ func readTcsEndpoints(
 		})
 		if err != nil {
 			connectionErrors = append(connectionErrors,
-				fmt.Errorf("endpoint[%d] %q: connect: %w", i, addr, err))
+				fmt.Errorf("endpoint[%d] %q: connect: %w", idx, addr, err))
 
 			continue
 		}
@@ -485,7 +499,7 @@ func readTcsEndpoints(
 		)
 		if err != nil {
 			connectionErrors = append(connectionErrors,
-				fmt.Errorf("endpoint[%d] %q: create collector: %w", i, addr, err))
+				fmt.Errorf("endpoint[%d] %q: create collector: %w", idx, addr, err))
 
 			continue
 		}
@@ -493,7 +507,7 @@ func readTcsEndpoints(
 		rawBytes, err := CollectDataBytes(ctx, tcsCollector)
 		if err != nil {
 			connectionErrors = append(connectionErrors,
-				fmt.Errorf("endpoint[%d] %q: collect: %w", i, addr, err))
+				fmt.Errorf("endpoint[%d] %q: collect: %w", idx, addr, err))
 
 			continue
 		}
@@ -501,7 +515,7 @@ func readTcsEndpoints(
 		parsedCfg, err := BuildGoConfigFromBytes(ctx, rawBytes)
 		if err != nil {
 			connectionErrors = append(connectionErrors,
-				fmt.Errorf("endpoint[%d] %q: parse config: %w", i, addr, err))
+				fmt.Errorf("endpoint[%d] %q: parse config: %w", idx, addr, err))
 
 			continue
 		}

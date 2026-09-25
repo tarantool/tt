@@ -43,7 +43,8 @@ func getReplicasets(ctx DiscoveryCtx) (replicaset.Replicasets, error) {
 
 	if ctx.IsApplication {
 		orchestrator, err = makeApplicationOrchestrator(orchestratorType,
-			ctx.RunningCtx, sdkcluster.Factory{}, sdkcluster.Factory{}, integrity.IntegrityCtx{})
+			ctx.RunningCtx, sdkcluster.Factory{}, sdkcluster.Factory{},
+			integrity.IntegrityCtx{Repository: nil})
 	} else {
 		orchestrator, err = makeInstanceOrchestrator(orchestratorType, ctx.Conn)
 	}

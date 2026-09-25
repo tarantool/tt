@@ -54,13 +54,14 @@ func createTestFiles(t *testing.T, tstDir string, filesMap map[string][]string) 
 func restorePermissions(t *testing.T, path string) {
 	t.Helper()
 
-	require.NoError(t, filepath.WalkDir(path, func(p string, d fs.DirEntry, err error) error {
+	require.NoError(t, filepath.WalkDir(path, func(entry string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		if d.IsDir() {
-			require.NoError(t, os.Chmod(p, 0o755))
+			//nolint:gosec // The walk covers a test's own temporary directory.
+			require.NoError(t, os.Chmod(entry, 0o755))
 		}
 
 		return nil
@@ -124,8 +125,8 @@ func TestCollectWalFiles_recursive(t *testing.T) {
 
 	createTestFiles(t, tstDir, testFilesMap)
 
-	// j is wrapper to join test names with temporary directory name.
-	j := func(f string) string {
+	// inTmp is wrapper to join test names with temporary directory name.
+	inTmp := func(f string) string {
 		return filepath.Join(tstDir, f)
 	}
 
@@ -140,19 +141,19 @@ func TestCollectWalFiles_recursive(t *testing.T) {
 			input:     []string{"."},
 			recursive: true,
 			output: []string{
-				j("01.snap"), j("02.snap"),
-				j(".snap/313.snap"), j(".snap/314.snap"),
-				j("data1/13.snap"), j("data1/14.snap"),
-				j("data2.snap/21.snap"), j("data2.snap/22.snap"),
-				j("data2/logs/01.snap"), j("data2/logs/02.snap"),
+				inTmp("01.snap"), inTmp("02.snap"),
+				inTmp(".snap/313.snap"), inTmp(".snap/314.snap"),
+				inTmp("data1/13.snap"), inTmp("data1/14.snap"),
+				inTmp("data2.snap/21.snap"), inTmp("data2.snap/22.snap"),
+				inTmp("data2/logs/01.snap"), inTmp("data2/logs/02.snap"),
 
-				j("01.xlog"), j("02.xlog"),
-				j(".xlog/313.xlog"), j(".xlog/314.xlog"),
-				j("data1/13.xlog"), j("data1/14.xlog"),
-				j("data2.xlog/21.xlog"), j("data2.xlog/22.xlog"),
-				j("data2/logs/01.xlog"), j("data2/logs/02.xlog"),
+				inTmp("01.xlog"), inTmp("02.xlog"),
+				inTmp(".xlog/313.xlog"), inTmp(".xlog/314.xlog"),
+				inTmp("data1/13.xlog"), inTmp("data1/14.xlog"),
+				inTmp("data2.xlog/21.xlog"), inTmp("data2.xlog/22.xlog"),
+				inTmp("data2/logs/01.xlog"), inTmp("data2/logs/02.xlog"),
 			},
-			logMsg: fmt.Sprintf("WARN Skipping %q due to error during walk", j("no_perm")),
+			logMsg: fmt.Sprintf("WARN Skipping %q due to error during walk", inTmp("no_perm")),
 		},
 
 		"no file": {
@@ -161,45 +162,45 @@ func TestCollectWalFiles_recursive(t *testing.T) {
 		},
 
 		"no wal files": {
-			input:  []string{j("not_wal_files")},
+			input:  []string{inTmp("not_wal_files")},
 			output: []string{},
-			logMsg: fmt.Sprintf("No WAL files found at %q", j("not_wal_files")),
+			logMsg: fmt.Sprintf("No WAL files found at %q", inTmp("not_wal_files")),
 		},
 
 		"not existing file": {
-			input:  []string{j("not-exists-file")},
+			input:  []string{inTmp("not-exists-file")},
 			errMsg: "not-exists-file: no such file or directory",
 		},
 
 		"try no permission without recursion": {
-			input:     []string{j("no_perm")},
+			input:     []string{inTmp("no_perm")},
 			recursive: false,
 			output:    []string{},
-			logMsg:    fmt.Sprintf("WARN Failed to read directory %q:", j("no_perm")),
+			logMsg:    fmt.Sprintf("WARN Failed to read directory %q:", inTmp("no_perm")),
 		},
 
 		"one relative file": {
 			input:  []string{"01.snap"},
-			output: []string{j("01.snap")},
+			output: []string{inTmp("01.snap")},
 		},
 
 		"relative directory": {
 			input: []string{"data1"},
 			output: []string{
-				j("data1/13.snap"),
-				j("data1/14.snap"),
-				j("data1/13.xlog"),
-				j("data1/14.xlog"),
+				inTmp("data1/13.snap"),
+				inTmp("data1/14.snap"),
+				inTmp("data1/13.xlog"),
+				inTmp("data1/14.xlog"),
 			},
 		},
 
 		"absolute directory": {
-			input: []string{j("data2/logs")},
+			input: []string{inTmp("data2/logs")},
 			output: []string{
-				j("data2/logs/01.snap"),
-				j("data2/logs/02.snap"),
-				j("data2/logs/01.xlog"),
-				j("data2/logs/02.xlog"),
+				inTmp("data2/logs/01.snap"),
+				inTmp("data2/logs/02.snap"),
+				inTmp("data2/logs/01.xlog"),
+				inTmp("data2/logs/02.xlog"),
 			},
 		},
 
@@ -207,10 +208,10 @@ func TestCollectWalFiles_recursive(t *testing.T) {
 			input:     []string{"data2"},
 			recursive: true,
 			output: []string{
-				j("data2/logs/01.snap"),
-				j("data2/logs/02.snap"),
-				j("data2/logs/01.xlog"),
-				j("data2/logs/02.xlog"),
+				inTmp("data2/logs/01.snap"),
+				inTmp("data2/logs/02.snap"),
+				inTmp("data2/logs/01.xlog"),
+				inTmp("data2/logs/02.xlog"),
 			},
 		},
 
@@ -218,19 +219,19 @@ func TestCollectWalFiles_recursive(t *testing.T) {
 			input: []string{
 				"data1/14.snap",
 				"data1",
-				j("data1/13.xlog"),
+				inTmp("data1/13.xlog"),
 			},
 			recursive: true,
 			output: []string{
-				j("data1/13.snap"),
-				j("data1/14.snap"),
-				j("data1/13.xlog"),
-				j("data1/14.xlog"),
+				inTmp("data1/13.snap"),
+				inTmp("data1/14.snap"),
+				inTmp("data1/13.xlog"),
+				inTmp("data1/14.xlog"),
 			},
 		},
 	}
 
-	wd, err := os.Getwd()
+	workDir, err := os.Getwd()
 	require.NoError(t, err)
 
 	for name, test := range tests {
@@ -242,7 +243,7 @@ func TestCollectWalFiles_recursive(t *testing.T) {
 			} else {
 				// If the first element of input is absolute path,
 				// run test from current directory, not in temp.
-				t.Chdir(wd)
+				t.Chdir(workDir)
 			}
 
 			logger, recorder := logtest.New(t)
@@ -261,12 +262,12 @@ func TestCollectWalFiles_recursive(t *testing.T) {
 			}
 
 			if test.errMsg != "" {
-				assert.ErrorContains(t, err, test.errMsg)
+				require.ErrorContains(t, err, test.errMsg)
 
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, test.output, result)
 
 			if buf.Len() == 0 {
@@ -340,9 +341,9 @@ func TestCollectWalFiles(t *testing.T) {
 			result, err := util.CollectWalFiles(test.input, false)
 
 			if test.expectedErrMsg != "" {
-				assert.ErrorContains(t, err, test.expectedErrMsg)
+				require.ErrorContains(t, err, test.expectedErrMsg)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, test.output, result)
 			}
 		})

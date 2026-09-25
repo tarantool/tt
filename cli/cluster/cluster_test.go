@@ -118,7 +118,7 @@ func TestGetClusterConfig_invalid_apppath(t *testing.T) {
 	cfg, err := cluster.GetClusterConfig(context.Background(), "some/non/exist",
 		integrity.IntegrityCtx{})
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, cfg)
 }
 
@@ -126,7 +126,7 @@ func TestGetClusterConfig_nopath(t *testing.T) {
 	cfg, err := cluster.GetClusterConfig(context.Background(), "", integrity.IntegrityCtx{})
 	expected := "a configuration file must be set"
 
-	assert.EqualError(t, err, expected)
+	require.EqualError(t, err, expected)
 	assert.Nil(t, cfg)
 }
 
@@ -208,16 +208,16 @@ func TestGetClusterConfig_env_two_tier_priority(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
 			clearAmbientTTEnv(t)
 
-			if tc.mainEnv != "" {
-				t.Setenv("TT_REPLICATION_FAILOVER", tc.mainEnv)
+			if testCase.mainEnv != "" {
+				t.Setenv("TT_REPLICATION_FAILOVER", testCase.mainEnv)
 			}
 
-			if tc.defaultEnv != "" {
-				t.Setenv("TT_REPLICATION_FAILOVER_DEFAULT", tc.defaultEnv)
+			if testCase.defaultEnv != "" {
+				t.Setenv("TT_REPLICATION_FAILOVER_DEFAULT", testCase.defaultEnv)
 			}
 
 			cfg, err := cluster.GetClusterConfig(context.Background(), "testdata/app/config.yaml",
@@ -230,7 +230,7 @@ func TestGetClusterConfig_env_two_tier_priority(t *testing.T) {
 
 			_, err = snap.Get(goconfig.NewKeyPath("replication/failover"), &got)
 			require.NoError(t, err)
-			assert.Equal(t, tc.expectedValue, got)
+			assert.Equal(t, testCase.expectedValue, got)
 		})
 	}
 }
@@ -272,18 +272,19 @@ groups:
 
 	// Calling readStorageFromConfig indirectly through GetClusterConfig with a
 	// temp file that has the above content.
-	f, err := os.CreateTemp(t.TempDir(), "tt-tcs-test-*.yaml")
+	cfgFile, err := os.CreateTemp(t.TempDir(), "tt-tcs-test-*.yaml")
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = os.Remove(f.Name()) })
+	t.Cleanup(func() { _ = os.Remove(cfgFile.Name()) })
 
-	_, err = f.WriteString(cfgYAML)
+	_, err = cfgFile.WriteString(cfgYAML)
 	require.NoError(t, err)
-	require.NoError(t, f.Close())
+	require.NoError(t, cfgFile.Close())
 
 	_ = cfg // just built for sanity.
 
 	// With two unreachable endpoints, GetClusterConfig should error.
-	_, err = cluster.GetClusterConfig(context.Background(), f.Name(), integrity.IntegrityCtx{})
+	_, err = cluster.GetClusterConfig(context.Background(), cfgFile.Name(),
+		integrity.IntegrityCtx{})
 	assert.Error(t, err, "expected error when all TCS endpoints are unreachable")
 }
 
@@ -312,18 +313,19 @@ groups:
         instances:
           i: {}
 `
-	f, err := os.CreateTemp(t.TempDir(), "tt-etcd-env-test-*.yaml")
+	cfgFile, err := os.CreateTemp(t.TempDir(), "tt-etcd-env-test-*.yaml")
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = os.Remove(f.Name()) })
+	t.Cleanup(func() { _ = os.Remove(cfgFile.Name()) })
 
-	_, err = f.WriteString(cfgYAML)
+	_, err = cfgFile.WriteString(cfgYAML)
 	require.NoError(t, err)
-	require.NoError(t, f.Close())
+	require.NoError(t, cfgFile.Close())
 
 	// GetClusterConfig will try to connect to etcd and fail (no real etcd),
 	// but the loader must have picked up the env-var credentials.
 	// We verify by checking the error context OR by inspecting the Phase-1 config.
-	_, err = cluster.GetClusterConfig(context.Background(), f.Name(), integrity.IntegrityCtx{})
+	_, err = cluster.GetClusterConfig(context.Background(), cfgFile.Name(),
+		integrity.IntegrityCtx{})
 	// Since the endpoint is unreachable, we expect a connection error.
 	assert.Error(t, err, "expected connection error to non-existent etcd endpoint")
 }

@@ -108,7 +108,9 @@ func getApplicationOrchestrator(manual replicaset.Orchestrator,
 	}
 
 	instances := runningCtx.Instances
-	if err := replicaset.EvalAny(instances, replicaset.InstanceEvalFunc(eval)); err != nil {
+
+	err := replicaset.EvalAny(instances, replicaset.InstanceEvalFunc(eval))
+	if err != nil {
 		return orchestrator,
 			fmt.Errorf("unable to determinate an orchestrator type: %w", err)
 	}

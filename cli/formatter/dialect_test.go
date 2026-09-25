@@ -19,13 +19,13 @@ func TestFormatter_ParseTableDialect(t *testing.T) {
 		{".", formatter.DefaultTableDialect, false},
 	}
 
-	for _, c := range cases {
-		t.Run(c.str, func(t *testing.T) {
-			format, ok := formatter.ParseTableDialect(c.str)
-			assert.Equal(t, c.ok, ok, "Unexpected result")
+	for _, tt := range cases {
+		t.Run(tt.str, func(t *testing.T) {
+			format, ok := formatter.ParseTableDialect(tt.str)
+			assert.Equal(t, tt.ok, ok, "Unexpected result")
 
 			if ok {
-				assert.Equal(t, c.expected, format, "Unexpected table dialect")
+				assert.Equal(t, tt.expected, format, "Unexpected table dialect")
 			}
 		})
 	}
@@ -43,14 +43,14 @@ func TestFormatter_TableDialect_String(t *testing.T) {
 		{formatter.TableDialect(2023), "Unknown table dialect", true},
 	}
 
-	for _, c := range cases {
-		t.Run(c.expected, func(t *testing.T) {
-			if c.panic {
-				f := func() { _ = c.tableDialect.String() }
+	for _, tt := range cases {
+		t.Run(tt.expected, func(t *testing.T) {
+			if tt.panic {
+				f := func() { _ = tt.tableDialect.String() }
 				assert.PanicsWithValue(t, "Unknown table dialect", f)
 			} else {
-				result := c.tableDialect.String()
-				assert.Equal(t, c.expected, result, "Unexpected result")
+				result := tt.tableDialect.String()
+				assert.Equal(t, tt.expected, result, "Unexpected result")
 			}
 		})
 	}

@@ -31,11 +31,12 @@ func cleanDataFiles(instCtx running.InstanceCtx) error {
 		filepath.Join(instCtx.WalDir, "*.xlog"),
 		filepath.Join(instCtx.VinylDir, "*.vylog"),
 	} {
-		if foundFiles, err := filepath.Glob(pattern); err != nil {
-			return err
-		} else {
-			filesToRemove = append(filesToRemove, foundFiles...)
+		foundFiles, err := filepath.Glob(pattern)
+		if err != nil {
+			return fmt.Errorf("cannot search for %q: %w", pattern, err)
 		}
+
+		filesToRemove = append(filesToRemove, foundFiles...)
 	}
 
 	for _, fileToRemove := range filesToRemove {
@@ -49,7 +50,8 @@ func cleanDataFiles(instCtx running.InstanceCtx) error {
 		}
 
 		if stat.Mode().IsRegular() {
-			if err = os.Remove(fileToRemove); err != nil {
+			err = os.Remove(fileToRemove)
+			if err != nil {
 				return fmt.Errorf("cannot remove %q: %w", fileToRemove, err)
 			}
 
@@ -85,21 +87,24 @@ func Rebootstrap(cmdCtx cmdcontext.CmdCtx, cliOpts config.CliOpts, rbCtx Reboots
 	}
 
 	if !rbCtx.Confirmed {
-		if yes, err := util.AskConfirm(os.Stdin, fmt.Sprintf(
+		yes, err := util.AskConfirm(os.Stdin, fmt.Sprintf(
 			"Rebootstrap will stop the instance %s and remove all its data files. "+
 				"Do you want to continue?",
-			rbCtx.InstanceName)); err != nil || !yes {
+			rbCtx.InstanceName))
+		if err != nil || !yes {
 			return err
 		}
 	}
 
 	log.Debugf("Stopping the instance")
 
-	if err = running.Stop(&instCtx); err != nil {
+	err = running.Stop(&instCtx)
+	if err != nil {
 		return fmt.Errorf("failed to stop the instance %s: %w", rbCtx.InstanceName, err)
 	}
 
-	if err = cleanDataFiles(instCtx); err != nil {
+	err = cleanDataFiles(instCtx)
+	if err != nil {
 		return fmt.Errorf("failed to remove instance's artifacts: %w", err)
 	}
 
@@ -109,10 +114,11 @@ func Rebootstrap(cmdCtx cmdcontext.CmdCtx, cliOpts config.CliOpts, rbCtx Reboots
 
 	ttBin, err := os.Executable()
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot find the tt executable: %w", err)
 	}
 
-	if err = running.StartWatchdog(&cmdCtx, ttBin, instCtx, []string{}); err != nil {
+	err = running.StartWatchdog(&cmdCtx, ttBin, instCtx, []string{})
+	if err != nil {
 		return fmt.Errorf("failed to start the instance: %w", err)
 	}
 

@@ -1,28 +1,42 @@
 package util
 
 import (
-	"crypto/md5"
-	"crypto/sha1"
+	"crypto/md5"  //nolint:gosec // MD5 is a checksum here, not a security primitive.
+	"crypto/sha1" //nolint:gosec // SHA1 is a checksum here, not a security primitive.
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
+	"hash"
 	"io"
 	"os"
 )
 
-// FileSHA256Hex computes SHA256 for a given file.
-// The result is returned in a hex form.
-func FileSHA256Hex(path string) (string, error) {
+// hashFile feeds the content of the file to the hasher.
+func hashFile(path string, hasher hash.Hash) error {
 	file, err := os.Open(path)
 	if err != nil {
-		return "", err
+		return fmt.Errorf("cannot open the file to hash: %w", err)
 	}
 
 	defer func() {
 		_ = file.Close()
 	}()
 
+	_, err = io.Copy(hasher, file)
+	if err != nil {
+		return fmt.Errorf("cannot read %q to hash: %w", path, err)
+	}
+
+	return nil
+}
+
+// FileSHA256Hex computes SHA256 for a given file.
+// The result is returned in a hex form.
+func FileSHA256Hex(path string) (string, error) {
 	hasher := sha256.New()
-	if _, err := io.Copy(hasher, file); err != nil {
+
+	err := hashFile(path, hasher)
+	if err != nil {
 		return "", err
 	}
 
@@ -32,17 +46,10 @@ func FileSHA256Hex(path string) (string, error) {
 // FileSHA1Hex computes SHA1 for a given file.
 // The result is returned in a hex form.
 func FileSHA1Hex(path string) (string, error) {
-	file, err := os.Open(path)
+	hasher := sha1.New() //nolint:gosec // SHA1 is a checksum here, not a security primitive.
+
+	err := hashFile(path, hasher)
 	if err != nil {
-		return "", err
-	}
-
-	defer func() {
-		_ = file.Close()
-	}()
-
-	hasher := sha1.New()
-	if _, err := io.Copy(hasher, file); err != nil {
 		return "", err
 	}
 
@@ -52,17 +59,10 @@ func FileSHA1Hex(path string) (string, error) {
 // FileMD5 computes MD5 for a given file.
 // The result is returned in a binary form.
 func FileMD5(path string) ([]byte, error) {
-	file, err := os.Open(path)
+	hasher := md5.New() //nolint:gosec // MD5 is a checksum here, not a security primitive.
+
+	err := hashFile(path, hasher)
 	if err != nil {
-		return nil, err
-	}
-
-	defer func() {
-		_ = file.Close()
-	}()
-
-	hasher := md5.New()
-	if _, err := io.Copy(hasher, file); err != nil {
 		return nil, err
 	}
 
@@ -83,7 +83,7 @@ func FileMD5Hex(path string) (string, error) {
 // StringSHA1Hex computes SHA1 for a given string
 // The result is returned in a hex form.
 func StringSHA1Hex(source string) string {
-	hasher := sha1.New()
+	hasher := sha1.New() //nolint:gosec // SHA1 is a checksum here, not a security primitive.
 	hasher.Write([]byte(source))
 
 	return hex.EncodeToString(hasher.Sum(nil))

@@ -32,7 +32,7 @@ func (i stringerImpl) String() string {
 }
 
 func TestFormat_Print(t *testing.T) {
-	f := console.Format{}
+	format := console.Format{}
 
 	tests := []struct {
 		name    string
@@ -73,7 +73,7 @@ func TestFormat_Print(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := f.Sprint(tt.data)
+			got, err := format.Sprint(tt.data)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Format.Sprint() error = %v, wantErr %v", err, tt.wantErr)
 

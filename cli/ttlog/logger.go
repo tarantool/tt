@@ -59,6 +59,7 @@ func NewCustomLogger(writer io.Writer, prefix string, flags int) Logger {
 
 // Write implements io.Writer interface.
 func (logger *writerLogger) Write(p []byte) (int, error) {
+	//nolint:wrapcheck // A transparent io.Writer passes the writer's error through.
 	return logger.Logger.Writer().Write(p)
 }
 
@@ -69,7 +70,7 @@ func (logger *writerLogger) Rotate() error {
 
 // GetOpts returns the parameters that were used to create the logger.
 func (logger *writerLogger) GetOpts() LoggerOpts {
-	return LoggerOpts{Prefix: logger.Prefix()}
+	return LoggerOpts{Filename: "", Prefix: logger.Prefix()}
 }
 
 // Close implements io.Closer, no-op.
@@ -93,10 +94,12 @@ type fileLogger struct {
 // NewFileLogger creates a new object of file logger.
 func NewFileLogger(opts LoggerOpts) (Logger, error) {
 	dir := filepath.Dir(opts.Filename)
-	if _, err := os.Stat(dir); err != nil &&
-		errors.Is(err, os.ErrNotExist) {
-		if err := os.MkdirAll(dir, logDirectoryMode); err != nil {
-			return nil, err
+
+	_, err := os.Stat(dir)
+	if err != nil && errors.Is(err, os.ErrNotExist) {
+		err = os.MkdirAll(dir, logDirectoryMode)
+		if err != nil {
+			return nil, fmt.Errorf("cannot create the log directory %q: %w", dir, err)
 		}
 	}
 
@@ -109,6 +112,7 @@ func NewFileLogger(opts LoggerOpts) (Logger, error) {
 		Logger:  log.New(file, opts.Prefix, log.LstdFlags),
 		opts:    opts,
 		logFile: file,
+		mu:      sync.Mutex{},
 	}, nil
 }
 
@@ -122,6 +126,7 @@ func (logger *fileLogger) Write(p []byte) (int, error) {
 	logger.mu.Lock()
 	defer logger.mu.Unlock()
 
+	//nolint:wrapcheck // A transparent io.Writer passes the writer's error through.
 	return logger.Logger.Writer().Write(p)
 }
 
@@ -138,15 +143,16 @@ func (logger *fileLogger) Rotate() error {
 
 	var err error
 
-	if logger.logFile, err = os.OpenFile(logger.opts.Filename, logOpenFlags,
-		logCreatePerms); err != nil {
+	logger.logFile, err = os.OpenFile(logger.opts.Filename, logOpenFlags, logCreatePerms)
+	if err != nil {
 		return fmt.Errorf("cannot open the log file %q: %w", logger.opts.Filename, err)
 	}
 
 	logger.Logger = log.New(logger.logFile, logger.opts.Prefix, log.LstdFlags)
 	logger.Println("(INFO) log file has been reopened")
 
-	if err := savedFile.Close(); err != nil {
+	err = savedFile.Close()
+	if err != nil {
 		logger.Printf("(ERROR) failed to close previous log file: %s", err)
 	}
 
@@ -156,7 +162,10 @@ func (logger *fileLogger) Rotate() error {
 // Close implements io.Closer, and closes the current logfile.
 func (logger *fileLogger) Close() error {
 	if logger.logFile != nil {
-		return logger.logFile.Close()
+		err := logger.logFile.Close()
+		if err != nil {
+			return fmt.Errorf("cannot close the log file %q: %w", logger.opts.Filename, err)
+		}
 	}
 
 	return nil

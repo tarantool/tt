@@ -93,11 +93,11 @@ func collectWALsFromSinglePath(path string, isRecursive bool) ([]string, error) 
 		return collected, nil
 	}
 
-	err = filepath.WalkDir(path, func(p string, d fs.DirEntry, err error) error {
+	err = filepath.WalkDir(path, func(entryPath string, entry fs.DirEntry, err error) error {
 		if err != nil {
-			log.Warnf("Skipping %q due to error during walk: %s", p, err)
+			log.Warnf("Skipping %q due to error during walk: %s", entryPath, err)
 
-			if d != nil && d.IsDir() && errors.Is(err, fs.ErrPermission) {
+			if entry != nil && entry.IsDir() && errors.Is(err, fs.ErrPermission) {
 				// Skip directory if permission denied, but continue walking other parts.
 				return fs.SkipDir
 			}
@@ -105,8 +105,8 @@ func collectWALsFromSinglePath(path string, isRecursive bool) ([]string, error) 
 			return nil
 		}
 
-		if !d.IsDir() && isWal(d.Name()) {
-			collected = append(collected, p)
+		if !entry.IsDir() && isWal(entry.Name()) {
+			collected = append(collected, entryPath)
 		}
 
 		return nil
@@ -130,20 +130,20 @@ func collectWALsFromSinglePath(path string, isRecursive bool) ([]string, error) 
 func CollectWalFiles(paths []string, isRecursive bool) ([]string, error) {
 	allCollectedFiles := make([]string, 0)
 
-	for _, p := range paths {
-		filesFromPath, err := collectWALsFromSinglePath(p, isRecursive)
+	for _, walPath := range paths {
+		filesFromPath, err := collectWALsFromSinglePath(walPath, isRecursive)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
-				return nil, fmt.Errorf("required %q not found: %w", p, err)
+				return nil, fmt.Errorf("required %q not found: %w", walPath, err)
 			}
 
-			log.Warnf("Error processing path %q: %v. Skipping this path.", p, err)
+			log.Warnf("Error processing path %q: %v. Skipping this path.", walPath, err)
 
 			continue
 		}
 
 		if len(filesFromPath) == 0 {
-			log.Warnf("No WAL files found at %q", p)
+			log.Warnf("No WAL files found at %q", walPath)
 		} else {
 			allCollectedFiles = append(allCollectedFiles, filesFromPath...)
 		}

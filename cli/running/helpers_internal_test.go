@@ -13,7 +13,8 @@ func waitForFile(filePath string) int {
 	for retries > 0 {
 		time.Sleep(filePollInterval)
 
-		if _, err := os.Stat(filePath); err == nil {
+		_, err := os.Stat(filePath)
+		if err == nil {
 			break
 		}
 

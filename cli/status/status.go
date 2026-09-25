@@ -102,9 +102,15 @@ func (is *instanceStatus) addAlert(message string, severity severity) {
 
 func newInstanceStatus() instanceStatus {
 	return instanceStatus{
-		Config:   defaultModuleStatus,
-		Box:      defaultModuleStatus,
-		Upstream: defaultModuleStatus,
+		Status:             "",
+		PID:                nil,
+		Mode:               "",
+		Config:             defaultModuleStatus,
+		Box:                defaultModuleStatus,
+		Upstream:           defaultModuleStatus,
+		Alerts:             nil,
+		rawReplicationInfo: nil,
+		procStatus:         process_utils.ProcessState{Code: 0, Status: "", PID: 0},
 	}
 }
 
@@ -165,8 +171,11 @@ func collectInstanceState(run running.InstanceCtx, fullInstanceName string,
 	var instanceState rawInstanceState
 
 	conn, err := connector.Connect(connector.ConnectOpts{
-		Network: "unix",
-		Address: run.ConsoleSocket,
+		Network:  "unix",
+		Address:  run.ConsoleSocket,
+		Username: "",
+		Password: "",
+		Ssl:      connector.SslOpts{KeyFile: "", CertFile: "", CaFile: "", Ciphers: ""},
 	})
 	if err != nil {
 		if instStatus.procStatus.Code == process_utils.ProcessRunningCode {
@@ -180,7 +189,7 @@ func collectInstanceState(run running.InstanceCtx, fullInstanceName string,
 	}
 
 	res, err := conn.Eval(filterComments(instanceInfoLuaScript), []any{},
-		connector.RequestOpts{})
+		connector.RequestOpts{PushCallback: nil, ReadTimeout: 0, ResData: nil})
 	if err != nil {
 		instStatus.addAlert(fmt.Sprintf(
 			"Error while executing Lua script on instance %s: %v",

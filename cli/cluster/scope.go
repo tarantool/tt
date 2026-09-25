@@ -22,16 +22,16 @@ const instancePathSegments = 6
 // expected 6-segment layout (indices 0=="groups", 2=="replicasets",
 // 4=="instances").
 func splitInstancePath(path string) (string, string, string) {
-	kp := goconfig.NewKeyPath(path)
-	if len(kp) != instancePathSegments {
+	keyPath := goconfig.NewKeyPath(path)
+	if len(keyPath) != instancePathSegments {
 		return "", "", ""
 	}
 
-	if kp[0] != "groups" || kp[2] != "replicasets" || kp[4] != "instances" {
+	if keyPath[0] != "groups" || keyPath[2] != "replicasets" || keyPath[4] != "instances" {
 		return "", "", ""
 	}
 
-	return kp[1], kp[3], kp[5]
+	return keyPath[1], keyPath[3], keyPath[5]
 }
 
 // Instances returns a sorted list of instance names found in cfg via

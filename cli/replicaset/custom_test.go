@@ -341,7 +341,7 @@ func TestCustomInstance_Discovery(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			instance := replicaset.NewCustomInstance(tc.Evaler)
 			replicasets, err := instance.Discovery(replicaset.SkipCache)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tc.Expected, replicasets)
 		})
 	}

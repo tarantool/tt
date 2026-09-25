@@ -36,13 +36,15 @@ func newScriptInstance(tarantoolPath string, instanceCtx InstanceCtx, opts ...In
 	*scriptInstance, error,
 ) {
 	// Check if tarantool binary exists.
-	if _, err := exec.LookPath(tarantoolPath); err != nil {
-		return nil, err
+	_, err := exec.LookPath(tarantoolPath)
+	if err != nil {
+		return nil, fmt.Errorf("looking for the tarantool executable: %w", err)
 	}
 
 	// Check if Application exists.
-	if _, err := os.Stat(instanceCtx.InstanceScript); err != nil {
-		return nil, err
+	_, err = os.Stat(instanceCtx.InstanceScript)
+	if err != nil {
+		return nil, fmt.Errorf("checking the instance script: %w", err)
 	}
 
 	return &scriptInstance{
@@ -72,22 +74,22 @@ func verifySocketLength(socketPath string) error {
 // shortenSocketPath reduces the length of console socket path.
 // It became common that console socket path is longer than 108/106 (on linux/macOs).
 func shortenSocketPath(socketPath, basePath string) (string, error) {
-	if err := verifySocketLength(socketPath); err == nil {
+	err := verifySocketLength(socketPath)
+	if err == nil {
 		return socketPath, nil
 	}
 
-	var (
-		err                error
-		relativeSocketPath string
-	)
-
-	if relativeSocketPath, err = filepath.Rel(basePath, socketPath); err == nil {
-		if err = verifySocketLength(relativeSocketPath); err == nil {
-			return relativeSocketPath, nil
-		}
+	relativeSocketPath, err := filepath.Rel(basePath, socketPath)
+	if err != nil {
+		return "", fmt.Errorf("shortening the socket path %q: %w", socketPath, err)
 	}
 
-	return "", err
+	err = verifySocketLength(relativeSocketPath)
+	if err != nil {
+		return "", err
+	}
+
+	return relativeSocketPath, nil
 }
 
 // Start starts the Instance with the specified parameters.
@@ -120,7 +122,7 @@ func (inst *scriptInstance) Start(ctx context.Context) error {
 
 	StdinPipe, err := cmd.StdinPipe()
 	if err != nil {
-		return err
+		return fmt.Errorf("creating the stdin pipe: %w", err)
 	}
 
 	cmd.Env = append(os.Environ(), "TT_CLI_INSTANCE="+inst.appPath)
@@ -129,7 +131,8 @@ func (inst *scriptInstance) Start(ctx context.Context) error {
 	}
 
 	if !util.IsDir(inst.appDir) {
-		if err := os.MkdirAll(inst.appDir, defaultDirPerms); err != nil {
+		err = os.MkdirAll(inst.appDir, defaultDirPerms)
+		if err != nil {
 			return fmt.Errorf("failed to create application directory %q: %w", inst.appDir, err)
 		}
 	}
@@ -177,7 +180,8 @@ func (inst *scriptInstance) Start(ctx context.Context) error {
 	inst.setTarantoolLog(cmd)
 
 	// Start an Instance.
-	if inst.processController, err = newProcessController(cmd); err != nil {
+	inst.processController, err = newProcessController(cmd)
+	if err != nil {
 		return err
 	}
 

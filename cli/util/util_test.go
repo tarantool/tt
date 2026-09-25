@@ -1,4 +1,4 @@
-package util
+package util_test
 
 import (
 	"bufio"
@@ -15,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/v3/cli/util"
 )
 
 type inputValue struct {
@@ -51,7 +52,7 @@ func TestFindNamedMatches(t *testing.T) {
 	}
 
 	for input, output := range testCases {
-		result := FindNamedMatches(input.re, input.data)
+		result := util.FindNamedMatches(input.re, input.data)
 
 		assert.Equal(output.result, result)
 	}
@@ -62,7 +63,7 @@ func TestIsDir(t *testing.T) {
 
 	workDir := t.TempDir()
 
-	require.True(t, IsDir(workDir))
+	require.True(t, util.IsDir(workDir))
 
 	tmpFile, err := os.CreateTemp(t.TempDir(), "")
 	require.NoError(t, err)
@@ -71,8 +72,8 @@ func TestIsDir(t *testing.T) {
 		_ = os.Remove(tmpFile.Name())
 	}()
 
-	assert.False(IsDir(tmpFile.Name()))
-	assert.False(IsDir("./non-existing-dir"))
+	assert.False(util.IsDir(tmpFile.Name()))
+	assert.False(util.IsDir("./non-existing-dir"))
 }
 
 func TestIsRegularFile(t *testing.T) {
@@ -85,15 +86,16 @@ func TestIsRegularFile(t *testing.T) {
 		_ = os.Remove(tmpFile.Name())
 	}()
 
-	require.True(t, IsRegularFile(tmpFile.Name()))
+	require.True(t, util.IsRegularFile(tmpFile.Name()))
 
 	workDir := t.TempDir()
-	assert.False(IsRegularFile(workDir))
-	assert.False(IsRegularFile("./non-existing-file"))
+	assert.False(util.IsRegularFile(workDir))
+	assert.False(util.IsRegularFile("./non-existing-file"))
 }
 
 func TestCreateDirectory(t *testing.T) {
-	if user, err := user.Current(); err == nil && user.Uid == "0" {
+	currentUser, err := user.Current()
+	if err == nil && currentUser.Uid == "0" {
 		t.Skip("Skipping the test, it shouldn't run as root")
 	}
 
@@ -101,18 +103,18 @@ func TestCreateDirectory(t *testing.T) {
 	require.NoError(t, os.Mkdir(filepath.Join(tempDir, "dir1"), 0o750))
 
 	// Existing dir.
-	assert.NoError(t, CreateDirectory(filepath.Join(tempDir, "dir1"), 0o750))
+	assert.NoError(t, util.CreateDirectory(filepath.Join(tempDir, "dir1"), 0o750))
 	// Non-existent dir.
-	assert.NoError(t, CreateDirectory(filepath.Join(tempDir, "dir2"), 0o750))
+	assert.NoError(t, util.CreateDirectory(filepath.Join(tempDir, "dir2"), 0o750))
 
-	f, err := os.Create(filepath.Join(tempDir, "file"))
+	file, err := os.Create(filepath.Join(tempDir, "file"))
 	require.NoError(t, err)
 
 	defer func() {
-		_ = f.Close()
+		_ = file.Close()
 	}()
 
-	assert.Error(t, CreateDirectory(f.Name(), 0o750))
+	require.Error(t, util.CreateDirectory(file.Name(), 0o750))
 
 	// Permissions denied.
 	require.NoError(t, os.Chmod(tempDir, 0o444))
@@ -121,7 +123,7 @@ func TestCreateDirectory(t *testing.T) {
 		_ = os.Chmod(tempDir, 0o777)
 	}()
 
-	assert.Error(t, CreateDirectory(filepath.Join(tempDir, "dir3"), 0o750))
+	assert.Error(t, util.CreateDirectory(filepath.Join(tempDir, "dir3"), 0o750))
 }
 
 func TestWriteYaml(t *testing.T) {
@@ -141,69 +143,69 @@ func TestWriteYaml(t *testing.T) {
 	}}
 
 	tempDir := t.TempDir()
-	require.NoError(t, WriteYaml(filepath.Join(tempDir, "library"), &lib))
+	require.NoError(t, util.WriteYaml(filepath.Join(tempDir, "library"), &lib))
 
-	f, err := os.Open(filepath.Join(tempDir, "library"))
+	file, err := os.Open(filepath.Join(tempDir, "library"))
 	require.NoError(t, err)
 
 	defer func() {
-		_ = f.Close()
+		_ = file.Close()
 	}()
 
-	scanner := bufio.NewScanner(f)
+	scanner := bufio.NewScanner(file)
 	scanner.Scan()
-	require.True(t, strings.Contains(scanner.Text(), "books:"))
+	require.Contains(t, scanner.Text(), "books:")
 	scanner.Scan()
-	require.Equal(t, scanner.Text(), "- title: title1")
+	require.Equal(t, "- title: title1", scanner.Text())
 	scanner.Scan()
-	require.Equal(t, scanner.Text(), "  author: author1")
+	require.Equal(t, "  author: author1", scanner.Text())
 	scanner.Scan()
-	require.Equal(t, scanner.Text(), "  pages: 100")
+	require.Equal(t, "  pages: 100", scanner.Text())
 	scanner.Scan()
-	require.Equal(t, scanner.Text(), "- title: title2")
+	require.Equal(t, "- title: title2", scanner.Text())
 	scanner.Scan()
-	require.Equal(t, scanner.Text(), "  author: author2")
+	require.Equal(t, "  author: author2", scanner.Text())
 	scanner.Scan()
-	require.Equal(t, scanner.Text(), "  pages: 200")
+	require.Equal(t, "  pages: 200", scanner.Text())
 }
 
 func TestAskConfirm(t *testing.T) {
 	// Confirmed.
-	confirmed, err := AskConfirm(strings.NewReader("Y\n"), "Yes?")
+	confirmed, err := util.AskConfirm(strings.NewReader("Y\n"), "Yes?")
 	require.NoError(t, err)
-	require.Equal(t, confirmed, true)
+	require.True(t, confirmed)
 
-	confirmed, err = AskConfirm(strings.NewReader("y\n"), "Yes?")
+	confirmed, err = util.AskConfirm(strings.NewReader("y\n"), "Yes?")
 	require.NoError(t, err)
-	require.Equal(t, confirmed, true)
+	require.True(t, confirmed)
 
-	confirmed, err = AskConfirm(strings.NewReader("yes\n"), "Yes?")
+	confirmed, err = util.AskConfirm(strings.NewReader("yes\n"), "Yes?")
 	require.NoError(t, err)
-	require.Equal(t, confirmed, true)
+	require.True(t, confirmed)
 
-	confirmed, err = AskConfirm(strings.NewReader("YES\n"), "Yes?")
+	confirmed, err = util.AskConfirm(strings.NewReader("YES\n"), "Yes?")
 	require.NoError(t, err)
-	require.Equal(t, confirmed, true)
+	require.True(t, confirmed)
 
 	// Negative.
-	confirmed, err = AskConfirm(strings.NewReader("N\n"), "Yes?")
+	confirmed, err = util.AskConfirm(strings.NewReader("N\n"), "Yes?")
 	require.NoError(t, err)
-	require.Equal(t, confirmed, false)
+	require.False(t, confirmed)
 
-	confirmed, err = AskConfirm(strings.NewReader("n\n"), "Yes?")
+	confirmed, err = util.AskConfirm(strings.NewReader("n\n"), "Yes?")
 	require.NoError(t, err)
-	require.Equal(t, confirmed, false)
+	require.False(t, confirmed)
 
-	confirmed, err = AskConfirm(strings.NewReader("No\n"), "Yes?")
+	confirmed, err = util.AskConfirm(strings.NewReader("No\n"), "Yes?")
 	require.NoError(t, err)
-	require.Equal(t, confirmed, false)
+	require.False(t, confirmed)
 
-	confirmed, err = AskConfirm(strings.NewReader("NO\n"), "Yes?")
+	confirmed, err = util.AskConfirm(strings.NewReader("NO\n"), "Yes?")
 	require.NoError(t, err)
-	require.Equal(t, confirmed, false)
+	require.False(t, confirmed)
 
 	// Unknown.
-	_, err = AskConfirm(strings.NewReader("Wat?\n"), "Yes?")
+	_, err = util.AskConfirm(strings.NewReader("Wat?\n"), "Yes?")
 	require.ErrorIs(t, err, io.EOF)
 }
 
@@ -215,7 +217,7 @@ func TestCreateSymlink(t *testing.T) {
 	_ = targetFile.Close()
 
 	// No overwrite.
-	require.NoError(t, CreateSymlink(targetFile.Name(), filepath.Join(tempDir, "first_link"),
+	require.NoError(t, util.CreateSymlink(targetFile.Name(), filepath.Join(tempDir, "first_link"),
 		false))
 	assert.FileExists(t, filepath.Join(tempDir, "first_link"))
 
@@ -224,7 +226,7 @@ func TestCreateSymlink(t *testing.T) {
 	assert.Equal(t, targetFile.Name(), targetPath)
 
 	// Overwrite flag is set, but symlink does not exist.
-	require.NoError(t, CreateSymlink(targetFile.Name(), filepath.Join(tempDir, "second_link"),
+	require.NoError(t, util.CreateSymlink(targetFile.Name(), filepath.Join(tempDir, "second_link"),
 		true))
 	assert.FileExists(t, filepath.Join(tempDir, "second_link"))
 
@@ -233,7 +235,7 @@ func TestCreateSymlink(t *testing.T) {
 	assert.Equal(t, targetFile.Name(), targetPath)
 
 	// Overwrite existing symlink.
-	require.NoError(t, CreateSymlink("./tgtFile.txt", filepath.Join(tempDir, "first_link"),
+	require.NoError(t, util.CreateSymlink("./tgtFile.txt", filepath.Join(tempDir, "first_link"),
 		true))
 	assert.FileExists(t, filepath.Join(tempDir, "first_link"))
 
@@ -242,7 +244,7 @@ func TestCreateSymlink(t *testing.T) {
 	assert.Equal(t, "./tgtFile.txt", targetPath)
 
 	// Don't overwrite existing.
-	require.Error(t, CreateSymlink("./some_file", filepath.Join(tempDir, "first_link"),
+	require.Error(t, util.CreateSymlink("./some_file", filepath.Join(tempDir, "first_link"),
 		false))
 	// Check existing link is not updated.
 	assert.FileExists(t, filepath.Join(tempDir, "first_link"))
@@ -347,7 +349,7 @@ func TestIsApp(t *testing.T) {
 		t.Run(testCase.testName, func(t *testing.T) {
 			path, err := testCase.createFunc()
 			require.NoError(t, err, "no error expected")
-			assert.Equal(t, testCase.isApp, IsApp(path),
+			assert.Equal(t, testCase.isApp, util.IsApp(path),
 				"Unexpected result of application check")
 		})
 	}
@@ -360,42 +362,42 @@ func TestGetYamlFileName(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "tarantool.yaml"), []byte("tt:"),
 		0o664))
 
-	fileName, err := GetYamlFileName(filepath.Join(tempDir, "tarantool.yml"), true)
-	assert.NoError(t, err)
+	fileName, err := util.GetYamlFileName(filepath.Join(tempDir, "tarantool.yml"), true)
+	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(tempDir, "tarantool.yaml"), fileName)
 
 	// Create tarantool.yml file. File selection ambiguity.
 	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "tarantool.yml"), []byte("tt:"),
 		0o664))
 
-	fileName, err = GetYamlFileName(filepath.Join(tempDir, "tarantool.yml"), true)
-	assert.Error(t, err)
-	assert.Equal(t, "", fileName)
+	fileName, err = util.GetYamlFileName(filepath.Join(tempDir, "tarantool.yml"), true)
+	require.Error(t, err)
+	assert.Empty(t, fileName)
 
 	// Remove tarantool.yaml file.
 	require.NoError(t, os.Remove(filepath.Join(tempDir, "tarantool.yaml")))
 
-	fileName, err = GetYamlFileName(filepath.Join(tempDir, "tarantool.yaml"), true)
-	assert.NoError(t, err)
+	fileName, err = util.GetYamlFileName(filepath.Join(tempDir, "tarantool.yaml"), true)
+	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(tempDir, "tarantool.yml"), fileName)
 
 	// Pass file with .txt extension as a parameter.
-	fileName, err = GetYamlFileName(filepath.Join(tempDir, "tarantool.txt"), true)
-	assert.EqualError(t, err, fmt.Sprintf("provided file '%s' has no .yaml/.yml extension",
+	fileName, err = util.GetYamlFileName(filepath.Join(tempDir, "tarantool.txt"), true)
+	require.EqualError(t, err, fmt.Sprintf("provided file '%s' has no .yaml/.yml extension",
 		filepath.Join(tempDir, "tarantool.txt")))
-	assert.Equal(t, "", fileName)
+	assert.Empty(t, fileName)
 
 	// Remove tarantool.yaml file.
 	require.NoError(t, os.Remove(filepath.Join(tempDir, "tarantool.yml")))
 
-	fileName, err = GetYamlFileName(filepath.Join(tempDir, "tarantool.yaml"), true)
-	assert.ErrorIs(t, os.ErrNotExist, err)
-	assert.Equal(t, "", fileName)
+	fileName, err = util.GetYamlFileName(filepath.Join(tempDir, "tarantool.yaml"), true)
+	require.ErrorIs(t, err, os.ErrNotExist)
+	assert.Empty(t, fileName)
 
 	// Get file name for new file.
-	fileName, err = GetYamlFileName(filepath.Join(tempDir, "tarantool.yaml"), false)
-	assert.NoError(t, err)
-	assert.Equal(t, "", fileName)
+	fileName, err = util.GetYamlFileName(filepath.Join(tempDir, "tarantool.yaml"), false)
+	require.NoError(t, err)
+	assert.Empty(t, fileName)
 }
 
 func TestInstantiateFileFromTemplate(t *testing.T) {
@@ -433,7 +435,7 @@ func TestInstantiateFileFromTemplate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.wantErr(t, InstantiateFileFromTemplate(tt.args.unitPath,
+			tt.wantErr(t, util.InstantiateFileFromTemplate(tt.args.unitPath,
 				tt.args.unitTemplate, tt.args.ctx),
 				fmt.Sprintf("InstantiateFileFromTemplate(%v, %v, %v)",
 					tt.args.unitPath, tt.args.unitTemplate, tt.args.ctx))
@@ -449,13 +451,13 @@ func TestRelativeToCurrentWorkingDir(t *testing.T) {
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
 
-	relDir := RelativeToCurrentWorkingDir(filepath.Join(cwd, "dir1", "subdir"))
+	relDir := util.RelativeToCurrentWorkingDir(filepath.Join(cwd, "dir1", "subdir"))
 	assert.Equal(t, filepath.Join("dir1", "subdir"), relDir)
 
-	relDir = RelativeToCurrentWorkingDir(filepath.Join(cwd, "..", "dir1"))
+	relDir = util.RelativeToCurrentWorkingDir(filepath.Join(cwd, "..", "dir1"))
 	assert.Equal(t, filepath.Join("..", "dir1"), relDir)
 
-	relDir = RelativeToCurrentWorkingDir("dir1/subdir")
+	relDir = util.RelativeToCurrentWorkingDir("dir1/subdir")
 	assert.Equal(t, filepath.Join("dir1", "subdir"), relDir)
 }
 
@@ -504,12 +506,12 @@ func TestParseYaml(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseYAML(tt.args.yamlFilePath)
+			got, err := util.ParseYAML(tt.args.yamlFilePath)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
-				assert.EqualValues(t, tt.want, got)
+				require.NoError(t, err)
+				assert.Equal(t, tt.want, got)
 			}
 		})
 	}
@@ -562,14 +564,14 @@ func TestJoinAbspath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := JoinAbspath(tt.args.paths...)
+			got, err := util.JoinAbspath(tt.args.paths...)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -631,7 +633,7 @@ func TestJoinPaths(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := JoinPaths(tt.args.paths...)
+			got := util.JoinPaths(tt.args.paths...)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -715,7 +717,7 @@ func TestCopyFileDeep(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := CopyFileDeep(tt.args.src, tt.args.dst)
+			err := util.CopyFileDeep(tt.args.src, tt.args.dst)
 			if tt.wantErr {
 				assert.Error(t, err)
 
@@ -805,11 +807,11 @@ func TestStringToTimestamp(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := StringToTimestamp(tt.input)
+			got, err := util.StringToTimestamp(tt.input)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.output, got)
 			}
 		})
@@ -837,7 +839,7 @@ func TestIsURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := IsURL(tt.input)
+			result := util.IsURL(tt.input)
 			if result != tt.expected {
 				t.Errorf("IsURL(%q) = %v; want %v", tt.input, result, tt.expected)
 			}
@@ -862,7 +864,7 @@ func TestRemoveScheme(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := RemoveScheme(tt.input)
+			got, err := util.RemoveScheme(tt.input)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("removeScheme() error = %v, wantErr %v", err, tt.wantErr)
 

@@ -54,17 +54,17 @@ func TestSplitInstancePath(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			g, r, i := splitInstancePath(tc.path)
-			if tc.wantEmpty {
-				assert.Empty(t, g)
-				assert.Empty(t, r)
-				assert.Empty(t, i)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			group, replicaset, instance := splitInstancePath(testCase.path)
+			if testCase.wantEmpty {
+				assert.Empty(t, group)
+				assert.Empty(t, replicaset)
+				assert.Empty(t, instance)
 			} else {
-				assert.Equal(t, tc.wantG, g)
-				assert.Equal(t, tc.wantR, r)
-				assert.Equal(t, tc.wantI, i)
+				assert.Equal(t, testCase.wantG, group)
+				assert.Equal(t, testCase.wantR, replicaset)
+				assert.Equal(t, testCase.wantI, instance)
 			}
 		})
 	}

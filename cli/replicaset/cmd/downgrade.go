@@ -87,14 +87,15 @@ func downgradeMaster(master *instanceMeta, version string) (syncInfo, error) {
 	fullMasterName := running.GetAppInstanceName(master.run)
 
 	res, err := master.conn.Eval(filterComments(downgradeMasterLua),
-		[]any{version}, connector.RequestOpts{})
+		[]any{version}, connector.RequestOpts{PushCallback: nil, ReadTimeout: 0, ResData: nil})
 	if err != nil {
 		return downgradeInfo, fmt.Errorf(
 			"failed to execute downgrade script on master instance - %s: %w",
 			fullMasterName, err)
 	}
 
-	if err := mapstructure.Decode(res[0], &downgradeInfo); err != nil {
+	err = mapstructure.Decode(res[0], &downgradeInfo)
+	if err != nil {
 		return downgradeInfo, fmt.Errorf(
 			"failed to decode response from master instance - %s: %w",
 			fullMasterName, err)

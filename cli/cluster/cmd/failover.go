@@ -124,7 +124,7 @@ func Switch(url string, switchCtx SwitchCtx) error {
 
 	yamlCmd, err := yaml.Marshal(&cmd)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to encode the switch command: %w", err)
 	}
 
 	uuid := uuid.New().String()
@@ -154,6 +154,7 @@ func Switch(url string, switchCtx SwitchCtx) error {
 
 func waitForSwitch(conn *sdkcluster.RawStorage, key string, yamlCmd []byte, timeout uint64) error {
 	ctxWatch, cancelWatch := context.WithTimeout(context.Background(),
+		//nolint:gosec // The timeout is a user-given number of seconds, far below int64.
 		time.Duration(timeout)*time.Second+cmdAdditionalWait)
 	defer cancelWatch()
 
@@ -172,15 +173,15 @@ func waitForSwitch(conn *sdkcluster.RawStorage, key string, yamlCmd []byte, time
 		return err
 	}
 
-	for ev := range watchChan {
+	for event := range watchChan {
 		var result switchCmdResult
 
-		err = yaml.Unmarshal(ev.Value, &result)
+		err = yaml.Unmarshal(event.Value, &result)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to decode the switch status: %w", err)
 		}
 
-		_, _ = fmt.Fprintf(os.Stdout, "%s", ev.Value)
+		_, _ = fmt.Fprintf(os.Stdout, "%s", event.Value)
 
 		if result.Status == "success" || result.Status == "failed" {
 			return nil

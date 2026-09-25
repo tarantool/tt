@@ -1,4 +1,4 @@
-package process_utils
+package process_utils_test
 
 import (
 	"os"
@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/v3/cli/process_utils"
 )
 
 func Test_ExistsAndRecord(t *testing.T) {
@@ -20,10 +21,10 @@ func Test_ExistsAndRecord(t *testing.T) {
 	err := cmd.Start()
 	require.NoError(t, err)
 
-	err = CreatePIDFile(testFile, cmd.Process.Pid)
+	err = process_utils.CreatePIDFile(testFile, cmd.Process.Pid)
 	require.NoError(t, err)
 
-	status, err := ExistsAndRecord(testFile)
+	status, err := process_utils.ExistsAndRecord(testFile)
 	require.NoError(t, err)
 	require.True(t, status)
 
@@ -31,7 +32,7 @@ func Test_ExistsAndRecord(t *testing.T) {
 	require.NoError(t, err)
 	require.Error(t, cmd.Wait())
 
-	statusInvalid, err := ExistsAndRecord(invalid)
+	statusInvalid, err := process_utils.ExistsAndRecord(invalid)
 	require.False(t, statusInvalid)
 	require.NoError(t, err)
 }

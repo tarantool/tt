@@ -31,8 +31,9 @@ func newClusterInstance(tarantoolCli cmdcontext.TarantoolCli, instanceCtx Instan
 	opts ...InstanceOption,
 ) (*clusterInstance, error) {
 	// Check if tarantool binary exists.
-	if _, err := exec.LookPath(tarantoolCli.Executable); err != nil {
-		return nil, err
+	_, err := exec.LookPath(tarantoolCli.Executable)
+	if err != nil {
+		return nil, fmt.Errorf("looking for the tarantool executable: %w", err)
 	}
 
 	return &clusterInstance{
@@ -95,7 +96,8 @@ func (inst *clusterInstance) Start(ctx context.Context) error {
 
 	var err error
 
-	if inst.processController, err = newProcessController(cmd); err != nil {
+	inst.processController, err = newProcessController(cmd)
+	if err != nil {
 		return err
 	}
 

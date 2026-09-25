@@ -43,7 +43,7 @@ linters:
       # Scope linting to the directories adopted into the strict ruleset. An
       # issue is excluded when its path is NOT one of them. A directory joins
       # once it lints clean, and the rule goes away when all of them have.
-      - path-except: (^|/)cli/(binary|docker|download|install|install_ee|manifest|rocks|search|templates|uninstall|version)/
+      - path-except: (^|/)cli/(binary|cluster|config|console|docker|download|env|formatter|install|install_ee|logging|manifest|process_utils|replicaset|rocks|running|search|status|templates|ttlog|uninstall|util|version)/
         text: ".*"
       # Manifest fixtures deliberately construct partial model values; keep the
       # stricter exhaustruct variant enabled everywhere else.
@@ -75,11 +75,12 @@ linters:
           - gosec
         text: "^G(204|304):"
       # Tests create their fixtures under t.TempDir() with whatever mode the
-      # scenario needs.
+      # scenario needs, at paths from t.TempDir(), testdata and variables the
+      # test sets itself: there is no untrusted input to taint (G703).
       - path: _test.go
         linters:
           - gosec
-        text: "^G(301|302|306):"
+        text: "^G(301|302|306|703):"
       - path: _test.go
         linters:
           - wrapcheck

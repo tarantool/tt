@@ -2,7 +2,6 @@ package running
 
 import (
 	"bytes"
-	"errors"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -31,7 +30,7 @@ func TestProcessController(t *testing.T) {
 	assert.Equal(t, "hello\n", out.String())
 
 	err = dpc.Stop(5 * time.Second)
-	assert.NoError(t, err) // Already stopped.
+	require.NoError(t, err) // Already stopped.
 
 	tmpDir := t.TempDir()
 	require.NoError(t, copy.Copy("./testdata/signal_handling.py",
@@ -58,7 +57,7 @@ func TestProcessController(t *testing.T) {
 
 	var exitError *exec.ExitError
 
-	require.True(t, errors.As(err, &exitError))
+	require.ErrorAs(t, err, &exitError)
 	assert.Equal(t, 10, exitError.ExitCode())
 	require.NoError(t, waitForMsgInBuffer(&outBuf, "interrupted", 5*time.Second))
 	assert.False(t, dpc.IsAlive())

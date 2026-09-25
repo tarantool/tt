@@ -51,16 +51,19 @@ var (
 		Code:        ProcessRunningCode,
 		colorSprint: color.New(color.FgGreen).SprintFunc(),
 		Status:      "RUNNING",
+		PID:         0,
 	}
 	ProcStateStopped = ProcessState{
 		Code:        ProcessStoppedCode,
 		colorSprint: color.New(color.FgYellow).SprintFunc(),
 		Status:      "NOT RUNNING",
+		PID:         0,
 	}
 	ProcStateDead = ProcessState{
 		Code:        ProcessDeadCode,
 		colorSprint: color.New(color.FgRed).SprintFunc(),
 		Status:      "ERROR. The process is dead",
+		PID:         0,
 	}
 )
 
@@ -80,7 +83,8 @@ func (procState ProcessState) String() string {
 
 // GetPIDFromFile returns PID from the PIDFile.
 func GetPIDFromFile(pidFileName string) (int, error) {
-	if _, err := os.Stat(pidFileName); err != nil {
+	_, err := os.Stat(pidFileName)
+	if err != nil {
 		return 0, fmt.Errorf(`can't "stat" the PID file. Error: %w`, err)
 	}
 
@@ -111,7 +115,8 @@ func GetPIDFromFile(pidFileName string) (int, error) {
 // and is readable. Or process is already exist.
 // Removes PID file if process is dead.
 func CheckPIDFile(pidFileName string) error {
-	if _, err := os.Stat(pidFileName); err == nil {
+	_, err := os.Stat(pidFileName)
+	if err == nil {
 		// The PID file already exists. We have to check if the process is alive.
 		pid, err := GetPIDFromFile(pidFileName)
 		if err != nil {
@@ -135,7 +140,8 @@ func CheckPIDFile(pidFileName string) error {
 // If it does, returns true, otherwise returns false.
 // If something went wrong while trying to read the PID file, returns an error.
 func ExistsAndRecord(pidFileName string) (bool, error) {
-	if _, err := os.Stat(pidFileName); err == nil {
+	_, err := os.Stat(pidFileName)
+	if err == nil {
 		// The PID file already exists. We have to check if the process is alive.
 		pid, err := GetPIDFromFile(pidFileName)
 		if err != nil {
@@ -156,12 +162,15 @@ func ExistsAndRecord(pidFileName string) (bool, error) {
 // CreatePIDFile checks that the instance PID file is absent or
 // deprecated and creates a new one. Returns an error on failure.
 func CreatePIDFile(pidFileName string, pid int) error {
-	if err := CheckPIDFile(pidFileName); err != nil {
+	err := CheckPIDFile(pidFileName)
+	if err != nil {
 		return err
 	}
 
 	pidAbsDir := filepath.Dir(pidFileName)
-	if _, err := os.Stat(pidAbsDir); err != nil {
+
+	_, err = os.Stat(pidAbsDir)
+	if err != nil {
 		if os.IsNotExist(err) {
 			err = os.MkdirAll(pidAbsDir, defaultDirPerms)
 			if err != nil {
@@ -187,8 +196,9 @@ func CreatePIDFile(pidFileName string, pid int) error {
 		_ = pidFile.Close()
 	}()
 
-	if _, err = pidFile.WriteString(strconv.Itoa(pid)); err != nil {
-		return err
+	_, err = pidFile.WriteString(strconv.Itoa(pid))
+	if err != nil {
+		return fmt.Errorf(`can't write the PID file. Error: "%w"`, err)
 	}
 
 	return nil
@@ -201,9 +211,12 @@ func getRunningPid(pidFile string) (int, error) {
 		return 0, err
 	}
 
-	if alive, err := IsProcessAlive(pid); err != nil {
+	alive, err := IsProcessAlive(pid)
+	if err != nil {
 		return 0, fmt.Errorf("failed to check if the process %v is running: %w", pid, err)
-	} else if !alive {
+	}
+
+	if !alive {
 		return 0, fmt.Errorf("%w%v is not running", errTheProcessIsNotRunning, pid)
 	}
 
@@ -217,7 +230,8 @@ func StopProcess(pidFile string) (int, error) {
 		return 0, fmt.Errorf("can't get pid of running process: %w", err)
 	}
 
-	if err = syscall.Kill(pid, syscall.SIGINT); err != nil {
+	err = syscall.Kill(pid, syscall.SIGINT)
+	if err != nil {
 		return 0, fmt.Errorf(`can't terminate the process. Error: "%w"`, err)
 	}
 
@@ -235,7 +249,8 @@ func QuitProcess(pidFile string) (int, error) {
 		return 0, fmt.Errorf("can't get pid of running process: %w", err)
 	}
 
-	if err = syscall.Kill(pid, syscall.SIGQUIT); err != nil {
+	err = syscall.Kill(pid, syscall.SIGQUIT)
+	if err != nil {
 		return 0, fmt.Errorf("can't terminate the process with SIGQUIT: %w", err)
 	}
 
@@ -258,7 +273,8 @@ func KillProcessGroup(pidFile string) (int, error) {
 		return 0, fmt.Errorf("can't get a process group of the %d process: %w", pid, err)
 	}
 
-	if err = syscall.Kill(-pgid, syscall.SIGKILL); err != nil {
+	err = syscall.Kill(-pgid, syscall.SIGKILL)
+	if err != nil {
 		return 0, fmt.Errorf("can't kill the process: %w", err)
 	}
 
@@ -292,8 +308,9 @@ func IsProcessAlive(pid int) (bool, error) {
 	// checks are still performed; this can be used to check for the existence
 	// of  a  process  ID  or process group ID that the caller is permitted to
 	// signal.
-	if err := syscall.Kill(pid, syscall.Signal(0)); err != nil {
-		return false, err
+	err := syscall.Kill(pid, syscall.Signal(0))
+	if err != nil {
+		return false, fmt.Errorf("probing with signal 0: %w", err)
 	}
 
 	return true, nil

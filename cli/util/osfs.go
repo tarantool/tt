@@ -17,9 +17,9 @@ func GetOsFS() fs.FS {
 }
 
 func (fs osFS) Open(name string) (fs.File, error) {
-	return os.Open(name)
+	return os.Open(name) //nolint:wrapcheck // fs.FS returns the *fs.PathError as is.
 }
 
 func (fs osFS) ReadFile(name string) ([]byte, error) {
-	return os.ReadFile(name)
+	return os.ReadFile(name) //nolint:wrapcheck // fs.ReadFileFS returns the *fs.PathError as is.
 }

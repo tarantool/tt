@@ -20,29 +20,31 @@ var (
 // fillOnlyMerge copies leaf values from src into dst only when the key is not
 // already present in dst (fill-only semantics: never overwrite existing keys).
 func fillOnlyMerge(ctx context.Context, dst *goconfig.MutableConfig, src goconfig.Config) error {
-	ch, err := src.Walk(ctx, nil, -1)
+	entries, err := src.Walk(ctx, nil, -1)
 	if err != nil {
 		if errors.Is(err, goconfig.ErrPathNotFound) {
 			return nil
 		}
 
-		return err
+		return fmt.Errorf("fillOnlyMerge walk: %w", err)
 	}
 
-	for v := range ch {
-		p := v.Meta().Key
-		if _, ok := dst.Lookup(p); ok {
+	for entry := range entries {
+		key := entry.Meta().Key
+		if _, ok := dst.Lookup(key); ok {
 			continue
 		}
 
 		var value any
 
-		if err := v.Get(&value); err != nil {
-			return fmt.Errorf("fillOnlyMerge get %s: %w", p, err)
+		err = entry.Get(&value)
+		if err != nil {
+			return fmt.Errorf("fillOnlyMerge get %s: %w", key, err)
 		}
 
-		if err := dst.Set(p, value); err != nil {
-			return fmt.Errorf("fillOnlyMerge set %s: %w", p, err)
+		err = dst.Set(key, value)
+		if err != nil {
+			return fmt.Errorf("fillOnlyMerge set %s: %w", key, err)
 		}
 	}
 
@@ -92,7 +94,8 @@ func GetClusterConfig(
 
 	// Fill-only merge storage layer (file > storage per Tarantool docs).
 	if _, ok := storageCfg.Lookup(nil); ok {
-		if err := fillOnlyMerge(ctx, mut, storageCfg); err != nil {
+		err = fillOnlyMerge(ctx, mut, storageCfg)
+		if err != nil {
 			return nil, fmt.Errorf("unable to merge storage config: %w", err)
 		}
 	}
@@ -107,7 +110,8 @@ func GetClusterConfig(
 		return nil, fmt.Errorf("unable to load config from %q with default env: %w", path, err)
 	}
 
-	if err := fillOnlyMerge(ctx, mut, def.Snapshot()); err != nil {
+	err = fillOnlyMerge(ctx, mut, def.Snapshot())
+	if err != nil {
 		return nil, fmt.Errorf("unable to merge default env config: %w", err)
 	}
 
@@ -148,11 +152,16 @@ func (s bytesSource) FetchStream(_ context.Context) (io.ReadCloser, error) {
 func NewBytesSource(name string, data []byte) (goconfig.Collector, error) {
 	ctx := context.Background()
 
-	return collectors.NewSource(
+	src, err := collectors.NewSource(
 		ctx,
 		bytesSource{name: name, data: data},
 		collectors.NewYamlFormat(),
 	)
+	if err != nil {
+		return nil, fmt.Errorf("create source %q: %w", name, err)
+	}
+
+	return src, nil
 }
 
 // clusterLevels returns the standard Tarantool hierarchy level names used for
@@ -186,13 +195,13 @@ func newClusterBuilder() goconfig.Builder {
 // (Global → groups → replicasets → instances). No validation is performed.
 //
 // A nil or empty slice produces an empty but fully-configured Config.
-func BuildGoConfigFromBytes(ctx context.Context, b []byte) (goconfig.Config, error) {
+func BuildGoConfigFromBytes(ctx context.Context, data []byte) (goconfig.Config, error) {
 	builder := newClusterBuilder()
 
-	if len(bytes.TrimSpace(b)) > 0 {
+	if len(bytes.TrimSpace(data)) > 0 {
 		src, err := collectors.NewSource(
 			ctx,
-			bytesSource{name: "cluster-yaml", data: b},
+			bytesSource{name: "cluster-yaml", data: data},
 			collectors.NewYamlFormat(),
 		)
 		if err != nil {
@@ -216,13 +225,13 @@ func BuildGoConfigFromBytes(ctx context.Context, b []byte) (goconfig.Config, err
 // validation is performed (WithoutValidation), so Set calls never roll back.
 //
 // A nil or empty slice produces an empty but fully-configured MutableConfig.
-func BuildMutableFromBytes(ctx context.Context, b []byte) (*goconfig.MutableConfig, error) {
+func BuildMutableFromBytes(ctx context.Context, data []byte) (*goconfig.MutableConfig, error) {
 	builder := newClusterBuilder()
 
-	if len(bytes.TrimSpace(b)) > 0 {
+	if len(bytes.TrimSpace(data)) > 0 {
 		src, err := collectors.NewSource(
 			ctx,
-			bytesSource{name: "cluster-yaml-mutable", data: b},
+			bytesSource{name: "cluster-yaml-mutable", data: data},
 			collectors.NewYamlFormat(),
 		)
 		if err != nil {

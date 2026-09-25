@@ -47,7 +47,8 @@ func printRawClusterConfig(yamlBytes []byte,
 			validateErr = validateGoConfig(view, false)
 		}
 
-		if printErr := printGoConfig(view); printErr != nil {
+		printErr := printGoConfig(view)
+		if printErr != nil {
 			return printErr
 		}
 
@@ -74,7 +75,8 @@ func printInstanceConfig(goView goconfig.Config,
 		validateErr = validateInstanceConfig(goView, instance)
 	}
 
-	if printErr := printGoConfig(instView); printErr != nil {
+	printErr := printGoConfig(instView)
+	if printErr != nil {
 		return printErr
 	}
 
@@ -114,7 +116,8 @@ func validateRawClusterConfig(yamlBytes []byte) error {
 func validateGoConfig(view goconfig.Config, _ bool) error {
 	var errs []error
 
-	if err := cluster.Validate(view); err != nil {
+	err := cluster.Validate(view)
+	if err != nil {
 		errs = append(errs, fmt.Errorf("an invalid cluster configuration: %w", err))
 	}
 
@@ -129,7 +132,8 @@ func validateGoConfig(view goconfig.Config, _ bool) error {
 			return err
 		}
 
-		if err := validateInstanceConfig(instView, name); err != nil {
+		err = validateInstanceConfig(instView, name)
+		if err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -141,7 +145,8 @@ func validateGoConfig(view goconfig.Config, _ bool) error {
 // instCfg is the already-resolved (effective) goconfig.Config for that instance.
 // name is used only in the error message.
 func validateInstanceConfig(instCfg goconfig.Config, name string) error {
-	if err := cluster.Validate(instCfg); err != nil {
+	err := cluster.Validate(instCfg)
+	if err != nil {
 		return fmt.Errorf("an invalid instance %q configuration: %w", name, err)
 	}
 

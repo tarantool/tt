@@ -46,14 +46,14 @@ func (b *termBuffer) Write(data []byte) (int, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	n, err := b.buf.Write(data)
+	written, err := b.buf.Write(data)
 
 	select {
 	case b.writes <- struct{}{}:
 	default:
 	}
 
-	return n, err //nolint:wrapcheck // bytes.Buffer never fails.
+	return written, err
 }
 
 func (b *termBuffer) String() string {
@@ -324,10 +324,10 @@ func TestSpinner_Concurrent(t *testing.T) {
 		records = 50
 	)
 
-	var wg sync.WaitGroup
+	var group sync.WaitGroup
 
 	for worker := range loggers {
-		wg.Go(func() {
+		group.Go(func() {
 			for index := range records {
 				logger.Info(fmt.Sprintf("record %d-%d", worker, index))
 			}
@@ -335,7 +335,7 @@ func TestSpinner_Concurrent(t *testing.T) {
 	}
 
 	for range 4 {
-		wg.Go(func() {
+		group.Go(func() {
 			for range 10 {
 				stop := sdklog.SpinnerOf(logger, "working")
 
@@ -345,7 +345,7 @@ func TestSpinner_Concurrent(t *testing.T) {
 		})
 	}
 
-	wg.Wait()
+	group.Wait()
 
 	written := out.String()
 

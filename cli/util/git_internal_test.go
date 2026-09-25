@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_IsValidCommitHash(t *testing.T) {
@@ -41,10 +42,7 @@ func Test_IsValidCommitHash(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := IsValidCommitHash(tt.hash)
-			if err != nil {
-				assert.Error(t, err)
-			}
-
+			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 		})
 	}

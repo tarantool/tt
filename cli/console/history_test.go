@@ -86,15 +86,15 @@ func TestHistory_AppendCommand(t *testing.T) {
 	for i, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			name := filepath.Join(tmp, fmt.Sprintf("history_%d.info", i))
-			h, err := console.NewHistory(name, tt.max)
+			history, err := console.NewHistory(name, tt.max)
 			require.NoError(t, err)
 
 			for _, c := range tt.commands {
-				h.AppendCommand(c)
+				history.AppendCommand(c)
 			}
 
 			from := max(len(tt.commands)-tt.max, 0)
-			reflect.DeepEqual(tt.commands[from:], h.Commands())
+			require.Equal(t, tt.commands[from:], history.Commands())
 		})
 	}
 
@@ -102,11 +102,11 @@ func TestHistory_AppendCommand(t *testing.T) {
 	for i, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			name := filepath.Join(tmp, fmt.Sprintf("history%d.info", i))
-			h, err := console.NewHistory(name, tt.max)
+			history, err := console.NewHistory(name, tt.max)
 			require.NoError(t, err)
 
 			from := max(len(tt.commands)-tt.max, 0)
-			reflect.DeepEqual(tt.commands[from:], h.Commands())
+			reflect.DeepEqual(tt.commands[from:], history.Commands())
 		})
 	}
 

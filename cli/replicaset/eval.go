@@ -103,8 +103,11 @@ func evalForeach(instances []running.InstanceCtx,
 
 	for _, instance := range instances {
 		conn, err := connector.Connect(connector.ConnectOpts{
-			Network: "unix",
-			Address: instance.ConsoleSocket,
+			Network:  "unix",
+			Address:  instance.ConsoleSocket,
+			Username: "",
+			Password: "",
+			Ssl:      connector.SslOpts{KeyFile: "", CertFile: "", CaFile: "", Ciphers: ""},
 		})
 		if err != nil {
 			if !skipConnectError {

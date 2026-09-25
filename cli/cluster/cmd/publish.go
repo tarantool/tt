@@ -53,7 +53,9 @@ type PublishCtx struct {
 // PublishURI publishes a configuration to URI.
 func PublishURI(publishCtx PublishCtx, opts connect.URIOpts) error {
 	instance := opts.Params["name"]
-	if err := publishCtxValidateConfig(publishCtx, instance); err != nil {
+
+	err := publishCtxValidateConfig(publishCtx, instance)
+	if err != nil {
 		return err
 	}
 
@@ -94,7 +96,8 @@ func PublishURI(publishCtx PublishCtx, opts connect.URIOpts) error {
 
 // PublishCluster publishes a configuration to the configuration path.
 func PublishCluster(publishCtx PublishCtx, path, instance string) error {
-	if err := publishCtxValidateConfig(publishCtx, instance); err != nil {
+	err := publishCtxValidateConfig(publishCtx, instance)
+	if err != nil {
 		return err
 	}
 
@@ -183,7 +186,9 @@ func setInstanceConfig(group, replicaset, instance string, instanceMap map[strin
 
 	keyPath := goconfig.NewKeyPath(
 		fmt.Sprintf("groups/%s/replicasets/%s/instances/%s", group, replicaset, instance))
-	if err := mut.Set(keyPath, instanceMap); err != nil {
+
+	err := mut.Set(keyPath, instanceMap)
+	if err != nil {
 		return fmt.Errorf("failed to set instance %q configuration: %w", instance, err)
 	}
 

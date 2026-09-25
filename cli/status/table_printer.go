@@ -47,15 +47,15 @@ func WithDetails(withDetails bool) TablePrinterOption {
 
 // NewTablePrinter creates a new TablePrinter with the given options.
 func NewTablePrinter(opts ...TablePrinterOption) *TablePrinter {
-	tp := &TablePrinter{
+	printer := &TablePrinter{
 		pretty:  false,
 		details: false,
 	}
 	for _, opt := range opts {
-		opt(tp)
+		opt(printer)
 	}
 
-	return tp
+	return printer
 }
 
 // formatAlert formats an alert message based on its severity.
@@ -83,9 +83,9 @@ func hasAlerts(instances map[string]*instanceStatus) bool {
 
 // Print outputs the instance status map in table format.
 func (t TablePrinter) Print(instances map[string]*instanceStatus) error {
-	ts := table.NewWriter()
-	ts.SetOutputMirror(os.Stdout)
-	ts.AppendHeader(
+	writer := table.NewWriter()
+	writer.SetOutputMirror(os.Stdout)
+	writer.AppendHeader(
 		table.Row{"INSTANCE", "STATUS", "PID", "MODE", "CONFIG", "BOX", "UPSTREAM"})
 
 	for instName, instData := range instances {
@@ -95,7 +95,7 @@ func (t TablePrinter) Print(instances map[string]*instanceStatus) error {
 		row = append(row, instData.procStatus.FormattedStatus())
 
 		if instData.PID == nil {
-			ts.AppendRow(row)
+			writer.AppendRow(row)
 
 			continue
 		}
@@ -105,10 +105,10 @@ func (t TablePrinter) Print(instances map[string]*instanceStatus) error {
 		row = append(row, instData.Config)
 		row = append(row, instData.Box)
 		row = append(row, instData.Upstream)
-		ts.AppendRow(row)
+		writer.AppendRow(row)
 	}
 
-	ts.SortBy([]table.SortBy{{Name: "INSTANCE", Mode: table.Asc}})
+	writer.SortBy([]table.SortBy{{Name: "INSTANCE", Mode: table.Asc}})
 
 	if t.details {
 		for instanceName, instStatus := range instances {
@@ -117,20 +117,20 @@ func (t TablePrinter) Print(instances map[string]*instanceStatus) error {
 	}
 
 	if t.pretty {
-		ts.SetStyle(table.StyleRounded)
+		writer.SetStyle(table.StyleRounded)
 	} else {
-		ts.Style().Options.DrawBorder = false
-		ts.Style().Options.SeparateColumns = false
-		ts.Style().Options.SeparateHeader = false
+		writer.Style().Options.DrawBorder = false
+		writer.Style().Options.SeparateColumns = false
+		writer.Style().Options.SeparateHeader = false
 	}
 
-	ts.SetColumnConfigs([]table.ColumnConfig{
+	writer.SetColumnConfigs([]table.ColumnConfig{
 		{Number: 1, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
 		{Number: statusColumn, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
 		{Number: pidColumn, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
 		{Number: modeColumn, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
 	})
-	ts.Render()
+	writer.Render()
 
 	if !t.details && hasAlerts(instances) {
 		msg := "\nThe status of some instances requires attention.\n" +

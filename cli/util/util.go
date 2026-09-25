@@ -89,7 +89,7 @@ func FileLinesScanner(reader io.Reader) *bufio.Scanner {
 func GetFileContentBytes(path string) ([]byte, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot open the file: %w", err)
 	}
 
 	defer func() {
@@ -98,7 +98,7 @@ func GetFileContentBytes(path string) ([]byte, error) {
 
 	fileContent, err := io.ReadAll(file)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot read %q: %w", path, err)
 	}
 
 	return fileContent, nil
@@ -135,7 +135,8 @@ func JoinAbspath(paths ...string) (string, error) {
 
 	path := JoinPaths(paths...)
 
-	if path, err = filepath.Abs(path); err != nil {
+	path, err = filepath.Abs(path)
+	if err != nil {
 		return "", fmt.Errorf("failed to get absolute path: %w", err)
 	}
 
@@ -172,7 +173,8 @@ func ParseYAML(path string) (map[string]any, error) {
 
 	var raw map[string]any
 
-	if err := yaml.Unmarshal(fileContent, &raw); err != nil {
+	err = yaml.Unmarshal(fileContent, &raw)
+	if err != nil {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
@@ -183,14 +185,15 @@ func ParseYAML(path string) (map[string]any, error) {
 func GetHomeDir() (string, error) {
 	usr, err := user.Current()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("cannot get the current user: %w", err)
 	}
 
 	return usr.HomeDir, nil
 }
 
 func readFromPos(readSeeker io.ReadSeeker, pos int64, buf *[]byte) (int, error) {
-	if _, err := readSeeker.Seek(pos, io.SeekStart); err != nil {
+	_, err := readSeeker.Seek(pos, io.SeekStart)
+	if err != nil {
 		return 0, fmt.Errorf("failed to seek: %w", err)
 	}
 
@@ -212,22 +215,21 @@ func GetLastNLinesBegin(filepath string, lines int) (int64, error) {
 		lines = -lines
 	}
 
-	f, err := os.Open(filepath)
+	file, err := os.Open(filepath)
 	if err != nil {
 		return 0, fmt.Errorf("failed to open file: %w", err)
 	}
 
 	defer func() {
-		_ = f.Close()
+		_ = file.Close()
 	}()
 
-	var fileSize int64
-
-	if fileInfo, err := os.Stat(filepath); err != nil {
+	fileInfo, err := os.Stat(filepath)
+	if err != nil {
 		return 0, fmt.Errorf("failed to get fileinfo: %w", err)
-	} else {
-		fileSize = fileInfo.Size()
 	}
+
+	fileSize := fileInfo.Size()
 
 	if fileSize == 0 {
 		return 0, nil
@@ -243,7 +245,8 @@ func GetLastNLinesBegin(filepath string, lines int) (int64, error) {
 
 	// Check last symbol of the last line.
 
-	if _, err := readFromPos(f, fileSize-1, &buf); err != nil {
+	_, err = readFromPos(file, fileSize-1, &buf)
+	if err != nil {
 		return 0, err
 	}
 
@@ -260,20 +263,18 @@ Loop:
 			lastPart = true
 		}
 
-		n, err := readFromPos(f, filePos, &buf)
+		n, err := readFromPos(file, filePos, &buf)
 		if err != nil {
 			return 0, err
 		}
 
-		for i := n - 1; i >= 0; i-- {
-			b := buf[i]
-
-			if b == '\n' {
+		for pos := n - 1; pos >= 0; pos-- {
+			if buf[pos] == '\n' {
 				newLinesN++
 			}
 
 			if newLinesN == lines+1 {
-				lastNewLinePos = filePos + int64(i+1)
+				lastNewLinePos = filePos + int64(pos+1)
 				break Loop
 			}
 		}
@@ -300,7 +301,8 @@ func GetLastNLines(filepath string, linesN int) ([]string, error) {
 		return nil, fmt.Errorf("failed to open file: %w", err)
 	}
 
-	if _, err := file.Seek(lastNLinesBeginPos, io.SeekStart); err != nil {
+	_, err = file.Seek(lastNLinesBeginPos, io.SeekStart)
+	if err != nil {
 		return nil, fmt.Errorf("failed to seek in file: %w", err)
 	}
 
@@ -326,7 +328,7 @@ func AskConfirm(ioReader io.Reader, question string) (bool, error) {
 		resp = strings.ToLower(strings.TrimSpace(resp))
 
 		if err != nil {
-			return false, err
+			return false, fmt.Errorf("cannot read the answer: %w", err)
 		}
 
 		if resp == "y" || resp == "yes" {
@@ -343,7 +345,7 @@ func AskConfirm(ioReader io.Reader, question string) (bool, error) {
 func GetArch() (string, error) {
 	out, err := exec.CommandContext(context.Background(), "uname", "-m").Output()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("cannot run uname -m: %w", err)
 	}
 
 	return strings.TrimSpace(string(out)), nil
@@ -353,7 +355,7 @@ func GetArch() (string, error) {
 func GetOs() (OsType, error) {
 	out, err := exec.CommandContext(context.Background(), "uname", "-s").Output()
 	if err != nil {
-		return OsUnknown, err
+		return OsUnknown, fmt.Errorf("cannot run uname -s: %w", err)
 	}
 
 	osStr := strings.TrimSpace(string(out))
@@ -371,7 +373,8 @@ func GetOs() (OsType, error) {
 func AtoiUint64(str string) (uint64, error) {
 	res, err := strconv.ParseUint(str, 10, 64)
 	if err != nil {
-		return 0, err
+		// The *strconv.NumError names the input, and callers match its text exactly.
+		return 0, err //nolint:wrapcheck // A thin alias of strconv.ParseUint.
 	}
 
 	return res, nil
@@ -380,8 +383,8 @@ func AtoiUint64(str string) (uint64, error) {
 // FindNamedMatches processes regexp with named capture groups
 // and transforms output to a map. If capture group is optional
 // and was not found, map value is empty string.
-func FindNamedMatches(re *regexp.Regexp, str string) map[string]string {
-	match := re.FindStringSubmatch(str)
+func FindNamedMatches(pattern *regexp.Regexp, str string) map[string]string {
+	match := pattern.FindStringSubmatch(str)
 	res := map[string]string{}
 
 	for i, value := range match {
@@ -389,7 +392,7 @@ func FindNamedMatches(re *regexp.Regexp, str string) map[string]string {
 			continue
 		}
 
-		res[re.SubexpNames()[i]] = value
+		res[pattern.SubexpNames()[i]] = value
 	}
 
 	return res
@@ -409,7 +412,8 @@ func getMissedBinaries(binaries ...string) []string {
 	var missedBinaries []string
 
 	for _, binary := range binaries {
-		if _, err := exec.LookPath(binary); err != nil {
+		_, err := exec.LookPath(binary)
+		if err != nil {
 			missedBinaries = append(missedBinaries, binary)
 		}
 	}
@@ -462,7 +466,7 @@ func IsURL(str string) bool {
 func RemoveScheme(inputURL string) (string, error) {
 	parsedURL, err := url.Parse(inputURL)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("cannot remove the scheme: %w", err)
 	}
 
 	if parsedURL.Scheme == "unix" {
@@ -484,13 +488,16 @@ func Chdir(newPath string) (func() error, error) {
 		return nil, fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	if err = os.Chdir(newPath); err != nil {
+	err = os.Chdir(newPath)
+	if err != nil {
 		return nil, fmt.Errorf("failed to change directory: %w", err)
 	}
 
 	// Update PWD environment var.
-	if err = os.Setenv("PWD", newPath); err != nil {
-		if err = os.Chdir(cwd); err != nil {
+	err = os.Setenv("PWD", newPath)
+	if err != nil {
+		err = os.Chdir(cwd)
+		if err != nil {
 			return nil, fmt.Errorf("failed to change directory back: %w", err)
 		}
 
@@ -500,11 +507,13 @@ func Chdir(newPath string) (func() error, error) {
 	}
 
 	return func() error {
-		if err = os.Chdir(cwd); err != nil {
+		err = os.Chdir(cwd)
+		if err != nil {
 			return fmt.Errorf("failed to change directory back: %w", err)
 		}
 
-		if err = os.Setenv("PWD", cwd); err != nil {
+		err = os.Setenv("PWD", cwd)
+		if err != nil {
 			return fmt.Errorf("failed to change PWD environment variable: %w", err)
 		}
 
@@ -520,11 +529,17 @@ func FsCopyFileChangePerms(fsys fs.FS, src, dst string, perms int) error {
 	// Read data from src.
 	data, err := fs.ReadFile(fsys, src)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot read the source file: %w", err)
 	}
 
 	// Write data to dst.
-	return os.WriteFile(dst, data, fs.FileMode(perms))
+	//nolint:gosec // perms is a file mode chosen by the caller, not external input.
+	err = os.WriteFile(dst, data, fs.FileMode(perms))
+	if err != nil {
+		return fmt.Errorf("cannot write the destination file: %w", err)
+	}
+
+	return nil
 }
 
 // CopyFilePreserve copies file from source to destination with perms.
@@ -532,18 +547,21 @@ func CopyFilePreserve(src, dst string) error {
 	// Read all content of src to data.
 	info, err := os.Stat(src)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot stat the source file: %w", err)
 	}
 
 	data, err := os.ReadFile(src)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot read the source file: %w", err)
 	}
 
 	// Write data to dst.
-	err = os.WriteFile(dst, data, info.Mode().Perm())
+	err = os.WriteFile(dst, data, info.Mode().Perm()) //nolint:gosec // dst is chosen by the caller.
+	if err != nil {
+		return fmt.Errorf("cannot write the destination file: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // CopyFileChangePerms copies file from source to destination with changing perms.
@@ -551,25 +569,30 @@ func CopyFileChangePerms(src, dst string, perms int) error {
 	// Read all content of src to data.
 	_, err := os.Stat(src)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot stat the source file: %w", err)
 	}
 
 	data, err := os.ReadFile(src)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot read the source file: %w", err)
 	}
 
 	// Write data to dst.
+	//nolint:gosec // perms is a file mode chosen by the caller, not external input.
 	err = os.WriteFile(dst, data, fs.FileMode(perms))
+	if err != nil {
+		return fmt.Errorf("cannot write the destination file: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // ResolveSymlink resolves symlink path.
 func ResolveSymlink(linkPath string) (string, error) {
 	resolvedLink, err := filepath.EvalSymlinks(linkPath)
 	if err != nil {
-		return "", err
+		// Callers test the result with os.IsNotExist, which does not unwrap.
+		return "", err //nolint:wrapcheck // The *fs.PathError must reach callers as is.
 	}
 
 	if !filepath.IsAbs(resolvedLink) {
@@ -583,7 +606,7 @@ func ResolveSymlink(linkPath string) (string, error) {
 func RunCommandAndGetOutput(program string, args ...string) (string, error) {
 	out, err := exec.CommandContext(context.Background(), program, args...).Output()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("cannot run %s: %w", program, err)
 	}
 
 	return strings.TrimSpace(string(out)), nil
@@ -593,14 +616,14 @@ func RunCommandAndGetOutput(program string, args ...string) (string, error) {
 func ExtractTar(tarName string) error {
 	path, err := filepath.Abs(tarName)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot get the absolute path of %q: %w", tarName, err)
 	}
 
 	dir := filepath.Dir(path) + "/"
 
 	archive, err := os.Open(path)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot open the archive: %w", err)
 	}
 
 	defer func() {
@@ -609,22 +632,18 @@ func ExtractTar(tarName string) error {
 
 	uncompressedStream, err := gzip.NewReader(archive)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot decompress %q: %w", path, err)
 	}
 
 	tarReader := tar.NewReader(uncompressedStream)
 
-	if err != nil {
-		return err
-	}
-
 	for {
 		header, err := tarReader.Next()
 
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
-			return err
+			return fmt.Errorf("cannot read %q: %w", path, err)
 		}
 
 		switch header.Typeflag {
@@ -641,7 +660,8 @@ func ExtractTar(tarName string) error {
 				pos = 0
 			}
 
-			if _, err := os.Stat(dir + header.Name[0:pos]); os.IsNotExist(err) {
+			_, err := os.Stat(dir + header.Name[0:pos])
+			if os.IsNotExist(err) {
 				// 0755:
 				//    user:   read/write/execute
 				//    group:  read/execute
@@ -652,12 +672,14 @@ func ExtractTar(tarName string) error {
 			outFile, err := os.Create(dir + header.Name)
 			if err != nil {
 				_ = outFile.Close()
-				return err
+				return fmt.Errorf("cannot create an extracted file: %w", err)
 			}
 
-			if _, err := io.Copy(outFile, tarReader); err != nil {
+			//nolint:gosec // The archive is a tt bundle; its size is not limited.
+			_, err = io.Copy(outFile, tarReader)
+			if err != nil {
 				_ = outFile.Close()
-				return err
+				return fmt.Errorf("cannot extract %q: %w", header.Name, err)
 			}
 
 			_ = outFile.Close()
@@ -696,12 +718,15 @@ func ExecuteCommand(program string, isVerbose bool, writer io.Writer, workDir st
 
 	err := cmd.Start()
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot start %s: %w", program, err)
 	}
 
 	err = cmd.Wait()
+	if err != nil {
+		return fmt.Errorf("%s failed: %w", program, err)
+	}
 
-	return err
+	return nil
 }
 
 // ExecuteCommandStdin executes program with given args in verbose or quiet mode
@@ -735,20 +760,23 @@ func ExecuteCommandStdin(program string, isVerbose bool, logFile *os.File, workD
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot open the stdin of %s: %w", program, err)
 	}
 
 	err = cmd.Start()
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot start %s: %w", program, err)
 	}
 
 	_, _ = stdin.Write(stdinData)
 	_ = stdin.Close()
 
 	err = cmd.Wait()
+	if err != nil {
+		return fmt.Errorf("%s failed: %w", program, err)
+	}
 
-	return err
+	return nil
 }
 
 // CreateSymlink creates newName as a symbolic link to oldName. Overwrites existing if overwrite
@@ -759,22 +787,26 @@ func CreateSymlink(oldName, newName string, overwrite bool) error {
 		return fmt.Errorf("symbolic link cannot be created: %w", err)
 	}
 
-	if os.IsNotExist(err) {
-		return os.Symlink(oldName, newName)
+	if !os.IsNotExist(err) {
+		if !overwrite {
+			return fmt.Errorf("%w%s' already exists",
+				errSymbolicLinkCannotBeCreatedAlreadyExists, newName)
+		}
+
+		log.Debugf("Replace existing '%s' with new symlink.", newName)
+
+		err = os.Remove(newName)
+		if err != nil {
+			return fmt.Errorf("cannot replace the existing file: %w", err)
+		}
 	}
 
-	if !overwrite {
-		return fmt.Errorf("%w%s' already exists",
-			errSymbolicLinkCannotBeCreatedAlreadyExists, newName)
+	err = os.Symlink(oldName, newName)
+	if err != nil {
+		return fmt.Errorf("symbolic link cannot be created: %w", err)
 	}
 
-	log.Debugf("Replace existing '%s' with new symlink.", newName)
-
-	if err := os.Remove(newName); err != nil {
-		return err
-	}
-
-	return os.Symlink(oldName, newName)
+	return nil
 }
 
 // IsApp detects if the passed path is an application.
@@ -787,10 +819,9 @@ func IsApp(path string) bool {
 	if entry.IsDir() {
 		// Check if the directory contains init.lua script or instances.yml file.
 		for _, fileToCheck := range [...]string{"init.lua", "instances.yml", "instances.yaml"} {
-			if fileInfo, err := os.Stat(filepath.Join(path, fileToCheck)); err == nil {
-				if !fileInfo.IsDir() {
-					return true
-				}
+			fileInfo, err := os.Stat(filepath.Join(path, fileToCheck))
+			if err == nil && !fileInfo.IsDir() {
+				return true
 			}
 		}
 	} else if filepath.Ext(entry.Name()) == ".lua" {
@@ -816,7 +847,7 @@ func CreateDirectory(dirName string, fileMode os.FileMode) error {
 	stat, err := os.Stat(dirName)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			return err
+			return fmt.Errorf("cannot stat the directory: %w", err)
 		}
 	} else {
 		if !stat.IsDir() {
@@ -826,28 +857,31 @@ func CreateDirectory(dirName string, fileMode os.FileMode) error {
 		return nil
 	}
 
-	if err = os.MkdirAll(dirName, fileMode); err != nil {
-		return err
+	err = os.MkdirAll(dirName, fileMode)
+	if err != nil {
+		return fmt.Errorf("cannot create the directory: %w", err)
 	}
 
 	return nil
 }
 
-// WriteYaml writes YAML encoding of object o to fileName.
-func WriteYaml(fileName string, o any) error {
+// WriteYaml writes YAML encoding of object obj to fileName.
+func WriteYaml(fileName string, obj any) error {
 	file, err := os.Create(fileName)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot create the YAML file: %w", err)
 	}
 
 	defer func() {
-		if err := file.Close(); err != nil {
-			log.Warnf("Failed to close a file '%s': %s", file.Name(), err)
+		closeErr := file.Close()
+		if closeErr != nil {
+			log.Warnf("Failed to close a file '%s': %s", file.Name(), closeErr)
 		}
 	}()
 
-	if err = yaml.NewEncoder(file).Encode(o); err != nil {
-		return err
+	err = yaml.NewEncoder(file).Encode(obj)
+	if err != nil {
+		return fmt.Errorf("cannot write YAML to %q: %w", fileName, err)
 	}
 
 	return nil
@@ -856,8 +890,9 @@ func WriteYaml(fileName string, o any) error {
 // ConcatBuffers appends sources content to dest.
 func ConcatBuffers(dest *bytes.Buffer, sources ...*bytes.Buffer) error {
 	for _, src := range sources {
-		if _, err := io.Copy(dest, src); err != nil {
-			return err
+		_, err := io.Copy(dest, src)
+		if err != nil {
+			return fmt.Errorf("cannot append a buffer: %w", err)
 		}
 	}
 
@@ -887,7 +922,7 @@ func MergeFiles(destFilePath string, srcFilePaths ...string) error {
 		_ = srcFile.Close()
 
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to copy source file %s: %w", srcFilePath, err)
 		}
 	}
 
@@ -916,15 +951,16 @@ func GetYamlFileName(fileName string, mustExist bool) (string, error) {
 
 	foundYamlFiles := []string{}
 
-	if foundFiles, err := filepath.Glob(fileBaseName + ".y*ml"); err == nil {
-		for _, fileName := range foundFiles {
-			switch filepath.Ext(fileName) {
-			case ".yaml", ".yml":
-				foundYamlFiles = append(foundYamlFiles, fileName)
-			}
+	foundFiles, err := filepath.Glob(fileBaseName + ".y*ml")
+	if err != nil {
+		return "", fmt.Errorf("cannot search for %q: %w", fileBaseName+".y*ml", err)
+	}
+
+	for _, fileName := range foundFiles {
+		switch filepath.Ext(fileName) {
+		case ".yaml", ".yml":
+			foundYamlFiles = append(foundYamlFiles, fileName)
 		}
-	} else {
-		return "", err
 	}
 
 	yamlFilesCount := len(foundYamlFiles)
@@ -946,7 +982,7 @@ func GetYamlFileName(fileName string, mustExist bool) (string, error) {
 func InstantiateFileFromTemplate(templatePath, templateContent string, params any) error {
 	file, err := os.Create(templatePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot create the file: %w", err)
 	}
 
 	defer func() {
@@ -978,7 +1014,7 @@ func InstantiateFileFromTemplate(templatePath, templateContent string, params an
 			log.Warnf("Failed to remove a file %s", templatePath)
 		}
 
-		return err
+		return fmt.Errorf("cannot write %q: %w", templatePath, err)
 	}
 
 	return nil
@@ -1013,10 +1049,15 @@ func Min[T cmp.Ordered](a, b T) T {
 func CopyFileDeep(src, dst string) error {
 	src, err := filepath.EvalSymlinks(src)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot resolve the source path: %w", err)
 	}
 
-	return copy.Copy(src, dst)
+	err = copy.Copy(src, dst)
+	if err != nil {
+		return fmt.Errorf("cannot copy %q to %q: %w", src, dst, err)
+	}
+
+	return nil
 }
 
 // StringToTimestamp transforms string with number or RFC339Nano time
@@ -1035,8 +1076,9 @@ func StringToTimestamp(input string) (string, error) {
 	// The RFC3339Nano layout also successfully parses the RFC3339 layout.
 	rfc3339NanoTs, err := time.Parse(time.RFC3339Nano, input)
 	if err != nil {
-		// Incorrect input, trigger an error.
-		return "", err
+		// Incorrect input, trigger an error. Callers and tests match the
+		// *time.ParseError text right after their own prefix.
+		return "", err //nolint:wrapcheck // The error names the input already.
 	}
 
 	tsSec := rfc3339NanoTs.Unix()

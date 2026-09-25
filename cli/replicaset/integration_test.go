@@ -191,7 +191,7 @@ func TestEvalForeach(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			evaler := &instanceEvalerMock{T: t}
 			err := replicaset.EvalForeach(tc.Instances, evaler)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tc.Instances, evaler.Instances)
 		})
 	}
@@ -214,7 +214,7 @@ func TestEvalForeachAlive_stops_after_failed_to_connect(t *testing.T) {
 
 	evaler := &instanceEvalerMock{T: t}
 	err := replicaset.EvalForeach(instances, evaler)
-	assert.ErrorContains(t, err, "failed to connect to 'app:instance'")
+	require.ErrorContains(t, err, "failed to connect to 'app:instance'")
 	assert.Equal(t, []running.InstanceCtx{validInstance}, evaler.Instances)
 }
 
@@ -230,8 +230,8 @@ func TestEvalForeach_stops_after_evaler_done(t *testing.T) {
 
 	evaler := &instanceEvalerMock{T: t, Done: true}
 	err := replicaset.EvalForeach(instances, evaler)
-	assert.NoError(t, err)
-	assert.Equal(t, evaler.Instances, []running.InstanceCtx{validInstance})
+	require.NoError(t, err)
+	assert.Equal(t, []running.InstanceCtx{validInstance}, evaler.Instances)
 }
 
 func TestEvalForeach_stops_after_evaler_error(t *testing.T) {
@@ -246,8 +246,8 @@ func TestEvalForeach_stops_after_evaler_error(t *testing.T) {
 
 	evaler := &instanceEvalerMock{T: t, Error: errFoo}
 	err := replicaset.EvalForeach(instances, evaler)
-	assert.EqualError(t, err, "foo")
-	assert.Equal(t, evaler.Instances, []running.InstanceCtx{validInstance})
+	require.EqualError(t, err, "foo")
+	assert.Equal(t, []running.InstanceCtx{validInstance}, evaler.Instances)
 }
 
 func TestEvalForeach_error(t *testing.T) {
@@ -342,7 +342,7 @@ func TestEvalForeachAlive(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			evaler := &instanceEvalerMock{T: t}
 			err := replicaset.EvalForeachAlive(tc.Instances, evaler)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tc.Expected, evaler.Instances)
 		})
 	}
@@ -360,8 +360,8 @@ func TestEvalForeachAlive_stops_after_evaler_done(t *testing.T) {
 
 	evaler := &instanceEvalerMock{T: t, Done: true}
 	err := replicaset.EvalForeachAlive(instances, evaler)
-	assert.NoError(t, err)
-	assert.Equal(t, evaler.Instances, []running.InstanceCtx{validInstance})
+	require.NoError(t, err)
+	assert.Equal(t, []running.InstanceCtx{validInstance}, evaler.Instances)
 }
 
 func TestEvalForeachAlive_stops_after_evaler_err(t *testing.T) {
@@ -376,8 +376,8 @@ func TestEvalForeachAlive_stops_after_evaler_err(t *testing.T) {
 
 	evaler := &instanceEvalerMock{T: t, Error: errFoo}
 	err := replicaset.EvalForeachAlive(instances, evaler)
-	assert.EqualError(t, err, "foo")
-	assert.Equal(t, evaler.Instances, []running.InstanceCtx{validInstance})
+	require.EqualError(t, err, "foo")
+	assert.Equal(t, []running.InstanceCtx{validInstance}, evaler.Instances)
 }
 
 func TestEvalForeachAlive_error(t *testing.T) {
@@ -455,7 +455,7 @@ func TestEvalAny(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			evaler := &instanceEvalerMock{T: t}
 			err := replicaset.EvalAny(tc.Instances, evaler)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, []running.InstanceCtx{connectable}, evaler.Instances)
 		})
 	}
@@ -473,7 +473,7 @@ func TestEvalAny_ignore_evaler_done(t *testing.T) {
 		t.Run(strconv.FormatBool(tc), func(t *testing.T) {
 			evaler := &instanceEvalerMock{T: t, Done: tc}
 			err := replicaset.EvalAny(instances, evaler)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, instances, evaler.Instances)
 		})
 	}

@@ -1,9 +1,11 @@
-package regexputil
+package regexputil_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/v3/cli/util/regexputil"
 )
 
 func TestApplyVars(t *testing.T) {
@@ -83,11 +85,11 @@ in template string: "{{ greeting    }} {{who}}!"`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ApplyVars(tt.args.templateStr, tt.args.data)
+			got, err := regexputil.ApplyVars(tt.args.templateStr, tt.args.data)
 			if tt.wantErr {
-				assert.ErrorContainsf(t, err, tt.errStr, "")
+				require.ErrorContains(t, err, tt.errStr)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			assert.Equal(t, tt.want, got)

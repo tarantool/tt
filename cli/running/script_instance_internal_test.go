@@ -31,10 +31,10 @@ func startTestInstance(t *testing.T, ctx context.Context, app, consoleSock strin
 
 	// Need absolute path to the script, because working dir is changed on start.
 	appPath, err := filepath.Abs(filepath.Join(instTestAppDir, app+".lua"))
-	assert.Nilf(err, `Unknown application: "%v". Error: "%v".`, appPath, err)
+	require.NoErrorf(t, err, `Unknown application: "%v". Error: "%v".`, appPath, err)
 
 	tarantoolBin, err := exec.LookPath("tarantool")
-	assert.Nilf(err, `Can't find a tarantool binary. Error: "%v".`, err)
+	require.NoErrorf(t, err, `Can't find a tarantool binary. Error: "%v".`, err)
 
 	instTestDataDir := t.TempDir()
 	binPath, err := os.Executable()
@@ -50,7 +50,7 @@ func startTestInstance(t *testing.T, ctx context.Context, app, consoleSock strin
 		MemtxDir:       instTestDataDir,
 		BinaryPort:     binaryPort,
 	}, StdLoggerOpt(logger))
-	assert.Nilf(err, `Can't create an instance. Error: "%v".`, err)
+	assert.NoErrorf(err, `Can't create an instance. Error: "%v".`, err)
 
 	require.NoErrorf(t, err, `Can't get the path to the executable. Error: "%v".`, err)
 	t.Setenv("started_flag_file", filepath.Join(binDir, app))
@@ -60,7 +60,7 @@ func startTestInstance(t *testing.T, ctx context.Context, app, consoleSock strin
 	}()
 
 	err = inst.Start(ctx)
-	assert.Nilf(err, `Can't start the instance. Error: "%v".`, err)
+	require.NoErrorf(t, err, `Can't start the instance. Error: "%v".`, err)
 
 	require.NotZero(t, waitForFile(os.Getenv("started_flag_file")), "Instance is not started")
 
@@ -80,16 +80,15 @@ func cleanupTestInstance(t *testing.T, inst *scriptInstance) {
 		assert.NoError(t, err)
 	}
 
-	if _, err := os.Stat(inst.consoleSocket); err == nil {
+	_, err := os.Stat(inst.consoleSocket)
+	if err == nil {
 		_ = os.Remove(inst.consoleSocket)
 	}
 }
 
 func TestInstanceBase(t *testing.T) {
-	assert := assert.New(t)
-
 	binPath, err := os.Executable()
-	assert.Nilf(err, `Can't get the path to the executable. Error: "%v".`, err)
+	require.NoErrorf(t, err, `Can't get the path to the executable. Error: "%v".`, err)
 
 	consoleSock := filepath.Join(filepath.Dir(binPath), "test.sock")
 	binaryPort := filepath.Join(filepath.Dir(binPath), "testbin.sock")
@@ -100,7 +99,7 @@ func TestInstanceBase(t *testing.T) {
 	t.Cleanup(func() { cleanupTestInstance(t, inst) })
 
 	conn, err := (&net.Dialer{}).DialContext(t.Context(), "unix", consoleSock)
-	assert.Nilf(err, `Can't connect to console socket. Error: "%v".`, err)
+	require.NoErrorf(t, err, `Can't connect to console socket. Error: "%v".`, err)
 
 	_ = conn.Close()
 }
@@ -129,7 +128,7 @@ func TestInstanceLogger(t *testing.T) {
 	buf := bytes.NewBufferString("")
 	_, err := io.CopyN(buf, reader, msgLen)
 	assert.Equal(msg, buf.String(), "The message in the log is different from what was expected.")
-	assert.Nilf(err, `Can't read log output. Error: "%v".`, err)
+	assert.NoErrorf(err, `Can't read log output. Error: "%v".`, err)
 }
 
 func Test_shortenSocketPath(t *testing.T) {
@@ -145,7 +144,7 @@ func Test_shortenSocketPath(t *testing.T) {
 
 	dirLen := maxSocketPathLen - len("/tarantool.control") - 1
 	maxSocketPath := "/" + strings.Repeat("a", dirLen) + "/tarantool.control"
-	require.Equal(t, maxSocketPathLen, len(maxSocketPath))
+	require.Len(t, maxSocketPath, maxSocketPathLen)
 
 	tests := []struct {
 		name    string
@@ -215,7 +214,7 @@ func Test_shortenSocketPath(t *testing.T) {
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.want, got)
 			}
 		})
@@ -224,7 +223,7 @@ func Test_shortenSocketPath(t *testing.T) {
 
 func TestInstanceLogs(t *testing.T) {
 	binPath, err := os.Executable()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	consoleSock := filepath.Join(filepath.Dir(binPath), "test.sock")
 	binaryPort := filepath.Join(filepath.Dir(binPath), "testbin.sock")
@@ -232,7 +231,7 @@ func TestInstanceLogs(t *testing.T) {
 	app := "dumb_test_app"
 	// Need absolute path to the script, because working dir is changed on start.
 	appPath, err := filepath.Abs(filepath.Join(instTestAppDir, app+".lua"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	tarantoolBin, err := exec.LookPath("tarantool")
 	require.NoError(t, err)
@@ -284,6 +283,6 @@ func TestInstanceStopByContext(t *testing.T) {
 	t.Cleanup(func() { cleanupTestInstance(t, inst) })
 
 	cancel()
-	assert.Error(t, inst.Wait(), context.Canceled)
+	require.ErrorIs(t, inst.Wait(), context.Canceled)
 	assert.True(t, inst.ProcessState().Success())
 }

@@ -31,15 +31,15 @@ type History struct {
 
 // NewHistory create/open specified file.
 func NewHistory(file string, maxCommands int) (History, error) {
-	h := History{
+	history := History{
 		filepath:    file,
 		maxCommands: maxCommands,
 		commands:    make([]string, 0),
 		timestamps:  make([]int64, 0),
 	}
-	err := h.load()
+	err := history.load()
 
-	return h, err
+	return history, err
 }
 
 // DefaultHistoryFile create/open history file with default parameters.
@@ -120,22 +120,22 @@ func (h *History) parseCells(lines []string) {
 	}
 
 	for startPos < len(lines) {
-		j := startPos + 1
+		nextPos := startPos + 1
 
 		// Move pointer to the next timestamp.
-		for j < len(lines) && !timeRecord.MatchString(lines[j]) {
-			j++
+		for nextPos < len(lines) && !timeRecord.MatchString(lines[nextPos]) {
+			nextPos++
 		}
 
 		// Extract the current timestamp.
 		timestamp, err := strconv.ParseInt(lines[startPos][1:], 10, 0)
 
-		if j != startPos+1 && err == nil {
+		if nextPos != startPos+1 && err == nil {
 			h.timestamps = append(h.timestamps, timestamp)
-			h.commands = append(h.commands, strings.Join(lines[startPos+1:j], "\n"))
+			h.commands = append(h.commands, strings.Join(lines[startPos+1:nextPos], "\n"))
 		}
 
-		startPos = j
+		startPos = nextPos
 	}
 }
 
@@ -146,7 +146,8 @@ func (h *History) writeToFile() error {
 		fmt.Fprintf(&buff, "#%d\n%s\n", h.timestamps[i], c)
 	}
 
-	if err := os.WriteFile(h.filepath, buff.Bytes(), historyFileMode); err != nil {
+	err := os.WriteFile(h.filepath, buff.Bytes(), historyFileMode)
+	if err != nil {
 		return fmt.Errorf("failed to write to history file: %w", err)
 	}
 

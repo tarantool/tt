@@ -84,7 +84,7 @@ func pickPatchKey(keys []string, force bool, pathMsg string) (int, error) {
 
 		pos, _, err = programSelect.Run()
 		if err != nil {
-			return 0, err
+			return 0, fmt.Errorf("failed to select a key: %w", err)
 		}
 	}
 
@@ -145,6 +145,7 @@ func Promote(url string, ctx PromoteCtx) error {
 	err = source.Promote(replicaset.PromoteCtx{
 		InstName: ctx.InstName,
 		Force:    ctx.Force,
+		Timeout:  0,
 	})
 	if err == nil {
 		log.Info("Done.")
@@ -195,6 +196,7 @@ func Demote(url string, ctx DemoteCtx) error {
 	err = source.Demote(replicaset.DemoteCtx{
 		InstName: ctx.InstName,
 		Force:    ctx.Force,
+		Timeout:  0,
 	})
 	if err == nil {
 		log.Info("Done.")
@@ -245,6 +247,7 @@ func Expel(url string, ctx ExpelCtx) error {
 	err = source.Expel(replicaset.ExpelCtx{
 		InstName: ctx.InstName,
 		Force:    ctx.Force,
+		Timeout:  0,
 	})
 	if err == nil {
 		log.Info("Done.")
@@ -307,6 +310,7 @@ func ChangeRole(url string, ctx RolesChangeCtx, action replicaset.RolesChangerAc
 		IsGlobal:       ctx.IsGlobal,
 		RoleName:       ctx.RoleName,
 		Force:          ctx.Force,
+		Timeout:        0,
 	}, action)
 	if err == nil {
 		log.Info("Done.")

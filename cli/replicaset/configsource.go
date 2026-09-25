@@ -233,7 +233,8 @@ func (c *CConfigSource) patchConfigWithRoles(ctx RolesChangeCtx,
 		if val, ok := goView.Lookup(path.path); ok {
 			var existing any
 
-			if err := val.Get(&existing); err != nil {
+			err = val.Get(&existing)
+			if err != nil {
 				return fmt.Errorf("failed to get roles at path %s: %w", path.path, err)
 			}
 
@@ -243,7 +244,8 @@ func (c *CConfigSource) patchConfigWithRoles(ctx RolesChangeCtx,
 			}
 		}
 
-		if updatedRoles, err = updateRolesFunc(updatedRoles, ctx.RoleName); err != nil {
+		updatedRoles, err = updateRolesFunc(updatedRoles, ctx.RoleName)
+		if err != nil {
 			return fmt.Errorf("cannot update roles by path %s: %w", path.path, err)
 		}
 
@@ -298,14 +300,14 @@ func getCConfigRolesPath(goView goconfig.Config,
 	}
 
 	if ctx.GroupName != "" {
-		p := goconfig.NewKeyPath("groups/" + ctx.GroupName)
-		if _, ok := goView.Lookup(p); !ok {
+		groupPath := goconfig.NewKeyPath("groups/" + ctx.GroupName)
+		if _, ok := goView.Lookup(groupPath); !ok {
 			return []path{}, fmt.Errorf("%w%q", errCannotFindGroup, ctx.GroupName)
 		}
 
 		paths = append(paths, path{
-			path:  append(p, "roles"),
-			depth: len(p),
+			path:  append(groupPath, "roles"),
+			depth: len(groupPath),
 		})
 	}
 

@@ -46,7 +46,8 @@ func ShowURI(showCtx ShowCtx, opts connect.URIOpts) error {
 
 	instance := opts.Params["name"]
 	if showCtx.Validate {
-		if err = validateRawConfig(yamlBytes, instance); err != nil {
+		err = validateRawConfig(yamlBytes, instance)
+		if err != nil {
 			return err
 		}
 	}
@@ -80,7 +81,8 @@ func printClusterConfig(cconfig *goconfig.MutableConfig,
 			validateErr = validateGoConfig(snap, true)
 		}
 
-		if printErr := printGoConfig(snap); printErr != nil {
+		printErr := printGoConfig(snap)
+		if printErr != nil {
 			return printErr
 		}
 

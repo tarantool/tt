@@ -37,17 +37,17 @@ func readFile(t *testing.T, path string, fs embed.FS) []byte {
 	return content
 }
 
-func readKV(t *testing.T, dir string, fs embed.FS) map[string][]byte {
+func readKV(t *testing.T, dir string, testFS embed.FS) map[string][]byte {
 	t.Helper()
 
 	ret := map[string][]byte{}
-	entries, err := fs.ReadDir(dir)
+	entries, err := testFS.ReadDir(dir)
 	require.NoError(t, err)
 
 	for _, entry := range entries {
 		name := entry.Name()
 		path := filepath.Join(dir, name)
-		content := readFile(t, path, fs)
+		content := readFile(t, path, testFS)
 		key := strings.TrimRight(name, ".yml")
 
 		ret[key] = content
@@ -116,13 +116,13 @@ func newOnceMockDataPublisher(err error) *mockDataPublisher {
 	}
 }
 
-func assertPublished(t *testing.T, p *mockDataPublisher, key string, data []byte) {
+func assertPublished(t *testing.T, publisher *mockDataPublisher, key string, data []byte) {
 	t.Helper()
 
-	require.Equal(t, 1, p.Called)
-	require.Equal(t, []string{key}, p.Keys)
-	require.Equal(t, []int64{42}, p.Revisions)
-	require.Equal(t, [][]byte{data}, p.Data)
+	require.Equal(t, 1, publisher.Called)
+	require.Equal(t, []string{key}, publisher.Keys)
+	require.Equal(t, []int64{42}, publisher.Revisions)
+	require.Equal(t, [][]byte{data}, publisher.Data)
 }
 
 func TestCConfigSource_collect_config_error(t *testing.T) {
@@ -155,11 +155,11 @@ func TestCConfigSource_collect_config_error(t *testing.T) {
 			},
 		},
 	}
-	for _, tc := range cases {
+	for _, testCase := range cases {
 		err := errSharksChewedWires
 		collector := newOnceMockDataCollector(nil, err)
 		source := replicaset.NewCConfigSource(collector, nil, nil)
-		actual := tc.runFunc(source)
+		actual := testCase.runFunc(source)
 		require.ErrorIs(t, actual, err)
 	}
 }
@@ -192,10 +192,10 @@ func TestCConfigSource_no_instance_error(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
+	for _, testCase := range cases {
 		collector := newOnceMockDataCollector([]sdkcluster.Data{{Value: cfg}}, nil)
 		source := replicaset.NewCConfigSource(collector, nil, nil)
-		actual := tc.runFunc(source)
+		actual := testCase.runFunc(source)
 		require.ErrorContains(t, actual,
 			fmt.Sprintf("instance %q not found in the cluster configuration", instName))
 	}
@@ -211,8 +211,8 @@ func TestCConfigSource_Promote_unexpected_failover(t *testing.T) {
 		{"true", "unexpected failover type: bool, string expected"},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.failover, func(t *testing.T) {
+	for _, testCase := range cases {
+		t.Run(testCase.failover, func(t *testing.T) {
 			cfg := []byte(fmt.Sprintf(`groups:
   group-001:
     replication:
@@ -221,13 +221,13 @@ func TestCConfigSource_Promote_unexpected_failover(t *testing.T) {
       replicaset-001:
         instances:
           instance-001: {}
-          instance-002: {}`, tc.failover))
+          instance-002: {}`, testCase.failover))
 			collector := newOnceMockDataCollector([]sdkcluster.Data{
 				{Value: cfg},
 			}, nil)
 			source := replicaset.NewCConfigSource(collector, nil, nil)
 			actual := source.Promote(replicaset.PromoteCtx{InstName: "instance-002"})
-			require.ErrorContains(t, actual, tc.errText)
+			require.ErrorContains(t, actual, testCase.errText)
 		})
 	}
 }
@@ -263,11 +263,11 @@ func TestCConfigSource_Promote_single_key(t *testing.T) {
 		"manual",
 	}
 
-	for _, tc := range cases {
-		t.Run(tc, func(t *testing.T) {
-			expected := readFile(t, filepath.Join(dir, tc+"_expected.yml"),
+	for _, testCase := range cases {
+		t.Run(testCase, func(t *testing.T) {
+			expected := readFile(t, filepath.Join(dir, testCase+"_expected.yml"),
 				cconfigSourceTestDataFS)
-			input := readFile(t, filepath.Join(dir, tc+"_init.yml"),
+			input := readFile(t, filepath.Join(dir, testCase+"_init.yml"),
 				cconfigSourceTestDataFS)
 			publisher := newOnceMockDataPublisher(nil)
 			collector := newOnceMockDataCollector([]sdkcluster.Data{
@@ -315,7 +315,7 @@ func TestCConfigSource_passes_force(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
+	for _, testCase := range cases {
 		keyPicker := replicaset.KeyPicker(func(_ []string, force bool, _ string) (int, error) {
 			require.True(t, force)
 
@@ -326,7 +326,7 @@ func TestCConfigSource_passes_force(t *testing.T) {
 			{Source: "all", Value: cfg},
 		}, nil)
 		source := replicaset.NewCConfigSource(collector, publisher, keyPicker)
-		err := tc.runFunc(source)
+		err := testCase.runFunc(source)
 		require.NoError(t, err)
 	}
 }
@@ -366,7 +366,7 @@ func TestCConfigSource_publish_error(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
+	for _, testCase := range cases {
 		err := errFailed
 		publisher := newOnceMockDataPublisher(err)
 		collector := newOnceMockDataCollector([]sdkcluster.Data{
@@ -376,7 +376,7 @@ func TestCConfigSource_publish_error(t *testing.T) {
 			return 0, nil
 		})
 		source := replicaset.NewCConfigSource(collector, publisher, keyPicker)
-		actual := tc.runFunc(source)
+		actual := testCase.runFunc(source)
 		require.ErrorIs(t, actual, err)
 	}
 }
@@ -416,7 +416,7 @@ func TestCConfigSource_keypick_error(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
+	for _, testCase := range cases {
 		publisher := newOnceMockDataPublisher(nil)
 		collector := newOnceMockDataCollector([]sdkcluster.Data{
 			{Source: "all", Value: cfg},
@@ -426,7 +426,7 @@ func TestCConfigSource_keypick_error(t *testing.T) {
 			return 0, err
 		})
 		source := replicaset.NewCConfigSource(collector, publisher, keyPicker)
-		actual := tc.runFunc(source)
+		actual := testCase.runFunc(source)
 		require.ErrorIs(t, actual, err)
 	}
 }
@@ -464,12 +464,12 @@ func TestCConfigSource_Promote_invalid_config(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
+	for _, testCase := range cases {
 		collector := newOnceMockDataCollector([]sdkcluster.Data{
 			{Source: "all", Value: cfg},
 		}, nil)
 		source := replicaset.NewCConfigSource(collector, nil, nil)
-		err := tc.runFunc(source)
+		err := testCase.runFunc(source)
 		require.ErrorContains(t, err, `failed to decode config from "all"`)
 	}
 }
@@ -485,17 +485,17 @@ func TestCConfigSource_Promote_many_keys(t *testing.T) {
 		{"off_priority_order", []string{"c", "b", "a"}},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			testDir := filepath.Join(dir, tc.name)
-			kv := readKV(t, testDir, cconfigSourceTestDataFS)
-			expected, ok := kv["expected"]
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			testDir := filepath.Join(dir, testCase.name)
+			keyValues := readKV(t, testDir, cconfigSourceTestDataFS)
+			expected, ok := keyValues["expected"]
 			require.True(t, ok)
-			delete(kv, "expected")
+			delete(keyValues, "expected")
 
 			var data []sdkcluster.Data
 
-			for k, v := range kv {
+			for k, v := range keyValues {
 				data = append(data, sdkcluster.Data{
 					Source:   k,
 					Value:    v,
@@ -506,14 +506,14 @@ func TestCConfigSource_Promote_many_keys(t *testing.T) {
 			collector := newOnceMockDataCollector(data, nil)
 			publisher := newOnceMockDataPublisher(nil)
 			picker := replicaset.KeyPicker(func(keys []string, _ bool, _ string) (int, error) {
-				require.Equal(t, tc.keys, keys)
+				require.Equal(t, testCase.keys, keys)
 
 				return 0, nil
 			})
 			source := replicaset.NewCConfigSource(collector, publisher, picker)
 			err := source.Promote(replicaset.PromoteCtx{InstName: "instance-002"})
 			require.NoError(t, err)
-			assertPublished(t, publisher, tc.keys[0], expected)
+			assertPublished(t, publisher, testCase.keys[0], expected)
 		})
 	}
 }
@@ -591,8 +591,8 @@ func TestCConfigSource_Promote_mix_failovers(t *testing.T) {
 		instName string
 		key      string
 	}{}
-	for _, tc := range cases {
-		t.Run(tc.instName, func(t *testing.T) {
+	for _, testCase := range cases {
+		t.Run(testCase.instName, func(t *testing.T) {
 			collector := newOnceMockDataCollector([]sdkcluster.Data{
 				{Source: "a", Value: cfg1},
 				{Source: "b", Value: cfg2},
@@ -600,14 +600,14 @@ func TestCConfigSource_Promote_mix_failovers(t *testing.T) {
 			}, nil)
 			publisher := newOnceMockDataPublisher(nil)
 			picker := replicaset.KeyPicker(func(keys []string, _ bool, _ string) (int, error) {
-				require.Equal(t, []string{tc.key}, keys)
+				require.Equal(t, []string{testCase.key}, keys)
 
 				return 0, nil
 			})
 			source := replicaset.NewCConfigSource(collector, publisher, picker)
-			err := source.Promote(replicaset.PromoteCtx{InstName: tc.instName})
+			err := source.Promote(replicaset.PromoteCtx{InstName: testCase.instName})
 			require.NoError(t, err)
-			require.Equal(t, tc.key, publisher.Keys[0])
+			require.Equal(t, testCase.key, publisher.Keys[0])
 		})
 	}
 }
@@ -624,8 +624,8 @@ func TestCConfigSource_Demote_unexpected_failover(t *testing.T) {
 		{"true", "unexpected failover type: bool, string expected"},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.failover, func(t *testing.T) {
+	for _, testCase := range cases {
+		t.Run(testCase.failover, func(t *testing.T) {
 			cfg := []byte(fmt.Sprintf(`groups:
   group-001:
     replication:
@@ -634,13 +634,13 @@ func TestCConfigSource_Demote_unexpected_failover(t *testing.T) {
       replicaset-001:
         instances:
           instance-001: {}
-          instance-002: {}`, tc.failover))
+          instance-002: {}`, testCase.failover))
 			collector := newOnceMockDataCollector([]sdkcluster.Data{
 				{Value: cfg},
 			}, nil)
 			source := replicaset.NewCConfigSource(collector, nil, nil)
 			actual := source.Demote(replicaset.DemoteCtx{InstName: "instance-002"})
-			require.ErrorContains(t, actual, tc.errText)
+			require.ErrorContains(t, actual, testCase.errText)
 		})
 	}
 }
@@ -671,11 +671,11 @@ func TestCConfigSource_Demote_single_key(t *testing.T) {
 	dir := filepath.Join("testdata", "cconfig_source", "demote", "single_key")
 	cases := []string{"off", "off_default", "mix"}
 
-	for _, tc := range cases {
-		t.Run(tc, func(t *testing.T) {
-			expected := readFile(t, filepath.Join(dir, tc+"_expected.yml"),
+	for _, testCase := range cases {
+		t.Run(testCase, func(t *testing.T) {
+			expected := readFile(t, filepath.Join(dir, testCase+"_expected.yml"),
 				cconfigSourceTestDataFS)
-			input := readFile(t, filepath.Join(dir, tc+"_init.yml"),
+			input := readFile(t, filepath.Join(dir, testCase+"_init.yml"),
 				cconfigSourceTestDataFS)
 			publisher := newOnceMockDataPublisher(nil)
 			collector := newOnceMockDataCollector([]sdkcluster.Data{
@@ -700,17 +700,17 @@ func TestCConfigSource_Demote_many_keys(t *testing.T) {
 		{"lexi_order", []string{"a", "c", "b"}},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			testDir := filepath.Join(dir, tc.name)
-			kv := readKV(t, testDir, cconfigSourceTestDataFS)
-			expected, ok := kv["expected"]
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			testDir := filepath.Join(dir, testCase.name)
+			keyValues := readKV(t, testDir, cconfigSourceTestDataFS)
+			expected, ok := keyValues["expected"]
 			require.True(t, ok)
-			delete(kv, "expected")
+			delete(keyValues, "expected")
 
 			var data []sdkcluster.Data
 
-			for k, v := range kv {
+			for k, v := range keyValues {
 				data = append(data, sdkcluster.Data{
 					Source:   k,
 					Value:    v,
@@ -721,7 +721,7 @@ func TestCConfigSource_Demote_many_keys(t *testing.T) {
 			collector := newOnceMockDataCollector(data, nil)
 			publisher := newOnceMockDataPublisher(nil)
 			picker := replicaset.KeyPicker(func(keys []string, _ bool, _ string) (int, error) {
-				require.Equal(t, tc.keys, keys)
+				require.Equal(t, testCase.keys, keys)
 
 				return 0, nil
 			})
@@ -730,7 +730,7 @@ func TestCConfigSource_Demote_many_keys(t *testing.T) {
 			require.NoError(t, err)
 
 			_, _ = fmt.Fprintln(os.Stdout, string(publisher.Data[0]))
-			assertPublished(t, publisher, tc.keys[0], expected)
+			assertPublished(t, publisher, testCase.keys[0], expected)
 		})
 	}
 }
@@ -981,10 +981,10 @@ roles:
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
 			collector := newOnceMockDataCollector([]sdkcluster.Data{
-				{Source: "a", Value: tc.cfg, Revision: revision},
+				{Source: "a", Value: testCase.cfg, Revision: revision},
 			}, nil)
 			picker := replicaset.KeyPicker(func(keys []string, _ bool, _ string) (int, error) {
 				require.Equal(t, []string{"a"}, keys)
@@ -994,12 +994,12 @@ roles:
 			publisher := newOnceMockDataPublisher(nil)
 			source := replicaset.NewCConfigSource(collector, publisher, picker)
 
-			err := source.ChangeRole(tc.rolesChangeCtx, replicaset.RolesAdder{})
-			if tc.errMsg != "" {
-				require.EqualError(t, err, tc.errMsg)
+			err := source.ChangeRole(testCase.rolesChangeCtx, replicaset.RolesAdder{})
+			if testCase.errMsg != "" {
+				require.EqualError(t, err, testCase.errMsg)
 			} else {
 				require.NoError(t, err)
-				assertPublished(t, publisher, "a", tc.expectedCfg)
+				assertPublished(t, publisher, "a", testCase.expectedCfg)
 			}
 		})
 	}
@@ -1171,10 +1171,10 @@ roles: []
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
 			collector := newOnceMockDataCollector([]sdkcluster.Data{
-				{Source: "a", Value: tc.cfg, Revision: revision},
+				{Source: "a", Value: testCase.cfg, Revision: revision},
 			}, nil)
 			picker := replicaset.KeyPicker(func(keys []string, _ bool, _ string) (int, error) {
 				require.Equal(t, []string{"a"}, keys)
@@ -1184,12 +1184,12 @@ roles: []
 			publisher := newOnceMockDataPublisher(nil)
 			source := replicaset.NewCConfigSource(collector, publisher, picker)
 
-			err := source.ChangeRole(tc.rolesChangeCtx, replicaset.RolesRemover{})
-			if tc.errMsg != "" {
-				require.EqualError(t, err, tc.errMsg)
+			err := source.ChangeRole(testCase.rolesChangeCtx, replicaset.RolesRemover{})
+			if testCase.errMsg != "" {
+				require.EqualError(t, err, testCase.errMsg)
 			} else {
 				require.NoError(t, err)
-				assertPublished(t, publisher, "a", tc.expectedCfg)
+				assertPublished(t, publisher, "a", testCase.expectedCfg)
 			}
 		})
 	}

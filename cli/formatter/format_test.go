@@ -22,13 +22,13 @@ func TestFormatter_ParseFormat(t *testing.T) {
 		{"ttable", formatter.TTableFormat, true},
 	}
 
-	for _, c := range cases {
-		t.Run(c.str, func(t *testing.T) {
-			format, ok := formatter.ParseFormat(c.str)
-			assert.Equal(t, c.ok, ok, "Unexpected result")
+	for _, tt := range cases {
+		t.Run(tt.str, func(t *testing.T) {
+			format, ok := formatter.ParseFormat(tt.str)
+			assert.Equal(t, tt.ok, ok, "Unexpected result")
 
 			if ok {
-				assert.Equal(t, c.expected, format, "Unexpected output format")
+				assert.Equal(t, tt.expected, format, "Unexpected output format")
 			}
 		})
 	}
@@ -48,14 +48,14 @@ func TestFormatter_Format_String(t *testing.T) {
 		{formatter.Format(2023), "Unknown output format", true},
 	}
 
-	for _, c := range cases {
-		t.Run(c.expected, func(t *testing.T) {
-			if c.panic {
-				f := func() { _ = c.format.String() }
+	for _, tt := range cases {
+		t.Run(tt.expected, func(t *testing.T) {
+			if tt.panic {
+				f := func() { _ = tt.format.String() }
 				assert.PanicsWithValue(t, "Unknown output format", f)
 			} else {
-				result := c.format.String()
-				assert.Equal(t, c.expected, result, "Unexpected result")
+				result := tt.format.String()
+				assert.Equal(t, tt.expected, result, "Unexpected result")
 			}
 		})
 	}
@@ -353,21 +353,21 @@ func TestFormatter_MakeOutputFormat(t *testing.T) {
 		},
 	}
 
-	for _, c := range cases {
-		t.Run(fmt.Sprint(c.outputFormat), func(t *testing.T) {
+	for _, tt := range cases {
+		t.Run(fmt.Sprint(tt.outputFormat), func(t *testing.T) {
 			formatterOpts := formatter.Opts{
 				Graphics:       true,
 				ColumnWidthMax: 0,
 				TableDialect:   formatter.DefaultTableDialect,
 			}
 
-			if c.panic {
+			if tt.panic {
 				assert.PanicsWithValue(t, "Unknown render case", func() {
-					_, _ = formatter.MakeOutput(c.outputFormat, c.input, formatterOpts)
+					_, _ = formatter.MakeOutput(tt.outputFormat, tt.input, formatterOpts)
 				})
 			} else {
-				output, err := formatter.MakeOutput(c.outputFormat, c.input, formatterOpts)
-				assert.Equal(t, c.output, output, "Unexpected render output")
+				output, err := formatter.MakeOutput(tt.outputFormat, tt.input, formatterOpts)
+				assert.Equal(t, tt.output, output, "Unexpected render output")
 				assert.NoError(t, err)
 			}
 		})

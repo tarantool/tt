@@ -88,45 +88,50 @@ func startEtcd(t *testing.T, opts etcdOpts) *etcdtest.LazyCluster {
 		_ = etcd.Close()
 	}()
 
-	if err := doWithCtx(func(ctx context.Context) error {
+	err = doWithCtx(func(ctx context.Context) error {
 		_, err := etcd.UserAdd(ctx, opts.Username, opts.Password)
 		return err
-	}); err != nil {
+	})
+	if err != nil {
 		inst.Terminate()
 		t.Fatalf("Failed to create user in etcd: %s", err)
 	}
 
 	if opts.Username != "root" {
 		// We need the root user for auth enable anyway.
-		if err := doWithCtx(func(ctx context.Context) error {
+		err = doWithCtx(func(ctx context.Context) error {
 			_, err := etcd.UserAdd(ctx, "root", "")
 			return err
-		}); err != nil {
+		})
+		if err != nil {
 			inst.Terminate()
 			t.Fatalf("Failed to create root in etcd: %s", err)
 		}
 
-		if err := doWithCtx(func(ctx context.Context) error {
+		err = doWithCtx(func(ctx context.Context) error {
 			_, err := etcd.UserGrantRole(ctx, "root", "root")
 			return err
-		}); err != nil {
+		})
+		if err != nil {
 			inst.Terminate()
 			t.Fatalf("Failed to grant root in etcd: %s", err)
 		}
 	}
 
-	if err := doWithCtx(func(ctx context.Context) error {
+	err = doWithCtx(func(ctx context.Context) error {
 		_, err := etcd.UserGrantRole(ctx, opts.Username, "root")
 		return err
-	}); err != nil {
+	})
+	if err != nil {
 		inst.Terminate()
 		t.Fatalf("Failed to grant user in etcd: %s", err)
 	}
 
-	if err := doWithCtx(func(ctx context.Context) error {
-		_, err = etcd.AuthEnable(ctx)
+	err = doWithCtx(func(ctx context.Context) error {
+		_, err := etcd.AuthEnable(ctx)
 		return err
-	}); err != nil {
+	})
+	if err != nil {
 		inst.Terminate()
 		t.Fatalf("Failed to enable auth in etcd: %s", err)
 	}

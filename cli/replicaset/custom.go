@@ -41,7 +41,8 @@ type CustomInstance struct {
 // NewCustomInstance creates a new CustomInstance object for the evaler.
 func NewCustomInstance(evaler connector.Evaler) *CustomInstance {
 	inst := &CustomInstance{
-		evaler: evaler,
+		cachedDiscoverer: newCachedDiscoverer(),
+		evaler:           evaler,
 	}
 
 	inst.discoverer = inst
@@ -92,10 +93,14 @@ func (c *CustomInstance) discovery() (Replicasets, error) {
 		Orchestrator: OrchestratorCustom,
 		Replicasets: []Replicaset{
 			{
-				UUID:       topology.UUID,
-				LeaderUUID: topology.LeaderUUID,
-				Alias:      topology.Alias,
-				Instances:  topology.Instances,
+				UUID:          topology.UUID,
+				LeaderUUID:    topology.LeaderUUID,
+				Alias:         topology.Alias,
+				Roles:         nil,
+				Master:        MasterUnknown,
+				Failover:      FailoverUnknown,
+				StateProvider: StateProviderUnknown,
+				Instances:     topology.Instances,
 			},
 		},
 	}), nil
@@ -111,7 +116,8 @@ type CustomApplication struct {
 // NewCustomApplication creates a new CustomApplication object.
 func NewCustomApplication(runningCtx running.RunningCtx) *CustomApplication {
 	app := &CustomApplication{
-		runningCtx: runningCtx,
+		cachedDiscoverer: newCachedDiscoverer(),
+		runningCtx:       runningCtx,
 	}
 
 	app.discoverer = app
@@ -188,7 +194,7 @@ func getCustomInstanceTopology(name string,
 	var topology customTopology
 
 	args := []any{}
-	opts := connector.RequestOpts{}
+	opts := connector.RequestOpts{PushCallback: nil, ReadTimeout: 0, ResData: nil}
 
 	data, err := evaler.Eval(customGetInstanceTopologyBody, args, opts)
 	if err != nil {
@@ -199,20 +205,21 @@ func getCustomInstanceTopology(name string,
 		return topology, fmt.Errorf("%w: %v", errUnexpectedResponse, data)
 	}
 
-	if err := mapstructure.Decode(data[0], &topology); err != nil {
+	err = mapstructure.Decode(data[0], &topology)
+	if err != nil {
 		return topology, fmt.Errorf("failed to parse a response: %w", err)
 	}
 
-	for i := range topology.Instances {
-		if topology.Instances[i].UUID == topology.InstanceUUID {
+	for idx := range topology.Instances {
+		if topology.Instances[idx].UUID == topology.InstanceUUID {
 			if topology.InstanceRW {
-				topology.Instances[i].Mode = ModeRW
+				topology.Instances[idx].Mode = ModeRW
 			} else {
-				topology.Instances[i].Mode = ModeRead
+				topology.Instances[idx].Mode = ModeRead
 			}
 
-			if topology.Instances[i].Alias == "" {
-				topology.Instances[i].Alias = name
+			if topology.Instances[idx].Alias == "" {
+				topology.Instances[idx].Alias = name
 			}
 		}
 	}
@@ -226,6 +233,7 @@ func mergeCustomTopologies(topologies []customTopology) (Replicasets, error) {
 	replicasets := Replicasets{
 		State:        StateBootstrapped,
 		Orchestrator: OrchestratorCustom,
+		Replicasets:  nil,
 	}
 
 	for _, topology := range topologies {
@@ -242,10 +250,14 @@ func mergeCustomTopologies(topologies []customTopology) (Replicasets, error) {
 			updateCustomInstances(replicaset, topology)
 		} else {
 			replicasets.Replicasets = append(replicasets.Replicasets, Replicaset{
-				UUID:       topology.UUID,
-				LeaderUUID: topology.LeaderUUID,
-				Alias:      topology.Alias,
-				Instances:  topology.Instances,
+				UUID:          topology.UUID,
+				LeaderUUID:    topology.LeaderUUID,
+				Alias:         topology.Alias,
+				Roles:         nil,
+				Master:        MasterUnknown,
+				Failover:      FailoverUnknown,
+				StateProvider: StateProviderUnknown,
+				Instances:     topology.Instances,
 			})
 		}
 	}
