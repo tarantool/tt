@@ -1,17 +1,12 @@
 package cmd
 
 import (
-	"os"
-
-	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
+	"github.com/tarantool/tt/sdk/output"
 
 	"github.com/tarantool/tt/v3/cli/manifest/registry"
 	manifestrocks "github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
-
-// registryFormat is -o of `tt registry list`.
-var registryFormat string
 
 // NewRegistryCmd creates the `tt registry` command group: the rock servers the
 // package commands resolve against.
@@ -42,29 +37,24 @@ func newRegistryListCmd() *cobra.Command {
 			"has a rock and an appended server would change which that is. Run " +
 			"in a project directory to see what its manifest configures.",
 		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return commandError(cmd, runRegistryList())
-		},
 	}
 
-	listCmd.Flags().StringVarP(&registryFormat, "format", "o", "",
-		"output format: table, json or yaml (default: table on a terminal, yaml otherwise)")
+	format := bindFormatFlag(listCmd)
 	addRegistryFlag(listCmd)
+
+	listCmd.RunE = func(cmd *cobra.Command, args []string) error {
+		return commandError(cmd, runRegistryList(format))
+	}
 
 	return listCmd
 }
 
 // runRegistryList renders the effective server list.
-func runRegistryList() error {
-	format, err := registry.ParseFormat(registryFormat, isatty.IsTerminal(os.Stdout.Fd()))
-	if err != nil {
-		return err
-	}
-
+func runRegistryList(format *output.FormatFlag) error {
 	registries, err := effectiveRegistries()
 	if err != nil {
 		return err
 	}
 
-	return registry.RenderList(os.Stdout, registries, format)
+	return emitResult(format, registry.Servers(registries))
 }

@@ -54,7 +54,7 @@ def test_deps_reads_the_c_directory(tt_cmd, tmp_path):
     assert bare.returncode == 1
     assert "app.manifest.toml" in bare.stderr
 
-    flagged = run(tt_cmd, elsewhere, "package", "deps", "-C", str(project))
+    flagged = run(tt_cmd, elsewhere, "package", "deps", "-C", str(project), "-o", "yaml")
     assert flagged.returncode == 0, flagged.stderr
     assert "my-app" in flagged.stdout
     assert "stat" in flagged.stdout
@@ -66,7 +66,7 @@ def test_c_accepts_a_relative_path(tt_cmd, tmp_path):
     project.mkdir()
     (project / "app.manifest.toml").write_text(MANIFEST)
 
-    result = run(tt_cmd, tmp_path, "package", "deps", "-C", "project")
+    result = run(tt_cmd, tmp_path, "package", "deps", "-C", "project", "-o", "yaml")
     assert result.returncode == 0, result.stderr
     assert "my-app" in result.stdout
 

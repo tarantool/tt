@@ -243,7 +243,7 @@ def test_install_refetches_the_closure(tt_cmd, tmp_path):
     assert (meta / "lock.toml").exists()
     assert (meta / "VERSION").exists()
 
-    listed = run(tt_cmd, target, "package", "list")
+    listed = run(tt_cmd, target, "package", "list", "-o", "yaml")
     assert listed.returncode == 0, listed.stderr
     assert "my-app" in listed.stdout
     assert DEPENDENCY_VERSION in listed.stdout

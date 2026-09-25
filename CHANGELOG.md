@@ -53,8 +53,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   The source is the metadata `tt package install` records under
   `.rocks/manifests/<pkg>/`, so nothing is fetched and nothing is resolved; this
   reports what is on disk, not what the current manifest declares. `--scope`
-  selects the tree and `-o/--format` picks the output: `table` by default on a
-  terminal, `yaml` by default otherwise, or an explicit `table`/`json`/`yaml`.
+  selects the tree and `-o/--format` picks the output: `table` (the default),
+  `json` or `yaml`.
   `--tree` renders the scope as a single tree rooted at the project's own
   package, with each guest beneath it and each rock beneath whatever requires
   it, read from the LuaRocks tree manifest. Every rock is annotated with whether
@@ -109,9 +109,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   manifest and the lock and contacts no registry, so a lock that no longer
   matches the manifest is reported as stale rather than silently re-resolved,
   and the command works on a machine with no Tarantool installed. `-o` selects
-  the format (table, json or yaml; the default is the table on a terminal and
-  YAML otherwise). The lock state is written to stderr, so a redirected table
-  is the table alone. This is what the manifest declares — what is installed on
+  the format (table, json or yaml; the default is the table). With the table
+  the lock state is logged to stderr, so a redirected table is the table
+  alone. This is what the manifest declares — what is installed on
   disk is `tt package list`.
 - `[dev_dependencies]` are now resolved and installed. They were parsed and
   validated but reached neither the lock nor `.rocks/`. The lock records them
@@ -136,8 +136,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt registry list`: print the effective rock-server list in the order it is
   queried, each server with the layer it was configured in — the flag, the
   environment, the manifest or the built-in defaults. `-o` selects the format
-  (table, json or yaml; the default is the table on a terminal and YAML
-  otherwise).
+  (table, json or yaml; the default is the table).
 - `tt package search <term>`: find rocks whose name contains the term on the
   configured servers, reporting every version each server offers. Unlike
   resolution, which stops at the first server that has a rock, a search asks
@@ -191,6 +190,9 @@ for machine-readable output.
   with trailing spaces. A debug line is marked `·`, the continuation lines of
   a multi-line message are indented to the message, and colour is used only
   when stderr is a terminal and `NO_COLOR` is not set.
+- `tt package deps|list|search` and `tt registry list` print a table by
+  default also when stdout is not a terminal; use `-o yaml` or `-o json` in
+  scripts.
 - A failure of the system a command ran on exits 2 from every command, not
   only from the manifest commands: a server that cannot be reached or does
   not answer in time, a host name that does not resolve, a filesystem that

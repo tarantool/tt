@@ -221,9 +221,6 @@ linters:
             # cli/manifest/build and cli/manifest/deps drive the dependency
             # resolver; deps also names resolve.Pins in its own signatures.
             - "github.com/tarantool/tt/v3/cli/manifest/resolve"
-            # cli/manifest/inventory renders tt package list as YAML, the
-            # machine-readable default for non-TTY output.
-            - "gopkg.in/yaml.v3"
         test:
           files:
             - "$test"
@@ -244,8 +241,12 @@ linters:
             - "github.com/tarantool/go-luarocks"
             # cli/manifest/pack tests decompress the archive they just wrote.
             - "github.com/klauspost/compress/zstd"
-            # cli/manifest/inventory tests round-trip the YAML they rendered.
+            # deps, inventory and registry tests round-trip the YAML they
+            # rendered.
             - "gopkg.in/yaml.v3"
+            # Tests render results through a Printer with the core's formats,
+            # the way the commands do.
+            - "github.com/tarantool/tt/v3/cli/printing"
             # Tests check the exit code an error carries (the SDK's ExitError)
             # and the one tt exits with for it (cli/exitcode).
             - "github.com/tarantool/tt/sdk"

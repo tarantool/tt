@@ -7,8 +7,6 @@ import (
 )
 
 var (
-	// ErrUnknownFormat reports an -o value that is not table, json or yaml.
-	ErrUnknownFormat = errors.New("unknown output format")
 	// ErrBadReference reports a download argument that is not NAME or
 	// NAME@VERSION.
 	ErrBadReference = errors.New("invalid rock reference")

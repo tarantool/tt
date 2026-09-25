@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"strings"
 	"testing"
 
@@ -11,7 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/tarantool/tt/v3/cli/exitcode"
+	"github.com/tarantool/tt/sdk/log/logtest"
+	"github.com/tarantool/tt/sdk/output"
+
+	"github.com/tarantool/tt/v3/cli/printing"
 )
 
 // sampleReport is one report covering every shape the renderers have to carry:
@@ -38,42 +42,25 @@ func sampleReport() *Report {
 	}
 }
 
-// TestParseFormat_defaultFollowsStdout: a terminal gets the table, anything
-// else gets YAML, so piped output is parseable without a flag.
-func TestParseFormat_defaultFollowsStdout(t *testing.T) {
-	t.Parallel()
+// emit writes the report through a Printer in format, the way tt package deps
+// does, and returns stdout.
+func emit(t *testing.T, report *Report, format output.Format) []byte {
+	t.Helper()
 
-	tty, err := ParseFormat("", true)
-	require.NoError(t, err)
-	assert.Equal(t, FormatTable, tty)
+	var out bytes.Buffer
 
-	piped, err := ParseFormat("", false)
+	printer, err := output.NewPrinter(output.Streams{In: nil, Out: &out, Err: io.Discard},
+		format, printing.Options()...)
 	require.NoError(t, err)
-	assert.Equal(t, FormatYAML, piped)
+	require.NoError(t, printer.Emit(report))
+
+	return out.Bytes()
 }
 
-// TestParseFormat_unknownIsRefused: a mistyped -o must not silently fall back
-// to a format the caller did not ask for.
-func TestParseFormat_unknownIsRefused(t *testing.T) {
-	t.Parallel()
-
-	_, err := ParseFormat("xml", true)
-	require.ErrorIs(t, err, ErrUnknownFormat)
-	assert.Equal(t, 1, exitcode.Code(err))
-}
-
-// TestRender_jsonIsValidAndCarriesEveryGroup is the acceptance criterion for
+// TestReport_jsonIsValidAndCarriesEveryGroup is the acceptance criterion for
 // -o json: something else parses it, and finds both closures in it.
-func TestRender_jsonIsValidAndCarriesEveryGroup(t *testing.T) {
+func TestReport_jsonIsValidAndCarriesEveryGroup(t *testing.T) {
 	t.Parallel()
-
-	var out, notes bytes.Buffer
-
-	require.NoError(t, Render(&out, &notes, sampleReport(), FormatJSON))
-
-	// A machine format carries the lock state in the document, so nothing is
-	// left for a caller to scrape off the side channel.
-	assert.Empty(t, notes.String())
 
 	var decoded struct {
 		Package  string `json:"package"`
@@ -91,7 +78,7 @@ func TestRender_jsonIsValidAndCarriesEveryGroup(t *testing.T) {
 		} `json:"dev_dependencies"`
 	}
 
-	require.NoError(t, json.Unmarshal(out.Bytes(), &decoded))
+	require.NoError(t, json.Unmarshal(emit(t, sampleReport(), output.FormatJSON), &decoded))
 
 	assert.Equal(t, "my-app", decoded.Package)
 	assert.Equal(t, "stale", decoded.Lock)
@@ -103,53 +90,55 @@ func TestRender_jsonIsValidAndCarriesEveryGroup(t *testing.T) {
 	assert.Equal(t, "luatest", decoded.DevDependencies[0].Name)
 }
 
-// TestRender_yamlIsValid covers the format a piped run gets by default.
-func TestRender_yamlIsValid(t *testing.T) {
+// TestReport_yamlIsValid covers the other machine format.
+func TestReport_yamlIsValid(t *testing.T) {
 	t.Parallel()
-
-	var out bytes.Buffer
-
-	require.NoError(t, Render(&out, io.Discard, sampleReport(), FormatYAML))
 
 	var decoded map[string]any
 
-	require.NoError(t, yaml.Unmarshal(out.Bytes(), &decoded))
+	require.NoError(t, yaml.Unmarshal(emit(t, sampleReport(), printing.FormatYAML), &decoded))
 
 	assert.Equal(t, "my-app", decoded["package"])
+	assert.Equal(t, "stale", decoded["lock"])
 	assert.Contains(t, decoded, "dev_dependencies")
 }
 
-// TestRender_tableStatesTheLockAndEveryRow: the human view has to say what the
-// versions are worth before showing them, and put the dev closure somewhere a
-// reader can tell apart from a product.
-func TestRender_tableStatesTheLockAndEveryRow(t *testing.T) {
+// TestReport_tableRowsAndTheLockNoteApart: the human view puts the dev
+// closure somewhere a reader can tell apart from a product, and says what the
+// versions are worth in a log line rather than in the table, so a redirected
+// table keeps every row and nothing else.
+func TestReport_tableRowsAndTheLockNoteApart(t *testing.T) {
 	t.Parallel()
 
-	var out, notes bytes.Buffer
+	logger, recorder := logtest.New(t)
 
-	require.NoError(t, Render(&out, &notes, sampleReport(), FormatTable))
+	var out bytes.Buffer
 
-	// The narrative qualifies the table without being part of it, so a reader
-	// redirecting the table keeps every row and loses no warning.
-	assert.Contains(t, notes.String(), "lock is stale")
-	assert.Contains(t, notes.String(), "tt package resolve")
-	assert.NotContains(t, out.String(), "lock is stale")
+	require.NoError(t, sampleReport().human(&out, logger))
+
+	records := recorder.Records()
+	require.Len(t, records, 1)
+	assert.Equal(t, slog.LevelWarn, records[0].Level)
+	assert.Contains(t, records[0].Message, "lock is stale")
+	assert.Contains(t, records[0].Message, "manifest changed since the lock was written")
+	assert.Contains(t, records[0].Message, "tt package resolve")
 
 	text := out.String()
-	assert.Contains(t, text, "PRODUCT")
+	assert.NotContains(t, text, "lock is stale")
+	assert.True(t, strings.HasPrefix(text, "PRODUCT"), text)
 
-	lines := strings.Split(strings.TrimSpace(text), "\n")
-	joined := strings.Join(lines, "\n")
-
-	assert.Regexp(t, `default\s+checks\s+>=3\.0\.0\s+3\.1\.0-1\s+registry\s+direct`, joined)
-	assert.Regexp(t, `default\s+luasocket\s+-\s+3\.0\.0-1\s+registry\s+transitive`, joined)
-	assert.Regexp(t, `\(dev\)\s+luatest\s+\*\s+1\.0\.1-1\s+registry\s+direct`, joined)
+	assert.Regexp(t, `default\s+checks\s+>=3\.0\.0\s+3\.1\.0-1\s+registry\s+direct`, text)
+	assert.Regexp(t, `default\s+luasocket\s+-\s+3\.0\.0-1\s+registry\s+transitive`, text)
+	assert.Regexp(t, `\(dev\)\s+luatest\s+\*\s+1\.0\.1-1\s+registry\s+direct`, text)
 }
 
-// TestRender_tableSaysSoWhenNothingIsDeclared: a bare header over an empty
-// table reads as a bug, so the empty case gets a sentence.
-func TestRender_tableSaysSoWhenNothingIsDeclared(t *testing.T) {
+// TestReport_tableSaysSoWhenNothingIsDeclared: a bare header over an empty
+// table reads as a bug, so the empty case gets a sentence. A current lock
+// needs no note.
+func TestReport_tableSaysSoWhenNothingIsDeclared(t *testing.T) {
 	t.Parallel()
+
+	logger, recorder := logtest.New(t)
 
 	var out bytes.Buffer
 
@@ -158,36 +147,31 @@ func TestRender_tableSaysSoWhenNothingIsDeclared(t *testing.T) {
 		Lock:     LockCurrent,
 		Products: []ProductEntries{{Name: "default"}},
 	}
-	require.NoError(t, Render(&out, io.Discard, report, FormatTable))
+	require.NoError(t, report.human(&out, logger))
 
 	assert.Equal(t, "my-app declares no dependencies\n", out.String())
+	assert.Empty(t, recorder.Records())
 }
 
-// TestRender_tablePointsAMissingLockAtResolve: the answer to "why is the
+// TestReport_tablePointsAMissingLockAtResolve: the answer to "why is the
 // VERSION column empty" belongs in the output, not in the documentation.
-func TestRender_tablePointsAMissingLockAtResolve(t *testing.T) {
+func TestReport_tablePointsAMissingLockAtResolve(t *testing.T) {
 	t.Parallel()
 
-	var out, notes bytes.Buffer
+	logger, recorder := logtest.New(t)
+
+	var out bytes.Buffer
 
 	report := sampleReport()
 
 	report.Lock = LockMissing
 	report.LockReason = ""
 
-	require.NoError(t, Render(&out, &notes, report, FormatTable))
-	assert.Contains(t, notes.String(), "no lock yet: run tt package resolve")
+	require.NoError(t, report.human(&out, logger))
+
+	records := recorder.Records()
+	require.Len(t, records, 1)
+	assert.Equal(t, slog.LevelInfo, records[0].Level)
+	assert.Equal(t, "no lock yet: run tt package resolve to pin versions", records[0].Message)
 	assert.NotContains(t, out.String(), "no lock yet")
-}
-
-// TestRender_unknownFormatIsRefused guards the switch's default arm: a format
-// that reached Render unchecked must fail rather than print nothing.
-func TestRender_unknownFormatIsRefused(t *testing.T) {
-	t.Parallel()
-
-	var out bytes.Buffer
-
-	err := Render(&out, io.Discard, sampleReport(), Format("xml"))
-	require.ErrorIs(t, err, ErrUnknownFormat)
-	assert.Empty(t, out.String())
 }

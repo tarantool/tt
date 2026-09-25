@@ -40,16 +40,30 @@ def test_list_json_is_valid(run_tt, shared_tree):
 
 
 @pytest.mark.usefixtures("shared_tree")
-def test_list_defaults_to_yaml_when_piped(run_tt):
-    """Captured output is not a terminal, so the default format is YAML.
+def test_list_defaults_to_the_table_when_piped(run_tt):
+    """The flag alone picks the format: captured output still gets the table.
 
-    This is the convention that makes `tt package list | ...` parseable without
-    the caller having to remember `-o`.
+    Captured output is not a terminal, so a default that followed the terminal
+    would print something else here. Scripts name `-o yaml` or `-o json`.
     """
-    result = run_tt("package", "list")
+    default = run_tt("package", "list")
+    assert default.returncode == 0, default.stderr
+
+    table = run_tt("package", "list", "-o", "table")
+    assert table.returncode == 0, table.stderr
+
+    assert default.stdout == table.stdout
+    assert default.stdout.splitlines()[0].split() == ["NAME", "VERSION", "ORIGIN", "DESCRIPTION"]
+
+
+@pytest.mark.usefixtures("shared_tree")
+def test_list_yaml_is_valid(run_tt):
+    """`-o yaml` parses, and carries the same document as `-o json`."""
+    result = run_tt("package", "list", "-o", "yaml")
     assert result.returncode == 0, result.stderr
 
     payload = yaml.safe_load(result.stdout)
+    assert payload == json.loads(run_tt("package", "list", "-o", "json").stdout)
     assert payload["scope"] == "project"
     assert {entry["name"] for entry in payload["packages"]} == {
         "my-app",

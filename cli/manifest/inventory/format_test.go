@@ -1,6 +1,7 @@
 package inventory_test
 
 import (
+	"io"
 	"strings"
 	"testing"
 
@@ -8,63 +9,26 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/tarantool/tt/v3/cli/exitcode"
+	"github.com/tarantool/tt/sdk/output"
+
 	"github.com/tarantool/tt/v3/cli/manifest/inventory"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
+	"github.com/tarantool/tt/v3/cli/printing"
 )
 
-// render writes a listing in the given format and returns it as a string.
-func render(t *testing.T, listing *inventory.Listing, format inventory.Format) string {
+// render writes a listing through a Printer in the given format, the way
+// tt package list does, and returns stdout as a string.
+func render(t *testing.T, listing *inventory.Listing, format output.Format) string {
 	t.Helper()
 
 	var out strings.Builder
 
-	require.NoError(t, inventory.Render(&out, listing, format))
+	printer, err := output.NewPrinter(output.Streams{In: nil, Out: &out, Err: io.Discard},
+		format, printing.Options()...)
+	require.NoError(t, err)
+	require.NoError(t, printer.Emit(listing))
 
 	return out.String()
-}
-
-// TestParseFormatExplicit covers the three accepted values.
-func TestParseFormatExplicit(t *testing.T) {
-	t.Parallel()
-
-	for raw, want := range map[string]inventory.Format{
-		"table": inventory.FormatTable,
-		"json":  inventory.FormatJSON,
-		"yaml":  inventory.FormatYAML,
-	} {
-		for _, tty := range []bool{true, false} {
-			got, err := inventory.ParseFormat(raw, tty)
-			require.NoError(t, err, raw)
-			assert.Equal(t, want, got, raw)
-		}
-	}
-}
-
-// TestParseFormatDefaultsByTTY pins the convention: a terminal gets the human
-// table, a pipe gets YAML so piped output is parseable without a flag.
-func TestParseFormatDefaultsByTTY(t *testing.T) {
-	t.Parallel()
-
-	got, err := inventory.ParseFormat("", true)
-	require.NoError(t, err)
-	assert.Equal(t, inventory.FormatTable, got)
-
-	got, err = inventory.ParseFormat("", false)
-	require.NoError(t, err)
-	assert.Equal(t, inventory.FormatYAML, got)
-}
-
-// TestParseFormatRejectsUnknown pins that a mistyped -o is exit 1, not a silent
-// fallback to the table.
-func TestParseFormatRejectsUnknown(t *testing.T) {
-	t.Parallel()
-
-	_, err := inventory.ParseFormat("xml", true)
-	require.Error(t, err)
-	require.ErrorIs(t, err, inventory.ErrUnknownFormat)
-	assert.Equal(t, 1, exitcode.Code(err))
-	assert.Contains(t, err.Error(), "xml")
 }
 
 // TestRenderYAMLIsValid pins that the YAML output round-trips.
@@ -82,7 +46,7 @@ func TestRenderYAMLIsValid(t *testing.T) {
 
 	var decoded inventory.Listing
 
-	require.NoError(t, yaml.Unmarshal([]byte(render(t, listing, inventory.FormatYAML)), &decoded))
+	require.NoError(t, yaml.Unmarshal([]byte(render(t, listing, printing.FormatYAML)), &decoded))
 
 	assert.Equal(t, state.ScopeProject, decoded.Scope)
 	require.Len(t, decoded.Packages, 2)
@@ -104,7 +68,7 @@ func TestRenderTable(t *testing.T) {
 	listing, err := inventory.List(inventory.ListOptions{ProjectDir: tr.dir})
 	require.NoError(t, err)
 
-	out := render(t, listing, inventory.FormatTable)
+	out := render(t, listing, output.FormatHuman)
 	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
 
 	require.Len(t, lines, 3)
@@ -131,7 +95,7 @@ func TestRenderTableEmpty(t *testing.T) {
 	listing, err := inventory.List(inventory.ListOptions{ProjectDir: tr.dir})
 	require.NoError(t, err)
 
-	out := render(t, listing, inventory.FormatTable)
+	out := render(t, listing, output.FormatHuman)
 
 	assert.Contains(t, out, "no packages installed")
 	assert.NotContains(t, out, "NAME")
@@ -150,7 +114,7 @@ func TestRenderTableMissingVersion(t *testing.T) {
 	listing, err := inventory.List(inventory.ListOptions{ProjectDir: tr.dir})
 	require.NoError(t, err)
 
-	out := render(t, listing, inventory.FormatTable)
+	out := render(t, listing, output.FormatHuman)
 
 	assert.Contains(t, out, "my-app")
 	assert.Contains(t, out, "-")
@@ -171,25 +135,9 @@ func TestRenderTableFlattensDescription(t *testing.T) {
 		}},
 	}
 
-	out := render(t, listing, inventory.FormatTable)
+	out := render(t, listing, output.FormatHuman)
 	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
 
 	require.Len(t, lines, 2, "a multi-line description must not add rows")
 	assert.Contains(t, lines[1], "first line second line")
-}
-
-// TestRenderRejectsUnknownFormat pins that an unvalidated format cannot fall
-// through to a silent default.
-func TestRenderRejectsUnknownFormat(t *testing.T) {
-	t.Parallel()
-
-	listing := &inventory.Listing{
-		Scope: state.ScopeProject, Root: "/tmp/project", Packages: nil,
-	}
-
-	var out strings.Builder
-
-	err := inventory.Render(&out, listing, inventory.Format("xml"))
-	require.Error(t, err)
-	require.ErrorIs(t, err, inventory.ErrUnknownFormat)
 }

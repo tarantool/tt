@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/output"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build"
@@ -47,12 +47,8 @@ var (
 	packageYes     bool
 )
 
-// Flags shared by the commands that render a listing: tt package list and
-// tt package deps.
-var (
-	packageFormat string
-	packageTree   bool
-)
+// packageTree is --tree of `tt package list`.
+var packageTree bool
 
 // Flags specific to `tt package add`.
 var packageDev bool
@@ -325,13 +321,12 @@ func newPackageDepsCmd() *cobra.Command {
 			"manifest and the lock, so a lock that no longer matches the manifest " +
 			"is reported as stale rather than silently re-resolved.",
 		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return commandError(cmd, runPackageDeps())
-		},
 	}
 
-	depsCmd.Flags().StringVarP(&packageFormat, "format", "o", "",
-		"output format: table, json or yaml (default: table on a terminal, yaml otherwise)")
+	format := bindFormatFlag(depsCmd)
+	depsCmd.RunE = func(cmd *cobra.Command, args []string) error {
+		return commandError(cmd, runPackageDeps(format))
+	}
 
 	return depsCmd
 }
@@ -341,13 +336,8 @@ func newPackageDepsCmd() *cobra.Command {
 // Unlike the commands that re-resolve, this one needs no Tarantool: nothing
 // evaluates a rockspec here, so a project's dependencies can be listed on a
 // machine that has no tarantool installed at all.
-func runPackageDeps() error {
+func runPackageDeps(format *output.FormatFlag) error {
 	projectDir, err := absoluteWorkingDir()
-	if err != nil {
-		return err
-	}
-
-	format, err := deps.ParseFormat(packageFormat, isatty.IsTerminal(os.Stdout.Fd()))
 	if err != nil {
 		return err
 	}
@@ -360,7 +350,7 @@ func runPackageDeps() error {
 		return err
 	}
 
-	return deps.Render(os.Stdout, os.Stderr, report, format)
+	return emitResult(format, report)
 }
 
 // dependencyOptions assembles the options the re-resolving dependency commands
@@ -425,32 +415,27 @@ func newPackageListCmd() *cobra.Command {
 			"another package holds it too — that is, whether it would be removed " +
 			"along with the package or stay.",
 		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return commandError(cmd, runPackageList())
-		},
 	}
 
 	listCmd.Flags().StringVar(&packageScope, "scope", "project",
 		"scope to list: project, user or system")
-	listCmd.Flags().StringVarP(&packageFormat, "format", "o", "",
-		"output format: table, json or yaml (default: table on a terminal, yaml otherwise)")
+
+	format := bindFormatFlag(listCmd)
+
 	listCmd.Flags().BoolVar(&packageTree, "tree", false,
 		"show each package's dependencies and which of them are shared")
+
+	listCmd.RunE = func(cmd *cobra.Command, args []string) error {
+		return commandError(cmd, runPackageList(format))
+	}
 
 	return listCmd
 }
 
-// runPackageList reads the inventory and renders it to stdout in the resolved
+// runPackageList reads the inventory and renders it to stdout in the chosen
 // format.
-func runPackageList() error {
+func runPackageList(format *output.FormatFlag) error {
 	projectDir, err := absoluteWorkingDir()
-	if err != nil {
-		return err
-	}
-
-	// The default format follows stdout: a terminal gets the human table, a pipe
-	// or a file gets YAML, so piped output is parseable without a flag.
-	format, err := inventory.ParseFormat(packageFormat, isatty.IsTerminal(os.Stdout.Fd()))
 	if err != nil {
 		return err
 	}
@@ -464,7 +449,7 @@ func runPackageList() error {
 		return err
 	}
 
-	return inventory.Render(os.Stdout, listing, format)
+	return emitResult(format, listing)
 }
 
 // newPackageUninstallCmd wires `tt package uninstall NAME`.
@@ -857,25 +842,20 @@ func newPackageSearchCmd() *cobra.Command {
 			"of them: the point is to see what exists. Nothing is downloaded " +
 			"and nothing is written. A term nothing matches is not an error.",
 		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return commandError(cmd, runPackageSearch(args[0]))
-		},
 	}
 
-	searchCmd.Flags().StringVarP(&packageFormat, "format", "o", "",
-		"output format: table, json or yaml (default: table on a terminal, yaml otherwise)")
+	format := bindFormatFlag(searchCmd)
 	addRegistryFlag(searchCmd)
+
+	searchCmd.RunE = func(cmd *cobra.Command, args []string) error {
+		return commandError(cmd, runPackageSearch(format, args[0]))
+	}
 
 	return searchCmd
 }
 
 // runPackageSearch queries the effective servers and renders the matches.
-func runPackageSearch(term string) error {
-	format, err := registry.ParseFormat(packageFormat, isatty.IsTerminal(os.Stdout.Fd()))
-	if err != nil {
-		return err
-	}
-
+func runPackageSearch(format *output.FormatFlag, term string) error {
 	registries, err := effectiveRegistries()
 	if err != nil {
 		return err
@@ -901,7 +881,7 @@ func runPackageSearch(term string) error {
 		return err
 	}
 
-	return registry.RenderSearch(os.Stdout, os.Stderr, matches, term, format)
+	return emitResult(format, registry.SearchResult{Term: term, Matches: matches})
 }
 
 // newPackageDownloadCmd wires `tt package download [REF...]`.

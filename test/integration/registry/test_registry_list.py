@@ -133,9 +133,23 @@ def test_the_table_names_both_columns(run_registry):
     assert lines[1].split() == ["https://flag.example/", "flag"]
 
 
-def test_yaml_is_the_default_off_a_terminal(run_registry):
-    """Output that is being captured has to be parseable without a flag."""
+def test_the_table_is_the_default_off_a_terminal(run_registry):
+    """The flag alone picks the format: captured output still gets the table.
+
+    Captured output is not a terminal, so a default that followed the
+    terminal would print something else here.
+    """
     result = run_registry("list", "--registry", "https://flag.example/")
+
+    assert result.returncode == 0, result.stderr
+    lines = result.stdout.splitlines()
+    assert lines[0].split() == ["URL", "SOURCE"]
+    assert lines[1].split() == ["https://flag.example/", "flag"]
+
+
+def test_yaml_is_the_same_list(run_registry):
+    """`-o yaml` is the machine form scripts parse, as `-o json` is."""
+    result = run_registry("list", "-o", "yaml", "--registry", "https://flag.example/")
 
     assert result.returncode == 0, result.stderr
     assert yaml.safe_load(result.stdout) == [

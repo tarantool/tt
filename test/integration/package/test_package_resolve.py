@@ -213,10 +213,9 @@ def test_deps_reports_declared_and_locked_versions(tree, run_tt):
     write_manifest(root, "\n[dependencies]\nstat = '>=0.3.1'\n")
     write_lock(root, {"stat": "0.3.2-1", "luasocket": "3.0.0-1"}, current=True)
 
-    result = run_tt("package", "deps")
+    result = run_tt("package", "deps", "-o", "yaml")
     assert result.returncode == 0, result.stderr
 
-    # Piped output defaults to YAML, so this is parseable without a flag.
     report = yaml.safe_load(result.stdout)
     assert report["package"] == "my-app"
     assert report["lock"] == "current"
@@ -264,7 +263,7 @@ def test_deps_reports_a_stale_lock_rather_than_re_resolving(tree, run_tt):
     write_lock(root, {"stat": "0.3.1-1"}, current=False)
     before = (root / "app.manifest.lock").read_text()
 
-    result = run_tt("package", "deps")
+    result = run_tt("package", "deps", "-o", "yaml")
     assert result.returncode == 0, result.stderr
 
     report = yaml.safe_load(result.stdout)
@@ -272,6 +271,33 @@ def test_deps_reports_a_stale_lock_rather_than_re_resolving(tree, run_tt):
     assert "manifest changed" in report["lock_reason"]
     # Read-only: the lock on disk is untouched.
     assert (root / "app.manifest.lock").read_text() == before
+
+
+def test_deps_notes_a_stale_lock_on_stderr(tree, run_tt):
+    """The table says what its versions are worth in a log line, not in itself.
+
+    stdout carries the table and nothing else, so a redirected table is the
+    table; the warning goes to stderr, where the machine formats never put it
+    because the lock state is in their document.
+    """
+    root = tree.root
+    write_manifest(root, "\n[dependencies]\nstat = '>=0.3.1'\n")
+    write_lock(root, {"stat": "0.3.1-1"}, current=False)
+
+    result = run_tt("package", "deps")
+    assert result.returncode == 0, result.stderr
+
+    lines = result.stdout.splitlines()
+    assert lines[0].split() == ["PRODUCT", "NAME", "CONSTRAINT", "VERSION", "SOURCE", "ORIGIN"]
+    assert lines[1].split()[:2] == ["default", "stat"]
+    assert "stale" not in result.stdout
+
+    assert "lock is stale (manifest changed" in result.stderr
+    assert "run tt package resolve" in result.stderr
+
+    machine = run_tt("package", "deps", "-o", "json")
+    assert machine.returncode == 0, machine.stderr
+    assert "lock is stale" not in machine.stderr
 
 
 def test_deps_reports_each_product_separately(tree, run_tt):

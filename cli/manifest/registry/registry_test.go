@@ -3,14 +3,20 @@ package registry_test
 import (
 	"bytes"
 	"encoding/json"
+	"io"
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
+	"github.com/tarantool/tt/sdk/log/logtest"
+	"github.com/tarantool/tt/sdk/output"
+
 	"github.com/tarantool/tt/v3/cli/manifest/registry"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
+	"github.com/tarantool/tt/v3/cli/printing"
 )
 
 func TestParseRef(t *testing.T) {
@@ -61,56 +67,33 @@ func TestParseRefRejects(t *testing.T) {
 	}
 }
 
-func TestParseFormat(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name string
-		raw  string
-		tty  bool
-		want registry.Format
-	}{
-		{name: "a terminal defaults to the table", raw: "", tty: true, want: registry.FormatTable},
-		{name: "a pipe defaults to yaml", raw: "", tty: false, want: registry.FormatYAML},
-		{name: "explicit table over a pipe", raw: "table", tty: false, want: registry.FormatTable},
-		{name: "explicit json", raw: "json", tty: true, want: registry.FormatJSON},
-		{name: "explicit yaml", raw: "yaml", tty: true, want: registry.FormatYAML},
-	}
-
-	for _, testCase := range cases {
-		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-
-			format, err := registry.ParseFormat(testCase.raw, testCase.tty)
-			require.NoError(t, err)
-			assert.Equal(t, testCase.want, format)
-		})
-	}
-}
-
-func TestParseFormatRejectsUnknown(t *testing.T) {
-	t.Parallel()
-
-	_, err := registry.ParseFormat("csv", true)
-	require.ErrorIs(t, err, registry.ErrUnknownFormat)
-}
-
 // sampleRegistries is the effective list the rendering tests print.
-func sampleRegistries() []rocks.Registry {
-	return []rocks.Registry{
+func sampleRegistries() registry.Servers {
+	return registry.Servers{
 		{URL: "/srv/mirror", Source: rocks.SourceFlag},
 		{URL: "https://rocks.example/", Source: rocks.SourceManifest},
 	}
 }
 
-func TestRenderListTable(t *testing.T) {
-	t.Parallel()
+// emit writes result through a Printer in format, the way the commands do,
+// and returns stdout.
+func emit(t *testing.T, result output.Result, format output.Format) []byte {
+	t.Helper()
 
 	var out bytes.Buffer
 
-	require.NoError(t, registry.RenderList(&out, sampleRegistries(), registry.FormatTable))
+	printer, err := output.NewPrinter(output.Streams{In: nil, Out: &out, Err: io.Discard},
+		format, printing.Options()...)
+	require.NoError(t, err)
+	require.NoError(t, printer.Emit(result))
 
-	lines := splitLines(out.String())
+	return out.Bytes()
+}
+
+func TestServersTable(t *testing.T) {
+	t.Parallel()
+
+	lines := splitLines(string(emit(t, sampleRegistries(), output.FormatHuman)))
 	require.Len(t, lines, 3)
 	assert.Contains(t, lines[0], "URL")
 	assert.Contains(t, lines[0], "SOURCE")
@@ -121,49 +104,47 @@ func TestRenderListTable(t *testing.T) {
 	assert.Contains(t, lines[2], "manifest")
 }
 
-func TestRenderListJSON(t *testing.T) {
+func TestServersJSON(t *testing.T) {
 	t.Parallel()
-
-	var out bytes.Buffer
-
-	require.NoError(t, registry.RenderList(&out, sampleRegistries(), registry.FormatJSON))
 
 	var decoded []map[string]string
 
-	require.NoError(t, json.Unmarshal(out.Bytes(), &decoded))
+	require.NoError(t, json.Unmarshal(emit(t, sampleRegistries(), output.FormatJSON), &decoded))
 	assert.Equal(t, []map[string]string{
 		{"url": "/srv/mirror", "source": "flag"},
 		{"url": "https://rocks.example/", "source": "manifest"},
 	}, decoded)
 }
 
-func TestRenderListYAML(t *testing.T) {
+func TestServersYAML(t *testing.T) {
 	t.Parallel()
-
-	var out bytes.Buffer
-
-	require.NoError(t, registry.RenderList(&out, sampleRegistries(), registry.FormatYAML))
 
 	var decoded []map[string]string
 
-	require.NoError(t, yaml.Unmarshal(out.Bytes(), &decoded))
+	require.NoError(t, yaml.Unmarshal(emit(t, sampleRegistries(), printing.FormatYAML), &decoded))
 	assert.Equal(t, []map[string]string{
 		{"url": "/srv/mirror", "source": "flag"},
 		{"url": "https://rocks.example/", "source": "manifest"},
 	}, decoded)
 }
 
-func TestRenderSearchTable(t *testing.T) {
-	t.Parallel()
-
-	var out, notes bytes.Buffer
-
-	matches := []registry.Match{
+// sampleMatches is a search that found two versions of one rock.
+func sampleMatches() []registry.Match {
+	return []registry.Match{
 		{Name: "stat", Version: "0.3.2-1", Server: "https://rocks.example/"},
 		{Name: "stat", Version: "0.3.1-1", Server: "https://rocks.example/"},
 	}
+}
 
-	require.NoError(t, registry.RenderSearch(&out, &notes, matches, "stat", registry.FormatTable))
+func TestSearchTable(t *testing.T) {
+	t.Parallel()
+
+	logger, recorder := logtest.New(t)
+
+	var out bytes.Buffer
+
+	result := registry.SearchResult{Term: "stat", Matches: sampleMatches()}
+	require.NoError(t, result.HumanTo(&out, logger))
 
 	lines := splitLines(out.String())
 	require.Len(t, lines, 3)
@@ -171,43 +152,69 @@ func TestRenderSearchTable(t *testing.T) {
 	assert.Contains(t, lines[0], "VERSION")
 	assert.Contains(t, lines[0], "SERVER")
 	assert.Contains(t, lines[1], "0.3.2-1")
-	assert.Empty(t, notes.String())
+	assert.Empty(t, recorder.Records())
 }
 
-func TestRenderSearchNoMatchKeepsStdoutClean(t *testing.T) {
+func TestSearchNoMatchKeepsStdoutClean(t *testing.T) {
 	t.Parallel()
 
-	var out, notes bytes.Buffer
+	logger, recorder := logtest.New(t)
 
-	err := registry.RenderSearch(&out, &notes, nil, "unpublished", registry.FormatTable)
-	require.NoError(t, err)
+	var out bytes.Buffer
+
+	result := registry.SearchResult{Term: "unpublished", Matches: []registry.Match{}}
+	require.NoError(t, result.HumanTo(&out, logger))
 
 	// A miss is an answer, not an error: nothing goes to the stream a caller
-	// may be piping, and the narrative says so on the other one.
+	// may be piping, and a log line says so on the other one.
 	assert.Empty(t, out.String())
-	assert.Contains(t, notes.String(), "unpublished")
+
+	records := recorder.Records()
+	require.Len(t, records, 1)
+	assert.Equal(t, slog.LevelInfo, records[0].Level)
+	assert.Equal(t, `no rock matches "unpublished"`, records[0].Message)
 }
 
-func TestRenderSearchNoMatchIsAnEmptyDocument(t *testing.T) {
+// TestSearchMachineFormsAreTheMatchList pins that the machine formats carry
+// the matches exactly as a plain list of them encodes - the term is not part
+// of the document.
+func TestSearchMachineFormsAreTheMatchList(t *testing.T) {
 	t.Parallel()
 
-	for _, format := range []registry.Format{registry.FormatJSON, registry.FormatYAML} {
+	for _, format := range []output.Format{output.FormatJSON, printing.FormatYAML} {
 		t.Run(string(format), func(t *testing.T) {
 			t.Parallel()
 
-			var out, notes bytes.Buffer
+			for _, matches := range [][]registry.Match{sampleMatches(), {}, nil} {
+				result := registry.SearchResult{Term: "stat", Matches: matches}
 
-			require.NoError(t, registry.RenderSearch(&out, &notes, nil, "unpublished", format))
-
-			// A consumer parsing the output must get a valid empty list, not
-			// an empty file.
-			var decoded []registry.Match
-
-			require.NoError(t, yaml.Unmarshal(out.Bytes(), &decoded))
-			assert.Empty(t, decoded)
+				assert.Equal(t, string(emit(t, plainList(matches), format)),
+					string(emit(t, result, format)))
+			}
 		})
 	}
 }
+
+func TestSearchNoMatchIsAnEmptyDocument(t *testing.T) {
+	t.Parallel()
+
+	for _, format := range []output.Format{output.FormatJSON, printing.FormatYAML} {
+		t.Run(string(format), func(t *testing.T) {
+			t.Parallel()
+
+			result := registry.SearchResult{Term: "unpublished", Matches: []registry.Match{}}
+
+			// A consumer parsing the output must get a valid empty list, not
+			// an empty file.
+			assert.Equal(t, "[]\n", string(emit(t, result, format)))
+		})
+	}
+}
+
+// plainList is a list of matches with no encoding of its own.
+type plainList []registry.Match
+
+func (plainList) Human(io.Writer) error { return nil }
 
 // splitLines splits rendered output into non-empty lines.
 func splitLines(text string) []string {

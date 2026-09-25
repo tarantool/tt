@@ -21,8 +21,6 @@ var (
 	// ErrAborted reports that the user declined the confirmation prompt; nothing
 	// was removed.
 	ErrAborted = errors.New("aborted")
-	// ErrUnknownFormat reports an -o value that is not table, json or yaml.
-	ErrUnknownFormat = errors.New("unknown output format")
 )
 
 // stateErrorf wraps a formatted error as a usage or state failure

@@ -2,11 +2,14 @@ package registry
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"path/filepath"
 
 	"github.com/tarantool/go-luarocks/client"
+	"github.com/tarantool/tt/sdk/log"
 
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
@@ -75,40 +78,50 @@ func Search(ctx context.Context, opts SearchOptions) ([]Match, error) {
 	return matches, nil
 }
 
-// RenderSearch writes the matches in the chosen format. out carries the
-// listing, notes the narrative, so a redirected table is the table and nothing
-// else.
+// SearchResult is what tt package search reports: the matches for a term.
 //
-// No match writes nothing to out in every format but the machine ones, which
-// write an empty document: a consumer parsing the output must get a valid
-// empty list rather than an empty file.
-func RenderSearch(out, notes io.Writer, matches []Match, term string, format Format) error {
-	switch format {
-	case FormatJSON:
-		return renderJSON(out, matches)
-	case FormatYAML:
-		return renderYAML(out, matches)
-	case FormatTable:
-		return renderSearchTable(out, notes, matches, term)
-	default:
-		return stateErrorf("%w %q", ErrUnknownFormat, format)
-	}
+// The machine formats encode the matches alone, as a list, so no match is an
+// empty list - a consumer parsing the output gets a valid empty document
+// rather than an empty file. The term is there for the human form, which
+// writes nothing to stdout on a miss and logs a note naming the term instead,
+// so a redirected table is the table and nothing else.
+type SearchResult struct {
+	// Term is the substring that was searched for.
+	Term string
+	// Matches are the rocks found, in the order the servers reported them.
+	Matches []Match
 }
 
-// renderSearchTable writes the human-readable listing, or a note on notes when
-// nothing matched.
-func renderSearchTable(out, notes io.Writer, matches []Match, term string) error {
-	if len(matches) == 0 {
-		_, err := fmt.Fprintf(notes, "no rock matches %q\n", term)
-		if err != nil {
-			return fmt.Errorf("rendering table: %w", err)
-		}
+// MarshalJSON encodes the matches as a JSON list.
+func (r SearchResult) MarshalJSON() ([]byte, error) {
+	data, err := json.Marshal(r.Matches)
+	if err != nil {
+		return nil, fmt.Errorf("encoding matches: %w", err)
+	}
+
+	return data, nil
+}
+
+// MarshalYAML encodes the matches as a YAML list.
+func (r SearchResult) MarshalYAML() (any, error) {
+	return r.Matches, nil
+}
+
+// Human writes the matches as a table, or logs that nothing matched.
+func (r SearchResult) Human(out io.Writer) error {
+	return r.human(out, log.Logger())
+}
+
+// human is Human with the logger the miss is noted on.
+func (r SearchResult) human(out io.Writer, logger *slog.Logger) error {
+	if len(r.Matches) == 0 {
+		logger.Info(fmt.Sprintf("no rock matches %q", r.Term))
 
 		return nil
 	}
 
-	rows := make([]string, 0, len(matches))
-	for _, match := range matches {
+	rows := make([]string, 0, len(r.Matches))
+	for _, match := range r.Matches {
 		rows = append(rows, fmt.Sprintf("%s\t%s\t%s", match.Name, match.Version, match.Server))
 	}
 

@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/sdk/output"
+
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest/inventory"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
@@ -65,7 +67,7 @@ func TestListJSONIsValid(t *testing.T) {
 	listing, err := inventory.List(inventory.ListOptions{ProjectDir: tr.dir})
 	require.NoError(t, err)
 
-	rendered := render(t, listing, inventory.FormatJSON)
+	rendered := render(t, listing, output.FormatJSON)
 
 	var decoded struct {
 		Scope    string `json:"scope"`
@@ -134,7 +136,7 @@ func TestListOmitsEmptyDependencies(t *testing.T) {
 	require.Len(t, listing.Packages, 1)
 	assert.Nil(t, listing.Packages[0].Dependencies)
 
-	assert.NotContains(t, render(t, listing, inventory.FormatJSON), "dependencies")
+	assert.NotContains(t, render(t, listing, output.FormatJSON), "dependencies")
 }
 
 // TestListTolerantOfBrokenGuest pins that one corrupt metadata directory does

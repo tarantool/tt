@@ -1,108 +1,29 @@
 package inventory
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"slices"
 	"strings"
 	"text/tabwriter"
-
-	"gopkg.in/yaml.v3"
 )
 
-// yamlIndent is tt's usual YAML indent, and tabColumnPadding the gap between
-// table columns.
-const (
-	yamlIndent       = 2
-	tabColumnPadding = 2
-)
+// tabColumnPadding is the gap between table columns.
+const tabColumnPadding = 2
 
-// Format is how a listing is rendered.
-type Format string
-
-const (
-	// FormatTable is the human-readable column layout.
-	FormatTable Format = "table"
-	// FormatJSON is machine-readable JSON.
-	FormatJSON Format = "json"
-	// FormatYAML is machine-readable YAML.
-	FormatYAML Format = "yaml"
-)
-
-// ParseFormat resolves the -o value against whether stdout is a terminal.
+// Human writes the human-readable listing. The machine formats encode the
+// Listing itself.
 //
-// An explicit value always wins. With none given the default follows the tt
-// convention: a terminal gets the table, and anything else — a pipe, a file, CI
-// — gets YAML, so a command whose output is being consumed produces something
-// parseable without the caller having to remember a flag.
-func ParseFormat(raw string, tty bool) (Format, error) {
-	switch Format(raw) {
-	case "":
-		if tty {
-			return FormatTable, nil
-		}
-
-		return FormatYAML, nil
-	case FormatTable:
-		return FormatTable, nil
-	case FormatJSON:
-		return FormatJSON, nil
-	case FormatYAML:
-		return FormatYAML, nil
-	default:
-		return "", stateErrorf("%w %q (want table, json or yaml)", ErrUnknownFormat, raw)
-	}
-}
-
-// Render writes a listing in the chosen format.
-//
-// The human format has two shapes, chosen by the listing rather than by a
+// The human form has two shapes, chosen by the listing rather than by a
 // separate argument: a listing carrying the dependency index renders as a tree,
 // a plain one as a flat table. The machine formats need no such split — the
 // index is simply another key when it is present.
-func Render(out io.Writer, listing *Listing, format Format) error {
-	switch format {
-	case FormatJSON:
-		return renderJSON(out, listing)
-	case FormatYAML:
-		return renderYAML(out, listing)
-	case FormatTable:
-		if listing.Rocks != nil {
-			return renderTree(out, listing)
-		}
-
-		return renderTable(out, listing)
-	default:
-		return stateErrorf("%w %q", ErrUnknownFormat, format)
-	}
-}
-
-// renderJSON writes indented JSON with a trailing newline, so the output is
-// pleasant both piped into jq and read directly.
-func renderJSON(out io.Writer, listing *Listing) error {
-	encoder := json.NewEncoder(out)
-	encoder.SetIndent("", "  ")
-
-	err := encoder.Encode(listing)
-	if err != nil {
-		return fmt.Errorf("rendering JSON: %w", err)
+func (l *Listing) Human(w io.Writer) error {
+	if l.Rocks != nil {
+		return renderTree(w, l)
 	}
 
-	return nil
-}
-
-// renderYAML writes YAML at tt's usual two-space indent.
-func renderYAML(out io.Writer, listing *Listing) error {
-	encoder := yaml.NewEncoder(out)
-	encoder.SetIndent(yamlIndent)
-
-	err := encoder.Encode(listing)
-	if err != nil {
-		return fmt.Errorf("rendering YAML: %w", err)
-	}
-
-	return encoder.Close() //nolint:wrapcheck // Close reports the same encode error.
+	return renderTable(w, l)
 }
 
 // renderTable writes the human-readable listing: one row per package, with the

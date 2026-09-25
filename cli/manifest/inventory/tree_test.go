@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/sdk/output"
+
 	"github.com/tarantool/tt/v3/cli/manifest/inventory"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
@@ -132,7 +134,7 @@ func TestRockIndexAbsentByDefault(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Nil(t, listing.Rocks)
-	assert.NotContains(t, render(t, listing, inventory.FormatJSON), `"rocks": [`)
+	assert.NotContains(t, render(t, listing, output.FormatJSON), `"rocks": [`)
 }
 
 // TestRockIndexEmptyScope pins that a scope with nothing installed yields
@@ -331,7 +333,7 @@ func TestTransitiveOnlyDependencyIsRemovedWithItsLastOwner(t *testing.T) {
 func TestRenderTreeNestsUnderTheRequiringRock(t *testing.T) {
 	t.Parallel()
 
-	out := render(t, listTree(t, treeFixture(t)), inventory.FormatTable)
+	out := render(t, listTree(t, treeFixture(t)), output.FormatHuman)
 
 	metrics := subtreeOf(t, out, "metrics 1.0.0")
 	require.Len(t, metrics, 2, "metrics carries the rock it requires")
@@ -370,7 +372,7 @@ func TestRenderTreeEdgesAreScopedToThePackage(t *testing.T) {
 		map[string][]string{"metrics": {"checks"}},
 		map[string]string{"metrics": "1.0.0"})
 
-	out := render(t, listTree(t, tr), inventory.FormatTable)
+	out := render(t, listTree(t, tr), output.FormatHuman)
 
 	monitoring := subtreeOf(t, out, "monitoring 2.0.0")
 	assert.NotContains(t, strings.Join(monitoring, "\n"), "checks",
@@ -391,7 +393,7 @@ func TestRenderTreeFallsBackWithoutTreeManifest(t *testing.T) {
 		pins: map[string]string{"metrics": "1.0.0", "luasocket": "3.0.4"},
 	})
 
-	out := render(t, listTree(t, tr), inventory.FormatTable)
+	out := render(t, listTree(t, tr), output.FormatHuman)
 
 	assert.Contains(t, out, transitiveGroupLabel)
 	assert.Contains(t, out, "luasocket 3.0.4 (only here)",
@@ -416,7 +418,7 @@ func TestRenderTreeSurvivesCyclicEdges(t *testing.T) {
 		map[string][]string{"metrics": {"luasocket"}, "luasocket": {"metrics"}},
 		map[string]string{"metrics": "1.0.0", "luasocket": "3.0.4"})
 
-	out := render(t, listTree(t, tr), inventory.FormatTable)
+	out := render(t, listTree(t, tr), output.FormatHuman)
 
 	assert.Contains(t, out, "metrics 1.0.0")
 	assert.Contains(t, out, "luasocket 3.0.4")
@@ -427,7 +429,7 @@ func TestRenderTreeSurvivesCyclicEdges(t *testing.T) {
 func TestRenderTreeWithoutTransitiveRocks(t *testing.T) {
 	t.Parallel()
 
-	out := render(t, listTree(t, treeFixture(t)), inventory.FormatTable)
+	out := render(t, listTree(t, treeFixture(t)), output.FormatHuman)
 
 	assert.NotContains(t, subtreeText(t, out, "alerting 0.5.0"), "pulled in transitively")
 
@@ -457,7 +459,7 @@ func TestRenderTreeAllTransitive(t *testing.T) {
 		pins: map[string]string{"metrics": "1.0.0"},
 	})
 
-	out := render(t, listTree(t, tr), inventory.FormatTable)
+	out := render(t, listTree(t, tr), output.FormatHuman)
 
 	assert.Contains(t, out, "pulled in transitively")
 	assert.Contains(t, out, "metrics 1.0.0 (only here)")
@@ -469,7 +471,7 @@ func TestRenderTreeAllTransitive(t *testing.T) {
 func TestRenderTreeHasSingleRoot(t *testing.T) {
 	t.Parallel()
 
-	lines := treeLines(render(t, listTree(t, treeFixture(t)), inventory.FormatTable))
+	lines := treeLines(render(t, listTree(t, treeFixture(t)), output.FormatHuman))
 
 	var roots []string
 
@@ -490,7 +492,7 @@ func TestRenderTreeHasSingleRoot(t *testing.T) {
 func TestRenderTreeGuestsHangOffPrimary(t *testing.T) {
 	t.Parallel()
 
-	lines := treeLines(render(t, listTree(t, treeFixture(t)), inventory.FormatTable))
+	lines := treeLines(render(t, listTree(t, treeFixture(t)), output.FormatHuman))
 
 	var children []string
 
@@ -526,7 +528,7 @@ func TestRenderTreeShape(t *testing.T) {
 		"│       └── luasocket 3.0.4 (only here)",
 		"└── shared-lib 1.0.0 (guest)",
 		"    └── (no dependencies)",
-	}, treeLines(render(t, listTree(t, treeFixture(t)), inventory.FormatTable)))
+	}, treeLines(render(t, listTree(t, treeFixture(t)), output.FormatHuman)))
 }
 
 // TestRenderTreeWithoutPrimary pins the rootless case: a shared tree or a deploy
@@ -544,7 +546,7 @@ func TestRenderTreeWithoutPrimary(t *testing.T) {
 	})
 	tr.installGuest(t, pkg{name: "alerting", version: "0.5.0"})
 
-	lines := treeLines(render(t, listTree(t, tr), inventory.FormatTable))
+	lines := treeLines(render(t, listTree(t, tr), output.FormatHuman))
 
 	require.Equal(t, "(no project package)", lines[0])
 
@@ -567,7 +569,7 @@ func TestRenderTreeWithoutPrimary(t *testing.T) {
 func TestRenderTreeContinuationBars(t *testing.T) {
 	t.Parallel()
 
-	lines := treeLines(render(t, listTree(t, treeFixture(t)), inventory.FormatTable))
+	lines := treeLines(render(t, listTree(t, treeFixture(t)), output.FormatHuman))
 
 	// monitoring is not the last child, so its rocks keep the bar.
 	assert.Contains(t, lines, "│   ├── metrics 1.0.0 (only here)")
@@ -580,7 +582,7 @@ func TestRenderTreeContinuationBars(t *testing.T) {
 func TestRenderTreeAnnotatesEveryDependency(t *testing.T) {
 	t.Parallel()
 
-	out := render(t, listTree(t, treeFixture(t)), inventory.FormatTable)
+	out := render(t, listTree(t, treeFixture(t)), output.FormatHuman)
 
 	assert.Contains(t, out, "my-app 1.2.3 (primary)")
 
@@ -604,7 +606,7 @@ func TestRenderTreeAnnotatesEveryDependency(t *testing.T) {
 func TestRenderTreeEmptyScope(t *testing.T) {
 	t.Parallel()
 
-	out := render(t, listTree(t, newTree(t)), inventory.FormatTable)
+	out := render(t, listTree(t, newTree(t)), output.FormatHuman)
 
 	assert.Contains(t, out, "no packages installed")
 	assert.NotContains(t, out, "├")
@@ -616,7 +618,7 @@ func TestRenderTreeEmptyScope(t *testing.T) {
 func TestTreeInMachineFormat(t *testing.T) {
 	t.Parallel()
 
-	rendered := render(t, listTree(t, treeFixture(t)), inventory.FormatJSON)
+	rendered := render(t, listTree(t, treeFixture(t)), output.FormatJSON)
 
 	var decoded struct {
 		Rocks []struct {
@@ -651,7 +653,7 @@ func TestTreeMatchesUninstallOutcome(t *testing.T) {
 
 	tr := treeFixture(t)
 
-	before := subtreeText(t, render(t, listTree(t, tr), inventory.FormatTable), "monitoring 2.0.0")
+	before := subtreeText(t, render(t, listTree(t, tr), output.FormatHuman), "monitoring 2.0.0")
 	require.Contains(t, before, "metrics 1.0.0 (only here)")
 	require.Contains(t, before, "luasocket 3.0.4 (only here)")
 	require.Contains(t, before, "checks 3.1.0 (shared with alerting, my-app)")
@@ -678,7 +680,7 @@ func TestTreeScopeIsReported(t *testing.T) {
 	tr := treeFixture(t)
 	listing := listTree(t, tr)
 
-	out := render(t, listing, inventory.FormatTable)
+	out := render(t, listing, output.FormatHuman)
 
 	assert.Contains(t, out, string(state.ScopeProject))
 	assert.Contains(t, out, tr.dir)

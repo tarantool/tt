@@ -62,8 +62,8 @@ def test_search_reports_every_offered_version(run_tt, rock_server):
 def test_search_without_a_match_succeeds(run_tt, rock_server):
     """A term nothing matches is an answer, not a failure.
 
-    The format is named explicitly: output is captured here, so the default
-    would be YAML, and the empty-stdout property belongs to the table.
+    The empty-stdout property belongs to the table, so the format is named
+    explicitly even though the table is the default.
     """
     result = run_tt(
         "package",
