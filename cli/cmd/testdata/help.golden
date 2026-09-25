@@ -1,0 +1,3235 @@
+# The help of every tt command, the bash completion script and the
+# completions of the first word. Regenerate with:
+#   go test ./cli/cmd -run TestHelpGolden -update
+
+=== tt --help
+Utility for managing Tarantool packages and Tarantool-based applications
+
+[0;1;39mUSAGE[0m
+  tt [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  aeon        Manage aeon application
+  binaries    Manage installed binaries
+  cat         Print into stdout the contents of .snap/.xlog FILE(s)
+  cfg         Environment configuration management utility
+  check       Check an application file for syntax errors
+  clean       Clean instance(s) files
+  cluster     Manage cluster configuration
+  completion  Generate autocomplete for a specified shell. Supported shell type:
+              bash | zsh | fish
+  connect     Connect to the tarantool instance
+  coredump    Perform manipulations with the tarantool coredumps
+  create      Create an application from a template
+  daemon      Perform manipulations with the tt daemon (experimental)
+  download    Download Tarantool SDK
+  env         Add current environment binaries location to the PATH variable
+  help        Help about any command
+  install     Install program
+  kill        Kill tarantool instance(s)
+  log         Get logs of instance(s)
+  logrotate   Rotate logs of a started tarantool instance(s)
+  modules     Manage tt cli modules
+  new         Create a skeleton app.manifest.toml in the current directory
+  package     Manage tt manifest packages
+  play        Play the contents of .snap/.xlog FILE(s) to another Tarantool
+              instance
+  registry    Inspect the rock servers packages are resolved against
+  replicaset  Manage replicasets
+  restart     Restart tarantool instance(s)
+  rocks       LuaRocks package manager
+  run         Run the current package under its Tarantool
+  search      Search for available versions for the program
+  start       Start tarantool instance(s)
+  status      Status of the tarantool instance(s)
+  stop        Stop tarantool instance(s)
+  tcm         Manage tcm application
+  test        Build the current package and run its tests
+  uninstall   Uninstalls a program
+  version     Show Tarantool CLI version information
+[0;1;39m
+HELP TOPICS[0m
+  errors      Exit codes of tt commands
+ 
+[0;1;39m
+FLAGS[0m
+  -c, --cfg string             Path to configuration file
+  -h, --help                   help for tt
+  -I, --internal               Use internal module
+  -L, --local string           Local launch
+      --log-format text|json   Format of the log written to stderr: text or json
+                               (default text)
+      --no-prompt              Skip cli interaction using default behavior
+  -s, --self                   Skip searching for other tt versions to run
+  -S, --system                 System launch
+  -V, --verbose                Verbose output
+[0;1;39m
+EXAMPLES[0m
+  $ tt -L /path/to/local/dir version
+  $ tt -S -I help
+  $ tt completion
+
+Use "tt <command> --help" for more information about a command.
+
+=== tt aeon --help
+Manage aeon application
+
+[0;1;39mUSAGE[0m
+  tt aeon [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  connect     Connect to the aeon instance
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for aeon
+
+Use "tt aeon <command> --help" for more information about a command.
+
+=== tt aeon connect --help
+Connect to the aeon instance.
+		tt aeon connect http://localhost:50051
+		tt aeon connect unix://<socket-path>
+		tt aeon connect /path/to/config INSTANCE_NAME
+		tt aeon connect https://user:pass@localhost:2379/prefix INSTANCE
+
+The URL specifies a etcd or tarantool config storage connection settings in the
+following format:
+http(s)://[username:password@]host:port/prefix[?arguments]
+
+* prefix - key prefix (optional), points to a “namespace” or prefix for all key
+  operations.
+
+Possible arguments:
+* key - a target configuration key in the prefix.
+* name - a name of an instance in the cluster configuration.
+* timeout - a request timeout in seconds (default 3.0).
+* ssl_key_file - a path to a private SSL key file.
+* ssl_cert_file - a path to an SSL certificate file.
+* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
+* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
+* ssl_ciphers - a list of allowed SSL ciphers.
+* verify_host - set off (default true) verification of the certificate’s name
+  against the host.
+* verify_peer - set off (default true) verification of the peer’s SSL
+  certificate.
+
+[0;1;39mUSAGE[0m
+  tt aeon connect (<URI> | <URI INSTANCE> | <PATH INSTANCE> | <APP:INSTANCE>)
+  [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help                 help for connect
+  -p, --password string      password (used as etcd credentials only)
+      --sslcafile string     path to a trusted certificate authorities (CA) file
+      --sslcertfile string   path to a SSL certificate file
+      --sslkeyfile string    path to a private SSL key file
+      --transport MODE       allowed [plain ssl] (default plain)
+  -u, --username string      username (used as etcd credentials only)
+
+=== tt binaries --help
+Manage installed binaries
+
+[0;1;39mUSAGE[0m
+  tt binaries [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  list        Show a list of installed binaries and their versions.
+  switch      Switch to installed binary
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for binaries
+
+Use "tt binaries <command> --help" for more information about a command.
+
+=== tt binaries list --help
+Show a list of installed binaries and their versions.
+
+[0;1;39mUSAGE[0m
+  tt binaries list [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for list
+
+=== tt binaries switch --help
+Switch to installed binary
+
+[0;1;39mUSAGE[0m
+  tt binaries switch [program] [version] [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for switch
+[0;1;39m
+EXAMPLES[0m
+  
+# Switch without any arguments.
+
+	$ tt binaries switch
+
+You will need to choose program and version using arrow keys in your console.
+
+# Switch without version.
+
+	$ tt binaries switch tarantool
+
+You will need to choose version using arrow keys in your console.
+
+# Switch with program and version.
+
+	$ tt binaries switch tarantool 3.0.0
+
+=== tt cat --help
+Print into stdout the contents of .snap/.xlog FILE(s)
+
+[0;1;39mUSAGE[0m
+  tt cat <FILE|DIR>... [flags]
+[0;1;39m
+FLAGS[0m
+      --format string      Output format yaml, json or lua (default "yaml")
+      --from uint          Show operations starting from the given lsn
+  -h, --help               help for cat
+  -r, --recursive          Process WAL files in directories recursively
+      --replica ints       Filter the output by replica id. May be passed more
+                           than once
+      --show-system        Show the contents of system spaces
+      --space ints         Filter the output by space number. May be passed more
+                           than once
+      --timestamp string   Show operations ending with the given timestamp
+      --to uint            Show operations ending with the given lsn (default
+                           18446744073709551615)
+[0;1;39m
+EXAMPLES[0m
+  tt cat /path/to/file.snap /path/to/file.xlog /path/to/dir/ --timestamp
+  2024-11-13T14:02:36.818700000+00:00
+  tt cat /path/to/file.snap /path/to/file.xlog /path/to/dir/
+  --timestamp=1731592956.818
+  tt cat --recursive /path/to/dir1 /path/to/dir2
+
+=== tt cfg (via tt help: flag parsing disabled)
+Environment configuration management utility
+
+[0;1;39mUSAGE[0m
+  tt cfg [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  dump        Print environment configuration
+[0;1;39m
+EXAMPLES[0m
+  # Print tt environment configuration:
+
+	$ tt cfg dump
+
+Use "tt cfg <command> --help" for more information about a command.
+
+=== tt cfg dump --help
+Print environment configuration
+
+[0;1;39mUSAGE[0m
+  tt cfg dump [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for dump
+  -r, --raw    Display the raw contents of tt environment config.
+
+=== tt check --help
+Check an application file for syntax errors
+
+[0;1;39mUSAGE[0m
+  tt check [<APPLICATION_NAME>] [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for check
+
+=== tt clean --help
+Clean instance(s) files
+
+[0;1;39mUSAGE[0m
+  tt clean [INSTANCE_NAME] [flags]
+[0;1;39m
+FLAGS[0m
+  -f, --force   do not ask for confirmation
+  -h, --help    help for clean
+
+=== tt cluster --help
+Manage cluster configuration
+
+[0;1;39mUSAGE[0m
+  tt cluster [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  failover    Manage supervised failover
+  publish     Publish a cluster configuration
+  replicaset  manage replicaset via 3.0 cluster config source
+  show        Show a cluster configuration
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for cluster
+
+Use "tt cluster <command> --help" for more information about a command.
+
+=== tt cluster failover --help
+Manage supervised failover
+
+[0;1;39mUSAGE[0m
+  tt cluster failover [flags] <command> [command flags]
+[0;1;39m
+ALIASES[0m
+  failover, fo
+[0;1;39m
+COMMANDS[0m
+  switch        Switch master instance
+  switch-status Show master switching status
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for failover
+
+Use "tt cluster failover <command> --help" for more information about a command.
+
+=== tt cluster failover switch --help
+Switch master instance
+
+The URL specifies a etcd or tarantool config storage connection settings in the
+following format:
+http(s)://[username:password@]host:port/prefix[?arguments]
+
+* prefix - a base path to Tarantool configuration in etcd or tarantool config
+  storage.
+
+Possible arguments:
+* timeout - a request timeout in seconds (default 3.0).
+* ssl_key_file - a path to a private SSL key file.
+* ssl_cert_file - a path to an SSL certificate file.
+* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
+* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
+* ssl_ciphers - a list of allowed SSL ciphers.
+* verify_host - set off (default true) verification of the certificate’s name
+  against the host.
+* verify_peer - set off (default true) verification of the peer’s SSL
+  certificate.
+
+The command supports the following environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username;
+* TT_CLI_PASSWORD - specifies a Tarantool password.
+* TT_CLI_ETCD_USERNAME - specifies a Etcd username;
+* TT_CLI_ETCD_PASSWORD - specifies a Etcd password.
+
+The priority of credentials:
+environment variables < command flags < URL credentials.
+
+[0;1;39mUSAGE[0m
+  tt cluster failover switch <URI> <INSTANCE_NAME> [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help              help for switch
+  -p, --password string   password (used as etcd/tarantool config storage
+                          credentials)
+  -t, --timeout uint      timeout for command execution (default 30)
+  -u, --username string   username (used as etcd/tarantool config storage
+                          credentials)
+  -w, --wait              wait for the command to complete execution
+[0;1;39m
+EXAMPLES[0m
+  tt cluster failover switch http://localhost:2379/app instance_name
+
+=== tt cluster failover switch-status --help
+Show master switching status
+
+The URL specifies a etcd or tarantool config storage connection settings in the
+following format:
+http(s)://[username:password@]host:port/prefix[?arguments]
+
+* prefix - a base path to Tarantool configuration in etcd or tarantool config
+  storage.
+
+Possible arguments:
+* timeout - a request timeout in seconds (default 3.0).
+* ssl_key_file - a path to a private SSL key file.
+* ssl_cert_file - a path to an SSL certificate file.
+* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
+* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
+* ssl_ciphers - a list of allowed SSL ciphers.
+* verify_host - set off (default true) verification of the certificate’s name
+  against the host.
+* verify_peer - set off (default true) verification of the peer’s SSL
+  certificate.
+
+The command supports the following environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username;
+* TT_CLI_PASSWORD - specifies a Tarantool password.
+* TT_CLI_ETCD_USERNAME - specifies a Etcd username;
+* TT_CLI_ETCD_PASSWORD - specifies a Etcd password.
+
+The priority of credentials:
+environment variables < command flags < URL credentials.
+
+[0;1;39mUSAGE[0m
+  tt cluster failover switch-status <URI> <TASK_ID>
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for switch-status
+
+=== tt cluster publish --help
+Publish an application or an instance configuration to a cluster configuration
+file, to a etcd URI or to a tarantool config storage URI.
+
+The URL specifies a etcd or tarantool config storage connection settings in the
+following format:
+http(s)://[username:password@]host:port/prefix[?arguments]
+
+* prefix - a base path to Tarantool configuration in etcd or tarantool config
+  storage.
+
+Possible arguments:
+* key - a target configuration key in the prefix.
+* name - a name of an instance in the cluster configuration.
+* timeout - a request timeout in seconds (default 3.0).
+* ssl_key_file - a path to a private SSL key file.
+* ssl_cert_file - a path to an SSL certificate file.
+* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
+* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
+* ssl_ciphers - a list of allowed SSL ciphers.
+* verify_host - set off (default true) verification of the certificate’s name
+  against the host.
+* verify_peer - set off (default true) verification of the peer’s SSL
+  certificate.
+
+The command supports the following environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username;
+* TT_CLI_PASSWORD - specifies a Tarantool password.
+* TT_CLI_ETCD_USERNAME - specifies a Etcd username;
+* TT_CLI_ETCD_PASSWORD - specifies a Etcd password.
+
+The priority of credentials:
+environment variables < command flags < URL credentials.
+
+By default, the command removes all keys in etcd with prefix '/prefix/config/'
+and writes the result to '/prefix/config/all'. You could work and update a
+target key with the 'key' argument.
+
+[0;1;39mUSAGE[0m
+  tt cluster publish (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>) file
+  [flags]
+[0;1;39m
+FLAGS[0m
+      --force               force publish and skip validation
+      --group string        group name
+  -h, --help                help for publish
+  -p, --password string     password (used as etcd credentials only)
+      --replicaset string   replicaset name
+  -u, --username string     username (used as etcd credentials only)
+[0;1;39m
+EXAMPLES[0m
+  tt cluster publish application_name cluster.yaml
+  tt cluster publish application_name:instance_name instance.yaml
+  tt cluster publish https://user:pass@localhost:2379/tt cluster.yaml
+  tt cluster publish https://user:pass@localhost:2379/tt?name=instance
+  instance.yaml
+  tt cluster publish --group group --replicaset replicaset
+  https://user:pass@localhost:2379/tt?name=instance instance.yaml
+
+=== tt cluster replicaset --help
+manage replicaset via 3.0 cluster config source
+
+[0;1;39mUSAGE[0m
+  tt cluster replicaset [flags] <command> [command flags]
+[0;1;39m
+ALIASES[0m
+  replicaset, rs
+[0;1;39m
+COMMANDS[0m
+  demote      Demote an instance
+  expel       Expel an instance
+  promote     Promote an instance
+  roles       Add or remove roles in cluster replicaset
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for replicaset
+
+Use "tt cluster replicaset <command> --help" for more information about a
+command.
+
+=== tt cluster replicaset demote --help
+Demote an instance
+
+The URL specifies a etcd or tarantool config storage connection settings in the
+following format:
+http(s)://[username:password@]host:port/prefix[?arguments]
+
+* prefix - a base path to Tarantool configuration in etcd or tarantool config
+  storage.
+
+Possible arguments:
+* key - a target configuration key in the prefix.
+* name - a name of an instance in the cluster configuration.
+* timeout - a request timeout in seconds (default 3.0).
+* ssl_key_file - a path to a private SSL key file.
+* ssl_cert_file - a path to an SSL certificate file.
+* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
+* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
+* ssl_ciphers - a list of allowed SSL ciphers.
+* verify_host - set off (default true) verification of the certificate’s name
+  against the host.
+* verify_peer - set off (default true) verification of the peer’s SSL
+  certificate.
+
+The command supports the following environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username;
+* TT_CLI_PASSWORD - specifies a Tarantool password.
+* TT_CLI_ETCD_USERNAME - specifies a Etcd username;
+* TT_CLI_ETCD_PASSWORD - specifies a Etcd password.
+
+The priority of credentials:
+environment variables < command flags < URL credentials.
+
+[0;1;39mUSAGE[0m
+  tt cluster replicaset demote [-f] [flags] <URI> <INSTANCE_NAME>
+[0;1;39m
+FLAGS[0m
+  -f, --force             skip selecting a key for patching
+  -h, --help              help for demote
+  -p, --password string   password (used as etcd/tarantool config storage
+                          credentials)
+  -u, --username string   username (used as etcd/tarantool config storage
+                          credentials)
+
+=== tt cluster replicaset expel --help
+Expel an instance
+
+The URL specifies a etcd or tarantool config storage connection settings in the
+following format:
+http(s)://[username:password@]host:port/prefix[?arguments]
+
+* prefix - a base path to Tarantool configuration in etcd or tarantool config
+  storage.
+
+Possible arguments:
+* key - a target configuration key in the prefix.
+* name - a name of an instance in the cluster configuration.
+* timeout - a request timeout in seconds (default 3.0).
+* ssl_key_file - a path to a private SSL key file.
+* ssl_cert_file - a path to an SSL certificate file.
+* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
+* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
+* ssl_ciphers - a list of allowed SSL ciphers.
+* verify_host - set off (default true) verification of the certificate’s name
+  against the host.
+* verify_peer - set off (default true) verification of the peer’s SSL
+  certificate.
+
+The command supports the following environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username;
+* TT_CLI_PASSWORD - specifies a Tarantool password.
+* TT_CLI_ETCD_USERNAME - specifies a Etcd username;
+* TT_CLI_ETCD_PASSWORD - specifies a Etcd password.
+
+The priority of credentials:
+environment variables < command flags < URL credentials.
+
+[0;1;39mUSAGE[0m
+  tt cluster replicaset expel [-f] [flags] <URI> <INSTANCE_NAME>
+[0;1;39m
+FLAGS[0m
+  -f, --force             skip selecting a key for patching
+  -h, --help              help for expel
+  -p, --password string   password (used as etcd/tarantool config storage
+                          credentials)
+  -u, --username string   username (used as etcd/tarantool config storage
+                          credentials)
+
+=== tt cluster replicaset promote --help
+Promote an instance
+
+The URL specifies a etcd or tarantool config storage connection settings in the
+following format:
+http(s)://[username:password@]host:port/prefix[?arguments]
+
+* prefix - a base path to Tarantool configuration in etcd or tarantool config
+  storage.
+
+Possible arguments:
+* key - a target configuration key in the prefix.
+* name - a name of an instance in the cluster configuration.
+* timeout - a request timeout in seconds (default 3.0).
+* ssl_key_file - a path to a private SSL key file.
+* ssl_cert_file - a path to an SSL certificate file.
+* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
+* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
+* ssl_ciphers - a list of allowed SSL ciphers.
+* verify_host - set off (default true) verification of the certificate’s name
+  against the host.
+* verify_peer - set off (default true) verification of the peer’s SSL
+  certificate.
+
+The command supports the following environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username;
+* TT_CLI_PASSWORD - specifies a Tarantool password.
+* TT_CLI_ETCD_USERNAME - specifies a Etcd username;
+* TT_CLI_ETCD_PASSWORD - specifies a Etcd password.
+
+The priority of credentials:
+environment variables < command flags < URL credentials.
+
+[0;1;39mUSAGE[0m
+  tt cluster replicaset promote [-f] [flags] <URI> <INSTANCE_NAME>
+[0;1;39m
+FLAGS[0m
+  -f, --force             skip selecting a key for patching
+  -h, --help              help for promote
+  -p, --password string   password (used as etcd/tarantool config storage
+                          credentials)
+  -u, --username string   username (used as etcd/tarantool config storage
+                          credentials)
+
+=== tt cluster replicaset roles --help
+Add or remove roles in cluster replicaset
+
+[0;1;39mUSAGE[0m
+  tt cluster replicaset roles [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  add         Add role to an instance, group or instance
+  remove      Remove role from instance, group, instance or globally
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for roles
+
+Use "tt cluster replicaset roles <command> --help" for more information about a
+command.
+
+=== tt cluster replicaset roles add --help
+Add role to an instance, group or instance
+
+The URL specifies a etcd or tarantool config storage connection settings in the
+following format:
+http(s)://[username:password@]host:port/prefix[?arguments]
+
+* prefix - a base path to Tarantool configuration in etcd or tarantool config
+  storage.
+
+Possible arguments:
+* key - a target configuration key in the prefix.
+* name - a name of an instance in the cluster configuration.
+* timeout - a request timeout in seconds (default 3.0).
+* ssl_key_file - a path to a private SSL key file.
+* ssl_cert_file - a path to an SSL certificate file.
+* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
+* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
+* ssl_ciphers - a list of allowed SSL ciphers.
+* verify_host - set off (default true) verification of the certificate’s name
+  against the host.
+* verify_peer - set off (default true) verification of the peer’s SSL
+  certificate.
+
+The command supports the following environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username;
+* TT_CLI_PASSWORD - specifies a Tarantool password.
+* TT_CLI_ETCD_USERNAME - specifies a Etcd username;
+* TT_CLI_ETCD_PASSWORD - specifies a Etcd password.
+
+The priority of credentials:
+environment variables < command flags < URL credentials.
+
+[0;1;39mUSAGE[0m
+  tt cluster replicaset roles add <URI> <ROLE_NAME> [flags]
+[0;1;39m
+FLAGS[0m
+  -f, --force               skip selecting a key for patching
+  -G, --global              global config context
+  -g, --group string        name of a target group
+  -h, --help                help for add
+  -i, --instance string     name of a target instance
+  -p, --password string     password (used as etcd/tarantool config storage
+                            credentials)
+  -r, --replicaset string   name of a target replicaset
+  -u, --username string     username (used as etcd/tarantool config storage
+                            credentials)
+[0;1;39m
+EXAMPLES[0m
+  tt cluster replicaset roles add http://user:pass@localhost:3301
+  roles.metrics-export --instance_name master
+
+=== tt cluster replicaset roles remove --help
+Remove role from instance, group, instance or globally
+
+The URL specifies a etcd or tarantool config storage connection settings in the
+following format:
+http(s)://[username:password@]host:port/prefix[?arguments]
+
+* prefix - a base path to Tarantool configuration in etcd or tarantool config
+  storage.
+
+Possible arguments:
+* key - a target configuration key in the prefix.
+* name - a name of an instance in the cluster configuration.
+* timeout - a request timeout in seconds (default 3.0).
+* ssl_key_file - a path to a private SSL key file.
+* ssl_cert_file - a path to an SSL certificate file.
+* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
+* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
+* ssl_ciphers - a list of allowed SSL ciphers.
+* verify_host - set off (default true) verification of the certificate’s name
+  against the host.
+* verify_peer - set off (default true) verification of the peer’s SSL
+  certificate.
+
+The command supports the following environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username;
+* TT_CLI_PASSWORD - specifies a Tarantool password.
+* TT_CLI_ETCD_USERNAME - specifies a Etcd username;
+* TT_CLI_ETCD_PASSWORD - specifies a Etcd password.
+
+The priority of credentials:
+environment variables < command flags < URL credentials.
+
+[0;1;39mUSAGE[0m
+  tt cluster replicaset roles remove <URI> <ROLE_NAME> [flags]
+[0;1;39m
+FLAGS[0m
+  -f, --force               skip selecting a key for patching
+  -G, --global              global config context
+  -g, --group string        name of a target group
+  -h, --help                help for remove
+  -i, --instance string     name of a target instance
+  -p, --password string     password (used as etcd/tarantool config storage
+                            credentials)
+  -r, --replicaset string   name of a target replicaset
+  -u, --username string     username (used as etcd/tarantool config storage
+                            credentials)
+[0;1;39m
+EXAMPLES[0m
+  tt cluster replicaset roles remove http://user:pass@localhost:3301
+  roles.metrics-export --instance_name master
+
+=== tt cluster show --help
+Show a cluster configuration for an application, instance, from etcd URI or from
+tarantool config storage URI.
+
+The URL specifies a etcd or tarantool config storage connection settings in the
+following format:
+http(s)://[username:password@]host:port/prefix[?arguments]
+
+* prefix - a base path to Tarantool configuration in etcd or tarantool config
+  storage.
+
+Possible arguments:
+* key - a target configuration key in the prefix.
+* name - a name of an instance in the cluster configuration.
+* timeout - a request timeout in seconds (default 3.0).
+* ssl_key_file - a path to a private SSL key file.
+* ssl_cert_file - a path to an SSL certificate file.
+* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
+* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
+* ssl_ciphers - a list of allowed SSL ciphers.
+* verify_host - set off (default true) verification of the certificate’s name
+  against the host.
+* verify_peer - set off (default true) verification of the peer’s SSL
+  certificate.
+
+The command supports the following environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username;
+* TT_CLI_PASSWORD - specifies a Tarantool password.
+* TT_CLI_ETCD_USERNAME - specifies a Etcd username;
+* TT_CLI_ETCD_PASSWORD - specifies a Etcd password.
+
+The priority of credentials:
+environment variables < command flags < URL credentials.
+
+[0;1;39mUSAGE[0m
+  tt cluster show (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>) [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help              help for show
+  -p, --password string   password (used as etcd credentials only)
+  -u, --username string   username (used as etcd credentials only)
+      --validate          validate the configuration
+[0;1;39m
+EXAMPLES[0m
+  tt cluster show application_name
+  tt cluster show application_name:instance_name
+  tt cluster show https://user:pass@localhost:2379/tt
+  tt cluster show https://user:pass@localhost:2379/tt?name=instance
+
+=== tt completion --help
+Generate autocomplete for a specified shell. Supported shell type: bash | zsh |
+fish
+
+[0;1;39mUSAGE[0m
+  tt completion <SHELL_TYPE> [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for completion
+[0;1;39m
+EXAMPLES[0m
+  
+# Enable auto-completion in current bash shell.
+
+    $ . <(tt completion bash)
+
+=== tt connect --help
+Connect to the tarantool instance.
+
+The command supports the following Tarantool environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username
+* TT_CLI_PASSWORD - specifies a Tarantool password
+
+You could pass command line arguments to the interpreted SCRIPT or COMMAND
+passed via -f flag:
+
+echo "print(...)" | tt connect user:pass@localhost:3013 -f- 1, 2, 3
+
+[0;1;39mUSAGE[0m
+  tt connect (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>) [flags] [-f <FILE>]
+  [-- ARGS]
+  COMMAND | tt connect (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>) [flags]
+  COMMAND | tt connect (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>) [flags]
+  [-f-] [-- ARGS]
+
+  The URI can be specified in the following formats:
+  * [tcp://][username:password@][host:port]
+  * [unix://][username:password@]socketpath
+  To specify relative path without `unix://` use `./`.
+
+  Available commands:
+  * \shortcuts - get the full list of available shortcuts
+  * \set language <language> - set language (lua or sql)
+  * \set output <format> - set output format (lua[,line|block] or yaml)
+  * \set delimiter <delimiter> - set expression delimiter
+  * \help - show available backslash commands
+  * \quit - quit interactive console
+[0;1;39m
+FLAGS[0m
+      --binary                connect to instance using binary port
+  -f, --file string           file to read the script for evaluation. "-" - read
+                              the script from stdin
+  -h, --help                  help for connect
+  -i, --interactive           enter interactive mode after executing 'FILE'
+  -l, --language string       language: lua or sql
+  -x, --outputformat string   output format: yaml, lua, table or ttable (default
+                              "yaml")
+  -p, --password string       password
+      --sslcafile string      path to a trusted certificate authorities (CA)
+                              file
+      --sslcertfile string    path to an SSL certificate file
+      --sslciphers string     colon-separated (:) list of SSL cipher suites the
+                              connection
+      --sslkeyfile string     path to a private SSL key file
+  -u, --username string       username
+
+=== tt coredump --help
+Perform manipulations with the tarantool coredumps
+
+[0;1;39mUSAGE[0m
+  tt coredump [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  inspect     inspect tarantool coredump
+  pack        pack tarantool coredump into tar.gz archive
+  unpack      unpack tarantool coredump tar.gz archive
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for coredump
+
+Use "tt coredump <command> --help" for more information about a command.
+
+=== tt coredump inspect --help
+inspect tarantool coredump
+
+[0;1;39mUSAGE[0m
+  tt coredump inspect {ARCHIVE|DIRECTORY} [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help               help for inspect
+  -s, --sourcedir string   Source directory
+
+=== tt coredump pack --help
+pack tarantool coredump into tar.gz archive
+
+[0;1;39mUSAGE[0m
+  tt coredump pack COREDUMP [flags]
+[0;1;39m
+FLAGS[0m
+  -d, --directory string    Directory the resulting archive is created in
+  -e, --executable string   Tarantool executable path
+  -h, --help                help for pack
+  -p, --pid uint            PID of the dumped process, as seen in the PID
+                            namespace in which the given process resides (see %p
+                            in core(5) for more info). This flag is to be used
+                            when tt is used as kernel.core_pattern pipeline
+                            script
+  -t, --time string         Time of dump, expressed as seconds since the Epoch
+                            (1970-01-01 00:00 UTC)
+
+=== tt coredump unpack --help
+unpack tarantool coredump tar.gz archive
+
+[0;1;39mUSAGE[0m
+  tt coredump unpack ARCHIVE [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for unpack
+
+=== tt create --help
+Create an application from a template.
+
+Built-in templates:
+	single_instance: Tarantool 3 application with a single instance
+	configuration.
+	cluster: Tarantool 3 cluster application.
+	vshard_cluster: Tarantool 3 vshard cluster application.
+	config_storage: Tarantool 3 cluster configuration storage.
+
+[0;1;39mUSAGE[0m
+  tt create <TEMPLATE_NAME> [flags]
+[0;1;39m
+FLAGS[0m
+  -d, --dst string         Path to the directory where an application will be
+                           created.
+  -f, --force              Force rewrite application directory if already exists
+  -h, --help               help for create
+  -n, --name string        Application name
+  -s, --non-interactive    Non-interactive mode
+      --var stringArray    Variable definition. Usage: --var var_name=value
+      --vars-file string   Variables definition file path
+[0;1;39m
+EXAMPLES[0m
+  
+# Create an application app1 from a template.
+
+    $ tt create <template name> --name app1
+
+# Create a Tarantool 3 application with a single instance configuration.
+
+    $ tt create single_instance --name new_app
+
+# Create Tarantool 3 vshard cluster.
+
+    $ tt create vshard_cluster --name cluster_app
+
+# Create Tarantool 3 cluster configuration storage.
+
+    $ tt create config_storage --name cs_app
+
+=== tt daemon --help
+Perform manipulations with the tt daemon (experimental)
+
+[0;1;39mUSAGE[0m
+  tt daemon [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  restart     restart tt daemon
+  start       start tt daemon
+  status      status of tt daemon
+  stop        stop tt daemon
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for daemon
+
+Use "tt daemon <command> --help" for more information about a command.
+
+=== tt daemon restart --help
+restart tt daemon
+
+[0;1;39mUSAGE[0m
+  tt daemon restart [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for restart
+
+=== tt daemon start --help
+start tt daemon
+
+[0;1;39mUSAGE[0m
+  tt daemon start [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for start
+
+=== tt daemon status --help
+status of tt daemon
+
+[0;1;39mUSAGE[0m
+  tt daemon status [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for status
+
+=== tt daemon stop --help
+stop tt daemon
+
+[0;1;39mUSAGE[0m
+  tt daemon stop [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for stop
+
+=== tt download --help
+Download Tarantool SDK
+
+[0;1;39mUSAGE[0m
+  tt download <VERSION> [flags]
+[0;1;39m
+FLAGS[0m
+      --dev                       download development build
+      --directory-prefix string   directory prefix to save SDK. The default is
+                                  "." (the current directory)
+  -h, --help                      help for download
+[0;1;39m
+EXAMPLES[0m
+  
+# Download Tarantool SDK to the current working directory.
+	$ tt download gc64-3.0.0-0-gf58f7d82a-r23
+# Download Tarantool SDK development build to the /tmp directory.
+	$ tt download gc64-3.0.0-beta1-2-gcbb569b4c-r612 --dev
+	--directory-prefix /tmp
+
+=== tt env --help
+Add current environment binaries location to the PATH variable.
+Also sets TARANTOOL_DIR variable.
+
+[0;1;39mUSAGE[0m
+  tt env [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for env
+
+=== tt errors --help
+Exit codes of tt commands.
+
+  0  Success.
+  1  The request cannot be carried out as given, and the fix is on the caller's
+     side: the manifest does not parse or is invalid, the lock is out of date
+     under --locked, a dependency does not resolve, a package collides with one
+     already installed, a registry URL is malformed, a path does not exist.
+  2  The system the command ran on failed: a component build backend failed, a
+     server could not be reached or did not answer in time, a host name did not
+     resolve, the filesystem refused an operation for want of permission or
+     space.
+  3  A multi-package operation partly succeeded: some of its targets went
+     through and some did not.
+
+Which failure within a code it was is carried by the error message, not by a
+further number.
+
+A command provided by an external module exits with the module's own code. Once
+tt test has started luatest, its exit code is luatest's own. tt run replaces
+itself with Tarantool, so its exit code is Tarantool's.
+
+
+=== tt help --help
+Help about any command
+
+[0;1;39mUSAGE[0m
+  tt help [command] [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for help
+
+=== tt install --help
+Install program
+
+[0;1;39mUSAGE[0m
+  tt install [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  tarantool     Install tarantool community edition
+  tarantool-dev Install tarantool from the local build directory
+  tarantool-ee  Install tarantool enterprise edition
+  tcm           Install tarantool cluster manager
+  tt            Install tt
+[0;1;39m
+FLAGS[0m
+  -f, --force        don't do a dependency check before installing
+  -h, --help         help for install
+      --local-repo   install from local files
+      --no-clean     don't delete temporary files
+      --reinstall    reinstall program
+[0;1;39m
+EXAMPLES[0m
+  
+# Install latest Tarantool version.
+
+    $ tt install tarantool
+
+# Install specific tt pull-request.
+
+    $ tt install tt pr/534
+
+# Install Tarantool 3.0.0 with limit number of simultaneous jobs for make.
+
+    $ MAKEFLAGS="-j2" tt install tarantool 3.0.0
+
+Use "tt install <command> --help" for more information about a command.
+
+=== tt install tarantool --help
+Install tarantool community edition
+
+[0;1;39mUSAGE[0m
+  tt install tarantool [version|commit hash|pull-request] [flags]
+[0;1;39m
+FLAGS[0m
+      --dynamic      use dynamic linking for building tarantool
+  -h, --help         help for tarantool
+      --use-docker   build tarantool in Ubuntu 18.04 docker container
+
+=== tt install tarantool-dev --help
+Install tarantool from the local build directory
+
+[0;1;39mUSAGE[0m
+  tt install tarantool-dev <DIRECTORY> [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help                 help for tarantool-dev
+      --include-dir string   tarantool headers directory
+[0;1;39m
+EXAMPLES[0m
+  Assume, tarantool build directory is ~/src/tarantool/build
+  Consider the following use case:
+
+  make -j16 -C ~/src/tarantool/build
+  tt install tarantool-dev ~/src/tarantool/build
+  tt binaries list # shows the binary installed above
+
+=== tt install tarantool-ee --help
+Install tarantool enterprise edition
+
+[0;1;39mUSAGE[0m
+  tt install tarantool-ee [version] [flags]
+[0;1;39m
+FLAGS[0m
+      --dev    install development build
+  -h, --help   help for tarantool-ee
+
+=== tt install tcm --help
+Install tarantool cluster manager
+
+[0;1;39mUSAGE[0m
+  tt install tcm [version] [flags]
+[0;1;39m
+FLAGS[0m
+      --dev    install development build
+  -h, --help   help for tcm
+
+=== tt install tt --help
+Install tt
+
+[0;1;39mUSAGE[0m
+  tt install tt [version|commit hash|pull-request] [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for tt
+
+=== tt kill --help
+Kill tarantool instance(s)
+
+[0;1;39mUSAGE[0m
+  tt kill [<APP_NAME> | <APP_NAME:INSTANCE_NAME>] [flags]
+[0;1;39m
+FLAGS[0m
+  -d, --dump    quit with dump
+  -f, --force   do not ask for confirmation
+  -h, --help    help for kill
+
+=== tt log --help
+Get logs of instance(s)
+
+[0;1;39mUSAGE[0m
+  tt log [<APP_NAME> | <APP_NAME:INSTANCE_NAME>] [flags]
+[0;1;39m
+FLAGS[0m
+  -f, --follow      Output appended data as the log file grows
+  -h, --help        help for log
+  -n, --lines int   Count of last lines to output (default 10)
+
+=== tt logrotate --help
+Rotate logs of a started tarantool instance(s)
+
+[0;1;39mUSAGE[0m
+  tt logrotate [<APP_NAME> | <APP_NAME:INSTANCE_NAME>] [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for logrotate
+
+=== tt modules --help
+Manage tt cli modules
+
+[0;1;39mUSAGE[0m
+  tt modules [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  list        List available modules
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for modules
+
+Use "tt modules <command> --help" for more information about a command.
+
+=== tt modules list --help
+List available modules
+
+[0;1;39mUSAGE[0m
+  tt modules list [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help      help for list
+  -p, --path      Show modules path instead of description
+  -v, --version   Show modules version
+
+=== tt new --help
+Write the manifest a tt package is described by: the format version, the package
+name, the Tarantool and tt version requirements and an empty [dependencies]
+table for tt package add to write into. The name comes from -n, or from the
+directory when that is already a package name — lowercase letters, digits and
+dashes, starting with a letter. Components and products are left as commented
+examples, since their contents depend on a layout only the author knows. An
+existing app.manifest.toml is never overwritten — the command fails instead.
+This is not tt create, which lays out a whole application from a template; tt
+new adds one file to a directory that may already hold a project.
+
+[0;1;39mUSAGE[0m
+  tt new [flags]
+[0;1;39m
+FLAGS[0m
+  -C, --directory string   work on the project in DIR, as if it were the current
+                           directory
+  -h, --help               help for new
+  -n, --name string        package name to declare; defaults to the directory
+                           name
+[0;1;39m
+EXAMPLES[0m
+  
+# Create a manifest for the project in the current directory.
+
+    $ tt new
+
+# Name the package explicitly, when the directory is not named for it.
+
+    $ tt new -n my-app
+
+=== tt package --help
+Build, fetch, pack and install Tarantool packages described by
+app.manifest.toml, manage their dependencies, and manage what is installed. What
+the exit codes mean is in tt help errors.
+
+[0;1;39mUSAGE[0m
+  tt package [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  add         Declare a dependency and re-resolve the lock
+  build       Build a manifest package into .rocks/
+  deps        Show the dependencies the manifest declares, at their locked
+              versions
+  download    Download rock files into a directory and index it as a server
+  fetch       Materialize .rocks/ from the lock without building
+  install     Install a .tt package archive into a scope
+  list        List the packages installed in a scope
+  pack        Build a manifest package and pack it into a .tt archive
+  remove      Drop a declared dependency and re-resolve the lock
+  resolve     Rewrite the lock from the manifest without building
+  search      Find rocks whose name contains TERM on the configured servers
+  uninstall   Remove an installed guest package from a scope
+  update      Re-resolve the lock against newer registry versions
+[0;1;39m
+FLAGS[0m
+  -C, --directory string   work on the project in DIR, as if it were the current
+                           directory
+  -h, --help               help for package
+
+Use "tt package <command> --help" for more information about a command.
+
+=== tt package add --help
+Add NAME to [dependencies] — or, with --dev, to [dev_dependencies] — at the
+given version constraint, then re-resolve app.manifest.lock around it. Without a
+constraint the dependency is declared as '*': whatever the registry serves. A
+name the table already declares has its constraint rewritten in place; the rest
+of the declaration, and every comment and blank line in the file, is left
+exactly as it was. Every version the lock already holds is kept: only the new
+dependency and whatever it requires can move, because an edit to one dependency
+is not a request to upgrade the others — that is what tt package update is for.
+Nothing is fetched into .rocks/; the next tt package build picks the new lock
+up.
+
+[0;1;39mUSAGE[0m
+  tt package add NAME [CONSTRAINT] [flags]
+
+  tt package add NAME [CONSTRAINT] [flags]
+[0;1;39m
+FLAGS[0m
+      --dev                    declare the dependency in [dev_dependencies]
+                               instead of [dependencies]
+  -h, --help                   help for add
+      --registry stringArray   rock server to use instead of the configured
+                               ones: an http(s) URL or a local directory; repeat
+                               to give an ordered list (overrides TT_REGISTRIES
+                               and [platform].registries)
+[0;1;39m
+GLOBAL FLAGS[0m
+  -C, --directory string   work on the project in DIR, as if it were the current
+                           directory
+
+=== tt package build --help
+Resolve dependencies, materialize .rocks/, run component build backends and
+generate version.lua. With no argument every component of the product is built;
+a component name narrows the build to one.
+
+[0;1;39mUSAGE[0m
+  tt package build [COMPONENT] [flags]
+
+  tt package build [COMPONENT] [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help                   help for build
+      --locked                 fail if the lock is out of date instead of
+                               re-resolving it
+      --product string         product to build (default: the product marked
+                               default)
+      --registry stringArray   rock server to use instead of the configured
+                               ones: an http(s) URL or a local directory; repeat
+                               to give an ordered list (overrides TT_REGISTRIES
+                               and [platform].registries)
+[0;1;39m
+GLOBAL FLAGS[0m
+  -C, --directory string   work on the project in DIR, as if it were the current
+                           directory
+
+=== tt package deps --help
+Print the runtime dependencies of every product and the dev dependencies, each
+with the version app.manifest.lock resolved it to. This is what the current
+manifest declares — not what is installed on disk, which is what tt package list
+reports. Nothing is resolved and no registry is contacted: the answer comes from
+the manifest and the lock, so a lock that no longer matches the manifest is
+reported as stale rather than silently re-resolved.
+
+[0;1;39mUSAGE[0m
+  tt package deps [flags]
+
+  tt package deps [flags]
+[0;1;39m
+FLAGS[0m
+  -o, --format string   output format: table, json or yaml (default "table")
+  -h, --help            help for deps
+[0;1;39m
+GLOBAL FLAGS[0m
+  -C, --directory string   work on the project in DIR, as if it were the current
+                           directory
+
+=== tt package download --help
+Fetch rock files from the configured servers into --dir and write the LuaRocks
+manifest that indexes them, so the directory is itself a rock server: point
+--registry or TT_REGISTRIES at it and the project builds with no network at all.
+With no arguments the project's locked closure is mirrored at its exact versions
+— every product's dependencies and the dev closure — which needs a lock, so run
+tt package resolve first. A dependency that does not come from a registry has no
+rock file to mirror and is skipped with a warning. Re-running overwrites and
+re-indexes, so a mirror can be extended in place. Each written path is printed
+to stdout.
+
+[0;1;39mUSAGE[0m
+  tt package download [NAME[@VERSION]...] [flags]
+
+  tt package download [NAME[@VERSION]...] [flags]
+[0;1;39m
+FLAGS[0m
+      --dir string             directory to download into (default: the current
+                               directory)
+  -h, --help                   help for download
+      --registry stringArray   rock server to use instead of the configured
+                               ones: an http(s) URL or a local directory; repeat
+                               to give an ordered list (overrides TT_REGISTRIES
+                               and [platform].registries)
+[0;1;39m
+GLOBAL FLAGS[0m
+  -C, --directory string   work on the project in DIR, as if it were the current
+                           directory
+
+=== tt package fetch --help
+Fetch and build the pinned dependency closure into .rocks/ strictly from the
+lock, without re-resolving or running component build backends.
+
+[0;1;39mUSAGE[0m
+  tt package fetch [flags]
+
+  tt package fetch [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help                   help for fetch
+      --product string         product to fetch (default: the product marked
+                               default)
+      --registry stringArray   rock server to use instead of the configured
+                               ones: an http(s) URL or a local directory; repeat
+                               to give an ordered list (overrides TT_REGISTRIES
+                               and [platform].registries)
+[0;1;39m
+GLOBAL FLAGS[0m
+  -C, --directory string   work on the project in DIR, as if it were the current
+                           directory
+
+=== tt package install --help
+Unpack a package archive into the chosen scope and bring the tree to a runnable
+state. A with-deps archive in the project scope is a plain offline extraction;
+otherwise the package is unpacked and its dependencies are refetched from the
+registry using the lock's pins. Several packages installed into one project
+share a .rocks/ tree, so a dependency they lock at different versions is
+reconciled to one both accept, or the install fails with an explanation.
+
+[0;1;39mUSAGE[0m
+  tt package install ARCHIVE... [flags]
+
+  tt package install ARCHIVE... [flags]
+[0;1;39m
+FLAGS[0m
+      --force          reinstall over an existing package (destructive)
+  -h, --help           help for install
+      --locked         fail if the archive lock does not match its manifest
+      --scope string   install scope: project, user or system (default
+                       "project")
+      --upgrade        install over an existing package only when the archive
+                       version is higher
+  -y, --yes            skip the confirmation prompt when reconciling shared
+                       dependencies
+[0;1;39m
+GLOBAL FLAGS[0m
+  -C, --directory string   work on the project in DIR, as if it were the current
+                           directory
+
+=== tt package list --help
+Show the packages present in the chosen scope: in the project scope the
+project's own package plus every guest installed from an archive. The source is
+the metadata install records under .rocks/manifests/, so nothing is fetched and
+nothing is resolved. This is what is on disk — not what the current manifest
+declares, which is what tt package deps reports. --tree additionally shows each
+package's dependencies and, for every one of them, whether another package holds
+it too — that is, whether it would be removed along with the package or stay.
+
+[0;1;39mUSAGE[0m
+  tt package list [flags]
+
+  tt package list [flags]
+[0;1;39m
+FLAGS[0m
+  -o, --format string   output format: table, json or yaml (default "table")
+  -h, --help            help for list
+      --scope string    scope to list: project, user or system (default
+                        "project")
+      --tree            show each package's dependencies and which of them are
+                        shared
+[0;1;39m
+GLOBAL FLAGS[0m
+  -C, --directory string   work on the project in DIR, as if it were the current
+                           directory
+
+=== tt package pack --help
+Run the full build and assemble its result into a reproducible .tt archive. By
+default the archive is self-contained: it carries _runtime/ (Tarantool, tt and
+TCM when [platform].tcm is set) and the whole dependency closure in .rocks/, so
+installing it needs no network. --without-deps drops both. A separate tt package
+build beforehand is not needed. The archive path is printed to stdout.
+
+[0;1;39mUSAGE[0m
+  tt package pack [flags]
+
+  tt package pack [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help                   help for pack
+      --locked                 fail if the lock is out of date instead of
+                               re-resolving it
+      --product string         product to pack (default: the product marked
+                               default)
+      --registry stringArray   rock server to use instead of the configured
+                               ones: an http(s) URL or a local directory; repeat
+                               to give an ordered list (overrides TT_REGISTRIES
+                               and [platform].registries)
+      --without-deps           pack without _runtime/ and without foreign
+                               dependencies in .rocks/
+[0;1;39m
+GLOBAL FLAGS[0m
+  -C, --directory string   work on the project in DIR, as if it were the current
+                           directory
+
+=== tt package remove --help
+Remove NAME from [dependencies] and [dev_dependencies], then re-resolve
+app.manifest.lock without it. The rocks that were only there to satisfy it drop
+out of the closure with it; every other version is held. A name the manifest
+does not declare is an error rather than a silent success — it is almost always
+a typo — and so is a name only a component declares, since which component owns
+a dependency is not this command's decision to unmake. Nothing is deleted from
+.rocks/; tt package uninstall is what removes files.
+
+[0;1;39mUSAGE[0m
+  tt package remove NAME [flags]
+
+  tt package remove NAME [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help                   help for remove
+      --registry stringArray   rock server to use instead of the configured
+                               ones: an http(s) URL or a local directory; repeat
+                               to give an ordered list (overrides TT_REGISTRIES
+                               and [platform].registries)
+[0;1;39m
+GLOBAL FLAGS[0m
+  -C, --directory string   work on the project in DIR, as if it were the current
+                           directory
+
+=== tt package resolve --help
+Re-resolve app.manifest.lock from app.manifest.toml, so a manifest edited by
+hand gets its lock back in step without waiting for a build. Nothing is fetched
+into .rocks/ and no component build backend runs. Every version the lock already
+holds is kept: a hand edit to one dependency is not a request to upgrade the
+others, and pulling newer registry versions is what tt package update is for.
+
+[0;1;39mUSAGE[0m
+  tt package resolve [flags]
+
+  tt package resolve [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help                   help for resolve
+      --registry stringArray   rock server to use instead of the configured
+                               ones: an http(s) URL or a local directory; repeat
+                               to give an ordered list (overrides TT_REGISTRIES
+                               and [platform].registries)
+[0;1;39m
+GLOBAL FLAGS[0m
+  -C, --directory string   work on the project in DIR, as if it were the current
+                           directory
+
+=== tt package search --help
+Search the rock servers for rocks whose name contains TERM, reporting every
+version each server offers. Unlike resolution, which stops at the first server
+that has a rock, a search asks all of them: the point is to see what exists.
+Nothing is downloaded and nothing is written. A term nothing matches is not an
+error.
+
+[0;1;39mUSAGE[0m
+  tt package search TERM [flags]
+
+  tt package search TERM [flags]
+[0;1;39m
+FLAGS[0m
+  -o, --format string          output format: table, json or yaml (default
+                               "table")
+  -h, --help                   help for search
+      --registry stringArray   rock server to use instead of the configured
+                               ones: an http(s) URL or a local directory; repeat
+                               to give an ordered list (overrides TT_REGISTRIES
+                               and [platform].registries)
+[0;1;39m
+GLOBAL FLAGS[0m
+  -C, --directory string   work on the project in DIR, as if it were the current
+                           directory
+
+=== tt package uninstall --help
+Remove a guest package: its files and its metadata, plus every shared dependency
+that nothing else still needs. A dependency is owned by every installed package
+whose lock pins it, so one that another package still holds stays in place. The
+project's own package — the one app.manifest.toml in the working directory
+declares — is not a guest, and uninstall refuses to remove it.
+
+[0;1;39mUSAGE[0m
+  tt package uninstall NAME [flags]
+
+  tt package uninstall NAME [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help           help for uninstall
+      --scope string   scope to remove from: project, user or system (default
+                       "project")
+  -y, --yes            skip the confirmation prompt
+[0;1;39m
+GLOBAL FLAGS[0m
+  -C, --directory string   work on the project in DIR, as if it were the current
+                           directory
+
+=== tt package update --help
+Re-resolve app.manifest.lock, taking the newest version every constraint allows.
+This is the only command that pulls newer registry versions: a release upstream
+never makes a lock stale by itself, so a build keeps the versions it has until
+an update is asked for. With NAME only that dependency is freed and every other
+version is held, so the diff stays confined to it and whatever its new version
+requires. No declaration is changed — app.manifest.toml is not touched at all —
+and nothing is fetched into .rocks/.
+
+[0;1;39mUSAGE[0m
+  tt package update [NAME] [flags]
+
+  tt package update [NAME] [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help                   help for update
+      --registry stringArray   rock server to use instead of the configured
+                               ones: an http(s) URL or a local directory; repeat
+                               to give an ordered list (overrides TT_REGISTRIES
+                               and [platform].registries)
+[0;1;39m
+GLOBAL FLAGS[0m
+  -C, --directory string   work on the project in DIR, as if it were the current
+                           directory
+
+=== tt play --help
+Play the contents of .snap/.xlog FILE(s) to another Tarantool instance
+
+[0;1;39mUSAGE[0m
+  tt play (<URI> | <APP_NAME> | <APP_NAME:INSTANCE_NAME>) <FILE|DIR>... [flags]
+[0;1;39m
+FLAGS[0m
+      --from uint            Show operations starting from the given lsn
+  -h, --help                 help for play
+  -p, --password string      password
+  -r, --recursive            Process WAL files in directories recursively
+      --replica ints         Filter the output by replica id. May be passed more
+                             than once
+      --show-system          Show the contents of system spaces
+      --space ints           Filter the output by space number. May be passed
+                             more than once
+      --sslcafile string     path to a trusted certificate authorities (CA) file
+      --sslcertfile string   path to an SSL certificate file
+      --sslciphers string    colon-separated (:) list of SSL cipher suites the
+                             connection
+      --sslkeyfile string    path to a private SSL key file
+      --timestamp string     Show operations ending with the given timestamp
+      --to uint              Show operations ending with the given lsn (default
+                             18446744073709551615)
+  -u, --username string      username
+[0;1;39m
+EXAMPLES[0m
+  tt play localhost:3013 /path/to/file.snap /path/to/file.xlog /path/to/dir/
+  --timestamp 2024-11-13T14:02:36.818700000+00:00
+  tt play app:instance001 /path/to/file.snap /path/to/file.xlog /path/to/dir/
+  --timestamp=1731592956.818
+  tt play --recursive app:instance001 /path/to/dir1 /path/to/dir2
+
+=== tt registry --help
+Report the rock servers tt package commands query. The list comes from
+--registry, then TT_REGISTRIES, then [platform].registries in app.manifest.toml,
+and falls back to the built-in defaults.
+
+[0;1;39mUSAGE[0m
+  tt registry [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  list        Show the rock servers in the order they are queried
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for registry
+
+Use "tt registry <command> --help" for more information about a command.
+
+=== tt registry list --help
+Print the effective rock-server list in resolution order, each server with the
+layer it was configured in. The layers replace one another rather than merging:
+the outermost one that names anything is the whole list, because resolution
+takes the first server that has a rock and an appended server would change which
+that is. Run in a project directory to see what its manifest configures.
+
+[0;1;39mUSAGE[0m
+  tt registry list [flags]
+[0;1;39m
+FLAGS[0m
+  -o, --format string          output format: table, json or yaml (default
+                               "table")
+  -h, --help                   help for list
+      --registry stringArray   rock server to use instead of the configured
+                               ones: an http(s) URL or a local directory; repeat
+                               to give an ordered list (overrides TT_REGISTRIES
+                               and [platform].registries)
+
+=== tt replicaset --help
+Manage replicasets
+
+[0;1;39mUSAGE[0m
+  tt replicaset [flags] <command> [command flags]
+[0;1;39m
+ALIASES[0m
+  replicaset, rs
+[0;1;39m
+COMMANDS[0m
+  bootstrap   Bootstrap an application or instance
+  demote      Demote an instance
+  downgrade   Downgrade tarantool cluster
+  expel       Expel an instance from a replicaset
+  promote     Promote an instance
+  rebootstrap Re-bootstraps an instance
+  roles       Adds or removes roles for Tarantool 3 orchestrator
+  status      Show a replicaset status
+  upgrade     Upgrade tarantool cluster
+  vshard      Manage vshard
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for replicaset
+
+Use "tt replicaset <command> --help" for more information about a command.
+
+=== tt replicaset bootstrap --help
+Bootstrap an application or instance.
+
+[0;1;39mUSAGE[0m
+  tt replicaset bootstrap [--timeout secs] [flags]
+  <APP_NAME|APP_NAME:INSTANCE_NAME>
+[0;1;39m
+FLAGS[0m
+      --bootstrap-vshard    bootstrap vshard
+      --config              to force the centralized config orchestrator
+      --custom              to force a custom orchestrator
+  -h, --help                help for bootstrap
+      --replicaset string   replicaset name for an instance bootstrapping
+      --timeout int         timeout (default 10)
+
+=== tt replicaset demote --help
+Demote an instance.
+
+[0;1;39mUSAGE[0m
+  tt replicaset demote [-f] [--timeout secs] [flags] <APP_NAME:INSTANCE_NAME>
+[0;1;39m
+FLAGS[0m
+      --config        to force the centralized config orchestrator
+      --custom        to force a custom orchestrator
+  -f, --force         skip instances not found locally
+  -h, --help          help for demote
+      --timeout int   timeout (default 3)
+
+=== tt replicaset downgrade --help
+Downgrade tarantool cluster.
+
+The command supports the following Tarantool environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username
+* TT_CLI_PASSWORD - specifies a Tarantool password
+
+[0;1;39mUSAGE[0m
+  tt replicaset downgrade (<APP_NAME> | <URI>) VERSION [flags]
+
+  The URI can be specified in the following formats:
+  * [tcp://][username:password@][host:port]
+  * [unix://][username:password@]socketpath
+  To specify relative path without `unix://` use `./`.
+[0;1;39m
+FLAGS[0m
+      --config                   to force the centralized config orchestrator
+      --custom                   to force a custom orchestrator
+  -h, --help                     help for downgrade
+  -p, --password string          password for the URI case
+  -r, --replicaset stringArray   specify the replicaset name(s) to downgrade
+      --sslcafile string         path to a trusted certificate authorities (CA)
+                                 file for the URI case
+      --sslcertfile string       path to an SSL certificate file for the URI
+                                 case
+      --sslciphers string        colon-separated (:) list of SSL cipher suites
+                                 for the URI case
+      --sslkeyfile string        path to a private SSL key file for the URI case
+  -t, --timeout int              timeout for waiting the LSN synchronization (in
+                                 seconds) (default 5)
+  -u, --username string          username for the URI case
+
+=== tt replicaset expel --help
+Expel an instance from a replicaset.
+
+[0;1;39mUSAGE[0m
+  tt replicaset expel [-f] [--config|--custom] [--timeout secs]
+  <APP_NAME:INSTANCE_NAME> [flags]
+[0;1;39m
+FLAGS[0m
+      --config        to force the centralized config orchestrator
+      --custom        to force a custom orchestrator
+  -f, --force         skip instances not found locally
+  -h, --help          help for expel
+      --timeout int   timeout (default 3)
+
+=== tt replicaset promote --help
+Promote an instance.
+
+The command supports the following Tarantool environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username
+* TT_CLI_PASSWORD - specifies a Tarantool password
+
+[0;1;39mUSAGE[0m
+  tt replicaset promote [--config|--custom] [-f] [--timeout secs] [flags]
+  (<APP_NAME:INSTANCE_NAME> | <URI>)
+
+  The URI can be specified in the following formats:
+  * [tcp://][username:password@][host:port]
+  * [unix://][username:password@]socketpath
+  To specify relative path without `unix://` use `./`.
+[0;1;39m
+FLAGS[0m
+      --config               to force the centralized config orchestrator
+      --custom               to force a custom orchestrator
+  -f, --force                to force a promotion:
+                               * config: skip instances not found locally
+                             
+  -h, --help                 help for promote
+  -p, --password string      password for the URI case
+      --sslcafile string     path to a trusted certificate authorities (CA) file
+                             for the URI case
+      --sslcertfile string   path to an SSL certificate file for the URI case
+      --sslciphers string    colon-separated (:) list of SSL cipher suites for
+                             the URI case
+      --sslkeyfile string    path to a private SSL key file for the URI case
+      --timeout int          promoting timeout (default 3)
+  -u, --username string      username for the URI case
+
+=== tt replicaset rebootstrap --help
+Re-bootstraps an instance
+
+[0;1;39mUSAGE[0m
+  tt replicaset rebootstrap <APP_NAME:INSTANCE_NAME>
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for rebootstrap
+  -y, --yes    automatically confirm rebootstrap
+
+=== tt replicaset roles --help
+Adds or removes roles for Tarantool 3 orchestrator
+
+[0;1;39mUSAGE[0m
+  tt replicaset roles [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  add         Adds a role for Tarantool 3 orchestrator
+  remove      Removes a role for Tarantool 3 orchestrator
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for roles
+
+Use "tt replicaset roles <command> --help" for more information about a command.
+
+=== tt replicaset roles add --help
+Adds a role for Tarantool 3 orchestrator
+
+[0;1;39mUSAGE[0m
+  tt replicaset roles add [--config|--custom] [-f] [--timeout
+  secs]<APP_NAME:INSTANCE_NAME> <ROLE_NAME> [flags]
+[0;1;39m
+FLAGS[0m
+      --config               to force the centralized config orchestrator
+      --custom               to force a custom orchestrator
+  -f, --force                to force a promotion:
+                               * config: skip instances not found locally
+                             
+  -G, --global               global config context
+  -g, --group string         name of a target group
+  -h, --help                 help for add
+  -i, --instance string      name of a target instance
+  -p, --password string      password for the URI case
+  -r, --replicaset string    name of a target replicaset
+      --sslcafile string     path to a trusted certificate authorities (CA) file
+                             for the URI case
+      --sslcertfile string   path to an SSL certificate file for the URI case
+      --sslciphers string    colon-separated (:) list of SSL cipher suites for
+                             the URI case
+      --sslkeyfile string    path to a private SSL key file for the URI case
+      --timeout int          adding timeout (default 3)
+  -u, --username string      username for the URI case
+
+=== tt replicaset roles remove --help
+Removes a role for Tarantool 3 orchestrator
+
+[0;1;39mUSAGE[0m
+  tt replicaset roles remove [--config|--custom] [-f] [--timeout
+  secs]<APP_NAME:INSTANCE_NAME> <ROLE_NAME> [flags]
+[0;1;39m
+FLAGS[0m
+      --config               to force the centralized config orchestrator
+      --custom               to force a custom orchestrator
+  -f, --force                to force a promotion:
+                               * config: skip instances not found locally
+                             
+  -G, --global               global config context
+  -g, --group string         name of a target group
+  -h, --help                 help for remove
+  -i, --instance string      name of a target instance
+  -p, --password string      password for the URI case
+  -r, --replicaset string    name of a target replicaset
+      --sslcafile string     path to a trusted certificate authorities (CA) file
+                             for the URI case
+      --sslcertfile string   path to an SSL certificate file for the URI case
+      --sslciphers string    colon-separated (:) list of SSL cipher suites for
+                             the URI case
+      --sslkeyfile string    path to a private SSL key file for the URI case
+      --timeout int          adding timeout (default 3)
+  -u, --username string      username for the URI case
+
+=== tt replicaset status --help
+Show a replicaset status.
+
+The command supports the following Tarantool environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username
+* TT_CLI_PASSWORD - specifies a Tarantool password
+
+[0;1;39mUSAGE[0m
+  tt replicaset status [--config|--custom] [flags] (<APP_NAME> |
+  <APP_NAME:INSTANCE_NAME> | <URI>)
+
+  The URI can be specified in the following formats:
+  * [tcp://][username:password@][host:port]
+  * [unix://][username:password@]socketpath
+  To specify relative path without `unix://` use `./`.
+[0;1;39m
+FLAGS[0m
+      --config               to force the centralized config orchestrator
+      --custom               to force a custom orchestrator
+  -h, --help                 help for status
+  -p, --password string      password for the URI case
+      --sslcafile string     path to a trusted certificate authorities (CA) file
+                             for the URI case
+      --sslcertfile string   path to an SSL certificate file for the URI case
+      --sslciphers string    colon-separated (:) list of SSL cipher suites for
+                             the URI case
+      --sslkeyfile string    path to a private SSL key file for the URI case
+  -u, --username string      username for the URI case
+
+=== tt replicaset upgrade --help
+Upgrade tarantool cluster.
+
+The command supports the following Tarantool environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username
+* TT_CLI_PASSWORD - specifies a Tarantool password
+
+[0;1;39mUSAGE[0m
+  tt replicaset upgrade (<APP_NAME> | <URI>) [flags]
+
+  The URI can be specified in the following formats:
+  * [tcp://][username:password@][host:port]
+  * [unix://][username:password@]socketpath
+  To specify relative path without `unix://` use `./`.
+[0;1;39m
+FLAGS[0m
+      --config                   to force the centralized config orchestrator
+      --custom                   to force a custom orchestrator
+  -h, --help                     help for upgrade
+  -p, --password string          password for the URI case
+  -r, --replicaset stringArray   specify the replicaset name(s) to upgrade
+      --sslcafile string         path to a trusted certificate authorities (CA)
+                                 file for the URI case
+      --sslcertfile string       path to an SSL certificate file for the URI
+                                 case
+      --sslciphers string        colon-separated (:) list of SSL cipher suites
+                                 for the URI case
+      --sslkeyfile string        path to a private SSL key file for the URI case
+  -t, --timeout int              timeout for waiting the LSN synchronization (in
+                                 seconds) (default 5)
+  -u, --username string          username for the URI case
+
+=== tt replicaset vshard --help
+Manage vshard
+
+[0;1;39mUSAGE[0m
+  tt replicaset vshard [flags] <command> [command flags]
+[0;1;39m
+ALIASES[0m
+  vshard, vs
+[0;1;39m
+COMMANDS[0m
+  bootstrap   Bootstrap vshard in the cluster
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for vshard
+
+Use "tt replicaset vshard <command> --help" for more information about a
+command.
+
+=== tt replicaset vshard bootstrap --help
+Bootstrap vshard in the cluster.
+
+The command supports the following Tarantool environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username
+* TT_CLI_PASSWORD - specifies a Tarantool password
+
+[0;1;39mUSAGE[0m
+  tt replicaset vshard bootstrap [--config|--custom] [--timeout secs] [flags]
+  (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)
+
+  The URI can be specified in the following formats:
+  * [tcp://][username:password@][host:port]
+  * [unix://][username:password@]socketpath
+  To specify relative path without `unix://` use `./`.
+[0;1;39m
+FLAGS[0m
+      --config               to force the centralized config orchestrator
+      --custom               to force a custom orchestrator
+  -h, --help                 help for bootstrap
+  -p, --password string      password for the URI case
+      --sslcafile string     path to a trusted certificate authorities (CA) file
+                             for the URI case
+      --sslcertfile string   path to an SSL certificate file for the URI case
+      --sslciphers string    colon-separated (:) list of SSL cipher suites for
+                             the URI case
+      --sslkeyfile string    path to a private SSL key file for the URI case
+      --timeout int          timeout (default 10)
+  -u, --username string      username for the URI case
+
+=== tt restart --help
+Restart tarantool instance(s)
+
+[0;1;39mUSAGE[0m
+  tt restart [<APP_NAME> | <APP_NAME:INSTANCE_NAME>] [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for restart
+  -y, --yes    Automatic yes to confirmation prompt
+
+=== tt rocks (via tt help: flag parsing disabled)
+LuaRocks package manager
+
+[0;1;39mUSAGE[0m
+  tt rocks
+
+=== tt run (via tt help: flag parsing disabled)
+Run the package in the current directory under Tarantool.
+
+The directory must hold app.manifest.toml; no tt environment and no tt.yaml are
+involved. The interpreter is the one the package bundles under _runtime/ when it
+has one, and the host's tarantool otherwise — TT_USE_SYSTEM_TARANTOOL=1 forces
+the host's either way.
+
+Every argument is handed to Tarantool untouched, '--' included, and the
+environment is inherited unchanged: no LUA_PATH or LUA_CPATH is composed, since
+Tarantool finds .rocks/ from the project directory by itself. tt replaces itself
+with the interpreter, so signals and the exit code are Tarantool's own.
+
+[0;1;39mUSAGE[0m
+  tt run [ARGS...]
+[0;1;39m
+EXAMPLES[0m
+  
+# Start an interactive console in the project.
+
+    $ tt run
+
+# Print the version of the Tarantool the project runs under:
+
+    $ tt run --version
+    Tarantool 3.0.0-entrypoint-724-gd2d7f4de3
+    . . .
+
+# Run a script with arguments. Everything after the script name is the
+# script's, '--' included, because Tarantool itself is what reads them:
+
+    $ tt run script.lua a b c
+    a	b	c
+
+# Execute stdin:
+
+    $ echo 'print(42)' | tt run -
+
+# Ignore the bundled runtime and use the host's tarantool:
+
+    $ TT_USE_SYSTEM_TARANTOOL=1 tt run script.lua
+
+
+=== tt search --help
+Search for available versions for the program
+
+[0;1;39mUSAGE[0m
+  tt search [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  tarantool    Search for available tarantool community edition versions
+  tarantool-ee Search for available tarantool enterprise edition versions
+  tcm          Search for available tarantool cluster manager versions
+  tt           Search for available tt versions
+[0;1;39m
+FLAGS[0m
+  -h, --help         help for search
+      --local-repo   search in local files
+[0;1;39m
+EXAMPLES[0m
+  
+# Remote search across all versions of Tarantool Enterprise Edition.
+
+    $ tt search tarantool-ee
+
+# Remote search across all 3.0 debug versions of Tarantool Enterprise Edition.
+
+    $ tt search tarantool-ee --debug --version 3.0
+
+# Remote search across all versions of Tarantool Cluster Manager.
+
+	$ tt search tcm --version 1.3
+
+Use "tt search <command> --help" for more information about a command.
+
+=== tt search tarantool --help
+Search for available tarantool community edition versions
+
+[0;1;39mUSAGE[0m
+  tt search tarantool [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for tarantool
+
+=== tt search tarantool-ee --help
+Search for available tarantool enterprise edition versions
+
+[0;1;39mUSAGE[0m
+  tt search tarantool-ee [flags]
+[0;1;39m
+FLAGS[0m
+      --debug            search for debug builds of tarantool-ee SDK
+      --dev              search for development builds of tarantool-ee SDK
+  -h, --help             help for tarantool-ee
+      --version string   specify version
+
+=== tt search tcm --help
+Search for available tarantool cluster manager versions
+
+[0;1;39mUSAGE[0m
+  tt search tcm [flags]
+[0;1;39m
+FLAGS[0m
+      --dev              search for development builds of TCM
+  -h, --help             help for tcm
+      --version string   specify version
+
+=== tt search tt --help
+Search for available tt versions
+
+[0;1;39mUSAGE[0m
+  tt search tt [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for tt
+
+=== tt start --help
+Start tarantool instance(s)
+
+[0;1;39mUSAGE[0m
+  tt start [<APP_NAME> | <APP_NAME:INSTANCE_NAME>] [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help          help for start
+  -i, --interactive
+
+=== tt status --help
+The 'status' command provides information about the status of Tarantool
+instances.
+
+Columns:
+- INSTANCE: The name of the Tarantool instance.
+- STATUS: The current status of the instance:
+	- RUNNING: The instance is up and running.
+	- NOT RUNNING: The instance is not running.
+	- ERROR: The process has terminated unexpectedly.
+- PID: The watchdog process PID.
+- MODE: The mode of the instance, indicating its read/write status:
+	- RO: The instance is in read-only mode.
+	- RW: The instance is in read-write mode.
+- CONFIG: The config info status (for Tarantool 3+).
+- BOX: The box info status.
+- UPSTREAM: The replication upstream status.
+
+[0;1;39mUSAGE[0m
+  tt status [<APP_NAME> | <APP_NAME:INSTANCE_NAME>] [flags]
+[0;1;39m
+FLAGS[0m
+  -d, --details         print detailed alerts.
+  -f, --format string   output format: json, yaml, table, pretty-table (default
+                        "table")
+  -h, --help            help for status
+
+=== tt stop --help
+Stop tarantool instance(s)
+
+[0;1;39mUSAGE[0m
+  tt stop [<APP_NAME> | <APP_NAME:INSTANCE_NAME>] [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for stop
+  -y, --yes    Automatic yes to confirmation prompt
+
+=== tt tcm --help
+Manage tcm application
+
+[0;1;39mUSAGE[0m
+  tt tcm [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  log         Show tcm application logs
+  start       Start tcm application
+  status      Status tcm application
+  stop        Stop tcm application
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for tcm
+
+Use "tt tcm <command> --help" for more information about a command.
+
+=== tt tcm log --help
+Show logs for the tcm. tt tcm log
+
+[0;1;39mUSAGE[0m
+  tt tcm log [flags]
+[0;1;39m
+FLAGS[0m
+      --color       Force colored output in logs
+  -f, --follow      Output appended data as the log file grows
+  -h, --help        help for log
+  -n, --lines int   Count of last lines to output (default 10)
+      --no-color    Disable colored output in logs
+      --no-format   Disable log formatting
+
+=== tt tcm start --help
+Start to the tcm.
+		tt tcm start --watchdog
+		tt tcm start --path
+
+[0;1;39mUSAGE[0m
+  tt tcm start [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help               help for start
+      --log-level string   log level for the tcm application (default "INFO")
+      --path string        the path to the tcm binary file
+      --watchdog           enables the watchdog
+
+=== tt tcm status --help
+Status to the tcm.
+		tt tcm status
+
+[0;1;39mUSAGE[0m
+  tt tcm status [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for status
+
+=== tt tcm stop --help
+Stop to the tcm. tt tcm stop
+
+[0;1;39mUSAGE[0m
+  tt tcm stop [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for stop
+
+=== tt test --help
+Build the package in the current directory and run its tests with luatest.
+
+The directory must hold app.manifest.toml; no tt environment and no tt.yaml are
+involved. Tests are taken from test/, or from tests/ when there is no test/. A
+SUB-PATH relative to the project narrows the run to one directory or one file,
+and must exist.
+
+The build runs first, so components are compiled and .rocks/ holds the declared
+dependencies before any test does. luatest itself need not be declared: when
+[dev_dependencies] does not name it and the project tree does not already hold
+it, it is resolved as an implicit '*' requirement and installed. That resolution
+is not a declaration — app.manifest.toml and app.manifest.lock are left exactly
+as they were, so running the tests never makes the lock stale.
+
+Everything after '--' is handed to luatest, and the exit code is luatest's own.
+
+[0;1;39mUSAGE[0m
+  tt test [SUB-PATH] [-- LUATEST-ARGS...] [flags]
+[0;1;39m
+FLAGS[0m
+  -C, --directory string   work on the project in DIR, as if it were the current
+                           directory
+  -h, --help               help for test
+[0;1;39m
+EXAMPLES[0m
+  
+# Build and run everything under test/ (or tests/).
+
+    $ tt test
+
+# Run one directory, then one file.
+
+    $ tt test test/integration
+    $ tt test test/unit/config_test.lua
+
+# Pass luatest's own options through.
+
+    $ tt test -- --verbose --shuffle group
+
+
+=== tt uninstall --help
+Uninstalls a program
+
+[0;1;39mUSAGE[0m
+  tt uninstall [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  tarantool     Uninstall tarantool community edition
+  tarantool-dev Uninstall tarantool-dev
+  tarantool-ee  Uninstall tarantool enterprise edition
+  tcm           Uninstall tarantool cluster manager
+  tt            Uninstall tt
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for uninstall
+[0;1;39m
+EXAMPLES[0m
+  
+# To uninstall Tarantool:
+
+    $ tt uninstall tarantool <version>
+
+Use "tt uninstall <command> --help" for more information about a command.
+
+=== tt uninstall tarantool --help
+Uninstall tarantool community edition
+
+[0;1;39mUSAGE[0m
+  tt uninstall tarantool [version] [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for tarantool
+
+=== tt uninstall tarantool-dev --help
+Uninstall tarantool-dev
+
+[0;1;39mUSAGE[0m
+  tt uninstall tarantool-dev [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for tarantool-dev
+
+=== tt uninstall tarantool-ee --help
+Uninstall tarantool enterprise edition
+
+[0;1;39mUSAGE[0m
+  tt uninstall tarantool-ee [version] [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for tarantool-ee
+
+=== tt uninstall tcm --help
+Uninstall tarantool cluster manager
+
+[0;1;39mUSAGE[0m
+  tt uninstall tcm [version] [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for tcm
+
+=== tt uninstall tt --help
+Uninstall tt
+
+[0;1;39mUSAGE[0m
+  tt uninstall tt [version] [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for tt
+
+=== tt version --help
+Show Tarantool CLI version information
+
+[0;1;39mUSAGE[0m
+  tt version [flags]
+[0;1;39m
+FLAGS[0m
+      --commit   Show commit
+  -h, --help     help for version
+      --short    Show version in short format
+
+=== tt completion bash
+# bash completion V2 for tt                                   -*- shell-script -*-
+
+__tt_debug()
+{
+    if [[ -n ${BASH_COMP_DEBUG_FILE-} ]]; then
+        echo "$*" >> "${BASH_COMP_DEBUG_FILE}"
+    fi
+}
+
+# Macs have bash3 for which the bash-completion package doesn't include
+# _init_completion. This is a minimal version of that function.
+__tt_init_completion()
+{
+    COMPREPLY=()
+    _get_comp_words_by_ref "$@" cur prev words cword
+}
+
+# This function calls the tt program to obtain the completion
+# results and the directive.  It fills the 'out' and 'directive' vars.
+__tt_get_completion_results() {
+    local requestComp lastParam lastChar args
+
+    # Prepare the command to request completions for the program.
+    # Calling ${words[0]} instead of directly tt allows handling aliases
+    args=("${words[@]:1}")
+    requestComp="${words[0]} __complete ${args[*]}"
+
+    lastParam=${words[$((${#words[@]}-1))]}
+    lastChar=${lastParam:$((${#lastParam}-1)):1}
+    __tt_debug "lastParam ${lastParam}, lastChar ${lastChar}"
+
+    if [[ -z ${cur} && ${lastChar} != = ]]; then
+        # If the last parameter is complete (there is a space following it)
+        # We add an extra empty parameter so we can indicate this to the go method.
+        __tt_debug "Adding extra empty parameter"
+        requestComp="${requestComp} ''"
+    fi
+
+    # When completing a flag with an = (e.g., tt -n=<TAB>)
+    # bash focuses on the part after the =, so we need to remove
+    # the flag part from $cur
+    if [[ ${cur} == -*=* ]]; then
+        cur="${cur#*=}"
+    fi
+
+    __tt_debug "Calling ${requestComp}"
+    # Use eval to handle any environment variables and such
+    out=$(eval "${requestComp}" 2>/dev/null)
+
+    # Extract the directive integer at the very end of the output following a colon (:)
+    directive=${out##*:}
+    # Remove the directive
+    out=${out%:*}
+    if [[ ${directive} == "${out}" ]]; then
+        # There is not directive specified
+        directive=0
+    fi
+    __tt_debug "The completion directive is: ${directive}"
+    __tt_debug "The completions are: ${out}"
+}
+
+__tt_process_completion_results() {
+    local shellCompDirectiveError=1
+    local shellCompDirectiveNoSpace=2
+    local shellCompDirectiveNoFileComp=4
+    local shellCompDirectiveFilterFileExt=8
+    local shellCompDirectiveFilterDirs=16
+    local shellCompDirectiveKeepOrder=32
+
+    if (((directive & shellCompDirectiveError) != 0)); then
+        # Error code.  No completion.
+        __tt_debug "Received error from custom completion go code"
+        return
+    else
+        if (((directive & shellCompDirectiveNoSpace) != 0)); then
+            if [[ $(type -t compopt) == builtin ]]; then
+                __tt_debug "Activating no space"
+                compopt -o nospace
+            else
+                __tt_debug "No space directive not supported in this version of bash"
+            fi
+        fi
+        if (((directive & shellCompDirectiveKeepOrder) != 0)); then
+            if [[ $(type -t compopt) == builtin ]]; then
+                # no sort isn't supported for bash less than < 4.4
+                if [[ ${BASH_VERSINFO[0]} -lt 4 || ( ${BASH_VERSINFO[0]} -eq 4 && ${BASH_VERSINFO[1]} -lt 4 ) ]]; then
+                    __tt_debug "No sort directive not supported in this version of bash"
+                else
+                    __tt_debug "Activating keep order"
+                    compopt -o nosort
+                fi
+            else
+                __tt_debug "No sort directive not supported in this version of bash"
+            fi
+        fi
+        if (((directive & shellCompDirectiveNoFileComp) != 0)); then
+            if [[ $(type -t compopt) == builtin ]]; then
+                __tt_debug "Activating no file completion"
+                compopt +o default
+            else
+                __tt_debug "No file completion directive not supported in this version of bash"
+            fi
+        fi
+    fi
+
+    # Separate activeHelp from normal completions
+    local completions=()
+    local activeHelp=()
+    __tt_extract_activeHelp
+
+    if (((directive & shellCompDirectiveFilterFileExt) != 0)); then
+        # File extension filtering
+        local fullFilter="" filter filteringCmd
+
+        # Do not use quotes around the $completions variable or else newline
+        # characters will be kept.
+        for filter in ${completions[*]}; do
+            fullFilter+="$filter|"
+        done
+
+        filteringCmd="_filedir $fullFilter"
+        __tt_debug "File filtering command: $filteringCmd"
+        $filteringCmd
+    elif (((directive & shellCompDirectiveFilterDirs) != 0)); then
+        # File completion for directories only
+
+        local subdir
+        subdir=${completions[0]}
+        if [[ -n $subdir ]]; then
+            __tt_debug "Listing directories in $subdir"
+            pushd "$subdir" >/dev/null 2>&1 && _filedir -d && popd >/dev/null 2>&1 || return
+        else
+            __tt_debug "Listing directories in ."
+            _filedir -d
+        fi
+    else
+        __tt_handle_completion_types
+    fi
+
+    __tt_handle_special_char "$cur" :
+    __tt_handle_special_char "$cur" =
+
+    # Print the activeHelp statements before we finish
+    __tt_handle_activeHelp
+}
+
+__tt_handle_activeHelp() {
+    # Print the activeHelp statements
+    if ((${#activeHelp[*]} != 0)); then
+        if [ -z $COMP_TYPE ]; then
+            # Bash v3 does not set the COMP_TYPE variable.
+            printf "\n";
+            printf "%s\n" "${activeHelp[@]}"
+            printf "\n"
+            __tt_reprint_commandLine
+            return
+        fi
+
+        # Only print ActiveHelp on the second TAB press
+        if [ $COMP_TYPE -eq 63 ]; then
+            printf "\n"
+            printf "%s\n" "${activeHelp[@]}"
+
+            if ((${#COMPREPLY[*]} == 0)); then
+                # When there are no completion choices from the program, file completion
+                # may kick in if the program has not disabled it; in such a case, we want
+                # to know if any files will match what the user typed, so that we know if
+                # there will be completions presented, so that we know how to handle ActiveHelp.
+                # To find out, we actually trigger the file completion ourselves;
+                # the call to _filedir will fill COMPREPLY if files match.
+                if (((directive & shellCompDirectiveNoFileComp) == 0)); then
+                    __tt_debug "Listing files"
+                    _filedir
+                fi
+            fi
+
+            if ((${#COMPREPLY[*]} != 0)); then
+                # If there are completion choices to be shown, print a delimiter.
+                # Re-printing the command-line will automatically be done
+                # by the shell when it prints the completion choices.
+                printf -- "--"
+            else
+                # When there are no completion choices at all, we need
+                # to re-print the command-line since the shell will
+                # not be doing it itself.
+                __tt_reprint_commandLine
+            fi
+        elif [ $COMP_TYPE -eq 37 ] || [ $COMP_TYPE -eq 42 ]; then
+            # For completion type: menu-complete/menu-complete-backward and insert-completions
+            # the completions are immediately inserted into the command-line, so we first
+            # print the activeHelp message and reprint the command-line since the shell won't.
+            printf "\n"
+            printf "%s\n" "${activeHelp[@]}"
+
+            __tt_reprint_commandLine
+        fi
+    fi
+}
+
+__tt_reprint_commandLine() {
+    # The prompt format is only available from bash 4.4.
+    # We test if it is available before using it.
+    if (x=${PS1@P}) 2> /dev/null; then
+        printf "%s" "${PS1@P}${COMP_LINE[@]}"
+    else
+        # Can't print the prompt.  Just print the
+        # text the user had typed, it is workable enough.
+        printf "%s" "${COMP_LINE[@]}"
+    fi
+}
+
+# Separate activeHelp lines from real completions.
+# Fills the $activeHelp and $completions arrays.
+__tt_extract_activeHelp() {
+    local activeHelpMarker="_activeHelp_ "
+    local endIndex=${#activeHelpMarker}
+
+    while IFS='' read -r comp; do
+        [[ -z $comp ]] && continue
+
+        if [[ ${comp:0:endIndex} == $activeHelpMarker ]]; then
+            comp=${comp:endIndex}
+            __tt_debug "ActiveHelp found: $comp"
+            if [[ -n $comp ]]; then
+                activeHelp+=("$comp")
+            fi
+        else
+            # Not an activeHelp line but a normal completion
+            completions+=("$comp")
+        fi
+    done <<<"${out}"
+}
+
+__tt_handle_completion_types() {
+    __tt_debug "__tt_handle_completion_types: COMP_TYPE is $COMP_TYPE"
+
+    case $COMP_TYPE in
+    37|42)
+        # Type: menu-complete/menu-complete-backward and insert-completions
+        # If the user requested inserting one completion at a time, or all
+        # completions at once on the command-line we must remove the descriptions.
+        # https://github.com/spf13/cobra/issues/1508
+
+        # If there are no completions, we don't need to do anything
+        (( ${#completions[@]} == 0 )) && return 0
+
+        local tab=$'\t'
+
+        # Strip any description and escape the completion to handled special characters
+        IFS=$'\n' read -ra completions -d '' < <(printf "%q\n" "${completions[@]%%$tab*}")
+
+        # Only consider the completions that match
+        IFS=$'\n' read -ra COMPREPLY -d '' < <(IFS=$'\n'; compgen -W "${completions[*]}" -- "${cur}")
+
+        # compgen looses the escaping so we need to escape all completions again since they will
+        # all be inserted on the command-line.
+        IFS=$'\n' read -ra COMPREPLY -d '' < <(printf "%q\n" "${COMPREPLY[@]}")
+        ;;
+
+    *)
+        # Type: complete (normal completion)
+        __tt_handle_standard_completion_case
+        ;;
+    esac
+}
+
+__tt_handle_standard_completion_case() {
+    local tab=$'\t'
+
+    # If there are no completions, we don't need to do anything
+    (( ${#completions[@]} == 0 )) && return 0
+
+    # Short circuit to optimize if we don't have descriptions
+    if [[ "${completions[*]}" != *$tab* ]]; then
+        # First, escape the completions to handle special characters
+        IFS=$'\n' read -ra completions -d '' < <(printf "%q\n" "${completions[@]}")
+        # Only consider the completions that match what the user typed
+        IFS=$'\n' read -ra COMPREPLY -d '' < <(IFS=$'\n'; compgen -W "${completions[*]}" -- "${cur}")
+
+        # compgen looses the escaping so, if there is only a single completion, we need to
+        # escape it again because it will be inserted on the command-line.  If there are multiple
+        # completions, we don't want to escape them because they will be printed in a list
+        # and we don't want to show escape characters in that list.
+        if (( ${#COMPREPLY[@]} == 1 )); then
+            COMPREPLY[0]=$(printf "%q" "${COMPREPLY[0]}")
+        fi
+        return 0
+    fi
+
+    local longest=0
+    local compline
+    # Look for the longest completion so that we can format things nicely
+    while IFS='' read -r compline; do
+        [[ -z $compline ]] && continue
+
+        # Before checking if the completion matches what the user typed,
+        # we need to strip any description and escape the completion to handle special
+        # characters because those escape characters are part of what the user typed.
+        # Don't call "printf" in a sub-shell because it will be much slower
+        # since we are in a loop.
+        printf -v comp "%q" "${compline%%$tab*}" &>/dev/null || comp=$(printf "%q" "${compline%%$tab*}")
+
+        # Only consider the completions that match
+        [[ $comp == "$cur"* ]] || continue
+
+        # The completions matches.  Add it to the list of full completions including
+        # its description.  We don't escape the completion because it may get printed
+        # in a list if there are more than one and we don't want show escape characters
+        # in that list.
+        COMPREPLY+=("$compline")
+
+        # Strip any description before checking the length, and again, don't escape
+        # the completion because this length is only used when printing the completions
+        # in a list and we don't want show escape characters in that list.
+        comp=${compline%%$tab*}
+        if ((${#comp}>longest)); then
+            longest=${#comp}
+        fi
+    done < <(printf "%s\n" "${completions[@]}")
+
+    # If there is a single completion left, remove the description text and escape any special characters
+    if ((${#COMPREPLY[*]} == 1)); then
+        __tt_debug "COMPREPLY[0]: ${COMPREPLY[0]}"
+        COMPREPLY[0]=$(printf "%q" "${COMPREPLY[0]%%$tab*}")
+        __tt_debug "Removed description from single completion, which is now: ${COMPREPLY[0]}"
+    else
+        # Format the descriptions
+        __tt_format_comp_descriptions $longest
+    fi
+}
+
+__tt_handle_special_char()
+{
+    local comp="$1"
+    local char=$2
+    if [[ "$comp" == *${char}* && "$COMP_WORDBREAKS" == *${char}* ]]; then
+        local word=${comp%"${comp##*${char}}"}
+        local idx=${#COMPREPLY[*]}
+        while ((--idx >= 0)); do
+            COMPREPLY[idx]=${COMPREPLY[idx]#"$word"}
+        done
+    fi
+}
+
+__tt_format_comp_descriptions()
+{
+    local tab=$'\t'
+    local comp desc maxdesclength
+    local longest=$1
+
+    local i ci
+    for ci in ${!COMPREPLY[*]}; do
+        comp=${COMPREPLY[ci]}
+        # Properly format the description string which follows a tab character if there is one
+        if [[ "$comp" == *$tab* ]]; then
+            __tt_debug "Original comp: $comp"
+            desc=${comp#*$tab}
+            comp=${comp%%$tab*}
+
+            # $COLUMNS stores the current shell width.
+            # Remove an extra 4 because we add 2 spaces and 2 parentheses.
+            maxdesclength=$(( COLUMNS - longest - 4 ))
+
+            # Make sure we can fit a description of at least 8 characters
+            # if we are to align the descriptions.
+            if ((maxdesclength > 8)); then
+                # Add the proper number of spaces to align the descriptions
+                for ((i = ${#comp} ; i < longest ; i++)); do
+                    comp+=" "
+                done
+            else
+                # Don't pad the descriptions so we can fit more text after the completion
+                maxdesclength=$(( COLUMNS - ${#comp} - 4 ))
+            fi
+
+            # If there is enough space for any description text,
+            # truncate the descriptions that are too long for the shell width
+            if ((maxdesclength > 0)); then
+                if ((${#desc} > maxdesclength)); then
+                    desc=${desc:0:$(( maxdesclength - 1 ))}
+                    desc+="…"
+                fi
+                comp+="  ($desc)"
+            fi
+            COMPREPLY[ci]=$comp
+            __tt_debug "Final comp: $comp"
+        fi
+    done
+}
+
+__start_tt()
+{
+    local cur prev words cword split
+
+    COMPREPLY=()
+
+    # Call _init_completion from the bash-completion package
+    # to prepare the arguments properly
+    if declare -F _init_completion >/dev/null 2>&1; then
+        _init_completion -n =: || return
+    else
+        __tt_init_completion -n =: || return
+    fi
+
+    __tt_debug
+    __tt_debug "========= starting completion logic =========="
+    __tt_debug "cur is ${cur}, words[*] is ${words[*]}, #words[@] is ${#words[@]}, cword is $cword"
+
+    if [[ ${#words[@]} -ge 3 && ${words[1]} = "rocks"  && ${words[2]} = "admin" ]]; then
+        _luarocks-admin
+        return
+    fi
+
+    if [[ ${#words[@]} -ge 2 && ${words[1]} = "rocks" ]]; then
+        _rocks
+        return
+    fi
+    # The user could have moved the cursor backwards on the command-line.
+    # We need to trigger completion from the $cword location, so we need
+    # to truncate the command-line ($words) up to the $cword location.
+    words=("${words[@]:0:$cword+1}")
+    __tt_debug "Truncated words[*]: ${words[*]},"
+
+    local out directive
+    __tt_get_completion_results
+    __tt_process_completion_results
+}
+
+if [[ $(type -t compopt) = "builtin" ]]; then
+    complete -o default -F __start_tt tt
+else
+    complete -o default -o nospace -F __start_tt tt
+fi
+
+# ex: ts=4 sw=4 et filetype=sh
+_rocks() {
+    local IFS=$' \t\n'
+    local args cur prev cmd opts arg
+    args=("${COMP_WORDS[@]}")
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    opts="-h --help --version --dev --server --from --only-server --only-from --only-sources --only-sources-from --namespace --lua-dir --lua-version --tree --to --local --global --no-project --verbose --timeout --project-tree --pack-binary-rock --branch --sign"
+
+    case "$prev" in
+        --server|--from)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --only-server|--only-from)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --only-sources|--only-sources-from)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --namespace)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --lua-dir)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --lua-version)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --tree|--to)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --timeout)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --project-tree)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --branch)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+    esac
+
+    args=("${args[@]:1}")
+    for arg in "${args[@]}"; do
+        case "$arg" in
+            help)
+                cmd="help"
+                opts="$opts -h --help"
+                break
+                ;;
+            build)
+                cmd="build"
+                opts="$opts -h --help --only-deps --deps-only --branch --pin --no-install --no-doc --pack-binary-rock --keep --force --force-fast --verify --sign --check-lua-versions --pin --no-manifest --only-deps --deps-only --chdir --deps-mode --nodeps"
+                break
+                ;;
+            config)
+                cmd="config"
+                opts="$opts -h --help --scope --unset --json --lua-incdir --lua-libdir --lua-ver --system-config --user-config --rock-trees"
+                break
+                ;;
+            doc)
+                cmd="doc"
+                opts="$opts -h --help --home --list --porcelain"
+                break
+                ;;
+            download)
+                cmd="download"
+                opts="$opts -h --help --all --source --rockspec --arch --check-lua-versions"
+                break
+                ;;
+            install)
+                cmd="install"
+                opts="$opts -h --help --keep --force --force-fast --only-deps --deps-only --no-doc --verify --check-lua-versions --deps-mode --nodeps --no-manifest --pin"
+                break
+                ;;
+            lint)
+                cmd="lint"
+                opts="$opts -h --help"
+                break
+                ;;
+            list)
+                cmd="list"
+                opts="$opts -h --help --outdated --porcelain"
+                break
+                ;;
+            make)
+                cmd="make"
+                opts="$opts -h --help --no-install --no-doc --pack-binary-rock --keep --force --force-fast --verify --sign --check-lua-versions --pin --no-manifest --only-deps --deps-only --chdir --deps-mode --nodeps"
+                break
+                ;;
+            make_manifest|make-manifest)
+                cmd="make_manifest"
+                opts="$opts -h --help --local-tree --deps-mode --nodeps"
+                break
+                ;;
+            new_version|new-version)
+                cmd="new_version"
+                opts="$opts -h --help --dir --tag"
+                break
+                ;;
+            pack)
+                cmd="pack"
+                opts="$opts -h --help --sign"
+                break
+                ;;
+            purge)
+                cmd="purge"
+                opts="$opts -h --help --old-versions --force --force-fast"
+                break
+                ;;
+            remove)
+                cmd="remove"
+                opts="$opts -h --help --force --force-fast --deps-mode --nodeps"
+                break
+                ;;
+            search)
+                cmd="search"
+                opts="$opts -h --help --source --binary --all --porcelain"
+                break
+                ;;
+            show)
+                cmd="show"
+                opts="$opts -h --help --home --modules --deps --build-deps --test-deps --rockspec --mversion --rock-tree --rock-namespace --rock-dir --rock-license --issues --labels --porcelain"
+                break
+                ;;
+            test)
+                cmd="test"
+                opts="$opts -h --help --prepare --test-type"
+                break
+                ;;
+            unpack)
+                cmd="unpack"
+                opts="$opts -h --help --force --check-lua-versions"
+                break
+                ;;
+            which)
+                cmd="which"
+                opts="$opts -h --help"
+                break
+                ;;
+            write_rockspec|write-rockspec)
+                cmd="write_rockspec"
+                opts="$opts -h --help --output --license --summary --detailed --homepage --lua-versions --rockspec-format --tag --lib"
+                break
+                ;;
+        esac
+    done
+
+    case "$cmd" in
+        '')
+            COMPREPLY=($(compgen -W "help admin build config doc download install lint list make make_manifest make-manifest new_version new-version pack purge remove search show test unpack which write_rockspec write-rockspec" -- "$cur"))
+            ;;
+        'help')
+            COMPREPLY=($(compgen -W "help admin build config doc download install lint list make make_manifest make-manifest new_version new-version pack purge remove search show test unpack which write_rockspec write-rockspec" -- "$cur"))
+            ;;
+        'build')
+            case "$prev" in
+                --branch)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+                --chdir)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+                --deps-mode)
+                    COMPREPLY=($(compgen -W "all one order none" -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+        'config')
+            case "$prev" in
+                --scope)
+                    COMPREPLY=($(compgen -W "system user project" -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+        'download')
+            case "$prev" in
+                --arch)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+        'install')
+            case "$prev" in
+                --deps-mode)
+                    COMPREPLY=($(compgen -W "all one order none" -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+        'make')
+            case "$prev" in
+                --chdir)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+                --deps-mode)
+                    COMPREPLY=($(compgen -W "all one order none" -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+        'make_manifest')
+            case "$prev" in
+                --deps-mode)
+                    COMPREPLY=($(compgen -W "all one order none" -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+        'new_version')
+            case "$prev" in
+                --dir)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+                --tag)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+        'remove')
+            case "$prev" in
+                --deps-mode)
+                    COMPREPLY=($(compgen -W "all one order none" -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+        'test')
+            case "$prev" in
+                --test-type)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+        'write_rockspec')
+            case "$prev" in
+                --output)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+                --license)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+                --summary)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+                --detailed)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+                --homepage)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+                --lua-versions)
+                    COMPREPLY=($(compgen -W "5.1 5.2 5.3 5.4 5.1,5.2 5.2,5.3 5.3,5.4 5.1,5.2,5.3 5.2,5.3,5.4 5.1,5.2,5.3,5.4" -- "$cur"))
+                    return 0
+                    ;;
+                --rockspec-format)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+                --tag)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+                --lib)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+    esac
+
+    if [[ "$cur" = -* ]]; then
+        COMPREPLY=($(compgen -W "$opts" -- "$cur"))
+    fi
+}
+
+_luarocks-admin() {
+    local IFS=$' \t\n'
+    local args cur prev cmd opts arg
+    args=("${COMP_WORDS[@]}")
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    opts="-h --help --version --dev --server --from --only-server --only-from --only-sources --only-sources-from --namespace --lua-dir --lua-version --tree --to --local --global --no-project --verbose --timeout --project-tree"
+
+    case "$prev" in
+        --server|--from)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --only-server|--only-from)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --only-sources|--only-sources-from)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --namespace)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --lua-dir)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --lua-version)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --tree|--to)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --timeout)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --project-tree)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+    esac
+
+    args=("${args[@]:1}")
+    for arg in "${args[@]}"; do
+        case "$arg" in
+            help)
+                cmd="help"
+                opts="$opts -h --help"
+                break
+                ;;
+            add)
+                cmd="add"
+                opts="$opts -h --help --server --no-refresh --index"
+                break
+                ;;
+            make_manifest|make-manifest)
+                cmd="make_manifest"
+                opts="$opts -h --help --local-tree --deps-mode --nodeps"
+                break
+                ;;
+            refresh_cache|refresh-cache)
+                cmd="refresh_cache"
+                opts="$opts -h --help --from"
+                break
+                ;;
+            remove)
+                cmd="remove"
+                opts="$opts -h --help --server --no-refresh"
+                break
+                ;;
+        esac
+    done
+
+    case "$cmd" in
+        '')
+            COMPREPLY=($(compgen -W "help add make_manifest make-manifest refresh_cache refresh-cache remove" -- "$cur"))
+            ;;
+        'help')
+            COMPREPLY=($(compgen -W "help add make_manifest make-manifest refresh_cache refresh-cache remove" -- "$cur"))
+            ;;
+        'add')
+            case "$prev" in
+                --server)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+        'make_manifest')
+            case "$prev" in
+                --deps-mode)
+                    COMPREPLY=($(compgen -W "all one order none" -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+        'refresh_cache')
+            case "$prev" in
+                --from)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+        'remove')
+            case "$prev" in
+                --server)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+    esac
+
+    if [[ "$cur" = -* ]]; then
+        COMPREPLY=($(compgen -W "$opts" -- "$cur"))
+    fi
+}
+
+=== tt __complete ""
+aeon	Manage aeon application
+binaries	Manage installed binaries
+cat	Print into stdout the contents of .snap/.xlog FILE(s)
+cfg	Environment configuration management utility
+check	Check an application file for syntax errors
+clean	Clean instance(s) files
+cluster	Manage cluster configuration
+completion	Generate autocomplete for a specified shell. Supported shell type: bash | zsh | fish
+connect	Connect to the tarantool instance
+coredump	Perform manipulations with the tarantool coredumps
+create	Create an application from a template
+daemon	Perform manipulations with the tt daemon (experimental)
+download	Download Tarantool SDK
+env	Add current environment binaries location to the PATH variable
+help	Help about any command
+install	Install program
+kill	Kill tarantool instance(s)
+log	Get logs of instance(s)
+logrotate	Rotate logs of a started tarantool instance(s)
+modules	Manage tt cli modules
+new	Create a skeleton app.manifest.toml in the current directory
+package	Manage tt manifest packages
+play	Play the contents of .snap/.xlog FILE(s) to another Tarantool instance
+registry	Inspect the rock servers packages are resolved against
+replicaset	Manage replicasets
+restart	Restart tarantool instance(s)
+rocks	LuaRocks package manager
+run	Run the current package under its Tarantool
+search	Search for available versions for the program
+start	Start tarantool instance(s)
+status	Status of the tarantool instance(s)
+stop	Stop tarantool instance(s)
+tcm	Manage tcm application
+test	Build the current package and run its tests
+uninstall	Uninstalls a program
+version	Show Tarantool CLI version information
+:0
+--- stderr
+Completion ended with directive: ShellCompDirectiveDefault
