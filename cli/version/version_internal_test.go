@@ -44,7 +44,7 @@ func assertForms(t *testing.T, want versionForms, getVersion func(bool, bool) st
 //
 //nolint:paralleltest // Replaces the values the build stamps.
 func TestGetVersion(t *testing.T) {
-	for _, tc := range []struct {
+	for _, testCase := range []struct {
 		name                         string
 		tag, commit, sinceTag, label string
 		want                         versionForms
@@ -75,11 +75,11 @@ func TestGetVersion(t *testing.T) {
 			},
 		},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			setCoreBuild(t, tc.tag, tc.commit, tc.sinceTag, tc.label)
+		t.Run(testCase.name, func(t *testing.T) {
+			setCoreBuild(t, testCase.tag, testCase.commit, testCase.sinceTag, testCase.label)
 
-			assertForms(t, tc.want, GetVersion)
-			assertForms(t, tc.want, Flavour{}.GetVersion)
+			assertForms(t, testCase.want, GetVersion)
+			assertForms(t, testCase.want, Flavour{}.GetVersion)
 		})
 	}
 }
@@ -92,7 +92,7 @@ func TestFlavourGetVersion(t *testing.T) {
 	// The core's own version must not show through the distribution's.
 	setCoreBuild(t, "v3.1.0", "0000000", "0", "")
 
-	for _, tc := range []struct {
+	for _, testCase := range []struct {
 		name    string
 		flavour Flavour
 		want    versionForms
@@ -151,8 +151,8 @@ func TestFlavourGetVersion(t *testing.T) {
 			},
 		},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			assertForms(t, tc.want, tc.flavour.GetVersion)
+		t.Run(testCase.name, func(t *testing.T) {
+			assertForms(t, testCase.want, testCase.flavour.GetVersion)
 			assert.Equal(t, "3.1.0", GetVersion(true, false), "the core's own version")
 		})
 	}
@@ -176,7 +176,7 @@ func setBuildInfo(t *testing.T, module string, ok bool) {
 //
 //nolint:paralleltest // Replaces the values the build stamps and the build info.
 func TestGetVersionFromBuildInfo(t *testing.T) {
-	for _, tc := range []struct {
+	for _, testCase := range []struct {
 		name   string
 		module string
 		want   versionForms
@@ -235,11 +235,11 @@ func TestGetVersionFromBuildInfo(t *testing.T) {
 			},
 		},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(testCase.name, func(t *testing.T) {
 			setCoreBuild(t, "", "", "", "")
-			setBuildInfo(t, tc.module, true)
+			setBuildInfo(t, testCase.module, true)
 
-			assertForms(t, tc.want, GetVersion)
+			assertForms(t, testCase.want, GetVersion)
 		})
 	}
 }

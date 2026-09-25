@@ -39,7 +39,8 @@ func isMasked(version version.Version) bool {
 func GetVersionsFromGitRemote(repo string) (version.VersionSlice, error) {
 	versions := version.VersionSlice{}
 
-	if _, err := exec.LookPath("git"); err != nil {
+	_, err := exec.LookPath("git")
+	if err != nil {
 		return nil, errGitRequired
 	}
 
@@ -85,7 +86,8 @@ func GetVersionsFromGitRemote(repo string) (version.VersionSlice, error) {
 
 // GetCommitFromGitLocal returns hash or pr/ID info from specified local git repo.
 func GetCommitFromGitLocal(repo, input string) (string, error) {
-	if _, err := exec.LookPath("git"); err != nil {
+	_, err := exec.LookPath("git")
+	if err != nil {
 		return "", errUnableToGetCommitsGitCommandIsMissing
 	}
 
@@ -98,9 +100,9 @@ func GetCommitFromGitLocal(repo, input string) (string, error) {
 
 		cmd.Dir = repo
 
-		err := cmd.Run()
+		err = cmd.Run()
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("failed to fetch pull request %s: %w", pullRequestID, err)
 		}
 	}
 
@@ -110,7 +112,7 @@ func GetCommitFromGitLocal(repo, input string) (string, error) {
 
 	output, err := cmd.Output()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to find commit %s: %w", input, err)
 	}
 
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
@@ -122,7 +124,8 @@ func GetCommitFromGitLocal(repo, input string) (string, error) {
 
 // GetCommitFromGitRemote returns hash or pr/ID info from specified remote git repo.
 func GetCommitFromGitRemote(repo, input string) (string, error) {
-	if _, err := exec.LookPath("git"); err != nil {
+	_, err := exec.LookPath("git")
+	if err != nil {
 		return "", errUnableToGetCommitsGitCommandIsMissing
 	}
 
@@ -150,7 +153,8 @@ func GetCommitFromGitRemote(repo, input string) (string, error) {
 func GetVersionsFromGitLocal(repo string) (version.VersionSlice, error) {
 	versions := version.VersionSlice{}
 
-	if _, err := exec.LookPath("git"); err != nil {
+	_, err := exec.LookPath("git")
+	if err != nil {
 		return nil, errGitRequired
 	}
 
@@ -193,5 +197,14 @@ func searchVersionsGit(repo string) (
 		return nil, fmt.Errorf("failed to get versions from %s: %w", repo, err)
 	}
 
-	return append(versions, version.Version{Str: "master"}), nil
+	return append(versions, masterVersion()), nil
+}
+
+// masterVersion returns the version that stands for the master branch.
+func masterVersion() version.Version {
+	var master version.Version
+
+	master.Str = "master"
+
+	return master
 }

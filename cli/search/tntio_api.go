@@ -77,6 +77,7 @@ type httpDoer struct {
 func NewTntIoDoer() *httpDoer {
 	return &httpDoer{
 		client: http.DefaultClient,
+		token:  "",
 	}
 }
 
@@ -116,18 +117,18 @@ func (d *httpDoer) Token() string {
 
 // getOsForApi determines the OS type string required by the tarantool.io API.
 func getOsForAPI(informer PlatformInformer) (string, error) {
-	os, err := informer.GetOs()
+	osType, err := informer.GetOs()
 	if err != nil {
 		return "", fmt.Errorf("failed to get OS: %w", err)
 	}
 
-	switch os {
+	switch osType {
 	case util.OsLinux:
 		return "linux", nil
 	case util.OsMacos:
 		return "macos", nil
 	default:
-		return "", fmt.Errorf("%w%d", errUnsupportedOS, os)
+		return "", fmt.Errorf("%w%d", errUnsupportedOS, osType)
 	}
 }
 
@@ -139,7 +140,7 @@ func getArchForAPI(informer PlatformInformer, program Program) (string, error) {
 	}
 
 	// Here is default architecture mapping, accepted for tarantool.io API.
-	m := map[string]string{
+	archMapping := map[string]string{
 		"x86_64":  "x86_64",
 		"aarch64": "aarch64",
 	}
@@ -147,13 +148,13 @@ func getArchForAPI(informer PlatformInformer, program Program) (string, error) {
 	// Best way to unify paths for all apps in the customer zone.
 	switch program {
 	case ProgramTcm:
-		m["x86_64"] = "amd64"
-		m["aarch64"] = "arm64"
+		archMapping["x86_64"] = "amd64"
+		archMapping["aarch64"] = "arm64"
 	case ProgramUnknown, ProgramCe, ProgramEe, ProgramTt, ProgramDev:
 		// Use the default architecture mapping.
 	}
 
-	if arch, ok := m[arch]; ok {
+	if arch, ok := archMapping[arch]; ok {
 		// Return arch only if it in valid mapping.
 		return arch, nil
 	}
@@ -216,24 +217,26 @@ func buildAPIQuery(searchCtx *SearchCtx, credentials connect.UserCredentials) (
 		return apiRequest{}, fmt.Errorf("failed to get OS type for API: %w", err)
 	}
 
-	request := apiRequest{
-		Username: credentials.Username,
-		Password: credentials.Password,
-	}
+	var query string
+
 	if len(searchCtx.ReleaseVersion) > 0 {
-		request.Query = fmt.Sprintf("%s/%s/%s/%s/%s",
+		query = fmt.Sprintf("%s/%s/%s/%s/%s",
 			searchCtx.Package, buildType, osType, arch, searchCtx.ReleaseVersion)
 	} else {
-		request.Query = fmt.Sprintf("%s/%s/%s/%s",
+		query = fmt.Sprintf("%s/%s/%s/%s",
 			searchCtx.Package, buildType, osType, arch)
 	}
 
-	return request, nil
+	return apiRequest{
+		Username: credentials.Username,
+		Password: credentials.Password,
+		Query:    query,
+	}, nil
 }
 
 // sendApiRequest prepares and sends the request to the tarantool.io API.
 func sendAPIRequest(request apiRequest, doer TntIoDoer) ([]byte, error) {
-	postData, err := json.Marshal(request)
+	postData, err := json.Marshal(request) //nolint:gosec // the API takes the password in the body
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal API request: %w", err)
 	}

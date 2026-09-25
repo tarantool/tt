@@ -25,7 +25,8 @@ var (
 func searchVersionsLocalGit(program Program, repoPath string) (
 	version.VersionSlice, error,
 ) {
-	if _, err := os.Stat(repoPath); os.IsNotExist(err) {
+	_, err := os.Stat(repoPath)
+	if os.IsNotExist(err) {
 		// It's not an error if the local repo doesn't exist.
 		log.Debugf("Local repository for %s not found at %s", program, repoPath)
 
@@ -37,7 +38,7 @@ func searchVersionsLocalGit(program Program, repoPath string) (
 		return nil, fmt.Errorf("failed to get versions from local repo %s: %w", repoPath, err)
 	}
 
-	return append(versions, version.Version{Str: "master"}), nil
+	return append(versions, masterVersion()), nil
 }
 
 // searchVersionsLocalSDK handles searching versions from locally available SDK bundle files.
@@ -61,14 +62,14 @@ func searchVersionsLocalSDK(program Program, dir string) (
 // fetchBundlesInfoLocal returns slice of information about all tarantool-ee or tcm
 // bundles available locally. The result will be sorted in ascending order.
 func fetchBundlesInfoLocal(files []string, program Program) (BundleInfoSlice, error) {
-	re, err := compileVersionRegexp(program)
+	versionRegexp, err := compileVersionRegexp(program)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compile regex for %s: %w", program, err)
 	}
 
 	versions := make(BundleInfoSlice, 0, len(files))
 	for _, file := range files {
-		parsedData := util.FindNamedMatches(re, file) // Assumes util package is imported.
+		parsedData := util.FindNamedMatches(versionRegexp, file)
 		if len(parsedData) == 0 {
 			continue
 		}
@@ -81,7 +82,7 @@ func fetchBundlesInfoLocal(files []string, program Program) (BundleInfoSlice, er
 		}
 
 		ver.Tarball = file
-		versions = append(versions, BundleInfo{Version: ver})
+		versions = append(versions, BundleInfo{Version: ver, Package: "", Release: "", Token: ""})
 	}
 
 	sort.Sort(versions)

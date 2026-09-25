@@ -61,7 +61,8 @@ func ChooseProgram(supportedPrograms []string) (search.Program, error) {
 		err     error
 	)
 
-	if _, program, err = programSelect.Run(); err != nil {
+	_, program, err = programSelect.Run()
+	if err != nil {
 		return search.ProgramUnknown, fmt.Errorf("failed to choose program: %w", err)
 	}
 
@@ -109,7 +110,11 @@ func ChooseVersion(binDir string, program search.Program) (string, error) {
 	version = cleanString(version)
 	version = strings.TrimSuffix(version, " [active]")
 
-	return version, err
+	if err != nil {
+		return version, fmt.Errorf("failed to choose version: %w", err)
+	}
+
+	return version, nil
 }
 
 // switchHeaders makes symlink for required version of headers.

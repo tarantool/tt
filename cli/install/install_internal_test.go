@@ -12,7 +12,8 @@ import (
 )
 
 func Test_dirsAreWriteable(t *testing.T) {
-	if user, err := user.Current(); err == nil && user.Uid == "0" {
+	currentUser, err := user.Current()
+	if err == nil && currentUser.Uid == "0" {
 		t.Skip("Skipping the test, it shouldn't run as root")
 	}
 
@@ -56,7 +57,8 @@ func Test_dirsAreWriteable(t *testing.T) {
 }
 
 func Test_subDirIsWritable(t *testing.T) {
-	if user, err := user.Current(); err == nil && user.Uid == "0" {
+	currentUser, err := user.Current()
+	if err == nil && currentUser.Uid == "0" {
 		t.Skip("Skipping the test, it shouldn't run as root")
 	}
 
@@ -124,7 +126,7 @@ func Test_getLatestRelease(t *testing.T) {
 	require.Equal(t, "3.0.0", latestRelease)
 
 	latestRelease = getLatestRelease(versions[1:6])
-	require.Equal(t, "", latestRelease)
+	require.Empty(t, latestRelease)
 }
 
 func Test_installTarantoolDev(t *testing.T) {
@@ -189,13 +191,13 @@ func Test_installTarantoolDev(t *testing.T) {
 			{filepath.Join(tempDirectory, "build_invalid"), "/tarantool/src/tarantool"},
 		}
 
-		for _, tc := range cases {
-			err := installTarantoolDev(ttBinPath, ttIncPath, tc.buildDir, "")
-			assert.NoError(t, err)
+		for _, testCase := range cases {
+			err := installTarantoolDev(ttBinPath, ttIncPath, testCase.buildDir, "")
+			require.NoError(t, err)
 
 			link, err := os.Readlink(filepath.Join(ttBinPath, "tarantool"))
-			assert.NoError(t, err)
-			assert.Equal(t, filepath.Join(tc.buildDir, tc.relExecPath), link)
+			require.NoError(t, err)
+			assert.Equal(t, filepath.Join(testCase.buildDir, testCase.relExecPath), link)
 
 			// Check that old includeDir was removed.
 			_, err = os.Readlink(filepath.Join(ttIncPath, "tarantool"))
@@ -240,17 +242,17 @@ func Test_installTarantoolDev(t *testing.T) {
 			},
 		}
 
-		for _, tc := range cases {
-			err := installTarantoolDev(ttBinPath, ttIncPath, tc.buildDir, tc.incDir)
-			assert.NoError(t, err)
+		for _, testCase := range cases {
+			err := installTarantoolDev(ttBinPath, ttIncPath, testCase.buildDir, testCase.incDir)
+			require.NoError(t, err)
 
 			execLink, err := os.Readlink(filepath.Join(ttBinPath, "tarantool"))
-			assert.NoError(t, err)
-			assert.Equal(t, execLink, filepath.Join(tc.buildDir, tc.relExecPath))
+			require.NoError(t, err)
+			assert.Equal(t, filepath.Join(testCase.buildDir, testCase.relExecPath), execLink)
 
 			incLink, err := os.Readlink(filepath.Join(ttIncPath, "tarantool"))
-			assert.NoError(t, err)
-			assert.Equal(t, tc.expectedIncLink, incLink)
+			require.NoError(t, err)
+			assert.Equal(t, testCase.expectedIncLink, incLink)
 		}
 	})
 

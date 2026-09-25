@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/v3/cli/search"
 )
 
@@ -46,18 +47,18 @@ func TestParseProgram(t *testing.T) {
 		"EmptyString": {"", search.ProgramUnknown, true, `unknown program: ""`},
 	}
 
-	for name, tc := range tests {
+	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			program, err := search.ParseProgram(tc.input)
-			if tc.wantErr {
-				assert.Error(t, err)
+			program, err := search.ParseProgram(test.input)
+			if test.wantErr {
+				require.Error(t, err)
 
-				if tc.errMsg != "" {
-					assert.EqualError(t, err, tc.errMsg)
+				if test.errMsg != "" {
+					require.EqualError(t, err, test.errMsg)
 				}
 			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tc.expected, program)
+				require.NoError(t, err)
+				assert.Equal(t, test.expected, program)
 			}
 		})
 	}

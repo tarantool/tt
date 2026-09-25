@@ -141,15 +141,15 @@ func checkOutputVersionOrder(t *testing.T, got string, expected []string) {
 
 	for _, ver := range expected {
 		currentIndex := strings.Index(got, ver)
-		require.True(t,
-			currentIndex >= 0,
+		require.GreaterOrEqual(t,
+			currentIndex, 0,
 			"Expected version %q not found in output",
 			ver,
 		)
 
 		if currentIndex >= 0 {
-			require.True(t,
-				currentIndex > lastIndex,
+			require.Greater(t,
+				currentIndex, lastIndex,
 				"Version %q is not in the expected order",
 				ver,
 			)
@@ -160,7 +160,7 @@ func checkOutputVersionOrder(t *testing.T, got string, expected []string) {
 
 	// Ensure no unexpected versions are printed (optional, stricter check).
 	lines := strings.Split(strings.TrimSpace(got), "\n")
-	require.Equal(t, len(expected), len(lines),
+	require.Len(t, lines, len(expected),
 		"Output contains unexpected lines or missing expected versions")
 }
 
@@ -423,9 +423,9 @@ func TestSearchVersions_TntIo(t *testing.T) {
 			originalStdout := os.Stdout
 			recorder := recordLog(t)
 
-			r, w, _ := os.Pipe()
+			pipeReader, pipeWriter, _ := os.Pipe()
 
-			os.Stdout = w
+			os.Stdout = pipeWriter
 
 			defer func() {
 				os.Stdout = originalStdout
@@ -451,11 +451,11 @@ func TestSearchVersions_TntIo(t *testing.T) {
 
 			err := search.SearchVersions(sCtx, &opts)
 
-			_ = w.Close()
+			_ = pipeWriter.Close()
 
 			var outBuf bytes.Buffer
 
-			_, readErr := outBuf.ReadFrom(r)
+			_, readErr := outBuf.ReadFrom(pipeReader)
 			require.NoError(t, readErr, "Failed to read from stdout pipe")
 
 			gotOutput := outBuf.String()

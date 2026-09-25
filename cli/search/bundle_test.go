@@ -281,7 +281,7 @@ func TestSelectVersion(t *testing.T) {
 			}
 
 			require.NoError(t, err, "Expected no error, but got: %v", err)
-			require.Equal(t, got.Version.Str, tt.want)
+			require.Equal(t, tt.want, got.Version.Str)
 		})
 	}
 }

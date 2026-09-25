@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type returnValueParseVersion struct {
@@ -18,7 +19,7 @@ func TestParseVersion(t *testing.T) {
 		version, err := Parse(input)
 
 		if output.err == nil {
-			assert.Nil(err)
+			require.NoError(t, err)
 			assert.Equal(output.version, version)
 		} else {
 			assert.Equal(output.err, err)
@@ -276,16 +277,16 @@ func TestParseTt(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			resVer, err := ParseTt(tc.inputVer)
-			if tc.isErr {
-				assert.EqualError(t, err, tc.expectedErrMsg)
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			resVer, err := ParseTt(testCase.inputVer)
+			if testCase.isErr {
+				require.EqualError(t, err, testCase.expectedErrMsg)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
-			assert.Equal(t, resVer, tc.expectedVer)
+			assert.Equal(t, testCase.expectedVer, resVer)
 		})
 	}
 }

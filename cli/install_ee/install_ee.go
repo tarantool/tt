@@ -73,7 +73,8 @@ func (d *httpDoer) Token() string {
 
 // validateDestination checks if the destination path exists and is a directory.
 func validateDestination(dst string) error {
-	if _, err := os.Stat(dst); os.IsNotExist(err) {
+	_, err := os.Stat(dst)
+	if os.IsNotExist(err) {
 		return fmt.Errorf("%w%s", errDestinationDirectoryMissing, dst)
 	}
 
@@ -87,7 +88,7 @@ func validateDestination(dst string) error {
 // addSessionIdCookie adds a session ID cookie to the request if the token is not empty.
 func addSessionIDCookie(req *http.Request, token string) {
 	if token != "" {
-		cookie := &http.Cookie{
+		cookie := &http.Cookie{ //nolint:gosec // request cookie: only name and value are sent
 			Name:  "sessionid",
 			Value: token,
 		}
@@ -118,7 +119,8 @@ func saveResponseBodyToFile(body []byte, destFilePath string) (errRet error) {
 
 	defer func() {
 		// Report close error only if no other error occurred during copy.
-		if closeErr := file.Close(); closeErr != nil && errRet == nil {
+		closeErr := file.Close()
+		if closeErr != nil && errRet == nil {
 			errRet = fmt.Errorf("failed to close destination file %s: %w", destFilePath, closeErr)
 		}
 	}()
@@ -141,7 +143,8 @@ func DownloadBundle(doer search.TntIoDoer, bundleName, bundleSource, dst string)
 		return errTarantoolIODoerMissing
 	}
 
-	if err := validateDestination(dst); err != nil {
+	err := validateDestination(dst)
+	if err != nil {
 		return err
 	}
 
@@ -156,7 +159,9 @@ func DownloadBundle(doer search.TntIoDoer, bundleName, bundleSource, dst string)
 	}
 
 	destFilePath := filepath.Join(dst, bundleName)
-	if err := saveResponseBodyToFile(responseBody, destFilePath); err != nil {
+
+	err = saveResponseBodyToFile(responseBody, destFilePath)
+	if err != nil {
 		return err
 	}
 

@@ -133,7 +133,7 @@ var pseudoVersion = regexp.MustCompile(
 // tag's the build is at or descends from, and a build other than the tag
 // itself shows the module version in full next to the commit:
 //
-//	module version                            version    commit        in full
+//	module version                            reported   commit        in full
 //	v3.1.0                                    3.1.0      <unknown>     no
 //	v3.1.0+dirty                              3.1.0      <unknown>     yes
 //	v3.1.1-0.20260925120000-abcdef123456      3.1.0      abcdef123456  yes

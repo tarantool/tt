@@ -53,13 +53,13 @@ func TestGetList(t *testing.T) {
 	require.NoError(t, err)
 
 	result := GetList(cliOpts, "tt")
-	assert.Equal(result, []string{"1.2.3"})
+	assert.Equal([]string{"1.2.3"}, result)
 
 	result = GetList(cliOpts, "tarantool")
-	assert.Equal(result, []string{"1.2.10"})
+	assert.Equal([]string{"1.2.10"}, result)
 
 	result = GetList(cliOpts, "tarantool-ee")
-	assert.Equal(result, []string{"master"})
+	assert.Equal([]string{"master"}, result)
 }
 
 func TestSearchLatestVersion(t *testing.T) {
@@ -136,7 +136,7 @@ func TestSearchLatestVersion(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ver, err := searchLatestVersion(tc.program, tc.binDst, tc.headerDst)
 			if !tc.isErr {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tc.expectedVer, ver)
 			} else {
 				assert.Error(t, err)
@@ -188,7 +188,7 @@ func TestGetAllVersionFormats(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			ttVersions, err := getAllTtVersionFormats(tc.program, tc.ttVersion)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tc.expectedVersions, ttVersions)
 		})
 	}

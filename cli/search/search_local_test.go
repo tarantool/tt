@@ -262,7 +262,7 @@ func TestFindLocalBundles(t *testing.T) {
 
 			require.NoError(t, err)
 
-			require.Equal(t, len(tt.expectedVersion), len(bundles))
+			require.Len(t, bundles, len(tt.expectedVersion))
 
 			for i, bundle := range bundles {
 				require.Equal(t, tt.expectedVersion[i], bundle.Version, "index %d", i)

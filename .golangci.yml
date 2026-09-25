@@ -40,12 +40,12 @@ linters:
   exclusions:
     generated: lax
     rules:
-      # Scope linting to the packages adopted into the strict ruleset. An issue
-      # is excluded when its path is NOT one of them: either a file directly in
-      # cli/manifest/, or anything under one of the named sub-packages. Add a
-      # sub-package here once it lints clean; build, build/backend, inventory
-      # and pack are the ones still outstanding.
-      - path-except: (^|/)cli/manifest/((deps|install|registry|resolve|rocks|run|state|version)/|[^/]+\.go$)
+      # Scope linting to the directories adopted into the strict ruleset. An
+      # issue is excluded when its path is NOT one of them. A directory joins
+      # once it lints clean, and the rule goes away when all of them have. In
+      # cli/manifest, build, build/backend, inventory and pack are the ones
+      # still outstanding.
+      - path-except: (^|/)(cli/manifest/((deps|install|registry|resolve|rocks|run|state|version)/|[^/]+\.go$)|cli/(binary|docker|install|install_ee|search|uninstall|version)/)
         text: ".*"
       # Manifest fixtures deliberately construct partial model values; keep the
       # stricter exhaustruct variant enabled everywhere else.

@@ -185,32 +185,32 @@ func TestDownloadBundle(t *testing.T) {
 		},
 	}
 
-	for name, tc := range tests {
+	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			tmpDir := t.TempDir()
-			dst := tc.dstSetup(t, tmpDir)
+			dst := test.dstSetup(t, tmpDir)
 
-			if tc.doer != nil {
-				tc.doer.t = t
-				tc.doer.expectedURL = tc.bundleSource
+			if test.doer != nil {
+				test.doer.t = t
+				test.doer.expectedURL = test.bundleSource
 			}
 
-			err := DownloadBundle(tc.doer, tc.bundleName, tc.bundleSource, dst)
+			err := DownloadBundle(test.doer, test.bundleName, test.bundleSource, dst)
 
-			if tc.errMsg != "" {
+			if test.errMsg != "" {
 				require.Error(t, err)
-				require.Contains(t, err.Error(), tc.errMsg, "Error message mismatch")
+				require.Contains(t, err.Error(), test.errMsg, "Error message mismatch")
 			} else {
 				require.NoError(t, err, "DownloadBundle failed unexpectedly")
 
-				require.FileExists(t, filepath.Join(dst, tc.bundleName))
+				require.FileExists(t, filepath.Join(dst, test.bundleName))
 
-				destFilePath := filepath.Join(dst, tc.bundleName)
+				destFilePath := filepath.Join(dst, test.bundleName)
 				content, readErr := os.ReadFile(destFilePath)
 				require.NoError(t, readErr, "Failed to read downloaded file")
 
-				require.NotNil(t, tc.doer, "tc.doer is nil in checkDownloadedFile block")
-				require.Equal(t, tc.doer.resBody, content, "Downloaded file content mismatch")
+				require.NotNil(t, test.doer, "tc.doer is nil in checkDownloadedFile block")
+				require.Equal(t, test.doer.resBody, content, "Downloaded file content mismatch")
 			}
 		})
 	}
@@ -235,15 +235,15 @@ func TestNewTntIoDownloader(t *testing.T) {
 		},
 	}
 
-	for name, tc := range tests {
+	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			downloader := NewTntIoDownloader(tc.token)
+			downloader := NewTntIoDownloader(test.token)
 			require.NotNil(t, downloader, "NewTntIoDownloader should return a non-nil object")
 			require.Implements(t, (*search.TntIoDoer)(nil), downloader,
 				"NewTntIoDownloader should return an object implementing search.TntIoDoer")
 
-			require.Equal(t, tc.expectToken, downloader.token, "Internal token field mismatch")
-			require.Equal(t, tc.expectToken, downloader.Token(),
+			require.Equal(t, test.expectToken, downloader.token, "Internal token field mismatch")
+			require.Equal(t, test.expectToken, downloader.Token(),
 				"interface Token() method should return the correct token")
 
 			client := downloader.client
@@ -252,7 +252,7 @@ func TestNewTntIoDownloader(t *testing.T) {
 			require.NotNil(t, client.CheckRedirect, "CheckRedirect function is nil")
 
 			// Using a dummy request to test the CheckRedirect behavior.
-			requestURL := fmt.Sprintf("http://%s/testpath", tc.requestHost)
+			requestURL := fmt.Sprintf("http://%s/testpath", test.requestHost)
 			dummyReq, err := http.NewRequestWithContext(
 				t.Context(), http.MethodGet, requestURL, nil)
 			require.NoError(t, err, "Failed to create dummy HTTP request")
@@ -262,15 +262,15 @@ func TestNewTntIoDownloader(t *testing.T) {
 			require.NoError(t, err, "CheckRedirect function returned an error")
 
 			// Verify the Host field was set correctly.
-			require.Equal(t, tc.requestHost, dummyReq.Host,
+			require.Equal(t, test.requestHost, dummyReq.Host,
 				"request Host mismatch after CheckRedirect")
 
 			// Verify the sessionid cookie based on the token.
-			if tc.token != "" {
+			if test.token != "" {
 				cookie, err := dummyReq.Cookie("sessionid")
 				require.NoError(t, err, "sessionid cookie not found when token is non-empty")
 				require.NotNil(t, cookie, "sessionid cookie is nil when token is non-empty")
-				require.Equal(t, tc.expectToken, cookie.Value, "sessionid cookie value mismatch")
+				require.Equal(t, test.expectToken, cookie.Value, "sessionid cookie value mismatch")
 			} else {
 				_, err := dummyReq.Cookie("sessionid")
 				require.ErrorIs(t, err, http.ErrNoCookie,

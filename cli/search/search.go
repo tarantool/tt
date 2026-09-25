@@ -48,6 +48,10 @@ type SearchCtx struct {
 func NewSearchCtx(informer PlatformInformer, doer TntIoDoer) SearchCtx {
 	return SearchCtx{
 		Filter:           SearchRelease,
+		Package:          "",
+		ReleaseVersion:   "",
+		Program:          ProgramUnknown,
+		DevBuilds:        false,
 		TntIoDoer:        doer,
 		platformInformer: informer,
 	}
@@ -57,8 +61,8 @@ func NewSearchCtx(informer PlatformInformer, doer TntIoDoer) SearchCtx {
 // * if the package is installed: [installed]
 // * if the package is installed and in use: [active].
 func printVersion(bindir string, program Program, versionStr string) {
-	if _, err := os.Stat(filepath.Join(bindir,
-		program.String()+version.FsSeparator+versionStr)); err == nil {
+	_, err := os.Stat(filepath.Join(bindir, program.String()+version.FsSeparator+versionStr))
+	if err == nil {
 		target, _ := util.ResolveSymlink(filepath.Join(bindir, program.Exec()))
 
 		if path.Base(target) == program.String()+version.FsSeparator+versionStr {

@@ -42,16 +42,13 @@ var errNotInstalled = errors.New("not installed")
 // remove removes binary/directory and symlinks from directory.
 // It returns true if symlink was removed, error.
 func remove(program search.Program, programVersion, directory string) (bool, error) {
-	var (
-		linkPath string
-		err      error
-	)
-
-	if linkPath, err = util.JoinAbspath(directory, program.Exec()); err != nil {
+	linkPath, err := util.JoinAbspath(directory, program.Exec())
+	if err != nil {
 		return false, err
 	}
 
-	if _, err := os.Stat(directory); os.IsNotExist(err) {
+	_, err = os.Stat(directory)
+	if os.IsNotExist(err) {
 		return false, fmt.Errorf("%w%s directory", errDirectoryNotFound, directory)
 	} else if err != nil {
 		return false, fmt.Errorf("%w%s directory", errThereWasSomeProblemWithDirectory, directory)
@@ -60,7 +57,8 @@ func remove(program search.Program, programVersion, directory string) (bool, err
 	fileName := program.String() + version.FsSeparator + programVersion
 	path := filepath.Join(directory, fileName)
 
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+	_, err = os.Stat(path)
+	if os.IsNotExist(err) {
 		return false, fmt.Errorf("program is %w", errNotInstalled)
 	} else if err != nil {
 		return false, fmt.Errorf("%w%s", errThereWasSomeProblemLocating, path)
@@ -82,8 +80,9 @@ func remove(program search.Program, programVersion, directory string) (bool, err
 
 		// Remove symlink if it points to program.
 		if strings.Contains(resolvedPath, fileName) {
-			if err = os.Remove(linkPath); err != nil {
-				return false, err
+			err = os.Remove(linkPath)
+			if err != nil {
+				return false, fmt.Errorf("failed to remove symlink %q: %w", linkPath, err)
 			}
 
 			isSymlinkRemoved = true
@@ -92,10 +91,10 @@ func remove(program search.Program, programVersion, directory string) (bool, err
 
 	err = os.RemoveAll(path)
 	if err != nil {
-		return isSymlinkRemoved, err
+		return isSymlinkRemoved, fmt.Errorf("failed to remove %q: %w", path, err)
 	}
 
-	return isSymlinkRemoved, err
+	return isSymlinkRemoved, nil
 }
 
 // UninstallProgram uninstalls program and symlinks.
@@ -122,8 +121,9 @@ func UninstallProgram(
 			return fmt.Errorf("%s is %w", program, errNotInstalled)
 		}
 
-		if err := os.Remove(tarantoolBinarySymlink); err != nil {
-			return err
+		err = os.Remove(tarantoolBinarySymlink)
+		if err != nil {
+			return fmt.Errorf("failed to remove symlink %q: %w", tarantoolBinarySymlink, err)
 		}
 
 		headerDir := filepath.Join(headerDst, "tarantool")
@@ -131,8 +131,9 @@ func UninstallProgram(
 		log.Infof("Removing headers...")
 
 		// There can be no headers when `tarantool-dev` is installed.
-		if err := os.Remove(headerDir); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return err
+		err = os.Remove(headerDir)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("failed to remove headers %q: %w", headerDir, err)
 		}
 
 		err = switchProgramToLatestVersion(program, binDst, headerDst)
@@ -141,7 +142,8 @@ func UninstallProgram(
 	}
 
 	if programVersion == "" {
-		if programVersion, err = getDefault(program, binDst); err != nil {
+		programVersion, err = getDefault(program, binDst)
+		if err != nil {
 			return err
 		}
 	}
@@ -196,7 +198,7 @@ func getAllTtVersionFormats(program search.Program, ttVersion string) ([]string,
 		// to make sure we add version prefix.
 		versionMatches, err := regexp.MatchString(MajorMinorPatchRegexp, ttVersion)
 		if err != nil {
-			return versionsToDelete, err
+			return versionsToDelete, fmt.Errorf("failed to match version %q: %w", ttVersion, err)
 		}
 
 		if versionMatches {
@@ -211,17 +213,17 @@ func getAllTtVersionFormats(program search.Program, ttVersion string) ([]string,
 func getDefault(program search.Program, dir string) (string, error) {
 	var ver string
 
-	re := regexp.MustCompile(
+	programRegex := regexp.MustCompile(
 		"^" + program.String() + version.FsSeparator + verRegexp + "$",
 	)
 
 	installedPrograms, err := os.ReadDir(dir)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to read directory %q: %w", dir, err)
 	}
 
 	for _, file := range installedPrograms {
-		matches := util.FindNamedMatches(re, file.Name())
+		matches := util.FindNamedMatches(programRegex, file.Name())
 
 		if ver != "" {
 			return "", fmt.Errorf("%s%wplease specify the version to uninstall",
@@ -241,7 +243,7 @@ func getDefault(program search.Program, dir string) (string, error) {
 // GetList generates a list of options to uninstall.
 func GetList(cliOpts *config.CliOpts, program string) []string {
 	list := []string{}
-	re := regexp.MustCompile(
+	programRegex := regexp.MustCompile(
 		"^" + progRegexp + version.FsSeparator + verRegexp + "$",
 	)
 
@@ -255,7 +257,7 @@ func GetList(cliOpts *config.CliOpts, program string) []string {
 	}
 
 	for _, file := range installedPrograms {
-		matches := util.FindNamedMatches(re, file.Name())
+		matches := util.FindNamedMatches(programRegex, file.Name())
 		if len(matches) != 0 && matches["prog"] == program {
 			list = append(list, matches["ver"])
 		}
@@ -279,12 +281,14 @@ func searchLatestVersion(program search.Program, binDst, headerDst string) (stri
 
 	binaries, err := os.ReadDir(binDst)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to read directory %q: %w", binDst, err)
 	}
 
-	latestVersionInfo := version.Version{}
-	latestVersion := ""
-	latestHash := ""
+	var (
+		latestVersionInfo version.Version
+		latestVersion     string
+		latestHash        string
+	)
 
 	for _, binary := range binaries {
 		if binary.IsDir() {
@@ -323,7 +327,8 @@ func searchLatestVersion(program search.Program, binDst, headerDst string) (stri
 
 		if program.IsTarantool() {
 			// Check for headers.
-			if _, err := os.Stat(filepath.Join(headerDst, binaryName)); os.IsNotExist(err) {
+			_, err = os.Stat(filepath.Join(headerDst, binaryName))
+			if os.IsNotExist(err) {
 				continue
 			}
 		}

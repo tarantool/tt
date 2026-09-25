@@ -48,7 +48,7 @@ type Release struct {
 
 // newRelease create new Release base on passed data.
 func newRelease(release, releaseNum string) (Release, error) {
-	newRelease := Release{Type: TypeRelease, str: release}
+	newRelease := Release{Type: TypeRelease, Num: 0, str: release}
 	if release != "" {
 		switch release {
 		case "rc":
@@ -66,7 +66,8 @@ func newRelease(release, releaseNum string) (Release, error) {
 		if releaseNum != "" {
 			var err error
 
-			if newRelease.Num, err = util.AtoiUint64(releaseNum); err != nil {
+			newRelease.Num, err = util.AtoiUint64(releaseNum)
+			if err != nil {
 				return newRelease, fmt.Errorf("bad release number format %q: %w", releaseNum, err)
 			}
 
@@ -127,7 +128,7 @@ func matchVersionParts(version string, isStrict bool) (map[string]string, error)
 
 // Parse parses a version string and return the version value it represents.
 func Parse(verStr string) (Version, error) {
-	version := Version{}
+	var version Version
 
 	matches, err := matchVersionParts(verStr, true)
 	if err != nil {
@@ -138,32 +139,38 @@ func Parse(verStr string) (Version, error) {
 		version.BuildName = matches["buildName"]
 	}
 
-	if version.Major, err = util.AtoiUint64(matches["major"]); err != nil {
+	version.Major, err = util.AtoiUint64(matches["major"])
+	if err != nil {
 		return version, err
 	}
 
-	if version.Minor, err = util.AtoiUint64(matches["minor"]); err != nil {
+	version.Minor, err = util.AtoiUint64(matches["minor"])
+	if err != nil {
 		return version, err
 	}
 
-	if version.Patch, err = util.AtoiUint64(matches["patch"]); err != nil {
+	version.Patch, err = util.AtoiUint64(matches["patch"])
+	if err != nil {
 		return version, err
 	}
 
-	if version.Release, err = newRelease(matches["release"], matches["releaseNum"]); err != nil {
+	version.Release, err = newRelease(matches["release"], matches["releaseNum"])
+	if err != nil {
 		return version, err
 	}
 
 	version.Hash = matches["hash"]
 
 	if matches["additional"] != "" {
-		if version.Additional, err = util.AtoiUint64(matches["additional"]); err != nil {
+		version.Additional, err = util.AtoiUint64(matches["additional"])
+		if err != nil {
 			return version, err
 		}
 	}
 
 	if matches["revision"] != "" {
-		if version.Revision, err = util.AtoiUint64(matches["revision"]); err != nil {
+		version.Revision, err = util.AtoiUint64(matches["revision"])
+		if err != nil {
 			return version, err
 		}
 	}
@@ -177,24 +184,23 @@ func Parse(verStr string) (Version, error) {
 // and return the version value it represents.
 func ParseTt(verStr string) (Version, error) {
 	verToParse := strings.Trim(verStr, "\n")
-	sepIndex := strings.LastIndex(verToParse, ".")
+	numStr, hashStr, found := strings.CutLast(verToParse, ".")
 
-	if sepIndex == -1 {
+	if !found {
 		return Version{}, newInvalidVersionError(verStr)
 	}
 
-	verStr = verToParse[:sepIndex]
-
-	numVersions := strings.Split(verStr, ".")
+	numVersions := strings.Split(numStr, ".")
 
 	if len(numVersions) != semanticVersionParts {
 		return Version{}, fmt.Errorf("%w%q does not match <major>.<minor>.<patch> format",
-			errVersionDoesNotMatchSemanticFormat, verStr)
+			errVersionDoesNotMatchSemanticFormat, numStr)
 	}
 
-	var err error
-
-	ttVersion := Version{}
+	var (
+		err       error
+		ttVersion Version
+	)
 
 	ttVersion.Major, err = util.AtoiUint64(numVersions[0])
 	if err != nil {
@@ -210,8 +216,6 @@ func ParseTt(verStr string) (Version, error) {
 	if err != nil {
 		return Version{}, err
 	}
-
-	hashStr := verToParse[sepIndex+1:]
 
 	isHashValid, err := util.IsValidCommitHash(hashStr)
 	if err != nil {
@@ -251,15 +255,15 @@ func IsLess(verLeft, verRight Version) bool {
 
 	largestLen := util.Max(len(left), len(right))
 
-	for i := range largestLen {
+	for idx := range largestLen {
 		var valLeft, valRight uint64 = 0, 0
 
-		if i < len(left) {
-			valLeft = left[i]
+		if idx < len(left) {
+			valLeft = left[idx]
 		}
 
-		if i < len(right) {
-			valRight = right[i]
+		if idx < len(right) {
+			valRight = right[idx]
 		}
 
 		if valLeft != valRight {

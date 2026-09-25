@@ -7,7 +7,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	mobyclient "github.com/moby/moby/client"
@@ -66,7 +65,7 @@ func TestBuildImageFail(t *testing.T) {
 
 	err = buildDockerImage(dockerClient, "ubuntu:tt_test", tmpDir, false, os.Stdout)
 	require.Error(t, err)
-	require.True(t, strings.Contains(err.Error(), "COPY failed"))
+	require.Contains(t, err.Error(), "COPY failed")
 }
 
 func TestBuildImageOutputVerbose(t *testing.T) {
@@ -87,19 +86,19 @@ func TestBuildImageOutputVerbose(t *testing.T) {
 
 	findAndRemoveBuiltImage(t, dockerClient)
 
-	in, err := os.Open(filepath.Join(tmpDir, "out.log"))
+	logFile, err := os.Open(filepath.Join(tmpDir, "out.log"))
 	require.NoError(t, err)
 
 	defer func() {
-		_ = in.Close()
+		_ = logFile.Close()
 	}()
 
-	scanner := bufio.NewScanner(in)
+	scanner := bufio.NewScanner(logFile)
 	require.True(t, scanner.Scan())
 	require.Equal(t, "Step 1/1 : FROM ubuntu:16.04", scanner.Text())
 	require.True(t, scanner.Scan())
 	require.True(t, scanner.Scan())
-	require.True(t, strings.Contains(scanner.Text(), "Successfully built"))
+	require.Contains(t, scanner.Text(), "Successfully built")
 	require.True(t, scanner.Scan())
 	require.Equal(t, "Successfully tagged ubuntu:tt_test", scanner.Text())
 }
@@ -122,14 +121,14 @@ func TestBuildImageOutput(t *testing.T) {
 
 	findAndRemoveBuiltImage(t, dockerClient)
 
-	in, err := os.Open(filepath.Join(tmpDir, "out.log"))
+	logFile, err := os.Open(filepath.Join(tmpDir, "out.log"))
 	require.NoError(t, err)
 
 	defer func() {
-		_ = in.Close()
+		_ = logFile.Close()
 	}()
 
-	scanner := bufio.NewScanner(in)
+	scanner := bufio.NewScanner(logFile)
 	require.False(t, scanner.Scan())
 }
 
@@ -181,7 +180,7 @@ func TestRunContainerInvalidDockerfile(t *testing.T) {
 		Command:     []string{"touch", "/work/file_from_container"},
 		Binds:       []string{tmpDir + ":/work"},
 	}, os.Stdout)
-	require.True(t, strings.Contains(err.Error(), "dockerfile parse error"))
+	require.Contains(t, err.Error(), "dockerfile parse error")
 	assert.NoFileExists(t, filepath.Join(tmpDir, "file_from_container"))
 }
 

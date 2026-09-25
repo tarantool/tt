@@ -47,7 +47,8 @@ func ParseBinaries(fileList []fs.DirEntry, program search.Program,
 	binActive := ""
 	programPath := filepath.Join(binDir, symlinkName)
 
-	if fileInfo, err := os.Lstat(programPath); err == nil {
+	fileInfo, err := os.Lstat(programPath)
+	if err == nil {
 		switch {
 		case program == search.ProgramDev &&
 			fileInfo.Mode()&os.ModeSymlink == os.ModeSymlink:
@@ -57,8 +58,10 @@ func ParseBinaries(fileList []fs.DirEntry, program search.Program,
 			}
 
 			if isTarantoolBinary {
-				binaryVersions = append(binaryVersions,
-					version.Version{Str: program.String() + " -> " + binActive + " [active]"})
+				var activeVersion version.Version
+
+				activeVersion.Str = program.String() + " -> " + binActive + " [active]"
+				binaryVersions = append(binaryVersions, activeVersion)
 			}
 
 			return binaryVersions, nil
@@ -85,14 +88,12 @@ func ParseBinaries(fileList []fs.DirEntry, program search.Program,
 
 	versionPrefix := program.String() + version.FsSeparator
 
-	var err error
-
-	for _, f := range fileList {
-		if !strings.HasPrefix(f.Name(), versionPrefix) {
+	for _, entry := range fileList {
+		if !strings.HasPrefix(entry.Name(), versionPrefix) {
 			continue
 		}
 
-		versionStr := strings.TrimPrefix(strings.TrimPrefix(f.Name(), versionPrefix), "v")
+		versionStr := strings.TrimPrefix(strings.TrimPrefix(entry.Name(), versionPrefix), "v")
 
 		var ver version.Version
 
@@ -107,7 +108,7 @@ func ParseBinaries(fileList []fs.DirEntry, program search.Program,
 			}
 		}
 
-		if binActive == f.Name() {
+		if binActive == entry.Name() {
 			ver.Str = versionStr + " [active]"
 		} else {
 			ver.Str = versionStr
@@ -156,5 +157,5 @@ func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
 		}
 	}
 
-	return err
+	return nil
 }

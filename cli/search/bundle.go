@@ -75,15 +75,15 @@ func Less(verLeft, verRight version.Version) bool {
 
 	largestLen := util.Max(len(left), len(right))
 
-	for i := range largestLen {
+	for idx := range largestLen {
 		var valLeft, valRight uint64 = 0, 0
 
-		if i < len(left) {
-			valLeft = left[i]
+		if idx < len(left) {
+			valLeft = left[idx]
 		}
 
-		if i < len(right) {
-			valRight = right[i]
+		if idx < len(right) {
+			valRight = right[idx]
 		}
 
 		if valLeft != valRight {
@@ -107,9 +107,7 @@ func compileVersionRegexp(prg Program) (*regexp.Regexp, error) {
 		return nil, fmt.Errorf("%w%q", errUnknownVersionFormatForProgram, prg)
 	}
 
-	re := regexp.MustCompile(expr)
-
-	return re, nil
+	return regexp.MustCompile(expr), nil
 }
 
 // getBundles collects a list of information about all available tarantool-ee
@@ -124,14 +122,14 @@ func getBundles(rawBundleInfoList map[string][]string, searchCtx *SearchCtx) (
 
 	bundles := BundleInfoSlice{}
 
-	re, err := compileVersionRegexp(searchCtx.Program)
+	versionRegexp, err := compileVersionRegexp(searchCtx.Program)
 	if err != nil {
 		return nil, err
 	}
 
 	for release, pkgs := range rawBundleInfoList {
 		for _, pkg := range pkgs {
-			parsedData := util.FindNamedMatches(re, pkg)
+			parsedData := util.FindNamedMatches(versionRegexp, pkg)
 			if len(parsedData) == 0 {
 				continue
 			}
@@ -220,17 +218,17 @@ func FetchBundlesInfo(searchCtx *SearchCtx, cliOpts *config.CliOpts) (
 
 // SelectVersion selects a specific version from the list of available bundles.
 // If no version is specified, it returns the latest version.
-func SelectVersion(bs BundleInfoSlice, ver string) (BundleInfo, error) {
-	if bs == nil || bs.Len() == 0 {
+func SelectVersion(bundles BundleInfoSlice, ver string) (BundleInfo, error) {
+	if bundles == nil || bundles.Len() == 0 {
 		return BundleInfo{}, errNoAvailableVersions
 	}
 
 	if ver == "" {
 		// No version specified, return the latest one.
-		return bs[bs.Len()-1], nil
+		return bundles[bundles.Len()-1], nil
 	}
 
-	for _, bundle := range bs {
+	for _, bundle := range bundles {
 		if bundle.Version.Str == ver {
 			return bundle, nil
 		}

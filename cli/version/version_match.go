@@ -65,7 +65,8 @@ func exploreMatchVersion(verStr string) (Version, requiredFields, error) {
 	}
 
 	if matches["major"] != "" {
-		if version.Major, err = util.AtoiUint64(matches["major"]); err != nil {
+		version.Major, err = util.AtoiUint64(matches["major"])
+		if err != nil {
 			return version, fields, fmt.Errorf("can't parse Major: %w", err)
 		}
 
@@ -77,7 +78,8 @@ func exploreMatchVersion(verStr string) (Version, requiredFields, error) {
 			return version, fields, errMinorVersionRequiresMajorToBeSpecified
 		}
 
-		if version.Minor, err = util.AtoiUint64(matches["minor"]); err != nil {
+		version.Minor, err = util.AtoiUint64(matches["minor"])
+		if err != nil {
 			return version, fields, fmt.Errorf("can't parse Minor: %w", err)
 		}
 
@@ -89,7 +91,8 @@ func exploreMatchVersion(verStr string) (Version, requiredFields, error) {
 			return version, fields, errPatchVersionRequiresMinorToBeSpecified
 		}
 
-		if version.Patch, err = util.AtoiUint64(matches["patch"]); err != nil {
+		version.Patch, err = util.AtoiUint64(matches["patch"])
+		if err != nil {
 			return version, fields, fmt.Errorf("can't parse Patch version: %w", err)
 		}
 
@@ -114,7 +117,8 @@ func exploreMatchVersion(verStr string) (Version, requiredFields, error) {
 	}
 
 	if matches["additional"] != "" {
-		if version.Additional, err = util.AtoiUint64(matches["additional"]); err != nil {
+		version.Additional, err = util.AtoiUint64(matches["additional"])
+		if err != nil {
 			return version, fields, fmt.Errorf("can't parse Additional: %w", err)
 		}
 
@@ -127,7 +131,8 @@ func exploreMatchVersion(verStr string) (Version, requiredFields, error) {
 	}
 
 	if matches["revision"] != "" {
-		if version.Revision, err = util.AtoiUint64(matches["revision"]); err != nil {
+		version.Revision, err = util.AtoiUint64(matches["revision"])
+		if err != nil {
 			return version, fields, fmt.Errorf("can't parse Revision: %w", err)
 		}
 

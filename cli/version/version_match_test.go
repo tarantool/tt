@@ -1,7 +1,6 @@
 package version_test
 
 import (
-	"errors"
 	"fmt"
 	"testing"
 
@@ -108,18 +107,18 @@ func TestMatchVersion(t *testing.T) {
 		{".2.3", "", "minor version requires major to be specified"},
 	}
 
-	for i, v := range data {
-		t.Run(fmt.Sprintf("[%d] find %s", i, v.find), func(t *testing.T) {
-			found, err := version.MatchVersion(v.find, sortedVersions)
-			if v.errMsg != "" {
-				require.ErrorContains(t, err, v.errMsg,
-					"Found version: '%s' -> '%s'", v.find, found)
+	for i, testData := range data {
+		t.Run(fmt.Sprintf("[%d] find %s", i, testData.find), func(t *testing.T) {
+			found, err := version.MatchVersion(testData.find, sortedVersions)
+			if testData.errMsg != "" {
+				require.ErrorContains(t, err, testData.errMsg,
+					"Found version: '%s' -> '%s'", testData.find, found)
 			} else {
-				require.NoError(t, err, "Found version: '%s' -> '%s'", v.find, found)
+				require.NoError(t, err, "Found version: '%s' -> '%s'", testData.find, found)
 			}
 
-			if v.expected != "" {
-				require.Equal(t, v.expected, found)
+			if testData.expected != "" {
+				require.Equal(t, testData.expected, found)
 			}
 		})
 	}
@@ -130,13 +129,13 @@ func TestMatchVersion_NotFoundError(t *testing.T) {
 		"",
 		"1234.5678.90",
 	}
-	for i, v := range data {
-		t.Run(fmt.Sprintf("[%d] find %s", i, v), func(t *testing.T) {
+	for i, verStr := range data {
+		t.Run(fmt.Sprintf("[%d] find %s", i, verStr), func(t *testing.T) {
 			var errNotFound version.NotFoundError
 
-			_, err := version.MatchVersion(v, []version.Version{})
-			require.True(t, errors.As(err, &errNotFound))
-			require.Equal(t, fmt.Sprintf("not matched with: %q", v), err.Error())
+			_, err := version.MatchVersion(verStr, []version.Version{})
+			require.ErrorAs(t, err, &errNotFound)
+			require.Equal(t, fmt.Sprintf("not matched with: %q", verStr), err.Error())
 		})
 	}
 }
