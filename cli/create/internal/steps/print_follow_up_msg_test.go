@@ -1,4 +1,4 @@
-package steps
+package steps_test
 
 import (
 	"bytes"
@@ -8,12 +8,13 @@ import (
 	"github.com/tarantool/tt/v3/cli/config"
 	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
 	"github.com/tarantool/tt/v3/cli/create/internal/app_template"
+	"github.com/tarantool/tt/v3/cli/create/internal/steps"
 )
 
 func TestPrintFollowUpMessage(t *testing.T) {
 	var buffer bytes.Buffer
 
-	printFollowUpMsgStep := PrintFollowUpMessage{
+	printFollowUpMsgStep := steps.PrintFollowUpMessage{
 		Writer: &buffer,
 	}
 	err := printFollowUpMsgStep.Run(&create_ctx.CreateCtx{
@@ -37,7 +38,7 @@ func TestPrintFollowUpMessage(t *testing.T) {
 func TestPrintFollowUpMessageError(t *testing.T) {
 	var buffer bytes.Buffer
 
-	printFollowUpMsgStep := PrintFollowUpMessage{
+	printFollowUpMsgStep := steps.PrintFollowUpMessage{
 		Writer: &buffer,
 	}
 	err := printFollowUpMsgStep.Run(&create_ctx.CreateCtx{

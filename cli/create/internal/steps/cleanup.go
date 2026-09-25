@@ -35,7 +35,8 @@ func (hook Cleanup) Run(createCtx *create_ctx.CreateCtx,
 
 	for _, fileName := range templateCtx.Manifest.Include {
 		// File name may contain template vars.
-		if fileName, err = templateCtx.Engine.RenderText(fileName, templateCtx.Vars); err != nil {
+		fileName, err = templateCtx.Engine.RenderText(fileName, templateCtx.Vars)
+		if err != nil {
 			return fmt.Errorf("file name rendering error: %w", err)
 		}
 
@@ -64,8 +65,11 @@ func (hook Cleanup) Run(createCtx *create_ctx.CreateCtx,
 			} else if fileInfo.Mode().IsRegular() {
 				log.Debugf("Removing %s", filePath)
 
-				if err := os.Remove(filePath); err != nil {
-					log.Errorf("failed to remove %s: %s", filePath, err)
+				// The walk is over the temporary application directory tt
+				// has just created from the template.
+				removeErr := os.Remove(filePath) //nolint:gosec // tt-owned temporary directory.
+				if removeErr != nil {
+					log.Errorf("failed to remove %s: %s", filePath, removeErr)
 				}
 			}
 
@@ -79,7 +83,8 @@ func (hook Cleanup) Run(createCtx *create_ctx.CreateCtx,
 	for _, dir := range dirsToRemove {
 		log.Debugf("Removing %s", dir)
 
-		if err = os.Remove(dir); err != nil {
+		err = os.Remove(dir)
+		if err != nil {
 			log.Debugf("Directory %s is not empty.", dir)
 		}
 	}

@@ -1,4 +1,4 @@
-package steps
+package steps_test
 
 import (
 	"os"
@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
 	"github.com/tarantool/tt/v3/cli/create/internal/app_template"
+	"github.com/tarantool/tt/v3/cli/create/internal/steps"
 )
 
 func TestManifestLoad(t *testing.T) {
@@ -21,7 +22,7 @@ func TestManifestLoad(t *testing.T) {
 
 	templateCtx.AppPath = workDir
 
-	loadManifest := LoadManifest{}
+	loadManifest := steps.LoadManifest{}
 	require.NoError(t, loadManifest.Run(&createCtx, &templateCtx))
 
 	expectedManifest := app_template.TemplateManifest{
@@ -57,7 +58,7 @@ func TestMissingManifest(t *testing.T) {
 
 	templateCtx.AppPath = workDir
 
-	loadManifest := LoadManifest{}
+	loadManifest := steps.LoadManifest{}
 	require.NoError(t, loadManifest.Run(&createCtx, &templateCtx))
 	require.False(t, templateCtx.IsManifestPresent)
 }
@@ -74,7 +75,7 @@ func TestManifestInvalidYaml(t *testing.T) {
 
 	templateCtx.AppPath = workDir
 
-	loadManifest := LoadManifest{}
+	loadManifest := steps.LoadManifest{}
 	require.EqualError(t, loadManifest.Run(&createCtx, &templateCtx), "failed to load manifest "+
 		"file: failed to parse YAML: yaml: line 1: did not find expected node content")
 }

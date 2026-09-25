@@ -50,8 +50,9 @@ func (LoadVarsFile) Run(ctx *create_ctx.CreateCtx,
 		templateCtx.Vars[varDef.name] = varDef.value
 	}
 
-	if err = scanner.Err(); err != nil {
-		return err
+	err = scanner.Err()
+	if err != nil {
+		return fmt.Errorf("failed to read vars from %s: %w", varsDefFileFullPath, err)
 	}
 
 	return nil

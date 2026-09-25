@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	. "github.com/tarantool/tt/v3/cli/connect"
 )
@@ -33,17 +34,17 @@ func TestLuaValidator_Close_multipleTimes(t *testing.T) {
 }
 
 func TestLuaValidator_Validate_afterClose(t *testing.T) {
-	s := NewLuaValidator()
+	validator := NewLuaValidator()
 
-	_ = s.Close()
+	_ = validator.Close()
 
-	assert.Panics(t, func() { s.Validate("any string") })
+	assert.Panics(t, func() { validator.Validate("any string") })
 }
 
 func TestLuaValidator_Validate_true(t *testing.T) {
-	s := NewLuaValidator()
+	validator := NewLuaValidator()
 	defer func() {
-		_ = s.Close()
+		_ = validator.Close()
 	}()
 
 	cases := []string{
@@ -70,16 +71,16 @@ func TestLuaValidator_Validate_true(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c, func(t *testing.T) {
-			ret := s.Validate(c)
+			ret := validator.Validate(c)
 			assert.True(t, ret)
 		})
 	}
 }
 
 func TestLuaValidator_Validate_false(t *testing.T) {
-	s := NewLuaValidator()
+	validator := NewLuaValidator()
 	defer func() {
-		_ = s.Close()
+		_ = validator.Close()
 	}()
 
 	cases := []string{
@@ -95,22 +96,22 @@ func TestLuaValidator_Validate_false(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c, func(t *testing.T) {
-			ret := s.Validate(c)
+			ret := validator.Validate(c)
 			assert.False(t, ret)
 		})
 	}
 }
 
 func TestLuaValidatorValidate_mixed(t *testing.T) {
-	s := NewLuaValidator()
+	validator := NewLuaValidator()
 	defer func() {
-		_ = s.Close()
+		_ = validator.Close()
 	}()
 
-	ret := s.Validate("do")
+	ret := validator.Validate("do")
 	assert.False(t, ret)
 
-	ret = s.Validate("\"any invalid string\"")
+	ret = validator.Validate("\"any invalid string\"")
 	assert.True(t, ret)
 }
 
@@ -120,8 +121,8 @@ func TestNewSQLValidator_implementsValidateCloser(t *testing.T) {
 
 func TestSQLValidator_Close_multiple(t *testing.T) {
 	v := NewSQLValidator()
-	assert.NoError(t, v.Close())
-	assert.NoError(t, v.Close())
+	require.NoError(t, v.Close())
+	require.NoError(t, v.Close())
 }
 
 func TestSQLValidator_Validate(t *testing.T) {
@@ -133,7 +134,7 @@ func TestSQLValidator_Validate(t *testing.T) {
 func TestSQLValidator_Validate_afterClose(t *testing.T) {
 	v := NewSQLValidator()
 	assert.True(t, v.Validate("any"))
-	assert.NoError(t, v.Close())
+	require.NoError(t, v.Close())
 	assert.True(t, v.Validate("any"))
 }
 
@@ -156,18 +157,18 @@ func TestAddStmtPart(t *testing.T) {
 		expected = "1part\n2part"
 	)
 
-	for _, c := range []bool{false, true} {
+	for _, isComplete := range []bool{false, true} {
 		name := "false"
-		if c == true {
+		if isComplete == true {
 			name = "true"
 		}
 
 		t.Run(name, func(t *testing.T) {
-			validator.ret = c
+			validator.ret = isComplete
 
 			result, completed := AddStmtPart(stmt, part, "", validator)
 			assert.Equal(t, expected, result)
-			assert.Equal(t, c, completed)
+			assert.Equal(t, isComplete, completed)
 			assert.Equal(t, expected, validator.in)
 		})
 	}

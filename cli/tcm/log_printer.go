@@ -68,7 +68,7 @@ func (l *logPrinter) Print(ctx context.Context, in <-chan string) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("printing logs: %w", ctx.Err())
 		case line, ok := <-in:
 			if !ok {
 				return nil
@@ -94,7 +94,8 @@ func (l *logPrinter) format(str string) string {
 
 	var record map[string]any
 
-	if err := json.Unmarshal([]byte(str), &record); err != nil {
+	err := json.Unmarshal([]byte(str), &record)
+	if err != nil {
 		return str
 	}
 
@@ -148,29 +149,29 @@ func colorizeJSONLines(lines []string, cKey, cVal color.Color) []string {
 // formatStringValue if `val` is a string, it trims it and returns a formatted version.
 // If string contains only spaces, it returns a quoted version.
 // Returns true if string value was empty.
-func formatStringValue(sv string) (string, bool) {
-	if sv == "" {
+func formatStringValue(value string) (string, bool) {
+	if value == "" {
 		return `""`, true
 	}
 
-	ts := strings.TrimRightFunc(sv, unicode.IsSpace)
-	if ts == "" {
+	trimmed := strings.TrimRightFunc(value, unicode.IsSpace)
+	if trimmed == "" {
 		// Note: handle cases with value from only spaces.
-		return fmt.Sprintf("%q", sv), false
+		return fmt.Sprintf("%q", value), false
 	}
 
-	return ts, false
+	return trimmed, false
 }
 
 // formatBaseHeaderEntry formats a base header entry (time, level, msg) with color.
 // Returns the formatted line and a boolean indicating success.
 func formatBaseHeaderEntry(key string, val any, color color.Color) (string, bool) {
-	sv, ok := val.(string)
+	strVal, ok := val.(string)
 	if !ok {
 		return "", false
 	}
 
-	sv, isEmpty := formatStringValue(sv)
+	strVal, isEmpty := formatStringValue(strVal)
 	if isEmpty {
 		return "", true
 	}
@@ -179,11 +180,11 @@ func formatBaseHeaderEntry(key string, val any, color color.Color) (string, bool
 
 	switch key {
 	case logHeaderTime:
-		line += colorBold.Sprint(sv)
+		line += colorBold.Sprint(strVal)
 	case logHeaderMsg:
-		line += colorItalic.Sprint(sv)
+		line += colorItalic.Sprint(strVal)
 	default:
-		line += sv
+		line += strVal
 	}
 
 	return line, true
@@ -208,14 +209,14 @@ func formatKeyValueEntryPair(key, val any, color color.Color) string {
 func printRecordHeader(record map[string]any, color color.Color) []string {
 	var result []string
 
-	for _, k := range []string{logHeaderTime, logHeaderLevel, logHeaderMsg} {
-		if v, ok := record[k]; ok {
-			if line, ok := formatBaseHeaderEntry(k, v, color); ok {
+	for _, key := range []string{logHeaderTime, logHeaderLevel, logHeaderMsg} {
+		if v, ok := record[key]; ok {
+			if line, ok := formatBaseHeaderEntry(key, v, color); ok {
 				if line != "" {
 					result = append(result, line)
 				}
 
-				delete(record, k)
+				delete(record, key)
 			}
 		}
 	}
@@ -234,26 +235,28 @@ func printRecordHeader(record map[string]any, color color.Color) []string {
 
 // NewLogPrinter creates a new log printer with optional formatting and coloring.
 func NewLogPrinter(noFormat, noColor bool, out io.Writer) Printer {
-	lf := logPrinter{
+	printer := logPrinter{
 		noFormat: noFormat,
 		noColor:  noColor,
 		out:      out,
+		color:    nil,
+		sync:     nil,
 	}
 
-	if lf.noColor || lf.noFormat {
+	if printer.noColor || printer.noFormat {
 		color.NoColor = true
-		lf.noColor = true
+		printer.noColor = true
 	}
 
-	if !lf.noFormat {
-		lf.color = tail.DefaultColorPicker()
+	if !printer.noFormat {
+		printer.color = tail.DefaultColorPicker()
 	}
 
-	if s, ok := lf.out.(interface{ Sync() error }); ok {
-		lf.sync = s.Sync
-	} else if bw, ok := lf.out.(*bufio.Writer); ok {
-		lf.sync = bw.Flush
+	if s, ok := printer.out.(interface{ Sync() error }); ok {
+		printer.sync = s.Sync
+	} else if bw, ok := printer.out.(*bufio.Writer); ok {
+		printer.sync = bw.Flush
 	}
 
-	return &lf
+	return &printer
 }

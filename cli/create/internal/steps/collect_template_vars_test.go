@@ -1,4 +1,4 @@
-package steps
+package steps_test
 
 import (
 	"bytes"
@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
 	"github.com/tarantool/tt/v3/cli/create/internal/app_template"
+	"github.com/tarantool/tt/v3/cli/create/internal/steps"
 )
 
 // spell-checker:ignore zxzc
@@ -28,7 +29,7 @@ func TestNonInteractiveMode(t *testing.T) {
 	templateCtx.IsManifestPresent = true
 	createCtx.SilentMode = true
 
-	collectVars := CollectTemplateVarsFromUser{&bytes.Buffer{}}
+	collectVars := steps.CollectTemplateVarsFromUser{Reader: &bytes.Buffer{}}
 	require.NoError(t, collectVars.Run(&createCtx, &templateCtx), "Collecting vars failed")
 
 	expected := map[string]string{
@@ -53,7 +54,7 @@ func TestNonInteractiveModeReMismatch(t *testing.T) {
 	templateCtx.IsManifestPresent = true
 	createCtx.SilentMode = true
 
-	collectVars := CollectTemplateVarsFromUser{&bytes.Buffer{}}
+	collectVars := steps.CollectTemplateVarsFromUser{Reader: &bytes.Buffer{}}
 	err := collectVars.Run(&createCtx, &templateCtx)
 	assert.EqualError(t, err, "invalid format of user_name variable")
 }
@@ -119,7 +120,7 @@ func TestInteractiveMode(t *testing.T) {
 		"5\n", // Valid retry count value.
 	)
 
-	collectVars := CollectTemplateVarsFromUser{Reader: &mockReader}
+	collectVars := steps.CollectTemplateVarsFromUser{Reader: &mockReader}
 	require.NoError(t, collectVars.Run(&createCtx, &templateCtx))
 
 	expected := map[string]string{

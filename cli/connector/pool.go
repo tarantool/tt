@@ -21,13 +21,13 @@ func ConnectPool(opts []ConnectOpts) (*Pool, error) {
 	cpy := make([]ConnectOpts, len(opts))
 	copy(cpy, opts)
 
-	for i, opt := range cpy {
+	for idx, opt := range cpy {
 		conn, err := Connect(opt)
 		if err == nil {
 			return &Pool{
 				opts:         cpy,
 				current:      conn,
-				currentIndex: i,
+				currentIndex: idx,
 			}, nil
 		}
 	}

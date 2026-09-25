@@ -1,4 +1,4 @@
-package steps
+package steps_test
 
 import (
 	"os"
@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
 	"github.com/tarantool/tt/v3/cli/create/internal/app_template"
+	"github.com/tarantool/tt/v3/cli/create/internal/steps"
 )
 
 func TestCreateTmpAppDirBasic(t *testing.T) {
@@ -20,7 +21,7 @@ func TestCreateTmpAppDirBasic(t *testing.T) {
 	createCtx.AppName = "app1"
 	createCtx.WorkDir = workDir
 
-	createAppDir := CreateTemporaryAppDirectory{}
+	createAppDir := steps.CreateTemporaryAppDirectory{}
 	require.NoError(t, createAppDir.Run(&createCtx, &templateCtx))
 
 	defer func() {
@@ -36,7 +37,7 @@ func TestCreateTmpAppDirMissingAppName(t *testing.T) {
 
 	templateCtx := app_template.NewTemplateContext()
 
-	createAppDir := CreateTemporaryAppDirectory{}
+	createAppDir := steps.CreateTemporaryAppDirectory{}
 	workDir := t.TempDir()
 
 	createCtx.WorkDir = workDir
@@ -60,7 +61,7 @@ func TestCreateTmpAppDirDestinationSet(t *testing.T) {
 
 	templateCtx := app_template.NewTemplateContext()
 
-	createAppDir := CreateTemporaryAppDirectory{}
+	createAppDir := steps.CreateTemporaryAppDirectory{}
 	workDir := t.TempDir()
 
 	createCtx.AppName = "app1"

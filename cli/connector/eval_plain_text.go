@@ -59,7 +59,8 @@ type PlainTextEvalRes struct {
 func evalPlainTextConn(conn net.Conn, funcBody string, args []any,
 	opts EvalPlainTextOpts,
 ) ([]any, error) {
-	if err := formatAndSendEvalFunc(conn, funcBody, args, evalFuncTmpl); err != nil {
+	err := formatAndSendEvalFunc(conn, funcBody, args, evalFuncTmpl)
+	if err != nil {
 		return nil, err
 	}
 
@@ -108,7 +109,8 @@ func formatAndSendEvalFunc(conn net.Conn, funcBody string, args []any,
 	evalFuncFormatted = strings.Join(strings.Fields(evalFuncFormatted), " ") + "\n"
 
 	// write to socket.
-	if err := writeToPlainTextConn(conn, evalFuncFormatted); err != nil {
+	err = writeToPlainTextConn(conn, evalFuncFormatted)
+	if err != nil {
 		return fmt.Errorf("failed to send eval function to socket: %w", err)
 	}
 
@@ -117,11 +119,14 @@ func formatAndSendEvalFunc(conn net.Conn, funcBody string, args []any,
 
 func writeToPlainTextConn(conn net.Conn, data string) error {
 	writer := bufio.NewWriter(conn)
-	if _, err := writer.WriteString(data); err != nil {
+
+	_, err := writer.WriteString(data)
+	if err != nil {
 		return fmt.Errorf("failed to send to socket: %w", err)
 	}
 
-	if err := writer.Flush(); err != nil {
+	err = writer.Flush()
+	if err != nil {
 		return fmt.Errorf("failed to flush: %w", err)
 	}
 
@@ -236,12 +241,15 @@ func readDataPortionFromPlainTextConn(conn net.Conn, buffer *bytes.Buffer,
 		// This structure allows us to save this data and process it in the next function call.
 		//
 		if buffer.Len() == 0 {
-			if n, err := conn.Read(tmp); err != nil && !errors.Is(err, io.EOF) {
+			readLen, err := conn.Read(tmp)
+
+			switch {
+			case err != nil && !errors.Is(err, io.EOF):
 				return nil, fmt.Errorf("failed to read: %w", err)
-			} else if n == 0 || errors.Is(err, io.EOF) {
+			case readLen == 0 || errors.Is(err, io.EOF):
 				return nil, io.EOF
-			} else {
-				buffer.Write(tmp[:n])
+			default:
+				buffer.Write(tmp[:readLen])
 			}
 		}
 
@@ -301,7 +309,8 @@ func getPushedData(pushedDataBytes []byte) (any, error) {
 
 	if strings.HasPrefix(pushedDataString, tagPushPrefixYAML) {
 		// YAML - just decode tag.
-		if err := yaml.Unmarshal(pushedDataBytes, &pushedData); err != nil {
+		err := yaml.Unmarshal(pushedDataBytes, &pushedData)
+		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal pushed data: %w", err)
 		}
 	} else {
@@ -356,7 +365,8 @@ func processEvalTarantoolRes(resBytes []byte, result any) ([]any, error) {
 		getResultEncBase64Func = getPlainTextEvalResLua
 	}
 
-	if evalResultEncBase64, err = getResultEncBase64Func(resBytes); err != nil {
+	evalResultEncBase64, err = getResultEncBase64Func(resBytes)
+	if err != nil {
 		return nil, err
 	}
 
@@ -366,7 +376,8 @@ func processEvalTarantoolRes(resBytes []byte, result any) ([]any, error) {
 	}
 
 	if result != nil {
-		if err := msgpack.Unmarshal(dataEnc, result); err != nil {
+		err = msgpack.Unmarshal(dataEnc, result)
+		if err != nil {
 			return nil, fmt.Errorf("failed to parse eval result: %w", err)
 		}
 
@@ -375,7 +386,8 @@ func processEvalTarantoolRes(resBytes []byte, result any) ([]any, error) {
 
 	var data []any
 
-	if err := msgpack.Unmarshal(dataEnc, &data); err != nil {
+	err = msgpack.Unmarshal(dataEnc, &data)
+	if err != nil {
 		return nil, fmt.Errorf("failed to parse eval result: %w", err)
 	}
 
@@ -384,7 +396,9 @@ func processEvalTarantoolRes(resBytes []byte, result any) ([]any, error) {
 
 func getPlainTextEvalResYaml(resBytes []byte) (string, error) {
 	evalResults := []PlainTextEvalRes{}
-	if err := yaml.UnmarshalStrict(resBytes, &evalResults); err != nil {
+
+	err := yaml.UnmarshalStrict(resBytes, &evalResults)
+	if err != nil {
 		return "", getPlainTextEvalError(resBytes, err)
 	}
 
@@ -399,7 +413,9 @@ func getPlainTextEvalResYaml(resBytes []byte) (string, error) {
 
 func getPlainTextEvalError(resBytes []byte, parseErr error) error {
 	errorStrings := make([]map[string]string, 0)
-	if err := yaml.UnmarshalStrict(resBytes, &errorStrings); err != nil {
+
+	err := yaml.UnmarshalStrict(resBytes, &errorStrings)
+	if err != nil {
 		return fmt.Errorf("failed to parse eval result: %w", parseErr)
 	}
 
@@ -416,22 +432,23 @@ func getPlainTextEvalError(resBytes []byte, parseErr error) error {
 }
 
 func getPlainTextEvalResLua(resBytes []byte) (string, error) {
-	L := lua.NewState()
-	defer L.Close()
+	luaState := lua.NewState()
+	defer luaState.Close()
 
 	doString := fmt.Sprintf(`res = %s`, resBytes)
 
-	if err := L.DoString(doString); err != nil {
-		return "", err
+	err := luaState.DoString(doString)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse eval result: %w", err)
 	}
 
-	luaRes := L.Env.RawGetString("res")
+	luaRes := luaState.Env.RawGetString("res")
 
 	if luaRes.Type() == lua.LTString {
 		return "", evaluationError(lua.LVAsString(luaRes))
 	}
 
-	encodedDataLV := L.GetTable(luaRes, lua.LString("data_enc"))
+	encodedDataLV := luaState.GetTable(luaRes, lua.LString("data_enc"))
 
 	encodedData := lua.LVAsString(encodedDataLV)
 

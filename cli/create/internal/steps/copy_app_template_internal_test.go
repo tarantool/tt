@@ -79,7 +79,7 @@ func TestCopyTemplateDirectory(t *testing.T) {
 	dstDir := t.TempDir()
 	workDir2 := t.TempDir()
 
-	require.Nil(t, copy.Copy("testdata/copy_template", workDir2))
+	require.NoError(t, copy.Copy("testdata/copy_template", workDir2))
 
 	var createCtx create_ctx.CreateCtx
 
@@ -92,7 +92,7 @@ func TestCopyTemplateDirectory(t *testing.T) {
 
 	// CopyAppTemplate must copy "src" template from workdir2 to workdir1 using "app1" as dst name.
 	copyAppTemplate := CopyAppTemplate{}
-	require.Nil(t, copyAppTemplate.Run(&createCtx, &templateCtx))
+	require.NoError(t, copyAppTemplate.Run(&createCtx, &templateCtx))
 	require.DirExists(t, templateCtx.AppPath)
 	require.FileExists(t, filepath.Join(templateCtx.AppPath, "init.lua"))
 	require.FileExists(t, filepath.Join(templateCtx.AppPath, subdirName, "file.txt"))
@@ -102,7 +102,7 @@ func TestCopyTemplateDirectoryRelative(t *testing.T) {
 	dstDir := t.TempDir()
 	workDir2 := t.TempDir()
 
-	require.Nil(t, copy.Copy("testdata/copy_template", workDir2))
+	require.NoError(t, copy.Copy("testdata/copy_template", workDir2))
 
 	var createCtx create_ctx.CreateCtx
 
@@ -117,7 +117,7 @@ func TestCopyTemplateDirectoryRelative(t *testing.T) {
 
 	// CopyAppTemplate must copy "src" template from workdir2 to workdir1 using "app1" as dst name.
 	copyAppTemplate := CopyAppTemplate{}
-	require.Nil(t, copyAppTemplate.Run(&createCtx, &templateCtx))
+	require.NoError(t, copyAppTemplate.Run(&createCtx, &templateCtx))
 	require.DirExists(t, templateCtx.AppPath)
 	require.FileExists(t, filepath.Join(templateCtx.AppPath, "init.lua"))
 	require.FileExists(t, filepath.Join(templateCtx.AppPath, subdirName, "file.txt"))

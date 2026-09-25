@@ -1,4 +1,4 @@
-package steps
+package steps_test
 
 import (
 	"testing"
@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
 	"github.com/tarantool/tt/v3/cli/create/internal/app_template"
+	"github.com/tarantool/tt/v3/cli/create/internal/steps"
 )
 
 func TestSetPredefinedVariables(t *testing.T) {
@@ -14,7 +15,7 @@ func TestSetPredefinedVariables(t *testing.T) {
 	createCtx.AppName = "app1"
 
 	templateCtx := app_template.NewTemplateContext()
-	setPredefinedVars := SetPredefinedVariables{}
+	setPredefinedVars := steps.SetPredefinedVariables{}
 	require.NoError(t, setPredefinedVars.Run(&createCtx, &templateCtx))
 	require.Equal(t, map[string]string{"name": "app1"}, templateCtx.Vars)
 }

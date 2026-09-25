@@ -83,20 +83,20 @@ func createTestConnects(t *testing.T) []testConnect {
 
 func TestConnect_Eval(t *testing.T) {
 	connects := createTestConnects(t)
-	for _, c := range connects {
+	for _, testConn := range connects {
 		defer func() {
-			_ = c.connect.Close()
+			_ = testConn.connect.Close()
 		}()
 	}
 
-	for _, c := range connects {
-		t.Run(c.protocol.String(), func(t *testing.T) {
+	for _, testConn := range connects {
+		t.Run(testConn.protocol.String(), func(t *testing.T) {
 			eval := "local val = 'testtest'\n return val"
 			opts := RequestOpts{}
 
-			ret, err := c.connect.Eval(eval, []any{}, opts)
+			ret, err := testConn.connect.Eval(eval, []any{}, opts)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, []any{"testtest"}, ret)
 		})
 	}
@@ -104,20 +104,20 @@ func TestConnect_Eval(t *testing.T) {
 
 func TestBinaryConnector_Eval_args(t *testing.T) {
 	connects := createTestConnects(t)
-	for _, c := range connects {
+	for _, testConn := range connects {
 		defer func() {
-			_ = c.connect.Close()
+			_ = testConn.connect.Close()
 		}()
 	}
 
-	for _, c := range connects {
-		t.Run(c.protocol.String(), func(t *testing.T) {
+	for _, testConn := range connects {
+		t.Run(testConn.protocol.String(), func(t *testing.T) {
 			eval := "return ..."
 			opts := RequestOpts{}
 
-			ret, err := c.connect.Eval(eval, []any{"test1", "test2"}, opts)
+			ret, err := testConn.connect.Eval(eval, []any{"test1", "test2"}, opts)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, []any{"test1", "test2"}, ret)
 		})
 	}
@@ -125,36 +125,36 @@ func TestBinaryConnector_Eval_args(t *testing.T) {
 
 func TestBinaryConnector_Eval_readTimeout(t *testing.T) {
 	connects := createTestConnects(t)
-	for _, c := range connects {
+	for _, testConn := range connects {
 		defer func() {
-			_ = c.connect.Close()
+			_ = testConn.connect.Close()
 		}()
 	}
 
-	for _, c := range connects {
-		t.Run(c.protocol.String(), func(t *testing.T) {
+	for _, testConn := range connects {
+		t.Run(testConn.protocol.String(), func(t *testing.T) {
 			eval := "require('fiber').sleep(1000)"
 			opts := RequestOpts{
 				ReadTimeout: 10 * time.Millisecond,
 			}
 
-			_, err := c.connect.Eval(eval, []any{}, opts)
+			_, err := testConn.connect.Eval(eval, []any{}, opts)
 
-			assert.ErrorContains(t, err, "i/o timeout")
+			require.ErrorContains(t, err, "i/o timeout")
 		})
 	}
 }
 
 func TestBinaryConnector_Eval_resData(t *testing.T) {
 	connects := createTestConnects(t)
-	for _, c := range connects {
+	for _, testConn := range connects {
 		defer func() {
-			_ = c.connect.Close()
+			_ = testConn.connect.Close()
 		}()
 	}
 
-	for _, c := range connects {
-		t.Run(c.protocol.String(), func(t *testing.T) {
+	for _, testConn := range connects {
+		t.Run(testConn.protocol.String(), func(t *testing.T) {
 			result := struct {
 				Val string
 			}{}
@@ -162,9 +162,9 @@ func TestBinaryConnector_Eval_resData(t *testing.T) {
 			opts := RequestOpts{
 				ResData: &result,
 			}
-			ret, err := c.connect.Eval(eval, []any{}, opts)
+			ret, err := testConn.connect.Eval(eval, []any{}, opts)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Nil(t, ret)
 			assert.Equal(t, "asd", result.Val)
 		})
@@ -173,14 +173,14 @@ func TestBinaryConnector_Eval_resData(t *testing.T) {
 
 func TestBinaryConnector_Eval_pushCallback(t *testing.T) {
 	connects := createTestConnects(t)
-	for _, c := range connects {
+	for _, testConn := range connects {
 		defer func() {
-			_ = c.connect.Close()
+			_ = testConn.connect.Close()
 		}()
 	}
 
-	for _, c := range connects {
-		t.Run(c.protocol.String(), func(t *testing.T) {
+	for _, testConn := range connects {
+		t.Run(testConn.protocol.String(), func(t *testing.T) {
 			var pushes []any
 
 			eval := "box.session.push('hello')\n" +
@@ -191,13 +191,13 @@ func TestBinaryConnector_Eval_pushCallback(t *testing.T) {
 					pushes = append(pushes, push)
 				},
 			}
-			ret, err := c.connect.Eval(eval, []any{}, opts)
+			ret, err := testConn.connect.Eval(eval, []any{}, opts)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, []any{"return"}, ret)
 
 			// box.session.push() support was removed in go-tarantool v3.
-			if c.protocol == TextProtocol {
+			if testConn.protocol == TextProtocol {
 				assert.Equal(t, []any{"hello", "world"}, pushes)
 			} else {
 				assert.Empty(t, pushes)
@@ -221,7 +221,7 @@ func TestConnect_binary(t *testing.T) {
 
 	eval := "return 'hello', 'world'"
 	ret, err := conn.Eval(eval, []any{}, RequestOpts{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, []any{"hello", "world"}, ret)
 }
 
@@ -257,7 +257,7 @@ func TestConnect_binaryTlsToTls(t *testing.T) {
 
 	eval := "return 'hello', 'world'"
 	ret, err := conn.Eval(eval, []any{}, RequestOpts{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, []any{"hello", "world"}, ret)
 }
 
@@ -274,7 +274,7 @@ func TestConnect_text(t *testing.T) {
 
 	eval := "return 'hello', 'world'"
 	ret, err := conn.Eval(eval, []any{}, RequestOpts{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, []any{"hello", "world"}, ret)
 }
 
@@ -346,8 +346,8 @@ func TestPoolEval_success(t *testing.T) {
 			}()
 
 			ret, err := pool.Eval("return ...", []any{"foo"}, RequestOpts{})
-			assert.NoError(t, err)
-			assert.Equal(t, ret, []any{"foo"})
+			require.NoError(t, err)
+			assert.Equal(t, []any{"foo"}, ret)
 		})
 	}
 }
@@ -365,7 +365,7 @@ func TestPoolEval_error(t *testing.T) {
 
 			for range 10 {
 				_, err = pool.Eval("error('foo')", []any{"foo"}, RequestOpts{})
-				assert.ErrorContains(t, err, "foo")
+				require.ErrorContains(t, err, "foo")
 			}
 		})
 	}

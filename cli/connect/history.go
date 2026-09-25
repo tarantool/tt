@@ -65,22 +65,22 @@ func parseHistoryCells(
 	commands = make([]string, 0)
 
 	for startPos < len(lines) {
-		j := startPos + 1
+		nextPos := startPos + 1
 
 		// Move pointer to the next timestamp.
-		for j < len(lines) && !timestampRegex.MatchString(lines[j]) {
-			j++
+		for nextPos < len(lines) && !timestampRegex.MatchString(lines[nextPos]) {
+			nextPos++
 		}
 
 		// Extract the current timestamp.
 		timestamp, err := strconv.ParseInt(lines[startPos][1:], 10, 0)
 
-		if j != startPos+1 && err == nil {
+		if nextPos != startPos+1 && err == nil {
 			timestamps = append(timestamps, timestamp)
-			commands = append(commands, strings.Join(lines[startPos+1:j], "\n"))
+			commands = append(commands, strings.Join(lines[startPos+1:nextPos], "\n"))
 		}
 
-		startPos = j
+		startPos = nextPos
 	}
 
 	return commands, timestamps
@@ -116,7 +116,8 @@ func (history *commandHistory) writeToFile() error {
 		fmt.Fprintf(&historyContent, "#%d\n%s\n", history.timestamps[i], command)
 	}
 
-	if err := os.WriteFile(history.filepath, historyContent.Bytes(), historyFileMode); err != nil {
+	err := os.WriteFile(history.filepath, historyContent.Bytes(), historyFileMode)
+	if err != nil {
 		return fmt.Errorf("failed to write to history file: %w", err)
 	}
 
@@ -132,6 +133,8 @@ func newCommandHistory(historyFileName string, maxCommands int) (*commandHistory
 
 	history := commandHistory{
 		filepath:    filepath.Join(homeDir, historyFileName),
+		commands:    nil,
+		timestamps:  nil,
 		maxCommands: maxCommands,
 	}
 

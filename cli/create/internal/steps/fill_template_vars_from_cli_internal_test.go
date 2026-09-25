@@ -62,6 +62,6 @@ func TestCliParseVars(t *testing.T) {
 
 	v, err := parseVarDefinition("var=val")
 	require.NoError(t, err)
-	require.Equal(t, v.name, "var")
-	require.Equal(t, v.value, "val")
+	require.Equal(t, "var", v.name)
+	require.Equal(t, "val", v.value)
 }

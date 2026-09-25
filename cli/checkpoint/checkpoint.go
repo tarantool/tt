@@ -39,13 +39,14 @@ func Cat(tntCli cmdcontext.TarantoolCli) error {
 
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
-		return err
+		return fmt.Errorf("creating tarantool stdin pipe: %w", err)
 	}
 
 	_, _ = stdinPipe.Write([]byte(catFile))
 	_ = stdinPipe.Close()
 
-	if err := cmd.Run(); err != nil {
+	err = cmd.Run()
+	if err != nil {
 		return fmt.Errorf("result of cat: %w", err)
 	}
 
@@ -63,18 +64,19 @@ func Play(tntCli cmdcontext.TarantoolCli) error {
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
-		return err
+		return fmt.Errorf("creating tarantool stdout pipe: %w", err)
 	}
 
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
-		return err
+		return fmt.Errorf("creating tarantool stdin pipe: %w", err)
 	}
 
 	_, _ = stdinPipe.Write([]byte(playFile))
 	_ = stdinPipe.Close()
 
-	if err := cmd.Start(); err != nil {
+	err = cmd.Start()
+	if err != nil {
 		return fmt.Errorf("%w%s", errResultOfPlay, errBuff.String())
 	}
 

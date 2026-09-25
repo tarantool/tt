@@ -43,7 +43,7 @@ linters:
       # Scope linting to the directories adopted into the strict ruleset. An
       # issue is excluded when its path is NOT one of them. A directory joins
       # once it lints clean, and the rule goes away when all of them have.
-      - path-except: (^|/)cli/(binary|cluster|config|console|docker|download|env|formatter|install|install_ee|logging|manifest|process_utils|replicaset|rocks|running|search|status|templates|ttlog|uninstall|util|version)/
+      - path-except: (^|/)cli/(aeon|binary|cfg|checkpoint|cluster|config|configure|connect|connector|console|coredump|create|docker|download|env|formatter|install|install_ee|logging|manifest|modules|process_utils|replicaset|rocks|running|search|status|tcm|templates|ttlog|uninstall|util|version)/
         text: ".*"
       # Manifest fixtures deliberately construct partial model values; keep the
       # stricter exhaustruct variant enabled everywhere else.

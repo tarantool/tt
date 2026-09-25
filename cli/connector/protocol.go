@@ -48,7 +48,9 @@ func (protocol Protocol) String() string {
 // test/unit/xrow.cc#L92-L123.
 func GetProtocol(reader io.Reader) (Protocol, error) {
 	greeting := make([]byte, greetingSize)
-	if _, err := reader.Read(greeting); err != nil {
+
+	_, err := reader.Read(greeting)
+	if err != nil {
 		err = fmt.Errorf("failed to read Tarantool greeting: %w", err)
 		return BinaryProtocol, err
 	}

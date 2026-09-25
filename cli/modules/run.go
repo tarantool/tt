@@ -111,33 +111,33 @@ func GetExternalModuleHelp(module string) (string, error) {
 
 // fillManifest update Manifest required fields, by calls external module `main`
 // with both `description` and `version` flags and parse reply.
-func fillManifest(mf Manifest) (Manifest, error) {
+func fillManifest(manifest Manifest) (Manifest, error) {
 	out, err := exec.CommandContext(
-		context.Background(), mf.Main, "--description", "--version").Output()
+		context.Background(), manifest.Main, "--description", "--version").Output()
 	if err != nil {
-		return mf, fmt.Errorf("failed to get module info: %w", err)
+		return manifest, fmt.Errorf("failed to get module info: %w", err)
 	}
 
-	info := struct {
+	var info struct {
 		Version string `yaml:"version"`
 		Help    string `yaml:"help"`
-	}{}
+	}
 
 	err = yaml.Unmarshal(out, &info)
 	if err != nil {
-		return mf, fmt.Errorf("can't parse module info: %w", err)
+		return manifest, fmt.Errorf("can't parse module info: %w", err)
 	}
 
 	if info.Version == "" {
-		return mf, errReplyForVersionIsMandatoryForModule
+		return manifest, errReplyForVersionIsMandatoryForModule
 	}
 
 	if info.Help == "" {
-		return mf, errReplyForDescriptionIsMandatoryForModule
+		return manifest, errReplyForDescriptionIsMandatoryForModule
 	}
 
-	mf.Version = info.Version
-	mf.Help = info.Help
+	manifest.Version = info.Version
+	manifest.Help = info.Help
 
-	return mf, nil
+	return manifest, nil
 }

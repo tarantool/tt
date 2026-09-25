@@ -44,13 +44,14 @@ func (s *LuaValidator) Validate(str string) bool {
 	// See:
 	// https://github.com/tarantool/tarantool/blob/b53cb2aeceedc39f356ceca30bd0087ee8de7c16/
 	// src/box/lua/console.lua#L575.
-	if _, err := s.state.LoadString(str); err == nil ||
-		!strings.Contains(err.Error(), "at EOF") {
+	_, err := s.state.LoadString(str)
+	if err == nil || !strings.Contains(err.Error(), "at EOF") {
 		// Valid Lua code or a syntax error not due to an incomplete input.
 		return true
 	}
 
-	if _, err := s.state.LoadString("return " + str); err == nil {
+	_, err = s.state.LoadString("return " + str)
+	if err == nil {
 		// Certain obscure inputs like '(42\n)' yield the same error as
 		// incomplete statement.
 		return true

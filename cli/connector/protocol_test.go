@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	. "github.com/tarantool/tt/v3/cli/connector"
 )
@@ -25,14 +26,14 @@ func TestProtocol_String(t *testing.T) {
 		{Protocol(666), "Unknown protocol", true},
 	}
 
-	for _, c := range cases {
-		t.Run(c.expected, func(t *testing.T) {
-			if c.panic {
-				f := func() { _ = c.protocol.String() }
-				assert.PanicsWithValue(t, c.expected, f)
+	for _, testCase := range cases {
+		t.Run(testCase.expected, func(t *testing.T) {
+			if testCase.panic {
+				f := func() { _ = testCase.protocol.String() }
+				assert.PanicsWithValue(t, testCase.expected, f)
 			} else {
-				result := c.protocol.String()
-				assert.Equal(t, c.expected, result)
+				result := testCase.protocol.String()
+				assert.Equal(t, testCase.expected, result)
 			}
 		})
 	}
@@ -80,20 +81,20 @@ func TestGetProtocol(t *testing.T) {
 		{"Tarantool (Lua console)", err, BinaryProtocol, false},
 	}
 
-	for _, c := range cases {
-		t.Run(c.greeting, func(t *testing.T) {
-			s := &greetingReadStub{err: c.err, data: []byte(c.greeting)}
+	for _, testCase := range cases {
+		t.Run(testCase.greeting, func(t *testing.T) {
+			s := &greetingReadStub{err: testCase.err, data: []byte(testCase.greeting)}
 			p, err := GetProtocol(s)
-			assert.Equal(t, c.expected, p)
+			assert.Equal(t, testCase.expected, p)
 
 			switch {
-			case c.err != nil:
-				assert.ErrorContains(t, err, "failed to read Tarantool greeting:")
-				assert.ErrorContains(t, err, c.err.Error())
-			case !c.ok:
-				assert.ErrorContains(t, err, "failed to parse Tarantool greeting:")
+			case testCase.err != nil:
+				require.ErrorContains(t, err, "failed to read Tarantool greeting:")
+				require.ErrorContains(t, err, testCase.err.Error())
+			case !testCase.ok:
+				require.ErrorContains(t, err, "failed to parse Tarantool greeting:")
 			default:
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}

@@ -41,6 +41,8 @@ var (
 
 // errInstanceGone reports a connection the instance closed in the middle of
 // a request.
+//
+//nolint:staticcheck // The message is printed to the user as a sentence.
 var errInstanceGone = errors.New(
 	"Connection was closed. Probably instance process isn't running anymore")
 
@@ -88,6 +90,7 @@ func NewConsole(connOpts connector.ConnectOpts, connectCtx ConnectCtx, title str
 	error,
 ) {
 	console := &Console{
+		input:    "",
 		title:    title,
 		connOpts: connOpts,
 		language: connectCtx.Language,
@@ -97,7 +100,18 @@ func NewConsole(connOpts connector.ConnectOpts, connectCtx ConnectCtx, title str
 			ColumnWidthMax: 0,
 			TableDialect:   formatter.DefaultTableDialect,
 		},
-		quit: false,
+		quit:              false,
+		history:           nil,
+		prefix:            "",
+		livePrefixEnabled: false,
+		livePrefix:        "",
+		livePrefixFunc:    nil,
+		conn:              nil,
+		executor:          nil,
+		completer:         nil,
+		validators:        nil,
+		delimiter:         "",
+		prompt:            nil,
 	}
 
 	var err error
@@ -106,7 +120,8 @@ func NewConsole(connOpts connector.ConnectOpts, connectCtx ConnectCtx, title str
 	console.history, err = newCommandHistory(HistoryFileName, MaxHistoryLines)
 	if err == nil {
 		// Load Tarantool console history from file.
-		if err := console.history.load(); err != nil {
+		err = console.history.load()
+		if err != nil {
 			log.Debugf("Failed to load Tarantool console history: %s", err)
 		}
 	} else {
@@ -121,7 +136,8 @@ func NewConsole(connOpts connector.ConnectOpts, connectCtx ConnectCtx, title str
 
 	// Change a language.
 	if connectCtx.Language != DefaultLanguage {
-		if err := ChangeLanguage(console.conn, connectCtx.Language); err != nil {
+		err = ChangeLanguage(console.conn, connectCtx.Language)
+		if err != nil {
 			return nil, fmt.Errorf("unable to change a language: %w", err)
 		}
 	}
@@ -206,9 +222,9 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 	// The executor is a go-prompt callback: it has no caller to return an
 	// error to, so the ways out of the console end the process here, through
 	// the same exit path the root takes.
-	executor := func(in string) {
+	executor := func(line string) {
 		if console.input == "" {
-			if commandsExecutor.Execute(console, in) {
+			if commandsExecutor.Execute(console, line) {
 				if console.quit {
 					console.Close()
 					log.Infof("Quit from the console")
@@ -223,7 +239,7 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 
 		validator := console.validators[console.language]
 
-		console.input, completed = AddStmtPart(console.input, in, console.delimiter, validator)
+		console.input, completed = AddStmtPart(console.input, line, console.delimiter, validator)
 
 		if !completed {
 			console.livePrefixEnabled = true
@@ -234,13 +250,15 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 		if console.history != nil {
 			console.history.appendCommand(trimmedInput)
 
-			if err := console.history.writeToFile(); err != nil {
+			err := console.history.writeToFile()
+			if err != nil {
 				log.Debug(err.Error())
 			}
 		}
 
 		if console.prompt != nil {
-			if err := console.prompt.PushToHistory(trimmedInput); err != nil {
+			err := console.prompt.PushToHistory(trimmedInput)
+			if err != nil {
 				log.Debug(err.Error())
 			}
 		}
@@ -264,25 +282,30 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 
 				_, _ = fmt.Fprintf(os.Stdout, "%s\n", encodedData)
 			},
-			ResData: &results,
+			ReadTimeout: 0,
+			ResData:     &results,
 		}
 
 		var data string
 
-		if _, err := console.conn.Eval(evalBody, args, opts); err != nil {
+		_, err := console.conn.Eval(evalBody, args, opts)
+
+		switch {
+		case err != nil:
 			if errors.Is(err, io.EOF) {
 				// We need to call 'console.Close()' here because in some cases (e.g 'os.exit()')
 				// it won't be called from 'defer console.Close' in 'connect.runConsole()'.
 				console.Close()
 				exitcode.Exit(errInstanceGone)
 			} else {
+				//nolint:staticcheck // Integration tests match this capitalized message.
 				exitcode.Exit(fmt.Errorf("Failed to execute command: %w", err))
 			}
-		} else if len(results) == 0 {
+		case len(results) == 0:
 			console.Close()
 			log.Infof("Connection closed")
 			exitcode.Exit(nil)
-		} else {
+		default:
 			data = results[0]
 		}
 
@@ -298,7 +321,7 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 		console.livePrefixEnabled = false
 	}
 
-	signallerExecutor := func(in string) {
+	signallerExecutor := func(line string) {
 		// Signal handler.
 		handleSignals := func(console *Console, stop chan struct{}) {
 			sig := make(chan os.Signal, 1)
@@ -316,7 +339,7 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 		stop := make(chan struct{})
 		go handleSignals(console, stop)
 
-		executor(in)
+		executor(line)
 
 		stop <- struct{}{}
 	}
@@ -331,8 +354,8 @@ func getCompleter(console *Console, connectCtx ConnectCtx) prompt.Completer {
 		}
 	}
 
-	completer := func(in prompt.Document) []prompt.Suggest {
-		if len(in.Text) == 0 {
+	completer := func(doc prompt.Document) []prompt.Suggest {
+		if len(doc.Text) == 0 {
 			return nil
 		}
 
@@ -342,8 +365,8 @@ func getCompleter(console *Console, connectCtx ConnectCtx) prompt.Completer {
 			return nil
 		}
 
-		lastWordStart := in.FindStartOfPreviousWordUntilSeparator(tarantoolWordSeparators)
-		lastWord := in.Text[lastWordStart:]
+		lastWordStart := doc.FindStartOfPreviousWordUntilSeparator(tarantoolWordSeparators)
+		lastWord := doc.Text[lastWordStart:]
 
 		if len(lastWord) == 0 {
 			return nil
@@ -353,11 +376,13 @@ func getCompleter(console *Console, connectCtx ConnectCtx) prompt.Completer {
 
 		args := []any{lastWord, len(lastWord)}
 		opts := connector.RequestOpts{
-			ReadTimeout: suggestionReadTimeout,
-			ResData:     &suggestionsTexts,
+			PushCallback: nil,
+			ReadTimeout:  suggestionReadTimeout,
+			ResData:      &suggestionsTexts,
 		}
 
-		if _, err := console.conn.Eval(luabody.GetSuggestionsFuncBody(), args, opts); err != nil {
+		_, err := console.conn.Eval(luabody.GetSuggestionsFuncBody(), args, opts)
+		if err != nil {
 			return nil
 		}
 

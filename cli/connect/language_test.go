@@ -36,13 +36,13 @@ func TestLanguage_ParseLanguage(t *testing.T) {
 		{"lua123", DefaultLanguage, false},
 	}
 
-	for _, c := range cases {
-		t.Run(c.str, func(t *testing.T) {
-			lang, ok := ParseLanguage(c.str)
-			assert.Equal(t, c.ok, ok, "Unexpected result")
+	for _, testCase := range cases {
+		t.Run(testCase.str, func(t *testing.T) {
+			lang, ok := ParseLanguage(testCase.str)
+			assert.Equal(t, testCase.ok, ok, "Unexpected result")
 
 			if ok {
-				assert.Equal(t, c.expected, lang, "Unexpected language")
+				assert.Equal(t, testCase.expected, lang, "Unexpected language")
 			}
 		})
 	}
@@ -60,14 +60,14 @@ func TestLanguage_String(t *testing.T) {
 		{Language(666), "Unknown language", true},
 	}
 
-	for _, c := range cases {
-		t.Run(c.expected, func(t *testing.T) {
-			if c.panic {
-				f := func() { _ = c.language.String() }
+	for _, testCase := range cases {
+		t.Run(testCase.expected, func(t *testing.T) {
+			if testCase.panic {
+				f := func() { _ = testCase.language.String() }
 				assert.PanicsWithValue(t, "Unknown language", f)
 			} else {
-				result := c.language.String()
-				assert.Equal(t, c.expected, result, "Unexpected result")
+				result := testCase.language.String()
+				assert.Equal(t, testCase.expected, result, "Unexpected result")
 			}
 		})
 	}
@@ -107,13 +107,13 @@ func TestChangeLanguage_requestInputs(t *testing.T) {
 		{SQLLanguage, "\\set language sql"},
 	}
 
-	for _, c := range cases {
-		t.Run(c.lang.String(), func(t *testing.T) {
+	for _, testCase := range cases {
+		t.Run(testCase.lang.String(), func(t *testing.T) {
 			evaler := &inputEvaler{}
 
-			_ = ChangeLanguage(evaler, c.lang)
+			_ = ChangeLanguage(evaler, testCase.lang)
 			assert.Equal(t, expectedFun, evaler.fun)
-			assert.Equal(t, c.arg, evaler.args[0])
+			assert.Equal(t, testCase.arg, evaler.args[0])
 			assert.Equal(t, expectedOpts, evaler.opts)
 		})
 	}

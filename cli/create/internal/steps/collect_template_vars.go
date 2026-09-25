@@ -95,7 +95,8 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 
 			// User input.
 			if !createCtx.SilentMode {
-				if input, err = collectTemplateVarsFromUser.Reader.ReadString('\n'); err != nil {
+				input, err = collectTemplateVarsFromUser.Reader.ReadString('\n')
+				if err != nil {
 					return fmt.Errorf("error reading user input: %w", err)
 				}
 

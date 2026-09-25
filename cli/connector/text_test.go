@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	. "github.com/tarantool/tt/v3/cli/connector"
 )
@@ -33,19 +34,17 @@ func TestTextConnector_Close(t *testing.T) {
 	stub := &plainConnectorStub{}
 	conn := NewTextConnector(stub)
 
-	assert.NoError(t, conn.Close())
+	require.NoError(t, conn.Close())
 	assert.Equal(t, 1, stub.closed)
-	assert.NoError(t, conn.Close())
+	require.NoError(t, conn.Close())
 	assert.Equal(t, 2, stub.closed)
 }
 
 func TestTextConnector_Close_error(t *testing.T) {
-	const errMsg = "any error"
-
 	stub := &plainConnectorStub{err: errAnyError}
 	conn := NewTextConnector(stub)
 
-	assert.EqualError(t, conn.Close(), errMsg)
+	require.ErrorIs(t, conn.Close(), errAnyError)
 	assert.Equal(t, 1, stub.closed)
 }
 

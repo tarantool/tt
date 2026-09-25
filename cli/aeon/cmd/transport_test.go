@@ -20,11 +20,16 @@ func TestTransport_Set(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.val, func(t *testing.T) {
-			var tr cmd.Transport
+			var transport cmd.Transport
 
-			if err := tr.Set(tt.val); (err != nil) != tt.wantErr {
-				t.Errorf("Transport.Set() error = %v, wantErr %v", err, tt.wantErr)
+			err := transport.Set(tt.val)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
 			}
+
+			require.Equal(t, tt.want, transport)
 		})
 	}
 }

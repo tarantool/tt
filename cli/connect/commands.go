@@ -33,12 +33,12 @@ type cmd interface {
 }
 
 var (
-	_ cmd = baseCmd{}
-	_ cmd = combinedCmd{}
-	_ cmd = noArgsCmdDecorator{}
-	_ cmd = argSetCmdDecorator{}
-	_ cmd = argUnsignedCmdDecorator{}
-	_ cmd = argBooleanCmdDecorator{}
+	_ cmd = baseCmd{aliases: nil, run: nil}
+	_ cmd = combinedCmd{cmds: nil, aliases: nil}
+	_ cmd = noArgsCmdDecorator{base: nil}
+	_ cmd = argSetCmdDecorator{sorted: nil, base: nil}
+	_ cmd = argUnsignedCmdDecorator{base: nil}
+	_ cmd = argBooleanCmdDecorator{base: nil}
 )
 
 var (
@@ -213,7 +213,8 @@ func (command argUnsignedCmdDecorator) Run(console *Console,
 		return "", errNotUnsigned
 	}
 
-	if _, err := strconv.ParseUint(args[0], 10, 64); err != nil {
+	_, err := strconv.ParseUint(args[0], 10, 64)
+	if err != nil {
 		return "", errNotUnsigned
 	}
 
@@ -247,7 +248,8 @@ func (command argBooleanCmdDecorator) Run(console *Console,
 		return "", errNotBoolean
 	}
 
-	if _, err := strconv.ParseBool(args[0]); err != nil {
+	_, err := strconv.ParseBool(args[0])
+	if err != nil {
 		return "", errNotBoolean
 	}
 
@@ -304,16 +306,16 @@ func newHelpCmd(infos []cmdInfo) helpCmd {
 		longs = append(longs, info.Long)
 	}
 
-	for i := range shorts {
+	for idx := range shorts {
 		msg.WriteString("  ")
-		msg.WriteString(shorts[i])
+		msg.WriteString(shorts[idx])
 
-		for j := len(shorts[i]); j < shortMaxLen; j++ {
+		for j := len(shorts[idx]); j < shortMaxLen; j++ {
 			msg.WriteByte(' ')
 		}
 
 		msg.WriteString(" -- ")
-		msg.WriteString(longs[i])
+		msg.WriteString(longs[idx])
 		msg.WriteByte('\n')
 	}
 
@@ -336,15 +338,17 @@ func (command helpCmd) Run(console *Console,
 
 // setLanguageFunc sets a language for the console.
 func setLanguageFunc(console *Console, cmd string, args []string) (string, error) {
-	if lang, ok := ParseLanguage(args[0]); ok {
-		if err := ChangeLanguage(console.conn, lang); err != nil {
-			return "", fmt.Errorf("failed to change language: %w", err)
-		} else {
-			console.language = lang
-		}
-	} else {
+	lang, ok := ParseLanguage(args[0])
+	if !ok {
 		return "", fmt.Errorf("%w%s", errUnsupportedLanguage, args[0])
 	}
+
+	err := ChangeLanguage(console.conn, lang)
+	if err != nil {
+		return "", fmt.Errorf("failed to change language: %w", err)
+	}
+
+	console.language = lang
 
 	return "", nil
 }
@@ -400,6 +404,7 @@ func setTableColumnWidthMaxFunc(console *Console,
 		return "", fmt.Errorf("parsing error: %w", err)
 	}
 
+	//nolint:gosec // The argument is a user-given width; values above MaxInt are not meaningful.
 	console.formatOpts.ColumnWidthMax = int(val)
 
 	return "", nil

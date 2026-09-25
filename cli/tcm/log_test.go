@@ -148,22 +148,22 @@ func fileReaderByLine(
 	return out, nil
 }
 
-func makeDataFileName(t *testing.T, tc *testCase) string {
+func makeDataFileName(t *testing.T, test *testCase) string {
 	t.Helper()
 
-	fName := filepath.Base(tc.log)
+	fName := filepath.Base(test.log)
 
 	fName = strings.TrimSuffix(fName, filepath.Ext(fName))
 
-	fName += fmt.Sprintf("_%d_", tc.lines)
+	fName += fmt.Sprintf("_%d_", test.lines)
 
-	if !tc.isFormat {
+	if !test.isFormat {
 		fName += "no-"
 	}
 
 	fName += "format_"
 
-	if !tc.isColor {
+	if !test.isColor {
 		fName += "no-"
 	}
 
@@ -201,13 +201,10 @@ func compareResults(t *testing.T, got, dataFile string) {
 func saveResults(t *testing.T, data []byte, dataFile string) {
 	t.Helper()
 
-	if err := os.MkdirAll(filepath.Dir(dataFile), 0o755); err != nil {
-		t.Fatalf("failed to create expected subdirectory: %v", err)
-	}
-
-	if err := os.WriteFile(dataFile, data, 0o644); err != nil {
-		t.Fatalf("failed to write expected data %q: %v", dataFile, err)
-	}
+	require.NoError(t, os.MkdirAll(filepath.Dir(dataFile), 0o755),
+		"failed to create expected subdirectory")
+	require.NoError(t, os.WriteFile(dataFile, data, 0o644),
+		"failed to write expected data %q", dataFile)
 }
 
 type testCase struct {
@@ -293,7 +290,7 @@ func TestFollowLogs(t *testing.T) {
 				}()
 			}
 
-			mf := mockFollower{
+			follower := mockFollower{
 				t:     t,
 				name:  tt.log,
 				error: tt.error,
@@ -301,7 +298,7 @@ func TestFollowLogs(t *testing.T) {
 
 			p := tcm.NewLogPrinter(!tt.isFormat, !tt.isColor, &buf)
 
-			err := tcm.FollowLogs(&mf, p, tt.lines)
+			err := tcm.FollowLogs(&follower, p, tt.lines)
 			if tt.wantErr {
 				require.Error(t, err, "expected an error but got none")
 
@@ -328,7 +325,7 @@ func TestTailLogs(t *testing.T) {
 				}()
 			}
 
-			mt := mockTailer{
+			tailer := mockTailer{
 				t:     t,
 				name:  tt.log,
 				error: tt.error,
@@ -336,7 +333,7 @@ func TestTailLogs(t *testing.T) {
 
 			p := tcm.NewLogPrinter(!tt.isFormat, !tt.isColor, &buf)
 
-			err := tcm.TailLogs(&mt, p, tt.lines)
+			err := tcm.TailLogs(&tailer, p, tt.lines)
 			if tt.wantErr {
 				require.Error(t, err, "expected an error but got none")
 

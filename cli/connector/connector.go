@@ -61,7 +61,7 @@ func Connect(opts ConnectOpts) (Connector, error) {
 	// e.g foo/bar/123.sock -> ./123.sock.
 	workDir, err := os.Getwd()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to detect current directory: %w", err)
 	}
 
 	maxSocketPath := maxSocketPathLinux
@@ -69,7 +69,8 @@ func Connect(opts ConnectOpts) (Connector, error) {
 		maxSocketPath = maxSocketPathMac
 	}
 
-	if _, err := os.Stat(opts.Address); err == nil {
+	_, err = os.Stat(opts.Address)
+	if err == nil {
 		_ = os.Chdir(filepath.Dir(opts.Address))
 		opts.Address = "./" + filepath.Base(opts.Address)
 
@@ -123,13 +124,17 @@ func Connect(opts ConnectOpts) (Connector, error) {
 		addr := fmt.Sprintf("%s://%s", opts.Network, opts.Address)
 
 		dialer, err := dial.New(dial.Opts{
-			Address:     addr,
-			User:        opts.Username,
-			Password:    opts.Password,
-			SslKeyFile:  opts.Ssl.KeyFile,
-			SslCertFile: opts.Ssl.CertFile,
-			SslCaFile:   opts.Ssl.CaFile,
-			SslCiphers:  opts.Ssl.Ciphers,
+			Address:         addr,
+			Auth:            tarantool.AutoAuth,
+			User:            opts.Username,
+			Password:        opts.Password,
+			SslKeyFile:      opts.Ssl.KeyFile,
+			SslCertFile:     opts.Ssl.CertFile,
+			SslCaFile:       opts.Ssl.CaFile,
+			SslCiphers:      opts.Ssl.Ciphers,
+			SslPassword:     "",
+			SslPasswordFile: "",
+			Transport:       "",
 		})
 		if err != nil {
 			return nil, err
@@ -139,7 +144,7 @@ func Connect(opts ConnectOpts) (Connector, error) {
 			SkipSchema: true, // We don't need a schema for eval requests.
 		})
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to connect: %w", err)
 		}
 
 		return NewBinaryConnector(conn), nil

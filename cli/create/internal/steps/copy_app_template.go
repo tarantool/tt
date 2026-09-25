@@ -60,7 +60,8 @@ func copyEmbedFs(srcFs fs.FS, dst string) error {
 			_ = outFile.Close()
 		}()
 
-		if _, err := io.Copy(outFile, inFile); err != nil {
+		_, err = io.Copy(outFile, inFile)
+		if err != nil {
 			return fmt.Errorf("copy %q: %w", path, err)
 		}
 
@@ -86,7 +87,8 @@ func (CopyAppTemplate) Run(createCtx *create_ctx.CreateCtx,
 		if util.IsDir(templatePath) {
 			log.Infof("Using template from %s", templatePath)
 
-			if err := copy.Copy(templatePath, templateCtx.AppPath); err != nil {
+			err := copy.Copy(templatePath, templateCtx.AppPath)
+			if err != nil {
 				return fmt.Errorf("template copying failed: %w", err)
 			}
 
@@ -109,7 +111,7 @@ func (CopyAppTemplate) Run(createCtx *create_ctx.CreateCtx,
 	// Search for a template in built-in templates.
 	templateDirs, err := builtin_templates.TemplatesFs.ReadDir("templates")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to list built-in templates: %w", err)
 	}
 
 	for _, templateDir := range templateDirs {
@@ -119,10 +121,10 @@ func (CopyAppTemplate) Run(createCtx *create_ctx.CreateCtx,
 			templateFs, err := fs.Sub(builtin_templates.TemplatesFs,
 				filepath.Join("templates", templateDir.Name()))
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to open built-in template %q: %w", templateName, err)
 			}
 
-			return copyEmbedFs(templateFs, templateCtx.AppPath) //nolint:wrapcheck // already wraps.
+			return copyEmbedFs(templateFs, templateCtx.AppPath)
 		}
 	}
 

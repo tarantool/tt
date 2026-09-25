@@ -55,13 +55,14 @@ func (hook RunHook) Run(ctx *create_ctx.CreateCtx, templateCtx *app_template.Tem
 
 	log.Infof("Executing %s-hook %s", hook.HookType, hookPath)
 
-	if err = exec.CommandContext(
-		context.Background(), executablePath, templateCtx.AppPath).Run(); err != nil {
+	err = exec.CommandContext(context.Background(), executablePath, templateCtx.AppPath).Run()
+	if err != nil {
 		return fmt.Errorf("error executing %s: %w", executablePath, err)
 	}
 
 	// Remove pre/post executable.
-	if err = os.Remove(executablePath); err != nil {
+	err = os.Remove(executablePath)
+	if err != nil {
 		log.Errorf("failed to remove %s: %s", executablePath, err)
 	}
 

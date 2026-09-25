@@ -56,7 +56,7 @@ func TestConfigureCli(t *testing.T) {
 
 	// Test system configuration.
 	cmdCtx.Cli.IsSystem = true
-	assert.Nil(Cli(&cmdCtx))
+	require.NoError(t, Cli(&cmdCtx))
 
 	// In fact, cmdCtx.Cli.ConfigPath must contain the path, for example
 	// /etc/tarantool/tt.yaml on Linux, to the standard configuration file.
@@ -64,7 +64,7 @@ func TestConfigureCli(t *testing.T) {
 	// stage of the application (therefore, we get only the file name `tt.yaml`,
 	// not the entire path). We cannot set the path to the file at build time because
 	// we run `go test`, which compiles the functions again.
-	assert.Equal(cmdCtx.Cli.ConfigPath, ConfigName)
+	assert.Equal(ConfigName, cmdCtx.Cli.ConfigPath)
 
 	testDir := t.TempDir()
 	// Cli changes the process working directory for a local launch. Register
@@ -77,14 +77,14 @@ func TestConfigureCli(t *testing.T) {
 	cmdCtx.Cli.ConfigPath = ""
 
 	expectedConfigPath, err := util.JoinAbspath(testDir, ConfigName)
-	assert.Nil(err)
+	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(expectedConfigPath, []byte(`env:
   bin_dir: "."
 `), 0o644))
 
 	// Create local tarantool and check that it is found during configuration.
 	expectedTarantoolPath := filepath.Join(cmdCtx.Cli.LocalLaunchDir, "tarantool")
-	assert.Nil(os.WriteFile(
+	require.NoError(t, os.WriteFile(
 		expectedTarantoolPath, []byte("I am [fake] local Tarantool!"), 0o777,
 	))
 
@@ -93,8 +93,8 @@ func TestConfigureCli(t *testing.T) {
 	}()
 
 	require.NoError(t, Cli(&cmdCtx))
-	assert.Equal(cmdCtx.Cli.ConfigPath, expectedConfigPath)
-	assert.Equal(cmdCtx.Cli.TarantoolCli.Executable, expectedTarantoolPath)
+	assert.Equal(expectedConfigPath, cmdCtx.Cli.ConfigPath)
+	assert.Equal(expectedTarantoolPath, cmdCtx.Cli.TarantoolCli.Executable)
 
 	// Check that all necessary files have been checked.
 	assert.Equal([]string{expectedConfigPath},
@@ -115,7 +115,7 @@ func TestConfigureCli(t *testing.T) {
 
 	expectedConfigPath = filepath.Join(filepath.Dir(dir), ConfigName)
 
-	assert.Nil(os.WriteFile(
+	require.NoError(t, os.WriteFile(
 		expectedConfigPath, []byte("app:"), 0o755,
 	))
 
@@ -123,8 +123,8 @@ func TestConfigureCli(t *testing.T) {
 		_ = os.Remove(expectedConfigPath)
 	}()
 
-	assert.Nil(Cli(&cmdCtx))
-	assert.Equal(cmdCtx.Cli.ConfigPath, expectedConfigPath)
+	require.NoError(t, Cli(&cmdCtx))
+	assert.Equal(expectedConfigPath, cmdCtx.Cli.ConfigPath)
 	assert.Equal([]string{expectedConfigPath},
 		mockRepository.fileRequestLog)
 }
@@ -189,7 +189,7 @@ func TestAdjustPathWithConfigLocation(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			require.EqualValues(t, tt.wantPath, str)
+			require.Equal(t, tt.wantPath, str)
 		})
 	}
 }
@@ -208,7 +208,7 @@ func TestExcludeArgs(t *testing.T) {
 	}
 
 	for _, testData := range testArgsData {
-		require.Equal(t, excludeArgumentsForChildTt(testData.input), testData.expected)
+		require.Equal(t, testData.expected, excludeArgumentsForChildTt(testData.input))
 	}
 }
 
@@ -280,7 +280,7 @@ func TestDetectLocalTt(t *testing.T) {
 	cliOpts.Env.BinDir = "./testdata"
 	localTt, err = detectLocalTt(&cliOpts)
 	require.NoError(t, err)
-	require.Equal(t, "", localTt)
+	require.Empty(t, localTt)
 }
 
 func TestGetSystemConfigPath(t *testing.T) {
@@ -306,8 +306,8 @@ func TestGetConfigPath(t *testing.T) {
 	workdir = strings.TrimSuffix(workdir, "/a/b")
 
 	configName, err := getConfigPath()
-	assert.Equal(t, "", configName)
-	assert.True(t, strings.Contains(err.Error(), "more than one YAML files are found"))
+	assert.Empty(t, configName)
+	assert.Contains(t, err.Error(), "more than one YAML files are found")
 
 	require.NoError(t, os.Remove(filepath.Join(tempDir, "a", ConfigName)))
 
@@ -343,7 +343,7 @@ func TestUpdateCliOpts(t *testing.T) {
 	assert.Equal(t, "./var/lib/vinyl", cliOpts.App.VinylDir)
 	assert.Equal(t, "./var/lib/snap", cliOpts.App.MemtxDir)
 	assert.Equal(t, filepath.Join(configDir, "..", "include_dir"), cliOpts.Env.IncludeDir)
-	assert.Equal(t, 1, len(cliOpts.Modules.Directories))
+	assert.Len(t, cliOpts.Modules.Directories, 1)
 	assert.Equal(t, filepath.Join(configDir, ModulesPath), cliOpts.Modules.Directories[0])
 }
 

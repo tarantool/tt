@@ -1,4 +1,4 @@
-package cfg
+package cfg_test
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/v3/cli/cfg"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/configure"
@@ -44,7 +45,7 @@ func getCliOpts(t *testing.T, configFile string) *config.CliOpts {
 func TestRunDump(t *testing.T) {
 	type args struct {
 		cmdCtx  *cmdcontext.CmdCtx
-		dumpCtx *DumpCtx
+		dumpCtx *cfg.DumpCtx
 		cliOpts *config.CliOpts
 	}
 
@@ -67,7 +68,7 @@ func TestRunDump(t *testing.T) {
 						ConfigPath: "./testdata/tt_cfg.yaml",
 					},
 				},
-				&DumpCtx{RawDump: true},
+				&cfg.DumpCtx{RawDump: true},
 				configure.GetDefaultCliOpts(),
 			},
 			wantWriter: `./testdata/tt_cfg.yaml:
@@ -88,7 +89,7 @@ modules:
 						ConfigPath: "./testdata/tt_cfg.yaml",
 					},
 				},
-				&DumpCtx{RawDump: false},
+				&cfg.DumpCtx{RawDump: false},
 				getCliOpts(t, "testdata/tt_cfg.yaml"),
 			},
 			wantWriter: fmt.Sprintf(`./testdata/tt_cfg.yaml:
@@ -122,7 +123,7 @@ repo:
 						ConfigPath: "./testdata/tt_cfg3.yaml",
 					},
 				},
-				&DumpCtx{RawDump: false},
+				&cfg.DumpCtx{RawDump: false},
 				getCliOpts(t, "testdata/tt_cfg3.yaml"),
 			},
 			wantWriter: fmt.Sprintf(`./testdata/tt_cfg3.yaml:
@@ -158,7 +159,7 @@ repo:
 						ConfigPath: "./testdata/tt_cfg2.yaml",
 					},
 				},
-				&DumpCtx{RawDump: false},
+				&cfg.DumpCtx{RawDump: false},
 				getCliOpts(t, "testdata/tt_cfg2.yaml"),
 			},
 			wantWriter: fmt.Sprintf(`./testdata/tt_cfg2.yaml:
@@ -193,7 +194,7 @@ repo:
 						ConfigPath: "./testdata/app_dir/tt_cfg.yaml",
 					},
 				},
-				&DumpCtx{RawDump: false},
+				&cfg.DumpCtx{RawDump: false},
 				getCliOpts(t, "testdata/app_dir/tt_cfg.yaml"),
 			},
 			wantWriter: fmt.Sprintf(`./testdata/app_dir/tt_cfg.yaml:
@@ -224,7 +225,7 @@ repo:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			writer := &bytes.Buffer{}
-			err := RunDump(writer, tt.args.cmdCtx, tt.args.dumpCtx, tt.args.cliOpts)
+			err := cfg.RunDump(writer, tt.args.cmdCtx, tt.args.dumpCtx, tt.args.cliOpts)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -235,7 +236,7 @@ repo:
 			}
 
 			gotWriter := writer.String()
-			require.EqualValues(t, tt.wantWriter, gotWriter)
+			require.Equal(t, tt.wantWriter, gotWriter)
 		})
 	}
 }

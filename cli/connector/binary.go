@@ -3,6 +3,7 @@ package connector
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/tarantool/go-tarantool/v3"
 	_ "github.com/tarantool/go-tarantool/v3/datetime"
@@ -75,7 +76,10 @@ func (conn *BinaryConnector) Eval(expr string, args []any,
 // Close closes the tarantool.Connector created from.
 func (conn *BinaryConnector) Close() error {
 	if conn.conn != nil {
-		return conn.conn.Close()
+		err := conn.conn.Close()
+		if err != nil {
+			return fmt.Errorf("failed to close the connection: %w", err)
+		}
 	}
 
 	return nil

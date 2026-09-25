@@ -25,13 +25,15 @@ func render(templateCtx *app_template.TemplateCtx, templateFileNamePattern *rege
 		fileInfo.Name()); matches != nil {
 		// File name matches template pattern. Render the file.
 		resultFilePath := path.Join(path.Dir(filePath), matches[1])
-		if err := templateCtx.Engine.RenderFile(filePath,
-			resultFilePath, templateCtx.Vars); err != nil {
+
+		err := templateCtx.Engine.RenderFile(filePath, resultFilePath, templateCtx.Vars)
+		if err != nil {
 			return err
 		}
 
 		// Remove original template file.
-		if err := os.Remove(filePath); err != nil {
+		err = os.Remove(filePath)
+		if err != nil {
 			return fmt.Errorf("error removing %s: %w", filePath, err)
 		}
 
@@ -45,7 +47,8 @@ func render(templateCtx *app_template.TemplateCtx, templateFileNamePattern *rege
 	}
 
 	if newFileName != filePath {
-		if err = os.Rename(filePath, newFileName); err != nil {
+		err = os.Rename(filePath, newFileName)
+		if err != nil {
 			return fmt.Errorf("error renaming %s to %s: %w", filePath, newFileName, err)
 		}
 	}

@@ -1,4 +1,4 @@
-package steps
+package steps_test
 
 import (
 	"os"
@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
 	"github.com/tarantool/tt/v3/cli/create/internal/app_template"
+	"github.com/tarantool/tt/v3/cli/create/internal/steps"
 )
 
 func TestTemplateRender(t *testing.T) {
@@ -27,7 +28,7 @@ func TestTemplateRender(t *testing.T) {
 		"app_name":       "app1",
 	}
 
-	renderTemplate := RenderTemplate{}
+	renderTemplate := steps.RenderTemplate{}
 	require.NoError(t, renderTemplate.Run(&createCtx, &templateCtx))
 
 	assert.FileExists(t, filepath.Join(workDir, "app1.yml"))
@@ -66,7 +67,7 @@ func TestTemplateRenderMissingVar(t *testing.T) {
 
 	templateCtx.AppPath = workDir
 
-	renderTemplate := RenderTemplate{}
+	renderTemplate := steps.RenderTemplate{}
 	require.EqualError(t, renderTemplate.Run(&createCtx, &templateCtx), "template instantiation "+
 		"error: template execution failed: template: "+
 		"config.lua.tt.template:1:19: executing \"config.lua.tt.template\" "+
@@ -87,6 +88,6 @@ func TestTemplateRenderMissingVarInFileName(t *testing.T) {
 		"user_name":      "admin",
 	}
 
-	renderTemplate := RenderTemplate{}
+	renderTemplate := steps.RenderTemplate{}
 	require.Error(t, renderTemplate.Run(&createCtx, &templateCtx))
 }

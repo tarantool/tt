@@ -74,31 +74,32 @@ type possibleModules map[string]modulesEntry
 
 // readManifest parses the manifest file to module requirements.
 func readManifest(dir, manifest string) (Manifest, error) {
-	mf := Manifest{}
+	var parsed Manifest
 
 	data, err := os.ReadFile(manifest)
 	if err != nil {
-		return mf, fmt.Errorf("failed to read manifest: %w", err)
+		return parsed, fmt.Errorf("failed to read manifest: %w", err)
 	}
 
-	if err := yaml.Unmarshal(data, &mf); err != nil {
-		return mf, fmt.Errorf("failed to parse manifest: %w", err)
-	}
-
-	mf.Main, err = exec.LookPath(filepath.Join(dir, mf.Main))
+	err = yaml.Unmarshal(data, &parsed)
 	if err != nil {
-		return mf, fmt.Errorf("failed to find module executable: %w", err)
+		return parsed, fmt.Errorf("failed to parse manifest: %w", err)
 	}
 
-	if mf.Version == "" {
-		return mf, errVersionFieldIsMandatoryForModuleManifest
+	parsed.Main, err = exec.LookPath(filepath.Join(dir, parsed.Main))
+	if err != nil {
+		return parsed, fmt.Errorf("failed to find module executable: %w", err)
 	}
 
-	if mf.Help == "" {
-		return mf, errHelpFieldIsMandatoryForModuleManifest
+	if parsed.Version == "" {
+		return parsed, errVersionFieldIsMandatoryForModuleManifest
 	}
 
-	return mf, nil
+	if parsed.Help == "" {
+		return parsed, errHelpFieldIsMandatoryForModuleManifest
+	}
+
+	return parsed, nil
 }
 
 func makeManifest(entry modulesEntry) (Manifest, error) {
@@ -106,7 +107,15 @@ func makeManifest(entry modulesEntry) (Manifest, error) {
 		return readManifest(entry.Directory, entry.Manifest)
 	}
 
-	return fillManifest(Manifest{Main: entry.Main})
+	return fillManifest(Manifest{
+		Name:        "",
+		Version:     "",
+		Main:        entry.Main,
+		Help:        "",
+		TtVersion:   "",
+		Description: "",
+		Homepage:    "",
+	})
 }
 
 // GetModulesInfo collects information about available modules (both external and internal).
@@ -136,18 +145,18 @@ func GetModulesInfo(
 	modulesInfo := ModulesInfo{}
 
 	for name, info := range externalModules {
-		mf, err := makeManifest(info)
+		manifest, err := makeManifest(info)
 		if err != nil {
 			log.Warnf("Failed to get information about module %q: %s", name, err)
 
 			continue
 		}
 
-		mf.Name = name
+		manifest.Name = name
 
 		commandPath := rootCmd + " " + name
 
-		modulesInfo[commandPath] = mf
+		modulesInfo[commandPath] = manifest
 	}
 
 	return modulesInfo, nil
@@ -161,7 +170,10 @@ func collectDirectoriesList(paths []string) ([]string, error) {
 	// 2. Specified path exists;
 	// 3. Path points to not a directory.
 	for _, dir := range paths {
-		if info, err := os.Stat(dir); err == nil {
+		// The directories come from the tt configuration and the environment
+		// on purpose: any path the user names is a valid modules location.
+		info, err := os.Stat(dir) //nolint:gosec // user-supplied modules directory.
+		if err == nil {
 			if !info.IsDir() {
 				return dirs, errSpecifiedPathInConfigurationFileIsNotADirectory
 			}
@@ -204,7 +216,7 @@ func getEnvironmentModulesDirs() ([]string, error) {
 // isPossibleModule checks is exists any manifest or executable `main` file inside dir.
 func isPossibleModule(dir string) (modulesEntry, bool) {
 	isModule := false
-	entries := modulesEntry{Directory: dir}
+	entries := modulesEntry{Directory: dir, Manifest: "", Main: ""}
 	manifest, _ := util.GetYamlFileName(filepath.Join(dir, manifestFileName), false)
 
 	if manifest != "" {
@@ -212,7 +224,8 @@ func isPossibleModule(dir string) (modulesEntry, bool) {
 		isModule = true
 	}
 
-	if main, err := exec.LookPath(filepath.Join(dir, mainEntryPoint)); err == nil {
+	main, err := exec.LookPath(filepath.Join(dir, mainEntryPoint))
+	if err == nil {
 		entries.Main = main
 		isModule = true
 	}
@@ -254,23 +267,23 @@ func getExternalModules(paths []string) (possibleModules, error) {
 			return nil, err
 		}
 
-		for _, d := range dirs {
-			modPath := filepath.Join(path, d)
+		for _, dirName := range dirs {
+			modPath := filepath.Join(path, dirName)
 
-			e, exists := modules[d]
+			e, exists := modules[dirName]
 			if exists {
 				log.Warnf("Ignore duplicate module %q overlap with %q", modPath, e.Directory)
 
 				continue
 			}
 
-			if slices.Contains(disabledOverride, d) {
+			if slices.Contains(disabledOverride, dirName) {
 				return modules, fmt.Errorf("%w%q is disabled to override",
-					errModuleIsDisabledToOverride, d)
+					errModuleIsDisabledToOverride, dirName)
 			}
 
 			if modEntry, isModule := isPossibleModule(modPath); isModule {
-				modules[d] = modEntry
+				modules[dirName] = modEntry
 			}
 		}
 	}

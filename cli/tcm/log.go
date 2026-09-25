@@ -13,11 +13,11 @@ import (
 
 // FollowLogs reads the last `lines` lines from the log file and prints them.
 // It continues to follow the log file, printing new lines as they are added.
-func FollowLogs(f tail.Follower, prt Printer, lines int) error {
+func FollowLogs(follower tail.Follower, prt Printer, lines int) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	logLines, err := f.Follow(ctx, lines)
+	logLines, err := follower.Follow(ctx, lines)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			log.Warnf("Log file does not found: %v", err)
@@ -30,7 +30,7 @@ func FollowLogs(f tail.Follower, prt Printer, lines int) error {
 
 	printErr := prt.Print(ctx, logLines)
 
-	f.Wait()
+	follower.Wait()
 
 	return printErr
 }

@@ -66,13 +66,13 @@ func getTLSConfig(args cmd.Ssl) (*tls.Config, error) {
 	var pool *x509.CertPool
 
 	if args.CaFile != "" {
-		ca, err := os.ReadFile(args.CaFile)
+		caData, err := os.ReadFile(args.CaFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read CA file: %w", err)
 		}
 
 		pool = x509.NewCertPool()
-		if !pool.AppendCertsFromPEM(ca) {
+		if !pool.AppendCertsFromPEM(caData) {
 			return nil, errFailedToAppendCAData
 		}
 	}
@@ -109,7 +109,7 @@ func getDialOpts(ctx cmd.ConnectCtx) (grpc.DialOption, error) {
 
 // NewAeonHandler create new grpc connection to Aeon server.
 func NewAeonHandler(ctx cmd.ConnectCtx) (*Client, error) {
-	c := Client{title: ctx.Address}
+	handler := Client{title: ctx.Address, conn: nil, client: nil}
 	target := makeAddress(ctx)
 	// var err error.
 	opt, err := getDialOpts(ctx)
@@ -117,20 +117,21 @@ func NewAeonHandler(ctx cmd.ConnectCtx) (*Client, error) {
 		return nil, fmt.Errorf("%w", err)
 	}
 
-	c.conn, err = grpc.NewClient(target, opt)
+	handler.conn, err = grpc.NewClient(target, opt)
 	if err != nil {
 		return nil, fmt.Errorf("fail to dial: %w", err)
 	}
 
-	if err := c.ping(); err == nil {
-		log.Infof("Aeon responses at %q", target)
-	} else {
+	err = handler.ping()
+	if err != nil {
 		return nil, fmt.Errorf("can't ping to Aeon at %q: %w", target, err)
 	}
 
-	c.client = pb.NewSQLServiceClient(c.conn)
+	log.Infof("Aeon responses at %q", target)
 
-	return &c, nil
+	handler.client = pb.NewSQLServiceClient(handler.conn)
+
+	return &handler, nil
 }
 
 // Title implements console.Handler interface.
@@ -214,7 +215,7 @@ func parseSQLResponse(resp *pb.SQLResponse) any {
 
 	tupleFormat := resp.GetTupleFormat()
 	if tupleFormat == nil {
-		return resultType{}
+		return resultType{names: nil, rows: nil}
 	}
 
 	names := tupleFormat.GetNames()
@@ -228,18 +229,18 @@ func parseSQLResponse(resp *pb.SQLResponse) any {
 		res.rows[i] = make([]any, 0, len(names))
 	}
 
-	for r, row := range tuples {
+	for rowIdx, row := range tuples {
 		if row == nil {
-			return fmt.Errorf("%w%d is nil", errTupleIsNil, r)
+			return fmt.Errorf("%w%d is nil", errTupleIsNil, rowIdx)
 		}
 
 		for _, v := range row.GetFields() {
 			val, err := decodeValue(v)
 			if err != nil {
-				return fmt.Errorf("tuple %d can't decode value %v: %w", r, v, err)
+				return fmt.Errorf("tuple %d can't decode value %v: %w", rowIdx, v, err)
 			}
 
-			res.rows[r] = append(res.rows[r], val)
+			res.rows[rowIdx] = append(res.rows[rowIdx], val)
 		}
 	}
 

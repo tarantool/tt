@@ -1,4 +1,4 @@
-package steps
+package steps_test
 
 import (
 	"fmt"
@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
 	"github.com/tarantool/tt/v3/cli/create/internal/app_template"
+	"github.com/tarantool/tt/v3/cli/create/internal/steps"
 )
 
 func TestMoveAppDirBasic(t *testing.T) {
@@ -26,7 +27,7 @@ func TestMoveAppDirBasic(t *testing.T) {
 	templateCtx.TargetAppPath = filepath.Join(dstAppDir, "app")
 	templateCtx.AppPath = srcAppDir
 
-	moveAppDir := MoveAppDirectory{}
+	moveAppDir := steps.MoveAppDirectory{}
 	require.NoError(t, moveAppDir.Run(&createCtx, &templateCtx))
 	require.FileExists(t, filepath.Join(templateCtx.TargetAppPath, "conf.lua"))
 	require.FileExists(t, filepath.Join(templateCtx.TargetAppPath, "MANIFEST.yaml"))
@@ -46,7 +47,7 @@ func TestMoveAppDirDstDirExist(t *testing.T) {
 	templateCtx.TargetAppPath = dstAppDir
 	templateCtx.AppPath = srcAppDir
 
-	moveAppDir := MoveAppDirectory{}
+	moveAppDir := steps.MoveAppDirectory{}
 	require.EqualError(t, moveAppDir.Run(&createCtx, &templateCtx),
 		fmt.Sprintf("'%s' already exists", dstAppDir))
 }
@@ -61,13 +62,16 @@ func TestMoveAppDirSourceDirMissing(t *testing.T) {
 	templateCtx.TargetAppPath = filepath.Join(dstAppDir, "app")
 	templateCtx.AppPath = "/non/existing/dir"
 
-	moveAppDir := MoveAppDirectory{}
+	moveAppDir := steps.MoveAppDirectory{}
 	require.EqualError(t, moveAppDir.Run(&createCtx, &templateCtx),
-		fmt.Sprintf("lstat %s: no such file or directory", templateCtx.AppPath))
+		fmt.Sprintf("failed to copy the application to %s: "+
+			"lstat %s: no such file or directory",
+			templateCtx.TargetAppPath, templateCtx.AppPath))
 }
 
 func TestMoveAppDirTargetDirRemovalFailure(t *testing.T) {
-	if user, err := user.Current(); err == nil && user.Uid == "0" {
+	currentUser, err := user.Current()
+	if err == nil && currentUser.Uid == "0" {
 		t.Skip("Skipping the test, it shouldn't run as root")
 	}
 
@@ -91,9 +95,10 @@ func TestMoveAppDirTargetDirRemovalFailure(t *testing.T) {
 	templateCtx.TargetAppPath = filepath.Join(dstAppDir, "parent", "apps")
 	templateCtx.AppPath = srcAppDir
 
-	moveAppDir := MoveAppDirectory{}
+	moveAppDir := steps.MoveAppDirectory{}
 	require.EqualError(t, moveAppDir.Run(&createCtx, &templateCtx),
-		fmt.Sprintf("stat %[1]s: permission denied", templateCtx.TargetAppPath))
+		fmt.Sprintf("failed to copy the application to %[1]s: stat %[1]s: permission denied",
+			templateCtx.TargetAppPath))
 
 	// Check subdir is still there.
 	_ = os.Chmod(filepath.Join(dstAppDir, "parent"), 0o755)
@@ -111,7 +116,7 @@ func TestMoveAppDirEmptyTargetDir(t *testing.T) {
 
 	templateCtx.AppPath = srcAppDir
 
-	moveAppDir := MoveAppDirectory{}
+	moveAppDir := steps.MoveAppDirectory{}
 	require.NoError(t, moveAppDir.Run(&createCtx, &templateCtx))
 	require.DirExists(t, srcAppDir)
 	require.FileExists(t, filepath.Join(templateCtx.AppPath, "conf.lua"))

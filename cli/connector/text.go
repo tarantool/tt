@@ -1,6 +1,7 @@
 package connector
 
 import (
+	"fmt"
 	"net"
 )
 
@@ -34,7 +35,10 @@ func (conn *TextConnector) Eval(expr string, args []any,
 // Close closes the net.Conn created from.
 func (conn *TextConnector) Close() error {
 	if conn.conn != nil {
-		return conn.conn.Close()
+		err := conn.conn.Close()
+		if err != nil {
+			return fmt.Errorf("failed to close the connection: %w", err)
+		}
 	}
 
 	return nil

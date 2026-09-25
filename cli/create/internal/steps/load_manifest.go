@@ -36,7 +36,8 @@ func (LoadManifest) Run(ctx *create_ctx.CreateCtx, templateCtx *app_template.Tem
 	templateCtx.Manifest = manifest
 	templateCtx.IsManifestPresent = true
 
-	if err = os.Remove(manifestPath); err != nil {
+	err = os.Remove(manifestPath)
+	if err != nil {
 		return fmt.Errorf("failed to remove manifest %s: %w", manifestPath, err)
 	}
 

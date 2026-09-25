@@ -1,4 +1,4 @@
-package steps
+package steps_test
 
 import (
 	"fmt"
@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
 	"github.com/tarantool/tt/v3/cli/create/internal/app_template"
+	"github.com/tarantool/tt/v3/cli/create/internal/steps"
 )
 
 func TestRunHooks(t *testing.T) {
@@ -26,8 +27,8 @@ func TestRunHooks(t *testing.T) {
 
 	require.NoError(t, copy.Copy("testdata/hooks", workDir))
 
-	runPreHook := RunHook{HookType: "pre"}
-	runPostHook := RunHook{HookType: "post"}
+	runPreHook := steps.RunHook{HookType: "pre"}
+	runPostHook := steps.RunHook{HookType: "post"}
 
 	assert.NoError(t, runPreHook.Run(&createCtx, &templateCtx))
 	assert.NoError(t, runPostHook.Run(&createCtx, &templateCtx))
@@ -51,8 +52,8 @@ func TestRunHooksMissingScript(t *testing.T) {
 	templateCtx.Manifest.PreHook = "pre-gen.sh"
 	templateCtx.Manifest.PostHook = "post-gen.sh"
 
-	runPreHook := RunHook{HookType: "pre"}
-	runPostHook := RunHook{HookType: "post"}
+	runPreHook := steps.RunHook{HookType: "pre"}
+	runPostHook := steps.RunHook{HookType: "post"}
 
 	require.EqualError(t, runPreHook.Run(&createCtx, &templateCtx),
 		fmt.Sprintf("error access to %[1]s: stat %[1]s: no such file or directory",

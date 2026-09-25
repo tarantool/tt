@@ -68,28 +68,31 @@ func getEvalCmd(connectCtx ConnectCtx) (string, error) {
 
 		cmdByte, err := io.ReadAll(os.Stdin)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("failed to read stdin: %w", err)
 		}
 
 		return string(cmdByte), nil
 	}
 
 	cmdPath := path.Clean(connectCtx.SrcFile)
-	if _, err := os.Stat(cmdPath); err == nil {
-		cmdByte, err := os.ReadFile(cmdPath)
-		if err != nil {
-			return "", err
-		}
 
-		return string(cmdByte), nil
+	_, err := os.Stat(cmdPath)
+	if err != nil {
+		return "", nil //nolint:nilerr // A source file that cannot be stated is an empty command.
 	}
 
-	return "", nil
+	cmdByte, err := os.ReadFile(cmdPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read %q: %w", cmdPath, err)
+	}
+
+	return string(cmdByte), nil
 }
 
 // Connect establishes a connection to the instance and starts the console.
 func Connect(connectCtx ConnectCtx, connOpts connector.ConnectOpts) error {
-	if err := runConsole(connOpts, connectCtx, ""); err != nil {
+	err := runConsole(connOpts, connectCtx, "")
+	if err != nil {
 		return fmt.Errorf("failed to run interactive console: %w", err)
 	}
 
@@ -116,7 +119,8 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 	evalArgs := []any{command, connectCtx.Language == SQLLanguage}
 	if connectCtx.Language != DefaultLanguage {
 		// Change a language.
-		if err := ChangeLanguage(conn, connectCtx.Language); err != nil {
+		err = ChangeLanguage(conn, connectCtx.Language)
+		if err != nil {
 			return nil, fmt.Errorf("unable to change a language: %w", err)
 		}
 
@@ -138,7 +142,11 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 		return nil, err
 	}
 
-	response, err := conn.Eval(evalBody, evalArgs, connector.RequestOpts{})
+	response, err := conn.Eval(evalBody, evalArgs, connector.RequestOpts{
+		PushCallback: nil,
+		ReadTimeout:  0,
+		ResData:      nil,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -158,8 +166,9 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 
 	var checkMock any
 
-	if err = yaml.Unmarshal([]byte(resYAML), &checkMock); err != nil {
-		return nil, err
+	err = yaml.Unmarshal([]byte(resYAML), &checkMock)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse the response: %w", err)
 	}
 
 	return []byte(resYAML), nil
@@ -173,7 +182,8 @@ func runConsole(connOpts connector.ConnectOpts, connectCtx ConnectCtx, title str
 	}
 	defer console.Close()
 
-	if err := console.Run(); err != nil {
+	err = console.Run()
+	if err != nil {
 		return fmt.Errorf("failed to start new console: %w", err)
 	}
 

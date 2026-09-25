@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/modules"
@@ -234,13 +235,13 @@ func TestGetModulesInfo(t *testing.T) {
 			t.Log(buf.String())
 
 			if err != nil || tt.err != "" {
-				assert.NotNil(t, err, "Expecting msg: %q", tt.err)
-				assert.ErrorContains(t, err, tt.err)
+				require.Error(t, err, "Expecting msg: %q", tt.err)
+				require.ErrorContains(t, err, tt.err)
 
 				return
 			}
 
-			assert.EqualValues(t, tt.want, got)
+			assert.Equal(t, tt.want, got)
 
 			if len(tt.log) > 0 {
 				for _, log := range tt.log {

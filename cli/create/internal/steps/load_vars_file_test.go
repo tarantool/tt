@@ -1,4 +1,4 @@
-package steps
+package steps_test
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
 	"github.com/tarantool/tt/v3/cli/create/internal/app_template"
+	"github.com/tarantool/tt/v3/cli/create/internal/steps"
 )
 
 func TestLoadVarsFile(t *testing.T) {
@@ -16,7 +17,7 @@ func TestLoadVarsFile(t *testing.T) {
 
 	createCtx.VarsFile = "testdata/vars-file.txt"
 
-	loadVarsFile := LoadVarsFile{}
+	loadVarsFile := steps.LoadVarsFile{}
 	require.NoError(t, loadVarsFile.Run(&createCtx, &templateCtx))
 	require.Equal(t, map[string]string{"user-name": "admin", "password": "weak_pwd"},
 		templateCtx.Vars)
@@ -30,7 +31,7 @@ func TestLoadVarsFileVariablesAlreadySet(t *testing.T) {
 	templateCtx.Vars["user-name"] = "root"
 	createCtx.VarsFile = "testdata/vars-file.txt"
 
-	loadVarsFile := LoadVarsFile{}
+	loadVarsFile := steps.LoadVarsFile{}
 	require.NoError(t, loadVarsFile.Run(&createCtx, &templateCtx))
 	require.Equal(t, map[string]string{"user-name": "admin", "password": "weak_pwd"},
 		templateCtx.Vars)
@@ -43,7 +44,7 @@ func TestNonExistingVarsFile(t *testing.T) {
 
 	createCtx.VarsFile = "testdata/non-existing-vars-file.txt"
 
-	loadVarsFile := LoadVarsFile{}
+	loadVarsFile := steps.LoadVarsFile{}
 	require.EqualError(t, loadVarsFile.Run(&createCtx, &templateCtx),
 		fmt.Sprintf("vars file loading error: stat %s: no such file or directory",
 			createCtx.VarsFile))
@@ -56,7 +57,7 @@ func TestLoadVarsFileWrongFormat(t *testing.T) {
 
 	createCtx.VarsFile = "testdata/invalid_vars_file.txt"
 
-	loadVarsFile := LoadVarsFile{}
+	loadVarsFile := steps.LoadVarsFile{}
 	require.EqualError(t, loadVarsFile.Run(&createCtx, &templateCtx),
 		fmt.Sprintf("failed to load vars from %s: wrong variable definition "+
 			"format: user-name=\nFormat: var-name=value", createCtx.VarsFile))

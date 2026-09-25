@@ -39,17 +39,18 @@ func (CreateTemporaryAppDirectory) Run(createCtx *create_ctx.CreateCtx,
 		appDirectory = path.Join(createCtx.WorkDir, createCtx.AppName)
 	}
 
-	if _, err = os.Stat(appDirectory); err == nil {
-		if !createCtx.ForceMode {
-			return fmt.Errorf("%w%s already exists: %s",
-				errApplicationAlreadyExists, createCtx.AppName, appDirectory)
-		}
+	_, err = os.Stat(appDirectory)
+	if err == nil && !createCtx.ForceMode {
+		return fmt.Errorf("%w%s already exists: %s",
+			errApplicationAlreadyExists, createCtx.AppName, appDirectory)
 	}
 
-	appDirectory, err = filepath.Abs(appDirectory)
+	absAppDirectory, err := filepath.Abs(appDirectory)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get absolute path of %q: %w", appDirectory, err)
 	}
+
+	appDirectory = absAppDirectory
 
 	log.Infof("Creating application in %q", appDirectory)
 

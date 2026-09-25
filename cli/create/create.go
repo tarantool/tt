@@ -3,6 +3,7 @@ package create
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"os"
 
 	"github.com/tarantool/tt/v3/cli/config"
@@ -25,7 +26,7 @@ func FillCtx(cliOpts *config.CliOpts, createCtx *create_ctx.CreateCtx) error {
 
 	workingDir, err := os.Getwd()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to detect current directory: %w", err)
 	}
 
 	createCtx.WorkDir = workingDir
@@ -46,7 +47,8 @@ func rollbackOnErr(templateCtx *app_template.TemplateCtx) {
 func Run(createCtx *create_ctx.CreateCtx) error {
 	util.CheckRecommendedBinaries("git")
 
-	if err := checkCtx(createCtx); err != nil {
+	err := checkCtx(createCtx)
+	if err != nil {
 		return util.InternalError("Create context check failed: %s", version.GetVersion, err)
 	}
 
@@ -68,7 +70,8 @@ func Run(createCtx *create_ctx.CreateCtx) error {
 
 	templateCtx := app_template.NewTemplateContext()
 	for _, step := range stepsChain {
-		if err := step.Run(createCtx, &templateCtx); err != nil {
+		err = step.Run(createCtx, &templateCtx)
+		if err != nil {
 			rollbackOnErr(&templateCtx)
 
 			return err

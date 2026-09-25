@@ -39,13 +39,13 @@ var ValidTransport = map[Transport]string{
 }
 
 // Set ensures valid value is applied.
-func (t *Transport) Set(v string) error {
-	_, ok := ValidTransport[Transport(v)]
+func (t *Transport) Set(value string) error {
+	_, ok := ValidTransport[Transport(value)]
 	if !ok {
 		return fmt.Errorf("%w%s", errMustBe, ListValidTransports())
 	}
 
-	*t = Transport(v)
+	*t = Transport(value)
 
 	return nil
 }

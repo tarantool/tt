@@ -1,4 +1,4 @@
-package steps
+package steps_test
 
 import (
 	"path/filepath"
@@ -9,12 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
 	"github.com/tarantool/tt/v3/cli/create/internal/app_template"
+	"github.com/tarantool/tt/v3/cli/create/internal/steps"
 )
 
 func TestCleanUp(t *testing.T) {
 	workDir := t.TempDir()
 
-	require.Nil(t, copy.Copy("testdata/cleanup", workDir))
+	require.NoError(t, copy.Copy("testdata/cleanup", workDir))
 
 	filesToRemove := []string{
 		filepath.Join(workDir, "file1.txt"),
@@ -30,8 +31,8 @@ func TestCleanUp(t *testing.T) {
 	templateCtx.Manifest.Include = []string{"keep_it.txt", "{{.user_name}}.txt"}
 	templateCtx.Vars = map[string]string{"user_name": "admin"}
 
-	cleanUp := Cleanup{}
-	require.Nil(t, cleanUp.Run(&createCtx, &templateCtx))
+	cleanUp := steps.Cleanup{}
+	require.NoError(t, cleanUp.Run(&createCtx, &templateCtx))
 
 	assert.FileExists(t, filepath.Join(workDir, "keep_it.txt"))
 	assert.FileExists(t, filepath.Join(workDir, "admin.txt"))
@@ -48,7 +49,7 @@ func TestCleanUp(t *testing.T) {
 func TestCleanUpKeepSubdir(t *testing.T) {
 	workDir := t.TempDir()
 
-	require.Nil(t, copy.Copy("testdata/cleanup", workDir))
+	require.NoError(t, copy.Copy("testdata/cleanup", workDir))
 
 	filesToKeep := []string{
 		filepath.Join(workDir, "keep_it.txt"),
@@ -73,7 +74,7 @@ func TestCleanUpKeepSubdir(t *testing.T) {
 		"name":      "file2",
 	}
 
-	cleanUp := Cleanup{}
+	cleanUp := steps.Cleanup{}
 	require.NoError(t, cleanUp.Run(&createCtx, &templateCtx))
 
 	for _, file := range filesToKeep {

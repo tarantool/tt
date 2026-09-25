@@ -2,6 +2,7 @@ package aeon
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -46,7 +47,7 @@ func decodeValue(val *pb.Value) (any, error) {
 
 		res, err := decimal.NewDecimalFromString(decStr)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("parsing decimal %q: %w", decStr, err)
 		}
 
 		return res, nil
@@ -55,7 +56,7 @@ func decodeValue(val *pb.Value) (any, error) {
 
 		res, err := uuid.Parse(uuidStr)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("parsing uuid %q: %w", uuidStr, err)
 		}
 
 		return res, nil
@@ -67,22 +68,22 @@ func decodeValue(val *pb.Value) (any, error) {
 
 		sec := dateTime.GetSeconds()
 		nsec := dateTime.GetNsec()
-		t := time.Unix(sec, nsec)
+		moment := time.Unix(sec, nsec)
 
 		if len(dateTime.GetLocation()) > 0 {
 			locStr := dateTime.GetLocation()
 
 			loc, err := time.LoadLocation(locStr)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("loading location %q: %w", locStr, err)
 			}
 
-			t = t.In(loc)
+			moment = moment.In(loc)
 		}
 
-		res, err := datetime.NewDatetime(t)
+		res, err := datetime.NewDatetime(moment)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("creating datetime: %w", err)
 		}
 
 		return res, nil
@@ -114,13 +115,13 @@ func decodeValue(val *pb.Value) (any, error) {
 		fields := array.GetFields()
 		res := make([]any, len(fields))
 
-		for k, v := range fields {
+		for idx, v := range fields {
 			field, err := decodeValue(v)
 			if err != nil {
 				return nil, err
 			}
 
-			res[k] = field
+			res[idx] = field
 		}
 
 		return res, nil
@@ -133,13 +134,13 @@ func decodeValue(val *pb.Value) (any, error) {
 		fields := mapValue.GetFields()
 		res := make(map[any]any, len(fields))
 
-		for k, v := range fields {
+		for key, v := range fields {
 			item, err := decodeValue(v)
 			if err != nil {
 				return nil, err
 			}
 
-			res[k] = item
+			res[key] = item
 		}
 
 		return res, nil

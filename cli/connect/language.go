@@ -76,7 +76,7 @@ func ChangeLanguage(evaler connector.Evaler, lang Language) error {
 
 	response, err := evaler.Eval(evalBody,
 		[]any{languageCmd},
-		connector.RequestOpts{},
+		connector.RequestOpts{PushCallback: nil, ReadTimeout: 0, ResData: nil},
 	)
 	if err != nil {
 		return err
@@ -99,7 +99,8 @@ func ChangeLanguage(evaler connector.Evaler, lang Language) error {
 
 	var decoded any
 
-	if err = yaml.Unmarshal([]byte(ret), &decoded); err != nil {
+	err = yaml.Unmarshal([]byte(ret), &decoded)
+	if err != nil {
 		return fmt.Errorf("unable to decode response: %w", err)
 	}
 

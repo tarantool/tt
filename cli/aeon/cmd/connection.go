@@ -66,7 +66,8 @@ func FillConnectCtx(connectCtx *ConnectCtx, uriOpts sdkconnect.URIOpts,
 
 	var advertise Advertise
 
-	if err = mapstructure.Decode(rawAdvertise, &advertise); err != nil {
+	err = mapstructure.Decode(rawAdvertise, &advertise)
+	if err != nil {
 		return fmt.Errorf("failed to decode aeon advertise: %w", err)
 	}
 

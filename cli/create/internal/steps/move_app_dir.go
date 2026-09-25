@@ -26,21 +26,26 @@ func (MoveAppDirectory) Run(createCtx *create_ctx.CreateCtx,
 		return nil
 	}
 
-	if _, err := os.Stat(templateCtx.TargetAppPath); err == nil {
+	_, err := os.Stat(templateCtx.TargetAppPath)
+	if err == nil {
 		if !createCtx.ForceMode {
 			return fmt.Errorf("'%s' %w", templateCtx.TargetAppPath, errAlreadyExists)
 		}
 
-		if err = os.RemoveAll(templateCtx.TargetAppPath); err != nil {
+		err = os.RemoveAll(templateCtx.TargetAppPath)
+		if err != nil {
 			return fmt.Errorf("failed to remove %s: %w", templateCtx.TargetAppPath, err)
 		}
 	}
 
-	if err := copy.Copy(templateCtx.AppPath, templateCtx.TargetAppPath); err != nil {
-		return err
+	err = copy.Copy(templateCtx.AppPath, templateCtx.TargetAppPath)
+	if err != nil {
+		return fmt.Errorf("failed to copy the application to %s: %w",
+			templateCtx.TargetAppPath, err)
 	}
 
-	if err := os.RemoveAll(templateCtx.AppPath); err != nil {
+	err = os.RemoveAll(templateCtx.AppPath)
+	if err != nil {
 		log.Warnf("Failed to remove temporary directory: %s", err)
 	}
 

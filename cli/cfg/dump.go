@@ -2,6 +2,7 @@ package cfg
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 
@@ -25,12 +26,12 @@ func dumpRaw(writer io.Writer, cmdCtx *cmdcontext.CmdCtx) error {
 	if cmdCtx.Cli.ConfigPath != "" {
 		_, err := os.Stat(cmdCtx.Cli.ConfigPath)
 		if err != nil {
-			return err
+			return fmt.Errorf("checking tt configuration file: %w", err)
 		}
 
 		fileContent, err := os.ReadFile(cmdCtx.Cli.ConfigPath)
 		if err != nil {
-			return err
+			return fmt.Errorf("reading tt configuration file: %w", err)
 		}
 
 		_, _ = writer.Write([]byte(cmdCtx.Cli.ConfigPath + ":\n"))
@@ -47,14 +48,18 @@ func dumpConfiguration(writer io.Writer, cmdCtx *cmdcontext.CmdCtx,
 	cliOpts *config.CliOpts,
 ) error {
 	if cmdCtx.Cli.ConfigPath != "" {
-		if _, err := os.Stat(cmdCtx.Cli.ConfigPath); err == nil {
+		_, err := os.Stat(cmdCtx.Cli.ConfigPath)
+		if err == nil {
 			_, _ = writer.Write([]byte(cmdCtx.Cli.ConfigPath + ":\n"))
 		}
 	}
 
 	err := yaml.NewEncoder(writer).Encode(cliOpts)
+	if err != nil {
+		return fmt.Errorf("encoding tt configuration: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // RunDump prints tt configuration.

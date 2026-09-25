@@ -19,14 +19,14 @@ var getSuggestionsFuncBody string
 func GetTemplatedStr(text string, obj any) (string, error) {
 	tmpl, err := template.New("s").Parse(text)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to parse the template: %w", err)
 	}
 
 	buf := new(bytes.Buffer)
 
 	err = tmpl.Execute(buf, obj)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to execute the template: %w", err)
 	}
 
 	return buf.String(), nil

@@ -1,20 +1,20 @@
-package app_template
+package app_template_test
 
 import (
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/v3/cli/create/internal/app_template"
 )
 
 type manifestLoadOutput struct {
-	manifest TemplateManifest
+	manifest app_template.TemplateManifest
 	errMsg   string
 }
 
 func TestLoadManifest(t *testing.T) {
-	assert := assert.New(t)
-
 	input := []string{
 		"good_manifest.yaml",
 		"missing_var_name.yaml",
@@ -23,9 +23,9 @@ func TestLoadManifest(t *testing.T) {
 	}
 	output := map[string]manifestLoadOutput{
 		"good_manifest.yaml": {
-			TemplateManifest{
+			app_template.TemplateManifest{
 				Description: "Good template",
-				Vars: []UserPrompt{
+				Vars: []app_template.UserPrompt{
 					{
 						Prompt:  "Cluster cookie",
 						Name:    "cluster_cookie",
@@ -45,32 +45,31 @@ func TestLoadManifest(t *testing.T) {
 			"",
 		},
 		"missing_var_name.yaml": {
-			TemplateManifest{},
+			app_template.TemplateManifest{},
 			"invalid manifest format: missing variable name",
 		},
 		"missing_var_prompt.yaml": {
-			TemplateManifest{},
+			app_template.TemplateManifest{},
 			"invalid manifest format: missing user prompt",
 		},
 		"non_existing.yaml": {
-			TemplateManifest{},
+			app_template.TemplateManifest{},
 			"failed to get access to manifest file: " +
 				"stat testdata/non_existing.yaml: no such file or directory",
 		},
 	}
 
 	for _, inFile := range input {
-		manifest, err := LoadManifest(filepath.Join("testdata", inFile))
-		if output[inFile].errMsg == "" {
-			if !assert.Nil(err) {
-				continue
+		t.Run(inFile, func(t *testing.T) {
+			manifest, err := app_template.LoadManifest(filepath.Join("testdata", inFile))
+			if output[inFile].errMsg != "" {
+				require.EqualError(t, err, output[inFile].errMsg)
+
+				return
 			}
-		} else {
-			assert.EqualError(err, output[inFile].errMsg)
 
-			continue
-		}
-
-		assert.Equal(manifest, output[inFile].manifest)
+			require.NoError(t, err)
+			assert.Equal(t, output[inFile].manifest, manifest)
+		})
 	}
 }
