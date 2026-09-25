@@ -39,7 +39,7 @@ const (
 	defaultDarwinConfigPath = "/usr/local/etc/tarantool"
 
 	lintConfig  = ".golangci.yml"
-	lintVersion = "2.13.2"
+	lintVersion = "2.14.0"
 	lintExeEnv  = "GOLANGCI_LINT"
 )
 
@@ -78,7 +78,7 @@ var (
 	}
 
 	// lintVersionRe pulls the version out of `golangci-lint version`, which
-	// prints e.g. "golangci-lint has version 2.13.2 built with go1.26.8 from ...".
+	// prints e.g. "golangci-lint has version 2.14.0 built with go1.27.1 from ...".
 	lintVersionRe = regexp.MustCompile(`\bversion v?(\d+)\.(\d+)\.(\d+)\b`)
 )
 

@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -122,11 +121,6 @@ func TestConfigureCli(t *testing.T) {
 	}()
 
 	assert.Nil(Cli(&cmdCtx))
-	// I don't know why, but go tests run in /private folder (when running on MacOS).
-	if runtime.GOOS == "darwin" {
-		expectedConfigPath = filepath.Join("/private", expectedConfigPath)
-	}
-
 	assert.Equal(cmdCtx.Cli.ConfigPath, expectedConfigPath)
 	assert.Equal([]string{expectedConfigPath},
 		mockRepository.fileRequestLog)
