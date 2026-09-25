@@ -5,18 +5,15 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strings"
 
-	"github.com/tarantool/tt/sdk/integrity"
-	"github.com/tarantool/tt/v3/cli/util"
-
 	"github.com/spf13/cobra"
+
 	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/config"
-	"github.com/tarantool/tt/v3/cli/configure"
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/logging"
 	"github.com/tarantool/tt/v3/cli/modules"
@@ -46,36 +43,6 @@ func GetCmdCtxPtr() *cmdcontext.CmdCtx {
 	return &cmdCtx
 }
 
-// injectCmds injects additional commands.
-// TT-EE.
-func injectCmds(root *cobra.Command) error {
-	if root == nil {
-		return errNilCommandRoot
-	}
-
-	if InjectedCmds == nil {
-		return nil
-	}
-
-	for i := range InjectedCmds {
-		cmd := InjectedCmds[i]
-
-		// Injected command must override the original one.
-		// So, remove the original from the root.
-		origCmds := root.Commands()
-		for j := range origCmds {
-			if cmd.Name() == origCmds[j].Name() {
-				root.RemoveCommand(origCmds[j])
-				break
-			}
-		}
-
-		root.AddCommand(cmd)
-	}
-
-	return nil
-}
-
 // GetModulesInfoPtr returns a pointer to modulesInfo, which can be used to create
 // injected commands.
 // TT-EE.
@@ -95,8 +62,24 @@ func (errorLogWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// NewCmdRoot creates a new root command.
+// NewCmdRoot creates a new root command with every builtin and injected
+// command.
 func NewCmdRoot() *cobra.Command {
+	root := newRootCmd()
+	root.AddCommand(BuiltinCommands()...)
+
+	if err := InjectCommands(root); err != nil {
+		panic(err.Error())
+	}
+
+	root.SetErr(errorLogWriter{})
+
+	return root
+}
+
+// newRootCmd creates a root command with the global flags and no
+// subcommands.
+func newRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "tt",
 		Short: "Tarantool CLI",
@@ -137,50 +120,6 @@ func NewCmdRoot() *cobra.Command {
 
 	rootCmd.Flags().SetInterspersed(false)
 
-	rootCmd.AddCommand(
-		NewVersionCmd(),
-		NewCompletionCmd(),
-		NewStartCmd(),
-		NewStopCmd(),
-		NewStatusCmd(),
-		NewRestartCmd(),
-		NewLogrotateCmd(),
-		NewCheckCmd(),
-		NewConnectCmd(),
-		NewRocksCmd(),
-		NewCatCmd(),
-		NewPlayCmd(),
-		NewClusterCmd(),
-		NewCoredumpCmd(),
-		NewReplicasetCmd(),
-		NewRunCmd(),
-		NewTestCmd(),
-		NewSearchCmd(),
-		NewCleanCmd(),
-		NewCreateCmd(),
-		NewNewCmd(),
-		NewInstallCmd(),
-		NewUninstallCmd(),
-		NewPackageCmd(),
-		NewRegistryCmd(),
-		NewErrorsHelpTopic(),
-		NewDaemonCmd(),
-		NewCfgCmd(),
-		NewBinariesCmd(),
-		NewEnvCmd(),
-		NewDownloadCmd(),
-		NewKillCmd(),
-		NewLogCmd(),
-		NewAeonCmd(),
-		NewTcmCmd(),
-		NewModulesCmd(),
-	)
-	if err := injectCmds(rootCmd); err != nil {
-		panic(err.Error())
-	}
-
-	rootCmd.SetErr(errorLogWriter{})
-
 	return rootCmd
 }
 
@@ -197,14 +136,14 @@ func Main() int {
 		return exitcode.Code(err)
 	}
 
-	return execute()
+	return Run()
 }
 
 // Execute runs the root command. On failure it reports the error and exits
 // with its code; on success it returns.
 // TT-EE.
 func Execute() {
-	if code := execute(); code != sdk.ExitOK {
+	if code := Run(); code != sdk.ExitOK {
 		os.Exit(code)
 	}
 }
@@ -218,17 +157,6 @@ func InitRoot() {
 	if err := initRoot(); err != nil {
 		exitcode.Exit(err)
 	}
-}
-
-// execute runs the root command and returns the process exit code, having
-// reported the error the command failed with.
-func execute() int {
-	cmd, err := rootCmd.ExecuteC()
-	if err == nil {
-		return sdk.ExitOK
-	}
-
-	return reportError(cmd, err)
 }
 
 // setupLogging installs the process logger the root flags ask for.
@@ -248,87 +176,19 @@ func setupLogging() error {
 	})
 }
 
-// initRoot does the work of InitRoot and returns the first failure.
+// initRoot does the work of InitRoot and returns the first failure: it runs
+// the boot phases with the builtin and injected commands.
 func initRoot() error {
-	rootCmd = NewCmdRoot()
-	// A flag error is reported by rootCmd.Execute, once the logger is set up;
-	// an invalid --log-format leaves the default in place until then.
-	_ = rootCmd.ParseFlags(os.Args[1:])
-
-	if err := setupLogging(); err != nil {
+	root, err := Boot(BootOptions{Args: os.Args[1:]})
+	if err != nil {
 		return err
 	}
 
-	var err error
+	root.AddCommand(BuiltinCommands()...)
 
-	_, configPathEnvSet := os.LookupEnv("TT_CLI_CFG")
-	if cmdCtx.Cli.ConfigPath == "" && configPathEnvSet {
-		configPathEnv, err := filepath.Abs(os.Getenv("TT_CLI_CFG"))
-		if err != nil {
-			return fmt.Errorf("failed getting config path from environment variable: %w", err)
-		}
-		cmdCtx.Cli.ConfigPath = configPathEnv
-	}
-
-	if err := configure.ValidateCliOpts(&cmdCtx.Cli); err != nil {
+	if err := InjectCommands(root); err != nil {
 		return err
 	}
 
-	currentDir, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("can't get current dir: %w", err)
-	}
-
-	configPath, _ := util.GetYamlFileName(
-		filepath.Join(currentDir, configure.ConfigName),
-		false,
-	)
-
-	// Initialize integrity before loading tt.yaml because the configuration loader
-	// uses the integrity repository.
-	cmdCtx.Integrity, err = integrity.InitializeIntegrityCheck(
-		cmdCtx.Cli.IntegrityCheck,
-		filepath.Dir(configPath),
-	)
-	if err != nil {
-		return fmt.Errorf("integrity check failed: %w", err)
-	}
-
-	if err := configure.Cli(&cmdCtx); err != nil {
-		return fmt.Errorf("Failed to configure Tarantool CLI: %w", err)
-	}
-
-	cliOpts, cmdCtx.Cli.ConfigPath, err = configure.GetCliOpts(cmdCtx.Cli.ConfigPath,
-		cmdCtx.Integrity.Repository)
-	if err != nil {
-		return fmt.Errorf("Failed to get Tarantool CLI configuration: %w", err)
-	}
-	if cmdCtx.Cli.ConfigPath == "" {
-		// Config is not found, use current dir as base dir.
-		if cmdCtx.Cli.ConfigDir, err = os.Getwd(); err != nil {
-			return err
-		}
-	} else {
-		cmdCtx.Cli.ConfigDir = filepath.Dir(cmdCtx.Cli.ConfigPath)
-		log.Debugf("Using configuration file %q", cmdCtx.Cli.ConfigPath)
-	}
-
-	// TCM config, if any, is located next to tt config.
-	tcmConfigBasename := filepath.Join(cmdCtx.Cli.ConfigDir, "tcm")
-	cmdCtx.Cli.TcmCli.ConfigPath, _ = util.GetYamlFileName(tcmConfigBasename, false)
-
-	// Getting modules information.
-	modulesInfo, err = modules.GetModulesInfo(&cmdCtx, rootCmd.Name(), cliOpts)
-	if err != nil {
-		return fmt.Errorf("Failed to configure Tarantool CLI command: %w", err)
-	}
-
-	// External commands must be configured in a special way.
-	// This is necessary, for example, so that we can pass arguments to these commands.
-	configureExternalCmd(rootCmd, &modulesInfo, cmdCtx.Cli.ForceInternal)
-
-	// Configure help command.
-	configureHelpCommand(rootCmd, &modulesInfo)
-
-	return nil
+	return Configure()
 }
