@@ -4,7 +4,6 @@ go 1.27.1
 
 require (
 	github.com/avast/retry-go v3.0.0+incompatible
-	github.com/briandowns/spinner v1.23.2
 	github.com/fatih/color v1.18.0
 	github.com/go-git/go-git/v5 v5.19.2
 	github.com/google/uuid v1.6.0

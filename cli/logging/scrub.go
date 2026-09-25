@@ -38,6 +38,12 @@ func (h *scrubHandler) Handle(ctx context.Context, record slog.Record) error {
 	return h.inner.Handle(ctx, h.redactor.RedactRecord(record)) //nolint:wrapcheck // Transparent.
 }
 
+// Status shows msg, with its secrets masked, on the status line of the inner
+// handler when it has one.
+func (h *scrubHandler) Status(msg string) func() {
+	return sdklog.SpinnerOf(slog.New(h.inner), h.redactor.Redact(msg))
+}
+
 // WithAttrs redacts attrs and adds them to the inner handler.
 func (h *scrubHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	redacted := make([]slog.Attr, 0, len(attrs))

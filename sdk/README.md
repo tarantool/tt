@@ -36,8 +36,11 @@ standard library and `github.com/spf13/pflag`, the flag library under cobra
   filesystem errors as 2 is the core's job, not the SDK's.
 - `sdk/log` is the logging facade over `log/slog`: printf-style functions
   that record the caller's source position, `Library` for loggers handed to
-  third-party libraries (their Info is demoted to Debug), and the secret
-  redaction rules (`Redactor`, `RegisterSecret`, `Secret`, `RedactURL`).
+  third-party libraries (their Info is demoted to Debug), `Spinner` for
+  progress while a long step runs (drawn on stderr only when it is a
+  terminal, kept below the log lines; a handler offers it by implementing
+  `StatusHandler`), and the secret redaction rules (`Redactor`,
+  `RegisterSecret`, `Secret`, `RedactURL`).
   `sdk/log/logtest` captures records in tests without touching
   `slog.Default`. Handlers, levels and the log format are set up by the
   core; a module never reconfigures them.

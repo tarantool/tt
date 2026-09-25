@@ -190,6 +190,10 @@ for machine-readable output.
   with trailing spaces. A debug line is marked `·`, the continuation lines of
   a multi-line message are indented to the message, and colour is used only
   when stderr is a terminal and `NO_COLOR` is not set.
+- The spinner shown while a build step runs is drawn on stderr, and only when
+  stderr is a terminal: output captured from stdout no longer carries spinner
+  frames and carriage returns. It is not shown with `--log-format json` or
+  `TERM=dumb`, and log lines printed while it spins stay whole.
 - `tt package deps|list|search` and `tt registry list` print a table by
   default also when stdout is not a terminal; use `-o yaml` or `-o json` in
   scripts.

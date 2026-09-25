@@ -85,17 +85,35 @@ type Options struct {
 	// registry, sdklog.Secrets.
 	Redactor *sdklog.Redactor
 	// IsTerminal reports whether Writer is a terminal; the text format is
-	// coloured only on one. Nil means a probe of the file descriptor when
-	// Writer is an *os.File.
+	// coloured and shows a spinner status line only on one. Nil means a
+	// probe of the file descriptor when Writer is an *os.File.
 	IsTerminal func(io.Writer) bool
 	// LookupEnv reads the environment for NO_COLOR and TERM. Nil means
 	// os.LookupEnv.
 	LookupEnv func(key string) (string, bool)
 }
 
+// terminalHooks are how a handler measures its terminal and animates its
+// spinner; tests replace them to make both deterministic.
+type terminalHooks struct {
+	width func(io.Writer) int
+	ticks ticker
+}
+
 // NewHandler builds the handler chain Options describe without installing
 // it.
+//
+// The text handler implements sdklog.StatusHandler, so sdklog.Spinner draws
+// through it: on a terminal that can redraw a line the spinner is shown on
+// the writer below the records, anywhere else it is not shown at all. The
+// JSON handler shows no spinner.
 func NewHandler(opts Options) (slog.Handler, error) {
+	return newHandler(opts, terminalHooks{width: fileWidth, ticks: realTicker})
+}
+
+// newHandler builds the handler chain Options describe, measuring and
+// animating the terminal with hooks.
+func newHandler(opts Options, hooks terminalHooks) (slog.Handler, error) {
 	err := validateFormat(opts.Format)
 	if err != nil {
 		return nil, err
@@ -120,7 +138,21 @@ func NewHandler(opts Options) (slog.Handler, error) {
 			ReplaceAttr: nil,
 		})
 	case FormatText:
-		inner = newTextHandler(opts.Writer, opts.Level, colorEnabled(opts))
+		lookupEnv := opts.LookupEnv
+		if lookupEnv == nil {
+			lookupEnv = os.LookupEnv
+		}
+
+		isTerminal := opts.IsTerminal
+		if isTerminal == nil {
+			isTerminal = fileIsTerminal
+		}
+
+		terminal := isTerminal(opts.Writer) && !dumbTerminal(lookupEnv)
+		status := newStatusLine(opts.Writer, terminal, hooks.width, hooks.ticks)
+		color := terminal && !noColor(lookupEnv)
+
+		inner = newTextHandler(opts.Writer, opts.Level, color, status)
 	}
 
 	return newScrubHandler(inner, redactor), nil
@@ -140,29 +172,20 @@ func Setup(opts Options) error {
 	return nil
 }
 
-// colorEnabled reports whether the text format should be coloured: the
-// writer is a terminal, NO_COLOR is not set to a non-empty value
-// (https://no-color.org) and TERM is not "dumb".
-func colorEnabled(opts Options) bool {
-	lookupEnv := opts.LookupEnv
-	if lookupEnv == nil {
-		lookupEnv = os.LookupEnv
-	}
+// noColor reports whether NO_COLOR is set to a non-empty value
+// (https://no-color.org), which turns colour off.
+func noColor(lookupEnv func(string) (string, bool)) bool {
+	value, ok := lookupEnv("NO_COLOR")
 
-	if value, ok := lookupEnv("NO_COLOR"); ok && value != "" {
-		return false
-	}
+	return ok && value != ""
+}
 
-	if value, ok := lookupEnv("TERM"); ok && value == "dumb" {
-		return false
-	}
+// dumbTerminal reports whether TERM is "dumb": a terminal that takes
+// neither colour nor the sequence that erases a line.
+func dumbTerminal(lookupEnv func(string) (string, bool)) bool {
+	value, ok := lookupEnv("TERM")
 
-	isTerminal := opts.IsTerminal
-	if isTerminal == nil {
-		isTerminal = fileIsTerminal
-	}
-
-	return isTerminal(opts.Writer)
+	return ok && value == "dumb"
 }
 
 // fileIsTerminal reports whether writer is an *os.File open on a terminal.

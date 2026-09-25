@@ -60,10 +60,12 @@ type field struct {
 }
 
 // output is the writer a textHandler and every handler derived from it
-// share, with the lock that keeps their lines whole.
+// share, with the lock that keeps their lines whole and the status line
+// they keep below their records.
 type output struct {
 	mu     sync.Mutex
 	writer io.Writer
+	status statusLine
 }
 
 // textHandler renders a record as one line for a person:
@@ -84,10 +86,12 @@ type textHandler struct {
 }
 
 // newTextHandler returns a text handler writing records at level and above
-// to writer, coloured when color is set.
-func newTextHandler(writer io.Writer, level slog.Leveler, color bool) *textHandler {
+// to writer, coloured when color is set, with the status line status.
+func newTextHandler(
+	writer io.Writer, level slog.Leveler, color bool, status statusLine,
+) *textHandler {
 	return &textHandler{
-		out:    &output{mu: sync.Mutex{}, writer: writer},
+		out:    &output{mu: sync.Mutex{}, writer: writer, status: status},
 		level:  level,
 		color:  color,
 		prefix: "",
@@ -147,7 +151,16 @@ func (h *textHandler) Handle(_ context.Context, record slog.Record) error {
 	h.out.mu.Lock()
 	defer h.out.mu.Unlock()
 
-	_, err := io.WriteString(h.out.writer, line.String())
+	text := line.String()
+
+	// A shown status line is cleared for the record and drawn again below
+	// it, in the same write, so the record starts at the first column and
+	// the status line stays the last one.
+	if h.out.status.shown {
+		text = clearLine + text + h.out.status.render(h.color)
+	}
+
+	_, err := io.WriteString(h.out.writer, text)
 	if err != nil {
 		return fmt.Errorf("write log record: %w", err)
 	}

@@ -10,91 +10,32 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
-	"time"
 
-	"github.com/mattn/go-isatty"
-
-	"github.com/briandowns/spinner"
 	"github.com/tarantool/tt/sdk/log"
 )
 
-var (
-	errHookShouldBeExecutable = errors.New("hook `")
-)
-
-type emptyStruct struct{}
-
-// readyChan is a channel used to signal completion of command execution.
-type readyChan chan emptyStruct
+var errHookShouldBeExecutable = errors.New("hook `")
 
 // execOwnerPerm is a bitmask to check owner exec bit.
 const execOwnerPerm uint32 = 0o100
 
-var (
-	spinnerPicture    = spinner.CharSets[9]
-	spinnerUpdateTime = 100 * time.Millisecond
-
-	ready = emptyStruct{}
-)
-
-// sendReady sends ready to channel.
-func sendReady(readyChannel readyChan) {
-	readyChannel <- ready
-}
-
-// startAndWaitCommand executes a command.
-// and sends `ready` flag to the channel before return.
-func startAndWaitCommand(cmd *exec.Cmd, readyChannel readyChan,
-	workGroup *sync.WaitGroup, err *error,
-) {
-	defer workGroup.Done()
-	defer sendReady(readyChannel)
-
-	if *err = cmd.Start(); *err != nil {
-		return
-	}
-
-	if *err = cmd.Wait(); *err != nil {
-		return
-	}
-}
-
-// StartCommandSpinner starts running spinner.
-// until `ready` flag is received from the channel.
-func StartCommandSpinner(readyChannel readyChan, wg *sync.WaitGroup, prefix string) {
-	defer wg.Done()
-
-	spinner := spinner.New(spinnerPicture, spinnerUpdateTime)
-	if prefix != "" {
-		spinner.Prefix = strings.TrimSpace(prefix) + " "
-	}
-
-	spinner.Start()
-
-	// Wait for the command to complete.
-	<-readyChannel
-
-	spinner.Stop()
-}
-
 // RunCommand runs specified command and returns an error.
 // If showOutput is set to true, command output is shown.
-// Else spinner is shown while command is running.
+// Else the output is kept aside, shown only if the command fails, and a
+// spinner is shown on the log's terminal while the command runs.
 func RunCommand(cmd *exec.Cmd, workingDir string, showOutput bool) error {
-	var err error
-	var workGroup sync.WaitGroup
-	readyChannel := make(readyChan, 1)
-
 	var outputBuf *os.File
+
+	stopSpinner := func() {}
 
 	cmd.Dir = workingDir
 	if showOutput {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	} else {
+		var err error
 		if outputBuf, err = os.CreateTemp("", "out"); err != nil {
-			log.Warnf("Failed to create tmp file to store command output: %s", err)
+			return fmt.Errorf("failed to create tmp file to store command output: %w", err)
 		}
 		cmd.Stdout = outputBuf
 		cmd.Stderr = outputBuf
@@ -105,16 +46,13 @@ func RunCommand(cmd *exec.Cmd, workingDir string, showOutput bool) error {
 			_ = os.Remove(outputBuf.Name())
 		}()
 
-		if isatty.IsTerminal(os.Stdout.Fd()) {
-			workGroup.Add(1)
-			go StartCommandSpinner(readyChannel, &workGroup, "")
-		}
+		stopSpinner = log.Spinner("running " + strings.Join(cmd.Args, " "))
 	}
 
-	workGroup.Add(1)
-	go startAndWaitCommand(cmd, readyChannel, &workGroup, &err)
+	err := cmd.Run()
 
-	workGroup.Wait()
+	// The spinner leaves the line before the kept output is shown.
+	stopSpinner()
 
 	if err != nil {
 		if outputBuf != nil {
@@ -128,7 +66,7 @@ func RunCommand(cmd *exec.Cmd, workingDir string, showOutput bool) error {
 		)
 	}
 
-	return err
+	return nil
 }
 
 // RunHook runs the specified hook.
