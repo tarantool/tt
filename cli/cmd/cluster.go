@@ -611,6 +611,25 @@ func parseAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, string, erro
 
 	appName, instName, _ := strings.Cut(appStr, string(running.InstanceDelimiter))
 
+	configPath, err := appClusterConfigPath(cmdCtx, appName)
+	if err != nil {
+		return "", "", err
+	}
+
+	return configPath, instName, nil
+}
+
+// ClusterConfigPath returns the path to the cluster configuration file of the
+// application appName of the tt environment, or "" when the application has
+// none. The tt environment must exist; an application it does not have is an
+// error wrapping running.ErrApplicationNotFound.
+func ClusterConfigPath(appName string) (string, error) {
+	return appClusterConfigPath(&cmdCtx, appName)
+}
+
+// appClusterConfigPath returns the path to the cluster configuration file of
+// the application appName, or "" when the application has none.
+func appClusterConfigPath(cmdCtx *cmdcontext.CmdCtx, appName string) (string, error) {
 	// Fill context for the entire application.
 	// publish app:inst can work even if the `inst` instance doesn't exist right now.
 	var runningCtx running.RunningCtx
@@ -618,15 +637,14 @@ func parseAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, string, erro
 	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{appName},
 		running.ConfigLoadCluster)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
-	configPath := ""
-	if len(runningCtx.Instances) != 0 {
-		configPath = runningCtx.Instances[0].ClusterConfigPath
+	if len(runningCtx.Instances) == 0 {
+		return "", nil
 	}
 
-	return configPath, instName, nil
+	return runningCtx.Instances[0].ClusterConfigPath, nil
 }
 
 // checkRolesChangeFlags checks that flags from 'cluster rs roles add/remove' command

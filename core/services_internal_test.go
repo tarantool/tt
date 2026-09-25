@@ -66,6 +66,10 @@ func TestServicesReadiness(t *testing.T) {
 		"Project":   func() { svc.Project() },
 		"Confirm":   func() { _, _ = svc.Confirm("?", true) },
 		"Streams":   func() { svc.Streams() },
+		"ClusterConfig": func() {
+			_, _ = svc.ClusterConfig(t.Context(), sdk.FileSource("config.yaml"))
+		},
+		"Exit": func() { svc.Exit(nil) },
 	} {
 		assert.PanicsWithValue(t, `module "early" used Services.`+method+
 			` before tt was configured; use it in a command's hooks, not in the constructor`,
@@ -304,4 +308,58 @@ func TestServicesIntegrity(t *testing.T) {
 
 	_, err = svc.Integrity().Open("bad")
 	require.ErrorIs(t, err, errTampered)
+}
+
+// TestServicesExit checks that Exit hands the error to the process's exit.
+func TestServicesExit(t *testing.T) {
+	t.Parallel()
+
+	svc := readyServices(strings.NewReader(""), io.Discard, io.Discard)
+
+	var exited []error
+
+	svc.exit = func(err error) { exited = append(exited, err) }
+
+	failure := sdk.WithCode(sdk.ExitPartial, errors.New("half done"))
+
+	svc.Exit(failure)
+	svc.Exit(nil)
+
+	assert.Equal(t, []error{failure, nil}, exited)
+}
+
+// TestServicesClusterConfigFile checks a cluster configuration file that
+// exists, one that does not and a source that names nothing.
+func TestServicesClusterConfigFile(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+
+	require.NoError(t, os.WriteFile(path, []byte(`
+groups:
+  g:
+    replicasets:
+      r:
+        instances:
+          i: {}
+`), 0o600))
+
+	svc := readyServices(strings.NewReader(""), io.Discard, io.Discard)
+
+	cfg, err := svc.ClusterConfig(t.Context(), sdk.FileSource(path))
+	require.NoError(t, err)
+	assert.Equal(t, dir, cfg.Dir)
+
+	names, err := sdk.Instances(cfg.Config)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"i"}, names)
+
+	_, err = svc.ClusterConfig(t.Context(), sdk.FileSource(filepath.Join(dir, "missing.yaml")))
+	require.ErrorIs(t, err, sdk.ErrNotFound)
+	require.ErrorContains(t, err, "missing.yaml")
+
+	_, err = svc.ClusterConfig(t.Context(), sdk.ClusterSource{})
+	require.ErrorIs(t, err, errNoSource)
+	assert.NotErrorIs(t, err, sdk.ErrNotFound)
 }

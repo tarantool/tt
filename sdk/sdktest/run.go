@@ -14,8 +14,13 @@ import (
 
 // Result is what one run of a command left behind.
 type Result struct {
-	// Err is the error the command failed with; nil when it succeeded.
+	// Err is the error the command failed with, or the one it gave
+	// Services.Exit; nil when it succeeded.
 	Err error
+	// Exited reports that the command ended through Services.Exit rather
+	// than by returning. In tt that would have ended the process, reporting
+	// Err and exiting with its code.
+	Exited bool
 	// Stdout is what was written to stdout.
 	Stdout string
 	// Stderr is what was written to stderr: prompts, and whatever the command
@@ -46,7 +51,8 @@ func Run(tb testing.TB, ctor sdk.Constructor, args ...string) Result {
 // or whose name or aliases clash with a command next to it.
 //
 // cobra prints neither the error nor the usage: the error is in the result
-// and reporting it is the core's job.
+// and reporting it is the core's job. A command that calls Services.Exit
+// ends there, and the result has Exited set and the error Exit was given.
 func (s *Services) Run(ctor sdk.Constructor, args ...string) Result {
 	s.tb.Helper()
 
@@ -64,14 +70,46 @@ func (s *Services) Run(ctor sdk.Constructor, args ...string) Result {
 	root.SetOut(&s.stdout)
 	root.SetErr(&s.stderr)
 
-	err := root.Execute()
+	exited, err := execute(root)
 
 	return Result{
 		Err:     err,
+		Exited:  exited,
 		Stdout:  s.Stdout(),
 		Stderr:  s.Stderr(),
 		Records: s.Records(),
 	}
+}
+
+// execute executes root and returns the error it failed with. When the
+// command called Services.Exit it returns true and the error Exit was given;
+// any other panic goes on.
+func execute(root *cobra.Command) (bool, error) {
+	var exit *exitError
+
+	err := func() error {
+		defer func() {
+			recovered := recover()
+			if recovered == nil {
+				return
+			}
+
+			var ok bool
+
+			exit, ok = recovered.(*exitError)
+			if !ok {
+				panic(recovered)
+			}
+		}()
+
+		return root.Execute()
+	}()
+
+	if exit != nil {
+		return true, exit.err
+	}
+
+	return false, err
 }
 
 // hang adds mounts to root, the shallowest first so that a group a module

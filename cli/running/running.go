@@ -28,8 +28,11 @@ import (
 	"github.com/tarantool/tt/v3/cli/util/regexputil"
 )
 
+// ErrApplicationNotFound reports an application the tt environment does not
+// have. The error that wraps it names the application.
+var ErrApplicationNotFound = errors.New("application ")
+
 var (
-	errApplicationNotFound      = errors.New("application ")
 	errCannotGetConfigValueAtAs = errors.New(
 		"cannot get config value at ",
 	)
@@ -580,7 +583,7 @@ func collectInstances(appName, applicationDir string,
 	expectedAppName := filepath.Base(filepath.Clean(applicationDir))
 
 	if appName != expectedAppName {
-		return nil, fmt.Errorf("%w%q not found", errApplicationNotFound, appName)
+		return nil, fmt.Errorf("%w%q not found", ErrApplicationNotFound, appName)
 	}
 
 	// A single application can be represented by `<appName>.lua` or by

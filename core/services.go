@@ -15,6 +15,7 @@ import (
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/sdk/output"
 	"github.com/tarantool/tt/v3/cli/cmd"
+	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest/pack"
 	"github.com/tarantool/tt/v3/cli/manifest/run"
 	"github.com/tarantool/tt/v3/cli/printing"
@@ -31,6 +32,8 @@ type services struct {
 	ready *atomic.Bool
 	// streams are the process's standard streams.
 	streams output.Streams
+	// exit reports an error and ends the process: exitcode.Exit.
+	exit func(err error)
 }
 
 var _ sdk.Services = (*services)(nil)
@@ -38,7 +41,12 @@ var _ sdk.Services = (*services)(nil)
 // newServices returns the Services of the module name, usable once ready is
 // set.
 func newServices(name string, ready *atomic.Bool) *services {
-	return &services{module: name, ready: ready, streams: output.StdStreams()}
+	return &services{
+		module:  name,
+		ready:   ready,
+		streams: output.StdStreams(),
+		exit:    exitcode.Exit,
+	}
 }
 
 // Log returns the process logger with the module attribute. It is taken
@@ -127,6 +135,14 @@ func (s *services) Streams() sdk.Streams {
 	s.mustBeReady("Streams")
 
 	return streams{io: s.streams}
+}
+
+// Exit reports err and ends the process with the code tt returns for it,
+// as the root does for a command's error.
+func (s *services) Exit(err error) {
+	s.mustBeReady("Exit")
+
+	s.exit(err)
 }
 
 // mustBeReady panics when method is used before tt is configured.

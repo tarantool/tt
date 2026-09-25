@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	goconfig "github.com/tarantool/go-config/v2"
 
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/output"
@@ -196,9 +197,95 @@ func demoModule(services sdk.Services) []sdk.Mount {
 			return err
 		}},
 		printCmd,
+		newDemoClusterCmd(services),
+		&cobra.Command{
+			Use:  "cluster-dir",
+			Args: cobra.ExactArgs(1),
+			RunE: func(command *cobra.Command, args []string) error {
+				cfg, err := services.ClusterConfig(command.Context(),
+					sdk.ParseClusterSource(args[0], sdk.Credentials{}))
+				if err != nil {
+					return err
+				}
+
+				_, err = fmt.Fprintln(services.Streams().IO().Out, cfg.Dir)
+
+				return err
+			},
+		},
+		&cobra.Command{Use: "exit", RunE: func(*cobra.Command, []string) error {
+			services.Exit(sdk.WithCode(sdk.ExitPartial, errors.New("exited early")))
+
+			return errors.New("Exit returned")
+		}},
+		&cobra.Command{Use: "exit-net", RunE: func(*cobra.Command, []string) error {
+			services.Exit(fmt.Errorf("fetching: %w", &net.OpError{
+				Op: "dial", Net: "tcp", Err: errors.New("connection refused"),
+			}))
+
+			return errors.New("Exit returned")
+		}},
 	)
 
 	return []sdk.Mount{{Path: "", Cmd: demo}}
+}
+
+// newDemoClusterCmd returns "demo cluster <source> [<instance>]": it prints
+// the instances of the cluster configuration of the source, then the
+// database mode of the instance when one is named. A source or an instance
+// that is not found is printed as "not found: <error>" and is no failure.
+func newDemoClusterCmd(services sdk.Services) *cobra.Command {
+	return &cobra.Command{
+		Use:  "cluster",
+		Args: cobra.RangeArgs(1, 2),
+		RunE: func(command *cobra.Command, args []string) error {
+			out := services.Streams().IO().Out
+
+			cfg, err := services.ClusterConfig(command.Context(),
+				sdk.ParseClusterSource(args[0], sdk.Credentials{}))
+			if errors.Is(err, sdk.ErrNotFound) {
+				_, err = fmt.Fprintf(out, "not found: %v\n", err)
+
+				return err
+			}
+
+			if err != nil {
+				return err
+			}
+
+			names, err := sdk.Instances(cfg.Config)
+			if err != nil {
+				return err
+			}
+
+			_, err = fmt.Fprintln(out, strings.Join(names, " "))
+			if err != nil || len(args) == 1 {
+				return err
+			}
+
+			instance, err := sdk.InstanceConfig(cfg.Config, args[1])
+			if errors.Is(err, sdk.ErrNotFound) {
+				_, err = fmt.Fprintf(out, "not found: %v\n", err)
+
+				return err
+			}
+
+			if err != nil {
+				return err
+			}
+
+			var mode string
+
+			_, err = instance.Get(goconfig.NewKeyPath("database/mode"), &mode)
+			if err != nil {
+				return fmt.Errorf("database mode: %w", err)
+			}
+
+			_, err = fmt.Fprintf(out, "mode=%s\n", mode)
+
+			return err
+		},
+	}
 }
 
 // newEEVersionCmd returns a command shaped like tt-ee's version: declared
@@ -336,6 +423,15 @@ func TestMainExitCodes(t *testing.T) {
 			name: "constructor panic", program: "panic", args: []string{"version"}, code: 1,
 			stderr: []string{`module "broken" panicked while building its commands: ` +
 				`constructor bug`},
+		},
+		// Services.Exit ends tt as a returned error would.
+		{
+			name: "exit with code 3", program: "demo", args: []string{"demo", "exit"}, code: 3,
+			stderr: []string{"exited early"},
+		},
+		{
+			name: "exit with a system failure", program: "demo", args: []string{"demo", "exit-net"},
+			code: 2, stderr: []string{"connection refused"},
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {

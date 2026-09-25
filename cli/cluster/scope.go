@@ -2,10 +2,10 @@ package cluster
 
 import (
 	"errors"
-	"fmt"
-	"sort"
 
 	goconfig "github.com/tarantool/go-config/v2"
+
+	"github.com/tarantool/tt/sdk"
 )
 
 var (
@@ -34,28 +34,9 @@ func splitInstancePath(path string) (string, string, string) {
 	return keyPath[1], keyPath[3], keyPath[5]
 }
 
-// Instances returns a sorted list of instance names found in cfg via
-// EffectiveAll(). Keys are full structural paths like
-// "groups/g1/replicasets/r1/instances/i1".
+// Instances returns a sorted list of instance names found in cfg: sdk.Instances.
 func Instances(cfg goconfig.Config) ([]string, error) {
-	all, err := cfg.EffectiveAll()
-	if err != nil {
-		return nil, fmt.Errorf("instances: %w", err)
-	}
-
-	names := make([]string, 0, len(all))
-	for path := range all {
-		_, _, inst := splitInstancePath(path)
-		if inst == "" {
-			continue
-		}
-
-		names = append(names, inst)
-	}
-
-	sort.Strings(names)
-
-	return names, nil
+	return sdk.Instances(cfg)
 }
 
 // HasInstance reports whether an instance with the given name exists in cfg.
@@ -100,22 +81,9 @@ func FindGroupByReplicaset(cfg goconfig.Config, replicaset string) (string, bool
 	return "", false
 }
 
-// InstanceConfig locates the instance named name in cfg and returns its
-// inheritance-resolved goconfig.Config (as returned by EffectiveAll).
-//
-// Returns an error if the instance is not found or if EffectiveAll fails.
+// InstanceConfig returns the inheritance-resolved configuration of the
+// instance named name in cfg: sdk.InstanceConfig. An unknown instance wraps
+// sdk.ErrNotFound.
 func InstanceConfig(cfg goconfig.Config, name string) (goconfig.Config, error) {
-	all, err := cfg.EffectiveAll()
-	if err != nil {
-		return goconfig.Config{}, fmt.Errorf("instance config: %w", err)
-	}
-
-	for path, instCfg := range all {
-		_, _, inst := splitInstancePath(path)
-		if inst == name {
-			return instCfg, nil
-		}
-	}
-
-	return goconfig.Config{}, fmt.Errorf("%w%q not found", errInstanceNotFound, name)
+	return sdk.InstanceConfig(cfg, name)
 }

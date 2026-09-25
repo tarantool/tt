@@ -29,10 +29,12 @@ import (
 	"google.golang.org/grpc"
 )
 
+// ErrNoConfiguration reports a storage that holds no configuration under the
+// prefix a collector reads. The error that wraps it names the storage and
+// the prefix.
+var ErrNoConfiguration = errors.New("a configuration data not found in ")
+
 var (
-	errAConfigurationDataNotFoundInForPrefix = errors.New(
-		"a configuration data not found in ",
-	)
 	errFailedToConnectToTarantoolAtLeastOneEndpointIsRequired = errors.New(
 		"failed to connect to tarantool: at least one endpoint is required",
 	)
@@ -153,7 +155,7 @@ func (r *RawStorage) Collect() ([]Data, error) {
 
 	if len(kvs) == 0 {
 		return nil, fmt.Errorf("%w%s for prefix %q",
-			errAConfigurationDataNotFoundInForPrefix, r.storageType, r.prefix)
+			ErrNoConfiguration, r.storageType, r.prefix)
 	}
 
 	data := make([]Data, 0, len(kvs))

@@ -60,6 +60,10 @@ func TestServicesPanicBeforeStart(t *testing.T) {
 		"Project":   func() { _ = services.Project() },
 		"Confirm":   func() { _, _ = services.Confirm("sure?", true) },
 		"Streams":   func() { _ = services.Streams() },
+		"ClusterConfig": func() {
+			_, _ = services.ClusterConfig(t.Context(), sdk.AppSource("app"))
+		},
+		"Exit": func() { services.Exit(nil) },
 	}
 
 	for method, call := range calls {
@@ -73,8 +77,8 @@ func TestServicesPanicBeforeStart(t *testing.T) {
 	services.Start()
 
 	for method, call := range calls {
-		if method == "Confirm" {
-			continue // Needs an answer; covered below.
+		if method == "Confirm" || method == "Exit" {
+			continue // Confirm needs an answer, Exit ends the command; covered below.
 		}
 
 		assert.NotPanics(t, call, method)

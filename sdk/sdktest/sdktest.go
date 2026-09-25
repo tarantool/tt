@@ -10,10 +10,15 @@
 // to stderr. Printers encode the human format and JSON; YAML, which the core
 // encodes, is refused with output.ErrUnknownFormat, as by a Printer made
 // without the core's encoders.
+//
+// Cluster configurations come from [WithClusterConfig] rather than from
+// files or storages. [Services.Exit] does not end the test binary: under
+// [Services.Run] it ends the command, and the [Result] says so.
 package sdktest
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -25,6 +30,7 @@ import (
 	"testing"
 
 	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/internal/clusteryaml"
 	"github.com/tarantool/tt/sdk/log/logtest"
 	"github.com/tarantool/tt/sdk/output"
 )
@@ -43,6 +49,8 @@ type options struct {
 	noPrompt  bool
 	stdin     io.Reader
 	open      func(path string) (io.ReadCloser, error)
+	clusters  map[sdk.ClusterSource]string
+	dirs      map[sdk.ClusterSource]string
 }
 
 // Option configures the Services New returns.
@@ -95,6 +103,29 @@ func WithIntegrity(open func(path string) (io.ReadCloser, error)) Option {
 	return func(o *options) { o.open = open }
 }
 
+// WithClusterConfig makes ClusterConfig return the cluster configuration
+// yaml for src: built with the Tarantool hierarchy, as the core builds one,
+// so sdk.Instances and sdk.InstanceConfig read it. No file, environment or
+// storage is consulted. A source given no configuration is not found:
+// ClusterConfig returns an error wrapping sdk.ErrNotFound. Sources match by
+// equality, so the test and the module must build the same source - the
+// same constructor with the same arguments, credentials included. YAML that
+// does not parse fails the test in New.
+//
+// The Dir of the configuration is what the core reports: the absolute
+// directory of the file for a FileSource, "" for any other source. Set it
+// for an application with [WithClusterConfigDir].
+func WithClusterConfig(src sdk.ClusterSource, yaml string) Option {
+	return func(o *options) { o.clusters[src] = yaml }
+}
+
+// WithClusterConfigDir sets the Dir ClusterConfig reports for src, the
+// directory relative paths in its configuration are relative to - for an
+// application, the directory of its cluster config file.
+func WithClusterConfigDir(src sdk.ClusterSource, dir string) Option {
+	return func(o *options) { o.dirs[src] = dir }
+}
+
 // Services is a fake of the Services the tt core gives a module. It is safe
 // for concurrent use.
 type Services struct {
@@ -126,6 +157,8 @@ func New(tb testing.TB, opts ...Option) *Services {
 		noPrompt:  false,
 		stdin:     strings.NewReader(""),
 		open:      openFile,
+		clusters:  map[sdk.ClusterSource]string{},
+		dirs:      map[sdk.ClusterSource]string{},
 	}
 
 	for _, opt := range opts {
@@ -134,6 +167,13 @@ func New(tb testing.TB, opts ...Option) *Services {
 
 	if config.answered && config.noPrompt {
 		tb.Fatalf("sdktest: WithAnswers and WithNoPrompt exclude each other")
+	}
+
+	for src, data := range config.clusters {
+		_, err := clusteryaml.Build(context.Background(), []byte(data))
+		if err != nil {
+			tb.Fatalf("sdktest: WithClusterConfig(%s): %v", src, err)
+		}
 	}
 
 	if config.project == "" {
@@ -240,6 +280,58 @@ func (s *Services) Streams() sdk.Streams {
 	return fakeStreams{services: s}
 }
 
+// ClusterConfig returns the configuration WithClusterConfig gave src, built
+// afresh at every call, with the Dir WithClusterConfigDir set or the core's
+// default for src, or an error wrapping sdk.ErrNotFound.
+func (s *Services) ClusterConfig(
+	ctx context.Context, src sdk.ClusterSource,
+) (sdk.ClusterConfig, error) {
+	s.ready("ClusterConfig")
+
+	data, ok := s.opts.clusters[src]
+	if !ok {
+		return sdk.ClusterConfig{}, fmt.Errorf("cluster configuration of %s: %w",
+			src, sdk.ErrNotFound)
+	}
+
+	cfg, err := clusteryaml.Build(ctx, []byte(data))
+	if err != nil {
+		return sdk.ClusterConfig{}, fmt.Errorf("cluster configuration of %s: %w", src, err)
+	}
+
+	dir, err := s.clusterDir(src)
+	if err != nil {
+		return sdk.ClusterConfig{}, err
+	}
+
+	return sdk.ClusterConfig{Config: cfg, Dir: dir}, nil
+}
+
+// Exit ends the command rather than the process: it panics with a value
+// that [Services.Run] recovers and reports as a Result with Exited set and
+// Err the error given. It must be called on the goroutine that runs the
+// command, and under Run: anywhere else the panic is not recovered and
+// fails the test, its value naming the error.
+func (s *Services) Exit(err error) {
+	s.ready("Exit")
+
+	panic(&exitError{err: err})
+}
+
+// exitError is what Exit panics with.
+type exitError struct {
+	err error
+}
+
+// Error says that the command exited, for a panic Run does not recover.
+func (e *exitError) Error() string {
+	if e.err == nil {
+		return "sdktest: the command called Services.Exit(nil) outside Services.Run"
+	}
+
+	return "sdktest: the command called Services.Exit outside Services.Run: " + e.err.Error()
+}
+
 // Stdout returns what was written to stdout so far.
 func (s *Services) Stdout() string {
 	return s.stdout.String()
@@ -255,6 +347,26 @@ func (s *Services) Stderr() string {
 // module attribute.
 func (s *Services) Records() []logtest.Record {
 	return s.recorder.Records()
+}
+
+// clusterDir returns the Dir to report for src: the one WithClusterConfigDir
+// set, else the absolute directory of a file source's file, else "".
+func (s *Services) clusterDir(src sdk.ClusterSource) (string, error) {
+	if dir, ok := s.opts.dirs[src]; ok {
+		return dir, nil
+	}
+
+	path, ok := src.File()
+	if !ok {
+		return "", nil
+	}
+
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", fmt.Errorf("cluster configuration file %q: %w", path, err)
+	}
+
+	return filepath.Dir(abs), nil
 }
 
 // ready panics, as the core does, when method is used before Start.

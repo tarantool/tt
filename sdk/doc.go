@@ -10,8 +10,10 @@
 //     under;
 //   - [Services] give a module's commands a logger, the [Tarantool] to run
 //     and its [TarantoolVersion], files read through the [Integrity] checks,
-//     the [Project] directory, prompts ([Services.Confirm]) and the standard
-//     [Streams] with their printers;
+//     the [Project] directory, prompts ([Services.Confirm]), the standard
+//     [Streams] with their printers, the cluster configuration of a
+//     [ClusterSource] ([Services.ClusterConfig]) and the core's way to end
+//     the process for code that cannot return an error ([Services.Exit]);
 //   - [ExitError] and [ExitCode] carry the exit code a command's error should
 //     end tt with, and [UsageError] marks an error in how a command was
 //     invoked, which tt follows with the command's usage;

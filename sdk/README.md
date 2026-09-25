@@ -44,8 +44,13 @@ core uses, and the core never requires older ones.
   `Path` and structured `TarantoolVersion`), `Integrity` (`Open` a file
   through the integrity checks), `Project` (the project `Dir`), `Confirm` (a
   yes/no prompt on stderr that answers the given fallback under
-  `--no-prompt`) and `Streams` (the standard streams and a `Printer` with the
-  core's formats). `ErrNotFound` is wrapped by what is not found.
+  `--no-prompt`), `Streams` (the standard streams and a `Printer` with the
+  core's formats), `ClusterConfig` (the cluster configuration of a
+  `ClusterSource` as Tarantool 3 sees it, an immutable go-config snapshot,
+  with the directory of the file it was read from)
+  and `Exit` (reports an error and ends the process with tt's code for it,
+  for code such as a prompt callback that cannot return the error).
+  `ErrNotFound` is wrapped by what is not found.
   `CoreVersion` reports the version of the tt core the binary was built
   with, from the build info.
 - `sdk` also defines the exit-code contract: the codes tt returns (1 for a
@@ -113,11 +118,16 @@ core uses, and the core never requires older ones.
   `Start`; options set the Tarantool (`WithTarantool`), the project
   directory (`WithProject`, a temporary directory by default), the answers
   `Confirm` returns in order (`WithAnswers`) or `--no-prompt`
-  (`WithNoPrompt`), stdin (`WithStdin`) and how integrity opens files
-  (`WithIntegrity`). `Stdout`, `Stderr` and `Records` return what the module
-  wrote and logged. `Run` hangs a constructor's mounts on a root, creating
-  the groups on their paths, starts the services and executes a command
-  line. Its printers encode the human format and JSON; YAML is the core's.
+  (`WithNoPrompt`), stdin (`WithStdin`), how integrity opens files
+  (`WithIntegrity`) and the cluster configuration a source returns, from
+  YAML built with the Tarantool hierarchy (`WithClusterConfig`, with the
+  directory it reports set by `WithClusterConfigDir`; any other source is not
+  found). `Stdout`, `Stderr` and `Records` return what the
+  module wrote and logged. `Run` hangs a constructor's mounts on a root,
+  creating the groups on their paths, starts the services and executes a
+  command line. `Exit` ends the command, not the test binary: `Run` reports
+  it with `Result.Exited` and the error given. Its printers encode the human
+  format and JSON; YAML is the core's.
 
 stdout carries only a command's result. Diagnostics, progress and prompts go
 to stderr.

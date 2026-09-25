@@ -24,6 +24,19 @@ type Credentials struct {
 	Password string
 }
 
+// ClusterConfig is a cluster configuration and the directory it was read
+// from, as [Services.ClusterConfig] returns them.
+type ClusterConfig struct {
+	// Config is the configuration: an immutable go-config snapshot carrying
+	// the Tarantool hierarchy, so [Instances] and [InstanceConfig] read it.
+	Config goconfig.Config
+	// Dir is the absolute directory of the cluster configuration file the
+	// configuration was read from, the directory a relative path in it -
+	// such as an SSL file of an instance - is relative to. It is "" for a
+	// configuration storage, whose paths have no directory of their own.
+	Dir string
+}
+
 // sourceKind is the kind of place a ClusterSource names.
 type sourceKind uint8
 
@@ -175,9 +188,9 @@ func instanceName(path string) string {
 	return keys[instanceNameIndex]
 }
 
-// Instances returns the names of the instances cfg declares, sorted. cfg is a
-// cluster configuration as [Services.ClusterConfig] returns it: one without
-// the Tarantool inheritance hierarchy is an error.
+// Instances returns the names of the instances cfg declares, sorted. cfg is
+// the Config of a [ClusterConfig]: one without the Tarantool inheritance
+// hierarchy is an error.
 func Instances(cfg goconfig.Config) ([]string, error) {
 	all, err := cfg.EffectiveAll()
 	if err != nil {
@@ -198,8 +211,8 @@ func Instances(cfg goconfig.Config) ([]string, error) {
 	return names, nil
 }
 
-// InstanceConfig returns the configuration of the instance name in cfg, a
-// cluster configuration as [Services.ClusterConfig] returns it, as Tarantool
+// InstanceConfig returns the configuration of the instance name in cfg, the
+// Config of a [ClusterConfig], as Tarantool
 // resolves it for that instance: what the instance sets, over what its
 // replicaset sets, over its group's, over the global section. Credentials
 // are merged across the levels rather than replaced.

@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"context"
 	"errors"
 	"io"
 	"log/slog"
@@ -63,6 +64,31 @@ type Services interface {
 	// Streams returns the process's standard streams and the printers bound
 	// to them.
 	Streams() Streams
+	// ClusterConfig returns the cluster configuration of src as Tarantool 3
+	// sees it, as an immutable snapshot, with the directory of the file it
+	// was read from ([ClusterConfig.Dir]):
+	//
+	//   - for an application or a file, the cluster config file merged with
+	//     the TT_* environment and with the etcd or Tarantool config storage
+	//     the file names, in Tarantool's order of precedence, the storage
+	//     read through the integrity checks;
+	//   - for a storage, what the storage holds under the URI's prefix (or
+	//     at its key= parameter), and nothing else.
+	//
+	// The configuration is not validated against Tarantool's schema. It
+	// carries the Tarantool hierarchy, so [Instances] and [InstanceConfig]
+	// read it. An application or a file that does not exist, an application
+	// without a cluster configuration and a storage that holds nothing under
+	// the prefix (or at the key) wrap ErrNotFound. A storage that cannot be
+	// reached is another error.
+	ClusterConfig(ctx context.Context, src ClusterSource) (ClusterConfig, error)
+	// Exit ends the process as the core ends it for a command that returned
+	// err: it reports err once and exits with the code tt returns for it
+	// ([ExitCode], and ExitSystem for a failure of the system). Exit(nil)
+	// exits ExitOK. It is for code that cannot return an error to the
+	// command, such as a callback of an interactive prompt; a command that
+	// can return its error must. Exit does not return.
+	Exit(err error)
 }
 
 // Tarantool is a Tarantool executable.
