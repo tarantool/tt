@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/cli/manifest/inventory"
-	"github.com/tarantool/tt/cli/manifest/state"
+	"github.com/tarantool/tt/v3/cli/manifest/inventory"
+	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
 
 // userTree points a fixture tree at a fake home directory, so the user scope

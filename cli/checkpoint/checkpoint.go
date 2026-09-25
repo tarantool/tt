@@ -9,7 +9,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
 )
 
 var (

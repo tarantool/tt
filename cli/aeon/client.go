@@ -14,9 +14,9 @@ import (
 	"github.com/apex/log"
 
 	"github.com/tarantool/go-prompt"
-	"github.com/tarantool/tt/cli/aeon/cmd"
-	"github.com/tarantool/tt/cli/aeon/pb"
-	"github.com/tarantool/tt/cli/connector"
+	"github.com/tarantool/tt/v3/cli/aeon/cmd"
+	"github.com/tarantool/tt/v3/cli/aeon/pb"
+	"github.com/tarantool/tt/v3/cli/connector"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"

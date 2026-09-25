@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/cli/manifest/version"
+	"github.com/tarantool/tt/v3/cli/manifest/version"
 )
 
 // lockFile is the manifest lock; a change to it alone must not mark the tree

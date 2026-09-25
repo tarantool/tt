@@ -13,7 +13,7 @@ import (
 	"github.com/tarantool/go-luarocks/build"
 	"github.com/tarantool/go-luarocks/client"
 	"github.com/tarantool/go-luarocks/rockspec"
-	"github.com/tarantool/tt/cli/manifest/rocks"
+	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
 // sampleTarantool is the Tarantool info the config tests build a config from.

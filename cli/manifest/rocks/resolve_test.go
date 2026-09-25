@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/cli/manifest/rocks"
+	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
 // manifestServer starts a fake rock server that serves a single JSON manifest

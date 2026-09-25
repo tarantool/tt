@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/version"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/version"
 )
 
 // minTarantoolMajor is the lowest Tarantool major version tt v3 supports. The

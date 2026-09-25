@@ -3,7 +3,7 @@ module mock/server/aeon
 go 1.27.1
 
 require (
-	github.com/tarantool/tt v0.0.0
+	github.com/tarantool/tt/v3 v3.0.0
 	google.golang.org/grpc v1.82.1
 )
 
@@ -15,4 +15,4 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 
-replace github.com/tarantool/tt => ../../../../
+replace github.com/tarantool/tt/v3 => ../../../../

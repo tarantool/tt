@@ -8,17 +8,17 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/lib/integrity"
+	"github.com/tarantool/tt/v3/cli/util"
 
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/cli"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/config"
-	"github.com/tarantool/tt/cli/configure"
-	"github.com/tarantool/tt/cli/modules"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/config"
+	"github.com/tarantool/tt/v3/cli/configure"
+	"github.com/tarantool/tt/v3/cli/modules"
 )
 
 var (

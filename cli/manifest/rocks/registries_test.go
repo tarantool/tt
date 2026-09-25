@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/cli/manifest/rocks"
+	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
 func TestEffectiveRegistriesPrecedence(t *testing.T) {

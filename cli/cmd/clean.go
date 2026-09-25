@@ -7,11 +7,11 @@ import (
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/cmd/internal"
-	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/process_utils"
-	"github.com/tarantool/tt/cli/running"
-	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/v3/cli/cmd/internal"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/process_utils"
+	"github.com/tarantool/tt/v3/cli/running"
+	"github.com/tarantool/tt/v3/cli/util"
 )
 
 var (

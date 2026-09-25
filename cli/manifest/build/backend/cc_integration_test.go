@@ -14,7 +14,7 @@ import (
 	luarocks "github.com/tarantool/go-luarocks"
 	lrbuild "github.com/tarantool/go-luarocks/build"
 
-	"github.com/tarantool/tt/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // integrationFlags derives real toolchain flags with includeDir wired in so the

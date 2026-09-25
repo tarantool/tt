@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tarantool/tt/cli/tail"
+	"github.com/tarantool/tt/v3/cli/tail"
 )
 
 var (

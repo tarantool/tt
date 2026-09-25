@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/tarantool/go-tarantool/v3"
 
-	. "github.com/tarantool/tt/cli/connector"
+	. "github.com/tarantool/tt/v3/cli/connector"
 )
 
 type binaryConnectorStub struct {

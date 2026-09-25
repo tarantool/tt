@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/tarantool/tt/cli/replicaset"
+	"github.com/tarantool/tt/v3/cli/replicaset"
 )
 
 func TestMaster_String(t *testing.T) {

@@ -7,8 +7,8 @@ import (
 	"github.com/otiai10/copy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/util"
-	"github.com/tarantool/tt/cli/version"
+	"github.com/tarantool/tt/v3/cli/util"
+	"github.com/tarantool/tt/v3/cli/version"
 )
 
 func Test_getBundles(t *testing.T) {

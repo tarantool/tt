@@ -192,20 +192,20 @@ linters:
             - "github.com/tarantool/go-luarocks"
             # cli/manifest/resolve composes the model and the luarocks adapter
             # into the dependency-resolution engine.
-            - "github.com/tarantool/tt/cli/manifest"
+            - "github.com/tarantool/tt/v3/cli/manifest"
             # cli/manifest/build/backend runs subprocesses through tt's shared
             # helper rather than reinventing exec plumbing.
-            - "github.com/tarantool/tt/cli/util"
+            - "github.com/tarantool/tt/v3/cli/util"
             # cli/manifest/build filters component files with gitignore-syntax
             # include/exclude patterns via go-git's matcher.
             - "github.com/go-git/go-git/v5/plumbing/format/gitignore"
             # cli/manifest/pack compresses the .tt archive as tar+zstd.
             - "github.com/klauspost/compress/zstd"
             # cli/manifest/pack drives the build before archiving its result.
-            - "github.com/tarantool/tt/cli/manifest/build"
+            - "github.com/tarantool/tt/v3/cli/manifest/build"
             # cli/manifest/install refetches dependencies through the luarocks
             # adapter and reuses the build package's exit-code machinery.
-            - "github.com/tarantool/tt/cli/manifest/rocks"
+            - "github.com/tarantool/tt/v3/cli/manifest/rocks"
             # cli/manifest/install and cli/manifest/inventory both read and write
             # the on-disk install state that cli/manifest/state owns.
             #
@@ -214,10 +214,10 @@ linters:
             # siblings, so an entry added for one package can start flagging
             # imports that used to pass. Add sub-packages only where the broader
             # entry is already shadowed, as it is in this list.
-            - "github.com/tarantool/tt/cli/manifest/state"
+            - "github.com/tarantool/tt/v3/cli/manifest/state"
             # cli/manifest/build and cli/manifest/deps drive the dependency
             # resolver; deps also names resolve.Pins in its own signatures.
-            - "github.com/tarantool/tt/cli/manifest/resolve"
+            - "github.com/tarantool/tt/v3/cli/manifest/resolve"
             # cli/manifest/inventory renders tt package list as YAML, the
             # machine-readable default for non-TTY output.
             - "gopkg.in/yaml.v3"
@@ -237,7 +237,7 @@ linters:
             # siblings and starts flagging imports that used to pass. Adding two
             # such entries cost 14 spurious findings across inventory, install,
             # state and version tests before this was understood.
-            - "github.com/tarantool/tt/cli/manifest"
+            - "github.com/tarantool/tt/v3/cli/manifest"
             - "github.com/tarantool/go-luarocks"
             # cli/manifest/pack tests decompress the archive they just wrote.
             - "github.com/klauspost/compress/zstd"

@@ -27,8 +27,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/tarantool/tt/cli/manifest"
-	"github.com/tarantool/tt/cli/manifest/build"
+	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/build"
 )
 
 // Options configures one pack run. The build-facing fields mirror

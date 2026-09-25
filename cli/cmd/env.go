@@ -5,8 +5,8 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/env"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/env"
 )
 
 // NewEnvCmd creates env command.

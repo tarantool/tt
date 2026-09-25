@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tarantool/tt/cli/configure"
+	"github.com/tarantool/tt/v3/cli/configure"
 )
 
 func Test_CreateEnvString(t *testing.T) {

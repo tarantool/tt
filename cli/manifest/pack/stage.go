@@ -10,7 +10,7 @@ import (
 
 	"github.com/tarantool/go-luarocks/manif"
 
-	"github.com/tarantool/tt/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // Staging tree modes.

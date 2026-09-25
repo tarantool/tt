@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/tarantool/tt/cli/manifest/inventory"
-	"github.com/tarantool/tt/cli/manifest/state"
+	"github.com/tarantool/tt/v3/cli/manifest/inventory"
+	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
 
 // render writes a listing in the given format and returns it as a string.

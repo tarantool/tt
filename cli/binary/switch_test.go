@@ -7,8 +7,8 @@ import (
 	"github.com/fatih/color"
 	"github.com/otiai10/copy"
 	"github.com/stretchr/testify/assert"
-	"github.com/tarantool/tt/cli/search"
-	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/v3/cli/search"
+	"github.com/tarantool/tt/v3/cli/util"
 )
 
 func TestCleanString(t *testing.T) {

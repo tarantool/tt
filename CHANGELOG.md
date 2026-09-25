@@ -183,6 +183,10 @@ for machine-readable output.
 
 ### Changed
 
+- The Go module path is now `github.com/tarantool/tt/v3`, so the v3 release
+  tags can be consumed with `go get`. Code importing tt packages must switch
+  to the `/v3` path. The separate `lib/cluster`, `lib/connect`, `lib/dial` and
+  `lib/integrity` modules keep their paths.
 - Updated Go client dependencies to `go-tarantool/v3`, `go-config/v2`,
   `go-storage/v2`, and `go-tlsdialer/v2`.
 - TLS build modes are now selected through `TT_CLI_BUILD_SSL`: leave it unset or

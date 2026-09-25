@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/tarantool/tt/cli/manifest"
-	"github.com/tarantool/tt/cli/manifest/state"
+	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
 
 // depSource says where a dependency's files come from in the resolved plan.

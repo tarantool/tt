@@ -3,7 +3,7 @@ package scaffold
 import (
 	"fmt"
 
-	"github.com/tarantool/tt/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // Default platform constraints for a new package. The manifest pipeline itself

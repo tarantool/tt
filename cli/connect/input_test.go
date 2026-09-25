@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	. "github.com/tarantool/tt/cli/connect"
+	. "github.com/tarantool/tt/v3/cli/connect"
 )
 
 func TestNewLuaValidator(t *testing.T) {

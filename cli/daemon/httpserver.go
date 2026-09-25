@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/tarantool/tt/cli/daemon/api"
-	"github.com/tarantool/tt/cli/ttlog"
+	"github.com/tarantool/tt/v3/cli/daemon/api"
+	"github.com/tarantool/tt/v3/cli/ttlog"
 )
 
 var (

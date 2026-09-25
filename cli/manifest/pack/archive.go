@@ -12,7 +12,7 @@ import (
 
 	"github.com/klauspost/compress/zstd"
 
-	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/v3/cli/util"
 )
 
 // Archive entry modes. Reproducibility beats preserving the source tree's

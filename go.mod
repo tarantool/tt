@@ -1,4 +1,4 @@
-module github.com/tarantool/tt
+module github.com/tarantool/tt/v3
 
 go 1.27.1
 
@@ -168,7 +168,6 @@ require (
 )
 
 replace (
-	github.com/c-bata/go-prompt => github.com/tarantool/go-prompt v0.2.6-tarantool
 	github.com/tarantool/tt/lib/cluster => ./lib/cluster
 	github.com/tarantool/tt/lib/connect => ./lib/connect
 	github.com/tarantool/tt/lib/dial => ./lib/dial

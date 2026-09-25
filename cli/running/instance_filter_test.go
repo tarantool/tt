@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tarantool/tt/cli/process_utils"
+	"github.com/tarantool/tt/v3/cli/process_utils"
 )
 
 func TestCompletionHelpers(t *testing.T) {

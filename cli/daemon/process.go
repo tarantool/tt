@@ -8,8 +8,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/tarantool/tt/cli/process_utils"
-	"github.com/tarantool/tt/cli/ttlog"
+	"github.com/tarantool/tt/v3/cli/process_utils"
+	"github.com/tarantool/tt/v3/cli/ttlog"
 )
 
 const (

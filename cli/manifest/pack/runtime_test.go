@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 func constraint(spec string) manifest.Constraint {

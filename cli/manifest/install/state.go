@@ -3,7 +3,7 @@ package install
 import (
 	"fmt"
 
-	"github.com/tarantool/tt/cli/manifest/state"
+	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
 
 // writeMetadata records a freshly installed guest's metadata under

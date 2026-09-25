@@ -7,9 +7,9 @@ import (
 
 	goconfig "github.com/tarantool/go-config/v2"
 
-	"github.com/tarantool/tt/cli/cluster"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 	"github.com/tarantool/tt/lib/connect"
+	"github.com/tarantool/tt/v3/cli/cluster"
 )
 
 var (

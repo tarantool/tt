@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/search"
-	"github.com/tarantool/tt/cli/uninstall"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/search"
+	"github.com/tarantool/tt/v3/cli/uninstall"
 )
 
 // newUninstallTtCmd creates a command to install tt.

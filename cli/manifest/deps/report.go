@@ -1,8 +1,8 @@
 package deps
 
 import (
-	"github.com/tarantool/tt/cli/manifest"
-	"github.com/tarantool/tt/cli/manifest/resolve"
+	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/resolve"
 )
 
 // LockState says what the lock next to the manifest is worth as an answer to

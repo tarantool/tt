@@ -10,12 +10,12 @@ import (
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/checkpoint"
-	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/running"
-	"github.com/tarantool/tt/cli/util"
-	"github.com/tarantool/tt/cli/version"
 	libconnect "github.com/tarantool/tt/lib/connect"
+	"github.com/tarantool/tt/v3/cli/checkpoint"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/running"
+	"github.com/tarantool/tt/v3/cli/util"
+	"github.com/tarantool/tt/v3/cli/version"
 )
 
 var (

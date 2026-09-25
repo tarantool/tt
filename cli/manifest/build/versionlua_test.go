@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/cli/manifest/version"
+	"github.com/tarantool/tt/v3/cli/manifest/version"
 )
 
 func TestWriteVersionLua_generates(t *testing.T) {

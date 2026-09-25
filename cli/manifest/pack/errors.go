@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/tarantool/tt/cli/manifest/build"
+	"github.com/tarantool/tt/v3/cli/manifest/build"
 )
 
 // File and directory names pack reads from the project and writes into the

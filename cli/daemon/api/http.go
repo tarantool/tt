@@ -12,7 +12,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/tarantool/tt/cli/ttlog"
+	"github.com/tarantool/tt/v3/cli/ttlog"
 )
 
 var (

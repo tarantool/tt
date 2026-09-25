@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/cli/manifest/run"
+	"github.com/tarantool/tt/v3/cli/manifest/run"
 )
 
 // Permissions the fixtures write with. The selection reads the executable bit,

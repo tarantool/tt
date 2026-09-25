@@ -17,7 +17,7 @@ import (
 	"github.com/pmezard/go-difflib/difflib"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/cli/tcm"
+	"github.com/tarantool/tt/v3/cli/tcm"
 )
 
 var (

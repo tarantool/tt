@@ -8,15 +8,15 @@ import (
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/cmd/internal"
-	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/config"
-	"github.com/tarantool/tt/cli/connect"
-	"github.com/tarantool/tt/cli/connector"
-	"github.com/tarantool/tt/cli/formatter"
-	"github.com/tarantool/tt/cli/running"
-	"github.com/tarantool/tt/cli/util"
 	libconnect "github.com/tarantool/tt/lib/connect"
+	"github.com/tarantool/tt/v3/cli/cmd/internal"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/config"
+	"github.com/tarantool/tt/v3/cli/connect"
+	"github.com/tarantool/tt/v3/cli/connector"
+	"github.com/tarantool/tt/v3/cli/formatter"
+	"github.com/tarantool/tt/v3/cli/running"
+	"github.com/tarantool/tt/v3/cli/util"
 	terminal "golang.org/x/term"
 )
 

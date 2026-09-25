@@ -7,8 +7,8 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 
-	"github.com/tarantool/tt/cli/manifest/registry"
-	manifestrocks "github.com/tarantool/tt/cli/manifest/rocks"
+	"github.com/tarantool/tt/v3/cli/manifest/registry"
+	manifestrocks "github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
 // registryFormat is -o of `tt registry list`.

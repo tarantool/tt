@@ -10,8 +10,8 @@ import (
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/memory"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/search"
-	"github.com/tarantool/tt/cli/version"
+	"github.com/tarantool/tt/v3/cli/search"
+	"github.com/tarantool/tt/v3/cli/version"
 )
 
 var (

@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/cli/manifest/resolve"
+	"github.com/tarantool/tt/v3/cli/manifest/resolve"
 )
 
 // TestRegistryOverrideRoutesToNamedServer checks that a dependency's registry

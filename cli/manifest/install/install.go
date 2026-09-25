@@ -19,9 +19,9 @@ import (
 
 	"github.com/tarantool/go-luarocks/client"
 
-	"github.com/tarantool/tt/cli/manifest"
-	"github.com/tarantool/tt/cli/manifest/rocks"
-	"github.com/tarantool/tt/cli/manifest/state"
+	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/rocks"
+	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
 
 // Source constants mirror the closed set the resolver writes into the lock.

@@ -1,6 +1,6 @@
 package create_ctx
 
-import "github.com/tarantool/tt/cli/config"
+import "github.com/tarantool/tt/v3/cli/config"
 
 // CreateCtx contains information for creating applications from templates.
 type CreateCtx struct {

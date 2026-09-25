@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/replicaset"
 	libcluster "github.com/tarantool/tt/lib/cluster"
+	"github.com/tarantool/tt/v3/cli/replicaset"
 )
 
 var (

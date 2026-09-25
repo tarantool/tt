@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/tarantool/tt/cli/manifest/rocks"
+	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
 // RenderList writes the effective server list in the chosen format.

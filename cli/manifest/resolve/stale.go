@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/tarantool/tt/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // IsStale reports whether lock no longer reflects m, and why. A lock goes stale

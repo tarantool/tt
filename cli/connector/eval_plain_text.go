@@ -15,7 +15,7 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 	lua "github.com/yuin/gopher-lua"
 
-	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/v3/cli/util"
 	"gopkg.in/yaml.v2"
 )
 

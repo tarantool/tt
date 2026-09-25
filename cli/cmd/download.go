@@ -4,8 +4,8 @@ import (
 	"errors"
 
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/download"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/download"
 )
 
 var (

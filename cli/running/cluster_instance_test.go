@@ -15,9 +15,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/ttlog"
-	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/ttlog"
+	"github.com/tarantool/tt/v3/cli/util"
 )
 
 var (

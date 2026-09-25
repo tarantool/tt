@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/cli/manifest"
-	"github.com/tarantool/tt/cli/manifest/resolve"
+	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/resolve"
 )
 
 // projectDir makes a temp directory with the given name under it, so the name

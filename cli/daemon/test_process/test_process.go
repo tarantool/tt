@@ -3,8 +3,8 @@ package main
 import (
 	"os"
 
-	"github.com/tarantool/tt/cli/daemon"
-	"github.com/tarantool/tt/cli/ttlog"
+	"github.com/tarantool/tt/v3/cli/daemon"
+	"github.com/tarantool/tt/v3/cli/ttlog"
 )
 
 // TestWorker represents simple worker.

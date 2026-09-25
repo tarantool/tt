@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/tarantool/go-tarantool/v3/datetime"
 	"github.com/tarantool/go-tarantool/v3/decimal"
-	"github.com/tarantool/tt/cli/aeon/pb"
+	"github.com/tarantool/tt/v3/cli/aeon/pb"
 )
 
 var (

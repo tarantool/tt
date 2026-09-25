@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	goconfig "github.com/tarantool/go-config/v2"
-	"github.com/tarantool/tt/cli/cluster"
 	"github.com/tarantool/tt/lib/integrity"
+	"github.com/tarantool/tt/v3/cli/cluster"
 )
 
 // spell-checker:ignore nopath noinstance

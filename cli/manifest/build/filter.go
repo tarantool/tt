@@ -3,7 +3,7 @@ package build
 import (
 	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 
-	"github.com/tarantool/tt/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // defaultInclude is the include set applied when a component declares none: the

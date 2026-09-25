@@ -1,7 +1,7 @@
 package replicaset
 
 import (
-	"github.com/tarantool/tt/cli/running"
+	"github.com/tarantool/tt/v3/cli/running"
 )
 
 // Instance describes an instance in a replicaset.

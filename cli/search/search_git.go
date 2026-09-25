@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/tarantool/tt/cli/util"
-	"github.com/tarantool/tt/cli/version"
+	"github.com/tarantool/tt/v3/cli/util"
+	"github.com/tarantool/tt/v3/cli/version"
 )
 
 var (

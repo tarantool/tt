@@ -28,7 +28,7 @@ var (
 
 const (
 	buildTypeEnv  = "TT_CLI_BUILD_SSL"
-	goPackageName = "github.com/tarantool/tt/cli"
+	goPackageName = "github.com/tarantool/tt/v3/cli"
 
 	asmflags = "all=-trimpath=${PWD}"
 	gcflags  = "all=-trimpath=${PWD}"

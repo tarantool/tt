@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/aeon/cmd"
+	"github.com/tarantool/tt/v3/cli/aeon/cmd"
 )
 
 func TestTransport_Set(t *testing.T) {

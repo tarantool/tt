@@ -2,8 +2,8 @@
 package steps
 
 import (
-	create_ctx "github.com/tarantool/tt/cli/create/context"
-	"github.com/tarantool/tt/cli/create/internal/app_template"
+	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
+	"github.com/tarantool/tt/v3/cli/create/internal/app_template"
 )
 
 // Step is an interface for single step in create chain.

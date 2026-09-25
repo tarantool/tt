@@ -26,8 +26,8 @@ import (
 	"fmt"
 
 	luarocks "github.com/tarantool/go-luarocks"
-	"github.com/tarantool/tt/cli/manifest"
-	"github.com/tarantool/tt/cli/manifest/rocks"
+	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
 // Adapter is the slice of cli/manifest/rocks the engine drives. The engine

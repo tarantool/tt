@@ -8,7 +8,7 @@ import (
 	"os/signal"
 
 	"github.com/apex/log"
-	"github.com/tarantool/tt/cli/tail"
+	"github.com/tarantool/tt/v3/cli/tail"
 )
 
 // FollowLogs reads the last `lines` lines from the log file and prints them.

@@ -10,7 +10,7 @@ import (
 
 	"github.com/hashicorp/go-version"
 
-	"github.com/tarantool/tt/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // Runtime component directory names inside _runtime/.

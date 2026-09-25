@@ -4,7 +4,7 @@ import (
 	"slices"
 
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/modules"
+	"github.com/tarantool/tt/v3/cli/modules"
 )
 
 // configureExternalCmd configures external commands.

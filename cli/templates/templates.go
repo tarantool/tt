@@ -1,7 +1,7 @@
 package templates
 
 import (
-	"github.com/tarantool/tt/cli/templates/internal/engines"
+	"github.com/tarantool/tt/v3/cli/templates/internal/engines"
 )
 
 // TemplateEngine is an interface to support to use for application template instantiation.

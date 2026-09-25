@@ -10,14 +10,14 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/cobra"
 	goconfig "github.com/tarantool/go-config/v2"
-	aeon "github.com/tarantool/tt/cli/aeon"
-	aeoncmd "github.com/tarantool/tt/cli/aeon/cmd"
-	"github.com/tarantool/tt/cli/cluster"
-	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/console"
-	"github.com/tarantool/tt/cli/modules"
-	"github.com/tarantool/tt/cli/util"
 	libconnect "github.com/tarantool/tt/lib/connect"
+	aeon "github.com/tarantool/tt/v3/cli/aeon"
+	aeoncmd "github.com/tarantool/tt/v3/cli/aeon/cmd"
+	"github.com/tarantool/tt/v3/cli/cluster"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/console"
+	"github.com/tarantool/tt/v3/cli/modules"
+	"github.com/tarantool/tt/v3/cli/util"
 )
 
 var (

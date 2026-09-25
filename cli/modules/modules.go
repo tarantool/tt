@@ -10,9 +10,9 @@ import (
 	"strings"
 
 	"github.com/apex/log"
-	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/config"
-	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/config"
+	"github.com/tarantool/tt/v3/cli/util"
 	"gopkg.in/yaml.v3"
 )
 

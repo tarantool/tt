@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/version"
+	"github.com/tarantool/tt/v3/cli/version"
 )
 
 func TestTarantoolCli_GetVersion(t *testing.T) {

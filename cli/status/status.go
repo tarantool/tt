@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/mitchellh/mapstructure"
-	"github.com/tarantool/tt/cli/connector"
-	"github.com/tarantool/tt/cli/process_utils"
-	"github.com/tarantool/tt/cli/running"
+	"github.com/tarantool/tt/v3/cli/connector"
+	"github.com/tarantool/tt/v3/cli/process_utils"
+	"github.com/tarantool/tt/v3/cli/running"
 )
 
 var (

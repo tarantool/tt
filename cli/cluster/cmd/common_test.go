@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/cli/cluster"
+	"github.com/tarantool/tt/v3/cli/cluster"
 )
 
 func TestValidateGoConfig(t *testing.T) {

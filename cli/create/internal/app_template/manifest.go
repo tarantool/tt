@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/mitchellh/mapstructure"
-	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/v3/cli/util"
 )
 
 var (

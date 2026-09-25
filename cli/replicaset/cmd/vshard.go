@@ -7,11 +7,11 @@ import (
 
 	"github.com/apex/log"
 	"github.com/avast/retry-go"
-	"github.com/tarantool/tt/cli/connector"
-	"github.com/tarantool/tt/cli/replicaset"
-	"github.com/tarantool/tt/cli/running"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 	"github.com/tarantool/tt/lib/integrity"
+	"github.com/tarantool/tt/v3/cli/connector"
+	"github.com/tarantool/tt/v3/cli/replicaset"
+	"github.com/tarantool/tt/v3/cli/running"
 )
 
 const (

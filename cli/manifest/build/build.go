@@ -33,11 +33,11 @@ import (
 
 	"github.com/tarantool/go-luarocks/client"
 
-	"github.com/tarantool/tt/cli/manifest"
-	"github.com/tarantool/tt/cli/manifest/build/backend"
-	"github.com/tarantool/tt/cli/manifest/resolve"
-	"github.com/tarantool/tt/cli/manifest/rocks"
-	"github.com/tarantool/tt/cli/manifest/version"
+	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/build/backend"
+	"github.com/tarantool/tt/v3/cli/manifest/resolve"
+	"github.com/tarantool/tt/v3/cli/manifest/rocks"
+	"github.com/tarantool/tt/v3/cli/manifest/version"
 )
 
 // rocksDirName is the project-scope tree root the build materializes into.

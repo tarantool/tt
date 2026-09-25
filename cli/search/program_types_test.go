@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tarantool/tt/cli/search"
+	"github.com/tarantool/tt/v3/cli/search"
 )
 
 func TestProgram_String(t *testing.T) {

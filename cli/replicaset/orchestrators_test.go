@@ -5,8 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/tarantool/tt/cli/connector"
-	"github.com/tarantool/tt/cli/replicaset"
+	"github.com/tarantool/tt/v3/cli/connector"
+	"github.com/tarantool/tt/v3/cli/replicaset"
 )
 
 type instanceMockEvaler struct {

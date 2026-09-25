@@ -5,8 +5,8 @@ import (
 
 	"github.com/tarantool/go-luarocks/deps"
 
-	"github.com/tarantool/tt/cli/manifest"
-	"github.com/tarantool/tt/cli/manifest/state"
+	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
 
 // runtimePath is the install-root's _runtime/ directory.

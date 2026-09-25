@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/config"
+	"github.com/tarantool/tt/v3/cli/config"
 	"gopkg.in/yaml.v3"
 )
 

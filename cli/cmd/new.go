@@ -7,7 +7,7 @@ import (
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 
-	"github.com/tarantool/tt/cli/manifest/scaffold"
+	"github.com/tarantool/tt/v3/cli/manifest/scaffold"
 )
 
 // NewNewCmd creates `tt new`: the skeleton app.manifest.toml a package starts

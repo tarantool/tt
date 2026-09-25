@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/cli/manifest/build"
-	"github.com/tarantool/tt/cli/manifest/pack"
-	"github.com/tarantool/tt/cli/manifest/rocks"
+	"github.com/tarantool/tt/v3/cli/manifest/build"
+	"github.com/tarantool/tt/v3/cli/manifest/pack"
+	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
 // roundtripManifest is a dependency-free pure-Lua package: it packs and installs

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/tarantool/tt/cli/aeon/pb"
-	"github.com/tarantool/tt/cli/console"
-	"github.com/tarantool/tt/cli/formatter"
+	"github.com/tarantool/tt/v3/cli/aeon/pb"
+	"github.com/tarantool/tt/v3/cli/console"
+	"github.com/tarantool/tt/v3/cli/formatter"
 )
 
 // resultRow keeps values for one table row.

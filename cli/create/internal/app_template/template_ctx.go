@@ -1,6 +1,6 @@
 package app_template
 
-import "github.com/tarantool/tt/cli/templates"
+import "github.com/tarantool/tt/v3/cli/templates"
 
 // TemplateCtx contains an information required for application template rendering.
 type TemplateCtx struct {

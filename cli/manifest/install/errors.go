@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/tarantool/tt/cli/manifest/build"
+	"github.com/tarantool/tt/v3/cli/manifest/build"
 )
 
 // Names install reads from inside a .tt archive. They mirror the reserved set

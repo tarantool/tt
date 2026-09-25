@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 
 	"github.com/apex/log"
-	"github.com/tarantool/tt/cli/config"
-	"github.com/tarantool/tt/cli/util"
-	"github.com/tarantool/tt/cli/version"
+	"github.com/tarantool/tt/v3/cli/config"
+	"github.com/tarantool/tt/v3/cli/util"
+	"github.com/tarantool/tt/v3/cli/version"
 )
 
 var (

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/tarantool/tt/cli/formatter"
+	"github.com/tarantool/tt/v3/cli/formatter"
 )
 
 var (

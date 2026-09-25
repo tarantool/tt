@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/tarantool/tt/cli/config"
-	"github.com/tarantool/tt/cli/version"
+	"github.com/tarantool/tt/v3/cli/config"
+	"github.com/tarantool/tt/v3/cli/version"
 )
 
 var (

@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
-	"github.com/tarantool/tt/cli/config"
+	"github.com/tarantool/tt/v3/cli/config"
 )
 
 func TestCreateValidArgsFunction(t *testing.T) {

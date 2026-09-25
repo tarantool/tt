@@ -21,9 +21,9 @@ builds:
     ldflags:
       - -linkmode=external -extldflags -static
       - -s -w
-      - -X github.com/tarantool/tt/cli/version.gitTag={{ .Tag }}
-      - -X github.com/tarantool/tt/cli/version.gitCommit={{ .ShortCommit }}
-      - -X github.com/tarantool/tt/cli/configure.defaultConfigPath=/etc/tarantool
+      - -X github.com/tarantool/tt/v3/cli/version.gitTag={{ .Tag }}
+      - -X github.com/tarantool/tt/v3/cli/version.gitCommit={{ .ShortCommit }}
+      - -X github.com/tarantool/tt/v3/cli/configure.defaultConfigPath=/etc/tarantool
 
     goos:
       - linux

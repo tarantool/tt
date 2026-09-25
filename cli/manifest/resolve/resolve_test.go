@@ -10,9 +10,9 @@ import (
 
 	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/go-luarocks/deps"
-	"github.com/tarantool/tt/cli/manifest"
-	"github.com/tarantool/tt/cli/manifest/resolve"
-	"github.com/tarantool/tt/cli/manifest/rocks"
+	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/resolve"
+	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
 // fakeAdapter is an in-memory registry standing in for cli/manifest/rocks so

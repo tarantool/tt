@@ -12,8 +12,8 @@ import (
 
 	"github.com/klauspost/compress/zstd"
 
-	"github.com/tarantool/tt/cli/manifest"
-	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/util"
 )
 
 // File modes install writes with. Directories and executables get 0755, plain

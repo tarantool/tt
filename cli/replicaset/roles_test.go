@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/replicaset"
+	"github.com/tarantool/tt/v3/cli/replicaset"
 )
 
 func TestRoles_AddRole(t *testing.T) {

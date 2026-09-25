@@ -9,7 +9,7 @@ import (
 	"slices"
 
 	"github.com/apex/log"
-	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"gopkg.in/yaml.v3"
 )
 

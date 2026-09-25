@@ -5,9 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/tarantool/tt/cli/config"
-	"github.com/tarantool/tt/cli/process_utils"
-	"github.com/tarantool/tt/cli/ttlog"
+	"github.com/tarantool/tt/v3/cli/config"
+	"github.com/tarantool/tt/v3/cli/process_utils"
+	"github.com/tarantool/tt/v3/cli/ttlog"
 )
 
 // DaemonCtx contains information for running an daemon instance.

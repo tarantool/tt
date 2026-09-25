@@ -7,7 +7,7 @@ import (
 
 	"github.com/tarantool/go-luarocks/client"
 
-	"github.com/tarantool/tt/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // Lock dependency sources (mirrors the closed set the resolver writes).

@@ -8,9 +8,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/configure"
-	"github.com/tarantool/tt/cli/search"
-	"github.com/tarantool/tt/cli/version"
+	"github.com/tarantool/tt/v3/cli/configure"
+	"github.com/tarantool/tt/v3/cli/search"
+	"github.com/tarantool/tt/v3/cli/version"
 )
 
 type mockRepository struct{}

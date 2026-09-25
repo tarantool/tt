@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/version"
+	"github.com/tarantool/tt/v3/cli/version"
 )
 
 func parseVersions(t *testing.T, verStr []string) []version.Version {

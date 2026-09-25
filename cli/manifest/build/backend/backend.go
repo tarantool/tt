@@ -29,8 +29,8 @@ import (
 
 	lrbuild "github.com/tarantool/go-luarocks/build"
 
-	"github.com/tarantool/tt/cli/manifest"
-	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/util"
 )
 
 // Backend build names. They mirror the closed enum validated at manifest parse

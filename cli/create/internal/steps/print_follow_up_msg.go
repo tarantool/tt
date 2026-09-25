@@ -3,9 +3,9 @@ package steps
 import (
 	"io"
 
-	create_ctx "github.com/tarantool/tt/cli/create/context"
-	"github.com/tarantool/tt/cli/create/internal/app_template"
-	"github.com/tarantool/tt/cli/templates"
+	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
+	"github.com/tarantool/tt/v3/cli/create/internal/app_template"
+	"github.com/tarantool/tt/v3/cli/templates"
 )
 
 type PrintFollowUpMessage struct {

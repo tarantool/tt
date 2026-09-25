@@ -15,9 +15,9 @@ import (
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/memory"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/config"
-	"github.com/tarantool/tt/cli/search"
-	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/v3/cli/config"
+	"github.com/tarantool/tt/v3/cli/search"
+	"github.com/tarantool/tt/v3/cli/util"
 )
 
 var (

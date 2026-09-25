@@ -3,7 +3,7 @@ package install
 import (
 	"strings"
 
-	"github.com/tarantool/tt/cli/manifest/state"
+	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
 
 // Path-segment counts for a rock's location under the .rocks/ tree:

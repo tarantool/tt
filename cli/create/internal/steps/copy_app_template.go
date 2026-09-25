@@ -11,10 +11,10 @@ import (
 
 	"github.com/apex/log"
 	"github.com/otiai10/copy"
-	"github.com/tarantool/tt/cli/create/builtin_templates"
-	create_ctx "github.com/tarantool/tt/cli/create/context"
-	"github.com/tarantool/tt/cli/create/internal/app_template"
-	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/v3/cli/create/builtin_templates"
+	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
+	"github.com/tarantool/tt/v3/cli/create/internal/app_template"
+	"github.com/tarantool/tt/v3/cli/util"
 )
 
 var (

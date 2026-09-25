@@ -4,7 +4,7 @@ import (
 	"errors"
 	"path/filepath"
 
-	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/v3/cli/util"
 )
 
 var (

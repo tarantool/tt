@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/cli/replicaset"
-	"github.com/tarantool/tt/cli/running"
+	"github.com/tarantool/tt/v3/cli/replicaset"
+	"github.com/tarantool/tt/v3/cli/running"
 )
 
 // spell-checker:ignore somealias someinstanceuuid someleaderuuid somereplicasetuuid anyuri

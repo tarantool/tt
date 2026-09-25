@@ -4,10 +4,10 @@ import (
 	"errors"
 
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/configure"
-	"github.com/tarantool/tt/cli/modules"
-	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/configure"
+	"github.com/tarantool/tt/v3/cli/modules"
+	"github.com/tarantool/tt/v3/cli/util"
 )
 
 // errNoConfig is returned if environment config file tt.yaml not found.

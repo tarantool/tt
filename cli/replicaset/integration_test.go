@@ -16,9 +16,9 @@ import (
 	"github.com/tarantool/go-tarantool/v3"
 	"github.com/tarantool/go-tarantool/v3/test_helpers"
 
-	"github.com/tarantool/tt/cli/connector"
-	"github.com/tarantool/tt/cli/replicaset"
-	"github.com/tarantool/tt/cli/running"
+	"github.com/tarantool/tt/v3/cli/connector"
+	"github.com/tarantool/tt/v3/cli/replicaset"
+	"github.com/tarantool/tt/v3/cli/running"
 )
 
 // spell-checker:ignore evaled

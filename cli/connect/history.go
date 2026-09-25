@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/v3/cli/util"
 )
 
 const historyFileMode = 0o640

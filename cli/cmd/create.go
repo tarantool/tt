@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/create"
-	"github.com/tarantool/tt/cli/create/builtin_templates"
-	create_ctx "github.com/tarantool/tt/cli/create/context"
-	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/create"
+	"github.com/tarantool/tt/v3/cli/create/builtin_templates"
+	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
+	"github.com/tarantool/tt/v3/cli/util"
 )
 
 var (

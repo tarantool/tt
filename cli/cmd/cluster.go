@@ -9,15 +9,15 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
-	"github.com/tarantool/tt/cli/cluster"
-	clustercmd "github.com/tarantool/tt/cli/cluster/cmd"
-	"github.com/tarantool/tt/cli/cmd/internal"
-	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/replicaset"
-	"github.com/tarantool/tt/cli/running"
-	"github.com/tarantool/tt/cli/util"
 	libconnect "github.com/tarantool/tt/lib/connect"
 	"github.com/tarantool/tt/lib/integrity"
+	"github.com/tarantool/tt/v3/cli/cluster"
+	clustercmd "github.com/tarantool/tt/v3/cli/cluster/cmd"
+	"github.com/tarantool/tt/v3/cli/cmd/internal"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/replicaset"
+	"github.com/tarantool/tt/v3/cli/running"
+	"github.com/tarantool/tt/v3/cli/util"
 )
 
 var (

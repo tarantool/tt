@@ -19,14 +19,14 @@ import (
 
 	"github.com/apex/log"
 	"github.com/otiai10/copy"
-	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/config"
-	"github.com/tarantool/tt/cli/configure"
-	"github.com/tarantool/tt/cli/docker"
-	"github.com/tarantool/tt/cli/search"
-	"github.com/tarantool/tt/cli/templates"
-	"github.com/tarantool/tt/cli/util"
-	"github.com/tarantool/tt/cli/version"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/config"
+	"github.com/tarantool/tt/v3/cli/configure"
+	"github.com/tarantool/tt/v3/cli/docker"
+	"github.com/tarantool/tt/v3/cli/search"
+	"github.com/tarantool/tt/v3/cli/templates"
+	"github.com/tarantool/tt/v3/cli/util"
+	"github.com/tarantool/tt/v3/cli/version"
 	"golang.org/x/sys/unix"
 )
 

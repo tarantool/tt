@@ -8,15 +8,15 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/tarantool/tt/cli/cluster"
-	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/connect"
-	"github.com/tarantool/tt/cli/connector"
-	"github.com/tarantool/tt/cli/replicaset"
-	replicasetcmd "github.com/tarantool/tt/cli/replicaset/cmd"
-	"github.com/tarantool/tt/cli/running"
 	libconnect "github.com/tarantool/tt/lib/connect"
 	"github.com/tarantool/tt/lib/integrity"
+	"github.com/tarantool/tt/v3/cli/cluster"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/connect"
+	"github.com/tarantool/tt/v3/cli/connector"
+	"github.com/tarantool/tt/v3/cli/replicaset"
+	replicasetcmd "github.com/tarantool/tt/v3/cli/replicaset/cmd"
+	"github.com/tarantool/tt/v3/cli/running"
 )
 
 var (

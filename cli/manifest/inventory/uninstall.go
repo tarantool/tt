@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/tarantool/tt/cli/manifest"
-	"github.com/tarantool/tt/cli/manifest/state"
+	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
 
 // UninstallOptions configures one uninstall run.

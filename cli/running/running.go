@@ -16,16 +16,16 @@ import (
 
 	"github.com/apex/log"
 	goconfig "github.com/tarantool/go-config/v2"
-	"github.com/tarantool/tt/cli/cluster"
-	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/config"
-	"github.com/tarantool/tt/cli/configure"
-	"github.com/tarantool/tt/cli/process_utils"
-	"github.com/tarantool/tt/cli/running/internal/layout"
-	"github.com/tarantool/tt/cli/ttlog"
-	"github.com/tarantool/tt/cli/util"
-	"github.com/tarantool/tt/cli/util/regexputil"
 	"github.com/tarantool/tt/lib/integrity"
+	"github.com/tarantool/tt/v3/cli/cluster"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/config"
+	"github.com/tarantool/tt/v3/cli/configure"
+	"github.com/tarantool/tt/v3/cli/process_utils"
+	"github.com/tarantool/tt/v3/cli/running/internal/layout"
+	"github.com/tarantool/tt/v3/cli/ttlog"
+	"github.com/tarantool/tt/v3/cli/util"
+	"github.com/tarantool/tt/v3/cli/util/regexputil"
 )
 
 var (

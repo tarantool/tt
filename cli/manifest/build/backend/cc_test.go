@@ -11,7 +11,7 @@ import (
 	luarocks "github.com/tarantool/go-luarocks"
 	lrbuild "github.com/tarantool/go-luarocks/build"
 
-	"github.com/tarantool/tt/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // indexOf returns the index of the first occurrence of tok in args, or -1.

@@ -5,10 +5,10 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/cmd/internal"
-	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/running"
-	"github.com/tarantool/tt/cli/status"
+	"github.com/tarantool/tt/v3/cli/cmd/internal"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/running"
+	"github.com/tarantool/tt/v3/cli/status"
 )
 
 var (

@@ -12,9 +12,9 @@ import (
 	"github.com/apex/log"
 	"github.com/fatih/color"
 	"github.com/manifoldco/promptui"
-	"github.com/tarantool/tt/cli/search"
-	"github.com/tarantool/tt/cli/util"
-	"github.com/tarantool/tt/cli/version"
+	"github.com/tarantool/tt/v3/cli/search"
+	"github.com/tarantool/tt/v3/cli/util"
+	"github.com/tarantool/tt/v3/cli/version"
 )
 
 var (

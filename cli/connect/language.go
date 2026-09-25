@@ -7,8 +7,8 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/tarantool/tt/cli/connect/internal/luabody"
-	"github.com/tarantool/tt/cli/connector"
+	"github.com/tarantool/tt/v3/cli/connect/internal/luabody"
+	"github.com/tarantool/tt/v3/cli/connector"
 )
 
 var (

@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	create_ctx "github.com/tarantool/tt/cli/create/context"
-	"github.com/tarantool/tt/cli/create/internal/app_template"
+	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
+	"github.com/tarantool/tt/v3/cli/create/internal/app_template"
 )
 
 func TestCreateTmpAppDirBasic(t *testing.T) {

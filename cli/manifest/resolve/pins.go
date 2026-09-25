@@ -4,7 +4,7 @@ import (
 	"maps"
 
 	"github.com/tarantool/go-luarocks/deps"
-	"github.com/tarantool/tt/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // Pins maps a rock name to the exact version resolution should prefer. It is

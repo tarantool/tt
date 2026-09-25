@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/tarantool/tt/cli/manifest"
-	"github.com/tarantool/tt/cli/manifest/build/backend"
-	"github.com/tarantool/tt/cli/manifest/version"
+	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/build/backend"
+	"github.com/tarantool/tt/v3/cli/manifest/version"
 )
 
 // Hook names, matching the manifest's [hooks.<name>] tables.

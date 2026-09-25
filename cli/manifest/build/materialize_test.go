@@ -10,7 +10,7 @@ import (
 
 	"github.com/tarantool/go-luarocks/client"
 
-	"github.com/tarantool/tt/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // fakeRockClient records the Install/Build calls the materializer makes.

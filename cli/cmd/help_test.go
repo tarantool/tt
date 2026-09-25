@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/modules"
+	"github.com/tarantool/tt/v3/cli/modules"
 )
 
 func TestWrapHelp(t *testing.T) {

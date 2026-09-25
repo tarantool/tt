@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/tarantool/tt/cli/manifest/registry"
-	"github.com/tarantool/tt/cli/manifest/rocks"
+	"github.com/tarantool/tt/v3/cli/manifest/registry"
+	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
 func TestParseRef(t *testing.T) {

@@ -3,7 +3,7 @@ package backend
 import (
 	"context"
 
-	"github.com/tarantool/tt/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // shellBackend runs an arbitrary command argv-style: execve of b.Command with

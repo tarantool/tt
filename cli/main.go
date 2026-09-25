@@ -3,9 +3,9 @@ package main
 import (
 	"log"
 
-	"github.com/tarantool/tt/cli/cmd"
-	"github.com/tarantool/tt/cli/util"
-	"github.com/tarantool/tt/cli/version"
+	"github.com/tarantool/tt/v3/cli/cmd"
+	"github.com/tarantool/tt/v3/cli/util"
+	"github.com/tarantool/tt/v3/cli/version"
 )
 
 func main() {

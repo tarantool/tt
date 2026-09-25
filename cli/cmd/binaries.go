@@ -6,9 +6,9 @@ import (
 	"slices"
 
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/binary"
-	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/search"
+	"github.com/tarantool/tt/v3/cli/binary"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/search"
 )
 
 var (

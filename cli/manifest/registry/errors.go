@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/tarantool/tt/cli/manifest/build"
+	"github.com/tarantool/tt/v3/cli/manifest/build"
 )
 
 // exitStateError is the process exit code for a usage or state failure: a

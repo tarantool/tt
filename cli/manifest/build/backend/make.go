@@ -3,7 +3,7 @@ package backend
 import (
 	"context"
 
-	"github.com/tarantool/tt/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // defaultMakefile is the entrypoint used when b.Entrypoint is empty.

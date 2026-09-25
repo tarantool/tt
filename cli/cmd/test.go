@@ -8,10 +8,10 @@ import (
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 
-	"github.com/tarantool/tt/cli/manifest"
-	"github.com/tarantool/tt/cli/manifest/build"
-	"github.com/tarantool/tt/cli/manifest/run"
-	ttversion "github.com/tarantool/tt/cli/version"
+	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/build"
+	"github.com/tarantool/tt/v3/cli/manifest/run"
+	ttversion "github.com/tarantool/tt/v3/cli/version"
 )
 
 // luatestName is the rock tt test runs, and the requirement it adds implicitly

@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/config"
-	create_ctx "github.com/tarantool/tt/cli/create/context"
-	"github.com/tarantool/tt/cli/create/internal/app_template"
+	"github.com/tarantool/tt/v3/cli/config"
+	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
+	"github.com/tarantool/tt/v3/cli/create/internal/app_template"
 )
 
 func TestPrintFollowUpMessage(t *testing.T) {

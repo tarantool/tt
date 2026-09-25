@@ -3,10 +3,10 @@ package cmd
 import (
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/configure"
-	"github.com/tarantool/tt/cli/daemon"
-	"github.com/tarantool/tt/cli/process_utils"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/configure"
+	"github.com/tarantool/tt/v3/cli/daemon"
+	"github.com/tarantool/tt/v3/cli/process_utils"
 )
 
 // NewDaemonCmd creates daemon command.

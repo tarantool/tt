@@ -17,7 +17,7 @@ import (
 	"github.com/tarantool/go-tarantool/v3/test_helpers"
 	libdial "github.com/tarantool/tt/lib/dial"
 
-	. "github.com/tarantool/tt/cli/connector"
+	. "github.com/tarantool/tt/v3/cli/connector"
 )
 
 const (

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/fatih/color"
-	"github.com/tarantool/tt/cli/tail"
+	"github.com/tarantool/tt/v3/cli/tail"
 )
 
 func TestDefaultColorPicker(t *testing.T) {

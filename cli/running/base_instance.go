@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/tarantool/tt/cli/ttlog"
 	"github.com/tarantool/tt/lib/integrity"
+	"github.com/tarantool/tt/v3/cli/ttlog"
 )
 
 var errInstanceIsNotStarted = errors.New("instance is not started")

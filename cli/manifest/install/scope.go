@@ -1,6 +1,6 @@
 package install
 
-import "github.com/tarantool/tt/cli/manifest/state"
+import "github.com/tarantool/tt/v3/cli/manifest/state"
 
 // Scope and its values are re-exported from cli/manifest/state, which owns the
 // on-disk layout install writes and list/uninstall read. The aliases keep

@@ -11,8 +11,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/lib/connect"
+	"github.com/tarantool/tt/v3/cli/util"
 )
 
 var (

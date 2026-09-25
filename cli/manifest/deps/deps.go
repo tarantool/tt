@@ -60,9 +60,9 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/tarantool/tt/cli/manifest"
-	"github.com/tarantool/tt/cli/manifest/resolve"
-	"github.com/tarantool/tt/cli/manifest/rocks"
+	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/resolve"
+	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
 // rocksDirName is the project-scope tree root the rocks adapter is bound to.

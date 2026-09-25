@@ -14,11 +14,11 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/process_utils"
-	"github.com/tarantool/tt/cli/tail"
-	tcmCmd "github.com/tarantool/tt/cli/tcm"
-	libwatchdog "github.com/tarantool/tt/lib/watchdog"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/process_utils"
+	"github.com/tarantool/tt/v3/cli/tail"
+	tcmCmd "github.com/tarantool/tt/v3/cli/tcm"
+	libwatchdog "github.com/tarantool/tt/v3/lib/watchdog"
 )
 
 var (

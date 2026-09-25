@@ -7,7 +7,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/tarantool/tt/cli/manifest/version"
+	"github.com/tarantool/tt/v3/cli/manifest/version"
 )
 
 // versionLuaName is the descriptor file dropped into the package's own share

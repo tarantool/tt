@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/tarantool/tt/cli/config"
+	"github.com/tarantool/tt/v3/cli/config"
 )
 
 // CreateEnvString generates environment variables for 'tarantool' and 'tt' installed using 'tt'.

@@ -15,7 +15,7 @@ package inventory
 import (
 	"sort"
 
-	"github.com/tarantool/tt/cli/manifest/state"
+	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
 
 // ListOptions selects what to list.

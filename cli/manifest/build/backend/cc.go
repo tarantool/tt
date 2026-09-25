@@ -8,7 +8,7 @@ import (
 
 	lrbuild "github.com/tarantool/go-luarocks/build"
 
-	"github.com/tarantool/tt/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // initialArgsCap pre-sizes the cc argument slice to avoid early regrows.
