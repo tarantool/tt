@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/resolve"
 )
@@ -92,7 +94,7 @@ func TestGateLock_noLockUnderLockedFails(t *testing.T) {
 	_, _, err := gateLock(context.Background(), r, &manifest.Manifest{}, dir, true)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, errLockStale))
-	assert.Equal(t, exitStateError, ExitCode(err))
+	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
 	assert.False(t, r.resolveCalled)
 }
 

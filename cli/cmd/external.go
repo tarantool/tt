@@ -65,7 +65,7 @@ func configureNonExistentCmd(rootCmd *cobra.Command, modulesInfo *modules.Module
 func newExternalCmd(manifest modules.Manifest) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                manifest.Name,
-		Run:                RunModuleFunc(nil),
+		RunE:               RunModuleFuncE(nil),
 		DisableFlagParsing: true,
 	}
 	cmd.SetHelpFunc(externalModuleHelpFunc(manifest))

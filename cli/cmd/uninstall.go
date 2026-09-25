@@ -14,7 +14,7 @@ func newUninstallTtCmd() *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   "tt [version]",
 		Short: "Uninstall tt",
-		Run:   RunModuleFunc(InternalUninstallModule),
+		RunE:  RunModuleFuncE(InternalUninstallModule),
 		Args:  cobra.MaximumNArgs(1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
@@ -37,7 +37,7 @@ func newUninstallTarantoolCmd() *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   search.ProgramCe.String() + " [version]",
 		Short: "Uninstall tarantool community edition",
-		Run:   RunModuleFunc(InternalUninstallModule),
+		RunE:  RunModuleFuncE(InternalUninstallModule),
 		Args:  cobra.MaximumNArgs(1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
@@ -60,7 +60,7 @@ func newUninstallTarantoolEeCmd() *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   search.ProgramEe.String() + " [version]",
 		Short: "Uninstall tarantool enterprise edition",
-		Run:   RunModuleFunc(InternalUninstallModule),
+		RunE:  RunModuleFuncE(InternalUninstallModule),
 		Args:  cobra.MaximumNArgs(1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
@@ -83,7 +83,7 @@ func newUninstallTarantoolDevCmd() *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   "tarantool-dev",
 		Short: "Uninstall tarantool-dev",
-		Run:   RunModuleFunc(InternalUninstallModule),
+		RunE:  RunModuleFuncE(InternalUninstallModule),
 		Args:  cobra.ExactArgs(0),
 	}
 
@@ -95,7 +95,7 @@ func newUninstallTcmCmd() *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   search.ProgramTcm.String() + " [version]",
 		Short: "Uninstall tarantool cluster manager",
-		Run:   RunModuleFunc(InternalUninstallModule),
+		RunE:  RunModuleFuncE(InternalUninstallModule),
 		Args:  cobra.MaximumNArgs(1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,

@@ -101,7 +101,7 @@ type Result struct {
 }
 
 // Run installs every archive in opts.Archives into the selected scope and maps
-// the outcome to a process exit code through an *ExitError: a single archive
+// the outcome to a process exit code through an *sdk.ExitError: a single archive
 // surfaces its own failure code; a multi-archive run where some succeeded and
 // some failed exits 3. A nil error means every archive installed (or was a
 // no-op upgrade).
@@ -141,10 +141,7 @@ func aggregateError(result *Result) error {
 	if len(result.Installed) > 0 {
 		total := len(result.Installed) + len(result.Failed)
 
-		return &ExitError{
-			Code: exitPartialError,
-			Err:  fmt.Errorf("%w (%d of %d)", errPartialInstall, len(result.Failed), total),
-		}
+		return partialErrorf("%w (%d of %d)", errPartialInstall, len(result.Failed), total)
 	}
 
 	return result.Failed[0].Err

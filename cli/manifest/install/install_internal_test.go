@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
@@ -91,7 +92,7 @@ func TestInstallWithDepsIntoUserRejected(t *testing.T) {
 
 	_, err := installInto(t, t.TempDir(), Options{Scope: ScopeUser}, archive)
 	require.ErrorIs(t, err, errWithDepsScope)
-	assert.Equal(t, exitStateError, ExitCode(err))
+	assert.Equal(t, 1, exitcode.Code(err))
 }
 
 // TestInstallCollision covers the name-collision policy: a second install of the
@@ -107,7 +108,7 @@ func TestInstallCollision(t *testing.T) {
 
 	_, err = installInto(t, dir, Options{Scope: ScopeProject}, archive)
 	require.ErrorIs(t, err, errNameCollision)
-	assert.Equal(t, exitStateError, ExitCode(err))
+	assert.Equal(t, 1, exitcode.Code(err))
 
 	_, err = installInto(t, dir, Options{Scope: ScopeProject, Force: true}, archive)
 	require.NoError(t, err, "--force reinstalls over the collision")
@@ -214,7 +215,7 @@ func TestInstallMultiSharedIncompatible(t *testing.T) {
 
 	_, err = installInto(t, dir, Options{Scope: ScopeProject}, storage)
 	require.ErrorIs(t, err, errIncompatibleDeps)
-	assert.Equal(t, exitStateError, ExitCode(err))
+	assert.Equal(t, 1, exitcode.Code(err))
 	assert.Contains(t, err.Error(), "router pinned 3.0.4")
 }
 
@@ -230,7 +231,7 @@ func TestInstallPartialMultiExit3(t *testing.T) {
 
 	result, err := installInto(t, dir, Options{Scope: ScopeProject}, router, storage)
 	require.Error(t, err)
-	assert.Equal(t, exitPartialError, ExitCode(err))
+	assert.Equal(t, 3, exitcode.Code(err))
 	assert.Len(t, result.Installed, 1)
 	assert.Len(t, result.Failed, 1)
 	assert.Equal(t, "router", result.Installed[0].Package)

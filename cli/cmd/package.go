@@ -122,16 +122,13 @@ func newPackageAddCmd() *cobra.Command {
 			"fetched into .rocks/; the next tt package build picks the new lock " +
 			"up.",
 		Args: cobra.RangeArgs(1, packageAddMaxArgs),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			constraint := ""
 			if len(args) == packageAddMaxArgs {
 				constraint = args[1]
 			}
 
-			if err := runPackageAdd(args[0], constraint); err != nil {
-				log.Error(err.Error())
-				os.Exit(deps.ExitCode(err))
-			}
+			return manifestError(cmd, runPackageAdd(args[0], constraint))
 		},
 	}
 
@@ -190,11 +187,8 @@ func newPackageRemoveCmd() *cobra.Command {
 			"dependency is not this command's decision to unmake. Nothing is " +
 			"deleted from .rocks/; tt package uninstall is what removes files.",
 		Args: cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := runPackageRemove(args[0]); err != nil {
-				log.Error(err.Error())
-				os.Exit(deps.ExitCode(err))
-			}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return manifestError(cmd, runPackageRemove(args[0]))
 		},
 	}
 
@@ -235,16 +229,13 @@ func newPackageUpdateCmd() *cobra.Command {
 			"new version requires. No declaration is changed — app.manifest.toml " +
 			"is not touched at all — and nothing is fetched into .rocks/.",
 		Args: cobra.MaximumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			name := ""
 			if len(args) == 1 {
 				name = args[0]
 			}
 
-			if err := runPackageUpdate(name); err != nil {
-				log.Error(err.Error())
-				os.Exit(deps.ExitCode(err))
-			}
+			return manifestError(cmd, runPackageUpdate(name))
 		},
 	}
 
@@ -288,11 +279,8 @@ func newPackageResolveCmd() *cobra.Command {
 			"edit to one dependency is not a request to upgrade the others, and " +
 			"pulling newer registry versions is what tt package update is for.",
 		Args: cobra.NoArgs,
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := runPackageResolve(); err != nil {
-				log.Error(err.Error())
-				os.Exit(deps.ExitCode(err))
-			}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return manifestError(cmd, runPackageResolve())
 		},
 	}
 
@@ -337,11 +325,8 @@ func newPackageDepsCmd() *cobra.Command {
 			"manifest and the lock, so a lock that no longer matches the manifest " +
 			"is reported as stale rather than silently re-resolved.",
 		Args: cobra.NoArgs,
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := runPackageDeps(); err != nil {
-				log.Error(err.Error())
-				os.Exit(deps.ExitCode(err))
-			}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return manifestError(cmd, runPackageDeps())
 		},
 	}
 
@@ -440,11 +425,8 @@ func newPackageListCmd() *cobra.Command {
 			"another package holds it too — that is, whether it would be removed " +
 			"along with the package or stay.",
 		Args: cobra.NoArgs,
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := runPackageList(); err != nil {
-				log.Error(err.Error())
-				os.Exit(inventory.ExitCode(err))
-			}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return manifestError(cmd, runPackageList())
 		},
 	}
 
@@ -497,11 +479,8 @@ func newPackageUninstallCmd() *cobra.Command {
 			"package — the one app.manifest.toml in the working directory " +
 			"declares — is not a guest, and uninstall refuses to remove it.",
 		Args: cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := runPackageUninstall(args[0]); err != nil {
-				log.Error(err.Error())
-				os.Exit(inventory.ExitCode(err))
-			}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return manifestError(cmd, runPackageUninstall(args[0]))
 		},
 	}
 
@@ -578,11 +557,8 @@ func newPackageInstallCmd() *cobra.Command {
 			"dependency they lock at different versions is reconciled to one both " +
 			"accept, or the install fails with an explanation.",
 		Args: cobra.MinimumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := runPackageInstall(args); err != nil {
-				log.Error(err.Error())
-				os.Exit(install.ExitCode(err))
-			}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return manifestError(cmd, runPackageInstall(args))
 		},
 	}
 
@@ -655,8 +631,8 @@ func newPackageBuildCmd() *cobra.Command {
 			"backends and generate version.lua. With no argument every component " +
 			"of the product is built; a component name narrows the build to one.",
 		Args: cobra.MaximumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			runPackageCmd(args, false)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return manifestError(cmd, runPackage(args, false))
 		},
 	}
 
@@ -678,8 +654,8 @@ func newPackageFetchCmd() *cobra.Command {
 			"strictly from the lock, without re-resolving or running component " +
 			"build backends.",
 		Args: cobra.NoArgs,
-		Run: func(cmd *cobra.Command, args []string) {
-			runPackageCmd(nil, true)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return manifestError(cmd, runPackage(nil, true))
 		},
 	}
 
@@ -702,11 +678,8 @@ func newPackagePackCmd() *cobra.Command {
 			"network. --without-deps drops both. A separate tt package build " +
 			"beforehand is not needed. The archive path is printed to stdout.",
 		Args: cobra.NoArgs,
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := runPackagePack(); err != nil {
-				log.Error(err.Error())
-				os.Exit(pack.ExitCode(err))
-			}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return manifestError(cmd, runPackagePack())
 		},
 	}
 
@@ -807,16 +780,6 @@ func runtimeCacheDir() string {
 	return filepath.Join(base, "tt", "runtimes")
 }
 
-// runPackageCmd runs a package build/fetch and maps failures to exit codes:
-// 1 for a state error (stale --locked, version.lua collision), 2 for a
-// component build backend failure.
-func runPackageCmd(args []string, fetchOnly bool) {
-	if err := runPackage(args, fetchOnly); err != nil {
-		log.Error(err.Error())
-		os.Exit(build.ExitCode(err))
-	}
-}
-
 // runPackage assembles build.Options from the environment and drives the build.
 func runPackage(args []string, fetchOnly bool) error {
 	projectDir, err := absoluteWorkingDir()
@@ -894,11 +857,8 @@ func newPackageSearchCmd() *cobra.Command {
 			"of them: the point is to see what exists. Nothing is downloaded " +
 			"and nothing is written. A term nothing matches is not an error.",
 		Args: cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := runPackageSearch(args[0]); err != nil {
-				log.Error(err.Error())
-				os.Exit(registry.ExitCode(err))
-			}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return manifestError(cmd, runPackageSearch(args[0]))
 		},
 	}
 
@@ -961,11 +921,8 @@ func newPackageDownloadCmd() *cobra.Command {
 			"overwrites and re-indexes, so a mirror can be extended in place. " +
 			"Each written path is printed to stdout.",
 		Args: cobra.ArbitraryArgs,
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := runPackageDownload(args); err != nil {
-				log.Error(err.Error())
-				os.Exit(registry.ExitCode(err))
-			}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return manifestError(cmd, runPackageDownload(args))
 		},
 	}
 

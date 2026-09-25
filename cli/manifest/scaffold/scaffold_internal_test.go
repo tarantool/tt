@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/resolve"
 )
@@ -85,7 +87,7 @@ func TestCreate_secondRunRefuses(t *testing.T) {
 
 	_, err = Create(Options{ProjectDir: dir})
 	require.ErrorIs(t, err, ErrManifestExists)
-	assert.Equal(t, exitStateError, ExitCode(err))
+	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
 	// The hand edit is still there: the refusal happened before any write.
 	assert.Contains(t, readManifest(t, dir), "# edited by hand")
 }

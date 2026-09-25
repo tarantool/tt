@@ -12,10 +12,12 @@ import (
 	"github.com/tarantool/tt/v3/cli/util"
 
 	"github.com/spf13/cobra"
+	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/configure"
+	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/logging"
 	"github.com/tarantool/tt/v3/cli/modules"
 )
@@ -182,26 +184,51 @@ func NewCmdRoot() *cobra.Command {
 	return rootCmd
 }
 
-// Execute root command.
-// If received error is of an ArgError type, usage help is printed.
+// Main initializes the root command and runs the command line. It returns
+// the process exit code, having reported the error the run failed with.
+//
+// Commands return their error here instead of ending the process
+// themselves; reportError and sdk.ExitCode turn it into what the user sees
+// and the code tt exits with.
+func Main() int {
+	if err := initRoot(); err != nil {
+		exitcode.Report(err)
+
+		return sdk.ExitCode(err)
+	}
+
+	return execute()
+}
+
+// Execute runs the root command. On failure it reports the error and exits
+// with its code; on success it returns.
+// TT-EE.
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		var argError *util.ArgError
-		if errors.As(err, &argError) {
-			log.Error(argError.Error())
-			_ = rootCmd.Usage()
-		}
-		os.Exit(1)
+	if code := execute(); code != sdk.ExitOK {
+		os.Exit(code)
 	}
 }
 
 // InitRoot initializes global flags, configures CLI, configure
 // external modules, collects information about available
-// modules and configure `help` module.
+// modules and configure `help` module. On failure it reports the error and
+// exits with its code.
+// TT-EE.
 func InitRoot() {
 	if err := initRoot(); err != nil {
-		logging.Fatalf("%s", err)
+		exitcode.Exit(err)
 	}
+}
+
+// execute runs the root command and returns the process exit code, having
+// reported the error the command failed with.
+func execute() int {
+	cmd, err := rootCmd.ExecuteC()
+	if err == nil {
+		return sdk.ExitOK
+	}
+
+	return reportError(cmd, err)
 }
 
 // setupLogging installs the process logger the root flags ask for.

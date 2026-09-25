@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
@@ -302,5 +303,5 @@ func TestDeps_missingManifestIsAnError(t *testing.T) {
 	report, err := Deps(optsFor(t.TempDir()))
 	require.Error(t, err)
 	assert.Nil(t, report)
-	assert.Equal(t, exitStateError, ExitCode(err))
+	assert.Equal(t, 1, exitcode.Code(err))
 }

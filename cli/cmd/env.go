@@ -16,7 +16,7 @@ func NewEnvCmd() *cobra.Command {
 		Short: "Add current environment binaries location to the PATH variable",
 		Long: "Add current environment binaries location to the PATH variable.\n" +
 			"Also sets TARANTOOL_DIR variable.",
-		Run: RunModuleFunc(internalEnvModule),
+		RunE: RunModuleFuncE(internalEnvModule),
 	}
 
 	return envCmd

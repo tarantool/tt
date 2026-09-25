@@ -19,7 +19,7 @@ func NewVersionCmd() *cobra.Command {
 	versionCmd := &cobra.Command{
 		Use:   "version",
 		Short: "Show Tarantool CLI version information",
-		Run:   RunModuleFunc(internalVersionModule),
+		RunE:  RunModuleFuncE(internalVersionModule),
 	}
 
 	versionCmd.Flags().BoolVar(&showShort, "short", false, "Show version in short format")

@@ -72,7 +72,7 @@ func NewConnectCmd() *cobra.Command {
 			"You could pass command line arguments to the interpreted SCRIPT" +
 			" or COMMAND passed via -f flag:\n\n" +
 			`echo "print(...)" | tt connect user:pass@localhost:3013 -f- 1, 2, 3`,
-		Run:  RunModuleFunc(internalConnectModule),
+		RunE: RunModuleFuncE(internalConnectModule),
 		Args: cobra.MinimumNArgs(1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,

@@ -2,16 +2,9 @@ package registry
 
 import (
 	"errors"
-	"fmt"
 
-	"github.com/tarantool/tt/v3/cli/manifest/build"
+	"github.com/tarantool/tt/sdk"
 )
-
-// exitStateError is the process exit code for a usage or state failure: a
-// malformed reference, a missing lock, an unusable download directory. It
-// matches what build, pack, install and inventory use, so every package
-// command agrees.
-const exitStateError = 1
 
 var (
 	// ErrUnknownFormat reports an -o value that is not table, json or yaml.
@@ -24,19 +17,9 @@ var (
 	ErrNoLock = errors.New("no lock file")
 )
 
-// ExitError re-exports build.ExitError so this package returns the same typed
-// error the other package commands do.
-type ExitError = build.ExitError
-
-// ExitCode returns the process exit code for err, reusing the build package's
-// mapping so every package command agrees. A nil error is 0.
-func ExitCode(err error) int {
-	return build.ExitCode(err)
-}
-
-// stateErrorf wraps a formatted error as a state error (exit 1).
-//
-//nolint:err113 // Formatting helper, mirrors fmt.Errorf; callers pass %w wraps.
+// stateErrorf wraps a formatted error as a usage or state failure
+// (sdk.ExitFailure): a malformed reference, a missing lock, an unusable
+// download directory.
 func stateErrorf(format string, args ...any) error {
-	return &build.ExitError{Code: exitStateError, Err: fmt.Errorf(format, args...)}
+	return sdk.Errorf(sdk.ExitFailure, format, args...)
 }

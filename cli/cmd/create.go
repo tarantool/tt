@@ -35,7 +35,7 @@ func NewCreateCmd() *cobra.Command {
 	createCmd := &cobra.Command{
 		Use:   "create <TEMPLATE_NAME> [flags]",
 		Short: "Create an application from a template",
-		Run:   RunModuleFunc(internalCreateModule),
+		RunE:  RunModuleFuncE(internalCreateModule),
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return errRequiresTemplateNameArgument

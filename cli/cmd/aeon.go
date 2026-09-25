@@ -16,7 +16,6 @@ import (
 	"github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/console"
-	"github.com/tarantool/tt/v3/cli/modules"
 	"github.com/tarantool/tt/v3/cli/util"
 )
 
@@ -71,16 +70,9 @@ func newAeonConnectCmd() *cobra.Command {
 		tt aeon connect https://user:pass@localhost:2379/prefix INSTANCE` + "\n\n" +
 			aeonHelp,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			err := aeonConnectValidateArgs(cmd, args)
-			util.HandleCmdErr(cmd, err)
-			return err
+			return commandError(cmd, aeonConnectValidateArgs(cmd, args))
 		},
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalAeonConnect, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		RunE: RunModuleFuncE(internalAeonConnect),
 		Args: cobra.MatchAll(cobra.RangeArgs(1, aeonConnectMaxArgs), aeonConnectValidateArgs),
 	}
 	aeonCmd.Flags().StringVarP(&connectCtx.Username, "username", "u", "",

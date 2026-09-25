@@ -14,7 +14,7 @@ func newInstallTtCmd() *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   search.ProgramTt.String() + " [version|commit hash|pull-request]",
 		Short: "Install tt",
-		Run:   RunModuleFunc(internalInstallModule),
+		RunE:  RunModuleFuncE(internalInstallModule),
 		Args:  cobra.MaximumNArgs(1),
 	}
 
@@ -26,7 +26,7 @@ func newInstallTarantoolCmd() *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   search.ProgramCe.String() + " [version|commit hash|pull-request]",
 		Short: "Install tarantool community edition",
-		Run:   RunModuleFunc(internalInstallModule),
+		RunE:  RunModuleFuncE(internalInstallModule),
 		Args:  cobra.MaximumNArgs(1),
 	}
 
@@ -43,7 +43,7 @@ func newInstallTarantoolEeCmd() *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   search.ProgramEe.String() + " [version]",
 		Short: "Install tarantool enterprise edition",
-		Run:   RunModuleFunc(internalInstallModule),
+		RunE:  RunModuleFuncE(internalInstallModule),
 		Args:  cobra.MaximumNArgs(1),
 	}
 
@@ -56,7 +56,7 @@ func newInstallTcmCmd() *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   search.ProgramTcm.String() + " [version]",
 		Short: "Install tarantool cluster manager",
-		Run:   RunModuleFunc(internalInstallModule),
+		RunE:  RunModuleFuncE(internalInstallModule),
 		Args:  cobra.MaximumNArgs(1),
 	}
 
@@ -76,7 +76,7 @@ func newInstallTarantoolDevCmd() *cobra.Command {
 			"  make -j16 -C ~/src/tarantool/build\n" +
 			"  tt install tarantool-dev ~/src/tarantool/build\n" +
 			"  tt binaries list # shows the binary installed above",
-		Run:  RunModuleFunc(internalInstallModule),
+		RunE: RunModuleFuncE(internalInstallModule),
 		Args: cobra.ExactArgs(1),
 	}
 

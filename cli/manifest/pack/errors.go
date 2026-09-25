@@ -2,9 +2,8 @@ package pack
 
 import (
 	"errors"
-	"fmt"
 
-	"github.com/tarantool/tt/v3/cli/manifest/build"
+	"github.com/tarantool/tt/sdk"
 )
 
 // File and directory names pack reads from the project and writes into the
@@ -22,14 +21,6 @@ const (
 	// archiveExt is the tt-native archive extension. The payload is tar+zstd.
 	archiveExt = ".tt"
 )
-
-// exitStateError is the exit code for a usage or state error, matching tt
-// package build so the two commands are indistinguishable to a CI script.
-//
-// Pack defines no code of its own beyond this one: a build backend failure
-// exits 2, but that error is raised inside cli/manifest/build and passes
-// through pack untouched, carrying its code with it.
-const exitStateError = 1
 
 var (
 	// errReservedName reports an include or license_files entry that would land
@@ -52,18 +43,13 @@ var (
 	errEscapingPath = errors.New("path escapes the project directory")
 )
 
-// ExitCode returns the process exit code for err, reusing the build package's
-// mapping so pack and build agree: a build run driven by pack surfaces its own
-// exit codes unchanged. A nil error is 0.
-func ExitCode(err error) int {
-	return build.ExitCode(err)
-}
-
-// stateErrorf wraps a formatted error as a state error (exit 1), using the
-// build package's ExitError so build.ExitCode reads it back through pack's
-// chain.
+// stateErrorf wraps a formatted error as a usage or state failure
+// (sdk.ExitFailure), the code tt package build uses too, so the two commands
+// are indistinguishable to a CI script.
 //
-//nolint:err113 // Formatting helper, mirrors fmt.Errorf; callers pass %w wraps.
+// Pack defines no code of its own beyond this one: a build backend failure
+// exits 2, but that error is raised inside cli/manifest/build and passes
+// through pack untouched, carrying its code with it.
 func stateErrorf(format string, args ...any) error {
-	return &build.ExitError{Code: exitStateError, Err: fmt.Errorf(format, args...)}
+	return sdk.Errorf(sdk.ExitFailure, format, args...)
 }

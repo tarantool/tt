@@ -39,7 +39,7 @@ func configureHelpCommand(rootCmd *cobra.Command, modulesInfo *modules.ModulesIn
 	helpCmd := &cobra.Command{
 		Use:   "help [command]",
 		Short: "Help about any command",
-		Run:   RunModuleFunc(internalHelpModule),
+		RunE:  RunModuleFuncE(internalHelpModule),
 	}
 
 	// Add valid arguments for completion.

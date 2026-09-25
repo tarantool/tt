@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/resolve"
 )
@@ -170,7 +171,7 @@ func TestAdd_resolveFailureLeavesTheManifestEdited(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorIs(t, err, boom)
 	require.ErrorIs(t, err, ErrManifestEdited)
-	assert.Equal(t, 1, ExitCode(err))
+	assert.Equal(t, 1, exitcode.Code(err))
 
 	assert.Contains(t, manifestOnDisk(t, dir), "metrics")
 	// The lock is exactly the one that was there: nothing rewrote it.
@@ -241,7 +242,7 @@ func TestRemove_unknownNameIsAnError(t *testing.T) {
 
 	_, err := removeWith(context.Background(), optsFor(dir), res, "nosuchrock")
 	require.ErrorIs(t, err, ErrNotDeclared)
-	assert.Equal(t, 1, ExitCode(err))
+	assert.Equal(t, 1, exitcode.Code(err))
 	assert.Empty(t, res.pins)
 	assert.Equal(t, baseManifest, manifestOnDisk(t, dir))
 }
@@ -292,7 +293,7 @@ func TestUpdate_unknownNameIsAnError(t *testing.T) {
 
 	_, err := updateWith(context.Background(), optsFor(dir), res, "nosuchrock")
 	require.ErrorIs(t, err, ErrNotDeclared)
-	assert.Equal(t, 1, ExitCode(err))
+	assert.Equal(t, 1, exitcode.Code(err))
 	assert.Empty(t, res.pins)
 }
 

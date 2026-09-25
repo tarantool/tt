@@ -26,16 +26,16 @@ Tarantool finds .rocks/ from the project directory by itself. tt replaces itself
 with the interpreter, so signals and the exit code are Tarantool's own.
 `,
 		DisableFlagParsing: true,
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			for _, opt := range args {
 				if opt == "-h" || opt == "--help" {
 					_ = cmd.Help()
 
-					return
+					return nil
 				}
 			}
 
-			RunModuleFunc(internalRunModule)(cmd, args)
+			return RunModuleFuncE(internalRunModule)(cmd, args)
 		},
 		Example: `
 # Start an interactive console in the project.

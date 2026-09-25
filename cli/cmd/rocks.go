@@ -14,7 +14,7 @@ func NewRocksCmd() *cobra.Command {
 		// Disabled all flags parsing on this commands leaf.
 		// LuaRocks will handle it self.
 		DisableFlagParsing: true,
-		Run:                RunModuleFunc(internalRocksModule),
+		RunE:               RunModuleFuncE(internalRocksModule),
 	}
 
 	return rocksCmd

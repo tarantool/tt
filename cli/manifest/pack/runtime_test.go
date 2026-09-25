@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
@@ -271,7 +273,7 @@ func TestBundleRuntimeRejectsUnsatisfiedActive(t *testing.T) {
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errNoRuntime)
-	assert.Equal(t, exitStateError, ExitCode(err))
+	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
 }
 
 func TestBundleRuntimeNoSourceAtAll(t *testing.T) {

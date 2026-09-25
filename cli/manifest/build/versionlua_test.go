@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest/version"
 )
 
@@ -51,7 +53,7 @@ func TestWriteVersionLua_collisionWithLaidOutFile(t *testing.T) {
 	err := writeVersionLua(tree, "my-app", true, version.Version{}, time.Unix(0, 0), []string{dst})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, errVersionLuaCollision))
-	assert.Equal(t, exitStateError, ExitCode(err))
+	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
 }
 
 func TestWriteVersionLua_staleFileOverwritten(t *testing.T) {

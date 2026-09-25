@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"errors"
-	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/sdk/log"
@@ -41,16 +40,13 @@ as they were, so running the tests never makes the lock stale.
 Everything after '--' is handed to luatest, and the exit code is luatest's own.
 `,
 		Args: cobra.ArbitraryArgs,
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			subPath, luatestArgs, err := splitTestArgs(cmd, args)
 			if err == nil {
 				err = runTest(subPath, luatestArgs)
 			}
 
-			if err != nil {
-				log.Error(err.Error())
-				os.Exit(build.ExitCode(err))
-			}
+			return manifestError(cmd, err)
 		},
 		Example: `
 # Build and run everything under test/ (or tests/).

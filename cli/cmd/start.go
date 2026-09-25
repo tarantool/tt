@@ -41,7 +41,7 @@ func NewStartCmd() *cobra.Command {
 	startCmd := &cobra.Command{
 		Use:   "start [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
 		Short: "Start tarantool instance(s)",
-		Run:   RunModuleFunc(internalStartModule),
+		RunE:  RunModuleFuncE(internalStartModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,

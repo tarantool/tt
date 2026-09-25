@@ -170,5 +170,5 @@ func incompatibleError(dep string, contributions []contribution) error {
 
 	msg += "; no locked version satisfies every requirement"
 
-	return &ExitError{Code: exitStateError, Err: fmt.Errorf("%w: %s", errIncompatibleDeps, msg)}
+	return stateErrorf("%w: %s", errIncompatibleDeps, msg)
 }

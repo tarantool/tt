@@ -5,6 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/tarantool/tt/sdk"
 )
 
 // TestReconcileIdenticalPins keeps the trivial case: when every package locked
@@ -57,9 +59,10 @@ func TestReconcileIncompatible(t *testing.T) {
 	})
 	require.ErrorIs(t, err, errIncompatibleDeps)
 
-	var exit *ExitError
+	var exit *sdk.ExitError
+
 	require.ErrorAs(t, err, &exit)
-	assert.Equal(t, exitStateError, exit.Code)
+	assert.Equal(t, sdk.ExitFailure, exit.Code)
 
 	assert.Contains(t, err.Error(), "router pinned 3.0.4")
 	assert.Contains(t, err.Error(), "storage pinned 3.1.0")

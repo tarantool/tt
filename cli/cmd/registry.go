@@ -5,7 +5,6 @@ import (
 
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/sdk/log"
 
 	"github.com/tarantool/tt/v3/cli/manifest/registry"
 	manifestrocks "github.com/tarantool/tt/v3/cli/manifest/rocks"
@@ -43,11 +42,8 @@ func newRegistryListCmd() *cobra.Command {
 			"has a rock and an appended server would change which that is. Run " +
 			"in a project directory to see what its manifest configures.",
 		Args: cobra.NoArgs,
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := runRegistryList(); err != nil {
-				log.Error(err.Error())
-				os.Exit(registry.ExitCode(err))
-			}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return manifestError(cmd, runRegistryList())
 		},
 	}
 

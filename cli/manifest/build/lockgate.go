@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/resolve"
 )
@@ -30,7 +31,7 @@ func loadLock(projectDir string) (*manifest.Lock, error) {
 
 	data, err := os.ReadFile(path) //nolint:gosec // Reads the caller's own lock.
 	if errors.Is(err, os.ErrNotExist) {
-		return nil, exitErrorf(exitStateError, "%w: %s not found", errNoLock, lockFileName)
+		return nil, sdk.Errorf(sdk.ExitFailure, "%w: %s not found", errNoLock, lockFileName)
 	}
 
 	if err != nil {
@@ -64,7 +65,7 @@ func gateLock(
 	data, readErr := os.ReadFile(path) //nolint:gosec // Reads the caller's own lock.
 	if errors.Is(readErr, os.ErrNotExist) {
 		if locked {
-			return nil, nil, exitErrorf(exitStateError,
+			return nil, nil, sdk.Errorf(sdk.ExitFailure,
 				"%w: %s not found and --locked forbids resolving", errLockStale, lockFileName)
 		}
 
@@ -93,7 +94,7 @@ func gateLock(
 		// Naming the command that fixes it matters more here than elsewhere:
 		// --locked is what a release pipeline passes, so whoever reads this is
 		// looking at a failed build rather than at a shell.
-		return nil, nil, exitErrorf(exitStateError,
+		return nil, nil, sdk.Errorf(sdk.ExitFailure,
 			"%w: %s (--locked); run tt package resolve to bring the lock back in step",
 			errLockStale, reason)
 	}

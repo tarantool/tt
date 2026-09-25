@@ -2,9 +2,8 @@ package deps
 
 import (
 	"errors"
-	"fmt"
 
-	"github.com/tarantool/tt/v3/cli/manifest/build"
+	"github.com/tarantool/tt/sdk"
 )
 
 // File names the dependency commands read and write in the project root.
@@ -12,13 +11,6 @@ const (
 	manifestFileName = "app.manifest.toml"
 	lockFileName     = "app.manifest.lock"
 )
-
-// exitStateError is the process exit code for a usage or state failure: a
-// dependency the manifest does not declare, a declaration written in a form the
-// editor refuses to rewrite, an unreadable or invalid manifest, a failed
-// resolution. It matches what build, pack, install and inventory use, so every
-// package command agrees.
-const exitStateError = 1
 
 var (
 	// ErrNotDeclared reports a remove or a targeted update aimed at a name the
@@ -36,19 +28,10 @@ var (
 		"the manifest was edited but the lock was not updated")
 )
 
-// ExitError re-exports build.ExitError so the dependency commands return the
-// same typed error the build, pack, install and inventory commands do.
-type ExitError = build.ExitError
-
-// ExitCode returns the process exit code for err, reusing the build package's
-// mapping so every package command agrees. A nil error is 0.
-func ExitCode(err error) int {
-	return build.ExitCode(err)
-}
-
-// stateErrorf wraps a formatted error as a state error (exit 1).
-//
-//nolint:err113 // Formatting helper, mirrors fmt.Errorf; callers pass %w wraps.
+// stateErrorf wraps a formatted error as a usage or state failure
+// (sdk.ExitFailure): a dependency the manifest does not declare, a declaration
+// written in a form the editor refuses to rewrite, an unreadable or invalid
+// manifest, a failed resolution.
 func stateErrorf(format string, args ...any) error {
-	return &ExitError{Code: exitStateError, Err: fmt.Errorf(format, args...)}
+	return sdk.Errorf(sdk.ExitFailure, format, args...)
 }

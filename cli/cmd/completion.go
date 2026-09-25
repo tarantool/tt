@@ -41,7 +41,7 @@ func NewCompletionCmd() *cobra.Command {
 		Short: "Generate autocomplete for a specified shell. " +
 			"Supported shell type: " + listShells(),
 		ValidArgs: shellSupported,
-		Run:       RunModuleFunc(internalCompletionCmd),
+		RunE:      RunModuleFuncE(internalCompletionCmd),
 		Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
 		Example: `
 # Enable auto-completion in current bash shell.

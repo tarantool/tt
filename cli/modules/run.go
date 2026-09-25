@@ -8,8 +8,9 @@ import (
 	"os/exec"
 	"slices"
 
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/exitcode"
 	"gopkg.in/yaml.v3"
 )
 
@@ -35,8 +36,8 @@ type InternalFunc func(*cmdcontext.CmdCtx, []string) error
 // specified, the external module will be launched.
 // In any other case, internal.
 //
-// If the external module returns an error code,
-// then tt exit with this code.
+// If the external module exits with a non-zero status, the returned error
+// carries that status as tt's exit code (see RunExec).
 func RunCmd(cmdCtx *cmdcontext.CmdCtx, cmdPath string, modulesInfo *ModulesInfo,
 	internal InternalFunc, args []string,
 ) error {
@@ -50,11 +51,8 @@ func RunCmd(cmdCtx *cmdcontext.CmdCtx, cmdPath string, modulesInfo *ModulesInfo,
 		return fmt.Errorf("integrity check failed for %q: %w", manifest.Main, err)
 	}
 	_ = f.Close()
-	if rc := RunExec(manifest.Main, args); rc != 0 {
-		os.Exit(rc)
-	}
 
-	return nil
+	return RunExec(manifest.Main, args)
 }
 
 // GetDefaultCmdArgs returns all arguments from the command line
@@ -64,26 +62,42 @@ func GetDefaultCmdArgs(cmdName string) []string {
 	return os.Args[cmdNameIndexInArgs+1:]
 }
 
-// RunExec exec command with the supplied arguments.
-// returns an error code from exec command.
-func RunExec(command string, args []string) int {
+// signaledExitCode is tt's exit code for an external module killed by a
+// signal, which has no exit status of its own.
+const signaledExitCode = 255
+
+// RunExec runs command with the supplied arguments, attached to tt's standard
+// streams.
+//
+// A command that exits with a non-zero status yields a silent error carrying
+// that status as its exit code: the module has spoken for itself on its own
+// streams, and tt only passes the status on. A command killed by a signal
+// exits signaledExitCode. A command that cannot be started at all is an
+// ordinary error.
+func RunExec(command string, args []string) error {
 	cmd := exec.CommandContext(context.Background(), command, args...)
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 
-	if err := cmd.Run(); err != nil {
-		var exitError *exec.ExitError
-		if errors.As(err, &exitError) {
-			return exitError.ExitCode()
-		}
-
-		log.Errorf("failed to exec external module: %s", err)
-		return 1
+	err := cmd.Run()
+	if err == nil {
+		return nil
 	}
 
-	return 0
+	var exitError *exec.ExitError
+	if !errors.As(err, &exitError) {
+		return fmt.Errorf("failed to exec external module: %w", err)
+	}
+
+	code := exitError.ExitCode()
+	if code < 0 {
+		code = signaledExitCode
+	}
+
+	return sdk.WithCode(code, exitcode.Silent(
+		fmt.Errorf("external module %q: %w", command, err)))
 }
 
 // GetExternalModuleHelp calls external module with

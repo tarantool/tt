@@ -33,6 +33,7 @@ import (
 
 	"github.com/tarantool/go-luarocks/client"
 
+	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build/backend"
 	"github.com/tarantool/tt/v3/cli/manifest/resolve"
@@ -123,9 +124,9 @@ type Result struct {
 }
 
 // Run executes the build (or fetch) described by opts, discarding the result.
-// It returns an *ExitError for the failures that carry a dedicated exit code
-// (stale --locked, version.lua collision, backend failure) and a plain error
-// otherwise; ExitCode maps either to a process exit code.
+// It returns an *sdk.ExitError for the failures that carry a dedicated exit
+// code (stale --locked, version.lua collision, backend failure) and a plain
+// error otherwise; cli/exitcode maps either to a process exit code.
 func Run(ctx context.Context, opts Options) error {
 	_, err := RunResult(ctx, opts)
 
@@ -180,7 +181,7 @@ func effectiveRegistries(opts Options, man *manifest.Manifest) ([]rocks.Registry
 
 	registries, err := rocks.EffectiveRegistries(sources)
 	if err != nil {
-		return nil, exitErrorf(exitStateError, "%w", err)
+		return nil, sdk.Errorf(sdk.ExitFailure, "%w", err)
 	}
 
 	return registries, nil
@@ -226,7 +227,7 @@ func runFetch(
 
 	prod, ok := lock.Products[productName]
 	if !ok {
-		return nil, exitErrorf(exitStateError,
+		return nil, sdk.Errorf(sdk.ExitFailure,
 			"lock has no closure for product %q; run tt package build", productName)
 	}
 
@@ -273,7 +274,7 @@ func runBuild(
 
 	preErr := runHook(ctx, man, ver, hookPreBuild, opts.ProjectDir, opts.ShowOutput)
 	if preErr != nil {
-		return nil, exitErrorf(exitBackendError, "pre_build hook: %w", preErr)
+		return nil, sdk.Errorf(sdk.ExitSystem, "pre_build hook: %w", preErr)
 	}
 
 	engine := resolve.NewEngine(adapter, opts.ProjectDir, opts.TtVersion)
@@ -289,7 +290,7 @@ func runBuild(
 	if !ok {
 		// A hash-fresh lock can still lack the product if it was hand-edited or
 		// truncated (IsStale only checks the manifest and path-dep hashes).
-		return nil, exitErrorf(exitStateError,
+		return nil, sdk.Errorf(sdk.ExitFailure,
 			"lock has no closure for product %q", productName)
 	}
 
@@ -374,7 +375,7 @@ func runBackends(
 
 		runErr := executor.Run(ctx, *component.Build, cwd, env)
 		if runErr != nil {
-			return exitErrorf(exitBackendError, "building component %q: %w", name, runErr)
+			return sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, runErr)
 		}
 	}
 
@@ -410,7 +411,7 @@ func runPostBuild(
 ) error {
 	err := runHook(ctx, man, ver, hookPostBuild, opts.ProjectDir, opts.ShowOutput)
 	if err != nil {
-		return exitErrorf(exitBackendError, "post_build hook: %w", err)
+		return sdk.Errorf(sdk.ExitSystem, "post_build hook: %w", err)
 	}
 
 	return nil

@@ -50,7 +50,7 @@ You will need to choose version using arrow keys in your console.
 # Switch with program and version.
 
 	$ tt binaries switch tarantool 3.0.0`,
-		Run: RunModuleFunc(internalSwitchModule),
+		RunE: RunModuleFuncE(internalSwitchModule),
 		Args: cobra.MatchAll(
 			cobra.MaximumNArgs(binariesSwitchMaxArgs), binariesSwitchValidateArgs),
 		ValidArgs: binariesSupportedPrograms,
@@ -58,7 +58,7 @@ You will need to choose version using arrow keys in your console.
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "Show a list of installed binaries and their versions.",
-		Run:   RunModuleFunc(internalListModule),
+		RunE:  RunModuleFuncE(internalListModule),
 	}
 	binariesCmd.AddCommand(switchCmd)
 	binariesCmd.AddCommand(listCmd)

@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest/inventory"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
@@ -183,7 +184,7 @@ func TestListRejectsUnknownScope(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.ErrorIs(t, err, state.ErrUnknownScope)
-	assert.Equal(t, 1, inventory.ExitCode(err))
+	assert.Equal(t, 1, exitcode.Code(err))
 }
 
 // TestListDefaultsToProjectScope pins that the zero scope is project, so the

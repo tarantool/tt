@@ -204,8 +204,11 @@ linters:
             # cli/manifest/pack drives the build before archiving its result.
             - "github.com/tarantool/tt/v3/cli/manifest/build"
             # cli/manifest/install refetches dependencies through the luarocks
-            # adapter and reuses the build package's exit-code machinery.
+            # adapter.
             - "github.com/tarantool/tt/v3/cli/manifest/rocks"
+            # cli/manifest/deps, install and registry carry their exit codes
+            # in the SDK's ExitError.
+            - "github.com/tarantool/tt/sdk"
             # cli/manifest/install and cli/manifest/inventory both read and write
             # the on-disk install state that cli/manifest/state owns.
             #
@@ -243,3 +246,7 @@ linters:
             - "github.com/klauspost/compress/zstd"
             # cli/manifest/inventory tests round-trip the YAML they rendered.
             - "gopkg.in/yaml.v3"
+            # Tests check the exit code an error carries (the SDK's ExitError)
+            # and the one tt exits with for it (cli/exitcode).
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/exitcode"

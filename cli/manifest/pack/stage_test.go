@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
@@ -196,7 +198,7 @@ func TestStageEntryRejections(t *testing.T) {
 			err := stageEntry(t.TempDir(), projectDir, tt.entry, "include")
 			require.Error(t, err)
 			assert.ErrorIs(t, err, tt.want)
-			assert.Equal(t, exitStateError, ExitCode(err))
+			assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
 		})
 	}
 }
@@ -309,7 +311,7 @@ func TestStageWithoutDepsRejectsFlatNamespace(t *testing.T) {
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errFlatNamespace)
-	assert.Equal(t, exitStateError, ExitCode(err))
+	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
 }
 
 // A flat namespace is fine with deps bundled: the whole tree is copied anyway.

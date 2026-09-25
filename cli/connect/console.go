@@ -19,8 +19,8 @@ import (
 	"github.com/tarantool/go-prompt"
 	"github.com/tarantool/tt/v3/cli/connect/internal/luabody"
 	"github.com/tarantool/tt/v3/cli/connector"
+	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/formatter"
-	"github.com/tarantool/tt/v3/cli/logging"
 )
 
 // EvalFunc defines a function type for evaluating an expression via connection.
@@ -38,6 +38,11 @@ var (
 	ControlLeftBytes  = []byte{0x1b, 0x62}
 	ControlRightBytes = []byte{0x1b, 0x66}
 )
+
+// errInstanceGone reports a connection the instance closed in the middle of
+// a request.
+var errInstanceGone = errors.New(
+	"Connection was closed. Probably instance process isn't running anymore")
 
 // Console describes the console connected to the tarantool instance.
 type Console struct {
@@ -193,13 +198,16 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 		return nil, err
 	}
 
+	// The executor is a go-prompt callback: it has no caller to return an
+	// error to, so the ways out of the console end the process here, through
+	// the same exit path the root takes.
 	executor := func(in string) {
 		if console.input == "" {
 			if commandsExecutor.Execute(console, in) {
 				if console.quit {
 					console.Close()
 					log.Infof("Quit from the console")
-					os.Exit(0)
+					exitcode.Exit(nil)
 				}
 				return
 			}
@@ -253,14 +261,14 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 				// We need to call 'console.Close()' here because in some cases (e.g 'os.exit()')
 				// it won't be called from 'defer console.Close' in 'connect.runConsole()'.
 				console.Close()
-				logging.Fatalf("Connection was closed. Probably instance process isn't running anymore")
+				exitcode.Exit(errInstanceGone)
 			} else {
-				logging.Fatalf("Failed to execute command: %s", err)
+				exitcode.Exit(fmt.Errorf("Failed to execute command: %w", err))
 			}
 		} else if len(results) == 0 {
 			console.Close()
 			log.Infof("Connection closed")
-			os.Exit(0)
+			exitcode.Exit(nil)
 		} else {
 			data = results[0]
 		}
@@ -287,7 +295,7 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 				return
 			case <-sig:
 				console.Close()
-				os.Exit(0)
+				exitcode.Exit(nil)
 			}
 		}
 

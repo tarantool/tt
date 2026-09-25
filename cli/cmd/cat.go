@@ -40,7 +40,7 @@ func NewCatCmd() *cobra.Command {
 	catCmd := &cobra.Command{
 		Use:   "cat <FILE|DIR>...",
 		Short: "Print into stdout the contents of .snap/.xlog FILE(s)",
-		Run:   RunModuleFunc(internalCatModule),
+		RunE:  RunModuleFuncE(internalCatModule),
 		Example: "tt cat /path/to/file.snap /path/to/file.xlog /path/to/dir/ " +
 			"--timestamp 2024-11-13T14:02:36.818700000+00:00\n" +
 			"  tt cat /path/to/file.snap /path/to/file.xlog /path/to/dir/ " +

@@ -23,7 +23,7 @@ func NewKillCmd() *cobra.Command {
 	killCmd := &cobra.Command{
 		Use:   "kill [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
 		Short: "Kill tarantool instance(s)",
-		Run:   RunModuleFunc(internalKillModule),
+		RunE:  RunModuleFuncE(internalKillModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,

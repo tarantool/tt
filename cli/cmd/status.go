@@ -47,7 +47,7 @@ Columns:
 - CONFIG: The config info status (for Tarantool 3+).
 - BOX: The box info status.
 - UPSTREAM: The replication upstream status.`,
-		Run: RunModuleFunc(internalStatusModule),
+		RunE: RunModuleFuncE(internalStatusModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,

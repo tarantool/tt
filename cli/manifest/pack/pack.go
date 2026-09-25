@@ -75,8 +75,8 @@ type Result struct {
 }
 
 // Run builds the project and packs it into an archive. It returns an
-// *build.ExitError for failures carrying a dedicated exit code; ExitCode maps
-// any error to a process exit code.
+// *sdk.ExitError for failures carrying a dedicated exit code; cli/exitcode
+// maps any error to a process exit code.
 func Run(ctx context.Context, opts Options) (*Result, error) {
 	built, err := runBuild(ctx, opts)
 	if err != nil {

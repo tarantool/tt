@@ -2,10 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/sdk/log"
 
 	"github.com/tarantool/tt/v3/cli/manifest/scaffold"
 )
@@ -32,11 +30,8 @@ func NewNewCmd() *cobra.Command {
 			"which lays out a whole application from a template; tt new adds one " +
 			"file to a directory that may already hold a project.",
 		Args: cobra.NoArgs,
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := runNew(); err != nil {
-				log.Error(err.Error())
-				os.Exit(scaffold.ExitCode(err))
-			}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return manifestError(cmd, runNew())
 		},
 		Example: `
 # Create a manifest for the project in the current directory.

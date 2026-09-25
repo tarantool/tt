@@ -16,7 +16,7 @@ func NewStopCmd() *cobra.Command {
 	stopCmd := &cobra.Command{
 		Use:   "stop [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
 		Short: "Stop tarantool instance(s)",
-		Run:   RunModuleFunc(internalStopWithConfirmationModule),
+		RunE:  RunModuleFuncE(internalStopWithConfirmationModule),
 		Args:  cobra.RangeArgs(0, 1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,

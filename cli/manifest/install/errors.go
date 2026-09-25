@@ -2,9 +2,8 @@ package install
 
 import (
 	"errors"
-	"fmt"
 
-	"github.com/tarantool/tt/v3/cli/manifest/build"
+	"github.com/tarantool/tt/sdk"
 )
 
 // Names install reads from inside a .tt archive. They mirror the reserved set
@@ -14,16 +13,6 @@ const (
 	lockFileName     = "app.manifest.lock"
 	versionFileName  = "VERSION"
 	runtimeDirName   = "_runtime"
-)
-
-// Process exit codes install maps failures to. A usage or state error (name
-// collision without --force/--upgrade, incompatible runtime, a with-deps
-// archive into user/system, a stale lock under --locked, an unreconcilable
-// shared dependency) exits 1. A multi-archive run where some targets installed
-// and some failed exits 3.
-const (
-	exitStateError   = 1
-	exitPartialError = 3
 )
 
 var (
@@ -56,20 +45,16 @@ var (
 	errPartialInstall = errors.New("some archives failed to install")
 )
 
-// ExitError re-exports build.ExitError so install returns the same typed error
-// the build and pack commands do; ExitCode reads the code back through the
-// chain.
-type ExitError = build.ExitError
-
-// ExitCode returns the process exit code for err, reusing the build package's
-// mapping so build, pack and install all agree. A nil error is 0.
-func ExitCode(err error) int {
-	return build.ExitCode(err)
+// stateErrorf wraps a formatted error as a usage or state failure
+// (sdk.ExitFailure): a name collision without --force/--upgrade, an
+// incompatible runtime, a with-deps archive into user/system, a stale lock
+// under --locked, an unreconcilable shared dependency.
+func stateErrorf(format string, args ...any) error {
+	return sdk.Errorf(sdk.ExitFailure, format, args...)
 }
 
-// stateErrorf wraps a formatted error as a state error (exit 1).
-//
-//nolint:err113 // Formatting helper, mirrors fmt.Errorf; callers pass %w wraps.
-func stateErrorf(format string, args ...any) error {
-	return &build.ExitError{Code: exitStateError, Err: fmt.Errorf(format, args...)}
+// partialErrorf wraps a formatted error as a multi-archive run where some
+// targets installed and some failed (sdk.ExitPartial).
+func partialErrorf(format string, args ...any) error {
+	return sdk.Errorf(sdk.ExitPartial, format, args...)
 }

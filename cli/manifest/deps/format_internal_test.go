@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
+
+	"github.com/tarantool/tt/v3/cli/exitcode"
 )
 
 // sampleReport is one report covering every shape the renderers have to carry:
@@ -57,7 +59,7 @@ func TestParseFormat_unknownIsRefused(t *testing.T) {
 
 	_, err := ParseFormat("xml", true)
 	require.ErrorIs(t, err, ErrUnknownFormat)
-	assert.Equal(t, exitStateError, ExitCode(err))
+	assert.Equal(t, 1, exitcode.Code(err))
 }
 
 // TestRender_jsonIsValidAndCarriesEveryGroup is the acceptance criterion for

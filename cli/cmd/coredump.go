@@ -25,7 +25,7 @@ func NewCoredumpCmd() *cobra.Command {
 	packCmd := &cobra.Command{
 		Use:   "pack COREDUMP",
 		Short: "pack tarantool coredump into tar.gz archive",
-		Run:   RunModuleFunc(internalCoredumpPackModule),
+		RunE:  RunModuleFuncE(internalCoredumpPackModule),
 		Args:  cobra.ExactArgs(1),
 	}
 	packCmd.Flags().StringVarP(&coredumpPackExecutable, "executable", "e", "",
@@ -42,14 +42,14 @@ func NewCoredumpCmd() *cobra.Command {
 	unpackCmd := &cobra.Command{
 		Use:   "unpack ARCHIVE",
 		Short: "unpack tarantool coredump tar.gz archive",
-		Run:   RunModuleFunc(internalCoredumpUnpackModule),
+		RunE:  RunModuleFuncE(internalCoredumpUnpackModule),
 		Args:  cobra.ExactArgs(1),
 	}
 
 	inspectCmd := &cobra.Command{
 		Use:   "inspect {ARCHIVE|DIRECTORY}",
 		Short: "inspect tarantool coredump",
-		Run:   RunModuleFunc(internalCoredumpInspectModule),
+		RunE:  RunModuleFuncE(internalCoredumpInspectModule),
 		Args:  cobra.ExactArgs(1),
 	}
 	inspectCmd.Flags().StringVarP(&coredumpInspectSourceDir, "sourcedir", "s", "",

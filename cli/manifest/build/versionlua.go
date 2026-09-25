@@ -7,6 +7,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/manifest/version"
 )
 
@@ -34,7 +35,7 @@ func writeVersionLua(
 	dst := filepath.Join(tree, shareTarantool, pkgName, versionLuaName)
 
 	if slices.Contains(laidOut, dst) {
-		return exitErrorf(exitStateError,
+		return sdk.Errorf(sdk.ExitFailure,
 			"%w: component ships %s at %s, which the build also generates",
 			errVersionLuaCollision, versionLuaName, dst)
 	}

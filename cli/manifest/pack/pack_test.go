@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
@@ -86,7 +88,7 @@ func TestLockWithBundledPreservesClosure(t *testing.T) {
 func TestLockWithBundledRejectsNilLock(t *testing.T) {
 	_, err := lockWithBundled(nil, BundledVersions{})
 	require.Error(t, err)
-	assert.Equal(t, exitStateError, ExitCode(err))
+	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
 }
 
 func TestPackageNamespaces(t *testing.T) {

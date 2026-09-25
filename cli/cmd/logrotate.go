@@ -13,7 +13,7 @@ func NewLogrotateCmd() *cobra.Command {
 	logrotateCmd := &cobra.Command{
 		Use:   "logrotate [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
 		Short: "Rotate logs of a started tarantool instance(s)",
-		Run:   RunModuleFunc(internalLogrotateModule),
+		RunE:  RunModuleFuncE(internalLogrotateModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,

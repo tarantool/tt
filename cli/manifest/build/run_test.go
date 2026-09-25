@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
@@ -179,7 +181,7 @@ func TestRun_lockedGate(t *testing.T) {
 	writeFile(t, filepath.Join(dir, manifestFileName), baseManifest+"\n# drift\n")
 	err := Run(context.Background(), locked)
 	require.Error(t, err)
-	assert.Equal(t, exitStateError, ExitCode(err))
+	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
 }
 
 func TestRun_versionLuaCollision(t *testing.T) {
@@ -195,7 +197,7 @@ func TestRun_versionLuaCollision(t *testing.T) {
 	// namespace, colliding with the generated one.
 	err := Run(context.Background(), dryOptions(dir))
 	require.Error(t, err)
-	assert.Equal(t, exitStateError, ExitCode(err))
+	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
 }
 
 func TestRun_generateVersionLuaDisabled(t *testing.T) {
@@ -285,5 +287,5 @@ func TestRun_fetchWithoutLockFails(t *testing.T) {
 	opts.FetchOnly = true
 	err := Run(context.Background(), opts)
 	require.Error(t, err)
-	assert.Equal(t, exitStateError, ExitCode(err))
+	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
 }

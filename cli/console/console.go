@@ -13,6 +13,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/tarantool/go-prompt"
+	"github.com/tarantool/tt/v3/cli/exitcode"
 )
 
 var (
@@ -118,9 +119,11 @@ func (c *Console) executeEmbeddedCommand(in string) bool {
 	if c.input == "" && c.internal != nil {
 		if c.internal.Execute(in) != nil {
 			if c.quit {
+				// A go-prompt callback has no caller to return to, so
+				// leaving the console ends the process here.
 				c.Close()
 				log.Infof("Quit from the console")
-				os.Exit(0)
+				exitcode.Exit(nil)
 			}
 			return true
 		}
@@ -181,7 +184,7 @@ func (c *Console) execute(in string) {
 	if results == nil {
 		c.Close()
 		log.Infof("Connection closed")
-		os.Exit(0)
+		exitcode.Exit(nil)
 	}
 
 	_, _ = fmt.Fprintln(os.Stdout, "---")

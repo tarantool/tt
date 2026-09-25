@@ -26,9 +26,7 @@ import (
 	"time"
 
 	"github.com/otiai10/copy"
-	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/sdk/log"
-	"github.com/tarantool/tt/v3/cli/logging"
 	"gopkg.in/yaml.v2"
 )
 
@@ -935,23 +933,6 @@ func Min[T cmp.Ordered](a, b T) T {
 		return a
 	}
 	return b
-}
-
-// HandleCmdErr handles an error returned by command implementation.
-// If received error is of an ArgError type, usage help is printed.
-func HandleCmdErr(cmd *cobra.Command, err error) {
-	if err != nil {
-		var argError *ArgError
-		if errors.As(err, &argError) {
-			log.Error(argError.Error())
-			_ = cmd.Usage()
-			os.Exit(1)
-		}
-		if errors.Is(err, ErrCmdAbort) {
-			os.Exit(1)
-		}
-		logging.Fatalf("%s", err)
-	}
 }
 
 // CopyFileDeep copies a file resolving symlinks.

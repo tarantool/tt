@@ -23,8 +23,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/manifest"
-	"github.com/tarantool/tt/v3/cli/manifest/build"
 )
 
 // manifestFileName is the file tt new creates, next to which every other
@@ -40,25 +40,11 @@ const filePerm os.FileMode = 0o644
 // message always names something the user can pass straight back.
 const suggestedPackageName = "app"
 
-// exitStateError is the process exit code for a usage or state failure, the
-// same one every other package command uses.
-const exitStateError = 1
-
 // ErrManifestExists reports a directory that already holds a manifest. tt new
 // refuses rather than overwriting: the existing file is hand-authored, may hold
 // a whole project's dependencies, and nothing about "create a skeleton" implies
 // consent to lose it.
 var ErrManifestExists = errors.New("a manifest already exists")
-
-// ExitError re-exports build.ExitError so tt new returns the same typed error
-// the other package commands do.
-type ExitError = build.ExitError
-
-// ExitCode returns the process exit code for err, reusing the build package's
-// mapping so every manifest command agrees. A nil error is 0.
-func ExitCode(err error) int {
-	return build.ExitCode(err)
-}
 
 // Options configures one tt new run.
 type Options struct {
@@ -229,9 +215,8 @@ func validate(source string) error {
 // warn about — an unknown field, say, left behind by a format bump.
 var errUnexpectedWarning = errors.New("the generated manifest produced warnings")
 
-// stateErrorf wraps a formatted error as a state error (exit 1).
-//
-//nolint:err113 // Formatting helper, mirrors fmt.Errorf; callers pass %w wraps.
+// stateErrorf wraps a formatted error as a usage or state failure
+// (sdk.ExitFailure), the code every other package command uses for one.
 func stateErrorf(format string, args ...any) error {
-	return &ExitError{Code: exitStateError, Err: fmt.Errorf(format, args...)}
+	return sdk.Errorf(sdk.ExitFailure, format, args...)
 }

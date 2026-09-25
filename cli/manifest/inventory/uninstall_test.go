@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest/inventory"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
@@ -130,7 +131,7 @@ func TestUninstallRefusesPrimaryPackage(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.ErrorIs(t, err, inventory.ErrPrimaryPackage)
-	assert.Equal(t, 1, inventory.ExitCode(err))
+	assert.Equal(t, 1, exitcode.Code(err))
 
 	// Nothing was touched.
 	assert.True(t, tr.rockExists("my-app"))
@@ -169,7 +170,7 @@ func TestUninstallNotInstalled(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.ErrorIs(t, err, inventory.ErrNotInstalled)
-	assert.Equal(t, 1, inventory.ExitCode(err))
+	assert.Equal(t, 1, exitcode.Code(err))
 
 	// A miss must not disturb what is installed.
 	assert.True(t, tr.rockExists("monitoring"))
@@ -202,7 +203,7 @@ func TestUninstallRejectsBadPackageName(t *testing.T) {
 		})
 		require.Error(t, err, name)
 		require.ErrorIs(t, err, inventory.ErrBadPackageName, name)
-		assert.Equal(t, 1, inventory.ExitCode(err), name)
+		assert.Equal(t, 1, exitcode.Code(err), name)
 
 		// The tree is intact.
 		assert.True(t, tr.metadataExists("monitoring"), name)
@@ -452,7 +453,7 @@ func TestUninstallRejectsUnknownScope(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.ErrorIs(t, err, state.ErrUnknownScope)
-	assert.Equal(t, 1, inventory.ExitCode(err))
+	assert.Equal(t, 1, exitcode.Code(err))
 
 	assert.True(t, tr.metadataExists("monitoring"))
 }

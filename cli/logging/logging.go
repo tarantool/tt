@@ -174,13 +174,3 @@ func fileIsTerminal(writer io.Writer) bool {
 
 	return isatty.IsTerminal(file.Fd()) || isatty.IsCygwinTerminal(file.Fd())
 }
-
-// Fatalf logs a formatted message at Error level and exits with code 1.
-//
-// It exists for the few places that still end the process themselves
-// instead of returning an error to the command's caller. Do not add callers:
-// once every failure travels back to one exit point, this function goes.
-func Fatalf(format string, args ...any) {
-	sdklog.Errorf(format, args...)
-	os.Exit(1)
-}

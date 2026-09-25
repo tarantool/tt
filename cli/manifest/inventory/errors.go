@@ -2,16 +2,9 @@ package inventory
 
 import (
 	"errors"
-	"fmt"
 
-	"github.com/tarantool/tt/v3/cli/manifest/build"
+	"github.com/tarantool/tt/sdk"
 )
-
-// exitStateError is the process exit code for a usage or state failure: an
-// unknown --scope, a package that is not installed, a refusal to remove the
-// primary package, an unreadable tree. It matches what build, pack and install
-// use, so every package command agrees.
-const exitStateError = 1
 
 var (
 	// ErrNotInstalled reports an uninstall aimed at a package the scope does not
@@ -32,19 +25,9 @@ var (
 	ErrUnknownFormat = errors.New("unknown output format")
 )
 
-// ExitError re-exports build.ExitError so inventory returns the same typed
-// error the build, pack and install commands do.
-type ExitError = build.ExitError
-
-// ExitCode returns the process exit code for err, reusing the build package's
-// mapping so every package command agrees. A nil error is 0.
-func ExitCode(err error) int {
-	return build.ExitCode(err)
-}
-
-// stateErrorf wraps a formatted error as a state error (exit 1).
-//
-//nolint:err113 // Formatting helper, mirrors fmt.Errorf; callers pass %w wraps.
+// stateErrorf wraps a formatted error as a usage or state failure
+// (sdk.ExitFailure): an unknown --scope, a package that is not installed, a
+// refusal to remove the primary package, an unreadable tree.
 func stateErrorf(format string, args ...any) error {
-	return &build.ExitError{Code: exitStateError, Err: fmt.Errorf(format, args...)}
+	return sdk.Errorf(sdk.ExitFailure, format, args...)
 }
