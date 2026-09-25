@@ -18,6 +18,17 @@
 //
 // The SDK encodes JSON itself. Any other machine format is supplied by the tt
 // core with [WithEncoder], which keeps its encoder library out of the SDK.
+//
+// The JSON encoder passes every value through [Normalize] first, so a result
+// may carry what a MessagePack decoder produced - maps keyed by interfaces,
+// integers or bools - without the command converting it. A core encoder
+// calls Normalize itself when its format needs it.
+//
+// A float that is NaN, +Inf or -Inf has no JSON number, so it is written as
+// the string "NaN", "Infinity" or "-Infinity", while a finite float stays a
+// number: the JSON type of such a value depends on the value. This is how
+// encoding/json/v2 writes a float under `json:",format:nonfinite"` and how
+// the proto3 JSON mapping writes a double.
 package output
 
 import (
@@ -240,13 +251,18 @@ func (p *Printer) Emit(result Result) error {
 	return nil
 }
 
-// encodeJSON writes value as JSON indented by two spaces with a trailing
-// newline, readable both directly and piped into jq.
+// encodeJSON writes value, normalised, as JSON indented by two spaces with a
+// trailing newline, readable both directly and piped into jq.
 func encodeJSON(w io.Writer, value any) error {
+	normalized, err := Normalize(value)
+	if err != nil {
+		return fmt.Errorf("encoding JSON: %w", err)
+	}
+
 	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "  ")
 
-	err := encoder.Encode(value)
+	err = encoder.Encode(normalized)
 	if err != nil {
 		return fmt.Errorf("encoding JSON: %w", err)
 	}
