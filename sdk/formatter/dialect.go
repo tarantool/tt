@@ -8,8 +8,12 @@ import (
 type TableDialect int
 
 const (
+	// DefaultTableDialect draws tables for a terminal, with pseudographics
+	// or with spaces as [Opts.Graphics] says.
 	DefaultTableDialect TableDialect = iota
+	// MarkdownTableDialect writes tables to paste into Markdown.
 	MarkdownTableDialect
+	// JiraTableDialect writes tables to paste into Jira.
 	JiraTableDialect
 )
 

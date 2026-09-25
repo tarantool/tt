@@ -335,8 +335,6 @@ linters:
             - "github.com/tarantool/tt/v3/cli/aeon"
             - "github.com/tarantool/tt/v3/cli/cluster"
             - "github.com/tarantool/tt/v3/cli/connector"
-            - "github.com/tarantool/tt/v3/cli/console"
-            - "github.com/tarantool/tt/v3/cli/formatter"
             - "github.com/tarantool/tt/v3/cli/util"
             - "google.golang.org/grpc"
             - "google.golang.org/protobuf"
@@ -415,14 +413,12 @@ linters:
             - "github.com/tarantool/tt/v3/cli/configure"
             - "github.com/tarantool/tt/v3/cli/connect"
             - "github.com/tarantool/tt/v3/cli/connector"
-            - "github.com/tarantool/tt/v3/cli/console"
             - "github.com/tarantool/tt/v3/cli/coredump"
             - "github.com/tarantool/tt/v3/cli/create"
             - "github.com/tarantool/tt/v3/cli/daemon"
             - "github.com/tarantool/tt/v3/cli/download"
             - "github.com/tarantool/tt/v3/cli/env"
             - "github.com/tarantool/tt/v3/cli/exitcode"
-            - "github.com/tarantool/tt/v3/cli/formatter"
             - "github.com/tarantool/tt/v3/cli/install"
             - "github.com/tarantool/tt/v3/cli/logging"
             - "github.com/tarantool/tt/v3/cli/manifest"
@@ -483,7 +479,6 @@ linters:
             - "github.com/tarantool/tt/v3/cli/connect"
             - "github.com/tarantool/tt/v3/cli/connector"
             - "github.com/tarantool/tt/v3/cli/exitcode"
-            - "github.com/tarantool/tt/v3/cli/formatter"
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/yuin/gopher-lua"
             - "golang.org/x/term"
@@ -501,19 +496,6 @@ linters:
             - "github.com/vmihailenco/msgpack/v5"
             - "github.com/yuin/gopher-lua"
             - "gopkg.in/yaml.v2"
-        dir-cli-console:
-          files:
-            - "**/cli/console/**"
-          allow:
-            - $gostd
-            - "github.com/stretchr/testify"
-            - "github.com/tarantool/go-prompt"
-            - "github.com/tarantool/tt/sdk"
-            - "github.com/tarantool/tt/v3/cli/console"
-            - "github.com/tarantool/tt/v3/cli/exitcode"
-            - "github.com/tarantool/tt/v3/cli/formatter"
-            - "github.com/tarantool/tt/v3/cli/util"
-            - "golang.org/x/term"
         dir-cli-coredump:
           files:
             - "**/cli/coredump/**"
@@ -589,15 +571,6 @@ linters:
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/sdk"
             - "github.com/tarantool/tt/v3/cli/exitcode"
-        dir-cli-formatter:
-          files:
-            - "**/cli/formatter/**"
-          allow:
-            - $gostd
-            - "github.com/jedib0t/go-pretty/v6"
-            - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/v3/cli/formatter"
-            - "gopkg.in/yaml.v2"
         dir-cli-install:
           files:
             - "**/cli/install/**"

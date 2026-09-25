@@ -11,11 +11,12 @@ import (
 	"github.com/spf13/cobra"
 	goconfig "github.com/tarantool/go-config/v2"
 	sdkconnect "github.com/tarantool/tt/sdk/connect"
+	"github.com/tarantool/tt/sdk/console"
 	aeon "github.com/tarantool/tt/v3/cli/aeon"
 	aeoncmd "github.com/tarantool/tt/v3/cli/aeon/cmd"
 	"github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
-	"github.com/tarantool/tt/v3/cli/console"
+	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/util"
 )
 
@@ -219,6 +220,7 @@ func internalAeonConnect(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		Handler: handler,
 		History: &hist,
 		Format:  console.FormatAsTable(),
+		Exit:    exitcode.Exit,
 	}
 
 	c, err := console.NewConsole(opts)

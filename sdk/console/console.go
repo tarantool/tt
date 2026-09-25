@@ -9,16 +9,16 @@ import (
 	"syscall"
 	"unicode"
 
-	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/go-prompt"
 	"golang.org/x/term"
 
-	"github.com/tarantool/go-prompt"
-	"github.com/tarantool/tt/v3/cli/exitcode"
+	"github.com/tarantool/tt/sdk/log"
 )
 
 var (
 	errConsoleStopped                 = errors.New("can't run on stopped console")
 	errNoHandlerForCommandsHasBeenSet = errors.New("no handler for commands has been set")
+	errNoExitHasBeenSet               = errors.New("no exit function has been set")
 )
 
 const (
@@ -35,12 +35,21 @@ var (
 
 // ConsoleOpts collection console options to create new console.
 type ConsoleOpts struct {
-	// Handler is the implementation of command processor.
+	// Handler is the implementation of command processor. Required.
 	Handler Handler
 	// History if specified than save input commands with it.
 	History HistoryKeeper
 	// Format options set how to formatting result.
 	Format Format
+	// Exit ends the process with the exit code of its error, the way
+	// os.Exit does, and must not return. Required.
+	//
+	// The console calls it with nil, after closing itself, when the
+	// handler's Execute returns nil: the connection is closed. That happens
+	// inside a callback of the prompt library, which has no caller to
+	// return an error to, so ending the process is the only way out. A
+	// module passes the Exit of its services.
+	Exit func(err error)
 }
 
 // Console implementation of active console handler.
@@ -57,13 +66,19 @@ type Console struct {
 }
 
 // NewConsole creates a new console connected to the tarantool instance.
+// It fails when opts lack a Handler or an Exit; the console it returns then
+// refuses to Run.
 func NewConsole(opts ConsoleOpts) (Console, error) {
-	if opts.Handler == nil {
+	if opts.Handler == nil || opts.Exit == nil {
 		var stopped Console
 
 		stopped.quit = true
 
-		return stopped, errNoHandlerForCommandsHasBeenSet
+		if opts.Handler == nil {
+			return stopped, errNoHandlerForCommandsHasBeenSet
+		}
+
+		return stopped, errNoExitHasBeenSet
 	}
 
 	created := Console{
@@ -144,7 +159,7 @@ func (c *Console) executeEmbeddedCommand(in string) bool {
 				// leaving the console ends the process here.
 				c.Close()
 				log.Infof("Quit from the console")
-				exitcode.Exit(nil)
+				c.impl.Exit(nil)
 			}
 
 			return true
@@ -213,7 +228,9 @@ func (c *Console) execute(in string) {
 	if results == nil {
 		c.Close()
 		log.Infof("Connection closed")
-		exitcode.Exit(nil)
+		c.impl.Exit(nil)
+
+		return
 	}
 
 	_, _ = fmt.Fprintln(os.Stdout, "---")

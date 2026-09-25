@@ -27,7 +27,9 @@ Each directory is a separate Go module:
 between tt and its modules. The nested `connect`, `dial`, `cluster` and
 `integrity` are not part of it: each has its own `go.mod`. It depends on the
 standard library, `github.com/spf13/cobra` and `github.com/spf13/pflag`
-(testify for its tests). Cobra and pflag types are part of the contract, so
+(testify for its tests); `sdk/formatter` adds `github.com/jedib0t/go-pretty`
+and `gopkg.in/yaml.v2`, `sdk/console` adds `github.com/tarantool/go-prompt`
+and `golang.org/x/term`. Cobra and pflag types are part of the contract, so
 the module pins their versions: a module builds against the cobra the core
 uses, and the core never requires an older one.
 
@@ -51,6 +53,20 @@ uses, and the core never requires an older one.
   core's job, not the SDK's. `UsageError` (`WithUsage`, `Usagef`) is an
   error in how a command was invoked: tt logs it and prints the command's
   usage.
+- `sdk/console` is the interactive console `tt aeon connect` runs: a
+  `Console` built by `NewConsole` from `ConsoleOpts` reads statements with
+  line editing, completion and history on a terminal (line by line from a
+  pipe), hands each to a `Handler` and prints its result in a `Format`
+  (`FormatAsTable`, or a result's own `Formatter`). `History` keeps the
+  statements in a file, the format tt connect uses. The console ends the
+  process through the `Exit` function its options must carry when the
+  handler's connection closes, since the prompt library it runs on has no
+  caller to return to.
+- `sdk/formatter` renders the YAML document a Tarantool console answers
+  with: `MakeOutput` prints it as YAML, as a Lua expression or as tables
+  (`Format`, parsed from its name by `ParseFormat`), and `Opts` sets the
+  tables' pseudographics, maximum column width and `TableDialect` (terminal,
+  Markdown or Jira). The output is byte for byte what tt's consoles print.
 - `sdk/log` is the logging facade over `log/slog`: printf-style functions
   that record the caller's source position, `Library` for loggers handed to
   third-party libraries (their Info is demoted to Debug), `Spinner` for

@@ -9,12 +9,12 @@ import (
 	"github.com/spf13/cobra"
 
 	sdkconnect "github.com/tarantool/tt/sdk/connect"
+	"github.com/tarantool/tt/sdk/formatter"
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/connect"
 	"github.com/tarantool/tt/v3/cli/connector"
-	"github.com/tarantool/tt/v3/cli/formatter"
 	"github.com/tarantool/tt/v3/cli/replicaset"
 	replicasetcmd "github.com/tarantool/tt/v3/cli/replicaset/cmd"
 	"github.com/tarantool/tt/v3/cli/running"

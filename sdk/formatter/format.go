@@ -15,10 +15,17 @@ const (
 type Format int
 
 const (
+	// YamlFormat prints the YAML document the console answered with.
 	YamlFormat Format = iota
+	// LuaFormat prints the values as a Lua expression.
 	LuaFormat
+	// TableFormat prints the values as tables, a row per record.
 	TableFormat
+	// TTableFormat prints the values as transposed tables, a column per
+	// record.
 	TTableFormat
+	// FormatsAmount is the number of formats; it is not a format itself.
+	// Every Format is below it, so a console can cycle through them.
 	FormatsAmount
 )
 

@@ -9,8 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/tarantool/tt/v3/cli/util"
 )
 
 const (
@@ -21,7 +19,12 @@ const (
 	historyFileMode     = 0o640
 )
 
-// History implementation of active history handler.
+// History is a [HistoryKeeper] that keeps the commands in a file.
+//
+// The file holds each command as a line "#<unix time>" followed by the
+// command's lines, the format tt connect keeps its history in too. A file
+// with no such time lines is read as one command per line. Every appended
+// command rewrites the whole file.
 type History struct {
 	filepath    string
 	maxCommands int
@@ -29,7 +32,9 @@ type History struct {
 	timestamps  []int64
 }
 
-// NewHistory create/open specified file.
+// NewHistory opens the history kept in file. It reads the last maxCommands
+// lines of the file, if it exists, and keeps at most maxCommands commands
+// from then on; the file is created on the first appended command.
 func NewHistory(file string, maxCommands int) (History, error) {
 	history := History{
 		filepath:    file,
@@ -44,7 +49,7 @@ func NewHistory(file string, maxCommands int) (History, error) {
 
 // DefaultHistoryFile create/open history file with default parameters.
 func DefaultHistoryFile() (History, error) {
-	dir, err := util.GetHomeDir()
+	dir, err := getHomeDir()
 	if err != nil {
 		return History{}, fmt.Errorf("failed to get home directory: %w", err)
 	}
@@ -78,11 +83,11 @@ func (h *History) Close() {
 }
 
 func (h *History) load() error {
-	if !util.IsRegularFile(h.filepath) {
+	if !isRegularFile(h.filepath) {
 		return nil
 	}
 
-	rawLines, err := util.GetLastNLines(h.filepath, h.maxCommands)
+	rawLines, err := getLastNLines(h.filepath, h.maxCommands)
 	if err != nil {
 		return err
 	}

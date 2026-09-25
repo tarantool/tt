@@ -17,10 +17,10 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/tarantool/go-prompt"
+	"github.com/tarantool/tt/sdk/formatter"
 	"github.com/tarantool/tt/v3/cli/connect/internal/luabody"
 	"github.com/tarantool/tt/v3/cli/connector"
 	"github.com/tarantool/tt/v3/cli/exitcode"
-	"github.com/tarantool/tt/v3/cli/formatter"
 )
 
 // EvalFunc defines a function type for evaluating an expression via connection.

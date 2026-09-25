@@ -20,6 +20,11 @@
 //
 // The subpackages hold the rest:
 //
+//   - [github.com/tarantool/tt/sdk/console] runs an interactive console
+//     with line editing and history over a command processor;
+//   - [github.com/tarantool/tt/sdk/formatter] renders the YAML a Tarantool
+//     console answers with as YAML, Lua or tables, the way tt's consoles
+//     print it;
 //   - [github.com/tarantool/tt/sdk/log] is the logging facade and the secret
 //     redaction logic;
 //   - [github.com/tarantool/tt/sdk/output] writes a command's result to stdout
@@ -29,7 +34,8 @@
 //
 // The contract module depends on cobra and pflag, whose types appear in it,
 // and pins their versions: a module builds against the versions the core
-// uses.
+// uses. The formatter adds go-pretty and yaml.v2, which render its output,
+// and the console adds go-prompt and x/term.
 //
 // The process itself - which handlers log where, at what level, in which
 // format - is configured by the tt core. Nothing in the SDK changes process
