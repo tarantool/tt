@@ -173,7 +173,7 @@ To run tests:
 #### Build
 
 ``` console
-git clone https://github.com/tarantool/tt --recursive
+git clone https://github.com/tarantool/tt
 cd tt
 ```
 

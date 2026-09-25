@@ -1,39 +1,26 @@
-# Update Aeon proto submodule
+# Aeon gRPC bindings
 
-In case of updating the communication protocol with the Aeon server, the
-following manual actions are required:
+The Go bindings in `pb/` are generated from the
+[aeon-api-protos](https://github.com/tarantool/aeon-api-protos) schema and are
+committed. Building, testing and linting tt never needs the schema itself.
 
-1. Update `proto` files and re-generate new `.go` sources.
-2. Make appropriate corrections to the `tt aeon connect` application code.
+## Regenerate `pb`
 
-## Requirements
-
-Ensure that the required utilities are installed on the developer's system.
-Installation of `protoc` compiler may depend on your OS distribution.
-
-```sh
-apt-get -y install protobuf-compiler
-go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-```
-
-## Update submodule from repository
-
-Get fresh files from the `master` branch.
+`buf.gen.yaml` names the schema commit, `generate-pb.sh` runs
+[buf](https://buf.build) and both protoc plugins through `go run` at pinned
+versions, so only `go` and `git` are required:
 
 ```sh
-cd tt/cli/aeon/protoc
-git co master
-git pull
-cd ..
-git add protoc
+cli/aeon/generate-pb.sh
 ```
 
-## Regenerate `pb` modules
+CI runs the same script (`.github/workflows/aeon-pb.yml`) and fails when its
+output differs from the committed `pb/`.
 
-After that, you need to regenerate the files and add them to the `git` repository.
+## Move to a newer schema
 
-```sh
-tt/cli/aeon/generate-pb.sh
-git add tt/cli/aeon/pb
-```
+1. Put the full commit hash of aeon-api-protos into `commit:` in
+   `cli/aeon/buf.gen.yaml`. A new `.proto` file also needs its own
+   `M<file>.proto=...` option there.
+2. Run `cli/aeon/generate-pb.sh` and commit `buf.gen.yaml` together with `pb/`.
+3. Make the matching changes to the `tt aeon connect` code.

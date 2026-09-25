@@ -33,7 +33,6 @@ jobs:
       - uses: actions/checkout@master
         with:
           fetch-depth: 0
-          submodules: recursive
 
       - name: Static code check
         uses: ./.github/actions/static-code-check
@@ -43,10 +42,6 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-        with:
-          # golangci-lint type-checks the whole module, and cli/aeon/protos is a
-          # submodule.
-          submodules: recursive
 
       - name: Setup Go
         uses: actions/setup-go@v7
@@ -85,7 +80,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          submodules: recursive
 
       - name: Prepare CE env
         uses: ./.github/actions/prepare-ce-test-env
@@ -120,7 +114,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          submodules: recursive
 
       - name: Install test requirements
         run: |
@@ -169,14 +162,12 @@ jobs:
         if: github.event_name == 'pull_request_target'
         with:
           fetch-depth: 0
-          submodules: recursive
           ref: ${{ github.event.pull_request.head.sha }}
 
       - uses: actions/checkout@v4
         if: github.event_name != 'pull_request_target'
         with:
           fetch-depth: 0
-          submodules: recursive
 
       - name: Prepare EE env
         uses: ./.github/actions/prepare-ee-test-env
@@ -202,7 +193,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          submodules: recursive
 
       - name: Setup Python
         uses: actions/setup-python@v4
