@@ -123,22 +123,6 @@ func newRootCmd() *cobra.Command {
 	return rootCmd
 }
 
-// Main initializes the root command and runs the command line. It returns
-// the process exit code, having reported the error the run failed with.
-//
-// Commands return their error here instead of ending the process
-// themselves; reportError and exitcode.Code turn it into what the user sees
-// and the code tt exits with.
-func Main() int {
-	if err := initRoot(); err != nil {
-		exitcode.Report(err)
-
-		return exitcode.Code(err)
-	}
-
-	return Run()
-}
-
 // Execute runs the root command. On failure it reports the error and exits
 // with its code; on success it returns.
 // TT-EE.
@@ -190,5 +174,5 @@ func initRoot() error {
 		return err
 	}
 
-	return Configure()
+	return Configure(ConfigureOptions{ModuleOwner: nil})
 }

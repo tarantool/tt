@@ -14,6 +14,20 @@ type returnValueParseVersion struct {
 func TestParseVersion(t *testing.T) {
 	assert := assert.New(t)
 
+	for input, output := range parseVersionCases() {
+		version, err := Parse(input)
+
+		if output.err == nil {
+			assert.Nil(err)
+			assert.Equal(output.version, version)
+		} else {
+			assert.Equal(output.err, err)
+		}
+	}
+}
+
+// parseVersionCases returns version strings and what Parse makes of them.
+func parseVersionCases() map[string]returnValueParseVersion {
 	testCases := make(map[string]returnValueParseVersion)
 
 	testCases["2.10.42-alpha2-91-g08c9b4963-r482"] = returnValueParseVersion{
@@ -204,16 +218,7 @@ func TestParseVersion(t *testing.T) {
 		newInvalidVersionError("2.11.0-0-gc9673ebb7-r575-gc32"),
 	}
 
-	for input, output := range testCases {
-		version, err := Parse(input)
-
-		if output.err == nil {
-			assert.Nil(err)
-			assert.Equal(output.version, version)
-		} else {
-			assert.Equal(output.err, err)
-		}
-	}
+	return testCases
 }
 
 func TestParseTt(t *testing.T) {

@@ -1,17 +1,21 @@
 package cmd
 
 import (
+	"fmt"
 	"slices"
 
 	"github.com/spf13/cobra"
+
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/modules"
 )
 
-// configureExternalCmd configures external commands.
+// configureExternalCmd configures external commands. moduleOwner names the
+// module a command comes from; it may be nil.
 func configureExternalCmd(rootCmd *cobra.Command, modulesInfo *modules.ModulesInfo,
-	forceInternal bool,
+	forceInternal bool, moduleOwner func(*cobra.Command) (string, bool),
 ) {
-	configureExistsCmd(rootCmd, modulesInfo, forceInternal)
+	configureExistsCmd(rootCmd, modulesInfo, forceInternal, moduleOwner)
 	configureNonExistentCmd(rootCmd, modulesInfo)
 }
 
@@ -29,14 +33,44 @@ func externalModuleHelpFunc(manifest modules.Manifest) func(*cobra.Command, []st
 
 // configureExistsCmd configures an external commands
 // that have internal implementation.
+//
+// A legacy command runs through modules.RunCmd, which runs the external
+// module instead unless -I is given; here it only stops parsing flags, so
+// that they reach the module, and shows the module's help. A command a
+// module contributed does not run through modules.RunCmd, so it is replaced
+// by the external command, with a warning, unless -I is given.
 func configureExistsCmd(rootCmd *cobra.Command, modulesInfo *modules.ModulesInfo,
-	forceInternal bool,
+	forceInternal bool, moduleOwner func(*cobra.Command) (string, bool),
 ) {
-	for _, cmd := range rootCmd.Commands() {
-		if manifest, found := (*modulesInfo)[cmd.CommandPath()]; found {
+	for _, cmd := range slices.Clone(rootCmd.Commands()) {
+		manifest, found := (*modulesInfo)[cmd.CommandPath()]
+		if !found {
+			continue
+		}
+
+		if isLegacy(cmd) {
 			cmd.DisableFlagParsing = !forceInternal
 			cmd.SetHelpFunc(externalModuleHelpFunc(manifest))
+
+			continue
 		}
+
+		if forceInternal {
+			continue
+		}
+
+		replaced := fmt.Sprintf("command %q", cmd.Name())
+		if moduleOwner != nil {
+			if owner, ok := moduleOwner(cmd); ok {
+				replaced += fmt.Sprintf(" of module %q", owner)
+			}
+		}
+
+		log.Warnf("External module %q (%s) replaces the %s; run tt with -I to keep it",
+			manifest.Name, manifest.Main, replaced)
+
+		rootCmd.RemoveCommand(cmd)
+		rootCmd.AddCommand(newExternalCmd(manifest))
 	}
 }
 

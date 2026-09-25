@@ -147,11 +147,22 @@ func InjectCommands(root *cobra.Command) error {
 	return nil
 }
 
+// ConfigureOptions configure Configure.
+type ConfigureOptions struct {
+	// ModuleOwner returns the module a command comes from, and false for a
+	// command no module contributed. Nil means no module contributed any.
+	ModuleOwner func(cmd *cobra.Command) (string, bool)
+}
+
 // Configure configures tt for the command line Boot parsed: it loads the tt
 // environment and its integrity checks, discovers the external modules and
 // routes to them, and sets up the help command. The command tree must be
 // complete.
-func Configure() error {
+//
+// An external module named like a top-level command takes its place unless
+// -I is given. A legacy command routes to the module when it runs; any
+// other command is replaced by the module's, with a warning.
+func Configure(opts ConfigureOptions) error {
 	_, configPathEnvSet := os.LookupEnv("TT_CLI_CFG")
 	if cmdCtx.Cli.ConfigPath == "" && configPathEnvSet {
 		configPathEnv, err := filepath.Abs(os.Getenv("TT_CLI_CFG"))
@@ -218,7 +229,7 @@ func Configure() error {
 
 	// External commands must be configured in a special way.
 	// This is necessary, for example, so that we can pass arguments to these commands.
-	configureExternalCmd(rootCmd, &modulesInfo, cmdCtx.Cli.ForceInternal)
+	configureExternalCmd(rootCmd, &modulesInfo, cmdCtx.Cli.ForceInternal, opts.ModuleOwner)
 
 	// Configure help command.
 	configureHelpCommand(rootCmd, &modulesInfo)

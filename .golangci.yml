@@ -179,6 +179,17 @@ linters:
 
     depguard:
       rules:
+        # The core is built on top of the commands: nothing under cli/ but
+        # tt's main package may import it. Like every issue, this one is
+        # reported only for the packages the exclusion rules above keep in
+        # scope; the core's TestCLIDoesNotImportCore checks the whole of cli/.
+        core-boundary:
+          files:
+            - "**/cli/**"
+            - "!**/cli/main.go"
+          deny:
+            - pkg: "github.com/tarantool/tt/v3/core"
+              desc: the core imports cli/, never the other way round
         main:
           files:
             - "$all"

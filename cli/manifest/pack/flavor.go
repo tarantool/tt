@@ -29,11 +29,12 @@ func DetectTarantoolFlavor(ctx context.Context, path string) string {
 		return ""
 	}
 
-	return flavorFromBanner(string(out))
+	return FlavorFromBanner(string(out))
 }
 
-// flavorFromBanner classifies a Tarantool --version banner.
-func flavorFromBanner(banner string) string {
+// FlavorFromBanner classifies a Tarantool --version banner as "ce" or "ee",
+// or "" when it is not a banner this code understands.
+func FlavorFromBanner(banner string) string {
 	first, _, _ := strings.Cut(banner, "\n")
 
 	// A banner is at least "Tarantool <version>"; anything shorter is not a

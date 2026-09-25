@@ -31,7 +31,7 @@ func TestFlavorFromBanner(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, flavorFromBanner(tt.banner))
+			assert.Equal(t, tt.want, FlavorFromBanner(tt.banner))
 		})
 	}
 }
