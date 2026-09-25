@@ -24,6 +24,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
 	github.com/spf13/cobra v1.10.2
+	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
 	github.com/tarantool/go-config/v2 v2.0.1
 	github.com/tarantool/go-luarocks v0.0.0-20260917094730-272b95159b11
@@ -121,7 +122,6 @@ require (
 	github.com/skeema/knownhosts v1.3.1 // indirect
 	github.com/soheilhy/cmux v0.1.5 // indirect
 	github.com/spacemonkeygo/spacelog v0.0.0-20180420211403-2296661a0572 // indirect
-	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tarantool/go-gostcrypto v0.1.0 // indirect
 	github.com/tarantool/go-gostls v0.1.0 // indirect
 	github.com/tarantool/go-iproto v1.1.0 // indirect
