@@ -1,13 +1,9 @@
 package integrity
 
 import (
-	"fmt"
-	"io"
-	"os"
-
 	"github.com/spf13/pflag"
 	gcrypto "github.com/tarantool/go-storage/v2/crypto"
-	"github.com/tarantool/go-storage/v2/hasher"
+	ghasher "github.com/tarantool/go-storage/v2/hasher"
 )
 
 // IntegrityCtx is context required for integrity checks.
@@ -26,47 +22,34 @@ type Signer interface {
 	Sign(basePath string, appNames []string) error
 }
 
-// dummyRepository implements Repository with no checks performed.
-type dummyRepository struct{}
-
-func (dummyRepository) Read(path string) (io.ReadCloser, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("open %q: %w", path, err)
-	}
-
-	return f, nil
-}
-func (dummyRepository) ValidateAll() error { return nil }
-
 // NewSigner constructs a noop Signer.
 func NewSigner(path string) (Signer, error) {
-	return nil, ErrNoSignerInCE
+	return disabledProvider{}.NewSigner(path)
 }
 
 // RegisterWithIntegrityFlag is a noop function that is intended to add
 // integrity flags to commands that publish signed data.
-func RegisterWithIntegrityFlag(flagset *pflag.FlagSet, dst *string) {}
+func RegisterWithIntegrityFlag(flagset *pflag.FlagSet, dst *string) {
+	disabledProvider{}.RegisterWithIntegrityFlag(flagset, dst)
+}
 
 // RegisterIntegrityCheckFlag is a noop function that is intended to add
 // root flag enabling integrity checks.
-func RegisterIntegrityCheckFlag(flagset *pflag.FlagSet, dst *string) {}
+func RegisterIntegrityCheckFlag(flagset *pflag.FlagSet, dst *string) {
+	disabledProvider{}.RegisterIntegrityCheckFlag(flagset, dst)
+}
 
 // RegisterIntegrityCheckPeriodFlag is a noop function that is intended to
 // add flag specifying how often should integrity checks run in watchdog.
-func RegisterIntegrityCheckPeriodFlag(flagset *pflag.FlagSet, dst *int) {}
+func RegisterIntegrityCheckPeriodFlag(flagset *pflag.FlagSet, dst *int) {
+	disabledProvider{}.RegisterIntegrityCheckPeriodFlag(flagset, dst)
+}
 
 // InitializeIntegrityCheck is a noop setup of integrity checking.
 func InitializeIntegrityCheck(
 	publicKeyPath, configDir string,
 ) (IntegrityCtx, error) {
-	if publicKeyPath != "" {
-		return IntegrityCtx{}, ErrNoVerifierInCE
-	}
-
-	return IntegrityCtx{
-		Repository: dummyRepository{},
-	}, nil
+	return disabledProvider{}.InitializeIntegrityCheck(publicKeyPath, configDir)
 }
 
 // GetCheckFunction returns a function that checks a map of hashes and a
@@ -74,12 +57,12 @@ func InitializeIntegrityCheck(
 func GetCheckFunction(ctx IntegrityCtx) (
 	func(data []byte, hashes map[string][]byte, sign []byte) error, error,
 ) {
-	return nil, ErrNotConfigured
+	return disabledProvider{}.GetCheckFunction(ctx)
 }
 
 // GetStorageVerifiers returns integrity primitives for storage-backed readers.
-func GetStorageVerifiers(ctx IntegrityCtx) ([]hasher.Hasher, []gcrypto.Verifier, error) {
-	return nil, nil, ErrNotConfigured
+func GetStorageVerifiers(ctx IntegrityCtx) ([]ghasher.Hasher, []gcrypto.Verifier, error) {
+	return disabledProvider{}.GetStorageVerifiers(ctx)
 }
 
 // GetSignFunction returns a function that creates a map of hashes and a
@@ -87,12 +70,12 @@ func GetStorageVerifiers(ctx IntegrityCtx) ([]hasher.Hasher, []gcrypto.Verifier,
 func GetSignFunction(privateKeyPath string) (
 	func(data []byte) (map[string][]byte, []byte, error), error,
 ) {
-	return nil, ErrNoSignerInCE
+	return disabledProvider{}.GetSignFunction(privateKeyPath)
 }
 
 // GetStorageSigners returns integrity primitives for storage-backed writers.
 func GetStorageSigners(
 	privateKeyPath string,
-) ([]hasher.Hasher, []gcrypto.SignerVerifier, error) {
-	return nil, nil, ErrNoSignerInCE
+) ([]ghasher.Hasher, []gcrypto.SignerVerifier, error) {
+	return disabledProvider{}.GetStorageSigners(privateKeyPath)
 }
