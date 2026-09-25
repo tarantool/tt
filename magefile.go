@@ -65,11 +65,13 @@ var (
 	}
 
 	modules = []string{
+		"sdk",
 		"sdk/integrity",
 		"sdk/cluster",
 	}
 	lintModules = []string{
 		".",
+		"sdk",
 		"sdk/cluster",
 		"sdk/connect",
 		"sdk/dial",
