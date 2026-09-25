@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"maps"
 	"os"
 	"path/filepath"
@@ -69,6 +70,8 @@ type DownloadOptions struct {
 	Registries []rocks.Registry
 	// Tarantool carries the Tarantool facts the engine configuration needs.
 	Tarantool rocks.TarantoolInfo
+	// Logger receives the adapter's structured operation logs; nil disables it.
+	Logger *slog.Logger
 	// Warn receives non-fatal diagnostics, such as a locked dependency that
 	// has no place in a mirror. Nil drops them.
 	Warn func(string)
@@ -106,7 +109,7 @@ func Download(ctx context.Context, opts DownloadOptions) ([]string, error) {
 
 	// The adapter's working directory is where the engine writes a downloaded
 	// file, which is what puts the rocks in opts.Dir.
-	adapter := adapterFor(opts.Tarantool, opts.Registries, opts.Dir)
+	adapter := adapterFor(opts.Tarantool, opts.Registries, opts.Dir, opts.Logger)
 
 	written := make([]string, 0, len(refs))
 

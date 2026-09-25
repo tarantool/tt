@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -380,6 +381,7 @@ func dependencyOptions() (deps.Options, error) {
 		TtVersion:  "tt " + ttversion.GetVersion(true, false),
 		Tarantool:  tntInfo,
 		Registries: sources,
+		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
 	}, nil
 }
@@ -584,6 +586,7 @@ func runPackageInstall(archives []string) error {
 		Force:      packageForce,
 		Yes:        packageYes,
 		Tarantool:  tntInfo,
+		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
 		Confirm: func(prompt string) bool {
 			ok, askErr := util.AskConfirm(os.Stdin, prompt)
@@ -709,6 +712,7 @@ func runPackagePack() error {
 			Tarantool:  tntInfo,
 			Registries: sources,
 			ShowOutput: cmdCtx.Cli.Verbose,
+			Logger:     luarocksLogger(),
 		},
 		Runtime: runtimeRequest(ctx, tntInfo),
 		Warn:    func(msg string) { log.Warn(msg) },
@@ -797,6 +801,7 @@ func runPackage(args []string, fetchOnly bool) error {
 		Tarantool:  tntInfo,
 		Registries: sources,
 		ShowOutput: cmdCtx.Cli.Verbose,
+		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
 	})
 }
@@ -876,6 +881,7 @@ func runPackageSearch(format *output.FormatFlag, term string) error {
 		Registries: registries,
 		Tarantool:  tntInfo,
 		WorkingDir: workingDir,
+		Logger:     luarocksLogger(),
 	})
 	if err != nil {
 		return err
@@ -955,6 +961,7 @@ func runPackageDownload(args []string) error {
 		ProjectDir: workingDir,
 		Registries: registries,
 		Tarantool:  tntInfo,
+		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
 	})
 	if err != nil {
@@ -1018,6 +1025,15 @@ func manifestRegistries(dir string) ([]string, error) {
 	}
 
 	return man.Platform.Registries, nil
+}
+
+// luarocksLogger is the logger handed to go-luarocks through the manifest
+// pipeline's Logger options. go-luarocks logs every step and every line
+// luarocks prints at Info, which is detail from tt's point of view, so its
+// Info reaches the log as Debug - shown with -V - while its warnings and
+// errors stay as they are.
+func luarocksLogger() *slog.Logger {
+	return log.Library("go-luarocks")
 }
 
 // tarantoolInfo gathers the Tarantool facts the rocks adapter needs from the

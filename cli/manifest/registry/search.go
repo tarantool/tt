@@ -40,6 +40,8 @@ type SearchOptions struct {
 	Tarantool rocks.TarantoolInfo
 	// WorkingDir is the directory the engine resolves relative paths against.
 	WorkingDir string
+	// Logger receives the adapter's structured operation logs; nil disables it.
+	Logger *slog.Logger
 }
 
 // Search reports every rock whose name contains the term, across the
@@ -50,7 +52,7 @@ type SearchOptions struct {
 // stops at the first server that has the rock. A term that matches nothing is
 // an empty result and no error: "no such rock" is an answer, not a failure.
 func Search(ctx context.Context, opts SearchOptions) ([]Match, error) {
-	adapter := adapterFor(opts.Tarantool, opts.Registries, opts.WorkingDir)
+	adapter := adapterFor(opts.Tarantool, opts.Registries, opts.WorkingDir, opts.Logger)
 
 	results, err := adapter.Search(ctx, opts.Term, client.SearchOpts{
 		Version: "",
@@ -128,14 +130,15 @@ func (r SearchResult) human(out io.Writer, logger *slog.Logger) error {
 	return renderRows(out, "NAME\tVERSION\tSERVER", rows)
 }
 
-// adapterFor builds the rocks adapter bound to the effective server list.
+// adapterFor builds the rocks adapter bound to the effective server list,
+// logging its operations to logger (nil disables it).
 func adapterFor(
-	tnt rocks.TarantoolInfo, registries []rocks.Registry, workingDir string,
+	tnt rocks.TarantoolInfo, registries []rocks.Registry, workingDir string, logger *slog.Logger,
 ) *rocks.Adapter {
 	return rocks.New(rocks.BuildConfig(tnt, rocks.ConfigOptions{
 		Tree:       filepath.Join(workingDir, rocksDirName),
 		WorkingDir: workingDir,
 		Servers:    rocks.URLs(registries),
-		Logger:     nil,
+		Logger:     logger,
 	}))
 }

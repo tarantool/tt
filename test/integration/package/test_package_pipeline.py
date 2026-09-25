@@ -135,6 +135,21 @@ def test_new_add_build_installs_the_dependency(tt_cmd, tmp_path):
     assert (project / ".rocks" / "share" / "tarantool" / DEPENDENCY).is_dir()
 
 
+def test_go_luarocks_detail_is_debug(tt_cmd, tmp_path):
+    """What go-luarocks logs at Info is detail: shown with -V, hidden without."""
+    project = make_project(tmp_path / "project")
+
+    quiet = build(tt_cmd, project)
+    assert quiet.returncode == 0, quiet.stderr
+    assert "library=go-luarocks" not in quiet.stderr
+
+    (project / "app.manifest.lock").unlink()
+
+    verbose = run(tt_cmd, project, "-V", "package", "build", "--registry", str(ROCKS_REPO))
+    assert verbose.returncode == 0, verbose.stderr
+    assert "rocks.Install: selected library=go-luarocks name=stat" in verbose.stderr
+
+
 def test_build_locked_refuses_a_stale_lock(tt_cmd, tmp_path):
     """--locked is the CI gate: a manifest edited after the lock stops it."""
     project = make_project(tmp_path / "project")

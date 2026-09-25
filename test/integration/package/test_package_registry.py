@@ -194,6 +194,40 @@ def test_a_mirror_works_as_a_registry_flag(tree, run_tt, rock_server, stop_rock_
     assert (tree.root / ".rocks" / "share" / "tarantool" / "stat" / "init.lua").is_file()
 
 
+def test_search_go_luarocks_detail_is_debug(tree, run_tt, rock_server):
+    """What go-luarocks logs during a search is shown with -V, hidden without.
+
+    A search logs only when it cannot ask the interpreter for its LuaJIT
+    version, so the prefix points at an empty directory to make it log.
+    """
+    env = dict(os.environ, TT_CLI_TARANTOOL_PREFIX=str(tree.root))
+    args = ("package", "search", "stat", "--registry", rock_server, "-o", "json")
+
+    quiet = run_tt(*args, env=env)
+    assert quiet.returncode == 0, quiet.stderr
+    assert "library=go-luarocks" not in quiet.stderr
+
+    verbose = run_tt("-V", *args, env=env)
+    assert verbose.returncode == 0, verbose.stderr
+    assert "rocks.Search: no LuaJIT version from interpreter library=go-luarocks" in (
+        verbose.stderr
+    )
+    assert quiet.stdout == verbose.stdout
+
+
+def test_download_go_luarocks_detail_is_debug(run_tt, rock_server):
+    """What go-luarocks logs during a download is shown with -V, hidden without."""
+    args = ("package", "download", "stat@0.3.1-1", "--registry", rock_server)
+
+    quiet = run_tt(*args, "--dir", "./quiet")
+    assert quiet.returncode == 0, quiet.stderr
+    assert "library=go-luarocks" not in quiet.stderr
+
+    verbose = run_tt("-V", *args, "--dir", "./verbose")
+    assert verbose.returncode == 0, verbose.stderr
+    assert "rocks.Download: downloaded library=go-luarocks name=stat" in verbose.stderr
+
+
 def test_registry_list_reports_the_layer_a_server_came_from(tree, run_tt, rock_server):
     """The listing has to name the layer, not just the URL."""
     write_manifest(tree.root, registries=rock_server)
