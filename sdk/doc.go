@@ -16,7 +16,13 @@
 //     end tt with, and [UsageError] marks an error in how a command was
 //     invoked, which tt follows with the command's usage;
 //   - [CoreVersion] reports the version of the tt core the binary was built
-//     with.
+//     with;
+//   - [ClusterSource] names where a cluster configuration comes from - an
+//     application ([AppSource]), a file ([FileSource]) or a configuration
+//     storage ([StorageSource]) - and [ParseClusterSource] tells them apart
+//     in a command-line argument; [SplitInstance] splits an "app:instance"
+//     reference, and [Instances] and [InstanceConfig] read the instances of
+//     a cluster configuration and the configuration each of them resolves.
 //
 // The subpackages hold the rest:
 //
@@ -32,10 +38,12 @@
 //   - [github.com/tarantool/tt/sdk/sdktest] fakes the core's Services and
 //     runs a module's commands in tests.
 //
-// The contract module depends on cobra and pflag, whose types appear in it,
-// and pins their versions: a module builds against the versions the core
-// uses. The formatter adds go-pretty and yaml.v2, which render its output,
-// and the console adds go-prompt and x/term.
+// The contract module depends on cobra, pflag and go-config
+// (github.com/tarantool/go-config/v2), whose types appear in it, and pins
+// their versions: a module builds against the versions the core uses. It
+// also depends on [github.com/tarantool/tt/sdk/connect], whose URI rules
+// [ParseClusterSource] applies. The formatter adds go-pretty and yaml.v2,
+// which render its output, and the console adds go-prompt and x/term.
 //
 // The process itself - which handlers log where, at what level, in which
 // format - is configured by the tt core. Nothing in the SDK changes process
