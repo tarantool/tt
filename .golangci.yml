@@ -187,7 +187,7 @@ linters:
         - 'github\.com/tarantool/tt/.+'
       # Generated protobuf messages carry internal state fields.
       ignore-patterns:
-        - 'github\.com/tarantool/tt/v3/cli/aeon/pb\..+'
+        - 'github\.com/tarantool/tt/modules/aeon/pb\..+'
     exhaustive:
       # A switch with a default clause is treated as exhaustive.
       default-signifies-exhaustive: true
@@ -331,6 +331,7 @@ linters:
             - "github.com/tarantool/go-config/v2"
             - "github.com/tarantool/go-prompt"
             - "github.com/tarantool/go-tarantool/v3"
+            - "github.com/tarantool/tt/modules/aeon"
             - "github.com/tarantool/tt/sdk"
             - "github.com/tarantool/tt/v3/cli/aeon"
             - "github.com/tarantool/tt/v3/cli/cluster"

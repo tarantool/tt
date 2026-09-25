@@ -14,8 +14,8 @@ import (
 	"github.com/tarantool/tt/sdk/log"
 
 	"github.com/tarantool/go-prompt"
+	"github.com/tarantool/tt/modules/aeon/pb"
 	"github.com/tarantool/tt/v3/cli/aeon/cmd"
-	"github.com/tarantool/tt/v3/cli/aeon/pb"
 	"github.com/tarantool/tt/v3/cli/connector"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"

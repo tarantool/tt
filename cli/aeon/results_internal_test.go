@@ -4,9 +4,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/modules/aeon/pb"
 	"github.com/tarantool/tt/sdk/console"
 	"github.com/tarantool/tt/sdk/formatter"
-	"github.com/tarantool/tt/v3/cli/aeon/pb"
 )
 
 func TestResultType_Format(t *testing.T) {

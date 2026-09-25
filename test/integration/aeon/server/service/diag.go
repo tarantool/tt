@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	"github.com/tarantool/tt/v3/cli/aeon/pb"
+	"github.com/tarantool/tt/modules/aeon/pb"
 )
 
 // Diag mock implementation of pb.DiagServiceServer.

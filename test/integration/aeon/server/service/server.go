@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/tarantool/tt/v3/cli/aeon/pb"
+	"github.com/tarantool/tt/modules/aeon/pb"
 )
 
 var (

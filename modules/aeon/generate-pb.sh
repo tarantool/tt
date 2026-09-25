@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Regenerate the Aeon gRPC bindings in ./pb from the aeon-api-protos schema.
 #
-# Usage: cli/aeon/generate-pb.sh
+# Usage: modules/aeon/generate-pb.sh
 #
 # Needs only go and git: buf and both protoc plugins are run through
 # `go run <module>@<version>`, so nothing is installed and every version is

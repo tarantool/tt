@@ -7,15 +7,15 @@ name: Aeon bindings
 on:
   push:
     paths:
-      - 'cli/aeon/pb/**'
-      - 'cli/aeon/buf.gen.yaml'
-      - 'cli/aeon/generate-pb.sh'
+      - 'modules/aeon/pb/**'
+      - 'modules/aeon/buf.gen.yaml'
+      - 'modules/aeon/generate-pb.sh'
       - '.github/workflows/aeon-pb.yml'
   pull_request:
     paths:
-      - 'cli/aeon/pb/**'
-      - 'cli/aeon/buf.gen.yaml'
-      - 'cli/aeon/generate-pb.sh'
+      - 'modules/aeon/pb/**'
+      - 'modules/aeon/buf.gen.yaml'
+      - 'modules/aeon/generate-pb.sh'
       - '.github/workflows/aeon-pb.yml'
 
 env:
@@ -23,7 +23,7 @@ env:
   GO_VERSION: '1.27.1'
 
 jobs:
-  # Regenerate cli/aeon/pb and fail when it differs from the committed files.
+  # Regenerate modules/aeon/pb and fail when it differs from the committed files.
   aeon-pb:
     runs-on: ubuntu-22.04
     steps:
@@ -39,22 +39,22 @@ jobs:
           cache: false
 
       - name: Generate the bindings
-        run: cli/aeon/generate-pb.sh
+        run: modules/aeon/generate-pb.sh
         shell: bash
 
       - name: Compare with the committed bindings
         run: |
           rc=0
-          git diff --exit-code -- cli/aeon/pb || rc=1
-          untracked=$(git ls-files --others -- cli/aeon/pb)
+          git diff --exit-code -- modules/aeon/pb || rc=1
+          untracked=$(git ls-files --others -- modules/aeon/pb)
           if [ -n "$untracked" ]; then
             echo "Generated but not committed:"
             echo "$untracked"
             rc=1
           fi
           if [ "$rc" -ne 0 ]; then
-            echo "cli/aeon/pb does not match cli/aeon/generate-pb.sh output."
-            echo "Run cli/aeon/generate-pb.sh and commit the result."
+            echo "modules/aeon/pb does not match modules/aeon/generate-pb.sh output."
+            echo "Run modules/aeon/generate-pb.sh and commit the result."
           fi
           exit "$rc"
         shell: bash

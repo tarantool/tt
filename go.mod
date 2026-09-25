@@ -31,6 +31,7 @@ require (
 	github.com/tarantool/go-prompt v1.0.1
 	github.com/tarantool/go-storage/v2 v2.0.0
 	github.com/tarantool/go-tarantool/v3 v3.0.2
+	github.com/tarantool/tt/modules/aeon v0.0.0
 	github.com/tarantool/tt/sdk v0.0.0
 	github.com/tarantool/tt/sdk/cluster v0.0.0
 	github.com/tarantool/tt/sdk/connect v0.0.0-0
@@ -166,6 +167,7 @@ require (
 )
 
 replace (
+	github.com/tarantool/tt/modules/aeon => ./modules/aeon
 	github.com/tarantool/tt/sdk => ./sdk
 	github.com/tarantool/tt/sdk/cluster => ./sdk/cluster
 	github.com/tarantool/tt/sdk/connect => ./sdk/connect

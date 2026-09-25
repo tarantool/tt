@@ -70,9 +70,11 @@ var (
 		"sdk",
 		"sdk/integrity",
 		"sdk/cluster",
+		"modules/aeon",
 	}
 	lintModules = []string{
 		".",
+		"modules/aeon",
 		"sdk",
 		"sdk/cluster",
 		"sdk/connect",

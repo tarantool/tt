@@ -11,7 +11,7 @@ committed. Building, testing and linting tt never needs the schema itself.
 versions, so only `go` and `git` are required:
 
 ```sh
-cli/aeon/generate-pb.sh
+modules/aeon/generate-pb.sh
 ```
 
 CI runs the same script (`.github/workflows/aeon-pb.yml`) and fails when its
@@ -20,7 +20,7 @@ output differs from the committed `pb/`.
 ## Move to a newer schema
 
 1. Put the full commit hash of aeon-api-protos into `commit:` in
-   `cli/aeon/buf.gen.yaml`. A new `.proto` file also needs its own
+   `modules/aeon/buf.gen.yaml`. A new `.proto` file also needs its own
    `M<file>.proto=...` option there.
-2. Run `cli/aeon/generate-pb.sh` and commit `buf.gen.yaml` together with `pb/`.
+2. Run `modules/aeon/generate-pb.sh` and commit `buf.gen.yaml` together with `pb/`.
 3. Make the matching changes to the `tt aeon connect` code.
