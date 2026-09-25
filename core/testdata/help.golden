@@ -1,6 +1,6 @@
 # The help of every tt command, the bash completion script and the
 # completions of the first word. Regenerate with:
-#   go test ./cli/cmd -run TestHelpGolden -update
+#   go test ./core -run TestHelpGolden -update
 
 === tt --help
 Utility for managing Tarantool packages and Tarantool-based applications

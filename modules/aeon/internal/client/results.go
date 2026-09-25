@@ -1,4 +1,4 @@
-package aeon
+package client
 
 import (
 	"fmt"

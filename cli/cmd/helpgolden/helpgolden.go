@@ -49,7 +49,7 @@ func Render(t *testing.T, newRoot NewRoot) string {
 
 	golden.WriteString("# The help of every tt command, the bash completion script and the\n" +
 		"# completions of the first word. Regenerate with:\n" +
-		"#   go test ./cli/cmd -run TestHelpGolden -update\n")
+		"#   go test ./core -run TestHelpGolden -update\n")
 
 	section := func(title, body string) {
 		golden.WriteString("\n=== " + title + "\n")

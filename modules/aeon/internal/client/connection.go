@@ -1,0 +1,23 @@
+package client
+
+// Ssl structure groups paths to ssl key files.
+type Ssl struct {
+	// KeyFile path to the private SSL key file (optional).
+	KeyFile string
+	// CertFile path to the SSL certificate file (optional).
+	CertFile string
+	// CaFile path to the trusted certificate authorities (CA) file (optional).
+	CaFile string
+}
+
+// ConnectCtx keeps context information for aeon connection.
+type ConnectCtx struct {
+	// Ssl group of paths to ssl key files.
+	Ssl Ssl
+	// Transport is a connection mode.
+	Transport Transport
+	// Network is kind of transport layer.
+	Network string
+	// Address is a connection URL, unix socket address and etc.
+	Address string
+}

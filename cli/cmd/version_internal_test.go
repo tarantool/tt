@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"flag"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -11,6 +12,10 @@ import (
 	"github.com/tarantool/tt/v3/cli/modules"
 	"github.com/tarantool/tt/v3/cli/version"
 )
+
+// update rewrites the golden files of this package instead of comparing
+// against them: go test ./cli/cmd -run TestHelpFlavourGolden -update.
+var update = flag.Bool("update", false, "rewrite golden files")
 
 // helpFlavourGoldenPath is the golden file TestHelpFlavourGolden compares
 // against.
@@ -59,8 +64,10 @@ func TestBootKeepsTtsOwnFlavour(t *testing.T) {
 	assert.Equal(t, version.GetVersion(false, false), flavour.GetVersion(false, false))
 }
 
-// newFlavourRoot builds the command tree as newGoldenRoot does, for a
-// distribution presenting itself as eeFlavour.
+// newFlavourRoot builds the command tree the way tt does before it runs a
+// command, with the builtin commands and no external modules, for a
+// distribution presenting itself as eeFlavour, and makes it the package's
+// root.
 func newFlavourRoot(t *testing.T) *cobra.Command {
 	t.Helper()
 

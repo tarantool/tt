@@ -1,26 +1,27 @@
-package cmd_test
+package client_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/v3/cli/aeon/cmd"
+
+	"github.com/tarantool/tt/modules/aeon/internal/client"
 )
 
 func TestTransport_Set(t *testing.T) {
 	tests := []struct {
 		val     string
-		want    cmd.Transport
+		want    client.Transport
 		wantErr bool
 	}{
-		{"plain", cmd.Transport("plain"), false},
-		{"ssl", cmd.Transport("ssl"), false},
-		{"", cmd.Transport(""), true},
-		{"mode", cmd.Transport(""), true},
+		{"plain", client.Transport("plain"), false},
+		{"ssl", client.Transport("ssl"), false},
+		{"", client.Transport(""), true},
+		{"mode", client.Transport(""), true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.val, func(t *testing.T) {
-			var transport cmd.Transport
+			var transport client.Transport
 
 			err := transport.Set(tt.val)
 			if tt.wantErr {
@@ -35,7 +36,7 @@ func TestTransport_Set(t *testing.T) {
 }
 
 func TestTransport_Type(t *testing.T) {
-	tests := []cmd.Transport{
+	tests := []client.Transport{
 		"plain",
 		"ssl",
 		"",
@@ -50,6 +51,6 @@ func TestTransport_Type(t *testing.T) {
 }
 
 func TestListValidTransports(t *testing.T) {
-	ts := cmd.ListValidTransports()
+	ts := client.ListValidTransports()
 	require.Equal(t, "[plain ssl]", ts)
 }

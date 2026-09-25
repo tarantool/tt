@@ -264,6 +264,15 @@ for machine-readable output.
   path or a `file://` URL — in a dependency's `registry` key or in the server
   list — is read off disk, so a directory holding a LuaRocks `manifest` works
   offline exactly as an `https://` server does.
+- `tt aeon connect` is a module built on the tt SDK. `APP:INSTANCE` and
+  `PATH INSTANCE` read the cluster configuration the way `tt cluster show`
+  does, with the `TT_*` environment and the etcd or Tarantool config storage
+  the file names. `URI INSTANCE` accepts a storage URI without credentials,
+  taking them from `-u`/`-p`, and a storage that cannot be read is reported
+  instead of ending in a failed connection to an empty address. The SSL files
+  the `--ssl*` flags name take precedence over the advertise parameters in
+  every form. An external module named `aeon` replaces the command, with a
+  warning, unless `-I` is given.
 
 ### Fixed
 

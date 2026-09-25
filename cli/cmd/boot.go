@@ -97,7 +97,6 @@ func BuiltinCommands() []*cobra.Command {
 		NewDownloadCmd(),
 		NewKillCmd(),
 		NewLogCmd(),
-		NewAeonCmd(),
 		NewTcmCmd(),
 		NewModulesCmd(),
 	}

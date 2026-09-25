@@ -127,7 +127,7 @@ linters:
         linters:
           - wrapcheck
       # Protobuf null is represented by an untyped nil value.
-      - path: ^cli/aeon/decode\.go$
+      - path: ^modules/aeon/internal/client/decode\.go$
         source: ^\s*return nil, nil$
         linters:
           - nilnil
@@ -319,26 +319,8 @@ linters:
             - "**/cli/*.go"
           allow:
             - $gostd
-            - "github.com/tarantool/tt/v3/core"
-        dir-cli-aeon:
-          files:
-            - "**/cli/aeon/**"
-          allow:
-            - $gostd
-            - "github.com/google/uuid"
-            - "github.com/mitchellh/mapstructure"
-            - "github.com/stretchr/testify"
-            - "github.com/tarantool/go-config/v2"
-            - "github.com/tarantool/go-prompt"
-            - "github.com/tarantool/go-tarantool/v3"
             - "github.com/tarantool/tt/modules/aeon"
-            - "github.com/tarantool/tt/sdk"
-            - "github.com/tarantool/tt/v3/cli/aeon"
-            - "github.com/tarantool/tt/v3/cli/cluster"
-            - "github.com/tarantool/tt/v3/cli/connector"
-            - "github.com/tarantool/tt/v3/cli/util"
-            - "google.golang.org/grpc"
-            - "google.golang.org/protobuf"
+            - "github.com/tarantool/tt/v3/core"
         dir-cli-binary:
           files:
             - "**/cli/binary/**"
@@ -398,12 +380,9 @@ linters:
             - $gostd
             - "github.com/fatih/color"
             - "github.com/jedib0t/go-pretty/v6"
-            - "github.com/mitchellh/mapstructure"
             - "github.com/spf13/cobra"
             - "github.com/stretchr/testify"
-            - "github.com/tarantool/go-config/v2"
             - "github.com/tarantool/tt/sdk"
-            - "github.com/tarantool/tt/v3/cli/aeon"
             - "github.com/tarantool/tt/v3/cli/binary"
             - "github.com/tarantool/tt/v3/cli/cfg"
             - "github.com/tarantool/tt/v3/cli/checkpoint"
@@ -797,6 +776,7 @@ linters:
             - "github.com/stretchr/testify"
             - "github.com/tarantool/go-config/v2"
             - "github.com/tarantool/go-storage/v2"
+            - "github.com/tarantool/tt/modules/aeon"
             - "github.com/tarantool/tt/sdk"
             - "github.com/tarantool/tt/v3/cli/cluster"
             - "github.com/tarantool/tt/v3/cli/cmd"

@@ -1,4 +1,6 @@
-package aeon
+// Package client talks to an Aeon server over gRPC and serves as the
+// command processor of the tt aeon connect console.
+package client
 
 import (
 	"context"
@@ -11,15 +13,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tarantool/tt/sdk/log"
-
 	"github.com/tarantool/go-prompt"
-	"github.com/tarantool/tt/modules/aeon/pb"
-	"github.com/tarantool/tt/v3/cli/aeon/cmd"
-	"github.com/tarantool/tt/v3/cli/connector"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/tarantool/tt/modules/aeon/pb"
+	"github.com/tarantool/tt/sdk/connect"
+	"github.com/tarantool/tt/sdk/log"
 )
 
 var (
@@ -37,8 +38,8 @@ type Client struct {
 
 const requestTimeout = 10 * time.Second
 
-func makeAddress(ctx cmd.ConnectCtx) string {
-	if ctx.Network == connector.UnixNetwork {
+func makeAddress(ctx ConnectCtx) string {
+	if ctx.Network == connect.UnixNetwork {
 		if strings.HasPrefix(ctx.Address, "@") {
 			return "unix-abstract:" + (ctx.Address)[1:]
 		}
@@ -49,7 +50,7 @@ func makeAddress(ctx cmd.ConnectCtx) string {
 	return ctx.Address
 }
 
-func getCertificate(args cmd.Ssl) (tls.Certificate, error) {
+func getCertificate(args Ssl) (tls.Certificate, error) {
 	if args.CertFile == "" && args.KeyFile == "" {
 		return tls.Certificate{}, nil
 	}
@@ -62,7 +63,7 @@ func getCertificate(args cmd.Ssl) (tls.Certificate, error) {
 	return tlsCert, nil
 }
 
-func getTLSConfig(args cmd.Ssl) (*tls.Config, error) {
+func getTLSConfig(args Ssl) (*tls.Config, error) {
 	var pool *x509.CertPool
 
 	if args.CaFile != "" {
@@ -90,10 +91,10 @@ func getTLSConfig(args cmd.Ssl) (*tls.Config, error) {
 	}, nil
 }
 
-func getDialOpts(ctx cmd.ConnectCtx) (grpc.DialOption, error) {
+func getDialOpts(ctx ConnectCtx) (grpc.DialOption, error) {
 	var creds credentials.TransportCredentials
 
-	if ctx.Transport == cmd.TransportSsl {
+	if ctx.Transport == TransportSsl {
 		config, err := getTLSConfig(ctx.Ssl)
 		if err != nil {
 			return nil, fmt.Errorf("not tls config: %w", err)
@@ -108,7 +109,7 @@ func getDialOpts(ctx cmd.ConnectCtx) (grpc.DialOption, error) {
 }
 
 // NewAeonHandler create new grpc connection to Aeon server.
-func NewAeonHandler(ctx cmd.ConnectCtx) (*Client, error) {
+func NewAeonHandler(ctx ConnectCtx) (*Client, error) {
 	handler := Client{title: ctx.Address, conn: nil, client: nil}
 	target := makeAddress(ctx)
 	// var err error.

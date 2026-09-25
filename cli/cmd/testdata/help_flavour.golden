@@ -10,7 +10,6 @@ applications
   tt [flags] <command> [command flags]
 [0;1;39m
 COMMANDS[0m
-  aeon        Manage aeon application
   binaries    Manage installed binaries
   cat         Print into stdout the contents of .snap/.xlog FILE(s)
   cfg         Environment configuration management utility
