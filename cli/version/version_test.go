@@ -158,6 +158,125 @@ func TestFlavourGetVersion(t *testing.T) {
 	}
 }
 
+// setBuildInfo makes the build info say the core is at the module version
+// module, or, when ok is false, nothing about the core, for the duration of
+// t.
+func setBuildInfo(t *testing.T, module string, ok bool) {
+	t.Helper()
+
+	previous := readCoreVersion
+
+	t.Cleanup(func() { readCoreVersion = previous })
+
+	readCoreVersion = func() (string, bool) { return module, ok }
+}
+
+// TestGetVersionFromBuildInfo checks the core's version of a build that
+// stamps no tag, taken from the module version in the build info.
+//
+//nolint:paralleltest // Replaces the values the build stamps and the build info.
+func TestGetVersionFromBuildInfo(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		module string
+		want   versionForms
+	}{
+		{
+			name: "release", module: "v3.1.0",
+			want: versionForms{
+				full:   "Tarantool CLI version 3.1.0, " + platform + ". commit: <unknown>",
+				short:  "3.1.0",
+				commit: "3.1.0.<unknown>",
+			},
+		},
+		{
+			name: "modified release", module: "v3.1.0+dirty",
+			want: versionForms{
+				full: "Tarantool CLI version 3.1.0, " + platform +
+					". commit: <unknown> (v3.1.0+dirty)",
+				short:  "3.1.0",
+				commit: "3.1.0.<unknown>",
+			},
+		},
+		{
+			name: "past a release", module: "v3.1.1-0.20260925120000-abcdef123456",
+			want: versionForms{
+				full: "Tarantool CLI version 3.1.0, " + platform +
+					". commit: abcdef123456 (v3.1.1-0.20260925120000-abcdef123456)",
+				short:  "3.1.0",
+				commit: "3.1.0.abcdef123456",
+			},
+		},
+		{
+			name: "modified past a release", module: "v3.1.1-0.20260925120000-abcdef123456+dirty",
+			want: versionForms{
+				full: "Tarantool CLI version 3.1.0, " + platform +
+					". commit: abcdef123456 (v3.1.1-0.20260925120000-abcdef123456+dirty)",
+				short:  "3.1.0",
+				commit: "3.1.0.abcdef123456",
+			},
+		},
+		{
+			name: "past a pre-release", module: "v3.2.0-rc1.0.20260925120000-abcdef123456",
+			want: versionForms{
+				full: "Tarantool CLI version 3.2.0, " + platform +
+					". commit: abcdef123456 (v3.2.0-rc1.0.20260925120000-abcdef123456)",
+				short:  "3.2.0",
+				commit: "3.2.0.abcdef123456",
+			},
+		},
+		{
+			name: "no tag before", module: "v3.0.0-20260925120000-abcdef123456",
+			want: versionForms{
+				full: "Tarantool CLI version <unknown>, " + platform +
+					". commit: abcdef123456 (v3.0.0-20260925120000-abcdef123456)",
+				short:  "<unknown>",
+				commit: "<unknown>.abcdef123456",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			setCoreBuild(t, "", "", "", "")
+			setBuildInfo(t, tc.module, true)
+
+			assertForms(t, tc.want, GetVersion)
+		})
+	}
+}
+
+// TestGetVersionBuildInfoUnused checks that the build info does not stand in
+// for a tag the build stamps, nor for a distribution's version.
+//
+//nolint:paralleltest // Replaces the values the build stamps and the build info.
+func TestGetVersionBuildInfoUnused(t *testing.T) {
+	setBuildInfo(t, "v9.9.9", true)
+
+	t.Run("stamped tag", func(t *testing.T) {
+		setCoreBuild(t, "v3.1.0", "abc1234", "0", "")
+
+		assert.Equal(t, "3.1.0.abc1234", GetVersion(false, true))
+	})
+
+	t.Run("distribution", func(t *testing.T) {
+		setCoreBuild(t, "", "", "", "")
+
+		ee := Flavour{Title: "Tarantool CLI EE", Version: &Info{}, Edition: "ee"}
+		assert.Equal(t, "<unknown>+ee", ee.GetVersion(true, false))
+		assert.Equal(t, "9.9.9", GetVersion(true, false), "the core's own version")
+	})
+
+	t.Run("no build info", func(t *testing.T) {
+		setCoreBuild(t, "", "abc1234", "", "")
+		setBuildInfo(t, "", false)
+
+		assertForms(t, versionForms{
+			full:   "Tarantool CLI version <unknown>, " + platform + ". commit: abc1234",
+			short:  "<unknown>",
+			commit: "<unknown>.abc1234",
+		}, GetVersion)
+	})
+}
+
 // TestFlavourName checks the name a distribution presents itself under.
 func TestFlavourName(t *testing.T) {
 	t.Parallel()

@@ -2,11 +2,14 @@ package version
 
 import (
 	"fmt"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
 
 	goVersion "github.com/hashicorp/go-version"
+
+	"github.com/tarantool/tt/sdk"
 )
 
 const (
@@ -99,11 +102,87 @@ type release struct {
 	exact string
 }
 
-// coreRelease returns the version of the tt core, from the values set at
-// build time.
+// readCoreVersion returns the version of the tt core Go recorded in the
+// build info, and false when it recorded none.
+var readCoreVersion = sdk.CoreVersion
+
+// coreRelease returns the version of the tt core: from the values set at
+// build time, or, for a build that set no tag - a program with tt as a
+// dependency, say - from the module version Go recorded.
 func coreRelease() release {
+	if gitTag == "" {
+		if module, ok := readCoreVersion(); ok {
+			return moduleRelease(module)
+		}
+	}
+
 	return tagRelease(gitTag, gitCommit, versionLabel,
 		gitCommitSinceTag != "" && gitCommitSinceTag != "0")
+}
+
+// pseudoVersion matches a Go pseudo-version, the module version of an
+// untagged commit, without build metadata. Its submatches are the major,
+// minor and patch numbers, the pre-release of the tag it descends from, "0"
+// when it descends from a tag at all, and the abbreviated commit hash.
+var pseudoVersion = regexp.MustCompile(
+	`^v(\d+)\.(\d+)\.(\d+)-(?:(?:([0-9A-Za-z.-]+)\.)?(0)\.)?\d{14}-([0-9a-f]{12})$`,
+)
+
+// moduleRelease returns the version of a core Go recorded as the module
+// version module. As for a build from a git checkout, the version is the
+// tag's the build is at or descends from, and a build other than the tag
+// itself shows the module version in full next to the commit:
+//
+//	module version                            version    commit        in full
+//	v3.1.0                                    3.1.0      <unknown>     no
+//	v3.1.0+dirty                              3.1.0      <unknown>     yes
+//	v3.1.1-0.20260925120000-abcdef123456      3.1.0      abcdef123456  yes
+//	v3.1.0-rc1.0.20260925120000-abcdef123456  3.1.0      abcdef123456  yes
+//	v3.0.0-20260925120000-abcdef123456        <unknown>  abcdef123456  yes
+//
+// The last is a commit no tag precedes. A tag records no commit; the commit
+// of a pseudo-version is the abbreviated hash it carries.
+func moduleRelease(module string) release {
+	plain, metadata, _ := strings.Cut(module, "+")
+
+	match := pseudoVersion.FindStringSubmatch(plain)
+	if match == nil {
+		exact := ""
+		if metadata != "" {
+			exact = module
+		}
+
+		return release{version: numericVersion(plain), commit: unknownVersion, exact: exact}
+	}
+
+	version := unknownVersion
+	if tag := pseudoVersionTag(match); tag != "" {
+		version = numericVersion(tag)
+	}
+
+	return release{version: version, commit: match[6], exact: module}
+}
+
+// pseudoVersionTag returns the tag the pseudo-version pseudoVersion matched
+// as match descends from, or "" when it descends from none.
+func pseudoVersionTag(match []string) string {
+	major, minor, patch, pre, descends := match[1], match[2], match[3], match[4], match[5]
+
+	switch {
+	case descends == "":
+		return ""
+	case pre != "":
+		return fmt.Sprintf("v%s.%s.%s-%s", major, minor, patch, pre)
+	}
+
+	// The patch number of a pseudo-version past a release is one more than
+	// the release's.
+	number, err := strconv.Atoi(patch)
+	if err != nil || number == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("v%s.%s.%d", major, minor, number-1)
 }
 
 // release returns the version info describes.
