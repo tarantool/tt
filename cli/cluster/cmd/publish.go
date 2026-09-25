@@ -61,6 +61,7 @@ func PublishURI(publishCtx PublishCtx, opts connect.URIOpts) error {
 		Username: publishCtx.Username,
 		Password: publishCtx.Password,
 	}
+
 	collector, publisher, cancel, err := openCollectorAndPublisher(
 		publishCtx.Collectors,
 		publishCtx.Publishers,
@@ -81,6 +82,7 @@ func PublishURI(publishCtx PublishCtx, opts connect.URIOpts) error {
 		return fmt.Errorf("failed to get a cluster configuration to update an instance %q: %w",
 			instance, err)
 	}
+
 	mut, err := cluster.BuildMutableFromBytes(context.Background(), collectedBytes)
 	if err != nil {
 		return fmt.Errorf("failed to build mutable config: %w", err)
@@ -107,11 +109,13 @@ func PublishCluster(publishCtx PublishCtx, path, instance string) error {
 	}
 
 	collector := publishCtx.Collectors.NewFileCollector(path)
+
 	collectedBytes, err := cluster.CollectDataBytes(context.Background(), collector)
 	if err != nil {
 		return fmt.Errorf("failed to get a cluster configuration to update an instance %q: %w",
 			instance, err)
 	}
+
 	mut, err := cluster.BuildMutableFromBytes(context.Background(), collectedBytes)
 	if err != nil {
 		return fmt.Errorf("failed to build mutable config: %w", err)
@@ -127,6 +131,7 @@ func publishCtxValidateConfig(publishCtx PublishCtx, instance string) error {
 	if !publishCtx.Force {
 		return validateRawConfig(publishCtx.Src, instance)
 	}
+
 	return nil
 }
 
@@ -148,24 +153,30 @@ func setInstanceConfig(group, replicaset, instance string, instanceMap map[strin
 			return fmt.Errorf("%w%q instance configuration",
 				errReplicasetNameIsNotSpecifiedForInstanceConfiguration, instance)
 		}
+
 		if group == "" {
 			var ok bool
+
 			group, ok = cluster.FindGroupByReplicaset(snap, replicaset)
+
 			if !ok {
 				return fmt.Errorf("%w%q replicaset",
 					errFailedToDetermineTheGroupOfTheReplicaset, replicaset)
 			}
 		}
 	}
+
 	if found {
 		// Instance already exists: validate group/replicaset names.
 		if replicaset != "" && replicaset != rname {
 			return fmt.Errorf("%w%q, have %q",
 				errWrongReplicasetNameExpectedHave, rname, replicaset)
 		}
+
 		if group != "" && group != gname {
 			return fmt.Errorf("%w%q, have %q", errWrongGroupNameExpectedHave, gname, group)
 		}
+
 		group = gname
 		replicaset = rname
 	}
@@ -177,6 +188,7 @@ func setInstanceConfig(group, replicaset, instance string, instanceMap map[strin
 	}
 
 	afterSet := mut.Snapshot()
+
 	b, err := afterSet.MarshalYAML()
 	if err != nil {
 		return fmt.Errorf("marshal cluster config: %w", err)

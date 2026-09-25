@@ -32,7 +32,9 @@ func configureHelpCommand(rootCmd *cobra.Command, modulesInfo *modules.ModulesIn
 		if err != nil {
 			return err
 		}
+
 		_ = cmd.Help()
+
 		return nil
 	}
 
@@ -54,8 +56,10 @@ func configureHelpCommand(rootCmd *cobra.Command, modulesInfo *modules.ModulesIn
 // of descriptions for external modules.
 func getExternalCommandsString(modulesInfo *modules.ModulesInfo) string {
 	var output strings.Builder
+
 	for _, path := range sortExternalModules() {
 		mf := (*modulesInfo)[path]
+
 		output.WriteString("  ")
 		output.WriteString(mf.Name)
 		output.WriteByte('\t')
@@ -80,6 +84,7 @@ func wrapHelp(s string, width int) string {
 	for i, line := range lines {
 		lines[i] = wrapHelpLine(line, width)
 	}
+
 	return strings.Join(lines, "\n")
 }
 
@@ -91,39 +96,52 @@ func wrapHelpLine(line string, width int) string {
 	body := strings.TrimLeft(line, " \t")
 	prefix := line[:len(line)-len(body)]
 	indent := prefix
+
 	if gap := strings.Index(body, "  "); gap > 0 {
 		desc := strings.TrimLeft(body[gap:], " ")
 		head := line[:len(line)-len(desc)]
+
 		if desc != "" && textWidth(head) <= width/2 {
 			prefix = head
 			indent = strings.Repeat(" ", textWidth(head))
 			body = desc
 		}
 	}
+
 	if indent == prefix && (strings.HasPrefix(body, "* ") || strings.HasPrefix(body, "- ")) {
 		indent = prefix + "  "
 	}
 
 	var out strings.Builder
+
 	out.WriteString(prefix)
+
 	col := textWidth(prefix)
 	lineStart := true
+
 	for _, word := range strings.Fields(body) {
 		w := textWidth(word)
 		if !lineStart && col+1+w > width {
 			out.WriteByte('\n')
 			out.WriteString(indent)
+
 			col = textWidth(indent)
 			lineStart = true
 		}
+
 		if !lineStart {
 			out.WriteByte(' ')
+
 			col++
 		}
+
 		out.WriteString(word)
+
 		col += w
+
 		lineStart = false
 	}
+
 	return out.String()
 }
 
@@ -132,6 +150,7 @@ func wrapHelpLine(line string, width int) string {
 func textWidth(s string) int {
 	col := 0
 	inEscape := false
+
 	for _, r := range s {
 		switch {
 		case inEscape:
@@ -144,6 +163,7 @@ func textWidth(s string) int {
 			col++
 		}
 	}
+
 	return col
 }
 

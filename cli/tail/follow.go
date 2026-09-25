@@ -64,6 +64,7 @@ func (f *fileFollower) Follow(ctx context.Context, lines int) (<-chan string, er
 
 	go func() {
 		defer close(f.followDone)
+
 		f.wg.Wait()
 		close(out)
 	}()
@@ -107,6 +108,7 @@ func (f *fileFollower) tryReopenTailer(ctx context.Context, cfg *tail.Config) (*
 		newT, err := tail.TailFile(f.name, newCfg)
 		if err == nil {
 			log.Infof("Successfully re-established tailing for %q, after %d retries", f.name, i)
+
 			return newT, nil
 		}
 
@@ -139,6 +141,7 @@ func (f *fileFollower) handleTailerStopStatus(ctx context.Context, curT *tail.Ta
 
 		if ctx.Err() != nil {
 			_ = t.Stop()
+
 			return nil, fmt.Errorf("context (%w) while reopening tailer %q",
 				ctx.Err(), f.name)
 		}
@@ -155,6 +158,7 @@ func (f *fileFollower) followFile(ctx context.Context, t *tail.Tail, out chan<- 
 	for {
 		if t == nil || t.Lines == nil {
 			log.Errorf("Tailer or its Lines channel is nil for %s", f.name)
+
 			return
 		}
 
@@ -215,6 +219,7 @@ func (f *fileFollower) startFollowing(ctx context.Context, out chan<- string, li
 	if err != nil {
 		return fmt.Errorf("cannot open %q: %w", f.name, err)
 	}
+
 	defer func() {
 		_ = file.Close()
 	}()
@@ -241,6 +246,7 @@ func (f *fileFollower) startFollowing(ctx context.Context, out chan<- string, li
 	}
 
 	f.wg.Add(1)
+
 	go f.followFile(ctx, t, out)
 
 	return nil

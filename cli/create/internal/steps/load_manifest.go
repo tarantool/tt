@@ -22,7 +22,9 @@ func (LoadManifest) Run(ctx *create_ctx.CreateCtx, templateCtx *app_template.Tem
 		return err
 	} else if os.IsNotExist(err) {
 		log.Info("There is no manifest in template.")
+
 		templateCtx.IsManifestPresent = false
+
 		return nil
 	}
 

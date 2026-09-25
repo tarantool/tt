@@ -27,6 +27,7 @@ func (conn *TextConnector) Eval(expr string, args []any,
 		ReadTimeout:  opts.ReadTimeout,
 		ResData:      opts.ResData,
 	}
+
 	return evalPlainTextConn(conn.conn, expr, args, evalOpts)
 }
 
@@ -35,5 +36,6 @@ func (conn *TextConnector) Close() error {
 	if conn.conn != nil {
 		return conn.conn.Close()
 	}
+
 	return nil
 }

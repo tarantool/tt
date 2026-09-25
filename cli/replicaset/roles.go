@@ -40,6 +40,7 @@ func (RolesAdder) Change(roles []string, r string) ([]string, error) {
 	if len(roles) > 0 && slices.Index(roles, r) != -1 {
 		return []string{}, fmt.Errorf("%w%q already exists", errRoleAlreadyExists, r)
 	}
+
 	return append(roles, r), nil
 }
 
@@ -57,9 +58,11 @@ func (RolesRemover) Change(roles []string, r string) ([]string, error) {
 	if idx == -1 {
 		return []string{}, fmt.Errorf("%w%q not found", errRoleNotFound, r)
 	}
+
 	if len(roles) == 1 {
 		return []string{}, nil
 	}
+
 	return append(roles[:idx], roles[idx+1:]...), nil
 }
 
@@ -103,6 +106,7 @@ func newErrRolesChangeByInstanceNotSupported(orchestrator Orchestrator,
 		return fmt.Errorf("%w%s is not supported for a single instance by %q orchestrator",
 			errRoleChangeIsNotSupported, "remove", orchestrator)
 	}
+
 	return fmt.Errorf("%w%s is not supported for a single instance by %q orchestrator",
 		errRoleChangeIsNotSupported, "add", orchestrator)
 }
@@ -116,6 +120,7 @@ func newErrRolesChangeByAppNotSupported(orchestrator Orchestrator,
 		return fmt.Errorf("%w%s is not supported for an application by %q orchestrator",
 			errRoleChangeIsNotSupported, "remove", orchestrator)
 	}
+
 	return fmt.Errorf("%w%s is not supported for an application by %q orchestrator",
 		errRoleChangeIsNotSupported, "add", orchestrator)
 }
@@ -127,13 +132,16 @@ func parseRoles(value any) ([]string, error) {
 	if !ok {
 		return []string{}, fmt.Errorf("%v%w", value, errIsNotASlice)
 	}
+
 	existingRoles := make([]string, 0, len(sliceVal)+1)
 	for _, v := range sliceVal {
 		vStr, ok := v.(string)
 		if !ok {
 			return []string{}, fmt.Errorf("%v%w", v, errIsNotAString)
 		}
+
 		existingRoles = append(existingRoles, vStr)
 	}
+
 	return existingRoles, nil
 }

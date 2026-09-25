@@ -45,11 +45,13 @@ func TestGetList(t *testing.T) {
 	for _, file := range files {
 		f, err := os.Create(filepath.Join(binDir, file))
 		require.NoError(t, err)
+
 		_ = f.Close()
 	}
 
 	cliOpts, _, err := configure.GetCliOpts(cfgPath, &mockRepository{})
 	require.NoError(t, err)
+
 	result := GetList(cliOpts, "tt")
 	assert.Equal(result, []string{"1.2.3"})
 

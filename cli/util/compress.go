@@ -17,6 +17,7 @@ func makeTarGzReader(archive *os.File) (*tar.Reader, error) {
 	}
 
 	tarReader := tar.NewReader(uncompressedStream)
+
 	return tarReader, err
 }
 
@@ -26,13 +27,16 @@ func ExtractTarGz(tarName, dstDir string) error {
 	if err != nil {
 		return err
 	}
+
 	defer func() {
 		_ = archive.Close()
 	}()
+
 	tarReader, err := makeTarGzReader(archive)
 	if err != nil {
 		return err
 	}
+
 	for {
 		header, err := tarReader.Next()
 
@@ -57,15 +61,18 @@ func ExtractTarGz(tarName, dstDir string) error {
 				//    others: read/execute
 				_ = os.MkdirAll(filepath.Join(dstDir, dirName), archiveDirectoryMode)
 			}
+
 			outFile, err := os.OpenFile(filepath.Join(dstDir, header.Name),
 				os.O_CREATE|os.O_WRONLY, header.FileInfo().Mode().Perm())
 			if err != nil {
 				return err
 			}
+
 			if _, err := io.Copy(outFile, tarReader); err != nil {
 				_ = outFile.Close()
 				return err
 			}
+
 			_ = outFile.Close()
 		case tar.TypeSymlink:
 			if err := os.Symlink(header.Linkname, filepath.Join(dstDir, header.Name)); err != nil {
@@ -76,5 +83,6 @@ func ExtractTarGz(tarName, dstDir string) error {
 				errUnknownArchiveEntryType, header.Typeflag, header.Name)
 		}
 	}
+
 	return nil
 }

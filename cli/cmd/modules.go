@@ -44,6 +44,7 @@ func NewModulesCmd() *cobra.Command {
 	cmd.AddCommand(
 		newModulesListCmd(),
 	)
+
 	return cmd
 }
 
@@ -53,7 +54,9 @@ func sortExternalModules() []string {
 	for k := range modulesInfo {
 		keys = append(keys, k)
 	}
+
 	slices.Sort(keys)
+
 	return keys
 }
 
@@ -65,6 +68,7 @@ func internalModulesList(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		if showVersion {
 			_, _ = fmt.Fprintf(os.Stdout, "%-5s\t", m.Version)
 		}
+
 		_, _ = fmt.Fprintf(os.Stdout, "%s - ", m.Name)
 
 		if showPath {
@@ -75,5 +79,6 @@ func internalModulesList(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 		_, _ = fmt.Fprint(os.Stdout, "\n")
 	}
+
 	return nil
 }

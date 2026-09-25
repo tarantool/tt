@@ -81,6 +81,7 @@ func TestErrorsHelpTopic(t *testing.T) {
 	assert.True(t, topic.IsAdditionalHelpTopicCommand())
 
 	var out strings.Builder
+
 	topic.SetOut(&out)
 	require.NoError(t, topic.Help())
 
@@ -89,6 +90,7 @@ func TestErrorsHelpTopic(t *testing.T) {
 	}
 
 	var rootOut strings.Builder
+
 	root.SetOut(&rootOut)
 	require.NoError(t, root.Help())
 
@@ -104,16 +106,22 @@ func TestHelpFitsWidth(t *testing.T) {
 	configureHelpCommand(root, &modules.ModulesInfo{})
 
 	checked := 0
+
 	var walk func(cmd *cobra.Command)
+
 	walk = func(cmd *cobra.Command) {
 		var out strings.Builder
+
 		cmd.SetOut(&out)
 		require.NoError(t, cmd.Help())
 		require.NotEmpty(t, out.String(), cmd.CommandPath())
+
 		for _, line := range strings.Split(out.String(), "\n") {
 			assert.LessOrEqual(t, textWidth(line), helpWidth, "%s: %s", cmd.CommandPath(), line)
 		}
+
 		checked++
+
 		for _, sub := range cmd.Commands() {
 			walk(sub)
 		}

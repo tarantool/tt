@@ -28,25 +28,32 @@ func (r resultType) Format(f console.Format) (string, error) {
 	if len(r.names) == 0 {
 		return "", nil
 	}
+
 	output, err := formatter.MakeOutput(f.Mode, r.asYaml(), f.Opts)
 	if err != nil {
 		return "", err
 	}
+
 	return output, nil
 }
 
 // asYaml prepare results for formatter.MakeOutput.
 func (r resultType) asYaml() string {
 	var yaml strings.Builder
+
 	yaml.WriteString("---\n")
+
 	for _, row := range r.rows {
 		mark := "-"
+
 		for i, v := range row {
 			n := r.names[i]
 			fmt.Fprintf(&yaml, "%s %s: %v\n", mark, n, v)
+
 			mark = " "
 		}
 	}
+
 	return yaml.String()
 }
 

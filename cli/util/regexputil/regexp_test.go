@@ -11,6 +11,7 @@ func TestApplyVars(t *testing.T) {
 		templateStr string
 		data        map[string]string
 	}
+
 	tests := []struct {
 		name    string
 		args    args
@@ -79,6 +80,7 @@ in template string: "{{ greeting    }} {{who}}!"`,
 			"",
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := ApplyVars(tt.args.templateStr, tt.args.data)
@@ -87,6 +89,7 @@ in template string: "{{ greeting    }} {{who}}!"`,
 			} else {
 				assert.NoError(t, err)
 			}
+
 			assert.Equal(t, tt.want, got)
 		})
 	}

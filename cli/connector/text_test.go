@@ -41,6 +41,7 @@ func TestTextConnector_Close(t *testing.T) {
 
 func TestTextConnector_Close_error(t *testing.T) {
 	const errMsg = "any error"
+
 	stub := &plainConnectorStub{err: errAnyError}
 	conn := NewTextConnector(stub)
 

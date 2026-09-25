@@ -139,6 +139,7 @@ func PublishRWS() error {
 		if rwsAuth == "" {
 			return errFailedToPublishPackageRWSAuthIsNotSet
 		}
+
 		flags = append(flags, "-u", rwsAuth)
 
 		cmd := exec.CommandContext(context.Background(), "curl", flags...)

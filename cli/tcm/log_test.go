@@ -121,6 +121,7 @@ func fileReaderByLine(
 		if err != nil {
 			return
 		}
+
 		defer func() {
 			_ = log.Close()
 		}()
@@ -151,7 +152,9 @@ func makeDataFileName(t *testing.T, tc *testCase) string {
 	t.Helper()
 
 	fName := filepath.Base(tc.log)
+
 	fName = strings.TrimSuffix(fName, filepath.Ext(fName))
+
 	fName += fmt.Sprintf("_%d_", tc.lines)
 
 	if !tc.isFormat {
@@ -175,6 +178,7 @@ func compareResults(t *testing.T, got, dataFile string) {
 	want, err := os.ReadFile(dataFile)
 	if err != nil {
 		t.Errorf("failed to read expected data %q: %v", dataFile, err)
+
 		return
 	}
 
@@ -300,6 +304,7 @@ func TestFollowLogs(t *testing.T) {
 			err := tcm.FollowLogs(&mf, p, tt.lines)
 			if tt.wantErr {
 				require.Error(t, err, "expected an error but got none")
+
 				return
 			}
 
@@ -334,6 +339,7 @@ func TestTailLogs(t *testing.T) {
 			err := tcm.TailLogs(&mt, p, tt.lines)
 			if tt.wantErr {
 				require.Error(t, err, "expected an error but got none")
+
 				return
 			}
 

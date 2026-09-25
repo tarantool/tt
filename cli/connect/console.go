@@ -79,6 +79,7 @@ func genConsoleTitle(connOpts connector.ConnectOpts, connCtx ConnectCtx) string 
 	if connCtx.ConnectTarget != "" {
 		return connCtx.ConnectTarget
 	}
+
 	return connOpts.Address
 }
 
@@ -137,6 +138,7 @@ func NewConsole(connOpts connector.ConnectOpts, connectCtx ConnectCtx, title str
 	// Initialize syntax checkers.
 	luaValidator := NewLuaValidator()
 	sqlValidator := NewSQLValidator()
+
 	console.validators = make(map[Language]ValidateCloser)
 	console.validators[DefaultLanguage] = luaValidator
 	console.validators[LuaLanguage] = luaValidator
@@ -153,11 +155,13 @@ func NewConsole(connOpts connector.ConnectOpts, connectCtx ConnectCtx, title str
 func (console *Console) Run() error {
 	if !terminal.IsTerminal(syscall.Stdin) {
 		log.Debugf("Found piped input")
+
 		pipedInputScanner := bufio.NewScanner(os.Stdin)
 		for pipedInputScanner.Scan() {
 			line := pipedInputScanner.Text()
 			console.executor(line)
 		}
+
 		return nil
 	} else {
 		log.Infof("Connected to %s\n", console.title)
@@ -183,6 +187,7 @@ func (console *Console) Close() {
 	for _, v := range console.validators {
 		_ = v.Close()
 	}
+
 	console.validators = nil
 	if console.conn != nil {
 		_ = console.conn.Close()
@@ -209,13 +214,17 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 					log.Infof("Quit from the console")
 					exitcode.Exit(nil)
 				}
+
 				return
 			}
 		}
 
 		var completed bool
+
 		validator := console.validators[console.language]
+
 		console.input, completed = AddStmtPart(console.input, in, console.delimiter, validator)
+
 		if !completed {
 			console.livePrefixEnabled = true
 			return
@@ -224,6 +233,7 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 		trimmedInput := strings.TrimSpace(console.input)
 		if console.history != nil {
 			console.history.appendCommand(trimmedInput)
+
 			if err := console.history.writeToFile(); err != nil {
 				log.Debug(err.Error())
 			}
@@ -236,6 +246,7 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 		}
 
 		var results []string
+
 		needMetaInfo := console.format == formatter.TableFormat ||
 			console.format == formatter.TTableFormat
 		args := []any{
@@ -247,6 +258,7 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 				encodedData, err := yaml.Marshal(pushedData)
 				if err != nil {
 					log.Warnf("Failed to encode pushed data: %s", err)
+
 					return
 				}
 
@@ -256,6 +268,7 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 		}
 
 		var data string
+
 		if _, err := console.conn.Eval(evalBody, args, opts); err != nil {
 			if errors.Is(err, io.EOF) {
 				// We need to call 'console.Close()' here because in some cases (e.g 'os.exit()')
@@ -290,6 +303,7 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 		handleSignals := func(console *Console, stop chan struct{}) {
 			sig := make(chan os.Signal, 1)
 			signal.Notify(sig, syscall.SIGINT, syscall.SIGQUIT)
+
 			select {
 			case <-stop:
 				return
@@ -301,7 +315,9 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 
 		stop := make(chan struct{})
 		go handleSignals(console, stop)
+
 		executor(in)
+
 		stop <- struct{}{}
 	}
 
@@ -334,6 +350,7 @@ func getCompleter(console *Console, connectCtx ConnectCtx) prompt.Completer {
 		}
 
 		var suggestionsTexts []string
+
 		args := []any{lastWord, len(lastWord)}
 		opts := connector.RequestOpts{
 			ReadTimeout: suggestionReadTimeout,
@@ -345,6 +362,7 @@ func getCompleter(console *Console, connectCtx ConnectCtx) prompt.Completer {
 		}
 
 		slices.Sort(suggestionsTexts)
+
 		suggestionsTexts = slices.Compact(suggestionsTexts)
 		if len(suggestionsTexts) == 0 {
 			return nil

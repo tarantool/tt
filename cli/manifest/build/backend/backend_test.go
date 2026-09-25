@@ -17,6 +17,7 @@ func lastEnvValue(environ []string, key string) string {
 	prefix := key + "="
 
 	value := ""
+
 	for _, kv := range environ {
 		if strings.HasPrefix(kv, prefix) {
 			value = kv[len(prefix):]

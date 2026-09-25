@@ -15,6 +15,7 @@ func Test_dirsAreWriteable(t *testing.T) {
 	if user, err := user.Current(); err == nil && user.Uid == "0" {
 		t.Skip("Skipping the test, it shouldn't run as root")
 	}
+
 	tmpDirNonWriteableForAll := t.TempDir()
 	// dr-xr-xr-x mode.
 	permissions := 0o555
@@ -28,6 +29,7 @@ func Test_dirsAreWriteable(t *testing.T) {
 	type args struct {
 		dir string
 	}
+
 	tests := []struct {
 		name string
 		args args
@@ -44,6 +46,7 @@ func Test_dirsAreWriteable(t *testing.T) {
 			want: true,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equalf(t, tt.want, dirIsWritable(tt.args.dir),
@@ -56,6 +59,7 @@ func Test_subDirIsWritable(t *testing.T) {
 	if user, err := user.Current(); err == nil && user.Uid == "0" {
 		t.Skip("Skipping the test, it shouldn't run as root")
 	}
+
 	tmpDirNonWriteableForAll := t.TempDir()
 	// dr-xr-xr-x mode.
 	permissions := 0o555
@@ -69,6 +73,7 @@ func Test_subDirIsWritable(t *testing.T) {
 	type args struct {
 		dir string
 	}
+
 	tests := []struct {
 		name string
 		args args
@@ -85,6 +90,7 @@ func Test_subDirIsWritable(t *testing.T) {
 			want: false,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equalf(t, tt.want, subDirIsWritable(tt.args.dir), "subDirIsWritable(%v)",
@@ -100,6 +106,7 @@ func Test_getLatestRelease(t *testing.T) {
 	}
 
 	versions := make([]version.Version, 0, 7)
+
 	versions = append(versions,
 		getFirst("2.10.6"),
 		getFirst("2.10.7-entrypoint"),
@@ -126,6 +133,7 @@ func Test_installTarantoolDev(t *testing.T) {
 
 	setupEnv := func(t *testing.T) string {
 		t.Helper()
+
 		//	├── ttBinDir
 		//	├── build_ce
 		//	│   └── src
@@ -139,20 +147,28 @@ func Test_installTarantoolDev(t *testing.T) {
 		tempsDir := t.TempDir()
 
 		ttBinDir := filepath.Join(tempsDir, ttBinDir)
+
 		_ = os.Mkdir(ttBinDir, os.ModePerm)
 
 		ttIncDir := filepath.Join(tempsDir, ttIncDir)
+
 		_ = os.Mkdir(ttIncDir, os.ModePerm)
 
 		buildDir1 := filepath.Join(tempsDir, "build_ce")
+
 		_ = os.MkdirAll(filepath.Join(buildDir1, "src"), os.ModePerm)
+
 		binaryPath1 := filepath.Join(buildDir1, "src/tarantool")
+
 		_, _ = os.Create(binaryPath1)
 		_ = os.Chmod(binaryPath1, 0o700)
 
 		buildDir2 := filepath.Join(tempsDir, "build_invalid")
+
 		_ = os.MkdirAll(filepath.Join(buildDir2, "tarantool/src"), os.ModePerm)
+
 		binaryPath2 := filepath.Join(buildDir2, "tarantool/src/tarantool")
+
 		_, _ = os.Create(binaryPath2)
 		_ = os.Chmod(binaryPath2, 0o700)
 
@@ -176,6 +192,7 @@ func Test_installTarantoolDev(t *testing.T) {
 		for _, tc := range cases {
 			err := installTarantoolDev(ttBinPath, ttIncPath, tc.buildDir, "")
 			assert.NoError(t, err)
+
 			link, err := os.Readlink(filepath.Join(ttBinPath, "tarantool"))
 			assert.NoError(t, err)
 			assert.Equal(t, filepath.Join(tc.buildDir, tc.relExecPath), link)
@@ -199,7 +216,9 @@ func Test_installTarantoolDev(t *testing.T) {
 
 		// Custom include-dir.
 		customIncDirectoryPath := filepath.Join(tempDirectory, "build_invalid", "custom_inc")
+
 		_ = os.MkdirAll(customIncDirectoryPath, os.ModePerm)
+
 		cases := []struct {
 			buildDir        string
 			incDir          string
@@ -224,6 +243,7 @@ func Test_installTarantoolDev(t *testing.T) {
 		for _, tc := range cases {
 			err := installTarantoolDev(ttBinPath, ttIncPath, tc.buildDir, tc.incDir)
 			assert.NoError(t, err)
+
 			execLink, err := os.Readlink(filepath.Join(ttBinPath, "tarantool"))
 			assert.NoError(t, err)
 			assert.Equal(t, execLink, filepath.Join(tc.buildDir, tc.relExecPath))
@@ -241,7 +261,9 @@ func Test_installTarantoolDev(t *testing.T) {
 		ttIncPath := filepath.Join(tempDirectory, ttIncDir)
 
 		buildDir := filepath.Join(tempDirectory, "build_ee")
+
 		_ = os.MkdirAll(buildDir, os.ModePerm)
+
 		err := installTarantoolDev(ttBinPath, ttIncPath, buildDir, "")
 		assert.Error(t, err)
 	})
@@ -251,15 +273,18 @@ func TestSearchTarantoolHeaders(t *testing.T) {
 	tempsDir := t.TempDir()
 
 	buildEmptyPath := filepath.Join(tempsDir, "build_empty")
+
 	_ = os.MkdirAll(buildEmptyPath, os.ModePerm)
 
 	buildBasicPath := filepath.Join(tempsDir, "build_basic")
+
 	_ = os.MkdirAll(filepath.Join(buildBasicPath, "tarantool-prefix", "include", "tarantool"),
 		os.ModePerm)
 	_ = os.MkdirAll(filepath.Join(buildBasicPath, "custom-prefix", "include", "tarantool"),
 		os.ModePerm)
 
 	buildInvalidPath := filepath.Join(tempsDir, "build_invalid")
+
 	_ = os.MkdirAll(buildInvalidPath, os.ModePerm)
 	_ = os.MkdirAll(filepath.Join(buildInvalidPath, "tarantool-prefix", "include"),
 		os.ModePerm)
@@ -303,6 +328,7 @@ func TestSearchTarantoolHeaders(t *testing.T) {
 	for _, tc := range cases {
 		incDir, err := searchTarantoolHeaders(tc.buildDir, tc.includeDir)
 		assert.Equal(t, tc.expectedIncludeDir, incDir)
+
 		if tc.isErr {
 			assert.Error(t, err)
 		}

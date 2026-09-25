@@ -26,9 +26,11 @@ func splitInstancePath(path string) (string, string, string) {
 	if len(kp) != instancePathSegments {
 		return "", "", ""
 	}
+
 	if kp[0] != "groups" || kp[2] != "replicasets" || kp[4] != "instances" {
 		return "", "", ""
 	}
+
 	return kp[1], kp[3], kp[5]
 }
 
@@ -47,9 +49,12 @@ func Instances(cfg goconfig.Config) ([]string, error) {
 		if inst == "" {
 			continue
 		}
+
 		names = append(names, inst)
 	}
+
 	sort.Strings(names)
+
 	return names, nil
 }
 
@@ -73,6 +78,7 @@ func FindInstance(cfg goconfig.Config, name string) (string, string, bool) {
 			return g, r, true
 		}
 	}
+
 	return "", "", false
 }
 
@@ -90,6 +96,7 @@ func FindGroupByReplicaset(cfg goconfig.Config, replicaset string) (string, bool
 			return g, true
 		}
 	}
+
 	return "", false
 }
 
@@ -109,5 +116,6 @@ func InstanceConfig(cfg goconfig.Config, name string) (goconfig.Config, error) {
 			return instCfg, nil
 		}
 	}
+
 	return goconfig.Config{}, fmt.Errorf("%w%q not found", errInstanceNotFound, name)
 }

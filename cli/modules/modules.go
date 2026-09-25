@@ -75,6 +75,7 @@ type possibleModules map[string]modulesEntry
 // readManifest parses the manifest file to module requirements.
 func readManifest(dir, manifest string) (Manifest, error) {
 	mf := Manifest{}
+
 	data, err := os.ReadFile(manifest)
 	if err != nil {
 		return mf, fmt.Errorf("failed to read manifest: %w", err)
@@ -92,6 +93,7 @@ func readManifest(dir, manifest string) (Manifest, error) {
 	if mf.Version == "" {
 		return mf, errVersionFieldIsMandatoryForModuleManifest
 	}
+
 	if mf.Help == "" {
 		return mf, errHelpFieldIsMandatoryForModuleManifest
 	}
@@ -122,6 +124,7 @@ func GetModulesInfo(
 	if err != nil {
 		return nil, err
 	}
+
 	modulesDirs = append(modulesDirs, modulesEnvDirs...)
 
 	externalModules, err := getExternalModules(modulesDirs)
@@ -131,14 +134,19 @@ func GetModulesInfo(
 	}
 
 	modulesInfo := ModulesInfo{}
+
 	for name, info := range externalModules {
 		mf, err := makeManifest(info)
 		if err != nil {
 			log.Warnf("Failed to get information about module %q: %s", name, err)
+
 			continue
 		}
+
 		mf.Name = name
+
 		commandPath := rootCmd + " " + name
+
 		modulesInfo[commandPath] = mf
 	}
 
@@ -157,6 +165,7 @@ func collectDirectoriesList(paths []string) ([]string, error) {
 			if !info.IsDir() {
 				return dirs, errSpecifiedPathInConfigurationFileIsNotADirectory
 			}
+
 			dirs = append(dirs, dir)
 		}
 	}
@@ -188,6 +197,7 @@ func getEnvironmentModulesDirs() ([]string, error) {
 	}
 
 	paths := strings.Split(envVar, ":")
+
 	return collectDirectoriesList(paths)
 }
 
@@ -196,6 +206,7 @@ func isPossibleModule(dir string) (modulesEntry, bool) {
 	isModule := false
 	entries := modulesEntry{Directory: dir}
 	manifest, _ := util.GetYamlFileName(filepath.Join(dir, manifestFileName), false)
+
 	if manifest != "" {
 		entries.Manifest = manifest
 		isModule = true
@@ -236,6 +247,7 @@ func readSubDirectories(path string) ([]string, error) {
 // parsing the contents of the list folders.
 func getExternalModules(paths []string) (possibleModules, error) {
 	modules := possibleModules{}
+
 	for _, path := range paths {
 		dirs, err := readSubDirectories(path)
 		if err != nil {
@@ -248,6 +260,7 @@ func getExternalModules(paths []string) (possibleModules, error) {
 			e, exists := modules[d]
 			if exists {
 				log.Warnf("Ignore duplicate module %q overlap with %q", modPath, e.Directory)
+
 				continue
 			}
 
@@ -261,5 +274,6 @@ func getExternalModules(paths []string) (possibleModules, error) {
 			}
 		}
 	}
+
 	return modules, nil
 }

@@ -41,6 +41,7 @@ func TestBinaryConnector_Close(t *testing.T) {
 
 func TestBinaryConnector_Close_error(t *testing.T) {
 	const errMsg = "any error"
+
 	stub := &binaryConnectorStub{err: errAnyError}
 	conn := NewBinaryConnector(stub)
 

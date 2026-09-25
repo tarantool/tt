@@ -305,6 +305,7 @@ func NewClusterCmd() *cobra.Command {
 			if len(args) != 0 {
 				return nil, cobra.ShellCompDirectiveNoFileComp
 			}
+
 			return internal.ValidArgsFunction(
 				cliOpts, &cmdCtx, cmd, toComplete,
 				running.ExtractActiveAppNames,
@@ -376,7 +377,9 @@ func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		if cerr != nil {
 			return cerr
 		}
+
 		showCtx.Collectors = factory
+
 		return clustercmd.ShowURI(showCtx, opts)
 	}
 
@@ -385,11 +388,13 @@ func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if err != nil {
 		return err
 	}
+
 	if configPath == "" {
 		return errClusterConfigurationFileDoesNotExistForTheApplication
 	}
 
 	showCtx.Integrity = cmdCtx.Integrity
+
 	return clustercmd.ShowCluster(showCtx, configPath, instName)
 }
 
@@ -400,6 +405,7 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 	if err != nil {
 		return err
 	}
+
 	publishCtx.Collectors = dataCollectors
 	publishCtx.Publishers = dataPublishers
 
@@ -407,6 +413,7 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 	if err != nil {
 		return err
 	}
+
 	publishCtx.Src = data
 	publishCtx.Config = config
 
@@ -419,21 +426,25 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 	if err != nil {
 		return err
 	}
+
 	if configPath == "" {
 		if instName != "" {
 			return errCannotUpdateInstanceConfigurationWithoutClusterConfiguration
 		}
+
 		configPath, err = running.GetClusterConfigPath(cmdCtx.Cli.ConfigDir, false)
 		if err != nil {
 			return err
 		}
 	}
+
 	return clustercmd.PublishCluster(publishCtx, configPath, instName)
 }
 
 // internalClusterReplicasetPromoteModule is a "cluster replicaset promote" command.
 func internalClusterReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var err error
+
 	promoteCtx.Collectors, promoteCtx.Publishers, err = cluster.NewCollectorAndPublisherFactories(
 		cmdCtx.Integrity, clusterIntegrityPrivateKey)
 	if err != nil {
@@ -441,12 +452,14 @@ func internalClusterReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []st
 	}
 
 	promoteCtx.InstName = args[1]
+
 	return clustercmd.Promote(args[0], promoteCtx)
 }
 
 // internalClusterReplicasetDemoteModule is a "cluster replicaset demote" command.
 func internalClusterReplicasetDemoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var err error
+
 	demoteCtx.Collectors, demoteCtx.Publishers, err = cluster.NewCollectorAndPublisherFactories(
 		cmdCtx.Integrity, clusterIntegrityPrivateKey)
 	if err != nil {
@@ -454,12 +467,14 @@ func internalClusterReplicasetDemoteModule(cmdCtx *cmdcontext.CmdCtx, args []str
 	}
 
 	demoteCtx.InstName = args[1]
+
 	return clustercmd.Demote(args[0], demoteCtx)
 }
 
 // internalClusterReplicasetExpelModule is a "cluster replicaset expel" command.
 func internalClusterReplicasetExpelModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var err error
+
 	expelCtx.Collectors, expelCtx.Publishers, err = cluster.NewCollectorAndPublisherFactories(
 		cmdCtx.Integrity, clusterIntegrityPrivateKey)
 	if err != nil {
@@ -467,12 +482,14 @@ func internalClusterReplicasetExpelModule(cmdCtx *cmdcontext.CmdCtx, args []stri
 	}
 
 	expelCtx.InstName = args[1]
+
 	return clustercmd.Expel(args[0], expelCtx)
 }
 
 // internalClusterReplicasetRolesAddModule is a "cluster replicaset roles add" command.
 func internalClusterReplicasetRolesAddModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var err error
+
 	if err = checkRolesChangeFlags(addAction); err != nil {
 		return err
 	}
@@ -484,12 +501,14 @@ func internalClusterReplicasetRolesAddModule(cmdCtx *cmdcontext.CmdCtx, args []s
 	}
 
 	rolesChangeCtx.RoleName = args[1]
+
 	return clustercmd.ChangeRole(args[0], rolesChangeCtx, replicaset.RolesAdder{})
 }
 
 // internalClusterReplicasetRolesRemoveModule is a "cluster replicaset roles remove" command.
 func internalClusterReplicasetRolesRemoveModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var err error
+
 	if err = checkRolesChangeFlags(!addAction); err != nil {
 		return err
 	}
@@ -506,6 +525,7 @@ func internalClusterReplicasetRolesRemoveModule(cmdCtx *cmdcontext.CmdCtx, args 
 	rolesChangeCtx.Publishers = pub
 
 	rolesChangeCtx.RoleName = args[1]
+
 	return clustercmd.ChangeRole(args[0], rolesChangeCtx, replicaset.RolesRemover{})
 }
 
@@ -530,6 +550,7 @@ func readSourceFile(path string) ([]byte, map[string]any, error) {
 	}
 
 	var decoded map[string]any
+
 	if err := yaml.Unmarshal(data, &decoded); err != nil {
 		return nil, nil, fmt.Errorf("failed to read a configuration from path %q: %w", path, err)
 	}
@@ -550,6 +571,7 @@ func parseAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, string, erro
 	// Fill context for the entire application.
 	// publish app:inst can work even if the `inst` instance doesn't exist right now.
 	var runningCtx running.RunningCtx
+
 	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{appName},
 		running.ConfigLoadCluster)
 	if err != nil {
@@ -571,9 +593,11 @@ func checkRolesChangeFlags(isAdd bool) error {
 	if !isAdd {
 		action = "removed"
 	}
+
 	if !rolesChangeCtx.IsGlobal && rolesChangeCtx.GroupName == "" &&
 		rolesChangeCtx.ReplicasetName == "" && rolesChangeCtx.InstName == "" {
 		return util.NewArgError("need to provide flag(s) with scope roles will " + action)
 	}
+
 	return nil
 }

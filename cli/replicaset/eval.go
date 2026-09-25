@@ -27,16 +27,21 @@ func (evaler EvalFunc) Eval(expr string, args []any, opts connector.RequestOpts)
 func MakeInstanceEvalFunc(instance running.InstanceCtx) EvalFunc {
 	return func(expr string, args []any, opts connector.RequestOpts) ([]any, error) {
 		var resp []any
+
 		instEvaler := func(instance running.InstanceCtx, evaler connector.Evaler) (bool, error) {
 			var err error
+
 			resp, err = evaler.Eval(expr, args, opts)
+
 			return true, err
 		}
+
 		err := EvalForeach(
 			[]running.InstanceCtx{instance}, InstanceEvalFunc(instEvaler))
 		if err != nil {
 			return nil, err
 		}
+
 		return resp, nil
 	}
 }
@@ -95,6 +100,7 @@ func evalForeach(instances []running.InstanceCtx,
 	}
 
 	connected := 0
+
 	for _, instance := range instances {
 		conn, err := connector.Connect(connector.ConnectOpts{
 			Network: "unix",
@@ -107,23 +113,29 @@ func evalForeach(instances []running.InstanceCtx,
 			} else {
 				log.Debugf("failed to connect to '%s:%s': %s",
 					instance.AppName, instance.InstName, err)
+
 				continue
 			}
 		}
 
 		connected++
+
 		done, err := iEvaler.Eval(instance, conn)
+
 		_ = conn.Close()
 
 		if err != nil {
 			return err
 		}
+
 		if done {
 			break
 		}
 	}
+
 	if connected == 0 {
 		return errFailedToConnectToAnyInstance
 	}
+
 	return nil
 }

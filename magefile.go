@@ -105,6 +105,7 @@ func init() {
 			panic(err)
 		}
 	}
+
 	// We want to use Go 1.11 modules even if the source lives inside GOPATH.
 	// The default is "auto".
 	_ = os.Setenv("GO111MODULE", "on")
@@ -123,12 +124,14 @@ func appendFlags(flags ...string) optsUpdater {
 func appendLdFlags(flags ...string) optsUpdater {
 	return func(args []string) ([]string, error) {
 		buildLdflags := append([]string(nil), ldflags...)
+
 		buildLdflags = append(buildLdflags, flags...)
 
 		buildType := os.Getenv(buildTypeEnv)
 		if BuildType(buildType) == BuildTypeOpenSSLStatic && runtime.GOOS != "darwin" {
 			buildLdflags = append(buildLdflags, staticLdflags...)
 		}
+
 		return append(append(args, "-ldflags"), strings.Join(buildLdflags, " ")), nil
 	}
 }
@@ -149,6 +152,7 @@ func appendTags(args []string) ([]string, error) {
 			errUnsupportedBuildType, buildType,
 			BuildTypeOpenSSL, BuildTypeOpenSSLStatic)
 	}
+
 	return append(append(args, "-tags"), strings.Join(tags, ",")), nil
 }
 
@@ -158,17 +162,22 @@ func buildTt(argUpdaters ...optsUpdater) error {
 	const buildArgsCapacity = 8
 
 	args := make([]string, 0, buildArgsCapacity)
+
 	args = append(args, "build", "-o", ttExecutableName)
+
 	var err error
+
 	for _, updateArguments := range argUpdaters {
 		if args, err = updateArguments(args); err != nil {
 			return err
 		}
 	}
+
 	args = append(args,
 		"-asmflags", asmflags,
 		"-gcflags", gcflags,
 		packagePath)
+
 	err = sh.RunWith(getBuildEnvironment(), goExecutableName, args...)
 	if err != nil {
 		return fmt.Errorf("failed to build tt executable: %w", err)
@@ -201,8 +210,10 @@ func (Build) Coverage() error {
 	if err != nil {
 		return err
 	}
+
 	_, _ = fmt.Fprintln(os.Stdout, `Set coverage data destination directory (must exist) and run tt:
 	GOCOVERDIR=./<coverage_dest_dir> tt <opts>`)
+
 	return nil
 }
 
@@ -227,6 +238,7 @@ type Lint mg.Namespace
 // Full runs golang and python linters.
 func (Lint) Full() error {
 	mg.Deps(Lint.Golang, Lint.Python)
+
 	return nil
 }
 
@@ -327,6 +339,7 @@ func runUnitTests(flags []string) error {
 		if mg.Verbose() {
 			args = append(args, "-v")
 		}
+
 		args = append(args, "./...")
 		args = append(args, flags...)
 		args = append(args, "-count=1")
@@ -369,6 +382,7 @@ func (Unit) Coverage() error {
 	if err != nil {
 		return err
 	}
+
 	coverDir := filepath.Join(cwd, "coverage", "unit")
 	if err := ensureCoverageDir(coverDir); err != nil {
 		return err
@@ -382,10 +396,12 @@ func (Unit) Coverage() error {
 	if err != nil {
 		return err
 	}
+
 	relCoverDir, err := filepath.Rel(cwd, coverDir)
 	if err != nil {
 		relCoverDir = coverDir
 	}
+
 	_, _ = fmt.Fprintf(os.Stdout, "Coverage data is saved to %q\n", relCoverDir)
 	_, _ = fmt.Fprintf(os.Stdout, `Example command for analysis:
 	go tool covdata func -i %q
@@ -401,12 +417,15 @@ func ensureCoverageDir(coverDir string) error {
 	if os.IsNotExist(err) {
 		return os.MkdirAll(coverDir, coverageDirectoryMode)
 	}
+
 	if err != nil {
 		return err
 	}
+
 	if !coverageDirInfo.IsDir() {
 		return fmt.Errorf("%q%w", coverDir, errIsNotADirectory)
 	}
+
 	return nil
 }
 
@@ -492,6 +511,7 @@ func Generate() error {
 			return fmt.Errorf("failed to generate sources for path %q: %w", path, err)
 		}
 	}
+
 	return nil
 }
 
@@ -515,11 +535,13 @@ func getDefaultConfigPath() string {
 func getBuildEnvironment() map[string]string {
 	var err error
 
-	var currentDir string
-	var gitTag string
-	var gitTagShort string
-	var gitCommit string
-	var gitCommitSinceTag string
+	var (
+		currentDir        string
+		gitTag            string
+		gitTagShort       string
+		gitCommit         string
+		gitCommitSinceTag string
+	)
 
 	if currentDir, err = os.Getwd(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get current directory: %s\n", err)

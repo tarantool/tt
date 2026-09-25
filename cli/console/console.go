@@ -61,11 +61,13 @@ func NewConsole(opts ConsoleOpts) (Console, error) {
 	if opts.Handler == nil {
 		return Console{quit: true}, errNoHandlerForCommandsHasBeenSet
 	}
+
 	c := Console{
 		impl: opts,
 		quit: false,
 	}
 	c.setPrefix()
+
 	return c, nil
 }
 
@@ -74,11 +76,13 @@ func (c *Console) Run() error {
 	if c.quit {
 		return errConsoleStopped
 	}
+
 	if !term.IsTerminal(syscall.Stdin) {
 		return c.runOnPipe()
 	}
 
 	log.Infof("Connected to %s\n", c.title())
+
 	c.prompt = prompt.New(
 		c.execute,
 		c.complete,
@@ -92,6 +96,7 @@ func (c *Console) Run() error {
 // Close frees up resources used by the console.
 func (c *Console) Close() {
 	c.impl.Handler.Close()
+
 	if c.impl.History != nil {
 		c.impl.History.Close()
 	}
@@ -99,7 +104,9 @@ func (c *Console) Close() {
 
 func (c *Console) runOnPipe() error {
 	pipe := bufio.NewScanner(os.Stdin)
+
 	log.Infof("Processing piped input")
+
 	for pipe.Scan() {
 		line := pipe.Text()
 		c.execute(line)
@@ -111,6 +118,7 @@ func (c *Console) runOnPipe() error {
 	} else {
 		log.Warnf("Error on pipe %v", err)
 	}
+
 	return err
 }
 
@@ -125,9 +133,11 @@ func (c *Console) executeEmbeddedCommand(in string) bool {
 				log.Infof("Quit from the console")
 				exitcode.Exit(nil)
 			}
+
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -137,12 +147,15 @@ func (c *Console) cleanupDelimiter() bool {
 	if c.delimiter == "" {
 		return true
 	}
+
 	noSpace := strings.TrimRightFunc(c.input, unicode.IsSpace)
 	noDelim := strings.TrimSuffix(noSpace, c.delimiter)
+
 	if len(noSpace) > len(noDelim) {
 		c.input = noDelim
 		return true
 	}
+
 	return false
 }
 
@@ -159,7 +172,9 @@ func (c *Console) addStmt(part string) bool {
 	}
 
 	hasDelim := c.cleanupDelimiter()
+
 	c.livePrefixEnabled = !hasDelim || !c.impl.Handler.Validate(c.input)
+
 	return !c.livePrefixEnabled
 }
 
@@ -188,6 +203,7 @@ func (c *Console) execute(in string) {
 	}
 
 	_, _ = fmt.Fprintln(os.Stdout, "---")
+
 	output, err := c.impl.Format.Sprint(results)
 	if err == nil {
 		_, _ = fmt.Fprintln(os.Stdout, output)
@@ -210,6 +226,7 @@ func (c *Console) complete(input prompt.Document) []prompt.Suggest {
 	if c.input == "" && c.internal != nil {
 		return c.internal.Complete(input)
 	}
+
 	return c.impl.Handler.Complete(input)
 }
 

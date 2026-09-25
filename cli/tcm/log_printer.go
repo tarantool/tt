@@ -93,6 +93,7 @@ func (l *logPrinter) format(str string) string {
 	}
 
 	var record map[string]any
+
 	if err := json.Unmarshal([]byte(str), &record); err != nil {
 		return str
 	}
@@ -100,8 +101,11 @@ func (l *logPrinter) format(str string) string {
 	color := l.color()
 
 	var resultLines []string
+
 	resultLines = append(resultLines, color.Sprint("{"))
+
 	headerLines := printRecordHeader(record, color)
+
 	resultLines = append(resultLines, headerLines...)
 
 	json, err := json.MarshalIndent(record, "", indentSpaces)
@@ -111,6 +115,7 @@ func (l *logPrinter) format(str string) string {
 
 	if len(json) > emptyJSONObjectLength { // If the JSON contains more than empty `{}`.
 		lines := strings.Split(string(json), "\n")
+
 		lines = lines[1 : len(lines)-1]
 		resultLines = append(resultLines, colorizeJSONLines(lines, color, colorFaint)...)
 	}
@@ -128,6 +133,7 @@ func colorizeJSONLines(lines []string, cKey, cVal color.Color) []string {
 		if len(matches) == matchesCount {
 			kc := cKey.Sprint(matches[matchKey])
 			vc := cVal.Sprint(matches[matchValue])
+
 			line = matches[matchIndent] + kc + matches[matchColon] + vc
 		} else {
 			line = cVal.Sprint(line)
@@ -201,6 +207,7 @@ func formatKeyValueEntryPair(key, val any, color color.Color) string {
 // It modifies the record map by removing handled entries.
 func printRecordHeader(record map[string]any, color color.Color) []string {
 	var result []string
+
 	for _, k := range []string{logHeaderTime, logHeaderLevel, logHeaderMsg} {
 		if v, ok := record[k]; ok {
 			if line, ok := formatBaseHeaderEntry(k, v, color); ok {

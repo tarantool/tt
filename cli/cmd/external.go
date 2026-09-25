@@ -25,8 +25,10 @@ func externalModuleHelpFunc(manifest modules.Manifest) func(*cobra.Command, []st
 		help, err := modules.GetExternalModuleHelp(manifest.Main)
 		if err != nil {
 			cmd.PrintErrf("failed to get help for module %q: %s\n", manifest.Name, err)
+
 			return
 		}
+
 		cmd.Print(help)
 	}
 }
@@ -81,7 +83,9 @@ func configureNonExistentCmd(rootCmd *cobra.Command, modulesInfo *modules.Module
 	// if it doesn't have an internal implementation in Tarantool CLI.
 	// So first collect list of internal command names.
 	internalCmdNames := make([]string, 0, 1+len(rootCmd.Commands()))
+
 	internalCmdNames = append(internalCmdNames, "help")
+
 	for _, cmd := range rootCmd.Commands() {
 		internalCmdNames = append(internalCmdNames, cmd.Name())
 	}
@@ -103,5 +107,6 @@ func newExternalCmd(manifest modules.Manifest) *cobra.Command {
 		DisableFlagParsing: true,
 	}
 	cmd.SetHelpFunc(externalModuleHelpFunc(manifest))
+
 	return cmd
 }

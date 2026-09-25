@@ -29,6 +29,7 @@ func TestCollectInstances(t *testing.T) {
 	if user, err := user.Current(); err == nil && user.Uid == "0" {
 		t.Skip("Skipping the test, it shouldn't run as root")
 	}
+
 	applicationsRoot := filepath.Join("testdata", "applications")
 	singleAppPath := filepath.Join(applicationsRoot, "single_inst")
 
@@ -49,6 +50,7 @@ func TestCollectInstances(t *testing.T) {
 
 	appName := "multi_inst_app"
 	appPath := filepath.Join(applicationsRoot, appName)
+
 	instances, err = collectInstances(appName, appPath,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
@@ -71,6 +73,7 @@ func TestCollectInstances(t *testing.T) {
 		SingleApp:      false,
 		IsFileApp:      false,
 	}))
+
 	_, err = collectInstances("another_app", singleAppPath, integrity.IntegrityCtx{
 		Repository: &mockRepository{},
 	}, ConfigLoadAll)
@@ -89,6 +92,7 @@ func TestCollectInstances(t *testing.T) {
 	err = os.WriteFile(filepath.Join(appPath, "script.lua"),
 		[]byte("print(42)"), 0o644)
 	require.NoError(t, err)
+
 	instances, err = collectInstances("script", appPath,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
@@ -97,6 +101,7 @@ func TestCollectInstances(t *testing.T) {
 	assert.Equal(t, 1, len(instances))
 
 	require.NoError(t, os.Chmod(appPath, 0o666))
+
 	instances, err = collectInstances("script", appPath,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
@@ -110,6 +115,7 @@ func TestCollectInstancesInstanceScript(t *testing.T) {
 	if user, err := user.Current(); err == nil && user.Uid == "0" {
 		t.Skip("Skipping the test, it shouldn't run as root")
 	}
+
 	tmpDir := t.TempDir()
 	appPath := filepath.Join(tmpDir, "script")
 	require.NoError(t, os.Mkdir(appPath, 0o755))
@@ -150,6 +156,7 @@ func TestCollectInstancesInstanceScript(t *testing.T) {
 	for _, tc := range cases {
 		t.Run("test", func(t *testing.T) {
 			require.NoError(t, os.Chmod(appPath, tc.access))
+
 			instances, err := collectInstances("script", appPath,
 				integrity.IntegrityCtx{
 					Repository: &mockRepository{},
@@ -160,6 +167,7 @@ func TestCollectInstancesInstanceScript(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, 1, len(instances))
 			}
+
 			require.NoError(t, os.Chmod(appPath, 0o755))
 		})
 	}
@@ -169,6 +177,7 @@ func TestCollectInstancesEtcdNotAvailable(t *testing.T) {
 	if user, err := user.Current(); err == nil && user.Uid == "0" {
 		t.Skip("Skipping the test, it shouldn't run as root")
 	}
+
 	appPath := filepath.Join("testdata", "applications", "config_load")
 
 	cases := []struct {
@@ -218,6 +227,7 @@ func Test_collectAppDirFiles(t *testing.T) {
 
 	// Cluster config exists, but no instances config.
 	_, _ = os.Create(expectedClusterConfig)
+
 	appDirFiles, err := collectAppDirFiles(tmpdir)
 	require.NoError(t, err)
 	require.Equal(t, expectedClusterConfig, appDirFiles.clusterCfgPath)
@@ -261,6 +271,7 @@ func TestCollectInstancesForApp(t *testing.T) {
 	appName := "cluster_app"
 	applicationsRoot, err := filepath.Abs("./testdata/applications")
 	require.NoError(t, err)
+
 	appLocation := filepath.Join(applicationsRoot, appName)
 	cliOpts := configure.GetDefaultCliOpts()
 	instances, err := CollectInstancesForApp(appName, cliOpts, appLocation,
@@ -270,6 +281,7 @@ func TestCollectInstancesForApp(t *testing.T) {
 	require.NoError(t, err)
 
 	comparisonsCount := 0
+
 	for _, inst := range instances {
 		switch inst.InstName {
 		case "instance-001":
@@ -288,6 +300,7 @@ func TestCollectInstancesForApp(t *testing.T) {
 			assert.Equal(t, filepath.Join(appLocation, "var", "log", "instance-001", "tt.log"),
 				inst.Log)
 			assert.Equal(t, filepath.Join(appLocation, "config.yml"), inst.ClusterConfigPath)
+
 			comparisonsCount++
 
 		case "instance-002":
@@ -303,6 +316,7 @@ func TestCollectInstancesForApp(t *testing.T) {
 			assert.Equal(t, filepath.Join(appLocation, "var", "run", "instance-002", "tt.pid"),
 				inst.PIDFile)
 			assert.Equal(t, filepath.Join(appLocation, "instance-002.control"), inst.ConsoleSocket)
+
 			comparisonsCount++
 
 		case "instance-003":
@@ -316,12 +330,14 @@ func TestCollectInstancesForApp(t *testing.T) {
 				inst.PIDFile)
 			assert.Equal(t, filepath.Join(appLocation, "var", "run", "instance-003",
 				"tarantool.control"), inst.ConsoleSocket)
+
 			comparisonsCount++
 
 		default:
 			t.Fatalf("unknown %q", inst.InstName)
 		}
 	}
+
 	require.Equal(t, 3, comparisonsCount)
 }
 
@@ -351,6 +367,7 @@ echo "Tarantool 3.0.0"`),
 		[]byte(`#!/bin/bash
 echo "Tarantool 3.0.0"`), 0o644)
 	require.NoError(t, err)
+
 	canStart, err = IsAbleToStartInstances([]InstanceCtx{
 		{
 			InstanceScript: "init.lua",
@@ -480,8 +497,10 @@ func TestGetClusterConfigPath(t *testing.T) {
 			actual, err := GetClusterConfigPath(tc.ttConfigDir, tc.mustExist)
 			if tc.wantErr {
 				assert.Error(t, err)
+
 				return
 			}
+
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expected, actual)
 		})

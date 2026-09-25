@@ -26,10 +26,12 @@ type RunHook struct {
 func (hook RunHook) Run(ctx *create_ctx.CreateCtx, templateCtx *app_template.TemplateCtx) error {
 	if !templateCtx.IsManifestPresent {
 		log.Debug("No manifest. Skipping hook step.")
+
 		return nil
 	}
 
 	var hookPath string
+
 	switch hook.HookType {
 	case "pre":
 		hookPath = templateCtx.Manifest.PreHook
@@ -45,15 +47,19 @@ func (hook RunHook) Run(ctx *create_ctx.CreateCtx, templateCtx *app_template.Tem
 	}
 
 	executablePath := filepath.Join(templateCtx.AppPath, hookPath)
+
 	_, err := os.Stat(executablePath)
 	if err != nil {
 		return fmt.Errorf("error access to %s: %w", executablePath, err)
 	}
+
 	log.Infof("Executing %s-hook %s", hook.HookType, hookPath)
+
 	if err = exec.CommandContext(
 		context.Background(), executablePath, templateCtx.AppPath).Run(); err != nil {
 		return fmt.Errorf("error executing %s: %w", executablePath, err)
 	}
+
 	// Remove pre/post executable.
 	if err = os.Remove(executablePath); err != nil {
 		log.Errorf("failed to remove %s: %s", executablePath, err)

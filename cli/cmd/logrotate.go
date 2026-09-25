@@ -36,6 +36,7 @@ func internalLogrotateModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	var runningCtx running.RunningCtx
+
 	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, running.ConfigLoadSkip)
 	if err != nil {
 		return err

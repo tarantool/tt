@@ -29,31 +29,41 @@ type commandHistory struct {
 func parseHistoryCells(
 	lines []string,
 ) ([]string, []int64) {
-	var commands []string
-	var timestamps []int64
+	var (
+		commands   []string
+		timestamps []int64
+	)
+
 	timestampRegex := regexp.MustCompile(`^#\d+$`)
 
 	// startPos is the first position of a timestamp.
 	startPos := -1
+
 	for i, line := range lines {
 		if timestampRegex.MatchString(line) {
 			startPos = i
 			break
 		}
 	}
+
 	timestamps = make([]int64, 0)
+
 	if startPos == -1 {
 		// Read one line per command.
 		// Set the current timestamp for each command.
 		commands = lines
+
 		timestamp := time.Now().Unix()
+
 		for range lines {
 			timestamps = append(timestamps, timestamp)
 		}
+
 		return commands, timestamps
 	}
 
 	commands = make([]string, 0)
+
 	for startPos < len(lines) {
 		j := startPos + 1
 
@@ -69,6 +79,7 @@ func parseHistoryCells(
 			timestamps = append(timestamps, timestamp)
 			commands = append(commands, strings.Join(lines[startPos+1:j], "\n"))
 		}
+
 		startPos = j
 	}
 
@@ -83,6 +94,7 @@ func (history *commandHistory) load() error {
 	}
 
 	history.commands, history.timestamps = parseHistoryCells(rawLines)
+
 	return nil
 }
 
@@ -90,6 +102,7 @@ func (history *commandHistory) load() error {
 func (history *commandHistory) appendCommand(command string) {
 	history.commands = append(history.commands, command)
 	history.timestamps = append(history.timestamps, time.Now().Unix())
+
 	if len(history.commands) > history.maxCommands {
 		history.commands = history.commands[1:]
 		history.timestamps = history.timestamps[1:]
@@ -102,6 +115,7 @@ func (history *commandHistory) writeToFile() error {
 	for i, command := range history.commands {
 		fmt.Fprintf(&historyContent, "#%d\n%s\n", history.timestamps[i], command)
 	}
+
 	if err := os.WriteFile(history.filepath, historyContent.Bytes(), historyFileMode); err != nil {
 		return fmt.Errorf("failed to write to history file: %w", err)
 	}
@@ -120,5 +134,6 @@ func newCommandHistory(historyFileName string, maxCommands int) (*commandHistory
 		filepath:    filepath.Join(homeDir, historyFileName),
 		maxCommands: maxCommands,
 	}
+
 	return &history, nil
 }

@@ -50,6 +50,7 @@ func ccArgs(b manifest.Build, flags lrbuild.Flags, out, goos string) []string {
 	libraries := concat(b.Libraries, overlay.Libraries)
 
 	args := make([]string, 0, initialArgsCap)
+
 	args = append(args, flags.CFLAGS...)
 
 	for _, d := range defines {
@@ -82,6 +83,7 @@ func ccArgs(b manifest.Build, flags lrbuild.Flags, out, goos string) []string {
 // overlay merge that never mutates either input).
 func concat(base, extra []string) []string {
 	out := make([]string, 0, len(base)+len(extra))
+
 	out = append(out, base...)
 
 	return append(out, extra...)

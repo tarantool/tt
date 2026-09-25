@@ -36,6 +36,7 @@ type etcdOpts struct {
 func doWithCtx(action func(context.Context) error) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+
 	return action(ctx)
 }
 
@@ -48,21 +49,29 @@ func startEtcd(t *testing.T, opts etcdOpts) *etcdtest.LazyCluster {
 	}
 
 	var tls *transport.TLSInfo
+
 	if opts.CaFile != "" || opts.CertFile != "" || opts.KeyFile != "" {
 		tls = &transport.TLSInfo{}
+
 		if opts.CaFile != "" {
 			caPath := filepath.Join(myDir, opts.CaFile)
+
 			tls.TrustedCAFile = caPath
 		}
+
 		if opts.CertFile != "" {
 			certPath := filepath.Join(myDir, opts.CertFile)
+
 			tls.CertFile = certPath
 		}
+
 		if opts.KeyFile != "" {
 			keyPath := filepath.Join(myDir, opts.KeyFile)
+
 			tls.KeyFile = keyPath
 		}
 	}
+
 	config := etcdtest.ClusterConfig{Size: 1, PeerTLS: tls}
 	inst := etcdtest.NewLazyCluster(config)
 
@@ -74,6 +83,7 @@ func startEtcd(t *testing.T, opts etcdOpts) *etcdtest.LazyCluster {
 		Endpoints: inst.EndpointsGRPC(),
 	})
 	require.NoError(t, err)
+
 	defer func() {
 		_ = etcd.Close()
 	}()
@@ -126,14 +136,17 @@ func startEtcd(t *testing.T, opts etcdOpts) *etcdtest.LazyCluster {
 
 func etcdPut(t *testing.T, etcd *clientv3.Client, key, value string) {
 	t.Helper()
+
 	var (
 		pResp *clientv3.PutResponse
 		err   error
 	)
+
 	_ = doWithCtx(func(ctx context.Context) error {
 		pResp, err = etcd.Put(ctx, key, value)
 		return nil
 	})
+
 	require.NoError(t, err)
 	require.NotNil(t, pResp)
 }
@@ -151,9 +164,12 @@ func renderEtcdAppConfig(t *testing.T, endpoint, src, dst string) {
 // cfgGet retrieves a typed value from cfg at the given slash-separated path.
 func cfgGet[T any](t *testing.T, cfg goconfig.Config, path string) T {
 	t.Helper()
+
 	var v T
+
 	_, err := cfg.Get(goconfig.NewKeyPath(path), &v)
 	require.NoError(t, err, "path: %s", path)
+
 	return v
 }
 
@@ -163,6 +179,7 @@ func TestGetClusterConfig_etcd(t *testing.T) {
 		Password: "pass",
 	})
 	defer inst.Terminate()
+
 	endpoints := inst.EndpointsGRPC()
 
 	tmpDir := t.TempDir()
@@ -177,6 +194,7 @@ func TestGetClusterConfig_etcd(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
+
 	defer func() {
 		_ = etcd.Close()
 	}()
@@ -232,6 +250,7 @@ func TestGetClusterConfig_etcd_connect_from_env(t *testing.T) {
 		Password: pass,
 	})
 	defer inst.Terminate()
+
 	endpoints := inst.EndpointsGRPC()
 
 	tmpDir := t.TempDir()
@@ -246,6 +265,7 @@ func TestGetClusterConfig_etcd_connect_from_env(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
+
 	defer func() {
 		_ = etcd.Close()
 	}()

@@ -31,6 +31,7 @@ func ConnectPool(opts []ConnectOpts) (*Pool, error) {
 			}, nil
 		}
 	}
+
 	return nil, errFailedToConnect
 }
 
@@ -38,6 +39,7 @@ func ConnectPool(opts []ConnectOpts) (*Pool, error) {
 // success.
 func (pool *Pool) Eval(expr string, args []any, opts RequestOpts) ([]any, error) {
 	var err error
+
 	for range pool.opts {
 		if pool.current == nil {
 			conn, err := Connect(pool.opts[pool.currentIndex])
@@ -45,10 +47,12 @@ func (pool *Pool) Eval(expr string, args []any, opts RequestOpts) ([]any, error)
 				pool.currentIndex = (pool.currentIndex + 1) % len(pool.opts)
 				continue
 			}
+
 			pool.current = conn
 		}
 
 		var ret []any
+
 		ret, err = pool.current.Eval(expr, args, opts)
 		if err == nil {
 			return ret, nil
@@ -62,6 +66,7 @@ func (pool *Pool) Eval(expr string, args []any, opts RequestOpts) ([]any, error)
 	if err == nil {
 		err = errFailedToConnect
 	} // Else it contains a last error from pool.current.Eval().
+
 	return nil, err
 }
 
@@ -70,5 +75,6 @@ func (pool *Pool) Close() error {
 	if pool.current != nil {
 		return pool.current.Close()
 	}
+
 	return nil
 }

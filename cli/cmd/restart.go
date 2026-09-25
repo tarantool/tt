@@ -50,17 +50,21 @@ func internalRestartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	if !autoYes {
 		var instancesToConfirm string
+
 		if len(args) == 0 {
 			instancesToConfirm = "all instances"
 		} else {
 			instancesToConfirm = "'" + args[0] + "'"
 		}
+
 		confirmed, err := util.AskConfirm(os.Stdin, "Confirm restart of "+instancesToConfirm)
 		if err != nil {
 			return err
 		}
+
 		if !confirmed {
 			log.Info("Restart is cancelled.")
+
 			return nil
 		}
 	}

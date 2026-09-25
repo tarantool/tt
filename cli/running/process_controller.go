@@ -20,6 +20,7 @@ func newProcessController(cmd *exec.Cmd) (*processController, error) {
 	if err := dpc.start(); err != nil {
 		return nil, err
 	}
+
 	return &dpc, nil
 }
 
@@ -41,15 +42,18 @@ func (pc *processController) Wait() error {
 	if pc.done {
 		return nil
 	}
+
 	// waitMutex is used to prevent several invokes of the "Wait"
 	// for the same process.
 	// https://github.com/golang/go/issues/28461
 	pc.waitMutex.Lock()
 	defer pc.waitMutex.Unlock()
+
 	err := pc.Cmd.Wait()
 	if err == nil {
 		pc.done = true
 	}
+
 	return err
 }
 
@@ -58,6 +62,7 @@ func (pc *processController) SendSignal(sig os.Signal) error {
 	if pc.Cmd == nil || pc.Process == nil {
 		return errTheInstanceHasnTStartedYet
 	}
+
 	return pc.Process.Signal(sig)
 }
 
@@ -105,6 +110,7 @@ func (pc *processController) StopWithSignal(waitTimeout time.Duration, stopSigna
 			} else {
 				// Wait for the process to terminate.
 				<-waitDone
+
 				return nil
 			}
 		}
@@ -131,6 +137,8 @@ func (pc *processController) start() error {
 	if err := pc.Start(); err != nil {
 		return err
 	}
+
 	pc.done = false
+
 	return nil
 }

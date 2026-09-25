@@ -175,7 +175,9 @@ func TestCcArgsHostParityWithDeriveFlags(t *testing.T) {
 	t.Parallel()
 
 	cfg := luarocks.Config{}
+
 	cfg.Tarantool.IncludeDir = "/opt/tt/include/tarantool"
+
 	flags := lrbuild.DeriveFlags(cfg)
 
 	b := manifest.Build{Backend: BackendC, Module: "m", Sources: []string{"m.c"}}

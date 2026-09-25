@@ -37,7 +37,9 @@ func TestGetCredsFromFile(t *testing.T) {
 
 	file, err := os.CreateTemp("/tmp", "tt-unittest-*.bat")
 	assert.Nil(err)
+
 	_, _ = file.WriteString("user\npass")
+
 	defer func() {
 		_ = os.Remove(file.Name())
 	}()
@@ -52,7 +54,9 @@ func TestGetCredsFromFile(t *testing.T) {
 
 	file, err = os.CreateTemp("/tmp", "tt-unittest-*.bat")
 	assert.Nil(err)
+
 	_, _ = file.WriteString("")
+
 	defer func() {
 		_ = os.Remove(file.Name())
 	}()
@@ -64,7 +68,9 @@ func TestGetCredsFromFile(t *testing.T) {
 
 	file, err = os.CreateTemp("/tmp", "tt-unittest-*.bat")
 	assert.Nil(err)
+
 	_, _ = file.WriteString("user")
+
 	defer func() {
 		_ = os.Remove(file.Name())
 	}()
@@ -118,10 +124,12 @@ func Test_getCredsFromEnvVars(t *testing.T) {
 			t.Setenv(EnvSdkUsername, "")
 			t.Setenv(EnvSdkPassword, "")
 			tt.prepare()
+
 			got, err := getCredsFromEnvVars()
 			if !tt.wantErr(t, err, "getCredsFromEnvVars()") {
 				return
 			}
+
 			assert.Equalf(t, tt.want, got, "getCredsFromEnvVars()")
 		})
 	}

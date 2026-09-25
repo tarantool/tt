@@ -49,6 +49,7 @@ func NewCatCmd() *cobra.Command {
 			if len(args) == 0 {
 				return errItIsRequiredToSpecifyAtLeastOneXlogSnapFileOrDirectory
 			}
+
 			return nil
 		},
 	}
@@ -101,6 +102,7 @@ func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			"Internal error: problem with creating json params with spaces: %s",
 			flavour.GetVersion, err)
 	}
+
 	if string(spacesJSON) != "null" {
 		_ = os.Setenv("TT_CLI_CAT_SPACES", string(spacesJSON))
 	}
@@ -112,6 +114,7 @@ func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse a timestamp: %w", err)
 	}
+
 	_ = os.Setenv("TT_CLI_CAT_TIMESTAMP", timestamp)
 
 	// List of replicas is passed to lua cat script via environment variable in json format.
@@ -121,11 +124,13 @@ func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			"Internal error: problem with creating json params with replicas: %s",
 			flavour.GetVersion, err)
 	}
+
 	if string(replicasJSON) != "null" {
 		_ = os.Setenv("TT_CLI_CAT_REPLICAS", string(replicasJSON))
 	}
 
 	log.Infof("Running cat with files: %s\n", args)
+
 	if err := checkpoint.Cat(cmdCtx.Cli.TarantoolCli); err != nil {
 		return err
 	}

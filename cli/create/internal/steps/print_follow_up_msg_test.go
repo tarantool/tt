@@ -12,6 +12,7 @@ import (
 
 func TestPrintFollowUpMessage(t *testing.T) {
 	var buffer bytes.Buffer
+
 	printFollowUpMsgStep := PrintFollowUpMessage{
 		Writer: &buffer,
 	}
@@ -27,6 +28,7 @@ func TestPrintFollowUpMessage(t *testing.T) {
 		IsManifestPresent: true,
 	})
 	require.NoError(t, err)
+
 	msg, err := buffer.ReadString('\n')
 	require.NoError(t, err)
 	require.Equal(t, "App name is app1\n", msg)
@@ -34,6 +36,7 @@ func TestPrintFollowUpMessage(t *testing.T) {
 
 func TestPrintFollowUpMessageError(t *testing.T) {
 	var buffer bytes.Buffer
+
 	printFollowUpMsgStep := PrintFollowUpMessage{
 		Writer: &buffer,
 	}

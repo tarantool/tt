@@ -29,6 +29,7 @@ func FillConnectCtx(connectCtx *ConnectCtx, uriOpts sdkconnect.URIOpts,
 		Username: connectCtx.Username,
 		Password: connectCtx.Password,
 	}
+
 	stor, cleanup, storageType, err := sdkcluster.NewStorageConnection(connOpts, uriOpts)
 	if err != nil {
 		return err
@@ -57,12 +58,14 @@ func FillConnectCtx(connectCtx *ConnectCtx, uriOpts sdkconnect.URIOpts,
 	}
 
 	var rawAdvertise any
+
 	_, err = instCfg.Get(goconfig.NewKeyPath("roles_cfg/aeon.grpc/advertise"), &rawAdvertise)
 	if err != nil {
 		return fmt.Errorf("failed to get aeon advertise: %w", err)
 	}
 
 	var advertise Advertise
+
 	if err = mapstructure.Decode(rawAdvertise, &advertise); err != nil {
 		return fmt.Errorf("failed to decode aeon advertise: %w", err)
 	}

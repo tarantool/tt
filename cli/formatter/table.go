@@ -27,6 +27,7 @@ var (
 // Each array member needs to be decoded later.
 func lazyDecodeYaml(input string) ([]lazyMessage, error) {
 	var decoded []lazyMessage
+
 	err := yaml.Unmarshal([]byte(input), &decoded)
 	if err != nil {
 		return nil, err
@@ -50,6 +51,7 @@ func castMapToUMap(src map[any]any) unorderedMap[any] {
 			sortedKeys = append(sortedKeys, fmt.Sprint(k))
 		}
 	}
+
 	sort.Slice(sortedKeys, func(i, j int) bool {
 		return fmt.Sprint(sortedKeys[i]) < fmt.Sprint(sortedKeys[j])
 	})
@@ -72,6 +74,7 @@ func deepCastAnyMapToStringMap(v any) any {
 
 	case map[any]any:
 		m := map[string]any{}
+
 		for k, v2 := range x {
 			switch k2 := k.(type) {
 			case string:
@@ -80,6 +83,7 @@ func deepCastAnyMapToStringMap(v any) any {
 				m[fmt.Sprint(k)] = deepCastAnyMapToStringMap(v2)
 			}
 		}
+
 		v = m
 	}
 
@@ -115,6 +119,7 @@ func encodeCell(val any) (string, error) {
 	if getNodeType(val) == scalarNodeType {
 		return encodeScalar(val), nil
 	}
+
 	return encodeJSON(val)
 }
 
@@ -136,6 +141,7 @@ func renderScalars(batch []any, transpose bool, opts Opts) (string, error) {
 	for _, item := range batch {
 		arrays = append(arrays, []any{item})
 	}
+
 	return renderArrays(arrays, transpose, opts)
 }
 
@@ -160,6 +166,7 @@ func renderArrays(batch []any, transpose bool, opts Opts) (string, error) {
 		if !ok {
 			return "", fmt.Errorf("%w%T", errExpectedAnArrayGot, batch[0])
 		}
+
 		return renderArraysAsTable(array, transpose, opts)
 	} else {
 		return renderArraysAsTable(batch, transpose, opts)
@@ -169,11 +176,13 @@ func renderArrays(batch []any, transpose bool, opts Opts) (string, error) {
 // renderArraysAsTable returns a single table as string for the set of arrays.
 func renderArraysAsTable(batch []any, transpose bool, opts Opts) (string, error) {
 	maxLen := 0
+
 	for _, item := range batch {
 		array, ok := item.([]any)
 		if !ok {
 			return "", fmt.Errorf("%w%T", errExpectedAnArrayGot, item)
 		}
+
 		itemLen := len(array)
 		if itemLen > maxLen {
 			maxLen = itemLen
@@ -185,11 +194,13 @@ func renderArraysAsTable(batch []any, transpose bool, opts Opts) (string, error)
 	}
 
 	var mapped []unorderedMap[any]
+
 	for _, item := range batch {
 		array, ok := item.([]any)
 		if !ok {
 			return "", fmt.Errorf("%w%T", errExpectedAnArrayGot, item)
 		}
+
 		itemMap := createUnorderedMap[any](maxLen)
 
 		for i := range maxLen {
@@ -209,7 +220,9 @@ func renderArraysAsTable(batch []any, transpose bool, opts Opts) (string, error)
 // newTableWriter creates and configures new table writer.
 func newTableWriter(opts Opts) table.Writer {
 	t := table.NewWriter()
+
 	t.Style().Options.SeparateRows = true
+
 	if !opts.Graphics {
 		t.SetStyle(table.Style{Box: StyleWithoutGraphics})
 	}
@@ -222,15 +235,19 @@ func handleColumnWidth(t table.Writer, columns int, opts Opts) {
 	colWidthTransformer := text.Transformer(func(val any) string {
 		str := fmt.Sprintf("%v", val)
 		widthMax := opts.ColumnWidthMax
+
 		if utf8.RuneCountInString(str) > widthMax {
 			first := string([]rune(str)[:widthMax])
 			remaining := string([]rune(str)[widthMax:])
+
 			return first + "+" + text.InsertEveryN(remaining, '+', widthMax-1)
 		}
+
 		return fmt.Sprintf("%v", val)
 	})
 
 	var configs []table.ColumnConfig
+
 	for i := 1; i <= columns; i++ {
 		configs = append(configs,
 			table.ColumnConfig{
@@ -240,14 +257,17 @@ func handleColumnWidth(t table.Writer, columns int, opts Opts) {
 			},
 		)
 	}
+
 	t.SetColumnConfigs(configs)
 }
 
 // createHeader creates a header row.
 func createHeader(keys []any) table.Row {
 	var headerRow table.Row
+
 	for _, headerCalVal := range keys {
 		strVal := fmt.Sprintf("%v", headerCalVal)
+
 		_, err := strconv.ParseInt(strVal, 10, 64)
 		if err != nil {
 			headerRow = append(headerRow, strVal)
@@ -255,6 +275,7 @@ func createHeader(keys []any) table.Row {
 			headerRow = append(headerRow, "col"+strVal)
 		}
 	}
+
 	return headerRow
 }
 
@@ -270,6 +291,7 @@ func transposeRows(rowsRaw []table.Row) []table.Row {
 	rowsRawTransposed := make([]table.Row, 0, rowsRawTransposedCap)
 	for i := range rowsRawTransposedCap {
 		var rowTransposed table.Row
+
 		for j := range rowsRaw {
 			if i < len(rowsRaw[j]) {
 				rowTransposed = append(rowTransposed, rowsRaw[j][i])
@@ -277,24 +299,30 @@ func transposeRows(rowsRaw []table.Row) []table.Row {
 				rowTransposed = append(rowTransposed, "")
 			}
 		}
+
 		rowsRawTransposed = append(rowsRawTransposed, rowTransposed)
 	}
+
 	return rowsRawTransposed
 }
 
 // createMarkdownTable creates a table in markdown notation.
 func createMarkdownTable(table []string, columns int) string {
 	var empty, separator strings.Builder
+
 	empty.WriteString("| ")
 	separator.WriteString("|-")
+
 	for i := 1; i < columns; i++ {
 		empty.WriteString("| ")
 		separator.WriteString("|-")
 	}
+
 	empty.WriteByte('|')
 	separator.WriteByte('|')
 
 	var result strings.Builder
+
 	for _, rows := range [][]string{{empty.String(), separator.String()}, table} {
 		for _, row := range rows {
 			result.WriteString(row)
@@ -310,15 +338,18 @@ func renderEqualMaps(maps []unorderedMap[any], transpose bool, opts Opts) (strin
 	t := newTableWriter(opts)
 
 	var commonKeys []any
+
 	maps[0].forEach(func(mapKey, _ any) {
 		commonKeys = append(commonKeys, mapKey)
 	})
 
 	var rows []table.Row
+
 	rows = append(rows, createHeader(commonKeys))
 
 	for _, mapVal := range maps {
 		var rowVals table.Row
+
 		for _, key := range commonKeys {
 			if cellValue, err := encodeCell(mapVal.innerMap[key]); err != nil {
 				return "", err
@@ -326,15 +357,18 @@ func renderEqualMaps(maps []unorderedMap[any], transpose bool, opts Opts) (strin
 				rowVals = append(rowVals, cellValue)
 			}
 		}
+
 		rows = append(rows, rowVals)
 	}
 
 	columnsAmount := len(commonKeys)
 	rowsAmount := len(rows)
+
 	if transpose {
 		rows = transposeRows(rows)
 		columnsAmount = rowsAmount
 	}
+
 	t.AppendRows(rows)
 
 	if opts.ColumnWidthMax > 0 {
@@ -345,6 +379,7 @@ func renderEqualMaps(maps []unorderedMap[any], transpose bool, opts Opts) (strin
 		markdown := strings.Split(t.RenderMarkdown(), "\n")
 		return createMarkdownTable(markdown, columnsAmount) + "\n", nil
 	}
+
 	if opts.TableDialect == JiraTableDialect {
 		return t.RenderMarkdown() + "\n\n", nil
 	}
@@ -390,8 +425,10 @@ func renderBatch(batch []any, transpose bool, opts Opts) (string, error) {
 		return renderScalars(batch, transpose, opts)
 	case isSingleType(batch, mapNodeType):
 		var anyMaps []unorderedMap[any]
+
 		for _, node := range batch {
 			var castedMap unorderedMap[any]
+
 			switch n := node.(type) {
 			case unorderedMap[any]:
 				castedMap = n
@@ -400,31 +437,39 @@ func renderBatch(batch []any, transpose bool, opts Opts) (string, error) {
 			default:
 				return "", fmt.Errorf("%w%T", errExpectedAMapGot, node)
 			}
+
 			anyMaps = append(anyMaps, castedMap)
 		}
 
 		mapsBatches := make([][]unorderedMap[any], len(anyMaps))
 		batchPointer := 0
+
 		mapsBatches[batchPointer] = append(mapsBatches[batchPointer], anyMaps[0])
 
 		for i := range len(anyMaps) - 1 {
 			if !isMapKeysEqual(anyMaps[i], anyMaps[i+1]) {
 				batchPointer++
 			}
+
 			mapsBatches[batchPointer] = append(mapsBatches[batchPointer], anyMaps[i+1])
 		}
 
-		var res, batchRes string
-		var err error
+		var (
+			res, batchRes string
+			err           error
+		)
+
 		for _, batch := range mapsBatches {
 			if len(batch) != 0 {
 				batchRes, err = renderEqualMaps(batch, transpose, opts)
 				if err != nil {
 					return "", err
 				}
+
 				if !opts.Graphics {
 					batchRes += "\n"
 				}
+
 				res += batchRes
 			}
 		}
@@ -440,13 +485,16 @@ func renderBatch(batch []any, transpose bool, opts Opts) (string, error) {
 // renderBatches combines multiple batches into one string.
 func renderBatches(batches [][]any, transpose bool, opts Opts) (string, error) {
 	var result strings.Builder
+
 	for _, batch := range batches {
 		if len(batch) != 0 {
 			batchStr, err := renderBatch(batch, transpose, opts)
 			if err != nil {
 				return "", fmt.Errorf("cannot render tables: %w", err)
 			}
+
 			result.WriteString(batchStr)
+
 			if !opts.Graphics {
 				result.WriteByte('\n')
 			}
@@ -469,18 +517,23 @@ type metadataRows struct {
 func remapMetadataRows(meta metadataRows) []any {
 	nodes := make([]any, 0, len(meta.Rows))
 	maxLen := 0
+
 	for _, row := range meta.Rows {
 		if len(row) > maxLen {
 			maxLen = len(row)
 		}
 	}
+
 	for _, row := range meta.Rows {
 		index := 1
 		mapped := createUnorderedMap[any](len(row))
+
 		for i := range maxLen {
 			if i >= len(row) {
 				mapped.insert(index, "")
+
 				index++
+
 				continue
 			}
 
@@ -489,11 +542,14 @@ func remapMetadataRows(meta metadataRows) []any {
 				mapped.insert(meta.Metadata[i].Name, column)
 			} else {
 				mapped.insert(index, column)
+
 				index++
 			}
 		}
+
 		nodes = append(nodes, mapped)
 	}
+
 	return nodes
 }
 
@@ -501,6 +557,7 @@ func insertCollectedFields(fields metadataRows, nodes []any) []any {
 	if len(fields.Metadata) > 0 && len(fields.Rows) > 0 {
 		return append(nodes, remapMetadataRows(fields)...)
 	}
+
 	return nodes
 }
 
@@ -549,13 +606,16 @@ func makeTableOutput(input string, transpose bool, opts Opts) (string, error) {
 
 			// Failed. Try to read it as an any.
 			var node any
+
 			err = lazyNode.Unmarshal(&node)
 			if err != nil {
 				return "", fmt.Errorf("not yaml any: %w", err)
 			}
+
 			nodes = append(nodes, node)
 		}
 	}
+
 	nodes = insertCollectedFields(metaFields, nodes)
 
 	if len(nodes) == 0 {
@@ -565,11 +625,14 @@ func makeTableOutput(input string, transpose bool, opts Opts) (string, error) {
 	// The code tries to combine multiple values into a one batch by type.
 	batches := make([][]any, len(nodes))
 	batchPointer := 0
+
 	batches[batchPointer] = append(batches[batchPointer], nodes[0])
+
 	for i := range len(nodes) - 1 {
 		if !isNodeTypeEqual(nodes[i], nodes[i+1]) {
 			batchPointer++
 		}
+
 		batches[batchPointer] = append(batches[batchPointer], nodes[i+1])
 	}
 

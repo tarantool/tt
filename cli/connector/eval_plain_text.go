@@ -104,6 +104,7 @@ func formatAndSendEvalFunc(conn net.Conn, funcBody string, args []any,
 	evalFuncFormatted := strings.Join(
 		strings.Split(strings.TrimSpace(evalFunc), "\n"), " ",
 	)
+
 	evalFuncFormatted = strings.Join(strings.Fields(evalFuncFormatted), " ") + "\n"
 
 	// write to socket.
@@ -159,6 +160,7 @@ func writeToPlainTextConn(conn net.Conn, data string) error {
 // yaml-encoded value was read).
 func readFromPlainTextConn(conn net.Conn, opts EvalPlainTextOpts) ([]byte, error) {
 	var dataBytes []byte
+
 	buffer := bytes.Buffer{}
 
 	for {
@@ -233,7 +235,6 @@ func readDataPortionFromPlainTextConn(conn net.Conn, buffer *bytes.Buffer,
 		// but not process them in this function call (see examples above).
 		// This structure allows us to save this data and process it in the next function call.
 		//
-
 		if buffer.Len() == 0 {
 			if n, err := conn.Read(tmp); err != nil && !errors.Is(err, io.EOF) {
 				return nil, fmt.Errorf("failed to read: %w", err)
@@ -250,6 +251,7 @@ func readDataPortionFromPlainTextConn(conn net.Conn, buffer *bytes.Buffer,
 		}
 
 		data = append(data, nextByte)
+
 		dataString := string(data)
 
 		if strings.HasPrefix(endOfYAMLOutput, dataString) ||
@@ -294,6 +296,7 @@ func pushTagIsReceived(dataPortion string) bool {
 
 func getPushedData(pushedDataBytes []byte) (any, error) {
 	var pushedData any
+
 	pushedDataString := string(pushedDataBytes)
 
 	if strings.HasPrefix(pushedDataString, tagPushPrefixYAML) {
@@ -316,10 +319,13 @@ func getPushedData(pushedDataBytes []byte) (any, error) {
 }
 
 func processEvalTarantoolRes(resBytes []byte, result any) ([]any, error) {
-	var err error
-	var evalResultEncBase64 string
+	var (
+		err                 error
+		evalResultEncBase64 string
+	)
 
 	var getResultEncBase64Func func([]byte) (string, error)
+
 	// Result data is returned as a table
 	// `{ data_enc = msgpack.encode(ret):hex() }`.
 	// It can't be returned as a string because of Lua output -
@@ -368,6 +374,7 @@ func processEvalTarantoolRes(resBytes []byte, result any) ([]any, error) {
 	}
 
 	var data []any
+
 	if err := msgpack.Unmarshal(dataEnc, &data); err != nil {
 		return nil, fmt.Errorf("failed to parse eval result: %w", err)
 	}
@@ -386,6 +393,7 @@ func getPlainTextEvalResYaml(resBytes []byte) (string, error) {
 	}
 
 	evalResult := evalResults[0]
+
 	return evalResult.DataEncBase64, nil
 }
 
@@ -394,13 +402,16 @@ func getPlainTextEvalError(resBytes []byte, parseErr error) error {
 	if err := yaml.UnmarshalStrict(resBytes, &errorStrings); err != nil {
 		return fmt.Errorf("failed to parse eval result: %w", parseErr)
 	}
+
 	if len(errorStrings) == 0 {
 		return fmt.Errorf("failed to parse eval result: %w", parseErr)
 	}
+
 	errStr, found := errorStrings[0]["error"]
 	if !found {
 		return fmt.Errorf("failed to parse eval result: %w", parseErr)
 	}
+
 	return evaluationError(errStr)
 }
 

@@ -44,6 +44,7 @@ func readyServices(in io.Reader, out, errOut io.Writer) *services {
 	ready.Store(true)
 
 	s := newServices("m", ready)
+
 	s.streams = output.Streams{In: in, Out: out, Err: errOut}
 
 	return s
@@ -218,6 +219,7 @@ func TestServicesConfirm(t *testing.T) {
 	require.ErrorIs(t, err, io.EOF)
 
 	cmd.GetCmdCtxPtr().Cli.NoPrompt = true
+
 	prompts.Reset()
 
 	for _, fallback := range []bool{true, false} {

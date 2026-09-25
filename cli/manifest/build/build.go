@@ -172,6 +172,7 @@ func RunResult(ctx context.Context, opts Options) (*Result, error) {
 // built-in defaults.
 func effectiveRegistries(opts Options, man *manifest.Manifest) ([]rocks.Registry, error) {
 	sources := opts.Registries
+
 	sources.Manifest = man.Platform.Registries
 	sources.ProjectDir = opts.ProjectDir
 

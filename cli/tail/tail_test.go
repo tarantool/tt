@@ -123,10 +123,13 @@ five
 
 			buf := make([]byte, 1024*1024)
 			n, err := tailReader.Read(buf)
+
 			if tt.wantErr {
 				require.Error(t, err)
+
 				return
 			}
+
 			require.NoError(t, err)
 			assert.Equal(t, string(tt.want), string(buf[:n]))
 		})
@@ -137,9 +140,11 @@ func linesChecker(t *testing.T, expected []string) func(str string) {
 	t.Helper()
 
 	i := 0
+
 	return func(str string) {
 		require.Less(t, i, len(expected))
 		assert.Equal(t, expected[i], str)
+
 		i++
 	}
 }
@@ -215,9 +220,11 @@ five
 		t.Run(tt.name, func(t *testing.T) {
 			outFile, err := os.CreateTemp(tmpDir, "*.txt")
 			require.NoError(t, err)
+
 			defer func() {
 				_ = outFile.Close()
 			}()
+
 			_, _ = outFile.WriteString(tt.text)
 			_ = outFile.Close()
 
@@ -225,6 +232,7 @@ five
 				return str
 			}, outFile.Name(), tt.args.n)
 			assert.NoError(t, err)
+
 			for line := range in {
 				tt.check(line)
 			}
@@ -308,6 +316,7 @@ five
 			defer func() {
 				_ = outFile.Close()
 			}()
+
 			_, _ = outFile.WriteString(tt.text)
 			_ = outFile.Close()
 
@@ -382,8 +391,10 @@ func TestFollow(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			outFile, err := os.CreateTemp(tmpDir, "*.txt")
 			require.NoError(t, err)
+
 			defer func() {
 				_ = outFile.Close()
 			}()
@@ -393,7 +404,9 @@ func TestFollow(t *testing.T) {
 
 			ctx, stop := context.WithTimeout(context.Background(), time.Second*2)
 			defer stop()
+
 			in := make(chan string)
+
 			err = Follow(ctx, in,
 				func(str string) string { return str }, outFile.Name(), tt.nLines,
 				&sync.WaitGroup{})
@@ -405,9 +418,11 @@ func TestFollow(t *testing.T) {
 					select {
 					case <-ctx.Done():
 						require.Fail(t, "timed out, no initial lines received")
+
 						return
 					case line := <-in:
 						assert.Equal(t, tt.expectedLastLines[i], line)
+
 						i++
 					}
 				}
@@ -415,9 +430,11 @@ func TestFollow(t *testing.T) {
 
 			// Need some time to start watching for changes after reading last lines.
 			time.Sleep(time.Millisecond * 500)
+
 			for _, line := range tt.linesToAppend {
 				_, _ = outFile.WriteString(line + "\n")
 			}
+
 			assert.NoError(t, outFile.Sync())
 
 			i := 0
@@ -425,9 +442,11 @@ func TestFollow(t *testing.T) {
 				select {
 				case <-ctx.Done():
 					assert.Fail(t, "timed out, no lines received")
+
 					return
 				case line := <-in:
 					assert.Equal(t, tt.expectedAppendedLines[i], line)
+
 					i++
 				}
 			}

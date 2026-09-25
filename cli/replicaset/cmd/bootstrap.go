@@ -74,9 +74,12 @@ func Bootstrap(ctx BootstrapCtx) error {
 		if err != nil {
 			return err
 		}
+
 		_ = statusReplicasets(replicasets)
 		_, _ = fmt.Fprintln(os.Stdout)
+
 		log.Info("Done.")
 	}
+
 	return err
 }

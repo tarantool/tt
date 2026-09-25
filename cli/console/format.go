@@ -45,5 +45,6 @@ func (f Format) Sprint(data any) (string, error) {
 		// Then checking is it has `Error` method.
 		return "Error: " + eo.Error(), nil
 	}
+
 	return "", fmt.Errorf("%w%T", errUnsupportedFormatType, data)
 }

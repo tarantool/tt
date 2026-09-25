@@ -67,6 +67,7 @@ func (httpServer *HTTPServer) Start(ttPath string) {
 	}
 
 	httpServerAddr := ip + ":" + strconv.Itoa(httpServer.port)
+
 	httpServer.srv = &http.Server{
 		Addr: httpServerAddr,
 	}
@@ -99,6 +100,7 @@ func (httpServer *HTTPServer) Stop() error {
 	if err = httpServer.srv.Shutdown(ctx); err != nil {
 		httpServer.logger.Printf(`HTTP server shutdown error: "%v"`, err)
 	}
+
 	cancel()
 
 	return err
@@ -130,6 +132,7 @@ func (httpServer *HTTPServer) listenIP() (string, error) {
 	// IP address on the specified interface.
 	for _, addr := range addrs {
 		var ip net.IP
+
 		switch v := addr.(type) {
 		case *net.IPNet:
 			ip = v.IP

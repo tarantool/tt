@@ -33,12 +33,14 @@ var downgradeMasterLua string
 
 func filterComments(script string) string {
 	var filteredLines []string
+
 	for line := range strings.SplitSeq(script, "\n") {
 		trimmedLine := strings.TrimSpace(line)
 		if !strings.HasPrefix(trimmedLine, "--") {
 			filteredLines = append(filteredLines, line)
 		}
 	}
+
 	return strings.Join(filteredLines, "\n")
 }
 
@@ -52,6 +54,7 @@ func Downgrade(discoveryCtx DiscoveryCtx, opts DowngradeOpts,
 	}
 
 	replicasets = fillAliases(replicasets)
+
 	replicasetsToDowngrade, err := filterReplicasetsByAliases(replicasets,
 		opts.ChosenReplicasetAliases)
 	if err != nil {
@@ -71,14 +74,18 @@ func internalDowngrade(replicasets []replicaset.Replicaset, lsnTimeout int, vers
 			_, _ = fmt.Fprintf(os.Stdout, "• %s: error\n", replicaset.Alias)
 			return fmt.Errorf("replicaset %s: %w", replicaset.Alias, err)
 		}
+
 		_, _ = fmt.Fprintf(os.Stdout, "• %s: ok\n", replicaset.Alias)
 	}
+
 	return nil
 }
 
 func downgradeMaster(master *instanceMeta, version string) (syncInfo, error) {
 	var downgradeInfo syncInfo
+
 	fullMasterName := running.GetAppInstanceName(master.run)
+
 	res, err := master.conn.Eval(filterComments(downgradeMasterLua),
 		[]any{version}, connector.RequestOpts{})
 	if err != nil {
@@ -98,6 +105,7 @@ func downgradeMaster(master *instanceMeta, version string) (syncInfo, error) {
 			"%w%s: %s",
 			errMasterInstanceDowngradeFailed, fullMasterName, *downgradeInfo.Err)
 	}
+
 	return downgradeInfo, nil
 }
 
@@ -123,6 +131,7 @@ func downgradeReplicaset(replicaset replicaset.Replicaset, lsnTimeout int, versi
 
 	for _, replica := range replicas {
 		fullReplicaName := running.GetAppInstanceName(replica.run)
+
 		err := waitLSN(replica.conn, masterIID, masterLSN, lsnTimeout)
 		if err != nil {
 			return fmt.Errorf("can't ensure that downgrade operations performed on "+
@@ -131,10 +140,12 @@ func downgradeReplicaset(replicaset replicaset.Replicaset, lsnTimeout int, versi
 				running.GetAppInstanceName(master.run), fullReplicaName,
 				masterLSN, masterIID, err)
 		}
+
 		err = snapshot(&replica)
 		if err != nil {
 			return err
 		}
 	}
+
 	return nil
 }

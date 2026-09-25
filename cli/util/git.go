@@ -28,24 +28,31 @@ func CheckVersionFromGit(basePath string) (string, error) {
 	if basePath == "" {
 		return "", errEmptyPathIsPassed
 	}
+
 	startPath, _ := os.Getwd()
+
 	defer func() {
 		_ = os.Chdir(startPath)
 	}()
+
 	err := os.Chdir(basePath)
 	if err != nil {
 		return "", err
 	}
 
 	cmd := exec.CommandContext(context.Background(), "git", "describe", "--tags", "--long")
+
 	var out bytes.Buffer
+
 	cmd.Stdout = &out
+
 	err = cmd.Run()
 	if err != nil {
 		return "", errNoGitVersionFound
 	}
 
 	version := strings.TrimSpace(out.String())
+
 	return version, nil
 }
 
@@ -55,26 +62,33 @@ func isGitFetchJobsSupported(gitOutput string) bool {
 	versionStr := strings.TrimFunc(gitOutput, func(r rune) bool {
 		return !unicode.IsDigit(r)
 	})
+
 	gitVersion, err := version.NewVersion(versionStr)
 	if err != nil {
 		return false
 	}
+
 	fetchJobsStartGitVersion, err := version.NewVersion("2.8")
 	if err != nil {
 		return false
 	}
+
 	return gitVersion.GreaterThanOrEqual(fetchJobsStartGitVersion)
 }
 
 // IsGitFetchJobsSupported checks if fetchJobs option (-j) is supported by current git version.
 func IsGitFetchJobsSupported() bool {
 	cmd := exec.CommandContext(context.Background(), "git", "--version")
+
 	var out bytes.Buffer
+
 	cmd.Stdout = &out
+
 	err := cmd.Run()
 	if err != nil {
 		return false
 	}
+
 	return isGitFetchJobsSupported(out.String())
 }
 
@@ -83,6 +97,7 @@ func IsValidCommitHash(hash string) (bool, error) {
 	if len(hash) < MinCommitHashLength {
 		return false, errCommitHashTooShort
 	}
+
 	return regexp.MatchString(`^[0-9a-f]+$`, hash)
 }
 
@@ -92,7 +107,9 @@ func IsPullRequest(input string) (bool, string) {
 	if !strings.HasPrefix(input, "pr/") {
 		return false, ""
 	}
+
 	_, prNum, _ := strings.Cut(input, "/")
 	isPullRequest, _ := regexp.MatchString(`^[0-9]+$`, prNum)
+
 	return isPullRequest, prNum
 }

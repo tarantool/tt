@@ -63,6 +63,7 @@ func (tr tree) installGuest(t *testing.T, spec pkg) {
 	source := manifestTOML(spec)
 
 	var lockBytes []byte
+
 	if !spec.noLock {
 		lockBytes = lockTOML(t, source, spec.pins)
 	}

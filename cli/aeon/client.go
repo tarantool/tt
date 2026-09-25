@@ -42,8 +42,10 @@ func makeAddress(ctx cmd.ConnectCtx) string {
 		if strings.HasPrefix(ctx.Address, "@") {
 			return "unix-abstract:" + (ctx.Address)[1:]
 		}
+
 		return "unix:" + ctx.Address
 	}
+
 	return ctx.Address
 }
 
@@ -51,10 +53,12 @@ func getCertificate(args cmd.Ssl) (tls.Certificate, error) {
 	if args.CertFile == "" && args.KeyFile == "" {
 		return tls.Certificate{}, nil
 	}
+
 	tlsCert, err := tls.LoadX509KeyPair(args.CertFile, args.KeyFile)
 	if err != nil {
 		return tlsCert, fmt.Errorf("could not load client key pair: %w", err)
 	}
+
 	return tlsCert, nil
 }
 
@@ -72,6 +76,7 @@ func getTLSConfig(args cmd.Ssl) (*tls.Config, error) {
 			return nil, errFailedToAppendCAData
 		}
 	}
+
 	// Else if RootCAs is nil, TLS uses the host's root CA set.
 
 	cert, err := getCertificate(args)
@@ -87,15 +92,18 @@ func getTLSConfig(args cmd.Ssl) (*tls.Config, error) {
 
 func getDialOpts(ctx cmd.ConnectCtx) (grpc.DialOption, error) {
 	var creds credentials.TransportCredentials
+
 	if ctx.Transport == cmd.TransportSsl {
 		config, err := getTLSConfig(ctx.Ssl)
 		if err != nil {
 			return nil, fmt.Errorf("not tls config: %w", err)
 		}
+
 		creds = credentials.NewTLS(config)
 	} else {
 		creds = insecure.NewCredentials()
 	}
+
 	return grpc.WithTransportCredentials(creds), nil
 }
 
@@ -108,10 +116,12 @@ func NewAeonHandler(ctx cmd.ConnectCtx) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w", err)
 	}
+
 	c.conn, err = grpc.NewClient(target, opt)
 	if err != nil {
 		return nil, fmt.Errorf("fail to dial: %w", err)
 	}
+
 	if err := c.ping(); err == nil {
 		log.Infof("Aeon responses at %q", target)
 	} else {
@@ -119,6 +129,7 @@ func NewAeonHandler(ctx cmd.ConnectCtx) (*Client, error) {
 	}
 
 	c.client = pb.NewSQLServiceClient(c.conn)
+
 	return &c, nil
 }
 
@@ -135,10 +146,13 @@ func (c *Client) Validate(input string) bool {
 	check, err := c.client.SQLCheck(ctx, &pb.SQLRequest{Query: input})
 	if err != nil {
 		log.Warnf("Aeon validate %s\nFor request: %q", err, input)
+
 		return false
 	}
+
 	if check == nil {
 		log.Warnf("Aeon validate returned an empty response for request: %q", input)
+
 		return false
 	}
 
@@ -154,6 +168,7 @@ func (c *Client) Execute(input string) any {
 	if err != nil {
 		return err
 	}
+
 	return parseSQLResponse(resp)
 }
 
@@ -170,14 +185,18 @@ func (c *Client) Complete(input prompt.Document) []prompt.Suggest {
 
 func (c *Client) ping() error {
 	log.Infof("Start ping aeon server")
+
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+
 	defer cancel()
 
 	diag := pb.NewDiagServiceClient(c.conn)
+
 	_, err := diag.Ping(ctx, &pb.PingRequest{})
 	if err != nil {
 		log.Warnf("Aeon ping %s", err)
 	}
+
 	return err
 }
 
@@ -188,19 +207,23 @@ func parseSQLResponse(resp *pb.SQLResponse) any {
 	if resp == nil {
 		return errEmptyAeonSQLResponse
 	}
+
 	if responseError := resp.GetError(); responseError != nil {
 		return resultError{responseError}
 	}
+
 	tupleFormat := resp.GetTupleFormat()
 	if tupleFormat == nil {
 		return resultType{}
 	}
+
 	names := tupleFormat.GetNames()
 	tuples := resp.GetTuples()
 	res := resultType{
 		names: slices.Clone(names),
 		rows:  make([]resultRow, len(tuples)),
 	}
+
 	for i := range tuples {
 		res.rows[i] = make([]any, 0, len(names))
 	}
@@ -209,13 +232,16 @@ func parseSQLResponse(resp *pb.SQLResponse) any {
 		if row == nil {
 			return fmt.Errorf("%w%d is nil", errTupleIsNil, r)
 		}
+
 		for _, v := range row.GetFields() {
 			val, err := decodeValue(v)
 			if err != nil {
 				return fmt.Errorf("tuple %d can't decode value %v: %w", r, v, err)
 			}
+
 			res.rows[r] = append(res.rows[r], val)
 		}
 	}
+
 	return res
 }

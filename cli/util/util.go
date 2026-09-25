@@ -81,6 +81,7 @@ type VersionFunc func(bool, bool) string
 func FileLinesScanner(reader io.Reader) *bufio.Scanner {
 	scanner := bufio.NewScanner(reader)
 	scanner.Split(bufio.ScanLines)
+
 	return scanner
 }
 
@@ -90,6 +91,7 @@ func GetFileContentBytes(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	defer func() {
 		_ = file.Close()
 	}()
@@ -115,6 +117,7 @@ func GetFileContent(path string) (string, error) {
 // JoinPaths concat paths.
 func JoinPaths(paths ...string) string {
 	path := ""
+
 	for _, pathPart := range paths {
 		if filepath.IsAbs(pathPart) {
 			path = pathPart
@@ -129,7 +132,9 @@ func JoinPaths(paths ...string) string {
 // JoinAbspath concat paths and makes the resulting path absolute.
 func JoinAbspath(paths ...string) (string, error) {
 	var err error
+
 	path := JoinPaths(paths...)
+
 	if path, err = filepath.Abs(path); err != nil {
 		return "", fmt.Errorf("failed to get absolute path: %w", err)
 	}
@@ -166,6 +171,7 @@ func ParseYAML(path string) (map[string]any, error) {
 	}
 
 	var raw map[string]any
+
 	if err := yaml.Unmarshal(fileContent, &raw); err != nil {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
@@ -179,6 +185,7 @@ func GetHomeDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return usr.HomeDir, nil
 }
 
@@ -209,11 +216,13 @@ func GetLastNLinesBegin(filepath string, lines int) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to open file: %w", err)
 	}
+
 	defer func() {
 		_ = f.Close()
 	}()
 
 	var fileSize int64
+
 	if fileInfo, err := os.Stat(filepath); err != nil {
 		return 0, fmt.Errorf("failed to get fileinfo: %w", err)
 	} else {
@@ -227,7 +236,9 @@ func GetLastNLinesBegin(filepath string, lines int) (int64, error) {
 	buf := make([]byte, bufSize)
 
 	filePos := fileSize - bufSize
+
 	var lastNewLinePos int64 = 0
+
 	newLinesN := 0
 
 	// Check last symbol of the last line.
@@ -235,6 +246,7 @@ func GetLastNLinesBegin(filepath string, lines int) (int64, error) {
 	if _, err := readFromPos(f, fileSize-1, &buf); err != nil {
 		return 0, err
 	}
+
 	if buf[0] != '\n' {
 		newLinesN++
 	}
@@ -310,7 +322,9 @@ func AskConfirm(ioReader io.Reader, question string) (bool, error) {
 		_, _ = fmt.Fprintf(os.Stdout, "%s [y/n]: ", question)
 
 		resp, err := reader.ReadString('\n')
+
 		resp = strings.ToLower(strings.TrimSpace(resp))
+
 		if err != nil {
 			return false, err
 		}
@@ -438,6 +452,7 @@ func IsURL(str string) bool {
 	if strings.HasPrefix(str, "unix:") {
 		return true
 	}
+
 	u, err := url.Parse(str)
 
 	return err == nil && u.Scheme != "" && u.Host != "" && u.Opaque == "" && u.User == nil
@@ -449,12 +464,15 @@ func RemoveScheme(inputURL string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	if parsedURL.Scheme == "unix" {
 		return inputURL, nil
 	}
+
 	parsedURL.Scheme = ""
 
 	result := strings.Replace(parsedURL.String(), "//", "", 1)
+
 	return result, nil
 }
 
@@ -465,6 +483,7 @@ func Chdir(newPath string) (func() error, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current directory: %w", err)
 	}
+
 	if err = os.Chdir(newPath); err != nil {
 		return nil, fmt.Errorf("failed to change directory: %w", err)
 	}
@@ -474,7 +493,9 @@ func Chdir(newPath string) (func() error, error) {
 		if err = os.Chdir(cwd); err != nil {
 			return nil, fmt.Errorf("failed to change directory back: %w", err)
 		}
+
 		_ = os.Setenv("PWD", cwd) // Return PWD back.
+
 		return nil, fmt.Errorf("failed to change PWD environment variable: %w", err)
 	}
 
@@ -482,9 +503,11 @@ func Chdir(newPath string) (func() error, error) {
 		if err = os.Chdir(cwd); err != nil {
 			return fmt.Errorf("failed to change directory back: %w", err)
 		}
+
 		if err = os.Setenv("PWD", cwd); err != nil {
 			return fmt.Errorf("failed to change PWD environment variable: %w", err)
 		}
+
 		return nil
 	}, nil
 }
@@ -499,6 +522,7 @@ func FsCopyFileChangePerms(fsys fs.FS, src, dst string, perms int) error {
 	if err != nil {
 		return err
 	}
+
 	// Write data to dst.
 	return os.WriteFile(dst, data, fs.FileMode(perms))
 }
@@ -510,12 +534,15 @@ func CopyFilePreserve(src, dst string) error {
 	if err != nil {
 		return err
 	}
+
 	data, err := os.ReadFile(src)
 	if err != nil {
 		return err
 	}
+
 	// Write data to dst.
 	err = os.WriteFile(dst, data, info.Mode().Perm())
+
 	return err
 }
 
@@ -526,12 +553,15 @@ func CopyFileChangePerms(src, dst string, perms int) error {
 	if err != nil {
 		return err
 	}
+
 	data, err := os.ReadFile(src)
 	if err != nil {
 		return err
 	}
+
 	// Write data to dst.
 	err = os.WriteFile(dst, data, fs.FileMode(perms))
+
 	return err
 }
 
@@ -545,6 +575,7 @@ func ResolveSymlink(linkPath string) (string, error) {
 	if !filepath.IsAbs(resolvedLink) {
 		resolvedLink = path.Join(path.Dir(linkPath), resolvedLink)
 	}
+
 	return resolvedLink, nil
 }
 
@@ -564,11 +595,14 @@ func ExtractTar(tarName string) error {
 	if err != nil {
 		return err
 	}
+
 	dir := filepath.Dir(path) + "/"
+
 	archive, err := os.Open(path)
 	if err != nil {
 		return err
 	}
+
 	defer func() {
 		_ = archive.Close()
 	}()
@@ -579,9 +613,11 @@ func ExtractTar(tarName string) error {
 	}
 
 	tarReader := tar.NewReader(uncompressedStream)
+
 	if err != nil {
 		return err
 	}
+
 	for {
 		header, err := tarReader.Next()
 
@@ -596,6 +632,7 @@ func ExtractTar(tarName string) error {
 			continue
 		case tar.TypeReg:
 			var pos int
+
 			// Some archives have strange order of objects,
 			// so we check that all folders exist before
 			// creating a file.
@@ -603,6 +640,7 @@ func ExtractTar(tarName string) error {
 			if pos == -1 {
 				pos = 0
 			}
+
 			if _, err := os.Stat(dir + header.Name[0:pos]); os.IsNotExist(err) {
 				// 0755:
 				//    user:   read/write/execute
@@ -610,15 +648,18 @@ func ExtractTar(tarName string) error {
 				//    others: read/execute
 				_ = os.MkdirAll(dir+header.Name[0:pos], archiveDirectoryMode)
 			}
+
 			outFile, err := os.Create(dir + header.Name)
 			if err != nil {
 				_ = outFile.Close()
 				return err
 			}
+
 			if _, err := io.Copy(outFile, tarReader); err != nil {
 				_ = outFile.Close()
 				return err
 			}
+
 			_ = outFile.Close()
 
 		default:
@@ -626,6 +667,7 @@ func ExtractTar(tarName string) error {
 				errUnknownArchiveEntryType, header.Typeflag, header.Name)
 		}
 	}
+
 	return nil
 }
 
@@ -637,6 +679,7 @@ func ExecuteCommand(program string, isVerbose bool, writer io.Writer, workDir st
 	if isVerbose {
 		log.Infof("Run: %s\n", cmd)
 	}
+
 	if isVerbose {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -644,15 +687,20 @@ func ExecuteCommand(program string, isVerbose bool, writer io.Writer, workDir st
 		cmd.Stdout = writer
 		cmd.Stderr = writer
 	}
+
 	if workDir == "" {
 		workDir, _ = os.Getwd()
 	}
+
 	cmd.Dir = workDir
+
 	err := cmd.Start()
 	if err != nil {
 		return err
 	}
+
 	err = cmd.Wait()
+
 	return err
 }
 
@@ -665,6 +713,7 @@ func ExecuteCommandStdin(program string, isVerbose bool, logFile *os.File, workD
 	if isVerbose {
 		log.Infof("Run: %s\n", cmd)
 	}
+
 	if isVerbose {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -677,9 +726,11 @@ func ExecuteCommandStdin(program string, isVerbose bool, logFile *os.File, workD
 			cmd.Stderr = io.Discard
 		}
 	}
+
 	if workDir == "" {
 		workDir, _ = os.Getwd()
 	}
+
 	cmd.Dir = workDir
 
 	stdin, err := cmd.StdinPipe()
@@ -696,6 +747,7 @@ func ExecuteCommandStdin(program string, isVerbose bool, logFile *os.File, workD
 	_ = stdin.Close()
 
 	err = cmd.Wait()
+
 	return err
 }
 
@@ -706,14 +758,18 @@ func CreateSymlink(oldName, newName string, overwrite bool) error {
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("symbolic link cannot be created: %w", err)
 	}
+
 	if os.IsNotExist(err) {
 		return os.Symlink(oldName, newName)
 	}
+
 	if !overwrite {
 		return fmt.Errorf("%w%s' already exists",
 			errSymbolicLinkCannotBeCreatedAlreadyExists, newName)
 	}
+
 	log.Debugf("Replace existing '%s' with new symlink.", newName)
+
 	if err := os.Remove(newName); err != nil {
 		return err
 	}
@@ -766,11 +822,14 @@ func CreateDirectory(dirName string, fileMode os.FileMode) error {
 		if !stat.IsDir() {
 			return fmt.Errorf("'%s' %w", dirName, errAlreadyExistsAndIsNotADirectory)
 		}
+
 		return nil
 	}
+
 	if err = os.MkdirAll(dirName, fileMode); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -780,6 +839,7 @@ func WriteYaml(fileName string, o any) error {
 	if err != nil {
 		return err
 	}
+
 	defer func() {
 		if err := file.Close(); err != nil {
 			log.Warnf("Failed to close a file '%s': %s", file.Name(), err)
@@ -789,6 +849,7 @@ func WriteYaml(fileName string, o any) error {
 	if err = yaml.NewEncoder(file).Encode(o); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -810,6 +871,7 @@ func MergeFiles(destFilePath string, srcFilePaths ...string) error {
 		_ = os.Remove(destFilePath)
 		return fmt.Errorf("failed to create result file %s: %w", destFilePath, err)
 	}
+
 	defer func() {
 		_ = destFile.Close()
 	}()
@@ -837,6 +899,7 @@ func MergeFiles(destFilePath string, srcFilePaths ...string) error {
 // passed fileName is returned otherwise.
 func GetYamlFileName(fileName string, mustExist bool) (string, error) {
 	var fileBaseName string
+
 	switch filepath.Ext(fileName) {
 	case ".yaml":
 		fileBaseName = strings.TrimSuffix(fileName, ".yaml")
@@ -850,7 +913,9 @@ func GetYamlFileName(fileName string, mustExist bool) (string, error) {
 		return "", fmt.Errorf("%w%s' has no .yaml/.yml extension",
 			errInvalidYAMLFileExtension, fileName)
 	}
+
 	foundYamlFiles := []string{}
+
 	if foundFiles, err := filepath.Glob(fileBaseName + ".y*ml"); err == nil {
 		for _, fileName := range foundFiles {
 			switch filepath.Ext(fileName) {
@@ -861,6 +926,7 @@ func GetYamlFileName(fileName string, mustExist bool) (string, error) {
 	} else {
 		return "", err
 	}
+
 	yamlFilesCount := len(foundYamlFiles)
 	switch {
 	case yamlFilesCount > 1:
@@ -882,6 +948,7 @@ func InstantiateFileFromTemplate(templatePath, templateContent string, params an
 	if err != nil {
 		return err
 	}
+
 	defer func() {
 		_ = file.Close()
 	}()
@@ -892,6 +959,7 @@ func InstantiateFileFromTemplate(templatePath, templateContent string, params an
 		if removeErr != nil {
 			log.Warnf("Failed to remove a file %s", templatePath)
 		}
+
 		return err
 	}
 
@@ -899,6 +967,7 @@ func InstantiateFileFromTemplate(templatePath, templateContent string, params an
 	if err != nil {
 		return fmt.Errorf("error parsing %s: %w", templatePath, err)
 	}
+
 	// spell-checker:ignore missingkey
 	parsedTemplate.Option("missingkey=error") // Treat missing variable as error.
 
@@ -908,8 +977,10 @@ func InstantiateFileFromTemplate(templatePath, templateContent string, params an
 		if removeErr != nil {
 			log.Warnf("Failed to remove a file %s", templatePath)
 		}
+
 		return err
 	}
+
 	return nil
 }
 
@@ -920,10 +991,12 @@ func RelativeToCurrentWorkingDir(fullPath string) string {
 	if err != nil {
 		return fullPath
 	}
+
 	relPath, err := filepath.Rel(cwd, fullPath)
 	if err != nil {
 		return fullPath
 	}
+
 	return relPath
 }
 
@@ -932,6 +1005,7 @@ func Min[T cmp.Ordered](a, b T) T {
 	if a < b {
 		return a
 	}
+
 	return b
 }
 
@@ -941,6 +1015,7 @@ func CopyFileDeep(src, dst string) error {
 	if err != nil {
 		return err
 	}
+
 	return copy.Copy(src, dst)
 }
 
@@ -963,6 +1038,7 @@ func StringToTimestamp(input string) (string, error) {
 		// Incorrect input, trigger an error.
 		return "", err
 	}
+
 	tsSec := rfc3339NanoTs.Unix()
 	tsNanoSec := rfc3339NanoTs.Nanosecond()
 	ts := fmt.Sprintf("%s.%s", strconv.FormatInt(tsSec, 10),

@@ -37,6 +37,7 @@ func TestNewFileCollector_fileReadFunc_error(t *testing.T) {
 	collector := factory.NewFileCollector("foo")
 
 	require.NotNil(t, collector)
+
 	data, err := collector.Collect()
 
 	assert.Nil(t, data)
@@ -76,6 +77,7 @@ etcd:
 						return os.Open(path)
 					}),
 				)
+
 				return factory.NewFileCollector(testYamlPath)
 			}(),
 		},
@@ -92,6 +94,7 @@ etcd:
 
 func TestNewFileCollector_not_exist(t *testing.T) {
 	const invalidPath = "some/invalid/path"
+
 	cases := []struct {
 		Name      string
 		Collector cluster.DataCollector
@@ -108,6 +111,7 @@ func TestNewFileCollector_not_exist(t *testing.T) {
 						return os.Open(path)
 					}),
 				)
+
 				return factory.NewFileCollector(invalidPath)
 			}(),
 		},
@@ -124,6 +128,7 @@ func TestNewFileCollector_not_exist(t *testing.T) {
 
 func TestNewFilePublisher(t *testing.T) {
 	var publisher cluster.DataPublisher = cluster.NewFilePublisher("")
+
 	assert.NotNil(t, publisher)
 }
 
@@ -176,11 +181,14 @@ func TestFileDataPublisher_Publish_data_exist_file(t *testing.T) {
 
 	err := os.WriteFile(path, []byte("bar"), 0o664)
 	require.NoError(t, err)
+
 	fi, err := os.Lstat(path)
 	require.NoError(t, err)
+
 	originalMode := fi.Mode()
 
 	data := []byte("foo")
+
 	err = cluster.NewFilePublisher(path).Publish(0, data)
 	require.NoError(t, err)
 

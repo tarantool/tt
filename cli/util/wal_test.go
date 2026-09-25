@@ -22,16 +22,19 @@ func createTestFiles(t *testing.T, tstDir string, filesMap map[string][]string) 
 	for dir, files := range filesMap {
 		dest := tstDir
 		allowedDir := true
+
 		if dir[0] == '/' {
 			if dir[len(dir)-1] == '-' {
 				dir = dir[:len(dir)-1]
 				allowedDir = false
 			}
+
 			dest = filepath.Join(tstDir, dir)
 			require.NoError(t, os.MkdirAll(dest, 0o755))
 		} else {
 			require.Empty(t, files,
 				"Is it a Directory or File? Missed '/' prefix for dir %q", dir)
+
 			files = append(files, dir)
 		}
 
@@ -59,6 +62,7 @@ func restorePermissions(t *testing.T, path string) {
 		if d.IsDir() {
 			require.NoError(t, os.Chmod(p, 0o755))
 		}
+
 		return nil
 	}))
 }
@@ -228,6 +232,7 @@ func TestCollectWalFiles_recursive(t *testing.T) {
 
 	wd, err := os.Getwd()
 	require.NoError(t, err)
+
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			if len(test.input) == 0 || test.input[0][0] != '/' {
@@ -242,25 +247,32 @@ func TestCollectWalFiles_recursive(t *testing.T) {
 
 			logger, recorder := logtest.New(t)
 			previous := slog.Default()
+
 			slog.SetDefault(logger)
+
 			defer slog.SetDefault(previous)
 
 			result, err := util.CollectWalFiles(test.input, test.recursive)
 
 			var buf bytes.Buffer
+
 			for _, record := range recorder.Records() {
 				fmt.Fprintf(&buf, "%s %s\n", record.Level, record.Message)
 			}
 
 			if test.errMsg != "" {
 				assert.ErrorContains(t, err, test.errMsg)
+
 				return
 			}
+
 			assert.NoError(t, err)
 			assert.Equal(t, test.output, result)
+
 			if buf.Len() == 0 {
 				return
 			}
+
 			logStr := buf.String()
 			if test.logMsg != "" {
 				assert.Contains(t, logStr, test.logMsg)
@@ -284,6 +296,7 @@ func TestCollectWalFiles(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "2.xlog"), []byte{}, 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "1.snap"), []byte{}, 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "2.snap"), []byte{}, 0o644))
+
 	snap1 := fmt.Sprintf("%s/%s", srcDir, "1.snap")
 	snap2 := fmt.Sprintf("%s/%s", srcDir, "2.snap")
 	xlog1 := fmt.Sprintf("%s/%s", srcDir, "1.xlog")

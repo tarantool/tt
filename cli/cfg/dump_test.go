@@ -30,11 +30,14 @@ func getCliOpts(t *testing.T, configFile string) *config.CliOpts {
 	cliOpts, configPath, err := configure.GetCliOpts(configFile,
 		&mockRepository{})
 	require.NoError(t, err)
+
 	srcStat, err := os.Stat(configFile)
 	require.NoError(t, err)
+
 	loadedStat, err := os.Stat(configPath)
 	require.NoError(t, err)
 	require.True(t, os.SameFile(srcStat, loadedStat))
+
 	return cliOpts
 }
 
@@ -47,6 +50,7 @@ func TestRunDump(t *testing.T) {
 
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
+
 	configDir := filepath.Join(cwd, "testdata")
 
 	tests := []struct {
@@ -221,12 +225,15 @@ repo:
 		t.Run(tt.name, func(t *testing.T) {
 			writer := &bytes.Buffer{}
 			err := RunDump(writer, tt.args.cmdCtx, tt.args.dumpCtx, tt.args.cliOpts)
+
 			if tt.wantErr {
 				require.Error(t, err)
+
 				return
 			} else {
 				require.NoError(t, err)
 			}
+
 			gotWriter := writer.String()
 			require.EqualValues(t, tt.wantWriter, gotWriter)
 		})

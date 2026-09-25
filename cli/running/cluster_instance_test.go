@@ -32,7 +32,9 @@ const stopTimeout = 5 * time.Second
 func waitForMsgInBuffer(reader io.Reader, msgToWait string, waitFor time.Duration) error {
 	buf := bufio.NewReader(reader)
 	waitUntil := time.Now().Add(waitFor)
+
 	var previousLine string
+
 	for {
 		line, err := buf.ReadString('\n')
 		if err != nil {
@@ -42,16 +44,20 @@ func waitForMsgInBuffer(reader io.Reader, msgToWait string, waitFor time.Duratio
 				return err
 			}
 		}
+
 		if strings.Contains(line, msgToWait) {
 			break
 		} else if strings.Contains(line, "exiting") {
 			return fmt.Errorf("%w%q", errTarantoolExited, previousLine)
 		}
+
 		previousLine = line
+
 		if time.Now().After(waitUntil) { // Timeout.
 			return fmt.Errorf("%w%q", errTimedOutWaitingFor, msgToWait)
 		}
 	}
+
 	return nil
 }
 
@@ -63,12 +69,14 @@ func TestClusterInstance_Start(t *testing.T) {
 	tmpDir := t.TempDir()
 	cancelChdir, err := util.Chdir(tmpDir)
 	require.NoError(t, err)
+
 	defer func() {
 		_ = cancelChdir()
 	}()
 
 	outputBuf := bytes.Buffer{}
 	outputBuf.Grow(1024)
+
 	clusterInstance, err := newClusterInstance(tntCli, InstanceCtx{
 		ClusterConfigPath: configPath,
 		InstName:          "instance-001",
@@ -99,14 +107,17 @@ func TestClusterInstance_StartChangeDefaults(t *testing.T) {
 	tmpDir := t.TempDir()
 	cancelChdir, err := util.Chdir(tmpDir)
 	require.NoError(t, err)
+
 	defer func() {
 		_ = cancelChdir()
 	}()
 
 	tmpAppDir := filepath.Join(tmpDir, "appdir")
 	require.NoError(t, os.Mkdir(tmpAppDir, 0o755))
+
 	outputBuf := bytes.Buffer{}
 	outputBuf.Grow(1024)
+
 	clusterInstance, err := newClusterInstance(tntCli, InstanceCtx{
 		ClusterConfigPath: configPath,
 		InstName:          "instance-001",
@@ -146,14 +157,17 @@ func TestClusterInstance_StartChangeSomeDefaults(t *testing.T) {
 	tmpDir := t.TempDir()
 	cancelChdir, err := util.Chdir(tmpDir)
 	require.NoError(t, err)
+
 	defer func() {
 		_ = cancelChdir()
 	}()
 
 	tmpAppDir := filepath.Join(tmpDir, "appdir")
 	require.NoError(t, os.Mkdir(tmpAppDir, 0o755))
+
 	outputBuf := bytes.Buffer{}
 	outputBuf.Grow(1024)
+
 	clusterInstance, err := newClusterInstance(tntCli, InstanceCtx{
 		ClusterConfigPath: configPath,
 		InstName:          "instance-002",
@@ -200,12 +214,14 @@ func TestClusterInstance_StopByContext(t *testing.T) {
 	tmpDir := t.TempDir()
 	cancelChdir, err := util.Chdir(tmpDir)
 	require.NoError(t, err)
+
 	defer func() {
 		_ = cancelChdir()
 	}()
 
 	outputBuf := bytes.Buffer{}
 	outputBuf.Grow(1024)
+
 	clusterInstance, err := newClusterInstance(tntCli, InstanceCtx{
 		ClusterConfigPath: configPath,
 		InstName:          "instance-001",
@@ -215,6 +231,7 @@ func TestClusterInstance_StopByContext(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, clusterInstance)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	require.NoError(t, clusterInstance.Start(ctx))
 	t.Cleanup(func() {

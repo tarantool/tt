@@ -36,6 +36,7 @@ func (collector FileCollector) Collect() ([]Data, error) {
 	if err != nil {
 		return nil, fmt.Errorf(fmtErr, collector.path, err)
 	}
+
 	defer func() {
 		_ = reader.Close()
 	}()
@@ -44,6 +45,7 @@ func (collector FileCollector) Collect() ([]Data, error) {
 	if err != nil {
 		return nil, fmt.Errorf(fmtErr, collector.path, err)
 	}
+
 	return []Data{{Source: collector.path, Value: data}}, nil
 }
 
@@ -64,9 +66,11 @@ func (publisher FilePublisher) Publish(revision int64, data []byte) error {
 		return fmt.Errorf("failed to publish data into file: %w%d is not supported",
 			errTargetRevisionIsNotSupported, revision)
 	}
+
 	if publisher.path == "" {
 		return errFilePathIsEmpty
 	}
+
 	if data == nil {
 		return fmt.Errorf("failed to publish data into %q: %w", publisher.path, errDataMissing)
 	}
@@ -74,5 +78,6 @@ func (publisher FilePublisher) Publish(revision int64, data []byte) error {
 	if err := os.WriteFile(publisher.path, data, publishedFileMode); err != nil {
 		return fmt.Errorf("failed to publish data into %q: %w", publisher.path, err)
 	}
+
 	return nil
 }

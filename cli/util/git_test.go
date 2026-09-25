@@ -44,6 +44,7 @@ func Test_IsValidCommitHash(t *testing.T) {
 			if err != nil {
 				assert.Error(t, err)
 			}
+
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -112,6 +113,7 @@ func Test_isFetchJobsSupported(t *testing.T) {
 	type args struct {
 		gitOutput string
 	}
+
 	tests := []struct {
 		name string
 		args args

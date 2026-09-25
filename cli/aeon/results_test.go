@@ -79,6 +79,7 @@ func TestResultType_Format(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := tt.data.Format(tt.f)
 			require.NoError(t, err)
+
 			if got != tt.want {
 				t.Errorf("ResultType.Format() = %v, want %v", got, tt.want)
 			}
@@ -91,6 +92,7 @@ func TestResultError_Format(t *testing.T) {
 		name string
 		msg  string
 	}
+
 	tests := []struct {
 		name   string
 		fields fields
@@ -111,6 +113,7 @@ Error: Name of error
 ""`,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			e := resultError{&pb.Error{
@@ -119,6 +122,7 @@ Error: Name of error
 			}}
 			got, err := e.Format(console.Format{})
 			require.NoError(t, err)
+
 			if got != tt.want {
 				t.Errorf("ResultError.Format() = %v, want %v", got, tt.want)
 			}

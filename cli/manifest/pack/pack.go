@@ -137,6 +137,7 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 // tree needs no separate tt package build.
 func runBuild(ctx context.Context, opts Options) (*build.Result, error) {
 	buildOpts := opts.Build
+
 	buildOpts.ProjectDir = opts.ProjectDir
 	buildOpts.Product = opts.Product
 	buildOpts.Locked = opts.Locked
@@ -194,6 +195,7 @@ func runtimeInto(
 	}
 
 	req := opts.Runtime
+
 	req.Warn = opts.Warn
 	req.Platform = man.Platform
 
@@ -211,6 +213,7 @@ func lockWithBundled(lock *manifest.Lock, bundled BundledVersions) ([]byte, erro
 	// Lock.Marshal has a value receiver, so this copy leaves the build's lock
 	// (and the on-disk file) untouched: bundled_* live only in the archive.
 	stamped := *lock
+
 	stamped.BundledTarantool = bundled.Tarantool
 	stamped.BundledTt = bundled.Tt
 	stamped.BundledTcm = bundled.Tcm

@@ -45,6 +45,7 @@ func (p *platformInfo) GetArch() (string, error) {
 	if p.arch == "" {
 		return "", errMockArchitectureNotApplied
 	}
+
 	return p.arch, nil
 }
 
@@ -64,30 +65,37 @@ func (m *mockDoer) Do(req *http.Request) ([]byte, error) {
 
 	if req.Method != http.MethodPost {
 		m.t.Errorf("expected POST method, got %s", req.Method)
+
 		return nil, errInvalidRequestMethod
 	}
 
 	if req.URL.Path != "/en/accounts/customer_zone/api" {
 		m.t.Errorf("expected /en/accounts/customer_zone/api path, got %s", req.URL.Path)
+
 		return nil, errInvalidRequestPath
 	}
 
 	if req.Header.Get("Content-Type") != "application/json" {
 		m.t.Errorf("expected application/json content type, got %s",
 			req.Header.Get("Content-Type"))
+
 		return nil, errInvalidContentType
 	}
 
 	// Read and check the request body.
 	if req.Body == nil {
 		m.t.Error("expected request body, got nil")
+
 		return nil, errMissingRequestBody
 	}
+
 	bodyBytes, err := io.ReadAll(req.Body)
 	if err != nil {
 		m.t.Errorf("failed to read request body: %v", err)
+
 		return nil, fmt.Errorf("failed to read request body: %w", err)
 	}
+
 	// Restore the body for potential re-reads.
 	req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
@@ -98,9 +106,11 @@ func (m *mockDoer) Do(req *http.Request) ([]byte, error) {
 	}
 
 	var actualRequest expectedAPIRequest
+
 	err = json.Unmarshal(bodyBytes, &actualRequest)
 	if err != nil {
 		m.t.Errorf("failed to unmarshal request body: %v. Body: %s", err, string(bodyBytes))
+
 		return nil, fmt.Errorf("failed to unmarshal request body: %w", err)
 	}
 
@@ -111,6 +121,7 @@ func (m *mockDoer) Do(req *http.Request) ([]byte, error) {
 	}
 
 	require.Equal(m.t, expectedRequest, actualRequest, "request body mismatch")
+
 	if m.t.Failed() {
 		return nil, errInvalidRequestBodyContent
 	}
@@ -127,6 +138,7 @@ func checkOutputVersionOrder(t *testing.T, got string, expected []string) {
 
 	// Verify the output contains the expected versions in the correct order.
 	lastIndex := -1
+
 	for _, ver := range expected {
 		currentIndex := strings.Index(got, ver)
 		require.True(t,
@@ -134,12 +146,14 @@ func checkOutputVersionOrder(t *testing.T, got string, expected []string) {
 			"Expected version %q not found in output",
 			ver,
 		)
+
 		if currentIndex >= 0 {
 			require.True(t,
 				currentIndex > lastIndex,
 				"Version %q is not in the expected order",
 				ver,
 			)
+
 			lastIndex = currentIndex
 		}
 	}
@@ -153,6 +167,7 @@ func checkOutputVersionOrder(t *testing.T, got string, expected []string) {
 func TestSearchVersions_TntIo(t *testing.T) {
 	t.Setenv("TT_CLI_EE_USERNAME", testingUsername)
 	t.Setenv("TT_CLI_EE_PASSWORD", testingPassword)
+
 	defer func() {
 		_ = os.Unsetenv("TT_CLI_EE_USERNAME")
 	}()
@@ -409,7 +424,9 @@ func TestSearchVersions_TntIo(t *testing.T) {
 			recorder := recordLog(t)
 
 			r, w, _ := os.Pipe()
+
 			os.Stdout = w
+
 			defer func() {
 				os.Stdout = originalStdout
 			}()
@@ -423,9 +440,11 @@ func TestSearchVersions_TntIo(t *testing.T) {
 
 			// Create SearchCtx with the configured mock.
 			sCtx := search.NewSearchCtx(&tt.platform, &mockDoer)
+
 			sCtx.Program = tt.program
 			sCtx.ReleaseVersion = tt.specificVersion
 			sCtx.DevBuilds = tt.devBuilds
+
 			if tt.searchDebug {
 				sCtx.Filter = search.SearchDebug
 			}
@@ -433,15 +452,20 @@ func TestSearchVersions_TntIo(t *testing.T) {
 			err := search.SearchVersions(sCtx, &opts)
 
 			_ = w.Close()
+
 			var outBuf bytes.Buffer
+
 			_, readErr := outBuf.ReadFrom(r)
 			require.NoError(t, readErr, "Failed to read from stdout pipe")
+
 			gotOutput := outBuf.String()
 
 			var logBuilder strings.Builder
+
 			for _, record := range recorder.Records() {
 				fmt.Fprintf(&logBuilder, "%s %s\n", record.Level, record.Message)
 			}
+
 			gotLog := logBuilder.String()
 			t.Logf("Log:\n%s", gotLog)
 
@@ -449,8 +473,10 @@ func TestSearchVersions_TntIo(t *testing.T) {
 				require.Error(t, err, "Expected an error, but got nil")
 				require.Contains(t, err.Error(), tt.errMsg,
 					"Expected error message does not match")
+
 				return
 			}
+
 			require.NoError(t, err, "Expected no error, but got: %v", err)
 			require.Contains(t,
 				gotLog,
@@ -473,6 +499,7 @@ func TestTntIoMakePkgURI(t *testing.T) {
 		devBuilds bool
 		tarball   string
 	}
+
 	tests := map[string]struct {
 		args     args
 		expected string
@@ -568,6 +595,7 @@ func TestTntIoMakePkgURI(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			sCtx := search.NewSearchCtx(tt.args.platform, nil)
+
 			sCtx.Program = tt.args.program
 			sCtx.ReleaseVersion = tt.args.version
 			sCtx.DevBuilds = tt.args.devBuilds
@@ -577,8 +605,10 @@ func TestTntIoMakePkgURI(t *testing.T) {
 				require.Error(t, err, "Expected an error, but got nil")
 				require.Contains(t, err.Error(), tt.errMsg,
 					"Expected error message does not match")
+
 				return
 			}
+
 			require.NoError(t, err, "Expected no error, but got: %v", err)
 			require.Equal(t, tt.expected, got)
 		})

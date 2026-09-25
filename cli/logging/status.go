@@ -168,6 +168,7 @@ func (h *textHandler) Status(msg string) func() {
 				return
 			case <-ticks:
 				out.mu.Lock()
+
 				out.status.frame++
 				out.write(out.status.render(h.color))
 				out.mu.Unlock()

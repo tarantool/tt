@@ -61,9 +61,11 @@ func Render(t *testing.T, newRoot NewRoot) string {
 			// argument - tt rocks would hand it to LuaRocks - so the help is
 			// rendered the other way tt offers.
 			args = append([]string{"help"}, command.path...)
+
 			title += " (via tt help: flag parsing disabled)"
 		} else {
 			args = append(append([]string{}, command.path...), "--help")
+
 			title += " --help"
 		}
 
@@ -139,6 +141,7 @@ func run(t *testing.T, newRoot NewRoot, args ...string) string {
 	require.NoError(t, err)
 
 	previous := os.Stdout
+
 	os.Stdout = stdout
 
 	runErr := root.Execute()
@@ -173,6 +176,7 @@ func walk(t *testing.T, newRoot NewRoot) []command {
 	var commands []command
 
 	var visit func(cmd *cobra.Command, path []string)
+
 	visit = func(cmd *cobra.Command, path []string) {
 		commands = append(commands, command{
 			path:        path,

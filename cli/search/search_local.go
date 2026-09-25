@@ -28,6 +28,7 @@ func searchVersionsLocalGit(program Program, repoPath string) (
 	if _, err := os.Stat(repoPath); os.IsNotExist(err) {
 		// It's not an error if the local repo doesn't exist.
 		log.Debugf("Local repository for %s not found at %s", program, repoPath)
+
 		return nil, nil
 	}
 
@@ -73,6 +74,7 @@ func fetchBundlesInfoLocal(files []string, program Program) (BundleInfoSlice, er
 		}
 
 		versionStr := parsedData["version"]
+
 		ver, err := version.Parse(versionStr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse version from file %s: %w", file, err)
@@ -83,6 +85,7 @@ func fetchBundlesInfoLocal(files []string, program Program) (BundleInfoSlice, er
 	}
 
 	sort.Sort(versions)
+
 	return versions, nil
 }
 
@@ -92,14 +95,18 @@ func FindLocalBundles(program Program, fsys fs.FS) (BundleInfoSlice, error) {
 	if err != nil {
 		if os.IsNotExist(err) {
 			log.Debugf("Directory not found, cannot search for local SDK files")
+
 			// The directory doesn't exist, it's not an error for searching.
 			return nil, nil
 		}
+
 		return nil, fmt.Errorf("failed to read directory: %w", err)
 	}
 
 	files := []string{}
+
 	var prefix string
+
 	switch program {
 	case ProgramEe:
 		prefix = "tarantool-enterprise-sdk-"
@@ -117,6 +124,7 @@ func FindLocalBundles(program Program, fsys fs.FS) (BundleInfoSlice, error) {
 
 	if len(files) == 0 {
 		log.Debugf("No local SDK files found for %q", program)
+
 		return nil, nil
 	}
 
@@ -124,20 +132,24 @@ func FindLocalBundles(program Program, fsys fs.FS) (BundleInfoSlice, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return bundles, nil
 }
 
 // getBaseDirectory determines the base directory for local search.
 func getBaseDirectory(cfgPath string, repo *config.RepoOpts) string {
 	var localDir string
+
 	if repo != nil && repo.Install != "" {
 		localDir = repo.Install
 	} else {
 		configDir := filepath.Dir(cfgPath)
+
 		localDir = filepath.Join(configDir, "distfiles")
 	}
 
 	log.Debugf("Using local search directory: %s", localDir)
+
 	return localDir
 }
 
@@ -148,15 +160,19 @@ func SearchVersionsLocal(searchCtx SearchCtx, cliOpts *config.CliOpts, cfgPath s
 
 	localDir := getBaseDirectory(cfgPath, cliOpts.Repo)
 
-	var vers version.VersionSlice
-	var err error
+	var (
+		vers version.VersionSlice
+		err  error
+	)
 
 	switch prg {
 	case ProgramCe:
 		repoPath := filepath.Join(localDir, "tarantool")
+
 		vers, err = searchVersionsLocalGit(prg, repoPath)
 	case ProgramTt:
 		repoPath := filepath.Join(localDir, "tt")
+
 		vers, err = searchVersionsLocalGit(prg, repoPath)
 	case ProgramEe, ProgramTcm:
 		vers, err = searchVersionsLocalSDK(prg, localDir)
@@ -170,6 +186,7 @@ func SearchVersionsLocal(searchCtx SearchCtx, cliOpts *config.CliOpts, cfgPath s
 
 	if vers.Len() == 0 {
 		log.Infof("No local versions found for %s.", prg)
+
 		return nil // It's not an error if nothing is found.
 	}
 

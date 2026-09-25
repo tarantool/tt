@@ -76,8 +76,11 @@ func SearchVersions(searchCtx SearchCtx, cliOpts *config.CliOpts) error {
 	prg := searchCtx.Program
 	log.Infof("Available versions of %s:", prg)
 
-	var err error
-	var vers version.VersionSlice
+	var (
+		err  error
+		vers version.VersionSlice
+	)
+
 	switch prg {
 	case ProgramCe:
 		vers, err = searchVersionsGit(GitRepoTarantool)
@@ -96,11 +99,13 @@ func SearchVersions(searchCtx SearchCtx, cliOpts *config.CliOpts) error {
 
 	if vers.Len() == 0 {
 		log.Infof("No versions found for %s.", prg)
+
 		return nil // It's not an error if nothing is found.
 	}
 
 	for _, v := range vers {
 		printVersion(cliOpts.Env.BinDir, prg, v.Str)
 	}
+
 	return nil
 }

@@ -40,6 +40,7 @@ func getReplicasets(ctx DiscoveryCtx) (replicaset.Replicasets, error) {
 	}
 
 	var orchestrator replicasetOrchestrator
+
 	if ctx.IsApplication {
 		orchestrator, err = makeApplicationOrchestrator(orchestratorType,
 			ctx.RunningCtx, sdkcluster.Factory{}, sdkcluster.Factory{}, integrity.IntegrityCtx{})
@@ -79,9 +80,11 @@ func statusReplicasets(replicasets replicaset.Replicasets) error {
 	if len(replicasets.Replicasets) > 0 {
 		_, _ = fmt.Fprintln(os.Stdout)
 	}
+
 	for _, replicaset := range replicasets.Replicasets {
 		_, _ = fmt.Fprint(os.Stdout, replicasetToString(replicaset))
 	}
+
 	return nil
 }
 
@@ -111,45 +114,54 @@ func sortAliases(replicasets replicaset.Replicasets) replicaset.Replicasets {
 			return replicaset.Instances[i].Alias < replicaset.Instances[j].Alias
 		})
 	}
+
 	sort.Slice(replicasets.Replicasets, func(i, j int) bool {
 		return replicasets.Replicasets[i].Alias < replicasets.Replicasets[j].Alias
 	})
+
 	return replicasets
 }
 
 // replicasetToString returns a string representation of a replicaset.
 func replicasetToString(replicas replicaset.Replicaset) string {
 	var result strings.Builder
+
 	result.WriteString("• ")
 	result.WriteString(replicas.Alias)
 	result.WriteByte('\n')
 	result.WriteString("  Failover: ")
 	result.WriteString(replicas.Failover.String())
 	result.WriteByte('\n')
+
 	if replicas.StateProvider != replicaset.StateProviderUnknown {
 		result.WriteString("  Provider: ")
 		result.WriteString(replicas.StateProvider.String())
 		result.WriteByte('\n')
 	}
+
 	if replicas.Master != replicaset.MasterUnknown {
 		result.WriteString("  Master:   ")
 		result.WriteString(replicas.Master.String())
 		result.WriteByte('\n')
 	}
+
 	if len(replicas.Roles) > 0 {
 		result.WriteString("  Roles:    ")
 		result.WriteString(strings.Join(replicas.Roles, ", "))
 		result.WriteByte('\n')
 	}
+
 	for _, instance := range replicas.Instances {
 		if replicas.LeaderUUID != "" && replicas.LeaderUUID == instance.UUID {
 			result.WriteString("    ★ ")
 		} else {
 			result.WriteString("    • ")
 		}
+
 		result.WriteString(instanceToString(instance))
 		result.WriteByte('\n')
 	}
+
 	return result.String()
 }
 

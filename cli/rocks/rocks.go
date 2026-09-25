@@ -48,15 +48,18 @@ func addLuarocksRepoOpts(cliOpts *config.CliOpts, args []string) []string {
 	// Check whether rocks repository is specified in tt config.
 	if cliOpts.Repo != nil && cliOpts.Repo.Rocks != "" {
 		isServerSet := false
+
 		for i, opt := range args {
 			if opt == "--server" {
 				isServerSet = true
 				args[i+1] = args[i+1] + " " + cliOpts.Repo.Rocks
 			} else if strings.HasPrefix(opt, "--server=") {
 				isServerSet = true
+
 				args[i] += " " + cliOpts.Repo.Rocks
 			}
 		}
+
 		if !isServerSet {
 			args = append(args, "--server", cliOpts.Repo.Rocks)
 		}
@@ -75,6 +78,7 @@ func getRocksRepoPath(rocksRepoPath string) string {
 			rocksRepoPath = rockRepoPathFromEnv
 		}
 	}
+
 	return rocksRepoPath
 }
 
@@ -87,11 +91,13 @@ func GetTarantoolPrefix(cli *cmdcontext.CliCtx, cliOpts *config.CliOpts) (string
 		}
 
 		log.Debugf("Tarantool prefix path: %q", prefixDir)
+
 		return prefixDir, nil
 	}
 
 	if prefixPathFromEnv := os.Getenv(tarantoolPrefixEnvVarName); prefixPathFromEnv != "" {
 		log.Debugf("Tarantool prefix path: %q", prefixPathFromEnv)
+
 		return prefixPathFromEnv, nil
 	}
 
@@ -108,6 +114,7 @@ func GetTarantoolPrefix(cli *cmdcontext.CliCtx, cliOpts *config.CliOpts) (string
 
 	re := regexp.MustCompile(`^.*\s-DCMAKE_INSTALL_PREFIX=(?P<prefix>\/.*)\s.*$`)
 	matches := util.FindNamedMatches(re, lines[2])
+
 	if len(matches) == 0 {
 		return "", errPrefixPathRegexpMismatch
 	}
@@ -117,10 +124,12 @@ func GetTarantoolPrefix(cli *cmdcontext.CliCtx, cliOpts *config.CliOpts) (string
 	if !util.IsDir(prefixDir) {
 		log.Debugf("%q does not exist or is not a directory. Using default: %q",
 			prefixDir, tarantoolDefaultPrefixDir)
+
 		prefixDir = tarantoolDefaultPrefixDir
 	}
 
 	log.Debugf("Tarantool prefix path: %q", prefixDir)
+
 	return prefixDir, nil
 }
 
@@ -138,10 +147,12 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) err
 	if err != nil {
 		return err
 	}
+
 	tarantoolPrefixDir, err := GetTarantoolPrefix(&cmdCtx.Cli, cliOpts)
 	if err != nil {
 		return err
 	}
+
 	tarantoolIncludeDir, err := util.JoinAbspath(tarantoolPrefixDir, "include", "tarantool")
 	if err != nil {
 		return err

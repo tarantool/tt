@@ -24,8 +24,10 @@ type CreateTemporaryAppDirectory struct{}
 func (CreateTemporaryAppDirectory) Run(createCtx *create_ctx.CreateCtx,
 	templateCtx *app_template.TemplateCtx,
 ) error {
-	var appDirectory string
-	var err error
+	var (
+		appDirectory string
+		err          error
+	)
 
 	if createCtx.AppName == "" {
 		return errApplicationNameCannotBeEmpty
@@ -50,6 +52,7 @@ func (CreateTemporaryAppDirectory) Run(createCtx *create_ctx.CreateCtx,
 	}
 
 	log.Infof("Creating application in %q", appDirectory)
+
 	templateCtx.TargetAppPath = appDirectory
 
 	templateCtx.AppPath, err = os.MkdirTemp("", createCtx.AppName+"*")

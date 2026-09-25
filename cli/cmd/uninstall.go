@@ -24,6 +24,7 @@ func newUninstallTtCmd() *cobra.Command {
 			if len(args) > 0 {
 				return []string{}, cobra.ShellCompDirectiveNoFileComp
 			}
+
 			return uninstall.GetList(cliOpts, cmd.Name()),
 				cobra.ShellCompDirectiveNoFileComp
 		},
@@ -47,6 +48,7 @@ func newUninstallTarantoolCmd() *cobra.Command {
 			if len(args) > 0 {
 				return []string{}, cobra.ShellCompDirectiveNoFileComp
 			}
+
 			return uninstall.GetList(cliOpts, cmd.Name()),
 				cobra.ShellCompDirectiveNoFileComp
 		},
@@ -70,6 +72,7 @@ func newUninstallTarantoolEeCmd() *cobra.Command {
 			if len(args) > 0 {
 				return []string{}, cobra.ShellCompDirectiveNoFileComp
 			}
+
 			return uninstall.GetList(cliOpts, cmd.Name()),
 				cobra.ShellCompDirectiveNoFileComp
 		},
@@ -105,6 +108,7 @@ func newUninstallTcmCmd() *cobra.Command {
 			if len(args) > 0 {
 				return []string{}, cobra.ShellCompDirectiveNoFileComp
 			}
+
 			return uninstall.GetList(cliOpts, cmd.Name()),
 				cobra.ShellCompDirectiveNoFileComp
 		},

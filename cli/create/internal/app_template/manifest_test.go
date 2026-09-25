@@ -67,6 +67,7 @@ func TestLoadManifest(t *testing.T) {
 			}
 		} else {
 			assert.EqualError(err, output[inFile].errMsg)
+
 			continue
 		}
 

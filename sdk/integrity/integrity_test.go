@@ -28,8 +28,11 @@ func TestInitializeIntegrityCheckWithoutKey(t *testing.T) {
 }
 
 func TestRegisterNoopFlagFuncs(t *testing.T) {
-	var s string
-	var i int
+	var (
+		s string
+		i int
+	)
+
 	fs := &pflag.FlagSet{}
 
 	integrity.RegisterWithIntegrityFlag(fs, &s)

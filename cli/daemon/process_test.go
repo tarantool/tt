@@ -22,12 +22,14 @@ func TestProcessBase(t *testing.T) {
 
 	// Check is daemon alive.
 	waitProcessChanges()
+
 	pid, err := readPID(TestProcessPidFile)
 	require.Nilf(t, err, `Can't read daemon PID. Error: "%v".`, err)
 
 	// Kill daemon if test fails.
 	defer func() {
 		_ = syscall.Kill(pid, syscall.SIGINT)
+
 		waitProcessChanges()
 	}()
 
@@ -40,6 +42,7 @@ func TestProcessBase(t *testing.T) {
 
 	// Check is daemon alive.
 	waitProcessChanges()
+
 	alive, _ = IsDaemonAlive(pid)
 	require.False(t, alive, "Can't stop daemon.")
 
@@ -51,6 +54,7 @@ func TestProcessBase(t *testing.T) {
 	require.Nilf(t, err, `Can't open test log. Error: "%v".`, err)
 
 	buf := bytes.NewBufferString("")
+
 	_, err = io.Copy(buf, testLog)
 	require.Nilf(t, err, `Can't read log output. Error: "%v".`, err)
 
@@ -58,16 +62,19 @@ func TestProcessBase(t *testing.T) {
 	msgIdx1 := strings.Index(buf.String(), startDaemonMsg)
 	require.NotEqual(t, -1, msgIdx1,
 		"The message in the log is different from what was expected: %v", logContent)
+
 	msgIdx2 := strings.Index(buf.String(), StartTestWorkerMsg)
 	require.NotEqual(t, -1, msgIdx2,
 		"The message in the log is different from what was expected: %v", logContent)
 	require.Greater(t, msgIdx2, msgIdx1,
 		"The message in the log is different from what was expected: %v", logContent)
+
 	msgIdx3 := strings.Index(buf.String(), stopDaemonMsg)
 	require.NotEqual(t, -1, msgIdx3,
 		"The message in the log is different from what was expected: %v", logContent)
 	require.Greater(t, msgIdx3, msgIdx2,
 		"The message in the log is different from what was expected: %v", logContent)
+
 	msgIdx4 := strings.Index(buf.String(), StopTestWorkerMsg)
 	require.NotEqual(t, -1, msgIdx4,
 		"The message in the log is different from what was expected: %v", logContent)

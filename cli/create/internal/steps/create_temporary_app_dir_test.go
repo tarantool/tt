@@ -12,13 +12,17 @@ import (
 
 func TestCreateTmpAppDirBasic(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
 
 	workDir := t.TempDir()
+
 	createCtx.AppName = "app1"
 	createCtx.WorkDir = workDir
+
 	createAppDir := CreateTemporaryAppDirectory{}
 	require.NoError(t, createAppDir.Run(&createCtx, &templateCtx))
+
 	defer func() {
 		_ = os.RemoveAll(templateCtx.AppPath)
 	}()
@@ -29,10 +33,12 @@ func TestCreateTmpAppDirBasic(t *testing.T) {
 
 func TestCreateTmpAppDirMissingAppName(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
 
 	createAppDir := CreateTemporaryAppDirectory{}
 	workDir := t.TempDir()
+
 	createCtx.WorkDir = workDir
 	require.EqualError(t, createAppDir.Run(&createCtx, &templateCtx),
 		"application name cannot be empty")
@@ -40,6 +46,7 @@ func TestCreateTmpAppDirMissingAppName(t *testing.T) {
 	// Set template name.
 	createCtx.AppName = "sample"
 	require.NoError(t, createAppDir.Run(&createCtx, &templateCtx))
+
 	defer func() {
 		_ = os.RemoveAll(templateCtx.AppPath)
 	}()
@@ -50,13 +57,16 @@ func TestCreateTmpAppDirMissingAppName(t *testing.T) {
 
 func TestCreateTmpAppDirDestinationSet(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
 
 	createAppDir := CreateTemporaryAppDirectory{}
 	workDir := t.TempDir()
+
 	createCtx.AppName = "app1"
 	createCtx.DestinationDir = workDir
 	require.NoError(t, createAppDir.Run(&createCtx, &templateCtx))
+
 	defer func() {
 		_ = os.RemoveAll(templateCtx.AppPath)
 	}()

@@ -34,6 +34,7 @@ func (dummyRepository) Read(path string) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open %q: %w", path, err)
 	}
+
 	return f, nil
 }
 func (dummyRepository) ValidateAll() error { return nil }

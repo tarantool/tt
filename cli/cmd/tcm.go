@@ -64,6 +64,7 @@ func newTcmStatusCmd() *cobra.Command {
 		tt tcm status`,
 		RunE: RunModuleFuncE(internalTcmStatus),
 	}
+
 	return tcmCmd
 }
 
@@ -74,6 +75,7 @@ func newTcmStopCmd() *cobra.Command {
 		Long:  `Stop to the tcm. tt tcm stop`,
 		RunE:  RunModuleFuncE(internalTcmStop),
 	}
+
 	return tcmCmd
 }
 
@@ -112,6 +114,7 @@ func NewTcmCmd() *cobra.Command {
 		newTcmStopCmd(),
 		newTcmLogCmd(),
 	)
+
 	return tcmCmd
 }
 
@@ -138,6 +141,7 @@ func startTcmInteractive(logLevel string) error {
 	}
 
 	log.Infof("Interactive process PID %d written to %q\n", tcmApp.Process.Pid, tcmPidFile)
+
 	return nil
 }
 
@@ -146,6 +150,7 @@ func startTcmUnderWatchDog() error {
 	if err := wd.Start(tcmCtx.Executable); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -202,6 +207,7 @@ func internalTcmStatus(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		{"TCM", status.Status, status.PID},
 	})
 	ts.Render()
+
 	return nil
 }
 

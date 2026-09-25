@@ -367,6 +367,7 @@ func TestCustomInstance_Discovery_force(t *testing.T) {
 
 	replicasets, err := getter.Discovery(replicaset.SkipCache)
 	require.NoError(t, err)
+
 	expected := replicaset.Replicasets{
 		State:        replicaset.StateBootstrapped,
 		Orchestrator: replicaset.OrchestratorCustom,
@@ -382,6 +383,7 @@ func TestCustomInstance_Discovery_force(t *testing.T) {
 	// Force re-discovery.
 	replicasets, err = getter.Discovery(replicaset.SkipCache)
 	require.NoError(t, err)
+
 	expected = replicaset.Replicasets{
 		State:        replicaset.StateBootstrapped,
 		Orchestrator: replicaset.OrchestratorCustom,

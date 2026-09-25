@@ -16,6 +16,7 @@ func withProjectDir(t *testing.T, dir string) {
 	t.Helper()
 
 	previous := projectDir
+
 	projectDir = dir
 
 	t.Cleanup(func() { projectDir = previous })

@@ -36,6 +36,7 @@ func runExit(t *testing.T, run func(*cobra.Command, []string) error, args ...str
 	var logged, cobraErr, out bytes.Buffer
 
 	previous := slog.Default()
+
 	slog.SetDefault(slog.New(slog.NewTextHandler(&logged, &slog.HandlerOptions{
 		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
 			if a.Key == slog.TimeKey {

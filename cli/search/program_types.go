@@ -45,6 +45,7 @@ var stringToProgram = func() map[string]Program {
 	for k, v := range programToString {
 		result[v] = k
 	}
+
 	return result
 }()
 
@@ -53,6 +54,7 @@ func (p Program) String() string {
 	if s, ok := programToString[p]; ok {
 		return s
 	}
+
 	return fmt.Sprintf("unknown(%d)", p)
 }
 
@@ -61,6 +63,7 @@ func ParseProgram(s string) (Program, error) {
 	if p, ok := stringToProgram[s]; ok {
 		return p, nil
 	}
+
 	return ProgramUnknown, fmt.Errorf("%w%q", errUnknownProgram, s)
 }
 
@@ -69,6 +72,7 @@ func (p Program) Exec() string {
 	if s, ok := programToExec[p]; ok {
 		return s
 	}
+
 	return fmt.Sprintf("unknown(%d)", p)
 }
 

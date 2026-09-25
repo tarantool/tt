@@ -36,6 +36,7 @@ type Replicasets struct {
 func recalculateMaster(replicaset *Replicaset) {
 	masters := 0
 	unknown := 0
+
 	for _, instance := range replicaset.Instances {
 		switch instance.Mode {
 		case ModeRW:
@@ -91,5 +92,6 @@ func findInstance(replicasets Replicasets,
 			}
 		}
 	}
+
 	return Replicaset{}, Instance{}, false
 }

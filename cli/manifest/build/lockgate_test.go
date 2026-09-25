@@ -57,6 +57,7 @@ func freshLock() *manifest.Lock {
 // writeLock marshals lock into projectDir.
 func writeLock(t *testing.T, projectDir string, lock *manifest.Lock) {
 	t.Helper()
+
 	data, err := lock.Marshal()
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(projectDir, lockFileName), data, 0o600))
@@ -64,10 +65,13 @@ func writeLock(t *testing.T, projectDir string, lock *manifest.Lock) {
 
 func lockOnDisk(t *testing.T, projectDir string) *manifest.Lock {
 	t.Helper()
+
 	data, err := os.ReadFile(filepath.Join(projectDir, lockFileName)) //nolint:gosec // temp path
 	require.NoError(t, err)
+
 	lock, err := manifest.ParseLock(data)
 	require.NoError(t, err)
+
 	return lock
 }
 
@@ -103,6 +107,7 @@ func TestGateLock_freshLockReused(t *testing.T) {
 
 	dir := t.TempDir()
 	existing := freshLock()
+
 	existing.ManifestHash = "sha256:existing"
 	writeLock(t, dir, existing)
 
@@ -118,6 +123,7 @@ func TestGateLock_staleUnlockedRewrites(t *testing.T) {
 
 	dir := t.TempDir()
 	existing := freshLock()
+
 	existing.ManifestHash = "sha256:existing"
 	writeLock(t, dir, existing)
 
@@ -136,6 +142,7 @@ func TestGateLock_staleRewriteHoldsLockedVersions(t *testing.T) {
 
 	dir := t.TempDir()
 	existing := freshLock()
+
 	existing.ManifestHash = "sha256:existing"
 	existing.Products["default"] = manifest.LockProduct{
 		Dependencies: []manifest.LockDependency{

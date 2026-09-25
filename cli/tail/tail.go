@@ -56,10 +56,13 @@ type LogFormatter func(str string) string
 func NewLogFormatter(prefix string, color color.Color) LogFormatter {
 	buf := strings.Builder{}
 	buf.Grow(formatterBufferCapacity)
+
 	return func(str string) string {
 		buf.Reset()
+
 		_, _ = color.Fprint(&buf, prefix)
 		buf.WriteString(str)
+
 		return buf.String()
 	}
 }
@@ -82,6 +85,7 @@ func newTailReader(ctx context.Context, reader io.ReadSeeker, count int) (io.Rea
 
 	buf := make([]byte, blockSize)
 	linesFound := 0
+
 	for readOffset != 0 && linesFound != count {
 		select {
 		case <-ctx.Done():
@@ -90,19 +94,25 @@ func newTailReader(ctx context.Context, reader io.ReadSeeker, count int) (io.Rea
 		}
 
 		limitedReader := io.LimitedReader{R: reader, N: int64(len(buf))}
+
 		readOffset -= limitedReader.N
+
 		if readOffset < 0 {
 			limitedReader.N += readOffset
+
 			readOffset = 0
 		}
+
 		readOffset, err = reader.Seek(readOffset, io.SeekStart)
 		if err != nil {
 			return nil, 0, err
 		}
+
 		readBytes, err := limitedReader.Read(buf)
 		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, startPos, fmt.Errorf("failed to read: %w", err)
 		}
+
 		for i := readBytes - 1; i > 0; i-- {
 			if buf[i] == '\n' {
 				// In case of \n\n\n bytes, start position should not be moved one byte forward.
@@ -119,11 +129,14 @@ func newTailReader(ctx context.Context, reader io.ReadSeeker, count int) (io.Rea
 			}
 		}
 	}
+
 	if linesFound == count {
 		_, _ = reader.Seek(startPos, io.SeekStart)
 		return &io.LimitedReader{R: reader, N: end - startPos}, startPos, nil
 	}
+
 	_, _ = reader.Seek(0, io.SeekStart)
+
 	return &io.LimitedReader{R: reader, N: end}, 0, nil
 }
 
@@ -148,11 +161,13 @@ func TailN(ctx context.Context, logFormatter LogFormatter, fileName string,
 
 	scanner := bufio.NewScanner(reader)
 	out := make(chan string, outputChannelCapacity)
+
 	go func() {
 		defer close(out)
 		defer func() {
 			_ = file.Close()
 		}()
+
 		for scanner.Scan() {
 			select {
 			case <-ctx.Done():
@@ -161,6 +176,7 @@ func TailN(ctx context.Context, logFormatter LogFormatter, fileName string,
 			}
 		}
 	}()
+
 	return out, nil
 }
 
@@ -172,6 +188,7 @@ func Follow(ctx context.Context, out chan<- string, logFormatter LogFormatter, f
 	if err != nil {
 		return fmt.Errorf("cannot open %q: %w", fileName, err)
 	}
+
 	defer func() {
 		_ = file.Close()
 	}()
@@ -202,6 +219,7 @@ func Follow(ctx context.Context, out chan<- string, logFormatter LogFormatter, f
 			case <-ctx.Done():
 				_ = t.Stop()
 				_ = t.Wait()
+
 				return
 			case line, more := <-t.Lines:
 				if !more {
@@ -211,11 +229,14 @@ func Follow(ctx context.Context, out chan<- string, logFormatter LogFormatter, f
 					} else {
 						log.Errorf("The log file %q is unavailable for reading. Exiting.")
 					}
+
 					return
 				}
+
 				out <- logFormatter(line.Text)
 			}
 		}
 	})
+
 	return nil
 }

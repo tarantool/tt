@@ -14,6 +14,7 @@ import (
 func TestFetchBundlesInfo(t *testing.T) {
 	t.Setenv("TT_CLI_EE_USERNAME", testingUsername)
 	t.Setenv("TT_CLI_EE_PASSWORD", testingPassword)
+
 	defer func() {
 		_ = os.Unsetenv("TT_CLI_EE_USERNAME")
 	}()
@@ -187,8 +188,10 @@ func TestFetchBundlesInfo(t *testing.T) {
 			}
 
 			sCtx := search.NewSearchCtx(&tt.platform, &mockDoer)
+
 			sCtx.Program = tt.program
 			sCtx.ReleaseVersion = tt.specificVersion
+
 			if tt.searchDebug {
 				sCtx.Filter = search.SearchDebug
 			}
@@ -273,6 +276,7 @@ func TestSelectVersion(t *testing.T) {
 			if tt.errMsg != "" {
 				require.ErrorContains(t, err, tt.errMsg,
 					"Expected error message does not match")
+
 				return
 			}
 

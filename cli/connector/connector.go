@@ -72,14 +72,17 @@ func Connect(opts ConnectOpts) (Connector, error) {
 	if _, err := os.Stat(opts.Address); err == nil {
 		_ = os.Chdir(filepath.Dir(opts.Address))
 		opts.Address = "./" + filepath.Base(opts.Address)
+
 		if len(opts.Address)+1 > maxSocketPath {
 			return nil, fmt.Errorf("%w%d symbols: %s", errSocketNameIsLongerThanSymbols,
 				maxSocketPath-socketPathPrefixLength, filepath.Base(opts.Address))
 		}
+
 		defer func() {
 			_ = os.Chdir(workDir)
 		}()
 	}
+
 	// Connect to specified address.
 	greetingConn, err := (&net.Dialer{}).DialContext(
 		context.Background(), opts.Network, opts.Address)
@@ -93,6 +96,7 @@ func Connect(opts ConnectOpts) (Connector, error) {
 	// Detect transport and protocol.
 	ssl := opts.Ssl.KeyFile != "" || opts.Ssl.CertFile != "" ||
 		opts.Ssl.CaFile != "" || opts.Ssl.Ciphers != ""
+
 	protocol, err := GetProtocol(greetingConn)
 	if err != nil {
 		if ssl {
@@ -137,6 +141,7 @@ func Connect(opts ConnectOpts) (Connector, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		return NewBinaryConnector(conn), nil
 	default:
 		return nil, fmt.Errorf("%w%s", errUnsupportedProtocol, protocol)

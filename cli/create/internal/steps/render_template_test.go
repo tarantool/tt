@@ -17,7 +17,9 @@ func TestTemplateRender(t *testing.T) {
 	require.NoError(t, copy.Copy("testdata/sample", workDir))
 
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
+
 	templateCtx.AppPath = workDir
 	templateCtx.Vars = map[string]string{
 		"cluster_cookie": "cookie",
@@ -32,19 +34,25 @@ func TestTemplateRender(t *testing.T) {
 
 	configFileName := filepath.Join(workDir, "config.lua")
 	require.FileExists(t, configFileName)
+
 	buf, err := os.ReadFile(configFileName)
 	require.NoError(t, err)
+
 	const expectedText = `cluster_cookie = cookie
 login = admin
 `
+
 	require.Equal(t, expectedText, string(buf))
 
 	userFileName := filepath.Join(workDir, "admin.cfg")
 	require.FileExists(t, userFileName)
+
 	buf, err = os.ReadFile(userFileName)
 	require.NoError(t, err)
+
 	const userCfgExpectedText = `user=admin
 `
+
 	require.Equal(t, userCfgExpectedText, string(buf))
 }
 
@@ -53,7 +61,9 @@ func TestTemplateRenderMissingVar(t *testing.T) {
 	require.NoError(t, copy.Copy("testdata/sample", workDir))
 
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
+
 	templateCtx.AppPath = workDir
 
 	renderTemplate := RenderTemplate{}
@@ -68,7 +78,9 @@ func TestTemplateRenderMissingVarInFileName(t *testing.T) {
 	require.NoError(t, copy.Copy("testdata/sample", workDir))
 
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
+
 	templateCtx.AppPath = workDir
 	templateCtx.Vars = map[string]string{
 		"cluster_cookie": "cookie",

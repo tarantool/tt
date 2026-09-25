@@ -74,6 +74,7 @@ func newBaseInstance(tarantoolPath string, instanceCtx InstanceCtx,
 	for _, opt := range opts {
 		_ = opt(&baseInst)
 	}
+
 	return baseInst
 }
 
@@ -85,6 +86,7 @@ func IntegrityOpt(integrityCtx integrity.IntegrityCtx) InstanceOption {
 	return func(inst *baseInstance) error {
 		inst.integrityChecks = true
 		inst.integrityCtx = integrityCtx
+
 		return nil
 	}
 }
@@ -111,6 +113,7 @@ func StdLoggerOpt(logger ttlog.Logger) InstanceOption {
 		inst.logger = logger
 		inst.stdOut = logger
 		inst.stdErr = logger
+
 		return nil
 	}
 }
@@ -120,6 +123,7 @@ func (inst *baseInstance) Wait() error {
 	if inst.processController == nil {
 		return errInstanceIsNotStarted
 	}
+
 	return inst.processController.Wait()
 }
 
@@ -128,6 +132,7 @@ func (inst *baseInstance) SendSignal(sig os.Signal) error {
 	if inst.processController == nil {
 		return errInstanceIsNotStarted
 	}
+
 	return inst.processController.SendSignal(sig)
 }
 
@@ -136,6 +141,7 @@ func (inst *baseInstance) IsAlive() bool {
 	if inst.processController == nil {
 		return false
 	}
+
 	return inst.processController.IsAlive()
 }
 
@@ -144,5 +150,6 @@ func (inst *baseInstance) StopWithSignal(waitTimeout time.Duration, usedSignal o
 	if inst.processController == nil {
 		return nil
 	}
+
 	return inst.processController.StopWithSignal(waitTimeout, usedSignal)
 }

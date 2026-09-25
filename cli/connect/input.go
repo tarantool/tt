@@ -63,8 +63,10 @@ func (s *LuaValidator) Validate(str string) bool {
 func (s *LuaValidator) Close() error {
 	if s.state != nil {
 		s.state.Close()
+
 		s.state = nil
 	}
+
 	return nil
 }
 
@@ -92,11 +94,14 @@ func cleanupDelimiter(stmt, delim string) (string, bool) {
 	if delim == "" {
 		return stmt, true
 	}
+
 	noSpace := strings.TrimRightFunc(stmt, unicode.IsSpace)
 	noDelim := strings.TrimSuffix(noSpace, delim)
+
 	if len(noSpace) > len(noDelim) {
 		return noDelim, true
 	}
+
 	return stmt, false
 }
 
@@ -113,6 +118,8 @@ func AddStmtPart(stmt, part, delim string, validator Validator) (string, bool) {
 	}
 
 	var hasDelim bool
+
 	stmt, hasDelim = cleanupDelimiter(stmt, delim)
+
 	return stmt, hasDelim && validator.Validate(stmt)
 }

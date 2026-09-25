@@ -82,10 +82,12 @@ func NewConnectCmd() *cobra.Command {
 			if len(args) != 0 {
 				return nil, cobra.ShellCompDirectiveNoFileComp
 			}
+
 			validArgs, _ := internal.ValidArgsFunction(
 				cliOpts, &cmdCtx, cmd, toComplete,
 				running.ExtractActiveAppNames,
 				running.ExtractActiveInstanceNames)
+
 			return validArgs, cobra.ShellCompDirectiveDefault
 		},
 	}
@@ -114,6 +116,7 @@ func NewConnectCmd() *cobra.Command {
 		`use the provided Lua expression as an interpreter for user's input of the connection.
 If the evaler code is prefixed with @, the rest should be a file name to read the evaler
 code from`)
+
 	_ = connectCmd.Flags().MarkHidden("evaler")
 
 	return connectCmd
@@ -127,6 +130,7 @@ func makeConnOpts(network, address string, connCtx connect.ConnectCtx) connector
 		CaFile:   connCtx.SslCaFile,
 		Ciphers:  connCtx.SslCiphers,
 	}
+
 	return connector.ConnectOpts{
 		Network:  network,
 		Address:  address,
@@ -143,22 +147,28 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 	connectCtx *connect.ConnectCtx, target string) (
 	connector.ConnectOpts, error,
 ) {
-	var connOpts connector.ConnectOpts
-	var err error
+	var (
+		connOpts connector.ConnectOpts
+		err      error
+	)
 	// FillCtx returns error if no instances found.
 	var runningCtx running.RunningCtx
+
 	fillErr := running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{target},
 		running.ConfigLoadCluster)
+
 	switch {
 	case fillErr == nil:
 		if len(runningCtx.Instances) > 1 {
 			err = errSpecifyInstanceName
 			return connOpts, err
 		}
+
 		if (connectCtx.Username != "" || connectCtx.Password != "") && !connectCtx.Binary {
 			err = errControlSocketCredentialsUnsupported
 			return connOpts, err
 		}
+
 		if connectCtx.Binary {
 			connOpts = makeConnOpts(
 				connector.UnixNetwork, runningCtx.Instances[0].BinaryPort, *connectCtx,
@@ -173,8 +183,10 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 			err = errCredentialsSpecifiedByFlagsAndURI
 			return connOpts, err
 		}
+
 		newURI, user, pass := sdkconnect.ParseCredentialsURI(target)
 		network, address := sdkconnect.ParseBaseURI(newURI)
+
 		connectCtx.Username = user
 		connectCtx.Password = pass
 		connOpts = makeConnOpts(network, address, *connectCtx)
@@ -184,18 +196,23 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 		if connectCtx.Username == "" {
 			connectCtx.Username = os.Getenv(sdkconnect.TarantoolUsernameEnv)
 		}
+
 		if connectCtx.Password == "" {
 			connectCtx.Password = os.Getenv(sdkconnect.TarantoolPasswordEnv)
 		}
+
 		network, address := sdkconnect.ParseBaseURI(target)
+
 		connOpts = makeConnOpts(network, address, *connectCtx)
 	default:
 		err = fillErr
 		return connOpts, err
 	}
+
 	if connectCtx.ConnectTarget == "" {
 		connectCtx.ConnectTarget = target
 	}
+
 	return connOpts, err
 }
 
@@ -215,9 +232,11 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	var ok bool
+
 	if connectCtx.Language, ok = connect.ParseLanguage(connectLanguage); !ok {
 		return util.NewArgError("unsupported language: " + connectLanguage)
 	}
+
 	if connectCtx.Format, ok = formatter.ParseFormat(connectFormat); !ok {
 		return util.NewArgError("unsupported output format: " + connectFormat)
 	}
@@ -232,9 +251,11 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		if err != nil {
 			return err
 		}
+
 		// "Println" is used instead of "log..." to print the result without
 		// any decoration.
 		_, _ = fmt.Fprintln(os.Stdout, string(res))
+
 		if !connectInteractive || !terminal.IsTerminal(syscall.Stdin) {
 			return nil
 		}
@@ -245,6 +266,7 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if terminal.IsTerminal(syscall.Stdin) {
 		log.Info("Connecting to the instance...")
 	}
+
 	if err := connect.Connect(connectCtx, connOpts); err != nil {
 		return err
 	}

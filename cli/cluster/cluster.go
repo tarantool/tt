@@ -25,21 +25,27 @@ func fillOnlyMerge(ctx context.Context, dst *goconfig.MutableConfig, src goconfi
 		if errors.Is(err, goconfig.ErrPathNotFound) {
 			return nil
 		}
+
 		return err
 	}
+
 	for v := range ch {
 		p := v.Meta().Key
 		if _, ok := dst.Lookup(p); ok {
 			continue
 		}
+
 		var value any
+
 		if err := v.Get(&value); err != nil {
 			return fmt.Errorf("fillOnlyMerge get %s: %w", p, err)
 		}
+
 		if err := dst.Set(p, value); err != nil {
 			return fmt.Errorf("fillOnlyMerge set %s: %w", p, err)
 		}
 	}
+
 	return nil
 }
 
@@ -79,6 +85,7 @@ func GetClusterConfig(
 	if err != nil {
 		return nil, err
 	}
+
 	if cleanup != nil {
 		defer cleanup()
 	}
@@ -99,6 +106,7 @@ func GetClusterConfig(
 	if err != nil {
 		return nil, fmt.Errorf("unable to load config from %q with default env: %w", path, err)
 	}
+
 	if err := fillOnlyMerge(ctx, mut, def.Snapshot()); err != nil {
 		return nil, fmt.Errorf("unable to merge default env config: %w", err)
 	}
@@ -116,6 +124,7 @@ func GetInstanceConfig(
 		return goconfig.Config{},
 			fmt.Errorf("an %w%q not found", errInstanceNotFound, instance)
 	}
+
 	return InstanceConfig(cfg.Snapshot(), instance)
 }
 
@@ -138,6 +147,7 @@ func (s bytesSource) FetchStream(_ context.Context) (io.ReadCloser, error) {
 // The returned Collector can be passed to goconfig.Builder.AddCollector.
 func NewBytesSource(name string, data []byte) (goconfig.Collector, error) {
 	ctx := context.Background()
+
 	return collectors.NewSource(
 		ctx,
 		bytesSource{name: name, data: data},
@@ -164,8 +174,10 @@ func clusterInheritanceOpts() []goconfig.InheritanceOption {
 // standard Tarantool cluster inheritance hierarchy and WithoutValidation.
 func newClusterBuilder() goconfig.Builder {
 	b := goconfig.NewBuilder()
+
 	b = b.WithoutValidation()
 	b = b.WithInheritance(clusterLevels(), clusterInheritanceOpts()...)
+
 	return b
 }
 
@@ -187,6 +199,7 @@ func BuildGoConfigFromBytes(ctx context.Context, b []byte) (goconfig.Config, err
 			return goconfig.Config{},
 				fmt.Errorf("build go-config from bytes: create source: %w", err)
 		}
+
 		builder = builder.AddCollector(src)
 	}
 
@@ -194,6 +207,7 @@ func BuildGoConfigFromBytes(ctx context.Context, b []byte) (goconfig.Config, err
 	if len(errs) > 0 {
 		return goconfig.Config{}, fmt.Errorf("build go-config from bytes: %w", errors.Join(errs...))
 	}
+
 	return cfg, nil
 }
 
@@ -215,6 +229,7 @@ func BuildMutableFromBytes(ctx context.Context, b []byte) (*goconfig.MutableConf
 			return nil,
 				fmt.Errorf("build mutable go-config from bytes: create source: %w", err)
 		}
+
 		builder = builder.AddCollector(src)
 	}
 
@@ -222,5 +237,6 @@ func BuildMutableFromBytes(ctx context.Context, b []byte) (*goconfig.MutableConf
 	if len(errs) > 0 {
 		return nil, fmt.Errorf("build mutable go-config from bytes: %w", errors.Join(errs...))
 	}
+
 	return &mut, nil
 }

@@ -58,6 +58,7 @@ func readArchive(t *testing.T, path string) map[string]string {
 
 		body, err := io.ReadAll(tr)
 		require.NoError(t, err)
+
 		entries[header.Name] = string(body)
 	}
 
@@ -129,6 +130,7 @@ func TestWriteArchiveReproducible(t *testing.T) {
 
 	bytesA, err := os.ReadFile(destA)
 	require.NoError(t, err)
+
 	bytesB, err := os.ReadFile(destB)
 	require.NoError(t, err)
 	assert.Equal(t, bytesA, bytesB, "archives must be byte-identical")
@@ -169,6 +171,7 @@ func TestWriteArchivePreservesExecBit(t *testing.T) {
 		}
 
 		require.NoError(t, err)
+
 		modes[header.Name] = header.Mode
 
 		// Normalized ownership keeps the archive independent of who packed it.

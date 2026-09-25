@@ -181,6 +181,7 @@ groups:
 
 				view, err := cluster.BuildGoConfigFromBytes(context.Background(), []byte(tc.Data))
 				require.NoError(t, err)
+
 				err = validateGoConfig(view, full)
 
 				for k := range tc.Env {

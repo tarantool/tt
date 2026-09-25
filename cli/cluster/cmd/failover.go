@@ -86,9 +86,12 @@ func connectFailoverStorage(uriOpts connect.URIOpts,
 		storageType, nil, "")
 	if err != nil {
 		cleanup()
+
 		return nil, fmt.Errorf("unable to bind %s storage: %w", storageType, err)
 	}
+
 	raw.SetCleanup(cleanup)
+
 	return raw, nil
 }
 
@@ -98,6 +101,7 @@ func Switch(url string, switchCtx SwitchCtx) error {
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
+
 	connOpts := sdkcluster.ConnectOpts{
 		Username: switchCtx.Username,
 		Password: switchCtx.Password,
@@ -107,6 +111,7 @@ func Switch(url string, switchCtx SwitchCtx) error {
 	if err != nil {
 		return err
 	}
+
 	defer func() {
 		_ = conn.Close()
 	}()
@@ -130,7 +135,9 @@ func Switch(url string, switchCtx SwitchCtx) error {
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultEtcdTimeout)
+
 	err = conn.Put(ctx, key, string(yamlCmd))
+
 	cancel()
 
 	if err != nil {
@@ -149,13 +156,16 @@ func waitForSwitch(conn *sdkcluster.RawStorage, key string, yamlCmd []byte, time
 	ctxWatch, cancelWatch := context.WithTimeout(context.Background(),
 		time.Duration(timeout)*time.Second+cmdAdditionalWait)
 	defer cancelWatch()
+
 	watchChan, err := conn.Watch(ctxWatch, key)
 	if err != nil {
 		return fmt.Errorf("unable to create watch channel: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultEtcdTimeout)
+
 	err = conn.Put(ctx, key, string(yamlCmd))
+
 	cancel()
 
 	if err != nil {
@@ -164,17 +174,22 @@ func waitForSwitch(conn *sdkcluster.RawStorage, key string, yamlCmd []byte, time
 
 	for ev := range watchChan {
 		var result switchCmdResult
+
 		err = yaml.Unmarshal(ev.Value, &result)
 		if err != nil {
 			return err
 		}
+
 		_, _ = fmt.Fprintf(os.Stdout, "%s", ev.Value)
+
 		if result.Status == "success" || result.Status == "failed" {
 			return nil
 		}
 	}
+
 	if errors.Is(ctxWatch.Err(), context.DeadlineExceeded) {
 		log.Info("Timeout for command execution reached.")
+
 		return nil
 	}
 
@@ -187,11 +202,14 @@ func SwitchStatus(url string, switchCtx SwitchStatusCtx) error {
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
+
 	var connOpts sdkcluster.ConnectOpts
+
 	conn, err := connectFailoverStorage(uriOpts, connOpts)
 	if err != nil {
 		return err
 	}
+
 	defer func() {
 		_ = conn.Close()
 	}()
@@ -200,6 +218,7 @@ func SwitchStatus(url string, switchCtx SwitchStatusCtx) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultEtcdTimeout)
 	result, err := conn.Get(ctx, key)
+
 	cancel()
 
 	if err != nil {

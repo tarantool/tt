@@ -86,6 +86,7 @@ func injectRocksCompletion(shell string, completion []byte) ([]byte, error) {
 	} else {
 		label := []byte(`    # The user could have moved the cursor backwards on the command-line.`)
 		idx := bytes.Index(completion, label)
+
 		if idx == -1 {
 			return nil, errLuaRocksCompletionInjection
 		}
@@ -102,35 +103,42 @@ func injectRocksCompletion(shell string, completion []byte) ([]byte, error) {
 // internalCompletionCmd is a default (internal) completion module function.
 func internalCompletionCmd(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var buf bytes.Buffer
+
 	switch shell := args[0]; shell {
 	case shellBash:
 		if err := rootCmd.GenBashCompletionV2(&buf, true); err != nil {
 			return err
 		}
+
 		res, err := injectRocksCompletion(shell, buf.Bytes())
 		if err != nil {
 			return err
 		}
+
 		_, _ = fmt.Fprint(os.Stdout, string(res))
 
 	case shellZsh:
 		if err := rootCmd.GenZshCompletion(&buf); err != nil {
 			return err
 		}
+
 		res, err := injectRocksCompletion(shell, buf.Bytes())
 		if err != nil {
 			return err
 		}
+
 		_, _ = fmt.Fprint(os.Stdout, string(res))
 
 	case shellFish:
 		if err := rootCmd.GenFishCompletion(&buf, true); err != nil {
 			return err
 		}
+
 		res, err := injectRocksCompletion(shell, buf.Bytes())
 		if err != nil {
 			return err
 		}
+
 		_, _ = fmt.Fprint(os.Stdout, string(res))
 
 	default:

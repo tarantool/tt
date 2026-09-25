@@ -122,6 +122,7 @@ func (s *Stream) Close() error {
 
 	defer func() {
 		s.printer.mu.Lock()
+
 		s.printer.streaming = false
 		s.printer.mu.Unlock()
 	}()

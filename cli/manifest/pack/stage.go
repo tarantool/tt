@@ -418,6 +418,7 @@ func resolveExisting(path string) string {
 	path = filepath.Clean(path)
 
 	rest := ""
+
 	for cur := path; ; {
 		if resolved, err := filepath.EvalSymlinks(cur); err == nil {
 			return filepath.Join(resolved, rest)
@@ -456,6 +457,7 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
+
 	defer func() { _ = in.Close() }()
 
 	//nolint:gosec // The destination is inside our own staging tree.

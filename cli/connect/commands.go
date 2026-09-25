@@ -90,6 +90,7 @@ type combinedCmd struct {
 // newCombinedCmd creates a new combined command object.
 func newCombinedCmd(cmds []cmd) combinedCmd {
 	cmdsMap := make(map[string]cmd)
+
 	for _, cmd := range cmds {
 		for _, alias := range cmd.Aliases() {
 			cmdsMap[alias] = cmd
@@ -144,6 +145,7 @@ func (command noArgsCmdDecorator) Run(console *Console,
 	if len(args) != 0 {
 		return "", errTheCommandDoesNotExpectArguments
 	}
+
 	return command.base.Run(console, cmd, args)
 }
 
@@ -210,6 +212,7 @@ func (command argUnsignedCmdDecorator) Run(console *Console,
 	if len(args) != 1 {
 		return "", errNotUnsigned
 	}
+
 	if _, err := strconv.ParseUint(args[0], 10, 64); err != nil {
 		return "", errNotUnsigned
 	}
@@ -243,6 +246,7 @@ func (command argBooleanCmdDecorator) Run(console *Console,
 	if len(args) != 1 {
 		return "", errNotBoolean
 	}
+
 	if _, err := strconv.ParseBool(args[0]); err != nil {
 		return "", errNotBoolean
 	}
@@ -270,10 +274,15 @@ type helpCmd struct {
 // newHelpCmd creates a new helpCmd object.
 func newHelpCmd(infos []cmdInfo) helpCmd {
 	shorts := make([]string, 0, 1+len(infos))
+
 	shorts = append(shorts, strings.Join(getHelp, ", "))
+
 	longs := make([]string, 0, 1+len(infos))
+
 	longs = append(longs, "show this screen")
+
 	var msg strings.Builder
+
 	msg.WriteString(`
   To get help, see the Tarantool manual at https://tarantool.io/en/doc/
   To start the interactive Tarantool tutorial, type 'tutorial()' here.
@@ -290,6 +299,7 @@ func newHelpCmd(infos []cmdInfo) helpCmd {
 		if len(info.Short) > shortMaxLen {
 			shortMaxLen = len(info.Short)
 		}
+
 		shorts = append(shorts, info.Short)
 		longs = append(longs, info.Long)
 	}
@@ -297,9 +307,11 @@ func newHelpCmd(infos []cmdInfo) helpCmd {
 	for i := range shorts {
 		msg.WriteString("  ")
 		msg.WriteString(shorts[i])
+
 		for j := len(shorts[i]); j < shortMaxLen; j++ {
 			msg.WriteByte(' ')
 		}
+
 		msg.WriteString(" -- ")
 		msg.WriteString(longs[i])
 		msg.WriteByte('\n')
@@ -333,6 +345,7 @@ func setLanguageFunc(console *Console, cmd string, args []string) (string, error
 	} else {
 		return "", fmt.Errorf("%w%s", errUnsupportedLanguage, args[0])
 	}
+
 	return "", nil
 }
 
@@ -345,6 +358,7 @@ func setFormatFunc(console *Console, cmd string, args []string) (string, error) 
 		// It should not happen in practice.
 		return "", fmt.Errorf("%w%s", errUnsupportedFormat, formatStr)
 	}
+
 	return "", nil
 }
 
@@ -357,6 +371,7 @@ func setTableDialectFunc(console *Console, cmd string, args []string) (string, e
 		// It should not happen in practice.
 		return "", fmt.Errorf("%w%s", errUnsupportedDialect, dialectStr)
 	}
+
 	return "", nil
 }
 
@@ -371,6 +386,7 @@ func setGraphicsFunc(console *Console,
 	}
 
 	console.formatOpts.Graphics = val
+
 	return "", nil
 }
 
@@ -385,6 +401,7 @@ func setTableColumnWidthMaxFunc(console *Console,
 	}
 
 	console.formatOpts.ColumnWidthMax = int(val)
+
 	return "", nil
 }
 
@@ -398,6 +415,7 @@ func setDelimiterMarker(console *Console, cmd string, args []string) (string, er
 	default:
 		return "", errTheCommandExpectsZeroOrSingleArgument
 	}
+
 	return "", nil
 }
 
@@ -597,13 +615,16 @@ func newCmdExecutor() cmdExecutor {
 	// Create a full list of console commands.
 	helpCmd := newNoArgsCmdDecorator(newHelpCmd(cmdInfos))
 	cmds := make([]cmd, 0, 1+len(cmdInfos))
+
 	cmds = append(cmds, helpCmd)
+
 	for _, info := range cmdInfos {
 		cmds = append(cmds, info.Cmd)
 	}
 
 	// Create a map of commands.
 	cmdsMap := make(map[string]cmd)
+
 	for _, cmd := range cmds {
 		for _, alias := range cmd.Aliases() {
 			cmdsMap[alias] = cmd
@@ -622,6 +643,7 @@ func (executor cmdExecutor) Execute(console *Console, in string) bool {
 
 	tokens := []string{}
 	lowerTokens := []string{}
+
 	for _, token := range dirtyTokens {
 		token = strings.Trim(token, " ")
 		if token != "" {
@@ -639,6 +661,7 @@ func (executor cmdExecutor) Execute(console *Console, in string) bool {
 			} else if msg != "" {
 				_, _ = fmt.Fprintf(os.Stdout, "%s\n", msg)
 			}
+
 			return true
 		}
 	}

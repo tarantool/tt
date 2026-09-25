@@ -36,19 +36,25 @@ func seedComponentTree(t *testing.T, root string) {
 // relSet returns the tree-relative slash paths of files present under tree.
 func relSet(t *testing.T, tree string) []string {
 	t.Helper()
+
 	var out []string
+
 	require.NoError(t, filepath.Walk(tree, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
+
 		if !info.IsDir() {
 			rel, relErr := filepath.Rel(tree, path)
 			require.NoError(t, relErr)
+
 			out = append(out, filepath.ToSlash(rel))
 		}
+
 		return nil
 	}))
 	sort.Strings(out)
+
 	return out
 }
 

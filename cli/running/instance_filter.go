@@ -14,11 +14,13 @@ func extractInstanceNames(instances []InstanceCtx,
 	filter func(*InstanceCtx) bool,
 ) []string {
 	validNames := make([]string, 0)
+
 	for _, instance := range instances {
 		if filter(&instance) {
 			validNames = append(validNames, GetAppInstanceName(instance))
 		}
 	}
+
 	return validNames
 }
 
@@ -29,15 +31,18 @@ func extractAppNames(instances []InstanceCtx,
 ) []string {
 	validAppNames := make([]string, 0)
 	isAnyValid := false
+
 	for i, instance := range instances {
 		isAnyValid = isAnyValid || filter(&instance)
 		if i+1 == len(instances) || instance.AppName != instances[i+1].AppName {
 			if isAnyValid {
 				validAppNames = append(validAppNames, instance.AppName)
 			}
+
 			isAnyValid = false
 		}
 	}
+
 	return validAppNames
 }
 

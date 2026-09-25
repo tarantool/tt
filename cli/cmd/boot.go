@@ -225,6 +225,7 @@ func Configure(opts ConfigureOptions) error {
 
 	// TCM config, if any, is located next to tt config.
 	tcmConfigBasename := filepath.Join(cmdCtx.Cli.ConfigDir, "tcm")
+
 	cmdCtx.Cli.TcmCli.ConfigPath, _ = util.GetYamlFileName(tcmConfigBasename, false)
 
 	// Getting modules information.

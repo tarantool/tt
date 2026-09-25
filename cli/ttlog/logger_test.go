@@ -33,6 +33,7 @@ func TestLoggerBase(t *testing.T) {
 	_ = os.Rename(fileName, fileName+".old")
 	assert.NoFileExists(t, fileName)
 	logger.Println(`Test msg 2`)
+
 	_ = logger.Rotate()
 
 	// Check that file is re-created.
@@ -44,6 +45,7 @@ func TestLoggerBase(t *testing.T) {
 
 	content, err := os.ReadFile(fileName + ".old")
 	require.NoError(t, err)
+
 	contentStr := string(content)
 	assert.Contains(t, contentStr, "watchdog")
 	assert.Contains(t, contentStr, "Test msg 1")
@@ -52,6 +54,7 @@ func TestLoggerBase(t *testing.T) {
 
 	content, err = os.ReadFile(fileName)
 	require.NoError(t, err)
+
 	contentStr = string(content)
 	assert.Contains(t, contentStr, "Test msg 3")
 	assert.Contains(t, contentStr, "log file has been reopened")
@@ -71,6 +74,7 @@ func TestLoggerNoDir(t *testing.T) {
 
 	content, err := os.ReadFile(fileName)
 	require.NoError(t, err)
+
 	contentStr := string(content)
 	assert.Contains(t, contentStr, "watchdog")
 	assert.Contains(t, contentStr, "Test msg 1")

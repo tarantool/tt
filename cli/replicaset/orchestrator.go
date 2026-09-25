@@ -51,19 +51,23 @@ func ParseOrchestrator(str string) Orchestrator {
 // evaler.
 func EvalOrchestrator(evaler connector.Evaler) (Orchestrator, error) {
 	opts := connector.RequestOpts{}
+
 	data, err := evaler.Eval(getOrchestratorBody, []any{}, opts)
 	if err != nil {
 		return OrchestratorCustom,
 			fmt.Errorf("failed to recognize orchestrator: %w", err)
 	}
+
 	if len(data) == 1 {
 		if str, ok := data[0].(string); ok {
 			parsed := ParseOrchestrator(str)
 			if parsed == OrchestratorUnknown {
 				return parsed, fmt.Errorf("%w%s", errUnknownOrchestrator, str)
 			}
+
 			return parsed, nil
 		}
 	}
+
 	return OrchestratorCustom, errUnexpectedResponse
 }

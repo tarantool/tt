@@ -49,6 +49,7 @@ func Expel(expelCtx ExpelCtx) error {
 	}
 
 	log.Info("Discovery application...")
+
 	_, _ = fmt.Fprintln(os.Stdout, "")
 
 	// Get and print status.
@@ -56,9 +57,11 @@ func Expel(expelCtx ExpelCtx) error {
 	if err != nil {
 		return err
 	}
+
 	_ = statusReplicasets(replicasets)
 
 	_, _ = fmt.Fprintln(os.Stdout, "")
+
 	log.Infof("Expel instance: %s", expelCtx.Instance)
 
 	// Try to expel the instance.
@@ -70,5 +73,6 @@ func Expel(expelCtx ExpelCtx) error {
 	if err == nil {
 		log.Info("Done.")
 	}
+
 	return err
 }

@@ -89,6 +89,7 @@ func (wd *Watchdog) eventLoop() {
 
 	if err := wd.preStartAction(); err != nil {
 		wd.logger.Printf(`(ERROR): Pre-start action error: %v`, err)
+
 		return
 	}
 
@@ -117,6 +118,7 @@ outer:
 		if started := wd.startInstance(handlerCtx); !started {
 			// We have already logged the error.
 			cleanup()
+
 			return
 		}
 
@@ -137,11 +139,13 @@ outer:
 
 				if !wd.shouldRestart() || shouldStop {
 					wd.logger.Println("(INFO): the Instance has shutdown.")
+
 					return
 				}
 
 				if logger, err := wd.provider.UpdateLogger(wd.logger); err != nil {
 					wd.logger.Println("(ERROR): can't update logger parameters.")
+
 					return
 				} else {
 					wd.logger = logger
@@ -162,6 +166,7 @@ func (wd *Watchdog) shouldRestart() bool {
 	restartable, err := wd.provider.IsRestartable()
 	if err != nil {
 		wd.logger.Println("(ERROR): can't check if the instance is restartable.")
+
 		return false
 	}
 
@@ -175,6 +180,7 @@ func (wd *Watchdog) startInstance(ctx context.Context) bool {
 	// Create Instance.
 	if wd.instance, err = wd.provider.CreateInstance(wd.logger); err != nil {
 		wd.logger.Printf(`(ERROR): instance creation failed: %v.`, err)
+
 		return false
 	}
 
@@ -188,6 +194,7 @@ func (wd *Watchdog) startInstance(ctx context.Context) bool {
 	// Start the Instance.
 	if err := wd.instance.Start(ctx); err != nil {
 		wd.logger.Printf(`(ERROR):  instance start failed: %v.`, err)
+
 		return false
 	}
 
@@ -213,6 +220,7 @@ func (wd *Watchdog) sendSignal(sig os.Signal) bool {
 		if wd.instance.IsAlive() {
 			_ = wd.instance.StopWithSignal(signalStopTimeout, sig)
 		}
+
 		return true
 	case syscall.SIGHUP:
 		// Rotate the log files.
@@ -245,7 +253,9 @@ func (wd *Watchdog) startIntegrityChecks(ctx context.Context) {
 				if err != nil {
 					// Integrity check failed.
 					wd.logger.Printf("(ERROR): periodic integrity check failed: %q.", err)
+
 					_ = wd.instance.SendSignal(syscall.SIGKILL)
+
 					return
 				}
 			case <-ctx.Done():

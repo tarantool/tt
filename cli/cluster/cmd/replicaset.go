@@ -34,6 +34,7 @@ func makeStoragePublisher(factory sdkcluster.Factory,
 		if err != nil {
 			return err
 		}
+
 		return publisher.Publish(revision, data)
 	})
 }
@@ -63,26 +64,32 @@ func pickPatchKey(keys []string, force bool, pathMsg string) (int, error) {
 	if len(keys) == 0 {
 		return 0, errNoKeysForTheConfigPatching
 	}
+
 	var (
 		pos = 0
 		err error
 	)
+
 	if !force && len(keys) != 1 {
 		label := "Select a key for the config patching"
 		if len(pathMsg) != 0 {
 			label = fmt.Sprintf("%s for destination path %q", label, pathMsg)
 		}
+
 		programSelect := promptui.Select{
 			Label:        label,
 			Items:        keys,
 			HideSelected: true,
 		}
+
 		pos, _, err = programSelect.Run()
 		if err != nil {
 			return 0, err
 		}
 	}
+
 	log.Infof("Patching the config by the key: %q", keys[pos])
+
 	return pos, nil
 }
 
@@ -95,6 +102,7 @@ func createDataCollectorAndKeyPublisher(
 	opts connect.URIOpts, connOpts sdkcluster.ConnectOpts,
 ) (sdkcluster.DataCollector, replicaset.DataPublisher, func(), error) {
 	prefix, key, timeout := opts.Prefix, opts.Params["key"], opts.Timeout
+
 	stor, closeFunc, storageType, err := sdkcluster.NewStorageConnection(connOpts, opts)
 	if err != nil {
 		return nil, nil, nil, err
@@ -103,6 +111,7 @@ func createDataCollectorAndKeyPublisher(
 	collector, err := collectors.NewRemoteStorage(stor, prefix, key, timeout, storageType)
 	if err != nil {
 		closeFunc()
+
 		return nil, nil, nil, fmt.Errorf("failed to create storage collector: %w", err)
 	}
 
@@ -117,6 +126,7 @@ func Promote(url string, ctx PromoteCtx) error {
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
+
 	connOpts := sdkcluster.ConnectOpts{
 		Username: ctx.Username,
 		Password: ctx.Password,
@@ -131,6 +141,7 @@ func Promote(url string, ctx PromoteCtx) error {
 
 	source := replicaset.NewCConfigSource(collector, publisher,
 		replicaset.KeyPicker(pickPatchKey))
+
 	err = source.Promote(replicaset.PromoteCtx{
 		InstName: ctx.InstName,
 		Force:    ctx.Force,
@@ -138,6 +149,7 @@ func Promote(url string, ctx PromoteCtx) error {
 	if err == nil {
 		log.Info("Done.")
 	}
+
 	return err
 }
 
@@ -164,6 +176,7 @@ func Demote(url string, ctx DemoteCtx) error {
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
+
 	connOpts := sdkcluster.ConnectOpts{
 		Username: ctx.Username,
 		Password: ctx.Password,
@@ -178,6 +191,7 @@ func Demote(url string, ctx DemoteCtx) error {
 
 	source := replicaset.NewCConfigSource(collector, publisher,
 		replicaset.KeyPicker(pickPatchKey))
+
 	err = source.Demote(replicaset.DemoteCtx{
 		InstName: ctx.InstName,
 		Force:    ctx.Force,
@@ -185,6 +199,7 @@ func Demote(url string, ctx DemoteCtx) error {
 	if err == nil {
 		log.Info("Done.")
 	}
+
 	return err
 }
 
@@ -211,6 +226,7 @@ func Expel(url string, ctx ExpelCtx) error {
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
+
 	connOpts := sdkcluster.ConnectOpts{
 		Username: ctx.Username,
 		Password: ctx.Password,
@@ -222,8 +238,10 @@ func Expel(url string, ctx ExpelCtx) error {
 		return err
 	}
 	defer closeFunc()
+
 	source := replicaset.NewCConfigSource(collector, publisher,
 		replicaset.KeyPicker(pickPatchKey))
+
 	err = source.Expel(replicaset.ExpelCtx{
 		InstName: ctx.InstName,
 		Force:    ctx.Force,
@@ -231,6 +249,7 @@ func Expel(url string, ctx ExpelCtx) error {
 	if err == nil {
 		log.Info("Done.")
 	}
+
 	return err
 }
 
@@ -265,6 +284,7 @@ func ChangeRole(url string, ctx RolesChangeCtx, action replicaset.RolesChangerAc
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
+
 	connOpts := sdkcluster.ConnectOpts{
 		Username: ctx.Username,
 		Password: ctx.Password,
@@ -279,6 +299,7 @@ func ChangeRole(url string, ctx RolesChangeCtx, action replicaset.RolesChangerAc
 
 	source := replicaset.NewCConfigSource(collector, publisher,
 		replicaset.KeyPicker(pickPatchKey))
+
 	err = source.ChangeRole(replicaset.RolesChangeCtx{
 		InstName:       ctx.InstName,
 		GroupName:      ctx.GroupName,
@@ -290,5 +311,6 @@ func ChangeRole(url string, ctx RolesChangeCtx, action replicaset.RolesChangerAc
 	if err == nil {
 		log.Info("Done.")
 	}
+
 	return err
 }

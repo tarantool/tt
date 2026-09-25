@@ -79,6 +79,7 @@ func render(root *cobra.Command, registry *mount.Registry) string {
 	var out strings.Builder
 
 	var walk func(cmd *cobra.Command, path string)
+
 	walk = func(cmd *cobra.Command, path string) {
 		for _, sub := range cmd.Commands() {
 			subPath := strings.TrimSpace(path + " " + sub.Name())
@@ -386,6 +387,7 @@ func TestHangWrapsModuleHooks(t *testing.T) {
 			t.Parallel()
 
 			parent, child := &tc.group, &tc.leaf
+
 			parent.Use, child.Use = "x", "y"
 			parent.AddCommand(child)
 

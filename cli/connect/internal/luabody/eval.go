@@ -35,12 +35,14 @@ func GetTemplatedStr(text string, obj any) (string, error) {
 // GetEvalFuncBody returns lua code of eval func.
 func GetEvalFuncBody(evaler string) (string, error) {
 	mapping := map[string]string{}
+
 	if len(evaler) != 0 {
 		if evalerPath, isFile := strings.CutPrefix(evaler, "@"); isFile {
 			evalerFileBytes, err := os.ReadFile(evalerPath)
 			if err != nil {
 				return "", fmt.Errorf("failed to read the evaler file: %w", err)
 			}
+
 			mapping["evaler"] = string(evalerFileBytes)
 		} else {
 			mapping["evaler"] = evaler

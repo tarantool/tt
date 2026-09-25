@@ -17,9 +17,12 @@ func DefaultColorPicker() ColorPicker {
 	}
 
 	i := 0
+
 	return func() color.Color {
 		color := colorTable[i]
+
 		i = (i + 1) % len(colorTable)
+
 		return color
 	}
 }

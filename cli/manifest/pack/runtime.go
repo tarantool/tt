@@ -542,6 +542,7 @@ func bundleTarantoolLicense(dst string, src runtimeSource, warn func(string)) er
 	// Fallback path: look in every directory that may be the binary's install
 	// prefix, and in its share/tarantool/, where a packaged install keeps it.
 	var candidates []string
+
 	for _, prefix := range binaryPrefixes(src) {
 		candidates = append(candidates, prefix, filepath.Join(prefix, "share", "tarantool"))
 	}

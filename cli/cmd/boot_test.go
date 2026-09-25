@@ -87,6 +87,7 @@ func TestInjectCommandsReplaces(t *testing.T) {
 
 	injected := &cobra.Command{Use: "version", Short: "injected"}
 	extra := &cobra.Command{Use: "extra"}
+
 	InjectedCmds = []*cobra.Command{injected, extra}
 
 	root := &cobra.Command{Use: "tt"}

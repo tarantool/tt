@@ -52,12 +52,15 @@ func (handler *DaemonHandler) Logger(logger ttlog.Logger) *DaemonHandler {
 // ServeHTTP handles requests to the tt daemon.
 func (handler *DaemonHandler) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 	// Parse, check and call the command.
-	var res any
-	var status int
-	var cmd command
+	var (
+		res    any
+		status int
+		cmd    command
+	)
 
 	// Construct client IP msg.
 	var clientIPMsg string
+
 	if ip, err := handler.getClientIP(req); err != nil {
 		clientIPMsg = err.Error()
 	} else {
@@ -72,6 +75,7 @@ func (handler *DaemonHandler) ServeHTTP(wr http.ResponseWriter, req *http.Reques
 		status = http.StatusOK
 		// A daemon command must continue running if the HTTP client disconnects.
 		commandCtx := context.WithoutCancel(req.Context())
+
 		commandRes, err := handler.callCommand(commandCtx, &cmd)
 		if err != nil {
 			res = &errorResult{err.Error()}
@@ -82,6 +86,7 @@ func (handler *DaemonHandler) ServeHTTP(wr http.ResponseWriter, req *http.Reques
 
 	// Construct json response.
 	var jsonResMsg string
+
 	if jsonRes, err := json.Marshal(res); err != nil {
 		jsonResMsg = err.Error()
 	} else {
@@ -95,6 +100,7 @@ func (handler *DaemonHandler) ServeHTTP(wr http.ResponseWriter, req *http.Reques
 	// Write the result.
 	wr.Header().Set("Content-Type", "application/json")
 	wr.WriteHeader(status)
+
 	if err := json.NewEncoder(wr).Encode(res); err != nil {
 		handler.logger.Printf("An error occurred while encoding the response: \"%v\"\n", err)
 	}
@@ -106,11 +112,14 @@ func (handler *DaemonHandler) callCommand(ctx context.Context, ttCmd *command) (
 
 	cmd := exec.CommandContext(ctx, handler.cmdPath, newArgs...)
 
-	var stderr bytes.Buffer
-	var stdout bytes.Buffer
+	var (
+		stderr bytes.Buffer
+		stdout bytes.Buffer
+	)
 
 	cmd.Stderr = &stderr
 	cmd.Stdout = &stdout
+
 	err := cmd.Run()
 	if err != nil {
 		err = fmt.Errorf("%w: %s", err, stderr.String())

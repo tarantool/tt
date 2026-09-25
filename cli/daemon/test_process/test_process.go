@@ -39,6 +39,7 @@ func (w *TestWorker) Stop() error {
 	w.logger.Println(daemon.StopTestWorkerMsg)
 
 	w.done <- true
+
 	return nil
 }
 
@@ -52,5 +53,6 @@ func main() {
 	if err := proc.Start(); err != nil {
 		os.Exit(1)
 	}
+
 	os.Exit(0)
 }

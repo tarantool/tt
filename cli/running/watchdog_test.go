@@ -102,12 +102,16 @@ func killAndCheckRestart(t *testing.T, wd *Watchdog, signal syscall.Signal) {
 // cleanupWatchdog kills the instance and stops the watchdog.
 func cleanupWatchdog(t *testing.T, wd *Watchdog) {
 	t.Helper()
+
 	provider, ok := wd.provider.(*providerTestImpl)
 	require.True(t, ok, "unexpected watchdog provider type: %T", wd.provider)
+
 	provider.restartable = false
+
 	if wd.instance != nil && wd.instance.IsAlive() {
 		_ = wd.instance.Stop(5 * time.Second)
 	}
+
 	_ = os.Remove(os.Getenv("started_flag_file"))
 }
 
@@ -122,8 +126,10 @@ func TestWatchdogBase(t *testing.T) {
 	t.Cleanup(func() { cleanupWatchdog(t, wd) })
 
 	wdDoneChan := make(chan bool, 1)
+
 	go func() {
 		wd.Start()
+
 		wdDoneChan <- true
 	}()
 
@@ -137,6 +143,7 @@ func TestWatchdogBase(t *testing.T) {
 
 	// Let's try to stop the watchdog by a signal.
 	_ = syscall.Kill(syscall.Getpid(), syscall.SIGINT)
+
 	select {
 	case <-time.After(wdTestStopTimeout):
 		assert.Fail("Can't stop the watchdog.")
@@ -155,10 +162,13 @@ func TestWatchdogNotRestartable(t *testing.T) {
 	t.Cleanup(func() { cleanupWatchdog(t, wd) })
 
 	wdDoneChan := make(chan bool, 1)
+
 	go func() {
 		wd.Start()
+
 		wdDoneChan <- true
 	}()
+
 	require.NotZero(t, waitForFile(os.Getenv("started_flag_file")), "Instance is not started")
 
 	alive := wd.instance.IsAlive()

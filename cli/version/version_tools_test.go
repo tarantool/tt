@@ -284,6 +284,7 @@ func TestParseTt(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
+
 			assert.Equal(t, resVer, tc.expectedVer)
 		})
 	}

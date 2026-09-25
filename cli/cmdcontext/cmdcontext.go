@@ -61,6 +61,7 @@ func (tntCli *TarantoolCli) GetVersion() (version.Version, error) {
 	if tntCli.Executable == "" {
 		return tntCli.version, errTarantoolExecutableIsNotSetUnableToGetTarantoolVersion
 	}
+
 	output, err := exec.CommandContext(
 		context.Background(), tntCli.Executable, "--version").Output()
 	if err != nil {

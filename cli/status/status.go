@@ -29,12 +29,14 @@ var defaultModuleStatus = "--"
 
 func filterComments(script string) string {
 	var filteredLines []string
+
 	for line := range strings.SplitSeq(script, "\n") {
 		trimmedLine := strings.TrimSpace(line)
 		if !strings.HasPrefix(trimmedLine, "--") {
 			filteredLines = append(filteredLines, line)
 		}
 	}
+
 	return strings.Join(filteredLines, "\n")
 }
 
@@ -119,17 +121,21 @@ func processReplicationInfo(instStatus *instanceStatus, uuid2name map[string]str
 				fullInstanceUpstreamName = repl.UUID
 			}
 		}
+
 		if repl.Upstream.Status == "follow" || len(repl.Upstream.Message) == 0 {
 			continue
 		}
+
 		instStatus.Upstream = repl.Upstream.Status
 
 		var upstreamInstanceDesc string
+
 		if ok || repl.Name != nil {
 			upstreamInstanceDesc = "instance with name " + strconv.Quote(fullInstanceUpstreamName)
 		} else {
 			upstreamInstanceDesc = "instance with UUID " + fullInstanceUpstreamName
 		}
+
 		instStatus.addAlert(fmt.Sprintf(
 			"[upstream][warning]: replication from %s is in %q status: %q",
 			upstreamInstanceDesc, repl.Upstream.Status,
@@ -141,11 +147,13 @@ func processConfigInfo(instStatus *instanceStatus, instanceState rawInstanceStat
 	if len(instanceState.ConfigInfo.Alerts) == 0 {
 		return
 	}
+
 	for _, alert := range instanceState.ConfigInfo.Alerts {
 		severity := severityWarning
 		if alert.Type == "error" {
 			severity = severityError
 		}
+
 		instStatus.addAlert(fmt.Sprintf("[config][%s]: %s", alert.Type, alert.Message), severity)
 	}
 }
@@ -166,6 +174,7 @@ func collectInstanceState(run running.InstanceCtx, fullInstanceName string,
 				"Error while connecting to instance %s via socket %s: %v",
 				fullInstanceName, run.ConsoleSocket, err), severityError)
 		}
+
 		return instanceState, fmt.Errorf("failed to connect to instance %s: %w",
 			fullInstanceName, err)
 	}
@@ -176,6 +185,7 @@ func collectInstanceState(run running.InstanceCtx, fullInstanceName string,
 		instStatus.addAlert(fmt.Sprintf(
 			"Error while executing Lua script on instance %s: %v",
 			fullInstanceName, err), severityError)
+
 		return instanceState, fmt.Errorf("failed to execute Lua script on instance %s: %w",
 			fullInstanceName, err)
 	}
@@ -183,6 +193,7 @@ func collectInstanceState(run running.InstanceCtx, fullInstanceName string,
 	if len(res) == 0 {
 		instStatus.addAlert("No data returned from Lua script on instance "+fullInstanceName,
 			severityError)
+
 		return instanceState, errNoDataReturnedFromLuaScript
 	}
 
@@ -190,6 +201,7 @@ func collectInstanceState(run running.InstanceCtx, fullInstanceName string,
 	if err != nil {
 		instStatus.addAlert(fmt.Sprintf("Error while decoding data from "+
 			"instance %s: %v", fullInstanceName, err), severityError)
+
 		return instanceState, fmt.Errorf("failed to decode data from instance %s: %w",
 			fullInstanceName, err)
 	}
@@ -201,9 +213,11 @@ func collectInstanceState(run running.InstanceCtx, fullInstanceName string,
 func Status(runningCtx running.RunningCtx, printer InstanceStatusPrinter) error {
 	instances := make(instanceStatusMap)
 	uuid2name := map[string]string{}
+
 	for _, run := range runningCtx.Instances {
 		fullInstanceName := running.GetAppInstanceName(run)
 		instStatus := newInstanceStatus()
+
 		instStatus.procStatus = running.Status(&run)
 		instStatus.Status = instStatus.procStatus.Status
 		instances[fullInstanceName] = &instStatus
@@ -221,6 +235,7 @@ func Status(runningCtx running.RunningCtx, printer InstanceStatusPrinter) error 
 		uuid2name[instanceState.UUID] = fullInstanceName
 
 		processConfigInfo(&instStatus, instanceState)
+
 		instStatus.Mode = instanceState.ReadOnly
 		instStatus.Config = instanceState.ConfigInfo.Status
 		instStatus.Box = instanceState.BoxStatus

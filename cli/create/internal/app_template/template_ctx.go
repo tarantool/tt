@@ -23,7 +23,9 @@ type TemplateCtx struct {
 // NewTemplateContext creates new application template context.
 func NewTemplateContext() TemplateCtx {
 	var ctx TemplateCtx
+
 	ctx.Vars = make(map[string]string)
 	ctx.Engine = templates.NewDefaultEngine()
+
 	return ctx
 }

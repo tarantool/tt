@@ -20,6 +20,7 @@ func (printFollowUpMsgStep PrintFollowUpMessage) Run(createCtx *create_ctx.Creat
 	if templateCtx.IsManifestPresent && templateCtx.Manifest.FollowUpMessage != "" &&
 		!createCtx.SilentMode {
 		templateEngine := templates.NewDefaultEngine()
+
 		followUpText, err := templateEngine.RenderText(templateCtx.Manifest.FollowUpMessage,
 			templateCtx.Vars)
 		if err != nil {

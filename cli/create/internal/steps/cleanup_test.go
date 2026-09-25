@@ -22,7 +22,9 @@ func TestCleanUp(t *testing.T) {
 	}
 
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
+
 	templateCtx.AppPath = workDir
 	templateCtx.IsManifestPresent = true
 	templateCtx.Manifest.Include = []string{"keep_it.txt", "{{.user_name}}.txt"}
@@ -34,6 +36,7 @@ func TestCleanUp(t *testing.T) {
 	assert.FileExists(t, filepath.Join(workDir, "keep_it.txt"))
 	assert.FileExists(t, filepath.Join(workDir, "admin.txt"))
 	assert.DirExists(t, workDir)
+
 	for _, file := range filesToRemove {
 		assert.NoFileExists(t, file)
 	}
@@ -55,7 +58,9 @@ func TestCleanUpKeepSubdir(t *testing.T) {
 	filesToRemove := []string{filepath.Join(workDir, "file1.txt")}
 
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
+
 	templateCtx.AppPath = workDir
 	templateCtx.IsManifestPresent = true
 	templateCtx.Manifest.Include = []string{
@@ -74,6 +79,7 @@ func TestCleanUpKeepSubdir(t *testing.T) {
 	for _, file := range filesToKeep {
 		assert.FileExists(t, file)
 	}
+
 	for _, file := range filesToRemove {
 		assert.NoFileExists(t, file)
 	}

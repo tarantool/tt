@@ -26,6 +26,7 @@ func TestFormatter_ParseFormat(t *testing.T) {
 		t.Run(c.str, func(t *testing.T) {
 			format, ok := formatter.ParseFormat(c.str)
 			assert.Equal(t, c.ok, ok, "Unexpected result")
+
 			if ok {
 				assert.Equal(t, c.expected, format, "Unexpected output format")
 			}
@@ -359,6 +360,7 @@ func TestFormatter_MakeOutputFormat(t *testing.T) {
 				ColumnWidthMax: 0,
 				TableDialect:   formatter.DefaultTableDialect,
 			}
+
 			if c.panic {
 				assert.PanicsWithValue(t, "Unknown render case", func() {
 					_, _ = formatter.MakeOutput(c.outputFormat, c.input, formatterOpts)

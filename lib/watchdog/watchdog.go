@@ -100,6 +100,7 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 
 		// Start the managed process.
 		wd.cmdMutex.Lock()
+
 		wd.cmd = exec.CommandContext(context.Background(), bin, args...)
 		// Create new process group for proper signal handling.
 		wd.cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -108,6 +109,7 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 		if err := wd.cmd.Start(); err != nil {
 			wd.cmdMutex.Unlock()
 			log.Errorf("Failed to start process: %v", err)
+
 			return err
 		}
 
@@ -118,7 +120,9 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 		// Write PID files after successful start.
 		if err := wd.writePIDFiles(); err != nil {
 			log.Errorf("Failed to write PID files: %v", err)
+
 			_ = wd.terminateProcess() // Clean up if PID files fail.
+
 			return err
 		}
 
@@ -142,6 +146,7 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 					log.Warnf("Process exited with error: %v", err)
 				} else {
 					log.Errorf("Process failed: %v", err)
+
 					return err
 				}
 			} else {
@@ -161,6 +166,7 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 
 		// Wait before restarting.
 		log.Infof("Waiting %s before restart...", wd.restartTimeout)
+
 		select {
 		case <-time.After(wd.restartTimeout):
 			// Continue to next iteration after timeout.

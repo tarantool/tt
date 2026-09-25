@@ -46,6 +46,7 @@ func ParseBinaries(fileList []fs.DirEntry, program search.Program,
 
 	binActive := ""
 	programPath := filepath.Join(binDir, symlinkName)
+
 	if fileInfo, err := os.Lstat(programPath); err == nil {
 		switch {
 		case program == search.ProgramDev &&
@@ -54,38 +55,49 @@ func ParseBinaries(fileList []fs.DirEntry, program search.Program,
 			if err != nil {
 				return binaryVersions, err
 			}
+
 			if isTarantoolBinary {
 				binaryVersions = append(binaryVersions,
 					version.Version{Str: program.String() + " -> " + binActive + " [active]"})
 			}
+
 			return binaryVersions, nil
 		case program == search.ProgramCe && fileInfo.Mode()&os.ModeSymlink == 0:
 			tntCli := cmdcontext.TarantoolCli{Executable: programPath}
+
 			binaryVersion, err := tntCli.GetVersion()
 			if err != nil {
 				return binaryVersions, err
 			}
+
 			binaryVersion.Str += " [active]"
+
 			binaryVersions = append(binaryVersions, binaryVersion)
 		default:
 			binActive, err = util.ResolveSymlink(programPath)
 			if err != nil && !os.IsNotExist(err) {
 				return binaryVersions, err
 			}
+
 			binActive = filepath.Base(binActive)
 		}
 	}
 
 	versionPrefix := program.String() + version.FsSeparator
+
 	var err error
+
 	for _, f := range fileList {
 		if !strings.HasPrefix(f.Name(), versionPrefix) {
 			continue
 		}
 
 		versionStr := strings.TrimPrefix(strings.TrimPrefix(f.Name(), versionPrefix), "v")
+
 		var ver version.Version
+
 		isRightFormat, _ := util.IsValidCommitHash(versionStr)
+
 		if versionStr == "master" {
 			ver.Major = math.MaxUint // Small hack to make master the newest version.
 		} else if !isRightFormat {
@@ -100,6 +112,7 @@ func ParseBinaries(fileList []fs.DirEntry, program search.Program,
 		} else {
 			ver.Str = versionStr
 		}
+
 		binaryVersions = append(binaryVersions, ver)
 	}
 
@@ -124,7 +137,9 @@ func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
 		search.ProgramEe,
 		search.ProgramTcm,
 	}
+
 	_, _ = fmt.Fprintln(os.Stdout, "List of installed binaries:")
+
 	for _, program := range programs {
 		binaryVersions, err := ParseBinaries(binDirFilesList, program, binDir)
 		if err != nil {
@@ -134,6 +149,7 @@ func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
 		if len(binaryVersions) > 0 {
 			sort.Stable(sort.Reverse(version.VersionSlice(binaryVersions)))
 			log.Infof(program.String() + ":")
+
 			for _, binVersion := range binaryVersions {
 				printVersion(binVersion.Str)
 			}

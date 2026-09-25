@@ -74,6 +74,7 @@ func (procState ProcessState) String() string {
 	if procState.Code == ProcessRunningCode {
 		return fmt.Sprintf("%s. PID: %d.", procState.Status, procState.PID)
 	}
+
 	return procState.Status
 }
 
@@ -87,6 +88,7 @@ func GetPIDFromFile(pidFileName string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf(`can't open the PID file. Error: "%w"`, err)
 	}
+
 	defer func() {
 		_ = pidFile.Close()
 	}()
@@ -115,6 +117,7 @@ func CheckPIDFile(pidFileName string) error {
 		if err != nil {
 			return fmt.Errorf(`pID file exists, but PID can't be read. Error: "%w"`, err)
 		}
+
 		if res, _ := IsProcessAlive(pid); res {
 			return fmt.Errorf("%w%d", errTheProcessAlreadyExistsPID, pid)
 		} else {
@@ -138,6 +141,7 @@ func ExistsAndRecord(pidFileName string) (bool, error) {
 		if err != nil {
 			return false, fmt.Errorf(`PID file exists, but PID can't be read. Error: "%w"`, err)
 		}
+
 		if res, _ := IsProcessAlive(pid); res {
 			return true, nil
 		}
@@ -178,6 +182,7 @@ func CreatePIDFile(pidFileName string, pid int) error {
 	if err != nil {
 		return fmt.Errorf(`can't create a new PID file. Error: "%w"`, err)
 	}
+
 	defer func() {
 		_ = pidFile.Close()
 	}()
@@ -273,7 +278,9 @@ func ProcessStatus(pidFile string) ProcessState {
 	}
 
 	procState := ProcStateRunning
+
 	procState.PID = pid
+
 	return procState
 }
 
@@ -303,6 +310,7 @@ func waitProcessTermination(pid int, timeout time.Duration,
 
 	result := false
 	breakTimer := time.NewTimer(timeout)
+
 loop:
 	for {
 		select {
@@ -310,6 +318,7 @@ loop:
 			if res, _ := IsProcessAlive(pid); !res {
 				result = true
 			}
+
 			break loop
 		case <-time.After(checkPeriod):
 			if res, _ := IsProcessAlive(pid); !res {

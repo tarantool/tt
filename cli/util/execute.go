@@ -34,11 +34,14 @@ func RunCommand(cmd *exec.Cmd, workingDir string, showOutput bool) error {
 		cmd.Stderr = os.Stderr
 	} else {
 		var err error
+
 		if outputBuf, err = os.CreateTemp("", "out"); err != nil {
 			return fmt.Errorf("failed to create tmp file to store command output: %w", err)
 		}
+
 		cmd.Stdout = outputBuf
 		cmd.Stderr = outputBuf
+
 		defer func() {
 			_ = outputBuf.Close()
 		}()
@@ -82,6 +85,7 @@ func RunHook(hookPath string, showOutput bool) error {
 	}
 
 	hookCmd := exec.CommandContext(context.Background(), hookPath)
+
 	err := RunCommand(hookCmd, hookDir, showOutput)
 	if err != nil {
 		return fmt.Errorf("failed to run hook `%s`: %w", hookName, err)
@@ -98,6 +102,7 @@ func IsExecOwner(path string) (bool, error) {
 	}
 
 	perm := fileInfo.Mode().Perm()
+
 	return BitHas32(uint32(perm), execOwnerPerm), nil
 }
 
@@ -105,6 +110,7 @@ func PrintFromStart(file *os.File) error {
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		return fmt.Errorf("failed to seek file begin: %w", err)
 	}
+
 	if _, err := io.Copy(os.Stdout, file); err != nil {
 		log.Warnf("Failed to print file content: %s", err)
 	}
@@ -120,15 +126,18 @@ func ExecuteCommandGetOutput(program, workDir string, stdinData []byte,
 	cmd := exec.CommandContext(context.Background(), program, args...)
 
 	var out bytes.Buffer
+
 	cmd.Stdout = &out
 	cmd.Stderr = &out
 
 	if workDir == "" {
 		var err error
+
 		if workDir, err = os.Getwd(); err != nil {
 			return out.Bytes(), err
 		}
 	}
+
 	cmd.Dir = workDir
 
 	stdin, err := cmd.StdinPipe()
@@ -145,5 +154,6 @@ func ExecuteCommandGetOutput(program, workDir string, stdinData []byte,
 	_ = stdin.Close()
 
 	err = cmd.Wait()
+
 	return out.Bytes(), err
 }

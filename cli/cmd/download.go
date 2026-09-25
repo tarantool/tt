@@ -34,6 +34,7 @@ func NewDownloadCmd() *cobra.Command {
 			} else if len(args) > 1 {
 				return errInvalidNumberOfParameters
 			}
+
 			return nil
 		},
 	}

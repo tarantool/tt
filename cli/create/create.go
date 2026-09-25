@@ -27,6 +27,7 @@ func FillCtx(cliOpts *config.CliOpts, createCtx *create_ctx.CreateCtx) error {
 	if err != nil {
 		return err
 	}
+
 	createCtx.WorkDir = workingDir
 
 	return nil
@@ -37,6 +38,7 @@ func rollbackOnErr(templateCtx *app_template.TemplateCtx) {
 	if templateCtx.AppPath != "" {
 		_ = os.RemoveAll(templateCtx.AppPath)
 	}
+
 	templateCtx.AppPath = ""
 }
 
@@ -68,6 +70,7 @@ func Run(createCtx *create_ctx.CreateCtx) error {
 	for _, step := range stepsChain {
 		if err := step.Run(createCtx, &templateCtx); err != nil {
 			rollbackOnErr(&templateCtx)
+
 			return err
 		}
 	}

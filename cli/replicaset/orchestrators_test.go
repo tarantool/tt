@@ -21,14 +21,17 @@ func (e *instanceMockEvaler) Eval(expr string,
 	defer func() { e.Called++ }()
 
 	var ret []any
+
 	if e.Ret != nil {
 		ret = e.Ret[e.Called]
 	}
 
 	var err error
+
 	if e.Error != nil {
 		err = e.Error[e.Called]
 	}
+
 	return ret, err
 }
 
@@ -86,6 +89,7 @@ func TestReplicasetGetter_Discovery_panics_with_invalid_evaler(t *testing.T) {
 		for _, tc := range cases {
 			t.Run(oc.Name+"_"+tc.Name, func(t *testing.T) {
 				getter := oc.New(tc.Evaler)
+
 				assert.Panics(t, func() {
 					_, _ = getter.Discovery(replicaset.SkipCache)
 				})

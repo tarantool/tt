@@ -65,10 +65,12 @@ func getEvalCmd(connectCtx ConnectCtx) (string, error) {
 		if terminal.IsTerminal(syscall.Stdin) {
 			return "", errInteractiveInputSource
 		}
+
 		cmdByte, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			return "", err
 		}
+
 		return string(cmdByte), nil
 	}
 
@@ -78,8 +80,10 @@ func getEvalCmd(connectCtx ConnectCtx) (string, error) {
 		if err != nil {
 			return "", err
 		}
+
 		return string(cmdByte), nil
 	}
+
 	return "", nil
 }
 
@@ -88,6 +92,7 @@ func Connect(connectCtx ConnectCtx, connOpts connector.ConnectOpts) error {
 	if err := runConsole(connOpts, connectCtx, ""); err != nil {
 		return fmt.Errorf("failed to run interactive console: %w", err)
 	}
+
 	return nil
 }
 
@@ -103,6 +108,7 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 	if err != nil {
 		return nil, fmt.Errorf("unable to establish connection: %w", err)
 	}
+
 	defer func() {
 		_ = conn.Close()
 	}()
@@ -113,11 +119,14 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 		if err := ChangeLanguage(conn, connectCtx.Language); err != nil {
 			return nil, fmt.Errorf("unable to change a language: %w", err)
 		}
+
 		evalArgs = append(evalArgs, false)
 	} else {
 		needMetaInfo := connectCtx.Format == formatter.TableFormat ||
 			connectCtx.Format == formatter.TTableFormat
+
 		evalArgs = append(evalArgs, needMetaInfo)
+
 		for i := range args {
 			evalArgs = append(evalArgs, args[i])
 		}
@@ -128,6 +137,7 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 	if err != nil {
 		return nil, err
 	}
+
 	response, err := conn.Eval(evalBody, evalArgs, connector.RequestOpts{})
 	if err != nil {
 		return nil, err
@@ -137,6 +147,7 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 	// since the ""gopkg.in/yaml.v2" library handles YAML as an array
 	// of bytes.
 	var resYAML string
+
 	if len(response) > 0 {
 		if str, ok := response[0].(string); ok {
 			resYAML = str
@@ -144,7 +155,9 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 			return nil, fmt.Errorf("%w%T", errUnexpectedResponseType, response[0])
 		}
 	}
+
 	var checkMock any
+
 	if err = yaml.Unmarshal([]byte(resYAML), &checkMock); err != nil {
 		return nil, err
 	}

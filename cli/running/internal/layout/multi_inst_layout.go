@@ -25,9 +25,11 @@ func NewMultiInstLayout(baseDir, appName, instanceName string) (*MultiInstLayout
 	if baseDir == "" {
 		return nil, errBaseDirectoryCannotBeEmpty
 	}
+
 	if appName == "" {
 		return nil, errApplicationNameCannotBeEmpty
 	}
+
 	if instanceName == "" {
 		return nil, errInstanceNameCannotBeEmpty
 	}
@@ -67,10 +69,12 @@ func (layout MultiInstLayout) DataDir(dir string) string {
 // genFilePath generate file path.
 func (layout MultiInstLayout) genFilePath(subdir, fileName string) string {
 	var dstDir string
+
 	if filepath.IsAbs(subdir) {
 		dstDir = util.JoinPaths(layout.baseDir, subdir, layout.appName, layout.instanceName)
 	} else {
 		dstDir = util.JoinPaths(layout.baseDir, subdir, layout.instanceName)
 	}
+
 	return filepath.Join(dstDir, fileName)
 }

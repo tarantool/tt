@@ -11,12 +11,15 @@ import (
 
 func parseVersions(t *testing.T, verStr []string) []version.Version {
 	t.Helper()
+
 	versions := make([]version.Version, 0, len(verStr))
 	for _, v := range verStr {
 		ver, err := version.Parse(v)
 		require.NoError(t, err)
+
 		versions = append(versions, ver)
 	}
+
 	return versions
 }
 
@@ -114,6 +117,7 @@ func TestMatchVersion(t *testing.T) {
 			} else {
 				require.NoError(t, err, "Found version: '%s' -> '%s'", v.find, found)
 			}
+
 			if v.expected != "" {
 				require.Equal(t, v.expected, found)
 			}
@@ -129,6 +133,7 @@ func TestMatchVersion_NotFoundError(t *testing.T) {
 	for i, v := range data {
 		t.Run(fmt.Sprintf("[%d] find %s", i, v), func(t *testing.T) {
 			var errNotFound version.NotFoundError
+
 			_, err := version.MatchVersion(v, []version.Version{})
 			require.True(t, errors.As(err, &errNotFound))
 			require.Equal(t, fmt.Sprintf("not matched with: %q", v), err.Error())

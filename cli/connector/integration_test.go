@@ -63,6 +63,7 @@ func binaryConnectWithValidation(t *testing.T) *BinaryConnector {
 	t.Helper()
 
 	conn := test_helpers.ConnectWithValidation(t, dialer, opts)
+
 	return NewBinaryConnector(conn)
 }
 
@@ -194,6 +195,7 @@ func TestBinaryConnector_Eval_pushCallback(t *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Equal(t, []any{"return"}, ret)
+
 			// box.session.push() support was removed in go-tarantool v3.
 			if c.protocol == TextProtocol {
 				assert.Equal(t, []any{"hello", "world"}, pushes)
@@ -212,6 +214,7 @@ func TestConnect_binary(t *testing.T) {
 		Password: "password",
 	})
 	require.NoError(t, err)
+
 	defer func() {
 		_ = conn.Close()
 	}()
@@ -238,6 +241,7 @@ func TestConnect_binaryTlsToTls(t *testing.T) {
 	if !tarantoolEe {
 		t.Skip("Only for Tarantool Enterprise.")
 	}
+
 	conn, err := Connect(ConnectOpts{
 		Network:  "tcp",
 		Address:  serverTLS,
@@ -246,6 +250,7 @@ func TestConnect_binaryTlsToTls(t *testing.T) {
 		Ssl:      sslOpts,
 	})
 	require.NoError(t, err)
+
 	defer func() {
 		_ = conn.Close()
 	}()
@@ -262,6 +267,7 @@ func TestConnect_text(t *testing.T) {
 		Address: console,
 	})
 	require.NoError(t, err)
+
 	defer func() {
 		_ = conn.Close()
 	}()
@@ -322,6 +328,7 @@ func TestPoolConnect_success(t *testing.T) {
 			pool, err := ConnectPool(tc.Opts)
 			require.NoError(t, err)
 			require.NotNil(t, pool)
+
 			_ = pool.Close()
 		})
 	}
@@ -333,6 +340,7 @@ func TestPoolEval_success(t *testing.T) {
 			pool, err := ConnectPool(tc.Opts)
 			require.NoError(t, err)
 			require.NotNil(t, pool)
+
 			defer func() {
 				_ = pool.Close()
 			}()
@@ -350,6 +358,7 @@ func TestPoolEval_error(t *testing.T) {
 			pool, err := ConnectPool(tc.Opts)
 			require.NoError(t, err)
 			require.NotNil(t, pool)
+
 			defer func() {
 				_ = pool.Close()
 			}()
@@ -386,15 +395,18 @@ func runTestMain(m *testing.M) int {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
+
 	conn, err := tarantool.Connect(ctx, dialer, opts)
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stdout, "Failed to check tarantool version:", err)
 		return 1
 	}
+
 	req := tarantool.NewEvalRequest("return box.info.package")
 	future := conn.Do(req)
 	data, err := future.Get()
 	future.Release()
+
 	_ = conn.Close()
 
 	if err != nil {
@@ -434,6 +446,7 @@ func runTestMain(m *testing.M) int {
 			_, _ = fmt.Fprintln(os.Stdout, "Failed to prepare TLS dialer:", err)
 			return 1
 		}
+
 		inst, err = test_helpers.StartTarantool(test_helpers.StartOpts{
 			InitScript:   "testdata/config.lua",
 			Listen:       listen,

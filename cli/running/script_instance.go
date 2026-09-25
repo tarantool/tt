@@ -62,8 +62,10 @@ func verifySocketLength(socketPath string) error {
 			return fmt.Errorf("%w%d symbols: %q",
 				errSocketPathIsLongerThanSymbols, maxSocketPath-1, socketPath)
 		}
+
 		return nil
 	}
+
 	return nil
 }
 
@@ -74,13 +76,17 @@ func shortenSocketPath(socketPath, basePath string) (string, error) {
 		return socketPath, nil
 	}
 
-	var err error
-	var relativeSocketPath string
+	var (
+		err                error
+		relativeSocketPath string
+	)
+
 	if relativeSocketPath, err = filepath.Rel(basePath, socketPath); err == nil {
 		if err = verifySocketLength(relativeSocketPath); err == nil {
 			return relativeSocketPath, nil
 		}
 	}
+
 	return "", err
 }
 
@@ -91,6 +97,7 @@ func (inst *scriptInstance) Start(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+
 		_ = f.Close()
 	}
 
@@ -103,42 +110,53 @@ func (inst *scriptInstance) Start(ctx context.Context) error {
 	cmdArgs = append(cmdArgs, "-")
 
 	cmd := exec.CommandContext(ctx, inst.tarantoolPath, cmdArgs...)
+
 	cmd.Cancel = func() error {
 		return cmd.Process.Signal(os.Interrupt)
 	}
 	cmd.WaitDelay = instanceCommandWaitDelay
 	cmd.Stdout = inst.stdOut
 	cmd.Stderr = inst.stdErr
+
 	StdinPipe, err := cmd.StdinPipe()
 	if err != nil {
 		return err
 	}
+
 	cmd.Env = append(os.Environ(), "TT_CLI_INSTANCE="+inst.appPath)
 	if inst.appDir == "" {
 		inst.appDir = filepath.Dir(inst.appPath)
 	}
+
 	if !util.IsDir(inst.appDir) {
 		if err := os.MkdirAll(inst.appDir, defaultDirPerms); err != nil {
 			return fmt.Errorf("failed to create application directory %q: %w", inst.appDir, err)
 		}
 	}
+
 	workDir := inst.appDir
+
 	cmd.Env = append(cmd.Env, "PWD="+workDir)
 	cmd.Dir = workDir
+
 	_, listenSet := os.LookupEnv("TT_LISTEN")
+
 	if inst.binaryPort != "" && !listenSet {
 		cmd.Env = append(cmd.Env, "TT_LISTEN="+inst.binaryPort)
 	}
+
 	if inst.consoleSocket != "" {
 		consoleSocket, err := shortenSocketPath(inst.consoleSocket, workDir)
 		if err != nil {
 			return err
 		}
+
 		cmd.Env = append(cmd.Env,
 			"TT_CLI_CONSOLE_SOCKET="+"unix/:./"+filepath.Base(consoleSocket))
 		cmd.Env = append(cmd.Env,
 			"TT_CLI_CONSOLE_SOCKET_DIR="+filepath.Dir(consoleSocket))
 	}
+
 	cmd.Env = append(cmd.Env,
 		"TT_CLI_INSTANCE="+inst.appPath,
 		"TT_CLI_WORK_DIR="+workDir,
@@ -150,6 +168,7 @@ func (inst *scriptInstance) Start(ctx context.Context) error {
 
 	cmd.Env = append(cmd.Env, "TARANTOOL_APP_NAME="+inst.appName)
 	cmd.Env = append(cmd.Env, "TARANTOOL_INSTANCE_NAME="+inst.instName)
+
 	if inst.appName != inst.instName {
 		cmd.Env = append(cmd.Env,
 			"TARANTOOL_CFG="+filepath.Dir(inst.appPath)+"/instances.yml")
@@ -161,6 +180,7 @@ func (inst *scriptInstance) Start(ctx context.Context) error {
 	if inst.processController, err = newProcessController(cmd); err != nil {
 		return err
 	}
+
 	_, _ = StdinPipe.Write(instanceLauncher)
 	_ = StdinPipe.Close()
 

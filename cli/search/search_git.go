@@ -63,14 +63,18 @@ func GetVersionsFromGitRemote(repo string) (version.VersionSlice, error) {
 		} else {
 			slashIdx += 1
 		}
+
 		ver := line[slashIdx:]
+
 		version, err := version.Parse(ver)
 		if err != nil {
 			continue
 		}
+
 		if isMasked(version) && repo == GitRepoTarantool {
 			continue
 		}
+
 		versions = append(versions, version)
 	}
 
@@ -91,7 +95,9 @@ func GetCommitFromGitLocal(repo, input string) (string, error) {
 		commandStr := "pull/" + pullRequestID +
 			"/head:" + input
 		cmd := exec.CommandContext(context.Background(), "git", "fetch", "origin", commandStr)
+
 		cmd.Dir = repo
+
 		err := cmd.Run()
 		if err != nil {
 			return "", err
@@ -99,6 +105,7 @@ func GetCommitFromGitLocal(repo, input string) (string, error) {
 	}
 
 	cmd := exec.CommandContext(context.Background(), "git", "show", input, "--quiet")
+
 	cmd.Dir = repo
 
 	output, err := cmd.Output()
@@ -164,9 +171,11 @@ func GetVersionsFromGitLocal(repo string) (version.VersionSlice, error) {
 		if err != nil {
 			continue
 		}
+
 		if isMasked(version) && strings.Contains(repo, "tarantool") {
 			continue
 		}
+
 		versions = append(versions, version)
 	}
 

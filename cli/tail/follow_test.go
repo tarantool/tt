@@ -56,6 +56,7 @@ func createTmpLogFile(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
+
 	defer func() {
 		_ = f.Close()
 	}()
@@ -172,6 +173,7 @@ func TestFollow2_ContextCancellation(t *testing.T) {
 
 	// Wait with timeout to ensure goroutine completes.
 	waitCh := make(chan struct{})
+
 	go func() {
 		f.Wait()
 		close(waitCh)
@@ -215,6 +217,7 @@ func rotationTest(t *testing.T, useDelay bool) {
 	err = checksLinesInFile(t, outCh, logLineFormat)
 	if err != nil {
 		t.Skipf("Failed to check initial lines in file: %v", err)
+
 		return
 	}
 
@@ -241,6 +244,7 @@ func rotationTest(t *testing.T, useDelay bool) {
 	err = checksLinesInFile(t, outCh, logNewLineFormat)
 	if err != nil {
 		t.Skipf("Failed to check appended lines in file: %v", err)
+
 		return
 	}
 

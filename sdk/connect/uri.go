@@ -128,6 +128,7 @@ func IsBaseURI(str string) bool {
 
 	uriReStr := "^((" + tcpReStr + ")|(" + unixReStr + ")|(" + pathReStr + "))$"
 	uriRe := regexp.MustCompile(uriReStr)
+
 	return uriRe.MatchString(str)
 }
 
@@ -154,6 +155,7 @@ func IsCredentialsURI(str string) bool {
 	uriReStr := "^((" + tcpReStr +
 		")|(" + httpsReStr + ")|(" + unixReStr + ")|(" + pathReStr + "))$"
 	uriRe := regexp.MustCompile(uriReStr)
+
 	return uriRe.MatchString(str)
 }
 
@@ -161,6 +163,7 @@ func IsCredentialsURI(str string) bool {
 // (network, address).
 func ParseBaseURI(uri string) (string, string) {
 	var network, address string
+
 	uriLen := len(uri)
 
 	switch {
@@ -216,6 +219,7 @@ func getBooleanParam(param string, defaultValue bool) (bool, error) {
 	}
 
 	param = strings.ToLower(param)
+
 	return strconv.ParseBool(param)
 }
 
@@ -228,12 +232,14 @@ func getDurationParam(param string, defaultValue time.Duration) (time.Duration, 
 	if err != nil {
 		return defaultValue, err
 	}
+
 	return time.Duration(seconds * float64(time.Second)), nil
 }
 
 // parseUriOpts extract options from a URL to UriOpts.
 func parseURIOpts(uri *url.URL) (URIOpts, error) {
 	var err error
+
 	endpoint := url.URL{
 		Scheme: uri.Scheme,
 		Host:   uri.Host,
@@ -247,6 +253,7 @@ func parseURIOpts(uri *url.URL) (URIOpts, error) {
 		Timeout:  defaultTimeoutParam,
 		Params:   make(map[string]string),
 	}
+
 	if password, ok := uri.User.Password(); ok {
 		opts.Password = password
 	}
@@ -277,6 +284,7 @@ func parseURIOpts(uri *url.URL) (URIOpts, error) {
 			if err != nil {
 				return opts, fmt.Errorf("invalid %q param, boolean expected: %w", k, err)
 			}
+
 			opts.SkipHostVerify = !verify
 
 		case verifyPeerParam:
@@ -284,6 +292,7 @@ func parseURIOpts(uri *url.URL) (URIOpts, error) {
 			if err != nil {
 				return opts, fmt.Errorf("invalid %q param, boolean expected: %w", k, err)
 			}
+
 			opts.SkipPeerVerify = !verify
 
 		default:
@@ -308,9 +317,11 @@ func parseURL(str string) (*url.URL, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if uri.Scheme == "" || uri.Host == "" {
 		return nil, errURLMustContainTheSchemeAndTheHostParts
 	}
+
 	return uri, nil
 }
 

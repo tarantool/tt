@@ -94,6 +94,7 @@ func TestMain(m *testing.M) {
 		program, known := mainCases[name]
 		if !known {
 			_, _ = fmt.Fprintf(os.Stderr, "unknown %s=%q\n", mainCaseEnv, name)
+
 			os.Exit(100) //nolint:mnd // Anything a case cannot exit with.
 		}
 
@@ -147,11 +148,13 @@ func demoModule(services sdk.Services) []sdk.Mount {
 			return err //nolint:wrapcheck // Test fixture.
 		},
 	}
+
 	format = output.BindFormat(printCmd.Flags(), output.FormatHuman, printing.Formats()...)
 
 	demo.AddCommand(
 		&cobra.Command{Use: "ok", RunE: func(*cobra.Command, []string) error {
 			services.Log().Info("hello from demo")
+
 			_, err := fmt.Fprintln(out(), "ok")
 
 			return err //nolint:wrapcheck // Test fixture.
@@ -256,6 +259,7 @@ func runTT(t *testing.T, r ttRun) result {
 	err := process.Run()
 
 	var exitErr *exec.ExitError
+
 	if err != nil && !errors.As(err, &exitErr) {
 		require.NoError(t, err)
 	}

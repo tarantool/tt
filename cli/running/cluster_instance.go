@@ -47,6 +47,7 @@ func appendEnvIfNotEmpty(env []string, envVarName, value string) []string {
 	if value != "" {
 		env = append(env, fmt.Sprintf("%s=%s", envVarName, value))
 	}
+
 	return env
 }
 
@@ -59,6 +60,7 @@ func (inst *clusterInstance) Start(ctx context.Context) error {
 	}
 
 	cmd := exec.CommandContext(ctx, inst.tarantoolPath, cmdArgs...)
+
 	cmd.Cancel = func() error {
 		return cmd.Process.Signal(os.Interrupt)
 	}
@@ -70,10 +72,12 @@ func (inst *clusterInstance) Start(ctx context.Context) error {
 	cmd.Env = appendEnvIfNotEmpty(cmd.Env, "TT_VINYL_DIR_DEFAULT", inst.vinylDir)
 	cmd.Env = appendEnvIfNotEmpty(cmd.Env, "TT_WAL_DIR_DEFAULT", inst.walDir)
 	cmd.Env = appendEnvIfNotEmpty(cmd.Env, "TT_SNAPSHOT_DIR_DEFAULT", inst.memtxDir)
+
 	if inst.runDir != "" {
 		cmd.Env = append(cmd.Env, "TT_PROCESS_PID_FILE_DEFAULT="+
 			filepath.Join(inst.runDir, "tarantool.pid"))
 	}
+
 	if util.IsDir(inst.appDir) {
 		cmd.Env = append(cmd.Env, "PWD="+inst.appDir)
 		cmd.Dir = inst.appDir
@@ -82,6 +86,7 @@ func (inst *clusterInstance) Start(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+
 		cmd.Env = append(cmd.Env, "TT_CONSOLE_SOCKET_DEFAULT="+consoleSocket)
 		cmd.Env = append(cmd.Env, "TT_IPROTO_LISTEN_DEFAULT="+"[{\"uri\":\""+inst.binaryPort+"\"}]")
 	} else {
@@ -89,6 +94,7 @@ func (inst *clusterInstance) Start(ctx context.Context) error {
 	}
 
 	var err error
+
 	if inst.processController, err = newProcessController(cmd); err != nil {
 		return err
 	}

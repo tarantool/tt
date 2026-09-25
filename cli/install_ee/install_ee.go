@@ -35,6 +35,7 @@ func NewTntIoDownloader(token string) *httpDoer {
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				req.Host = req.URL.Hostname()
 				addSessionIDCookie(req, token)
+
 				return nil
 			},
 		},
@@ -49,6 +50,7 @@ func (d *httpDoer) Do(req *http.Request) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
+
 	defer func() {
 		_ = res.Body.Close()
 	}()
@@ -103,6 +105,7 @@ func createHTTPRequest(bundleSource, token string) (*http.Request, error) {
 
 	addSessionIDCookie(req, token)
 	req.Header.Set("User-Agent", "tt")
+
 	return req, nil
 }
 
@@ -124,6 +127,7 @@ func saveResponseBodyToFile(body []byte, destFilePath string) (errRet error) {
 	if err != nil {
 		_ = file.Close()
 		_ = os.Remove(destFilePath)
+
 		return fmt.Errorf("failed to write downloaded content to %s: %w", destFilePath, err)
 	}
 

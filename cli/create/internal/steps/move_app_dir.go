@@ -30,6 +30,7 @@ func (MoveAppDirectory) Run(createCtx *create_ctx.CreateCtx,
 		if !createCtx.ForceMode {
 			return fmt.Errorf("'%s' %w", templateCtx.TargetAppPath, errAlreadyExists)
 		}
+
 		if err = os.RemoveAll(templateCtx.TargetAppPath); err != nil {
 			return fmt.Errorf("failed to remove %s: %w", templateCtx.TargetAppPath, err)
 		}

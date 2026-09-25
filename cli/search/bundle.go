@@ -56,6 +56,7 @@ func (bundles BundleInfoSlice) Len() int {
 func (bundles BundleInfoSlice) Less(i, j int) bool {
 	verLeft := bundles[i].Version
 	verRight := bundles[j].Version
+
 	return Less(verLeft, verRight)
 }
 
@@ -76,6 +77,7 @@ func Less(verLeft, verRight version.Version) bool {
 
 	for i := range largestLen {
 		var valLeft, valRight uint64 = 0, 0
+
 		if i < len(left) {
 			valLeft = left[i]
 		}
@@ -106,6 +108,7 @@ func compileVersionRegexp(prg Program) (*regexp.Regexp, error) {
 	}
 
 	re := regexp.MustCompile(expr)
+
 	return re, nil
 }
 
@@ -141,10 +144,12 @@ func getBundles(rawBundleInfoList map[string][]string, searchCtx *SearchCtx) (
 					pkg,
 					err,
 				)
+
 				continue
 			}
 
 			version.Tarball = pkg
+
 			eeVer := BundleInfo{
 				Version: version,
 				Package: searchCtx.Package,
@@ -190,6 +195,7 @@ func FetchBundlesInfo(searchCtx *SearchCtx, cliOpts *config.CliOpts) (
 	}
 
 	var credPath string
+
 	if cliOpts.EE != nil {
 		credPath = cliOpts.EE.CredPath
 	}
@@ -218,6 +224,7 @@ func SelectVersion(bs BundleInfoSlice, ver string) (BundleInfo, error) {
 	if bs == nil || bs.Len() == 0 {
 		return BundleInfo{}, errNoAvailableVersions
 	}
+
 	if ver == "" {
 		// No version specified, return the latest one.
 		return bs[bs.Len()-1], nil

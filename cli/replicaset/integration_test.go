@@ -45,6 +45,7 @@ func doRequest(req tarantool.Request) error {
 	if err != nil {
 		return err
 	}
+
 	defer func() {
 		_ = conn.Close()
 	}()
@@ -53,6 +54,7 @@ func doRequest(req tarantool.Request) error {
 	defer future.Release()
 
 	_, err = future.Get()
+
 	return err
 }
 
@@ -89,6 +91,7 @@ func setCConfigTestEnvironment(t *testing.T) func() {
 
 func setCustomTestEnvironment(t *testing.T, version string) func() {
 	t.Helper()
+
 	err := setTarantoolVersion(version)
 	require.NoError(t, err)
 
@@ -143,6 +146,7 @@ func (e *instanceEvalerMock) Eval(instance running.InstanceCtx,
 
 	// Ensure that we already connected to the instance.
 	require.NotNil(e.T, evaler)
+
 	data, err := evaler.Eval("return box.cfg.listen", []any{}, connector.RequestOpts{})
 	require.NoError(e.T, err)
 	require.Equal(e.T, []any{"127.0.0.1:3015"}, data)
@@ -464,6 +468,7 @@ func TestEvalAny_ignore_evaler_done(t *testing.T) {
 			ConsoleSocket: console,
 		},
 	}
+
 	for _, tc := range []bool{true, false} {
 		t.Run(strconv.FormatBool(tc), func(t *testing.T) {
 			evaler := &instanceEvalerMock{T: t, Done: tc}
@@ -552,9 +557,12 @@ func runTestMain(m *testing.M) int {
 	}
 
 	future := conn.Do(tarantool.NewPingRequest())
+
 	_, err = future.Get()
 	future.Release()
+
 	_ = conn.Close()
+
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stdout, "Failed to ping tarantool server:", err)
 		return 1

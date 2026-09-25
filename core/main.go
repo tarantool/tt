@@ -109,6 +109,7 @@ func WithFlavour(flavour Flavour) Option {
 // runs; a panic anywhere is reported as an internal error.
 func Main(modules Modules, opts ...Option) (code int) {
 	var config options
+
 	for _, opt := range opts {
 		opt(&config)
 	}

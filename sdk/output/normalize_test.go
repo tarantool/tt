@@ -356,9 +356,11 @@ func TestNormalizeRefuses(t *testing.T) {
 	t.Parallel()
 
 	cycle := &node{Next: nil, Data: "x"}
+
 	cycle.Next = cycle
 
 	selfMap := map[string]any{}
+
 	selfMap["self"] = selfMap
 
 	tests := []struct {

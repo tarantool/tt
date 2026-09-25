@@ -27,10 +27,12 @@ func dumpRaw(writer io.Writer, cmdCtx *cmdcontext.CmdCtx) error {
 		if err != nil {
 			return err
 		}
+
 		fileContent, err := os.ReadFile(cmdCtx.Cli.ConfigPath)
 		if err != nil {
 			return err
 		}
+
 		_, _ = writer.Write([]byte(cmdCtx.Cli.ConfigPath + ":\n"))
 		_, _ = writer.Write(fileContent)
 	} else {
@@ -49,7 +51,9 @@ func dumpConfiguration(writer io.Writer, cmdCtx *cmdcontext.CmdCtx,
 			_, _ = writer.Write([]byte(cmdCtx.Cli.ConfigPath + ":\n"))
 		}
 	}
+
 	err := yaml.NewEncoder(writer).Encode(cliOpts)
+
 	return err
 }
 
@@ -60,5 +64,6 @@ func RunDump(writer io.Writer, cmdCtx *cmdcontext.CmdCtx, dumpCtx *DumpCtx,
 	if dumpCtx.RawDump {
 		return dumpRaw(writer, cmdCtx)
 	}
+
 	return dumpConfiguration(writer, cmdCtx, cliOpts)
 }

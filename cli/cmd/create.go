@@ -40,6 +40,7 @@ func NewCreateCmd() *cobra.Command {
 			if len(args) < 1 {
 				return errRequiresTemplateNameArgument
 			}
+
 			return nil
 		},
 		ValidArgsFunction: createValidArgsFunction,
@@ -92,6 +93,7 @@ func createValidArgsFunction(
 	if len(args) != 0 {
 		return nil, cobra.ShellCompDirectiveDefault
 	}
+
 	templates := make([]string, 0, len(builtin_templates.Names))
 
 	// Append built-in templates.
@@ -102,13 +104,16 @@ func createValidArgsFunction(
 	// Append cfg's templates.
 	for _, templateDir := range cliOpts.Templates {
 		path := templateDir.Path
+
 		entries, err := os.ReadDir(path)
 		if err != nil {
 			continue
 		}
+
 		for _, entry := range entries {
 			eName := entry.Name()
 			ext := filepath.Ext(eName)
+
 			switch {
 			case entry.IsDir():
 				templates = append(templates, eName)
@@ -119,6 +124,7 @@ func createValidArgsFunction(
 			}
 		}
 	}
+
 	return templates, cobra.ShellCompDirectiveNoFileComp
 }
 
@@ -127,6 +133,7 @@ func internalCreateModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if !isConfigExist(cmdCtx) {
 		return errNoConfig
 	}
+
 	if len(appName) == 0 {
 		return errNoAppName
 	}

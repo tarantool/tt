@@ -60,8 +60,10 @@ You will need to choose version using arrow keys in your console.
 		Short: "Show a list of installed binaries and their versions.",
 		RunE:  RunModuleFuncE(internalListModule),
 	}
+
 	binariesCmd.AddCommand(switchCmd)
 	binariesCmd.AddCommand(listCmd)
+
 	return binariesCmd
 }
 
@@ -72,6 +74,7 @@ func binariesSwitchValidateArgs(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("%w%s", errNotSupportedProgram, args[0])
 		}
 	}
+
 	return nil
 }
 
@@ -80,8 +83,11 @@ func internalSwitchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if !isConfigExist(cmdCtx) {
 		return errNoConfig
 	}
-	var switchCtx binary.SwitchCtx
-	var err error
+
+	var (
+		switchCtx binary.SwitchCtx
+		err       error
+	)
 
 	if len(args) > 0 {
 		if switchCtx.Program, err = search.ParseProgram(args[0]); err != nil {
@@ -107,6 +113,7 @@ func internalSwitchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	switchCtx.IncDir = cliOpts.Env.IncludeDir
 
 	err = binary.Switch(&switchCtx)
+
 	return err
 }
 

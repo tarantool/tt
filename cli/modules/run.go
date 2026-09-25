@@ -50,6 +50,7 @@ func RunCmd(cmdCtx *cmdcontext.CmdCtx, cmdPath string, modulesInfo *ModulesInfo,
 	if err != nil {
 		return fmt.Errorf("integrity check failed for %q: %w", manifest.Main, err)
 	}
+
 	_ = f.Close()
 
 	return RunExec(manifest.Main, args)
@@ -87,6 +88,7 @@ func RunExec(command string, args []string) error {
 	}
 
 	var exitError *exec.ExitError
+
 	if !errors.As(err, &exitError) {
 		return fmt.Errorf("failed to exec external module: %w", err)
 	}
@@ -129,11 +131,13 @@ func fillManifest(mf Manifest) (Manifest, error) {
 	if info.Version == "" {
 		return mf, errReplyForVersionIsMandatoryForModule
 	}
+
 	if info.Help == "" {
 		return mf, errReplyForDescriptionIsMandatoryForModule
 	}
 
 	mf.Version = info.Version
 	mf.Help = info.Help
+
 	return mf, nil
 }

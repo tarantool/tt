@@ -152,6 +152,7 @@ func TestTtCli_GetVersion(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+
 			require.Equal(t, tc.expectedVer, ttVersion)
 		})
 	}

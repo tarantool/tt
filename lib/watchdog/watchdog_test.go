@@ -42,6 +42,7 @@ func verifyNoErrors(t *testing.T, errChan chan error) {
 
 func TestWatchdog_Successful(t *testing.T) {
 	wd := NewWatchdog("test.pid", "wd.pid", 100*time.Millisecond)
+
 	t.Cleanup(cleanupPidFiles)
 
 	cmd := exec.CommandContext(t.Context(), "sleep", "1")
@@ -62,6 +63,7 @@ func TestWatchdog_Successful(t *testing.T) {
 
 func TestWatchdog_EarlyTermination(t *testing.T) {
 	wd := NewWatchdog("test.pid", "wd.pid", time.Second)
+
 	t.Cleanup(cleanupPidFiles)
 
 	cmd := exec.CommandContext(t.Context(), "sleep", "10")
@@ -79,6 +81,7 @@ func TestWatchdog_EarlyTermination(t *testing.T) {
 
 func TestWatchdog_ProcessRestart(t *testing.T) {
 	wd := NewWatchdog("test.pid", "wd.pid", 100*time.Millisecond)
+
 	t.Cleanup(cleanupPidFiles)
 
 	cmd := exec.CommandContext(t.Context(), "false")

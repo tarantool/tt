@@ -42,6 +42,7 @@ func WithIntegrity(opts IntegrityOptions) Option {
 		Verifiers:       append([]gcrypto.Verifier(nil), opts.Verifiers...),
 		SignerVerifiers: append([]gcrypto.SignerVerifier(nil), opts.SignerVerifiers...),
 	}
+
 	return func(f *Factory) {
 		f.integrity = &optsCopy
 	}
@@ -57,11 +58,13 @@ func WithFileReadFunc(fileReadFunc FileReadFunc) Option {
 // NewFactory creates a new Factory configured by the given options.
 func NewFactory(opts ...Option) Factory {
 	var f Factory
+
 	for _, opt := range opts {
 		if opt != nil {
 			opt(&f)
 		}
 	}
+
 	return f
 }
 
@@ -71,6 +74,7 @@ func (f Factory) NewFileCollector(path string) DataCollector {
 	if f.fileReadFunc != nil {
 		return FileCollector{path: path, fileReadFunc: f.fileReadFunc}
 	}
+
 	return NewFileCollector(path)
 }
 
@@ -81,6 +85,7 @@ func (f Factory) NewFilePublisher(path string) (DataPublisher, error) {
 	if f.integrity != nil {
 		return nil, errPublishingIntoAFileWithIntegrityDataIsNotSupported
 	}
+
 	return NewFilePublisher(path), nil
 }
 

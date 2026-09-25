@@ -44,7 +44,9 @@ func (t *Transport) Set(v string) error {
 	if !ok {
 		return fmt.Errorf("%w%s", errMustBe, ListValidTransports())
 	}
+
 	*t = Transport(v)
+
 	return nil
 }
 
@@ -52,5 +54,6 @@ func (t *Transport) Set(v string) error {
 func ListValidTransports() string {
 	ks := slices.Collect(maps.Keys(ValidTransport))
 	slices.Sort(ks)
+
 	return fmt.Sprintf("%v", ks)
 }

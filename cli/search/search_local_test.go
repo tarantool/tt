@@ -57,9 +57,11 @@ func (m mockFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	if m.entries == nil {
 		return nil, fs.ErrPermission
 	}
+
 	if len(m.entries) == 0 {
 		return nil, fs.ErrNotExist
 	}
+
 	return m.entries, nil
 }
 
@@ -252,9 +254,12 @@ func TestFindLocalBundles(t *testing.T) {
 				if err == nil {
 					t.Fatalf("expected an error but got none")
 				}
+
 				require.ErrorContains(t, err, tt.errMsg)
+
 				return
 			}
+
 			require.NoError(t, err)
 
 			require.Equal(t, len(tt.expectedVersion), len(bundles))
@@ -265,12 +270,14 @@ func TestFindLocalBundles(t *testing.T) {
 
 			if tt.logMsg != "" {
 				found := false
+
 				for _, message := range recorder.Messages() {
 					if strings.Contains(message, tt.logMsg) {
 						found = true
 						break
 					}
 				}
+
 				require.True(t, found, "expected %q not found in log entries", tt.logMsg)
 			}
 		})

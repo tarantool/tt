@@ -33,7 +33,9 @@ func searchSDKVersionToDownload(downloadCtx DownloadCtx, cliOpts *config.CliOpts
 	search.BundleInfo, error,
 ) {
 	log.Info("Search for the requested version...")
+
 	searchCtx := search.NewSearchCtx(search.NewPlatformInformer(), search.NewTntIoDoer())
+
 	searchCtx.Program = search.ProgramEe
 	searchCtx.Filter = search.SearchAll
 	searchCtx.Package = "enterprise"
@@ -43,6 +45,7 @@ func searchSDKVersionToDownload(downloadCtx DownloadCtx, cliOpts *config.CliOpts
 	if err != nil {
 		return search.BundleInfo{}, fmt.Errorf("cannot get SDK bundles list: %w", err)
 	}
+
 	return search.SelectVersion(bundles, downloadCtx.Version)
 }
 
@@ -70,22 +73,27 @@ func DownloadSDK(cmdCtx *cmdcontext.CmdCtx, downloadCtx DownloadCtx,
 
 	bundleName := ver.Version.Tarball
 	bundlePath := filepath.Join(downloadCtx.DirectoryPrefix, bundleName)
+
 	if _, err := os.Stat(bundlePath); err == nil {
 		confirmed, err := util.AskConfirm(os.Stdin, "Confirm overwrite "+bundlePath)
 		if err != nil {
 			return err
 		}
+
 		if !confirmed {
 			log.Info("Download is cancelled.")
+
 			return nil
 		}
 	}
 
 	log.Infof("Downloading %s...", bundleName)
+
 	searchCtx := search.NewSearchCtx(
 		search.NewPlatformInformer(),
 		install_ee.NewTntIoDownloader(ver.Token),
 	)
+
 	searchCtx.Program = search.ProgramEe
 	searchCtx.DevBuilds = downloadCtx.DevBuild
 	searchCtx.ReleaseVersion = ver.Release

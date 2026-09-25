@@ -16,5 +16,6 @@ func (msg *lazyMessage) Unmarshal(v any) error {
 	if msg.unmarshal == nil {
 		return nil
 	}
+
 	return msg.unmarshal(v)
 }

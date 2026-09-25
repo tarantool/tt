@@ -26,6 +26,7 @@ func ApplyVars(templateStr string, data map[string]string) (string, error) {
 				return val
 			}
 		}
+
 		return varNameStr
 	})
 

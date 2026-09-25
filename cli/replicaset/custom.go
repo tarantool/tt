@@ -43,7 +43,9 @@ func NewCustomInstance(evaler connector.Evaler) *CustomInstance {
 	inst := &CustomInstance{
 		evaler: evaler,
 	}
+
 	inst.discoverer = inst
+
 	return inst
 }
 
@@ -111,7 +113,9 @@ func NewCustomApplication(runningCtx running.RunningCtx) *CustomApplication {
 	app := &CustomApplication{
 		runningCtx: runningCtx,
 	}
+
 	app.discoverer = app
+
 	return app
 }
 
@@ -158,6 +162,7 @@ func (c *CustomApplication) discovery() (Replicasets, error) {
 			if err != nil {
 				return true, err
 			}
+
 			for i := range topology.Instances {
 				if topology.Instances[i].UUID == topology.InstanceUUID {
 					topology.Instances[i].InstanceCtx = ictx
@@ -166,6 +171,7 @@ func (c *CustomApplication) discovery() (Replicasets, error) {
 			}
 
 			topologies = append(topologies, topology)
+
 			return false, nil
 		}))
 	if err != nil {
@@ -183,6 +189,7 @@ func getCustomInstanceTopology(name string,
 
 	args := []any{}
 	opts := connector.RequestOpts{}
+
 	data, err := evaler.Eval(customGetInstanceTopologyBody, args, opts)
 	if err != nil {
 		return topology, err
@@ -203,6 +210,7 @@ func getCustomInstanceTopology(name string,
 			} else {
 				topology.Instances[i].Mode = ModeRead
 			}
+
 			if topology.Instances[i].Alias == "" {
 				topology.Instances[i].Alias = name
 			}
@@ -222,6 +230,7 @@ func mergeCustomTopologies(topologies []customTopology) (Replicasets, error) {
 
 	for _, topology := range topologies {
 		var replicaset *Replicaset
+
 		for i := range replicasets.Replicasets {
 			if topology.UUID == replicasets.Replicasets[i].UUID {
 				replicaset = &replicasets.Replicasets[i]
@@ -249,24 +258,30 @@ func mergeCustomTopologies(topologies []customTopology) (Replicasets, error) {
 func updateCustomInstances(replicaset *Replicaset, topology customTopology) {
 	for _, tinstance := range topology.Instances {
 		var instance *Instance
+
 		for i := range replicaset.Instances {
 			if tinstance.UUID == replicaset.Instances[i].UUID {
 				instance = &replicaset.Instances[i]
 			}
 		}
+
 		if instance == nil {
 			replicaset.Instances = append(replicaset.Instances, tinstance)
 			continue
 		}
+
 		if instance.Alias == "" {
 			instance.Alias = tinstance.Alias
 		}
+
 		if instance.URI == "" {
 			instance.URI = tinstance.URI
 		}
+
 		if instance.Mode == ModeUnknown {
 			instance.Mode = tinstance.Mode
 		}
+
 		if !instance.InstanceCtxFound {
 			instance.InstanceCtx = tinstance.InstanceCtx
 			instance.InstanceCtxFound = tinstance.InstanceCtxFound

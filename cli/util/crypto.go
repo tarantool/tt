@@ -16,6 +16,7 @@ func FileSHA256Hex(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	defer func() {
 		_ = file.Close()
 	}()
@@ -35,6 +36,7 @@ func FileSHA1Hex(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	defer func() {
 		_ = file.Close()
 	}()
@@ -54,6 +56,7 @@ func FileMD5(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	defer func() {
 		_ = file.Close()
 	}()

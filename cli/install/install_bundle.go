@@ -82,6 +82,7 @@ func checkInstallDirs(binDir, includeDir string) error {
 				errTheDirectoryIsNotWriteableForTheCurrentUser, dir)
 		}
 	}
+
 	return nil
 }
 
@@ -95,12 +96,15 @@ func checkExistingInstallation(bp *bundleParams) bool {
 
 	if !bp.inst.Program.IsTarantool() {
 		log.Debugf("Checking existence: bin=%s (%t)", binPath, binExists)
+
 		return binExists
 	}
+
 	incExists := util.IsDir(incPath)
 
 	log.Debugf("Checking existence: bin=%s (%t), inc=%s (%t)",
 		binPath, binExists, incPath, incExists)
+
 	return binExists && incExists
 }
 
@@ -112,6 +116,7 @@ func prepareTemporaryDirs(bp *bundleParams) error {
 	if err != nil {
 		return fmt.Errorf("failed to create temporary install directory: %w", err)
 	}
+
 	_ = os.Chmod(bp.tmpDir, defaultDirPermissions)
 
 	bp.logFile, err = os.CreateTemp("", bp.inst.Program.String()+"_install_log_*")
@@ -122,6 +127,7 @@ func prepareTemporaryDirs(bp *bundleParams) error {
 
 	log.Debugf("Created temporary install directory: %s", bp.tmpDir)
 	log.Debugf("Created temporary log file: %s", bp.logFile.Name())
+
 	return nil
 }
 
@@ -129,12 +135,14 @@ func prepareTemporaryDirs(bp *bundleParams) error {
 func checkDependencies(program search.Program, force bool) error {
 	if force {
 		log.Debugf("Skipping dependency check due to --force flag.")
+
 		return nil
 	}
 
 	if err := programDependenciesInstalled(program); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -146,18 +154,22 @@ func copyBundle(bp *bundleParams) error {
 	}
 
 	log.Infof("Checking local files...")
+
 	bundleName := bp.bundleInfo.Version.Tarball
 	localBundlePath := filepath.Join(distfiles, bundleName)
+
 	if !util.IsRegularFile(localBundlePath) {
 		return fmt.Errorf("%w%s", errLocalBundleFileNotFound, localBundlePath)
 	}
 
 	log.Infof("Local files found, installing from %s...", bundleName)
+
 	err := util.CopyFilePreserve(localBundlePath, filepath.Join(bp.tmpDir, bundleName))
 	if err != nil {
 		_, _ = fmt.Fprintf(bp.logFile, "Error copying local bundle: %v\n", err)
 		return fmt.Errorf("failed to copy local bundle: %w", err)
 	}
+
 	return nil
 }
 
@@ -169,6 +181,7 @@ func downloadBundle(bp *bundleParams) error {
 		search.NewPlatformInformer(),
 		install_ee.NewTntIoDownloader(bp.bundleInfo.Token),
 	)
+
 	searchCtx.Program = bp.inst.Program
 	searchCtx.DevBuilds = bp.inst.DevBuild
 	searchCtx.ReleaseVersion = bp.bundleInfo.Release
@@ -179,11 +192,13 @@ func downloadBundle(bp *bundleParams) error {
 	}
 
 	log.Infof("Downloading %s... (%s)", bp.inst.Program, bundleSource)
+
 	err = install_ee.DownloadBundle(searchCtx.TntIoDoer, bundleName, bundleSource, bp.tmpDir)
 	if err != nil {
 		_, _ = fmt.Fprintf(bp.logFile, "Error downloading bundle: %v\n", err)
 		return fmt.Errorf("failed to download bundle: %w", err)
 	}
+
 	return nil
 }
 
@@ -192,12 +207,14 @@ func obtainBundle(bp *bundleParams) error {
 	if bp.inst.Local {
 		return copyBundle(bp)
 	}
+
 	return downloadBundle(bp)
 }
 
 // unpackBundle extracts the contents of the bundle archive.
 func unpackBundle(bundlePath string, logFile io.Writer) error {
 	log.Infof("Unpacking archive %s...", filepath.Base(bundlePath))
+
 	err := util.ExtractTar(bundlePath)
 	if err != nil {
 		_, _ = fmt.Fprintf(logFile, "Error unpacking bundle: %v\n", err)
@@ -205,6 +222,7 @@ func unpackBundle(bundlePath string, logFile io.Writer) error {
 	}
 
 	log.Debugf("Bundle %s unpacked successfully.", filepath.Base(bundlePath))
+
 	return nil
 }
 
@@ -235,6 +253,7 @@ func findBundlePathsInDir(baseDir string, program search.Program) (
 	if !util.IsDir(incPath) {
 		incPath = "" // No include directory found in bundle.
 	}
+
 	return binPath, incPath, nil
 }
 
@@ -248,6 +267,7 @@ func prepareForReinstall(bp *bundleParams) error {
 			return fmt.Errorf("%w%s or %s already exists",
 				errInstallationPathOrAlreadyExists, destBinPath, destIncPath)
 		}
+
 		return nil
 	}
 
@@ -264,8 +284,10 @@ func prepareForReinstall(bp *bundleParams) error {
 	if util.IsDir(destIncPath) {
 		log.Infof("Include directory for %s version already exists, removing...",
 			bp.prgVersion)
+
 		if err := os.RemoveAll(destIncPath); err != nil {
 			_, _ = fmt.Fprintf(bp.logFile, "Error removing include dir: %v\n", err)
+
 			return fmt.Errorf("failed to remove include directory %s: %w",
 				destIncPath, err)
 		}
@@ -273,6 +295,7 @@ func prepareForReinstall(bp *bundleParams) error {
 
 	log.Debugf("Existing files removed to reinstall version %q for program %q",
 		bp.prgVersion, bp.inst.Program)
+
 	return nil
 }
 
@@ -303,12 +326,14 @@ func copyNewArtifacts(bp *bundleParams) error {
 	}
 
 	log.Debugf("Artifacts copied successfully.")
+
 	return nil
 }
 
 // changeActiveBundleVersion changes symlinks to the specified bundle executable version.
 func changeActiveBundleVersion(bp *bundleParams) error {
 	execPath := filepath.Join(bp.opts.Env.BinDir, bp.inst.Program.Exec())
+
 	err := util.CreateSymlink(bp.prgVersion, execPath, true)
 	if err != nil {
 		return err
@@ -326,9 +351,11 @@ func changeActiveBundleVersion(bp *bundleParams) error {
 // Uses the existing changeActiveTarantoolVersion function.
 func updateSymlinks(bp *bundleParams) error {
 	log.Infof("Updating symlinks to point to %s...", bp.prgVersion)
+
 	err := changeActiveBundleVersion(bp)
 	if err != nil {
 		log.Errorf("Failed to update symlinks: %v", err)
+
 		return fmt.Errorf("failed to update symlinks: %w", err)
 	}
 
@@ -337,6 +364,7 @@ func updateSymlinks(bp *bundleParams) error {
 	log.Infof("Active version set by symlinks: %q and %q",
 		filepath.Join(bp.opts.Env.BinDir, bp.inst.Program.Exec()),
 		filepath.Join(bp.inst.IncDir, bp.inst.Program.Exec()))
+
 	return nil
 }
 
@@ -351,16 +379,20 @@ func performInitialChecks(bp *bundleParams) error {
 	}
 
 	log.Infof("Requested version: %s", bp.inst.version)
+
 	return nil
 }
 
 // acquireBundleInfoToInstall finds local candidates and fetches bundle information
 // using the search package.
 func acquireBundleInfoToInstall(bp *bundleParams) error {
-	var bundles search.BundleInfoSlice
-	var err error
+	var (
+		bundles search.BundleInfoSlice
+		err     error
+	)
 
 	log.Infof("Search for the requested %q version...", bp.inst.version)
+
 	if bp.inst.Local {
 		bundles, err = search.FindLocalBundles(bp.inst.Program, os.DirFS(bp.opts.Repo.Install))
 		if err != nil {
@@ -368,6 +400,7 @@ func acquireBundleInfoToInstall(bp *bundleParams) error {
 		}
 	} else {
 		searchCtx := search.NewSearchCtx(search.NewPlatformInformer(), search.NewTntIoDoer())
+
 		searchCtx.Program = bp.inst.Program
 		searchCtx.Filter = search.SearchAll
 		searchCtx.Package = search.GetAPIPackage(bp.inst.Program)
@@ -387,6 +420,7 @@ func acquireBundleInfoToInstall(bp *bundleParams) error {
 	bp.prgVersion = bp.inst.Program.String() + version.FsSeparator + bp.bundleInfo.Version.Str
 	log.Infof("Found bundle: %s", bp.bundleInfo.Version.Tarball)
 	log.Infof("Version: %s", bp.bundleInfo.Version.Str)
+
 	return nil
 }
 
@@ -398,6 +432,7 @@ func executeBundleInstallation(bp *bundleParams) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	logFilePath := bp.logFile.Name()
 
 	if !bp.inst.KeepTemp {
@@ -413,17 +448,20 @@ func executeBundleInstallation(bp *bundleParams) (string, error) {
 		if err != nil {
 			log.Errorf("Installation failed: %v", err)
 			log.Infof("See log for details: %s", logFilePath)
+
 			_ = printLog(logFilePath) // Attempt to print log content.
 		}
 	}()
 
 	err = executeBundleInstallationSteps(bp)
+
 	return logFilePath, err
 }
 
 // executeBundleInstallationSteps installs the bundle using the prepared temporary files.
 func executeBundleInstallationSteps(bp *bundleParams) error {
 	log.Infof("Starting installation steps in %s...", bp.tmpDir)
+
 	_, _ = fmt.Fprintf(bp.logFile, "Installation started for %s version %s\n",
 		bp.inst.Program, bp.bundleInfo.Version.Str)
 
@@ -431,28 +469,35 @@ func executeBundleInstallationSteps(bp *bundleParams) error {
 		_, _ = fmt.Fprintf(bp.logFile, "Dependency check failed: %v\n", err)
 		return err
 	}
+
 	_, _ = fmt.Fprintf(bp.logFile, "Dependency check passed.\n")
 
 	err := obtainBundle(bp)
 	if err != nil {
 		return err
 	}
+
 	_, _ = fmt.Fprintf(bp.logFile, "Bundle obtained successfully.\n")
+
 	bundlePath := filepath.Join(bp.tmpDir, bp.bundleInfo.Version.Tarball)
 
 	if err = unpackBundle(bundlePath, bp.logFile); err != nil {
 		return err
 	}
+
 	_, _ = fmt.Fprintf(bp.logFile, "Bundle unpacked successfully.\n")
 
 	err = copyNewArtifacts(bp)
 	if err != nil {
 		return err
 	}
+
 	_, _ = fmt.Fprintf(bp.logFile, "Artifacts copied successfully.\n")
 
 	log.Infof("Core installation steps completed successfully.")
+
 	_, _ = fmt.Fprintf(bp.logFile, "Core installation steps completed successfully.\n")
+
 	return nil
 }
 
@@ -470,21 +515,26 @@ func installBundleProgram(installCtx *InstallCtx, cliOpts *config.CliOpts) error
 	err := acquireBundleInfoToInstall(&bp)
 	if err != nil {
 		log.Errorf("Failed to find bundles to install: %v", err)
+
 		return err
 	}
 
 	if !bp.inst.Reinstall {
 		log.Infof("Checking existing installation...")
+
 		exists := checkExistingInstallation(&bp)
 
 		if exists {
 			log.Infof("%s version %s already exists.", bp.inst.Program, bp.prgVersion)
+
 			return updateSymlinks(&bp)
 		}
+
 		log.Debugf("No existing installation found for %s.", bp.prgVersion)
 	}
 
 	log.Infof("Installing %s=%s", bp.inst.Program, bp.bundleInfo.Version.Str)
+
 	logFilePath, err := executeBundleInstallation(&bp)
 	if err != nil {
 		return fmt.Errorf("%w%s)", errInstallationFailedDuringExecutionPhaseSeeLog, logFilePath)
@@ -497,5 +547,6 @@ func installBundleProgram(installCtx *InstallCtx, cliOpts *config.CliOpts) error
 
 	log.Infof("Successfully installed %s version %s", bp.inst.Program, bp.bundleInfo.Version.Str)
 	log.Info("Done.")
+
 	return nil
 }

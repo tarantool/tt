@@ -39,6 +39,7 @@ func startTestInstance(t *testing.T, ctx context.Context, app, consoleSock strin
 	instTestDataDir := t.TempDir()
 	binPath, err := os.Executable()
 	require.NoError(t, err)
+
 	binDir := filepath.Dir(binPath)
 	inst, err := newScriptInstance(tarantoolBin, InstanceCtx{
 		AppDir:         binDir,
@@ -53,13 +54,16 @@ func startTestInstance(t *testing.T, ctx context.Context, app, consoleSock strin
 
 	require.NoErrorf(t, err, `Can't get the path to the executable. Error: "%v".`, err)
 	t.Setenv("started_flag_file", filepath.Join(binDir, app))
+
 	defer func() {
 		_ = os.Remove(os.Getenv("started_flag_file"))
 	}()
+
 	err = inst.Start(ctx)
 	assert.Nilf(err, `Can't start the instance. Error: "%v".`, err)
 
 	require.NotZero(t, waitForFile(os.Getenv("started_flag_file")), "Instance is not started")
+
 	alive := inst.IsAlive()
 	assert.True(alive, "Can't start the instance.")
 
@@ -75,6 +79,7 @@ func cleanupTestInstance(t *testing.T, inst *scriptInstance) {
 		err := inst.Stop(stopTimeout)
 		assert.NoError(t, err)
 	}
+
 	if _, err := os.Stat(inst.consoleSocket); err == nil {
 		_ = os.Remove(inst.consoleSocket)
 	}
@@ -85,6 +90,7 @@ func TestInstanceBase(t *testing.T) {
 
 	binPath, err := os.Executable()
 	assert.Nilf(err, `Can't get the path to the executable. Error: "%v".`, err)
+
 	consoleSock := filepath.Join(filepath.Dir(binPath), "test.sock")
 	binaryPort := filepath.Join(filepath.Dir(binPath), "testbin.sock")
 
@@ -95,6 +101,7 @@ func TestInstanceBase(t *testing.T) {
 
 	conn, err := (&net.Dialer{}).DialContext(t.Context(), "unix", consoleSock)
 	assert.Nilf(err, `Can't connect to console socket. Error: "%v".`, err)
+
 	_ = conn.Close()
 }
 
@@ -113,6 +120,7 @@ func TestInstanceLogger(t *testing.T) {
 		defer func() {
 			_ = writer.Close()
 		}()
+
 		cleanupTestInstance(t, inst)
 	})
 
@@ -134,6 +142,7 @@ func Test_shortenSocketPath(t *testing.T) {
 	if runtime.GOOS == "darwin" {
 		maxSocketPathLen = maxSocketPathMac
 	}
+
 	dirLen := maxSocketPathLen - len("/tarantool.control") - 1
 	maxSocketPath := "/" + strings.Repeat("a", dirLen) + "/tarantool.control"
 	require.Equal(t, maxSocketPathLen, len(maxSocketPath))
@@ -216,6 +225,7 @@ func Test_shortenSocketPath(t *testing.T) {
 func TestInstanceLogs(t *testing.T) {
 	binPath, err := os.Executable()
 	assert.NoError(t, err)
+
 	consoleSock := filepath.Join(filepath.Dir(binPath), "test.sock")
 	binaryPort := filepath.Join(filepath.Dir(binPath), "testbin.sock")
 
@@ -245,13 +255,16 @@ func TestInstanceLogs(t *testing.T) {
 
 	require.NoErrorf(t, err, `Can't get the path to the executable. Error: "%v".`, err)
 	t.Setenv("started_flag_file", filepath.Join(binDir, app))
+
 	defer func() {
 		_ = os.Remove(os.Getenv("started_flag_file"))
 	}()
+
 	err = inst.Start(context.Background())
 	require.NoError(t, err)
 
 	require.NotZero(t, waitForFile(os.Getenv("started_flag_file")), "Instance is not started")
+
 	alive := inst.IsAlive()
 	assert.True(t, alive)
 

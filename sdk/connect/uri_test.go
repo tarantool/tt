@@ -114,6 +114,7 @@ func TestIsBaseURIValid(t *testing.T) {
 func TestIsBaseURIInvalid(t *testing.T) {
 	invalid := make([]string, 0,
 		len(invalidBaseUris)+len(validCredentialsUris)+len(invalidCredentialsUris))
+
 	invalid = append(invalid, invalidBaseUris...)
 	invalid = append(invalid, validCredentialsUris...)
 	invalid = append(invalid, invalidCredentialsUris...)
@@ -136,6 +137,7 @@ func TestIsCredentialsURIValid(t *testing.T) {
 func TestIsCredentialsURIInvalid(t *testing.T) {
 	invalid := make([]string, 0,
 		len(validBaseUris)+len(invalidBaseUris)+len(invalidCredentialsUris))
+
 	invalid = append(invalid, validBaseUris...)
 	invalid = append(invalid, invalidBaseUris...)
 	invalid = append(invalid, invalidCredentialsUris...)
@@ -192,6 +194,7 @@ func TestParseCredentialsURI_parseValid(t *testing.T) {
 func TestParseCredentialsURI_notParseInvalid(t *testing.T) {
 	invalid := make([]string, 0,
 		len(validBaseUris)+len(invalidBaseUris)+len(invalidCredentialsUris))
+
 	invalid = append(invalid, validBaseUris...)
 	invalid = append(invalid, invalidBaseUris...)
 	invalid = append(invalid, invalidCredentialsUris...)
@@ -549,6 +552,7 @@ func TestParseUriOpts(t *testing.T) {
 			if tc.Opts.Params == nil {
 				tc.Opts.Params = make(map[string]string)
 			}
+
 			opts, err := connect.CreateURIOpts(tc.URL)
 			if tc.Err != "" {
 				assert.ErrorContains(t, err, tc.Err)

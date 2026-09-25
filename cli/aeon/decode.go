@@ -43,44 +43,55 @@ func decodeValue(val *pb.Value) (any, error) {
 		return val.GetVarbinaryValue(), nil
 	case *pb.Value_DecimalValue:
 		decStr := val.GetDecimalValue()
+
 		res, err := decimal.NewDecimalFromString(decStr)
 		if err != nil {
 			return nil, err
 		}
+
 		return res, nil
 	case *pb.Value_UuidValue:
 		uuidStr := val.GetUuidValue()
+
 		res, err := uuid.Parse(uuidStr)
 		if err != nil {
 			return nil, err
 		}
+
 		return res, nil
 	case *pb.Value_DatetimeValue:
 		dateTime := val.GetDatetimeValue()
 		if dateTime == nil {
 			return nil, errProtobufDatetimeValueIsNil
 		}
+
 		sec := dateTime.GetSeconds()
 		nsec := dateTime.GetNsec()
 		t := time.Unix(sec, nsec)
+
 		if len(dateTime.GetLocation()) > 0 {
 			locStr := dateTime.GetLocation()
+
 			loc, err := time.LoadLocation(locStr)
 			if err != nil {
 				return nil, err
 			}
+
 			t = t.In(loc)
 		}
+
 		res, err := datetime.NewDatetime(t)
 		if err != nil {
 			return nil, err
 		}
+
 		return res, nil
 	case *pb.Value_IntervalValue:
 		interval := val.GetIntervalValue()
 		if interval == nil {
 			return nil, errProtobufIntervalValueIsNil
 		}
+
 		res := datetime.Interval{
 			Year:   interval.GetYear(),
 			Month:  interval.GetMonth(),
@@ -92,36 +103,45 @@ func decodeValue(val *pb.Value) (any, error) {
 			Nsec:   interval.GetNsec(),
 			Adjust: datetime.Adjust(interval.GetAdjust()),
 		}
+
 		return res, nil
 	case *pb.Value_ArrayValue:
 		array := val.GetArrayValue()
 		if array == nil {
 			return nil, errProtobufArrayValueIsNil
 		}
+
 		fields := array.GetFields()
 		res := make([]any, len(fields))
+
 		for k, v := range fields {
 			field, err := decodeValue(v)
 			if err != nil {
 				return nil, err
 			}
+
 			res[k] = field
 		}
+
 		return res, nil
 	case *pb.Value_MapValue:
 		mapValue := val.GetMapValue()
 		if mapValue == nil {
 			return nil, errProtobufMapValueIsNil
 		}
+
 		fields := mapValue.GetFields()
 		res := make(map[any]any, len(fields))
+
 		for k, v := range fields {
 			item, err := decodeValue(v)
 			if err != nil {
 				return nil, err
 			}
+
 			res[k] = item
 		}
+
 		return res, nil
 	case *pb.Value_NullValue:
 		return nil, nil

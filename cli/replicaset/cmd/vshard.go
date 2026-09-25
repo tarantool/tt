@@ -60,6 +60,7 @@ func BootstrapVShard(ctx VShardCmdCtx) error {
 	}
 
 	var orchestrator replicasetOrchestrator
+
 	if ctx.IsApplication {
 		orchestrator, err = makeApplicationOrchestrator(
 			orchestratorType, ctx.RunningCtx, ctx.Collectors, ctx.Publishers, ctx.Integrity)
@@ -74,6 +75,7 @@ func BootstrapVShard(ctx VShardCmdCtx) error {
 	}
 
 	log.Info("Discovery application...")
+
 	_, _ = fmt.Fprintln(os.Stdout, "")
 
 	retryOpts := []retry.Option{
@@ -84,16 +86,19 @@ func BootstrapVShard(ctx VShardCmdCtx) error {
 	discoverAppFunc := func() error {
 		return discoverApp(orchestrator)
 	}
+
 	if err := retry.Do(discoverAppFunc, retryOpts...); err != nil {
 		return fmt.Errorf("failed to bootstrap vshard: %w", err)
 	}
 
 	_, _ = fmt.Fprintln(os.Stdout, "")
+
 	log.Info("Bootstrapping vshard")
 
 	err = orchestrator.BootstrapVShard(replicaset.VShardBootstrapCtx{Timeout: ctx.Timeout})
 	if err == nil {
 		log.Info("Done.")
 	}
+
 	return err
 }

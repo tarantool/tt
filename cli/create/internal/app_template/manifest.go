@@ -54,16 +54,19 @@ func validateManifest(manifest *TemplateManifest) error {
 		if varInfo.Prompt == "" {
 			return errMissingUserPrompt
 		}
+
 		if varInfo.Name == "" {
 			return errMissingVariableName
 		}
 	}
+
 	return nil
 }
 
 // LoadManifest loads template manifest from manifestPath.
 func LoadManifest(manifestPath string) (TemplateManifest, error) {
 	var templateManifest TemplateManifest
+
 	if _, err := os.Stat(manifestPath); err != nil {
 		return templateManifest, fmt.Errorf("failed to get access to manifest file: %w", err)
 	}

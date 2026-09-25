@@ -25,7 +25,9 @@ func createArchive(buf io.Writer, files ...string) error {
 	defer func() {
 		_ = gzipWriter.Close()
 	}()
+
 	tarWriter := tar.NewWriter(gzipWriter)
+
 	defer func() {
 		_ = tarWriter.Close()
 	}()
@@ -45,6 +47,7 @@ func addToArchive(tarWriter *tar.Writer, fileName string) error {
 	if err != nil {
 		return err
 	}
+
 	defer func() {
 		_ = file.Close()
 	}()
@@ -79,9 +82,12 @@ func TestCopyTemplateDirectory(t *testing.T) {
 	require.Nil(t, copy.Copy("testdata/copy_template", workDir2))
 
 	var createCtx create_ctx.CreateCtx
+
 	createCtx.TemplateName = "basic"
 	createCtx.TemplateSearchPaths = []string{dstDir, filepath.Join(workDir2, "templates")}
+
 	templateCtx := app_template.NewTemplateContext()
+
 	templateCtx.AppPath = filepath.Join(dstDir, "app1")
 
 	// CopyAppTemplate must copy "src" template from workdir2 to workdir1 using "app1" as dst name.
@@ -99,9 +105,12 @@ func TestCopyTemplateDirectoryRelative(t *testing.T) {
 	require.Nil(t, copy.Copy("testdata/copy_template", workDir2))
 
 	var createCtx create_ctx.CreateCtx
+
 	createCtx.TemplateName = "basic"
 	createCtx.TemplateSearchPaths = []string{"./templates"}
+
 	templateCtx := app_template.NewTemplateContext()
+
 	templateCtx.AppPath = filepath.Join(dstDir, "app1")
 
 	t.Chdir(workDir2)
@@ -116,6 +125,7 @@ func TestCopyTemplateDirectoryRelative(t *testing.T) {
 
 func TestExtractTemplateArchive(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
 
 	dstDir := t.TempDir()
@@ -133,6 +143,7 @@ func TestExtractTemplateArchive(t *testing.T) {
 	archivePath := filepath.Join(workDir, "tmpl.tgz")
 	archiveOut, err := os.Create(archivePath)
 	require.NoError(t, err)
+
 	defer func() {
 		_ = archiveOut.Close()
 	}()
@@ -156,6 +167,7 @@ func TestCopyEmbeddedFs(t *testing.T) {
 	assert.FileExists(t, filepath.Join(tmpDir, "init.lua"))
 	assert.FileExists(t, filepath.Join(tmpDir, "subdir", "file.txt"))
 	assert.FileExists(t, filepath.Join(tmpDir, "echo.sh"))
+
 	stat, err := os.Stat(filepath.Join(tmpDir, "echo.sh"))
 	require.NoError(t, err)
 	assert.Equal(t, fs.FileMode(0o644), stat.Mode().Perm())

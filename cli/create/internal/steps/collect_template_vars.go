@@ -38,13 +38,17 @@ func validateExistingValue(createCtx *create_ctx.CreateCtx, varInfo app_template
 	if err != nil {
 		return false, fmt.Errorf("failed to validate user input: %w", err)
 	}
+
 	if matched {
 		return true, nil
 	}
+
 	if createCtx.SilentMode {
 		return false, fmt.Errorf("%w%s variable", errInvalidFormatOfVariable, varInfo.Name)
 	}
+
 	_, _ = fmt.Fprintf(os.Stdout, "Invalid format of %s variable.\n", varInfo.Name)
+
 	return false, nil
 }
 
@@ -59,21 +63,26 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 	for _, varInfo := range templateCtx.Manifest.Vars {
 		// Check if var is present, and validate it.
 		existingValue, found := templateCtx.Vars[varInfo.Name]
+
 		valid, err := validateExistingValue(createCtx, varInfo, existingValue, found)
 		if err != nil {
 			return err
 		}
+
 		if valid {
 			continue
 		}
 
 		matched := false
+
 		var input string
+
 		for !matched {
 			if varInfo.Default == "" {
 				if createCtx.SilentMode {
 					return fmt.Errorf("%s%w", varInfo.Name, errVariableValueIsNotSet)
 				}
+
 				_, _ = fmt.Fprintf(os.Stdout, "%s: ", varInfo.Prompt)
 			} else {
 				if createCtx.SilentMode {
@@ -89,6 +98,7 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 				if input, err = collectTemplateVarsFromUser.Reader.ReadString('\n'); err != nil {
 					return fmt.Errorf("error reading user input: %w", err)
 				}
+
 				input = strings.TrimSuffix(input, "\n")
 			}
 
@@ -99,24 +109,30 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 					input = varInfo.Default
 				}
 			}
+
 			if input == "" {
 				continue
 			}
+
 			if varInfo.Re == "" {
 				matched = true
 				continue
 			}
+
 			matched, err = regexp.MatchString(varInfo.Re, input)
 			if err != nil {
 				return fmt.Errorf("failed to validate user input: %w", err)
 			}
+
 			if !matched {
 				if createCtx.SilentMode {
 					return fmt.Errorf("%w%s variable", errInvalidFormatOfVariable, varInfo.Name)
 				}
+
 				_, _ = fmt.Fprintln(os.Stdout, "Invalid format. Try again.")
 			}
 		}
+
 		templateCtx.Vars[varInfo.Name] = input
 	}
 

@@ -21,7 +21,9 @@ func findAndRemoveBuiltImage(t *testing.T, dockerClient *mobyclient.Client) {
 	ctx := context.Background()
 	imageListResult, err := dockerClient.ImageList(ctx, mobyclient.ImageListOptions{})
 	require.NoError(t, err)
+
 	imgFound := false
+
 	for _, img := range imageListResult.Items {
 		for _, imgTag := range img.RepoTags {
 			if imgTag == "ubuntu:tt_test" {
@@ -30,12 +32,14 @@ func findAndRemoveBuiltImage(t *testing.T, dockerClient *mobyclient.Client) {
 			}
 		}
 	}
+
 	require.True(t, imgFound)
 }
 
 func TestBuildImage(t *testing.T) {
 	dockerClient, err := mobyclient.New(mobyclient.FromEnv)
 	require.NoError(t, err)
+
 	defer func() {
 		_ = dockerClient.Close()
 	}()
@@ -55,6 +59,7 @@ func TestBuildImageFail(t *testing.T) {
 
 	dockerClient, err := mobyclient.New(mobyclient.FromEnv)
 	require.NoError(t, err)
+
 	defer func() {
 		_ = dockerClient.Close()
 	}()
@@ -67,6 +72,7 @@ func TestBuildImageFail(t *testing.T) {
 func TestBuildImageOutputVerbose(t *testing.T) {
 	dockerClient, err := mobyclient.New(mobyclient.FromEnv)
 	require.NoError(t, err)
+
 	defer func() {
 		_ = dockerClient.Close()
 	}()
@@ -76,14 +82,18 @@ func TestBuildImageOutputVerbose(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, buildDockerImage(dockerClient, "ubuntu:tt_test", "testdata", true, out))
+
 	_ = out.Close()
+
 	findAndRemoveBuiltImage(t, dockerClient)
 
 	in, err := os.Open(filepath.Join(tmpDir, "out.log"))
 	require.NoError(t, err)
+
 	defer func() {
 		_ = in.Close()
 	}()
+
 	scanner := bufio.NewScanner(in)
 	require.True(t, scanner.Scan())
 	require.Equal(t, "Step 1/1 : FROM ubuntu:16.04", scanner.Text())
@@ -97,6 +107,7 @@ func TestBuildImageOutputVerbose(t *testing.T) {
 func TestBuildImageOutput(t *testing.T) {
 	dockerClient, err := mobyclient.New(mobyclient.FromEnv)
 	require.NoError(t, err)
+
 	defer func() {
 		_ = dockerClient.Close()
 	}()
@@ -106,14 +117,18 @@ func TestBuildImageOutput(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, buildDockerImage(dockerClient, "ubuntu:tt_test", "testdata", false, out))
+
 	_ = out.Close()
+
 	findAndRemoveBuiltImage(t, dockerClient)
 
 	in, err := os.Open(filepath.Join(tmpDir, "out.log"))
 	require.NoError(t, err)
+
 	defer func() {
 		_ = in.Close()
 	}()
+
 	scanner := bufio.NewScanner(in)
 	require.False(t, scanner.Scan())
 }
@@ -124,6 +139,7 @@ func checkNoContainers(t *testing.T, imageTag string) {
 	ctx := context.Background()
 	cli, err := mobyclient.New(mobyclient.FromEnv)
 	require.NoError(t, err)
+
 	defer func() {
 		_ = cli.Close()
 	}()
@@ -134,6 +150,7 @@ func checkNoContainers(t *testing.T, imageTag string) {
 		},
 	})
 	require.NoError(t, err)
+
 	containerFound := len(containerListResult.Items) > 0
 	require.False(t, containerFound)
 }

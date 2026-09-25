@@ -16,7 +16,9 @@ func TestRunHooks(t *testing.T) {
 	workDir := t.TempDir()
 
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
+
 	templateCtx.AppPath = workDir
 	templateCtx.IsManifestPresent = true
 	templateCtx.Manifest.PreHook = "pre-gen.sh"
@@ -26,6 +28,7 @@ func TestRunHooks(t *testing.T) {
 
 	runPreHook := RunHook{HookType: "pre"}
 	runPostHook := RunHook{HookType: "post"}
+
 	assert.NoError(t, runPreHook.Run(&createCtx, &templateCtx))
 	assert.NoError(t, runPostHook.Run(&createCtx, &templateCtx))
 	assert.FileExists(t, filepath.Join(templateCtx.AppPath, "pre-script-invoked"))
@@ -40,7 +43,9 @@ func TestRunHooksMissingScript(t *testing.T) {
 	workDir := t.TempDir()
 
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
+
 	templateCtx.AppPath = workDir
 	templateCtx.IsManifestPresent = true
 	templateCtx.Manifest.PreHook = "pre-gen.sh"
@@ -48,6 +53,7 @@ func TestRunHooksMissingScript(t *testing.T) {
 
 	runPreHook := RunHook{HookType: "pre"}
 	runPostHook := RunHook{HookType: "post"}
+
 	require.EqualError(t, runPreHook.Run(&createCtx, &templateCtx),
 		fmt.Sprintf("error access to %[1]s: stat %[1]s: no such file or directory",
 			filepath.Join(workDir, "pre-gen.sh")))

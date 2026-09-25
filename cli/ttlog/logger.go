@@ -104,6 +104,7 @@ func NewFileLogger(opts LoggerOpts) (Logger, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot open the log file %q: %w", opts.Filename, err)
 	}
+
 	return &fileLogger{
 		Logger:  log.New(file, opts.Prefix, log.LstdFlags),
 		opts:    opts,
@@ -134,12 +135,14 @@ func (logger *fileLogger) Rotate() error {
 	defer logger.mu.Unlock()
 
 	savedFile := logger.logFile
+
 	var err error
 
 	if logger.logFile, err = os.OpenFile(logger.opts.Filename, logOpenFlags,
 		logCreatePerms); err != nil {
 		return fmt.Errorf("cannot open the log file %q: %w", logger.opts.Filename, err)
 	}
+
 	logger.Logger = log.New(logger.logFile, logger.opts.Prefix, log.LstdFlags)
 	logger.Println("(INFO) log file has been reopened")
 
@@ -155,5 +158,6 @@ func (logger *fileLogger) Close() error {
 	if logger.logFile != nil {
 		return logger.logFile.Close()
 	}
+
 	return nil
 }

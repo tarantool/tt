@@ -90,16 +90,20 @@ func NewStorage(
 	if objectLocation != "" {
 		codec = codec.WithObjectLocation(objectLocation)
 	}
+
 	if integrityOpts != nil {
 		for _, h := range integrityOpts.Hashers {
 			codec = codec.WithHasher(h)
 		}
+
 		for _, sv := range integrityOpts.SignerVerifiers {
 			codec = codec.WithSignerVerifier(sv)
 		}
+
 		for _, signer := range integrityOpts.Signers {
 			codec = codec.WithSigner(signer)
 		}
+
 		for _, verifier := range integrityOpts.Verifiers {
 			codec = codec.WithVerifier(verifier)
 		}
@@ -145,6 +149,7 @@ func (r *RawStorage) Collect() ([]Data, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch data from %s: %w", r.storageType, err)
 	}
+
 	if len(kvs) == 0 {
 		return nil, fmt.Errorf("%w%s for prefix %q",
 			errAConfigurationDataNotFoundInForPrefix, r.storageType, r.prefix)
@@ -153,15 +158,18 @@ func (r *RawStorage) Collect() ([]Data, error) {
 	data := make([]Data, 0, len(kvs))
 	for _, kv := range kvs {
 		value, _ := kv.Value.Get()
+
 		data = append(data, Data{
 			Source:   r.sourceName(kv.Name),
 			Value:    value,
 			Revision: kv.ModRevision,
 		})
 	}
+
 	slices.SortFunc(data, func(a, b Data) int {
 		return cmp.Compare(a.Source, b.Source)
 	})
+
 	return data, nil
 }
 
@@ -185,12 +193,15 @@ func (r *RawStorage) Publish(revision int64, data []byte) error {
 		return fmt.Errorf("failed to publish data into %s: %w%d is not supported",
 			r.storageType, errTargetRevisionIsNotSupported, revision)
 	}
+
 	if err := r.storage.Delete(ctx, "/", integrity.WithPrefix()); err != nil {
 		return fmt.Errorf("failed to clean data from %s: %w", r.storageType, err)
 	}
+
 	if err := r.storage.Put(ctx, r.normalizeName("all"), data); err != nil {
 		return fmt.Errorf("failed to publish data into %s: %w", r.storageType, err)
 	}
+
 	return nil
 }
 
@@ -199,6 +210,7 @@ func (r *RawStorage) Close() error {
 	if r.cleanup != nil {
 		r.cleanup()
 	}
+
 	return nil
 }
 
@@ -208,7 +220,9 @@ func (r *RawStorage) Get(ctx context.Context, key string) ([]Data, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch data from %s: %w", r.storageType, err)
 	}
+
 	value, _ := resp.Value.Get()
+
 	return []Data{{
 		Source:   r.sourceName(resp.Name),
 		Value:    value,
@@ -224,6 +238,7 @@ func (r *RawStorage) Put(ctx context.Context, key, value string) error {
 // Watch watches on a key and return watched events through the returned channel.
 func (r *RawStorage) Watch(ctx context.Context, key string) (<-chan WatchEvent, error) {
 	ch := make(chan WatchEvent)
+
 	innerCh, err := r.storage.Watch(ctx, r.normalizeName(key))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create watch channel: %w", err)
@@ -240,6 +255,7 @@ func (r *RawStorage) Watch(ctx context.Context, key string) (<-chan WatchEvent, 
 			}
 		}
 	}()
+
 	return ch, nil
 }
 
@@ -256,9 +272,11 @@ func (r *RawStorage) normalizeName(name string) string {
 		if r.objectLocation == "" {
 			return name
 		}
+
 		if trimmed, ok := strings.CutPrefix(name, r.objectLocation); ok {
 			return strings.TrimPrefix(trimmed, "/")
 		}
+
 		return name
 	}
 
@@ -291,6 +309,7 @@ func (r *RawStorage) sourceName(name string) string {
 	if r.objectLocation != "" {
 		result += "/" + r.objectLocation
 	}
+
 	return result + "/" + name
 }
 
@@ -299,6 +318,7 @@ func (r *RawStorage) withTimeout() (context.Context, context.CancelFunc) {
 	if r.timeout == 0 {
 		return context.Background(), func() {}
 	}
+
 	return context.WithTimeout(context.Background(), r.timeout)
 }
 
@@ -306,14 +326,18 @@ func (r *RawStorage) put(ctx context.Context, key string, data []byte, revision 
 	if data == nil {
 		return fmt.Errorf("failed to publish data into %s: %w", r.storageType, errDataMissing)
 	}
+
 	var predicates []integrity.Predicate
+
 	if revision != 0 {
 		predicates = append(predicates, r.codec.VersionEqual(revision))
 	}
+
 	if err := r.storage.Put(ctx, r.normalizeName(key), data,
 		integrity.WithPutPredicates(predicates...)); err != nil {
 		return fmt.Errorf("failed to publish data into %s: %w", r.storageType, err)
 	}
+
 	return nil
 }
 
@@ -321,8 +345,10 @@ func (r *RawStorage) put(ctx context.Context, key string, data []byte, revision 
 // configured with the provided connection parameters, including TLS settings.
 func connectEtcdClient(cfg gsconnect.Config) (*clientv3.Client, error) {
 	var tlsConfig *tls.Config
+
 	if needsEtcdTLSConfig(cfg.SSL) {
 		var err error
+
 		tlsConfig, err = makeEtcdTLSConfig(cfg.SSL)
 		if err != nil {
 			return nil, err
@@ -351,20 +377,25 @@ func makeEtcdTLSConfig(sslCfg gsconnect.SSLConfig) (*tls.Config, error) {
 		KeyFile:       sslCfg.KeyFile,
 		TrustedCAFile: sslCfg.CaFile,
 	}
+
 	tlsConfig, err := tlsInfo.ClientConfig()
 	if err != nil {
 		return nil, fmt.Errorf("fail to create tls client config: %w", err)
 	}
+
 	if sslCfg.CaPath != "" {
 		roots, err := loadRootCA(sslCfg.CaPath)
 		if err != nil {
 			return nil, fmt.Errorf("fail to load CA directory: %w", err)
 		}
+
 		tlsConfig.RootCAs = roots
 	}
+
 	if !sslCfg.VerifyHost || !sslCfg.VerifyPeer {
 		tlsConfig.InsecureSkipVerify = true
 	}
+
 	return tlsConfig, nil
 }
 
@@ -395,9 +426,12 @@ func connectTarantoolConnector(cfg gsconnect.Config) (tarantool.Connector, error
 	}
 
 	ctx := context.Background()
+
 	if connectorOpts.Timeout > 0 {
 		var cancel context.CancelFunc
+
 		ctx, cancel = context.WithTimeout(ctx, connectorOpts.Timeout)
+
 		defer cancel()
 	}
 
@@ -414,6 +448,7 @@ func connectTarantoolConnector(cfg gsconnect.Config) (tarantool.Connector, error
 // or environment variables as a fallback.
 func getEtcdCfg(connOpts ConnectOpts, uriOpts sdkconnect.URIOpts) gsconnect.Config {
 	var endpoints []string
+
 	if uriOpts.Endpoint != "" {
 		endpoints = []string{uriOpts.Endpoint}
 	}
@@ -421,9 +456,11 @@ func getEtcdCfg(connOpts ConnectOpts, uriOpts sdkconnect.URIOpts) gsconnect.Conf
 	if uriOpts.Username == "" && uriOpts.Password == "" {
 		uriOpts.Username = connOpts.Username
 		uriOpts.Password = connOpts.Password
+
 		if uriOpts.Username == "" {
 			uriOpts.Username = os.Getenv(sdkconnect.EtcdUsernameEnv)
 		}
+
 		if uriOpts.Password == "" {
 			uriOpts.Password = os.Getenv(sdkconnect.EtcdPasswordEnv)
 		}
@@ -452,9 +489,11 @@ func getTarantoolCfg(connOpts ConnectOpts, uriOpts sdkconnect.URIOpts) gsconnect
 	if uriOpts.Username == "" && uriOpts.Password == "" {
 		uriOpts.Username = connOpts.Username
 		uriOpts.Password = connOpts.Password
+
 		if uriOpts.Username == "" {
 			uriOpts.Username = os.Getenv(sdkconnect.TarantoolUsernameEnv)
 		}
+
 		if uriOpts.Password == "" {
 			uriOpts.Password = os.Getenv(sdkconnect.TarantoolPasswordEnv)
 		}
@@ -481,6 +520,7 @@ func NewStorageConnection(
 	connOpts ConnectOpts, opts sdkconnect.URIOpts,
 ) (gstorage.Storage, gsconnect.CleanupFunc, string, error) {
 	etcdCfg := getEtcdCfg(connOpts, opts)
+
 	etcdClient, errEtcd := connectEtcdClient(etcdCfg)
 	if errEtcd == nil {
 		driver := etcd.New(etcdClient)
@@ -488,6 +528,7 @@ func NewStorageConnection(
 	}
 
 	tcsCfg := getTarantoolCfg(connOpts, opts)
+
 	conn, errTCS := connectTarantoolConnector(tcsCfg)
 	if errTCS == nil {
 		driver := tcs.New(conn)
@@ -515,10 +556,12 @@ func loadRootCA(path string) (*x509.CertPool, error) {
 	}
 
 	rootsLen := 0
+
 	for _, fi := range fis {
 		data, err := os.ReadFile(path + "/" + fi.Name())
 		if err == nil {
 			rootsLen++
+
 			roots.AppendCertsFromPEM(data)
 		}
 	}
@@ -556,6 +599,7 @@ func isSameDirSymlink(f fs.DirEntry, dir string) bool {
 	}
 
 	target, err := os.Readlink(filepath.Join(dir, f.Name()))
+
 	return err == nil && !strings.Contains(target, "/")
 }
 

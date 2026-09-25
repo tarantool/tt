@@ -34,18 +34,24 @@ func (conn *BinaryConnector) Eval(expr string, args []any,
 ) ([]any, error) {
 	// Create a request.
 	evalReq := tarantool.NewEvalRequest(expr).Args(args)
+
 	if opts.ReadTimeout != 0 {
 		ctx := context.Background()
 		ctx, cancel := context.WithTimeout(ctx, opts.ReadTimeout)
+
 		defer cancel()
 
 		evalReq = evalReq.Context(ctx)
 	}
 
 	// Execute the request.
-	var err error
-	var data []any
+	var (
+		err  error
+		data []any
+	)
+
 	future := conn.conn.Do(evalReq)
+
 	defer future.Release()
 
 	// Get response once.
@@ -71,6 +77,7 @@ func (conn *BinaryConnector) Close() error {
 	if conn.conn != nil {
 		return conn.conn.Close()
 	}
+
 	return nil
 }
 
@@ -79,5 +86,6 @@ func replaceContextDone(err error) error {
 	if !errors.Is(err, context.DeadlineExceeded) {
 		return err
 	}
+
 	return errIOTimeout
 }

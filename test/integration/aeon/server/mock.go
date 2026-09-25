@@ -44,10 +44,12 @@ func getCertificate() tls.Certificate {
 	if *args.certFile == "" || *args.keyFile == "" {
 		log.Fatalln("Both 'key_file' and 'cert_file' required")
 	}
+
 	tlsCert, err := tls.LoadX509KeyPair(*args.certFile, *args.keyFile)
 	if err != nil {
 		log.Fatalf("Could not load server key pair: %v", err)
 	}
+
 	return tlsCert
 }
 
@@ -63,10 +65,12 @@ func getTLSConfig() *tls.Config {
 	if err != nil {
 		log.Fatalf("Failed to read CA file: %v", err)
 	}
+
 	certPool := x509.NewCertPool()
 	if !certPool.AppendCertsFromPEM(ca) {
 		log.Fatalln("Failed to append CA data")
 	}
+
 	return &tls.Config{
 		Certificates: []tls.Certificate{getCertificate()},
 		ClientAuth:   tls.RequireAndVerifyClientCert,
@@ -78,17 +82,22 @@ func getServerOpts() []grpc.ServerOption {
 	if !*args.isSsl {
 		return []grpc.ServerOption{}
 	}
+
 	creds := credentials.NewTLS(getTLSConfig())
+
 	return []grpc.ServerOption{grpc.Creds(creds)}
 }
 
 func getListener() net.Listener {
-	var protocol string
-	var address string
+	var (
+		protocol string
+		address  string
+	)
 
 	if *args.unixSocket != "" {
 		protocol = "unix"
 		address = *args.unixSocket
+
 		if strings.HasPrefix(address, "@") {
 			address = "\x00" + address[1:]
 		}
@@ -96,10 +105,12 @@ func getListener() net.Listener {
 		protocol = "tcp"
 		address = fmt.Sprintf("localhost:%d", *args.port)
 	}
+
 	lis, err := (&net.ListenConfig{}).Listen(context.Background(), protocol, address)
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
 	}
+
 	return lis
 }
 
@@ -128,6 +139,7 @@ func main() {
 		syscall.SIGQUIT,
 		syscall.SIGHUP,
 	)
+
 	s := <-exitSig
 	log.Println("Got terminate signal:", s)
 

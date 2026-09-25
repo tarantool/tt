@@ -109,6 +109,7 @@ func TestCreate_takesThePackageNameFromTheDirectory(t *testing.T) {
 
 			man, _, err := manifest.ParseManifest([]byte(readManifest(t, dir)))
 			require.NoError(t, err)
+
 			_, err = man.Validate()
 			require.NoError(t, err)
 		})
@@ -248,6 +249,7 @@ func TestRender_isTOML(t *testing.T) {
 	t.Parallel()
 
 	var decoded map[string]any
+
 	require.NoError(t, toml.Unmarshal([]byte(render("my-app")), &decoded))
 	assert.Contains(t, decoded, "dependencies")
 }

@@ -21,6 +21,7 @@ func FollowLogs(f tail.Follower, prt Printer, lines int) error {
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			log.Warnf("Log file does not found: %v", err)
+
 			return nil
 		}
 
@@ -43,6 +44,7 @@ func TailLogs(t tail.Reader, prt Printer, lines int) error {
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			log.Warnf("Log file does not found: %v", err)
+
 			return nil
 		}
 

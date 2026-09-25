@@ -43,6 +43,7 @@ func ParseLanguage(str string) (Language, bool) {
 	case sqlStr:
 		return SQLLanguage, true
 	}
+
 	return DefaultLanguage, false
 }
 
@@ -67,10 +68,12 @@ func ChangeLanguage(evaler connector.Evaler, lang Language) error {
 	}
 
 	languageCmd := setLanguagePrefix + " " + lang.String()
+
 	evalBody, err := luabody.GetEvalFuncBody("")
 	if err != nil {
 		return err
 	}
+
 	response, err := evaler.Eval(evalBody,
 		[]any{languageCmd},
 		connector.RequestOpts{},
@@ -85,23 +88,29 @@ func ChangeLanguage(evaler connector.Evaler, lang Language) error {
 		return fmt.Errorf("%w%v", errUnexpectedResponse, response)
 	}
 
-	var ret string
-	var ok bool
+	var (
+		ret string
+		ok  bool
+	)
+
 	if ret, ok = response[0].(string); !ok {
 		return fmt.Errorf("%w%v", errUnexpectedResponse, response)
 	}
 
 	var decoded any
+
 	if err = yaml.Unmarshal([]byte(ret), &decoded); err != nil {
 		return fmt.Errorf("unable to decode response: %w", err)
 	}
 
 	var decodedArray []any
+
 	if decodedArray, ok = decoded.([]any); !ok || len(decodedArray) != 1 {
 		return fmt.Errorf("%w%s", errUnexpectedResponse, ret)
 	}
 
 	var value bool
+
 	if value, ok = decodedArray[0].(bool); !ok {
 		return fmt.Errorf("%w%s", errUnexpectedResponse, ret)
 	}

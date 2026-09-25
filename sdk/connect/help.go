@@ -112,6 +112,7 @@ The command supports the following environment variables:
 			if !ok {
 				s = fmt.Sprintf("%v", value)
 			}
+
 			makeEnvVars(strings.TrimPrefix(key, "env_"), s)
 		} else {
 			s, ok := value.(string)
@@ -123,10 +124,13 @@ The command supports the following environment variables:
 			}
 		}
 	}
+
 	params["env_auth"] = envAuth
 	params["env_vars"] = envVars
 
 	var sb strings.Builder
+
 	_ = t.Execute(&sb, params)
+
 	return sb.String()
 }

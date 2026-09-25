@@ -46,6 +46,7 @@ func Promote(ctx PromoteCtx) error {
 	}
 
 	var orchestrator replicasetOrchestrator
+
 	if ctx.IsApplication {
 		orchestrator, err = makeApplicationOrchestrator(
 			orchestratorType, ctx.RunningCtx, ctx.Collectors, ctx.Publishers, ctx.Integrity)
@@ -60,6 +61,7 @@ func Promote(ctx PromoteCtx) error {
 	}
 
 	log.Info("Discovery application...")
+
 	_, _ = fmt.Fprintln(os.Stdout)
 
 	// Get and print status.
@@ -67,6 +69,7 @@ func Promote(ctx PromoteCtx) error {
 	if err != nil {
 		return err
 	}
+
 	_ = statusReplicasets(replicasets)
 	_, _ = fmt.Fprintln(os.Stdout)
 
@@ -82,5 +85,6 @@ func Promote(ctx PromoteCtx) error {
 	if err == nil {
 		log.Info("Done.")
 	}
+
 	return err
 }

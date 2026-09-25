@@ -201,6 +201,7 @@ func TestStream(t *testing.T) {
 			require.NoError(t, err)
 
 			var wantWrites []string
+
 			if test.open != "" {
 				wantWrites = append(wantWrites, test.open)
 			}
@@ -212,6 +213,7 @@ func TestStream(t *testing.T) {
 				require.NoError(t, stream.Emit(item))
 
 				wantWrites = append(wantWrites, test.want[i])
+
 				writes, flushes := out.snapshot()
 				require.Equal(t, wantWrites, writes,
 					"item %d is written as one write when emitted", i)
@@ -340,6 +342,7 @@ func TestStreamWriteError(t *testing.T) {
 	require.NoError(t, stream.Emit(record{LSN: 1, Tuple: "a"}))
 
 	out.mu.Lock()
+
 	out.fail = errBroken
 	out.mu.Unlock()
 
@@ -477,6 +480,7 @@ func TestStreamConcurrentEmit(t *testing.T) {
 		var got record
 
 		require.NoError(t, json.Unmarshal([]byte(line), &got), "an intact line: %q", line)
+
 		seen[got.LSN] = true
 	}
 

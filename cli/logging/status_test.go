@@ -242,6 +242,7 @@ func TestSpinner_Off(t *testing.T) {
 	for name, opts := range tests {
 		t.Run(name, func(t *testing.T) {
 			out := newTermBuffer()
+
 			opts.Writer = out
 			opts.Redactor = sdklog.NewRedactor()
 
@@ -253,7 +254,9 @@ func TestSpinner_Off(t *testing.T) {
 			logger := slog.New(handler)
 
 			stop := sdklog.SpinnerOf(logger, "working")
+
 			ticks <- time.Now()
+
 			logger.Info("record")
 			stop()
 
@@ -335,6 +338,7 @@ func TestSpinner_Concurrent(t *testing.T) {
 		wg.Go(func() {
 			for range 10 {
 				stop := sdklog.SpinnerOf(logger, "working")
+
 				time.Sleep(time.Millisecond)
 				stop()
 			}

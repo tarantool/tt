@@ -21,10 +21,12 @@ import (
 // explicitly by the test itself. Removed variables are restored via t.Cleanup.
 func clearAmbientTTEnv(t *testing.T) {
 	t.Helper()
+
 	for _, kv := range os.Environ() {
 		if !strings.HasPrefix(kv, "TT_") {
 			continue
 		}
+
 		k, _, _ := strings.Cut(kv, "=")
 		saved := os.Getenv(k)
 		t.Setenv(k, saved)
@@ -35,14 +37,18 @@ func clearAmbientTTEnv(t *testing.T) {
 // getCfgString retrieves a string value at a slash-separated path from a goconfig.Config.
 func getCfgString(t *testing.T, cfg goconfig.Config, path string) string {
 	t.Helper()
+
 	var v string
+
 	_, err := cfg.Get(goconfig.NewKeyPath(path), &v)
 	require.NoError(t, err, "path: %s", path)
+
 	return v
 }
 
 func TestGetClusterConfig_path(t *testing.T) {
 	clearAmbientTTEnv(t)
+
 	cfg, err := cluster.GetClusterConfig(context.Background(), "testdata/app/config.yaml",
 		integrity.IntegrityCtx{})
 
@@ -79,9 +85,12 @@ func TestGetClusterConfig_path(t *testing.T) {
 // mustGetInt retrieves an integer value from cfg or fails the test.
 func mustGetInt(t *testing.T, cfg goconfig.Config, path string) int {
 	t.Helper()
+
 	var v int
+
 	_, err := cfg.Get(goconfig.NewKeyPath(path), &v)
 	require.NoError(t, err, "path: %s", path)
+
 	return v
 }
 
@@ -123,6 +132,7 @@ func TestGetClusterConfig_nopath(t *testing.T) {
 
 func TestGetInstanceConfig_file(t *testing.T) {
 	clearAmbientTTEnv(t)
+
 	ccfg, err := cluster.GetClusterConfig(context.Background(), "testdata/app/config.yaml",
 		integrity.IntegrityCtx{})
 	require.NoError(t, err)
@@ -165,6 +175,7 @@ func TestGetInstanceConfig_noinstance(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = cluster.GetInstanceConfig(ccfg, "unknown")
+
 	expected := "an instance \"unknown\" not found"
 
 	assert.EqualError(t, err, expected)
@@ -200,9 +211,11 @@ func TestGetClusterConfig_env_two_tier_priority(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			clearAmbientTTEnv(t)
+
 			if tc.mainEnv != "" {
 				t.Setenv("TT_REPLICATION_FAILOVER", tc.mainEnv)
 			}
+
 			if tc.defaultEnv != "" {
 				t.Setenv("TT_REPLICATION_FAILOVER_DEFAULT", tc.defaultEnv)
 			}
@@ -212,7 +225,9 @@ func TestGetClusterConfig_env_two_tier_priority(t *testing.T) {
 			require.NoError(t, err)
 
 			snap := cfg.Snapshot()
+
 			var got string
+
 			_, err = snap.Get(goconfig.NewKeyPath("replication/failover"), &got)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedValue, got)
@@ -234,7 +249,6 @@ func TestReadStorageFromConfig_MultiEndpoint_FirstWins(t *testing.T) {
 	// What we verify here:
 	//   - configuring two unreachable endpoints results in a joined error
 	//     containing both endpoint addresses.
-
 	cfgYAML := `config:
   storage:
     endpoints:
@@ -261,6 +275,7 @@ groups:
 	f, err := os.CreateTemp(t.TempDir(), "tt-tcs-test-*.yaml")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.Remove(f.Name()) })
+
 	_, err = f.WriteString(cfgYAML)
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
@@ -300,6 +315,7 @@ groups:
 	f, err := os.CreateTemp(t.TempDir(), "tt-etcd-env-test-*.yaml")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.Remove(f.Name()) })
+
 	_, err = f.WriteString(cfgYAML)
 	require.NoError(t, err)
 	require.NoError(t, f.Close())

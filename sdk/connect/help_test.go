@@ -12,6 +12,7 @@ func TestMakeURLHelp(t *testing.T) {
 	type args struct {
 		data map[string]any
 	}
+
 	tests := map[string]struct {
 		args args
 		want string

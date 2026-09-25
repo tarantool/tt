@@ -71,6 +71,7 @@ func collectCConfig(
 	// This mirrors the semantics of NewYamlDataMergeCollector.
 	ctx := context.Background()
 	builder := goconfig.NewBuilder()
+
 	builder = builder.WithoutValidation()
 	builder = builder.WithInheritance(
 		goconfig.Levels(goconfig.Global, "groups", "replicasets", "instances"),
@@ -81,11 +82,13 @@ func collectCConfig(
 		if len(item.Value) == 0 {
 			continue
 		}
+
 		src, err := cluster.NewBytesSource("collector-item", item.Value)
 		if err != nil {
 			return nil, goconfig.Config{},
 				fmt.Errorf("failed to decode config from %q: %w", item.Source, err)
 		}
+
 		builder = builder.AddCollector(src)
 	}
 
@@ -141,10 +144,12 @@ func (c *CConfigSource) pickTarget(targets []patchTarget, force bool,
 	for _, target := range targets {
 		targetKeys = append(targetKeys, target.key)
 	}
+
 	dstIndex, err := c.keyPicker(targetKeys, force, pathMsg)
 	if err != nil {
 		return patchTarget{}, err
 	}
+
 	return targets[dstIndex], nil
 }
 
@@ -157,6 +162,7 @@ func (c *CConfigSource) patchInstanceConfig(instanceName string, force bool,
 	if err != nil {
 		return err
 	}
+
 	inst, err := getCConfigInstance(goView, instanceName)
 	if err != nil {
 		return err
@@ -166,10 +172,12 @@ func (c *CConfigSource) patchInstanceConfig(instanceName string, force bool,
 	if err != nil {
 		return err
 	}
+
 	targets, err := getCConfigPatchTargets(configData, path, depth)
 	if err != nil {
 		return err
 	}
+
 	target, err := c.pickTarget(targets, force, strings.Join(path, "/"))
 	if err != nil {
 		return err
@@ -179,15 +187,19 @@ func (c *CConfigSource) patchInstanceConfig(instanceName string, force bool,
 	if err != nil {
 		return err
 	}
+
 	patchedSnap := patched.Snapshot()
+
 	b, err := patchedSnap.MarshalYAML()
 	if err != nil {
 		return fmt.Errorf("marshal patched config: %w", err)
 	}
+
 	err = c.publisher.Publish(target.key, target.revision, b)
 	if err != nil {
 		return fmt.Errorf("failed to publish the config: %w", err)
 	}
+
 	return nil
 }
 
@@ -205,12 +217,14 @@ func (c *CConfigSource) patchConfigWithRoles(ctx RolesChangeCtx,
 	if err != nil {
 		return err
 	}
+
 	paths, err := getPathFunc(goView, ctx)
 	if err != nil {
 		return err
 	}
 
 	var target patchTarget
+
 	pRoleTarget := make([]patchRoleTarget, 0, len(paths))
 
 	for _, path := range paths {
@@ -218,9 +232,11 @@ func (c *CConfigSource) patchConfigWithRoles(ctx RolesChangeCtx,
 
 		if val, ok := goView.Lookup(path.path); ok {
 			var existing any
+
 			if err := val.Get(&existing); err != nil {
 				return fmt.Errorf("failed to get roles at path %s: %w", path.path, err)
 			}
+
 			updatedRoles, err = parseRoles(existing)
 			if err != nil {
 				return err
@@ -235,6 +251,7 @@ func (c *CConfigSource) patchConfigWithRoles(ctx RolesChangeCtx,
 		if err != nil {
 			return err
 		}
+
 		target, err = c.pickTarget(targets, ctx.Force, strings.Join(path.path, "/"))
 		if err != nil {
 			return err
@@ -250,15 +267,19 @@ func (c *CConfigSource) patchConfigWithRoles(ctx RolesChangeCtx,
 	if err != nil {
 		return err
 	}
+
 	patchedSnap2 := patched.Snapshot()
+
 	b, err := patchedSnap2.MarshalYAML()
 	if err != nil {
 		return fmt.Errorf("marshal patched config: %w", err)
 	}
+
 	err = c.publisher.Publish(target.key, target.revision, b)
 	if err != nil {
 		return fmt.Errorf("failed to publish the config: %w", err)
 	}
+
 	return nil
 }
 
@@ -268,49 +289,65 @@ func getCConfigRolesPath(goView goconfig.Config,
 	ctx RolesChangeCtx,
 ) ([]path, error) {
 	var paths []path
+
 	if ctx.IsGlobal {
 		paths = append(paths, path{
 			path:  goconfig.NewKeyPath("roles"),
 			depth: 0,
 		})
 	}
+
 	if ctx.GroupName != "" {
 		p := goconfig.NewKeyPath("groups/" + ctx.GroupName)
 		if _, ok := goView.Lookup(p); !ok {
 			return []path{}, fmt.Errorf("%w%q", errCannotFindGroup, ctx.GroupName)
 		}
+
 		paths = append(paths, path{
 			path:  append(p, "roles"),
 			depth: len(p),
 		})
 	}
+
 	if ctx.ReplicasetName != "" {
-		var group string
-		var ok bool
+		var (
+			group string
+			ok    bool
+		)
+
 		if group, ok = cluster.FindGroupByReplicaset(goView, ctx.ReplicasetName); !ok {
 			return []path{}, fmt.Errorf("%w%q above group",
 				errCannotFindReplicasetAboveGroup, ctx.ReplicasetName)
 		}
+
 		p := goconfig.NewKeyPath(fmt.Sprintf("groups/%s/replicasets/%s", group, ctx.ReplicasetName))
+
 		paths = append(paths, path{
 			path:  append(p, "roles"),
 			depth: len(p),
 		})
 	}
+
 	if ctx.InstName != "" {
-		var group, replicaset string
-		var ok bool
+		var (
+			group, replicaset string
+			ok                bool
+		)
+
 		if group, replicaset, ok = cluster.FindInstance(goView, ctx.InstName); !ok {
 			return []path{}, fmt.Errorf("%w%q above group and/or replicaset",
 				errCannotFindInstanceAboveGroupAndOrReplicaset, ctx.InstName)
 		}
+
 		p := goconfig.NewKeyPath(fmt.Sprintf(
 			"groups/%s/replicasets/%s/instances/%s", group, replicaset, ctx.InstName))
+
 		paths = append(paths, path{
 			path:  append(p, "roles"),
 			depth: len(p),
 		})
 	}
+
 	return paths, nil
 }
 
@@ -321,15 +358,16 @@ func getCConfigRolesPath(goView goconfig.Config,
 // * "/groups/g/replicasets/r/leader"
 // * "/groups/g/replicasets/r".
 func getCConfigPromotePath(inst cconfigInstance) (goconfig.KeyPath, int, error) {
-	var path goconfig.KeyPath
-	var depth int
-	var err error
 	var (
+		path           goconfig.KeyPath
+		depth          int
+		err            error
 		failover       = inst.failover
 		groupName      = inst.groupName
 		replicasetName = inst.replicasetName
 		instName       = inst.name
 	)
+
 	switch failover {
 	case FailoverOff:
 		path = goconfig.NewKeyPath(fmt.Sprintf(
@@ -347,21 +385,23 @@ func getCConfigPromotePath(inst cconfigInstance) (goconfig.KeyPath, int, error) 
 	default:
 		err = fmt.Errorf("%w, supported: \"manual\", \"off\"", errUnknownFailover)
 	}
+
 	return path, depth, err
 }
 
 // getCConfigDemotePath returns a path and it's minimum interesting depth
 // to patch the config for instance demoting.
 func getCConfigDemotePath(inst cconfigInstance) (goconfig.KeyPath, int, error) {
-	var path goconfig.KeyPath
-	var depth int
-	var err error
 	var (
+		path           goconfig.KeyPath
+		depth          int
+		err            error
 		failover       = inst.failover
 		groupName      = inst.groupName
 		replicasetName = inst.replicasetName
 		instName       = inst.name
 	)
+
 	switch failover {
 	case FailoverOff:
 		path = goconfig.NewKeyPath(fmt.Sprintf(
@@ -373,6 +413,7 @@ func getCConfigDemotePath(inst cconfigInstance) (goconfig.KeyPath, int, error) {
 	default:
 		err = fmt.Errorf("%w, supported: \"off\"", errUnknownFailover)
 	}
+
 	return path, depth, err
 }
 
@@ -384,10 +425,12 @@ func getCConfigExpelPath(inst cconfigInstance) (goconfig.KeyPath, int, error) {
 		replicasetName = inst.replicasetName
 		instName       = inst.name
 	)
+
 	path := goconfig.NewKeyPath(fmt.Sprintf(
 		"groups/%s/replicasets/%s/instances/%s/iproto/listen",
 		groupName, replicasetName, instName))
 	depth := len(path) - configPathSuffixSegments
+
 	return path, depth, nil
 }
 
@@ -404,6 +447,7 @@ func (target patchTarget) greater(oth patchTarget) bool {
 	if target.priority != oth.priority {
 		return target.priority > oth.priority
 	}
+
 	// If the priorities are equal, lexicographically smaller keys are first.
 	return target.key < oth.key
 }
@@ -414,14 +458,17 @@ func getCConfigPatchTargets(data []sdkcluster.Data,
 	path goconfig.KeyPath, depth int,
 ) ([]patchTarget, error) {
 	var targets []patchTarget
+
 	for _, item := range data {
 		mut, err := cluster.BuildMutableFromBytes(context.Background(), item.Value)
 		if err != nil {
 			return nil,
 				fmt.Errorf("failed to decode config from %q: %w", item.Source, err)
 		}
+
 		snap := mut.Snapshot()
 		depth := getCConfigPathDepth(snap, path, depth)
+
 		if depth != noDepth {
 			targets = append(targets, patchTarget{
 				key:      item.Source,
@@ -431,9 +478,11 @@ func getCConfigPatchTargets(data []sdkcluster.Data,
 			})
 		}
 	}
+
 	sort.Slice(targets, func(i, j int) bool {
 		return targets[i].greater(targets[j])
 	})
+
 	return targets, nil
 }
 
@@ -449,5 +498,6 @@ func getCConfigPathDepth(config goconfig.Config,
 			return i
 		}
 	}
+
 	return noDepth
 }

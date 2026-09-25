@@ -103,13 +103,16 @@ func TestConfigureCli(t *testing.T) {
 	// Test default configuration (no flags specified).
 	cmdCtx.Cli.LocalLaunchDir = ""
 	cmdCtx.Cli.ConfigPath = ""
+
 	dir := t.TempDir()
+
 	mockRepository.resetLog()
 
 	// Check if it will go down to the bottom of the directory looking
 	// for the tt.yaml configuration file, specifically skip a file
 	// in the working directory.
 	t.Chdir(dir)
+
 	expectedConfigPath = filepath.Join(filepath.Dir(dir), ConfigName)
 
 	assert.Nil(os.WriteFile(
@@ -180,10 +183,12 @@ func TestAdjustPathWithConfigLocation(t *testing.T) {
 				tt.args.defaultPath)
 			if tt.wantErr {
 				require.Error(t, err)
+
 				return
 			} else {
 				require.NoError(t, err)
 			}
+
 			require.EqualValues(t, tt.wantPath, str)
 		})
 	}
@@ -193,6 +198,7 @@ func TestExcludeArgs(t *testing.T) {
 	type argsData struct {
 		input, expected []string
 	}
+
 	testArgsData := []argsData{
 		{[]string{"a", "b", "c"}, []string{"a", "b", "c"}},
 		{[]string{"a", "b", "-L"}, []string{"a", "b"}},
@@ -211,6 +217,7 @@ func TestValidateCliOpts(t *testing.T) {
 		input     cmdcontext.CliCtx
 		errString string
 	}
+
 	testData := []cliCtxTest{
 		{
 			cmdcontext.CliCtx{IsSystem: true, ConfigPath: "/" + ConfigName},
@@ -243,6 +250,7 @@ func TestDetectLocalTarantool(t *testing.T) {
 	cliOpts := config.CliOpts{Env: &config.TtEnvOpts{BinDir: "./testdata/bin_dir"}}
 	cmdCtx := cmdcontext.CmdCtx{}
 	require.NoError(t, detectLocalTarantool(&cmdCtx, &cliOpts))
+
 	expected, err := filepath.Abs("./testdata/bin_dir/tarantool")
 	require.NoError(t, err)
 	require.Equal(t, expected, cmdCtx.Cli.TarantoolCli.Executable)
@@ -254,6 +262,7 @@ func TestDetectLocalTarantool(t *testing.T) {
 	cliOpts.Env.BinDir = "./testdata"
 	_ = Cli(&cmdCtx)
 	require.NoError(t, detectLocalTarantool(&cmdCtx, &cliOpts))
+
 	expected, err = exec.LookPath("tarantool")
 	require.NoError(t, err)
 	require.Equal(t, expected, cmdCtx.Cli.TarantoolCli.Executable)
@@ -263,6 +272,7 @@ func TestDetectLocalTt(t *testing.T) {
 	cliOpts := config.CliOpts{Env: &config.TtEnvOpts{BinDir: "./testdata/bin_dir"}}
 	localTt, err := detectLocalTt(&cliOpts)
 	require.NoError(t, err)
+
 	expected, err := filepath.Abs("./testdata/bin_dir/tt")
 	require.NoError(t, err)
 	require.Equal(t, expected, localTt)
@@ -290,7 +300,9 @@ func TestGetConfigPath(t *testing.T) {
 		0o664))
 
 	t.Chdir(filepath.Join(tempDir, "a", "b"))
+
 	workdir, _ := os.Getwd()
+
 	workdir = strings.TrimSuffix(workdir, "/a/b")
 
 	configName, err := getConfigPath()
@@ -338,6 +350,7 @@ func TestUpdateCliOpts(t *testing.T) {
 func TestGetCliOpts_modules_directory(t *testing.T) {
 	workDir, err := os.Getwd()
 	require.NoError(t, err)
+
 	workDir = filepath.Join(workDir, "testdata/modules_cfg")
 
 	tests := []struct {

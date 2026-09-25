@@ -62,14 +62,18 @@ func newRelease(release, releaseNum string) (Release, error) {
 		default:
 			return newRelease, fmt.Errorf("%w%q", errUnknownReleaseType, release)
 		}
+
 		if releaseNum != "" {
 			var err error
+
 			if newRelease.Num, err = util.AtoiUint64(releaseNum); err != nil {
 				return newRelease, fmt.Errorf("bad release number format %q: %w", releaseNum, err)
 			}
+
 			newRelease.str += releaseNum
 		}
 	}
+
 	return newRelease, nil
 }
 
@@ -106,21 +110,25 @@ func createVersionRegexp(isStrict bool) *regexp.Regexp {
 	if !isStrict {
 		matchString = strings.Replace(matchString, "{1}", "?", optionalVersionParts)
 	}
+
 	return regexp.MustCompile(matchString)
 }
 
 func matchVersionParts(version string, isStrict bool) (map[string]string, error) {
 	re := createVersionRegexp(isStrict)
 	matches := util.FindNamedMatches(re, version)
+
 	if len(matches) == 0 {
 		return nil, newInvalidVersionError(version)
 	}
+
 	return matches, nil
 }
 
 // Parse parses a version string and return the version value it represents.
 func Parse(verStr string) (Version, error) {
 	version := Version{}
+
 	matches, err := matchVersionParts(verStr, true)
 	if err != nil {
 		return version, err
@@ -170,41 +178,50 @@ func Parse(verStr string) (Version, error) {
 func ParseTt(verStr string) (Version, error) {
 	verToParse := strings.Trim(verStr, "\n")
 	sepIndex := strings.LastIndex(verToParse, ".")
+
 	if sepIndex == -1 {
 		return Version{}, newInvalidVersionError(verStr)
 	}
 
 	verStr = verToParse[:sepIndex]
+
 	numVersions := strings.Split(verStr, ".")
+
 	if len(numVersions) != semanticVersionParts {
 		return Version{}, fmt.Errorf("%w%q does not match <major>.<minor>.<patch> format",
 			errVersionDoesNotMatchSemanticFormat, verStr)
 	}
 
 	var err error
+
 	ttVersion := Version{}
 
 	ttVersion.Major, err = util.AtoiUint64(numVersions[0])
 	if err != nil {
 		return Version{}, err
 	}
+
 	ttVersion.Minor, err = util.AtoiUint64(numVersions[1])
 	if err != nil {
 		return Version{}, err
 	}
+
 	ttVersion.Patch, err = util.AtoiUint64(numVersions[2])
 	if err != nil {
 		return Version{}, err
 	}
 
 	hashStr := verToParse[sepIndex+1:]
+
 	isHashValid, err := util.IsValidCommitHash(hashStr)
 	if err != nil {
 		return Version{}, err
 	}
+
 	if !isHashValid {
 		return Version{}, fmt.Errorf("%w%q has a wrong format", errHashHasAWrongFormat, hashStr)
 	}
+
 	ttVersion.Hash = hashStr
 	ttVersion.Str = verToParse
 
@@ -236,6 +253,7 @@ func IsLess(verLeft, verRight Version) bool {
 
 	for i := range largestLen {
 		var valLeft, valRight uint64 = 0, 0
+
 		if i < len(left) {
 			valLeft = left[i]
 		}

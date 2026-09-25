@@ -178,6 +178,7 @@ func writeRegular(tw *tar.Writer, path, name string, info fs.FileInfo) error {
 	if err != nil {
 		return err
 	}
+
 	defer func() { _ = src.Close() }()
 
 	if _, err := io.Copy(tw, src); err != nil {

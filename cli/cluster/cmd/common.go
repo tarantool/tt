@@ -23,7 +23,9 @@ func printGoConfig(cfg goconfig.Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
+
 	_, _ = fmt.Fprint(os.Stdout, string(b))
+
 	return nil
 }
 
@@ -40,12 +42,15 @@ func printRawClusterConfig(yamlBytes []byte,
 
 	if instance == "" {
 		var validateErr error
+
 		if validate {
 			validateErr = validateGoConfig(view, false)
 		}
+
 		if printErr := printGoConfig(view); printErr != nil {
 			return printErr
 		}
+
 		return validateErr
 	}
 
@@ -64,12 +69,15 @@ func printInstanceConfig(goView goconfig.Config,
 	}
 
 	var validateErr error
+
 	if validate {
 		validateErr = validateInstanceConfig(goView, instance)
 	}
+
 	if printErr := printGoConfig(instView); printErr != nil {
 		return printErr
 	}
+
 	return validateErr
 }
 
@@ -80,10 +88,12 @@ func validateRawConfig(yamlBytes []byte, name string) error {
 	if name == "" {
 		return validateRawClusterConfig(yamlBytes)
 	}
+
 	view, err := cluster.BuildGoConfigFromBytes(context.Background(), yamlBytes)
 	if err != nil {
 		return fmt.Errorf("failed to build config for validation: %w", err)
 	}
+
 	return validateInstanceConfig(view, name)
 }
 
@@ -93,6 +103,7 @@ func validateRawClusterConfig(yamlBytes []byte) error {
 	if err != nil {
 		return fmt.Errorf("failed to build config for validation: %w", err)
 	}
+
 	return validateGoConfig(view, false)
 }
 
@@ -102,6 +113,7 @@ func validateRawClusterConfig(yamlBytes []byte) error {
 // The full parameter is unused for the raw-bytes path but kept for symmetry.
 func validateGoConfig(view goconfig.Config, _ bool) error {
 	var errs []error
+
 	if err := cluster.Validate(view); err != nil {
 		errs = append(errs, fmt.Errorf("an invalid cluster configuration: %w", err))
 	}
@@ -116,6 +128,7 @@ func validateGoConfig(view goconfig.Config, _ bool) error {
 		if err != nil {
 			return err
 		}
+
 		if err := validateInstanceConfig(instView, name); err != nil {
 			errs = append(errs, err)
 		}
@@ -131,6 +144,7 @@ func validateInstanceConfig(instCfg goconfig.Config, name string) error {
 	if err := cluster.Validate(instCfg); err != nil {
 		return fmt.Errorf("an invalid instance %q configuration: %w", name, err)
 	}
+
 	return nil
 }
 
@@ -144,12 +158,15 @@ func openRemoteCollector(factory sdkcluster.Factory,
 	if err != nil {
 		return nil, nil, err
 	}
+
 	collector, err := factory.NewRemoteStorage(stor, opts.Prefix,
 		opts.Params["key"], opts.Timeout, storageType)
 	if err != nil {
 		cleanup()
+
 		return nil, nil, fmt.Errorf("failed to create %s collector: %w", storageType, err)
 	}
+
 	return collector, func() { cleanup() }, nil
 }
 
@@ -172,6 +189,7 @@ func openCollectorAndPublisher(
 	publisher, err := publishers.NewRemoteStorage(stor, prefix, key, timeout, storageType)
 	if err != nil {
 		cleanup()
+
 		return nil, nil, nil,
 			fmt.Errorf("failed to create %s publisher: %w", storageType, err)
 	}
@@ -179,6 +197,7 @@ func openCollectorAndPublisher(
 	collector, err := collectors.NewRemoteStorage(stor, prefix, key, timeout, storageType)
 	if err != nil {
 		cleanup()
+
 		return nil, nil, nil,
 			fmt.Errorf("failed to create %s collector: %w", storageType, err)
 	}

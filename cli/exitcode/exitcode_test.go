@@ -121,6 +121,7 @@ func TestReport(t *testing.T) {
 	var buf bytes.Buffer
 
 	previous := slog.Default()
+
 	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
 	t.Cleanup(func() { slog.SetDefault(previous) })
 

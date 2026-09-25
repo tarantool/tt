@@ -87,6 +87,7 @@ func newAeonConnectCmd() *cobra.Command {
 		"path to a trusted certificate authorities (CA) file")
 	aeonCmd.Flags().Var(&connectCtx.Transport, "transport",
 		"allowed "+aeoncmd.ListValidTransports())
+
 	_ = aeonCmd.RegisterFlagCompletionFunc("transport", aeonTransportCompletion)
 
 	return aeonCmd
@@ -99,6 +100,7 @@ func aeonTransportCompletion(cmd *cobra.Command, args []string, toComplete strin
 	for k, v := range aeoncmd.ValidTransport {
 		suggest = append(suggest, string(k)+"\t"+v)
 	}
+
 	return suggest, cobra.ShellCompDirectiveDefault
 }
 
@@ -111,6 +113,7 @@ func NewAeonCmd() *cobra.Command {
 	aeonCmd.AddCommand(
 		newAeonConnectCmd(),
 	)
+
 	return aeonCmd
 }
 
@@ -121,6 +124,7 @@ func aeonConnectValidateArgs(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
+
 		connectCtx.Network, connectCtx.Address = sdkconnect.ParseBaseURI(url)
 	case len(args) == 2 && sdkconnect.IsCredentialsURI(args[0]):
 		err := getConfigURI(&cmdCtx, args[0], args[1])
@@ -167,15 +171,18 @@ func aeonConnectValidateArgs(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("%w%q",
 				errNotValidPathToAPrivateSSLKeyFile, connectCtx.Ssl.KeyFile)
 		}
+
 		if !checkFile(connectCtx.Ssl.CertFile) {
 			return fmt.Errorf("%w%q",
 				errNotValidPathToAnSSLCertificateFile, connectCtx.Ssl.CertFile)
 		}
+
 		if !checkFile(connectCtx.Ssl.CaFile) {
 			return fmt.Errorf("%w%q",
 				errNotValidPathToTrustedCertificateAuthoritiesCAFile, connectCtx.Ssl.CaFile)
 		}
 	}
+
 	return nil
 }
 
@@ -184,7 +191,9 @@ func aeonHistoryFile() (console.History, error) {
 	if err != nil {
 		return console.History{}, fmt.Errorf("failed to get home directory: %w", err)
 	}
+
 	file := filepath.Join(dir, aeonHistoryFileName)
+
 	return console.NewHistory(file, aeonHistoryLines)
 }
 
@@ -193,23 +202,28 @@ func internalAeonConnect(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if err != nil {
 		return fmt.Errorf("can't open history file: %w", err)
 	}
+
 	handler, err := aeon.NewAeonHandler(connectCtx)
 	if err != nil {
 		return err
 	}
+
 	opts := console.ConsoleOpts{
 		Handler: handler,
 		History: &hist,
 		Format:  console.FormatAsTable(),
 	}
+
 	c, err := console.NewConsole(opts)
 	if err != nil {
 		return fmt.Errorf("can't create aeon console: %w", err)
 	}
+
 	err = c.Run()
 	if err != nil {
 		return fmt.Errorf("can't start aeon console: %w", err)
 	}
+
 	return nil
 }
 
@@ -231,12 +245,14 @@ func readConfigFilePath(configPath, instance string) error {
 
 	// Get SSL connection.
 	var rawAdvertise any
+
 	_, err = instCfg.Get(goconfig.NewKeyPath("roles_cfg/aeon.grpc/advertise"), &rawAdvertise)
 	if err != nil {
 		return fmt.Errorf("failed to get aeon advertise config: %w", err)
 	}
 
 	var advertise aeoncmd.Advertise
+
 	err = mapstructure.Decode(rawAdvertise, &advertise)
 	if err != nil {
 		return err
@@ -259,6 +275,7 @@ func readConfigFilePath(configPath, instance string) error {
 
 	if advertise.Params.Transport == "ssl" {
 		connectCtx.Transport = aeoncmd.TransportSsl
+
 		configDir := filepath.Dir(configPath)
 
 		if connectCtx.Ssl.CaFile == "" && advertise.Params.CaFile != "" {

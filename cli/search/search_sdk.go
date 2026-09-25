@@ -22,6 +22,7 @@ func GetAPIPackage(program Program) string {
 	case ProgramUnknown, ProgramCe, ProgramTt, ProgramDev:
 		// These programs do not have a customer-zone API package name.
 	}
+
 	return ""
 }
 
@@ -44,5 +45,6 @@ func searchVersionsTntIo(cliOpts *config.CliOpts, searchCtx *SearchCtx) (
 	for i, bundle := range bundles {
 		vers[i] = bundle.Version
 	}
+
 	return vers, nil
 }

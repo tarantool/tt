@@ -324,6 +324,7 @@ func newPackageDepsCmd() *cobra.Command {
 	}
 
 	format := bindFormatFlag(depsCmd)
+
 	depsCmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return commandError(cmd, runPackageDeps(format))
 	}

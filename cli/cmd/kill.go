@@ -48,6 +48,7 @@ func askConfirmation(args []string) (bool, error) {
 	}
 
 	confirmationMsg := "Kill all instances?"
+
 	if len(args) > 0 {
 		if strings.ContainsRune(args[0], running.InstanceDelimiter) {
 			confirmationMsg = fmt.Sprintf("Kill %s instance?", args[0])
@@ -55,6 +56,7 @@ func askConfirmation(args []string) (bool, error) {
 			confirmationMsg = fmt.Sprintf("Kill instances of %s?", args[0])
 		}
 	}
+
 	return util.AskConfirm(os.Stdin, confirmationMsg)
 }
 
@@ -74,6 +76,7 @@ func internalKillModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	var runningCtx running.RunningCtx
+
 	err = running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, running.ConfigLoadSkip)
 	if err != nil {
 		return err

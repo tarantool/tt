@@ -40,6 +40,7 @@ func TestLanguage_ParseLanguage(t *testing.T) {
 		t.Run(c.str, func(t *testing.T) {
 			lang, ok := ParseLanguage(c.str)
 			assert.Equal(t, c.ok, ok, "Unexpected result")
+
 			if ok {
 				assert.Equal(t, c.expected, lang, "Unexpected language")
 			}
@@ -91,6 +92,7 @@ func (evaler *inputEvaler) Eval(fun string,
 func TestChangeLanguage_requestInputs(t *testing.T) {
 	rawFun, err := os.ReadFile("./internal/luabody/eval_func_body.lua")
 	require.NoError(t, err, "Failed to read lua file")
+
 	rawFunStr := string(rawFun)
 	expectedFun, err := luabody.GetTemplatedStr(rawFunStr, map[string]string{})
 	require.NoError(t, err, "Failed to render eval func body template")
@@ -108,6 +110,7 @@ func TestChangeLanguage_requestInputs(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.lang.String(), func(t *testing.T) {
 			evaler := &inputEvaler{}
+
 			_ = ChangeLanguage(evaler, c.lang)
 			assert.Equal(t, expectedFun, evaler.fun)
 			assert.Equal(t, c.arg, evaler.args[0])
