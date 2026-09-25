@@ -51,6 +51,7 @@ type Process struct {
 func NewProcess(worker Worker, pidFileName string, logOpts ttlog.LoggerOpts) *Process {
 	process := &Process{
 		logOpts:     logOpts,
+		logger:      nil,
 		pidFileName: pidFileName,
 		worker:      worker,
 		DaemonTag:   EnvName,
@@ -83,11 +84,13 @@ func (process *Process) Start() error {
 	if process.IsChild() {
 		var err error
 
-		if process.logger, err = ttlog.NewFileLogger(process.logOpts); err != nil {
+		process.logger, err = ttlog.NewFileLogger(process.logOpts)
+		if err != nil {
 			return fmt.Errorf("failed to create log: %w", err)
 		}
 
-		if err := process_utils.CreatePIDFile(process.pidFileName, os.Getpid()); err != nil {
+		err = process_utils.CreatePIDFile(process.pidFileName, os.Getpid())
+		if err != nil {
 			return err
 		}
 
@@ -101,7 +104,8 @@ func (process *Process) Start() error {
 		return nil
 	}
 
-	if err := process_utils.CheckPIDFile(process.pidFileName); err != nil {
+	err := process_utils.CheckPIDFile(process.pidFileName)
+	if err != nil {
 		return err
 	}
 
@@ -109,11 +113,17 @@ func (process *Process) Start() error {
 
 	cmd.Env = append(os.Environ(), process.DaemonTag+"=true")
 
-	if err := cmd.Start(); err != nil {
-		return err
+	err = cmd.Start()
+	if err != nil {
+		return fmt.Errorf("failed to start the daemon process: %w", err)
 	}
 
-	return cmd.Process.Release()
+	err = cmd.Process.Release()
+	if err != nil {
+		return fmt.Errorf("failed to release the daemon process: %w", err)
+	}
+
+	return nil
 }
 
 // Stop stops the process.

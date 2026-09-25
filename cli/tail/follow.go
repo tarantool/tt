@@ -46,6 +46,7 @@ type fileFollower struct {
 func NewTailFollower(fileName string) Follower {
 	return &fileFollower{
 		name:       fileName,
+		wg:         sync.WaitGroup{},
 		followDone: make(chan struct{}),
 	}
 }
@@ -54,7 +55,8 @@ func NewTailFollower(fileName string) Follower {
 func (f *fileFollower) Follow(ctx context.Context, lines int) (<-chan string, error) {
 	out := make(chan string, linesChannelCapacity)
 
-	if err := f.startFollowing(ctx, out, lines); err != nil {
+	err := f.startFollowing(ctx, out, lines)
+	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("%w%q", errNotFoundFile, f.name)
 		}
@@ -88,11 +90,12 @@ func (f *fileFollower) tryReopenTailer(ctx context.Context, cfg *tail.Config) (*
 		Poll:          cfg.Poll,
 	}
 
-	if _, err := os.Stat(f.name); errors.Is(err, os.ErrNotExist) {
+	_, err := os.Stat(f.name)
+	if errors.Is(err, os.ErrNotExist) {
 		log.Infof("tryReopenTailer: file %q does not exist", f.name)
 	}
 
-	for i := range maxRetriesReopen {
+	for retry := range maxRetriesReopen {
 		timer := time.NewTimer(retryOpenDelay)
 		defer timer.Stop()
 
@@ -107,12 +110,13 @@ func (f *fileFollower) tryReopenTailer(ctx context.Context, cfg *tail.Config) (*
 
 		newT, err := tail.TailFile(f.name, newCfg)
 		if err == nil {
-			log.Infof("Successfully re-established tailing for %q, after %d retries", f.name, i)
+			log.Infof("Successfully re-established tailing for %q, after %d retries",
+				f.name, retry)
 
 			return newT, nil
 		}
 
-		log.Warnf("Retry(%d) for %q: failed to re-initialize tailer: %v.", i, f.name, err)
+		log.Warnf("Retry(%d) for %q: failed to re-initialize tailer: %v.", retry, f.name, err)
 	}
 
 	return nil, fmt.Errorf("%w%q after %d retries",
@@ -129,34 +133,34 @@ func (f *fileFollower) handleTailerStopStatus(ctx context.Context, curT *tail.Ta
 	}
 
 	if stopErr != nil && errors.Is(stopErr, os.ErrNotExist) {
-		t, err := f.tryReopenTailer(ctx, &curT.Config)
+		newTail, err := f.tryReopenTailer(ctx, &curT.Config)
 		if err != nil {
 			return nil, fmt.Errorf("failed to reopen tailer for %q: %w", f.name, err)
 		}
 
-		if t == nil || t.Lines == nil {
+		if newTail == nil || newTail.Lines == nil {
 			return nil, fmt.Errorf("%w%q is nil after reopening",
 				errTailerForIsNilAfterReopening, f.name)
 		}
 
 		if ctx.Err() != nil {
-			_ = t.Stop()
+			_ = newTail.Stop()
 
 			return nil, fmt.Errorf("context (%w) while reopening tailer %q",
 				ctx.Err(), f.name)
 		}
 
-		return t, nil
+		return newTail, nil
 	}
 
 	return nil, fmt.Errorf("failed to stop tailer for %q: %w", f.name, stopErr)
 }
 
-func (f *fileFollower) followFile(ctx context.Context, t *tail.Tail, out chan<- string) {
+func (f *fileFollower) followFile(ctx context.Context, fileTail *tail.Tail, out chan<- string) {
 	defer f.wg.Done()
 
 	for {
-		if t == nil || t.Lines == nil {
+		if fileTail == nil || fileTail.Lines == nil {
 			log.Errorf("Tailer or its Lines channel is nil for %s", f.name)
 
 			return
@@ -166,14 +170,15 @@ func (f *fileFollower) followFile(ctx context.Context, t *tail.Tail, out chan<- 
 		case <-ctx.Done():
 			log.Infof("Context cancelled. Stopping tailing of %q.", f.name)
 
-			if err := t.Stop(); err != nil {
+			err := fileTail.Stop()
+			if err != nil {
 				log.Infof("Error stopping tailer for %q on context cancellation: %v",
 					f.name, err)
 			}
 
 			return
 
-		case line, more := <-t.Lines:
+		case line, more := <-fileTail.Lines:
 			if !more {
 				var err error
 
@@ -181,7 +186,7 @@ func (f *fileFollower) followFile(ctx context.Context, t *tail.Tail, out chan<- 
 					"Tailer for %q Lines channel closed. Attempting to stop tailer.",
 					f.name)
 
-				t, err = f.handleTailerStopStatus(ctx, t)
+				fileTail, err = f.handleTailerStopStatus(ctx, fileTail)
 				if err == nil {
 					log.Infof("Reopened tailer for %q. Continuing to follow", f.name)
 
@@ -199,7 +204,8 @@ func (f *fileFollower) followFile(ctx context.Context, t *tail.Tail, out chan<- 
 				log.Infof("Context cancelled while attempting to send line from %q. Stopping.",
 					f.name)
 
-				if stopErr := t.Stop(); stopErr != nil {
+				stopErr := fileTail.Stop()
+				if stopErr != nil {
 					log.Warnf(
 						"Error stopping tailer for %q on context cancellation (during send): %v",
 						f.name, stopErr)
@@ -240,14 +246,14 @@ func (f *fileFollower) startFollowing(ctx context.Context, out chan<- string, li
 		Logger:    tail.DiscardingLogger,
 	}
 
-	t, err := tail.TailFile(f.name, tCfg)
+	fileTail, err := tail.TailFile(f.name, tCfg)
 	if err != nil {
-		return err
+		return fmt.Errorf("follow: failed to start tailing: %w", err)
 	}
 
 	f.wg.Add(1)
 
-	go f.followFile(ctx, t, out)
+	go f.followFile(ctx, fileTail, out)
 
 	return nil
 }

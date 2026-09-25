@@ -72,7 +72,7 @@ func TestBindFormatRefusesAnUnknownValue(t *testing.T) {
 	err := fs.Parse([]string{"-o", "xml"})
 
 	require.ErrorIs(t, err, output.ErrUnknownFormat)
-	assert.ErrorContains(t, err, `unknown output format "xml" (want table, json or yaml)`)
+	require.ErrorContains(t, err, `unknown output format "xml" (want table, json or yaml)`)
 	assert.Equal(t, output.FormatHuman, flag.Format())
 }
 

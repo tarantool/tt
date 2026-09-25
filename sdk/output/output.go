@@ -276,18 +276,6 @@ func (p *Printer) Writer() io.Writer {
 	return p.streams.Out
 }
 
-// idle returns ErrStreamOpen while a stream of the Printer is open.
-func (p *Printer) idle() error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if p.streaming {
-		return ErrStreamOpen
-	}
-
-	return nil
-}
-
 // Print writes human text to stdout, formatted as fmt.Fprint does. It is for
 // a result that exists only as text; in a machine format it writes nothing
 // and returns ErrNoMachineForm.
@@ -362,15 +350,27 @@ func (p *Printer) Emit(result Result) error {
 	return nil
 }
 
+// idle returns ErrStreamOpen while a stream of the Printer is open.
+func (p *Printer) idle() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.streaming {
+		return ErrStreamOpen
+	}
+
+	return nil
+}
+
 // encodeJSON writes value, normalised, as JSON indented by two spaces with a
 // trailing newline, readable both directly and piped into jq.
-func encodeJSON(w io.Writer, value any) error {
+func encodeJSON(writer io.Writer, value any) error {
 	normalized, err := Normalize(value)
 	if err != nil {
 		return fmt.Errorf("encoding JSON: %w", err)
 	}
 
-	encoder := json.NewEncoder(w)
+	encoder := json.NewEncoder(writer)
 	encoder.SetIndent("", "  ")
 
 	err = encoder.Encode(normalized)

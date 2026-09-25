@@ -50,7 +50,7 @@ func (handler *DaemonHandler) Logger(logger ttlog.Logger) *DaemonHandler {
 }
 
 // ServeHTTP handles requests to the tt daemon.
-func (handler *DaemonHandler) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
+func (handler *DaemonHandler) ServeHTTP(writer http.ResponseWriter, req *http.Request) {
 	// Parse, check and call the command.
 	var (
 		res    any
@@ -61,10 +61,11 @@ func (handler *DaemonHandler) ServeHTTP(wr http.ResponseWriter, req *http.Reques
 	// Construct client IP msg.
 	var clientIPMsg string
 
-	if ip, err := handler.getClientIP(req); err != nil {
+	clientIP, err := handler.getClientIP(req)
+	if err != nil {
 		clientIPMsg = err.Error()
 	} else {
-		clientIPMsg = ip
+		clientIPMsg = clientIP
 	}
 
 	rawBody, err := parseCommand(req.Body, &cmd)
@@ -87,7 +88,8 @@ func (handler *DaemonHandler) ServeHTTP(wr http.ResponseWriter, req *http.Reques
 	// Construct json response.
 	var jsonResMsg string
 
-	if jsonRes, err := json.Marshal(res); err != nil {
+	jsonRes, err := json.Marshal(res)
+	if err != nil {
 		jsonResMsg = err.Error()
 	} else {
 		jsonResMsg = string(jsonRes)
@@ -98,10 +100,11 @@ func (handler *DaemonHandler) ServeHTTP(wr http.ResponseWriter, req *http.Reques
 		clientIPMsg, rawBody, jsonResMsg)
 
 	// Write the result.
-	wr.Header().Set("Content-Type", "application/json")
-	wr.WriteHeader(status)
+	writer.Header().Set("Content-Type", "application/json")
+	writer.WriteHeader(status)
 
-	if err := json.NewEncoder(wr).Encode(res); err != nil {
+	err = json.NewEncoder(writer).Encode(res)
+	if err != nil {
 		handler.logger.Printf("An error occurred while encoding the response: \"%v\"\n", err)
 	}
 }
@@ -135,11 +138,11 @@ func (handler *DaemonHandler) getClientIP(req *http.Request) (string, error) {
 	// IP address of the client machine.
 	// Note: this header can easily be spoofed
 	// by the client.
-	ip := req.Header.Get("X-Real-IP")
+	candidate := req.Header.Get("X-Real-IP")
 	// Check IP is correct.
-	netIP := net.ParseIP(ip)
+	netIP := net.ParseIP(candidate)
 	if netIP != nil {
-		return ip, nil
+		return candidate, nil
 	}
 
 	// Get IP from X-FORWARDED-FOR header.
@@ -161,13 +164,13 @@ func (handler *DaemonHandler) getClientIP(req *http.Request) (string, error) {
 	// the response will be sent to. But in case the
 	// client is connected through a proxy it will
 	// give the IP address of the proxy.
-	ip, _, err := net.SplitHostPort(req.RemoteAddr)
+	candidate, _, err := net.SplitHostPort(req.RemoteAddr)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to parse the remote address: %w", err)
 	}
 
 	// Check IP is correct.
-	netIP = net.ParseIP(ip)
+	netIP = net.ParseIP(candidate)
 	if netIP != nil {
 		return req.RemoteAddr, nil
 	}

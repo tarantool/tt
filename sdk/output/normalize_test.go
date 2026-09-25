@@ -347,7 +347,10 @@ func TestNormalizeUnchangedIsShared(t *testing.T) {
 	got, err := output.Normalize(tuple)
 	require.NoError(t, err)
 
-	got.(map[string]any)["added"] = true
+	gotMap, ok := got.(map[string]any)
+	require.True(t, ok, "a map is normalised to a map")
+
+	gotMap["added"] = true
 
 	assert.Contains(t, tuple, "added", "a value needing no change is returned as it is")
 }

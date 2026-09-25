@@ -104,7 +104,7 @@ func render(root *cobra.Command, registry *mount.Registry) string {
 func TestHang(t *testing.T) {
 	t.Parallel()
 
-	for _, tc := range []struct {
+	for _, testCase := range []struct {
 		name    string
 		entries func() []mount.Entry
 		want    string
@@ -326,15 +326,15 @@ func TestHang(t *testing.T) {
 			wantErr: []string{`module "m": command "g child": flags: unable to redefine`},
 		},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
 			root := newRoot()
 
-			registry, err := mount.Hang(root, tc.entries(), reserved())
-			if tc.wantErr == nil {
+			registry, err := mount.Hang(root, testCase.entries(), reserved())
+			if testCase.wantErr == nil {
 				require.NoError(t, err)
-				assert.Equal(t, tc.want, render(root, registry))
+				assert.Equal(t, testCase.want, render(root, registry))
 
 				return
 			}
@@ -343,9 +343,9 @@ func TestHang(t *testing.T) {
 			assert.Nil(t, registry)
 
 			lines := strings.Split(err.Error(), "\n")
-			require.Len(t, lines, len(tc.wantErr), err.Error())
+			require.Len(t, lines, len(testCase.wantErr), err.Error())
 
-			for i, want := range tc.wantErr {
+			for i, want := range testCase.wantErr {
 				assert.Contains(t, lines[i], want)
 			}
 		})
@@ -362,7 +362,7 @@ func TestHangWrapsModuleHooks(t *testing.T) {
 	nothing := func(*cobra.Command, []string) {}
 
 	// Each case runs "x y": x is the mounted group, y the command run.
-	for _, tc := range []struct {
+	for _, testCase := range []struct {
 		name   string
 		group  cobra.Command
 		leaf   cobra.Command
@@ -383,10 +383,10 @@ func TestHangWrapsModuleHooks(t *testing.T) {
 		},
 		{name: "legacy", leaf: cobra.Command{RunE: failing}, legacy: true},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			parent, child := &tc.group, &tc.leaf
+			parent, child := &testCase.group, &testCase.leaf
 
 			parent.Use, child.Use = "x", "y"
 			parent.AddCommand(child)
@@ -394,7 +394,7 @@ func TestHangWrapsModuleHooks(t *testing.T) {
 			root := newRoot()
 
 			_, err := mount.Hang(root, []mount.Entry{
-				{Module: "m", Path: "", Cmd: parent, Legacy: tc.legacy},
+				{Module: "m", Path: "", Cmd: parent, Legacy: testCase.legacy},
 			}, reserved())
 			require.NoError(t, err)
 
@@ -408,7 +408,7 @@ func TestHangWrapsModuleHooks(t *testing.T) {
 			require.ErrorIs(t, err, errFailed)
 			assert.Same(t, child, failed)
 
-			if tc.legacy {
+			if testCase.legacy {
 				assert.False(t, failed.SilenceErrors)
 				assert.Contains(t, errOut.String(), "Error: failed")
 
@@ -433,7 +433,7 @@ func TestHangIsDeterministic(t *testing.T) {
 		}
 	}
 
-	for _, tc := range []struct {
+	for _, testCase := range []struct {
 		name    string
 		entries func() []mount.Entry
 	}{
@@ -464,12 +464,13 @@ func TestHangIsDeterministic(t *testing.T) {
 			}
 		}},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
 			outcome := func(shuffle bool) string {
-				entries := tc.entries()
+				entries := testCase.entries()
 				if shuffle {
+					//nolint:gosec // The order of a test's entries needs no secure random source.
 					rand.Shuffle(len(entries), func(i, j int) {
 						entries[i], entries[j] = entries[j], entries[i]
 					})

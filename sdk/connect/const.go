@@ -12,4 +12,4 @@ const TarantoolPasswordEnv = "TT_CLI_PASSWORD"
 const EtcdUsernameEnv = "TT_CLI_ETCD_USERNAME"
 
 // EtcdPasswordEnv is an environment variable with a password for etcd.
-const EtcdPasswordEnv = "TT_CLI_ETCD_PASSWORD"
+const EtcdPasswordEnv = "TT_CLI_ETCD_PASSWORD" //nolint:gosec // A variable name, not a secret.

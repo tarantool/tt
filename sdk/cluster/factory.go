@@ -57,15 +57,15 @@ func WithFileReadFunc(fileReadFunc FileReadFunc) Option {
 
 // NewFactory creates a new Factory configured by the given options.
 func NewFactory(opts ...Option) Factory {
-	var f Factory
+	var factory Factory
 
 	for _, opt := range opts {
 		if opt != nil {
-			opt(&f)
+			opt(&factory)
 		}
 	}
 
-	return f
+	return factory
 }
 
 // NewFileCollector creates a file-based DataCollector. If the factory was

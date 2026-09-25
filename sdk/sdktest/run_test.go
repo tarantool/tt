@@ -109,7 +109,10 @@ func TestRunProvidedGroup(t *testing.T) {
 	got := sdktest.Run(t, func(sdk.Services) []sdk.Mount {
 		// The command is listed before the group it goes under.
 		return []sdk.Mount{
-			{Path: "cluster", Cmd: &cobra.Command{Use: "show", Run: func(*cobra.Command, []string) {}}},
+			{
+				Path: "cluster",
+				Cmd:  &cobra.Command{Use: "show", Run: func(*cobra.Command, []string) {}},
+			},
 			{Path: "", Cmd: &cobra.Command{Use: "cluster", Short: "Manage the cluster"}},
 		}
 	}, "--help")

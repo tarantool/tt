@@ -24,14 +24,14 @@ const (
 )
 
 // readWithTimeout Helper to read from channel with timeout.
-func readWithTimeout(t *testing.T, ch <-chan string, timeout time.Duration) (string, error) {
+func readWithTimeout(t *testing.T, lines <-chan string, timeout time.Duration) (string, error) {
 	t.Helper()
 
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
 	select {
-	case s := <-ch:
+	case s := <-lines:
 		return s, nil
 	case <-timer.C:
 		return "", errTimeoutWaitingForData
@@ -52,35 +52,35 @@ func writeLogLines(t *testing.T, f *os.File, count int, lineFmt string) {
 func createTmpLogFile(t *testing.T) string {
 	t.Helper()
 
-	f, err := os.CreateTemp(t.TempDir(), "follow-test-*.log")
+	file, err := os.CreateTemp(t.TempDir(), "follow-test-*.log")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 
 	defer func() {
-		_ = f.Close()
+		_ = file.Close()
 	}()
 
-	writeLogLines(t, f, linesPerStep, logLineFormat)
+	writeLogLines(t, file, linesPerStep, logLineFormat)
 
-	return f.Name()
+	return file.Name()
 }
 
-func checksLinesInFile(t *testing.T, ch <-chan string, expFmt string) error {
+func checksLinesInFile(t *testing.T, lines <-chan string, expFmt string) error {
 	t.Helper()
 
 	for i := range linesPerStep {
-		n := i + 1
+		lineNum := i + 1
 
-		line, err := readWithTimeout(t, ch, time.Second)
+		line, err := readWithTimeout(t, lines, time.Second)
 		if err != nil {
-			return fmt.Errorf("failed to read line %d: %w", n, err)
+			return fmt.Errorf("failed to read line %d: %w", lineNum, err)
 		}
 
-		expected := fmt.Sprintf(expFmt, n)
+		expected := fmt.Sprintf(expFmt, lineNum)
 		if line != expected {
 			return fmt.Errorf("%w%d mismatch: got %q, want %q",
-				errLineMismatchGotWant, n, line, expected)
+				errLineMismatchGotWant, lineNum, line, expected)
 		}
 	}
 
@@ -88,14 +88,14 @@ func checksLinesInFile(t *testing.T, ch <-chan string, expFmt string) error {
 }
 
 func TestFollow2_ReadExistingContent(t *testing.T) {
-	lf := createTmpLogFile(t)
+	logFile := createTmpLogFile(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	f := tail.NewTailFollower(lf)
+	follower := tail.NewTailFollower(logFile)
 
-	outCh, err := f.Follow(ctx, linesPerStep)
+	outCh, err := follower.Follow(ctx, linesPerStep)
 	if err != nil {
 		t.Fatalf("Failed to follow: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestFollow2_ReadExistingContent(t *testing.T) {
 	}
 
 	cancel()
-	f.Wait()
+	follower.Wait()
 }
 
 func TestFollow2_FollowNewContent(t *testing.T) {
@@ -114,14 +114,14 @@ func TestFollow2_FollowNewContent(t *testing.T) {
 		t.Skip("Skipping flaky test on CI until issue #TNTP-3131 is fixed")
 	}
 
-	lf := createTmpLogFile(t)
+	logFile := createTmpLogFile(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	f := tail.NewTailFollower(lf)
+	follower := tail.NewTailFollower(logFile)
 
-	outCh, err := f.Follow(ctx, linesPerStep)
+	outCh, err := follower.Follow(ctx, linesPerStep)
 	if err != nil {
 		t.Fatalf("Failed to follow: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestFollow2_FollowNewContent(t *testing.T) {
 	}
 
 	// Append new content.
-	appendFile, err := os.OpenFile(lf, os.O_APPEND|os.O_WRONLY, 0o644)
+	appendFile, err := os.OpenFile(logFile, os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		t.Fatalf("Failed to open file for append: %v", err)
 	}
@@ -147,18 +147,18 @@ func TestFollow2_FollowNewContent(t *testing.T) {
 	}
 
 	cancel()
-	f.Wait()
+	follower.Wait()
 }
 
 func TestFollow2_ContextCancellation(t *testing.T) {
-	lf := createTmpLogFile(t)
+	logFile := createTmpLogFile(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	f := tail.NewTailFollower(lf)
+	follower := tail.NewTailFollower(logFile)
 
-	outCh, err := f.Follow(ctx, linesPerStep)
+	outCh, err := follower.Follow(ctx, linesPerStep)
 	if err != nil {
 		t.Fatalf("Failed to follow: %v", err)
 	}
@@ -175,7 +175,7 @@ func TestFollow2_ContextCancellation(t *testing.T) {
 	waitCh := make(chan struct{})
 
 	go func() {
-		f.Wait()
+		follower.Wait()
 		close(waitCh)
 	}()
 
@@ -191,9 +191,9 @@ func TestFollow2_ContextCancellation(t *testing.T) {
 func TestFollow2_NonExistentFile(t *testing.T) {
 	ctx := t.Context()
 
-	f := tail.NewTailFollower("/path/to/nonexistent/file")
+	follower := tail.NewTailFollower("/path/to/nonexistent/file")
 
-	_, err := f.Follow(ctx, linesPerStep)
+	_, err := follower.Follow(ctx, linesPerStep)
 	if err == nil {
 		t.Fatal("Expected error when following non-existent file, got nil")
 	}
@@ -202,14 +202,14 @@ func TestFollow2_NonExistentFile(t *testing.T) {
 func rotationTest(t *testing.T, useDelay bool) {
 	t.Helper()
 
-	lf := createTmpLogFile(t)
+	logFile := createTmpLogFile(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	f := tail.NewTailFollower(lf)
+	follower := tail.NewTailFollower(logFile)
 
-	outCh, err := f.Follow(ctx, linesPerStep)
+	outCh, err := follower.Follow(ctx, linesPerStep)
 	if err != nil {
 		t.Skipf("Failed to follow: %v", err)
 	}
@@ -221,7 +221,7 @@ func rotationTest(t *testing.T, useDelay bool) {
 		return
 	}
 
-	err = os.Rename(lf, lf+".bak")
+	err = os.Rename(logFile, logFile+".bak")
 	if err != nil {
 		t.Fatalf("Failed to rotate log file: %v", err)
 	}
@@ -230,7 +230,7 @@ func rotationTest(t *testing.T, useDelay bool) {
 		time.Sleep(500 * time.Millisecond) // Add delay to avoid flaky fails.
 	}
 
-	newFile, err := os.Create(lf)
+	newFile, err := os.Create(logFile)
 	if err != nil {
 		t.Fatalf("Failed to create new log file: %v", err)
 	}
@@ -249,7 +249,7 @@ func rotationTest(t *testing.T, useDelay bool) {
 	}
 
 	cancel()
-	f.Wait()
+	follower.Wait()
 }
 
 // TestFollow2_FileRotation_Flaky tests the file rotation with flaky retries.

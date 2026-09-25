@@ -189,13 +189,13 @@ func TestTarantoolVersionCompareIgnoresIdentity(t *testing.T) {
 func TestTarantoolVersionAtLeast(t *testing.T) {
 	t.Parallel()
 
-	v := sdk.TarantoolVersion{Major: 3, Minor: 2, Patch: 1}
+	version := sdk.TarantoolVersion{Major: 3, Minor: 2, Patch: 1}
 
-	assert.True(t, v.AtLeast(3, 2, 1))
-	assert.True(t, v.AtLeast(3, 2, 0))
-	assert.True(t, v.AtLeast(2, 11, 9))
-	assert.False(t, v.AtLeast(3, 2, 2))
-	assert.False(t, v.AtLeast(4, 0, 0))
+	assert.True(t, version.AtLeast(3, 2, 1))
+	assert.True(t, version.AtLeast(3, 2, 0))
+	assert.True(t, version.AtLeast(2, 11, 9))
+	assert.False(t, version.AtLeast(3, 2, 2))
+	assert.False(t, version.AtLeast(4, 0, 0))
 
 	rc := sdk.TarantoolVersion{Major: 3, Release: sdk.ReleaseRC, ReleaseNum: 1}
 	assert.False(t, rc.AtLeast(3, 0, 0), "a release candidate precedes its release")

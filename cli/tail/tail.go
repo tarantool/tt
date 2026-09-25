@@ -71,7 +71,7 @@ func NewLogFormatter(prefix string, color color.Color) LogFormatter {
 func newTailReader(ctx context.Context, reader io.ReadSeeker, count int) (io.Reader, int64, error) {
 	end, err := reader.Seek(0, io.SeekEnd)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("failed to seek to the end: %w", err)
 	}
 
 	if count <= 0 {
@@ -89,7 +89,7 @@ func newTailReader(ctx context.Context, reader io.ReadSeeker, count int) (io.Rea
 	for readOffset != 0 && linesFound != count {
 		select {
 		case <-ctx.Done():
-			return nil, 0, ctx.Err()
+			return nil, 0, fmt.Errorf("stopped looking for the last lines: %w", ctx.Err())
 		default:
 		}
 
@@ -105,7 +105,7 @@ func newTailReader(ctx context.Context, reader io.ReadSeeker, count int) (io.Rea
 
 		readOffset, err = reader.Seek(readOffset, io.SeekStart)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, fmt.Errorf("failed to seek back: %w", err)
 		}
 
 		readBytes, err := limitedReader.Read(buf)
@@ -113,13 +113,13 @@ func newTailReader(ctx context.Context, reader io.ReadSeeker, count int) (io.Rea
 			return nil, startPos, fmt.Errorf("failed to read: %w", err)
 		}
 
-		for i := readBytes - 1; i > 0; i-- {
-			if buf[i] == '\n' {
+		for index := readBytes - 1; index > 0; index-- {
+			if buf[index] == '\n' {
 				// In case of \n\n\n bytes, start position should not be moved one byte forward.
-				if startPos-(readOffset+int64(i)) == 1 {
-					startPos = readOffset + int64(i)
+				if startPos-(readOffset+int64(index)) == 1 {
+					startPos = readOffset + int64(index)
 				} else {
-					startPos = readOffset + int64(i) + 1
+					startPos = readOffset + int64(index) + 1
 				}
 
 				linesFound++
@@ -140,11 +140,11 @@ func newTailReader(ctx context.Context, reader io.ReadSeeker, count int) (io.Rea
 	return &io.LimitedReader{R: reader, N: end}, 0, nil
 }
 
-// TailN calls sends last n lines of the file to the channel.
+// TailN calls sends last count lines of the file to the channel.
 func TailN(ctx context.Context, logFormatter LogFormatter, fileName string,
-	n int,
+	count int,
 ) (<-chan string, error) {
-	if n < 0 {
+	if count < 0 {
 		return nil, errNegativeLinesCountIsNotSupported
 	}
 
@@ -153,7 +153,7 @@ func TailN(ctx context.Context, logFormatter LogFormatter, fileName string,
 		return nil, fmt.Errorf("cannot open %q: %w", fileName, err)
 	}
 
-	reader, _, err := newTailReader(ctx, file, n)
+	reader, _, err := newTailReader(ctx, file, count)
 	if err != nil {
 		_ = file.Close()
 		return nil, err
@@ -182,7 +182,7 @@ func TailN(ctx context.Context, logFormatter LogFormatter, fileName string,
 
 // Follow sends to the channel each new line from the file as it grows.
 func Follow(ctx context.Context, out chan<- string, logFormatter LogFormatter, fileName string,
-	n int, wg *sync.WaitGroup,
+	count int, group *sync.WaitGroup,
 ) error {
 	file, err := os.Open(fileName)
 	if err != nil {
@@ -193,12 +193,12 @@ func Follow(ctx context.Context, out chan<- string, logFormatter LogFormatter, f
 		_ = file.Close()
 	}()
 
-	_, startPos, err := newTailReader(ctx, file, n)
+	_, startPos, err := newTailReader(ctx, file, count)
 	if err != nil {
 		return err
 	}
 
-	t, err := tail.TailFile(fileName, tail.Config{
+	fileTail, err := tail.TailFile(fileName, tail.Config{
 		Location: &tail.SeekInfo{
 			Offset: startPos,
 			Whence: io.SeekStart,
@@ -210,20 +210,20 @@ func Follow(ctx context.Context, out chan<- string, logFormatter LogFormatter, f
 		Logger:        tail.DiscardingLogger,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot follow %q: %w", fileName, err)
 	}
 
-	wg.Go(func() {
+	group.Go(func() {
 		for {
 			select {
 			case <-ctx.Done():
-				_ = t.Stop()
-				_ = t.Wait()
+				_ = fileTail.Stop()
+				_ = fileTail.Wait()
 
 				return
-			case line, more := <-t.Lines:
+			case line, more := <-fileTail.Lines:
 				if !more {
-					err := t.Stop()
+					err := fileTail.Stop()
 					if err != nil {
 						log.Error(err.Error())
 					} else {

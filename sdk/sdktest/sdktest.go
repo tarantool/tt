@@ -164,7 +164,7 @@ func New(tb testing.TB, opts ...Option) *Services {
 
 // openFile opens path with os.Open.
 func openFile(path string) (io.ReadCloser, error) {
-	return os.Open(path) //nolint:gosec,wrapcheck // The fake opens what it is asked to.
+	return os.Open(path) //nolint:wrapcheck // The fake opens what it is asked to.
 }
 
 // Start marks tt configured: from now on every method may be used. Starting

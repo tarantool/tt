@@ -46,7 +46,7 @@ func (collector FileCollector) Collect() ([]Data, error) {
 		return nil, fmt.Errorf(fmtErr, collector.path, err)
 	}
 
-	return []Data{{Source: collector.path, Value: data}}, nil
+	return []Data{{Source: collector.path, Value: data, Revision: 0}}, nil
 }
 
 // FilePublisher publishes data into a file as is.
@@ -75,7 +75,8 @@ func (publisher FilePublisher) Publish(revision int64, data []byte) error {
 		return fmt.Errorf("failed to publish data into %q: %w", publisher.path, errDataMissing)
 	}
 
-	if err := os.WriteFile(publisher.path, data, publishedFileMode); err != nil {
+	err := os.WriteFile(publisher.path, data, publishedFileMode)
+	if err != nil {
 		return fmt.Errorf("failed to publish data into %q: %w", publisher.path, err)
 	}
 

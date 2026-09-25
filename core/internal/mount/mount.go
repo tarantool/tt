@@ -72,6 +72,22 @@ func (r *Registry) Placeholder(cmd *cobra.Command) bool {
 	return r.placeholders[cmd]
 }
 
+// The errors Hang refuses a mount with. Each is the reason part of a message
+// that names the module, the command and the path involved.
+var (
+	errNoModuleName      = errors.New("no module name")
+	errNoCommand         = errors.New("has no command")
+	errNoCommandName     = errors.New("has no name")
+	errHasParent         = errors.New("already has a parent")
+	errNotCommandName    = errors.New("is not a command name")
+	errAliasInPath       = errors.New("a path names commands by their names")
+	errNotGroup          = errors.New("not a group")
+	errReservedName      = errors.New("reserved by tt")
+	errDuplicateCommand  = errors.New("duplicate command")
+	errAmbiguousName     = errors.New("both answer to")
+	errFlagsNotMergeable = errors.New("flags")
+)
+
 // mount is a valid Entry with its path split into command names.
 type mount struct {
 	Entry
@@ -94,13 +110,14 @@ func Hang(root *cobra.Command, entries []Entry, reserved Reserved) (*Registry, e
 	var errs []error
 
 	for _, entry := range sorted {
-		if err := validate(entry); err != nil {
+		err := validate(entry)
+		if err != nil {
 			errs = append(errs, err)
 
 			continue
 		}
 
-		err := hang(root, mount{Entry: entry, segments: strings.Fields(entry.Path)},
+		err = hang(root, mount{Entry: entry, segments: strings.Fields(entry.Path)},
 			registry, reserved)
 		if err != nil {
 			errs = append(errs, err)
@@ -117,14 +134,14 @@ func Hang(root *cobra.Command, entries []Entry, reserved Reserved) (*Registry, e
 // compareEntries orders entries by the depth of their path, then the path,
 // the command name and the module: a group is hung before whatever is
 // mounted under it, and the result does not depend on the input order.
-func compareEntries(a, b Entry) int {
-	pathA, pathB := strings.Fields(a.Path), strings.Fields(b.Path)
+func compareEntries(left, right Entry) int {
+	pathLeft, pathRight := strings.Fields(left.Path), strings.Fields(right.Path)
 
 	return cmp.Or(
-		cmp.Compare(len(pathA), len(pathB)),
-		slices.Compare(pathA, pathB),
-		cmp.Compare(commandName(a.Cmd), commandName(b.Cmd)),
-		cmp.Compare(a.Module, b.Module),
+		cmp.Compare(len(pathLeft), len(pathRight)),
+		slices.Compare(pathLeft, pathRight),
+		cmp.Compare(commandName(left.Cmd), commandName(right.Cmd)),
+		cmp.Compare(left.Module, right.Module),
 	)
 }
 
@@ -140,24 +157,25 @@ func commandName(cmd *cobra.Command) string {
 // validate checks what an entry must be before it can be hung.
 func validate(entry Entry) error {
 	if entry.Module == "" {
-		return fmt.Errorf("mount of command %q under %q: no module name",
-			commandName(entry.Cmd), entry.Path)
+		return fmt.Errorf("mount of command %q under %q: %w",
+			commandName(entry.Cmd), entry.Path, errNoModuleName)
 	}
 
 	switch {
 	case entry.Cmd == nil:
-		return fmt.Errorf("module %q: mount under %q has no command", entry.Module, entry.Path)
+		return fmt.Errorf("module %q: mount under %q %w", entry.Module, entry.Path, errNoCommand)
 	case entry.Cmd.Name() == "":
-		return fmt.Errorf("module %q: command under %q has no name", entry.Module, entry.Path)
+		return fmt.Errorf("module %q: command under %q %w",
+			entry.Module, entry.Path, errNoCommandName)
 	case entry.Cmd.HasParent():
-		return fmt.Errorf("module %q: command %q already has a parent %q",
-			entry.Module, entry.Cmd.Name(), entry.Cmd.Parent().CommandPath())
+		return fmt.Errorf("module %q: command %q %w %q",
+			entry.Module, entry.Cmd.Name(), errHasParent, entry.Cmd.Parent().CommandPath())
 	}
 
 	for segment := range strings.FieldsSeq(entry.Path) {
 		if strings.Contains(segment, "=") {
-			return fmt.Errorf("module %q: mount path %q: %q is not a command name",
-				entry.Module, entry.Path, segment)
+			return fmt.Errorf("module %q: mount path %q: %q %w",
+				entry.Module, entry.Path, segment, errNotCommandName)
 		}
 	}
 
@@ -165,64 +183,67 @@ func validate(entry Entry) error {
 }
 
 // hang adds one mount's command to the tree.
-func hang(root *cobra.Command, m mount, registry *Registry, reserved Reserved) error {
-	parent, err := walk(root, m, registry)
+func hang(root *cobra.Command, mnt mount, registry *Registry, reserved Reserved) error {
+	parent, err := walk(root, mnt, registry)
 	if err != nil {
 		return err
 	}
 
-	if err := checkNames(root, parent, m, registry, reserved); err != nil {
+	err = checkNames(root, parent, mnt, registry, reserved)
+	if err != nil {
 		return err
 	}
 
-	parent.AddCommand(m.Cmd)
+	parent.AddCommand(mnt.Cmd)
 
-	for _, cmd := range subtree(m.Cmd) {
-		registry.owners[cmd] = m.Module
+	for _, cmd := range subtree(mnt.Cmd) {
+		registry.owners[cmd] = mnt.Module
 	}
 
-	if m.Legacy {
+	if mnt.Legacy {
 		return nil
 	}
 
-	if err := checkFlags(root, m, reserved); err != nil {
+	err = checkFlags(root, mnt, reserved)
+	if err != nil {
 		return err
 	}
 
-	if err := mergeFlags(m); err != nil {
+	err = mergeFlags(mnt)
+	if err != nil {
 		return err
 	}
 
-	for _, cmd := range subtree(m.Cmd) {
+	for _, cmd := range subtree(mnt.Cmd) {
 		wrapHooks(cmd)
 	}
 
 	return nil
 }
 
-// walk follows m's path from root and returns the command to hang m's
+// walk follows mnt's path from root and returns the command to hang mnt's
 // command under, creating the groups on the path that do not exist.
-func walk(root *cobra.Command, m mount, registry *Registry) (*cobra.Command, error) {
+func walk(root *cobra.Command, mnt mount, registry *Registry) (*cobra.Command, error) {
 	parent := root
 
-	for _, segment := range m.segments {
+	for _, segment := range mnt.segments {
 		child := byName(parent, segment)
 
 		if child == nil {
 			if aliased := byAlias(parent, segment); aliased != nil {
-				return nil, fmt.Errorf("module %q: mount path %q: %q is an alias of %q; "+
-					"a path names commands by their names",
-					m.Module, m.Path, segment, displayPath(aliased))
+				return nil, fmt.Errorf("module %q: mount path %q: %q is an alias of %q; %w",
+					mnt.Module, mnt.Path, segment, displayPath(aliased), errAliasInPath)
 			}
 
 			child = &cobra.Command{Use: segment}
 			parent.AddCommand(child)
 
-			registry.owners[child] = m.Module
+			registry.owners[child] = mnt.Module
 			registry.placeholders[child] = true
-		} else if owner := ownerName(registry, child); child.Runnable() && owner != m.Module {
+		} else if owner := ownerName(registry, child); child.Runnable() && owner != mnt.Module {
 			return nil, fmt.Errorf("module %q: cannot mount %q under %q: it is a command "+
-				"of module %q, not a group", m.Module, m.Cmd.Name(), displayPath(child), owner)
+				"of module %q, %w", mnt.Module, mnt.Cmd.Name(), displayPath(child), owner,
+				errNotGroup)
 		}
 
 		parent = child
@@ -234,16 +255,16 @@ func walk(root *cobra.Command, m mount, registry *Registry) (*cobra.Command, err
 // checkNames refuses a command whose name or alias is taken next to it, or
 // reserved at the root.
 func checkNames(
-	root, parent *cobra.Command, m mount, registry *Registry, reserved Reserved,
+	root, parent *cobra.Command, mnt mount, registry *Registry, reserved Reserved,
 ) error {
-	names := append([]string{m.Cmd.Name()}, m.Cmd.Aliases...)
-	path := strings.Join(append(slices.Clone(m.segments), m.Cmd.Name()), " ")
+	names := append([]string{mnt.Cmd.Name()}, mnt.Cmd.Aliases...)
+	path := strings.Join(append(slices.Clone(mnt.segments), mnt.Cmd.Name()), " ")
 
 	if parent == root {
 		for _, name := range names {
 			if slices.Contains(reserved.Names, name) {
-				return fmt.Errorf("module %q: command %q: %q is reserved by tt",
-					m.Module, path, name)
+				return fmt.Errorf("module %q: command %q: %q is %w",
+					mnt.Module, path, name, errReservedName)
 			}
 		}
 	}
@@ -256,40 +277,41 @@ func checkNames(
 				continue
 			}
 
-			if sibling.Name() == m.Cmd.Name() {
-				return fmt.Errorf("duplicate command %q: modules %q and %q",
-					path, ownerName(registry, sibling), m.Module)
+			if sibling.Name() == mnt.Cmd.Name() {
+				return fmt.Errorf("%w %q: modules %q and %q",
+					errDuplicateCommand, path, ownerName(registry, sibling), mnt.Module)
 			}
 
 			return fmt.Errorf("command %q of module %q and command %q of module %q "+
-				"both answer to %q", displayPath(sibling), ownerName(registry, sibling),
-				path, m.Module, name)
+				"%w %q", displayPath(sibling), ownerName(registry, sibling),
+				path, mnt.Module, errAmbiguousName, name)
 		}
 	}
 
 	return nil
 }
 
-// checkFlags refuses a flag of m's commands that tt reserves: one of
-// reserved.Flags, a flag of the root, or a persistent flag of a group m is
+// checkFlags refuses a flag of mnt's commands that tt reserves: one of
+// reserved.Flags, a flag of the root, or a persistent flag of a group mnt is
 // mounted under.
-func checkFlags(root *cobra.Command, m mount, reserved Reserved) error {
+func checkFlags(root *cobra.Command, mnt mount, reserved Reserved) error {
 	taken := []*pflag.FlagSet{root.Flags(), root.PersistentFlags()}
 	if reserved.Flags != nil {
 		taken = append(taken, reserved.Flags)
 	}
 
-	for above := m.Cmd.Parent(); above != nil && above != root; above = above.Parent() {
+	for above := mnt.Cmd.Parent(); above != nil && above != root; above = above.Parent() {
 		taken = append(taken, above.PersistentFlags())
 	}
 
 	var errs []error
 
-	for _, cmd := range subtree(m.Cmd) {
+	for _, cmd := range subtree(mnt.Cmd) {
 		visit := func(flag *pflag.Flag) {
-			if err := checkFlag(taken, flag); err != nil {
+			err := checkFlag(taken, flag)
+			if err != nil {
 				errs = append(errs, fmt.Errorf("module %q: command %q: %w",
-					m.Module, displayPath(cmd), err))
+					mnt.Module, displayPath(cmd), err))
 			}
 		}
 
@@ -324,18 +346,18 @@ func checkFlag(taken []*pflag.FlagSet, flag *pflag.Flag) error {
 	return nil
 }
 
-// mergeFlags merges the inherited flags into every command of m the way
+// mergeFlags merges the inherited flags into every command of mnt the way
 // cobra does when it runs one, and turns the panic cobra's flag library
 // raises for a shorthand used twice into an error.
-func mergeFlags(m mount) error {
+func mergeFlags(mnt mount) error {
 	var errs []error
 
-	for _, cmd := range subtree(m.Cmd) {
+	for _, cmd := range subtree(mnt.Cmd) {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					errs = append(errs, fmt.Errorf("module %q: command %q: flags: %v",
-						m.Module, displayPath(cmd), r))
+					errs = append(errs, fmt.Errorf("module %q: command %q: %w: %v",
+						mnt.Module, displayPath(cmd), errFlagsNotMergeable, r))
 				}
 			}()
 
@@ -401,7 +423,9 @@ func byAlias(parent *cobra.Command, name string) *cobra.Command {
 
 // subtree returns cmd and every command under it, parents first.
 func subtree(cmd *cobra.Command) []*cobra.Command {
-	commands := []*cobra.Command{cmd}
+	commands := make([]*cobra.Command, 0, 1+len(cmd.Commands()))
+
+	commands = append(commands, cmd)
 
 	for _, sub := range cmd.Commands() {
 		commands = append(commands, subtree(sub)...)

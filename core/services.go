@@ -71,7 +71,12 @@ func (s *services) Tarantool() (sdk.Tarantool, error) {
 		return nil, err
 	}
 
-	return &tarantool{path: path}, nil
+	// Only the path is known here: Version fills the rest on first use.
+	found := new(tarantool)
+
+	found.path = path
+
+	return found, nil
 }
 
 // Integrity returns the integrity checks tt was configured with.
@@ -135,24 +140,24 @@ func (s *services) mustBeReady(method string) {
 // readLine reads from r up to and including the next line break, a byte at
 // a time so that nothing after the line is consumed. It returns what it
 // read, without the line break, and the error that stopped it.
-func readLine(r io.Reader) (string, error) {
+func readLine(reader io.Reader) (string, error) {
 	var (
 		line strings.Builder
-		b    [1]byte
+		char [1]byte
 	)
 
 	for {
-		n, err := r.Read(b[:])
+		n, err := reader.Read(char[:])
 		if n == 1 {
-			if b[0] == '\n' {
+			if char[0] == '\n' {
 				return line.String(), nil
 			}
 
-			line.WriteByte(b[0])
+			line.WriteByte(char[0])
 		}
 
 		if err != nil {
-			return line.String(), err //nolint:wrapcheck // The caller adds the context.
+			return line.String(), err
 		}
 	}
 }
@@ -237,7 +242,7 @@ type integrityChecks struct{}
 
 // Open opens path through the integrity repository.
 func (integrityChecks) Open(path string) (io.ReadCloser, error) {
-	return cmd.GetCmdCtxPtr().Integrity.Repository.Read(path) //nolint:wrapcheck // As is.
+	return cmd.GetCmdCtxPtr().Integrity.Repository.Read(path)
 }
 
 // project is the project of the command line.

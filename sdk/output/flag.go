@@ -17,7 +17,7 @@ type FormatFlag struct {
 	formats  []Format
 }
 
-// BindFormat declares -o/--format on fs, accepting formats and defaulting to
+// BindFormat declares -o/--format on flags, accepting formats and defaulting to
 // fallback, and returns the flag to read the chosen format from once the
 // flags are parsed. Every command that prints a result declares its format
 // flag with BindFormat, so the flag has one name, one shorthand and one help
@@ -29,8 +29,8 @@ type FormatFlag struct {
 //
 // BindFormat panics when formats is empty, names a format twice or does not
 // include fallback - a mistake in the command's code, not in its input - and,
-// as pflag does, when fs already has a format or o flag.
-func BindFormat(fs *pflag.FlagSet, fallback Format, formats ...Format) *FormatFlag {
+// as pflag does, when flags already has a format or o flag.
+func BindFormat(flags *pflag.FlagSet, fallback Format, formats ...Format) *FormatFlag {
 	if len(formats) == 0 {
 		panic("output.BindFormat: no formats")
 	}
@@ -47,7 +47,7 @@ func BindFormat(fs *pflag.FlagSet, fallback Format, formats ...Format) *FormatFl
 	}
 
 	flag := &FormatFlag{value: "", fallback: fallback, formats: slices.Clone(formats)}
-	fs.VarP(flag, "format", "o", "output format: "+spellFormats(formats))
+	flags.VarP(flag, "format", "o", "output format: "+spellFormats(formats))
 
 	return flag
 }

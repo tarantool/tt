@@ -122,7 +122,7 @@ five
 			require.NoError(t, err)
 
 			buf := make([]byte, 1024*1024)
-			n, err := tailReader.Read(buf)
+			readCount, err := tailReader.Read(buf)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -131,7 +131,7 @@ five
 			}
 
 			require.NoError(t, err)
-			assert.Equal(t, string(tt.want), string(buf[:n]))
+			assert.Equal(t, string(tt.want), string(buf[:readCount]))
 		})
 	}
 }
@@ -139,13 +139,13 @@ five
 func linesChecker(t *testing.T, expected []string) func(str string) {
 	t.Helper()
 
-	i := 0
+	index := 0
 
 	return func(str string) {
-		require.Less(t, i, len(expected))
-		assert.Equal(t, expected[i], str)
+		require.Less(t, index, len(expected))
+		assert.Equal(t, expected[index], str)
 
-		i++
+		index++
 	}
 }
 
@@ -231,7 +231,7 @@ five
 			in, err := TailN(context.Background(), func(str string) string {
 				return str
 			}, outFile.Name(), tt.args.n)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			for line := range in {
 				tt.check(line)
@@ -322,7 +322,7 @@ five
 
 			r := NewTailReader(outFile.Name())
 			in, err := r.Read(context.Background(), tt.args.n)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			for line := range in {
 				tt.check(line)
@@ -335,7 +335,7 @@ func TestPrintLastNLinesFileDoesNotExist(t *testing.T) {
 	in, err := TailN(context.Background(), func(str string) string {
 		return str
 	}, "some_file_name", 10)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, in)
 }
 
@@ -405,25 +405,25 @@ func TestFollow(t *testing.T) {
 			ctx, stop := context.WithTimeout(context.Background(), time.Second*2)
 			defer stop()
 
-			in := make(chan string)
+			received := make(chan string)
 
-			err = Follow(ctx, in,
+			err = Follow(ctx, received,
 				func(str string) string { return str }, outFile.Name(), tt.nLines,
 				&sync.WaitGroup{})
 			require.NoError(t, err)
 
 			if tt.nLines > 0 && len(tt.expectedLastLines) > 0 {
-				i := 0
-				for i != len(tt.expectedLastLines) {
+				lineIndex := 0
+				for lineIndex != len(tt.expectedLastLines) {
 					select {
 					case <-ctx.Done():
 						require.Fail(t, "timed out, no initial lines received")
 
 						return
-					case line := <-in:
-						assert.Equal(t, tt.expectedLastLines[i], line)
+					case line := <-received:
+						assert.Equal(t, tt.expectedLastLines[lineIndex], line)
 
-						i++
+						lineIndex++
 					}
 				}
 			}
@@ -435,19 +435,19 @@ func TestFollow(t *testing.T) {
 				_, _ = outFile.WriteString(line + "\n")
 			}
 
-			assert.NoError(t, outFile.Sync())
+			require.NoError(t, outFile.Sync())
 
-			i := 0
-			for i != len(tt.expectedAppendedLines) {
+			lineIndex := 0
+			for lineIndex != len(tt.expectedAppendedLines) {
 				select {
 				case <-ctx.Done():
 					assert.Fail(t, "timed out, no lines received")
 
 					return
-				case line := <-in:
-					assert.Equal(t, tt.expectedAppendedLines[i], line)
+				case line := <-received:
+					assert.Equal(t, tt.expectedAppendedLines[lineIndex], line)
 
-					i++
+					lineIndex++
 				}
 			}
 		})

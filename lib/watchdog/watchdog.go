@@ -3,6 +3,7 @@ package watchdog
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -53,10 +54,16 @@ type Watchdog struct {
 // to the created Watchdog.
 func NewWatchdog(pidFile, wdPidFile string, restartTimeout time.Duration) *Watchdog {
 	return &Watchdog{
+		cmd:             nil,
+		restartTimeout:  restartTimeout,
+		shouldStop:      atomic.Bool{},
+		doneBarrier:     sync.WaitGroup{},
 		pidFile:         pidFile,
 		wdPidFile:       wdPidFile,
-		restartTimeout:  restartTimeout,
+		cmdMutex:        sync.Mutex{},
+		pidFileMutex:    sync.Mutex{},
 		signalChan:      make(chan os.Signal, 1),
+		processGroupPID: atomic.Int32{},
 		startupComplete: make(chan struct{}),
 	}
 }
@@ -106,19 +113,21 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 		wd.cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 		// Start the process.
-		if err := wd.cmd.Start(); err != nil {
+		err := wd.cmd.Start()
+		if err != nil {
 			wd.cmdMutex.Unlock()
 			log.Errorf("Failed to start process: %v", err)
 
-			return err
+			return fmt.Errorf("failed to start process: %w", err)
 		}
 
 		// Store process group PID atomically.
-		wd.processGroupPID.Store(int32(wd.cmd.Process.Pid))
+		wd.processGroupPID.Store(int32(wd.cmd.Process.Pid)) //nolint:gosec // A PID fits in int32.
 		wd.cmdMutex.Unlock()
 
 		// Write PID files after successful start.
-		if err := wd.writePIDFiles(); err != nil {
+		err = wd.writePIDFiles()
+		if err != nil {
 			log.Errorf("Failed to write PID files: %v", err)
 
 			_ = wd.terminateProcess() // Clean up if PID files fail.
@@ -230,10 +239,20 @@ func (wd *Watchdog) terminateProcess() error {
 
 	// Send SIGTERM to entire process group if available (preferred method).
 	if pgid > 0 {
-		return syscall.Kill(-pgid, syscall.SIGTERM)
+		err := syscall.Kill(-pgid, syscall.SIGTERM)
+		if err != nil {
+			return fmt.Errorf("failed to terminate process group %d: %w", pgid, err)
+		}
+
+		return nil
 	}
 
-	return wd.cmd.Process.Signal(syscall.SIGTERM)
+	err := wd.cmd.Process.Signal(syscall.SIGTERM)
+	if err != nil {
+		return fmt.Errorf("failed to terminate process: %w", err)
+	}
+
+	return nil
 }
 
 // writePIDFiles creates PID files for both the monitored process and the watchdog itself.
@@ -245,14 +264,16 @@ func (wd *Watchdog) writePIDFiles() error {
 		return errProcessIsNotRunning
 	}
 
-	if err := process_utils.CreatePIDFile(wd.pidFile, wd.cmd.Process.Pid); err != nil {
+	err := process_utils.CreatePIDFile(wd.pidFile, wd.cmd.Process.Pid)
+	if err != nil {
 		return err
 	}
 
 	log.Infof("Process PID %d written to %s", wd.cmd.Process.Pid, wd.pidFile)
 
 	if isExistsAndRecord, _ := process_utils.ExistsAndRecord(wd.wdPidFile); !isExistsAndRecord {
-		if err := process_utils.CreatePIDFile(wd.wdPidFile, os.Getpid()); err != nil {
+		err = process_utils.CreatePIDFile(wd.wdPidFile, os.Getpid())
+		if err != nil {
 			return err
 		}
 	}

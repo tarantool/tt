@@ -224,6 +224,5 @@ func runEnviron(
 
 	cmd.Env = environ
 
-	//nolint:contextcheck // RunCommand takes no context; ctx reaches the child via the cmd.
 	return util.RunCommand(cmd, cwd, showOutput)
 }

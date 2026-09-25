@@ -6,11 +6,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var (
 	errMissingCredentialsFile = errors.New(
-		"open ./testdata/nonexisting: no such file or directory",
+		"opening the credentials file: open ./testdata/nonexisting: no such file or directory",
 	)
 )
 
@@ -36,7 +37,7 @@ func TestGetCredsFromFile(t *testing.T) {
 	}
 
 	file, err := os.CreateTemp("/tmp", "tt-unittest-*.bat")
-	assert.Nil(err)
+	require.NoError(t, err)
 
 	_, _ = file.WriteString("user\npass")
 
@@ -53,7 +54,7 @@ func TestGetCredsFromFile(t *testing.T) {
 	}
 
 	file, err = os.CreateTemp("/tmp", "tt-unittest-*.bat")
-	assert.Nil(err)
+	require.NoError(t, err)
 
 	_, _ = file.WriteString("")
 
@@ -67,7 +68,7 @@ func TestGetCredsFromFile(t *testing.T) {
 	}
 
 	file, err = os.CreateTemp("/tmp", "tt-unittest-*.bat")
-	assert.Nil(err)
+	require.NoError(t, err)
 
 	_, _ = file.WriteString("user")
 
@@ -84,7 +85,7 @@ func TestGetCredsFromFile(t *testing.T) {
 		creds, err := getCredsFromFile(input.path)
 
 		if output.err == nil {
-			assert.Nil(err)
+			require.NoError(t, err)
 			assert.Equal(output.result, creds)
 		} else {
 			assert.Equal(output.err.Error(), err.Error())

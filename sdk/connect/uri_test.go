@@ -13,7 +13,7 @@ import (
 
 const (
 	testUser     = "a-фs$d!e%*1#2?3&44"
-	testPass     = "bb-фs$d!e%*1#2?3&666"
+	testPass     = "bb-фs$d!e%*1#2?3&666" //nolint:gosec // A fixture, not a secret.
 	testUserPass = testUser + ":" + testPass
 )
 
@@ -185,8 +185,8 @@ func TestParseCredentialsURI_parseValid(t *testing.T) {
 		t.Run(uri, func(t *testing.T) {
 			newURI, user, pass := connect.ParseCredentialsURI(uri)
 			assert.NotEqual(t, uri, newURI, "URI must change")
-			assert.NotEqual(t, "", user, "username must not be empty")
-			assert.NotEqual(t, "", pass, "password must not be empty")
+			assert.NotEmpty(t, user, "username must not be empty")
+			assert.NotEmpty(t, pass, "password must not be empty")
 		})
 	}
 }
@@ -203,8 +203,8 @@ func TestParseCredentialsURI_notParseInvalid(t *testing.T) {
 		t.Run(uri, func(t *testing.T) {
 			newURI, user, pass := connect.ParseCredentialsURI(uri)
 			assert.Equal(t, uri, newURI, "URI must no change")
-			assert.Equal(t, "", user, "username must be empty")
-			assert.Equal(t, "", pass, "password must be empty")
+			assert.Empty(t, user, "username must be empty")
+			assert.Empty(t, pass, "password must be empty")
 		})
 	}
 }
@@ -312,7 +312,7 @@ func TestParseUriOpts(t *testing.T) {
 			},
 			Err: "",
 		},
-		"user and pass": {
+		"user and pass": { //nolint:gosec // A fixture, not a secret.
 			URL: "scheme://user:pass@localhost",
 			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
@@ -547,17 +547,17 @@ func TestParseUriOpts(t *testing.T) {
 		},
 	}
 
-	for name, tc := range cases {
+	for name, testCase := range cases {
 		t.Run(name, func(t *testing.T) {
-			if tc.Opts.Params == nil {
-				tc.Opts.Params = make(map[string]string)
+			if testCase.Opts.Params == nil {
+				testCase.Opts.Params = make(map[string]string)
 			}
 
-			opts, err := connect.CreateURIOpts(tc.URL)
-			if tc.Err != "" {
-				assert.ErrorContains(t, err, tc.Err)
+			opts, err := connect.CreateURIOpts(testCase.URL)
+			if testCase.Err != "" {
+				assert.ErrorContains(t, err, testCase.Err)
 			} else {
-				assert.Equal(t, tc.Opts, opts)
+				assert.Equal(t, testCase.Opts, opts)
 			}
 		})
 	}

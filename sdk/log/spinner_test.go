@@ -36,7 +36,7 @@ func (s *statusRecorder) Status(msg string) func() {
 }
 
 func (s *statusRecorder) Handle(ctx context.Context, record slog.Record) error {
-	return s.Recorder.Handle(ctx, record) //nolint:wrapcheck // Transparent.
+	return s.Recorder.Handle(ctx, record)
 }
 
 func (s *statusRecorder) WithAttrs(attrs []slog.Attr) slog.Handler {

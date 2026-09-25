@@ -29,8 +29,8 @@ const (
 
 // Parse returns Transport type according to the input string.
 // Under normal circumstances input should be "ssl" or "plain".
-func Parse(tr string) (Transport, error) {
-	switch tr {
+func Parse(transport string) (Transport, error) {
+	switch transport {
 	case transportDefault:
 		return TransportDefault, nil
 	case transportPlain:
@@ -38,7 +38,7 @@ func Parse(tr string) (Transport, error) {
 	case transportSsl:
 		return TransportSsl, nil
 	default:
-		return TransportDefault, fmt.Errorf("%w%s", errUnknownTransportType, tr)
+		return TransportDefault, fmt.Errorf("%w%s", errUnknownTransportType, transport)
 	}
 }
 

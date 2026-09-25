@@ -135,45 +135,50 @@ func startEtcd(t *testing.T) *etcdtest.LazyCluster {
 		_ = etcd.Close()
 	}()
 
-	if err := doWithCtx(func(ctx context.Context) error {
+	err = doWithCtx(func(ctx context.Context) error {
 		_, err := etcd.UserAdd(ctx, opts.Username, opts.Password)
 		return err
-	}); err != nil {
+	})
+	if err != nil {
 		inst.Terminate()
 		t.Fatalf("Failed to create user in etcd: %s", err)
 	}
 
 	if opts.Username != "root" {
 		// We need the root user for auth enable anyway.
-		if err := doWithCtx(func(ctx context.Context) error {
+		err = doWithCtx(func(ctx context.Context) error {
 			_, err := etcd.UserAdd(ctx, "root", "")
 			return err
-		}); err != nil {
+		})
+		if err != nil {
 			inst.Terminate()
 			t.Fatalf("Failed to create root in etcd: %s", err)
 		}
 
-		if err := doWithCtx(func(ctx context.Context) error {
+		err = doWithCtx(func(ctx context.Context) error {
 			_, err := etcd.UserGrantRole(ctx, "root", "root")
 			return err
-		}); err != nil {
+		})
+		if err != nil {
 			inst.Terminate()
 			t.Fatalf("Failed to grant root in etcd: %s", err)
 		}
 	}
 
-	if err := doWithCtx(func(ctx context.Context) error {
+	err = doWithCtx(func(ctx context.Context) error {
 		_, err := etcd.UserGrantRole(ctx, opts.Username, "root")
 		return err
-	}); err != nil {
+	})
+	if err != nil {
 		inst.Terminate()
 		t.Fatalf("Failed to grant user in etcd: %s", err)
 	}
 
-	if err := doWithCtx(func(ctx context.Context) error {
-		_, err = etcd.AuthEnable(ctx)
+	err = doWithCtx(func(ctx context.Context) error {
+		_, err := etcd.AuthEnable(ctx)
 		return err
-	}); err != nil {
+	})
+	if err != nil {
 		inst.Terminate()
 		t.Fatalf("Failed to enable auth in etcd: %s", err)
 	}
@@ -341,8 +346,14 @@ func TestEtcdCollectors_empty(t *testing.T) {
 		Collector     cluster.DataCollector
 		ExpectedError string
 	}{
-		{"all", newEtcdCollector(t, stor, ""), `a configuration data not found in etcd for prefix "/foo"`},
-		{"key", newEtcdCollector(t, stor, "bar"), "failed to fetch data from etcd: integrity: not found"},
+		{
+			"all", newEtcdCollector(t, stor, ""),
+			`a configuration data not found in etcd for prefix "/foo"`,
+		},
+		{
+			"key", newEtcdCollector(t, stor, "bar"),
+			"failed to fetch data from etcd: integrity: not found",
+		},
 	}
 
 	for _, tc := range cases {
@@ -379,13 +390,13 @@ func TestEtcdDataPublishers_Publish_single(t *testing.T) {
 		{"key", "key", newEtcdPublisher(t, stor, "/foo/", "key")},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.Name, func(t *testing.T) {
-			err = tc.Publisher.Publish(0, data)
+	for _, testCase := range cases {
+		t.Run(testCase.Name, func(t *testing.T) {
+			err = testCase.Publisher.Publish(0, data)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
-			actual, _ := etcdGet(t, etcd, "/foo/config/"+tc.Key)
+			actual, _ := etcdGet(t, etcd, "/foo/config/"+testCase.Key)
 			assert.Equal(t, data, actual)
 		})
 	}
@@ -417,15 +428,15 @@ func TestEtcdDataPublishers_Publish_rewrite(t *testing.T) {
 		{"key", "key", newEtcdPublisher(t, stor, "/foo/", "key")},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.Name, func(t *testing.T) {
-			err = tc.Publisher.Publish(0, oldData)
+	for _, testCase := range cases {
+		t.Run(testCase.Name, func(t *testing.T) {
+			err = testCase.Publisher.Publish(0, oldData)
 			require.NoError(t, err)
 
-			err = tc.Publisher.Publish(0, newData)
-			assert.NoError(t, err)
+			err = testCase.Publisher.Publish(0, newData)
+			require.NoError(t, err)
 
-			actual, _ := etcdGet(t, etcd, "/foo/config/"+tc.Key)
+			actual, _ := etcdGet(t, etcd, "/foo/config/"+testCase.Key)
 			assert.Equal(t, newData, actual)
 		})
 	}
@@ -488,14 +499,14 @@ func TestEtcdKeyDataPublisher_Publish_modRevision_specified(t *testing.T) {
 	publisher := newEtcdPublisher(t, stor, "/foo", "key")
 	// Use wrong revision.
 	err = publisher.Publish(modRevision-1, data)
-	assert.Errorf(t, err, "failed to put data into etcd: wrong revision")
+	require.Error(t, err, "failed to put data into etcd: wrong revision")
 
 	actual, _ := etcdGet(t, etcd, "/foo/config/key")
 	assert.Equal(t, []byte("bar"), actual)
 
 	// Use right revision.
 	err = publisher.Publish(modRevision, data)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	actual, _ = etcdGet(t, etcd, "/foo/config/key")
 	assert.Equal(t, data, actual)
@@ -523,7 +534,7 @@ func TestEtcdAllDataPublisher_Publish_ignore_prefix(t *testing.T) {
 
 	err = newEtcdPublisher(t, stor, "/foo/", "all").Publish(0, data)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	actual, _ := etcdGet(t, etcd, "/foo/config/")
 	assert.Equal(t, []byte("foo"), actual)
@@ -570,7 +581,7 @@ func TestEtcdAllDataPublisher_collect_publish_collect(t *testing.T) {
 	newConfig := []byte("foo: bar\n")
 
 	err = publisher.Publish(0, newConfig)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Re-collect and verify.
 	data, err = collector.Collect()

@@ -18,13 +18,13 @@ func TestProcessBase(t *testing.T) {
 	// Start daemon.
 	cmd := exec.CommandContext(t.Context(), "go", "run", "test_process/test_process.go")
 	err := cmd.Run()
-	require.Nilf(t, err, `Can't start daemon. Error: "%v".`, err)
+	require.NoErrorf(t, err, `Can't start daemon. Error: "%v".`, err)
 
 	// Check is daemon alive.
 	waitProcessChanges()
 
 	pid, err := readPID(TestProcessPidFile)
-	require.Nilf(t, err, `Can't read daemon PID. Error: "%v".`, err)
+	require.NoErrorf(t, err, `Can't read daemon PID. Error: "%v".`, err)
 
 	// Kill daemon if test fails.
 	defer func() {
@@ -34,7 +34,7 @@ func TestProcessBase(t *testing.T) {
 	}()
 
 	alive, err := IsDaemonAlive(pid)
-	require.Nilf(t, err, `Daemon is not alive. Error: "%v".`, err)
+	require.NoErrorf(t, err, `Daemon is not alive. Error: "%v".`, err)
 	require.True(t, alive, "Can't start daemon.")
 
 	// Stop daemon.
@@ -47,16 +47,16 @@ func TestProcessBase(t *testing.T) {
 	require.False(t, alive, "Can't stop daemon.")
 
 	_, err = os.Stat(TestProcessPidFile)
-	require.NotNil(t, err, `Pid file still exists.`)
+	require.Error(t, err, `Pid file still exists.`)
 
 	// Check logger.
 	testLog, err := os.Open(TestProcessLogPath)
-	require.Nilf(t, err, `Can't open test log. Error: "%v".`, err)
+	require.NoErrorf(t, err, `Can't open test log. Error: "%v".`, err)
 
 	buf := bytes.NewBufferString("")
 
 	_, err = io.Copy(buf, testLog)
-	require.Nilf(t, err, `Can't read log output. Error: "%v".`, err)
+	require.NoErrorf(t, err, `Can't read log output. Error: "%v".`, err)
 
 	logContent := buf.String()
 	msgIdx1 := strings.Index(buf.String(), startDaemonMsg)

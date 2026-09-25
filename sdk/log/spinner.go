@@ -19,19 +19,19 @@ type StatusHandler interface {
 }
 
 // Spinner shows msg with an animation on the status line of the process
-// logger until the returned stop is called. See [SpinnerOf].
-func Spinner(msg string) (stop func()) {
+// logger until the returned stop function is called. See [SpinnerOf].
+func Spinner(msg string) func() {
 	return SpinnerOf(slog.Default(), msg)
 }
 
 // SpinnerOf shows msg with an animation on the status line of logger's
-// handler until the returned stop is called.
+// handler until the returned stop function is called.
 //
 // The spinner is progress for a person watching a terminal: when the handler
 // is not a [StatusHandler] - the output is not a terminal, the format is JSON,
 // or the logger is not tt's - nothing is shown and stop does nothing. It
 // never writes to stdout. Records logged while it spins stay whole.
-func SpinnerOf(logger *slog.Logger, msg string) (stop func()) {
+func SpinnerOf(logger *slog.Logger, msg string) func() {
 	handler, ok := logger.Handler().(StatusHandler)
 	if !ok {
 		return func() {}

@@ -3,6 +3,7 @@ package core
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -38,16 +39,16 @@ func restoreProcess(t *testing.T) {
 }
 
 // readyServices returns the Services of the module "m", ready, reading stdin
-// from in and writing to out and errOut.
-func readyServices(in io.Reader, out, errOut io.Writer) *services {
+// from input and writing to out and errOut.
+func readyServices(input io.Reader, out, errOut io.Writer) *services {
 	ready := &atomic.Bool{}
 	ready.Store(true)
 
-	s := newServices("m", ready)
+	svc := newServices("m", ready)
 
-	s.streams = output.Streams{In: in, Out: out, Err: errOut}
+	svc.streams = output.Streams{In: input, Out: out, Err: errOut}
 
-	return s
+	return svc
 }
 
 // TestServicesReadiness checks that only Log works before tt is configured.
@@ -55,16 +56,16 @@ func TestServicesReadiness(t *testing.T) {
 	t.Parallel()
 
 	ready := &atomic.Bool{}
-	s := newServices("early", ready)
+	svc := newServices("early", ready)
 
-	assert.NotNil(t, s.Log())
+	assert.NotNil(t, svc.Log())
 
 	for method, call := range map[string]func(){
-		"Tarantool": func() { _, _ = s.Tarantool() },
-		"Integrity": func() { s.Integrity() },
-		"Project":   func() { s.Project() },
-		"Confirm":   func() { _, _ = s.Confirm("?", true) },
-		"Streams":   func() { s.Streams() },
+		"Tarantool": func() { _, _ = svc.Tarantool() },
+		"Integrity": func() { svc.Integrity() },
+		"Project":   func() { svc.Project() },
+		"Confirm":   func() { _, _ = svc.Confirm("?", true) },
+		"Streams":   func() { svc.Streams() },
 	} {
 		assert.PanicsWithValue(t, `module "early" used Services.`+method+
 			` before tt was configured; use it in a command's hooks, not in the constructor`,
@@ -72,7 +73,7 @@ func TestServicesReadiness(t *testing.T) {
 	}
 
 	ready.Store(true)
-	assert.NotPanics(t, func() { s.Streams() })
+	assert.NotPanics(t, func() { svc.Streams() })
 }
 
 // TestServicesLog checks that a module's logger is the process logger with
@@ -102,14 +103,14 @@ func TestServicesLog(t *testing.T) {
 		},
 	}))
 
-	s := newServices("demo", &atomic.Bool{})
+	svc := newServices("demo", &atomic.Bool{})
 
-	stop := log.SpinnerOf(s.Log(), "spinning")
+	stop := log.SpinnerOf(svc.Log(), "spinning")
 	stop()
 	assert.Contains(t, written.String(), "spinning", "the spinner draws on the terminal")
 
 	written.Reset()
-	s.Log().Info("hello")
+	svc.Log().Info("hello")
 	assert.Contains(t, written.String(), "hello")
 	assert.Contains(t, written.String(), "module=demo")
 }
@@ -122,7 +123,7 @@ func writeTarantool(t *testing.T, path, banner string) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 
 	script := "#!/bin/sh\nprintf '" + banner + "\\nTarget: test\\n'\n"
-	require.NoError(t, os.WriteFile(path, []byte(script), 0o755)) //nolint:gosec // An executable.
+	require.NoError(t, os.WriteFile(path, []byte(script), 0o755))
 }
 
 // TestServicesTarantool checks that Tarantool prefers the project's bundled
@@ -146,12 +147,12 @@ func TestServicesTarantool(t *testing.T) {
 
 	cmd.GetCmdCtxPtr().Cli.TarantoolCli.Executable = environment
 
-	s := readyServices(strings.NewReader(""), io.Discard, io.Discard)
+	svc := readyServices(strings.NewReader(""), io.Discard, io.Discard)
 
 	check := func(wantPath string, want sdk.TarantoolVersion) {
 		t.Helper()
 
-		got, err := s.Tarantool()
+		got, err := svc.Tarantool()
 		require.NoError(t, err)
 
 		resolved, err := filepath.EvalSymlinks(got.Path())
@@ -186,7 +187,7 @@ func TestServicesTarantool(t *testing.T) {
 
 	cmd.GetCmdCtxPtr().Cli.TarantoolCli.Executable = ""
 
-	_, err := s.Tarantool()
+	_, err := svc.Tarantool()
 	require.ErrorIs(t, err, sdk.ErrNotFound)
 	require.ErrorIs(t, err, run.ErrNoTarantool)
 }
@@ -200,22 +201,22 @@ func TestServicesConfirm(t *testing.T) {
 
 	var prompts bytes.Buffer
 
-	s := readyServices(strings.NewReader("maybe\nYES\nn\nrest"), io.Discard, &prompts)
+	svc := readyServices(strings.NewReader("maybe\nYES\nn\nrest"), io.Discard, &prompts)
 
-	answer, err := s.Confirm("Go on?", false)
+	answer, err := svc.Confirm("Go on?", false)
 	require.NoError(t, err)
 	assert.True(t, answer)
 	assert.Equal(t, "Go on? [y/n]: Go on? [y/n]: ", prompts.String())
 
-	answer, err = s.Confirm("Again?", true)
+	answer, err = svc.Confirm("Again?", true)
 	require.NoError(t, err)
 	assert.False(t, answer)
 
-	rest, err := io.ReadAll(s.streams.In)
+	rest, err := io.ReadAll(svc.streams.In)
 	require.NoError(t, err)
 	assert.Equal(t, "rest", string(rest), "nothing past the answer is read")
 
-	_, err = s.Confirm("At the end?", true)
+	_, err = svc.Confirm("At the end?", true)
 	require.ErrorIs(t, err, io.EOF)
 
 	cmd.GetCmdCtxPtr().Cli.NoPrompt = true
@@ -223,12 +224,25 @@ func TestServicesConfirm(t *testing.T) {
 	prompts.Reset()
 
 	for _, fallback := range []bool{true, false} {
-		answer, err = s.Confirm("Skipped?", fallback)
+		answer, err = svc.Confirm("Skipped?", fallback)
 		require.NoError(t, err)
 		assert.Equal(t, fallback, answer)
 	}
 
 	assert.Empty(t, prompts.String())
+}
+
+// printedResult is what the printer of TestServicesStreams emits.
+type printedResult struct {
+	Name  string `json:"name"`
+	Count int    `json:"count"`
+}
+
+// Human renders the result for people.
+func (r printedResult) Human(w io.Writer) error {
+	_, err := fmt.Fprintf(w, "%s: %d\n", r.Name, r.Count)
+
+	return err
 }
 
 // TestServicesStreams checks that the printers have the core's formats.
@@ -237,18 +251,18 @@ func TestServicesStreams(t *testing.T) {
 
 	var out bytes.Buffer
 
-	s := readyServices(strings.NewReader(""), &out, io.Discard)
+	svc := readyServices(strings.NewReader(""), &out, io.Discard)
 
-	printer, err := s.Streams().Printer(output.FormatYAML)
+	printer, err := svc.Streams().Printer(output.FormatYAML)
 	require.NoError(t, err)
-	require.NoError(t, printer.Emit(demoResult{Name: "x", Count: 1}))
+	require.NoError(t, printer.Emit(printedResult{Name: "x", Count: 1}))
 	assert.Equal(t, "name: x\ncount: 1\n", out.String())
 	assert.False(t, printer.Terminal())
 
-	_, err = s.Streams().Printer("toml")
+	_, err = svc.Streams().Printer("toml")
 	require.ErrorIs(t, err, output.ErrUnknownFormat)
 
-	assert.Same(t, &out, s.Streams().IO().Out)
+	assert.Same(t, &out, svc.Streams().IO().Out)
 }
 
 // fakeRepository reads files by name from a map.
@@ -279,15 +293,15 @@ func TestServicesIntegrity(t *testing.T) {
 
 	cmd.GetCmdCtxPtr().Integrity.Repository = fakeRepository{"good": "content"}
 
-	s := readyServices(strings.NewReader(""), io.Discard, io.Discard)
+	svc := readyServices(strings.NewReader(""), io.Discard, io.Discard)
 
-	file, err := s.Integrity().Open("good")
+	file, err := svc.Integrity().Open("good")
 	require.NoError(t, err)
 
 	content, err := io.ReadAll(file)
 	require.NoError(t, err)
 	assert.Equal(t, "content", string(content))
 
-	_, err = s.Integrity().Open("bad")
+	_, err = svc.Integrity().Open("bad")
 	require.ErrorIs(t, err, errTampered)
 }

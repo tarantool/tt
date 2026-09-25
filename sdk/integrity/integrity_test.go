@@ -29,17 +29,17 @@ func TestInitializeIntegrityCheckWithoutKey(t *testing.T) {
 
 func TestRegisterNoopFlagFuncs(t *testing.T) {
 	var (
-		s string
-		i int
+		text   string
+		period int
 	)
 
-	fs := &pflag.FlagSet{}
+	flags := &pflag.FlagSet{}
 
-	integrity.RegisterWithIntegrityFlag(fs, &s)
-	integrity.RegisterIntegrityCheckFlag(fs, &s)
-	integrity.RegisterIntegrityCheckPeriodFlag(fs, &i)
+	integrity.RegisterWithIntegrityFlag(flags, &text)
+	integrity.RegisterIntegrityCheckFlag(flags, &text)
+	integrity.RegisterIntegrityCheckPeriodFlag(flags, &period)
 
-	require.False(t, fs.HasFlags(), "noop flag registrars must not modify the flag set")
+	require.False(t, flags.HasFlags(), "noop flag registrars must not modify the flag set")
 }
 
 func TestGetCheckFunction(t *testing.T) {

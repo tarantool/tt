@@ -49,13 +49,15 @@ func parseCommand(r io.Reader, cmd *command) (string, error) {
 
 	var cmdJSON commandJSON
 
-	if err := decoder.Decode(&cmdJSON); err != nil {
-		return rawBody, err
+	err = decoder.Decode(&cmdJSON)
+	if err != nil {
+		return rawBody, fmt.Errorf("failed to decode the command: %w", err)
 	}
 
 	// Parse cmdJSON to a "command" structure.
 	// Additionally, all types of parameters will be checked.
-	if err := mapstructure.Decode(cmdJSON, cmd); err != nil {
+	err = mapstructure.Decode(cmdJSON, cmd)
+	if err != nil {
 		return rawBody, fmt.Errorf("%w%v\"", errFailedToParseCommandParams, err.Error())
 	}
 

@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"strconv"
@@ -43,7 +44,9 @@ func NewHTTPServer(listenInterface string, port int) *HTTPServer {
 	return &HTTPServer{
 		listenIface: listenInterface,
 		port:        port,
+		srv:         nil,
 		timeout:     defaultStopTimeout,
+		logger:      nil,
 	}
 }
 
@@ -61,13 +64,14 @@ func (httpServer *HTTPServer) SetLogger(logger ttlog.Logger) {
 
 // Start starts HTTP server.
 func (httpServer *HTTPServer) Start(ttPath string) {
-	ip, err := httpServer.listenIP()
+	listenIP, err := httpServer.listenIP()
 	if err != nil {
 		httpServer.logger.Fatalf("Can't get IP")
 	}
 
-	httpServerAddr := ip + ":" + strconv.Itoa(httpServer.port)
+	httpServerAddr := listenIP + ":" + strconv.Itoa(httpServer.port)
 
+	//nolint:gosec // No ReadHeaderTimeout: adding one would change how clients are served.
 	httpServer.srv = &http.Server{
 		Addr: httpServerAddr,
 	}
@@ -83,27 +87,29 @@ func (httpServer *HTTPServer) Start(ttPath string) {
 		httpServer.logger.Fatal(err)
 	}
 
-	if err := httpServer.srv.Serve(socket); !errors.Is(err, http.ErrServerClosed) {
+	err = httpServer.srv.Serve(socket)
+	if !errors.Is(err, http.ErrServerClosed) {
 		httpServer.logger.Fatalf("Can't start HTTP server")
 	}
 }
 
 // Stop stops HTTP server.
 func (httpServer *HTTPServer) Stop() error {
-	var err error
-
 	if httpServer.srv == nil {
 		return errServerIsNotStarted
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), httpServer.timeout)
-	if err = httpServer.srv.Shutdown(ctx); err != nil {
+	defer cancel()
+
+	err := httpServer.srv.Shutdown(ctx)
+	if err != nil {
 		httpServer.logger.Printf(`HTTP server shutdown error: "%v"`, err)
+
+		return fmt.Errorf("failed to shut down the HTTP server: %w", err)
 	}
 
-	cancel()
-
-	return err
+	return nil
 }
 
 // listenIP discovers IP address on the specified interface.
@@ -116,7 +122,7 @@ func (httpServer *HTTPServer) listenIP() (string, error) {
 
 	iface, err := net.InterfaceByName(httpServer.listenIface)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to find interface %q: %w", httpServer.listenIface, err)
 	}
 
 	if iface.Flags&net.FlagUp == 0 {
@@ -125,32 +131,32 @@ func (httpServer *HTTPServer) listenIP() (string, error) {
 
 	addrs, err := iface.Addrs()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to list addresses of %q: %w", httpServer.listenIface, err)
 	}
 
 	// The socket will bind to the first discovered
 	// IP address on the specified interface.
 	for _, addr := range addrs {
-		var ip net.IP
+		var addrIP net.IP
 
 		switch v := addr.(type) {
 		case *net.IPNet:
-			ip = v.IP
+			addrIP = v.IP
 		case *net.IPAddr:
-			ip = v.IP
+			addrIP = v.IP
 		}
 
-		if ip == nil {
+		if addrIP == nil {
 			continue
 		}
 
 		// TODO: Support IPv6 by option
 		// Not an IPv4 address.
-		if ip.To4() == nil {
+		if addrIP.To4() == nil {
 			continue
 		}
 
-		return ip.String(), nil
+		return addrIP.String(), nil
 	}
 
 	return "", errListenIPIsNotAvailable

@@ -157,13 +157,13 @@ func (n normalizer) walk(value reflect.Value) (reflect.Value, bool, error) {
 // nonFiniteName returns the string that stands for a NaN, +Inf or -Inf
 // float - the spelling encoding/json/v2 writes under format:nonfinite -
 // and false for a finite one.
-func nonFiniteName(f float64) (string, bool) {
+func nonFiniteName(number float64) (string, bool) {
 	switch {
-	case math.IsNaN(f):
+	case math.IsNaN(number):
 		return "NaN", true
-	case math.IsInf(f, 1):
+	case math.IsInf(number, 1):
 		return "Infinity", true
-	case math.IsInf(f, -1):
+	case math.IsInf(number, -1):
 		return "-Infinity", true
 	default:
 		return "", false
@@ -284,13 +284,13 @@ func rebuildMap(mapType reflect.Type, fits bool, entries []entry) reflect.Value 
 // the same string form. Entries are ordered by that form, so the collision
 // reported is the same on every run.
 func stringKeyedMap(entries []entry) (reflect.Value, bool, error) {
-	for i := range entries {
-		name, err := keyName(entries[i].key)
+	for index := range entries {
+		name, err := keyName(entries[index].key)
 		if err != nil {
 			return reflect.Value{}, false, err
 		}
 
-		entries[i].name = name
+		entries[index].name = name
 	}
 
 	sort.Slice(entries, func(i, j int) bool {
@@ -329,13 +329,13 @@ func (n normalizer) walkSequence(value reflect.Value) (reflect.Value, bool, erro
 	changed := false
 	fits := true
 
-	for i := range elems {
-		elem, elemChanged, err := n.walk(value.Index(i))
+	for index := range elems {
+		elem, elemChanged, err := n.walk(value.Index(index))
 		if err != nil {
 			return reflect.Value{}, false, err
 		}
 
-		elems[i] = elem
+		elems[index] = elem
 		changed = changed || elemChanged
 		fits = fits && (!elemChanged || elem.Type().AssignableTo(elemType))
 	}
@@ -365,13 +365,13 @@ func (n normalizer) walkSequence(value reflect.Value) (reflect.Value, bool, erro
 func (n normalizer) walkStruct(value reflect.Value) (reflect.Value, bool, error) {
 	var copied reflect.Value
 
-	for i := range value.NumField() {
-		field := value.Type().Field(i)
+	for index := range value.NumField() {
+		field := value.Type().Field(index)
 		if !field.IsExported() || field.Tag.Get("json") == "-" {
 			continue
 		}
 
-		normalized, changed, err := n.walk(value.Field(i))
+		normalized, changed, err := n.walk(value.Field(index))
 		if err != nil {
 			return reflect.Value{}, false, fmt.Errorf("field %s: %w", field.Name, err)
 		}
@@ -392,7 +392,7 @@ func (n normalizer) walkStruct(value reflect.Value) (reflect.Value, bool, error)
 			copied.Set(value)
 		}
 
-		copied.Field(i).Set(normalized)
+		copied.Field(index).Set(normalized)
 	}
 
 	if !copied.IsValid() {
@@ -441,9 +441,9 @@ func opaqueStringer(value reflect.Value) bool {
 
 // stringForm returns value's String form.
 func stringForm(value reflect.Value) (reflect.Value, bool, error) {
-	stringer, ok := value.Interface().(fmt.Stringer)
+	stringer, ok := reflect.TypeAssert[fmt.Stringer](value)
 	if !ok {
-		stringer, _ = value.Addr().Interface().(fmt.Stringer)
+		stringer, _ = reflect.TypeAssert[fmt.Stringer](value.Addr())
 	}
 
 	return reflect.ValueOf(stringer.String()), true, nil
@@ -479,7 +479,7 @@ func keyName(key reflect.Value) (string, error) {
 		return key.String(), nil
 	}
 
-	if marshaler, ok := key.Interface().(encoding.TextMarshaler); ok {
+	if marshaler, ok := reflect.TypeAssert[encoding.TextMarshaler](key); ok {
 		text, err := marshaler.MarshalText()
 		if err != nil {
 			return "", fmt.Errorf("map key %s: %w", describeKey(key), err)

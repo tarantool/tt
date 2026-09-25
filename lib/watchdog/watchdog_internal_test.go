@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,13 +17,13 @@ func cleanupPidFiles() {
 	_ = os.Remove("wd.pid")
 }
 
-func verifyProcessRunning(t *testing.T, wd *Watchdog) {
+func verifyProcessRunning(t *testing.T, watchdog *Watchdog) {
 	t.Helper()
 
-	wd.cmdMutex.Lock()
-	defer wd.cmdMutex.Unlock()
+	watchdog.cmdMutex.Lock()
+	defer watchdog.cmdMutex.Unlock()
 
-	if wd.cmd == nil || wd.cmd.Process == nil {
+	if watchdog.cmd == nil || watchdog.cmd.Process == nil {
 		t.Fatal("process should be running")
 	}
 }
@@ -41,63 +42,63 @@ func verifyNoErrors(t *testing.T, errChan chan error) {
 }
 
 func TestWatchdog_Successful(t *testing.T) {
-	wd := NewWatchdog("test.pid", "wd.pid", 100*time.Millisecond)
+	watchdog := NewWatchdog("test.pid", "wd.pid", 100*time.Millisecond)
 
 	t.Cleanup(cleanupPidFiles)
 
 	cmd := exec.CommandContext(t.Context(), "sleep", "1")
 	errChan := make(chan error, 1)
 
-	go func() { errChan <- wd.Start(cmd.Path, cmd.Args[1:]...) }()
+	go func() { errChan <- watchdog.Start(cmd.Path, cmd.Args[1:]...) }()
 
 	// Wait for process to start.
 	time.Sleep(200 * time.Millisecond)
 
 	// Verify process is running.
-	verifyProcessRunning(t, wd)
+	verifyProcessRunning(t, watchdog)
 
 	// Stop the watchdog.
-	wd.Stop()
+	watchdog.Stop()
 	verifyNoErrors(t, errChan)
 }
 
 func TestWatchdog_EarlyTermination(t *testing.T) {
-	wd := NewWatchdog("test.pid", "wd.pid", time.Second)
+	watchdog := NewWatchdog("test.pid", "wd.pid", time.Second)
 
 	t.Cleanup(cleanupPidFiles)
 
 	cmd := exec.CommandContext(t.Context(), "sleep", "10")
 	errChan := make(chan error, 1)
 
-	go func() { errChan <- wd.Start(cmd.Path, cmd.Args[1:]...) }()
+	go func() { errChan <- watchdog.Start(cmd.Path, cmd.Args[1:]...) }()
 
 	// Wait for process to start.
 	time.Sleep(200 * time.Millisecond)
 
 	// Stop while process is running.
-	wd.Stop()
+	watchdog.Stop()
 	verifyNoErrors(t, errChan)
 }
 
 func TestWatchdog_ProcessRestart(t *testing.T) {
-	wd := NewWatchdog("test.pid", "wd.pid", 100*time.Millisecond)
+	watchdog := NewWatchdog("test.pid", "wd.pid", 100*time.Millisecond)
 
 	t.Cleanup(cleanupPidFiles)
 
 	cmd := exec.CommandContext(t.Context(), "false")
 	errChan := make(chan error, 1)
 
-	go func() { errChan <- wd.Start(cmd.Path, cmd.Args[1:]...) }()
+	go func() { errChan <- watchdog.Start(cmd.Path, cmd.Args[1:]...) }()
 
 	// Wait for at least one restart.
 	time.Sleep(300 * time.Millisecond)
 
 	// Should still be running (restarting).
-	if wd.shouldStop.Load() {
+	if watchdog.shouldStop.Load() {
 		t.Fatal("watchdog should not be stopped")
 	}
 
-	wd.Stop()
+	watchdog.Stop()
 	verifyNoErrors(t, errChan)
 }
 
@@ -108,16 +109,16 @@ func TestWatchdog_SignalHandling(t *testing.T) {
 	pidFile := filepath.Join(t.TempDir(), "test.pid")
 	wdPidFile := filepath.Join(t.TempDir(), "watchdog.pid")
 
-	wd := NewWatchdog(pidFile, wdPidFile, time.Second)
+	watchdog := NewWatchdog(pidFile, wdPidFile, time.Second)
 
 	go func() {
-		err := wd.Start("sleep", "10")
-		require.NoError(t, err)
+		err := watchdog.Start("sleep", "10")
+		assert.NoError(t, err)
 	}()
 
 	time.Sleep(100 * time.Millisecond)
 
-	wd.signalChan <- syscall.SIGTERM
+	watchdog.signalChan <- syscall.SIGTERM
 
 	select {
 	case <-time.After(500 * time.Millisecond):
@@ -135,7 +136,7 @@ func TestWatchdog_WritePIDFiles(t *testing.T) {
 	pidFile := filepath.Join(t.TempDir(), "test.pid")
 	wdPidFile := filepath.Join(t.TempDir(), "watchdog.pid")
 
-	wd := &Watchdog{
+	watchdog := &Watchdog{
 		pidFile:   pidFile,
 		wdPidFile: wdPidFile,
 	}
@@ -149,9 +150,9 @@ func TestWatchdog_WritePIDFiles(t *testing.T) {
 		_ = cmd.Wait()
 	}()
 
-	wd.cmd = cmd
+	watchdog.cmd = cmd
 
-	err = wd.writePIDFiles()
+	err = watchdog.writePIDFiles()
 	require.NoError(t, err)
 
 	_, err = os.Stat(pidFile)

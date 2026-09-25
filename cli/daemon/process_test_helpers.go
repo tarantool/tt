@@ -35,11 +35,13 @@ func waitProcessChanges() {
 
 // cleanupDaemonFiles cleans up daemon artifacts.
 func cleanupDaemonFiles(logFilename, pidFilename string) {
-	if _, err := os.Stat(logFilename); !os.IsNotExist(err) {
+	_, err := os.Stat(logFilename)
+	if !os.IsNotExist(err) {
 		_ = os.Remove(logFilename)
 	}
 
-	if _, err := os.Stat(pidFilename); !os.IsNotExist(err) {
+	_, err = os.Stat(pidFilename)
+	if !os.IsNotExist(err) {
 		_ = os.Remove(pidFilename)
 	}
 }
@@ -48,17 +50,19 @@ func cleanupDaemonFiles(logFilename, pidFilename string) {
 func readPID(filePath string) (int, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to open the PID file: %w", err)
 	}
 
 	buf := bytes.NewBufferString("")
-	if _, err = io.Copy(buf, file); err != nil {
-		return 0, err
+
+	_, err = io.Copy(buf, file)
+	if err != nil {
+		return 0, fmt.Errorf("failed to read the PID file: %w", err)
 	}
 
 	pid, err := strconv.Atoi(buf.String())
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to parse the PID: %w", err)
 	}
 
 	return pid, nil
@@ -72,12 +76,12 @@ func IsDaemonAlive(pid int) (bool, error) {
 
 	proc, err := os.FindProcess(pid)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("failed to find process %d: %w", pid, err)
 	}
 
 	err = proc.Signal(syscall.Signal(0))
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("failed to signal process %d: %w", pid, err)
 	}
 
 	return true, nil

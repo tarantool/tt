@@ -24,7 +24,7 @@ type recorder struct {
 	fail    error
 }
 
-func (r *recorder) Write(p []byte) (int, error) {
+func (r *recorder) Write(data []byte) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -32,9 +32,9 @@ func (r *recorder) Write(p []byte) (int, error) {
 		return 0, r.fail
 	}
 
-	r.writes = append(r.writes, string(p))
+	r.writes = append(r.writes, string(data))
 
-	return len(p), nil
+	return len(data), nil
 }
 
 func (r *recorder) Flush() error {
@@ -46,17 +46,17 @@ func (r *recorder) Flush() error {
 	return nil
 }
 
+func (r *recorder) String() string {
+	writes, _ := r.snapshot()
+
+	return strings.Join(writes, "")
+}
+
 func (r *recorder) snapshot() ([]string, int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	return append([]string(nil), r.writes...), r.flushes
-}
-
-func (r *recorder) String() string {
-	writes, _ := r.snapshot()
-
-	return strings.Join(writes, "")
 }
 
 // record is a stream item: one line for people, an object for machines.
@@ -209,15 +209,16 @@ func TestStream(t *testing.T) {
 			writes, _ := out.snapshot()
 			require.Equal(t, wantWrites, writes, "what the stream writes on opening")
 
-			for i, item := range items {
+			for index, item := range items {
 				require.NoError(t, stream.Emit(item))
 
-				wantWrites = append(wantWrites, test.want[i])
+				wantWrites = append(wantWrites, test.want[index])
 
 				writes, flushes := out.snapshot()
 				require.Equal(t, wantWrites, writes,
-					"item %d is written as one write when emitted", i)
-				require.Equal(t, len(wantWrites), flushes, "stdout is flushed after item %d", i)
+					"item %d is written as one write when emitted", index)
+				require.Equal(t, len(wantWrites), flushes,
+					"stdout is flushed after item %d", index)
 			}
 
 			require.NoError(t, stream.Close())
@@ -251,7 +252,7 @@ func TestStreamJSONLinesBytes(t *testing.T) {
 	require.NoError(t, stream.Close())
 
 	// "<b>" is HTML-escaped as in the one-shot JSON: backslash-u escapes.
-	assert.Equal(t,
+	assert.Equal(t, //nolint:testifylint // Byte-exact JSON lines, not one JSON value.
 		`{"lsn":7,"tuple":[300,"AA==",null]}`+"\n"+
 			`{"lsn":8,"tuple":{"true":"`+"\x5cu003cb\x5cu003e"+`"}}`+"\n"+
 			`{"lsn":9,"tuple":{"-Infinity":"NaN","r":["NaN","Infinity",0.5]}}`+"\n",
@@ -350,7 +351,7 @@ func TestStreamWriteError(t *testing.T) {
 	require.ErrorIs(t, err, errBroken)
 	require.ErrorContains(t, err, "writing output")
 	require.NoError(t, stream.Close())
-	assert.Equal(t, `{"lsn":1,"tuple":"a"}`+"\n", out.String())
+	assert.JSONEq(t, `{"lsn":1,"tuple":"a"}`+"\n", out.String())
 }
 
 func TestStreamCloseError(t *testing.T) {
@@ -365,7 +366,7 @@ func TestStreamCloseError(t *testing.T) {
 	stream, err := printer.Stream()
 	require.NoError(t, err)
 	require.ErrorIs(t, stream.Close(), errBroken)
-	assert.Equal(t, "", out.String(), "a failed trailer is not written")
+	assert.Empty(t, out.String(), "a failed trailer is not written")
 
 	_, err = printer.Stream()
 	require.NoError(t, err, "a failed Close still releases the printer")
@@ -454,10 +455,10 @@ func TestStreamConcurrentEmit(t *testing.T) {
 
 	start := make(chan struct{})
 
-	var wg sync.WaitGroup
+	var group sync.WaitGroup
 
 	for p := range producers {
-		wg.Go(func() {
+		group.Go(func() {
 			<-start
 
 			for i := range perEach {
@@ -468,7 +469,7 @@ func TestStreamConcurrentEmit(t *testing.T) {
 	}
 
 	close(start)
-	wg.Wait()
+	group.Wait()
 	require.NoError(t, stream.Close())
 
 	writes, _ := out.snapshot()

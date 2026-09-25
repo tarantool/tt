@@ -33,7 +33,7 @@ const EnvEtcdCredentialsHelp = "The command supports the following Etcd environm
 //	`env_<name>` - string: description for an extra environment variable with <name>:
 //		* <name> - <description>.
 func MakeURLHelp(data map[string]any) string {
-	st := `{{ if .header }}{{.header}}
+	helpText := `{{ if .header }}{{.header}}
 {{end -}}
 The URL specifies a {{.service}} connection settings in the following format:
 http(s)://[username:password@]host:port{{ if .prefix }}/prefix{{end}}` +
@@ -74,10 +74,10 @@ The command supports the following environment variables:
 
 {{.footer}}{{end}}
 `
-	t := template.Must(template.New("URL").Funcs(template.FuncMap{
+	helpTemplate := template.Must(template.New("URL").Funcs(template.FuncMap{
 		"hasPrefix":  strings.HasPrefix,
 		"trimPrefix": strings.TrimPrefix,
-	}).Parse(st))
+	}).Parse(helpText))
 
 	tm := float64(defaultTimeoutParam) / float64(time.Second)
 	params := map[string]any{
@@ -98,7 +98,7 @@ The command supports the following environment variables:
 	envVars := map[string]template.HTML{}
 
 	makeEnvVars := func(key, info string) {
-		h := template.HTML(info)
+		h := template.HTML(info) //nolint:gosec // Terminal help text: HTML only turns escaping off.
 		if authKey, isAuth := strings.CutSuffix(key, "_auth"); isAuth {
 			envAuth[authKey] = h
 		} else {
@@ -118,7 +118,7 @@ The command supports the following environment variables:
 			s, ok := value.(string)
 			if ok {
 				// Wrap description with `template.HTML` to avoid escaping.
-				params[key] = template.HTML(s)
+				params[key] = template.HTML(s) //nolint:gosec // Terminal help text, not a page.
 			} else {
 				params[key] = value
 			}
@@ -130,7 +130,7 @@ The command supports the following environment variables:
 
 	var sb strings.Builder
 
-	_ = t.Execute(&sb, params)
+	_ = helpTemplate.Execute(&sb, params)
 
 	return sb.String()
 }

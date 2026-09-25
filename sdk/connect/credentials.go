@@ -24,7 +24,7 @@ const forbiddenCredentialPermissions = 0o077
 
 const (
 	EnvSdkUsername = "TT_CLI_EE_USERNAME"
-	EnvSdkPassword = "TT_CLI_EE_PASSWORD"
+	EnvSdkPassword = "TT_CLI_EE_PASSWORD" //nolint:gosec // The name of a variable, not a secret.
 )
 
 type UserCredentials struct {
@@ -34,7 +34,7 @@ type UserCredentials struct {
 
 // getCredsInteractive Interactively prompts the user for credentials.
 func getCredsInteractive() (UserCredentials, error) {
-	res := UserCredentials{}
+	res := UserCredentials{Username: "", Password: ""}
 	reader := bufio.NewReader(os.Stdin)
 
 	_, _ = fmt.Fprintln(os.Stdout, "Signing in to Customer zone.")
@@ -42,7 +42,7 @@ func getCredsInteractive() (UserCredentials, error) {
 
 	resp, err := reader.ReadString('\n')
 	if err != nil {
-		return res, err
+		return res, fmt.Errorf("reading the email: %w", err)
 	}
 
 	res.Username = strings.TrimSpace(resp)
@@ -51,7 +51,7 @@ func getCredsInteractive() (UserCredentials, error) {
 
 	bytePass, err := term.ReadPassword(syscall.Stdin)
 	if err != nil {
-		return res, err
+		return res, fmt.Errorf("reading the password: %w", err)
 	}
 
 	res.Password = strings.TrimSpace(string(bytePass))
@@ -62,20 +62,20 @@ func getCredsInteractive() (UserCredentials, error) {
 
 // getCredsFromFile gets credentials from file.
 func getCredsFromFile(path string) (UserCredentials, error) {
-	res := UserCredentials{}
+	res := UserCredentials{Username: "", Password: ""}
 
-	fh, err := os.Open(path)
+	file, err := os.Open(path)
 	if err != nil {
-		return res, err
+		return res, fmt.Errorf("opening the credentials file: %w", err)
 	}
 
 	defer func() {
-		_ = fh.Close()
+		_ = file.Close()
 	}()
 
-	info, err := fh.Stat()
+	info, err := file.Stat()
 	if err != nil {
-		return res, err
+		return res, fmt.Errorf("checking the credentials file: %w", err)
 	}
 
 	// Check file permissions. Error if `group` or `other` bits are set.
@@ -89,7 +89,7 @@ func getCredsFromFile(path string) (UserCredentials, error) {
 		)
 	}
 
-	scanner := bufio.NewScanner(fh)
+	scanner := bufio.NewScanner(file)
 	scanner.Scan()
 
 	res.Username = scanner.Text()
@@ -97,8 +97,9 @@ func getCredsFromFile(path string) (UserCredentials, error) {
 
 	res.Password = scanner.Text()
 
-	if scanner.Err() != nil {
-		return res, scanner.Err()
+	err = scanner.Err()
+	if err != nil {
+		return res, fmt.Errorf("reading the credentials file %q: %w", path, err)
 	}
 
 	if len(res.Username) == 0 {
@@ -114,7 +115,7 @@ func getCredsFromFile(path string) (UserCredentials, error) {
 
 // getCredsFromFile gets credentials from environment variables.
 func getCredsFromEnvVars() (UserCredentials, error) {
-	res := UserCredentials{}
+	res := UserCredentials{Username: "", Password: ""}
 
 	res.Username = os.Getenv(EnvSdkUsername)
 	res.Password = os.Getenv(EnvSdkPassword)

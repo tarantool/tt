@@ -107,6 +107,8 @@ func WithFlavour(flavour Flavour) Option {
 // constructor that panics, a mount the tree cannot hold, a failure to
 // configure tt are reported and end tt with a failure before any command
 // runs; a panic anywhere is reported as an internal error.
+//
+//nolint:nonamedreturns // The deferred recover sets the exit code.
 func Main(modules Modules, opts ...Option) (code int) {
 	var config options
 
@@ -126,7 +128,8 @@ func Main(modules Modules, opts ...Option) (code int) {
 
 	ready := &atomic.Bool{}
 
-	if _, err := build(os.Args[1:], modules, ready, config); err != nil {
+	_, err := build(os.Args[1:], modules, ready, config)
+	if err != nil {
 		exitcode.Report(err)
 
 		return exitcode.Code(err)
@@ -158,7 +161,8 @@ func build(
 		return nil, err
 	}
 
-	if err := cmd.InjectCommands(root); err != nil {
+	err = cmd.InjectCommands(root)
+	if err != nil {
 		return nil, err
 	}
 
@@ -213,7 +217,7 @@ var errNoConstructor = errors.New("no constructor")
 // reports.
 func callConstructor(
 	name string, ctor sdk.Constructor, services sdk.Services, getVersion util.VersionFunc,
-) (mounts []sdk.Mount, err error) {
+) (_ []sdk.Mount, err error) {
 	if ctor == nil {
 		return nil, fmt.Errorf("module %q: %w", name, errNoConstructor)
 	}

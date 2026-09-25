@@ -26,9 +26,10 @@ type DaemonCtx struct {
 // NewDaemonCtx creates the DaemonCtx context.
 func NewDaemonCtx(opts *config.DaemonOpts) *DaemonCtx {
 	return &DaemonCtx{
-		PIDFile: filepath.Join(opts.RunDir, opts.PIDFile),
-		Port:    opts.Port,
-		LogPath: filepath.Join(opts.LogDir, opts.LogFile),
+		PIDFile:         filepath.Join(opts.RunDir, opts.PIDFile),
+		Port:            opts.Port,
+		LogPath:         filepath.Join(opts.LogDir, opts.LogFile),
+		ListenInterface: "",
 	}
 }
 
@@ -36,13 +37,15 @@ func NewDaemonCtx(opts *config.DaemonOpts) *DaemonCtx {
 func RunHTTPServerOnBackground(daemonCtx *DaemonCtx) error {
 	logOpts := ttlog.LoggerOpts{
 		Filename: daemonCtx.LogPath,
+		Prefix:   "",
 	}
 
 	args := []string{"daemon", "start"}
 	proc := NewProcess(NewHTTPServer(daemonCtx.ListenInterface, daemonCtx.Port),
 		daemonCtx.PIDFile, logOpts).CmdPath(os.Args[0]).CmdArgs(args)
 
-	if err := proc.Start(); err != nil {
+	err := proc.Start()
+	if err != nil {
 		return err
 	}
 

@@ -61,13 +61,13 @@ func getTLSConfig() *tls.Config {
 		}
 	}
 
-	ca, err := os.ReadFile(*args.caFile)
+	caData, err := os.ReadFile(*args.caFile)
 	if err != nil {
 		log.Fatalf("Failed to read CA file: %v", err)
 	}
 
 	certPool := x509.NewCertPool()
-	if !certPool.AppendCertsFromPEM(ca) {
+	if !certPool.AppendCertsFromPEM(caData) {
 		log.Fatalln("Failed to append CA data")
 	}
 
@@ -115,6 +115,7 @@ func getListener() net.Listener {
 }
 
 func main() {
+	//nolint:gosec // A test server logs the arguments its test started it with.
 	log.Println("Start aeon mock server:", os.Args)
 
 	flag.Parse()
@@ -124,9 +125,10 @@ func main() {
 	pb.RegisterDiagServiceServer(srv, &service.Diag{})
 
 	// Run gRPC server.
-	wg := sync.WaitGroup{}
-	wg.Go(func() {
-		if err := srv.Serve(getListener()); err != nil {
+	group := sync.WaitGroup{}
+	group.Go(func() {
+		err := srv.Serve(getListener())
+		if err != nil {
 			log.Fatalf("Failed to serve: %v", err)
 		}
 	})
@@ -144,6 +146,6 @@ func main() {
 	log.Println("Got terminate signal:", s)
 
 	srv.GracefulStop()
-	wg.Wait()
+	group.Wait()
 	log.Println("Exit aeon mock server.")
 }

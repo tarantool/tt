@@ -1,20 +1,22 @@
-package dial
+package dial_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/tarantool/tt/sdk/dial"
 )
 
 func TestTransportType_String(t *testing.T) {
 	cases := []struct {
-		Transport Transport
+		Transport dial.Transport
 		Expected  string
 	}{
-		{TransportDefault, ""},
-		{TransportPlain, "plain"},
-		{TransportSsl, "ssl"},
-		{Transport(15), "Transport(15)"},
+		{dial.TransportDefault, ""},
+		{dial.TransportPlain, "plain"},
+		{dial.TransportSsl, "ssl"},
+		{dial.Transport(15), "Transport(15)"},
 	}
 
 	for _, tc := range cases {

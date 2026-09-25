@@ -1,4 +1,4 @@
-package core
+package core_test
 
 import (
 	"bytes"
@@ -22,50 +22,59 @@ import (
 	"github.com/tarantool/tt/v3/cli/cmd"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/printing"
+	"github.com/tarantool/tt/v3/core"
 )
 
 // mainCaseEnv selects, in a process the tests start, the program TestMain
 // runs instead of the tests: a key of mainCases.
 const mainCaseEnv = "TT_CORE_TEST_MAIN"
 
+// brokenModule is a module whose constructor panics.
+func brokenModule(sdk.Services) []sdk.Mount {
+	panic("constructor bug")
+}
+
 // mainCases are the programs the tests run tt as, each in its own process:
 // Main is once per process.
 var mainCases = map[string]func() int{
 	"builtin": func() int {
-		return Main(Modules{"builtin": Builtin})
+		return core.Main(core.Modules{"builtin": core.Builtin})
 	},
 	"demo": func() int {
-		return Main(Modules{"builtin": Builtin, "demo": demoModule})
+		return core.Main(core.Modules{"builtin": core.Builtin, "demo": demoModule})
 	},
 	"conflict": func() int {
-		return Main(Modules{"builtin": Builtin, "dup": func(sdk.Services) []sdk.Mount {
-			return []sdk.Mount{{Path: "", Cmd: &cobra.Command{Use: "version", Run: nothing}}}
-		}})
+		return core.Main(core.Modules{
+			"builtin": core.Builtin,
+			"dup": func(sdk.Services) []sdk.Mount {
+				return []sdk.Mount{{Path: "", Cmd: &cobra.Command{Use: "version", Run: nothing}}}
+			},
+		})
 	},
 	"early": func() int {
-		return Main(Modules{"builtin": Builtin, "early": func(services sdk.Services) []sdk.Mount {
-			_, _ = services.Tarantool()
+		return core.Main(core.Modules{
+			"builtin": core.Builtin,
+			"early": func(services sdk.Services) []sdk.Mount {
+				_, _ = services.Tarantool()
 
-			return nil
-		}})
+				return nil
+			},
+		})
 	},
 	"panic": func() int {
-		return Main(Modules{"builtin": Builtin, "broken": func(sdk.Services) []sdk.Mount {
-			panic("constructor bug")
-		}})
+		return core.Main(core.Modules{"builtin": core.Builtin, "broken": brokenModule})
 	},
 	"flavour": func() int {
-		return Main(Modules{"builtin": Builtin}, WithFlavour(eeFlavour))
+		return core.Main(core.Modules{"builtin": core.Builtin}, core.WithFlavour(eeFlavour))
 	},
 	"flavour-panic": func() int {
-		return Main(Modules{"builtin": Builtin, "broken": func(sdk.Services) []sdk.Mount {
-			panic("constructor bug")
-		}}, WithFlavour(eeFlavour))
+		return core.Main(core.Modules{"builtin": core.Builtin, "broken": brokenModule},
+			core.WithFlavour(eeFlavour))
 	},
 	"ee-main": func() int {
 		cmd.InjectedCmds = append(cmd.InjectedCmds, newEEVersionCmd())
 
-		return Main(Modules{"builtin": Builtin})
+		return core.Main(core.Modules{"builtin": core.Builtin})
 	},
 	"ee-initroot": func() int {
 		cmd.InjectedCmds = append(cmd.InjectedCmds, newEEVersionCmd())
@@ -79,9 +88,9 @@ var mainCases = map[string]func() int{
 
 // eeFlavour is a distribution with a name, a version and an edition of its
 // own.
-var eeFlavour = Flavour{
+var eeFlavour = core.Flavour{
 	Title: "Tarantool CLI EE",
-	Version: VersionInfo{
+	Version: core.VersionInfo{
 		Tag: "v2.15.0-3-gdef5678", Commit: "def5678", CommitsSinceTag: 3, Label: "",
 	},
 	Edition: "ee",
@@ -95,7 +104,7 @@ func TestMain(m *testing.M) {
 		if !known {
 			_, _ = fmt.Fprintf(os.Stderr, "unknown %s=%q\n", mainCaseEnv, name)
 
-			os.Exit(100) //nolint:mnd // Anything a case cannot exit with.
+			os.Exit(100) // Anything a case cannot exit with.
 		}
 
 		os.Exit(program())
@@ -120,7 +129,7 @@ type demoResult struct {
 func (r demoResult) Human(w io.Writer) error {
 	_, err := fmt.Fprintf(w, "%s: %d\n", r.Name, r.Count)
 
-	return err //nolint:wrapcheck // Test fixture.
+	return err
 }
 
 // demoModule is a module using every service, with commands failing in
@@ -140,12 +149,12 @@ func demoModule(services sdk.Services) []sdk.Mount {
 		RunE: func(*cobra.Command, []string) error {
 			printer, err := services.Streams().Printer(format.Format())
 			if err != nil {
-				return err //nolint:wrapcheck // Test fixture.
+				return err
 			}
 
 			err = printer.Emit(demoResult{Name: "demo", Count: 2})
 
-			return err //nolint:wrapcheck // Test fixture.
+			return err
 		},
 	}
 
@@ -157,7 +166,7 @@ func demoModule(services sdk.Services) []sdk.Mount {
 
 			_, err := fmt.Fprintln(out(), "ok")
 
-			return err //nolint:wrapcheck // Test fixture.
+			return err
 		}},
 		&cobra.Command{Use: "code3", RunE: fail(sdk.WithCode(sdk.ExitPartial,
 			errors.New("one of two failed")))},
@@ -169,22 +178,22 @@ func demoModule(services sdk.Services) []sdk.Mount {
 		&cobra.Command{Use: "project", RunE: func(*cobra.Command, []string) error {
 			dir, err := services.Project().Dir()
 			if err != nil {
-				return err //nolint:wrapcheck // Test fixture.
+				return err
 			}
 
 			_, err = fmt.Fprintln(out(), dir)
 
-			return err //nolint:wrapcheck // Test fixture.
+			return err
 		}},
 		&cobra.Command{Use: "confirm", RunE: func(*cobra.Command, []string) error {
 			answer, err := services.Confirm("Proceed?", true)
 			if err != nil {
-				return err //nolint:wrapcheck // Test fixture.
+				return err
 			}
 
 			_, err = fmt.Fprintf(out(), "answer=%v\n", answer)
 
-			return err //nolint:wrapcheck // Test fixture.
+			return err
 		}},
 		printCmd,
 	)
@@ -201,10 +210,10 @@ func newEEVersionCmd() *cobra.Command {
 		Use:   "version",
 		Short: "Show the EE version",
 		Run: cmd.RunModuleFunc(func(*cmdcontext.CmdCtx, []string) error {
-			_, err := fmt.Printf("EE version, command %s, verbose=%v\n",
+			_, err := fmt.Fprintf(os.Stdout, "EE version, command %s, verbose=%v\n",
 				ctx.CommandName, ctx.Cli.Verbose)
 
-			return err //nolint:wrapcheck // Test fixture.
+			return err
 		}),
 	}
 }
@@ -225,16 +234,16 @@ type ttRun struct {
 	dir     string
 }
 
-// runTT runs the test binary as the program of r and returns how it ended.
-// The process starts in a directory of its own, with no tt configuration
-// and no external modules unless r's environment sets them.
-func runTT(t *testing.T, r ttRun) result {
+// runTT runs the test binary as the program of spec and returns how it
+// ended. The process starts in a directory of its own, with no tt
+// configuration and no external modules unless spec's environment sets them.
+func runTT(t *testing.T, spec ttRun) result {
 	t.Helper()
 
 	//nolint:gosec // The test binary itself.
-	process := exec.CommandContext(t.Context(), os.Args[0], r.args...)
+	process := exec.CommandContext(t.Context(), os.Args[0], spec.args...)
 
-	process.Dir = r.dir
+	process.Dir = spec.dir
 	if process.Dir == "" {
 		process.Dir = t.TempDir()
 	}
@@ -247,9 +256,9 @@ func runTT(t *testing.T, r ttRun) result {
 		process.Env = append(process.Env, entry)
 	}
 
-	process.Env = append(process.Env, mainCaseEnv+"="+r.program)
-	process.Env = append(process.Env, r.env...)
-	process.Stdin = strings.NewReader(r.stdin)
+	process.Env = append(process.Env, mainCaseEnv+"="+spec.program)
+	process.Env = append(process.Env, spec.env...)
+	process.Stdin = strings.NewReader(spec.stdin)
 
 	var stdout, stderr bytes.Buffer
 
@@ -275,7 +284,7 @@ func runTT(t *testing.T, r ttRun) result {
 func TestMainExitCodes(t *testing.T) {
 	t.Parallel()
 
-	for _, tc := range []struct {
+	for _, testCase := range []struct {
 		name    string
 		program string
 		args    []string
@@ -329,20 +338,20 @@ func TestMainExitCodes(t *testing.T) {
 				`constructor bug`},
 		},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := runTT(t, ttRun{program: tc.program, args: tc.args})
+			got := runTT(t, ttRun{program: testCase.program, args: testCase.args})
 
-			assert.Equal(t, tc.code, got.code, "stderr: %s", got.stderr)
-			assert.Equal(t, tc.stdout, got.stdout)
+			assert.Equal(t, testCase.code, got.code, "stderr: %s", got.stderr)
+			assert.Equal(t, testCase.stdout, got.stdout)
 
-			for _, want := range tc.stderr {
+			for _, want := range testCase.stderr {
 				assert.Equal(t, 1, strings.Count(got.stderr, want),
 					"reported once: %q in %s", want, got.stderr)
 			}
 
-			assert.Equal(t, tc.usage, strings.Contains(got.stderr, "USAGE"), got.stderr)
+			assert.Equal(t, testCase.usage, strings.Contains(got.stderr, "USAGE"), got.stderr)
 		})
 	}
 }
@@ -430,7 +439,7 @@ func TestMainWithFlavour(t *testing.T) {
 
 	platform := runtime.GOOS + "/" + runtime.GOARCH
 
-	for _, tc := range []struct {
+	for _, testCase := range []struct {
 		name   string
 		args   []string
 		stdout string
@@ -447,12 +456,12 @@ func TestMainWithFlavour(t *testing.T) {
 			stdout: "2.15.0+ee.def5678\n",
 		},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := runTT(t, ttRun{program: "flavour", args: tc.args})
+			got := runTT(t, ttRun{program: "flavour", args: testCase.args})
 			require.Equal(t, 0, got.code, got.stderr)
-			assert.Equal(t, tc.stdout, got.stdout)
+			assert.Equal(t, testCase.stdout, got.stdout)
 		})
 	}
 
@@ -492,11 +501,11 @@ func writeExternalModule(t *testing.T, name string) string {
 
 	script := "#!/bin/sh\necho \"external " + name + " $*\"\nexit 7\n"
 	require.NoError(t, os.WriteFile(filepath.Join(moduleDir, "main"), []byte(script),
-		0o755)) //nolint:gosec // An executable.
+		0o755))
 
 	manifest := "version: 1.0.0\nhelp: External " + name + "\nmain: main\n"
 	require.NoError(t, os.WriteFile(filepath.Join(moduleDir, "manifest.yaml"),
-		[]byte(manifest), 0o644)) //nolint:gosec // Test fixture.
+		[]byte(manifest), 0o644))
 
 	return dir
 }
@@ -510,7 +519,7 @@ func TestMainExternalModules(t *testing.T) {
 	demoPath := "TT_CLI_MODULES_PATH=" + writeExternalModule(t, "demo")
 	versionPath := "TT_CLI_MODULES_PATH=" + writeExternalModule(t, "version")
 
-	for _, tc := range []struct {
+	for _, testCase := range []struct {
 		name    string
 		args    []string
 		env     string
@@ -532,13 +541,15 @@ func TestMainExternalModules(t *testing.T) {
 			"external version --x\n", false,
 		},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := runTT(t, ttRun{program: "demo", args: tc.args, env: []string{tc.env}})
-			assert.Equal(t, tc.code, got.code, got.stderr)
-			assert.Equal(t, tc.stdout, got.stdout)
-			assert.Equal(t, tc.warning, strings.Contains(got.stderr,
+			got := runTT(t, ttRun{
+				program: "demo", args: testCase.args, env: []string{testCase.env},
+			})
+			assert.Equal(t, testCase.code, got.code, got.stderr)
+			assert.Equal(t, testCase.stdout, got.stdout)
+			assert.Equal(t, testCase.warning, strings.Contains(got.stderr,
 				`replaces the command "demo" of module "demo"; run tt with -I to keep it`),
 				got.stderr)
 		})

@@ -182,10 +182,10 @@ func TestFileDataPublisher_Publish_data_exist_file(t *testing.T) {
 	err := os.WriteFile(path, []byte("bar"), 0o664)
 	require.NoError(t, err)
 
-	fi, err := os.Lstat(path)
+	info, err := os.Lstat(path)
 	require.NoError(t, err)
 
-	originalMode := fi.Mode()
+	originalMode := info.Mode()
 
 	data := []byte("foo")
 
@@ -196,7 +196,7 @@ func TestFileDataPublisher_Publish_data_exist_file(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, data, read)
 
-	fi, err = os.Lstat(path)
+	info, err = os.Lstat(path)
 	require.NoError(t, err)
-	assert.Equal(t, originalMode, fi.Mode())
+	assert.Equal(t, originalMode, info.Mode())
 }

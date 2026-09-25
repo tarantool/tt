@@ -111,17 +111,18 @@ func NewStorage(
 
 	codecBuild, err := codec.Build()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to build the integrity codec: %w", err)
 	}
 
 	storage, err = gstorage.Prefixed(prefix, storage)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to scope the storage to prefix %q: %w", prefix, err)
 	}
 
 	return &RawStorage{
 		storage:        codecBuild.Bind(storage),
 		codec:          codecBuild,
+		cleanup:        nil,
 		key:            key,
 		storageType:    storageType,
 		timeout:        timeout,
@@ -142,7 +143,7 @@ func (r *RawStorage) Collect() ([]Data, error) {
 	defer cancel()
 
 	if r.key != "" {
-		return r.Get(ctx, r.key) //nolint:wrapcheck // Get already wraps.
+		return r.Get(ctx, r.key)
 	}
 
 	kvs, err := r.storage.Range(ctx, "")
@@ -156,13 +157,13 @@ func (r *RawStorage) Collect() ([]Data, error) {
 	}
 
 	data := make([]Data, 0, len(kvs))
-	for _, kv := range kvs {
-		value, _ := kv.Value.Get()
+	for _, keyValue := range kvs {
+		value, _ := keyValue.Value.Get()
 
 		data = append(data, Data{
-			Source:   r.sourceName(kv.Name),
+			Source:   r.sourceName(keyValue.Name),
 			Value:    value,
-			Revision: kv.ModRevision,
+			Revision: keyValue.ModRevision,
 		})
 	}
 
@@ -186,7 +187,7 @@ func (r *RawStorage) Publish(revision int64, data []byte) error {
 	}
 
 	if r.key != "" {
-		return r.put(ctx, r.key, data, revision) //nolint:wrapcheck // put already wraps.
+		return r.put(ctx, r.key, data, revision)
 	}
 
 	if revision != 0 {
@@ -194,11 +195,13 @@ func (r *RawStorage) Publish(revision int64, data []byte) error {
 			r.storageType, errTargetRevisionIsNotSupported, revision)
 	}
 
-	if err := r.storage.Delete(ctx, "/", integrity.WithPrefix()); err != nil {
+	err := r.storage.Delete(ctx, "/", integrity.WithPrefix())
+	if err != nil {
 		return fmt.Errorf("failed to clean data from %s: %w", r.storageType, err)
 	}
 
-	if err := r.storage.Put(ctx, r.normalizeName("all"), data); err != nil {
+	err = r.storage.Put(ctx, r.normalizeName("all"), data)
+	if err != nil {
 		return fmt.Errorf("failed to publish data into %s: %w", r.storageType, err)
 	}
 
@@ -232,12 +235,12 @@ func (r *RawStorage) Get(ctx context.Context, key string) ([]Data, error) {
 
 // Put puts a key-value pair into config storage.
 func (r *RawStorage) Put(ctx context.Context, key, value string) error {
-	return r.put(ctx, key, []byte(value), 0) //nolint:wrapcheck // put already wraps.
+	return r.put(ctx, key, []byte(value), 0)
 }
 
 // Watch watches on a key and return watched events through the returned channel.
 func (r *RawStorage) Watch(ctx context.Context, key string) (<-chan WatchEvent, error) {
-	ch := make(chan WatchEvent)
+	events := make(chan WatchEvent)
 
 	innerCh, err := r.storage.Watch(ctx, r.normalizeName(key))
 	if err != nil {
@@ -245,18 +248,18 @@ func (r *RawStorage) Watch(ctx context.Context, key string) (<-chan WatchEvent, 
 	}
 
 	go func() {
-		defer close(ch)
+		defer close(events)
 
 		for resp := range innerCh {
 			value, _ := r.Get(ctx, string(resp.Key))
-			ch <- WatchEvent{
+			events <- WatchEvent{
 				Key:   key,
 				Value: value[0].Value,
 			}
 		}
 	}()
 
-	return ch, nil
+	return events, nil
 }
 
 // normalizeName normalizes a name by removing the prefix and object location from it.
@@ -333,8 +336,9 @@ func (r *RawStorage) put(ctx context.Context, key string, data []byte, revision 
 		predicates = append(predicates, r.codec.VersionEqual(revision))
 	}
 
-	if err := r.storage.Put(ctx, r.normalizeName(key), data,
-		integrity.WithPutPredicates(predicates...)); err != nil {
+	err := r.storage.Put(ctx, r.normalizeName(key), data,
+		integrity.WithPutPredicates(predicates...))
+	if err != nil {
 		return fmt.Errorf("failed to publish data into %s: %w", r.storageType, err)
 	}
 
@@ -355,7 +359,7 @@ func connectEtcdClient(cfg gsconnect.Config) (*clientv3.Client, error) {
 		}
 	}
 
-	return clientv3.New(clientv3.Config{
+	client, err := clientv3.New(clientv3.Config{
 		Endpoints:   cfg.Endpoints,
 		DialTimeout: cfg.DialTimeout,
 		Username:    cfg.Username,
@@ -364,6 +368,11 @@ func connectEtcdClient(cfg gsconnect.Config) (*clientv3.Client, error) {
 		Logger:      zap.NewNop(),
 		DialOptions: []grpc.DialOption{grpc.WithBlock()},
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to etcd: %w", err)
+	}
+
+	return client, nil
 }
 
 func needsEtcdTLSConfig(sslCfg gsconnect.SSLConfig) bool {
@@ -407,13 +416,17 @@ func connectTarantoolConnector(cfg gsconnect.Config) (tarantool.Connector, error
 	}
 
 	dialOpts := dial.Opts{
-		Address:     cfg.Endpoints[0],
-		User:        cfg.Username,
-		Password:    cfg.Password,
-		SslKeyFile:  cfg.SSL.KeyFile,
-		SslCertFile: cfg.SSL.CertFile,
-		SslCaFile:   cfg.SSL.CaFile,
-		SslCiphers:  cfg.SSL.Ciphers,
+		Address:         cfg.Endpoints[0],
+		Auth:            tarantool.AutoAuth,
+		User:            cfg.Username,
+		Password:        cfg.Password,
+		SslKeyFile:      cfg.SSL.KeyFile,
+		SslCertFile:     cfg.SSL.CertFile,
+		SslCaFile:       cfg.SSL.CaFile,
+		SslCiphers:      cfg.SSL.Ciphers,
+		SslPassword:     "",
+		SslPasswordFile: "",
+		Transport:       "",
 	}
 
 	dialer, err := dial.New(dialOpts)
@@ -576,7 +589,7 @@ func loadRootCA(path string) (*x509.CertPool, error) {
 func readUniqueDirectoryEntries(dir string) ([]fs.DirEntry, error) {
 	files, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, err
+		return nil, err //nolint:wrapcheck // The caller names the CA directory.
 	}
 
 	uniq := files[:0]

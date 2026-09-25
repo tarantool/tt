@@ -40,11 +40,6 @@ linters:
   exclusions:
     generated: lax
     rules:
-      # Scope linting to the directories adopted into the strict ruleset. An
-      # issue is excluded when its path is NOT one of them. A directory joins
-      # once it lints clean, and the rule goes away when all of them have.
-      - path-except: (^|/)(cli/((aeon|binary|cfg|checkpoint|cluster|cmd|cmdcontext|config|configure|connect|connector|console|coredump|create|docker|download|env|exitcode|formatter|install|install_ee|logging|manifest|modules|printing|process_utils|replicaset|rocks|running|search|status|tcm|templates|ttlog|uninstall|util|version)/|[^/]+\.go$)|magefile[^/]*\.go$)
-        text: ".*"
       # Manifest fixtures deliberately construct partial model values; keep the
       # stricter exhaustruct variant enabled everywhere else.
       - path: (^|/)cli/manifest/
@@ -74,6 +69,11 @@ linters:
       - linters:
           - gosec
         text: "^G(204|304):"
+      # The sdk/log printf functions log through the process logger and take
+      # no context, so a caller holding one has nothing to pass them.
+      - linters:
+          - contextcheck
+        text: 'Function `(\w+->)*(Debug|Info|Warn|Error)f?->emit` should pass the context parameter'
       # Tests create their fixtures under t.TempDir() with whatever mode the
       # scenario needs, at paths from t.TempDir(), testdata and variables the
       # test sets itself: there is no untrusted input to taint (G703).

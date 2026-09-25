@@ -16,7 +16,8 @@ type TestWorker struct {
 // NewTestWorker creates new TestWorker.
 func NewTestWorker() *TestWorker {
 	return &TestWorker{
-		done: make(chan bool, 1),
+		logger: nil,
+		done:   make(chan bool, 1),
 	}
 }
 
@@ -46,11 +47,13 @@ func (w *TestWorker) Stop() error {
 func main() {
 	logOpts := ttlog.LoggerOpts{
 		Filename: daemon.TestProcessLogPath,
+		Prefix:   "",
 	}
 
 	proc := daemon.NewProcess(NewTestWorker(), daemon.TestProcessPidFile, logOpts)
 
-	if err := proc.Start(); err != nil {
+	err := proc.Start()
+	if err != nil {
 		os.Exit(1)
 	}
 
