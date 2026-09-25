@@ -105,7 +105,7 @@ func TestRun_fullBuild(t *testing.T) {
 	assert.True(t, exists(t, filepath.Join(dir, lockFileName)))
 
 	vluaPath := filepath.Join(tree, "share/tarantool/my-app/version.lua")
-	data, err := os.ReadFile(vluaPath) //nolint:gosec // temp path
+	data, err := os.ReadFile(vluaPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(data), `version  = "1.2.3"`)
 }
@@ -274,10 +274,10 @@ func TestRun_fetchMaterializesWithoutBackends(t *testing.T) {
 	require.NoError(t, Run(context.Background(), dryOptions(dir)))
 
 	tree := filepath.Join(dir, ".rocks")
-	so := filepath.Join(tree, "lib/tarantool/my-app/fast_hash.so")
+	soPath := filepath.Join(tree, "lib/tarantool/my-app/fast_hash.so")
 	vlua := filepath.Join(tree, "share/tarantool/my-app/version.lua")
 
-	require.NoError(t, os.Remove(so))
+	require.NoError(t, os.Remove(soPath))
 	require.NoError(t, os.Remove(vlua))
 
 	// Fetch runs materialization only; with no deps it neither rebuilds the
@@ -287,7 +287,7 @@ func TestRun_fetchMaterializesWithoutBackends(t *testing.T) {
 	opts.FetchOnly = true
 	require.NoError(t, Run(context.Background(), opts))
 
-	assert.False(t, exists(t, so))
+	assert.False(t, exists(t, soPath))
 	assert.False(t, exists(t, vlua))
 }
 

@@ -69,7 +69,7 @@ func tarantoolInfoForTest(t *testing.T) rocks.TarantoolInfo {
 		t.Skip("tarantool not found in PATH")
 	}
 
-	out, err := exec.Command(exe, "--version").Output()
+	out, err := exec.CommandContext(t.Context(), exe, "--version").Output()
 	require.NoError(t, err)
 
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
@@ -85,7 +85,9 @@ func tarantoolInfoForTest(t *testing.T) rocks.TarantoolInfo {
 	}
 
 	info := rocks.TarantoolInfo{Executable: exe, Prefix: prefix, Version: version}
-	if _, err := os.Stat(filepath.Join(info.IncludeDir(), "lua.h")); err != nil {
+
+	_, err = os.Stat(filepath.Join(info.IncludeDir(), "lua.h"))
+	if err != nil {
 		t.Skipf("Tarantool headers not found under %s", info.IncludeDir())
 	}
 

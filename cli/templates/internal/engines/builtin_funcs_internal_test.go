@@ -9,20 +9,20 @@ import (
 
 func TestGenPort(t *testing.T) {
 	state := newGenState()
-	require.Equal(t, state.genPort(), 3301)
-	require.Equal(t, state.genPort(), 3302)
+	require.Equal(t, 3301, state.genPort())
+	require.Equal(t, 3302, state.genPort())
 }
 
 func TestGenMetricsPort(t *testing.T) {
 	state := newGenState()
-	require.Equal(t, state.genMetricsPort(), 8081)
-	require.Equal(t, state.genMetricsPort(), 8082)
+	require.Equal(t, 8081, state.genMetricsPort())
+	require.Equal(t, 8082, state.genMetricsPort())
 }
 
 func TestGenReplicasets(t *testing.T) {
 	replicasets, err := genReplicasets("name", 4, 3)
 	require.NoError(t, err)
-	assert.Equal(t, replicasets, []replicaset{
+	assert.Equal(t, []replicaset{
 		{
 			Name:      "name-001",
 			InstNames: []string{"name-001-a", "name-001-b", "name-001-c"},
@@ -39,11 +39,11 @@ func TestGenReplicasets(t *testing.T) {
 			Name:      "name-004",
 			InstNames: []string{"name-004-a", "name-004-b", "name-004-c"},
 		},
-	})
+	}, replicasets)
 
 	replicasets, err = genReplicasets("name", 1, 27)
 	require.NoError(t, err)
-	assert.Equal(t, replicasets[0].InstNames[26], "name-001-027")
+	assert.Equal(t, "name-001-027", replicasets[0].InstNames[26])
 
 	_, err = genReplicasets("name", -1, 0)
 	require.Error(t, err)

@@ -33,7 +33,7 @@ func projectDir(t *testing.T, name string) string {
 func readManifest(t *testing.T, dir string) string {
 	t.Helper()
 
-	data, err := os.ReadFile(filepath.Join(dir, manifestFileName)) //nolint:gosec // temp path
+	data, err := os.ReadFile(filepath.Join(dir, manifestFileName))
 	require.NoError(t, err)
 
 	return string(data)
@@ -265,7 +265,7 @@ var tomlLine = regexp.MustCompile(`^(\[[\w.]+\]|[\w-]+ = )`)
 func uncomment(source string) string {
 	var out strings.Builder
 
-	for _, line := range strings.Split(source, "\n") {
+	for line := range strings.SplitSeq(source, "\n") {
 		trimmed := strings.TrimPrefix(line, "# ")
 		if trimmed != line && tomlLine.MatchString(trimmed) {
 			line = trimmed

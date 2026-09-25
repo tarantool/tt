@@ -62,7 +62,8 @@ func DownloadSDK(cmdCtx *cmdcontext.CmdCtx, downloadCtx DownloadCtx,
 		}
 	}
 
-	if err = unix.Access(downloadCtx.DirectoryPrefix, unix.W_OK); err != nil {
+	err = unix.Access(downloadCtx.DirectoryPrefix, unix.W_OK)
+	if err != nil {
 		return fmt.Errorf("bad directory prefix: %w", err)
 	}
 
@@ -74,7 +75,8 @@ func DownloadSDK(cmdCtx *cmdcontext.CmdCtx, downloadCtx DownloadCtx,
 	bundleName := ver.Version.Tarball
 	bundlePath := filepath.Join(downloadCtx.DirectoryPrefix, bundleName)
 
-	if _, err := os.Stat(bundlePath); err == nil {
+	_, err = os.Stat(bundlePath)
+	if err == nil {
 		confirmed, err := util.AskConfirm(os.Stdin, "Confirm overwrite "+bundlePath)
 		if err != nil {
 			return err

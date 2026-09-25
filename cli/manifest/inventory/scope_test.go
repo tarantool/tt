@@ -33,9 +33,9 @@ func userTree(t *testing.T) tree {
 // TestUninstallUserScope is the task's user-scope case: the removal happens in
 // the user tree, addressed through --scope rather than the project directory.
 func TestUninstallUserScope(t *testing.T) {
-	tr := userTree(t)
+	fixture := userTree(t)
 
-	tr.installGuest(t, pkg{
+	fixture.installGuest(t, pkg{
 		name: "some-lib", version: "2.0.0",
 		pins: map[string]string{"metrics": "1.0.0"},
 	})
@@ -48,19 +48,19 @@ func TestUninstallUserScope(t *testing.T) {
 	assert.Equal(t, state.ScopeUser, result.Scope)
 	assert.Equal(t, []string{"metrics"}, result.RemovedDependencies)
 
-	assert.False(t, tr.rockExists("some-lib"))
-	assert.False(t, tr.metadataExists("some-lib"))
-	assert.False(t, tr.rockExists("metrics"))
+	assert.False(t, fixture.rockExists("some-lib"))
+	assert.False(t, fixture.metadataExists("some-lib"))
+	assert.False(t, fixture.rockExists("metrics"))
 }
 
 // TestListUserScope covers the read side of the same tree, including that a
 // stray app.manifest.toml at the root of a shared tree is not read as a primary
 // package — user trees hold guests only.
 func TestListUserScope(t *testing.T) {
-	tr := userTree(t)
+	fixture := userTree(t)
 
-	tr.installGuest(t, pkg{name: "some-lib", version: "2.0.0"})
-	tr.write(t, filepath.Join(tr.lay.Root, state.PrimaryManifestFile),
+	fixture.installGuest(t, pkg{name: "some-lib", version: "2.0.0"})
+	fixture.write(t, filepath.Join(fixture.lay.Root, state.PrimaryManifestFile),
 		manifestTOML(pkg{name: "not-a-primary", version: "9.9.9"}))
 
 	listing, err := inventory.List(inventory.ListOptions{Scope: state.ScopeUser})
@@ -76,9 +76,9 @@ func TestListUserScope(t *testing.T) {
 // by scope alone: a ProjectDir pointing at an unrelated tree must not redirect
 // the removal.
 func TestUninstallUserScopeIgnoresProjectDir(t *testing.T) {
-	tr := userTree(t)
+	fixture := userTree(t)
 
-	tr.installGuest(t, pkg{name: "some-lib", version: "2.0.0"})
+	fixture.installGuest(t, pkg{name: "some-lib", version: "2.0.0"})
 
 	// A project tree holding a same-named guest, which must be left alone.
 	project := newTree(t)
@@ -89,6 +89,6 @@ func TestUninstallUserScopeIgnoresProjectDir(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.False(t, tr.metadataExists("some-lib"), "the user tree's copy is removed")
+	assert.False(t, fixture.metadataExists("some-lib"), "the user tree's copy is removed")
 	assert.True(t, project.metadataExists("some-lib"), "the project tree is untouched")
 }

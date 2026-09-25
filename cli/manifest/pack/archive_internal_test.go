@@ -32,18 +32,18 @@ func readArchive(t *testing.T, path string) map[string]string {
 	f, err := os.Open(path)
 	require.NoError(t, err)
 
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
-	zr, err := zstd.NewReader(f)
+	zstdReader, err := zstd.NewReader(f)
 	require.NoError(t, err, "archive must be valid zstd")
 
-	defer zr.Close()
+	defer zstdReader.Close()
 
 	entries := map[string]string{}
-	tr := tar.NewReader(zr)
+	tarReader := tar.NewReader(zstdReader)
 
 	for {
-		header, err := tr.Next()
+		header, err := tarReader.Next()
 		if errors.Is(err, io.EOF) {
 			break
 		}
@@ -56,7 +56,7 @@ func readArchive(t *testing.T, path string) map[string]string {
 			continue
 		}
 
-		body, err := io.ReadAll(tr)
+		body, err := io.ReadAll(tarReader)
 		require.NoError(t, err)
 
 		entries[header.Name] = string(body)
@@ -155,17 +155,17 @@ func TestWriteArchivePreservesExecBit(t *testing.T) {
 	f, err := os.Open(dest)
 	require.NoError(t, err)
 
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
-	zr, err := zstd.NewReader(f)
+	zstdReader, err := zstd.NewReader(f)
 	require.NoError(t, err)
 
-	defer zr.Close()
+	defer zstdReader.Close()
 
-	tr := tar.NewReader(zr)
+	tarReader := tar.NewReader(zstdReader)
 
 	for {
-		header, err := tr.Next()
+		header, err := tarReader.Next()
 		if errors.Is(err, io.EOF) {
 			break
 		}

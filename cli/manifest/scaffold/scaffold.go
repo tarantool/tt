@@ -106,7 +106,7 @@ func Create(opts Options) (*Result, error) {
 		// Leaves a truncated file behind, which the next run then refuses. That
 		// is the honest outcome: the write failed for a reason (a full disk, a
 		// read-only mount) that removing the file would not fix and might hide.
-		file.Close()
+		_ = file.Close()
 
 		return nil, stateErrorf("writing %s: %w", manifestFileName, err)
 	}
@@ -199,7 +199,7 @@ func collapseDashes(name string) string {
 func validate(source string) error {
 	man, warnings, err := manifest.ParseManifest([]byte(source))
 	if err != nil {
-		return err //nolint:wrapcheck // Caller wraps with the file it came from.
+		return err
 	}
 
 	if len(warnings) > 0 {
@@ -208,7 +208,7 @@ func validate(source string) error {
 
 	_, err = man.Validate()
 
-	return err //nolint:wrapcheck // Caller wraps with the file it came from.
+	return err
 }
 
 // errUnexpectedWarning guards against a template this build of tt would itself

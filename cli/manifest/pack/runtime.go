@@ -133,13 +133,13 @@ func bundleRuntime(stageDir string, req RuntimeOptions) (BundledVersions, error)
 
 	var bundled BundledVersions
 
-	for _, w := range wanted {
-		if w.constraint.IsZero() {
+	for _, want := range wanted {
+		if want.constraint.IsZero() {
 			// Only tcm is optional; tarantool and tt are required by Validate.
 			continue
 		}
 
-		src, err := resolveRuntime(req, w.name, w.constraint, w.active)
+		src, err := resolveRuntime(req, want.name, want.constraint, want.active)
 		if err != nil {
 			return BundledVersions{}, err
 		}
@@ -147,7 +147,7 @@ func bundleRuntime(stageDir string, req RuntimeOptions) (BundledVersions, error)
 		if src.Fallback && req.Warn != nil {
 			req.Warn(fmt.Sprintf(
 				"no %s %s in the runtime cache (%s); bundling the active %s %s instead",
-				w.name, w.constraint.Version, req.CacheDir, w.name, src.Version))
+				want.name, want.constraint.Version, req.CacheDir, want.name, src.Version))
 		}
 
 		// A prerelease satisfies the constraint here on its core version alone
@@ -156,14 +156,15 @@ func bundleRuntime(stageDir string, req RuntimeOptions) (BundledVersions, error)
 		if isPrerelease(src.Version) && req.Warn != nil {
 			req.Warn(fmt.Sprintf(
 				"bundling %s %s, a prerelease build, to satisfy %q",
-				w.name, src.Version, w.constraint.Version))
+				want.name, src.Version, want.constraint.Version))
 		}
 
-		if err := placeRuntime(stageDir, src, req.Warn); err != nil {
+		err = placeRuntime(stageDir, src, req.Warn)
+		if err != nil {
 			return BundledVersions{}, err
 		}
 
-		switch w.name {
+		switch want.name {
 		case runtimeTarantool:
 			bundled.Tarantool = src.Version
 		case runtimeTt:
@@ -334,18 +335,18 @@ func findInCache(
 
 	var matches []string
 
-	for _, e := range entries {
-		if !e.IsDir() {
+	for _, entry := range entries {
+		if !entry.IsDir() {
 			continue
 		}
 
-		ok, err := satisfies(e.Name(), constraint)
+		ok, err := satisfies(entry.Name(), constraint)
 		if err != nil {
 			return "", "", false, err
 		}
 
 		if ok {
-			matches = append(matches, e.Name())
+			matches = append(matches, entry.Name())
 		}
 	}
 
@@ -362,14 +363,14 @@ func findInCache(
 // reverse lexical order for anything unparseable.
 func sortVersionsDesc(versions []string) {
 	sort.Slice(versions, func(i, j int) bool {
-		vi, erri := version.NewVersion(normalizeVersion(versions[i]))
-		vj, errj := version.NewVersion(normalizeVersion(versions[j]))
+		left, erri := version.NewVersion(normalizeVersion(versions[i]))
+		right, errj := version.NewVersion(normalizeVersion(versions[j]))
 
 		if erri != nil || errj != nil {
 			return versions[i] > versions[j]
 		}
 
-		return vi.GreaterThan(vj)
+		return left.GreaterThan(right)
 	})
 }
 
@@ -450,11 +451,15 @@ func placeRuntime(stageDir string, src runtimeSource, warn func(string)) error {
 	dst := filepath.Join(stageDir, runtimeDirName, src.Name)
 
 	if src.Dir != "" {
-		if err := copyTree(src.Dir, dst); err != nil {
+		err := copyTree(src.Dir, dst)
+		if err != nil {
 			return fmt.Errorf("bundling %s: %w", src.Name, err)
 		}
-	} else if err := placeBinaryRuntime(dst, src); err != nil {
-		return err
+	} else {
+		err := placeBinaryRuntime(dst, src)
+		if err != nil {
+			return err
+		}
 	}
 
 	if src.Name == runtimeTarantool {
@@ -470,7 +475,9 @@ func placeRuntime(stageDir string, src runtimeSource, warn func(string)) error {
 // require time rather than at pack time, so they come along when present.
 func placeBinaryRuntime(dst string, src runtimeSource) error {
 	target := filepath.Join(dst, "bin", src.Name)
-	if err := copyFile(src.Binary, target); err != nil {
+
+	err := copyFile(src.Binary, target)
+	if err != nil {
 		return fmt.Errorf("bundling %s: %w", src.Name, err)
 	}
 
@@ -480,11 +487,14 @@ func placeBinaryRuntime(dst string, src runtimeSource) error {
 
 	for _, prefix := range binaryPrefixes(src) {
 		share := filepath.Join(prefix, "share", "tarantool")
-		if _, err := os.Stat(share); err != nil {
+
+		_, err = os.Stat(share)
+		if err != nil {
 			continue
 		}
 
-		if err := copyTree(share, filepath.Join(dst, "share", "tarantool")); err != nil {
+		err = copyTree(share, filepath.Join(dst, "share", "tarantool"))
+		if err != nil {
 			return fmt.Errorf("bundling Tarantool share/: %w", err)
 		}
 
@@ -525,7 +535,8 @@ func binaryPrefixes(src runtimeSource) []string {
 // making a license appear.
 func bundleTarantoolLicense(dst string, src runtimeSource, warn func(string)) error {
 	for _, name := range tarantoolLicenseNames {
-		if _, err := os.Stat(filepath.Join(dst, name)); err == nil {
+		_, err := os.Stat(filepath.Join(dst, name))
+		if err == nil {
 			return nil
 		}
 	}
@@ -550,7 +561,9 @@ func bundleTarantoolLicense(dst string, src runtimeSource, warn func(string)) er
 	for _, dir := range candidates {
 		for _, name := range tarantoolLicenseNames {
 			path := filepath.Join(dir, name)
-			if _, err := os.Stat(path); err == nil {
+
+			_, err := os.Stat(path)
+			if err == nil {
 				return copyFile(path, filepath.Join(dst, "LICENSE"))
 			}
 		}

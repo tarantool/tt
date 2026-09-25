@@ -102,7 +102,7 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 	man := built.Manifest
 	namespaces, hasFlat := packageNamespaces(man, built.Product)
 
-	if err := stage(stageDir, stageRequest{
+	err = stage(stageDir, stageRequest{
 		ProjectDir:       opts.ProjectDir,
 		Manifest:         man,
 		LockBytes:        lockBytes,
@@ -112,7 +112,8 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 		Namespaces:       namespaces,
 		HasFlatNamespace: hasFlat,
 		DevOnly:          devOnlyRocks(built.Lock),
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, err
 	}
 
@@ -170,7 +171,9 @@ func runBuild(ctx context.Context, opts Options) (*build.Result, error) {
 // makeStageDir creates the staging tree and returns a cleanup that removes it.
 func makeStageDir(opts Options) (string, func(), error) {
 	base := filepath.Join(opts.ProjectDir, buildDirName, packSubDir)
-	if err := os.MkdirAll(base, dirPerm); err != nil {
+
+	err := os.MkdirAll(base, dirPerm)
+	if err != nil {
 		return "", nil, fmt.Errorf("creating %s: %w", base, err)
 	}
 
@@ -243,13 +246,13 @@ func packageNamespaces(man *manifest.Manifest, productName string) ([]string, bo
 
 	var namespaces []string
 
-	add := func(ns string) {
-		if seen[ns] {
+	add := func(namespace string) {
+		if seen[namespace] {
 			return
 		}
 
-		seen[ns] = true
-		namespaces = append(namespaces, ns)
+		seen[namespace] = true
+		namespaces = append(namespaces, namespace)
 	}
 
 	// The package name is always owned: version.lua is generated under it even

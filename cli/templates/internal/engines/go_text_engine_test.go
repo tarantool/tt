@@ -1,4 +1,4 @@
-package engines
+package engines_test
 
 import (
 	"os"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/v3/cli/templates/internal/engines"
 )
 
 const templateText = `cluster_cookie={{.cluster_cookie}}
@@ -32,7 +33,7 @@ func TestTemplateFileRender(t *testing.T) {
 		"password":       "pwd",
 	}
 
-	engine := GoTextEngine{}
+	engine := engines.GoTextEngine{}
 	require.NoError(t, engine.RenderFile(srcFileName, dstFileName, data))
 
 	// Check generated file permissions equal to origin.
@@ -67,7 +68,7 @@ func TestTemplateFileRenderMissingValues(t *testing.T) {
 
 	dstFileName := filepath.Join(workDir, resultFileName)
 	data := map[string]string{"cluster_cookie": "test_cookie"} // login & password are missing.
-	engine := GoTextEngine{}
+	engine := engines.GoTextEngine{}
 	require.EqualError(t, engine.RenderFile(srcFileName, dstFileName, data), "template execution "+
 		"failed: template: origin.lua.tt.template:2:9: executing \"origin.lua.tt.template\" at "+
 		"<.login>: map has no entry for key \"login\"")
@@ -80,7 +81,7 @@ func TestTextRendering(t *testing.T) {
 		"hello": "Hello",
 		"world": "world",
 	}
-	engine := GoTextEngine{}
+	engine := engines.GoTextEngine{}
 	actualText, err := engine.RenderText(templateText, data)
 	require.NoError(t, err)
 	assert.Equal(t, expectedText, actualText)

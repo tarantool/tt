@@ -106,13 +106,13 @@ func TestNewDispatch(t *testing.T) {
 		{BackendLuaC, ccBackend{}},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			be, err := New(tc.name, lrbuild.Flags{}, false)
+			be, err := New(testCase.name, lrbuild.Flags{}, false)
 			require.NoError(t, err)
-			assert.IsType(t, tc.want, be)
+			assert.IsType(t, testCase.want, be)
 		})
 	}
 }
@@ -142,7 +142,7 @@ func TestNewCcCarriesFlagsAndVerbosity(t *testing.T) {
 func TestRequireAbsPaths(t *testing.T) {
 	t.Parallel()
 
-	assert.NoError(t, requireAbsPaths("/abs/cwd", "/abs/out"))
-	assert.Error(t, requireAbsPaths("rel/cwd", "/abs/out"))
+	require.NoError(t, requireAbsPaths("/abs/cwd", "/abs/out"))
+	require.Error(t, requireAbsPaths("rel/cwd", "/abs/out"))
 	assert.Error(t, requireAbsPaths("/abs/cwd", "rel/out"))
 }

@@ -59,7 +59,8 @@ func (GoTextEngine) RenderFile(srcPath, dstPath string, data any) error {
 		_ = os.Chmod(outFile.Name(), originFileMode)
 	}()
 
-	if err := parsedTemplate.Execute(outFile, data); err != nil {
+	err = parsedTemplate.Execute(outFile, data)
+	if err != nil {
 		return fmt.Errorf("template execution failed: %w", err)
 	}
 
@@ -77,7 +78,8 @@ func (GoTextEngine) RenderText(in string, data any) (string, error) {
 
 	var buffer bytes.Buffer
 
-	if err = parsedTemplate.Execute(&buffer, &data); err != nil {
+	err = parsedTemplate.Execute(&buffer, &data)
+	if err != nil {
 		return "", fmt.Errorf("template execution failed: %w", err)
 	}
 

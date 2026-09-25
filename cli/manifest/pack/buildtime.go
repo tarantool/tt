@@ -54,7 +54,6 @@ func sourceDateEpoch() (time.Time, bool) {
 
 // commitTime returns the HEAD commit's author timestamp.
 func commitTime(ctx context.Context, projectDir string) (time.Time, bool) {
-	//nolint:gosec // Fixed program (git) with internally built args.
 	cmd := exec.CommandContext(ctx,
 		"git", "-C", projectDir, "log", "-1", "--format=%at")
 

@@ -28,7 +28,8 @@ func gitRepo(t *testing.T) string {
 func git(t *testing.T, dir string, args ...string) {
 	t.Helper()
 
-	out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
+	out, err := exec.CommandContext(t.Context(), "git", append([]string{"-C", dir}, args...)...).
+		CombinedOutput()
 	require.NoError(t, err, "git %v: %s", args, out)
 }
 
@@ -60,7 +61,9 @@ func TestBuildTimeIgnoresMalformedEpoch(t *testing.T) {
 
 	dir := gitRepo(t)
 	// Falls through to the commit timestamp rather than failing.
-	assert.Equal(t, buildTime(context.Background(), dir), buildTime(context.Background(), dir))
+	first := buildTime(context.Background(), dir)
+	second := buildTime(context.Background(), dir)
+	assert.Equal(t, first, second)
 }
 
 // TestBuildTimeOutsideGitFallsBack covers a tree with no history, where

@@ -35,7 +35,8 @@ func TestMakeArgsCustomEntrypoint(t *testing.T) {
 func TestMakeRunsTargetIntoOutputDir(t *testing.T) {
 	t.Parallel()
 
-	if _, err := exec.LookPath("make"); err != nil {
+	_, err := exec.LookPath("make")
+	if err != nil {
 		t.Skip("make not available")
 	}
 
@@ -47,7 +48,7 @@ func TestMakeRunsTargetIntoOutputDir(t *testing.T) {
 
 	b := manifest.Build{Backend: BackendMake, MakeTarget: "build"}
 
-	err := makeBackend{}.Run(context.Background(), b, cwd, Env{OutputDir: out})
+	err = makeBackend{}.Run(context.Background(), b, cwd, Env{OutputDir: out})
 	require.NoError(t, err)
 	assert.FileExists(t, filepath.Join(out, "mod.so"))
 }
@@ -55,7 +56,8 @@ func TestMakeRunsTargetIntoOutputDir(t *testing.T) {
 func TestMakeCopiesDeclaredOutputs(t *testing.T) {
 	t.Parallel()
 
-	if _, err := exec.LookPath("make"); err != nil {
+	_, err := exec.LookPath("make")
+	if err != nil {
 		t.Skip("make not available")
 	}
 
@@ -68,7 +70,7 @@ func TestMakeCopiesDeclaredOutputs(t *testing.T) {
 
 	b := manifest.Build{Backend: BackendMake, MakeTarget: "build", Output: []string{"libmod.so"}}
 
-	err := makeBackend{}.Run(context.Background(), b, cwd, Env{OutputDir: out})
+	err = makeBackend{}.Run(context.Background(), b, cwd, Env{OutputDir: out})
 	require.NoError(t, err)
 	assert.FileExists(t, filepath.Join(out, "libmod.so"))
 }

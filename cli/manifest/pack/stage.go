@@ -27,15 +27,18 @@ const (
 // from the project, so the tar layer sees one flat, already-correct tree and
 // the mode filtering happens exactly once, in one place.
 func stage(stageDir string, req stageRequest) error {
-	if err := os.MkdirAll(stageDir, dirPerm); err != nil {
+	err := os.MkdirAll(stageDir, dirPerm)
+	if err != nil {
 		return fmt.Errorf("creating staging directory: %w", err)
 	}
 
-	if err := stageMetadata(stageDir, req); err != nil {
+	err = stageMetadata(stageDir, req)
+	if err != nil {
 		return err
 	}
 
-	if err := stagePayload(stageDir, req); err != nil {
+	err = stagePayload(stageDir, req)
+	if err != nil {
 		return err
 	}
 
@@ -83,7 +86,9 @@ func stageMetadata(stageDir string, req stageRequest) error {
 
 	for _, f := range files {
 		path := filepath.Join(stageDir, f.name)
-		if err := os.WriteFile(path, f.data, filePerm); err != nil {
+
+		err := os.WriteFile(path, f.data, filePerm)
+		if err != nil {
 			return fmt.Errorf("staging %s: %w", f.name, err)
 		}
 	}
@@ -97,13 +102,15 @@ func stagePayload(stageDir string, req stageRequest) error {
 	pkg := req.Manifest.Package
 
 	for _, entry := range pkg.LicenseFiles {
-		if err := stageEntry(stageDir, req.ProjectDir, entry, "license_files"); err != nil {
+		err := stageEntry(stageDir, req.ProjectDir, entry, "license_files")
+		if err != nil {
 			return err
 		}
 	}
 
 	for _, entry := range pkg.Include {
-		if err := stageEntry(stageDir, req.ProjectDir, entry, "include"); err != nil {
+		err := stageEntry(stageDir, req.ProjectDir, entry, "include")
+		if err != nil {
 			return err
 		}
 	}
@@ -158,7 +165,8 @@ func stageEntry(stageDir, projectDir, entry, field string) error {
 // predicate is evaluated against the tree-relative path either way, so a
 // namespace that happens to share a dev rock's name is not a hole in it.
 func stageRocks(stageDir string, req stageRequest) error {
-	if _, err := os.Stat(req.Tree); os.IsNotExist(err) {
+	_, err := os.Stat(req.Tree)
+	if os.IsNotExist(err) {
 		// A pure-metadata package need not have produced a tree.
 		return nil
 	}
@@ -184,19 +192,21 @@ func stageRocks(stageDir string, req stageRequest) error {
 	}
 
 	for _, sub := range []string{shareTarantool, libTarantool} {
-		for _, ns := range req.Namespaces {
-			if ns == "" {
+		for _, namespace := range req.Namespaces {
+			if namespace == "" {
 				continue
 			}
 
-			src := filepath.Join(req.Tree, filepath.FromSlash(sub), ns)
-			if _, err := os.Stat(src); os.IsNotExist(err) {
+			src := filepath.Join(req.Tree, filepath.FromSlash(sub), namespace)
+
+			_, err = os.Stat(src)
+			if os.IsNotExist(err) {
 				continue
 			}
 
-			dst := filepath.Join(dstRocks, filepath.FromSlash(sub), ns)
+			dst := filepath.Join(dstRocks, filepath.FromSlash(sub), namespace)
 
-			copyErr := copyTreeFiltered(src, dst, sub+"/"+ns, skip)
+			copyErr := copyTreeFiltered(src, dst, sub+"/"+namespace, skip)
 			if copyErr != nil {
 				return copyErr
 			}
@@ -316,8 +326,9 @@ func copyTree(src, dst string) error {
 // same filter apply to a whole-tree copy and to a per-namespace one. A nil skip
 // copies everything.
 func copyTreeFiltered(src, dst, relBase string, skip func(string) bool) error {
-	if resolved, err := filepath.EvalSymlinks(src); err == nil {
-		src = resolved
+	realSrc, err := filepath.EvalSymlinks(src)
+	if err == nil {
+		src = realSrc
 	}
 
 	// Refuse to copy a tree into itself. The staging directory lives inside the
@@ -329,18 +340,19 @@ func copyTreeFiltered(src, dst, relBase string, skip func(string) bool) error {
 		return stateErrorf("refusing to copy %s into its own subdirectory %s", src, dst)
 	}
 
-	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+	//nolint:wrapcheck // Every error the walk yields already names the entry it failed on.
+	return filepath.WalkDir(src, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		rel, err := filepath.Rel(src, path)
 		if err != nil {
-			return err
+			return fmt.Errorf("copying %s: %w", path, err)
 		}
 
 		if skip != nil && skip(joinRel(relBase, rel)) {
-			if d.IsDir() {
+			if entry.IsDir() {
 				return fs.SkipDir
 			}
 
@@ -349,13 +361,13 @@ func copyTreeFiltered(src, dst, relBase string, skip func(string) bool) error {
 
 		target := filepath.Join(dst, rel)
 
-		if d.IsDir() {
+		if entry.IsDir() {
 			return os.MkdirAll(target, dirPerm)
 		}
 
-		info, err := d.Info()
+		info, err := entry.Info()
 		if err != nil {
-			return err
+			return fmt.Errorf("copying %s: %w", path, err)
 		}
 
 		if info.Mode()&os.ModeSymlink != 0 {
@@ -420,7 +432,8 @@ func resolveExisting(path string) string {
 	rest := ""
 
 	for cur := path; ; {
-		if resolved, err := filepath.EvalSymlinks(cur); err == nil {
+		resolved, err := filepath.EvalSymlinks(cur)
+		if err == nil {
 			return filepath.Join(resolved, rest)
 		}
 
@@ -437,15 +450,16 @@ func resolveExisting(path string) string {
 // copyFile copies one file, creating the destination's parent and preserving
 // the executable bit (which _runtime/ binaries depend on).
 func copyFile(src, dst string) error {
-	if err := os.MkdirAll(filepath.Dir(dst), dirPerm); err != nil {
-		return err
+	err := os.MkdirAll(filepath.Dir(dst), dirPerm)
+	if err != nil {
+		return fmt.Errorf("copying %s: %w", src, err)
 	}
 
 	// Stat, not Lstat: a symlinked binary in bin_dir must be copied as its
 	// target, since the archive carries no link structure.
 	info, err := os.Stat(src)
 	if err != nil {
-		return err
+		return fmt.Errorf("copying %s: %w", src, err)
 	}
 
 	perm := filePerm
@@ -453,24 +467,29 @@ func copyFile(src, dst string) error {
 		perm = 0o755
 	}
 
-	in, err := os.Open(src) //nolint:gosec // Sources are project or runtime files.
+	srcFile, err := os.Open(src)
 	if err != nil {
-		return err
+		return fmt.Errorf("copying %s: %w", src, err)
 	}
 
-	defer func() { _ = in.Close() }()
+	defer func() { _ = srcFile.Close() }()
 
-	//nolint:gosec // The destination is inside our own staging tree.
 	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 	if err != nil {
-		return err
+		return fmt.Errorf("copying %s: %w", src, err)
 	}
 
-	if _, err := io.Copy(out, in); err != nil {
+	_, err = io.Copy(out, srcFile)
+	if err != nil {
 		_ = out.Close()
 
 		return fmt.Errorf("copying %s: %w", src, err)
 	}
 
-	return out.Close()
+	err = out.Close()
+	if err != nil {
+		return fmt.Errorf("copying %s: %w", src, err)
+	}
+
+	return nil
 }

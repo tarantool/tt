@@ -2,7 +2,6 @@ package build
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -66,7 +65,7 @@ func writeLock(t *testing.T, projectDir string, lock *manifest.Lock) {
 func lockOnDisk(t *testing.T, projectDir string) *manifest.Lock {
 	t.Helper()
 
-	data, err := os.ReadFile(filepath.Join(projectDir, lockFileName)) //nolint:gosec // temp path
+	data, err := os.ReadFile(filepath.Join(projectDir, lockFileName))
 	require.NoError(t, err)
 
 	lock, err := manifest.ParseLock(data)
@@ -79,11 +78,11 @@ func TestGateLock_noLockResolvesAndWrites(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	r := &fakeResolver{fresh: freshLock()}
+	res := &fakeResolver{fresh: freshLock()}
 
-	lock, _, err := gateLock(context.Background(), r, &manifest.Manifest{}, dir, false)
+	lock, _, err := gateLock(context.Background(), res, &manifest.Manifest{}, dir, false)
 	require.NoError(t, err)
-	assert.True(t, r.resolveCalled)
+	assert.True(t, res.resolveCalled)
 	assert.Contains(t, lock.Products, "default")
 	// The freshly resolved lock is persisted.
 	assert.Equal(t, "sha256:new", lockOnDisk(t, dir).ManifestHash)
@@ -93,13 +92,13 @@ func TestGateLock_noLockUnderLockedFails(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	r := &fakeResolver{fresh: freshLock()}
+	res := &fakeResolver{fresh: freshLock()}
 
-	_, _, err := gateLock(context.Background(), r, &manifest.Manifest{}, dir, true)
+	_, _, err := gateLock(context.Background(), res, &manifest.Manifest{}, dir, true)
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, errLockStale))
+	require.ErrorIs(t, err, errLockStale)
 	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
-	assert.False(t, r.resolveCalled)
+	assert.False(t, res.resolveCalled)
 }
 
 func TestGateLock_freshLockReused(t *testing.T) {
@@ -111,10 +110,10 @@ func TestGateLock_freshLockReused(t *testing.T) {
 	existing.ManifestHash = "sha256:existing"
 	writeLock(t, dir, existing)
 
-	r := &fakeResolver{stale: false}
-	lock, _, err := gateLock(context.Background(), r, &manifest.Manifest{}, dir, true)
+	res := &fakeResolver{stale: false}
+	lock, _, err := gateLock(context.Background(), res, &manifest.Manifest{}, dir, true)
 	require.NoError(t, err)
-	assert.False(t, r.resolveCalled)
+	assert.False(t, res.resolveCalled)
 	assert.Equal(t, "sha256:existing", lock.ManifestHash)
 }
 
@@ -127,10 +126,10 @@ func TestGateLock_staleUnlockedRewrites(t *testing.T) {
 	existing.ManifestHash = "sha256:existing"
 	writeLock(t, dir, existing)
 
-	r := &fakeResolver{stale: true, reason: "manifest changed", fresh: freshLock()}
-	_, _, err := gateLock(context.Background(), r, &manifest.Manifest{}, dir, false)
+	res := &fakeResolver{stale: true, reason: "manifest changed", fresh: freshLock()}
+	_, _, err := gateLock(context.Background(), res, &manifest.Manifest{}, dir, false)
 	require.NoError(t, err)
-	assert.True(t, r.resolveCalled)
+	assert.True(t, res.resolveCalled)
 	assert.Equal(t, "sha256:new", lockOnDisk(t, dir).ManifestHash)
 }
 
@@ -152,12 +151,12 @@ func TestGateLock_staleRewriteHoldsLockedVersions(t *testing.T) {
 	}
 	writeLock(t, dir, existing)
 
-	r := &fakeResolver{stale: true, reason: "manifest changed", fresh: freshLock()}
-	_, _, err := gateLock(context.Background(), r, &manifest.Manifest{}, dir, false)
+	res := &fakeResolver{stale: true, reason: "manifest changed", fresh: freshLock()}
+	_, _, err := gateLock(context.Background(), res, &manifest.Manifest{}, dir, false)
 	require.NoError(t, err)
 
-	require.Len(t, r.pins, 1)
-	assert.Equal(t, resolve.Pins{"checks": "3.1.0-1", "metrics": "1.0.0-1"}, r.pins[0])
+	require.Len(t, res.pins, 1)
+	assert.Equal(t, resolve.Pins{"checks": "3.1.0-1", "metrics": "1.0.0-1"}, res.pins[0])
 }
 
 // TestGateLock_noLockPinsNothing covers the first resolve of a project: there
@@ -167,12 +166,12 @@ func TestGateLock_noLockPinsNothing(t *testing.T) {
 
 	dir := t.TempDir()
 
-	r := &fakeResolver{stale: false, reason: "", fresh: freshLock()}
-	_, _, err := gateLock(context.Background(), r, &manifest.Manifest{}, dir, false)
+	res := &fakeResolver{stale: false, reason: "", fresh: freshLock()}
+	_, _, err := gateLock(context.Background(), res, &manifest.Manifest{}, dir, false)
 	require.NoError(t, err)
 
-	require.Len(t, r.pins, 1)
-	assert.Empty(t, r.pins[0])
+	require.Len(t, res.pins, 1)
+	assert.Empty(t, res.pins[0])
 }
 
 func TestGateLock_staleLockedFails(t *testing.T) {
@@ -181,12 +180,12 @@ func TestGateLock_staleLockedFails(t *testing.T) {
 	dir := t.TempDir()
 	writeLock(t, dir, freshLock())
 
-	r := &fakeResolver{stale: true, reason: "manifest changed"}
-	_, _, err := gateLock(context.Background(), r, &manifest.Manifest{}, dir, true)
+	res := &fakeResolver{stale: true, reason: "manifest changed"}
+	_, _, err := gateLock(context.Background(), res, &manifest.Manifest{}, dir, true)
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, errLockStale))
+	require.ErrorIs(t, err, errLockStale)
 	assert.Contains(t, err.Error(), "manifest changed")
-	assert.False(t, r.resolveCalled)
+	assert.False(t, res.resolveCalled)
 }
 
 func TestLoadLock_missingIsError(t *testing.T) {
@@ -194,5 +193,5 @@ func TestLoadLock_missingIsError(t *testing.T) {
 
 	_, err := loadLock(t.TempDir())
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, errNoLock))
+	assert.ErrorIs(t, err, errNoLock)
 }

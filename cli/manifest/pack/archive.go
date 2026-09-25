@@ -40,11 +40,12 @@ var archiveModTime = time.Unix(0, 0).UTC()
 // mtime, root:root, fixed mode) and entries are emitted in lexical order, which
 // filepath.WalkDir already guarantees.
 func writeArchive(stageDir, destPath string) (string, error) {
-	if err := os.MkdirAll(filepath.Dir(destPath), dirPerm); err != nil {
+	err := os.MkdirAll(filepath.Dir(destPath), dirPerm)
+	if err != nil {
 		return "", fmt.Errorf("creating archive directory: %w", err)
 	}
 
-	destFile, err := os.Create(destPath) //nolint:gosec // Path is derived from the manifest.
+	destFile, err := os.Create(destPath)
 	if err != nil {
 		return "", fmt.Errorf("creating archive: %w", err)
 	}
@@ -54,14 +55,16 @@ func writeArchive(stageDir, destPath string) (string, error) {
 	// at install time. The successful path checks every close; the failure paths
 	// discard them, since the original error already explains the failure and
 	// removing the partial archive is best-effort cleanup.
-	if err := writeArchiveTo(stageDir, destFile); err != nil {
+	err = writeArchiveTo(stageDir, destFile)
+	if err != nil {
 		_ = destFile.Close()
 		_ = os.Remove(destPath)
 
 		return "", err
 	}
 
-	if err := destFile.Close(); err != nil {
+	err = destFile.Close()
+	if err != nil {
 		_ = os.Remove(destPath)
 
 		return "", fmt.Errorf("closing archive: %w", err)
@@ -78,44 +81,49 @@ func writeArchive(stageDir, destPath string) (string, error) {
 // writeArchiveTo streams stageDir into w as tar+zstd, closing both the tar and
 // the zstd writer in the right order (tar first, so its trailer is compressed).
 func writeArchiveTo(stageDir string, w io.Writer) error {
-	zw, err := zstd.NewWriter(w, zstd.WithEncoderLevel(zstd.SpeedDefault))
+	zstdWriter, err := zstd.NewWriter(w, zstd.WithEncoderLevel(zstd.SpeedDefault))
 	if err != nil {
 		return fmt.Errorf("creating zstd writer: %w", err)
 	}
 
-	tw := tar.NewWriter(zw)
+	tarWriter := tar.NewWriter(zstdWriter)
 
-	if err := walkIntoTar(stageDir, tw); err != nil {
+	err = walkIntoTar(stageDir, tarWriter)
+	if err != nil {
 		// Both closes are best-effort here; the walk error is the real one.
-		_ = tw.Close()
-		_ = zw.Close()
+		_ = tarWriter.Close()
+		_ = zstdWriter.Close()
 
 		return err
 	}
 
-	if err := tw.Close(); err != nil {
-		_ = zw.Close()
+	err = tarWriter.Close()
+	if err != nil {
+		_ = zstdWriter.Close()
 
 		return fmt.Errorf("closing tar stream: %w", err)
 	}
 
-	if err := zw.Close(); err != nil {
+	err = zstdWriter.Close()
+	if err != nil {
 		return fmt.Errorf("closing zstd stream: %w", err)
 	}
 
 	return nil
 }
 
-// walkIntoTar writes every entry under root into tw with a normalized header.
-func walkIntoTar(root string, tw *tar.Writer) error {
-	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+// walkIntoTar writes every entry under root into tarWriter with a normalized
+// header.
+func walkIntoTar(root string, tarWriter *tar.Writer) error {
+	//nolint:wrapcheck // Every error the walk yields already names the entry it failed on.
+	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		rel, err := filepath.Rel(root, path)
 		if err != nil {
-			return err
+			return fmt.Errorf("archiving %s: %w", path, err)
 		}
 
 		if rel == "." {
@@ -125,16 +133,21 @@ func walkIntoTar(root string, tw *tar.Writer) error {
 		// Archive paths are slash-separated regardless of host separator.
 		name := filepath.ToSlash(rel)
 
-		info, err := d.Info()
+		info, err := entry.Info()
 		if err != nil {
-			return err
+			return fmt.Errorf("archiving %s: %w", name, err)
 		}
 
 		switch {
-		case d.IsDir():
-			return tw.WriteHeader(dirHeader(name))
+		case entry.IsDir():
+			err = tarWriter.WriteHeader(dirHeader(name))
+			if err != nil {
+				return fmt.Errorf("archiving %s: %w", name, err)
+			}
+
+			return nil
 		case info.Mode().IsRegular():
-			return writeRegular(tw, path, name, info)
+			return writeRegular(tarWriter, path, name, info)
 		default:
 			// Symlinks and everything else are skipped: the staging tree is
 			// assembled by copying file contents, so nothing else should appear.
@@ -155,7 +168,7 @@ func dirHeader(name string) *tar.Header {
 }
 
 // writeRegular writes one regular file's header and contents.
-func writeRegular(tw *tar.Writer, path, name string, info fs.FileInfo) error {
+func writeRegular(tarWriter *tar.Writer, path, name string, info fs.FileInfo) error {
 	mode := int64(archiveFileMode)
 	if info.Mode().Perm()&0o100 != 0 {
 		mode = archiveExecMode
@@ -170,18 +183,20 @@ func writeRegular(tw *tar.Writer, path, name string, info fs.FileInfo) error {
 		Format:   tar.FormatPAX,
 	}
 
-	if err := tw.WriteHeader(header); err != nil {
-		return err
+	err := tarWriter.WriteHeader(header)
+	if err != nil {
+		return fmt.Errorf("archiving %s: %w", name, err)
 	}
 
-	src, err := os.Open(path) //nolint:gosec // Path comes from our own staging tree.
+	src, err := os.Open(path)
 	if err != nil {
-		return err
+		return fmt.Errorf("archiving %s: %w", name, err)
 	}
 
 	defer func() { _ = src.Close() }()
 
-	if _, err := io.Copy(tw, src); err != nil {
+	_, err = io.Copy(tarWriter, src)
+	if err != nil {
 		return fmt.Errorf("archiving %s: %w", name, err)
 	}
 

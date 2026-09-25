@@ -68,8 +68,8 @@ func genReplicasets(
 	}
 
 	replicasets := make([]replicaset, replicasetsNumber)
-	for i := range replicasets {
-		replicasetName := fmt.Sprintf("%s-%03d", baseName, i+1)
+	for rsIdx := range replicasets {
+		replicasetName := fmt.Sprintf("%s-%03d", baseName, rsIdx+1)
 		instNames := make([]string, replicasetSize)
 
 		for j := range instNames {
@@ -80,8 +80,8 @@ func genReplicasets(
 			}
 		}
 
-		replicasets[i].Name = replicasetName
-		replicasets[i].InstNames = instNames
+		replicasets[rsIdx].Name = replicasetName
+		replicasets[rsIdx].InstNames = instNames
 	}
 
 	return replicasets, nil

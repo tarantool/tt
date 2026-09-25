@@ -49,14 +49,14 @@ func addLuarocksRepoOpts(cliOpts *config.CliOpts, args []string) []string {
 	if cliOpts.Repo != nil && cliOpts.Repo.Rocks != "" {
 		isServerSet := false
 
-		for i, opt := range args {
+		for argIdx, opt := range args {
 			if opt == "--server" {
 				isServerSet = true
-				args[i+1] = args[i+1] + " " + cliOpts.Repo.Rocks
+				args[argIdx+1] = args[argIdx+1] + " " + cliOpts.Repo.Rocks
 			} else if strings.HasPrefix(opt, "--server=") {
 				isServerSet = true
 
-				args[i] += " " + cliOpts.Repo.Rocks
+				args[argIdx] += " " + cliOpts.Repo.Rocks
 			}
 		}
 
@@ -160,7 +160,7 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) err
 
 	workingDir, err := os.Getwd()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get the working directory: %w", err)
 	}
 
 	// LuaRocks builtin/cmake rocks (and tt's own cmake hand-off in
@@ -186,11 +186,16 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) err
 
 	rocksClient, err := client.New(cfg, client.WithBackend(client.BackendLua))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create the luarocks client: %w", err)
 	}
 
 	// Match the historical progname: LuaRocks prints "<argv0> rocks" (and
 	// "<argv0> rocks admin") in its usage, the wrapper appending " admin" for
 	// the admin sub-CLI.
-	return rocksClient.Exec(context.Background(), os.Args[0]+" rocks", args)
+	err = rocksClient.Exec(context.Background(), os.Args[0]+" rocks", args)
+	if err != nil {
+		return fmt.Errorf("failed to run luarocks: %w", err)
+	}
+
+	return nil
 }

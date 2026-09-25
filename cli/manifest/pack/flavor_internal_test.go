@@ -100,7 +100,7 @@ func TestResolveRuntimeEERejectsCETree(t *testing.T) {
 	_, err := resolveRuntime(RuntimeOptions{CacheDir: cache}, runtimeTarantool,
 		flavored(">=3.0.0", flavorEE), activeBinary{})
 	require.Error(t, err)
-	assert.ErrorIs(t, err, errNoRuntime)
+	require.ErrorIs(t, err, errNoRuntime)
 }
 
 // TestBundleRuntimeCEAcceptsEEFallback covers the SDK case: a manifest with no
@@ -152,7 +152,7 @@ func TestBundleRuntimeRejectsWrongFlavorFallback(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	assert.ErrorIs(t, err, errNoRuntime)
+	require.ErrorIs(t, err, errNoRuntime)
 	assert.Contains(t, err.Error(), "[ee] requires a [ee] build",
 		"the error must name the wanted flavor")
 	assert.Contains(t, err.Error(), "matches the version but not the flavor",
@@ -309,7 +309,7 @@ func TestBundleRuntimeVersionMismatchIsNotAFlavorMismatch(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	assert.ErrorIs(t, err, errNoRuntime)
+	require.ErrorIs(t, err, errNoRuntime)
 	assert.Contains(t, err.Error(), "does not satisfy it")
 	assert.NotContains(t, err.Error(), "not the flavor")
 }
@@ -371,7 +371,7 @@ func TestBundleRuntimeUndeterminedFlavorOnlySatisfiesCE(t *testing.T) {
 
 	_, err = bundleRuntime(t.TempDir(), opts(flavorEE))
 	require.Error(t, err, "an undetermined flavor must never pass for ee")
-	assert.ErrorIs(t, err, errNoRuntime)
+	require.ErrorIs(t, err, errNoRuntime)
 }
 
 // TestSatisfiesFlavorOnlyConstraintNeedsAVersion closes the hole where a

@@ -57,6 +57,13 @@ const dirPerm os.FileMode = 0o750
 var ErrMissingHeaders = errors.New(
 	"tarantool development headers not found: cannot compile c/lua-c component")
 
+var (
+	// errUnknownBackend reports a build backend name New does not know.
+	errUnknownBackend = errors.New("unknown build backend")
+	// errRelativeOutputDir reports an output directory that is not absolute.
+	errRelativeOutputDir = errors.New("output directory must be an absolute path")
+)
+
 // Env is the guaranteed environment contract handed to every backend. The
 // caller fully resolves OutputDir — including the install namespace — before
 // calling; the backend is namespace-agnostic and only ever writes into
@@ -156,10 +163,10 @@ func (e Env) hookEnviron() []string {
 
 // Backend builds one component into env.OutputDir.
 type Backend interface {
-	// Run builds b in cwd (an absolute path) with the env contract, placing
+	// Run builds build in cwd (an absolute path) with the env contract, placing
 	// artifacts in env.OutputDir. It returns a plain error on failure; mapping
 	// that to a process exit code is the caller's concern.
-	Run(ctx context.Context, b manifest.Build, cwd string, env Env) error
+	Run(ctx context.Context, build manifest.Build, cwd string, env Env) error
 }
 
 // New returns the Backend for the named build backend. flags supplies the
@@ -176,7 +183,7 @@ func New(name string, flags lrbuild.Flags, showOutput bool) (Backend, error) {
 	case BackendC, BackendLuaC:
 		return ccBackend{flags: flags, showOutput: showOutput}, nil
 	default:
-		return nil, fmt.Errorf("unknown build backend %q", name)
+		return nil, fmt.Errorf("%w %q", errUnknownBackend, name)
 	}
 }
 
@@ -186,11 +193,11 @@ func New(name string, flags lrbuild.Flags, showOutput bool) (Backend, error) {
 // so both are rejected rather than papered over.
 func requireAbsPaths(cwd, outputDir string) error {
 	if !filepath.IsAbs(cwd) {
-		return fmt.Errorf("cwd must be an absolute path, got %q", cwd)
+		return fmt.Errorf("%w, got %q", errRelativeCwd, cwd)
 	}
 
 	if !filepath.IsAbs(outputDir) {
-		return fmt.Errorf("output directory must be an absolute path, got %q", outputDir)
+		return fmt.Errorf("%w, got %q", errRelativeOutputDir, outputDir)
 	}
 
 	return nil
@@ -217,5 +224,6 @@ func runEnviron(
 
 	cmd.Env = environ
 
+	//nolint:contextcheck // RunCommand takes no context; ctx reaches the child via the cmd.
 	return util.RunCommand(cmd, cwd, showOutput)
 }

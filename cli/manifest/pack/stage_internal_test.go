@@ -1,6 +1,7 @@
 package pack
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -71,9 +72,7 @@ default = true
 		"README.md":      "readme body",
 		"LICENSE":        "license body",
 	}
-	for k, v := range extra {
-		files[k] = v
-	}
+	maps.Copy(files, extra)
 
 	writeTree(t, dir, files)
 
@@ -198,7 +197,7 @@ func TestStageEntryRejections(t *testing.T) {
 			projectDir := t.TempDir()
 			err := stageEntry(t.TempDir(), projectDir, tt.entry, "include")
 			require.Error(t, err)
-			assert.ErrorIs(t, err, tt.want)
+			require.ErrorIs(t, err, tt.want)
 			assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
 		})
 	}
@@ -212,11 +211,11 @@ func TestStageEntryRejections(t *testing.T) {
 func TestCopyTreeFollowsSymlinkedRoot(t *testing.T) {
 	base := t.TempDir()
 
-	real := filepath.Join(base, "real")
-	writeTree(t, real, map[string]string{"a.lua": "a", "sub/b.lua": "b"})
+	target := filepath.Join(base, "real")
+	writeTree(t, target, map[string]string{"a.lua": "a", "sub/b.lua": "b"})
 
 	link := filepath.Join(base, "link")
-	require.NoError(t, os.Symlink(real, link))
+	require.NoError(t, os.Symlink(target, link))
 
 	dst := t.TempDir()
 	require.NoError(t, copyTree(link, dst))
@@ -313,7 +312,7 @@ func TestStageWithoutDepsRejectsFlatNamespace(t *testing.T) {
 	err := stage(t.TempDir(), req)
 
 	require.Error(t, err)
-	assert.ErrorIs(t, err, errFlatNamespace)
+	require.ErrorIs(t, err, errFlatNamespace)
 	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
 }
 

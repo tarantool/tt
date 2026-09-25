@@ -197,7 +197,7 @@ func TestCcArgsHostParityWithDeriveFlags(t *testing.T) {
 	assert.Equal(t, flags.LIBFLAG, args[oi-len(flags.LIBFLAG):oi])
 
 	// The artifact extension is the derived one, not a hardcoded ".so".
-	assert.Equal(t, flags.Ext, ".so")
+	assert.Equal(t, ".so", flags.Ext)
 }
 
 func TestArtifactName(t *testing.T) {

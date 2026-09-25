@@ -29,7 +29,7 @@ type resolver interface {
 func loadLock(projectDir string) (*manifest.Lock, error) {
 	path := filepath.Join(projectDir, lockFileName)
 
-	data, err := os.ReadFile(path) //nolint:gosec // Reads the caller's own lock.
+	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, sdk.Errorf(sdk.ExitFailure, "%w: %s not found", errNoLock, lockFileName)
 	}
@@ -62,7 +62,7 @@ func gateLock(
 ) (*manifest.Lock, []string, error) {
 	path := filepath.Join(projectDir, lockFileName)
 
-	data, readErr := os.ReadFile(path) //nolint:gosec // Reads the caller's own lock.
+	data, readErr := os.ReadFile(path)
 	if errors.Is(readErr, os.ErrNotExist) {
 		if locked {
 			return nil, nil, sdk.Errorf(sdk.ExitFailure,
@@ -120,6 +120,7 @@ func resolveAndWrite(
 		return nil, nil, fmt.Errorf("marshaling %s: %w", lockFileName, err)
 	}
 
+	//nolint:gosec // path is the lock file beside the caller's own manifest.
 	writeErr := os.WriteFile(path, out, filePerm)
 	if writeErr != nil {
 		return nil, nil, fmt.Errorf("writing %s: %w", lockFileName, writeErr)

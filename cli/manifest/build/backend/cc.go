@@ -15,7 +15,7 @@ import (
 const initialArgsCap = 16
 
 // ccBackend is the shared cc driver for the c and lua-c backends. Both compile
-// b.Sources into one <module><Ext> shared library with the base per-OS flags
+// build.Sources into one <module><Ext> shared library with the base per-OS flags
 // (from the injected lrbuild.Flags) plus the component's defines / include dirs
 // / library dirs / libraries and the per-OS overlay. The two backends differ
 // only in how the artifact is later loaded (require vs box.schema.func.create),
@@ -34,20 +34,20 @@ type ccBackend struct {
 //	    <sources...> {-L<libdir> [-Wl,-rpath,<libdir> if GccRpath]}... \
 //	    -l<lib...> <LDFLAGS...>
 //
-// defines / include dirs / library dirs / libraries come from b, each merged
-// (append-only) with the b.Platforms[goos] overlay; library order is preserved
+// defines / include dirs / library dirs / libraries come from build, each merged
+// (append-only) with the build.Platforms[goos] overlay; library order is preserved
 // because link order matters. Each -L is immediately followed by its matching
 // -Wl,-rpath, entry when flags.GccRpath is set (interleaved per libdir). out is
 // the fully resolved artifact path; sources are emitted verbatim and resolved
 // against cwd by the child (cmd.Dir=cwd). It is a pure function so the argv is
 // testable without a compiler or Tarantool headers.
-func ccArgs(b manifest.Build, flags lrbuild.Flags, out, goos string) []string {
-	overlay := b.Platforms[goos]
+func ccArgs(build manifest.Build, flags lrbuild.Flags, out, goos string) []string {
+	overlay := build.Platforms[goos]
 
-	defines := concat(b.Defines, overlay.Defines)
-	includeDirs := concat(b.IncludeDirs, overlay.IncludeDirs)
-	libraryDirs := concat(b.LibraryDirs, overlay.LibraryDirs)
-	libraries := concat(b.Libraries, overlay.Libraries)
+	defines := concat(build.Defines, overlay.Defines)
+	includeDirs := concat(build.IncludeDirs, overlay.IncludeDirs)
+	libraryDirs := concat(build.LibraryDirs, overlay.LibraryDirs)
+	libraries := concat(build.Libraries, overlay.Libraries)
 
 	args := make([]string, 0, initialArgsCap)
 
@@ -63,7 +63,7 @@ func ccArgs(b manifest.Build, flags lrbuild.Flags, out, goos string) []string {
 
 	args = append(args, flags.LIBFLAG...)
 	args = append(args, "-o", out)
-	args = append(args, b.Sources...)
+	args = append(args, build.Sources...)
 
 	for _, dir := range libraryDirs {
 		args = append(args, "-L"+dir)
@@ -101,10 +101,11 @@ func artifactName(module, ext string) string {
 // fails fast when the Tarantool headers are unconfigured, creates OutputDir,
 // then runs one cc invocation producing <module><Ext> directly in OutputDir.
 // module is a flat leaf name, so a dotted module yields a literal a.b.so — it
-// is not slashed into subdirectories. c / lua-c ignore b.Output (the artifact
+// is not slashed into subdirectories. c / lua-c ignore build.Output (the artifact
 // is the compiled library, not a copy list).
-func (c ccBackend) Run(ctx context.Context, b manifest.Build, cwd string, env Env) error {
-	if err := requireAbsPaths(cwd, env.OutputDir); err != nil {
+func (c ccBackend) Run(ctx context.Context, build manifest.Build, cwd string, env Env) error {
+	err := requireAbsPaths(cwd, env.OutputDir)
+	if err != nil {
 		return err
 	}
 
@@ -112,12 +113,13 @@ func (c ccBackend) Run(ctx context.Context, b manifest.Build, cwd string, env En
 		return ErrMissingHeaders
 	}
 
-	if err := os.MkdirAll(env.OutputDir, dirPerm); err != nil {
+	err = os.MkdirAll(env.OutputDir, dirPerm)
+	if err != nil {
 		return fmt.Errorf("create output directory %q: %w", env.OutputDir, err)
 	}
 
-	out := filepath.Join(env.OutputDir, artifactName(b.Module, c.flags.Ext))
-	args := ccArgs(b, c.flags, out, env.platformOS())
+	out := filepath.Join(env.OutputDir, artifactName(build.Module, c.flags.Ext))
+	args := ccArgs(build, c.flags, out, env.platformOS())
 
 	return run(ctx, cwd, env, c.showOutput, c.flags.CC, args...)
 }

@@ -23,7 +23,7 @@ var (
 // make backend. It reuses the component build machinery — the same argv
 // construction and the same last-wins environment assembly — but under the
 // reduced hook contract: TT_OUTPUT_DIR and TT_COMPONENT_NAME are not set (a
-// hook runs around all components, not inside one) and b.Output is ignored (a
+// hook runs around all components, not inside one) and hook.Output is ignored (a
 // hook has no single output directory to copy into).
 //
 // Only shell and make are valid hook backends; the closed enum is enforced at

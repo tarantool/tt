@@ -20,25 +20,25 @@ import (
 func TestListPrimaryAndGuests(t *testing.T) {
 	t.Parallel()
 
-	tr := newTree(t)
+	fixture := newTree(t)
 
-	tr.installPrimary(t, pkg{
+	fixture.installPrimary(t, pkg{
 		name: "my-app", version: "1.2.3", description: "The application",
 		deps: map[string]string{"metrics": ">=1.0.0"},
 		pins: map[string]string{"metrics": "1.0.0"},
 	})
-	tr.installGuest(t, pkg{
+	fixture.installGuest(t, pkg{
 		name: "monitoring", version: "2.0.0", description: "Monitoring guest",
 		pins: map[string]string{"metrics": "1.0.0"},
 	})
-	tr.installGuest(t, pkg{name: "alerting", version: "0.5.0"})
+	fixture.installGuest(t, pkg{name: "alerting", version: "0.5.0"})
 
-	listing, err := inventory.List(inventory.ListOptions{ProjectDir: tr.dir})
+	listing, err := inventory.List(inventory.ListOptions{ProjectDir: fixture.dir})
 	require.NoError(t, err)
 
 	require.Len(t, listing.Packages, 3)
 	assert.Equal(t, state.ScopeProject, listing.Scope)
-	assert.Equal(t, tr.dir, listing.Root)
+	assert.Equal(t, fixture.dir, listing.Root)
 
 	assert.Equal(t, "my-app", listing.Packages[0].Name)
 	assert.True(t, listing.Packages[0].Primary)
@@ -57,14 +57,14 @@ func TestListPrimaryAndGuests(t *testing.T) {
 func TestListJSONIsValid(t *testing.T) {
 	t.Parallel()
 
-	tr := newTree(t)
+	fixture := newTree(t)
 
-	tr.installPrimary(t, pkg{name: "my-app", version: "1.2.3"})
-	tr.installGuest(t, pkg{name: "monitoring", version: "2.0.0",
+	fixture.installPrimary(t, pkg{name: "my-app", version: "1.2.3"})
+	fixture.installGuest(t, pkg{name: "monitoring", version: "2.0.0",
 		pins: map[string]string{"metrics": "1.0.0"}})
-	tr.installGuest(t, pkg{name: "alerting", version: "0.5.0"})
+	fixture.installGuest(t, pkg{name: "alerting", version: "0.5.0"})
 
-	listing, err := inventory.List(inventory.ListOptions{ProjectDir: tr.dir})
+	listing, err := inventory.List(inventory.ListOptions{ProjectDir: fixture.dir})
 	require.NoError(t, err)
 
 	rendered := render(t, listing, output.FormatJSON)
@@ -83,7 +83,7 @@ func TestListJSONIsValid(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(rendered), &decoded))
 
 	assert.Equal(t, "project", decoded.Scope)
-	assert.Equal(t, tr.dir, decoded.Root)
+	assert.Equal(t, fixture.dir, decoded.Root)
 	require.Len(t, decoded.Packages, 3)
 
 	assert.Equal(t, "my-app", decoded.Packages[0].Name)
@@ -96,9 +96,9 @@ func TestListJSONIsValid(t *testing.T) {
 func TestListEmptyScope(t *testing.T) {
 	t.Parallel()
 
-	tr := newTree(t)
+	fixture := newTree(t)
 
-	listing, err := inventory.List(inventory.ListOptions{ProjectDir: tr.dir})
+	listing, err := inventory.List(inventory.ListOptions{ProjectDir: fixture.dir})
 	require.NoError(t, err)
 
 	assert.Empty(t, listing.Packages)
@@ -110,11 +110,11 @@ func TestListEmptyScope(t *testing.T) {
 func TestListGuestsOnly(t *testing.T) {
 	t.Parallel()
 
-	tr := newTree(t)
+	fixture := newTree(t)
 
-	tr.installGuest(t, pkg{name: "monitoring", version: "2.0.0"})
+	fixture.installGuest(t, pkg{name: "monitoring", version: "2.0.0"})
 
-	listing, err := inventory.List(inventory.ListOptions{ProjectDir: tr.dir})
+	listing, err := inventory.List(inventory.ListOptions{ProjectDir: fixture.dir})
 	require.NoError(t, err)
 
 	require.Len(t, listing.Packages, 1)
@@ -126,11 +126,11 @@ func TestListGuestsOnly(t *testing.T) {
 func TestListOmitsEmptyDependencies(t *testing.T) {
 	t.Parallel()
 
-	tr := newTree(t)
+	fixture := newTree(t)
 
-	tr.installGuest(t, pkg{name: "alerting", version: "0.5.0"})
+	fixture.installGuest(t, pkg{name: "alerting", version: "0.5.0"})
 
-	listing, err := inventory.List(inventory.ListOptions{ProjectDir: tr.dir})
+	listing, err := inventory.List(inventory.ListOptions{ProjectDir: fixture.dir})
 	require.NoError(t, err)
 
 	require.Len(t, listing.Packages, 1)
@@ -145,14 +145,14 @@ func TestListOmitsEmptyDependencies(t *testing.T) {
 func TestListTolerantOfBrokenGuest(t *testing.T) {
 	t.Parallel()
 
-	tr := newTree(t)
+	fixture := newTree(t)
 
-	tr.installGuest(t, pkg{name: "monitoring", version: "2.0.0"})
-	tr.write(t,
-		filepath.Join(tr.lay.Manifests, "broken", state.MetaManifestFile),
+	fixture.installGuest(t, pkg{name: "monitoring", version: "2.0.0"})
+	fixture.write(t,
+		filepath.Join(fixture.lay.Manifests, "broken", state.MetaManifestFile),
 		"not = valid toml [")
 
-	listing, err := inventory.List(inventory.ListOptions{ProjectDir: tr.dir})
+	listing, err := inventory.List(inventory.ListOptions{ProjectDir: fixture.dir})
 	require.NoError(t, err)
 
 	require.Len(t, listing.Packages, 1)
@@ -164,11 +164,11 @@ func TestListTolerantOfBrokenGuest(t *testing.T) {
 func TestListGuestWithoutLock(t *testing.T) {
 	t.Parallel()
 
-	tr := newTree(t)
+	fixture := newTree(t)
 
-	tr.installGuest(t, pkg{name: "legacy", version: "1.0.0", noLock: true})
+	fixture.installGuest(t, pkg{name: "legacy", version: "1.0.0", noLock: true})
 
-	listing, err := inventory.List(inventory.ListOptions{ProjectDir: tr.dir})
+	listing, err := inventory.List(inventory.ListOptions{ProjectDir: fixture.dir})
 	require.NoError(t, err)
 
 	require.Len(t, listing.Packages, 1)
@@ -194,11 +194,11 @@ func TestListRejectsUnknownScope(t *testing.T) {
 func TestListDefaultsToProjectScope(t *testing.T) {
 	t.Parallel()
 
-	tr := newTree(t)
+	fixture := newTree(t)
 
-	tr.installGuest(t, pkg{name: "monitoring", version: "2.0.0"})
+	fixture.installGuest(t, pkg{name: "monitoring", version: "2.0.0"})
 
-	listing, err := inventory.List(inventory.ListOptions{ProjectDir: tr.dir, Scope: ""})
+	listing, err := inventory.List(inventory.ListOptions{ProjectDir: fixture.dir, Scope: ""})
 	require.NoError(t, err)
 
 	assert.Equal(t, state.ScopeProject, listing.Scope)

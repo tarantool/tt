@@ -98,7 +98,7 @@ func TestAddLuarocksRepoOpts(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := addLuarocksRepoOpts(tt.args.cliOpts, tt.args.args)
-			require.EqualValues(t, got, tt.want)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -106,14 +106,14 @@ func TestAddLuarocksRepoOpts(t *testing.T) {
 func TestGetRocksRepoPath(t *testing.T) {
 	_ = os.Unsetenv(repoRocksPathEnvVarName)
 
-	assert.EqualValues(t, "./testdata/repo", getRocksRepoPath("./testdata/repo"))
-	assert.EqualValues(t, "./testdata/emptyrepo", getRocksRepoPath("./testdata/emptyrepo"))
+	assert.Equal(t, "./testdata/repo", getRocksRepoPath("./testdata/repo"))
+	assert.Equal(t, "./testdata/emptyrepo", getRocksRepoPath("./testdata/emptyrepo"))
 
 	t.Setenv(repoRocksPathEnvVarName, "./other_repo")
 	// If env var is set, return it if manifests is missing in passed repo.
-	assert.EqualValues(t, "./other_repo", getRocksRepoPath("./testdata/emptyrepo"))
+	assert.Equal(t, "./other_repo", getRocksRepoPath("./testdata/emptyrepo"))
 	// Return passed repo path, since manifest exists. Env var is ignored.
-	assert.EqualValues(t, "./testdata/repo", getRocksRepoPath("./testdata/repo"))
+	assert.Equal(t, "./testdata/repo", getRocksRepoPath("./testdata/repo"))
 
 	_ = os.Unsetenv(repoRocksPathEnvVarName)
 }
@@ -230,7 +230,7 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 		_ = os.Unsetenv(tarantoolPrefixEnvVarName)
 
 		if err == nil {
-			assert.Nil(err)
+			require.NoError(t, err)
 			assert.Equal(output.prefix, tarantoolPrefix)
 		} else {
 			assert.Equal(output.err, err)

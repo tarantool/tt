@@ -25,14 +25,14 @@ import (
 func treeFixture(t *testing.T) tree {
 	t.Helper()
 
-	tr := newTree(t)
+	fixture := newTree(t)
 
-	tr.installPrimary(t, pkg{
+	fixture.installPrimary(t, pkg{
 		name: "my-app", version: "1.2.3",
 		deps: map[string]string{"checks": ">=3.0.0"},
 		pins: map[string]string{"checks": "3.1.0"},
 	})
-	tr.installGuest(t, pkg{
+	fixture.installGuest(t, pkg{
 		name: "monitoring", version: "2.0.0",
 		deps: map[string]string{"metrics": ">=1.0.0", "shared-lib": ">=1.0.0"},
 		pins: map[string]string{
@@ -40,31 +40,31 @@ func treeFixture(t *testing.T) tree {
 			"checks": "3.1.0", "luasocket": "3.0.4",
 		},
 	})
-	tr.installGuest(t, pkg{
+	fixture.installGuest(t, pkg{
 		name: "alerting", version: "0.5.0",
 		deps: map[string]string{"checks": ">=3.0.0"},
 		pins: map[string]string{"checks": "3.1.0"},
 	})
-	tr.installGuest(t, pkg{name: "shared-lib", version: "1.0.0"})
+	fixture.installGuest(t, pkg{name: "shared-lib", version: "1.0.0"})
 
 	// The edges LuaRocks records in the tree: metrics pulls checks, shared-lib
 	// pulls luasocket. Those two are exactly monitoring's transitive rocks.
-	tr.writeTreeManifest(t,
+	fixture.writeTreeManifest(t,
 		map[string][]string{
 			"metrics":    {"checks"},
 			"shared-lib": {"luasocket"},
 		},
 		map[string]string{"metrics": "1.0.0", "shared-lib": "1.0.0"})
 
-	return tr
+	return fixture
 }
 
 // listTree reads the inventory with the dependency index populated.
-func listTree(t *testing.T, tr tree) *inventory.Listing {
+func listTree(t *testing.T, fixture tree) *inventory.Listing {
 	t.Helper()
 
 	listing, err := inventory.List(inventory.ListOptions{
-		ProjectDir: tr.dir, Rocks: true,
+		ProjectDir: fixture.dir, Rocks: true,
 	})
 	require.NoError(t, err)
 
@@ -128,9 +128,9 @@ func TestRockIndexMarksInstalledPackages(t *testing.T) {
 func TestRockIndexAbsentByDefault(t *testing.T) {
 	t.Parallel()
 
-	tr := treeFixture(t)
+	fixture := treeFixture(t)
 
-	listing, err := inventory.List(inventory.ListOptions{ProjectDir: tr.dir})
+	listing, err := inventory.List(inventory.ListOptions{ProjectDir: fixture.dir})
 	require.NoError(t, err)
 
 	assert.Nil(t, listing.Rocks)
@@ -142,9 +142,9 @@ func TestRockIndexAbsentByDefault(t *testing.T) {
 func TestRockIndexEmptyScope(t *testing.T) {
 	t.Parallel()
 
-	tr := newTree(t)
+	fixture := newTree(t)
 
-	listing := listTree(t, tr)
+	listing := listTree(t, fixture)
 
 	assert.Empty(t, listing.Rocks)
 	assert.Empty(t, listing.Packages)
@@ -157,16 +157,16 @@ func TestRockIndexEmptyScope(t *testing.T) {
 func TestRockIndexPrefersOnDiskVersion(t *testing.T) {
 	t.Parallel()
 
-	tr := newTree(t)
+	fixture := newTree(t)
 
-	tr.installGuest(t, pkg{name: "monitoring", version: "2.0.0", pins: map[string]string{
+	fixture.installGuest(t, pkg{name: "monitoring", version: "2.0.0", pins: map[string]string{
 		"metrics": "1.0.0",
 	}})
 
-	require.NoError(t, removeAll(tr.rockManifestPath("metrics", "1.0.0")))
-	tr.installRock(t, "metrics", "1.4.0")
+	require.NoError(t, removeAll(fixture.rockManifestPath("metrics", "1.0.0")))
+	fixture.installRock(t, "metrics", "1.4.0")
 
-	listing := listTree(t, tr)
+	listing := listTree(t, fixture)
 
 	require.Len(t, listing.Rocks, 1)
 	assert.Equal(t, "metrics", listing.Rocks[0].Name)
@@ -179,14 +179,14 @@ func TestRockIndexPrefersOnDiskVersion(t *testing.T) {
 func TestRockIndexFallsBackToPin(t *testing.T) {
 	t.Parallel()
 
-	tr := newTree(t)
+	fixture := newTree(t)
 
-	tr.installGuest(t, pkg{name: "monitoring", version: "2.0.0", pins: map[string]string{
+	fixture.installGuest(t, pkg{name: "monitoring", version: "2.0.0", pins: map[string]string{
 		"metrics": "1.0.0",
 	}})
-	require.NoError(t, removeAll(tr.rockManifestPath("metrics", "1.0.0")))
+	require.NoError(t, removeAll(fixture.rockManifestPath("metrics", "1.0.0")))
 
-	listing := listTree(t, tr)
+	listing := listTree(t, fixture)
 
 	require.Len(t, listing.Rocks, 1)
 	assert.Equal(t, "1.0.0", listing.Rocks[0].Version)
@@ -220,16 +220,16 @@ func TestDirectIsSubsetOfClosure(t *testing.T) {
 func TestDirectIgnoresUndeclaredAndUnresolved(t *testing.T) {
 	t.Parallel()
 
-	tr := newTree(t)
+	fixture := newTree(t)
 
-	tr.installGuest(t, pkg{
+	fixture.installGuest(t, pkg{
 		name: "monitoring", version: "2.0.0",
 		// Declares two, but only one made it into the lock.
 		deps: map[string]string{"metrics": ">=1.0.0", "never-resolved": ">=9.0.0"},
 		pins: map[string]string{"metrics": "1.0.0", "luasocket": "3.0.4"},
 	})
 
-	listing := listTree(t, tr)
+	listing := listTree(t, fixture)
 
 	require.Len(t, listing.Packages, 1)
 	assert.Equal(t, []string{"metrics"}, listing.Packages[0].Direct)
@@ -242,13 +242,13 @@ func TestDirectIgnoresUndeclaredAndUnresolved(t *testing.T) {
 func TestDeclaredInComponentCountsAsDirect(t *testing.T) {
 	t.Parallel()
 
-	tr := newTree(t)
+	fixture := newTree(t)
 
-	tr.installGuestManifest(t, "monitoring", "2.0.0",
+	fixture.installGuestManifest(t, "monitoring", "2.0.0",
 		manifestWithComponentDep("monitoring", "metrics", ">=1.0.0"),
 		map[string]string{"metrics": "1.0.0", "luasocket": "3.0.4"})
 
-	listing := listTree(t, tr)
+	listing := listTree(t, fixture)
 
 	require.Len(t, listing.Packages, 1)
 	assert.Equal(t, []string{"metrics"}, listing.Packages[0].Direct)
@@ -261,21 +261,21 @@ func TestDeclaredInComponentCountsAsDirect(t *testing.T) {
 func TestTransitiveOnlyDependencyIsRefcounted(t *testing.T) {
 	t.Parallel()
 
-	tr := newTree(t)
+	fixture := newTree(t)
 
 	// Neither package declares luasocket; both locks pin it transitively.
-	tr.installGuest(t, pkg{
+	fixture.installGuest(t, pkg{
 		name: "monitoring", version: "2.0.0",
 		deps: map[string]string{"metrics": ">=1.0.0"},
 		pins: map[string]string{"metrics": "1.0.0", "luasocket": "3.0.4"},
 	})
-	tr.installGuest(t, pkg{
+	fixture.installGuest(t, pkg{
 		name: "alerting", version: "0.5.0",
 		deps: map[string]string{"checks": ">=3.0.0"},
 		pins: map[string]string{"checks": "3.1.0", "luasocket": "3.0.4"},
 	})
 
-	listing := listTree(t, tr)
+	listing := listTree(t, fixture)
 
 	byName := map[string]inventory.RockEntry{}
 	for _, dep := range listing.Rocks {
@@ -287,12 +287,12 @@ func TestTransitiveOnlyDependencyIsRefcounted(t *testing.T) {
 		"a rock nobody declared is still owned by everyone whose lock pins it")
 
 	result, err := inventory.Uninstall(inventory.UninstallOptions{
-		ProjectDir: tr.dir, Package: "monitoring", Yes: true,
+		ProjectDir: fixture.dir, Package: "monitoring", Yes: true,
 	})
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{"metrics"}, result.RemovedDependencies)
-	assert.True(t, tr.rockExists("luasocket"),
+	assert.True(t, fixture.rockExists("luasocket"),
 		"a transitive rock another package still pulls in must survive")
 
 	require.Len(t, result.KeptDependencies, 1)
@@ -306,22 +306,22 @@ func TestTransitiveOnlyDependencyIsRefcounted(t *testing.T) {
 func TestTransitiveOnlyDependencyIsRemovedWithItsLastOwner(t *testing.T) {
 	t.Parallel()
 
-	tr := newTree(t)
+	fixture := newTree(t)
 
-	tr.installGuest(t, pkg{
+	fixture.installGuest(t, pkg{
 		name: "monitoring", version: "2.0.0",
 		deps: map[string]string{"metrics": ">=1.0.0"},
 		pins: map[string]string{"metrics": "1.0.0", "luasocket": "3.0.4"},
 	})
 
 	result, err := inventory.Uninstall(inventory.UninstallOptions{
-		ProjectDir: tr.dir, Package: "monitoring", Yes: true,
+		ProjectDir: fixture.dir, Package: "monitoring", Yes: true,
 	})
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{"luasocket", "metrics"}, result.RemovedDependencies)
-	assert.False(t, tr.rockExists("luasocket"))
-	assert.False(t, tr.rockExists("metrics"))
+	assert.False(t, fixture.rockExists("luasocket"))
+	assert.False(t, fixture.rockExists("metrics"))
 }
 
 // TestRenderTreeNestsUnderTheRequiringRock is the point of reading the tree
@@ -353,26 +353,26 @@ func TestRenderTreeNestsUnderTheRequiringRock(t *testing.T) {
 func TestRenderTreeEdgesAreScopedToThePackage(t *testing.T) {
 	t.Parallel()
 
-	tr := newTree(t)
+	fixture := newTree(t)
 
 	// alerting requires checks; monitoring requires only metrics. The edge
 	// metrics -> checks exists tree-wide, but checks is not in monitoring's
 	// closure, so it must not appear beneath it.
-	tr.installGuest(t, pkg{
+	fixture.installGuest(t, pkg{
 		name: "monitoring", version: "2.0.0",
 		deps: map[string]string{"metrics": ">=1.0.0"},
 		pins: map[string]string{"metrics": "1.0.0"},
 	})
-	tr.installGuest(t, pkg{
+	fixture.installGuest(t, pkg{
 		name: "alerting", version: "0.5.0",
 		deps: map[string]string{"checks": ">=3.0.0"},
 		pins: map[string]string{"checks": "3.1.0"},
 	})
-	tr.writeTreeManifest(t,
+	fixture.writeTreeManifest(t,
 		map[string][]string{"metrics": {"checks"}},
 		map[string]string{"metrics": "1.0.0"})
 
-	out := render(t, listTree(t, tr), output.FormatHuman)
+	out := render(t, listTree(t, fixture), output.FormatHuman)
 
 	monitoring := subtreeOf(t, out, "monitoring 2.0.0")
 	assert.NotContains(t, strings.Join(monitoring, "\n"), "checks",
@@ -385,15 +385,15 @@ func TestRenderTreeEdgesAreScopedToThePackage(t *testing.T) {
 func TestRenderTreeFallsBackWithoutTreeManifest(t *testing.T) {
 	t.Parallel()
 
-	tr := newTree(t)
+	fixture := newTree(t)
 
-	tr.installGuest(t, pkg{
+	fixture.installGuest(t, pkg{
 		name: "monitoring", version: "2.0.0",
 		deps: map[string]string{"metrics": ">=1.0.0"},
 		pins: map[string]string{"metrics": "1.0.0", "luasocket": "3.0.4"},
 	})
 
-	out := render(t, listTree(t, tr), output.FormatHuman)
+	out := render(t, listTree(t, fixture), output.FormatHuman)
 
 	assert.Contains(t, out, transitiveGroupLabel)
 	assert.Contains(t, out, "luasocket 3.0.4 (only here)",
@@ -406,19 +406,19 @@ func TestRenderTreeFallsBackWithoutTreeManifest(t *testing.T) {
 func TestRenderTreeSurvivesCyclicEdges(t *testing.T) {
 	t.Parallel()
 
-	tr := newTree(t)
+	fixture := newTree(t)
 
-	tr.installGuest(t, pkg{
+	fixture.installGuest(t, pkg{
 		name: "monitoring", version: "2.0.0",
 		deps: map[string]string{"metrics": ">=1.0.0"},
 		pins: map[string]string{"metrics": "1.0.0", "luasocket": "3.0.4"},
 	})
 	// metrics -> luasocket -> metrics.
-	tr.writeTreeManifest(t,
+	fixture.writeTreeManifest(t,
 		map[string][]string{"metrics": {"luasocket"}, "luasocket": {"metrics"}},
 		map[string]string{"metrics": "1.0.0", "luasocket": "3.0.4"})
 
-	out := render(t, listTree(t, tr), output.FormatHuman)
+	out := render(t, listTree(t, fixture), output.FormatHuman)
 
 	assert.Contains(t, out, "metrics 1.0.0")
 	assert.Contains(t, out, "luasocket 3.0.4")
@@ -452,14 +452,14 @@ const transitiveGroupLabel = "pulled in transitively"
 func TestRenderTreeAllTransitive(t *testing.T) {
 	t.Parallel()
 
-	tr := newTree(t)
+	fixture := newTree(t)
 
-	tr.installGuest(t, pkg{
+	fixture.installGuest(t, pkg{
 		name: "monitoring", version: "2.0.0",
 		pins: map[string]string{"metrics": "1.0.0"},
 	})
 
-	out := render(t, listTree(t, tr), output.FormatHuman)
+	out := render(t, listTree(t, fixture), output.FormatHuman)
 
 	assert.Contains(t, out, "pulled in transitively")
 	assert.Contains(t, out, "metrics 1.0.0 (only here)")
@@ -537,16 +537,16 @@ func TestRenderTreeShape(t *testing.T) {
 func TestRenderTreeWithoutPrimary(t *testing.T) {
 	t.Parallel()
 
-	tr := newTree(t)
+	fixture := newTree(t)
 
-	tr.installGuest(t, pkg{
+	fixture.installGuest(t, pkg{
 		name: "monitoring", version: "2.0.0",
 		deps: map[string]string{"metrics": ">=1.0.0"},
 		pins: map[string]string{"metrics": "1.0.0"},
 	})
-	tr.installGuest(t, pkg{name: "alerting", version: "0.5.0"})
+	fixture.installGuest(t, pkg{name: "alerting", version: "0.5.0"})
 
-	lines := treeLines(render(t, listTree(t, tr), output.FormatHuman))
+	lines := treeLines(render(t, listTree(t, fixture), output.FormatHuman))
 
 	require.Equal(t, "(no project package)", lines[0])
 
@@ -651,25 +651,26 @@ func TestTreeInMachineFormat(t *testing.T) {
 func TestTreeMatchesUninstallOutcome(t *testing.T) {
 	t.Parallel()
 
-	tr := treeFixture(t)
+	fixture := treeFixture(t)
 
-	before := subtreeText(t, render(t, listTree(t, tr), output.FormatHuman), "monitoring 2.0.0")
+	before := subtreeText(
+		t, render(t, listTree(t, fixture), output.FormatHuman), "monitoring 2.0.0")
 	require.Contains(t, before, "metrics 1.0.0 (only here)")
 	require.Contains(t, before, "luasocket 3.0.4 (only here)")
 	require.Contains(t, before, "checks 3.1.0 (shared with alerting, my-app)")
 
 	result, err := inventory.Uninstall(inventory.UninstallOptions{
-		ProjectDir: tr.dir, Package: "monitoring", Yes: true,
+		ProjectDir: fixture.dir, Package: "monitoring", Yes: true,
 	})
 	require.NoError(t, err)
 
 	// Both "only here" rocks were removed, the declared one and the transitive
 	// one alike; "shared with" and the installed package stayed.
 	assert.Equal(t, []string{"luasocket", "metrics"}, result.RemovedDependencies)
-	assert.False(t, tr.rockExists("metrics"))
-	assert.False(t, tr.rockExists("luasocket"))
-	assert.True(t, tr.rockExists("checks"))
-	assert.True(t, tr.rockExists("shared-lib"))
+	assert.False(t, fixture.rockExists("metrics"))
+	assert.False(t, fixture.rockExists("luasocket"))
+	assert.True(t, fixture.rockExists("checks"))
+	assert.True(t, fixture.rockExists("shared-lib"))
 }
 
 // TestTreeScopeIsReported pins that the tree header names the tree it describes,
@@ -677,13 +678,13 @@ func TestTreeMatchesUninstallOutcome(t *testing.T) {
 func TestTreeScopeIsReported(t *testing.T) {
 	t.Parallel()
 
-	tr := treeFixture(t)
-	listing := listTree(t, tr)
+	fixture := treeFixture(t)
+	listing := listTree(t, fixture)
 
 	out := render(t, listing, output.FormatHuman)
 
 	assert.Contains(t, out, string(state.ScopeProject))
-	assert.Contains(t, out, tr.dir)
+	assert.Contains(t, out, fixture.dir)
 }
 
 // treeLines returns the rendered tree without the scope header, so line indices
@@ -739,7 +740,7 @@ func subtreeOf(t *testing.T, out, prefix string) []string {
 
 	lines := treeLines(out)
 
-	for i, line := range lines {
+	for lineIdx, line := range lines {
 		if !strings.HasPrefix(treeLabel(line), prefix) {
 			continue
 		}
@@ -747,7 +748,7 @@ func subtreeOf(t *testing.T, out, prefix string) []string {
 		depth := treeDepth(line)
 		subtree := []string{line}
 
-		for _, next := range lines[i+1:] {
+		for _, next := range lines[lineIdx+1:] {
 			if treeDepth(next) <= depth {
 				break
 			}

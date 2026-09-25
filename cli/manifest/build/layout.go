@@ -131,7 +131,7 @@ func destPath(tree, namespace string, rel []string) string {
 // copyFile copies src to dst, creating dst's parent directory and preserving
 // the source's permission bits (falling back to filePerm when unreadable).
 func copyFile(src, dst string) error {
-	srcFile, err := os.Open(src) //nolint:gosec // Copies the caller's own component files.
+	srcFile, err := os.Open(src)
 	if err != nil {
 		return fmt.Errorf("open source: %w", err)
 	}
@@ -150,7 +150,6 @@ func copyFile(src, dst string) error {
 		return fmt.Errorf("create destination dir: %w", mkErr)
 	}
 
-	//nolint:gosec // dst is derived from the manifest's own component tree.
 	dstFile, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 	if err != nil {
 		return fmt.Errorf("create destination: %w", err)

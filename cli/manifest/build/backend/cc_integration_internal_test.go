@@ -36,14 +36,14 @@ func writeSource(t *testing.T, dir, name, body string) {
 }
 
 func TestCcCompilesSingleSource(t *testing.T) {
-	tc := requireHostToolchain(t)
+	toolchain := requireHostToolchain(t)
 
 	cwd := t.TempDir()
 	out := t.TempDir()
 
 	writeSource(t, cwd, "answer.c", "int answer(void) { return 42; }\n")
 
-	flags := integrationFlags(tc.IncludeDir)
+	flags := integrationFlags(toolchain.IncludeDir)
 	b := manifest.Build{Backend: BackendC, Module: "answer", Sources: []string{"answer.c"}}
 
 	err := ccBackend{flags: flags}.Run(context.Background(), b, cwd, Env{OutputDir: out})
@@ -52,7 +52,7 @@ func TestCcCompilesSingleSource(t *testing.T) {
 }
 
 func TestCcCompilesMultiSource(t *testing.T) {
-	tc := requireHostToolchain(t)
+	toolchain := requireHostToolchain(t)
 
 	cwd := t.TempDir()
 	out := t.TempDir()
@@ -62,14 +62,14 @@ func TestCcCompilesMultiSource(t *testing.T) {
 	// end up in one .so; the prototype avoids an implicit-declaration error.
 	writeSource(t, cwd, "part_b.c", "int a(void);\nint b(void) { return a() + 1; }\n")
 
-	flags := integrationFlags(tc.IncludeDir)
-	b := manifest.Build{
+	flags := integrationFlags(toolchain.IncludeDir)
+	build := manifest.Build{
 		Backend: BackendLuaC,
 		Module:  "parts",
 		Sources: []string{"part_a.c", "part_b.c"},
 	}
 
-	err := ccBackend{flags: flags}.Run(context.Background(), b, cwd, Env{OutputDir: out})
+	err := ccBackend{flags: flags}.Run(context.Background(), build, cwd, Env{OutputDir: out})
 	require.NoError(t, err)
 	assert.FileExists(t, filepath.Join(out, "parts"+flags.Ext))
 }
@@ -80,7 +80,7 @@ func TestCcCompilesMultiSource(t *testing.T) {
 // actually resolves the headers requireHostToolchain validated. This is the
 // payoff of checking the headers exist — a compile a stub source cannot do.
 func TestCcCompilesAgainstTarantoolHeaders(t *testing.T) {
-	tc := requireHostToolchain(t)
+	toolchain := requireHostToolchain(t)
 
 	cwd := t.TempDir()
 	out := t.TempDir()
@@ -89,14 +89,14 @@ func TestCcCompilesAgainstTarantoolHeaders(t *testing.T) {
 		"int luaopen_headercheck(lua_State *L) { (void)L; return 0; }\n"
 	writeSource(t, cwd, "headercheck.c", src)
 
-	flags := integrationFlags(tc.IncludeDir)
-	b := manifest.Build{
+	flags := integrationFlags(toolchain.IncludeDir)
+	build := manifest.Build{
 		Backend: BackendLuaC,
 		Module:  "headercheck",
 		Sources: []string{"headercheck.c"},
 	}
 
-	err := ccBackend{flags: flags}.Run(context.Background(), b, cwd, Env{OutputDir: out})
+	err := ccBackend{flags: flags}.Run(context.Background(), build, cwd, Env{OutputDir: out})
 	require.NoError(t, err)
 	assert.FileExists(t, filepath.Join(out, "headercheck"+flags.Ext))
 }

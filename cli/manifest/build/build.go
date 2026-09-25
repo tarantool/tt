@@ -193,7 +193,7 @@ func effectiveRegistries(opts Options, man *manifest.Manifest) ([]rocks.Registry
 func readManifest(projectDir string, opts Options) (*manifest.Manifest, error) {
 	path := filepath.Join(projectDir, manifestFileName)
 
-	data, err := os.ReadFile(path) //nolint:gosec // Reads the caller's own manifest.
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading %s: %w", manifestFileName, err)
 	}
@@ -327,8 +327,9 @@ func runBuild(
 		return nil, vluaErr
 	}
 
-	if err := runPostBuild(ctx, opts, man, ver); err != nil {
-		return nil, err
+	postErr := runPostBuild(ctx, opts, man, ver)
+	if postErr != nil {
+		return nil, postErr
 	}
 
 	return &Result{

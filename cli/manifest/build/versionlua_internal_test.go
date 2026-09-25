@@ -1,7 +1,6 @@
 package build
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -25,7 +24,7 @@ func TestWriteVersionLua_generates(t *testing.T) {
 	require.NoError(t, err)
 
 	vlua := filepath.Join(tree, "share/tarantool/my-app/version.lua")
-	data, err := os.ReadFile(vlua) //nolint:gosec // temp path
+	data, err := os.ReadFile(vlua)
 	require.NoError(t, err)
 	assert.Contains(t, string(data), `version  = "1.2.3"`)
 	assert.Contains(t, string(data), `flavor   = "ce"`)
@@ -52,7 +51,7 @@ func TestWriteVersionLua_collisionWithLaidOutFile(t *testing.T) {
 	// A component laid a version.lua at the exact generated path this run.
 	err := writeVersionLua(tree, "my-app", true, version.Version{}, time.Unix(0, 0), []string{dst})
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, errVersionLuaCollision))
+	require.ErrorIs(t, err, errVersionLuaCollision)
 	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
 }
 
@@ -68,7 +67,7 @@ func TestWriteVersionLua_staleFileOverwritten(t *testing.T) {
 		version.Version{SemVer: "9.9.9"}, time.Unix(0, 0), nil)
 	require.NoError(t, err)
 
-	data, err := os.ReadFile(dst) //nolint:gosec // temp path
+	data, err := os.ReadFile(dst)
 	require.NoError(t, err)
 	assert.Contains(t, string(data), `version  = "9.9.9"`)
 }

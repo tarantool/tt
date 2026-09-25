@@ -210,7 +210,8 @@ func (tr tree) rockExists(name string) bool {
 		filepath.Join(tr.lay.Lib, name),
 		filepath.Join(tr.lay.Share, "rocks", name),
 	} {
-		if _, err := os.Stat(path); err == nil {
+		_, err := os.Stat(path)
+		if err == nil {
 			return true
 		}
 	}

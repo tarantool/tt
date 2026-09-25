@@ -47,7 +47,7 @@ func requireHostToolchain(t *testing.T) hostToolchain {
 		ccName = "cc"
 	}
 
-	cc, err := exec.LookPath(ccName)
+	compiler, err := exec.LookPath(ccName)
 	if err != nil {
 		t.Skipf("C compiler %q not found in PATH: %v", ccName, err)
 	}
@@ -75,10 +75,10 @@ func requireHostToolchain(t *testing.T) hostToolchain {
 	}
 
 	t.Logf("host toolchain: cc=%s tarantool=%s (%s) include=%s",
-		cc, tarantoolBin, ver.Str, includeDir)
+		compiler, tarantoolBin, ver.Str, includeDir)
 
 	return hostToolchain{
-		CC:         cc,
+		CC:         compiler,
 		Tarantool:  tarantoolBin,
 		Version:    ver,
 		IncludeDir: includeDir,
@@ -102,7 +102,9 @@ func tarantoolIncludeDir(tarantoolBin string) string {
 		seen[prefix] = struct{}{}
 
 		includeDir := filepath.Join(prefix, "include", "tarantool")
-		if _, err := os.Stat(filepath.Join(includeDir, "module.h")); err == nil {
+
+		_, err := os.Stat(filepath.Join(includeDir, "module.h"))
+		if err == nil {
 			return includeDir
 		}
 	}
@@ -118,7 +120,8 @@ func tarantoolIncludeDir(tarantoolBin string) string {
 func candidateBinPaths(bin string) []string {
 	paths := []string{bin}
 
-	if resolved, err := filepath.EvalSymlinks(bin); err == nil && resolved != bin {
+	resolved, err := filepath.EvalSymlinks(bin)
+	if err == nil && resolved != bin {
 		paths = append(paths, resolved)
 	}
 

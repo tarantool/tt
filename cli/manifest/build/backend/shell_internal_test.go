@@ -17,13 +17,13 @@ func TestShellWritesToOutputDir(t *testing.T) {
 
 	out := t.TempDir()
 
-	b := manifest.Build{
+	build := manifest.Build{
 		Backend: BackendShell,
 		Command: "sh",
 		Args:    []string{"-c", `printf hi > "$TT_OUTPUT_DIR/artifact.txt"`},
 	}
 
-	err := shellBackend{}.Run(context.Background(), b, t.TempDir(), Env{OutputDir: out})
+	err := shellBackend{}.Run(context.Background(), build, t.TempDir(), Env{OutputDir: out})
 	require.NoError(t, err)
 
 	got, err := os.ReadFile(filepath.Join(out, "artifact.txt"))
@@ -38,14 +38,14 @@ func TestShellCopiesDeclaredOutputs(t *testing.T) {
 	cwd := t.TempDir()
 
 	// The command writes into cwd; the declared output is copied (flat) out.
-	b := manifest.Build{
+	build := manifest.Build{
 		Backend: BackendShell,
 		Command: "sh",
 		Args:    []string{"-c", "printf x > artifact.so"},
 		Output:  []string{"artifact.so"},
 	}
 
-	err := shellBackend{}.Run(context.Background(), b, cwd, Env{OutputDir: out})
+	err := shellBackend{}.Run(context.Background(), build, cwd, Env{OutputDir: out})
 	require.NoError(t, err)
 	assert.FileExists(t, filepath.Join(out, "artifact.so"))
 }
@@ -63,14 +63,14 @@ func TestShellMissingDeclaredOutputIsError(t *testing.T) {
 	t.Parallel()
 
 	// The command succeeds but never produces the declared output.
-	b := manifest.Build{
+	build := manifest.Build{
 		Backend: BackendShell,
 		Command: "sh",
 		Args:    []string{"-c", "true"},
 		Output:  []string{"ghost.so"},
 	}
 
-	err := shellBackend{}.Run(context.Background(), b, t.TempDir(), Env{OutputDir: t.TempDir()})
+	err := shellBackend{}.Run(context.Background(), build, t.TempDir(), Env{OutputDir: t.TempDir()})
 	require.Error(t, err)
 }
 

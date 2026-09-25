@@ -13,7 +13,8 @@ import (
 // an error — the build claimed an output it did not produce. Shared by the
 // shell and make backends and run only after a zero-exit build.
 func copyOutputs(outputDir, cwd string, outputs []string) error {
-	if err := os.MkdirAll(outputDir, dirPerm); err != nil {
+	err := os.MkdirAll(outputDir, dirPerm)
+	if err != nil {
 		return fmt.Errorf("create output directory %q: %w", outputDir, err)
 	}
 
@@ -21,7 +22,8 @@ func copyOutputs(outputDir, cwd string, outputs []string) error {
 		src := filepath.Join(cwd, entry)
 		dst := filepath.Join(outputDir, filepath.Base(entry))
 
-		if err := copyFile(src, dst); err != nil {
+		err = copyFile(src, dst)
+		if err != nil {
 			return fmt.Errorf("copy declared output %q: %w", entry, err)
 		}
 	}
@@ -32,16 +34,16 @@ func copyOutputs(outputDir, cwd string, outputs []string) error {
 // copyFile copies src to dst, preserving the source's permission bits and
 // creating dst's parent directory. It fails if src does not exist.
 func copyFile(src, dst string) error {
-	in, err := os.Open(src)
+	srcFile, err := os.Open(src)
 	if err != nil {
-		return err
+		return fmt.Errorf("opening the source: %w", err)
 	}
 
-	defer func() { _ = in.Close() }()
+	defer func() { _ = srcFile.Close() }()
 
-	info, err := in.Stat()
+	info, err := srcFile.Stat()
 	if err != nil {
-		return err
+		return fmt.Errorf("reading the source mode: %w", err)
 	}
 
 	mode := info.Mode().Perm()
@@ -49,20 +51,27 @@ func copyFile(src, dst string) error {
 		mode = 0o644
 	}
 
-	if err := os.MkdirAll(filepath.Dir(dst), dirPerm); err != nil {
-		return err
+	err = os.MkdirAll(filepath.Dir(dst), dirPerm)
+	if err != nil {
+		return fmt.Errorf("creating the destination directory: %w", err)
 	}
 
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 	if err != nil {
-		return err
+		return fmt.Errorf("creating the destination: %w", err)
 	}
 
-	if _, err := io.Copy(out, in); err != nil {
+	_, err = io.Copy(out, srcFile)
+	if err != nil {
 		_ = out.Close()
 
-		return err
+		return fmt.Errorf("write %s: %w", dst, err)
 	}
 
-	return out.Close()
+	err = out.Close()
+	if err != nil {
+		return fmt.Errorf("write %s: %w", dst, err)
+	}
+
+	return nil
 }
