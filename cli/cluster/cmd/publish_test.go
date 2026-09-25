@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	libcluster "github.com/tarantool/tt/lib/cluster"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster"
 )
 
 // TestPublishCluster_FileWithIntegrity_Errors verifies that PublishCluster
@@ -22,10 +22,10 @@ func TestPublishCluster_FileWithIntegrity_Errors(t *testing.T) {
 
 	ctx := PublishCtx{
 		Force: true, // skip validation.
-		Publishers: libcluster.NewFactory(
-			libcluster.WithIntegrity(libcluster.IntegrityOptions{}),
+		Publishers: sdkcluster.NewFactory(
+			sdkcluster.WithIntegrity(sdkcluster.IntegrityOptions{}),
 		),
-		Collectors: libcluster.NewFactory(),
+		Collectors: sdkcluster.NewFactory(),
 		Src:        src,
 	}
 

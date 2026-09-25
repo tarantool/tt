@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	libconnect "github.com/tarantool/tt/lib/connect"
-	"github.com/tarantool/tt/lib/integrity"
+	sdkconnect "github.com/tarantool/tt/sdk/connect"
+	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/connect"
@@ -112,7 +112,7 @@ func newUpgradeCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Upgrade tarantool cluster",
 		Long: "Upgrade tarantool cluster.\n\n" +
-			libconnect.EnvTarantoolCredentialsHelp + "\n\n",
+			sdkconnect.EnvTarantoolCredentialsHelp + "\n\n",
 		Run:  RunModuleFunc(internalReplicasetUpgradeModule),
 		Args: cobra.ExactArgs(1),
 	}
@@ -150,7 +150,7 @@ func newDowngradeCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Downgrade tarantool cluster",
 		Long: "Downgrade tarantool cluster.\n\n" +
-			libconnect.EnvTarantoolCredentialsHelp + "\n\n",
+			sdkconnect.EnvTarantoolCredentialsHelp + "\n\n",
 		Run:  RunModuleFunc(internalReplicasetDowngradeModule),
 		Args: cobra.MatchAll(cobra.ExactArgs(commandArgs), validateVersion(1)),
 	}
@@ -175,7 +175,7 @@ func newStatusCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Show a replicaset status",
 		Long: "Show a replicaset status.\n\n" +
-			libconnect.EnvTarantoolCredentialsHelp + "\n\n",
+			sdkconnect.EnvTarantoolCredentialsHelp + "\n\n",
 		Run:  RunModuleFunc(internalReplicasetStatusModule),
 		Args: cobra.ExactArgs(1),
 	}
@@ -194,7 +194,7 @@ func newPromoteCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Promote an instance",
 		Long: "Promote an instance.\n\n" +
-			libconnect.EnvTarantoolCredentialsHelp + "\n\n",
+			sdkconnect.EnvTarantoolCredentialsHelp + "\n\n",
 		Run:  RunModuleFunc(internalReplicasetPromoteModule),
 		Args: cobra.ExactArgs(1),
 	}
@@ -280,7 +280,7 @@ func newBootstrapVShardCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Bootstrap vshard in the cluster",
 		Long: "Bootstrap vshard in the cluster.\n\n" +
-			libconnect.EnvTarantoolCredentialsHelp + "\n\n",
+			sdkconnect.EnvTarantoolCredentialsHelp + "\n\n",
 		Run:  RunModuleFunc(internalReplicasetBootstrapVShardModule),
 		Args: cobra.ExactArgs(1),
 	}

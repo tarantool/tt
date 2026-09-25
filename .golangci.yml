@@ -121,7 +121,7 @@ linters:
           - staticcheck
       # etcd still uses grpc.DialContext and documents WithBlock for waiting
       # until the connection is ready within DialTimeout.
-      - path: ^lib/cluster/storage\.go$
+      - path: ^sdk/cluster/storage\.go$
         source: \bgrpc\.WithBlock\(\)
         linters:
           - staticcheck

@@ -8,8 +8,8 @@ import (
 	"github.com/apex/log"
 	"github.com/manifoldco/promptui"
 	"github.com/tarantool/go-storage/v2"
-	libcluster "github.com/tarantool/tt/lib/cluster"
-	"github.com/tarantool/tt/lib/connect"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster"
+	"github.com/tarantool/tt/sdk/connect"
 	"github.com/tarantool/tt/v3/cli/replicaset"
 )
 
@@ -26,7 +26,7 @@ func (publisher dataKeyPublisher) Publish(key string, revision int64, data []byt
 }
 
 // makeStoragePublisher creates publisher for a generic remote storage.
-func makeStoragePublisher(factory libcluster.Factory,
+func makeStoragePublisher(factory sdkcluster.Factory,
 	storage storage.Storage, storageType, prefix string, timeout time.Duration,
 ) replicaset.DataPublisher {
 	return dataKeyPublisher(func(key string, revision int64, data []byte) error {
@@ -43,9 +43,9 @@ type PromoteCtx struct {
 	// InstName is an instance name to promote.
 	InstName string
 	// Publishers is data publisher factory.
-	Publishers libcluster.Factory
+	Publishers sdkcluster.Factory
 	// Collectors is data collector factory.
-	Collectors libcluster.Factory
+	Collectors sdkcluster.Factory
 	// Username defines a username for connection.
 	Username string
 	// Password defines a password for connection.
@@ -90,12 +90,12 @@ func pickPatchKey(keys []string, force bool, pathMsg string) (int, error) {
 // per-key replicaset.DataPublisher (one fresh RawStorage is built per Publish
 // call so each call can target a different key).
 func createDataCollectorAndKeyPublisher(
-	collectors libcluster.Factory,
-	publishers libcluster.Factory,
-	opts connect.URIOpts, connOpts libcluster.ConnectOpts,
-) (libcluster.DataCollector, replicaset.DataPublisher, func(), error) {
+	collectors sdkcluster.Factory,
+	publishers sdkcluster.Factory,
+	opts connect.URIOpts, connOpts sdkcluster.ConnectOpts,
+) (sdkcluster.DataCollector, replicaset.DataPublisher, func(), error) {
 	prefix, key, timeout := opts.Prefix, opts.Params["key"], opts.Timeout
-	stor, closeFunc, storageType, err := libcluster.NewStorageConnection(connOpts, opts)
+	stor, closeFunc, storageType, err := sdkcluster.NewStorageConnection(connOpts, opts)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -117,7 +117,7 @@ func Promote(url string, ctx PromoteCtx) error {
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
-	connOpts := libcluster.ConnectOpts{
+	connOpts := sdkcluster.ConnectOpts{
 		Username: ctx.Username,
 		Password: ctx.Password,
 	}
@@ -146,9 +146,9 @@ type DemoteCtx struct {
 	// InstName is an instance name to demote.
 	InstName string
 	// Publishers is data publisher factory.
-	Publishers libcluster.Factory
+	Publishers sdkcluster.Factory
 	// Collectors is data collector factory.
-	Collectors libcluster.Factory
+	Collectors sdkcluster.Factory
 	// Username defines a username for connection.
 	Username string
 	// Password defines a password for connection.
@@ -164,7 +164,7 @@ func Demote(url string, ctx DemoteCtx) error {
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
-	connOpts := libcluster.ConnectOpts{
+	connOpts := sdkcluster.ConnectOpts{
 		Username: ctx.Username,
 		Password: ctx.Password,
 	}
@@ -193,9 +193,9 @@ type ExpelCtx struct {
 	// InstName is an instance name to demote.
 	InstName string
 	// Publishers is data publisher factory.
-	Publishers libcluster.Factory
+	Publishers sdkcluster.Factory
 	// Collectors is data collector factory.
-	Collectors libcluster.Factory
+	Collectors sdkcluster.Factory
 	// Username defines a username for connection.
 	Username string
 	// Password defines a password for connection.
@@ -211,7 +211,7 @@ func Expel(url string, ctx ExpelCtx) error {
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
-	connOpts := libcluster.ConnectOpts{
+	connOpts := sdkcluster.ConnectOpts{
 		Username: ctx.Username,
 		Password: ctx.Password,
 	}
@@ -247,9 +247,9 @@ type RolesChangeCtx struct {
 	// RoleName is a name of role to add/remove.
 	RoleName string
 	// Publishers is data publisher factory.
-	Publishers libcluster.Factory
+	Publishers sdkcluster.Factory
 	// Collectors is data collector factory.
-	Collectors libcluster.Factory
+	Collectors sdkcluster.Factory
 	// Username defines a username for connection.
 	Username string
 	// Password defines a password for connection.
@@ -265,7 +265,7 @@ func ChangeRole(url string, ctx RolesChangeCtx, action replicaset.RolesChangerAc
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
-	connOpts := libcluster.ConnectOpts{
+	connOpts := sdkcluster.ConnectOpts{
 		Username: ctx.Username,
 		Password: ctx.Password,
 	}

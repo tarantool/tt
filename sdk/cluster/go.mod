@@ -1,4 +1,4 @@
-module github.com/tarantool/tt/lib/cluster
+module github.com/tarantool/tt/sdk/cluster
 
 go 1.25.7
 
@@ -6,8 +6,8 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/tarantool/go-storage/v2 v2.0.0
 	github.com/tarantool/go-tarantool/v3 v3.0.2
-	github.com/tarantool/tt/lib/connect v0.0.0-0
-	github.com/tarantool/tt/lib/dial v0.0.0-00010101000000-000000000000
+	github.com/tarantool/tt/sdk/connect v0.0.0-0
+	github.com/tarantool/tt/sdk/dial v0.0.0-00010101000000-000000000000
 	go.etcd.io/etcd/client/pkg/v3 v3.6.11
 	go.etcd.io/etcd/client/v3 v3.6.11
 	go.uber.org/zap v1.27.1
@@ -92,6 +92,6 @@ require (
 )
 
 replace (
-	github.com/tarantool/tt/lib/connect => ../connect
-	github.com/tarantool/tt/lib/dial => ../dial
+	github.com/tarantool/tt/sdk/connect => ../connect
+	github.com/tarantool/tt/sdk/dial => ../dial
 )

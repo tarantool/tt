@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	libcluster "github.com/tarantool/tt/lib/cluster"
-	"github.com/tarantool/tt/lib/integrity"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster"
+	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/connector"
 	"github.com/tarantool/tt/v3/cli/replicaset"
 	"github.com/tarantool/tt/v3/cli/running"
@@ -35,8 +35,8 @@ type replicasetOrchestrator interface {
 func makeApplicationOrchestrator(
 	orchestratorType replicaset.Orchestrator,
 	runningCtx running.RunningCtx,
-	collectors libcluster.Factory,
-	publishers libcluster.Factory,
+	collectors sdkcluster.Factory,
+	publishers sdkcluster.Factory,
 	integ integrity.IntegrityCtx,
 ) (replicasetOrchestrator, error) {
 	var (

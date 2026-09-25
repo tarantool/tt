@@ -9,7 +9,7 @@ import (
 
 	goconfig "github.com/tarantool/go-config/v2"
 
-	libcluster "github.com/tarantool/tt/lib/cluster"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster"
 	"github.com/tarantool/tt/v3/cli/cluster"
 )
 
@@ -28,13 +28,13 @@ type KeyPicker func(keys []string, force bool, pathMsg string) (int, error)
 
 // CConfigSource describes the cluster config source.
 type CConfigSource struct {
-	collector libcluster.DataCollector
+	collector sdkcluster.DataCollector
 	publisher DataPublisher
 	keyPicker KeyPicker
 }
 
 // NewCConfigSource creates CConfigSource.
-func NewCConfigSource(collector libcluster.DataCollector, publisher DataPublisher,
+func NewCConfigSource(collector sdkcluster.DataCollector, publisher DataPublisher,
 	keyPicker KeyPicker,
 ) *CConfigSource {
 	return &CConfigSource{
@@ -59,8 +59,8 @@ type DataPublisher interface {
 // collectCConfig fetches and merges the config data, returning both the
 // individual data items and a merged goconfig.Config view.
 func collectCConfig(
-	collector libcluster.DataCollector,
-) ([]libcluster.Data, goconfig.Config, error) {
+	collector sdkcluster.DataCollector,
+) ([]sdkcluster.Data, goconfig.Config, error) {
 	configData, err := collector.Collect()
 	if err != nil {
 		return nil, goconfig.Config{}, fmt.Errorf("failed to collect cluster config: %w", err)
@@ -410,7 +410,7 @@ func (target patchTarget) greater(oth patchTarget) bool {
 
 // getCConfigPatchTargets extracts patch target from the config data.
 // It returns the slice contains targets in the priority order.
-func getCConfigPatchTargets(data []libcluster.Data,
+func getCConfigPatchTargets(data []sdkcluster.Data,
 	path goconfig.KeyPath, depth int,
 ) ([]patchTarget, error) {
 	var targets []patchTarget

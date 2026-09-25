@@ -9,9 +9,9 @@ import (
 
 	goconfig "github.com/tarantool/go-config/v2"
 	gsconnect "github.com/tarantool/go-storage/v2/connect"
-	libcluster "github.com/tarantool/tt/lib/cluster"
-	"github.com/tarantool/tt/lib/connect"
-	"github.com/tarantool/tt/lib/integrity"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster"
+	"github.com/tarantool/tt/sdk/connect"
+	"github.com/tarantool/tt/sdk/integrity"
 )
 
 var (
@@ -64,20 +64,20 @@ func cfgGetBool(cfg goconfig.Config, path string) (bool, error) {
 // NewCollectorFactory creates a cluster Factory configured for collecting
 // data — integrity-aware (with verifiers) when integ has integrity configured.
 // Returns a plain factory and nil error when integrity is not configured.
-func NewCollectorFactory(integ integrity.IntegrityCtx) (libcluster.Factory, error) {
+func NewCollectorFactory(integ integrity.IntegrityCtx) (sdkcluster.Factory, error) {
 	hashers, verifiers, err := integrity.GetStorageVerifiers(integ)
 	if errors.Is(err, integrity.ErrNotConfigured) {
-		return libcluster.NewFactory(), nil
+		return sdkcluster.NewFactory(), nil
 	}
 	if err != nil {
-		return libcluster.Factory{},
+		return sdkcluster.Factory{},
 			fmt.Errorf("failed to create collectors with integrity check: %w", err)
 	}
-	return libcluster.NewFactory(
-		libcluster.WithFileReadFunc(func(path string) (io.ReadCloser, error) {
+	return sdkcluster.NewFactory(
+		sdkcluster.WithFileReadFunc(func(path string) (io.ReadCloser, error) {
 			return integ.Repository.Read(path)
 		}),
-		libcluster.WithIntegrity(libcluster.IntegrityOptions{
+		sdkcluster.WithIntegrity(sdkcluster.IntegrityOptions{
 			Hashers:   hashers,
 			Verifiers: verifiers,
 		}),
@@ -86,17 +86,17 @@ func NewCollectorFactory(integ integrity.IntegrityCtx) (libcluster.Factory, erro
 
 // NewPublisherFactory creates a cluster Factory configured for publishing
 // data — integrity-aware (with signer/verifiers) when privateKey is set.
-func NewPublisherFactory(privateKey string) (libcluster.Factory, error) {
+func NewPublisherFactory(privateKey string) (sdkcluster.Factory, error) {
 	if privateKey == "" {
-		return libcluster.NewFactory(), nil
+		return sdkcluster.NewFactory(), nil
 	}
 	hashers, signerVerifiers, err := integrity.GetStorageSigners(privateKey)
 	if err != nil {
-		return libcluster.Factory{},
+		return sdkcluster.Factory{},
 			fmt.Errorf("failed to create publishers with integrity: %w", err)
 	}
-	return libcluster.NewFactory(
-		libcluster.WithIntegrity(libcluster.IntegrityOptions{
+	return sdkcluster.NewFactory(
+		sdkcluster.WithIntegrity(sdkcluster.IntegrityOptions{
 			Hashers:         hashers,
 			SignerVerifiers: signerVerifiers,
 		}),
@@ -108,14 +108,14 @@ func NewPublisherFactory(privateKey string) (libcluster.Factory, error) {
 // collectors carry verifiers, publishers carry signer/verifiers.
 func NewCollectorAndPublisherFactories(
 	integ integrity.IntegrityCtx, privateKey string,
-) (libcluster.Factory, libcluster.Factory, error) {
+) (sdkcluster.Factory, sdkcluster.Factory, error) {
 	collectors, err := NewCollectorFactory(integ)
 	if err != nil {
-		return libcluster.Factory{}, libcluster.Factory{}, fmt.Errorf("collector factory: %w", err)
+		return sdkcluster.Factory{}, sdkcluster.Factory{}, fmt.Errorf("collector factory: %w", err)
 	}
 	publishers, err := NewPublisherFactory(privateKey)
 	if err != nil {
-		return libcluster.Factory{}, libcluster.Factory{}, fmt.Errorf("publisher factory: %w", err)
+		return sdkcluster.Factory{}, sdkcluster.Factory{}, fmt.Errorf("publisher factory: %w", err)
 	}
 	return collectors, publishers, nil
 }
@@ -123,7 +123,7 @@ func NewCollectorAndPublisherFactories(
 // CollectDataBytes collects raw []Data from a DataCollector, merges the YAML
 // documents with first-wins priority (mirrors the former YamlDataMergeCollector
 // behaviour), and returns the merged YAML bytes.
-func CollectDataBytes(ctx context.Context, collector libcluster.DataCollector) ([]byte, error) {
+func CollectDataBytes(ctx context.Context, collector sdkcluster.DataCollector) ([]byte, error) {
 	data, err := collector.Collect()
 	if err != nil {
 		return nil, err
@@ -191,7 +191,7 @@ func readStorageFromConfig(
 func readEtcdEndpoints(
 	ctx context.Context,
 	cfg goconfig.Config,
-	collectorFactory libcluster.Factory,
+	collectorFactory sdkcluster.Factory,
 ) (*goconfig.Config, func(), error) {
 	// Read endpoints list.
 	var rawEndpoints any
@@ -321,7 +321,7 @@ func readEtcdEndpoints(
 func readTcsEndpoints(
 	ctx context.Context,
 	cfg goconfig.Config,
-	collectorFactory libcluster.Factory,
+	collectorFactory sdkcluster.Factory,
 ) (goconfig.Config, bool, error) {
 	// Read endpoints list as []any (each element is a map[string]any).
 	var rawEndpoints any

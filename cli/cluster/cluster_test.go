@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	goconfig "github.com/tarantool/go-config/v2"
-	"github.com/tarantool/tt/lib/integrity"
+	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/cluster"
 )
 

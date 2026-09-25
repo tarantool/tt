@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/tarantool/tt/lib/cluster"
+	"github.com/tarantool/tt/sdk/cluster"
 )
 
 func TestFactory_NewFilePublisher_integrity_not_supported(t *testing.T) {

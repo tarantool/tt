@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	libcluster "github.com/tarantool/tt/lib/cluster"
-	"github.com/tarantool/tt/lib/integrity"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster"
+	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/connector"
 	"github.com/tarantool/tt/v3/cli/replicaset"
 	"github.com/tarantool/tt/v3/cli/running"
@@ -42,7 +42,7 @@ func getReplicasets(ctx DiscoveryCtx) (replicaset.Replicasets, error) {
 	var orchestrator replicasetOrchestrator
 	if ctx.IsApplication {
 		orchestrator, err = makeApplicationOrchestrator(orchestratorType,
-			ctx.RunningCtx, libcluster.Factory{}, libcluster.Factory{}, integrity.IntegrityCtx{})
+			ctx.RunningCtx, sdkcluster.Factory{}, sdkcluster.Factory{}, integrity.IntegrityCtx{})
 	} else {
 		orchestrator, err = makeInstanceOrchestrator(orchestratorType, ctx.Conn)
 	}

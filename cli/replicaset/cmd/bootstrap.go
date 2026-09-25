@@ -6,8 +6,8 @@ import (
 	"os"
 
 	"github.com/apex/log"
-	libcluster "github.com/tarantool/tt/lib/cluster"
-	"github.com/tarantool/tt/lib/integrity"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster"
+	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/replicaset"
 	"github.com/tarantool/tt/v3/cli/running"
 )
@@ -57,7 +57,7 @@ func Bootstrap(ctx BootstrapCtx) error {
 	}
 
 	orchestrator, err := makeApplicationOrchestrator(orchestratorType,
-		ctx.RunningCtx, libcluster.Factory{}, libcluster.Factory{}, integrity.IntegrityCtx{})
+		ctx.RunningCtx, sdkcluster.Factory{}, sdkcluster.Factory{}, integrity.IntegrityCtx{})
 	if err != nil {
 		return err
 	}

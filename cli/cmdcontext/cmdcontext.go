@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/tarantool/tt/lib/integrity"
+	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/cli/version"
 )

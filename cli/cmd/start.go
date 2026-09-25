@@ -11,7 +11,7 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/lib/integrity"
+	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/running"

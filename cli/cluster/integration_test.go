@@ -16,7 +16,7 @@ import (
 
 	goconfig "github.com/tarantool/go-config/v2"
 	etcdtest "github.com/tarantool/go-storage/v2/test_helpers/etcd"
-	"github.com/tarantool/tt/lib/integrity"
+	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/cli/templates"
 )

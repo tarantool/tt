@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/tarantool/go-tarantool/v3"
-	"github.com/tarantool/tt/lib/dial"
+	"github.com/tarantool/tt/sdk/dial"
 )
 
 var (

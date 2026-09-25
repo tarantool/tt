@@ -8,8 +8,8 @@ import (
 
 	goconfig "github.com/tarantool/go-config/v2"
 
-	libcluster "github.com/tarantool/tt/lib/cluster"
-	libconnect "github.com/tarantool/tt/lib/connect"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster"
+	sdkconnect "github.com/tarantool/tt/sdk/connect"
 	"github.com/tarantool/tt/v3/cli/cluster"
 )
 
@@ -137,10 +137,10 @@ func validateInstanceConfig(instCfg goconfig.Config, name string) error {
 // openRemoteCollector dials the remote storage described by opts and binds a
 // collector-flavored *RawStorage using the given factory's integrity options.
 // The returned cleanup releases the connection.
-func openRemoteCollector(factory libcluster.Factory,
-	connOpts libcluster.ConnectOpts, opts libconnect.URIOpts,
-) (libcluster.DataCollector, func(), error) {
-	stor, cleanup, storageType, err := libcluster.NewStorageConnection(connOpts, opts)
+func openRemoteCollector(factory sdkcluster.Factory,
+	connOpts sdkcluster.ConnectOpts, opts sdkconnect.URIOpts,
+) (sdkcluster.DataCollector, func(), error) {
+	stor, cleanup, storageType, err := sdkcluster.NewStorageConnection(connOpts, opts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -158,13 +158,13 @@ func openRemoteCollector(factory libcluster.Factory,
 // (using collectors' integrity verifiers) and one for publishing (using
 // publishers' integrity signer/verifiers).
 func openCollectorAndPublisher(
-	collectors, publishers libcluster.Factory,
-	connOpts libcluster.ConnectOpts,
-	opts libconnect.URIOpts,
-) (libcluster.DataCollector, libcluster.DataPublisher, func(), error) {
+	collectors, publishers sdkcluster.Factory,
+	connOpts sdkcluster.ConnectOpts,
+	opts sdkconnect.URIOpts,
+) (sdkcluster.DataCollector, sdkcluster.DataPublisher, func(), error) {
 	prefix, key, timeout := opts.Prefix, opts.Params["key"], opts.Timeout
 
-	stor, cleanup, storageType, err := libcluster.NewStorageConnection(connOpts, opts)
+	stor, cleanup, storageType, err := sdkcluster.NewStorageConnection(connOpts, opts)
 	if err != nil {
 		return nil, nil, nil, err
 	}

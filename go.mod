@@ -32,10 +32,10 @@ require (
 	github.com/tarantool/go-prompt v1.0.1
 	github.com/tarantool/go-storage/v2 v2.0.0
 	github.com/tarantool/go-tarantool/v3 v3.0.2
-	github.com/tarantool/tt/lib/cluster v0.0.0
-	github.com/tarantool/tt/lib/connect v0.0.0-0
-	github.com/tarantool/tt/lib/dial v0.0.0-00010101000000-000000000000
-	github.com/tarantool/tt/lib/integrity v0.0.0
+	github.com/tarantool/tt/sdk/cluster v0.0.0
+	github.com/tarantool/tt/sdk/connect v0.0.0-0
+	github.com/tarantool/tt/sdk/dial v0.0.0-00010101000000-000000000000
+	github.com/tarantool/tt/sdk/integrity v0.0.0
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	github.com/yuin/gopher-lua v1.1.2
 	go.etcd.io/etcd/client/pkg/v3 v3.6.11
@@ -168,8 +168,8 @@ require (
 )
 
 replace (
-	github.com/tarantool/tt/lib/cluster => ./lib/cluster
-	github.com/tarantool/tt/lib/connect => ./lib/connect
-	github.com/tarantool/tt/lib/dial => ./lib/dial
-	github.com/tarantool/tt/lib/integrity => ./lib/integrity
+	github.com/tarantool/tt/sdk/cluster => ./sdk/cluster
+	github.com/tarantool/tt/sdk/connect => ./sdk/connect
+	github.com/tarantool/tt/sdk/dial => ./sdk/dial
+	github.com/tarantool/tt/sdk/integrity => ./sdk/integrity
 )

@@ -9,8 +9,8 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
-	libconnect "github.com/tarantool/tt/lib/connect"
-	"github.com/tarantool/tt/lib/integrity"
+	sdkconnect "github.com/tarantool/tt/sdk/connect"
+	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/cluster"
 	clustercmd "github.com/tarantool/tt/v3/cli/cluster/cmd"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
@@ -80,7 +80,7 @@ var rolesChangeCtx = clustercmd.RolesChangeCtx{}
 var (
 	defaultSwitchTimeout       uint64 = 30
 	clusterIntegrityPrivateKey string
-	clusterURIHelp             = libconnect.MakeURLHelp(map[string]any{
+	clusterURIHelp             = sdkconnect.MakeURLHelp(map[string]any{
 		"service": "etcd or tarantool config storage",
 		"prefix": "a base path to Tarantool configuration in" +
 			" etcd or tarantool config storage",
@@ -92,7 +92,7 @@ var (
 environment variables < command flags < URL credentials.`,
 	})
 
-	failoverURIHelp = libconnect.MakeURLHelp(map[string]any{
+	failoverURIHelp = sdkconnect.MakeURLHelp(map[string]any{
 		"service": "etcd or tarantool config storage",
 		"prefix": "a base path to Tarantool configuration in" +
 			" etcd or tarantool config storage",
@@ -371,7 +371,7 @@ func NewClusterCmd() *cobra.Command {
 
 // internalClusterShowModule is an entrypoint for `cluster show` command.
 func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if opts, err := libconnect.CreateURIOpts(args[0]); err == nil {
+	if opts, err := sdkconnect.CreateURIOpts(args[0]); err == nil {
 		factory, cerr := cluster.NewCollectorFactory(cmdCtx.Integrity)
 		if cerr != nil {
 			return cerr
@@ -410,7 +410,7 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 	publishCtx.Src = data
 	publishCtx.Config = config
 
-	if opts, err := libconnect.CreateURIOpts(args[0]); err == nil {
+	if opts, err := sdkconnect.CreateURIOpts(args[0]); err == nil {
 		return clustercmd.PublishURI(publishCtx, opts)
 	}
 

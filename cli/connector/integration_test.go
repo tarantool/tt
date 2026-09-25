@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/go-tarantool/v3"
 	"github.com/tarantool/go-tarantool/v3/test_helpers"
-	libdial "github.com/tarantool/tt/lib/dial"
+	sdkdial "github.com/tarantool/tt/sdk/dial"
 
 	. "github.com/tarantool/tt/v3/cli/connector"
 )
@@ -421,7 +421,7 @@ func runTestMain(m *testing.M) int {
 			"ssl_cert_file=testdata/localhost.crt&" +
 			"ssl_ca_file=testdata/ca.crt"
 
-		tlsDialer, err := libdial.New(libdial.Opts{
+		tlsDialer, err := sdkdial.New(sdkdial.Opts{
 			Address:     serverTLS,
 			User:        dialer.User,
 			Password:    dialer.Password,

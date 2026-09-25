@@ -65,15 +65,15 @@ var (
 	}
 
 	modules = []string{
-		"lib/integrity",
-		"lib/cluster",
+		"sdk/integrity",
+		"sdk/cluster",
 	}
 	lintModules = []string{
 		".",
-		"lib/cluster",
-		"lib/connect",
-		"lib/dial",
-		"lib/integrity",
+		"sdk/cluster",
+		"sdk/connect",
+		"sdk/dial",
+		"sdk/integrity",
 		"test/integration/aeon/server",
 	}
 

@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tarantool/tt/lib/integrity"
+	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/ttlog"
 )
 

@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	libcluster "github.com/tarantool/tt/lib/cluster"
-	"github.com/tarantool/tt/lib/integrity"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster"
+	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/replicaset"
 	"github.com/tarantool/tt/v3/cli/running"
 )
@@ -42,7 +42,7 @@ var (
 
 func TestCconfigApplication_Bootstrap(t *testing.T) {
 	app := replicaset.NewCConfigApplication(running.RunningCtx{},
-		libcluster.Factory{}, libcluster.Factory{}, integrity.IntegrityCtx{})
+		sdkcluster.Factory{}, sdkcluster.Factory{}, integrity.IntegrityCtx{})
 	err := app.Bootstrap(replicaset.BootstrapCtx{})
 	assert.EqualError(t, err,
 		`bootstrap is not supported for an application by "centralized config" orchestrator`)

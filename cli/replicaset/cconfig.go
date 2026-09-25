@@ -17,8 +17,8 @@ import (
 	"github.com/tarantool/tt/v3/cli/connector"
 	"github.com/tarantool/tt/v3/cli/running"
 
-	libcluster "github.com/tarantool/tt/lib/cluster"
-	integrityPkg "github.com/tarantool/tt/lib/integrity"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster"
+	integrityPkg "github.com/tarantool/tt/sdk/integrity"
 )
 
 var (
@@ -195,16 +195,16 @@ type CConfigApplication struct {
 	cachedDiscoverer
 
 	runningCtx running.RunningCtx
-	publishers libcluster.Factory
-	collectors libcluster.Factory
+	publishers sdkcluster.Factory
+	collectors sdkcluster.Factory
 	integ      integrityPkg.IntegrityCtx
 }
 
 // NewCConfigApplication creates a new CConfigApplication object.
 func NewCConfigApplication(
 	runningCtx running.RunningCtx,
-	collectors libcluster.Factory,
-	publishers libcluster.Factory,
+	collectors sdkcluster.Factory,
+	publishers sdkcluster.Factory,
 	integ integrityPkg.IntegrityCtx,
 ) *CConfigApplication {
 	app := &CConfigApplication{
@@ -872,8 +872,8 @@ func (c *CConfigApplication) rolesChange(ctx RolesChangeCtx,
 // It reads the file directly via os.ReadFile, builds a *goconfig.MutableConfig,
 // runs patchFunc on it, marshals the result and publishes (overwrites) the file.
 func patchLocalCConfig(clusterCfgPath string,
-	_ libcluster.Factory,
-	publishers libcluster.Factory,
+	_ sdkcluster.Factory,
+	publishers sdkcluster.Factory,
 	patchFunc func(*goconfig.MutableConfig) (*goconfig.MutableConfig, error),
 ) error {
 	data, err := os.ReadFile(clusterCfgPath)

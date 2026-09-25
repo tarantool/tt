@@ -10,7 +10,7 @@ import (
 	goconfig "github.com/tarantool/go-config/v2"
 	"github.com/tarantool/go-config/v2/collectors"
 	gcttarantool "github.com/tarantool/go-config/v2/tarantool"
-	"github.com/tarantool/tt/lib/integrity"
+	"github.com/tarantool/tt/sdk/integrity"
 )
 
 var (

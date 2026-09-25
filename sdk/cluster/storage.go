@@ -21,8 +21,8 @@ import (
 	"github.com/tarantool/go-storage/v2/integrity"
 	"github.com/tarantool/go-storage/v2/marshaller"
 	"github.com/tarantool/go-tarantool/v3"
-	libconnect "github.com/tarantool/tt/lib/connect"
-	"github.com/tarantool/tt/lib/dial"
+	sdkconnect "github.com/tarantool/tt/sdk/connect"
+	"github.com/tarantool/tt/sdk/dial"
 	"go.etcd.io/etcd/client/pkg/v3/transport"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
@@ -412,7 +412,7 @@ func connectTarantoolConnector(cfg gsconnect.Config) (tarantool.Connector, error
 // getEtcdCfg builds an etcd connection configuration from the given
 // connect options and URI options, resolving credentials from options
 // or environment variables as a fallback.
-func getEtcdCfg(connOpts ConnectOpts, uriOpts libconnect.URIOpts) gsconnect.Config {
+func getEtcdCfg(connOpts ConnectOpts, uriOpts sdkconnect.URIOpts) gsconnect.Config {
 	var endpoints []string
 	if uriOpts.Endpoint != "" {
 		endpoints = []string{uriOpts.Endpoint}
@@ -422,10 +422,10 @@ func getEtcdCfg(connOpts ConnectOpts, uriOpts libconnect.URIOpts) gsconnect.Conf
 		uriOpts.Username = connOpts.Username
 		uriOpts.Password = connOpts.Password
 		if uriOpts.Username == "" {
-			uriOpts.Username = os.Getenv(libconnect.EtcdUsernameEnv)
+			uriOpts.Username = os.Getenv(sdkconnect.EtcdUsernameEnv)
 		}
 		if uriOpts.Password == "" {
-			uriOpts.Password = os.Getenv(libconnect.EtcdPasswordEnv)
+			uriOpts.Password = os.Getenv(sdkconnect.EtcdPasswordEnv)
 		}
 	}
 
@@ -448,15 +448,15 @@ func getEtcdCfg(connOpts ConnectOpts, uriOpts libconnect.URIOpts) gsconnect.Conf
 // getTarantoolCfg builds a tarantool connection configuration from the given
 // connect options and URI options, resolving credentials from options
 // or environment variables as a fallback.
-func getTarantoolCfg(connOpts ConnectOpts, uriOpts libconnect.URIOpts) gsconnect.Config {
+func getTarantoolCfg(connOpts ConnectOpts, uriOpts sdkconnect.URIOpts) gsconnect.Config {
 	if uriOpts.Username == "" && uriOpts.Password == "" {
 		uriOpts.Username = connOpts.Username
 		uriOpts.Password = connOpts.Password
 		if uriOpts.Username == "" {
-			uriOpts.Username = os.Getenv(libconnect.TarantoolUsernameEnv)
+			uriOpts.Username = os.Getenv(sdkconnect.TarantoolUsernameEnv)
 		}
 		if uriOpts.Password == "" {
-			uriOpts.Password = os.Getenv(libconnect.TarantoolPasswordEnv)
+			uriOpts.Password = os.Getenv(sdkconnect.TarantoolPasswordEnv)
 		}
 	}
 
@@ -478,7 +478,7 @@ func getTarantoolCfg(connOpts ConnectOpts, uriOpts libconnect.URIOpts) gsconnect
 
 // NewStorageConnection determines a storage based on the opts.
 func NewStorageConnection(
-	connOpts ConnectOpts, opts libconnect.URIOpts,
+	connOpts ConnectOpts, opts sdkconnect.URIOpts,
 ) (gstorage.Storage, gsconnect.CleanupFunc, string, error) {
 	etcdCfg := getEtcdCfg(connOpts, opts)
 	etcdClient, errEtcd := connectEtcdClient(etcdCfg)

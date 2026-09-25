@@ -10,7 +10,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/cobra"
 	goconfig "github.com/tarantool/go-config/v2"
-	libconnect "github.com/tarantool/tt/lib/connect"
+	sdkconnect "github.com/tarantool/tt/sdk/connect"
 	aeon "github.com/tarantool/tt/v3/cli/aeon"
 	aeoncmd "github.com/tarantool/tt/v3/cli/aeon/cmd"
 	"github.com/tarantool/tt/v3/cli/cluster"
@@ -48,7 +48,7 @@ const (
 	aeonConnectMaxArgs  = 2
 )
 
-var aeonHelp = libconnect.MakeURLHelp(map[string]any{
+var aeonHelp = sdkconnect.MakeURLHelp(map[string]any{
 	"service":    "etcd or tarantool config storage",
 	"param_key":  "a target configuration key in the prefix",
 	"param_name": "a name of an instance in the cluster configuration",
@@ -129,8 +129,8 @@ func aeonConnectValidateArgs(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		connectCtx.Network, connectCtx.Address = libconnect.ParseBaseURI(url)
-	case len(args) == 2 && libconnect.IsCredentialsURI(args[0]):
+		connectCtx.Network, connectCtx.Address = sdkconnect.ParseBaseURI(url)
+	case len(args) == 2 && sdkconnect.IsCredentialsURI(args[0]):
 		err := getConfigURI(&cmdCtx, args[0], args[1])
 		if err != nil {
 			return err
@@ -259,7 +259,7 @@ func readConfigFilePath(configPath, instance string) error {
 		return err
 	}
 
-	connectCtx.Network, connectCtx.Address = libconnect.ParseBaseURI(cleanedURL)
+	connectCtx.Network, connectCtx.Address = sdkconnect.ParseBaseURI(cleanedURL)
 
 	if (advertise.Params.Transport != "ssl") && (advertise.Params.Transport != "plain") {
 		return errTransportMustBeSSLOrPlain
@@ -291,7 +291,7 @@ func getConfigURI(cmdCtx *cmdcontext.CmdCtx, url, instanceName string) error {
 		return err
 	}
 
-	if uri, err := libconnect.CreateURIOpts(url); err == nil {
+	if uri, err := sdkconnect.CreateURIOpts(url); err == nil {
 		_ = aeoncmd.FillConnectCtx(&connectCtx, uri, instanceName, factory)
 	}
 

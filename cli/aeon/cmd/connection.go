@@ -7,8 +7,8 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 	goconfig "github.com/tarantool/go-config/v2"
-	libcluster "github.com/tarantool/tt/lib/cluster"
-	libconnect "github.com/tarantool/tt/lib/connect"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster"
+	sdkconnect "github.com/tarantool/tt/sdk/connect"
 	"github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/cli/util"
 )
@@ -19,17 +19,17 @@ var (
 )
 
 // FillConnectCtx takes a ConnectCtx object and fills it with data from a
-// collected configuration by given instanceName and libconnect.UriOpts.
+// collected configuration by given instanceName and sdkconnect.UriOpts.
 // It returns an error if fails to collect a configuration,
 // instantiate a cluster config or find an instance in the cluster.
-func FillConnectCtx(connectCtx *ConnectCtx, uriOpts libconnect.URIOpts,
-	instanceName string, factory libcluster.Factory,
+func FillConnectCtx(connectCtx *ConnectCtx, uriOpts sdkconnect.URIOpts,
+	instanceName string, factory sdkcluster.Factory,
 ) error {
-	connOpts := libcluster.ConnectOpts{
+	connOpts := sdkcluster.ConnectOpts{
 		Username: connectCtx.Username,
 		Password: connectCtx.Password,
 	}
-	stor, cleanup, storageType, err := libcluster.NewStorageConnection(connOpts, uriOpts)
+	stor, cleanup, storageType, err := sdkcluster.NewStorageConnection(connOpts, uriOpts)
 	if err != nil {
 		return err
 	}
@@ -76,7 +76,7 @@ func FillConnectCtx(connectCtx *ConnectCtx, uriOpts libconnect.URIOpts,
 		return err
 	}
 
-	connectCtx.Network, connectCtx.Address = libconnect.ParseBaseURI(cleanedURL)
+	connectCtx.Network, connectCtx.Address = sdkconnect.ParseBaseURI(cleanedURL)
 
 	if (advertise.Params.Transport != "ssl") && (advertise.Params.Transport != "plain") {
 		return errTransportMustBeSSLOrPlain

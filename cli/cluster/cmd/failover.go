@@ -9,8 +9,8 @@ import (
 
 	"github.com/apex/log"
 	"github.com/google/uuid"
-	libcluster "github.com/tarantool/tt/lib/cluster"
-	"github.com/tarantool/tt/lib/connect"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster"
+	"github.com/tarantool/tt/sdk/connect"
 	"gopkg.in/yaml.v2"
 )
 
@@ -72,9 +72,9 @@ type SwitchStatusCtx struct {
 // which talk to the storage directly via Get/Put/Watch. Close on the returned
 // storage releases the underlying connection.
 func connectFailoverStorage(uriOpts connect.URIOpts,
-	connOpts libcluster.ConnectOpts,
-) (*libcluster.RawStorage, error) {
-	stor, cleanup, storageType, err := libcluster.NewStorageConnection(connOpts, uriOpts)
+	connOpts sdkcluster.ConnectOpts,
+) (*sdkcluster.RawStorage, error) {
+	stor, cleanup, storageType, err := sdkcluster.NewStorageConnection(connOpts, uriOpts)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to config storage: %w", err)
 	}
@@ -82,7 +82,7 @@ func connectFailoverStorage(uriOpts connect.URIOpts,
 	// Failover commands live in a sibling namespace to cluster config; bind the
 	// storage with an empty objectLocation so keys are not implicitly nested
 	// under "/config".
-	raw, err := libcluster.NewStorage(stor, uriOpts.Prefix, uriOpts.Timeout, "",
+	raw, err := sdkcluster.NewStorage(stor, uriOpts.Prefix, uriOpts.Timeout, "",
 		storageType, nil, "")
 	if err != nil {
 		cleanup()
@@ -98,7 +98,7 @@ func Switch(url string, switchCtx SwitchCtx) error {
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
-	connOpts := libcluster.ConnectOpts{
+	connOpts := sdkcluster.ConnectOpts{
 		Username: switchCtx.Username,
 		Password: switchCtx.Password,
 	}
@@ -145,7 +145,7 @@ func Switch(url string, switchCtx SwitchCtx) error {
 	return nil
 }
 
-func waitForSwitch(conn *libcluster.RawStorage, key string, yamlCmd []byte, timeout uint64) error {
+func waitForSwitch(conn *sdkcluster.RawStorage, key string, yamlCmd []byte, timeout uint64) error {
 	ctxWatch, cancelWatch := context.WithTimeout(context.Background(),
 		time.Duration(timeout)*time.Second+cmdAdditionalWait)
 	defer cancelWatch()
@@ -187,7 +187,7 @@ func SwitchStatus(url string, switchCtx SwitchStatusCtx) error {
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
-	var connOpts libcluster.ConnectOpts
+	var connOpts sdkcluster.ConnectOpts
 	conn, err := connectFailoverStorage(uriOpts, connOpts)
 	if err != nil {
 		return err

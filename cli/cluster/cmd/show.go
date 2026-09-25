@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	goconfig "github.com/tarantool/go-config/v2"
-	libcluster "github.com/tarantool/tt/lib/cluster"
-	"github.com/tarantool/tt/lib/connect"
-	"github.com/tarantool/tt/lib/integrity"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster"
+	"github.com/tarantool/tt/sdk/connect"
+	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/cluster"
 )
 
@@ -18,7 +18,7 @@ type ShowCtx struct {
 	// Password defines a password for connection.
 	Password string
 	// Collectors defines a used data collectors factory for URI-based show.
-	Collectors libcluster.Factory
+	Collectors sdkcluster.Factory
 	// Integrity holds the integrity context used for file-based show.
 	Integrity integrity.IntegrityCtx
 	// Validate defines whether the command will check the showed
@@ -28,7 +28,7 @@ type ShowCtx struct {
 
 // ShowURI shows a configuration from URI.
 func ShowURI(showCtx ShowCtx, opts connect.URIOpts) error {
-	connOpts := libcluster.ConnectOpts{
+	connOpts := sdkcluster.ConnectOpts{
 		Username: showCtx.Username,
 		Password: showCtx.Password,
 	}

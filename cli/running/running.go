@@ -16,7 +16,7 @@ import (
 
 	"github.com/apex/log"
 	goconfig "github.com/tarantool/go-config/v2"
-	"github.com/tarantool/tt/lib/integrity"
+	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/config"

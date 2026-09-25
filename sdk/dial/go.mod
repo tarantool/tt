@@ -1,4 +1,4 @@
-module github.com/tarantool/tt/lib/dial
+module github.com/tarantool/tt/sdk/dial
 
 go 1.25.7
 

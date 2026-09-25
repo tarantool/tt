@@ -8,7 +8,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
-	libconnect "github.com/tarantool/tt/lib/connect"
+	sdkconnect "github.com/tarantool/tt/sdk/connect"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/config"
@@ -68,7 +68,7 @@ func NewConnectCmd() *cobra.Command {
 			"  * \\quit - quit interactive console",
 		Short: "Connect to the tarantool instance",
 		Long: "Connect to the tarantool instance.\n\n" +
-			libconnect.EnvTarantoolCredentialsHelp + "\n\n" +
+			sdkconnect.EnvTarantoolCredentialsHelp + "\n\n" +
 			"You could pass command line arguments to the interpreted SCRIPT" +
 			" or COMMAND passed via -f flag:\n\n" +
 			`echo "print(...)" | tt connect user:pass@localhost:3013 -f- 1, 2, 3`,
@@ -168,26 +168,26 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 				connector.UnixNetwork, runningCtx.Instances[0].ConsoleSocket, *connectCtx,
 			)
 		}
-	case libconnect.IsCredentialsURI(target):
+	case sdkconnect.IsCredentialsURI(target):
 		if connectCtx.Username != "" || connectCtx.Password != "" {
 			err = errCredentialsSpecifiedByFlagsAndURI
 			return connOpts, err
 		}
-		newURI, user, pass := libconnect.ParseCredentialsURI(target)
-		network, address := libconnect.ParseBaseURI(newURI)
+		newURI, user, pass := sdkconnect.ParseCredentialsURI(target)
+		network, address := sdkconnect.ParseBaseURI(newURI)
 		connectCtx.Username = user
 		connectCtx.Password = pass
 		connOpts = makeConnOpts(network, address, *connectCtx)
 		connectCtx.ConnectTarget = newURI
-	case libconnect.IsBaseURI(target):
+	case sdkconnect.IsBaseURI(target):
 		// Environment variables do not overwrite values.
 		if connectCtx.Username == "" {
-			connectCtx.Username = os.Getenv(libconnect.TarantoolUsernameEnv)
+			connectCtx.Username = os.Getenv(sdkconnect.TarantoolUsernameEnv)
 		}
 		if connectCtx.Password == "" {
-			connectCtx.Password = os.Getenv(libconnect.TarantoolPasswordEnv)
+			connectCtx.Password = os.Getenv(sdkconnect.TarantoolPasswordEnv)
 		}
-		network, address := libconnect.ParseBaseURI(target)
+		network, address := sdkconnect.ParseBaseURI(target)
 		connOpts = makeConnOpts(network, address, *connectCtx)
 	default:
 		err = fillErr

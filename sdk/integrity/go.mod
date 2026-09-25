@@ -1,4 +1,4 @@
-module github.com/tarantool/tt/lib/integrity
+module github.com/tarantool/tt/sdk/integrity
 
 go 1.25.7
 

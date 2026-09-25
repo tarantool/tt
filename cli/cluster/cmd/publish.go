@@ -7,8 +7,8 @@ import (
 
 	goconfig "github.com/tarantool/go-config/v2"
 
-	libcluster "github.com/tarantool/tt/lib/cluster"
-	"github.com/tarantool/tt/lib/connect"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster"
+	"github.com/tarantool/tt/sdk/connect"
 	"github.com/tarantool/tt/v3/cli/cluster"
 )
 
@@ -36,9 +36,9 @@ type PublishCtx struct {
 	// is omitted.
 	Force bool
 	// Publishers defines a used data publishers factory.
-	Publishers libcluster.Factory
+	Publishers sdkcluster.Factory
 	// Collectors defines a used data collectors factory.
-	Collectors libcluster.Factory
+	Collectors sdkcluster.Factory
 	// Src is raw YAML data to publish.
 	Src []byte
 	// Config is the decoded payload from Src (map[string]any from YAML
@@ -57,7 +57,7 @@ func PublishURI(publishCtx PublishCtx, opts connect.URIOpts) error {
 		return err
 	}
 
-	connOpts := libcluster.ConnectOpts{
+	connOpts := sdkcluster.ConnectOpts{
 		Username: publishCtx.Username,
 		Password: publishCtx.Password,
 	}
@@ -137,7 +137,7 @@ func publishCtxValidateConfig(publishCtx PublishCtx, instance string) error {
 // function locates the instance, validates group/replicaset names, patches the
 // instance subtree, marshals the result, and publishes it.
 func setInstanceConfig(group, replicaset, instance string, instanceMap map[string]any,
-	mut *goconfig.MutableConfig, publisher libcluster.DataPublisher,
+	mut *goconfig.MutableConfig, publisher sdkcluster.DataPublisher,
 ) error {
 	snap := mut.Snapshot()
 

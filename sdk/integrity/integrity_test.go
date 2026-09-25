@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/lib/integrity"
+	"github.com/tarantool/tt/sdk/integrity"
 )
 
 func TestNewSigner(t *testing.T) {

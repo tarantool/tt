@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	libcluster "github.com/tarantool/tt/lib/cluster"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster"
 	"github.com/tarantool/tt/v3/cli/replicaset"
 )
 
@@ -54,13 +54,13 @@ func readKV(t *testing.T, dir string, fs embed.FS) map[string][]byte {
 
 type mockDataCollector struct {
 	Ret []struct {
-		Data []libcluster.Data
+		Data []sdkcluster.Data
 		Err  error
 	}
 	Called int
 }
 
-func (m *mockDataCollector) Collect() ([]libcluster.Data, error) {
+func (m *mockDataCollector) Collect() ([]sdkcluster.Data, error) {
 	if m.Called >= len(m.Ret) {
 		return nil, errUnexpectedCall
 	}
@@ -70,10 +70,10 @@ func (m *mockDataCollector) Collect() ([]libcluster.Data, error) {
 	return data, err
 }
 
-func newOnceMockDataCollector(ret []libcluster.Data, err error) *mockDataCollector {
+func newOnceMockDataCollector(ret []sdkcluster.Data, err error) *mockDataCollector {
 	return &mockDataCollector{
 		Ret: []struct {
-			Data []libcluster.Data
+			Data []sdkcluster.Data
 			Err  error
 		}{
 			{Data: ret, Err: err},
@@ -183,7 +183,7 @@ func TestCConfigSource_no_instance_error(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-		collector := newOnceMockDataCollector([]libcluster.Data{{Value: cfg}}, nil)
+		collector := newOnceMockDataCollector([]sdkcluster.Data{{Value: cfg}}, nil)
 		source := replicaset.NewCConfigSource(collector, nil, nil)
 		actual := tc.runFunc(source)
 		require.ErrorContains(t, actual,
@@ -212,7 +212,7 @@ func TestCConfigSource_Promote_unexpected_failover(t *testing.T) {
         instances:
           instance-001: {}
           instance-002: {}`, tc.failover))
-			collector := newOnceMockDataCollector([]libcluster.Data{
+			collector := newOnceMockDataCollector([]sdkcluster.Data{
 				{Value: cfg},
 			}, nil)
 			source := replicaset.NewCConfigSource(collector, nil, nil)
@@ -231,7 +231,7 @@ func TestCConfigSource_Promote_invalid_failover(t *testing.T) {
         instances:
           instance-001: {}
           instance-002: {}`)
-	collector := newOnceMockDataCollector([]libcluster.Data{
+	collector := newOnceMockDataCollector([]sdkcluster.Data{
 		{Value: cfg},
 	}, nil)
 	source := replicaset.NewCConfigSource(collector, nil, nil)
@@ -258,7 +258,7 @@ func TestCConfigSource_Promote_single_key(t *testing.T) {
 			input := readFile(t, filepath.Join(dir, tc+"_init.yml"),
 				cconfigSourceTestDataFS)
 			publisher := newOnceMockDataPublisher(nil)
-			collector := newOnceMockDataCollector([]libcluster.Data{
+			collector := newOnceMockDataCollector([]sdkcluster.Data{
 				{Source: "all", Value: input, Revision: revision},
 			}, nil)
 			source := replicaset.NewCConfigSource(collector, publisher, keyPicker)
@@ -308,7 +308,7 @@ func TestCConfigSource_passes_force(t *testing.T) {
 			return 0, nil
 		})
 		publisher := newOnceMockDataPublisher(nil)
-		collector := newOnceMockDataCollector([]libcluster.Data{
+		collector := newOnceMockDataCollector([]sdkcluster.Data{
 			{Source: "all", Value: cfg},
 		}, nil)
 		source := replicaset.NewCConfigSource(collector, publisher, keyPicker)
@@ -354,7 +354,7 @@ func TestCConfigSource_publish_error(t *testing.T) {
 	for _, tc := range cases {
 		err := errFailed
 		publisher := newOnceMockDataPublisher(err)
-		collector := newOnceMockDataCollector([]libcluster.Data{
+		collector := newOnceMockDataCollector([]sdkcluster.Data{
 			{Source: "all", Value: cfg},
 		}, nil)
 		keyPicker := replicaset.KeyPicker(func(_ []string, _ bool, _ string) (int, error) {
@@ -402,7 +402,7 @@ func TestCConfigSource_keypick_error(t *testing.T) {
 	}
 	for _, tc := range cases {
 		publisher := newOnceMockDataPublisher(nil)
-		collector := newOnceMockDataCollector([]libcluster.Data{
+		collector := newOnceMockDataCollector([]sdkcluster.Data{
 			{Source: "all", Value: cfg},
 		}, nil)
 		err := errItSTooLate
@@ -448,7 +448,7 @@ func TestCConfigSource_Promote_invalid_config(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-		collector := newOnceMockDataCollector([]libcluster.Data{
+		collector := newOnceMockDataCollector([]sdkcluster.Data{
 			{Source: "all", Value: cfg},
 		}, nil)
 		source := replicaset.NewCConfigSource(collector, nil, nil)
@@ -474,9 +474,9 @@ func TestCConfigSource_Promote_many_keys(t *testing.T) {
 			expected, ok := kv["expected"]
 			require.True(t, ok)
 			delete(kv, "expected")
-			var data []libcluster.Data
+			var data []sdkcluster.Data
 			for k, v := range kv {
-				data = append(data, libcluster.Data{
+				data = append(data, sdkcluster.Data{
 					Source:   k,
 					Value:    v,
 					Revision: revision,
@@ -515,7 +515,7 @@ func TestCConfigSource_Promote_many_keys_choose_affects(t *testing.T) {
             database:
               mode: rw
 `)
-	collector := newOnceMockDataCollector([]libcluster.Data{
+	collector := newOnceMockDataCollector([]sdkcluster.Data{
 		{Source: "a", Value: cfg, Revision: 13},
 		{Source: "b", Value: cfg, Revision: revision},
 	}, nil)
@@ -569,7 +569,7 @@ func TestCConfigSource_Promote_mix_failovers(t *testing.T) {
 	}{}
 	for _, tc := range cases {
 		t.Run(tc.instName, func(t *testing.T) {
-			collector := newOnceMockDataCollector([]libcluster.Data{
+			collector := newOnceMockDataCollector([]sdkcluster.Data{
 				{Source: "a", Value: cfg1},
 				{Source: "b", Value: cfg2},
 				{Source: "c", Value: cfg3},
@@ -609,7 +609,7 @@ func TestCConfigSource_Demote_unexpected_failover(t *testing.T) {
         instances:
           instance-001: {}
           instance-002: {}`, tc.failover))
-			collector := newOnceMockDataCollector([]libcluster.Data{
+			collector := newOnceMockDataCollector([]sdkcluster.Data{
 				{Value: cfg},
 			}, nil)
 			source := replicaset.NewCConfigSource(collector, nil, nil)
@@ -628,7 +628,7 @@ func TestCConfigSource_Demote_invalid_failover(t *testing.T) {
         instances:
           instance-001: {}
           instance-002: {}`)
-	collector := newOnceMockDataCollector([]libcluster.Data{
+	collector := newOnceMockDataCollector([]sdkcluster.Data{
 		{Value: cfg},
 	}, nil)
 	source := replicaset.NewCConfigSource(collector, nil, nil)
@@ -650,7 +650,7 @@ func TestCConfigSource_Demote_single_key(t *testing.T) {
 			input := readFile(t, filepath.Join(dir, tc+"_init.yml"),
 				cconfigSourceTestDataFS)
 			publisher := newOnceMockDataPublisher(nil)
-			collector := newOnceMockDataCollector([]libcluster.Data{
+			collector := newOnceMockDataCollector([]sdkcluster.Data{
 				{Source: "all", Value: input, Revision: revision},
 			}, nil)
 			source := replicaset.NewCConfigSource(collector, publisher, keyPicker)
@@ -678,9 +678,9 @@ func TestCConfigSource_Demote_many_keys(t *testing.T) {
 			expected, ok := kv["expected"]
 			require.True(t, ok)
 			delete(kv, "expected")
-			var data []libcluster.Data
+			var data []sdkcluster.Data
 			for k, v := range kv {
-				data = append(data, libcluster.Data{
+				data = append(data, sdkcluster.Data{
 					Source:   k,
 					Value:    v,
 					Revision: revision,
@@ -704,7 +704,7 @@ func TestCConfigSource_Demote_many_keys(t *testing.T) {
 func TestCConfigSource_Demote_invalid_config(t *testing.T) {
 	cfg := []byte(`no: lala
 - 42`)
-	collector := newOnceMockDataCollector([]libcluster.Data{
+	collector := newOnceMockDataCollector([]sdkcluster.Data{
 		{Source: "all", Value: cfg},
 	}, nil)
 	source := replicaset.NewCConfigSource(collector, nil, nil)
@@ -731,7 +731,7 @@ func TestCConfigSource_Demote_many_keys_choose_affects(t *testing.T) {
             database:
               mode: ro
 `)
-	collector := newOnceMockDataCollector([]libcluster.Data{
+	collector := newOnceMockDataCollector([]sdkcluster.Data{
 		{Source: "a", Value: cfg, Revision: 13},
 		{Source: "b", Value: cfg, Revision: revision},
 	}, nil)
@@ -755,7 +755,7 @@ func TestCConfigSource_Expel_single_key(t *testing.T) {
           instance-001: {}
           instance-002: {}
 `)
-	collector := newOnceMockDataCollector([]libcluster.Data{
+	collector := newOnceMockDataCollector([]sdkcluster.Data{
 		{Source: "a", Value: cfg, Revision: revision},
 	}, nil)
 	picker := replicaset.KeyPicker(func(keys []string, _ bool, _ string) (int, error) {
@@ -943,7 +943,7 @@ roles:
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			collector := newOnceMockDataCollector([]libcluster.Data{
+			collector := newOnceMockDataCollector([]sdkcluster.Data{
 				{Source: "a", Value: tc.cfg, Revision: revision},
 			}, nil)
 			picker := replicaset.KeyPicker(func(keys []string, _ bool, _ string) (int, error) {
@@ -1129,7 +1129,7 @@ roles: []
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			collector := newOnceMockDataCollector([]libcluster.Data{
+			collector := newOnceMockDataCollector([]sdkcluster.Data{
 				{Source: "a", Value: tc.cfg, Revision: revision},
 			}, nil)
 			picker := replicaset.KeyPicker(func(keys []string, _ bool, _ string) (int, error) {

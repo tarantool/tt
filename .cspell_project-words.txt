@@ -37,8 +37,6 @@ incdir
 infof
 iproto
 leaderuuid
-libcluster
-libconnect
 libwatchdog
 linecomment
 luabody
@@ -77,6 +75,9 @@ rescan
 rockspec*
 rpmdeb
 rundir
+sdkcluster
+sdkconnect
+sdkdial
 socketpath
 sourcedir
 specialchars

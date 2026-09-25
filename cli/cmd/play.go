@@ -10,7 +10,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
-	libconnect "github.com/tarantool/tt/lib/connect"
+	sdkconnect "github.com/tarantool/tt/sdk/connect"
 	"github.com/tarantool/tt/v3/cli/checkpoint"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/running"
@@ -125,20 +125,20 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		}
 
 		args[0] = runningCtx.Instances[0].BinaryPort
-	case libconnect.IsCredentialsURI(args[0]):
+	case sdkconnect.IsCredentialsURI(args[0]):
 		if playUsername != "" || playPassword != "" {
 			return errCredentialsSpecifiedByFlagsAndURI
 		}
-		uri, user, pass := libconnect.ParseCredentialsURI(args[0])
+		uri, user, pass := sdkconnect.ParseCredentialsURI(args[0])
 		playUsername = user
 		playPassword = pass
 		args[0] = uri
-	case libconnect.IsBaseURI(args[0]):
+	case sdkconnect.IsBaseURI(args[0]):
 		if playUsername == "" {
-			playUsername = os.Getenv(libconnect.TarantoolUsernameEnv)
+			playUsername = os.Getenv(sdkconnect.TarantoolUsernameEnv)
 		}
 		if playPassword == "" {
-			playPassword = os.Getenv(libconnect.TarantoolPasswordEnv)
+			playPassword = os.Getenv(sdkconnect.TarantoolPasswordEnv)
 		}
 	default:
 		return util.InternalError("could not resolve URI or application: %q (%s)",

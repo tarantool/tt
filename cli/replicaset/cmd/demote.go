@@ -5,8 +5,8 @@ import (
 	"os"
 
 	"github.com/apex/log"
-	libcluster "github.com/tarantool/tt/lib/cluster"
-	"github.com/tarantool/tt/lib/integrity"
+	sdkcluster "github.com/tarantool/tt/sdk/cluster"
+	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/connector"
 	"github.com/tarantool/tt/v3/cli/replicaset"
 	"github.com/tarantool/tt/v3/cli/running"
@@ -17,9 +17,9 @@ type DemoteCtx struct {
 	// InstName is an instance name to demote.
 	InstName string
 	// Publishers is data publisher factory.
-	Publishers libcluster.Factory
+	Publishers sdkcluster.Factory
 	// Collectors is data collector factory.
-	Collectors libcluster.Factory
+	Collectors sdkcluster.Factory
 	// Integrity is the integrity context for cluster reads.
 	Integrity integrity.IntegrityCtx
 	// Orchestrator is a forced orchestrator choice.

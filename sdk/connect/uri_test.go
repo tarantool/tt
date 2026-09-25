@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tarantool/tt/lib/connect"
+	"github.com/tarantool/tt/sdk/connect"
 )
 
 // spell-checker:ignore kfile
