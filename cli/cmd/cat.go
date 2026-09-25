@@ -13,7 +13,6 @@ import (
 	"github.com/tarantool/tt/v3/cli/checkpoint"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/util"
-	"github.com/tarantool/tt/v3/cli/version"
 )
 
 var (
@@ -80,7 +79,7 @@ func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if err != nil {
 		return util.InternalError(
 			"Internal error: could not collect WAL files: %s",
-			version.GetVersion, err)
+			flavour.GetVersion, err)
 	}
 
 	// List of files is passed to lua cat script via environment variable in json format.
@@ -88,7 +87,7 @@ func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if err != nil {
 		return util.InternalError(
 			"Internal error: problem with creating json params with files: %s",
-			version.GetVersion, err)
+			flavour.GetVersion, err)
 	}
 
 	_ = os.Setenv("TT_CLI_CAT_FILES", string(filesJSON))
@@ -100,7 +99,7 @@ func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if err != nil {
 		return util.InternalError(
 			"Internal error: problem with creating json params with spaces: %s",
-			version.GetVersion, err)
+			flavour.GetVersion, err)
 	}
 	if string(spacesJSON) != "null" {
 		_ = os.Setenv("TT_CLI_CAT_SPACES", string(spacesJSON))
@@ -120,7 +119,7 @@ func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if err != nil {
 		return util.InternalError(
 			"Internal error: problem with creating json params with replicas: %s",
-			version.GetVersion, err)
+			flavour.GetVersion, err)
 	}
 	if string(replicasJSON) != "null" {
 		_ = os.Setenv("TT_CLI_CAT_REPLICAS", string(replicasJSON))

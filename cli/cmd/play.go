@@ -15,7 +15,6 @@ import (
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/running"
 	"github.com/tarantool/tt/v3/cli/util"
-	"github.com/tarantool/tt/v3/cli/version"
 )
 
 var (
@@ -114,14 +113,14 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		if len(runningCtx.Instances) > 1 {
 			return util.InternalError(
 				"Internal error: specify instance name",
-				version.GetVersion)
+				flavour.GetVersion)
 		}
 
 		_, err := os.Stat(runningCtx.Instances[0].BinaryPort)
 		if err != nil {
 			return util.InternalError(
 				"Internal error: application binary port does not exist: %s",
-				version.GetVersion, err)
+				flavour.GetVersion, err)
 		}
 
 		args[0] = runningCtx.Instances[0].BinaryPort
@@ -142,14 +141,14 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		}
 	default:
 		return util.InternalError("could not resolve URI or application: %q (%s)",
-			version.GetVersion, args[0], err)
+			flavour.GetVersion, args[0], err)
 	}
 
 	walFiles, err := util.CollectWalFiles(args[1:], playFlags.Recursive)
 	if err != nil {
 		return util.InternalError(
 			"Internal error: could not collect WAL files: %s",
-			version.GetVersion, err)
+			flavour.GetVersion, err)
 	}
 
 	// Re-create args with the URI in the first index, and all founded files after.
@@ -160,7 +159,7 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if err != nil {
 		return util.InternalError(
 			"Internal error: problem with creating json params with files and uri: %s",
-			version.GetVersion, err)
+			flavour.GetVersion, err)
 	}
 
 	_ = os.Setenv("TT_CLI_PLAY_FILES_AND_URI", string(filesAndURIJSON))
@@ -195,7 +194,7 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if err != nil {
 		return util.InternalError(
 			"Internal error: problem with creating json params with spaces: %s",
-			version.GetVersion, err)
+			flavour.GetVersion, err)
 	}
 	if string(spacesJSON) != "null" {
 		_ = os.Setenv("TT_CLI_PLAY_SPACES", string(spacesJSON))
@@ -215,7 +214,7 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if err != nil {
 		return util.InternalError(
 			"Internal error: problem with creating json params with replicas: %s",
-			version.GetVersion, err)
+			flavour.GetVersion, err)
 	}
 	if string(replicasJSON) != "null" {
 		_ = os.Setenv("TT_CLI_PLAY_REPLICAS", string(replicasJSON))

@@ -25,7 +25,6 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 	oldrocks "github.com/tarantool/tt/v3/cli/rocks"
 	"github.com/tarantool/tt/v3/cli/util"
-	ttversion "github.com/tarantool/tt/v3/cli/version"
 )
 
 // errNoTarantool reports that no tarantool executable was found; the manifest
@@ -378,7 +377,7 @@ func dependencyOptions() (deps.Options, error) {
 
 	return deps.Options{
 		ProjectDir: projectDir,
-		TtVersion:  "tt " + ttversion.GetVersion(true, false),
+		TtVersion:  "tt " + coreVersion(),
 		Tarantool:  tntInfo,
 		Registries: sources,
 		Logger:     luarocksLogger(),
@@ -708,7 +707,7 @@ func runPackagePack() error {
 		Locked:      packageLocked,
 		WithoutDeps: packageWithoutDeps,
 		Build: build.Options{
-			TtVersion:  "tt " + ttversion.GetVersion(true, false),
+			TtVersion:  "tt " + coreVersion(),
 			Tarantool:  tntInfo,
 			Registries: sources,
 			ShowOutput: cmdCtx.Cli.Verbose,
@@ -750,7 +749,7 @@ func runtimeRequest(ctx context.Context, tntInfo manifestrocks.TarantoolInfo) pa
 		ActiveTt:               selfPath,
 		// The short form is the bare "x.y.z"; the long form is a human-readable
 		// sentence that no version constraint can match.
-		ActiveTtVersion: ttversion.GetVersion(true, false),
+		ActiveTtVersion: coreVersion(),
 		// tt publishes no CE/EE marker through its version, so the flavor stays
 		// undetermined and only satisfies the [ce] default.
 		ActiveTtFlavor: "",
@@ -797,7 +796,7 @@ func runPackage(args []string, fetchOnly bool) error {
 		Component:  component,
 		Locked:     packageLocked,
 		FetchOnly:  fetchOnly,
-		TtVersion:  "tt " + ttversion.GetVersion(true, false),
+		TtVersion:  "tt " + coreVersion(),
 		Tarantool:  tntInfo,
 		Registries: sources,
 		ShowOutput: cmdCtx.Cli.Verbose,

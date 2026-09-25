@@ -13,6 +13,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/configure"
 	"github.com/tarantool/tt/v3/cli/modules"
 	"github.com/tarantool/tt/v3/cli/util"
+	"github.com/tarantool/tt/v3/cli/version"
 )
 
 // The phases below initialise tt in the order it runs them: Boot, then the
@@ -32,15 +33,20 @@ const LegacyAnnotation = "tt.core/legacy"
 type BootOptions struct {
 	// Args are the command-line arguments, without the program name.
 	Args []string
+	// Flavour is how the distribution of tt presents itself. The zero
+	// Flavour is tt's own.
+	Flavour version.Flavour
 }
 
 // Boot creates the root command - the global flags, no subcommands - and
 // makes it the process's root. It parses the global flags in opts.Args and
-// installs the process logger they ask for.
+// installs the process logger they ask for. The root and the commands built
+// after Boot present tt as opts.Flavour.
 //
 // A flag error is not returned: Run reports it, once the logger is set up.
 // An invalid --log-format leaves the default format in place until then.
 func Boot(opts BootOptions) (*cobra.Command, error) {
+	flavour = opts.Flavour
 	rootCmd = newRootCmd()
 	rootCmd.SetErr(errorLogWriter{})
 

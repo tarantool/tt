@@ -10,7 +10,6 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build"
 	"github.com/tarantool/tt/v3/cli/manifest/run"
-	ttversion "github.com/tarantool/tt/v3/cli/version"
 )
 
 // luatestName is the rock tt test runs, and the requirement it adds implicitly
@@ -124,7 +123,7 @@ func runTest(subPath string, luatestArgs []string) error {
 
 	opts := build.Options{
 		ProjectDir: root,
-		TtVersion:  "tt " + ttversion.GetVersion(true, false),
+		TtVersion:  "tt " + coreVersion(),
 		Tarantool:  tntInfo,
 		Registries: sources,
 		ShowOutput: cmdCtx.Cli.Verbose,

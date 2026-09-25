@@ -1,0 +1,84 @@
+# The help of a distribution named "Tarantool CLI EE" where tt names
+# itself. Regenerate with:
+#   go test ./cli/cmd -run TestHelpFlavourGolden -update
+
+=== tt --help
+Tarantool CLI EE — utility for managing Tarantool packages and Tarantool-based
+applications
+
+[0;1;39mUSAGE[0m
+  tt [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  aeon        Manage aeon application
+  binaries    Manage installed binaries
+  cat         Print into stdout the contents of .snap/.xlog FILE(s)
+  cfg         Environment configuration management utility
+  check       Check an application file for syntax errors
+  clean       Clean instance(s) files
+  cluster     Manage cluster configuration
+  completion  Generate autocomplete for a specified shell. Supported shell type:
+              bash | zsh | fish
+  connect     Connect to the tarantool instance
+  coredump    Perform manipulations with the tarantool coredumps
+  create      Create an application from a template
+  daemon      Perform manipulations with the tt daemon (experimental)
+  download    Download Tarantool SDK
+  env         Add current environment binaries location to the PATH variable
+  help        Help about any command
+  install     Install program
+  kill        Kill tarantool instance(s)
+  log         Get logs of instance(s)
+  logrotate   Rotate logs of a started tarantool instance(s)
+  modules     Manage tt cli modules
+  new         Create a skeleton app.manifest.toml in the current directory
+  package     Manage tt manifest packages
+  play        Play the contents of .snap/.xlog FILE(s) to another Tarantool
+              instance
+  registry    Inspect the rock servers packages are resolved against
+  replicaset  Manage replicasets
+  restart     Restart tarantool instance(s)
+  rocks       LuaRocks package manager
+  run         Run the current package under its Tarantool
+  search      Search for available versions for the program
+  start       Start tarantool instance(s)
+  status      Status of the tarantool instance(s)
+  stop        Stop tarantool instance(s)
+  tcm         Manage tcm application
+  test        Build the current package and run its tests
+  uninstall   Uninstalls a program
+  version     Show Tarantool CLI EE version information
+[0;1;39m
+HELP TOPICS[0m
+  errors      Exit codes of tt commands
+ 
+[0;1;39m
+FLAGS[0m
+  -c, --cfg string             Path to configuration file
+  -h, --help                   help for tt
+  -I, --internal               Use internal module
+  -L, --local string           Local launch
+      --log-format text|json   Format of the log written to stderr: text or json
+                               (default text)
+      --no-prompt              Skip cli interaction using default behavior
+  -s, --self                   Skip searching for other tt versions to run
+  -S, --system                 System launch
+  -V, --verbose                Verbose output
+[0;1;39m
+EXAMPLES[0m
+  $ tt -L /path/to/local/dir version
+  $ tt -S -I help
+  $ tt completion
+
+Use "tt <command> --help" for more information about a command.
+
+=== tt version --help
+Show Tarantool CLI EE version information
+
+[0;1;39mUSAGE[0m
+  tt version [flags]
+[0;1;39m
+FLAGS[0m
+      --commit   Show commit
+  -h, --help     help for version
+      --short    Show version in short format

@@ -33,7 +33,7 @@ func TestHelpGoldenThroughModules(t *testing.T) {
 	newRoot := func(t *testing.T) *cobra.Command {
 		t.Helper()
 
-		root, err := build(nil, Modules{"builtin": Builtin}, &atomic.Bool{})
+		root, err := build(nil, Modules{"builtin": Builtin}, &atomic.Bool{}, options{})
 		require.NoError(t, err)
 
 		return root

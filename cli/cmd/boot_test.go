@@ -15,10 +15,12 @@ func restoreProcessState(t *testing.T) {
 	t.Helper()
 
 	previousRoot, previousCtx, previousInjected := rootCmd, cmdCtx, InjectedCmds
+	previousFlavour := flavour
 	previousLogger := slog.Default()
 
 	t.Cleanup(func() {
 		rootCmd, cmdCtx, InjectedCmds = previousRoot, previousCtx, previousInjected
+		flavour = previousFlavour
 
 		slog.SetDefault(previousLogger)
 	})

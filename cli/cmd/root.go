@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/spf13/cobra"
 
@@ -77,13 +79,32 @@ func NewCmdRoot() *cobra.Command {
 	return root
 }
 
+// rootLong is what the root help says tt is.
+const rootLong = "Utility for managing Tarantool packages and Tarantool-based applications"
+
+// rootDescription returns the root command's short and long descriptions.
+// A distribution with a name of its own is named in both: its name is the
+// short one and heads the long one.
+func rootDescription() (string, string) {
+	if !flavour.Custom() {
+		return flavour.Name(), rootLong
+	}
+
+	first, size := utf8.DecodeRuneInString(rootLong)
+
+	return flavour.Name(), flavour.Name() + " — " + string(unicode.ToLower(first)) +
+		rootLong[size:]
+}
+
 // newRootCmd creates a root command with the global flags and no
 // subcommands.
 func newRootCmd() *cobra.Command {
+	short, long := rootDescription()
+
 	rootCmd := &cobra.Command{
 		Use:   "tt",
-		Short: "Tarantool CLI",
-		Long:  "Utility for managing Tarantool packages and Tarantool-based applications",
+		Short: short,
+		Long:  long,
 		Example: `$ tt -L /path/to/local/dir version
   $ tt -S -I help
   $ tt completion`,

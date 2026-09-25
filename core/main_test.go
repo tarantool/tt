@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -53,6 +54,14 @@ var mainCases = map[string]func() int{
 			panic("constructor bug")
 		}})
 	},
+	"flavour": func() int {
+		return Main(Modules{"builtin": Builtin}, WithFlavour(eeFlavour))
+	},
+	"flavour-panic": func() int {
+		return Main(Modules{"builtin": Builtin, "broken": func(sdk.Services) []sdk.Mount {
+			panic("constructor bug")
+		}}, WithFlavour(eeFlavour))
+	},
 	"ee-main": func() int {
 		cmd.InjectedCmds = append(cmd.InjectedCmds, newEEVersionCmd())
 
@@ -66,6 +75,16 @@ var mainCases = map[string]func() int{
 
 		return 0
 	},
+}
+
+// eeFlavour is a distribution with a name, a version and an edition of its
+// own.
+var eeFlavour = Flavour{
+	Title: "Tarantool CLI EE",
+	Version: VersionInfo{
+		Tag: "v2.15.0-3-gdef5678", Commit: "def5678", CommitsSinceTag: 3, Label: "",
+	},
+	Edition: "ee",
 }
 
 // TestMain runs the program mainCaseEnv selects, when it does, and the tests
@@ -398,6 +417,63 @@ func TestMainEEShape(t *testing.T) {
 			assert.Contains(t, got.stdout, "Show the EE version")
 		})
 	}
+}
+
+// TestMainWithFlavour checks that tt built with a flavour presents itself as
+// the distribution: in tt version, in the help and in an internal error.
+func TestMainWithFlavour(t *testing.T) {
+	t.Parallel()
+
+	platform := runtime.GOOS + "/" + runtime.GOARCH
+
+	for _, tc := range []struct {
+		name   string
+		args   []string
+		stdout string
+	}{
+		{
+			name: "full", args: []string{"version"},
+			stdout: "Tarantool CLI EE version 2.15.0, " + platform +
+				". commit: def5678 (v2.15.0-3-gdef5678)\n",
+		},
+		{name: "short", args: []string{"version", "--short"}, stdout: "2.15.0+ee\n"},
+		{name: "commit", args: []string{"version", "--commit"}, stdout: "2.15.0+ee.def5678\n"},
+		{
+			name: "short with commit", args: []string{"version", "--short", "--commit"},
+			stdout: "2.15.0+ee.def5678\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := runTT(t, ttRun{program: "flavour", args: tc.args})
+			require.Equal(t, 0, got.code, got.stderr)
+			assert.Equal(t, tc.stdout, got.stdout)
+		})
+	}
+
+	t.Run("help", func(t *testing.T) {
+		t.Parallel()
+
+		got := runTT(t, ttRun{program: "flavour", args: []string{"--help"}})
+		require.Equal(t, 0, got.code, got.stderr)
+		assert.True(t, strings.HasPrefix(got.stdout,
+			"Tarantool CLI EE — utility for managing Tarantool packages and "+
+				"Tarantool-based\napplications\n"), got.stdout)
+
+		got = runTT(t, ttRun{program: "flavour", args: []string{"version", "--help"}})
+		require.Equal(t, 0, got.code, got.stderr)
+		assert.True(t, strings.HasPrefix(got.stdout,
+			"Show Tarantool CLI EE version information\n"), got.stdout)
+	})
+
+	t.Run("internal error", func(t *testing.T) {
+		t.Parallel()
+
+		got := runTT(t, ttRun{program: "flavour-panic", args: []string{"version"}})
+		assert.Equal(t, 1, got.code, got.stderr)
+		assert.Contains(t, got.stderr, "Version: Tarantool CLI EE version 2.15.0, "+platform)
+	})
 }
 
 // writeExternalModule creates, in a modules directory of its own, an

@@ -41,7 +41,60 @@ type Modules map[string]sdk.Constructor
 type Option func(*options)
 
 // options are what the Options given to Main set.
-type options struct{}
+type options struct {
+	// flavour is how tt presents itself.
+	flavour version.Flavour
+}
+
+// Flavour is how a distribution of tt presents itself: its name and its
+// version, in the help, in tt version and in the report of an internal
+// error. The version the distribution's core is - the one [platform].tt
+// constraints are checked against and the one written to the files tt
+// generates - stays the core's.
+type Flavour struct {
+	// Title is the distribution's name: "Tarantool CLI EE". Empty means
+	// tt's own, "Tarantool CLI"; any other title heads the root help.
+	Title string
+	// Version is the distribution's version. A zero Version is an unknown
+	// one.
+	Version VersionInfo
+	// Edition, when set, follows the version tt version --short prints, as
+	// semver build metadata: "ee" makes it 2.15.0+ee.
+	Edition string
+}
+
+// VersionInfo describes what a build of a distribution was made from.
+type VersionInfo struct {
+	// Tag is the tag the build is at or descends from, as git describe
+	// prints it: v2.15.0, or v2.15.0-3-gabc1234 for a commit past it. Only
+	// its numeric part makes the version. Empty means the version is
+	// unknown.
+	Tag string
+	// Commit is the abbreviated hash of the commit built.
+	Commit string
+	// CommitsSinceTag is the number of commits between Tag and Commit. When
+	// it is not zero tt version shows Tag as well.
+	CommitsSinceTag int
+	// Label, when set, follows the version: 2.15.0/label.
+	Label string
+}
+
+// WithFlavour makes tt present itself as the distribution flavour
+// describes. Without it tt presents itself as tt.
+func WithFlavour(flavour Flavour) Option {
+	return func(o *options) {
+		o.flavour = version.Flavour{
+			Title: flavour.Title,
+			Version: &version.Info{
+				Tag:             flavour.Version.Tag,
+				Commit:          flavour.Version.Commit,
+				CommitsSinceTag: flavour.Version.CommitsSinceTag,
+				Label:           flavour.Version.Label,
+			},
+			Edition: flavour.Edition,
+		}
+	}
+}
 
 // Main builds tt from modules, runs the command line in os.Args and returns
 // the process exit code, having reported the error tt failed with. It may be
@@ -62,7 +115,8 @@ func Main(modules Modules, opts ...Option) (code int) {
 
 	defer func() {
 		if r := recover(); r != nil {
-			err := util.InternalError("Unhandled internal error: %s", version.GetVersion, r)
+			err := util.InternalError("Unhandled internal error: %s",
+				config.flavour.GetVersion, r)
 			exitcode.Report(err)
 
 			code = exitcode.Code(err)
@@ -71,7 +125,7 @@ func Main(modules Modules, opts ...Option) (code int) {
 
 	ready := &atomic.Bool{}
 
-	if _, err := build(os.Args[1:], modules, ready); err != nil {
+	if _, err := build(os.Args[1:], modules, ready, config); err != nil {
 		exitcode.Report(err)
 
 		return exitcode.Code(err)
@@ -82,16 +136,18 @@ func Main(modules Modules, opts ...Option) (code int) {
 	return cmd.Run()
 }
 
-// build boots tt with the command-line arguments args, hangs the commands of
-// modules, whose Services are ready once ready is set, and configures tt.
-// It returns the root, ready to run.
-func build(args []string, modules Modules, ready *atomic.Bool) (*cobra.Command, error) {
-	root, err := cmd.Boot(cmd.BootOptions{Args: args})
+// build boots tt as config says with the command-line arguments args, hangs
+// the commands of modules, whose Services are ready once ready is set, and
+// configures tt. It returns the root, ready to run.
+func build(
+	args []string, modules Modules, ready *atomic.Bool, config options,
+) (*cobra.Command, error) {
+	root, err := cmd.Boot(cmd.BootOptions{Args: args, Flavour: config.flavour})
 	if err != nil {
 		return nil, err
 	}
 
-	entries, err := construct(modules, ready)
+	entries, err := construct(modules, ready, config.flavour.GetVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -114,17 +170,21 @@ func build(args []string, modules Modules, ready *atomic.Bool) (*cobra.Command, 
 }
 
 // construct calls the constructor of every module, in the order of their
-// names, and returns their mounts. A constructor that panics is an error
-// naming its module; the other constructors are still called, so that every
-// such error is reported at once.
-func construct(modules Modules, ready *atomic.Bool) ([]mount.Entry, error) {
+// names, and returns their mounts. A constructor that panics is an internal
+// error naming its module and the version getVersion reports; the other
+// constructors are still called, so that every such error is reported at
+// once.
+func construct(
+	modules Modules, ready *atomic.Bool, getVersion util.VersionFunc,
+) ([]mount.Entry, error) {
 	var (
 		entries []mount.Entry
 		errs    []error
 	)
 
 	for _, name := range slices.Sorted(maps.Keys(modules)) {
-		mounts, err := callConstructor(name, modules[name], newServices(name, ready))
+		mounts, err := callConstructor(name, modules[name], newServices(name, ready),
+			getVersion)
 		if err != nil {
 			errs = append(errs, err)
 
@@ -148,9 +208,10 @@ func construct(modules Modules, ready *atomic.Bool) ([]mount.Entry, error) {
 var errNoConstructor = errors.New("no constructor")
 
 // callConstructor calls ctor, the constructor of the module name, turning a
-// panic into an internal error naming the module.
+// panic into an internal error naming the module and the version getVersion
+// reports.
 func callConstructor(
-	name string, ctor sdk.Constructor, services sdk.Services,
+	name string, ctor sdk.Constructor, services sdk.Services, getVersion util.VersionFunc,
 ) (mounts []sdk.Mount, err error) {
 	if ctor == nil {
 		return nil, fmt.Errorf("module %q: %w", name, errNoConstructor)
@@ -159,7 +220,7 @@ func callConstructor(
 	defer func() {
 		if r := recover(); r != nil {
 			err = util.InternalError("module %q panicked while building its commands: %v",
-				version.GetVersion, name, r)
+				getVersion, name, r)
 		}
 	}()
 

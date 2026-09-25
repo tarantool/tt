@@ -82,6 +82,28 @@ func Render(t *testing.T, newRoot NewRoot) string {
 	return golden.String()
 }
 
+// RenderHelp renders the --help of the commands at paths, each given by the
+// names from the root down - none for the root - under header, each of its
+// lines a comment.
+func RenderHelp(t *testing.T, newRoot NewRoot, header string, paths ...[]string) string {
+	t.Helper()
+
+	var golden strings.Builder
+
+	for line := range strings.SplitSeq(header, "\n") {
+		golden.WriteString("# " + line + "\n")
+	}
+
+	for _, path := range paths {
+		title := strings.Join(append([]string{"tt"}, path...), " ") + " --help"
+		body := run(t, newRoot, append(append([]string{}, path...), "--help")...)
+
+		golden.WriteString("\n=== " + title + "\n" + body)
+	}
+
+	return golden.String()
+}
+
 // Compare compares got with the golden file at path, or rewrites the file
 // with got when update is set.
 func Compare(t *testing.T, path, got string, update bool) {
