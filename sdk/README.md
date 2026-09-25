@@ -45,7 +45,15 @@ standard library only (testify for its tests).
   picks the format from the `--format` flag and the command's fixed default;
   whether stdout is a terminal affects styling only, never the format. JSON
   is built in; the core adds other machine formats, such as YAML, with
-  `WithEncoder`.
+  `WithEncoder`. `Emit` writes a result whole or not at all; a result too
+  large to hold goes item by item through `Printer.Stream` - JSON Lines in
+  JSON, one `Human` rendering per item for people, and in a core format
+  only when the core adds a stream encoder with `WithStreamEncoder`. A
+  stream is not all-or-nothing: on failure the items written stay, and the
+  exit code tells the consumer the stream was cut. `Normalize` makes values
+  decoded from MessagePack encodable - maps keyed by interfaces, integers or
+  bools get string keys, colliding keys are an error - and the JSON encoder
+  applies it to everything it writes.
 
 stdout carries only a command's result. Diagnostics, progress and prompts go
 to stderr.

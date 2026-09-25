@@ -19,6 +19,23 @@
 // The SDK encodes JSON itself. Any other machine format is supplied by the tt
 // core with [WithEncoder], which keeps its encoder library out of the SDK.
 //
+// A result too large to hold - the tuples of a big space, records read from
+// xlogs, a log being followed - is written item by item through a [Stream]
+// from [Printer.Stream]. In JSON a stream is JSON Lines: one compact value
+// per line, no enclosing array. In the human format each item renders itself
+// with [Result.Human], so columns cannot be aligned across items: an item
+// that is a table row pads its cells to fixed widths, and a heading or a
+// summary is printed with Print before the stream opens or after it closes.
+// Another machine format streams only if the core gives it a stream encoder
+// with [WithStreamEncoder]; YAML's stream, say, is a sequence of documents.
+//
+// A stream is not all-or-nothing. Each item is written whole or not at all,
+// and as soon as it is emitted; when a command fails midway the items
+// already written stay on stdout, the error goes to stderr and into the exit
+// code, and the exit code is how a consumer tells a complete stream from a
+// cut one. While a stream is open, Print, Printf, Emit and Stream refuse with
+// ErrStreamOpen, so nothing interleaves with the items.
+//
 // The JSON encoder passes every value through [Normalize] first, so a result
 // may carry what a MessagePack decoder produced - maps keyed by interfaces,
 // integers or bools - without the command converting it. A core encoder
@@ -37,7 +54,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
+	"slices"
+	"sync"
 )
 
 // Format names how a result is rendered.
@@ -74,6 +94,14 @@ var (
 	ErrNoMachineForm = errors.New("human-only output in a machine format")
 	// ErrNoStream reports streams without a stdout.
 	ErrNoStream = errors.New("no output stream")
+	// ErrNoStreamForm reports a stream requested in a machine format that
+	// has no stream encoder.
+	ErrNoStreamForm = errors.New("output format cannot be streamed")
+	// ErrStreamOpen reports output attempted on a Printer while one of its
+	// streams is open.
+	ErrStreamOpen = errors.New("an output stream is open")
+	// ErrStreamClosed reports an item emitted to a closed stream.
+	ErrStreamClosed = errors.New("output stream is closed")
 )
 
 // Streams are the standard streams a command works with.
@@ -105,6 +133,22 @@ type Result interface {
 // Encoder writes value to w in a machine format.
 type Encoder func(w io.Writer, value any) error
 
+// StreamEncoder writes the items of one stream in a machine format.
+//
+// Encode writes one item; Close ends the stream and writes whatever the
+// format puts after the last item. The writer a StreamEncoder is given
+// collects what one call writes: what Encode wrote reaches stdout when it
+// returns nil, and is discarded when it fails. Encode is not called
+// concurrently.
+type StreamEncoder interface {
+	Encode(item any) error
+	Close() error
+}
+
+// NewStreamEncoder starts a stream encoder writing to w. Anything it writes
+// before returning - a header - reaches stdout when the stream opens.
+type NewStreamEncoder func(w io.Writer) StreamEncoder
+
 // Option configures a Printer.
 type Option func(*Printer)
 
@@ -114,6 +158,17 @@ type Option func(*Printer)
 func WithEncoder(format Format, encoder Encoder) Option {
 	return func(p *Printer) {
 		p.encoders[format] = encoder
+	}
+}
+
+// WithStreamEncoder lets format be streamed by the encoders newEncoder
+// starts, replacing any stream encoder the format already has. The format
+// must also have an encoder, built in or given by WithEncoder. JSON streams
+// out of the box; the core adds streaming to the formats it registers, such
+// as YAML.
+func WithStreamEncoder(format Format, newEncoder NewStreamEncoder) Option {
+	return func(p *Printer) {
+		p.streamEncoders[format] = newEncoder
 	}
 }
 
@@ -131,11 +186,17 @@ func WithTerminalProbe(probe TerminalProbe) Option {
 
 // Printer writes results to stdout in one format.
 type Printer struct {
-	streams  Streams
-	format   Format
-	encoders map[Format]Encoder
-	probe    TerminalProbe
-	terminal bool
+	streams        Streams
+	format         Format
+	encoders       map[Format]Encoder
+	streamEncoders map[Format]NewStreamEncoder
+	probe          TerminalProbe
+	terminal       bool
+
+	// mu guards streaming, which a Stream closed on another goroutine
+	// clears.
+	mu        sync.Mutex
+	streaming bool
 }
 
 // NewPrinter returns a Printer that writes to streams.Out in format. The
@@ -146,11 +207,14 @@ func NewPrinter(streams Streams, format Format, opts ...Option) (*Printer, error
 	}
 
 	printer := &Printer{
-		streams:  streams,
-		format:   format,
-		encoders: map[Format]Encoder{FormatJSON: encodeJSON},
-		probe:    nil,
-		terminal: false,
+		streams:        streams,
+		format:         format,
+		encoders:       map[Format]Encoder{FormatJSON: encodeJSON},
+		streamEncoders: map[Format]NewStreamEncoder{FormatJSON: newJSONLines},
+		probe:          nil,
+		terminal:       false,
+		mu:             sync.Mutex{},
+		streaming:      false,
 	}
 
 	for _, opt := range opts {
@@ -159,6 +223,17 @@ func NewPrinter(streams Streams, format Format, opts ...Option) (*Printer, error
 
 	if _, ok := printer.encoders[FormatHuman]; ok {
 		return nil, fmt.Errorf("%w: an encoder for the human format", ErrUnknownFormat)
+	}
+
+	if _, ok := printer.streamEncoders[FormatHuman]; ok {
+		return nil, fmt.Errorf("%w: a stream encoder for the human format", ErrUnknownFormat)
+	}
+
+	for _, streamed := range slices.Sorted(maps.Keys(printer.streamEncoders)) {
+		if printer.streamEncoders[streamed] != nil && printer.encoders[streamed] == nil {
+			return nil, fmt.Errorf("%w: a stream encoder for %q, which has no encoder",
+				ErrUnknownFormat, streamed)
+		}
 	}
 
 	if format != FormatHuman && printer.encoders[format] == nil {
@@ -185,22 +260,41 @@ func (p *Printer) Terminal() bool {
 	return p.terminal
 }
 
-// Writer returns stdout itself, for a result that is a stream rather than a
-// value - records dumped as they are read, a log being followed. The command
-// is then responsible for writing the chosen format.
+// Writer returns stdout itself, for output the Printer does not shape -
+// bytes passed through as they are. The command is then responsible for
+// writing the chosen format; records written as they are read go through
+// Stream instead. Writes through Writer are not checked against an open
+// stream: keeping them apart is the caller's job.
 func (p *Printer) Writer() io.Writer {
 	return p.streams.Out
+}
+
+// idle returns ErrStreamOpen while a stream of the Printer is open.
+func (p *Printer) idle() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.streaming {
+		return ErrStreamOpen
+	}
+
+	return nil
 }
 
 // Print writes human text to stdout, formatted as fmt.Fprint does. It is for
 // a result that exists only as text; in a machine format it writes nothing
 // and returns ErrNoMachineForm.
 func (p *Printer) Print(args ...any) error {
+	err := p.idle()
+	if err != nil {
+		return err
+	}
+
 	if p.format != FormatHuman {
 		return fmt.Errorf("%w %q", ErrNoMachineForm, p.format)
 	}
 
-	_, err := fmt.Fprint(p.streams.Out, args...)
+	_, err = fmt.Fprint(p.streams.Out, args...)
 	if err != nil {
 		return fmt.Errorf("writing output: %w", err)
 	}
@@ -211,11 +305,16 @@ func (p *Printer) Print(args ...any) error {
 // Printf writes human text to stdout, formatted as fmt.Fprintf does. Like
 // Print, it returns ErrNoMachineForm in a machine format.
 func (p *Printer) Printf(format string, args ...any) error {
+	err := p.idle()
+	if err != nil {
+		return err
+	}
+
 	if p.format != FormatHuman {
 		return fmt.Errorf("%w %q", ErrNoMachineForm, p.format)
 	}
 
-	_, err := fmt.Fprintf(p.streams.Out, format, args...)
+	_, err = fmt.Fprintf(p.streams.Out, format, args...)
 	if err != nil {
 		return fmt.Errorf("writing output: %w", err)
 	}
@@ -227,8 +326,13 @@ func (p *Printer) Printf(format string, args ...any) error {
 // the encoded value otherwise. A machine format is encoded in full before
 // anything is written, so an encoding error leaves stdout untouched.
 func (p *Printer) Emit(result Result) error {
+	err := p.idle()
+	if err != nil {
+		return err
+	}
+
 	if p.format == FormatHuman {
-		err := result.Human(p.streams.Out)
+		err = result.Human(p.streams.Out)
 		if err != nil {
 			return fmt.Errorf("rendering output: %w", err)
 		}
@@ -238,7 +342,7 @@ func (p *Printer) Emit(result Result) error {
 
 	var buf bytes.Buffer
 
-	err := p.encoders[p.format](&buf, result)
+	err = p.encoders[p.format](&buf, result)
 	if err != nil {
 		return fmt.Errorf("encoding output as %s: %w", p.format, err)
 	}
