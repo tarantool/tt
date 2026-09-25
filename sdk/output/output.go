@@ -11,8 +11,10 @@
 // fails leaves stdout empty - there is no error envelope; the error goes to
 // stderr and into the exit code.
 //
-// The format is chosen by the --format flag alone: [ResolveFormat] takes the
-// flag and the command's fixed default. Whether stdout is a terminal never
+// The format is chosen by the --format flag alone: a command declares the
+// flag with [BindFormat], which takes the formats it accepts and its fixed
+// default, and [ResolveFormat] maps a flag value to a format. Whether stdout
+// is a terminal never
 // changes the format; it may change only styling - colour, width,
 // truncation - and a command reads it from [Printer.Terminal].
 //

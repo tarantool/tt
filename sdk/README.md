@@ -26,7 +26,8 @@ Each directory is a separate Go module:
 `github.com/tarantool/tt/sdk`, rooted at `sdk/` itself, is the contract
 between tt and its modules. The nested `connect`, `dial`, `cluster` and
 `integrity` are not part of it: each has its own `go.mod`. It depends on the
-standard library only (testify for its tests).
+standard library and `github.com/spf13/pflag`, the flag library under cobra
+(testify for its tests).
 
 - `sdk` (the root package) defines the exit-code contract: the codes tt
   returns (1 for a request the caller must fix, 2 for a failure of the
@@ -41,9 +42,11 @@ standard library only (testify for its tests).
   `slog.Default`. Handlers, levels and the log format are set up by the
   core; a module never reconfigures them.
 - `sdk/output` writes a command's result to stdout: `Streams`, a `Printer`
-  bound to them and a format, and the `Result` interface. `ResolveFormat`
-  picks the format from the `--format` flag and the command's fixed default;
-  whether stdout is a terminal affects styling only, never the format. JSON
+  bound to them and a format, and the `Result` interface. `BindFormat`
+  declares the `-o/--format` flag with the formats a command accepts and its
+  fixed default, so every command spells the flag the same way;
+  `ResolveFormat` picks the format from a flag value and that default.
+  Whether stdout is a terminal affects styling only, never the format. JSON
   is built in; the core adds other machine formats, such as YAML, with
   `WithEncoder`. `Emit` writes a result whole or not at all; a result too
   large to hold goes item by item through `Printer.Stream` - JSON Lines in
