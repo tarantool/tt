@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -56,7 +57,7 @@ func collectFiles(files map[string]bool, dirname string) (map[string]bool, error
 			return nil
 		})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to collect files in %q: %w", dirname, err)
 	}
 
 	return files, nil
@@ -86,7 +87,7 @@ func clean(run *running.InstanceCtx) error {
 		for file := range removeFiles {
 			err = os.Remove(file)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to remove %q: %w", file, err)
 			}
 
 			log.Debugf("removed %q", file)

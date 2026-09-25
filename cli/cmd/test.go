@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/sdk/log"
@@ -123,21 +124,28 @@ func runTest(subPath string, luatestArgs []string) error {
 
 	opts := build.Options{
 		ProjectDir: root,
+		Product:    "",
+		Component:  "",
+		Locked:     false,
+		FetchOnly:  false,
 		TtVersion:  "tt " + coreVersion(),
 		Tarantool:  tntInfo,
 		Registries: sources,
 		ShowOutput: cmdCtx.Cli.Verbose,
+		Now:        time.Time{},
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
 	}
 
 	ctx := context.Background()
 
-	if err := build.Run(ctx, opts); err != nil {
+	err = build.Run(ctx, opts)
+	if err != nil {
 		return err
 	}
 
-	if err := ensureLuatest(ctx, root, opts); err != nil {
+	err = ensureLuatest(ctx, root, opts)
+	if err != nil {
 		return err
 	}
 
@@ -164,6 +172,6 @@ func ensureLuatest(ctx context.Context, root string, opts build.Options) error {
 	// An unset source is the registry, exactly as it is for the manifest's own
 	// short form where a dependency is written as a bare constraint string.
 	return build.EnsureDevRocks(ctx, opts, map[string]manifest.Dependency{
-		luatestName: {Version: "*"},
+		luatestName: {Source: "", Version: "*", Path: "", Registry: "", Kind: ""},
 	})
 }

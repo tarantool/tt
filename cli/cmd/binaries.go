@@ -56,7 +56,7 @@ You will need to choose version using arrow keys in your console.
 		ValidArgs: binariesSupportedPrograms,
 	}
 	listCmd := &cobra.Command{
-		Use:   "list",
+		Use:   listCmdName,
 		Short: "Show a list of installed binaries and their versions.",
 		RunE:  RunModuleFuncE(internalListModule),
 	}
@@ -90,7 +90,8 @@ func internalSwitchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	)
 
 	if len(args) > 0 {
-		if switchCtx.Program, err = search.ParseProgram(args[0]); err != nil {
+		switchCtx.Program, err = search.ParseProgram(args[0])
+		if err != nil {
 			return fmt.Errorf("failed to switch module: %w", err)
 		}
 	} else {

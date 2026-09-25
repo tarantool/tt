@@ -1,12 +1,16 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
+
+// errNotADirectory reports a -C path that exists but is not a directory.
+var errNotADirectory = errors.New("not a directory")
 
 // projectDir holds -C: the directory the manifest commands work on instead of
 // the process working directory. Empty means the working directory itself.
@@ -42,15 +46,20 @@ func absoluteWorkingDir() (string, error) {
 	if projectDir == "" {
 		dir, err := os.Getwd()
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("failed to get the working directory: %w", err)
 		}
 
-		return filepath.Abs(dir)
+		abs, err := filepath.Abs(dir)
+		if err != nil {
+			return "", fmt.Errorf("failed to get absolute path of %q: %w", dir, err)
+		}
+
+		return abs, nil
 	}
 
 	abs, err := filepath.Abs(projectDir)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("-C %s: %w", projectDir, err)
 	}
 
 	info, err := os.Stat(abs)
@@ -59,7 +68,7 @@ func absoluteWorkingDir() (string, error) {
 	}
 
 	if !info.IsDir() {
-		return "", fmt.Errorf("-C %s: not a directory", projectDir)
+		return "", fmt.Errorf("-C %s: %w", projectDir, errNotADirectory)
 	}
 
 	return abs, nil

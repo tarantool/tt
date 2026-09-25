@@ -26,7 +26,19 @@ var (
 	errProcessIsNotRunning            = errors.New("process is not running")
 )
 
-var tcmCtx = tcmCmd.TcmCtx{}
+var tcmCtx = tcmCmd.TcmCtx{
+	Executable:      "",
+	Watchdog:        false,
+	WatchdogPidFile: "",
+	Log: tcmCmd.LoggerOpts{
+		Level:      "",
+		Lines:      0,
+		IsFollow:   false,
+		NoColor:    false,
+		ForceColor: false,
+		NoFormat:   false,
+	},
+}
 
 const (
 	tcmPidFile             = "tcm.pid"
@@ -127,15 +139,16 @@ func startTcmInteractive(logLevel string) error {
 		"--log.default.file.name="+logFileName,
 	)
 
-	if err := tcmApp.Start(); err != nil {
-		return err
+	err := tcmApp.Start()
+	if err != nil {
+		return fmt.Errorf("failed to start tcm: %w", err)
 	}
 
 	if tcmApp == nil || tcmApp.Process == nil {
 		return errProcessIsNotRunning
 	}
 
-	err := process_utils.CreatePIDFile(tcmPidFile, tcmApp.Process.Pid)
+	err = process_utils.CreatePIDFile(tcmPidFile, tcmApp.Process.Pid)
 	if err != nil {
 		return err
 	}
@@ -147,11 +160,8 @@ func startTcmInteractive(logLevel string) error {
 
 func startTcmUnderWatchDog() error {
 	wd := libwatchdog.NewWatchdog(tcmPidFile, watchdogPidFile, watchdogRestartDelay)
-	if err := wd.Start(tcmCtx.Executable); err != nil {
-		return err
-	}
 
-	return nil
+	return wd.Start(tcmCtx.Executable)
 }
 
 func internalStartTcm(cmdCtx *cmdcontext.CmdCtx, args []string) error {
@@ -166,35 +176,30 @@ func internalStartTcm(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	tcmCtx.Executable = cmdCtx.Cli.TcmCli.Executable
 
 	if !tcmCtx.Watchdog {
-		if err := startTcmInteractive(tcmCtx.Log.Level); err != nil {
-			return err
-		}
-	} else {
-		if err := startTcmUnderWatchDog(); err != nil {
-			return err
-		}
+		return startTcmInteractive(tcmCtx.Log.Level)
 	}
 
-	return nil
+	return startTcmUnderWatchDog()
 }
 
 func internalTcmStatus(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	pidAbsPath, err := filepath.Abs(tcmPidFile)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get absolute path of %q: %w", tcmPidFile, err)
 	}
 
-	if _, err := os.Stat(pidAbsPath); err != nil {
+	_, err = os.Stat(pidAbsPath)
+	if err != nil {
 		return fmt.Errorf("path does not exist: %w", err)
 	}
 
-	ts := table.NewWriter()
-	ts.SetOutputMirror(os.Stdout)
+	statusTable := table.NewWriter()
+	statusTable.SetOutputMirror(os.Stdout)
 
-	ts.AppendHeader(
+	statusTable.AppendHeader(
 		table.Row{"APPLICATION", "STATUS", "PID"})
 
-	ts.SetColumnConfigs([]table.ColumnConfig{
+	statusTable.SetColumnConfigs([]table.ColumnConfig{
 		{Number: 1, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
 		{Number: statusPIDColumn, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
 		{Number: statusExecutableColumn, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
@@ -203,10 +208,10 @@ func internalTcmStatus(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	status := process_utils.ProcessStatus(pidAbsPath)
 
-	ts.AppendRows([]table.Row{
+	statusTable.AppendRows([]table.Row{
 		{"TCM", status.Status, status.PID},
 	})
-	ts.Render()
+	statusTable.Render()
 
 	return nil
 }
@@ -236,13 +241,13 @@ func internalTcmLog(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		color.NoColor = false
 	}
 
-	p := tcmCmd.NewLogPrinter(tcmCtx.Log.NoFormat, tcmCtx.Log.NoColor, os.Stdout)
+	printer := tcmCmd.NewLogPrinter(tcmCtx.Log.NoFormat, tcmCtx.Log.NoColor, os.Stdout)
 	if tcmCtx.Log.IsFollow {
 		f := tail.NewTailFollower(logFileName)
-		return tcmCmd.FollowLogs(f, p, tcmCtx.Log.Lines)
+		return tcmCmd.FollowLogs(f, printer, tcmCtx.Log.Lines)
 	}
 
 	t := tail.NewTailReader(logFileName)
 
-	return tcmCmd.TailLogs(t, p, tcmCtx.Log.Lines)
+	return tcmCmd.TailLogs(t, printer, tcmCtx.Log.Lines)
 }

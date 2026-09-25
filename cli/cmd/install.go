@@ -131,7 +131,8 @@ func internalInstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	var err error
 
-	if err = install.FillCtx(cmdCtx, &installCtx, args); err != nil {
+	err = install.FillCtx(cmdCtx, &installCtx, args)
+	if err != nil {
 		return err
 	}
 

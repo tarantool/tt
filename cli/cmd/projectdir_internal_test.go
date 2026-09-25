@@ -30,13 +30,13 @@ func TestAbsoluteWorkingDirDefault(t *testing.T) {
 	dir, err := absoluteWorkingDir()
 	require.NoError(t, err)
 
-	wd, err := os.Getwd()
+	workDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	wd, err = filepath.Abs(wd)
+	workDir, err = filepath.Abs(workDir)
 	require.NoError(t, err)
 
-	assert.Equal(t, wd, dir)
+	assert.Equal(t, workDir, dir)
 }
 
 // TestAbsoluteWorkingDirFlag checks that -C replaces the working directory and
@@ -62,11 +62,7 @@ func TestAbsoluteWorkingDirFlag(t *testing.T) {
 		nested := filepath.Join(project, "nested")
 		require.NoError(t, os.Mkdir(nested, 0o755))
 
-		wd, err := os.Getwd()
-		require.NoError(t, err)
-
-		require.NoError(t, os.Chdir(project))
-		t.Cleanup(func() { require.NoError(t, os.Chdir(wd)) })
+		t.Chdir(project)
 
 		withProjectDir(t, "nested")
 

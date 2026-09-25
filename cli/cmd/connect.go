@@ -218,27 +218,30 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 
 // internalConnectModule is a default connect module.
 func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	connectCtx := connect.ConnectCtx{
-		Username:    connectUser,
-		Password:    connectPassword,
-		SrcFile:     connectFile,
-		SslKeyFile:  connectSslKeyFile,
-		SslCertFile: connectSslCertFile,
-		SslCaFile:   connectSslCaFile,
-		SslCiphers:  connectSslCiphers,
-		Interactive: connectInteractive,
-		Binary:      connectBinary,
-		Evaler:      connectEvaler,
-	}
-
-	var ok bool
-
-	if connectCtx.Language, ok = connect.ParseLanguage(connectLanguage); !ok {
+	language, ok := connect.ParseLanguage(connectLanguage)
+	if !ok {
 		return util.NewArgError("unsupported language: " + connectLanguage)
 	}
 
-	if connectCtx.Format, ok = formatter.ParseFormat(connectFormat); !ok {
+	format, ok := formatter.ParseFormat(connectFormat)
+	if !ok {
 		return util.NewArgError("unsupported output format: " + connectFormat)
+	}
+
+	connectCtx := connect.ConnectCtx{
+		Username:      connectUser,
+		Password:      connectPassword,
+		SrcFile:       connectFile,
+		Language:      language,
+		Format:        format,
+		SslKeyFile:    connectSslKeyFile,
+		SslCertFile:   connectSslCertFile,
+		SslCaFile:     connectSslCaFile,
+		SslCiphers:    connectSslCiphers,
+		Interactive:   connectInteractive,
+		ConnectTarget: "",
+		Binary:        connectBinary,
+		Evaler:        connectEvaler,
 	}
 
 	connOpts, err := resolveConnectOpts(cmdCtx, cliOpts, &connectCtx, args[0])
@@ -267,9 +270,5 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		log.Info("Connecting to the instance...")
 	}
 
-	if err := connect.Connect(connectCtx, connOpts); err != nil {
-		return err
-	}
-
-	return nil
+	return connect.Connect(connectCtx, connOpts)
 }

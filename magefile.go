@@ -37,6 +37,9 @@ const (
 	defaultLinuxConfigPath  = "/etc/tarantool"
 	defaultDarwinConfigPath = "/usr/local/etc/tarantool"
 
+	// tagsFlag is the go flag that sets the build tags.
+	tagsFlag = "-tags"
+
 	lintConfig  = ".golangci.yml"
 	lintVersion = "2.14.0"
 	lintExeEnv  = "GOLANGCI_LINT"
@@ -101,7 +104,8 @@ func init() {
 	if specifiedTTExe := os.Getenv("TTEXE"); specifiedTTExe != "" {
 		ttExecutableName = specifiedTTExe
 	} else {
-		if ttExecutableName, err = filepath.Abs(ttExecutableName); err != nil {
+		ttExecutableName, err = filepath.Abs(ttExecutableName)
+		if err != nil {
 			panic(err)
 		}
 	}
@@ -153,7 +157,7 @@ func appendTags(args []string) ([]string, error) {
 			BuildTypeOpenSSL, BuildTypeOpenSSLStatic)
 	}
 
-	return append(append(args, "-tags"), strings.Join(tags, ",")), nil
+	return append(append(args, tagsFlag), strings.Join(tags, ",")), nil
 }
 
 // Building tt executable. Supported environment variables:
@@ -168,7 +172,8 @@ func buildTt(argUpdaters ...optsUpdater) error {
 	var err error
 
 	for _, updateArguments := range argUpdaters {
-		if args, err = updateArguments(args); err != nil {
+		args, err = updateArguments(args)
+		if err != nil {
 			return err
 		}
 	}
@@ -223,14 +228,10 @@ func CheckLicenses() error {
 
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get the home directory: %w", err)
 	}
 
-	if err := sh.RunV(home+"/go/bin/lichen", "--config", ".lichen.yaml", "tt"); err != nil {
-		return err
-	}
-
-	return nil
+	return sh.RunV(home+"/go/bin/lichen", "--config", ".lichen.yaml", "tt")
 }
 
 type Lint mg.Namespace
@@ -302,7 +303,8 @@ func resolveLinter() (string, error) {
 
 // linterVersionOf runs `<exe> version` and reports its semantic version.
 func linterVersionOf(exe string) (string, error) {
-	if _, err := exec.LookPath(exe); err != nil {
+	_, err := exec.LookPath(exe)
+	if err != nil {
 		return "", fmt.Errorf("not found: %w", err)
 	}
 
@@ -323,11 +325,7 @@ func linterVersionOf(exe string) (string, error) {
 func (Lint) Python() error {
 	_, _ = fmt.Fprintln(os.Stdout, "Running Ruff...")
 
-	if err := sh.RunV(pythonExecutableName, "-m", "ruff", "check", "test"); err != nil {
-		return err
-	}
-
-	return nil
+	return sh.RunV(pythonExecutableName, "-m", "ruff", "check", "test")
 }
 
 type Unit mg.Namespace
@@ -364,14 +362,14 @@ func (Unit) Default() error {
 func (Unit) Full() error {
 	_, _ = fmt.Fprintln(os.Stdout, "Running full unit tests...")
 
-	return runUnitTests([]string{"-tags", "integration,integration_docker"})
+	return runUnitTests([]string{tagsFlag, "integration,integration_docker"})
 }
 
 // FullSkipDocker runs unit tests with Tarantool instance integration, excluding docker tests.
 func (Unit) FullSkipDocker() error {
 	_, _ = fmt.Fprintln(os.Stdout, "Running full unit tests, excluding docker...")
 
-	return runUnitTests([]string{"-tags", "integration"})
+	return runUnitTests([]string{tagsFlag, "integration"})
 }
 
 // Coverage runs the full unit test set with code coverage.
@@ -380,16 +378,18 @@ func (Unit) Coverage() error {
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get current dir: %w", err)
 	}
 
 	coverDir := filepath.Join(cwd, "coverage", "unit")
-	if err := ensureCoverageDir(coverDir); err != nil {
+
+	err = ensureCoverageDir(coverDir)
+	if err != nil {
 		return err
 	}
 
 	err = runUnitTests([]string{
-		"-tags", "integration,integration_docker",
+		tagsFlag, "integration,integration_docker",
 		"-cover",
 		"-args", "-test.gocoverdir=" + coverDir,
 	})
@@ -415,11 +415,16 @@ func ensureCoverageDir(coverDir string) error {
 
 	coverageDirInfo, err := os.Stat(coverDir)
 	if os.IsNotExist(err) {
-		return os.MkdirAll(coverDir, coverageDirectoryMode)
+		err = os.MkdirAll(coverDir, coverageDirectoryMode)
+		if err != nil {
+			return fmt.Errorf("failed to create %q: %w", coverDir, err)
+		}
+
+		return nil
 	}
 
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to stat %q: %w", coverDir, err)
 	}
 
 	if !coverageDirInfo.IsDir() {
@@ -543,11 +548,13 @@ func getBuildEnvironment() map[string]string {
 		gitCommitSinceTag string
 	)
 
-	if currentDir, err = os.Getwd(); err != nil {
+	currentDir, err = os.Getwd()
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get current directory: %s\n", err)
 	}
 
-	if _, err := exec.LookPath("git"); err == nil {
+	_, err = exec.LookPath("git")
+	if err == nil {
 		gitTag, _ = sh.Output("git", "describe", "--tags")
 		gitTagShort, _ = sh.Output("git", "describe", "--tags", "--abbrev=0")
 		gitCommit, _ = sh.Output("git", "rev-parse", "--short", "HEAD")

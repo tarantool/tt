@@ -14,6 +14,14 @@ import (
 	"github.com/tarantool/tt/v3/cli/util"
 )
 
+const (
+	// listCmdName is the name of the subcommands that list what their parent
+	// command manages.
+	listCmdName = "list"
+	// jsonNull is how encoding/json renders a nil slice.
+	jsonNull = "null"
+)
+
 // errNoConfig is returned if environment config file tt.yaml not found.
 var errNoConfig = errors.New(configure.ConfigName +
 	" not found, you need to create a tt environment config" +
@@ -46,7 +54,8 @@ func RunModuleFunc(internalModule modules.InternalFunc) func(*cobra.Command, []s
 	runE := RunModuleFuncE(internalModule)
 
 	return func(cmd *cobra.Command, args []string) {
-		if err := runE(cmd, args); err != nil {
+		err := runE(cmd, args)
+		if err != nil {
 			os.Exit(reportError(cmd, err))
 		}
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
+	sdkcluster "github.com/tarantool/tt/sdk/cluster"
 	sdkconnect "github.com/tarantool/tt/sdk/connect"
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/cluster"
@@ -33,38 +34,54 @@ var (
 const addAction = true
 
 var showCtx = clustercmd.ShowCtx{
-	Username: "",
-	Password: "",
-	Validate: false,
+	Username:   "",
+	Password:   "",
+	Collectors: sdkcluster.Factory{},
+	Integrity:  integrity.IntegrityCtx{Repository: nil},
+	Validate:   false,
 }
 
 var publishCtx = clustercmd.PublishCtx{
 	Username:   "",
 	Password:   "",
+	Force:      false,
+	Publishers: sdkcluster.Factory{},
+	Collectors: sdkcluster.Factory{},
+	Src:        nil,
+	Config:     nil,
 	Group:      "",
 	Replicaset: "",
-	Force:      false,
 }
 
 var promoteCtx = clustercmd.PromoteCtx{
-	Username: "",
-	Password: "",
-	Force:    false,
+	InstName:   "",
+	Publishers: sdkcluster.Factory{},
+	Collectors: sdkcluster.Factory{},
+	Username:   "",
+	Password:   "",
+	Force:      false,
 }
 
 var demoteCtx = clustercmd.DemoteCtx{
-	Username: "",
-	Password: "",
-	Force:    false,
+	InstName:   "",
+	Publishers: sdkcluster.Factory{},
+	Collectors: sdkcluster.Factory{},
+	Username:   "",
+	Password:   "",
+	Force:      false,
 }
 
 var expelCtx = clustercmd.ExpelCtx{
-	Username: "",
-	Password: "",
-	Force:    false,
+	InstName:   "",
+	Publishers: sdkcluster.Factory{},
+	Collectors: sdkcluster.Factory{},
+	Username:   "",
+	Password:   "",
+	Force:      false,
 }
 
 var switchCtx = clustercmd.SwitchCtx{
+	InstName: "",
 	Username: "",
 	Password: "",
 	Wait:     false,
@@ -75,15 +92,36 @@ var switchStatusCtx = clustercmd.SwitchStatusCtx{
 	TaskID: "",
 }
 
-var rolesChangeCtx = clustercmd.RolesChangeCtx{}
+var rolesChangeCtx = clustercmd.RolesChangeCtx{
+	InstName:       "",
+	GroupName:      "",
+	ReplicasetName: "",
+	IsGlobal:       false,
+	RoleName:       "",
+	Publishers:     sdkcluster.Factory{},
+	Collectors:     sdkcluster.Factory{},
+	Username:       "",
+	Password:       "",
+	Force:          false,
+}
+
+const (
+	// configStorageHelp names the services a cluster configuration URL
+	// points to.
+	configStorageHelp = "etcd or tarantool config storage"
+	// urlHelpService is the URL help key describing the service.
+	urlHelpService = "service"
+	// urlHelpPrefix is the URL help key describing the key prefix.
+	urlHelpPrefix = "prefix"
+)
 
 var (
 	defaultSwitchTimeout       uint64 = 30
 	clusterIntegrityPrivateKey string
 	clusterURIHelp             = sdkconnect.MakeURLHelp(map[string]any{
-		"service": "etcd or tarantool config storage",
-		"prefix": "a base path to Tarantool configuration in" +
-			" etcd or tarantool config storage",
+		urlHelpService: configStorageHelp,
+		urlHelpPrefix: "a base path to Tarantool configuration in " +
+			configStorageHelp,
 		"param_key":            "a target configuration key in the prefix",
 		"param_name":           "a name of an instance in the cluster configuration",
 		"env_TT_CLI_auth":      "Tarantool",
@@ -93,9 +131,9 @@ environment variables < command flags < URL credentials.`,
 	})
 
 	failoverURIHelp = sdkconnect.MakeURLHelp(map[string]any{
-		"service": "etcd or tarantool config storage",
-		"prefix": "a base path to Tarantool configuration in" +
-			" etcd or tarantool config storage",
+		urlHelpService: configStorageHelp,
+		urlHelpPrefix: "a base path to Tarantool configuration in " +
+			configStorageHelp,
 		"env_TT_CLI_auth":      "Tarantool",
 		"env_TT_CLI_ETCD_auth": "Etcd",
 		"footer": `The priority of credentials:
@@ -372,7 +410,8 @@ func NewClusterCmd() *cobra.Command {
 
 // internalClusterShowModule is an entrypoint for `cluster show` command.
 func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if opts, err := sdkconnect.CreateURIOpts(args[0]); err == nil {
+	opts, err := sdkconnect.CreateURIOpts(args[0])
+	if err == nil {
 		factory, cerr := cluster.NewCollectorFactory(cmdCtx.Integrity)
 		if cerr != nil {
 			return cerr
@@ -417,7 +456,8 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 	publishCtx.Src = data
 	publishCtx.Config = config
 
-	if opts, err := sdkconnect.CreateURIOpts(args[0]); err == nil {
+	opts, err := sdkconnect.CreateURIOpts(args[0])
+	if err == nil {
 		return clustercmd.PublishURI(publishCtx, opts)
 	}
 
@@ -490,7 +530,8 @@ func internalClusterReplicasetExpelModule(cmdCtx *cmdcontext.CmdCtx, args []stri
 func internalClusterReplicasetRolesAddModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var err error
 
-	if err = checkRolesChangeFlags(addAction); err != nil {
+	err = checkRolesChangeFlags(addAction)
+	if err != nil {
 		return err
 	}
 
@@ -509,7 +550,8 @@ func internalClusterReplicasetRolesAddModule(cmdCtx *cmdcontext.CmdCtx, args []s
 func internalClusterReplicasetRolesRemoveModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var err error
 
-	if err = checkRolesChangeFlags(!addAction); err != nil {
+	err = checkRolesChangeFlags(!addAction)
+	if err != nil {
 		return err
 	}
 
@@ -551,7 +593,8 @@ func readSourceFile(path string) ([]byte, map[string]any, error) {
 
 	var decoded map[string]any
 
-	if err := yaml.Unmarshal(data, &decoded); err != nil {
+	err = yaml.Unmarshal(data, &decoded)
+	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read a configuration from path %q: %w", path, err)
 	}
 

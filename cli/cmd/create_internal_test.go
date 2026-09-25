@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/v3/cli/config"
 )
 
@@ -30,13 +31,13 @@ func TestCreateValidArgsFunction(t *testing.T) {
 	_, _ = os.Create(tempsDir1 + "/" + "archive.tgz")
 
 	tDir1 := filepath.Join(tempsDir1, "template1")
-	assert.NoError(t, os.Mkdir(tDir1, 0o755))
+	require.NoError(t, os.Mkdir(tDir1, 0o755))
 
 	_, _ = os.Create(tempsDir2 + "/" + "excess.B")
 	_, _ = os.Create(tempsDir2 + "/" + "template2.tar.gz")
 
 	tDir2 := filepath.Join(tempsDir2, "template2")
-	assert.NoError(t, os.Mkdir(tDir2, 0o755))
+	require.NoError(t, os.Mkdir(tDir2, 0o755))
 
 	_, tDir1Name := filepath.Split(tDir1)
 	_, tDir2Name := filepath.Split(tDir2)

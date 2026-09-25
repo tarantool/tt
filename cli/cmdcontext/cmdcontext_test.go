@@ -1,4 +1,4 @@
-package cmdcontext
+package cmdcontext_test
 
 import (
 	"fmt"
@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/version"
 )
 
@@ -23,7 +24,7 @@ echo "Tarantool 2.11.0"`),
 	expectedVersion, err := version.Parse("2.11.0")
 	require.NoError(t, err)
 
-	tntCli := TarantoolCli{Executable: filepath.Join(tmpDir, "tnt.sh")}
+	tntCli := cmdcontext.TarantoolCli{Executable: filepath.Join(tmpDir, "tnt.sh")}
 	tntVersion, err := tntCli.GetVersion()
 	require.NoError(t, err)
 	require.Equal(t, expectedVersion, tntVersion)
@@ -40,7 +41,7 @@ echo "Tarantool 3.0.0"`),
 	require.Equal(t, expectedVersion, tntVersion)
 
 	// Check non-cached.
-	tntCli = TarantoolCli{Executable: filepath.Join(tmpDir, "tnt.sh")}
+	tntCli = cmdcontext.TarantoolCli{Executable: filepath.Join(tmpDir, "tnt.sh")}
 	tntVersion, err = tntCli.GetVersion()
 	require.NoError(t, err)
 	require.Equal(t, version.Version{
@@ -62,9 +63,9 @@ echo "Tarantool version bad format"`),
 		0o755)
 	require.NoError(t, err)
 
-	tntCli := TarantoolCli{Executable: filepath.Join(tmpDir, "tnt.sh")}
+	tntCli := cmdcontext.TarantoolCli{Executable: filepath.Join(tmpDir, "tnt.sh")}
 	tntVersion, err := tntCli.GetVersion()
-	assert.ErrorContains(t, err, "format is not valid")
+	require.ErrorContains(t, err, "format is not valid")
 	assert.Equal(t, version.Version{}, tntVersion)
 
 	// Non-zero exit code.
@@ -75,9 +76,9 @@ exit 1`),
 		0o755)
 	require.NoError(t, err)
 
-	tntCli = TarantoolCli{Executable: filepath.Join(tmpDir, "tnt.sh")}
+	tntCli = cmdcontext.TarantoolCli{Executable: filepath.Join(tmpDir, "tnt.sh")}
 	tntVersion, err = tntCli.GetVersion()
-	assert.ErrorContains(t, err, "failed to get tarantool version: exit status 1")
+	require.ErrorContains(t, err, "failed to get tarantool version: exit status 1")
 	assert.Equal(t, version.Version{}, tntVersion)
 }
 
@@ -138,22 +139,22 @@ func TestTtCli_GetVersion(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
 			err := os.WriteFile(filepath.Join(tmpDir, "tt.sh"),
 				[]byte(fmt.Sprintf(`#!/bin/bash
-    echo "%s"`, tc.versionToCheck)),
+    echo "%s"`, testCase.versionToCheck)),
 				0o755)
 			require.NoError(t, err)
 
-			ttVersion, err := GetTtVersion(filepath.Join(tmpDir, "tt.sh"))
-			if tc.isErr {
-				require.EqualError(t, err, tc.expectedErrMsg)
+			ttVersion, err := cmdcontext.GetTtVersion(filepath.Join(tmpDir, "tt.sh"))
+			if testCase.isErr {
+				require.EqualError(t, err, testCase.expectedErrMsg)
 			} else {
 				require.NoError(t, err)
 			}
 
-			require.Equal(t, tc.expectedVer, ttVersion)
+			require.Equal(t, testCase.expectedVer, ttVersion)
 		})
 	}
 }

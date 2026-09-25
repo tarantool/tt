@@ -48,15 +48,20 @@ const (
 )
 
 var aeonHelp = sdkconnect.MakeURLHelp(map[string]any{
-	"service":    "etcd or tarantool config storage",
-	"param_key":  "a target configuration key in the prefix",
-	"param_name": "a name of an instance in the cluster configuration",
-	"prefix": "key prefix (optional)," +
+	urlHelpService: configStorageHelp,
+	"param_key":    "a target configuration key in the prefix",
+	"param_name":   "a name of an instance in the cluster configuration",
+	urlHelpPrefix: "key prefix (optional)," +
 		" points to a “namespace” or prefix for all key operations",
 })
 
 var connectCtx = aeoncmd.ConnectCtx{
+	Username:  "",
+	Password:  "",
+	Ssl:       aeoncmd.Ssl{KeyFile: "", CertFile: "", CaFile: ""},
 	Transport: aeoncmd.TransportPlain,
+	Network:   "",
+	Address:   "",
 }
 
 func newAeonConnectCmd() *cobra.Command {
@@ -137,16 +142,18 @@ func aeonConnectValidateArgs(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		if err := readConfigFilePath(configPath, instName); err != nil {
+		err = readConfigFilePath(configPath, instName)
+		if err != nil {
 			return err
 		}
 	case len(args) == 2 && util.IsRegularFile(args[0]):
 		configPath, err := filepath.Abs(args[0])
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get absolute path of %q: %w", args[0], err)
 		}
 
-		if err := readConfigFilePath(configPath, args[1]); err != nil {
+		err = readConfigFilePath(configPath, args[1])
+		if err != nil {
 			return err
 		}
 	default:
@@ -228,12 +235,12 @@ func internalAeonConnect(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 }
 
 func readConfigFilePath(configPath, instance string) error {
-	f, err := os.ReadFile(configPath)
+	configData, err := os.ReadFile(configPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read cluster config: %w", err)
 	}
 
-	goView, err := cluster.BuildGoConfigFromBytes(context.Background(), f)
+	goView, err := cluster.BuildGoConfigFromBytes(context.Background(), configData)
 	if err != nil {
 		return fmt.Errorf("failed to parse cluster config: %w", err)
 	}
@@ -255,7 +262,7 @@ func readConfigFilePath(configPath, instance string) error {
 
 	err = mapstructure.Decode(rawAdvertise, &advertise)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to decode aeon advertise config: %w", err)
 	}
 
 	if advertise.URI == "" {
@@ -300,7 +307,8 @@ func getConfigURI(cmdCtx *cmdcontext.CmdCtx, url, instanceName string) error {
 		return err
 	}
 
-	if uri, err := sdkconnect.CreateURIOpts(url); err == nil {
+	uri, err := sdkconnect.CreateURIOpts(url)
+	if err == nil {
 		_ = aeoncmd.FillConnectCtx(&connectCtx, uri, instanceName, factory)
 	}
 

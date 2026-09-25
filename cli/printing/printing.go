@@ -73,13 +73,13 @@ func isTerminal(w io.Writer) bool {
 }
 
 // encodeYAML writes value, normalised, as one YAML document.
-func encodeYAML(w io.Writer, value any) error {
+func encodeYAML(writer io.Writer, value any) error {
 	normalized, err := output.Normalize(value)
 	if err != nil {
 		return fmt.Errorf("encoding YAML: %w", err)
 	}
 
-	encoder := yaml.NewEncoder(w)
+	encoder := yaml.NewEncoder(writer)
 	encoder.SetIndent(yamlIndent)
 
 	err = encoder.Encode(normalized)

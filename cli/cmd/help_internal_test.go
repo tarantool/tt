@@ -116,7 +116,7 @@ func TestHelpFitsWidth(t *testing.T) {
 		require.NoError(t, cmd.Help())
 		require.NotEmpty(t, out.String(), cmd.CommandPath())
 
-		for _, line := range strings.Split(out.String(), "\n") {
+		for line := range strings.SplitSeq(out.String(), "\n") {
 			assert.LessOrEqual(t, textWidth(line), helpWidth, "%s: %s", cmd.CommandPath(), line)
 		}
 

@@ -43,7 +43,7 @@ linters:
       # Scope linting to the directories adopted into the strict ruleset. An
       # issue is excluded when its path is NOT one of them. A directory joins
       # once it lints clean, and the rule goes away when all of them have.
-      - path-except: (^|/)cli/(aeon|binary|cfg|checkpoint|cluster|config|configure|connect|connector|console|coredump|create|docker|download|env|formatter|install|install_ee|logging|manifest|modules|process_utils|replicaset|rocks|running|search|status|tcm|templates|ttlog|uninstall|util|version)/
+      - path-except: (^|/)(cli/((aeon|binary|cfg|checkpoint|cluster|cmd|cmdcontext|config|configure|connect|connector|console|coredump|create|docker|download|env|exitcode|formatter|install|install_ee|logging|manifest|modules|printing|process_utils|replicaset|rocks|running|search|status|tcm|templates|ttlog|uninstall|util|version)/|[^/]+\.go$)|magefile[^/]*\.go$)
         text: ".*"
       # Manifest fixtures deliberately construct partial model values; keep the
       # stricter exhaustruct variant enabled everywhere else.
@@ -119,6 +119,13 @@ linters:
         text: don't use `init` function
         linters:
           - gochecknoinits
+      # Mage takes a target's exit status from its error by a type assertion,
+      # not errors.As, so wrapping a failed command's error turns every exit
+      # status into 1; the error already names the command it ran.
+      - path: ^magefile(\.publish)?\.go$
+        text: 'sig: func github\.com/magefile/mage/sh\.'
+        linters:
+          - wrapcheck
       # Protobuf null is represented by an untyped nil value.
       - path: ^cli/aeon/decode\.go$
         source: ^\s*return nil, nil$

@@ -30,27 +30,37 @@ type Distro struct {
 	Dist string
 }
 
+// The operating systems packages are published for.
+const (
+	osEL       = "el"
+	osFedora   = "fedora"
+	osUbuntu   = "ubuntu"
+	osDebian   = "debian"
+	osLinuxDeb = "linux-deb"
+	osLinuxRPM = "linux-rpm"
+)
+
 var targetDistros = []Distro{
-	{OS: "el", Dist: "7"},
-	{OS: "el", Dist: "8"},
+	{OS: osEL, Dist: "7"},
+	{OS: osEL, Dist: "8"},
 
-	{OS: "fedora", Dist: "34"},
-	{OS: "fedora", Dist: "35"},
-	{OS: "fedora", Dist: "36"},
+	{OS: osFedora, Dist: "34"},
+	{OS: osFedora, Dist: "35"},
+	{OS: osFedora, Dist: "36"},
 
-	{OS: "ubuntu", Dist: "xenial"}, // 16.04
-	{OS: "ubuntu", Dist: "bionic"}, // 18.04
-	{OS: "ubuntu", Dist: "focal"},  // 20.04
-	{OS: "ubuntu", Dist: "jammy"},  // 22.04
-	{OS: "ubuntu", Dist: "noble"},  // 24.04
+	{OS: osUbuntu, Dist: "xenial"}, // 16.04
+	{OS: osUbuntu, Dist: "bionic"}, // 18.04
+	{OS: osUbuntu, Dist: "focal"},  // 20.04
+	{OS: osUbuntu, Dist: "jammy"},  // 22.04
+	{OS: osUbuntu, Dist: "noble"},  // 24.04
 
-	{OS: "debian", Dist: "stretch"},  // 9
-	{OS: "debian", Dist: "buster"},   // 10
-	{OS: "debian", Dist: "bullseye"}, // 11
-	{OS: "debian", Dist: "bookworm"}, // 12
+	{OS: osDebian, Dist: "stretch"},  // 9
+	{OS: osDebian, Dist: "buster"},   // 10
+	{OS: osDebian, Dist: "bullseye"}, // 11
+	{OS: osDebian, Dist: "bookworm"}, // 12
 
-	{OS: "linux-deb", Dist: "static"},
-	{OS: "linux-rpm", Dist: "static"},
+	{OS: osLinuxDeb, Dist: "static"},
+	{OS: osLinuxRPM, Dist: "static"},
 }
 
 // walkMatch walks through directory and collects file paths satisfying patterns.
@@ -67,9 +77,12 @@ func walkMatch(root string, patterns []string) ([]string, error) {
 		}
 
 		for _, pattern := range patterns {
-			if matched, err := filepath.Match(pattern, filepath.Base(path)); err != nil {
-				return err
-			} else if matched {
+			matched, err := filepath.Match(pattern, filepath.Base(path))
+			if err != nil {
+				return fmt.Errorf("failed to match pattern %q: %w", pattern, err)
+			}
+
+			if matched {
 				matches = append(matches, path)
 				return nil
 			}
@@ -78,7 +91,7 @@ func walkMatch(root string, patterns []string) ([]string, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to walk %q: %w", root, err)
 	}
 
 	return matches, nil
@@ -86,11 +99,11 @@ func walkMatch(root string, patterns []string) ([]string, error) {
 
 // getPatterns returns patterns to select go releaser build artifacts.
 func getPatterns(distro Distro) ([]string, error) {
-	if distro.OS == "el" || distro.OS == "fedora" || distro.OS == "linux-rpm" {
+	if distro.OS == osEL || distro.OS == osFedora || distro.OS == osLinuxRPM {
 		return []string{"*.rpm"}, nil
 	}
 
-	if distro.OS == "ubuntu" || distro.OS == "debian" || distro.OS == "linux-deb" {
+	if distro.OS == osUbuntu || distro.OS == osDebian || distro.OS == osLinuxDeb {
 		return []string{"*.deb", "*.dsc"}, nil
 	}
 
@@ -142,6 +155,7 @@ func PublishRWS() error {
 
 		flags = append(flags, "-u", rwsAuth)
 
+		//nolint:gosec // G702: curl runs without a shell, on arguments from the CI environment.
 		cmd := exec.CommandContext(context.Background(), "curl", flags...)
 
 		output, err := cmd.CombinedOutput()

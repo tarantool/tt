@@ -50,7 +50,8 @@ func internalCheckModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	for _, inst := range uniqueInst {
-		if err := running.Check(cmdCtx, &inst); err != nil {
+		err := running.Check(cmdCtx, &inst)
+		if err != nil {
 			return err
 		}
 

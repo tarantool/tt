@@ -68,12 +68,12 @@ func RootShellCompletionCommands(cmd *cobra.Command, args []string,
 func injectRocksCompletion(shell string, completion []byte) ([]byte, error) {
 	injection, err := fs.ReadFile(rocks.EmbedCompletions, "completions/"+shell+"_injection")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read rocks completion injection: %w", err)
 	}
 
 	rocks, err := fs.ReadFile(rocks.EmbedCompletions, "completions/"+shell+"_rocks")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read rocks completion: %w", err)
 	}
 
 	res := bytes.Buffer{}
@@ -106,8 +106,9 @@ func internalCompletionCmd(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	switch shell := args[0]; shell {
 	case shellBash:
-		if err := rootCmd.GenBashCompletionV2(&buf, true); err != nil {
-			return err
+		err := rootCmd.GenBashCompletionV2(&buf, true)
+		if err != nil {
+			return fmt.Errorf("failed to generate bash completion: %w", err)
 		}
 
 		res, err := injectRocksCompletion(shell, buf.Bytes())
@@ -118,8 +119,9 @@ func internalCompletionCmd(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		_, _ = fmt.Fprint(os.Stdout, string(res))
 
 	case shellZsh:
-		if err := rootCmd.GenZshCompletion(&buf); err != nil {
-			return err
+		err := rootCmd.GenZshCompletion(&buf)
+		if err != nil {
+			return fmt.Errorf("failed to generate zsh completion: %w", err)
 		}
 
 		res, err := injectRocksCompletion(shell, buf.Bytes())
@@ -130,8 +132,9 @@ func internalCompletionCmd(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		_, _ = fmt.Fprint(os.Stdout, string(res))
 
 	case shellFish:
-		if err := rootCmd.GenFishCompletion(&buf, true); err != nil {
-			return err
+		err := rootCmd.GenFishCompletion(&buf, true)
+		if err != nil {
+			return fmt.Errorf("failed to generate fish completion: %w", err)
 		}
 
 		res, err := injectRocksCompletion(shell, buf.Bytes())

@@ -30,6 +30,7 @@ var playFlags = checkpoint.Opts{
 	To:         math.MaxUint64,
 	Timestamp:  "",
 	Space:      nil,
+	Format:     "",
 	Replica:    nil,
 	ShowSystem: false,
 	Recursive:  false,
@@ -208,7 +209,7 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			flavour.GetVersion, err)
 	}
 
-	if string(spacesJSON) != "null" {
+	if string(spacesJSON) != jsonNull {
 		_ = os.Setenv("TT_CLI_PLAY_SPACES", string(spacesJSON))
 	}
 
@@ -230,15 +231,11 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			flavour.GetVersion, err)
 	}
 
-	if string(replicasJSON) != "null" {
+	if string(replicasJSON) != jsonNull {
 		_ = os.Setenv("TT_CLI_PLAY_REPLICAS", string(replicasJSON))
 	}
 
 	log.Infof("Running play with URI=%s and files: %s\n", args[0], args[1:])
 
-	if err := checkpoint.Play(cmdCtx.Cli.TarantoolCli); err != nil {
-		return err
-	}
-
-	return nil
+	return checkpoint.Play(cmdCtx.Cli.TarantoolCli)
 }

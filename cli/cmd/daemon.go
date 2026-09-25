@@ -60,11 +60,13 @@ func NewDaemonCmd() *cobra.Command {
 
 // internalDaemonRestartModule is a default restart module.
 func internalDaemonRestartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if err := internalDaemonStopModule(cmdCtx, args); err != nil {
+	err := internalDaemonStopModule(cmdCtx, args)
+	if err != nil {
 		return err
 	}
 
-	if err := internalDaemonStartModule(cmdCtx, args); err != nil {
+	err = internalDaemonStartModule(cmdCtx, args)
+	if err != nil {
 		return err
 	}
 
@@ -79,11 +81,8 @@ func internalDaemonStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	daemonCtx := daemon.NewDaemonCtx(opts)
-	if err := daemon.RunHTTPServerOnBackground(daemonCtx); err != nil {
-		return err
-	}
 
-	return nil
+	return daemon.RunHTTPServerOnBackground(daemonCtx)
 }
 
 // internalDaemonStopModule is a default stop module.
@@ -94,11 +93,8 @@ func internalDaemonStopModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	daemonCtx := daemon.NewDaemonCtx(opts)
-	if err := daemon.StopDaemon(daemonCtx); err != nil {
-		return err
-	}
 
-	return nil
+	return daemon.StopDaemon(daemonCtx)
 }
 
 // internalDaemonStatusModule is a default status module.

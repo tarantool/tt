@@ -30,7 +30,7 @@ func configureHelpCommand(rootCmd *cobra.Command, modulesInfo *modules.ModulesIn
 	internalHelpModule := func(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		cmd, _, err := rootCmd.Find(args)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to find the command: %w", err)
 		}
 
 		_ = cmd.Help()
@@ -119,9 +119,9 @@ func wrapHelpLine(line string, width int) string {
 	col := textWidth(prefix)
 	lineStart := true
 
-	for _, word := range strings.Fields(body) {
-		w := textWidth(word)
-		if !lineStart && col+1+w > width {
+	for word := range strings.FieldsSeq(body) {
+		wordWidth := textWidth(word)
+		if !lineStart && col+1+wordWidth > width {
 			out.WriteByte('\n')
 			out.WriteString(indent)
 
@@ -137,7 +137,7 @@ func wrapHelpLine(line string, width int) string {
 
 		out.WriteString(word)
 
-		col += w
+		col += wordWidth
 
 		lineStart = false
 	}
@@ -145,20 +145,23 @@ func wrapHelpLine(line string, width int) string {
 	return out.String()
 }
 
-// textWidth returns the number of terminal columns s takes: one per rune,
+// textWidth returns the number of terminal columns text takes: one per rune,
 // tabs to the next multiple of eight, ANSI escape sequences none.
-func textWidth(s string) int {
+func textWidth(text string) int {
+	const tabWidth = 8
+
 	col := 0
 	inEscape := false
 
-	for _, r := range s {
+	for _, char := range text {
 		switch {
 		case inEscape:
-			inEscape = !(r >= '@' && r <= '~' && r != '[')
-		case r == '\x1b':
+			// An escape sequence ends with a byte in '@'..'~', '[' excepted.
+			inEscape = char < '@' || char > '~' || char == '['
+		case char == '\x1b':
 			inEscape = true
-		case r == '\t':
-			col += 8 - col%8
+		case char == '\t':
+			col += tabWidth - col%tabWidth
 		default:
 			col++
 		}

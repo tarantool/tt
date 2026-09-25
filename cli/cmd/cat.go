@@ -103,7 +103,7 @@ func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			flavour.GetVersion, err)
 	}
 
-	if string(spacesJSON) != "null" {
+	if string(spacesJSON) != jsonNull {
 		_ = os.Setenv("TT_CLI_CAT_SPACES", string(spacesJSON))
 	}
 
@@ -125,15 +125,11 @@ func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			flavour.GetVersion, err)
 	}
 
-	if string(replicasJSON) != "null" {
+	if string(replicasJSON) != jsonNull {
 		_ = os.Setenv("TT_CLI_CAT_REPLICAS", string(replicasJSON))
 	}
 
 	log.Infof("Running cat with files: %s\n", args)
 
-	if err := checkpoint.Cat(cmdCtx.Cli.TarantoolCli); err != nil {
-		return err
-	}
-
-	return nil
+	return checkpoint.Cat(cmdCtx.Cli.TarantoolCli)
 }

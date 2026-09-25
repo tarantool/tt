@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -68,7 +69,7 @@ func runNew() error {
 		return err
 	}
 
-	fmt.Printf("created %s for package %s\n", result.Path, result.Package)
+	_, _ = fmt.Fprintf(os.Stdout, "created %s for package %s\n", result.Path, result.Package)
 
 	return nil
 }

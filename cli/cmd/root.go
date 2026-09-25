@@ -19,6 +19,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/logging"
 	"github.com/tarantool/tt/v3/cli/modules"
+	"github.com/tarantool/tt/v3/cli/version"
 )
 
 var (
@@ -70,7 +71,8 @@ func NewCmdRoot() *cobra.Command {
 	root := newRootCmd()
 	root.AddCommand(BuiltinCommands()...)
 
-	if err := InjectCommands(root); err != nil {
+	err := InjectCommands(root)
+	if err != nil {
 		panic(err.Error())
 	}
 
@@ -159,7 +161,8 @@ func Execute() {
 // exits with its code.
 // TT-EE.
 func InitRoot() {
-	if err := initRoot(); err != nil {
+	err := initRoot()
+	if err != nil {
 		exitcode.Exit(err)
 	}
 }
@@ -184,14 +187,18 @@ func setupLogging() error {
 // initRoot does the work of InitRoot and returns the first failure: it runs
 // the boot phases with the builtin and injected commands.
 func initRoot() error {
-	root, err := Boot(BootOptions{Args: os.Args[1:]})
+	root, err := Boot(BootOptions{
+		Args:    os.Args[1:],
+		Flavour: version.Flavour{Title: "", Version: nil, Edition: ""},
+	})
 	if err != nil {
 		return err
 	}
 
 	root.AddCommand(BuiltinCommands()...)
 
-	if err := InjectCommands(root); err != nil {
+	err = InjectCommands(root)
+	if err != nil {
 		return err
 	}
 

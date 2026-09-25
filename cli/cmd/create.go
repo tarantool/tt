@@ -138,18 +138,22 @@ func internalCreateModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return errNoAppName
 	}
 
+	// FillCtx fills the working directory and the template search paths.
 	createCtx := create_ctx.CreateCtx{
-		AppName:        appName,
-		TemplateName:   args[0],
-		ForceMode:      forceMode,
-		SilentMode:     nonInteractiveMode,
-		VarsFromCli:    *varsFromCli,
-		VarsFile:       varsFile,
-		DestinationDir: dstPath,
-		CliOpts:        cliOpts,
+		AppName:             appName,
+		WorkDir:             "",
+		TemplateName:        args[0],
+		TemplateSearchPaths: nil,
+		ForceMode:           forceMode,
+		SilentMode:          nonInteractiveMode,
+		VarsFromCli:         *varsFromCli,
+		VarsFile:            varsFile,
+		DestinationDir:      dstPath,
+		CliOpts:             cliOpts,
 	}
 
-	if err := create.FillCtx(cliOpts, &createCtx); err != nil {
+	err := create.FillCtx(cliOpts, &createCtx)
+	if err != nil {
 		return err
 	}
 

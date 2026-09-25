@@ -18,6 +18,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	// minCommands is fewer commands than tt has: a walk that finds no more
+	// than this has missed part of the tree.
+	minCommands = 50
+	// goldenDirMode and goldenFileMode are the modes of a golden file and of
+	// the directory holding it.
+	goldenDirMode  = 0o755
+	goldenFileMode = 0o644
+)
+
 // NewRoot builds the command tree the way tt does before it runs a command,
 // with no external modules, and makes it the process's root. It is called
 // once per command line rendered.
@@ -76,7 +86,7 @@ func Render(t *testing.T, newRoot NewRoot) string {
 		section(title, run(t, newRoot, args...))
 	}
 
-	require.Greater(t, len(commands), 50, "the walk must reach the whole tree")
+	require.Greater(t, len(commands), minCommands, "the walk must reach the whole tree")
 
 	section("tt completion bash", run(t, newRoot, "completion", "bash"))
 	section(`tt __complete ""`, run(t, newRoot, cobra.ShellCompRequestCmd, ""))
@@ -112,8 +122,8 @@ func Compare(t *testing.T, path, got string, update bool) {
 	t.Helper()
 
 	if update {
-		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-		require.NoError(t, os.WriteFile(path, []byte(got), 0o644)) //nolint:gosec
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), goldenDirMode))
+		require.NoError(t, os.WriteFile(path, []byte(got), goldenFileMode))
 
 		return
 	}

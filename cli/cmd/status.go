@@ -15,6 +15,14 @@ var (
 	errInvalidFormatValidFormatsAreJSONYAMLTablePrettyTable = errors.New("invalid format: ")
 )
 
+// The output formats of tt status.
+const (
+	statusFormatJSON        = "json"
+	statusFormatYAML        = "yaml"
+	statusFormatTable       = "table"
+	statusFormatPrettyTable = "pretty-table"
+)
+
 // statusOpts contains options for tt status.
 type statusOpts struct {
 	// Output format: json, yaml, table, pretty-table.
@@ -60,7 +68,7 @@ Columns:
 		},
 	}
 
-	statusCmd.Flags().StringVarP(&opts.format, "format", "f", "table",
+	statusCmd.Flags().StringVarP(&opts.format, "format", "f", statusFormatTable,
 		"output format: json, yaml, table, pretty-table")
 	statusCmd.Flags().BoolVarP(&opts.details, "details", "d", false, "print detailed alerts.")
 	statusCmd.Flags().BoolVarP(&opts.pretty, "pretty", "p", false,
@@ -79,15 +87,15 @@ func internalStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	// Handle deprecated --pretty flag.
 	if opts.pretty {
-		opts.format = "pretty-table"
+		opts.format = statusFormatPrettyTable
 	}
 
 	// Validate format option.
 	validFormats := map[string]bool{
-		"json":         true,
-		"yaml":         true,
-		"table":        true,
-		"pretty-table": true,
+		statusFormatJSON:        true,
+		statusFormatYAML:        true,
+		statusFormatTable:       true,
+		statusFormatPrettyTable: true,
 	}
 	if !validFormats[opts.format] {
 		return fmt.Errorf("%w%s. Valid formats are: json, yaml, table, pretty-table",
@@ -104,13 +112,13 @@ func internalStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var printer status.InstanceStatusPrinter
 
 	switch opts.format {
-	case "json":
+	case statusFormatJSON:
 		printer = status.NewJSONPrinter()
-	case "yaml":
+	case statusFormatYAML:
 		printer = status.NewYAMLPrinter()
-	case "pretty-table":
+	case statusFormatPrettyTable:
 		printer = status.NewTablePrinter(status.WithPretty(), status.WithDetails(opts.details))
-	case "table":
+	case statusFormatTable:
 		printer = status.NewTablePrinter(status.WithDetails(opts.details))
 	}
 

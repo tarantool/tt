@@ -52,7 +52,7 @@ func printLines(ctx context.Context, in <-chan string) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return ctx.Err() //nolint:wrapcheck // The interrupt is reported as is.
 		case line, ok := <-in:
 			if !ok {
 				return nil
@@ -63,7 +63,7 @@ func printLines(ctx context.Context, in <-chan string) error {
 	}
 }
 
-func follow(instances []running.InstanceCtx, n int) error {
+func follow(instances []running.InstanceCtx, lineCount int) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
@@ -75,12 +75,13 @@ func follow(instances []running.InstanceCtx, n int) error {
 	logLines := make(chan string, logLinesChannelCapacity)
 	tailRoutinesStarted := 0
 	// Wait group to wait for completion of all log reading routines to close the channel once.
-	var wg sync.WaitGroup
+	var waitGroup sync.WaitGroup
 
 	for _, inst := range instances {
-		if err := tail.Follow(ctx, logLines,
+		err := tail.Follow(ctx, logLines,
 			tail.NewLogFormatter(running.GetAppInstanceName(inst)+": ", color),
-			inst.Log, n, &wg); err != nil {
+			inst.Log, lineCount, &waitGroup)
+		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				continue
 			}
@@ -97,7 +98,7 @@ func follow(instances []running.InstanceCtx, n int) error {
 
 	if tailRoutinesStarted > 0 {
 		go func() {
-			wg.Wait()
+			waitGroup.Wait()
 			close(logLines)
 		}()
 
@@ -107,7 +108,7 @@ func follow(instances []running.InstanceCtx, n int) error {
 	return nil
 }
 
-func printLastN(instances []running.InstanceCtx, n int) error {
+func printLastN(instances []running.InstanceCtx, lineCount int) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
@@ -116,7 +117,7 @@ func printLastN(instances []running.InstanceCtx, n int) error {
 
 	for _, inst := range instances {
 		logLines, err := tail.TailN(ctx,
-			tail.NewLogFormatter(running.GetAppInstanceName(inst)+": ", color), inst.Log, n)
+			tail.NewLogFormatter(running.GetAppInstanceName(inst)+": ", color), inst.Log, lineCount)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				continue
@@ -127,7 +128,8 @@ func printLastN(instances []running.InstanceCtx, n int) error {
 			return fmt.Errorf("cannot read log file %q: %w", inst.Log, err)
 		}
 
-		if err := printLines(ctx, logLines); err != nil {
+		err = printLines(ctx, logLines)
+		if err != nil {
 			return err
 		}
 

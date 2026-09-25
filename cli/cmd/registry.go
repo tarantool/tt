@@ -28,7 +28,7 @@ func NewRegistryCmd() *cobra.Command {
 // newRegistryListCmd wires `tt registry list`.
 func newRegistryListCmd() *cobra.Command {
 	listCmd := &cobra.Command{
-		Use:   "list",
+		Use:   listCmdName,
 		Short: "Show the rock servers in the order they are queried",
 		Long: "Print the effective rock-server list in resolution order, each " +
 			"server with the layer it was configured in. The layers replace one " +

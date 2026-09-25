@@ -28,7 +28,7 @@ type entry struct {
 func (e entry) Human(w io.Writer) error {
 	_, err := fmt.Fprintln(w, e.Name)
 
-	return err //nolint:wrapcheck // Test double.
+	return err
 }
 
 // anyResult carries an arbitrary value as a Result.

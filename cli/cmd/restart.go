@@ -69,11 +69,13 @@ func internalRestartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		}
 	}
 
-	if err := internalStopModule(cmdCtx, args); err != nil {
+	err := internalStopModule(cmdCtx, args)
+	if err != nil {
 		return err
 	}
 
-	if err := internalStartModule(cmdCtx, args); err != nil {
+	err = internalStartModule(cmdCtx, args)
+	if err != nil {
 		return err
 	}
 

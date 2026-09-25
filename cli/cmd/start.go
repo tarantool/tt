@@ -68,17 +68,19 @@ func NewStartCmd() *cobra.Command {
 func startInstancesUnderWatchdog(cmdCtx *cmdcontext.CmdCtx, instances []running.InstanceCtx) error {
 	ttBin, err := os.Executable()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get the tt executable path: %w", err)
 	}
 
 	startArgs := []string{}
 	if cmdCtx.Cli.IntegrityCheck != "" {
 		startArgs = append(startArgs, "--integrity-check-period",
+			//nolint:gosec // G115: the period is passed on exactly as tt has always formatted it.
 			strconv.FormatUint(uint64(cmdCtx.Cli.IntegrityCheckPeriod), 10))
 	}
 
 	for _, instance := range instances {
-		if err := running.StartWatchdog(cmdCtx, ttBin, instance, startArgs); err != nil {
+		err := running.StartWatchdog(cmdCtx, ttBin, instance, startArgs)
+		if err != nil {
 			return err
 		}
 	}
@@ -91,25 +93,25 @@ func startInstancesInteractive(cmdCtx *cmdcontext.CmdCtx, instances []running.In
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	wg := sync.WaitGroup{}
+	waitGroup := sync.WaitGroup{}
 	pickColor := tail.DefaultColorPicker()
 
 	for _, instCtx := range instances {
 		clr := pickColor()
 		prefix := running.GetAppInstanceName(instCtx) + " "
 
-		wg.Add(1)
+		waitGroup.Add(1)
 
 		go func(inst running.InstanceCtx) {
 			_ = running.RunInstance(ctx, cmdCtx, inst,
 				running.NewColorizedPrefixWriter(os.Stdout, clr, prefix),
 				running.NewColorizedPrefixWriter(os.Stderr, clr, prefix))
 
-			wg.Done()
+			waitGroup.Done()
 		}(instCtx)
 	}
 
-	wg.Wait()
+	waitGroup.Wait()
 
 	return nil
 }
@@ -145,20 +147,12 @@ func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	if !watchdog {
-		if err := startInstances(cmdCtx, runningCtx.Instances); err != nil {
-			return err
-		}
-
-		return nil
+		return startInstances(cmdCtx, runningCtx.Instances)
 	}
 
 	if cmdCtx.Cli.IntegrityCheck != "" && cmdCtx.Cli.IntegrityCheckPeriod == 0 {
 		cmdCtx.Cli.IntegrityCheckPeriod = integrityCheckPeriod
 	}
 
-	if err := running.Start(cmdCtx, &runningCtx.Instances[0]); err != nil {
-		return err
-	}
-
-	return nil
+	return running.Start(cmdCtx, &runningCtx.Instances[0])
 }

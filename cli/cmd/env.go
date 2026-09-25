@@ -24,9 +24,10 @@ func NewEnvCmd() *cobra.Command {
 
 // internalEnvModule is a default env module.
 func internalEnvModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	var err error
+	_, err := fmt.Fprint(os.Stdout, env.CreateEnvString(cliOpts))
+	if err != nil {
+		return fmt.Errorf("failed to print the environment: %w", err)
+	}
 
-	_, err = fmt.Fprint(os.Stdout, env.CreateEnvString(cliOpts))
-
-	return err
+	return nil
 }

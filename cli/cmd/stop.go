@@ -62,7 +62,8 @@ func internalStopWithConfirmationModule(cmdCtx *cmdcontext.CmdCtx, args []string
 		}
 	}
 
-	if err := internalStopModule(cmdCtx, args); err != nil {
+	err := internalStopModule(cmdCtx, args)
+	if err != nil {
 		return err
 	}
 
@@ -83,7 +84,8 @@ func internalStopModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	for _, run := range runningCtx.Instances {
-		if err = running.Stop(&run); err != nil {
+		err = running.Stop(&run)
+		if err != nil {
 			log.Infof(err.Error())
 		}
 	}

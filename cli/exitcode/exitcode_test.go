@@ -22,19 +22,19 @@ import (
 
 // Failures of each kind the classification tells apart.
 var (
-	refused = &net.OpError{
+	errRefused = &net.OpError{
 		Op: "dial", Net: "tcp",
 		Err: os.NewSyscallError("connect", syscall.ECONNREFUSED),
 	}
-	unknownHost = &net.DNSError{Err: "no such host", Name: "rocks.invalid", IsNotFound: true}
-	badScheme   = &url.Error{
+	errUnknownHost = &net.DNSError{Err: "no such host", Name: "rocks.invalid", IsNotFound: true}
+	errBadScheme   = &url.Error{
 		Op: "Get", URL: "ftp://x/manifest", Err: errors.New("unsupported protocol scheme"),
 	}
-	timedOut = &url.Error{Op: "Get", URL: "http://x/manifest", Err: context.DeadlineExceeded}
-	denied   = &fs.PathError{Op: "open", Path: "app.manifest.toml", Err: syscall.EACCES}
-	full     = &fs.PathError{Op: "write", Path: ".rocks/x", Err: syscall.ENOSPC}
-	readOnly = &fs.PathError{Op: "write", Path: ".rocks/x", Err: syscall.EROFS}
-	missing  = &fs.PathError{Op: "open", Path: "app.manifest.toml", Err: syscall.ENOENT}
+	errTimedOut = &url.Error{Op: "Get", URL: "http://x/manifest", Err: context.DeadlineExceeded}
+	errDenied   = &fs.PathError{Op: "open", Path: "app.manifest.toml", Err: syscall.EACCES}
+	errFull     = &fs.PathError{Op: "write", Path: ".rocks/x", Err: syscall.ENOSPC}
+	errReadOnly = &fs.PathError{Op: "write", Path: ".rocks/x", Err: syscall.EROFS}
+	errMissing  = &fs.PathError{Op: "open", Path: "app.manifest.toml", Err: syscall.ENOENT}
 )
 
 // state wraps err in the generic code every command wraps its errors in.
@@ -46,7 +46,7 @@ func state(err error) error { return sdk.WithCode(sdk.ExitFailure, err) }
 func TestCode(t *testing.T) {
 	t.Parallel()
 
-	for _, tc := range []struct {
+	for _, testCase := range []struct {
 		name string
 		err  error
 		want int
@@ -59,22 +59,22 @@ func TestCode(t *testing.T) {
 
 		// The generic code 1 gives way to the system failure it wraps: this
 		// is the shape every resolve error arrives in.
-		{"refused behind state", state(fmt.Errorf("resolving: %w", refused)), 2},
-		{"dns behind state", state(fmt.Errorf("resolving: %w", unknownHost)), 2},
-		{"timeout behind state", state(timedOut), 2},
-		{"permission", fmt.Errorf("reading: %w", denied), 2},
-		{"disk full", fmt.Errorf("writing: %w", full), 2},
-		{"read-only disk", fmt.Errorf("writing: %w", readOnly), 2},
+		{"refused behind state", state(fmt.Errorf("resolving: %w", errRefused)), 2},
+		{"dns behind state", state(fmt.Errorf("resolving: %w", errUnknownHost)), 2},
+		{"timeout behind state", state(errTimedOut), 2},
+		{"permission", fmt.Errorf("reading: %w", errDenied), 2},
+		{"disk full", fmt.Errorf("writing: %w", errFull), 2},
+		{"read-only disk", fmt.Errorf("writing: %w", errReadOnly), 2},
 
 		// A deliberate verdict stands, even over a system failure, and is
 		// found beneath a generic wrapper.
-		{"partial over refused", sdk.WithCode(sdk.ExitPartial, refused), 3},
+		{"partial over refused", sdk.WithCode(sdk.ExitPartial, errRefused), 3},
 		{"partial beneath state", state(sdk.WithCode(sdk.ExitPartial, errors.New("x"))), 3},
 
 		// What the user can fix stays 1, even when it travels in a type the
 		// network code also uses.
-		{"malformed registry url", state(badScheme), 1},
-		{"missing file", fmt.Errorf("reading: %w", missing), 1},
+		{"malformed registry url", state(errBadScheme), 1},
+		{"missing file", fmt.Errorf("reading: %w", errMissing), 1},
 		{"cancelled", context.Canceled, 1},
 		{"deadline alone", context.DeadlineExceeded, 1},
 
@@ -83,10 +83,10 @@ func TestCode(t *testing.T) {
 		{"module status 7", sdk.WithCode(7, exitcode.Silent(errors.New("module"))), 7},
 		{"module status 1", sdk.WithCode(1, exitcode.Silent(errors.New("module"))), 1},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tc.want, exitcode.Code(tc.err))
+			assert.Equal(t, testCase.want, exitcode.Code(testCase.err))
 		})
 	}
 }
@@ -95,7 +95,7 @@ func TestCode(t *testing.T) {
 func TestSilent(t *testing.T) {
 	t.Parallel()
 
-	assert.NoError(t, exitcode.Silent(nil))
+	require.NoError(t, exitcode.Silent(nil))
 	assert.False(t, exitcode.IsSilent(nil))
 
 	plain := errors.New("aborted by user")
@@ -104,7 +104,7 @@ func TestSilent(t *testing.T) {
 	silent := exitcode.Silent(plain)
 	assert.True(t, exitcode.IsSilent(silent))
 	assert.True(t, exitcode.IsSilent(fmt.Errorf("installing: %w", silent)))
-	assert.ErrorIs(t, silent, plain)
+	require.ErrorIs(t, silent, plain)
 	assert.Equal(t, plain.Error(), silent.Error())
 
 	coded := sdk.WithCode(7, exitcode.Silent(errors.New("module exited with status 7")))

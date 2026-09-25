@@ -18,7 +18,7 @@ var (
 // newModulesListCmd creates a new `modules list` subcommand.
 func newModulesListCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "list",
+		Use:   listCmdName,
 		Short: "List available modules",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
@@ -63,18 +63,18 @@ func sortExternalModules() []string {
 // internalModulesList produce list all available external modules.
 func internalModulesList(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	for _, path := range sortExternalModules() {
-		m := modulesInfo[path]
+		module := modulesInfo[path]
 
 		if showVersion {
-			_, _ = fmt.Fprintf(os.Stdout, "%-5s\t", m.Version)
+			_, _ = fmt.Fprintf(os.Stdout, "%-5s\t", module.Version)
 		}
 
-		_, _ = fmt.Fprintf(os.Stdout, "%s - ", m.Name)
+		_, _ = fmt.Fprintf(os.Stdout, "%s - ", module.Name)
 
 		if showPath {
-			_, _ = fmt.Fprint(os.Stdout, m.Main)
+			_, _ = fmt.Fprint(os.Stdout, module.Main)
 		} else {
-			_, _ = fmt.Fprint(os.Stdout, m.Help)
+			_, _ = fmt.Fprint(os.Stdout, module.Help)
 		}
 
 		_, _ = fmt.Fprint(os.Stdout, "\n")

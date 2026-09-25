@@ -107,7 +107,8 @@ func NewSearchCmd() *cobra.Command {
 func internalSearchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var err error
 
-	if searchCtx.Program, err = search.ParseProgram(cmdCtx.CommandName); err != nil {
+	searchCtx.Program, err = search.ParseProgram(cmdCtx.CommandName)
+	if err != nil {
 		return fmt.Errorf("failed to search: %w", err)
 	}
 

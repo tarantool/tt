@@ -52,7 +52,8 @@ func Boot(opts BootOptions) (*cobra.Command, error) {
 
 	_ = rootCmd.ParseFlags(opts.Args)
 
-	if err := setupLogging(); err != nil {
+	err := setupLogging()
+	if err != nil {
 		return nil, err
 	}
 
@@ -179,7 +180,8 @@ func Configure(opts ConfigureOptions) error {
 		cmdCtx.Cli.ConfigPath = configPathEnv
 	}
 
-	if err := configure.ValidateCliOpts(&cmdCtx.Cli); err != nil {
+	err := configure.ValidateCliOpts(&cmdCtx.Cli)
+	if err != nil {
 		return err
 	}
 
@@ -203,20 +205,24 @@ func Configure(opts ConfigureOptions) error {
 		return fmt.Errorf("integrity check failed: %w", err)
 	}
 
-	if err := configure.Cli(&cmdCtx); err != nil {
+	err = configure.Cli(&cmdCtx)
+	if err != nil {
+		//nolint:staticcheck // ST1005: user-facing message, integration tests match it.
 		return fmt.Errorf("Failed to configure Tarantool CLI: %w", err)
 	}
 
 	cliOpts, cmdCtx.Cli.ConfigPath, err = configure.GetCliOpts(cmdCtx.Cli.ConfigPath,
 		cmdCtx.Integrity.Repository)
 	if err != nil {
+		//nolint:staticcheck // ST1005: user-facing message, kept as it is printed.
 		return fmt.Errorf("Failed to get Tarantool CLI configuration: %w", err)
 	}
 
 	if cmdCtx.Cli.ConfigPath == "" {
 		// Config is not found, use current dir as base dir.
-		if cmdCtx.Cli.ConfigDir, err = os.Getwd(); err != nil {
-			return err
+		cmdCtx.Cli.ConfigDir, err = os.Getwd()
+		if err != nil {
+			return fmt.Errorf("can't get current dir: %w", err)
 		}
 	} else {
 		cmdCtx.Cli.ConfigDir = filepath.Dir(cmdCtx.Cli.ConfigPath)
@@ -231,6 +237,7 @@ func Configure(opts ConfigureOptions) error {
 	// Getting modules information.
 	modulesInfo, err = modules.GetModulesInfo(&cmdCtx, rootCmd.Name(), cliOpts)
 	if err != nil {
+		//nolint:staticcheck // ST1005: user-facing message, kept as it is printed.
 		return fmt.Errorf("Failed to configure Tarantool CLI command: %w", err)
 	}
 

@@ -84,11 +84,13 @@ func internalKillModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	for _, run := range runningCtx.Instances {
 		if dumpQuit {
-			if err = running.Quit(run); err != nil {
+			err = running.Quit(run)
+			if err != nil {
 				log.Infof(err.Error())
 			}
 		} else {
-			if err = running.Kill(run); err != nil {
+			err = running.Kill(run)
+			if err != nil {
 				log.Infof(err.Error())
 			}
 		}

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/sdk/log"
@@ -298,7 +299,7 @@ func runPackageResolve() error {
 	}
 
 	if len(result.Moves) == 0 {
-		fmt.Println("the lock is up to date")
+		_, _ = fmt.Fprintln(os.Stdout, "the lock is up to date")
 
 		return nil
 	}
@@ -343,9 +344,20 @@ func runPackageDeps(format *output.FormatFlag) error {
 		return err
 	}
 
+	// Nothing is resolved, so neither Tarantool nor registries are needed.
 	report, err := deps.Deps(deps.Options{
 		ProjectDir: projectDir,
-		Warn:       func(msg string) { log.Warn(msg) },
+		TtVersion:  "",
+		Tarantool:  manifestrocks.TarantoolInfo{Executable: "", Prefix: "", Version: ""},
+		Registries: manifestrocks.Sources{
+			Flag:       nil,
+			Env:        nil,
+			Manifest:   nil,
+			WorkingDir: "",
+			ProjectDir: "",
+		},
+		Logger: nil,
+		Warn:   func(msg string) { log.Warn(msg) },
 	})
 	if err != nil {
 		return err
@@ -405,7 +417,7 @@ func printMoves(moves []deps.Move) {
 // newPackageListCmd wires `tt package list`.
 func newPackageListCmd() *cobra.Command {
 	listCmd := &cobra.Command{
-		Use:   "list",
+		Use:   listCmdName,
 		Short: "List the packages installed in a scope",
 		Long: "Show the packages present in the chosen scope: in the project " +
 			"scope the project's own package plus every guest installed from an " +
@@ -586,6 +598,7 @@ func runPackageInstall(archives []string) error {
 		Force:      packageForce,
 		Yes:        packageYes,
 		Tarantool:  tntInfo,
+		Servers:    nil,
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
 		Confirm: func(prompt string) bool {
@@ -707,12 +720,22 @@ func runPackagePack() error {
 		Product:     packageProduct,
 		Locked:      packageLocked,
 		WithoutDeps: packageWithoutDeps,
+		OutputDir:   "",
+		// Pack sets the project, product, lock mode and component of the
+		// build itself, pins its timestamp and routes its warnings to Warn.
 		Build: build.Options{
+			ProjectDir: "",
+			Product:    "",
+			Component:  "",
+			Locked:     false,
+			FetchOnly:  false,
 			TtVersion:  "tt " + coreVersion(),
 			Tarantool:  tntInfo,
 			Registries: sources,
 			ShowOutput: cmdCtx.Cli.Verbose,
+			Now:        time.Time{},
 			Logger:     luarocksLogger(),
+			Warn:       nil,
 		},
 		Runtime: runtimeRequest(ctx, tntInfo),
 		Warn:    func(msg string) { log.Warn(msg) },
@@ -742,7 +765,15 @@ func runtimeRequest(ctx context.Context, tntInfo manifestrocks.TarantoolInfo) pa
 	}
 
 	return pack.RuntimeOptions{
-		CacheDir:               runtimeCacheDir(),
+		CacheDir: runtimeCacheDir(),
+		// Pack fills the platform from the built manifest.
+		Platform: manifest.Platform{
+			Tarantool:  manifest.Constraint{Version: "", Flavor: ""},
+			Tt:         manifest.Constraint{Version: "", Flavor: ""},
+			Tcm:        manifest.Constraint{Version: "", Flavor: ""},
+			Platforms:  nil,
+			Registries: nil,
+		},
 		ActiveTarantool:        tntInfo.Executable,
 		ActiveTarantoolVersion: tntInfo.Version,
 		ActiveTarantoolFlavor:  pack.DetectTarantoolFlavor(ctx, tntInfo.Executable),
@@ -753,7 +784,10 @@ func runtimeRequest(ctx context.Context, tntInfo manifestrocks.TarantoolInfo) pa
 		ActiveTtVersion: coreVersion(),
 		// tt publishes no CE/EE marker through its version, so the flavor stays
 		// undetermined and only satisfies the [ce] default.
-		ActiveTtFlavor: "",
+		ActiveTtFlavor:   "",
+		ActiveTcm:        "",
+		ActiveTcmVersion: "",
+		Warn:             nil,
 	}
 }
 
@@ -801,6 +835,7 @@ func runPackage(args []string, fetchOnly bool) error {
 		Tarantool:  tntInfo,
 		Registries: sources,
 		ShowOutput: cmdCtx.Cli.Verbose,
+		Now:        time.Time{},
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
 	})
@@ -951,7 +986,7 @@ func runPackageDownload(args []string) error {
 	if packageDownloadDir != "" {
 		dir, err = filepath.Abs(packageDownloadDir)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get absolute path of %q: %w", packageDownloadDir, err)
 		}
 	}
 
