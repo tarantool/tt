@@ -158,6 +158,28 @@ func TestReportError(t *testing.T) {
 		assert.Empty(t, got.cobra)
 	})
 
+	t.Run("sdk usage error prints the usage of the command", func(t *testing.T) {
+		got := runExit(t, func(cmd *cobra.Command, _ []string) error {
+			return commandError(cmd, fmt.Errorf("parsing: %w", sdk.Usagef("bad value %d", 7)))
+		}, "sub")
+
+		assert.Equal(t, 1, got.code)
+		assert.Equal(t, 1, strings.Count(got.logged, "\n"), got.logged)
+		assert.Contains(t, got.logged, `level=ERROR msg="bad value 7"`)
+		assert.Contains(t, got.out, "tt sub [flags]")
+		assert.Empty(t, got.cobra)
+	})
+
+	t.Run("sdk usage error keeps a deeper code", func(t *testing.T) {
+		got := runExit(t, func(cmd *cobra.Command, _ []string) error {
+			return commandError(cmd, sdk.WithUsage(sdk.WithCode(sdk.ExitPartial,
+				errors.New("some targets"))))
+		}, "sub")
+
+		assert.Equal(t, 3, got.code)
+		assert.Contains(t, got.out, "tt sub [flags]")
+	})
+
 	t.Run("silent error keeps its code and prints nothing", func(t *testing.T) {
 		got := runExit(t, func(cmd *cobra.Command, _ []string) error {
 			return commandError(cmd, sdk.WithCode(7, exitcode.Silent(errors.New("module"))))

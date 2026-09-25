@@ -1,13 +1,35 @@
 // Package sdk is the contract between tt and the modules compiled into it.
 //
 // A module may import this module and the other modules under sdk/ and
-// nothing else from the tt repository. The root package holds the exit-code
-// contract; the subpackages hold the rest:
+// nothing else from the tt repository.
+//
+// The root package holds the module contract and the error contract:
+//
+//   - a module is a [Constructor]: given the core's [Services], it returns
+//     cobra commands as [Mount]s, each with the path of the group it goes
+//     under;
+//   - [Services] give a module's commands a logger, the [Tarantool] to run
+//     and its [TarantoolVersion], files read through the [Integrity] checks,
+//     the [Project] directory, prompts ([Services.Confirm]) and the standard
+//     [Streams] with their printers;
+//   - [ExitError] and [ExitCode] carry the exit code a command's error should
+//     end tt with, and [UsageError] marks an error in how a command was
+//     invoked, which tt follows with the command's usage;
+//   - [CoreVersion] reports the version of the tt core the binary was built
+//     with.
+//
+// The subpackages hold the rest:
 //
 //   - [github.com/tarantool/tt/sdk/log] is the logging facade and the secret
 //     redaction logic;
 //   - [github.com/tarantool/tt/sdk/output] writes a command's result to stdout
-//     in the format the user asked for.
+//     in the format the user asked for;
+//   - [github.com/tarantool/tt/sdk/sdktest] fakes the core's Services and
+//     runs a module's commands in tests.
+//
+// The contract module depends on cobra and pflag, whose types appear in it,
+// and pins their versions: a module builds against the versions the core
+// uses.
 //
 // The process itself - which handlers log where, at what level, in which
 // format - is configured by the tt core. Nothing in the SDK changes process

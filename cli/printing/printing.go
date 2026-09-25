@@ -30,9 +30,8 @@ import (
 	"github.com/tarantool/tt/sdk/output"
 )
 
-// FormatYAML is YAML at a two-space indent; a stream of results is a
-// sequence of YAML documents.
-const FormatYAML output.Format = "yaml"
+// FormatYAML is [output.FormatYAML], the format this package encodes.
+const FormatYAML = output.FormatYAML
 
 // yamlIndent is tt's usual YAML indent.
 const yamlIndent = 2

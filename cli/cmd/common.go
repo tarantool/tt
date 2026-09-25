@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/configure"
@@ -70,14 +71,22 @@ func commandError(cmd *cobra.Command, err error) error {
 // An error cobra detected itself - an unknown flag, a wrong number of
 // arguments - has already been printed by cobra, with the usage, so it is
 // not printed again. An error from the command's own code is logged once;
-// an ArgError is followed by cmd's usage.
+// an ArgError or an sdk.UsageError is logged by its own message and followed
+// by cmd's usage.
 func reportError(cmd *cobra.Command, err error) int {
-	var argError *util.ArgError
+	var (
+		argError   *util.ArgError
+		usageError *sdk.UsageError
+	)
 
 	switch {
 	case !cmd.SilenceErrors:
 	case errors.As(err, &argError):
 		log.Error(argError.Error())
+
+		_ = cmd.Usage()
+	case errors.As(err, &usageError):
+		log.Error(usageError.Error())
 
 		_ = cmd.Usage()
 	default:

@@ -72,6 +72,11 @@ const (
 	FormatHuman Format = "table"
 	// FormatJSON is indented JSON with a trailing newline.
 	FormatJSON Format = "json"
+	// FormatYAML is YAML at a two-space indent; a stream of results is a
+	// sequence of YAML documents. The SDK does not encode it: the core adds
+	// its encoders with WithEncoder and WithStreamEncoder, so a Printer made
+	// without them refuses it with ErrUnknownFormat.
+	FormatYAML Format = "yaml"
 )
 
 // ResolveFormat returns the format a --format flag value selects: the value
