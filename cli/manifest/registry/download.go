@@ -243,7 +243,7 @@ func readLock(projectDir string) (*manifest.Lock, error) {
 
 	path := filepath.Join(projectDir, lockFileName)
 
-	data, err := os.ReadFile(path) //nolint:gosec // Reads the caller's own lock.
+	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, stateErrorf("%w: run tt package resolve first", ErrNoLock)

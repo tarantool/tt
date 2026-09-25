@@ -116,7 +116,6 @@ func contentHash(dir string) (string, error) {
 // memory. The size prefix is the delimiter that keeps distinct trees from
 // colliding; it is read from the open handle so it matches the bytes streamed.
 func hashFile(hasher io.Writer, root string, file fileEntry) error {
-	//nolint:gosec // engine-owned project path, not user-controlled input
 	handle, openErr := os.Open(filepath.Join(root, filepath.FromSlash(file.rel)))
 	if openErr != nil {
 		return fmt.Errorf("opening %s: %w", file.rel, openErr)

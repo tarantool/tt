@@ -171,11 +171,11 @@ metrics = '>=1.0.0'
 	_, _, err = engine.ResolveDevExtra(context.Background(), man, lock, implicitLuatest)
 	require.NoError(t, err)
 
-	afterManifest, err := os.ReadFile(manifestPath) //nolint:gosec // Test reads a temp path.
+	afterManifest, err := os.ReadFile(manifestPath)
 	require.NoError(t, err)
 	assert.Equal(t, manifestBytes, afterManifest)
 
-	afterLock, err := os.ReadFile(lockPath) //nolint:gosec // Test reads a temp path.
+	afterLock, err := os.ReadFile(lockPath)
 	require.NoError(t, err)
 	assert.Equal(t, lockBytes, afterLock)
 

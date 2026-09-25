@@ -120,7 +120,7 @@ func TestExtractRejectsTraversal(t *testing.T) {
 func writeRawTarZst(t *testing.T, dst, name, content string) {
 	t.Helper()
 
-	f, err := os.Create(dst) //nolint:gosec // Test writes to a temp path.
+	f, err := os.Create(dst)
 	require.NoError(t, err)
 
 	defer func() { require.NoError(t, f.Close()) }()

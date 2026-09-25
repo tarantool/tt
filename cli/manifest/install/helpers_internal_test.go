@@ -135,7 +135,7 @@ func (s archiveSpec) build(t *testing.T) string {
 func writeTarZst(t *testing.T, dst string, entries map[string]string) {
 	t.Helper()
 
-	f, err := os.Create(dst) //nolint:gosec // Test writes to a temp path.
+	f, err := os.Create(dst)
 	require.NoError(t, err)
 
 	defer func() { require.NoError(t, f.Close()) }()
@@ -203,7 +203,7 @@ func mergeFiles(fileMaps ...map[string]string) map[string]string {
 func readFile(t *testing.T, path string) string {
 	t.Helper()
 
-	data, err := os.ReadFile(path) //nolint:gosec // Test reads from a temp path.
+	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
 	return string(data)

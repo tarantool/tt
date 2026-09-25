@@ -283,7 +283,7 @@ func TestRemoveMetadataAbsentIsNoOp(t *testing.T) {
 func mustRead(t *testing.T, path string) []byte {
 	t.Helper()
 
-	data, err := os.ReadFile(path) //nolint:gosec // Test reads from a temp path.
+	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
 	return data

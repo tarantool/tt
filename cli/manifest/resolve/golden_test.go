@@ -55,7 +55,7 @@ func TestGoldenLock(t *testing.T) {
 		require.NoError(t, os.WriteFile(goldenPath, got, 0o600))
 	}
 
-	want, err := os.ReadFile(goldenPath) //nolint:gosec // fixed testdata path
+	want, err := os.ReadFile(goldenPath)
 	require.NoError(t, err)
 
 	assert.Equal(t, string(want), string(got))

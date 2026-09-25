@@ -195,7 +195,6 @@ func Exec(root, tarantool string, argv []string) error {
 
 	// The interpreter comes from the project's own tree or the host's PATH, and
 	// becoming it is the whole operation rather than a side effect of one.
-	//nolint:gosec // G204: execing the selected interpreter is the point.
 	execErr := syscall.Exec(tarantool, args, os.Environ())
 	if execErr != nil {
 		return fmt.Errorf("running %s: %w", tarantool, execErr)

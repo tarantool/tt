@@ -70,6 +70,18 @@ linters:
         source: '^\s*(var exit \*ExitError|var strict \*toml\.StrictMissingError|var conflict \*pinConflictError|t\.Helper\(\))$'
         linters:
           - wsl_v5
+      # tt is a CLI: it opens the paths its user and its config name (G304)
+      # and runs tarantool, git and build tools with arguments built at run
+      # time (G204). Both are the job, not an injection.
+      - linters:
+          - gosec
+        text: "^G(204|304):"
+      # Tests create their fixtures under t.TempDir() with whatever mode the
+      # scenario needs.
+      - path: _test.go
+        linters:
+          - gosec
+        text: "^G(301|302|306):"
       - path: _test.go
         linters:
           - wrapcheck
@@ -79,7 +91,7 @@ linters:
           - goconst
           # Table-driven and fixture tests build partial structs on purpose;
           # requiring every field spelled out is noise in tests.
-          - exhaustruct
+          - exhaustruct_v5
       # recvcheck accepts Constraint's mixed value and pointer receivers, so
       # its existing compatibility directive is intentionally retained.
       - path: ^cli/manifest/constraint\.go$
@@ -160,6 +172,16 @@ linters:
           json: snake
           yaml: snake
 
+    exhaustruct_v5:
+      # The check is for tt's own types: a new field has to reach every
+      # literal that builds one. Library and standard types (cobra.Command,
+      # tls.Config, ...) are configured by naming the fields that matter.
+      explicit-mode: true
+      enforce-patterns:
+        - 'github\.com/tarantool/tt/.+'
+      # Generated protobuf messages carry internal state fields.
+      ignore-patterns:
+        - 'github\.com/tarantool/tt/v3/cli/aeon/pb\..+'
     exhaustive:
       # A switch with a default clause is treated as exhaustive.
       default-signifies-exhaustive: true
@@ -190,9 +212,28 @@ linters:
           deny:
             - pkg: "github.com/tarantool/tt/v3/core"
               desc: the core imports cli/, never the other way round
-        main:
+        # Nothing but tests and test helpers may depend on testify.
+        testify-in-tests:
           files:
             - "$all"
+            - "!$test"
+            - "!**/cli/cmd/helpgolden/**"
+            - "!**/sdk/sdktest/**"
+          deny:
+            - pkg: "github.com/stretchr/testify"
+              desc: testify belongs to tests and test helpers
+        # Libraries tt has moved away from; keep them from coming back.
+        legacy:
+          deny:
+            - pkg: "github.com/apex/log"
+              desc: log through log/slog and the handler from sdk/log
+            - pkg: "github.com/pkg/errors"
+              desc: use errors and fmt.Errorf with %w from the standard library
+            - pkg: "io/ioutil"
+              desc: deprecated; use the io and os equivalents
+        manifest:
+          files:
+            - "**/cli/manifest/**"
             - "!$test"
           allow:
             - $gostd
@@ -201,8 +242,14 @@ linters:
             # pre-release ordering matches the dependency resolver.
             - "github.com/hashicorp/go-version"
             - "github.com/tarantool/go-luarocks"
-            # cli/manifest/resolve composes the model and the luarocks adapter
-            # into the dependency-resolution engine.
+            # Covers every cli/manifest sub-package one of its siblings imports:
+            # resolve composes the model and the luarocks adapter, pack drives
+            # build, install goes through rocks and shares state with
+            # inventory, build derives versions through version.
+            #
+            # NOTE: depguard compares an import only with the entry sorted right
+            # before it, so a sub-package listed here would shadow this entry
+            # for every sibling sorted after it. Never list them one by one.
             - "github.com/tarantool/tt/v3/cli/manifest"
             # cli/manifest/build/backend runs subprocesses through tt's shared
             # helper rather than reinventing exec plumbing.
@@ -212,29 +259,12 @@ linters:
             - "github.com/go-git/go-git/v5/plumbing/format/gitignore"
             # cli/manifest/pack compresses the .tt archive as tar+zstd.
             - "github.com/klauspost/compress/zstd"
-            # cli/manifest/pack drives the build before archiving its result.
-            - "github.com/tarantool/tt/v3/cli/manifest/build"
-            # cli/manifest/install refetches dependencies through the luarocks
-            # adapter.
-            - "github.com/tarantool/tt/v3/cli/manifest/rocks"
             # cli/manifest/deps, install and registry carry their exit codes
             # in the SDK's ExitError.
             - "github.com/tarantool/tt/sdk"
-            # cli/manifest/install and cli/manifest/inventory both read and write
-            # the on-disk install state that cli/manifest/state owns.
-            #
-            # NOTE: depguard matches the longest prefix, not any prefix. Listing a
-            # sub-package here shadows the broader "…/cli/manifest" entry for its
-            # siblings, so an entry added for one package can start flagging
-            # imports that used to pass. Add sub-packages only where the broader
-            # entry is already shadowed, as it is in this list.
-            - "github.com/tarantool/tt/v3/cli/manifest/state"
-            # cli/manifest/build and cli/manifest/deps drive the dependency
-            # resolver; deps also names resolve.Pins in its own signatures.
-            - "github.com/tarantool/tt/v3/cli/manifest/resolve"
-        test:
+        manifest-test:
           files:
-            - "$test"
+            - "**/cli/manifest/**/*_test.go"
           allow:
             - $gostd
             - "github.com/pelletier/go-toml/v2"
@@ -262,3 +292,545 @@ linters:
             # and the one tt exits with for it (cli/exitcode).
             - "github.com/tarantool/tt/sdk"
             - "github.com/tarantool/tt/v3/cli/exitcode"
+            # The build/backend integration tests resolve the host Tarantool
+            # and check its version the way tt itself does.
+            - "github.com/tarantool/tt/v3/cli/cmdcontext"
+            - "github.com/tarantool/tt/v3/cli/version"
+        # One allow-list per top-level directory, tests included; their file
+        # globs do not overlap, so each file is checked against exactly one
+        # of them (plus the deny-only rules above). An import from another
+        # tt directory or a new third-party module needs an entry here: that
+        # edit is the point where a new dependency gets reviewed. List a
+        # module or a directory, never one of its sub-packages next to it.
+        dir-root:
+          files:
+            - "**/magefile*.go"
+          allow:
+            - $gostd
+            - "github.com/magefile/mage"
+        dir-cli:
+          files:
+            - "**/cli/*.go"
+          allow:
+            - $gostd
+            - "github.com/tarantool/tt/v3/core"
+        dir-cli-aeon:
+          files:
+            - "**/cli/aeon/**"
+          allow:
+            - $gostd
+            - "github.com/google/uuid"
+            - "github.com/mitchellh/mapstructure"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/go-config/v2"
+            - "github.com/tarantool/go-prompt"
+            - "github.com/tarantool/go-tarantool/v3"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/aeon"
+            - "github.com/tarantool/tt/v3/cli/cluster"
+            - "github.com/tarantool/tt/v3/cli/connector"
+            - "github.com/tarantool/tt/v3/cli/console"
+            - "github.com/tarantool/tt/v3/cli/formatter"
+            - "github.com/tarantool/tt/v3/cli/util"
+            - "google.golang.org/grpc"
+            - "google.golang.org/protobuf"
+        dir-cli-binary:
+          files:
+            - "**/cli/binary/**"
+          allow:
+            - $gostd
+            - "github.com/fatih/color"
+            - "github.com/manifoldco/promptui"
+            - "github.com/otiai10/copy"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/binary"
+            - "github.com/tarantool/tt/v3/cli/cmdcontext"
+            - "github.com/tarantool/tt/v3/cli/config"
+            - "github.com/tarantool/tt/v3/cli/install"
+            - "github.com/tarantool/tt/v3/cli/search"
+            - "github.com/tarantool/tt/v3/cli/util"
+            - "github.com/tarantool/tt/v3/cli/version"
+        dir-cli-cfg:
+          files:
+            - "**/cli/cfg/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/v3/cli/cfg"
+            - "github.com/tarantool/tt/v3/cli/cmdcontext"
+            - "github.com/tarantool/tt/v3/cli/config"
+            - "github.com/tarantool/tt/v3/cli/configure"
+            - "gopkg.in/yaml.v2"
+        dir-cli-checkpoint:
+          files:
+            - "**/cli/checkpoint/**"
+          allow:
+            - $gostd
+            - "github.com/tarantool/tt/v3/cli/checkpoint"
+            - "github.com/tarantool/tt/v3/cli/cmdcontext"
+        dir-cli-cluster:
+          files:
+            - "**/cli/cluster/**"
+          allow:
+            - $gostd
+            - "github.com/google/uuid"
+            - "github.com/manifoldco/promptui"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/go-config/v2"
+            - "github.com/tarantool/go-storage/v2"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/cluster"
+            - "github.com/tarantool/tt/v3/cli/replicaset"
+            - "github.com/tarantool/tt/v3/cli/templates"
+            - "go.etcd.io/etcd/client/pkg/v3"
+            - "go.etcd.io/etcd/client/v3"
+            - "gopkg.in/yaml.v2"
+        dir-cli-cmd:
+          files:
+            - "**/cli/cmd/**"
+          allow:
+            - $gostd
+            - "github.com/fatih/color"
+            - "github.com/jedib0t/go-pretty/v6"
+            - "github.com/mitchellh/mapstructure"
+            - "github.com/spf13/cobra"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/go-config/v2"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/aeon"
+            - "github.com/tarantool/tt/v3/cli/binary"
+            - "github.com/tarantool/tt/v3/cli/cfg"
+            - "github.com/tarantool/tt/v3/cli/checkpoint"
+            - "github.com/tarantool/tt/v3/cli/cluster"
+            - "github.com/tarantool/tt/v3/cli/cmd"
+            - "github.com/tarantool/tt/v3/cli/cmdcontext"
+            - "github.com/tarantool/tt/v3/cli/config"
+            - "github.com/tarantool/tt/v3/cli/configure"
+            - "github.com/tarantool/tt/v3/cli/connect"
+            - "github.com/tarantool/tt/v3/cli/connector"
+            - "github.com/tarantool/tt/v3/cli/console"
+            - "github.com/tarantool/tt/v3/cli/coredump"
+            - "github.com/tarantool/tt/v3/cli/create"
+            - "github.com/tarantool/tt/v3/cli/daemon"
+            - "github.com/tarantool/tt/v3/cli/download"
+            - "github.com/tarantool/tt/v3/cli/env"
+            - "github.com/tarantool/tt/v3/cli/exitcode"
+            - "github.com/tarantool/tt/v3/cli/formatter"
+            - "github.com/tarantool/tt/v3/cli/install"
+            - "github.com/tarantool/tt/v3/cli/logging"
+            - "github.com/tarantool/tt/v3/cli/manifest"
+            - "github.com/tarantool/tt/v3/cli/modules"
+            - "github.com/tarantool/tt/v3/cli/printing"
+            - "github.com/tarantool/tt/v3/cli/process_utils"
+            - "github.com/tarantool/tt/v3/cli/replicaset"
+            - "github.com/tarantool/tt/v3/cli/rocks"
+            - "github.com/tarantool/tt/v3/cli/running"
+            - "github.com/tarantool/tt/v3/cli/search"
+            - "github.com/tarantool/tt/v3/cli/status"
+            - "github.com/tarantool/tt/v3/cli/tail"
+            - "github.com/tarantool/tt/v3/cli/tcm"
+            - "github.com/tarantool/tt/v3/cli/uninstall"
+            - "github.com/tarantool/tt/v3/cli/util"
+            - "github.com/tarantool/tt/v3/cli/version"
+            - "github.com/tarantool/tt/v3/lib/watchdog"
+            - "golang.org/x/term"
+            - "gopkg.in/yaml.v3"
+        dir-cli-cmdcontext:
+          files:
+            - "**/cli/cmdcontext/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/sdk/integrity"
+            - "github.com/tarantool/tt/v3/cli/cmdcontext"
+            - "github.com/tarantool/tt/v3/cli/util"
+            - "github.com/tarantool/tt/v3/cli/version"
+        dir-cli-config:
+          files:
+            - "**/cli/config/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/v3/cli/config"
+            - "gopkg.in/yaml.v3"
+        dir-cli-configure:
+          files:
+            - "**/cli/configure/**"
+          allow:
+            - $gostd
+            - "github.com/mitchellh/mapstructure"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/cmdcontext"
+            - "github.com/tarantool/tt/v3/cli/config"
+            - "github.com/tarantool/tt/v3/cli/configure"
+            - "github.com/tarantool/tt/v3/cli/util"
+        dir-cli-connect:
+          files:
+            - "**/cli/connect/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/go-prompt"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/connect"
+            - "github.com/tarantool/tt/v3/cli/connector"
+            - "github.com/tarantool/tt/v3/cli/exitcode"
+            - "github.com/tarantool/tt/v3/cli/formatter"
+            - "github.com/tarantool/tt/v3/cli/util"
+            - "github.com/yuin/gopher-lua"
+            - "golang.org/x/term"
+            - "gopkg.in/yaml.v2"
+        dir-cli-connector:
+          files:
+            - "**/cli/connector/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/go-tarantool/v3"
+            - "github.com/tarantool/tt/sdk/dial"
+            - "github.com/tarantool/tt/v3/cli/connector"
+            - "github.com/tarantool/tt/v3/cli/util"
+            - "github.com/vmihailenco/msgpack/v5"
+            - "github.com/yuin/gopher-lua"
+            - "gopkg.in/yaml.v2"
+        dir-cli-console:
+          files:
+            - "**/cli/console/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/go-prompt"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/console"
+            - "github.com/tarantool/tt/v3/cli/exitcode"
+            - "github.com/tarantool/tt/v3/cli/formatter"
+            - "github.com/tarantool/tt/v3/cli/util"
+            - "golang.org/x/term"
+        dir-cli-coredump:
+          files:
+            - "**/cli/coredump/**"
+          allow:
+            - $gostd
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/coredump"
+            - "github.com/tarantool/tt/v3/cli/util"
+        dir-cli-create:
+          files:
+            - "**/cli/create/**"
+          allow:
+            - $gostd
+            - "github.com/mitchellh/mapstructure"
+            - "github.com/otiai10/copy"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/config"
+            - "github.com/tarantool/tt/v3/cli/create"
+            - "github.com/tarantool/tt/v3/cli/templates"
+            - "github.com/tarantool/tt/v3/cli/util"
+            - "github.com/tarantool/tt/v3/cli/version"
+        dir-cli-daemon:
+          files:
+            - "**/cli/daemon/**"
+          allow:
+            - $gostd
+            - "github.com/mitchellh/mapstructure"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/v3/cli/config"
+            - "github.com/tarantool/tt/v3/cli/daemon"
+            - "github.com/tarantool/tt/v3/cli/process_utils"
+            - "github.com/tarantool/tt/v3/cli/ttlog"
+        dir-cli-docker:
+          files:
+            - "**/cli/docker/**"
+          allow:
+            - $gostd
+            - "github.com/moby/go-archive"
+            - "github.com/moby/moby/api"
+            - "github.com/moby/moby/client"
+            - "github.com/moby/term"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/docker"
+        dir-cli-download:
+          files:
+            - "**/cli/download/**"
+          allow:
+            - $gostd
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/cmdcontext"
+            - "github.com/tarantool/tt/v3/cli/config"
+            - "github.com/tarantool/tt/v3/cli/download"
+            - "github.com/tarantool/tt/v3/cli/install_ee"
+            - "github.com/tarantool/tt/v3/cli/search"
+            - "github.com/tarantool/tt/v3/cli/util"
+            - "golang.org/x/sys"
+        dir-cli-env:
+          files:
+            - "**/cli/env/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/v3/cli/config"
+            - "github.com/tarantool/tt/v3/cli/configure"
+            - "github.com/tarantool/tt/v3/cli/env"
+        dir-cli-exitcode:
+          files:
+            - "**/cli/exitcode/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/exitcode"
+        dir-cli-formatter:
+          files:
+            - "**/cli/formatter/**"
+          allow:
+            - $gostd
+            - "github.com/jedib0t/go-pretty/v6"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/v3/cli/formatter"
+            - "gopkg.in/yaml.v2"
+        dir-cli-install:
+          files:
+            - "**/cli/install/**"
+          allow:
+            - $gostd
+            - "github.com/otiai10/copy"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/cmdcontext"
+            - "github.com/tarantool/tt/v3/cli/config"
+            - "github.com/tarantool/tt/v3/cli/configure"
+            - "github.com/tarantool/tt/v3/cli/docker"
+            - "github.com/tarantool/tt/v3/cli/install"
+            - "github.com/tarantool/tt/v3/cli/install_ee"
+            - "github.com/tarantool/tt/v3/cli/search"
+            - "github.com/tarantool/tt/v3/cli/templates"
+            - "github.com/tarantool/tt/v3/cli/util"
+            - "github.com/tarantool/tt/v3/cli/version"
+            - "golang.org/x/sys"
+        dir-cli-install_ee:
+          files:
+            - "**/cli/install_ee/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/v3/cli/install_ee"
+            - "github.com/tarantool/tt/v3/cli/search"
+            - "github.com/tarantool/tt/v3/cli/util"
+        dir-cli-logging:
+          files:
+            - "**/cli/logging/**"
+          allow:
+            - $gostd
+            - "github.com/mattn/go-isatty"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/logging"
+            - "golang.org/x/term"
+        dir-cli-modules:
+          files:
+            - "**/cli/modules/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/cmdcontext"
+            - "github.com/tarantool/tt/v3/cli/config"
+            - "github.com/tarantool/tt/v3/cli/exitcode"
+            - "github.com/tarantool/tt/v3/cli/modules"
+            - "github.com/tarantool/tt/v3/cli/util"
+            - "gopkg.in/yaml.v3"
+        dir-cli-printing:
+          files:
+            - "**/cli/printing/**"
+          allow:
+            - $gostd
+            - "github.com/mattn/go-isatty"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/printing"
+            - "gopkg.in/yaml.v3"
+        dir-cli-process_utils:
+          files:
+            - "**/cli/process_utils/**"
+          allow:
+            - $gostd
+            - "github.com/fatih/color"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/v3/cli/process_utils"
+        dir-cli-replicaset:
+          files:
+            - "**/cli/replicaset/**"
+          allow:
+            - $gostd
+            - "github.com/avast/retry-go"
+            - "github.com/mitchellh/mapstructure"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/go-config/v2"
+            - "github.com/tarantool/go-tarantool/v3"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/cluster"
+            - "github.com/tarantool/tt/v3/cli/cmdcontext"
+            - "github.com/tarantool/tt/v3/cli/config"
+            - "github.com/tarantool/tt/v3/cli/connector"
+            - "github.com/tarantool/tt/v3/cli/replicaset"
+            - "github.com/tarantool/tt/v3/cli/running"
+            - "github.com/tarantool/tt/v3/cli/util"
+        dir-cli-rocks:
+          files:
+            - "**/cli/rocks/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/go-luarocks"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/cmdcontext"
+            - "github.com/tarantool/tt/v3/cli/config"
+            - "github.com/tarantool/tt/v3/cli/rocks"
+            - "github.com/tarantool/tt/v3/cli/util"
+        dir-cli-running:
+          files:
+            - "**/cli/running/**"
+          allow:
+            - $gostd
+            - "github.com/fatih/color"
+            - "github.com/otiai10/copy"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/go-config/v2"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/cluster"
+            - "github.com/tarantool/tt/v3/cli/cmdcontext"
+            - "github.com/tarantool/tt/v3/cli/config"
+            - "github.com/tarantool/tt/v3/cli/configure"
+            - "github.com/tarantool/tt/v3/cli/process_utils"
+            - "github.com/tarantool/tt/v3/cli/running"
+            - "github.com/tarantool/tt/v3/cli/ttlog"
+            - "github.com/tarantool/tt/v3/cli/util"
+        dir-cli-search:
+          files:
+            - "**/cli/search/**"
+          allow:
+            - $gostd
+            - "github.com/otiai10/copy"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/config"
+            - "github.com/tarantool/tt/v3/cli/search"
+            - "github.com/tarantool/tt/v3/cli/util"
+            - "github.com/tarantool/tt/v3/cli/version"
+        dir-cli-status:
+          files:
+            - "**/cli/status/**"
+          allow:
+            - $gostd
+            - "github.com/fatih/color"
+            - "github.com/jedib0t/go-pretty/v6"
+            - "github.com/mitchellh/mapstructure"
+            - "github.com/tarantool/tt/v3/cli/connector"
+            - "github.com/tarantool/tt/v3/cli/process_utils"
+            - "github.com/tarantool/tt/v3/cli/running"
+            - "github.com/tarantool/tt/v3/cli/status"
+            - "gopkg.in/yaml.v3"
+        dir-cli-tail:
+          files:
+            - "**/cli/tail/**"
+          allow:
+            - $gostd
+            - "github.com/fatih/color"
+            - "github.com/nxadm/tail"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/tail"
+        dir-cli-tcm:
+          files:
+            - "**/cli/tcm/**"
+          allow:
+            - $gostd
+            - "github.com/fatih/color"
+            - "github.com/pmezard/go-difflib"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/tail"
+            - "github.com/tarantool/tt/v3/cli/tcm"
+        dir-cli-templates:
+          files:
+            - "**/cli/templates/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/v3/cli/templates"
+        dir-cli-ttlog:
+          files:
+            - "**/cli/ttlog/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/v3/cli/ttlog"
+        dir-cli-uninstall:
+          files:
+            - "**/cli/uninstall/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/cmdcontext"
+            - "github.com/tarantool/tt/v3/cli/config"
+            - "github.com/tarantool/tt/v3/cli/configure"
+            - "github.com/tarantool/tt/v3/cli/install"
+            - "github.com/tarantool/tt/v3/cli/search"
+            - "github.com/tarantool/tt/v3/cli/uninstall"
+            - "github.com/tarantool/tt/v3/cli/util"
+            - "github.com/tarantool/tt/v3/cli/version"
+        dir-cli-util:
+          files:
+            - "**/cli/util/**"
+          allow:
+            - $gostd
+            - "github.com/hashicorp/go-version"
+            - "github.com/mgutz/ansi"
+            - "github.com/otiai10/copy"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/exitcode"
+            - "github.com/tarantool/tt/v3/cli/util"
+            - "gopkg.in/yaml.v2"
+        dir-cli-version:
+          files:
+            - "**/cli/version/**"
+          allow:
+            - $gostd
+            - "github.com/hashicorp/go-version"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/util"
+            - "github.com/tarantool/tt/v3/cli/version"
+        dir-core:
+          files:
+            - "**/core/**"
+          allow:
+            - $gostd
+            - "github.com/spf13/cobra"
+            - "github.com/spf13/pflag"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/cmd"
+            - "github.com/tarantool/tt/v3/cli/cmdcontext"
+            - "github.com/tarantool/tt/v3/cli/exitcode"
+            - "github.com/tarantool/tt/v3/cli/logging"
+            - "github.com/tarantool/tt/v3/cli/manifest"
+            - "github.com/tarantool/tt/v3/cli/printing"
+            - "github.com/tarantool/tt/v3/cli/util"
+            - "github.com/tarantool/tt/v3/cli/version"
+            - "github.com/tarantool/tt/v3/core"
+        dir-lib-watchdog:
+          files:
+            - "**/lib/watchdog/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/process_utils"
+            - "github.com/tarantool/tt/v3/lib/watchdog"

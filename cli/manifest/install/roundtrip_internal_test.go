@@ -96,6 +96,6 @@ func writeSource(t *testing.T, dir string, files map[string]string) {
 	for name, content := range files {
 		path := filepath.Join(dir, name)
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
-		require.NoError(t, os.WriteFile(path, []byte(content), 0o644)) //nolint:gosec
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 	}
 }

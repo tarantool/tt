@@ -126,7 +126,7 @@ func TestContentHashTracksExecutableBit(t *testing.T) {
 	plain, err := contentHash(dir)
 	require.NoError(t, err)
 
-	require.NoError(t, os.Chmod(script, 0o700)) //nolint:gosec // the test sets the executable bit
+	require.NoError(t, os.Chmod(script, 0o700))
 
 	executable, err := contentHash(dir)
 	require.NoError(t, err)

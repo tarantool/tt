@@ -271,7 +271,7 @@ func writeFile(dst string, reader io.Reader, perm os.FileMode) error {
 	}
 
 	// Path is validated by safeJoin; the archive is the user's own package.
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm) //nolint:gosec
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 	if err != nil {
 		return fmt.Errorf("creating %s: %w", dst, err)
 	}

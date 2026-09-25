@@ -75,7 +75,6 @@ func Derive(dir string) (Version, error) {
 func deriveFromFile(dir string) (Version, bool, error) {
 	var ver Version
 
-	//nolint:gosec // Reads the caller's own manifest directory, not user input.
 	raw, err := os.ReadFile(filepath.Join(dir, versionFileName))
 	if errors.Is(err, os.ErrNotExist) {
 		return ver, false, nil
@@ -288,7 +287,6 @@ func isDirty(dir string) bool {
 
 // runGit runs git in dir and returns its trimmed stdout.
 func runGit(dir string, args ...string) (string, error) {
-	//nolint:gosec // Fixed program (git) with internally built args on the caller's dir.
 	cmd := exec.CommandContext(context.Background(), "git", append([]string{"-C", dir}, args...)...)
 
 	out, err := cmd.Output()

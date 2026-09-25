@@ -124,7 +124,6 @@ func FindPrimary(packages []Package) (Package, bool) {
 func ReadPrimary(root string) (Package, bool) {
 	var zero Package
 
-	//nolint:gosec // Reads tt's own install-state files.
 	manBytes, err := os.ReadFile(filepath.Join(root, PrimaryManifestFile))
 	if err != nil {
 		return zero, false
@@ -156,7 +155,6 @@ func ReadGuest(manifestsDir, name string) (Package, bool) {
 
 	dir := filepath.Join(manifestsDir, name)
 
-	//nolint:gosec // Reads tt's own install-state files.
 	manBytes, err := os.ReadFile(filepath.Join(dir, MetaManifestFile))
 	if err != nil {
 		return zero, false
@@ -182,7 +180,7 @@ func ReadGuest(manifestsDir, name string) (Package, bool) {
 // — a guest may predate a lock-writing tt, and the primary package need not have
 // a lock at all.
 func ReadLockFile(path string) *manifest.Lock {
-	data, err := os.ReadFile(path) //nolint:gosec // Reads tt's own install-state files.
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil
 	}
@@ -197,7 +195,7 @@ func ReadLockFile(path string) *manifest.Lock {
 
 // readVersionFile reads a VERSION file, returning "" when it is absent.
 func readVersionFile(path string) string {
-	data, err := os.ReadFile(path) //nolint:gosec // Reads tt's own install-state files.
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return ""
 	}

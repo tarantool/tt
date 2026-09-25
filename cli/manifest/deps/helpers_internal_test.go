@@ -137,7 +137,7 @@ func optsFor(dir string) Options {
 func manifestOnDisk(t *testing.T, dir string) string {
 	t.Helper()
 
-	data, err := os.ReadFile(filepath.Join(dir, manifestFileName)) //nolint:gosec // temp path
+	data, err := os.ReadFile(filepath.Join(dir, manifestFileName))
 	require.NoError(t, err)
 
 	return string(data)
@@ -147,7 +147,7 @@ func manifestOnDisk(t *testing.T, dir string) string {
 func lockOnDisk(t *testing.T, dir string) *manifest.Lock {
 	t.Helper()
 
-	data, err := os.ReadFile(filepath.Join(dir, lockFileName)) //nolint:gosec // temp path
+	data, err := os.ReadFile(filepath.Join(dir, lockFileName))
 	require.NoError(t, err)
 
 	lock, err := manifest.ParseLock(data)
