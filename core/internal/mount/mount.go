@@ -13,6 +13,12 @@
 // wrapped so that the error they return is reported by the core, once, and
 // not by cobra. Legacy commands - the ones tt built before modules - are
 // hung as they are.
+//
+// Once hung, the tree can still change at the root: Replace puts a module's
+// command in place of a command there, or adds it there, checked and
+// prepared as Hang would. It is what lets a command found only after the
+// modules are hung, such as an external module, take over a top-level
+// command.
 package mount
 
 import (
@@ -59,21 +65,22 @@ type Registry struct {
 
 // Owner returns the module cmd comes from: the module that mounted it or
 // the command it is under, and for a placeholder group the module whose
-// mount created it. It reports false for a command Hang did not hang.
+// mount created it. It reports false for a command neither Hang nor Replace
+// hung, and for one Replace took out of the tree.
 func (r *Registry) Owner(cmd *cobra.Command) (string, bool) {
 	owner, ok := r.owners[cmd]
 
 	return owner, ok
 }
 
-// Placeholder reports whether cmd is a group Hang created because no module
-// provided it.
+// Placeholder reports whether cmd is a group in the tree that Hang created
+// because no module provided it.
 func (r *Registry) Placeholder(cmd *cobra.Command) bool {
 	return r.placeholders[cmd]
 }
 
-// The errors Hang refuses a mount with. Each is the reason part of a message
-// that names the module, the command and the path involved.
+// The errors Hang and Replace refuse a command with. Each is the reason part
+// of a message that names the module, the command and the path involved.
 var (
 	errNoModuleName      = errors.New("no module name")
 	errNoCommand         = errors.New("has no command")
@@ -86,6 +93,8 @@ var (
 	errDuplicateCommand  = errors.New("duplicate command")
 	errAmbiguousName     = errors.New("both answer to")
 	errFlagsNotMergeable = errors.New("flags")
+	errNotAtRoot         = errors.New("not at the root")
+	errNameMismatch      = errors.New("the names differ")
 )
 
 // mount is a valid Entry with its path split into command names.
@@ -129,6 +138,72 @@ func Hang(root *cobra.Command, entries []Entry, reserved Reserved) (*Registry, e
 	}
 
 	return registry, nil
+}
+
+// Replace hangs cmd, a command of module, at the root in place of old, a
+// command at the root, or adds cmd at the root when old is nil. old and its
+// subtree leave the tree and the registry; cmd and its subtree are recorded
+// as module's and prepared like the commands of any module. old's aliases
+// leave with it: cmd answers to its own name and aliases only, so a caller
+// that means cmd to answer to old's aliases gives them to cmd.
+//
+// cmd is refused where Hang would refuse it mounted at the root with old
+// gone, and so is an old that is not at the root or is named other than
+// cmd. A refusal leaves the tree and the registry as they were.
+func (r *Registry) Replace(root, old, cmd *cobra.Command, module string, reserved Reserved) error {
+	entry := Entry{Module: module, Path: "", Cmd: cmd, Legacy: false}
+
+	err := validate(entry)
+	if err != nil {
+		return err
+	}
+
+	mnt := mount{Entry: entry, segments: nil}
+
+	err = checkReplaced(root, old, mnt)
+	if err != nil {
+		return err
+	}
+
+	err = checkNames(root, root, mnt, r, reserved, old)
+	if err != nil {
+		return err
+	}
+
+	// The flags are checked and merged with cmd in the tree, beside old, the
+	// way cobra merges them when it runs cmd; a refused cmd comes out again.
+	root.AddCommand(cmd)
+
+	err = prepare(root, mnt, reserved)
+	if err != nil {
+		root.RemoveCommand(cmd)
+
+		return err
+	}
+
+	if old != nil {
+		root.RemoveCommand(old)
+		r.forget(old)
+	}
+
+	r.record(cmd, module)
+
+	return nil
+}
+
+// record records top and every command under it as module's.
+func (r *Registry) record(top *cobra.Command, module string) {
+	for _, cmd := range subtree(top) {
+		r.owners[cmd] = module
+	}
+}
+
+// forget drops top and every command under it from the registry.
+func (r *Registry) forget(top *cobra.Command) {
+	for _, cmd := range subtree(top) {
+		delete(r.owners, cmd)
+		delete(r.placeholders, cmd)
+	}
 }
 
 // compareEntries orders entries by the depth of their path, then the path,
@@ -182,6 +257,23 @@ func validate(entry Entry) error {
 	return nil
 }
 
+// checkReplaced refuses to put mnt's command in place of old unless old is a
+// command at the root with the same name. A nil old replaces nothing.
+func checkReplaced(root, old *cobra.Command, mnt mount) error {
+	switch {
+	case old == nil:
+		return nil
+	case old.Parent() != root:
+		return fmt.Errorf("module %q: command %q cannot replace %q: it is %w",
+			mnt.Module, mnt.Cmd.Name(), old.CommandPath(), errNotAtRoot)
+	case old.Name() != mnt.Cmd.Name():
+		return fmt.Errorf("module %q: command %q cannot replace %q: %w",
+			mnt.Module, mnt.Cmd.Name(), old.Name(), errNameMismatch)
+	}
+
+	return nil
+}
+
 // hang adds one mount's command to the tree.
 func hang(root *cobra.Command, mnt mount, registry *Registry, reserved Reserved) error {
 	parent, err := walk(root, mnt, registry)
@@ -189,22 +281,26 @@ func hang(root *cobra.Command, mnt mount, registry *Registry, reserved Reserved)
 		return err
 	}
 
-	err = checkNames(root, parent, mnt, registry, reserved)
+	err = checkNames(root, parent, mnt, registry, reserved, nil)
 	if err != nil {
 		return err
 	}
 
 	parent.AddCommand(mnt.Cmd)
-
-	for _, cmd := range subtree(mnt.Cmd) {
-		registry.owners[cmd] = mnt.Module
-	}
+	registry.record(mnt.Cmd, mnt.Module)
 
 	if mnt.Legacy {
 		return nil
 	}
 
-	err = checkFlags(root, mnt, reserved)
+	return prepare(root, mnt, reserved)
+}
+
+// prepare readies the commands of mnt, in the tree under root, for the core:
+// it refuses the flags tt reserves and the ones cobra cannot merge, and
+// wraps the hooks.
+func prepare(root *cobra.Command, mnt mount, reserved Reserved) error {
+	err := checkFlags(root, mnt, reserved)
 	if err != nil {
 		return err
 	}
@@ -252,10 +348,11 @@ func walk(root *cobra.Command, mnt mount, registry *Registry) (*cobra.Command, e
 	return parent, nil
 }
 
-// checkNames refuses a command whose name or alias is taken next to it, or
-// reserved at the root.
+// checkNames refuses a command whose name or alias is taken next to it by a
+// command other than except, or reserved at the root.
 func checkNames(
 	root, parent *cobra.Command, mnt mount, registry *Registry, reserved Reserved,
+	except *cobra.Command,
 ) error {
 	names := append([]string{mnt.Cmd.Name()}, mnt.Cmd.Aliases...)
 	path := strings.Join(append(slices.Clone(mnt.segments), mnt.Cmd.Name()), " ")
@@ -270,6 +367,10 @@ func checkNames(
 	}
 
 	for _, sibling := range parent.Commands() {
+		if sibling == except {
+			continue
+		}
+
 		siblingNames := append([]string{sibling.Name()}, sibling.Aliases...)
 
 		for _, name := range names {
