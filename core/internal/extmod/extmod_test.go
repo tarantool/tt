@@ -237,8 +237,8 @@ func group(name string, subs ...*cobra.Command) *cobra.Command {
 }
 
 // TestMountAddsModule checks that a module with no command of its name is
-// added: it gets its arguments as they are, flags included, and its help is
-// the module's.
+// added: it gets its arguments as they are, flags included, its help is the
+// module's and the module's one-line help describes it.
 func TestMountAddsModule(t *testing.T) {
 	t.Parallel()
 
@@ -257,7 +257,7 @@ func TestMountAddsModule(t *testing.T) {
 
 	proxy := tree.find("hello")
 	require.NotNil(t, proxy)
-	assert.Empty(t, proxy.Short, "the root help lists the module under EXTERNAL COMMANDS")
+	assert.Equal(t, "Say hello", proxy.Short, "the module's help describes its command")
 
 	cmd, err := tree.run("hello", "a", "--b", "-c", "--help")
 	require.NoError(t, err)
@@ -273,8 +273,9 @@ func TestMountAddsModule(t *testing.T) {
 }
 
 // TestMountReplacesCommands checks that a module takes the place of the
-// command of its name, subcommands and all, whoever built it, with no
-// warning: a debug record names the command's module.
+// command of its name, subcommands and all, whoever built it, described by
+// the module's one-line help, with no warning: a debug record names the
+// command's module.
 func TestMountReplacesCommands(t *testing.T) {
 	t.Parallel()
 
@@ -321,6 +322,7 @@ func TestMountReplacesCommands(t *testing.T) {
 		cmd, err := tree.run(args...)
 		require.NoError(t, err)
 		assert.Empty(t, cmd.Commands(), "the module takes the whole command")
+		assert.Equal(t, "External "+args[0], cmd.Short)
 		assert.Equal(t, strings.Join(args, " ")+"\n", tree.out.String())
 	}
 }
@@ -526,6 +528,44 @@ func TestMountIntegrity(t *testing.T) {
 
 	assert.NoFileExists(t, marker, "a refused executable is not run")
 	assert.Empty(t, tree.out.String())
+}
+
+// TestMountHelpFirstLine checks that a module is described by the first line
+// of its help, whether the manifest gives the help or the module does when
+// asked with --description: its command and tt modules list show that line,
+// and a help with no line at all is refused as a missing one.
+func TestMountHelpFirstLine(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	writeModule(t, dir, "folded", `echo "folded $*"`,
+		"version: 1.0.0\nmain: main\nhelp: |\n\n  First line of the help.  \n  Second line.\n")
+	writeModule(t, dir, "asked", `echo "version: 1.0.0"; echo "help: |"; `+
+		`echo "  Asked first line."; echo "  Asked second line."`, "")
+	writeModule(t, dir, "blank", `echo "blank $*"`,
+		"version: 1.0.0\nmain: main\nhelp: \"  \"\n")
+
+	tree := newTree(t)
+
+	modules, err := tree.mount(dir)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"asked", "folded"}, names(modules))
+	assert.Equal(t, []string{
+		`Failed to get information about module "blank": ` +
+			`help field is mandatory for module Manifest`,
+	}, tree.log.Messages())
+
+	for name, want := range map[string]string{
+		"asked":  "Asked first line.",
+		"folded": "First line of the help.",
+	} {
+		assert.Equal(t, want, tree.find(name).Short, name)
+	}
+
+	_, err = tree.run("modules", "list")
+	require.NoError(t, err)
+	assert.Equal(t, "asked - Asked first line.\nfolded - First line of the help.\n",
+		tree.out.String())
 }
 
 // TestMountModulesList checks what tt modules list prints.

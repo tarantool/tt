@@ -76,7 +76,7 @@ type Options struct {
 // Mount finds the external modules opts.Path lists and hangs a proxy for
 // each at root, then adds tt modules. It returns the modules tt runs or
 // would run without -I, sorted by name: the ones tt modules lists and the
-// help and the completion show.
+// root help shows under EXTERNAL COMMANDS.
 //
 // A module is skipped, with a warning, when it cannot be described - no
 // manifest and no answer to --description --version, a manifest the
@@ -185,9 +185,12 @@ func hang(root *cobra.Command, manifest Manifest, opts Options) bool {
 
 // newProxy returns the command that runs the module of manifest: it takes
 // its arguments as they are, flags included, and its help is the module's.
+// Its description is the module's one-line help, which the root help lists
+// it with and the completion offers it with, as for any other command.
 func newProxy(manifest Manifest, opts Options) *cobra.Command {
 	proxy := &cobra.Command{
 		Use:                manifest.Name,
+		Short:              manifest.Help,
 		DisableFlagParsing: true,
 		RunE: func(_ *cobra.Command, args []string) error {
 			return runModule(manifest.Main, args, opts.Open, opts.Streams)

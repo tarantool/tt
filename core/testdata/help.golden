@@ -3230,6 +3230,6 @@ tcm	Manage tcm application
 test	Build the current package and run its tests
 uninstall	Uninstalls a program
 version	Show Tarantool CLI version information
-:0
+:4
 --- stderr
-Completion ended with directive: ShellCompDirectiveDefault
+Completion ended with directive: ShellCompDirectiveNoFileComp

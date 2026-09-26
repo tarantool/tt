@@ -209,7 +209,7 @@ func build(
 
 // mountExternalModules hangs the external modules TT_CLI_MODULES_PATH lists
 // on root, whose commands registry records, and tt modules, and returns the
-// external commands the help and the completion list.
+// external commands the root help lists.
 func mountExternalModules(
 	root *cobra.Command, registry *mount.Registry,
 ) ([]cmd.ExternalCommand, error) {

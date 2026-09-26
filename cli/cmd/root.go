@@ -27,9 +27,6 @@ var (
 	cmdCtx  cmdcontext.CmdCtx
 	cliOpts *config.CliOpts
 	rootCmd *cobra.Command
-	// externalCommands are the external commands ConfigureHelp was given,
-	// which the root help and its completion list.
-	externalCommands []ExternalCommand
 	// logFormat is the value of the --log-format flag.
 	logFormat = logging.FormatText
 
@@ -108,8 +105,7 @@ func newRootCmd() *cobra.Command {
 				return fmt.Errorf("%w%s", errUnknownCommand, args[0])
 			}
 		},
-		ValidArgsFunction: RootShellCompletionCommands,
-		TraverseChildren:  true,
+		TraverseChildren: true,
 	}
 
 	rootCmd.Flags().BoolVarP(&cmdCtx.Cli.IsSystem, "system", "S",

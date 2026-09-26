@@ -41,7 +41,9 @@ type Manifest struct {
 	Version string `yaml:"version"`
 	// Main is name of executable file.
 	Main string `yaml:"main"`
-	// Help is a short description of the module.
+	// Help is the module's one-line description, which tt lists the module
+	// with: the first line of the help its manifest, or its reply to
+	// --description, gives.
 	Help string `yaml:"help"`
 	// TtVersion is required a version of TT CLI (optional).
 	TtVersion string `yaml:"tt-version"`
@@ -89,11 +91,22 @@ func readManifest(dir, manifest string, open Opener) (Manifest, error) {
 		return parsed, errVersionFieldIsMandatoryForModuleManifest
 	}
 
+	parsed.Help = firstLine(parsed.Help)
 	if parsed.Help == "" {
 		return parsed, errHelpFieldIsMandatoryForModuleManifest
 	}
 
 	return parsed, nil
+}
+
+// firstLine returns the first line of help, without the spaces around it:
+// the one-line description tt lists a module with, wherever it lists it. A
+// help of several lines would break those lists; the module's own --help is
+// where a longer text goes.
+func firstLine(help string) string {
+	line, _, _ := strings.Cut(strings.TrimSpace(help), "\n")
+
+	return strings.TrimSpace(line)
 }
 
 // makeManifest describes the module of entry: from its manifest when it has

@@ -21,7 +21,7 @@ const helpTemplate = `{{with (or .Long .Short)}}{{. | trimTrailingWhitespaces | 
 {{end}}{{if or .Runnable .HasSubCommands}}{{.UsageString | wrapHelp}}{{end}}`
 
 // ExternalCommand is a top-level command that runs an external module, as
-// the root help and its completion list it.
+// the root help lists it under EXTERNAL COMMANDS.
 type ExternalCommand struct {
 	// Name is the command's name.
 	Name string

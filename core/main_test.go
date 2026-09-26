@@ -737,6 +737,33 @@ func TestMainExternalModules(t *testing.T) {
 	}
 }
 
+// TestMainModuleHelpFirstLine checks that the root help, among the commands
+// and under EXTERNAL COMMANDS, and the completion describe an external
+// module with the first line of its help, whatever else the help says.
+func TestMainModuleHelpFirstLine(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	moduleDir := filepath.Join(dir, "multi")
+	require.NoError(t, os.Mkdir(moduleDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(moduleDir, "main"),
+		[]byte("#!/bin/sh\necho \"multi $*\"\n"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(moduleDir, "manifest.yaml"),
+		[]byte("version: 1.0.0\nmain: main\nhelp: |\n  First line.\n  Second line.\n"), 0o644))
+
+	env := []string{"TT_CLI_MODULES_PATH=" + dir}
+
+	got := runTT(t, ttRun{program: "demo", args: []string{"--help"}, env: env})
+	require.Equal(t, 0, got.code, got.stderr)
+	assert.Contains(t, got.stdout, "\n  multi       First line.\n")
+	assert.Contains(t, got.stdout, "\n\x1b[0m  multi\tFirst line.\n")
+	assert.NotContains(t, got.stdout, "Second line")
+
+	got = runTT(t, ttRun{program: "demo", args: []string{"__complete", "mu"}, env: env})
+	require.Equal(t, 0, got.code, got.stderr)
+	assert.Equal(t, "multi\tFirst line.\n:4\n", got.stdout)
+}
+
 // TestMainModuleHelpOnStdout checks that tt help prints an external
 // module's help to stdout, where tt's own help and the module's own --help
 // go, and nothing to stderr.
@@ -778,8 +805,9 @@ func TestMainReplacedCommandLogged(t *testing.T) {
 }
 
 // TestMainExternalModulesListed checks where the external modules are
-// listed - the root help, its completion and tt modules list - and that
-// tt built without them has neither the modules nor tt modules.
+// listed - the root help, its completion and tt modules list -, each with
+// its module's one-line help, a module that replaces a command included, and
+// that tt built without them has neither the modules nor tt modules.
 func TestMainExternalModulesListed(t *testing.T) {
 	t.Parallel()
 
@@ -788,14 +816,23 @@ func TestMainExternalModulesListed(t *testing.T) {
 
 	got := runTT(t, ttRun{program: "demo", args: []string{"--help"}, env: env})
 	require.Equal(t, 0, got.code, got.stderr)
+	assert.Contains(t, got.stdout, "\n  env         External env\n")
+	assert.Contains(t, got.stdout, "\n  hello       External hello\n")
 	assert.Contains(t, got.stdout, "EXTERNAL COMMANDS\n\x1b[0m  env\tExternal env\n"+
 		"  hello\tExternal hello\n\x1b[0;1;39m\nFLAGS")
 	assert.Contains(t, got.stdout, "\n  modules     Manage tt cli modules\n")
 
 	got = runTT(t, ttRun{program: "demo", args: []string{"__complete", ""}, env: env})
 	require.Equal(t, 0, got.code, got.stderr)
-	assert.Contains(t, got.stdout, "\nhello\n")
-	assert.Contains(t, got.stdout, "\ntt env\tExternal env\ntt hello\tExternal hello\n:0\n")
+	assert.Contains(t, got.stdout, "\nenv\tExternal env\n")
+	assert.Contains(t, got.stdout, "\nhello\tExternal hello\n")
+	assert.NotContains(t, got.stdout, "tt env")
+	assert.NotContains(t, got.stdout, "tt hello")
+	assert.True(t, strings.HasSuffix(got.stdout, "\n:4\n"), "no file names: %q", got.stdout)
+
+	got = runTT(t, ttRun{program: "demo", args: []string{"__complete", "h"}, env: env})
+	require.Equal(t, 0, got.code, got.stderr)
+	assert.Equal(t, "hello\tExternal hello\nhelp\tHelp about any command\n:4\n", got.stdout)
 
 	got = runTT(t, ttRun{program: "demo", args: []string{"-I", "modules", "list"}, env: env})
 	require.Equal(t, 0, got.code, got.stderr)

@@ -295,6 +295,12 @@ for machine-readable output.
   by an external module: a module named so is ignored with a warning and is
   listed neither in the help nor by `tt modules list`. A module named `modules`
   no longer stops tt from running.
+- The root help and the shell completion describe the command of an external
+  module with the module's one-line help, as EXTERNAL COMMANDS does: a command
+  a module adds had no description, and a command a module replaces kept the
+  description of tt's own. tt takes only the first line of a module's `help`,
+  in these lists and in `tt modules list`: a `help` of several lines broke the
+  lists, and the module's own `--help` is where a longer text goes.
 - An external module named like a group of commands, such as `cluster`, takes
   over the whole group: every `tt cluster ...` command line runs the module
   with the arguments that follow `cluster`. The subcommands of the group used
@@ -333,6 +339,10 @@ for machine-readable output.
   `open "": no such file or directory` error when Tarantool is missing.
 - `tt help <module>` prints an external module's help to stdout, where
   `tt <module> --help` and tt's own help print; it went to stderr.
+- Shell completion of the first word after `tt` no longer offers
+  `tt <module>` next to the name of every external module, which showed up
+  at `tt <TAB>` and after a `t`, and bash and zsh no longer fall back to file
+  names there when no command matches: only commands are offered.
 
 ## [2.11.5] - 2026-03-19
 

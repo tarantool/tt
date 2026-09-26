@@ -391,11 +391,25 @@ for converting a symlink-based environment to the single-application layout.
 ## External modules
 
 An external module is a directory in a modules directory, named after the
-command it adds. It holds a `manifest.yaml` giving the module's `version`,
-its one-line `help` and, in `main`, the name of its executable; or, with no
-manifest, an executable named `main` that prints its `version` and `help` as
-YAML when called with `--description --version`. When called with `--help`,
-the module prints its help to stdout.
+command it adds. It holds a `manifest.yaml`:
+
+``` yaml
+version: 1.0.0
+help: Upload tt backups to an S3 bucket
+main: main
+```
+
+`version` is the module's version, `help` its one-line description and `main`
+the name of its executable in the directory. A module with no manifest is an
+executable named `main` that prints the same `version` and `help`, as YAML,
+when called with `--description --version`. When called with `--help`, the
+module prints its full help to stdout.
+
+`help` describes the module wherever tt lists it: among the commands of
+`tt --help` and under its EXTERNAL COMMANDS, in shell completion and in
+`tt modules list`. tt takes only the first line of it, so that each module
+stays one line in these lists; a longer text belongs in the module's own
+`--help`, which `tt help <module>` and `tt <module> --help` print.
 
 Tarantool CLI already contains a basic set of modules. You can overload
 these with external ones, or extend functionality with your own module.

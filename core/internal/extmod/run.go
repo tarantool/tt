@@ -136,12 +136,13 @@ func fillManifest(manifest Manifest, open Opener) (Manifest, error) {
 		return manifest, errReplyForVersionIsMandatoryForModule
 	}
 
-	if info.Help == "" {
+	help := firstLine(info.Help)
+	if help == "" {
 		return manifest, errReplyForDescriptionIsMandatoryForModule
 	}
 
 	manifest.Version = info.Version
-	manifest.Help = info.Help
+	manifest.Help = help
 
 	return manifest, nil
 }

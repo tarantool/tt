@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 
 	"github.com/spf13/cobra"
 
@@ -223,12 +222,10 @@ func Configure() error {
 
 // ConfigureHelp sets up the help of the tree: the help command, which
 // completes the names of the top-level commands, and the help templates.
-// The root help lists external under EXTERNAL COMMANDS, and the completion
-// of the root offers them. The command tree must be complete.
+// The root help lists external under EXTERNAL COMMANDS. The command tree
+// must be complete.
 func ConfigureHelp(external []ExternalCommand) {
-	externalCommands = slices.Clone(external)
-
-	configureHelpCommand(rootCmd, externalCommands)
+	configureHelpCommand(rootCmd, external)
 }
 
 // Run executes the command line on the root Boot created and returns the

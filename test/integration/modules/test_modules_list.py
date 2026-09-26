@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 from utils import (
@@ -12,7 +14,9 @@ from utils import (
 
 def test_show_available_modules(tt_cmd, tmp_path):
     """
-    Run 'tt' without args should show available external commands.
+    Run 'tt' without args should show available external commands, each
+    described by its module's help among the commands and under EXTERNAL
+    COMMANDS.
     """
     modules = ("ext_cmd1", "ext_cmd2", "ext_cmd3")
 
@@ -28,6 +32,7 @@ def test_show_available_modules(tt_cmd, tmp_path):
     assert "EXTERNAL COMMANDS" in output
     for module in modules:
         assert f"{module}\tDescription for external module {module}\n" in output
+        assert re.search(rf"^  {module} +Description for external module {module}$", output, re.M)
 
 
 @pytest.mark.parametrize(

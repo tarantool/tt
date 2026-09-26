@@ -52,21 +52,6 @@ func NewCompletionCmd() *cobra.Command {
 	return cmd
 }
 
-// RootShellCompletionCommands returns a list of external commands for
-// autocomplete, sorted by name: each command's path under cmd, the root, with
-// the module's help.
-func RootShellCompletionCommands(cmd *cobra.Command, args []string,
-	toComplete string,
-) ([]string, cobra.ShellCompDirective) {
-	commands := make([]string, 0, len(externalCommands))
-	for _, command := range sortedExternalCommands(externalCommands) {
-		commands = append(commands,
-			fmt.Sprintf("%s %s\t%s", cmd.CommandPath(), command.Name, command.Help))
-	}
-
-	return commands, cobra.ShellCompDirectiveDefault
-}
-
 // injectRocksCompletion combines luarocks completions with cobra completions.
 func injectRocksCompletion(shell string, completion []byte) ([]byte, error) {
 	injection, err := fs.ReadFile(rocks.EmbedCompletions, "completions/"+shell+"_injection")
