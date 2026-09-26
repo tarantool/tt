@@ -25,7 +25,7 @@ func NewCleanCmd() *cobra.Command {
 	cleanCmd := &cobra.Command{
 		Use:   "clean [INSTANCE_NAME]",
 		Short: "Clean instance(s) files",
-		RunE:  RunModuleFuncE(internalCleanModule),
+		RunE:  internalRunE(internalCleanModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,

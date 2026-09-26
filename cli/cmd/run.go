@@ -35,7 +35,7 @@ with the interpreter, so signals and the exit code are Tarantool's own.
 				}
 			}
 
-			return RunModuleFuncE(internalRunModule)(cmd, args)
+			return internalRunE(internalRunModule)(cmd, args)
 		},
 		Example: `
 # Start an interactive console in the project.

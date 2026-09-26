@@ -58,7 +58,7 @@ func newTcmStartCmd() *cobra.Command {
 		Long: `Start to the tcm.
 		tt tcm start --watchdog
 		tt tcm start --path`,
-		RunE: RunModuleFuncE(internalStartTcm),
+		RunE: internalRunE(internalStartTcm),
 	}
 	tcmCmd.Flags().StringVar(&tcmCtx.Executable, "path", "", "the path to the tcm binary file")
 	tcmCmd.Flags().BoolVar(&tcmCtx.Watchdog, "watchdog", false, "enables the watchdog")
@@ -74,7 +74,7 @@ func newTcmStatusCmd() *cobra.Command {
 		Short: "Status tcm application",
 		Long: `Status to the tcm.
 		tt tcm status`,
-		RunE: RunModuleFuncE(internalTcmStatus),
+		RunE: internalRunE(internalTcmStatus),
 	}
 
 	return tcmCmd
@@ -85,7 +85,7 @@ func newTcmStopCmd() *cobra.Command {
 		Use:   "stop",
 		Short: "Stop tcm application",
 		Long:  `Stop to the tcm. tt tcm stop`,
-		RunE:  RunModuleFuncE(internalTcmStop),
+		RunE:  internalRunE(internalTcmStop),
 	}
 
 	return tcmCmd
@@ -96,7 +96,7 @@ func newTcmLogCmd() *cobra.Command {
 		Use:   "log [flags]",
 		Short: "Show tcm application logs",
 		Long:  `Show logs for the tcm. tt tcm log`,
-		RunE:  RunModuleFuncE(internalTcmLog),
+		RunE:  internalRunE(internalTcmLog),
 	}
 
 	cmd.Flags().IntVarP(&tcmCtx.Log.Lines, "lines", "n", tcmDefaultLogLines,

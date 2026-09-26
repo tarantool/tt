@@ -19,7 +19,7 @@ func newSearchTtCmd() *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   search.ProgramTt.String(),
 		Short: "Search for available tt versions",
-		RunE:  RunModuleFuncE(internalSearchModule),
+		RunE:  internalRunE(internalSearchModule),
 		Args:  cobra.ExactArgs(0),
 	}
 
@@ -31,7 +31,7 @@ func newSearchTarantoolCmd() *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   search.ProgramCe.String(),
 		Short: "Search for available tarantool community edition versions",
-		RunE:  RunModuleFuncE(internalSearchModule),
+		RunE:  internalRunE(internalSearchModule),
 		Args:  cobra.ExactArgs(0),
 	}
 
@@ -43,7 +43,7 @@ func newSearchTarantoolEeCmd() *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   search.ProgramEe.String(),
 		Short: "Search for available tarantool enterprise edition versions",
-		RunE:  RunModuleFuncE(internalSearchModule),
+		RunE:  internalRunE(internalSearchModule),
 		Args:  cobra.ExactArgs(0),
 	}
 	tntCmd.Flags().BoolVar(&debug, "debug", debug,
@@ -61,7 +61,7 @@ func newSearchTcmCmd() *cobra.Command {
 	tcmCmd := &cobra.Command{
 		Use:   search.ProgramTcm.String(),
 		Short: "Search for available tarantool cluster manager versions",
-		RunE:  RunModuleFuncE(internalSearchModule),
+		RunE:  internalRunE(internalSearchModule),
 		Args:  cobra.ExactArgs(0),
 	}
 	tcmCmd.Flags().StringVar(&searchCtx.ReleaseVersion, "version", searchCtx.ReleaseVersion,

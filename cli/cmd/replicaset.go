@@ -114,7 +114,7 @@ func newUpgradeCmd() *cobra.Command {
 		Short:                 "Upgrade tarantool cluster",
 		Long: "Upgrade tarantool cluster.\n\n" +
 			sdkconnect.EnvTarantoolCredentialsHelp + "\n\n",
-		RunE: RunModuleFuncE(internalReplicasetUpgradeModule),
+		RunE: internalRunE(internalReplicasetUpgradeModule),
 		Args: cobra.ExactArgs(1),
 	}
 
@@ -154,7 +154,7 @@ func newDowngradeCmd() *cobra.Command {
 		Short:                 "Downgrade tarantool cluster",
 		Long: "Downgrade tarantool cluster.\n\n" +
 			sdkconnect.EnvTarantoolCredentialsHelp + "\n\n",
-		RunE: RunModuleFuncE(internalReplicasetDowngradeModule),
+		RunE: internalRunE(internalReplicasetDowngradeModule),
 		Args: cobra.MatchAll(cobra.ExactArgs(commandArgs), validateVersion(1)),
 	}
 
@@ -180,7 +180,7 @@ func newStatusCmd() *cobra.Command {
 		Short:                 "Show a replicaset status",
 		Long: "Show a replicaset status.\n\n" +
 			sdkconnect.EnvTarantoolCredentialsHelp + "\n\n",
-		RunE: RunModuleFuncE(internalReplicasetStatusModule),
+		RunE: internalRunE(internalReplicasetStatusModule),
 		Args: cobra.ExactArgs(1),
 	}
 
@@ -200,7 +200,7 @@ func newPromoteCmd() *cobra.Command {
 		Short:                 "Promote an instance",
 		Long: "Promote an instance.\n\n" +
 			sdkconnect.EnvTarantoolCredentialsHelp + "\n\n",
-		RunE: RunModuleFuncE(internalReplicasetPromoteModule),
+		RunE: internalRunE(internalReplicasetPromoteModule),
 		Args: cobra.ExactArgs(1),
 	}
 
@@ -223,7 +223,7 @@ func newDemoteCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Demote an instance",
 		Long:                  "Demote an instance.",
-		RunE:                  RunModuleFuncE(internalReplicasetDemoteModule),
+		RunE:                  internalRunE(internalReplicasetDemoteModule),
 		Args:                  cobra.ExactArgs(1),
 	}
 
@@ -243,7 +243,7 @@ func newExpelCmd() *cobra.Command {
 			"<APP_NAME:INSTANCE_NAME>",
 		Short: "Expel an instance from a replicaset",
 		Long:  "Expel an instance from a replicaset.",
-		RunE:  RunModuleFuncE(internalReplicasetExpelModule),
+		RunE:  internalRunE(internalReplicasetExpelModule),
 		Args:  cobra.ExactArgs(1),
 	}
 
@@ -262,7 +262,7 @@ func newBootstrapCmd() *cobra.Command {
 		Use:   "bootstrap [--timeout secs] [flags] <APP_NAME|APP_NAME:INSTANCE_NAME>",
 		Short: "Bootstrap an application or instance",
 		Long:  "Bootstrap an application or instance.",
-		RunE:  RunModuleFuncE(internalReplicasetBootstrapModule),
+		RunE:  internalRunE(internalReplicasetBootstrapModule),
 		Args:  cobra.ExactArgs(1),
 	}
 
@@ -287,7 +287,7 @@ func newBootstrapVShardCmd() *cobra.Command {
 		Short:                 "Bootstrap vshard in the cluster",
 		Long: "Bootstrap vshard in the cluster.\n\n" +
 			sdkconnect.EnvTarantoolCredentialsHelp + "\n\n",
-		RunE: RunModuleFuncE(internalReplicasetBootstrapVShardModule),
+		RunE: internalRunE(internalReplicasetBootstrapVShardModule),
 		Args: cobra.ExactArgs(1),
 	}
 
@@ -319,7 +319,7 @@ func newRebootstrapCmd() *cobra.Command {
 		Use:                   "rebootstrap <APP_NAME:INSTANCE_NAME>",
 		DisableFlagsInUseLine: true,
 		Short:                 "Re-bootstraps an instance",
-		RunE:                  RunModuleFuncE(internalReplicasetRebootstrapModule),
+		RunE:                  internalRunE(internalReplicasetRebootstrapModule),
 		Args:                  replicasetRebootstrapValidateArgs,
 	}
 
@@ -350,7 +350,7 @@ func newRolesAddCmd() *cobra.Command {
 			"<APP_NAME:INSTANCE_NAME> <ROLE_NAME> [flags]",
 		Short: "Adds a role for Tarantool 3 orchestrator",
 		Long:  "Adds a role for Tarantool 3 orchestrator",
-		RunE:  RunModuleFuncE(internalReplicasetRolesAddModule),
+		RunE:  internalRunE(internalReplicasetRolesAddModule),
 		Args:  cobra.ExactArgs(commandArgs),
 	}
 
@@ -384,7 +384,7 @@ func newRolesRemoveCmd() *cobra.Command {
 			"<APP_NAME:INSTANCE_NAME> <ROLE_NAME> [flags]",
 		Short: "Removes a role for Tarantool 3 orchestrator",
 		Long:  "Removes a role for Tarantool 3 orchestrator",
-		RunE:  RunModuleFuncE(internalReplicasetRolesRemoveModule),
+		RunE:  internalRunE(internalReplicasetRolesRemoveModule),
 		Args:  cobra.ExactArgs(commandArgs),
 	}
 

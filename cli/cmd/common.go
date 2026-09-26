@@ -34,14 +34,15 @@ func isConfigExist(cmdCtx *cmdcontext.CmdCtx) bool {
 // process's CmdCtx with the command's arguments.
 type internalFunc func(*cmdcontext.CmdCtx, []string) error
 
-// RunModuleFuncE returns a cobra RunE that records the command's name in the
-// CmdCtx and runs internalModule. The error goes back to the root, which
-// reports it and exits with its code.
-func RunModuleFuncE(internalModule internalFunc) func(*cobra.Command, []string) error {
+// internalRunE adapts fn, a CmdCtx-style command implementation, to a
+// cobra RunE: it records the command's name in the process CmdCtx, runs
+// fn with it, and hands the error to the root, which reports it and
+// exits with its code.
+func internalRunE(fn internalFunc) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		cmdCtx.CommandName = cmd.Name()
 
-		return commandError(cmd, internalModule(&cmdCtx, args))
+		return commandError(cmd, fn(&cmdCtx, args))
 	}
 }
 

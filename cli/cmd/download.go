@@ -27,7 +27,7 @@ func NewDownloadCmd() *cobra.Command {
 	$ tt download gc64-3.0.0-0-gf58f7d82a-r23
 # Download Tarantool SDK development build to the /tmp directory.
 	$ tt download gc64-3.0.0-beta1-2-gcbb569b4c-r612 --dev --directory-prefix /tmp`,
-		RunE: RunModuleFuncE(internalDownloadModule),
+		RunE: internalRunE(internalDownloadModule),
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return errToDownloadTarantoolSDKYouNeedToSpecifyTheVersion

@@ -59,7 +59,7 @@ func NewPlayCmd() *cobra.Command {
 	playCmd := &cobra.Command{
 		Use:   "play (<URI> | <APP_NAME> | <APP_NAME:INSTANCE_NAME>) <FILE|DIR>...",
 		Short: "Play the contents of .snap/.xlog FILE(s) to another Tarantool instance",
-		RunE:  RunModuleFuncE(internalPlayModule),
+		RunE:  internalRunE(internalPlayModule),
 		Example: "tt play localhost:3013 /path/to/file.snap /path/to/file.xlog " +
 			"/path/to/dir/ --timestamp 2024-11-13T14:02:36.818700000+00:00\n" +
 			"  tt play app:instance001 /path/to/file.snap /path/to/file.xlog " +

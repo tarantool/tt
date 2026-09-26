@@ -18,7 +18,7 @@ func NewRestartCmd() *cobra.Command {
 	restartCmd := &cobra.Command{
 		Use:   "restart [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
 		Short: "Restart tarantool instance(s)",
-		RunE:  RunModuleFuncE(internalRestartModule),
+		RunE:  internalRunE(internalRestartModule),
 		Args:  cobra.RangeArgs(0, 1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,

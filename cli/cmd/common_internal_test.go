@@ -11,11 +11,11 @@ import (
 	"github.com/tarantool/tt/v3/cli/configure"
 )
 
-// TestRunModuleFuncE checks that the adapter records the command's name in
+// TestInternalRunE checks that the adapter records the command's name in
 // the CmdCtx - tt install, tt uninstall and tt search take the program from
 // it - and gives the internal function the process's CmdCtx and the
 // arguments.
-func TestRunModuleFuncE(t *testing.T) {
+func TestInternalRunE(t *testing.T) {
 	previous := cmdCtx
 
 	t.Cleanup(func() { cmdCtx = previous })
@@ -25,7 +25,7 @@ func TestRunModuleFuncE(t *testing.T) {
 		gotArgs []string
 	)
 
-	runE := RunModuleFuncE(func(ctx *cmdcontext.CmdCtx, args []string) error {
+	runE := internalRunE(func(ctx *cmdcontext.CmdCtx, args []string) error {
 		gotCtx, gotArgs = ctx, args
 
 		return nil

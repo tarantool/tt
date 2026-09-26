@@ -15,7 +15,7 @@ func NewDumpCmd() *cobra.Command {
 	dumpCmd := &cobra.Command{
 		Use:   "dump",
 		Short: "Print environment configuration",
-		RunE:  RunModuleFuncE(internalDumpModule),
+		RunE:  internalRunE(internalDumpModule),
 	}
 
 	dumpCmd.Flags().BoolVarP(&rawDump, "raw", "r", false,

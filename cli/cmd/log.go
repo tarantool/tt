@@ -27,7 +27,7 @@ func NewLogCmd() *cobra.Command {
 	logCmd := &cobra.Command{
 		Use:   "log [<APP_NAME> | <APP_NAME:INSTANCE_NAME>] [flags]",
 		Short: `Get logs of instance(s)`,
-		RunE:  RunModuleFuncE(internalLogModule),
+		RunE:  internalRunE(internalLogModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,

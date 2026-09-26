@@ -12,7 +12,7 @@ func NewCheckCmd() *cobra.Command {
 	checkCmd := &cobra.Command{
 		Use:   "check [<APPLICATION_NAME>]",
 		Short: "Check an application file for syntax errors",
-		RunE:  RunModuleFuncE(internalCheckModule),
+		RunE:  internalRunE(internalCheckModule),
 	}
 
 	return checkCmd

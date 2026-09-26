@@ -24,7 +24,7 @@ func NewVersionCmd() *cobra.Command {
 	versionCmd := &cobra.Command{
 		Use:   "version",
 		Short: "Show " + flavour.Name() + " version information",
-		RunE:  RunModuleFuncE(internalVersionModule),
+		RunE:  internalRunE(internalVersionModule),
 	}
 
 	versionCmd.Flags().BoolVar(&showShort, "short", false, "Show version in short format")

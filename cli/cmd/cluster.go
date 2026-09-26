@@ -158,7 +158,7 @@ func newClusterReplicasetCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Promote an instance",
 		Long:                  "Promote an instance\n\n" + clusterURIHelp,
-		RunE:                  RunModuleFuncE(internalClusterReplicasetPromoteModule),
+		RunE:                  internalRunE(internalClusterReplicasetPromoteModule),
 		Args:                  cobra.ExactArgs(targetArgs),
 	}
 	promoteCmd.Flags().StringVarP(&promoteCtx.Username, "username", "u", "",
@@ -174,7 +174,7 @@ func newClusterReplicasetCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Demote an instance",
 		Long:                  "Demote an instance\n\n" + clusterURIHelp,
-		RunE:                  RunModuleFuncE(internalClusterReplicasetDemoteModule),
+		RunE:                  internalRunE(internalClusterReplicasetDemoteModule),
 		Args:                  cobra.ExactArgs(targetArgs),
 	}
 
@@ -191,7 +191,7 @@ func newClusterReplicasetCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Expel an instance",
 		Long:                  "Expel an instance\n\n" + clusterURIHelp,
-		RunE:                  RunModuleFuncE(internalClusterReplicasetExpelModule),
+		RunE:                  internalRunE(internalClusterReplicasetExpelModule),
 		Args:                  cobra.ExactArgs(targetArgs),
 	}
 
@@ -212,7 +212,7 @@ func newClusterReplicasetCmd() *cobra.Command {
 		Use:   "add <URI> <ROLE_NAME> [flags]",
 		Short: "Add role to an instance, group or instance",
 		Long:  "Add role to an instance, group or instance\n\n" + clusterURIHelp,
-		RunE:  RunModuleFuncE(internalClusterReplicasetRolesAddModule),
+		RunE:  internalRunE(internalClusterReplicasetRolesAddModule),
 		Example: "tt cluster replicaset roles add http://user:pass@localhost:3301" +
 			" roles.metrics-export --instance_name master",
 		Args: cobra.ExactArgs(roleArgs),
@@ -239,7 +239,7 @@ func newClusterReplicasetCmd() *cobra.Command {
 		Use:   "remove <URI> <ROLE_NAME> [flags]",
 		Short: "Remove role from instance, group, instance or globally",
 		Long:  "Remove role from instance, group, instance or globally\n\n" + clusterURIHelp,
-		RunE:  RunModuleFuncE(internalClusterReplicasetRolesRemoveModule),
+		RunE:  internalRunE(internalClusterReplicasetRolesRemoveModule),
 		Example: "tt cluster replicaset roles remove http://user:pass@localhost:3301" +
 			" roles.metrics-export --instance_name master",
 		Args: cobra.ExactArgs(roleArgs),
@@ -288,7 +288,7 @@ func newClusterFailoverCmd() *cobra.Command {
 		Short:                 "Switch master instance",
 		Long:                  "Switch master instance\n\n" + failoverURIHelp,
 		Example:               "tt cluster failover switch http://localhost:2379/app instance_name",
-		RunE:                  RunModuleFuncE(internalClusterFailoverSwitchModule),
+		RunE:                  internalRunE(internalClusterFailoverSwitchModule),
 		Args:                  cobra.ExactArgs(commandArgs),
 	}
 
@@ -306,7 +306,7 @@ func newClusterFailoverCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Show master switching status",
 		Long:                  "Show master switching status\n\n" + failoverURIHelp,
-		RunE:                  RunModuleFuncE(internalClusterFailoverSwitchStatusModule),
+		RunE:                  internalRunE(internalClusterFailoverSwitchStatusModule),
 		Args:                  cobra.ExactArgs(commandArgs),
 	}
 
@@ -333,7 +333,7 @@ func NewClusterCmd() *cobra.Command {
 			"  tt cluster show application_name:instance_name\n" +
 			"  tt cluster show https://user:pass@localhost:2379/tt\n" +
 			"  tt cluster show https://user:pass@localhost:2379/tt?name=instance",
-		RunE: RunModuleFuncE(internalClusterShowModule),
+		RunE: internalRunE(internalClusterShowModule),
 		Args: cobra.ExactArgs(1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
@@ -377,7 +377,7 @@ func NewClusterCmd() *cobra.Command {
 			"  tt cluster publish --group group --replicaset replicaset " +
 			"https://user:pass@localhost:2379/tt?name=instance " +
 			"instance.yaml",
-		RunE: RunModuleFuncE(internalClusterPublishModule),
+		RunE: internalRunE(internalClusterPublishModule),
 		Args: cobra.ExactArgs(publishArgs),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,

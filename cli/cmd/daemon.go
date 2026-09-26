@@ -19,28 +19,28 @@ func NewDaemonCmd() *cobra.Command {
 	startCmd := &cobra.Command{
 		Use:   "start",
 		Short: "start tt daemon",
-		RunE:  RunModuleFuncE(internalDaemonStartModule),
+		RunE:  internalRunE(internalDaemonStartModule),
 		Args:  cobra.ExactArgs(0),
 	}
 
 	stopCmd := &cobra.Command{
 		Use:   "stop",
 		Short: "stop tt daemon",
-		RunE:  RunModuleFuncE(internalDaemonStopModule),
+		RunE:  internalRunE(internalDaemonStopModule),
 		Args:  cobra.ExactArgs(0),
 	}
 
 	statusCmd := &cobra.Command{
 		Use:   "status",
 		Short: "status of tt daemon",
-		RunE:  RunModuleFuncE(internalDaemonStatusModule),
+		RunE:  internalRunE(internalDaemonStatusModule),
 		Args:  cobra.ExactArgs(0),
 	}
 
 	restartCmd := &cobra.Command{
 		Use:   "restart",
 		Short: "restart tt daemon",
-		RunE:  RunModuleFuncE(internalDaemonRestartModule),
+		RunE:  internalRunE(internalDaemonRestartModule),
 		Args:  cobra.ExactArgs(0),
 	}
 
