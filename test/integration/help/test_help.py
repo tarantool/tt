@@ -1,6 +1,12 @@
 import pytest
 
-from utils import create_external_module, modules_path_env, run_command_and_get_output
+from utils import (
+    create_external_module,
+    ignored_module_warning,
+    modules_path_env,
+    run_command_and_get_output,
+    run_command_and_get_streams,
+)
 
 
 # ##### #
@@ -28,17 +34,14 @@ def test_help_internal_module(tt_cmd, tmp_path):
 
 
 def test_external_help_module(tt_cmd, tmp_path):
-    module_message = create_external_module("help", tmp_path / "modules")
+    # tt help cannot be replaced: an external module named help is ignored
+    # with a warning, is not listed, and every way of asking for help shows
+    # tt's own help, as tt shows it with no external modules.
+    create_external_module("help", tmp_path / "modules")
     env = modules_path_env(tmp_path / "modules")
 
-    rc, output = run_command_and_get_output([tt_cmd, "help"], cwd=tmp_path, env=env)
-    assert rc == 0
-    assert f"{module_message}\nList of passed args:\n" == output
-
-    # In the cases below, external help shouldn't be called.
-    # Should call internal help module and show a list of
-    # available external modules.
     commands = [
+        [tt_cmd, "help"],
         [tt_cmd, "-h"],
         [tt_cmd, "--help"],
         [tt_cmd, "-I", "help"],
@@ -46,35 +49,68 @@ def test_external_help_module(tt_cmd, tmp_path):
     ]
 
     for cmd in commands:
-        rc, output = run_command_and_get_output(cmd, cwd=tmp_path, env=env)
+        rc, own_help, _ = run_command_and_get_streams(cmd, cwd=tmp_path, env=modules_path_env())
         assert rc == 0
-        assert "help\tDescription for external module help" in output
+        assert "EXTERNAL COMMANDS" not in own_help
+
+        rc, stdout, stderr = run_command_and_get_streams(cmd, cwd=tmp_path, env=env)
+        assert rc == 0
+        assert stdout == own_help
+        assert stderr == ignored_module_warning("help", tmp_path / "modules")
 
 
 def test_internal_help_list_external_commands(tt_cmd, tmp_path):
-    # No external help module, but external version module.
-    # List of available external commands should be displayed.
+    # No external help module, but external modules: the list of available
+    # external commands is displayed. An external version module is ignored
+    # with a warning, and is not listed.
     create_external_module("version", tmp_path / "modules")
-    rc, output = run_command_and_get_output(
+    create_external_module("abc", tmp_path / "modules")
+    rc, stdout, stderr = run_command_and_get_streams(
         [tt_cmd, "help"],
         cwd=tmp_path,
         env=modules_path_env(tmp_path / "modules"),
     )
     assert rc == 0
-    assert "EXTERNAL COMMANDS" in output
-    assert "version\tDescription for external module version" in output
+    assert "EXTERNAL COMMANDS" in stdout
+    assert "abc\tDescription for external module abc" in stdout
+    assert "version\tDescription for external module version" not in stdout
+    assert stderr == ignored_module_warning("version", tmp_path / "modules")
 
 
 def test_call_help_for_external_override_module(tt_cmd, tmp_path):
-    # In this case, the external module 'version' should be called with the --help flag.
+    # The external module 'env' replaces the command, so its help is the
+    # module's: the module is called with the --help flag.
+    create_external_module("env", tmp_path / "modules")
+    rc, stdout, stderr = run_command_and_get_streams(
+        [tt_cmd, "help", "env"],
+        cwd=tmp_path,
+        env=modules_path_env(tmp_path / "modules"),
+    )
+    assert rc == 0
+    assert stdout == ""
+    assert stderr == "Help for external env module\nList of passed args: --help\n"
+
+
+def test_call_help_for_protected_command(tt_cmd, tmp_path):
+    # The external module 'version' is ignored with a warning: the help of
+    # tt version is tt's own.
     create_external_module("version", tmp_path / "modules")
-    rc, output = run_command_and_get_output(
+    rc, own_help, _ = run_command_and_get_streams(
+        [tt_cmd, "help", "version"],
+        cwd=tmp_path,
+        env=modules_path_env(),
+    )
+    assert rc == 0
+    assert own_help.startswith("Show Tarantool CLI version information\n")
+
+    rc, stdout, stderr = run_command_and_get_streams(
         [tt_cmd, "help", "version"],
         cwd=tmp_path,
         env=modules_path_env(tmp_path / "modules"),
     )
     assert rc == 0
-    assert "Help for external version module\nList of passed args: --help\n" == output
+    assert stdout == own_help
+    assert stderr == ignored_module_warning("version", tmp_path / "modules")
 
 
 def test_call_help_for_external_custom_module(tt_cmd, tmp_path):
@@ -91,15 +127,26 @@ def test_call_help_for_external_custom_module(tt_cmd, tmp_path):
 
 
 def test_external_help_module_with_args(tt_cmd, tmp_path):
-    # If the external module help and version exist at the same time,
-    # then the external module help should be called with the <version>
-    # argument. For example, execute "path/to/external/help version" command.
+    # If the external modules help and version exist at the same time, both
+    # are ignored with a warning: tt help version shows tt's own help of tt
+    # version.
     create_external_module("version", tmp_path / "modules")
-    module_message = create_external_module("help", tmp_path / "modules")
-    rc, output = run_command_and_get_output(
+    create_external_module("help", tmp_path / "modules")
+    rc, own_help, _ = run_command_and_get_streams(
+        [tt_cmd, "help", "version"],
+        cwd=tmp_path,
+        env=modules_path_env(),
+    )
+    assert rc == 0
+
+    rc, stdout, stderr = run_command_and_get_streams(
         [tt_cmd, "help", "version"],
         cwd=tmp_path,
         env=modules_path_env(tmp_path / "modules"),
     )
     assert rc == 0
-    assert f"{module_message}\nList of passed args: version\n" == output
+    assert stdout == own_help
+    assert stderr == ignored_module_warning(
+        "help",
+        tmp_path / "modules",
+    ) + ignored_module_warning("version", tmp_path / "modules")

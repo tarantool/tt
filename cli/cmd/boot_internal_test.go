@@ -71,7 +71,7 @@ func TestBuiltinCommandsAfterBoot(t *testing.T) {
 //nolint:paralleltest // The constructors bind flags to package state.
 func TestBuiltinCommandsAreLegacy(t *testing.T) {
 	commands := BuiltinCommands()
-	require.Len(t, commands, 35)
+	require.Len(t, commands, 34)
 
 	for _, command := range commands {
 		assert.True(t, isLegacy(command), command.Name())
@@ -100,7 +100,7 @@ func TestInjectCommandsReplaces(t *testing.T) {
 	assert.Same(t, injected, found)
 	assert.True(t, isLegacy(injected))
 	assert.True(t, isLegacy(extra))
-	assert.Len(t, root.Commands(), 36)
+	assert.Len(t, root.Commands(), 35)
 
 	require.ErrorIs(t, InjectCommands(nil), errNilCommandRoot)
 }

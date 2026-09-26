@@ -29,7 +29,6 @@ COMMANDS[0m
   kill        Kill tarantool instance(s)
   log         Get logs of instance(s)
   logrotate   Rotate logs of a started tarantool instance(s)
-  modules     Manage tt cli modules
   new         Create a skeleton app.manifest.toml in the current directory
   package     Manage tt manifest packages
   play        Play the contents of .snap/.xlog FILE(s) to another Tarantool

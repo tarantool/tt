@@ -11,8 +11,10 @@ from utils import (
     config_name,
     create_external_module,
     create_tt_config,
+    ignored_module_warning,
     modules_path_env,
     run_command_and_get_output,
+    run_command_and_get_streams,
 )
 
 # Some of the tests below should check the behavior
@@ -488,7 +490,7 @@ def test_launch_with_cfg_flag(tt_cmd, tmp_path):
     assert_found_config(output, exists_cfg_tmpdir)
 
 
-@pytest.mark.parametrize("module", ["version", "non-exists-module"])
+@pytest.mark.parametrize("module", ["env", "non-exists-module"])
 def test_launch_external_cmd_with_flags(tt_cmd, tmp_path, module):
     module_message = create_external_module(module, tmp_path / "modules")
 
@@ -500,6 +502,24 @@ def test_launch_external_cmd_with_flags(tt_cmd, tmp_path, module):
     )
     assert rc == 0
     assert module_message in output
+
+
+def test_launch_protected_cmd_with_flags(tt_cmd, tmp_path):
+    # An external module named version is ignored with a warning: the flags
+    # reach tt's own version, which does not know them.
+    create_external_module("version", tmp_path / "modules")
+
+    cmd = [tt_cmd, "version", "--non-existent-flag", "-f", "argument1"]
+    rc, stdout, stderr = run_command_and_get_streams(
+        cmd,
+        cwd=tmp_path,
+        env=modules_path_env(tmp_path / "modules"),
+    )
+    assert rc == 1
+    assert stdout == ""
+    assert stderr.startswith(ignored_module_warning("version", tmp_path / "modules"))
+    assert "unknown flag: --non-existent-flag" in stderr
+    assert "Hello, I'm version external module!" not in stderr
 
 
 def test_std_err_stream_local_launch_non_existent_dir(tt_cmd, tmp_path):
@@ -609,26 +629,34 @@ def test_launch_tt_with_self_flag(expected_output, is_self_enabled, tt_cmd, tmp_
 
 def test_local_launch_two_env_modules(tt_cmd, tmp_path):
     """
-    Two external modules 'help' and 'version' exist at the same time,
-    so the module 'help' should be called with the 'version' argument.
-    Both modules configured through TT_CLI_MODULES_PATH.
+    Two external modules 'help' and 'version' exist at the same time, in
+    two directories TT_CLI_MODULES_PATH lists. Neither command can be
+    replaced, so both modules are ignored with a warning and 'tt help
+    version' shows tt's own help of 'tt version'.
     Run 'tt' without any config file.
     """
     modules = ("help", "version")
 
     modules_path = tmp_path / "modules"
-    module_message = create_external_module(modules[0], modules_path / "modules1")
+    create_external_module(modules[0], modules_path / "modules1")
     create_external_module(modules[1], modules_path / "modules2")
 
     cmd = [tt_cmd, *modules]
 
-    rc, output = run_command_and_get_output(
+    rc, own_help, _ = run_command_and_get_streams(cmd, env={"TT_CLI_MODULES_PATH": ""})
+    assert rc == 0
+    assert own_help.startswith("Show Tarantool CLI version information\n")
+
+    rc, stdout, stderr = run_command_and_get_streams(
         cmd,
         env={"TT_CLI_MODULES_PATH": f"{modules_path / 'modules1'}:{modules_path / 'modules2'}"},
     )
     assert rc == 0
-    assert f"{module_message}\nList of passed args: version\n" == output
-    assert module_message in output
+    assert stdout == own_help
+    assert stderr == ignored_module_warning(
+        "help",
+        modules_path / "modules1",
+    ) + ignored_module_warning("version", modules_path / "modules2")
 
 
 def test_unknown_command_exit_code(tt_cmd):

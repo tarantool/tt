@@ -409,11 +409,15 @@ export TT_CLI_MODULES_PATH=/path/to/modules:/path/to/other/modules
 A relative directory is taken from the working directory tt runs in (with
 `-L`, from the directory it names), so list absolute paths.
 
-For example, you have an external `version` module. When you type
-`tt version`, the external `version` module will be launched. To run the
-internal implementation, use the `--internal (-I)` flag. If there is no
-executable file with the same name, the internal implementation will be
-started.
+For example, you have an external `env` module. When you type `tt env`, the
+external `env` module will be launched, and every argument after `env` goes
+to it; with `-V`, tt logs that the module replaces the command. A module
+named like a group of commands, such as `cluster`, takes over the whole
+group, and a module answers to the aliases of the command it replaces. To
+run the internal implementation, use the `--internal (-I)` flag. If there is
+no executable file with the same name, the internal implementation will be
+started. The `modules`, `help`, `completion` and `version` commands cannot be
+replaced: a module named so is ignored with a warning.
 
 You can use any external module that doesn't have any internal
 implementation. For example, you have module named `example-module`.

@@ -11,15 +11,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/config"
-	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/logging"
-	"github.com/tarantool/tt/v3/cli/modules"
-	"github.com/tarantool/tt/v3/cli/version"
 )
 
 var (
@@ -28,10 +24,12 @@ var (
 )
 
 var (
-	cmdCtx      cmdcontext.CmdCtx
-	cliOpts     *config.CliOpts
-	modulesInfo modules.ModulesInfo
-	rootCmd     *cobra.Command
+	cmdCtx  cmdcontext.CmdCtx
+	cliOpts *config.CliOpts
+	rootCmd *cobra.Command
+	// externalCommands are the external commands ConfigureHelp was given,
+	// which the root help and its completion list.
+	externalCommands []ExternalCommand
 	// logFormat is the value of the --log-format flag.
 	logFormat = logging.FormatText
 
@@ -44,13 +42,6 @@ var (
 // TT-EE.
 func GetCmdCtxPtr() *cmdcontext.CmdCtx {
 	return &cmdCtx
-}
-
-// GetModulesInfoPtr returns a pointer to modulesInfo, which can be used to create
-// injected commands.
-// TT-EE.
-func GetModulesInfoPtr() *modules.ModulesInfo {
-	return &modulesInfo
 }
 
 // errorLogWriter logs what cobra writes to its error stream - "Error: unknown
@@ -146,27 +137,6 @@ func newRootCmd() *cobra.Command {
 	return rootCmd
 }
 
-// Execute runs the root command. On failure it reports the error and exits
-// with its code; on success it returns.
-// TT-EE.
-func Execute() {
-	if code := Run(); code != sdk.ExitOK {
-		os.Exit(code)
-	}
-}
-
-// InitRoot initializes global flags, configures CLI, configure
-// external modules, collects information about available
-// modules and configure `help` module. On failure it reports the error and
-// exits with its code.
-// TT-EE.
-func InitRoot() {
-	err := initRoot()
-	if err != nil {
-		exitcode.Exit(err)
-	}
-}
-
 // setupLogging installs the process logger the root flags ask for.
 func setupLogging() error {
 	level := slog.LevelInfo
@@ -182,25 +152,4 @@ func setupLogging() error {
 		IsTerminal: nil,
 		LookupEnv:  os.LookupEnv,
 	})
-}
-
-// initRoot does the work of InitRoot and returns the first failure: it runs
-// the boot phases with the builtin and injected commands.
-func initRoot() error {
-	root, err := Boot(BootOptions{
-		Args:    os.Args[1:],
-		Flavour: version.Flavour{Title: "", Version: nil, Edition: ""},
-	})
-	if err != nil {
-		return err
-	}
-
-	root.AddCommand(BuiltinCommands()...)
-
-	err = InjectCommands(root)
-	if err != nil {
-		return err
-	}
-
-	return Configure(ConfigureOptions{ModuleOwner: nil})
 }

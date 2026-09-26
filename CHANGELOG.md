@@ -271,8 +271,8 @@ for machine-readable output.
   taking them from `-u`/`-p`, and a storage that cannot be read is reported
   instead of ending in a failed connection to an empty address. The SSL files
   the `--ssl*` flags name take precedence over the advertise parameters in
-  every form. An external module named `aeon` replaces the command, with a
-  warning, unless `-I` is given.
+  every form. An external module named `aeon` replaces the command unless
+  `-I` is given.
 - External modules are found only in the directories listed in
   `TT_CLI_MODULES_PATH`, separated by colons. tt no longer reads module
   directories from `modules.directory` in `tt.yaml`, nor searches the default
@@ -285,6 +285,20 @@ for machine-readable output.
   for one, runs tt's own implementation again. A relative directory in
   `TT_CLI_MODULES_PATH` is taken from the working directory, not from the tt
   environment as `modules.directory` was.
+- An external module named like a top-level command replaces it whatever
+  built the command, aliases included: with a `replicaset` module, `tt rs`
+  runs the module. `-I` keeps every command of tt, its help included. The
+  replacement is silent, as for tt's own commands before; `-V` logs it. A
+  module named like another command's alias, such as `rs`, is ignored with a
+  warning.
+- `tt modules`, `tt help`, `tt completion` and `tt version` cannot be replaced
+  by an external module: a module named so is ignored with a warning and is
+  listed neither in the help nor by `tt modules list`. A module named `modules`
+  no longer stops tt from running.
+- An external module named like a group of commands, such as `cluster`, takes
+  over the whole group: every `tt cluster ...` command line runs the module
+  with the arguments that follow `cluster`. The subcommands of the group used
+  to stay tt's own.
 
 ### Fixed
 

@@ -1,26 +1,26 @@
-package modules
+package extmod
 
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 
-	"github.com/tarantool/tt/sdk/log"
-	"github.com/tarantool/tt/v3/cli/util"
 	"gopkg.in/yaml.v3"
+
+	"github.com/tarantool/tt/v3/cli/util"
 )
 
 var (
 	errHelpFieldIsMandatoryForModuleManifest = errors.New(
 		"help field is mandatory for module Manifest",
 	)
-	errModuleIsDisabledToOverride = errors.New("module ")
 	errModulesPathIsNotADirectory = errors.New(
-		"TT_CLI_MODULES_PATH names a path that is not a directory",
+		PathEnv + " names a path that is not a directory",
 	)
 	errVersionFieldIsMandatoryForModuleManifest = errors.New(
 		"version field is mandatory for module Manifest",
@@ -31,9 +31,6 @@ const (
 	manifestFileName = "manifest"
 	mainEntryPoint   = "main"
 )
-
-// disabledOverride list of internal commands that can't be overridden by external modules.
-var disabledOverride = []string{"modules"}
 
 // Manifest stores information about Tarantool CLI module.
 type Manifest struct {
@@ -53,9 +50,6 @@ type Manifest struct {
 	// Homepage is a link to the module homepage (optional).
 	Homepage string `yaml:"homepage_url"`
 }
-
-// ModulesInfo stores information about all CLI modules.
-type ModulesInfo map[string]Manifest
 
 // modulesEntry keeps detected entry points while scan modules.
 type modulesEntry struct {
@@ -100,6 +94,8 @@ func readManifest(dir, manifest string) (Manifest, error) {
 	return parsed, nil
 }
 
+// makeManifest describes the module of entry: from its manifest when it has
+// one, from the answer of its executable otherwise.
 func makeManifest(entry modulesEntry) (Manifest, error) {
 	if entry.Manifest != "" {
 		return readManifest(entry.Directory, entry.Manifest)
@@ -116,39 +112,22 @@ func makeManifest(entry modulesEntry) (Manifest, error) {
 	})
 }
 
-// GetModulesInfo collects information about the external modules in the
-// directories TT_CLI_MODULES_PATH lists, keyed by their command path under
-// rootCmd, the name of the root command.
-func GetModulesInfo(rootCmd string) (ModulesInfo, error) {
-	modulesDirs, err := getEnvironmentModulesDirs()
+// discover returns the modules in the directories list names, separated by
+// colons, by name. The first directory holding a module of a name wins; a
+// later one is ignored with a warning to logger.
+func discover(list string, logger *slog.Logger) (possibleModules, error) {
+	modulesDirs, err := getModulesDirs(list)
 	if err != nil {
 		return nil, err
 	}
 
-	externalModules, err := getExternalModules(modulesDirs)
+	externalModules, err := getExternalModules(modulesDirs, logger)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"failed to get available external modules information: %w", err)
 	}
 
-	modulesInfo := ModulesInfo{}
-
-	for name, info := range externalModules {
-		manifest, err := makeManifest(info)
-		if err != nil {
-			log.Warnf("Failed to get information about module %q: %s", name, err)
-
-			continue
-		}
-
-		manifest.Name = name
-
-		commandPath := rootCmd + " " + name
-
-		modulesInfo[commandPath] = manifest
-	}
-
-	return modulesInfo, nil
+	return externalModules, nil
 }
 
 // collectDirectoriesList returns the paths that exist, checking that each of
@@ -161,7 +140,7 @@ func collectDirectoriesList(paths []string) ([]string, error) {
 	for _, dir := range paths {
 		// The directories come from TT_CLI_MODULES_PATH on purpose: any path
 		// the user names is a valid modules location.
-		info, err := os.Stat(dir) //nolint:gosec // user-supplied modules directory.
+		info, err := os.Stat(dir)
 		if err == nil {
 			if !info.IsDir() {
 				return dirs, fmt.Errorf("%w: %s", errModulesPathIsNotADirectory, dir)
@@ -174,14 +153,14 @@ func collectDirectoriesList(paths []string) ([]string, error) {
 	return dirs, nil
 }
 
-// getEnvironmentModulesDirs returns the list of modules directory based on environment info.
-func getEnvironmentModulesDirs() ([]string, error) {
-	envVar := os.Getenv("TT_CLI_MODULES_PATH")
-	if envVar == "" {
+// getModulesDirs returns the list of modules directories list names,
+// separated by colons.
+func getModulesDirs(list string) ([]string, error) {
+	if list == "" {
 		return []string{}, nil
 	}
 
-	paths := strings.Split(envVar, ":")
+	paths := strings.Split(list, ":")
 
 	return collectDirectoriesList(paths)
 }
@@ -230,8 +209,9 @@ func readSubDirectories(path string) ([]string, error) {
 }
 
 // getExternalModules returns map[name] = directory of available modules by
-// parsing the contents of the list folders.
-func getExternalModules(paths []string) (possibleModules, error) {
+// parsing the contents of the list folders. A module of a name found again
+// in a later folder is ignored with a warning to logger.
+func getExternalModules(paths []string, logger *slog.Logger) (possibleModules, error) {
 	modules := possibleModules{}
 
 	for _, path := range paths {
@@ -245,14 +225,9 @@ func getExternalModules(paths []string) (possibleModules, error) {
 
 			e, exists := modules[dirName]
 			if exists {
-				log.Warnf("Ignore duplicate module %q overlap with %q", modPath, e.Directory)
+				warnf(logger, "Ignore duplicate module %q overlap with %q", modPath, e.Directory)
 
 				continue
-			}
-
-			if slices.Contains(disabledOverride, dirName) {
-				return modules, fmt.Errorf("%w%q is disabled to override",
-					errModuleIsDisabledToOverride, dirName)
 			}
 
 			if modEntry, isModule := isPossibleModule(modPath); isModule {

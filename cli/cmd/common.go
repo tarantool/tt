@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"errors"
-	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/sdk"
@@ -10,7 +9,6 @@ import (
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/configure"
 	"github.com/tarantool/tt/v3/cli/exitcode"
-	"github.com/tarantool/tt/v3/cli/modules"
 	"github.com/tarantool/tt/v3/cli/util"
 )
 
@@ -32,32 +30,18 @@ func isConfigExist(cmdCtx *cmdcontext.CmdCtx) bool {
 	return cmdCtx.Cli.ConfigPath != ""
 }
 
-// RunModuleFuncE returns a cobra RunE that runs the command through
-// modules.RunCmd, so that an external module can take the place of the
-// internal implementation. The error goes back to the root, which reports it
-// and exits with its code.
-func RunModuleFuncE(internalModule modules.InternalFunc) func(*cobra.Command, []string) error {
+// internalFunc is the implementation of a command: it works on the
+// process's CmdCtx with the command's arguments.
+type internalFunc func(*cmdcontext.CmdCtx, []string) error
+
+// RunModuleFuncE returns a cobra RunE that records the command's name in the
+// CmdCtx and runs internalModule. The error goes back to the root, which
+// reports it and exits with its code.
+func RunModuleFuncE(internalModule internalFunc) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		cmdCtx.CommandName = cmd.Name()
 
-		err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo, internalModule, args)
-
-		return commandError(cmd, err)
-	}
-}
-
-// RunModuleFunc is RunModuleFuncE for a command declared with Run. Having no
-// way to return the error to the root, it reports it and exits the way the
-// root would.
-// TT-EE.
-func RunModuleFunc(internalModule modules.InternalFunc) func(*cobra.Command, []string) {
-	runE := RunModuleFuncE(internalModule)
-
-	return func(cmd *cobra.Command, args []string) {
-		err := runE(cmd, args)
-		if err != nil {
-			os.Exit(reportError(cmd, err))
-		}
+		return commandError(cmd, internalModule(&cmdCtx, args))
 	}
 }
 

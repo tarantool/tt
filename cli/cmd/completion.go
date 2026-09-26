@@ -52,13 +52,16 @@ func NewCompletionCmd() *cobra.Command {
 	return cmd
 }
 
-// RootShellCompletionCommands returns a list of external commands for autocomplete.
+// RootShellCompletionCommands returns a list of external commands for
+// autocomplete, sorted by name: each command's path under cmd, the root, with
+// the module's help.
 func RootShellCompletionCommands(cmd *cobra.Command, args []string,
 	toComplete string,
 ) ([]string, cobra.ShellCompDirective) {
-	commands := make([]string, 0, len(modulesInfo))
-	for name, manifest := range modulesInfo {
-		commands = append(commands, fmt.Sprintf("%s\t%s", name, manifest.Help))
+	commands := make([]string, 0, len(externalCommands))
+	for _, command := range sortedExternalCommands(externalCommands) {
+		commands = append(commands,
+			fmt.Sprintf("%s %s\t%s", cmd.CommandPath(), command.Name, command.Help))
 	}
 
 	return commands, cobra.ShellCompDirectiveDefault

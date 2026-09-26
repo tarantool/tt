@@ -110,7 +110,7 @@ linters:
         linters:
           - dupword
       # This key is part of the public module manifest format.
-      - path: ^cli/modules/modules\.go$
+      - path: ^core/internal/extmod/modules\.go$
         text: 'yaml\(snake\): got ''tt-version'''
         linters:
           - tagliatelle
@@ -402,7 +402,6 @@ linters:
             - "github.com/tarantool/tt/v3/cli/install"
             - "github.com/tarantool/tt/v3/cli/logging"
             - "github.com/tarantool/tt/v3/cli/manifest"
-            - "github.com/tarantool/tt/v3/cli/modules"
             - "github.com/tarantool/tt/v3/cli/printing"
             - "github.com/tarantool/tt/v3/cli/process_utils"
             - "github.com/tarantool/tt/v3/cli/replicaset"
@@ -589,19 +588,6 @@ linters:
             - "github.com/tarantool/tt/sdk"
             - "github.com/tarantool/tt/v3/cli/logging"
             - "golang.org/x/term"
-        dir-cli-modules:
-          files:
-            - "**/cli/modules/**"
-          allow:
-            - $gostd
-            - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/sdk"
-            - "github.com/tarantool/tt/v3/cli/cmdcontext"
-            - "github.com/tarantool/tt/v3/cli/config"
-            - "github.com/tarantool/tt/v3/cli/exitcode"
-            - "github.com/tarantool/tt/v3/cli/modules"
-            - "github.com/tarantool/tt/v3/cli/util"
-            - "gopkg.in/yaml.v3"
         dir-cli-printing:
           files:
             - "**/cli/printing/**"
@@ -789,6 +775,7 @@ linters:
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/tarantool/tt/v3/cli/version"
             - "github.com/tarantool/tt/v3/core"
+            - "gopkg.in/yaml.v3"
         dir-lib-watchdog:
           files:
             - "**/lib/watchdog/**"

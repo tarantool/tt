@@ -52,6 +52,27 @@ def run_command_and_get_output(
     return process.returncode, process.stdout
 
 
+def run_command_and_get_streams(cmd, cwd=None, env=None) -> tuple[int, str, str]:
+    """Run cmd and return its exit code, its stdout and its stderr, kept
+    apart."""
+    process = subprocess.run(cmd, env=env, cwd=cwd, capture_output=True, text=True)
+
+    # These prints are here to make running tests with -s flag more verbose.
+    print(process.stdout)
+    print(process.stderr)
+
+    return process.returncode, process.stdout, process.stderr
+
+
+def ignored_module_warning(module: str, directory: Path) -> str:
+    """Return the warning tt prints for the external module in directory
+    named like a command tt does not let a module replace."""
+    return (
+        f'   ⚠ External module "{module}" ({directory / module}) is ignored: '
+        f'tt does not let a module replace the command "{module}"\n'
+    )
+
+
 def create_tt_config(config_path: Path | str, config: dict | None = None) -> Path:
     """Write tt.yaml holding config, an empty mapping by default, into the
     config_path directory, creating the directory, and return its path."""

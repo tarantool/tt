@@ -1,12 +1,13 @@
 package cmd
 
 import (
+	"cmp"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
-	"github.com/tarantool/tt/v3/cli/modules"
 	"github.com/tarantool/tt/v3/cli/util"
 )
 
@@ -19,13 +20,24 @@ const helpTemplate = `{{with (or .Long .Short)}}{{. | trimTrailingWhitespaces | 
 
 {{end}}{{if or .Runnable .HasSubCommands}}{{.UsageString | wrapHelp}}{{end}}`
 
-func configureHelpCommand(rootCmd *cobra.Command, modulesInfo *modules.ModulesInfo) {
+// ExternalCommand is a top-level command that runs an external module, as
+// the root help and its completion list it.
+type ExternalCommand struct {
+	// Name is the command's name.
+	Name string
+	// Help is the module's one-line description.
+	Help string
+}
+
+// configureHelpCommand sets rootCmd's help command and templates, listing
+// external under EXTERNAL COMMANDS in the root's usage.
+func configureHelpCommand(rootCmd *cobra.Command, external []ExternalCommand) {
 	cobra.AddTemplateFunc("wrapHelp", func(s string) string {
 		return wrapHelp(s, helpWidth)
 	})
 	rootCmd.SetHelpTemplate(helpTemplate)
 	// Add information about external modules into help template.
-	rootCmd.SetUsageTemplate(fmt.Sprintf(usageTemplate, getExternalCommandsString(modulesInfo)))
+	rootCmd.SetUsageTemplate(fmt.Sprintf(usageTemplate, getExternalCommandsString(external)))
 
 	internalHelpModule := func(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		cmd, _, err := rootCmd.Find(args)
@@ -52,18 +64,16 @@ func configureHelpCommand(rootCmd *cobra.Command, modulesInfo *modules.ModulesIn
 	rootCmd.SetHelpCommand(helpCmd)
 }
 
-// getExternalCommandsString returns a pretty string
-// of descriptions for external modules.
-func getExternalCommandsString(modulesInfo *modules.ModulesInfo) string {
+// getExternalCommandsString returns a pretty string of descriptions for
+// external commands, sorted by name.
+func getExternalCommandsString(external []ExternalCommand) string {
 	var output strings.Builder
 
-	for _, path := range sortExternalModules() {
-		mf := (*modulesInfo)[path]
-
+	for _, command := range sortedExternalCommands(external) {
 		output.WriteString("  ")
-		output.WriteString(mf.Name)
+		output.WriteString(command.Name)
 		output.WriteByte('\t')
-		output.WriteString(mf.Help)
+		output.WriteString(command.Help)
 		output.WriteByte('\n')
 	}
 
@@ -72,6 +82,13 @@ func getExternalCommandsString(modulesInfo *modules.ModulesInfo) string {
 	}
 
 	return ""
+}
+
+// sortedExternalCommands returns a copy of external sorted by name.
+func sortedExternalCommands(external []ExternalCommand) []ExternalCommand {
+	return slices.SortedFunc(slices.Values(external), func(left, right ExternalCommand) int {
+		return cmp.Compare(left.Name, right.Name)
+	})
 }
 
 // wrapHelp breaks every line of s wider than width at spaces. A line with a

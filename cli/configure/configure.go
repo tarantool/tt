@@ -637,9 +637,9 @@ func switchToLocalCli(cmdCtx *cmdcontext.CmdCtx, localCli, currentCli, launchDir
 
 	_ = cliFile.Close()
 
-	// We are not using the "RunExec" function because we have no reason to have several
-	// "tt" processes. Moreover, it looks strange when we start "tt", which starts "tt",
-	// which starts tarantool or some external module.
+	// The local tt replaces this process rather than running as its child, the way
+	// an external module runs: there is no reason to have several "tt" processes, and
+	// "tt" starting "tt" that starts tarantool or an external module looks strange.
 	err = syscall.Exec(localCli, append([]string{localCli},
 		excludeArgumentsForChildTt(os.Args[1:])...), os.Environ())
 	if err != nil {

@@ -3,8 +3,10 @@ import pytest
 from utils import (
     create_external_module,
     create_tt_config,
+    ignored_module_warning,
     modules_path_env,
     run_command_and_get_output,
+    run_command_and_get_streams,
 )
 
 
@@ -191,3 +193,65 @@ def test_list_available_modules_version_and_path(tt_cmd, tmp_path):
     for module in sorted(modules):
         expected += f"0.0.1\t{module} - {tmp_path / 'modules' / module / 'main'}\n"
     assert expected == output
+
+
+@pytest.mark.parametrize(
+    "module, args",
+    [
+        pytest.param("env", ["--flag", "arg"], id="command"),
+        pytest.param("cluster", ["show", "app", "--flag"], id="group"),
+    ],
+)
+def test_module_replaces_builtin_command(tt_cmd, tmp_path, module, args):
+    """
+    An external module named like a builtin command takes its place, with no
+    warning: every argument reaches the module, a subcommand of a group
+    included. With -I the builtin command runs.
+    """
+    modules_dir = tmp_path / "modules"
+    module_message = create_external_module(module, modules_dir)
+    env = modules_path_env(modules_dir)
+
+    rc, stdout, stderr = run_command_and_get_streams(
+        [tt_cmd, module, *args],
+        cwd=tmp_path,
+        env=env,
+    )
+    assert rc == 0
+    assert stdout == f"{module_message}\nList of passed args: {' '.join(args)}\n"
+    assert stderr == ""
+
+    rc, own_help, _ = run_command_and_get_streams(
+        [tt_cmd, module, "--help"],
+        cwd=tmp_path,
+        env=modules_path_env(),
+    )
+    assert rc == 0
+
+    rc, stdout, stderr = run_command_and_get_streams(
+        [tt_cmd, "-I", module, "--help"],
+        cwd=tmp_path,
+        env=env,
+    )
+    assert rc == 0
+    assert stdout == own_help
+    assert stderr == ""
+
+
+def test_module_named_modules_is_ignored(tt_cmd, tmp_path):
+    """
+    tt modules cannot be replaced: an external module named modules is
+    ignored with a warning, is not listed, and tt keeps working.
+    """
+    modules_dir = tmp_path / "modules"
+    create_external_module("modules", modules_dir)
+    create_external_module("abc", modules_dir)
+
+    rc, stdout, stderr = run_command_and_get_streams(
+        (tt_cmd, "modules", "list"),
+        cwd=tmp_path,
+        env=modules_path_env(modules_dir),
+    )
+    assert rc == 0
+    assert stdout == "abc - Description for external module abc\n"
+    assert stderr == ignored_module_warning("modules", modules_dir)

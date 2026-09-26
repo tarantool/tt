@@ -21,8 +21,8 @@ import (
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/output"
 	"github.com/tarantool/tt/v3/cli/cmd"
-	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/printing"
+	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/core"
 )
 
@@ -77,13 +77,14 @@ var mainCases = map[string]func() int{
 
 		return core.Main(core.Modules{"builtin": core.Builtin})
 	},
-	"ee-initroot": func() int {
-		cmd.InjectedCmds = append(cmd.InjectedCmds, newEEVersionCmd())
+	"injected": func() int {
+		cmd.InjectedCmds = append(cmd.InjectedCmds, newInjectedCmd())
 
-		cmd.InitRoot()
-		cmd.Execute()
-
-		return 0
+		return core.Main(core.Modules{"builtin": core.Builtin, "demo": demoModule})
+	},
+	"no-extmod": func() int {
+		return core.Main(core.Modules{"builtin": core.Builtin, "demo": demoModule},
+			core.WithoutExternalModules())
 	},
 }
 
@@ -288,20 +289,35 @@ func newDemoClusterCmd(services sdk.Services) *cobra.Command {
 	}
 }
 
-// newEEVersionCmd returns a command shaped like tt-ee's version: declared
-// with Run through cmd.RunModuleFunc, reading the process's CmdCtx.
+// newEEVersionCmd returns a command shaped like tt-ee's version: injected,
+// reading the process's CmdCtx when it runs.
 func newEEVersionCmd() *cobra.Command {
 	ctx := cmd.GetCmdCtxPtr()
 
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Show the EE version",
-		Run: cmd.RunModuleFunc(func(*cmdcontext.CmdCtx, []string) error {
+		RunE: func(command *cobra.Command, _ []string) error {
 			_, err := fmt.Fprintf(os.Stdout, "EE version, command %s, verbose=%v\n",
-				ctx.CommandName, ctx.Cli.Verbose)
+				command.Name(), ctx.Cli.Verbose)
 
 			return err
-		}),
+		},
+	}
+}
+
+// newInjectedCmd returns a command injected through cmd.InjectedCmds that
+// prints its arguments.
+func newInjectedCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "injected",
+		Short: "Print the arguments",
+		RunE: func(_ *cobra.Command, args []string) error {
+			_, err := fmt.Fprintln(os.Stdout, strings.Join(append([]string{"internal"}, args...),
+				" "))
+
+			return err
+		},
 	}
 }
 
@@ -509,23 +525,17 @@ func TestMainServices(t *testing.T) {
 }
 
 // TestMainEEShape checks that a command injected the way tt-ee injects its
-// version works both through Main and through InitRoot and Execute.
+// version works through Main.
 func TestMainEEShape(t *testing.T) {
 	t.Parallel()
 
-	for _, program := range []string{"ee-main", "ee-initroot"} {
-		t.Run(program, func(t *testing.T) {
-			t.Parallel()
+	got := runTT(t, ttRun{program: "ee-main", args: []string{"-V", "version"}})
+	require.Equal(t, 0, got.code, got.stderr)
+	assert.Equal(t, "EE version, command version, verbose=true\n", got.stdout)
 
-			got := runTT(t, ttRun{program: program, args: []string{"-V", "version"}})
-			require.Equal(t, 0, got.code, got.stderr)
-			assert.Equal(t, "EE version, command version, verbose=true\n", got.stdout)
-
-			got = runTT(t, ttRun{program: program, args: []string{"version", "--help"}})
-			require.Equal(t, 0, got.code, got.stderr)
-			assert.Contains(t, got.stdout, "Show the EE version")
-		})
-	}
+	got = runTT(t, ttRun{program: "ee-main", args: []string{"version", "--help"}})
+	require.Equal(t, 0, got.code, got.stderr)
+	assert.Contains(t, got.stdout, "Show the EE version")
 }
 
 // TestMainWithFlavour checks that tt built with a flavour presents itself as
@@ -585,69 +595,197 @@ func TestMainWithFlavour(t *testing.T) {
 	})
 }
 
-// writeExternalModule creates, in a modules directory of its own, an
-// external module name whose executable prints its arguments and exits 7.
-// It returns the directory, for TT_CLI_MODULES_PATH.
-func writeExternalModule(t *testing.T, name string) string {
+// writeExternalModules creates, in a modules directory of their own, the
+// external modules names, each with an executable that prints its name and
+// its arguments and exits 7. It returns the directory, for
+// TT_CLI_MODULES_PATH.
+func writeExternalModules(t *testing.T, names ...string) string {
 	t.Helper()
 
 	dir := t.TempDir()
-	moduleDir := filepath.Join(dir, name)
-	require.NoError(t, os.Mkdir(moduleDir, 0o755))
 
-	script := "#!/bin/sh\necho \"external " + name + " $*\"\nexit 7\n"
-	require.NoError(t, os.WriteFile(filepath.Join(moduleDir, "main"), []byte(script),
-		0o755))
+	for _, name := range names {
+		moduleDir := filepath.Join(dir, name)
+		require.NoError(t, os.Mkdir(moduleDir, 0o755))
 
-	manifest := "version: 1.0.0\nhelp: External " + name + "\nmain: main\n"
-	require.NoError(t, os.WriteFile(filepath.Join(moduleDir, "manifest.yaml"),
-		[]byte(manifest), 0o644))
+		script := "#!/bin/sh\necho \"external " + name + " $*\"\nexit 7\n"
+		require.NoError(t, os.WriteFile(filepath.Join(moduleDir, "main"), []byte(script),
+			0o755))
+
+		manifest := "version: 1.0.0\nhelp: External " + name + "\nmain: main\n"
+		require.NoError(t, os.WriteFile(filepath.Join(moduleDir, "manifest.yaml"),
+			[]byte(manifest), 0o644))
+	}
 
 	return dir
 }
 
+// warning returns the line tt logs a warning as.
+func warning(message string) string {
+	return "   ⚠ " + message + "\n"
+}
+
 // TestMainExternalModules checks what an external module named like a
-// command does: it replaces a module's command with a warning unless -I is
-// given, and takes over a legacy command's run as it always has.
+// command does: it replaces the command, whoever built it and subcommands
+// and all, without a warning, unless -I is given, and is ignored with a
+// warning when the command is one tt keeps for itself.
 func TestMainExternalModules(t *testing.T) {
 	t.Parallel()
 
-	demoPath := "TT_CLI_MODULES_PATH=" + writeExternalModule(t, "demo")
-	versionPath := "TT_CLI_MODULES_PATH=" + writeExternalModule(t, "version")
-
 	for _, testCase := range []struct {
 		name    string
+		program string
+		modules []string
 		args    []string
-		env     string
 		code    int
 		stdout  string
-		warning bool
+		// prefix compares stdout with only the beginning of the output.
+		prefix bool
+		// stderr returns the whole stderr, given the modules directory.
+		stderr func(dir string) string
 	}{
 		{
-			"module command replaced",
-			[]string{"demo", "ok", "--x"},
-			demoPath, 7,
-			"external demo ok --x\n", true,
+			name: "module command replaced", program: "demo", modules: []string{"demo"},
+			args: []string{"demo", "ok", "--x"}, code: 7, stdout: "external demo ok --x\n",
 		},
-		{"module command kept with -I", []string{"-I", "demo", "ok"}, demoPath, 0, "ok\n", false},
 		{
-			"legacy command runs the module",
-			[]string{"version", "--x"},
-			versionPath, 7,
-			"external version --x\n", false,
+			name: "module command kept with -I", program: "demo", modules: []string{"demo"},
+			args: []string{"-I", "demo", "print"}, code: 0, stdout: "demo: 2\n",
+		},
+		{
+			name: "builtin command replaced", program: "demo", modules: []string{"env"},
+			args: []string{"env", "--x"}, code: 7, stdout: "external env --x\n",
+		},
+		{
+			name: "builtin group replaced as a whole", program: "demo",
+			modules: []string{"cluster"}, args: []string{"cluster", "show", "x", "--y"}, code: 7,
+			stdout: "external cluster show x --y\n",
+		},
+		{
+			name: "injected command replaced", program: "injected", modules: []string{"injected"},
+			args: []string{"injected", "a", "-b"}, code: 7, stdout: "external injected a -b\n",
+		},
+		{
+			name: "injected command kept with -I", program: "injected",
+			modules: []string{"injected"}, args: []string{"-I", "injected", "a"}, code: 0,
+			stdout: "internal a\n",
+		},
+		{
+			name: "alias of a replaced command", program: "demo",
+			modules: []string{"replicaset"}, args: []string{"rs", "status", "x"}, code: 7,
+			stdout: "external replicaset status x\n",
+		},
+		{
+			name: "module added", program: "demo", modules: []string{"hello"},
+			args: []string{"-I", "hello", "a"}, code: 7, stdout: "external hello a\n",
+		},
+		{
+			name: "version kept", program: "demo", modules: []string{"version"},
+			args: []string{"version", "--short"}, code: 0,
+			stdout: version.GetVersion(true, false) + "\n",
+			stderr: func(dir string) string {
+				return warning(`External module "version" (` + dir + `/version) is ignored: ` +
+					`tt does not let a module replace the command "version"`)
+			},
+		},
+		{
+			name: "help kept", program: "demo", modules: []string{"help"},
+			args: []string{"help", "errors"}, code: 0,
+			stdout: "Exit codes of tt commands.\n", prefix: true,
+			stderr: func(dir string) string {
+				return warning(`External module "help" (` + dir + `/help) is ignored: ` +
+					`tt does not let a module replace the command "help"`)
+			},
+		},
+		{
+			name: "module named modules", program: "demo", modules: []string{"modules", "hello"},
+			args: []string{"modules", "list"}, code: 0, stdout: "hello - External hello\n",
+			stderr: func(dir string) string {
+				return warning(`External module "modules" (` + dir + `/modules) is ignored: ` +
+					`tt does not let a module replace the command "modules"`)
+			},
+		},
+		{
+			name: "without external modules", program: "no-extmod", modules: []string{"demo"},
+			args: []string{"demo", "print"}, code: 0, stdout: "demo: 2\n",
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
+			dir := writeExternalModules(t, testCase.modules...)
+
 			got := runTT(t, ttRun{
-				program: "demo", args: testCase.args, env: []string{testCase.env},
+				program: testCase.program, args: testCase.args,
+				env: []string{"TT_CLI_MODULES_PATH=" + dir},
 			})
 			assert.Equal(t, testCase.code, got.code, got.stderr)
-			assert.Equal(t, testCase.stdout, got.stdout)
-			assert.Equal(t, testCase.warning, strings.Contains(got.stderr,
-				`replaces the command "demo" of module "demo"; run tt with -I to keep it`),
-				got.stderr)
+
+			if testCase.prefix {
+				assert.True(t, strings.HasPrefix(got.stdout, testCase.stdout), got.stdout)
+			} else {
+				assert.Equal(t, testCase.stdout, got.stdout)
+			}
+
+			wantStderr := ""
+			if testCase.stderr != nil {
+				wantStderr = testCase.stderr(dir)
+			}
+
+			assert.Equal(t, wantStderr, got.stderr)
 		})
 	}
+}
+
+// TestMainReplacedCommandLogged checks that the debug log, which -V shows,
+// names the command an external module replaces.
+func TestMainReplacedCommandLogged(t *testing.T) {
+	t.Parallel()
+
+	dir := writeExternalModules(t, "env")
+
+	got := runTT(t, ttRun{
+		program: "demo", args: []string{"-V", "env", "--x"},
+		env: []string{"TT_CLI_MODULES_PATH=" + dir},
+	})
+	require.Equal(t, 7, got.code, got.stderr)
+	assert.Equal(t, "external env --x\n", got.stdout)
+	assert.Contains(t, got.stderr, `   · External module "env" (`+dir+`/env/main) replaces `+
+		`the command "env" of module "builtin"; run tt with -I to keep it`+"\n")
+}
+
+// TestMainExternalModulesListed checks where the external modules are
+// listed - the root help, its completion and tt modules list - and that
+// tt built without them has neither the modules nor tt modules.
+func TestMainExternalModulesListed(t *testing.T) {
+	t.Parallel()
+
+	dir := writeExternalModules(t, "env", "hello", "version")
+	env := []string{"TT_CLI_MODULES_PATH=" + dir}
+
+	got := runTT(t, ttRun{program: "demo", args: []string{"--help"}, env: env})
+	require.Equal(t, 0, got.code, got.stderr)
+	assert.Contains(t, got.stdout, "EXTERNAL COMMANDS\n\x1b[0m  env\tExternal env\n"+
+		"  hello\tExternal hello\n\x1b[0;1;39m\nFLAGS")
+	assert.Contains(t, got.stdout, "\n  modules     Manage tt cli modules\n")
+
+	got = runTT(t, ttRun{program: "demo", args: []string{"__complete", ""}, env: env})
+	require.Equal(t, 0, got.code, got.stderr)
+	assert.Contains(t, got.stdout, "\nhello\n")
+	assert.Contains(t, got.stdout, "\ntt env\tExternal env\ntt hello\tExternal hello\n:0\n")
+
+	got = runTT(t, ttRun{program: "demo", args: []string{"-I", "modules", "list"}, env: env})
+	require.Equal(t, 0, got.code, got.stderr)
+	assert.Equal(t, "env - External env\nhello - External hello\n", got.stdout)
+
+	got = runTT(t, ttRun{program: "no-extmod", args: []string{"--help"}, env: env})
+	require.Equal(t, 0, got.code, got.stderr)
+	assert.NotContains(t, got.stdout, "EXTERNAL COMMANDS")
+	assert.NotContains(t, got.stdout, "hello")
+	assert.NotContains(t, got.stdout, "modules")
+	assert.Empty(t, got.stderr)
+
+	got = runTT(t, ttRun{program: "no-extmod", args: []string{"modules", "list"}, env: env})
+	assert.Equal(t, 1, got.code)
+	assert.Contains(t, got.stderr, "unknown command modules")
 }

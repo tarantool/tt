@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/spf13/cobra"
 
@@ -11,15 +12,13 @@ import (
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/configure"
-	"github.com/tarantool/tt/v3/cli/modules"
 	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/cli/version"
 )
 
 // The phases below initialise tt in the order it runs them: Boot, then the
 // commands (BuiltinCommands and whatever else is added to the root), then
-// InjectCommands, Configure and Run. InitRoot and Execute run them for a
-// program that builds tt from this package alone; the core runs them with
+// InjectCommands, Configure, ConfigureHelp and Run. The core runs them, with
 // its own steps in between. They are the core's interface to this package
 // and are not stable.
 
@@ -98,7 +97,6 @@ func BuiltinCommands() []*cobra.Command {
 		NewKillCmd(),
 		NewLogCmd(),
 		NewTcmCmd(),
-		NewModulesCmd(),
 	}
 
 	for _, command := range commands {
@@ -153,22 +151,9 @@ func InjectCommands(root *cobra.Command) error {
 	return nil
 }
 
-// ConfigureOptions configure Configure.
-type ConfigureOptions struct {
-	// ModuleOwner returns the module a command comes from, and false for a
-	// command no module contributed. Nil means no module contributed any.
-	ModuleOwner func(cmd *cobra.Command) (string, bool)
-}
-
 // Configure configures tt for the command line Boot parsed: it loads the tt
-// environment and its integrity checks, discovers the external modules and
-// routes to them, and sets up the help command. The command tree must be
-// complete.
-//
-// An external module named like a top-level command takes its place unless
-// -I is given. A legacy command routes to the module when it runs; any
-// other command is replaced by the module's, with a warning.
-func Configure(opts ConfigureOptions) error {
+// environment and its integrity checks.
+func Configure() error {
 	_, configPathEnvSet := os.LookupEnv("TT_CLI_CFG")
 	if cmdCtx.Cli.ConfigPath == "" && configPathEnvSet {
 		configPathEnv, err := filepath.Abs(os.Getenv("TT_CLI_CFG"))
@@ -233,21 +218,17 @@ func Configure(opts ConfigureOptions) error {
 
 	cmdCtx.Cli.TcmCli.ConfigPath, _ = util.GetYamlFileName(tcmConfigBasename, false)
 
-	// Getting modules information.
-	modulesInfo, err = modules.GetModulesInfo(rootCmd.Name())
-	if err != nil {
-		//nolint:staticcheck // ST1005: user-facing message, kept as it is printed.
-		return fmt.Errorf("Failed to configure Tarantool CLI command: %w", err)
-	}
-
-	// External commands must be configured in a special way.
-	// This is necessary, for example, so that we can pass arguments to these commands.
-	configureExternalCmd(rootCmd, &modulesInfo, cmdCtx.Cli.ForceInternal, opts.ModuleOwner)
-
-	// Configure help command.
-	configureHelpCommand(rootCmd, &modulesInfo)
-
 	return nil
+}
+
+// ConfigureHelp sets up the help of the tree: the help command, which
+// completes the names of the top-level commands, and the help templates.
+// The root help lists external under EXTERNAL COMMANDS, and the completion
+// of the root offers them. The command tree must be complete.
+func ConfigureHelp(external []ExternalCommand) {
+	externalCommands = slices.Clone(external)
+
+	configureHelpCommand(rootCmd, externalCommands)
 }
 
 // Run executes the command line on the root Boot created and returns the

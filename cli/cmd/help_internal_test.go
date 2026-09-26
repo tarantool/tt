@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/v3/cli/modules"
 )
 
 func TestWrapHelp(t *testing.T) {
@@ -73,7 +72,7 @@ func TestWrapHelp(t *testing.T) {
 // command, since there is nothing to run.
 func TestErrorsHelpTopic(t *testing.T) {
 	root := NewCmdRoot()
-	configureHelpCommand(root, &modules.ModulesInfo{})
+	configureHelpCommand(root, nil)
 
 	topic, _, err := root.Find([]string{"errors"})
 	require.NoError(t, err)
@@ -103,7 +102,7 @@ func TestErrorsHelpTopic(t *testing.T) {
 
 func TestHelpFitsWidth(t *testing.T) {
 	root := NewCmdRoot()
-	configureHelpCommand(root, &modules.ModulesInfo{})
+	configureHelpCommand(root, nil)
 
 	checked := 0
 

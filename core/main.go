@@ -2,9 +2,10 @@
 //
 // A module is an sdk.Constructor: given the Services the core offers, it
 // returns the commands it contributes and where they go. Main calls every
-// constructor, hangs the commands on tt's root, configures tt and runs the
-// command line. A distribution of tt is a main package that calls Main with
-// its table:
+// constructor, hangs the commands on tt's root, configures tt, hangs the
+// external modules - the executables TT_CLI_MODULES_PATH lists - and runs
+// the command line. A distribution of tt is a main package that calls Main
+// with its table:
 //
 //	func main() {
 //		os.Exit(core.Main(core.Modules{"builtin": core.Builtin}))
@@ -26,10 +27,13 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/output"
 	"github.com/tarantool/tt/v3/cli/cmd"
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/cli/version"
+	"github.com/tarantool/tt/v3/core/internal/extmod"
 	"github.com/tarantool/tt/v3/core/internal/mount"
 )
 
@@ -44,6 +48,9 @@ type Option func(*options)
 type options struct {
 	// flavour is how tt presents itself.
 	flavour version.Flavour
+	// withoutExternalModules leaves the external modules out: tt neither
+	// looks for them nor has tt modules.
+	withoutExternalModules bool
 }
 
 // Flavour is how a distribution of tt presents itself: its name and its
@@ -96,17 +103,28 @@ func WithFlavour(flavour Flavour) Option {
 	}
 }
 
+// WithoutExternalModules builds tt without external modules: tt does not
+// look for them in TT_CLI_MODULES_PATH, has no tt modules command and lists
+// no external commands in its help.
+func WithoutExternalModules() Option {
+	return func(o *options) {
+		o.withoutExternalModules = true
+	}
+}
+
 // Main builds tt from modules, runs the command line in os.Args and returns
 // the process exit code, having reported the error tt failed with. It may be
 // called once per process.
 //
 // It boots tt - global flags, logging - and calls the constructors in the
 // order of their names, then hangs their commands, adds the commands
-// injected through cmd.InjectedCmds, configures tt and runs the command.
-// Services other than Log are usable from the moment tt is configured. A
-// constructor that panics, a mount the tree cannot hold, a failure to
-// configure tt are reported and end tt with a failure before any command
-// runs; a panic anywhere is reported as an internal error.
+// injected through cmd.InjectedCmds, configures tt, hangs the external
+// modules and runs the command. An external module named like a top-level
+// command takes its place, whoever built it, unless -I is given. Services
+// other than Log are usable from the moment tt is configured. A constructor
+// that panics, a mount the tree cannot hold, a failure to configure tt are
+// reported and end tt with a failure before any command runs; a panic
+// anywhere is reported as an internal error.
 //
 //nolint:nonamedreturns // The deferred recover sets the exit code.
 func Main(modules Modules, opts ...Option) (code int) {
@@ -141,8 +159,9 @@ func Main(modules Modules, opts ...Option) (code int) {
 }
 
 // build boots tt as config says with the command-line arguments args, hangs
-// the commands of modules, whose Services are ready once ready is set, and
-// configures tt. It returns the root, ready to run.
+// the commands of modules, whose Services are ready once ready is set,
+// configures tt and hangs the external modules. It returns the root, ready
+// to run.
 func build(
 	args []string, modules Modules, ready *atomic.Bool, config options,
 ) (*cobra.Command, error) {
@@ -166,12 +185,54 @@ func build(
 		return nil, err
 	}
 
-	err = cmd.Configure(cmd.ConfigureOptions{ModuleOwner: registry.Owner})
+	err = cmd.Configure()
 	if err != nil {
 		return nil, err
 	}
 
+	var external []cmd.ExternalCommand
+
+	if !config.withoutExternalModules {
+		// After Configure: the files of the modules are read through the
+		// integrity checks it sets up, and the commands injected into the tree
+		// are there for the modules to replace.
+		external, err = mountExternalModules(root, registry)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	cmd.ConfigureHelp(external)
+
 	return root, nil
+}
+
+// mountExternalModules hangs the external modules TT_CLI_MODULES_PATH lists
+// on root, whose commands registry records, and tt modules, and returns the
+// external commands the help and the completion list.
+func mountExternalModules(
+	root *cobra.Command, registry *mount.Registry,
+) ([]cmd.ExternalCommand, error) {
+	modules, err := extmod.Mount(root, extmod.Options{
+		Path:          os.Getenv(extmod.PathEnv),
+		Open:          integrityChecks{}.Open,
+		ForceInternal: cmd.GetCmdCtxPtr().Cli.ForceInternal,
+		Registry:      registry,
+		Reserved:      reserved(),
+		Log:           log.Logger(),
+		Streams:       output.StdStreams(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	external := make([]cmd.ExternalCommand, 0, len(modules))
+
+	for _, module := range modules {
+		external = append(external, cmd.ExternalCommand{Name: module.Name, Help: module.Help})
+	}
+
+	return external, nil
 }
 
 // construct calls the constructor of every module, in the order of their

@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/v3/cli/cmd/helpgolden"
-	"github.com/tarantool/tt/v3/cli/modules"
 	"github.com/tarantool/tt/v3/cli/version"
 )
 
@@ -78,7 +77,7 @@ func newFlavourRoot(t *testing.T) *cobra.Command {
 	flavour = eeFlavour
 
 	root := NewCmdRoot()
-	configureHelpCommand(root, &modules.ModulesInfo{})
+	configureHelpCommand(root, nil)
 
 	rootCmd = root
 
