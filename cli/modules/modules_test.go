@@ -8,40 +8,23 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/v3/cli/cmdcontext"
-	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/modules"
 )
 
 func TestGetModulesInfo(t *testing.T) {
 	tests := map[string]struct {
-		config     string
-		modules    []string
 		envModules string
 		want       modules.ModulesInfo
 		err        string
 		log        []string
 	}{
-		"no config": {
-			config: "",
-			want:   modules.ModulesInfo{},
+		"no modules path": {
+			envModules: "",
+			want:       modules.ModulesInfo{},
 		},
 
-		"no external modules": {
-			config:  "some/config/tt.yaml",
-			modules: []string{},
-			want:    modules.ModulesInfo{},
-		},
-
-		"nil modules": {
-			config:  "some/config/tt.yaml",
-			modules: nil,
-			want:    modules.ModulesInfo{},
-		},
-
-		"config modules": {
-			config:  "some/config/tt.yaml",
-			modules: []string{"testdata/modules1"},
+		"single directory": {
+			envModules: "testdata/modules1",
 			want: modules.ModulesInfo{
 				"root ext_mod": modules.Manifest{
 					Name:    "ext_mod",
@@ -58,8 +41,7 @@ func TestGetModulesInfo(t *testing.T) {
 			},
 		},
 
-		"env modules": {
-			config:     "some/config/tt.yaml",
+		"several directories": {
 			envModules: "testdata/modules1:testdata/modules2",
 			want: modules.ModulesInfo{
 				"root ext_mod": modules.Manifest{
@@ -83,55 +65,8 @@ func TestGetModulesInfo(t *testing.T) {
 			},
 		},
 
-		"no config but env modules": {
-			config:     "",
-			envModules: "testdata/modules1",
-			want: modules.ModulesInfo{
-				"root ext_mod": modules.Manifest{
-					Name:    "ext_mod",
-					Main:    "testdata/modules1/ext_mod/command.sh",
-					Help:    "Help for the ext_mod module",
-					Version: "1.2.3",
-				},
-				"root simple": modules.Manifest{
-					Name:    "simple",
-					Main:    "testdata/modules1/simple/main",
-					Help:    "Description for simple module",
-					Version: "v0.0.1",
-				},
-			},
-		},
-
-		"config and env modules": {
-			config:     "some/config/tt.yaml",
-			modules:    []string{"testdata/modules1"},
-			envModules: "testdata/modules2",
-			want: modules.ModulesInfo{
-				"root ext_mod": modules.Manifest{
-					Name:    "ext_mod",
-					Main:    "testdata/modules1/ext_mod/command.sh",
-					Help:    "Help for the ext_mod module",
-					Version: "1.2.3",
-				},
-				"root ext_mod2": modules.Manifest{
-					Name:    "ext_mod2",
-					Main:    "testdata/modules2/ext_mod2/command.sh",
-					Help:    "Help for the ext_mod module",
-					Version: "1.2.3",
-				},
-				"root simple": modules.Manifest{
-					Name:    "simple",
-					Main:    "testdata/modules1/simple/main",
-					Help:    "Description for simple module",
-					Version: "v0.0.1",
-				},
-			},
-		},
-
-		"config duplicate env modules": {
-			config:     "some/config/tt.yaml",
-			modules:    []string{"testdata/modules1"},
-			envModules: "testdata/modules1",
+		"duplicate modules": {
+			envModules: "testdata/modules1:testdata/modules1",
 			want: modules.ModulesInfo{
 				"root ext_mod": modules.Manifest{
 					Name:    "ext_mod",
@@ -150,9 +85,8 @@ func TestGetModulesInfo(t *testing.T) {
 		},
 
 		"wrong modules manifest": {
-			config:  "some/config/tt.yaml",
-			modules: []string{"testdata/bad_manifest"},
-			want:    modules.ModulesInfo{},
+			envModules: "testdata/bad_manifest",
+			want:       modules.ModulesInfo{},
 			log: []string{
 				`Failed to get information about module "empty": failed to find module executable`,
 				`Failed to get information about module "not-exists":` +
@@ -167,23 +101,14 @@ func TestGetModulesInfo(t *testing.T) {
 			},
 		},
 
-		"not a directory in config ": {
-			config:  "some/config/tt.yaml",
-			modules: []string{"testdata/modules1/simple/main"},
-			want:    modules.ModulesInfo{},
-			err:     "specified path in configuration file is not a directory",
-		},
-
-		"not a directory in env ": {
-			config:     "some/config/tt.yaml",
-			envModules: "testdata/modules1/simple/main",
-			want:       modules.ModulesInfo{},
-			err:        "specified path in configuration file is not a directory",
+		"not a directory": {
+			envModules: "testdata/modules1:testdata/modules1/simple/main",
+			err: "TT_CLI_MODULES_PATH names a path that is not a directory:" +
+				" testdata/modules1/simple/main",
 		},
 
 		"override internal": {
-			config:  "some/config/tt.yaml",
-			modules: []string{"testdata/mod_override"},
+			envModules: "testdata/mod_override",
 			want: modules.ModulesInfo{
 				"root testCmd": modules.Manifest{
 					Name:    "testCmd",
@@ -193,60 +118,37 @@ func TestGetModulesInfo(t *testing.T) {
 				},
 			},
 		},
-		"disabled override ": {
-			config:     "some/config/tt.yaml",
+
+		"disabled override": {
 			envModules: "testdata/disabled_override",
-			want:       modules.ModulesInfo{},
 			err:        `module "modules" is disabled to override`,
 		},
 	}
 
-	_ = os.Unsetenv("TT_CLI_MODULES_PATH")
-
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			cmdCtx := cmdcontext.CmdCtx{
-				Cli: cmdcontext.CliCtx{
-					ConfigPath: tt.config,
-				},
-			}
-			cliOpts := config.CliOpts{
-				Modules: &config.ModulesOpts{
-					Directories: tt.modules,
-				},
-			}
-
-			if tt.envModules != "" {
-				t.Setenv("TT_CLI_MODULES_PATH", tt.envModules)
-			}
+			t.Setenv("TT_CLI_MODULES_PATH", tt.envModules)
 
 			var buf bytes.Buffer
 
 			log.SetOutput(&buf)
+			t.Cleanup(func() { log.SetOutput(os.Stderr) })
 
-			defer func() {
-				log.SetOutput(os.Stderr)
-			}()
-
-			got, err := modules.GetModulesInfo(&cmdCtx, "root", &cliOpts)
-
-			_ = os.Unsetenv("TT_CLI_MODULES_PATH")
+			got, err := modules.GetModulesInfo("root")
 
 			t.Log(buf.String())
 
-			if err != nil || tt.err != "" {
-				require.Error(t, err, "Expecting msg: %q", tt.err)
+			if tt.err != "" {
 				require.ErrorContains(t, err, tt.err)
 
 				return
 			}
 
+			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 
-			if len(tt.log) > 0 {
-				for _, log := range tt.log {
-					assert.Contains(t, buf.String(), log)
-				}
+			for _, message := range tt.log {
+				assert.Contains(t, buf.String(), message)
 			}
 		})
 	}

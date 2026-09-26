@@ -6,8 +6,6 @@ package config
 // tt.yaml file format:
 //  env:
 //    restart_on_failure: bool
-//  modules:
-//    directory: path/to
 //  app:
 //    run_dir: path
 //    log_dir: path
@@ -18,13 +16,6 @@ package config
 //    distfiles: path
 //  ee:
 //    credential_path: path
-
-// ModulesOpts is used to store all module options.
-type ModulesOpts struct {
-	// Directories is a list of paths to directories where the external modules
-	// are stored.
-	Directories FieldStringArrayType `mapstructure:"directory" yaml:"directory"`
-}
 
 // EEOpts is used to store tarantool-ee options.
 type EEOpts struct {
@@ -75,12 +66,10 @@ type RepoOpts struct {
 	Install string `mapstructure:"distfiles" yaml:"distfiles"`
 }
 
-// CliOpts is used to store modules and app options.
+// CliOpts is used to store the tt environment and app options.
 type CliOpts struct {
 	// Env is struct describing tt environment options.
 	Env *TtEnvOpts
-	// Modules is a struct that contain module options.
-	Modules *ModulesOpts
 	// App is a struct that contains app options.
 	App *AppOpts
 	// EE is a struct that contains tarantool-ee options.

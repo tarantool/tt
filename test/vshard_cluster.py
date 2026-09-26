@@ -39,7 +39,7 @@ class VshardCluster:
             print(f"Wrapping existing application in {self.app_dir}.")
             return
 
-        create_tt_config(env_dir, "")
+        create_tt_config(env_dir)
 
         rc, out = run_command_and_get_output(
             [tt_cmd, "create", "vshard_cluster", "--name", self.app_name, "-s", "-f"],

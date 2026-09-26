@@ -97,7 +97,7 @@ def tt_cmd(tmp_path_factory: TempPathFactory, request: pytest.FixtureRequest) ->
 
 @pytest.fixture()
 def tmpdir_with_cfg(tmp_path):
-    utils.create_tt_config(tmp_path, "")
+    utils.create_tt_config(tmp_path)
     return tmp_path.as_posix()
 
 
@@ -105,7 +105,7 @@ def tmpdir_with_cfg(tmp_path):
 def tmpdir_with_tarantool(tt_cmd, tmp_path_factory):
     tmpdir = tmp_path_factory.mktemp("tarantool_env")
 
-    utils.create_tt_config(tmpdir, "")
+    utils.create_tt_config(tmpdir)
 
     cmd = [tt_cmd, "install", "-f", "tarantool", "--dynamic"]
     p = subprocess.run(cmd, cwd=tmpdir)
@@ -216,7 +216,7 @@ def tt_path(tmp_path, request):
 
     app_dir = Path(app_path) if os.path.isdir(app_path) else Path(app_path).parent
     if not (app_dir / utils.config_name).exists():
-        utils.create_tt_config(app_dir, "")
+        utils.create_tt_config(app_dir)
     return app_path
 
 

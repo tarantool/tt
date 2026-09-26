@@ -15,7 +15,7 @@ from utils import config_name, create_lua_config, create_tt_config, run_command_
 
 
 def test_rocks_module(tt_cmd, tmp_path):
-    create_tt_config(tmp_path, tmp_path)
+    create_tt_config(tmp_path)
 
     rc, output = run_command_and_get_output(
         [tt_cmd, "rocks", "help"],
@@ -353,7 +353,7 @@ def test_rocks_with_hardcoded(tt_cmd, tmp_path):
     os.mkdir(etc_luarocks_path)
     create_lua_config(etc_luarocks_path)
 
-    create_tt_config(tmp_path, tmp_path)
+    create_tt_config(tmp_path)
 
     shutil.copy(tt_cmd, tmp_path / "tt")
     os.chmod(tmp_path / "tt", 0o755)

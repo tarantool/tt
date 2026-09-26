@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"syscall"
 
 	"github.com/mitchellh/mapstructure"
@@ -18,9 +17,6 @@ import (
 )
 
 var (
-	errExpectedAStringValueGot = errors.New(
-		"expected a string value, got ",
-	)
 	errFailedToFindTarantoolCLIConfigFor = errors.New(
 		"failed to find Tarantool CLI config for '",
 	)
@@ -71,7 +67,6 @@ const (
 	DataPath      = "lib"
 	BinPath       = "bin"
 	IncludePath   = "include"
-	ModulesPath   = "modules"
 	DistfilesPath = "distfiles"
 	SnapPath      = "snap"
 	VinylPath     = "vinyl"
@@ -126,9 +121,6 @@ func getSystemAppOpts() *config.AppOpts {
 
 // GetSystemCliOpts returns `CliOpts` filled with system defaults.
 func GetSystemCliOpts() *config.CliOpts {
-	modules := config.ModulesOpts{
-		Directories: []string{ModulesPath},
-	}
 	eeOpts := config.EEOpts{
 		CredPath: "",
 	}
@@ -142,7 +134,6 @@ func GetSystemCliOpts() *config.CliOpts {
 
 	return &config.CliOpts{
 		Env:       getDefaultTtEnvOpts(),
-		Modules:   &modules,
 		App:       getSystemAppOpts(),
 		Repo:      &repo,
 		EE:        &eeOpts,
@@ -152,9 +143,6 @@ func GetSystemCliOpts() *config.CliOpts {
 
 // GetDefaultCliOpts returns `CliOpts` filled with default values.
 func GetDefaultCliOpts() *config.CliOpts {
-	modules := config.ModulesOpts{
-		Directories: []string{ModulesPath},
-	}
 	eeOpts := config.EEOpts{
 		CredPath: "",
 	}
@@ -168,7 +156,6 @@ func GetDefaultCliOpts() *config.CliOpts {
 
 	return &config.CliOpts{
 		Env:       getDefaultTtEnvOpts(),
-		Modules:   &modules,
 		App:       getDefaultAppOpts(),
 		Repo:      &repo,
 		EE:        &eeOpts,
@@ -212,26 +199,6 @@ func adjustPathWithConfigLocation(filePath, configDir string,
 	return absPath, nil
 }
 
-func adjustListPathWithConfigLocation(listPaths []string, configDir string,
-	defaultDirName string,
-) ([]string, error) {
-	if len(listPaths) == 0 {
-		listPaths = append(listPaths, defaultDirName)
-	}
-
-	result := make([]string, 0, len(listPaths))
-	for _, path := range listPaths {
-		path, err := adjustPathWithConfigLocation(path, configDir, defaultDirName)
-		if err != nil {
-			return result, err
-		}
-
-		result = append(result, path)
-	}
-
-	return result, nil
-}
-
 // resolveConfigPaths resolves all paths in config relative to specified location, and
 // sets uninitialized values to defaults.
 func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
@@ -252,14 +219,6 @@ func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 		}
 	}
 
-	if cliOpts.Modules != nil {
-		cliOpts.Modules.Directories, err = adjustListPathWithConfigLocation(
-			cliOpts.Modules.Directories, configDir, ModulesPath)
-		if err != nil {
-			return err
-		}
-	}
-
 	for i := range cliOpts.Templates {
 		cliOpts.Templates[i].Path, err = adjustPathWithConfigLocation(
 			cliOpts.Templates[i].Path, configDir, ".")
@@ -271,27 +230,11 @@ func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 	return nil
 }
 
-func decodeStringAsArrayField(from, to reflect.Type, value any) (
-	any, error,
-) {
-	if to != reflect.TypeFor[config.FieldStringArrayType]() || from.Kind() != reflect.String {
-		return value, nil
-	}
-
-	str, ok := value.(string)
-	if !ok {
-		return nil, fmt.Errorf("%w%T", errExpectedAStringValueGot, value)
-	}
-
-	return []string{str}, nil
-}
-
 // decodeConfig decodes the raw tt configuration into cfg. The returned error
 // is ready to be shown to the user.
 func decodeConfig(input map[string]any, cfg *config.CliOpts) error {
 	decoderConfig := mapstructure.DecoderConfig{
-		Result:     cfg,
-		DecodeHook: mapstructure.ComposeDecodeHookFunc(decodeStringAsArrayField),
+		Result: cfg,
 	}
 
 	decoder, err := mapstructure.NewDecoder(&decoderConfig)

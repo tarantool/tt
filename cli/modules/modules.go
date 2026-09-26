@@ -10,8 +10,6 @@ import (
 	"strings"
 
 	"github.com/tarantool/tt/sdk/log"
-	"github.com/tarantool/tt/v3/cli/cmdcontext"
-	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/util"
 	"gopkg.in/yaml.v3"
 )
@@ -20,9 +18,9 @@ var (
 	errHelpFieldIsMandatoryForModuleManifest = errors.New(
 		"help field is mandatory for module Manifest",
 	)
-	errModuleIsDisabledToOverride                      = errors.New("module ")
-	errSpecifiedPathInConfigurationFileIsNotADirectory = errors.New(
-		"specified path in configuration file is not a directory",
+	errModuleIsDisabledToOverride = errors.New("module ")
+	errModulesPathIsNotADirectory = errors.New(
+		"TT_CLI_MODULES_PATH names a path that is not a directory",
 	)
 	errVersionFieldIsMandatoryForModuleManifest = errors.New(
 		"version field is mandatory for module Manifest",
@@ -118,23 +116,14 @@ func makeManifest(entry modulesEntry) (Manifest, error) {
 	})
 }
 
-// GetModulesInfo collects information about available modules (both external and internal).
-func GetModulesInfo(
-	cmdCtx *cmdcontext.CmdCtx,
-	rootCmd string,
-	cliOpts *config.CliOpts,
-) (ModulesInfo, error) {
-	modulesDirs, err := getConfigModulesDirs(cmdCtx, cliOpts)
+// GetModulesInfo collects information about the external modules in the
+// directories TT_CLI_MODULES_PATH lists, keyed by their command path under
+// rootCmd, the name of the root command.
+func GetModulesInfo(rootCmd string) (ModulesInfo, error) {
+	modulesDirs, err := getEnvironmentModulesDirs()
 	if err != nil {
 		return nil, err
 	}
-
-	modulesEnvDirs, err := getEnvironmentModulesDirs()
-	if err != nil {
-		return nil, err
-	}
-
-	modulesDirs = append(modulesDirs, modulesEnvDirs...)
 
 	externalModules, err := getExternalModules(modulesDirs)
 	if err != nil {
@@ -162,20 +151,20 @@ func GetModulesInfo(
 	return modulesInfo, nil
 }
 
-// collectDirectoriesList checks list to ensure that all items is directories.
+// collectDirectoriesList returns the paths that exist, checking that each of
+// them is a directory. A path tt cannot stat - one that does not exist, or
+// one it may not look into - is skipped; one that exists and is not a
+// directory is an error.
 func collectDirectoriesList(paths []string) ([]string, error) {
 	dirs := make([]string, 0, len(paths))
-	// We return an error only if the following conditions are met:
-	// 1. If a directory field is specified;
-	// 2. Specified path exists;
-	// 3. Path points to not a directory.
+
 	for _, dir := range paths {
-		// The directories come from the tt configuration and the environment
-		// on purpose: any path the user names is a valid modules location.
+		// The directories come from TT_CLI_MODULES_PATH on purpose: any path
+		// the user names is a valid modules location.
 		info, err := os.Stat(dir) //nolint:gosec // user-supplied modules directory.
 		if err == nil {
 			if !info.IsDir() {
-				return dirs, errSpecifiedPathInConfigurationFileIsNotADirectory
+				return dirs, fmt.Errorf("%w: %s", errModulesPathIsNotADirectory, dir)
 			}
 
 			dirs = append(dirs, dir)
@@ -183,22 +172,6 @@ func collectDirectoriesList(paths []string) ([]string, error) {
 	}
 
 	return dirs, nil
-}
-
-// getConfigModulesDirs returns from configuration the list of directories,
-// where external modules are located.
-func getConfigModulesDirs(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) ([]string, error) {
-	if cmdCtx.Cli.ConfigPath == "" {
-		// Ignore cliOpts.Modules without actual configuration file.
-		return []string{}, nil
-	}
-
-	// Unspecified `modules` field is not considered an error.
-	if cliOpts.Modules == nil || cliOpts.Modules.Directories == nil {
-		return []string{}, nil
-	}
-
-	return collectDirectoriesList(cliOpts.Modules.Directories)
 }
 
 // getEnvironmentModulesDirs returns the list of modules directory based on environment info.

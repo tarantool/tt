@@ -7,7 +7,13 @@ from pathlib import Path
 import pytest
 import yaml
 
-from utils import config_name, create_external_module, create_tt_config, run_command_and_get_output
+from utils import (
+    config_name,
+    create_external_module,
+    create_tt_config,
+    modules_path_env,
+    run_command_and_get_output,
+)
 
 # Some of the tests below should check the behavior
 # of modules that have an internal implementation.
@@ -38,55 +44,54 @@ def write_manifest(directory) -> None:
         f.write(MANIFEST)
 
 
+# The tests that check which tt.yaml tt finds read the answer from
+# `tt cfg dump`, which prints the path of the configuration tt was given or
+# found - with --cfg, the flag's value as typed - and its env.bin_dir. The
+# configuration below sets bin_dir to a relative path no default produces, and
+# tt resolves it against the directory holding the file, so bin_dir is what
+# proves the file was loaded.
+FOUND_BIN_DIR = "bin_of_found_config"
+
+
+def create_found_config(directory) -> Path:
+    return create_tt_config(directory, {"env": {"bin_dir": FOUND_BIN_DIR}})
+
+
+def assert_found_config(output: str, directory) -> None:
+    lines = [line.strip() for line in output.splitlines()]
+    assert f"{Path(directory) / config_name}:" in lines
+    assert f"bin_dir: {Path(directory) / FOUND_BIN_DIR}" in lines
+
+
 # ##### #
 # Tests #
 # ##### #
 def test_local_launch(tt_cmd, tmp_path):
-    module = "version"
-    cmd = [tt_cmd, "-L", tmp_path, module]
+    cmd = [tt_cmd, "-L", tmp_path, "cfg", "dump"]
 
     # No configuration file specified.
-    assert subprocess.run(cmd).returncode == 1
+    rc, output = run_command_and_get_output(cmd, cwd=os.getcwd())
+    assert rc == 1
+    assert "failed to find Tarantool CLI config for " in output
 
     # With the specified config file.
-    create_tt_config(tmp_path, tmp_path / "modules")
-    module_message = create_external_module(module, tmp_path / "modules")
+    create_found_config(tmp_path)
 
     rc, output = run_command_and_get_output(cmd, cwd=os.getcwd())
     assert rc == 0
-    assert module_message in output
+    assert_found_config(output, tmp_path)
 
 
 def test_local_launch_find_cfg(tt_cmd, tmp_path):
-    module = "version"
-
-    # Find tt.yaml at cwd parent.
+    # Find tt.yaml at the parent of the launch directory.
     tmpdir_without_config = tempfile.mkdtemp(dir=tmp_path)
-    cmd = [tt_cmd, "-L", tmpdir_without_config, module]
+    cmd = [tt_cmd, "-L", tmpdir_without_config, "cfg", "dump"]
 
-    create_tt_config(tmp_path, tmp_path / "modules")
-    module_message = create_external_module(module, tmp_path / "modules")
+    create_found_config(tmp_path)
 
     rc, output = run_command_and_get_output(cmd, cwd=os.getcwd())
     assert rc == 0
-    assert module_message in output
-
-
-def test_local_launch_find_cfg_modules_relative_path(tt_cmd, tmp_path):
-    module = "version"
-
-    # Find tt.yaml at cwd parent.
-    tmpdir_without_config = tempfile.mkdtemp(dir=tmp_path)
-    cmd = [tt_cmd, module]
-
-    modules_dir = tmp_path / "ext_modules"
-    modules_dir.mkdir(exist_ok=True, parents=True)
-    create_tt_config(tmp_path, os.path.join(".", "ext_modules"))
-    module_message = create_external_module(module, modules_dir)
-
-    rc, output = run_command_and_get_output(cmd, cwd=tmpdir_without_config)
-    assert rc == 0
-    assert module_message in output
+    assert_found_config(output, tmp_path)
 
 
 def test_local_launch_non_existent_dir(tt_cmd, tmp_path):
@@ -100,37 +105,31 @@ def test_local_launch_non_existent_dir(tt_cmd, tmp_path):
 
 # This test looking for tt.yaml from cwd to root (without -L flag).
 def test_default_launch_find_cfg_at_cwd(tt_cmd, tmp_path):
-    module = "version"
-    module_message = create_external_module(module, tmp_path / "modules")
-
     # Find tt.yaml at current work directory.
-    create_tt_config(tmp_path, tmp_path / "modules")
+    create_found_config(tmp_path)
 
-    cmd = [tt_cmd, module]
+    cmd = [tt_cmd, "cfg", "dump"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
-    assert module_message in output
+    assert_found_config(output, tmp_path)
 
 
 def test_default_launch_find_cfg_at_parent(tt_cmd, tmp_path):
-    module = "version"
-    module_message = create_external_module(module, tmp_path / "modules")
-
-    create_tt_config(tmp_path, tmp_path / "modules")
-    cmd = [tt_cmd, module]
+    create_found_config(tmp_path)
+    cmd = [tt_cmd, "cfg", "dump"]
 
     # Find tt.yaml at cwd parent.
     tmpdir_without_config = tempfile.mkdtemp(dir=tmp_path)
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir_without_config)
     assert rc == 0
-    assert module_message in output
+    assert_found_config(output, tmp_path)
 
 
 def test_launch_local_tt_executable(tt_cmd, tmp_path):
     # We check if exec works on the local tt executable.
     # In the future, the same should be done when checking the
     # local Tarantool executable, but so far this is impossible.
-    create_tt_config(tmp_path, tmp_path / "modules")
+    create_tt_config(tmp_path)
     os.mkdir(tmp_path / "bin")
 
     tt_message = "Hello, I'm CLI exec!"
@@ -160,7 +159,7 @@ def test_launch_local_tt_executable(tt_cmd, tmp_path):
 
 
 def test_launch_local_tt_executable_in_parent_dir(tt_cmd, tmp_path):
-    create_tt_config(tmp_path, tmp_path / "modules")
+    create_tt_config(tmp_path)
     os.mkdir(tmp_path / "bin")
 
     tt_message = "Hello, I'm CLI exec!"
@@ -329,7 +328,7 @@ def test_launch_local_launch_tarantool_with_yml_config_in_parent_dir(tt_cmd, tmp
 def test_launch_system_tarantool(tt_cmd, tmp_path):
     config_path = os.path.join(tmp_path, config_name)
     with open(config_path, "w") as f:
-        yaml.dump({"modules": {"directory": f"{tmp_path}"}, "env": {"bin_dir": "./binaries"}}, f)
+        yaml.dump({"env": {"bin_dir": "./binaries"}}, f)
 
     os.mkdir(tmp_path / "binaries")
     tarantool_message = "Hello, I'm Tarantool"
@@ -342,7 +341,7 @@ def test_launch_system_tarantool(tt_cmd, tmp_path):
     with tempfile.TemporaryDirectory() as tmp_working_dir:
         write_manifest(tmp_working_dir)
         with open(os.path.join(tmp_working_dir, config_name), "w") as f:
-            yaml.dump({"modules": {"directory": f"{tmp_path}"}, "env": {"bin_dir": ""}}, f)
+            yaml.dump({"env": {"bin_dir": ""}}, f)
         my_env = os.environ.copy()
         my_env["TT_SYSTEM_CONFIG_DIR"] = tmp_path
         rc, output = run_command_and_get_output(command, cwd=tmp_working_dir, env=my_env)
@@ -353,7 +352,7 @@ def test_launch_system_tarantool(tt_cmd, tmp_path):
 def test_launch_system_tarantool_yml_system_config(tt_cmd, tmp_path):
     config_path = os.path.join(tmp_path, config_name.replace("yaml", "yml"))
     with open(config_path, "w") as f:
-        yaml.dump({"modules": {"directory": f"{tmp_path}"}, "env": {"bin_dir": "./binaries"}}, f)
+        yaml.dump({"env": {"bin_dir": "./binaries"}}, f)
 
     os.mkdir(tmp_path / "binaries")
     tarantool_message = "Hello, I'm Tarantool"
@@ -366,7 +365,7 @@ def test_launch_system_tarantool_yml_system_config(tt_cmd, tmp_path):
     with tempfile.TemporaryDirectory() as tmp_working_dir:
         write_manifest(tmp_working_dir)
         with open(os.path.join(tmp_working_dir, config_name.replace("yaml", "yml")), "w") as f:
-            yaml.dump({"tt": {"modules": {"directory": f"{tmp_path}"}, "env": {"bin_dir": ""}}}, f)
+            yaml.dump({"tt": {"env": {"bin_dir": ""}}}, f)
         my_env = os.environ.copy()
         my_env["TT_SYSTEM_CONFIG_DIR"] = tmp_path
         rc, output = run_command_and_get_output(command, cwd=tmp_working_dir, env=my_env)
@@ -377,7 +376,7 @@ def test_launch_system_tarantool_yml_system_config(tt_cmd, tmp_path):
 def test_launch_system_tarantool_missing_executable(tt_cmd, tmp_path):
     config_path = os.path.join(tmp_path, config_name)
     with open(config_path, "w") as f:
-        yaml.dump({"modules": {"directory": f"{tmp_path}"}, "env": {"bin_dir": "./binaries"}}, f)
+        yaml.dump({"env": {"bin_dir": "./binaries"}}, f)
 
     command = [tt_cmd, "-S", "run", "--version"]
 
@@ -455,10 +454,10 @@ def test_external_module_without_internal_implementation(tt_cmd, tmp_path):
     # implementation.
     module = "abc-example"
     module_message = create_external_module(module, tmp_path / "modules")
-    create_tt_config(tmp_path, tmp_path / "modules")
+    env = modules_path_env(tmp_path / "modules")
 
     cmd = [tt_cmd, module]
-    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path, env=env)
     assert rc == 0
     assert module_message in output
 
@@ -466,39 +465,39 @@ def test_external_module_without_internal_implementation(tt_cmd, tmp_path):
     # In this case, tt should ignore this flag and just
     # start module.
     cmd = [tt_cmd, "-I", module]
-    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path, env=env)
     assert rc == 0
     assert module_message in output
 
 
 def test_launch_with_cfg_flag(tt_cmd, tmp_path):
-    module = "version"
-
     # Send non existent config path.
     non_exist_cfg_tmpdir = tempfile.mkdtemp(dir=tmp_path)
-    cmd = [tt_cmd, "--cfg", "non-exists-path", module]
+    cmd = [tt_cmd, "--cfg", "non-exists-path", "cfg", "dump"]
     rc, output = run_command_and_get_output(cmd, cwd=non_exist_cfg_tmpdir)
     assert rc == 1
     assert "specified path to the configuration file is invalid" in output
 
     # Create one more temporary directory
     exists_cfg_tmpdir = Path(tempfile.mkdtemp(dir=tmp_path))
-    module_message = create_external_module(module, exists_cfg_tmpdir / "modules")
-    config_path = create_tt_config(exists_cfg_tmpdir, exists_cfg_tmpdir / "modules")
+    config_path = create_found_config(exists_cfg_tmpdir)
 
-    cmd = [tt_cmd, "--cfg", config_path, module]
+    cmd = [tt_cmd, "--cfg", config_path, "cfg", "dump"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
-    assert module_message in output
+    assert_found_config(output, exists_cfg_tmpdir)
 
 
 @pytest.mark.parametrize("module", ["version", "non-exists-module"])
 def test_launch_external_cmd_with_flags(tt_cmd, tmp_path, module):
     module_message = create_external_module(module, tmp_path / "modules")
-    create_tt_config(tmp_path, tmp_path / "modules")
 
     cmd = [tt_cmd, module, "--non-existent-flag", "-f", "argument1"]
-    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
+    rc, output = run_command_and_get_output(
+        cmd,
+        cwd=tmp_path,
+        env=modules_path_env(tmp_path / "modules"),
+    )
     assert rc == 0
     assert module_message in output
 
@@ -566,10 +565,10 @@ def test_launch_with_invalid_env_cfg(tt_cmd):
     assert "specified path to the configuration file is invalid" in output
 
 
-def test_launch_with_verbose_output(tt_cmd, tmp_path):
+def test_launch_with_verbose_output(tt_cmd):
     tmpdir_with_flag_config = Path(tempfile.mkdtemp())
     try:
-        create_tt_config(tmpdir_with_flag_config, tmp_path)
+        create_tt_config(tmpdir_with_flag_config)
         cmd = [tt_cmd, "-c", tmpdir_with_flag_config / "tt.yaml", "-V", "-h"]
 
         rc, output = run_command_and_get_output(cmd, cwd=os.getcwd())
@@ -606,31 +605,6 @@ def test_launch_tt_with_self_flag(expected_output, is_self_enabled, tt_cmd, tmp_
     uninstall_process_rc, cmd_output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert uninstall_process_rc == 0
     assert expected_output in cmd_output
-
-
-def test_local_launch_find_env_modules(tt_cmd, tmp_path):
-    """
-    Two external modules 'help' and 'version' exist at the same time,
-    so the module 'help' should be called with the 'version' argument.
-    One module configured with tt.yaml, while another with TT_CLI_MODULES_PATH.
-    """
-    modules = ("help", "version")
-    cfg_env = tmp_path / "tt"
-
-    create_tt_config(cfg_env, "modules")
-    module_message = create_external_module(modules[0], cfg_env / "modules")
-    create_external_module(modules[1], tmp_path / "ext_modules")
-
-    cmd = [tt_cmd, *modules]
-
-    rc, output = run_command_and_get_output(
-        cmd,
-        cwd=cfg_env,
-        env={"TT_CLI_MODULES_PATH": str(tmp_path / "ext_modules")},
-    )
-    assert rc == 0
-    assert f"{module_message}\nList of passed args: version\n" == output
-    assert module_message in output
 
 
 def test_local_launch_two_env_modules(tt_cmd, tmp_path):

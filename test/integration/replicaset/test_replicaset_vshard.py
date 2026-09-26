@@ -128,7 +128,7 @@ def test_vshard_bootstrap_cconfig_vshard_not_installed(tt_cmd, tmpdir_with_cfg):
 @pytest.fixture(scope="session")
 def vshard_tt_env_session(tt_cmd, tmp_path_factory):
     tmpdir = tmp_path_factory.mktemp("vshard_tt_env_session")
-    create_tt_config(tmpdir, "")
+    create_tt_config(tmpdir)
 
     # Install vshard.
     cmd = [tt_cmd, "rocks", "install", "vshard"]

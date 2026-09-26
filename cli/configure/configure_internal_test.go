@@ -329,9 +329,8 @@ func TestUpdateCliOpts(t *testing.T) {
 		Env: &config.TtEnvOpts{
 			IncludeDir: "../include_dir",
 		},
-		Modules: &config.ModulesOpts{},
-		EE:      &config.EEOpts{},
-		Repo:    &config.RepoOpts{},
+		EE:   &config.EEOpts{},
+		Repo: &config.RepoOpts{},
 	}
 	configDir := "/etc/tarantool"
 
@@ -343,57 +342,51 @@ func TestUpdateCliOpts(t *testing.T) {
 	assert.Equal(t, "./var/lib/vinyl", cliOpts.App.VinylDir)
 	assert.Equal(t, "./var/lib/snap", cliOpts.App.MemtxDir)
 	assert.Equal(t, filepath.Join(configDir, "..", "include_dir"), cliOpts.Env.IncludeDir)
-	assert.Len(t, cliOpts.Modules.Directories, 1)
-	assert.Equal(t, filepath.Join(configDir, ModulesPath), cliOpts.Modules.Directories[0])
 }
 
-func TestGetCliOpts_modules_directory(t *testing.T) {
+// TestGetCliOpts_modulesSectionIgnored checks that a tt.yaml naming module
+// directories, a section tt does not read, still loads, and loads as if the
+// section were not there.
+func TestGetCliOpts_modulesSectionIgnored(t *testing.T) {
 	workDir, err := os.Getwd()
 	require.NoError(t, err)
 
 	workDir = filepath.Join(workDir, "testdata/modules_cfg")
 
 	tests := []struct {
-		name       string
-		config     string
-		modulesDir config.FieldStringArrayType
-		cfgPath    string
+		name    string
+		config  string
+		cfgPath string
 	}{
 		{
-			name:       "Single string relative path",
-			config:     "tt-modules1",
-			modulesDir: []string{filepath.Join(workDir, "modules-dir")},
-			cfgPath:    "tt-modules1.yaml",
+			name:    "Single string relative path",
+			config:  "tt-modules1",
+			cfgPath: "tt-modules1.yaml",
 		},
 		{
-			name:       "Single entry list",
-			config:     "tt-modules2",
-			modulesDir: []string{filepath.Join(workDir, "modules-dir")},
-			cfgPath:    "tt-modules2.yml",
+			name:    "Single entry list",
+			config:  "tt-modules2",
+			cfgPath: "tt-modules2.yml",
 		},
 		{
-			name:   "Multiple entries list",
-			config: "tt-modules3.",
-			modulesDir: []string{
-				filepath.Join(workDir, "modules-dir"),
-				"/ext/path/modules",
-				filepath.Join(workDir, "local_modules"),
-			},
+			name:    "Multiple entries list",
+			config:  "tt-modules3.",
 			cfgPath: "tt-modules3.yaml",
 		},
 		{
-			name:       "Empty list = default value",
-			config:     "tt-modules4.yaml",
-			modulesDir: []string{filepath.Join(workDir, "modules")},
-			cfgPath:    "tt-modules4.yml",
+			name:    "Empty value",
+			config:  "tt-modules4.yaml",
+			cfgPath: "tt-modules4.yml",
 		},
 		{
-			name:       "Single string absolute path",
-			config:     "tt-modules5.yml",
-			modulesDir: []string{"/ext/path/modules"},
-			cfgPath:    "tt-modules5.yaml",
+			name:    "Single string absolute path",
+			config:  "tt-modules5.yml",
+			cfgPath: "tt-modules5.yaml",
 		},
 	}
+
+	want := GetDefaultCliOpts()
+	require.NoError(t, updateCliOpts(want, workDir))
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -401,8 +394,7 @@ func TestGetCliOpts_modules_directory(t *testing.T) {
 			config := filepath.Join(workDir, tt.config)
 			opts, cfg, err := GetCliOpts(config, &mockRepo)
 			require.NoError(t, err)
-			require.NotNil(t, opts.Modules)
-			require.Equal(t, tt.modulesDir, opts.Modules.Directories)
+			require.Equal(t, want, opts)
 			require.Equal(t, filepath.Join(workDir, tt.cfgPath), cfg)
 		})
 	}

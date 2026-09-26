@@ -52,17 +52,22 @@ def run_command_and_get_output(
     return process.returncode, process.stdout
 
 
-def create_tt_config(config_path: Path, modules_path: Path | str | list[Path | str]) -> Path:
-    if not isinstance(config_path, Path):
-        config_path = Path(config_path)
+def create_tt_config(config_path: Path | str, config: dict | None = None) -> Path:
+    """Write tt.yaml holding config, an empty mapping by default, into the
+    config_path directory, creating the directory, and return its path."""
+    config_path = Path(config_path)
     config_path.mkdir(parents=True, exist_ok=True)
     config_path = config_path / config_name
-    if isinstance(modules_path, Path):
-        modules_path = str(modules_path)
     with open(config_path, "w") as f:
-        yaml.dump({"modules": {"directory": modules_path}}, f)
+        yaml.dump({} if config is None else config, f)
 
     return config_path
+
+
+def modules_path_env(*dirs: Path | str) -> dict[str, str]:
+    """Return a copy of the environment whose TT_CLI_MODULES_PATH lists dirs,
+    the directories tt looks for external modules in."""
+    return {**os.environ, "TT_CLI_MODULES_PATH": ":".join(str(d) for d in dirs)}
 
 
 def create_lua_config(tmp_path):

@@ -59,8 +59,8 @@ the system configuration `/etc/tarantool/tt.yaml`, selected by `--system`.
 Its directory is still treated as a single application root; `tt` does not
 scan child directories for applications.
 For local development, place a `tt.yaml` in the application root. This keeps
-the application's `tarantool`/`tt` versions, runtime paths, repositories,
-and external modules isolated from other applications.
+the application's `tarantool`/`tt` versions, runtime paths and repositories
+isolated from other applications.
 
 The example of a typical "environment":
 
@@ -75,7 +75,6 @@ graph LR
       instances(instances.yml):::lime
       cluster_config(config.yaml):::lime
       bin
-      modules
       templates
       var
       subgraph local_reps[Local repositories]
@@ -92,7 +91,6 @@ graph LR
     var --> lib1[lib] --> inst13[instance] --> xlogs1(*.xlog,*.snap):::lime
 
     bin --> bin_dir(tarantool<br/>tarantool-ee<br/>tt-ee<br/>tt):::lime
-    modules --> modules_dir(ext_module_1<br/>ext_module_2):::lime
 ```
 
 ## Getting started
@@ -297,8 +295,6 @@ env:
   bin_dir: path/to/bin_dir
   inc_dir: path/to/inc_dir
   restart_on_failure: bool
-modules:
-  directory: path/to/modules/dir
 app:
   run_dir: path/to/run_dir
   log_dir: path/to/log_dir
@@ -321,11 +317,6 @@ templates:
 - `inc_dir` (string) - directory that stores header files. The path
     will be padded with a directory named include.
 - `restart_on_failure` (bool) - should it restart on failure.
-
-#### modules
-
-- `directory` (string) - the path to directory where the external
-    modules are stored.
 
 #### app
 
@@ -374,7 +365,6 @@ A configured application can use the following filesystem tree:
     ├── include
     ├── distfiles
     ├── instances.yml
-    ├── modules
     ├── templates
     ├── tt.yaml
     └── var
@@ -389,7 +379,6 @@ Where:
 - `distfiles` - directory that stores installation files for local
     install.
 - `instances.yml` - optional declaration of the application's instances.
-- `modules` - the directory where the external modules are stored.
 - `tt.yaml` - tt environment configuration file.
 - `templates` - the directory where external templates are stored.
 - `var` - default directory for application runtime artifacts and data.
@@ -401,16 +390,24 @@ for converting a symlink-based environment to the single-application layout.
 
 ## External modules
 
-External module - any executable file stored in modules directory.
-Module must be able to handle `--description` and `--help` flags. When
-calling with `--description` flag, module should print a short
-description of module to stdout. When calling with `--help` flag, module
-should print a help information about module to stdout.
+An external module is a directory in a modules directory, named after the
+command it adds. It holds a `manifest.yaml` giving the module's `version`,
+its one-line `help` and, in `main`, the name of its executable; or, with no
+manifest, an executable named `main` that prints its `version` and `help` as
+YAML when called with `--description --version`. When called with `--help`,
+the module prints its help to stdout.
 
 Tarantool CLI already contains a basic set of modules. You can overload
 these with external ones, or extend functionality with your own module.
-Modules getting from directory, which specified in `directory` field
-(see example above).
+Modules are looked for in the directories listed in the
+`TT_CLI_MODULES_PATH` environment variable, separated by colons:
+
+``` sh
+export TT_CLI_MODULES_PATH=/path/to/modules:/path/to/other/modules
+```
+
+A relative directory is taken from the working directory tt runs in (with
+`-L`, from the directory it names), so list absolute paths.
 
 For example, you have an external `version` module. When you type
 `tt version`, the external `version` module will be launched. To run the

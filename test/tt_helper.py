@@ -128,7 +128,7 @@ class TtCluster:
         assert p.returncode == 0
         app_dir = Path(self.__tt.path(self.__app_name))
         if not (app_dir / utils.config_name).exists():
-            utils.create_tt_config(app_dir, "")
+            utils.create_tt_config(app_dir)
         self.__tt.work_dir = app_dir
         self.__instances = None
 

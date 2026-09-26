@@ -23,7 +23,7 @@ confirmation_input_params = [
 def test_stop_no_prompt(tt_cmd, tmp_path):
     app_name = "test_app"
     app_path = tmp_path / app_name
-    utils.create_tt_config(app_path, "")
+    utils.create_tt_config(app_path)
     shutil.copy(os.path.join(os.path.dirname(__file__), "test_app.lua"), app_path)
 
     start_cmd = [tt_cmd, "start", app_name]

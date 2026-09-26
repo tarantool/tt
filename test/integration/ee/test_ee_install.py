@@ -27,7 +27,7 @@ def test_install_ee(
     exec: str,
     incl: Optional[str],
 ) -> None:
-    create_tt_config(tmp_path, "")
+    create_tt_config(tmp_path)
 
     rc, output = run_command_and_get_output(
         [tt_cmd, "search", prog],
@@ -68,7 +68,7 @@ def test_install_ee_dev(
     exec: str,
     incl: Optional[str],
 ) -> None:
-    create_tt_config(tmp_path, "")
+    create_tt_config(tmp_path)
 
     rc, output = run_command_and_get_output(
         [tt_cmd, "search", prog, "--dev"],

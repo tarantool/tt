@@ -303,7 +303,7 @@ def test_play_to_single_instance_app(tt_cmd, tmp_path):
     shutil.copy(test_xlog_path, app_dir)
     shutil.copy(os.path.join(os.path.dirname(__file__), "test_file", "config.yml"), app_dir)
     shutil.copy(os.path.join(os.path.dirname(__file__), "test_file", "instances.yml"), app_dir)
-    create_tt_config(app_dir, "")
+    create_tt_config(app_dir)
 
     # Start an instance.
     start_app(tt_cmd, tmp_path, app_name, start_binary_port=True)
@@ -345,7 +345,7 @@ def test_play_to_single_instance_without_binary_port(tt_cmd, test_instance):
     shutil.copy(test_xlog_path, app_dir)
     shutil.copy(test_instance._tmpdir / INSTANCE_NAME, app_dir)
     shutil.copy(test_instance._tmpdir / "utils.lua", app_dir)
-    create_tt_config(app_dir, "")
+    create_tt_config(app_dir)
 
     # Start an instance.
     start_app(tt_cmd, test_instance._tmpdir, app_name, start_binary_port=False)
@@ -369,7 +369,7 @@ def test_play_to_cluster_app(tt_cmd):
     test_app_path = os.path.join(os.path.dirname(__file__), app_name)
     tmp_app_path = os.path.join(tmpdir, app_name)
     shutil.copytree(test_app_path, tmp_app_path)
-    create_tt_config(tmp_app_path, "")
+    create_tt_config(tmp_app_path)
     # The test file.
     empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
     test_xlog_path = os.path.join(os.path.dirname(__file__), "test_file", test_xlog_name)
@@ -426,7 +426,7 @@ def test_play_to_ssl_app(tt_cmd, tmpdir_with_cfg):
     app_dir = Path(tmpdir) / "test_ssl_app"
     shutil.copytree(test_app_path, app_dir)
     shutil.copy(empty_file_path, app_dir / empty_file)
-    create_tt_config(app_dir, "")
+    create_tt_config(app_dir)
 
     # Start an instance.
     start_app(tt_cmd, app_dir, "test_ssl_app")

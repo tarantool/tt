@@ -76,8 +76,6 @@ env:
   inc_dir: ./test_inc
 app:
   wal_dir: ./wal
-modules:
-  directory: /root/modules
 `,
 			wantErr: false,
 		},
@@ -97,8 +95,6 @@ env:
   bin_dir: %[1]s/bin
   inc_dir: %[1]s/test_inc
   restart_on_failure: false
-modules:
-  directory: /root/modules
 app:
   run_dir: var/run
   log_dir: var/log
@@ -116,7 +112,9 @@ repo:
 			wantErr: false,
 		},
 		{
-			name: "Config dump with list modules",
+			// tt does not read module directories from tt.yaml: the
+			// modules section of tt_cfg3.yaml is ignored.
+			name: "Config dump drops the modules section",
 			args: args{
 				&cmdcontext.CmdCtx{
 					Cli: cmdcontext.CliCtx{
@@ -131,10 +129,6 @@ env:
   bin_dir: %[1]s/bin
   inc_dir: %[1]s/include
   restart_on_failure: false
-modules:
-  directory:
-  - /root/modules
-  - /some/other/modules
 app:
   run_dir: var/run
   log_dir: var/log
@@ -167,8 +161,6 @@ env:
   bin_dir: %[1]s/bin
   inc_dir: %[1]s/include
   restart_on_failure: false
-modules:
-  directory: %[1]s/my_modules
 app:
   run_dir: var/run
   log_dir: var/log
@@ -202,8 +194,6 @@ env:
   bin_dir: %[1]s/bin
   inc_dir: %[1]s/test_inc
   restart_on_failure: false
-modules:
-  directory: /root/modules
 app:
   run_dir: var/run
   log_dir: var/log

@@ -169,7 +169,7 @@ def test_coredump_pack_executable(tt_cmd, tmp_path, coredump_alt, tmpdir_with_ta
 def test_coredump_pack_executable_tt_env(tt_cmd, tmp_path, coredump_alt, tmpdir_with_tarantool):
     tarantool_bin = tmpdir_with_tarantool / "bin" / "tarantool"
 
-    create_tt_config(tmp_path, "")
+    create_tt_config(tmp_path)
     (tmp_path / "bin").mkdir()
     os.symlink(tarantool_bin, tmp_path / "bin" / "tarantool")
 

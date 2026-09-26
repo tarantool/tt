@@ -5,10 +5,6 @@ env:
   # Directory that stores Tarantool header files.
   inc_dir: /opt/tarantool/include
 
-modules:
-  # Directory where the external modules are stored.
-  directory: /opt/tarantool/modules
-
 app:
   # Directory that stores various instance runtime
   # artifacts like console socket, PID file, etc.

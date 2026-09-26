@@ -234,7 +234,7 @@ func Configure(opts ConfigureOptions) error {
 	cmdCtx.Cli.TcmCli.ConfigPath, _ = util.GetYamlFileName(tcmConfigBasename, false)
 
 	// Getting modules information.
-	modulesInfo, err = modules.GetModulesInfo(&cmdCtx, rootCmd.Name(), cliOpts)
+	modulesInfo, err = modules.GetModulesInfo(rootCmd.Name())
 	if err != nil {
 		//nolint:staticcheck // ST1005: user-facing message, kept as it is printed.
 		return fmt.Errorf("Failed to configure Tarantool CLI command: %w", err)

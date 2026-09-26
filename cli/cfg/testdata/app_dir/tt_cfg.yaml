@@ -2,5 +2,3 @@ env:
   inc_dir: ./test_inc
 app:
   wal_dir: ./wal
-modules:
-  directory: /root/modules

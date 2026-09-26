@@ -273,6 +273,18 @@ for machine-readable output.
   the `--ssl*` flags name take precedence over the advertise parameters in
   every form. An external module named `aeon` replaces the command, with a
   warning, unless `-I` is given.
+- External modules are found only in the directories listed in
+  `TT_CLI_MODULES_PATH`, separated by colons. tt no longer reads module
+  directories from `modules.directory` in `tt.yaml`, nor searches the default
+  `modules` directory next to it; a `modules` section left in `tt.yaml` is
+  ignored, and the system `tt.yaml` the deb and rpm packages install no longer
+  names `/opt/tarantool/modules`. This breaks setups that keep external modules
+  in the tt environment, next to `tt.yaml` or in a directory it names: those
+  modules are not found until their directories are listed in
+  `TT_CLI_MODULES_PATH`, and a command such a module replaced, `tt version`
+  for one, runs tt's own implementation again. A relative directory in
+  `TT_CLI_MODULES_PATH` is taken from the working directory, not from the tt
+  environment as `modules.directory` was.
 
 ### Fixed
 
