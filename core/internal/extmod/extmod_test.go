@@ -267,8 +267,9 @@ func TestMountAddsModule(t *testing.T) {
 	tree.out.Reset()
 	require.NoError(t, proxy.Help())
 	assert.Equal(t, "help of hello\n", tree.out.String())
-	assert.Equal(t, []string{main}, tree.openedFiles(),
-		"the run reads the executable through the integrity checks")
+	assert.Equal(t, []string{filepath.Join(dir, "hello", "manifest.yaml"), main, main},
+		tree.openedFiles(),
+		"the manifest, the run and the help read the files through the integrity checks")
 }
 
 // TestMountReplacesCommands checks that a module takes the place of the
@@ -425,6 +426,8 @@ func TestMountProtected(t *testing.T) {
 	assert.Equal(t, []string{"hello"}, names(modules))
 	assert.Same(t, version, tree.find("version"))
 	assert.NoFileExists(t, marker, "an ignored module is not run")
+	assert.Equal(t, []string{filepath.Join(dir, "hello", "manifest.yaml")}, tree.openedFiles(),
+		"an ignored module is not read")
 
 	want := make([]string, 0, len(protected))
 	for _, name := range protected {
@@ -466,35 +469,60 @@ func TestMountRefused(t *testing.T) {
 	assert.Equal(t, "internal status\n", tree.out.String())
 }
 
-// TestMountIntegrity checks that a module whose executable the integrity
-// checks refuse, when it is opened or only once it is read to the end,
-// fails to run, and is not run.
+// TestMountIntegrity checks that what the integrity checks refuse, when
+// they open a file or only once they have read it to the end, is neither
+// read nor run: a module whose manifest they refuse is ignored, one whose
+// executable they refuse fails to run and has no help, and one with no
+// manifest is not asked to describe itself.
 func TestMountIntegrity(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
 	marker := filepath.Join(t.TempDir(), "ran")
 	touch := `touch "` + marker + `"; echo "version: 1.0.0"; echo "help: x"`
+	manifest := "version: 1.0.0\nhelp: x\nmain: main\n"
 
-	badMain := writeModule(t, dir, "badmain", touch, "version: 1.0.0\nhelp: x\nmain: main\n")
-	lateMain := writeModule(t, dir, "latemain", touch, "version: 1.0.0\nhelp: x\nmain: main\n")
+	badMain := writeModule(t, dir, "badmain", touch, manifest)
+	lateMain := writeModule(t, dir, "latemain", touch, manifest)
+	noManifest := writeModule(t, dir, "nomanifest", touch, "")
+	lateNoManifest := writeModule(t, dir, "latenomanifest", touch, "")
+
+	writeModule(t, dir, "badmanifest", touch, manifest)
+	writeModule(t, dir, "latemanifest", touch, manifest)
 
 	tree := newTree(t)
 
-	tree.refused = []string{badMain}
-	tree.refusedAtEnd = []string{lateMain}
+	tree.refused = []string{filepath.Join(dir, "badmanifest", "manifest.yaml"), badMain,
+		noManifest}
+	tree.refusedAtEnd = []string{filepath.Join(dir, "latemanifest", "manifest.yaml"),
+		lateMain, lateNoManifest}
 
 	modules, err := tree.mount(dir)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"badmain", "latemain"}, names(modules))
-	assert.Empty(t, tree.log.Messages())
+	assert.Equal(t, []string{
+		`Failed to get information about module "badmanifest": failed to read manifest: ` +
+			errRefused.Error(),
+		`Failed to get information about module "latemanifest": failed to read manifest: ` +
+			errRefused.Error(),
+		`Failed to get information about module "latenomanifest": integrity check failed ` +
+			`for "` + lateNoManifest + `": ` + errRefused.Error(),
+		`Failed to get information about module "nomanifest": integrity check failed for "` +
+			noManifest + `": ` + errRefused.Error(),
+	}, tree.log.Messages())
 
-	_, err = tree.run("badmain", "x")
-	require.ErrorIs(t, err, errRefused)
-	require.EqualError(t, err, `integrity check failed for "`+badMain+`": `+errRefused.Error())
+	for _, main := range []string{badMain, lateMain} {
+		name := filepath.Base(filepath.Dir(main))
 
-	_, err = tree.run("latemain", "x")
-	require.EqualError(t, err, `integrity check failed for "`+lateMain+`": `+errRefused.Error())
+		_, err = tree.run(name, "x")
+		require.ErrorIs(t, err, errRefused)
+		require.EqualError(t, err, `integrity check failed for "`+main+`": `+errRefused.Error())
+
+		tree.errOut.Reset()
+		require.NoError(t, tree.find(name).Help())
+		assert.Equal(t, `failed to get help for module "`+name+`": integrity check failed `+
+			`for "`+main+`": `+errRefused.Error()+"\n", tree.errOut.String())
+	}
 
 	assert.NoFileExists(t, marker, "a refused executable is not run")
 	assert.Empty(t, tree.out.String())

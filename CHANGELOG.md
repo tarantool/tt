@@ -299,6 +299,12 @@ for machine-readable output.
   over the whole group: every `tt cluster ...` command line runs the module
   with the arguments that follow `cluster`. The subcommands of the group used
   to stay tt's own.
+- tt reads the files of an external module through its integrity checks: the
+  manifest, and the executable every time it runs it - for a command line, as
+  before, and also for its `--help` and, for a module without a manifest, for
+  its description. A module whose manifest or description the checks refuse is
+  ignored with a warning; a run they refuse fails with the error, and a help
+  they refuse prints the error instead of the module's help.
 
 ### Fixed
 

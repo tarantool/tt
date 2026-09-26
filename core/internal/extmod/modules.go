@@ -3,6 +3,7 @@ package extmod
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -64,11 +65,12 @@ type modulesEntry struct {
 // possibleModules map module name with found its entry points.
 type possibleModules map[string]modulesEntry
 
-// readManifest parses the manifest file to module requirements.
-func readManifest(dir, manifest string) (Manifest, error) {
+// readManifest parses the manifest file, read through open, to module
+// requirements.
+func readManifest(dir, manifest string, open Opener) (Manifest, error) {
 	var parsed Manifest
 
-	data, err := os.ReadFile(manifest)
+	data, err := readAll(manifest, open)
 	if err != nil {
 		return parsed, fmt.Errorf("failed to read manifest: %w", err)
 	}
@@ -95,10 +97,11 @@ func readManifest(dir, manifest string) (Manifest, error) {
 }
 
 // makeManifest describes the module of entry: from its manifest when it has
-// one, from the answer of its executable otherwise.
-func makeManifest(entry modulesEntry) (Manifest, error) {
+// one, from the answer of its executable otherwise. Both are read through
+// open first.
+func makeManifest(entry modulesEntry, open Opener) (Manifest, error) {
 	if entry.Manifest != "" {
-		return readManifest(entry.Directory, entry.Manifest)
+		return readManifest(entry.Directory, entry.Manifest, open)
 	}
 
 	return fillManifest(Manifest{
@@ -109,7 +112,7 @@ func makeManifest(entry modulesEntry) (Manifest, error) {
 		TtVersion:   "",
 		Description: "",
 		Homepage:    "",
-	})
+	}, open)
 }
 
 // discover returns the modules in the directories list names, separated by
@@ -237,4 +240,16 @@ func getExternalModules(paths []string, logger *slog.Logger) (possibleModules, e
 	}
 
 	return modules, nil
+}
+
+// readAll returns the contents of the file at path, read through open.
+func readAll(path string, open Opener) ([]byte, error) {
+	file, err := open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := io.ReadAll(file)
+
+	return data, errors.Join(err, file.Close())
 }

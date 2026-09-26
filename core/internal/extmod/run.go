@@ -91,9 +91,14 @@ func runExec(command string, args []string, streams output.Streams) error {
 		fmt.Errorf("external module %q: %w", command, err)))
 }
 
-// moduleHelp calls the external module main with the --help flag and
-// returns its output.
-func moduleHelp(main string) (string, error) {
+// moduleHelp calls the external module main, once it has been read through
+// open, with the --help flag and returns its output.
+func moduleHelp(main string, open Opener) (string, error) {
+	err := check(main, open)
+	if err != nil {
+		return "", err
+	}
+
 	out, err := exec.CommandContext(context.Background(), main, "--help").Output()
 	if err != nil {
 		return "", fmt.Errorf("%s --help: %w", main, err)
@@ -103,8 +108,14 @@ func moduleHelp(main string) (string, error) {
 }
 
 // fillManifest update Manifest required fields, by calls external module `main`
-// with both `description` and `version` flags and parse reply.
-func fillManifest(manifest Manifest) (Manifest, error) {
+// with both `description` and `version` flags and parse reply. The
+// executable is read through open before it is called.
+func fillManifest(manifest Manifest, open Opener) (Manifest, error) {
+	err := check(manifest.Main, open)
+	if err != nil {
+		return manifest, err
+	}
+
 	out, err := exec.CommandContext(
 		context.Background(), manifest.Main, "--description", "--version").Output()
 	if err != nil {

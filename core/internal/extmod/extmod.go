@@ -5,8 +5,9 @@
 // A module's directory holds a manifest (manifest.yaml) naming the module's
 // executable, its version and its one-line help, or an executable named main
 // that prints the version and the help when called with --description
-// --version. The executable is read through tt's integrity checks before
-// every run: a module whose executable they refuse is not run.
+// --version. The manifest is read, and the executable is read before each
+// call, through tt's integrity checks: a module whose files they refuse is
+// not run.
 //
 // Mount hangs a proxy command for every module at tt's root. The proxy takes
 // its arguments as they are, flags included, runs the module with them on
@@ -56,8 +57,7 @@ type Options struct {
 	// Path lists the directories to find modules in, separated by colons:
 	// the value of PathEnv.
 	Path string
-	// Open reads a module's executable through tt's integrity checks before
-	// it runs.
+	// Open reads the files of the modules through tt's integrity checks.
 	Open Opener
 	// ForceInternal keeps every command of tt in its place: -I.
 	ForceInternal bool
@@ -79,10 +79,12 @@ type Options struct {
 // help and the completion show.
 //
 // A module is skipped, with a warning, when it cannot be described - no
-// manifest and no answer to --description --version, a manifest that does
-// not parse -, when it is named like one of the protected commands, and when
-// the tree cannot hold its command, such as when the name is another
-// command's alias.
+// manifest and no answer to --description --version, a manifest the
+// integrity checks refuse or, for a module with no manifest, an executable
+// they refuse, a manifest that does not parse -, when it is named like one
+// of the protected commands, and when the tree cannot hold its command, such
+// as when the name is another command's alias. A module with a manifest
+// whose executable the checks refuse is kept: its runs and its help fail.
 // Mount fails when a directory opts.Path lists is not one or cannot be read,
 // and when tt modules cannot be added.
 func Mount(root *cobra.Command, opts Options) ([]Manifest, error) {
@@ -126,7 +128,7 @@ func describe(name string, entry modulesEntry, opts Options) (Manifest, bool) {
 		return none, false
 	}
 
-	manifest, err := makeManifest(entry)
+	manifest, err := makeManifest(entry, opts.Open)
 	if err != nil {
 		warnf(opts.Log, "Failed to get information about module %q: %s", name, err)
 
@@ -192,16 +194,16 @@ func newProxy(manifest Manifest, opts Options) *cobra.Command {
 		},
 	}
 
-	proxy.SetHelpFunc(helpFunc(manifest))
+	proxy.SetHelpFunc(helpFunc(manifest, opts.Open))
 
 	return proxy
 }
 
 // helpFunc returns a help function that prints what the module of manifest
-// prints for --help.
-func helpFunc(manifest Manifest) func(*cobra.Command, []string) {
+// prints for --help, its executable read through open first.
+func helpFunc(manifest Manifest, open Opener) func(*cobra.Command, []string) {
 	return func(cmd *cobra.Command, _ []string) {
-		help, err := moduleHelp(manifest.Main)
+		help, err := moduleHelp(manifest.Main, open)
 		if err != nil {
 			cmd.PrintErrf("failed to get help for module %q: %s\n", manifest.Name, err)
 
