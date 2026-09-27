@@ -54,6 +54,7 @@ func (disabledProvider) InitializeIntegrityCheck(
 
 	return IntegrityCtx{
 		Repository: dummyRepository{},
+		publicKey:  nil,
 	}, nil
 }
 

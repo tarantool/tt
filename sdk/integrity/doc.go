@@ -6,5 +6,13 @@
 // NewDisabledProvider, performs no checks; it is what tt uses, and the
 // package-level functions delegate to it.
 //
+// The RSA provider, returned by NewRSAProvider, signs with an RSA private
+// key and checks with its public key. Its Signer writes hashes files that
+// list the SHA-256 digests of the files of an environment, each with an
+// RSASSA-PSS signature next to it. Its check verifies those signatures and
+// digests, and its Repository hashes a file again every time it reads it.
+// Data published to a configuration storage carries a digest and a
+// signature of the same kind.
+//
 // The API of this package is alpha and may change incompatibly.
 package integrity

@@ -1,6 +1,8 @@
 package integrity
 
 import (
+	"crypto/rsa"
+
 	"github.com/spf13/pflag"
 	gcrypto "github.com/tarantool/go-storage/v2/crypto"
 	ghasher "github.com/tarantool/go-storage/v2/hasher"
@@ -10,6 +12,10 @@ import (
 type IntegrityCtx struct {
 	// Repository is a repository used to check integrity of files.
 	Repository Repository
+
+	// publicKey verifies signatures. The RSA provider sets it when a
+	// public key enables the checks; it is nil otherwise.
+	publicKey *rsa.PublicKey
 }
 
 // HashesFileName is a name of a file containing file hashes that
