@@ -10,13 +10,13 @@ import (
 	"os/user"
 	"strings"
 
-	"github.com/apex/log"
 	"github.com/moby/go-archive"
 	"github.com/moby/moby/api/pkg/stdcopy"
 	"github.com/moby/moby/api/types/container"
 	mobyclient "github.com/moby/moby/client"
 	"github.com/moby/moby/client/pkg/jsonmessage"
 	"github.com/moby/term"
+	"github.com/tarantool/tt/sdk/log"
 )
 
 var (

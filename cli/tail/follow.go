@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/apex/log"
 	"github.com/nxadm/tail"
+	"github.com/tarantool/tt/sdk/log"
 )
 
 var (

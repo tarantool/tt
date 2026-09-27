@@ -7,10 +7,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/apex/log"
 	"github.com/google/uuid"
 	sdkcluster "github.com/tarantool/tt/sdk/cluster"
 	"github.com/tarantool/tt/sdk/connect"
+	"github.com/tarantool/tt/sdk/log"
 	"gopkg.in/yaml.v2"
 )
 

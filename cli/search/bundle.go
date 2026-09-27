@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/apex/log"
 	"github.com/tarantool/tt/sdk/connect"
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/cli/version"

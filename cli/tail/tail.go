@@ -10,9 +10,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/apex/log"
 	"github.com/fatih/color"
 	"github.com/nxadm/tail"
+	"github.com/tarantool/tt/sdk/log"
 )
 
 var (

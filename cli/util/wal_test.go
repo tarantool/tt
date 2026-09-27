@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"fmt"
 	"io/fs"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/sdk/log/logtest"
 	"github.com/tarantool/tt/v3/cli/util"
 )
 
@@ -147,7 +148,7 @@ func TestCollectWalFiles_recursive(t *testing.T) {
 				j("data2.xlog/21.xlog"), j("data2.xlog/22.xlog"),
 				j("data2/logs/01.xlog"), j("data2/logs/02.xlog"),
 			},
-			logMsg: fmt.Sprintf("warn Skipping %q due to error during walk", j("no_perm")),
+			logMsg: fmt.Sprintf("WARN Skipping %q due to error during walk", j("no_perm")),
 		},
 
 		"no file": {
@@ -170,7 +171,7 @@ func TestCollectWalFiles_recursive(t *testing.T) {
 			input:     []string{j("no_perm")},
 			recursive: false,
 			output:    []string{},
-			logMsg:    fmt.Sprintf("warn Failed to read directory %q:", j("no_perm")),
+			logMsg:    fmt.Sprintf("WARN Failed to read directory %q:", j("no_perm")),
 		},
 
 		"one relative file": {
@@ -239,13 +240,17 @@ func TestCollectWalFiles_recursive(t *testing.T) {
 				t.Chdir(wd)
 			}
 
-			var buf bytes.Buffer
-			log.SetOutput(&buf)
-			defer func() {
-				log.SetOutput(os.Stderr)
-			}()
+			logger, recorder := logtest.New(t)
+			previous := slog.Default()
+			slog.SetDefault(logger)
+			defer slog.SetDefault(previous)
 
 			result, err := util.CollectWalFiles(test.input, test.recursive)
+
+			var buf bytes.Buffer
+			for _, record := range recorder.Records() {
+				fmt.Fprintf(&buf, "%s %s\n", record.Level, record.Message)
+			}
 
 			if test.errMsg != "" {
 				assert.ErrorContains(t, err, test.errMsg)

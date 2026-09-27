@@ -12,8 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/apex/log"
-	"github.com/apex/log/handlers/memory"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/search"
@@ -408,9 +406,7 @@ func TestSearchVersions_TntIo(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			originalStdout := os.Stdout
-			handler := memory.New()
-			log.SetHandler(handler)
-			log.SetLevel(log.DebugLevel)
+			recorder := recordLog(t)
 
 			r, w, _ := os.Pipe()
 			os.Stdout = w
@@ -443,8 +439,8 @@ func TestSearchVersions_TntIo(t *testing.T) {
 			gotOutput := outBuf.String()
 
 			var logBuilder strings.Builder
-			for _, entry := range handler.Entries {
-				fmt.Fprintf(&logBuilder, "%s %s\n", entry.Level, entry.Message)
+			for _, record := range recorder.Records() {
+				fmt.Fprintf(&logBuilder, "%s %s\n", record.Level, record.Message)
 			}
 			gotLog := logBuilder.String()
 			t.Logf("Log:\n%s", gotLog)
@@ -458,7 +454,7 @@ func TestSearchVersions_TntIo(t *testing.T) {
 			require.NoError(t, err, "Expected no error, but got: %v", err)
 			require.Contains(t,
 				gotLog,
-				"info Available versions of "+tt.program.String()+":",
+				"INFO Available versions of "+tt.program.String()+":",
 				"No info log found")
 
 			t.Logf("Output:\n%s", gotOutput)

@@ -12,7 +12,6 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/apex/log"
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
 )
@@ -506,7 +505,9 @@ func getDefaultConfigPath() string {
 		return defaultDarwinConfigPath
 	}
 
-	log.Fatalf("Trying to get default config path file on an unsupported OS")
+	fmt.Fprintln(os.Stderr, "Trying to get default config path file on an unsupported OS")
+	os.Exit(1)
+
 	return ""
 }
 
@@ -521,7 +522,7 @@ func getBuildEnvironment() map[string]string {
 	var gitCommitSinceTag string
 
 	if currentDir, err = os.Getwd(); err != nil {
-		log.Warnf("Failed to get current directory: %s", err)
+		fmt.Fprintf(os.Stderr, "Failed to get current directory: %s\n", err)
 	}
 
 	if _, err := exec.LookPath("git"); err == nil {

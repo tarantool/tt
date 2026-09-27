@@ -6,9 +6,9 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	sdkconnect "github.com/tarantool/tt/sdk/connect"
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/config"

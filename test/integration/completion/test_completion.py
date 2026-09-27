@@ -71,6 +71,7 @@ ROOT_TT_TEST_CASES: CompletionCases = [
             "--cfg",
             "-I",
             "-L",
+            "--log-format",
             "--system",
             "--self",
             "-s",

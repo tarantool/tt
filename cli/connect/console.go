@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/apex/log"
+	"github.com/tarantool/tt/sdk/log"
 	terminal "golang.org/x/term"
 	"gopkg.in/yaml.v2"
 
@@ -20,6 +20,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/connect/internal/luabody"
 	"github.com/tarantool/tt/v3/cli/connector"
 	"github.com/tarantool/tt/v3/cli/formatter"
+	"github.com/tarantool/tt/v3/cli/logging"
 )
 
 // EvalFunc defines a function type for evaluating an expression via connection.
@@ -252,9 +253,9 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 				// We need to call 'console.Close()' here because in some cases (e.g 'os.exit()')
 				// it won't be called from 'defer console.Close' in 'connect.runConsole()'.
 				console.Close()
-				log.Fatalf("Connection was closed. Probably instance process isn't running anymore")
+				logging.Fatalf("Connection was closed. Probably instance process isn't running anymore")
 			} else {
-				log.Fatalf("Failed to execute command: %s", err)
+				logging.Fatalf("Failed to execute command: %s", err)
 			}
 		} else if len(results) == 0 {
 			console.Close()

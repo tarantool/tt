@@ -9,9 +9,9 @@ import (
 	"reflect"
 	"syscall"
 
-	"github.com/apex/log"
 	"github.com/mitchellh/mapstructure"
 	"github.com/tarantool/tt/sdk/integrity"
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/util"
@@ -420,10 +420,6 @@ func ValidateCliOpts(cliCtx *cmdcontext.CliCtx) error {
 
 // Cli performs initial CLI configuration.
 func Cli(cmdCtx *cmdcontext.CmdCtx) error {
-	if cmdCtx.Cli.Verbose {
-		log.SetLevel(log.DebugLevel)
-	}
-
 	if cmdCtx.Cli.ConfigPath != "" {
 		if _, err := os.Stat(cmdCtx.Cli.ConfigPath); err != nil {
 			return fmt.Errorf("specified path to the configuration file is invalid: %w", err)

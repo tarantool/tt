@@ -7,7 +7,7 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/apex/log"
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/tail"
 )
 

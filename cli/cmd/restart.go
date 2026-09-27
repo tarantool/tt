@@ -3,8 +3,8 @@ package cmd
 import (
 	"os"
 
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/running"

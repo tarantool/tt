@@ -277,8 +277,8 @@ def test_connect_and_get_commands_outputs(tt_cmd, tmpdir_with_cfg):
        Alt + F                     -- Move forwards one word
 ...
 """
-    commands["\\quit"] = "   • Quit from the console    \n"
-    commands["\\q"] = "   • Quit from the console    \n"
+    commands["\\quit"] = "   • Quit from the console\n"
+    commands["\\q"] = "   • Quit from the console\n"
 
     # Start an instance.
     start_app(tt_cmd, tmpdir, "test_app")
@@ -2653,7 +2653,6 @@ def test_output_format_full_named_selecting(tt_cmd, tmpdir_with_cfg):
                 "...\n"
                 "\n"
                 "   ⨯ the command expects one of: lua, table, ttable, yaml\n"
-                "\n"
             )
 
     finally:
@@ -2789,7 +2788,6 @@ def test_output_format_tables_width_option(tt_cmd, tmpdir_with_cfg):
                 "| col4 | 1234  | 1234  |\n"
                 "+------+-------+-------+\n"
                 "   ⨯ the command expects one unsigned number\n"
-                "\n"
             )
 
     finally:

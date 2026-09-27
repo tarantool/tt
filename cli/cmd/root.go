@@ -3,7 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,13 +11,12 @@ import (
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/util"
 
-	"github.com/apex/log"
-	"github.com/apex/log/handlers/cli"
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/configure"
+	"github.com/tarantool/tt/v3/cli/logging"
 	"github.com/tarantool/tt/v3/cli/modules"
 )
 
@@ -31,6 +30,8 @@ var (
 	cliOpts     *config.CliOpts
 	modulesInfo modules.ModulesInfo
 	rootCmd     *cobra.Command
+	// logFormat is the value of the --log-format flag.
+	logFormat = logging.FormatText
 
 	// InjectedCmds is populated with the command to be injected into root.
 	// TT-EE.
@@ -80,51 +81,16 @@ func GetModulesInfoPtr() *modules.ModulesInfo {
 	return &modulesInfo
 }
 
-// LogHandler is a custom log handler implementation used to print formatted error and warning
-// log messages.
-type LogHandler struct {
-	baseHandler *cli.Handler
-}
+// errorLogWriter logs what cobra writes to its error stream - "Error: unknown
+// flag: --foo", "Run 'tt --help' for usage." - as error records, so that it
+// comes out in the configured log format like any other error.
+type errorLogWriter struct{}
 
-// HandleLog performs log handling in accordance with log entry level.
-func (h *LogHandler) HandleLog(logEntry *log.Entry) error {
-	if logEntry.Level >= log.WarnLevel {
-		logEntry = &log.Entry{
-			Logger:    logEntry.Logger,
-			Fields:    logEntry.Fields,
-			Level:     logEntry.Level,
-			Timestamp: logEntry.Timestamp,
-			// For warnings and errors display the whole message colored not only prefix bullet.
-			Message: cli.Colors[logEntry.Level].Sprint(logEntry.Message),
-		}
-	}
-	return h.baseHandler.HandleLog(logEntry)
-}
+// Write logs p, without its trailing newline, as one error record.
+func (errorLogWriter) Write(p []byte) (int, error) {
+	log.Error(strings.TrimRight(string(p), "\n"))
 
-// setWriter sets the underlying writer and returns the original one.
-func (h *LogHandler) setWriter(w io.Writer) io.Writer {
-	orig := h.baseHandler.Writer
-	h.baseHandler.Writer = w
-	return orig
-}
-
-// logErrorWriterDecorator is used to decorate messages sent to writer
-// in the same way as log.Error.
-type logErrorWriterDecorator struct {
-	writer  io.Writer
-	handler *LogHandler
-}
-
-// Write decorates the original output in the same way as log.Error.
-func (d logErrorWriterDecorator) Write(p []byte) (int, error) {
-	// Setup LogHandler to write to string to get the decorated string.
-	var logDst strings.Builder
-	orig := d.handler.setWriter(&logDst)
-	log.Errorf(string(p))
-	// Restore LogHandler with the original writer.
-	d.handler.setWriter(orig)
-	// Send the decorated data.
-	return fmt.Fprint(d.writer, logDst.String())
+	return len(p), nil
 }
 
 // NewCmdRoot creates a new root command.
@@ -157,6 +123,8 @@ func NewCmdRoot() *cobra.Command {
 		"", "Path to configuration file")
 	rootCmd.Flags().BoolVarP(&cmdCtx.Cli.Verbose, "verbose", "V",
 		false, "Verbose output")
+	rootCmd.Flags().Var(&logFormat, "log-format",
+		"Format of the log written to stderr: text or json")
 	rootCmd.Flags().BoolVarP(&cmdCtx.Cli.IsSelfExec, "self", "s",
 		false, "Skip searching for other tt versions to run")
 	rootCmd.Flags().BoolVarP(&cmdCtx.Cli.NoPrompt, "no-prompt", "",
@@ -209,16 +177,7 @@ func NewCmdRoot() *cobra.Command {
 		panic(err.Error())
 	}
 
-	// Adjust logger color mapping (display errors with hi-intensity color and bold).
-	cli.Colors[log.ErrorLevel] = color.New(color.Bold, color.FgHiRed)
-	cli.Colors[log.FatalLevel] = color.New(color.Bold, color.FgHiRed)
-
-	logHandler := &LogHandler{cli.Default}
-
-	log.SetHandler(logHandler)
-
-	// Setup decoration for Command's error messages.
-	rootCmd.SetErr(&logErrorWriterDecorator{rootCmd.ErrOrStderr(), logHandler})
+	rootCmd.SetErr(errorLogWriter{})
 
 	return rootCmd
 }
@@ -240,8 +199,38 @@ func Execute() {
 // external modules, collects information about available
 // modules and configure `help` module.
 func InitRoot() {
+	if err := initRoot(); err != nil {
+		logging.Fatalf("%s", err)
+	}
+}
+
+// setupLogging installs the process logger the root flags ask for.
+func setupLogging() error {
+	level := slog.LevelInfo
+	if cmdCtx.Cli.Verbose {
+		level = slog.LevelDebug
+	}
+
+	return logging.Setup(logging.Options{
+		Level:      level,
+		Format:     logFormat,
+		Writer:     os.Stderr,
+		Redactor:   log.Secrets(),
+		IsTerminal: nil,
+		LookupEnv:  os.LookupEnv,
+	})
+}
+
+// initRoot does the work of InitRoot and returns the first failure.
+func initRoot() error {
 	rootCmd = NewCmdRoot()
+	// A flag error is reported by rootCmd.Execute, once the logger is set up;
+	// an invalid --log-format leaves the default in place until then.
 	_ = rootCmd.ParseFlags(os.Args[1:])
+
+	if err := setupLogging(); err != nil {
+		return err
+	}
 
 	var err error
 
@@ -249,18 +238,18 @@ func InitRoot() {
 	if cmdCtx.Cli.ConfigPath == "" && configPathEnvSet {
 		configPathEnv, err := filepath.Abs(os.Getenv("TT_CLI_CFG"))
 		if err != nil {
-			log.Fatalf("failed getting config path from environment variable: %s", err)
+			return fmt.Errorf("failed getting config path from environment variable: %w", err)
 		}
 		cmdCtx.Cli.ConfigPath = configPathEnv
 	}
 
 	if err := configure.ValidateCliOpts(&cmdCtx.Cli); err != nil {
-		log.Fatal(err.Error())
+		return err
 	}
 
 	currentDir, err := os.Getwd()
 	if err != nil {
-		log.Fatalf("can't get current dir: %s", err.Error())
+		return fmt.Errorf("can't get current dir: %w", err)
 	}
 
 	configPath, _ := util.GetYamlFileName(
@@ -275,22 +264,22 @@ func InitRoot() {
 		filepath.Dir(configPath),
 	)
 	if err != nil {
-		log.Fatalf("integrity check failed: %s", err)
+		return fmt.Errorf("integrity check failed: %w", err)
 	}
 
 	if err := configure.Cli(&cmdCtx); err != nil {
-		log.Fatalf("Failed to configure Tarantool CLI: %s", err)
+		return fmt.Errorf("Failed to configure Tarantool CLI: %w", err)
 	}
 
 	cliOpts, cmdCtx.Cli.ConfigPath, err = configure.GetCliOpts(cmdCtx.Cli.ConfigPath,
 		cmdCtx.Integrity.Repository)
 	if err != nil {
-		log.Fatalf("Failed to get Tarantool CLI configuration: %s", err)
+		return fmt.Errorf("Failed to get Tarantool CLI configuration: %w", err)
 	}
 	if cmdCtx.Cli.ConfigPath == "" {
 		// Config is not found, use current dir as base dir.
 		if cmdCtx.Cli.ConfigDir, err = os.Getwd(); err != nil {
-			log.Fatal(err.Error())
+			return err
 		}
 	} else {
 		cmdCtx.Cli.ConfigDir = filepath.Dir(cmdCtx.Cli.ConfigPath)
@@ -304,7 +293,7 @@ func InitRoot() {
 	// Getting modules information.
 	modulesInfo, err = modules.GetModulesInfo(&cmdCtx, rootCmd.Name(), cliOpts)
 	if err != nil {
-		log.Fatalf("Failed to configure Tarantool CLI command: %s", err)
+		return fmt.Errorf("Failed to configure Tarantool CLI command: %w", err)
 	}
 
 	// External commands must be configured in a special way.
@@ -313,4 +302,6 @@ func InitRoot() {
 
 	// Configure help command.
 	configureHelpCommand(rootCmd, &modulesInfo)
+
+	return nil
 }

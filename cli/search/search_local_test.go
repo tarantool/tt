@@ -4,12 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"strings"
 	"testing"
 
-	"github.com/apex/log"
-	"github.com/apex/log/handlers/memory"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/sdk/log/logtest"
 	"github.com/tarantool/tt/v3/cli/search"
 	"github.com/tarantool/tt/v3/cli/version"
 )
@@ -17,6 +17,20 @@ import (
 var (
 	errNotImplemented = errors.New("not implemented")
 )
+
+// recordLog makes slog.Default record every log record, the facade's
+// included, until the test ends, and returns the recorder.
+func recordLog(t *testing.T) *logtest.Recorder {
+	t.Helper()
+
+	logger, recorder := logtest.New(t)
+	previous := slog.Default()
+
+	slog.SetDefault(logger)
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	return recorder
+}
 
 // mockDirEntry is a mock implementation of fs.DirEntry for testing.
 type mockDirEntry struct {
@@ -229,9 +243,7 @@ func TestFindLocalBundles(t *testing.T) {
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			handler := memory.New()
-			log.SetHandler(handler)
-			log.SetLevel(log.DebugLevel)
+			recorder := recordLog(t)
 
 			mockFS := mockFS{entries: tt.files}
 			bundles, err := search.FindLocalBundles(tt.program, &mockFS)
@@ -253,8 +265,8 @@ func TestFindLocalBundles(t *testing.T) {
 
 			if tt.logMsg != "" {
 				found := false
-				for _, entry := range handler.Entries {
-					if strings.Contains(entry.Message, tt.logMsg) {
+				for _, message := range recorder.Messages() {
+					if strings.Contains(message, tt.logMsg) {
 						found = true
 						break
 					}

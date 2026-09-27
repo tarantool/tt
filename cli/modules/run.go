@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"slices"
 
-	"github.com/apex/log"
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"gopkg.in/yaml.v3"
 )

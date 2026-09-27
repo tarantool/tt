@@ -180,9 +180,20 @@ for machine-readable output.
   without being written to `app.manifest.toml` or `app.manifest.lock`, so
   running the tests never makes the lock stale. The interpreter is chosen the
   way `tt run` chooses it.
+- `--log-format text|json`: a global flag that selects the format of the log
+  tt writes to stderr. `json` prints one JSON object per record, with `time`,
+  `level` and `msg` keys.
 
 ### Changed
 
+- tt logs through `log/slog`. The text log keeps its look with two changes:
+  a warning is marked `⚠` instead of `•`, and a message is no longer padded
+  with trailing spaces. A debug line is marked `·`, the continuation lines of
+  a multi-line message are indented to the message, and colour is used only
+  when stderr is a terminal and `NO_COLOR` is not set.
+- Credentials are masked as `[REDACTED]` in every log record: the userinfo of
+  URIs such as `admin:secret@host:3301` or `https://token@host`, in the
+  message and in attributes, in both log formats.
 - The Go module path is now `github.com/tarantool/tt/v3`, so the v3 release
   tags can be consumed with `go get`. Code importing tt packages must switch
   to the `/v3` path.

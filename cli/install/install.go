@@ -17,8 +17,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/apex/log"
 	"github.com/otiai10/copy"
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/configure"

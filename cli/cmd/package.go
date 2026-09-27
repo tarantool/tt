@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/apex/log"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
+	"github.com/tarantool/tt/sdk/log"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build"

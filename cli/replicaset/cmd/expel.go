@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/apex/log"
+	"github.com/tarantool/tt/sdk/log"
 
 	sdkcluster "github.com/tarantool/tt/sdk/cluster"
 	"github.com/tarantool/tt/sdk/integrity"

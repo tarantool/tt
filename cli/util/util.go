@@ -25,9 +25,10 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/apex/log"
 	"github.com/otiai10/copy"
 	"github.com/spf13/cobra"
+	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/v3/cli/logging"
 	"gopkg.in/yaml.v2"
 )
 
@@ -949,7 +950,7 @@ func HandleCmdErr(cmd *cobra.Command, err error) {
 		if errors.Is(err, ErrCmdAbort) {
 			os.Exit(1)
 		}
-		log.Fatalf(err.Error())
+		logging.Fatalf("%s", err)
 	}
 }
 

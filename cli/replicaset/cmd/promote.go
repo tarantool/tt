@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/apex/log"
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/connector"
 	"github.com/tarantool/tt/v3/cli/replicaset"
 	"github.com/tarantool/tt/v3/cli/running"

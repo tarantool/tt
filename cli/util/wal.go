@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/apex/log"
+	"github.com/tarantool/tt/sdk/log"
 )
 
 const (

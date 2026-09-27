@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/apex/log"
 	"github.com/manifoldco/promptui"
 	"github.com/tarantool/go-storage/v2"
 	sdkcluster "github.com/tarantool/tt/sdk/cluster"
 	"github.com/tarantool/tt/sdk/connect"
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/replicaset"
 )
 

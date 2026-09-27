@@ -5,10 +5,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/apex/log"
 	"github.com/avast/retry-go"
 	sdkcluster "github.com/tarantool/tt/sdk/cluster"
 	"github.com/tarantool/tt/sdk/integrity"
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/connector"
 	"github.com/tarantool/tt/v3/cli/replicaset"
 	"github.com/tarantool/tt/v3/cli/running"

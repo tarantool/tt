@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/apex/log"
+	"github.com/tarantool/tt/sdk/log"
 	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
 	"github.com/tarantool/tt/v3/cli/create/internal/app_template"
 )

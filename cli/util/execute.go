@@ -15,8 +15,8 @@ import (
 
 	"github.com/mattn/go-isatty"
 
-	"github.com/apex/log"
 	"github.com/briandowns/spinner"
+	"github.com/tarantool/tt/sdk/log"
 )
 
 var (

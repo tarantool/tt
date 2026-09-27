@@ -221,7 +221,7 @@ def test_promote_cconfig_failovers(
         if not is_uri:
             assert f"Promote instance: {inst}" in buf.readline()
         if stop_inst:
-            assert f"• could not connect to: {stop_inst}" in buf.readline()
+            assert f"⚠ could not connect to: {stop_inst}" in buf.readline()
         assert "Done." in buf.readline()
 
         # Check status.

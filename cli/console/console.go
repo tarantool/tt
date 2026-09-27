@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"unicode"
 
-	"github.com/apex/log"
+	"github.com/tarantool/tt/sdk/log"
 	"golang.org/x/term"
 
 	"github.com/tarantool/go-prompt"

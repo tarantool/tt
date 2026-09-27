@@ -9,9 +9,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/apex/log"
 	"github.com/mitchellh/mapstructure"
 	goconfig "github.com/tarantool/go-config/v2"
+	"github.com/tarantool/tt/sdk/log"
 
 	"github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/cli/connector"

@@ -3,9 +3,9 @@ package cmd
 import (
 	"os"
 
-	"github.com/apex/log"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
+	"github.com/tarantool/tt/sdk/log"
 
 	"github.com/tarantool/tt/v3/cli/manifest/registry"
 	manifestrocks "github.com/tarantool/tt/v3/cli/manifest/rocks"
