@@ -331,6 +331,8 @@ for machine-readable output.
 - `tt`: return non-zero exit code on unknown command.
 - `tt run`: report `tarantool executable is not found` instead of a raw
   `open "": no such file or directory` error when Tarantool is missing.
+- `tt help <module>` prints an external module's help to stdout, where
+  `tt <module> --help` and tt's own help print; it went to stderr.
 
 ## [2.11.5] - 2026-03-19
 

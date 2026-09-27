@@ -737,6 +737,29 @@ func TestMainExternalModules(t *testing.T) {
 	}
 }
 
+// TestMainModuleHelpOnStdout checks that tt help prints an external
+// module's help to stdout, where tt's own help and the module's own --help
+// go, and nothing to stderr.
+func TestMainModuleHelpOnStdout(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	moduleDir := filepath.Join(dir, "hello")
+	require.NoError(t, os.Mkdir(moduleDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(moduleDir, "main"),
+		[]byte("#!/bin/sh\necho \"help of hello: $*\"\n"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(moduleDir, "manifest.yaml"),
+		[]byte("version: 1.0.0\nhelp: Say hello\nmain: main\n"), 0o644))
+
+	got := runTT(t, ttRun{
+		program: "demo", args: []string{"help", "hello"},
+		env: []string{"TT_CLI_MODULES_PATH=" + dir},
+	})
+	require.Equal(t, 0, got.code, got.stderr)
+	assert.Equal(t, "help of hello: --help\n", got.stdout)
+	assert.Empty(t, got.stderr)
+}
+
 // TestMainReplacedCommandLogged checks that the debug log, which -V shows,
 // names the command an external module replaces.
 func TestMainReplacedCommandLogged(t *testing.T) {

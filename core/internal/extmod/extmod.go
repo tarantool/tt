@@ -200,7 +200,9 @@ func newProxy(manifest Manifest, opts Options) *cobra.Command {
 }
 
 // helpFunc returns a help function that prints what the module of manifest
-// prints for --help, its executable read through open first.
+// prints for --help, its executable read through open first. The help goes
+// to the command's output, stdout unless set otherwise, as any command's
+// help does.
 func helpFunc(manifest Manifest, open Opener) func(*cobra.Command, []string) {
 	return func(cmd *cobra.Command, _ []string) {
 		help, err := moduleHelp(manifest.Main, open)
@@ -210,7 +212,7 @@ func helpFunc(manifest Manifest, open Opener) func(*cobra.Command, []string) {
 			return
 		}
 
-		cmd.Print(help)
+		_, _ = fmt.Fprint(cmd.OutOrStdout(), help)
 	}
 }
 

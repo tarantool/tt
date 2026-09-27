@@ -79,7 +79,8 @@ def test_internal_help_list_external_commands(tt_cmd, tmp_path):
 
 def test_call_help_for_external_override_module(tt_cmd, tmp_path):
     # The external module 'env' replaces the command, so its help is the
-    # module's: the module is called with the --help flag.
+    # module's: the module is called with the --help flag, and its help goes
+    # to stdout as any help does.
     create_external_module("env", tmp_path / "modules")
     rc, stdout, stderr = run_command_and_get_streams(
         [tt_cmd, "help", "env"],
@@ -87,8 +88,8 @@ def test_call_help_for_external_override_module(tt_cmd, tmp_path):
         env=modules_path_env(tmp_path / "modules"),
     )
     assert rc == 0
-    assert stdout == ""
-    assert stderr == "Help for external env module\nList of passed args: --help\n"
+    assert stdout == "Help for external env module\nList of passed args: --help\n"
+    assert stderr == ""
 
 
 def test_call_help_for_protected_command(tt_cmd, tmp_path):
