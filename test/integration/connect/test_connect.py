@@ -3033,7 +3033,9 @@ def test_connect_to_instance_binary_missing_port(tt_cmd):
             text=True,
             input="2+2",
         )
-        assert instance_process.returncode == 1
+        # The socket file is gone, so the dial fails, and a failed dial is a
+        # failure of the system, which exits 2.
+        assert instance_process.returncode == 2
     finally:
         # Stop the Instance.
         stop_app(tt_cmd, tmpdir, "test_app")
@@ -3083,7 +3085,9 @@ def test_connect_to_instance_binary_port_is_broken(tt_cmd):
             text=True,
             input="2+2",
         )
-        assert instance_process.returncode == 1
+        # A plain file is no socket and nothing listens on it, so the dial is
+        # refused, and a failed dial is a failure of the system, which exits 2.
+        assert instance_process.returncode == 2
     finally:
         # Stop the Instance.
         stop_app(tt_cmd, tmpdir, "test_app")
