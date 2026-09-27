@@ -144,6 +144,7 @@ vclock
 vclocks
 vshard
 vylog
+wals
 warnf
 xcall
 xdir
