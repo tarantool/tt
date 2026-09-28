@@ -255,6 +255,8 @@ To run full set of tests:
 mage testfull
 ```
 
+To run integration test in containersed environment see `/test/docker/README.md`.
+
 ### Commit changes
 
 The project uses [pre-commit](https://pre-commit.com/) to check code before committing.
