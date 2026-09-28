@@ -281,6 +281,74 @@ func TestRSASignerNilAndEmptyApplications(t *testing.T) {
 	}
 }
 
+func TestRSASignerNeverListsItsOutputs(t *testing.T) {
+	key := signingKey(t)
+	outputs := []string{"hashes.json", "hashes.json.sig", "env_hashes.json", "env_hashes.json.sig"}
+
+	// Executable files named as the outputs, below the application
+	// directory, are left out as well; an executable file next to them is
+	// listed.
+	for _, name := range outputs {
+		t.Run("nested "+name, func(t *testing.T) {
+			base := t.TempDir()
+
+			writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
+			writeFile(t, filepath.Join(base, "init.lua"), "init\n", 0o644)
+			writeFile(t, filepath.Join(base, "sub", name), "nested\n", 0o755)
+			writeFile(t, filepath.Join(base, "sub", "tool"), "tool\n", 0o755)
+
+			require.NoError(t, newSigner(t, key).Sign(base, nil))
+			assert.Equal(t, hashesJSON(entry("init.lua", "init\n"), entry("sub/tool", "tool\n")),
+				readFile(t, filepath.Join(base, "hashes.json")))
+		})
+	}
+
+	// A signed tree whose outputs were made executable signs again into
+	// the same bytes, and the result checks.
+	cases := map[string]struct {
+		appNames []string
+		appDir   string
+	}{
+		"root application":  {appNames: nil, appDir: ""},
+		"named application": {appNames: []string{"app"}, appDir: "app"},
+	}
+
+	for name, testCase := range cases {
+		t.Run(name, func(t *testing.T) {
+			base := t.TempDir()
+			appDir := filepath.Join(base, testCase.appDir)
+
+			writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
+			writeFile(t, filepath.Join(appDir, "init.lua"), "init\n", 0o644)
+
+			require.NoError(t, newSigner(t, key).Sign(base, testCase.appNames))
+
+			appHashes := filepath.Join(appDir, "hashes.json")
+			envHashes := filepath.Join(base, "env_hashes.json")
+			expectedApp := hashesJSON(entry("init.lua", "init\n"))
+			expectedEnv := hashesJSON(entry("tt.yaml", "env: {}\n"))
+
+			require.Equal(t, expectedApp, readFile(t, appHashes))
+			require.Equal(t, expectedEnv, readFile(t, envHashes))
+
+			written := []string{appHashes, appHashes + ".sig", envHashes, envHashes + ".sig"}
+			for _, path := range written {
+				require.NoError(t, os.Chmod(path, 0o755))
+			}
+
+			require.NoError(t, newSigner(t, key).Sign(base, testCase.appNames))
+
+			assert.Equal(t, expectedApp, readFile(t, appHashes))
+			assert.Equal(t, expectedEnv, readFile(t, envHashes))
+			assertDigests(t, appDir, readSignedHashes(t, key, appHashes))
+
+			ctx, err := initializeCheck(t, key, base)
+			require.NoError(t, err)
+			require.NoError(t, ctx.Repository.ValidateAll())
+		})
+	}
+}
+
 func TestRSASignerApplicationWithoutFiles(t *testing.T) {
 	key := signingKey(t)
 	base := t.TempDir()

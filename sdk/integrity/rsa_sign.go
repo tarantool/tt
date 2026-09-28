@@ -169,8 +169,9 @@ func (signer rsaSigner) writeHashes(path string, digests []fileDigest) error {
 }
 
 // collectDirApplication returns the files of the directory application in
-// dir: its configuration files, then its executable files in walk order.
-// The directories bin and modules of the environment are not walked.
+// dir: its configuration files, then its executable files in walk order,
+// leaving out hashes files and signatures. The directories bin and modules
+// of the environment are not walked.
 func collectDirApplication(basePath, dir string) ([]fileDigest, error) {
 	// Looking up the configuration files or walking would fail as well on a
 	// missing directory or on a file; checking it first reports it as what
@@ -204,7 +205,7 @@ func collectDirApplication(basePath, dir string) ([]fileDigest, error) {
 			return path == skipped[0] || path == skipped[1]
 		},
 		visit: func(relPath, path string, info fs.FileInfo) error {
-			if listed[relPath] || !isExecutable(relPath, info.Mode()) {
+			if listed[relPath] || isSignerOutput(path) || !isExecutable(relPath, info.Mode()) {
 				return nil
 			}
 
@@ -299,6 +300,20 @@ func collectEnvironment(basePath string) ([]fileDigest, error) {
 	}
 
 	return append(digests, fileDigest{path: ttConfigFileName, digest: digest}), nil
+}
+
+// isSignerOutput reports whether the file at path has the name of a file
+// that Sign writes: a hashes file or a signature. An application never
+// lists one, whatever its mode: writing it would change the digest just
+// listed, and the signed application would fail every check.
+func isSignerOutput(path string) bool {
+	switch filepath.Base(path) {
+	case appHashesFileName, appHashesFileName + signatureSuffix,
+		envHashesFileName, envHashesFileName + signatureSuffix:
+		return true
+	default:
+		return false
+	}
 }
 
 // isExecutable reports whether an application file is listed in its
@@ -418,48 +433,6 @@ func hashFile(path string) ([]byte, error) {
 	}
 
 	return digest, nil
-}
-
-// openRegularFile opens the file at path for reading after checking that
-// it is a regular file, so that a FIFO or a device is never opened.
-func openRegularFile(path string) (*os.File, error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find file: %w", err)
-	}
-
-	if !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("%q is %w (%s)", path, errNotRegularFile, info.Mode().Type())
-	}
-
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %w", err)
-	}
-
-	return file, nil
-}
-
-// readRegularFile returns the content of the regular file at path,
-// following symbolic links.
-func readRegularFile(path string) ([]byte, error) {
-	file, err := openRegularFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	data, err := io.ReadAll(file)
-	closeErr := file.Close()
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to read %q: %w", path, err)
-	}
-
-	if closeErr != nil {
-		return nil, fmt.Errorf("failed to close %q: %w", path, closeErr)
-	}
-
-	return data, nil
 }
 
 // hashContent returns the SHA-256 digest of what remains to read in file.

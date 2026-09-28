@@ -1,13 +1,18 @@
 package integrity_test
 
 import (
+	"crypto"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/pem"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -239,6 +244,140 @@ func TestRSAProviderRefusesPublicKeys(t *testing.T) {
 
 		_, err := integrity.NewRSAProvider().InitializeIntegrityCheck(path, t.TempDir())
 		require.ErrorIs(t, err, os.ErrNotExist)
+		require.ErrorContains(t, err, path)
+	})
+}
+
+// privateKeyBlock returns key as a PEM block of PKCS #1 DER under label.
+func privateKeyBlock(key *rsa.PrivateKey, label string) *pem.Block {
+	return &pem.Block{Type: label, Bytes: x509.MarshalPKCS1PrivateKey(key)}
+}
+
+// publicKeyBlock returns the public half of key as a PEM block of PKIX DER
+// under label.
+func publicKeyBlock(t *testing.T, key *rsa.PrivateKey, label string) *pem.Block {
+	t.Helper()
+
+	der, err := x509.MarshalPKIXPublicKey(&key.PublicKey)
+	require.NoError(t, err)
+
+	return &pem.Block{Type: label, Bytes: der}
+}
+
+// writePEMFile writes blocks one after another to a new file of mode and
+// returns its path.
+func writePEMFile(t *testing.T, mode os.FileMode, blocks ...*pem.Block) string {
+	t.Helper()
+
+	var content strings.Builder
+
+	for _, block := range blocks {
+		require.NoError(t, pem.Encode(&content, block))
+	}
+
+	path := filepath.Join(t.TempDir(), "key.pem")
+	writeFile(t, path, content.String(), mode)
+
+	return path
+}
+
+// requireSignsWith checks that the private key at path is key: the
+// signatures made with it verify with the public half of key.
+func requireSignsWith(t *testing.T, path string, key *rsa.PrivateKey) {
+	t.Helper()
+
+	requirePrivateKeyAccepted(t, path)
+
+	provider := integrity.NewRSAProvider()
+
+	sign, err := provider.GetSignFunction(path)
+	require.NoError(t, err)
+
+	data := []byte("data")
+
+	_, encoded, err := sign(data)
+	require.NoError(t, err)
+
+	signature, err := hex.DecodeString(string(encoded))
+	require.NoError(t, err)
+
+	digest := sha256.Sum256(data)
+	require.NoError(t, rsa.VerifyPSS(&key.PublicKey, crypto.SHA256, digest[:], signature,
+		pssOptions()))
+
+	signer, err := provider.NewSigner(path)
+	require.NoError(t, err)
+
+	base := t.TempDir()
+	writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
+	require.NoError(t, signer.Sign(base, []string{}))
+	readSignedHashes(t, key, filepath.Join(base, "env_hashes.json"))
+}
+
+// requireChecksWith checks that the public key at path is the public half
+// of key: an environment signed with key checks, and one signed with
+// another key does not.
+func requireChecksWith(t *testing.T, path string, key, other *rsa.PrivateKey) {
+	t.Helper()
+
+	provider := integrity.NewRSAProvider()
+
+	_, err := provider.InitializeIntegrityCheck(path, signedEnvironment(t, key))
+	require.NoError(t, err)
+
+	_, err = provider.InitializeIntegrityCheck(path, signedEnvironment(t, other))
+	require.ErrorContains(t, err, verificationError)
+}
+
+func TestRSAProviderReadsTheFirstPEMBlock(t *testing.T) {
+	key := signingKey(t)
+	other := foreignKey(t)
+
+	// The label of the block is not checked: the DER decides.
+	t.Run("private key under another label", func(t *testing.T) {
+		requireSignsWith(t, writePEMFile(t, 0o600, privateKeyBlock(key, "FOO")), key)
+	})
+
+	t.Run("public key under another label", func(t *testing.T) {
+		requireChecksWith(t, writePEMFile(t, 0o644, publicKeyBlock(t, key, "FOO")), key, other)
+	})
+
+	// Of two valid keys the first one is used, whichever it is.
+	t.Run("two private keys", func(t *testing.T) {
+		requireSignsWith(t, writePEMFile(t, 0o600,
+			privateKeyBlock(key, "RSA PRIVATE KEY"),
+			privateKeyBlock(other, "RSA PRIVATE KEY")), key)
+		requireSignsWith(t, writePEMFile(t, 0o600,
+			privateKeyBlock(other, "RSA PRIVATE KEY"),
+			privateKeyBlock(key, "RSA PRIVATE KEY")), other)
+	})
+
+	t.Run("two public keys", func(t *testing.T) {
+		requireChecksWith(t, writePEMFile(t, 0o644,
+			publicKeyBlock(t, key, "PUBLIC KEY"),
+			publicKeyBlock(t, other, "PUBLIC KEY")), key, other)
+		requireChecksWith(t, writePEMFile(t, 0o644,
+			publicKeyBlock(t, other, "PUBLIC KEY"),
+			publicKeyBlock(t, key, "PUBLIC KEY")), other, key)
+	})
+
+	// A first block that is not a key is refused, not skipped.
+	t.Run("invalid private key first", func(t *testing.T) {
+		path := writePEMFile(t, 0o600,
+			&pem.Block{Type: "RSA PRIVATE KEY", Bytes: []byte("garbage")},
+			privateKeyBlock(key, "RSA PRIVATE KEY"))
+
+		requirePrivateKeyRefused(t, path, "failed to parse private key")
+	})
+
+	t.Run("invalid public key first", func(t *testing.T) {
+		path := writePEMFile(t, 0o644,
+			&pem.Block{Type: "PUBLIC KEY", Bytes: []byte("garbage")},
+			publicKeyBlock(t, key, "PUBLIC KEY"))
+
+		_, err := integrity.NewRSAProvider().InitializeIntegrityCheck(path,
+			signedEnvironment(t, key))
+		require.ErrorContains(t, err, "failed to parse public key")
 		require.ErrorContains(t, err, path)
 	})
 }

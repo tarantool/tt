@@ -71,7 +71,7 @@ func (rsaProvider) InitializeIntegrityCheck(
 	publicKeyPath, configDir string,
 ) (IntegrityCtx, error) {
 	if publicKeyPath == "" {
-		return IntegrityCtx{Repository: dummyRepository{}, publicKey: nil}, nil
+		return IntegrityCtx{Repository: uncheckedRepository{}, publicKey: nil}, nil
 	}
 
 	publicKey, err := loadPublicKey(publicKeyPath)
@@ -127,7 +127,7 @@ func (rsaProvider) GetSignFunction(privateKeyPath string) (
 	return func(data []byte) (map[string][]byte, []byte, error) {
 		digest := sha256.Sum256(data)
 
-		signature, err := signData(privateKey, data)
+		signature, err := signDigest(privateKey, digest[:])
 		if err != nil {
 			return nil, nil, err
 		}

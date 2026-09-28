@@ -75,7 +75,7 @@ func loadPublicKey(path string) (*rsa.PublicKey, error) {
 // readPEMBlock returns the first PEM block of the file at path. The block's
 // type is not checked: the key it holds is whatever its DER parses as.
 func readPEMBlock(path string) (*pem.Block, error) {
-	data, err := os.ReadFile(path)
+	data, err := readRegularFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key: %w", err)
 	}
@@ -101,7 +101,12 @@ func pssOptions() *rsa.PSSOptions {
 func signData(privateKey *rsa.PrivateKey, data []byte) ([]byte, error) {
 	digest := sha256.Sum256(data)
 
-	signature, err := rsa.SignPSS(rand.Reader, privateKey, crypto.SHA256, digest[:], pssOptions())
+	return signDigest(privateKey, digest[:])
+}
+
+// signDigest returns the RSASSA-PSS signature of digest, a SHA-256 digest.
+func signDigest(privateKey *rsa.PrivateKey, digest []byte) ([]byte, error) {
+	signature, err := rsa.SignPSS(rand.Reader, privateKey, crypto.SHA256, digest, pssOptions())
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign: %w", err)
 	}

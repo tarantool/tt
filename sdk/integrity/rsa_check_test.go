@@ -527,7 +527,9 @@ func TestRSACheckReadsHashesFilesAsJSON(t *testing.T) {
 			`"sha256":"` + other + `","sha256":"` + digest + `"}]}`,
 		"repeated files": `{"files":[{"path":"missing.lua","sha256":"` + other + `"}],` +
 			`"files":[{"path":"file.lua","sha256":"` + digest + `"}]}`,
-		"escaped path": `{"files":[{"path":"file.lua","sha256":"` + digest + `"}]}`,
+		// The dot of file.lua as a JSON Unicode escape.
+		"escaped path": `{"files":[{"path":"file` + `\` + `u002elua","sha256":"` + digest +
+			`"}]}`,
 	}
 
 	for name, hashes := range cases {

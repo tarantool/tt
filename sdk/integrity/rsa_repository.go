@@ -31,6 +31,30 @@ type rsaRepository struct {
 
 var _ Repository = (*rsaRepository)(nil)
 
+// uncheckedRepository is the Repository of a check without a public key:
+// it reads any regular file without checking it.
+type uncheckedRepository struct{}
+
+var _ Repository = uncheckedRepository{}
+
+// Read returns the regular file at path opened for reading.
+func (uncheckedRepository) Read(path string) (io.ReadCloser, error) {
+	file, err := openRegularFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return file, nil
+}
+
+// ReadFile returns the content of the regular file at path.
+func (uncheckedRepository) ReadFile(path string) ([]byte, error) {
+	return readRegularFile(path)
+}
+
+// ValidateAll checks nothing.
+func (uncheckedRepository) ValidateAll() error { return nil }
+
 // Read resolves path, relative to the working directory, checks that the
 // file it resolves to is known and unmodified, and returns it opened for
 // reading.
@@ -221,12 +245,12 @@ func entryExists(path string) (bool, error) {
 // publicKey and parses it. The paths of the records are joined to the
 // directory of the hashes file.
 func loadHashesFile(publicKey *rsa.PublicKey, path string) ([]hashRecord, error) {
-	data, err := os.ReadFile(path)
+	data, err := readRegularFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read hashes file: %w", err)
 	}
 
-	signature, err := os.ReadFile(path + signatureSuffix)
+	signature, err := readRegularFile(path + signatureSuffix)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read signature of %q: %w", path, err)
 	}

@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
-	"slices"
 	"unicode/utf8"
 )
 
@@ -172,9 +170,17 @@ func decodeHashRecord(item json.RawMessage) (hashRecord, error) {
 		return hashRecord{}, fmt.Errorf("%w, found %d", errHashCount, len(members))
 	}
 
-	algorithm := slices.Collect(maps.Keys(members))[0]
+	var (
+		algorithm string
+		rawDigest json.RawMessage
+	)
 
-	digest, err := decodeDigest(algorithm, members[algorithm])
+	// The only member left is the hash.
+	for name, value := range members {
+		algorithm, rawDigest = name, value
+	}
+
+	digest, err := decodeDigest(algorithm, rawDigest)
 	if err != nil {
 		return hashRecord{}, fmt.Errorf("hash %q of %q: %w", algorithm, path, err)
 	}

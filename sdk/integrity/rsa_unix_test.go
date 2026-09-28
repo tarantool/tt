@@ -153,6 +153,36 @@ func TestRSASignerFileModes(t *testing.T) {
 	assert.Equal(t, os.FileMode(0o755), permissions(t, hashesDir))
 }
 
+func TestRSASignerFileModesUnderUmask(t *testing.T) {
+	key := signingKey(t)
+	base := t.TempDir()
+
+	writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
+	writeFile(t, filepath.Join(base, "app", "init.lua"), "init\n", 0o644)
+	writeFile(t, filepath.Join(base, "single.lua"), "single\n", 0o644)
+	symlink(t, filepath.Join("..", "single.lua"),
+		filepath.Join(base, "instances.enabled", "single.lua"))
+
+	// The creation modes are subject to the umask: it takes the write bit
+	// of the group and every bit of others away. A directory of 0755 or a
+	// file forced to 0644 would keep bits it removes.
+	setUmask(t, 0o027)
+	require.NoError(t, newSigner(t, key).Sign(base, []string{"app", "single"}))
+
+	for _, name := range []string{
+		"env_hashes.json",
+		"app/hashes.json",
+		"instances.enabled/single/hashes.json",
+	} {
+		path := filepath.Join(base, filepath.FromSlash(name))
+		assert.Equal(t, os.FileMode(0o640), permissions(t, path), name)
+		assert.Equal(t, os.FileMode(0o640), permissions(t, path+".sig"), name+".sig")
+	}
+
+	assert.Equal(t, os.FileMode(0o700),
+		permissions(t, filepath.Join(base, "instances.enabled", "single")))
+}
+
 func TestRSAProviderOpensFewFiles(t *testing.T) {
 	const (
 		limit = 64
