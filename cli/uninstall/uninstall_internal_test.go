@@ -19,6 +19,10 @@ func (mock *mockRepository) Read(path string) (io.ReadCloser, error) {
 	return os.Open(path)
 }
 
+func (mock *mockRepository) ReadFile(path string) ([]byte, error) {
+	return os.ReadFile(path)
+}
+
 func (mock *mockRepository) ValidateAll() error {
 	return nil
 }

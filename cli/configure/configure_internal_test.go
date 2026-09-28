@@ -26,6 +26,12 @@ func (m *mockRepository) Read(path string) (io.ReadCloser, error) {
 	return os.Open(path)
 }
 
+func (m *mockRepository) ReadFile(path string) ([]byte, error) {
+	m.fileRequestLog = append(m.fileRequestLog, path)
+
+	return os.ReadFile(path)
+}
+
 func (m *mockRepository) ValidateAll() error {
 	return nil
 }

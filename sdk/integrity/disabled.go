@@ -27,6 +27,15 @@ func (dummyRepository) Read(path string) (io.ReadCloser, error) {
 	return f, nil
 }
 
+func (dummyRepository) ReadFile(path string) ([]byte, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read %q: %w", path, err)
+	}
+
+	return data, nil
+}
+
 func (dummyRepository) ValidateAll() error { return nil }
 
 var _ Repository = dummyRepository{}

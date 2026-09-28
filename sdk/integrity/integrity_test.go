@@ -106,6 +106,13 @@ func TestDisabledProvider(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "content", string(data))
 
+	data, err = ctx.Repository.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "content", string(data))
+
+	_, err = ctx.Repository.ReadFile(filepath.Join(t.TempDir(), "missing"))
+	require.ErrorIs(t, err, os.ErrNotExist)
+
 	signer, err := provider.NewSigner("private.pem")
 	assert.Nil(t, signer)
 	require.ErrorIs(t, err, integrity.ErrNoSignerInCE)

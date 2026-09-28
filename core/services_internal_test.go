@@ -285,6 +285,16 @@ func (r fakeRepository) Read(path string) (io.ReadCloser, error) {
 	return io.NopCloser(strings.NewReader(content)), nil
 }
 
+// ReadFile returns the contents of path.
+func (r fakeRepository) ReadFile(path string) ([]byte, error) {
+	content, ok := r[path]
+	if !ok {
+		return nil, errTampered
+	}
+
+	return []byte(content), nil
+}
+
 // ValidateAll validates nothing.
 func (fakeRepository) ValidateAll() error { return nil }
 

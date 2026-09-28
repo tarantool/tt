@@ -440,6 +440,28 @@ func openRegularFile(path string) (*os.File, error) {
 	return file, nil
 }
 
+// readRegularFile returns the content of the regular file at path,
+// following symbolic links.
+func readRegularFile(path string) ([]byte, error) {
+	file, err := openRegularFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := io.ReadAll(file)
+	closeErr := file.Close()
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read %q: %w", path, err)
+	}
+
+	if closeErr != nil {
+		return nil, fmt.Errorf("failed to close %q: %w", path, closeErr)
+	}
+
+	return data, nil
+}
+
 // hashContent returns the SHA-256 digest of what remains to read in file.
 func hashContent(file *os.File) ([]byte, error) {
 	hash := sha256.New()

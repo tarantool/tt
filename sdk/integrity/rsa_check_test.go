@@ -4,6 +4,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -171,6 +172,103 @@ func TestRSACheckWithoutPublicKey(t *testing.T) {
 	data, err = readThrough(t, ctx.Repository, filepath.Join(base, "unlisted.txt"))
 	require.NoError(t, err)
 	assert.Equal(t, "unlisted\n", data)
+
+	content, err := ctx.Repository.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "tampered\n", string(content))
+
+	content, err = ctx.Repository.ReadFile(filepath.Join(base, "unlisted.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "unlisted\n", string(content))
+}
+
+func TestRSARepositoryReadFile(t *testing.T) {
+	key := signingKey(t)
+
+	t.Run("returns the checked bytes", func(t *testing.T) {
+		base := signedEnvironment(t, key)
+		path := filepath.Join(base, "init.lua")
+
+		ctx, err := initializeCheck(t, key, base)
+		require.NoError(t, err)
+
+		data, err := ctx.Repository.ReadFile(path)
+		require.NoError(t, err)
+		assert.Equal(t, "init\n", string(data))
+
+		// The bytes returned are the ones that matched, whatever happens
+		// to the file afterwards; the next read sees the change.
+		writeFile(t, path, "rewritten\n", 0o644)
+		assert.Equal(t, "init\n", string(data))
+
+		_, err = ctx.Repository.ReadFile(path)
+		require.ErrorContains(t, err, mismatch(resolve(t, path), "init\n", "rewritten\n"))
+	})
+
+	t.Run("read returns the live file", func(t *testing.T) {
+		base := signedEnvironment(t, key)
+		path := filepath.Join(base, "init.lua")
+
+		ctx, err := initializeCheck(t, key, base)
+		require.NoError(t, err)
+
+		reader, err := ctx.Repository.Read(path)
+		require.NoError(t, err)
+
+		t.Cleanup(func() { require.NoError(t, reader.Close()) })
+
+		// Rewritten in place after Read returned: the reader sees the new
+		// content, which nothing checked.
+		writeFile(t, path, "rewritten\n", 0o644)
+
+		data, err := io.ReadAll(reader)
+		require.NoError(t, err)
+		assert.Equal(t, "rewritten\n", string(data))
+	})
+
+	t.Run("tampered", func(t *testing.T) {
+		base := signedEnvironment(t, key)
+		path := filepath.Join(base, "init.lua")
+
+		ctx, err := initializeCheck(t, key, base)
+		require.NoError(t, err)
+
+		writeFile(t, path, "tampered\n", 0o644)
+
+		data, err := ctx.Repository.ReadFile(path)
+		require.ErrorContains(t, err, mismatch(resolve(t, path), "init\n", "tampered\n"))
+		assert.Nil(t, data)
+	})
+
+	t.Run("not in repository", func(t *testing.T) {
+		base := signedEnvironment(t, key)
+		path := filepath.Join(base, "unlisted.txt")
+		writeFile(t, path, "unlisted\n", 0o644)
+
+		ctx, err := initializeCheck(t, key, base)
+		require.NoError(t, err)
+
+		data, err := ctx.Repository.ReadFile(path)
+		require.ErrorContains(t, err, "in repository")
+		assert.Nil(t, data)
+
+		_, err = ctx.Repository.ReadFile(filepath.Join(base, "missing"))
+		require.ErrorIs(t, err, os.ErrNotExist)
+	})
+
+	t.Run("relative path through a link", func(t *testing.T) {
+		base := signedEnvironment(t, key)
+		symlink(t, "init.lua", filepath.Join(base, "link.lua"))
+
+		ctx, err := initializeCheck(t, key, base)
+		require.NoError(t, err)
+
+		t.Chdir(base)
+
+		data, err := ctx.Repository.ReadFile("link.lua")
+		require.NoError(t, err)
+		assert.Equal(t, "init\n", string(data))
+	})
 }
 
 func TestRSACheckUnsignedEnvironment(t *testing.T) {

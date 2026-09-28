@@ -3,6 +3,7 @@ package integrity
 import (
 	"bytes"
 	"crypto/rsa"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -34,19 +35,9 @@ var _ Repository = (*rsaRepository)(nil)
 // file it resolves to is known and unmodified, and returns it opened for
 // reading.
 func (repository *rsaRepository) Read(path string) (io.ReadCloser, error) {
-	absPath, err := filepath.Abs(path)
+	resolved, digest, err := repository.lookup(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read %q: %w", path, err)
-	}
-
-	resolved, err := filepath.EvalSymlinks(absPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read %q: %w", path, err)
-	}
-
-	digest, ok := repository.digests[resolved]
-	if !ok {
-		return nil, fmt.Errorf("%w: %q", errNotInRepository, resolved)
+		return nil, err
 	}
 
 	file, err := openRegularFile(resolved)
@@ -62,6 +53,30 @@ func (repository *rsaRepository) Read(path string) (io.ReadCloser, error) {
 	return file, nil
 }
 
+// ReadFile resolves path, relative to the working directory, reads the
+// file it resolves to once and returns those bytes when the file is known
+// and they match its digest.
+func (repository *rsaRepository) ReadFile(path string) ([]byte, error) {
+	resolved, digest, err := repository.lookup(path)
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := readRegularFile(resolved)
+	if err != nil {
+		return nil, err
+	}
+
+	actual := sha256.Sum256(data)
+
+	err = compareDigests(resolved, digest, actual[:])
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
 // ValidateAll checks every known file against its digest, in the order the
 // files were listed, and returns the first failure.
 func (repository *rsaRepository) ValidateAll() error {
@@ -73,6 +88,28 @@ func (repository *rsaRepository) ValidateAll() error {
 	}
 
 	return nil
+}
+
+// lookup makes path absolute, relative to the working directory, resolves
+// its symbolic links and returns the resolved path with its digest. A file
+// the repository does not know is an error.
+func (repository *rsaRepository) lookup(path string) (string, []byte, error) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to read %q: %w", path, err)
+	}
+
+	resolved, err := filepath.EvalSymlinks(absPath)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to read %q: %w", path, err)
+	}
+
+	digest, ok := repository.digests[resolved]
+	if !ok {
+		return "", nil, fmt.Errorf("%w: %q", errNotInRepository, resolved)
+	}
+
+	return resolved, digest, nil
 }
 
 // checkOpenFile hashes the content of file, the file at path, compares it
