@@ -797,22 +797,28 @@ echo "print(...)" | tt connect user:pass@localhost:3013 -f- 1, 2, 3
   * \quit - quit interactive console
 [0;1;39m
 FLAGS[0m
-      --binary                connect to instance using binary port
-  -f, --file string           file to read the script for evaluation. "-" - read
-                              the script from stdin
-  -h, --help                  help for connect
-  -i, --interactive           enter interactive mode after executing 'FILE'
-  -l, --language string       language: lua or sql
-  -x, --outputformat string   output format: yaml, lua, table or ttable (default
-                              "yaml")
-  -p, --password string       password
-      --sslcafile string      path to a trusted certificate authorities (CA)
-                              file
-      --sslcertfile string    path to an SSL certificate file
-      --sslciphers string     colon-separated (:) list of SSL cipher suites the
-                              connection
-      --sslkeyfile string     path to a private SSL key file
-  -u, --username string       username
+      --binary                     connect to instance using binary port
+      --connect-timeout duration   timeout for establishing a binary connection
+                                   (default 1s)
+  -f, --file string                file to read the script for evaluation. "-" -
+                                   read the script from stdin
+  -h, --help                       help for connect
+  -i, --interactive                enter interactive mode after executing 'FILE'
+  -l, --language string            language: lua or sql
+  -x, --outputformat string        output format: yaml, lua, table or ttable
+                                   (default "yaml")
+  -p, --password string            password
+      --sslcafile string           path to a trusted certificate authorities
+                                   (CA) file
+      --sslcertfile string         path to an SSL certificate file
+      --sslciphers string          colon-separated (:) list of SSL cipher suites
+                                   the connection
+      --sslkeyfile string          path to a private SSL key file
+      --sslpassword string         password for decrypting the private SSL key
+                                   file
+      --sslpasswordfile string     path to a file containing the password for
+                                   decrypting the private SSL key file
+  -u, --username string            username
 
 === tt coredump --help
 Perform manipulations with the tarantool coredumps
@@ -1703,21 +1709,28 @@ The command supports the following Tarantool environment variables:
   To specify relative path without `unix://` use `./`.
 [0;1;39m
 FLAGS[0m
-      --config                   to force the centralized config orchestrator
-      --custom                   to force a custom orchestrator
-  -h, --help                     help for downgrade
-  -p, --password string          password for the URI case
-  -r, --replicaset stringArray   specify the replicaset name(s) to downgrade
-      --sslcafile string         path to a trusted certificate authorities (CA)
-                                 file for the URI case
-      --sslcertfile string       path to an SSL certificate file for the URI
-                                 case
-      --sslciphers string        colon-separated (:) list of SSL cipher suites
-                                 for the URI case
-      --sslkeyfile string        path to a private SSL key file for the URI case
-  -t, --timeout int              timeout for waiting the LSN synchronization (in
-                                 seconds) (default 5)
-  -u, --username string          username for the URI case
+      --config                     to force the centralized config orchestrator
+      --connect-timeout duration   timeout for establishing a binary connection
+                                   (default 1s)
+      --custom                     to force a custom orchestrator
+  -h, --help                       help for downgrade
+  -p, --password string            password for the URI case
+  -r, --replicaset stringArray     specify the replicaset name(s) to downgrade
+      --sslcafile string           path to a trusted certificate authorities
+                                   (CA) file for the URI case
+      --sslcertfile string         path to an SSL certificate file for the URI
+                                   case
+      --sslciphers string          colon-separated (:) list of SSL cipher suites
+                                   for a cluster connection
+      --sslkeyfile string          path to a private SSL key file for the URI
+                                   case
+      --sslpassword string         password for decrypting the private SSL key
+                                   file for a cluster connection
+      --sslpasswordfile string     path to a file containing the private SSL key
+                                   password for a cluster connection
+  -t, --timeout int                timeout for waiting the LSN synchronization
+                                   (in seconds) (default 5)
+  -u, --username string            username for the URI case
 
 === tt replicaset expel --help
 Expel an instance from a replicaset.
@@ -1750,21 +1763,29 @@ The command supports the following Tarantool environment variables:
   To specify relative path without `unix://` use `./`.
 [0;1;39m
 FLAGS[0m
-      --config               to force the centralized config orchestrator
-      --custom               to force a custom orchestrator
-  -f, --force                to force a promotion:
-                               * config: skip instances not found locally
-                             
-  -h, --help                 help for promote
-  -p, --password string      password for the URI case
-      --sslcafile string     path to a trusted certificate authorities (CA) file
-                             for the URI case
-      --sslcertfile string   path to an SSL certificate file for the URI case
-      --sslciphers string    colon-separated (:) list of SSL cipher suites for
-                             the URI case
-      --sslkeyfile string    path to a private SSL key file for the URI case
-      --timeout int          promoting timeout (default 3)
-  -u, --username string      username for the URI case
+      --config                     to force the centralized config orchestrator
+      --connect-timeout duration   timeout for establishing a binary connection
+                                   (default 1s)
+      --custom                     to force a custom orchestrator
+  -f, --force                      to force a promotion:
+                                     * config: skip instances not found locally
+                                   
+  -h, --help                       help for promote
+  -p, --password string            password for the URI case
+      --sslcafile string           path to a trusted certificate authorities
+                                   (CA) file for the URI case
+      --sslcertfile string         path to an SSL certificate file for the URI
+                                   case
+      --sslciphers string          colon-separated (:) list of SSL cipher suites
+                                   for a cluster connection
+      --sslkeyfile string          path to a private SSL key file for the URI
+                                   case
+      --sslpassword string         password for decrypting the private SSL key
+                                   file for a cluster connection
+      --sslpasswordfile string     path to a file containing the private SSL key
+                                   password for a cluster connection
+      --timeout int                promoting timeout (default 3)
+  -u, --username string            username for the URI case
 
 === tt replicaset rebootstrap --help
 Re-bootstraps an instance
@@ -1799,25 +1820,33 @@ Adds a role for Tarantool 3 orchestrator
   secs]<APP_NAME:INSTANCE_NAME> <ROLE_NAME> [flags]
 [0;1;39m
 FLAGS[0m
-      --config               to force the centralized config orchestrator
-      --custom               to force a custom orchestrator
-  -f, --force                to force a promotion:
-                               * config: skip instances not found locally
-                             
-  -G, --global               global config context
-  -g, --group string         name of a target group
-  -h, --help                 help for add
-  -i, --instance string      name of a target instance
-  -p, --password string      password for the URI case
-  -r, --replicaset string    name of a target replicaset
-      --sslcafile string     path to a trusted certificate authorities (CA) file
-                             for the URI case
-      --sslcertfile string   path to an SSL certificate file for the URI case
-      --sslciphers string    colon-separated (:) list of SSL cipher suites for
-                             the URI case
-      --sslkeyfile string    path to a private SSL key file for the URI case
-      --timeout int          adding timeout (default 3)
-  -u, --username string      username for the URI case
+      --config                     to force the centralized config orchestrator
+      --connect-timeout duration   timeout for establishing a binary connection
+                                   (default 1s)
+      --custom                     to force a custom orchestrator
+  -f, --force                      to force a promotion:
+                                     * config: skip instances not found locally
+                                   
+  -G, --global                     global config context
+  -g, --group string               name of a target group
+  -h, --help                       help for add
+  -i, --instance string            name of a target instance
+  -p, --password string            password for the URI case
+  -r, --replicaset string          name of a target replicaset
+      --sslcafile string           path to a trusted certificate authorities
+                                   (CA) file for the URI case
+      --sslcertfile string         path to an SSL certificate file for the URI
+                                   case
+      --sslciphers string          colon-separated (:) list of SSL cipher suites
+                                   for a cluster connection
+      --sslkeyfile string          path to a private SSL key file for the URI
+                                   case
+      --sslpassword string         password for decrypting the private SSL key
+                                   file for a cluster connection
+      --sslpasswordfile string     path to a file containing the private SSL key
+                                   password for a cluster connection
+      --timeout int                adding timeout (default 3)
+  -u, --username string            username for the URI case
 
 === tt replicaset roles remove --help
 Removes a role for Tarantool 3 orchestrator
@@ -1827,25 +1856,33 @@ Removes a role for Tarantool 3 orchestrator
   secs]<APP_NAME:INSTANCE_NAME> <ROLE_NAME> [flags]
 [0;1;39m
 FLAGS[0m
-      --config               to force the centralized config orchestrator
-      --custom               to force a custom orchestrator
-  -f, --force                to force a promotion:
-                               * config: skip instances not found locally
-                             
-  -G, --global               global config context
-  -g, --group string         name of a target group
-  -h, --help                 help for remove
-  -i, --instance string      name of a target instance
-  -p, --password string      password for the URI case
-  -r, --replicaset string    name of a target replicaset
-      --sslcafile string     path to a trusted certificate authorities (CA) file
-                             for the URI case
-      --sslcertfile string   path to an SSL certificate file for the URI case
-      --sslciphers string    colon-separated (:) list of SSL cipher suites for
-                             the URI case
-      --sslkeyfile string    path to a private SSL key file for the URI case
-      --timeout int          adding timeout (default 3)
-  -u, --username string      username for the URI case
+      --config                     to force the centralized config orchestrator
+      --connect-timeout duration   timeout for establishing a binary connection
+                                   (default 1s)
+      --custom                     to force a custom orchestrator
+  -f, --force                      to force a promotion:
+                                     * config: skip instances not found locally
+                                   
+  -G, --global                     global config context
+  -g, --group string               name of a target group
+  -h, --help                       help for remove
+  -i, --instance string            name of a target instance
+  -p, --password string            password for the URI case
+  -r, --replicaset string          name of a target replicaset
+      --sslcafile string           path to a trusted certificate authorities
+                                   (CA) file for the URI case
+      --sslcertfile string         path to an SSL certificate file for the URI
+                                   case
+      --sslciphers string          colon-separated (:) list of SSL cipher suites
+                                   for a cluster connection
+      --sslkeyfile string          path to a private SSL key file for the URI
+                                   case
+      --sslpassword string         password for decrypting the private SSL key
+                                   file for a cluster connection
+      --sslpasswordfile string     path to a file containing the private SSL key
+                                   password for a cluster connection
+      --timeout int                adding timeout (default 3)
+  -u, --username string            username for the URI case
 
 === tt replicaset status --help
 Show a replicaset status.
@@ -1864,17 +1901,25 @@ The command supports the following Tarantool environment variables:
   To specify relative path without `unix://` use `./`.
 [0;1;39m
 FLAGS[0m
-      --config               to force the centralized config orchestrator
-      --custom               to force a custom orchestrator
-  -h, --help                 help for status
-  -p, --password string      password for the URI case
-      --sslcafile string     path to a trusted certificate authorities (CA) file
-                             for the URI case
-      --sslcertfile string   path to an SSL certificate file for the URI case
-      --sslciphers string    colon-separated (:) list of SSL cipher suites for
-                             the URI case
-      --sslkeyfile string    path to a private SSL key file for the URI case
-  -u, --username string      username for the URI case
+      --config                     to force the centralized config orchestrator
+      --connect-timeout duration   timeout for establishing a binary connection
+                                   (default 1s)
+      --custom                     to force a custom orchestrator
+  -h, --help                       help for status
+  -p, --password string            password for the URI case
+      --sslcafile string           path to a trusted certificate authorities
+                                   (CA) file for the URI case
+      --sslcertfile string         path to an SSL certificate file for the URI
+                                   case
+      --sslciphers string          colon-separated (:) list of SSL cipher suites
+                                   for a cluster connection
+      --sslkeyfile string          path to a private SSL key file for the URI
+                                   case
+      --sslpassword string         password for decrypting the private SSL key
+                                   file for a cluster connection
+      --sslpasswordfile string     path to a file containing the private SSL key
+                                   password for a cluster connection
+  -u, --username string            username for the URI case
 
 === tt replicaset upgrade --help
 Upgrade tarantool cluster.
@@ -1892,21 +1937,28 @@ The command supports the following Tarantool environment variables:
   To specify relative path without `unix://` use `./`.
 [0;1;39m
 FLAGS[0m
-      --config                   to force the centralized config orchestrator
-      --custom                   to force a custom orchestrator
-  -h, --help                     help for upgrade
-  -p, --password string          password for the URI case
-  -r, --replicaset stringArray   specify the replicaset name(s) to upgrade
-      --sslcafile string         path to a trusted certificate authorities (CA)
-                                 file for the URI case
-      --sslcertfile string       path to an SSL certificate file for the URI
-                                 case
-      --sslciphers string        colon-separated (:) list of SSL cipher suites
-                                 for the URI case
-      --sslkeyfile string        path to a private SSL key file for the URI case
-  -t, --timeout int              timeout for waiting the LSN synchronization (in
-                                 seconds) (default 5)
-  -u, --username string          username for the URI case
+      --config                     to force the centralized config orchestrator
+      --connect-timeout duration   timeout for establishing a binary connection
+                                   (default 1s)
+      --custom                     to force a custom orchestrator
+  -h, --help                       help for upgrade
+  -p, --password string            password for the URI case
+  -r, --replicaset stringArray     specify the replicaset name(s) to upgrade
+      --sslcafile string           path to a trusted certificate authorities
+                                   (CA) file for the URI case
+      --sslcertfile string         path to an SSL certificate file for the URI
+                                   case
+      --sslciphers string          colon-separated (:) list of SSL cipher suites
+                                   for a cluster connection
+      --sslkeyfile string          path to a private SSL key file for the URI
+                                   case
+      --sslpassword string         password for decrypting the private SSL key
+                                   file for a cluster connection
+      --sslpasswordfile string     path to a file containing the private SSL key
+                                   password for a cluster connection
+  -t, --timeout int                timeout for waiting the LSN synchronization
+                                   (in seconds) (default 5)
+  -u, --username string            username for the URI case
 
 === tt replicaset vshard --help
 Manage vshard
@@ -1943,18 +1995,26 @@ The command supports the following Tarantool environment variables:
   To specify relative path without `unix://` use `./`.
 [0;1;39m
 FLAGS[0m
-      --config               to force the centralized config orchestrator
-      --custom               to force a custom orchestrator
-  -h, --help                 help for bootstrap
-  -p, --password string      password for the URI case
-      --sslcafile string     path to a trusted certificate authorities (CA) file
-                             for the URI case
-      --sslcertfile string   path to an SSL certificate file for the URI case
-      --sslciphers string    colon-separated (:) list of SSL cipher suites for
-                             the URI case
-      --sslkeyfile string    path to a private SSL key file for the URI case
-      --timeout int          timeout (default 10)
-  -u, --username string      username for the URI case
+      --config                     to force the centralized config orchestrator
+      --connect-timeout duration   timeout for establishing a binary connection
+                                   (default 1s)
+      --custom                     to force a custom orchestrator
+  -h, --help                       help for bootstrap
+  -p, --password string            password for the URI case
+      --sslcafile string           path to a trusted certificate authorities
+                                   (CA) file for the URI case
+      --sslcertfile string         path to an SSL certificate file for the URI
+                                   case
+      --sslciphers string          colon-separated (:) list of SSL cipher suites
+                                   for a cluster connection
+      --sslkeyfile string          path to a private SSL key file for the URI
+                                   case
+      --sslpassword string         password for decrypting the private SSL key
+                                   file for a cluster connection
+      --sslpasswordfile string     path to a file containing the private SSL key
+                                   password for a cluster connection
+      --timeout int                timeout (default 10)
+  -u, --username string            username for the URI case
 
 === tt restart --help
 Restart tarantool instance(s)
@@ -2120,10 +2180,12 @@ Columns:
   tt status [<APP_NAME> | <APP_NAME:INSTANCE_NAME>] [flags]
 [0;1;39m
 FLAGS[0m
-  -d, --details         print detailed alerts.
-  -f, --format string   output format: json, yaml, table, pretty-table (default
-                        "table")
-  -h, --help            help for status
+  -d, --details                     print detailed alerts.
+  -f, --format string               output format: json, yaml, table,
+                                    pretty-table (default "table")
+  -h, --help                        help for status
+      --instance-timeout duration   timeout for collecting a single instance's
+                                    status; 0 disables the timeout (default 5s)
 
 === tt stop --help
 Stop tarantool instance(s)

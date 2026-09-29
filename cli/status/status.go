@@ -1,16 +1,20 @@
 package status
 
 import (
+	"context"
 	_ "embed"
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/tarantool/tt/v3/cli/connector"
 	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/cli/running"
+	"golang.org/x/sync/semaphore"
 )
 
 var (
@@ -21,6 +25,13 @@ var (
 type InstanceStatusPrinter interface {
 	Print(instances map[string]*instanceStatus) error
 }
+
+// maxParallelStatusRequests limits the number of concurrent instance status checks.
+const maxParallelStatusRequests = 128
+
+// DefaultInstanceTimeout is the default timeout for collecting a single instance's
+// status, used when the caller does not override it (e.g. via --instance-timeout).
+const DefaultInstanceTimeout = 5 * time.Second
 
 //go:embed lua/instance_state.lua
 var instanceInfoLuaScript string
@@ -166,7 +177,7 @@ func processConfigInfo(instStatus *instanceStatus, instanceState rawInstanceStat
 
 // collectInstanceState connects to an instance and collects its state.
 func collectInstanceState(run running.InstanceCtx, fullInstanceName string,
-	instStatus *instanceStatus,
+	instStatus *instanceStatus, instanceTimeout time.Duration,
 ) (rawInstanceState, error) {
 	var instanceState rawInstanceState
 
@@ -175,7 +186,15 @@ func collectInstanceState(run running.InstanceCtx, fullInstanceName string,
 		Address:  run.ConsoleSocket,
 		Username: "",
 		Password: "",
-		Ssl:      connector.SslOpts{KeyFile: "", CertFile: "", CaFile: "", Ciphers: ""},
+		Ssl: connector.SslOpts{
+			KeyFile:      "",
+			CertFile:     "",
+			CaFile:       "",
+			Ciphers:      "",
+			Password:     "",
+			PasswordFile: "",
+		},
+		ConnectTimeout: 0,
 	})
 	if err != nil {
 		if instStatus.procStatus.Code == process_utils.ProcessRunningCode {
@@ -188,8 +207,12 @@ func collectInstanceState(run running.InstanceCtx, fullInstanceName string,
 			fullInstanceName, err)
 	}
 
+	defer func() {
+		_ = conn.Close()
+	}()
+
 	res, err := conn.Eval(filterComments(instanceInfoLuaScript), []any{},
-		connector.RequestOpts{PushCallback: nil, ReadTimeout: 0, ResData: nil})
+		connector.RequestOpts{PushCallback: nil, ReadTimeout: instanceTimeout, ResData: nil})
 	if err != nil {
 		instStatus.addAlert(fmt.Sprintf(
 			"Error while executing Lua script on instance %s: %v",
@@ -218,36 +241,95 @@ func collectInstanceState(run running.InstanceCtx, fullInstanceName string,
 	return instanceState, nil
 }
 
-// Status writes the status as a table.
-func Status(runningCtx running.RunningCtx, printer InstanceStatusPrinter) error {
+// statusResult holds the result of a status check for an instance.
+type statusResult struct {
+	name string
+	// Since Tarantool 2.x doesn't support instance names, only UUIDs are available.
+	// To make the alerts more readable, we map the UUIDs to instance names.
+	uuid   string
+	status *instanceStatus
+}
+
+func collectStatuses(instances []running.InstanceCtx,
+	instanceTimeout time.Duration,
+) <-chan statusResult {
+	statuses := make(chan statusResult, len(instances))
+	sem := semaphore.NewWeighted(maxParallelStatusRequests)
+	ctx := context.Background()
+
+	var waitGroup sync.WaitGroup
+
+	for _, instance := range instances {
+		err := sem.Acquire(ctx, 1)
+		if err != nil {
+			break
+		}
+
+		waitGroup.Go(func() {
+			defer sem.Release(1)
+
+			statuses <- processStatusForInstance(instance, instanceTimeout)
+		})
+	}
+
+	go func() {
+		waitGroup.Wait()
+		close(statuses)
+	}()
+
+	return statuses
+}
+
+func applyInstanceState(instStatus *instanceStatus, instanceState rawInstanceState) {
+	processConfigInfo(instStatus, instanceState)
+
+	instStatus.Mode = instanceState.ReadOnly
+	instStatus.Config = instanceState.ConfigInfo.Status
+	instStatus.Box = instanceState.BoxStatus
+	instStatus.rawReplicationInfo = instanceState.ReplicationInfo
+}
+
+func processStatusForInstance(instance running.InstanceCtx,
+	instanceTimeout time.Duration,
+) statusResult {
+	instStatus := newInstanceStatus()
+
+	instStatus.procStatus = running.Status(&instance)
+	instStatus.Status = instStatus.procStatus.Status
+
+	if instStatus.procStatus.Code == process_utils.ProcessRunningCode {
+		instStatus.PID = &instStatus.procStatus.PID
+	}
+
+	fullInstanceName := running.GetAppInstanceName(instance)
+
+	instanceState, err := collectInstanceState(instance, fullInstanceName, &instStatus,
+		instanceTimeout)
+	if err != nil {
+		return statusResult{name: fullInstanceName, uuid: "", status: &instStatus}
+	}
+
+	applyInstanceState(&instStatus, instanceState)
+
+	return statusResult{name: fullInstanceName, uuid: instanceState.UUID, status: &instStatus}
+}
+
+// Status writes the status as a table. instanceTimeout bounds how long collecting
+// a single instance's status may take (e.g. an instance stuck processing requests);
+// zero means no timeout.
+func Status(runningCtx running.RunningCtx, printer InstanceStatusPrinter,
+	instanceTimeout time.Duration,
+) error {
 	instances := make(instanceStatusMap)
 	uuid2name := map[string]string{}
+	statuses := collectStatuses(runningCtx.Instances, instanceTimeout)
 
-	for _, run := range runningCtx.Instances {
-		fullInstanceName := running.GetAppInstanceName(run)
-		instStatus := newInstanceStatus()
-
-		instStatus.procStatus = running.Status(&run)
-		instStatus.Status = instStatus.procStatus.Status
-		instances[fullInstanceName] = &instStatus
-
-		if instStatus.procStatus.Code == process_utils.ProcessRunningCode {
-			instStatus.PID = &instStatus.procStatus.PID
+	for instStatus := range statuses {
+		if instStatus.uuid != "" {
+			uuid2name[instStatus.uuid] = instStatus.name
 		}
 
-		instanceState, err := collectInstanceState(run, fullInstanceName, &instStatus)
-		if err != nil {
-			continue
-		}
-
-		// Map UUIDs to instance names so replication alerts are readable.
-		uuid2name[instanceState.UUID] = fullInstanceName
-
-		processConfigInfo(&instStatus, instanceState)
-
-		instStatus.Mode = instanceState.ReadOnly
-		instStatus.Config = instanceState.ConfigInfo.Status
-		instStatus.Box = instanceState.BoxStatus
+		instances[instStatus.name] = instStatus.status
 	}
 
 	for _, instStatus := range instances {
