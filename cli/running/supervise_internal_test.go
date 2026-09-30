@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/internal/supervisor"
 )
 
@@ -197,4 +198,11 @@ func TestWatchdogForwardsStopSignal(t *testing.T) {
 	require.True(t, ok)
 	assert.True(t, status.Signaled(), "tarantool exited with %v", exits[0].State)
 	assert.Equal(t, syscall.SIGQUIT, status.Signal())
+}
+
+// TestStopOutwaitsWatchdog pins that tt stop and tt quit wait for the
+// watchdog longer than the watchdog waits for tarantool before it kills it,
+// so that they see the stop complete rather than give up first.
+func TestStopOutwaitsWatchdog(t *testing.T) {
+	assert.Less(t, instanceStopTimeout, process_utils.TerminationTimeout)
 }

@@ -414,7 +414,6 @@ linters:
             - "github.com/tarantool/tt/v3/cli/uninstall"
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/tarantool/tt/v3/cli/version"
-            - "github.com/tarantool/tt/v3/lib/watchdog"
             - "golang.org/x/term"
             - "gopkg.in/yaml.v3"
         dir-cli-cmdcontext:
@@ -704,6 +703,7 @@ linters:
             - "github.com/tarantool/tt/sdk"
             - "github.com/tarantool/tt/v3/cli/tail"
             - "github.com/tarantool/tt/v3/cli/tcm"
+            - "github.com/tarantool/tt/v3/internal/supervisor"
         dir-cli-templates:
           files:
             - "**/cli/templates/**"
@@ -799,12 +799,3 @@ linters:
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/v3/internal/pidfile"
             - "github.com/tarantool/tt/v3/internal/supervisor"
-        dir-lib-watchdog:
-          files:
-            - "**/lib/watchdog/**"
-          allow:
-            - $gostd
-            - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/sdk"
-            - "github.com/tarantool/tt/v3/cli/process_utils"
-            - "github.com/tarantool/tt/v3/lib/watchdog"

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/fatih/color"
@@ -18,7 +18,6 @@ import (
 	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/cli/tail"
 	tcmCmd "github.com/tarantool/tt/v3/cli/tcm"
-	libwatchdog "github.com/tarantool/tt/v3/lib/watchdog"
 )
 
 var (
@@ -46,6 +45,7 @@ const (
 	logFileName            = "tcm.log"
 	tcmDefaultLogLines     = 10
 	watchdogRestartDelay   = 5 * time.Second
+	watchdogStopTimeout    = 30 * time.Second
 	statusPIDColumn        = 2
 	statusExecutableColumn = 3
 	statusStateColumn      = 4
@@ -150,6 +150,11 @@ func startTcmInteractive(logLevel string) error {
 
 	owned, err := process_utils.CreatePIDFile(tcmPidFile, tcmApp.Process.Pid)
 	if err != nil {
+		// The pid file belongs to a TCM already running: the one just
+		// started would run with no pid file to stop it by.
+		_ = tcmApp.Process.Kill()
+		_ = tcmApp.Wait()
+
 		return err
 	}
 
@@ -165,10 +170,23 @@ func startTcmInteractive(logLevel string) error {
 	return nil
 }
 
-func startTcmUnderWatchDog() error {
-	wd := libwatchdog.NewWatchdog(tcmPidFile, watchdogPidFile, watchdogRestartDelay)
+// tcmWatchdogOpts are the options of the watchdog of TCM: the pid files in
+// the working directory, and the integrity check period that tt start would
+// use.
+func tcmWatchdogOpts(cmdCtx *cmdcontext.CmdCtx, executable string) tcmCmd.WatchdogOpts {
+	repository := cmdCtx.Integrity.Repository
 
-	return wd.Start(tcmCtx.Executable)
+	return tcmCmd.WatchdogOpts{
+		Executable:   executable,
+		PidFile:      watchdogPidFile,
+		ChildPidFile: tcmPidFile,
+		RestartDelay: watchdogRestartDelay,
+		StopTimeout:  watchdogStopTimeout,
+		CheckPeriod:  time.Duration(integrityCheckPeriodOf(&cmdCtx.Cli)) * time.Second,
+		Check: func(context.Context) error {
+			return repository.ValidateAll()
+		},
+	}
 }
 
 func internalStartTcm(cmdCtx *cmdcontext.CmdCtx, args []string) error {
@@ -186,20 +204,28 @@ func internalStartTcm(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return startTcmInteractive(tcmCtx.Log.Level)
 	}
 
-	return startTcmUnderWatchDog()
+	return tcmCmd.RunWatchdog(tcmWatchdogOpts(cmdCtx, tcmCtx.Executable))
+}
+
+// tcmStatus tells the state of TCM the way tt tcm stop finds it: through a
+// running watchdog first, which runs TCM or waits to restart it, and through
+// the pid file of TCM started without a watchdog otherwise. The PID is the
+// one of TCM, or of the watchdog while it has no TCM running.
+func tcmStatus() process_utils.ProcessState {
+	watchdog := process_utils.ProcessStatus(watchdogPidFile)
+	if watchdog.Code != process_utils.ProcessRunningCode {
+		return process_utils.ProcessStatus(tcmPidFile)
+	}
+
+	tcm := process_utils.ProcessStatus(tcmPidFile)
+	if tcm.Code == process_utils.ProcessRunningCode {
+		return tcm
+	}
+
+	return watchdog
 }
 
 func internalTcmStatus(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	pidAbsPath, err := filepath.Abs(tcmPidFile)
-	if err != nil {
-		return fmt.Errorf("failed to get absolute path of %q: %w", tcmPidFile, err)
-	}
-
-	_, err = os.Stat(pidAbsPath)
-	if err != nil {
-		return fmt.Errorf("path does not exist: %w", err)
-	}
-
 	statusTable := table.NewWriter()
 	statusTable.SetOutputMirror(os.Stdout)
 
@@ -213,10 +239,15 @@ func internalTcmStatus(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		{Number: statusStateColumn, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
 	})
 
-	status := process_utils.ProcessStatus(pidAbsPath)
+	status := tcmStatus()
+
+	pid := ""
+	if status.PID != 0 {
+		pid = strconv.Itoa(status.PID)
+	}
 
 	statusTable.AppendRows([]table.Row{
-		{"TCM", status.Status, status.PID},
+		{"TCM", status.Status, pid},
 	})
 	statusTable.Render()
 
@@ -224,15 +255,19 @@ func internalTcmStatus(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 }
 
 func internalTcmStop(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	return stopTcm(process_utils.TerminationTimeout)
+}
+
+func stopTcm(wait time.Duration) error {
 	if isExists, _ := process_utils.ExistsAndRecord(watchdogPidFile); isExists {
-		_, err := process_utils.StopProcess(watchdogPidFile)
+		_, err := process_utils.StopProcessWithin(watchdogPidFile, wait)
 		if err != nil {
 			return err
 		}
 
 		log.Info("Watchdog and TCM stopped")
 	} else {
-		_, err := process_utils.StopProcess(tcmPidFile)
+		_, err := process_utils.StopProcessWithin(tcmPidFile, wait)
 		if err != nil {
 			return err
 		}

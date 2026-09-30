@@ -16,10 +16,11 @@
 // file. A file is removed only by its owner, or under the lock by RemoveFor,
 // and only while the path still names the file that was locked.
 //
-// The ownership is exclusive among the processes that follow this protocol.
-// A writer or remover of the same path that does not, one that removes a
-// file it has found stale without locking it, or removes the path
-// unconditionally, can unlink the file of a new owner and break it.
+// The ownership is exclusive among the processes that follow this protocol,
+// so every tt writer and remover of a pid file goes through this package. A
+// process outside tt that writes or removes the same path, removes a file it
+// has found stale without locking it, or removes the path unconditionally,
+// is outside the guarantee and can unlink the file of a new owner.
 package pidfile
 
 import (
