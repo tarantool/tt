@@ -21,8 +21,9 @@ func Test_ExistsAndRecord(t *testing.T) {
 	err := cmd.Start()
 	require.NoError(t, err)
 
-	err = process_utils.CreatePIDFile(testFile, cmd.Process.Pid)
+	owned, err := process_utils.CreatePIDFile(testFile, cmd.Process.Pid)
 	require.NoError(t, err)
+	require.NoError(t, owned.Keep())
 
 	status, err := process_utils.ExistsAndRecord(testFile)
 	require.NoError(t, err)

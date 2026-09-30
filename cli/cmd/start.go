@@ -150,9 +150,18 @@ func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return startInstances(cmdCtx, runningCtx.Instances)
 	}
 
-	if cmdCtx.Cli.IntegrityCheck != "" && cmdCtx.Cli.IntegrityCheckPeriod == 0 {
-		cmdCtx.Cli.IntegrityCheckPeriod = integrityCheckPeriod
-	}
+	cmdCtx.Cli.IntegrityCheckPeriod = integrityCheckPeriodOf(&cmdCtx.Cli)
 
 	return running.Start(cmdCtx, &runningCtx.Instances[0])
+}
+
+// integrityCheckPeriodOf returns the integrity check period of a watchdog in
+// seconds: --integrity-check-period, or the default one when integrity
+// checking is on without a period.
+func integrityCheckPeriodOf(cli *cmdcontext.CliCtx) int {
+	if cli.IntegrityCheck != "" && cli.IntegrityCheckPeriod == 0 {
+		return integrityCheckPeriod
+	}
+
+	return cli.IntegrityCheckPeriod
 }

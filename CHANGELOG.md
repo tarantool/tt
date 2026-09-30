@@ -185,6 +185,31 @@ for machine-readable output.
 
 ### Changed
 
+- `tt start`: a failed periodic integrity check (`--integrity-check-period`)
+  stops the instance for good. The watchdog kills it and exits, whatever
+  `restart_on_failure` says; starting it again is up to an administrator.
+  Before, an instance with `restart_on_failure: true` was restarted over the
+  files that had failed the check.
+- `tt tcm start --watchdog` runs TCM under the watchdog `tt start` uses:
+  - `tt tcm stop` stops TCM with SIGTERM and kills its process group if it
+    still runs 30 seconds later. Before, the watchdog waited for TCM without
+    a limit.
+  - SIGHUP and SIGQUIT sent to the watchdog stop TCM as SIGINT and SIGTERM
+    do. Before, they killed the watchdog and left TCM running without it.
+  - The watchdog removes `watchdog.pid` and `tcm.pid` when it exits.
+  - With `--integrity-check-period`, the integrity of the environment is
+    checked periodically while TCM runs, and a failed check stops TCM for
+    good. With `--integrity-check` and no period, the period is one day, as
+    for `tt start`.
+- `tt tcm status` finds TCM the way `tt tcm stop` does: through
+  `watchdog.pid` first, and reports TCM as `RUNNING` while the watchdog runs,
+  also while it waits to restart TCM; through `tcm.pid` otherwise. With
+  neither file it reports `NOT RUNNING` and exits with 0. Before, it read
+  `tcm.pid` only, and failed with `path does not exist` without it.
+- `tt stop`, `tt quit`, `tt tcm stop` and `tt daemon stop` wait 35 seconds for
+  the process to exit, longer than the 30 seconds a watchdog gives its child
+  before it kills it. Before, they gave up after 30 seconds and reported a
+  failure while the watchdog was completing the stop.
 - tt logs through `log/slog`. The text log keeps its look with two changes:
   a warning is marked `⚠` instead of `•`, and a message is no longer padded
   with trailing spaces. A debug line is marked `·`, the continuation lines of
@@ -314,6 +339,25 @@ for machine-readable output.
 
 ### Fixed
 
+- A second `tt tcm start --watchdog` in a directory where one runs is refused
+  before it starts anything. Before, it started a second TCM and stopped it
+  again once it found the pid file taken.
+- `tt tcm start` without `--watchdog`, refused because `tcm.pid` names a
+  running TCM, no longer leaves the TCM it started running.
+- `tt stop` sent while the watchdog waits to restart a failed instance stops
+  the watchdog. Before, the signal was lost: the instance was restarted, and
+  `tt stop` gave up after 30 seconds.
+- Two `tt start` of one instance at the same time no longer start two
+  watchdogs. Every tt pid file is now owned through a lock, so of any number of
+  processes starting at once exactly one takes the file, and a stale file is
+  taken over under that lock instead of being removed and created again.
+- A second `tt start` of a running instance no longer removes the pid file and
+  the sockets of the watchdog that runs it.
+- `tt kill` no longer removes the pid file and the sockets of a watchdog that
+  started after the one it killed: it removes them only while the pid file
+  still names the killed watchdog.
+- Signals sent to an instance while its watchdog stops it are handled at once
+  instead of after the stop, which could take 30 seconds.
 - Table formatter: fix a potential panic when the scalar encoder receives a
   `float32` value. Format it with 32-bit precision while preserving the existing
   `float64` formatting.

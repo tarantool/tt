@@ -26,6 +26,8 @@ import (
 	"github.com/tarantool/tt/v3/cli/ttlog"
 	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/cli/util/regexputil"
+	"github.com/tarantool/tt/v3/internal/pidfile"
+	"github.com/tarantool/tt/v3/internal/supervisor"
 )
 
 // ErrApplicationNotFound reports an application the tt environment does not
@@ -63,6 +65,9 @@ const (
 	defaultDirPerms        = 0o770
 	instanceCleanupTimeout = 10 * time.Second
 	watchdogRestartTimeout = 5 * time.Second
+	// killCleanupTimeout bounds the wait for the kernel to drop the pid file
+	// lock of a killed watchdog.
+	killCleanupTimeout = 5 * time.Second
 )
 
 const (
@@ -140,13 +145,6 @@ type InstanceCtx struct {
 	Configuration *goconfig.Config
 }
 
-// providerImpl is an implementation of Provider interface.
-type providerImpl struct {
-	cmdCtx *cmdcontext.CmdCtx
-	// instanceCtx is a pointer to the specific data of the instanceCtx to work with.
-	instanceCtx *InstanceCtx
-}
-
 // ConfigLoad defines an enumeration of instance script and cluster configuration load types.
 type ConfigLoad int
 
@@ -171,113 +169,6 @@ func GetAppPath(instance InstanceCtx) string {
 	}
 
 	return instance.AppDir
-}
-
-// createInstance creates an Instance.
-func createInstance(cmdCtx cmdcontext.CmdCtx, instanceCtx InstanceCtx,
-	opts ...InstanceOption,
-) (Instance, error) {
-	if instanceCtx.ClusterConfigPath != "" {
-		return newClusterInstance(cmdCtx.Cli.TarantoolCli, instanceCtx, opts...)
-	}
-
-	return newScriptInstance(cmdCtx.Cli.TarantoolCli.Executable, instanceCtx, opts...)
-}
-
-// createInstance reads config and creates an Instance.
-func (provider *providerImpl) CreateInstance(logger ttlog.Logger) (Instance, error) {
-	err := provider.updateCtx()
-	if err != nil {
-		return nil, err
-	}
-
-	opts := []InstanceOption{StdLoggerOpt(logger)}
-	if provider.cmdCtx.Cli.IntegrityCheck != "" {
-		opts = append(opts, IntegrityOpt(provider.cmdCtx.Integrity))
-	}
-
-	if provider.instanceCtx.ClusterConfigPath != "" {
-		logger.Printf("(INFO): using %q cluster config for instance %q",
-			provider.instanceCtx.ClusterConfigPath,
-			provider.instanceCtx.InstName,
-		)
-	}
-
-	return createInstance(*provider.cmdCtx, *provider.instanceCtx, opts...)
-}
-
-// isLoggerChanged checks if any of the logging parameters has been changed.
-func isLoggerChanged(logger ttlog.Logger, instanceCtx *InstanceCtx) (bool, error) {
-	if logger == nil {
-		return true, nil
-	}
-
-	if instanceCtx == nil {
-		return true, errLoggerChangedCheckFailedPassingNullAsAnInstanceContext
-	}
-
-	loggerOpts := logger.GetOpts()
-
-	// Check if some of the parameters have been changed.
-	if loggerOpts.Filename != instanceCtx.Log {
-		return true, nil
-	}
-
-	return false, nil
-}
-
-// UpdateLogger updates the logger settings or creates a new logger, if passed nil.
-func (provider *providerImpl) UpdateLogger(logger ttlog.Logger) (ttlog.Logger, error) {
-	updateLogger, err := isLoggerChanged(logger, provider.instanceCtx)
-	if err != nil {
-		return logger, err
-	}
-
-	if updateLogger {
-		_ = logger.Close()
-		return createLogger(provider.instanceCtx)
-	}
-
-	return logger, nil
-}
-
-// IsRestartable checks if the instance should be restarted in case of crash.
-func (provider *providerImpl) IsRestartable() (bool, error) {
-	err := provider.updateCtx()
-	if err != nil {
-		return false, err
-	}
-
-	return provider.instanceCtx.Restartable, nil
-}
-
-// updateCtx updates cmdCtx according to the current contents of the cfg file.
-func (provider *providerImpl) updateCtx() error {
-	cliOpts, _, err := configure.GetCliOpts(provider.cmdCtx.Cli.ConfigPath,
-		provider.cmdCtx.Integrity.Repository)
-	if err != nil {
-		return err
-	}
-
-	var args []string
-
-	if provider.instanceCtx.SingleApp {
-		args = []string{provider.instanceCtx.AppName}
-	} else {
-		args = []string{provider.instanceCtx.AppName + string(InstanceDelimiter) +
-			provider.instanceCtx.InstName}
-	}
-
-	var runningCtx RunningCtx
-
-	err = FillCtx(cliOpts, provider.cmdCtx, &runningCtx, args, ConfigLoadSkip)
-	if err != nil {
-		return err
-	}
-
-	provider.instanceCtx = &runningCtx.Instances[0]
-
-	return nil
 }
 
 // searchApplicationScript searches for application script in a directory.
@@ -596,14 +487,11 @@ func collectInstances(appName, applicationDir string,
 	return collectInstancesFromAppDir(applicationDir, selectedInstName, integrityCtx, loadConfig)
 }
 
-// cleanup removes runtime artifacts.
-func cleanup(run *InstanceCtx) {
-	_, err := os.Stat(run.PIDFile)
-	if err == nil {
-		_ = os.Remove(run.PIDFile)
-	}
-
-	_, err = os.Stat(run.ConsoleSocket)
+// removeSockets removes the console socket and the binary port socket of an
+// instance that is gone. The pid file is not among them: only its owner, or
+// pidfile.RemoveFor, removes it.
+func removeSockets(run *InstanceCtx) {
+	_, err := os.Stat(run.ConsoleSocket)
 	if err == nil {
 		_ = os.Remove(run.ConsoleSocket)
 	}
@@ -854,43 +742,73 @@ func RunInstance(ctx context.Context, cmdCtx *cmdcontext.CmdCtx, inst InstanceCt
 	}
 
 	logger := ttlog.NewCustomLogger(stdOut, "", 0)
-	opts := []InstanceOption{
-		StdLoggerOpt(logger),
-		StdOutOpt(stdOut),
-		StdErrOpt(stdErr),
-	}
 
-	if cmdCtx.Cli.IntegrityCheck != "" {
-		opts = append(opts, IntegrityOpt(cmdCtx.Integrity))
-	}
-
-	instance, err := createInstance(*cmdCtx, inst, opts...)
+	spec, err := instanceSpec(cmdCtx, &inst, specOptions{
+		integrity: integrityOf(cmdCtx),
+		stdout:    stdOut,
+		stderr:    stdErr,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to create the instance %q: %w", inst.InstName, err)
 	}
 
 	logger.Println("(INFO) Start")
 
-	err = instance.Start(ctx)
+	// No supervisor: the instance runs until it exits or ctx, which the
+	// interrupt of the terminal cancels, stops it.
+	cmd := spec.Command(ctx)
+
+	err = cmd.Start()
 	if err != nil {
 		return fmt.Errorf("failed to start the instance %q: %w", inst.InstName, err)
 	}
 
-	//nolint:contextcheck // cleanup logs through sdk/log, which takes no context.
-	defer func() {
-		cleanup(&inst)
-	}()
-
-	err = process_utils.CreatePIDFile(inst.PIDFile, instance.GetPid())
+	owned, err := process_utils.CreatePIDFile(inst.PIDFile, cmd.Process.Pid)
 	if err != nil {
-		_ = instance.Stop(instanceCleanupTimeout)
+		_ = cmd.Process.Signal(spec.StopSignal)
+
+		waitOrKill(cmd, instanceCleanupTimeout)
+
 		return fmt.Errorf("cannot create the pid file %q: %w", inst.PIDFile, err)
 	}
 
-	return instance.Wait()
+	//nolint:contextcheck // removeSockets logs through sdk/log, which takes no context.
+	defer func() {
+		_ = owned.Release()
+
+		removeSockets(&inst)
+	}()
+
+	err = cmd.Wait()
+	if err != nil {
+		return fmt.Errorf("waiting for the process: %w", err)
+	}
+
+	return nil
 }
 
-// Start an Instance.
+func waitOrKill(cmd *exec.Cmd, timeout time.Duration) {
+	done := make(chan struct{})
+
+	go func() {
+		_ = cmd.Wait()
+
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(timeout):
+		_ = cmd.Process.Kill()
+
+		<-done
+	}
+}
+
+// Start runs the watchdog of an instance, the process tt start detaches with
+// --watchdog, until the supervision is over. The pid file of the instance
+// names the watchdog, so tt stop, status, kill, quit and logrotate reach it;
+// watchdogOptions says what it does with their signals.
 func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx) error {
 	err := createInstanceDataDirectories(*inst)
 	if err != nil {
@@ -904,19 +822,19 @@ func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx) error {
 
 	logger.Println("[INFO] Start") // Create a log file before any other actions.
 
-	provider := providerImpl{cmdCtx: cmdCtx, instanceCtx: inst}
-	preStartAction := func() error {
-		return process_utils.CreatePIDFile(inst.PIDFile, os.Getpid())
+	src := newInstanceSource(cmdCtx, inst, &watchdogLog{
+		logger:      logger,
+		checkPeriod: time.Duration(cmdCtx.Cli.IntegrityCheckPeriod) * time.Second,
+	}, func() (InstanceCtx, error) {
+		return refreshFromConfig(cmdCtx, inst)
+	})
+
+	engine, err := supervisor.New(src, watchdogOptions(cmdCtx, src))
+	if err != nil {
+		return fmt.Errorf("cannot create the watchdog: %w", err)
 	}
-	watchdog := NewWatchdog(inst.Restartable, watchdogRestartTimeout, logger,
-		&provider, preStartAction, cmdCtx.Integrity,
-		time.Duration(cmdCtx.Cli.IntegrityCheckPeriod*int(time.Second)))
 
-	defer func() {
-		cleanup(inst)
-	}()
-
-	watchdog.Start()
+	src.log.onEnd(engine.Run(context.Background()))
 
 	return nil
 }
@@ -948,13 +866,56 @@ func Kill(run InstanceCtx) error {
 		return fmt.Errorf("failed to kill the processes: %w", err)
 	}
 
-	// Remove PID files because due to SIGKILL watchdog can't cleanup itself.
-	cleanup(&run)
+	cleanupAfterKill(&run, pid, killCleanupTimeout, removeSockets)
 
 	fullInstanceName := GetAppInstanceName(run)
 	log.Infof("The instance %s (PID = %v) has been killed.", fullInstanceName, pid)
 
 	return nil
+}
+
+// cleanupAfterKill cleans up after the watchdog pid that tt kill killed and
+// that cannot clean up after itself. Its pid file goes only while it still
+// names pid, once the kernel has dropped the lock, which may take up to
+// wait; removeSockets runs just before, under that lock. With no pid file at
+// all, the sockets go under a pid file tt kill takes for their removal.
+// Either way no watchdog owns the instance while its sockets are removed: one
+// that comes up in the meantime keeps its pid file and its sockets.
+func cleanupAfterKill(run *InstanceCtx, pid int, wait time.Duration,
+	removeSockets func(run *InstanceCtx),
+) {
+	cleanup := func() { removeSockets(run) }
+
+	removed, err := pidfile.RemoveFor(run.PIDFile, pid, wait, cleanup)
+	if err != nil {
+		log.Warnf("cannot remove the pid file %q: %s", run.PIDFile, err)
+
+		return
+	}
+
+	_, err = os.Stat(run.PIDFile)
+	if removed || !errors.Is(err, fs.ErrNotExist) {
+		return
+	}
+
+	owned, err := pidfile.Acquire(run.PIDFile, os.Getpid())
+
+	switch {
+	case errors.Is(err, pidfile.ErrBusy):
+		// A watchdog has come up and owns the instance.
+		return
+	case err != nil:
+		log.Warnf("cannot take the pid file %q: %s", run.PIDFile, err)
+
+		return
+	}
+
+	cleanup()
+
+	err = owned.Release()
+	if err != nil {
+		log.Warnf("cannot remove the pid file %q: %s", run.PIDFile, err)
+	}
 }
 
 // Quit the Instance.
@@ -1094,11 +1055,9 @@ func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance Inst
 
 	log.Infof("Starting an instance [%s]...", appName)
 
-	wdCmd := exec.CommandContext(context.Background(), ttExecutable, newArgs...)
-	// Set new pgid for watchdog process, so it will not be killed after a session is closed.
-	wdCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-
-	err = wdCmd.Start()
+	// The watchdog leads a process group of its own, so it is not killed when
+	// the session is closed, and tt kill kills it with its tarantool.
+	_, err = supervisor.Detach(ttExecutable, newArgs, nil)
 	if err != nil {
 		return fmt.Errorf("cannot start the watchdog for %s: %w", appName, err)
 	}

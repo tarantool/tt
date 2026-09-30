@@ -10,6 +10,7 @@ import (
 
 	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/cli/ttlog"
+	"github.com/tarantool/tt/v3/internal/pidfile"
 )
 
 const (
@@ -37,6 +38,8 @@ type Process struct {
 	logger ttlog.Logger
 	// pidFileName is a path to the process pid file.
 	pidFileName string
+	// pidFile is the pid file the daemon owns while it runs.
+	pidFile *pidfile.File
 	// cmdPath is a path to the command the process should perform.
 	cmdPath string
 	// cmdArgs are arguments to the command the process should perform.
@@ -53,6 +56,7 @@ func NewProcess(worker Worker, pidFileName string, logOpts ttlog.LoggerOpts) *Pr
 		logOpts:     logOpts,
 		logger:      nil,
 		pidFileName: pidFileName,
+		pidFile:     nil,
 		worker:      worker,
 		DaemonTag:   EnvName,
 		cmdPath:     os.Args[0],
@@ -89,7 +93,7 @@ func (process *Process) Start() error {
 			return fmt.Errorf("failed to create log: %w", err)
 		}
 
-		err = process_utils.CreatePIDFile(process.pidFileName, os.Getpid())
+		process.pidFile, err = process_utils.CreatePIDFile(process.pidFileName, os.Getpid())
 		if err != nil {
 			return err
 		}
@@ -136,7 +140,10 @@ func (process *Process) Stop() {
 		done <- process.worker.Stop()
 	}()
 
-	_ = os.Remove(process.pidFileName)
+	if process.pidFile != nil {
+		_ = process.pidFile.Release()
+	}
+
 	_ = os.Unsetenv(process.DaemonTag)
 
 	err := <-done

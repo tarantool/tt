@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/tarantool/tt/v3/internal/pidfile"
 )
 
 var (
@@ -21,17 +21,12 @@ var (
 	errTheProcessIsNotRunning     = errors.New("the process ")
 )
 
-// Create a new directory.
-// 0770:
-// user:   read/write/execute
-// group:  read/write/execute
-// others: nil
-const (
-	defaultDirPerms           = 0o770
-	pidFileMode               = 0o644
-	processTerminationTimeout = 30 * time.Second
-	processPollInterval       = 100 * time.Millisecond
-)
+// TerminationTimeout is how long StopProcess and QuitProcess wait for the
+// process to exit. A watchdog they stop kills its child 30 seconds after the
+// stop signal and then reaps it and cleans up, so they wait longer than that.
+const TerminationTimeout = 35 * time.Second
+
+const processPollInterval = 100 * time.Millisecond
 
 type ProcessState struct {
 	Code        int
@@ -111,9 +106,10 @@ func GetPIDFromFile(pidFileName string) (int, error) {
 	return pid, nil
 }
 
-// CheckPIDFile checks that the process PID file exists
-// and is readable. Or process is already exist.
-// Removes PID file if process is dead.
+// CheckPIDFile reports an error for a PID file that names a live process, or
+// that cannot be read; a missing file, or one naming a dead process, is no
+// error. It never removes a stale file: CreatePIDFile takes one over under
+// the lock.
 func CheckPIDFile(pidFileName string) error {
 	_, err := os.Stat(pidFileName)
 	if err == nil {
@@ -125,8 +121,6 @@ func CheckPIDFile(pidFileName string) error {
 
 		if res, _ := IsProcessAlive(pid); res {
 			return fmt.Errorf("%w%d", errTheProcessAlreadyExistsPID, pid)
-		} else {
-			_ = os.Remove(pidFileName)
 		}
 	} else if !os.IsNotExist(err) {
 		return fmt.Errorf(`something went wrong while trying to read the PID file. Error: "%w"`,
@@ -159,49 +153,11 @@ func ExistsAndRecord(pidFileName string) (bool, error) {
 	return false, nil
 }
 
-// CreatePIDFile checks that the instance PID file is absent or
-// deprecated and creates a new one. Returns an error on failure.
-func CreatePIDFile(pidFileName string, pid int) error {
-	err := CheckPIDFile(pidFileName)
-	if err != nil {
-		return err
-	}
-
-	pidAbsDir := filepath.Dir(pidFileName)
-
-	_, err = os.Stat(pidAbsDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			err = os.MkdirAll(pidAbsDir, defaultDirPerms)
-			if err != nil {
-				return fmt.Errorf(`can't crete PID file directory. Error: "%w"`, err)
-			}
-		} else {
-			return fmt.Errorf(`can't stat PID file directory. Error: "%w"`, err)
-		}
-	}
-
-	// Create a new PID file.
-	// 0644:
-	//    user:   read/write
-	//    group:  read
-	//    others: read
-	pidFile, err := os.OpenFile(pidFileName,
-		syscall.O_EXCL|syscall.O_CREAT|syscall.O_RDWR, pidFileMode)
-	if err != nil {
-		return fmt.Errorf(`can't create a new PID file. Error: "%w"`, err)
-	}
-
-	defer func() {
-		_ = pidFile.Close()
-	}()
-
-	_, err = pidFile.WriteString(strconv.Itoa(pid))
-	if err != nil {
-		return fmt.Errorf(`can't write the PID file. Error: "%w"`, err)
-	}
-
-	return nil
+// CreatePIDFile takes the PID file over for pid and writes pid into it, as
+// pidfile.Acquire does. The caller owns the file until it releases it, or
+// keeps it when it exits while pid goes on.
+func CreatePIDFile(pidFileName string, pid int) (*pidfile.File, error) {
+	return pidfile.Acquire(pidFileName, pid)
 }
 
 // getRunningPid returns PID from pidfile and check the process is running.
@@ -223,8 +179,15 @@ func getRunningPid(pidFile string) (int, error) {
 	return pid, nil
 }
 
-// StopProcess stops the process by pidFile.
+// StopProcess stops the process by pidFile, waiting TerminationTimeout for it
+// to exit.
 func StopProcess(pidFile string) (int, error) {
+	return StopProcessWithin(pidFile, TerminationTimeout)
+}
+
+// StopProcessWithin sends SIGINT to the process by pidFile and waits up to
+// timeout for it to exit.
+func StopProcessWithin(pidFile string, timeout time.Duration) (int, error) {
 	pid, err := getRunningPid(pidFile)
 	if err != nil {
 		return 0, fmt.Errorf("can't get pid of running process: %w", err)
@@ -235,7 +198,7 @@ func StopProcess(pidFile string) (int, error) {
 		return 0, fmt.Errorf(`can't terminate the process. Error: "%w"`, err)
 	}
 
-	if res := waitProcessTermination(pid, processTerminationTimeout, processPollInterval); !res {
+	if res := waitProcessTermination(pid, timeout, processPollInterval); !res {
 		return 0, errProcessTermination
 	}
 
@@ -254,7 +217,7 @@ func QuitProcess(pidFile string) (int, error) {
 		return 0, fmt.Errorf("can't terminate the process with SIGQUIT: %w", err)
 	}
 
-	if res := waitProcessTermination(pid, processTerminationTimeout, processPollInterval); !res {
+	if res := waitProcessTermination(pid, TerminationTimeout, processPollInterval); !res {
 		return 0, errProcessSIGQUIT
 	}
 
