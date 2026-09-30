@@ -21,10 +21,12 @@ var (
 	errTheProcessIsNotRunning     = errors.New("the process ")
 )
 
-const (
-	processTerminationTimeout = 30 * time.Second
-	processPollInterval       = 100 * time.Millisecond
-)
+// TerminationTimeout is how long StopProcess and QuitProcess wait for the
+// process to exit. A watchdog they stop kills its child 30 seconds after the
+// stop signal and then reaps it and cleans up, so they wait longer than that.
+const TerminationTimeout = 35 * time.Second
+
+const processPollInterval = 100 * time.Millisecond
 
 type ProcessState struct {
 	Code        int
@@ -177,8 +179,15 @@ func getRunningPid(pidFile string) (int, error) {
 	return pid, nil
 }
 
-// StopProcess stops the process by pidFile.
+// StopProcess stops the process by pidFile, waiting TerminationTimeout for it
+// to exit.
 func StopProcess(pidFile string) (int, error) {
+	return StopProcessWithin(pidFile, TerminationTimeout)
+}
+
+// StopProcessWithin sends SIGINT to the process by pidFile and waits up to
+// timeout for it to exit.
+func StopProcessWithin(pidFile string, timeout time.Duration) (int, error) {
 	pid, err := getRunningPid(pidFile)
 	if err != nil {
 		return 0, fmt.Errorf("can't get pid of running process: %w", err)
@@ -189,7 +198,7 @@ func StopProcess(pidFile string) (int, error) {
 		return 0, fmt.Errorf(`can't terminate the process. Error: "%w"`, err)
 	}
 
-	if res := waitProcessTermination(pid, processTerminationTimeout, processPollInterval); !res {
+	if res := waitProcessTermination(pid, timeout, processPollInterval); !res {
 		return 0, errProcessTermination
 	}
 
@@ -208,7 +217,7 @@ func QuitProcess(pidFile string) (int, error) {
 		return 0, fmt.Errorf("can't terminate the process with SIGQUIT: %w", err)
 	}
 
-	if res := waitProcessTermination(pid, processTerminationTimeout, processPollInterval); !res {
+	if res := waitProcessTermination(pid, TerminationTimeout, processPollInterval); !res {
 		return 0, errProcessSIGQUIT
 	}
 

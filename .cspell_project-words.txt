@@ -37,7 +37,6 @@ incdir
 infof
 iproto
 leaderuuid
-libwatchdog
 linecomment
 luabody
 luajit
