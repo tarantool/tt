@@ -19,23 +19,11 @@
 //
 // # Pid files
 //
-// A pid file holds the decimal pid without a newline, the format tt stop and
-// tt status read. Owning one means holding an exclusive flock on it, taken
-// without waiting and kept for as long as the pid in it is current; the lock
-// descriptor is close-on-exec, so no child inherits it, and the kernel drops
-// it when the owner dies, however it dies. A file whose lock is held is
-// refused. A file nobody holds is stale and is taken over in place, under the
-// lock, unless it names a live process: such a file comes from a tt that
-// does not lock pid files, and that process still runs. Of any number of
-// processes racing for one pid file, exactly one owns it. An owner unlinks
-// the file before it unlocks it, and a process that locked a file no longer
-// at the path starts over, so ownership never passes to an unlinked file.
-// Only the file the owner locked is removed, never one that replaced it.
-//
-// The ownership is exclusive among the processes that follow this protocol.
-// A writer or remover of the same path that does not, one that removes a
-// file it has found stale without locking it, or removes the path
-// unconditionally, can unlink the file of a new owner and break it.
+// The engine owns its pid files through package pidfile: one owner among any
+// number of processes racing for the file, a flock held for as long as the
+// pid in the file is current, and a file removed only by its owner and only
+// while the path still names it. That package states the protocol and what
+// it assumes of other writers of the same path.
 //
 // Options.PidFile is the supervisor's own pid file. Run takes it after it has
 // subscribed to signals, so whoever finds the pid there can already stop the

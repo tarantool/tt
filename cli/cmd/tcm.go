@@ -148,7 +148,14 @@ func startTcmInteractive(logLevel string) error {
 		return errProcessIsNotRunning
 	}
 
-	err = process_utils.CreatePIDFile(tcmPidFile, tcmApp.Process.Pid)
+	owned, err := process_utils.CreatePIDFile(tcmPidFile, tcmApp.Process.Pid)
+	if err != nil {
+		return err
+	}
+
+	// tt exits and TCM goes on: the file is left to the pid it names, which
+	// keeps another start from taking it over while TCM runs.
+	err = owned.Keep()
 	if err != nil {
 		return err
 	}

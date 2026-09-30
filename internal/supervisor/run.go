@@ -8,15 +8,17 @@ import (
 	"slices"
 	"syscall"
 	"time"
+
+	"github.com/tarantool/tt/v3/internal/pidfile"
 )
 
 // runState is what a Run holds at a given moment, so that its teardown can
 // release all of it, even when a callback panics halfway.
 type runState struct {
-	pidFile *pidFile
+	pidFile *pidfile.File
 	// proc is the child from its start until it has been waited for.
 	proc         *child
-	childPidFile *pidFile
+	childPidFile *pidfile.File
 	// stopChecks is set while the periodic checks run.
 	stopChecks func() error
 }
@@ -39,7 +41,7 @@ func (e *Engine) Run(ctx context.Context) error {
 	pid := os.Getpid()
 
 	if e.opts.PidFile != "" {
-		owned, err := acquirePidFile(e.opts.PidFile, pid)
+		owned, err := pidfile.Acquire(e.opts.PidFile, pid)
 		if err != nil {
 			return &Error{Op: OpPidFile, Err: err}
 		}
@@ -103,7 +105,7 @@ func (e *Engine) cleanUp(state *runState) error {
 				return
 			}
 
-			rmErr := state.pidFile.release()
+			rmErr := state.pidFile.Release()
 
 			state.pidFile = nil
 
@@ -189,7 +191,7 @@ func (e *Engine) launch(ctx context.Context, spec *Spec, state *runState) error 
 	state.proc = proc
 
 	if e.opts.ChildPidFile != "" {
-		owned, err := acquirePidFile(e.opts.ChildPidFile, proc.pid)
+		owned, err := pidfile.Acquire(e.opts.ChildPidFile, proc.pid)
 		if err != nil {
 			killErr := proc.signal(syscall.SIGKILL)
 			exit := <-proc.done
@@ -217,7 +219,7 @@ func (e *Engine) releaseChildPidFile(state *runState) error {
 		return nil
 	}
 
-	err := state.childPidFile.release()
+	err := state.childPidFile.Release()
 
 	state.childPidFile = nil
 

@@ -14,6 +14,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/tarantool/tt/v3/internal/pidfile"
 )
 
 // fakeProc is a child the script drives.
@@ -939,10 +941,10 @@ func (run *fuzzRun) startRival() func() {
 		run.t.Fatal(err)
 	}
 
-	result := make(chan *pidFile, 1)
+	result := make(chan *pidfile.File, 1)
 
 	go func() {
-		owned, _ := acquirePidFile(run.pidFile, os.Getppid())
+		owned, _ := pidfile.Acquire(run.pidFile, os.Getppid())
 		result <- owned
 	}()
 
@@ -954,7 +956,7 @@ func (run *fuzzRun) startRival() func() {
 
 		run.locked(func() { run.rivalOwned = true })
 
-		_ = owned.release()
+		_ = owned.Release()
 	}
 }
 

@@ -26,6 +26,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/ttlog"
 	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/cli/util/regexputil"
+	"github.com/tarantool/tt/v3/internal/pidfile"
 )
 
 // ErrApplicationNotFound reports an application the tt environment does not
@@ -63,6 +64,9 @@ const (
 	defaultDirPerms        = 0o770
 	instanceCleanupTimeout = 10 * time.Second
 	watchdogRestartTimeout = 5 * time.Second
+	// killCleanupTimeout bounds the wait for the kernel to drop the pid file
+	// lock of a killed watchdog.
+	killCleanupTimeout = 5 * time.Second
 )
 
 const (
@@ -596,14 +600,11 @@ func collectInstances(appName, applicationDir string,
 	return collectInstancesFromAppDir(applicationDir, selectedInstName, integrityCtx, loadConfig)
 }
 
-// cleanup removes runtime artifacts.
-func cleanup(run *InstanceCtx) {
-	_, err := os.Stat(run.PIDFile)
-	if err == nil {
-		_ = os.Remove(run.PIDFile)
-	}
-
-	_, err = os.Stat(run.ConsoleSocket)
+// removeSockets removes the console socket and the binary port socket of an
+// instance that is gone. The pid file is not among them: only its owner, or
+// pidfile.RemoveFor, removes it.
+func removeSockets(run *InstanceCtx) {
+	_, err := os.Stat(run.ConsoleSocket)
 	if err == nil {
 		_ = os.Remove(run.ConsoleSocket)
 	}
@@ -876,16 +877,18 @@ func RunInstance(ctx context.Context, cmdCtx *cmdcontext.CmdCtx, inst InstanceCt
 		return fmt.Errorf("failed to start the instance %q: %w", inst.InstName, err)
 	}
 
-	//nolint:contextcheck // cleanup logs through sdk/log, which takes no context.
-	defer func() {
-		cleanup(&inst)
-	}()
-
-	err = process_utils.CreatePIDFile(inst.PIDFile, instance.GetPid())
+	owned, err := process_utils.CreatePIDFile(inst.PIDFile, instance.GetPid())
 	if err != nil {
 		_ = instance.Stop(instanceCleanupTimeout)
 		return fmt.Errorf("cannot create the pid file %q: %w", inst.PIDFile, err)
 	}
+
+	//nolint:contextcheck // removeSockets logs through sdk/log, which takes no context.
+	defer func() {
+		_ = owned.Release()
+
+		removeSockets(&inst)
+	}()
 
 	return instance.Wait()
 }
@@ -905,15 +908,28 @@ func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx) error {
 	logger.Println("[INFO] Start") // Create a log file before any other actions.
 
 	provider := providerImpl{cmdCtx: cmdCtx, instanceCtx: inst}
+
+	var owned *pidfile.File
+
 	preStartAction := func() error {
-		return process_utils.CreatePIDFile(inst.PIDFile, os.Getpid())
+		var err error
+
+		owned, err = process_utils.CreatePIDFile(inst.PIDFile, os.Getpid())
+
+		return err
 	}
 	watchdog := NewWatchdog(inst.Restartable, watchdogRestartTimeout, logger,
 		&provider, preStartAction, cmdCtx.Integrity,
 		time.Duration(cmdCtx.Cli.IntegrityCheckPeriod*int(time.Second)))
 
+	// Only a watchdog that owned the pid file cleans up: the files of a
+	// watchdog that runs already are not this one's to remove.
 	defer func() {
-		cleanup(inst)
+		if owned != nil {
+			_ = owned.Release()
+
+			removeSockets(inst)
+		}
 	}()
 
 	watchdog.Start()
@@ -948,13 +964,29 @@ func Kill(run InstanceCtx) error {
 		return fmt.Errorf("failed to kill the processes: %w", err)
 	}
 
-	// Remove PID files because due to SIGKILL watchdog can't cleanup itself.
-	cleanup(&run)
+	cleanupAfterKill(&run, pid, killCleanupTimeout)
 
 	fullInstanceName := GetAppInstanceName(run)
 	log.Infof("The instance %s (PID = %v) has been killed.", fullInstanceName, pid)
 
 	return nil
+}
+
+// cleanupAfterKill cleans up after the watchdog pid that tt kill killed,
+// which cannot clean up after itself. Its pid file goes only while it still
+// names pid, once the kernel has dropped the lock, which may take up to wait;
+// the sockets go with it, or when there is no pid file at all. A watchdog
+// that came up in the meantime keeps its pid file and its sockets.
+func cleanupAfterKill(run *InstanceCtx, pid int, wait time.Duration) {
+	removed, err := pidfile.RemoveFor(run.PIDFile, pid, wait)
+	if err != nil {
+		log.Warnf("cannot remove the pid file %q: %s", run.PIDFile, err)
+	}
+
+	_, statErr := os.Stat(run.PIDFile)
+	if removed || errors.Is(statErr, fs.ErrNotExist) {
+		removeSockets(run)
+	}
 }
 
 // Quit the Instance.

@@ -508,6 +508,7 @@ linters:
             - "github.com/tarantool/tt/v3/cli/daemon"
             - "github.com/tarantool/tt/v3/cli/process_utils"
             - "github.com/tarantool/tt/v3/cli/ttlog"
+            - "github.com/tarantool/tt/v3/internal/pidfile"
         dir-cli-docker:
           files:
             - "**/cli/docker/**"
@@ -606,6 +607,7 @@ linters:
             - "github.com/fatih/color"
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/v3/cli/process_utils"
+            - "github.com/tarantool/tt/v3/internal/pidfile"
         dir-cli-replicaset:
           files:
             - "**/cli/replicaset/**"
@@ -654,6 +656,7 @@ linters:
             - "github.com/tarantool/tt/v3/cli/running"
             - "github.com/tarantool/tt/v3/cli/ttlog"
             - "github.com/tarantool/tt/v3/cli/util"
+            - "github.com/tarantool/tt/v3/internal/pidfile"
         dir-cli-search:
           files:
             - "**/cli/search/**"
@@ -776,6 +779,15 @@ linters:
             - "github.com/tarantool/tt/v3/cli/version"
             - "github.com/tarantool/tt/v3/core"
             - "gopkg.in/yaml.v3"
+        # The pid-file protocol every writer and remover of a tt pid file
+        # follows: a leaf, below the supervisor and the commands.
+        dir-internal-pidfile:
+          files:
+            - "**/internal/pidfile/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/v3/internal/pidfile"
         # The process supervisor sits under the commands that run it and
         # depends on none of them.
         dir-internal-supervisor:
@@ -784,6 +796,7 @@ linters:
           allow:
             - $gostd
             - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/v3/internal/pidfile"
             - "github.com/tarantool/tt/v3/internal/supervisor"
         dir-lib-watchdog:
           files:

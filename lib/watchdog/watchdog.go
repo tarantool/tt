@@ -255,6 +255,17 @@ func (wd *Watchdog) terminateProcess() error {
 	return nil
 }
 
+// writePIDFile writes pid into the PID file through the pid-file protocol
+// and leaves the file to the pid it names, which protects it from then on.
+func writePIDFile(path string, pid int) error {
+	owned, err := process_utils.CreatePIDFile(path, pid)
+	if err != nil {
+		return err
+	}
+
+	return owned.Keep()
+}
+
 // writePIDFiles creates PID files for both the monitored process and the watchdog itself.
 func (wd *Watchdog) writePIDFiles() error {
 	wd.pidFileMutex.Lock()
@@ -264,7 +275,7 @@ func (wd *Watchdog) writePIDFiles() error {
 		return errProcessIsNotRunning
 	}
 
-	err := process_utils.CreatePIDFile(wd.pidFile, wd.cmd.Process.Pid)
+	err := writePIDFile(wd.pidFile, wd.cmd.Process.Pid)
 	if err != nil {
 		return err
 	}
@@ -272,7 +283,7 @@ func (wd *Watchdog) writePIDFiles() error {
 	log.Infof("Process PID %d written to %s", wd.cmd.Process.Pid, wd.pidFile)
 
 	if isExistsAndRecord, _ := process_utils.ExistsAndRecord(wd.wdPidFile); !isExistsAndRecord {
-		err = process_utils.CreatePIDFile(wd.wdPidFile, os.Getpid())
+		err = writePIDFile(wd.wdPidFile, os.Getpid())
 		if err != nil {
 			return err
 		}
