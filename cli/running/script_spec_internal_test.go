@@ -24,10 +24,8 @@ const (
 // startTestInstance starts instance for the test.
 func startTestInstance(t *testing.T, ctx context.Context, app, consoleSock string,
 	binaryPort string, logger ttlog.Logger,
-) *scriptInstance {
+) *specRun {
 	t.Helper()
-
-	assert := assert.New(t)
 
 	// Need absolute path to the script, because working dir is changed on start.
 	appPath, err := filepath.Abs(filepath.Join(instTestAppDir, app+".lua"))
@@ -41,7 +39,11 @@ func startTestInstance(t *testing.T, ctx context.Context, app, consoleSock strin
 	require.NoError(t, err)
 
 	binDir := filepath.Dir(binPath)
-	inst, err := newScriptInstance(tarantoolBin, InstanceCtx{
+
+	// The Spec takes the environment as it is when the Spec is built.
+	t.Setenv("started_flag_file", filepath.Join(binDir, app))
+
+	spec, err := scriptSpec(tarantoolBin, &InstanceCtx{
 		AppDir:         binDir,
 		InstanceScript: appPath,
 		ConsoleSocket:  consoleSock,
@@ -49,40 +51,31 @@ func startTestInstance(t *testing.T, ctx context.Context, app, consoleSock strin
 		VinylDir:       instTestDataDir,
 		MemtxDir:       instTestDataDir,
 		BinaryPort:     binaryPort,
-	}, StdLoggerOpt(logger))
-	assert.NoErrorf(err, `Can't create an instance. Error: "%v".`, err)
-
-	require.NoErrorf(t, err, `Can't get the path to the executable. Error: "%v".`, err)
-	t.Setenv("started_flag_file", filepath.Join(binDir, app))
+	}, specOptions{integrity: nil, stdout: logger, stderr: logger})
+	require.NoErrorf(t, err, `Can't create an instance. Error: "%v".`, err)
 
 	defer func() {
 		_ = os.Remove(os.Getenv("started_flag_file"))
 	}()
 
-	err = inst.Start(ctx)
-	require.NoErrorf(t, err, `Can't start the instance. Error: "%v".`, err)
+	run := startSpec(t, ctx, spec)
 
 	require.NotZero(t, waitForFile(os.Getenv("started_flag_file")), "Instance is not started")
+	assert.True(t, run.alive(), "Can't start the instance.")
 
-	alive := inst.IsAlive()
-	assert.True(alive, "Can't start the instance.")
-
-	return inst
+	return run
 }
 
-// cleanupTestInstance sends a SIGKILL signal to test
-// Instance that remain alive after the test done.
-func cleanupTestInstance(t *testing.T, inst *scriptInstance) {
+// cleanupTestInstance stops the instance if it still runs after the test,
+// and removes its console socket.
+func cleanupTestInstance(t *testing.T, run *specRun, consoleSock string) {
 	t.Helper()
 
-	if inst.IsAlive() {
-		err := inst.Stop(stopTimeout)
-		assert.NoError(t, err)
-	}
+	run.stop()
 
-	_, err := os.Stat(inst.consoleSocket)
+	_, err := os.Stat(consoleSock)
 	if err == nil {
-		_ = os.Remove(inst.consoleSocket)
+		_ = os.Remove(consoleSock)
 	}
 }
 
@@ -96,7 +89,7 @@ func TestInstanceBase(t *testing.T) {
 	logger := ttlog.NewCustomLogger(io.Discard, "", 0)
 	inst := startTestInstance(t, context.Background(), "dumb_test_app", consoleSock,
 		binaryPort, logger)
-	t.Cleanup(func() { cleanupTestInstance(t, inst) })
+	t.Cleanup(func() { cleanupTestInstance(t, inst, consoleSock) })
 
 	conn, err := (&net.Dialer{}).DialContext(t.Context(), "unix", consoleSock)
 	require.NoErrorf(t, err, `Can't connect to console socket. Error: "%v".`, err)
@@ -113,14 +106,13 @@ func TestInstanceLogger(t *testing.T) {
 	inst := startTestInstance(t, context.Background(), "log_check_test_app", consoleSock, "",
 		logger)
 	t.Cleanup(func() {
-		defer func() {
-			_ = reader.Close()
-		}()
-		defer func() {
-			_ = writer.Close()
-		}()
+		// Nobody reads the log any more: closing the reader first lets the
+		// output of tarantool fail instead of blocking its exit.
+		_ = reader.Close()
 
-		cleanupTestInstance(t, inst)
+		cleanupTestInstance(t, inst, consoleSock)
+
+		_ = writer.Close()
 	})
 
 	msg := "Check Log.\n"
@@ -238,7 +230,10 @@ func TestInstanceLogs(t *testing.T) {
 
 	instTestDataDir := t.TempDir()
 	binDir := filepath.Dir(binPath)
-	inst, err := newScriptInstance(tarantoolBin, InstanceCtx{
+
+	t.Setenv("started_flag_file", filepath.Join(binDir, app))
+
+	spec, err := scriptSpec(tarantoolBin, &InstanceCtx{
 		AppDir:         binDir,
 		InstanceScript: appPath,
 		ConsoleSocket:  consoleSock,
@@ -247,25 +242,18 @@ func TestInstanceLogs(t *testing.T) {
 		MemtxDir:       instTestDataDir,
 		LogDir:         instTestDataDir,
 		BinaryPort:     binaryPort,
-	})
+	}, specOptions{integrity: nil, stdout: os.Stdout, stderr: os.Stderr})
 	require.NoError(t, err)
-
-	t.Cleanup(func() { cleanupTestInstance(t, inst) })
-
-	require.NoErrorf(t, err, `Can't get the path to the executable. Error: "%v".`, err)
-	t.Setenv("started_flag_file", filepath.Join(binDir, app))
 
 	defer func() {
 		_ = os.Remove(os.Getenv("started_flag_file"))
 	}()
 
-	err = inst.Start(context.Background())
-	require.NoError(t, err)
+	inst := startSpec(t, context.Background(), spec)
+	t.Cleanup(func() { cleanupTestInstance(t, inst, consoleSock) })
 
 	require.NotZero(t, waitForFile(os.Getenv("started_flag_file")), "Instance is not started")
-
-	alive := inst.IsAlive()
-	assert.True(t, alive)
+	assert.True(t, inst.alive())
 
 	assert.FileExists(t, filepath.Join(filepath.Dir(binPath), "test.sock"))
 	assert.FileExists(t, filepath.Join(filepath.Dir(binPath), "testbin.sock"))
@@ -280,9 +268,9 @@ func TestInstanceStopByContext(t *testing.T) {
 	logger := ttlog.NewCustomLogger(io.Discard, "", 0)
 	ctx, cancel := context.WithCancel(context.Background())
 	inst := startTestInstance(t, ctx, "dumb_test_app", consoleSock, binaryPort, logger)
-	t.Cleanup(func() { cleanupTestInstance(t, inst) })
+	t.Cleanup(func() { cleanupTestInstance(t, inst, consoleSock) })
 
 	cancel()
-	require.ErrorIs(t, inst.Wait(), context.Canceled)
-	assert.True(t, inst.ProcessState().Success())
+	require.ErrorIs(t, inst.wait(), context.Canceled)
+	assert.True(t, inst.cmd.ProcessState.Success())
 }

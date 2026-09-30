@@ -657,6 +657,7 @@ linters:
             - "github.com/tarantool/tt/v3/cli/ttlog"
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/tarantool/tt/v3/internal/pidfile"
+            - "github.com/tarantool/tt/v3/internal/supervisor"
         dir-cli-search:
           files:
             - "**/cli/search/**"

@@ -185,6 +185,11 @@ for machine-readable output.
 
 ### Changed
 
+- `tt start`: a failed periodic integrity check (`--integrity-check-period`)
+  stops the instance for good. The watchdog kills it and exits, whatever
+  `restart_on_failure` says; starting it again is up to an administrator.
+  Before, an instance with `restart_on_failure: true` was restarted over the
+  files that had failed the check.
 - tt logs through `log/slog`. The text log keeps its look with two changes:
   a warning is marked `⚠` instead of `•`, and a message is no longer padded
   with trailing spaces. A debug line is marked `·`, the continuation lines of
@@ -314,6 +319,20 @@ for machine-readable output.
 
 ### Fixed
 
+- `tt stop` sent while the watchdog waits to restart a failed instance stops
+  the watchdog. Before, the signal was lost: the instance was restarted, and
+  `tt stop` gave up after 30 seconds.
+- Two `tt start` of one instance at the same time no longer start two
+  watchdogs. Every tt pid file is now owned through a lock, so of any number of
+  processes starting at once exactly one takes the file, and a stale file is
+  taken over under that lock instead of being removed and created again.
+- A second `tt start` of a running instance no longer removes the pid file and
+  the sockets of the watchdog that runs it.
+- `tt kill` no longer removes the pid file and the sockets of a watchdog that
+  started after the one it killed: it removes them only while the pid file
+  still names the killed watchdog.
+- Signals sent to an instance while its watchdog stops it are handled at once
+  instead of after the stop, which could take 30 seconds.
 - Table formatter: fix a potential panic when the scalar encoder receives a
   `float32` value. Format it with 32-bit precision while preserving the existing
   `float64` formatting.

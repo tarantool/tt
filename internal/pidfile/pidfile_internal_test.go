@@ -282,14 +282,15 @@ func TestRemoveFor(t *testing.T) {
 		path := filepath.Join(dir, "gone.pid")
 		require.NoError(t, os.WriteFile(path, []byte(strconv.Itoa(gone)), 0o600))
 
-		removed, err := RemoveFor(path, gone, time.Second)
+		removed, err := RemoveFor(path, gone, time.Second, nil)
 		require.NoError(t, err)
 		assert.True(t, removed)
 		assert.NoFileExists(t, path)
 	})
 
 	t.Run("missing", func(t *testing.T) {
-		removed, err := RemoveFor(filepath.Join(dir, "missing.pid"), gone, time.Second)
+		removed, err := RemoveFor(filepath.Join(dir, "missing.pid"), gone, time.Second,
+			func() { t.Error("cleanup ran without a file") })
 		require.NoError(t, err)
 		assert.False(t, removed)
 	})
@@ -302,7 +303,8 @@ func TestRemoveFor(t *testing.T) {
 
 		defer func() { require.NoError(t, owned.Release()) }()
 
-		removed, err := RemoveFor(path, gone, 50*time.Millisecond)
+		removed, err := RemoveFor(path, gone, 50*time.Millisecond,
+			func() { t.Error("cleanup ran for a newer owner") })
 		require.ErrorIs(t, err, ErrBusy, "the owner holds the lock")
 		assert.False(t, removed)
 		assert.Equal(t, os.Getpid(), pidIn(t, path))
@@ -316,7 +318,8 @@ func TestRemoveFor(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, owned.Keep())
 
-		removed, err := RemoveFor(path, gone, time.Second)
+		removed, err := RemoveFor(path, gone, time.Second,
+			func() { t.Error("cleanup ran for another process") })
 		require.NoError(t, err)
 		assert.False(t, removed, "the file names another process")
 		assert.Equal(t, cmd.Process.Pid, pidIn(t, path))
@@ -326,10 +329,35 @@ func TestRemoveFor(t *testing.T) {
 		path := filepath.Join(dir, "killed.pid")
 		pid := lockInChild(t, path)
 
-		removed, err := RemoveFor(path, pid, 5*time.Second)
+		removed, err := RemoveFor(path, pid, 5*time.Second, nil)
 		require.NoError(t, err)
 		assert.True(t, removed)
 		assert.NoFileExists(t, path)
+	})
+
+	t.Run("cleanup runs under the lock", func(t *testing.T) {
+		path := filepath.Join(dir, "cleanup.pid")
+		pid := lockInChild(t, path)
+		cleanups := 0
+
+		removed, err := RemoveFor(path, pid, 5*time.Second, func() {
+			cleanups++
+
+			// A process starting now finds the file still there and
+			// locked, so it cannot own what the cleanup removes.
+			assert.Equal(t, pid, pidIn(t, path))
+
+			_, err := Acquire(path, os.Getpid())
+			assert.ErrorIs(t, err, ErrBusy, "the file is not locked during the cleanup")
+		})
+		require.NoError(t, err)
+		assert.True(t, removed)
+		assert.Equal(t, 1, cleanups)
+		assert.NoFileExists(t, path)
+
+		owned, err := Acquire(path, os.Getpid())
+		require.NoError(t, err, "the file is still locked after RemoveFor")
+		require.NoError(t, owned.Release())
 	})
 }
 
