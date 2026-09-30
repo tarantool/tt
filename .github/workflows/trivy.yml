@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - 'master'
-      # temporary: run the scanner on this branch before merge
-      - 'ak/trivy-sca'
     tags:
       - '**'
   pull_request:
