@@ -82,7 +82,7 @@ func TestKillCleanupSparesNewerOwner(t *testing.T) {
 
 		defer func() { require.NoError(t, owned.Release()) }()
 
-		cleanupAfterKill(run, killed, 50*time.Millisecond)
+		cleanupAfterKill(run, killed, 50*time.Millisecond, removeSockets)
 
 		data, err := os.ReadFile(run.PIDFile)
 		require.NoError(t, err)
@@ -97,7 +97,7 @@ func TestKillCleanupSparesNewerOwner(t *testing.T) {
 
 		require.NoError(t, os.WriteFile(run.PIDFile, []byte(strconv.Itoa(other)), 0o600))
 
-		cleanupAfterKill(run, killed, time.Second)
+		cleanupAfterKill(run, killed, time.Second, removeSockets)
 
 		data, err := os.ReadFile(run.PIDFile)
 		require.NoError(t, err)
@@ -109,9 +109,47 @@ func TestKillCleanupSparesNewerOwner(t *testing.T) {
 	t.Run("no pid file", func(t *testing.T) {
 		run := killRun(t)
 
-		cleanupAfterKill(run, killed, time.Second)
+		cleanupAfterKill(run, killed, time.Second, removeSockets)
 
 		assert.NoFileExists(t, run.ConsoleSocket)
 		assert.NoFileExists(t, run.BinaryPort)
+		assert.NoFileExists(t, run.PIDFile)
 	})
+}
+
+// TestKillCleanupHoldsThePidFile pins that the sockets of the killed watchdog
+// are removed while the pid file is locked, so that a watchdog starting at
+// that moment cannot own the instance and have its fresh sockets removed:
+// both with the pid file of the killed watchdog and with none at all.
+func TestKillCleanupHoldsThePidFile(t *testing.T) {
+	const killed = 1<<31 - 2
+
+	cases := map[string]bool{"the file of the killed watchdog": true, "no pid file": false}
+
+	for name, withFile := range cases {
+		t.Run(name, func(t *testing.T) {
+			run := killRun(t)
+
+			if withFile {
+				require.NoError(t, os.WriteFile(run.PIDFile, []byte(strconv.Itoa(killed)), 0o600))
+			}
+
+			removals := 0
+
+			cleanupAfterKill(run, killed, time.Second, func(run *InstanceCtx) {
+				removals++
+
+				// A watchdog starting now.
+				_, err := pidfile.Acquire(run.PIDFile, os.Getpid())
+				require.ErrorIs(t, err, pidfile.ErrBusy, "a new watchdog owns the instance")
+
+				removeSockets(run)
+			})
+
+			assert.Equal(t, 1, removals)
+			assert.NoFileExists(t, run.PIDFile)
+			assert.NoFileExists(t, run.ConsoleSocket)
+			assert.NoFileExists(t, run.BinaryPort)
+		})
+	}
 }

@@ -227,7 +227,12 @@ func (owned *File) Keep() error {
 // the lock for up to wait. It returns whether it removed the file. A missing
 // file, or one that names another process, is left as it is: that is a file
 // a newer owner wrote.
-func RemoveFor(path string, pid int, wait time.Duration) (bool, error) {
+//
+// Before it removes the file, still holding the lock, RemoveFor runs a non-nil
+// cleanup to remove what else the gone process left behind: no newer owner
+// can exist until the file is gone, so nothing cleanup finds belongs to one.
+// It does not run cleanup when it leaves the file.
+func RemoveFor(path string, pid int, wait time.Duration, cleanup func()) (bool, error) {
 	file, err := os.OpenFile(path, os.O_RDWR, 0)
 
 	switch {
@@ -237,12 +242,14 @@ func RemoveFor(path string, pid int, wait time.Duration) (bool, error) {
 		return false, fmt.Errorf("opening the pid file: %w", err)
 	}
 
-	removed, err := removeLocked(file, path, pid, wait)
+	removed, err := removeLocked(file, path, pid, wait, cleanup)
 
 	return removed, errors.Join(err, closeFile(file))
 }
 
-func removeLocked(file *os.File, path string, pid int, wait time.Duration) (bool, error) {
+func removeLocked(file *os.File, path string, pid int, wait time.Duration,
+	cleanup func(),
+) (bool, error) {
 	deadline := time.Now().Add(wait)
 
 	for {
@@ -266,6 +273,10 @@ func removeLocked(file *os.File, path string, pid int, wait time.Duration) (bool
 	holder, err := readPid(file)
 	if err != nil || holder != pid {
 		return false, err
+	}
+
+	if cleanup != nil {
+		cleanup()
 	}
 
 	err = os.Remove(path)
