@@ -43,6 +43,8 @@ jobs:
           scan-ref: .
           scanners: vuln
           severity: HIGH,CRITICAL
+          # Vendored deprecated cartridge-cli; its deps are not owned by tt.
+          skip-dirs: cli/cartridge/third_party/cartridge-cli
           # Fail the job when HIGH or CRITICAL vulnerabilities are found.
           exit-code: '1'
           format: json
