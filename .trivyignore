@@ -1,0 +1,9 @@
+# docker/docker v28.5.2: CVE-2024-41110 is a false positive on 28.x;
+# the other two have no upstream fix yet.
+CVE-2024-41110
+CVE-2026-41567
+CVE-2026-42306
+
+# Python protobuf is pinned for etcd3 tests; no 3.20.x fix exists.
+CVE-2025-4565
+CVE-2026-0994
