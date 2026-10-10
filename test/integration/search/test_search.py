@@ -8,22 +8,22 @@ from utils import config_name, run_command_and_get_output
 
 
 def test_version_cmd(tt_cmd, tmp_path):
-    cmd = [tt_cmd, "search", "tarantool"]
+    cmd = [tt_cmd, "binary", "search", "tarantool"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
     assert re.search(r"Available versions of tarantool:", output)
 
-    cmd = [tt_cmd, "search", "tt"]
+    cmd = [tt_cmd, "binary", "search", "tt"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
     assert re.search(r"Available versions of tt:", output)
 
-    cmd = [tt_cmd, "search", "git"]
+    cmd = [tt_cmd, "binary", "search", "git"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
     assert re.search(r"Search for available versions for the program", output)
 
-    cmd = [tt_cmd, "search"]
+    cmd = [tt_cmd, "binary", "search"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
     assert re.search(r"Search for available versions for the program", output)
@@ -59,7 +59,7 @@ def test_version_cmd(tt_cmd, tmp_path):
 )
 def test_local_repo_sdk(tt_cmd: Path, tmp_path: Path, program: str, versions: list[str]) -> None:
     configPath = Path(__file__).parent / "testdata" / config_name
-    cmd = [tt_cmd, "--cfg", configPath, "search", "--local-repo", program]
+    cmd = [tt_cmd, "--cfg", configPath, "binary", "search", "--local-repo", program]
     # Run `tt`` in temporary directory, to ensure that it will find `distfiles` from the config.
     rc, gotVersions = run_command_and_get_output(cmd, cwd=tmp_path, stderr=None)
     assert rc == 0
@@ -92,22 +92,22 @@ def test_version_cmd_local(tt_cmd, tmp_path):
     ]
     rc, _ = run_command_and_get_output(cmd_download_tt, cwd=tmp_path)
     assert rc == 0
-    cmd = [tt_cmd, "search", "--local-repo", "tarantool"]
+    cmd = [tt_cmd, "binary", "search", "--local-repo", "tarantool"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
     assert re.search(r"Available local versions of tarantool:", output)
 
-    cmd = [tt_cmd, "search", "--local-repo", "tt"]
+    cmd = [tt_cmd, "binary", "search", "--local-repo", "tt"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
     assert re.search(r"Available local versions of tt:", output)
 
-    cmd = [tt_cmd, "search", "--local-repo", "git"]
+    cmd = [tt_cmd, "binary", "search", "--local-repo", "git"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
     assert re.search(r"Search for available versions for the program", output)
 
-    cmd = [tt_cmd, "search", "--local-repo"]
+    cmd = [tt_cmd, "binary", "search", "--local-repo"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
     assert re.search(r"Search for available versions for the program", output)
