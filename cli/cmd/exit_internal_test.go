@@ -18,6 +18,7 @@ import (
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/util"
+	"github.com/tarantool/tt/v3/internal/binary"
 )
 
 // exitRun is what one run of a command tree left behind.
@@ -193,7 +194,7 @@ func TestReportError(t *testing.T) {
 
 	t.Run("aborted by the user exits 1 silently", func(t *testing.T) {
 		got := runExit(t, func(cmd *cobra.Command, _ []string) error {
-			return commandError(cmd, fmt.Errorf("installing: %w", util.ErrCmdAbort))
+			return commandError(cmd, fmt.Errorf("installing: %w", binary.ErrCmdAbort))
 		}, "sub")
 
 		assert.Equal(t, 1, got.code)

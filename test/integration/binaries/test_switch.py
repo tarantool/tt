@@ -43,7 +43,7 @@ def test_switch(
 
     cmd = [
         tt_cmd,
-        "binaries",
+        "binary",
         "switch",
         program,
         version,
@@ -81,7 +81,7 @@ def test_switch_with_link(
     cmd = [
         tt_cmd,
         "--self",  # Note: don't use tt from test data environment.
-        "binaries",
+        "binary",
         "switch",
         program,
         version,
@@ -98,7 +98,7 @@ def test_switch_invalid_program(tt_cmd, tmp_path):
 
     cmd = [
         tt_cmd,
-        "binaries",
+        "binary",
         "switch",
         "nodejs",
         "2.10.3",
@@ -124,7 +124,7 @@ def test_switch_tt(tt_cmd, tmp_path, prefix):
 
     cmd = [
         tt_cmd,
-        "binaries",
+        "binary",
         "switch",
         "tt",
         f"{prefix}7.7.7",

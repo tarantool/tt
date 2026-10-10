@@ -205,7 +205,7 @@ TT_CLI_BUILD_SSL=openssl_static mage build
 - [zip](http://infozip.sourceforge.net/)
 - [unzip](http://infozip.sourceforge.net/)
 
-**tt install && search runtime dependencies:**
+**tt binary install && search runtime dependencies:**
 
 - [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
 

@@ -1,0 +1,237 @@
+package binary
+
+import (
+	"errors"
+	"fmt"
+	"regexp"
+	"sort"
+	"strings"
+
+	"github.com/tarantool/tt/sdk/connect"
+	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/v3/cli/config"
+	"github.com/tarantool/tt/v3/cli/version"
+)
+
+var (
+	errNoAvailableVersions                      = errors.New("no available versions")
+	errNoPackagesFoundForThisOSOrReleaseVersion = errors.New(
+		"no packages found for this OS or release version",
+	)
+	errTarantoolIOPackageNotFound = errors.New(
+		"there is no tarantool.io package for program: ",
+	)
+	errUnknownVersionFormatForProgram = errors.New("unknown version format for program: ")
+	errVersionNotFound                = errors.New(" version doesn't found")
+)
+
+// BundleInfo is a structure that contains specific information about SDK bundle.
+type BundleInfo struct {
+	// Version represents the info about the bundle's version.
+	Version version.Version
+	// Package represents package name.
+	Package string
+	// Release represents the release version (e.g: 2.10).
+	Release string
+	// Download token.
+	Token string
+}
+
+// BundleInfoSlice attaches the methods of sort.Interface to []Version,
+// sorting from oldest to newest.
+type BundleInfoSlice []BundleInfo
+
+// Swap implements sort.Interface.
+func (bundles BundleInfoSlice) Swap(i, j int) {
+	bundles[i], bundles[j] = bundles[j], bundles[i]
+}
+
+// Len implements sort.Interface.
+func (bundles BundleInfoSlice) Len() int {
+	return len(bundles)
+}
+
+// Less implements sort.Interface.
+func (bundles BundleInfoSlice) Less(i, j int) bool {
+	verLeft := bundles[i].Version
+	verRight := bundles[j].Version
+
+	return Less(verLeft, verRight)
+}
+
+// Less is a common function-comparator using for the Version type.
+func Less(verLeft, verRight version.Version) bool {
+	left := []uint64{
+		verLeft.Major, verLeft.Minor,
+		verLeft.Patch, uint64(verLeft.Release.Type),
+		verLeft.Release.Num, verLeft.Additional, verLeft.Revision,
+	}
+	right := []uint64{
+		verRight.Major, verRight.Minor,
+		verRight.Patch, uint64(verRight.Release.Type),
+		verRight.Release.Num, verRight.Additional, verRight.Revision,
+	}
+
+	largestLen := Max(len(left), len(right))
+
+	for idx := range largestLen {
+		var valLeft, valRight uint64 = 0, 0
+
+		if idx < len(left) {
+			valLeft = left[idx]
+		}
+
+		if idx < len(right) {
+			valRight = right[idx]
+		}
+
+		if valLeft != valRight {
+			return valLeft < valRight
+		}
+	}
+
+	return false
+}
+
+// compileVersionRegexp compiles a regular expression for cutting version from SDK bundle names.
+func compileVersionRegexp(prg Program) (*regexp.Regexp, error) {
+	var expr string
+
+	switch prg {
+	case ProgramEe:
+		expr = "^(?P<tarball>tarantool-enterprise-sdk-(?P<version>.*r[0-9]{1,3}).*\\.tar\\.gz)$"
+	case ProgramTcm:
+		expr = `^(?P<tarball>tcm-(?P<version>\d+\.\d+\.\d+[^.]*).*\.tar\.gz)$`
+	default:
+		return nil, fmt.Errorf("%w%q", errUnknownVersionFormatForProgram, prg)
+	}
+
+	return regexp.MustCompile(expr), nil
+}
+
+// getBundles collects a list of information about all available tarantool-ee
+// bundles from tarantool.io api reply.
+func getBundles(rawBundleInfoList map[string][]string, searchCtx *SearchCtx) (
+	BundleInfoSlice, error,
+) {
+	token := ""
+	if searchCtx.TntIoDoer != nil {
+		token = searchCtx.TntIoDoer.Token()
+	}
+
+	bundles := BundleInfoSlice{}
+
+	versionRegexp, err := compileVersionRegexp(searchCtx.Program)
+	if err != nil {
+		return nil, err
+	}
+
+	for release, pkgs := range rawBundleInfoList {
+		for _, pkg := range pkgs {
+			parsedData := FindNamedMatches(versionRegexp, pkg)
+			if len(parsedData) == 0 {
+				continue
+			}
+
+			version, err := version.Parse(parsedData["version"])
+			if err != nil {
+				log.Debugf(
+					"failed to parse version of %s from package %s: %v",
+					searchCtx.Program,
+					pkg,
+					err,
+				)
+
+				continue
+			}
+
+			version.Tarball = pkg
+
+			eeVer := BundleInfo{
+				Version: version,
+				Package: searchCtx.Package,
+				Release: release,
+				Token:   token,
+			}
+
+			switch searchCtx.Filter {
+			case SearchRelease:
+				if strings.Contains(pkg, "-debug-") {
+					continue
+				}
+			case SearchDebug:
+				if !strings.Contains(pkg, "-debug-") {
+					continue
+				}
+			case SearchAll:
+				// Keep both release and debug packages.
+			}
+
+			bundles = append(bundles, eeVer)
+		}
+	}
+
+	if len(bundles) == 0 {
+		return nil, errNoPackagesFoundForThisOSOrReleaseVersion
+	}
+
+	sort.Sort(bundles)
+
+	return bundles, nil
+}
+
+// FetchBundlesInfo returns slice of information about all available tarantool-ee bundles.
+// The result will be sorted in ascending order.
+func FetchBundlesInfo(searchCtx *SearchCtx, cliOpts *config.CliOpts) (
+	BundleInfoSlice, error,
+) {
+	searchCtx.Package = GetAPIPackage(searchCtx.Program)
+	if searchCtx.Package == "" {
+		return nil, fmt.Errorf("%w%s",
+			errTarantoolIOPackageNotFound, searchCtx.Program)
+	}
+
+	var credPath string
+
+	if cliOpts.EE != nil {
+		credPath = cliOpts.EE.CredPath
+	}
+
+	credentials, err := connect.GetCreds(credPath)
+	if err != nil {
+		return nil, err
+	}
+
+	ref, err := tntIoGetPkgVersions(credentials, searchCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	bundles, err := getBundles(ref, searchCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	return bundles, nil
+}
+
+// SelectVersion selects a specific version from the list of available bundles.
+// If no version is specified, it returns the latest version.
+func SelectVersion(bundles BundleInfoSlice, ver string) (BundleInfo, error) {
+	if bundles == nil || bundles.Len() == 0 {
+		return BundleInfo{}, errNoAvailableVersions
+	}
+
+	if ver == "" {
+		// No version specified, return the latest one.
+		return bundles[bundles.Len()-1], nil
+	}
+
+	for _, bundle := range bundles {
+		if bundle.Version.Str == ver {
+			return bundle, nil
+		}
+	}
+
+	return BundleInfo{}, fmt.Errorf("%q%w", ver, errVersionNotFound)
+}
