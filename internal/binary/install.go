@@ -1,0 +1,1677 @@
+package binary
+
+import (
+	"bufio"
+	"context"
+	_ "embed"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"os/user"
+	"path/filepath"
+	"regexp"
+	"runtime"
+	"slices"
+	"strconv"
+	"strings"
+
+	"github.com/otiai10/copy"
+	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/config"
+	"github.com/tarantool/tt/v3/cli/configure"
+	"github.com/tarantool/tt/v3/cli/docker"
+	"github.com/tarantool/tt/v3/cli/templates"
+	"github.com/tarantool/tt/v3/cli/version"
+	"golang.org/x/sys/unix"
+)
+
+var (
+	errBinDirNotSet                          = errors.New("bin_dir is not set, check ")
+	errDistfilesDirectoryNotFound            = errors.New("can't find distfiles directory")
+	errCouldNotGetInstalledVersionCommitHash = errors.New(
+		"could not get commit hash of the versionof an installed ",
+	)
+	errInvalidDirectory                     = errors.New("directory ")
+	errHashHasAWrongFormat                  = errors.New("hash has a wrong format")
+	errIncDirIsNotSetCheck                  = errors.New("inc_dir is not set, check ")
+	errNoVersionFound                       = errors.New("no version found")
+	errNoVersionsWereFetched                = errors.New("no versions were fetched")
+	errTarantoolBinaryWasNotFoundInThePaths = errors.New(
+		"tarantool binary was not found in the paths",
+	)
+	errUnableToGetHashInfo        = errors.New(": unable to get hash info")
+	errUnableToGetPullRequestInfo = errors.New(": unable to get pull-request info")
+	errUnknownApplication         = errors.New("unknown application: ")
+	errUnknownOS                  = errors.New("unknown OS")
+)
+
+const (
+	// defaultDirPermissions is rights used to create folders.
+	// 0755 - drwxr-xr-x
+	// We need to give permission for all to execute
+	// read,write for user and only read for others.
+	defaultDirPermissions = 0o755
+	gitCloneArgsCapacity  = 10
+	dockerfileMode        = 0o664
+
+	// osDarwin is the name of macOS as runtime.GOOS reports it.
+	osDarwin = "darwin"
+	// masterVersion is the version that stands for the master branch.
+	masterVersion = "master"
+
+	gitExec   = "git"
+	mageExec  = "mage"
+	cmakeExec = "cmake"
+	makeExec  = "make"
+	gccExec   = "gcc"
+)
+
+type missingPackagesError string
+
+func (err missingPackagesError) Error() string {
+	return string(err)
+}
+
+// programGitRepoUrls contains URLs of programs git repositories.
+var programGitRepoUrls = map[string]string{
+	"tarantool": GitRepoTarantool,
+	"tt":        GitRepoTT,
+}
+
+// InstallCtx contains information for program installation.
+type InstallCtx struct {
+	// Reinstall is a flag. If it is set,
+	// target application will be reinstalled if already exists.
+	Reinstall bool
+	// Force is a flag which disables dependency check if enabled.
+	Force bool
+	// KeepTemp is a flag. If it is set,
+	// install will don't remove tmp files.
+	KeepTemp bool
+	// Local is a flag. If it is set,
+	// install will do local installation.
+	Local bool
+	// BuildInDocker is set if tarantool must be built in docker container.
+	BuildInDocker bool
+	// Program is a program type to install.
+	Program Program
+	// verbose flag enables verbose logging.
+	verbose bool
+	// Version of the program to install.
+	version string
+	// Dynamic flag enables dynamic linking.
+	Dynamic bool
+	// buildDir is the directory, where the tarantool executable is searched,
+	// in case of installation from the local build directory.
+	buildDir string
+	// IncDir is the directory, where the tarantool headers are located for development install.
+	// Or the directory, where the headers should be installed from a bundle.
+	IncDir string
+	// Install development build.
+	DevBuild bool
+	// skipMasterUpdate is set if user doesn't want to check for latest master
+	// version and update for it if master version already exists. It inherits
+	// the --no-prompt flag from global context.
+	skipMasterUpdate bool
+}
+
+// Package is a struct containing sys and install name of the package.
+type Package struct {
+	// sysName is a string containing system name of package.
+	sysName string
+	// installName is a string containing install name of package.
+	installName string
+}
+
+// DistroInfo is a struct containing info about linux distro.
+type DistroInfo struct {
+	Name         string
+	Vendor       string
+	Version      string
+	Architecture string
+}
+
+var (
+	// PrettyNameRe is a regexp for PrettyName in os-release file.
+	PrettyNameRe = regexp.MustCompile(`^PRETTY_NAME=(.*)$`)
+	// IDRe is a regexp for ID in os-release file.
+	IDRe = regexp.MustCompile(`^ID=(.*)$`)
+	// VersionIDRe is a regexp for VersionID in os-release file.
+	VersionIDRe = regexp.MustCompile(`^VERSION_ID=(.*)$`)
+)
+
+// IsTarantoolDev returns true if tarantoolBinarySymlink is `tarantool-dev` version.
+func IsTarantoolDev(tarantoolBinarySymlink, binDir string) (string, bool, error) {
+	bin, err := os.Readlink(tarantoolBinarySymlink)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to read symlink: %w", err)
+	}
+
+	if !filepath.IsAbs(bin) {
+		bin = filepath.Join(binDir, bin)
+	}
+
+	return bin, filepath.Dir(bin) != binDir, nil
+}
+
+// getDistroInfo collects info about linux distro.
+func getDistroInfo() (DistroInfo, error) {
+	var (
+		distroInfo DistroInfo
+		err        error
+	)
+
+	// Get architecture.
+	distroInfo.Architecture, err = GetArch()
+	if err != nil {
+		return distroInfo, err
+	}
+
+	// Get distribution info.
+	releaseFile, err := os.Open("/etc/os-release")
+	if err != nil {
+		return distroInfo, fmt.Errorf("failed to read OS release info: %w", err)
+	}
+
+	defer func() {
+		_ = releaseFile.Close()
+	}()
+
+	scanner := bufio.NewScanner(releaseFile)
+	for scanner.Scan() {
+		if m := PrettyNameRe.FindStringSubmatch(scanner.Text()); m != nil {
+			distroInfo.Name = strings.Trim(m[1], `"`)
+		} else if m := IDRe.FindStringSubmatch(scanner.Text()); m != nil {
+			distroInfo.Vendor = strings.Trim(m[1], `"`)
+		} else if m := VersionIDRe.FindStringSubmatch(scanner.Text()); m != nil {
+			distroInfo.Version = strings.Trim(m[1], `"`)
+		}
+	}
+
+	return distroInfo, nil
+}
+
+// detectOsName returns name of the OS.
+func detectOsName() (string, error) {
+	if runtime.GOOS == osDarwin {
+		return osDarwin, nil
+	}
+
+	if runtime.GOOS == "windows" {
+		return "windows", nil
+	}
+
+	if runtime.GOOS == "linux" {
+		distroInfo, err := getDistroInfo()
+		return distroInfo.Name, err
+	}
+
+	return "", errUnknownOS
+}
+
+// getVersionsFromRepo returns all available versions from github repository.
+func getVersionsFromRepo(local bool, distfiles, program string,
+	repoLink string,
+) ([]version.Version, error) {
+	if local {
+		return GetVersionsFromGitLocal(filepath.Join(distfiles, program))
+	}
+
+	return GetVersionsFromGitRemote(repoLink)
+}
+
+// getCommit returns all available commits from repository.
+func getCommit(local bool, distfiles, programName string,
+	line string,
+) (string, error) {
+	var (
+		commit string
+		err    error
+	)
+
+	if local {
+		commit, err = GetCommitFromGitLocal(filepath.Join(distfiles, programName),
+			line)
+	} else {
+		commit, err = GetCommitFromGitRemote(programGitRepoUrls[programName],
+			line)
+	}
+
+	if err != nil {
+		return "", err
+	}
+
+	return commit, nil
+}
+
+// isProgramInstalled checks if program is installed.
+func isProgramInstalled(program string) bool {
+	_, err := exec.LookPath(program)
+
+	return err == nil
+}
+
+// isPackageInstalledDebian checks if package is installed on Debian/Ubuntu.
+func isPackageInstalledDebian(packageName string) bool {
+	cmd := exec.CommandContext(context.Background(), "dpkg", "-L", packageName)
+
+	_ = cmd.Start()
+
+	if cmd.Wait() == nil {
+		return true
+	} else {
+		return false
+	}
+}
+
+// printLog prints logfile to stdout.
+func printLog(logName string) error {
+	logs, err := os.ReadFile(logName)
+	if err != nil {
+		return fmt.Errorf("failed to read log: %w", err)
+	}
+
+	_, _ = os.Stdout.Write(logs)
+
+	return nil
+}
+
+// isPackageInstalled checks if package is installed.
+func isPackageInstalled(packageName string) bool {
+	osName, _ := detectOsName()
+	if strings.Contains(osName, "Ubuntu") || strings.Contains(osName, "Debian") {
+		return isPackageInstalledDebian(packageName)
+	}
+
+	if strings.Contains(osName, osDarwin) {
+		packageList, _ := RunCommandAndGetOutput("brew", "list")
+		return strings.Contains(packageList, packageName)
+	}
+
+	if strings.Contains(osName, "CentOS") {
+		packageList, _ := RunCommandAndGetOutput("yum", "list", "--installed")
+		return strings.Contains(packageList, packageName)
+	}
+
+	return false
+}
+
+// programDependenciesInstalled checks if dependencies are installed.
+func programDependenciesInstalled(program Program) error {
+	programs := []Package{}
+	packages := []string{}
+	osName, _ := detectOsName()
+
+	switch program {
+	case ProgramTt:
+		programs = []Package{{mageExec, mageExec}, {gitExec, gitExec}}
+	case ProgramCe:
+		switch {
+		case osName == osDarwin:
+			programs = []Package{
+				{cmakeExec, cmakeExec},
+				{gitExec, gitExec},
+				{makeExec, makeExec},
+				{"clang", "clang"},
+				{"openssl", "openssl"},
+			}
+		case strings.Contains(osName, "Ubuntu") || strings.Contains(osName, "Debian"):
+			programs = []Package{
+				{cmakeExec, cmakeExec},
+				{gitExec, gitExec},
+				{makeExec, makeExec},
+				{gccExec, " build-essential"},
+			}
+			packages = []string{"coreutils", "sed"} // spell-checker:disable-line
+		case strings.Contains(osName, "CentOs"):
+			programs = []Package{
+				{cmakeExec, cmakeExec},
+				{gitExec, gitExec},
+				{makeExec, makeExec},
+				{gccExec, gccExec},
+				{"g++", "gcc-c++ "},
+			}
+			packages = []string{"libstdc++-static", "perl"}
+		default:
+			answer, err := AskConfirm(os.Stdin,
+				"Unknown OS, can't check if dependencies"+
+					" are installed.\n"+
+					"Proceed without checking?")
+			if err != nil {
+				return err
+			}
+
+			if !answer {
+				return ErrCmdAbort
+			}
+
+			return nil
+		}
+	case ProgramUnknown, ProgramEe, ProgramDev, ProgramTcm:
+		// These programs have no source-build dependency checks.
+	}
+
+	missingPack := []string{}
+	// Programs that are installed from source.
+	missingPackSrc := []string{}
+
+	for _, program := range programs {
+		if !isProgramInstalled(program.sysName) {
+			// Mage is installed from source instead of package manager.
+			if program.sysName == mageExec {
+				missingPackSrc = append(missingPackSrc, program.installName)
+			} else {
+				missingPack = append(missingPack, program.installName)
+			}
+		}
+	}
+
+	for _, packageName := range packages {
+		if !isPackageInstalled(packageName) {
+			missingPack = append(missingPack, packageName)
+		}
+	}
+
+	if len(missingPack) != 0 || len(missingPackSrc) != 0 {
+		log.Error("The operation requires some dependencies.")
+
+		var errMsg strings.Builder
+
+		errMsg.WriteString("Missing packages: " + strings.Join(missingPack, " ") + " " +
+			strings.Join(missingPackSrc, " ") + "\n")
+
+		switch {
+		case osName == osDarwin:
+			errMsg.WriteString(
+				"You can install them by running commands:\nbrew install " + strings.Join(
+					missingPack,
+					" ",
+				) +
+					strings.Join(
+						missingPackSrc,
+						" ",
+					) + "\n",
+			)
+		case strings.Contains(osName, "CentOs"):
+			errMsg.WriteString("You can install them by running command:\n")
+
+			if len(missingPack) != 0 {
+				errMsg.WriteString(" sudo yum install " + strings.Join(missingPack, " ") + "\n")
+			}
+
+			if len(missingPackSrc) != 0 {
+				errMsg.WriteString("install from sources: " +
+					strings.Join(missingPackSrc, " ") + "\n")
+			}
+		case strings.Contains(osName, "Ubuntu") || strings.Contains(osName, "Debian"):
+			errMsg.WriteString("You can install them by running command:\n")
+
+			if len(missingPack) != 0 {
+				errMsg.WriteString(" sudo apt install " + strings.Join(missingPack, " ") + "\n")
+			}
+
+			if len(missingPackSrc) != 0 {
+				errMsg.WriteString("install from sources: " +
+					strings.Join(missingPackSrc, " ") + "\n")
+			}
+		}
+
+		errMsg.WriteString("Usage: tt binary install -f " +
+			"if you already have those packages installed")
+
+		return missingPackagesError(errMsg.String())
+	}
+
+	return nil
+}
+
+// downloadRepo downloads git repository.
+func downloadRepo(repoLink, tag, dst string, logFile *os.File, verbose bool) error {
+	gitCloneArgs := make([]string, 0, gitCloneArgsCapacity)
+	if tag == masterVersion {
+		gitCloneArgs = append(gitCloneArgs, "clone", repoLink,
+			"--recursive", dst)
+	} else {
+		gitCloneArgs = append(gitCloneArgs, "clone", "-b", tag, "--depth=1", repoLink,
+			"--recursive", dst)
+	}
+
+	if IsGitFetchJobsSupported() {
+		gitCloneArgs = append(gitCloneArgs, "-j", "19") // 19 - Tarantool submodules count.
+	}
+
+	return ExecuteCommand(gitExec, verbose, logFile, dst, gitCloneArgs...)
+}
+
+// copyBuildedTT copies tt binary.
+func copyBuildedTT(binDir, path, version string, installCtx InstallCtx) error {
+	_, err := os.Stat(binDir)
+	if os.IsNotExist(err) {
+		err = os.MkdirAll(binDir, defaultDirPermissions)
+		if err != nil {
+			return fmt.Errorf("unable to create %s\n Error: %w", binDir, err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("unable to create %s\n Error: %w", binDir, err)
+	}
+
+	if installCtx.Reinstall {
+		err = os.Remove(filepath.Join(binDir, version))
+		if err != nil {
+			return fmt.Errorf("failed to remove the installed version: %w", err)
+		}
+	}
+
+	binPathTt := filepath.Join(binDir, version)
+
+	err = CopyFilePreserve(filepath.Join(path, "tt"), binPathTt)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("Tt executable is installed to: %q", binPathTt)
+
+	return nil
+}
+
+// checkCommit checks the existence of a commit by hash.
+func checkCommit(input, programName string, installCtx InstallCtx,
+	distfiles string,
+) (string, string, error) {
+	pullRequestHash := ""
+	isPullRequest, _ := IsPullRequest(input)
+
+	if isPullRequest {
+		pullRequestHash, err := getCommit(installCtx.Local, distfiles,
+			programName, input)
+		if err != nil {
+			return input, pullRequestHash,
+				fmt.Errorf("%s%w", input, errUnableToGetPullRequestInfo)
+		}
+
+		pullRequestHash = pullRequestHash[0:MinCommitHashLength]
+
+		return input, pullRequestHash, nil
+	}
+
+	isRightFormat, err := IsValidCommitHash(input)
+	if err != nil {
+		return input, pullRequestHash, err
+	}
+
+	if !isRightFormat {
+		return input, pullRequestHash, errHashHasAWrongFormat
+	}
+
+	returnedHash, err := getCommit(installCtx.Local, distfiles, programName, input)
+	if err != nil {
+		return input, pullRequestHash, fmt.Errorf("%s%w", input, errUnableToGetHashInfo)
+	}
+
+	return returnedHash, pullRequestHash, nil
+}
+
+// gitCheckout switches to commit/tag, initializes and updates submodules.
+func gitCheckout(repoDir, checkout string, verbose bool, logWriter io.Writer) error {
+	err := ExecuteCommand(gitExec, verbose, logWriter, repoDir, "checkout", checkout)
+	if err != nil {
+		return fmt.Errorf("failed to checkout: %w", err)
+	}
+
+	err = ExecuteCommand(gitExec, verbose, logWriter, repoDir, "submodule", "update",
+		"--init", "--recursive")
+	if err != nil {
+		return fmt.Errorf("failed to update submodules: %w", err)
+	}
+
+	return nil
+}
+
+type resolvedInstallVersion struct {
+	version         string
+	versionStr      string
+	versionFound    bool
+	isPullRequest   bool
+	pullRequestID   string
+	pullRequestHash string
+}
+
+// newResolvedInstallVersion returns the requested version, not resolved yet.
+func newResolvedInstallVersion(requested string) resolvedInstallVersion {
+	return resolvedInstallVersion{
+		version:         requested,
+		versionStr:      "",
+		versionFound:    false,
+		isPullRequest:   false,
+		pullRequestID:   "",
+		pullRequestHash: "",
+	}
+}
+
+func matchRequestedInstallVersion(result resolvedInstallVersion, installCtx InstallCtx,
+	distfiles, programName, repo string,
+) (resolvedInstallVersion, error) {
+	if !version.IsVersion(result.version, false) {
+		return result, nil
+	}
+
+	log.Infof("Searching in versions...")
+
+	versions, err := getVersionsFromRepo(installCtx.Local, distfiles, programName, repo)
+	if err != nil {
+		return resolvedInstallVersion{}, err
+	}
+
+	match, err := version.MatchVersion(result.version, versions)
+	if err != nil {
+		_, isNotFound := errors.AsType[version.NotFoundError](err)
+		if !isNotFound {
+			return resolvedInstallVersion{}, err
+		}
+
+		return result, nil
+	}
+
+	result.versionFound = true
+	result.version = match
+
+	return result, nil
+}
+
+func resolveRequestedInstallVersion(result resolvedInstallVersion, installCtx InstallCtx,
+	distfiles, programName, repo string,
+) (resolvedInstallVersion, error) {
+	if result.version == masterVersion {
+		return result, nil
+	}
+
+	result, err := matchRequestedInstallVersion(
+		result, installCtx, distfiles, programName, repo)
+	if err != nil {
+		return resolvedInstallVersion{}, err
+	}
+
+	if result.versionFound {
+		return result, nil
+	}
+
+	result.isPullRequest, result.pullRequestID = IsPullRequest(result.version)
+	if result.isPullRequest {
+		log.Infof("Searching in pull-requests...")
+	} else {
+		log.Infof("Searching in commits...")
+	}
+
+	result.version, result.pullRequestHash, err = checkCommit(
+		result.version, programName, installCtx, distfiles)
+	if err != nil {
+		return resolvedInstallVersion{}, err
+	}
+
+	return result, nil
+}
+
+func resolveTtInstallVersion(installCtx InstallCtx, distfiles string) (
+	resolvedInstallVersion,
+	error,
+) {
+	result := newResolvedInstallVersion(installCtx.version)
+
+	// Get latest version if it was not specified.
+	if result.version == "" {
+		log.Infof("Getting latest tt version...")
+
+		versions, err := getVersionsFromRepo(installCtx.Local, distfiles, "tt", GitRepoTT)
+		if err != nil {
+			return resolvedInstallVersion{}, err
+		}
+
+		if len(versions) == 0 {
+			return resolvedInstallVersion{}, errNoVersionsWereFetched
+		}
+
+		result.version = versions[len(versions)-1].Str
+	}
+
+	// The tag format in tt is vX.Y.Z, but the user can use X.Y.Z.
+	var err error
+
+	result, err = resolveRequestedInstallVersion(
+		result, installCtx, distfiles, "tt", GitRepoTT)
+	if err != nil {
+		return resolvedInstallVersion{}, err
+	}
+
+	switch {
+	case result.versionFound:
+		result.versionStr = ProgramTt.Exec() + version.FsSeparator + result.version
+	case result.isPullRequest:
+		result.versionStr = ProgramTt.Exec() + version.FsSeparator + result.pullRequestHash
+	default:
+		result.versionStr = ProgramTt.Exec() + version.FsSeparator +
+			result.version[0:Min(len(result.version), MinCommitHashLength)]
+	}
+
+	return result, nil
+}
+
+func resolveTarantoolInstallVersion(installCtx InstallCtx, distfiles string) (
+	resolvedInstallVersion,
+	error,
+) {
+	result := newResolvedInstallVersion(installCtx.version)
+
+	// Get latest release if it was not specified.
+	if result.version == "" {
+		log.Infof("Getting latest tarantool version...")
+
+		versions, err := getVersionsFromRepo(
+			installCtx.Local, distfiles, "tarantool", GitRepoTarantool)
+		if err != nil {
+			return resolvedInstallVersion{}, err
+		}
+
+		result.version = getLatestRelease(versions)
+		if result.version == "" {
+			return resolvedInstallVersion{}, errNoVersionFound
+		}
+	}
+
+	var err error
+
+	result, err = resolveRequestedInstallVersion(
+		result, installCtx, distfiles, "tarantool", GitRepoTarantool)
+	if err != nil {
+		return resolvedInstallVersion{}, err
+	}
+
+	switch {
+	case result.versionFound:
+		result.versionStr = ProgramCe.String() + version.FsSeparator + result.version
+	case result.isPullRequest:
+		result.versionStr = ProgramCe.String() + version.FsSeparator + result.pullRequestHash
+	default:
+		result.versionStr = ProgramCe.String() + version.FsSeparator +
+			result.version[0:Min(len(result.version), MinCommitHashLength)]
+	}
+
+	return result, nil
+}
+
+func prepareTarantoolInstall(binDir, incDir string, installCtx InstallCtx, distfiles string) (
+	resolvedInstallVersion,
+	error,
+) {
+	if binDir == "" {
+		return resolvedInstallVersion{},
+			fmt.Errorf("%w%s", errBinDirNotSet, configure.ConfigName)
+	}
+
+	if incDir == "" {
+		return resolvedInstallVersion{},
+			fmt.Errorf("%w%s", errIncDirIsNotSetCheck, configure.ConfigName)
+	}
+
+	return resolveTarantoolInstallVersion(installCtx, distfiles)
+}
+
+func prepareExistingTt(installCtx *InstallCtx, binDir, versionStr, ttVersion,
+	distfiles string,
+) (bool, error) {
+	if installCtx.Reinstall {
+		return false, nil
+	}
+
+	log.Infof("Checking existing...")
+
+	pathToBin := filepath.Join(binDir, versionStr)
+	if !IsRegularFile(pathToBin) {
+		return false, nil
+	}
+
+	isBinExecutable, err := IsExecOwner(pathToBin)
+	if err != nil {
+		return false, err
+	}
+
+	updatePossible, err := isUpdatePossible(*installCtx, pathToBin, ProgramTt,
+		ttVersion, distfiles, isBinExecutable)
+	if err != nil {
+		return false, err
+	}
+
+	if updatePossible {
+		log.Info("Found newest commit of tt in master")
+
+		// Reduce the case to a reinstallation.
+		installCtx.Reinstall = true
+
+		return false, nil
+	}
+
+	log.Infof("%s version of tt already exists, updating symlink...", versionStr)
+
+	err = CreateSymlink(versionStr, filepath.Join(binDir, ProgramTt.Exec()), true)
+	if err != nil {
+		return false, err
+	}
+
+	log.Infof("Done")
+
+	return true, nil
+}
+
+func downloadTtSource(path, ttVersion, distfiles string, resolved resolvedInstallVersion,
+	installCtx InstallCtx, logFile *os.File,
+) error {
+	if installCtx.Local {
+		if !IsDir(filepath.Join(distfiles, "tt")) {
+			return errDistfilesDirectoryNotFound
+		}
+
+		log.Infof("Local files found, installing from them...")
+
+		localPath, _ := JoinAbspath(distfiles, "tt")
+
+		err := copy.Copy(localPath, path)
+		if err != nil {
+			return fmt.Errorf("failed to copy local tt sources: %w", err)
+		}
+
+		err = gitCheckout(path, ttVersion, installCtx.verbose, logFile)
+		if err != nil {
+			_ = printLog(logFile.Name())
+		}
+
+		return err
+	}
+
+	log.Infof("Downloading tt...")
+
+	if resolved.versionFound {
+		err := downloadRepo(GitRepoTT, ttVersion, path, logFile, installCtx.verbose)
+		if err != nil {
+			_ = printLog(logFile.Name())
+		}
+
+		return err
+	}
+
+	err := downloadRepo(GitRepoTT, masterVersion, path, logFile, installCtx.verbose)
+	if err != nil {
+		_ = printLog(logFile.Name())
+		return err
+	}
+
+	if resolved.isPullRequest {
+		pullRequestCommand := "pull/" + resolved.pullRequestID + "/head:" + ttVersion
+
+		err = ExecuteCommand(gitExec, installCtx.verbose, logFile, path,
+			"fetch", "origin", pullRequestCommand)
+		if err != nil {
+			_ = printLog(logFile.Name())
+			return err
+		}
+	}
+
+	err = gitCheckout(path, ttVersion, installCtx.verbose, logFile)
+	if err != nil {
+		_ = printLog(logFile.Name())
+	}
+
+	return err
+}
+
+// installTt installs selected version of tt.
+func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
+	resolved, err := resolveTtInstallVersion(installCtx, distfiles)
+	if err != nil {
+		return err
+	}
+
+	ttVersion := resolved.version
+	versionStr := resolved.versionStr
+	isPullRequest := resolved.isPullRequest
+	pullRequestHash := resolved.pullRequestHash
+
+	// Check if that version is already installed.
+	// If it is installed, check if the newest version exists.
+	done, err := prepareExistingTt(&installCtx, binDir, versionStr, ttVersion, distfiles)
+	if err != nil {
+		return err
+	}
+
+	if done {
+		return nil
+	}
+
+	// Check binary directory.
+	if binDir == "" {
+		return fmt.Errorf("%w%s", errBinDirNotSet, configure.ConfigName)
+	}
+
+	logFile, err := os.CreateTemp("", "tarantool_install")
+	if err != nil {
+		return fmt.Errorf("failed to create log file: %w", err)
+	}
+
+	defer func() {
+		_ = os.Remove(logFile.Name())
+	}()
+
+	log.Infof("Installing tt=" + ttVersion)
+
+	// Check tt dependencies.
+	if !installCtx.Force {
+		log.Infof("Checking dependencies...")
+
+		err = programDependenciesInstalled(ProgramTt)
+		if err != nil {
+			return err
+		}
+	}
+
+	path, err := os.MkdirTemp("", "tt_install")
+	if err != nil {
+		return fmt.Errorf("failed to create a temporary directory: %w", err)
+	}
+
+	_ = os.Chmod(path, defaultDirPermissions)
+
+	if !installCtx.KeepTemp {
+		defer func() {
+			_ = os.RemoveAll(path)
+		}()
+	}
+
+	// Download tt.
+	err = downloadTtSource(path, ttVersion, distfiles, resolved, installCtx, logFile)
+	if err != nil {
+		return err
+	}
+
+	// Build tt.
+	log.Infof("Building tt...")
+
+	err = ExecuteCommand(mageExec, installCtx.verbose, logFile, path,
+		"build")
+	if err != nil {
+		_ = printLog(logFile.Name())
+		return err
+	}
+
+	if isPullRequest {
+		log.Infof("Binary name is %s", pullRequestHash)
+	}
+
+	// Copy binary.
+	log.Infof("Copying executable...")
+
+	err = copyBuildedTT(binDir, path, versionStr, installCtx)
+	if err != nil {
+		_ = printLog(logFile.Name())
+		return err
+	}
+
+	// Set symlink.
+	symlinkPath := filepath.Join(binDir, "tt")
+
+	err = CreateSymlink(versionStr, symlinkPath, true)
+	if err != nil {
+		_ = printLog(logFile.Name())
+		return err
+	}
+
+	log.Infof("Made default by symlink %q", symlinkPath)
+	log.Info("Use the following command to add the bin_dir directory to the PATH: . <(tt env)")
+	log.Infof("Done.")
+
+	if installCtx.KeepTemp {
+		log.Infof("Artifacts can be found at: %s", path)
+	}
+
+	return nil
+}
+
+// prepareCmakeOpts prepares cmake command line options for tarantool building.
+func prepareCmakeOpts(buildPath string,
+	installCtx InstallCtx,
+) []string {
+	cmakeOpts := []string{".."}
+
+	cmakeOpts = append(cmakeOpts, `-DCMAKE_TARANTOOL_ARGS=-DCMAKE_BUILD_TYPE=RelWithDebInfo;`+
+		`-DENABLE_WERROR=OFF;-DENABLE_BACKTRACE=ON`)
+
+	if installCtx.Dynamic {
+		cmakeOpts = append(cmakeOpts, "-DCMAKE_INSTALL_PREFIX="+filepath.Join(buildPath,
+			"tarantool-prefix"))
+	} else {
+		cmakeOpts = append(cmakeOpts, "-DCMAKE_INSTALL_PREFIX="+buildPath)
+	}
+
+	return cmakeOpts
+}
+
+// prepareMakeOpts prepares make command line options for tarantool building.
+func prepareMakeOpts(installCtx InstallCtx) []string {
+	makeOpts := []string{}
+	if installCtx.Dynamic {
+		makeOpts = append(makeOpts, "install")
+	}
+
+	if _, isMakeFlagsSet := os.LookupEnv("MAKEFLAGS"); !isMakeFlagsSet {
+		maxThreads := strconv.Itoa(runtime.NumCPU())
+
+		makeOpts = append(makeOpts, "-j", maxThreads)
+	}
+
+	return makeOpts
+}
+
+// buildTarantool builds tarantool from source. Returns a path, where build artifacts are placed.
+func buildTarantool(srcPath string,
+	installCtx InstallCtx, logFile *os.File,
+) (string, error) {
+	buildPath := filepath.Join(srcPath, "/static-build/build")
+	if installCtx.Dynamic {
+		buildPath = filepath.Join(srcPath, "/dynamic-build")
+	}
+
+	err := os.MkdirAll(buildPath, defaultDirPermissions)
+	if err != nil {
+		return "", fmt.Errorf("failed to create build directory: %w", err)
+	}
+
+	cmakeOpts := prepareCmakeOpts(buildPath, installCtx)
+
+	err = ExecuteCommand(cmakeExec, installCtx.verbose, logFile, buildPath, cmakeOpts...)
+	if err != nil {
+		return "", err
+	}
+
+	makeOpts := prepareMakeOpts(installCtx)
+
+	return buildPath, ExecuteCommand(makeExec, installCtx.verbose, logFile, buildPath,
+		makeOpts...)
+}
+
+// copyLocalTarantool finds and copies local tarantool folder to tmp folder.
+func copyLocalTarantool(distfiles, path, tarVersion string,
+	installCtx InstallCtx, logFile *os.File,
+) error {
+	var err error
+
+	if IsDir(filepath.Join(distfiles, "tarantool")) {
+		log.Infof("Local files found, installing from them...")
+
+		localPath, _ := JoinAbspath(distfiles, "tarantool")
+
+		err = copy.Copy(localPath, path)
+		if err != nil {
+			return fmt.Errorf("failed to copy local tarantool sources: %w", err)
+		}
+
+		err = gitCheckout(path, tarVersion, installCtx.verbose, logFile)
+	} else {
+		return errDistfilesDirectoryNotFound
+	}
+
+	return err
+}
+
+// copyBuildedTarantool copies binary and include dir.
+func copyBuildedTarantool(binPath, incPath, binDir, includeDir, version string) error {
+	log.Infof("Copying executable...")
+
+	_, err := os.Stat(binDir)
+	if os.IsNotExist(err) {
+		err = os.MkdirAll(binDir, defaultDirPermissions)
+		if err != nil {
+			return fmt.Errorf("unable to create %s\n Error: %w", binDir, err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("unable to create %s\n Error: %w", binDir, err)
+	}
+
+	execPath := filepath.Join(binDir, version)
+
+	err = CopyFileChangePerms(binPath, execPath, defaultDirPermissions)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("Copying headers...")
+
+	_, err = os.Stat(includeDir)
+	if os.IsNotExist(err) {
+		err = os.MkdirAll(includeDir, defaultDirPermissions)
+		if err != nil {
+			return fmt.Errorf("unable to create %s\n Error: %w", includeDir, err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("unable to create %s\n Error: %w", includeDir, err)
+	}
+
+	if incPath != "" {
+		if !strings.HasSuffix(incPath, "/") {
+			// Note: copy.Copy expects the directory path to end with '/'.
+			incPath += "/"
+		}
+
+		err = copy.Copy(incPath, filepath.Join(includeDir, version)+"/")
+		if err != nil {
+			return fmt.Errorf("failed to copy headers: %w", err)
+		}
+	}
+
+	log.Infof("Tarantool executable is installed to: %q", execPath)
+
+	return nil
+}
+
+//go:embed Dockerfile.tnt.build
+var tarantoolBuildDockerfile []byte
+
+func installTarantoolInDocker(tntVersion, binDir, incDir string, installCtx InstallCtx,
+	distfiles string,
+) error {
+	tmpDir, err := os.MkdirTemp("", "docker_build_ctx")
+	if err != nil {
+		return fmt.Errorf("failed to create a temporary directory: %w", err)
+	}
+
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
+
+	currentUser, err := user.Current()
+	if err != nil {
+		return fmt.Errorf("failed to get current user: %w", err)
+	}
+
+	goTextEngine := templates.NewDefaultEngine()
+
+	dockerfileText, err := goTextEngine.RenderText(string(tarantoolBuildDockerfile),
+		map[string]string{"uid": currentUser.Uid})
+	if err != nil {
+		return err
+	}
+
+	// Write docker file (rw-rw-r-- permissions).
+	err = os.WriteFile(filepath.Join(tmpDir, "Dockerfile"), []byte(dockerfileText),
+		dockerfileMode)
+	if err != nil {
+		return fmt.Errorf("failed to write Dockerfile: %w", err)
+	}
+
+	// Copy tt executable.
+	currentExecutable, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to get tt executable path: %w", err)
+	}
+
+	err = copy.Copy(currentExecutable, filepath.Join(tmpDir, "tt"))
+	if err != nil {
+		return nil
+	}
+
+	// Generate tt config for tt process in the container.
+	ttCfg := configure.GetDefaultCliOpts()
+
+	ttCfg.Env.BinDir = "/tt_bin"
+	ttCfg.Env.IncludeDir = "/tt_include"
+	ttCfg.Repo.Install = "/tt_distfiles"
+
+	err = WriteYaml(filepath.Join(tmpDir, configure.ConfigName), ttCfg)
+	if err != nil {
+		return err
+	}
+
+	// Generate install command line for tt in container.
+	tntInstallCommandLine := []string{"./tt"}
+	if installCtx.verbose {
+		tntInstallCommandLine = append(tntInstallCommandLine, "-V")
+	}
+
+	tntInstallCommandLine = append(tntInstallCommandLine, "install", "-f",
+		ProgramCe.Exec(), tntVersion)
+	if installCtx.Reinstall {
+		tntInstallCommandLine = append(tntInstallCommandLine, "--reinstall")
+	}
+
+	if installCtx.Local {
+		tntInstallCommandLine = append(tntInstallCommandLine, "--local-repo")
+	}
+
+	if installCtx.Dynamic {
+		tntInstallCommandLine = append(tntInstallCommandLine, "--dynamic")
+	}
+
+	// Exclude last element from incDir path, because it already has "include" subdir appended.
+	// So we get the parent of incDir to get original include path.
+	dockerRunOptions := docker.RunOptions{
+		BuildCtxDir: tmpDir,
+		ImageTag:    "ubuntu:tt_tarantool_build",
+		Command:     tntInstallCommandLine,
+		Binds: []string{
+			fmt.Sprintf("%s:%s", binDir, ttCfg.Env.BinDir),
+			fmt.Sprintf("%s:%s", filepath.Dir(incDir), ttCfg.Env.IncludeDir),
+			fmt.Sprintf("%s:%s", distfiles, ttCfg.Repo.Install),
+		},
+		Verbose: installCtx.verbose,
+	}
+
+	return docker.RunContainer(dockerRunOptions, os.Stdout)
+}
+
+func getLatestRelease(versions []version.Version) string {
+	latestRelease := ""
+
+	for _, candidate := range slices.Backward(versions) {
+		if candidate.Release.Type == version.TypeRelease {
+			latestRelease = candidate.Str
+			break
+		}
+	}
+
+	return latestRelease
+}
+
+// changeActiveTarantoolVersion changes symlinks to the specified tarantool version.
+func changeActiveTarantoolVersion(versionStr, binDir, incDir string) error {
+	err := CreateSymlink(versionStr, filepath.Join(binDir, "tarantool"), true)
+	if err != nil {
+		return err
+	}
+
+	err = CreateSymlink(versionStr, filepath.Join(incDir, "tarantool"), true)
+
+	return err
+}
+
+func prepareExistingTarantool(installCtx InstallCtx, binDir, incDir, versionStr,
+	tarVersion, distfiles string,
+) (bool, error) {
+	if installCtx.Reinstall {
+		return false, nil
+	}
+
+	log.Infof("Checking existing...")
+
+	pathToBin := filepath.Join(binDir, versionStr)
+	if !IsRegularFile(pathToBin) || !IsDir(filepath.Join(incDir, versionStr)) {
+		return false, nil
+	}
+
+	isBinExecutable, err := IsExecOwner(pathToBin)
+	if err != nil {
+		return false, err
+	}
+
+	updatePossible, err := isUpdatePossible(installCtx, pathToBin, ProgramCe,
+		tarVersion, distfiles, isBinExecutable)
+	if err != nil {
+		return false, err
+	}
+
+	if updatePossible {
+		log.Infof("Found newest commit of tarantool in master")
+
+		return false, nil
+	}
+
+	log.Infof("%s version of tarantool already exists, updating symlinks...", versionStr)
+
+	err = changeActiveTarantoolVersion(versionStr, binDir, incDir)
+	if err != nil {
+		return false, err
+	}
+
+	log.Infof("Done")
+
+	return true, nil
+}
+
+func downloadTarantoolSource(path, tarVersion, distfiles string,
+	resolved resolvedInstallVersion, installCtx InstallCtx, logFile *os.File,
+) error {
+	if installCtx.Local {
+		log.Infof("Checking local files...")
+
+		return copyLocalTarantool(distfiles, path, tarVersion, installCtx, logFile)
+	}
+
+	log.Infof("Downloading tarantool...")
+
+	if resolved.versionFound {
+		return downloadRepo(GitRepoTarantool, tarVersion, path, logFile,
+			installCtx.verbose)
+	}
+
+	err := downloadRepo(GitRepoTarantool, masterVersion, path, logFile,
+		installCtx.verbose)
+	if err != nil {
+		return err
+	}
+
+	if resolved.isPullRequest {
+		pullRequestCommand := "pull/" + resolved.pullRequestID + "/head:" + tarVersion
+
+		err = ExecuteCommand(gitExec, installCtx.verbose, logFile, path,
+			"fetch", "origin", pullRequestCommand)
+		if err != nil {
+			return err
+		}
+	}
+
+	return gitCheckout(path, tarVersion, installCtx.verbose, logFile)
+}
+
+// installTarantool installs selected version of tarantool.
+func installTarantool(binDir string, installCtx InstallCtx, distfiles string) error {
+	incDir := installCtx.IncDir
+
+	resolved, err := prepareTarantoolInstall(binDir, incDir, installCtx, distfiles)
+	if err != nil {
+		return err
+	}
+
+	tarVersion := resolved.version
+	versionStr := resolved.versionStr
+	isPullRequest := resolved.isPullRequest
+	pullRequestHash := resolved.pullRequestHash
+
+	// Check if program is already installed.
+	// If it is installed, check if newest version exists.
+	done, err := prepareExistingTarantool(
+		installCtx, binDir, incDir, versionStr, tarVersion, distfiles)
+	if err != nil {
+		return err
+	}
+
+	if done {
+		return nil
+	}
+
+	if installCtx.BuildInDocker {
+		return installTarantoolInDocker(tarVersion, binDir, incDir, installCtx, distfiles)
+	}
+
+	logFile, err := os.CreateTemp("", "tarantool_install")
+	if err != nil {
+		return fmt.Errorf("failed to create log file: %w", err)
+	}
+
+	defer func() {
+		_ = os.Remove(logFile.Name())
+	}()
+
+	log.Infof("Installing tarantool=" + tarVersion)
+
+	// Check dependencies.
+	if !installCtx.Force {
+		log.Infof("Checking dependencies...")
+
+		err = programDependenciesInstalled(ProgramCe)
+		if err != nil {
+			return err
+		}
+	}
+
+	path, err := os.MkdirTemp("", "tarantool_install")
+	if err != nil {
+		return fmt.Errorf("failed to create a temporary directory: %w", err)
+	}
+
+	_ = os.Chmod(path, defaultDirPermissions)
+
+	if !installCtx.KeepTemp {
+		defer func() {
+			_ = os.RemoveAll(path)
+		}()
+	}
+
+	// Download tarantool.
+	err = downloadTarantoolSource(path, tarVersion, distfiles, resolved, installCtx, logFile)
+	if err != nil {
+		_ = printLog(logFile.Name())
+		return err
+	}
+
+	// Build tarantool.
+	log.Infof("Building tarantool...")
+
+	buildPath, err := buildTarantool(path, installCtx, logFile)
+	if err != nil {
+		_ = printLog(logFile.Name())
+		return err
+	}
+
+	if isPullRequest {
+		log.Infof("Binary name is %s", pullRequestHash)
+	}
+
+	// Copy binary and headers.
+	if installCtx.Reinstall && IsRegularFile(filepath.Join(binDir, versionStr)) {
+		log.Infof("%s version of tarantool already exists, removing files...",
+			versionStr)
+
+		err = os.RemoveAll(filepath.Join(binDir, versionStr))
+		if err != nil {
+			_ = printLog(logFile.Name())
+			return fmt.Errorf("failed to remove the installed executable: %w", err)
+		}
+
+		err = os.RemoveAll(filepath.Join(incDir, versionStr))
+		if err != nil {
+			_ = printLog(logFile.Name())
+			return fmt.Errorf("failed to remove the installed headers: %w", err)
+		}
+	}
+
+	binPath := filepath.Join(buildPath, "tarantool-prefix", "bin", "tarantool")
+	incPath := filepath.Join(buildPath, "tarantool-prefix", "include", "tarantool")
+
+	err = copyBuildedTarantool(binPath, incPath, binDir, incDir, versionStr)
+	if err != nil {
+		_ = printLog(logFile.Name())
+		return err
+	}
+
+	// Set symlinks.
+	log.Infof("Changing symlinks...")
+
+	err = changeActiveTarantoolVersion(versionStr, binDir, incDir)
+	if err != nil {
+		_ = printLog(logFile.Name())
+		return err
+	}
+
+	log.Infof("Made default by symlink %q", filepath.Join(incDir, "tarantool"))
+	log.Info("Use the following command to add the bin_dir directory to the PATH: . <(tt env)")
+	log.Infof("Done.")
+
+	if installCtx.KeepTemp {
+		log.Infof("Artifacts can be found at: %s", path)
+	}
+
+	return nil
+}
+
+// isUpdatePossible func checks if Tt or Tarantool are 'master' version
+// and if so, asks user about checking for update to latest commit.
+// Function returns boolean variable if update of master is possible or not.
+func isUpdatePossible(installCtx InstallCtx,
+	pathToBin string,
+	program Program,
+	progVer,
+	distfiles string,
+	isBinExecutable bool,
+) (bool, error) {
+	// We need to make sure that we check newest commits only for
+	// production 'master' branch. Also we want to ask if user wants
+	// to check for updates.
+	if !isBinExecutable || progVer != masterVersion || installCtx.skipMasterUpdate {
+		return false, nil
+	}
+
+	answer, err := AskConfirm(os.Stdin, "The 'master' version of the "+
+		program.String()+" has already been installed.\n"+
+		"Would you like to update it if there are newer commits available?")
+	if err != nil {
+		return false, err
+	}
+
+	if !answer {
+		return false, nil
+	}
+
+	lastCommitHash, err := getCommit(installCtx.Local, distfiles, program.String(), progVer)
+	if err != nil {
+		return false, err
+	}
+
+	var curBinHash string
+
+	switch program {
+	case ProgramCe:
+		tarantoolBin := cmdcontext.TarantoolCli{
+			Executable: pathToBin,
+		}
+
+		binVersion, err := tarantoolBin.GetVersion()
+		if err != nil {
+			return false, err
+		}
+
+		// We need to trim first rune to get commit hash
+		// from string structure 'g<commitHash>'.
+		if len(binVersion.Hash) < 1 {
+			return false, fmt.Errorf("%w%s", errCouldNotGetInstalledVersionCommitHash, program)
+		}
+
+		curBinHash = binVersion.Hash[1:]
+	case ProgramTt:
+		ttVer, err := cmdcontext.GetTtVersion(pathToBin)
+		if err != nil {
+			return false, err
+		}
+
+		curBinHash = ttVer.Hash
+	case ProgramUnknown, ProgramEe, ProgramDev, ProgramTcm:
+		// Current callers only pass Tarantool CE or tt.
+	}
+
+	if strings.HasPrefix(lastCommitHash, curBinHash) {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+// dirIsWritable checks if the current user has the write access to the passed directory.
+func dirIsWritable(dir string) bool {
+	return unix.Access(dir, unix.W_OK) == nil
+}
+
+// searchTarantoolHeaders searches tarantool headers.
+// First, it checks the specified includeDir,
+// in case of failure, it checks the default one.
+func searchTarantoolHeaders(buildDir, includeDir string) (string, error) {
+	var err error
+
+	if includeDir != "" {
+		includeDir, err = filepath.Abs(includeDir)
+		if err != nil {
+			return "", fmt.Errorf("failed to get absolute path: %w", err)
+		}
+
+		if !IsDir(includeDir) {
+			return "", fmt.Errorf("%w%v doesn't exist, or isn't a directory",
+				errInvalidDirectory, includeDir)
+		}
+
+		return includeDir, nil
+	}
+
+	// Check the default path.
+	defaultIncPath := filepath.Join(buildDir, "tarantool-prefix", "include", "tarantool")
+	if IsDir(defaultIncPath) {
+		return defaultIncPath, nil
+	}
+
+	return "", nil
+}
+
+// installTarantoolDev installs tarantool from the local build directory.
+func installTarantoolDev(ttBinDir, ttIncludeDir, buildDir,
+	includeDir string,
+) error {
+	// Validate build directory.
+	buildDir, err := filepath.Abs(buildDir)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path: %w", err)
+	}
+
+	if !IsDir(buildDir) {
+		return fmt.Errorf("%w%v doesn't exist, or isn't directory",
+			errInvalidDirectory, buildDir)
+	}
+
+	checkedBinaryPaths := make([]string, 0)
+
+	// Searching for tarantool binary.
+	for _, binaryRelPath := range [...]string{
+		"src/tarantool",
+		"tarantool/src/tarantool",
+		"tarantool-prefix/bin/tarantool",
+	} {
+		binaryPath := filepath.Join(buildDir, binaryRelPath)
+
+		var isExecOwner bool
+
+		isExecOwner, err = IsExecOwner(binaryPath)
+
+		if err != nil || !isExecOwner || IsDir(binaryPath) {
+			checkedBinaryPaths = append(checkedBinaryPaths, binaryPath)
+			continue
+		}
+
+		// Check that tt directories exist.
+		err = CreateDirectory(ttBinDir, defaultDirPermissions)
+		if err != nil {
+			return err
+		}
+
+		err = CreateDirectory(ttIncludeDir, defaultDirPermissions)
+		if err != nil {
+			return err
+		}
+
+		log.Infof("Changing symlinks...")
+
+		err = CreateSymlink(binaryPath, filepath.Join(ttBinDir, "tarantool"), true)
+		if err != nil {
+			return err
+		}
+
+		includeDir, err = searchTarantoolHeaders(buildDir, includeDir)
+		if err != nil {
+			return err
+		}
+
+		tarantoolIncludeSymlink := filepath.Join(ttIncludeDir, "tarantool")
+		// Remove old symlink to the tarantool headers.
+		// RemoveAll is used to perform deletion even if the file is not a symlink.
+		err = os.RemoveAll(tarantoolIncludeSymlink)
+		if err != nil {
+			return fmt.Errorf("failed to remove the headers symlink: %w", err)
+		}
+
+		if includeDir == "" {
+			log.Warn("Tarantool headers location was not specified. " +
+				"`tt package build`, `tt rocks` may not work properly.\n" +
+				"  To specify include files location use --include-dir option.")
+		} else {
+			err = CreateSymlink(includeDir, tarantoolIncludeSymlink, true)
+			if err != nil {
+				return err
+			}
+
+			log.Infof("tarantool headers directory set as %v.", includeDir)
+		}
+
+		log.Infof("Done.")
+
+		return nil
+	}
+
+	return fmt.Errorf("%w:\n%s",
+		errTarantoolBinaryWasNotFoundInThePaths, strings.Join(checkedBinaryPaths, "\n"))
+}
+
+// subDirIsWritable checks if the passed dir doesn't exist but can be created.
+func subDirIsWritable(dir string) bool {
+	var err error
+
+	for {
+		_, err = os.Stat(dir)
+		if os.IsNotExist(err) {
+			dir = filepath.Dir(dir)
+			continue
+		}
+
+		return dirIsWritable(dir)
+	}
+}
+
+// Install installs program.
+func Install(installCtx InstallCtx, cliOpts *config.CliOpts) error {
+	binDir := cliOpts.Env.BinDir
+	includeDir := cliOpts.Env.IncludeDir
+	local := cliOpts.Repo.Install
+
+	var err error
+
+	// This check is needed for knowing that we will be able to copy
+	// recently built binaries to the corresponding bin and include directories.
+	for _, dir := range []string{binDir, includeDir} {
+		_, err = os.Stat(dir)
+		if os.IsNotExist(err) && subDirIsWritable(dir) {
+			continue
+		}
+
+		if !dirIsWritable(dir) {
+			return fmt.Errorf("%w%s is not writeable for the current user.\n"+
+				"     Please, update rights to the directory or use 'sudo' for successful install",
+				errTheDirectoryIsNotWriteableForTheCurrentUser, dir)
+		}
+	}
+
+	includeDir = filepath.Join(includeDir, "include")
+	if installCtx.IncDir == "" && installCtx.Program != ProgramDev {
+		installCtx.IncDir = includeDir
+	}
+
+	switch installCtx.Program {
+	case ProgramTt:
+		err = installTt(binDir, installCtx, local)
+	case ProgramCe:
+		err = installTarantool(binDir, installCtx, local)
+	case ProgramEe, ProgramTcm:
+		err = installBundleProgram(&installCtx, cliOpts)
+	case ProgramDev:
+		err = installTarantoolDev(binDir, includeDir, installCtx.buildDir,
+			installCtx.IncDir)
+	default:
+		return fmt.Errorf("%w%s", errUnknownApplication, installCtx.Program)
+	}
+
+	return err
+}
+
+func FillCtx(cmdCtx *cmdcontext.CmdCtx, installCtx *InstallCtx, args []string) error {
+	var err error
+
+	installCtx.Program, err = ParseProgram(cmdCtx.CommandName)
+	if err != nil {
+		return fmt.Errorf("failed create context: %w", err)
+	}
+
+	installCtx.verbose = cmdCtx.Cli.Verbose
+	installCtx.skipMasterUpdate = cmdCtx.Cli.NoPrompt
+
+	if installCtx.Program == ProgramDev {
+		installCtx.buildDir = args[0]
+		return nil
+	}
+
+	if len(args) == 1 {
+		installCtx.version = args[0]
+	}
+
+	return nil
+}

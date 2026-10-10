@@ -30,7 +30,7 @@ def test_install_ee(
     create_tt_config(tmp_path)
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "search", prog],
+        [tt_cmd, "binary", "search", prog],
         cwd=tmp_path,
         env=dict(os.environ, PWD=tmp_path),
     )
@@ -39,7 +39,7 @@ def test_install_ee(
     assert re.search(r"(\d+.\d+.\d+|<unknown>)", version)
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "install", "-f", prog, version],
+        [tt_cmd, "binary", "install", "-f", prog, version],
         cwd=tmp_path,
         env=dict(os.environ, PWD=tmp_path),
     )
@@ -71,7 +71,7 @@ def test_install_ee_dev(
     create_tt_config(tmp_path)
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "search", prog, "--dev"],
+        [tt_cmd, "binary", "search", prog, "--dev"],
         cwd=tmp_path,
         env=dict(os.environ, PWD=tmp_path),
     )
@@ -80,7 +80,7 @@ def test_install_ee_dev(
     assert re.search(r"(\d+.\d+.\d+|<unknown>)", version)
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "install", "-f", prog, version, "--dev"],
+        [tt_cmd, "binary", "install", "-f", prog, version, "--dev"],
         cwd=tmp_path,
         env=dict(os.environ, PWD=tmp_path),
     )
