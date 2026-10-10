@@ -28,7 +28,7 @@ def test_uninstall_tt(tt_cmd, tmp_path):
         os.makedirs(os.path.join(tmp_path, "include", "include", "tarantool_master"))
         os.symlink("./tarantool_master", os.path.join(tmp_path, "include", "include", "tarantool"))
 
-        uninstall_cmd = [tt_cmd, "--cfg", configPath, "uninstall", *prog]
+        uninstall_cmd = [tt_cmd, "--cfg", configPath, "binary", "uninstall", *prog]
         uninstall_process = subprocess.Popen(
             uninstall_cmd,
             cwd=tmp_path,
@@ -67,7 +67,7 @@ def test_uninstall_default_many(tt_cmd, tmp_path):
     os.chmod(os.path.join(tmp_path, "bin", "tarantool_master"), 0o775)
     os.symlink("./tarantool_master", os.path.join(tmp_path, "bin", "tarantool"))
 
-    uninstall_cmd = [tt_cmd, "--cfg", configPath, "uninstall", "tarantool"]
+    uninstall_cmd = [tt_cmd, "--cfg", configPath, "binary", "uninstall", "tarantool"]
     uninstall_process = subprocess.Popen(
         uninstall_cmd,
         cwd=tmp_path,
@@ -94,7 +94,7 @@ def test_uninstall_missing(tt_cmd, tmp_path):
     os.mkdir(os.path.join(tmp_path, "bin"))
     os.mkdir(os.path.join(tmp_path, "include"))
     # Remove not installed program.
-    uninstall_cmd = [tt_cmd, "uninstall", "tt", "1.2.3"]
+    uninstall_cmd = [tt_cmd, "binary", "uninstall", "tt", "1.2.3"]
     uninstall_process = subprocess.Popen(
         uninstall_cmd,
         cwd=tmp_path,
@@ -112,7 +112,7 @@ def test_uninstall_missing(tt_cmd, tmp_path):
 def test_uninstall_foreign_program(tt_cmd, tmpdir_with_cfg):
     # Remove bash.
     for prog in [["bash"], ["bash", "123"]]:
-        uninstall_cmd = [tt_cmd, "uninstall", *prog]
+        uninstall_cmd = [tt_cmd, "binary", "uninstall", *prog]
         uninstall_process = subprocess.Popen(
             uninstall_cmd,
             cwd=tmpdir_with_cfg,
@@ -141,6 +141,7 @@ def test_uninstall_tarantool_dev_installed(tt_cmd, tmp_path, is_symlink_broken):
         tt_cmd,
         "--cfg",
         os.path.join(testdata_path, tt_dir, config_name),
+        "binary",
         "uninstall",
         "tarantool-dev",
     ]
@@ -178,6 +179,7 @@ def test_uninstall_tarantool_dev_not_installed(tt_cmd, tmp_path):
         tt_cmd,
         "--cfg",
         os.path.join(testdata_path, tt_dir, config_name),
+        "binary",
         "uninstall",
         "tarantool-dev",
     ]
@@ -210,6 +212,7 @@ def test_uninstall_tarantool_switch(tt_cmd, tmp_path):
         tt_cmd,
         "--cfg",
         os.path.join(testdata_path, config_name),
+        "binary",
         "uninstall",
         "tarantool",
         "1.10.15",
@@ -243,6 +246,7 @@ def test_uninstall_tarantool_switch_hash(tt_cmd, tmp_path):
         tt_cmd,
         "--cfg",
         os.path.join(testdata_path, config_name),
+        "binary",
         "uninstall",
         "tarantool",
         "1.10.15",
@@ -288,6 +292,7 @@ def test_uninstall_tarantool_no_switch(tt_cmd, tmp_path):
         tt_cmd,
         "--cfg",
         os.path.join(testdata_path, config_name),
+        "binary",
         "uninstall",
         "tarantool",
         "1.10.15",
@@ -326,7 +331,7 @@ def test_uninstall_tt_missing_version_character(
     # Copying built executable to bin directory,
     # renaming it to version and change symlink
     # to emulate that we have installed it like
-    # tt install tt v1.2.3.
+    # tt binary install tt v1.2.3.
     # We don't really install it because bug we test
     # is fixed only for current patch. Due to
     # binary file is changing while running this
@@ -336,7 +341,7 @@ def test_uninstall_tt_missing_version_character(
     os.symlink(os.path.join(tmp_path, f"tt_{installed_versions[0]}"), os.path.join(tmp_path, "tt"))
 
     # Remove not installed program.
-    uninstall_cmd = [tt_cmd, "--cfg", configPath, "uninstall", "tt", version_to_uninstall]
+    uninstall_cmd = [tt_cmd, "--cfg", configPath, "binary", "uninstall", "tt", version_to_uninstall]
     uninstall_rc, uninstall_output = run_command_and_get_output(uninstall_cmd, cwd=tmp_path)
 
     assert uninstall_rc == 0
@@ -365,7 +370,7 @@ def test_uninstall_tt_missing_symlink(tt_cmd, tmp_path):
     symlink_path = os.path.join(tmp_path, "tt")
     assert not os.path.exists(symlink_path)
 
-    uninstall_cmd = [tt_cmd, "uninstall", "tt", "94ba971"]
+    uninstall_cmd = [tt_cmd, "binary", "uninstall", "tt", "94ba971"]
     uninstall_rc, uninstall_output = run_command_and_get_output(uninstall_cmd, cwd=tmp_path)
 
     assert uninstall_rc == 0

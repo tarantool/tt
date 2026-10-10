@@ -321,23 +321,28 @@ linters:
             - $gostd
             - "github.com/tarantool/tt/modules/aeon"
             - "github.com/tarantool/tt/v3/core"
-        dir-cli-binary:
+        dir-internal-binary:
           files:
-            - "**/cli/binary/**"
+            - "**/internal/binary/**"
           allow:
             - $gostd
             - "github.com/fatih/color"
+            - "github.com/hashicorp/go-version"
             - "github.com/manifoldco/promptui"
+            - "github.com/mgutz/ansi"
             - "github.com/otiai10/copy"
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/sdk"
-            - "github.com/tarantool/tt/v3/cli/binary"
             - "github.com/tarantool/tt/v3/cli/cmdcontext"
             - "github.com/tarantool/tt/v3/cli/config"
-            - "github.com/tarantool/tt/v3/cli/install"
-            - "github.com/tarantool/tt/v3/cli/search"
-            - "github.com/tarantool/tt/v3/cli/util"
+            - "github.com/tarantool/tt/v3/cli/configure"
+            - "github.com/tarantool/tt/v3/cli/docker"
+            - "github.com/tarantool/tt/v3/cli/exitcode"
+            - "github.com/tarantool/tt/v3/cli/templates"
             - "github.com/tarantool/tt/v3/cli/version"
+            - "github.com/tarantool/tt/v3/internal/binary"
+            - "golang.org/x/sys"
+            - "gopkg.in/yaml.v2"
         dir-cli-cfg:
           files:
             - "**/cli/cfg/**"
@@ -383,7 +388,6 @@ linters:
             - "github.com/spf13/cobra"
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/sdk"
-            - "github.com/tarantool/tt/v3/cli/binary"
             - "github.com/tarantool/tt/v3/cli/cfg"
             - "github.com/tarantool/tt/v3/cli/checkpoint"
             - "github.com/tarantool/tt/v3/cli/cluster"
@@ -396,10 +400,8 @@ linters:
             - "github.com/tarantool/tt/v3/cli/coredump"
             - "github.com/tarantool/tt/v3/cli/create"
             - "github.com/tarantool/tt/v3/cli/daemon"
-            - "github.com/tarantool/tt/v3/cli/download"
             - "github.com/tarantool/tt/v3/cli/env"
             - "github.com/tarantool/tt/v3/cli/exitcode"
-            - "github.com/tarantool/tt/v3/cli/install"
             - "github.com/tarantool/tt/v3/cli/logging"
             - "github.com/tarantool/tt/v3/cli/manifest"
             - "github.com/tarantool/tt/v3/cli/printing"
@@ -407,13 +409,12 @@ linters:
             - "github.com/tarantool/tt/v3/cli/replicaset"
             - "github.com/tarantool/tt/v3/cli/rocks"
             - "github.com/tarantool/tt/v3/cli/running"
-            - "github.com/tarantool/tt/v3/cli/search"
             - "github.com/tarantool/tt/v3/cli/status"
             - "github.com/tarantool/tt/v3/cli/tail"
             - "github.com/tarantool/tt/v3/cli/tcm"
-            - "github.com/tarantool/tt/v3/cli/uninstall"
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/tarantool/tt/v3/cli/version"
+            - "github.com/tarantool/tt/v3/internal/binary"
             - "golang.org/x/term"
             - "gopkg.in/yaml.v3"
         dir-cli-cmdcontext:
@@ -520,19 +521,6 @@ linters:
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/sdk"
             - "github.com/tarantool/tt/v3/cli/docker"
-        dir-cli-download:
-          files:
-            - "**/cli/download/**"
-          allow:
-            - $gostd
-            - "github.com/tarantool/tt/sdk"
-            - "github.com/tarantool/tt/v3/cli/cmdcontext"
-            - "github.com/tarantool/tt/v3/cli/config"
-            - "github.com/tarantool/tt/v3/cli/download"
-            - "github.com/tarantool/tt/v3/cli/install_ee"
-            - "github.com/tarantool/tt/v3/cli/search"
-            - "github.com/tarantool/tt/v3/cli/util"
-            - "golang.org/x/sys"
         dir-cli-env:
           files:
             - "**/cli/env/**"
@@ -550,34 +538,6 @@ linters:
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/sdk"
             - "github.com/tarantool/tt/v3/cli/exitcode"
-        dir-cli-install:
-          files:
-            - "**/cli/install/**"
-          allow:
-            - $gostd
-            - "github.com/otiai10/copy"
-            - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/sdk"
-            - "github.com/tarantool/tt/v3/cli/cmdcontext"
-            - "github.com/tarantool/tt/v3/cli/config"
-            - "github.com/tarantool/tt/v3/cli/configure"
-            - "github.com/tarantool/tt/v3/cli/docker"
-            - "github.com/tarantool/tt/v3/cli/install"
-            - "github.com/tarantool/tt/v3/cli/install_ee"
-            - "github.com/tarantool/tt/v3/cli/search"
-            - "github.com/tarantool/tt/v3/cli/templates"
-            - "github.com/tarantool/tt/v3/cli/util"
-            - "github.com/tarantool/tt/v3/cli/version"
-            - "golang.org/x/sys"
-        dir-cli-install_ee:
-          files:
-            - "**/cli/install_ee/**"
-          allow:
-            - $gostd
-            - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/v3/cli/install_ee"
-            - "github.com/tarantool/tt/v3/cli/search"
-            - "github.com/tarantool/tt/v3/cli/util"
         dir-cli-logging:
           files:
             - "**/cli/logging/**"
@@ -657,18 +617,6 @@ linters:
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/tarantool/tt/v3/internal/pidfile"
             - "github.com/tarantool/tt/v3/internal/supervisor"
-        dir-cli-search:
-          files:
-            - "**/cli/search/**"
-          allow:
-            - $gostd
-            - "github.com/otiai10/copy"
-            - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/sdk"
-            - "github.com/tarantool/tt/v3/cli/config"
-            - "github.com/tarantool/tt/v3/cli/search"
-            - "github.com/tarantool/tt/v3/cli/util"
-            - "github.com/tarantool/tt/v3/cli/version"
         dir-cli-status:
           files:
             - "**/cli/status/**"
@@ -718,21 +666,6 @@ linters:
             - $gostd
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/v3/cli/ttlog"
-        dir-cli-uninstall:
-          files:
-            - "**/cli/uninstall/**"
-          allow:
-            - $gostd
-            - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/sdk"
-            - "github.com/tarantool/tt/v3/cli/cmdcontext"
-            - "github.com/tarantool/tt/v3/cli/config"
-            - "github.com/tarantool/tt/v3/cli/configure"
-            - "github.com/tarantool/tt/v3/cli/install"
-            - "github.com/tarantool/tt/v3/cli/search"
-            - "github.com/tarantool/tt/v3/cli/uninstall"
-            - "github.com/tarantool/tt/v3/cli/util"
-            - "github.com/tarantool/tt/v3/cli/version"
         dir-cli-util:
           files:
             - "**/cli/util/**"

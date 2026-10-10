@@ -10,7 +10,7 @@ applications
   tt [flags] <command> [command flags]
 [0;1;39m
 COMMANDS[0m
-  binaries    Manage installed binaries
+  binary      Manage binaries
   cat         Print into stdout the contents of .snap/.xlog FILE(s)
   cfg         Environment configuration management utility
   check       Check an application file for syntax errors
@@ -22,10 +22,8 @@ COMMANDS[0m
   coredump    Perform manipulations with the tarantool coredumps
   create      Create an application from a template
   daemon      Perform manipulations with the tt daemon (experimental)
-  download    Download Tarantool SDK
   env         Add current environment binaries location to the PATH variable
   help        Help about any command
-  install     Install program
   kill        Kill tarantool instance(s)
   log         Get logs of instance(s)
   logrotate   Rotate logs of a started tarantool instance(s)
@@ -38,13 +36,11 @@ COMMANDS[0m
   restart     Restart tarantool instance(s)
   rocks       LuaRocks package manager
   run         Run the current package under its Tarantool
-  search      Search for available versions for the program
   start       Start tarantool instance(s)
   status      Status of the tarantool instance(s)
   stop        Stop tarantool instance(s)
   tcm         Manage tcm application
   test        Build the current package and run its tests
-  uninstall   Uninstalls a program
   version     Show Tarantool CLI EE version information
 [0;1;39m
 HELP TOPICS[0m
