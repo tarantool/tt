@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/tarantool/tt/sdk/log"
-	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/version"
 )
@@ -34,6 +33,15 @@ const (
 )
 
 var errNotInstalled = errors.New("not installed")
+
+// UninstallCtx contains the options for removing an installed program.
+type UninstallCtx struct {
+	BinaryContext
+
+	Version string
+	BinDir  string
+	IncDir  string
+}
 
 // remove removes binary/directory and symlinks from directory.
 // It returns true if symlink was removed, error.
@@ -94,13 +102,10 @@ func remove(program Program, programVersion, directory string) (bool, error) {
 }
 
 // UninstallProgram uninstalls program and symlinks.
-func UninstallProgram(
-	program Program,
-	programVersion string,
-	binDst string,
-	headerDst string,
-	cmdCtx *cmdcontext.CmdCtx,
-) error {
+func UninstallProgram(uninstallCtx UninstallCtx) error {
+	program, programVersion := uninstallCtx.Program, uninstallCtx.Version
+	binDst, headerDst := uninstallCtx.BinDir, uninstallCtx.IncDir
+
 	log.Infof("Removing binary...")
 
 	var err error

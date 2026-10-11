@@ -10,7 +10,7 @@ Utility for managing Tarantool packages and Tarantool-based applications
 [0;1;39m
 COMMANDS[0m
   aeon        Manage aeon application
-  binary      Manage binaries
+  binary      Manage binaries and SDK bundles
   cat         Print into stdout the contents of .snap/.xlog FILE(s)
   cfg         Environment configuration management utility
   check       Check an application file for syntax errors
@@ -123,310 +123,421 @@ FLAGS[0m
   -u, --username string      username (used as etcd credentials only)
 
 === tt binary --help
-Manage binaries
+Manage binaries and SDK bundles
 
 [0;1;39mUSAGE[0m
   tt binary [flags] <command> [command flags]
 [0;1;39m
 COMMANDS[0m
-  install     Install program
-  list        Show a list of installed binaries and their versions.
-  search      Search for available versions for the program
-  switch      Switch to installed binary
-  uninstall   Uninstalls a program
+  install     Install a program
+  list        List installed binaries and versions
+  search      Search available program versions
+  switch      Switch the active binary
+  uninstall   Uninstall a program
 [0;1;39m
 FLAGS[0m
-  -h, --help   help for binary
+  -h, --help      help for binary
+  -V, --verbose   Show diagnostic output and build commands
 
 Use "tt binary <command> --help" for more information about a command.
 
 === tt binary install --help
-Install program
+Install a program
 
 [0;1;39mUSAGE[0m
   tt binary install [flags] <command> [command flags]
 [0;1;39m
 COMMANDS[0m
-  SDK           Download Tarantool SDK
-  tarantool     Install tarantool community edition
-  tarantool-dev Install tarantool from the local build directory
-  tarantool-ee  Install tarantool enterprise edition
-  tcm           Install tarantool cluster manager
+  sdk           Download a Tarantool SDK bundle
+  tarantool     Install Tarantool Community Edition
+  tarantool-dev Install Tarantool from a local build directory
+  tarantool-ee  Install Tarantool Enterprise Edition
+  tcm           Install Tarantool Cluster Manager
   tt            Install tt
 [0;1;39m
 FLAGS[0m
-  -f, --force        don't do a dependency check before installing
+  -f, --force        Skip dependency checks
   -h, --help         help for install
-      --local-repo   install from local files
-      --no-clean     don't delete temporary files
-      --reinstall    reinstall program
+      --local-repo   Install from the local repository
+      --no-clean     Keep temporary files
+      --reinstall    Reinstall an existing version
+[0;1;39m
+GLOBAL FLAGS[0m
+  -V, --verbose   Show diagnostic output and build commands
 [0;1;39m
 EXAMPLES[0m
-  # Install latest Tarantool version.
+  # Install the latest Tarantool version.
+  $ tt binary install tarantool
 
-    $ tt binary install tarantool
+  # Install tt from a pull request.
+  $ tt binary install tt pr/534
 
-# Install specific tt pull-request.
-
-    $ tt binary install tt pr/534
-
-# Install Tarantool 3.0.0 with limit number of simultaneous jobs for make.
-
-    $ MAKEFLAGS="-j2" tt binary install tarantool 3.0.0
+  # Build Tarantool with two parallel jobs.
+  $ MAKEFLAGS="-j2" tt binary install tarantool 3.0.0
 
 Use "tt binary install <command> --help" for more information about a command.
 
-=== tt binary install SDK --help
-Download Tarantool SDK
+=== tt binary install sdk --help
+Download a Tarantool SDK bundle
 
 [0;1;39mUSAGE[0m
-  tt binary install SDK <VERSION> [flags]
+  tt binary install sdk <version> [flags]
+
+  tt binary install sdk <version> [flags]
+[0;1;39m
+ALIASES[0m
+  sdk, SDK
 [0;1;39m
 FLAGS[0m
-      --dev                       download development build
-      --directory-prefix string   directory prefix to save SDK. The default is
-                                  "." (the current directory)
-  -h, --help                      help for SDK
+      --dev                       Download a development build
+      --directory-prefix string   Directory to save the SDK (default: current
+                                  directory)
+  -h, --help                      help for sdk
+[0;1;39m
+GLOBAL FLAGS[0m
+  -f, --force        Skip dependency checks
+      --local-repo   Install from the local repository
+      --no-clean     Keep temporary files
+      --reinstall    Reinstall an existing version
+  -V, --verbose      Show diagnostic output and build commands
 [0;1;39m
 EXAMPLES[0m
-  # Download Tarantool SDK to the current working directory.
-	$ tt binary install SDK gc64-3.0.0-0-gf58f7d82a-r23
-# Download Tarantool SDK development build to the /tmp directory.
-	$ tt binary install SDK gc64-3.0.0-beta1-2-gcbb569b4c-r612 \
-	    --dev --directory-prefix /tmp
+  # Download an SDK bundle to the current directory.
+  $ tt binary install sdk gc64-3.0.0-0-gf58f7d82a-r23
+
+  # Download a development SDK bundle to /tmp.
+  $ tt binary install sdk gc64-3.0.0-beta1-2-gcbb569b4c-r612 \
+      --dev --directory-prefix /tmp
 
 === tt binary install tarantool --help
-Install tarantool community edition
+Install Tarantool Community Edition
 
 [0;1;39mUSAGE[0m
-  tt binary install tarantool [version|commit hash|pull-request] [flags]
+  tt binary install tarantool [version|commit|pull-request] [flags]
+
+  tt binary install tarantool [version|commit|pull-request] [flags]
 [0;1;39m
 FLAGS[0m
-      --dynamic      use dynamic linking for building tarantool
+      --dynamic      Build Tarantool with dynamic linking
   -h, --help         help for tarantool
-      --use-docker   build tarantool in Ubuntu 18.04 docker container
+      --use-docker   Build Tarantool in an Ubuntu 18.04 Docker container
+[0;1;39m
+GLOBAL FLAGS[0m
+  -f, --force        Skip dependency checks
+      --local-repo   Install from the local repository
+      --no-clean     Keep temporary files
+      --reinstall    Reinstall an existing version
+  -V, --verbose      Show diagnostic output and build commands
 
 === tt binary install tarantool-dev --help
-Install tarantool from the local build directory
+Install Tarantool from a local build directory
 
 [0;1;39mUSAGE[0m
-  tt binary install tarantool-dev <DIRECTORY> [flags]
+  tt binary install tarantool-dev <directory> [flags]
+
+  tt binary install tarantool-dev <directory> [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help                 help for tarantool-dev
-      --include-dir string   tarantool headers directory
+      --include-dir string   Path to the Tarantool headers directory
+[0;1;39m
+GLOBAL FLAGS[0m
+  -f, --force        Skip dependency checks
+      --local-repo   Install from the local repository
+      --no-clean     Keep temporary files
+      --reinstall    Reinstall an existing version
+  -V, --verbose      Show diagnostic output and build commands
 [0;1;39m
 EXAMPLES[0m
-  Assume, tarantool build directory is ~/src/tarantool/build
-  Consider the following use case:
-
-  make -j16 -C ~/src/tarantool/build
-  tt binary install tarantool-dev ~/src/tarantool/build
-  tt binary list # shows the binary installed above
+  # Build and install Tarantool from a local source tree.
+  $ make -j16 -C ~/src/tarantool/build
+  $ tt binary install tarantool-dev ~/src/tarantool/build
+  $ tt binary list
 
 === tt binary install tarantool-ee --help
-Install tarantool enterprise edition
+Install Tarantool Enterprise Edition
 
 [0;1;39mUSAGE[0m
   tt binary install tarantool-ee [version] [flags]
+
+  tt binary install tarantool-ee [version] [flags]
 [0;1;39m
 FLAGS[0m
-      --dev    install development build
+      --dev    Install a development build
   -h, --help   help for tarantool-ee
+[0;1;39m
+GLOBAL FLAGS[0m
+  -f, --force        Skip dependency checks
+      --local-repo   Install from the local repository
+      --no-clean     Keep temporary files
+      --reinstall    Reinstall an existing version
+  -V, --verbose      Show diagnostic output and build commands
 
 === tt binary install tcm --help
-Install tarantool cluster manager
+Install Tarantool Cluster Manager
 
 [0;1;39mUSAGE[0m
   tt binary install tcm [version] [flags]
+
+  tt binary install tcm [version] [flags]
 [0;1;39m
 FLAGS[0m
-      --dev    install development build
+      --dev    Install a development build
   -h, --help   help for tcm
+[0;1;39m
+GLOBAL FLAGS[0m
+  -f, --force        Skip dependency checks
+      --local-repo   Install from the local repository
+      --no-clean     Keep temporary files
+      --reinstall    Reinstall an existing version
+  -V, --verbose      Show diagnostic output and build commands
 
 === tt binary install tt --help
 Install tt
 
 [0;1;39mUSAGE[0m
-  tt binary install tt [version|commit hash|pull-request] [flags]
+  tt binary install tt [version|commit|pull-request] [flags]
+
+  tt binary install tt [version|commit|pull-request] [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help   help for tt
+[0;1;39m
+GLOBAL FLAGS[0m
+  -f, --force        Skip dependency checks
+      --local-repo   Install from the local repository
+      --no-clean     Keep temporary files
+      --reinstall    Reinstall an existing version
+  -V, --verbose      Show diagnostic output and build commands
 
 === tt binary list --help
-Show a list of installed binaries and their versions.
+List installed binaries and versions
 
 [0;1;39mUSAGE[0m
+  tt binary list [flags]
+
   tt binary list [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help   help for list
+[0;1;39m
+GLOBAL FLAGS[0m
+  -V, --verbose   Show diagnostic output and build commands
 
 === tt binary search --help
-Search for available versions for the program
+Search available program versions
 
 [0;1;39mUSAGE[0m
   tt binary search [flags] <command> [command flags]
 [0;1;39m
 COMMANDS[0m
-  tarantool    Search for available tarantool community edition versions
-  tarantool-ee Search for available tarantool enterprise edition versions
-  tcm          Search for available tarantool cluster manager versions
-  tt           Search for available tt versions
+  tarantool    Search available Tarantool Community Edition versions
+  tarantool-ee Search available Tarantool Enterprise Edition versions
+  tcm          Search available Tarantool Cluster Manager versions
+  tt           Search available tt versions
 [0;1;39m
 FLAGS[0m
   -h, --help         help for search
-      --local-repo   search in local files
+      --local-repo   Search the local repository
+[0;1;39m
+GLOBAL FLAGS[0m
+  -V, --verbose   Show diagnostic output and build commands
 [0;1;39m
 EXAMPLES[0m
-  # Remote search across all versions of Tarantool Enterprise Edition.
+  # Search Tarantool Enterprise Edition releases.
+  $ tt binary search tarantool-ee
 
-    $ tt binary search tarantool-ee
+  # Search Tarantool Enterprise Edition 3.0 debug builds.
+  $ tt binary search tarantool-ee --debug --version 3.0
 
-# Remote search across all 3.0 debug versions of Tarantool Enterprise Edition.
-
-    $ tt binary search tarantool-ee --debug --version 3.0
-
-# Remote search across all versions of Tarantool Cluster Manager.
-
-	$ tt binary search tcm --version 1.3
+  # Search Tarantool Cluster Manager 1.3 releases.
+  $ tt binary search tcm --version 1.3
 
 Use "tt binary search <command> --help" for more information about a command.
 
 === tt binary search tarantool --help
-Search for available tarantool community edition versions
+Search available Tarantool Community Edition versions
 
 [0;1;39mUSAGE[0m
+  tt binary search tarantool [flags]
+
   tt binary search tarantool [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help   help for tarantool
+[0;1;39m
+GLOBAL FLAGS[0m
+      --local-repo   Search the local repository
+  -V, --verbose      Show diagnostic output and build commands
 
 === tt binary search tarantool-ee --help
-Search for available tarantool enterprise edition versions
+Search available Tarantool Enterprise Edition versions
 
 [0;1;39mUSAGE[0m
   tt binary search tarantool-ee [flags]
+
+  tt binary search tarantool-ee [flags]
 [0;1;39m
 FLAGS[0m
-      --debug            search for debug builds of tarantool-ee SDK
-      --dev              search for development builds of tarantool-ee SDK
+      --debug            Search debug builds
+      --dev              Search development builds
   -h, --help             help for tarantool-ee
-      --version string   specify version
+      --version string   Filter by release version
+[0;1;39m
+GLOBAL FLAGS[0m
+      --local-repo   Search the local repository
+  -V, --verbose      Show diagnostic output and build commands
 
 === tt binary search tcm --help
-Search for available tarantool cluster manager versions
+Search available Tarantool Cluster Manager versions
 
 [0;1;39mUSAGE[0m
   tt binary search tcm [flags]
+
+  tt binary search tcm [flags]
 [0;1;39m
 FLAGS[0m
-      --dev              search for development builds of TCM
+      --dev              Search development builds
   -h, --help             help for tcm
-      --version string   specify version
+      --version string   Filter by release version
+[0;1;39m
+GLOBAL FLAGS[0m
+      --local-repo   Search the local repository
+  -V, --verbose      Show diagnostic output and build commands
 
 === tt binary search tt --help
-Search for available tt versions
+Search available tt versions
 
 [0;1;39mUSAGE[0m
+  tt binary search tt [flags]
+
   tt binary search tt [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help   help for tt
+[0;1;39m
+GLOBAL FLAGS[0m
+      --local-repo   Search the local repository
+  -V, --verbose      Show diagnostic output and build commands
 
 === tt binary switch --help
-Switch to installed binary
+Switch the active binary
 
 [0;1;39mUSAGE[0m
+  tt binary switch [program] [version] [flags]
+
   tt binary switch [program] [version] [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help   help for switch
 [0;1;39m
+GLOBAL FLAGS[0m
+  -V, --verbose   Show diagnostic output and build commands
+[0;1;39m
 EXAMPLES[0m
-  # Switch without any arguments.
+  # Choose a program and version interactively.
+  $ tt binary switch
 
-	$ tt binary switch
+  # Choose a Tarantool version interactively.
+  $ tt binary switch tarantool
 
-You will need to choose program and version using arrow keys in your console.
-
-# Switch without version.
-
-	$ tt binary switch tarantool
-
-You will need to choose version using arrow keys in your console.
-
-# Switch with program and version.
-
-	$ tt binary switch tarantool 3.0.0
+  # Switch to a specific Tarantool version.
+  $ tt binary switch tarantool 3.0.0
 
 === tt binary uninstall --help
-Uninstalls a program
+Uninstall a program
 
 [0;1;39mUSAGE[0m
   tt binary uninstall [flags] <command> [command flags]
 [0;1;39m
 COMMANDS[0m
-  tarantool     Uninstall tarantool community edition
-  tarantool-dev Uninstall tarantool-dev
-  tarantool-ee  Uninstall tarantool enterprise edition
-  tcm           Uninstall tarantool cluster manager
+  tarantool     Uninstall Tarantool Community Edition
+  tarantool-dev Uninstall Tarantool from a local build directory
+  tarantool-ee  Uninstall Tarantool Enterprise Edition
+  tcm           Uninstall Tarantool Cluster Manager
   tt            Uninstall tt
 [0;1;39m
 FLAGS[0m
   -h, --help   help for uninstall
 [0;1;39m
+GLOBAL FLAGS[0m
+  -V, --verbose   Show diagnostic output and build commands
+[0;1;39m
 EXAMPLES[0m
-  # To uninstall Tarantool:
-
-    $ tt binary uninstall tarantool <version>
+  # Uninstall a Tarantool version.
+  $ tt binary uninstall tarantool 3.0.0
 
 Use "tt binary uninstall <command> --help" for more information about a command.
 
 === tt binary uninstall tarantool --help
-Uninstall tarantool community edition
+Uninstall Tarantool Community Edition
 
 [0;1;39mUSAGE[0m
+  tt binary uninstall tarantool [version] [flags]
+
   tt binary uninstall tarantool [version] [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help   help for tarantool
+[0;1;39m
+GLOBAL FLAGS[0m
+  -V, --verbose   Show diagnostic output and build commands
 
 === tt binary uninstall tarantool-dev --help
-Uninstall tarantool-dev
+Uninstall Tarantool from a local build directory
 
 [0;1;39mUSAGE[0m
+  tt binary uninstall tarantool-dev [flags]
+
   tt binary uninstall tarantool-dev [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help   help for tarantool-dev
+[0;1;39m
+GLOBAL FLAGS[0m
+  -V, --verbose   Show diagnostic output and build commands
 
 === tt binary uninstall tarantool-ee --help
-Uninstall tarantool enterprise edition
+Uninstall Tarantool Enterprise Edition
 
 [0;1;39mUSAGE[0m
+  tt binary uninstall tarantool-ee [version] [flags]
+
   tt binary uninstall tarantool-ee [version] [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help   help for tarantool-ee
+[0;1;39m
+GLOBAL FLAGS[0m
+  -V, --verbose   Show diagnostic output and build commands
 
 === tt binary uninstall tcm --help
-Uninstall tarantool cluster manager
+Uninstall Tarantool Cluster Manager
 
 [0;1;39mUSAGE[0m
+  tt binary uninstall tcm [version] [flags]
+
   tt binary uninstall tcm [version] [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help   help for tcm
+[0;1;39m
+GLOBAL FLAGS[0m
+  -V, --verbose   Show diagnostic output and build commands
 
 === tt binary uninstall tt --help
 Uninstall tt
 
 [0;1;39mUSAGE[0m
   tt binary uninstall tt [version] [flags]
+
+  tt binary uninstall tt [version] [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help   help for tt
+[0;1;39m
+GLOBAL FLAGS[0m
+  -V, --verbose   Show diagnostic output and build commands
 
 === tt cat --help
 Print into stdout the contents of .snap/.xlog FILE(s)
@@ -3190,7 +3301,7 @@ _luarocks-admin() {
 
 === tt __complete ""
 aeon	Manage aeon application
-binary	Manage binaries
+binary	Manage binaries and SDK bundles
 cat	Print into stdout the contents of .snap/.xlog FILE(s)
 cfg	Environment configuration management utility
 check	Check an application file for syntax errors

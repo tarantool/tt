@@ -122,7 +122,7 @@ def test_uninstall_foreign_program(tt_cmd, tmpdir_with_cfg):
         )
         uninstall_process.wait()
         uninstall_output = uninstall_process.stdout.readline()
-        assert re.search(r"Uninstalls a program", uninstall_output)
+        assert "Uninstall a program" in uninstall_output
 
 
 @pytest.mark.parametrize("is_symlink_broken", [False, True])

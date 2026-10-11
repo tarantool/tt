@@ -83,6 +83,8 @@ var programGitRepoUrls = map[string]string{
 
 // InstallCtx contains information for program installation.
 type InstallCtx struct {
+	BinaryContext
+
 	// Reinstall is a flag. If it is set,
 	// target application will be reinstalled if already exists.
 	Reinstall bool
@@ -96,10 +98,6 @@ type InstallCtx struct {
 	Local bool
 	// BuildInDocker is set if tarantool must be built in docker container.
 	BuildInDocker bool
-	// Program is a program type to install.
-	Program Program
-	// verbose flag enables verbose logging.
-	verbose bool
 	// Version of the program to install.
 	version string
 	// Dynamic flag enables dynamic linking.
@@ -781,7 +779,7 @@ func downloadTtSource(path, ttVersion, distfiles string, resolved resolvedInstal
 			return fmt.Errorf("failed to copy local tt sources: %w", err)
 		}
 
-		err = gitCheckout(path, ttVersion, installCtx.verbose, logFile)
+		err = gitCheckout(path, ttVersion, installCtx.Verbose, logFile)
 		if err != nil {
 			_ = printLog(logFile.Name())
 		}
@@ -792,7 +790,7 @@ func downloadTtSource(path, ttVersion, distfiles string, resolved resolvedInstal
 	log.Infof("Downloading tt...")
 
 	if resolved.versionFound {
-		err := downloadRepo(GitRepoTT, ttVersion, path, logFile, installCtx.verbose)
+		err := downloadRepo(GitRepoTT, ttVersion, path, logFile, installCtx.Verbose)
 		if err != nil {
 			_ = printLog(logFile.Name())
 		}
@@ -800,7 +798,7 @@ func downloadTtSource(path, ttVersion, distfiles string, resolved resolvedInstal
 		return err
 	}
 
-	err := downloadRepo(GitRepoTT, masterVersion, path, logFile, installCtx.verbose)
+	err := downloadRepo(GitRepoTT, masterVersion, path, logFile, installCtx.Verbose)
 	if err != nil {
 		_ = printLog(logFile.Name())
 		return err
@@ -809,7 +807,7 @@ func downloadTtSource(path, ttVersion, distfiles string, resolved resolvedInstal
 	if resolved.isPullRequest {
 		pullRequestCommand := "pull/" + resolved.pullRequestID + "/head:" + ttVersion
 
-		err = ExecuteCommand(gitExec, installCtx.verbose, logFile, path,
+		err = ExecuteCommand(gitExec, installCtx.Verbose, logFile, path,
 			"fetch", "origin", pullRequestCommand)
 		if err != nil {
 			_ = printLog(logFile.Name())
@@ -817,7 +815,7 @@ func downloadTtSource(path, ttVersion, distfiles string, resolved resolvedInstal
 		}
 	}
 
-	err = gitCheckout(path, ttVersion, installCtx.verbose, logFile)
+	err = gitCheckout(path, ttVersion, installCtx.Verbose, logFile)
 	if err != nil {
 		_ = printLog(logFile.Name())
 	}
@@ -896,7 +894,7 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 	// Build tt.
 	log.Infof("Building tt...")
 
-	err = ExecuteCommand(mageExec, installCtx.verbose, logFile, path,
+	err = ExecuteCommand(mageExec, installCtx.Verbose, logFile, path,
 		"build")
 	if err != nil {
 		_ = printLog(logFile.Name())
@@ -987,14 +985,14 @@ func buildTarantool(srcPath string,
 
 	cmakeOpts := prepareCmakeOpts(buildPath, installCtx)
 
-	err = ExecuteCommand(cmakeExec, installCtx.verbose, logFile, buildPath, cmakeOpts...)
+	err = ExecuteCommand(cmakeExec, installCtx.Verbose, logFile, buildPath, cmakeOpts...)
 	if err != nil {
 		return "", err
 	}
 
 	makeOpts := prepareMakeOpts(installCtx)
 
-	return buildPath, ExecuteCommand(makeExec, installCtx.verbose, logFile, buildPath,
+	return buildPath, ExecuteCommand(makeExec, installCtx.Verbose, logFile, buildPath,
 		makeOpts...)
 }
 
@@ -1014,7 +1012,7 @@ func copyLocalTarantool(distfiles, path, tarVersion string,
 			return fmt.Errorf("failed to copy local tarantool sources: %w", err)
 		}
 
-		err = gitCheckout(path, tarVersion, installCtx.verbose, logFile)
+		err = gitCheckout(path, tarVersion, installCtx.Verbose, logFile)
 	} else {
 		return errDistfilesDirectoryNotFound
 	}
@@ -1132,7 +1130,7 @@ func installTarantoolInDocker(tntVersion, binDir, incDir string, installCtx Inst
 
 	// Generate install command line for tt in container.
 	tntInstallCommandLine := []string{"./tt"}
-	if installCtx.verbose {
+	if installCtx.Verbose {
 		tntInstallCommandLine = append(tntInstallCommandLine, "-V")
 	}
 
@@ -1161,7 +1159,7 @@ func installTarantoolInDocker(tntVersion, binDir, incDir string, installCtx Inst
 			fmt.Sprintf("%s:%s", filepath.Dir(incDir), ttCfg.Env.IncludeDir),
 			fmt.Sprintf("%s:%s", distfiles, ttCfg.Repo.Install),
 		},
-		Verbose: installCtx.verbose,
+		Verbose: installCtx.Verbose,
 	}
 
 	return docker.RunContainer(dockerRunOptions, os.Stdout)
@@ -1248,11 +1246,11 @@ func downloadTarantoolSource(path, tarVersion, distfiles string,
 
 	if resolved.versionFound {
 		return downloadRepo(GitRepoTarantool, tarVersion, path, logFile,
-			installCtx.verbose)
+			installCtx.Verbose)
 	}
 
 	err := downloadRepo(GitRepoTarantool, masterVersion, path, logFile,
-		installCtx.verbose)
+		installCtx.Verbose)
 	if err != nil {
 		return err
 	}
@@ -1260,14 +1258,14 @@ func downloadTarantoolSource(path, tarVersion, distfiles string,
 	if resolved.isPullRequest {
 		pullRequestCommand := "pull/" + resolved.pullRequestID + "/head:" + tarVersion
 
-		err = ExecuteCommand(gitExec, installCtx.verbose, logFile, path,
+		err = ExecuteCommand(gitExec, installCtx.Verbose, logFile, path,
 			"fetch", "origin", pullRequestCommand)
 		if err != nil {
 			return err
 		}
 	}
 
-	return gitCheckout(path, tarVersion, installCtx.verbose, logFile)
+	return gitCheckout(path, tarVersion, installCtx.Verbose, logFile)
 }
 
 // installTarantool installs selected version of tarantool.
@@ -1661,7 +1659,7 @@ func FillCtx(cmdCtx *cmdcontext.CmdCtx, installCtx *InstallCtx, args []string) e
 		return fmt.Errorf("failed create context: %w", err)
 	}
 
-	installCtx.verbose = cmdCtx.Cli.Verbose
+	installCtx.Verbose = installCtx.Verbose || cmdCtx.Cli.Verbose
 	installCtx.skipMasterUpdate = cmdCtx.Cli.NoPrompt
 
 	if installCtx.Program == ProgramDev {

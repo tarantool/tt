@@ -13,7 +13,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
-	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/version"
 )
 
@@ -22,6 +21,13 @@ var (
 		"there are no binaries installed in this environment of 'tt'",
 	)
 )
+
+// ListCtx contains the options for listing installed binaries.
+type ListCtx struct {
+	BinaryContext
+
+	BinDir string
+}
 
 // printInstalledVersion outputs installed versions of the program.
 func printInstalledVersion(versionString string) {
@@ -117,8 +123,8 @@ func ParseBinaries(fileList []fs.DirEntry, program Program,
 }
 
 // ListBinaries outputs installed versions of programs from bin_dir.
-func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
-	binDir := cliOpts.Env.BinDir
+func ListBinaries(listCtx ListCtx) error {
+	binDir := listCtx.BinDir
 	binDirFilesList, err := os.ReadDir(binDir)
 
 	if len(binDirFilesList) == 0 || errors.Is(err, fs.ErrNotExist) {
