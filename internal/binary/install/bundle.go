@@ -1,4 +1,4 @@
-package binary
+package install
 
 import (
 	"errors"
@@ -10,14 +10,16 @@ import (
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/version"
+	"github.com/tarantool/tt/v3/internal/binary"
+	"github.com/tarantool/tt/v3/internal/binary/search"
 )
 
 var (
 	errASpecificVersionMustBeProvidedToInstall = errors.New(
 		"a specific version must be provided to install ",
 	)
-	errCouldNotFindBinaryAt                         = errors.New("could not find binary at ")
-	errIncludeDirIsNotSetCheck                      = errors.New("include_dir is not set, check ")
+	errCouldNotFindBinaryAt = errors.New("could not find binary at ")
+
 	errInstallationFailedDuringExecutionPhaseSeeLog = errors.New(
 		"installation failed during execution phase (see log: ",
 	)
@@ -30,14 +32,13 @@ var (
 		"cannot install from local repository: " +
 			"distribution files directory (repo.install) is not set",
 	)
-	errTheDirectoryIsNotWriteableForTheCurrentUser = errors.New("the directory ")
 )
 
 // bundleParams holds the parameters required for the bundle installation process.
 type bundleParams struct {
 	// bundleInfo is the structure that holds information about the bundle.
 	// It is filled in during the installation process in getBundleInfoForInstall.
-	bundleInfo BundleInfo
+	bundleInfo search.BundleInfo
 
 	// prgVersion is the specific string is joined program with version.
 	// It's filled in during the installation process in acquireBundleInfo.
@@ -62,7 +63,7 @@ func checkExistingInstallation(params *bundleParams) bool {
 	binPath := filepath.Join(params.opts.Env.BinDir, params.prgVersion)
 	incPath := filepath.Join(params.inst.IncDir, params.prgVersion)
 
-	binExists := IsRegularFile(binPath)
+	binExists := binary.IsRegularFile(binPath)
 
 	if !params.inst.Program.IsTarantool() {
 		log.Debugf("Checking existence: bin=%s (%t)", binPath, binExists)
@@ -70,7 +71,7 @@ func checkExistingInstallation(params *bundleParams) bool {
 		return binExists
 	}
 
-	incExists := IsDir(incPath)
+	incExists := binary.IsDir(incPath)
 
 	log.Debugf("Checking existence: bin=%s (%t), inc=%s (%t)",
 		binPath, binExists, incPath, incExists)
@@ -102,7 +103,7 @@ func prepareTemporaryDirs(params *bundleParams) error {
 }
 
 // checkDependencies checks if the required system dependencies are installed.
-func checkDependencies(program Program, force bool) error {
+func checkDependencies(program binary.Program, force bool) error {
 	if force {
 		log.Debugf("Skipping dependency check due to --force flag.")
 
@@ -124,13 +125,13 @@ func copyBundle(params *bundleParams) error {
 	bundleName := params.bundleInfo.Version.Tarball
 	localBundlePath := filepath.Join(distfiles, bundleName)
 
-	if !IsRegularFile(localBundlePath) {
+	if !binary.IsRegularFile(localBundlePath) {
 		return fmt.Errorf("%w%s", errLocalBundleFileNotFound, localBundlePath)
 	}
 
 	log.Infof("Local files found, installing from %s...", bundleName)
 
-	err := CopyFilePreserve(localBundlePath, filepath.Join(params.tmpDir, bundleName))
+	err := binary.CopyFilePreserve(localBundlePath, filepath.Join(params.tmpDir, bundleName))
 	if err != nil {
 		_, _ = fmt.Fprintf(params.logFile, "Error copying local bundle: %v\n", err)
 		return fmt.Errorf("failed to copy local bundle: %w", err)
@@ -143,8 +144,8 @@ func copyBundle(params *bundleParams) error {
 func downloadBundle(params *bundleParams) error {
 	bundleName := params.bundleInfo.Version.Tarball
 
-	searchCtx := NewSearchCtx(
-		NewPlatformInformer(),
+	searchCtx := search.NewSearchCtx(
+		search.NewPlatformInformer(),
 		NewTntIoDownloader(params.bundleInfo.Token),
 	)
 
@@ -152,7 +153,7 @@ func downloadBundle(params *bundleParams) error {
 	searchCtx.DevBuilds = params.inst.DevBuild
 	searchCtx.ReleaseVersion = params.bundleInfo.Release
 
-	bundleSource, err := TntIoMakePkgURI(&searchCtx, bundleName)
+	bundleSource, err := search.TntIoMakePkgURI(&searchCtx, bundleName)
 	if err != nil {
 		return fmt.Errorf("failed to construct bundle download URI: %w", err)
 	}
@@ -181,7 +182,7 @@ func obtainBundle(params *bundleParams) error {
 func unpackBundle(bundlePath string, logFile io.Writer) error {
 	log.Infof("Unpacking archive %s...", filepath.Base(bundlePath))
 
-	err := ExtractTar(bundlePath)
+	err := binary.ExtractTar(bundlePath)
 	if err != nil {
 		_, _ = fmt.Fprintf(logFile, "Error unpacking bundle: %v\n", err)
 		return fmt.Errorf("failed to extract bundle %s: %w", filepath.Base(bundlePath), err)
@@ -193,11 +194,11 @@ func unpackBundle(bundlePath string, logFile io.Writer) error {
 }
 
 // getSubDirForProgram returns the subdirectory inside archive for the specified program type.
-func getSubDirForProgram(program Program) string {
+func getSubDirForProgram(program binary.Program) string {
 	switch program {
-	case ProgramEe:
+	case binary.ProgramEe:
 		return "tarantool-enterprise"
-	case ProgramTcm:
+	case binary.ProgramTcm:
 		return "" // The TCM bundle is flat (no subdirectories).
 	default:
 		return ""
@@ -205,18 +206,18 @@ func getSubDirForProgram(program Program) string {
 }
 
 // findBundlePathsInDir makes path to binary and include directory.
-func findBundlePathsInDir(baseDir string, program Program) (
+func findBundlePathsInDir(baseDir string, program binary.Program) (
 	string, string, error,
 ) {
 	subDir := getSubDirForProgram(program)
 
 	binPath := filepath.Join(baseDir, subDir, program.Exec())
-	if !IsRegularFile(binPath) {
+	if !binary.IsRegularFile(binPath) {
 		return "", "", fmt.Errorf("%w%q", errCouldNotFindBinaryAt, binPath)
 	}
 
 	incPath := filepath.Join(baseDir, subDir, "include", program.Exec())
-	if !IsDir(incPath) {
+	if !binary.IsDir(incPath) {
 		incPath = "" // No include directory found in bundle.
 	}
 
@@ -229,7 +230,7 @@ func prepareForReinstall(params *bundleParams) error {
 	destIncPath := filepath.Join(params.inst.IncDir, params.prgVersion)
 
 	if !params.inst.Reinstall {
-		if IsRegularFile(destBinPath) || IsDir(destIncPath) {
+		if binary.IsRegularFile(destBinPath) || binary.IsDir(destIncPath) {
 			return fmt.Errorf("%w%s or %s already exists",
 				errInstallationPathOrAlreadyExists, destBinPath, destIncPath)
 		}
@@ -237,7 +238,7 @@ func prepareForReinstall(params *bundleParams) error {
 		return nil
 	}
 
-	if IsRegularFile(destBinPath) {
+	if binary.IsRegularFile(destBinPath) {
 		log.Infof("%s version of %q already exists, removing...",
 			params.prgVersion, params.inst.Program)
 
@@ -248,7 +249,7 @@ func prepareForReinstall(params *bundleParams) error {
 		}
 	}
 
-	if IsDir(destIncPath) {
+	if binary.IsDir(destIncPath) {
 		log.Infof("Include directory for %s version already exists, removing...",
 			params.prgVersion)
 
@@ -302,14 +303,14 @@ func copyNewArtifacts(params *bundleParams) error {
 func changeActiveBundleVersion(params *bundleParams) error {
 	execPath := filepath.Join(params.opts.Env.BinDir, params.inst.Program.Exec())
 
-	err := CreateSymlink(params.prgVersion, execPath, true)
+	err := binary.CreateSymlink(params.prgVersion, execPath, true)
 	if err != nil {
 		return err
 	}
 
-	if IsDir(filepath.Join(params.inst.IncDir, params.prgVersion)) {
+	if binary.IsDir(filepath.Join(params.inst.IncDir, params.prgVersion)) {
 		incPath := filepath.Join(params.inst.IncDir, params.inst.Program.Exec())
-		return CreateSymlink(params.prgVersion, incPath, true)
+		return binary.CreateSymlink(params.prgVersion, incPath, true)
 	}
 
 	return nil
@@ -356,33 +357,33 @@ func performInitialChecks(params *bundleParams) error {
 // using the search package.
 func acquireBundleInfoToInstall(params *bundleParams) error {
 	var (
-		bundles BundleInfoSlice
+		bundles search.BundleInfoSlice
 		err     error
 	)
 
 	log.Infof("Search for the requested %q version...", params.inst.version)
 
 	if params.inst.Local {
-		bundles, err = FindLocalBundles(params.inst.Program,
+		bundles, err = search.FindLocalBundles(params.inst.Program,
 			os.DirFS(params.opts.Repo.Install))
 		if err != nil {
 			return err
 		}
 	} else {
-		searchCtx := NewSearchCtx(NewPlatformInformer(), NewTntIoDoer())
+		searchCtx := search.NewSearchCtx(search.NewPlatformInformer(), search.NewTntIoDoer())
 
 		searchCtx.BinaryContext = params.inst.BinaryContext
-		searchCtx.Filter = SearchAll
-		searchCtx.Package = GetAPIPackage(params.inst.Program)
+		searchCtx.Filter = search.SearchAll
+		searchCtx.Package = search.GetAPIPackage(params.inst.Program)
 		searchCtx.DevBuilds = params.inst.DevBuild
 
-		bundles, err = FetchBundlesInfo(&searchCtx, params.opts)
+		bundles, err = search.FetchBundlesInfo(&searchCtx, params.opts)
 		if err != nil {
 			return err
 		}
 	}
 
-	params.bundleInfo, err = SelectVersion(bundles, params.inst.version)
+	params.bundleInfo, err = search.SelectVersion(bundles, params.inst.version)
 	if err != nil {
 		return err
 	}

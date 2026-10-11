@@ -1,4 +1,4 @@
-package binary
+package search
 
 import (
 	"path/filepath"
@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/v3/cli/version"
+	"github.com/tarantool/tt/v3/internal/binary"
 )
 
 func Test_getBundles(t *testing.T) {
@@ -109,10 +110,11 @@ func Test_getBundles(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sCtx := SearchCtx{
-				Program: ProgramEe,
+				Program: binary.ProgramEe,
 				Package: "enterprise",
 				Filter:  tt.args.flags,
 			}
+
 			got, err := getBundles(tt.args.rawBundleInfoList, &sCtx)
 
 			if (err != nil) != tt.wantErr {
@@ -129,7 +131,7 @@ func Test_getBundles(t *testing.T) {
 func Test_GetCommitFromGitLocal(t *testing.T) {
 	tmpDir := t.TempDir()
 	tarPath := filepath.Join(tmpDir, "test_repo.tar")
-	require.NoError(t, copy.Copy("./testdata/test_repo.tar", tarPath))
+	require.NoError(t, copy.Copy("../testdata/test_repo.tar", tarPath))
 
 	extractedRepoPath := filepath.Join(tmpDir, "empty_repo")
 
@@ -158,7 +160,7 @@ func Test_GetCommitFromGitLocal(t *testing.T) {
 
 	for _, repo := range tests {
 		t.Run(repo.name, func(t *testing.T) {
-			require.NoError(t, ExtractTar(repo.tarLink))
+			require.NoError(t, binary.ExtractTar(repo.tarLink))
 
 			for _, hash := range repo.hashes {
 				_, err := GetCommitFromGitLocal(repo.link, hash)
@@ -175,7 +177,7 @@ func Test_GetCommitFromGitLocal(t *testing.T) {
 func Test_GetCommitFromGitRemote(t *testing.T) {
 	tmpDir := t.TempDir()
 	tarPath := filepath.Join(tmpDir, "test_repo.tar")
-	require.NoError(t, copy.Copy("./testdata/test_repo.tar", tarPath))
+	require.NoError(t, copy.Copy("../testdata/test_repo.tar", tarPath))
 
 	extractedRepoPath := filepath.Join(tmpDir, "empty_repo")
 
@@ -204,7 +206,7 @@ func Test_GetCommitFromGitRemote(t *testing.T) {
 
 	for _, repo := range tests {
 		t.Run(repo.name, func(t *testing.T) {
-			require.NoError(t, ExtractTar(repo.tarLink))
+			require.NoError(t, binary.ExtractTar(repo.tarLink))
 
 			for _, hash := range repo.hashes {
 				_, err := GetCommitFromGitRemote(repo.link, hash)
@@ -223,11 +225,11 @@ func TestNewSearchCtx(t *testing.T) {
 		got := NewSearchCtx(NewPlatformInformer(), NewTntIoDoer())
 		require.NotNil(t, got)
 		assert.Equal(t, SearchRelease, got.Filter)
-		assert.Equal(t, ProgramUnknown, got.Program)
+		assert.Equal(t, binary.ProgramUnknown, got.Program)
 		assert.Empty(t, got.Package)
 		assert.Empty(t, got.ReleaseVersion)
 		assert.False(t, got.DevBuilds)
 		assert.Implements(t, (*PlatformInformer)(nil), got.platformInformer)
-		assert.Implements(t, (*TntIoDoer)(nil), got.TntIoDoer)
+		assert.Implements(t, (*binary.TntIoDoer)(nil), got.TntIoDoer)
 	})
 }

@@ -1,10 +1,11 @@
-package binary_test
+package search_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/v3/internal/binary"
+	"github.com/tarantool/tt/v3/internal/binary/search"
 )
 
 func TestGetApiPackage(t *testing.T) {
@@ -45,7 +46,7 @@ func TestGetApiPackage(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			result := binary.GetAPIPackage(tc.input)
+			result := search.GetAPIPackage(tc.input)
 			require.Equal(t, tc.expected, result)
 		})
 	}

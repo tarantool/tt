@@ -1,4 +1,4 @@
-package binary
+package search
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/tarantool/tt/v3/cli/version"
+	"github.com/tarantool/tt/v3/internal/binary"
 )
 
 var (
@@ -90,7 +91,7 @@ func GetCommitFromGitLocal(repo, input string) (string, error) {
 		return "", errUnableToGetCommitsGitCommandIsMissing
 	}
 
-	isPullRequest, pullRequestID := IsPullRequest(input)
+	isPullRequest, pullRequestID := binary.IsPullRequest(input)
 
 	if isPullRequest {
 		commandStr := "pull/" + pullRequestID +

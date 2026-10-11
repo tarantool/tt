@@ -1,4 +1,4 @@
-package binary
+package search
 
 import (
 	"errors"
@@ -12,6 +12,7 @@ import (
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/version"
+	"github.com/tarantool/tt/v3/internal/binary"
 )
 
 var (
@@ -21,7 +22,7 @@ var (
 
 // searchVersionsLocalGit handles searching versions from a local Git repository clone.
 // It returns a slice of versions found.
-func searchVersionsLocalGit(program Program, repoPath string) (
+func searchVersionsLocalGit(program binary.Program, repoPath string) (
 	version.VersionSlice, error,
 ) {
 	_, err := os.Stat(repoPath)
@@ -42,7 +43,7 @@ func searchVersionsLocalGit(program Program, repoPath string) (
 
 // searchVersionsLocalSDK handles searching versions from locally available SDK bundle files.
 // It returns a slice of versions found.
-func searchVersionsLocalSDK(program Program, dir string) (
+func searchVersionsLocalSDK(program binary.Program, dir string) (
 	version.VersionSlice, error,
 ) {
 	bundles, err := FindLocalBundles(program, os.DirFS(dir))
@@ -60,7 +61,7 @@ func searchVersionsLocalSDK(program Program, dir string) (
 
 // fetchBundlesInfoLocal returns slice of information about all tarantool-ee or tcm
 // bundles available locally. The result will be sorted in ascending order.
-func fetchBundlesInfoLocal(files []string, program Program) (BundleInfoSlice, error) {
+func fetchBundlesInfoLocal(files []string, program binary.Program) (BundleInfoSlice, error) {
 	versionRegexp, err := compileVersionRegexp(program)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compile regex for %s: %w", program, err)
@@ -68,7 +69,7 @@ func fetchBundlesInfoLocal(files []string, program Program) (BundleInfoSlice, er
 
 	versions := make(BundleInfoSlice, 0, len(files))
 	for _, file := range files {
-		parsedData := FindNamedMatches(versionRegexp, file)
+		parsedData := binary.FindNamedMatches(versionRegexp, file)
 		if len(parsedData) == 0 {
 			continue
 		}
@@ -90,7 +91,7 @@ func fetchBundlesInfoLocal(files []string, program Program) (BundleInfoSlice, er
 }
 
 // FindLocalBundles finds and parses local SDK bundle files for a given program.
-func FindLocalBundles(program Program, fsys fs.FS) (BundleInfoSlice, error) {
+func FindLocalBundles(program binary.Program, fsys fs.FS) (BundleInfoSlice, error) {
 	localFiles, err := fs.ReadDir(fsys, ".")
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -108,9 +109,9 @@ func FindLocalBundles(program Program, fsys fs.FS) (BundleInfoSlice, error) {
 	var prefix string
 
 	switch program {
-	case ProgramEe:
+	case binary.ProgramEe:
 		prefix = "tarantool-enterprise-sdk-"
-	case ProgramTcm:
+	case binary.ProgramTcm:
 		prefix = "tcm-"
 	default:
 		return nil, fmt.Errorf("%w%q", errLocalSDKFileSearchNotSupportedFor, program)
@@ -166,15 +167,15 @@ func SearchVersionsLocal(searchCtx SearchCtx, cliOpts *config.CliOpts, cfgPath s
 	)
 
 	switch prg {
-	case ProgramCe:
+	case binary.ProgramCe:
 		repoPath := filepath.Join(localDir, "tarantool")
 
 		vers, err = searchVersionsLocalGit(prg, repoPath)
-	case ProgramTt:
+	case binary.ProgramTt:
 		repoPath := filepath.Join(localDir, "tt")
 
 		vers, err = searchVersionsLocalGit(prg, repoPath)
-	case ProgramEe, ProgramTcm:
+	case binary.ProgramEe, binary.ProgramTcm:
 		vers, err = searchVersionsLocalSDK(prg, localDir)
 	default:
 		return fmt.Errorf("%w%s'", errLocalSearchNotSupportedForProgram, prg)

@@ -1,4 +1,4 @@
-package binary
+package switcher
 
 import (
 	"errors"
@@ -13,6 +13,8 @@ import (
 	"github.com/manifoldco/promptui"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/version"
+	"github.com/tarantool/tt/v3/internal/binary"
+	"github.com/tarantool/tt/v3/internal/binary/list"
 )
 
 var (
@@ -23,7 +25,7 @@ var (
 
 // SwitchCtx contains information for switch command.
 type SwitchCtx struct {
-	BinaryContext
+	binary.BinaryContext
 
 	// BinDir is a directory witch stores binaries.
 	BinDir string
@@ -46,7 +48,7 @@ func cleanString(str string) string {
 }
 
 // ChooseProgram shows a menu in terminal to choose program for switch.
-func ChooseProgram(supportedPrograms []string) (Program, error) {
+func ChooseProgram(supportedPrograms []string) (binary.Program, error) {
 	programSelect := promptui.Select{
 		Label:        "Select program",
 		Items:        supportedPrograms,
@@ -60,23 +62,23 @@ func ChooseProgram(supportedPrograms []string) (Program, error) {
 
 	_, program, err = programSelect.Run()
 	if err != nil {
-		return ProgramUnknown, fmt.Errorf("failed to choose program: %w", err)
+		return binary.ProgramUnknown, fmt.Errorf("failed to choose program: %w", err)
 	}
 
-	return ParseProgram(program)
+	return binary.ParseProgram(program)
 }
 
 // ChooseVersion shows a menu in terminal to choose version of program to switch to.
-func ChooseVersion(binDir string, program Program) (string, error) {
+func ChooseVersion(binDir string, program binary.Program) (string, error) {
 	binDirFilesList, err := os.ReadDir(binDir)
 
 	if len(binDirFilesList) == 0 || errors.Is(err, fs.ErrNotExist) {
-		return "", errNoBinariesInstalled
+		return "", list.ErrNoBinariesInstalled
 	} else if err != nil {
 		return "", fmt.Errorf("error reading directory %q: %w", binDir, err)
 	}
 
-	versions, err := ParseBinaries(binDirFilesList, program, binDir)
+	versions, err := list.ParseBinaries(binDirFilesList, program, binDir)
 	if err != nil {
 		return "", err
 	}
@@ -90,7 +92,7 @@ func ChooseVersion(binDir string, program Program) (string, error) {
 
 	for _, version := range versions {
 		if strings.Contains(version.Str, "[active]") {
-			versionStr = append(versionStr, Bold(color.GreenString(version.Str)))
+			versionStr = append(versionStr, binary.Bold(color.GreenString(version.Str)))
 			continue
 		}
 
@@ -118,12 +120,12 @@ func ChooseVersion(binDir string, program Program) (string, error) {
 func switchHeaders(switchCtx *SwitchCtx, versionStr string) error {
 	includeDir := filepath.Join(switchCtx.IncDir, "include")
 
-	if !IsDir(filepath.Join(includeDir, versionStr)) {
+	if !binary.IsDir(filepath.Join(includeDir, versionStr)) {
 		return fmt.Errorf("%w%s is not installed in current environment",
 			errHeadersIsNotInstalledInCurrentEnvironment, versionStr)
 	}
 
-	err := CreateSymlink(versionStr,
+	err := binary.CreateSymlink(versionStr,
 		filepath.Join(includeDir, switchCtx.Program.Exec()),
 		true)
 	if err != nil {
@@ -136,12 +138,12 @@ func switchHeaders(switchCtx *SwitchCtx, versionStr string) error {
 // switchBinary makes symlink for required binary version.
 func switchBinary(switchCtx *SwitchCtx, versionStr string) error {
 	newBinary := filepath.Join(switchCtx.BinDir, versionStr)
-	if !IsRegularFile(newBinary) {
+	if !binary.IsRegularFile(newBinary) {
 		return fmt.Errorf("%w%s is not installed in current environment",
 			errBinaryIsNotInstalledInCurrentEnvironment, newBinary)
 	}
 
-	err := CreateSymlink(versionStr,
+	err := binary.CreateSymlink(versionStr,
 		filepath.Join(switchCtx.BinDir, switchCtx.Program.Exec()),
 		true)
 	if err != nil {
@@ -154,14 +156,14 @@ func switchBinary(switchCtx *SwitchCtx, versionStr string) error {
 // Switch switches binaries.
 func Switch(switchCtx *SwitchCtx) error {
 	switch switchCtx.Program {
-	case ProgramTt:
+	case binary.ProgramTt:
 		if !strings.HasPrefix(switchCtx.Version, "v") {
 			switchCtx.Version = "v" + switchCtx.Version
 		}
 
-	case ProgramUnknown:
-		return fmt.Errorf("%w%s", errUnknownApplication, switchCtx.Program)
-	case ProgramCe, ProgramEe, ProgramTcm, ProgramSDK:
+	case binary.ProgramUnknown:
+		return fmt.Errorf("%w%s", binary.ErrUnknownApplication, switchCtx.Program)
+	case binary.ProgramCe, binary.ProgramEe, binary.ProgramTcm, binary.ProgramSDK:
 		// These programs do not require tt version normalization.
 	}
 

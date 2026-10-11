@@ -1,4 +1,4 @@
-package binary
+package list
 
 import (
 	"errors"
@@ -14,17 +14,19 @@ import (
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/version"
+	"github.com/tarantool/tt/v3/internal/binary"
 )
 
 var (
-	errNoBinariesInstalled = errors.New(
+	// ErrNoBinariesInstalled reports an environment without installed binaries.
+	ErrNoBinariesInstalled = errors.New(
 		"there are no binaries installed in this environment of 'tt'",
 	)
 )
 
 // ListCtx contains the options for listing installed binaries.
 type ListCtx struct {
-	BinaryContext
+	binary.BinaryContext
 
 	BinDir string
 }
@@ -32,16 +34,16 @@ type ListCtx struct {
 // printInstalledVersion outputs installed versions of the program.
 func printInstalledVersion(versionString string) {
 	if strings.HasSuffix(versionString, "[active]") {
-		_, _ = fmt.Fprintf(os.Stdout, "	%s\n", Bold(color.GreenString(versionString)))
+		_, _ = fmt.Fprintf(os.Stdout, "	%s\n", binary.Bold(color.GreenString(versionString)))
 	} else {
 		_, _ = fmt.Fprintf(os.Stdout, "	%s\n", color.YellowString(versionString))
 	}
 }
 
 // activeBinaryName resolves the active version's filename, excluding linked local builds.
-func activeBinaryName(program Program, programPath, binDir string) (string, error) {
+func activeBinaryName(program binary.Program, programPath, binDir string) (string, error) {
 	if program.IsTarantool() {
-		buildPath, err := tarantoolBuildPath(binDir)
+		buildPath, err := binary.TarantoolBuildPath(binDir)
 		if err != nil {
 			return "", err
 		}
@@ -51,7 +53,7 @@ func activeBinaryName(program Program, programPath, binDir string) (string, erro
 		}
 	}
 
-	activePath, err := ResolveSymlink(programPath)
+	activePath, err := binary.ResolveSymlink(programPath)
 	if err != nil && !os.IsNotExist(err) {
 		return "", err
 	}
@@ -60,7 +62,7 @@ func activeBinaryName(program Program, programPath, binDir string) (string, erro
 }
 
 // ParseBinaries seeks through fileList returning array of found versions of program.
-func ParseBinaries(fileList []fs.DirEntry, program Program,
+func ParseBinaries(fileList []fs.DirEntry, program binary.Program,
 	binDir string,
 ) ([]version.Version, error) {
 	var binaryVersions []version.Version
@@ -73,7 +75,7 @@ func ParseBinaries(fileList []fs.DirEntry, program Program,
 	fileInfo, err := os.Lstat(programPath)
 	if err == nil {
 		switch {
-		case program == ProgramCe && fileInfo.Mode()&os.ModeSymlink == 0:
+		case program == binary.ProgramCe && fileInfo.Mode()&os.ModeSymlink == 0:
 			tntCli := cmdcontext.TarantoolCli{Executable: programPath}
 
 			binaryVersion, err := tntCli.GetVersion()
@@ -103,7 +105,7 @@ func ParseBinaries(fileList []fs.DirEntry, program Program,
 
 		var ver version.Version
 
-		isRightFormat, _ := IsValidCommitHash(versionStr)
+		isRightFormat, _ := binary.IsValidCommitHash(versionStr)
 
 		if versionStr == "master" {
 			ver.Major = math.MaxUint // Small hack to make master the newest version.
@@ -132,21 +134,21 @@ func ListBinaries(listCtx ListCtx) error {
 	binDirFilesList, err := os.ReadDir(binDir)
 
 	if len(binDirFilesList) == 0 || errors.Is(err, fs.ErrNotExist) {
-		return errNoBinariesInstalled
+		return ErrNoBinariesInstalled
 	} else if err != nil {
 		return fmt.Errorf("error reading directory %q: %w", binDir, err)
 	}
 
-	buildPath, err := tarantoolBuildPath(binDir)
+	buildPath, err := binary.TarantoolBuildPath(binDir)
 	if err != nil {
 		return err
 	}
 
-	programs := [...]Program{
-		ProgramTt,
-		ProgramCe,
-		ProgramEe,
-		ProgramTcm,
+	programs := [...]binary.Program{
+		binary.ProgramTt,
+		binary.ProgramCe,
+		binary.ProgramEe,
+		binary.ProgramTcm,
 	}
 
 	_, _ = fmt.Fprintln(os.Stdout, "List of installed binaries:")
@@ -157,7 +159,7 @@ func ListBinaries(listCtx ListCtx) error {
 			return err
 		}
 
-		isLocalBuild := program == ProgramCe && buildPath != ""
+		isLocalBuild := program == binary.ProgramCe && buildPath != ""
 		if len(binaryVersions) > 0 || isLocalBuild {
 			sort.Stable(sort.Reverse(version.VersionSlice(binaryVersions)))
 			log.Infof(program.String() + ":")

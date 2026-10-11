@@ -1,4 +1,4 @@
-package binary
+package search
 
 import (
 	"bytes"
@@ -12,14 +12,15 @@ import (
 	"strings"
 
 	"github.com/tarantool/tt/sdk/connect"
+	"github.com/tarantool/tt/v3/internal/binary"
 )
 
 var (
 	errNoAPIDoerWasApplied          = errors.New("no API doer was applied")
 	errNoPlatformInformerWasApplied = errors.New("no platform informer was applied")
-	errTarantoolIODoerMissing       = errors.New("no tarantool.io doer was applied")
-	errUnsupportedArchitecture      = errors.New("unsupported architecture: ")
-	errUnsupportedOS                = errors.New("unsupported OS: ")
+
+	errUnsupportedArchitecture = errors.New("unsupported architecture: ")
+	errUnsupportedOS           = errors.New("unsupported OS: ")
 )
 
 const (
@@ -37,7 +38,7 @@ type apiRequest struct {
 // PlatformInformer is an interface that provides methods to get platform information.
 type PlatformInformer interface {
 	// GetOs returns the operating system type.
-	GetOs() (OsType, error)
+	GetOs() (binary.OsType, error)
 	// GetArch returns the architecture type.
 	GetArch() (string, error)
 }
@@ -49,22 +50,13 @@ func NewPlatformInformer() *realInfo {
 }
 
 // GetOs implement PlatformInformer interface.
-func (*realInfo) GetOs() (OsType, error) {
-	return GetOs()
+func (*realInfo) GetOs() (binary.OsType, error) {
+	return binary.GetOs()
 }
 
 // GetArch implement PlatformInformer interface.
 func (*realInfo) GetArch() (string, error) {
-	return GetArch()
-}
-
-// TntIoDoer is an interface that wraps the Do method.
-type TntIoDoer interface {
-	// Do sends an HTTP request and returns Body data from HTTP response.
-	Do(req *http.Request) ([]byte, error)
-
-	// Token provides the session token after the Do method is executed.
-	Token() string
+	return binary.GetArch()
 }
 
 // httpDoer is a struct that implements the TntIoDoer interface using the http package.
@@ -122,9 +114,9 @@ func getOsForAPI(informer PlatformInformer) (string, error) {
 	}
 
 	switch osType {
-	case OsLinux:
+	case binary.OsLinux:
 		return "linux", nil
-	case OsMacos:
+	case binary.OsMacos:
 		return "macos", nil
 	default:
 		return "", fmt.Errorf("%w%d", errUnsupportedOS, osType)
@@ -132,7 +124,7 @@ func getOsForAPI(informer PlatformInformer) (string, error) {
 }
 
 // getArchForApi determines the architecture type string required by the tarantool.io API.
-func getArchForAPI(informer PlatformInformer, program Program) (string, error) {
+func getArchForAPI(informer PlatformInformer, program binary.Program) (string, error) {
 	arch, err := informer.GetArch()
 	if err != nil {
 		return "", fmt.Errorf("failed to get architecture: %w", err)
@@ -146,10 +138,11 @@ func getArchForAPI(informer PlatformInformer, program Program) (string, error) {
 	// Workaround: change mapping for specific packages.
 	// Best way to unify paths for all apps in the customer zone.
 	switch program {
-	case ProgramTcm:
+	case binary.ProgramTcm:
 		archMapping["x86_64"] = "amd64"
 		archMapping["aarch64"] = "arm64"
-	case ProgramUnknown, ProgramCe, ProgramEe, ProgramTt, ProgramSDK:
+	case binary.ProgramUnknown, binary.ProgramCe, binary.ProgramEe,
+		binary.ProgramTt, binary.ProgramSDK:
 		// Use the default architecture mapping.
 	}
 
@@ -234,7 +227,7 @@ func buildAPIQuery(searchCtx *SearchCtx, credentials connect.UserCredentials) (
 }
 
 // sendApiRequest prepares and sends the request to the tarantool.io API.
-func sendAPIRequest(request apiRequest, doer TntIoDoer) ([]byte, error) {
+func sendAPIRequest(request apiRequest, doer binary.TntIoDoer) ([]byte, error) {
 	postData, err := json.Marshal(request) //nolint:gosec // the API takes the password in the body
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal API request: %w", err)
@@ -302,7 +295,7 @@ func tntIoGetPkgVersions(credentials connect.UserCredentials, searchCtx *SearchC
 	map[string][]string, error,
 ) {
 	if searchCtx.TntIoDoer == nil {
-		return nil, errTarantoolIODoerMissing
+		return nil, binary.ErrTarantoolIODoerMissing
 	}
 
 	if searchCtx.platformInformer == nil {

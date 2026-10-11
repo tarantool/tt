@@ -10,6 +10,10 @@ import (
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/configure"
 	"github.com/tarantool/tt/v3/internal/binary"
+	"github.com/tarantool/tt/v3/internal/binary/install"
+	"github.com/tarantool/tt/v3/internal/binary/list"
+	switcher "github.com/tarantool/tt/v3/internal/binary/switch"
+	"github.com/tarantool/tt/v3/internal/binary/uninstall"
 )
 
 // TestInternalRunE checks that the adapter records the command's name in
@@ -52,14 +56,14 @@ func TestCheckConfig(t *testing.T) {
 		err  error
 	}{
 		{"binary list", internalListModule(
-			binary.BinaryContext{}, binary.ListCtx{}, &cmdcontext.CmdCtx{}, nil)},
+			binary.BinaryContext{}, list.ListCtx{}, &cmdcontext.CmdCtx{}, nil)},
 		{"binary switch", internalSwitchModule(
-			binary.BinaryContext{}, binary.SwitchCtx{}, &cmdcontext.CmdCtx{}, nil)},
+			binary.BinaryContext{}, switcher.SwitchCtx{}, &cmdcontext.CmdCtx{}, nil)},
 		{"check", internalCheckModule(&cmdcontext.CmdCtx{}, nil)},
 		{"clean", internalCleanModule(&cmdcontext.CmdCtx{}, nil)},
 		{"create", internalCreateModule(&cmdcontext.CmdCtx{}, nil)},
 		{"install", internalInstallModule(
-			binary.BinaryContext{}, binary.InstallCtx{},
+			binary.BinaryContext{}, install.InstallCtx{},
 			&cmdcontext.CmdCtx{CommandName: binary.ProgramCe.String()}, nil)},
 		{"logrotate", internalLogrotateModule(&cmdcontext.CmdCtx{}, nil)},
 		{"restart", internalRestartModule(&cmdcontext.CmdCtx{}, nil)},
@@ -67,7 +71,7 @@ func TestCheckConfig(t *testing.T) {
 		{"status", internalStatusModule(&cmdcontext.CmdCtx{}, nil)},
 		{"stop", internalStopModule(&cmdcontext.CmdCtx{}, nil)},
 		{"uninstall", internalUninstallModule(
-			binary.BinaryContext{}, binary.UninstallCtx{}, &cmdcontext.CmdCtx{}, nil)},
+			binary.BinaryContext{}, uninstall.UninstallCtx{}, &cmdcontext.CmdCtx{}, nil)},
 	}
 
 	for _, tc := range cases {
