@@ -9,6 +9,7 @@ import (
 
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/configure"
+	"github.com/tarantool/tt/v3/internal/binary"
 )
 
 // TestInternalRunE checks that the adapter records the command's name in
@@ -50,18 +51,23 @@ func TestCheckConfig(t *testing.T) {
 		name string
 		err  error
 	}{
-		{"binary list", internalListModule(&cmdcontext.CmdCtx{}, nil)},
-		{"binary switch", internalSwitchModule(&cmdcontext.CmdCtx{}, nil)},
+		{"binary list", internalListModule(
+			binary.BinaryContext{}, binary.ListCtx{}, &cmdcontext.CmdCtx{}, nil)},
+		{"binary switch", internalSwitchModule(
+			binary.BinaryContext{}, binary.SwitchCtx{}, &cmdcontext.CmdCtx{}, nil)},
 		{"check", internalCheckModule(&cmdcontext.CmdCtx{}, nil)},
 		{"clean", internalCleanModule(&cmdcontext.CmdCtx{}, nil)},
 		{"create", internalCreateModule(&cmdcontext.CmdCtx{}, nil)},
-		{"install", internalInstallModule(&cmdcontext.CmdCtx{}, nil)},
+		{"install", internalInstallModule(
+			binary.BinaryContext{}, binary.InstallCtx{},
+			&cmdcontext.CmdCtx{CommandName: binary.ProgramCe.String()}, nil)},
 		{"logrotate", internalLogrotateModule(&cmdcontext.CmdCtx{}, nil)},
 		{"restart", internalRestartModule(&cmdcontext.CmdCtx{}, nil)},
 		{"start", internalStartModule(&cmdcontext.CmdCtx{}, nil)},
 		{"status", internalStatusModule(&cmdcontext.CmdCtx{}, nil)},
 		{"stop", internalStopModule(&cmdcontext.CmdCtx{}, nil)},
-		{"uninstall", internalUninstallModule(&cmdcontext.CmdCtx{}, nil)},
+		{"uninstall", internalUninstallModule(
+			binary.BinaryContext{}, binary.UninstallCtx{}, &cmdcontext.CmdCtx{}, nil)},
 	}
 
 	for _, tc := range cases {

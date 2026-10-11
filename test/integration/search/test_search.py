@@ -21,12 +21,12 @@ def test_version_cmd(tt_cmd, tmp_path):
     cmd = [tt_cmd, "binary", "search", "git"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
-    assert re.search(r"Search for available versions for the program", output)
+    assert "Search available program versions" in output
 
     cmd = [tt_cmd, "binary", "search"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
-    assert re.search(r"Search for available versions for the program", output)
+    assert "Search available program versions" in output
 
 
 @pytest.mark.parametrize(
@@ -105,9 +105,9 @@ def test_version_cmd_local(tt_cmd, tmp_path):
     cmd = [tt_cmd, "binary", "search", "--local-repo", "git"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
-    assert re.search(r"Search for available versions for the program", output)
+    assert "Search available program versions" in output
 
     cmd = [tt_cmd, "binary", "search", "--local-repo"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
-    assert re.search(r"Search for available versions for the program", output)
+    assert "Search available program versions" in output

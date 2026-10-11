@@ -13,7 +13,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
-	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/version"
 )
 
@@ -23,6 +22,13 @@ var (
 	)
 )
 
+// ListCtx contains the options for listing installed binaries.
+type ListCtx struct {
+	BinaryContext
+
+	BinDir string
+}
+
 // printInstalledVersion outputs installed versions of the program.
 func printInstalledVersion(versionString string) {
 	if strings.HasSuffix(versionString, "[active]") {
@@ -30,6 +36,27 @@ func printInstalledVersion(versionString string) {
 	} else {
 		_, _ = fmt.Fprintf(os.Stdout, "	%s\n", color.YellowString(versionString))
 	}
+}
+
+// activeBinaryName resolves the active version's filename, excluding linked local builds.
+func activeBinaryName(program Program, programPath, binDir string) (string, error) {
+	if program.IsTarantool() {
+		buildPath, err := tarantoolBuildPath(binDir)
+		if err != nil {
+			return "", err
+		}
+
+		if buildPath != "" {
+			return "", nil
+		}
+	}
+
+	activePath, err := ResolveSymlink(programPath)
+	if err != nil && !os.IsNotExist(err) {
+		return "", err
+	}
+
+	return filepath.Base(activePath), nil
 }
 
 // ParseBinaries seeks through fileList returning array of found versions of program.
@@ -46,21 +73,6 @@ func ParseBinaries(fileList []fs.DirEntry, program Program,
 	fileInfo, err := os.Lstat(programPath)
 	if err == nil {
 		switch {
-		case program == ProgramDev &&
-			fileInfo.Mode()&os.ModeSymlink == os.ModeSymlink:
-			binActive, isTarantoolBinary, err := IsTarantoolDev(programPath, binDir)
-			if err != nil {
-				return binaryVersions, err
-			}
-
-			if isTarantoolBinary {
-				var activeVersion version.Version
-
-				activeVersion.Str = program.String() + " -> " + binActive + " [active]"
-				binaryVersions = append(binaryVersions, activeVersion)
-			}
-
-			return binaryVersions, nil
 		case program == ProgramCe && fileInfo.Mode()&os.ModeSymlink == 0:
 			tntCli := cmdcontext.TarantoolCli{Executable: programPath}
 
@@ -73,12 +85,10 @@ func ParseBinaries(fileList []fs.DirEntry, program Program,
 
 			binaryVersions = append(binaryVersions, binaryVersion)
 		default:
-			binActive, err = ResolveSymlink(programPath)
-			if err != nil && !os.IsNotExist(err) {
+			binActive, err = activeBinaryName(program, programPath, binDir)
+			if err != nil {
 				return binaryVersions, err
 			}
-
-			binActive = filepath.Base(binActive)
 		}
 	}
 
@@ -117,8 +127,8 @@ func ParseBinaries(fileList []fs.DirEntry, program Program,
 }
 
 // ListBinaries outputs installed versions of programs from bin_dir.
-func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
-	binDir := cliOpts.Env.BinDir
+func ListBinaries(listCtx ListCtx) error {
+	binDir := listCtx.BinDir
 	binDirFilesList, err := os.ReadDir(binDir)
 
 	if len(binDirFilesList) == 0 || errors.Is(err, fs.ErrNotExist) {
@@ -127,10 +137,14 @@ func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
 		return fmt.Errorf("error reading directory %q: %w", binDir, err)
 	}
 
+	buildPath, err := tarantoolBuildPath(binDir)
+	if err != nil {
+		return err
+	}
+
 	programs := [...]Program{
 		ProgramTt,
 		ProgramCe,
-		ProgramDev,
 		ProgramEe,
 		ProgramTcm,
 	}
@@ -143,12 +157,17 @@ func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
 			return err
 		}
 
-		if len(binaryVersions) > 0 {
+		isLocalBuild := program == ProgramCe && buildPath != ""
+		if len(binaryVersions) > 0 || isLocalBuild {
 			sort.Stable(sort.Reverse(version.VersionSlice(binaryVersions)))
 			log.Infof(program.String() + ":")
 
 			for _, binVersion := range binaryVersions {
 				printInstalledVersion(binVersion.Str)
+			}
+
+			if isLocalBuild {
+				printInstalledVersion(program.String() + " -> " + buildPath + " [active]")
 			}
 		}
 	}

@@ -17,14 +17,14 @@ func TestGetApiPackage(t *testing.T) {
 			expected: "enterprise",
 		},
 
+		"tarantool sdk": {
+			input:    binary.ProgramSDK,
+			expected: "enterprise",
+		},
+
 		"tcm": {
 			input:    binary.ProgramTcm,
 			expected: "tarantool-cluster-manager",
-		},
-
-		"tarantool development": {
-			input:    binary.ProgramDev,
-			expected: "",
 		},
 
 		"tarantool community edition": {

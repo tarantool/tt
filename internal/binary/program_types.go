@@ -17,12 +17,12 @@ const (
 	ProgramCe              // tarantool.
 	ProgramEe              // tarantool-ee.
 	ProgramTt              // tt.
-	ProgramDev             // tarantool-dev.
 	ProgramTcm             // tcm.
+	ProgramSDK             // tarantool-sdk.
 )
 
-// tarantoolName is the executable of every Tarantool flavour and the name
-// of the Community Edition.
+// tarantoolname is the executable of every tarantool flavour and the name
+// of the community edition.
 const tarantoolName = "tarantool"
 
 // programToExec contains executables matched for each Program types.
@@ -30,7 +30,6 @@ var programToExec = map[Program]string{
 	ProgramCe:  tarantoolName,
 	ProgramEe:  tarantoolName,
 	ProgramTt:  "tt",
-	ProgramDev: tarantoolName,
 	ProgramTcm: "tcm",
 }
 
@@ -38,9 +37,9 @@ var programToExec = map[Program]string{
 var programToString = map[Program]string{
 	ProgramCe:  tarantoolName,
 	ProgramEe:  "tarantool-ee",
-	ProgramDev: "tarantool-dev",
 	ProgramTt:  "tt",
 	ProgramTcm: "tcm",
+	ProgramSDK: "tarantool-sdk",
 }
 
 // stringToProgram contains the reverse mapping for efficient lookup.
@@ -82,5 +81,5 @@ func (p Program) Exec() string {
 
 // IsTarantool checks if the Program is kind of Tarantool program.
 func (p Program) IsTarantool() bool {
-	return p == ProgramCe || p == ProgramEe || p == ProgramDev
+	return p == ProgramCe || p == ProgramEe
 }

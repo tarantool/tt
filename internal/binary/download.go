@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 
 	"github.com/tarantool/tt/sdk/log"
-	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/config"
 	"golang.org/x/sys/unix"
 )
@@ -16,61 +15,49 @@ var (
 	errCurrentDirectoryUnavailable = errors.New("can't get current dir: ")
 )
 
-type DownloadCtx struct {
-	// Version of SDK to download.
-	Version string
-	// Path where the sdk will be saved.
-	DirectoryPrefix string
-	// Download development build.
-	DevBuild bool
-}
-
 // searchSDKVersionToDownload wrapper to search for SDK bundles.
-func searchSDKVersionToDownload(downloadCtx DownloadCtx, cliOpts *config.CliOpts) (
+func searchSDKVersionToDownload(installCtx InstallCtx, cliOpts *config.CliOpts) (
 	BundleInfo, error,
 ) {
 	log.Info("Search for the requested version...")
 
 	searchCtx := NewSearchCtx(NewPlatformInformer(), NewTntIoDoer())
 
-	searchCtx.Program = ProgramEe
+	searchCtx.BinaryContext = installCtx.BinaryContext
 	searchCtx.Filter = SearchAll
-	searchCtx.Package = "enterprise"
-	searchCtx.DevBuilds = downloadCtx.DevBuild
+	searchCtx.DevBuilds = installCtx.DevBuild
 
 	bundles, err := FetchBundlesInfo(&searchCtx, cliOpts)
 	if err != nil {
 		return BundleInfo{}, fmt.Errorf("cannot get SDK bundles list: %w", err)
 	}
 
-	return SelectVersion(bundles, downloadCtx.Version)
+	return SelectVersion(bundles, installCtx.version)
 }
 
-// DownloadSDK Downloads and saves the SDK.
-func DownloadSDK(cmdCtx *cmdcontext.CmdCtx, downloadCtx DownloadCtx,
-	cliOpts *config.CliOpts,
-) error {
+// DownloadSDK downloads and saves a Tarantool SDK bundle.
+func DownloadSDK(installCtx InstallCtx, cliOpts *config.CliOpts) error {
 	var err error
 
-	if len(downloadCtx.DirectoryPrefix) == 0 {
-		downloadCtx.DirectoryPrefix, err = os.Getwd()
+	if len(installCtx.Destination) == 0 {
+		installCtx.Destination, err = os.Getwd()
 		if err != nil {
 			return fmt.Errorf("%w%s", errCurrentDirectoryUnavailable, err.Error())
 		}
 	}
 
-	err = unix.Access(downloadCtx.DirectoryPrefix, unix.W_OK)
+	err = unix.Access(installCtx.Destination, unix.W_OK)
 	if err != nil {
-		return fmt.Errorf("bad directory prefix: %w", err)
+		return fmt.Errorf("invalid destination directory %q: %w", installCtx.Destination, err)
 	}
 
-	ver, err := searchSDKVersionToDownload(downloadCtx, cliOpts)
+	ver, err := searchSDKVersionToDownload(installCtx, cliOpts)
 	if err != nil {
 		return fmt.Errorf("no version for download: %w", err)
 	}
 
 	bundleName := ver.Version.Tarball
-	bundlePath := filepath.Join(downloadCtx.DirectoryPrefix, bundleName)
+	bundlePath := filepath.Join(installCtx.Destination, bundleName)
 
 	_, err = os.Stat(bundlePath)
 	if err == nil {
@@ -93,8 +80,8 @@ func DownloadSDK(cmdCtx *cmdcontext.CmdCtx, downloadCtx DownloadCtx,
 		NewTntIoDownloader(ver.Token),
 	)
 
-	searchCtx.Program = ProgramEe
-	searchCtx.DevBuilds = downloadCtx.DevBuild
+	searchCtx.BinaryContext = installCtx.BinaryContext
+	searchCtx.DevBuilds = installCtx.DevBuild
 	searchCtx.ReleaseVersion = ver.Release
 
 	bundleSource, err := TntIoMakePkgURI(&searchCtx, bundleName)
@@ -103,7 +90,7 @@ func DownloadSDK(cmdCtx *cmdcontext.CmdCtx, downloadCtx DownloadCtx,
 	}
 
 	err = DownloadBundle(searchCtx.TntIoDoer,
-		bundleName, bundleSource, downloadCtx.DirectoryPrefix)
+		bundleName, bundleSource, installCtx.Destination)
 	if err != nil {
 		return fmt.Errorf("download error: %w", err)
 	}

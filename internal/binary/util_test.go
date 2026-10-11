@@ -97,4 +97,15 @@ func TestCreateSymlink(t *testing.T) {
 	targetPath, err = os.Readlink(filepath.Join(tempDir, "first_link"))
 	require.NoError(t, err)
 	assert.Equal(t, "./tgtFile.txt", targetPath)
+
+	// A dangling link still exists and must obey the overwrite flag.
+	require.NoError(t, os.Remove(targetFile.Name()))
+	require.ErrorContains(t, binary.CreateSymlink("./new_target",
+		filepath.Join(tempDir, "first_link"), false), "already exists")
+	require.NoError(t, binary.CreateSymlink("./new_target",
+		filepath.Join(tempDir, "first_link"), true))
+
+	targetPath, err = os.Readlink(filepath.Join(tempDir, "first_link"))
+	require.NoError(t, err)
+	assert.Equal(t, "./new_target", targetPath)
 }

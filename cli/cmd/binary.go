@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/spf13/cobra"
+
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/internal/binary"
 )
@@ -18,6 +19,8 @@ var (
 	errToDownloadTarantoolSDKYouNeedToSpecifyTheVersion = errors.New(
 		"to download Tarantool SDK, you need to specify the version",
 	)
+	errFromBuildDirectoryRequired = errors.New("--from-build requires a non-empty directory")
+	errIncludeDirWithoutFromBuild = errors.New("--include-dir requires --from-build")
 )
 
 var binarySupportedPrograms = []string{
@@ -27,75 +30,87 @@ var binarySupportedPrograms = []string{
 	binary.ProgramTcm.String(),
 }
 
-var (
-	installCtx  binary.InstallCtx
-	downloadCtx binary.DownloadCtx
-	local       bool
-	debug       bool
-	searchCtx   = binary.NewSearchCtx(binary.NewPlatformInformer(), binary.NewTntIoDoer())
-)
+// binaryFunc implements a binary command with common options.
+type binaryFunc[T any] func(binary.BinaryContext, T, *cmdcontext.CmdCtx, []string) error
 
 // NewBinaryCmd creates the command for managing binaries and downloading SDK bundles.
 func NewBinaryCmd() *cobra.Command {
+	var (
+		base         binary.BinaryContext
+		installCtx   binary.InstallCtx
+		uninstallCtx binary.UninstallCtx
+		searchCtx    = binary.NewSearchCtx(binary.NewPlatformInformer(), binary.NewTntIoDoer())
+		listCtx      binary.ListCtx
+		switchCtx    binary.SwitchCtx
+	)
+
 	binaryCmd := &cobra.Command{
 		Use:   "binary",
-		Short: "Manage binaries",
+		Short: "Manage binaries and SDK bundles",
 	}
 
+	binaryCmd.PersistentFlags().BoolVarP(&base.Verbose, "verbose", "V", false,
+		"Show diagnostic output and build commands")
+
 	binaryCmd.AddCommand(
-		newBinaryInstallCmd(),
-		newBinaryUninstallCmd(),
-		newBinarySearchCmd(),
-		newBinaryListCmd(),
-		newBinarySwitchCmd(),
+		newBinaryInstallCmd(&base, &installCtx),
+		newBinaryUninstallCmd(&base, &uninstallCtx),
+		newBinarySearchCmd(&base, &searchCtx),
+		newBinaryListCmd(&base, &listCtx),
+		newBinarySwitchCmd(&base, &switchCtx),
 	)
 
 	return binaryCmd
 }
 
 // newBinaryInstallCmd creates install command.
-func newBinaryInstallCmd() *cobra.Command {
+func newBinaryInstallCmd(base *binary.BinaryContext,
+	installCtx *binary.InstallCtx,
+) *cobra.Command {
 	installCmd := &cobra.Command{
 		Use:   "install",
-		Short: "Install program",
-		Example: `# Install latest Tarantool version.
+		Short: "Install a program",
+		Example: `# Install the latest Tarantool version.
+  $ tt binary install tarantool
 
-    $ tt binary install tarantool
+  # Install tt from a pull request.
+  $ tt binary install tt pr/534
 
-# Install specific tt pull-request.
-
-    $ tt binary install tt pr/534
-
-# Install Tarantool 3.0.0 with limit number of simultaneous jobs for make.
-
-    $ MAKEFLAGS="-j2" tt binary install tarantool 3.0.0`,
+  # Build Tarantool with two parallel jobs.
+  $ MAKEFLAGS="-j2" tt binary install tarantool 3.0.0`,
 	}
-	installCmd.Flags().BoolVarP(&installCtx.Force, "force", "f", false,
-		"don't do a dependency check before installing")
-	installCmd.Flags().BoolVarP(&installCtx.KeepTemp, "no-clean", "", false,
-		"don't delete temporary files")
-	installCmd.Flags().BoolVarP(&installCtx.Reinstall, "reinstall", "", false, "reinstall program")
-	installCmd.Flags().BoolVarP(&installCtx.Local, "local-repo", "", false,
-		"install from local files")
+	installCmd.PersistentFlags().BoolVarP(&installCtx.Force, "force", "f", false,
+		"Skip dependency checks")
+	installCmd.PersistentFlags().BoolVar(&installCtx.KeepTemp, "no-clean", false,
+		"Keep temporary files")
+	installCmd.PersistentFlags().BoolVar(&installCtx.Reinstall, "reinstall", false,
+		"Reinstall an existing version")
+	installCmd.PersistentFlags().BoolVar(&installCtx.Local, "local-repo", false,
+		"Install from the local repository")
+	installCmd.PersistentFlags().StringVar(&installCtx.Destination, "destination", "",
+		"Directory to save SDK bundles (default: current directory)")
 
+	tarantoolCmd := newInstallTarantoolCmd(base, installCtx)
 	installCmd.AddCommand(
-		newInstallTtCmd(),
-		newInstallTarantoolCmd(),
-		newInstallTarantoolEeCmd(),
-		newInstallTarantoolDevCmd(),
-		newInstallTcmCmd(),
-		newBinaryInstallSDKCmd(),
+		newInstallTtCmd(base, installCtx),
+		tarantoolCmd,
+		newInstallTarantoolEeCmd(base, installCtx),
+		newInstallTcmCmd(base, installCtx),
+		newInstallTarantoolSDKCmd(base, installCtx),
 	)
+	tarantoolCmd.MarkFlagsMutuallyExclusive("from-build", "local-repo")
 
 	return installCmd
 }
 
 // newInstallTtCmd creates a command to install tt.
-func newInstallTtCmd() *cobra.Command {
+func newInstallTtCmd(base *binary.BinaryContext,
+	installCtx *binary.InstallCtx,
+) *cobra.Command {
 	tntCmd := &cobra.Command{
-		Use:   binary.ProgramTt.String() + " [version|commit hash|pull-request]",
+		Use:   binary.ProgramTt.String() + " [version|commit|pull-request]",
 		Short: "Install tt",
-		RunE:  internalRunE(internalInstallModule),
+		RunE:  binaryRunE(base, installCtx, internalInstallModule),
 		Args:  cobra.MaximumNArgs(1),
 	}
 
@@ -103,81 +118,99 @@ func newInstallTtCmd() *cobra.Command {
 }
 
 // newInstallTarantoolCmd creates a command to install tarantool.
-func newInstallTarantoolCmd() *cobra.Command {
+func newInstallTarantoolCmd(base *binary.BinaryContext,
+	installCtx *binary.InstallCtx,
+) *cobra.Command {
 	tntCmd := &cobra.Command{
-		Use:   binary.ProgramCe.String() + " [version|commit hash|pull-request]",
-		Short: "Install tarantool community edition",
-		RunE:  internalRunE(internalInstallModule),
-		Args:  cobra.MaximumNArgs(1),
+		Use:   binary.ProgramCe.String() + " [version|commit|pull-request]",
+		Short: "Install Tarantool Community Edition",
+		Example: `# Build and install Tarantool from the local repository.
+  $ tt binary install tarantool --local-repo
+
+  # Link an existing Tarantool build into the environment.
+  $ tt binary install tarantool --from-build ~/src/tarantool/build
+
+  # Use headers from a custom directory.
+  $ tt binary install tarantool --from-build ~/src/tarantool/build \
+      --include-dir ~/src/tarantool/include`,
+		RunE: binaryRunE(base, installCtx, internalInstallModule),
+		Args: func(cmd *cobra.Command, args []string) error {
+			if cmd.Flags().Changed("from-build") {
+				if installCtx.FromBuild == "" {
+					return errFromBuildDirectoryRequired
+				}
+
+				return cobra.ExactArgs(0)(cmd, args)
+			}
+
+			if cmd.Flags().Changed("include-dir") {
+				return errIncludeDirWithoutFromBuild
+			}
+
+			return cobra.MaximumNArgs(1)(cmd, args)
+		},
 	}
 
-	tntCmd.Flags().BoolVarP(&installCtx.BuildInDocker, "use-docker", "", false,
-		"build tarantool in Ubuntu 18.04 docker container")
-	tntCmd.Flags().BoolVarP(&installCtx.Dynamic, "dynamic", "", false,
-		"use dynamic linking for building tarantool")
+	tntCmd.Flags().BoolVar(&installCtx.BuildInDocker, "use-docker", false,
+		"Build Tarantool in an Ubuntu 18.04 Docker container")
+	tntCmd.Flags().BoolVar(&installCtx.Dynamic, "dynamic", false,
+		"Build Tarantool with dynamic linking")
+	tntCmd.Flags().StringVar(&installCtx.FromBuild, "from-build", "",
+		"Link Tarantool from an existing build directory")
+	tntCmd.Flags().StringVar(&installCtx.IncDir, "include-dir", "",
+		"Path to the Tarantool headers directory (requires --from-build)")
+	tntCmd.MarkFlagsMutuallyExclusive("from-build", "use-docker")
+	tntCmd.MarkFlagsMutuallyExclusive("from-build", "dynamic")
 
 	return tntCmd
 }
 
 // newInstallTarantoolEeCmd creates a command to install tarantool-ee.
-func newInstallTarantoolEeCmd() *cobra.Command {
+func newInstallTarantoolEeCmd(base *binary.BinaryContext,
+	installCtx *binary.InstallCtx,
+) *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramEe.String() + " [version]",
-		Short: "Install tarantool enterprise edition",
-		RunE:  internalRunE(internalInstallModule),
+		Short: "Install Tarantool Enterprise Edition",
+		RunE:  binaryRunE(base, installCtx, internalInstallModule),
 		Args:  cobra.MaximumNArgs(1),
 	}
 
-	tntCmd.Flags().BoolVar(&installCtx.DevBuild, "dev", false, "install development build")
+	tntCmd.Flags().BoolVar(&installCtx.DevBuild, "dev", false, "Install a development build")
 
 	return tntCmd
 }
 
-// newInstallTarantoolDevCmd creates a command to install tarantool
-// from the local build directory.
-func newInstallTarantoolDevCmd() *cobra.Command {
-	tntCmd := &cobra.Command{
-		Use:   "tarantool-dev <DIRECTORY>",
-		Short: "Install tarantool from the local build directory",
-		Example: "Assume, tarantool build directory is ~/src/tarantool/build\n" +
-			"  Consider the following use case:\n\n" +
-			"  make -j16 -C ~/src/tarantool/build\n" +
-			"  tt binary install tarantool-dev ~/src/tarantool/build\n" +
-			"  tt binary list # shows the binary installed above",
-		RunE: internalRunE(internalInstallModule),
-		Args: cobra.ExactArgs(1),
-	}
-
-	tntCmd.Flags().StringVar(&installCtx.IncDir, "include-dir", "",
-		"tarantool headers directory")
-
-	return tntCmd
-}
-
-func newInstallTcmCmd() *cobra.Command {
+func newInstallTcmCmd(base *binary.BinaryContext,
+	installCtx *binary.InstallCtx,
+) *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramTcm.String() + " [version]",
-		Short: "Install tarantool cluster manager",
-		RunE:  internalRunE(internalInstallModule),
+		Short: "Install Tarantool Cluster Manager",
+		RunE:  binaryRunE(base, installCtx, internalInstallModule),
 		Args:  cobra.MaximumNArgs(1),
 	}
 
-	tntCmd.Flags().BoolVar(&installCtx.DevBuild, "dev", false, "install development build")
+	tntCmd.Flags().BoolVar(&installCtx.DevBuild, "dev", false, "Install a development build")
 
 	return tntCmd
 }
 
-// newBinaryInstallSDKCmd creates a command that downloads and saves the Tarantool SDK.
-func newBinaryInstallSDKCmd() *cobra.Command {
+// newInstallTarantoolSDKCmd creates a command that downloads and saves the Tarantool SDK.
+func newInstallTarantoolSDKCmd(base *binary.BinaryContext,
+	installCtx *binary.InstallCtx,
+) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "SDK <VERSION>",
-		Short: `Download Tarantool SDK`,
-		Example: `# Download Tarantool SDK to the current working directory.
-	$ tt binary install SDK gc64-3.0.0-0-gf58f7d82a-r23
-# Download Tarantool SDK development build to the /tmp directory.
-	$ tt binary install SDK gc64-3.0.0-beta1-2-gcbb569b4c-r612 \
-	    --dev --directory-prefix /tmp`,
-		RunE: internalRunE(internalDownloadModule),
+		Use:     binary.ProgramSDK.String() + " <version>",
+		Aliases: []string{"sdk", "SDK"},
+		Short:   "Download a Tarantool SDK bundle",
+		Example: `# Download an SDK bundle to the current directory.
+  $ tt binary install tarantool-sdk gc64-3.0.0-0-gf58f7d82a-r23
+
+  # Download a development SDK bundle to /tmp.
+  $ tt binary install tarantool-sdk gc64-3.0.0-beta1-2-gcbb569b4c-r612 \
+      --dev --destination /tmp`,
+		RunE: binaryRunE(base, installCtx, internalInstallModule),
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return errToDownloadTarantoolSDKYouNeedToSpecifyTheVersion
@@ -189,25 +222,26 @@ func newBinaryInstallSDKCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVar(&downloadCtx.DevBuild, "dev", false, "download development build")
-	cmd.Flags().StringVar(&downloadCtx.DirectoryPrefix,
-		"directory-prefix", downloadCtx.DirectoryPrefix,
-		`directory prefix to save SDK. The default is "." (the current directory)`)
+	cmd.Flags().BoolVar(&installCtx.DevBuild, "dev", false, "Download a development build")
 
 	return cmd
 }
 
 // internalInstallModule is a default install module.
-func internalInstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if !isConfigExist(cmdCtx) {
-		return errNoConfig
-	}
-
+func internalInstallModule(base binary.BinaryContext, installCtx binary.InstallCtx,
+	cmdCtx *cmdcontext.CmdCtx, args []string,
+) error {
 	var err error
+
+	installCtx.BinaryContext = base
 
 	err = binary.FillCtx(cmdCtx, &installCtx, args)
 	if err != nil {
 		return err
+	}
+
+	if installCtx.Program != binary.ProgramSDK && !isConfigExist(cmdCtx) {
+		return errNoConfig
 	}
 
 	err = binary.Install(installCtx, cliOpts)
@@ -215,38 +249,35 @@ func internalInstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	return err
 }
 
-func internalDownloadModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	downloadCtx.Version = args[0]
-	return binary.DownloadSDK(cmdCtx, downloadCtx, cliOpts)
-}
-
 // newBinaryUninstallCmd creates uninstall command.
-func newBinaryUninstallCmd() *cobra.Command {
+func newBinaryUninstallCmd(base *binary.BinaryContext,
+	uninstallCtx *binary.UninstallCtx,
+) *cobra.Command {
 	uninstallCmd := &cobra.Command{
 		Use:   "uninstall",
-		Short: "Uninstalls a program",
-		Example: `# To uninstall Tarantool:
-
-    $ tt binary uninstall tarantool <version>`,
+		Short: "Uninstall a program",
+		Example: `# Uninstall a Tarantool version.
+  $ tt binary uninstall tarantool 3.0.0`,
 	}
 
 	uninstallCmd.AddCommand(
-		newUninstallTtCmd(),
-		newUninstallTarantoolCmd(),
-		newUninstallTarantoolEeCmd(),
-		newUninstallTarantoolDevCmd(),
-		newUninstallTcmCmd(),
+		newUninstallTtCmd(base, uninstallCtx),
+		newUninstallTarantoolCmd(base, uninstallCtx),
+		newUninstallTarantoolEeCmd(base, uninstallCtx),
+		newUninstallTcmCmd(base, uninstallCtx),
 	)
 
 	return uninstallCmd
 }
 
-// newUninstallTtCmd creates a command to install tt.
-func newUninstallTtCmd() *cobra.Command {
+// newUninstallTtCmd creates a command to uninstall tt.
+func newUninstallTtCmd(base *binary.BinaryContext,
+	uninstallCtx *binary.UninstallCtx,
+) *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   "tt [version]",
 		Short: "Uninstall tt",
-		RunE:  internalRunE(internalUninstallModule),
+		RunE:  binaryRunE(base, uninstallCtx, internalUninstallModule),
 		Args:  cobra.MaximumNArgs(1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
@@ -265,13 +296,17 @@ func newUninstallTtCmd() *cobra.Command {
 	return tntCmd
 }
 
-// newUninstallTarantoolCmd creates a command to install tarantool.
-func newUninstallTarantoolCmd() *cobra.Command {
+// newUninstallTarantoolCmd creates a command to uninstall tarantool.
+func newUninstallTarantoolCmd(base *binary.BinaryContext,
+	uninstallCtx *binary.UninstallCtx,
+) *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramCe.String() + " [version]",
-		Short: "Uninstall tarantool community edition",
-		RunE:  internalRunE(internalUninstallModule),
-		Args:  cobra.MaximumNArgs(1),
+		Short: "Uninstall Tarantool Community Edition",
+		Long: `Uninstall a Tarantool version.
+Without a version, unlink the active local build or uninstall the only installed version.`,
+		RunE: binaryRunE(base, uninstallCtx, internalUninstallModule),
+		Args: cobra.MaximumNArgs(1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
@@ -289,12 +324,14 @@ func newUninstallTarantoolCmd() *cobra.Command {
 	return tntCmd
 }
 
-// newUninstallTarantoolEeCmd creates a command to install tarantool-ee.
-func newUninstallTarantoolEeCmd() *cobra.Command {
+// newUninstallTarantoolEeCmd creates a command to uninstall tarantool-ee.
+func newUninstallTarantoolEeCmd(base *binary.BinaryContext,
+	uninstallCtx *binary.UninstallCtx,
+) *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramEe.String() + " [version]",
-		Short: "Uninstall tarantool enterprise edition",
-		RunE:  internalRunE(internalUninstallModule),
+		Short: "Uninstall Tarantool Enterprise Edition",
+		RunE:  binaryRunE(base, uninstallCtx, internalUninstallModule),
 		Args:  cobra.MaximumNArgs(1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
@@ -313,24 +350,14 @@ func newUninstallTarantoolEeCmd() *cobra.Command {
 	return tntCmd
 }
 
-// newUninstallTarantoolDevCmd creates a command to uninstall tarantool-dev.
-func newUninstallTarantoolDevCmd() *cobra.Command {
-	tntCmd := &cobra.Command{
-		Use:   "tarantool-dev",
-		Short: "Uninstall tarantool-dev",
-		RunE:  internalRunE(internalUninstallModule),
-		Args:  cobra.ExactArgs(0),
-	}
-
-	return tntCmd
-}
-
-// newUninstallTcmCmd creates a command to install tarantool-ee.
-func newUninstallTcmCmd() *cobra.Command {
+// newUninstallTcmCmd creates a command to uninstall tcm.
+func newUninstallTcmCmd(base *binary.BinaryContext,
+	uninstallCtx *binary.UninstallCtx,
+) *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramTcm.String() + " [version]",
-		Short: "Uninstall tarantool cluster manager",
-		RunE:  internalRunE(internalUninstallModule),
+		Short: "Uninstall Tarantool Cluster Manager",
+		RunE:  binaryRunE(base, uninstallCtx, internalUninstallModule),
 		Args:  cobra.MaximumNArgs(1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
@@ -350,7 +377,9 @@ func newUninstallTcmCmd() *cobra.Command {
 }
 
 // internalUninstallModule is a default uninstall module.
-func internalUninstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+func internalUninstallModule(base binary.BinaryContext, uninstallCtx binary.UninstallCtx,
+	cmdCtx *cmdcontext.CmdCtx, args []string,
+) error {
 	if !isConfigExist(cmdCtx) {
 		return errNoConfig
 	}
@@ -365,46 +394,52 @@ func internalUninstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		programVersion = args[0]
 	}
 
-	return binary.UninstallProgram(program, programVersion, cliOpts.Env.BinDir,
-		cliOpts.Env.IncludeDir+"/include", cmdCtx)
+	uninstallCtx.BinaryContext = base
+	uninstallCtx.Program = program
+	uninstallCtx.Version = programVersion
+	uninstallCtx.BinDir = cliOpts.Env.BinDir
+	uninstallCtx.IncDir = cliOpts.Env.IncludeDir + "/include"
+
+	return binary.UninstallProgram(uninstallCtx)
 }
 
 // newBinarySearchCmd creates search command.
-func newBinarySearchCmd() *cobra.Command {
+func newBinarySearchCmd(base *binary.BinaryContext,
+	searchCtx *binary.SearchCtx,
+) *cobra.Command {
 	searchCmd := &cobra.Command{
 		Use:   "search",
-		Short: "Search for available versions for the program",
-		Example: `# Remote search across all versions of Tarantool Enterprise Edition.
+		Short: "Search available program versions",
+		Example: `# Search Tarantool Enterprise Edition releases.
+  $ tt binary search tarantool-ee
 
-    $ tt binary search tarantool-ee
+  # Search Tarantool Enterprise Edition 3.0 debug builds.
+  $ tt binary search tarantool-ee --debug --version 3.0
 
-# Remote search across all 3.0 debug versions of Tarantool Enterprise Edition.
-
-    $ tt binary search tarantool-ee --debug --version 3.0
-
-# Remote search across all versions of Tarantool Cluster Manager.
-
-	$ tt binary search tcm --version 1.3`,
+  # Search Tarantool Cluster Manager 1.3 releases.
+  $ tt binary search tcm --version 1.3`,
 	}
-	searchCmd.Flags().BoolVarP(&local, "local-repo", "", false,
-		"search in local files")
+	searchCmd.PersistentFlags().BoolVar(&searchCtx.Local, "local-repo", false,
+		"Search the local repository")
 
 	searchCmd.AddCommand(
-		newSearchTarantoolCmd(),
-		newSearchTarantoolEeCmd(),
-		newSearchTtCmd(),
-		newSearchTcmCmd(),
+		newSearchTarantoolCmd(base, searchCtx),
+		newSearchTarantoolEeCmd(base, searchCtx),
+		newSearchTtCmd(base, searchCtx),
+		newSearchTcmCmd(base, searchCtx),
 	)
 
 	return searchCmd
 }
 
 // newSearchTarantoolCmd creates a command to search tarantool.
-func newSearchTarantoolCmd() *cobra.Command {
+func newSearchTarantoolCmd(base *binary.BinaryContext,
+	searchCtx *binary.SearchCtx,
+) *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramCe.String(),
-		Short: "Search for available tarantool community edition versions",
-		RunE:  internalRunE(internalSearchModule),
+		Short: "Search available Tarantool Community Edition versions",
+		RunE:  binaryRunE(base, searchCtx, internalSearchModule),
 		Args:  cobra.ExactArgs(0),
 	}
 
@@ -412,29 +447,33 @@ func newSearchTarantoolCmd() *cobra.Command {
 }
 
 // newSearchTarantoolEeCmd creates a command to search tarantool-ee.
-func newSearchTarantoolEeCmd() *cobra.Command {
+func newSearchTarantoolEeCmd(base *binary.BinaryContext,
+	searchCtx *binary.SearchCtx,
+) *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramEe.String(),
-		Short: "Search for available tarantool enterprise edition versions",
-		RunE:  internalRunE(internalSearchModule),
+		Short: "Search available Tarantool Enterprise Edition versions",
+		RunE:  binaryRunE(base, searchCtx, internalSearchModule),
 		Args:  cobra.ExactArgs(0),
 	}
-	tntCmd.Flags().BoolVar(&debug, "debug", debug,
-		"search for debug builds of tarantool-ee SDK")
-	tntCmd.Flags().StringVar(&searchCtx.ReleaseVersion, "version", searchCtx.ReleaseVersion,
-		"specify version")
+	tntCmd.Flags().BoolVar(&searchCtx.Debug, "debug", false,
+		"Search debug builds")
+	tntCmd.Flags().StringVar(&searchCtx.ReleaseVersion, "version", "",
+		"Filter by release version")
 	tntCmd.Flags().BoolVar(&searchCtx.DevBuilds, "dev", false,
-		"search for development builds of tarantool-ee SDK")
+		"Search development builds")
 
 	return tntCmd
 }
 
 // newSearchTtCmd creates a command to search tt.
-func newSearchTtCmd() *cobra.Command {
+func newSearchTtCmd(base *binary.BinaryContext,
+	searchCtx *binary.SearchCtx,
+) *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramTt.String(),
-		Short: "Search for available tt versions",
-		RunE:  internalRunE(internalSearchModule),
+		Short: "Search available tt versions",
+		RunE:  binaryRunE(base, searchCtx, internalSearchModule),
 		Args:  cobra.ExactArgs(0),
 	}
 
@@ -442,82 +481,93 @@ func newSearchTtCmd() *cobra.Command {
 }
 
 // newSearchTcmCmd creates a command to search tcm.
-func newSearchTcmCmd() *cobra.Command {
+func newSearchTcmCmd(base *binary.BinaryContext,
+	searchCtx *binary.SearchCtx,
+) *cobra.Command {
 	tcmCmd := &cobra.Command{
 		Use:   binary.ProgramTcm.String(),
-		Short: "Search for available tarantool cluster manager versions",
-		RunE:  internalRunE(internalSearchModule),
+		Short: "Search available Tarantool Cluster Manager versions",
+		RunE:  binaryRunE(base, searchCtx, internalSearchModule),
 		Args:  cobra.ExactArgs(0),
 	}
-	tcmCmd.Flags().StringVar(&searchCtx.ReleaseVersion, "version", searchCtx.ReleaseVersion,
-		"specify version")
+	tcmCmd.Flags().StringVar(&searchCtx.ReleaseVersion, "version", "",
+		"Filter by release version")
 	tcmCmd.Flags().BoolVar(&searchCtx.DevBuilds, "dev", false,
-		"search for development builds of TCM")
+		"Search development builds")
 
 	return tcmCmd
 }
 
 // internalSearchModule is a default search module.
-func internalSearchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+func internalSearchModule(base binary.BinaryContext, searchCtx binary.SearchCtx,
+	cmdCtx *cmdcontext.CmdCtx, args []string,
+) error {
 	var err error
+
+	searchCtx.BinaryContext = base
 
 	searchCtx.Program, err = binary.ParseProgram(cmdCtx.CommandName)
 	if err != nil {
 		return fmt.Errorf("failed to search: %w", err)
 	}
 
-	if local {
+	if searchCtx.Local {
 		return binary.SearchVersionsLocal(searchCtx, cliOpts, cmdCtx.Cli.ConfigPath)
 	}
 
-	if debug {
+	if searchCtx.Debug {
 		searchCtx.Filter = binary.SearchDebug
+	} else {
+		searchCtx.Filter = binary.SearchRelease
 	}
 
 	return binary.SearchVersions(searchCtx, cliOpts)
 }
 
 // newBinaryListCmd creates a command to list installed binaries.
-func newBinaryListCmd() *cobra.Command {
+func newBinaryListCmd(base *binary.BinaryContext,
+	listCtx *binary.ListCtx,
+) *cobra.Command {
 	listCmd := &cobra.Command{
 		Use:   listCmdName,
-		Short: "Show a list of installed binaries and their versions.",
-		RunE:  internalRunE(internalListModule),
+		Short: "List installed binaries and versions",
+		Args:  cobra.NoArgs,
+		RunE:  binaryRunE(base, listCtx, internalListModule),
 	}
 
 	return listCmd
 }
 
 // internalListModule is a list module.
-func internalListModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+func internalListModule(base binary.BinaryContext, listCtx binary.ListCtx,
+	cmdCtx *cmdcontext.CmdCtx, args []string,
+) error {
 	if !isConfigExist(cmdCtx) {
 		return errNoConfig
 	}
 
-	return binary.ListBinaries(cmdCtx, cliOpts)
+	listCtx.BinaryContext = base
+	listCtx.BinDir = cliOpts.Env.BinDir
+
+	return binary.ListBinaries(listCtx)
 }
 
 // newBinarySwitchCmd creates a command to switch installed binaries.
-func newBinarySwitchCmd() *cobra.Command {
+func newBinarySwitchCmd(base *binary.BinaryContext,
+	switchCtx *binary.SwitchCtx,
+) *cobra.Command {
 	switchCmd := &cobra.Command{
 		Use:   "switch [program] [version]",
-		Short: "Switch to installed binary",
-		Example: `# Switch without any arguments.
+		Short: "Switch the active binary",
+		Example: `# Choose a program and version interactively.
+  $ tt binary switch
 
-	$ tt binary switch
+  # Choose a Tarantool version interactively.
+  $ tt binary switch tarantool
 
-You will need to choose program and version using arrow keys in your console.
-
-# Switch without version.
-
-	$ tt binary switch tarantool
-
-You will need to choose version using arrow keys in your console.
-
-# Switch with program and version.
-
-	$ tt binary switch tarantool 3.0.0`,
-		RunE: internalRunE(internalSwitchModule),
+  # Switch to a specific Tarantool version.
+  $ tt binary switch tarantool 3.0.0`,
+		RunE: binaryRunE(base, switchCtx, internalSwitchModule),
 		Args: cobra.MatchAll(
 			cobra.MaximumNArgs(binarySwitchMaxArgs), binarySwitchValidateArgs),
 		ValidArgs: binarySupportedPrograms,
@@ -538,15 +588,16 @@ func binarySwitchValidateArgs(cmd *cobra.Command, args []string) error {
 }
 
 // internalSwitchModule is a switch module.
-func internalSwitchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+func internalSwitchModule(base binary.BinaryContext, switchCtx binary.SwitchCtx,
+	cmdCtx *cmdcontext.CmdCtx, args []string,
+) error {
 	if !isConfigExist(cmdCtx) {
 		return errNoConfig
 	}
 
-	var (
-		switchCtx binary.SwitchCtx
-		err       error
-	)
+	var err error
+
+	switchCtx.BinaryContext = base
 
 	if len(args) > 0 {
 		switchCtx.Program, err = binary.ParseProgram(args[0])
@@ -575,4 +626,27 @@ func internalSwitchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	err = binary.Switch(&switchCtx)
 
 	return err
+}
+
+// binaryRunE applies the flags inherited from binary to the whole operation.
+func binaryRunE[T any](base *binary.BinaryContext, operationCtx *T, run binaryFunc[T],
+) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		options := *base
+		if !cmd.Flags().Changed("verbose") {
+			options.Verbose = cmdCtx.Cli.Verbose
+		}
+
+		cmdCtx.CommandName = cmd.Name()
+		cmdCtx.Cli.Verbose = options.Verbose
+
+		err := setupLogging()
+		if err != nil {
+			return commandError(cmd, err)
+		}
+
+		err = run(options, *operationCtx, &cmdCtx, args)
+
+		return commandError(cmd, err)
+	}
 }

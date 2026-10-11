@@ -7,10 +7,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"strings"
 
 	"github.com/tarantool/tt/sdk/log"
-	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/version"
 )
@@ -35,6 +33,15 @@ const (
 
 var errNotInstalled = errors.New("not installed")
 
+// UninstallCtx contains the options for removing an installed program.
+type UninstallCtx struct {
+	BinaryContext
+
+	Version string
+	BinDir  string
+	IncDir  string
+}
+
 // remove removes binary/directory and symlinks from directory.
 // It returns true if symlink was removed, error.
 func remove(program Program, programVersion, directory string) (bool, error) {
@@ -51,7 +58,11 @@ func remove(program Program, programVersion, directory string) (bool, error) {
 	}
 
 	fileName := program.String() + version.FsSeparator + programVersion
-	path := filepath.Join(directory, fileName)
+
+	path, err := JoinAbspath(directory, fileName)
+	if err != nil {
+		return false, err
+	}
 
 	_, err = os.Stat(path)
 	if os.IsNotExist(err) {
@@ -68,20 +79,9 @@ func remove(program Program, programVersion, directory string) (bool, error) {
 	}
 
 	if err == nil {
-		// Get path where symlink point.
-		resolvedPath, err := ResolveSymlink(linkPath)
+		isSymlinkRemoved, err = removeActiveSymlink(linkPath, path)
 		if err != nil {
-			return false, fmt.Errorf("failed to resolve symlink %q: %w", linkPath, err)
-		}
-
-		// Remove symlink if it points to program.
-		if strings.Contains(resolvedPath, fileName) {
-			err = os.Remove(linkPath)
-			if err != nil {
-				return false, fmt.Errorf("failed to remove symlink %q: %w", linkPath, err)
-			}
-
-			isSymlinkRemoved = true
+			return false, err
 		}
 	}
 
@@ -93,48 +93,48 @@ func remove(program Program, programVersion, directory string) (bool, error) {
 	return isSymlinkRemoved, nil
 }
 
+// removeActiveSymlink removes the active link only when it points to the installed path.
+func removeActiveSymlink(linkPath, path string) (bool, error) {
+	resolvedPath, err := ResolveSymlink(linkPath)
+	if err != nil && !os.IsNotExist(err) {
+		return false, fmt.Errorf("failed to resolve symlink %q: %w", linkPath, err)
+	}
+
+	installedPath, err := ResolveSymlink(path)
+	if err != nil {
+		return false, fmt.Errorf("failed to resolve installed path %q: %w", path, err)
+	}
+
+	if resolvedPath != installedPath {
+		return false, nil
+	}
+
+	err = os.Remove(linkPath)
+	if err != nil {
+		return false, fmt.Errorf("failed to remove symlink %q: %w", linkPath, err)
+	}
+
+	return true, nil
+}
+
 // UninstallProgram uninstalls program and symlinks.
-func UninstallProgram(
-	program Program,
-	programVersion string,
-	binDst string,
-	headerDst string,
-	cmdCtx *cmdcontext.CmdCtx,
-) error {
+func UninstallProgram(uninstallCtx UninstallCtx) error {
+	program, programVersion := uninstallCtx.Program, uninstallCtx.Version
+	binDst, headerDst := uninstallCtx.BinDir, uninstallCtx.IncDir
+
 	log.Infof("Removing binary...")
 
 	var err error
 
-	if program == ProgramDev {
-		tarantoolBinarySymlink := filepath.Join(binDst, "tarantool")
-
-		_, isTarantoolDevInstalled, err := IsTarantoolDev(tarantoolBinarySymlink, binDst)
+	if program == ProgramCe && programVersion == "" {
+		buildPath, err := tarantoolBuildPath(binDst)
 		if err != nil {
 			return err
 		}
 
-		if !isTarantoolDevInstalled {
-			return fmt.Errorf("%s is %w", program, errNotInstalled)
+		if buildPath != "" {
+			return uninstallTarantoolFromBuild(binDst, headerDst)
 		}
-
-		err = os.Remove(tarantoolBinarySymlink)
-		if err != nil {
-			return fmt.Errorf("failed to remove symlink %q: %w", tarantoolBinarySymlink, err)
-		}
-
-		headerDir := filepath.Join(headerDst, "tarantool")
-
-		log.Infof("Removing headers...")
-
-		// There can be no headers when `tarantool-dev` is installed.
-		err = os.Remove(headerDir)
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("failed to remove headers %q: %w", headerDir, err)
-		}
-
-		err = switchProgramToLatestVersion(program, binDst, headerDst)
-
-		return err
 	}
 
 	if programVersion == "" {
@@ -182,6 +182,28 @@ func UninstallProgram(
 	}
 
 	return err
+}
+
+// uninstallTarantoolFromBuild removes the environment's links, preserving the source build.
+func uninstallTarantoolFromBuild(binDir, includeDir string) error {
+	binaryLink := filepath.Join(binDir, tarantoolName)
+
+	err := os.Remove(binaryLink)
+	if err != nil {
+		return fmt.Errorf("failed to remove symlink %q: %w", binaryLink, err)
+	}
+
+	log.Infof("Removing headers...")
+
+	// A local build may have no headers, or its source directory may already be gone.
+	headerLink := filepath.Join(includeDir, tarantoolName)
+
+	err = os.Remove(headerLink)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("failed to remove headers %q: %w", headerLink, err)
+	}
+
+	return switchProgramToLatestVersion(ProgramCe, binDir, includeDir)
 }
 
 // getAllTtVersionFormats returns all version formats with 'v' prefix and
@@ -264,7 +286,7 @@ func GetList(cliOpts *config.CliOpts, program string) []string {
 
 // searchLatestVersion searches for the latest installed version of the program.
 //
-// Note: Searching `tarantool` EE or Dev versions may lead to found the latest CE version.
+// Note: Searching Tarantool EE versions may find the latest CE version.
 func searchLatestVersion(program Program, binDst, headerDst string) (string, error) {
 	programsToSearch := []string{program.Exec()}
 	if program.IsTarantool() && program.Exec() != program.String() {

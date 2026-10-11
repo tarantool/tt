@@ -23,12 +23,12 @@ var (
 
 // SwitchCtx contains information for switch command.
 type SwitchCtx struct {
+	BinaryContext
+
 	// BinDir is a directory witch stores binaries.
 	BinDir string
 	// IncDir is a directory witch stores include files.
 	IncDir string
-	// Program is a program name to switch to.
-	Program Program
 	// Version of the program to switch to.
 	Version string
 }
@@ -161,7 +161,7 @@ func Switch(switchCtx *SwitchCtx) error {
 
 	case ProgramUnknown:
 		return fmt.Errorf("%w%s", errUnknownApplication, switchCtx.Program)
-	case ProgramCe, ProgramEe, ProgramDev, ProgramTcm:
+	case ProgramCe, ProgramEe, ProgramTcm, ProgramSDK:
 		// These programs do not require tt version normalization.
 	}
 
