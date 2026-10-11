@@ -10,6 +10,37 @@ import (
 	"github.com/tarantool/tt/v3/internal/binary"
 )
 
+func TestFetchSDKBundleInfo(t *testing.T) {
+	const tarball = "tarantool-enterprise-sdk-gc64-3.4.0-0-r60.linux.x86_64.tar.gz"
+
+	t.Setenv("TT_CLI_EE_USERNAME", testingUsername)
+	t.Setenv("TT_CLI_EE_PASSWORD", testingPassword)
+
+	platform := platformInfo{arch: "x86_64", os: binary.OsLinux}
+	doer := mockDoer{
+		t:       t,
+		content: map[string][]string{"3.4": {tarball}},
+		query:   "enterprise/dev/linux/x86_64",
+	}
+	searchCtx := binary.NewSearchCtx(&platform, &doer)
+
+	searchCtx.Program = binary.ProgramSDK
+	searchCtx.Filter = binary.SearchAll
+	searchCtx.DevBuilds = true
+
+	bundles, err := binary.FetchBundlesInfo(&searchCtx, &config.CliOpts{})
+	require.NoError(t, err)
+	require.Len(t, bundles, 1)
+	require.Equal(t, "gc64-3.4.0-0-r60", bundles[0].Version.Str)
+	require.Equal(t, tarball, bundles[0].Version.Tarball)
+
+	searchCtx.ReleaseVersion = bundles[0].Release
+
+	uri, err := binary.TntIoMakePkgURI(&searchCtx, bundles[0].Version.Tarball)
+	require.NoError(t, err)
+	require.Equal(t, binary.PkgURI+"/enterprise/dev/linux/x86_64/3.4/"+tarball, uri)
+}
+
 func TestFetchBundlesInfo(t *testing.T) {
 	t.Setenv("TT_CLI_EE_USERNAME", testingUsername)
 	t.Setenv("TT_CLI_EE_PASSWORD", testingPassword)

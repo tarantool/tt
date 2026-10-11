@@ -161,7 +161,7 @@ func Switch(switchCtx *SwitchCtx) error {
 
 	case ProgramUnknown:
 		return fmt.Errorf("%w%s", errUnknownApplication, switchCtx.Program)
-	case ProgramCe, ProgramEe, ProgramDev, ProgramTcm:
+	case ProgramCe, ProgramEe, ProgramDev, ProgramTcm, ProgramSDK:
 		// These programs do not require tt version normalization.
 	}
 

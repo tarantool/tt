@@ -36,7 +36,6 @@ func NewBinaryCmd() *cobra.Command {
 	var (
 		base         binary.BinaryContext
 		installCtx   binary.InstallCtx
-		downloadCtx  binary.DownloadCtx
 		uninstallCtx binary.UninstallCtx
 		searchCtx    = binary.NewSearchCtx(binary.NewPlatformInformer(), binary.NewTntIoDoer())
 		listCtx      binary.ListCtx
@@ -52,7 +51,7 @@ func NewBinaryCmd() *cobra.Command {
 		"Show diagnostic output and build commands")
 
 	binaryCmd.AddCommand(
-		newBinaryInstallCmd(&base, &installCtx, &downloadCtx),
+		newBinaryInstallCmd(&base, &installCtx),
 		newBinaryUninstallCmd(&base, &uninstallCtx),
 		newBinarySearchCmd(&base, &searchCtx),
 		newBinaryListCmd(&base, &listCtx),
@@ -64,7 +63,7 @@ func NewBinaryCmd() *cobra.Command {
 
 // newBinaryInstallCmd creates install command.
 func newBinaryInstallCmd(base *binary.BinaryContext,
-	installCtx *binary.InstallCtx, downloadCtx *binary.DownloadCtx,
+	installCtx *binary.InstallCtx,
 ) *cobra.Command {
 	installCmd := &cobra.Command{
 		Use:   "install",
@@ -86,6 +85,8 @@ func newBinaryInstallCmd(base *binary.BinaryContext,
 		"Reinstall an existing version")
 	installCmd.PersistentFlags().BoolVar(&installCtx.Local, "local-repo", false,
 		"Install from the local repository")
+	installCmd.PersistentFlags().StringVar(&installCtx.Destination, "destination", "",
+		"Directory to save SDK bundles (default: current directory)")
 
 	installCmd.AddCommand(
 		newInstallTtCmd(base, installCtx),
@@ -93,7 +94,7 @@ func newBinaryInstallCmd(base *binary.BinaryContext,
 		newInstallTarantoolEeCmd(base, installCtx),
 		newInstallTarantoolDevCmd(base, installCtx),
 		newInstallTcmCmd(base, installCtx),
-		newBinaryInstallSDKCmd(base, downloadCtx),
+		newInstallTarantoolSDKCmd(base, installCtx),
 	)
 
 	return installCmd
@@ -185,21 +186,21 @@ func newInstallTcmCmd(base *binary.BinaryContext,
 	return tntCmd
 }
 
-// newBinaryInstallSDKCmd creates a command that downloads and saves the Tarantool SDK.
-func newBinaryInstallSDKCmd(base *binary.BinaryContext,
-	downloadCtx *binary.DownloadCtx,
+// newInstallTarantoolSDKCmd creates a command that downloads and saves the Tarantool SDK.
+func newInstallTarantoolSDKCmd(base *binary.BinaryContext,
+	installCtx *binary.InstallCtx,
 ) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "sdk <version>",
-		Aliases: []string{"SDK"},
+		Use:     binary.ProgramSDK.String() + " <version>",
+		Aliases: []string{"sdk", "SDK"},
 		Short:   "Download a Tarantool SDK bundle",
 		Example: `# Download an SDK bundle to the current directory.
-  $ tt binary install sdk gc64-3.0.0-0-gf58f7d82a-r23
+  $ tt binary install tarantool-sdk gc64-3.0.0-0-gf58f7d82a-r23
 
   # Download a development SDK bundle to /tmp.
-  $ tt binary install sdk gc64-3.0.0-beta1-2-gcbb569b4c-r612 \
-      --dev --directory-prefix /tmp`,
-		RunE: binaryRunE(base, downloadCtx, internalDownloadModule),
+  $ tt binary install tarantool-sdk gc64-3.0.0-beta1-2-gcbb569b4c-r612 \
+      --dev --destination /tmp`,
+		RunE: binaryRunE(base, installCtx, internalInstallModule),
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return errToDownloadTarantoolSDKYouNeedToSpecifyTheVersion
@@ -211,10 +212,7 @@ func newBinaryInstallSDKCmd(base *binary.BinaryContext,
 		},
 	}
 
-	cmd.Flags().BoolVar(&downloadCtx.DevBuild, "dev", false, "Download a development build")
-	cmd.Flags().StringVar(&downloadCtx.DirectoryPrefix,
-		"directory-prefix", "",
-		`Directory to save the SDK (default: current directory)`)
+	cmd.Flags().BoolVar(&installCtx.DevBuild, "dev", false, "Download a development build")
 
 	return cmd
 }
@@ -223,10 +221,6 @@ func newBinaryInstallSDKCmd(base *binary.BinaryContext,
 func internalInstallModule(base binary.BinaryContext, installCtx binary.InstallCtx,
 	cmdCtx *cmdcontext.CmdCtx, args []string,
 ) error {
-	if !isConfigExist(cmdCtx) {
-		return errNoConfig
-	}
-
 	var err error
 
 	installCtx.BinaryContext = base
@@ -236,19 +230,13 @@ func internalInstallModule(base binary.BinaryContext, installCtx binary.InstallC
 		return err
 	}
 
+	if installCtx.Program != binary.ProgramSDK && !isConfigExist(cmdCtx) {
+		return errNoConfig
+	}
+
 	err = binary.Install(installCtx, cliOpts)
 
 	return err
-}
-
-func internalDownloadModule(base binary.BinaryContext, downloadCtx binary.DownloadCtx,
-	cmdCtx *cmdcontext.CmdCtx, args []string,
-) error {
-	downloadCtx.BinaryContext = base
-	downloadCtx.Program = binary.ProgramEe
-	downloadCtx.Version = args[0]
-
-	return binary.DownloadSDK(cmdCtx, downloadCtx, cliOpts)
 }
 
 // newBinaryUninstallCmd creates uninstall command.

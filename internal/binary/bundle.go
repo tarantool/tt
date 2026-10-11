@@ -98,7 +98,7 @@ func compileVersionRegexp(prg Program) (*regexp.Regexp, error) {
 	var expr string
 
 	switch prg {
-	case ProgramEe:
+	case ProgramEe, ProgramSDK:
 		expr = "^(?P<tarball>tarantool-enterprise-sdk-(?P<version>.*r[0-9]{1,3}).*\\.tar\\.gz)$"
 	case ProgramTcm:
 		expr = `^(?P<tarball>tcm-(?P<version>\d+\.\d+\.\d+[^.]*).*\.tar\.gz)$`

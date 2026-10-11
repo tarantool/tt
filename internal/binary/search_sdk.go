@@ -15,7 +15,7 @@ var (
 // GetAPIPackage returns the package name at tarantool.io for the given program.
 func GetAPIPackage(program Program) string {
 	switch program {
-	case ProgramEe:
+	case ProgramEe, ProgramSDK:
 		return "enterprise"
 	case ProgramTcm:
 		return "tarantool-cluster-manager"

@@ -96,6 +96,8 @@ type InstallCtx struct {
 	// Local is a flag. If it is set,
 	// install will do local installation.
 	Local bool
+	// Destination is the directory to save downloaded SDK bundles.
+	Destination string
 	// BuildInDocker is set if tarantool must be built in docker container.
 	BuildInDocker bool
 	// Version of the program to install.
@@ -348,7 +350,7 @@ func programDependenciesInstalled(program Program) error {
 
 			return nil
 		}
-	case ProgramUnknown, ProgramEe, ProgramDev, ProgramTcm:
+	case ProgramUnknown, ProgramEe, ProgramDev, ProgramTcm, ProgramSDK:
 		// These programs have no source-build dependency checks.
 	}
 
@@ -824,7 +826,15 @@ func downloadTtSource(path, ttVersion, distfiles string, resolved resolvedInstal
 }
 
 // installTt installs selected version of tt.
-func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
+func installTt(installCtx InstallCtx, cliOpts *config.CliOpts) error {
+	err := prepareInstallDirs(&installCtx, cliOpts)
+	if err != nil {
+		return err
+	}
+
+	binDir := cliOpts.Env.BinDir
+	distfiles := cliOpts.Repo.Install
+
 	resolved, err := resolveTtInstallVersion(installCtx, distfiles)
 	if err != nil {
 		return err
@@ -1269,8 +1279,20 @@ func downloadTarantoolSource(path, tarVersion, distfiles string,
 }
 
 // installTarantool installs selected version of tarantool.
-func installTarantool(binDir string, installCtx InstallCtx, distfiles string) error {
+func installTarantool(installCtx InstallCtx, cliOpts *config.CliOpts) error {
+	err := prepareInstallDirs(&installCtx, cliOpts)
+	if err != nil {
+		return err
+	}
+
+	return installTarantoolFromSource(installCtx, cliOpts)
+}
+
+// installTarantoolFromSource builds and installs Tarantool from source.
+func installTarantoolFromSource(installCtx InstallCtx, cliOpts *config.CliOpts) error {
+	binDir := cliOpts.Env.BinDir
 	incDir := installCtx.IncDir
+	distfiles := cliOpts.Repo.Install
 
 	resolved, err := prepareTarantoolInstall(binDir, incDir, installCtx, distfiles)
 	if err != nil {
@@ -1459,7 +1481,7 @@ func isUpdatePossible(installCtx InstallCtx,
 		}
 
 		curBinHash = ttVer.Hash
-	case ProgramUnknown, ProgramEe, ProgramDev, ProgramTcm:
+	case ProgramUnknown, ProgramEe, ProgramDev, ProgramTcm, ProgramSDK:
 		// Current callers only pass Tarantool CE or tt.
 	}
 
@@ -1504,12 +1526,14 @@ func searchTarantoolHeaders(buildDir, includeDir string) (string, error) {
 	return "", nil
 }
 
-// installTarantoolDev installs tarantool from the local build directory.
-func installTarantoolDev(ttBinDir, ttIncludeDir, buildDir,
-	includeDir string,
-) error {
+// installTarantoolDev links Tarantool from a local build directory.
+func installTarantoolDev(installCtx InstallCtx, cliOpts *config.CliOpts) error {
+	ttBinDir := cliOpts.Env.BinDir
+	ttIncludeDir := filepath.Join(cliOpts.Env.IncludeDir, "include")
+	includeDir := installCtx.IncDir
+
 	// Validate build directory.
-	buildDir, err := filepath.Abs(buildDir)
+	buildDir, err := filepath.Abs(installCtx.buildDir)
 	if err != nil {
 		return fmt.Errorf("failed to get absolute path: %w", err)
 	}
@@ -1608,47 +1632,66 @@ func subDirIsWritable(dir string) bool {
 
 // Install installs program.
 func Install(installCtx InstallCtx, cliOpts *config.CliOpts) error {
-	binDir := cliOpts.Env.BinDir
-	includeDir := cliOpts.Env.IncludeDir
-	local := cliOpts.Repo.Install
+	switch installCtx.Program {
+	case ProgramTt:
+		return installTt(installCtx, cliOpts)
+	case ProgramCe:
+		return installTarantool(installCtx, cliOpts)
+	case ProgramEe, ProgramTcm:
+		return installBundleProgram(installCtx, cliOpts)
+	case ProgramDev:
+		err := prepareInstallDirs(&installCtx, cliOpts)
+		if err != nil {
+			return err
+		}
 
-	var err error
+		return installTarantoolDev(installCtx, cliOpts)
+	case ProgramSDK:
+		return DownloadSDK(installCtx, cliOpts)
+	default:
+		return fmt.Errorf("%w%s", errUnknownApplication, installCtx.Program)
+	}
+}
 
-	// This check is needed for knowing that we will be able to copy
-	// recently built binaries to the corresponding bin and include directories.
+// prepareInstallDirs validates the environment and resolves the destination for headers.
+func prepareInstallDirs(installCtx *InstallCtx, cliOpts *config.CliOpts) error {
+	err := checkInstallDirs(cliOpts.Env.BinDir, cliOpts.Env.IncludeDir)
+	if err != nil {
+		return err
+	}
+
+	if installCtx.IncDir == "" && installCtx.Program != ProgramDev {
+		installCtx.IncDir = filepath.Join(cliOpts.Env.IncludeDir, "include")
+	}
+
+	return nil
+}
+
+// checkInstallDirs validates that binary and include directories are configured and writable.
+func checkInstallDirs(binDir, includeDir string) error {
+	if binDir == "" {
+		return fmt.Errorf("%w%s", errBinDirNotSet, configure.ConfigName)
+	}
+
+	if includeDir == "" {
+		return fmt.Errorf("%w%s", errIncludeDirIsNotSetCheck, configure.ConfigName)
+	}
+
 	for _, dir := range []string{binDir, includeDir} {
-		_, err = os.Stat(dir)
+		_, err := os.Stat(dir)
 		if os.IsNotExist(err) && subDirIsWritable(dir) {
 			continue
 		}
 
 		if !dirIsWritable(dir) {
 			return fmt.Errorf("%w%s is not writeable for the current user.\n"+
-				"     Please, update rights to the directory or use 'sudo' for successful install",
+				"     Please, update rights to the directory or use 'sudo' for "+
+				"successful install",
 				errTheDirectoryIsNotWriteableForTheCurrentUser, dir)
 		}
 	}
 
-	includeDir = filepath.Join(includeDir, "include")
-	if installCtx.IncDir == "" && installCtx.Program != ProgramDev {
-		installCtx.IncDir = includeDir
-	}
-
-	switch installCtx.Program {
-	case ProgramTt:
-		err = installTt(binDir, installCtx, local)
-	case ProgramCe:
-		err = installTarantool(binDir, installCtx, local)
-	case ProgramEe, ProgramTcm:
-		err = installBundleProgram(&installCtx, cliOpts)
-	case ProgramDev:
-		err = installTarantoolDev(binDir, includeDir, installCtx.buildDir,
-			installCtx.IncDir)
-	default:
-		return fmt.Errorf("%w%s", errUnknownApplication, installCtx.Program)
-	}
-
-	return err
+	return nil
 }
 
 func FillCtx(cmdCtx *cmdcontext.CmdCtx, installCtx *InstallCtx, args []string) error {

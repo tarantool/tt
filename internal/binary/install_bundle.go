@@ -9,7 +9,6 @@ import (
 
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/config"
-	"github.com/tarantool/tt/v3/cli/configure"
 	"github.com/tarantool/tt/v3/cli/version"
 )
 
@@ -55,33 +54,6 @@ type bundleParams struct {
 
 	// logFile is the file where installation logs are written for debugging fails.
 	logFile *os.File
-}
-
-// checkInstallDirs validates that binary and include directories are configured and writable.
-func checkInstallDirs(binDir, includeDir string) error {
-	if binDir == "" {
-		return fmt.Errorf("%w%s", errBinDirNotSet, configure.ConfigName)
-	}
-
-	if includeDir == "" {
-		// For bundle installs, includeDir is usually required.
-		return fmt.Errorf("%w%s", errIncludeDirIsNotSetCheck, configure.ConfigName)
-	}
-
-	// Reuse the writability checks from the main Install function.
-	for _, dir := range []string{binDir, includeDir} {
-		_, err := os.Stat(dir)
-		if os.IsNotExist(err) && subDirIsWritable(dir) {
-			continue // Directory doesn't exist but can be created.
-		}
-
-		if !dirIsWritable(dir) {
-			return fmt.Errorf("%w%s is not writeable for the current user",
-				errTheDirectoryIsNotWriteableForTheCurrentUser, dir)
-		}
-	}
-
-	return nil
 }
 
 // checkExistingInstallation checks if the specific version of the program is already installed.
@@ -503,14 +475,19 @@ func executeBundleInstallationSteps(params *bundleParams) error {
 }
 
 // installBundleProgram orchestrates the installation process for programs distributed as bundles.
-func installBundleProgram(installCtx *InstallCtx, cliOpts *config.CliOpts) error {
+func installBundleProgram(installCtx InstallCtx, cliOpts *config.CliOpts) error {
+	err := prepareInstallDirs(&installCtx, cliOpts)
+	if err != nil {
+		return err
+	}
+
 	// The remaining fields are filled in by the installation steps.
 	var params bundleParams
 
-	params.inst = installCtx
+	params.inst = &installCtx
 	params.opts = cliOpts
 
-	err := performInitialChecks(&params)
+	err = performInitialChecks(&params)
 	if err != nil {
 		return err
 	}
