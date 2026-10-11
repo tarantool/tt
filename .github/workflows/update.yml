@@ -32,7 +32,7 @@ jobs:
         mkdir /tmp/tt
         cd /tmp/tt
         printf '{}\n' > tt.yaml
-        tt install tarantool master
+        tt binary install tarantool master
         echo "/tmp/tt/bin" >> $GITHUB_PATH
 
     - name: Setup dependencies for the code generation

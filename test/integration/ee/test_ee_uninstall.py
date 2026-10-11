@@ -69,6 +69,7 @@ def test_uninstall_active_version(
     cmd = [
         tt_cmd,
         "-V",
+        "binary",
         "uninstall",
         program,
         ver_remove,
@@ -121,6 +122,7 @@ def test_uninstall_inactive_version(
     cmd = [
         tt_cmd,
         "-V",
+        "binary",
         "uninstall",
         program,
         ver_remove,
@@ -172,6 +174,7 @@ def test_uninstall_switch_version(
     cmd = [
         tt_cmd,
         "-V",
+        "binary",
         "uninstall",
         program,
         ver_remove,
@@ -198,6 +201,7 @@ def test_uninstall_no_version(tt_cmd: Path, tmp_path: Path, program: str) -> Non
 
     cmd = [
         tt_cmd,
+        "binary",
         "uninstall",
         program,
     ]
@@ -223,6 +227,7 @@ def test_uninstall_no_active(tt_cmd: Path, tmp_path: Path, program: str) -> None
     cmd = [
         tt_cmd,
         "-V",
+        "binary",
         "uninstall",
         program,
     ]

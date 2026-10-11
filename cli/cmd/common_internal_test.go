@@ -12,7 +12,7 @@ import (
 )
 
 // TestInternalRunE checks that the adapter records the command's name in
-// the CmdCtx - tt install, tt uninstall and tt search take the program from
+// the CmdCtx - tt binary install, tt binary uninstall and tt binary search take the program from
 // it - and gives the internal function the process's CmdCtx and the
 // arguments.
 func TestInternalRunE(t *testing.T) {
@@ -50,8 +50,8 @@ func TestCheckConfig(t *testing.T) {
 		name string
 		err  error
 	}{
-		{"binaries list", internalListModule(&cmdcontext.CmdCtx{}, nil)},
-		{"binaries switch", internalSwitchModule(&cmdcontext.CmdCtx{}, nil)},
+		{"binary list", internalListModule(&cmdcontext.CmdCtx{}, nil)},
+		{"binary switch", internalSwitchModule(&cmdcontext.CmdCtx{}, nil)},
 		{"check", internalCheckModule(&cmdcontext.CmdCtx{}, nil)},
 		{"clean", internalCleanModule(&cmdcontext.CmdCtx{}, nil)},
 		{"create", internalCreateModule(&cmdcontext.CmdCtx{}, nil)},
@@ -61,7 +61,7 @@ func TestCheckConfig(t *testing.T) {
 		{"start", internalStartModule(&cmdcontext.CmdCtx{}, nil)},
 		{"status", internalStatusModule(&cmdcontext.CmdCtx{}, nil)},
 		{"stop", internalStopModule(&cmdcontext.CmdCtx{}, nil)},
-		{"uninstall", InternalUninstallModule(&cmdcontext.CmdCtx{}, nil)},
+		{"uninstall", internalUninstallModule(&cmdcontext.CmdCtx{}, nil)},
 	}
 
 	for _, tc := range cases {
