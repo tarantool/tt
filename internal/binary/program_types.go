@@ -17,7 +17,6 @@ const (
 	ProgramCe              // tarantool.
 	ProgramEe              // tarantool-ee.
 	ProgramTt              // tt.
-	ProgramDev             // tarantool-dev.
 	ProgramTcm             // tcm.
 	ProgramSDK             // tarantool-sdk.
 )
@@ -31,7 +30,6 @@ var programToExec = map[Program]string{
 	ProgramCe:  tarantoolName,
 	ProgramEe:  tarantoolName,
 	ProgramTt:  "tt",
-	ProgramDev: tarantoolName,
 	ProgramTcm: "tcm",
 }
 
@@ -40,7 +38,6 @@ var programToString = map[Program]string{
 	ProgramCe:  tarantoolName,
 	ProgramEe:  "tarantool-ee",
 	ProgramTt:  "tt",
-	ProgramDev: "tarantool-dev",
 	ProgramTcm: "tcm",
 	ProgramSDK: "tarantool-sdk",
 }
@@ -84,5 +81,5 @@ func (p Program) Exec() string {
 
 // IsTarantool checks if the Program is kind of Tarantool program.
 func (p Program) IsTarantool() bool {
-	return p == ProgramCe || p == ProgramEe || p == ProgramDev
+	return p == ProgramCe || p == ProgramEe
 }

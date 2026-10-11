@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"testing"
 
 	"github.com/otiai10/copy"
@@ -29,20 +28,24 @@ func TestParseBinaries(t *testing.T) {
 	}
 }
 
-func TestParseBinariesTarantoolDev(t *testing.T) {
+func TestParseBinariesWithLocalBuild(t *testing.T) {
 	for _, dir := range []string{"bin", "bin_symlink_broken"} {
 		t.Run(dir, func(t *testing.T) {
 			testDir := "./testdata/tarantool_dev/" + dir
 			fileList, err := os.ReadDir(testDir)
 			require.NoError(t, err)
 
-			versions, err := ParseBinaries(fileList, ProgramDev, testDir)
+			versions, err := ParseBinaries(fileList, ProgramCe, testDir)
 			require.NoError(t, err)
-			require.Len(t, versions, 1)
 
-			version := versions[0].Str
-			assert.True(t, strings.HasPrefix(version, "tarantool-dev"))
-			assert.True(t, strings.HasSuffix(version, "[active]"))
+			// A local build is displayed separately, never offered as a version to switch to.
+			if dir == "bin" {
+				require.Len(t, versions, 2)
+				assert.Equal(t, "1.10.0", versions[0].Str)
+				assert.Equal(t, "2.10.7", versions[1].Str)
+			} else {
+				assert.Empty(t, versions)
+			}
 		})
 	}
 }

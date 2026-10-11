@@ -126,7 +126,7 @@ def test_uninstall_foreign_program(tt_cmd, tmpdir_with_cfg):
 
 
 @pytest.mark.parametrize("is_symlink_broken", [False, True])
-def test_uninstall_tarantool_dev_installed(tt_cmd, tmp_path, is_symlink_broken):
+def test_uninstall_tarantool_from_build(tt_cmd, tmp_path, is_symlink_broken):
     # Copy test files.
     testdata_path = os.path.join(os.path.dirname(__file__), "testdata/tarantool_dev")
     shutil.copytree(testdata_path, os.path.join(tmp_path, "testdata"), True)
@@ -143,7 +143,7 @@ def test_uninstall_tarantool_dev_installed(tt_cmd, tmp_path, is_symlink_broken):
         os.path.join(testdata_path, tt_dir, config_name),
         "binary",
         "uninstall",
-        "tarantool-dev",
+        "tarantool",
     ]
     uninstall_process = subprocess.Popen(
         uninstall_cmd,
@@ -168,7 +168,7 @@ def test_uninstall_tarantool_dev_installed(tt_cmd, tmp_path, is_symlink_broken):
         assert os.path.exists(os.path.join(testdata_path, tt_dir, "tarantool_inc"))
 
 
-def test_uninstall_tarantool_dev_not_installed(tt_cmd, tmp_path):
+def test_uninstall_tarantool_without_local_build_requires_version(tt_cmd, tmp_path):
     # Copy test files.
     testdata_path = os.path.join(os.path.dirname(__file__), "testdata/tarantool_dev")
     shutil.copytree(testdata_path, os.path.join(tmp_path, "testdata"), True)
@@ -181,7 +181,7 @@ def test_uninstall_tarantool_dev_not_installed(tt_cmd, tmp_path):
         os.path.join(testdata_path, tt_dir, config_name),
         "binary",
         "uninstall",
-        "tarantool-dev",
+        "tarantool",
     ]
     uninstall_process = subprocess.Popen(
         uninstall_cmd,
@@ -193,7 +193,7 @@ def test_uninstall_tarantool_dev_not_installed(tt_cmd, tmp_path):
     rc = uninstall_process.wait()
     output = uninstall_process.stdout.read()
     assert rc == 1
-    assert "tarantool-dev is not installed" in output
+    assert "tarantool has more than one installed version" in output
     assert is_valid_tarantool_installed(
         os.path.join(testdata_path, tt_dir, "bin"),
         os.path.join(testdata_path, tt_dir, "inc", "include"),
@@ -376,4 +376,4 @@ def test_uninstall_tt_missing_symlink(tt_cmd, tmp_path):
     assert uninstall_rc == 0
     assert "tt=94ba971 is uninstalled." in uninstall_output
 
-    assert os.path.exists(os.path.join(tmp_path, "tt_" + "94ba971") is False)
+    assert not os.path.exists(os.path.join(tmp_path, "tt_94ba971"))

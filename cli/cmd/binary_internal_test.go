@@ -53,7 +53,7 @@ func TestBinaryArgumentValidation(t *testing.T) {
 		{[]string{"install", "tarantool-sdk"}, "you need to specify the version"},
 		{[]string{"install", "tarantool-sdk", "3.0", "3.1"}, "invalid number of parameters"},
 		{[]string{"install", "tarantool", "3.0", "3.1"}, "accepts at most 1 arg(s)"},
-		{[]string{"uninstall", "tarantool-dev", "3.0"}, "accepts 0 arg(s)"},
+		{[]string{"uninstall", "tarantool", "3.0", "3.1"}, "accepts at most 1 arg(s)"},
 		{[]string{"search", "tarantool", "3.0"}, "accepts 0 arg(s)"},
 		{[]string{"switch", "unknown"}, "not supported program: unknown"},
 	}
@@ -63,6 +63,60 @@ func TestBinaryArgumentValidation(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, command.Args)
 			assert.ErrorContains(t, command.ValidateArgs(args), tc.want)
+		})
+	}
+}
+
+func TestBinaryInstallFromBuildOptions(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "build", args: []string{"--from-build", "/build"}},
+		{name: "headers", args: []string{"--from-build", "/build", "--include-dir", "/headers"}},
+		{name: "local repository", args: []string{"--local-repo", "3.0.0"}},
+		{
+			name: "conflicting source", args: []string{"--from-build", "/build", "--local-repo"},
+			want: "group [from-build local-repo]",
+		},
+		{
+			name: "conflicting docker", args: []string{"--from-build", "/build", "--use-docker"},
+			want: "group [from-build use-docker]",
+		},
+		{
+			name: "conflicting linking", args: []string{"--from-build", "/build", "--dynamic"},
+			want: "group [from-build dynamic]",
+		},
+		{
+			name: "extra argument", args: []string{"--from-build", "/build", "unexpected"},
+			want: "accepts 0 arg(s), received 1",
+		},
+		{
+			name: "empty directory", args: []string{"--from-build="},
+			want: "--from-build requires a non-empty directory",
+		},
+		{
+			name: "headers without build", args: []string{"--include-dir", "/headers"},
+			want: "--include-dir requires --from-build",
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			command, _, err := NewBinaryCmd().Find([]string{"install", "tarantool"})
+			require.NoError(t, err)
+			require.NoError(t, command.ParseFlags(testCase.args))
+
+			err = command.ValidateArgs(command.Flags().Args())
+			if err == nil {
+				err = command.ValidateFlagGroups()
+			}
+
+			if testCase.want == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, testCase.want)
+			}
 		})
 	}
 }
@@ -147,6 +201,7 @@ func TestBinaryCommandOptionsAreIndependent(t *testing.T) {
 		second  string
 	}{
 		{[]string{"install", "tarantool"}, "dynamic", "true", "false"},
+		{[]string{"install", "tarantool"}, "from-build", "/first", "/second"},
 		{[]string{"install", "tarantool-sdk"}, "destination", "/first", "/second"},
 		{[]string{"search", "tarantool-ee"}, "version", "3.0", "3.1"},
 	}

@@ -22,11 +22,6 @@ func TestGetApiPackage(t *testing.T) {
 			expected: "enterprise",
 		},
 
-		"tarantool development": {
-			input:    binary.ProgramDev,
-			expected: "",
-		},
-
 		"tcm": {
 			input:    binary.ProgramTcm,
 			expected: "tarantool-cluster-manager",
