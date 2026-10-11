@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/version"
 )
 
@@ -181,7 +182,13 @@ func Test_installTarantoolDev(t *testing.T) {
 		tempDirectory := setupEnv(t)
 
 		ttBinPath := filepath.Join(tempDirectory, ttBinDir)
-		ttIncPath := filepath.Join(tempDirectory, ttIncDir)
+		ttIncPath := filepath.Join(tempDirectory, ttIncDir, "include")
+		cliOpts := &config.CliOpts{
+			Env: &config.TtEnvOpts{
+				BinDir:     ttBinPath,
+				IncludeDir: filepath.Join(tempDirectory, ttIncDir),
+			},
+		}
 
 		cases := []struct {
 			buildDir    string
@@ -192,7 +199,8 @@ func Test_installTarantoolDev(t *testing.T) {
 		}
 
 		for _, testCase := range cases {
-			err := installTarantoolDev(ttBinPath, ttIncPath, testCase.buildDir, "")
+			installCtx := InstallCtx{buildDir: testCase.buildDir}
+			err := installTarantoolDev(installCtx, cliOpts)
 			require.NoError(t, err)
 
 			link, err := os.Readlink(filepath.Join(ttBinPath, "tarantool"))
@@ -209,7 +217,13 @@ func Test_installTarantoolDev(t *testing.T) {
 		tempDirectory := setupEnv(t)
 
 		ttBinPath := filepath.Join(tempDirectory, ttBinDir)
-		ttIncPath := filepath.Join(tempDirectory, ttIncDir)
+		ttIncPath := filepath.Join(tempDirectory, ttIncDir, "include")
+		cliOpts := &config.CliOpts{
+			Env: &config.TtEnvOpts{
+				BinDir:     ttBinPath,
+				IncludeDir: filepath.Join(tempDirectory, ttIncDir),
+			},
+		}
 
 		// Default include-dir.
 		_ = os.MkdirAll(filepath.Join(tempDirectory, "build_ce", "tarantool-prefix", "include",
@@ -243,7 +257,8 @@ func Test_installTarantoolDev(t *testing.T) {
 		}
 
 		for _, testCase := range cases {
-			err := installTarantoolDev(ttBinPath, ttIncPath, testCase.buildDir, testCase.incDir)
+			installCtx := InstallCtx{buildDir: testCase.buildDir, IncDir: testCase.incDir}
+			err := installTarantoolDev(installCtx, cliOpts)
 			require.NoError(t, err)
 
 			execLink, err := os.Readlink(filepath.Join(ttBinPath, "tarantool"))
@@ -260,13 +275,19 @@ func Test_installTarantoolDev(t *testing.T) {
 		tempDirectory := setupEnv(t)
 
 		ttBinPath := filepath.Join(tempDirectory, ttBinDir)
-		ttIncPath := filepath.Join(tempDirectory, ttIncDir)
+		cliOpts := &config.CliOpts{
+			Env: &config.TtEnvOpts{
+				BinDir:     ttBinPath,
+				IncludeDir: filepath.Join(tempDirectory, ttIncDir),
+			},
+		}
 
 		buildDir := filepath.Join(tempDirectory, "build_ee")
 
 		_ = os.MkdirAll(buildDir, os.ModePerm)
 
-		err := installTarantoolDev(ttBinPath, ttIncPath, buildDir, "")
+		installCtx := InstallCtx{buildDir: buildDir}
+		err := installTarantoolDev(installCtx, cliOpts)
 		assert.Error(t, err)
 	})
 }

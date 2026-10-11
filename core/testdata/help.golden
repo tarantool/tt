@@ -148,19 +148,21 @@ Install a program
   tt binary install [flags] <command> [command flags]
 [0;1;39m
 COMMANDS[0m
-  sdk           Download a Tarantool SDK bundle
   tarantool     Install Tarantool Community Edition
   tarantool-dev Install Tarantool from a local build directory
   tarantool-ee  Install Tarantool Enterprise Edition
+  tarantool-sdk Download a Tarantool SDK bundle
   tcm           Install Tarantool Cluster Manager
   tt            Install tt
 [0;1;39m
 FLAGS[0m
-  -f, --force        Skip dependency checks
-  -h, --help         help for install
-      --local-repo   Install from the local repository
-      --no-clean     Keep temporary files
-      --reinstall    Reinstall an existing version
+      --destination string   Directory to save SDK bundles (default: current
+                             directory)
+  -f, --force                Skip dependency checks
+  -h, --help                 help for install
+      --local-repo           Install from the local repository
+      --no-clean             Keep temporary files
+      --reinstall            Reinstall an existing version
 [0;1;39m
 GLOBAL FLAGS[0m
   -V, --verbose   Show diagnostic output and build commands
@@ -177,38 +179,6 @@ EXAMPLES[0m
 
 Use "tt binary install <command> --help" for more information about a command.
 
-=== tt binary install sdk --help
-Download a Tarantool SDK bundle
-
-[0;1;39mUSAGE[0m
-  tt binary install sdk <version> [flags]
-
-  tt binary install sdk <version> [flags]
-[0;1;39m
-ALIASES[0m
-  sdk, SDK
-[0;1;39m
-FLAGS[0m
-      --dev                       Download a development build
-      --directory-prefix string   Directory to save the SDK (default: current
-                                  directory)
-  -h, --help                      help for sdk
-[0;1;39m
-GLOBAL FLAGS[0m
-  -f, --force        Skip dependency checks
-      --local-repo   Install from the local repository
-      --no-clean     Keep temporary files
-      --reinstall    Reinstall an existing version
-  -V, --verbose      Show diagnostic output and build commands
-[0;1;39m
-EXAMPLES[0m
-  # Download an SDK bundle to the current directory.
-  $ tt binary install sdk gc64-3.0.0-0-gf58f7d82a-r23
-
-  # Download a development SDK bundle to /tmp.
-  $ tt binary install sdk gc64-3.0.0-beta1-2-gcbb569b4c-r612 \
-      --dev --directory-prefix /tmp
-
 === tt binary install tarantool --help
 Install Tarantool Community Edition
 
@@ -223,11 +193,13 @@ FLAGS[0m
       --use-docker   Build Tarantool in an Ubuntu 18.04 Docker container
 [0;1;39m
 GLOBAL FLAGS[0m
-  -f, --force        Skip dependency checks
-      --local-repo   Install from the local repository
-      --no-clean     Keep temporary files
-      --reinstall    Reinstall an existing version
-  -V, --verbose      Show diagnostic output and build commands
+      --destination string   Directory to save SDK bundles (default: current
+                             directory)
+  -f, --force                Skip dependency checks
+      --local-repo           Install from the local repository
+      --no-clean             Keep temporary files
+      --reinstall            Reinstall an existing version
+  -V, --verbose              Show diagnostic output and build commands
 
 === tt binary install tarantool-dev --help
 Install Tarantool from a local build directory
@@ -242,11 +214,13 @@ FLAGS[0m
       --include-dir string   Path to the Tarantool headers directory
 [0;1;39m
 GLOBAL FLAGS[0m
-  -f, --force        Skip dependency checks
-      --local-repo   Install from the local repository
-      --no-clean     Keep temporary files
-      --reinstall    Reinstall an existing version
-  -V, --verbose      Show diagnostic output and build commands
+      --destination string   Directory to save SDK bundles (default: current
+                             directory)
+  -f, --force                Skip dependency checks
+      --local-repo           Install from the local repository
+      --no-clean             Keep temporary files
+      --reinstall            Reinstall an existing version
+  -V, --verbose              Show diagnostic output and build commands
 [0;1;39m
 EXAMPLES[0m
   # Build and install Tarantool from a local source tree.
@@ -267,11 +241,45 @@ FLAGS[0m
   -h, --help   help for tarantool-ee
 [0;1;39m
 GLOBAL FLAGS[0m
-  -f, --force        Skip dependency checks
-      --local-repo   Install from the local repository
-      --no-clean     Keep temporary files
-      --reinstall    Reinstall an existing version
-  -V, --verbose      Show diagnostic output and build commands
+      --destination string   Directory to save SDK bundles (default: current
+                             directory)
+  -f, --force                Skip dependency checks
+      --local-repo           Install from the local repository
+      --no-clean             Keep temporary files
+      --reinstall            Reinstall an existing version
+  -V, --verbose              Show diagnostic output and build commands
+
+=== tt binary install tarantool-sdk --help
+Download a Tarantool SDK bundle
+
+[0;1;39mUSAGE[0m
+  tt binary install tarantool-sdk <version> [flags]
+
+  tt binary install tarantool-sdk <version> [flags]
+[0;1;39m
+ALIASES[0m
+  tarantool-sdk, sdk, SDK
+[0;1;39m
+FLAGS[0m
+      --dev    Download a development build
+  -h, --help   help for tarantool-sdk
+[0;1;39m
+GLOBAL FLAGS[0m
+      --destination string   Directory to save SDK bundles (default: current
+                             directory)
+  -f, --force                Skip dependency checks
+      --local-repo           Install from the local repository
+      --no-clean             Keep temporary files
+      --reinstall            Reinstall an existing version
+  -V, --verbose              Show diagnostic output and build commands
+[0;1;39m
+EXAMPLES[0m
+  # Download an SDK bundle to the current directory.
+  $ tt binary install tarantool-sdk gc64-3.0.0-0-gf58f7d82a-r23
+
+  # Download a development SDK bundle to /tmp.
+  $ tt binary install tarantool-sdk gc64-3.0.0-beta1-2-gcbb569b4c-r612 \
+      --dev --destination /tmp
 
 === tt binary install tcm --help
 Install Tarantool Cluster Manager
@@ -286,11 +294,13 @@ FLAGS[0m
   -h, --help   help for tcm
 [0;1;39m
 GLOBAL FLAGS[0m
-  -f, --force        Skip dependency checks
-      --local-repo   Install from the local repository
-      --no-clean     Keep temporary files
-      --reinstall    Reinstall an existing version
-  -V, --verbose      Show diagnostic output and build commands
+      --destination string   Directory to save SDK bundles (default: current
+                             directory)
+  -f, --force                Skip dependency checks
+      --local-repo           Install from the local repository
+      --no-clean             Keep temporary files
+      --reinstall            Reinstall an existing version
+  -V, --verbose              Show diagnostic output and build commands
 
 === tt binary install tt --help
 Install tt
@@ -304,11 +314,13 @@ FLAGS[0m
   -h, --help   help for tt
 [0;1;39m
 GLOBAL FLAGS[0m
-  -f, --force        Skip dependency checks
-      --local-repo   Install from the local repository
-      --no-clean     Keep temporary files
-      --reinstall    Reinstall an existing version
-  -V, --verbose      Show diagnostic output and build commands
+      --destination string   Directory to save SDK bundles (default: current
+                             directory)
+  -f, --force                Skip dependency checks
+      --local-repo           Install from the local repository
+      --no-clean             Keep temporary files
+      --reinstall            Reinstall an existing version
+  -V, --verbose              Show diagnostic output and build commands
 
 === tt binary list --help
 List installed binaries and versions

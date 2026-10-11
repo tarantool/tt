@@ -25,28 +25,22 @@ func TestBinaryInstallSDK(t *testing.T) {
 
 	destination := filepath.Join(t.TempDir(), "missing")
 	root.SetArgs([]string{
-		"binary", "install", "SDK", "3.0.0", "--dev", "--directory-prefix", destination,
+		"binary", "install", "--destination", destination, "tarantool-sdk", "3.0.0", "--dev",
 	})
 
 	command, err := root.ExecuteC()
-	require.ErrorContains(t, err, "bad directory prefix:")
-	assert.Equal(t, "tt binary install sdk", command.CommandPath())
-	assert.Equal(t, "sdk", cmdCtx.CommandName)
+	require.ErrorContains(t, err, "invalid destination directory")
+	require.ErrorContains(t, err, destination)
+	assert.Equal(t, "tt binary install tarantool-sdk", command.CommandPath())
+	assert.Equal(t, "tarantool-sdk", cmdCtx.CommandName)
 
-	directory, err := command.Flags().GetString("directory-prefix")
+	directory, err := command.Flags().GetString("destination")
 	require.NoError(t, err)
 	assert.Equal(t, destination, directory)
 
 	devBuild, err := command.Flags().GetBool("dev")
 	require.NoError(t, err)
 	assert.True(t, devBuild)
-
-	install, _, err := root.Find([]string{"binary", "install", "tarantool-ee"})
-	require.NoError(t, err)
-
-	devBuild, err = install.Flags().GetBool("dev")
-	require.NoError(t, err)
-	assert.False(t, devBuild)
 }
 
 // TestBinaryArgumentValidation checks the argument contracts on the new paths
@@ -56,8 +50,8 @@ func TestBinaryArgumentValidation(t *testing.T) {
 		args []string
 		want string
 	}{
-		{[]string{"install", "SDK"}, "you need to specify the version"},
-		{[]string{"install", "SDK", "3.0", "3.1"}, "invalid number of parameters"},
+		{[]string{"install", "tarantool-sdk"}, "you need to specify the version"},
+		{[]string{"install", "tarantool-sdk", "3.0", "3.1"}, "invalid number of parameters"},
 		{[]string{"install", "tarantool", "3.0", "3.1"}, "accepts at most 1 arg(s)"},
 		{[]string{"uninstall", "tarantool-dev", "3.0"}, "accepts 0 arg(s)"},
 		{[]string{"search", "tarantool", "3.0"}, "accepts 0 arg(s)"},
@@ -110,10 +104,10 @@ func TestBinaryInheritedOptions(t *testing.T) {
 			root.SetErr(io.Discard)
 
 			destination := filepath.Join(t.TempDir(), "missing")
-			root.SetArgs(append(testCase.args, "--directory-prefix", destination))
+			root.SetArgs(append(testCase.args, "--destination", destination))
 
 			err := root.Execute()
-			require.ErrorContains(t, err, "bad directory prefix")
+			require.ErrorContains(t, err, "invalid destination directory")
 			assert.Equal(t, testCase.verbose, cmdCtx.Cli.Verbose)
 			assert.Equal(t, testCase.verbose, slog.Default().Enabled(t.Context(), slog.LevelDebug))
 		})
@@ -153,7 +147,7 @@ func TestBinaryCommandOptionsAreIndependent(t *testing.T) {
 		second  string
 	}{
 		{[]string{"install", "tarantool"}, "dynamic", "true", "false"},
-		{[]string{"install", "sdk"}, "directory-prefix", "/first", "/second"},
+		{[]string{"install", "tarantool-sdk"}, "destination", "/first", "/second"},
 		{[]string{"search", "tarantool-ee"}, "version", "3.0", "3.1"},
 	}
 	for _, testCase := range cases {

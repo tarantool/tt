@@ -24,7 +24,7 @@ def test_download_ee(tt_cmd, tmp_path):
     assert re.search(r"(\d+.\d+.\d+|<unknown>)", version)
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "binary", "install", "SDK", version],
+        [tt_cmd, "binary", "install", "tarantool-sdk", version],
         cwd=tmp_path,
         env=dict(os.environ, PWD=tmp_path),
     )
@@ -54,7 +54,7 @@ def test_download_ee_dev(tt_cmd, tmp_path):
     assert re.search(r"(\d+.\d+.\d+|<unknown>)", version)
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "binary", "install", "SDK", version, "--dev"],
+        [tt_cmd, "binary", "install", "tarantool-sdk", version, "--dev"],
         cwd=tmp_path,
         env=dict(os.environ, PWD=tmp_path),
     )

@@ -15,8 +15,9 @@ func TestProgram_String(t *testing.T) {
 	}{
 		"ProgramCe":      {binary.ProgramCe, "tarantool"},
 		"ProgramEe":      {binary.ProgramEe, "tarantool-ee"},
-		"ProgramTt":      {binary.ProgramTt, "tt"},
+		"ProgramSDK":     {binary.ProgramSDK, "tarantool-sdk"},
 		"ProgramDev":     {binary.ProgramDev, "tarantool-dev"},
+		"ProgramTt":      {binary.ProgramTt, "tt"},
 		"ProgramTcm":     {binary.ProgramTcm, "tcm"},
 		"ProgramUnknown": {binary.ProgramUnknown, "unknown(0)"},
 		"InvalidProgram": {binary.Program(99), "unknown(99)"},
@@ -38,6 +39,7 @@ func TestParseProgram(t *testing.T) {
 	}{
 		"ValidCe":  {"tarantool", binary.ProgramCe, false, ""},
 		"ValidEe":  {"tarantool-ee", binary.ProgramEe, false, ""},
+		"ValidSDK": {"tarantool-sdk", binary.ProgramSDK, false, ""},
 		"ValidTt":  {"tt", binary.ProgramTt, false, ""},
 		"ValidDev": {"tarantool-dev", binary.ProgramDev, false, ""},
 		"ValidTcm": {"tcm", binary.ProgramTcm, false, ""},
@@ -71,8 +73,8 @@ func TestProgram_Exec(t *testing.T) {
 	}{
 		"ProgramCe":      {binary.ProgramCe, "tarantool"},
 		"ProgramEe":      {binary.ProgramEe, "tarantool"},
-		"ProgramTt":      {binary.ProgramTt, "tt"},
 		"ProgramDev":     {binary.ProgramDev, "tarantool"},
+		"ProgramTt":      {binary.ProgramTt, "tt"},
 		"ProgramTcm":     {binary.ProgramTcm, "tcm"},
 		"ProgramUnknown": {binary.ProgramUnknown, "unknown(0)"},
 		"InvalidProgram": {binary.Program(99), "unknown(99)"},

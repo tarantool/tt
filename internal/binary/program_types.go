@@ -19,10 +19,11 @@ const (
 	ProgramTt              // tt.
 	ProgramDev             // tarantool-dev.
 	ProgramTcm             // tcm.
+	ProgramSDK             // tarantool-sdk.
 )
 
-// tarantoolName is the executable of every Tarantool flavour and the name
-// of the Community Edition.
+// tarantoolname is the executable of every tarantool flavour and the name
+// of the community edition.
 const tarantoolName = "tarantool"
 
 // programToExec contains executables matched for each Program types.
@@ -38,9 +39,10 @@ var programToExec = map[Program]string{
 var programToString = map[Program]string{
 	ProgramCe:  tarantoolName,
 	ProgramEe:  "tarantool-ee",
-	ProgramDev: "tarantool-dev",
 	ProgramTt:  "tt",
+	ProgramDev: "tarantool-dev",
 	ProgramTcm: "tcm",
+	ProgramSDK: "tarantool-sdk",
 }
 
 // stringToProgram contains the reverse mapping for efficient lookup.
