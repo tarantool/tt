@@ -1,4 +1,4 @@
-package binary
+package search
 
 import (
 	"errors"
@@ -11,6 +11,7 @@ import (
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/version"
+	"github.com/tarantool/tt/v3/internal/binary"
 )
 
 var (
@@ -72,7 +73,7 @@ func Less(verLeft, verRight version.Version) bool {
 		verRight.Release.Num, verRight.Additional, verRight.Revision,
 	}
 
-	largestLen := Max(len(left), len(right))
+	largestLen := binary.Max(len(left), len(right))
 
 	for idx := range largestLen {
 		var valLeft, valRight uint64 = 0, 0
@@ -94,13 +95,13 @@ func Less(verLeft, verRight version.Version) bool {
 }
 
 // compileVersionRegexp compiles a regular expression for cutting version from SDK bundle names.
-func compileVersionRegexp(prg Program) (*regexp.Regexp, error) {
+func compileVersionRegexp(prg binary.Program) (*regexp.Regexp, error) {
 	var expr string
 
 	switch prg {
-	case ProgramEe, ProgramSDK:
+	case binary.ProgramEe, binary.ProgramSDK:
 		expr = "^(?P<tarball>tarantool-enterprise-sdk-(?P<version>.*r[0-9]{1,3}).*\\.tar\\.gz)$"
-	case ProgramTcm:
+	case binary.ProgramTcm:
 		expr = `^(?P<tarball>tcm-(?P<version>\d+\.\d+\.\d+[^.]*).*\.tar\.gz)$`
 	default:
 		return nil, fmt.Errorf("%w%q", errUnknownVersionFormatForProgram, prg)
@@ -128,7 +129,7 @@ func getBundles(rawBundleInfoList map[string][]string, searchCtx *SearchCtx) (
 
 	for release, pkgs := range rawBundleInfoList {
 		for _, pkg := range pkgs {
-			parsedData := FindNamedMatches(versionRegexp, pkg)
+			parsedData := binary.FindNamedMatches(versionRegexp, pkg)
 			if len(parsedData) == 0 {
 				continue
 			}

@@ -9,6 +9,11 @@ import (
 
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/internal/binary"
+	"github.com/tarantool/tt/v3/internal/binary/install"
+	"github.com/tarantool/tt/v3/internal/binary/list"
+	"github.com/tarantool/tt/v3/internal/binary/search"
+	switcher "github.com/tarantool/tt/v3/internal/binary/switch"
+	"github.com/tarantool/tt/v3/internal/binary/uninstall"
 )
 
 const binarySwitchMaxArgs = 2
@@ -37,11 +42,11 @@ type binaryFunc[T any] func(binary.BinaryContext, T, *cmdcontext.CmdCtx, []strin
 func NewBinaryCmd() *cobra.Command {
 	var (
 		base         binary.BinaryContext
-		installCtx   binary.InstallCtx
-		uninstallCtx binary.UninstallCtx
-		searchCtx    = binary.NewSearchCtx(binary.NewPlatformInformer(), binary.NewTntIoDoer())
-		listCtx      binary.ListCtx
-		switchCtx    binary.SwitchCtx
+		installCtx   install.InstallCtx
+		uninstallCtx uninstall.UninstallCtx
+		searchCtx    = search.NewSearchCtx(search.NewPlatformInformer(), search.NewTntIoDoer())
+		listCtx      list.ListCtx
+		switchCtx    switcher.SwitchCtx
 	)
 
 	binaryCmd := &cobra.Command{
@@ -65,7 +70,7 @@ func NewBinaryCmd() *cobra.Command {
 
 // newBinaryInstallCmd creates install command.
 func newBinaryInstallCmd(base *binary.BinaryContext,
-	installCtx *binary.InstallCtx,
+	installCtx *install.InstallCtx,
 ) *cobra.Command {
 	installCmd := &cobra.Command{
 		Use:   "install",
@@ -105,7 +110,7 @@ func newBinaryInstallCmd(base *binary.BinaryContext,
 
 // newInstallTtCmd creates a command to install tt.
 func newInstallTtCmd(base *binary.BinaryContext,
-	installCtx *binary.InstallCtx,
+	installCtx *install.InstallCtx,
 ) *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramTt.String() + " [version|commit|pull-request]",
@@ -119,7 +124,7 @@ func newInstallTtCmd(base *binary.BinaryContext,
 
 // newInstallTarantoolCmd creates a command to install tarantool.
 func newInstallTarantoolCmd(base *binary.BinaryContext,
-	installCtx *binary.InstallCtx,
+	installCtx *install.InstallCtx,
 ) *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramCe.String() + " [version|commit|pull-request]",
@@ -167,7 +172,7 @@ func newInstallTarantoolCmd(base *binary.BinaryContext,
 
 // newInstallTarantoolEeCmd creates a command to install tarantool-ee.
 func newInstallTarantoolEeCmd(base *binary.BinaryContext,
-	installCtx *binary.InstallCtx,
+	installCtx *install.InstallCtx,
 ) *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramEe.String() + " [version]",
@@ -182,7 +187,7 @@ func newInstallTarantoolEeCmd(base *binary.BinaryContext,
 }
 
 func newInstallTcmCmd(base *binary.BinaryContext,
-	installCtx *binary.InstallCtx,
+	installCtx *install.InstallCtx,
 ) *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramTcm.String() + " [version]",
@@ -198,7 +203,7 @@ func newInstallTcmCmd(base *binary.BinaryContext,
 
 // newInstallTarantoolSDKCmd creates a command that downloads and saves the Tarantool SDK.
 func newInstallTarantoolSDKCmd(base *binary.BinaryContext,
-	installCtx *binary.InstallCtx,
+	installCtx *install.InstallCtx,
 ) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     binary.ProgramSDK.String() + " <version>",
@@ -228,14 +233,14 @@ func newInstallTarantoolSDKCmd(base *binary.BinaryContext,
 }
 
 // internalInstallModule is a default install module.
-func internalInstallModule(base binary.BinaryContext, installCtx binary.InstallCtx,
+func internalInstallModule(base binary.BinaryContext, installCtx install.InstallCtx,
 	cmdCtx *cmdcontext.CmdCtx, args []string,
 ) error {
 	var err error
 
 	installCtx.BinaryContext = base
 
-	err = binary.FillCtx(cmdCtx, &installCtx, args)
+	err = install.FillCtx(cmdCtx, &installCtx, args)
 	if err != nil {
 		return err
 	}
@@ -244,14 +249,14 @@ func internalInstallModule(base binary.BinaryContext, installCtx binary.InstallC
 		return errNoConfig
 	}
 
-	err = binary.Install(installCtx, cliOpts)
+	err = install.Install(installCtx, cliOpts)
 
 	return err
 }
 
 // newBinaryUninstallCmd creates uninstall command.
 func newBinaryUninstallCmd(base *binary.BinaryContext,
-	uninstallCtx *binary.UninstallCtx,
+	uninstallCtx *uninstall.UninstallCtx,
 ) *cobra.Command {
 	uninstallCmd := &cobra.Command{
 		Use:   "uninstall",
@@ -272,7 +277,7 @@ func newBinaryUninstallCmd(base *binary.BinaryContext,
 
 // newUninstallTtCmd creates a command to uninstall tt.
 func newUninstallTtCmd(base *binary.BinaryContext,
-	uninstallCtx *binary.UninstallCtx,
+	uninstallCtx *uninstall.UninstallCtx,
 ) *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   "tt [version]",
@@ -288,7 +293,7 @@ func newUninstallTtCmd(base *binary.BinaryContext,
 				return []string{}, cobra.ShellCompDirectiveNoFileComp
 			}
 
-			return binary.GetList(cliOpts, cmd.Name()),
+			return uninstall.GetList(cliOpts, cmd.Name()),
 				cobra.ShellCompDirectiveNoFileComp
 		},
 	}
@@ -298,7 +303,7 @@ func newUninstallTtCmd(base *binary.BinaryContext,
 
 // newUninstallTarantoolCmd creates a command to uninstall tarantool.
 func newUninstallTarantoolCmd(base *binary.BinaryContext,
-	uninstallCtx *binary.UninstallCtx,
+	uninstallCtx *uninstall.UninstallCtx,
 ) *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramCe.String() + " [version]",
@@ -316,7 +321,7 @@ Without a version, unlink the active local build or uninstall the only installed
 				return []string{}, cobra.ShellCompDirectiveNoFileComp
 			}
 
-			return binary.GetList(cliOpts, cmd.Name()),
+			return uninstall.GetList(cliOpts, cmd.Name()),
 				cobra.ShellCompDirectiveNoFileComp
 		},
 	}
@@ -326,7 +331,7 @@ Without a version, unlink the active local build or uninstall the only installed
 
 // newUninstallTarantoolEeCmd creates a command to uninstall tarantool-ee.
 func newUninstallTarantoolEeCmd(base *binary.BinaryContext,
-	uninstallCtx *binary.UninstallCtx,
+	uninstallCtx *uninstall.UninstallCtx,
 ) *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramEe.String() + " [version]",
@@ -342,7 +347,7 @@ func newUninstallTarantoolEeCmd(base *binary.BinaryContext,
 				return []string{}, cobra.ShellCompDirectiveNoFileComp
 			}
 
-			return binary.GetList(cliOpts, cmd.Name()),
+			return uninstall.GetList(cliOpts, cmd.Name()),
 				cobra.ShellCompDirectiveNoFileComp
 		},
 	}
@@ -352,7 +357,7 @@ func newUninstallTarantoolEeCmd(base *binary.BinaryContext,
 
 // newUninstallTcmCmd creates a command to uninstall tcm.
 func newUninstallTcmCmd(base *binary.BinaryContext,
-	uninstallCtx *binary.UninstallCtx,
+	uninstallCtx *uninstall.UninstallCtx,
 ) *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramTcm.String() + " [version]",
@@ -368,7 +373,7 @@ func newUninstallTcmCmd(base *binary.BinaryContext,
 				return []string{}, cobra.ShellCompDirectiveNoFileComp
 			}
 
-			return binary.GetList(cliOpts, cmd.Name()),
+			return uninstall.GetList(cliOpts, cmd.Name()),
 				cobra.ShellCompDirectiveNoFileComp
 		},
 	}
@@ -377,7 +382,7 @@ func newUninstallTcmCmd(base *binary.BinaryContext,
 }
 
 // internalUninstallModule is a default uninstall module.
-func internalUninstallModule(base binary.BinaryContext, uninstallCtx binary.UninstallCtx,
+func internalUninstallModule(base binary.BinaryContext, uninstallCtx uninstall.UninstallCtx,
 	cmdCtx *cmdcontext.CmdCtx, args []string,
 ) error {
 	if !isConfigExist(cmdCtx) {
@@ -400,12 +405,12 @@ func internalUninstallModule(base binary.BinaryContext, uninstallCtx binary.Unin
 	uninstallCtx.BinDir = cliOpts.Env.BinDir
 	uninstallCtx.IncDir = cliOpts.Env.IncludeDir + "/include"
 
-	return binary.UninstallProgram(uninstallCtx)
+	return uninstall.UninstallProgram(uninstallCtx)
 }
 
 // newBinarySearchCmd creates search command.
 func newBinarySearchCmd(base *binary.BinaryContext,
-	searchCtx *binary.SearchCtx,
+	searchCtx *search.SearchCtx,
 ) *cobra.Command {
 	searchCmd := &cobra.Command{
 		Use:   "search",
@@ -434,7 +439,7 @@ func newBinarySearchCmd(base *binary.BinaryContext,
 
 // newSearchTarantoolCmd creates a command to search tarantool.
 func newSearchTarantoolCmd(base *binary.BinaryContext,
-	searchCtx *binary.SearchCtx,
+	searchCtx *search.SearchCtx,
 ) *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramCe.String(),
@@ -448,7 +453,7 @@ func newSearchTarantoolCmd(base *binary.BinaryContext,
 
 // newSearchTarantoolEeCmd creates a command to search tarantool-ee.
 func newSearchTarantoolEeCmd(base *binary.BinaryContext,
-	searchCtx *binary.SearchCtx,
+	searchCtx *search.SearchCtx,
 ) *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramEe.String(),
@@ -468,7 +473,7 @@ func newSearchTarantoolEeCmd(base *binary.BinaryContext,
 
 // newSearchTtCmd creates a command to search tt.
 func newSearchTtCmd(base *binary.BinaryContext,
-	searchCtx *binary.SearchCtx,
+	searchCtx *search.SearchCtx,
 ) *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramTt.String(),
@@ -482,7 +487,7 @@ func newSearchTtCmd(base *binary.BinaryContext,
 
 // newSearchTcmCmd creates a command to search tcm.
 func newSearchTcmCmd(base *binary.BinaryContext,
-	searchCtx *binary.SearchCtx,
+	searchCtx *search.SearchCtx,
 ) *cobra.Command {
 	tcmCmd := &cobra.Command{
 		Use:   binary.ProgramTcm.String(),
@@ -499,7 +504,7 @@ func newSearchTcmCmd(base *binary.BinaryContext,
 }
 
 // internalSearchModule is a default search module.
-func internalSearchModule(base binary.BinaryContext, searchCtx binary.SearchCtx,
+func internalSearchModule(base binary.BinaryContext, searchCtx search.SearchCtx,
 	cmdCtx *cmdcontext.CmdCtx, args []string,
 ) error {
 	var err error
@@ -512,21 +517,21 @@ func internalSearchModule(base binary.BinaryContext, searchCtx binary.SearchCtx,
 	}
 
 	if searchCtx.Local {
-		return binary.SearchVersionsLocal(searchCtx, cliOpts, cmdCtx.Cli.ConfigPath)
+		return search.SearchVersionsLocal(searchCtx, cliOpts, cmdCtx.Cli.ConfigPath)
 	}
 
 	if searchCtx.Debug {
-		searchCtx.Filter = binary.SearchDebug
+		searchCtx.Filter = search.SearchDebug
 	} else {
-		searchCtx.Filter = binary.SearchRelease
+		searchCtx.Filter = search.SearchRelease
 	}
 
-	return binary.SearchVersions(searchCtx, cliOpts)
+	return search.SearchVersions(searchCtx, cliOpts)
 }
 
 // newBinaryListCmd creates a command to list installed binaries.
 func newBinaryListCmd(base *binary.BinaryContext,
-	listCtx *binary.ListCtx,
+	listCtx *list.ListCtx,
 ) *cobra.Command {
 	listCmd := &cobra.Command{
 		Use:   listCmdName,
@@ -539,7 +544,7 @@ func newBinaryListCmd(base *binary.BinaryContext,
 }
 
 // internalListModule is a list module.
-func internalListModule(base binary.BinaryContext, listCtx binary.ListCtx,
+func internalListModule(base binary.BinaryContext, listCtx list.ListCtx,
 	cmdCtx *cmdcontext.CmdCtx, args []string,
 ) error {
 	if !isConfigExist(cmdCtx) {
@@ -549,12 +554,12 @@ func internalListModule(base binary.BinaryContext, listCtx binary.ListCtx,
 	listCtx.BinaryContext = base
 	listCtx.BinDir = cliOpts.Env.BinDir
 
-	return binary.ListBinaries(listCtx)
+	return list.ListBinaries(listCtx)
 }
 
 // newBinarySwitchCmd creates a command to switch installed binaries.
 func newBinarySwitchCmd(base *binary.BinaryContext,
-	switchCtx *binary.SwitchCtx,
+	switchCtx *switcher.SwitchCtx,
 ) *cobra.Command {
 	switchCmd := &cobra.Command{
 		Use:   "switch [program] [version]",
@@ -588,7 +593,7 @@ func binarySwitchValidateArgs(cmd *cobra.Command, args []string) error {
 }
 
 // internalSwitchModule is a switch module.
-func internalSwitchModule(base binary.BinaryContext, switchCtx binary.SwitchCtx,
+func internalSwitchModule(base binary.BinaryContext, switchCtx switcher.SwitchCtx,
 	cmdCtx *cmdcontext.CmdCtx, args []string,
 ) error {
 	if !isConfigExist(cmdCtx) {
@@ -605,7 +610,7 @@ func internalSwitchModule(base binary.BinaryContext, switchCtx binary.SwitchCtx,
 			return fmt.Errorf("failed to switch module: %w", err)
 		}
 	} else {
-		switchCtx.Program, err = binary.ChooseProgram(binarySupportedPrograms)
+		switchCtx.Program, err = switcher.ChooseProgram(binarySupportedPrograms)
 		if err != nil {
 			return err
 		}
@@ -614,7 +619,7 @@ func internalSwitchModule(base binary.BinaryContext, switchCtx binary.SwitchCtx,
 	if len(args) > 1 {
 		switchCtx.Version = args[1]
 	} else {
-		switchCtx.Version, err = binary.ChooseVersion(cliOpts.Env.BinDir, switchCtx.Program)
+		switchCtx.Version, err = switcher.ChooseVersion(cliOpts.Env.BinDir, switchCtx.Program)
 		if err != nil {
 			return err
 		}
@@ -623,7 +628,7 @@ func internalSwitchModule(base binary.BinaryContext, switchCtx binary.SwitchCtx,
 	switchCtx.BinDir = cliOpts.Env.BinDir
 	switchCtx.IncDir = cliOpts.Env.IncludeDir
 
-	err = binary.Switch(&switchCtx)
+	err = switcher.Switch(&switchCtx)
 
 	return err
 }

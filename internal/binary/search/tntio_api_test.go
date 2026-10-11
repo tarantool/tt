@@ -1,4 +1,4 @@
-package binary_test
+package search_test
 
 import (
 	"bytes"
@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/internal/binary"
+	"github.com/tarantool/tt/v3/internal/binary/search"
 )
 
 var (
@@ -438,17 +439,17 @@ func TestSearchVersions_TntIo(t *testing.T) {
 			}
 
 			// Create SearchCtx with the configured mock.
-			sCtx := binary.NewSearchCtx(&tt.platform, &mockDoer)
+			sCtx := search.NewSearchCtx(&tt.platform, &mockDoer)
 
 			sCtx.Program = tt.program
 			sCtx.ReleaseVersion = tt.specificVersion
 			sCtx.DevBuilds = tt.devBuilds
 
 			if tt.searchDebug {
-				sCtx.Filter = binary.SearchDebug
+				sCtx.Filter = search.SearchDebug
 			}
 
-			err := binary.SearchVersions(sCtx, &opts)
+			err := search.SearchVersions(sCtx, &opts)
 
 			_ = pipeWriter.Close()
 
@@ -593,13 +594,13 @@ func TestTntIoMakePkgURI(t *testing.T) {
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			sCtx := binary.NewSearchCtx(tt.args.platform, nil)
+			sCtx := search.NewSearchCtx(tt.args.platform, nil)
 
 			sCtx.Program = tt.args.program
 			sCtx.ReleaseVersion = tt.args.version
 			sCtx.DevBuilds = tt.args.devBuilds
 
-			got, err := binary.TntIoMakePkgURI(&sCtx, tt.args.tarball)
+			got, err := search.TntIoMakePkgURI(&sCtx, tt.args.tarball)
 			if tt.errMsg != "" {
 				require.Error(t, err, "Expected an error, but got nil")
 				require.Contains(t, err.Error(), tt.errMsg,

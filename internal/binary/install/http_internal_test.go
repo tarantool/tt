@@ -1,4 +1,4 @@
-package binary
+package install
 
 import (
 	"errors"
@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/v3/internal/binary"
 )
 
 var (
@@ -238,7 +239,7 @@ func TestNewTntIoDownloader(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			downloader := NewTntIoDownloader(test.token)
 			require.NotNil(t, downloader, "NewTntIoDownloader should return a non-nil object")
-			require.Implements(t, (*TntIoDoer)(nil), downloader,
+			require.Implements(t, (*binary.TntIoDoer)(nil), downloader,
 				"NewTntIoDownloader should return an object implementing TntIoDoer")
 
 			require.Equal(t, test.expectToken, downloader.token, "Internal token field mismatch")

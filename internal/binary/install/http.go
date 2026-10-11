@@ -1,4 +1,4 @@
-package binary
+package install
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+
+	"github.com/tarantool/tt/v3/internal/binary"
 )
 
 var (
@@ -74,7 +76,7 @@ func validateDestination(dst string) error {
 		return fmt.Errorf("%w%s", errDestinationDirectoryMissing, dst)
 	}
 
-	if !IsDir(dst) {
+	if !binary.IsDir(dst) {
 		return fmt.Errorf("%w%s", errDestinationPathIsNotADirectory, dst)
 	}
 
@@ -134,9 +136,9 @@ func saveResponseBodyToFile(body []byte, destFilePath string) (errRet error) {
 
 // DownloadBundle downloads a bundle file from the given source URL into the destination directory.
 // It handles potential redirects and uses the provided token for authentication via cookies.
-func DownloadBundle(doer TntIoDoer, bundleName, bundleSource, dst string) error {
+func DownloadBundle(doer binary.TntIoDoer, bundleName, bundleSource, dst string) error {
 	if doer == nil || reflect.ValueOf(doer).IsNil() {
-		return errTarantoolIODoerMissing
+		return binary.ErrTarantoolIODoerMissing
 	}
 
 	err := validateDestination(dst)

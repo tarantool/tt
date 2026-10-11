@@ -1,4 +1,4 @@
-package binary
+package search
 
 import (
 	"errors"
@@ -10,6 +10,7 @@ import (
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/version"
+	"github.com/tarantool/tt/v3/internal/binary"
 )
 
 var (
@@ -26,7 +27,7 @@ const (
 
 // SearchCtx contains information for programs searching.
 type SearchCtx struct {
-	BinaryContext
+	binary.BinaryContext
 
 	// Local searches the configured local repository.
 	Local bool
@@ -42,13 +43,13 @@ type SearchCtx struct {
 	// Search for development builds.
 	DevBuilds bool
 	// TntIoDoer tarantool.io API handler with interface of TntIoDoer.
-	TntIoDoer TntIoDoer
+	TntIoDoer binary.TntIoDoer
 
 	platformInformer PlatformInformer
 }
 
 // NewSearchCtx creates a new SearchCtx with default production values.
-func NewSearchCtx(informer PlatformInformer, doer TntIoDoer) SearchCtx {
+func NewSearchCtx(informer PlatformInformer, doer binary.TntIoDoer) SearchCtx {
 	var searchCtx SearchCtx
 
 	searchCtx.Filter = SearchRelease
@@ -61,10 +62,10 @@ func NewSearchCtx(informer PlatformInformer, doer TntIoDoer) SearchCtx {
 // printVersion prints the version and labels:
 // * if the package is installed: [installed]
 // * if the package is installed and in use: [active].
-func printVersion(bindir string, program Program, versionStr string) {
+func printVersion(bindir string, program binary.Program, versionStr string) {
 	_, err := os.Stat(filepath.Join(bindir, program.String()+version.FsSeparator+versionStr))
 	if err == nil {
-		target, _ := ResolveSymlink(filepath.Join(bindir, program.Exec()))
+		target, _ := binary.ResolveSymlink(filepath.Join(bindir, program.Exec()))
 
 		if path.Base(target) == program.String()+version.FsSeparator+versionStr {
 			_, _ = fmt.Fprintf(os.Stdout, "%s [active]\n", versionStr)
@@ -87,11 +88,11 @@ func SearchVersions(searchCtx SearchCtx, cliOpts *config.CliOpts) error {
 	)
 
 	switch prg {
-	case ProgramCe:
+	case binary.ProgramCe:
 		vers, err = searchVersionsGit(GitRepoTarantool)
-	case ProgramTt:
+	case binary.ProgramTt:
 		vers, err = searchVersionsGit(GitRepoTT)
-	case ProgramEe, ProgramTcm: // Group of API-based searches.
+	case binary.ProgramEe, binary.ProgramTcm: // Group of API-based searches.
 		vers, err = searchVersionsTntIo(cliOpts, &searchCtx)
 	default:
 		return fmt.Errorf("%w%s' is not implemented",

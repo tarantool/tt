@@ -1,4 +1,4 @@
-package binary
+package uninstall
 
 import (
 	"io"
@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/v3/cli/configure"
 	"github.com/tarantool/tt/v3/cli/version"
+	"github.com/tarantool/tt/v3/internal/binary"
 )
 
 type mockRepository struct{}
@@ -68,7 +69,7 @@ func TestGetList(t *testing.T) {
 func TestSearchLatestVersion(t *testing.T) {
 	type testCase struct {
 		name        string
-		program     Program
+		program     binary.Program
 		binDst      string
 		headerDst   string
 		expectedVer string
@@ -78,59 +79,59 @@ func TestSearchLatestVersion(t *testing.T) {
 	cases := []testCase{
 		{
 			name:        "basic",
-			program:     ProgramCe,
-			binDst:      "./testdata/bin_basic",
-			headerDst:   "./testdata/inc_basic",
+			program:     binary.ProgramCe,
+			binDst:      "../testdata/bin_basic",
+			headerDst:   "../testdata/inc_basic",
 			expectedVer: "tarantool_3.0.0-entrypoint",
 		},
 		{
 			name:        "no includes",
-			program:     ProgramEe,
-			binDst:      "./testdata/bin_basic",
-			headerDst:   "./testdata/inc_invalid",
+			program:     binary.ProgramEe,
+			binDst:      "../testdata/bin_basic",
+			headerDst:   "../testdata/inc_invalid",
 			expectedVer: "tarantool-ee_2.8.4-0-r510",
 		},
 		{
 			name:        "local build",
-			program:     ProgramCe,
-			binDst:      "./testdata/bin_dev",
-			headerDst:   "./testdata/inc_basic",
+			program:     binary.ProgramCe,
+			binDst:      "../testdata/bin_dev",
+			headerDst:   "../testdata/inc_basic",
 			expectedVer: "",
 		},
 		{
 			name:        "hash version",
-			program:     ProgramCe,
-			binDst:      "./testdata/bin_hash",
-			headerDst:   "./testdata/inc_hash",
+			program:     binary.ProgramCe,
+			binDst:      "../testdata/bin_hash",
+			headerDst:   "../testdata/inc_hash",
 			expectedVer: "tarantool_aaaaaaa",
 		},
 		{
 			name:        "hash invalid headers",
-			program:     ProgramCe,
-			binDst:      "./testdata/bin_hash",
-			headerDst:   "./testdata/inc_invalid_hash",
+			program:     binary.ProgramCe,
+			binDst:      "../testdata/bin_hash",
+			headerDst:   "../testdata/inc_invalid_hash",
 			expectedVer: "tarantool_bbbbbbb",
 		},
 		{
 			name:        "tt, include-dir basic",
-			program:     ProgramTt,
-			binDst:      "./testdata/bin_basic",
-			headerDst:   "./testdata/inc_basic",
+			program:     binary.ProgramTt,
+			binDst:      "../testdata/bin_basic",
+			headerDst:   "../testdata/inc_basic",
 			expectedVer: "tt_2.0.0",
 		},
 		// Test that include dir doesn't affect the search for `tt`.
 		{
 			name:        "tt, include-dir invalid",
-			program:     ProgramTt,
-			binDst:      "./testdata/bin_basic",
-			headerDst:   "./testdata/inc_invalid",
+			program:     binary.ProgramTt,
+			binDst:      "../testdata/bin_basic",
+			headerDst:   "../testdata/inc_invalid",
 			expectedVer: "tt_2.0.0",
 		},
 		{
 			name:      "filename as a bin dir",
-			program:   ProgramTt,
-			binDst:    "./testdata/bin_basic/tarantool",
-			headerDst: "./testdata/inc_basic",
+			program:   binary.ProgramTt,
+			binDst:    "../testdata/bin_basic/tarantool",
+			headerDst: "../testdata/inc_basic",
 			isErr:     true,
 		},
 	}
@@ -151,7 +152,7 @@ func TestSearchLatestVersion(t *testing.T) {
 func TestGetAllVersionFormats(t *testing.T) {
 	type testCase struct {
 		name             string
-		program          Program
+		program          binary.Program
 		ttVersion        string
 		expectedVersions []string
 		expectedError    error
@@ -160,28 +161,28 @@ func TestGetAllVersionFormats(t *testing.T) {
 	cases := []testCase{
 		{
 			name:             "without prefix",
-			program:          ProgramTt,
+			program:          binary.ProgramTt,
 			ttVersion:        "1.2.3",
 			expectedVersions: []string{"1.2.3", "v1.2.3"},
 			expectedError:    nil,
 		},
 		{
 			name:             "with prefix",
-			program:          ProgramTt,
+			program:          binary.ProgramTt,
 			ttVersion:        "v1.2.3",
 			expectedVersions: []string{"v1.2.3"},
 			expectedError:    nil,
 		},
 		{
 			name:             "not tt program",
-			program:          ProgramCe,
+			program:          binary.ProgramCe,
 			ttVersion:        "1.2.3",
 			expectedVersions: []string{"1.2.3"},
 			expectedError:    nil,
 		},
 		{
 			name:             "not <major.minor.patch> format",
-			program:          ProgramCe,
+			program:          binary.ProgramCe,
 			ttVersion:        "e902206",
 			expectedVersions: []string{"e902206"},
 			expectedError:    nil,
