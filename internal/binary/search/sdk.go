@@ -1,4 +1,4 @@
-package binary
+package search
 
 import (
 	"errors"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/version"
+	"github.com/tarantool/tt/v3/internal/binary"
 )
 
 var (
@@ -13,13 +14,13 @@ var (
 )
 
 // GetAPIPackage returns the package name at tarantool.io for the given program.
-func GetAPIPackage(program Program) string {
+func GetAPIPackage(program binary.Program) string {
 	switch program {
-	case ProgramEe, ProgramSDK:
+	case binary.ProgramEe, binary.ProgramSDK:
 		return "enterprise"
-	case ProgramTcm:
+	case binary.ProgramTcm:
 		return "tarantool-cluster-manager"
-	case ProgramUnknown, ProgramCe, ProgramTt:
+	case binary.ProgramUnknown, binary.ProgramCe, binary.ProgramTt:
 		// These programs do not have a customer-zone API package name.
 	}
 

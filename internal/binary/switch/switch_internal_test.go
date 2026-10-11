@@ -1,4 +1,4 @@
-package binary
+package switcher
 
 import (
 	"path/filepath"
@@ -8,12 +8,13 @@ import (
 	"github.com/otiai10/copy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/v3/internal/binary"
 )
 
 func TestCleanString(t *testing.T) {
 	testStrings := []string{
-		Bold(color.GreenString("3.0.0")), color.BlueString("2.1.1"),
-		"1.10", Bold("2.1.3"),
+		binary.Bold(color.GreenString("3.0.0")), color.BlueString("2.1.1"),
+		"1.10", binary.Bold("2.1.3"),
 	}
 	expectedStrings := []string{"3.0.0", "2.1.1", "1.10", "2.1.3"}
 
@@ -24,14 +25,14 @@ func TestCleanString(t *testing.T) {
 
 func TestSwitchTarantool(t *testing.T) {
 	tempDir := t.TempDir()
-	err := copy.Copy("./testdata/switch_test", tempDir)
+	err := copy.Copy("../testdata/switch_test", tempDir)
 	require.NoError(t, err)
 
 	var testCtx SwitchCtx
 
 	testCtx.IncDir = filepath.Join(tempDir, "include")
 	testCtx.BinDir = filepath.Join(tempDir, "bin")
-	testCtx.Program, err = ParseProgram("tarantool")
+	testCtx.Program, err = binary.ParseProgram("tarantool")
 	require.NoError(t, err)
 
 	testCtx.Version = "2.10.3"
@@ -40,11 +41,11 @@ func TestSwitchTarantool(t *testing.T) {
 	assert.FileExists(t, filepath.Join(testCtx.BinDir, "tarantool"))
 	assert.FileExists(t, filepath.Join(testCtx.IncDir, "include/tarantool"))
 
-	binLink, err := ResolveSymlink(filepath.Join(testCtx.BinDir, "tarantool"))
+	binLink, err := binary.ResolveSymlink(filepath.Join(testCtx.BinDir, "tarantool"))
 	require.NoError(t, err)
 	assert.Contains(t, binLink, "tarantool_2.10.3")
 
-	incLink, err := ResolveSymlink(filepath.Join(testCtx.IncDir, "include/tarantool"))
+	incLink, err := binary.ResolveSymlink(filepath.Join(testCtx.IncDir, "include/tarantool"))
 	require.NoError(t, err)
 	assert.Contains(t, incLink, "tarantool_2.10.3")
 }
@@ -57,7 +58,7 @@ func TestSwitchUnknownProgram(t *testing.T) {
 
 	testCtx.IncDir = filepath.Join(".", "include")
 	testCtx.BinDir = filepath.Join(".", "bin")
-	testCtx.Program, err = ParseProgram("tarantool-foo")
+	testCtx.Program, err = binary.ParseProgram("tarantool-foo")
 	require.Error(t, err)
 
 	testCtx.Version = "2.10.3"
@@ -73,7 +74,7 @@ func TestSwitchNotInstalledVersion(t *testing.T) {
 
 	testCtx.IncDir = filepath.Join(".", "include")
 	testCtx.BinDir = filepath.Join(".", "bin")
-	testCtx.Program, err = ParseProgram("tarantool")
+	testCtx.Program, err = binary.ParseProgram("tarantool")
 	require.NoError(t, err)
 
 	testCtx.Version = "2.10.3"

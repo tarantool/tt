@@ -1,4 +1,4 @@
-package binary
+package uninstall
 
 import (
 	"errors"
@@ -11,6 +11,7 @@ import (
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/version"
+	"github.com/tarantool/tt/v3/internal/binary"
 )
 
 var (
@@ -35,7 +36,7 @@ var errNotInstalled = errors.New("not installed")
 
 // UninstallCtx contains the options for removing an installed program.
 type UninstallCtx struct {
-	BinaryContext
+	binary.BinaryContext
 
 	Version string
 	BinDir  string
@@ -44,8 +45,8 @@ type UninstallCtx struct {
 
 // remove removes binary/directory and symlinks from directory.
 // It returns true if symlink was removed, error.
-func remove(program Program, programVersion, directory string) (bool, error) {
-	linkPath, err := JoinAbspath(directory, program.Exec())
+func remove(program binary.Program, programVersion, directory string) (bool, error) {
+	linkPath, err := binary.JoinAbspath(directory, program.Exec())
 	if err != nil {
 		return false, err
 	}
@@ -59,7 +60,7 @@ func remove(program Program, programVersion, directory string) (bool, error) {
 
 	fileName := program.String() + version.FsSeparator + programVersion
 
-	path, err := JoinAbspath(directory, fileName)
+	path, err := binary.JoinAbspath(directory, fileName)
 	if err != nil {
 		return false, err
 	}
@@ -95,12 +96,12 @@ func remove(program Program, programVersion, directory string) (bool, error) {
 
 // removeActiveSymlink removes the active link only when it points to the installed path.
 func removeActiveSymlink(linkPath, path string) (bool, error) {
-	resolvedPath, err := ResolveSymlink(linkPath)
+	resolvedPath, err := binary.ResolveSymlink(linkPath)
 	if err != nil && !os.IsNotExist(err) {
 		return false, fmt.Errorf("failed to resolve symlink %q: %w", linkPath, err)
 	}
 
-	installedPath, err := ResolveSymlink(path)
+	installedPath, err := binary.ResolveSymlink(path)
 	if err != nil {
 		return false, fmt.Errorf("failed to resolve installed path %q: %w", path, err)
 	}
@@ -126,8 +127,8 @@ func UninstallProgram(uninstallCtx UninstallCtx) error {
 
 	var err error
 
-	if program == ProgramCe && programVersion == "" {
-		buildPath, err := tarantoolBuildPath(binDst)
+	if program == binary.ProgramCe && programVersion == "" {
+		buildPath, err := binary.TarantoolBuildPath(binDst)
 		if err != nil {
 			return err
 		}
@@ -186,7 +187,7 @@ func UninstallProgram(uninstallCtx UninstallCtx) error {
 
 // uninstallTarantoolFromBuild removes the environment's links, preserving the source build.
 func uninstallTarantoolFromBuild(binDir, includeDir string) error {
-	binaryLink := filepath.Join(binDir, tarantoolName)
+	binaryLink := filepath.Join(binDir, binary.ProgramCe.Exec())
 
 	err := os.Remove(binaryLink)
 	if err != nil {
@@ -196,22 +197,22 @@ func uninstallTarantoolFromBuild(binDir, includeDir string) error {
 	log.Infof("Removing headers...")
 
 	// A local build may have no headers, or its source directory may already be gone.
-	headerLink := filepath.Join(includeDir, tarantoolName)
+	headerLink := filepath.Join(includeDir, binary.ProgramCe.Exec())
 
 	err = os.Remove(headerLink)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("failed to remove headers %q: %w", headerLink, err)
 	}
 
-	return switchProgramToLatestVersion(ProgramCe, binDir, includeDir)
+	return switchProgramToLatestVersion(binary.ProgramCe, binDir, includeDir)
 }
 
 // getAllTtVersionFormats returns all version formats with 'v' prefix and
 // without it before x.y.z version.
-func getAllTtVersionFormats(program Program, ttVersion string) ([]string, error) {
+func getAllTtVersionFormats(program binary.Program, ttVersion string) ([]string, error) {
 	versionsToDelete := []string{ttVersion}
 
-	if program == ProgramTt {
+	if program == binary.ProgramTt {
 		// Need to determine if we have x.y.z format in tt binary uninstall argument
 		// to make sure we add version prefix.
 		versionMatches, err := regexp.MatchString(MajorMinorPatchRegexp, ttVersion)
@@ -228,7 +229,7 @@ func getAllTtVersionFormats(program Program, ttVersion string) ([]string, error)
 }
 
 // getDefault returns a default version of an installed program.
-func getDefault(program Program, dir string) (string, error) {
+func getDefault(program binary.Program, dir string) (string, error) {
 	var ver string
 
 	programRegex := regexp.MustCompile(
@@ -241,7 +242,7 @@ func getDefault(program Program, dir string) (string, error) {
 	}
 
 	for _, file := range installedPrograms {
-		matches := FindNamedMatches(programRegex, file.Name())
+		matches := binary.FindNamedMatches(programRegex, file.Name())
 
 		if ver != "" {
 			return "", fmt.Errorf("%s%wplease specify the version to uninstall",
@@ -275,7 +276,7 @@ func GetList(cliOpts *config.CliOpts, program string) []string {
 	}
 
 	for _, file := range installedPrograms {
-		matches := FindNamedMatches(programRegex, file.Name())
+		matches := binary.FindNamedMatches(programRegex, file.Name())
 		if len(matches) != 0 && matches["prog"] == program {
 			list = append(list, matches["ver"])
 		}
@@ -287,7 +288,7 @@ func GetList(cliOpts *config.CliOpts, program string) []string {
 // searchLatestVersion searches for the latest installed version of the program.
 //
 // Note: Searching Tarantool EE versions may find the latest CE version.
-func searchLatestVersion(program Program, binDst, headerDst string) (string, error) {
+func searchLatestVersion(program binary.Program, binDst, headerDst string) (string, error) {
 	programsToSearch := []string{program.Exec()}
 	if program.IsTarantool() && program.Exec() != program.String() {
 		programsToSearch = append(programsToSearch, program.String())
@@ -308,13 +309,13 @@ func searchLatestVersion(program Program, binDst, headerDst string) (string, err
 		latestHash        string
 	)
 
-	for _, binary := range binaries {
-		if binary.IsDir() {
+	for _, entry := range binaries {
+		if entry.IsDir() {
 			continue
 		}
 
-		binaryName := binary.Name()
-		matches := FindNamedMatches(programRegex, binaryName)
+		binaryName := entry.Name()
+		matches := binary.FindNamedMatches(programRegex, binaryName)
 
 		// Need to match for the program and version.
 		if len(matches) != binaryNameMatchGroups {
@@ -365,8 +366,8 @@ func searchLatestVersion(program Program, binDst, headerDst string) (string, err
 	return latestHash, nil
 }
 
-func isUsableCommitBinary(program Program, headerDst, binaryName, versionStr string) bool {
-	isHash, _ := IsValidCommitHash(versionStr)
+func isUsableCommitBinary(program binary.Program, headerDst, binaryName, versionStr string) bool {
+	isHash, _ := binary.IsValidCommitHash(versionStr)
 	if !isHash {
 		return false
 	}
@@ -382,7 +383,7 @@ func isUsableCommitBinary(program Program, headerDst, binaryName, versionStr str
 }
 
 // switchProgramToLatestVersion switches the active version of the program to the latest installed.
-func switchProgramToLatestVersion(program Program, binDst, headerDst string) error {
+func switchProgramToLatestVersion(program binary.Program, binDst, headerDst string) error {
 	linkName := program.Exec()
 
 	progToSwitch, err := searchLatestVersion(program, binDst, headerDst)
@@ -398,7 +399,7 @@ func switchProgramToLatestVersion(program Program, binDst, headerDst string) err
 
 	binaryPath := filepath.Join(binDst, linkName)
 
-	err = CreateSymlink(filepath.Join(binDst, progToSwitch), binaryPath, true)
+	err = binary.CreateSymlink(filepath.Join(binDst, progToSwitch), binaryPath, true)
 	if err != nil {
 		return err
 	}
@@ -406,7 +407,7 @@ func switchProgramToLatestVersion(program Program, binDst, headerDst string) err
 	if linkName == "tarantool" {
 		headerPath := filepath.Join(headerDst, linkName)
 
-		err = CreateSymlink(filepath.Join(headerDst, progToSwitch), headerPath, true)
+		err = binary.CreateSymlink(filepath.Join(headerDst, progToSwitch), headerPath, true)
 		if err != nil {
 			return err
 		}

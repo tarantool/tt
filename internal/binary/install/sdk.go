@@ -1,4 +1,4 @@
-package binary
+package install
 
 import (
 	"errors"
@@ -8,6 +8,8 @@ import (
 
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/config"
+	"github.com/tarantool/tt/v3/internal/binary"
+	"github.com/tarantool/tt/v3/internal/binary/search"
 	"golang.org/x/sys/unix"
 )
 
@@ -17,22 +19,22 @@ var (
 
 // searchSDKVersionToDownload wrapper to search for SDK bundles.
 func searchSDKVersionToDownload(installCtx InstallCtx, cliOpts *config.CliOpts) (
-	BundleInfo, error,
+	search.BundleInfo, error,
 ) {
 	log.Info("Search for the requested version...")
 
-	searchCtx := NewSearchCtx(NewPlatformInformer(), NewTntIoDoer())
+	searchCtx := search.NewSearchCtx(search.NewPlatformInformer(), search.NewTntIoDoer())
 
 	searchCtx.BinaryContext = installCtx.BinaryContext
-	searchCtx.Filter = SearchAll
+	searchCtx.Filter = search.SearchAll
 	searchCtx.DevBuilds = installCtx.DevBuild
 
-	bundles, err := FetchBundlesInfo(&searchCtx, cliOpts)
+	bundles, err := search.FetchBundlesInfo(&searchCtx, cliOpts)
 	if err != nil {
-		return BundleInfo{}, fmt.Errorf("cannot get SDK bundles list: %w", err)
+		return search.BundleInfo{}, fmt.Errorf("cannot get SDK bundles list: %w", err)
 	}
 
-	return SelectVersion(bundles, installCtx.version)
+	return search.SelectVersion(bundles, installCtx.version)
 }
 
 // DownloadSDK downloads and saves a Tarantool SDK bundle.
@@ -61,7 +63,7 @@ func DownloadSDK(installCtx InstallCtx, cliOpts *config.CliOpts) error {
 
 	_, err = os.Stat(bundlePath)
 	if err == nil {
-		confirmed, err := AskConfirm(os.Stdin, "Confirm overwrite "+bundlePath)
+		confirmed, err := binary.AskConfirm(os.Stdin, "Confirm overwrite "+bundlePath)
 		if err != nil {
 			return err
 		}
@@ -75,8 +77,8 @@ func DownloadSDK(installCtx InstallCtx, cliOpts *config.CliOpts) error {
 
 	log.Infof("Downloading %s...", bundleName)
 
-	searchCtx := NewSearchCtx(
-		NewPlatformInformer(),
+	searchCtx := search.NewSearchCtx(
+		search.NewPlatformInformer(),
 		NewTntIoDownloader(ver.Token),
 	)
 
@@ -84,7 +86,7 @@ func DownloadSDK(installCtx InstallCtx, cliOpts *config.CliOpts) error {
 	searchCtx.DevBuilds = installCtx.DevBuild
 	searchCtx.ReleaseVersion = ver.Release
 
-	bundleSource, err := TntIoMakePkgURI(&searchCtx, bundleName)
+	bundleSource, err := search.TntIoMakePkgURI(&searchCtx, bundleName)
 	if err != nil {
 		return fmt.Errorf("failed to make URI for downloading: %w", err)
 	}

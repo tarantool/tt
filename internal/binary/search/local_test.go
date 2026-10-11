@@ -1,4 +1,4 @@
-package binary_test
+package search_test
 
 import (
 	"errors"
@@ -12,6 +12,7 @@ import (
 	"github.com/tarantool/tt/sdk/log/logtest"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
+	"github.com/tarantool/tt/v3/internal/binary/search"
 )
 
 var (
@@ -248,7 +249,7 @@ func TestFindLocalBundles(t *testing.T) {
 			recorder := recordLog(t)
 
 			mockFS := mockFS{entries: tt.files}
-			bundles, err := binary.FindLocalBundles(tt.program, &mockFS)
+			bundles, err := search.FindLocalBundles(tt.program, &mockFS)
 
 			if tt.errMsg != "" {
 				if err == nil {

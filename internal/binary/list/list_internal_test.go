@@ -1,4 +1,4 @@
-package binary
+package list
 
 import (
 	"os"
@@ -10,13 +10,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/v3/cli/version"
+	"github.com/tarantool/tt/v3/internal/binary"
 )
 
 func TestParseBinaries(t *testing.T) {
-	fileList, err := os.ReadDir("./testdata/bin")
+	fileList, err := os.ReadDir("../testdata/bin")
 	require.NoError(t, err)
 
-	versions, err := ParseBinaries(fileList, ProgramCe, "./testdata/bin")
+	versions, err := ParseBinaries(fileList, binary.ProgramCe, "../testdata/bin")
 	require.NoError(t, err)
 	sort.Stable(sort.Reverse(version.VersionSlice(versions)))
 
@@ -31,11 +32,11 @@ func TestParseBinaries(t *testing.T) {
 func TestParseBinariesWithLocalBuild(t *testing.T) {
 	for _, dir := range []string{"bin", "bin_symlink_broken"} {
 		t.Run(dir, func(t *testing.T) {
-			testDir := "./testdata/tarantool_dev/" + dir
+			testDir := "../testdata/tarantool_dev/" + dir
 			fileList, err := os.ReadDir(testDir)
 			require.NoError(t, err)
 
-			versions, err := ParseBinaries(fileList, ProgramCe, testDir)
+			versions, err := ParseBinaries(fileList, binary.ProgramCe, testDir)
 			require.NoError(t, err)
 
 			// A local build is displayed separately, never offered as a version to switch to.
@@ -52,12 +53,12 @@ func TestParseBinariesWithLocalBuild(t *testing.T) {
 
 func TestParseBinariesNoSymlink(t *testing.T) {
 	tmpDir := t.TempDir()
-	require.NoError(t, copy.Copy("./testdata/no_symlink", tmpDir))
+	require.NoError(t, copy.Copy("../testdata/no_symlink", tmpDir))
 
 	fileList, err := os.ReadDir(tmpDir)
 	require.NoError(t, err)
 
-	versions, err := ParseBinaries(fileList, ProgramCe, tmpDir)
+	versions, err := ParseBinaries(fileList, binary.ProgramCe, tmpDir)
 	require.NoError(t, err)
 	sort.Stable(sort.Reverse(version.VersionSlice(versions)))
 
@@ -68,7 +69,7 @@ func TestParseBinariesNoSymlink(t *testing.T) {
 		assert.Equal(t, expectedSortedVersions[i], versions[i].Str)
 	}
 
-	versions, err = ParseBinaries(fileList, ProgramEe, tmpDir)
+	versions, err = ParseBinaries(fileList, binary.ProgramEe, tmpDir)
 	require.NoError(t, err)
 	sort.Stable(sort.Reverse(version.VersionSlice(versions)))
 
@@ -82,7 +83,7 @@ func TestParseBinariesNoSymlink(t *testing.T) {
 	// Tarantool exists, but not executable.
 	require.NoError(t, os.Chmod(filepath.Join(tmpDir, "tarantool"), 0o440))
 
-	versions, err = ParseBinaries(fileList, ProgramEe, tmpDir)
+	versions, err = ParseBinaries(fileList, binary.ProgramEe, tmpDir)
 	require.NoError(t, err)
 	sort.Stable(sort.Reverse(version.VersionSlice(versions)))
 
@@ -95,6 +96,6 @@ func TestParseBinariesNoSymlink(t *testing.T) {
 
 	require.NoError(t, os.Chmod(filepath.Join(tmpDir, "tarantool"), 0o440))
 
-	_, err = ParseBinaries(fileList, ProgramCe, tmpDir)
+	_, err = ParseBinaries(fileList, binary.ProgramCe, tmpDir)
 	require.ErrorContains(t, err, "failed to get tarantool version")
 }

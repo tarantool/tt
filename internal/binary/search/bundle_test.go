@@ -1,4 +1,4 @@
-package binary_test
+package search_test
 
 import (
 	"os"
@@ -8,6 +8,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
+	"github.com/tarantool/tt/v3/internal/binary/search"
 )
 
 func TestFetchSDKBundleInfo(t *testing.T) {
@@ -22,13 +23,13 @@ func TestFetchSDKBundleInfo(t *testing.T) {
 		content: map[string][]string{"3.4": {tarball}},
 		query:   "enterprise/dev/linux/x86_64",
 	}
-	searchCtx := binary.NewSearchCtx(&platform, &doer)
+	searchCtx := search.NewSearchCtx(&platform, &doer)
 
 	searchCtx.Program = binary.ProgramSDK
-	searchCtx.Filter = binary.SearchAll
+	searchCtx.Filter = search.SearchAll
 	searchCtx.DevBuilds = true
 
-	bundles, err := binary.FetchBundlesInfo(&searchCtx, &config.CliOpts{})
+	bundles, err := search.FetchBundlesInfo(&searchCtx, &config.CliOpts{})
 	require.NoError(t, err)
 	require.Len(t, bundles, 1)
 	require.Equal(t, "gc64-3.4.0-0-r60", bundles[0].Version.Str)
@@ -36,9 +37,9 @@ func TestFetchSDKBundleInfo(t *testing.T) {
 
 	searchCtx.ReleaseVersion = bundles[0].Release
 
-	uri, err := binary.TntIoMakePkgURI(&searchCtx, bundles[0].Version.Tarball)
+	uri, err := search.TntIoMakePkgURI(&searchCtx, bundles[0].Version.Tarball)
 	require.NoError(t, err)
-	require.Equal(t, binary.PkgURI+"/enterprise/dev/linux/x86_64/3.4/"+tarball, uri)
+	require.Equal(t, search.PkgURI+"/enterprise/dev/linux/x86_64/3.4/"+tarball, uri)
 }
 
 func TestFetchBundlesInfo(t *testing.T) {
@@ -59,7 +60,7 @@ func TestFetchBundlesInfo(t *testing.T) {
 		specificVersion string
 		searchDebug     bool // Applied for tarantool EE binary.
 		expectedQuery   string
-		expectedBundles binary.BundleInfoSlice
+		expectedBundles search.BundleInfoSlice
 		errMsg          string
 	}{
 		// spell-checker:disable
@@ -77,7 +78,7 @@ func TestFetchBundlesInfo(t *testing.T) {
 				},
 			},
 			expectedQuery: "tarantool-cluster-manager/release/linux/amd64",
-			expectedBundles: binary.BundleInfoSlice{
+			expectedBundles: search.BundleInfoSlice{
 				{
 					Package: "tarantool-cluster-manager",
 					Release: "1.2",
@@ -151,7 +152,7 @@ func TestFetchBundlesInfo(t *testing.T) {
 				},
 			},
 			expectedQuery: "enterprise/release/macos/aarch64/3.2",
-			expectedBundles: binary.BundleInfoSlice{
+			expectedBundles: search.BundleInfoSlice{
 				{
 					Package: "enterprise",
 					Release: "3.2",
@@ -217,16 +218,16 @@ func TestFetchBundlesInfo(t *testing.T) {
 				query:   tt.expectedQuery,
 			}
 
-			sCtx := binary.NewSearchCtx(&tt.platform, &mockDoer)
+			sCtx := search.NewSearchCtx(&tt.platform, &mockDoer)
 
 			sCtx.Program = tt.program
 			sCtx.ReleaseVersion = tt.specificVersion
 
 			if tt.searchDebug {
-				sCtx.Filter = binary.SearchDebug
+				sCtx.Filter = search.SearchDebug
 			}
 
-			bundles, err := binary.FetchBundlesInfo(&sCtx, &opts)
+			bundles, err := search.FetchBundlesInfo(&sCtx, &opts)
 
 			if tt.errMsg != "" {
 				require.Error(t, err, "Expected an error, but got nil")
@@ -246,13 +247,13 @@ func TestFetchBundlesInfo(t *testing.T) {
 
 func TestSelectVersion(t *testing.T) {
 	tests := map[string]struct {
-		bs     binary.BundleInfoSlice
+		bs     search.BundleInfoSlice
 		ver    string
 		want   string
 		errMsg string
 	}{
 		"single version": {
-			bs: binary.BundleInfoSlice{
+			bs: search.BundleInfoSlice{
 				{Version: version.Version{Str: "1.0.0"}},
 			},
 			ver:  "1.0.0",
@@ -260,7 +261,7 @@ func TestSelectVersion(t *testing.T) {
 		},
 
 		"multiple version": {
-			bs: binary.BundleInfoSlice{
+			bs: search.BundleInfoSlice{
 				{Version: version.Version{Str: "1.0.0"}},
 				{Version: version.Version{Str: "2.0.0"}},
 				{Version: version.Version{Str: "3.0.0"}},
@@ -270,7 +271,7 @@ func TestSelectVersion(t *testing.T) {
 		},
 
 		"non existent version": {
-			bs: binary.BundleInfoSlice{
+			bs: search.BundleInfoSlice{
 				{Version: version.Version{Str: "1.0.0"}},
 				{Version: version.Version{Str: "2.0.0"}},
 			},
@@ -279,7 +280,7 @@ func TestSelectVersion(t *testing.T) {
 		},
 
 		"empty bundle": {
-			bs:     binary.BundleInfoSlice{},
+			bs:     search.BundleInfoSlice{},
 			ver:    "1.0.0",
 			errMsg: "no available versions",
 		},
@@ -291,7 +292,7 @@ func TestSelectVersion(t *testing.T) {
 		},
 
 		"get last version": {
-			bs: binary.BundleInfoSlice{
+			bs: search.BundleInfoSlice{
 				{Version: version.Version{Str: "1.0.0"}},
 				{Version: version.Version{Str: "2.0.0"}},
 				{Version: version.Version{Str: "3.0.0"}},
@@ -302,7 +303,7 @@ func TestSelectVersion(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			got, err := binary.SelectVersion(tt.bs, tt.ver)
+			got, err := search.SelectVersion(tt.bs, tt.ver)
 			if tt.errMsg != "" {
 				require.ErrorContains(t, err, tt.errMsg,
 					"Expected error message does not match")
