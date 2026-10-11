@@ -399,7 +399,7 @@ func acquireBundleInfoToInstall(params *bundleParams) error {
 	} else {
 		searchCtx := NewSearchCtx(NewPlatformInformer(), NewTntIoDoer())
 
-		searchCtx.Program = params.inst.Program
+		searchCtx.BinaryContext = params.inst.BinaryContext
 		searchCtx.Filter = SearchAll
 		searchCtx.Package = GetAPIPackage(params.inst.Program)
 		searchCtx.DevBuilds = params.inst.DevBuild

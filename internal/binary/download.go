@@ -16,7 +16,10 @@ var (
 	errCurrentDirectoryUnavailable = errors.New("can't get current dir: ")
 )
 
+// DownloadCtx contains the options for downloading a Tarantool SDK bundle.
 type DownloadCtx struct {
+	BinaryContext
+
 	// Version of SDK to download.
 	Version string
 	// Path where the sdk will be saved.
@@ -33,6 +36,7 @@ func searchSDKVersionToDownload(downloadCtx DownloadCtx, cliOpts *config.CliOpts
 
 	searchCtx := NewSearchCtx(NewPlatformInformer(), NewTntIoDoer())
 
+	searchCtx.BinaryContext = downloadCtx.BinaryContext
 	searchCtx.Program = ProgramEe
 	searchCtx.Filter = SearchAll
 	searchCtx.Package = "enterprise"
@@ -46,7 +50,7 @@ func searchSDKVersionToDownload(downloadCtx DownloadCtx, cliOpts *config.CliOpts
 	return SelectVersion(bundles, downloadCtx.Version)
 }
 
-// DownloadSDK Downloads and saves the SDK.
+// DownloadSDK downloads and saves a Tarantool SDK bundle.
 func DownloadSDK(cmdCtx *cmdcontext.CmdCtx, downloadCtx DownloadCtx,
 	cliOpts *config.CliOpts,
 ) error {
@@ -93,6 +97,7 @@ func DownloadSDK(cmdCtx *cmdcontext.CmdCtx, downloadCtx DownloadCtx,
 		NewTntIoDownloader(ver.Token),
 	)
 
+	searchCtx.BinaryContext = downloadCtx.BinaryContext
 	searchCtx.Program = ProgramEe
 	searchCtx.DevBuilds = downloadCtx.DevBuild
 	searchCtx.ReleaseVersion = ver.Release

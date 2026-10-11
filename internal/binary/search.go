@@ -26,6 +26,12 @@ const (
 
 // SearchCtx contains information for programs searching.
 type SearchCtx struct {
+	BinaryContext
+
+	// Local searches the configured local repository.
+	Local bool
+	// Debug includes debug builds instead of release builds.
+	Debug bool
 	// Filter out which builds of tarantool-ee must be included in the result of search.
 	Filter SearchFlags
 	// What package to look for.
@@ -33,8 +39,6 @@ type SearchCtx struct {
 	Package string
 	// Release version to look for.
 	ReleaseVersion string
-	// Program type of program to search for.
-	Program Program
 	// Search for development builds.
 	DevBuilds bool
 	// TntIoDoer tarantool.io API handler with interface of TntIoDoer.
@@ -45,15 +49,13 @@ type SearchCtx struct {
 
 // NewSearchCtx creates a new SearchCtx with default production values.
 func NewSearchCtx(informer PlatformInformer, doer TntIoDoer) SearchCtx {
-	return SearchCtx{
-		Filter:           SearchRelease,
-		Package:          "",
-		ReleaseVersion:   "",
-		Program:          ProgramUnknown,
-		DevBuilds:        false,
-		TntIoDoer:        doer,
-		platformInformer: informer,
-	}
+	var searchCtx SearchCtx
+
+	searchCtx.Filter = SearchRelease
+	searchCtx.TntIoDoer = doer
+	searchCtx.platformInformer = informer
+
+	return searchCtx
 }
 
 // printVersion prints the version and labels:
