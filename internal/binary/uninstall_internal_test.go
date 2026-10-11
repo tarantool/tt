@@ -91,7 +91,7 @@ func TestSearchLatestVersion(t *testing.T) {
 			expectedVer: "tarantool-ee_2.8.4-0-r510",
 		},
 		{
-			name:        "tarantool-dev",
+			name:        "local build",
 			program:     ProgramCe,
 			binDst:      "./testdata/bin_dev",
 			headerDst:   "./testdata/inc_basic",

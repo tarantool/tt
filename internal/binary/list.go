@@ -38,6 +38,27 @@ func printInstalledVersion(versionString string) {
 	}
 }
 
+// activeBinaryName resolves the active version's filename, excluding linked local builds.
+func activeBinaryName(program Program, programPath, binDir string) (string, error) {
+	if program.IsTarantool() {
+		buildPath, err := tarantoolBuildPath(binDir)
+		if err != nil {
+			return "", err
+		}
+
+		if buildPath != "" {
+			return "", nil
+		}
+	}
+
+	activePath, err := ResolveSymlink(programPath)
+	if err != nil && !os.IsNotExist(err) {
+		return "", err
+	}
+
+	return filepath.Base(activePath), nil
+}
+
 // ParseBinaries seeks through fileList returning array of found versions of program.
 func ParseBinaries(fileList []fs.DirEntry, program Program,
 	binDir string,
@@ -52,21 +73,6 @@ func ParseBinaries(fileList []fs.DirEntry, program Program,
 	fileInfo, err := os.Lstat(programPath)
 	if err == nil {
 		switch {
-		case program == ProgramDev &&
-			fileInfo.Mode()&os.ModeSymlink == os.ModeSymlink:
-			binActive, isTarantoolBinary, err := IsTarantoolDev(programPath, binDir)
-			if err != nil {
-				return binaryVersions, err
-			}
-
-			if isTarantoolBinary {
-				var activeVersion version.Version
-
-				activeVersion.Str = program.String() + " -> " + binActive + " [active]"
-				binaryVersions = append(binaryVersions, activeVersion)
-			}
-
-			return binaryVersions, nil
 		case program == ProgramCe && fileInfo.Mode()&os.ModeSymlink == 0:
 			tntCli := cmdcontext.TarantoolCli{Executable: programPath}
 
@@ -79,12 +85,10 @@ func ParseBinaries(fileList []fs.DirEntry, program Program,
 
 			binaryVersions = append(binaryVersions, binaryVersion)
 		default:
-			binActive, err = ResolveSymlink(programPath)
-			if err != nil && !os.IsNotExist(err) {
+			binActive, err = activeBinaryName(program, programPath, binDir)
+			if err != nil {
 				return binaryVersions, err
 			}
-
-			binActive = filepath.Base(binActive)
 		}
 	}
 
@@ -133,10 +137,14 @@ func ListBinaries(listCtx ListCtx) error {
 		return fmt.Errorf("error reading directory %q: %w", binDir, err)
 	}
 
+	buildPath, err := tarantoolBuildPath(binDir)
+	if err != nil {
+		return err
+	}
+
 	programs := [...]Program{
 		ProgramTt,
 		ProgramCe,
-		ProgramDev,
 		ProgramEe,
 		ProgramTcm,
 	}
@@ -149,12 +157,17 @@ func ListBinaries(listCtx ListCtx) error {
 			return err
 		}
 
-		if len(binaryVersions) > 0 {
+		isLocalBuild := program == ProgramCe && buildPath != ""
+		if len(binaryVersions) > 0 || isLocalBuild {
 			sort.Stable(sort.Reverse(version.VersionSlice(binaryVersions)))
 			log.Infof(program.String() + ":")
 
 			for _, binVersion := range binaryVersions {
 				printInstalledVersion(binVersion.Str)
+			}
+
+			if isLocalBuild {
+				printInstalledVersion(program.String() + " -> " + buildPath + " [active]")
 			}
 		}
 	}

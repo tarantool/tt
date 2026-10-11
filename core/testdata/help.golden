@@ -149,7 +149,6 @@ Install a program
 [0;1;39m
 COMMANDS[0m
   tarantool     Install Tarantool Community Edition
-  tarantool-dev Install Tarantool from a local build directory
   tarantool-ee  Install Tarantool Enterprise Edition
   tarantool-sdk Download a Tarantool SDK bundle
   tcm           Install Tarantool Cluster Manager
@@ -188,30 +187,12 @@ Install Tarantool Community Edition
   tt binary install tarantool [version|commit|pull-request] [flags]
 [0;1;39m
 FLAGS[0m
-      --dynamic      Build Tarantool with dynamic linking
-  -h, --help         help for tarantool
-      --use-docker   Build Tarantool in an Ubuntu 18.04 Docker container
-[0;1;39m
-GLOBAL FLAGS[0m
-      --destination string   Directory to save SDK bundles (default: current
-                             directory)
-  -f, --force                Skip dependency checks
-      --local-repo           Install from the local repository
-      --no-clean             Keep temporary files
-      --reinstall            Reinstall an existing version
-  -V, --verbose              Show diagnostic output and build commands
-
-=== tt binary install tarantool-dev --help
-Install Tarantool from a local build directory
-
-[0;1;39mUSAGE[0m
-  tt binary install tarantool-dev <directory> [flags]
-
-  tt binary install tarantool-dev <directory> [flags]
-[0;1;39m
-FLAGS[0m
-  -h, --help                 help for tarantool-dev
-      --include-dir string   Path to the Tarantool headers directory
+      --dynamic              Build Tarantool with dynamic linking
+      --from-build string    Link Tarantool from an existing build directory
+  -h, --help                 help for tarantool
+      --include-dir string   Path to the Tarantool headers directory (requires
+                             --from-build)
+      --use-docker           Build Tarantool in an Ubuntu 18.04 Docker container
 [0;1;39m
 GLOBAL FLAGS[0m
       --destination string   Directory to save SDK bundles (default: current
@@ -223,10 +204,15 @@ GLOBAL FLAGS[0m
   -V, --verbose              Show diagnostic output and build commands
 [0;1;39m
 EXAMPLES[0m
-  # Build and install Tarantool from a local source tree.
-  $ make -j16 -C ~/src/tarantool/build
-  $ tt binary install tarantool-dev ~/src/tarantool/build
-  $ tt binary list
+  # Build and install Tarantool from the local repository.
+  $ tt binary install tarantool --local-repo
+
+  # Link an existing Tarantool build into the environment.
+  $ tt binary install tarantool --from-build ~/src/tarantool/build
+
+  # Use headers from a custom directory.
+  $ tt binary install tarantool --from-build ~/src/tarantool/build \
+      --include-dir ~/src/tarantool/include
 
 === tt binary install tarantool-ee --help
 Install Tarantool Enterprise Edition
@@ -463,11 +449,10 @@ Uninstall a program
   tt binary uninstall [flags] <command> [command flags]
 [0;1;39m
 COMMANDS[0m
-  tarantool     Uninstall Tarantool Community Edition
-  tarantool-dev Uninstall Tarantool from a local build directory
-  tarantool-ee  Uninstall Tarantool Enterprise Edition
-  tcm           Uninstall Tarantool Cluster Manager
-  tt            Uninstall tt
+  tarantool    Uninstall Tarantool Community Edition
+  tarantool-ee Uninstall Tarantool Enterprise Edition
+  tcm          Uninstall Tarantool Cluster Manager
+  tt           Uninstall tt
 [0;1;39m
 FLAGS[0m
   -h, --help   help for uninstall
@@ -482,7 +467,9 @@ EXAMPLES[0m
 Use "tt binary uninstall <command> --help" for more information about a command.
 
 === tt binary uninstall tarantool --help
-Uninstall Tarantool Community Edition
+Uninstall a Tarantool version.
+Without a version, unlink the active local build or uninstall the only installed
+version.
 
 [0;1;39mUSAGE[0m
   tt binary uninstall tarantool [version] [flags]
@@ -491,20 +478,6 @@ Uninstall Tarantool Community Edition
 [0;1;39m
 FLAGS[0m
   -h, --help   help for tarantool
-[0;1;39m
-GLOBAL FLAGS[0m
-  -V, --verbose   Show diagnostic output and build commands
-
-=== tt binary uninstall tarantool-dev --help
-Uninstall Tarantool from a local build directory
-
-[0;1;39mUSAGE[0m
-  tt binary uninstall tarantool-dev [flags]
-
-  tt binary uninstall tarantool-dev [flags]
-[0;1;39m
-FLAGS[0m
-  -h, --help   help for tarantool-dev
 [0;1;39m
 GLOBAL FLAGS[0m
   -V, --verbose   Show diagnostic output and build commands

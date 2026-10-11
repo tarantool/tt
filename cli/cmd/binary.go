@@ -19,6 +19,8 @@ var (
 	errToDownloadTarantoolSDKYouNeedToSpecifyTheVersion = errors.New(
 		"to download Tarantool SDK, you need to specify the version",
 	)
+	errFromBuildDirectoryRequired = errors.New("--from-build requires a non-empty directory")
+	errIncludeDirWithoutFromBuild = errors.New("--include-dir requires --from-build")
 )
 
 var binarySupportedPrograms = []string{
@@ -88,14 +90,15 @@ func newBinaryInstallCmd(base *binary.BinaryContext,
 	installCmd.PersistentFlags().StringVar(&installCtx.Destination, "destination", "",
 		"Directory to save SDK bundles (default: current directory)")
 
+	tarantoolCmd := newInstallTarantoolCmd(base, installCtx)
 	installCmd.AddCommand(
 		newInstallTtCmd(base, installCtx),
-		newInstallTarantoolCmd(base, installCtx),
+		tarantoolCmd,
 		newInstallTarantoolEeCmd(base, installCtx),
-		newInstallTarantoolDevCmd(base, installCtx),
 		newInstallTcmCmd(base, installCtx),
 		newInstallTarantoolSDKCmd(base, installCtx),
 	)
+	tarantoolCmd.MarkFlagsMutuallyExclusive("from-build", "local-repo")
 
 	return installCmd
 }
@@ -121,14 +124,43 @@ func newInstallTarantoolCmd(base *binary.BinaryContext,
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramCe.String() + " [version|commit|pull-request]",
 		Short: "Install Tarantool Community Edition",
-		RunE:  binaryRunE(base, installCtx, internalInstallModule),
-		Args:  cobra.MaximumNArgs(1),
+		Example: `# Build and install Tarantool from the local repository.
+  $ tt binary install tarantool --local-repo
+
+  # Link an existing Tarantool build into the environment.
+  $ tt binary install tarantool --from-build ~/src/tarantool/build
+
+  # Use headers from a custom directory.
+  $ tt binary install tarantool --from-build ~/src/tarantool/build \
+      --include-dir ~/src/tarantool/include`,
+		RunE: binaryRunE(base, installCtx, internalInstallModule),
+		Args: func(cmd *cobra.Command, args []string) error {
+			if cmd.Flags().Changed("from-build") {
+				if installCtx.FromBuild == "" {
+					return errFromBuildDirectoryRequired
+				}
+
+				return cobra.ExactArgs(0)(cmd, args)
+			}
+
+			if cmd.Flags().Changed("include-dir") {
+				return errIncludeDirWithoutFromBuild
+			}
+
+			return cobra.MaximumNArgs(1)(cmd, args)
+		},
 	}
 
 	tntCmd.Flags().BoolVar(&installCtx.BuildInDocker, "use-docker", false,
 		"Build Tarantool in an Ubuntu 18.04 Docker container")
 	tntCmd.Flags().BoolVar(&installCtx.Dynamic, "dynamic", false,
 		"Build Tarantool with dynamic linking")
+	tntCmd.Flags().StringVar(&installCtx.FromBuild, "from-build", "",
+		"Link Tarantool from an existing build directory")
+	tntCmd.Flags().StringVar(&installCtx.IncDir, "include-dir", "",
+		"Path to the Tarantool headers directory (requires --from-build)")
+	tntCmd.MarkFlagsMutuallyExclusive("from-build", "use-docker")
+	tntCmd.MarkFlagsMutuallyExclusive("from-build", "dynamic")
 
 	return tntCmd
 }
@@ -145,28 +177,6 @@ func newInstallTarantoolEeCmd(base *binary.BinaryContext,
 	}
 
 	tntCmd.Flags().BoolVar(&installCtx.DevBuild, "dev", false, "Install a development build")
-
-	return tntCmd
-}
-
-// newInstallTarantoolDevCmd creates a command to install tarantool
-// from the local build directory.
-func newInstallTarantoolDevCmd(base *binary.BinaryContext,
-	installCtx *binary.InstallCtx,
-) *cobra.Command {
-	tntCmd := &cobra.Command{
-		Use:   "tarantool-dev <directory>",
-		Short: "Install Tarantool from a local build directory",
-		Example: `# Build and install Tarantool from a local source tree.
-  $ make -j16 -C ~/src/tarantool/build
-  $ tt binary install tarantool-dev ~/src/tarantool/build
-  $ tt binary list`,
-		RunE: binaryRunE(base, installCtx, internalInstallModule),
-		Args: cobra.ExactArgs(1),
-	}
-
-	tntCmd.Flags().StringVar(&installCtx.IncDir, "include-dir", "",
-		"Path to the Tarantool headers directory")
 
 	return tntCmd
 }
@@ -254,7 +264,6 @@ func newBinaryUninstallCmd(base *binary.BinaryContext,
 		newUninstallTtCmd(base, uninstallCtx),
 		newUninstallTarantoolCmd(base, uninstallCtx),
 		newUninstallTarantoolEeCmd(base, uninstallCtx),
-		newUninstallTarantoolDevCmd(base, uninstallCtx),
 		newUninstallTcmCmd(base, uninstallCtx),
 	)
 
@@ -294,8 +303,10 @@ func newUninstallTarantoolCmd(base *binary.BinaryContext,
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramCe.String() + " [version]",
 		Short: "Uninstall Tarantool Community Edition",
-		RunE:  binaryRunE(base, uninstallCtx, internalUninstallModule),
-		Args:  cobra.MaximumNArgs(1),
+		Long: `Uninstall a Tarantool version.
+Without a version, unlink the active local build or uninstall the only installed version.`,
+		RunE: binaryRunE(base, uninstallCtx, internalUninstallModule),
+		Args: cobra.MaximumNArgs(1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
@@ -334,20 +345,6 @@ func newUninstallTarantoolEeCmd(base *binary.BinaryContext,
 			return binary.GetList(cliOpts, cmd.Name()),
 				cobra.ShellCompDirectiveNoFileComp
 		},
-	}
-
-	return tntCmd
-}
-
-// newUninstallTarantoolDevCmd creates a command to uninstall tarantool-dev.
-func newUninstallTarantoolDevCmd(base *binary.BinaryContext,
-	uninstallCtx *binary.UninstallCtx,
-) *cobra.Command {
-	tntCmd := &cobra.Command{
-		Use:   "tarantool-dev",
-		Short: "Uninstall Tarantool from a local build directory",
-		RunE:  binaryRunE(base, uninstallCtx, internalUninstallModule),
-		Args:  cobra.ExactArgs(0),
 	}
 
 	return tntCmd

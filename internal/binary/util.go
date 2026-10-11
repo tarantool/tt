@@ -138,7 +138,7 @@ func CreateDirectory(dirName string, fileMode os.FileMode) error {
 // CreateSymlink creates newName as a symbolic link to oldName. Overwrites existing if overwrite
 // flag is set.
 func CreateSymlink(oldName, newName string, overwrite bool) error {
-	_, err := os.Stat(newName)
+	_, err := os.Lstat(newName)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("symbolic link cannot be created: %w", err)
 	}

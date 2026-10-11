@@ -104,10 +104,9 @@ type InstallCtx struct {
 	version string
 	// Dynamic flag enables dynamic linking.
 	Dynamic bool
-	// buildDir is the directory, where the tarantool executable is searched,
-	// in case of installation from the local build directory.
-	buildDir string
-	// IncDir is the directory, where the tarantool headers are located for development install.
+	// FromBuild is an existing Tarantool build directory to link into the environment.
+	FromBuild string
+	// IncDir is the directory, where the Tarantool headers are located for a local build.
 	// Or the directory, where the headers should be installed from a bundle.
 	IncDir string
 	// Install development build.
@@ -143,18 +142,42 @@ var (
 	VersionIDRe = regexp.MustCompile(`^VERSION_ID=(.*)$`)
 )
 
-// IsTarantoolDev returns true if tarantoolBinarySymlink is `tarantool-dev` version.
-func IsTarantoolDev(tarantoolBinarySymlink, binDir string) (string, bool, error) {
-	bin, err := os.Readlink(tarantoolBinarySymlink)
+// tarantoolBuildPath returns the executable path of a linked local build, or an
+// empty string when Tarantool is not a symlink pointing outside binDir.
+// It also recognizes dangling links so that removed builds can be listed and unlinked.
+func tarantoolBuildPath(binDir string) (string, error) {
+	binDir, err := filepath.Abs(binDir)
 	if err != nil {
-		return "", false, fmt.Errorf("failed to read symlink: %w", err)
+		return "", fmt.Errorf("failed to get absolute path: %w", err)
+	}
+
+	link := filepath.Join(binDir, tarantoolName)
+	info, err := os.Lstat(link)
+
+	if errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	} else if err != nil {
+		return "", fmt.Errorf("failed to access %q: %w", link, err)
+	}
+
+	if info.Mode()&os.ModeSymlink == 0 {
+		return "", nil
+	}
+
+	bin, err := os.Readlink(link)
+	if err != nil {
+		return "", fmt.Errorf("failed to read symlink: %w", err)
 	}
 
 	if !filepath.IsAbs(bin) {
 		bin = filepath.Join(binDir, bin)
 	}
 
-	return bin, filepath.Dir(bin) != binDir, nil
+	if filepath.Dir(bin) == binDir {
+		return "", nil
+	}
+
+	return bin, nil
 }
 
 // getDistroInfo collects info about linux distro.
@@ -350,7 +373,7 @@ func programDependenciesInstalled(program Program) error {
 
 			return nil
 		}
-	case ProgramUnknown, ProgramEe, ProgramDev, ProgramTcm, ProgramSDK:
+	case ProgramUnknown, ProgramEe, ProgramTcm, ProgramSDK:
 		// These programs have no source-build dependency checks.
 	}
 
@@ -1285,6 +1308,10 @@ func installTarantool(installCtx InstallCtx, cliOpts *config.CliOpts) error {
 		return err
 	}
 
+	if installCtx.FromBuild != "" {
+		return installTarantoolFromBuild(installCtx, cliOpts)
+	}
+
 	return installTarantoolFromSource(installCtx, cliOpts)
 }
 
@@ -1481,7 +1508,7 @@ func isUpdatePossible(installCtx InstallCtx,
 		}
 
 		curBinHash = ttVer.Hash
-	case ProgramUnknown, ProgramEe, ProgramDev, ProgramTcm, ProgramSDK:
+	case ProgramUnknown, ProgramEe, ProgramTcm, ProgramSDK:
 		// Current callers only pass Tarantool CE or tt.
 	}
 
@@ -1526,14 +1553,14 @@ func searchTarantoolHeaders(buildDir, includeDir string) (string, error) {
 	return "", nil
 }
 
-// installTarantoolDev links Tarantool from a local build directory.
-func installTarantoolDev(installCtx InstallCtx, cliOpts *config.CliOpts) error {
+// installTarantoolFromBuild links Tarantool from a local build directory.
+func installTarantoolFromBuild(installCtx InstallCtx, cliOpts *config.CliOpts) error {
 	ttBinDir := cliOpts.Env.BinDir
 	ttIncludeDir := filepath.Join(cliOpts.Env.IncludeDir, "include")
 	includeDir := installCtx.IncDir
 
 	// Validate build directory.
-	buildDir, err := filepath.Abs(installCtx.buildDir)
+	buildDir, err := filepath.Abs(installCtx.FromBuild)
 	if err != nil {
 		return fmt.Errorf("failed to get absolute path: %w", err)
 	}
@@ -1639,13 +1666,6 @@ func Install(installCtx InstallCtx, cliOpts *config.CliOpts) error {
 		return installTarantool(installCtx, cliOpts)
 	case ProgramEe, ProgramTcm:
 		return installBundleProgram(installCtx, cliOpts)
-	case ProgramDev:
-		err := prepareInstallDirs(&installCtx, cliOpts)
-		if err != nil {
-			return err
-		}
-
-		return installTarantoolDev(installCtx, cliOpts)
 	case ProgramSDK:
 		return DownloadSDK(installCtx, cliOpts)
 	default:
@@ -1660,7 +1680,7 @@ func prepareInstallDirs(installCtx *InstallCtx, cliOpts *config.CliOpts) error {
 		return err
 	}
 
-	if installCtx.IncDir == "" && installCtx.Program != ProgramDev {
+	if installCtx.IncDir == "" && installCtx.FromBuild == "" {
 		installCtx.IncDir = filepath.Join(cliOpts.Env.IncludeDir, "include")
 	}
 
@@ -1704,11 +1724,6 @@ func FillCtx(cmdCtx *cmdcontext.CmdCtx, installCtx *InstallCtx, args []string) e
 
 	installCtx.Verbose = installCtx.Verbose || cmdCtx.Cli.Verbose
 	installCtx.skipMasterUpdate = cmdCtx.Cli.NoPrompt
-
-	if installCtx.Program == ProgramDev {
-		installCtx.buildDir = args[0]
-		return nil
-	}
 
 	if len(args) == 1 {
 		installCtx.version = args[0]

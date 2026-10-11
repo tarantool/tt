@@ -2,6 +2,8 @@ import re
 from pathlib import Path
 from shutil import copyfile, copytree
 
+import pytest
+
 from utils import config_name, run_command_and_get_output
 
 DATA_DIR = Path(__file__).parent / "testdata"
@@ -65,19 +67,26 @@ def test_list_empty_directory(tt_cmd, tmp_path):
     assert "there are no binaries installed in this environment of 'tt'" in output
 
 
-def test_list_tarantool_dev(tt_cmd, tmp_path):
+@pytest.mark.parametrize("broken", [False, True])
+@pytest.mark.parametrize("with_versions", [False, True])
+def test_list_tarantool_from_build(tt_cmd, tmp_path, broken, with_versions):
     # Copy the test dir to the "run" directory.
     copytree(DATA_DIR / "tarantool_dev", tmp_path, symlinks=True, dirs_exist_ok=True)
 
+    if broken:
+        (tmp_path / "tarantool").unlink()
+    if not with_versions:
+        for binary in (tmp_path / "bin").glob("tarantool_*"):
+            binary.unlink()
+
     rc, output = run_command_and_get_output([tt_cmd, "binary", "list"], cwd=tmp_path)
 
-    expected_output = f"""List of installed binaries:
+    expected_output = """List of installed binaries:
    • tarantool:
-    2.10.7
-    1.10.0
-   • tarantool-dev:
-    tarantool-dev -> {tmp_path}/tarantool [active]
 """
+    if with_versions:
+        expected_output += "    2.10.7\n    1.10.0\n"
+    expected_output += f"    tarantool -> {tmp_path}/tarantool [active]\n"
     assert rc == 0
     assert compare_output(output, expected_output)
 
