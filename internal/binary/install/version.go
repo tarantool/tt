@@ -11,7 +11,6 @@ import (
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
-	"github.com/tarantool/tt/v3/internal/binary/search"
 )
 
 var (
@@ -51,7 +50,7 @@ func newResolvedInstallVersion(requested string) resolvedInstallVersion {
 func matchRequestedInstallVersion(result resolvedInstallVersion, installCtx InstallCtx,
 	distfiles, programName, repo string,
 ) (resolvedInstallVersion, error) {
-	if !version.IsVersion(result.version, false) {
+	if !version.IsVersion(result.version) {
 		return result, nil
 	}
 
@@ -64,8 +63,7 @@ func matchRequestedInstallVersion(result resolvedInstallVersion, installCtx Inst
 
 	match, err := version.MatchVersion(result.version, versions)
 	if err != nil {
-		_, isNotFound := errors.AsType[version.NotFoundError](err)
-		if !isNotFound {
+		if !errors.Is(err, version.ErrNotFound) {
 			return resolvedInstallVersion{}, err
 		}
 
@@ -121,7 +119,7 @@ func resolveTtInstallVersion(installCtx InstallCtx, distfiles string) (
 	if result.version == "" {
 		log.Infof("Getting latest tt version...")
 
-		versions, err := getVersionsFromRepo(installCtx.Local, distfiles, "tt", search.GitRepoTT)
+		versions, err := getVersionsFromRepo(installCtx.Local, distfiles, "tt", binary.ProgramTt.GitRepo())
 		if err != nil {
 			return resolvedInstallVersion{}, err
 		}
@@ -137,7 +135,7 @@ func resolveTtInstallVersion(installCtx InstallCtx, distfiles string) (
 	var err error
 
 	result, err = resolveRequestedInstallVersion(
-		result, installCtx, distfiles, "tt", search.GitRepoTT)
+		result, installCtx, distfiles, "tt", binary.ProgramTt.GitRepo())
 	if err != nil {
 		return resolvedInstallVersion{}, err
 	}
@@ -166,7 +164,7 @@ func resolveTarantoolInstallVersion(installCtx InstallCtx, distfiles string) (
 		log.Infof("Getting latest tarantool version...")
 
 		versions, err := getVersionsFromRepo(
-			installCtx.Local, distfiles, "tarantool", search.GitRepoTarantool)
+			installCtx.Local, distfiles, "tarantool", binary.ProgramCe.GitRepo())
 		if err != nil {
 			return resolvedInstallVersion{}, err
 		}
@@ -180,7 +178,7 @@ func resolveTarantoolInstallVersion(installCtx InstallCtx, distfiles string) (
 	var err error
 
 	result, err = resolveRequestedInstallVersion(
-		result, installCtx, distfiles, "tarantool", search.GitRepoTarantool)
+		result, installCtx, distfiles, "tarantool", binary.ProgramCe.GitRepo())
 	if err != nil {
 		return resolvedInstallVersion{}, err
 	}

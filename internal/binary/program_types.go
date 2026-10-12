@@ -42,6 +42,12 @@ var programToString = map[Program]string{
 	ProgramSDK: "tarantool-sdk",
 }
 
+// programToGitRepo contains source repository URLs for programs built from Git.
+var programToGitRepo = map[Program]string{
+	ProgramCe: "https://github.com/tarantool/tarantool.git",
+	ProgramTt: "https://github.com/tarantool/tt.git",
+}
+
 // stringToProgram contains the reverse mapping for efficient lookup.
 var stringToProgram = func() map[string]Program {
 	result := make(map[string]Program, len(programToString))
@@ -77,6 +83,11 @@ func (p Program) Exec() string {
 	}
 
 	return fmt.Sprintf("unknown(%d)", p)
+}
+
+// GitRepo returns the source repository URL, or an empty string for other programs.
+func (p Program) GitRepo() string {
+	return programToGitRepo[p]
 }
 
 // IsTarantool checks if the Program is kind of Tarantool program.

@@ -24,14 +24,6 @@ const (
 	gitExec              = "git"
 )
 
-// programGitRepoUrls contains URLs of programs git repositories.
-var (
-	programGitRepoUrls = map[string]string{
-		"tarantool": search.GitRepoTarantool,
-		"tt":        search.GitRepoTT,
-	}
-)
-
 // getVersionsFromRepo returns all available versions from github repository.
 func getVersionsFromRepo(local bool, distfiles, program string,
 	repoLink string,
@@ -43,28 +35,26 @@ func getVersionsFromRepo(local bool, distfiles, program string,
 	return search.GetVersionsFromGitRemote(repoLink)
 }
 
-// getCommit returns all available commits from repository.
-func getCommit(local bool, distfiles, programName string,
-	line string,
-) (string, error) {
-	var (
-		commit string
-		err    error
-	)
-
-	if local {
-		commit, err = search.GetCommitFromGitLocal(filepath.Join(distfiles, programName),
-			line)
-	} else {
-		commit, err = search.GetCommitFromGitRemote(programGitRepoUrls[programName],
-			line)
-	}
-
+// getCommit resolves a commit or pull request in the product repository.
+func getCommit(local bool, distfiles, programName, ref string) (string, error) {
+	program, err := binary.ParseProgram(programName)
 	if err != nil {
 		return "", err
 	}
 
-	return commit, nil
+	isPullRequest, pullRequestID := binary.IsPullRequest(ref)
+
+	switch {
+	case isPullRequest && local:
+		return search.GetPullRequestCommitFromGitLocal(
+			filepath.Join(distfiles, programName), pullRequestID)
+	case isPullRequest:
+		return search.GetPullRequestCommitFromGitRemote(program.GitRepo(), pullRequestID)
+	case local:
+		return search.GetCommitFromGitLocal(filepath.Join(distfiles, programName), ref)
+	default:
+		return search.GetCommitFromGitRemote(program.GitRepo(), ref)
+	}
 }
 
 // downloadRepo downloads git repository.
@@ -90,7 +80,7 @@ func checkCommit(input, programName string, installCtx InstallCtx,
 	distfiles string,
 ) (string, string, error) {
 	pullRequestHash := ""
-	isPullRequest, _ := binary.IsPullRequest(input)
+	isPullRequest, pullRequestID := binary.IsPullRequest(input)
 
 	if isPullRequest {
 		pullRequestHash, err := getCommit(installCtx.Local, distfiles,
@@ -102,7 +92,7 @@ func checkCommit(input, programName string, installCtx InstallCtx,
 
 		pullRequestHash = pullRequestHash[0:binary.MinCommitHashLength]
 
-		return input, pullRequestHash, nil
+		return "pr/" + pullRequestID, pullRequestHash, nil
 	}
 
 	isRightFormat, err := binary.IsValidCommitHash(input)
