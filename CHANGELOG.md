@@ -9,11 +9,23 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt restore plan`: `restore_targets.instances` now names every member
+  the backup recorded with its original instance uuid, master first, so
+  the orchestrator runs `tt restore apply` per instance and every member
+  comes up on the same chain instead of rejoining empty -- the shape a
+  synchronous quorum needs to unfreeze after a restore.
 - `tt backup start`: the manifest's topology now carries the full
   replicaset membership beside the master, each member with its numeric
   cluster id, read off the frozen range the backup itself carries.
 
 ### Changed
+
+- `tt restore plan`: a target time between two backups whose replicaset
+  composition changed -- a member added, removed, or replaced under the
+  same name -- now refuses with a topology boundary and offers the
+  nearest recovery times on either side instead of stitching across.
+- `tt restore plan`: `restore_targets.rejoin` names only the configured
+  instances the backup holds no member for.
 
 ### Fixed
 

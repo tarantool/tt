@@ -57,6 +57,16 @@ REPLICASET_UUIDS = {
 BACKUP_URIS = {**STORAGE_URIS, "router-001-a": ROUTER_URI}
 
 STORAGE_REPLICASETS = "storage-001,storage-002"
+
+
+def no_members_warning(backup_id, replicaset):
+    """The single-target note: a real backup's manifest records the master
+    alone, and the plan says what it is planning because of that."""
+    return (
+        f"backup {backup_id} records no members for replicaset {replicaset}: single-target restore"
+    )
+
+
 BUCKET_COUNT = 100
 
 FULL_ID = "sharded-0001-full"
@@ -342,6 +352,8 @@ def test_sharded_restore_lifecycle(sharded_app, sharded_backups, tmp_path):
     assert rc == PLAN_OK, doc
     assert doc["recovery_point"]["label"] == LABEL
     assert doc["warnings"] == [
+        no_members_warning(INC_ID, STORAGE_REPLICASET_UUIDS["storage-001-a"]),
+        no_members_warning(INC_ID, STORAGE_REPLICASET_UUIDS["storage-002-a"]),
         'replicaset "router-001" is configured but not selected: '
         "it is not restored, bootstrap it fresh",
     ], doc
@@ -440,6 +452,7 @@ def test_plan_selects_a_subset_of_the_storages(sharded_app, sharded_backups, tmp
     assert rc == PLAN_OK, doc
     assert doc["recovery_point"]["label"] == LABEL
     assert doc["warnings"] == [
+        no_members_warning(INC_ID, STORAGE_REPLICASET_UUIDS["storage-001-a"]),
         'replicaset "router-001" is configured but not selected: '
         "it is not restored, bootstrap it fresh",
         'replicaset "storage-002" is configured but not selected: '

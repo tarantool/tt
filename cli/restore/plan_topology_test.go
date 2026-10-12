@@ -46,7 +46,12 @@ func TestPlanTopologyMatchesByNameNotUUID(t *testing.T) {
 
 			require.Equal(t, StatusOK, result.Status)
 			require.Nil(t, result.TopologyDiff)
-			require.Empty(t, result.Warnings)
+			// The manifests record no members, so the plan says so: a
+			// single-target restore per replicaset, and nothing else to report.
+			require.Equal(t, []string{
+				noMembersWarning(fullBackupID, shardA),
+				noMembersWarning(fullBackupID, shardB),
+			}, result.Warnings)
 		})
 	}
 }
@@ -174,7 +179,10 @@ func TestPlanTopologyReplacedReplicaRejoins(t *testing.T) {
 	require.Equal(t, StatusOK, result.Status)
 	require.Nil(t, result.TopologyDiff)
 	require.Len(t, result.DownloadPlan, 2)
-	require.Empty(t, result.Warnings)
+	require.Equal(t, []string{
+		noMembersWarning(incTwoID, shardA),
+		noMembersWarning(incTwoID, shardB),
+	}, result.Warnings)
 
 	require.Equal(t, []string{"storage-a-003"}, result.RestoreTargets[shardA].Rejoin)
 	require.Empty(t, result.RestoreTargets[shardB].Rejoin)
@@ -193,18 +201,31 @@ func TestPlanTopologyRejoinsEveryConfiguredReplica(t *testing.T) {
 	result := f.plan(550, liveCluster())
 
 	require.Equal(t, StatusOK, result.Status)
-	require.Empty(t, result.Warnings)
+	require.Equal(t, []string{
+		noMembersWarning(incTwoID, shardA),
+		noMembersWarning(incTwoID, shardB),
+	}, result.Warnings)
 
 	require.Equal(t, map[string]RestoreTarget{
 		shardA: {
 			InstanceName: masterOfA,
 			PatchUUID:    instanceUUIDOf("deploy-1", masterOfA),
-			Rejoin:       []string{secondOfA},
+			Instances: []RestoreInstance{{
+				InstanceName: masterOfA,
+				PatchUUID:    instanceUUIDOf("deploy-1", masterOfA),
+				Role:         roleMaster,
+			}},
+			Rejoin: []string{secondOfA},
 		},
 		shardB: {
 			InstanceName: masterOfB,
 			PatchUUID:    instanceUUIDOf("deploy-1", masterOfB),
-			Rejoin:       []string{"storage-b-002"},
+			Instances: []RestoreInstance{{
+				InstanceName: masterOfB,
+				PatchUUID:    instanceUUIDOf("deploy-1", masterOfB),
+				Role:         roleMaster,
+			}},
+			Rejoin: []string{"storage-b-002"},
 		},
 	}, result.RestoreTargets)
 }
@@ -254,8 +275,87 @@ func TestPlanWarnsAboutAnInstanceTheConfigDropped(t *testing.T) {
 	require.Equal(t, []string{
 		"replicaset " + shardA + " (storage-a): " + secondOfA +
 			" backed up but not in the cluster config",
+		noMembersWarning(incTwoID, shardB),
 	}, result.Warnings)
 	require.Empty(t, result.RestoreTargets[shardA].Rejoin)
+	require.Empty(t, result.RestoreTargets[shardA].Instances[1:])
+}
+
+// TestPlanTargetsRestoreEveryBackedUpMember covers the per-instance model:
+// every member the backup recorded is a target of its own, carrying the
+// instance UUID the manifest holds for it, and only the configured instances
+// the backup never saw are left to wipe and rejoin. The legacy top-level
+// fields stay the master's, so a reader of the older document keeps working.
+func TestPlanTargetsRestoreEveryBackedUpMember(t *testing.T) {
+	f := newPlanFixture(t)
+	withMembers := shardOfA(0, 1000,
+		recoveryPointAt("p1", replicaOfA, 500, 110),
+		recoveryPointAt("p2", replicaOfA, 600, 210))
+	withMembers.members = []string{masterOfA, secondOfA}
+
+	f.addBackup(clusterBackup{
+		id: fullBackupID, base: fullBackupID,
+		backupType: backup.BackupTypeFull, createdAt: 200,
+		shards: []shardBackup{
+			withMembers,
+			shardOfB(0, 900,
+				recoveryPointAt("p1", replicaOfB, 400, 111),
+				recoveryPointAt("p2", replicaOfB, 450, 211)),
+		},
+	})
+
+	result := f.plan(150, configuredCluster(
+		configuredReplicaset("storage-a", masterOfA, secondOfA, "storage-a-003"),
+		configuredReplicaset("storage-b", masterOfB),
+	))
+
+	require.Equal(t, StatusOK, result.Status)
+	require.Equal(t, []string{noMembersWarning(fullBackupID, shardB)}, result.Warnings)
+
+	require.Equal(t, RestoreTarget{
+		InstanceName: masterOfA,
+		PatchUUID:    instanceUUIDOf("deploy-1", masterOfA),
+		Instances: []RestoreInstance{
+			{
+				InstanceName: masterOfA,
+				PatchUUID:    instanceUUIDOf("deploy-1", masterOfA),
+				Role:         roleMaster,
+			},
+			{
+				InstanceName: secondOfA,
+				PatchUUID:    instanceUUIDOf("deploy-1", secondOfA),
+				Role:         roleReplica,
+			},
+		},
+		Rejoin: []string{"storage-a-003"},
+	}, result.RestoreTargets[shardA])
+
+	// The document the orchestrator reads: the legacy top-level fields beside
+	// the per-instance list, master first, each entry with its own uuid.
+	document := asJSON(t, result)
+	target := document["restore_targets"].(map[string]any)[shardA].(map[string]any)
+	require.Equal(t,
+		[]string{"instance_name", "instances", "patch_uuid", "rejoin"},
+		keysOf(t, target))
+	require.Equal(t, masterOfA, target["instance_name"])
+	require.Equal(t, instanceUUIDOf("deploy-1", masterOfA), target["patch_uuid"])
+
+	instances := target["instances"].([]any)
+	require.Len(t, instances, 2)
+
+	master := instances[0].(map[string]any)
+	require.Equal(t, []string{"instance_name", "patch_uuid", "role"}, keysOf(t, master))
+	require.Equal(t, masterOfA, master["instance_name"])
+	require.Equal(t, "master", master["role"])
+	require.Equal(t, instanceUUIDOf("deploy-1", masterOfA), master["patch_uuid"])
+
+	replica := instances[1].(map[string]any)
+	require.Equal(t, []string{"instance_name", "patch_uuid", "role"}, keysOf(t, replica))
+	require.Equal(t, secondOfA, replica["instance_name"])
+	require.Equal(t, "replica", replica["role"])
+	require.Equal(t, instanceUUIDOf("deploy-1", secondOfA), replica["patch_uuid"])
+
+	require.Equal(t, []any{"storage-a-003"}, target["rejoin"])
 }
 
 // TestPlanTargetsWithoutAClusterConfig checks what the command can still answer
@@ -270,9 +370,79 @@ func TestPlanTargetsWithoutAClusterConfig(t *testing.T) {
 
 	require.Equal(t, StatusOK, result.Status)
 	require.Equal(t, map[string]RestoreTarget{
-		shardA: {InstanceName: masterOfA, PatchUUID: instanceUUIDOf("deploy-1", masterOfA)},
-		shardB: {InstanceName: masterOfB, PatchUUID: instanceUUIDOf("deploy-1", masterOfB)},
+		shardA: {
+			InstanceName: masterOfA,
+			PatchUUID:    instanceUUIDOf("deploy-1", masterOfA),
+			Instances: []RestoreInstance{{
+				InstanceName: masterOfA,
+				PatchUUID:    instanceUUIDOf("deploy-1", masterOfA),
+				Role:         roleMaster,
+			}},
+		},
+		shardB: {
+			InstanceName: masterOfB,
+			PatchUUID:    instanceUUIDOf("deploy-1", masterOfB),
+			Instances: []RestoreInstance{{
+				InstanceName: masterOfB,
+				PatchUUID:    instanceUUIDOf("deploy-1", masterOfB),
+				Role:         roleMaster,
+			}},
+		},
 	}, result.RestoreTargets)
+}
+
+// TestPlanTargetsWithoutAClusterConfigKeepsEveryMember checks the members the
+// manifest records stay targets without a -c. The configuration only decides
+// which member the cluster being restored still carries, so without it the
+// manifest's own record is the whole truth; a plan that dropped the members
+// would hand the orchestrator a single target and no warning to say so.
+func TestPlanTargetsWithoutAClusterConfigKeepsEveryMember(t *testing.T) {
+	f := newPlanFixture(t)
+	withMembers := shardOfA(0, 1000,
+		recoveryPointAt("p1", replicaOfA, 500, 110),
+		recoveryPointAt("p2", replicaOfA, 600, 210))
+	withMembers.members = []string{masterOfA, secondOfA}
+
+	f.addBackup(clusterBackup{
+		id: fullBackupID, base: fullBackupID,
+		backupType: backup.BackupTypeFull, createdAt: 200,
+		shards: []shardBackup{
+			withMembers,
+			shardOfB(0, 900,
+				recoveryPointAt("p1", replicaOfB, 400, 111),
+				recoveryPointAt("p2", replicaOfB, 450, 211)),
+		},
+	})
+
+	result := f.plan(150, nil)
+
+	require.Equal(t, StatusOK, result.Status)
+	require.Equal(t, RestoreTarget{
+		InstanceName: masterOfA,
+		PatchUUID:    instanceUUIDOf("deploy-1", masterOfA),
+		Instances: []RestoreInstance{
+			{
+				InstanceName: masterOfA,
+				PatchUUID:    instanceUUIDOf("deploy-1", masterOfA),
+				Role:         roleMaster,
+			},
+			{
+				InstanceName: secondOfA,
+				PatchUUID:    instanceUUIDOf("deploy-1", secondOfA),
+				Role:         roleReplica,
+			},
+		},
+	}, result.RestoreTargets[shardA])
+
+	// No rejoin without -c -- the composition of the cluster being restored
+	// into is what -c carries -- and the warnings say exactly what a plan
+	// without one always says, plus the member-less shardB: shardA's
+	// membership is fully recorded, there is nothing else to warn.
+	require.Empty(t, result.RestoreTargets[shardA].Rejoin)
+	require.Equal(t, []string{
+		noTopologyCheckWarning,
+		noMembersWarning(fullBackupID, shardB),
+	}, result.Warnings)
 }
 
 // TestPlanTargetsFollowAMasterChange checks which manifest the target is read
@@ -296,7 +466,12 @@ func TestPlanTargetsFollowAMasterChange(t *testing.T) {
 	require.Equal(t, RestoreTarget{
 		InstanceName: secondOfA,
 		PatchUUID:    instanceUUIDOf("deploy-1", secondOfA),
-		Rejoin:       []string{masterOfA},
+		Instances: []RestoreInstance{{
+			InstanceName: secondOfA,
+			PatchUUID:    instanceUUIDOf("deploy-1", secondOfA),
+			Role:         roleMaster,
+		}},
+		Rejoin: []string{masterOfA},
 	}, result.RestoreTargets[shardA])
 }
 
@@ -308,27 +483,40 @@ func TestPlanTargetsFollowAMasterChange(t *testing.T) {
 // that matters, so it is asserted there too: an empty `--patch-uuid` means "do
 // not patch" to `tt restore apply`, a different and silently wrong instruction.
 func TestRestoreTargetsWithoutARecordedUUID(t *testing.T) {
-	instances := map[string]*backup.ShardInstance{
-		shardA: {InstanceName: masterOfA},
+	shards := map[string]backedUpShard{
+		shardA: {
+			backupID: fullBackupID,
+			instance: &backup.ShardInstance{InstanceName: masterOfA},
+		},
 	}
 
-	targets, warnings := restoreTargets(instances, map[string]ConfiguredReplicaset{
+	targets, warnings := restoreTargets(shards, map[string]ConfiguredReplicaset{
 		shardA: {Name: "storage-a", Instances: []string{masterOfA, secondOfA}},
 	})
 
 	require.Equal(t, map[string]RestoreTarget{
-		shardA: {InstanceName: masterOfA, Rejoin: []string{secondOfA}},
+		shardA: {
+			InstanceName: masterOfA,
+			Instances:    []RestoreInstance{{InstanceName: masterOfA, Role: roleMaster}},
+			Rejoin:       []string{secondOfA},
+		},
 	}, targets)
 	require.Equal(t, []string{
 		"replicaset " + shardA + ": the backup records no instance uuid for " +
 			masterOfA + ", so the plan carries no patch_uuid; restore onto " +
 			"that same instance and omit --patch-uuid, whose headers already " +
 			"carry it",
+		noMembersWarning(fullBackupID, shardA),
 	}, warnings)
 
 	document := asJSON(t, &PlanResult{RestoreTargets: targets})
 	target := document["restore_targets"].(map[string]any)[shardA].(map[string]any)
-	require.Equal(t, []string{"instance_name", "rejoin"}, keysOf(t, target))
+	require.Equal(t, []string{"instance_name", "instances", "rejoin"}, keysOf(t, target))
+
+	// The master's own entry carries the same absent uuid, and leaves it out
+	// the same way rather than sending an empty one.
+	instance := target["instances"].([]any)[0].(map[string]any)
+	require.Equal(t, []string{"instance_name", "role"}, keysOf(t, instance))
 }
 
 // TestPlanTopologyBlocksAnUncoveredMaster covers a master the configuration no
@@ -422,7 +610,10 @@ func TestPlanWithoutAClusterConfigStillPlans(t *testing.T) {
 
 	require.Equal(t, StatusOK, result.Status)
 	require.Nil(t, result.TopologyDiff)
-	require.Equal(t, []string{noTopologyCheckWarning}, result.Warnings)
+	require.Equal(t, append([]string{noTopologyCheckWarning},
+		noMembersWarning(incTwoID, shardA),
+		noMembersWarning(incTwoID, shardB),
+	), result.Warnings)
 	require.Len(t, result.DownloadPlan, 2)
 }
 
@@ -486,7 +677,11 @@ func TestPlanSelectionLeavesOutAStatelessRouter(t *testing.T) {
 
 	require.Equal(t, StatusOK, result.Status)
 	require.Nil(t, result.TopologyDiff)
-	require.Equal(t, []string{routerWarning}, result.Warnings)
+	require.Equal(t, []string{
+		noMembersWarning(incTwoID, shardA),
+		noMembersWarning(incTwoID, shardB),
+		routerWarning,
+	}, result.Warnings)
 
 	require.NotNil(t, result.RecoveryPoint)
 	require.Equal(t, "p3", result.RecoveryPoint.Label)
@@ -611,7 +806,11 @@ func TestPlanSelectionWarnsAboutAReplicasetNoBackupHolds(t *testing.T) {
 
 	require.Equal(t, StatusOK, result.Status)
 	require.Nil(t, result.TopologyDiff)
-	require.Equal(t, []string{routerWarning}, result.Warnings)
+	require.Equal(t, []string{
+		noMembersWarning(incTwoID, shardA),
+		noMembersWarning(incTwoID, shardB),
+		routerWarning,
+	}, result.Warnings)
 	require.Equal(t, []string{shardA, shardB},
 		slices.Sorted(maps.Keys(result.RestoreTargets)))
 }
@@ -724,11 +923,14 @@ func TestPlanSelectionOffersTheNearestPointOverTheSelection(t *testing.T) {
 		Instances: []string{masterOfC},
 	}}, result.TopologyDiff.ExtraReplicasets)
 	require.Empty(t, result.TopologyDiff.MissingReplicasets)
-	require.Equal(t, []string{routerWarning}, result.Warnings)
+	require.Equal(t, []string{
+		noMembersWarning(earlierID, shardA),
+		noMembersWarning(earlierID, shardB),
+		routerWarning,
+	}, result.Warnings)
 
 	require.NotNil(t, result.NearestSafe)
 	require.Nil(t, result.NearestSafe.Before)
-	require.NotNil(t, result.NearestSafe.After)
 	require.Equal(t, time.Unix(510, 0).UTC(), *result.NearestSafe.After)
 	require.Empty(t, f.downloaded())
 }
@@ -743,4 +945,29 @@ func TestPlanSelectionNeedsAClusterConfig(t *testing.T) {
 
 	require.ErrorContains(t, err, "--replicasets requires -c")
 	require.Empty(t, f.downloaded(), "a refused plan must not download anything")
+}
+
+// A member the backup recorded without a name can be neither a target nor a
+// rejoin -- a restore matches members by name -- and the plan says so
+// instead of dropping it silently.
+func TestRestoreTargetsWarnAboutANamelessMember(t *testing.T) {
+	shards := map[string]backedUpShard{"rs": {
+		backupID: "full",
+		instance: &backup.ShardInstance{
+			InstanceName: "master",
+			InstanceUUID: masterUUID,
+		},
+		members: []backup.TopologyInstance{
+			{InstanceID: 2, InstanceUUID: replicaUUID},
+		},
+	}}
+
+	targets, warnings := restoreTargets(shards, nil)
+
+	require.Len(t, targets["rs"].Instances, 1,
+		"a nameless member is no restore target")
+	require.Len(t, warnings, 2,
+		"the nameless member and the single-target note both speak")
+	require.Contains(t, warnings[0], replicaUUID)
+	require.Contains(t, warnings[0], "without a name")
 }

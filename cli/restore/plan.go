@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/tarantool/tt/cli/backup"
@@ -106,31 +107,62 @@ type DownloadItem struct {
 	TrimTo *Point `json:"trim_to,omitempty"`
 }
 
-// RestoreTarget names the node one replicaset's chain is restored onto, and the
-// instance UUID that node has to own once it is.
+// RestoreTarget names the instances a replicaset's chain is restored onto, and
+// the instance UUID each of them has to own once it is.
 //
-// A replicaset is backed up on its master, so the archive holds the master's
-// files and the master is the node whose headers already fit them. Every other
-// member is wiped and comes back by joining the restored node: Tarantool 3.x
-// identifies an instance by name, so a member that boots empty reclaims its
-// _cluster record under a fresh UUID and needs none of its own.
+// Every member the backup recorded is restored in place: each node replays
+// the replicaset's chain and comes up as itself, so a member with a uuid of
+// its own in the manifest keeps it. The members the configuration carries
+// but the backup never saw are the ones wiped and bootstrapped fresh:
+// Tarantool 3.x identifies an instance by name, so such a member boots
+// empty, reclaims its _cluster record under a fresh UUID and needs none of
+// its own.
 type RestoreTarget struct {
-	// InstanceName is the node this replicaset's chain goes to.
+	// InstanceName is the node this replicaset's chain goes to: the master,
+	// the instance the backup was taken on. It is the master's own entry of
+	// Instances, kept at the top level for a reader of the older document.
 	InstanceName string `json:"instance_name"`
-	// PatchUUID is the instance UUID the restored node must carry: the one it
-	// held in the backed-up cluster, which is what `tt restore apply
+	// PatchUUID is the instance UUID the restored master must carry: the one
+	// it held in the backed-up cluster, which is what `tt restore apply
 	// --patch-uuid` stamps into every header. Restoring onto the instance the
 	// backup was taken on makes it the UUID already in the files, and the patch
 	// a confirmation. It is absent only when the manifest recorded no UUID at
 	// all, and then a warning says so rather than an empty value going out as
 	// if it meant "do not patch".
 	PatchUUID string `json:"patch_uuid,omitempty"`
-	// Rejoin are the other configured instances of the replicaset: wiped before
-	// the restore, joining the target once it is up. Filled only when a cluster
-	// config was given, because the backup does not know the composition of the
-	// cluster being restored into.
+	// Instances names every node the chain is replayed onto, the master first
+	// and the rest by name, each with the instance UUID that node owned in
+	// the backed-up cluster - `tt restore apply` runs per instance with its
+	// own --patch-uuid. A manifest that recorded no members beside the master
+	// lists it alone, and a warning says so: single-target restore.
+	Instances []RestoreInstance `json:"instances"`
+	// Rejoin are the configured instances of the replicaset the backup holds
+	// no member for: wiped before the restore, joining the replicaset from
+	// nothing once it is up. Filled only when a cluster config was given,
+	// because the backup does not know the composition of the cluster being
+	// restored into.
 	Rejoin []string `json:"rejoin,omitempty"`
 }
+
+// RestoreInstance is one node a replicaset's chain is replayed onto.
+type RestoreInstance struct {
+	// InstanceName is the node this chain goes to.
+	InstanceName string `json:"instance_name"`
+	// PatchUUID is the instance UUID the restored node must carry: the one it
+	// held in the backed-up cluster, read off the manifest's topology entry
+	// for it. Absent when the manifest recorded none for the member.
+	PatchUUID string `json:"patch_uuid,omitempty"`
+	// Role is the member's place in the replicaset: master for the instance
+	// the archives were taken on, replica for every other member.
+	Role string `json:"role"`
+}
+
+// The role of a restore instance: the master is the instance the archives
+// were taken on, every other member of the replicaset a replica.
+const (
+	roleMaster  = "master"
+	roleReplica = "replica"
+)
 
 // NearestSafe are the recovery times bracketing an unreachable target. They are
 // times rather than points because that is what goes back into --target-time.
@@ -273,7 +305,8 @@ func ParseTargetTime(raw string) (time.Time, error) {
 
 	return time.Time{}, fmt.Errorf(
 		"--target-time %q is neither an RFC 3339 timestamp (2026-03-25T10:30:00Z) "+
-			"nor a unix timestamp", raw)
+			"nor a unix timestamp", raw,
+	)
 }
 
 // reasonFor explains a status in the one line the caller shows a human.
@@ -320,26 +353,27 @@ func checkTopology(
 	current *ClusterTopology,
 	selected *selection,
 ) planTopology {
-	instances, warnings := planInstances(plan)
+	shards, warnings := planShards(plan)
 
 	if current == nil {
-		targets, unrecorded := restoreTargets(instances, nil)
+		targets, targetWarnings := restoreTargets(shards, nil)
 
 		return planTopology{
 			targets: targets,
 			warnings: append(append([]string{noTopologyCheckWarning}, warnings...),
-				unrecorded...),
+				targetWarnings...),
 		}
 	}
 
 	match := matchTopology(pointTopology(point), selected.configured(*current))
-	match.diff.UncoveredMasters = uncoveredMasters(masterNames(instances), match.matched)
+	match.diff.UncoveredMasters = uncoveredMasters(masterNames(shards), match.matched)
 
-	targets, unrecorded := restoreTargets(instances, match.matched)
+	targets, targetWarnings := restoreTargets(shards, match.matched)
 
 	result := planTopology{
 		targets: targets,
-		warnings: append(append(append(match.warnings, warnings...), unrecorded...),
+		warnings: append(append(append(match.warnings, warnings...),
+			targetWarnings...),
 			selected.unselectedWarnings(*current)...),
 	}
 
@@ -350,13 +384,13 @@ func checkTopology(
 	return result
 }
 
-// planInstances returns the instance each replicaset's archives were taken on.
-// It is the last backup of the chain that decides, because that is the manifest
+// planShards returns, per replicaset, what the last backup of its chain says
+// about it. It is the last backup that decides, because that is the manifest
 // the point itself was found in: a chain can span a master change, and then the
 // earlier backups of it name the instance that used to hold the role rather
 // than the one whose archive the restore lands on.
-func planInstances(plan chain.Plan) (map[string]*backup.ShardInstance, []string) {
-	instances := make(map[string]*backup.ShardInstance, len(plan.Shards))
+func planShards(plan chain.Plan) (map[string]backedUpShard, []string) {
+	shards := make(map[string]backedUpShard, len(plan.Shards))
 	unknown := make([]string, 0)
 
 	for _, replicasetUUID := range slices.Sorted(maps.Keys(plan.Shards)) {
@@ -365,66 +399,190 @@ func planInstances(plan chain.Plan) (map[string]*backup.ShardInstance, []string)
 			continue
 		}
 
-		instance := backups[len(backups)-1].Shards[replicasetUUID].Instance
+		manifest := backups[len(backups)-1]
+		instance := manifest.Shards[replicasetUUID].Instance
 		if instance == nil || instance.InstanceName == "" {
 			unknown = append(unknown, fmt.Sprintf(
 				"replicaset %s: the backup does not name the instance it was taken "+
-					"on, so the config cannot be checked for it", replicasetUUID))
+					"on, so the config cannot be checked for it", replicasetUUID,
+			))
 
 			continue
 		}
 
-		instances[replicasetUUID] = instance
+		shards[replicasetUUID] = backedUpShard{
+			backupID: manifest.BackupID,
+			instance: instance,
+			members:  manifest.Topology.Replicasets[replicasetUUID],
+		}
 	}
 
-	return instances, unknown
+	return shards, unknown
 }
 
-// restoreTargets names, per replicaset, the node its chain is restored onto and
-// the UUID that node carries afterwards, plus the members that are wiped and
-// rejoin it. The second result warns about a manifest that recorded no UUID for
-// its own master, which is the one case the target cannot be completed from.
+// backedUpShard is what the manifest the point was resolved in says about one
+// replicaset: the instance its archive was taken on, and the membership that
+// manifest recorded beside it.
+type backedUpShard struct {
+	// backupID is the manifest the membership and the master are read from:
+	// the last backup of the replicaset's chain.
+	backupID backup.BackupID
+	// instance is the master the archive of the last backup was taken on.
+	instance *backup.ShardInstance
+	// members are the topology entries of that same manifest: the replicaset's
+	// membership as the backup recorded it, master included. A manifest
+	// written before members were recorded lists the master alone.
+	members []backup.TopologyInstance
+}
+
+// restoreTargets names, per replicaset, the nodes its chain is replayed onto
+// and the UUID each carries afterwards, plus the configured members that are
+// wiped and join the replicaset from nothing instead. The second result
+// carries the warnings of building the targets themselves: a manifest that
+// recorded no uuid for its own master, and one that recorded no members
+// beside him.
 func restoreTargets(
-	instances map[string]*backup.ShardInstance,
+	shards map[string]backedUpShard,
 	matched map[string]ConfiguredReplicaset,
 ) (map[string]RestoreTarget, []string) {
-	targets := make(map[string]RestoreTarget, len(instances))
-	unrecorded := make([]string, 0)
+	targets := make(map[string]RestoreTarget, len(shards))
+	warnings := make([]string, 0)
 
-	for _, replicasetUUID := range slices.Sorted(maps.Keys(instances)) {
-		instance := instances[replicasetUUID]
+	for _, replicasetUUID := range slices.Sorted(maps.Keys(shards)) {
+		shard := shards[replicasetUUID]
+		master := shard.instance
 
 		target := RestoreTarget{
-			InstanceName: instance.InstanceName,
-			PatchUUID:    instance.InstanceUUID,
+			InstanceName: master.InstanceName,
+			PatchUUID:    master.InstanceUUID,
+			// The master is always a target of his own: the archive is his, so
+			// his headers are the ones the chain already fits.
+			Instances: []RestoreInstance{{
+				InstanceName: master.InstanceName,
+				PatchUUID:    master.InstanceUUID,
+				Role:         roleMaster,
+			}},
 		}
 
-		if instance.InstanceUUID == "" {
-			unrecorded = append(unrecorded, fmt.Sprintf(
+		if master.InstanceUUID == "" {
+			warnings = append(warnings, fmt.Sprintf(
 				"replicaset %s: the backup records no instance uuid for %s, so "+
 					"the plan carries no patch_uuid; restore onto that same "+
 					"instance and omit --patch-uuid, whose headers already "+
 					"carry it",
-				replicasetUUID, instance.InstanceName))
+				replicasetUUID, master.InstanceName,
+			))
+		}
+
+		// The membership the rejoin list is drawn against: the names the
+		// manifest recorded, the master always among them - a manifest with no
+		// topology entry for its own master still backed him up.
+		membership := []string{master.InstanceName}
+
+		for _, member := range memberEntries(shard.members, master.InstanceName) {
+			membership = append(membership, member.InstanceName)
+
+			// A member needs a node to replay onto. With a cluster
+			// configuration that node is named by it, and a member the
+			// configuration no longer carries is reported by the comparison
+			// and left out; without one the manifest's own record is all the
+			// plan has, and every member it names is a target as it stands.
+			replicaset, configured := matched[replicasetUUID]
+			if !configured || slices.Contains(replicaset.Instances, member.InstanceName) {
+				target.Instances = append(target.Instances, RestoreInstance{
+					InstanceName: member.InstanceName,
+					PatchUUID:    member.InstanceUUID,
+					Role:         roleReplica,
+				})
+			}
+		}
+
+		if nameless := namelessMembers(shard.members); len(nameless) > 0 {
+			uuids := make([]string, 0, len(nameless))
+			for _, member := range nameless {
+				uuids = append(uuids, member.InstanceUUID)
+			}
+
+			warnings = append(warnings, fmt.Sprintf(
+				"backup %s: replicaset %s carries %s without a name "+
+					"(uuid %s): it is neither a restore target nor named in "+
+					"rejoin -- name it and back up again, or restore it by hand",
+				shard.backupID, replicasetUUID,
+				pluralize(len(nameless), "a member", "%d members"),
+				strings.Join(uuids, ", "),
+			))
+		}
+
+		if len(shard.members) <= 1 {
+			warnings = append(warnings, fmt.Sprintf(
+				"backup %s records no members for replicaset %s: "+
+					"single-target restore", shard.backupID, replicasetUUID,
+			))
 		}
 
 		if replicaset, ok := matched[replicasetUUID]; ok {
-			target.Rejoin = missing(replicaset.Instances,
-				[]string{instance.InstanceName})
+			target.Rejoin = missing(replicaset.Instances, membership)
 		}
 
 		targets[replicasetUUID] = target
 	}
 
-	return targets, unrecorded
+	return targets, warnings
 }
 
-// masterNames reduces the backed-up instances to the names the topology
+// pluralize names a count of things for a warning: the singular word for
+// one, the plural format filled with the count for more.
+func pluralize(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+
+	return fmt.Sprintf(many, n)
+}
+
+// namelessMembers returns the backed-up members whose _cluster rows carry
+// no name. A restore matches members by name, so one of these can be
+// neither a target nor a rejoin, and the plan says so rather than dropping
+// the member silently.
+func namelessMembers(members []backup.TopologyInstance) []backup.TopologyInstance {
+	var nameless []backup.TopologyInstance
+	for _, member := range members {
+		if member.InstanceName == "" {
+			nameless = append(nameless, member)
+		}
+	}
+
+	return nameless
+}
+
+// memberEntries returns the members of a backed-up replicaset beside its
+// master: named entries only, ordered by name, the master's own entry left
+// out. A member without a name cannot be matched against a configuration,
+// and the plan has nothing to say about it.
+func memberEntries(
+	members []backup.TopologyInstance,
+	master string,
+) []backup.TopologyInstance {
+	named := make([]backup.TopologyInstance, 0, len(members))
+	for _, member := range members {
+		if member.InstanceName != "" && member.InstanceName != master {
+			named = append(named, member)
+		}
+	}
+
+	slices.SortFunc(named, func(a, b backup.TopologyInstance) int {
+		return strings.Compare(a.InstanceName, b.InstanceName)
+	})
+
+	return named
+}
+
+// masterNames reduces the backed-up shards to the master names the topology
 // comparison works on.
-func masterNames(instances map[string]*backup.ShardInstance) map[string]string {
-	names := make(map[string]string, len(instances))
-	for replicasetUUID, instance := range instances {
-		names[replicasetUUID] = instance.InstanceName
+func masterNames(shards map[string]backedUpShard) map[string]string {
+	names := make(map[string]string, len(shards))
+	for replicasetUUID, shard := range shards {
+		names[replicasetUUID] = shard.instance.InstanceName
 	}
 
 	return names
@@ -522,7 +680,8 @@ func download(
 
 		if _, err := fetch(ctx, store, key, destination, ""); err != nil {
 			return nil, nil, fmt.Errorf(
-				"failed to download the manifest of backup %s: %w", backupID, err)
+				"failed to download the manifest of backup %s: %w", backupID, err,
+			)
 		}
 	}
 
@@ -535,7 +694,8 @@ func download(
 
 		for _, manifest := range shard.Backups {
 			item, unverified, err := downloadArchive(
-				ctx, store, dir, claimed, manifest, replicasetUUID)
+				ctx, store, dir, claimed, manifest, replicasetUUID,
+			)
 			if err != nil {
 				return nil, nil, err //nolint:wrapcheck
 			}
@@ -579,14 +739,16 @@ func downloadArchive(
 	if instance == nil {
 		return DownloadItem{}, "", fmt.Errorf(
 			"backup %s carries no archive for replicaset %s",
-			manifest.BackupID, replicasetUUID)
+			manifest.BackupID, replicasetUUID,
+		)
 	}
 
 	key, err := storage.CleanKey(instance.Artifact.Path)
 	if err != nil {
 		return DownloadItem{}, "", fmt.Errorf(
 			"backup %s: artifact path %q of replicaset %s is not a storage key: %w",
-			manifest.BackupID, instance.Artifact.Path, replicasetUUID, err)
+			manifest.BackupID, instance.Artifact.Path, replicasetUUID, err,
+		)
 	}
 
 	destination, err := claimed.claim(dir, key)
@@ -599,7 +761,8 @@ func downloadArchive(
 	checksum, err := fetch(ctx, store, key, destination, expected)
 	if err != nil {
 		return DownloadItem{}, "", fmt.Errorf(
-			"failed to download the archive of backup %s: %w", manifest.BackupID, err)
+			"failed to download the archive of backup %s: %w", manifest.BackupID, err,
+		)
 	}
 
 	warning := ""
@@ -607,7 +770,8 @@ func downloadArchive(
 		warning = fmt.Sprintf(
 			"backup %s: the manifest records no checksum for replicaset %s, so %s "+
 				"was taken on trust; its sum is %s",
-			manifest.BackupID, replicasetUUID, key, checksum)
+			manifest.BackupID, replicasetUUID, key, checksum,
+		)
 	}
 
 	return DownloadItem{

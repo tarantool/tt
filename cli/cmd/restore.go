@@ -90,26 +90,30 @@ Usage:
   tt restore apply --archives <chain> --snapshot-dir <path> \
       --wal-dir <path> --vinyl-dir <path> [...]
 
-Run once per replicaset, on the node it is restored onto, after the
-orchestrator has copied the archives over and stopped the instance. That node
-is the instance the backup was taken on -- 'tt restore plan' names it in
-restore_targets[<replicaset_uuid>].instance_name. The other members of the
-replicaset are wiped instead and join it once the cluster is up, so apply is
-not run on them. Apply does not stop or start Tarantool and does not talk to
-the backup storage.
+Run once per instance, on every node the replicaset is restored onto, after
+the orchestrator has copied the archives over and stopped the instance.
+Those nodes are the members the backup recorded -- 'tt restore plan' lists
+them in restore_targets[<replicaset_uuid>].instances, the master first, and
+each entry carries the instance UUID that node has to own afterwards. The
+configured members the backup never saw are not among them: they are wiped
+instead and join the replicaset once it is up, so apply is not run on them.
+Apply does not stop or start Tarantool and does not talk to the backup
+storage.
 
 The chain is unpacked in the order given, so --archives takes the full backup
 first and then each increment, exactly as 'tt restore plan' lists them under
 download_plan[<replicaset_uuid>]. --target-point is that plan's
 recovery_point.trim_to_by_replicaset[<replicaset_uuid>].
 
---patch-uuid takes restore_targets[<replicaset_uuid>].patch_uuid: the instance
-UUID the restored node owned in the backed-up cluster, which is what its own
-_cluster records and what the headers must say. Restoring onto the instance
-the backup was taken on makes it the UUID already in the files, so the patch
-confirms rather than changes them. Omitting the flag keeps whatever the
-headers carry, which is right for that same case and wrong as soon as the
-archives are replayed onto a differently named node.
+--patch-uuid takes the patch_uuid of the node's own entry in
+restore_targets[<replicaset_uuid>].instances -- for the master, that is the
+top-level patch_uuid as well: the instance UUID the restored node owned in
+the backed-up cluster, which is what its own _cluster records and what the
+headers must say. Restoring onto the instance the backup was taken on makes
+it the UUID already in the files, so the patch confirms rather than changes
+them. Omitting the flag keeps whatever the headers carry, which is right for
+that same case and wrong as soon as the archives are replayed onto a
+differently named node.
 
 Tarantool keeps three kinds of file in three directories it configures
 separately: snapshots in snapshot.dir, journals in wal.dir, and the vylog
@@ -122,10 +126,10 @@ that configures none of the keys uses. The directory is the data directory
 itself: nothing is appended to it, and the files land in it directly.
 
 -c and --instance read the three directories out of a cluster configuration,
-the same file or URI 'tt restore plan -c' takes. --instance names the instance
-whose configuration is read -- the node this replicaset is restored onto,
-which 'tt restore plan' lists as
-restore_targets[<replicaset_uuid>].instance_name. The keys are resolved the
+the same file or URI 'tt restore plan -c' takes. --instance names the
+instance whose configuration is read -- the node apply runs on, one of the
+instances 'tt restore plan' lists in
+restore_targets[<replicaset_uuid>].instances. The keys are resolved the
 way Tarantool resolves them: a key the configuration does not set defaults to
 var/lib/{{ instance_name }}, {{ instance_name }} is substituted (and it is the
 only variable that is; any other one is refused rather than passed through as
@@ -265,7 +269,7 @@ func newRestoreApplyCmd() *cobra.Command {
 			"of.\n"+clusterUriHelp)
 	cmd.Flags().StringVar(&restoreApplyInstance, "instance", "",
 		"instance whose data directories are read from --config: the node this "+
-			"replicaset is restored onto")
+			"chain is replayed onto")
 	cmd.Flags().StringVar(&restoreApplyPoint, "target-point", "",
 		`recovery point position to cut the final xlog at, `+
 			`as '{"replica_id":N,"lsn":M}'`)
@@ -503,7 +507,7 @@ cluster point not later than it.
 A cluster point is one whose label is present on every replicaset, so that
 every shard comes back to the same moment. Points on either side of a
 topology change are never stitched into one: a cluster whose composition or
-master changed mid-window has no single state to return to.
+membership changed mid-window has no single state to return to.
 
 The archives the chosen point needs are downloaded into --dir and their
 checksums are verified there, so that a missing or corrupt archive stops the
@@ -516,10 +520,9 @@ aimed at. The composition is read from the configuration, not from the
 instances: this command's main scenario is a cluster whose nodes are dead or
 crash-looping. Replicasets are matched by the instance names they share, never
 by UUID, because the sanctioned target is a freshly deployed cluster where
-every UUID is new and 'tt restore apply' stamps one into the restored node of
-each replicaset. A replicaset
-that has no counterpart blocks the plan; an instance the config no longer
-carries is a warning.
+every UUID is new and 'tt restore apply' stamps each restored node with the
+UUID it owned in the backup. A replicaset that has no counterpart blocks the
+plan; an instance the config no longer carries is a warning.
 
 --replicasets names the replicasets to restore, by the names the cluster
 config gives them, and requires -c for that reason. The recovery point is
@@ -532,13 +535,18 @@ warnings and is the operator's to bootstrap fresh; a named replicaset the
 backup has no counterpart for is code 6, because a restore that was asked
 for and cannot happen must not pass silently.
 
-Every replicaset is restored onto one node: the instance its backup was taken
-on, whose headers the archives already fit. restore_targets names that node
-per replicaset, together with the instance UUID it has to own afterwards --
-what 'tt restore apply --patch-uuid' stamps in. With -c it also lists the
-other configured members under rejoin: they are wiped before the restore and
-come back by joining the restored node, and need no UUID of their own,
-because Tarantool 3.x identifies an instance by name.
+Every replicaset's chain is replayed onto each member the backup recorded:
+the master first -- the instance the backup was taken on, whose headers the
+archives already fit -- and then the rest by name. restore_targets.instances
+names them together with the instance UUID each has to own afterwards, what
+'tt restore apply --patch-uuid' stamps in per node; the master's own entry is
+also at the top level, as instance_name and patch_uuid. A manifest that
+recorded no members beside the master restores him alone, and the plan says
+so in the warnings: single-target restore. With -c the configured instances
+the backup has no member for are listed under rejoin instead: they are wiped
+before the restore and come back by joining the replicaset from nothing, and
+need no UUID of their own, because Tarantool 3.x identifies an instance by
+name.
 
 Exit codes:
   0  the plan is ready and the archives are downloaded
@@ -789,8 +797,9 @@ func printRestorePlanTable(result *restore.PlanResult) {
 	}
 }
 
-// printRestoreTargetsTable names the node each replicaset is restored onto, the
-// UUID it has to come up with, and the members that are wiped and rejoin it.
+// printRestoreTargetsTable names the nodes each replicaset's chain is
+// replayed onto, the UUID each has to come up with, and the configured
+// members that are wiped and bootstrap fresh instead.
 func printRestoreTargetsTable(result *restore.PlanResult) {
 	if len(result.RestoreTargets) == 0 {
 		return
@@ -804,10 +813,15 @@ func printRestoreTargetsTable(result *restore.PlanResult) {
 		target := result.RestoreTargets[replicasetUUID]
 
 		log.Infof("    %s", replicasetUUID)
-		log.Infof("      restore onto  %s", target.InstanceName)
 
-		if target.PatchUUID != "" {
-			log.Infof("      --patch-uuid  %s", target.PatchUUID)
+		// The master first, the members by name: the order of the plan
+		// document, and the one an operator hands the work out in.
+		for _, instance := range target.Instances {
+			log.Infof("      %-8s%s", instance.Role, instance.InstanceName)
+
+			if instance.PatchUUID != "" {
+				log.Infof("        --patch-uuid  %s", instance.PatchUUID)
+			}
 		}
 
 		if len(target.Rejoin) > 0 {

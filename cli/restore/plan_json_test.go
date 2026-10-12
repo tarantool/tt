@@ -23,7 +23,12 @@ func TestPlanJSONShapeOK(t *testing.T) {
 		keysOf(t, document))
 	require.Equal(t, "ok", document["status"])
 	require.Equal(t, "1970-01-01T00:09:10Z", document["target_time"])
-	require.Empty(t, document["warnings"], "warnings is always present, empty on success")
+	// Both manifests of the chain record no members, so the plan says so:
+	// warnings is always present, and here carries the single-target notes.
+	require.Equal(t, []any{
+		noMembersWarning(incTwoID, shardA),
+		noMembersWarning(incTwoID, shardB),
+	}, document["warnings"])
 
 	// The point's identifier is spelled label, not the example's name: what
 	// Tarantool records is a label, and `tt restore apply --point-name` takes it.
@@ -84,9 +89,20 @@ func TestPlanJSONShapeOK(t *testing.T) {
 	require.Equal(t, []string{shardA, shardB}, keysOf(t, targets))
 
 	targetOfA := targets[shardA].(map[string]any)
-	require.Equal(t, []string{"instance_name", "patch_uuid"}, keysOf(t, targetOfA))
+	require.Equal(t, []string{"instance_name", "instances", "patch_uuid"},
+		keysOf(t, targetOfA))
 	require.Equal(t, masterOfA, targetOfA["instance_name"])
 	require.Equal(t, instanceUUIDOf("deploy-1", masterOfA), targetOfA["patch_uuid"])
+
+	// With no members recorded the master is the whole instance list, his own
+	// entry repeated under instances with his role spelled out.
+	instances := targetOfA["instances"].([]any)
+	require.Len(t, instances, 1)
+	require.Equal(t, map[string]any{
+		"instance_name": masterOfA,
+		"patch_uuid":    instanceUUIDOf("deploy-1", masterOfA),
+		"role":          "master",
+	}, instances[0])
 }
 
 // TestPlanJSONShapeRestoreTargetsWithRejoin checks the section a realistic
@@ -103,13 +119,15 @@ func TestPlanJSONShapeRestoreTargetsWithRejoin(t *testing.T) {
 	targets := withConfig["restore_targets"].(map[string]any)
 
 	targetOfA := targets[shardA].(map[string]any)
-	require.Equal(t, []string{"instance_name", "patch_uuid", "rejoin"},
+	require.Equal(t,
+		[]string{"instance_name", "instances", "patch_uuid", "rejoin"},
 		keysOf(t, targetOfA))
 	require.Equal(t, []any{secondOfA}, targetOfA["rejoin"])
 
 	withoutConfig := asJSON(t, f.plan(550, nil))
 	bare := withoutConfig["restore_targets"].(map[string]any)[shardA].(map[string]any)
-	require.Equal(t, []string{"instance_name", "patch_uuid"}, keysOf(t, bare))
+	require.Equal(t, []string{"instance_name", "instances", "patch_uuid"},
+		keysOf(t, bare))
 }
 
 // TestPlanJSONShapeTopologyBoundary checks the printed document against the

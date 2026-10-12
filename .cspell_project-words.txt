@@ -130,6 +130,7 @@ trimprefix
 truef
 ttable
 ttlog
+unchecksummed
 unknowncentralized
 unknownnonetarantooletcd
 unknownnosinglemulti

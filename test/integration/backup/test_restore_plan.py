@@ -367,6 +367,19 @@ def unselected_warning(name):
     )
 
 
+def no_members_warning(backup_id, replicaset):
+    """The warning a manifest that lists no members beside the master produces.
+
+    Every backup today's tt writes looks like that, because a manifest's
+    topology is built from the per-shard fragments and a fragment describes
+    the master alone. The plan restores such a replicaset onto the master
+    alone, which the operator has to know is not the whole membership.
+    """
+    return (
+        f"backup {backup_id} records no members for replicaset {replicaset}: single-target restore"
+    )
+
+
 def fresh_uuid(index):
     return f"cccccccc-0000-4000-8000-{index:012d}"
 
@@ -424,13 +437,26 @@ def test_plan_ok(tt, storage, tmp_path):
     # and that has to be said rather than pass for a clean check.
     assert any("-c" in warning for warning in doc["warnings"]), doc
 
-    # Each replicaset is restored onto the instance its backup was taken on,
-    # and the plan hands out the UUID that node has to own afterwards. Without
-    # -c there is no cluster composition to draw a wipe list from, so the
-    # targets carry no rejoin key.
+    # Each replicaset's chain is replayed onto the members the backup
+    # recorded, and the plan hands out the UUID each node has to own
+    # afterwards. These manifests record the master alone, so the master is
+    # the whole instance list. Without -c there is no cluster composition to
+    # draw a wipe list from, so the targets carry no rejoin key.
     assert doc["restore_targets"] == {
-        REPLICASET: {"instance_name": STORAGE_1_A, "patch_uuid": INSTANCE},
-        REPLICASET_B: {"instance_name": STORAGE_2_A, "patch_uuid": INSTANCE_B},
+        REPLICASET: {
+            "instance_name": STORAGE_1_A,
+            "patch_uuid": INSTANCE,
+            "instances": [
+                {"instance_name": STORAGE_1_A, "patch_uuid": INSTANCE, "role": "master"},
+            ],
+        },
+        REPLICASET_B: {
+            "instance_name": STORAGE_2_A,
+            "patch_uuid": INSTANCE_B,
+            "instances": [
+                {"instance_name": STORAGE_2_A, "patch_uuid": INSTANCE_B, "role": "master"},
+            ],
+        },
     }, doc
 
     assert sorted(doc["download_plan"]) == [REPLICASET, REPLICASET_B]
@@ -555,33 +581,23 @@ def test_plan_chain_broken(tt, tmp_path):
 def test_plan_boundary(tt, tmp_path):
     """The master changed mid-window, so the two sides are not one cluster state.
 
-    The document is the RFC's topology_boundary example: a status, the reason,
+    The manifests record the master alone, the shape every backup today's tt
+    writes, so the change of the master is a change of the whole recorded
+    membership. A membership that stayed the same while the master moved
+    within it is no boundary: the plan then follows the new master. The
+    document is the RFC's topology_boundary example: a status, the reason,
     and the safe times on either side to retry with.
     """
     storage = file_storage(tmp_path)
     store_backup(
         storage,
         FULL_ID,
-        {
-            REPLICASET: shard(
-                INSTANCE,
-                STORAGE_1_A,
-                [point(EARLY_LABEL, 50, EARLY)],
-                replicas=[(INSTANCE_2, STORAGE_1_B)],
-            ),
-        },
+        {REPLICASET: shard(INSTANCE, STORAGE_1_A, [point(EARLY_LABEL, 50, EARLY)])},
     )
     store_backup(
         storage,
         INC_ID,
-        {
-            REPLICASET: shard(
-                INSTANCE_2,
-                STORAGE_1_B,
-                [point(LATE_LABEL, 150, LATE)],
-                replicas=[(INSTANCE, STORAGE_1_A)],
-            ),
-        },
+        {REPLICASET: shard(INSTANCE_2, STORAGE_1_B, [point(LATE_LABEL, 150, LATE)])},
         previous=FULL_ID,
         base=FULL_ID,
         backup_type="incremental",
@@ -681,12 +697,18 @@ def test_plan_redeploy(tt, tmp_path):
 
     assert rc == PLAN_OK, doc
     assert "topology_diff" not in doc
-    assert doc["warnings"] == [], doc
+    assert doc["warnings"] == [
+        no_members_warning(INC_ID, REPLICASET),
+        no_members_warning(INC_ID, REPLICASET_B),
+    ], doc
     # The UUID handed out is the one the backup was taken with, not the one the
     # redeployed cluster carries: it is what the restored files have to say.
     assert doc["restore_targets"][REPLICASET] == {
         "instance_name": STORAGE_1_A,
         "patch_uuid": INSTANCE,
+        "instances": [
+            {"instance_name": STORAGE_1_A, "patch_uuid": INSTANCE, "role": "master"},
+        ],
     }, doc
 
 
@@ -722,9 +744,15 @@ def test_plan_replaced_replica(tt, tmp_path):
     warnings = " ".join(doc["warnings"])
     assert STORAGE_1_B in warnings, doc
     assert "storage-001-c" not in warnings, doc
+    # The backed-up member the config dropped is a warning, not an instance:
+    # its node gets no apply. The configured member the backup never saw is
+    # the one wiped and rejoined fresh.
     assert doc["restore_targets"][REPLICASET] == {
         "instance_name": STORAGE_1_A,
         "patch_uuid": INSTANCE,
+        "instances": [
+            {"instance_name": STORAGE_1_A, "patch_uuid": INSTANCE, "role": "master"},
+        ],
         "rejoin": ["storage-001-c"],
     }, doc
     assert Path(doc["download_plan"][REPLICASET][0]["artifact"]).is_file()
@@ -754,16 +782,25 @@ def test_plan_targets_wipe_every_other_member(tt, tmp_path):
     rc, doc = plan_document(tt, storage.uri, rfc3339(LATE), dest, config=config)
 
     assert rc == PLAN_OK, doc
-    assert doc["warnings"] == [], doc
+    assert doc["warnings"] == [
+        no_members_warning(INC_ID, REPLICASET),
+        no_members_warning(INC_ID, REPLICASET_B),
+    ], doc
     assert doc["restore_targets"] == {
         REPLICASET: {
             "instance_name": STORAGE_1_A,
             "patch_uuid": INSTANCE,
+            "instances": [
+                {"instance_name": STORAGE_1_A, "patch_uuid": INSTANCE, "role": "master"},
+            ],
             "rejoin": [STORAGE_1_B],
         },
         REPLICASET_B: {
             "instance_name": STORAGE_2_A,
             "patch_uuid": INSTANCE_B,
+            "instances": [
+                {"instance_name": STORAGE_2_A, "patch_uuid": INSTANCE_B, "role": "master"},
+            ],
             "rejoin": ["storage-002-b"],
         },
     }, doc
@@ -821,10 +858,26 @@ def test_plan_replicasets_selects_the_storages(tt, tmp_path):
     }, doc
     assert sorted(doc["download_plan"]) == [REPLICASET, REPLICASET_B]
     assert doc["restore_targets"] == {
-        REPLICASET: {"instance_name": STORAGE_1_A, "patch_uuid": INSTANCE},
-        REPLICASET_B: {"instance_name": STORAGE_2_A, "patch_uuid": INSTANCE_B},
+        REPLICASET: {
+            "instance_name": STORAGE_1_A,
+            "patch_uuid": INSTANCE,
+            "instances": [
+                {"instance_name": STORAGE_1_A, "patch_uuid": INSTANCE, "role": "master"},
+            ],
+        },
+        REPLICASET_B: {
+            "instance_name": STORAGE_2_A,
+            "patch_uuid": INSTANCE_B,
+            "instances": [
+                {"instance_name": STORAGE_2_A, "patch_uuid": INSTANCE_B, "role": "master"},
+            ],
+        },
     }, doc
-    assert doc["warnings"] == [unselected_warning(REPLICASET_ROUTER)], doc
+    assert doc["warnings"] == [
+        no_members_warning(INC_ID, REPLICASET),
+        no_members_warning(INC_ID, REPLICASET_B),
+        unselected_warning(REPLICASET_ROUTER),
+    ], doc
 
     for backup_id in (FULL_ID, INC_ID):
         assert not downloaded(dest, backup_id, ROUTER).exists()
@@ -1117,7 +1170,8 @@ def test_plan_table(tt, tmp_path):
 
 def test_plan_table_names_the_restore_targets(tt, tmp_path):
     """The table has to carry what the JSON does, or an operator reading the
-    human form is left without the node to restore onto and the UUID to stamp.
+    human form is left without the nodes to restore onto and the UUID to
+    stamp on each.
 
     Run with -c, which is the only way the wipe list is filled: the replicaset
     UUID alone proves nothing, it is already printed by the download plan.
@@ -1138,7 +1192,7 @@ def test_plan_table_names_the_restore_targets(tt, tmp_path):
 
     assert rc == PLAN_OK, report
     assert "Restore targets" in report, report
-    assert f"restore onto  {STORAGE_1_A}" in report, report
+    assert f"master  {STORAGE_1_A}" in report, report
     assert f"--patch-uuid  {INSTANCE}" in report, report
     assert f"wipe, rejoins {STORAGE_1_B}" in report, report
     # The replicaset with nothing to wipe carries no rejoin line at all.
@@ -1336,8 +1390,11 @@ def test_plan_pitr(tt, tt_app, tmp_path):
         },
     }
     # The config describes the cluster the backup was taken on, so the topology
-    # check has nothing to say about it.
-    assert doc["warnings"] == [], doc
+    # check has nothing to say about it. The upload of this build writes no
+    # members into the manifest, so the plan says so: a single-target restore.
+    assert doc["warnings"] == [
+        no_members_warning(PITR_INC_ID, APP_REPLICASET_UUID),
+    ], doc
 
     items = doc["download_plan"][APP_REPLICASET_UUID]
     assert [item["backup_id"] for item in items] == [PITR_FULL_ID, PITR_INC_ID]
