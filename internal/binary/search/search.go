@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 
 	"github.com/tarantool/tt/sdk/log"
@@ -29,8 +28,8 @@ const (
 type SearchCtx struct {
 	binary.BinaryContext
 
-	// Local searches the configured local repository.
-	Local bool
+	// LocalRepo is the explicit local repository directory.
+	LocalRepo string
 	// Debug includes debug builds instead of release builds.
 	Debug bool
 	// Filter out which builds of tarantool-ee must be included in the result of search.
@@ -59,39 +58,48 @@ func NewSearchCtx(informer PlatformInformer, doer binary.TntIoDoer) SearchCtx {
 	return searchCtx
 }
 
-// printVersion prints the version and labels:
-// * if the package is installed: [installed]
-// * if the package is installed and in use: [active].
-func printVersion(bindir string, program binary.Program, versionStr string) {
-	_, err := os.Stat(filepath.Join(bindir, program.String()+version.FsSeparator+versionStr))
-	if err == nil {
-		target, _ := binary.ResolveSymlink(filepath.Join(bindir, program.Exec()))
+// printVersion annotates a version using only paths in the selected scope.
+func printVersion(root string, program binary.Program, versionStr string) {
+	installedPath := filepath.Join(root, binary.VersionsDirName, program.String(),
+		program.String()+version.FsSeparator+versionStr, program.Exec())
+	info, err := os.Stat(installedPath)
 
-		if path.Base(target) == program.String()+version.FsSeparator+versionStr {
-			_, _ = fmt.Fprintf(os.Stdout, "%s [active]\n", versionStr)
-		} else {
-			_, _ = fmt.Fprintf(os.Stdout, "%s [installed]\n", versionStr)
-		}
-	} else {
+	if err != nil || !info.Mode().IsRegular() {
 		_, _ = fmt.Fprintln(os.Stdout, versionStr)
+
+		return
 	}
+
+	label := "installed"
+	activePath, _ := binary.ResolveSymlink(filepath.Join(root, binary.BinDirName, program.Exec()))
+	resolvedInstalledPath, err := binary.ResolveSymlink(installedPath)
+
+	if err == nil && resolvedInstalledPath == activePath {
+		label = "active"
+	}
+
+	_, _ = fmt.Fprintf(os.Stdout, "%s [%s]\n", versionStr, label)
 }
 
 // SearchVersions outputs available versions of program.
-func SearchVersions(searchCtx SearchCtx, cliOpts *config.CliOpts) error {
+func SearchVersions(searchCtx SearchCtx) error {
+	root, err := searchCtx.Scope.ArtifactPath()
+	if err != nil {
+		return err
+	}
+
 	prg := searchCtx.Program
 	log.Infof("Available versions of %s:", prg)
 
-	var (
-		err  error
-		vers version.VersionSlice
-	)
+	var vers version.VersionSlice
 
 	switch prg {
 	case binary.ProgramCe, binary.ProgramTt:
 		vers, err = searchVersionsGit(prg.GitRepo())
 	case binary.ProgramEe, binary.ProgramTcm: // Group of API-based searches.
-		vers, err = searchVersionsTntIo(cliOpts, &searchCtx)
+		var opts config.CliOpts
+
+		vers, err = searchVersionsTntIo(&opts, &searchCtx)
 	default:
 		return fmt.Errorf("%w%s' is not implemented",
 			errRemoteSearchForProgramIsNotImplemented, prg)
@@ -108,7 +116,7 @@ func SearchVersions(searchCtx SearchCtx, cliOpts *config.CliOpts) error {
 	}
 
 	for _, v := range vers {
-		printVersion(cliOpts.Env.BinDir, prg, v.Str)
+		printVersion(root, prg, v.Str)
 	}
 
 	return nil
