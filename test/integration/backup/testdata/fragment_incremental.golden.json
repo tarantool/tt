@@ -12,5 +12,6 @@
   "files": [
     "00000000000000000035.xlog"
   ],
-  "recovery_points": []
+  "recovery_points": [],
+  "instance_id": 1
 }

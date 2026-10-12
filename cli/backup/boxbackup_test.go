@@ -237,6 +237,66 @@ func TestGetInstanceInfo(t *testing.T) {
 	require.Equal(t, instanceInfoExpr, m.exprs[len(m.exprs)-1])
 }
 
+// TestGetClusterMembers checks that the _cluster rows the fallback read
+// returns land as members: {id, uuid, name} tuples with fixnum ids (int8)
+// and wider ones at their own width, a nil name on rows written by old
+// replicas, two-field rows on the oldest ones. A non-string uuid arrives as
+// its Stringer form.
+func TestGetClusterMembers(t *testing.T) {
+	m := &mockEvaler{queue: [][]any{{[]any{
+		[]any{int8(1), testInstanceUUID, "router-001"},
+		[]any{int8(3), "cccccccc-0000-0000-0000-000000000003", "storage-003"},
+		[]any{int16(300), "bbbbbbbb-0000-0000-0000-000000000002"},
+		[]any{int8(4), "dddddddd-0000-0000-0000-000000000004", nil},
+	}}}}
+
+	members, err := GetClusterMembers(m)
+	require.NoError(t, err)
+	require.Equal(t, clusterMembersExpr, m.exprs[len(m.exprs)-1])
+	require.Equal(t, []ClusterMember{
+		{ID: 1, UUID: testInstanceUUID, Name: "router-001"},
+		{ID: 3, UUID: "cccccccc-0000-0000-0000-000000000003", Name: "storage-003"},
+		{ID: 300, UUID: "bbbbbbbb-0000-0000-0000-000000000002"},
+		{ID: 4, UUID: "dddddddd-0000-0000-0000-000000000004"},
+	}, members)
+}
+
+// stringerUUID is a uuid value that carries its text form the way a decoded
+// non-string uuid value does: behind a String() method.
+type stringerUUID string
+
+func (u stringerUUID) String() string { return string(u) }
+
+// TestGetClusterMembers_memberUuidStringer checks a uuid the transport
+// delivers as a value rather than a string: it must still land as its text
+// form.
+func TestGetClusterMembers_memberUuidStringer(t *testing.T) {
+	m := &mockEvaler{queue: [][]any{{[]any{[]any{
+		int8(5),
+		stringerUUID("eeeeeeee-0000-0000-0000-000000000005"), "storage-005",
+	}}}}}
+
+	members, err := GetClusterMembers(m)
+	require.NoError(t, err)
+	require.Equal(t, []ClusterMember{
+		{ID: 5, UUID: "eeeeeeee-0000-0000-0000-000000000005", Name: "storage-005"},
+	}, members)
+}
+
+func TestGetClusterMembers_error(t *testing.T) {
+	m := &mockEvaler{err: errors.New("boom"), errOn: 1}
+
+	_, err := GetClusterMembers(m)
+	require.ErrorContains(t, err, "failed to get _cluster membership")
+}
+
+func TestGetClusterMembers_empty(t *testing.T) {
+	m := &mockEvaler{queue: [][]any{nil}}
+
+	_, err := GetClusterMembers(m)
+	require.ErrorContains(t, err, "instance returned empty _cluster")
+}
+
 func TestGetInstanceInfo_error(t *testing.T) {
 	m := &mockEvaler{err: errors.New("boom"), errOn: 1}
 

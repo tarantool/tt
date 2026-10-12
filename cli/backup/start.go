@@ -4,15 +4,21 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/apex/log"
 	"github.com/tarantool/go-iproto"
 	"github.com/tarantool/go-tarantool/v2"
+	"github.com/tarantool/go-xlog/format"
 
 	"github.com/tarantool/tt/cli/backup/archive"
+	"github.com/tarantool/tt/cli/backup/xlog"
 	"github.com/tarantool/tt/cli/connector"
 )
 
@@ -24,7 +30,8 @@ const (
 
 // ErrAlreadyInProgress signals that box.backup is already open on the instance.
 var ErrAlreadyInProgress = errors.New(
-	"backup already in progress, run finalize first")
+	"backup already in progress, run finalize first",
+)
 
 // errNoBackupAfterStart signals that box.backup.info() unexpectedly returned no
 // backup right after a successful box.backup.start().
@@ -129,7 +136,14 @@ func buildArchive(
 		return "", fmt.Errorf("failed to resolve backup files: %w", err)
 	}
 
-	archivePath, err := packArchive(archiveDir, baseName, filePaths, info, inst)
+	members, instanceID, err := fragmentMembership(conn, inst, filePaths, info.Vclock)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve the replicaset membership: %w", err)
+	}
+
+	archivePath, err := packArchive(
+		archiveDir, baseName, filePaths, members, instanceID, info, inst,
+	)
 	if err != nil {
 		return "", fmt.Errorf("failed to pack archive: %w", err)
 	}
@@ -227,6 +241,8 @@ func resolveInstance(conn connector.Connector, opts BackupStartOpts) (*InstanceI
 func packArchive(
 	archiveDir, baseName string,
 	filePaths []string,
+	members []ClusterMember,
+	instanceID uint32,
 	info *BackupInfo,
 	inst *InstanceInfo,
 ) (string, error) {
@@ -263,7 +279,9 @@ func packArchive(
 		ReplicasetUUID: inst.ReplicasetUUID,
 		InstanceUUID:   inst.InstanceUUID,
 		InstanceName:   inst.InstanceName,
+		InstanceID:     instanceID,
 		Hostname:       inst.Hostname,
+		Members:        members,
 		Type:           info.Type,
 		VclockBegin:    info.PrevVclock,
 		VclockEnd:      info.Vclock,
@@ -310,7 +328,8 @@ func resolveFiles(files []string, dataDirs ...string) ([]string, error) {
 		if found == "" {
 			return nil, fmt.Errorf(
 				"backup file %q not found in data directories %q",
-				name, dataDirs)
+				name, dataDirs,
+			)
 		}
 		paths = append(paths, found)
 	}
@@ -325,6 +344,171 @@ func archiveEntryNames(paths []string, dataDirs archive.DataDirs) []string {
 	}
 
 	return names
+}
+
+// fragmentMembership derives the membership a fragment records from the
+// backup's own data. A full backup lists the .snap of the checkpoint the
+// freeze pinned and the journals of the frozen range
+// [checkpoint .. vclock_end]: the membership is that snapshot folded with
+// those journals, clamped at the frozen vclock (xlog.MembershipUpTo). A
+// member whose registration row the frozen range carries is one the backup's
+// data restores, whichever side of the checkpoint it registered on -- a
+// snapshot-only read would miss it, and the plan would send its node to
+// rejoin over data that boots it whole. The clamp also keeps out what a
+// still-open journal gains after the freeze: the files keep growing until
+// the backup is finalized, and rows past vclock_end are outside the promise
+// the fragment makes.
+//
+// It returns the members but the backed-up instance itself (see
+// fragmentMembers) and the backed-up instance's own _cluster id: its row is
+// among the ones read, and the manifest names it on the master's topology
+// entry like it names every member's.
+//
+// An incremental backup lists no .snap of its own, and the full's checkpoint
+// is not at hand at pack time (only the files this backup lists are), so
+// there the membership falls back to a live read. That membership is what
+// the instance holds when the fragment is packed, not what the chain's full
+// backup froze, so it may drift from the freeze; the warning says so -- the
+// warning does not make the read trustworthy. A snapshot that is present but
+// unreadable is not a fallback case -- the backup's own checkpoint is
+// broken, and that is reported, not papered over with a live state the
+// frozen range does not cover.
+func fragmentMembership(
+	conn connector.Connector,
+	inst *InstanceInfo,
+	filePaths []string,
+	frozen Vclock,
+) ([]ClusterMember, uint32, error) {
+	var rows []ClusterMember
+
+	snap := snapshotOf(filePaths)
+	if snap == "" {
+		log.Warnf("no snapshot among the backup files: recording the live " +
+			"_cluster membership; it is a read taken after the freeze and " +
+			"may drift from the range the backup froze")
+
+		live, err := GetClusterMembers(conn)
+		if err != nil {
+			return nil, 0, err //nolint:wrapcheck
+		}
+		rows = live
+	} else {
+		bound, err := frozenVClock(frozen)
+		if err != nil {
+			return nil, 0, err //nolint:wrapcheck
+		}
+
+		folded, err := xlog.MembershipUpTo(snap, journalsOf(filePaths), bound)
+		if err != nil {
+			return nil, 0, err //nolint:wrapcheck
+		}
+
+		rows = make([]ClusterMember, len(folded))
+		for i, member := range folded {
+			// Same fields, different package: the fold speaks its own member
+			// type, the fragment and the manifest speak this one.
+			rows[i] = ClusterMember(member)
+		}
+	}
+
+	// The instance's own row is told by uuid, not by id -- the id only says
+	// when the node joined, not which node took the backup.
+	var instanceID uint32
+	for _, member := range rows {
+		if member.UUID == inst.InstanceUUID {
+			instanceID = member.ID
+			break
+		}
+	}
+
+	return fragmentMembers(inst, rows), instanceID, nil
+}
+
+// journalsOf returns the .xlog files of the backed-up set in replay order:
+// the order of their names, which is the order of the vclock signatures the
+// names encode (the same order the restore side folds the chain in).
+func journalsOf(filePaths []string) []string {
+	journals := make([]string, 0, len(filePaths))
+	for _, path := range filePaths {
+		if strings.HasSuffix(path, ".xlog") {
+			journals = append(journals, path)
+		}
+	}
+
+	slices.SortFunc(journals, func(a, b string) int {
+		return strings.Compare(filepath.Base(a), filepath.Base(b))
+	})
+
+	return journals
+}
+
+// frozenVClock converts the frozen vclock box.backup.start returned into the
+// fold's bound. An LSN past int64 is refused rather than wrapped: a negative
+// component would clamp a whole replica axis out of the fold.
+func frozenVClock(v Vclock) (format.VClock, error) {
+	out := make(format.VClock, len(v))
+	for id, lsn := range v {
+		if lsn > math.MaxInt64 {
+			return nil, fmt.Errorf("%w: replica %d lsn %d exceeds int64",
+				xlog.ErrLSNOverflow, id, lsn)
+		}
+
+		out[id] = int64(lsn)
+	}
+
+	return out, nil
+}
+
+// fragmentMembers lists the replicaset members the fragment records: every
+// member of the given membership but the backed-up instance itself, ordered
+// by name. The instance's own row is told by uuid, not by id -- the id only
+// says when the node joined, not which node took the backup. nil means the
+// replicaset has no other members and the fragment omits the field.
+func fragmentMembers(inst *InstanceInfo, rows []ClusterMember) []ClusterMember {
+	members := make([]ClusterMember, 0, len(rows))
+	for _, member := range rows {
+		if member.UUID == inst.InstanceUUID {
+			continue
+		}
+		members = append(members, member)
+	}
+	if len(members) == 0 {
+		return nil
+	}
+
+	slices.SortStableFunc(members, compareClusterMembers)
+
+	return members
+}
+
+// snapshotOf returns the path of the .snap among the backed-up files: the
+// checkpoint the freeze produced, whose _cluster rows seed the membership
+// the backup restores. The newest snapshot by the vclock signature its name
+// carries wins, so a future box.backup listing more than one decides the
+// membership by recency, not by list order. An incremental lists none, and
+// "" comes back for it.
+func snapshotOf(filePaths []string) string {
+	newest := ""
+	var newestSignature int64
+
+	for _, path := range filePaths {
+		if !strings.HasSuffix(path, ".snap") {
+			continue
+		}
+
+		signature, err := strconv.ParseInt(
+			strings.TrimSuffix(filepath.Base(path), ".snap"), 10, 64,
+		)
+		if err != nil {
+			continue
+		}
+
+		if newest == "" || signature > newestSignature {
+			newest, newestSignature = path, signature
+		}
+	}
+
+	return newest
 }
 
 // writeFragment marshals the fragment to a JSON file at path.

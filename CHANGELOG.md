@@ -9,16 +9,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt backup start`: the manifest's topology now carries the full
+  replicaset membership beside the master, each member with its numeric
+  cluster id, read off the frozen range the backup itself carries.
+
+### Changed
+
+### Fixed
+
 - `tt connect`, `tt replicaset`, `tt cluster topology`, `tt backup`:
   added `--sslpassword` and `--sslpasswordfile` to decrypt
   password-protected private SSL keys.
 - `tt connect`, `tt replicaset`, `tt cluster topology`, `tt backup`:
   added `--connect-timeout`, with a default of one second, to bound
   binary connection establishment.
-
-### Changed
-
-### Fixed
 
 ## [2.15.0] - 2026-09-24
 

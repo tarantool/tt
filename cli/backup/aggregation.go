@@ -19,10 +19,18 @@ type RecoveryPoint struct {
 
 // Fragment is a per-replicaset backup description stored in an instance archive.
 type Fragment struct {
-	ReplicasetUUID string            `json:"replicaset_uuid"`
-	InstanceUUID   string            `json:"instance_uuid"`
-	InstanceName   string            `json:"instance_name"`
-	Hostname       string            `json:"hostname"`
+	ReplicasetUUID string `json:"replicaset_uuid"`
+	InstanceUUID   string `json:"instance_uuid"`
+	InstanceName   string `json:"instance_name"`
+	// InstanceID is the backed-up instance's own box.space._cluster id, from
+	// the same membership read the members came from. Zero (omitted) when
+	// that read named no row for the instance.
+	InstanceID uint32 `json:"instance_id,omitempty"`
+	Hostname   string `json:"hostname"`
+	// Members are the other members of the replicaset as the backed-up
+	// snapshot records them in _cluster, ordered by name. Absent when
+	// the replicaset has no other members.
+	Members        []ClusterMember   `json:"members,omitempty"`
 	Type           BackupType        `json:"type"`
 	VclockBegin    Vclock            `json:"vclock_begin"`
 	VclockEnd      Vclock            `json:"vclock_end"`

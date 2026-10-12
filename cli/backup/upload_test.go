@@ -393,20 +393,58 @@ func TestBuildTopologyFromFragments(t *testing.T) {
 			[]*Fragment{
 				{
 					ReplicasetUUID: testRSA,
+					InstanceID:     1,
 					InstanceUUID:   "inst-a",
 					InstanceName:   "a-001",
 					Hostname:       "host-a",
 				},
 				{
 					ReplicasetUUID: testRSB,
+					InstanceID:     7,
 					InstanceUUID:   "inst-b",
 					InstanceName:   "b-001",
 					Hostname:       "host-b",
 				},
 			},
 			map[string][]TopologyInstance{
-				testRSA: {{InstanceUUID: "inst-a", InstanceName: "a-001", Hostname: "host-a"}},
-				testRSB: {{InstanceUUID: "inst-b", InstanceName: "b-001", Hostname: "host-b"}},
+				testRSA: {{
+					InstanceID: 1, InstanceUUID: "inst-a",
+					InstanceName: "a-001", Hostname: "host-a",
+				}},
+				testRSB: {{
+					InstanceID: 7, InstanceUUID: "inst-b",
+					InstanceName: "b-001", Hostname: "host-b",
+				}},
+			},
+		},
+		{
+			"full membership",
+			[]*Fragment{
+				{
+					ReplicasetUUID: testRSA,
+					InstanceID:     1,
+					InstanceUUID:   "inst-a",
+					InstanceName:   "a-001",
+					Hostname:       "host-a",
+					// Unsorted and holding the master's uuid again: the manifest
+					// lists the master first, then members by name, an instance
+					// at most once.
+					Members: []ClusterMember{
+						{ID: 3, UUID: "inst-c", Name: "a-003"},
+						{ID: 1, UUID: "inst-a", Name: "a-001"},
+						{ID: 2, UUID: "inst-b", Name: "a-002"},
+					},
+				},
+			},
+			map[string][]TopologyInstance{
+				testRSA: {
+					{
+						InstanceID: 1, InstanceUUID: "inst-a",
+						InstanceName: "a-001", Hostname: "host-a",
+					},
+					{InstanceID: 2, InstanceUUID: "inst-b", InstanceName: "a-002"},
+					{InstanceID: 3, InstanceUUID: "inst-c", InstanceName: "a-003"},
+				},
 			},
 		},
 		{
@@ -827,7 +865,8 @@ func TestValidateFragmentsAgainstAHandWrittenPlan(t *testing.T) {
 		[]*Fragment{
 			fragmentOfPlan(testRSA, testInstanceA, BackupTypeFull),
 			fragmentOfPlan(testRSB, testInstanceB, BackupTypeFull),
-		}, plan, false)
+		}, plan, false,
+	)
 	require.NoError(t, err)
 	require.Len(t, notes, 1)
 	assert.Contains(t, notes[0], "is not in the plan")
