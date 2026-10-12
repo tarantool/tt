@@ -530,7 +530,10 @@ GLOBAL FLAGS[0m
   -V, --verbose             Show diagnostic output and build commands
 
 === tt binary switch --help
-Switch the active binary
+Switch to an installed version in the selected scope.
+Without arguments, choose the program and version interactively. With only
+a program, choose its version. CE and EE share the active Tarantool binary
+and headers.
 
 [0;1;39mUSAGE[0m
   tt binary switch [program] [version] [flags]

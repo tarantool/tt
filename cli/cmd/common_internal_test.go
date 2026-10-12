@@ -10,7 +10,6 @@ import (
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/configure"
 	"github.com/tarantool/tt/v3/internal/binary"
-	switcher "github.com/tarantool/tt/v3/internal/binary/switch"
 	"github.com/tarantool/tt/v3/internal/binary/uninstall"
 )
 
@@ -53,8 +52,6 @@ func TestCheckConfig(t *testing.T) {
 		name string
 		err  error
 	}{
-		{"binary switch", internalSwitchModule(
-			binary.BinaryContext{}, switcher.SwitchCtx{}, &cmdcontext.CmdCtx{}, nil)},
 		{"check", internalCheckModule(&cmdcontext.CmdCtx{}, nil)},
 		{"clean", internalCleanModule(&cmdcontext.CmdCtx{}, nil)},
 		{"create", internalCreateModule(&cmdcontext.CmdCtx{}, nil)},

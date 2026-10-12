@@ -15,6 +15,7 @@ import (
 	"github.com/tarantool/tt/v3/internal/binary"
 	"github.com/tarantool/tt/v3/internal/binary/install"
 	"github.com/tarantool/tt/v3/internal/binary/list"
+	switcher "github.com/tarantool/tt/v3/internal/binary/switch"
 )
 
 // TestBinaryDefaultScope checks that all commands accept an omitted scope.
@@ -444,6 +445,7 @@ func TestBinaryScopedCommandsWithoutConfig(t *testing.T) {
 				"tcm-1.3.0.linux.amd64.tar.gz"), nil, 0o600))
 
 			commands := [][]string{
+				{"switch", "tcm", "1.3.0"},
 				{"list"},
 				{"search", "tcm", "--local-repo", "bundles"},
 			}
@@ -454,6 +456,10 @@ func TestBinaryScopedCommandsWithoutConfig(t *testing.T) {
 				command.SetArgs(append([]string{"--scope", scope.String()}, args...))
 				require.NoError(t, command.Execute(), args)
 			}
+
+			active, err := filepath.EvalSymlinks(filepath.Join(root, "bin", "tcm"))
+			require.NoError(t, err)
+			assert.Equal(t, installed, active)
 		})
 	}
 }
@@ -474,6 +480,8 @@ func TestBinaryScopedAdaptersDoNotFindParent(t *testing.T) {
 	ctx := &cmdcontext.CmdCtx{}
 	err := internalListModule(base, list.ListCtx{}, ctx, nil)
 	require.ErrorIs(t, err, list.ErrNoBinariesInstalled)
+	require.ErrorContains(t, internalSwitchModule(base, switcher.SwitchCtx{}, ctx,
+		[]string{"tt", "3.0.0"}), "is not installed")
 
 	assert.FileExists(t, installed)
 	assert.NoDirExists(t, filepath.Join(child, ".tarantool"))

@@ -197,6 +197,11 @@ for machine-readable output.
 
 ### Changed
 
+- `tt binary switch`: select installed versions only in the chosen
+  `--scope project` (the default), `user`, or `system`, without searching
+  parents or falling back to other scopes. Switching CE or EE updates both
+  the active executable and headers in that scope. Installation paths no
+  longer depend on `env.bin_dir` or `env.inc_dir` in `tt.yaml`.
 - `tt binary list`: show installations only in the selected `--scope project`
   (the default), `user`, or `system`. Project scope is `.tarantool/` in the
   current directory, without searching parents or falling back to other
