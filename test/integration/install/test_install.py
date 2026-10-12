@@ -44,6 +44,8 @@ def test_install_tt_noexist_commit(tt_cmd, tmp_path):
         "--cfg",
         configPath,
         "binary",
+        "--scope",
+        "project",
         "install",
         "--local-repo",
         "tt",
@@ -75,7 +77,7 @@ def test_install_tt(tt_cmd, tmp_path):
         f.write("env:\n  bin_dir:\n  inc_dir:\n")
 
     # Install latest tt.
-    install_cmd = [tt_cmd, "--cfg", configPath, "binary", "install", "tt"]
+    install_cmd = [tt_cmd, "--cfg", configPath, "binary", "--scope", "project", "install", "tt"]
     instance_process = subprocess.Popen(
         install_cmd,
         cwd=tmp_path,
@@ -109,7 +111,17 @@ def test_install_uninstall_tt_specific_commit(tt_cmd, tmp_path):
         f.write("env:\n  bin_dir:\n  inc_dir:\n")
 
     # Install specific tt's commit.
-    install_cmd = [tt_cmd, "--cfg", configPath, "binary", "install", "tt", "97c7b73"]
+    install_cmd = [
+        tt_cmd,
+        "--cfg",
+        configPath,
+        "binary",
+        "--scope",
+        "project",
+        "install",
+        "tt",
+        "97c7b73",
+    ]
     instance_process = subprocess.Popen(
         install_cmd,
         cwd=tmp_path,
@@ -135,7 +147,17 @@ def test_install_uninstall_tt_specific_commit(tt_cmd, tmp_path):
     assert re.search(r"commit: 97c7b73", start_output)
 
     # Uninstall specific tt's commit.
-    uninstall_cmd = [tt_cmd, "--cfg", configPath, "binary", "uninstall", "tt", "97c7b73"]
+    uninstall_cmd = [
+        tt_cmd,
+        "--cfg",
+        configPath,
+        "binary",
+        "--scope",
+        "project",
+        "uninstall",
+        "tt",
+        "97c7b73",
+    ]
     uninstall_instance_process = subprocess.Popen(
         uninstall_cmd,
         cwd=tmp_path,
@@ -158,7 +180,17 @@ def test_wrong_format_hash(tt_cmd, tmp_path):
         f.write("env:\n  bin_dir:\n  inc_dir:\n")
 
     # Install specific tt's commit.
-    install_cmd = [tt_cmd, "--cfg", configPath, "binary", "install", "tt", "111"]
+    install_cmd = [
+        tt_cmd,
+        "--cfg",
+        configPath,
+        "binary",
+        "--scope",
+        "project",
+        "install",
+        "tt",
+        "111",
+    ]
     instance_process = subprocess.Popen(
         install_cmd,
         cwd=tmp_path,
@@ -178,7 +210,17 @@ def test_wrong_format_hash(tt_cmd, tmp_path):
     )
 
     # Install specific tt's commit.
-    install_cmd_second = [tt_cmd, "--cfg", configPath, "binary", "install", "tt", "zzzzzzz"]
+    install_cmd_second = [
+        tt_cmd,
+        "--cfg",
+        configPath,
+        "binary",
+        "--scope",
+        "project",
+        "install",
+        "tt",
+        "zzzzzzz",
+    ]
     instance_process_second = subprocess.Popen(
         install_cmd_second,
         cwd=tmp_path,
@@ -212,7 +254,17 @@ def test_install_tt_specific_version(tt_cmd, tmp_path, required_ver: str, instal
         f.write("env:\n  bin_dir:\n  inc_dir:\n")
 
     # Install latest tt.
-    install_cmd = [tt_cmd, "--cfg", configPath, "binary", "install", "tt", required_ver]
+    install_cmd = [
+        tt_cmd,
+        "--cfg",
+        configPath,
+        "binary",
+        "--scope",
+        "project",
+        "install",
+        "tt",
+        required_ver,
+    ]
     instance_process = subprocess.Popen(
         install_cmd,
         cwd=tmp_path,
@@ -248,7 +300,18 @@ def test_install_tarantool_commit(tt_cmd, tmp_path):
     tmp_path_without_config = tempfile.mkdtemp()
 
     # Install specific tarantool's commit.
-    install_cmd = [tt_cmd, "--cfg", config_path, "binary", "install", "-f", "tarantool", "00a9e59"]
+    install_cmd = [
+        tt_cmd,
+        "--cfg",
+        config_path,
+        "binary",
+        "--scope",
+        "project",
+        "install",
+        "-f",
+        "tarantool",
+        "00a9e59",
+    ]
     instance_process = subprocess.Popen(
         install_cmd,
         cwd=tmp_path_without_config,
@@ -311,6 +374,8 @@ def test_install_tarantool_in_docker(tt_cmd, tmp_path):
         "--cfg",
         config_path,
         "binary",
+        "--scope",
+        "project",
         "install",
         "-f",
         "tarantool",
@@ -384,6 +449,8 @@ def test_install_tarantool_from_build_bin_invalid(
             "--cfg",
             os.path.join(testdata_path, tt_dir, config_name),
             "binary",
+            "--scope",
+            "project",
             "install",
             "tarantool",
             "--from-build",
@@ -449,6 +516,8 @@ def test_install_tarantool_from_build_no_include_option(
         "--cfg",
         os.path.join(testdata_path, tt_dir, config_name),
         "binary",
+        "--scope",
+        "project",
         "install",
         "tarantool",
         "--from-build",
@@ -496,6 +565,8 @@ def test_install_tarantool_from_build_include_option(tt_cmd, tmp_path, rc, inclu
         "--cfg",
         os.path.join(testdata_path, tt_dir, config_name),
         "binary",
+        "--scope",
+        "project",
         "install",
         "tarantool",
         "--from-build",
@@ -551,7 +622,7 @@ def test_install_tarantool_from_build_invalid_options(tt_cmd, tmp_path, args, er
     shutil.copytree(testdata, tmp_path, symlinks=True, dirs_exist_ok=True)
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "binary", "install", *args],
+        [tt_cmd, "binary", "--scope", "project", "install", *args],
         cwd=tmp_path,
     )
 
@@ -581,6 +652,8 @@ def test_install_tarantool_already_exists(tt_cmd, tmp_path):
         "--cfg",
         os.path.join(tt_dir, config_name),
         "binary",
+        "--scope",
+        "project",
         "install",
         "tarantool",
         "3.0.0",
@@ -621,6 +694,8 @@ def test_install_tt_already_exists_no_symlink(tt_cmd, tmp_path):
         "--cfg",
         os.path.join(tt_dir, config_name),
         "binary",
+        "--scope",
+        "project",
         "install",
         "tt",
         "1.1.2",
@@ -659,6 +734,8 @@ def test_install_tt_already_exists_with_symlink(tt_cmd, tmp_path):
         "--cfg",
         os.path.join(tt_dir, config_name),
         "binary",
+        "--scope",
+        "project",
         "install",
         "tt",
         "1.1.2",
@@ -696,7 +773,7 @@ def test_install_tt_fail_exit_code_dependency_check(tt_cmd, tmp_path, package_to
     configPath = os.path.join(tmp_path, config_name)
     with open(configPath, "w") as f:
         f.write("env:\n  bin_dir:\n  inc_dir:\n")
-    install_cmd = [tt_cmd, "--cfg", configPath, "binary", "install", "tt"]
+    install_cmd = [tt_cmd, "--cfg", configPath, "binary", "--scope", "project", "install", "tt"]
     install_process = subprocess.Popen(
         install_cmd,
         cwd=tmp_path,
@@ -738,6 +815,8 @@ def test_install_tarantool_fetch_latest_version(
         "--cfg",
         config_path,
         "binary",
+        "--scope",
+        "project",
         "install",
         "-f",
         "tarantool",
@@ -773,7 +852,9 @@ def test_install_tarantool_fetch_latest_version(
     install_cmd = [tt_cmd, "--cfg", config_path]
     if not is_interactive:
         install_cmd.append("--no-prompt")
-    install_cmd.extend(["binary", "install", "-f", "tarantool", "master", "--dynamic"])
+    install_cmd.extend(
+        ["binary", "--scope", "project", "install", "-f", "tarantool", "master", "--dynamic"],
+    )
 
     instance_process_rc, output = run_command_and_get_output(
         install_cmd,
@@ -824,7 +905,7 @@ def test_install_tt_fetch_latest_version(
     install_cmd = [tt_cmd, "--cfg", config_path]
     if not is_interactive:
         install_cmd.append("--no-prompt")
-    install_cmd.extend(["binary", "install", "tt", "master"])
+    install_cmd.extend(["binary", "--scope", "project", "install", "tt", "master"])
     instance_process_rc, install_output = run_command_and_get_output(
         install_cmd,
         cwd=tmp_path,

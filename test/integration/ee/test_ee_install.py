@@ -58,7 +58,17 @@ def test_install_local_bundle(
         bundle.add(source, arcname=bundle_dir or ".")
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "binary", "install", program, version, "--local-repo", "--force"],
+        [
+            tt_cmd,
+            "binary",
+            "--scope",
+            "project",
+            "install",
+            program,
+            version,
+            "--local-repo",
+            "--force",
+        ],
         cwd=tmp_path,
     )
     assert rc == 0, output
@@ -99,7 +109,7 @@ def test_install_ee(
     assert re.search(r"(\d+.\d+.\d+|<unknown>)", version)
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "binary", "install", "-f", prog, version],
+        [tt_cmd, "binary", "--scope", "project", "install", "-f", prog, version],
         cwd=tmp_path,
         env=dict(os.environ, PWD=tmp_path),
     )
@@ -140,7 +150,7 @@ def test_install_ee_dev(
     assert re.search(r"(\d+.\d+.\d+|<unknown>)", version)
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "binary", "install", "-f", prog, version, "--dev"],
+        [tt_cmd, "binary", "--scope", "project", "install", "-f", prog, version, "--dev"],
         cwd=tmp_path,
         env=dict(os.environ, PWD=tmp_path),
     )

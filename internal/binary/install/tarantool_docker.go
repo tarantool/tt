@@ -75,7 +75,7 @@ func installTarantoolInDocker(tntVersion, binDir, incDir string, installCtx Inst
 	}
 
 	// Generate install command line for tt in container.
-	tntInstallCommandLine := []string{"./tt"}
+	tntInstallCommandLine := []string{"./tt", "binary", "--scope", installCtx.Scope.String()}
 	if installCtx.Verbose {
 		tntInstallCommandLine = append(tntInstallCommandLine, "-V")
 	}

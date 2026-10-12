@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/internal/binary"
 	"github.com/tarantool/tt/v3/internal/binary/install"
 	"github.com/tarantool/tt/v3/internal/binary/list"
@@ -42,6 +43,7 @@ type binaryFunc[T any] func(binary.BinaryContext, T, *cmdcontext.CmdCtx, []strin
 func NewBinaryCmd() *cobra.Command {
 	var (
 		base         binary.BinaryContext
+		scopeName    string
 		installCtx   install.InstallCtx
 		uninstallCtx uninstall.UninstallCtx
 		searchCtx    = search.NewSearchCtx(search.NewPlatformInformer(), search.NewTntIoDoer())
@@ -52,8 +54,20 @@ func NewBinaryCmd() *cobra.Command {
 	binaryCmd := &cobra.Command{
 		Use:   "binary",
 		Short: "Manage binaries and SDK bundles",
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			var err error
+
+			base.Scope, err = binary.ParseScope(scopeName)
+			if err != nil {
+				return commandError(cmd, util.NewArgError(err.Error()))
+			}
+
+			return nil
+		},
 	}
 
+	binaryCmd.PersistentFlags().StringVar(&scopeName, "scope", binary.ScopeProject.String(),
+		"Installation scope: project, user or system")
 	binaryCmd.PersistentFlags().BoolVarP(&base.Verbose, "verbose", "V", false,
 		"Show diagnostic output and build commands")
 
@@ -76,13 +90,13 @@ func newBinaryInstallCmd(base *binary.BinaryContext,
 		Use:   "install",
 		Short: "Install a program",
 		Example: `# Install the latest Tarantool version.
-  $ tt binary install tarantool
+  $ tt binary install tarantool --scope project
 
   # Install tt from a pull request.
-  $ tt binary install tt pr/534
+  $ tt binary install tt pr/534 --scope project
 
   # Build Tarantool with two parallel jobs.
-  $ MAKEFLAGS="-j2" tt binary install tarantool 3.0.0`,
+  $ MAKEFLAGS="-j2" tt binary install tarantool 3.0.0 --scope project`,
 	}
 	installCmd.PersistentFlags().BoolVarP(&installCtx.Force, "force", "f", false,
 		"Skip dependency checks")
@@ -130,13 +144,15 @@ func newInstallTarantoolCmd(base *binary.BinaryContext,
 		Use:   binary.ProgramCe.String() + " [version|commit|pull-request]",
 		Short: "Install Tarantool Community Edition",
 		Example: `# Build and install Tarantool from the local repository.
-  $ tt binary install tarantool --local-repo
+  $ tt binary install tarantool --scope project --local-repo
 
   # Link an existing Tarantool build into the environment.
-  $ tt binary install tarantool --from-build ~/src/tarantool/build
+  $ tt binary install tarantool --scope project \
+      --from-build ~/src/tarantool/build
 
   # Use headers from a custom directory.
-  $ tt binary install tarantool --from-build ~/src/tarantool/build \
+  $ tt binary install tarantool --scope project \
+      --from-build ~/src/tarantool/build \
       --include-dir ~/src/tarantool/include`,
 		RunE: binaryRunE(base, installCtx, internalInstallModule),
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -262,7 +278,7 @@ func newBinaryUninstallCmd(base *binary.BinaryContext,
 		Use:   "uninstall",
 		Short: "Uninstall a program",
 		Example: `# Uninstall a Tarantool version.
-  $ tt binary uninstall tarantool 3.0.0`,
+  $ tt binary uninstall tarantool 3.0.0 --scope project`,
 	}
 
 	uninstallCmd.AddCommand(
@@ -565,13 +581,13 @@ func newBinarySwitchCmd(base *binary.BinaryContext,
 		Use:   "switch [program] [version]",
 		Short: "Switch the active binary",
 		Example: `# Choose a program and version interactively.
-  $ tt binary switch
+  $ tt binary switch --scope project
 
   # Choose a Tarantool version interactively.
-  $ tt binary switch tarantool
+  $ tt binary switch tarantool --scope project
 
   # Switch to a specific Tarantool version.
-  $ tt binary switch tarantool 3.0.0`,
+  $ tt binary switch tarantool 3.0.0 --scope project`,
 		RunE: binaryRunE(base, switchCtx, internalSwitchModule),
 		Args: cobra.MatchAll(
 			cobra.MaximumNArgs(binarySwitchMaxArgs), binarySwitchValidateArgs),
