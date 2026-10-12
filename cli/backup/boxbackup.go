@@ -74,9 +74,11 @@ func stopBackup(conn connector.Connector) error {
 	return nil
 }
 
-// instanceInfoExpr fetches replicaset/instance uuids, instance name and
-// data directories in one round-trip. box.info.name may be absent on
-// Tarantool 2.x.
+// instanceInfoExpr fetches replicaset/instance uuids, instance name and data
+// directories in one round-trip. box.info.name may be absent on Tarantool 2.x.
+// The _cluster membership is deliberately not read here: the membership a
+// fragment records comes from the backup's own frozen range, not from a live read
+// that races the freeze -- see fragmentMembership.
 const instanceInfoExpr = `return {
 	replicaset_uuid = box.info.replicaset.uuid,
 	instance_uuid   = box.info.uuid,
@@ -87,9 +89,10 @@ const instanceInfoExpr = `return {
 	vinyl_dir       = box.cfg.vinyl_dir,
 }`
 
-// GetInstanceInfo fetches instance-identifying fields and data directories
-// from the instance (box.info/box.cfg) and augments them with the local
-// hostname (the command runs on the node).
+// GetInstanceInfo fetches instance-identifying fields, data directories and
+// the full _cluster membership from the instance (box.info/box.cfg/
+// box.space._cluster) and augments them with the local hostname (the command
+// runs on the node).
 func GetInstanceInfo(conn connector.Connector) (*InstanceInfo, error) {
 	res, err := conn.Eval(instanceInfoExpr, []any{}, connector.RequestOpts{})
 	if err != nil {
@@ -119,6 +122,7 @@ func GetInstanceInfo(conn connector.Connector) (*InstanceInfo, error) {
 	if err := decoder.Decode(res[0]); err != nil {
 		return nil, fmt.Errorf("failed to decode instance info: %w", err)
 	}
+
 	return &InstanceInfo{
 		ReplicasetUUID: decoded.ReplicasetUUID,
 		InstanceUUID:   decoded.InstanceUUID,
@@ -128,4 +132,107 @@ func GetInstanceInfo(conn connector.Connector) (*InstanceInfo, error) {
 		MemtxDir:       decoded.MemtxDir,
 		VinylDir:       decoded.VinylDir,
 	}, nil
+}
+
+// clusterMembersExpr fetches the full _cluster membership in a round trip of
+// its own. The start flow evaluates it only when the backup lists no snapshot
+// to take the membership from -- see fragmentMembership. _cluster rows are
+// {id, uuid} or {id, uuid, name} tuples, the name being nil on rows written
+// by old replicas.
+const clusterMembersExpr = `return box.space._cluster:select()`
+
+// GetClusterMembers fetches the _cluster membership from the instance.
+func GetClusterMembers(conn connector.Connector) ([]ClusterMember, error) {
+	res, err := conn.Eval(clusterMembersExpr, []any{}, connector.RequestOpts{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get _cluster membership: %w", err)
+	}
+	if len(res) == 0 || res[0] == nil {
+		return nil, fmt.Errorf("instance returned empty _cluster")
+	}
+
+	rows, ok := res[0].([]any)
+	if !ok {
+		return nil, fmt.Errorf("unexpected _cluster response %v", res[0])
+	}
+
+	members, err := decodeClusterMembers(rows)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode _cluster membership: %w", err)
+	}
+	return members, nil
+}
+
+// decodeClusterMembers turns box.space._cluster tuples ({id, uuid} or
+// {id, uuid, name}) into ClusterMember values. A map decoder cannot read a
+// positional tuple, so the rows arrive as raw values and are picked apart
+// here; a name that is absent or nil decodes as the empty name.
+func decodeClusterMembers(rows []any) ([]ClusterMember, error) {
+	members := make([]ClusterMember, 0, len(rows))
+	for _, row := range rows {
+		tuple, ok := row.([]any)
+		if !ok || len(tuple) < 2 {
+			return nil, fmt.Errorf("unexpected _cluster row %v", row)
+		}
+
+		id, err := decodeClusterMemberID(tuple[0])
+		if err != nil {
+			return nil, err //nolint:wrapcheck
+		}
+
+		memberUUID, err := decodeClusterMemberUUID(tuple[1])
+		if err != nil {
+			return nil, err //nolint:wrapcheck
+		}
+
+		var member ClusterMember
+		member.ID, member.UUID = id, memberUUID
+		if len(tuple) > 2 {
+			member.Name, _ = tuple[2].(string)
+		}
+
+		members = append(members, member)
+	}
+	return members, nil
+}
+
+// decodeClusterMemberID reads the numeric id of a _cluster row. An id
+// arrives as whatever Go integer width the msgpack decoder picked for the
+// code it saw -- a fixnum decodes to int8, wider codes to their own width.
+func decodeClusterMemberID(value any) (uint32, error) {
+	switch id := value.(type) {
+	case int:
+		return uint32(id), nil
+	case int8:
+		return uint32(id), nil
+	case int16:
+		return uint32(id), nil
+	case int32:
+		return uint32(id), nil
+	case int64:
+		return uint32(id), nil
+	case uint8:
+		return uint32(id), nil
+	case uint16:
+		return uint32(id), nil
+	case uint32:
+		return id, nil
+	case uint64:
+		return uint32(id), nil
+	default:
+		return 0, fmt.Errorf("unexpected _cluster row id %v", value)
+	}
+}
+
+// decodeClusterMemberUUID reads the uuid of a _cluster row, which arrives
+// as a string or as a value that renders itself as one.
+func decodeClusterMemberUUID(value any) (string, error) {
+	switch uuid := value.(type) {
+	case string:
+		return uuid, nil
+	case fmt.Stringer:
+		return uuid.String(), nil
+	default:
+		return "", fmt.Errorf("unexpected _cluster row uuid %v", value)
+	}
 }

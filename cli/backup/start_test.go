@@ -13,10 +13,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/apex/log"
+	"github.com/apex/log/handlers/memory"
+	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/go-iproto"
 	"github.com/tarantool/go-tarantool/v2"
+	"github.com/tarantool/go-xlog/format"
+	"github.com/tarantool/go-xlog/writer"
+	"github.com/vmihailenco/msgpack/v5"
 
 	"github.com/tarantool/tt/cli/backup/archive"
 	"github.com/tarantool/tt/cli/connector"
@@ -199,11 +205,92 @@ var walFiles = []string{
 	"00000000000000001500.xlog",
 }
 
-// writeWalFiles writes walFiles into dir.
+// writeWalFiles writes walFiles into dir: a snapshot the backup's membership
+// is read from (the master's own row only, so a fragment records no other
+// members) beside a journal the membership fold reads and finds no _cluster
+// rows in.
 func writeWalFiles(t *testing.T, dir string) {
 	t.Helper()
-	writeWAL(t, dir, "00000000000000001500.snap", []byte("snap"))
-	writeWAL(t, dir, "00000000000000001500.xlog", []byte("xlog"))
+	writeSnapshot(t, filepath.Join(dir, "00000000000000001500.snap"),
+		clusterTuple(1, testInstanceUUID, "router-001"))
+	writeJournal(t, filepath.Join(dir, "00000000000000001500.xlog"))
+}
+
+// clusterSpaceID is box.space._cluster's id, the space whose rows a snapshot
+// carries the replicaset membership in (see cli/backup/xlog/cluster.go).
+const clusterSpaceID = 320
+
+// clusterTuple builds one _cluster row as the instance stores it.
+func clusterTuple(id uint64, memberUUID, name string) []any {
+	return []any{int8(id), memberUUID, name}
+}
+
+// clusterRowBody marshals a DML body naming _cluster and carrying the tuple
+// given, the way a snapshot writes its membership rows.
+func clusterRowBody(t *testing.T, tuple []any) []byte {
+	t.Helper()
+
+	body, err := msgpack.Marshal(map[uint64]any{
+		uint64(iproto.IPROTO_SPACE_ID): clusterSpaceID,
+		uint64(iproto.IPROTO_TUPLE):    tuple,
+	})
+	require.NoError(t, err)
+
+	return body
+}
+
+// writeSnapshot writes a real snapshot file at path whose _cluster holds the
+// tuples given, one row per tuple: the fragment's membership is read from it
+// by xlog.ReadCluster, so a test that packs a .snap needs a decodable one.
+func writeSnapshot(t *testing.T, path string, tuples ...[]any) {
+	t.Helper()
+
+	instanceUUID, err := uuid.Parse(testInstanceUUID)
+	require.NoError(t, err)
+
+	w, err := writer.Create(path, &format.Meta{
+		Filetype:     format.FiletypeSNAP,
+		Version:      "tt-test/1.0",
+		InstanceUUID: instanceUUID,
+		VClock:       format.VClock{1: 1500},
+	})
+	require.NoError(t, err)
+
+	for i, tuple := range tuples {
+		require.NoError(t, w.WriteTx([]format.XRow{{
+			Type:      iproto.IPROTO_INSERT,
+			ReplicaID: 1,
+			LSN:       int64(i + 1),
+			BodyRaw:   clusterRowBody(t, tuple),
+		}}))
+	}
+
+	require.NoError(t, w.Close())
+}
+
+// writeJournal writes a real journal file at path carrying the rows given,
+// one row per transaction: the fragment's membership folds the backed-up
+// journals now (xlog.MembershipUpTo), so a test that packs an archive needs
+// decodable ones. No rows is the plain-payload case.
+func writeJournal(t *testing.T, path string, rows ...format.XRow) {
+	t.Helper()
+
+	instanceUUID, err := uuid.Parse(testInstanceUUID)
+	require.NoError(t, err)
+
+	w, err := writer.Create(path, &format.Meta{
+		Filetype:     format.FiletypeXLOG,
+		Version:      "tt-test/1.0",
+		InstanceUUID: instanceUUID,
+		VClock:       format.VClock{1: 1500},
+	})
+	require.NoError(t, err)
+
+	for _, row := range rows {
+		require.NoError(t, w.WriteTx([]format.XRow{row}))
+	}
+
+	require.NoError(t, w.Close())
 }
 
 // startQueue builds the mockEvaler queue for a successful StartBackup: info
@@ -354,6 +441,8 @@ func TestStartBackup_fragmentFields(t *testing.T) {
 	require.Equal(t, golden.ReplicasetUUID, frag.ReplicasetUUID)
 	require.Equal(t, golden.InstanceUUID, frag.InstanceUUID)
 	require.Equal(t, golden.InstanceName, frag.InstanceName)
+	require.Equal(t, uint32(1), frag.InstanceID,
+		"the master's own _cluster row rides beside the members")
 	require.Equal(t, "node-1.example.com", frag.Hostname)
 	require.Equal(t, golden.Type, frag.Type)
 	require.Equal(t, golden.VclockBegin, frag.VclockBegin)
@@ -365,6 +454,182 @@ func TestStartBackup_fragmentFields(t *testing.T) {
 	wantSum, err := archive.Checksum(archivePath)
 	require.NoError(t, err)
 	require.Equal(t, wantSum, frag.ChecksumSHA256)
+}
+
+// TestStartBackup_fragmentMembers checks that the _cluster rows the frozen
+// snapshot carries land in the fragment as members: every row but the
+// backed-up instance itself, ordered by name. The membership comes from the
+// snapshot, not from a live read -- the instance info below reports a _cluster
+// that already carries a member registered after the freeze, and the fragment
+// must ignore it.
+func TestStartBackup_fragmentMembers(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+	walDir := t.TempDir()
+	writeSnapshot(t, filepath.Join(walDir, "00000000000000001500.snap"),
+		clusterTuple(1, testInstanceUUID, "router-001"),
+		clusterTuple(3, "cccccccc-0000-0000-0000-000000000003", "storage-003"),
+		clusterTuple(2, "bbbbbbbb-0000-0000-0000-000000000002", "storage-002"),
+	)
+	writeJournal(t, filepath.Join(walDir, "00000000000000001500.xlog"))
+
+	info := infoMap(walFiles, nil, Vclock{1: 1502}, nil)
+	inst := instanceMap("router-001", walDir, "")
+	inst["cluster"] = []any{
+		[]any{int8(1), testInstanceUUID, "router-001"},
+		[]any{int8(2), "bbbbbbbb-0000-0000-0000-000000000002", "storage-002"},
+		[]any{int8(3), "cccccccc-0000-0000-0000-000000000003", "storage-003"},
+		[]any{int8(4), "dddddddd-0000-0000-0000-000000000004", "storage-004"},
+	}
+	m := &mockEvaler{queue: startQueue(info, inst)}
+
+	archivePath, err := Start(m, BackupStartOpts{BackupID: "bid"})
+	require.NoError(t, err)
+
+	// The membership is not read live: no eval may touch _cluster.
+	for _, expr := range m.exprs {
+		require.NotContains(t, expr, "box.space._cluster",
+			"the membership must come from the snapshot, not a live read")
+	}
+
+	fragmentData, err := os.ReadFile(fragmentPathFor(archivePath))
+	require.NoError(t, err)
+	var fragment struct {
+		InstanceID uint32          `json:"instance_id"`
+		Members    []ClusterMember `json:"members"`
+	}
+	require.NoError(t, json.Unmarshal(fragmentData, &fragment))
+	require.Equal(t, uint32(1), fragment.InstanceID,
+		"the master's own row, the one the members were read beside")
+	require.Equal(t, []ClusterMember{
+		{ID: 2, UUID: "bbbbbbbb-0000-0000-0000-000000000002", Name: "storage-002"},
+		{ID: 3, UUID: "cccccccc-0000-0000-0000-000000000003", Name: "storage-003"},
+	}, fragment.Members, "master excluded, rest ordered by name, as the "+
+		"snapshot froze them -- not as the live _cluster reported")
+}
+
+// TestStartBackup_fragmentOmitsMembersWithoutReplicas checks that a
+// single-instance replicaset writes no members field at all. The live
+// _cluster below already carries a second member -- recorded or not, the
+// snapshot's membership is what the fragment follows.
+func TestStartBackup_fragmentOmitsMembersWithoutReplicas(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+	walDir := t.TempDir()
+	writeWalFiles(t, walDir)
+
+	info := infoMap(walFiles, nil, Vclock{1: 1502}, nil)
+	inst := instanceMap("router-001", walDir, "")
+	inst["cluster"] = []any{
+		[]any{int8(1), testInstanceUUID, "router-001"},
+		[]any{int8(2), "bbbbbbbb-0000-0000-0000-000000000002", "storage-002"},
+	}
+	m := &mockEvaler{queue: startQueue(info, inst)}
+
+	archivePath, err := Start(m, BackupStartOpts{BackupID: "bid"})
+	require.NoError(t, err)
+
+	fragmentData, err := os.ReadFile(fragmentPathFor(archivePath))
+	require.NoError(t, err)
+	// Inspect raw JSON to tell "absent" from "present" for both optional
+	// fields: members and the master's instance id.
+	var raw map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(fragmentData, &raw))
+	_, membersPresent := raw["members"]
+	require.False(t, membersPresent,
+		"a replicaset with no other members omits the members field")
+	instanceID := string(raw["instance_id"])
+	require.Equal(t, "1", instanceID,
+		"the master's own id is recorded even with no other members")
+}
+
+// captureLog redirects the global logger into a memory handler for one test.
+func captureLog(t *testing.T) *memory.Handler {
+	t.Helper()
+
+	handler := memory.New()
+	previous := log.Log
+	t.Cleanup(func() { log.Log = previous })
+	log.SetHandler(handler)
+
+	return handler
+}
+
+// logMessages returns everything the captured handler logged, one line per
+// entry.
+func logMessages(handler *memory.Handler) string {
+	lines := make([]string, 0, len(handler.Entries))
+	for _, entry := range handler.Entries {
+		lines = append(lines, entry.Message)
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// TestStartBackup_incrementalFallsBackToLiveCluster checks the only case a
+// fragment's membership is still read live: an incremental backup lists no
+// .snap of its own and the full's checkpoint is not at hand at pack time.
+// The fallback must be loud -- the live membership is the one the instance
+// holds now, not the one the chain's full backup froze -- and must still
+// record the same member shape the snapshot path does.
+func TestStartBackup_incrementalFallsBackToLiveCluster(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+	walDir := t.TempDir()
+	writeWAL(t, walDir, "00000000000000001500.xlog", []byte("xlog"))
+
+	handler := captureLog(t)
+
+	files := []string{"00000000000000001500.xlog"}
+	info := infoMap(files, Vclock{1: 1500}, Vclock{1: 1502}, nil)
+	inst := instanceMap("router-001", walDir, "")
+	m := &mockEvaler{queue: [][]any{
+		nil,    // box.backup.info() -- none open
+		nil,    // box.backup.start(...)
+		{info}, // box.backup.info() -- open
+		{inst}, // instance info
+		{[]any{ // box.space._cluster:select() -- res[0] is the row list
+			[]any{int8(1), testInstanceUUID, "router-001"},
+			[]any{int8(2), "bbbbbbbb-0000-0000-0000-000000000002", "storage-002"},
+		}},
+	}}
+
+	archivePath, err := Start(m, BackupStartOpts{BackupID: "bid"})
+	require.NoError(t, err)
+
+	require.Equal(t, "return box.space._cluster:select()", m.exprs[4], m.exprs)
+
+	fragmentData, err := os.ReadFile(fragmentPathFor(archivePath))
+	require.NoError(t, err)
+	var fragment struct {
+		InstanceID uint32          `json:"instance_id"`
+		Members    []ClusterMember `json:"members"`
+	}
+	require.NoError(t, json.Unmarshal(fragmentData, &fragment))
+	require.Equal(t, uint32(1), fragment.InstanceID,
+		"the master's own row, read live beside the members")
+	require.Equal(t, []ClusterMember{
+		{ID: 2, UUID: "bbbbbbbb-0000-0000-0000-000000000002", Name: "storage-002"},
+	}, fragment.Members, "master excluded, the live read recorded with a warning")
+
+	require.Contains(t, logMessages(handler), "no snapshot among the backup files")
+}
+
+// TestStartBackup_failsOnUnreadableSnapshot checks that a snapshot the
+// membership cannot be read from fails the run: the backup's own checkpoint
+// is broken, and a live _cluster read would paper over it with a membership
+// the frozen range does not cover.
+func TestStartBackup_failsOnUnreadableSnapshot(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+	walDir := t.TempDir()
+	writeWAL(t, walDir, "00000000000000001500.snap", []byte("not a snapshot"))
+	writeWAL(t, walDir, "00000000000000001500.xlog", []byte("xlog"))
+
+	info := infoMap(walFiles, nil, Vclock{1: 1502}, nil)
+	inst := instanceMap("router-001", walDir, "")
+	m := &mockEvaler{queue: startQueue(info, inst)}
+
+	_, err := Start(m, BackupStartOpts{BackupID: "bid"})
+	require.ErrorContains(t, err, "failed to resolve the replicaset membership")
+	require.NotContains(t, strings.Join(m.exprs, ";"), "box.space._cluster",
+		"a broken checkpoint must not fall back to a live read")
 }
 
 // TestStartBackup_failLoudOnAlreadyOpen checks that an already-open box.backup
@@ -566,7 +831,8 @@ func TestStartBackup_startError(t *testing.T) {
 func TestStartBackup_mapsInstanceSideAlreadyInProgress(t *testing.T) {
 	t.Setenv("TMPDIR", t.TempDir())
 	m := &mockEvaler{errOn: 2, err: errors.New(
-		"Backup is already in progress (ClientError, code 0x81), see eval line 1")}
+		"Backup is already in progress (ClientError, code 0x81), see eval line 1",
+	)}
 	m.queue = [][]any{nil}
 
 	_, err := Start(m, BackupStartOpts{BackupID: "bid"})
@@ -805,8 +1071,9 @@ func TestStartBackup_resolveFilesSplitDirs(t *testing.T) {
 	memtxDir := t.TempDir()
 	vinylDir := t.TempDir()
 	vinylFile := "00000000000000001500.run"
-	writeWAL(t, memtxDir, "00000000000000001500.snap", []byte("snap"))
-	writeWAL(t, walDir, "00000000000000001500.xlog", []byte("xlog"))
+	snapPath := filepath.Join(memtxDir, "00000000000000001500.snap")
+	writeSnapshot(t, snapPath, clusterTuple(1, testInstanceUUID, "router-001"))
+	writeJournal(t, filepath.Join(walDir, "00000000000000001500.xlog"))
 	writeWAL(t, vinylDir, vinylFile, []byte("vinyl"))
 
 	files := append(slices.Clone(walFiles), vinylFile)
@@ -819,8 +1086,12 @@ func TestStartBackup_resolveFilesSplitDirs(t *testing.T) {
 	require.NoError(t, err)
 
 	entries := readArchiveEntries(t, archivePath)
-	require.Equal(t, []byte("snap"), entries["00000000000000001500.snap"])
-	require.Equal(t, []byte("xlog"), entries["00000000000000001500.xlog"])
+	snapBytes, readErr := os.ReadFile(snapPath)
+	require.NoError(t, readErr)
+	walBytes, walReadErr := os.ReadFile(filepath.Join(walDir, "00000000000000001500.xlog"))
+	require.NoError(t, walReadErr)
+	require.Equal(t, snapBytes, entries["00000000000000001500.snap"])
+	require.Equal(t, walBytes, entries["00000000000000001500.xlog"])
 	require.Equal(t, []byte("vinyl"), entries[vinylFile])
 }
 
@@ -838,8 +1109,9 @@ func TestStartBackup_resolveFilesNestedVinylPath(t *testing.T) {
 	require.NoError(t, os.MkdirAll(vinylSubdir, 0o755))
 	vinylPath := filepath.Join(vinylSubdir, "00000000000000001500.run")
 	require.NoError(t, os.WriteFile(vinylPath, []byte("vinyl"), 0o644))
-	writeWAL(t, memtxDir, "00000000000000001500.snap", []byte("snap"))
-	writeWAL(t, walDir, "00000000000000001500.xlog", []byte("xlog"))
+	snapPath := filepath.Join(memtxDir, "00000000000000001500.snap")
+	writeSnapshot(t, snapPath, clusterTuple(1, testInstanceUUID, "router-001"))
+	writeJournal(t, filepath.Join(walDir, "00000000000000001500.xlog"))
 
 	files := append(slices.Clone(walFiles), vinylPath)
 	info := infoMap(files, nil, Vclock{1: 1502, 2: 230}, nil)
@@ -851,8 +1123,12 @@ func TestStartBackup_resolveFilesNestedVinylPath(t *testing.T) {
 	require.NoError(t, err)
 
 	entries := readArchiveEntries(t, archivePath)
-	require.Equal(t, []byte("snap"), entries["00000000000000001500.snap"])
-	require.Equal(t, []byte("xlog"), entries["00000000000000001500.xlog"])
+	snapBytes, readErr := os.ReadFile(snapPath)
+	require.NoError(t, readErr)
+	walBytes, walReadErr := os.ReadFile(filepath.Join(walDir, "00000000000000001500.xlog"))
+	require.NoError(t, walReadErr)
+	require.Equal(t, snapBytes, entries["00000000000000001500.snap"])
+	require.Equal(t, walBytes, entries["00000000000000001500.xlog"])
 	require.Equal(t, []byte("vinyl"), entries["512/0/00000000000000001500.run"])
 
 	fragment, err := os.ReadFile(fragmentPathFor(archivePath))

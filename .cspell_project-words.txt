@@ -36,6 +36,7 @@ etcdserver
 evaler
 falsef
 finalizer*
+fixnum
 flightrec
 getfixturevalue
 GKTTBACKUPTEST
@@ -68,6 +69,7 @@ mapstructure
 memtx
 moby
 mpcrc
+msgpcode
 multireturn
 mvcc
 mvccpb
@@ -95,6 +97,7 @@ preinst
 promptui
 protoc
 pseudographics
+quorum
 randomises
 rebootstrap
 regexputil
@@ -115,6 +118,7 @@ sslciphers
 sslkeyfile
 stateboard
 svacer
+synchro
 sysdetect
 tarantool*
 tinstance

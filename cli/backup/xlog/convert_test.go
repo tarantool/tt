@@ -8,12 +8,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/go-xlog/format"
-
-	"github.com/tarantool/tt/cli/backup"
 )
 
+// The vclocks below use the widened map type: package xlog must not import
+// package backup any more -- backup imports xlog, and an internal test file
+// importing backup closes an import cycle in the test build.
 func TestToFormatVClock_RoundTrip(t *testing.T) {
-	src := backup.Vclock{0: 0, 1: 42, 2: 9000}
+	src := map[uint32]uint64{0: 0, 1: 42, 2: 9000}
 
 	got, err := toFormatVClock(src)
 	require.NoError(t, err)
@@ -25,7 +26,7 @@ func TestToFormatVClock_RoundTrip(t *testing.T) {
 }
 
 func TestToFormatVClock_Empty(t *testing.T) {
-	got, err := toFormatVClock(backup.Vclock{})
+	got, err := toFormatVClock(map[uint32]uint64{})
 	require.NoError(t, err)
 	require.Equal(t, format.VClock{}, got)
 }
@@ -37,14 +38,14 @@ func TestToFormatVClock_Nil(t *testing.T) {
 }
 
 func TestToFormatVClock_Overflow(t *testing.T) {
-	src := backup.Vclock{1: math.MaxInt64 + 1}
+	src := map[uint32]uint64{1: math.MaxInt64 + 1}
 
 	_, err := toFormatVClock(src)
 	require.ErrorIs(t, err, ErrLSNOverflow)
 }
 
 func TestToFormatVClock_MaxInt64OK(t *testing.T) {
-	src := backup.Vclock{1: math.MaxInt64}
+	src := map[uint32]uint64{1: math.MaxInt64}
 
 	got, err := toFormatVClock(src)
 	require.NoError(t, err)
@@ -65,7 +66,7 @@ func TestFromFormatVClock_Nil(t *testing.T) {
 }
 
 func TestVClock_RoundTripBoundaries(t *testing.T) {
-	src := backup.Vclock{
+	src := map[uint32]uint64{
 		0:  0,
 		1:  1,
 		7:  math.MaxInt64,
@@ -81,6 +82,6 @@ func TestVClock_RoundTripBoundaries(t *testing.T) {
 }
 
 func TestVClock_OverflowIsSentinel(t *testing.T) {
-	_, err := toFormatVClock(backup.Vclock{1: math.MaxUint64})
+	_, err := toFormatVClock(map[uint32]uint64{1: math.MaxUint64})
 	require.True(t, errors.Is(err, ErrLSNOverflow))
 }

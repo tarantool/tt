@@ -1,5 +1,7 @@
 package backup
 
+import "cmp"
+
 // SchemaVersion is the current cluster manifest JSON schema version.
 const SchemaVersion = 1
 
@@ -49,6 +51,21 @@ type BackupInfo struct {
 	Vclock         Vclock            `json:"vclock"`
 	PrevVclock     Vclock            `json:"prev_vclock"`
 	RecoveryPoints *[]*RecoveryPoint `json:"recovery_points"`
+}
+
+// ClusterMember is one box.space._cluster row: a replicaset member as the
+// backed-up instance saw it. Name is empty on rows that carry none, which is
+// what members written by old Tarantool replicas look like.
+type ClusterMember struct {
+	ID   uint32 `json:"id"`
+	UUID string `json:"uuid"`
+	Name string `json:"name"`
+}
+
+// compareClusterMembers orders members the way the fragment and the manifest
+// record them: by name, ties by cluster id.
+func compareClusterMembers(a, b ClusterMember) int {
+	return cmp.Or(cmp.Compare(a.Name, b.Name), cmp.Compare(a.ID, b.ID))
 }
 
 // InstanceInfo holds instance-identifying fields and data directories fetched

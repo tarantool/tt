@@ -20,5 +20,6 @@
       "replica_id": 1,
       "lsn": 36
     }
-  ]
+  ],
+  "instance_id": 1
 }

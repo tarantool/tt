@@ -143,7 +143,8 @@ func VerifyArchives(archives []ArchiveToUpload, fragments []*Fragment) ([]string
 		if !ok {
 			return nil, fmt.Errorf(
 				"no fragment describes archive %q of replicaset %s",
-				item.LocalPath, item.ReplicasetUUID)
+				item.LocalPath, item.ReplicasetUUID,
+			)
 		}
 
 		checksum, err := archive.Checksum(item.LocalPath)
@@ -158,7 +159,8 @@ func VerifyArchives(archives []ArchiveToUpload, fragments []*Fragment) ([]string
 			return nil, fmt.Errorf(
 				"archive %q of replicaset %s has checksum %s, its fragment says %s: "+
 					"the archive changed after it was packed on the node",
-				item.LocalPath, item.ReplicasetUUID, checksum, fragment.ChecksumSHA256)
+				item.LocalPath, item.ReplicasetUUID, checksum, fragment.ChecksumSHA256,
+			)
 		}
 
 		fragment.ChecksumSHA256 = checksum
@@ -192,7 +194,8 @@ func CheckChainHead(head *ClusterManifest, plan *BackupPlan, backupID BackupID) 
 		if previous != "" {
 			return fmt.Errorf(
 				"the plan continues backup %q, but the storage holds no backup at all",
-				previous)
+				previous,
+			)
 		}
 
 		return nil
@@ -206,7 +209,8 @@ func CheckChainHead(head *ClusterManifest, plan *BackupPlan, backupID BackupID) 
 				"ids are compared as text and order the chain, so either the clock "+
 				"of this host is behind, the id is already used, or the ids are not "+
 				"generated in an order that sorts (a zero-padded timestamp does)",
-			backupID, head.BackupID)
+			backupID, head.BackupID,
+		)
 	}
 
 	if plan.Type == BackupTypeIncremental && previous != head.BackupID {
@@ -214,7 +218,8 @@ func CheckChainHead(head *ClusterManifest, plan *BackupPlan, backupID BackupID) 
 			"the plan continues backup %q, but the newest stored backup is %q: "+
 				"the storage changed since the plan was made, so this increment "+
 				"would not continue what it was planned against",
-			previous, head.BackupID)
+			previous, head.BackupID,
+		)
 	}
 
 	return nil
@@ -237,7 +242,8 @@ func PromotionWarning(head *ClusterManifest, plan *BackupPlan) *Warning {
 	if !slices.Equal(planned, backedUp) {
 		warning := NewPromotedToFullWarning(PromotedTopologyChanged, fmt.Sprintf(
 			"the cluster holds replicasets %s, backup %q holds %s",
-			strings.Join(planned, ", "), head.BackupID, strings.Join(backedUp, ", ")))
+			strings.Join(planned, ", "), head.BackupID, strings.Join(backedUp, ", "),
+		))
 
 		return &warning
 	}
@@ -255,7 +261,8 @@ func PromotionWarning(head *ClusterManifest, plan *BackupPlan) *Warning {
 
 		warning := NewPromotedToFullWarning(PromotedMasterChanged, fmt.Sprintf(
 			"replicaset %s is backed up on instance %s now, backup %q was taken on %s",
-			replicasetUUID, master, head.BackupID, shard.Instance.InstanceUUID))
+			replicasetUUID, master, head.BackupID, shard.Instance.InstanceUUID,
+		))
 
 		return &warning
 	}
@@ -264,20 +271,53 @@ func PromotionWarning(head *ClusterManifest, plan *BackupPlan) *Warning {
 }
 
 // BuildTopologyFromFragments builds a Topology from the collected fragments.
-// Each fragment represents the master instance that produced the backup.
+// Each replicaset lists the master instance that produced the backup first,
+// then the members its fragment recorded, ordered by name.
 func BuildTopologyFromFragments(fragments []*Fragment) Topology {
 	replicasets := make(map[string][]TopologyInstance, len(fragments))
 	for _, fragment := range fragments {
 		replicasets[fragment.ReplicasetUUID] = append(
 			replicasets[fragment.ReplicasetUUID],
-			TopologyInstance{
-				InstanceUUID: fragment.InstanceUUID,
-				InstanceName: fragment.InstanceName,
-				Hostname:     fragment.Hostname,
-			},
+			topologyInstances(fragment)...,
 		)
 	}
 	return Topology{Replicasets: replicasets}
+}
+
+// topologyInstances expands one fragment into topology entries: the master
+// that was backed up, then the members its fragment recorded. The master
+// entry carries the id of the backed-up instance's own _cluster row, which
+// the fragment recorded beside its members. A member entry carries no
+// hostname -- only the backed-up node was asked, and it knows its own. A
+// uuid that repeats one already listed is dropped, so an instance is named
+// at most once even when the fragment lists it twice.
+func topologyInstances(fragment *Fragment) []TopologyInstance {
+	instances := make([]TopologyInstance, 0, 1+len(fragment.Members))
+	instances = append(instances, TopologyInstance{
+		InstanceID:   fragment.InstanceID,
+		InstanceUUID: fragment.InstanceUUID,
+		InstanceName: fragment.InstanceName,
+		Hostname:     fragment.Hostname,
+	})
+
+	members := append([]ClusterMember(nil), fragment.Members...)
+	slices.SortStableFunc(members, compareClusterMembers)
+
+	seen := map[string]struct{}{fragment.InstanceUUID: {}}
+	for _, member := range members {
+		if _, ok := seen[member.UUID]; ok {
+			continue
+		}
+		seen[member.UUID] = struct{}{}
+
+		instances = append(instances, TopologyInstance{
+			InstanceID:   member.ID,
+			InstanceUUID: member.UUID,
+			InstanceName: member.Name,
+		})
+	}
+
+	return instances
 }
 
 // ReadPlan reads and decodes a tt backup plan JSON file.
@@ -356,7 +396,8 @@ func ValidateFragmentsAgainstPlan(
 			note := fmt.Sprintf(
 				"fragment of replicaset %s is not in the plan, which expects %s",
 				fragment.ReplicasetUUID,
-				strings.Join(slices.Sorted(maps.Keys(plan.Replicasets)), ", "))
+				strings.Join(slices.Sorted(maps.Keys(plan.Replicasets)), ", "),
+			)
 
 			if authentic {
 				return nil, errors.New(note)
@@ -409,11 +450,13 @@ func checkFragmentAgainstPlan(
 	case mode == "":
 		notes = append(notes, fmt.Sprintf(
 			"the plan states no backup mode, so the type of the fragment of "+
-				"replicaset %s is taken on trust", fragment.ReplicasetUUID))
+				"replicaset %s is taken on trust", fragment.ReplicasetUUID,
+		))
 	case fragment.Type != mode:
 		if err := report(fmt.Sprintf(
 			"fragment of replicaset %s is a %s backup, the plan asks for %s",
-			fragment.ReplicasetUUID, fragment.Type, mode)); err != nil {
+			fragment.ReplicasetUUID, fragment.Type, mode,
+		)); err != nil {
 			return nil, err //nolint:wrapcheck
 		}
 	}
@@ -422,14 +465,16 @@ func checkFragmentAgainstPlan(
 	case replicasetPlan.MasterInstanceUUID == "":
 		notes = append(notes, fmt.Sprintf(
 			"the plan names no master for replicaset %s, so the instance its "+
-				"backup was taken on is taken on trust", fragment.ReplicasetUUID))
+				"backup was taken on is taken on trust", fragment.ReplicasetUUID,
+		))
 	case fragment.InstanceUUID != replicasetPlan.MasterInstanceUUID:
 		if err := report(fmt.Sprintf(
 			"fragment of replicaset %s was taken on instance %s, the plan names %s "+
 				"as its master: a backup taken elsewhere -- after a failover, or on "+
 				"the wrong node -- does not continue the chain this plan was made for",
 			fragment.ReplicasetUUID, fragment.InstanceUUID,
-			replicasetPlan.MasterInstanceUUID)); err != nil {
+			replicasetPlan.MasterInstanceUUID,
+		)); err != nil {
 			return nil, err //nolint:wrapcheck
 		}
 	}
@@ -484,7 +529,8 @@ func uuidFromArchivePath(archivePath, backupID string) (string, error) {
 	prefix := backupID + "-"
 	if !strings.HasPrefix(name, prefix) {
 		return "", fmt.Errorf(
-			"archive filename %q does not start with backup-id %q", baseName, backupID)
+			"archive filename %q does not start with backup-id %q", baseName, backupID,
+		)
 	}
 
 	replicasetUUID := strings.TrimPrefix(name, prefix)

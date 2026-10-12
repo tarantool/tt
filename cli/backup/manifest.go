@@ -100,6 +100,11 @@ type Topology struct {
 
 // TopologyInstance is one expected instance in cluster topology.
 type TopologyInstance struct {
+	// InstanceID is the instance's box.space._cluster id as the backed-up
+	// snapshot records it: the backed-up instance's own on the master entry
+	// of a replicaset, a member's on every other entry. Zero when the
+	// fragment the entry came from carried none for it.
+	InstanceID   uint32 `json:"instance_id,omitempty"`
 	InstanceUUID string `json:"instance_uuid"`
 	InstanceName string `json:"instance_name"`
 	Hostname     string `json:"hostname"`

@@ -13,8 +13,6 @@ import (
 	"github.com/tarantool/go-xlog/reader"
 	"github.com/tarantool/go-xlog/tools"
 	"github.com/tarantool/go-xlog/writer"
-
-	"github.com/tarantool/tt/cli/backup"
 )
 
 // PatchInstanceUUID rewrites the Instance field in the src header
@@ -135,8 +133,10 @@ func JournalsAfter(snapshotDir, walDir string, signature int64) ([]string, error
 	return after, nil
 }
 
-// toFormatVClock converts a manifest vclock to format.VClock.
-func toFormatVClock(v backup.Vclock) (format.VClock, error) {
+// toFormatVClock converts a manifest vclock to format.VClock. The plain map
+// type keeps this package free of the backup import -- backup imports xlog --
+// while backup.Vclock stays assignable to the parameter and the result.
+func toFormatVClock(v map[uint32]uint64) (format.VClock, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -156,12 +156,12 @@ func toFormatVClock(v backup.Vclock) (format.VClock, error) {
 
 // fromFormatVClock is the inverse of toFormatVClock, returning ErrLSNOverflow
 // if any LSN is negative.
-func fromFormatVClock(v format.VClock) (backup.Vclock, error) {
+func fromFormatVClock(v format.VClock) (map[uint32]uint64, error) {
 	if v == nil {
 		return nil, nil
 	}
 
-	out := make(backup.Vclock, len(v))
+	out := make(map[uint32]uint64, len(v))
 
 	for id, lsn := range v {
 		if lsn < 0 {
