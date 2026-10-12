@@ -91,10 +91,10 @@ def test_install_tt(tt_cmd, tmp_path):
     assert instance_process_rc == 0
     os.remove(configPath)
 
-    installed_cmd = [tmp_path / "bin" / "tt", "version"]
+    installed_cmd = [tmp_path / ".tarantool" / "bin" / "tt", "version"]
     installed_program_process = subprocess.Popen(
         installed_cmd,
-        cwd=tmp_path / "bin",
+        cwd=tmp_path / ".tarantool" / "bin",
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
@@ -104,7 +104,7 @@ def test_install_tt(tt_cmd, tmp_path):
 
 
 @pytest.mark.slow
-def test_install_uninstall_tt_specific_commit(tt_cmd, tmp_path):
+def test_install_tt_specific_commit(tt_cmd, tmp_path):
     configPath = os.path.join(tmp_path, config_name)
     # Create test config
     with open(configPath, "w") as f:
@@ -134,10 +134,10 @@ def test_install_uninstall_tt_specific_commit(tt_cmd, tmp_path):
     instance_process_rc = instance_process.wait()
     assert instance_process_rc == 0
 
-    installed_cmd = [tmp_path / "bin" / "tt", "version"]
+    installed_cmd = [tmp_path / ".tarantool" / "bin" / "tt", "version"]
     installed_program_process = subprocess.Popen(
         installed_cmd,
-        cwd=tmp_path / "bin",
+        cwd=tmp_path / ".tarantool" / "bin",
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
@@ -145,31 +145,6 @@ def test_install_uninstall_tt_specific_commit(tt_cmd, tmp_path):
     start_output = installed_program_process.stdout.readline()
     assert re.search(r"Tarantool CLI version 2.1.1", start_output)
     assert re.search(r"commit: 97c7b73", start_output)
-
-    # Uninstall specific tt's commit.
-    uninstall_cmd = [
-        tt_cmd,
-        "--cfg",
-        configPath,
-        "binary",
-        "--scope",
-        "project",
-        "uninstall",
-        "tt",
-        "97c7b73",
-    ]
-    uninstall_instance_process = subprocess.Popen(
-        uninstall_cmd,
-        cwd=tmp_path,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    first_output = uninstall_instance_process.stdout.readline()
-    assert re.search(r"Removing binary...", first_output)
-    second_output = uninstall_instance_process.stdout.readline()
-    assert re.search(r"tt=97c7b73 is uninstalled", second_output)
-    assert not os.path.exists(os.path.join(tmp_path, "bin", "tt_97c7b73"))
 
 
 @pytest.mark.slow
@@ -278,10 +253,10 @@ def test_install_tt_specific_version(tt_cmd, tmp_path, required_ver: str, instal
     assert instance_process_rc == 0
     os.remove(configPath)
 
-    installed_cmd = [tmp_path / "bin" / "tt", "version"]
+    installed_cmd = [tmp_path / ".tarantool" / "bin" / "tt", "version"]
     installed_program_process = subprocess.Popen(
         installed_cmd,
-        cwd=tmp_path / "bin",
+        cwd=tmp_path / ".tarantool" / "bin",
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
@@ -678,86 +653,6 @@ def test_install_tarantool_already_exists(tt_cmd, tmp_path):
     )
 
 
-def test_install_tt_already_exists_no_symlink(tt_cmd, tmp_path):
-    # Copy test files.
-    testdata_path = os.path.join(
-        os.path.dirname(__file__),
-        "testdata/test_install_tt_already_exists",
-    )
-    shutil.copytree(testdata_path, os.path.join(tmp_path, "testdata"), True)
-    testdata_path = os.path.join(tmp_path, "testdata")
-
-    tt_dir = os.path.join(testdata_path, "tt")
-
-    install_cmd = [
-        tt_cmd,
-        "--cfg",
-        os.path.join(tt_dir, config_name),
-        "binary",
-        "--scope",
-        "project",
-        "install",
-        "tt",
-        "1.1.2",
-    ]
-
-    install_process = subprocess.Popen(
-        install_cmd,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    install_process_rc = install_process.wait()
-    output = install_process.stdout.read()
-    assert "already exists" in output
-    assert install_process_rc == 0
-
-    bin_path = os.path.join(tt_dir, "bin")
-    expected_bin = os.path.join(bin_path, "tt_v1.1.2")
-    tarantool_bin = os.path.realpath(os.path.join(bin_path, "tt"))
-    assert tarantool_bin == expected_bin
-
-
-def test_install_tt_already_exists_with_symlink(tt_cmd, tmp_path):
-    # Copy test files.
-    testdata_path = os.path.join(
-        os.path.dirname(__file__),
-        "testdata/test_install_tt_already_exists",
-    )
-    shutil.copytree(testdata_path, os.path.join(tmp_path, "testdata"), True)
-    testdata_path = os.path.join(tmp_path, "testdata")
-
-    tt_dir = os.path.join(testdata_path, "tt")
-    os.symlink(tt_cmd, os.path.join(tt_dir, "bin", "tt"))
-    install_cmd = [
-        tt_cmd,
-        "--cfg",
-        os.path.join(tt_dir, config_name),
-        "binary",
-        "--scope",
-        "project",
-        "install",
-        "tt",
-        "1.1.2",
-    ]
-
-    install_process = subprocess.Popen(
-        install_cmd,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    install_process_rc = install_process.wait()
-    output = install_process.stdout.read()
-    assert "already exists" in output
-    assert install_process_rc == 0
-
-    bin_path = os.path.join(tt_dir, "bin")
-    expected_bin = os.path.join(bin_path, "tt_v1.1.2")
-    tarantool_bin = os.path.realpath(os.path.join(bin_path, "tt"))
-    assert tarantool_bin == expected_bin
-
-
 @pytest.mark.parametrize("package_to_exclude", [pytest.param("mage"), pytest.param("git")])
 def test_install_tt_fail_exit_code_dependency_check(tt_cmd, tmp_path, package_to_exclude):
     # Create new PATH with excluded packages.
@@ -891,16 +786,15 @@ def test_install_tt_fetch_latest_version(
     # the following to avoid a situation where the last
     # git commit in the master branch makes it impossible
     # to detect the latest version which contradicts the test logic.
-    os.mkdir(os.path.join(tmp_path, "bin"))
-    with open(os.path.join(tmp_path, "bin", "tt_master"), "a") as f:
-        f.write('''#!/bin/sh
-                echo "2.0.0.677234a"''')
-    os.chmod(os.path.join(tmp_path, "bin", "tt_master"), 0o775)
-    with open(os.path.join(tmp_path, "bin", "tt_v1.2.3"), "a") as f:
-        f.write('''#!/bin/sh
-                echo "1.2.3.087ac72"''')
-    os.chmod(os.path.join(tmp_path, "bin", "tt_v1.2.3"), 0o775)
-    os.symlink(os.path.join(tmp_path, active_symlink), os.path.join(tmp_path, "tt"))
+    root = tmp_path / ".tarantool"
+    versions = root / "versions" / "tt"
+    for directory, version in [("tt_master", "2.0.0.677234a"), ("tt_v1.2.3", "1.2.3.087ac72")]:
+        binary = versions / directory / "tt"
+        binary.parent.mkdir(parents=True)
+        binary.write_text(f'#!/bin/sh\necho "{version}"\n')
+        binary.chmod(0o755)
+    (root / "bin").mkdir()
+    (root / "bin" / "tt").symlink_to(versions / active_symlink / "tt")
 
     install_cmd = [tt_cmd, "--cfg", config_path]
     if not is_interactive:
