@@ -25,8 +25,14 @@ STORAGE_1_A = "storage-001-a"
 # instance comes up unknown to its own snapshot and fails to register.
 APP_INSTANCE_UUID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 
-# A UUID that is *not* in _cluster, used where the point is to observe the
-# patch in the file headers rather than to boot the result.
+# The UUID of a second member the app's replicaset registers before the
+# backup. A --patch-uuid has to be one the backup's _cluster recorded, and one
+# that is not the app's own is what keeps the stamp in the headers observable.
+MEMBER_UUID = "dddddddd-dddd-dddd-dddd-dddddddddddd"
+
+# A UUID that is *not* in _cluster: `tt restore apply` refuses to stamp it
+# into the headers, because the node it would restore is unknown to the
+# replicaset the backup carries.
 FOREIGN_UUID = "cccccccc-cccc-cccc-cccc-cccccccccccc"
 
 
@@ -119,6 +125,22 @@ def header_instance_uuid(path):
     raise AssertionError(f"no Instance line in the header of {path}")
 
 
+def register_cluster_member(tt, target):
+    """Register a second member in the app's replicaset.
+
+    The membership a snapshot records is what a --patch-uuid is verified
+    against, so an archive whose replicaset counts two members is what lets a
+    test stamp a genuine UUID that is still not the app's own. Registered
+    before the checkpoint so the snapshot carries it, named the way a
+    replicaset with names registers its members.
+    """
+    eval_yaml_app(
+        tt,
+        target,
+        f"box.space._cluster:insert{{2, '{MEMBER_UUID}', 'storage-001-b'}} return true",
+    )
+
+
 @pytest.fixture
 def backup_archive(tt, tt_app):
     """A real backup of the app, with a point in the middle of its range.
@@ -128,6 +150,7 @@ def backup_archive(tt, tt_app):
     """
     target = app_instance(tt_app, STORAGE_1_A)
 
+    register_cluster_member(tt, target)
     eval_yaml_app(tt, target, "return box.snapshot()")
     eval_yaml_app(
         tt,
@@ -316,6 +339,42 @@ def test_apply_rejects_a_malformed_patch_uuid(tt, tmp_path, backup_archive):
 
 @pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
 @pytest.mark.tt_app(**TT_RESTORE_APP)
+def test_apply_refuses_a_patch_uuid_outside_the_cluster(tt, tmp_path, backup_archive):
+    """A --patch-uuid the restored _cluster does not carry is refused.
+
+    `tt restore plan` hands out the UUID of a member the backup's replicaset
+    recorded. One from anywhere else, stamped into the headers, would leave
+    the node an identity its own snapshot does not know -- so apply checks the
+    UUID against the membership the chain restored and refuses, naming the
+    members it found. The check needs what the chain unpacked, so the refusal
+    arrives with the work directory already rebuilt: a plain failure, exit 1
+    rather than the exit 3 of a rejected input, and no marker written.
+    """
+    archive, point, fragment = backup_archive
+    work_dir = tmp_path / "restored"
+
+    rc, out = restore_apply(
+        tt,
+        archive,
+        work_dir,
+        checksum=fragment["checksum_sha256"],
+        point=point,
+        patch_uuid=FOREIGN_UUID,
+    )
+    assert rc == 1, f"a --patch-uuid outside the restored _cluster must fail:\n{out}"
+
+    assert FOREIGN_UUID in out, out
+    assert "not a member of the restored replicaset" in out, out
+    assert APP_INSTANCE_UUID in out, "the refusal must list the membership it found"
+    assert MEMBER_UUID in out, out
+
+    assert not (work_dir.parent / (work_dir.name + ".restore_state.json")).exists(), (
+        "a refused restore must not leave a marker"
+    )
+
+
+@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
+@pytest.mark.tt_app(**TT_RESTORE_APP)
 def test_apply_boots_on_the_recovery_point(tt, tmp_path, backup_archive):
     archive, point, fragment = backup_archive
     work_dir = tmp_path / "restored"
@@ -376,7 +435,7 @@ def test_apply_patches_every_header(tt, tmp_path, backup_archive):
         work_dir,
         checksum=fragment["checksum_sha256"],
         point=point,
-        patch_uuid=FOREIGN_UUID,
+        patch_uuid=MEMBER_UUID,
     )
     assert rc == 0, f"tt restore apply failed:\n{out}"
 
@@ -384,7 +443,7 @@ def test_apply_patches_every_header(tt, tmp_path, backup_archive):
     assert landed, "the work directory must not be empty"
 
     for name in landed:
-        assert header_instance_uuid(work_dir / name) == FOREIGN_UUID, name
+        assert header_instance_uuid(work_dir / name) == MEMBER_UUID, name
 
 
 @pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
@@ -1264,18 +1323,17 @@ SORTDATA_REFUSED = "unmatched UUID"
 SORTDATA_IGNORED = "ignored"
 SORTDATA_USED = "using the memtx sort data from"
 
-# An instance whose UUID is not in the _cluster it recovers -- which is what a
-# foreign --patch-uuid leaves behind -- cannot register, so it is booted as an
-# anonymous read-only replica instead. That is the only part of the boot the
-# foreign UUID changes: recovery reads the same files in the same order, and
-# the sort data beside the snapshot is still offered to it.
-ANON_BOOT_LUA = """
+# An instance booted straight on three restored directories, with no
+# replicaset around it to register with and no replication to serve: it comes
+# up read-only on whatever the directories hold. That does not change what
+# recovery reads -- the same files in the same order, and the sort data beside
+# the snapshot is still offered to it.
+STANDALONE_BOOT_LUA = """
 box.cfg{
     memtx_dir = os.getenv('TT_TEST_SNAPSHOT_DIR'),
     wal_dir = os.getenv('TT_TEST_WAL_DIR'),
     vinyl_dir = os.getenv('TT_TEST_VINYL_DIR'),
     memtx_use_sort_data = true,
-    replication_anon = true,
     read_only = true,
 }
 print('TT_TEST_RESULT ' .. require('json').encode({
@@ -1341,10 +1399,10 @@ def boot_from_sortdata_config(launch_dir):
     )
 
 
-def boot_anonymous(dirs, tmp_path):
-    """Boot on three directories as an anonymous replica: (result, log)."""
-    script = tmp_path / "boot_anon.lua"
-    script.write_text(ANON_BOOT_LUA, encoding="utf-8")
+def boot_standalone(dirs, tmp_path):
+    """Boot on three directories as a read-only standalone instance: (result, log)."""
+    script = tmp_path / "boot_standalone.lua"
+    script.write_text(STANDALONE_BOOT_LUA, encoding="utf-8")
 
     proc = subprocess.run(
         ["tarantool", str(script)],
@@ -1391,6 +1449,7 @@ def sortdata_archive(tt, tt_app):
     """
     target = app_instance(tt_app, STORAGE_1_A)
 
+    register_cluster_member(tt, target)
     memtx_dir = eval_yaml_app(tt, target, "return require('fio').abspath(box.cfg.memtx_dir)")
     eval_yaml_app(tt, target, "return box.snapshot()")
     eval_yaml_app(
@@ -1510,9 +1569,16 @@ def test_apply_leaves_the_sort_data_uuid_for_the_instance_to_judge(
     rebuilds the indexes from the snapshot instead -- which is the same data,
     read the slower way. Placing it correctly still matters: a file in the
     wrong directory is never read, so it is never judged either.
+
+    The stamp is another member's UUID, one the restored _cluster carries: the
+    point is the sort data's mismatch with it, not the node's own membership.
+    The directories are named one by one, the way a restore that does not go
+    through an instance's configuration does: no instance is named, so the
+    membership is asked only whether it knows the UUID.
     """
     archive, fragment, _ = sortdata_archive
     launch_dir = tmp_path / "launch"
+    dirs = {kind: launch_dir / kind for kind in ("snapshot", "wal", "vinyl")}
 
     rc, out = tt.exec(
         "restore",
@@ -1521,18 +1587,17 @@ def test_apply_leaves_the_sort_data_uuid_for_the_instance_to_judge(
         archive,
         "--checksums",
         fragment["checksum_sha256"],
-        "-c",
-        SORTDATA_CONFIG,
-        "--instance",
-        STORAGE_1_A,
-        "--work-dir",
-        str(launch_dir),
+        "--snapshot-dir",
+        str(dirs["snapshot"]),
+        "--wal-dir",
+        str(dirs["wal"]),
+        "--vinyl-dir",
+        str(dirs["vinyl"]),
         "--patch-uuid",
-        FOREIGN_UUID,
+        MEMBER_UUID,
     )
     assert rc == 0, f"tt restore apply failed:\n{out}"
 
-    dirs = split_dirs(launch_dir)
     name = sort_data_name(fragment)
     assert_sort_data_is_beside_the_snapshot(dirs, name)
 
@@ -1540,9 +1605,9 @@ def test_apply_leaves_the_sort_data_uuid_for_the_instance_to_judge(
         "the sort data keeps the UUID it was written with"
     )
     for snapshot in dirs["snapshot"].glob("*.snap"):
-        assert header_instance_uuid(snapshot) == FOREIGN_UUID, snapshot
+        assert header_instance_uuid(snapshot) == MEMBER_UUID, snapshot
 
-    result, log = boot_anonymous(dirs, tmp_path)
+    result, log = boot_standalone(dirs, tmp_path)
 
     refused = [line for line in log.splitlines() if SORTDATA_REFUSED in line]
     assert len(refused) == 1, f"the instance must report the UUID it refused:\n{log}"
@@ -1553,5 +1618,5 @@ def test_apply_leaves_the_sort_data_uuid_for_the_instance_to_judge(
     assert len(ignored) == 1, f"the refused sort data must be reported as ignored:\n{log}"
     assert SORTDATA_USED not in log, f"a refused sort data file must not be used:\n{log}"
 
-    assert result["uuid"] == FOREIGN_UUID
+    assert result["uuid"] == MEMBER_UUID
     assert result["memtx_rows"] == 20, "the indexes are rebuilt, not lost"

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -13,7 +14,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/apex/log"
 	"github.com/google/uuid"
+
+	"github.com/tarantool/go-xlog/format"
+	"github.com/tarantool/go-xlog/reader"
 
 	"github.com/tarantool/tt/cli/backup"
 	"github.com/tarantool/tt/cli/backup/archive"
@@ -113,6 +118,9 @@ type ApplyResult struct {
 // It is idempotent: a re-run for the same point clears what the last one left
 // and repeats the work. Stopping the instance beforehand is the caller's job;
 // Apply neither checks for a running instance nor starts one afterwards.
+//
+// The UUID stamped into the headers is verified against the _cluster the
+// restored snapshot carries, before the marker claims a completed restore.
 func Apply(opts ApplyOpts) (*ApplyResult, error) {
 	if err := validate(opts); err != nil {
 		return nil, err //nolint:wrapcheck
@@ -153,6 +161,15 @@ func Apply(opts ApplyOpts) (*ApplyResult, error) {
 		return nil, err //nolint:wrapcheck
 	}
 
+	// The journals on disk must continue one another, and the check has to see
+	// the untrimmed chain: a hole is a property of the archives, not of where
+	// the point sits. Like the UUID check below, it is a plain failure -- the
+	// directories have been rebuilt by the time it runs, so no exit code
+	// promises anything about a previous attempt.
+	if err := checkJournalContinuity(layout); err != nil {
+		return nil, err //nolint:wrapcheck
+	}
+
 	if opts.Point != nil {
 		trimmed, dropped, err := trimAtPoint(layout, *opts.Point)
 		if err != nil {
@@ -162,6 +179,17 @@ func Apply(opts ApplyOpts) (*ApplyResult, error) {
 		result.TrimmedFile = trimmed
 		result.DroppedFiles = dropped
 		result.Files = removeNames(result.Files, dropped)
+	}
+
+	// The trim decides which snapshot the instance boots on, so the check
+	// runs after it: the membership to verify against is the one that
+	// survives. It is a plain failure rather than a rejected input -- the
+	// directories have been rebuilt by now, so there is no previous attempt
+	// left whose exit code would promise one was kept intact.
+	if opts.PatchUUID != "" {
+		if err := checkPatchUUID(layout, opts.PatchUUID, opts.InstanceName); err != nil {
+			return nil, err //nolint:wrapcheck
+		}
 	}
 
 	// The three directories are recorded absolute because the marker is read
@@ -516,7 +544,8 @@ func inspectArchive(src string) (archiveContent, error) {
 		if previous, taken := named[name]; taken {
 			return archiveContent{}, fmt.Errorf(
 				"%w: archive %q names both %q and %q, and both are restored as %q",
-				ErrValidation, src, previous, entry.Name, name)
+				ErrValidation, src, previous, entry.Name, name,
+			)
 		}
 
 		named[name] = entry.Name
@@ -580,6 +609,295 @@ func unpackChain(opts ApplyOpts, layout Layout) (*ApplyResult, error) {
 	}
 
 	return result, nil
+}
+
+// checkPatchUUID refuses a --patch-uuid the restored replicaset does not
+// know at the recovery point, and one bound to another instance than the one
+// the directories were resolved for. The headers have already been stamped
+// with it: Tarantool checks every file's header against the instance it
+// recovers, and a UUID the restored _cluster does not carry leaves the node
+// unable to register, which is a divergence the marker would otherwise
+// certify as a completed restore.
+//
+// The membership is the one the replay ends with, not the snapshot's alone:
+// a chain registers and forgets members after the snapshot was taken, so the
+// journals that follow it are folded in -- already trimmed to the point by
+// the time this runs. A chain that restored no snapshot has no membership to
+// verify against, so the check warns and steps aside rather than refusing.
+//
+// The name binding is demanded only of the member the uuid matched: a member
+// the replicaset registered without a name -- of a named replicaset or an
+// unnamed one -- has nothing to contradict the caller with, and the plain
+// presence of the UUID is everything the backup can vouch for.
+func checkPatchUUID(layout Layout, patchUUID, instanceName string) error {
+	snapshot, ok, err := newestSnapshot(layout.Snapshot)
+	if err != nil {
+		return fmt.Errorf("failed to list the snapshots restored into %q: %w",
+			layout.Snapshot, err)
+	}
+
+	if !ok {
+		log.Warnf("no snapshot in the restored chain: --patch-uuid %s is not "+
+			"checked against the restored _cluster", patchUUID)
+
+		return nil
+	}
+
+	journals, err := sortedJournals(layout.WAL)
+	if err != nil {
+		return err //nolint:wrapcheck
+	}
+
+	members, err := xlog.MembershipAt(snapshot, journals)
+	if err != nil {
+		return err //nolint:wrapcheck
+	}
+
+	// Parsed rather than compared as strings: a --patch-uuid the caller
+	// spelled in capitals is the same UUID as the one the snapshot holds.
+	patchID, err := uuid.Parse(patchUUID)
+	if err != nil {
+		return fmt.Errorf("failed to parse --patch-uuid %q: %w", patchUUID, err)
+	}
+
+	matched := -1
+
+	for i, member := range members {
+		id, err := uuid.Parse(member.UUID)
+		if err != nil {
+			return fmt.Errorf("the restored _cluster carries a malformed uuid %q: %w",
+				member.UUID, err)
+		}
+
+		if id == patchID {
+			matched = i
+		}
+	}
+
+	if matched < 0 {
+		return fmt.Errorf("--patch-uuid %s is not a member of the restored "+
+			"replicaset: _cluster of %s holds %s", patchUUID, snapshot,
+			describeCluster(members))
+	}
+
+	// The name binding is demanded only of the member the uuid matched -- see
+	// the function comment -- never of the membership as a whole.
+	if instanceName == "" || members[matched].Name == "" {
+		return nil
+	}
+
+	if members[matched].Name != instanceName {
+		return fmt.Errorf("--patch-uuid %s is not bound to instance %q in the "+
+			"restored _cluster: it holds %s", patchUUID, instanceName,
+			describeCluster(members))
+	}
+
+	return nil
+}
+
+// sortedJournals names the journal files of dir in replay order, which is
+// the order of their vclock signatures: the name of a journal is its
+// signature, and a directory listing comes out sorted by name.
+func sortedJournals(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the journals restored into %q: %w", dir, err)
+	}
+
+	journals := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		// A dotfile is not a journal however its name ends -- cleanup keeps
+		// them on purpose, and a directory holding one must not cost the
+		// check its journals.
+		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+
+		if filepath.Ext(entry.Name()) == ".xlog" {
+			journals = append(journals, filepath.Join(dir, entry.Name()))
+		}
+	}
+
+	return journals, nil
+}
+
+// checkJournalContinuity refuses a chain whose unpacked journals do not
+// continue one another. Walking the snapshot and the journals in replay
+// order, every journal after the first must begin exactly where the previous
+// one's content ends, and the first one must begin no later than the snapshot
+// ends: a gap means an increment of the chain is missing -- a hole
+// the archive-level checks cannot see, because real archives carry no
+// manifest fragment and journal names stay monotone across it -- and an
+// overlap means two files claim the same rows.
+//
+// A journal begins at the position its header carries, the one its name
+// encodes, and its content ends at the fold of the rows it holds. A snapshot
+// is the state at the position its header names, so the header is what its
+// end is taken from. The first journal of a chain may begin before the
+// snapshot ends -- the boundary journal carries rows from both sides of the
+// checkpoint -- but never past it. The comparison is exact, component 0
+// included, which is the continuity rule Tarantool's own recovery applies
+// to a pair of WALs (recovery_open_log, src/box/recovery.cc).
+func checkJournalContinuity(layout Layout) error {
+	snapshot, hasSnapshot, err := newestSnapshot(layout.Snapshot)
+	if err != nil {
+		return fmt.Errorf("failed to list the snapshots restored into %q: %w",
+			layout.Snapshot, err)
+	}
+
+	journals, err := sortedJournals(layout.WAL)
+	if err != nil {
+		return err //nolint:wrapcheck
+	}
+
+	if !hasSnapshot && len(journals) == 0 {
+		return nil
+	}
+
+	end, endName := format.VClock{}, ""
+
+	if hasSnapshot {
+		meta, err := reader.ReadHeader(snapshot)
+		if err != nil {
+			return fmt.Errorf("failed to read the header of %q: %w", snapshot, err)
+		}
+
+		end, endName = meta.VClock, filepath.Base(snapshot)
+	}
+
+	for i, journal := range journals {
+		start, contentEnd, err := journalPositions(journal)
+		if err != nil {
+			return err //nolint:wrapcheck
+		}
+
+		name := filepath.Base(journal)
+
+		switch {
+		case i == 0 && hasSnapshot:
+			// The boundary journal normally begins before the snapshot ends --
+			// it carries rows from both sides of the checkpoint -- so only a
+			// beginning past the snapshot's end is a gap here.
+			if start.Signature() > end.Signature() {
+				return journalGapError(name, endName, end, start) //nolint:wrapcheck
+			}
+		case i > 0:
+			if err := checkJournalOrder(end, endName, name, start); err != nil {
+				return err //nolint:wrapcheck
+			}
+		}
+
+		end, endName = contentEnd, name
+	}
+
+	return nil
+}
+
+// journalPositions returns where a journal begins -- the vclock its header
+// names, the one its file name encodes -- and where its content ends: the
+// beginning promoted by every row it carries, so a journal with no rows ends
+// where it begins.
+func journalPositions(path string) (begin, end format.VClock, err error) {
+	meta, err := reader.ReadHeader(path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read the header of %q: %w", path, err)
+	}
+
+	r, err := reader.Open(path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read %q: %w", path, err)
+	}
+
+	defer func() { _ = r.Close() }()
+
+	end = meta.VClock.Clone()
+
+	for row, rowErr := range r.Rows() {
+		if rowErr != nil {
+			return nil, nil, fmt.Errorf("failed to read %q: %w", path, rowErr)
+		}
+
+		// The rows of one replica sit in a journal in LSN order, so the last
+		// one seen is the position the content ends at; axis 0 carries the
+		// local rows the same way.
+		end[row.ReplicaID] = row.LSN
+	}
+
+	return meta.VClock, end, nil
+}
+
+// checkJournalOrder refuses a journal that does not begin exactly where the
+// previous journal of the chain ends: past it is a gap -- the rows in between
+// are in a file that was never given -- and behind it is an overlap, two
+// files claiming the same rows.
+func checkJournalOrder(end format.VClock, endName, nextName string, begin format.VClock) error {
+	if maps.Equal(end, begin) {
+		return nil
+	}
+
+	if begin.Signature() > end.Signature() {
+		return journalGapError(nextName, endName, end, begin) //nolint:wrapcheck
+	}
+
+	return fmt.Errorf("journal %s overlaps %s: the chain ends at %s, and %s begins at %s",
+		nextName, endName, end, nextName, begin)
+}
+
+// journalGapError names a gap: the file the chain ends at, where its content
+// ends, and the file that jumps past it.
+func journalGapError(nextName, endName string, end, begin format.VClock) error {
+	return fmt.Errorf("journal %s does not continue %s: the chain ends at %s, "+
+		"and %s begins at %s", nextName, endName, end, nextName, begin)
+}
+
+// snapshotExt is the extension of the files an instance can boot from: the
+// ones a restored layout is checked against.
+const snapshotExt = ".snap"
+
+// newestSnapshot is the .snap a node recovered into the layout boots on: the
+// one with the highest vclock signature in the snapshot directory. Tarantool
+// and the trim both index a journal by that signature, so a name that carries
+// no parseable one is somebody else's file and never the boot snapshot.
+func newestSnapshot(dir string) (string, bool, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to read directory %q: %w", dir, err)
+	}
+
+	newest, newestSignature := "", int64(-1)
+
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != snapshotExt {
+			continue
+		}
+
+		signature, ok := journalSignature(entry.Name())
+		if !ok || signature <= newestSignature {
+			continue
+		}
+
+		newest, newestSignature = filepath.Join(dir, entry.Name()), signature
+	}
+
+	return newest, newest != "", nil
+}
+
+// describeCluster renders a membership for a refusal message: one entry per
+// member, id, UUID and the name when it carries one, so the operator can see
+// both what was asked for and everything there was to give.
+func describeCluster(members []xlog.ClusterMember) string {
+	entries := make([]string, 0, len(members))
+
+	for _, member := range members {
+		entry := fmt.Sprintf("%d %s", member.ID, member.UUID)
+		if member.Name != "" {
+			entry = fmt.Sprintf("%s %q", entry, member.Name)
+		}
+
+		entries = append(entries, entry)
+	}
+
+	return "[" + strings.Join(entries, ", ") + "]"
 }
 
 // archiveContent is what one archive of the chain carried: the names it landed

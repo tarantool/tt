@@ -29,6 +29,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt restore apply`: refuses a `--patch-uuid` the restored `_cluster` does
+  not hold at the recovery point -- the membership folded out of the
+  snapshot and the journals past it, updates included -- instead of
+  certifying a restore the node cannot boot into.
+- `tt restore apply`: refuses a chain of archives with a hole between its
+  journals, which previously applied with a silent gap in the data.
 - `tt connect`, `tt replicaset`, `tt cluster topology`, `tt backup`:
   added `--sslpassword` and `--sslpasswordfile` to decrypt
   password-protected private SSL keys.
