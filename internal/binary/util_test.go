@@ -11,6 +11,58 @@ import (
 	"github.com/tarantool/tt/v3/internal/binary"
 )
 
+func TestTarantoolBuildPath(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		target  string
+		isBuild bool
+	}{
+		{"legacy installation", "tarantool_3.8.0", false},
+		{"CE installation", "../versions/tarantool/tarantool_3.8.0/tarantool", false},
+		{"EE installation", "../versions/tarantool-ee/tarantool-ee_3.8.0/tarantool", false},
+		{"local build", "../build/src/tarantool", true},
+		{"local build under versions", "../versions/tarantool/build/src/tarantool", true},
+		{"other scope", "../other/versions/tarantool/tarantool_3.8.0/tarantool", true},
+		{"empty version", "../versions/tarantool/tarantool_/tarantool", true},
+		{"wrong edition", "../versions/tarantool/tarantool-ee_3.8.0/tarantool", true},
+		{"wrong product", "../versions/tt/tt_3.8.0/tarantool", true},
+		{"wrong executable", "../versions/tarantool/tarantool_3.8.0/other", true},
+		{"wrong directory", "../build/tarantool/tarantool_3.8.0/tarantool", true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			binDir := filepath.Join(root, binary.BinDirName)
+			require.NoError(t, os.Mkdir(binDir, 0o755))
+
+			link := filepath.Join(binDir, "tarantool")
+			target := filepath.Join(binDir, filepath.FromSlash(test.target))
+
+			// Repeat with existing and missing targets, and both link forms.
+			for _, existing := range []bool{false, true} {
+				if existing {
+					require.NoError(t, os.MkdirAll(filepath.Dir(target), 0o755))
+					require.NoError(t, os.WriteFile(target, nil, 0o755))
+				}
+
+				for _, linkTarget := range []string{filepath.FromSlash(test.target), target} {
+					require.NoError(t, os.Symlink(linkTarget, link))
+
+					build, err := binary.TarantoolBuildPath(binDir)
+					require.NoError(t, err)
+
+					if test.isBuild {
+						assert.Equal(t, target, build)
+					} else {
+						assert.Empty(t, build)
+					}
+
+					require.NoError(t, os.Remove(link))
+				}
+			}
+		})
+	}
+}
+
 func TestWriteYaml(t *testing.T) {
 	type book struct {
 		Title  string

@@ -14,6 +14,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/internal/binary"
 	"github.com/tarantool/tt/v3/internal/binary/install"
+	"github.com/tarantool/tt/v3/internal/binary/list"
 )
 
 // TestBinaryDefaultScope checks that all commands accept an omitted scope.
@@ -443,6 +444,7 @@ func TestBinaryScopedCommandsWithoutConfig(t *testing.T) {
 				"tcm-1.3.0.linux.amd64.tar.gz"), nil, 0o600))
 
 			commands := [][]string{
+				{"list"},
 				{"search", "tcm", "--local-repo", "bundles"},
 			}
 			for _, args := range commands {
@@ -454,6 +456,28 @@ func TestBinaryScopedCommandsWithoutConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBinaryScopedAdaptersDoNotFindParent(t *testing.T) {
+	restoreProcessState(t)
+
+	parent := t.TempDir()
+	child := filepath.Join(parent, "child")
+	require.NoError(t, os.Mkdir(child, 0o755))
+
+	installed := filepath.Join(parent, ".tarantool", "versions", "tt", "tt_v3.0.0", "tt")
+	require.NoError(t, os.MkdirAll(filepath.Dir(installed), 0o755))
+	require.NoError(t, os.WriteFile(installed, nil, 0o755))
+	t.Chdir(child)
+
+	base := binary.BinaryContext{Scope: binary.ScopeProject}
+	ctx := &cmdcontext.CmdCtx{}
+	err := internalListModule(base, list.ListCtx{}, ctx, nil)
+	require.ErrorIs(t, err, list.ErrNoBinariesInstalled)
+
+	assert.FileExists(t, installed)
+	assert.NoDirExists(t, filepath.Join(child, ".tarantool"))
+	assert.NoDirExists(t, filepath.Join(parent, ".tarantool", "bin"))
 }
 
 func TestBinarySearchRequiresLocalRepositoryArgument(t *testing.T) {

@@ -197,6 +197,10 @@ for machine-readable output.
 
 ### Changed
 
+- `tt binary list`: show installations only in the selected `--scope project`
+  (the default), `user`, or `system`. Project scope is `.tarantool/` in the
+  current directory, without searching parents or falling back to other
+  scopes. Installation paths no longer depend on `env.bin_dir` in `tt.yaml`.
 - `tt binary search`: show `[installed]` and `[active]` labels for the selected
   scope only. Scope does not affect the available versions returned by remote
   sources or the local repository.

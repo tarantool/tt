@@ -27,119 +27,161 @@ var (
 // ListCtx contains the options for listing installed binaries.
 type ListCtx struct {
 	binary.BinaryContext
-
-	BinDir string
 }
 
 // printInstalledVersion outputs installed versions of the program.
 func printInstalledVersion(versionString string) {
 	if strings.HasSuffix(versionString, "[active]") {
-		_, _ = fmt.Fprintf(os.Stdout, "	%s\n", binary.Bold(color.GreenString(versionString)))
+		_, _ = fmt.Fprintf(os.Stdout, "\t%s\n", binary.Bold(color.GreenString(versionString)))
 	} else {
-		_, _ = fmt.Fprintf(os.Stdout, "	%s\n", color.YellowString(versionString))
+		_, _ = fmt.Fprintf(os.Stdout, "\t%s\n", color.YellowString(versionString))
 	}
 }
 
-// activeBinaryName resolves the active version's filename, excluding linked local builds.
-func activeBinaryName(program binary.Program, programPath, binDir string) (string, error) {
-	if program.IsTarantool() {
-		buildPath, err := binary.TarantoolBuildPath(binDir)
+// displayVersion parses ordering information without changing installation identity.
+func displayVersion(raw string) (version.Version, error) {
+	name := strings.TrimPrefix(raw, "v")
+	isCommit, _ := binary.IsValidCommitHash(name)
+
+	var parsed version.Version
+
+	switch {
+	case name == "master":
+		parsed.Major = math.MaxUint // Keep master before release versions.
+	case isCommit:
+		// Commit hashes keep their stable directory order after release versions.
+	default:
+		var err error
+
+		parsed, err = version.Parse(name)
 		if err != nil {
-			return "", err
-		}
-
-		if buildPath != "" {
-			return "", nil
+			return parsed, err
 		}
 	}
 
-	activePath, err := binary.ResolveSymlink(programPath)
-	if err != nil && !os.IsNotExist(err) {
-		return "", err
-	}
+	parsed.Str = raw
 
-	return filepath.Base(activePath), nil
+	return parsed, nil
 }
 
-// ParseBinaries seeks through fileList returning array of found versions of program.
-func ParseBinaries(fileList []fs.DirEntry, program binary.Program,
-	binDir string,
-) ([]version.Version, error) {
-	var binaryVersions []version.Version
+// regularTarantoolVersion preserves support for an unversioned executable in this scope.
+func regularTarantoolVersion(root string) (version.Version, bool, error) {
+	var parsed version.Version
 
-	symlinkName := program.Exec()
+	programPath := filepath.Join(root, binary.BinDirName, binary.ProgramCe.Exec())
+	info, err := os.Lstat(programPath)
 
-	binActive := ""
-	programPath := filepath.Join(binDir, symlinkName)
-
-	fileInfo, err := os.Lstat(programPath)
-	if err == nil {
-		switch {
-		case program == binary.ProgramCe && fileInfo.Mode()&os.ModeSymlink == 0:
-			tntCli := cmdcontext.TarantoolCli{Executable: programPath}
-
-			binaryVersion, err := tntCli.GetVersion()
-			if err != nil {
-				return binaryVersions, err
-			}
-
-			binaryVersion.Str += " [active]"
-
-			binaryVersions = append(binaryVersions, binaryVersion)
-		default:
-			binActive, err = activeBinaryName(program, programPath, binDir)
-			if err != nil {
-				return binaryVersions, err
-			}
-		}
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return parsed, false, nil
+	case err != nil:
+		return parsed, false, fmt.Errorf("failed to access %q: %w", programPath, err)
+	case !info.Mode().IsRegular():
+		return parsed, false, nil
 	}
 
-	versionPrefix := program.String() + version.FsSeparator
+	tntCli := cmdcontext.TarantoolCli{Executable: programPath}
+
+	parsed, err = tntCli.GetVersion()
+	if err != nil {
+		return parsed, false, err
+	}
+
+	parsed.Str += " [active]"
+
+	return parsed, true, nil
+}
+
+// ParseBinaries reads installed executables from the selected product's version entries.
+// Str preserves the exact installation suffix, followed by an optional active marker.
+func ParseBinaries(fileList []fs.DirEntry, program binary.Program,
+	root string,
+) ([]version.Version, error) {
+	active, err := binary.ResolveSymlink(filepath.Join(root, binary.BinDirName, program.Exec()))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+
+	var versions []version.Version
+
+	prefix := program.String() + version.FsSeparator
 
 	for _, entry := range fileList {
-		if !strings.HasPrefix(entry.Name(), versionPrefix) {
+		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), prefix) || entry.Name() == prefix {
 			continue
 		}
 
-		versionStr := strings.TrimPrefix(strings.TrimPrefix(entry.Name(), versionPrefix), "v")
+		binPath := filepath.Join(root, binary.VersionsDirName, program.String(),
+			entry.Name(), program.Exec())
+		info, err := os.Stat(binPath)
 
-		var ver version.Version
-
-		isRightFormat, _ := binary.IsValidCommitHash(versionStr)
-
-		if versionStr == "master" {
-			ver.Major = math.MaxUint // Small hack to make master the newest version.
-		} else if !isRightFormat {
-			ver, err = version.Parse(versionStr)
-			if err != nil {
-				return binaryVersions, err
-			}
+		switch {
+		case errors.Is(err, os.ErrNotExist):
+			continue
+		case err != nil:
+			return nil, fmt.Errorf("failed to access %q: %w", binPath, err)
+		case !info.Mode().IsRegular():
+			continue
 		}
 
-		if binActive == entry.Name() {
-			ver.Str = versionStr + " [active]"
-		} else {
-			ver.Str = versionStr
+		parsed, err := displayVersion(strings.TrimPrefix(entry.Name(), prefix))
+		if err != nil {
+			return nil, err
 		}
 
-		binaryVersions = append(binaryVersions, ver)
+		resolved, err := binary.ResolveSymlink(binPath)
+		if err != nil {
+			return nil, err
+		}
+
+		if active == resolved {
+			parsed.Str += " [active]"
+		}
+
+		versions = append(versions, parsed)
 	}
 
-	return binaryVersions, nil
+	return versions, nil
 }
 
-// ListBinaries outputs installed versions of programs from bin_dir.
-func ListBinaries(listCtx ListCtx) error {
-	binDir := listCtx.BinDir
-	binDirFilesList, err := os.ReadDir(binDir)
+// installedVersions prepares the selected product's versions for sorted display.
+func installedVersions(root string, program binary.Program) ([]version.Version, error) {
+	dir := filepath.Join(root, binary.VersionsDirName, program.String())
+	entries, err := os.ReadDir(dir)
 
-	if len(binDirFilesList) == 0 || errors.Is(err, fs.ErrNotExist) {
-		return ErrNoBinariesInstalled
-	} else if err != nil {
-		return fmt.Errorf("error reading directory %q: %w", binDir, err)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("error reading directory %q: %w", dir, err)
 	}
 
-	buildPath, err := binary.TarantoolBuildPath(binDir)
+	versions, err := ParseBinaries(entries, program, root)
+	if err != nil {
+		return nil, err
+	}
+
+	if program == binary.ProgramCe {
+		active, found, err := regularTarantoolVersion(root)
+		if err != nil {
+			return nil, err
+		}
+
+		if found {
+			versions = append(versions, active)
+		}
+	}
+
+	sort.Stable(sort.Reverse(version.VersionSlice(versions)))
+
+	return versions, nil
+}
+
+// ListBinaries outputs installed versions from exactly the selected scope.
+func ListBinaries(listCtx ListCtx) error {
+	root, err := listCtx.Scope.ArtifactPath()
+	if err != nil {
+		return err
+	}
+
+	buildPath, err := binary.TarantoolBuildPath(filepath.Join(root, binary.BinDirName))
 	if err != nil {
 		return err
 	}
@@ -150,27 +192,38 @@ func ListBinaries(listCtx ListCtx) error {
 		binary.ProgramEe,
 		binary.ProgramTcm,
 	}
-
-	_, _ = fmt.Fprintln(os.Stdout, "List of installed binaries:")
+	versions := make(map[binary.Program][]version.Version, len(programs))
+	hasBinaries := buildPath != ""
 
 	for _, program := range programs {
-		binaryVersions, err := ParseBinaries(binDirFilesList, program, binDir)
+		versions[program], err = installedVersions(root, program)
 		if err != nil {
 			return err
 		}
 
+		hasBinaries = hasBinaries || len(versions[program]) > 0
+	}
+
+	if !hasBinaries {
+		return ErrNoBinariesInstalled
+	}
+
+	_, _ = fmt.Fprintln(os.Stdout, "List of installed binaries:")
+
+	for _, program := range programs {
 		isLocalBuild := program == binary.ProgramCe && buildPath != ""
-		if len(binaryVersions) > 0 || isLocalBuild {
-			sort.Stable(sort.Reverse(version.VersionSlice(binaryVersions)))
-			log.Infof(program.String() + ":")
+		if len(versions[program]) == 0 && !isLocalBuild {
+			continue
+		}
 
-			for _, binVersion := range binaryVersions {
-				printInstalledVersion(binVersion.Str)
-			}
+		log.Infof(program.String() + ":")
 
-			if isLocalBuild {
-				printInstalledVersion(program.String() + " -> " + buildPath + " [active]")
-			}
+		for _, binVersion := range versions[program] {
+			printInstalledVersion(strings.TrimPrefix(binVersion.Str, "v"))
+		}
+
+		if isLocalBuild {
+			printInstalledVersion(program.String() + " -> " + buildPath + " [active]")
 		}
 	}
 

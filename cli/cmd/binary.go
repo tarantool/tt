@@ -633,8 +633,10 @@ func newBinaryListCmd(base *binary.BinaryContext,
 	listCmd := &cobra.Command{
 		Use:   listCmdName,
 		Short: "List installed binaries and versions",
-		Args:  cobra.NoArgs,
-		RunE:  binaryRunE(base, listCtx, internalListModule),
+		Long: `List installed versions and active binaries in the selected scope.
+The project scope uses only .tarantool in the current directory.`,
+		Args: cobra.NoArgs,
+		RunE: binaryRunE(base, listCtx, internalListModule),
 	}
 
 	return listCmd
@@ -644,12 +646,7 @@ func newBinaryListCmd(base *binary.BinaryContext,
 func internalListModule(base binary.BinaryContext, listCtx list.ListCtx,
 	cmdCtx *cmdcontext.CmdCtx, args []string,
 ) error {
-	if !isConfigExist(cmdCtx) {
-		return errNoConfig
-	}
-
 	listCtx.BinaryContext = base
-	listCtx.BinDir = cliOpts.Env.BinDir
 
 	return list.ListBinaries(listCtx)
 }

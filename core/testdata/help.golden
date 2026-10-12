@@ -401,7 +401,8 @@ EXAMPLES[0m
   $ tt binary install tt master --local-repo ./distfiles
 
 === tt binary list --help
-List installed binaries and versions
+List installed versions and active binaries in the selected scope.
+The project scope uses only .tarantool in the current directory.
 
 [0;1;39mUSAGE[0m
   tt binary list [flags]
