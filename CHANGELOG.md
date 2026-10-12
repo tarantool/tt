@@ -197,6 +197,12 @@ for machine-readable output.
 
 ### Changed
 
+- `tt binary uninstall`: remove versions only from the selected
+  `--scope project` (the default), `user`, or `system`, using the same installation
+  paths as install. Version completion and automatic selection of a replacement
+  after removing the active version use only that scope. Unlinking a local
+  Tarantool build preserves its source files. Installation paths no longer
+  depend on `env.bin_dir` or `env.inc_dir` in `tt.yaml`.
 - `tt binary switch`: select installed versions only in the chosen
   `--scope project` (the default), `user`, or `system`, without searching
   parents or falling back to other scopes. Switching CE or EE updates both

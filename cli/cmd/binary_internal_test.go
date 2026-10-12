@@ -16,6 +16,7 @@ import (
 	"github.com/tarantool/tt/v3/internal/binary/install"
 	"github.com/tarantool/tt/v3/internal/binary/list"
 	switcher "github.com/tarantool/tt/v3/internal/binary/switch"
+	"github.com/tarantool/tt/v3/internal/binary/uninstall"
 )
 
 // TestBinaryDefaultScope checks that all commands accept an omitted scope.
@@ -460,6 +461,14 @@ func TestBinaryScopedCommandsWithoutConfig(t *testing.T) {
 			active, err := filepath.EvalSymlinks(filepath.Join(root, "bin", "tcm"))
 			require.NoError(t, err)
 			assert.Equal(t, installed, active)
+
+			command := NewBinaryCmd()
+			command.SetArgs([]string{"--scope", scope.String(), "uninstall", "tcm", "1.3.0"})
+			require.NoError(t, command.Execute())
+			assert.NoDirExists(t, filepath.Dir(installed))
+
+			_, err = os.Lstat(filepath.Join(root, "bin", "tcm"))
+			require.ErrorIs(t, err, os.ErrNotExist)
 		})
 	}
 }
@@ -483,6 +492,9 @@ func TestBinaryScopedAdaptersDoNotFindParent(t *testing.T) {
 	require.ErrorContains(t, internalSwitchModule(base, switcher.SwitchCtx{}, ctx,
 		[]string{"tt", "3.0.0"}), "is not installed")
 
+	ctx.CommandName = "tt"
+	require.ErrorContains(t, internalUninstallModule(base, uninstall.UninstallCtx{}, ctx,
+		[]string{"3.0.0"}), "not installed")
 	assert.FileExists(t, installed)
 	assert.NoDirExists(t, filepath.Join(child, ".tarantool"))
 	assert.NoDirExists(t, filepath.Join(parent, ".tarantool", "bin"))
@@ -496,5 +508,74 @@ func TestBinarySearchRequiresLocalRepositoryArgument(t *testing.T) {
 			require.ErrorContains(t, command.ParseFlags([]string{"--local-repo"}),
 				"flag needs an argument: --local-repo")
 		})
+	}
+}
+
+func TestBinaryUninstallCompletionScope(t *testing.T) {
+	restoreProcessState(t)
+
+	previousOpts := cliOpts
+
+	t.Cleanup(func() { cliOpts = previousOpts })
+
+	cliOpts = nil
+
+	parent := t.TempDir()
+	child := filepath.Join(parent, "child")
+	require.NoError(t, os.Mkdir(child, 0o755))
+	t.Chdir(child)
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+	projectRoot, err := binary.ScopeProject.ArtifactPath()
+	require.NoError(t, err)
+
+	userRoot, err := binary.ScopeUser.ArtifactPath()
+	require.NoError(t, err)
+
+	for _, program := range binarySupportedPrograms {
+		parsed, err := binary.ParseProgram(program)
+		require.NoError(t, err)
+
+		for root, version := range map[string]string{
+			projectRoot: "1.0.0", userRoot: "2.0.0", filepath.Join(parent, ".tarantool"): "3.0.0",
+		} {
+			installed := filepath.Join(root, "versions", program,
+				program+"_"+version, parsed.Exec())
+			require.NoError(t, os.MkdirAll(filepath.Dir(installed), 0o755))
+			require.NoError(t, os.WriteFile(installed, nil, 0o755))
+		}
+
+		for _, testCase := range []struct {
+			scope    string
+			expected []string
+		}{
+			{expected: []string{"1.0.0"}},
+			{scope: "project", expected: []string{"1.0.0"}},
+			{scope: "user", expected: []string{"2.0.0"}},
+			{scope: "global"},
+		} {
+			command, _, err := NewBinaryCmd().Find([]string{"uninstall", program})
+			require.NoError(t, err)
+
+			var flags []string
+
+			if testCase.scope != "" {
+				flags = []string{"--scope", testCase.scope}
+			}
+
+			require.NoError(t, command.ParseFlags(flags))
+
+			// Completion must work before PersistentPreRunE populates the shared context.
+			versions, directive := command.ValidArgsFunction(command, nil, "")
+			assert.Equal(t, testCase.expected, versions)
+			assert.NotZero(t, directive&cobra.ShellCompDirectiveNoFileComp)
+			assert.Equal(t, testCase.scope == "global",
+				directive&cobra.ShellCompDirectiveError != 0)
+
+			versions, directive = command.ValidArgsFunction(command, []string{"1.0.0"}, "")
+			assert.Empty(t, versions)
+			assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
+		}
 	}
 }

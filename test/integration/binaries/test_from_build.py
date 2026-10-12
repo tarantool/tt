@@ -1,19 +1,21 @@
-from pathlib import Path
-from shutil import copytree, rmtree
+from shutil import rmtree
 
 import pytest
 
 from utils import run_command_and_get_output
 
-DATA_DIR = Path(__file__).parent / "testdata"
-
 
 @pytest.fixture
-def legacy_local_build(tmp_path):
-    copytree(DATA_DIR / "no_active", tmp_path, symlinks=True, dirs_exist_ok=True)
+def local_build(tt_cmd, tmp_path):
+    root = tmp_path / ".tarantool"
+    for version in ["2.10.3", "2.10.5"]:
+        installation = root / "versions" / "tarantool" / f"tarantool_{version}"
+        (installation / "inc" / "tarantool").mkdir(parents=True)
+        (installation / "tarantool").write_text("#!/bin/sh\nexit 99\n")
+        (installation / "tarantool").chmod(0o755)
 
-    # Include an installed version in the source path: it must never make
-    # uninstalling that version remove the links to this unrelated build.
+    # A managed version name in the source path must not identify this build
+    # as the installation being removed.
     build_dir = tmp_path / "tarantool_2.10.3" / "local build"
     binary = build_dir / "src" / "tarantool"
     binary.parent.mkdir(parents=True)
@@ -22,12 +24,13 @@ def legacy_local_build(tmp_path):
     headers = build_dir / "tarantool-prefix" / "include" / "tarantool"
     headers.mkdir(parents=True)
     (headers / "module.h").write_text("/* local build headers */\n")
-
-    # list/switch/uninstall still use the configured bin_dir/inc_dir layout.
-    # Prepare its links directly; install --from-build now writes into a scope
-    # and is covered by integration/install/test_install_tarantool.py.
-    (tmp_path / "bin" / "tarantool").symlink_to(binary)
-    (tmp_path / "inc" / "include" / "tarantool").symlink_to(headers, target_is_directory=True)
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "--self", "binary", "install", "tarantool", "--from-build", build_dir],
+        cwd=tmp_path,
+    )
+    assert rc == 0, output
+    assert (root / "bin" / "tarantool").readlink() == binary
+    assert (root / "inc" / "tarantool").readlink() == headers
     return binary, headers
 
 
@@ -39,21 +42,14 @@ def legacy_local_build(tmp_path):
         pytest.param(["uninstall", "tarantool"], "2.10.5", id="uninstall"),
     ],
 )
-def test_legacy_from_build_lifecycle(
-    tt_cmd,
-    tmp_path,
-    legacy_local_build,
-    command,
-    expected_version,
-    broken,
-):
-    binary, headers = legacy_local_build
+def test_from_build_lifecycle(tt_cmd, tmp_path, local_build, command, expected_version, broken):
+    binary, headers = local_build
     if broken:
         binary.unlink()
         rmtree(headers)
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "binary", "--scope", "project", "list"],
+        [tt_cmd, "--self", "binary", "--scope", "project", "list"],
         cwd=tmp_path,
     )
     assert rc == 0, output
@@ -62,57 +58,66 @@ def test_legacy_from_build_lifecycle(
     assert "tarantool-dev" not in output
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "binary", "--scope", "project", *command],
+        [tt_cmd, "--self", "binary", "--scope", "project", *command],
         cwd=tmp_path,
     )
     assert rc == 0, output
-    installed_name = f"tarantool_{expected_version}"
-    assert (tmp_path / "bin" / "tarantool").resolve() == tmp_path / "bin" / installed_name
-    includes = tmp_path / "inc" / "include"
-    assert (includes / "tarantool").resolve() == includes / installed_name
+    root = tmp_path / ".tarantool"
+    installation = root / "versions" / "tarantool" / f"tarantool_{expected_version}"
+    assert (root / "bin" / "tarantool").resolve() == installation / "tarantool"
+    assert (root / "inc" / "tarantool").resolve() == installation / "inc" / "tarantool"
     if not broken:
         assert binary.read_text() == "#!/bin/sh\necho 'Tarantool 3.0.0'\n"
         assert (headers / "module.h").read_text() == "/* local build headers */\n"
+    else:
+        assert not binary.exists()
+        assert not headers.exists()
 
 
 @pytest.mark.parametrize("broken", [False, True])
-def test_uninstall_version_keeps_local_build(tt_cmd, tmp_path, legacy_local_build, broken):
-    binary, headers = legacy_local_build
+def test_uninstall_version_keeps_local_build(tt_cmd, tmp_path, local_build, broken):
+    binary, headers = local_build
     if broken:
         binary.unlink()
         rmtree(headers)
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "binary", "--scope", "project", "uninstall", "tarantool", "2.10.3"],
+        [tt_cmd, "--self", "binary", "--scope", "project", "uninstall", "tarantool", "2.10.3"],
         cwd=tmp_path,
     )
     assert rc == 0, output
-    assert not (tmp_path / "bin" / "tarantool_2.10.3").exists()
-    assert not (tmp_path / "inc" / "include" / "tarantool_2.10.3").exists()
-    assert (tmp_path / "bin" / "tarantool").readlink() == binary
-    assert (tmp_path / "inc" / "include" / "tarantool").readlink() == headers
+    root = tmp_path / ".tarantool"
+    assert not (root / "versions" / "tarantool" / "tarantool_2.10.3").exists()
+    assert (root / "bin" / "tarantool").readlink() == binary
+    assert (root / "inc" / "tarantool").readlink() == headers
     if not broken:
         assert binary.is_file()
         assert (headers / "module.h").is_file()
 
 
 @pytest.mark.parametrize("with_headers", [False, True])
-def test_uninstall_only_local_build(tt_cmd, tmp_path, legacy_local_build, with_headers):
-    binary, headers = legacy_local_build
-    for installed in (tmp_path / "bin").glob("tarantool_*"):
-        installed.unlink()
-    for installed in (tmp_path / "inc" / "include").glob("tarantool_*"):
-        rmtree(installed)
-    header_link = tmp_path / "inc" / "include" / "tarantool"
+@pytest.mark.parametrize("broken", [False, True])
+def test_uninstall_only_local_build(tt_cmd, tmp_path, local_build, with_headers, broken):
+    binary, headers = local_build
+    root = tmp_path / ".tarantool"
+    rmtree(root / "versions")
+    header_link = root / "inc" / "tarantool"
     if not with_headers:
         header_link.unlink()
+    if broken:
+        binary.unlink()
+        rmtree(headers)
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "binary", "--scope", "project", "uninstall", "tarantool"],
+        [tt_cmd, "--self", "binary", "--scope", "project", "uninstall", "tarantool"],
         cwd=tmp_path,
     )
     assert rc == 0, output
-    assert not (tmp_path / "bin" / "tarantool").is_symlink()
+    assert not (root / "bin" / "tarantool").is_symlink()
     assert not header_link.is_symlink()
-    assert binary.is_file()
-    assert (headers / "module.h").is_file()
+    if not broken:
+        assert binary.is_file()
+        assert (headers / "module.h").is_file()
+    else:
+        assert not binary.exists()
+        assert not headers.exists()

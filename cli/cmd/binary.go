@@ -350,6 +350,11 @@ func newBinaryUninstallCmd(base *binary.BinaryContext,
 	uninstallCmd := &cobra.Command{
 		Use:   "uninstall",
 		Short: "Uninstall a program",
+		Long: `Uninstall a program version from the selected scope.
+Without a version, remove the only installed version of that product. For
+Tarantool, an active local build is unlinked without deleting its source.
+Removing an active version selects the latest eligible remaining version
+within the same scope. Parent directories and other scopes are not searched.`,
 		Example: `# Uninstall a Tarantool version.
   $ tt binary uninstall tarantool 3.0.0 --scope project`,
 	}
@@ -369,22 +374,11 @@ func newUninstallTtCmd(base *binary.BinaryContext,
 	uninstallCtx *uninstall.UninstallCtx,
 ) *cobra.Command {
 	tntCmd := &cobra.Command{
-		Use:   "tt [version]",
-		Short: "Uninstall tt",
-		RunE:  binaryRunE(base, uninstallCtx, internalUninstallModule),
-		Args:  cobra.MaximumNArgs(1),
-		ValidArgsFunction: func(
-			cmd *cobra.Command,
-			args []string,
-			toComplete string,
-		) ([]string, cobra.ShellCompDirective) {
-			if len(args) > 0 {
-				return []string{}, cobra.ShellCompDirectiveNoFileComp
-			}
-
-			return uninstall.GetList(cliOpts, cmd.Name()),
-				cobra.ShellCompDirectiveNoFileComp
-		},
+		Use:               "tt [version]",
+		Short:             "Uninstall tt",
+		RunE:              binaryRunE(base, uninstallCtx, internalUninstallModule),
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: completeBinaryUninstall,
 	}
 
 	return tntCmd
@@ -399,20 +393,9 @@ func newUninstallTarantoolCmd(base *binary.BinaryContext,
 		Short: "Uninstall Tarantool Community Edition",
 		Long: `Uninstall a Tarantool version.
 Without a version, unlink the active local build or uninstall the only installed version.`,
-		RunE: binaryRunE(base, uninstallCtx, internalUninstallModule),
-		Args: cobra.MaximumNArgs(1),
-		ValidArgsFunction: func(
-			cmd *cobra.Command,
-			args []string,
-			toComplete string,
-		) ([]string, cobra.ShellCompDirective) {
-			if len(args) > 0 {
-				return []string{}, cobra.ShellCompDirectiveNoFileComp
-			}
-
-			return uninstall.GetList(cliOpts, cmd.Name()),
-				cobra.ShellCompDirectiveNoFileComp
-		},
+		RunE:              binaryRunE(base, uninstallCtx, internalUninstallModule),
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: completeBinaryUninstall,
 	}
 
 	return tntCmd
@@ -423,22 +406,11 @@ func newUninstallTarantoolEeCmd(base *binary.BinaryContext,
 	uninstallCtx *uninstall.UninstallCtx,
 ) *cobra.Command {
 	tntCmd := &cobra.Command{
-		Use:   binary.ProgramEe.String() + " [version]",
-		Short: "Uninstall Tarantool Enterprise Edition",
-		RunE:  binaryRunE(base, uninstallCtx, internalUninstallModule),
-		Args:  cobra.MaximumNArgs(1),
-		ValidArgsFunction: func(
-			cmd *cobra.Command,
-			args []string,
-			toComplete string,
-		) ([]string, cobra.ShellCompDirective) {
-			if len(args) > 0 {
-				return []string{}, cobra.ShellCompDirectiveNoFileComp
-			}
-
-			return uninstall.GetList(cliOpts, cmd.Name()),
-				cobra.ShellCompDirectiveNoFileComp
-		},
+		Use:               binary.ProgramEe.String() + " [version]",
+		Short:             "Uninstall Tarantool Enterprise Edition",
+		RunE:              binaryRunE(base, uninstallCtx, internalUninstallModule),
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: completeBinaryUninstall,
 	}
 
 	return tntCmd
@@ -449,35 +421,41 @@ func newUninstallTcmCmd(base *binary.BinaryContext,
 	uninstallCtx *uninstall.UninstallCtx,
 ) *cobra.Command {
 	tntCmd := &cobra.Command{
-		Use:   binary.ProgramTcm.String() + " [version]",
-		Short: "Uninstall Tarantool Cluster Manager",
-		RunE:  binaryRunE(base, uninstallCtx, internalUninstallModule),
-		Args:  cobra.MaximumNArgs(1),
-		ValidArgsFunction: func(
-			cmd *cobra.Command,
-			args []string,
-			toComplete string,
-		) ([]string, cobra.ShellCompDirective) {
-			if len(args) > 0 {
-				return []string{}, cobra.ShellCompDirectiveNoFileComp
-			}
-
-			return uninstall.GetList(cliOpts, cmd.Name()),
-				cobra.ShellCompDirectiveNoFileComp
-		},
+		Use:               binary.ProgramTcm.String() + " [version]",
+		Short:             "Uninstall Tarantool Cluster Manager",
+		RunE:              binaryRunE(base, uninstallCtx, internalUninstallModule),
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: completeBinaryUninstall,
 	}
 
 	return tntCmd
+}
+
+// completeBinaryUninstall reads scope directly because completion skips the pre-run hook.
+func completeBinaryUninstall(cmd *cobra.Command, args []string,
+	toComplete string,
+) ([]string, cobra.ShellCompDirective) {
+	if len(args) > 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	scopeName, err := cmd.Flags().GetString("scope")
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError | cobra.ShellCompDirectiveNoFileComp
+	}
+
+	scope, err := binary.ParseScope(scopeName)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError | cobra.ShellCompDirectiveNoFileComp
+	}
+
+	return uninstall.GetList(scope, cmd.Name()), cobra.ShellCompDirectiveNoFileComp
 }
 
 // internalUninstallModule is a default uninstall module.
 func internalUninstallModule(base binary.BinaryContext, uninstallCtx uninstall.UninstallCtx,
 	cmdCtx *cmdcontext.CmdCtx, args []string,
 ) error {
-	if !isConfigExist(cmdCtx) {
-		return errNoConfig
-	}
-
 	program, err := binary.ParseProgram(cmdCtx.CommandName)
 	if err != nil {
 		return fmt.Errorf("failed to uninstall: %w", err)
@@ -491,8 +469,6 @@ func internalUninstallModule(base binary.BinaryContext, uninstallCtx uninstall.U
 	uninstallCtx.BinaryContext = base
 	uninstallCtx.Program = program
 	uninstallCtx.Version = programVersion
-	uninstallCtx.BinDir = cliOpts.Env.BinDir
-	uninstallCtx.IncDir = cliOpts.Env.IncludeDir + "/include"
 
 	return uninstall.UninstallProgram(uninstallCtx)
 }
