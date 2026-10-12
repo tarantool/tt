@@ -658,6 +658,10 @@ func newBinarySwitchCmd(base *binary.BinaryContext,
 	switchCmd := &cobra.Command{
 		Use:   "switch [program] [version]",
 		Short: "Switch the active binary",
+		Long: `Switch to an installed version in the selected scope.
+Without arguments, choose the program and version interactively. With only
+a program, choose its version. CE and EE share the active Tarantool binary
+and headers.`,
 		Example: `# Choose a program and version interactively.
   $ tt binary switch --scope project
 
@@ -690,41 +694,32 @@ func binarySwitchValidateArgs(cmd *cobra.Command, args []string) error {
 func internalSwitchModule(base binary.BinaryContext, switchCtx switcher.SwitchCtx,
 	cmdCtx *cmdcontext.CmdCtx, args []string,
 ) error {
-	if !isConfigExist(cmdCtx) {
-		return errNoConfig
-	}
-
 	var err error
 
 	switchCtx.BinaryContext = base
 
-	if len(args) > 0 {
-		switchCtx.Program, err = binary.ParseProgram(args[0])
-		if err != nil {
-			return fmt.Errorf("failed to switch module: %w", err)
-		}
-	} else {
+	switch len(args) {
+	case 0:
 		switchCtx.Program, err = switcher.ChooseProgram(binarySupportedPrograms)
-		if err != nil {
-			return err
-		}
+	default:
+		switchCtx.Program, err = binary.ParseProgram(args[0])
 	}
 
-	if len(args) > 1 {
+	if err != nil {
+		return fmt.Errorf("failed to switch module: %w", err)
+	}
+
+	switch len(args) {
+	case binarySwitchMaxArgs:
 		switchCtx.Version = args[1]
-	} else {
-		switchCtx.Version, err = switcher.ChooseVersion(cliOpts.Env.BinDir, switchCtx.Program)
+	default:
+		switchCtx.Version, err = switcher.ChooseVersion(base.Scope, switchCtx.Program)
 		if err != nil {
 			return err
 		}
 	}
 
-	switchCtx.BinDir = cliOpts.Env.BinDir
-	switchCtx.IncDir = cliOpts.Env.IncludeDir
-
-	err = switcher.Switch(&switchCtx)
-
-	return err
+	return switcher.Switch(&switchCtx)
 }
 
 // binaryRunE applies the flags inherited from binary to the whole operation.
