@@ -30,7 +30,7 @@ func Install(installCtx InstallCtx, cliOpts *config.CliOpts) error {
 	case binary.ProgramTt:
 		return installTt(installCtx)
 	case binary.ProgramCe:
-		return installTarantool(installCtx, cliOpts)
+		return installTarantool(installCtx)
 	case binary.ProgramEe, binary.ProgramTcm:
 		return installBundleProgram(installCtx, cliOpts)
 	case binary.ProgramSDK:

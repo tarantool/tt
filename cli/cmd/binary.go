@@ -262,6 +262,7 @@ func internalInstallModule(base binary.BinaryContext, installCtx install.Install
 	}
 
 	if installCtx.Program != binary.ProgramSDK && installCtx.Program != binary.ProgramTt &&
+		installCtx.Program != binary.ProgramCe &&
 		!isConfigExist(cmdCtx) {
 		return errNoConfig
 	}

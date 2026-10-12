@@ -49,14 +49,27 @@ func copyBuiltTarantool(binPath, incPath, destBinPath, destIncPath string) error
 	return nil
 }
 
-// changeActiveTarantoolVersion changes symlinks to the specified tarantool version.
-func changeActiveTarantoolVersion(versionStr, binDir, incDir string) error {
-	err := binary.CreateSymlink(versionStr, filepath.Join(binDir, "tarantool"), true)
+// changeActiveTarantoolVersion selects the binary and headers in the installation scope.
+func changeActiveTarantoolVersion(binPath, incPath, artifactRoot string) error {
+	binDir := filepath.Join(artifactRoot, binary.BinDirName)
+	incDir := filepath.Join(artifactRoot, binary.IncDirName)
+
+	err := os.MkdirAll(binDir, defaultDirPermissions)
+	if err != nil {
+		return fmt.Errorf("failed to create the binary directory: %w", err)
+	}
+
+	err = os.MkdirAll(incDir, defaultDirPermissions)
+	if err != nil {
+		return fmt.Errorf("failed to create the headers directory: %w", err)
+	}
+
+	err = binary.CreateSymlink(binPath, filepath.Join(binDir, binary.ProgramCe.Exec()), true)
 	if err != nil {
 		return err
 	}
 
-	err = binary.CreateSymlink(versionStr, filepath.Join(incDir, "tarantool"), true)
+	err = binary.CreateSymlink(incPath, filepath.Join(incDir, binary.ProgramCe.Exec()), true)
 
 	return err
 }

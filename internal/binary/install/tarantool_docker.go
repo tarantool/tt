@@ -14,13 +14,15 @@ import (
 	"github.com/tarantool/tt/v3/internal/binary"
 )
 
-const dockerfileMode = 0o664
+const (
+	dockerfileMode     = 0o664
+	dockerLocalRepoDir = "/tt_distfiles"
+)
 
 //go:embed Dockerfile.tnt.build
 var tarantoolBuildDockerfile []byte
 
-func installTarantoolInDocker(tntVersion, binDir, incDir string, installCtx InstallCtx,
-) error {
+func installTarantoolInDocker(tntVersion, artifactRoot string, installCtx InstallCtx) error {
 	tmpDir, err := os.MkdirTemp("", "docker_build_ctx")
 	if err != nil {
 		return fmt.Errorf("failed to create a temporary directory: %w", err)
@@ -58,32 +60,40 @@ func installTarantoolInDocker(tntVersion, binDir, incDir string, installCtx Inst
 
 	err = copy.Copy(currentExecutable, filepath.Join(tmpDir, "tt"))
 	if err != nil {
-		return nil
+		return fmt.Errorf("failed to copy tt executable: %w", err)
 	}
 
 	// Generate tt config for tt process in the container.
 	ttCfg := configure.GetDefaultCliOpts()
 
-	ttCfg.Env.BinDir = "/tt_bin"
-	ttCfg.Env.IncludeDir = "/tt_include"
-	ttCfg.Repo.Install = "/tt_distfiles"
+	ttCfg.Repo.Install = dockerLocalRepoDir
 
 	err = binary.WriteYaml(filepath.Join(tmpDir, configure.ConfigName), ttCfg)
 	if err != nil {
 		return err
 	}
 
+	dockerRunOptions := tarantoolDockerRunOptions(tmpDir, tntVersion, artifactRoot,
+		installCtx)
+
+	return docker.RunContainer(dockerRunOptions, os.Stdout)
+}
+
+// tarantoolDockerRunOptions mounts the selected scope's versions without sharing active links.
+func tarantoolDockerRunOptions(tmpDir, tntVersion, artifactRoot string,
+	installCtx InstallCtx,
+) docker.RunOptions {
 	// Generate install command line for tt in container.
-	tntInstallCommandLine := []string{"./tt", "binary", "--scope", installCtx.Scope.String()}
+	// The container builds in its project scope. Only the versions directory is shared;
+	// the host selects the active version using paths in the requested installation scope.
+	tntInstallCommandLine := []string{"./tt", "binary", "--scope", binary.ScopeProject.String()}
 	if installCtx.Verbose {
 		tntInstallCommandLine = append(tntInstallCommandLine, "-V")
 	}
 
+	// The host already decided to build this version, including checking for master updates.
 	tntInstallCommandLine = append(tntInstallCommandLine, "install", "-f",
-		binary.ProgramCe.Exec(), tntVersion)
-	if installCtx.Reinstall {
-		tntInstallCommandLine = append(tntInstallCommandLine, "--reinstall")
-	}
+		binary.ProgramCe.Exec(), tntVersion, "--reinstall")
 
 	if installCtx.Local {
 		tntInstallCommandLine = append(tntInstallCommandLine, "--local-repo")
@@ -93,19 +103,15 @@ func installTarantoolInDocker(tntVersion, binDir, incDir string, installCtx Inst
 		tntInstallCommandLine = append(tntInstallCommandLine, "--dynamic")
 	}
 
-	// Exclude last element from incDir path, because it already has "include" subdir appended.
-	// So we get the parent of incDir to get original include path.
-	dockerRunOptions := docker.RunOptions{
+	return docker.RunOptions{
 		BuildCtxDir: tmpDir,
 		ImageTag:    "ubuntu:tt_tarantool_build",
 		Command:     tntInstallCommandLine,
 		Binds: []string{
-			fmt.Sprintf("%s:%s", binDir, ttCfg.Env.BinDir),
-			fmt.Sprintf("%s:%s", filepath.Dir(incDir), ttCfg.Env.IncludeDir),
-			fmt.Sprintf("%s:%s", installCtx.localRepoDir, ttCfg.Repo.Install),
+			fmt.Sprintf("%s:%s", filepath.Join(artifactRoot, binary.VersionsDirName),
+				filepath.Join("/work", ".tarantool", binary.VersionsDirName)),
+			fmt.Sprintf("%s:%s", installCtx.localRepoDir, dockerLocalRepoDir),
 		},
 		Verbose: installCtx.Verbose,
 	}
-
-	return docker.RunContainer(dockerRunOptions, os.Stdout)
 }
