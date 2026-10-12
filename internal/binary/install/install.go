@@ -28,7 +28,7 @@ func Install(installCtx InstallCtx, cliOpts *config.CliOpts) error {
 
 	switch installCtx.Program {
 	case binary.ProgramTt:
-		return installTt(installCtx, cliOpts)
+		return installTt(installCtx)
 	case binary.ProgramCe:
 		return installTarantool(installCtx, cliOpts)
 	case binary.ProgramEe, binary.ProgramTcm:
