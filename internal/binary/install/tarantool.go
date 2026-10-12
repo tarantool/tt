@@ -10,7 +10,6 @@ import (
 	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/configure"
 	"github.com/tarantool/tt/v3/internal/binary"
-	"github.com/tarantool/tt/v3/internal/binary/search"
 )
 
 var (
@@ -89,11 +88,11 @@ func downloadTarantoolSource(path, tarVersion, distfiles string,
 	log.Infof("Downloading tarantool...")
 
 	if resolved.versionFound {
-		return downloadRepo(search.GitRepoTarantool, tarVersion, path, logFile,
+		return downloadRepo(binary.ProgramCe.GitRepo(), tarVersion, path, logFile,
 			installCtx.Verbose)
 	}
 
-	err := downloadRepo(search.GitRepoTarantool, masterVersion, path, logFile,
+	err := downloadRepo(binary.ProgramCe.GitRepo(), masterVersion, path, logFile,
 		installCtx.Verbose)
 	if err != nil {
 		return err

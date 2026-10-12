@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -16,6 +18,18 @@ var errCommitHashTooShort = errors.New("the hash must contain at least 7 charact
 
 // MinCommitHashLength is the Git default for a short SHA.
 const MinCommitHashLength = 7
+
+// GitFetchPullRequest fetches a pull request's head into the pr/<id> branch.
+func GitFetchPullRequest(repoDir, pullRequestID string, verbose bool, logWriter io.Writer) error {
+	refspec := "refs/pull/" + pullRequestID + "/head:pr/" + pullRequestID
+
+	err := ExecuteCommand("git", verbose, logWriter, repoDir, "fetch", "origin", refspec)
+	if err != nil {
+		return fmt.Errorf("failed to fetch pull request %s: %w", pullRequestID, err)
+	}
+
+	return nil
+}
 
 // commitHashPattern matches a full or abbreviated lowercase commit hash.
 var commitHashPattern = regexp.MustCompile(`^[0-9a-f]+$`)

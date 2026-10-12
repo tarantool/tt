@@ -87,6 +87,23 @@ func TestProgram_Exec(t *testing.T) {
 	}
 }
 
+func TestProgram_GitRepo(t *testing.T) {
+	repositories := map[binary.Program]string{
+		binary.ProgramCe:      "https://github.com/tarantool/tarantool.git",
+		binary.ProgramTt:      "https://github.com/tarantool/tt.git",
+		binary.ProgramEe:      "",
+		binary.ProgramTcm:     "",
+		binary.ProgramSDK:     "",
+		binary.ProgramUnknown: "",
+		binary.Program(99):    "",
+	}
+	for program, expected := range repositories {
+		t.Run(program.String(), func(t *testing.T) {
+			assert.Equal(t, expected, program.GitRepo())
+		})
+	}
+}
+
 func TestProgram_IsTarantool(t *testing.T) {
 	tests := map[string]struct {
 		program  binary.Program

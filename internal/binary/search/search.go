@@ -88,10 +88,8 @@ func SearchVersions(searchCtx SearchCtx, cliOpts *config.CliOpts) error {
 	)
 
 	switch prg {
-	case binary.ProgramCe:
-		vers, err = searchVersionsGit(GitRepoTarantool)
-	case binary.ProgramTt:
-		vers, err = searchVersionsGit(GitRepoTT)
+	case binary.ProgramCe, binary.ProgramTt:
+		vers, err = searchVersionsGit(prg.GitRepo())
 	case binary.ProgramEe, binary.ProgramTcm: // Group of API-based searches.
 		vers, err = searchVersionsTntIo(cliOpts, &searchCtx)
 	default:

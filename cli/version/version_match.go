@@ -9,6 +9,9 @@ import (
 )
 
 var (
+	// ErrNotFound reports that no available version matches the requested version.
+	ErrNotFound = errors.New("version not found")
+
 	errMinorVersionRequiresMajorToBeSpecified = errors.New(
 		"minor version requires major to be specified",
 	)
@@ -37,7 +40,7 @@ const (
 	countOfRequiredFields
 )
 
-// NotFoundError is sentinel error for case when required version not found.
+// NotFoundError reports a version request that could not be matched.
 type NotFoundError struct {
 	expected string
 }
@@ -45,6 +48,11 @@ type NotFoundError struct {
 // Error implements the [error] interface.
 func (e NotFoundError) Error() string {
 	return fmt.Sprintf("not matched with: %q", e.expected)
+}
+
+// Unwrap allows errors.Is to recognize ErrNotFound while retaining the requested version.
+func (e NotFoundError) Unwrap() error {
+	return ErrNotFound
 }
 
 // exploreMatchVersion examines the given string and retrieves the version components,
@@ -182,17 +190,22 @@ func compareVersions(ref, other Version, fields requiredFields) bool {
 	return true
 }
 
-// IsVersion checks is string looks like version.
-// If isStrict is true, then version <major.minor.patch> components are required.
-func IsVersion(version string, isStrict bool) bool {
-	re := createVersionRegexp(isStrict)
+// IsVersion reports whether the string matches a version or a partial version mask.
+func IsVersion(version string) bool {
+	re := createVersionRegexp(false)
+	return re.MatchString(version)
+}
+
+// IsStrictVersion reports whether the string matches a version with major, minor and patch.
+func IsStrictVersion(version string) bool {
+	re := createVersionRegexp(true)
 	return re.MatchString(version)
 }
 
 // MatchVersion takes as input an ascending sorted list of versions.
 // In which it finds the latest version matching the search mask.
 //
-// Return string of found version or `NotFoundVersion` with error if just not found.
+// It returns NotFoundError wrapping ErrNotFound when no version matches.
 func MatchVersion(expected string, sortedVersions []Version) (string, error) {
 	reference, fields, err := exploreMatchVersion(expected)
 	if err != nil {

@@ -10,7 +10,6 @@ import (
 	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/configure"
 	"github.com/tarantool/tt/v3/internal/binary"
-	"github.com/tarantool/tt/v3/internal/binary/search"
 )
 
 // copyBuildedTT copies tt binary.
@@ -118,7 +117,7 @@ func downloadTtSource(path, ttVersion, distfiles string, resolved resolvedInstal
 	log.Infof("Downloading tt...")
 
 	if resolved.versionFound {
-		err := downloadRepo(search.GitRepoTT, ttVersion, path, logFile, installCtx.Verbose)
+		err := downloadRepo(binary.ProgramTt.GitRepo(), ttVersion, path, logFile, installCtx.Verbose)
 		if err != nil {
 			_ = printLog(logFile.Name())
 		}
@@ -126,7 +125,7 @@ func downloadTtSource(path, ttVersion, distfiles string, resolved resolvedInstal
 		return err
 	}
 
-	err := downloadRepo(search.GitRepoTT, masterVersion, path, logFile, installCtx.Verbose)
+	err := downloadRepo(binary.ProgramTt.GitRepo(), masterVersion, path, logFile, installCtx.Verbose)
 	if err != nil {
 		_ = printLog(logFile.Name())
 		return err
