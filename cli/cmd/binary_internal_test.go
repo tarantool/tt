@@ -4,11 +4,138 @@ import (
 	"io"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/v3/internal/binary"
 )
+
+// TestBinaryDefaultScope checks that all commands accept an omitted scope.
+func TestBinaryDefaultScope(t *testing.T) {
+	cases := [][]string{
+		{"install", "tarantool"},
+		{"install", "tarantool-ee"},
+		{"install", "tt"},
+		{"install", "tcm"},
+		{"uninstall", "tarantool"},
+		{"uninstall", "tarantool-ee"},
+		{"uninstall", "tt"},
+		{"uninstall", "tcm"},
+		{"list"},
+		{"switch", "tarantool", "3.0.0"},
+		{"search", "tarantool"},
+		{"search", "tarantool-ee"},
+		{"search", "tt"},
+		{"search", "tcm"},
+		{"install", "tarantool-sdk", "3.0.0"},
+		{"install", "sdk", "3.0.0"},
+		{"install", "SDK", "3.0.0"},
+	}
+	for _, testCase := range cases {
+		t.Run(strings.Join(testCase, " "), func(t *testing.T) {
+			root := NewBinaryCmd()
+			root.SetOut(io.Discard)
+			root.SetErr(io.Discard)
+			root.SetArgs(testCase)
+
+			command, _, err := root.Find(testCase)
+			require.NoError(t, err)
+
+			called := false
+
+			command.RunE = func(cmd *cobra.Command, args []string) error {
+				called = true
+
+				return nil
+			}
+
+			require.NoError(t, root.Execute())
+			assert.True(t, called)
+
+			scope, err := command.Flags().GetString("scope")
+			require.NoError(t, err)
+			assert.Equal(t, "project", scope)
+			assert.False(t, command.Flags().Changed("scope"))
+		})
+	}
+}
+
+func TestBinaryScopeFlag(t *testing.T) {
+	cases := []struct {
+		name  string
+		args  []string
+		scope binary.Scope
+		want  string
+	}{
+		{
+			name:  "default",
+			args:  []string{"install", "tarantool"},
+			scope: binary.ScopeProject,
+		},
+		{
+			name:  "binary parent",
+			args:  []string{"--scope", "project", "install", "tarantool"},
+			scope: binary.ScopeProject,
+		},
+		{
+			name:  "operation parent",
+			args:  []string{"install", "--scope", "user", "tarantool"},
+			scope: binary.ScopeUser,
+		},
+		{
+			name:  "program",
+			args:  []string{"install", "tarantool", "--scope=system"},
+			scope: binary.ScopeSystem,
+		},
+		{
+			name: "unknown",
+			args: []string{"install", "tarantool", "--scope=global"},
+			want: `unknown scope "global"`,
+		},
+		{
+			name: "empty",
+			args: []string{"install", "tarantool", "--scope="},
+			want: `unknown scope ""`,
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			restoreProcessState(t)
+
+			root := NewCmdRoot()
+			root.SetOut(io.Discard)
+			root.SetErr(io.Discard)
+			root.SetArgs(append([]string{"binary"}, testCase.args...))
+
+			command, _, err := root.Find([]string{"binary", "install", "tarantool"})
+			require.NoError(t, err)
+
+			called := false
+
+			command.RunE = func(cmd *cobra.Command, args []string) error {
+				called = true
+
+				scope, err := cmd.Flags().GetString("scope")
+				require.NoError(t, err)
+				assert.Equal(t, testCase.scope.String(), scope)
+
+				return nil
+			}
+
+			err = root.Execute()
+			if testCase.want != "" {
+				require.ErrorContains(t, err, testCase.want)
+				assert.False(t, called)
+			} else {
+				require.NoError(t, err)
+				assert.True(t, called)
+			}
+		})
+	}
+}
 
 // TestBinaryInstallSDK checks that SDK retains the download flags and reaches
 // the downloader without requiring an environment config or installing a binary.
@@ -200,6 +327,7 @@ func TestBinaryCommandOptionsAreIndependent(t *testing.T) {
 		first   string
 		second  string
 	}{
+		{[]string{"install", "tarantool"}, "scope", "project", "system"},
 		{[]string{"install", "tarantool"}, "dynamic", "true", "false"},
 		{[]string{"install", "tarantool"}, "from-build", "/first", "/second"},
 		{[]string{"install", "tarantool-sdk"}, "destination", "/first", "/second"},

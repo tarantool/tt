@@ -136,8 +136,10 @@ COMMANDS[0m
   uninstall   Uninstall a program
 [0;1;39m
 FLAGS[0m
-  -h, --help      help for binary
-  -V, --verbose   Show diagnostic output and build commands
+  -h, --help           help for binary
+      --scope string   Installation scope: project, user or system (default
+                       "project")
+  -V, --verbose        Show diagnostic output and build commands
 
 Use "tt binary <command> --help" for more information about a command.
 
@@ -164,17 +166,19 @@ FLAGS[0m
       --reinstall            Reinstall an existing version
 [0;1;39m
 GLOBAL FLAGS[0m
-  -V, --verbose   Show diagnostic output and build commands
+      --scope string   Installation scope: project, user or system (default
+                       "project")
+  -V, --verbose        Show diagnostic output and build commands
 [0;1;39m
 EXAMPLES[0m
   # Install the latest Tarantool version.
-  $ tt binary install tarantool
+  $ tt binary install tarantool --scope project
 
   # Install tt from a pull request.
-  $ tt binary install tt pr/534
+  $ tt binary install tt pr/534 --scope project
 
   # Build Tarantool with two parallel jobs.
-  $ MAKEFLAGS="-j2" tt binary install tarantool 3.0.0
+  $ MAKEFLAGS="-j2" tt binary install tarantool 3.0.0 --scope project
 
 Use "tt binary install <command> --help" for more information about a command.
 
@@ -201,17 +205,21 @@ GLOBAL FLAGS[0m
       --local-repo           Install from the local repository
       --no-clean             Keep temporary files
       --reinstall            Reinstall an existing version
+      --scope string         Installation scope: project, user or system
+                             (default "project")
   -V, --verbose              Show diagnostic output and build commands
 [0;1;39m
 EXAMPLES[0m
   # Build and install Tarantool from the local repository.
-  $ tt binary install tarantool --local-repo
+  $ tt binary install tarantool --scope project --local-repo
 
   # Link an existing Tarantool build into the environment.
-  $ tt binary install tarantool --from-build ~/src/tarantool/build
+  $ tt binary install tarantool --scope project \
+      --from-build ~/src/tarantool/build
 
   # Use headers from a custom directory.
-  $ tt binary install tarantool --from-build ~/src/tarantool/build \
+  $ tt binary install tarantool --scope project \
+      --from-build ~/src/tarantool/build \
       --include-dir ~/src/tarantool/include
 
 === tt binary install tarantool-ee --help
@@ -233,6 +241,8 @@ GLOBAL FLAGS[0m
       --local-repo           Install from the local repository
       --no-clean             Keep temporary files
       --reinstall            Reinstall an existing version
+      --scope string         Installation scope: project, user or system
+                             (default "project")
   -V, --verbose              Show diagnostic output and build commands
 
 === tt binary install tarantool-sdk --help
@@ -257,6 +267,8 @@ GLOBAL FLAGS[0m
       --local-repo           Install from the local repository
       --no-clean             Keep temporary files
       --reinstall            Reinstall an existing version
+      --scope string         Installation scope: project, user or system
+                             (default "project")
   -V, --verbose              Show diagnostic output and build commands
 [0;1;39m
 EXAMPLES[0m
@@ -286,6 +298,8 @@ GLOBAL FLAGS[0m
       --local-repo           Install from the local repository
       --no-clean             Keep temporary files
       --reinstall            Reinstall an existing version
+      --scope string         Installation scope: project, user or system
+                             (default "project")
   -V, --verbose              Show diagnostic output and build commands
 
 === tt binary install tt --help
@@ -306,6 +320,8 @@ GLOBAL FLAGS[0m
       --local-repo           Install from the local repository
       --no-clean             Keep temporary files
       --reinstall            Reinstall an existing version
+      --scope string         Installation scope: project, user or system
+                             (default "project")
   -V, --verbose              Show diagnostic output and build commands
 
 === tt binary list --help
@@ -320,7 +336,9 @@ FLAGS[0m
   -h, --help   help for list
 [0;1;39m
 GLOBAL FLAGS[0m
-  -V, --verbose   Show diagnostic output and build commands
+      --scope string   Installation scope: project, user or system (default
+                       "project")
+  -V, --verbose        Show diagnostic output and build commands
 
 === tt binary search --help
 Search available program versions
@@ -339,7 +357,9 @@ FLAGS[0m
       --local-repo   Search the local repository
 [0;1;39m
 GLOBAL FLAGS[0m
-  -V, --verbose   Show diagnostic output and build commands
+      --scope string   Installation scope: project, user or system (default
+                       "project")
+  -V, --verbose        Show diagnostic output and build commands
 [0;1;39m
 EXAMPLES[0m
   # Search Tarantool Enterprise Edition releases.
@@ -365,8 +385,10 @@ FLAGS[0m
   -h, --help   help for tarantool
 [0;1;39m
 GLOBAL FLAGS[0m
-      --local-repo   Search the local repository
-  -V, --verbose      Show diagnostic output and build commands
+      --local-repo     Search the local repository
+      --scope string   Installation scope: project, user or system (default
+                       "project")
+  -V, --verbose        Show diagnostic output and build commands
 
 === tt binary search tarantool-ee --help
 Search available Tarantool Enterprise Edition versions
@@ -383,8 +405,10 @@ FLAGS[0m
       --version string   Filter by release version
 [0;1;39m
 GLOBAL FLAGS[0m
-      --local-repo   Search the local repository
-  -V, --verbose      Show diagnostic output and build commands
+      --local-repo     Search the local repository
+      --scope string   Installation scope: project, user or system (default
+                       "project")
+  -V, --verbose        Show diagnostic output and build commands
 
 === tt binary search tcm --help
 Search available Tarantool Cluster Manager versions
@@ -400,8 +424,10 @@ FLAGS[0m
       --version string   Filter by release version
 [0;1;39m
 GLOBAL FLAGS[0m
-      --local-repo   Search the local repository
-  -V, --verbose      Show diagnostic output and build commands
+      --local-repo     Search the local repository
+      --scope string   Installation scope: project, user or system (default
+                       "project")
+  -V, --verbose        Show diagnostic output and build commands
 
 === tt binary search tt --help
 Search available tt versions
@@ -415,8 +441,10 @@ FLAGS[0m
   -h, --help   help for tt
 [0;1;39m
 GLOBAL FLAGS[0m
-      --local-repo   Search the local repository
-  -V, --verbose      Show diagnostic output and build commands
+      --local-repo     Search the local repository
+      --scope string   Installation scope: project, user or system (default
+                       "project")
+  -V, --verbose        Show diagnostic output and build commands
 
 === tt binary switch --help
 Switch the active binary
@@ -430,17 +458,19 @@ FLAGS[0m
   -h, --help   help for switch
 [0;1;39m
 GLOBAL FLAGS[0m
-  -V, --verbose   Show diagnostic output and build commands
+      --scope string   Installation scope: project, user or system (default
+                       "project")
+  -V, --verbose        Show diagnostic output and build commands
 [0;1;39m
 EXAMPLES[0m
   # Choose a program and version interactively.
-  $ tt binary switch
+  $ tt binary switch --scope project
 
   # Choose a Tarantool version interactively.
-  $ tt binary switch tarantool
+  $ tt binary switch tarantool --scope project
 
   # Switch to a specific Tarantool version.
-  $ tt binary switch tarantool 3.0.0
+  $ tt binary switch tarantool 3.0.0 --scope project
 
 === tt binary uninstall --help
 Uninstall a program
@@ -458,11 +488,13 @@ FLAGS[0m
   -h, --help   help for uninstall
 [0;1;39m
 GLOBAL FLAGS[0m
-  -V, --verbose   Show diagnostic output and build commands
+      --scope string   Installation scope: project, user or system (default
+                       "project")
+  -V, --verbose        Show diagnostic output and build commands
 [0;1;39m
 EXAMPLES[0m
   # Uninstall a Tarantool version.
-  $ tt binary uninstall tarantool 3.0.0
+  $ tt binary uninstall tarantool 3.0.0 --scope project
 
 Use "tt binary uninstall <command> --help" for more information about a command.
 
@@ -480,7 +512,9 @@ FLAGS[0m
   -h, --help   help for tarantool
 [0;1;39m
 GLOBAL FLAGS[0m
-  -V, --verbose   Show diagnostic output and build commands
+      --scope string   Installation scope: project, user or system (default
+                       "project")
+  -V, --verbose        Show diagnostic output and build commands
 
 === tt binary uninstall tarantool-ee --help
 Uninstall Tarantool Enterprise Edition
@@ -494,7 +528,9 @@ FLAGS[0m
   -h, --help   help for tarantool-ee
 [0;1;39m
 GLOBAL FLAGS[0m
-  -V, --verbose   Show diagnostic output and build commands
+      --scope string   Installation scope: project, user or system (default
+                       "project")
+  -V, --verbose        Show diagnostic output and build commands
 
 === tt binary uninstall tcm --help
 Uninstall Tarantool Cluster Manager
@@ -508,7 +544,9 @@ FLAGS[0m
   -h, --help   help for tcm
 [0;1;39m
 GLOBAL FLAGS[0m
-  -V, --verbose   Show diagnostic output and build commands
+      --scope string   Installation scope: project, user or system (default
+                       "project")
+  -V, --verbose        Show diagnostic output and build commands
 
 === tt binary uninstall tt --help
 Uninstall tt
@@ -522,7 +560,9 @@ FLAGS[0m
   -h, --help   help for tt
 [0;1;39m
 GLOBAL FLAGS[0m
-  -V, --verbose   Show diagnostic output and build commands
+      --scope string   Installation scope: project, user or system (default
+                       "project")
+  -V, --verbose        Show diagnostic output and build commands
 
 === tt cat --help
 Print into stdout the contents of .snap/.xlog FILE(s)

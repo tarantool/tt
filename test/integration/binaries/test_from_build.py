@@ -24,7 +24,16 @@ def local_build(tt_cmd, tmp_path):
     (headers / "module.h").write_text("/* local build headers */\n")
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "binary", "install", "tarantool", "--from-build", build_dir.relative_to(tmp_path)],
+        [
+            tt_cmd,
+            "binary",
+            "--scope",
+            "project",
+            "install",
+            "tarantool",
+            "--from-build",
+            build_dir.relative_to(tmp_path),
+        ],
         cwd=tmp_path,
     )
     assert rc == 0, output
@@ -47,13 +56,19 @@ def test_from_build_lifecycle(tt_cmd, tmp_path, local_build, command, expected_v
         binary.unlink()
         rmtree(headers)
 
-    rc, output = run_command_and_get_output([tt_cmd, "binary", "list"], cwd=tmp_path)
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "binary", "--scope", "project", "list"],
+        cwd=tmp_path,
+    )
     assert rc == 0, output
     assert f"tarantool -> {binary} [active]" in output
     assert "2.10.3 [active]" not in output
     assert "tarantool-dev" not in output
 
-    rc, output = run_command_and_get_output([tt_cmd, "binary", *command], cwd=tmp_path)
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "binary", "--scope", "project", *command],
+        cwd=tmp_path,
+    )
     assert rc == 0, output
     installed_name = f"tarantool_{expected_version}"
     assert (tmp_path / "bin" / "tarantool").resolve() == tmp_path / "bin" / installed_name
@@ -72,7 +87,7 @@ def test_uninstall_version_keeps_local_build(tt_cmd, tmp_path, local_build, brok
         rmtree(headers)
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "binary", "uninstall", "tarantool", "2.10.3"],
+        [tt_cmd, "binary", "--scope", "project", "uninstall", "tarantool", "2.10.3"],
         cwd=tmp_path,
     )
     assert rc == 0, output
@@ -97,7 +112,7 @@ def test_uninstall_only_local_build(tt_cmd, tmp_path, local_build, with_headers)
         header_link.unlink()
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "binary", "uninstall", "tarantool"],
+        [tt_cmd, "binary", "--scope", "project", "uninstall", "tarantool"],
         cwd=tmp_path,
     )
     assert rc == 0, output

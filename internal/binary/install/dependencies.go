@@ -189,8 +189,7 @@ func programDependenciesInstalled(program binary.Program) error {
 			}
 		}
 
-		errMsg.WriteString("Usage: tt binary install -f " +
-			"if you already have those packages installed")
+		errMsg.WriteString("Use --force if you already have those packages installed")
 
 		return missingPackagesError(errMsg.String())
 	}

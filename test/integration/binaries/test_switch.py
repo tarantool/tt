@@ -44,6 +44,8 @@ def test_switch(
     cmd = [
         tt_cmd,
         "binary",
+        "--scope",
+        "project",
         "switch",
         program,
         version,
@@ -82,6 +84,8 @@ def test_switch_with_link(
         tt_cmd,
         "--self",  # Note: don't use tt from test data environment.
         "binary",
+        "--scope",
+        "project",
         "switch",
         program,
         version,
@@ -99,6 +103,8 @@ def test_switch_invalid_program(tt_cmd, tmp_path):
     cmd = [
         tt_cmd,
         "binary",
+        "--scope",
+        "project",
         "switch",
         "nodejs",
         "2.10.3",
@@ -125,6 +131,8 @@ def test_switch_tt(tt_cmd, tmp_path, prefix):
     cmd = [
         tt_cmd,
         "binary",
+        "--scope",
+        "project",
         "switch",
         "tt",
         f"{prefix}7.7.7",
