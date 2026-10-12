@@ -46,7 +46,12 @@ func TestPlanOKDownloadsTheChainInOrder(t *testing.T) {
 	require.Empty(t, result.Reason)
 	require.Nil(t, result.NearestSafe)
 	require.Nil(t, result.TopologyDiff)
-	require.Empty(t, result.Warnings)
+	// The manifests of the standard chain record no members, so each
+	// replicaset is planned as a single-target restore and says so.
+	require.Equal(t, []string{
+		noMembersWarning(incTwoID, shardA),
+		noMembersWarning(incTwoID, shardB),
+	}, result.Warnings)
 	require.Equal(t, time.Unix(550, 0).UTC(), result.TargetTime)
 
 	// The cluster point is the latest not later than the target, and its time is
@@ -188,6 +193,30 @@ func TestPlanTopologyBoundary(t *testing.T) {
 
 	// The target falls between the last point of the old topology and the first
 	// of the new one: there is no single cluster state to return to in there.
+	result := f.plan(400, masterOnlyCluster())
+
+	require.Equal(t, StatusTopologyBoundary, result.Status)
+	require.Equal(t, "target time falls between manifests with different topology",
+		result.Reason)
+	require.Nil(t, result.RecoveryPoint)
+	require.Empty(t, result.DownloadPlan)
+	require.NotNil(t, result.NearestSafe)
+	require.Equal(t, time.Unix(110, 0).UTC(), *result.NearestSafe.Before)
+	require.Equal(t, time.Unix(510, 0).UTC(), *result.NearestSafe.After)
+
+	require.Empty(t, f.downloaded(), "a plan that cannot go ahead downloads nothing")
+}
+
+// TestPlanTopologyBoundaryAcrossAMembershipChange covers the boundary a
+// member, not a master, makes: the replicaset is backed up on the same
+// instance on both sides, but it grew a member in between, and a cluster
+// that was two nodes at one moment and three at the next has no single
+// membership to restore under. A masters-only check would stitch straight
+// through it.
+func TestPlanTopologyBoundaryAcrossAMembershipChange(t *testing.T) {
+	f := newPlanFixture(t)
+	f.chainAcrossAMembershipChange()
+
 	result := f.plan(400, masterOnlyCluster())
 
 	require.Equal(t, StatusTopologyBoundary, result.Status)
@@ -376,15 +405,20 @@ func TestPlanWarnsAboutAnArchiveWithNoRecordedChecksum(t *testing.T) {
 	result := f.plan(550, masterOnlyCluster())
 
 	require.Equal(t, StatusOK, result.Status)
-	require.Len(t, result.Warnings, 1)
-	require.Contains(t, result.Warnings[0], "records no checksum")
-	require.Contains(t, result.Warnings[0], storage.ArchiveKey(fullBackupID, shardA))
+	// The unchecksummed archive beside the two single-target warnings.
+	require.Len(t, result.Warnings, 3)
+	require.Equal(t, []string{
+		noMembersWarning(incTwoID, shardA),
+		noMembersWarning(incTwoID, shardB),
+	}, result.Warnings[:2])
+	require.Contains(t, result.Warnings[2], "records no checksum")
+	require.Contains(t, result.Warnings[2], storage.ArchiveKey(fullBackupID, shardA))
 
 	// The plan still reports a sum: the one of the bytes that were downloaded,
 	// so that apply can at least check the copy to the node.
 	item := result.DownloadPlan[shardA][0]
 	require.Equal(t, sha256Of(archiveBody(fullBackupID, shardA)), item.ChecksumSHA256)
-	require.Contains(t, result.Warnings[0], item.ChecksumSHA256)
+	require.Contains(t, result.Warnings[2], item.ChecksumSHA256)
 }
 
 // TestPlanRejectsAnArtifactPathThatIsNotAStorageKey stops a manifest from

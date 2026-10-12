@@ -174,8 +174,10 @@ func TestClusterPointsAcrossTopologyBoundaryCarryDifferentTopologies(t *testing.
 	require.NotEqual(t, before.Topology, after.Topology)
 }
 
-func TestClusterPointsIgnoreReplicaSetChange(t *testing.T) {
-	// Adding a non-master replica is not a topology boundary.
+func TestClusterPointsSplitOnMembershipChange(t *testing.T) {
+	// Adding or removing a member is a topology boundary: a cluster that was
+	// two nodes at one moment and three at the next has no single membership,
+	// so the two "point"s are two points even though both shards carry both.
 	full := manifestFixture("full", "", "full", backup.BackupTypeFull, 10, 0, 10,
 		clusterPointFixture("point", 100, 8))
 	incremental := manifestFixture("inc", "full", "full", backup.BackupTypeIncremental, 20, 10, 20,
@@ -183,8 +185,100 @@ func TestClusterPointsIgnoreReplicaSetChange(t *testing.T) {
 	addReplica(&incremental, replicasetA, "aaaaaaaa-0000-0000-0000-000000000099")
 
 	points := buildFixtureChain(t, full, incremental).ClusterPoints()
+	require.Len(t, points, 2)
+	require.Equal(t, time.Unix(8, 0).UTC(), points[0].Timestamp)
+	require.Equal(t, time.Unix(18, 0).UTC(), points[1].Timestamp)
+	require.Equal(t, full.Topology, points[0].Topology)
+	require.Equal(t, incremental.Topology, points[1].Topology)
+}
+
+func TestClusterPointsSplitOnSameNameUUIDReplacement(t *testing.T) {
+	// A member re-registered under the same name with a new UUID is a topology
+	// boundary of its own: the composition the chain stitches by is the UUID
+	// set, and the old UUID is gone while the new one is present, so the two
+	// "point"s are two points, the way an add or a removal splits them. The
+	// backup of the post-change manifest is still taken on the old member --
+	// which of the members took the backup is not part of the identity, and a
+	// master change alone must not split anything.
+	const replacedA = "aaaaaaaa-0000-0000-0000-000000000009"
+
+	full := namedFixture("full", "", "full", backup.BackupTypeFull, 10, 0, 10,
+		replicasetFixture{
+			uuid: replicasetA, master: masterA, instance: instanceA,
+			points: []backup.RecoveryPoint{recoveryPoint("point", 1, 100, 8)},
+		},
+		replicasetFixture{
+			uuid: replicasetB, master: masterB, instance: instanceB,
+			points: []backup.RecoveryPoint{recoveryPoint("point", 2, 100, 9)},
+		},
+	)
+	incremental := namedFixture("inc", "full", "full", backup.BackupTypeIncremental, 20, 10, 20,
+		replicasetFixture{
+			uuid: replicasetA, master: masterA, instance: instanceA,
+			points: []backup.RecoveryPoint{recoveryPoint("point", 1, 200, 18)},
+		},
+		replicasetFixture{
+			uuid: replicasetB, master: masterB, instance: instanceB,
+			points: []backup.RecoveryPoint{recoveryPoint("point", 2, 200, 19)},
+		},
+	)
+	replaceNamedMember(&incremental, replicasetA, instanceA, replacedA)
+
+	points := buildFixtureChain(t, full, incremental).ClusterPoints()
+	require.Len(t, points, 2)
+	require.Equal(t, time.Unix(8, 0).UTC(), points[0].Timestamp)
+	require.Equal(t, time.Unix(18, 0).UTC(), points[1].Timestamp)
+	require.Equal(t, full.Topology, points[0].Topology)
+	require.Equal(t, incremental.Topology, points[1].Topology)
+}
+
+// replaceNamedMember re-registers one named member of a manifest's topology
+// under a new UUID, keeping the name: the 3.x-style replacement a chain has
+// to refuse to stitch across.
+func replaceNamedMember(manifest *backup.ClusterManifest, replicasetUUID, name, newUUID string) {
+	members := manifest.Topology.Replicasets[replicasetUUID]
+	for i, member := range members {
+		if member.InstanceName == name {
+			members[i].InstanceUUID = newUUID
+		}
+	}
+
+	manifest.Topology.Replicasets[replicasetUUID] = members
+}
+
+func TestClusterPointsStitchAcrossAMemberGainingAName(t *testing.T) {
+	// A member gaining its name between two backups is the same member: the
+	// composition the boundary compares is the UUID set, and a UUID both
+	// manifests carry is one member whoever it is called -- so the two
+	// "point"s stitch into one. (A rename keeping the UUID would split the
+	// chain, but Tarantool refuses a rename today.)
+	full := namedFixture("full", "", "full", backup.BackupTypeFull, 10, 0, 10,
+		replicasetFixture{
+			uuid: replicasetA, master: masterA,
+			points: []backup.RecoveryPoint{recoveryPoint("point", 1, 100, 8)},
+		},
+		replicasetFixture{
+			uuid: replicasetB, master: masterB, instance: instanceB,
+			points: []backup.RecoveryPoint{recoveryPoint("point", 2, 100, 9)},
+		},
+	)
+	incremental := namedFixture("inc", "full", "full", backup.BackupTypeIncremental, 20, 10, 20,
+		replicasetFixture{
+			uuid: replicasetA, master: masterA, instance: instanceA,
+			points: []backup.RecoveryPoint{recoveryPoint("point", 1, 200, 18)},
+		},
+		replicasetFixture{
+			uuid: replicasetB, master: masterB, instance: instanceB,
+			points: []backup.RecoveryPoint{recoveryPoint("point", 2, 200, 19)},
+		},
+	)
+
+	points := buildFixtureChain(t, full, incremental).ClusterPoints()
 	require.Len(t, points, 1)
 	require.Equal(t, "point", points[0].Name)
+	require.Equal(t, time.Unix(8, 0).UTC(), points[0].Timestamp)
+	require.Equal(t, Position{ReplicaID: 1, LSN: 100}, points[0].Shards[replicasetA])
+	require.Equal(t, Position{ReplicaID: 2, LSN: 100}, points[0].Shards[replicasetB])
 }
 
 const (

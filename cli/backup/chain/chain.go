@@ -143,8 +143,18 @@ func compareEntries(left, right *Entry) int {
 	return cmp.Compare(left.Manifest.BackupID, right.Manifest.BackupID)
 }
 
-// topologyEqual reports whether two adjacent manifests have the same replicaset
-// set and the same master on each.
+// topologyEqual reports whether two adjacent manifests have the same
+// replicaset set and the same membership on each. A member is identified by
+// its UUID, and the composition is that set: a member added, removed, or
+// replaced under the same name between two backups means the replicaset had
+// no single composition across the window, which is what keeps the points on
+// either side from stitching into one. The name a member carries counts only
+// when both manifests bound one to the same UUID and the two disagree: a
+// member gaining or dropping its name is the same member, while a rename
+// keeping the UUID -- which Tarantool refuses today -- would be a boundary.
+// A master promotion alone is deliberately not a boundary: it changes none
+// of the members, and which of them took the backup follows from the
+// manifest of the point the chain resolves to.
 func topologyEqual(a, b *backup.ClusterManifest) bool {
 	if len(a.Topology.Replicasets) != len(b.Topology.Replicasets) {
 		return false
@@ -155,19 +165,52 @@ func topologyEqual(a, b *backup.ClusterManifest) bool {
 			return false
 		}
 
-		// The master is the instance that was actually backed up.
-		shardA := a.Shards[uuid]
-		shardB := b.Shards[uuid]
-		if shardA.Instance == nil || shardB.Instance == nil {
-			continue
-		}
-
-		if shardA.Instance.InstanceUUID != shardB.Instance.InstanceUUID {
+		if !membershipEqual(a.Topology.Replicasets[uuid], b.Topology.Replicasets[uuid]) {
 			return false
 		}
 	}
 
 	return true
+}
+
+// membershipEqual reports whether two views of one replicaset's membership
+// are one composition: the same UUID set, and no UUID that both sides named
+// with two different names. The set is what the restored _cluster has to
+// carry, so a member gaining or dropping its name is no composition change;
+// a rename with the UUID kept would refuse the stitch, and Tarantool
+// refusing a rename today is the only reason that case stays hypothetical.
+func membershipEqual(a, b []backup.TopologyInstance) bool {
+	aMembers := memberIdentities(a)
+	bMembers := memberIdentities(b)
+
+	if len(aMembers) != len(bMembers) {
+		return false
+	}
+
+	for uuid, aName := range aMembers {
+		bName, ok := bMembers[uuid]
+		if !ok {
+			return false
+		}
+
+		if aName != "" && bName != "" && aName != bName {
+			return false
+		}
+	}
+
+	return true
+}
+
+// memberIdentities returns the membership of a replicaset keyed by UUID:
+// the UUID -> the instance name the manifest bound to it, empty for a member
+// the manifest recorded without one.
+func memberIdentities(instances []backup.TopologyInstance) map[string]string {
+	members := make(map[string]string, len(instances))
+	for _, instance := range instances {
+		members[instance.InstanceUUID] = instance.InstanceName
+	}
+
+	return members
 }
 
 // replicasetUUIDs returns the sorted replicaset UUIDs of a manifest.

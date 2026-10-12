@@ -568,6 +568,41 @@ func (f *planFixture) chainAcrossAMasterChange() {
 	})
 }
 
+// chainAcrossAMembershipChange stores two backups whose replicaset A grew a
+// member in between. The master is the same on both sides, so only the
+// membership tells the two topologies apart: the points on either side are
+// never stitched, because a cluster that was two nodes at one moment and
+// three at the next has no single state to return to.
+func (f *planFixture) chainAcrossAMembershipChange() {
+	f.t.Helper()
+
+	grown := shardOfA(1000, 2000, recoveryPointAt("p3", replicaOfA, 1502, 510))
+	grown.members = []string{masterOfA, secondOfA, "storage-a-003"}
+
+	f.addBackup(clusterBackup{
+		id: fullBackupID, base: fullBackupID,
+		backupType: backup.BackupTypeFull, createdAt: 200,
+		shards: []shardBackup{
+			{
+				replicaset: shardA, master: masterOfA, generation: "deploy-1",
+				members:   []string{masterOfA, secondOfA},
+				replicaID: replicaOfA, vclockEnd: 1000,
+				points: []backup.RecoveryPoint{recoveryPointAt("p1", replicaOfA, 500, 110)},
+			},
+			shardOfB(0, 900, recoveryPointAt("p1", replicaOfB, 400, 111)),
+		},
+	})
+
+	f.addBackup(clusterBackup{
+		id: incTwoID, previous: fullBackupID, base: fullBackupID,
+		backupType: backup.BackupTypeIncremental, createdAt: 600,
+		shards: []shardBackup{
+			grown,
+			shardOfB(900, 1800, recoveryPointAt("p3", replicaOfB, 1377, 511)),
+		},
+	})
+}
+
 // chainWithALateFirstPoint stores a chain whose full backup carries a point on
 // one shard only. It is not a cluster point, so the storage covers a window
 // that begins before the first moment every shard agrees on.
@@ -618,6 +653,14 @@ func (f *planFixture) twoUnrelatedFullBackups() {
 			shardOfB(0, 3600, recoveryPointAt("p3", replicaOfB, 3000, 511)),
 		},
 	})
+}
+
+// noMembersWarning renders the warning a manifest that lists no members
+// beside the master produces: the plan restores that replicaset onto the
+// master alone, which the operator has to know is not the whole membership.
+func noMembersWarning(backupID, replicasetUUID string) string {
+	return "backup " + backupID + " records no members for replicaset " +
+		replicasetUUID + ": single-target restore"
 }
 
 // masterOnlyCluster is the configuration that matches a manifest exactly: one

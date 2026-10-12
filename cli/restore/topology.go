@@ -165,16 +165,16 @@ func matchTopology(backedUp backup.Topology, current ClusterTopology) topologyMa
 }
 
 // instanceWarnings describes the instance-level differences inside matched
-// replicasets. None of them blocks: an instance the configuration no longer has
-// is a replica that was replaced, which is what a restore usually follows.
+// replicasets. None of them blocks: a member the configuration no longer
+// carries is a node that gets no apply - the data the backup holds for it has
+// nowhere to go, which is an operator's decision to make, not the plan's.
 //
-// The other direction is deliberately not a warning. A configured instance the
-// backup never saw is in no way exceptional: only the restore target replays
-// the archives, and every other member of the replicaset is wiped and rejoins
-// by name whether or not the backup knew it. Those members are named in
-// restore_targets.rejoin, as a step of the procedure rather than a difference
-// to worry about - a manifest whose topology holds masters alone would
-// otherwise report every replica of every replicaset on every successful plan.
+// The other direction is deliberately not a warning. A configured instance
+// the backup never saw is in no way exceptional: it is named in
+// restore_targets.rejoin and bootstraps fresh by joining the restored
+// replicaset, a step of the procedure rather than a difference to worry
+// about - a manifest written before members were recorded would otherwise
+// report every replica of every replicaset on every successful plan.
 func instanceWarnings(
 	backedUp backup.Topology,
 	matched map[string]ConfiguredReplicaset,
@@ -188,7 +188,8 @@ func instanceWarnings(
 		if gone := missing(instances, replicaset.Instances); len(gone) > 0 {
 			warnings = append(warnings, fmt.Sprintf(
 				"replicaset %s (%s): %s backed up but not in the cluster config",
-				replicasetUUID, replicaset.Name, strings.Join(gone, ", ")))
+				replicasetUUID, replicaset.Name, strings.Join(gone, ", "),
+			))
 		}
 	}
 
