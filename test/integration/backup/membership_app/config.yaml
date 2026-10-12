@@ -1,0 +1,61 @@
+# The app of the membership-change restore tests: one replicaset of three
+# instances with pinned uuids, synchronous replication behind a quorum of 2
+# out of 3 members, manual failover with storage-001-a the leader.
+#
+# The three members are declared up front so a test can start them in any
+# order: the fixture brings up the two the test names in running_targets,
+# and a test that needs a member to join mid-scenario starts it with
+# `tt start app:storage-001-c` between two backups.
+#
+# The uuids are pinned so a restored node can be stamped back to the identity
+# its name owned in the backed-up cluster, and so a test can hand one name a
+# replacement uuid (a re-registered member) by editing this file's copy.
+#
+# The members replicate over the socket each of them listens on, and a
+# sibling's address is read out of this file alone, so the socket tt would
+# pick as a per-process default is spelled out here: the three then agree on
+# it without any help. The peer login is looked up under credentials above.
+credentials:
+  users:
+    guest:
+      roles: [super]
+    client:
+      password: 'secret'
+      roles: [super]
+    replicator:
+      password: 'secret'
+      roles: [replication]
+iproto:
+  listen:
+    - uri: 'unix/:./var/run/{{ instance_name }}/tarantool.sock'
+  advertise:
+    peer:
+      login: replicator
+groups:
+  storages:
+    app:
+      file: 'storage.lua'
+    replication:
+      failover: manual
+      synchro_quorum: 2
+      synchro_timeout: 10
+      # A member the app declares but a scenario keeps down (the one that
+      # joins between two backups) is waited for at every cold start; the
+      # default 30 seconds of that wait would dominate every start, while a
+      # quorum of the replicaset is up long before.
+      connect_timeout: 5
+    replicasets:
+      storage-001:
+        leader: storage-001-a
+        database:
+          replicaset_uuid: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+        instances:
+          storage-001-a:
+            database:
+              instance_uuid: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+          storage-001-b:
+            database:
+              instance_uuid: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab'
+          storage-001-c:
+            database:
+              instance_uuid: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaac'

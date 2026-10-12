@@ -63,13 +63,18 @@ luabody
 luajit
 luakit
 luarocks
+madd
 magefile
 MAKEFLAGS
+mapl
 mapstructure
 memtx
 moby
 mpcrc
+mrem
+mrep
 msgpcode
+msyn
 multireturn
 mvcc
 mvccpb
@@ -108,6 +113,7 @@ rmdirs
 rockspec*
 rpmdeb
 rundir
+sbnd
 setfn
 socketpath
 sourcedir
