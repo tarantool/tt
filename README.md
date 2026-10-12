@@ -318,6 +318,18 @@ templates:
     will be padded with a directory named include.
 - `restart_on_failure` (bool) - should it restart on failure.
 
+`tt binary install` for `tt`, `tarantool`, `tarantool-ee`, and `tcm` uses
+`--scope project` (the default), `user`, or `system` to choose its installation
+root. Executables are stored directly in `versions/<product>/<product>_<version>/`,
+with Tarantool headers in its `inc/tarantool/` directory. Active executable links
+are in `bin/` and Tarantool header links in `inc/`. Installing `tarantool-sdk`
+downloads an archive to `--destination` (the current directory by default).
+
+Use `tt binary install <product> --local-repo <dir>` to install from local
+files without requiring `tt.yaml`. The directory contains `tt/` or
+`tarantool/` source repositories, or EE/TCM archives. Relative paths are
+resolved from the current directory; `repo.distfiles` is not used by install.
+
 #### app
 
 - `run_dir` (string) - path to directory that stores various instance
@@ -333,7 +345,7 @@ templates:
 #### repo
 
 - `rocks` (string) - directory that stores rocks files.
-- `distfiles` (string) - directory that stores installation files.
+- `distfiles` (string) - directory searched by `tt binary search --local-repo`.
 
 #### ee
 
@@ -376,8 +388,8 @@ Where:
 - `config.yaml` - optional Tarantool 3 application configuration.
 - `init.lua` - application source file (primarily for Tarantool 2).
 - `include` - directory that stores header files.
-- `distfiles` - directory that stores installation files for local
-    install.
+- `distfiles` - directory that stores installation files for
+    `tt binary install --local-repo ./distfiles`.
 - `instances.yml` - optional declaration of the application's instances.
 - `tt.yaml` - tt environment configuration file.
 - `templates` - the directory where external templates are stored.

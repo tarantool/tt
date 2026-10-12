@@ -2,7 +2,6 @@ package install
 
 import (
 	"os"
-	"os/user"
 	"path/filepath"
 	"testing"
 
@@ -10,96 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/v3/cli/version"
 )
-
-func Test_dirsAreWriteable(t *testing.T) {
-	currentUser, err := user.Current()
-	if err == nil && currentUser.Uid == "0" {
-		t.Skip("Skipping the test, it shouldn't run as root")
-	}
-
-	tmpDirNonWriteableForAll := t.TempDir()
-	// dr-xr-xr-x mode.
-	permissions := 0o555
-	require.NoError(t, os.Chmod(tmpDirNonWriteableForAll, os.FileMode(permissions)))
-
-	tmpDirNonWriteableExceptOwner := t.TempDir()
-	// drwxr-xr-x mode.
-	permissions = 0o755
-	require.NoError(t, os.Chmod(tmpDirNonWriteableExceptOwner, os.FileMode(permissions)))
-
-	type args struct {
-		dir string
-	}
-
-	tests := []struct {
-		name string
-		args args
-		want bool
-	}{
-		{
-			name: "Checking access to non writeable directory",
-			args: args{dir: tmpDirNonWriteableForAll},
-			want: false,
-		},
-		{
-			name: "Checking access to non writeable directory except of owner",
-			args: args{dir: tmpDirNonWriteableExceptOwner},
-			want: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, dirIsWritable(tt.args.dir),
-				"dirIsWriteable(%v)", tt.args.dir)
-		})
-	}
-}
-
-func Test_subDirIsWritable(t *testing.T) {
-	currentUser, err := user.Current()
-	if err == nil && currentUser.Uid == "0" {
-		t.Skip("Skipping the test, it shouldn't run as root")
-	}
-
-	tmpDirNonWriteableForAll := t.TempDir()
-	// dr-xr-xr-x mode.
-	permissions := 0o555
-	require.NoError(t, os.Chmod(tmpDirNonWriteableForAll, os.FileMode(permissions)))
-
-	tmpDirNonWriteableExceptOwner := t.TempDir()
-	// drwxr-xr-x mode.
-	permissions = 0o755
-	require.NoError(t, os.Chmod(tmpDirNonWriteableExceptOwner, os.FileMode(permissions)))
-
-	type args struct {
-		dir string
-	}
-
-	tests := []struct {
-		name string
-		args args
-		want bool
-	}{
-		{
-			name: "Subdirectory is writeable",
-			args: args{dir: filepath.Join(tmpDirNonWriteableExceptOwner, "test", "test")},
-			want: true,
-		},
-		{
-			name: "Subdirectory is not writeable",
-			args: args{dir: filepath.Join(tmpDirNonWriteableForAll, "test", "test")},
-			want: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, subDirIsWritable(tt.args.dir), "subDirIsWritable(%v)",
-				tt.args.dir)
-		})
-	}
-}
 
 func Test_getLatestRelease(t *testing.T) {
 	getFirst := func(verStr string) version.Version {

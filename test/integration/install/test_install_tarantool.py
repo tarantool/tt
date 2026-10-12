@@ -74,6 +74,7 @@ def install_tarantool(tt_cmd, tmp_path, flags=(), version="3.2.1"):
             *([] if version is None else [version]),
             "--force",
             "--local-repo",
+            "distfiles",
             *flags,
         ],
         cwd=tmp_path,
@@ -326,7 +327,17 @@ def test_install_tarantool_existing_master(tt_cmd, tmp_path, local_tarantool_bui
     args = [tt_cmd, "--self"]
     if not update:
         args.append("--no-prompt")
-    args.extend(["binary", "install", "tarantool", "master", "--local-repo", "--force"])
+    args.extend(
+        [
+            "binary",
+            "install",
+            "tarantool",
+            "master",
+            "--local-repo",
+            "distfiles",
+            "--force",
+        ],
+    )
     rc, output = run_command_and_get_output(
         args,
         cwd=tmp_path,
@@ -603,6 +614,7 @@ def test_install_tarantool_docker_existing_master(tt_cmd, tmp_path, docker_taran
             "master",
             "--force",
             "--local-repo",
+            "distfiles",
             "--use-docker",
         ],
         cwd=tmp_path,

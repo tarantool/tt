@@ -11,40 +11,66 @@ import (
 	"github.com/tarantool/tt/v3/internal/binary"
 )
 
+// defaultDirPermissions grants write access to the owner and read and execute
+// access to everyone.
+const defaultDirPermissions = 0o755
+
 // copyBuiltTarantool copies the binary and headers to their installation paths.
 func copyBuiltTarantool(binPath, incPath, destBinPath, destIncPath string) error {
 	log.Infof("Copying executable...")
 
-	err := os.MkdirAll(filepath.Dir(destBinPath), defaultDirPermissions)
-	if err != nil {
-		return fmt.Errorf("failed to create the binary directory: %w", err)
-	}
-
-	err = binary.CopyFileChangePerms(binPath, destBinPath, defaultDirPermissions)
+	err := copyExecutable(binPath, destBinPath)
 	if err != nil {
 		return err
 	}
 
 	log.Infof("Copying headers...")
 
-	err = os.MkdirAll(filepath.Dir(destIncPath), defaultDirPermissions)
+	err = copyHeaders(incPath, destIncPath)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("Tarantool executable is installed to: %q", destBinPath)
+
+	return nil
+}
+
+// copyExecutable installs an executable with the standard installation permissions.
+func copyExecutable(srcPath, destPath string) error {
+	err := os.MkdirAll(filepath.Dir(destPath), defaultDirPermissions)
+	if err != nil {
+		return fmt.Errorf("failed to create the binary directory: %w", err)
+	}
+
+	err = binary.CopyFileChangePerms(srcPath, destPath, defaultDirPermissions)
+	if err != nil {
+		return fmt.Errorf("failed to copy executable: %w", err)
+	}
+
+	return nil
+}
+
+// copyHeaders copies available headers and prepares their installation parent.
+func copyHeaders(srcPath, destPath string) error {
+	err := os.MkdirAll(filepath.Dir(destPath), defaultDirPermissions)
 	if err != nil {
 		return fmt.Errorf("failed to create the headers directory: %w", err)
 	}
 
-	if incPath != "" {
-		if !strings.HasSuffix(incPath, "/") {
-			// Note: copy.Copy expects the directory path to end with '/'.
-			incPath += "/"
-		}
-
-		err = copy.Copy(incPath, destIncPath+"/")
-		if err != nil {
-			return fmt.Errorf("failed to copy headers: %w", err)
-		}
+	if srcPath == "" {
+		return nil
 	}
 
-	log.Infof("Tarantool executable is installed to: %q", destBinPath)
+	if !strings.HasSuffix(srcPath, "/") {
+		// copy.Copy expects the directory path to end with '/'.
+		srcPath += "/"
+	}
+
+	err = copy.Copy(srcPath, destPath+"/")
+	if err != nil {
+		return fmt.Errorf("failed to copy headers: %w", err)
+	}
 
 	return nil
 }

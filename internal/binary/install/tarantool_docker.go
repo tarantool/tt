@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	"github.com/otiai10/copy"
-	"github.com/tarantool/tt/v3/cli/configure"
 	"github.com/tarantool/tt/v3/cli/docker"
 	"github.com/tarantool/tt/v3/cli/templates"
 	"github.com/tarantool/tt/v3/internal/binary"
@@ -63,16 +62,6 @@ func installTarantoolInDocker(tntVersion, artifactRoot string, installCtx Instal
 		return fmt.Errorf("failed to copy tt executable: %w", err)
 	}
 
-	// Generate tt config for tt process in the container.
-	ttCfg := configure.GetDefaultCliOpts()
-
-	ttCfg.Repo.Install = dockerLocalRepoDir
-
-	err = binary.WriteYaml(filepath.Join(tmpDir, configure.ConfigName), ttCfg)
-	if err != nil {
-		return err
-	}
-
 	dockerRunOptions := tarantoolDockerRunOptions(tmpDir, tntVersion, artifactRoot,
 		installCtx)
 
@@ -95,8 +84,14 @@ func tarantoolDockerRunOptions(tmpDir, tntVersion, artifactRoot string,
 	tntInstallCommandLine = append(tntInstallCommandLine, "install", "-f",
 		binary.ProgramCe.Exec(), tntVersion, "--reinstall")
 
-	if installCtx.Local {
-		tntInstallCommandLine = append(tntInstallCommandLine, "--local-repo")
+	binds := []string{
+		fmt.Sprintf("%s:%s", filepath.Join(artifactRoot, binary.VersionsDirName),
+			filepath.Join("/work", ".tarantool", binary.VersionsDirName)),
+	}
+
+	if installCtx.LocalRepo != "" {
+		tntInstallCommandLine = append(tntInstallCommandLine, "--local-repo", dockerLocalRepoDir)
+		binds = append(binds, fmt.Sprintf("%s:%s", installCtx.LocalRepo, dockerLocalRepoDir))
 	}
 
 	if installCtx.Dynamic {
@@ -107,11 +102,7 @@ func tarantoolDockerRunOptions(tmpDir, tntVersion, artifactRoot string,
 		BuildCtxDir: tmpDir,
 		ImageTag:    "ubuntu:tt_tarantool_build",
 		Command:     tntInstallCommandLine,
-		Binds: []string{
-			fmt.Sprintf("%s:%s", filepath.Join(artifactRoot, binary.VersionsDirName),
-				filepath.Join("/work", ".tarantool", binary.VersionsDirName)),
-			fmt.Sprintf("%s:%s", installCtx.localRepoDir, dockerLocalRepoDir),
-		},
-		Verbose: installCtx.Verbose,
+		Binds:       binds,
+		Verbose:     installCtx.Verbose,
 	}
 }

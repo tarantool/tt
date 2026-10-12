@@ -158,16 +158,18 @@ func TestResolveInstallVersionSources(t *testing.T) {
 
 			for _, local := range []bool{true, false} {
 				mode := "remote"
+				localPath := ""
+
 				if local {
 					mode = "local"
+					localPath = localRepoDir
 				}
 
 				for _, testCase := range cases {
 					t.Run(mode+"/"+testCase.name, func(t *testing.T) {
 						installCtx := InstallCtx{
 							Program:          program,
-							Local:            local,
-							localRepoDir:     localRepoDir,
+							LocalRepo:        localPath,
 							requestedVersion: testCase.requested,
 						}
 
@@ -222,8 +224,7 @@ func TestResolveInstallVersionSources(t *testing.T) {
 					t.Run(mode+"/"+testCase.name, func(t *testing.T) {
 						installCtx := InstallCtx{
 							Program:          program,
-							Local:            local,
-							localRepoDir:     localRepoDir,
+							LocalRepo:        localPath,
 							requestedVersion: testCase.requested,
 						}
 
@@ -246,8 +247,7 @@ func TestResolveInstallVersionMasterWithoutRepository(t *testing.T) {
 	for _, program := range []binary.Program{binary.ProgramTt, binary.ProgramCe} {
 		installCtx := InstallCtx{
 			Program:          program,
-			Local:            true,
-			localRepoDir:     "missing",
+			LocalRepo:        "missing",
 			requestedVersion: masterVersion,
 		}
 

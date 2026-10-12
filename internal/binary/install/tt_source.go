@@ -14,8 +14,8 @@ import (
 func downloadTtSource(installCtx InstallCtx, buildPath string,
 	resolved resolvedInstallVersion, logFile *os.File,
 ) error {
-	if installCtx.Local {
-		localRepoPath := filepath.Join(installCtx.localRepoDir, installCtx.Program.String())
+	if installCtx.LocalRepo != "" {
+		localRepoPath := filepath.Join(installCtx.LocalRepo, installCtx.Program.String())
 
 		return copyLocalTtSource(localRepoPath, buildPath, resolved.ref,
 			installCtx.Verbose, logFile)
