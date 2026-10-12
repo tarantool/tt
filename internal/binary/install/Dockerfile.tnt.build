@@ -9,5 +9,5 @@ RUN apt update && apt install -y git wget make build-essential zlib1g-dev \
 libreadline-dev libncurses5-dev libssl-dev libunwind-dev libicu-dev autoconf libtool
 RUN wget https://cmake.org/files/v3.28/cmake-3.28.6-linux-x86_64.tar.gz -qO- | \
   tar -xz -C /usr/local --strip-components=1
-RUN chown {{.uid}} /work
+RUN mkdir /work/.tarantool && chown {{.uid}} /work /work/.tarantool
 COPY ./ ./

@@ -64,7 +64,7 @@ func TestCheckConfig(t *testing.T) {
 		{"create", internalCreateModule(&cmdcontext.CmdCtx{}, nil)},
 		{"install", internalInstallModule(
 			binary.BinaryContext{}, install.InstallCtx{},
-			&cmdcontext.CmdCtx{CommandName: binary.ProgramCe.String()}, nil)},
+			&cmdcontext.CmdCtx{CommandName: binary.ProgramEe.String()}, nil)},
 		{"logrotate", internalLogrotateModule(&cmdcontext.CmdCtx{}, nil)},
 		{"restart", internalRestartModule(&cmdcontext.CmdCtx{}, nil)},
 		{"start", internalStartModule(&cmdcontext.CmdCtx{}, nil)},

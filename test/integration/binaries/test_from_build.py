@@ -9,7 +9,7 @@ DATA_DIR = Path(__file__).parent / "testdata"
 
 
 @pytest.fixture
-def local_build(tt_cmd, tmp_path):
+def legacy_local_build(tmp_path):
     copytree(DATA_DIR / "no_active", tmp_path, symlinks=True, dirs_exist_ok=True)
 
     # Include an installed version in the source path: it must never make
@@ -23,22 +23,11 @@ def local_build(tt_cmd, tmp_path):
     headers.mkdir(parents=True)
     (headers / "module.h").write_text("/* local build headers */\n")
 
-    rc, output = run_command_and_get_output(
-        [
-            tt_cmd,
-            "binary",
-            "--scope",
-            "project",
-            "install",
-            "tarantool",
-            "--from-build",
-            build_dir.relative_to(tmp_path),
-        ],
-        cwd=tmp_path,
-    )
-    assert rc == 0, output
-    assert (tmp_path / "bin" / "tarantool").readlink() == binary
-    assert (tmp_path / "inc" / "include" / "tarantool").readlink() == headers
+    # list/switch/uninstall still use the configured bin_dir/inc_dir layout.
+    # Prepare its links directly; install --from-build now writes into a scope
+    # and is covered by integration/install/test_install_tarantool.py.
+    (tmp_path / "bin" / "tarantool").symlink_to(binary)
+    (tmp_path / "inc" / "include" / "tarantool").symlink_to(headers, target_is_directory=True)
     return binary, headers
 
 
@@ -50,8 +39,15 @@ def local_build(tt_cmd, tmp_path):
         pytest.param(["uninstall", "tarantool"], "2.10.5", id="uninstall"),
     ],
 )
-def test_from_build_lifecycle(tt_cmd, tmp_path, local_build, command, expected_version, broken):
-    binary, headers = local_build
+def test_legacy_from_build_lifecycle(
+    tt_cmd,
+    tmp_path,
+    legacy_local_build,
+    command,
+    expected_version,
+    broken,
+):
+    binary, headers = legacy_local_build
     if broken:
         binary.unlink()
         rmtree(headers)
@@ -80,8 +76,8 @@ def test_from_build_lifecycle(tt_cmd, tmp_path, local_build, command, expected_v
 
 
 @pytest.mark.parametrize("broken", [False, True])
-def test_uninstall_version_keeps_local_build(tt_cmd, tmp_path, local_build, broken):
-    binary, headers = local_build
+def test_uninstall_version_keeps_local_build(tt_cmd, tmp_path, legacy_local_build, broken):
+    binary, headers = legacy_local_build
     if broken:
         binary.unlink()
         rmtree(headers)
@@ -101,8 +97,8 @@ def test_uninstall_version_keeps_local_build(tt_cmd, tmp_path, local_build, brok
 
 
 @pytest.mark.parametrize("with_headers", [False, True])
-def test_uninstall_only_local_build(tt_cmd, tmp_path, local_build, with_headers):
-    binary, headers = local_build
+def test_uninstall_only_local_build(tt_cmd, tmp_path, legacy_local_build, with_headers):
+    binary, headers = legacy_local_build
     for installed in (tmp_path / "bin").glob("tarantool_*"):
         installed.unlink()
     for installed in (tmp_path / "inc" / "include").glob("tarantool_*"):
