@@ -115,15 +115,14 @@ func checkDependencies(program binary.Program, force bool) error {
 
 // copyBundle copies the bundle from a local cache.
 func copyBundle(params *bundleParams) error {
-	distfiles := params.opts.Repo.Install
-	if distfiles == "" {
+	if params.inst.localRepoDir == "" {
 		return errLocalRepositoryInstallDirectoryNotSet
 	}
 
 	log.Infof("Checking local files...")
 
 	bundleName := params.bundleInfo.Version.Tarball
-	localBundlePath := filepath.Join(distfiles, bundleName)
+	localBundlePath := filepath.Join(params.inst.localRepoDir, bundleName)
 
 	if !binary.IsRegularFile(localBundlePath) {
 		return fmt.Errorf("%w%s", errLocalBundleFileNotFound, localBundlePath)
@@ -283,12 +282,11 @@ func copyNewArtifacts(params *bundleParams) error {
 		return fmt.Errorf("failed to prepare for reinstall: %w", err)
 	}
 
-	err = copyBuildedTarantool(
+	err = copyBuiltTarantool(
 		srcBinPath,
 		srcIncPath,
-		params.opts.Env.BinDir,
-		params.inst.IncDir,
-		params.prgVersion,
+		filepath.Join(params.opts.Env.BinDir, params.prgVersion),
+		filepath.Join(params.inst.IncDir, params.prgVersion),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to copy artifacts: %w", err)
@@ -317,7 +315,6 @@ func changeActiveBundleVersion(params *bundleParams) error {
 }
 
 // updateSymlinks updates the default symlinks to point to the newly installed version.
-// Uses the existing changeActiveTarantoolVersion function.
 func updateSymlinks(params *bundleParams) error {
 	log.Infof("Updating symlinks to point to %s...", params.prgVersion)
 
@@ -339,7 +336,7 @@ func updateSymlinks(params *bundleParams) error {
 
 // performInitialChecks performs initial validation before starting the installation.
 func performInitialChecks(params *bundleParams) error {
-	if params.inst.version == "" {
+	if params.inst.requestedVersion == "" {
 		return fmt.Errorf("%w%s", errASpecificVersionMustBeProvidedToInstall, params.inst.Program)
 	}
 
@@ -348,7 +345,7 @@ func performInitialChecks(params *bundleParams) error {
 		return err
 	}
 
-	log.Infof("Requested version: %s", params.inst.version)
+	log.Infof("Requested version: %s", params.inst.requestedVersion)
 
 	return nil
 }
@@ -361,11 +358,11 @@ func acquireBundleInfoToInstall(params *bundleParams) error {
 		err     error
 	)
 
-	log.Infof("Search for the requested %q version...", params.inst.version)
+	log.Infof("Search for the requested %q version...", params.inst.requestedVersion)
 
 	if params.inst.Local {
 		bundles, err = search.FindLocalBundles(params.inst.Program,
-			os.DirFS(params.opts.Repo.Install))
+			os.DirFS(params.inst.localRepoDir))
 		if err != nil {
 			return err
 		}
@@ -383,7 +380,7 @@ func acquireBundleInfoToInstall(params *bundleParams) error {
 		}
 	}
 
-	params.bundleInfo, err = search.SelectVersion(bundles, params.inst.version)
+	params.bundleInfo, err = search.SelectVersion(bundles, params.inst.requestedVersion)
 	if err != nil {
 		return err
 	}

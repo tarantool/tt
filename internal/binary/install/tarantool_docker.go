@@ -20,7 +20,6 @@ const dockerfileMode = 0o664
 var tarantoolBuildDockerfile []byte
 
 func installTarantoolInDocker(tntVersion, binDir, incDir string, installCtx InstallCtx,
-	distfiles string,
 ) error {
 	tmpDir, err := os.MkdirTemp("", "docker_build_ctx")
 	if err != nil {
@@ -103,7 +102,7 @@ func installTarantoolInDocker(tntVersion, binDir, incDir string, installCtx Inst
 		Binds: []string{
 			fmt.Sprintf("%s:%s", binDir, ttCfg.Env.BinDir),
 			fmt.Sprintf("%s:%s", filepath.Dir(incDir), ttCfg.Env.IncludeDir),
-			fmt.Sprintf("%s:%s", distfiles, ttCfg.Repo.Install),
+			fmt.Sprintf("%s:%s", installCtx.localRepoDir, ttCfg.Repo.Install),
 		},
 		Verbose: installCtx.Verbose,
 	}

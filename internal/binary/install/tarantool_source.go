@@ -80,25 +80,19 @@ func buildTarantool(srcPath string,
 }
 
 // copyLocalTarantool finds and copies local tarantool folder to tmp folder.
-func copyLocalTarantool(distfiles, path, tarVersion string,
-	installCtx InstallCtx, logFile *os.File,
+func copyLocalTarantool(localPath, buildPath, ref string,
+	verbose bool, logFile *os.File,
 ) error {
-	var err error
-
-	if binary.IsDir(filepath.Join(distfiles, "tarantool")) {
-		log.Infof("Local files found, installing from them...")
-
-		localPath, _ := binary.JoinAbspath(distfiles, "tarantool")
-
-		err = copy.Copy(localPath, path)
-		if err != nil {
-			return fmt.Errorf("failed to copy local tarantool sources: %w", err)
-		}
-
-		err = gitCheckout(path, tarVersion, installCtx.Verbose, logFile)
-	} else {
+	if !binary.IsDir(localPath) {
 		return errDistfilesDirectoryNotFound
 	}
 
-	return err
+	log.Infof("Local files found, installing from them...")
+
+	err := copy.Copy(localPath, buildPath)
+	if err != nil {
+		return fmt.Errorf("failed to copy local tarantool sources: %w", err)
+	}
+
+	return checkoutGitVersion(buildPath, ref, verbose, logFile)
 }

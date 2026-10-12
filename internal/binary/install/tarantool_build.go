@@ -84,6 +84,11 @@ func installTarantoolFromBuild(installCtx InstallCtx, cliOpts *config.CliOpts) e
 			continue
 		}
 
+		includeDir, err = searchTarantoolHeaders(buildDir, includeDir)
+		if err != nil {
+			return err
+		}
+
 		// Check that tt directories exist.
 		err = binary.CreateDirectory(ttBinDir, defaultDirPermissions)
 		if err != nil {
@@ -98,11 +103,6 @@ func installTarantoolFromBuild(installCtx InstallCtx, cliOpts *config.CliOpts) e
 		log.Infof("Changing symlinks...")
 
 		err = binary.CreateSymlink(binaryPath, filepath.Join(ttBinDir, "tarantool"), true)
-		if err != nil {
-			return err
-		}
-
-		includeDir, err = searchTarantoolHeaders(buildDir, includeDir)
 		if err != nil {
 			return err
 		}

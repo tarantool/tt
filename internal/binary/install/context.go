@@ -22,12 +22,15 @@ type InstallCtx struct {
 	// Local is a flag. If it is set,
 	// install will do local installation.
 	Local bool
+	// localRepoDir contains product source repositories and local installation archives.
+	// It is initialized from repo.distfiles when installation starts.
+	localRepoDir string
 	// Destination is the directory to save downloaded SDK bundles.
 	Destination string
 	// BuildInDocker is set if tarantool must be built in docker container.
 	BuildInDocker bool
-	// Version of the program to install.
-	version string
+	// Version of the program to install. Specified by user.
+	requestedVersion string
 	// Dynamic flag enables dynamic linking.
 	Dynamic bool
 	// FromBuild is an existing Tarantool build directory to link into the environment.
@@ -55,7 +58,7 @@ func FillCtx(cmdCtx *cmdcontext.CmdCtx, installCtx *InstallCtx, args []string) e
 	installCtx.skipMasterUpdate = cmdCtx.Cli.NoPrompt
 
 	if len(args) == 1 {
-		installCtx.version = args[0]
+		installCtx.requestedVersion = args[0]
 	}
 
 	return nil
