@@ -55,10 +55,10 @@ func prepareExistingTarantool(installCtx InstallCtx, binPath, incPath, artifactR
 func downloadTarantoolSource(installCtx InstallCtx, path string,
 	resolved resolvedInstallVersion, logFile *os.File,
 ) error {
-	if installCtx.Local {
+	if installCtx.LocalRepo != "" {
 		log.Infof("Checking local files...")
 
-		localRepoPath := filepath.Join(installCtx.localRepoDir, installCtx.Program.String())
+		localRepoPath := filepath.Join(installCtx.LocalRepo, installCtx.Program.String())
 
 		return copyLocalTarantool(localRepoPath, path, resolved.ref,
 			installCtx.Verbose, logFile)

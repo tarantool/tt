@@ -54,6 +54,25 @@ func NewBinaryCmd() *cobra.Command {
 	binaryCmd := &cobra.Command{
 		Use:   "binary",
 		Short: "Manage binaries and SDK bundles",
+		Long: `Manage tt, Tarantool Community and Enterprise editions, TCM, and SDK bundles.
+
+Use --scope to choose where binaries are managed:
+  project (default): .tarantool/ in the current working directory.
+  user:
+    Linux: $XDG_DATA_HOME/tarantool when XDG_DATA_HOME is an absolute path;
+      otherwise ~/.local/share/tarantool.
+    macOS: ~/Library/Application Support/tarantool.
+  system:
+    Linux: /opt/tarantool.
+    macOS: /Library/Application Support/tarantool.
+
+Each scope stores executables directly in
+<root>/versions/<product>/<product>_<version>/, with Tarantool headers in inc/tarantool.
+Active executables are linked from <root>/bin/, and active Tarantool headers
+from <root>/inc/tarantool. CE and EE keep separate versions and share the active
+Tarantool links. Add <root>/bin to PATH to run the active versions.
+
+SDK downloads use --destination as their output directory.`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			var err error
 
@@ -67,7 +86,7 @@ func NewBinaryCmd() *cobra.Command {
 	}
 
 	binaryCmd.PersistentFlags().StringVar(&scopeName, "scope", binary.ScopeProject.String(),
-		"Installation scope: project, user or system")
+		"Scope: project, user or system")
 	binaryCmd.PersistentFlags().BoolVarP(&base.Verbose, "verbose", "V", false,
 		"Show diagnostic output and build commands")
 
@@ -89,14 +108,26 @@ func newBinaryInstallCmd(base *binary.BinaryContext,
 	installCmd := &cobra.Command{
 		Use:   "install",
 		Short: "Install a program",
-		Example: `# Install the latest Tarantool version.
-  $ tt binary install tarantool --scope project
+		Long: `Build tt or Tarantool from source, or install an EE/TCM archive.
+The installed version becomes active in the selected scope. See
+"tt binary --help" for scope locations and the binary layout.
 
-  # Install tt from a pull request.
-  $ tt binary install tt pr/534 --scope project
+Use --local-repo <dir> to install from local files. For tt and Tarantool, the
+directory contains source repositories named tt/ and tarantool/. For EE and
+TCM, it contains installation archives. Relative paths are resolved from the
+current working directory.
 
-  # Build Tarantool with two parallel jobs.
-  $ MAKEFLAGS="-j2" tt binary install tarantool 3.0.0 --scope project`,
+Use tarantool-sdk to download an SDK archive to --destination (the current
+directory by default).`,
+		Example: `# Build the latest Tarantool release for this project.
+  $ tt binary install tarantool
+
+  # Build tt for the current user.
+  $ tt binary install tt --scope user
+
+  # Install a local Enterprise archive system-wide.
+  $ sudo tt binary install tarantool-ee gc64-3.4.0-0-r60 \
+      --scope system --local-repo ./bundles`,
 	}
 	installCmd.PersistentFlags().BoolVarP(&installCtx.Force, "force", "f", false,
 		"Skip dependency checks")
@@ -104,8 +135,8 @@ func newBinaryInstallCmd(base *binary.BinaryContext,
 		"Keep temporary files")
 	installCmd.PersistentFlags().BoolVar(&installCtx.Reinstall, "reinstall", false,
 		"Reinstall an existing version")
-	installCmd.PersistentFlags().BoolVar(&installCtx.Local, "local-repo", false,
-		"Install from the local repository")
+	installCmd.PersistentFlags().StringVar(&installCtx.LocalRepo, "local-repo", "",
+		"Directory containing local source repositories or installation archives")
 	installCmd.PersistentFlags().StringVar(&installCtx.Destination, "destination", "",
 		"Directory to save SDK bundles (default: current directory)")
 
@@ -129,8 +160,21 @@ func newInstallTtCmd(base *binary.BinaryContext,
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramTt.String() + " [version|commit|pull-request]",
 		Short: "Install tt",
-		RunE:  binaryRunE(base, installCtx, internalInstallModule),
-		Args:  cobra.MaximumNArgs(1),
+		Long: `Build and install tt from a release, Git commit, master, or pull request.
+Omitting the version selects the latest release. Use pr/<number> for a pull
+request.
+
+With --local-repo <dir>, sources are read from <dir>/tt.`,
+		Example: `# Build the latest tt release for the current user.
+  $ tt binary install tt --scope user
+
+  # Build tt from a pull request for this project.
+  $ tt binary install tt pr/534
+
+  # Build tt from a local source repository.
+  $ tt binary install tt master --local-repo ./distfiles`,
+		RunE: binaryRunE(base, installCtx, internalInstallModule),
+		Args: cobra.MaximumNArgs(1),
 	}
 
 	return tntCmd
@@ -143,17 +187,28 @@ func newInstallTarantoolCmd(base *binary.BinaryContext,
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramCe.String() + " [version|commit|pull-request]",
 		Short: "Install Tarantool Community Edition",
-		Example: `# Build and install Tarantool from the local repository.
-  $ tt binary install tarantool --scope project --local-repo
+		Long: `Build and install Tarantool Community Edition from a release, Git commit,
+master, or pull request. Omitting the version selects the latest release.
+Use pr/<number> for a pull request. With --local-repo <dir>, sources are read
+from <dir>/tarantool.
 
-  # Link an existing Tarantool build into the environment.
-  $ tt binary install tarantool --scope project \
+Use --from-build <dir> to link an existing Community or Enterprise build into
+the selected scope without copying or rebuilding it. Use --include-dir to
+select the headers directory. --from-build accepts no version argument.`,
+		Example: `# Build and install Tarantool from the local repository.
+  $ tt binary install tarantool --local-repo ./distfiles
+
+  # Link an existing Tarantool build into the project scope.
+  $ tt binary install tarantool \
       --from-build ~/src/tarantool/build
 
-  # Use headers from a custom directory.
-  $ tt binary install tarantool --scope project \
+  # Link a build with custom headers into the user scope.
+  $ tt binary install tarantool --scope user \
       --from-build ~/src/tarantool/build \
-      --include-dir ~/src/tarantool/include`,
+      --include-dir ~/src/tarantool/include
+
+  # Build Tarantool with two parallel jobs.
+  $ MAKEFLAGS="-j2" tt binary install tarantool 3.4.0`,
 		RunE: binaryRunE(base, installCtx, internalInstallModule),
 		Args: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("from-build") {
@@ -173,7 +228,7 @@ func newInstallTarantoolCmd(base *binary.BinaryContext,
 	}
 
 	tntCmd.Flags().BoolVar(&installCtx.BuildInDocker, "use-docker", false,
-		"Build Tarantool in an Ubuntu 18.04 Docker container")
+		"Build Tarantool in an Ubuntu Docker container")
 	tntCmd.Flags().BoolVar(&installCtx.Dynamic, "dynamic", false,
 		"Build Tarantool with dynamic linking")
 	tntCmd.Flags().StringVar(&installCtx.FromBuild, "from-build", "",
@@ -191,10 +246,20 @@ func newInstallTarantoolEeCmd(base *binary.BinaryContext,
 	installCtx *install.InstallCtx,
 ) *cobra.Command {
 	tntCmd := &cobra.Command{
-		Use:   binary.ProgramEe.String() + " [version]",
+		Use:   binary.ProgramEe.String() + " <version>",
 		Short: "Install Tarantool Enterprise Edition",
-		RunE:  binaryRunE(base, installCtx, internalInstallModule),
-		Args:  cobra.MaximumNArgs(1),
+		Long: `Install a specific Tarantool Enterprise Edition version from an SDK archive.
+The version is required. Use "tt binary search tarantool-ee" to list available
+versions.
+
+With --local-repo <dir>, archives are read from the specified directory.`,
+		Example: `# Download and install an Enterprise release for the current user.
+  $ tt binary install tarantool-ee gc64-3.4.0-0-r60 --scope user
+
+  # Install an Enterprise archive from a local directory for this project.
+  $ tt binary install tarantool-ee gc64-3.4.0-0-r60 --local-repo ./bundles`,
+		RunE: binaryRunE(base, installCtx, internalInstallModule),
+		Args: cobra.MaximumNArgs(1),
 	}
 
 	tntCmd.Flags().BoolVar(&installCtx.DevBuild, "dev", false, "Install a development build")
@@ -206,10 +271,19 @@ func newInstallTcmCmd(base *binary.BinaryContext,
 	installCtx *install.InstallCtx,
 ) *cobra.Command {
 	tntCmd := &cobra.Command{
-		Use:   binary.ProgramTcm.String() + " [version]",
+		Use:   binary.ProgramTcm.String() + " <version>",
 		Short: "Install Tarantool Cluster Manager",
-		RunE:  binaryRunE(base, installCtx, internalInstallModule),
-		Args:  cobra.MaximumNArgs(1),
+		Long: `Install a specific Tarantool Cluster Manager version from an archive.
+The version is required. Use "tt binary search tcm" to list available versions.
+
+With --local-repo <dir>, archives are read from the specified directory.`,
+		Example: `# Download and install TCM for the current user.
+  $ tt binary install tcm 1.3.1-0-g074b5ffa --scope user
+
+  # Install TCM from a local archive for this project.
+  $ tt binary install tcm 1.3.1-0-g074b5ffa --local-repo ./bundles`,
+		RunE: binaryRunE(base, installCtx, internalInstallModule),
+		Args: cobra.MaximumNArgs(1),
 	}
 
 	tntCmd.Flags().BoolVar(&installCtx.DevBuild, "dev", false, "Install a development build")
@@ -225,6 +299,9 @@ func newInstallTarantoolSDKCmd(base *binary.BinaryContext,
 		Use:     binary.ProgramSDK.String() + " <version>",
 		Aliases: []string{"sdk", "SDK"},
 		Short:   "Download a Tarantool SDK bundle",
+		Long: `Download a specific Tarantool SDK archive to --destination (the current
+directory by default). The output directory is independent of --scope.
+Use --dev to download a development build.`,
 		Example: `# Download an SDK bundle to the current directory.
   $ tt binary install tarantool-sdk gc64-3.0.0-0-gf58f7d82a-r23
 
@@ -259,12 +336,6 @@ func internalInstallModule(base binary.BinaryContext, installCtx install.Install
 	err = install.FillCtx(cmdCtx, &installCtx, args)
 	if err != nil {
 		return err
-	}
-
-	if installCtx.Program != binary.ProgramSDK && installCtx.Program != binary.ProgramTt &&
-		installCtx.Program != binary.ProgramCe &&
-		!isConfigExist(cmdCtx) {
-		return errNoConfig
 	}
 
 	err = install.Install(installCtx, cliOpts)

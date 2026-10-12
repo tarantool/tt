@@ -55,6 +55,7 @@ def install_tt(tt_cmd, tmp_path, flags=(), version="1.2.3"):
             version,
             "--force",
             "--local-repo",
+            "distfiles",
             *flags,
         ],
         cwd=tmp_path,
@@ -223,7 +224,7 @@ def test_install_tt_existing_master(tt_cmd, tmp_path, local_tt_build, update):
     args = [tt_cmd, "--self"]
     if not update:
         args.append("--no-prompt")
-    args.extend(["binary", "install", "tt", "master", "--local-repo", "--force"])
+    args.extend(["binary", "install", "tt", "master", "--local-repo", "distfiles", "--force"])
     rc, output = run_command_and_get_output(
         args,
         cwd=tmp_path,

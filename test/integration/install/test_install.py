@@ -48,6 +48,7 @@ def test_install_tt_noexist_commit(tt_cmd, tmp_path):
         "project",
         "install",
         "--local-repo",
+        tmp_dir,
         "tt",
         "2df3077",
     ]
@@ -397,11 +398,11 @@ def test_install_tarantool_in_docker(tt_cmd, tmp_path):
     "args, error",
     [
         (
-            ["--local-repo", "tarantool", "--from-build", "build"],
+            ["--local-repo", "distfiles", "tarantool", "--from-build", "build"],
             "group [from-build local-repo]",
         ),
         (
-            ["tarantool", "--from-build", "build", "--local-repo"],
+            ["tarantool", "--from-build", "build", "--local-repo", "distfiles"],
             "group [from-build local-repo]",
         ),
         (

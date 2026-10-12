@@ -39,7 +39,7 @@ def test_install_local_bundle(
         tmp_path,
         {
             "env": {"bin_dir": "binaries", "inc_dir": "headers"},
-            "repo": {"distfiles": "distfiles"},
+            "repo": {"distfiles": "local bundles"},
         },
     )
     source = tmp_path / "bundle" / bundle_dir
@@ -52,7 +52,7 @@ def test_install_local_bundle(
         includes.mkdir(parents=True)
         (includes / "module.h").write_text("/* bundle headers */\n")
 
-    distfiles = tmp_path / "distfiles"
+    distfiles = tmp_path / "local bundles"
     distfiles.mkdir()
     with tarfile.open(distfiles / bundle_name, "w:gz") as bundle:
         bundle.add(source, arcname=bundle_dir or ".")
@@ -67,18 +67,20 @@ def test_install_local_bundle(
             program,
             version,
             "--local-repo",
+            str(distfiles),
             "--force",
         ],
         cwd=tmp_path,
     )
     assert rc == 0, output
     installed_name = f"{program}_{version}"
-    binaries = tmp_path / "binaries"
-    assert (binaries / installed_name).read_bytes() == binary.read_bytes()
-    assert (binaries / executable).resolve() == binaries / installed_name
+    root = tmp_path / ".tarantool"
+    binaries = root / "versions" / program / installed_name
+    assert (binaries / executable).read_bytes() == binary.read_bytes()
+    assert (root / "bin" / executable).resolve() == binaries / executable
     if program == "tarantool-ee":
-        installed_headers = tmp_path / "headers" / "include"
-        assert (installed_headers / executable).resolve() == installed_headers / installed_name
+        installed_headers = root / "versions" / program / installed_name / "inc"
+        assert (root / "inc" / executable).resolve() == installed_headers / executable
         assert (installed_headers / executable / "module.h").read_text() == "/* bundle headers */\n"
 
 
@@ -86,7 +88,7 @@ def test_install_local_bundle(
 @pytest.mark.parametrize(
     "prog,exec,incl",
     [
-        ("tarantool-ee", "tarantool", "include/tarantool"),
+        ("tarantool-ee", "tarantool", "tarantool"),
         ("tcm", "tcm", None),
     ],
 )
@@ -118,16 +120,16 @@ def test_install_ee(
     assert re.search(f"Installing {prog}={version}", output)
     assert re.search(f"Downloading {prog}...", output)
     assert re.search("Done.", output)
-    assert (tmp_path / "bin" / exec).exists()
+    assert (tmp_path / ".tarantool" / "bin" / exec).exists()
     if incl:
-        assert (tmp_path / "include" / incl).exists()
+        assert (tmp_path / ".tarantool" / "inc" / incl).exists()
 
 
 @pytest.mark.slow_ee
 @pytest.mark.parametrize(
     "prog,exec,incl",
     [
-        ("tarantool-ee", "tarantool", "include/tarantool"),
+        ("tarantool-ee", "tarantool", "tarantool"),
         ("tcm", "tcm", None),
     ],
 )
@@ -159,6 +161,6 @@ def test_install_ee_dev(
     assert re.search(f"Installing {prog}={version}", output)
     assert re.search(f"Downloading {prog}...", output)
     assert re.search("Done.", output)
-    assert (tmp_path / "bin" / exec).exists()
+    assert (tmp_path / ".tarantool" / "bin" / exec).exists()
     if incl:
-        assert (tmp_path / "include" / incl).exists()
+        assert (tmp_path / ".tarantool" / "inc" / incl).exists()

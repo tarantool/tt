@@ -27,8 +27,8 @@ const (
 // getVersionsFromRepo returns available versions from the selected product's repository.
 func getVersionsFromRepo(installCtx InstallCtx) ([]version.Version, error) {
 	programName := installCtx.Program.String()
-	if installCtx.Local {
-		return search.GetVersionsFromGitLocal(filepath.Join(installCtx.localRepoDir, programName))
+	if installCtx.LocalRepo != "" {
+		return search.GetVersionsFromGitLocal(filepath.Join(installCtx.LocalRepo, programName))
 	}
 
 	return search.GetVersionsFromGitRemote(installCtx.Program.GitRepo())
@@ -37,9 +37,9 @@ func getVersionsFromRepo(installCtx InstallCtx) ([]version.Version, error) {
 // getCommit resolves a Git revision in the selected product's repository.
 func getCommit(installCtx InstallCtx, ref string) (string, error) {
 	programName := installCtx.Program.String()
-	if installCtx.Local {
+	if installCtx.LocalRepo != "" {
 		return search.GetCommitFromGitLocal(
-			filepath.Join(installCtx.localRepoDir, programName), ref)
+			filepath.Join(installCtx.LocalRepo, programName), ref)
 	}
 
 	return search.GetCommitFromGitRemote(installCtx.Program.GitRepo(), ref)
@@ -47,8 +47,8 @@ func getCommit(installCtx InstallCtx, ref string) (string, error) {
 
 // getPullRequestCommit resolves a pull request in the selected product's repository.
 func getPullRequestCommit(installCtx InstallCtx, pullRequestID string) (string, error) {
-	if installCtx.Local {
-		repoPath := filepath.Join(installCtx.localRepoDir, installCtx.Program.String())
+	if installCtx.LocalRepo != "" {
+		repoPath := filepath.Join(installCtx.LocalRepo, installCtx.Program.String())
 
 		return search.GetPullRequestCommitFromGitLocal(repoPath, pullRequestID)
 	}

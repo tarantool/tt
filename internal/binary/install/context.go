@@ -19,12 +19,9 @@ type InstallCtx struct {
 	// KeepTemp is a flag. If it is set,
 	// install will don't remove tmp files.
 	KeepTemp bool
-	// Local is a flag. If it is set,
-	// install will do local installation.
-	Local bool
-	// localRepoDir contains product source repositories and local installation archives.
-	// It is initialized from repo.distfiles when installation starts.
-	localRepoDir string
+	// LocalRepo is the directory containing product source repositories or
+	// installation archives. An empty path selects remote installation.
+	LocalRepo string
 	// Destination is the directory to save downloaded SDK bundles.
 	Destination string
 	// BuildInDocker is set if tarantool must be built in docker container.
@@ -35,8 +32,7 @@ type InstallCtx struct {
 	Dynamic bool
 	// FromBuild is an existing Tarantool build directory to link into the environment.
 	FromBuild string
-	// IncDir is the directory, where the Tarantool headers are located for a local build.
-	// Or the directory, where the headers should be installed from a bundle.
+	// IncDir is the source header directory for --from-build.
 	IncDir string
 	// Install development build.
 	DevBuild bool
