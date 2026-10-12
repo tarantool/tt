@@ -3,6 +3,7 @@ package cmd
 import (
 	"io"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -331,11 +332,11 @@ func TestBinaryParentFlagsAfterProgram(t *testing.T) {
 
 	search, _, err := root.Find([]string{"search", "tarantool"})
 	require.NoError(t, err)
-	require.NoError(t, search.ParseFlags([]string{"--local-repo"}))
+	require.NoError(t, search.ParseFlags([]string{"--local-repo", "/source files"}))
 
-	local, err := search.Flags().GetBool("local-repo")
+	local, err := search.Flags().GetString("local-repo")
 	require.NoError(t, err)
-	assert.True(t, local)
+	assert.Equal(t, "/source files", local)
 }
 
 func TestBinaryCommandOptionsAreIndependent(t *testing.T) {
@@ -351,6 +352,7 @@ func TestBinaryCommandOptionsAreIndependent(t *testing.T) {
 		{[]string{"install", "tarantool"}, "local-repo", "/first", "/second"},
 		{[]string{"install", "tarantool-sdk"}, "destination", "/first", "/second"},
 		{[]string{"search", "tarantool-ee"}, "version", "3.0", "3.1"},
+		{[]string{"search", "tarantool"}, "local-repo", "/first", "/second"},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.flag, func(t *testing.T) {
@@ -404,6 +406,63 @@ func TestBinaryInstallAdapterOptions(t *testing.T) {
 			})
 			require.NoError(t, run(command, []string{"3.4.0"}))
 			assert.True(t, called)
+		})
+	}
+}
+
+// TestBinaryScopedCommandsWithoutConfig exercises the adapters without the legacy boot layer.
+func TestBinaryScopedCommandsWithoutConfig(t *testing.T) {
+	for _, scope := range []binary.Scope{binary.ScopeProject, binary.ScopeUser} {
+		t.Run(scope.String(), func(t *testing.T) {
+			restoreProcessState(t)
+
+			previousOpts := cliOpts
+
+			t.Cleanup(func() { cliOpts = previousOpts })
+
+			cliOpts = nil
+
+			work := t.TempDir()
+			t.Chdir(work)
+			t.Setenv("HOME", t.TempDir())
+			t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+			cmdCtx.Cli.ConfigPath = filepath.Join(work, "tt.yaml")
+			require.NoError(t, os.WriteFile(cmdCtx.Cli.ConfigPath, []byte("[broken"), 0o600))
+
+			root, err := scope.ArtifactPath()
+			require.NoError(t, err)
+
+			installed := filepath.Join(root, "versions", "tcm", "tcm_1.3.0", "tcm")
+			require.NoError(t, os.MkdirAll(filepath.Dir(installed), 0o755))
+			require.NoError(t, os.WriteFile(installed, []byte("binary"), 0o755))
+
+			repo := filepath.Join(work, "bundles")
+			require.NoError(t, os.Mkdir(repo, 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(repo,
+				"tcm-1.3.0.linux.amd64.tar.gz"), nil, 0o600))
+
+			commands := [][]string{
+				{"search", "tcm", "--local-repo", "bundles"},
+			}
+			for _, args := range commands {
+				command := NewBinaryCmd()
+				command.SetOut(io.Discard)
+				command.SetErr(io.Discard)
+				command.SetArgs(append([]string{"--scope", scope.String()}, args...))
+				require.NoError(t, command.Execute(), args)
+			}
+		})
+	}
+}
+
+func TestBinarySearchRequiresLocalRepositoryArgument(t *testing.T) {
+	for _, program := range binarySupportedPrograms {
+		t.Run(program, func(t *testing.T) {
+			command, _, err := NewBinaryCmd().Find([]string{"search", program})
+			require.NoError(t, err)
+			require.ErrorContains(t, command.ParseFlags([]string{"--local-repo"}),
+				"flag needs an argument: --local-repo")
 		})
 	}
 }

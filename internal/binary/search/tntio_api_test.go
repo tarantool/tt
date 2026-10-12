@@ -13,7 +13,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/internal/binary"
 	"github.com/tarantool/tt/v3/internal/binary/search"
 )
@@ -412,11 +411,7 @@ func TestSearchVersions_TntIo(t *testing.T) {
 		},
 	}
 
-	opts := config.CliOpts{
-		Env: &config.TtEnvOpts{
-			BinDir: "/test/bin",
-		},
-	}
+	t.Chdir(t.TempDir())
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -442,6 +437,7 @@ func TestSearchVersions_TntIo(t *testing.T) {
 			sCtx := search.NewSearchCtx(&tt.platform, &mockDoer)
 
 			sCtx.Program = tt.program
+			sCtx.Scope = binary.ScopeProject
 			sCtx.ReleaseVersion = tt.specificVersion
 			sCtx.DevBuilds = tt.devBuilds
 
@@ -449,7 +445,7 @@ func TestSearchVersions_TntIo(t *testing.T) {
 				sCtx.Filter = search.SearchDebug
 			}
 
-			err := search.SearchVersions(sCtx, &opts)
+			err := search.SearchVersions(sCtx)
 
 			_ = pipeWriter.Close()
 

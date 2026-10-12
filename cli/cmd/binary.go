@@ -504,6 +504,11 @@ func newBinarySearchCmd(base *binary.BinaryContext,
 	searchCmd := &cobra.Command{
 		Use:   "search",
 		Short: "Search available program versions",
+		Long: `Search available program versions and mark installations in the selected scope.
+Only that scope supplies [installed] and [active] labels.
+
+Use --local-repo <dir> to search local tt/ or tarantool/ source repositories,
+or EE/TCM archives.`,
 		Example: `# Search Tarantool Enterprise Edition releases.
   $ tt binary search tarantool-ee
 
@@ -511,10 +516,13 @@ func newBinarySearchCmd(base *binary.BinaryContext,
   $ tt binary search tarantool-ee --debug --version 3.0
 
   # Search Tarantool Cluster Manager 1.3 releases.
-  $ tt binary search tcm --version 1.3`,
+  $ tt binary search tcm --version 1.3
+
+  # Search local sources and mark versions installed for the current user.
+  $ tt binary search tt --scope user --local-repo ./sources`,
 	}
-	searchCmd.PersistentFlags().BoolVar(&searchCtx.Local, "local-repo", false,
-		"Search the local repository")
+	searchCmd.PersistentFlags().StringVar(&searchCtx.LocalRepo, "local-repo", "",
+		"Directory containing local source repositories or installation archives")
 
 	searchCmd.AddCommand(
 		newSearchTarantoolCmd(base, searchCtx),
@@ -605,8 +613,8 @@ func internalSearchModule(base binary.BinaryContext, searchCtx search.SearchCtx,
 		return fmt.Errorf("failed to search: %w", err)
 	}
 
-	if searchCtx.Local {
-		return search.SearchVersionsLocal(searchCtx, cliOpts, cmdCtx.Cli.ConfigPath)
+	if searchCtx.LocalRepo != "" {
+		return search.SearchVersionsLocal(searchCtx)
 	}
 
 	if searchCtx.Debug {
@@ -615,7 +623,7 @@ func internalSearchModule(base binary.BinaryContext, searchCtx search.SearchCtx,
 		searchCtx.Filter = search.SearchRelease
 	}
 
-	return search.SearchVersions(searchCtx, cliOpts)
+	return search.SearchVersions(searchCtx)
 }
 
 // newBinaryListCmd creates a command to list installed binaries.

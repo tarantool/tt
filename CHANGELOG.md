@@ -197,6 +197,13 @@ for machine-readable output.
 
 ### Changed
 
+- `tt binary search`: show `[installed]` and `[active]` labels for the selected
+  scope only. Scope does not affect the available versions returned by remote
+  sources or the local repository.
+- `tt binary search --local-repo <dir>`: require an explicit repository
+  directory instead of reading `repo.distfiles` from `tt.yaml`. Relative
+  paths are resolved from the current directory. The directory contains
+  `tt/` or `tarantool/` source repositories, or EE/TCM archives.
 - `tt binary install`: no longer require `tt.yaml` for EE or TCM. The
   `--local-repo <dir>` flag takes the source directory instead of reading
   `repo.distfiles`; relative paths are resolved from the current directory.

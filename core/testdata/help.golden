@@ -416,7 +416,11 @@ GLOBAL FLAGS[0m
   -V, --verbose        Show diagnostic output and build commands
 
 === tt binary search --help
-Search available program versions
+Search available program versions and mark installations in the selected scope.
+Only that scope supplies [installed] and [active] labels.
+
+Use --local-repo <dir> to search local tt/ or tarantool/ source repositories,
+or EE/TCM archives.
 
 [0;1;39mUSAGE[0m
   tt binary search [flags] <command> [command flags]
@@ -428,8 +432,9 @@ COMMANDS[0m
   tt           Search available tt versions
 [0;1;39m
 FLAGS[0m
-  -h, --help         help for search
-      --local-repo   Search the local repository
+  -h, --help                help for search
+      --local-repo string   Directory containing local source repositories or
+                            installation archives
 [0;1;39m
 GLOBAL FLAGS[0m
       --scope string   Scope: project, user or system (default "project")
@@ -445,6 +450,9 @@ EXAMPLES[0m
   # Search Tarantool Cluster Manager 1.3 releases.
   $ tt binary search tcm --version 1.3
 
+  # Search local sources and mark versions installed for the current user.
+  $ tt binary search tt --scope user --local-repo ./sources
+
 Use "tt binary search <command> --help" for more information about a command.
 
 === tt binary search tarantool --help
@@ -459,9 +467,10 @@ FLAGS[0m
   -h, --help   help for tarantool
 [0;1;39m
 GLOBAL FLAGS[0m
-      --local-repo     Search the local repository
-      --scope string   Scope: project, user or system (default "project")
-  -V, --verbose        Show diagnostic output and build commands
+      --local-repo string   Directory containing local source repositories or
+                            installation archives
+      --scope string        Scope: project, user or system (default "project")
+  -V, --verbose             Show diagnostic output and build commands
 
 === tt binary search tarantool-ee --help
 Search available Tarantool Enterprise Edition versions
@@ -478,9 +487,10 @@ FLAGS[0m
       --version string   Filter by release version
 [0;1;39m
 GLOBAL FLAGS[0m
-      --local-repo     Search the local repository
-      --scope string   Scope: project, user or system (default "project")
-  -V, --verbose        Show diagnostic output and build commands
+      --local-repo string   Directory containing local source repositories or
+                            installation archives
+      --scope string        Scope: project, user or system (default "project")
+  -V, --verbose             Show diagnostic output and build commands
 
 === tt binary search tcm --help
 Search available Tarantool Cluster Manager versions
@@ -496,9 +506,10 @@ FLAGS[0m
       --version string   Filter by release version
 [0;1;39m
 GLOBAL FLAGS[0m
-      --local-repo     Search the local repository
-      --scope string   Scope: project, user or system (default "project")
-  -V, --verbose        Show diagnostic output and build commands
+      --local-repo string   Directory containing local source repositories or
+                            installation archives
+      --scope string        Scope: project, user or system (default "project")
+  -V, --verbose             Show diagnostic output and build commands
 
 === tt binary search tt --help
 Search available tt versions
@@ -512,9 +523,10 @@ FLAGS[0m
   -h, --help   help for tt
 [0;1;39m
 GLOBAL FLAGS[0m
-      --local-repo     Search the local repository
-      --scope string   Scope: project, user or system (default "project")
-  -V, --verbose        Show diagnostic output and build commands
+      --local-repo string   Directory containing local source repositories or
+                            installation archives
+      --scope string        Scope: project, user or system (default "project")
+  -V, --verbose             Show diagnostic output and build commands
 
 === tt binary switch --help
 Switch the active binary
