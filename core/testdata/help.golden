@@ -558,7 +558,11 @@ EXAMPLES[0m
   $ tt binary switch tarantool 3.0.0 --scope project
 
 === tt binary uninstall --help
-Uninstall a program
+Uninstall a program version from the selected scope.
+Without a version, remove the only installed version of that product. For
+Tarantool, an active local build is unlinked without deleting its source.
+Removing an active version selects the latest eligible remaining version
+within the same scope. Parent directories and other scopes are not searched.
 
 [0;1;39mUSAGE[0m
   tt binary uninstall [flags] <command> [command flags]

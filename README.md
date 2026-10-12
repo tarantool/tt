@@ -318,7 +318,7 @@ templates:
     will be padded with a directory named include.
 - `restart_on_failure` (bool) - should it restart on failure.
 
-`tt binary install`, `search`, `list`, and `switch` for `tt`, `tarantool`,
+`tt binary install`, `search`, `list`, `switch`, and `uninstall` for `tt`, `tarantool`,
 `tarantool-ee`, and `tcm` use `--scope project` (the default), `user`, or
 `system` to choose the installation root. Executables are stored directly in
 `versions/<product>/<product>_<version>/`, with Tarantool headers in its

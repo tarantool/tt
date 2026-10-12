@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
+import tarfile
 from pathlib import Path
-from shutil import copytree
+from shutil import copy2, copytree
 
 import pytest
 
@@ -10,27 +11,57 @@ TestDataDir = Path(__file__).parent / "testdata"
 
 
 def prepare_testdata(program: str, case: str, tmp_path: Path) -> Path:
-    """Copy test case data to tmp_path directory."""
-    dest_dir = tmp_path / program
-    copytree(TestDataDir / case / program, dest_dir, symlinks=True)
-    return dest_dir
-
-
-def assert_no_extra_in_rest_files(dir: Path, rest_files: dict[str, str]) -> None:
-    """
-    Checks that only those files that have not been deleted remain in the specified directory.
-    """
-    for file in dir.iterdir():
-        expected = rest_files.pop(file.name, None)
-        assert expected is not None, f"Unexpected file: {file.name} in {dir}"
-        if file.is_symlink():
-            # Check that the symlink points to the correct target
-            target = file.resolve().name
-            assert target == expected, (
-                f"Symlink {file.name} points to {target}, expected {expected}"
+    """Translate legacy test data into a scope without changing shared fixtures."""
+    source = TestDataDir / case / program
+    work_dir = tmp_path / program
+    root = work_dir / ".tarantool"
+    for binary in (source / "bin").iterdir():
+        if binary.is_symlink():
+            continue
+        product, version = binary.name.split("_", 1)
+        executable = "tarantool" if product == "tarantool-ee" else product
+        installation = root / "versions" / product / f"{product}_{version}"
+        installation.mkdir(parents=True)
+        copy2(binary, installation / executable)
+        if executable == "tarantool":
+            copytree(
+                source / "include" / "include" / binary.name,
+                installation / "inc" / "tarantool",
             )
 
-    assert len(rest_files) == 0, f"Missing expected files: {', '.join(rest_files.keys())}"
+    for link in (source / "bin").iterdir():
+        if not link.is_symlink():
+            continue
+        product = link.resolve().name.split("_", 1)[0]
+        installation = root / "versions" / product / link.resolve().name
+        (root / "bin").mkdir(exist_ok=True)
+        (root / "bin" / link.name).symlink_to(installation / link.name)
+        if link.name == "tarantool":
+            (root / "inc").mkdir()
+            (root / "inc" / link.name).symlink_to(installation / "inc" / link.name)
+    return work_dir
+
+
+def assert_no_extra_in_rest_files(root: Path, rest_files: dict[str, str]) -> None:
+    """Check remaining installations and the full targets of active links."""
+    installations = {
+        installation.name: installation
+        for product in (root / "versions").iterdir()
+        for installation in product.iterdir()
+    }
+    actual = dict.fromkeys(installations, "")
+    for link in (root / "bin").iterdir():
+        assert link.is_symlink()
+        target = link.resolve()
+        assert target == installations[target.parent.name] / link.name
+        actual[link.name] = target.parent.name
+        if link.name == "tarantool":
+            assert (root / "inc" / link.name).resolve() == target.parent / "inc" / link.name
+    assert actual == rest_files
+    for installation in installations.values():
+        if installation.parent.name in {"tarantool", "tarantool-ee"}:
+            assert (installation / "tarantool").is_file()
+            assert (installation / "inc" / "tarantool").is_dir()
 
 
 @pytest.mark.parametrize(
@@ -68,6 +99,7 @@ def test_uninstall_active_version(
     wort_dir = prepare_testdata(program, "2vers_installed", tmp_path)
     cmd = [
         tt_cmd,
+        "--self",
         "-V",
         "binary",
         "--scope",
@@ -82,7 +114,7 @@ def test_uninstall_active_version(
     assert "• Removing binary..." in output
     assert "• Changing symlinks..." in output
     assert f"• {program}={ver_remove} is uninstalled." in output
-    assert_no_extra_in_rest_files(wort_dir / "bin", rest_files)
+    assert_no_extra_in_rest_files(wort_dir / ".tarantool", rest_files)
 
 
 @pytest.mark.parametrize(
@@ -123,6 +155,7 @@ def test_uninstall_inactive_version(
     wort_dir = prepare_testdata(program, "3vers_installed", tmp_path)
     cmd = [
         tt_cmd,
+        "--self",
         "-V",
         "binary",
         "--scope",
@@ -137,7 +170,7 @@ def test_uninstall_inactive_version(
     assert "• Removing binary..." in output
     assert "• Changing symlinks..." not in output
     assert f"• {program}={ver_remove} is uninstalled." in output
-    assert_no_extra_in_rest_files(wort_dir / "bin", rest_files)
+    assert_no_extra_in_rest_files(wort_dir / ".tarantool", rest_files)
 
 
 @pytest.mark.parametrize(
@@ -177,6 +210,7 @@ def test_uninstall_switch_version(
     wort_dir = prepare_testdata(program, "3vers_installed", tmp_path)
     cmd = [
         tt_cmd,
+        "--self",
         "-V",
         "binary",
         "--scope",
@@ -191,7 +225,7 @@ def test_uninstall_switch_version(
     assert "• Removing binary..." in output
     assert "• Changing symlinks..." in output
     assert f"• {program}={ver_remove} is uninstalled." in output
-    assert_no_extra_in_rest_files(wort_dir / "bin", rest_files)
+    assert_no_extra_in_rest_files(wort_dir / ".tarantool", rest_files)
 
 
 @pytest.mark.parametrize(
@@ -207,6 +241,7 @@ def test_uninstall_no_version(tt_cmd: Path, tmp_path: Path, program: str) -> Non
 
     cmd = [
         tt_cmd,
+        "--self",
         "binary",
         "--scope",
         "project",
@@ -234,6 +269,7 @@ def test_uninstall_no_active(tt_cmd: Path, tmp_path: Path, program: str) -> None
 
     cmd = [
         tt_cmd,
+        "--self",
         "-V",
         "binary",
         "--scope",
@@ -247,3 +283,75 @@ def test_uninstall_no_active(tt_cmd: Path, tmp_path: Path, program: str) -> None
     assert (
         f"⨯ {program} has more than one installed version, please specify the version to uninstall"
     ) in output
+
+
+@pytest.mark.parametrize(
+    "program, executable, version, bundle_name, bundle_dir",
+    [
+        (
+            "tarantool-ee",
+            "tarantool",
+            "gc64-3.4.0-0-r60",
+            "tarantool-enterprise-sdk-gc64-3.4.0-0-r60.linux.x86_64.tar.gz",
+            "tarantool-enterprise",
+        ),
+        ("tcm", "tcm", "1.3.1-0-g074b5ffa", "tcm-1.3.1-0-g074b5ffa.linux.amd64.tar.gz", ""),
+    ],
+)
+def test_uninstall_installed_local_bundle(
+    tt_cmd,
+    tmp_path,
+    program,
+    executable,
+    version,
+    bundle_name,
+    bundle_dir,
+):
+    source = tmp_path / "source" / bundle_dir
+    source.mkdir(parents=True)
+    binary = source / executable
+    binary.write_text("#!/bin/sh\necho 'local bundle'\n")
+    binary.chmod(0o755)
+    if executable == "tarantool":
+        includes = source / "include" / executable
+        includes.mkdir(parents=True)
+        (includes / "module.h").write_text("/* bundle headers */\n")
+    repository = tmp_path / "local bundles"
+    repository.mkdir()
+    archive = repository / bundle_name
+    with tarfile.open(archive, "w:gz") as bundle:
+        bundle.add(source, arcname=bundle_dir or ".")
+
+    rc, output = run_command_and_get_output(
+        [
+            tt_cmd,
+            "--self",
+            "binary",
+            "install",
+            program,
+            version,
+            "--local-repo",
+            repository,
+            "--force",
+        ],
+        cwd=tmp_path,
+    )
+    assert rc == 0, output
+    root = tmp_path / ".tarantool"
+    installation = root / "versions" / program / f"{program}_{version}"
+    assert (installation / executable).read_bytes() == binary.read_bytes()
+    assert (root / "bin" / executable).resolve() == installation / executable
+    if executable == "tarantool":
+        assert (installation / "inc" / "tarantool" / "module.h").is_file()
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "--self", "binary", "uninstall", program],
+        cwd=tmp_path,
+    )
+    assert rc == 0, output
+    assert f"{program}={version} is uninstalled." in output
+    assert not installation.exists()
+    assert not (root / "bin" / executable).is_symlink()
+    assert not (root / "inc" / executable).is_symlink()
+    assert archive.is_file()
+    assert binary.is_file()
