@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/otiai10/copy"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/configure"
@@ -43,8 +42,8 @@ func copyBuildedTT(binDir, path, version string, installCtx InstallCtx) error {
 	return nil
 }
 
-func prepareExistingTt(installCtx *InstallCtx, binDir, versionStr, ttVersion,
-	distfiles string,
+func prepareExistingTt(installCtx *InstallCtx, binDir, versionStr string,
+	kind versionKind,
 ) (bool, error) {
 	if installCtx.Reinstall {
 		return false, nil
@@ -62,8 +61,8 @@ func prepareExistingTt(installCtx *InstallCtx, binDir, versionStr, ttVersion,
 		return false, err
 	}
 
-	updatePossible, err := isUpdatePossible(*installCtx, pathToBin, binary.ProgramTt,
-		ttVersion, distfiles, isBinExecutable)
+	updatePossible, err := isUpdatePossible(*installCtx, pathToBin, kind,
+		isBinExecutable)
 	if err != nil {
 		return false, err
 	}
@@ -89,67 +88,6 @@ func prepareExistingTt(installCtx *InstallCtx, binDir, versionStr, ttVersion,
 	return true, nil
 }
 
-func downloadTtSource(path, ttVersion, distfiles string, resolved resolvedInstallVersion,
-	installCtx InstallCtx, logFile *os.File,
-) error {
-	if installCtx.Local {
-		if !binary.IsDir(filepath.Join(distfiles, "tt")) {
-			return errDistfilesDirectoryNotFound
-		}
-
-		log.Infof("Local files found, installing from them...")
-
-		localPath, _ := binary.JoinAbspath(distfiles, "tt")
-
-		err := copy.Copy(localPath, path)
-		if err != nil {
-			return fmt.Errorf("failed to copy local tt sources: %w", err)
-		}
-
-		err = gitCheckout(path, ttVersion, installCtx.Verbose, logFile)
-		if err != nil {
-			_ = printLog(logFile.Name())
-		}
-
-		return err
-	}
-
-	log.Infof("Downloading tt...")
-
-	if resolved.versionFound {
-		err := downloadRepo(binary.ProgramTt.GitRepo(), ttVersion, path, logFile, installCtx.Verbose)
-		if err != nil {
-			_ = printLog(logFile.Name())
-		}
-
-		return err
-	}
-
-	err := downloadRepo(binary.ProgramTt.GitRepo(), masterVersion, path, logFile, installCtx.Verbose)
-	if err != nil {
-		_ = printLog(logFile.Name())
-		return err
-	}
-
-	if resolved.isPullRequest {
-		pullRequestCommand := "pull/" + resolved.pullRequestID + "/head:" + ttVersion
-
-		err = binary.ExecuteCommand(gitExec, installCtx.Verbose, logFile, path,
-			"fetch", "origin", pullRequestCommand)
-		if err != nil {
-			_ = printLog(logFile.Name())
-			return err
-		}
-	}
-
-	err = gitCheckout(path, ttVersion, installCtx.Verbose, logFile)
-	if err != nil {
-		_ = printLog(logFile.Name())
-	}
-
-	return err
-}
-
 // installTt installs selected version of tt.
 func installTt(installCtx InstallCtx, cliOpts *config.CliOpts) error {
 	err := prepareInstallDirs(&installCtx, cliOpts)
@@ -158,21 +96,18 @@ func installTt(installCtx InstallCtx, cliOpts *config.CliOpts) error {
 	}
 
 	binDir := cliOpts.Env.BinDir
-	distfiles := cliOpts.Repo.Install
 
-	resolved, err := resolveTtInstallVersion(installCtx, distfiles)
+	resolved, err := resolveInstallVersion(installCtx)
 	if err != nil {
 		return err
 	}
 
-	ttVersion := resolved.version
-	versionStr := resolved.versionStr
-	isPullRequest := resolved.isPullRequest
-	pullRequestHash := resolved.pullRequestHash
+	ttVersion := resolved.ref
+	versionStr := resolved.installName(installCtx.Program)
 
 	// Check if that version is already installed.
 	// If it is installed, check if the newest version exists.
-	done, err := prepareExistingTt(&installCtx, binDir, versionStr, ttVersion, distfiles)
+	done, err := prepareExistingTt(&installCtx, binDir, versionStr, resolved.kind)
 	if err != nil {
 		return err
 	}
@@ -221,8 +156,9 @@ func installTt(installCtx InstallCtx, cliOpts *config.CliOpts) error {
 	}
 
 	// Download tt.
-	err = downloadTtSource(path, ttVersion, distfiles, resolved, installCtx, logFile)
+	err = downloadTtSource(installCtx, path, resolved, logFile)
 	if err != nil {
+		_ = printLog(logFile.Name())
 		return err
 	}
 
@@ -236,8 +172,8 @@ func installTt(installCtx InstallCtx, cliOpts *config.CliOpts) error {
 		return err
 	}
 
-	if isPullRequest {
-		log.Infof("Binary name is %s", pullRequestHash)
+	if resolved.kind == versionKindPullRequest {
+		log.Infof("Binary name is %s", resolved.name)
 	}
 
 	// Copy binary.

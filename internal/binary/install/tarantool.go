@@ -16,7 +16,7 @@ var (
 	errIncDirIsNotSetCheck = errors.New("inc_dir is not set, check ")
 )
 
-func prepareTarantoolInstall(binDir, incDir string, installCtx InstallCtx, distfiles string) (
+func prepareTarantoolInstall(binDir, incDir string, installCtx InstallCtx) (
 	resolvedInstallVersion,
 	error,
 ) {
@@ -30,11 +30,11 @@ func prepareTarantoolInstall(binDir, incDir string, installCtx InstallCtx, distf
 			fmt.Errorf("%w%s", errIncDirIsNotSetCheck, configure.ConfigName)
 	}
 
-	return resolveTarantoolInstallVersion(installCtx, distfiles)
+	return resolveInstallVersion(installCtx)
 }
 
-func prepareExistingTarantool(installCtx InstallCtx, binDir, incDir, versionStr,
-	tarVersion, distfiles string,
+func prepareExistingTarantool(installCtx InstallCtx, binDir, incDir, versionStr string,
+	kind versionKind,
 ) (bool, error) {
 	if installCtx.Reinstall {
 		return false, nil
@@ -52,8 +52,7 @@ func prepareExistingTarantool(installCtx InstallCtx, binDir, incDir, versionStr,
 		return false, err
 	}
 
-	updatePossible, err := isUpdatePossible(installCtx, pathToBin, binary.ProgramCe,
-		tarVersion, distfiles, isBinExecutable)
+	updatePossible, err := isUpdatePossible(installCtx, pathToBin, kind, isBinExecutable)
 	if err != nil {
 		return false, err
 	}
@@ -76,39 +75,22 @@ func prepareExistingTarantool(installCtx InstallCtx, binDir, incDir, versionStr,
 	return true, nil
 }
 
-func downloadTarantoolSource(path, tarVersion, distfiles string,
-	resolved resolvedInstallVersion, installCtx InstallCtx, logFile *os.File,
+func downloadTarantoolSource(installCtx InstallCtx, path string,
+	resolved resolvedInstallVersion, logFile *os.File,
 ) error {
 	if installCtx.Local {
 		log.Infof("Checking local files...")
 
-		return copyLocalTarantool(distfiles, path, tarVersion, installCtx, logFile)
+		localRepoPath := filepath.Join(installCtx.localRepoDir, installCtx.Program.String())
+
+		return copyLocalTarantool(localRepoPath, path, resolved.ref,
+			installCtx.Verbose, logFile)
 	}
 
 	log.Infof("Downloading tarantool...")
 
-	if resolved.versionFound {
-		return downloadRepo(binary.ProgramCe.GitRepo(), tarVersion, path, logFile,
-			installCtx.Verbose)
-	}
-
-	err := downloadRepo(binary.ProgramCe.GitRepo(), masterVersion, path, logFile,
-		installCtx.Verbose)
-	if err != nil {
-		return err
-	}
-
-	if resolved.isPullRequest {
-		pullRequestCommand := "pull/" + resolved.pullRequestID + "/head:" + tarVersion
-
-		err = binary.ExecuteCommand(gitExec, installCtx.Verbose, logFile, path,
-			"fetch", "origin", pullRequestCommand)
-		if err != nil {
-			return err
-		}
-	}
-
-	return gitCheckout(path, tarVersion, installCtx.Verbose, logFile)
+	return downloadGitVersion(binary.ProgramCe.GitRepo(), path, resolved,
+		installCtx.Verbose, logFile)
 }
 
 // installTarantool installs selected version of tarantool.
@@ -129,22 +111,19 @@ func installTarantool(installCtx InstallCtx, cliOpts *config.CliOpts) error {
 func installTarantoolFromSource(installCtx InstallCtx, cliOpts *config.CliOpts) error {
 	binDir := cliOpts.Env.BinDir
 	incDir := installCtx.IncDir
-	distfiles := cliOpts.Repo.Install
 
-	resolved, err := prepareTarantoolInstall(binDir, incDir, installCtx, distfiles)
+	resolved, err := prepareTarantoolInstall(binDir, incDir, installCtx)
 	if err != nil {
 		return err
 	}
 
-	tarVersion := resolved.version
-	versionStr := resolved.versionStr
-	isPullRequest := resolved.isPullRequest
-	pullRequestHash := resolved.pullRequestHash
+	tarVersion := resolved.ref
+	versionStr := resolved.installName(installCtx.Program)
 
 	// Check if program is already installed.
 	// If it is installed, check if newest version exists.
 	done, err := prepareExistingTarantool(
-		installCtx, binDir, incDir, versionStr, tarVersion, distfiles)
+		installCtx, binDir, incDir, versionStr, resolved.kind)
 	if err != nil {
 		return err
 	}
@@ -154,7 +133,7 @@ func installTarantoolFromSource(installCtx InstallCtx, cliOpts *config.CliOpts) 
 	}
 
 	if installCtx.BuildInDocker {
-		return installTarantoolInDocker(tarVersion, binDir, incDir, installCtx, distfiles)
+		return installTarantoolInDocker(tarVersion, binDir, incDir, installCtx)
 	}
 
 	logFile, err := os.CreateTemp("", "tarantool_install")
@@ -192,7 +171,7 @@ func installTarantoolFromSource(installCtx InstallCtx, cliOpts *config.CliOpts) 
 	}
 
 	// Download tarantool.
-	err = downloadTarantoolSource(path, tarVersion, distfiles, resolved, installCtx, logFile)
+	err = downloadTarantoolSource(installCtx, path, resolved, logFile)
 	if err != nil {
 		_ = printLog(logFile.Name())
 		return err
@@ -207,8 +186,8 @@ func installTarantoolFromSource(installCtx InstallCtx, cliOpts *config.CliOpts) 
 		return err
 	}
 
-	if isPullRequest {
-		log.Infof("Binary name is %s", pullRequestHash)
+	if resolved.kind == versionKindPullRequest {
+		log.Infof("Binary name is %s", resolved.name)
 	}
 
 	// Copy binary and headers.
@@ -232,7 +211,8 @@ func installTarantoolFromSource(installCtx InstallCtx, cliOpts *config.CliOpts) 
 	binPath := filepath.Join(buildPath, "tarantool-prefix", "bin", "tarantool")
 	incPath := filepath.Join(buildPath, "tarantool-prefix", "include", "tarantool")
 
-	err = copyBuildedTarantool(binPath, incPath, binDir, incDir, versionStr)
+	err = copyBuiltTarantool(binPath, incPath, filepath.Join(binDir, versionStr),
+		filepath.Join(incDir, versionStr))
 	if err != nil {
 		_ = printLog(logFile.Name())
 		return err

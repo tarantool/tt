@@ -22,6 +22,10 @@ func printLog(logName string) error {
 
 // Install installs program.
 func Install(installCtx InstallCtx, cliOpts *config.CliOpts) error {
+	if cliOpts != nil && cliOpts.Repo != nil {
+		installCtx.localRepoDir = cliOpts.Repo.Install
+	}
+
 	switch installCtx.Program {
 	case binary.ProgramTt:
 		return installTt(installCtx, cliOpts)

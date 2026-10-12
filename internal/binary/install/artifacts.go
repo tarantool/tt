@@ -11,37 +11,25 @@ import (
 	"github.com/tarantool/tt/v3/internal/binary"
 )
 
-// copyBuildedTarantool copies binary and include dir.
-func copyBuildedTarantool(binPath, incPath, binDir, includeDir, version string) error {
+// copyBuiltTarantool copies the binary and headers to their installation paths.
+func copyBuiltTarantool(binPath, incPath, destBinPath, destIncPath string) error {
 	log.Infof("Copying executable...")
 
-	_, err := os.Stat(binDir)
-	if os.IsNotExist(err) {
-		err = os.MkdirAll(binDir, defaultDirPermissions)
-		if err != nil {
-			return fmt.Errorf("unable to create %s\n Error: %w", binDir, err)
-		}
-	} else if err != nil {
-		return fmt.Errorf("unable to create %s\n Error: %w", binDir, err)
+	err := os.MkdirAll(filepath.Dir(destBinPath), defaultDirPermissions)
+	if err != nil {
+		return fmt.Errorf("failed to create the binary directory: %w", err)
 	}
 
-	execPath := filepath.Join(binDir, version)
-
-	err = binary.CopyFileChangePerms(binPath, execPath, defaultDirPermissions)
+	err = binary.CopyFileChangePerms(binPath, destBinPath, defaultDirPermissions)
 	if err != nil {
 		return err
 	}
 
 	log.Infof("Copying headers...")
 
-	_, err = os.Stat(includeDir)
-	if os.IsNotExist(err) {
-		err = os.MkdirAll(includeDir, defaultDirPermissions)
-		if err != nil {
-			return fmt.Errorf("unable to create %s\n Error: %w", includeDir, err)
-		}
-	} else if err != nil {
-		return fmt.Errorf("unable to create %s\n Error: %w", includeDir, err)
+	err = os.MkdirAll(filepath.Dir(destIncPath), defaultDirPermissions)
+	if err != nil {
+		return fmt.Errorf("failed to create the headers directory: %w", err)
 	}
 
 	if incPath != "" {
@@ -50,13 +38,13 @@ func copyBuildedTarantool(binPath, incPath, binDir, includeDir, version string) 
 			incPath += "/"
 		}
 
-		err = copy.Copy(incPath, filepath.Join(includeDir, version)+"/")
+		err = copy.Copy(incPath, destIncPath+"/")
 		if err != nil {
 			return fmt.Errorf("failed to copy headers: %w", err)
 		}
 	}
 
-	log.Infof("Tarantool executable is installed to: %q", execPath)
+	log.Infof("Tarantool executable is installed to: %q", destBinPath)
 
 	return nil
 }
