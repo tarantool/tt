@@ -787,6 +787,215 @@ func TestApply_RejectsBadPatchUUIDBeforeTouchingWorkDir(t *testing.T) {
 	require.FileExists(t, StatePath(workDir))
 }
 
+// A --patch-uuid the restored _cluster does not carry is refused: stamped
+// into the headers it would leave the node an identity its own replicaset
+// does not know. The membership only exists once the chain is unpacked, so
+// the refusal is a plain failure -- the directories are already rebuilt,
+// and no exit code promises otherwise -- and the marker that would certify a
+// completed restore is never written.
+func TestApply_RefusesAPatchUUIDOutsideTheCluster(t *testing.T) {
+	workDir := filepath.Join(t.TempDir(), "instance-001")
+
+	opts := applyOpts(t, workDir, nil)
+	opts.PatchUUID = "44444444-4444-4444-4444-444444444444"
+
+	_, err := Apply(opts)
+	require.Error(t, err)
+	require.NotErrorIs(t, err, ErrValidation)
+
+	require.Contains(t, err.Error(), opts.PatchUUID)
+	require.Contains(t, err.Error(), masterUUID,
+		"the refusal lists the membership the restore actually brought back")
+	require.Contains(t, err.Error(), replicaUUID)
+
+	require.NoFileExists(t, StatePath(workDir),
+		"a refused restore leaves no marker")
+}
+
+// The membership across the chain: a snapshot is one moment of _cluster, and
+// the journals after it keep changing it. The check has to see the membership
+// the replay ends with -- a member registered after the snapshot is a member
+// by the time the instance boots, and one deleted after it is not.
+func TestApply_ChecksThePatchUUIDAgainstTheClusterAtThePoint(t *testing.T) {
+	t.Run("accepts a member registered in a journal after the snapshot", func(t *testing.T) {
+		src := t.TempDir()
+		snap := writeSnapOf(t, src, format.VClock{1: 10},
+			[]clusterMember{{1, masterUUID, "master"}})
+		wal := writeXlog(t, src, format.VClock{1: 10}, nil, [][]format.XRow{{
+			clusterRow(t, 11, clusterMember{2, replicaUUID, "replica"}),
+		}})
+		archive := packArchive(t, filepath.Join(t.TempDir(), "wal-member.tar.zst"), snap, wal)
+
+		opts := ApplyOpts{
+			Archives:  []string{archive},
+			Layout:    FlatLayout(filepath.Join(t.TempDir(), "target")),
+			PatchUUID: replicaUUID,
+		}
+
+		_, err := Apply(opts)
+		require.NoError(t, err,
+			"the member exists at the recovery point after the WAL replay")
+	})
+
+	t.Run("ignores a journal row the snapshot already covers", func(t *testing.T) {
+		src := t.TempDir()
+
+		// The snapshot at {1: 20} already knows member 2 under its current
+		// uuid; a journal reaching back to {1: 10} re-registers the member
+		// under the uuid it had before. Recovery would skip that row, and
+		// the fold has to skip it too, or the member comes back as its own
+		// predecessor.
+		snap := writeSnapOf(t, src, format.VClock{1: 20}, snapCluster)
+		wal := writeXlog(t, src, format.VClock{1: 10}, nil, [][]format.XRow{{
+			clusterRow(t, 11, clusterMember{2, "44444444-4444-4444-4444-444444444444", ""}),
+		}})
+		archive := packArchive(t, filepath.Join(t.TempDir(), "old-wal.tar.zst"), snap, wal)
+
+		opts := ApplyOpts{
+			Archives:  []string{archive},
+			Layout:    FlatLayout(filepath.Join(t.TempDir(), "target")),
+			PatchUUID: replicaUUID,
+		}
+
+		_, err := Apply(opts)
+		require.NoError(t, err,
+			"a WAL row the snapshot covers must not replace its membership")
+	})
+
+	t.Run("refuses a member a journal after the snapshot deletes", func(t *testing.T) {
+		src := t.TempDir()
+		snap := writeSnapOf(t, src, format.VClock{1: 10}, snapCluster)
+		wal := writeXlog(t, src, format.VClock{1: 10}, nil, [][]format.XRow{{
+			clusterDeleteRow(t, 11, 2),
+		}})
+		archive := packArchive(t, filepath.Join(t.TempDir(), "wal-gone.tar.zst"), snap, wal)
+
+		opts := ApplyOpts{
+			Archives:  []string{archive},
+			Layout:    FlatLayout(filepath.Join(t.TempDir(), "target")),
+			PatchUUID: replicaUUID,
+		}
+
+		_, err := Apply(opts)
+		require.Error(t, err,
+			"the member is gone by the recovery point after the WAL replay")
+		require.Contains(t, err.Error(), "not a member")
+	})
+}
+
+// The name binding: a _cluster that carries names says which instance a UUID
+// belongs to, and a restore asked to patch to a UUID while resolving the
+// directories for another instance's name is asked for a pair the backup
+// contradicts. Without a name there is nothing to contradict, and the UUID
+// alone is everything the backup is asked to vouch for.
+func TestApply_ChecksThePatchUUIDAgainstTheClusterNames(t *testing.T) {
+	named := []clusterMember{
+		{1, masterUUID, "instance-001"},
+		{2, replicaUUID, "replica-002"},
+	}
+
+	t.Run("refuses a uuid bound to another instance", func(t *testing.T) {
+		workDir := filepath.Join(t.TempDir(), "instance-001")
+
+		opts := namedArchiveOpts(t, workDir, named)
+		opts.InstanceName = "instance-001"
+
+		_, err := Apply(opts)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "instance-001")
+		require.Contains(t, err.Error(), "replica-002",
+			"the refusal lists the membership the name is bound by")
+	})
+
+	t.Run("accepts the instance the uuid is bound to", func(t *testing.T) {
+		workDir := filepath.Join(t.TempDir(), "instance-001")
+
+		opts := namedArchiveOpts(t, workDir, named)
+		opts.InstanceName = "replica-002"
+
+		_, err := Apply(opts)
+		require.NoError(t, err)
+		require.FileExists(t, StatePath(workDir))
+	})
+
+	t.Run("asks nothing of a membership without names", func(t *testing.T) {
+		workDir := filepath.Join(t.TempDir(), "instance-001")
+
+		opts := namedArchiveOpts(t, workDir, snapCluster)
+		opts.InstanceName = "instance-001"
+
+		_, err := Apply(opts)
+		require.NoError(t, err)
+	})
+
+	t.Run("sees the name a journal update gives a nameless member", func(t *testing.T) {
+		workDir := filepath.Join(t.TempDir(), "instance-001")
+
+		src := t.TempDir()
+		snap := writeSnapOf(t, src, format.VClock{1: 10},
+			[]clusterMember{{1, masterUUID, "master"}, {2, replicaUUID, ""}})
+		wal := writeXlog(t, src, format.VClock{1: 10}, nil, [][]format.XRow{{
+			clusterUpdateRow(t, 11, 2, "replica-002"),
+		}})
+		archive := packArchive(t, filepath.Join(t.TempDir(), "named-by-wal.tar.zst"), snap, wal)
+
+		opts := ApplyOpts{
+			Archives:  []string{archive},
+			Layout:    FlatLayout(workDir),
+			PatchUUID: replicaUUID,
+		}
+
+		// The update binds the uuid to replica-002 by the recovery point:
+		// another instance name is a pair the backup contradicts.
+		opts.InstanceName = "wrong-instance"
+		_, err := Apply(opts)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "not bound")
+
+		opts.InstanceName = "replica-002"
+		_, err = Apply(opts)
+		require.NoError(t, err)
+	})
+
+	t.Run("asks nothing of the member the uuid matched when it has no name", func(t *testing.T) {
+		workDir := filepath.Join(t.TempDir(), "instance-001")
+
+		// The second member of a named replicaset can itself be nameless,
+		// and a restore resolving the directories for any instance name
+		// still has nothing to contradict: the member carries no name.
+		mixed := []clusterMember{
+			{1, masterUUID, "instance-001"},
+			{2, replicaUUID, ""},
+		}
+
+		opts := namedArchiveOpts(t, workDir, mixed)
+		opts.InstanceName = "replica-002"
+
+		_, err := Apply(opts)
+		require.NoError(t, err)
+	})
+}
+
+// namedArchiveOpts is the common call against a one-archive chain whose
+// snapshot carries the membership given.
+func namedArchiveOpts(t *testing.T, workDir string, members []clusterMember) ApplyOpts {
+	t.Helper()
+
+	src := t.TempDir()
+	archive := packArchive(t, filepath.Join(t.TempDir(), "named.tar.zst"),
+		writeSnapOf(t, src, format.VClock{1: 0}, members),
+		writeXlog(t, src, format.VClock{1: 0}, nil, nil))
+
+	return ApplyOpts{
+		Archives: []string{archive},
+		Layout:   FlatLayout(workDir),
+		Point:    nil,
+		// The point of the patch is a member the backup's replicaset knows:
+		// the second member of the membership the snapshot carries.
+		PatchUUID: replicaUUID,
+	}
+}
+
 // The boundary xlog ships in both the full backup and the increment that
 // continues it, so the same name lands twice. The archive applied later has
 // the longer file and must win, and going the other way must not leave the
@@ -936,6 +1145,85 @@ func TestApply_AppliesADescribedChainInOrder(t *testing.T) {
 	require.ElementsMatch(t, result.Files, dirEntries(t, workDir))
 }
 
+// Journals that continue one another are the normal shape of a chain: the
+// snapshot, then every journal beginning exactly where the previous one's
+// content ended, holes nowhere.
+func TestApply_ContinuousJournalsPass(t *testing.T) {
+	src := t.TempDir()
+	archive := packArchive(t, filepath.Join(t.TempDir(), "continuous.tar.zst"),
+		writeSnap(t, src, format.VClock{1: 0}),
+		writeXlog(t, src, format.VClock{1: 0}, nil, txsOf(1, 1, 2, 3)),
+		writeXlog(t, src, format.VClock{1: 3}, format.VClock{1: 0}, txsOf(1, 4, 5, 6)),
+		writeXlog(t, src, format.VClock{1: 6}, format.VClock{1: 3}, txsOf(1, 7)),
+	)
+
+	workDir := filepath.Join(t.TempDir(), "instance-001")
+
+	_, err := Apply(ApplyOpts{Archives: []string{archive}, Layout: FlatLayout(workDir)})
+	require.NoError(t, err)
+
+	require.FileExists(t, StatePath(workDir), "an accepted chain ends with a marker")
+}
+
+// A chain with a hole between its journals -- a full and a second increment
+// without the middle one -- must be refused. The archive-level checks cannot
+// see the hole: a real archive carries no manifest fragment, and journal names
+// stay monotone across it, so nothing but the content itself can tell. The
+// refusal is a plain failure -- the directories are already rebuilt by the
+// time the chain can be judged -- and leaves no marker behind.
+func TestApply_RefusesAGapBetweenJournals(t *testing.T) {
+	src := t.TempDir()
+	archive := packArchive(t, filepath.Join(t.TempDir(), "gap.tar.zst"),
+		writeSnap(t, src, format.VClock{1: 0}),
+		writeXlog(t, src, format.VClock{1: 0}, nil, txsOf(1, 1, 2, 3)),
+		// The middle increment, which carried lsn 4..9, is missing: the next
+		// journal begins where its end left off.
+		writeXlog(t, src, format.VClock{1: 9}, format.VClock{1: 6}, txsOf(1, 10)),
+	)
+
+	workDir := filepath.Join(t.TempDir(), "instance-001")
+
+	_, err := Apply(ApplyOpts{
+		Archives: []string{archive},
+		Layout:   FlatLayout(workDir),
+		Point:    &Point{ReplicaID: 1, LSN: 10},
+	})
+	require.Error(t, err)
+	require.NotErrorIs(t, err, ErrValidation,
+		"the directories are rebuilt by then, so this is not a rejected input")
+
+	require.ErrorContains(t, err,
+		"journal 00000000000000000009.xlog does not continue 00000000000000000000.xlog")
+	require.ErrorContains(t, err, "the chain ends at {1: 3}")
+	require.ErrorContains(t, err, "begins at {1: 9}")
+
+	require.NoFileExists(t, StatePath(workDir),
+		"a refused chain must not leave a marker claiming the directory is ready")
+}
+
+// Two journals claiming the same rows -- the second beginning inside the
+// first one's content -- are refused the same way: whatever produced them,
+// they do not continue one another.
+func TestApply_RefusesAnOverlapBetweenJournals(t *testing.T) {
+	src := t.TempDir()
+	archive := packArchive(t, filepath.Join(t.TempDir(), "overlap.tar.zst"),
+		writeXlog(t, src, format.VClock{1: 0}, nil, txsOf(1, 1, 2, 3, 4, 5)),
+		writeXlog(t, src, format.VClock{1: 3}, format.VClock{1: 0}, txsOf(1, 6, 7)),
+	)
+
+	workDir := filepath.Join(t.TempDir(), "instance-001")
+
+	_, err := Apply(ApplyOpts{Archives: []string{archive}, Layout: FlatLayout(workDir)})
+	require.Error(t, err)
+	require.NotErrorIs(t, err, ErrValidation)
+
+	require.ErrorContains(t, err,
+		"journal 00000000000000000003.xlog overlaps 00000000000000000000.xlog")
+	require.ErrorContains(t, err, "the chain ends at {1: 5}")
+
+	require.NoFileExists(t, StatePath(workDir))
+}
+
 // Cleanup goes by extension, and a dotfile is not one: ".snap" is somebody's
 // own file, not a snapshot this command may delete.
 func TestApply_KeepsDotfileNamedLikeAnExtension(t *testing.T) {
@@ -944,7 +1232,8 @@ func TestApply_KeepsDotfileNamedLikeAnExtension(t *testing.T) {
 
 	for _, name := range []string{".snap", ".xlog", ".vylog"} {
 		require.NoError(t, os.WriteFile(
-			filepath.Join(workDir, name), []byte("not a journal"), 0o644))
+			filepath.Join(workDir, name), []byte("not a journal"), 0o644,
+		))
 	}
 
 	_, err := Apply(applyOpts(t, workDir, nil))

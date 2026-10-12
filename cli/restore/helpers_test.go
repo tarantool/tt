@@ -14,6 +14,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/go-iproto"
+	"github.com/vmihailenco/msgpack/v5"
 
 	"github.com/tarantool/go-xlog/format"
 	"github.com/tarantool/go-xlog/reader"
@@ -35,6 +36,10 @@ const (
 	replicasetUUID = "33333333-3333-3333-3333-333333333333"
 
 	zstdLevel = 3
+
+	// clusterSpaceID is box.space._cluster.id: the system space a
+	// synthetic snapshot's membership rows are written into.
+	clusterSpaceID = 320
 )
 
 // mkBody builds a minimal valid msgpack DML body: {IPROTO_TUPLE: [v]}.
@@ -55,6 +60,67 @@ func row(replicaID uint32, lsn int64) format.XRow {
 		ReplicaID: replicaID,
 		LSN:       lsn,
 		BodyRaw:   mkBody(uint64(lsn)),
+	}
+}
+
+// clusterMember is one row of the _cluster a synthetic snapshot carries.
+type clusterMember struct {
+	id   uint64
+	uuid string
+	name string
+}
+
+// snapCluster is the membership every synthetic snapshot records: the master
+// the backup was taken on, and a second member -- the tests patch the restored
+// headers to that member's UUID, and a restore only stamps an identity the
+// replicaset it recovers knows. Both are registered without names, the way a
+// replicaset that never carried them looks, so the name binding has nothing
+// to say about them.
+var snapCluster = []clusterMember{
+	{1, masterUUID, ""},
+	{2, replicaUUID, ""},
+}
+
+// clusterRow builds one _cluster row: an INSERT naming the _cluster system
+// space (box.space._cluster.id) and carrying the member tuple.
+func clusterRow(t *testing.T, lsn int64, member clusterMember) format.XRow {
+	t.Helper()
+
+	tuple := []any{member.id, member.uuid}
+	if member.name != "" {
+		tuple = append(tuple, member.name)
+	}
+
+	body, err := msgpack.Marshal(map[uint64]any{
+		uint64(iproto.IPROTO_SPACE_ID): clusterSpaceID,
+		uint64(iproto.IPROTO_TUPLE):    tuple,
+	})
+	require.NoError(t, err)
+
+	return format.XRow{
+		Type:      iproto.IPROTO_INSERT,
+		ReplicaID: 1,
+		LSN:       lsn,
+		BodyRaw:   body,
+	}
+}
+
+// clusterDeleteRow builds one _cluster delete row: the key of a member the
+// replicaset forgot, named the way the journal of a real cluster names it.
+func clusterDeleteRow(t *testing.T, lsn int64, memberID uint64) format.XRow {
+	t.Helper()
+
+	body, err := msgpack.Marshal(map[uint64]any{
+		uint64(iproto.IPROTO_SPACE_ID): clusterSpaceID,
+		uint64(iproto.IPROTO_KEY):      []any{memberID},
+	})
+	require.NoError(t, err)
+
+	return format.XRow{
+		Type:      iproto.IPROTO_DELETE,
+		ReplicaID: 1,
+		LSN:       lsn,
+		BodyRaw:   body,
 	}
 }
 
@@ -135,7 +201,20 @@ func writeXlog(t *testing.T, dir string, vclock, prev format.VClock, txs [][]for
 func writeSnap(t *testing.T, dir string, vclock format.VClock) string {
 	t.Helper()
 
-	return writeJournal(t, dir, format.FiletypeSNAP, vclock, nil, nil)
+	return writeSnapOf(t, dir, vclock, snapCluster)
+}
+
+// writeSnapOf writes a snapshot carrying the _cluster membership given: the
+// tests that exercise the name binding need names snapCluster leaves out.
+func writeSnapOf(t *testing.T, dir string, vclock format.VClock, members []clusterMember) string {
+	t.Helper()
+
+	txs := make([][]format.XRow, 0, len(members))
+	for i, member := range members {
+		txs = append(txs, []format.XRow{clusterRow(t, int64(i+1), member)})
+	}
+
+	return writeJournal(t, dir, format.FiletypeSNAP, vclock, nil, txs)
 }
 
 // writeFragment writes the per-shard manifest fragment an archive carries.
@@ -346,12 +425,15 @@ func twoReplicaChain(t *testing.T) string {
 		writeSnap(t, src, format.VClock{1: 0, 2: 0}),
 		writeXlog(t, src, format.VClock{1: 0, 2: 0}, nil, txsMixed(
 			rowKey{1, 1}, rowKey{1, 2}, rowKey{2, 1},
-			rowKey{1, 3}, rowKey{1, 4}, rowKey{1, 5})),
+			rowKey{1, 3}, rowKey{1, 4}, rowKey{1, 5},
+		)),
 		writeXlog(t, src, format.VClock{1: 5, 2: 1}, format.VClock{1: 0, 2: 0}, txsMixed(
 			rowKey{2, 2}, rowKey{1, 6}, rowKey{2, 3},
-			rowKey{2, 4}, rowKey{1, 7}, rowKey{2, 5}, rowKey{2, 6})),
+			rowKey{2, 4}, rowKey{1, 7}, rowKey{2, 5}, rowKey{2, 6},
+		)),
 		writeXlog(t, src, format.VClock{1: 7, 2: 6}, format.VClock{1: 5, 2: 1}, txsMixed(
-			rowKey{1, 8}, rowKey{2, 7}, rowKey{1, 9})),
+			rowKey{1, 8}, rowKey{2, 7}, rowKey{1, 9},
+		)),
 	}
 
 	return packArchive(t, filepath.Join(t.TempDir(), "two-replicas.tar.zst"), files...)
@@ -466,4 +548,26 @@ func dirEntries(t *testing.T, dir string) []string {
 	}
 
 	return names
+}
+
+// clusterUpdateRow builds one _cluster update row: the naming of a member
+// the replicaset registered without a name, packed the way Tarantool packs
+// journal updates -- the key of the member, the operations under the tuple
+// key.
+func clusterUpdateRow(t *testing.T, lsn int64, memberID uint64, name string) format.XRow {
+	t.Helper()
+
+	body, err := msgpack.Marshal(map[uint64]any{
+		uint64(iproto.IPROTO_SPACE_ID): clusterSpaceID,
+		uint64(iproto.IPROTO_KEY):      []any{memberID},
+		uint64(iproto.IPROTO_TUPLE):    []any{[]any{"=", 3, name}},
+	})
+	require.NoError(t, err)
+
+	return format.XRow{
+		Type:      iproto.IPROTO_UPDATE,
+		ReplicaID: 1,
+		LSN:       lsn,
+		BodyRaw:   body,
+	}
 }
