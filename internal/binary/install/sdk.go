@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 
 	"github.com/tarantool/tt/sdk/log"
-	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/internal/binary"
 	"github.com/tarantool/tt/v3/internal/binary/search"
 	"golang.org/x/sys/unix"
@@ -18,7 +17,7 @@ var (
 )
 
 // searchSDKVersionToDownload wrapper to search for SDK bundles.
-func searchSDKVersionToDownload(installCtx InstallCtx, cliOpts *config.CliOpts) (
+func searchSDKVersionToDownload(installCtx InstallCtx) (
 	search.BundleInfo, error,
 ) {
 	log.Info("Search for the requested version...")
@@ -26,10 +25,11 @@ func searchSDKVersionToDownload(installCtx InstallCtx, cliOpts *config.CliOpts) 
 	searchCtx := search.NewSearchCtx(search.NewPlatformInformer(), search.NewTntIoDoer())
 
 	searchCtx.BinaryContext = installCtx.BinaryContext
+	searchCtx.CredentialsFile = installCtx.CredentialsFile
 	searchCtx.Filter = search.SearchAll
 	searchCtx.DevBuilds = installCtx.DevBuild
 
-	bundles, err := search.FetchBundlesInfo(&searchCtx, cliOpts)
+	bundles, err := search.FetchBundlesInfo(&searchCtx)
 	if err != nil {
 		return search.BundleInfo{}, fmt.Errorf("cannot get SDK bundles list: %w", err)
 	}
@@ -38,7 +38,7 @@ func searchSDKVersionToDownload(installCtx InstallCtx, cliOpts *config.CliOpts) 
 }
 
 // DownloadSDK downloads and saves a Tarantool SDK bundle.
-func DownloadSDK(installCtx InstallCtx, cliOpts *config.CliOpts) error {
+func DownloadSDK(installCtx InstallCtx) error {
 	var err error
 
 	if len(installCtx.Destination) == 0 {
@@ -53,7 +53,7 @@ func DownloadSDK(installCtx InstallCtx, cliOpts *config.CliOpts) error {
 		return fmt.Errorf("invalid destination directory %q: %w", installCtx.Destination, err)
 	}
 
-	ver, err := searchSDKVersionToDownload(installCtx, cliOpts)
+	ver, err := searchSDKVersionToDownload(installCtx)
 	if err != nil {
 		return fmt.Errorf("no version for download: %w", err)
 	}

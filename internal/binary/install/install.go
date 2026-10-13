@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/internal/binary"
 )
 
@@ -22,7 +21,7 @@ func printLog(logName string) error {
 }
 
 // Install installs program.
-func Install(installCtx InstallCtx, cliOpts *config.CliOpts) error {
+func Install(installCtx InstallCtx) error {
 	if installCtx.LocalRepo != "" {
 		localRepo, err := filepath.Abs(installCtx.LocalRepo)
 		if err != nil {
@@ -38,9 +37,9 @@ func Install(installCtx InstallCtx, cliOpts *config.CliOpts) error {
 	case binary.ProgramCe:
 		return installTarantool(installCtx)
 	case binary.ProgramEe, binary.ProgramTcm:
-		return installBundleProgram(installCtx, cliOpts)
+		return installBundleProgram(installCtx)
 	case binary.ProgramSDK:
-		return DownloadSDK(installCtx, cliOpts)
+		return DownloadSDK(installCtx)
 	default:
 		return fmt.Errorf("%w%s", binary.ErrUnknownApplication, installCtx.Program)
 	}

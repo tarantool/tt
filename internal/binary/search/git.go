@@ -168,7 +168,7 @@ func cloneGitRepoForLookup(repo string) (string, error) {
 }
 
 // GetVersionsFromGitLocal returns sorted versions list from specified local git repo.
-func GetVersionsFromGitLocal(repo string) (version.VersionSlice, error) {
+func GetVersionsFromGitLocal(repo string, program binary.Program) (version.VersionSlice, error) {
 	versions := version.VersionSlice{}
 
 	_, err := exec.LookPath("git")
@@ -194,7 +194,7 @@ func GetVersionsFromGitLocal(repo string) (version.VersionSlice, error) {
 			continue
 		}
 
-		if isMasked(version) && strings.Contains(repo, "tarantool") {
+		if program == binary.ProgramCe && isMasked(version) {
 			continue
 		}
 

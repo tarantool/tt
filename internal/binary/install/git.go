@@ -28,7 +28,8 @@ const (
 func getVersionsFromRepo(installCtx InstallCtx) ([]version.Version, error) {
 	programName := installCtx.Program.String()
 	if installCtx.LocalRepo != "" {
-		return search.GetVersionsFromGitLocal(filepath.Join(installCtx.LocalRepo, programName))
+		return search.GetVersionsFromGitLocal(filepath.Join(installCtx.LocalRepo, programName),
+			installCtx.Program)
 	}
 
 	return search.GetVersionsFromGitRemote(installCtx.Program.GitRepo())

@@ -9,7 +9,6 @@ import (
 
 	"github.com/tarantool/tt/sdk/connect"
 	"github.com/tarantool/tt/sdk/log"
-	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
 )
@@ -183,7 +182,7 @@ func getBundles(rawBundleInfoList map[string][]string, searchCtx *SearchCtx) (
 
 // FetchBundlesInfo returns slice of information about all available tarantool-ee bundles.
 // The result will be sorted in ascending order.
-func FetchBundlesInfo(searchCtx *SearchCtx, cliOpts *config.CliOpts) (
+func FetchBundlesInfo(searchCtx *SearchCtx) (
 	BundleInfoSlice, error,
 ) {
 	searchCtx.Package = GetAPIPackage(searchCtx.Program)
@@ -192,13 +191,7 @@ func FetchBundlesInfo(searchCtx *SearchCtx, cliOpts *config.CliOpts) (
 			errTarantoolIOPackageNotFound, searchCtx.Program)
 	}
 
-	var credPath string
-
-	if cliOpts.EE != nil {
-		credPath = cliOpts.EE.CredPath
-	}
-
-	credentials, err := connect.GetCreds(credPath)
+	credentials, err := connect.GetCreds(searchCtx.CredentialsFile)
 	if err != nil {
 		return nil, err
 	}

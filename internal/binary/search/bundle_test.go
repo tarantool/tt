@@ -2,10 +2,10 @@ package search_test
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
 	"github.com/tarantool/tt/v3/internal/binary/search"
@@ -14,8 +14,12 @@ import (
 func TestFetchSDKBundleInfo(t *testing.T) {
 	const tarball = "tarantool-enterprise-sdk-gc64-3.4.0-0-r60.linux.x86_64.tar.gz"
 
-	t.Setenv("TT_CLI_EE_USERNAME", testingUsername)
-	t.Setenv("TT_CLI_EE_PASSWORD", testingPassword)
+	t.Setenv("TT_CLI_EE_USERNAME", "ignored-user")
+	t.Setenv("TT_CLI_EE_PASSWORD", "ignored-password")
+
+	credentials := filepath.Join(t.TempDir(), "credentials")
+	require.NoError(t, os.WriteFile(credentials,
+		[]byte(testingUsername+"\n"+testingPassword+"\n"), 0o600))
 
 	platform := platformInfo{arch: "x86_64", os: binary.OsLinux}
 	doer := mockDoer{
@@ -26,10 +30,11 @@ func TestFetchSDKBundleInfo(t *testing.T) {
 	searchCtx := search.NewSearchCtx(&platform, &doer)
 
 	searchCtx.Program = binary.ProgramSDK
+	searchCtx.CredentialsFile = credentials
 	searchCtx.Filter = search.SearchAll
 	searchCtx.DevBuilds = true
 
-	bundles, err := search.FetchBundlesInfo(&searchCtx, &config.CliOpts{})
+	bundles, err := search.FetchBundlesInfo(&searchCtx)
 	require.NoError(t, err)
 	require.Len(t, bundles, 1)
 	require.Equal(t, "gc64-3.4.0-0-r60", bundles[0].Version.Str)
@@ -204,12 +209,6 @@ func TestFetchBundlesInfo(t *testing.T) {
 		// spell-checker:enable
 	}
 
-	opts := config.CliOpts{
-		Env: &config.TtEnvOpts{
-			BinDir: "/test/bin",
-		},
-	}
-
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockDoer := mockDoer{
@@ -227,7 +226,7 @@ func TestFetchBundlesInfo(t *testing.T) {
 				sCtx.Filter = search.SearchDebug
 			}
 
-			bundles, err := search.FetchBundlesInfo(&sCtx, &opts)
+			bundles, err := search.FetchBundlesInfo(&sCtx)
 
 			if tt.errMsg != "" {
 				require.Error(t, err, "Expected an error, but got nil")

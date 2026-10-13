@@ -339,6 +339,20 @@ searches the same sources and marks installed/active versions in the selected
 scope. Both commands require an explicit directory for `--local-repo`;
 `repo.distfiles` is not used.
 
+For remote EE/TCM searches and EE/TCM/SDK downloads, use
+`--credentials-file <path>` to read customer-zone credentials from a file:
+the login on the first line and the password on the second. The file must not
+be accessible to group or other users (`chmod 0600 <path>`). For example:
+
+```sh
+tt binary search tarantool-ee --credentials-file ./credentials
+tt binary install tcm 1.3.1-0-g074b5ffa --credentials-file ./credentials
+```
+
+Without the flag, credentials come from `TT_CLI_EE_USERNAME` and
+`TT_CLI_EE_PASSWORD`, or an interactive prompt. Binary commands do not read
+credentials from `tt.yaml`.
+
 #### app
 
 - `run_dir` (string) - path to directory that stores various instance

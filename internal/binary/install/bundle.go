@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	"github.com/tarantool/tt/sdk/log"
-	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
 	"github.com/tarantool/tt/v3/internal/binary/search"
@@ -45,9 +44,6 @@ type bundleParams struct {
 
 	// inst is the install context for the installation process.
 	inst *InstallCtx
-
-	// opts contains command-line options and configurations.
-	opts *config.CliOpts
 
 	// artifactRoot is the resolved installation scope.
 	artifactRoot string
@@ -374,11 +370,12 @@ func fetchInstallBundles(params *bundleParams) (search.BundleInfoSlice, error) {
 	searchCtx := search.NewSearchCtx(search.NewPlatformInformer(), search.NewTntIoDoer())
 
 	searchCtx.BinaryContext = params.inst.BinaryContext
+	searchCtx.CredentialsFile = params.inst.CredentialsFile
 	searchCtx.Filter = search.SearchAll
 	searchCtx.Package = search.GetAPIPackage(params.inst.Program)
 	searchCtx.DevBuilds = params.inst.DevBuild
 
-	return search.FetchBundlesInfo(&searchCtx, params.opts)
+	return search.FetchBundlesInfo(&searchCtx)
 }
 
 // executeBundleInstallation performs the core installation steps:
@@ -468,7 +465,7 @@ func executeBundleInstallationSteps(params *bundleParams) error {
 }
 
 // installBundleProgram orchestrates the installation process for programs distributed as bundles.
-func installBundleProgram(installCtx InstallCtx, cliOpts *config.CliOpts) error {
+func installBundleProgram(installCtx InstallCtx) error {
 	artifactRoot, err := installCtx.Scope.ArtifactPath()
 	if err != nil {
 		return err
@@ -478,7 +475,6 @@ func installBundleProgram(installCtx InstallCtx, cliOpts *config.CliOpts) error 
 	var params bundleParams
 
 	params.inst = &installCtx
-	params.opts = cliOpts
 	params.artifactRoot = artifactRoot
 
 	err = performInitialChecks(&params)

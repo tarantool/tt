@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
 )
@@ -28,10 +27,10 @@ func GetAPIPackage(program binary.Program) string {
 }
 
 // searchVersionsTntIo handles searching versions using the tarantool.io customer zone.
-func searchVersionsTntIo(cliOpts *config.CliOpts, searchCtx *SearchCtx) (
+func searchVersionsTntIo(searchCtx *SearchCtx) (
 	version.VersionSlice, error,
 ) {
-	bundles, err := FetchBundlesInfo(searchCtx, cliOpts)
+	bundles, err := FetchBundlesInfo(searchCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch bundle info for %s: %w",
 			searchCtx.Program, err)

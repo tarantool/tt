@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   System installations use `/opt/tarantool`. On macOS, the corresponding
   roots are `~/Library/Application Support/tarantool` and
   `/Library/Application Support/tarantool`.
+- `tt binary search` and `tt binary install`: add `--credentials-file <path>`
+  for remote EE/TCM searches and EE/TCM/SDK downloads, allowing customer-zone
+  credentials to be supplied from a file without `tt.yaml`.
 - `tt binary install tarantool --from-build <dir>`: link an existing
   Tarantool build into the selected scope without copying or rebuilding it.
   `--include-dir` selects the source headers; no version argument is accepted.

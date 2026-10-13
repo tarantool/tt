@@ -137,8 +137,6 @@ directory by default).`,
 		"Reinstall an existing version")
 	installCmd.PersistentFlags().StringVar(&installCtx.LocalRepo, "local-repo", "",
 		"Directory containing local source repositories or installation archives")
-	installCmd.PersistentFlags().StringVar(&installCtx.Destination, "destination", "",
-		"Directory to save SDK bundles (default: current directory)")
 
 	tarantoolCmd := newInstallTarantoolCmd(base, installCtx)
 	installCmd.AddCommand(
@@ -263,6 +261,8 @@ With --local-repo <dir>, archives are read from the specified directory.`,
 	}
 
 	tntCmd.Flags().BoolVar(&installCtx.DevBuild, "dev", false, "Install a development build")
+	tntCmd.Flags().StringVar(&installCtx.CredentialsFile, "credentials-file", "",
+		"File containing customer-zone login and password on separate lines")
 
 	return tntCmd
 }
@@ -287,6 +287,8 @@ With --local-repo <dir>, archives are read from the specified directory.`,
 	}
 
 	tntCmd.Flags().BoolVar(&installCtx.DevBuild, "dev", false, "Install a development build")
+	tntCmd.Flags().StringVar(&installCtx.CredentialsFile, "credentials-file", "",
+		"File containing customer-zone login and password on separate lines")
 
 	return tntCmd
 }
@@ -321,6 +323,10 @@ Use --dev to download a development build.`,
 	}
 
 	cmd.Flags().BoolVar(&installCtx.DevBuild, "dev", false, "Download a development build")
+	cmd.Flags().StringVar(&installCtx.Destination, "destination", "",
+		"Directory to save SDK bundles (default: current directory)")
+	cmd.Flags().StringVar(&installCtx.CredentialsFile, "credentials-file", "",
+		"File containing customer-zone login and password on separate lines")
 
 	return cmd
 }
@@ -338,7 +344,7 @@ func internalInstallModule(base binary.BinaryContext, installCtx install.Install
 		return err
 	}
 
-	err = install.Install(installCtx, cliOpts)
+	err = install.Install(installCtx)
 
 	return err
 }
@@ -540,6 +546,8 @@ func newSearchTarantoolEeCmd(base *binary.BinaryContext,
 		"Filter by release version")
 	tntCmd.Flags().BoolVar(&searchCtx.DevBuilds, "dev", false,
 		"Search development builds")
+	tntCmd.Flags().StringVar(&searchCtx.CredentialsFile, "credentials-file", "",
+		"File containing customer-zone login and password on separate lines")
 
 	return tntCmd
 }
@@ -572,6 +580,8 @@ func newSearchTcmCmd(base *binary.BinaryContext,
 		"Filter by release version")
 	tcmCmd.Flags().BoolVar(&searchCtx.DevBuilds, "dev", false,
 		"Search development builds")
+	tcmCmd.Flags().StringVar(&searchCtx.CredentialsFile, "credentials-file", "",
+		"File containing customer-zone login and password on separate lines")
 
 	return tcmCmd
 }
