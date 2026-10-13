@@ -4,6 +4,8 @@ package binary
 type BinaryContext struct {
 	// Program is the program to manage. ProgramUnknown means all programs.
 	Program Program
+	// Scope is the installation scope.
+	Scope Scope
 	// Verbose enables diagnostic output and output from build tools.
 	Verbose bool
 }

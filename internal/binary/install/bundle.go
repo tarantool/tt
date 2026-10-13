@@ -18,7 +18,11 @@ var (
 	errASpecificVersionMustBeProvidedToInstall = errors.New(
 		"a specific version must be provided to install ",
 	)
-	errCouldNotFindBinaryAt = errors.New("could not find binary at ")
+	errCouldNotFindBinaryAt     = errors.New("could not find binary at ")
+	errMissingBundleHeaders     = errors.New("could not find headers")
+	errIncompleteBundle         = errors.New("cannot activate incomplete installation")
+	errBundlePathExists         = errors.New("installation path already exists")
+	errUnsupportedBundleProgram = errors.New("unsupported bundle program")
 
 	errInstallationFailedDuringExecutionPhaseSeeLog = errors.New(
 		"installation failed during execution phase (see log: ",
@@ -26,12 +30,7 @@ var (
 	errInstallationFailedDuringFinaleUpdateSymlinks = errors.New(
 		"installation failed during finale update symlinks",
 	)
-	errInstallationPathOrAlreadyExists       = errors.New("installation path ")
-	errLocalBundleFileNotFound               = errors.New("local bundle file not found: ")
-	errLocalRepositoryInstallDirectoryNotSet = errors.New(
-		"cannot install from local repository: " +
-			"distribution files directory (repo.install) is not set",
-	)
+	errLocalBundleFileNotFound = errors.New("local bundle file not found: ")
 )
 
 // bundleParams holds the parameters required for the bundle installation process.
@@ -50,6 +49,14 @@ type bundleParams struct {
 	// opts contains command-line options and configurations.
 	opts *config.CliOpts
 
+	// artifactRoot is the resolved installation scope.
+	artifactRoot string
+
+	// Destination paths are resolved after selecting the bundle version.
+	versionDir string
+	binPath    string
+	incPath    string
+
 	// tmpDir is the temporary directory used for extraction.
 	tmpDir string
 
@@ -60,21 +67,18 @@ type bundleParams struct {
 // checkExistingInstallation checks if the specific version of the program is already installed.
 // Returns true if the installation exists, false otherwise.
 func checkExistingInstallation(params *bundleParams) bool {
-	binPath := filepath.Join(params.opts.Env.BinDir, params.prgVersion)
-	incPath := filepath.Join(params.inst.IncDir, params.prgVersion)
-
-	binExists := binary.IsRegularFile(binPath)
+	binExists := binary.IsRegularFile(params.binPath)
 
 	if !params.inst.Program.IsTarantool() {
-		log.Debugf("Checking existence: bin=%s (%t)", binPath, binExists)
+		log.Debugf("Checking existence: bin=%s (%t)", params.binPath, binExists)
 
 		return binExists
 	}
 
-	incExists := binary.IsDir(incPath)
+	incExists := binary.IsDir(params.incPath)
 
 	log.Debugf("Checking existence: bin=%s (%t), inc=%s (%t)",
-		binPath, binExists, incPath, incExists)
+		params.binPath, binExists, params.incPath, incExists)
 
 	return binExists && incExists
 }
@@ -115,15 +119,10 @@ func checkDependencies(program binary.Program, force bool) error {
 
 // copyBundle copies the bundle from a local cache.
 func copyBundle(params *bundleParams) error {
-	distfiles := params.opts.Repo.Install
-	if distfiles == "" {
-		return errLocalRepositoryInstallDirectoryNotSet
-	}
-
 	log.Infof("Checking local files...")
 
 	bundleName := params.bundleInfo.Version.Tarball
-	localBundlePath := filepath.Join(distfiles, bundleName)
+	localBundlePath := filepath.Join(params.inst.LocalRepo, bundleName)
 
 	if !binary.IsRegularFile(localBundlePath) {
 		return fmt.Errorf("%w%s", errLocalBundleFileNotFound, localBundlePath)
@@ -171,7 +170,7 @@ func downloadBundle(params *bundleParams) error {
 
 // obtainBundle downloads the bundle from a remote source or copies it from the local cache.
 func obtainBundle(params *bundleParams) error {
-	if params.inst.Local {
+	if params.inst.LocalRepo != "" {
 		return copyBundle(params)
 	}
 
@@ -193,77 +192,54 @@ func unpackBundle(bundlePath string, logFile io.Writer) error {
 	return nil
 }
 
-// getSubDirForProgram returns the subdirectory inside archive for the specified program type.
-func getSubDirForProgram(program binary.Program) string {
-	switch program {
-	case binary.ProgramEe:
-		return "tarantool-enterprise"
-	case binary.ProgramTcm:
-		return "" // The TCM bundle is flat (no subdirectories).
-	default:
-		return ""
-	}
-}
-
 // findBundlePathsInDir makes path to binary and include directory.
 func findBundlePathsInDir(baseDir string, program binary.Program) (
 	string, string, error,
 ) {
-	subDir := getSubDirForProgram(program)
+	var incPath string
 
-	binPath := filepath.Join(baseDir, subDir, program.Exec())
+	switch program {
+	case binary.ProgramEe:
+		baseDir = filepath.Join(baseDir, "tarantool-enterprise")
+		incPath = filepath.Join(baseDir, "include", program.Exec())
+	case binary.ProgramTcm:
+		// TCM archives contain only the executable at the archive root.
+	default:
+		return "", "", fmt.Errorf("%w: %s", errUnsupportedBundleProgram, program)
+	}
+
+	binPath := filepath.Join(baseDir, program.Exec())
 	if !binary.IsRegularFile(binPath) {
 		return "", "", fmt.Errorf("%w%q", errCouldNotFindBinaryAt, binPath)
 	}
 
-	incPath := filepath.Join(baseDir, subDir, "include", program.Exec())
-	if !binary.IsDir(incPath) {
-		incPath = "" // No include directory found in bundle.
+	if incPath != "" && !binary.IsDir(incPath) {
+		return "", "", fmt.Errorf("%w at %q", errMissingBundleHeaders, incPath)
 	}
 
 	return binPath, incPath, nil
 }
 
-// prepareForReinstall remove existing destination directories/files if needed.
+// prepareForReinstall removes only the selected version after bundle validation.
 func prepareForReinstall(params *bundleParams) error {
-	destBinPath := filepath.Join(params.opts.Env.BinDir, params.prgVersion)
-	destIncPath := filepath.Join(params.inst.IncDir, params.prgVersion)
-
-	if !params.inst.Reinstall {
-		if binary.IsRegularFile(destBinPath) || binary.IsDir(destIncPath) {
-			return fmt.Errorf("%w%s or %s already exists",
-				errInstallationPathOrAlreadyExists, destBinPath, destIncPath)
-		}
-
+	_, err := os.Lstat(params.versionDir)
+	if os.IsNotExist(err) {
 		return nil
 	}
 
-	if binary.IsRegularFile(destBinPath) {
-		log.Infof("%s version of %q already exists, removing...",
-			params.prgVersion, params.inst.Program)
-
-		err := os.RemoveAll(destBinPath)
-		if err != nil {
-			_, _ = fmt.Fprintf(params.logFile, "Error removing binary: %v\n", err)
-			return fmt.Errorf("failed to remove binary %s: %w", destBinPath, err)
-		}
+	if err != nil {
+		return fmt.Errorf("failed to inspect version directory: %w", err)
 	}
 
-	if binary.IsDir(destIncPath) {
-		log.Infof("Include directory for %s version already exists, removing...",
-			params.prgVersion)
-
-		err := os.RemoveAll(destIncPath)
-		if err != nil {
-			_, _ = fmt.Fprintf(params.logFile, "Error removing include dir: %v\n", err)
-
-			return fmt.Errorf("failed to remove include directory %s: %w",
-				destIncPath, err)
-		}
+	if !params.inst.Reinstall {
+		return fmt.Errorf("%w: %s; use --reinstall to replace an incomplete installation",
+			errBundlePathExists, params.versionDir)
 	}
 
-	log.Debugf("Existing files removed to reinstall version %q for program %q",
-		params.prgVersion, params.inst.Program)
+	err = os.RemoveAll(params.versionDir)
+	if err != nil {
+		return fmt.Errorf("failed to remove version directory %s: %w", params.versionDir, err)
+	}
 
 	return nil
 }
@@ -283,13 +259,15 @@ func copyNewArtifacts(params *bundleParams) error {
 		return fmt.Errorf("failed to prepare for reinstall: %w", err)
 	}
 
-	err = copyBuildedTarantool(
-		srcBinPath,
-		srcIncPath,
-		params.opts.Env.BinDir,
-		params.inst.IncDir,
-		params.prgVersion,
-	)
+	switch params.inst.Program {
+	case binary.ProgramEe:
+		err = copyBuiltTarantool(srcBinPath, srcIncPath, params.binPath, params.incPath)
+	case binary.ProgramTcm:
+		err = copyExecutable(srcBinPath, params.binPath)
+	default:
+		return fmt.Errorf("%w: %s", errUnsupportedBundleProgram, params.inst.Program)
+	}
+
 	if err != nil {
 		return fmt.Errorf("failed to copy artifacts: %w", err)
 	}
@@ -301,23 +279,34 @@ func copyNewArtifacts(params *bundleParams) error {
 
 // changeActiveBundleVersion changes symlinks to the specified bundle executable version.
 func changeActiveBundleVersion(params *bundleParams) error {
-	execPath := filepath.Join(params.opts.Env.BinDir, params.inst.Program.Exec())
+	if !checkExistingInstallation(params) {
+		return fmt.Errorf("%w %s", errIncompleteBundle, params.prgVersion)
+	}
 
-	err := binary.CreateSymlink(params.prgVersion, execPath, true)
+	switch params.inst.Program {
+	case binary.ProgramEe:
+		return changeActiveTarantoolVersion(params.binPath, params.incPath, params.artifactRoot)
+	case binary.ProgramTcm:
+		return activateBundleExecutable(params.binPath, params.artifactRoot,
+			params.inst.Program.Exec())
+	default:
+		return fmt.Errorf("%w: %s", errUnsupportedBundleProgram, params.inst.Program)
+	}
+}
+
+// activateBundleExecutable creates the active executable link for a validated installation.
+func activateBundleExecutable(binPath, artifactRoot, executable string) error {
+	binDir := filepath.Join(artifactRoot, binary.BinDirName)
+
+	err := os.MkdirAll(binDir, defaultDirPermissions)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create binary directory: %w", err)
 	}
 
-	if binary.IsDir(filepath.Join(params.inst.IncDir, params.prgVersion)) {
-		incPath := filepath.Join(params.inst.IncDir, params.inst.Program.Exec())
-		return binary.CreateSymlink(params.prgVersion, incPath, true)
-	}
-
-	return nil
+	return binary.CreateSymlink(binPath, filepath.Join(binDir, executable), true)
 }
 
 // updateSymlinks updates the default symlinks to point to the newly installed version.
-// Uses the existing changeActiveTarantoolVersion function.
 func updateSymlinks(params *bundleParams) error {
 	log.Infof("Updating symlinks to point to %s...", params.prgVersion)
 
@@ -329,26 +318,26 @@ func updateSymlinks(params *bundleParams) error {
 	}
 
 	log.Infof("Symlinks updated successfully.")
-	// Log the final symlink paths for clarity.
-	log.Infof("Active version set by symlinks: %q and %q",
-		filepath.Join(params.opts.Env.BinDir, params.inst.Program.Exec()),
-		filepath.Join(params.inst.IncDir, params.inst.Program.Exec()))
+	log.Infof("Add %q to PATH to use this as default.",
+		filepath.Join(params.artifactRoot, binary.BinDirName))
+	log.Infof("Active executable: %q",
+		filepath.Join(params.artifactRoot, binary.BinDirName, params.inst.Program.Exec()))
+
+	if params.inst.Program.IsTarantool() {
+		log.Infof("Active headers: %q",
+			filepath.Join(params.artifactRoot, binary.IncDirName, params.inst.Program.Exec()))
+	}
 
 	return nil
 }
 
 // performInitialChecks performs initial validation before starting the installation.
 func performInitialChecks(params *bundleParams) error {
-	if params.inst.version == "" {
+	if params.inst.requestedVersion == "" {
 		return fmt.Errorf("%w%s", errASpecificVersionMustBeProvidedToInstall, params.inst.Program)
 	}
 
-	err := checkInstallDirs(params.opts.Env.BinDir, params.inst.IncDir)
-	if err != nil {
-		return err
-	}
-
-	log.Infof("Requested version: %s", params.inst.version)
+	log.Infof("Requested version: %s", params.inst.requestedVersion)
 
 	return nil
 }
@@ -356,34 +345,14 @@ func performInitialChecks(params *bundleParams) error {
 // acquireBundleInfoToInstall finds local candidates and fetches bundle information
 // using the search package.
 func acquireBundleInfoToInstall(params *bundleParams) error {
-	var (
-		bundles search.BundleInfoSlice
-		err     error
-	)
+	log.Infof("Search for the requested %q version...", params.inst.requestedVersion)
 
-	log.Infof("Search for the requested %q version...", params.inst.version)
-
-	if params.inst.Local {
-		bundles, err = search.FindLocalBundles(params.inst.Program,
-			os.DirFS(params.opts.Repo.Install))
-		if err != nil {
-			return err
-		}
-	} else {
-		searchCtx := search.NewSearchCtx(search.NewPlatformInformer(), search.NewTntIoDoer())
-
-		searchCtx.BinaryContext = params.inst.BinaryContext
-		searchCtx.Filter = search.SearchAll
-		searchCtx.Package = search.GetAPIPackage(params.inst.Program)
-		searchCtx.DevBuilds = params.inst.DevBuild
-
-		bundles, err = search.FetchBundlesInfo(&searchCtx, params.opts)
-		if err != nil {
-			return err
-		}
+	bundles, err := fetchInstallBundles(params)
+	if err != nil {
+		return err
 	}
 
-	params.bundleInfo, err = search.SelectVersion(bundles, params.inst.version)
+	params.bundleInfo, err = search.SelectVersion(bundles, params.inst.requestedVersion)
 	if err != nil {
 		return err
 	}
@@ -394,6 +363,22 @@ func acquireBundleInfoToInstall(params *bundleParams) error {
 	log.Infof("Version: %s", params.bundleInfo.Version.Str)
 
 	return nil
+}
+
+// fetchInstallBundles obtains candidates without selecting the requested version.
+func fetchInstallBundles(params *bundleParams) (search.BundleInfoSlice, error) {
+	if params.inst.LocalRepo != "" {
+		return search.FindLocalBundles(params.inst.Program, os.DirFS(params.inst.LocalRepo))
+	}
+
+	searchCtx := search.NewSearchCtx(search.NewPlatformInformer(), search.NewTntIoDoer())
+
+	searchCtx.BinaryContext = params.inst.BinaryContext
+	searchCtx.Filter = search.SearchAll
+	searchCtx.Package = search.GetAPIPackage(params.inst.Program)
+	searchCtx.DevBuilds = params.inst.DevBuild
+
+	return search.FetchBundlesInfo(&searchCtx, params.opts)
 }
 
 // executeBundleInstallation performs the core installation steps:
@@ -407,27 +392,34 @@ func executeBundleInstallation(params *bundleParams) (string, error) {
 
 	logFilePath := params.logFile.Name()
 
-	if !params.inst.KeepTemp {
-		defer func() {
-			_ = params.logFile.Close()
-			_ = os.Remove(params.logFile.Name())
-			_ = os.RemoveAll(params.tmpDir)
-		}()
-	}
-
-	defer func() {
-		// Note: capture the error, if any, and dump the saved log on the screen.
-		if err != nil {
-			log.Errorf("Installation failed: %v", err)
-			log.Infof("See log for details: %s", logFilePath)
-
-			_ = printLog(logFilePath) // Attempt to print log content.
-		}
-	}()
+	defer func() { finishBundleInstallation(params, err) }()
 
 	err = executeBundleInstallationSteps(params)
 
 	return logFilePath, err
+}
+
+// finishBundleInstallation reports failures before closing the log and applying retention policy.
+func finishBundleInstallation(params *bundleParams, installErr error) {
+	if installErr != nil {
+		log.Errorf("Installation failed: %v", installErr)
+		log.Infof("See log for details: %s", params.logFile.Name())
+
+		_ = printLog(params.logFile.Name())
+	}
+
+	_ = params.logFile.Close()
+	if params.inst.KeepTemp {
+		return
+	}
+
+	_ = os.RemoveAll(params.tmpDir)
+
+	if installErr != nil {
+		return
+	}
+
+	_ = os.Remove(params.logFile.Name())
 }
 
 // executeBundleInstallationSteps installs the bundle using the prepared temporary files.
@@ -477,7 +469,7 @@ func executeBundleInstallationSteps(params *bundleParams) error {
 
 // installBundleProgram orchestrates the installation process for programs distributed as bundles.
 func installBundleProgram(installCtx InstallCtx, cliOpts *config.CliOpts) error {
-	err := prepareInstallDirs(&installCtx, cliOpts)
+	artifactRoot, err := installCtx.Scope.ArtifactPath()
 	if err != nil {
 		return err
 	}
@@ -487,6 +479,7 @@ func installBundleProgram(installCtx InstallCtx, cliOpts *config.CliOpts) error 
 
 	params.inst = &installCtx
 	params.opts = cliOpts
+	params.artifactRoot = artifactRoot
 
 	err = performInitialChecks(&params)
 	if err != nil {
@@ -500,30 +493,31 @@ func installBundleProgram(installCtx InstallCtx, cliOpts *config.CliOpts) error 
 		return err
 	}
 
-	if !params.inst.Reinstall {
-		log.Infof("Checking existing installation...")
+	params.versionDir = filepath.Join(artifactRoot, binary.VersionsDirName,
+		installCtx.Program.String(), params.prgVersion)
+	params.binPath = filepath.Join(params.versionDir, installCtx.Program.Exec())
+	params.incPath = filepath.Join(params.versionDir, binary.IncDirName, installCtx.Program.Exec())
 
-		exists := checkExistingInstallation(&params)
+	existing, err := prepareExistingBundle(&params)
+	if err != nil {
+		return err
+	}
 
-		if exists {
-			log.Infof("%s version %s already exists.", params.inst.Program, params.prgVersion)
-
-			return updateSymlinks(&params)
-		}
-
-		log.Debugf("No existing installation found for %s.", params.prgVersion)
+	if existing {
+		return nil
 	}
 
 	log.Infof("Installing %s=%s", params.inst.Program, params.bundleInfo.Version.Str)
 
 	logFilePath, err := executeBundleInstallation(&params)
 	if err != nil {
-		return fmt.Errorf("%w%s)", errInstallationFailedDuringExecutionPhaseSeeLog, logFilePath)
+		return fmt.Errorf("%w%s): %w",
+			errInstallationFailedDuringExecutionPhaseSeeLog, logFilePath, err)
 	}
 
 	err = updateSymlinks(&params)
 	if err != nil {
-		return errInstallationFailedDuringFinaleUpdateSymlinks
+		return fmt.Errorf("%w: %w", errInstallationFailedDuringFinaleUpdateSymlinks, err)
 	}
 
 	log.Infof("Successfully installed %s version %s",
@@ -531,4 +525,28 @@ func installBundleProgram(installCtx InstallCtx, cliOpts *config.CliOpts) error 
 	log.Info("Done.")
 
 	return nil
+}
+
+// prepareExistingBundle reactivates a complete version unless replacement was requested.
+func prepareExistingBundle(params *bundleParams) (bool, error) {
+	if params.inst.Reinstall {
+		return false, nil
+	}
+
+	log.Infof("Checking existing installation...")
+
+	if !checkExistingInstallation(params) {
+		log.Debugf("No existing installation found for %s.", params.prgVersion)
+
+		return false, nil
+	}
+
+	log.Infof("%s version %s already exists.", params.inst.Program, params.prgVersion)
+
+	err := updateSymlinks(params)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }

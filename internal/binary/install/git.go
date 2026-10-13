@@ -20,116 +20,130 @@ var (
 )
 
 const (
-	gitCloneArgsCapacity = 10
-	gitExec              = "git"
+	gitExec          = "git"
+	gitSubmoduleJobs = "19" // Tarantool submodules count.
 )
 
-// programGitRepoUrls contains URLs of programs git repositories.
-var (
-	programGitRepoUrls = map[string]string{
-		"tarantool": search.GitRepoTarantool,
-		"tt":        search.GitRepoTT,
-	}
-)
-
-// getVersionsFromRepo returns all available versions from github repository.
-func getVersionsFromRepo(local bool, distfiles, program string,
-	repoLink string,
-) ([]version.Version, error) {
-	if local {
-		return search.GetVersionsFromGitLocal(filepath.Join(distfiles, program))
+// getVersionsFromRepo returns available versions from the selected product's repository.
+func getVersionsFromRepo(installCtx InstallCtx) ([]version.Version, error) {
+	programName := installCtx.Program.String()
+	if installCtx.LocalRepo != "" {
+		return search.GetVersionsFromGitLocal(filepath.Join(installCtx.LocalRepo, programName))
 	}
 
-	return search.GetVersionsFromGitRemote(repoLink)
+	return search.GetVersionsFromGitRemote(installCtx.Program.GitRepo())
 }
 
-// getCommit returns all available commits from repository.
-func getCommit(local bool, distfiles, programName string,
-	line string,
-) (string, error) {
-	var (
-		commit string
-		err    error
-	)
-
-	if local {
-		commit, err = search.GetCommitFromGitLocal(filepath.Join(distfiles, programName),
-			line)
-	} else {
-		commit, err = search.GetCommitFromGitRemote(programGitRepoUrls[programName],
-			line)
+// getCommit resolves a Git revision in the selected product's repository.
+func getCommit(installCtx InstallCtx, ref string) (string, error) {
+	programName := installCtx.Program.String()
+	if installCtx.LocalRepo != "" {
+		return search.GetCommitFromGitLocal(
+			filepath.Join(installCtx.LocalRepo, programName), ref)
 	}
 
-	if err != nil {
-		return "", err
-	}
-
-	return commit, nil
+	return search.GetCommitFromGitRemote(installCtx.Program.GitRepo(), ref)
 }
 
-// downloadRepo downloads git repository.
-func downloadRepo(repoLink, tag, dst string, logFile *os.File, verbose bool) error {
-	gitCloneArgs := make([]string, 0, gitCloneArgsCapacity)
-	if tag == masterVersion {
-		gitCloneArgs = append(gitCloneArgs, "clone", repoLink,
-			"--recursive", dst)
-	} else {
-		gitCloneArgs = append(gitCloneArgs, "clone", "-b", tag, "--depth=1", repoLink,
-			"--recursive", dst)
+// getPullRequestCommit resolves a pull request in the selected product's repository.
+func getPullRequestCommit(installCtx InstallCtx, pullRequestID string) (string, error) {
+	if installCtx.LocalRepo != "" {
+		repoPath := filepath.Join(installCtx.LocalRepo, installCtx.Program.String())
+
+		return search.GetPullRequestCommitFromGitLocal(repoPath, pullRequestID)
 	}
 
+	return search.GetPullRequestCommitFromGitRemote(installCtx.Program.GitRepo(), pullRequestID)
+}
+
+// gitCloneRepository clones the full repository with its submodules.
+func gitCloneRepository(repoLink, dst string, verbose bool, logWriter io.Writer) error {
+	args := []string{"clone", "--recursive", repoLink, dst}
 	if binary.IsGitFetchJobsSupported() {
-		gitCloneArgs = append(gitCloneArgs, "-j", "19") // 19 - Tarantool submodules count.
+		args = append(args, "-j", gitSubmoduleJobs)
 	}
 
-	return binary.ExecuteCommand(gitExec, verbose, logFile, dst, gitCloneArgs...)
+	return binary.ExecuteCommand(gitExec, verbose, logWriter, dst, args...)
 }
 
-// checkCommit checks the existence of a commit by hash.
-func checkCommit(input, programName string, installCtx InstallCtx,
-	distfiles string,
-) (string, string, error) {
-	pullRequestHash := ""
-	isPullRequest, _ := binary.IsPullRequest(input)
-
-	if isPullRequest {
-		pullRequestHash, err := getCommit(installCtx.Local, distfiles,
-			programName, input)
-		if err != nil {
-			return input, pullRequestHash,
-				fmt.Errorf("%s%w", input, errUnableToGetPullRequestInfo)
-		}
-
-		pullRequestHash = pullRequestHash[0:binary.MinCommitHashLength]
-
-		return input, pullRequestHash, nil
+// gitCloneTag clones only the selected tag and its submodules.
+func gitCloneTag(repoLink, tag, dst string, verbose bool, logWriter io.Writer) error {
+	args := []string{"clone", "-b", tag, "--depth=1", "--recursive", repoLink, dst}
+	if binary.IsGitFetchJobsSupported() {
+		args = append(args, "-j", gitSubmoduleJobs)
 	}
 
-	isRightFormat, err := binary.IsValidCommitHash(input)
-	if err != nil {
-		return input, pullRequestHash, err
-	}
-
-	if !isRightFormat {
-		return input, pullRequestHash, errHashHasAWrongFormat
-	}
-
-	returnedHash, err := getCommit(installCtx.Local, distfiles, programName, input)
-	if err != nil {
-		return input, pullRequestHash, fmt.Errorf("%s%w", input, errUnableToGetHashInfo)
-	}
-
-	return returnedHash, pullRequestHash, nil
+	return binary.ExecuteCommand(gitExec, verbose, logWriter, dst, args...)
 }
 
-// gitCheckout switches to commit/tag, initializes and updates submodules.
+// downloadGitVersion prepares a resolved revision in a cloned repository.
+func downloadGitVersion(repoLink, buildPath string, resolved resolvedInstallVersion,
+	verbose bool, logFile *os.File,
+) error {
+	switch resolved.kind {
+	case versionKindTag:
+		return gitCloneTag(repoLink, resolved.ref, buildPath, verbose, logFile)
+	case versionKindCommit, versionKindMaster:
+		return cloneAndCheckout(repoLink, resolved.ref, buildPath, verbose, logFile)
+	case versionKindPullRequest:
+		return downloadGitPullRequest(repoLink, resolved.ref, buildPath, verbose, logFile)
+	default:
+		return fmt.Errorf("%w: %d", errUnknownVersionKind, resolved.kind)
+	}
+}
+
+// cloneAndCheckout clones the repository and prepares a commit or the master branch.
+func cloneAndCheckout(repoLink, ref, buildPath string, verbose bool, logWriter io.Writer) error {
+	err := gitCloneRepository(repoLink, buildPath, verbose, logWriter)
+	if err != nil {
+		return err
+	}
+
+	return checkoutGitVersion(buildPath, ref, verbose, logWriter)
+}
+
+// downloadGitPullRequest clones the repository and prepares the pull request's branch.
+func downloadGitPullRequest(repoLink, ref, buildPath string, verbose bool,
+	logWriter io.Writer,
+) error {
+	err := gitCloneRepository(repoLink, buildPath, verbose, logWriter)
+	if err != nil {
+		return err
+	}
+
+	_, pullRequestID := binary.IsPullRequest(ref)
+
+	err = binary.GitFetchPullRequest(buildPath, pullRequestID, verbose, logWriter)
+	if err != nil {
+		return err
+	}
+
+	return checkoutGitVersion(buildPath, ref, verbose, logWriter)
+}
+
+// checkoutGitVersion switches to the revision and updates its submodules.
+func checkoutGitVersion(repoDir, ref string, verbose bool, logWriter io.Writer) error {
+	err := gitCheckout(repoDir, ref, verbose, logWriter)
+	if err != nil {
+		return err
+	}
+
+	return gitUpdateSubmodules(repoDir, verbose, logWriter)
+}
+
+// gitCheckout switches to a commit, tag or branch.
 func gitCheckout(repoDir, checkout string, verbose bool, logWriter io.Writer) error {
 	err := binary.ExecuteCommand(gitExec, verbose, logWriter, repoDir, "checkout", checkout)
 	if err != nil {
 		return fmt.Errorf("failed to checkout: %w", err)
 	}
 
-	err = binary.ExecuteCommand(gitExec, verbose, logWriter, repoDir, "submodule", "update",
+	return nil
+}
+
+// gitUpdateSubmodules initializes and updates the revision's submodules.
+func gitUpdateSubmodules(repoDir string, verbose bool, logWriter io.Writer) error {
+	err := binary.ExecuteCommand(gitExec, verbose, logWriter, repoDir, "submodule", "update",
 		"--init", "--recursive")
 	if err != nil {
 		return fmt.Errorf("failed to update submodules: %w", err)

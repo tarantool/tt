@@ -2,105 +2,13 @@ package install
 
 import (
 	"os"
-	"os/user"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/version"
 )
-
-func Test_dirsAreWriteable(t *testing.T) {
-	currentUser, err := user.Current()
-	if err == nil && currentUser.Uid == "0" {
-		t.Skip("Skipping the test, it shouldn't run as root")
-	}
-
-	tmpDirNonWriteableForAll := t.TempDir()
-	// dr-xr-xr-x mode.
-	permissions := 0o555
-	require.NoError(t, os.Chmod(tmpDirNonWriteableForAll, os.FileMode(permissions)))
-
-	tmpDirNonWriteableExceptOwner := t.TempDir()
-	// drwxr-xr-x mode.
-	permissions = 0o755
-	require.NoError(t, os.Chmod(tmpDirNonWriteableExceptOwner, os.FileMode(permissions)))
-
-	type args struct {
-		dir string
-	}
-
-	tests := []struct {
-		name string
-		args args
-		want bool
-	}{
-		{
-			name: "Checking access to non writeable directory",
-			args: args{dir: tmpDirNonWriteableForAll},
-			want: false,
-		},
-		{
-			name: "Checking access to non writeable directory except of owner",
-			args: args{dir: tmpDirNonWriteableExceptOwner},
-			want: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, dirIsWritable(tt.args.dir),
-				"dirIsWriteable(%v)", tt.args.dir)
-		})
-	}
-}
-
-func Test_subDirIsWritable(t *testing.T) {
-	currentUser, err := user.Current()
-	if err == nil && currentUser.Uid == "0" {
-		t.Skip("Skipping the test, it shouldn't run as root")
-	}
-
-	tmpDirNonWriteableForAll := t.TempDir()
-	// dr-xr-xr-x mode.
-	permissions := 0o555
-	require.NoError(t, os.Chmod(tmpDirNonWriteableForAll, os.FileMode(permissions)))
-
-	tmpDirNonWriteableExceptOwner := t.TempDir()
-	// drwxr-xr-x mode.
-	permissions = 0o755
-	require.NoError(t, os.Chmod(tmpDirNonWriteableExceptOwner, os.FileMode(permissions)))
-
-	type args struct {
-		dir string
-	}
-
-	tests := []struct {
-		name string
-		args args
-		want bool
-	}{
-		{
-			name: "Subdirectory is writeable",
-			args: args{dir: filepath.Join(tmpDirNonWriteableExceptOwner, "test", "test")},
-			want: true,
-		},
-		{
-			name: "Subdirectory is not writeable",
-			args: args{dir: filepath.Join(tmpDirNonWriteableForAll, "test", "test")},
-			want: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, subDirIsWritable(tt.args.dir), "subDirIsWritable(%v)",
-				tt.args.dir)
-		})
-	}
-}
 
 func Test_getLatestRelease(t *testing.T) {
 	getFirst := func(verStr string) version.Version {
@@ -131,8 +39,8 @@ func Test_getLatestRelease(t *testing.T) {
 }
 
 func Test_installTarantoolFromBuild(t *testing.T) {
-	ttBinDir := "binDir"
-	ttIncDir := "incDir"
+	ttBinDir := "bin"
+	ttIncDir := "inc"
 
 	setupEnv := func(t *testing.T) string {
 		t.Helper()
@@ -182,13 +90,7 @@ func Test_installTarantoolFromBuild(t *testing.T) {
 		tempDirectory := setupEnv(t)
 
 		ttBinPath := filepath.Join(tempDirectory, ttBinDir)
-		ttIncPath := filepath.Join(tempDirectory, ttIncDir, "include")
-		cliOpts := &config.CliOpts{
-			Env: &config.TtEnvOpts{
-				BinDir:     ttBinPath,
-				IncludeDir: filepath.Join(tempDirectory, ttIncDir),
-			},
-		}
+		ttIncPath := filepath.Join(tempDirectory, ttIncDir)
 
 		cases := []struct {
 			buildDir    string
@@ -200,7 +102,7 @@ func Test_installTarantoolFromBuild(t *testing.T) {
 
 		for _, testCase := range cases {
 			installCtx := InstallCtx{FromBuild: testCase.buildDir}
-			err := installTarantoolFromBuild(installCtx, cliOpts)
+			err := installTarantoolFromBuild(installCtx, tempDirectory)
 			require.NoError(t, err)
 
 			link, err := os.Readlink(filepath.Join(ttBinPath, "tarantool"))
@@ -217,13 +119,7 @@ func Test_installTarantoolFromBuild(t *testing.T) {
 		tempDirectory := setupEnv(t)
 
 		ttBinPath := filepath.Join(tempDirectory, ttBinDir)
-		ttIncPath := filepath.Join(tempDirectory, ttIncDir, "include")
-		cliOpts := &config.CliOpts{
-			Env: &config.TtEnvOpts{
-				BinDir:     ttBinPath,
-				IncludeDir: filepath.Join(tempDirectory, ttIncDir),
-			},
-		}
+		ttIncPath := filepath.Join(tempDirectory, ttIncDir)
 
 		// Default include-dir.
 		_ = os.MkdirAll(filepath.Join(tempDirectory, "build_ce", "tarantool-prefix", "include",
@@ -258,7 +154,7 @@ func Test_installTarantoolFromBuild(t *testing.T) {
 
 		for _, testCase := range cases {
 			installCtx := InstallCtx{FromBuild: testCase.buildDir, IncDir: testCase.incDir}
-			err := installTarantoolFromBuild(installCtx, cliOpts)
+			err := installTarantoolFromBuild(installCtx, tempDirectory)
 			require.NoError(t, err)
 
 			execLink, err := os.Readlink(filepath.Join(ttBinPath, "tarantool"))
@@ -274,20 +170,12 @@ func Test_installTarantoolFromBuild(t *testing.T) {
 	t.Run("no executable", func(t *testing.T) {
 		tempDirectory := setupEnv(t)
 
-		ttBinPath := filepath.Join(tempDirectory, ttBinDir)
-		cliOpts := &config.CliOpts{
-			Env: &config.TtEnvOpts{
-				BinDir:     ttBinPath,
-				IncludeDir: filepath.Join(tempDirectory, ttIncDir),
-			},
-		}
-
 		buildDir := filepath.Join(tempDirectory, "build_ee")
 
 		_ = os.MkdirAll(buildDir, os.ModePerm)
 
 		installCtx := InstallCtx{FromBuild: buildDir}
-		err := installTarantoolFromBuild(installCtx, cliOpts)
+		err := installTarantoolFromBuild(installCtx, tempDirectory)
 		assert.Error(t, err)
 	})
 }

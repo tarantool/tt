@@ -19,21 +19,20 @@ type InstallCtx struct {
 	// KeepTemp is a flag. If it is set,
 	// install will don't remove tmp files.
 	KeepTemp bool
-	// Local is a flag. If it is set,
-	// install will do local installation.
-	Local bool
+	// LocalRepo is the directory containing product source repositories or
+	// installation archives. An empty path selects remote installation.
+	LocalRepo string
 	// Destination is the directory to save downloaded SDK bundles.
 	Destination string
 	// BuildInDocker is set if tarantool must be built in docker container.
 	BuildInDocker bool
-	// Version of the program to install.
-	version string
+	// Version of the program to install. Specified by user.
+	requestedVersion string
 	// Dynamic flag enables dynamic linking.
 	Dynamic bool
 	// FromBuild is an existing Tarantool build directory to link into the environment.
 	FromBuild string
-	// IncDir is the directory, where the Tarantool headers are located for a local build.
-	// Or the directory, where the headers should be installed from a bundle.
+	// IncDir is the source header directory for --from-build.
 	IncDir string
 	// Install development build.
 	DevBuild bool
@@ -55,7 +54,7 @@ func FillCtx(cmdCtx *cmdcontext.CmdCtx, installCtx *InstallCtx, args []string) e
 	installCtx.skipMasterUpdate = cmdCtx.Cli.NoPrompt
 
 	if len(args) == 1 {
-		installCtx.version = args[0]
+		installCtx.requestedVersion = args[0]
 	}
 
 	return nil

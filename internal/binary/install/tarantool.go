@@ -1,41 +1,16 @@
 package install
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/tarantool/tt/sdk/log"
-	"github.com/tarantool/tt/v3/cli/config"
-	"github.com/tarantool/tt/v3/cli/configure"
 	"github.com/tarantool/tt/v3/internal/binary"
-	"github.com/tarantool/tt/v3/internal/binary/search"
 )
 
-var (
-	errIncDirIsNotSetCheck = errors.New("inc_dir is not set, check ")
-)
-
-func prepareTarantoolInstall(binDir, incDir string, installCtx InstallCtx, distfiles string) (
-	resolvedInstallVersion,
-	error,
-) {
-	if binDir == "" {
-		return resolvedInstallVersion{},
-			fmt.Errorf("%w%s", errBinDirNotSet, configure.ConfigName)
-	}
-
-	if incDir == "" {
-		return resolvedInstallVersion{},
-			fmt.Errorf("%w%s", errIncDirIsNotSetCheck, configure.ConfigName)
-	}
-
-	return resolveTarantoolInstallVersion(installCtx, distfiles)
-}
-
-func prepareExistingTarantool(installCtx InstallCtx, binDir, incDir, versionStr,
-	tarVersion, distfiles string,
+func prepareExistingTarantool(installCtx InstallCtx, binPath, incPath, artifactRoot string,
+	resolved resolvedInstallVersion,
 ) (bool, error) {
 	if installCtx.Reinstall {
 		return false, nil
@@ -43,18 +18,17 @@ func prepareExistingTarantool(installCtx InstallCtx, binDir, incDir, versionStr,
 
 	log.Infof("Checking existing...")
 
-	pathToBin := filepath.Join(binDir, versionStr)
-	if !binary.IsRegularFile(pathToBin) || !binary.IsDir(filepath.Join(incDir, versionStr)) {
+	if !binary.IsRegularFile(binPath) || !binary.IsDir(incPath) {
 		return false, nil
 	}
 
-	isBinExecutable, err := binary.IsExecOwner(pathToBin)
+	isBinExecutable, err := binary.IsExecOwner(binPath)
 	if err != nil {
 		return false, err
 	}
 
-	updatePossible, err := isUpdatePossible(installCtx, pathToBin, binary.ProgramCe,
-		tarVersion, distfiles, isBinExecutable)
+	updatePossible, err := isUpdatePossible(installCtx, binPath, resolved.kind,
+		isBinExecutable)
 	if err != nil {
 		return false, err
 	}
@@ -65,9 +39,10 @@ func prepareExistingTarantool(installCtx InstallCtx, binDir, incDir, versionStr,
 		return false, nil
 	}
 
-	log.Infof("%s version of tarantool already exists, updating symlinks...", versionStr)
+	log.Infof("%s version of tarantool already exists, updating symlinks...",
+		resolved.installName(installCtx.Program))
 
-	err = changeActiveTarantoolVersion(versionStr, binDir, incDir)
+	err = changeActiveTarantoolVersion(binPath, incPath, artifactRoot)
 	if err != nil {
 		return false, err
 	}
@@ -77,75 +52,64 @@ func prepareExistingTarantool(installCtx InstallCtx, binDir, incDir, versionStr,
 	return true, nil
 }
 
-func downloadTarantoolSource(path, tarVersion, distfiles string,
-	resolved resolvedInstallVersion, installCtx InstallCtx, logFile *os.File,
+func downloadTarantoolSource(installCtx InstallCtx, path string,
+	resolved resolvedInstallVersion, logFile *os.File,
 ) error {
-	if installCtx.Local {
+	if installCtx.LocalRepo != "" {
 		log.Infof("Checking local files...")
 
-		return copyLocalTarantool(distfiles, path, tarVersion, installCtx, logFile)
+		localRepoPath := filepath.Join(installCtx.LocalRepo, installCtx.Program.String())
+
+		return copyLocalTarantool(localRepoPath, path, resolved.ref,
+			installCtx.Verbose, logFile)
 	}
 
 	log.Infof("Downloading tarantool...")
 
-	if resolved.versionFound {
-		return downloadRepo(search.GitRepoTarantool, tarVersion, path, logFile,
-			installCtx.Verbose)
-	}
-
-	err := downloadRepo(search.GitRepoTarantool, masterVersion, path, logFile,
-		installCtx.Verbose)
-	if err != nil {
-		return err
-	}
-
-	if resolved.isPullRequest {
-		pullRequestCommand := "pull/" + resolved.pullRequestID + "/head:" + tarVersion
-
-		err = binary.ExecuteCommand(gitExec, installCtx.Verbose, logFile, path,
-			"fetch", "origin", pullRequestCommand)
-		if err != nil {
-			return err
-		}
-	}
-
-	return gitCheckout(path, tarVersion, installCtx.Verbose, logFile)
+	return downloadGitVersion(installCtx.Program.GitRepo(), path, resolved,
+		installCtx.Verbose, logFile)
 }
 
 // installTarantool installs selected version of tarantool.
-func installTarantool(installCtx InstallCtx, cliOpts *config.CliOpts) error {
-	err := prepareInstallDirs(&installCtx, cliOpts)
+func installTarantool(installCtx InstallCtx) error {
+	log.Infof("Installing tarantool in the %s scope...", installCtx.Scope.String())
+
+	artifactRoot, err := installCtx.Scope.ArtifactPath()
 	if err != nil {
 		return err
 	}
 
 	if installCtx.FromBuild != "" {
-		return installTarantoolFromBuild(installCtx, cliOpts)
+		return installTarantoolFromBuild(installCtx, artifactRoot)
 	}
 
-	return installTarantoolFromSource(installCtx, cliOpts)
+	return installTarantoolFromSource(installCtx, artifactRoot)
 }
 
 // installTarantoolFromSource builds and installs Tarantool from source.
-func installTarantoolFromSource(installCtx InstallCtx, cliOpts *config.CliOpts) error {
-	binDir := cliOpts.Env.BinDir
-	incDir := installCtx.IncDir
-	distfiles := cliOpts.Repo.Install
-
-	resolved, err := prepareTarantoolInstall(binDir, incDir, installCtx, distfiles)
+func installTarantoolFromSource(installCtx InstallCtx, artifactRoot string) error {
+	resolved, err := resolveInstallVersion(installCtx)
 	if err != nil {
 		return err
 	}
 
-	tarVersion := resolved.version
-	versionStr := resolved.versionStr
-	isPullRequest := resolved.isPullRequest
-	pullRequestHash := resolved.pullRequestHash
+	tarVersion := resolved.ref
+	versionStr := resolved.installName(installCtx.Program)
+
+	// Each version owns its binary and headers under <scope>/versions/tarantool/<version>.
+	versionDir := filepath.Join(artifactRoot, binary.VersionsDirName,
+		binary.ProgramCe.String(), versionStr)
+
+	// Destination of this version's executable: <scope>/versions/tarantool/<version>/tarantool.
+	binPath := filepath.Join(versionDir, binary.ProgramCe.Exec())
+
+	// Destination of this version's headers: <scope>/versions/tarantool/<version>/inc/tarantool.
+	incPath := filepath.Join(versionDir, binary.IncDirName, binary.ProgramCe.Exec())
 
 	// Check if program is already installed.
 	// If it is installed, check if newest version exists.
 	done, err := prepareExistingTarantool(
-		installCtx, binDir, incDir, versionStr, tarVersion, distfiles)
+		installCtx, binPath, incPath, artifactRoot, resolved)
 	if err != nil {
 		return err
 	}
@@ -155,7 +119,12 @@ func installTarantoolFromSource(installCtx InstallCtx, cliOpts *config.CliOpts) 
 	}
 
 	if installCtx.BuildInDocker {
-		return installTarantoolInDocker(tarVersion, binDir, incDir, installCtx, distfiles)
+		err = installTarantoolInDocker(tarVersion, artifactRoot, installCtx)
+		if err != nil {
+			return err
+		}
+
+		return activateTarantoolVersion(binPath, incPath, artifactRoot)
 	}
 
 	logFile, err := os.CreateTemp("", "tarantool_install")
@@ -193,7 +162,7 @@ func installTarantoolFromSource(installCtx InstallCtx, cliOpts *config.CliOpts) 
 	}
 
 	// Download tarantool.
-	err = downloadTarantoolSource(path, tarVersion, distfiles, resolved, installCtx, logFile)
+	err = downloadTarantoolSource(installCtx, path, resolved, logFile)
 	if err != nil {
 		_ = printLog(logFile.Name())
 		return err
@@ -208,53 +177,57 @@ func installTarantoolFromSource(installCtx InstallCtx, cliOpts *config.CliOpts) 
 		return err
 	}
 
-	if isPullRequest {
-		log.Infof("Binary name is %s", pullRequestHash)
+	if resolved.kind == versionKindPullRequest {
+		log.Infof("Binary name is %s", resolved.name)
 	}
 
 	// Copy binary and headers.
-	if installCtx.Reinstall && binary.IsRegularFile(filepath.Join(binDir, versionStr)) {
+	if installCtx.Reinstall {
 		log.Infof("%s version of tarantool already exists, removing files...",
 			versionStr)
 
-		err = os.RemoveAll(filepath.Join(binDir, versionStr))
+		err = os.RemoveAll(versionDir)
 		if err != nil {
 			_ = printLog(logFile.Name())
-			return fmt.Errorf("failed to remove the installed executable: %w", err)
-		}
-
-		err = os.RemoveAll(filepath.Join(incDir, versionStr))
-		if err != nil {
-			_ = printLog(logFile.Name())
-			return fmt.Errorf("failed to remove the installed headers: %w", err)
+			return fmt.Errorf("failed to remove the installed version: %w", err)
 		}
 	}
 
-	binPath := filepath.Join(buildPath, "tarantool-prefix", "bin", "tarantool")
-	incPath := filepath.Join(buildPath, "tarantool-prefix", "include", "tarantool")
+	builtBinPath := filepath.Join(buildPath, "tarantool-prefix", "bin", "tarantool")
+	builtIncPath := filepath.Join(buildPath, "tarantool-prefix", "include", "tarantool")
 
-	err = copyBuildedTarantool(binPath, incPath, binDir, incDir, versionStr)
+	err = copyBuiltTarantool(builtBinPath, builtIncPath, binPath, incPath)
 	if err != nil {
 		_ = printLog(logFile.Name())
 		return err
 	}
 
-	// Set symlinks.
-	log.Infof("Changing symlinks...")
-
-	err = changeActiveTarantoolVersion(versionStr, binDir, incDir)
+	err = activateTarantoolVersion(binPath, incPath, artifactRoot)
 	if err != nil {
 		_ = printLog(logFile.Name())
 		return err
 	}
-
-	log.Infof("Made default by symlink %q", filepath.Join(incDir, "tarantool"))
-	log.Info("Use the following command to add the bin_dir directory to the PATH: . <(tt env)")
-	log.Infof("Done.")
 
 	if installCtx.KeepTemp {
 		log.Infof("Artifacts can be found at: %s", path)
 	}
+
+	return nil
+}
+
+// activateTarantoolVersion updates the scope's active links and reports its PATH directory.
+func activateTarantoolVersion(binPath, incPath, artifactRoot string) error {
+	log.Infof("Changing symlinks...")
+
+	err := changeActiveTarantoolVersion(binPath, incPath, artifactRoot)
+	if err != nil {
+		return err
+	}
+
+	binDir := filepath.Join(artifactRoot, binary.BinDirName)
+	log.Infof("Made default by symlink %q", filepath.Join(binDir, binary.ProgramCe.Exec()))
+	log.Infof("Add %q to PATH to use this as default.", binDir)
+	log.Infof("Done.")
 
 	return nil
 }

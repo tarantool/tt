@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt binary install`: select `--scope project` (the default), `user`, or
+  `system` when installing `tt`, `tarantool`, `tarantool-ee`, or `tcm`.
+  Project installations use `.tarantool/` in the current directory.
+  On Linux, user installations use `$XDG_DATA_HOME/tarantool` when
+  `XDG_DATA_HOME` is absolute, falling back to `~/.local/share/tarantool`.
+  System installations use `/opt/tarantool`. On macOS, the corresponding
+  roots are `~/Library/Application Support/tarantool` and
+  `/Library/Application Support/tarantool`.
+- `tt binary install tarantool --from-build <dir>`: link an existing
+  Tarantool build into the selected scope without copying or rebuilding it.
+  `--include-dir` selects the source headers; no version argument is accepted.
+  The command can also link an Enterprise build.
 - `tt package build`: build a manifest package (`app.manifest.toml`) into
   `.rocks/` — resolve and lock dependencies, materialize the pinned closure,
   run each component's build backend, lay component files out under their
@@ -185,6 +197,23 @@ for machine-readable output.
 
 ### Changed
 
+- `tt binary install`: no longer require `tt.yaml` for EE or TCM. The
+  `--local-repo <dir>` flag takes the source directory instead of reading
+  `repo.distfiles`; relative paths are resolved from the current directory.
+  Docker builds pass the directory through the flag without generating a
+  `tt.yaml` configuration.
+- `tt binary install`: keep each installed version under
+  `<scope>/versions/<product>/<product>_<version>/`, with the executable directly
+  in that directory and Tarantool headers in `inc/tarantool/`. Active executable
+  links are in `<scope>/bin/` and Tarantool headers selected by
+  `<scope>/inc/tarantool`. CE and EE keep separate version directories and
+  share the active Tarantool links. Add `<scope>/bin` to `PATH` to use the
+  selected executables.
+  Reinstalling with `--reinstall` replaces only the selected version.
+- Download SDK archives with `tt binary install tarantool-sdk <version>`
+  (aliases: `sdk`, `SDK`). `--destination` selects an existing writable
+  directory, defaulting to the current directory. SDK downloads do not use
+  installation scopes or activate binaries.
 - `tt start`: a failed periodic integrity check (`--integrity-check-period`)
   stops the instance for good. The watchdog kills it and exits, whatever
   `restart_on_failure` says; starting it again is up to an administrator.
@@ -339,6 +368,9 @@ for machine-readable output.
 
 ### Fixed
 
+- `tt binary install tarantool-ee`: reject bundles without Tarantool headers
+  before replacing an installed version, and refuse to activate an incomplete
+  installation. Installing TCM no longer creates unused header directories.
 - A second `tt tcm start --watchdog` in a directory where one runs is refused
   before it starts anything. Before, it started a second TCM and stopped it
   again once it found the pid file taken.

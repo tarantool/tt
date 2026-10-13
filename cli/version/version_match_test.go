@@ -135,32 +135,38 @@ func TestMatchVersion_NotFoundError(t *testing.T) {
 
 			_, err := version.MatchVersion(verStr, []version.Version{})
 			require.ErrorAs(t, err, &errNotFound)
+			require.ErrorIs(t, err, version.ErrNotFound)
+			require.ErrorIs(t, fmt.Errorf("resolve version: %w", err), version.ErrNotFound)
 			require.Equal(t, fmt.Sprintf("not matched with: %q", verStr), err.Error())
 		})
 	}
+
+	_, err := version.MatchVersion("V1", []version.Version{})
+	require.Error(t, err)
+	require.NotErrorIs(t, err, version.ErrNotFound)
 }
 
 func TestIsVersion(t *testing.T) {
 	tests := []struct {
-		version string
-		strict  bool
-		want    bool
+		version    string
+		want       bool
+		wantStrict bool
 	}{
 		{"1.2.3", true, true},
-		{"1.2", false, true},
+		{"1.2", true, false},
 		{"2.11.0-rc1", true, true},
 		{"2.11-rc1", true, false},
-		{"2-rc1", false, true},
-		{"v1-ga73da88", false, true},
-		{"gc64-3.0.0-1-ga73da88-r123", false, true},
+		{"2-rc1", true, false},
+		{"v1-ga73da88", true, false},
 		{"gc64-3.0.0-1-ga73da88-r123", true, true},
-		{"1,2,3", true, false},
+		{"1,2,3", false, false},
+		{"master", false, false},
+		{"pr/42", false, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.version, func(t *testing.T) {
-			if got := version.IsVersion(tt.version, tt.strict); got != tt.want {
-				t.Errorf("IsVersion() = %v, want %v", got, tt.want)
-			}
+			require.Equal(t, tt.want, version.IsVersion(tt.version))
+			require.Equal(t, tt.wantStrict, version.IsStrictVersion(tt.version))
 		})
 	}
 }

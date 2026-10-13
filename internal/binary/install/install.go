@@ -3,6 +3,7 @@ package install
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/internal/binary"
@@ -22,11 +23,20 @@ func printLog(logName string) error {
 
 // Install installs program.
 func Install(installCtx InstallCtx, cliOpts *config.CliOpts) error {
+	if installCtx.LocalRepo != "" {
+		localRepo, err := filepath.Abs(installCtx.LocalRepo)
+		if err != nil {
+			return fmt.Errorf("failed to resolve local repository path: %w", err)
+		}
+
+		installCtx.LocalRepo = localRepo
+	}
+
 	switch installCtx.Program {
 	case binary.ProgramTt:
-		return installTt(installCtx, cliOpts)
+		return installTt(installCtx)
 	case binary.ProgramCe:
-		return installTarantool(installCtx, cliOpts)
+		return installTarantool(installCtx)
 	case binary.ProgramEe, binary.ProgramTcm:
 		return installBundleProgram(installCtx, cliOpts)
 	case binary.ProgramSDK:

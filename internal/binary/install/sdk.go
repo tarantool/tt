@@ -34,7 +34,7 @@ func searchSDKVersionToDownload(installCtx InstallCtx, cliOpts *config.CliOpts) 
 		return search.BundleInfo{}, fmt.Errorf("cannot get SDK bundles list: %w", err)
 	}
 
-	return search.SelectVersion(bundles, installCtx.version)
+	return search.SelectVersion(bundles, installCtx.requestedVersion)
 }
 
 // DownloadSDK downloads and saves a Tarantool SDK bundle.

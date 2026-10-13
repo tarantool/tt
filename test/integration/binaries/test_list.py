@@ -28,7 +28,10 @@ def compare_output(actual: str, expected: str) -> bool:
 def test_list(tt_cmd, tmp_path):
     copytree(DATA_DIR / "list", tmp_path, symlinks=True, dirs_exist_ok=True)
 
-    rc, output = run_command_and_get_output([tt_cmd, "binary", "list"], cwd=tmp_path)
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "binary", "--scope", "project", "list"],
+        cwd=tmp_path,
+    )
 
     expected_output = """List of installed binaries:
    • tt:
@@ -49,7 +52,10 @@ def test_list_no_directory(tt_cmd, tmp_path):
     copyfile(DATA_DIR / "list" / config_name, tmp_path / config_name)
 
     # Print binaries
-    rc, output = run_command_and_get_output([tt_cmd, "binary", "list"], cwd=tmp_path)
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "binary", "--scope", "project", "list"],
+        cwd=tmp_path,
+    )
 
     assert rc == 1
     assert "there are no binaries installed in this environment of 'tt'" in output
@@ -61,7 +67,10 @@ def test_list_empty_directory(tt_cmd, tmp_path):
     (tmp_path / "bin").mkdir()
 
     # Print binaries
-    rc, output = run_command_and_get_output([tt_cmd, "binary", "list"], cwd=tmp_path)
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "binary", "--scope", "project", "list"],
+        cwd=tmp_path,
+    )
 
     assert rc == 1
     assert "there are no binaries installed in this environment of 'tt'" in output
@@ -79,7 +88,10 @@ def test_list_tarantool_from_build(tt_cmd, tmp_path, broken, with_versions):
         for binary in (tmp_path / "bin").glob("tarantool_*"):
             binary.unlink()
 
-    rc, output = run_command_and_get_output([tt_cmd, "binary", "list"], cwd=tmp_path)
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "binary", "--scope", "project", "list"],
+        cwd=tmp_path,
+    )
 
     expected_output = """List of installed binaries:
    • tarantool:
@@ -109,7 +121,10 @@ def test_list_tarantool_no_symlink(tt_cmd, tmp_path):
     replace_prog(tmp_path / "bin" / "tarantool", "Tarantool 3.1.0-entrypoint-83-gcb0264c3c")
 
     # Print binaries
-    rc, output = run_command_and_get_output([tt_cmd, "binary", "list"], cwd=tmp_path)
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "binary", "--scope", "project", "list"],
+        cwd=tmp_path,
+    )
 
     expected_output = """List of installed binaries:
    • tt:
@@ -129,7 +144,10 @@ def test_list_tarantool_no_symlink(tt_cmd, tmp_path):
     # Remove non-versioned tarantool binary and TCM symlink.
     (tmp_path / "bin" / "tarantool").unlink(missing_ok=True)
     (tmp_path / "bin" / "tcm").unlink(missing_ok=True)
-    rc, output = run_command_and_get_output([tt_cmd, "binary", "list"], cwd=tmp_path)
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "binary", "--scope", "project", "list"],
+        cwd=tmp_path,
+    )
 
     expected_output = """List of installed binaries:
    • tt:

@@ -23,11 +23,7 @@ var (
 	errUnexpectedDataFrom = errors.New("unexpected Data from ")
 )
 
-const (
-	GitRepoTarantool         = "https://github.com/tarantool/tarantool.git"
-	GitRepoTT                = "https://github.com/tarantool/tt.git"
-	minSupportedMajorVersion = 3
-)
+const minSupportedMajorVersion = 3
 
 // isMasked function checks that the given version of tarantool is masked.
 // Tarantool 1.x and 2.x are no longer supported.
@@ -58,21 +54,17 @@ func GetVersionsFromGitRemote(repo string) (version.VersionSlice, error) {
 	}
 
 	for _, line := range lines {
-		slashIdx := strings.LastIndex(line, "/")
-		if slashIdx == -1 {
+		_, ver, found := strings.CutLast(line, "/")
+		if !found {
 			return nil, fmt.Errorf("%w%s", errUnexpectedDataFrom, repo)
-		} else {
-			slashIdx += 1
 		}
-
-		ver := line[slashIdx:]
 
 		version, err := version.Parse(ver)
 		if err != nil {
 			continue
 		}
 
-		if isMasked(version) && repo == GitRepoTarantool {
+		if isMasked(version) && repo == binary.ProgramCe.GitRepo() {
 			continue
 		}
 
@@ -84,46 +76,74 @@ func GetVersionsFromGitRemote(repo string) (version.VersionSlice, error) {
 	return versions, nil
 }
 
-// GetCommitFromGitLocal returns hash or pr/ID info from specified local git repo.
-func GetCommitFromGitLocal(repo, input string) (string, error) {
+// GetCommitFromGitLocal reads the revision reported by git show without fetching.
+// For an annotated tag object, git show reports the tag name before the commit.
+func GetCommitFromGitLocal(repo, ref string) (string, error) {
 	_, err := exec.LookPath("git")
 	if err != nil {
 		return "", errUnableToGetCommitsGitCommandIsMissing
 	}
 
-	isPullRequest, pullRequestID := binary.IsPullRequest(input)
-
-	if isPullRequest {
-		commandStr := "pull/" + pullRequestID +
-			"/head:" + input
-		cmd := exec.CommandContext(context.Background(), "git", "fetch", "origin", commandStr)
-
-		cmd.Dir = repo
-
-		err = cmd.Run()
-		if err != nil {
-			return "", fmt.Errorf("failed to fetch pull request %s: %w", pullRequestID, err)
-		}
-	}
-
-	cmd := exec.CommandContext(context.Background(), "git", "show", input, "--quiet")
+	cmd := exec.CommandContext(context.Background(), "git", "show", ref, "--quiet")
 
 	cmd.Dir = repo
 
 	output, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("failed to find commit %s: %w", input, err)
+		return "", fmt.Errorf("failed to find commit %s: %w", ref, err)
 	}
 
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-
 	hash := strings.Split(lines[0], " ")[1]
 
 	return hash, nil
 }
 
-// GetCommitFromGitRemote returns hash or pr/ID info from specified remote git repo.
-func GetCommitFromGitRemote(repo, input string) (string, error) {
+// GetPullRequestCommitFromGitLocal fetches the pull request and resolves its head commit.
+func GetPullRequestCommitFromGitLocal(repo, pullRequestID string) (string, error) {
+	_, err := exec.LookPath("git")
+	if err != nil {
+		return "", errUnableToGetCommitsGitCommandIsMissing
+	}
+
+	err = binary.GitFetchPullRequest(repo, pullRequestID, false, nil)
+	if err != nil {
+		return "", err
+	}
+
+	return GetCommitFromGitLocal(repo, "pr/"+pullRequestID)
+}
+
+// GetCommitFromGitRemote clones the remote repository and resolves a commit, tag or branch.
+func GetCommitFromGitRemote(repo, ref string) (string, error) {
+	tempRepoPath, err := cloneGitRepoForLookup(repo)
+	if err != nil {
+		return "", err
+	}
+
+	defer func() {
+		_ = os.RemoveAll(tempRepoPath)
+	}()
+
+	return GetCommitFromGitLocal(tempRepoPath, ref)
+}
+
+// GetPullRequestCommitFromGitRemote clones the repository and fetches the pull request's head.
+func GetPullRequestCommitFromGitRemote(repo, pullRequestID string) (string, error) {
+	tempRepoPath, err := cloneGitRepoForLookup(repo)
+	if err != nil {
+		return "", err
+	}
+
+	defer func() {
+		_ = os.RemoveAll(tempRepoPath)
+	}()
+
+	return GetPullRequestCommitFromGitLocal(tempRepoPath, pullRequestID)
+}
+
+// cloneGitRepoForLookup clones the remote without checking out source files.
+func cloneGitRepoForLookup(repo string) (string, error) {
 	_, err := exec.LookPath("git")
 	if err != nil {
 		return "", errUnableToGetCommitsGitCommandIsMissing
@@ -134,19 +154,17 @@ func GetCommitFromGitRemote(repo, input string) (string, error) {
 		return "", fmt.Errorf("failed to get commits from %q: %w", repo, err)
 	}
 
-	defer func() {
-		_ = os.RemoveAll(tempRepoPath)
-	}()
-
 	cmd := exec.CommandContext(context.Background(), "git", "clone",
 		"--filter=blob:none", "--no-checkout", repo, tempRepoPath)
 
 	err = cmd.Run()
 	if err != nil {
+		_ = os.RemoveAll(tempRepoPath)
+
 		return "", fmt.Errorf("unable to get commits: git clone failed: %w", err)
 	}
 
-	return GetCommitFromGitLocal(tempRepoPath, input)
+	return tempRepoPath, nil
 }
 
 // GetVersionsFromGitLocal returns sorted versions list from specified local git repo.

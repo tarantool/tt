@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/tarantool/tt/sdk/log"
-	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/internal/binary"
 )
 
@@ -49,9 +48,9 @@ func searchTarantoolHeaders(buildDir, includeDir string) (string, error) {
 }
 
 // installTarantoolFromBuild links Tarantool from a local build directory.
-func installTarantoolFromBuild(installCtx InstallCtx, cliOpts *config.CliOpts) error {
-	ttBinDir := cliOpts.Env.BinDir
-	ttIncludeDir := filepath.Join(cliOpts.Env.IncludeDir, "include")
+func installTarantoolFromBuild(installCtx InstallCtx, artifactRoot string) error {
+	ttBinDir := filepath.Join(artifactRoot, binary.BinDirName)
+	ttIncludeDir := filepath.Join(artifactRoot, binary.IncDirName)
 	includeDir := installCtx.IncDir
 
 	// Validate build directory.
@@ -84,7 +83,12 @@ func installTarantoolFromBuild(installCtx InstallCtx, cliOpts *config.CliOpts) e
 			continue
 		}
 
-		// Check that tt directories exist.
+		includeDir, err = searchTarantoolHeaders(buildDir, includeDir)
+		if err != nil {
+			return err
+		}
+
+		// Create the scope's directories only after validating the build and headers.
 		err = binary.CreateDirectory(ttBinDir, defaultDirPermissions)
 		if err != nil {
 			return err
@@ -98,11 +102,6 @@ func installTarantoolFromBuild(installCtx InstallCtx, cliOpts *config.CliOpts) e
 		log.Infof("Changing symlinks...")
 
 		err = binary.CreateSymlink(binaryPath, filepath.Join(ttBinDir, "tarantool"), true)
-		if err != nil {
-			return err
-		}
-
-		includeDir, err = searchTarantoolHeaders(buildDir, includeDir)
 		if err != nil {
 			return err
 		}

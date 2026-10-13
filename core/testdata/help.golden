@@ -123,7 +123,26 @@ FLAGS[0m
   -u, --username string      username (used as etcd credentials only)
 
 === tt binary --help
-Manage binaries and SDK bundles
+Manage tt, Tarantool Community and Enterprise editions, TCM, and SDK bundles.
+
+Use --scope to choose where binaries are managed:
+  project (default): .tarantool/ in the current working directory.
+  user:
+    Linux: $XDG_DATA_HOME/tarantool when XDG_DATA_HOME is an absolute path;
+      otherwise ~/.local/share/tarantool.
+    macOS: ~/Library/Application Support/tarantool.
+  system:
+    Linux: /opt/tarantool.
+    macOS: /Library/Application Support/tarantool.
+
+Each scope stores executables directly in
+<root>/versions/<product>/<product>_<version>/, with Tarantool headers in
+inc/tarantool.
+Active executables are linked from <root>/bin/, and active Tarantool headers
+from <root>/inc/tarantool. CE and EE keep separate versions and share the active
+Tarantool links. Add <root>/bin to PATH to run the active versions.
+
+SDK downloads use --destination as their output directory.
 
 [0;1;39mUSAGE[0m
   tt binary [flags] <command> [command flags]
@@ -136,13 +155,24 @@ COMMANDS[0m
   uninstall   Uninstall a program
 [0;1;39m
 FLAGS[0m
-  -h, --help      help for binary
-  -V, --verbose   Show diagnostic output and build commands
+  -h, --help           help for binary
+      --scope string   Scope: project, user or system (default "project")
+  -V, --verbose        Show diagnostic output and build commands
 
 Use "tt binary <command> --help" for more information about a command.
 
 === tt binary install --help
-Install a program
+Build tt or Tarantool from source, or install an EE/TCM archive.
+The installed version becomes active in the selected scope. See
+"tt binary --help" for scope locations and the binary layout.
+
+Use --local-repo <dir> to install from local files. For tt and Tarantool, the
+directory contains source repositories named tt/ and tarantool/. For EE and
+TCM, it contains installation archives. Relative paths are resolved from the
+current working directory.
+
+Use tarantool-sdk to download an SDK archive to --destination (the current
+directory by default).
 
 [0;1;39mUSAGE[0m
   tt binary install [flags] <command> [command flags]
@@ -159,27 +189,37 @@ FLAGS[0m
                              directory)
   -f, --force                Skip dependency checks
   -h, --help                 help for install
-      --local-repo           Install from the local repository
+      --local-repo string    Directory containing local source repositories or
+                             installation archives
       --no-clean             Keep temporary files
       --reinstall            Reinstall an existing version
 [0;1;39m
 GLOBAL FLAGS[0m
-  -V, --verbose   Show diagnostic output and build commands
+      --scope string   Scope: project, user or system (default "project")
+  -V, --verbose        Show diagnostic output and build commands
 [0;1;39m
 EXAMPLES[0m
-  # Install the latest Tarantool version.
+  # Build the latest Tarantool release for this project.
   $ tt binary install tarantool
 
-  # Install tt from a pull request.
-  $ tt binary install tt pr/534
+  # Build tt for the current user.
+  $ tt binary install tt --scope user
 
-  # Build Tarantool with two parallel jobs.
-  $ MAKEFLAGS="-j2" tt binary install tarantool 3.0.0
+  # Install a local Enterprise archive system-wide.
+  $ sudo tt binary install tarantool-ee gc64-3.4.0-0-r60 \
+      --scope system --local-repo ./bundles
 
 Use "tt binary install <command> --help" for more information about a command.
 
 === tt binary install tarantool --help
-Install Tarantool Community Edition
+Build and install Tarantool Community Edition from a release, Git commit,
+master, or pull request. Omitting the version selects the latest release.
+Use pr/<number> for a pull request. With --local-repo <dir>, sources are read
+from <dir>/tarantool.
+
+Use --from-build <dir> to link an existing Community or Enterprise build into
+the selected scope without copying or rebuilding it. Use --include-dir to
+select the headers directory. --from-build accepts no version argument.
 
 [0;1;39mUSAGE[0m
   tt binary install tarantool [version|commit|pull-request] [flags]
@@ -192,35 +232,46 @@ FLAGS[0m
   -h, --help                 help for tarantool
       --include-dir string   Path to the Tarantool headers directory (requires
                              --from-build)
-      --use-docker           Build Tarantool in an Ubuntu 18.04 Docker container
+      --use-docker           Build Tarantool in an Ubuntu Docker container
 [0;1;39m
 GLOBAL FLAGS[0m
       --destination string   Directory to save SDK bundles (default: current
                              directory)
   -f, --force                Skip dependency checks
-      --local-repo           Install from the local repository
+      --local-repo string    Directory containing local source repositories or
+                             installation archives
       --no-clean             Keep temporary files
       --reinstall            Reinstall an existing version
+      --scope string         Scope: project, user or system (default "project")
   -V, --verbose              Show diagnostic output and build commands
 [0;1;39m
 EXAMPLES[0m
   # Build and install Tarantool from the local repository.
-  $ tt binary install tarantool --local-repo
+  $ tt binary install tarantool --local-repo ./distfiles
 
-  # Link an existing Tarantool build into the environment.
-  $ tt binary install tarantool --from-build ~/src/tarantool/build
+  # Link an existing Tarantool build into the project scope.
+  $ tt binary install tarantool \
+      --from-build ~/src/tarantool/build
 
-  # Use headers from a custom directory.
-  $ tt binary install tarantool --from-build ~/src/tarantool/build \
+  # Link a build with custom headers into the user scope.
+  $ tt binary install tarantool --scope user \
+      --from-build ~/src/tarantool/build \
       --include-dir ~/src/tarantool/include
 
+  # Build Tarantool with two parallel jobs.
+  $ MAKEFLAGS="-j2" tt binary install tarantool 3.4.0
+
 === tt binary install tarantool-ee --help
-Install Tarantool Enterprise Edition
+Install a specific Tarantool Enterprise Edition version from an SDK archive.
+The version is required. Use "tt binary search tarantool-ee" to list available
+versions.
+
+With --local-repo <dir>, archives are read from the specified directory.
 
 [0;1;39mUSAGE[0m
-  tt binary install tarantool-ee [version] [flags]
+  tt binary install tarantool-ee <version> [flags]
 
-  tt binary install tarantool-ee [version] [flags]
+  tt binary install tarantool-ee <version> [flags]
 [0;1;39m
 FLAGS[0m
       --dev    Install a development build
@@ -230,13 +281,24 @@ GLOBAL FLAGS[0m
       --destination string   Directory to save SDK bundles (default: current
                              directory)
   -f, --force                Skip dependency checks
-      --local-repo           Install from the local repository
+      --local-repo string    Directory containing local source repositories or
+                             installation archives
       --no-clean             Keep temporary files
       --reinstall            Reinstall an existing version
+      --scope string         Scope: project, user or system (default "project")
   -V, --verbose              Show diagnostic output and build commands
+[0;1;39m
+EXAMPLES[0m
+  # Download and install an Enterprise release for the current user.
+  $ tt binary install tarantool-ee gc64-3.4.0-0-r60 --scope user
+
+  # Install an Enterprise archive from a local directory for this project.
+  $ tt binary install tarantool-ee gc64-3.4.0-0-r60 --local-repo ./bundles
 
 === tt binary install tarantool-sdk --help
-Download a Tarantool SDK bundle
+Download a specific Tarantool SDK archive to --destination (the current
+directory by default). The output directory is independent of --scope.
+Use --dev to download a development build.
 
 [0;1;39mUSAGE[0m
   tt binary install tarantool-sdk <version> [flags]
@@ -254,9 +316,11 @@ GLOBAL FLAGS[0m
       --destination string   Directory to save SDK bundles (default: current
                              directory)
   -f, --force                Skip dependency checks
-      --local-repo           Install from the local repository
+      --local-repo string    Directory containing local source repositories or
+                             installation archives
       --no-clean             Keep temporary files
       --reinstall            Reinstall an existing version
+      --scope string         Scope: project, user or system (default "project")
   -V, --verbose              Show diagnostic output and build commands
 [0;1;39m
 EXAMPLES[0m
@@ -268,12 +332,15 @@ EXAMPLES[0m
       --dev --destination /tmp
 
 === tt binary install tcm --help
-Install Tarantool Cluster Manager
+Install a specific Tarantool Cluster Manager version from an archive.
+The version is required. Use "tt binary search tcm" to list available versions.
+
+With --local-repo <dir>, archives are read from the specified directory.
 
 [0;1;39mUSAGE[0m
-  tt binary install tcm [version] [flags]
+  tt binary install tcm <version> [flags]
 
-  tt binary install tcm [version] [flags]
+  tt binary install tcm <version> [flags]
 [0;1;39m
 FLAGS[0m
       --dev    Install a development build
@@ -283,13 +350,26 @@ GLOBAL FLAGS[0m
       --destination string   Directory to save SDK bundles (default: current
                              directory)
   -f, --force                Skip dependency checks
-      --local-repo           Install from the local repository
+      --local-repo string    Directory containing local source repositories or
+                             installation archives
       --no-clean             Keep temporary files
       --reinstall            Reinstall an existing version
+      --scope string         Scope: project, user or system (default "project")
   -V, --verbose              Show diagnostic output and build commands
+[0;1;39m
+EXAMPLES[0m
+  # Download and install TCM for the current user.
+  $ tt binary install tcm 1.3.1-0-g074b5ffa --scope user
+
+  # Install TCM from a local archive for this project.
+  $ tt binary install tcm 1.3.1-0-g074b5ffa --local-repo ./bundles
 
 === tt binary install tt --help
-Install tt
+Build and install tt from a release, Git commit, master, or pull request.
+Omitting the version selects the latest release. Use pr/<number> for a pull
+request.
+
+With --local-repo <dir>, sources are read from <dir>/tt.
 
 [0;1;39mUSAGE[0m
   tt binary install tt [version|commit|pull-request] [flags]
@@ -303,10 +383,22 @@ GLOBAL FLAGS[0m
       --destination string   Directory to save SDK bundles (default: current
                              directory)
   -f, --force                Skip dependency checks
-      --local-repo           Install from the local repository
+      --local-repo string    Directory containing local source repositories or
+                             installation archives
       --no-clean             Keep temporary files
       --reinstall            Reinstall an existing version
+      --scope string         Scope: project, user or system (default "project")
   -V, --verbose              Show diagnostic output and build commands
+[0;1;39m
+EXAMPLES[0m
+  # Build the latest tt release for the current user.
+  $ tt binary install tt --scope user
+
+  # Build tt from a pull request for this project.
+  $ tt binary install tt pr/534
+
+  # Build tt from a local source repository.
+  $ tt binary install tt master --local-repo ./distfiles
 
 === tt binary list --help
 List installed binaries and versions
@@ -320,7 +412,8 @@ FLAGS[0m
   -h, --help   help for list
 [0;1;39m
 GLOBAL FLAGS[0m
-  -V, --verbose   Show diagnostic output and build commands
+      --scope string   Scope: project, user or system (default "project")
+  -V, --verbose        Show diagnostic output and build commands
 
 === tt binary search --help
 Search available program versions
@@ -339,7 +432,8 @@ FLAGS[0m
       --local-repo   Search the local repository
 [0;1;39m
 GLOBAL FLAGS[0m
-  -V, --verbose   Show diagnostic output and build commands
+      --scope string   Scope: project, user or system (default "project")
+  -V, --verbose        Show diagnostic output and build commands
 [0;1;39m
 EXAMPLES[0m
   # Search Tarantool Enterprise Edition releases.
@@ -365,8 +459,9 @@ FLAGS[0m
   -h, --help   help for tarantool
 [0;1;39m
 GLOBAL FLAGS[0m
-      --local-repo   Search the local repository
-  -V, --verbose      Show diagnostic output and build commands
+      --local-repo     Search the local repository
+      --scope string   Scope: project, user or system (default "project")
+  -V, --verbose        Show diagnostic output and build commands
 
 === tt binary search tarantool-ee --help
 Search available Tarantool Enterprise Edition versions
@@ -383,8 +478,9 @@ FLAGS[0m
       --version string   Filter by release version
 [0;1;39m
 GLOBAL FLAGS[0m
-      --local-repo   Search the local repository
-  -V, --verbose      Show diagnostic output and build commands
+      --local-repo     Search the local repository
+      --scope string   Scope: project, user or system (default "project")
+  -V, --verbose        Show diagnostic output and build commands
 
 === tt binary search tcm --help
 Search available Tarantool Cluster Manager versions
@@ -400,8 +496,9 @@ FLAGS[0m
       --version string   Filter by release version
 [0;1;39m
 GLOBAL FLAGS[0m
-      --local-repo   Search the local repository
-  -V, --verbose      Show diagnostic output and build commands
+      --local-repo     Search the local repository
+      --scope string   Scope: project, user or system (default "project")
+  -V, --verbose        Show diagnostic output and build commands
 
 === tt binary search tt --help
 Search available tt versions
@@ -415,8 +512,9 @@ FLAGS[0m
   -h, --help   help for tt
 [0;1;39m
 GLOBAL FLAGS[0m
-      --local-repo   Search the local repository
-  -V, --verbose      Show diagnostic output and build commands
+      --local-repo     Search the local repository
+      --scope string   Scope: project, user or system (default "project")
+  -V, --verbose        Show diagnostic output and build commands
 
 === tt binary switch --help
 Switch the active binary
@@ -430,17 +528,18 @@ FLAGS[0m
   -h, --help   help for switch
 [0;1;39m
 GLOBAL FLAGS[0m
-  -V, --verbose   Show diagnostic output and build commands
+      --scope string   Scope: project, user or system (default "project")
+  -V, --verbose        Show diagnostic output and build commands
 [0;1;39m
 EXAMPLES[0m
   # Choose a program and version interactively.
-  $ tt binary switch
+  $ tt binary switch --scope project
 
   # Choose a Tarantool version interactively.
-  $ tt binary switch tarantool
+  $ tt binary switch tarantool --scope project
 
   # Switch to a specific Tarantool version.
-  $ tt binary switch tarantool 3.0.0
+  $ tt binary switch tarantool 3.0.0 --scope project
 
 === tt binary uninstall --help
 Uninstall a program
@@ -458,11 +557,12 @@ FLAGS[0m
   -h, --help   help for uninstall
 [0;1;39m
 GLOBAL FLAGS[0m
-  -V, --verbose   Show diagnostic output and build commands
+      --scope string   Scope: project, user or system (default "project")
+  -V, --verbose        Show diagnostic output and build commands
 [0;1;39m
 EXAMPLES[0m
   # Uninstall a Tarantool version.
-  $ tt binary uninstall tarantool 3.0.0
+  $ tt binary uninstall tarantool 3.0.0 --scope project
 
 Use "tt binary uninstall <command> --help" for more information about a command.
 
@@ -480,7 +580,8 @@ FLAGS[0m
   -h, --help   help for tarantool
 [0;1;39m
 GLOBAL FLAGS[0m
-  -V, --verbose   Show diagnostic output and build commands
+      --scope string   Scope: project, user or system (default "project")
+  -V, --verbose        Show diagnostic output and build commands
 
 === tt binary uninstall tarantool-ee --help
 Uninstall Tarantool Enterprise Edition
@@ -494,7 +595,8 @@ FLAGS[0m
   -h, --help   help for tarantool-ee
 [0;1;39m
 GLOBAL FLAGS[0m
-  -V, --verbose   Show diagnostic output and build commands
+      --scope string   Scope: project, user or system (default "project")
+  -V, --verbose        Show diagnostic output and build commands
 
 === tt binary uninstall tcm --help
 Uninstall Tarantool Cluster Manager
@@ -508,7 +610,8 @@ FLAGS[0m
   -h, --help   help for tcm
 [0;1;39m
 GLOBAL FLAGS[0m
-  -V, --verbose   Show diagnostic output and build commands
+      --scope string   Scope: project, user or system (default "project")
+  -V, --verbose        Show diagnostic output and build commands
 
 === tt binary uninstall tt --help
 Uninstall tt
@@ -522,7 +625,8 @@ FLAGS[0m
   -h, --help   help for tt
 [0;1;39m
 GLOBAL FLAGS[0m
-  -V, --verbose   Show diagnostic output and build commands
+      --scope string   Scope: project, user or system (default "project")
+  -V, --verbose        Show diagnostic output and build commands
 
 === tt cat --help
 Print into stdout the contents of .snap/.xlog FILE(s)
