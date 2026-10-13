@@ -47,9 +47,9 @@ def test_install_tt_noexist_commit(tt_cmd, tmp_path):
         "--scope",
         "project",
         "install",
+        "tt",
         "--local-repo",
         tmp_dir,
-        "tt",
         "2df3077",
     ]
     instance_process = subprocess.Popen(
@@ -399,7 +399,7 @@ def test_install_tarantool_in_docker(tt_cmd, tmp_path):
     [
         (
             ["--local-repo", "distfiles", "tarantool", "--from-build", "build"],
-            "group [from-build local-repo]",
+            "unknown flag: --local-repo",
         ),
         (
             ["tarantool", "--from-build", "build", "--local-repo", "distfiles"],

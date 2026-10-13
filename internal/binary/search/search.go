@@ -27,7 +27,8 @@ const (
 type SearchCtx struct {
 	binary.BinaryContext
 
-	// LocalRepo is the explicit local repository directory.
+	// LocalRepo is the source directory: --local-repo for Git repositories,
+	// or --local-dir for EE/TCM archives.
 	LocalRepo string
 	// CredentialsFile contains customer-zone credentials for remote EE and TCM searches.
 	CredentialsFile string

@@ -3,14 +3,23 @@ package version
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
+	"strings"
 
 	"github.com/tarantool/tt/v3/cli/util"
 )
 
+var numericVersionMask = regexp.MustCompile(`^[0-9]+(?:\.[0-9]+){0,2}$`)
+
 var (
 	// ErrNotFound reports that no available version matches the requested version.
 	ErrNotFound = errors.New("version not found")
+
+	// ErrInstalledVersionNotFound reports a request matching no installed version.
+	ErrInstalledVersionNotFound = errors.New("installed version not found")
+	// ErrAmbiguousInstalledVersion reports a request matching multiple installed versions.
+	ErrAmbiguousInstalledVersion = errors.New("more than one installed version matches")
 
 	errMinorVersionRequiresMajorToBeSpecified = errors.New(
 		"minor version requires major to be specified",
@@ -200,6 +209,55 @@ func IsVersion(version string) bool {
 func IsStrictVersion(version string) bool {
 	re := createVersionRegexp(true)
 	return re.MatchString(version)
+}
+
+// IsNumericVersion reports whether the request has the form X, X.Y, or X.Y.Z.
+func IsNumericVersion(requested string) bool {
+	return numericVersionMask.MatchString(requested)
+}
+
+// MatchInstalledVersion resolves X.Y.Z or an exact installation name.
+// A numeric request must match exactly one build, including prereleases and revisions.
+// Partial numbers are never expanded. Literal names such as commit hashes match exactly.
+func MatchInstalledVersion(requested string, installed []string) (string, error) {
+	if requested == "" {
+		return "", fmt.Errorf("%w: %q", ErrInstalledVersionNotFound, requested)
+	}
+
+	reference, err := Parse(requested)
+	numeric := err == nil && IsNumericVersion(requested)
+	fields := requiredFields{requiredFieldMajor, requiredFieldMinor, requiredFieldPatch}
+
+	var matches []string
+
+	for _, candidate := range installed {
+		if candidate != requested {
+			if !numeric {
+				continue
+			}
+
+			parsed, err := Parse(candidate)
+			if err != nil || !compareVersions(reference, parsed, fields) {
+				continue
+			}
+		}
+
+		if !slices.Contains(matches, candidate) {
+			matches = append(matches, candidate)
+		}
+	}
+
+	switch len(matches) {
+	case 0:
+		return "", fmt.Errorf("%w: %q", ErrInstalledVersionNotFound, requested)
+	case 1:
+		return matches[0], nil
+	default:
+		slices.Sort(matches)
+
+		return "", fmt.Errorf("%w %q: %s; specify the full version name",
+			ErrAmbiguousInstalledVersion, requested, strings.Join(matches, ", "))
+	}
 }
 
 // MatchVersion takes as input an ascending sorted list of versions.

@@ -228,11 +228,24 @@ func UninstallProgram(uninstallCtx UninstallCtx) error {
 		}
 	}
 
-	if programVersion == "" {
+	switch {
+	case programVersion == "":
 		programVersion, err = getDefault(program, root)
-		if err != nil {
-			return err
+	case program == binary.ProgramEe || program == binary.ProgramTcm:
+		installed, readErr := getVersions(program, root)
+		if readErr != nil {
+			return readErr
 		}
+
+		programVersion, err = version.MatchInstalledVersion(programVersion, installed)
+	}
+
+	if errors.Is(err, version.ErrInstalledVersionNotFound) {
+		return fmt.Errorf("%w: %w", errNotInstalled, err)
+	}
+
+	if err != nil {
+		return err
 	}
 
 	versionsToDelete, err := getAllTtVersionFormats(program, programVersion)
