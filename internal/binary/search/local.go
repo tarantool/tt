@@ -33,7 +33,7 @@ func searchVersionsLocalGit(program binary.Program, repoPath string) (
 		return nil, nil
 	}
 
-	versions, err := GetVersionsFromGitLocal(repoPath)
+	versions, err := GetVersionsFromGitLocal(repoPath, program)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get versions from local repo %s: %w", repoPath, err)
 	}

@@ -185,14 +185,12 @@ COMMANDS[0m
   tt            Install tt
 [0;1;39m
 FLAGS[0m
-      --destination string   Directory to save SDK bundles (default: current
-                             directory)
-  -f, --force                Skip dependency checks
-  -h, --help                 help for install
-      --local-repo string    Directory containing local source repositories or
-                             installation archives
-      --no-clean             Keep temporary files
-      --reinstall            Reinstall an existing version
+  -f, --force               Skip dependency checks
+  -h, --help                help for install
+      --local-repo string   Directory containing local source repositories or
+                            installation archives
+      --no-clean            Keep temporary files
+      --reinstall           Reinstall an existing version
 [0;1;39m
 GLOBAL FLAGS[0m
       --scope string   Scope: project, user or system (default "project")
@@ -235,15 +233,13 @@ FLAGS[0m
       --use-docker           Build Tarantool in an Ubuntu Docker container
 [0;1;39m
 GLOBAL FLAGS[0m
-      --destination string   Directory to save SDK bundles (default: current
-                             directory)
-  -f, --force                Skip dependency checks
-      --local-repo string    Directory containing local source repositories or
-                             installation archives
-      --no-clean             Keep temporary files
-      --reinstall            Reinstall an existing version
-      --scope string         Scope: project, user or system (default "project")
-  -V, --verbose              Show diagnostic output and build commands
+  -f, --force               Skip dependency checks
+      --local-repo string   Directory containing local source repositories or
+                            installation archives
+      --no-clean            Keep temporary files
+      --reinstall           Reinstall an existing version
+      --scope string        Scope: project, user or system (default "project")
+  -V, --verbose             Show diagnostic output and build commands
 [0;1;39m
 EXAMPLES[0m
   # Build and install Tarantool from the local repository.
@@ -274,19 +270,19 @@ With --local-repo <dir>, archives are read from the specified directory.
   tt binary install tarantool-ee <version> [flags]
 [0;1;39m
 FLAGS[0m
-      --dev    Install a development build
-  -h, --help   help for tarantool-ee
+      --credentials-file string   File containing customer-zone login and
+                                  password on separate lines
+      --dev                       Install a development build
+  -h, --help                      help for tarantool-ee
 [0;1;39m
 GLOBAL FLAGS[0m
-      --destination string   Directory to save SDK bundles (default: current
-                             directory)
-  -f, --force                Skip dependency checks
-      --local-repo string    Directory containing local source repositories or
-                             installation archives
-      --no-clean             Keep temporary files
-      --reinstall            Reinstall an existing version
-      --scope string         Scope: project, user or system (default "project")
-  -V, --verbose              Show diagnostic output and build commands
+  -f, --force               Skip dependency checks
+      --local-repo string   Directory containing local source repositories or
+                            installation archives
+      --no-clean            Keep temporary files
+      --reinstall           Reinstall an existing version
+      --scope string        Scope: project, user or system (default "project")
+  -V, --verbose             Show diagnostic output and build commands
 [0;1;39m
 EXAMPLES[0m
   # Download and install an Enterprise release for the current user.
@@ -309,19 +305,21 @@ ALIASES[0m
   tarantool-sdk, sdk, SDK
 [0;1;39m
 FLAGS[0m
-      --dev    Download a development build
-  -h, --help   help for tarantool-sdk
+      --credentials-file string   File containing customer-zone login and
+                                  password on separate lines
+      --destination string        Directory to save SDK bundles (default:
+                                  current directory)
+      --dev                       Download a development build
+  -h, --help                      help for tarantool-sdk
 [0;1;39m
 GLOBAL FLAGS[0m
-      --destination string   Directory to save SDK bundles (default: current
-                             directory)
-  -f, --force                Skip dependency checks
-      --local-repo string    Directory containing local source repositories or
-                             installation archives
-      --no-clean             Keep temporary files
-      --reinstall            Reinstall an existing version
-      --scope string         Scope: project, user or system (default "project")
-  -V, --verbose              Show diagnostic output and build commands
+  -f, --force               Skip dependency checks
+      --local-repo string   Directory containing local source repositories or
+                            installation archives
+      --no-clean            Keep temporary files
+      --reinstall           Reinstall an existing version
+      --scope string        Scope: project, user or system (default "project")
+  -V, --verbose             Show diagnostic output and build commands
 [0;1;39m
 EXAMPLES[0m
   # Download an SDK bundle to the current directory.
@@ -343,19 +341,19 @@ With --local-repo <dir>, archives are read from the specified directory.
   tt binary install tcm <version> [flags]
 [0;1;39m
 FLAGS[0m
-      --dev    Install a development build
-  -h, --help   help for tcm
+      --credentials-file string   File containing customer-zone login and
+                                  password on separate lines
+      --dev                       Install a development build
+  -h, --help                      help for tcm
 [0;1;39m
 GLOBAL FLAGS[0m
-      --destination string   Directory to save SDK bundles (default: current
-                             directory)
-  -f, --force                Skip dependency checks
-      --local-repo string    Directory containing local source repositories or
-                             installation archives
-      --no-clean             Keep temporary files
-      --reinstall            Reinstall an existing version
-      --scope string         Scope: project, user or system (default "project")
-  -V, --verbose              Show diagnostic output and build commands
+  -f, --force               Skip dependency checks
+      --local-repo string   Directory containing local source repositories or
+                            installation archives
+      --no-clean            Keep temporary files
+      --reinstall           Reinstall an existing version
+      --scope string        Scope: project, user or system (default "project")
+  -V, --verbose             Show diagnostic output and build commands
 [0;1;39m
 EXAMPLES[0m
   # Download and install TCM for the current user.
@@ -380,15 +378,13 @@ FLAGS[0m
   -h, --help   help for tt
 [0;1;39m
 GLOBAL FLAGS[0m
-      --destination string   Directory to save SDK bundles (default: current
-                             directory)
-  -f, --force                Skip dependency checks
-      --local-repo string    Directory containing local source repositories or
-                             installation archives
-      --no-clean             Keep temporary files
-      --reinstall            Reinstall an existing version
-      --scope string         Scope: project, user or system (default "project")
-  -V, --verbose              Show diagnostic output and build commands
+  -f, --force               Skip dependency checks
+      --local-repo string   Directory containing local source repositories or
+                            installation archives
+      --no-clean            Keep temporary files
+      --reinstall           Reinstall an existing version
+      --scope string        Scope: project, user or system (default "project")
+  -V, --verbose             Show diagnostic output and build commands
 [0;1;39m
 EXAMPLES[0m
   # Build the latest tt release for the current user.
@@ -482,10 +478,12 @@ Search available Tarantool Enterprise Edition versions
   tt binary search tarantool-ee [flags]
 [0;1;39m
 FLAGS[0m
-      --debug            Search debug builds
-      --dev              Search development builds
-  -h, --help             help for tarantool-ee
-      --version string   Filter by release version
+      --credentials-file string   File containing customer-zone login and
+                                  password on separate lines
+      --debug                     Search debug builds
+      --dev                       Search development builds
+  -h, --help                      help for tarantool-ee
+      --version string            Filter by release version
 [0;1;39m
 GLOBAL FLAGS[0m
       --local-repo string   Directory containing local source repositories or
@@ -502,9 +500,11 @@ Search available Tarantool Cluster Manager versions
   tt binary search tcm [flags]
 [0;1;39m
 FLAGS[0m
-      --dev              Search development builds
-  -h, --help             help for tcm
-      --version string   Filter by release version
+      --credentials-file string   File containing customer-zone login and
+                                  password on separate lines
+      --dev                       Search development builds
+  -h, --help                      help for tcm
+      --version string            Filter by release version
 [0;1;39m
 GLOBAL FLAGS[0m
       --local-repo string   Directory containing local source repositories or

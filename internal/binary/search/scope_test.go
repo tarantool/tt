@@ -123,7 +123,10 @@ func TestSearchVersionsLocalGit(t *testing.T) {
 		t.Run(program.String(), func(t *testing.T) {
 			t.Chdir(t.TempDir())
 
-			repo := filepath.Join("sources", program.String())
+			// Both repositories live under a path containing "tarantool".
+			// Only the CE product should have its older versions masked.
+			localRepo := "tarantool-sources"
+			repo := filepath.Join(localRepo, program.String())
 			require.NoError(t, os.MkdirAll(repo, 0o755))
 
 			commands := [][]string{
@@ -151,7 +154,7 @@ func TestSearchVersionsLocalGit(t *testing.T) {
 			ctx := search.SearchCtx{
 				Scope:     binary.ScopeProject,
 				Program:   program,
-				LocalRepo: "sources",
+				LocalRepo: localRepo,
 			}
 			output, err := captureSearch(t, func() error { return search.SearchVersionsLocal(ctx) })
 			require.NoError(t, err)
@@ -256,6 +259,48 @@ func TestSearchVersionsRemoteScopeLabels(t *testing.T) {
 	output, err := captureSearch(t, func() error { return search.SearchVersions(ctx) })
 	require.NoError(t, err)
 	require.Equal(t, "1.3.0-0-g3857712a [active]\n1.3.1-0-g074b5ffa [installed]\n", output)
+}
+
+func TestSearchVersionsCredentialsFile(t *testing.T) {
+	for _, program := range []binary.Program{binary.ProgramEe, binary.ProgramTcm} {
+		t.Run(program.String(), func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("TT_CLI_EE_USERNAME", "ignored-user")
+			t.Setenv("TT_CLI_EE_PASSWORD", "ignored-password")
+
+			credentials := "credentials"
+			require.NoError(t, os.WriteFile(credentials,
+				[]byte(testingUsername+"\n"+testingPassword+"\n"), 0o600))
+
+			tarball := "tcm-1.3.1-0-g074b5ffa.linux.amd64.tar.gz"
+			release := "1.3"
+			expected := "1.3.1-0-g074b5ffa\n"
+			query := "tarantool-cluster-manager/release/linux/amd64"
+
+			if program == binary.ProgramEe {
+				tarball = "tarantool-enterprise-sdk-gc64-3.4.0-0-r60.linux.x86_64.tar.gz"
+				release = "3.4"
+				expected = "gc64-3.4.0-0-r60\n"
+				query = "enterprise/release/linux/x86_64"
+			}
+
+			platform := platformInfo{arch: "x86_64", os: binary.OsLinux}
+			doer := mockDoer{
+				t:       t,
+				content: map[string][]string{release: {tarball}},
+				query:   query,
+			}
+			ctx := search.NewSearchCtx(&platform, &doer)
+
+			ctx.Program = program
+			ctx.Scope = binary.ScopeProject
+			ctx.CredentialsFile = credentials
+
+			output, err := captureSearch(t, func() error { return search.SearchVersions(ctx) })
+			require.NoError(t, err)
+			require.Equal(t, expected, output)
+		})
+	}
 }
 
 func TestSearchVersionsLocalActiveIdentity(t *testing.T) {
