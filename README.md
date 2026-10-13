@@ -318,17 +318,26 @@ templates:
     will be padded with a directory named include.
 - `restart_on_failure` (bool) - should it restart on failure.
 
-`tt binary install` for `tt`, `tarantool`, `tarantool-ee`, and `tcm` uses
-`--scope project` (the default), `user`, or `system` to choose its installation
-root. Executables are stored directly in `versions/<product>/<product>_<version>/`,
-with Tarantool headers in its `inc/tarantool/` directory. Active executable links
-are in `bin/` and Tarantool header links in `inc/`. Installing `tarantool-sdk`
-downloads an archive to `--destination` (the current directory by default).
+`tt binary install`, `search`, `list`, `switch`, and `uninstall` for `tt`, `tarantool`,
+`tarantool-ee`, and `tcm` use `--scope project` (the default), `user`, or
+`system` to choose the installation root. Executables are stored directly in
+`versions/<product>/<product>_<version>/`, with Tarantool headers in its
+`inc/tarantool/` directory. Active executable links are in `bin/` and Tarantool
+header links in `inc/`. Each command uses only the selected scope; the project
+scope is `.tarantool` in the current directory, without searching parents or
+falling back to user/system installations. Binary paths are independent of the
+`env` options in `tt.yaml`. For `search`, the scope only selects the
+installed/active labels; it does not change the source of available versions.
+Installing `tarantool-sdk` downloads an archive to `--destination` (the current
+directory by default).
 
 Use `tt binary install <product> --local-repo <dir>` to install from local
 files without requiring `tt.yaml`. The directory contains `tt/` or
 `tarantool/` source repositories, or EE/TCM archives. Relative paths are
-resolved from the current directory; `repo.distfiles` is not used by install.
+resolved from the current directory. `tt binary search <product> --local-repo <dir>`
+searches the same sources and marks installed/active versions in the selected
+scope. Both commands require an explicit directory for `--local-repo`;
+`repo.distfiles` is not used.
 
 #### app
 
@@ -345,7 +354,8 @@ resolved from the current directory; `repo.distfiles` is not used by install.
 #### repo
 
 - `rocks` (string) - directory that stores rocks files.
-- `distfiles` (string) - directory searched by `tt binary search --local-repo`.
+- `distfiles` (string) - legacy local repository setting; binary commands use
+    `--local-repo <dir>` instead.
 
 #### ee
 

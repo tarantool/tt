@@ -350,6 +350,11 @@ func newBinaryUninstallCmd(base *binary.BinaryContext,
 	uninstallCmd := &cobra.Command{
 		Use:   "uninstall",
 		Short: "Uninstall a program",
+		Long: `Uninstall a program version from the selected scope.
+Without a version, remove the only installed version of that product. For
+Tarantool, an active local build is unlinked without deleting its source.
+Removing an active version selects the latest eligible remaining version
+within the same scope. Parent directories and other scopes are not searched.`,
 		Example: `# Uninstall a Tarantool version.
   $ tt binary uninstall tarantool 3.0.0 --scope project`,
 	}
@@ -369,22 +374,11 @@ func newUninstallTtCmd(base *binary.BinaryContext,
 	uninstallCtx *uninstall.UninstallCtx,
 ) *cobra.Command {
 	tntCmd := &cobra.Command{
-		Use:   "tt [version]",
-		Short: "Uninstall tt",
-		RunE:  binaryRunE(base, uninstallCtx, internalUninstallModule),
-		Args:  cobra.MaximumNArgs(1),
-		ValidArgsFunction: func(
-			cmd *cobra.Command,
-			args []string,
-			toComplete string,
-		) ([]string, cobra.ShellCompDirective) {
-			if len(args) > 0 {
-				return []string{}, cobra.ShellCompDirectiveNoFileComp
-			}
-
-			return uninstall.GetList(cliOpts, cmd.Name()),
-				cobra.ShellCompDirectiveNoFileComp
-		},
+		Use:               "tt [version]",
+		Short:             "Uninstall tt",
+		RunE:              binaryRunE(base, uninstallCtx, internalUninstallModule),
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: completeBinaryUninstall,
 	}
 
 	return tntCmd
@@ -399,20 +393,9 @@ func newUninstallTarantoolCmd(base *binary.BinaryContext,
 		Short: "Uninstall Tarantool Community Edition",
 		Long: `Uninstall a Tarantool version.
 Without a version, unlink the active local build or uninstall the only installed version.`,
-		RunE: binaryRunE(base, uninstallCtx, internalUninstallModule),
-		Args: cobra.MaximumNArgs(1),
-		ValidArgsFunction: func(
-			cmd *cobra.Command,
-			args []string,
-			toComplete string,
-		) ([]string, cobra.ShellCompDirective) {
-			if len(args) > 0 {
-				return []string{}, cobra.ShellCompDirectiveNoFileComp
-			}
-
-			return uninstall.GetList(cliOpts, cmd.Name()),
-				cobra.ShellCompDirectiveNoFileComp
-		},
+		RunE:              binaryRunE(base, uninstallCtx, internalUninstallModule),
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: completeBinaryUninstall,
 	}
 
 	return tntCmd
@@ -423,22 +406,11 @@ func newUninstallTarantoolEeCmd(base *binary.BinaryContext,
 	uninstallCtx *uninstall.UninstallCtx,
 ) *cobra.Command {
 	tntCmd := &cobra.Command{
-		Use:   binary.ProgramEe.String() + " [version]",
-		Short: "Uninstall Tarantool Enterprise Edition",
-		RunE:  binaryRunE(base, uninstallCtx, internalUninstallModule),
-		Args:  cobra.MaximumNArgs(1),
-		ValidArgsFunction: func(
-			cmd *cobra.Command,
-			args []string,
-			toComplete string,
-		) ([]string, cobra.ShellCompDirective) {
-			if len(args) > 0 {
-				return []string{}, cobra.ShellCompDirectiveNoFileComp
-			}
-
-			return uninstall.GetList(cliOpts, cmd.Name()),
-				cobra.ShellCompDirectiveNoFileComp
-		},
+		Use:               binary.ProgramEe.String() + " [version]",
+		Short:             "Uninstall Tarantool Enterprise Edition",
+		RunE:              binaryRunE(base, uninstallCtx, internalUninstallModule),
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: completeBinaryUninstall,
 	}
 
 	return tntCmd
@@ -449,35 +421,41 @@ func newUninstallTcmCmd(base *binary.BinaryContext,
 	uninstallCtx *uninstall.UninstallCtx,
 ) *cobra.Command {
 	tntCmd := &cobra.Command{
-		Use:   binary.ProgramTcm.String() + " [version]",
-		Short: "Uninstall Tarantool Cluster Manager",
-		RunE:  binaryRunE(base, uninstallCtx, internalUninstallModule),
-		Args:  cobra.MaximumNArgs(1),
-		ValidArgsFunction: func(
-			cmd *cobra.Command,
-			args []string,
-			toComplete string,
-		) ([]string, cobra.ShellCompDirective) {
-			if len(args) > 0 {
-				return []string{}, cobra.ShellCompDirectiveNoFileComp
-			}
-
-			return uninstall.GetList(cliOpts, cmd.Name()),
-				cobra.ShellCompDirectiveNoFileComp
-		},
+		Use:               binary.ProgramTcm.String() + " [version]",
+		Short:             "Uninstall Tarantool Cluster Manager",
+		RunE:              binaryRunE(base, uninstallCtx, internalUninstallModule),
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: completeBinaryUninstall,
 	}
 
 	return tntCmd
+}
+
+// completeBinaryUninstall reads scope directly because completion skips the pre-run hook.
+func completeBinaryUninstall(cmd *cobra.Command, args []string,
+	toComplete string,
+) ([]string, cobra.ShellCompDirective) {
+	if len(args) > 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	scopeName, err := cmd.Flags().GetString("scope")
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError | cobra.ShellCompDirectiveNoFileComp
+	}
+
+	scope, err := binary.ParseScope(scopeName)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError | cobra.ShellCompDirectiveNoFileComp
+	}
+
+	return uninstall.GetList(scope, cmd.Name()), cobra.ShellCompDirectiveNoFileComp
 }
 
 // internalUninstallModule is a default uninstall module.
 func internalUninstallModule(base binary.BinaryContext, uninstallCtx uninstall.UninstallCtx,
 	cmdCtx *cmdcontext.CmdCtx, args []string,
 ) error {
-	if !isConfigExist(cmdCtx) {
-		return errNoConfig
-	}
-
 	program, err := binary.ParseProgram(cmdCtx.CommandName)
 	if err != nil {
 		return fmt.Errorf("failed to uninstall: %w", err)
@@ -491,8 +469,6 @@ func internalUninstallModule(base binary.BinaryContext, uninstallCtx uninstall.U
 	uninstallCtx.BinaryContext = base
 	uninstallCtx.Program = program
 	uninstallCtx.Version = programVersion
-	uninstallCtx.BinDir = cliOpts.Env.BinDir
-	uninstallCtx.IncDir = cliOpts.Env.IncludeDir + "/include"
 
 	return uninstall.UninstallProgram(uninstallCtx)
 }
@@ -504,6 +480,11 @@ func newBinarySearchCmd(base *binary.BinaryContext,
 	searchCmd := &cobra.Command{
 		Use:   "search",
 		Short: "Search available program versions",
+		Long: `Search available program versions and mark installations in the selected scope.
+Only that scope supplies [installed] and [active] labels.
+
+Use --local-repo <dir> to search local tt/ or tarantool/ source repositories,
+or EE/TCM archives.`,
 		Example: `# Search Tarantool Enterprise Edition releases.
   $ tt binary search tarantool-ee
 
@@ -511,10 +492,13 @@ func newBinarySearchCmd(base *binary.BinaryContext,
   $ tt binary search tarantool-ee --debug --version 3.0
 
   # Search Tarantool Cluster Manager 1.3 releases.
-  $ tt binary search tcm --version 1.3`,
+  $ tt binary search tcm --version 1.3
+
+  # Search local sources and mark versions installed for the current user.
+  $ tt binary search tt --scope user --local-repo ./sources`,
 	}
-	searchCmd.PersistentFlags().BoolVar(&searchCtx.Local, "local-repo", false,
-		"Search the local repository")
+	searchCmd.PersistentFlags().StringVar(&searchCtx.LocalRepo, "local-repo", "",
+		"Directory containing local source repositories or installation archives")
 
 	searchCmd.AddCommand(
 		newSearchTarantoolCmd(base, searchCtx),
@@ -605,8 +589,8 @@ func internalSearchModule(base binary.BinaryContext, searchCtx search.SearchCtx,
 		return fmt.Errorf("failed to search: %w", err)
 	}
 
-	if searchCtx.Local {
-		return search.SearchVersionsLocal(searchCtx, cliOpts, cmdCtx.Cli.ConfigPath)
+	if searchCtx.LocalRepo != "" {
+		return search.SearchVersionsLocal(searchCtx)
 	}
 
 	if searchCtx.Debug {
@@ -615,7 +599,7 @@ func internalSearchModule(base binary.BinaryContext, searchCtx search.SearchCtx,
 		searchCtx.Filter = search.SearchRelease
 	}
 
-	return search.SearchVersions(searchCtx, cliOpts)
+	return search.SearchVersions(searchCtx)
 }
 
 // newBinaryListCmd creates a command to list installed binaries.
@@ -625,8 +609,10 @@ func newBinaryListCmd(base *binary.BinaryContext,
 	listCmd := &cobra.Command{
 		Use:   listCmdName,
 		Short: "List installed binaries and versions",
-		Args:  cobra.NoArgs,
-		RunE:  binaryRunE(base, listCtx, internalListModule),
+		Long: `List installed versions and active binaries in the selected scope.
+The project scope uses only .tarantool in the current directory.`,
+		Args: cobra.NoArgs,
+		RunE: binaryRunE(base, listCtx, internalListModule),
 	}
 
 	return listCmd
@@ -636,12 +622,7 @@ func newBinaryListCmd(base *binary.BinaryContext,
 func internalListModule(base binary.BinaryContext, listCtx list.ListCtx,
 	cmdCtx *cmdcontext.CmdCtx, args []string,
 ) error {
-	if !isConfigExist(cmdCtx) {
-		return errNoConfig
-	}
-
 	listCtx.BinaryContext = base
-	listCtx.BinDir = cliOpts.Env.BinDir
 
 	return list.ListBinaries(listCtx)
 }
@@ -653,6 +634,10 @@ func newBinarySwitchCmd(base *binary.BinaryContext,
 	switchCmd := &cobra.Command{
 		Use:   "switch [program] [version]",
 		Short: "Switch the active binary",
+		Long: `Switch to an installed version in the selected scope.
+Without arguments, choose the program and version interactively. With only
+a program, choose its version. CE and EE share the active Tarantool binary
+and headers.`,
 		Example: `# Choose a program and version interactively.
   $ tt binary switch --scope project
 
@@ -685,41 +670,32 @@ func binarySwitchValidateArgs(cmd *cobra.Command, args []string) error {
 func internalSwitchModule(base binary.BinaryContext, switchCtx switcher.SwitchCtx,
 	cmdCtx *cmdcontext.CmdCtx, args []string,
 ) error {
-	if !isConfigExist(cmdCtx) {
-		return errNoConfig
-	}
-
 	var err error
 
 	switchCtx.BinaryContext = base
 
-	if len(args) > 0 {
-		switchCtx.Program, err = binary.ParseProgram(args[0])
-		if err != nil {
-			return fmt.Errorf("failed to switch module: %w", err)
-		}
-	} else {
+	switch len(args) {
+	case 0:
 		switchCtx.Program, err = switcher.ChooseProgram(binarySupportedPrograms)
-		if err != nil {
-			return err
-		}
+	default:
+		switchCtx.Program, err = binary.ParseProgram(args[0])
 	}
 
-	if len(args) > 1 {
+	if err != nil {
+		return fmt.Errorf("failed to switch module: %w", err)
+	}
+
+	switch len(args) {
+	case binarySwitchMaxArgs:
 		switchCtx.Version = args[1]
-	} else {
-		switchCtx.Version, err = switcher.ChooseVersion(cliOpts.Env.BinDir, switchCtx.Program)
+	default:
+		switchCtx.Version, err = switcher.ChooseVersion(base.Scope, switchCtx.Program)
 		if err != nil {
 			return err
 		}
 	}
 
-	switchCtx.BinDir = cliOpts.Env.BinDir
-	switchCtx.IncDir = cliOpts.Env.IncludeDir
-
-	err = switcher.Switch(&switchCtx)
-
-	return err
+	return switcher.Switch(&switchCtx)
 }
 
 // binaryRunE applies the flags inherited from binary to the whole operation.

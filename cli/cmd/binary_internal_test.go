@@ -3,6 +3,7 @@ package cmd
 import (
 	"io"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,6 +14,9 @@ import (
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/internal/binary"
 	"github.com/tarantool/tt/v3/internal/binary/install"
+	"github.com/tarantool/tt/v3/internal/binary/list"
+	switcher "github.com/tarantool/tt/v3/internal/binary/switch"
+	"github.com/tarantool/tt/v3/internal/binary/uninstall"
 )
 
 // TestBinaryDefaultScope checks that all commands accept an omitted scope.
@@ -331,11 +335,11 @@ func TestBinaryParentFlagsAfterProgram(t *testing.T) {
 
 	search, _, err := root.Find([]string{"search", "tarantool"})
 	require.NoError(t, err)
-	require.NoError(t, search.ParseFlags([]string{"--local-repo"}))
+	require.NoError(t, search.ParseFlags([]string{"--local-repo", "/source files"}))
 
-	local, err := search.Flags().GetBool("local-repo")
+	local, err := search.Flags().GetString("local-repo")
 	require.NoError(t, err)
-	assert.True(t, local)
+	assert.Equal(t, "/source files", local)
 }
 
 func TestBinaryCommandOptionsAreIndependent(t *testing.T) {
@@ -351,6 +355,7 @@ func TestBinaryCommandOptionsAreIndependent(t *testing.T) {
 		{[]string{"install", "tarantool"}, "local-repo", "/first", "/second"},
 		{[]string{"install", "tarantool-sdk"}, "destination", "/first", "/second"},
 		{[]string{"search", "tarantool-ee"}, "version", "3.0", "3.1"},
+		{[]string{"search", "tarantool"}, "local-repo", "/first", "/second"},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.flag, func(t *testing.T) {
@@ -405,5 +410,172 @@ func TestBinaryInstallAdapterOptions(t *testing.T) {
 			require.NoError(t, run(command, []string{"3.4.0"}))
 			assert.True(t, called)
 		})
+	}
+}
+
+// TestBinaryScopedCommandsWithoutConfig exercises the adapters without the legacy boot layer.
+func TestBinaryScopedCommandsWithoutConfig(t *testing.T) {
+	for _, scope := range []binary.Scope{binary.ScopeProject, binary.ScopeUser} {
+		t.Run(scope.String(), func(t *testing.T) {
+			restoreProcessState(t)
+
+			previousOpts := cliOpts
+
+			t.Cleanup(func() { cliOpts = previousOpts })
+
+			cliOpts = nil
+
+			work := t.TempDir()
+			t.Chdir(work)
+			t.Setenv("HOME", t.TempDir())
+			t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+			cmdCtx.Cli.ConfigPath = filepath.Join(work, "tt.yaml")
+			require.NoError(t, os.WriteFile(cmdCtx.Cli.ConfigPath, []byte("[broken"), 0o600))
+
+			root, err := scope.ArtifactPath()
+			require.NoError(t, err)
+
+			installed := filepath.Join(root, "versions", "tcm", "tcm_1.3.0", "tcm")
+			require.NoError(t, os.MkdirAll(filepath.Dir(installed), 0o755))
+			require.NoError(t, os.WriteFile(installed, []byte("binary"), 0o755))
+
+			repo := filepath.Join(work, "bundles")
+			require.NoError(t, os.Mkdir(repo, 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(repo,
+				"tcm-1.3.0.linux.amd64.tar.gz"), nil, 0o600))
+
+			commands := [][]string{
+				{"switch", "tcm", "1.3.0"},
+				{"list"},
+				{"search", "tcm", "--local-repo", "bundles"},
+			}
+			for _, args := range commands {
+				command := NewBinaryCmd()
+				command.SetOut(io.Discard)
+				command.SetErr(io.Discard)
+				command.SetArgs(append([]string{"--scope", scope.String()}, args...))
+				require.NoError(t, command.Execute(), args)
+			}
+
+			active, err := filepath.EvalSymlinks(filepath.Join(root, "bin", "tcm"))
+			require.NoError(t, err)
+			assert.Equal(t, installed, active)
+
+			command := NewBinaryCmd()
+			command.SetArgs([]string{"--scope", scope.String(), "uninstall", "tcm", "1.3.0"})
+			require.NoError(t, command.Execute())
+			assert.NoDirExists(t, filepath.Dir(installed))
+
+			_, err = os.Lstat(filepath.Join(root, "bin", "tcm"))
+			require.ErrorIs(t, err, os.ErrNotExist)
+		})
+	}
+}
+
+func TestBinaryScopedAdaptersDoNotFindParent(t *testing.T) {
+	restoreProcessState(t)
+
+	parent := t.TempDir()
+	child := filepath.Join(parent, "child")
+	require.NoError(t, os.Mkdir(child, 0o755))
+
+	installed := filepath.Join(parent, ".tarantool", "versions", "tt", "tt_v3.0.0", "tt")
+	require.NoError(t, os.MkdirAll(filepath.Dir(installed), 0o755))
+	require.NoError(t, os.WriteFile(installed, nil, 0o755))
+	t.Chdir(child)
+
+	base := binary.BinaryContext{Scope: binary.ScopeProject}
+	ctx := &cmdcontext.CmdCtx{}
+	err := internalListModule(base, list.ListCtx{}, ctx, nil)
+	require.ErrorIs(t, err, list.ErrNoBinariesInstalled)
+	require.ErrorContains(t, internalSwitchModule(base, switcher.SwitchCtx{}, ctx,
+		[]string{"tt", "3.0.0"}), "is not installed")
+
+	ctx.CommandName = "tt"
+	require.ErrorContains(t, internalUninstallModule(base, uninstall.UninstallCtx{}, ctx,
+		[]string{"3.0.0"}), "not installed")
+	assert.FileExists(t, installed)
+	assert.NoDirExists(t, filepath.Join(child, ".tarantool"))
+	assert.NoDirExists(t, filepath.Join(parent, ".tarantool", "bin"))
+}
+
+func TestBinarySearchRequiresLocalRepositoryArgument(t *testing.T) {
+	for _, program := range binarySupportedPrograms {
+		t.Run(program, func(t *testing.T) {
+			command, _, err := NewBinaryCmd().Find([]string{"search", program})
+			require.NoError(t, err)
+			require.ErrorContains(t, command.ParseFlags([]string{"--local-repo"}),
+				"flag needs an argument: --local-repo")
+		})
+	}
+}
+
+func TestBinaryUninstallCompletionScope(t *testing.T) {
+	restoreProcessState(t)
+
+	previousOpts := cliOpts
+
+	t.Cleanup(func() { cliOpts = previousOpts })
+
+	cliOpts = nil
+
+	parent := t.TempDir()
+	child := filepath.Join(parent, "child")
+	require.NoError(t, os.Mkdir(child, 0o755))
+	t.Chdir(child)
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+	projectRoot, err := binary.ScopeProject.ArtifactPath()
+	require.NoError(t, err)
+
+	userRoot, err := binary.ScopeUser.ArtifactPath()
+	require.NoError(t, err)
+
+	for _, program := range binarySupportedPrograms {
+		parsed, err := binary.ParseProgram(program)
+		require.NoError(t, err)
+
+		for root, version := range map[string]string{
+			projectRoot: "1.0.0", userRoot: "2.0.0", filepath.Join(parent, ".tarantool"): "3.0.0",
+		} {
+			installed := filepath.Join(root, "versions", program,
+				program+"_"+version, parsed.Exec())
+			require.NoError(t, os.MkdirAll(filepath.Dir(installed), 0o755))
+			require.NoError(t, os.WriteFile(installed, nil, 0o755))
+		}
+
+		for _, testCase := range []struct {
+			scope    string
+			expected []string
+		}{
+			{expected: []string{"1.0.0"}},
+			{scope: "project", expected: []string{"1.0.0"}},
+			{scope: "user", expected: []string{"2.0.0"}},
+			{scope: "global"},
+		} {
+			command, _, err := NewBinaryCmd().Find([]string{"uninstall", program})
+			require.NoError(t, err)
+
+			var flags []string
+
+			if testCase.scope != "" {
+				flags = []string{"--scope", testCase.scope}
+			}
+
+			require.NoError(t, command.ParseFlags(flags))
+
+			// Completion must work before PersistentPreRunE populates the shared context.
+			versions, directive := command.ValidArgsFunction(command, nil, "")
+			assert.Equal(t, testCase.expected, versions)
+			assert.NotZero(t, directive&cobra.ShellCompDirectiveNoFileComp)
+			assert.Equal(t, testCase.scope == "global",
+				directive&cobra.ShellCompDirectiveError != 0)
+
+			versions, directive = command.ValidArgsFunction(command, []string{"1.0.0"}, "")
+			assert.Empty(t, versions)
+			assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
+		}
 	}
 }

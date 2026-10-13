@@ -3,10 +3,8 @@ package switcher
 import (
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/fatih/color"
@@ -17,34 +15,22 @@ import (
 	"github.com/tarantool/tt/v3/internal/binary/list"
 )
 
+// activeDirectoryMode makes system-scope selections accessible to every user.
+const activeDirectoryMode = 0o755
+
 var (
 	errBinaryIsNotInstalledInCurrentEnvironment  = errors.New("binary ")
 	errHeadersIsNotInstalledInCurrentEnvironment = errors.New("headers ")
 	errThereAreNoInstalledInThisEnvironmentOfTT  = errors.New("there are no ")
+	errInvalidVersion                            = errors.New("invalid version")
 )
 
 // SwitchCtx contains information for switch command.
 type SwitchCtx struct {
 	binary.BinaryContext
 
-	// BinDir is a directory witch stores binaries.
-	BinDir string
-	// IncDir is a directory witch stores include files.
-	IncDir string
 	// Version of the program to switch to.
 	Version string
-}
-
-// spell-checker:disable
-// ansi is a string to clean strings from ANSI escape codes using regexp.
-const ansi = "[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;" +
-	"[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))"
-
-// spell-checker:enable
-
-func cleanString(str string) string {
-	re := regexp.MustCompile(ansi)
-	return re.ReplaceAllString(str, "")
 }
 
 // ChooseProgram shows a menu in terminal to choose program for switch.
@@ -68,17 +54,42 @@ func ChooseProgram(supportedPrograms []string) (binary.Program, error) {
 	return binary.ParseProgram(program)
 }
 
-// ChooseVersion shows a menu in terminal to choose version of program to switch to.
-func ChooseVersion(binDir string, program binary.Program) (string, error) {
-	binDirFilesList, err := os.ReadDir(binDir)
+// versionChoices formats menu labels without changing installation identities.
+func versionChoices(versions []version.Version) []string {
+	choices := make([]string, 0, len(versions))
+	for _, installed := range versions {
+		label := strings.TrimPrefix(installed.Str, "v")
+		if strings.HasSuffix(installed.Str, " [active]") {
+			choices = append(choices, binary.Bold(color.GreenString(label)))
+			continue
+		}
 
-	if len(binDirFilesList) == 0 || errors.Is(err, fs.ErrNotExist) {
-		return "", list.ErrNoBinariesInstalled
-	} else if err != nil {
-		return "", fmt.Errorf("error reading directory %q: %w", binDir, err)
+		choices = append(choices, color.YellowString(label))
 	}
 
-	versions, err := list.ParseBinaries(binDirFilesList, program, binDir)
+	return choices
+}
+
+// ChooseVersion shows a menu of versions installed in the selected scope.
+func ChooseVersion(scope binary.Scope, program binary.Program) (string, error) {
+	err := validateProgram(program)
+	if err != nil {
+		return "", err
+	}
+
+	root, err := scope.ArtifactPath()
+	if err != nil {
+		return "", err
+	}
+
+	directory := filepath.Join(root, binary.VersionsDirName, program.String())
+	entries, err := os.ReadDir(directory)
+
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("error reading directory %q: %w", directory, err)
+	}
+
+	versions, err := list.ParseBinaries(entries, program, root)
 	if err != nil {
 		return "", err
 	}
@@ -88,98 +99,139 @@ func ChooseVersion(binDir string, program binary.Program) (string, error) {
 			errThereAreNoInstalledInThisEnvironmentOfTT, program)
 	}
 
-	var versionStr []string
-
-	for _, version := range versions {
-		if strings.Contains(version.Str, "[active]") {
-			versionStr = append(versionStr, binary.Bold(color.GreenString(version.Str)))
-			continue
-		}
-
-		versionStr = append(versionStr, color.YellowString(version.Str))
-	}
-
 	versionSelect := promptui.Select{
 		Label:        "Select version",
-		Items:        versionStr,
+		Items:        versionChoices(versions),
 		HideSelected: true,
 	}
-	_, version, err := versionSelect.Run()
 
-	version = cleanString(version)
-	version = strings.TrimSuffix(version, " [active]")
-
+	index, _, err := versionSelect.Run()
 	if err != nil {
-		return version, fmt.Errorf("failed to choose version: %w", err)
+		return "", fmt.Errorf("failed to choose version: %w", err)
 	}
 
-	return version, nil
+	return strings.TrimSuffix(versions[index].Str, " [active]"), nil
 }
 
-// switchHeaders makes symlink for required version of headers.
-func switchHeaders(switchCtx *SwitchCtx, versionStr string) error {
-	includeDir := filepath.Join(switchCtx.IncDir, "include")
-
-	if !binary.IsDir(filepath.Join(includeDir, versionStr)) {
-		return fmt.Errorf("%w%s is not installed in current environment",
-			errHeadersIsNotInstalledInCurrentEnvironment, versionStr)
+// validateProgram limits switching to products with installed executables.
+func validateProgram(program binary.Program) error {
+	switch program {
+	case binary.ProgramTt, binary.ProgramCe, binary.ProgramEe, binary.ProgramTcm:
+		return nil
+	default:
+		return fmt.Errorf("%w%s", binary.ErrUnknownApplication, program)
 	}
-
-	err := binary.CreateSymlink(versionStr,
-		filepath.Join(includeDir, switchCtx.Program.Exec()),
-		true)
-	if err != nil {
-		return fmt.Errorf("failed create symlink: %w", err)
-	}
-
-	return nil
 }
 
-// switchBinary makes symlink for required binary version.
-func switchBinary(switchCtx *SwitchCtx, versionStr string) error {
-	newBinary := filepath.Join(switchCtx.BinDir, versionStr)
-	if !binary.IsRegularFile(newBinary) {
-		return fmt.Errorf("%w%s is not installed in current environment",
-			errBinaryIsNotInstalledInCurrentEnvironment, newBinary)
+// findInstalledVersion resolves only the requested installation and its release alias.
+func findInstalledVersion(root string, program binary.Program,
+	requested string,
+) (string, string, error) {
+	if requested == "" || requested == "." || requested == ".." ||
+		filepath.IsAbs(requested) || strings.ContainsAny(requested, "/\\\x00") {
+		return "", "", fmt.Errorf("%w: %q", errInvalidVersion, requested)
 	}
 
-	err := binary.CreateSymlink(versionStr,
-		filepath.Join(switchCtx.BinDir, switchCtx.Program.Exec()),
-		true)
-	if err != nil {
-		return fmt.Errorf("failed create symlink: %w", err)
+	candidates := []string{requested}
+	if alternative, ok := alternateReleaseSpelling(requested); ok {
+		candidates = append(candidates, alternative)
 	}
 
-	return nil
-}
+	for _, candidate := range candidates {
+		installation := filepath.Join(root, binary.VersionsDirName, program.String(),
+			program.String()+version.FsSeparator+candidate)
+		binPath := filepath.Join(installation, program.Exec())
+		info, err := os.Stat(binPath)
 
-// Switch switches binaries.
-func Switch(switchCtx *SwitchCtx) error {
-	switch switchCtx.Program {
-	case binary.ProgramTt:
-		if !strings.HasPrefix(switchCtx.Version, "v") {
-			switchCtx.Version = "v" + switchCtx.Version
+		switch {
+		case errors.Is(err, os.ErrNotExist):
+			continue
+		case err != nil:
+			return "", "", fmt.Errorf("failed to access %q: %w", binPath, err)
+		case info.Mode().IsRegular():
+			return candidate, installation, nil
 		}
-
-	case binary.ProgramUnknown:
-		return fmt.Errorf("%w%s", binary.ErrUnknownApplication, switchCtx.Program)
-	case binary.ProgramCe, binary.ProgramEe, binary.ProgramTcm, binary.ProgramSDK:
-		// These programs do not require tt version normalization.
 	}
 
-	versionStr := switchCtx.Program.String() + version.FsSeparator + switchCtx.Version
-	log.Infof("Switching to %s", versionStr)
+	return "", "", fmt.Errorf("%w%s is not installed in current environment",
+		errBinaryIsNotInstalledInCurrentEnvironment,
+		program.String()+version.FsSeparator+requested)
+}
 
-	err := switchBinary(switchCtx, versionStr)
+// alternateReleaseSpelling accepts v-prefixed release tags without altering branches or hashes.
+func alternateReleaseSpelling(requested string) (string, bool) {
+	_, err := version.Parse(requested)
+	if err != nil {
+		return "", false
+	}
+
+	if release, found := strings.CutPrefix(requested, "v"); found {
+		return release, true
+	}
+
+	return "v" + requested, true
+}
+
+// switchLink prepares the active directory and replaces one link in the selected scope.
+func switchLink(target, link string) error {
+	err := binary.CreateDirectory(filepath.Dir(link), activeDirectoryMode)
+	if err != nil {
+		return fmt.Errorf("failed to create active directory: %w", err)
+	}
+
+	err = binary.CreateSymlink(target, link, true)
+	if err != nil {
+		return fmt.Errorf("failed create symlink: %w", err)
+	}
+
+	return nil
+}
+
+// Switch selects an installed version in exactly the requested scope.
+func Switch(switchCtx *SwitchCtx) error {
+	err := validateProgram(switchCtx.Program)
+	if err != nil {
+		return err
+	}
+
+	root, err := switchCtx.Scope.ArtifactPath()
+	if err != nil {
+		return err
+	}
+
+	selected, installation, err := findInstalledVersion(root, switchCtx.Program, switchCtx.Version)
 	if err != nil {
 		return fmt.Errorf("failed to switch binary: %w", err)
 	}
 
-	if switchCtx.Program.IsTarantool() {
-		err = switchHeaders(switchCtx, versionStr)
+	log.Infof("Switching to %s%s%s", switchCtx.Program, version.FsSeparator, selected)
+
+	binPath := filepath.Join(installation, switchCtx.Program.Exec())
+	incPath := filepath.Join(installation, binary.IncDirName, switchCtx.Program.Exec())
+
+	if switchCtx.Program.IsTarantool() && !binary.IsDir(incPath) {
+		return fmt.Errorf("failed to switch headers: %w%s is not installed in current environment",
+			errHeadersIsNotInstalledInCurrentEnvironment,
+			switchCtx.Program.String()+version.FsSeparator+selected)
+	}
+
+	binLink := filepath.Join(root, binary.BinDirName, switchCtx.Program.Exec())
+
+	err = switchLink(binPath, binLink)
+	if err != nil {
+		return fmt.Errorf("failed to switch binary: %w", err)
+	}
+
+	switch switchCtx.Program {
+	case binary.ProgramCe, binary.ProgramEe:
+		incLink := filepath.Join(root, binary.IncDirName, switchCtx.Program.Exec())
+
+		err = switchLink(incPath, incLink)
 		if err != nil {
 			return fmt.Errorf("failed to switch headers: %w", err)
 		}
+	default:
+		// TT and TCM have no headers to activate.
 	}
 
 	log.Infof("Done")

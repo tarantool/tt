@@ -10,12 +10,12 @@ import (
 	"strings"
 
 	"github.com/tarantool/tt/sdk/log"
-	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
 )
 
 var (
+	errLocalRepoRequired                 = errors.New("local repository directory is required")
 	errLocalSDKFileSearchNotSupportedFor = errors.New("local SDK file search not supported for ")
 	errLocalSearchNotSupportedForProgram = errors.New("local search not supported for program '")
 )
@@ -137,34 +137,28 @@ func FindLocalBundles(program binary.Program, fsys fs.FS) (BundleInfoSlice, erro
 	return bundles, nil
 }
 
-// getBaseDirectory determines the base directory for local search.
-func getBaseDirectory(cfgPath string, repo *config.RepoOpts) string {
-	var localDir string
+// SearchVersionsLocal outputs available versions of program found locally.
+func SearchVersionsLocal(searchCtx SearchCtx) error {
+	root, err := searchCtx.Scope.ArtifactPath()
+	if err != nil {
+		return err
+	}
 
-	if repo != nil && repo.Install != "" {
-		localDir = repo.Install
-	} else {
-		configDir := filepath.Dir(cfgPath)
+	if searchCtx.LocalRepo == "" {
+		return errLocalRepoRequired
+	}
 
-		localDir = filepath.Join(configDir, "distfiles")
+	localDir, err := filepath.Abs(searchCtx.LocalRepo)
+	if err != nil {
+		return fmt.Errorf("cannot resolve local repository directory: %w", err)
 	}
 
 	log.Debugf("Using local search directory: %s", localDir)
 
-	return localDir
-}
-
-// SearchVersionsLocal outputs available versions of program found locally.
-func SearchVersionsLocal(searchCtx SearchCtx, cliOpts *config.CliOpts, cfgPath string) error {
 	prg := searchCtx.Program
 	log.Infof("Available local versions of %s:", prg)
 
-	localDir := getBaseDirectory(cfgPath, cliOpts.Repo)
-
-	var (
-		vers version.VersionSlice
-		err  error
-	)
+	var vers version.VersionSlice
 
 	switch prg {
 	case binary.ProgramCe:
@@ -192,7 +186,7 @@ func SearchVersionsLocal(searchCtx SearchCtx, cliOpts *config.CliOpts, cfgPath s
 	}
 
 	for _, v := range vers {
-		printVersion(cliOpts.Env.BinDir, prg, v.Str)
+		printVersion(root, prg, v.Str)
 	}
 
 	return nil

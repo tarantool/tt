@@ -1,152 +1,471 @@
 package uninstall
 
 import (
-	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/v3/cli/configure"
-	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
 )
 
-type mockRepository struct{}
+func uninstallContext(scope binary.Scope, program binary.Program, version string) UninstallCtx {
+	var ctx UninstallCtx
 
-func (mock *mockRepository) Read(path string) (io.ReadCloser, error) {
-	return os.Open(path)
+	ctx.Scope = scope
+	ctx.Program = program
+	ctx.Version = version
+
+	return ctx
 }
 
-func (mock *mockRepository) ReadFile(path string) ([]byte, error) {
-	return os.ReadFile(path)
+func installVersion(t *testing.T, root string, program binary.Program, version string) string {
+	t.Helper()
+
+	dir := filepath.Join(root, binary.VersionsDirName, program.String(),
+		program.String()+"_"+version)
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, program.Exec()), []byte("binary"), 0o755))
+
+	if program.IsTarantool() {
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, "inc", "tarantool"), 0o755))
+	}
+
+	return dir
 }
 
-func (mock *mockRepository) ValidateAll() error {
-	return nil
+func linkInstallation(t *testing.T, root string, program binary.Program, installation string) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "bin"), 0o755))
+	require.NoError(t, binary.CreateSymlink(filepath.Join(installation, program.Exec()),
+		filepath.Join(root, "bin", program.Exec()), true))
+
+	if program.IsTarantool() {
+		require.NoError(t, os.MkdirAll(filepath.Join(root, "inc"), 0o755))
+		require.NoError(t, binary.CreateSymlink(filepath.Join(installation, "inc", "tarantool"),
+			filepath.Join(root, "inc", "tarantool"), true))
+	}
 }
 
-func TestGetList(t *testing.T) {
-	assert := assert.New(t)
-	workDir := t.TempDir()
+func assertLink(t *testing.T, link, target string) {
+	t.Helper()
 
-	binDir := filepath.Join(workDir, "bin")
-	err := os.Mkdir(binDir, os.ModePerm)
+	actual, err := filepath.EvalSymlinks(link)
 	require.NoError(t, err)
 
-	cfgData := []byte("tt:\n  app:\n    bin_dir: " + binDir)
-	cfgPath := filepath.Join(workDir, "tt.yaml")
-
-	err = os.WriteFile(cfgPath, cfgData, 0o400)
+	expected, err := filepath.EvalSymlinks(target)
 	require.NoError(t, err)
-
-	files := []string{
-		"tt" + version.FsSeparator + "1.2.3",
-		"tarantool" + version.FsSeparator + "1.2.10",
-		"tarantool-ee" + version.FsSeparator + "master",
-	}
-	for _, file := range files {
-		f, err := os.Create(filepath.Join(binDir, file))
-		require.NoError(t, err)
-
-		_ = f.Close()
-	}
-
-	cliOpts, _, err := configure.GetCliOpts(cfgPath, &mockRepository{})
-	require.NoError(t, err)
-
-	result := GetList(cliOpts, "tt")
-	assert.Equal([]string{"1.2.3"}, result)
-
-	result = GetList(cliOpts, "tarantool")
-	assert.Equal([]string{"1.2.10"}, result)
-
-	result = GetList(cliOpts, "tarantool-ee")
-	assert.Equal([]string{"master"}, result)
+	assert.Equal(t, expected, actual)
 }
 
-func TestSearchLatestVersion(t *testing.T) {
-	type testCase struct {
-		name        string
-		program     binary.Program
-		binDst      string
-		headerDst   string
-		expectedVer string
-		isErr       bool
-	}
+func assertMissing(t *testing.T, path string) {
+	t.Helper()
 
-	cases := []testCase{
-		{
-			name:        "basic",
-			program:     binary.ProgramCe,
-			binDst:      "../testdata/bin_basic",
-			headerDst:   "../testdata/inc_basic",
-			expectedVer: "tarantool_3.0.0-entrypoint",
-		},
-		{
-			name:        "no includes",
-			program:     binary.ProgramEe,
-			binDst:      "../testdata/bin_basic",
-			headerDst:   "../testdata/inc_invalid",
-			expectedVer: "tarantool-ee_2.8.4-0-r510",
-		},
-		{
-			name:        "local build",
-			program:     binary.ProgramCe,
-			binDst:      "../testdata/bin_dev",
-			headerDst:   "../testdata/inc_basic",
-			expectedVer: "",
-		},
-		{
-			name:        "hash version",
-			program:     binary.ProgramCe,
-			binDst:      "../testdata/bin_hash",
-			headerDst:   "../testdata/inc_hash",
-			expectedVer: "tarantool_aaaaaaa",
-		},
-		{
-			name:        "hash invalid headers",
-			program:     binary.ProgramCe,
-			binDst:      "../testdata/bin_hash",
-			headerDst:   "../testdata/inc_invalid_hash",
-			expectedVer: "tarantool_bbbbbbb",
-		},
-		{
-			name:        "tt, include-dir basic",
-			program:     binary.ProgramTt,
-			binDst:      "../testdata/bin_basic",
-			headerDst:   "../testdata/inc_basic",
-			expectedVer: "tt_2.0.0",
-		},
-		// Test that include dir doesn't affect the search for `tt`.
-		{
-			name:        "tt, include-dir invalid",
-			program:     binary.ProgramTt,
-			binDst:      "../testdata/bin_basic",
-			headerDst:   "../testdata/inc_invalid",
-			expectedVer: "tt_2.0.0",
-		},
-		{
-			name:      "filename as a bin dir",
-			program:   binary.ProgramTt,
-			binDst:    "../testdata/bin_basic/tarantool",
-			headerDst: "../testdata/inc_basic",
-			isErr:     true,
-		},
-	}
+	_, err := os.Lstat(path)
+	require.ErrorIs(t, err, os.ErrNotExist)
+}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			ver, err := searchLatestVersion(tc.program, tc.binDst, tc.headerDst)
-			if !tc.isErr {
-				require.NoError(t, err)
-				assert.Equal(t, tc.expectedVer, ver)
-			} else {
-				assert.Error(t, err)
+func projectRoot(t *testing.T) string {
+	t.Helper()
+	t.Chdir(t.TempDir())
+
+	root, err := binary.ScopeProject.ArtifactPath()
+	require.NoError(t, err)
+
+	return root
+}
+
+func TestGetListAndDefault(t *testing.T) {
+	root := projectRoot(t)
+	installation := installVersion(t, root, binary.ProgramTt, "v3.0.0")
+	dir := filepath.Dir(installation)
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "unrelated"), 0o755))
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "tt_"), 0o755))
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "tarantool_4.0.0"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "tt_v4.0.0"), nil, 0o644))
+	require.NoError(t, os.Symlink(installation, filepath.Join(dir, "tt_v5.0.0")))
+	assert.Equal(t, []string{"v3.0.0"}, GetList(binary.ScopeProject, "tt"))
+
+	selected, err := getDefault(binary.ProgramTt, root)
+	require.NoError(t, err)
+	assert.Equal(t, "v3.0.0", selected)
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "tt_master"), 0o755))
+	assert.Equal(t, []string{"master", "v3.0.0"}, GetList(binary.ScopeProject, "tt"))
+
+	_, err = getDefault(binary.ProgramTt, root)
+	require.ErrorIs(t, err, errMultipleInstalledVersions)
+	assert.Empty(t, GetList(binary.ScopeUnknown, "tt"))
+	assert.Empty(t, GetList(binary.ScopeProject, "nodejs"))
+	assert.Empty(t, GetList(binary.ScopeProject, "tarantool-sdk"))
+}
+
+func TestUninstallEmptyScope(t *testing.T) {
+	root := projectRoot(t)
+	ctx := uninstallContext(binary.ScopeProject, binary.ProgramTt, "")
+	require.ErrorIs(t, UninstallProgram(ctx), errHasNoInstalledVersion)
+	assert.Empty(t, GetList(binary.ScopeProject, "tt"))
+
+	ctx.Version = "3.0.0"
+	require.ErrorIs(t, UninstallProgram(ctx), errNotInstalled)
+	assertMissing(t, root)
+}
+
+func TestUninstallLastVersion(t *testing.T) {
+	for _, program := range []binary.Program{
+		binary.ProgramTt, binary.ProgramCe, binary.ProgramEe, binary.ProgramTcm,
+	} {
+		for _, requested := range []string{"", "3.0.0"} {
+			t.Run(program.String()+"/"+requested, func(t *testing.T) {
+				root := projectRoot(t)
+				installation := installVersion(t, root, program, "3.0.0")
+				require.NoError(t, os.WriteFile(filepath.Join(installation, "extra"), nil, 0o644))
+				linkInstallation(t, root, program, installation)
+
+				ctx := uninstallContext(binary.ScopeProject, program, requested)
+				require.NoError(t, UninstallProgram(ctx))
+				assertMissing(t, installation)
+				assertMissing(t, filepath.Join(root, "bin", program.Exec()))
+
+				if program.IsTarantool() {
+					assertMissing(t, filepath.Join(root, "inc", "tarantool"))
+				}
+			})
+		}
+	}
+}
+
+func TestUninstallInactiveVersion(t *testing.T) {
+	for _, program := range []binary.Program{
+		binary.ProgramTt, binary.ProgramCe, binary.ProgramEe, binary.ProgramTcm,
+	} {
+		t.Run(program.String(), func(t *testing.T) {
+			root := projectRoot(t)
+			active := installVersion(t, root, program, "2.0.0")
+			removed := installVersion(t, root, program, "3.0.0")
+			linkInstallation(t, root, program, active)
+
+			ctx := uninstallContext(binary.ScopeProject, program, "3.0.0")
+			require.NoError(t, UninstallProgram(ctx))
+			assertMissing(t, removed)
+			assertLink(t, filepath.Join(root, "bin", program.Exec()),
+				filepath.Join(active, program.Exec()))
+
+			if program.IsTarantool() {
+				assertLink(t, filepath.Join(root, "inc", "tarantool"),
+					filepath.Join(active, "inc", "tarantool"))
 			}
 		})
 	}
+}
+
+func TestUninstallPreservesOtherEdition(t *testing.T) {
+	for _, removedProgram := range []binary.Program{binary.ProgramCe, binary.ProgramEe} {
+		t.Run(removedProgram.String(), func(t *testing.T) {
+			root := projectRoot(t)
+			activeProgram := binary.ProgramEe
+
+			if removedProgram == binary.ProgramEe {
+				activeProgram = binary.ProgramCe
+			}
+
+			active := installVersion(t, root, activeProgram, "3.0.0")
+			removed := installVersion(t, root, removedProgram, "3.0.0")
+			linkInstallation(t, root, activeProgram, active)
+
+			ctx := uninstallContext(binary.ScopeProject, removedProgram, "3.0.0")
+			require.NoError(t, UninstallProgram(ctx))
+			assertMissing(t, removed)
+			assertLink(t, filepath.Join(root, "bin", "tarantool"),
+				filepath.Join(active, "tarantool"))
+			assertLink(t, filepath.Join(root, "inc", "tarantool"),
+				filepath.Join(active, "inc", "tarantool"))
+		})
+	}
+}
+
+func TestUninstallTtVersionFormats(t *testing.T) {
+	testCases := []struct {
+		name      string
+		versions  []string
+		requested string
+		removed   string
+	}{
+		{"exact_plain", []string{"3.0.0", "v3.0.0"}, "3.0.0", "3.0.0"},
+		{"exact_prefixed", []string{"3.0.0", "v3.0.0"}, "v3.0.0", "v3.0.0"},
+		{"plain_fallback", []string{"v3.0.0"}, "3.0.0", "v3.0.0"},
+		{"no_reverse_fallback", []string{"3.0.0"}, "v3.0.0", ""},
+		{"master", []string{"master"}, "master", "master"},
+		{"commit", []string{"abcdef0"}, "abcdef0", "abcdef0"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := projectRoot(t)
+			for _, ver := range testCase.versions {
+				installVersion(t, root, binary.ProgramTt, ver)
+			}
+
+			ctx := uninstallContext(binary.ScopeProject, binary.ProgramTt, testCase.requested)
+			err := UninstallProgram(ctx)
+
+			if testCase.removed == "" {
+				require.ErrorIs(t, err, errNotInstalled)
+			} else {
+				require.NoError(t, err)
+			}
+
+			for _, ver := range testCase.versions {
+				path := filepath.Join(root, "versions", "tt", "tt_"+ver)
+				if ver == testCase.removed {
+					assertMissing(t, path)
+
+					continue
+				}
+
+				assert.DirExists(t, path)
+			}
+		})
+	}
+}
+
+func TestSearchLatestVersion(t *testing.T) {
+	type candidate struct {
+		program binary.Program
+		version string
+		missing string
+	}
+
+	testCases := []struct {
+		name       string
+		program    binary.Program
+		candidates []candidate
+		want       string
+	}{
+		{"release_over_hash", binary.ProgramTt, []candidate{
+			{binary.ProgramTt, "aaaaaaa", ""}, {binary.ProgramTt, "v2.0.0", ""},
+			{binary.ProgramTt, "3.0.0", ""}, {binary.ProgramTt, "master", ""},
+		}, "tt_3.0.0"},
+		{"hash_lexical", binary.ProgramTcm, []candidate{
+			{binary.ProgramTcm, "bbbbbbb", ""}, {binary.ProgramTcm, "aaaaaaa", ""},
+		}, "tcm_aaaaaaa"},
+		{"master_excluded", binary.ProgramCe, []candidate{
+			{binary.ProgramCe, "master", ""},
+		}, ""},
+		{"ce_ignores_ee", binary.ProgramCe, []candidate{
+			{binary.ProgramCe, "2.0.0", ""}, {binary.ProgramEe, "3.0.0", ""},
+		}, "tarantool_2.0.0"},
+		{"ee_accepts_ce", binary.ProgramEe, []candidate{
+			{binary.ProgramEe, "2.0.0", ""}, {binary.ProgramCe, "3.0.0", ""},
+		}, "tarantool_3.0.0"},
+		{"equal_releases_ee_first", binary.ProgramEe, []candidate{
+			{binary.ProgramCe, "3.0.0", ""}, {binary.ProgramEe, "3.0.0", ""},
+		}, "tarantool-ee_3.0.0"},
+		{"hashes_ee_first", binary.ProgramEe, []candidate{
+			{binary.ProgramCe, "aaaaaaa", ""}, {binary.ProgramEe, "bbbbbbb", ""},
+		}, "tarantool-ee_bbbbbbb"},
+		{"missing_headers", binary.ProgramCe, []candidate{
+			{binary.ProgramCe, "3.0.0", "headers"}, {binary.ProgramCe, "2.0.0", ""},
+		}, "tarantool_2.0.0"},
+		{"headers_are_file", binary.ProgramCe, []candidate{
+			{binary.ProgramCe, "3.0.0", "headers_file"}, {binary.ProgramCe, "aaaaaaa", ""},
+		}, "tarantool_aaaaaaa"},
+		{"hash_without_headers", binary.ProgramCe, []candidate{
+			{binary.ProgramCe, "aaaaaaa", "headers"}, {binary.ProgramCe, "bbbbbbb", ""},
+		}, "tarantool_bbbbbbb"},
+		{"incomplete_binary", binary.ProgramTt, []candidate{
+			{binary.ProgramTt, "v3.0.0", "binary"}, {binary.ProgramTt, "abcdef0", ""},
+		}, "tt_abcdef0"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := t.TempDir()
+			for _, candidate := range testCase.candidates {
+				dir := installVersion(t, root, candidate.program, candidate.version)
+				headers := filepath.Join(dir, "inc", "tarantool")
+
+				switch candidate.missing {
+				case "binary":
+					require.NoError(t, os.Remove(filepath.Join(dir, candidate.program.Exec())))
+				case "headers":
+					require.NoError(t, os.Remove(headers))
+				case "headers_file":
+					require.NoError(t, os.Remove(headers))
+					require.NoError(t, os.WriteFile(headers, nil, 0o644))
+				}
+			}
+
+			selected, err := searchLatestVersion(testCase.program, root)
+			require.NoError(t, err)
+
+			if testCase.want == "" {
+				assert.Empty(t, selected)
+
+				return
+			}
+
+			assert.Equal(t, testCase.want, filepath.Base(selected))
+		})
+	}
+}
+
+func TestUninstallActiveSelectsReplacement(t *testing.T) {
+	for _, program := range []binary.Program{
+		binary.ProgramTt, binary.ProgramCe, binary.ProgramEe, binary.ProgramTcm,
+	} {
+		t.Run(program.String(), func(t *testing.T) {
+			root := projectRoot(t)
+			active := installVersion(t, root, program, "2.0.0")
+			selected := installVersion(t, root, program, "3.0.0")
+			linkInstallation(t, root, program, active)
+
+			ctx := uninstallContext(binary.ScopeProject, program, "2.0.0")
+			require.NoError(t, UninstallProgram(ctx))
+			assertMissing(t, active)
+			assertLink(t, filepath.Join(root, "bin", program.Exec()),
+				filepath.Join(selected, program.Exec()))
+
+			if program.IsTarantool() {
+				assertLink(t, filepath.Join(root, "inc", "tarantool"),
+					filepath.Join(selected, "inc", "tarantool"))
+			}
+		})
+	}
+}
+
+func TestUninstallIncompleteWithRelativeAliasLinks(t *testing.T) {
+	for _, incomplete := range []bool{false, true} {
+		name := map[bool]string{false: "complete", true: "incomplete"}[incomplete]
+		t.Run(name, func(t *testing.T) {
+			project := t.TempDir()
+			actual := t.TempDir()
+			root := filepath.Join(project, ".tarantool")
+			require.NoError(t, os.Symlink(actual, root))
+			t.Chdir(project)
+
+			installation := installVersion(t, actual, binary.ProgramCe, "3.0.0")
+			require.NoError(t, os.MkdirAll(filepath.Join(actual, "bin"), 0o755))
+			require.NoError(t, os.MkdirAll(filepath.Join(actual, "inc"), 0o755))
+			require.NoError(t, os.Symlink("../versions/tarantool/tarantool_3.0.0/tarantool",
+				filepath.Join(actual, "bin", "tarantool")))
+			require.NoError(t, os.Symlink(filepath.Join(actual, "versions", "tarantool",
+				"tarantool_3.0.0", "inc", "tarantool"), filepath.Join(root, "inc", "tarantool")))
+
+			if incomplete {
+				require.NoError(t, os.Remove(filepath.Join(installation, "tarantool")))
+				require.NoError(t, os.RemoveAll(filepath.Join(installation, "inc")))
+			}
+
+			ctx := uninstallContext(binary.ScopeProject, binary.ProgramCe, "")
+			require.NoError(t, UninstallProgram(ctx))
+			assertMissing(t, installation)
+			assertMissing(t, filepath.Join(root, "bin", "tarantool"))
+			assertMissing(t, filepath.Join(root, "inc", "tarantool"))
+		})
+	}
+}
+
+func TestUninstallBuildPreservesSourcesAndSelectsCe(t *testing.T) {
+	for _, dangling := range []bool{false, true} {
+		t.Run(map[bool]string{false: "existing", true: "dangling"}[dangling], func(t *testing.T) {
+			root := projectRoot(t)
+			build := installVersion(t, t.TempDir(), binary.ProgramCe, "master")
+			linkInstallation(t, root, binary.ProgramCe, build)
+
+			selected := installVersion(t, root, binary.ProgramCe, "3.0.0")
+			installVersion(t, root, binary.ProgramCe, "2.0.0")
+			installVersion(t, root, binary.ProgramEe, "4.0.0")
+
+			if dangling {
+				require.NoError(t, os.RemoveAll(build))
+			}
+
+			ctx := uninstallContext(binary.ScopeProject, binary.ProgramCe, "")
+			require.NoError(t, UninstallProgram(ctx))
+			assertLink(t, filepath.Join(root, "bin", "tarantool"),
+				filepath.Join(selected, "tarantool"))
+			assertLink(t, filepath.Join(root, "inc", "tarantool"),
+				filepath.Join(selected, "inc", "tarantool"))
+			assert.DirExists(t, selected)
+
+			if !dangling {
+				assert.FileExists(t, filepath.Join(build, "tarantool"))
+				assert.DirExists(t, filepath.Join(build, "inc", "tarantool"))
+			}
+		})
+	}
+}
+
+func TestUninstallInactivePreservesBuild(t *testing.T) {
+	root := projectRoot(t)
+	build := installVersion(t, t.TempDir(), binary.ProgramCe, "master")
+	linkInstallation(t, root, binary.ProgramCe, build)
+
+	removed := installVersion(t, root, binary.ProgramCe, "3.0.0")
+	ctx := uninstallContext(binary.ScopeProject, binary.ProgramCe, "3.0.0")
+	require.NoError(t, UninstallProgram(ctx))
+	assertMissing(t, removed)
+	assertLink(t, filepath.Join(root, "bin", "tarantool"), filepath.Join(build, "tarantool"))
+	assertLink(t, filepath.Join(root, "inc", "tarantool"), filepath.Join(build, "inc", "tarantool"))
+}
+
+func TestUninstallScopeIsolation(t *testing.T) {
+	parent := t.TempDir()
+	child := filepath.Join(parent, "child")
+	require.NoError(t, os.Mkdir(child, 0o755))
+	t.Chdir(child)
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+	root, err := binary.ScopeUser.ArtifactPath()
+	require.NoError(t, err)
+
+	user := installVersion(t, root, binary.ProgramTt, "v3.0.0")
+	ancestor := installVersion(t, filepath.Join(parent, ".tarantool"), binary.ProgramTt, "v3.0.0")
+	linkInstallation(t, root, binary.ProgramTt, user)
+
+	ctx := uninstallContext(binary.ScopeProject, binary.ProgramTt, "3.0.0")
+	require.ErrorIs(t, UninstallProgram(ctx), errNotInstalled)
+	assert.Empty(t, GetList(binary.ScopeProject, "tt"))
+	assertMissing(t, filepath.Join(child, ".tarantool"))
+	assert.DirExists(t, ancestor)
+	assert.DirExists(t, user)
+
+	project := installVersion(t, filepath.Join(child, ".tarantool"), binary.ProgramTt, "v4.0.0")
+
+	ctx.Scope = binary.ScopeUser
+	ctx.Version = "4.0.0"
+	require.ErrorIs(t, UninstallProgram(ctx), errNotInstalled)
+	assert.Equal(t, []string{"v3.0.0"}, GetList(binary.ScopeUser, "tt"))
+
+	ctx.Version = "3.0.0"
+	require.NoError(t, UninstallProgram(ctx))
+	assertMissing(t, user)
+	assertMissing(t, filepath.Join(root, "bin", "tt"))
+	assert.DirExists(t, project)
+	assert.DirExists(t, ancestor)
+}
+
+func TestUninstallInvalidContext(t *testing.T) {
+	root := projectRoot(t)
+	installed := installVersion(t, root, binary.ProgramTt, "v3.0.0")
+	linkInstallation(t, root, binary.ProgramTt, installed)
+
+	for _, requested := range []string{".", "..", "3.0.0/../../outside", "/tmp/tt", "bad\\name"} {
+		ctx := uninstallContext(binary.ScopeProject, binary.ProgramTt, requested)
+		require.ErrorIs(t, UninstallProgram(ctx), errInvalidVersion)
+		assert.DirExists(t, installed)
+		assertLink(t, filepath.Join(root, "bin", "tt"), filepath.Join(installed, "tt"))
+	}
+
+	ctx := uninstallContext(binary.ScopeUnknown, binary.ProgramTt, "3.0.0")
+	require.ErrorIs(t, UninstallProgram(ctx), binary.ErrUnknownScope)
+
+	ctx.Scope = binary.ScopeProject
+	ctx.Program = binary.ProgramSDK
+	require.ErrorIs(t, UninstallProgram(ctx), binary.ErrUnknownApplication)
 }
 
 func TestGetAllVersionFormats(t *testing.T) {
@@ -196,4 +515,104 @@ func TestGetAllVersionFormats(t *testing.T) {
 			assert.Equal(t, tc.expectedVersions, ttVersions)
 		})
 	}
+}
+
+// snapshotScope records entries without following links to another scope.
+func snapshotScope(t *testing.T, root string) map[string]string {
+	t.Helper()
+
+	entries := make(map[string]string)
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		switch {
+		case entry.IsDir():
+			entries[path] = "directory"
+		case entry.Type()&os.ModeSymlink != 0:
+			target, err := os.Readlink(path)
+			require.NoError(t, err)
+
+			entries[path] = "link:" + target
+		default:
+			// The fixture tree is owned by this test and cannot change concurrently.
+			data, err := os.ReadFile(path) //nolint:gosec
+			require.NoError(t, err)
+
+			entries[path] = string(data)
+		}
+
+		return nil
+	})
+	require.NoError(t, err)
+
+	return entries
+}
+
+func TestUninstallRejectsEscapingDirectories(t *testing.T) {
+	for _, directory := range []string{"versions", "versions/tarantool-ee",
+		"versions/tarantool", "bin", "inc"} {
+		t.Run(directory, func(t *testing.T) {
+			root := projectRoot(t)
+			other := t.TempDir()
+
+			for _, scope := range []string{root, other} {
+				active := installVersion(t, scope, binary.ProgramEe, "3.0.0")
+				installVersion(t, scope, binary.ProgramCe, "2.0.0")
+				linkInstallation(t, scope, binary.ProgramEe, active)
+			}
+
+			link := filepath.Join(root, directory)
+			require.NoError(t, os.Rename(link, link+".saved"))
+			require.NoError(t, os.Symlink(filepath.Join(other, directory), link))
+
+			beforeRoot := snapshotScope(t, root)
+			beforeOther := snapshotScope(t, other)
+			ctx := uninstallContext(binary.ScopeProject, binary.ProgramEe, "3.0.0")
+			require.ErrorIs(t, UninstallProgram(ctx), errOutsideScope)
+			assert.Equal(t, beforeRoot, snapshotScope(t, root))
+			assert.Equal(t, beforeOther, snapshotScope(t, other))
+
+			if directory == "versions" || directory == "versions/tarantool-ee" {
+				assert.Empty(t, GetList(binary.ScopeProject, "tarantool-ee"))
+
+				_, err := getDefault(binary.ProgramEe, root)
+				require.ErrorIs(t, err, errOutsideScope)
+			}
+
+			if directory == "versions/tarantool" {
+				_, err := searchLatestVersion(binary.ProgramEe, root)
+				require.ErrorIs(t, err, errOutsideScope)
+			}
+		})
+	}
+}
+
+func TestUninstallDefaultPreservesManagedEeLink(t *testing.T) {
+	root := projectRoot(t)
+	active := installVersion(t, root, binary.ProgramEe, "3.0.0")
+	linkInstallation(t, root, binary.ProgramEe, active)
+
+	ctx := uninstallContext(binary.ScopeProject, binary.ProgramCe, "")
+	require.ErrorIs(t, UninstallProgram(ctx), errHasNoInstalledVersion)
+	assertLink(t, filepath.Join(root, "bin", "tarantool"), filepath.Join(active, "tarantool"))
+	assertLink(t, filepath.Join(root, "inc", "tarantool"),
+		filepath.Join(active, "inc", "tarantool"))
+}
+
+func TestUninstallHeaderSelectionDoesNotSwitchExecutable(t *testing.T) {
+	root := projectRoot(t)
+	active := installVersion(t, root, binary.ProgramCe, "2.0.0")
+	removed := installVersion(t, root, binary.ProgramCe, "3.0.0")
+	installVersion(t, root, binary.ProgramCe, "4.0.0")
+	linkInstallation(t, root, binary.ProgramCe, active)
+	require.NoError(t, binary.CreateSymlink(filepath.Join(removed, "inc", "tarantool"),
+		filepath.Join(root, "inc", "tarantool"), true))
+
+	ctx := uninstallContext(binary.ScopeProject, binary.ProgramCe, "3.0.0")
+	require.NoError(t, UninstallProgram(ctx))
+	assertMissing(t, removed)
+	assertMissing(t, filepath.Join(root, "inc", "tarantool"))
+	assertLink(t, filepath.Join(root, "bin", "tarantool"), filepath.Join(active, "tarantool"))
 }
