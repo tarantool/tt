@@ -20,6 +20,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt binary search` and `tt binary install`: add `--credentials-file <path>`
   for remote EE/TCM searches and EE/TCM/SDK downloads, allowing customer-zone
   credentials to be supplied from a file without `tt.yaml`.
+- `tt binary install tarantool-ee` and `tt binary install tcm`: accept `X`,
+  `X.Y`, and `X.Y.Z` to select the latest matching stable build, including from
+  `--local-dir`. Omitting the version selects the latest stable build.
+  EE uses `gc64` by default. Complete version names still select exact builds,
+  including `nogc64` and RC.
+- `tt binary switch` and `tt binary uninstall`: accept the complete numeric version `X.Y.Z`
+  for EE/TCM when exactly one installed version matches in the selected scope.
+  Ambiguous requests report matching full names without changing active links
+  or removing installations. Full names select specific builds.
+- `tt binary search tarantool-sdk` (also `sdk` and `SDK`): search SDK versions
+  through the existing Tarantool Enterprise search, with the same flags and output.
 - `tt binary install tarantool --from-build <dir>`: link an existing
   Tarantool build into the selected scope without copying or rebuilding it.
   `--include-dir` selects the source headers; no version argument is accepted.
@@ -218,13 +229,19 @@ for machine-readable output.
 - `tt binary search`: show `[installed]` and `[active]` labels for the selected
   scope only. Scope does not affect the available versions returned by remote
   sources or the local repository.
-- `tt binary search --local-repo <dir>`: require an explicit repository
-  directory instead of reading `repo.distfiles` from `tt.yaml`. Relative
-  paths are resolved from the current directory. The directory contains
-  `tt/` or `tarantool/` source repositories, or EE/TCM archives.
+- `tt binary install` and `tt binary search`: use `--local-dir <dir>` instead
+  of `--local-repo` for EE/TCM archives. The directory contains
+  `tarantool-enterprise-sdk-*.tar.gz` or `tcm-*.tar.gz` archives directly.
+  For `tt` and `tarantool`, `--local-repo <dir>` expects Git source repositories
+  in `<dir>/tt` or `<dir>/tarantool`. Help describes each product's input format.
+  Source flags belong to product commands and must follow the product name.
+- `tt binary search`: require an explicit local source directory instead of
+  reading `repo.distfiles` from `tt.yaml`. Relative paths are resolved from
+  the current directory.
 - `tt binary install`: no longer require `tt.yaml` for EE or TCM. The
-  `--local-repo <dir>` flag takes the source directory instead of reading
-  `repo.distfiles`; relative paths are resolved from the current directory.
+  `--local-repo <dir>` and `--local-dir <dir>` flags take the source directory
+  instead of reading `repo.distfiles`; relative paths are resolved from the
+  current directory.
   Docker builds pass the directory through the flag without generating a
   `tt.yaml` configuration.
 - `tt binary install`: keep each installed version under

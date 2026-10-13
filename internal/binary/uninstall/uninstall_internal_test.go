@@ -1,6 +1,7 @@
 package uninstall
 
 import (
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
 )
 
@@ -156,6 +158,182 @@ func TestUninstallInactiveVersion(t *testing.T) {
 				assertLink(t, filepath.Join(root, "inc", "tarantool"),
 					filepath.Join(active, "inc", "tarantool"))
 			}
+		})
+	}
+}
+
+func TestUninstallBundleVersionRequests(t *testing.T) {
+	testCases := []struct {
+		name      string
+		program   binary.Program
+		installed []string
+		requested string
+		removed   string
+		wantErr   error
+	}{
+		{"ee_major", binary.ProgramEe, []string{"gc64-3.8.1-0-r60"}, "3",
+			"", errNotInstalled},
+		{"ee_minor", binary.ProgramEe, []string{"gc64-3.8.1-0-r60"}, "3.8",
+			"", errNotInstalled},
+		{"ee_patch", binary.ProgramEe, []string{"gc64-3.8.1-0-r60"}, "3.8.1",
+			"gc64-3.8.1-0-r60", nil},
+		{"ee_nogc64", binary.ProgramEe, []string{"nogc64-3.8.1-0-r60"}, "3.8.1",
+			"nogc64-3.8.1-0-r60", nil},
+		{"ee_rc", binary.ProgramEe, []string{"gc64-3.8.1-rc1-0-r60"}, "3.8.1",
+			"gc64-3.8.1-rc1-0-r60", nil},
+		{"ee_full", binary.ProgramEe, []string{"gc64-3.8.1-0-r60", "nogc64-3.8.1-0-r60"},
+			"nogc64-3.8.1-0-r60", "nogc64-3.8.1-0-r60", nil},
+		{"ee_full_rc", binary.ProgramEe, []string{"gc64-3.8.1-0-r60", "gc64-3.8.1-rc1-0-r60"},
+			"gc64-3.8.1-rc1-0-r60", "gc64-3.8.1-rc1-0-r60", nil},
+		{"tcm_major", binary.ProgramTcm, []string{"3.8.1-0-r60"}, "3", "", errNotInstalled},
+		{"tcm_minor", binary.ProgramTcm, []string{"3.8.1-0-r60"}, "3.8", "", errNotInstalled},
+		{"tcm_patch", binary.ProgramTcm, []string{"3.8.1-0-r60"}, "3.8.1", "3.8.1-0-r60", nil},
+		{"tcm_full", binary.ProgramTcm, []string{"3.8.1-0-r60", "3.8.1-0-r61"},
+			"3.8.1-0-r60", "3.8.1-0-r60", nil},
+		{"ee_variants", binary.ProgramEe, []string{"gc64-3.8.1-0-r60", "nogc64-3.8.1-0-r60"},
+			"3.8.1", "", version.ErrAmbiguousInstalledVersion},
+		{"ee_plain_and_gc64", binary.ProgramEe, []string{"3.8.1", "gc64-3.8.1-0-r60"},
+			"3.8.1", "", version.ErrAmbiguousInstalledVersion},
+		{"ee_revisions", binary.ProgramEe, []string{"gc64-3.8.1-0-r60", "gc64-3.8.1-0-r61"},
+			"3.8.1", "", version.ErrAmbiguousInstalledVersion},
+		{"ee_major_rejected", binary.ProgramEe, []string{"gc64-3.8.1-0-r60", "gc64-3.9.0-0-r60"},
+			"3", "", errNotInstalled},
+		{"tcm_revisions", binary.ProgramTcm, []string{"3.8.1-0-r60", "3.8.1-0-r61"},
+			"3.8.1", "", version.ErrAmbiguousInstalledVersion},
+		{"tcm_plain_and_revision", binary.ProgramTcm, []string{"3.8.1", "3.8.1-0-r60"},
+			"3.8.1", "", version.ErrAmbiguousInstalledVersion},
+		{"ee_partial_build", binary.ProgramEe, []string{"gc64-3.8.1-0-r60"},
+			"gc64-3.8.1", "", errNotInstalled},
+		{"tcm_partial_release", binary.ProgramTcm, []string{"3.8.1-rc1-0-r60"},
+			"3.8.1-rc1", "", errNotInstalled},
+		{"missing_version", binary.ProgramEe, []string{"gc64-3.8.1-0-r60"},
+			"4.0.0", "", errNotInstalled},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := projectRoot(t)
+			active := installVersion(t, root, testCase.program, "2.7.0")
+			linkInstallation(t, root, testCase.program, active)
+
+			for _, installed := range testCase.installed {
+				installVersion(t, root, testCase.program, installed)
+			}
+
+			if testCase.wantErr != nil {
+				active = filepath.Join(root, binary.VersionsDirName, testCase.program.String(),
+					testCase.program.String()+"_"+testCase.installed[0])
+				linkInstallation(t, root, testCase.program, active)
+			}
+
+			before := snapshotScope(t, root)
+			ctx := uninstallContext(binary.ScopeProject, testCase.program, testCase.requested)
+			err := UninstallProgram(ctx)
+
+			if testCase.wantErr != nil {
+				require.ErrorIs(t, err, testCase.wantErr)
+				assert.Equal(t, before, snapshotScope(t, root))
+
+				if errors.Is(testCase.wantErr, version.ErrAmbiguousInstalledVersion) {
+					for _, installed := range testCase.installed {
+						require.ErrorContains(t, err, installed)
+					}
+				}
+
+				return
+			}
+
+			require.NoError(t, err)
+
+			for _, installed := range testCase.installed {
+				path := filepath.Join(root, binary.VersionsDirName, testCase.program.String(),
+					testCase.program.String()+"_"+installed)
+				if installed == testCase.removed {
+					assertMissing(t, path)
+				} else {
+					assert.DirExists(t, path)
+				}
+			}
+
+			assertLink(t, filepath.Join(root, "bin", testCase.program.Exec()),
+				filepath.Join(active, testCase.program.Exec()))
+
+			if testCase.program.IsTarantool() {
+				assertLink(t, filepath.Join(root, "inc", "tarantool"),
+					filepath.Join(active, "inc", "tarantool"))
+			}
+		})
+	}
+}
+
+func TestUninstallIncompleteBundle(t *testing.T) {
+	for _, program := range []binary.Program{binary.ProgramEe, binary.ProgramTcm} {
+		fullVersion := "3.8.1-0-r60"
+		if program == binary.ProgramEe {
+			fullVersion = "gc64-" + fullVersion
+		}
+
+		for _, requested := range []string{"", "3.8.1", fullVersion} {
+			t.Run(program.String()+"/"+requested, func(t *testing.T) {
+				root := projectRoot(t)
+				installed := installVersion(t, root, program, fullVersion)
+				linkInstallation(t, root, program, installed)
+				require.NoError(t, os.Remove(filepath.Join(installed, program.Exec())))
+				require.NoError(t, os.RemoveAll(filepath.Join(installed, "inc")))
+
+				ctx := uninstallContext(binary.ScopeProject, program, requested)
+				require.NoError(t, UninstallProgram(ctx))
+				assertMissing(t, installed)
+				assertMissing(t, filepath.Join(root, "bin", program.Exec()))
+
+				if program.IsTarantool() {
+					assertMissing(t, filepath.Join(root, "inc", "tarantool"))
+				}
+			})
+		}
+	}
+}
+
+func TestUninstallBundleDefaultRemainsUnambiguous(t *testing.T) {
+	for _, program := range []binary.Program{binary.ProgramEe, binary.ProgramTcm} {
+		t.Run(program.String(), func(t *testing.T) {
+			root := projectRoot(t)
+			active := installVersion(t, root, program, "3.8.0-0-r60")
+			installVersion(t, root, program, "3.8.1-0-r60")
+			linkInstallation(t, root, program, active)
+
+			before := snapshotScope(t, root)
+			ctx := uninstallContext(binary.ScopeProject, program, "")
+			require.ErrorIs(t, UninstallProgram(ctx), errMultipleInstalledVersions)
+			assert.Equal(t, before, snapshotScope(t, root))
+		})
+	}
+}
+
+func TestUninstallBundleVersionScopeIsolation(t *testing.T) {
+	for _, program := range []binary.Program{binary.ProgramEe, binary.ProgramTcm} {
+		t.Run(program.String(), func(t *testing.T) {
+			root := projectRoot(t)
+			t.Setenv("HOME", t.TempDir())
+			t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+			userRoot, err := binary.ScopeUser.ArtifactPath()
+			require.NoError(t, err)
+
+			user := installVersion(t, userRoot, program, "3.8.1-0-r60")
+			linkInstallation(t, userRoot, program, user)
+
+			ctx := uninstallContext(binary.ScopeProject, program, "3.8.1")
+			require.ErrorIs(t, UninstallProgram(ctx), errNotInstalled)
+			assertMissing(t, root)
+
+			local := installVersion(t, root, program, "3.8.1-0-r61")
+			linkInstallation(t, root, program, local)
+
+			userBefore := snapshotScope(t, userRoot)
+			require.NoError(t, UninstallProgram(ctx))
+			assertMissing(t, local)
+			assert.Equal(t, userBefore, snapshotScope(t, userRoot))
 		})
 	}
 }

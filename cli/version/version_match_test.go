@@ -2,8 +2,10 @@ package version_test
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/v3/cli/version"
 )
@@ -169,4 +171,154 @@ func TestIsVersion(t *testing.T) {
 			require.Equal(t, tt.wantStrict, version.IsStrictVersion(tt.version))
 		})
 	}
+}
+
+func TestIsNumericVersion(t *testing.T) {
+	for _, requested := range []string{"3", "3.8", "3.8.1", "03.08.01"} {
+		require.True(t, version.IsNumericVersion(requested), requested)
+	}
+
+	for _, requested := range []string{
+		"", "v3", "3.", "3..8", "3.8.1.0", "gc64-3.8.1", "3.8.1-rc1", "master", "3\n",
+	} {
+		require.False(t, version.IsNumericVersion(requested), requested)
+	}
+}
+
+func TestMatchInstalledVersion(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		requested string
+		installed []string
+		want      string
+	}{
+		{
+			name:      "gc64 without revision",
+			requested: "3.8.1",
+			installed: []string{"gc64-3.8.1"},
+			want:      "gc64-3.8.1",
+		},
+		{
+			name:      "patch",
+			requested: "3.8.1",
+			installed: []string{"gc64-3.8.0-0-r1", "gc64-3.8.1-0-r1", "gc64-3.8.2-0-r1"},
+			want:      "gc64-3.8.1-0-r1",
+		},
+		{
+			name:      "numeric fields",
+			requested: "03.08.01",
+			installed: []string{"gc64-3.8.1-0-r1"},
+			want:      "gc64-3.8.1-0-r1",
+		},
+		{
+			name:      "nogc64",
+			requested: "3.8.1",
+			installed: []string{"nogc64-3.8.1-0-r1"},
+			want:      "nogc64-3.8.1-0-r1",
+		},
+		{
+			name:      "debug RC",
+			requested: "3.8.1",
+			installed: []string{"debug-gc64-3.8.1-rc2-0-r1"},
+			want:      "debug-gc64-3.8.1-rc2-0-r1",
+		},
+		{
+			name:      "full older build",
+			requested: "nogc64-3.8.1-rc1-0-r1",
+			installed: []string{"nogc64-3.8.1-rc1-0-r1", "gc64-3.8.1-0-r2"},
+			want:      "nogc64-3.8.1-rc1-0-r1",
+		},
+		{
+			name:      "master",
+			requested: "master",
+			installed: []string{"master", "gc64-3.8.1-0-r1"},
+			want:      "master",
+		},
+		{
+			name:      "hash",
+			requested: "a123456",
+			installed: []string{"a123456", "gc64-3.8.1-0-r1"},
+			want:      "a123456",
+		},
+		{
+			name:      "numeric hash",
+			requested: "1234567",
+			installed: []string{"1234567", "gc64-3.8.1-0-r1"},
+			want:      "1234567",
+		},
+		{
+			name:      "numeric hash exceeds uint64",
+			requested: "1234567890123456789012345678901234567890",
+			installed: []string{"1234567890123456789012345678901234567890"},
+			want:      "1234567890123456789012345678901234567890",
+		},
+		{
+			name:      "exact build without revision",
+			requested: "gc64-3.8.1",
+			installed: []string{"gc64-3.8.1", "gc64-3.8.1-0-r1"},
+			want:      "gc64-3.8.1",
+		},
+		{
+			name:      "duplicate entries and malformed unrelated names",
+			requested: "3.8.1",
+			installed: []string{"invalid", "3.8", "gc64-3.8.1-0-r1", "gc64-3.8.1-0-r1"},
+			want:      "gc64-3.8.1-0-r1",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			original := slices.Clone(test.installed)
+			got, err := version.MatchInstalledVersion(test.requested, test.installed)
+			require.NoError(t, err)
+			assert.Equal(t, test.want, got)
+			assert.Equal(t, original, test.installed)
+		})
+	}
+}
+
+func TestMatchInstalledVersionAmbiguous(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		installed []string
+	}{
+		{"build", []string{"nogc64-3.8.1-0-r1", "gc64-3.8.1-0-r1"}},
+		{"debug", []string{"gc64-3.8.1-0-r1", "debug-gc64-3.8.1-0-r1"}},
+		{"plain and prefixed", []string{"gc64-3.8.1-0-r1", "3.8.1"}},
+		{"revision", []string{"gc64-3.8.1-0-r2", "gc64-3.8.1-0-r1"}},
+		{"release", []string{"gc64-3.8.1-rc1-0-r1", "gc64-3.8.1-0-r1"}},
+		{"hash", []string{"3.8.1-0-gabcdef2", "3.8.1-0-gabcdef1"}},
+		{"additional commits", []string{"3.8.1-2-gabcdef2", "3.8.1-1-gabcdef1"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			requested := "3.8.1"
+			original := slices.Clone(test.installed)
+			got, err := version.MatchInstalledVersion(requested, test.installed)
+			require.ErrorIs(t, err, version.ErrAmbiguousInstalledVersion)
+			assert.Empty(t, got)
+			assert.Contains(t, err.Error(), "more than one installed version matches")
+			assert.Contains(t, err.Error(), requested)
+			assert.Contains(t, err.Error(), "specify the full version name")
+			assert.Contains(t, err.Error(), test.installed[1]+", "+test.installed[0])
+			assert.Equal(t, original, test.installed)
+		})
+	}
+}
+
+func TestMatchInstalledVersionNotFound(t *testing.T) {
+	installed := []string{"gc64-3.8.1-rc1-0-r1", "gc64-3.8.1-0-r1", "master", ""}
+
+	for _, requested := range []string{
+		"", "3", "3.8", "4", "3.9", "3.8.2", "gc64-3", "gc64-3.8.1", "3.8.1-rc1",
+		"gc64-3.8.1-0-r2", "missing", "1234567890123456789012345678901234567890",
+	} {
+		t.Run(requested, func(t *testing.T) {
+			got, err := version.MatchInstalledVersion(requested, installed)
+			require.ErrorIs(t, err, version.ErrInstalledVersionNotFound)
+			assert.Empty(t, got)
+			assert.Contains(t, err.Error(), requested)
+		})
+	}
+
+	got, err := version.MatchInstalledVersion("3", nil)
+	require.ErrorIs(t, err, version.ErrInstalledVersionNotFound)
+	assert.Empty(t, got)
 }

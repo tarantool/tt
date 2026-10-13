@@ -1,6 +1,7 @@
 package switcher
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -183,6 +184,8 @@ func TestSwitchVersionIdentity(t *testing.T) {
 		{"master", []string{"master", "vmaster"}, "master", "master"},
 		{"sha", []string{"123abcd", "v123abcd"}, "123abcd", "123abcd"},
 		{"missing", []string{"v3.0.0"}, "3.1.0", ""},
+		{"no_major_completion", []string{"v3.0.0"}, "3", ""},
+		{"no_minor_completion", []string{"v3.0.0"}, "3.0", ""},
 		{"no_master_alias", []string{"vmaster"}, "master", ""},
 		{"no_sha_alias", []string{"v123abcd"}, "123abcd", ""},
 		{"no_numeric_sha_alias", []string{"v1234567"}, "1234567", ""},
@@ -215,6 +218,199 @@ func TestSwitchVersionIdentity(t *testing.T) {
 			require.NoError(t, err)
 			assertLink(t, filepath.Join(root, "bin", "tt"), filepath.Join(root,
 				"versions", "tt", "tt_"+testCase.expected, "tt"))
+		})
+	}
+}
+
+func TestSwitchBundleVersions(t *testing.T) {
+	products := []struct {
+		program   binary.Program
+		stable    string
+		variant   string
+		revision  string
+		candidate string
+	}{
+		{
+			binary.ProgramEe, "gc64-3.8.1-0-r1", "nogc64-3.8.1-0-r1",
+			"gc64-3.8.1-0-r2", "gc64-3.8.1-rc1-0-r1",
+		},
+		{
+			binary.ProgramTcm, "3.8.1-0-g123abcd", "3.8.1-0-g456abcd",
+			"3.8.1-1-g123abcd", "3.8.1-rc1-0-g123abcd",
+		},
+	}
+	for _, product := range products {
+		t.Run(product.program.String(), func(t *testing.T) {
+			testCases := []struct {
+				name      string
+				installed []string
+				requested string
+				expected  string
+				err       error
+			}{
+				{"reject_major", []string{product.stable, "4.0.0"}, "3", "",
+					errBinaryIsNotInstalledInCurrentEnvironment},
+				{"reject_minor", []string{product.stable, "3.9.0"}, "3.8", "",
+					errBinaryIsNotInstalledInCurrentEnvironment},
+				{"patch", []string{product.stable, "3.8.2"}, "3.8.1", product.stable, nil},
+				{"unique_variant", []string{product.variant}, "3.8.1", product.variant, nil},
+				{"unique_rc", []string{product.candidate}, "3.8.1", product.candidate, nil},
+				{"full_name", []string{product.stable, product.variant},
+					product.stable, product.stable, nil},
+				{"full_variant", []string{product.stable, product.variant},
+					product.variant, product.variant, nil},
+				{"full_rc", []string{product.stable, product.candidate},
+					product.candidate, product.candidate, nil},
+				{"ambiguous_variants", []string{product.stable, product.variant},
+					"3.8.1", "", version.ErrAmbiguousInstalledVersion},
+				{"ambiguous_revisions", []string{product.stable, product.revision},
+					"3.8.1", "", version.ErrAmbiguousInstalledVersion},
+				{"ambiguous_rc", []string{product.stable, product.candidate},
+					"3.8.1", "", version.ErrAmbiguousInstalledVersion},
+				{"ambiguous_plain", []string{product.stable, "3.8.1"},
+					"3.8.1", "", version.ErrAmbiguousInstalledVersion},
+				{"reject_major_multiple", []string{product.stable, "3.9.0"},
+					"3", "", errBinaryIsNotInstalledInCurrentEnvironment},
+				{"reject_minor_multiple", []string{product.stable, "3.8.2"},
+					"3.8", "", errBinaryIsNotInstalledInCurrentEnvironment},
+				{"missing", []string{product.stable}, "3.8.2", "",
+					errBinaryIsNotInstalledInCurrentEnvironment},
+				{"partial_decorated", []string{product.candidate}, "3.8.1-rc1", "",
+					errBinaryIsNotInstalledInCurrentEnvironment},
+				{"empty", nil, "3.8.1", "", errBinaryIsNotInstalledInCurrentEnvironment},
+				{"numeric_sha", []string{"1234567"}, "1234567", "1234567", nil},
+			}
+			for _, testCase := range testCases {
+				t.Run(testCase.name, func(t *testing.T) {
+					t.Chdir(t.TempDir())
+
+					root, err := binary.ScopeProject.ArtifactPath()
+					require.NoError(t, err)
+
+					active := installVersion(t, root, product.program, "2.10.3")
+					ctx := switchContext(binary.ScopeProject, product.program, active.Version)
+					require.NoError(t, Switch(&ctx))
+
+					installed := make(map[string]installedFixture)
+					for _, name := range testCase.installed {
+						installed[name] = installVersion(t, root, product.program, name)
+					}
+
+					ctx.Version = testCase.requested
+					err = Switch(&ctx)
+
+					expected := active
+
+					if testCase.err != nil {
+						require.ErrorIs(t, err, testCase.err)
+
+						if errors.Is(testCase.err, version.ErrAmbiguousInstalledVersion) {
+							for _, name := range testCase.installed {
+								require.ErrorContains(t, err, name)
+							}
+						}
+					} else {
+						require.NoError(t, err)
+
+						expected = installed[testCase.expected]
+					}
+
+					assertLink(t, filepath.Join(root, "bin", product.program.Exec()),
+						expected.BinaryPath)
+
+					if product.program.IsTarantool() {
+						assertLink(t, filepath.Join(root, "inc", "tarantool"), expected.HeadersPath)
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestSwitchExactMenuSelection(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	root, err := binary.ScopeProject.ArtifactPath()
+	require.NoError(t, err)
+
+	selected := installVersion(t, root, binary.ProgramEe, "3.8.1")
+	installVersion(t, root, binary.ProgramEe, "gc64-3.8.1-0-r1")
+
+	ctx := switchContext(binary.ScopeProject, binary.ProgramEe, selected.Version)
+
+	ctx.ExactVersion = true
+
+	require.NoError(t, Switch(&ctx))
+	assertLink(t, filepath.Join(root, "bin", "tarantool"), selected.BinaryPath)
+	assertLink(t, filepath.Join(root, "inc", "tarantool"), selected.HeadersPath)
+}
+
+func TestSwitchBundleScopeIsolation(t *testing.T) {
+	for _, program := range []binary.Program{binary.ProgramEe, binary.ProgramTcm} {
+		t.Run(program.String(), func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("HOME", t.TempDir())
+			t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+			userRoot, err := binary.ScopeUser.ArtifactPath()
+			require.NoError(t, err)
+
+			projectRoot, err := binary.ScopeProject.ArtifactPath()
+			require.NoError(t, err)
+
+			user := installVersion(t, userRoot, program, "3.8.1-0-r1")
+			project := installVersion(t, projectRoot, program, "3.8.1-0-r2")
+			installVersion(t, userRoot, program, "4.0.0")
+
+			ctx := switchContext(binary.ScopeProject, program, "3.8.1")
+			require.NoError(t, Switch(&ctx))
+			assertLink(t, filepath.Join(projectRoot, "bin", program.Exec()), project.BinaryPath)
+
+			ctx.Version = "4.0.0"
+			require.ErrorIs(t, Switch(&ctx), errBinaryIsNotInstalledInCurrentEnvironment)
+			assertLink(t, filepath.Join(projectRoot, "bin", program.Exec()), project.BinaryPath)
+			assert.NoDirExists(t, filepath.Join(userRoot, "bin"))
+
+			ctx.Scope = binary.ScopeUser
+			ctx.Version = "3.8.1"
+			require.NoError(t, Switch(&ctx))
+			assertLink(t, filepath.Join(userRoot, "bin", program.Exec()), user.BinaryPath)
+			assertLink(t, filepath.Join(projectRoot, "bin", program.Exec()), project.BinaryPath)
+		})
+	}
+}
+
+func TestSwitchBundleIgnoresUnrelatedEntriesAndBrokenLinks(t *testing.T) {
+	for _, program := range []binary.Program{binary.ProgramEe, binary.ProgramTcm} {
+		t.Run(program.String(), func(t *testing.T) {
+			t.Chdir(t.TempDir())
+
+			root, err := binary.ScopeProject.ArtifactPath()
+			require.NoError(t, err)
+
+			selected := installVersion(t, root, program, "3.8.1-0-r1")
+			broken := installVersion(t, root, program, "2.10.3")
+			require.NoError(t, os.Remove(broken.BinaryPath))
+			require.NoError(t, os.Symlink(program.Exec(), broken.BinaryPath))
+
+			directory := filepath.Join(root, "versions", program.String())
+			require.NoError(t, os.Mkdir(filepath.Join(directory, "other_3.8.1"), 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(directory,
+				program.String()+"_3.8.1-0-r2"), nil, 0o644))
+
+			for _, activeDir := range []string{"bin", "inc"} {
+				link := filepath.Join(root, activeDir, program.Exec())
+				require.NoError(t, os.MkdirAll(filepath.Dir(link), 0o755))
+				require.NoError(t, os.Symlink(program.Exec(), link))
+			}
+
+			ctx := switchContext(binary.ScopeProject, program, "3.8.1")
+			require.NoError(t, Switch(&ctx))
+			assertLink(t, filepath.Join(root, "bin", program.Exec()), selected.BinaryPath)
+
+			if program.IsTarantool() {
+				assertLink(t, filepath.Join(root, "inc", "tarantool"), selected.HeadersPath)
+			}
 		})
 	}
 }

@@ -100,6 +100,31 @@ def test_switch_tt_version_spelling(tt_cmd, tmp_path, stored, requested):
     assert_active(root, selected, "tt")
 
 
+@pytest.mark.parametrize("requested", ["3", "3.8"])
+@pytest.mark.parametrize(
+    "program,stored",
+    [
+        ("tt", "v3.8.1"),
+        ("tarantool", "3.8.1"),
+        ("tarantool-ee", "gc64-3.8.1-0-r1"),
+        ("tcm", "3.8.1-0-g123abcd"),
+    ],
+)
+def test_switch_rejects_incomplete_version(tt_cmd, tmp_path, program, stored, requested):
+    root = tmp_path / ".tarantool"
+    active = install_version(root, program, "2.10.3")
+    install_version(root, program, stored)
+    cmd = [tt_cmd, "--self", "binary", "--scope", "project", "switch", program]
+    rc, output = run_command_and_get_output([*cmd, "2.10.3"], cwd=tmp_path)
+    assert rc == 0, output
+
+    rc, output = run_command_and_get_output([*cmd, requested], cwd=tmp_path)
+
+    assert rc != 0, output
+    assert "is not installed in current environment" in output
+    assert_active(root, active, program)
+
+
 @pytest.mark.parametrize("requested", ["7.7.7", "v7.7.7"])
 def test_switch_exact_version_wins(tt_cmd, tmp_path, requested):
     root = tmp_path / ".tarantool"
@@ -220,6 +245,27 @@ def test_switch_interactive_preserves_colliding_release_identity(tt_cmd, tmp_pat
     assert "3.0.0 [active]" in output
     assert "Switching to tt_v3.0.0" in output
     assert_active(root, selected, "tt")
+
+
+@pytest.mark.parametrize(
+    "program,other_version",
+    [("tarantool-ee", "gc64-3.8.1-0-r1"), ("tcm", "3.8.1-0-g123abcd")],
+)
+def test_switch_interactive_preserves_numeric_identity(tt_cmd, tmp_path, program, other_version):
+    root = tmp_path / ".tarantool"
+    selected = install_version(root, program, "3.8.1")
+    install_version(root, program, other_version)
+    cmd = [tt_cmd, "--self", "binary", "switch", program]
+
+    rc, output = run_command_and_get_output([*cmd, "3.8.1"], cwd=tmp_path)
+    assert rc != 0, output
+    assert "more than one installed version matches" in output
+    assert not (root / "bin").exists()
+
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path, input="\n")
+    assert rc == 0, output
+    assert f"Switching to {program}_3.8.1" in output
+    assert_active(root, selected, program)
 
 
 def test_switch_ignores_configured_directories(tt_cmd, tmp_path):

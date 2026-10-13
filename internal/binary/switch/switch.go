@@ -31,6 +31,9 @@ type SwitchCtx struct {
 
 	// Version of the program to switch to.
 	Version string
+
+	// ExactVersion preserves the identity of an installation selected from the menu.
+	ExactVersion bool
 }
 
 // ChooseProgram shows a menu in terminal to choose program for switch.
@@ -123,9 +126,33 @@ func validateProgram(program binary.Program) error {
 	}
 }
 
-// findInstalledVersion resolves only the requested installation and its release alias.
-func findInstalledVersion(root string, program binary.Program,
+// resolveInstalledBundleVersion examines only installation names in the selected scope.
+func resolveInstalledBundleVersion(root string, program binary.Program,
 	requested string,
+) (string, error) {
+	directory := filepath.Join(root, binary.VersionsDirName, program.String())
+	entries, err := os.ReadDir(directory)
+
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("error reading directory %q: %w", directory, err)
+	}
+
+	installed := make([]string, 0, len(entries))
+	prefix := program.String() + version.FsSeparator
+
+	for _, entry := range entries {
+		name, ok := strings.CutPrefix(entry.Name(), prefix)
+		if entry.IsDir() && ok {
+			installed = append(installed, name)
+		}
+	}
+
+	return version.MatchInstalledVersion(requested, installed)
+}
+
+// findInstalledVersion resolves an installed bundle version or an exact Git version.
+func findInstalledVersion(root string, program binary.Program,
+	requested string, exactVersion bool,
 ) (string, string, error) {
 	if requested == "" || requested == "." || requested == ".." ||
 		filepath.IsAbs(requested) || strings.ContainsAny(requested, "/\\\x00") {
@@ -133,7 +160,18 @@ func findInstalledVersion(root string, program binary.Program,
 	}
 
 	candidates := []string{requested}
-	if alternative, ok := alternateReleaseSpelling(requested); ok {
+	if !exactVersion && (program == binary.ProgramEe || program == binary.ProgramTcm) {
+		selected, err := resolveInstalledBundleVersion(root, program, requested)
+
+		switch {
+		case errors.Is(err, version.ErrInstalledVersionNotFound):
+			candidates = nil
+		case err != nil:
+			return "", "", err
+		default:
+			candidates = []string{selected}
+		}
+	} else if alternative, ok := alternateReleaseSpelling(requested); !exactVersion && ok {
 		candidates = append(candidates, alternative)
 	}
 
@@ -199,7 +237,8 @@ func Switch(switchCtx *SwitchCtx) error {
 		return err
 	}
 
-	selected, installation, err := findInstalledVersion(root, switchCtx.Program, switchCtx.Version)
+	selected, installation, err := findInstalledVersion(root, switchCtx.Program,
+		switchCtx.Version, switchCtx.ExactVersion)
 	if err != nil {
 		return fmt.Errorf("failed to switch binary: %w", err)
 	}

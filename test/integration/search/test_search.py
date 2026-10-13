@@ -58,9 +58,14 @@ def test_version_cmd(tt_cmd, tmp_path):
     ],
     # spell-checker:enable
 )
-def test_local_repo_sdk(tt_cmd: Path, tmp_path: Path, program: str, versions: list[str]) -> None:
+def test_local_dir_archives(
+    tt_cmd: Path,
+    tmp_path: Path,
+    program: str,
+    versions: list[str],
+) -> None:
     local_repo = Path(__file__).parent / "testdata" / "distfiles.test"
-    cmd = [tt_cmd, "--self", "binary", "search", program, "--local-repo", local_repo]
+    cmd = [tt_cmd, "--self", "binary", "search", program, "--local-dir", local_repo]
     rc, got_versions = run_command_and_get_output(cmd, cwd=tmp_path, stderr=None)
     assert rc == 0
     expected = "\n".join(versions)
@@ -79,6 +84,33 @@ def install_version(root: Path, program: str, version: str, active: bool = False
         active_path.parent.mkdir(parents=True, exist_ok=True)
         active_path.symlink_to(binary_path)
     return binary_path
+
+
+@pytest.mark.parametrize("alias", ["tarantool-sdk", "sdk", "SDK"])
+def test_sdk_search_alias(tt_cmd, tmp_path, alias):
+    root = tmp_path / ".tarantool"
+    installed = "gc64-3.3.1-0-r55"
+    active = "gc64-3.3.2-0-r59"
+    install_version(root, "tarantool-ee", installed)
+    install_version(root, "tarantool-ee", active, active=True)
+    local_dir = Path(__file__).parent / "testdata" / "distfiles.test"
+    flags = ["--scope", "project", "--local-dir", local_dir]
+
+    rc, expected = run_command_and_get_output(
+        [tt_cmd, "--self", "binary", "search", "tarantool-ee", *flags],
+        cwd=tmp_path,
+        stderr=None,
+    )
+    assert rc == 0, expected
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "--self", "binary", "search", alias, *flags],
+        cwd=tmp_path,
+        stderr=None,
+    )
+    assert rc == 0, output
+    assert output == expected
+    assert f"{installed} [installed]" in output
+    assert f"{active} [active]" in output
 
 
 @pytest.mark.parametrize("program", ["tarantool", "tt"])
@@ -124,7 +156,7 @@ def test_version_cmd_local(tt_cmd, tmp_path, program):
 
 @pytest.mark.parametrize("scope", ["project", "user", "nested-project"])
 @pytest.mark.parametrize("explicit_config", [False, True])
-def test_local_repo_scope_isolation(tt_cmd, tmp_path, monkeypatch, scope, explicit_config):
+def test_local_dir_scope_isolation(tt_cmd, tmp_path, monkeypatch, scope, explicit_config):
     project = tmp_path / "project"
     child = project / "child"
     child.mkdir(parents=True)
@@ -172,7 +204,7 @@ def test_local_repo_scope_isolation(tt_cmd, tmp_path, monkeypatch, scope, explic
             selected_scope,
             "search",
             "tcm",
-            "--local-repo",
+            "--local-dir",
             os.path.relpath(local_repo, cwd),
         ],
     )
@@ -193,16 +225,17 @@ def test_missing_local_repo(tt_cmd, tmp_path, program):
     distfiles = tmp_path / "distfiles"
     distfiles.mkdir()
     (distfiles / "tcm-1.3.0-0-gbbbbbbb.linux.amd64.tar.gz").touch()
-    cmd = [tt_cmd, "--self", "binary", "search", program, "--local-repo", "missing"]
+    local_flag = "--local-dir" if program in ("tarantool-ee", "tcm") else "--local-repo"
+    cmd = [tt_cmd, "--self", "binary", "search", program, local_flag, "missing"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path, stderr=None)
     assert rc == 0
     assert output == ""
     assert not (tmp_path / ".tarantool").exists()
 
 
-def test_local_repo_flag_requires_directory(tt_cmd, tmp_path):
+def test_local_dir_flag_requires_directory(tt_cmd, tmp_path):
     rc, output = run_command_and_get_output(
-        [tt_cmd, "--self", "binary", "search", "tcm", "--local-repo"],
+        [tt_cmd, "--self", "binary", "search", "tcm", "--local-dir"],
         cwd=tmp_path,
     )
     assert rc != 0
