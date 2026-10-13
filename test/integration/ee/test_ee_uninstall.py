@@ -330,7 +330,7 @@ def test_uninstall_installed_local_bundle(
             "install",
             program,
             version,
-            "--local-repo",
+            "--local-dir",
             repository,
             "--force",
         ],

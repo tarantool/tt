@@ -329,15 +329,57 @@ falling back to user/system installations. Binary paths are independent of the
 `env` options in `tt.yaml`. For `search`, the scope only selects the
 installed/active labels; it does not change the source of available versions.
 Installing `tarantool-sdk` downloads an archive to `--destination` (the current
-directory by default).
+directory by default). Use `tt binary search tarantool-sdk` to find available
+SDK versions: it is an alias for `tt binary search tarantool-ee`, with the same
+flags and installed/active labels. The short aliases `sdk` and `SDK` also work.
 
-Use `tt binary install <product> --local-repo <dir>` to install from local
-files without requiring `tt.yaml`. The directory contains `tt/` or
-`tarantool/` source repositories, or EE/TCM archives. Relative paths are
-resolved from the current directory. `tt binary search <product> --local-repo <dir>`
-searches the same sources and marks installed/active versions in the selected
-scope. Both commands require an explicit directory for `--local-repo`;
-`repo.distfiles` is not used.
+To install from local files without requiring `tt.yaml`, use:
+
+- `tt binary install tt --local-repo <dir>`: a Git clone of tt in `<dir>/tt`.
+- `tt binary install tarantool --local-repo <dir>`: a Git clone of Tarantool in
+  `<dir>/tarantool`.
+- `tt binary install tarantool-ee --local-dir <dir>`: Tarantool Enterprise SDK
+  archives named `tarantool-enterprise-sdk-*.tar.gz` directly in `<dir>`.
+- `tt binary install tcm --local-dir <dir>`: TCM archives named `tcm-*.tar.gz`
+  directly in `<dir>`.
+
+`tt binary search <product>` accepts the same product-specific flag and marks
+installed/active versions in the selected scope. Put the source flag after the
+product name. Both flags require an explicit directory. Relative paths are
+resolved from the current directory;
+`repo.distfiles` is not used. For EE and TCM, `--local-dir` replaces `--local-repo`.
+
+For `tt binary install tarantool-ee` and `tt binary install tcm`, omit the version
+to select the latest stable build, or specify `X`, `X.Y`, or `X.Y.Z` to select the
+latest matching stable build. EE selects `gc64` builds by default.
+For example, `tt binary install tarantool-ee 3` selects the
+latest stable `gc64` build in major version 3, and `tt binary install tcm 1.3`
+selects the latest stable TCM build in minor version 1.3. These forms also work
+with `--local-dir`. Use a complete version name from `tt binary search` to select
+an exact build, including `nogc64` or RC; partial names such as `gc64-3.4.0` are
+not supported.
+
+For `tt binary switch` and `tt binary uninstall`, EE and TCM accept `X.Y.Z`
+to match installed versions in the selected scope; `X` and `X.Y` are not expanded.
+Exactly one installation must match. Different build variants, revisions and
+prereleases count as separate matches. For example, if both `gc64-3.8.1-0-r1` and
+`nogc64-3.8.1-0-r1` are installed, `tt binary switch tarantool-ee 3.8.1` fails
+with both full names listed. Specify a full name to select that build.
+Ambiguous requests leave installations and active links unchanged.
+
+For remote EE/TCM searches and EE/TCM/SDK downloads, use
+`--credentials-file <path>` to read customer-zone credentials from a file:
+the login on the first line and the password on the second. The file must not
+be accessible to group or other users (`chmod 0600 <path>`). For example:
+
+```sh
+tt binary search tarantool-ee --credentials-file ./credentials
+tt binary install tcm 1.3.1-0-g074b5ffa --credentials-file ./credentials
+```
+
+Without the flag, credentials come from `TT_CLI_EE_USERNAME` and
+`TT_CLI_EE_PASSWORD`, or an interactive prompt. Binary commands do not read
+credentials from `tt.yaml`.
 
 #### app
 
@@ -355,7 +397,7 @@ scope. Both commands require an explicit directory for `--local-repo`;
 
 - `rocks` (string) - directory that stores rocks files.
 - `distfiles` (string) - legacy local repository setting; binary commands use
-    `--local-repo <dir>` instead.
+    `--local-repo <dir>` for Git sources or `--local-dir <dir>` for EE/TCM archives.
 
 #### ee
 
@@ -399,7 +441,8 @@ Where:
 - `init.lua` - application source file (primarily for Tarantool 2).
 - `include` - directory that stores header files.
 - `distfiles` - directory that stores installation files for
-    `tt binary install --local-repo ./distfiles`.
+    `tt binary install tt --local-repo ./distfiles` or
+    `tt binary install tarantool-ee --local-dir ./distfiles`.
 - `instances.yml` - optional declaration of the application's instances.
 - `tt.yaml` - tt environment configuration file.
 - `templates` - the directory where external templates are stored.

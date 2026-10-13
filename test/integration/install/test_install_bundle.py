@@ -11,6 +11,31 @@ from utils import create_tt_config, run_command_and_get_output
 EE_VERSION = "gc64-3.4.0-0-r60"
 TCM_VERSION = "1.3.1-0-g074b5ffa"
 
+VERSION_SELECTION_BUNDLES = {
+    "tarantool-ee": [
+        "gc64-3.4.0-0-r9",
+        "gc64-3.4.0-0-r60",
+        "gc64-3.4.1-0-r61",
+        "gc64-3.8.1-0-r70",
+        "gc64-3.9.0-rc2-0-r80",
+        "nogc64-3.9.1-0-r90",
+        "debug-gc64-3.9.2-0-r99",
+        "gc64-4.0.0-0-r1",
+        "gc64-4.1.0-rc1-0-r2",
+        "nogc64-4.2.0-0-r3",
+        "debug-gc64-4.3.0-0-r4",
+    ],
+    "tcm": [
+        "1.3.0-0-g3857712a",
+        "1.3.0-2-g074b5ffa",
+        "1.3.1-0-g074b5ffa",
+        "1.4.0-0-g074b5ffa",
+        "1.5.0-rc2-0-g074b5ffa",
+        "2.0.0-0-g074b5ffa",
+        "3.0.0-rc1-0-g074b5ffa",
+    ],
+}
+
 
 @pytest.fixture(autouse=True)
 def scope_environment(tmp_path, monkeypatch):
@@ -74,6 +99,7 @@ def install(
     flags = [] if scope is None else ["--scope", scope]
     if reinstall:
         flags.append("--reinstall")
+    version_args = [] if version is None else [version]
     return run_command_and_get_output(
         [
             tt_cmd,
@@ -81,9 +107,9 @@ def install(
             "binary",
             "install",
             program,
-            version,
+            *version_args,
             "--force",
-            "--local-repo",
+            "--local-dir",
             str(repository),
             *flags,
         ],
@@ -102,6 +128,187 @@ def assert_active(root, program, version):
         assert (root / "inc" / "tarantool").readlink() == destination / "inc" / "tarantool"
         assert (root / "inc" / "tarantool" / "module.h").read_text()
     return destination
+
+
+@pytest.mark.parametrize(
+    "program,requested,expected",
+    [
+        ("tarantool-ee", None, "gc64-4.0.0-0-r1"),
+        ("tarantool-ee", "", "gc64-4.0.0-0-r1"),
+        ("tarantool-ee", "3", "gc64-3.8.1-0-r70"),
+        ("tarantool-ee", "3.4", "gc64-3.4.1-0-r61"),
+        ("tarantool-ee", "3.4.0", "gc64-3.4.0-0-r60"),
+        ("tarantool-ee", "gc64-3.4.0-0-r9", "gc64-3.4.0-0-r9"),
+        ("tarantool-ee", "gc64-3.9.0-rc2-0-r80", "gc64-3.9.0-rc2-0-r80"),
+        ("tarantool-ee", "nogc64-3.9.1-0-r90", "nogc64-3.9.1-0-r90"),
+        ("tcm", None, "2.0.0-0-g074b5ffa"),
+        ("tcm", "", "2.0.0-0-g074b5ffa"),
+        ("tcm", "1", "1.4.0-0-g074b5ffa"),
+        ("tcm", "1.3", "1.3.1-0-g074b5ffa"),
+        ("tcm", "1.3.0", "1.3.0-2-g074b5ffa"),
+        ("tcm", "1.3.0-0-g3857712a", "1.3.0-0-g3857712a"),
+        ("tcm", "1.5.0-rc2-0-g074b5ffa", "1.5.0-rc2-0-g074b5ffa"),
+    ],
+)
+def test_bundle_version_selection(tt_cmd, tmp_path, program, requested, expected):
+    for version in VERSION_SELECTION_BUNDLES[program]:
+        make_bundle(tmp_path, program, version, content=version)
+
+    rc, output = install(tt_cmd, tmp_path, program, requested)
+    assert rc == 0, output
+    root = scope_root(tmp_path)
+    assert_active(root, program, expected)
+    executable = "tarantool" if program == "tarantool-ee" else "tcm"
+    rc, output = run_command_and_get_output([root / "bin" / executable], cwd=tmp_path)
+    assert rc == 0, output
+    assert output.strip() == expected
+    if program == "tarantool-ee":
+        assert (root / "inc" / "tarantool" / "module.h").read_text() == expected
+
+
+@pytest.mark.parametrize("program", ["tarantool-ee", "tcm"])
+def test_bundle_search_keeps_full_versions(tt_cmd, tmp_path, program):
+    versions = VERSION_SELECTION_BUNDLES[program]
+    for version in versions:
+        make_bundle(tmp_path, program, version)
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "--self", "binary", "search", program, "--local-dir", "local bundles"],
+        cwd=tmp_path,
+        stderr=None,
+    )
+    assert rc == 0, output
+    assert output.splitlines() == versions
+
+
+@pytest.mark.parametrize(
+    "program,full_version,numeric_version,other_version",
+    [
+        ("tarantool-ee", EE_VERSION, "3.4.0", "gc64-4.0.0-0-r1"),
+        ("tcm", TCM_VERSION, "1.3.1", "2.0.0-0-g074b5ffa"),
+    ],
+)
+@pytest.mark.parametrize("components", [1, 2, 3])
+def test_bundle_switch_and_uninstall_numeric_version(
+    tt_cmd,
+    tmp_path,
+    program,
+    full_version,
+    numeric_version,
+    other_version,
+    components,
+):
+    for version in (full_version, other_version):
+        make_bundle(tmp_path, program, version)
+    requested = ".".join(numeric_version.split(".")[:components])
+    rc, output = install(tt_cmd, tmp_path, program, requested)
+    assert rc == 0, output
+    root = scope_root(tmp_path)
+    selected = assert_active(root, program, full_version)
+    rc, output = install(tt_cmd, tmp_path, program, other_version)
+    assert rc == 0, output
+    assert_active(root, program, other_version)
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "--self", "binary", "switch", program, numeric_version],
+        cwd=tmp_path,
+    )
+    assert rc == 0, output
+    assert_active(root, program, full_version)
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "--self", "binary", "uninstall", program, numeric_version],
+        cwd=tmp_path,
+    )
+    assert rc == 0, output
+    assert not selected.exists()
+    assert_active(root, program, other_version)
+
+
+@pytest.mark.parametrize("operation", ["switch", "uninstall"])
+@pytest.mark.parametrize("components", [1, 2])
+@pytest.mark.parametrize(
+    "program,full_version,numeric_version",
+    [("tarantool-ee", EE_VERSION, "3.4.0"), ("tcm", TCM_VERSION, "1.3.1")],
+)
+def test_bundle_short_version_preserves_sole_installation(
+    tt_cmd,
+    tmp_path,
+    operation,
+    components,
+    program,
+    full_version,
+    numeric_version,
+):
+    make_bundle(tmp_path, program, full_version)
+    requested = ".".join(numeric_version.split(".")[:components])
+    rc, output = install(tt_cmd, tmp_path, program, requested)
+    assert rc == 0, output
+    root = scope_root(tmp_path)
+    selected = assert_active(root, program, full_version)
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "--self", "binary", operation, program, requested],
+        cwd=tmp_path,
+    )
+    assert rc != 0, output
+    assert "not installed" in output
+    assert list((root / "versions" / program).iterdir()) == [selected]
+    assert_active(root, program, full_version)
+
+
+@pytest.mark.parametrize("operation", ["switch", "uninstall"])
+@pytest.mark.parametrize(
+    "program,first,second,requested",
+    [
+        ("tarantool-ee", EE_VERSION, "nogc64-3.4.0-0-r60", "3.4.0"),
+        ("tarantool-ee", EE_VERSION, "gc64-3.4.0-0-r61", "3.4.0"),
+        ("tarantool-ee", EE_VERSION, "gc64-3.4.0-rc1-0-r60", "3.4.0"),
+        ("tcm", TCM_VERSION, "1.3.1-1-g3857712a", "1.3.1"),
+        ("tcm", TCM_VERSION, "1.3.1-rc1-0-g074b5ffa", "1.3.1"),
+    ],
+)
+def test_bundle_ambiguous_version_preserves_installations(
+    tt_cmd,
+    tmp_path,
+    operation,
+    program,
+    first,
+    second,
+    requested,
+):
+    root = scope_root(tmp_path)
+    installations = []
+    for version in (first, second):
+        make_bundle(tmp_path, program, version, content=version)
+        rc, output = install(tt_cmd, tmp_path, program, version)
+        assert rc == 0, output
+        installations.append(assert_active(root, program, version))
+    executable = "tarantool" if program == "tarantool-ee" else "tcm"
+    link_dirs = ("bin", "inc") if program == "tarantool-ee" else ("bin",)
+    links_before = [(root / directory / executable).readlink() for directory in link_dirs]
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "--self", "binary", operation, program, requested],
+        cwd=tmp_path,
+    )
+    assert rc != 0, output
+    assert "more than one installed version matches" in output
+    assert first in output and second in output
+    assert all(path.is_dir() for path in installations)
+    assert [(root / directory / executable).readlink() for directory in link_dirs] == links_before
+    assert_active(root, program, second)
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "--self", "binary", operation, program, first],
+        cwd=tmp_path,
+    )
+    assert rc == 0, output
+    if operation == "switch":
+        assert_active(root, program, first)
+    else:
+        assert not installations[0].exists()
+        assert_active(root, program, second)
 
 
 @pytest.mark.parametrize("program,version", [("tarantool-ee", EE_VERSION), ("tcm", TCM_VERSION)])

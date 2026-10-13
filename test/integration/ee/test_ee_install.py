@@ -66,7 +66,7 @@ def test_install_local_bundle(
             "install",
             program,
             version,
-            "--local-repo",
+            "--local-dir",
             str(distfiles),
             "--force",
         ],

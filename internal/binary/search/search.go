@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 
 	"github.com/tarantool/tt/sdk/log"
-	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
 )
@@ -28,8 +27,11 @@ const (
 type SearchCtx struct {
 	binary.BinaryContext
 
-	// LocalRepo is the explicit local repository directory.
+	// LocalRepo is the source directory: --local-repo for Git repositories,
+	// or --local-dir for EE/TCM archives.
 	LocalRepo string
+	// CredentialsFile contains customer-zone credentials for remote EE and TCM searches.
+	CredentialsFile string
 	// Debug includes debug builds instead of release builds.
 	Debug bool
 	// Filter out which builds of tarantool-ee must be included in the result of search.
@@ -97,9 +99,7 @@ func SearchVersions(searchCtx SearchCtx) error {
 	case binary.ProgramCe, binary.ProgramTt:
 		vers, err = searchVersionsGit(prg.GitRepo())
 	case binary.ProgramEe, binary.ProgramTcm: // Group of API-based searches.
-		var opts config.CliOpts
-
-		vers, err = searchVersionsTntIo(&opts, &searchCtx)
+		vers, err = searchVersionsTntIo(&searchCtx)
 	default:
 		return fmt.Errorf("%w%s' is not implemented",
 			errRemoteSearchForProgramIsNotImplemented, prg)

@@ -17,7 +17,9 @@ import (
 func TestResolveInstallVersionSources(t *testing.T) {
 	for _, program := range []binary.Program{binary.ProgramTt, binary.ProgramCe} {
 		t.Run(program.String(), func(t *testing.T) {
-			localRepoDir := t.TempDir()
+			localRepoDir := filepath.Join(t.TempDir(), "tarantool-sources")
+			require.NoError(t, os.Mkdir(localRepoDir, 0o755))
+
 			repository := filepath.Join(localRepoDir, program.String())
 			require.NoError(t, os.Mkdir(repository, 0o755))
 
@@ -59,6 +61,11 @@ func TestResolveInstallVersionSources(t *testing.T) {
 			}
 
 			git("tag", tag)
+
+			if program == binary.ProgramTt {
+				git("tag", "v2.15.0")
+			}
+
 			git("-c", "user.name=Version Test", "-c", "user.email=version@example.com",
 				"tag", "-a", annotatedTag, "-m", "annotated release")
 
@@ -104,14 +111,16 @@ func TestResolveInstallVersionSources(t *testing.T) {
 				latestContents = "prerelease\n"
 			}
 
-			cases := []struct {
+			type versionCase struct {
 				name      string
 				requested string
 				kind      versionKind
 				ref       string
 				id        string
 				contents  string
-			}{
+			}
+
+			cases := []versionCase{
 				{
 					name: "tag", requested: "3.8.1", kind: versionKindTag,
 					ref: tag, id: tag, contents: "release\n",
@@ -154,6 +163,13 @@ func TestResolveInstallVersionSources(t *testing.T) {
 					name: "default", requested: "", kind: versionKindTag,
 					ref: latestTag, id: latestTag, contents: latestContents,
 				},
+			}
+
+			if program == binary.ProgramTt {
+				cases = append(cases, versionCase{
+					name: "older tt release", requested: "2.15.0", kind: versionKindTag,
+					ref: "v2.15.0", id: "v2.15.0", contents: "release\n",
+				})
 			}
 
 			for _, local := range []bool{true, false} {

@@ -8,16 +8,12 @@ import (
 	"path/filepath"
 
 	"github.com/tarantool/tt/sdk/log"
-	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
 	"github.com/tarantool/tt/v3/internal/binary/search"
 )
 
 var (
-	errASpecificVersionMustBeProvidedToInstall = errors.New(
-		"a specific version must be provided to install ",
-	)
 	errCouldNotFindBinaryAt     = errors.New("could not find binary at ")
 	errMissingBundleHeaders     = errors.New("could not find headers")
 	errIncompleteBundle         = errors.New("cannot activate incomplete installation")
@@ -45,9 +41,6 @@ type bundleParams struct {
 
 	// inst is the install context for the installation process.
 	inst *InstallCtx
-
-	// opts contains command-line options and configurations.
-	opts *config.CliOpts
 
 	// artifactRoot is the resolved installation scope.
 	artifactRoot string
@@ -331,28 +324,22 @@ func updateSymlinks(params *bundleParams) error {
 	return nil
 }
 
-// performInitialChecks performs initial validation before starting the installation.
-func performInitialChecks(params *bundleParams) error {
-	if params.inst.requestedVersion == "" {
-		return fmt.Errorf("%w%s", errASpecificVersionMustBeProvidedToInstall, params.inst.Program)
-	}
-
-	log.Infof("Requested version: %s", params.inst.requestedVersion)
-
-	return nil
-}
-
 // acquireBundleInfoToInstall finds local candidates and fetches bundle information
 // using the search package.
 func acquireBundleInfoToInstall(params *bundleParams) error {
-	log.Infof("Search for the requested %q version...", params.inst.requestedVersion)
+	if params.inst.requestedVersion == "" {
+		log.Infof("Search for the latest stable %s version...", params.inst.Program)
+	} else {
+		log.Infof("Search for the requested %q version...", params.inst.requestedVersion)
+	}
 
 	bundles, err := fetchInstallBundles(params)
 	if err != nil {
 		return err
 	}
 
-	params.bundleInfo, err = search.SelectVersion(bundles, params.inst.requestedVersion)
+	params.bundleInfo, err = selectBundleVersion(bundles,
+		params.inst.requestedVersion, params.inst.Program)
 	if err != nil {
 		return err
 	}
@@ -365,6 +352,39 @@ func acquireBundleInfoToInstall(params *bundleParams) error {
 	return nil
 }
 
+// selectBundleVersion resolves empty or numeric requests to the latest stable EE or TCM build.
+// EE defaults to gc64. Other requests retain exact matching of complete identifiers.
+// Bundles must be sorted in ascending version order.
+func selectBundleVersion(bundles search.BundleInfoSlice, requested string, program binary.Program) (
+	search.BundleInfo, error,
+) {
+	if (program != binary.ProgramEe && program != binary.ProgramTcm) ||
+		(requested != "" && !version.IsNumericVersion(requested)) {
+		return search.SelectVersion(bundles, requested)
+	}
+
+	versions := make([]version.Version, 0, len(bundles))
+
+	for _, bundle := range bundles {
+		if bundle.Version.Release.Type != version.TypeRelease {
+			continue
+		}
+
+		if program == binary.ProgramEe && bundle.Version.BuildName != "gc64" {
+			continue
+		}
+
+		versions = append(versions, bundle.Version)
+	}
+
+	matched, err := version.MatchVersion(requested, versions)
+	if err != nil {
+		return search.BundleInfo{}, err
+	}
+
+	return search.SelectVersion(bundles, matched)
+}
+
 // fetchInstallBundles obtains candidates without selecting the requested version.
 func fetchInstallBundles(params *bundleParams) (search.BundleInfoSlice, error) {
 	if params.inst.LocalRepo != "" {
@@ -374,11 +394,12 @@ func fetchInstallBundles(params *bundleParams) (search.BundleInfoSlice, error) {
 	searchCtx := search.NewSearchCtx(search.NewPlatformInformer(), search.NewTntIoDoer())
 
 	searchCtx.BinaryContext = params.inst.BinaryContext
+	searchCtx.CredentialsFile = params.inst.CredentialsFile
 	searchCtx.Filter = search.SearchAll
 	searchCtx.Package = search.GetAPIPackage(params.inst.Program)
 	searchCtx.DevBuilds = params.inst.DevBuild
 
-	return search.FetchBundlesInfo(&searchCtx, params.opts)
+	return search.FetchBundlesInfo(&searchCtx)
 }
 
 // executeBundleInstallation performs the core installation steps:
@@ -467,8 +488,8 @@ func executeBundleInstallationSteps(params *bundleParams) error {
 	return nil
 }
 
-// installBundleProgram orchestrates the installation process for programs distributed as bundles.
-func installBundleProgram(installCtx InstallCtx, cliOpts *config.CliOpts) error {
+// installBundleProgram orchestrates the installation of EE and TCM bundles.
+func installBundleProgram(installCtx InstallCtx) error {
 	artifactRoot, err := installCtx.Scope.ArtifactPath()
 	if err != nil {
 		return err
@@ -478,13 +499,7 @@ func installBundleProgram(installCtx InstallCtx, cliOpts *config.CliOpts) error 
 	var params bundleParams
 
 	params.inst = &installCtx
-	params.opts = cliOpts
 	params.artifactRoot = artifactRoot
-
-	err = performInitialChecks(&params)
-	if err != nil {
-		return err
-	}
 
 	err = acquireBundleInfoToInstall(&params)
 	if err != nil {

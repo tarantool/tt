@@ -19,9 +19,11 @@ type InstallCtx struct {
 	// KeepTemp is a flag. If it is set,
 	// install will don't remove tmp files.
 	KeepTemp bool
-	// LocalRepo is the directory containing product source repositories or
-	// installation archives. An empty path selects remote installation.
+	// LocalRepo is the source directory: --local-repo for Git repositories,
+	// or --local-dir for EE/TCM archives. An empty path selects remote installation.
 	LocalRepo string
+	// CredentialsFile contains customer-zone credentials for remote EE, TCM, and SDK downloads.
+	CredentialsFile string
 	// Destination is the directory to save downloaded SDK bundles.
 	Destination string
 	// BuildInDocker is set if tarantool must be built in docker container.
