@@ -118,10 +118,18 @@ def test_sdk_install_scope(tt_cmd, tmp_path, alias, scope):
     make_sdk(tmp_path)
     rc, output = install_sdk(tt_cmd, tmp_path, "3.7", alias, scope)
     assert rc == 0, output
+    assert "to PATH to use this as default" not in output
     root = sdk_root(tmp_path, scope)
     assert_sdk_active(root, SDK_VERSION)
     assert not (root / "versions" / "tt").exists()
     assert not (root / "versions" / "tarantool").exists()
+    if scope == "project":
+        assert (tmp_path / ".env" / "activate.sh").is_file()
+        assert (tmp_path / ".env" / "deactivate.sh").is_file()
+        assert output.count("source .env/activate.sh") == 1
+    else:
+        assert not (tmp_path / ".env").exists()
+        assert "source .env/activate.sh" not in output
 
     rc, output = binary_command(tt_cmd, tmp_path, "list", scope=scope)
     assert rc == 0, output
@@ -143,6 +151,7 @@ def test_tt_ee_install_scope_and_lifecycle(tt_cmd, tmp_path, scope):
         assert not (root / "versions" / product).exists()
     for name in ("include", "rocks", "env.sh"):
         assert not (first.parent / name).exists()
+    assert (tmp_path / ".env" / "activate.sh").is_file() == (scope == "project")
 
     rc, output = run_command_and_get_output([first, "--self", "version", "--commit"])
     assert rc == 0, output
@@ -275,6 +284,10 @@ def test_sdk_switch_components_and_uninstall(tt_cmd, tmp_path):
         rc, output = install_sdk(tt_cmd, tmp_path, selected)
         assert rc == 0, output
 
+    scripts = {
+        name: (tmp_path / ".env" / name).read_bytes()
+        for name in ("activate.sh", "deactivate.sh")
+    }
 
     rc, output = binary_command(tt_cmd, tmp_path, "switch", "SDK", "3.7.1")
     assert rc == 0, output
@@ -309,6 +322,8 @@ def test_sdk_switch_components_and_uninstall(tt_cmd, tmp_path):
     assert not (root / "versions" / "tcm" / f"tcm_sdk_{SDK_VERSION}").exists()
     assert not (root / "versions" / "tt-ee" / f"tt_sdk_{SDK_VERSION}").exists()
     assert not os.path.lexists(root / "bin" / "tt")
+    for name, content in scripts.items():
+        assert (tmp_path / ".env" / name).read_bytes() == content
 
 
 @pytest.mark.parametrize(

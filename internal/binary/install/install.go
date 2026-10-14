@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/fatih/color"
 	"github.com/tarantool/tt/v3/internal/binary"
 )
 
@@ -31,14 +32,32 @@ func Install(installCtx InstallCtx) error {
 		installCtx.LocalRepo = localRepo
 	}
 
+	var err error
+
 	switch {
 	case installCtx.Program == binary.ProgramTt:
-		return installTt(installCtx)
+		err = installTt(installCtx)
 	case installCtx.Program == binary.ProgramCe:
-		return installTarantool(installCtx)
+		err = installTarantool(installCtx)
 	case installCtx.Program.BundleSource() != binary.ProgramUnknown:
-		return installBundleProgram(installCtx)
+		err = installBundleProgram(installCtx)
 	default:
 		return fmt.Errorf("%w%s", binary.ErrUnknownApplication, installCtx.Program)
 	}
+
+	if err != nil {
+		return err
+	}
+
+	err = prepareProjectEnvironment(installCtx.Scope)
+	if err != nil {
+		return err
+	}
+
+	if installCtx.Scope == binary.ScopeProject {
+		_, _ = fmt.Fprintf(os.Stdout, "\nTo activate the installed binaries, run:\n\n  %s\n\n",
+			color.GreenString("source .env/activate.sh"))
+	}
+
+	return nil
 }

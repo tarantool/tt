@@ -215,7 +215,7 @@ func installTarantoolFromSource(installCtx InstallCtx, artifactRoot string) erro
 	return nil
 }
 
-// activateTarantoolVersion updates the scope's active links and reports its PATH directory.
+// activateTarantoolVersion updates the scope's active links.
 func activateTarantoolVersion(binPath, incPath, artifactRoot string) error {
 	log.Infof("Changing symlinks...")
 
@@ -226,7 +226,6 @@ func activateTarantoolVersion(binPath, incPath, artifactRoot string) error {
 
 	binDir := filepath.Join(artifactRoot, binary.BinDirName)
 	log.Infof("Made default by symlink %q", filepath.Join(binDir, binary.ProgramCe.Exec()))
-	log.Infof("Add %q to PATH to use this as default.", binDir)
 	log.Infof("Done.")
 
 	return nil

@@ -31,6 +31,8 @@ def local_build(tt_cmd, tmp_path):
     assert rc == 0, output
     assert (root / "bin" / "tarantool").readlink() == binary
     assert (root / "include" / "tarantool").readlink() == headers
+    assert (tmp_path / ".env" / "activate.sh").is_file()
+    assert (tmp_path / ".env" / "deactivate.sh").is_file()
     return binary, headers
 
 

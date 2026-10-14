@@ -75,7 +75,8 @@ Active executables are linked from <root>/bin/, and active Tarantool headers
 from <root>/include/tarantool. CE and EE keep separate versions and share the active
 Tarantool links.
 tt and tt-ee keep separate versions and share the active tt executable.
-Add <root>/bin to PATH to run the active versions.
+
+For project installations, run "source .env/activate.sh" to activate the installed binaries.
 
 SDK installations select Tarantool Enterprise, tt Enterprise, TCM, and headers together.`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -117,6 +118,9 @@ func newBinaryInstallCmd(base *binary.BinaryContext,
 
 The installed version becomes active in the selected scope. See
 "tt binary --help" for scope locations and the binary layout.
+
+Project installations create .env/activate.sh and .env/deactivate.sh once.
+Source them to use the project binaries and headers or restore your shell environment.
 `,
 		Example: `# Build the latest Tarantool release for this project.
   $ tt binary install tarantool
@@ -357,7 +361,8 @@ name to select an exact build, including nogc64 or RC.
 Use --local-dir <dir> to install an SDK archive from a local directory.
 
 Components have separate sdk-<bundle-version> identities. Use "tt binary switch sdk"
-to select the entire SDK, or switch individual products independently.`,
+to select the entire SDK, or switch individual products independently.
+For project installations, run "source .env/activate.sh" to activate the installed binaries.`,
 		Example: `# Install the latest stable SDK for this project.
   $ tt binary install tarantool-sdk
 
