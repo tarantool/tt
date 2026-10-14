@@ -31,15 +31,13 @@ func Install(installCtx InstallCtx) error {
 		installCtx.LocalRepo = localRepo
 	}
 
-	switch installCtx.Program {
-	case binary.ProgramTt:
+	switch {
+	case installCtx.Program == binary.ProgramTt:
 		return installTt(installCtx)
-	case binary.ProgramCe:
+	case installCtx.Program == binary.ProgramCe:
 		return installTarantool(installCtx)
-	case binary.ProgramEe, binary.ProgramTcm:
+	case installCtx.Program.BundleSource() != binary.ProgramUnknown:
 		return installBundleProgram(installCtx)
-	case binary.ProgramSDK:
-		return DownloadSDK(installCtx)
 	default:
 		return fmt.Errorf("%w%s", binary.ErrUnknownApplication, installCtx.Program)
 	}

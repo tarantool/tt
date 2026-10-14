@@ -103,7 +103,7 @@ func installTarantoolFromSource(installCtx InstallCtx, artifactRoot string) erro
 	// Destination of this version's executable: <scope>/versions/tarantool/<version>/tarantool.
 	binPath := filepath.Join(versionDir, binary.ProgramCe.Exec())
 
-	// Destination of this version's headers: <scope>/versions/tarantool/<version>/inc/tarantool.
+	// This version's headers: <scope>/versions/tarantool/<version>/include/tarantool.
 	incPath := filepath.Join(versionDir, binary.IncDirName, binary.ProgramCe.Exec())
 
 	// Check if program is already installed.

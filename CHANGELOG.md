@@ -10,7 +10,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - `tt binary install`: select `--scope project` (the default), `user`, or
-  `system` when installing `tt`, `tarantool`, `tarantool-ee`, or `tcm`.
+  `system` when installing `tt`, `tarantool`, `tarantool-ee`, `tcm`, or
+  `tarantool-sdk`.
   Project installations use `.tarantool/` in the current directory.
   On Linux, user installations use `$XDG_DATA_HOME/tarantool` when
   `XDG_DATA_HOME` is absolute, falling back to `~/.local/share/tarantool`.
@@ -18,19 +19,28 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   roots are `~/Library/Application Support/tarantool` and
   `/Library/Application Support/tarantool`.
 - `tt binary search` and `tt binary install`: add `--credentials-file <path>`
-  for remote EE/TCM searches and EE/TCM/SDK downloads, allowing customer-zone
+  for remote EE/TCM/SDK searches and downloads, allowing customer-zone
   credentials to be supplied from a file without `tt.yaml`.
-- `tt binary install tarantool-ee` and `tt binary install tcm`: accept `X`,
+- `tt binary install tarantool-ee`, `tt binary install tarantool-sdk`, and
+  `tt binary install tcm`: accept `X`,
   `X.Y`, and `X.Y.Z` to select the latest matching stable build, including from
   `--local-dir`. Omitting the version selects the latest stable build.
-  EE uses `gc64` by default. Complete version names still select exact builds,
+  EE and SDK use `gc64` by default. Complete version names select exact builds,
   including `nogc64` and RC.
 - `tt binary switch` and `tt binary uninstall`: accept the complete numeric version `X.Y.Z`
-  for EE/TCM when exactly one installed version matches in the selected scope.
+  for EE/TCM/SDK when exactly one installed version matches in the selected scope.
   Ambiguous requests report matching full names without changing active links
   or removing installations. Full names select specific builds.
-- `tt binary search tarantool-sdk` (also `sdk` and `SDK`): search SDK versions
-  through the existing Tarantool Enterprise search, with the same flags and output.
+- `tt binary search tarantool-sdk` (aliases: `sdk`, `SDK`): search SDK archives
+  and mark complete SDK installations in the selected scope. An SDK is active
+  when all its components and headers are selected.
+  `tt binary search tarantool-ee` separately marks standalone Enterprise
+  installations.
+- `tt binary list`, `tt binary switch sdk`, and `tt binary uninstall sdk`:
+  list, select, or remove SDK versions in the selected scope. Switching an SDK
+  selects its components and headers together. Individual components
+  can also be selected using `sdk-<bundle-version>` identities, independently
+  of standalone product versions.
 - `tt binary install tarantool --from-build <dir>`: link an existing
   Tarantool build into the selected scope without copying or rebuilding it.
   `--include-dir` selects the source headers; no version argument is accepted.
@@ -230,7 +240,7 @@ for machine-readable output.
   scope only. Scope does not affect the available versions returned by remote
   sources or the local repository.
 - `tt binary install` and `tt binary search`: use `--local-dir <dir>` instead
-  of `--local-repo` for EE/TCM archives. The directory contains
+  of `--local-repo` for EE/TCM/SDK archives. The directory contains
   `tarantool-enterprise-sdk-*.tar.gz` or `tcm-*.tar.gz` archives directly.
   For `tt` and `tarantool`, `--local-repo <dir>` expects Git source repositories
   in `<dir>/tt` or `<dir>/tarantool`. Help describes each product's input format.
@@ -238,7 +248,7 @@ for machine-readable output.
 - `tt binary search`: require an explicit local source directory instead of
   reading `repo.distfiles` from `tt.yaml`. Relative paths are resolved from
   the current directory.
-- `tt binary install`: no longer require `tt.yaml` for EE or TCM. The
+- `tt binary install`: no longer require `tt.yaml` for EE, TCM, or SDK. The
   `--local-repo <dir>` and `--local-dir <dir>` flags take the source directory
   instead of reading `repo.distfiles`; relative paths are resolved from the
   current directory.
@@ -246,16 +256,26 @@ for machine-readable output.
   `tt.yaml` configuration.
 - `tt binary install`: keep each installed version under
   `<scope>/versions/<product>/<product>_<version>/`, with the executable directly
-  in that directory and Tarantool headers in `inc/tarantool/`. Active executable
+  in that directory and Tarantool headers in `include/tarantool/`. Active executable
   links are in `<scope>/bin/` and Tarantool headers selected by
-  `<scope>/inc/tarantool`. CE and EE keep separate version directories and
+  `<scope>/include/tarantool`. CE and EE keep separate version directories and
   share the active Tarantool links. Add `<scope>/bin` to `PATH` to use the
   selected executables.
   Reinstalling with `--reinstall` replaces only the selected version.
-- Download SDK archives with `tt binary install tarantool-sdk <version>`
-  (aliases: `sdk`, `SDK`). `--destination` selects an existing writable
-  directory, defaulting to the current directory. SDK downloads do not use
-  installation scopes or activate binaries.
+- `tt binary install tarantool-sdk [version]` (aliases: `sdk`, `SDK`) now installs
+  and activates Tarantool Enterprise, tt Enterprise, TCM, and headers in the selected
+  scope. This replaces downloading
+  an archive to `--destination`; SDK archives can be installed from Customer
+  Zone or a local directory with `--local-dir`.
+  SDK removal preserves independently selected versions and tries to select
+  replacements for removed active components. Unusable candidates are skipped;
+  a failed replacement warns without failing removal. TCM replacements are
+  compared by TCM's own version.
+- `tt binary install tt-ee`: install tt Enterprise from the same SDK archive as
+  Tarantool Enterprise. `tt-ee` has separate version directories and supports
+  search, list, switch, and uninstall, sharing `bin/tt` with ordinary tt.
+  Removing an active tt-ee version can select a remaining tt-ee or ordinary tt;
+  comparisons use the executable's own version rather than its SDK bundle version.
 - `tt start`: a failed periodic integrity check (`--integrity-check-period`)
   stops the instance for good. The watchdog kills it and exits, whatever
   `restart_on_failure` says; starting it again is up to an administrator.

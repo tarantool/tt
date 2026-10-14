@@ -15,14 +15,11 @@ import (
 	"github.com/tarantool/tt/v3/internal/binary/list"
 )
 
-// activeDirectoryMode makes system-scope selections accessible to every user.
-const activeDirectoryMode = 0o755
-
 var (
-	errBinaryIsNotInstalledInCurrentEnvironment  = errors.New("binary ")
-	errHeadersIsNotInstalledInCurrentEnvironment = errors.New("headers ")
-	errThereAreNoInstalledInThisEnvironmentOfTT  = errors.New("there are no ")
-	errInvalidVersion                            = errors.New("invalid version")
+	errBinaryNotInstalledInScope  = errors.New("binary ")
+	errHeadersNotInstalledInScope = errors.New("headers ")
+	errNoInstalledVersionsInScope = errors.New("there are no ")
+	errInvalidVersion             = errors.New("invalid version")
 )
 
 // SwitchCtx contains information for switch command.
@@ -98,8 +95,8 @@ func ChooseVersion(scope binary.Scope, program binary.Program) (string, error) {
 	}
 
 	if len(versions) == 0 {
-		return "", fmt.Errorf("%w%s installed in this environment of 'tt'",
-			errThereAreNoInstalledInThisEnvironmentOfTT, program)
+		return "", fmt.Errorf("%w%s versions installed in the selected scope",
+			errNoInstalledVersionsInScope, program)
 	}
 
 	versionSelect := promptui.Select{
@@ -119,7 +116,8 @@ func ChooseVersion(scope binary.Scope, program binary.Program) (string, error) {
 // validateProgram limits switching to products with installed executables.
 func validateProgram(program binary.Program) error {
 	switch program {
-	case binary.ProgramTt, binary.ProgramCe, binary.ProgramEe, binary.ProgramTcm:
+	case binary.ProgramTt, binary.ProgramTtEe, binary.ProgramCe, binary.ProgramEe,
+		binary.ProgramTcm, binary.ProgramSDK:
 		return nil
 	default:
 		return fmt.Errorf("%w%s", binary.ErrUnknownApplication, program)
@@ -130,24 +128,14 @@ func validateProgram(program binary.Program) error {
 func resolveInstalledBundleVersion(root string, program binary.Program,
 	requested string,
 ) (string, error) {
-	directory := filepath.Join(root, binary.VersionsDirName, program.String())
-	entries, err := os.ReadDir(directory)
-
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return "", fmt.Errorf("error reading directory %q: %w", directory, err)
+	installed, err := binary.InstalledVersions(root, program)
+	if err != nil {
+		return "", err
 	}
 
-	installed := make([]string, 0, len(entries))
-	prefix := program.String() + version.FsSeparator
+	selected, err := binary.MatchInstalledVersion(program, requested, installed)
 
-	for _, entry := range entries {
-		name, ok := strings.CutPrefix(entry.Name(), prefix)
-		if entry.IsDir() && ok {
-			installed = append(installed, name)
-		}
-	}
-
-	return version.MatchInstalledVersion(requested, installed)
+	return selected, err
 }
 
 // findInstalledVersion resolves an installed bundle version or an exact Git version.
@@ -159,8 +147,11 @@ func findInstalledVersion(root string, program binary.Program,
 		return "", "", fmt.Errorf("%w: %q", errInvalidVersion, requested)
 	}
 
+	_, fromSDK := binary.SDKComponentVersion(program, requested)
+	matchBundleVersion := fromSDK || program.BundleSource() != binary.ProgramUnknown
+
 	candidates := []string{requested}
-	if !exactVersion && (program == binary.ProgramEe || program == binary.ProgramTcm) {
+	if !exactVersion && matchBundleVersion {
 		selected, err := resolveInstalledBundleVersion(root, program, requested)
 
 		switch {
@@ -176,8 +167,7 @@ func findInstalledVersion(root string, program binary.Program,
 	}
 
 	for _, candidate := range candidates {
-		installation := filepath.Join(root, binary.VersionsDirName, program.String(),
-			program.String()+version.FsSeparator+candidate)
+		installation := binary.InstallationPath(root, program, candidate)
 		binPath := filepath.Join(installation, program.Exec())
 		info, err := os.Stat(binPath)
 
@@ -191,8 +181,8 @@ func findInstalledVersion(root string, program binary.Program,
 		}
 	}
 
-	return "", "", fmt.Errorf("%w%s is not installed in current environment",
-		errBinaryIsNotInstalledInCurrentEnvironment,
+	return "", "", fmt.Errorf("%w%s is not installed in the selected scope",
+		errBinaryNotInstalledInScope,
 		program.String()+version.FsSeparator+requested)
 }
 
@@ -210,21 +200,6 @@ func alternateReleaseSpelling(requested string) (string, bool) {
 	return "v" + requested, true
 }
 
-// switchLink prepares the active directory and replaces one link in the selected scope.
-func switchLink(target, link string) error {
-	err := binary.CreateDirectory(filepath.Dir(link), activeDirectoryMode)
-	if err != nil {
-		return fmt.Errorf("failed to create active directory: %w", err)
-	}
-
-	err = binary.CreateSymlink(target, link, true)
-	if err != nil {
-		return fmt.Errorf("failed create symlink: %w", err)
-	}
-
-	return nil
-}
-
 // Switch selects an installed version in exactly the requested scope.
 func Switch(switchCtx *SwitchCtx) error {
 	err := validateProgram(switchCtx.Program)
@@ -237,6 +212,12 @@ func Switch(switchCtx *SwitchCtx) error {
 		return err
 	}
 
+	if switchCtx.Program == binary.ProgramSDK {
+		err = switchSDK(root, switchCtx.Version, switchCtx.ExactVersion)
+
+		return err
+	}
+
 	selected, installation, err := findInstalledVersion(root, switchCtx.Program,
 		switchCtx.Version, switchCtx.ExactVersion)
 	if err != nil {
@@ -245,35 +226,70 @@ func Switch(switchCtx *SwitchCtx) error {
 
 	log.Infof("Switching to %s%s%s", switchCtx.Program, version.FsSeparator, selected)
 
-	binPath := filepath.Join(installation, switchCtx.Program.Exec())
 	incPath := filepath.Join(installation, binary.IncDirName, switchCtx.Program.Exec())
 
 	if switchCtx.Program.IsTarantool() && !binary.IsDir(incPath) {
-		return fmt.Errorf("failed to switch headers: %w%s is not installed in current environment",
-			errHeadersIsNotInstalledInCurrentEnvironment,
+		return fmt.Errorf("failed to switch headers: %w%s is not installed in the selected scope",
+			errHeadersNotInstalledInScope,
 			switchCtx.Program.String()+version.FsSeparator+selected)
 	}
 
-	binLink := filepath.Join(root, binary.BinDirName, switchCtx.Program.Exec())
-
-	err = switchLink(binPath, binLink)
+	err = binary.ActivateSelections(root,
+		[]binary.Selection{{Program: switchCtx.Program, ID: selected}})
 	if err != nil {
 		return fmt.Errorf("failed to switch binary: %w", err)
 	}
 
-	switch switchCtx.Program {
-	case binary.ProgramCe, binary.ProgramEe:
-		incLink := filepath.Join(root, binary.IncDirName, switchCtx.Program.Exec())
+	log.Infof("Done")
 
-		err = switchLink(incPath, incLink)
-		if err != nil {
-			return fmt.Errorf("failed to switch headers: %w", err)
-		}
-	default:
-		// TT and TCM have no headers to activate.
+	return nil
+}
+
+func switchSDK(root, requested string, exact bool) error {
+	if requested == "" || requested == "." || requested == ".." ||
+		strings.ContainsAny(requested, "/\\\x00") {
+		return fmt.Errorf("%w: %q", errInvalidVersion, requested)
 	}
 
-	log.Infof("Done")
+	selected := requested
+
+	if !exact {
+		var err error
+
+		selected, err = resolveInstalledBundleVersion(root, binary.ProgramSDK, requested)
+		if err != nil {
+			if errors.Is(err, version.ErrInstalledVersionNotFound) {
+				return fmt.Errorf("%wSDK %s is not installed in the selected scope",
+					errBinaryNotInstalledInScope, requested)
+			}
+
+			return err
+		}
+	}
+
+	sdk, err := binary.ReadSDK(root, selected)
+	if err != nil {
+		return err
+	}
+
+	err = binary.ValidateSDKManifest(sdk, selected)
+	if err != nil {
+		return err
+	}
+
+	err = binary.ValidateSDKFiles(root, sdk)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("Switching to SDK %s", selected)
+
+	err = binary.ActivateSDK(root, sdk)
+	if err != nil {
+		return err
+	}
+
+	log.Info("Done")
 
 	return nil
 }

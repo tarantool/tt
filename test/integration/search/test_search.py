@@ -1,3 +1,4 @@
+import json
 import os
 import platform
 import re
@@ -86,18 +87,36 @@ def install_version(root: Path, program: str, version: str, active: bool = False
     return binary_path
 
 
-@pytest.mark.parametrize("alias", ["tarantool-sdk", "sdk", "SDK"])
+@pytest.mark.parametrize("alias", ["sdk", "SDK"])
 def test_sdk_search_alias(tt_cmd, tmp_path, alias):
     root = tmp_path / ".tarantool"
     installed = "gc64-3.3.1-0-r55"
     active = "gc64-3.3.2-0-r59"
-    install_version(root, "tarantool-ee", installed)
-    install_version(root, "tarantool-ee", active, active=True)
+    for selected in (installed, active):
+        enterprise = root / "versions" / "tarantool-ee" / f"tarantool_sdk_{selected}"
+        tcm = root / "versions" / "tcm" / f"tcm_sdk_{selected}"
+        record = root / "versions" / "tarantool-sdk" / f"tarantool-sdk_{selected}"
+        for path in (enterprise / "include" / "tarantool", tcm, record):
+            path.mkdir(parents=True)
+        (enterprise / "tarantool").write_text("binary")
+        (tcm / "tcm").write_text("binary")
+        (record / "sdk.json").write_text(
+            json.dumps({"version": selected, "products": ["tarantool-ee", "tcm"]}),
+        )
+        if selected == active:
+            for name, target in {
+                "bin/tarantool": enterprise / "tarantool",
+                "bin/tcm": tcm / "tcm",
+                "include/tarantool": enterprise / "include" / "tarantool",
+            }.items():
+                link = root / name
+                link.parent.mkdir(parents=True, exist_ok=True)
+                link.symlink_to(target)
     local_dir = Path(__file__).parent / "testdata" / "distfiles.test"
     flags = ["--scope", "project", "--local-dir", local_dir]
 
     rc, expected = run_command_and_get_output(
-        [tt_cmd, "--self", "binary", "search", "tarantool-ee", *flags],
+        [tt_cmd, "--self", "binary", "search", "tarantool-sdk", *flags],
         cwd=tmp_path,
         stderr=None,
     )
@@ -111,6 +130,34 @@ def test_sdk_search_alias(tt_cmd, tmp_path, alias):
     assert output == expected
     assert f"{installed} [installed]" in output
     assert f"{active} [active]" in output
+
+
+def test_ee_search_tracks_standalone_installations(tt_cmd, tmp_path):
+    root = tmp_path / ".tarantool"
+    installed = "gc64-3.3.1-0-r55"
+    active = "gc64-3.3.2-0-r59"
+    install_version(root, "tarantool-ee", "3.3.1")
+    install_version(root, "tarantool-ee", "3.3.2", active=True)
+    local_dir = Path(__file__).parent / "testdata" / "distfiles.test"
+    flags = ["--local-dir", local_dir]
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "--self", "binary", "search", "tarantool-ee", *flags],
+        cwd=tmp_path,
+    )
+    assert rc == 0, output
+    assert "Available local versions of tarantool-ee:" in output
+    assert f"{installed} [installed]" in output
+    assert f"{active} [active]" in output
+    assert "gc64-3.3.2-0-r58 [active]" in output
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "--self", "binary", "search", "sdk", *flags],
+        cwd=tmp_path,
+    )
+    assert rc == 0, output
+    assert "[installed]" not in output
+    assert "[active]" not in output
 
 
 @pytest.mark.parametrize("program", ["tarantool", "tt"])

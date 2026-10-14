@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"runtime"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/sdk/log/logtest"
@@ -86,7 +88,7 @@ func TestFindLocalBundles(t *testing.T) {
 				mockDirEntry{name: "another-file.log"},
 			},
 			// TODO: Проверять запись в логе:.
-			logMsg: fmt.Sprintf("No local SDK files found for %q", binary.ProgramEe),
+			logMsg: fmt.Sprintf("No local archives found for %q", binary.ProgramEe),
 		},
 		"No permission to read directory": {
 			program: binary.ProgramEe,
@@ -96,7 +98,7 @@ func TestFindLocalBundles(t *testing.T) {
 			program: binary.ProgramEe,
 			files:   []fs.DirEntry{},
 			// TODO: Проверять запись в логе:.
-			logMsg: "Directory not found, cannot search for local SDK files",
+			logMsg: "Directory not found, cannot search for local archives",
 		},
 		"Matching files for " + binary.ProgramEe.String(): {
 			program: binary.ProgramEe,
@@ -283,4 +285,34 @@ func TestFindLocalBundles(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFindLocalTtEeBundles(t *testing.T) {
+	files := fstest.MapFS{
+		"tt-ee-2.15.0-linux-amd64.tar.gz":                               {},
+		"tt-ee-2.15.0-linux-arm64.tar.gz":                               {},
+		"tt-ee-2.15.0-linux-amd64.tar.gz.sha256":                        {},
+		"tt-ee-2.15.0-darwin-amd64.tar.gz":                              {},
+		"tt-ee-2.15.0-darwin-arm64.tar.gz":                              {},
+		"tcm-1.3.0.linux.amd64.tar.gz":                                  {},
+		"tarantool-enterprise-sdk-gc64-3.8.0-0-r94.linux.x86_64.tar.gz": {},
+	}
+
+	bundles, err := search.FindLocalBundles(binary.ProgramTtEe, files)
+	if runtime.GOOS != "linux" {
+		require.ErrorContains(t, err, "unsupported OS")
+
+		return
+	}
+
+	if runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64" {
+		require.ErrorContains(t, err, "unsupported architecture")
+
+		return
+	}
+
+	require.NoError(t, err)
+	require.Len(t, bundles, 1)
+	require.Equal(t, "2.15.0", bundles[0].Version.Str)
+	require.Equal(t, "tt-ee-2.15.0-linux-"+runtime.GOARCH+".tar.gz", bundles[0].Version.Tarball)
 }

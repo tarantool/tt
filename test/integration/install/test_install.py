@@ -315,13 +315,13 @@ def test_install_tarantool_commit(tt_cmd, tmp_path):
 
     run_output = installed_program_process.stdout.readline()
     assert re.search(r"Tarantool", run_output)
-    assert (root / "inc" / "tarantool").is_dir()
+    assert (root / "include" / "tarantool").is_dir()
 
     assert is_valid_tarantool_installed(
         root / "bin",
-        root / "inc",
+        root / "include",
         str(root / "versions" / "tarantool" / "tarantool_00a9e59" / "tarantool"),
-        str(root / "versions" / "tarantool" / "tarantool_00a9e59" / "inc" / "tarantool"),
+        str(root / "versions" / "tarantool" / "tarantool_00a9e59" / "include" / "tarantool"),
     )
 
 
@@ -391,7 +391,7 @@ def test_install_tarantool_in_docker(tt_cmd, tmp_path):
     )
     assert out == "GLIBC_2.29"
 
-    assert (root / "inc" / "tarantool").is_dir()
+    assert (root / "include" / "tarantool").is_dir()
 
 
 @pytest.mark.parametrize(
@@ -516,7 +516,7 @@ def test_install_tarantool_fetch_latest_version(
     versions = root / "versions" / "tarantool"
     master = versions / "tarantool_master"
     (versions / ("tarantool_" + old_tarantool_version)).rename(master)
-    for directory in ["bin", "inc"]:
+    for directory in ["bin", "include"]:
         link = root / directory / "tarantool"
         link.unlink()
         link.symlink_to(master / directory / "tarantool")

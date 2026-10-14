@@ -70,7 +70,7 @@ def test_list(tt_cmd, tmp_path):
 def test_list_no_directory(tt_cmd, tmp_path):
     rc, output = list_binaries(tt_cmd, tmp_path)
     assert rc == 1
-    assert "there are no binaries installed in this environment of 'tt'" in output
+    assert "there are no binaries installed in the selected scope" in output
     assert not (tmp_path / ".tarantool").exists()
 
 
@@ -78,7 +78,7 @@ def test_list_empty_directory(tt_cmd, tmp_path):
     (tmp_path / ".tarantool" / "versions").mkdir(parents=True)
     rc, output = list_binaries(tt_cmd, tmp_path)
     assert rc == 1
-    assert "there are no binaries installed in this environment of 'tt'" in output
+    assert "there are no binaries installed in the selected scope" in output
 
 
 @pytest.mark.parametrize("broken", [False, True])

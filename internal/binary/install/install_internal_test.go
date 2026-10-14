@@ -40,7 +40,7 @@ func Test_getLatestRelease(t *testing.T) {
 
 func Test_installTarantoolFromBuild(t *testing.T) {
 	ttBinDir := "bin"
-	ttIncDir := "inc"
+	ttIncDir := "include"
 
 	setupEnv := func(t *testing.T) string {
 		t.Helper()
