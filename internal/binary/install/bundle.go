@@ -388,8 +388,6 @@ func activateBundle(params *bundleParams, sdk binary.SDKInstallation) error {
 	}
 
 	log.Infof("Symlinks updated successfully.")
-	log.Infof("Add %q to PATH to use this as default.",
-		filepath.Join(params.artifactRoot, binary.BinDirName))
 
 	products := []binary.Program{params.inst.Program}
 	if params.inst.Program == binary.ProgramSDK {

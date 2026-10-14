@@ -198,7 +198,6 @@ func installTt(installCtx InstallCtx) error {
 	}
 
 	log.Infof("Made default by symlink %q", symlinkPath)
-	log.Infof("Add %q to PATH to use this as default.", binDir)
 	log.Infof("Done.")
 
 	if installCtx.KeepTemp {

@@ -332,6 +332,7 @@ def test_bundle_scope(tt_cmd, tmp_path, program, version, scope, absolute):
     repository = tmp_path / "local bundles" if absolute else "local bundles"
     rc, output = install(tt_cmd, tmp_path, program, version, scope, repository=repository)
     assert rc == 0, output
+    assert "to PATH to use this as default" not in output
     root = scope_root(tmp_path, scope)
     destination = assert_active(root, program, version)
     if program == "tcm":
@@ -339,6 +340,12 @@ def test_bundle_scope(tt_cmd, tmp_path, program, version, scope, absolute):
         assert not (destination / "include").exists()
     if scope == "user":
         assert not scope_root(tmp_path).exists()
+        assert not (tmp_path / ".env").exists()
+        assert "source .env/activate.sh" not in output
+    else:
+        assert (tmp_path / ".env" / "activate.sh").is_file()
+        assert (tmp_path / ".env" / "deactivate.sh").is_file()
+        assert output.count("source .env/activate.sh") == 1
     assert not (tmp_path / "tt.yaml").exists()
 
 
@@ -489,6 +496,7 @@ def test_bundle_invalid_archive_preserves_destination(tt_cmd, tmp_path, failure,
         ] == links_before
     else:
         assert not root.exists()
+        assert not (tmp_path / ".env").exists()
 
 
 def test_tcm_preserves_active_tarantool_headers(tt_cmd, tmp_path):

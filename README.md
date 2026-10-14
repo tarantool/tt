@@ -329,6 +329,16 @@ falling back to user/system installations. Binary paths are independent of the
 `env` options in `tt.yaml`. For `search`, the scope only selects the
 installed/active labels; it does not change the source of available versions.
 
+The first successful `tt binary install` in project scope creates
+`.env/activate.sh` and `.env/deactivate.sh`. Existing scripts are preserved.
+Run `source .env/activate.sh` to set `TT_PROJECT_DIR` to the installation's
+project directory, prepend `.tarantool/bin` to `PATH`, and set
+`TT_CLI_TARANTOOL_PREFIX` to the project's `.tarantool` directory. The prefix
+selects the active headers in `.tarantool/include/tarantool`.
+Run `source .env/deactivate.sh` to restore the previous `PATH` and Tarantool
+prefix and unset the project variables. User and system installations do not
+create these scripts.
+
 Installing `tarantool-sdk` installs Tarantool Enterprise, tt Enterprise, TCM, and
 headers from one SDK archive. The `tt-ee` product uses the executable name `tt`
 and shares the active `bin/tt` link with ordinary `tt`. Its versions are stored
@@ -353,9 +363,9 @@ Switching or uninstalling an SDK requires an unambiguous installed version.
 Automatic replacement of TCM and tt-ee installations compares each executable's own version,
 independently of the SDK bundle version.
 
-Add `<root>/bin` to `PATH` to use the active binaries.
-Uninstalling an SDK removes its components while preserving independently
-selected versions.
+For user and system scopes, add `<root>/bin` to `PATH` to use the active binaries.
+For project scope, run `source .env/activate.sh`. Uninstalling an SDK
+removes its components while preserving independently selected versions.
 Automatic selection of replacement components is optional: unusable candidates
 are skipped, and a failed switch reports a warning without failing the removal.
 
