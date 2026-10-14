@@ -276,6 +276,11 @@ for machine-readable output.
   search, list, switch, and uninstall, sharing `bin/tt` with ordinary tt.
   Removing an active tt-ee version can select a remaining tt-ee or ordinary tt;
   comparisons use the executable's own version rather than its SDK bundle version.
+- `tt binary install`: the first successful project installation of any product
+  creates `.env/activate.sh` and `.env/deactivate.sh`, preserving existing scripts.
+  Activation sets the project directory, binary search path, and Tarantool header
+  prefix; deactivation restores the previous shell environment. User and system
+  scopes do not create these scripts.
 - `tt start`: a failed periodic integrity check (`--integrity-check-period`)
   stops the instance for good. The watchdog kills it and exits, whatever
   `restart_on_failure` says; starting it again is up to an administrator.

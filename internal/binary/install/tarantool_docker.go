@@ -18,7 +18,7 @@ const (
 	dockerLocalRepoDir = "/tt_distfiles"
 )
 
-//go:embed Dockerfile.tnt.build
+//go:embed templates/Dockerfile.tnt.build
 var tarantoolBuildDockerfile []byte
 
 func installTarantoolInDocker(tntVersion, artifactRoot string, installCtx InstallCtx) error {
