@@ -120,3 +120,24 @@ func TestSelectTcmBundleVersionEmpty(t *testing.T) {
 		})
 	}
 }
+
+func TestSelectTtEeStandaloneVersion(t *testing.T) {
+	// Version resolution is shared with TCM; neither uses SDK release numbers.
+	bundles := tcmVersionBundles(t, "2.14.0", "2.15.0", "2.15.1", "2.16.0-rc1", "3.0.0")
+	for _, testCase := range []struct {
+		requested string
+		want      string
+	}{
+		{"", "3.0.0"},
+		{"2", "2.15.1"},
+		{"2.15", "2.15.1"},
+		{"2.15.0", "2.15.0"},
+		{"2.16.0-rc1", "2.16.0-rc1"},
+	} {
+		t.Run(testCase.requested, func(t *testing.T) {
+			selected, err := selectBundleVersion(bundles, testCase.requested, binary.ProgramTtEe)
+			require.NoError(t, err)
+			require.Equal(t, testCase.want, selected.Version.Str)
+		})
+	}
+}

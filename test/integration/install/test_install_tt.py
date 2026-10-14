@@ -88,7 +88,7 @@ def test_install_tt_scope(tt_cmd, tmp_path, local_tt_build, scope, reinstall):
     assert not (binary.parent / "bin").exists()
     assert (root / "bin" / "tt").resolve() == binary
     assert build_log.read_text() == "build\n"
-    assert not (root / "inc").exists()
+    assert not (root / "include").exists()
     assert not (tmp_path / "tt.yaml").exists()
 
 

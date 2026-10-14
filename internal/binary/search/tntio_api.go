@@ -137,13 +137,9 @@ func getArchForAPI(informer PlatformInformer, program binary.Program) (string, e
 	}
 	// Workaround: change mapping for specific packages.
 	// Best way to unify paths for all apps in the customer zone.
-	switch program {
-	case binary.ProgramTcm:
+	if program.BundleSource().IsStandaloneArchive() {
 		archMapping["x86_64"] = "amd64"
 		archMapping["aarch64"] = "arm64"
-	case binary.ProgramUnknown, binary.ProgramCe, binary.ProgramEe,
-		binary.ProgramTt, binary.ProgramSDK:
-		// Use the default architecture mapping.
 	}
 
 	if arch, ok := archMapping[arch]; ok {
@@ -164,59 +160,90 @@ func getBuildType(isDev bool) string {
 
 // TntIoMakePkgURI generates a URI for downloading a package.
 func TntIoMakePkgURI(searchCtx *SearchCtx, tarball string) (string, error) {
-	var uri string
+	query, err := packageQuery(searchCtx, searchCtx.ReleaseVersion)
+	if err != nil {
+		return "", err
+	}
 
+	return PkgURI + "/" + query + "/" + tarball, nil
+}
+
+// bundlePlatformSuffix validates Linux-only tt-ee availability and filters its
+// flat version catalog by host architecture. Other sources already group by platform.
+func bundlePlatformSuffix(program binary.Program, informer PlatformInformer) (string, error) {
+	if program.BundleSource() != binary.ProgramTtEe {
+		return "", nil
+	}
+
+	if informer == nil || reflect.ValueOf(informer).IsNil() {
+		return "", errNoPlatformInformerWasApplied
+	}
+
+	osType, err := getOsForAPI(informer)
+	if err != nil {
+		return "", err
+	}
+
+	if osType != "linux" {
+		return "", fmt.Errorf("%w%s: tt-ee archives are available only for Linux",
+			errUnsupportedOS, osType)
+	}
+
+	arch, err := getArchForAPI(informer, program)
+	if err != nil {
+		return "", err
+	}
+
+	return "-" + osType + "-" + arch + ".tar.gz", nil
+}
+
+// packageQuery is shared by discovery and downloads. SDK/TCM catalogs group by
+// build type and platform; tt-ee versions are directly under the package root.
+func packageQuery(searchCtx *SearchCtx, releaseVersion string) (string, error) {
 	if searchCtx.platformInformer == nil || reflect.ValueOf(searchCtx.platformInformer).IsNil() {
 		return "", errNoPlatformInformerWasApplied
 	}
 
-	arch, err := getArchForAPI(searchCtx.platformInformer, searchCtx.Program)
-	if err != nil {
-		return "", err
+	query := GetAPIPackage(searchCtx.Program)
+	if searchCtx.Program.BundleSource() == binary.ProgramTtEe {
+		_, err := bundlePlatformSuffix(searchCtx.Program, searchCtx.platformInformer)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		arch, err := getArchForAPI(searchCtx.platformInformer, searchCtx.Program)
+		if err != nil {
+			return "", fmt.Errorf("failed to get architecture: %w", err)
+		}
+
+		osType, err := getOsForAPI(searchCtx.platformInformer)
+		if err != nil {
+			return "", fmt.Errorf("failed to get OS type for API: %w", err)
+		}
+
+		query += "/" + getBuildType(searchCtx.DevBuilds) + "/" + osType + "/" + arch
 	}
 
-	osType, err := getOsForAPI(searchCtx.platformInformer)
-	if err != nil {
-		return "", err
+	if releaseVersion != "" {
+		query += "/" + releaseVersion
 	}
 
-	uri = fmt.Sprintf("%s/%s/%s/%s/%s/%s/%s",
-		PkgURI,
-		GetAPIPackage(searchCtx.Program),
-		getBuildType(searchCtx.DevBuilds),
-		osType,
-		arch,
-		searchCtx.ReleaseVersion,
-		tarball,
-	)
-
-	return uri, nil
+	return query, nil
 }
 
 // buildApiQuery constructs the query string for the tarantool.io API.
 func buildAPIQuery(searchCtx *SearchCtx, credentials connect.UserCredentials) (
 	apiRequest, error,
 ) {
-	buildType := getBuildType(searchCtx.DevBuilds)
-
-	arch, err := getArchForAPI(searchCtx.platformInformer, searchCtx.Program)
-	if err != nil {
-		return apiRequest{}, fmt.Errorf("failed to get architecture: %w", err)
+	releaseVersion := searchCtx.ReleaseVersion
+	if searchCtx.Program.BundleSource() == binary.ProgramTtEe {
+		// Read the flat catalog once; --version may be a partial version mask.
+		releaseVersion = ""
 	}
 
-	osType, err := getOsForAPI(searchCtx.platformInformer)
+	query, err := packageQuery(searchCtx, releaseVersion)
 	if err != nil {
-		return apiRequest{}, fmt.Errorf("failed to get OS type for API: %w", err)
-	}
-
-	var query string
-
-	if len(searchCtx.ReleaseVersion) > 0 {
-		query = fmt.Sprintf("%s/%s/%s/%s/%s",
-			searchCtx.Package, buildType, osType, arch, searchCtx.ReleaseVersion)
-	} else {
-		query = fmt.Sprintf("%s/%s/%s/%s",
-			searchCtx.Package, buildType, osType, arch)
+		return apiRequest{}, err
 	}
 
 	return apiRequest{

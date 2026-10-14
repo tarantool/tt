@@ -185,6 +185,37 @@ func TestSearchVersions_TntIo(t *testing.T) {
 		expectedVersions []string
 		errMsg           string
 	}{
+		"tt_ee_root_catalog": {
+			program:  binary.ProgramTtEe,
+			platform: platformInfo{arch: "x86_64", os: binary.OsLinux},
+			doerContent: map[string][]string{
+				"2.14.0": {"tt-ee-2.14.0-linux-amd64.tar.gz"},
+				"2.15.0": {
+					"tt-ee-2.15.0-linux-amd64.tar.gz",
+					"tt-ee-2.15.0-linux-amd64.tar.gz.sha256",
+					"tt-ee-2.15.0-linux-arm64.tar.gz",
+					"tt-ee-2.15.0-darwin-amd64.tar.gz",
+					"tarantool-enterprise-sdk-gc64-3.8.0-0-r94.linux.x86_64.tar.gz",
+				},
+			},
+			expectedQuery:    "tt-ee",
+			expectedVersions: []string{"2.14.0", "2.15.0"},
+		},
+		"tt_ee_root_catalog_version_filter": {
+			program:         binary.ProgramTtEe,
+			platform:        platformInfo{arch: "aarch64", os: binary.OsLinux},
+			specificVersion: "2.15",
+			doerContent: map[string][]string{
+				"2.14.0": {"tt-ee-2.14.0-linux-arm64.tar.gz"},
+				"2.15.0": {
+					"tt-ee-2.15.0-linux-amd64.tar.gz",
+					"tt-ee-2.15.0-linux-arm64.tar.gz",
+				},
+				"2.15.1": {"tt-ee-2.15.1-linux-arm64.tar.gz"},
+			},
+			expectedQuery:    "tt-ee",
+			expectedVersions: []string{"2.15.0", "2.15.1"},
+		},
 		"tcm_release_all_versions": {
 			program:  binary.ProgramTcm,
 			platform: platformInfo{arch: "x86_64", os: binary.OsLinux},
@@ -501,6 +532,24 @@ func TestTntIoMakePkgURI(t *testing.T) {
 		expected string
 		errMsg   string
 	}{
+		"tt-ee x86 linux": {
+			args: args{
+				platform: &platformInfo{arch: "x86_64", os: binary.OsLinux},
+				program:  binary.ProgramTtEe,
+				version:  "2.15.0",
+				tarball:  "tt-ee-2.15.0-linux-amd64.tar.gz",
+			},
+			expected: packagesURL + "tt-ee/2.15.0/tt-ee-2.15.0-linux-amd64.tar.gz",
+		},
+		"tt-ee macos unsupported": {
+			args: args{
+				platform: &platformInfo{arch: "aarch64", os: binary.OsMacos},
+				program:  binary.ProgramTtEe,
+				version:  "2.15.0",
+				tarball:  "tt-ee-2.15.0-linux-arm64.tar.gz",
+			},
+			errMsg: "tt-ee archives are available only for Linux",
+		},
 		"tcm x86 linux": {
 			args: args{
 				platform: &platformInfo{arch: "x86_64", os: binary.OsLinux},
@@ -608,5 +657,23 @@ func TestTntIoMakePkgURI(t *testing.T) {
 			require.NoError(t, err, "Expected no error, but got: %v", err)
 			require.Equal(t, tt.expected, got)
 		})
+	}
+}
+
+func TestTtEeRejectsPlatformBeforeCredentials(t *testing.T) {
+	for _, platform := range []platformInfo{
+		{arch: "x86_64", os: binary.OsMacos},
+		{arch: "aarch64", os: binary.OsMacos},
+		{arch: "x86_64", os: binary.OsUnknown},
+		{arch: "arm", os: binary.OsLinux},
+	} {
+		ctx := search.NewSearchCtx(&platform, nil)
+
+		ctx.Program = binary.ProgramTtEe
+		ctx.CredentialsFile = "missing-credentials"
+
+		_, err := search.FetchBundlesInfo(&ctx)
+		require.ErrorContains(t, err, "unsupported")
+		require.NotContains(t, err.Error(), "credentials")
 	}
 }

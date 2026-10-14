@@ -314,7 +314,7 @@ func TestSearchVersionsLocalActiveIdentity(t *testing.T) {
 	archive := "tarantool-enterprise-sdk-" + version + ".linux.x86_64.tar.gz"
 	require.NoError(t, os.WriteFile(filepath.Join(repo, archive), nil, 0o644))
 
-	installedPath := addSearchVersion(t, root, binary.ProgramEe, version)
+	installedPath := addSearchVersion(t, root, binary.ProgramEe, "3.3.2")
 	cePath := addSearchVersion(t, root, binary.ProgramCe, version)
 	activateSearchVersion(t, root, binary.ProgramCe, cePath)
 
@@ -328,7 +328,7 @@ func TestSearchVersionsLocalActiveIdentity(t *testing.T) {
 	require.Equal(t, version+" [installed]\n", output,
 		"CE and EE executable basenames must not identify the same installation")
 
-	otherPath := addSearchVersion(t, t.TempDir(), binary.ProgramEe, version)
+	otherPath := addSearchVersion(t, t.TempDir(), binary.ProgramEe, "3.3.2")
 	require.NoError(t, os.Remove(filepath.Join(root, "bin", "tarantool")))
 	activateSearchVersion(t, root, binary.ProgramEe, otherPath)
 

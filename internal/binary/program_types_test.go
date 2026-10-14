@@ -17,6 +17,7 @@ func TestProgram_String(t *testing.T) {
 		"ProgramEe":      {binary.ProgramEe, "tarantool-ee"},
 		"ProgramSDK":     {binary.ProgramSDK, "tarantool-sdk"},
 		"ProgramTt":      {binary.ProgramTt, "tt"},
+		"ProgramTtEe":    {binary.ProgramTtEe, "tt-ee"},
 		"ProgramTcm":     {binary.ProgramTcm, "tcm"},
 		"ProgramUnknown": {binary.ProgramUnknown, "unknown(0)"},
 		"InvalidProgram": {binary.Program(99), "unknown(99)"},
@@ -36,10 +37,11 @@ func TestParseProgram(t *testing.T) {
 		wantErr  bool
 		errMsg   string
 	}{
-		"ValidCe":  {"tarantool", binary.ProgramCe, false, ""},
-		"ValidEe":  {"tarantool-ee", binary.ProgramEe, false, ""},
-		"ValidSDK": {"tarantool-sdk", binary.ProgramSDK, false, ""},
-		"ValidTt":  {"tt", binary.ProgramTt, false, ""},
+		"ValidCe":   {"tarantool", binary.ProgramCe, false, ""},
+		"ValidEe":   {"tarantool-ee", binary.ProgramEe, false, ""},
+		"ValidSDK":  {"tarantool-sdk", binary.ProgramSDK, false, ""},
+		"ValidTt":   {"tt", binary.ProgramTt, false, ""},
+		"ValidTtEe": {"tt-ee", binary.ProgramTtEe, false, ""},
 		"RemovedDev": {
 			"tarantool-dev", binary.ProgramUnknown, true, `unknown program: "tarantool-dev"`,
 		},
@@ -75,6 +77,7 @@ func TestProgram_Exec(t *testing.T) {
 		"ProgramCe":      {binary.ProgramCe, "tarantool"},
 		"ProgramEe":      {binary.ProgramEe, "tarantool"},
 		"ProgramTt":      {binary.ProgramTt, "tt"},
+		"ProgramTtEe":    {binary.ProgramTtEe, "tt"},
 		"ProgramTcm":     {binary.ProgramTcm, "tcm"},
 		"ProgramUnknown": {binary.ProgramUnknown, "unknown(0)"},
 		"InvalidProgram": {binary.Program(99), "unknown(99)"},
@@ -91,6 +94,7 @@ func TestProgram_GitRepo(t *testing.T) {
 	repositories := map[binary.Program]string{
 		binary.ProgramCe:      "https://github.com/tarantool/tarantool.git",
 		binary.ProgramTt:      "https://github.com/tarantool/tt.git",
+		binary.ProgramTtEe:    "",
 		binary.ProgramEe:      "",
 		binary.ProgramTcm:     "",
 		binary.ProgramSDK:     "",
@@ -112,6 +116,7 @@ func TestProgram_IsTarantool(t *testing.T) {
 		"ProgramCe":      {binary.ProgramCe, true},
 		"ProgramEe":      {binary.ProgramEe, true},
 		"ProgramTt":      {binary.ProgramTt, false},
+		"ProgramTtEe":    {binary.ProgramTtEe, false},
 		"ProgramTcm":     {binary.ProgramTcm, false},
 		"ProgramUnknown": {binary.ProgramUnknown, false},
 		"InvalidProgram": {binary.Program(99), false},
@@ -122,4 +127,22 @@ func TestProgram_IsTarantool(t *testing.T) {
 			assert.Equal(t, tc.expected, tc.program.IsTarantool())
 		})
 	}
+}
+
+func TestProgram_BundleSource(t *testing.T) {
+	for program, source := range map[binary.Program]binary.Program{
+		binary.ProgramEe:      binary.ProgramSDK,
+		binary.ProgramSDK:     binary.ProgramSDK,
+		binary.ProgramTcm:     binary.ProgramTcm,
+		binary.ProgramTtEe:    binary.ProgramTtEe,
+		binary.ProgramTt:      binary.ProgramUnknown,
+		binary.ProgramCe:      binary.ProgramUnknown,
+		binary.ProgramUnknown: binary.ProgramUnknown,
+	} {
+		t.Run(program.String(), func(t *testing.T) {
+			assert.Equal(t, source, program.BundleSource())
+		})
+	}
+
+	assert.True(t, binary.ProgramTtEe.CanBeSDKComponent())
 }

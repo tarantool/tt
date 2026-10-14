@@ -20,6 +20,8 @@ func TestTarantoolBuildPath(t *testing.T) {
 		{"legacy installation", "tarantool_3.8.0", false},
 		{"CE installation", "../versions/tarantool/tarantool_3.8.0/tarantool", false},
 		{"EE installation", "../versions/tarantool-ee/tarantool-ee_3.8.0/tarantool", false},
+		{"SDK installation",
+			"../versions/tarantool-ee/tarantool_sdk_gc64-3.8.0-0-r94/tarantool", false},
 		{"local build", "../build/src/tarantool", true},
 		{"local build under versions", "../versions/tarantool/build/src/tarantool", true},
 		{"other scope", "../other/versions/tarantool/tarantool_3.8.0/tarantool", true},

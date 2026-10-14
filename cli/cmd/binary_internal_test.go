@@ -25,10 +25,12 @@ func TestBinaryDefaultScope(t *testing.T) {
 		{"install", "tarantool"},
 		{"install", "tarantool-ee"},
 		{"install", "tt"},
+		{"install", "tt-ee"},
 		{"install", "tcm"},
 		{"uninstall", "tarantool"},
 		{"uninstall", "tarantool-ee"},
 		{"uninstall", "tt"},
+		{"uninstall", "tt-ee"},
 		{"uninstall", "tcm"},
 		{"list"},
 		{"switch", "tarantool", "3.0.0"},
@@ -38,6 +40,7 @@ func TestBinaryDefaultScope(t *testing.T) {
 		{"search", "sdk"},
 		{"search", "SDK"},
 		{"search", "tt"},
+		{"search", "tt-ee"},
 		{"search", "tcm"},
 		{"install", "tarantool-sdk", "3.0.0"},
 		{"install", "sdk", "3.0.0"},
@@ -146,12 +149,10 @@ func TestBinaryScopeFlag(t *testing.T) {
 	}
 }
 
-// TestBinaryInstallSDK checks that SDK retains the download flags and reaches
-// the downloader without requiring an environment config or installing a binary.
-//
-//nolint:paralleltest // Command handlers use process state.
+// TestBinaryInstallSDK uses the archive installer without requiring tt.yaml.
 func TestBinaryInstallSDK(t *testing.T) {
 	restoreProcessState(t)
+	t.Chdir(t.TempDir())
 
 	root := NewCmdRoot()
 	root.SetOut(io.Discard)
@@ -159,33 +160,26 @@ func TestBinaryInstallSDK(t *testing.T) {
 
 	cmdCtx.Cli.ConfigPath = ""
 
-	destination := filepath.Join(t.TempDir(), "missing")
+	directory := filepath.Join(t.TempDir(), "missing")
 	root.SetArgs([]string{
-		"binary", "install", "tarantool-sdk", "3.0.0", "--destination", destination, "--dev",
+		"binary", "install", "sdk", "--local-dir", directory, "--dev",
 	})
 
 	command, err := root.ExecuteC()
-	require.ErrorContains(t, err, "invalid destination directory")
-	require.ErrorContains(t, err, destination)
+	require.ErrorContains(t, err, "not matched with")
 	assert.Equal(t, "tt binary install tarantool-sdk", command.CommandPath())
 	assert.Equal(t, "tarantool-sdk", cmdCtx.CommandName)
 
-	directory, err := command.Flags().GetString("destination")
+	source, err := command.Flags().GetString("local-dir")
 	require.NoError(t, err)
-	assert.Equal(t, destination, directory)
+	assert.Equal(t, directory, source)
 
-	devBuild, err := command.Flags().GetBool("dev")
+	development, err := command.Flags().GetBool("dev")
 	require.NoError(t, err)
-	assert.True(t, devBuild)
-
-	for _, program := range binarySupportedPrograms {
-		t.Run(program, func(t *testing.T) {
-			command, _, err := NewBinaryCmd().Find([]string{"install", program})
-			require.NoError(t, err)
-			require.ErrorContains(t, command.ParseFlags([]string{"--destination", destination}),
-				"unknown flag: --destination")
-		})
-	}
+	assert.True(t, development)
+	assert.NoDirExists(t, ".tarantool")
+	require.ErrorContains(t, command.ParseFlags([]string{"--destination", directory}),
+		"unknown flag: --destination")
 }
 
 // TestBinaryArgumentValidation checks the argument contracts on the new paths
@@ -195,8 +189,7 @@ func TestBinaryArgumentValidation(t *testing.T) {
 		args []string
 		want string
 	}{
-		{[]string{"install", "tarantool-sdk"}, "you need to specify the version"},
-		{[]string{"install", "tarantool-sdk", "3.0", "3.1"}, "invalid number of parameters"},
+		{[]string{"install", "tarantool-sdk", "3.0", "3.1"}, "accepts at most 1 arg(s)"},
 		{[]string{"install", "tarantool", "3.0", "3.1"}, "accepts at most 1 arg(s)"},
 		{[]string{"uninstall", "tarantool", "3.0", "3.1"}, "accepts at most 1 arg(s)"},
 		{[]string{"search", "tarantool", "3.0"}, "accepts 0 arg(s)"},
@@ -277,6 +270,8 @@ func TestBinaryLocalSourceFlags(t *testing.T) {
 			{"tt", "local-repo", "local-dir"},
 			{"tarantool", "local-repo", "local-dir"},
 			{"tarantool-ee", "local-dir", "local-repo"},
+			{"tt-ee", "local-dir", "local-repo"},
+			{"tarantool-sdk", "local-dir", "local-repo"},
 			{"tcm", "local-dir", "local-repo"},
 		} {
 			t.Run(operation+"/"+testCase.program, func(t *testing.T) {
@@ -335,10 +330,10 @@ func TestBinaryInheritedOptions(t *testing.T) {
 			root.SetErr(io.Discard)
 
 			destination := filepath.Join(t.TempDir(), "missing")
-			root.SetArgs(append(testCase.args, "--destination", destination))
+			root.SetArgs(append(testCase.args, "--local-dir", destination))
 
 			err := root.Execute()
-			require.ErrorContains(t, err, "invalid destination directory")
+			require.ErrorContains(t, err, "not matched with")
 			assert.Equal(t, testCase.verbose, cmdCtx.Cli.Verbose)
 			assert.Equal(t, testCase.verbose, slog.Default().Enabled(t.Context(), slog.LevelDebug))
 		})
@@ -386,7 +381,7 @@ func TestBinaryCommandOptionsAreIndependent(t *testing.T) {
 		{[]string{"install", "tarantool"}, "from-build", "/first", "/second"},
 		{[]string{"install", "tarantool"}, "local-repo", "/first", "/second"},
 		{[]string{"install", "tarantool-ee"}, "local-dir", "/first", "/second"},
-		{[]string{"install", "tarantool-sdk"}, "destination", "/first", "/second"},
+		{[]string{"install", "tarantool-sdk"}, "local-dir", "/first", "/second"},
 		{[]string{"search", "tarantool-ee"}, "version", "3.0", "3.1"},
 		{[]string{"search", "tarantool"}, "local-repo", "/first", "/second"},
 		{[]string{"search", "tcm"}, "local-dir", "/first", "/second"},
@@ -418,10 +413,10 @@ func TestBinaryInstallAdapterOptions(t *testing.T) {
 			options := install.InstallCtx{
 				Force: true, KeepTemp: true, LocalRepo: "/bundles", Reinstall: true, DevBuild: true,
 			}
-			command := newInstallTarantoolEeCmd(&base, &options)
+			command := newInstallEnterpriseCmd(&base, &options, binary.ProgramEe)
 
 			if program == binary.ProgramTcm {
-				command = newInstallTcmCmd(&base, &options)
+				command = newInstallStandaloneCmd(&base, &options, program)
 			}
 
 			// Flag registration initializes options to their defaults.
@@ -509,7 +504,7 @@ func TestBinaryScopedCommandsWithoutConfig(t *testing.T) {
 }
 
 func TestBinarySwitchPreservesGitRefs(t *testing.T) {
-	for _, program := range binarySupportedPrograms {
+	for _, program := range []string{"tt", "tarantool", "tarantool-ee", "tcm"} {
 		for _, ref := range []string{"master", "123abcd", "1234567"} {
 			t.Run(program+"/"+ref, func(t *testing.T) {
 				restoreProcessState(t)
@@ -527,7 +522,7 @@ func TestBinarySwitchPreservesGitRefs(t *testing.T) {
 				require.NoError(t, os.WriteFile(installed, nil, 0o755))
 
 				if parsed.IsTarantool() {
-					require.NoError(t, os.MkdirAll(filepath.Join(installation, "inc",
+					require.NoError(t, os.MkdirAll(filepath.Join(installation, "include",
 						parsed.Exec()), 0o755))
 				}
 
@@ -542,9 +537,10 @@ func TestBinarySwitchPreservesGitRefs(t *testing.T) {
 				assert.Equal(t, installed, active)
 
 				if parsed.IsTarantool() {
-					headers, err := filepath.EvalSymlinks(filepath.Join(root, "inc", parsed.Exec()))
+					headers, err := filepath.EvalSymlinks(
+						filepath.Join(root, "include", parsed.Exec()))
 					require.NoError(t, err)
-					assert.Equal(t, filepath.Join(installation, "inc", parsed.Exec()), headers)
+					assert.Equal(t, filepath.Join(installation, "include", parsed.Exec()), headers)
 				}
 			})
 		}

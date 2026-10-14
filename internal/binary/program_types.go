@@ -19,27 +19,32 @@ const (
 	ProgramTt              // tt.
 	ProgramTcm             // tcm.
 	ProgramSDK             // tarantool-sdk.
+	ProgramTtEe            // tt-ee.
 )
 
-// tarantoolname is the executable of every tarantool flavour and the name
-// of the community edition.
-const tarantoolName = "tarantool"
+// Executable names are shared by Community and Enterprise products.
+const (
+	tarantoolName = "tarantool"
+	ttName        = "tt"
+)
 
 // programToExec contains executables matched for each Program types.
 var programToExec = map[Program]string{
-	ProgramCe:  tarantoolName,
-	ProgramEe:  tarantoolName,
-	ProgramTt:  "tt",
-	ProgramTcm: "tcm",
+	ProgramCe:   tarantoolName,
+	ProgramEe:   tarantoolName,
+	ProgramTt:   ttName,
+	ProgramTtEe: ttName,
+	ProgramTcm:  "tcm",
 }
 
 // programToString contains string representations for each type.
 var programToString = map[Program]string{
-	ProgramCe:  tarantoolName,
-	ProgramEe:  "tarantool-ee",
-	ProgramTt:  "tt",
-	ProgramTcm: "tcm",
-	ProgramSDK: "tarantool-sdk",
+	ProgramCe:   tarantoolName,
+	ProgramEe:   "tarantool-ee",
+	ProgramTt:   ttName,
+	ProgramTtEe: "tt-ee",
+	ProgramTcm:  "tcm",
+	ProgramSDK:  "tarantool-sdk",
 }
 
 // programToGitRepo contains source repository URLs for programs built from Git.
@@ -54,6 +59,9 @@ var stringToProgram = func() map[string]Program {
 	for k, v := range programToString {
 		result[v] = k
 	}
+
+	result["sdk"] = ProgramSDK
+	result["SDK"] = ProgramSDK
 
 	return result
 }()
@@ -90,7 +98,50 @@ func (p Program) GitRepo() string {
 	return programToGitRepo[p]
 }
 
+// BundleSource identifies the archive supplying standalone installations.
+// Tarantool EE is extracted from SDKs; tt-ee and TCM have independent archives.
+// Products built from Git have no bundle source.
+func (p Program) BundleSource() Program {
+	switch p {
+	case ProgramEe, ProgramSDK:
+		return ProgramSDK
+	case ProgramTcm, ProgramTtEe:
+		return p
+	default:
+		return ProgramUnknown
+	}
+}
+
+// IsStandaloneArchive reports whether the product archive contains its executable
+// directly at the archive root, independently of an SDK installation.
+func (p Program) IsStandaloneArchive() bool {
+	return p == ProgramTcm || p == ProgramTtEe
+}
+
+// CanBeSDKComponent reports whether a product can belong to an SDK installation.
+// SDKProducts selects the components currently installed from the archive.
+func (p Program) CanBeSDKComponent() bool {
+	switch p {
+	case ProgramEe, ProgramTcm, ProgramTtEe:
+		return true
+	default:
+		return false
+	}
+}
+
 // IsTarantool checks if the Program is kind of Tarantool program.
 func (p Program) IsTarantool() bool {
 	return p == ProgramCe || p == ProgramEe
+}
+
+// FallbackProgram identifies the community product sharing an Enterprise executable.
+func (p Program) FallbackProgram() Program {
+	switch p {
+	case ProgramEe:
+		return ProgramCe
+	case ProgramTtEe:
+		return ProgramTt
+	default:
+		return ProgramUnknown
+	}
 }

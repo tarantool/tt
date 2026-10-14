@@ -41,9 +41,9 @@ func searchVersionsLocalGit(program binary.Program, repoPath string) (
 	return append(versions, newMasterVersion()), nil
 }
 
-// searchVersionsLocalSDK handles searching versions from locally available SDK bundle files.
+// searchVersionsLocalBundles searches versions from locally available archives.
 // It returns a slice of versions found.
-func searchVersionsLocalSDK(program binary.Program, dir string) (
+func searchVersionsLocalBundles(program binary.Program, dir string) (
 	version.VersionSlice, error,
 ) {
 	bundles, err := FindLocalBundles(program, os.DirFS(dir))
@@ -59,8 +59,7 @@ func searchVersionsLocalSDK(program binary.Program, dir string) (
 	return versions, nil
 }
 
-// fetchBundlesInfoLocal returns slice of information about all tarantool-ee or tcm
-// bundles available locally. The result will be sorted in ascending order.
+// fetchBundlesInfoLocal returns local product archives in ascending version order.
 func fetchBundlesInfoLocal(files []string, program binary.Program) (BundleInfoSlice, error) {
 	versionRegexp, err := compileVersionRegexp(program)
 	if err != nil {
@@ -90,12 +89,17 @@ func fetchBundlesInfoLocal(files []string, program binary.Program) (BundleInfoSl
 	return versions, nil
 }
 
-// FindLocalBundles finds and parses local SDK bundle files for a given program.
+// FindLocalBundles finds and parses local product archives.
 func FindLocalBundles(program binary.Program, fsys fs.FS) (BundleInfoSlice, error) {
+	platformSuffix, err := bundlePlatformSuffix(program, NewPlatformInformer())
+	if err != nil {
+		return nil, err
+	}
+
 	localFiles, err := fs.ReadDir(fsys, ".")
 	if err != nil {
 		if os.IsNotExist(err) {
-			log.Debugf("Directory not found, cannot search for local SDK files")
+			log.Debugf("Directory not found, cannot search for local archives")
 
 			// The directory doesn't exist, it's not an error for searching.
 			return nil, nil
@@ -108,23 +112,25 @@ func FindLocalBundles(program binary.Program, fsys fs.FS) (BundleInfoSlice, erro
 
 	var prefix string
 
-	switch program {
-	case binary.ProgramEe:
+	source := program.BundleSource()
+	switch {
+	case source == binary.ProgramSDK:
 		prefix = "tarantool-enterprise-sdk-"
-	case binary.ProgramTcm:
-		prefix = "tcm-"
+	case source.IsStandaloneArchive():
+		prefix = source.String() + "-"
 	default:
 		return nil, fmt.Errorf("%w%q", errLocalSDKFileSearchNotSupportedFor, program)
 	}
 
 	for _, v := range localFiles {
-		if strings.Contains(v.Name(), prefix) && !v.IsDir() {
+		if strings.HasPrefix(v.Name(), prefix) &&
+			strings.HasSuffix(v.Name(), platformSuffix) && !v.IsDir() {
 			files = append(files, v.Name())
 		}
 	}
 
 	if len(files) == 0 {
-		log.Debugf("No local SDK files found for %q", program)
+		log.Debugf("No local archives found for %q", program)
 
 		return nil, nil
 	}
@@ -160,17 +166,13 @@ func SearchVersionsLocal(searchCtx SearchCtx) error {
 
 	var vers version.VersionSlice
 
-	switch prg {
-	case binary.ProgramCe:
-		repoPath := filepath.Join(localDir, "tarantool")
+	switch {
+	case prg.GitRepo() != "":
+		repoPath := filepath.Join(localDir, prg.String())
 
 		vers, err = searchVersionsLocalGit(prg, repoPath)
-	case binary.ProgramTt:
-		repoPath := filepath.Join(localDir, "tt")
-
-		vers, err = searchVersionsLocalGit(prg, repoPath)
-	case binary.ProgramEe, binary.ProgramTcm:
-		vers, err = searchVersionsLocalSDK(prg, localDir)
+	case prg.BundleSource() != binary.ProgramUnknown:
+		vers, err = searchVersionsLocalBundles(prg, localDir)
 	default:
 		return fmt.Errorf("%w%s'", errLocalSearchNotSupportedForProgram, prg)
 	}
@@ -186,7 +188,9 @@ func SearchVersionsLocal(searchCtx SearchCtx) error {
 	}
 
 	for _, v := range vers {
-		printVersion(root, prg, v.Str)
+		if matchesReleaseFilter(&searchCtx, v) {
+			printVersion(root, prg, v)
+		}
 	}
 
 	return nil

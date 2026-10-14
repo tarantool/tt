@@ -32,7 +32,7 @@ func installVersion(t *testing.T, root string, program binary.Program, version s
 	require.NoError(t, os.WriteFile(filepath.Join(dir, program.Exec()), []byte("binary"), 0o755))
 
 	if program.IsTarantool() {
-		require.NoError(t, os.MkdirAll(filepath.Join(dir, "inc", "tarantool"), 0o755))
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, "include", "tarantool"), 0o755))
 	}
 
 	return dir
@@ -45,9 +45,9 @@ func linkInstallation(t *testing.T, root string, program binary.Program, install
 		filepath.Join(root, "bin", program.Exec()), true))
 
 	if program.IsTarantool() {
-		require.NoError(t, os.MkdirAll(filepath.Join(root, "inc"), 0o755))
-		require.NoError(t, binary.CreateSymlink(filepath.Join(installation, "inc", "tarantool"),
-			filepath.Join(root, "inc", "tarantool"), true))
+		require.NoError(t, os.MkdirAll(filepath.Join(root, "include"), 0o755))
+		require.NoError(t, binary.CreateSymlink(filepath.Join(installation, "include", "tarantool"),
+			filepath.Join(root, "include", "tarantool"), true))
 	}
 }
 
@@ -131,7 +131,7 @@ func TestUninstallLastVersion(t *testing.T) {
 				assertMissing(t, filepath.Join(root, "bin", program.Exec()))
 
 				if program.IsTarantool() {
-					assertMissing(t, filepath.Join(root, "inc", "tarantool"))
+					assertMissing(t, filepath.Join(root, "include", "tarantool"))
 				}
 			})
 		}
@@ -155,8 +155,8 @@ func TestUninstallInactiveVersion(t *testing.T) {
 				filepath.Join(active, program.Exec()))
 
 			if program.IsTarantool() {
-				assertLink(t, filepath.Join(root, "inc", "tarantool"),
-					filepath.Join(active, "inc", "tarantool"))
+				assertLink(t, filepath.Join(root, "include", "tarantool"),
+					filepath.Join(active, "include", "tarantool"))
 			}
 		})
 	}
@@ -192,8 +192,8 @@ func TestUninstallBundleVersionRequests(t *testing.T) {
 			"3.8.1-0-r60", "3.8.1-0-r60", nil},
 		{"ee_variants", binary.ProgramEe, []string{"gc64-3.8.1-0-r60", "nogc64-3.8.1-0-r60"},
 			"3.8.1", "", version.ErrAmbiguousInstalledVersion},
-		{"ee_plain_and_gc64", binary.ProgramEe, []string{"3.8.1", "gc64-3.8.1-0-r60"},
-			"3.8.1", "", version.ErrAmbiguousInstalledVersion},
+		{"ee_canonical_and_legacy", binary.ProgramEe, []string{"3.8.1", "gc64-3.8.1-0-r60"},
+			"3.8.1", "3.8.1", nil},
 		{"ee_revisions", binary.ProgramEe, []string{"gc64-3.8.1-0-r60", "gc64-3.8.1-0-r61"},
 			"3.8.1", "", version.ErrAmbiguousInstalledVersion},
 		{"ee_major_rejected", binary.ProgramEe, []string{"gc64-3.8.1-0-r60", "gc64-3.9.0-0-r60"},
@@ -259,8 +259,8 @@ func TestUninstallBundleVersionRequests(t *testing.T) {
 				filepath.Join(active, testCase.program.Exec()))
 
 			if testCase.program.IsTarantool() {
-				assertLink(t, filepath.Join(root, "inc", "tarantool"),
-					filepath.Join(active, "inc", "tarantool"))
+				assertLink(t, filepath.Join(root, "include", "tarantool"),
+					filepath.Join(active, "include", "tarantool"))
 			}
 		})
 	}
@@ -279,7 +279,7 @@ func TestUninstallIncompleteBundle(t *testing.T) {
 				installed := installVersion(t, root, program, fullVersion)
 				linkInstallation(t, root, program, installed)
 				require.NoError(t, os.Remove(filepath.Join(installed, program.Exec())))
-				require.NoError(t, os.RemoveAll(filepath.Join(installed, "inc")))
+				require.NoError(t, os.RemoveAll(filepath.Join(installed, "include")))
 
 				ctx := uninstallContext(binary.ScopeProject, program, requested)
 				require.NoError(t, UninstallProgram(ctx))
@@ -287,7 +287,7 @@ func TestUninstallIncompleteBundle(t *testing.T) {
 				assertMissing(t, filepath.Join(root, "bin", program.Exec()))
 
 				if program.IsTarantool() {
-					assertMissing(t, filepath.Join(root, "inc", "tarantool"))
+					assertMissing(t, filepath.Join(root, "include", "tarantool"))
 				}
 			})
 		}
@@ -357,8 +357,8 @@ func TestUninstallPreservesOtherEdition(t *testing.T) {
 			assertMissing(t, removed)
 			assertLink(t, filepath.Join(root, "bin", "tarantool"),
 				filepath.Join(active, "tarantool"))
-			assertLink(t, filepath.Join(root, "inc", "tarantool"),
-				filepath.Join(active, "inc", "tarantool"))
+			assertLink(t, filepath.Join(root, "include", "tarantool"),
+				filepath.Join(active, "include", "tarantool"))
 		})
 	}
 }
@@ -462,7 +462,7 @@ func TestSearchLatestVersion(t *testing.T) {
 			root := t.TempDir()
 			for _, candidate := range testCase.candidates {
 				dir := installVersion(t, root, candidate.program, candidate.version)
-				headers := filepath.Join(dir, "inc", "tarantool")
+				headers := filepath.Join(dir, "include", "tarantool")
 
 				switch candidate.missing {
 				case "binary":
@@ -479,12 +479,12 @@ func TestSearchLatestVersion(t *testing.T) {
 			require.NoError(t, err)
 
 			if testCase.want == "" {
-				assert.Empty(t, selected)
+				assert.Empty(t, selected.ID)
 
 				return
 			}
 
-			assert.Equal(t, testCase.want, filepath.Base(selected))
+			assert.Equal(t, testCase.want, binary.InstallationName(selected.Program, selected.ID))
 		})
 	}
 }
@@ -506,8 +506,8 @@ func TestUninstallActiveSelectsReplacement(t *testing.T) {
 				filepath.Join(selected, program.Exec()))
 
 			if program.IsTarantool() {
-				assertLink(t, filepath.Join(root, "inc", "tarantool"),
-					filepath.Join(selected, "inc", "tarantool"))
+				assertLink(t, filepath.Join(root, "include", "tarantool"),
+					filepath.Join(selected, "include", "tarantool"))
 			}
 		})
 	}
@@ -525,22 +525,23 @@ func TestUninstallIncompleteWithRelativeAliasLinks(t *testing.T) {
 
 			installation := installVersion(t, actual, binary.ProgramCe, "3.0.0")
 			require.NoError(t, os.MkdirAll(filepath.Join(actual, "bin"), 0o755))
-			require.NoError(t, os.MkdirAll(filepath.Join(actual, "inc"), 0o755))
+			require.NoError(t, os.MkdirAll(filepath.Join(actual, "include"), 0o755))
 			require.NoError(t, os.Symlink("../versions/tarantool/tarantool_3.0.0/tarantool",
 				filepath.Join(actual, "bin", "tarantool")))
 			require.NoError(t, os.Symlink(filepath.Join(actual, "versions", "tarantool",
-				"tarantool_3.0.0", "inc", "tarantool"), filepath.Join(root, "inc", "tarantool")))
+				"tarantool_3.0.0", "include", "tarantool"),
+				filepath.Join(root, "include", "tarantool")))
 
 			if incomplete {
 				require.NoError(t, os.Remove(filepath.Join(installation, "tarantool")))
-				require.NoError(t, os.RemoveAll(filepath.Join(installation, "inc")))
+				require.NoError(t, os.RemoveAll(filepath.Join(installation, "include")))
 			}
 
 			ctx := uninstallContext(binary.ScopeProject, binary.ProgramCe, "")
 			require.NoError(t, UninstallProgram(ctx))
 			assertMissing(t, installation)
 			assertMissing(t, filepath.Join(root, "bin", "tarantool"))
-			assertMissing(t, filepath.Join(root, "inc", "tarantool"))
+			assertMissing(t, filepath.Join(root, "include", "tarantool"))
 		})
 	}
 }
@@ -564,13 +565,13 @@ func TestUninstallBuildPreservesSourcesAndSelectsCe(t *testing.T) {
 			require.NoError(t, UninstallProgram(ctx))
 			assertLink(t, filepath.Join(root, "bin", "tarantool"),
 				filepath.Join(selected, "tarantool"))
-			assertLink(t, filepath.Join(root, "inc", "tarantool"),
-				filepath.Join(selected, "inc", "tarantool"))
+			assertLink(t, filepath.Join(root, "include", "tarantool"),
+				filepath.Join(selected, "include", "tarantool"))
 			assert.DirExists(t, selected)
 
 			if !dangling {
 				assert.FileExists(t, filepath.Join(build, "tarantool"))
-				assert.DirExists(t, filepath.Join(build, "inc", "tarantool"))
+				assert.DirExists(t, filepath.Join(build, "include", "tarantool"))
 			}
 		})
 	}
@@ -586,7 +587,8 @@ func TestUninstallInactivePreservesBuild(t *testing.T) {
 	require.NoError(t, UninstallProgram(ctx))
 	assertMissing(t, removed)
 	assertLink(t, filepath.Join(root, "bin", "tarantool"), filepath.Join(build, "tarantool"))
-	assertLink(t, filepath.Join(root, "inc", "tarantool"), filepath.Join(build, "inc", "tarantool"))
+	assertLink(t, filepath.Join(root, "include", "tarantool"),
+		filepath.Join(build, "include", "tarantool"))
 }
 
 func TestUninstallScopeIsolation(t *testing.T) {
@@ -643,7 +645,7 @@ func TestUninstallInvalidContext(t *testing.T) {
 
 	ctx.Scope = binary.ScopeProject
 	ctx.Program = binary.ProgramSDK
-	require.ErrorIs(t, UninstallProgram(ctx), binary.ErrUnknownApplication)
+	require.ErrorIs(t, UninstallProgram(ctx), errNotInstalled)
 }
 
 func TestGetAllVersionFormats(t *testing.T) {
@@ -730,7 +732,7 @@ func snapshotScope(t *testing.T, root string) map[string]string {
 
 func TestUninstallRejectsEscapingDirectories(t *testing.T) {
 	for _, directory := range []string{"versions", "versions/tarantool-ee",
-		"versions/tarantool", "bin", "inc"} {
+		"versions/tarantool", "bin", "include"} {
 		t.Run(directory, func(t *testing.T) {
 			root := projectRoot(t)
 			other := t.TempDir()
@@ -775,8 +777,8 @@ func TestUninstallDefaultPreservesManagedEeLink(t *testing.T) {
 	ctx := uninstallContext(binary.ScopeProject, binary.ProgramCe, "")
 	require.ErrorIs(t, UninstallProgram(ctx), errHasNoInstalledVersion)
 	assertLink(t, filepath.Join(root, "bin", "tarantool"), filepath.Join(active, "tarantool"))
-	assertLink(t, filepath.Join(root, "inc", "tarantool"),
-		filepath.Join(active, "inc", "tarantool"))
+	assertLink(t, filepath.Join(root, "include", "tarantool"),
+		filepath.Join(active, "include", "tarantool"))
 }
 
 func TestUninstallHeaderSelectionDoesNotSwitchExecutable(t *testing.T) {
@@ -785,12 +787,12 @@ func TestUninstallHeaderSelectionDoesNotSwitchExecutable(t *testing.T) {
 	removed := installVersion(t, root, binary.ProgramCe, "3.0.0")
 	installVersion(t, root, binary.ProgramCe, "4.0.0")
 	linkInstallation(t, root, binary.ProgramCe, active)
-	require.NoError(t, binary.CreateSymlink(filepath.Join(removed, "inc", "tarantool"),
-		filepath.Join(root, "inc", "tarantool"), true))
+	require.NoError(t, binary.CreateSymlink(filepath.Join(removed, "include", "tarantool"),
+		filepath.Join(root, "include", "tarantool"), true))
 
 	ctx := uninstallContext(binary.ScopeProject, binary.ProgramCe, "3.0.0")
 	require.NoError(t, UninstallProgram(ctx))
 	assertMissing(t, removed)
-	assertMissing(t, filepath.Join(root, "inc", "tarantool"))
+	assertMissing(t, filepath.Join(root, "include", "tarantool"))
 	assertLink(t, filepath.Join(root, "bin", "tarantool"), filepath.Join(active, "tarantool"))
 }

@@ -18,9 +18,9 @@ import (
 )
 
 var (
-	// ErrNoBinariesInstalled reports an environment without installed binaries.
+	// ErrNoBinariesInstalled reports a scope without installed binaries.
 	ErrNoBinariesInstalled = errors.New(
-		"there are no binaries installed in this environment of 'tt'",
+		"there are no binaries installed in the selected scope",
 	)
 )
 
@@ -104,37 +104,62 @@ func ParseBinaries(fileList []fs.DirEntry, program binary.Program,
 
 	var versions []version.Version
 
-	prefix := program.String() + version.FsSeparator
-
 	for _, entry := range fileList {
-		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), prefix) || entry.Name() == prefix {
+		selected, found := binary.InstallationVersion(program, entry.Name())
+		if !entry.IsDir() || !found {
 			continue
 		}
 
-		binPath := filepath.Join(root, binary.VersionsDirName, program.String(),
-			entry.Name(), program.Exec())
-		info, err := os.Stat(binPath)
+		var isActive bool
 
-		switch {
-		case errors.Is(err, os.ErrNotExist):
-			continue
-		case err != nil:
-			return nil, fmt.Errorf("failed to access %q: %w", binPath, err)
-		case !info.Mode().IsRegular():
-			continue
+		switch program {
+		case binary.ProgramSDK:
+			sdk, err := binary.ReadSDK(root, selected)
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+
+			if err != nil {
+				return nil, err
+			}
+
+			err = binary.ValidateSDKManifest(sdk, selected)
+			if err != nil {
+				return nil, err
+			}
+
+			err = binary.ValidateSDKFiles(root, sdk)
+			if err == nil {
+				isActive = binary.SDKActive(root, sdk)
+			}
+		default:
+			binPath := filepath.Join(root, binary.VersionsDirName, program.String(),
+				entry.Name(), program.Exec())
+			info, err := os.Stat(binPath)
+
+			switch {
+			case errors.Is(err, os.ErrNotExist):
+				continue
+			case err != nil:
+				return nil, fmt.Errorf("failed to access %q: %w", binPath, err)
+			case !info.Mode().IsRegular():
+				continue
+			}
+
+			resolved, err := binary.ResolveSymlink(binPath)
+			if err != nil {
+				return nil, err
+			}
+
+			isActive = active == resolved
 		}
 
-		parsed, err := displayVersion(strings.TrimPrefix(entry.Name(), prefix))
+		parsed, err := displayVersion(selected)
 		if err != nil {
 			return nil, err
 		}
 
-		resolved, err := binary.ResolveSymlink(binPath)
-		if err != nil {
-			return nil, err
-		}
-
-		if active == resolved {
+		if isActive {
 			parsed.Str += " [active]"
 		}
 
@@ -188,9 +213,11 @@ func ListBinaries(listCtx ListCtx) error {
 
 	programs := [...]binary.Program{
 		binary.ProgramTt,
+		binary.ProgramTtEe,
 		binary.ProgramCe,
 		binary.ProgramEe,
 		binary.ProgramTcm,
+		binary.ProgramSDK,
 	}
 	versions := make(map[binary.Program][]version.Version, len(programs))
 	hasBinaries := buildPath != ""

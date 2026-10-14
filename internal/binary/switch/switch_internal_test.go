@@ -76,9 +76,9 @@ func TestSwitchProducts(t *testing.T) {
 			assertLink(t, filepath.Join(root, "bin", program.Exec()), installed.BinaryPath)
 
 			if program.IsTarantool() {
-				assertLink(t, filepath.Join(root, "inc", "tarantool"), installed.HeadersPath)
+				assertLink(t, filepath.Join(root, "include", "tarantool"), installed.HeadersPath)
 			} else {
-				assert.NoDirExists(t, filepath.Join(root, "inc"))
+				assert.NoDirExists(t, filepath.Join(root, "include"))
 			}
 		})
 	}
@@ -103,7 +103,8 @@ func TestSwitchTarantoolEditions(t *testing.T) {
 		}
 
 		assertLink(t, filepath.Join(root, "bin", "tarantool"), expected.BinaryPath)
-		assertLink(t, filepath.Join(root, "inc", "tarantool"), expected.HeadersPath)
+		assertLink(t, filepath.Join(root, "include", "tarantool"),
+			expected.HeadersPath)
 	}
 }
 
@@ -135,7 +136,7 @@ func TestSwitchRejectsIncompleteInstallationWithoutChanges(t *testing.T) {
 			ctx.Version = selected.Version
 			require.Error(t, Switch(&ctx))
 			assertLink(t, filepath.Join(root, "bin", "tarantool"), active.BinaryPath)
-			assertLink(t, filepath.Join(root, "inc", "tarantool"), active.HeadersPath)
+			assertLink(t, filepath.Join(root, "include", "tarantool"), active.HeadersPath)
 		})
 	}
 }
@@ -150,22 +151,22 @@ func TestSwitchFromLocalBuild(t *testing.T) {
 	build := installedFixture{
 		Version:     "master",
 		BinaryPath:  filepath.Join(buildDir, "bin", "tarantool"),
-		HeadersPath: filepath.Join(buildDir, "inc", "tarantool"),
+		HeadersPath: filepath.Join(buildDir, "include", "tarantool"),
 	}
 	require.NoError(t, os.MkdirAll(filepath.Dir(build.BinaryPath), 0o755))
 	require.NoError(t, os.WriteFile(build.BinaryPath, []byte("binary"), 0o755))
 	require.NoError(t, os.MkdirAll(build.HeadersPath, 0o755))
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "bin"), 0o755))
-	require.NoError(t, os.MkdirAll(filepath.Join(root, "inc"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "include"), 0o755))
 	require.NoError(t, os.Symlink(build.BinaryPath, filepath.Join(root, "bin", "tarantool")))
-	require.NoError(t, os.Symlink(build.HeadersPath, filepath.Join(root, "inc", "tarantool")))
+	require.NoError(t, os.Symlink(build.HeadersPath, filepath.Join(root, "include", "tarantool")))
 
 	installed := installVersion(t, root, binary.ProgramEe, "3.0.0")
 	ctx := switchContext(binary.ScopeProject, binary.ProgramEe, installed.Version)
 
 	require.NoError(t, Switch(&ctx))
 	assertLink(t, filepath.Join(root, "bin", "tarantool"), installed.BinaryPath)
-	assertLink(t, filepath.Join(root, "inc", "tarantool"), installed.HeadersPath)
+	assertLink(t, filepath.Join(root, "include", "tarantool"), installed.HeadersPath)
 	assert.FileExists(t, build.BinaryPath)
 	assert.DirExists(t, build.HeadersPath)
 }
@@ -249,9 +250,9 @@ func TestSwitchBundleVersions(t *testing.T) {
 				err       error
 			}{
 				{"reject_major", []string{product.stable, "4.0.0"}, "3", "",
-					errBinaryIsNotInstalledInCurrentEnvironment},
+					errBinaryNotInstalledInScope},
 				{"reject_minor", []string{product.stable, "3.9.0"}, "3.8", "",
-					errBinaryIsNotInstalledInCurrentEnvironment},
+					errBinaryNotInstalledInScope},
 				{"patch", []string{product.stable, "3.8.2"}, "3.8.1", product.stable, nil},
 				{"unique_variant", []string{product.variant}, "3.8.1", product.variant, nil},
 				{"unique_rc", []string{product.candidate}, "3.8.1", product.candidate, nil},
@@ -267,17 +268,15 @@ func TestSwitchBundleVersions(t *testing.T) {
 					"3.8.1", "", version.ErrAmbiguousInstalledVersion},
 				{"ambiguous_rc", []string{product.stable, product.candidate},
 					"3.8.1", "", version.ErrAmbiguousInstalledVersion},
-				{"ambiguous_plain", []string{product.stable, "3.8.1"},
-					"3.8.1", "", version.ErrAmbiguousInstalledVersion},
 				{"reject_major_multiple", []string{product.stable, "3.9.0"},
-					"3", "", errBinaryIsNotInstalledInCurrentEnvironment},
+					"3", "", errBinaryNotInstalledInScope},
 				{"reject_minor_multiple", []string{product.stable, "3.8.2"},
-					"3.8", "", errBinaryIsNotInstalledInCurrentEnvironment},
+					"3.8", "", errBinaryNotInstalledInScope},
 				{"missing", []string{product.stable}, "3.8.2", "",
-					errBinaryIsNotInstalledInCurrentEnvironment},
+					errBinaryNotInstalledInScope},
 				{"partial_decorated", []string{product.candidate}, "3.8.1-rc1", "",
-					errBinaryIsNotInstalledInCurrentEnvironment},
-				{"empty", nil, "3.8.1", "", errBinaryIsNotInstalledInCurrentEnvironment},
+					errBinaryNotInstalledInScope},
+				{"empty", nil, "3.8.1", "", errBinaryNotInstalledInScope},
 				{"numeric_sha", []string{"1234567"}, "1234567", "1234567", nil},
 			}
 			for _, testCase := range testCases {
@@ -319,7 +318,8 @@ func TestSwitchBundleVersions(t *testing.T) {
 						expected.BinaryPath)
 
 					if product.program.IsTarantool() {
-						assertLink(t, filepath.Join(root, "inc", "tarantool"), expected.HeadersPath)
+						assertLink(t, filepath.Join(root, "include", "tarantool"),
+							expected.HeadersPath)
 					}
 				})
 			}
@@ -342,7 +342,7 @@ func TestSwitchExactMenuSelection(t *testing.T) {
 
 	require.NoError(t, Switch(&ctx))
 	assertLink(t, filepath.Join(root, "bin", "tarantool"), selected.BinaryPath)
-	assertLink(t, filepath.Join(root, "inc", "tarantool"), selected.HeadersPath)
+	assertLink(t, filepath.Join(root, "include", "tarantool"), selected.HeadersPath)
 }
 
 func TestSwitchBundleScopeIsolation(t *testing.T) {
@@ -367,7 +367,7 @@ func TestSwitchBundleScopeIsolation(t *testing.T) {
 			assertLink(t, filepath.Join(projectRoot, "bin", program.Exec()), project.BinaryPath)
 
 			ctx.Version = "4.0.0"
-			require.ErrorIs(t, Switch(&ctx), errBinaryIsNotInstalledInCurrentEnvironment)
+			require.ErrorIs(t, Switch(&ctx), errBinaryNotInstalledInScope)
 			assertLink(t, filepath.Join(projectRoot, "bin", program.Exec()), project.BinaryPath)
 			assert.NoDirExists(t, filepath.Join(userRoot, "bin"))
 
@@ -398,7 +398,7 @@ func TestSwitchBundleIgnoresUnrelatedEntriesAndBrokenLinks(t *testing.T) {
 			require.NoError(t, os.WriteFile(filepath.Join(directory,
 				program.String()+"_3.8.1-0-r2"), nil, 0o644))
 
-			for _, activeDir := range []string{"bin", "inc"} {
+			for _, activeDir := range []string{"bin", "include"} {
 				link := filepath.Join(root, activeDir, program.Exec())
 				require.NoError(t, os.MkdirAll(filepath.Dir(link), 0o755))
 				require.NoError(t, os.Symlink(program.Exec(), link))
@@ -409,7 +409,7 @@ func TestSwitchBundleIgnoresUnrelatedEntriesAndBrokenLinks(t *testing.T) {
 			assertLink(t, filepath.Join(root, "bin", program.Exec()), selected.BinaryPath)
 
 			if program.IsTarantool() {
-				assertLink(t, filepath.Join(root, "inc", "tarantool"), selected.HeadersPath)
+				assertLink(t, filepath.Join(root, "include", "tarantool"), selected.HeadersPath)
 			}
 		})
 	}
@@ -457,7 +457,6 @@ func TestSwitchInvalidContext(t *testing.T) {
 		err     error
 	}{
 		{binary.ProgramUnknown, binary.ScopeProject, binary.ErrUnknownApplication},
-		{binary.ProgramSDK, binary.ScopeProject, binary.ErrUnknownApplication},
 		{binary.ProgramTt, binary.ScopeUnknown, binary.ErrUnknownScope},
 	}
 	for _, testCase := range testCases {
@@ -473,7 +472,7 @@ func TestChooseVersionEmptyScope(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	selected, err := ChooseVersion(binary.ScopeProject, binary.ProgramTt)
-	require.ErrorContains(t, err, "there are no tt installed")
+	require.ErrorContains(t, err, "there are no tt versions installed in the selected scope")
 	assert.Empty(t, selected)
 	assert.NoDirExists(t, ".tarantool")
 }
@@ -500,7 +499,7 @@ func TestSwitchRepairsCyclicActiveLinks(t *testing.T) {
 	require.NoError(t, err)
 
 	selected := installVersion(t, root, binary.ProgramCe, "3.0.0")
-	for _, directory := range []string{"bin", "inc"} {
+	for _, directory := range []string{"bin", "include"} {
 		link := filepath.Join(root, directory, "tarantool")
 		require.NoError(t, os.MkdirAll(filepath.Dir(link), 0o755))
 		require.NoError(t, os.Symlink("tarantool", link))
@@ -509,7 +508,7 @@ func TestSwitchRepairsCyclicActiveLinks(t *testing.T) {
 	ctx := switchContext(binary.ScopeProject, binary.ProgramCe, "3.0.0")
 	require.NoError(t, Switch(&ctx))
 	assertLink(t, filepath.Join(root, "bin", "tarantool"), selected.BinaryPath)
-	assertLink(t, filepath.Join(root, "inc", "tarantool"), selected.HeadersPath)
+	assertLink(t, filepath.Join(root, "include", "tarantool"), selected.HeadersPath)
 }
 
 func TestSwitchIgnoresUnrelatedBrokenInstallation(t *testing.T) {

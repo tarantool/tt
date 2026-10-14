@@ -14,6 +14,7 @@ import (
 )
 
 var (
+	errNoVersionsFoundForMatchingTheCriteria    = errors.New("no versions found for ")
 	errNoAvailableVersions                      = errors.New("no available versions")
 	errNoPackagesFoundForThisOSOrReleaseVersion = errors.New(
 		"no packages found for this OS or release version",
@@ -25,7 +26,7 @@ var (
 	errVersionNotFound                = errors.New(" version doesn't found")
 )
 
-// BundleInfo is a structure that contains specific information about SDK bundle.
+// BundleInfo contains the version and download information of an archive.
 type BundleInfo struct {
 	// Version represents the info about the bundle's version.
 	Version version.Version
@@ -93,15 +94,18 @@ func Less(verLeft, verRight version.Version) bool {
 	return false
 }
 
-// compileVersionRegexp compiles a regular expression for cutting version from SDK bundle names.
+// compileVersionRegexp extracts versions from SDK or standalone archive names.
 func compileVersionRegexp(prg binary.Program) (*regexp.Regexp, error) {
 	var expr string
 
-	switch prg {
-	case binary.ProgramEe, binary.ProgramSDK:
+	source := prg.BundleSource()
+	switch {
+	case source == binary.ProgramSDK:
 		expr = "^(?P<tarball>tarantool-enterprise-sdk-(?P<version>.*r[0-9]{1,3}).*\\.tar\\.gz)$"
-	case binary.ProgramTcm:
-		expr = `^(?P<tarball>tcm-(?P<version>\d+\.\d+\.\d+[^.]*).*\.tar\.gz)$`
+	case source.IsStandaloneArchive():
+		expr = `^(?P<tarball>` + regexp.QuoteMeta(source.String()) +
+			`-(?P<version>\d+\.\d+\.\d+[^.]*?)` +
+			`(?:[.-](?:linux|macos|darwin)[.-](?:amd64|arm64|x86_64|aarch64))?\.tar\.gz)$`
 	default:
 		return nil, fmt.Errorf("%w%q", errUnknownVersionFormatForProgram, prg)
 	}
@@ -109,8 +113,7 @@ func compileVersionRegexp(prg binary.Program) (*regexp.Regexp, error) {
 	return regexp.MustCompile(expr), nil
 }
 
-// getBundles collects a list of information about all available tarantool-ee
-// bundles from tarantool.io api reply.
+// getBundles collects available product archives from the tarantool.io API reply.
 func getBundles(rawBundleInfoList map[string][]string, searchCtx *SearchCtx) (
 	BundleInfoSlice, error,
 ) {
@@ -126,8 +129,17 @@ func getBundles(rawBundleInfoList map[string][]string, searchCtx *SearchCtx) (
 		return nil, err
 	}
 
+	platformSuffix, err := bundlePlatformSuffix(searchCtx.Program, searchCtx.platformInformer)
+	if err != nil {
+		return nil, err
+	}
+
 	for release, pkgs := range rawBundleInfoList {
 		for _, pkg := range pkgs {
+			if !strings.HasSuffix(pkg, platformSuffix) {
+				continue
+			}
+
 			parsedData := binary.FindNamedMatches(versionRegexp, pkg)
 			if len(parsedData) == 0 {
 				continue
@@ -142,6 +154,10 @@ func getBundles(rawBundleInfoList map[string][]string, searchCtx *SearchCtx) (
 					err,
 				)
 
+				continue
+			}
+
+			if !matchesReleaseFilter(searchCtx, version) {
 				continue
 			}
 
@@ -180,8 +196,19 @@ func getBundles(rawBundleInfoList map[string][]string, searchCtx *SearchCtx) (
 	return bundles, nil
 }
 
-// FetchBundlesInfo returns slice of information about all available tarantool-ee bundles.
-// The result will be sorted in ascending order.
+// matchesReleaseFilter applies --version to the flat tt-ee catalog; the other
+// sources filter versions through their API directory hierarchy.
+func matchesReleaseFilter(searchCtx *SearchCtx, available version.Version) bool {
+	if searchCtx.Program != binary.ProgramTtEe || searchCtx.ReleaseVersion == "" {
+		return true
+	}
+
+	_, err := version.MatchVersion(searchCtx.ReleaseVersion, []version.Version{available})
+
+	return err == nil
+}
+
+// FetchBundlesInfo returns available product archives in ascending version order.
 func FetchBundlesInfo(searchCtx *SearchCtx) (
 	BundleInfoSlice, error,
 ) {
@@ -189,6 +216,11 @@ func FetchBundlesInfo(searchCtx *SearchCtx) (
 	if searchCtx.Package == "" {
 		return nil, fmt.Errorf("%w%s",
 			errTarantoolIOPackageNotFound, searchCtx.Program)
+	}
+
+	_, err := bundlePlatformSuffix(searchCtx.Program, searchCtx.platformInformer)
+	if err != nil {
+		return nil, err
 	}
 
 	credentials, err := connect.GetCreds(searchCtx.CredentialsFile)
@@ -228,4 +260,43 @@ func SelectVersion(bundles BundleInfoSlice, ver string) (BundleInfo, error) {
 	}
 
 	return BundleInfo{}, fmt.Errorf("%q%w", ver, errVersionNotFound)
+}
+
+// GetAPIPackage returns the package name at tarantool.io for the given program.
+func GetAPIPackage(program binary.Program) string {
+	switch program.BundleSource() {
+	case binary.ProgramSDK:
+		return "enterprise"
+	case binary.ProgramTcm:
+		return "tarantool-cluster-manager"
+	case binary.ProgramTtEe:
+		return binary.ProgramTtEe.String()
+	default:
+		// These programs do not have a customer-zone API package name.
+	}
+
+	return ""
+}
+
+// searchVersionsTntIo handles searching versions using the tarantool.io customer zone.
+func searchVersionsTntIo(searchCtx *SearchCtx) (
+	version.VersionSlice, error,
+) {
+	bundles, err := FetchBundlesInfo(searchCtx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch bundle info for %s: %w",
+			searchCtx.Program, err)
+	}
+
+	if len(bundles) == 0 {
+		return nil, fmt.Errorf("%w%s matching the criteria",
+			errNoVersionsFoundForMatchingTheCriteria, searchCtx.Program)
+	}
+
+	vers := make(version.VersionSlice, bundles.Len())
+	for i, bundle := range bundles {
+		vers[i] = bundle.Version
+	}
+
+	return vers, nil
 }
