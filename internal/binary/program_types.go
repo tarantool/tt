@@ -145,3 +145,15 @@ func (p Program) FallbackProgram() Program {
 		return ProgramUnknown
 	}
 }
+
+// EnterpriseProgram identifies the Enterprise edition of a community product.
+func (p Program) EnterpriseProgram() Program {
+	switch p {
+	case ProgramCe:
+		return ProgramEe
+	case ProgramTt:
+		return ProgramTtEe
+	default:
+		return ProgramUnknown
+	}
+}

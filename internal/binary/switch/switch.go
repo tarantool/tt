@@ -35,8 +35,34 @@ type SwitchCtx struct {
 
 // ChooseProgram shows a menu in terminal to choose program for switch.
 func ChooseProgram(supportedPrograms []string) (binary.Program, error) {
+	return chooseProgram("Select program", supportedPrograms)
+}
+
+// ChooseInstallation selects a concrete installed version. Unified product entries
+// first select an edition, so their version menus stay edition-specific.
+func ChooseInstallation(scope binary.Scope, program binary.Program) (binary.Selection, error) {
+	var err error
+
+	if enterprise := program.EnterpriseProgram(); enterprise != binary.ProgramUnknown {
+		program, err = chooseProgram("Select "+program.String()+" edition", []string{
+			program.String(), enterprise.String(),
+		})
+		if err != nil {
+			return binary.Selection{}, err
+		}
+	}
+
+	selected, err := ChooseVersion(scope, program)
+	if err != nil {
+		return binary.Selection{}, err
+	}
+
+	return binary.Selection{Program: program, ID: selected}, nil
+}
+
+func chooseProgram(label string, supportedPrograms []string) (binary.Program, error) {
 	programSelect := promptui.Select{
-		Label:        "Select program",
+		Label:        label,
 		Items:        supportedPrograms,
 		HideSelected: true,
 	}

@@ -285,11 +285,72 @@ func TestBinaryLocalSourceFlags(t *testing.T) {
 				directory, err := command.Flags().GetString(testCase.flag)
 				require.NoError(t, err)
 				assert.Equal(t, "/local files", directory)
-				require.ErrorContains(t, command.ParseFlags(
-					[]string{"--" + testCase.reject, "/local files"}),
-					"unknown flag: --"+testCase.reject)
+
+				if operation == "install" &&
+					(testCase.program == "tarantool" || testCase.program == "tt") {
+					require.NoError(t, command.ParseFlags([]string{"--local-dir", "/bundles"}))
+				} else {
+					require.ErrorContains(t, command.ParseFlags(
+						[]string{"--" + testCase.reject, "/local files"}),
+						"unknown flag: --"+testCase.reject)
+				}
 			})
 		}
+	}
+}
+
+func TestBinaryInstallEditionFlags(t *testing.T) {
+	for _, testCase := range []struct {
+		program string
+		args    []string
+		want    string
+	}{
+		{"tarantool", []string{"3.8ee", "--local-dir", "/bundles"}, ""},
+		{"tarantool", []string{"gc64-3.8.0-0-r94", "--dev"}, ""},
+		{"tarantool", []string{"3.8ce", "--local-repo", "/sources"}, ""},
+		{"tarantool", []string{"3.8ee", "--local-repo", "/sources"},
+			"--local-repo is not supported"},
+		{"tarantool", []string{"3.8ee", "--dynamic"}, "--dynamic is not supported"},
+		{"tarantool", []string{"3.8ee", "--use-docker"}, "--use-docker is not supported"},
+		{"tarantool", []string{"3.8", "--local-dir", "/bundles"}, "--local-dir is not supported"},
+		{"tarantool", []string{"3.8ce", "--dev"}, "--dev is not supported"},
+		{"tt", []string{"2.15ee", "--local-dir", "/bundles"}, ""},
+		{"tt", []string{"2.15ce", "--local-repo", "/sources"}, ""},
+		{"tt", []string{"abcdefce", "--local-repo", "/sources"}, ""},
+		{"tt", []string{"pr/123", "--local-repo", "/sources"}, ""},
+		{"tt", []string{"2.15ee", "--local-repo", "/sources"}, "--local-repo is not supported"},
+		{"tt", []string{"2.15", "--local-dir", "/bundles"}, "--local-dir is not supported"},
+	} {
+		t.Run(testCase.program+"/"+strings.Join(testCase.args, " "), func(t *testing.T) {
+			command, _, err := NewBinaryCmd().Find([]string{"install", testCase.program})
+			require.NoError(t, err)
+			require.NoError(t, command.ParseFlags(testCase.args))
+
+			err = command.ValidateArgs(command.Flags().Args())
+			if testCase.want == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, testCase.want)
+			}
+		})
+	}
+}
+
+func TestBinaryUnifiedCompletion(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	root := filepath.Join(".tarantool", "versions")
+	for _, program := range []string{"tarantool", "tarantool-ee", "tt", "tt-ee"} {
+		require.NoError(t, os.MkdirAll(filepath.Join(root, program, program+"_3.8.0"), 0o755))
+	}
+
+	for _, program := range []string{"tarantool", "tt"} {
+		command, _, err := NewBinaryCmd().Find([]string{"uninstall", program})
+		require.NoError(t, err)
+		require.NoError(t, command.ParseFlags(nil))
+
+		versions, _ := command.ValidArgsFunction(command, nil, "")
+		assert.Equal(t, []string{"3.8.0", "3.8.0ee"}, versions)
 	}
 }
 
@@ -582,6 +643,8 @@ func TestBinaryCredentialsFile(t *testing.T) {
 		{"search", "SDK"},
 		{"search", "tcm"},
 		{"install", "tarantool-ee", "gc64-3.4.0-0-r60"},
+		{"install", "tarantool", "gc64-3.4.0-0-r60"},
+		{"install", "tarantool", "3.4ee"},
 		{"install", "tcm", "1.3.1-0-g074b5ffa"},
 		{"install", "tarantool-sdk", "gc64-3.4.0-0-r60"},
 	}
