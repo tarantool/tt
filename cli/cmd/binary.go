@@ -38,6 +38,12 @@ var binarySupportedPrograms = []string{
 	binary.ProgramSDK.String(),
 }
 
+// Unified product entries open separate edition menus.
+var binarySwitchPrograms = slices.DeleteFunc(slices.Clone(binarySupportedPrograms),
+	func(program string) bool {
+		return program == binary.ProgramEe.String() || program == binary.ProgramTtEe.String()
+	})
+
 // binaryFunc implements a binary command with common options.
 type binaryFunc[T any] func(binary.BinaryContext, T, *cmdcontext.CmdCtx, []string) error
 
@@ -129,7 +135,7 @@ Source them to use the project binaries and headers or restore your shell enviro
   $ tt binary install tt --scope user
 
   # Install a local Enterprise archive system-wide.
-  $ sudo tt binary install tarantool-ee gc64-3.4.0-0-r60 \
+  $ sudo tt binary install tarantool gc64-3.4.0-0-r60 \
       --scope system --local-dir ./bundles`,
 	}
 	installCmd.PersistentFlags().BoolVarP(&installCtx.Force, "force", "f", false,
@@ -140,11 +146,16 @@ Source them to use the project binaries and headers or restore your shell enviro
 		"Reinstall an existing version")
 
 	tarantoolCmd := newInstallTarantoolCmd(base, installCtx)
+	legacyEnterpriseCmd := newInstallEnterpriseCmd(base, installCtx, binary.ProgramEe)
+	legacyTtEnterpriseCmd := newInstallStandaloneCmd(base, installCtx, binary.ProgramTtEe)
+
+	legacyEnterpriseCmd.Hidden = true
+	legacyTtEnterpriseCmd.Hidden = true
 	installCmd.AddCommand(
 		newInstallTtCmd(base, installCtx),
 		tarantoolCmd,
-		newInstallEnterpriseCmd(base, installCtx, binary.ProgramEe),
-		newInstallStandaloneCmd(base, installCtx, binary.ProgramTtEe),
+		legacyEnterpriseCmd,
+		legacyTtEnterpriseCmd,
 		newInstallStandaloneCmd(base, installCtx, binary.ProgramTcm),
 		newInstallTarantoolSDKCmd(base, installCtx),
 	)
@@ -159,14 +170,18 @@ func newInstallTtCmd(base *binary.BinaryContext,
 ) *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramTt.String() + " [version|commit|pull-request]",
-		Short: "Install tt",
-		Long: `Build and install tt from a release, Git commit, master, or pull request.
+		Short: "Install tt Community or Enterprise Edition",
+		Long: `Build tt Community Edition from source or install tt Enterprise binaries.
 
-Omitting the version selects the latest release. Use pr/<number> for a pull
-request.
+Bare versions select Community Edition: 2, 2.15, or 2.15.0. Append ce or ee to
+select an edition explicitly: 2ce, 2.15ce, 2.15.0ce, 2ee, 2.15ee, or 2.15.0ee.
+Omitting the version selects the latest Community release. Git commits, master,
+and pull requests also select Community Edition. Use pr/<number> for a pull request.
 
 With --local-repo <dir>, <dir>/tt must be a local Git clone of the tt source
-repository.`,
+repository. Use --local-dir <dir> with standalone tt-ee-*.tar.gz archives to install
+Enterprise Edition. Enterprise search and installation are available only on Linux.
+Use "tt binary search tt" or "tt binary search tt-ee" to list available versions.`,
 		Example: `# Build the latest tt release for the current user.
   $ tt binary install tt --scope user
 
@@ -174,13 +189,18 @@ repository.`,
   $ tt binary install tt pr/534
 
   # Build tt from a local source repository.
-  $ tt binary install tt master --local-repo ./distfiles`,
+  $ tt binary install tt master --local-repo ./distfiles
+
+  # Install the latest tt Enterprise release in minor version 2.15.
+  $ tt binary install tt 2.15ee`,
 		RunE: binaryRunE(base, installCtx, internalInstallModule),
-		Args: cobra.MaximumNArgs(1),
+		Args: cobra.MatchAll(cobra.MaximumNArgs(1), validateEditionInstallFlags),
 	}
 
 	tntCmd.Flags().StringVar(&installCtx.LocalRepo, "local-repo", "",
 		"Directory containing the tt Git source repository in tt/")
+	addStandaloneInstallFlags(tntCmd, installCtx, binary.ProgramTtEe)
+	tntCmd.MarkFlagsMutuallyExclusive("local-repo", "local-dir")
 
 	return tntCmd
 }
@@ -191,13 +211,19 @@ func newInstallTarantoolCmd(base *binary.BinaryContext,
 ) *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramCe.String() + " [version|commit|pull-request]",
-		Short: "Install Tarantool Community Edition",
-		Long: `Build and install Tarantool Community Edition from a release, Git commit,
-master, or pull request.
+		Short: "Install Tarantool Community or Enterprise Edition",
+		Long: `Build Tarantool Community Edition from source or install Enterprise binaries.
 
-Omitting the version selects the latest release.
+Bare versions select Community Edition: 3, 3.8, or 3.8.0. Append ce or ee to
+select an edition explicitly: 3ce, 3.8ce, 3.8.0ce, 3ee, 3.8ee, or 3.8.0ee.
+Enterprise archive names such as gc64-3.8.0-0-r94 also select Enterprise Edition.
+Use "tt binary search tarantool" or "tt binary search tarantool-ee" to list versions.
+
+Omitting the version selects the latest Community release. Git commits, master,
+and pull requests also select Community Edition.
 Use pr/<number> for a pull request. With --local-repo <dir>, <dir>/tarantool
 must be a local Git clone of the Tarantool source repository.
+Use --local-dir <dir> to install Enterprise SDK archives from a local directory.
 
 Use --from-build <dir> to link an existing Community or Enterprise build into
 the selected scope without copying or rebuilding it. Use --include-dir to
@@ -215,7 +241,10 @@ select the headers directory. --from-build accepts no version argument.`,
       --include-dir ~/src/tarantool/include
 
   # Build Tarantool with two parallel jobs.
-  $ MAKEFLAGS="-j2" tt binary install tarantool 3.4.0`,
+  $ MAKEFLAGS="-j2" tt binary install tarantool 3.4.0
+
+  # Install the latest Enterprise release in minor version 3.8.
+  $ tt binary install tarantool 3.8ee`,
 		RunE: binaryRunE(base, installCtx, internalInstallModule),
 		Args: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("from-build") {
@@ -230,7 +259,12 @@ select the headers directory. --from-build accepts no version argument.`,
 				return errIncludeDirWithoutFromBuild
 			}
 
-			return cobra.MaximumNArgs(1)(cmd, args)
+			err := cobra.MaximumNArgs(1)(cmd, args)
+			if err != nil {
+				return err
+			}
+
+			return validateEditionInstallFlags(cmd, args)
 		},
 	}
 
@@ -244,10 +278,42 @@ select the headers directory. --from-build accepts no version argument.`,
 		"Link Tarantool from an existing build directory")
 	tntCmd.Flags().StringVar(&installCtx.IncDir, "include-dir", "",
 		"Path to the Tarantool headers directory (requires --from-build)")
+	addEnterpriseInstallFlags(tntCmd, installCtx)
+	tntCmd.MarkFlagsMutuallyExclusive("local-repo", "local-dir")
+	tntCmd.MarkFlagsMutuallyExclusive("from-build", "local-dir")
+	tntCmd.MarkFlagsMutuallyExclusive("from-build", "dev")
+	tntCmd.MarkFlagsMutuallyExclusive("from-build", "credentials-file")
 	tntCmd.MarkFlagsMutuallyExclusive("from-build", "use-docker")
 	tntCmd.MarkFlagsMutuallyExclusive("from-build", "dynamic")
 
 	return tntCmd
+}
+
+// validateEditionInstallFlags rejects options belonging to the other source type.
+func validateEditionInstallFlags(cmd *cobra.Command, args []string) error {
+	requested := ""
+	if len(args) == 1 {
+		requested = args[0]
+	}
+
+	request, err := binary.ParseVersionRequest(cmd.Name(), requested)
+	if err != nil {
+		return err
+	}
+
+	incompatible := []string{"local-dir", "dev", "credentials-file"}
+	if request.Program.BundleSource() != binary.ProgramUnknown {
+		incompatible = []string{"local-repo", "use-docker", "dynamic"}
+	}
+
+	for _, flag := range incompatible {
+		if cmd.Flags().Changed(flag) {
+			return util.NewArgError(fmt.Sprintf("--%s is not supported for %s",
+				flag, request.Program))
+		}
+	}
+
+	return nil
 }
 
 // newInstallEnterpriseCmd installs one product from an Enterprise SDK archive.
@@ -411,11 +477,16 @@ within the same scope. Parent directories and other scopes are not searched.`,
   $ tt binary uninstall tarantool 3.0.0 --scope project`,
 	}
 
+	legacyEnterpriseCmd := newUninstallBundleCmd(base, uninstallCtx, binary.ProgramEe)
+	legacyTtEnterpriseCmd := newUninstallBundleCmd(base, uninstallCtx, binary.ProgramTtEe)
+
+	legacyEnterpriseCmd.Hidden = true
+	legacyTtEnterpriseCmd.Hidden = true
 	uninstallCmd.AddCommand(
 		newUninstallTtCmd(base, uninstallCtx),
 		newUninstallTarantoolCmd(base, uninstallCtx),
-		newUninstallBundleCmd(base, uninstallCtx, binary.ProgramEe),
-		newUninstallBundleCmd(base, uninstallCtx, binary.ProgramTtEe),
+		legacyEnterpriseCmd,
+		legacyTtEnterpriseCmd,
 		newUninstallBundleCmd(base, uninstallCtx, binary.ProgramTcm),
 		newUninstallTarantoolSDKCmd(base, uninstallCtx),
 	)
@@ -445,8 +516,11 @@ func newUninstallTtCmd(base *binary.BinaryContext,
 	uninstallCtx *uninstall.UninstallCtx,
 ) *cobra.Command {
 	tntCmd := &cobra.Command{
-		Use:               "tt [version]",
-		Short:             "Uninstall tt",
+		Use:   "tt [version]",
+		Short: "Uninstall tt Community or Enterprise Edition",
+		Long: `Uninstall a tt version. Bare versions select Community Edition.
+Append ce or ee to select an edition explicitly, such as 2.15.0ce or 2.15.0ee.
+Without a version, uninstall the only installed Community version.`,
 		RunE:              binaryRunE(base, uninstallCtx, internalUninstallModule),
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: completeBinaryUninstall,
@@ -461,8 +535,10 @@ func newUninstallTarantoolCmd(base *binary.BinaryContext,
 ) *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramCe.String() + " [version]",
-		Short: "Uninstall Tarantool Community Edition",
+		Short: "Uninstall Tarantool Community or Enterprise Edition",
 		Long: `Uninstall a Tarantool version.
+Bare versions select Community Edition. Append ce or ee to choose an edition
+explicitly, or use an Enterprise build name such as gc64-3.8.0-0-r94.
 Without a version, unlink the active local build or uninstall the only installed version.`,
 		RunE:              binaryRunE(base, uninstallCtx, internalUninstallModule),
 		Args:              cobra.MaximumNArgs(1),
@@ -512,26 +588,41 @@ func completeBinaryUninstall(cmd *cobra.Command, args []string,
 		return nil, cobra.ShellCompDirectiveError | cobra.ShellCompDirectiveNoFileComp
 	}
 
-	return uninstall.GetList(scope, cmd.Name()), cobra.ShellCompDirectiveNoFileComp
+	versions := uninstall.GetList(scope, cmd.Name())
+
+	program, err := binary.ParseProgram(cmd.Name())
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError | cobra.ShellCompDirectiveNoFileComp
+	}
+
+	if enterprise := program.EnterpriseProgram(); enterprise != binary.ProgramUnknown {
+		for _, installed := range uninstall.GetList(scope, enterprise.String()) {
+			argument := binary.VersionArgument(enterprise, installed)
+
+			versions = append(versions, argument)
+		}
+	}
+
+	return versions, cobra.ShellCompDirectiveNoFileComp
 }
 
 // internalUninstallModule is a default uninstall module.
 func internalUninstallModule(base binary.BinaryContext, uninstallCtx uninstall.UninstallCtx,
 	cmdCtx *cmdcontext.CmdCtx, args []string,
 ) error {
-	program, err := binary.ParseProgram(cmdCtx.CommandName)
-	if err != nil {
-		return fmt.Errorf("failed to uninstall: %w", err)
-	}
-
 	programVersion := ""
 	if len(args) == 1 {
 		programVersion = args[0]
 	}
 
+	request, err := binary.ParseVersionRequest(cmdCtx.CommandName, programVersion)
+	if err != nil {
+		return fmt.Errorf("failed to uninstall: %w", err)
+	}
+
 	uninstallCtx.BinaryContext = base
-	uninstallCtx.Program = program
-	uninstallCtx.Version = programVersion
+	uninstallCtx.Program = request.Program
+	uninstallCtx.Version = request.Version
 
 	return uninstall.UninstallProgram(uninstallCtx)
 }
@@ -743,8 +834,12 @@ func newBinarySwitchCmd(base *binary.BinaryContext,
 		Short: "Switch the active binary",
 		Long: `Switch to an installed version in the selected scope.
 Without arguments, choose the program and version interactively. With only
-a program, choose its version. CE and EE share the active Tarantool binary
+a program, choose its version. For tarantool and tt, choose the edition first, then
+one of its installed versions. CE and EE share the active Tarantool binary
 and headers. tt and tt-ee share the active tt executable.
+
+Bare Tarantool and tt versions select CE; append ce or ee to choose an edition
+explicitly. Tarantool Enterprise build names and sdk-<bundle-version> select EE.
 
 Switching tarantool-sdk (also sdk and SDK) selects all of its components and
 headers together. Use sdk-<bundle-version> to select an individual SDK component.
@@ -765,7 +860,7 @@ Use a full installed version name to select a specific build.`,
 		RunE: binaryRunE(base, switchCtx, internalSwitchModule),
 		Args: cobra.MatchAll(
 			cobra.MaximumNArgs(binarySwitchMaxArgs), binarySwitchValidateArgs),
-		ValidArgs: binarySupportedPrograms,
+		ValidArgs: binarySwitchPrograms,
 	}
 
 	return switchCmd
@@ -787,33 +882,44 @@ func binarySwitchValidateArgs(cmd *cobra.Command, args []string) error {
 func internalSwitchModule(base binary.BinaryContext, switchCtx switcher.SwitchCtx,
 	cmdCtx *cmdcontext.CmdCtx, args []string,
 ) error {
-	var err error
-
 	switchCtx.BinaryContext = base
-	switchCtx.ExactVersion = false
+	switchCtx.ExactVersion = len(args) < binarySwitchMaxArgs
+
+	if !switchCtx.ExactVersion {
+		request, err := binary.ParseVersionRequest(args[0], args[1])
+		if err != nil {
+			return fmt.Errorf("failed to switch module: %w", err)
+		}
+
+		switchCtx.Program = request.Program
+		switchCtx.Version = request.Version
+
+		return switcher.Switch(&switchCtx)
+	}
+
+	var (
+		program binary.Program
+		err     error
+	)
 
 	switch len(args) {
 	case 0:
-		switchCtx.Program, err = switcher.ChooseProgram(binarySupportedPrograms)
+		program, err = switcher.ChooseProgram(binarySwitchPrograms)
 	default:
-		switchCtx.Program, err = binary.ParseProgram(args[0])
+		program, err = binary.ParseProgram(args[0])
 	}
 
 	if err != nil {
 		return fmt.Errorf("failed to switch module: %w", err)
 	}
 
-	switch len(args) {
-	case binarySwitchMaxArgs:
-		switchCtx.Version = args[1]
-	default:
-		switchCtx.Version, err = switcher.ChooseVersion(base.Scope, switchCtx.Program)
-		if err != nil {
-			return err
-		}
-
-		switchCtx.ExactVersion = true
+	selection, err := switcher.ChooseInstallation(base.Scope, program)
+	if err != nil {
+		return err
 	}
+
+	switchCtx.Program = selection.Program
+	switchCtx.Version = selection.ID
 
 	return switcher.Switch(&switchCtx)
 }

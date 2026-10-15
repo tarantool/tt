@@ -43,19 +43,20 @@ type InstallCtx struct {
 }
 
 func FillCtx(cmdCtx *cmdcontext.CmdCtx, installCtx *InstallCtx, args []string) error {
-	var err error
+	requested := ""
+	if len(args) == 1 {
+		requested = args[0]
+	}
 
-	installCtx.Program, err = binary.ParseProgram(cmdCtx.CommandName)
+	request, err := binary.ParseVersionRequest(cmdCtx.CommandName, requested)
 	if err != nil {
 		return fmt.Errorf("failed create context: %w", err)
 	}
 
+	installCtx.Program = request.Program
+	installCtx.requestedVersion = request.Version
 	installCtx.Verbose = installCtx.Verbose || cmdCtx.Cli.Verbose
 	installCtx.skipMasterUpdate = cmdCtx.Cli.NoPrompt
-
-	if len(args) == 1 {
-		installCtx.requestedVersion = args[0]
-	}
 
 	return nil
 }
