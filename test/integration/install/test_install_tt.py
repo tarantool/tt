@@ -62,6 +62,20 @@ def install_tt(tt_cmd, tmp_path, flags=(), version="1.2.3"):
     )
 
 
+@pytest.mark.parametrize("requested", ["1", "1.2", "1.2.3", "1ce", "1.2ce", "1.2.3ce"])
+def test_install_tt_community_selector(tt_cmd, tmp_path, local_tt_build, requested):
+    built_binary, build_log = local_tt_build
+    rc, output = install_tt(tt_cmd, tmp_path, version=requested)
+
+    assert rc == 0, output
+    root = tmp_path / ".tarantool"
+    installed = root / "versions" / "tt" / "tt_v1.2.3" / "tt"
+    assert installed.read_bytes() == built_binary.read_bytes()
+    assert (root / "bin" / "tt").resolve() == installed
+    assert build_log.read_text() == "build\n"
+    assert not (root / "versions" / "tt-ee").exists()
+
+
 @pytest.mark.parametrize("scope", [None, "project", "user"])
 @pytest.mark.parametrize("reinstall", [False, True])
 def test_install_tt_scope(tt_cmd, tmp_path, local_tt_build, scope, reinstall):

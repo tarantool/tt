@@ -1,4 +1,5 @@
 import platform
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -7,7 +8,7 @@ from utils import run_command_and_get_output
 
 
 def install_version(root: Path, program: str, version: str, *, headers: bool = True) -> Path:
-    executable = "tarantool" if program == "tarantool-ee" else program
+    executable = {"tarantool-ee": "tarantool", "tt-ee": "tt"}.get(program, program)
     installation = root / "versions" / program / f"{program}_{version}"
     binary = installation / executable
     binary.parent.mkdir(parents=True, exist_ok=True)
@@ -19,12 +20,32 @@ def install_version(root: Path, program: str, version: str, *, headers: bool = T
 
 
 def assert_active(root: Path, installation: Path, program: str) -> None:
-    executable = "tarantool" if program == "tarantool-ee" else program
+    executable = {"tarantool-ee": "tarantool", "tt-ee": "tt"}.get(program, program)
     assert (root / "bin" / executable).resolve() == installation / executable
     if executable == "tarantool":
         assert (root / "include" / executable).resolve() == installation / "include" / executable
     else:
         assert not (root / "include").exists()
+
+
+def run_interactive_switch(cmd, cwd, answers):
+    # Each menu owns an input reader; send answers when their own prompts open.
+    output = b""
+    with subprocess.Popen(
+        cmd, cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    ) as process:
+        for prompt, answer in answers:
+            screen = b""
+            while prompt.encode() not in screen:
+                char = process.stdout.read(1)
+                assert char, output.decode()
+                screen += char
+                output += char
+            process.stdin.write(answer.encode())
+            process.stdin.flush()
+        remaining, _ = process.communicate(timeout=10)
+        output += remaining
+    return process.returncode, output.decode()
 
 
 @pytest.fixture
@@ -225,7 +246,9 @@ def test_switch_interactive_raw_version(tt_cmd, tmp_path, version):
     root = tmp_path / ".tarantool"
     selected = install_version(root, "tt", version)
     cmd = [tt_cmd, "--self", "binary", "switch", "tt"]
-    rc, output = run_command_and_get_output(cmd, cwd=tmp_path, input="\n")
+    rc, output = run_interactive_switch(
+        cmd, tmp_path, [("Select tt edition", "\n"), ("Select version", "\n")],
+    )
 
     assert rc == 0
     assert f"Switching to tt_{version}" in output
@@ -239,7 +262,9 @@ def test_switch_interactive_preserves_colliding_release_identity(tt_cmd, tmp_pat
     (root / "bin").mkdir()
     (root / "bin" / "tt").symlink_to(selected / "tt")
     cmd = [tt_cmd, "--self", "binary", "switch", "tt"]
-    rc, output = run_command_and_get_output(cmd, cwd=tmp_path, input="\x1b[B\n")
+    rc, output = run_interactive_switch(
+        cmd, tmp_path, [("Select tt edition", "\n"), ("Select version", "\x1b[B\n")],
+    )
 
     assert rc == 0
     assert "3.0.0 [active]" in output

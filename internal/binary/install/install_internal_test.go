@@ -7,7 +7,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/version"
+	"github.com/tarantool/tt/v3/internal/binary"
 )
 
 func Test_getLatestRelease(t *testing.T) {
@@ -243,5 +245,60 @@ func TestSearchTarantoolHeaders(t *testing.T) {
 		if tc.isErr {
 			assert.Error(t, err)
 		}
+	}
+}
+
+func TestFillCtxTarantoolEdition(t *testing.T) {
+	for _, testCase := range []struct {
+		requested string
+		program   binary.Program
+		version   string
+	}{
+		{"3", binary.ProgramCe, "3"},
+		{"3.8", binary.ProgramCe, "3.8"},
+		{"3.8.0ce", binary.ProgramCe, "3.8.0"},
+		{"3ee", binary.ProgramEe, "3"},
+		{"3.8ee", binary.ProgramEe, "3.8"},
+		{"3.8.0ee", binary.ProgramEe, "3.8.0"},
+		{"gc64-3.8.0-0-r94", binary.ProgramEe, "gc64-3.8.0-0-r94"},
+		{"abcdefce", binary.ProgramCe, "abcdefce"},
+		{"pr/123", binary.ProgramCe, "pr/123"},
+	} {
+		t.Run(testCase.requested, func(t *testing.T) {
+			var ctx InstallCtx
+
+			err := FillCtx(&cmdcontext.CmdCtx{CommandName: "tarantool"}, &ctx,
+				[]string{testCase.requested})
+			require.NoError(t, err)
+			assert.Equal(t, testCase.program, ctx.Program)
+			assert.Equal(t, testCase.version, ctx.requestedVersion)
+		})
+	}
+}
+
+func TestFillCtxTtEdition(t *testing.T) {
+	for _, testCase := range []struct {
+		requested string
+		program   binary.Program
+		version   string
+	}{
+		{"2", binary.ProgramTt, "2"},
+		{"2.15", binary.ProgramTt, "2.15"},
+		{"2.15.0ce", binary.ProgramTt, "2.15.0"},
+		{"2ee", binary.ProgramTtEe, "2"},
+		{"2.15ee", binary.ProgramTtEe, "2.15"},
+		{"2.15.0ee", binary.ProgramTtEe, "2.15.0"},
+		{"abcdefce", binary.ProgramTt, "abcdefce"},
+		{"pr/123", binary.ProgramTt, "pr/123"},
+	} {
+		t.Run(testCase.requested, func(t *testing.T) {
+			var ctx InstallCtx
+
+			err := FillCtx(&cmdcontext.CmdCtx{CommandName: "tt"}, &ctx,
+				[]string{testCase.requested})
+			require.NoError(t, err)
+			assert.Equal(t, testCase.program, ctx.Program)
+			assert.Equal(t, testCase.version, ctx.requestedVersion)
+		})
 	}
 }

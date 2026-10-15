@@ -214,10 +214,10 @@ def test_tt_ee_sdk_component_and_standalone_coexist(tt_cmd, tmp_path):
     assert rc == 0, output
     assert f"{SDK_VERSION} [installed]" in output
     assert "[active]" not in output
-    rc, output = binary_command(tt_cmd, tmp_path, "switch", "tt-ee", "sdk-3.7.1")
+    rc, output = binary_command(tt_cmd, tmp_path, "switch", "tt", "sdk-3.7.1")
     assert rc == 0, output
     assert_sdk_active(root, SDK_VERSION)
-    rc, output = binary_command(tt_cmd, tmp_path, "uninstall", "tt-ee", "sdk-3.7.1")
+    rc, output = binary_command(tt_cmd, tmp_path, "uninstall", "tt", "sdk-3.7.1")
     assert rc == 0, output
     assert (root / "bin" / "tt").resolve(strict=True) == standalone
     assert (root / "bin" / "tarantool").is_file()
@@ -238,6 +238,22 @@ def test_tt_ee_ignores_sdk_archives(tt_cmd, tmp_path):
     else:
         assert "unsupported OS" in output
     assert not (tmp_path / ".tarantool").exists()
+
+
+@pytest.mark.parametrize("requested", ["2ee", "2.15ee", "2.15.0ee"])
+def test_install_tt_enterprise_selector(tt_cmd, tmp_path, requested):
+    make_tt_ee(tmp_path)
+    make_sdk(tmp_path)
+    rc, output = binary_command(
+        tt_cmd, tmp_path, "install", "tt", requested, "--local-dir", "local bundles",
+    )
+
+    assert rc == 0, output
+    root = sdk_root(tmp_path, "project")
+    installed = root / "versions" / "tt-ee" / f"tt-ee_{TT_EE_VERSION}" / "tt"
+    assert (root / "bin" / "tt").resolve(strict=True) == installed
+    assert not (root / "versions" / "tt").exists()
+    assert not (root / "versions" / "tarantool-sdk").exists()
 
 
 def test_tt_ee_search_filters_local_release(tt_cmd, tmp_path):
