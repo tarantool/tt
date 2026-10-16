@@ -16,8 +16,9 @@ import (
 // CHECKPOINT_IN_PROGRESS, and box.backup.start() during one picks up the last
 // completed checkpoint -- the very one a new checkpoint is taken to replace.
 // So the wait is for the other checkpoint to complete. A completed one is
-// returned as 'concurrent' and stands in for its own; one that failed leaves the newest checkpoint as it was, and a
-// checkpoint of the instance's own is taken after all.
+// returned as 'concurrent' and stands in for its own; one that failed leaves
+// the newest checkpoint as it was, and a checkpoint of the instance's own is
+// taken after all.
 const snapshotExpr = `
 local timeout = ...
 local clock = require('clock')

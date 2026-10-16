@@ -1,7 +1,7 @@
 import glob
 import itertools
-import re
 import os
+import re
 
 import pytest
 import tt_helper
@@ -80,14 +80,15 @@ def check_clean(tt, tt_app, stop_targets, target, *args):
                         n_logs = len(to_remove[inst]["logs"])
                         if n_logs > 0:
                             msg = r"to remove {} file\(s\) in \"{}\"\n".format(
-                                n_logs, tt_app.log_path(inst)
+                                n_logs,
+                                tt_app.log_path(inst),
                             )
                             assert len(re.findall(msg, out)) == 1
-                        n_snaps_wals = len(to_remove[inst]["snaps"]) + \
-                                       len(to_remove[inst]["wals"])
+                        n_snaps_wals = len(to_remove[inst]["snaps"]) + len(to_remove[inst]["wals"])
                         if n_snaps_wals > 0:
                             msg = r"to remove {} file\(s\) in \"{}\"\n".format(
-                                n_snaps_wals, tt_app.lib_path(inst)
+                                n_snaps_wals,
+                                tt_app.lib_path(inst),
                             )
                             assert len(re.findall(msg, out)) == 1
                     if not force_mode and verbose_mode:
@@ -129,7 +130,7 @@ def post_start_clean_decorator(func):
 tt_simple_data_app = dict(
     app_path="test_data_app.lua",
     app_name="app",
-    post_start=tt_helper.post_start_base
+    post_start=tt_helper.post_start_base,
 )
 
 

@@ -199,7 +199,11 @@ def backup_and_upload(tt, tt_app, target, storage, backup_id, kind, tmp_path, ex
         from_vclock = next(iter(plan["replicasets"].values()))["from_vclock"]
 
     rc, start_out = start_backup(
-        tt, target, backup_id, from_vclock=from_vclock, extra_args=extra_args
+        tt,
+        target,
+        backup_id,
+        from_vclock=from_vclock,
+        extra_args=extra_args,
     )
     assert rc == 0, f"tt backup start failed:\n{start_out}"
 
@@ -244,7 +248,14 @@ def test_restore_members_named_in_config_only(tt, tt_app, tmp_path):
     # test's own.
     insert_rows(tt, leader, SEEDED_ROWS + 1, FULL_ROWS)
     backup_and_upload(
-        tt, tt_app, leader, storage, FULL_ID, "full", tmp_path, extra_args=["--snapshot"]
+        tt,
+        tt_app,
+        leader,
+        storage,
+        FULL_ID,
+        "full",
+        tmp_path,
+        extra_args=["--snapshot"],
     )
 
     # tt took the checkpoint the full backup ships.
