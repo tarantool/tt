@@ -132,9 +132,9 @@ database.replicaset_uuid) is refused as well, saying whether the journals
 register the UUID and under which name, and naming the ways out: set
 TT_DATABASE_INSTANCE_UUID=<uuid> in the instance's own environment (a unit
 drop-in) and run box.snapshot() on every node once it is up, before the
-variable is removed; or take the full backup after box.snapshot(). The same
-variable in tt's own environment, holding the instance's UUID, turns the
-refusal into a warning: apply cannot see the instance's environment, and
+variable is removed; or take the full backup with tt backup start --snapshot.
+The same variable in tt's own environment, holding the instance's UUID, turns
+the refusal into a warning: apply cannot see the instance's environment, and
 Tarantool does not start the instance until that carries it too. Without -c
 the instance may never be started from a cluster configuration, and the
 finding is a warning.

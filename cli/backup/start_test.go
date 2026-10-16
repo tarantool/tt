@@ -31,6 +31,12 @@ import (
 // mockEvaler is a connector.Connector stub that returns queued results in call
 // order and records every Eval expression and args. nil queue entries are
 // returned as (nil, nil); a non-nil err is returned with the queued result.
+//
+// The box.snapshot() --snapshot takes before box.backup.start is answered
+// aside from the queue and recorded in side rather than exprs: it does not
+// shift the queue positions every other test is written against. snapshotErr
+// fails it; snapshotOutcomes answer it in turn, "taken" once they run out. all
+// records every call in order.
 type mockEvaler struct {
 	exprs    []string
 	argsList [][]any
@@ -38,11 +44,31 @@ type mockEvaler struct {
 	err      error
 	errOn    int
 	calls    int
+
+	side             []string
+	all              []string
+	snapshotErr      error
+	snapshotOutcomes []string
 }
 
 func (m *mockEvaler) Eval(expr string, args []any,
 	opts connector.RequestOpts,
 ) ([]any, error) {
+	m.all = append(m.all, expr)
+
+	if expr == snapshotExpr {
+		m.side = append(m.side, expr)
+		if m.snapshotErr != nil {
+			return nil, m.snapshotErr
+		}
+		outcome := checkpointTaken
+		if len(m.snapshotOutcomes) > 0 {
+			outcome = m.snapshotOutcomes[0]
+			m.snapshotOutcomes = m.snapshotOutcomes[1:]
+		}
+		return []any{outcome}, nil
+	}
+
 	m.exprs = append(m.exprs, expr)
 	m.argsList = append(m.argsList, args)
 	m.calls++

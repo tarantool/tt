@@ -345,3 +345,58 @@ def test_start_ttl_expiry_releases_the_lease(tt, tt_app):
         rc, cleanup_out = finalize_backup(tt, target, backup_id)
         assert rc == 0, f"backup cleanup failed:\n{cleanup_out}"
         assert not os.path.exists(backup_dir(backup_id))
+
+
+@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
+@pytest.mark.tt_app(**TT_BACKUP_APP)
+def test_start_snapshot_ships_a_fresh_checkpoint(tt, tt_app, tmp_path):
+    """--snapshot takes a checkpoint before a full backup opens although the
+    newest one already carries every member, and the full ships the new one
+    rather than the old checkpoint with a journal tail."""
+    target = app_instance(tt_app, STORAGE_1_A)
+
+    eval_yaml_app(tt, target, "return box.snapshot()")
+    eval_yaml_app(
+        tt,
+        target,
+        "for i = 200, 205 do box.space.backup_test:insert({i, 'snap-' .. i}) end",
+    )
+    before = eval_yaml_app(
+        tt,
+        target,
+        "local cps = box.info.gc().checkpoints return cps[#cps].signature",
+    )
+
+    backup_id = "itest-snapshot"
+    rc, out = start_backup(tt, target, backup_id, extra_args=["--snapshot"])
+    assert rc == 0, f"tt backup start --snapshot failed:\n{out}"
+
+    try:
+        fragment = inspect_backup_artifact(
+            archive_path_from_output(out),
+            tmp_path / "full",
+            backup_id,
+        )
+        snaps = [name for name in fragment["files"] if name.endswith(".snap")]
+        assert len(snaps) == 1, fragment
+        assert int(snaps[0].removesuffix(".snap")) > before, (
+            f"the full ships the checkpoint at signature {before}, not a new one: {fragment}"
+        )
+    finally:
+        rc, cleanup_out = finalize_backup(tt, target, backup_id)
+        assert rc == 0, f"backup cleanup failed:\n{cleanup_out}"
+
+
+@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
+def test_start_snapshot_refused_with_from_vclock(tt):
+    """An incremental backup ships no checkpoint, so --snapshot with
+    --from-vclock is refused before the target is dialed."""
+    rc, out = start_backup(
+        tt,
+        "127.0.0.1:1",
+        "itest-snapshot-inc",
+        from_vclock={1: 1500},
+        extra_args=["--snapshot"],
+    )
+    assert rc != 0, out
+    assert "--snapshot applies to a full backup only" in out, out

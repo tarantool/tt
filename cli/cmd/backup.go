@@ -32,6 +32,7 @@ var (
 	backupStartFromVclock string
 	backupStartTTL        time.Duration
 	backupStartDir        string
+	backupStartSnapshot   bool
 
 	backupFinalizeCfg   string
 	backupFinalizeID    string
@@ -322,6 +323,21 @@ fragment into a .tar.zst archive, and leave box.backup open. The archive path
 is printed to stdout. Closing box.backup is done by 'tt backup finalize' after
 the manifest has been uploaded.
 
+A full backup ships the instance's newest checkpoint as it is, and every
+member of a replicaset restored from it boots from that snapshot. Tarantool
+looks each member's name up in the snapshot alone, so a checkpoint taken
+before a member registered or was named -- the bootstrap snapshot of a freshly
+deployed cluster, typically -- restores only members whose configuration pins
+database.instance_uuid.
+
+--snapshot takes a new checkpoint with box.snapshot() before the full backup
+opens: the full then ships a snapshot of the instance as it is, with next to
+no journal to replay after it, at the cost of writing the whole data set to
+disk once more. A checkpoint already in progress on the instance -- the
+checkpoint daemon's, say -- is waited out, for up to an hour, and shipped in
+place of a new one. A box.snapshot() that fails stops the command before
+anything is opened. It is refused together with --from-vclock.
+
 --dir writes both artifacts directly into the given directory, which is created
 if it does not exist. Without it they go to $TMPDIR/tt-backup/<backup-id>/.
 
@@ -343,6 +359,9 @@ whose iproto listener has TLS enabled.`,
 	cmd.Flags().StringVar(&backupStartDir, "dir", "",
 		"directory for the archive and the manifest fragment; "+
 			"defaults to $TMPDIR/tt-backup/<backup-id>")
+	cmd.Flags().BoolVar(&backupStartSnapshot, "snapshot", false,
+		"take a new checkpoint with box.snapshot() before a full backup; "+
+			"full only")
 	addBackupConnectFlags(cmd)
 
 	cmd.MarkFlagRequired("backup-id")
@@ -1426,6 +1445,13 @@ func runBackupStartInner(args []string) (string, error) {
 		return "", fmt.Errorf("invalid flag: %w", err)
 	}
 
+	// Checked before the dial, as the vclock is: a rejection costs no
+	// connection.
+	if backupStartSnapshot && fromVclock != nil {
+		return "", errors.New("invalid flag: --snapshot applies to a full backup " +
+			"only; --from-vclock selects an incremental one, which ships no checkpoint")
+	}
+
 	conn, err := dialBackupTarget(backupStartCfg, args[0])
 	if err != nil {
 		return "", fmt.Errorf("failed to dial backup target %q: %w", args[0], err)
@@ -1438,6 +1464,7 @@ func runBackupStartInner(args []string) (string, error) {
 		TTL:        backupStartTTL,
 		InstName:   instanceNameFromTarget(args[0]),
 		Dir:        backupStartDir,
+		Snapshot:   backupStartSnapshot,
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to start backup: %w", err)
