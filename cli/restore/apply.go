@@ -88,6 +88,11 @@ type ApplyOpts struct {
 	// PatchUUID is the instance UUID to stamp into every header. Empty
 	// leaves the headers as they are.
 	PatchUUID string
+	// Config is what the cluster configuration says about the instance the
+	// directories were resolved for, nil when they were given directly. With
+	// it, restored data the instance would refuse to start on is refused;
+	// without it, the same finding is a warning.
+	Config *ConfigIdentity
 }
 
 // ApplyResult reports what a run produced.
@@ -120,7 +125,9 @@ type ApplyResult struct {
 // Apply neither checks for a running instance nor starts one afterwards.
 //
 // The UUID stamped into the headers is verified against the _cluster the
-// restored snapshot carries, before the marker claims a completed restore.
+// restored snapshot carries, and the snapshot against what the instance's
+// configuration needs to start on it, before the marker claims a completed
+// restore.
 func Apply(opts ApplyOpts) (*ApplyResult, error) {
 	if err := validate(opts); err != nil {
 		return nil, err //nolint:wrapcheck
@@ -190,6 +197,14 @@ func Apply(opts ApplyOpts) (*ApplyResult, error) {
 		if err := checkPatchUUID(layout, opts.PatchUUID, opts.InstanceName); err != nil {
 			return nil, err //nolint:wrapcheck
 		}
+	}
+
+	// Membership is not enough to start on: Tarantool's configuration looks
+	// for the instance's name in the snapshot alone, before any journal is
+	// replayed. Checked whether or not the headers were patched -- the
+	// snapshot's own UUID is the one it looks up either way.
+	if err := checkStartupNames(layout, opts); err != nil {
+		return nil, err //nolint:wrapcheck
 	}
 
 	// The three directories are recorded absolute because the marker is read
@@ -629,6 +644,10 @@ func unpackChain(opts ApplyOpts, layout Layout) (*ApplyResult, error) {
 // the replicaset registered without a name -- of a named replicaset or an
 // unnamed one -- has nothing to contradict the caller with, and the plain
 // presence of the UUID is everything the backup can vouch for.
+//
+// Membership is what the replay ends with, and it is not what the instance
+// starts by: whether Tarantool finds the instance's name where it looks for
+// it, in the snapshot alone, is checkStartupNames's question.
 func checkPatchUUID(layout Layout, patchUUID, instanceName string) error {
 	snapshot, ok, err := newestSnapshot(layout.Snapshot)
 	if err != nil {

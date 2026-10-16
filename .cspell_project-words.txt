@@ -11,6 +11,7 @@ AKIAEXAMPLE
 AKIAs
 anykey
 autoexpel
+AUUID
 bootstrapper
 callrw
 ccluster
