@@ -200,18 +200,131 @@ func overrideRestoreDirs(
 func clusterConfigDirs(
 	configPath, instance string, override restore.Layout,
 ) (restore.ConfigDirs, error) {
+	clusterConfig, err := loadRestoreClusterConfig(configPath)
+	if err != nil {
+		return restore.ConfigDirs{}, err //nolint:wrapcheck
+	}
+
+	return instanceConfigDirs(clusterConfig, instance, override) //nolint:wrapcheck
+}
+
+// loadRestoreClusterConfig reads the cluster configuration apply is given, a
+// file or a URI, reporting a failure the way clusterConfigDirs explains.
+func loadRestoreClusterConfig(configPath string) (libcluster.ClusterConfig, error) {
 	clusterConfig, _, err := loadTopologyConfig(&cmdCtx, configPath)
 	if err != nil {
 		if _, uriErr := libconnect.CreateUriOpts(configPath); uriErr != nil {
-			return restore.ConfigDirs{}, fmt.Errorf(
+			return libcluster.ClusterConfig{}, fmt.Errorf(
 				"%w: failed to load the cluster config %q: %w",
 				restore.ErrValidation, configPath, err)
 		}
 
-		return restore.ConfigDirs{}, fmt.Errorf("failed to load the cluster config: %w", err)
+		return libcluster.ClusterConfig{}, fmt.Errorf(
+			"failed to load the cluster config: %w", err)
 	}
 
-	return instanceConfigDirs(clusterConfig, instance, override) //nolint:wrapcheck
+	return clusterConfig, nil
+}
+
+// identityEnv are the environment variables Tarantool's configuration takes
+// an instance's UUIDs from ahead of the cluster configuration. Apply can read
+// only its own environment, not the instance's, so what it finds there is no
+// proof: a matching UUID only turns a refusal into a warning.
+var identityEnv = struct {
+	instanceUUID   string
+	replicasetUUID string
+}{
+	instanceUUID:   "TT_DATABASE_INSTANCE_UUID",
+	replicasetUUID: "TT_DATABASE_REPLICASET_UUID",
+}
+
+// instanceConfigIdentity picks out of an instance's configuration what
+// Tarantool holds a data directory to before the instance starts on it: the
+// replicaset the instance is in, the UUIDs the configuration pins, and the two
+// settings under which names are not required. A key the configuration does
+// not set is left empty; one holding a value of the wrong type is refused.
+func instanceConfigIdentity(
+	clusterConfig libcluster.ClusterConfig,
+	instance string,
+	getenv func(string) string,
+) (*restore.ConfigIdentity, error) {
+	_, replicaset, found := libcluster.FindInstance(clusterConfig, instance)
+	if !found {
+		return nil, fmt.Errorf(
+			"%w: the cluster config declares no instance %q", restore.ErrValidation, instance)
+	}
+
+	instanceConfig := libcluster.Instantiate(clusterConfig, instance)
+	identity := &restore.ConfigIdentity{ReplicasetName: replicaset}
+
+	var skipNames string
+
+	for _, key := range []struct {
+		path []string
+		dst  any
+	}{
+		{path: []string{"database", "instance_uuid"}, dst: &identity.InstanceUUID},
+		{path: []string{"database", "replicaset_uuid"}, dst: &identity.ReplicasetUUID},
+		{path: []string{"replication", "anon"}, dst: &identity.Anon},
+		{path: []string{"compat", "skip_replication_names"}, dst: &skipNames},
+	} {
+		if err := configValue(instanceConfig, instance, key.path, key.dst); err != nil {
+			return nil, err //nolint:wrapcheck
+		}
+	}
+
+	identity.SkipNames = skipNames == "old"
+
+	identity.EnvInstanceUUID = getenv(identityEnv.instanceUUID)
+	identity.EnvReplicasetUUID = getenv(identityEnv.replicasetUUID)
+
+	// tt merges the TT_ variables of its own environment into a configuration
+	// it reads from a file, so a UUID equal to the variable may be tt's
+	// environment rather than the configuration speaking. It is counted as the
+	// environment's: at worst a configuration that pins the same UUID costs a
+	// warning, where the other way round a crash loop would pass unnoticed.
+	if identity.EnvInstanceUUID != "" && identity.InstanceUUID == identity.EnvInstanceUUID {
+		identity.InstanceUUID = ""
+	}
+
+	if identity.EnvReplicasetUUID != "" &&
+		identity.ReplicasetUUID == identity.EnvReplicasetUUID {
+
+		identity.ReplicasetUUID = ""
+	}
+
+	return identity, nil
+}
+
+// configValue reads one key of an instance's configuration into dst, a
+// *string or a *bool, leaving dst alone when the key is not set.
+func configValue(config *libcluster.Config, instance string, path []string, dst any) error {
+	value, err := config.Get(path)
+	if err != nil {
+		var notExist libcluster.NotExistError
+		if errors.As(err, &notExist) {
+			return nil
+		}
+
+		return fmt.Errorf("%w: %s of instance %q: %w",
+			restore.ErrValidation, strings.Join(path, "."), instance, err)
+	}
+
+	ok := false
+
+	switch dst := dst.(type) {
+	case *string:
+		*dst, ok = value.(string)
+	case *bool:
+		*dst, ok = value.(bool)
+	}
+
+	if !ok {
+		return fmt.Errorf("%w: %s of instance %q is %v, of the wrong type",
+			restore.ErrValidation, strings.Join(path, "."), instance, value)
+	}
+
+	return nil
 }
 
 // instanceConfigDirs picks the three directory keys out of an instance's

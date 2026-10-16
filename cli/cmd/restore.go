@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/tarantool/tt/cli/restore"
+	libcluster "github.com/tarantool/tt/lib/cluster"
 )
 
 // tt restore apply / plan flags. They are package-level because cobra flag
@@ -114,6 +115,29 @@ it the UUID already in the files, so the patch confirms rather than changes
 them. Omitting the flag keeps whatever the headers carry, which is right for
 that same case and wrong as soon as the archives are replayed onto a
 differently named node.
+
+Before an instance starts on a data directory, Tarantool's configuration
+looks up the instance's name in the newest snapshot alone: the _cluster row
+carrying the header's UUID has to name it, or the configuration has to pin
+database.instance_uuid. The journals after the snapshot do not count, so a
+member that registered after the backed-up snapshot was taken -- the
+bootstrap snapshot of a replicaset whose master has taken no snapshot since
+-- does not start, however surely the replay registers it.
+
+With -c, apply makes the same check after unpacking and trimming, together
+with the replicaset's UUID and name. A mismatch between the snapshot and the
+configuration is refused. A name the snapshot lacks and the configuration does
+not stand in for with a UUID (database.instance_uuid,
+database.replicaset_uuid) is refused as well, saying whether the journals
+register the UUID and under which name, and naming the ways out: set
+TT_DATABASE_INSTANCE_UUID=<uuid> in the instance's own environment (a unit
+drop-in) and run box.snapshot() on every node once it is up, before the
+variable is removed; or take the full backup after box.snapshot(). The same
+variable in tt's own environment, holding the instance's UUID, turns the
+refusal into a warning: apply cannot see the instance's environment, and
+Tarantool does not start the instance until that carries it too. Without -c
+the instance may never be started from a cluster configuration, and the
+finding is a warning.
 
 Tarantool keeps three kinds of file in three directories it configures
 separately: snapshots in snapshot.dir, journals in wal.dir, and the vylog
@@ -216,8 +240,11 @@ Exit codes:
      declare, a --checksums list that does not pair with --archives, a
      malformed --target-point or --patch-uuid, a missing archive, or an
      archive naming an entry that cannot be placed
-  1  unpacking, patching or trimming failed, or a configuration named by URI
-     could not be fetched or read
+  1  unpacking, patching or trimming failed, a configuration named by URI
+     could not be fetched or read, or the restored data was refused after
+     unpacking: --patch-uuid is not a member of the restored replicaset, or
+     the instance would not start on the restored snapshot (no marker is
+     written in either case)
 
 Examples:
   tt restore apply --archives /opt/restore/full.tar.zst,/opt/restore/inc1.tar.zst \
@@ -314,6 +341,23 @@ func runRestoreApplyInner() (*restore.ApplyResult, restore.Layout, error) {
 		err   error
 	)
 
+	// The configuration is read once, by the layout step, and kept for the
+	// identity it also holds: one named by URI is a fetch from a storage.
+	var clusterConfig *libcluster.ClusterConfig
+
+	loadConfigDirs := func(
+		configPath, instance string, override restore.Layout,
+	) (restore.ConfigDirs, error) {
+		loaded, err := loadRestoreClusterConfig(configPath)
+		if err != nil {
+			return restore.ConfigDirs{}, err //nolint:wrapcheck
+		}
+
+		clusterConfig = &loaded
+
+		return instanceConfigDirs(loaded, instance, override)
+	}
+
 	// Before anything else: the layout decides where a whole instance's data
 	// goes, and a rejected one must be reported while the previous attempt is
 	// still intact.
@@ -324,9 +368,18 @@ func runRestoreApplyInner() (*restore.ApplyResult, restore.Layout, error) {
 		VinylDir:    restoreApplyVinylDir,
 		Config:      restoreApplyCfg,
 		Instance:    restoreApplyInstance,
-	}, clusterConfigDirs)
+	}, loadConfigDirs)
 	if err != nil {
 		return nil, restore.Layout{}, err //nolint:wrapcheck
+	}
+
+	var identity *restore.ConfigIdentity
+
+	if clusterConfig != nil {
+		identity, err = instanceConfigIdentity(*clusterConfig, restoreApplyInstance, os.Getenv)
+		if err != nil {
+			return nil, layout, err //nolint:wrapcheck
+		}
 	}
 
 	reportRestoreLayout(layout, sources)
@@ -366,6 +419,7 @@ func runRestoreApplyInner() (*restore.ApplyResult, restore.Layout, error) {
 		Point:        point,
 		PointName:    restoreApplyPointName,
 		PatchUUID:    restoreApplyPatchUUID,
+		Config:       identity,
 	})
 
 	return result, layout, err //nolint:wrapcheck
