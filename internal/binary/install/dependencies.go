@@ -120,7 +120,8 @@ func programDependenciesInstalled(program binary.Program) error {
 
 			return nil
 		}
-	case binary.ProgramUnknown, binary.ProgramEe, binary.ProgramTcm, binary.ProgramSDK:
+	case binary.ProgramUnknown, binary.ProgramEe, binary.ProgramTtEe,
+		binary.ProgramTcm, binary.ProgramSDK:
 		// These programs have no source-build dependency checks.
 	}
 

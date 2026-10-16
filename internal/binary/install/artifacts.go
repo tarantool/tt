@@ -15,6 +15,13 @@ import (
 // access to everyone.
 const defaultDirPermissions = 0o755
 
+// bundleArtifact is a prepared product, independent of its archive source and scope.
+type bundleArtifact struct {
+	program    binary.Program
+	executable string
+	headers    string
+}
+
 // copyBuiltTarantool copies the binary and headers to their installation paths.
 func copyBuiltTarantool(binPath, incPath, destBinPath, destIncPath string) error {
 	log.Infof("Copying executable...")
@@ -96,6 +103,9 @@ func changeActiveTarantoolVersion(binPath, incPath, artifactRoot string) error {
 	}
 
 	err = binary.CreateSymlink(incPath, filepath.Join(incDir, binary.ProgramCe.Exec()), true)
+	if err != nil {
+		return err
+	}
 
-	return err
+	return nil
 }

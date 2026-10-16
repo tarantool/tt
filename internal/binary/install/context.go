@@ -20,19 +20,17 @@ type InstallCtx struct {
 	// install will don't remove tmp files.
 	KeepTemp bool
 	// LocalRepo is the source directory: --local-repo for Git repositories,
-	// or --local-dir for EE/TCM archives. An empty path selects remote installation.
+	// or --local-dir for SDK/EE/TCM archives. An empty path selects remote installation.
 	LocalRepo string
 	// CredentialsFile contains customer-zone credentials for remote EE, TCM, and SDK downloads.
 	CredentialsFile string
-	// Destination is the directory to save downloaded SDK bundles.
-	Destination string
 	// BuildInDocker is set if tarantool must be built in docker container.
 	BuildInDocker bool
 	// Version of the program to install. Specified by user.
 	requestedVersion string
 	// Dynamic flag enables dynamic linking.
 	Dynamic bool
-	// FromBuild is an existing Tarantool build directory to link into the environment.
+	// FromBuild is an existing Tarantool build directory to link into the selected scope.
 	FromBuild string
 	// IncDir is the source header directory for --from-build.
 	IncDir string
@@ -45,19 +43,20 @@ type InstallCtx struct {
 }
 
 func FillCtx(cmdCtx *cmdcontext.CmdCtx, installCtx *InstallCtx, args []string) error {
-	var err error
+	requested := ""
+	if len(args) == 1 {
+		requested = args[0]
+	}
 
-	installCtx.Program, err = binary.ParseProgram(cmdCtx.CommandName)
+	request, err := binary.ParseVersionRequest(cmdCtx.CommandName, requested)
 	if err != nil {
 		return fmt.Errorf("failed create context: %w", err)
 	}
 
+	installCtx.Program = request.Program
+	installCtx.requestedVersion = request.Version
 	installCtx.Verbose = installCtx.Verbose || cmdCtx.Cli.Verbose
 	installCtx.skipMasterUpdate = cmdCtx.Cli.NoPrompt
-
-	if len(args) == 1 {
-		installCtx.requestedVersion = args[0]
-	}
 
 	return nil
 }

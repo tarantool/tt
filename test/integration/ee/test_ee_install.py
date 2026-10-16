@@ -14,7 +14,7 @@ from utils import create_tt_config, run_command_and_get_output
 
 
 @pytest.mark.parametrize(
-    "program, executable, version, bundle_name, bundle_dir",
+    "program, executable, version, bundle_name, bundle_dir, installed_version",
     [
         (
             "tarantool-ee",
@@ -22,8 +22,16 @@ from utils import create_tt_config, run_command_and_get_output
             "gc64-3.4.0-0-r60",
             "tarantool-enterprise-sdk-gc64-3.4.0-0-r60.linux.x86_64.tar.gz",
             "tarantool-enterprise",
+            "3.4.0",
         ),
-        ("tcm", "tcm", "1.3.1-0-g074b5ffa", "tcm-1.3.1-0-g074b5ffa.linux.amd64.tar.gz", ""),
+        (
+            "tcm",
+            "tcm",
+            "1.3.1-0-g074b5ffa",
+            "tcm-1.3.1-0-g074b5ffa.linux.amd64.tar.gz",
+            "",
+            "1.3.1-0-g074b5ffa",
+        ),
     ],
 )
 def test_install_local_bundle(
@@ -34,6 +42,7 @@ def test_install_local_bundle(
     version,
     bundle_name,
     bundle_dir,
+    installed_version,
 ):
     create_tt_config(
         tmp_path,
@@ -73,14 +82,14 @@ def test_install_local_bundle(
         cwd=tmp_path,
     )
     assert rc == 0, output
-    installed_name = f"{program}_{version}"
+    installed_name = f"{program}_{installed_version}"
     root = tmp_path / ".tarantool"
     binaries = root / "versions" / program / installed_name
     assert (binaries / executable).read_bytes() == binary.read_bytes()
     assert (root / "bin" / executable).resolve() == binaries / executable
     if program == "tarantool-ee":
-        installed_headers = root / "versions" / program / installed_name / "inc"
-        assert (root / "inc" / executable).resolve() == installed_headers / executable
+        installed_headers = root / "versions" / program / installed_name / "include"
+        assert (root / "include" / executable).resolve() == installed_headers / executable
         assert (installed_headers / executable / "module.h").read_text() == "/* bundle headers */\n"
 
 
@@ -122,7 +131,7 @@ def test_install_ee(
     assert re.search("Done.", output)
     assert (tmp_path / ".tarantool" / "bin" / exec).exists()
     if incl:
-        assert (tmp_path / ".tarantool" / "inc" / incl).exists()
+        assert (tmp_path / ".tarantool" / "include" / incl).exists()
 
 
 @pytest.mark.slow_ee
@@ -163,4 +172,4 @@ def test_install_ee_dev(
     assert re.search("Done.", output)
     assert (tmp_path / ".tarantool" / "bin" / exec).exists()
     if incl:
-        assert (tmp_path / ".tarantool" / "inc" / incl).exists()
+        assert (tmp_path / ".tarantool" / "include" / incl).exists()

@@ -1,4 +1,5 @@
 import platform
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -7,24 +8,44 @@ from utils import run_command_and_get_output
 
 
 def install_version(root: Path, program: str, version: str, *, headers: bool = True) -> Path:
-    executable = "tarantool" if program == "tarantool-ee" else program
+    executable = {"tarantool-ee": "tarantool", "tt-ee": "tt"}.get(program, program)
     installation = root / "versions" / program / f"{program}_{version}"
     binary = installation / executable
     binary.parent.mkdir(parents=True, exist_ok=True)
     binary.write_text("#!/bin/sh\nexit 99\n")
     binary.chmod(0o755)
     if headers and executable == "tarantool":
-        (installation / "inc" / executable).mkdir(parents=True)
+        (installation / "include" / executable).mkdir(parents=True)
     return installation
 
 
 def assert_active(root: Path, installation: Path, program: str) -> None:
-    executable = "tarantool" if program == "tarantool-ee" else program
+    executable = {"tarantool-ee": "tarantool", "tt-ee": "tt"}.get(program, program)
     assert (root / "bin" / executable).resolve() == installation / executable
     if executable == "tarantool":
-        assert (root / "inc" / executable).resolve() == installation / "inc" / executable
+        assert (root / "include" / executable).resolve() == installation / "include" / executable
     else:
-        assert not (root / "inc").exists()
+        assert not (root / "include").exists()
+
+
+def run_interactive_switch(cmd, cwd, answers):
+    # Each menu owns an input reader; send answers when their own prompts open.
+    output = b""
+    with subprocess.Popen(
+        cmd, cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    ) as process:
+        for prompt, answer in answers:
+            screen = b""
+            while prompt.encode() not in screen:
+                char = process.stdout.read(1)
+                assert char, output.decode()
+                screen += char
+                output += char
+            process.stdin.write(answer.encode())
+            process.stdin.flush()
+        remaining, _ = process.communicate(timeout=10)
+        output += remaining
+    return process.returncode, output.decode()
 
 
 @pytest.fixture
@@ -58,8 +79,8 @@ def test_switch(tt_cmd: Path, tmp_path: Path, program: str, version: str, active
         (root / "bin").mkdir()
         (root / "bin" / executable).symlink_to(previous / executable)
         if executable == "tarantool":
-            (root / "inc").mkdir()
-            (root / "inc" / executable).symlink_to(previous / "inc" / executable)
+            (root / "include").mkdir()
+            (root / "include" / executable).symlink_to(previous / "include" / executable)
 
     cmd = [tt_cmd, "--self", "binary", "--scope", "project", "switch", program, version]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
@@ -121,7 +142,7 @@ def test_switch_rejects_incomplete_version(tt_cmd, tmp_path, program, stored, re
     rc, output = run_command_and_get_output([*cmd, requested], cwd=tmp_path)
 
     assert rc != 0, output
-    assert "is not installed in current environment" in output
+    assert "is not installed in the selected scope" in output
     assert_active(root, active, program)
 
 
@@ -157,27 +178,27 @@ def test_switch_missing_headers_preserves_local_build(tt_cmd, tmp_path):
     (build / "bin").mkdir(parents=True)
     (build / "bin" / "tarantool").write_text("#!/bin/sh\nexit 99\n")
     (build / "bin" / "tarantool").chmod(0o755)
-    (build / "inc" / "tarantool").mkdir(parents=True)
+    (build / "include" / "tarantool").mkdir(parents=True)
     selected = install_version(root, "tarantool-ee", "3.0.0", headers=False)
     (root / "bin").mkdir()
-    (root / "inc").mkdir()
+    (root / "include").mkdir()
     (root / "bin" / "tarantool").symlink_to(build / "bin" / "tarantool")
-    (root / "inc" / "tarantool").symlink_to(build / "inc" / "tarantool")
+    (root / "include" / "tarantool").symlink_to(build / "include" / "tarantool")
     cmd = [tt_cmd, "--self", "binary", "switch", "tarantool-ee", "3.0.0"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
 
     assert rc != 0
     assert "failed to switch headers" in output
     assert (root / "bin" / "tarantool").resolve() == build / "bin" / "tarantool"
-    assert (root / "inc" / "tarantool").resolve() == build / "inc" / "tarantool"
+    assert (root / "include" / "tarantool").resolve() == build / "include" / "tarantool"
 
-    (selected / "inc" / "tarantool").mkdir(parents=True)
+    (selected / "include" / "tarantool").mkdir(parents=True)
     rc, _ = run_command_and_get_output(cmd, cwd=tmp_path)
 
     assert rc == 0
     assert_active(root, selected, "tarantool-ee")
     assert (build / "bin" / "tarantool").is_file()
-    assert (build / "inc" / "tarantool").is_dir()
+    assert (build / "include" / "tarantool").is_dir()
 
 
 @pytest.mark.parametrize("scope_args", [[], ["--scope", "project"]], ids=["default", "project"])
@@ -192,7 +213,7 @@ def test_switch_project_ignores_parent_and_user(tt_cmd, tmp_path, user_root, sco
     rc, output = run_command_and_get_output(cmd, cwd=nested)
 
     assert rc != 0
-    assert "is not installed in current environment" in output
+    assert "is not installed in the selected scope" in output
     assert not (nested / ".tarantool").exists()
     assert not (parent_root / "bin").exists()
     assert not (user_root / "bin").exists()
@@ -215,7 +236,7 @@ def test_switch_user_ignores_project(tt_cmd, tmp_path, user_root):
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
 
     assert rc != 0
-    assert "is not installed in current environment" in output
+    assert "is not installed in the selected scope" in output
     assert_active(user_root, selected, "tt")
     assert not (project_root / "bin").exists()
 
@@ -225,7 +246,9 @@ def test_switch_interactive_raw_version(tt_cmd, tmp_path, version):
     root = tmp_path / ".tarantool"
     selected = install_version(root, "tt", version)
     cmd = [tt_cmd, "--self", "binary", "switch", "tt"]
-    rc, output = run_command_and_get_output(cmd, cwd=tmp_path, input="\n")
+    rc, output = run_interactive_switch(
+        cmd, tmp_path, [("Select tt edition", "\n"), ("Select version", "\n")],
+    )
 
     assert rc == 0
     assert f"Switching to tt_{version}" in output
@@ -239,7 +262,9 @@ def test_switch_interactive_preserves_colliding_release_identity(tt_cmd, tmp_pat
     (root / "bin").mkdir()
     (root / "bin" / "tt").symlink_to(selected / "tt")
     cmd = [tt_cmd, "--self", "binary", "switch", "tt"]
-    rc, output = run_command_and_get_output(cmd, cwd=tmp_path, input="\x1b[B\n")
+    rc, output = run_interactive_switch(
+        cmd, tmp_path, [("Select tt edition", "\n"), ("Select version", "\x1b[B\n")],
+    )
 
     assert rc == 0
     assert "3.0.0 [active]" in output
@@ -258,9 +283,13 @@ def test_switch_interactive_preserves_numeric_identity(tt_cmd, tmp_path, program
     cmd = [tt_cmd, "--self", "binary", "switch", program]
 
     rc, output = run_command_and_get_output([*cmd, "3.8.1"], cwd=tmp_path)
-    assert rc != 0, output
-    assert "more than one installed version matches" in output
-    assert not (root / "bin").exists()
+    if program == "tarantool-ee":
+        assert rc == 0, output
+        assert_active(root, selected, program)
+    else:
+        assert rc != 0, output
+        assert "more than one installed version matches" in output
+        assert not (root / "bin").exists()
 
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path, input="\n")
     assert rc == 0, output

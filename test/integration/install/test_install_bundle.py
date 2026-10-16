@@ -1,6 +1,7 @@
 import io
 import os
 import platform
+import re
 import subprocess
 import tarfile
 
@@ -13,6 +14,9 @@ TCM_VERSION = "1.3.1-0-g074b5ffa"
 
 VERSION_SELECTION_BUNDLES = {
     "tarantool-ee": [
+        "gc64-2.11.1-0-r8",
+        "gc64-2.11.1-0-r9",
+        "nogc64-2.11.1-0-r10",
         "gc64-3.4.0-0-r9",
         "gc64-3.4.0-0-r60",
         "gc64-3.4.1-0-r61",
@@ -119,14 +123,20 @@ def install(
 
 def assert_active(root, program, version):
     executable = "tarantool" if program == "tarantool-ee" else "tcm"
+    if program == "tarantool-ee":
+        match = re.match(r"(.*?)(\d+\.\d+\.\d+(?:-(?:entrypoint|alpha|beta|rc)\d*)?)", version)
+        build, number = match.groups()
+        if int(number.split(".")[0]) >= 3:
+            build = build.replace("nogc64-", "").replace("gc64-", "")
+        version = build + number
     destination = root / "versions" / program / f"{program}_{version}"
     binary = destination / executable
     assert os.access(binary, os.X_OK)
     assert not (destination / "bin").exists()
     assert (root / "bin" / executable).readlink() == binary
     if program == "tarantool-ee":
-        assert (root / "inc" / "tarantool").readlink() == destination / "inc" / "tarantool"
-        assert (root / "inc" / "tarantool" / "module.h").read_text()
+        assert (root / "include" / "tarantool").readlink() == destination / "include" / "tarantool"
+        assert (root / "include" / "tarantool" / "module.h").read_text()
     return destination
 
 
@@ -138,6 +148,10 @@ def assert_active(root, program, version):
         ("tarantool-ee", "3", "gc64-3.8.1-0-r70"),
         ("tarantool-ee", "3.4", "gc64-3.4.1-0-r61"),
         ("tarantool-ee", "3.4.0", "gc64-3.4.0-0-r60"),
+        ("tarantool-ee", "gc64-2.11.1", "gc64-2.11.1-0-r9"),
+        ("tarantool-ee", "nogc64-2.11.1", "nogc64-2.11.1-0-r10"),
+        ("tarantool-ee", "3.9.0-rc2", "gc64-3.9.0-rc2-0-r80"),
+        ("tarantool-ee", "debug-3.9.2", "debug-gc64-3.9.2-0-r99"),
         ("tarantool-ee", "gc64-3.4.0-0-r9", "gc64-3.4.0-0-r9"),
         ("tarantool-ee", "gc64-3.9.0-rc2-0-r80", "gc64-3.9.0-rc2-0-r80"),
         ("tarantool-ee", "nogc64-3.9.1-0-r90", "nogc64-3.9.1-0-r90"),
@@ -163,7 +177,7 @@ def test_bundle_version_selection(tt_cmd, tmp_path, program, requested, expected
     assert rc == 0, output
     assert output.strip() == expected
     if program == "tarantool-ee":
-        assert (root / "inc" / "tarantool" / "module.h").read_text() == expected
+        assert (root / "include" / "tarantool" / "module.h").read_text() == expected
 
 
 @pytest.mark.parametrize("program", ["tarantool-ee", "tcm"])
@@ -261,9 +275,7 @@ def test_bundle_short_version_preserves_sole_installation(
 @pytest.mark.parametrize(
     "program,first,second,requested",
     [
-        ("tarantool-ee", EE_VERSION, "nogc64-3.4.0-0-r60", "3.4.0"),
-        ("tarantool-ee", EE_VERSION, "gc64-3.4.0-0-r61", "3.4.0"),
-        ("tarantool-ee", EE_VERSION, "gc64-3.4.0-rc1-0-r60", "3.4.0"),
+        ("tarantool-ee", "gc64-2.11.1-0-r60", "nogc64-2.11.1-0-r60", "2.11.1"),
         ("tcm", TCM_VERSION, "1.3.1-1-g3857712a", "1.3.1"),
         ("tcm", TCM_VERSION, "1.3.1-rc1-0-g074b5ffa", "1.3.1"),
     ],
@@ -285,7 +297,7 @@ def test_bundle_ambiguous_version_preserves_installations(
         assert rc == 0, output
         installations.append(assert_active(root, program, version))
     executable = "tarantool" if program == "tarantool-ee" else "tcm"
-    link_dirs = ("bin", "inc") if program == "tarantool-ee" else ("bin",)
+    link_dirs = ("bin", "include") if program == "tarantool-ee" else ("bin",)
     links_before = [(root / directory / executable).readlink() for directory in link_dirs]
 
     rc, output = run_command_and_get_output(
@@ -294,7 +306,8 @@ def test_bundle_ambiguous_version_preserves_installations(
     )
     assert rc != 0, output
     assert "more than one installed version matches" in output
-    assert first in output and second in output
+    assert installations[0].name.removeprefix(f"{program}_") in output
+    assert installations[1].name.removeprefix(f"{program}_") in output
     assert all(path.is_dir() for path in installations)
     assert [(root / directory / executable).readlink() for directory in link_dirs] == links_before
     assert_active(root, program, second)
@@ -319,13 +332,20 @@ def test_bundle_scope(tt_cmd, tmp_path, program, version, scope, absolute):
     repository = tmp_path / "local bundles" if absolute else "local bundles"
     rc, output = install(tt_cmd, tmp_path, program, version, scope, repository=repository)
     assert rc == 0, output
+    assert "to PATH to use this as default" not in output
     root = scope_root(tmp_path, scope)
     destination = assert_active(root, program, version)
     if program == "tcm":
-        assert not (root / "inc").exists()
-        assert not (destination / "inc").exists()
+        assert not (root / "include").exists()
+        assert not (destination / "include").exists()
     if scope == "user":
         assert not scope_root(tmp_path).exists()
+        assert not (tmp_path / ".env").exists()
+        assert "source .env/activate.sh" not in output
+    else:
+        assert (tmp_path / ".env" / "activate.sh").is_file()
+        assert (tmp_path / ".env" / "deactivate.sh").is_file()
+        assert output.count("source .env/activate.sh") == 1
     assert not (tmp_path / "tt.yaml").exists()
 
 
@@ -344,7 +364,9 @@ def test_bundle_ignores_config_sources_and_destinations(tt_cmd, tmp_path, monkey
     rc, output = install(tt_cmd, tmp_path)
     assert rc == 0, output
     assert_active(scope_root(tmp_path), "tarantool-ee", EE_VERSION)
-    assert (scope_root(tmp_path) / "inc" / "tarantool" / "module.h").read_text() == "other source"
+    assert (
+        (scope_root(tmp_path) / "include" / "tarantool" / "module.h").read_text() == "other source"
+    )
     assert not (config_dir / "legacy").exists()
     assert not (config_dir / "headers").exists()
     assert not (tmp_path / "tt.yaml").exists()
@@ -364,7 +386,7 @@ def test_bundle_existing_version_reactivates_without_extraction(
     assert rc == 0, output
     root = scope_root(tmp_path)
     executable = "tarantool" if program == "tarantool-ee" else "tcm"
-    for directory in ["bin", "inc"] if program == "tarantool-ee" else ["bin"]:
+    for directory in ["bin", "include"] if program == "tarantool-ee" else ["bin"]:
         link = root / directory / executable
         link.unlink()
         if dangling:
@@ -376,27 +398,77 @@ def test_bundle_existing_version_reactivates_without_extraction(
     assert_active(root, program, version)
 
 
-def test_bundle_versions_scopes_and_reinstall(tt_cmd, tmp_path):
-    other = "gc64-3.4.0-0-r61"
-    make_bundle(tmp_path)
-    make_bundle(tmp_path, version=other, content="other version")
-    for version, scope in [(EE_VERSION, None), (other, None), (EE_VERSION, "user")]:
+@pytest.mark.parametrize(
+    "first,other,identity",
+    [
+        (EE_VERSION, "gc64-3.4.0-0-r61", "3.4.0"),
+        (EE_VERSION, "nogc64-3.4.0-0-r61", "3.4.0"),
+        ("gc64-2.11.1-0-r60", "gc64-2.11.1-0-r61", "gc64-2.11.1"),
+        ("nogc64-2.11.1-0-r60", "nogc64-2.11.1-0-r61", "nogc64-2.11.1"),
+        ("gc64-3.4.0-rc1-0-r60", "gc64-3.4.0-rc1-0-r61", "3.4.0-rc1"),
+        ("debug-gc64-3.4.0-0-r60", "debug-gc64-3.4.0-0-r61", "debug-3.4.0"),
+    ],
+)
+def test_ee_revision_identity_scopes_and_reinstall(tt_cmd, tmp_path, first, other, identity):
+    make_bundle(tmp_path, version=first)
+    make_bundle(tmp_path, version=other, content="other revision")
+    for version, scope in [(first, None), (other, None), (other, "user")]:
         rc, output = install(tt_cmd, tmp_path, version=version, scope=scope)
         assert rc == 0, output
+        if version == other and scope is None:
+            assert "already exists" in output
+            assert "Unpacking archive" not in output
     root = scope_root(tmp_path)
-    selected = root / "versions" / "tarantool-ee" / f"tarantool-ee_{EE_VERSION}"
-    (selected / "inc" / "tarantool" / "stale.h").write_text("stale")
-    make_bundle(tmp_path, content="replacement")
-    rc, output = install(tt_cmd, tmp_path, reinstall=True)
+    selected = root / "versions" / "tarantool-ee" / f"tarantool-ee_{identity}"
+    assert list(selected.parent.iterdir()) == [selected]
+    assert "original" in (root / "bin" / "tarantool").read_text()
+    assert (root / "include" / "tarantool" / "module.h").read_text() == "original"
+    (selected / "include" / "tarantool" / "stale.h").write_text("stale")
+    make_bundle(tmp_path, version=other, content="replacement")
+    rc, output = install(tt_cmd, tmp_path, version=other, reinstall=True)
     assert rc == 0, output
-    assert_active(root, "tarantool-ee", EE_VERSION)
-    assert not (selected / "inc" / "tarantool" / "stale.h").exists()
-    assert (root / "inc" / "tarantool" / "module.h").read_text() == "replacement"
-    other_root = root / "versions" / "tarantool-ee" / f"tarantool-ee_{other}"
-    assert (other_root / "inc" / "tarantool" / "module.h").read_text() == "other version"
+    assert_active(root, "tarantool-ee", other)
+    assert list(selected.parent.iterdir()) == [selected]
+    assert "replacement" in (root / "bin" / "tarantool").read_text()
+    assert not (selected / "include" / "tarantool" / "stale.h").exists()
+    assert (root / "include" / "tarantool" / "module.h").read_text() == "replacement"
     assert (
-        scope_root(tmp_path, "user") / "inc" / "tarantool" / "module.h"
-    ).read_text() == "original"
+        scope_root(tmp_path, "user") / "include" / "tarantool" / "module.h"
+    ).read_text() == "other revision"
+
+
+@pytest.mark.parametrize("operation", ["switch", "uninstall"])
+@pytest.mark.parametrize("full_request", [False, True])
+def test_ee_canonical_stable_version_with_prerelease_and_debug(
+    tt_cmd,
+    tmp_path,
+    operation,
+    full_request,
+):
+    root = scope_root(tmp_path)
+    for version in [EE_VERSION, "gc64-3.4.0-rc1-0-r60", "debug-gc64-3.4.0-0-r60"]:
+        make_bundle(tmp_path, version=version)
+        rc, output = install(tt_cmd, tmp_path, version=version)
+        assert rc == 0, output
+        assert_active(root, "tarantool-ee", version)
+
+    rc, output = run_command_and_get_output([tt_cmd, "--self", "binary", "list"], cwd=tmp_path)
+    assert rc == 0, output
+    for identity in ["3.4.0", "3.4.0-rc1", "debug-3.4.0"]:
+        assert identity in output
+    assert EE_VERSION not in output
+
+    requested = "gc64-3.4.0-0-r61" if full_request else "3.4.0"
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "--self", "binary", operation, "tarantool-ee", requested],
+        cwd=tmp_path,
+    )
+    assert rc == 0, output
+    if operation == "switch":
+        assert_active(root, "tarantool-ee", EE_VERSION)
+    else:
+        assert not (root / "versions" / "tarantool-ee" / "tarantool-ee_3.4.0").exists()
+        assert_active(root, "tarantool-ee", "debug-gc64-3.4.0-0-r60")
 
 
 @pytest.mark.parametrize("failure", ["corrupt", "binary", "headers"])
@@ -408,7 +480,9 @@ def test_bundle_invalid_archive_preserves_destination(tt_cmd, tmp_path, failure,
         rc, output = install(tt_cmd, tmp_path)
         assert rc == 0, output
         binary_before = (root / "bin" / "tarantool").read_bytes()
-        links_before = [(root / directory / "tarantool").readlink() for directory in ["bin", "inc"]]
+        links_before = [
+            (root / directory / "tarantool").readlink() for directory in ["bin", "include"]
+        ]
     archive = make_bundle(tmp_path, missing=failure)
     if failure == "corrupt":
         archive.write_bytes(b"invalid archive")
@@ -416,12 +490,13 @@ def test_bundle_invalid_archive_preserves_destination(tt_cmd, tmp_path, failure,
     assert rc != 0, output
     if reinstall:
         assert (root / "bin" / "tarantool").read_bytes() == binary_before
-        assert (root / "inc" / "tarantool" / "module.h").read_text() == "original"
+        assert (root / "include" / "tarantool" / "module.h").read_text() == "original"
         assert [
-            (root / directory / "tarantool").readlink() for directory in ["bin", "inc"]
+            (root / directory / "tarantool").readlink() for directory in ["bin", "include"]
         ] == links_before
     else:
         assert not root.exists()
+        assert not (tmp_path / ".env").exists()
 
 
 def test_tcm_preserves_active_tarantool_headers(tt_cmd, tmp_path):
@@ -429,13 +504,15 @@ def test_tcm_preserves_active_tarantool_headers(tt_cmd, tmp_path):
     rc, output = install(tt_cmd, tmp_path)
     assert rc == 0, output
     root = scope_root(tmp_path)
-    links = [(root / directory / "tarantool").readlink() for directory in ["bin", "inc"]]
+    links = [(root / directory / "tarantool").readlink() for directory in ["bin", "include"]]
     make_bundle(tmp_path, "tcm", TCM_VERSION)
     rc, output = install(tt_cmd, tmp_path, "tcm", TCM_VERSION)
     assert rc == 0, output
     destination = assert_active(root, "tcm", TCM_VERSION)
-    assert not (destination / "inc").exists()
-    assert [(root / directory / "tarantool").readlink() for directory in ["bin", "inc"]] == links
+    assert not (destination / "include").exists()
+    assert [
+        (root / directory / "tarantool").readlink() for directory in ["bin", "include"]
+    ] == links
 
 
 def test_ee_switches_both_ce_active_links(tt_cmd, tmp_path):
@@ -445,10 +522,10 @@ def test_ee_switches_both_ce_active_links(tt_cmd, tmp_path):
     binary.parent.mkdir(parents=True)
     binary.write_text("#!/bin/sh\necho 'Tarantool 3.2.1'\n")
     binary.chmod(0o755)
-    headers = ce / "inc" / "tarantool"
+    headers = ce / "include" / "tarantool"
     headers.mkdir(parents=True)
     (headers / "module.h").write_text("CE headers")
-    for directory, destination in [("bin", binary), ("inc", headers)]:
+    for directory, destination in [("bin", binary), ("include", headers)]:
         (root / directory).mkdir()
         (root / directory / "tarantool").symlink_to(destination)
     make_bundle(tmp_path)
@@ -483,7 +560,7 @@ def test_ee_switches_both_ce_active_links(tt_cmd, tmp_path):
     )
     assert rc == 0, output
     assert (root / "bin" / "tarantool").readlink() == binary
-    assert (root / "inc" / "tarantool").readlink() == headers
+    assert (root / "include" / "tarantool").readlink() == headers
 
 
 def test_tcm_reinstall_replaces_only_selected_version(tt_cmd, tmp_path):
@@ -500,4 +577,4 @@ def test_tcm_reinstall_replaces_only_selected_version(tt_cmd, tmp_path):
     assert "replacement" in (root / "bin" / "tcm").read_text()
     other_binary = root / "versions" / "tcm" / f"tcm_{other}" / "tcm"
     assert "original" in other_binary.read_text()
-    assert not (root / "inc").exists()
+    assert not (root / "include").exists()

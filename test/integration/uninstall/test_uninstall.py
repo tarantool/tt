@@ -16,7 +16,7 @@ def install_version(root: Path, program: str, version: str, *, active=False, hea
     binary.write_text("#!/bin/sh\nexit 99\n")
     binary.chmod(0o755)
     if headers and executable == "tarantool":
-        includes = installation / "inc" / executable
+        includes = installation / "include" / executable
         includes.mkdir(parents=True)
         (includes / "module.h").write_text("/* installed headers */\n")
     if active:
@@ -28,7 +28,7 @@ def select_version(root: Path, installation: Path, program: str) -> None:
     executable = "tarantool" if program == "tarantool-ee" else program
     targets = [(root / "bin" / executable, installation / executable)]
     if executable == "tarantool":
-        targets.append((root / "inc" / executable, installation / "inc" / executable))
+        targets.append((root / "include" / executable, installation / "include" / executable))
     for link, target in targets:
         link.parent.mkdir(parents=True, exist_ok=True)
         link.unlink(missing_ok=True)
@@ -39,7 +39,7 @@ def assert_active(root: Path, installation: Path, program: str) -> None:
     executable = "tarantool" if program == "tarantool-ee" else program
     assert (root / "bin" / executable).resolve() == installation / executable
     if executable == "tarantool":
-        assert (root / "inc" / executable).resolve() == installation / "inc" / executable
+        assert (root / "include" / executable).resolve() == installation / "include" / executable
 
 
 def uninstall(tt_cmd, cwd, program, version=None, *, scope="project", config=None):
@@ -75,7 +75,7 @@ def test_uninstall_tt(tt_cmd, tmp_path, version):
     assert "tarantool=master is uninstalled." in output
     assert not installation.exists()
     assert not (root / "bin" / "tarantool").is_symlink()
-    assert not (root / "inc" / "tarantool").is_symlink()
+    assert not (root / "include" / "tarantool").is_symlink()
 
 
 def test_uninstall_default_many(tt_cmd, tmp_path):
@@ -112,12 +112,12 @@ def test_uninstall_tarantool_from_build(tt_cmd, tmp_path, is_symlink_broken):
     root = tmp_path / ".tarantool"
     replacement = install_version(root, "tarantool", "2.10.4")
     build = tmp_path / "external build"
-    (build / "inc" / "tarantool").mkdir(parents=True)
+    (build / "include" / "tarantool").mkdir(parents=True)
     (build / "tarantool").write_text("source executable")
     select_version(root, build, "tarantool")
     if is_symlink_broken:
         (build / "tarantool").unlink()
-        rmtree(build / "inc")
+        rmtree(build / "include")
 
     rc, output = uninstall(tt_cmd, tmp_path, "tarantool")
     assert rc == 0, output
@@ -125,7 +125,7 @@ def test_uninstall_tarantool_from_build(tt_cmd, tmp_path, is_symlink_broken):
     assert_active(root, replacement, "tarantool")
     if not is_symlink_broken:
         assert (build / "tarantool").read_text() == "source executable"
-        assert (build / "inc" / "tarantool").is_dir()
+        assert (build / "include" / "tarantool").is_dir()
 
 
 def test_uninstall_tarantool_without_local_build_requires_version(tt_cmd, tmp_path):
@@ -167,13 +167,15 @@ def test_uninstall_tarantool_no_switch(tt_cmd, tmp_path):
     removed = install_version(root, "tarantool", "1.10.15")
     active = install_version(root, "tarantool", "2.10.4", active=True)
     install_version(root, "tarantool", "2.10.7-entrypoint")
-    links = [(root / directory / "tarantool").readlink() for directory in ["bin", "inc"]]
+    links = [(root / directory / "tarantool").readlink() for directory in ["bin", "include"]]
     rc, output = uninstall(tt_cmd, tmp_path, "tarantool", "1.10.15")
     assert rc == 0, output
     assert "Changing symlinks..." not in output
     assert not removed.exists()
     assert_active(root, active, "tarantool")
-    assert links == [(root / directory / "tarantool").readlink() for directory in ["bin", "inc"]]
+    assert links == [
+        (root / directory / "tarantool").readlink() for directory in ["bin", "include"]
+    ]
 
 
 @pytest.mark.parametrize(
@@ -224,7 +226,7 @@ def test_uninstall_last_version(tt_cmd, tmp_path, program):
     assert not removed.exists()
     executable = "tarantool" if program == "tarantool-ee" else program
     assert not (root / "bin" / executable).is_symlink()
-    assert not (root / "inc" / executable).is_symlink()
+    assert not (root / "include" / executable).is_symlink()
 
 
 @pytest.mark.parametrize("with_ce_replacement", [False, True])
@@ -242,7 +244,7 @@ def test_uninstall_ce_replacement_stays_ce(tt_cmd, tmp_path, with_ce_replacement
         assert_active(root, replacement, "tarantool")
     else:
         assert not (root / "bin" / "tarantool").is_symlink()
-        assert not (root / "inc" / "tarantool").is_symlink()
+        assert not (root / "include" / "tarantool").is_symlink()
 
 
 def test_uninstall_ignores_unusable_replacements(tt_cmd, tmp_path):
@@ -254,7 +256,7 @@ def test_uninstall_ignores_unusable_replacements(tt_cmd, tmp_path):
     assert rc == 0, output
     assert "Changing symlinks..." not in output
     assert not (root / "bin" / "tarantool").is_symlink()
-    assert not (root / "inc" / "tarantool").is_symlink()
+    assert not (root / "include" / "tarantool").is_symlink()
 
 
 def test_uninstall_incomplete_version(tt_cmd, tmp_path):

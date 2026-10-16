@@ -28,7 +28,7 @@ type SearchCtx struct {
 	binary.BinaryContext
 
 	// LocalRepo is the source directory: --local-repo for Git repositories,
-	// or --local-dir for EE/TCM archives.
+	// or --local-dir for SDK or standalone archives.
 	LocalRepo string
 	// CredentialsFile contains customer-zone credentials for remote EE and TCM searches.
 	CredentialsFile string
@@ -61,9 +61,16 @@ func NewSearchCtx(informer PlatformInformer, doer binary.TntIoDoer) SearchCtx {
 }
 
 // printVersion annotates a version using only paths in the selected scope.
-func printVersion(root string, program binary.Program, versionStr string) {
-	installedPath := filepath.Join(root, binary.VersionsDirName, program.String(),
-		program.String()+version.FsSeparator+versionStr, program.Exec())
+func printVersion(root string, program binary.Program, available version.Version) {
+	versionStr := available.Str
+	if program == binary.ProgramSDK {
+		printSDKVersion(root, versionStr)
+
+		return
+	}
+
+	selected := binary.BundleInstallationID(program, available)
+	installedPath := filepath.Join(binary.InstallationPath(root, program, selected), program.Exec())
 	info, err := os.Stat(installedPath)
 
 	if err != nil || !info.Mode().IsRegular() {
@@ -83,6 +90,36 @@ func printVersion(root string, program binary.Program, versionStr string) {
 	_, _ = fmt.Fprintf(os.Stdout, "%s [%s]\n", versionStr, label)
 }
 
+func printSDKVersion(root, selected string) {
+	sdk, err := binary.ReadSDK(root, selected)
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stdout, selected)
+
+		return
+	}
+
+	err = binary.ValidateSDKManifest(sdk, selected)
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stdout, selected)
+
+		return
+	}
+
+	err = binary.ValidateSDKFiles(root, sdk)
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stdout, selected)
+
+		return
+	}
+
+	label := "installed"
+	if binary.SDKActive(root, sdk) {
+		label = "active"
+	}
+
+	_, _ = fmt.Fprintf(os.Stdout, "%s [%s]\n", selected, label)
+}
+
 // SearchVersions outputs available versions of program.
 func SearchVersions(searchCtx SearchCtx) error {
 	root, err := searchCtx.Scope.ArtifactPath()
@@ -95,10 +132,10 @@ func SearchVersions(searchCtx SearchCtx) error {
 
 	var vers version.VersionSlice
 
-	switch prg {
-	case binary.ProgramCe, binary.ProgramTt:
+	switch {
+	case prg.GitRepo() != "":
 		vers, err = searchVersionsGit(prg.GitRepo())
-	case binary.ProgramEe, binary.ProgramTcm: // Group of API-based searches.
+	case prg.BundleSource() != binary.ProgramUnknown:
 		vers, err = searchVersionsTntIo(&searchCtx)
 	default:
 		return fmt.Errorf("%w%s' is not implemented",
@@ -116,7 +153,7 @@ func SearchVersions(searchCtx SearchCtx) error {
 	}
 
 	for _, v := range vers {
-		printVersion(root, prg, v.Str)
+		printVersion(root, prg, v)
 	}
 
 	return nil

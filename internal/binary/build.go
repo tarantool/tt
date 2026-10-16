@@ -5,9 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
-
-	"github.com/tarantool/tt/v3/cli/version"
 )
 
 // TarantoolBuildPath returns the target of a local build linked from binDir.
@@ -70,7 +67,7 @@ func TarantoolBuildPath(binDir string) (string, error) {
 	}
 }
 
-// tarantoolInstallationRoot recognizes versions/<product>/<product>_<version>/tarantool.
+// tarantoolInstallationRoot recognizes standalone and SDK Tarantool installations.
 func tarantoolInstallationRoot(target string) string {
 	installation := filepath.Dir(target)
 	productDir := filepath.Dir(installation)
@@ -80,14 +77,14 @@ func tarantoolInstallationRoot(target string) string {
 		return ""
 	}
 
-	product := filepath.Base(productDir)
+	program, err := ParseProgram(filepath.Base(productDir))
+	if err != nil || !program.IsTarantool() {
+		return ""
+	}
 
-	switch product {
-	case ProgramCe.String(), ProgramEe.String():
-		name, found := strings.CutPrefix(filepath.Base(installation), product+version.FsSeparator)
-		if found && name != "" {
-			return filepath.Dir(versionsDir)
-		}
+	_, found := InstallationVersion(program, filepath.Base(installation))
+	if found {
+		return filepath.Dir(versionsDir)
 	}
 
 	return ""

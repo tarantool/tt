@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+
+	"github.com/tarantool/tt/v3/cli/version"
 )
 
 // Scope selects the installation scope.
@@ -27,7 +30,7 @@ const (
 	// BinDirName is the directory for active executable links within a scope.
 	BinDirName = "bin"
 	// IncDirName is the headers directory within a scope or a version.
-	IncDirName = "inc"
+	IncDirName = "include"
 )
 
 const (
@@ -102,7 +105,7 @@ func (scope Scope) ArtifactPath() (string, error) {
 	}
 }
 
-// userArtifactPath resolves the user's artifact root using the OS and environment.
+// userArtifactPath resolves the user's artifact root using the OS and environment variables.
 func userArtifactPath() (string, error) {
 	operatingSystem, err := GetOs()
 	if err != nil {
@@ -141,4 +144,57 @@ func systemArtifactPath() (string, error) {
 	}
 
 	return artifactDir, nil
+}
+
+// InstallationName returns the directory name of a standalone or SDK component.
+func InstallationName(program Program, selected string) string {
+	if sdkVersion, found := SDKComponentVersion(program, selected); found {
+		return program.Exec() + "_sdk_" + sdkVersion
+	}
+
+	return program.String() + version.FsSeparator + selected
+}
+
+// InstallationVersion decodes a version directory into its CLI identifier.
+func InstallationVersion(program Program, name string) (string, bool) {
+	if program.CanBeSDKComponent() {
+		if selected, found := strings.CutPrefix(name, program.Exec()+"_sdk_"); found {
+			return SDKVersionPrefix + selected, selected != ""
+		}
+	}
+
+	selected, found := strings.CutPrefix(name, program.String()+version.FsSeparator)
+
+	return selected, found && selected != ""
+}
+
+// InstallationPath locates a version in the selected scope.
+func InstallationPath(root string, program Program, selected string) string {
+	return filepath.Join(root, VersionsDirName, program.String(),
+		InstallationName(program, selected))
+}
+
+// InstalledVersions lists version directories, including incomplete installations.
+func InstalledVersions(root string, program Program) ([]string, error) {
+	directory := filepath.Join(root, VersionsDirName, program.String())
+	entries, err := os.ReadDir(directory)
+
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read directory %q: %w", directory, err)
+	}
+
+	var installed []string
+
+	for _, entry := range entries {
+		selected, found := InstallationVersion(program, entry.Name())
+		if entry.IsDir() && found {
+			installed = append(installed, selected)
+		}
+	}
+
+	return installed, nil
 }

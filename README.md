@@ -319,19 +319,61 @@ templates:
 - `restart_on_failure` (bool) - should it restart on failure.
 
 `tt binary install`, `search`, `list`, `switch`, and `uninstall` for `tt`, `tarantool`,
-`tarantool-ee`, and `tcm` use `--scope project` (the default), `user`, or
-`system` to choose the installation root. Executables are stored directly in
+`tarantool-ee`, `tt-ee`, `tcm`, and `tarantool-sdk` use `--scope project` (the default),
+`user`, or `system` to choose the installation root. Executables are stored directly in
 `versions/<product>/<product>_<version>/`, with Tarantool headers in its
-`inc/tarantool/` directory. Active executable links are in `bin/` and Tarantool
-header links in `inc/`. Each command uses only the selected scope; the project
+`include/tarantool/` directory. Active executable links are in `bin/` and Tarantool
+header links in `include/`. Each command uses only the selected scope; the project
 scope is `.tarantool` in the current directory, without searching parents or
 falling back to user/system installations. Binary paths are independent of the
 `env` options in `tt.yaml`. For `search`, the scope only selects the
 installed/active labels; it does not change the source of available versions.
-Installing `tarantool-sdk` downloads an archive to `--destination` (the current
-directory by default). Use `tt binary search tarantool-sdk` to find available
-SDK versions: it is an alias for `tt binary search tarantool-ee`, with the same
-flags and installed/active labels. The short aliases `sdk` and `SDK` also work.
+
+The first successful `tt binary install` in project scope creates
+`.env/activate.sh` and `.env/deactivate.sh`. Existing scripts are preserved.
+Run `source .env/activate.sh` to set `TT_PROJECT_DIR` to the installation's
+project directory, prepend `.tarantool/bin` to `PATH`, and set
+`TT_CLI_TARANTOOL_PREFIX` to the project's `.tarantool` directory. The prefix
+selects the active headers in `.tarantool/include/tarantool`.
+Run `source .env/deactivate.sh` to restore the previous `PATH` and Tarantool
+prefix and unset the project variables. User and system installations do not
+create these scripts.
+
+Installing `tarantool-sdk` installs Tarantool Enterprise, tt Enterprise, TCM, and
+headers from one SDK archive. The `tt-ee` product uses the executable name `tt`
+and shares the active `bin/tt` link with ordinary `tt`. Its versions are stored
+separately under `versions/tt-ee/`.
+SDK components have `sdk-<bundle-version>` identities, separate from standalone
+product versions. For example, an SDK component is stored in
+`versions/tarantool-ee/tarantool_sdk_<bundle-version>/` or
+`versions/tcm/tcm_sdk_<bundle-version>/` or
+`versions/tt-ee/tt_sdk_<bundle-version>/`. An ownership record under
+`versions/tarantool-sdk/` identifies the components to remove together.
+
+SDK installation uses the same version semantics as EE: an omitted version or
+`X`, `X.Y`, or `X.Y.Z` selects the latest matching stable gc64 build; a complete
+archive name selects an exact build. SDK installations and their components
+retain the complete bundle version, including the revision.
+`tt binary switch sdk 3.7.1` selects all components
+and headers of the matching SDK. Switch a component independently with
+`tt binary switch tcm sdk-3.7.1`, or select a standalone TT/TCM version as usual.
+Use `tt binary switch tt-ee sdk-3.7.1` to select the SDK's tt Enterprise executable,
+or `tt binary switch tt <version>` to select an ordinary tt version.
+Switching or uninstalling an SDK requires an unambiguous installed version.
+Automatic replacement of TCM and tt-ee installations compares each executable's own version,
+independently of the SDK bundle version.
+
+For user and system scopes, add `<root>/bin` to `PATH` to use the active binaries.
+For project scope, run `source .env/activate.sh`. Uninstalling an SDK
+removes its components while preserving independently selected versions.
+Automatic selection of replacement components is optional: unusable candidates
+are skipped, and a failed switch reports a warning without failing the removal.
+
+Use `tt binary search tarantool-sdk` to find available SDK archives.
+`sdk` and `SDK` are aliases for this search. SDK searches mark
+complete SDK installations and report them as active when all components are selected.
+`tt binary search tarantool-ee` uses the same archive catalog and marks standalone
+Enterprise installations independently.
 
 To install from local files without requiring `tt.yaml`, use:
 
@@ -340,6 +382,11 @@ To install from local files without requiring `tt.yaml`, use:
   `<dir>/tarantool`.
 - `tt binary install tarantool-ee --local-dir <dir>`: Tarantool Enterprise SDK
   archives named `tarantool-enterprise-sdk-*.tar.gz` directly in `<dir>`.
+- `tt binary install tt-ee --local-dir <dir>`: the same SDK archives, extracting
+  only tt Enterprise. Remote installation also downloads the SDK archive;
+  tt Enterprise has no separate download archive.
+- `tt binary install tarantool-sdk --local-dir <dir>`: the same SDK archives,
+  installing the entire supported component set.
 - `tt binary install tcm --local-dir <dir>`: TCM archives named `tcm-*.tar.gz`
   directly in `<dir>`.
 
@@ -349,22 +396,36 @@ product name. Both flags require an explicit directory. Relative paths are
 resolved from the current directory;
 `repo.distfiles` is not used. For EE and TCM, `--local-dir` replaces `--local-repo`.
 
-For `tt binary install tarantool-ee` and `tt binary install tcm`, omit the version
+For `tt binary install tarantool-ee`, `tt binary install tt-ee`, and
+`tt binary install tcm`, omit the version
 to select the latest stable build, or specify `X`, `X.Y`, or `X.Y.Z` to select the
 latest matching stable build. EE selects `gc64` builds by default.
 For example, `tt binary install tarantool-ee 3` selects the
 latest stable `gc64` build in major version 3, and `tt binary install tcm 1.3`
 selects the latest stable TCM build in minor version 1.3. These forms also work
 with `--local-dir`. Use a complete version name from `tt binary search` to select
-an exact build, including `nogc64` or RC; partial names such as `gc64-3.4.0` are
-not supported.
+an exact archive, including `nogc64` or RC.
 
-For `tt binary switch` and `tt binary uninstall`, EE and TCM accept `X.Y.Z`
+Standalone `tarantool-ee` installations use the Tarantool version without the SDK
+revision, commit count, or hash: `3.8.1` for 3.x and newer, or `gc64-2.11.1` /
+`nogc64-2.11.1` for older versions. Prerelease and debug variants remain separate,
+such as `3.8.1-rc1`, `debug-3.8.1`, or `debug-gc64-2.11.1`.
+For example, `gc64-3.8.1-0-r93` and `gc64-3.8.1-0-r94` both install into
+`versions/tarantool-ee/tarantool-ee_3.8.1/`. Installing another revision preserves
+the existing executable and headers unless `--reinstall` is specified.
+These installed names also work with `install`, selecting the latest matching
+archive revision, and with `switch` and `uninstall`. A full archive name resolves
+to the same installed version. `search` continues to list full archive versions
+and marks them using the corresponding standalone installation.
+
+For `tt binary switch` and `tt binary uninstall`, EE, tt-ee, and TCM accept `X.Y.Z`
 to match installed versions in the selected scope; `X` and `X.Y` are not expanded.
-Exactly one installation must match. Different build variants, revisions and
-prereleases count as separate matches. For example, if both `gc64-3.8.1-0-r1` and
-`nogc64-3.8.1-0-r1` are installed, `tt binary switch tarantool-ee 3.8.1` fails
-with both full names listed. Specify a full name to select that build.
+For standalone EE, an exact installed name takes precedence. Otherwise exactly
+one installation must match. For example, if both `gc64-2.11.1` and
+`nogc64-2.11.1` are installed, `tt binary switch tarantool-ee 2.11.1` fails
+with both names listed. Specify `gc64-2.11.1` to select that variant.
+For tt-ee, TCM, and SDK components, different build variants, revisions, and
+prereleases count as separate matches.
 Ambiguous requests leave installations and active links unchanged.
 
 For remote EE/TCM searches and EE/TCM/SDK downloads, use

@@ -101,22 +101,29 @@ def test_install_tarantool_scope(
 
     rc, output = install_tarantool(tt_cmd, tmp_path, flags)
     assert rc == 0, output
+    assert "to PATH to use this as default" not in output
     root = scope_root(tmp_path, scope)
     version = root / "versions" / "tarantool" / "tarantool_3.2.1"
     binary = version / "tarantool"
-    headers = version / "inc" / "tarantool"
+    headers = version / "include" / "tarantool"
     assert binary.read_bytes() == built_binary.read_bytes()
     assert os.access(binary, os.X_OK)
     assert not (version / "bin").exists()
     assert (headers / "module.h").read_bytes() == built_header.read_bytes()
     assert (root / "bin" / "tarantool").readlink() == binary
     assert (root / "bin" / "tarantool").resolve() == binary
-    assert (root / "inc" / "tarantool").readlink() == headers
-    assert (root / "inc" / "tarantool").resolve() == headers
+    assert (root / "include" / "tarantool").readlink() == headers
+    assert (root / "include" / "tarantool").resolve() == headers
     assert build_log.read_text() == "build\n"
     assert not (tmp_path / "tt.yaml").exists()
     if scope == "user":
         assert not (tmp_path / ".tarantool").exists()
+        assert not (tmp_path / ".env").exists()
+        assert "source .env/activate.sh" not in output
+    else:
+        assert (tmp_path / ".env" / "activate.sh").is_file()
+        assert (tmp_path / ".env" / "deactivate.sh").is_file()
+        assert output.count("source .env/activate.sh") == 1
 
 
 @pytest.mark.parametrize("with_symlinks", [False, True])
@@ -125,14 +132,14 @@ def test_install_tarantool_existing_version(tt_cmd, tmp_path, local_tarantool_bu
     root = tmp_path / ".tarantool"
     version = root / "versions" / "tarantool" / "tarantool_3.2.1"
     binary = version / "tarantool"
-    headers = version / "inc" / "tarantool"
+    headers = version / "include" / "tarantool"
     binary.parent.mkdir(parents=True)
     binary.write_bytes(built_binary.read_bytes())
     binary.chmod(0o755)
     headers.mkdir(parents=True)
     (headers / "module.h").write_bytes(built_header.read_bytes())
     if with_symlinks:
-        for directory in ["bin", "inc"]:
+        for directory in ["bin", "include"]:
             (root / directory).mkdir()
             (root / directory / "tarantool").symlink_to("missing-version")
 
@@ -140,7 +147,7 @@ def test_install_tarantool_existing_version(tt_cmd, tmp_path, local_tarantool_bu
     assert rc == 0, output
     assert "already exists" in output
     assert (root / "bin" / "tarantool").resolve() == binary
-    assert (root / "inc" / "tarantool").resolve() == headers
+    assert (root / "include" / "tarantool").resolve() == headers
     assert not build_log.exists()
 
 
@@ -149,7 +156,7 @@ def test_install_tarantool_incomplete_version(tt_cmd, tmp_path, local_tarantool_
     built_binary, _, build_log = local_tarantool_build
     version = tmp_path / ".tarantool" / "versions" / "tarantool" / "tarantool_3.2.1"
     if missing == "binary":
-        (version / "inc" / "tarantool").mkdir(parents=True)
+        (version / "include" / "tarantool").mkdir(parents=True)
     else:
         version.mkdir(parents=True)
         binary = version / "tarantool"
@@ -159,7 +166,7 @@ def test_install_tarantool_incomplete_version(tt_cmd, tmp_path, local_tarantool_
     rc, output = install_tarantool(tt_cmd, tmp_path)
     assert rc == 0, output
     assert (version / "tarantool").read_bytes() == built_binary.read_bytes()
-    assert (version / "inc" / "tarantool" / "module.h").is_file()
+    assert (version / "include" / "tarantool" / "module.h").is_file()
     assert build_log.read_text() == "build\n"
 
 
@@ -169,7 +176,7 @@ def test_install_tarantool_reinstall(tt_cmd, tmp_path, local_tarantool_build, mi
     rc, output = install_tarantool(tt_cmd, tmp_path)
     assert rc == 0, output
     root = tmp_path / ".tarantool"
-    stale_header = root / "inc" / "tarantool" / "stale.h"
+    stale_header = root / "include" / "tarantool" / "stale.h"
     stale_header.write_text("stale header\n")
     other_version = root / "versions" / "tarantool" / "tarantool_0.9.0"
     other_version.mkdir()
@@ -182,7 +189,7 @@ def test_install_tarantool_reinstall(tt_cmd, tmp_path, local_tarantool_build, mi
     rc, output = install_tarantool(tt_cmd, tmp_path, ["--reinstall"])
     assert rc == 0, output
     assert (root / "bin" / "tarantool").read_bytes() == built_binary.read_bytes()
-    assert (root / "inc" / "tarantool" / "module.h").read_bytes() == built_header.read_bytes()
+    assert (root / "include" / "tarantool" / "module.h").read_bytes() == built_header.read_bytes()
     assert not stale_header.exists()
     assert (other_version / "keep").read_text() == "other version\n"
     assert build_log.read_text() == "build\nbuild\n"
@@ -240,9 +247,9 @@ def test_install_tarantool_scopes_are_independent(tt_cmd, tmp_path, local_tarant
     project = scope_root(tmp_path, "project")
     user = scope_root(tmp_path, "user")
     assert (project / "bin" / "tarantool").read_bytes() == original_binary
-    assert (project / "inc" / "tarantool" / "module.h").read_bytes() == original_header
+    assert (project / "include" / "tarantool" / "module.h").read_bytes() == original_header
     assert (user / "bin" / "tarantool").read_bytes() == built_binary.read_bytes()
-    assert (user / "inc" / "tarantool" / "module.h").read_bytes() == built_header.read_bytes()
+    assert (user / "include" / "tarantool" / "module.h").read_bytes() == built_header.read_bytes()
 
 
 @pytest.mark.parametrize("revision", ["release", "commit", "master", "pull-request"])
@@ -298,7 +305,7 @@ def test_install_tarantool_remote_revision(tt_cmd, tmp_path, monkeypatch, revisi
     binary = root / "versions" / "tarantool" / f"tarantool_{name}" / "tarantool"
     assert (root / "bin" / "tarantool").readlink() == binary
     assert binary.read_text() == expected
-    assert (root / "inc" / "tarantool" / "module.h").is_file()
+    assert (root / "include" / "tarantool" / "module.h").is_file()
 
 
 @pytest.mark.usefixtures("local_tarantool_build")
@@ -321,7 +328,7 @@ def test_install_tarantool_existing_master(tt_cmd, tmp_path, local_tarantool_bui
     old_contents = f"#!/bin/sh\necho 'Tarantool 3.0.0-1-g{old_commit}'\n"
     binary.write_text(old_contents)
     binary.chmod(0o755)
-    headers = version / "inc" / "tarantool"
+    headers = version / "include" / "tarantool"
     headers.mkdir(parents=True)
 
     args = [tt_cmd, "--self"]
@@ -345,7 +352,7 @@ def test_install_tarantool_existing_master(tt_cmd, tmp_path, local_tarantool_bui
     )
     assert rc == 0, output
     assert (root / "bin" / "tarantool").resolve() == binary
-    assert (root / "inc" / "tarantool").resolve() == headers
+    assert (root / "include" / "tarantool").resolve() == headers
     if update:
         assert "Found newest commit of tarantool in master" in output
         assert binary.read_bytes() == built_binary.read_bytes()
@@ -378,7 +385,7 @@ def test_install_tarantool_from_build(tt_cmd, tmp_path, scope, binary_path, head
             includes.mkdir()
             flags = ["--include-dir", str(includes.relative_to(tmp_path))]
     root = scope_root(tmp_path, scope)
-    old_headers = root / "inc" / "tarantool"
+    old_headers = root / "include" / "tarantool"
     old_headers.mkdir(parents=True)
     (old_headers / "stale.h").touch()
 
@@ -408,8 +415,15 @@ def test_install_tarantool_from_build(tt_cmd, tmp_path, scope, binary_path, head
     assert not (root / "versions").exists()
     assert binary.is_file()
     assert not (tmp_path / "tt.yaml").exists()
+    assert "to PATH to use this as default" not in output
     if scope == "user":
         assert not (tmp_path / ".tarantool").exists()
+        assert not (tmp_path / ".env").exists()
+        assert "source .env/activate.sh" not in output
+    else:
+        assert (tmp_path / ".env" / "activate.sh").is_file()
+        assert (tmp_path / ".env" / "deactivate.sh").is_file()
+        assert output.count("source .env/activate.sh") == 1
 
 
 @pytest.mark.parametrize(
@@ -459,7 +473,7 @@ def test_install_tarantool_from_build_invalid_headers_preserves_links(
     assert rc == 0, output
     root = tmp_path / ".tarantool"
     original_binary = (root / "bin" / "tarantool").readlink()
-    original_headers = (root / "inc" / "tarantool").readlink()
+    original_headers = (root / "include" / "tarantool").readlink()
     build = tmp_path / "build"
     (build / "src").mkdir(parents=True)
     binary = build / "src" / "tarantool"
@@ -482,7 +496,7 @@ def test_install_tarantool_from_build_invalid_headers_preserves_links(
     )
     assert rc != 0, output
     assert (root / "bin" / "tarantool").readlink() == original_binary
-    assert (root / "inc" / "tarantool").readlink() == original_headers
+    assert (root / "include" / "tarantool").readlink() == original_headers
 
 
 @pytest.mark.usefixtures("scope_environment")
@@ -583,9 +597,9 @@ def test_install_tarantool_docker_scope(tt_cmd, tmp_path, docker_tarantool_build
     root = scope_root(tmp_path, scope)
     version = root / "versions" / "tarantool" / "tarantool_3.2.1"
     assert (root / "bin" / "tarantool").readlink() == version / "tarantool"
-    assert (root / "inc" / "tarantool").readlink() == version / "inc" / "tarantool"
+    assert (root / "include" / "tarantool").readlink() == version / "include" / "tarantool"
     assert (root / "bin" / "tarantool").read_bytes() == built_binary.read_bytes()
-    assert (root / "inc" / "tarantool" / "module.h").read_bytes() == built_header.read_bytes()
+    assert (root / "include" / "tarantool" / "module.h").read_bytes() == built_header.read_bytes()
     assert not (tmp_path / "tt.yaml").exists()
     if scope == "user":
         assert not (tmp_path / ".tarantool").exists()
@@ -600,7 +614,7 @@ def test_install_tarantool_docker_existing_master(tt_cmd, tmp_path, docker_taran
     binary.parent.mkdir(parents=True)
     binary.write_text("#!/bin/sh\necho 'Tarantool 3.2.1-1-g0000000'\n")
     binary.chmod(0o755)
-    headers = version / "inc" / "tarantool"
+    headers = version / "include" / "tarantool"
     headers.mkdir(parents=True)
     (headers / "stale.h").touch()
 
@@ -623,7 +637,7 @@ def test_install_tarantool_docker_existing_master(tt_cmd, tmp_path, docker_taran
     assert rc == 0, output
     assert "Found newest commit of tarantool in master" in output
     assert (root / "bin" / "tarantool").read_bytes() == built_binary.read_bytes()
-    assert (root / "inc" / "tarantool").readlink() == headers
+    assert (root / "include" / "tarantool").readlink() == headers
     assert not (headers / "stale.h").exists()
 
 
@@ -665,7 +679,7 @@ def test_install_tarantool_system_scope_in_docker(tt_cmd, tmp_path, docker_taran
     )
     assert rc == 0, output
     assert str((target / "bin" / "tarantool").readlink()) == "/build/src/tarantool"
-    assert str((target / "inc" / "tarantool").readlink()) == "/build/src"
+    assert str((target / "include" / "tarantool").readlink()) == "/build/src"
     assert (repository / "src" / "tarantool").read_bytes() == built_binary.read_bytes()
     assert (repository / "src" / "module.h").read_bytes() == built_header.read_bytes()
     assert not (target / "versions").exists()

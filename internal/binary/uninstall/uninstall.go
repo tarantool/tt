@@ -1,12 +1,16 @@
 package uninstall
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/version"
@@ -23,7 +27,7 @@ var (
 
 const (
 	MajorMinorPatchRegexp = `^[0-9]+\.[0-9]+\.[0-9]+`
-	activeDirectoryMode   = 0o755
+	productVersionTimeout = 5 * time.Second
 )
 
 // UninstallCtx contains the options for removing an installed program.
@@ -36,7 +40,8 @@ type UninstallCtx struct {
 // validateProgram limits uninstall to products with scoped installations.
 func validateProgram(program binary.Program) error {
 	switch program {
-	case binary.ProgramTt, binary.ProgramCe, binary.ProgramEe, binary.ProgramTcm:
+	case binary.ProgramTt, binary.ProgramTtEe, binary.ProgramCe, binary.ProgramEe,
+		binary.ProgramTcm, binary.ProgramSDK:
 		return nil
 	default:
 		return fmt.Errorf("%w%s", binary.ErrUnknownApplication, program)
@@ -45,8 +50,7 @@ func validateProgram(program binary.Program) error {
 
 // remove deletes one installation and only the active links selecting its artifacts.
 func remove(program binary.Program, programVersion, root string) (bool, error) {
-	installation := filepath.Join(root, binary.VersionsDirName, program.String(),
-		program.String()+version.FsSeparator+programVersion)
+	installation := binary.InstallationPath(root, program, programVersion)
 	info, err := os.Lstat(installation)
 
 	switch {
@@ -58,6 +62,21 @@ func remove(program binary.Program, programVersion, root string) (bool, error) {
 		return false, fmt.Errorf("program is %w", errNotInstalled)
 	}
 
+	removed, err := removeInstallationLinks(program, installation, root)
+	if err != nil {
+		return removed, err
+	}
+
+	err = os.RemoveAll(installation)
+	if err != nil {
+		return removed, fmt.Errorf("failed to remove %q: %w", installation, err)
+	}
+
+	return removed, nil
+}
+
+// removeInstallationLinks also cleans matching links to already missing SDK components.
+func removeInstallationLinks(program binary.Program, installation, root string) (bool, error) {
 	binLink := filepath.Join(root, binary.BinDirName, program.Exec())
 
 	removed, err := removeActiveSymlink(binLink, filepath.Join(installation, program.Exec()))
@@ -78,11 +97,6 @@ func remove(program binary.Program, programVersion, root string) (bool, error) {
 		}
 	default:
 		// TT and TCM have no active headers.
-	}
-
-	err = os.RemoveAll(installation)
-	if err != nil {
-		return removed, fmt.Errorf("failed to remove %q: %w", installation, err)
 	}
 
 	return removed, nil
@@ -133,7 +147,7 @@ func validateDirectories(root string, directories ...string) error {
 	return nil
 }
 
-// removeActiveSymlink compares complete targets before removing a selected link.
+// removeActiveSymlink removes only a link selecting the requested artifact.
 func removeActiveSymlink(linkPath, path string) (bool, error) {
 	info, err := os.Lstat(linkPath)
 
@@ -201,13 +215,16 @@ func UninstallProgram(uninstallCtx UninstallCtx) error {
 		filepath.Join(root, binary.VersionsDirName, program.String()),
 		filepath.Join(root, binary.BinDirName),
 	}
-	if program.IsTarantool() {
+	switch program {
+	case binary.ProgramCe, binary.ProgramEe, binary.ProgramSDK:
 		directories = append(directories, filepath.Join(root, binary.IncDirName))
+	default:
+		// Other products have no headers.
 	}
 
-	if program == binary.ProgramEe {
+	if fallback := program.FallbackProgram(); fallback != binary.ProgramUnknown {
 		directories = append(directories,
-			filepath.Join(root, binary.VersionsDirName, binary.ProgramCe.String()))
+			filepath.Join(root, binary.VersionsDirName, fallback.String()))
 	}
 
 	err = validateDirectories(root, directories...)
@@ -228,16 +245,19 @@ func UninstallProgram(uninstallCtx UninstallCtx) error {
 		}
 	}
 
+	_, fromSDK := binary.SDKComponentVersion(program, programVersion)
+	matchBundleVersion := fromSDK || program.BundleSource() != binary.ProgramUnknown
+
 	switch {
 	case programVersion == "":
 		programVersion, err = getDefault(program, root)
-	case program == binary.ProgramEe || program == binary.ProgramTcm:
+	case matchBundleVersion:
 		installed, readErr := getVersions(program, root)
 		if readErr != nil {
 			return readErr
 		}
 
-		programVersion, err = version.MatchInstalledVersion(programVersion, installed)
+		programVersion, err = binary.MatchInstalledVersion(program, programVersion, installed)
 	}
 
 	if errors.Is(err, version.ErrInstalledVersionNotFound) {
@@ -245,6 +265,12 @@ func UninstallProgram(uninstallCtx UninstallCtx) error {
 	}
 
 	if err != nil {
+		return err
+	}
+
+	if program == binary.ProgramSDK {
+		err = uninstallSDK(root, programVersion)
+
 		return err
 	}
 
@@ -334,25 +360,9 @@ func getVersions(program binary.Program, root string) ([]string, error) {
 		return nil, err
 	}
 
-	entries, err := os.ReadDir(dir)
+	versions, err := binary.InstalledVersions(root, program)
 
-	switch {
-	case errors.Is(err, os.ErrNotExist):
-		return nil, nil
-	case err != nil:
-		return nil, fmt.Errorf("failed to read directory %q: %w", dir, err)
-	}
-
-	var versions []string
-
-	prefix := program.String() + version.FsSeparator
-	for _, entry := range entries {
-		if entry.IsDir() && strings.HasPrefix(entry.Name(), prefix) && entry.Name() != prefix {
-			versions = append(versions, strings.TrimPrefix(entry.Name(), prefix))
-		}
-	}
-
-	return versions, nil
+	return versions, err
 }
 
 // getDefault returns the sole installed version, including incomplete installations.
@@ -399,113 +409,237 @@ func GetList(scope binary.Scope, program string) []string {
 }
 
 // searchLatestVersion returns a replacement installation within the selected root.
-// EE considers both editions; lexical installation names put EE ahead of CE for ties.
-func searchLatestVersion(program binary.Program, root string) (string, error) {
+// Enterprise products also consider the community product sharing their executable.
+func searchLatestVersion(program binary.Program, root string) (binary.Selection, error) {
 	programs := []binary.Program{program}
-	if program == binary.ProgramEe {
-		programs = append(programs, binary.ProgramCe)
+	if fallback := program.FallbackProgram(); fallback != binary.ProgramUnknown {
+		programs = append(programs, fallback)
 	}
 
 	var (
 		latestInfo version.Version
-		latest     string
-		firstHash  string
+		latest     binary.Selection
+		firstHash  binary.Selection
 	)
 
 	for _, candidateProgram := range programs {
 		versions, err := getVersions(candidateProgram, root)
 		if err != nil {
-			return "", err
+			return latest, err
 		}
 
 		for _, candidate := range versions {
-			installation := filepath.Join(root, binary.VersionsDirName, candidateProgram.String(),
-				candidateProgram.String()+version.FsSeparator+candidate)
-			if !isUsableBinary(candidateProgram, installation) {
+			selection := binary.Selection{Program: candidateProgram, ID: candidate}
+
+			err = binary.ValidateInstallation(root, selection)
+			if err != nil {
 				continue
 			}
 
 			isHash, _ := binary.IsValidCommitHash(candidate)
-			if isHash && firstHash == "" {
-				firstHash = installation
-			}
-
 			if isHash {
+				if firstHash.ID == "" {
+					firstHash = selection
+				}
+
 				continue
 			}
 
-			parsed, err := version.Parse(candidate)
+			parsed, err := replacementVersion(root, candidateProgram, candidate)
 			if err != nil {
-				log.Debugf("%q skipped: wrong version format", filepath.Base(installation))
+				log.Debugf("%s %q skipped: %v", candidateProgram, candidate, err)
 
 				continue
 			}
 
-			if latest == "" || version.IsLess(latestInfo, parsed) {
+			if latest.ID == "" || version.IsLess(latestInfo, parsed) {
 				latestInfo = parsed
-				latest = installation
+				latest = selection
 			}
 		}
 	}
 
-	if latest != "" {
+	if latest.ID != "" {
 		return latest, nil
 	}
 
 	return firstHash, nil
 }
 
-// isUsableBinary requires the executable and any matching Tarantool headers.
-func isUsableBinary(program binary.Program, installation string) bool {
-	if !binary.IsRegularFile(filepath.Join(installation, program.Exec())) {
-		return false
+// replacementVersion compares components by their product release. TCM and
+// tt-ee have their own versions, while the SDK version follows Tarantool.
+func replacementVersion(root string, program binary.Program,
+	selected string,
+) (version.Version, error) {
+	productVersion := selected
+	parseVersion := version.Parse
+	sdkVersion, fromSDK := binary.SDKComponentVersion(program, selected)
+
+	if fromSDK {
+		productVersion = sdkVersion
 	}
 
-	return !program.IsTarantool() ||
-		binary.IsDir(filepath.Join(installation, binary.IncDirName, program.Exec()))
+	if program == binary.ProgramTtEe || (fromSDK && program == binary.ProgramTcm) {
+		ctx, cancel := context.WithTimeout(context.Background(), productVersionTimeout)
+		defer cancel()
+
+		executable := filepath.Join(binary.InstallationPath(root, program, selected),
+			program.Exec())
+
+		args := []string{"version"}
+		if program == binary.ProgramTtEe {
+			args = []string{"--self", "version", "--commit"}
+			parseVersion = version.ParseTt
+		}
+
+		output, err := exec.CommandContext(ctx, executable, args...).Output()
+		if err != nil {
+			return version.Version{}, fmt.Errorf("failed to get %s version: %w", program, err)
+		}
+
+		productVersion = strings.TrimSpace(string(output))
+	}
+
+	parsed, err := parseVersion(productVersion)
+	if err != nil {
+		return parsed, fmt.Errorf("failed to read product version for %q: %w", selected, err)
+	}
+
+	return parsed, nil
 }
 
 // switchProgramToLatestVersion selects the replacement executable and matching headers.
 func switchProgramToLatestVersion(program binary.Program, root string) error {
-	installation, err := searchLatestVersion(program, root)
-	if err != nil || installation == "" {
+	selection, err := searchLatestVersion(program, root)
+	if err != nil {
 		return err
+	}
+
+	if selection.ID == "" {
+		return nil
 	}
 
 	log.Infof("Changing symlinks...")
 
-	binDir := filepath.Join(root, binary.BinDirName)
-
-	err = binary.CreateDirectory(binDir, activeDirectoryMode)
+	err = binary.ActivateSelections(root, []binary.Selection{selection})
 	if err != nil {
 		return err
 	}
 
-	err = binary.CreateSymlink(filepath.Join(installation, program.Exec()),
-		filepath.Join(binDir, program.Exec()), true)
-	if err != nil {
-		return err
-	}
-
-	switch program {
-	case binary.ProgramCe, binary.ProgramEe:
-		incDir := filepath.Join(root, binary.IncDirName)
-
-		err = binary.CreateDirectory(incDir, activeDirectoryMode)
-		if err != nil {
-			return err
-		}
-
-		err = binary.CreateSymlink(filepath.Join(installation, binary.IncDirName, program.Exec()),
-			filepath.Join(incDir, program.Exec()), true)
-		if err != nil {
-			return err
-		}
-	default:
-		// TT and TCM have no active headers.
-	}
-
-	log.Infof("Current %q is set to %q.", program.Exec(), filepath.Base(installation))
+	log.Infof("Current %q is set to %q.", program.Exec(),
+		binary.InstallationName(selection.Program, selection.ID))
 
 	return nil
+}
+
+func uninstallSDK(root, selected string) error {
+	sdk, err := binary.ReadSDK(root, selected)
+	if err != nil {
+		return err
+	}
+
+	err = binary.ValidateSDKManifest(sdk, selected)
+	if err != nil {
+		return err
+	}
+
+	selections := sdk.Selections()
+
+	// Inspect every component directory before removing any of the SDK.
+	for _, selection := range selections {
+		err = validateDirectories(root,
+			binary.InstallationPath(root, selection.Program, selection.ID))
+		if err != nil {
+			return err
+		}
+	}
+
+	var activeProducts []binary.Program
+
+	for _, selection := range selections {
+		active, err := remove(selection.Program, selection.ID, root)
+		if errors.Is(err, errNotInstalled) {
+			active, err = removeInstallationLinks(selection.Program,
+				binary.InstallationPath(root, selection.Program, selection.ID), root)
+		}
+
+		if err != nil {
+			return err
+		}
+
+		if active {
+			activeProducts = append(activeProducts, selection.Program)
+		}
+	}
+
+	err = os.RemoveAll(binary.InstallationPath(root, binary.ProgramSDK, selected))
+	if err != nil {
+		return fmt.Errorf("failed to remove SDK installation: %w", err)
+	}
+
+	remaining, err := getVersions(binary.ProgramSDK, root)
+	if err != nil {
+		log.Warnf("Could not inspect remaining SDK installations: %v", err)
+	}
+
+	log.Infof("SDK %s is uninstalled.", selected)
+
+	// Replacements are optional. A broken candidate or failed activation must
+	// neither prevent removal nor turn a completed removal into an error.
+	replacement := latestCompleteSDK(root, remaining)
+	for _, product := range activeProducts {
+		if slices.Contains(replacement.Products, product) {
+			err = binary.ActivateSelections(root, []binary.Selection{
+				{Program: product, ID: binary.SDKVersionPrefix + replacement.Version},
+			})
+		} else {
+			err = switchProgramToLatestVersion(product, root)
+		}
+
+		if err != nil {
+			log.Warnf("Could not activate a replacement for %s: %v", product, err)
+		}
+	}
+
+	return nil
+}
+
+func latestCompleteSDK(root string, installed []string) binary.SDKInstallation {
+	var (
+		latest        binary.SDKInstallation
+		latestVersion version.Version
+	)
+
+	for _, selected := range installed {
+		sdk, err := binary.ReadSDK(root, selected)
+		if err != nil {
+			log.Debugf("SDK %q skipped as a replacement: %v", selected, err)
+
+			continue
+		}
+
+		err = binary.ValidateSDKManifest(sdk, selected)
+		if err != nil {
+			log.Debugf("SDK %q skipped as a replacement: %v", selected, err)
+
+			continue
+		}
+
+		err = binary.ValidateSDKFiles(root, sdk)
+		if err != nil {
+			continue
+		}
+
+		parsed, err := version.Parse(selected)
+		if err != nil {
+			continue
+		}
+
+		if latest.Version == "" || version.IsLess(latestVersion, parsed) {
+			latest = sdk
+			latestVersion = parsed
+		}
+	}
+
+	return latest
 }

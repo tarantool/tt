@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/version"
@@ -31,24 +33,15 @@ var (
 
 // bundleParams holds the parameters required for the bundle installation process.
 type bundleParams struct {
-	// bundleInfo is the structure that holds information about the bundle.
-	// It is filled in during the installation process in getBundleInfoForInstall.
+	// bundleInfo contains the archive version, filename, and download credentials.
+	// Its full SDK version is preserved when the installed product uses a shorter version.
 	bundleInfo search.BundleInfo
-
-	// prgVersion is the specific string is joined program with version.
-	// It's filled in during the installation process in acquireBundleInfo.
-	prgVersion string
 
 	// inst is the install context for the installation process.
 	inst *InstallCtx
 
 	// artifactRoot is the resolved installation scope.
 	artifactRoot string
-
-	// Destination paths are resolved after selecting the bundle version.
-	versionDir string
-	binPath    string
-	incPath    string
 
 	// tmpDir is the temporary directory used for extraction.
 	tmpDir string
@@ -57,23 +50,45 @@ type bundleParams struct {
 	logFile *os.File
 }
 
-// checkExistingInstallation checks if the specific version of the program is already installed.
-// Returns true if the installation exists, false otherwise.
-func checkExistingInstallation(params *bundleParams) bool {
-	binExists := binary.IsRegularFile(params.binPath)
+// selection keeps the installed identity independent of the archive used to obtain it.
+func (params *bundleParams) selection() binary.Selection {
+	return binary.Selection{
+		Program: params.inst.Program,
+		ID: binary.BundleInstallationID(params.inst.Program,
+			params.bundleInfo.Version),
+	}
+}
 
-	if !params.inst.Program.IsTarantool() {
-		log.Debugf("Checking existence: bin=%s (%t)", params.binPath, binExists)
+// validateBundleInstallation checks the selected installation once. For SDKs it
+// also returns the decoded ownership record for the following activation step.
+func validateBundleInstallation(params *bundleParams) (binary.SDKInstallation, error) {
+	var sdk binary.SDKInstallation
 
-		return binExists
+	if params.inst.Program == binary.ProgramSDK {
+		sdk, err := binary.ReadSDK(params.artifactRoot, params.bundleInfo.Version.Str)
+		if err != nil {
+			return sdk, err
+		}
+
+		err = binary.ValidateSDKManifest(sdk, params.bundleInfo.Version.Str)
+		if err != nil {
+			return sdk, err
+		}
+
+		err = binary.ValidateSDKFiles(params.artifactRoot, sdk)
+		if err != nil {
+			return sdk, err
+		}
+
+		return sdk, nil
 	}
 
-	incExists := binary.IsDir(params.incPath)
+	err := binary.ValidateInstallation(params.artifactRoot, params.selection())
+	if err != nil {
+		return sdk, err
+	}
 
-	log.Debugf("Checking existence: bin=%s (%t), inc=%s (%t)",
-		params.binPath, binExists, params.incPath, incExists)
-
-	return binExists && incExists
+	return sdk, nil
 }
 
 // prepareTemporaryDirs creates temporary directories for installation and logging.
@@ -141,7 +156,7 @@ func downloadBundle(params *bundleParams) error {
 		NewTntIoDownloader(params.bundleInfo.Token),
 	)
 
-	searchCtx.Program = params.inst.Program
+	searchCtx.Program = params.inst.Program.BundleSource()
 	searchCtx.DevBuilds = params.inst.DevBuild
 	searchCtx.ReleaseVersion = params.bundleInfo.Release
 
@@ -195,8 +210,8 @@ func findBundlePathsInDir(baseDir string, program binary.Program) (
 	case binary.ProgramEe:
 		baseDir = filepath.Join(baseDir, "tarantool-enterprise")
 		incPath = filepath.Join(baseDir, "include", program.Exec())
-	case binary.ProgramTcm:
-		// TCM archives contain only the executable at the archive root.
+	case binary.ProgramTcm, binary.ProgramTtEe:
+		// Standalone archives contain their executable at the archive root.
 	default:
 		return "", "", fmt.Errorf("%w: %s", errUnsupportedBundleProgram, program)
 	}
@@ -213,54 +228,122 @@ func findBundlePathsInDir(baseDir string, program binary.Program) (
 	return binPath, incPath, nil
 }
 
-// prepareForReinstall removes only the selected version after bundle validation.
-func prepareForReinstall(params *bundleParams) error {
-	_, err := os.Lstat(params.versionDir)
-	if os.IsNotExist(err) {
-		return nil
-	}
+// produceBundle validates the archive layout before placing any files.
+func produceBundle(directory string, program binary.Program) ([]bundleArtifact, error) {
+	source := program.BundleSource()
+	switch {
+	case source == binary.ProgramSDK:
+		artifacts, err := produceSDK(directory, program)
 
-	if err != nil {
-		return fmt.Errorf("failed to inspect version directory: %w", err)
-	}
+		return artifacts, err
+	case source.IsStandaloneArchive():
+		executable, _, err := findBundlePathsInDir(directory, program)
+		if err != nil {
+			return nil, err
+		}
 
-	if !params.inst.Reinstall {
-		return fmt.Errorf("%w: %s; use --reinstall to replace an incomplete installation",
-			errBundlePathExists, params.versionDir)
-	}
+		var artifact bundleArtifact
 
-	err = os.RemoveAll(params.versionDir)
-	if err != nil {
-		return fmt.Errorf("failed to remove version directory %s: %w", params.versionDir, err)
-	}
+		artifact.program, artifact.executable = program, executable
 
-	return nil
+		return []bundleArtifact{artifact}, nil
+	default:
+		return nil, fmt.Errorf("%w: %s", errUnsupportedBundleProgram, program)
+	}
 }
 
-// copyNewArtifacts locates the binary and include files in the unpacked directory
-// and copies them to the final destination.
+// produceSDK prepares the Enterprise SDK once and selects the requested products.
+// Installing an individual product selects a subset of the same prepared artifacts.
+func produceSDK(directory string, requested binary.Program) ([]bundleArtifact, error) {
+	products := []binary.Program{requested}
+	if requested == binary.ProgramSDK {
+		products = binary.SDKProducts()
+	}
+
+	artifacts := make([]bundleArtifact, 0, len(products))
+	root := filepath.Join(directory, "tarantool-enterprise")
+
+	for _, program := range products {
+		var artifact bundleArtifact
+
+		artifact.program = program
+		artifact.executable = filepath.Join(root, program.Exec())
+
+		if program == binary.ProgramEe {
+			executable, headers, err := findBundlePathsInDir(directory, program)
+			if err != nil {
+				return nil, err
+			}
+
+			artifact.executable, artifact.headers = executable, headers
+		} else if !binary.IsRegularFile(artifact.executable) {
+			return nil, fmt.Errorf("%w%q", errCouldNotFindBinaryAt, artifact.executable)
+		}
+
+		artifacts = append(artifacts, artifact)
+	}
+
+	return artifacts, nil
+}
+
+// prepareBundlePlacements resolves ownership and destinations once, before the
+// store stages any files. The manifest records the artifacts actually prepared.
+func prepareBundlePlacements(params *bundleParams, artifacts []bundleArtifact) []bundlePlacement {
+	selected := params.selection()
+
+	var sdk binary.SDKInstallation
+
+	selections := []binary.Selection{selected}
+	if selected.Program == binary.ProgramSDK {
+		sdk.Version = selected.ID
+		for _, artifact := range artifacts {
+			sdk.Products = append(sdk.Products, artifact.program)
+		}
+
+		selections = sdk.Selections()
+	}
+
+	placements := make([]bundlePlacement, 0, len(artifacts)+1)
+	for index, artifact := range artifacts {
+		selection := selections[index]
+
+		placements = append(placements, bundlePlacement{
+			destination: binary.InstallationPath(params.artifactRoot,
+				selection.Program, selection.ID),
+			prepare: func(directory string) error {
+				err := stageBundleArtifact(directory, artifact)
+
+				return err
+			},
+		})
+	}
+
+	if selected.Program == binary.ProgramSDK {
+		placements = append(placements, bundlePlacement{
+			destination: binary.InstallationPath(params.artifactRoot,
+				selected.Program, selected.ID),
+			prepare: func(directory string) error {
+				err := binary.WriteSDK(directory, sdk)
+
+				return err
+			},
+		})
+	}
+
+	return placements
+}
+
+// copyNewArtifacts prepares and places the selected products from the unpacked archive.
 func copyNewArtifacts(params *bundleParams) error {
-	srcBinPath, srcIncPath, err := findBundlePathsInDir(params.tmpDir, params.inst.Program)
+	artifacts, err := produceBundle(params.tmpDir, params.inst.Program)
 	if err != nil {
 		_, _ = fmt.Fprintf(params.logFile, "Error finding artifacts: %v\n", err)
 		return fmt.Errorf("failed to locate artifacts after extraction: %w", err)
 	}
 
-	err = prepareForReinstall(params)
-	if err != nil {
-		_, _ = fmt.Fprintf(params.logFile, "Error preparing for reinstall: %v\n", err)
-		return fmt.Errorf("failed to prepare for reinstall: %w", err)
-	}
+	placements := prepareBundlePlacements(params, artifacts)
 
-	switch params.inst.Program {
-	case binary.ProgramEe:
-		err = copyBuiltTarantool(srcBinPath, srcIncPath, params.binPath, params.incPath)
-	case binary.ProgramTcm:
-		err = copyExecutable(srcBinPath, params.binPath)
-	default:
-		return fmt.Errorf("%w: %s", errUnsupportedBundleProgram, params.inst.Program)
-	}
-
+	err = placeBundleArtifacts(placements, params.inst.Reinstall)
 	if err != nil {
 		return fmt.Errorf("failed to copy artifacts: %w", err)
 	}
@@ -270,40 +353,34 @@ func copyNewArtifacts(params *bundleParams) error {
 	return nil
 }
 
-// changeActiveBundleVersion changes symlinks to the specified bundle executable version.
-func changeActiveBundleVersion(params *bundleParams) error {
-	if !checkExistingInstallation(params) {
-		return fmt.Errorf("%w %s", errIncompleteBundle, params.prgVersion)
-	}
-
-	switch params.inst.Program {
-	case binary.ProgramEe:
-		return changeActiveTarantoolVersion(params.binPath, params.incPath, params.artifactRoot)
-	case binary.ProgramTcm:
-		return activateBundleExecutable(params.binPath, params.artifactRoot,
-			params.inst.Program.Exec())
-	default:
-		return fmt.Errorf("%w: %s", errUnsupportedBundleProgram, params.inst.Program)
-	}
-}
-
-// activateBundleExecutable creates the active executable link for a validated installation.
-func activateBundleExecutable(binPath, artifactRoot, executable string) error {
-	binDir := filepath.Join(artifactRoot, binary.BinDirName)
-
-	err := os.MkdirAll(binDir, defaultDirPermissions)
-	if err != nil {
-		return fmt.Errorf("failed to create binary directory: %w", err)
-	}
-
-	return binary.CreateSymlink(binPath, filepath.Join(binDir, executable), true)
-}
-
-// updateSymlinks updates the default symlinks to point to the newly installed version.
+// updateSymlinks validates the newly installed version before activating it.
 func updateSymlinks(params *bundleParams) error {
-	log.Infof("Updating symlinks to point to %s...", params.prgVersion)
+	sdk, err := validateBundleInstallation(params)
+	if err != nil {
+		return fmt.Errorf("%w %s: %w", errIncompleteBundle, params.bundleInfo.Version.Str, err)
+	}
 
-	err := changeActiveBundleVersion(params)
+	err = activateBundle(params, sdk)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// activateBundle applies a selection already checked by validateBundleInstallation.
+func activateBundle(params *bundleParams, sdk binary.SDKInstallation) error {
+	log.Infof("Updating symlinks to point to %s...", params.selection().ID)
+
+	var err error
+
+	if params.inst.Program == binary.ProgramSDK {
+		err = binary.ActivateSDK(params.artifactRoot, sdk)
+	} else {
+		err = binary.ActivateSelections(params.artifactRoot,
+			[]binary.Selection{params.selection()})
+	}
+
 	if err != nil {
 		log.Errorf("Failed to update symlinks: %v", err)
 
@@ -311,14 +388,20 @@ func updateSymlinks(params *bundleParams) error {
 	}
 
 	log.Infof("Symlinks updated successfully.")
-	log.Infof("Add %q to PATH to use this as default.",
-		filepath.Join(params.artifactRoot, binary.BinDirName))
-	log.Infof("Active executable: %q",
-		filepath.Join(params.artifactRoot, binary.BinDirName, params.inst.Program.Exec()))
 
-	if params.inst.Program.IsTarantool() {
-		log.Infof("Active headers: %q",
-			filepath.Join(params.artifactRoot, binary.IncDirName, params.inst.Program.Exec()))
+	products := []binary.Program{params.inst.Program}
+	if params.inst.Program == binary.ProgramSDK {
+		products = sdk.Products
+	}
+
+	for _, product := range products {
+		log.Infof("Active executable: %q",
+			filepath.Join(params.artifactRoot, binary.BinDirName, product.Exec()))
+
+		if product.IsTarantool() {
+			log.Infof("Active headers: %q",
+				filepath.Join(params.artifactRoot, binary.IncDirName, product.Exec()))
+		}
 	}
 
 	return nil
@@ -344,62 +427,82 @@ func acquireBundleInfoToInstall(params *bundleParams) error {
 		return err
 	}
 
-	params.prgVersion = params.inst.Program.String() + version.FsSeparator +
-		params.bundleInfo.Version.Str
 	log.Infof("Found bundle: %s", params.bundleInfo.Version.Tarball)
 	log.Infof("Version: %s", params.bundleInfo.Version.Str)
 
 	return nil
 }
 
-// selectBundleVersion resolves empty or numeric requests to the latest stable EE or TCM build.
-// EE defaults to gc64. Other requests retain exact matching of complete identifiers.
+// selectBundleVersion resolves empty or numeric requests using the archive source.
+// SDK archives default to gc64. Standalone EE also accepts its installed identities.
+// Other requests match complete archive identifiers exactly.
 // Bundles must be sorted in ascending version order.
 func selectBundleVersion(bundles search.BundleInfoSlice, requested string, program binary.Program) (
 	search.BundleInfo, error,
 ) {
-	if (program != binary.ProgramEe && program != binary.ProgramTcm) ||
-		(requested != "" && !version.IsNumericVersion(requested)) {
-		return search.SelectVersion(bundles, requested)
+	if program == binary.ProgramSDK {
+		requested = strings.TrimPrefix(requested, binary.SDKVersionPrefix)
 	}
 
-	versions := make([]version.Version, 0, len(bundles))
+	source := program.BundleSource()
+	if (source == binary.ProgramSDK || source.IsStandaloneArchive()) &&
+		(requested == "" || version.IsNumericVersion(requested)) {
+		versions := make([]version.Version, 0, len(bundles))
 
-	for _, bundle := range bundles {
-		if bundle.Version.Release.Type != version.TypeRelease {
-			continue
+		for _, bundle := range bundles {
+			if bundle.Version.Release.Type != version.TypeRelease {
+				continue
+			}
+
+			if source == binary.ProgramSDK && bundle.Version.BuildName != "gc64" {
+				continue
+			}
+
+			versions = append(versions, bundle.Version)
 		}
 
-		if program == binary.ProgramEe && bundle.Version.BuildName != "gc64" {
-			continue
+		matched, err := version.MatchVersion(requested, versions)
+		if err != nil {
+			return search.BundleInfo{}, err
 		}
 
-		versions = append(versions, bundle.Version)
+		requested = matched
 	}
 
-	matched, err := version.MatchVersion(requested, versions)
-	if err != nil {
-		return search.BundleInfo{}, err
+	if program == binary.ProgramEe {
+		for _, bundle := range slices.Backward(bundles) {
+			if binary.BundleInstallationID(program, bundle.Version) == requested {
+				return bundle, nil
+			}
+		}
 	}
 
-	return search.SelectVersion(bundles, matched)
+	selected, err := search.SelectVersion(bundles, requested)
+
+	return selected, err
 }
 
 // fetchInstallBundles obtains candidates without selecting the requested version.
 func fetchInstallBundles(params *bundleParams) (search.BundleInfoSlice, error) {
+	source := params.inst.Program.BundleSource()
 	if params.inst.LocalRepo != "" {
-		return search.FindLocalBundles(params.inst.Program, os.DirFS(params.inst.LocalRepo))
+		bundles, err := search.FindLocalBundles(source,
+			os.DirFS(params.inst.LocalRepo))
+
+		return bundles, err
 	}
 
 	searchCtx := search.NewSearchCtx(search.NewPlatformInformer(), search.NewTntIoDoer())
 
 	searchCtx.BinaryContext = params.inst.BinaryContext
+	searchCtx.Program = source
 	searchCtx.CredentialsFile = params.inst.CredentialsFile
 	searchCtx.Filter = search.SearchAll
-	searchCtx.Package = search.GetAPIPackage(params.inst.Program)
 	searchCtx.DevBuilds = params.inst.DevBuild
 
-	return search.FetchBundlesInfo(&searchCtx)
+	bundles, err := search.FetchBundlesInfo(&searchCtx)
+
+	return bundles, err
 }
 
 // executeBundleInstallation performs the core installation steps:
@@ -488,7 +591,7 @@ func executeBundleInstallationSteps(params *bundleParams) error {
 	return nil
 }
 
-// installBundleProgram orchestrates the installation of EE and TCM bundles.
+// installBundleProgram installs SDK and standalone products through one pipeline.
 func installBundleProgram(installCtx InstallCtx) error {
 	artifactRoot, err := installCtx.Scope.ArtifactPath()
 	if err != nil {
@@ -507,11 +610,6 @@ func installBundleProgram(installCtx InstallCtx) error {
 
 		return err
 	}
-
-	params.versionDir = filepath.Join(artifactRoot, binary.VersionsDirName,
-		installCtx.Program.String(), params.prgVersion)
-	params.binPath = filepath.Join(params.versionDir, installCtx.Program.Exec())
-	params.incPath = filepath.Join(params.versionDir, binary.IncDirName, installCtx.Program.Exec())
 
 	existing, err := prepareExistingBundle(&params)
 	if err != nil {
@@ -536,7 +634,7 @@ func installBundleProgram(installCtx InstallCtx) error {
 	}
 
 	log.Infof("Successfully installed %s version %s",
-		params.inst.Program, params.bundleInfo.Version.Str)
+		params.inst.Program, params.selection().ID)
 	log.Info("Done.")
 
 	return nil
@@ -550,15 +648,16 @@ func prepareExistingBundle(params *bundleParams) (bool, error) {
 
 	log.Infof("Checking existing installation...")
 
-	if !checkExistingInstallation(params) {
-		log.Debugf("No existing installation found for %s.", params.prgVersion)
+	sdk, err := validateBundleInstallation(params)
+	if err != nil {
+		log.Debugf("No complete installation found for %s: %v", params.selection().ID, err)
 
 		return false, nil
 	}
 
-	log.Infof("%s version %s already exists.", params.inst.Program, params.prgVersion)
+	log.Infof("%s version %s already exists.", params.inst.Program, params.selection().ID)
 
-	err := updateSymlinks(params)
+	err = activateBundle(params, sdk)
 	if err != nil {
 		return false, err
 	}

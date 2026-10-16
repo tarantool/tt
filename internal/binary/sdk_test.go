@@ -1,0 +1,130 @@
+package binary_test
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/v3/cli/version"
+	"github.com/tarantool/tt/v3/internal/binary"
+)
+
+func TestReadSDKSeparatesManifestValidation(t *testing.T) {
+	const selected = "gc64-3.7.1-0-r93"
+
+	for _, testCase := range []struct {
+		name     string
+		version  string
+		products []string
+		valid    bool
+	}{
+		{"valid manifest without product files", selected, []string{"tarantool-ee", "tcm"}, true},
+		{"different owner version", "gc64-3.8.0-0-r94", []string{"tarantool-ee", "tcm"}, false},
+		{"empty version", "", []string{"tarantool-ee", "tcm"}, false},
+		{"unsafe version", "../outside", []string{"tarantool-ee", "tcm"}, false},
+		{"empty products", selected, []string{}, false},
+		{"unsupported component", selected, []string{"tarantool"}, false},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := t.TempDir()
+			directory := binary.InstallationPath(root, binary.ProgramSDK, selected)
+			require.NoError(t, os.MkdirAll(directory, 0o755))
+
+			data, err := json.Marshal(map[string]any{
+				"version": testCase.version, "products": testCase.products,
+			})
+			require.NoError(t, err)
+			require.NoError(t, os.WriteFile(filepath.Join(directory, binary.SDKManifestName),
+				data, 0o644))
+
+			sdk, err := binary.ReadSDK(root, selected)
+			require.NoError(t, err)
+			require.Equal(t, testCase.version, sdk.Version)
+
+			err = binary.ValidateSDKManifest(sdk, selected)
+			if !testCase.valid {
+				require.ErrorIs(t, err, binary.ErrInvalidSDK)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.Error(t, binary.ValidateSDKFiles(root, sdk))
+		})
+	}
+}
+
+func TestBundleInstallationID(t *testing.T) {
+	for _, testCase := range []struct {
+		source   string
+		expected string
+	}{
+		{"gc64-3.8.1-0-r93", "3.8.1"},
+		{"gc64-3.8.1-0-r94", "3.8.1"},
+		{"nogc64-3.8.1-0-r94", "3.8.1"},
+		{"gc64-4.0.0-0-r1", "4.0.0"},
+		{"gc64-2.11.1-0-r93", "gc64-2.11.1"},
+		{"nogc64-2.11.1-0-r93", "nogc64-2.11.1"},
+		{"debug-gc64-2.11.1-0-r93", "debug-gc64-2.11.1"},
+		{"debug-gc64-3.8.1-0-r93", "debug-3.8.1"},
+		{"debug-nogc64-3.8.1-0-r94", "debug-3.8.1"},
+		{"gc64-3.8.1-rc2-0-r93", "3.8.1-rc2"},
+		{"gc64-3.8.1-beta1-10-gabcdef0-r93", "3.8.1-beta1"},
+		{"gc64-2.11.1-alpha1-0-r93", "gc64-2.11.1-alpha1"},
+		{"3.8.1", "3.8.1"},
+	} {
+		t.Run(testCase.source, func(t *testing.T) {
+			parsed, err := version.Parse(testCase.source)
+			require.NoError(t, err)
+			require.Equal(t, testCase.expected,
+				binary.BundleInstallationID(binary.ProgramEe, parsed))
+
+			for _, program := range []binary.Program{
+				binary.ProgramSDK, binary.ProgramTcm, binary.ProgramTtEe,
+			} {
+				require.Equal(t, testCase.source, binary.BundleInstallationID(program, parsed))
+			}
+		})
+	}
+}
+
+func TestMatchInstalledEeVersion(t *testing.T) {
+	installed := []string{
+		"3.8.1", "3.8.1-rc2", "debug-3.8.1", "gc64-2.11.1", "nogc64-2.11.1",
+		"sdk-gc64-3.8.1-0-r93", "sdk-gc64-3.8.1-0-r94",
+	}
+
+	for _, testCase := range []struct {
+		requested string
+		expected  string
+	}{
+		{"3.8.1", "3.8.1"},
+		{"gc64-3.8.1-0-r93", "3.8.1"},
+		{"gc64-3.8.1-0-r94", "3.8.1"},
+		{"nogc64-3.8.1-0-r94", "3.8.1"},
+		{"gc64-2.11.1-0-r93", "gc64-2.11.1"},
+		{"nogc64-2.11.1", "nogc64-2.11.1"},
+		{"gc64-3.8.1-rc2-0-r93", "3.8.1-rc2"},
+		{"debug-gc64-3.8.1-0-r93", "debug-3.8.1"},
+		{"sdk-gc64-3.8.1-0-r94", "sdk-gc64-3.8.1-0-r94"},
+	} {
+		t.Run(testCase.requested, func(t *testing.T) {
+			selected, err := binary.MatchInstalledVersion(
+				binary.ProgramEe, testCase.requested, installed)
+			require.NoError(t, err)
+			require.Equal(t, testCase.expected, selected)
+		})
+	}
+
+	for _, requested := range []string{"3", "3.8", "3.8.2", "gc64-2.11.2-0-r93"} {
+		_, err := binary.MatchInstalledVersion(binary.ProgramEe, requested, installed)
+		require.ErrorIs(t, err, version.ErrInstalledVersionNotFound)
+	}
+
+	for _, requested := range []string{"2.11.1", "sdk-3.8.1"} {
+		_, err := binary.MatchInstalledVersion(binary.ProgramEe, requested, installed)
+		require.ErrorIs(t, err, version.ErrAmbiguousInstalledVersion)
+	}
+}

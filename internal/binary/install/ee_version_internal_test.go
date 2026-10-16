@@ -36,6 +36,8 @@ func eeTestBundles(t *testing.T, names ...string) search.BundleInfoSlice {
 func TestSelectEeBundleVersion(t *testing.T) {
 	bundles := eeTestBundles(t,
 		"gc64-2.11.9-0-r99",
+		"gc64-2.11.9-0-r100",
+		"nogc64-2.11.9-0-r101",
 		"gc64-3.4.0-0-r9",
 		"gc64-3.4.0-0-r60",
 		"gc64-3.4.1-0-r10",
@@ -61,7 +63,11 @@ func TestSelectEeBundleVersion(t *testing.T) {
 		{"minor", "3.4", "gc64-3.4.1-0-r20"},
 		{"patch", "3.4.0", "gc64-3.4.0-0-r60"},
 		{"stable before rc", "3.8.1", "gc64-3.8.1-0-r3"},
-		{"other major", "2", "gc64-2.11.9-0-r99"},
+		{"other major", "2", "gc64-2.11.9-0-r100"},
+		{"legacy gc64 identity", "gc64-2.11.9", "gc64-2.11.9-0-r100"},
+		{"legacy nogc64 identity", "nogc64-2.11.9", "nogc64-2.11.9-0-r101"},
+		{"rc identity", "3.8.1-rc2", "gc64-3.8.1-rc2-0-r30"},
+		{"debug identity", "debug-3.9.2", "debug-gc64-3.9.2-0-r99"},
 		{"exact older gc64", "gc64-3.4.0-0-r9", "gc64-3.4.0-0-r9"},
 		{"exact nogc64", "nogc64-3.9.1-0-r90", "nogc64-3.9.1-0-r90"},
 		{"exact debug", "debug-gc64-3.9.2-0-r99", "debug-gc64-3.9.2-0-r99"},
@@ -84,7 +90,7 @@ func TestSelectEeBundleVersionRejectsPartialDecorations(t *testing.T) {
 	bundles := eeTestBundles(t, "gc64-3.4.0-0-r60", "gc64-3.4.0-rc1-0-r60")
 
 	for _, requested := range []string{
-		"gc64-3", "gc64-3.4", "gc64-3.4.0", "3.4.0-rc1",
+		"gc64-3", "gc64-3.4", "gc64-3.4.0",
 		"gc64-3.4.0-rc1", "gc64-3.4.0-0", "3.4.0-0-r60",
 		"gc64-3.4.0-0-r61", "v3", "3.4.0.1", "3.", "3..4", "latest",
 	} {

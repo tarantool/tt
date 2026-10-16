@@ -10,7 +10,7 @@ def local_build(tt_cmd, tmp_path):
     root = tmp_path / ".tarantool"
     for version in ["2.10.3", "2.10.5"]:
         installation = root / "versions" / "tarantool" / f"tarantool_{version}"
-        (installation / "inc" / "tarantool").mkdir(parents=True)
+        (installation / "include" / "tarantool").mkdir(parents=True)
         (installation / "tarantool").write_text("#!/bin/sh\nexit 99\n")
         (installation / "tarantool").chmod(0o755)
 
@@ -30,7 +30,9 @@ def local_build(tt_cmd, tmp_path):
     )
     assert rc == 0, output
     assert (root / "bin" / "tarantool").readlink() == binary
-    assert (root / "inc" / "tarantool").readlink() == headers
+    assert (root / "include" / "tarantool").readlink() == headers
+    assert (tmp_path / ".env" / "activate.sh").is_file()
+    assert (tmp_path / ".env" / "deactivate.sh").is_file()
     return binary, headers
 
 
@@ -65,7 +67,7 @@ def test_from_build_lifecycle(tt_cmd, tmp_path, local_build, command, expected_v
     root = tmp_path / ".tarantool"
     installation = root / "versions" / "tarantool" / f"tarantool_{expected_version}"
     assert (root / "bin" / "tarantool").resolve() == installation / "tarantool"
-    assert (root / "inc" / "tarantool").resolve() == installation / "inc" / "tarantool"
+    assert (root / "include" / "tarantool").resolve() == installation / "include" / "tarantool"
     if not broken:
         assert binary.read_text() == "#!/bin/sh\necho 'Tarantool 3.0.0'\n"
         assert (headers / "module.h").read_text() == "/* local build headers */\n"
@@ -89,7 +91,7 @@ def test_uninstall_version_keeps_local_build(tt_cmd, tmp_path, local_build, brok
     root = tmp_path / ".tarantool"
     assert not (root / "versions" / "tarantool" / "tarantool_2.10.3").exists()
     assert (root / "bin" / "tarantool").readlink() == binary
-    assert (root / "inc" / "tarantool").readlink() == headers
+    assert (root / "include" / "tarantool").readlink() == headers
     if not broken:
         assert binary.is_file()
         assert (headers / "module.h").is_file()
@@ -101,7 +103,7 @@ def test_uninstall_only_local_build(tt_cmd, tmp_path, local_build, with_headers,
     binary, headers = local_build
     root = tmp_path / ".tarantool"
     rmtree(root / "versions")
-    header_link = root / "inc" / "tarantool"
+    header_link = root / "include" / "tarantool"
     if not with_headers:
         header_link.unlink()
     if broken:

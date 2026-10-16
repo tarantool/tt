@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
 )
 
@@ -20,26 +21,25 @@ func bundleTestParams(t *testing.T, program binary.Program) *bundleParams {
 	t.Cleanup(func() { _ = logFile.Close() })
 
 	artifactRoot := t.TempDir()
-	prgVersion := program.String() + "_3.0.0"
-	versionDir := filepath.Join(artifactRoot, "versions", program.String(), prgVersion)
 
-	return &bundleParams{
+	params := &bundleParams{
 		inst:         &InstallCtx{Program: program},
 		artifactRoot: artifactRoot,
-		versionDir:   versionDir,
-		binPath:      filepath.Join(versionDir, program.Exec()),
-		incPath:      filepath.Join(versionDir, "inc", program.Exec()),
 		tmpDir:       t.TempDir(),
-		prgVersion:   prgVersion,
 		logFile:      logFile,
 	}
+
+	params.bundleInfo.Version, err = version.Parse("3.0.0")
+	require.NoError(t, err)
+
+	return params
 }
 
 func bundleTestSource(t *testing.T, params *bundleParams, headers bool) {
 	t.Helper()
 
 	root := params.tmpDir
-	if params.inst.Program == binary.ProgramEe {
+	if params.inst.Program.BundleSource() == binary.ProgramSDK {
 		root = filepath.Join(root, "tarantool-enterprise")
 	}
 
@@ -59,45 +59,52 @@ func bundleTestSource(t *testing.T, params *bundleParams, headers bool) {
 }
 
 func TestBundleScopeArtifacts(t *testing.T) {
-	for _, program := range []binary.Program{binary.ProgramEe, binary.ProgramTcm} {
+	for _, program := range []binary.Program{
+		binary.ProgramEe, binary.ProgramTcm, binary.ProgramTtEe,
+	} {
 		t.Run(program.String(), func(t *testing.T) {
 			params := bundleTestParams(t, program)
+			directory := binary.InstallationPath(params.artifactRoot,
+				params.inst.Program, params.bundleInfo.Version.Str)
 			bundleTestSource(t, params, program.IsTarantool())
 
 			require.NoError(t, copyNewArtifacts(params))
 
-			require.True(t, checkExistingInstallation(params))
+			_, err := validateBundleInstallation(params)
+			require.NoError(t, err)
 
-			require.NoError(t, changeActiveBundleVersion(params))
+			require.NoError(t, updateSymlinks(params))
 
 			target, err := os.Readlink(filepath.Join(params.artifactRoot, "bin", program.Exec()))
 			require.NoError(t, err)
-			require.Equal(t, params.binPath, target)
+			require.Equal(t, filepath.Join(directory, program.Exec()), target)
 
 			if program.IsTarantool() {
 				target, err := os.Readlink(
-					filepath.Join(params.artifactRoot, "inc", program.Exec()))
+					filepath.Join(params.artifactRoot, "include", program.Exec()))
 				require.NoError(t, err)
-				require.Equal(t, params.incPath, target)
+				require.Equal(t, filepath.Join(directory, "include", program.Exec()), target)
 			} else {
-				require.NoDirExists(t, filepath.Join(params.artifactRoot, "inc"))
+				require.NoDirExists(t, filepath.Join(params.artifactRoot, "include"))
 			}
 
 			// Reactivation does not need the source archive or extraction directory.
 			require.NoError(t, os.RemoveAll(params.tmpDir))
 
-			require.NoError(t, changeActiveBundleVersion(params))
+			require.NoError(t, updateSymlinks(params))
 		})
 	}
 }
 
 func TestBundleValidationPreservesInstallation(t *testing.T) {
 	params := bundleTestParams(t, binary.ProgramEe)
+	binPath := filepath.Join(binary.InstallationPath(params.artifactRoot,
+		params.inst.Program, params.bundleInfo.Version.Str), params.inst.Program.Exec())
 	bundleTestSource(t, params, true)
 
 	require.NoError(t, copyNewArtifacts(params))
 
-	require.NoError(t, os.WriteFile(params.binPath, []byte("old binary"), 0755))
+	require.NoError(t, os.WriteFile(binPath, []byte("old binary"), 0755))
 	require.NoError(t, os.RemoveAll(filepath.Join(params.tmpDir,
 		"tarantool-enterprise", "include")))
 
@@ -105,21 +112,24 @@ func TestBundleValidationPreservesInstallation(t *testing.T) {
 
 	require.ErrorIs(t, copyNewArtifacts(params), errMissingBundleHeaders)
 
-	data, err := os.ReadFile(params.binPath)
+	data, err := os.ReadFile(binPath)
 	require.NoError(t, err)
 	require.Equal(t, "old binary", string(data))
 }
 
 func TestBundleReinstallIsolationAndIncomplete(t *testing.T) {
 	params := bundleTestParams(t, binary.ProgramEe)
-	require.NoError(t, os.MkdirAll(filepath.Dir(params.binPath), 0755))
-	require.NoError(t, os.WriteFile(params.binPath, []byte("incomplete"), 0755))
+	binPath := filepath.Join(binary.InstallationPath(params.artifactRoot,
+		params.inst.Program, params.bundleInfo.Version.Str), params.inst.Program.Exec())
+	require.NoError(t, os.MkdirAll(filepath.Dir(binPath), 0755))
+	require.NoError(t, os.WriteFile(binPath, []byte("incomplete"), 0755))
 
-	require.False(t, checkExistingInstallation(params))
+	_, err := validateBundleInstallation(params)
+	require.Error(t, err)
 
-	require.ErrorIs(t, changeActiveBundleVersion(params), errIncompleteBundle)
+	require.ErrorIs(t, updateSymlinks(params), errIncompleteBundle)
 	require.NoDirExists(t, filepath.Join(params.artifactRoot, "bin"))
-	require.NoDirExists(t, filepath.Join(params.artifactRoot, "inc"))
+	require.NoDirExists(t, filepath.Join(params.artifactRoot, "include"))
 
 	bundleTestSource(t, params, true)
 
@@ -138,7 +148,8 @@ func TestBundleReinstallIsolationAndIncomplete(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "CE binary", string(data))
 
-	require.True(t, checkExistingInstallation(params))
+	_, err = validateBundleInstallation(params)
+	require.NoError(t, err)
 }
 
 func TestBundleTemporaryResourceRetention(t *testing.T) {

@@ -103,7 +103,7 @@ func installTarantoolFromSource(installCtx InstallCtx, artifactRoot string) erro
 	// Destination of this version's executable: <scope>/versions/tarantool/<version>/tarantool.
 	binPath := filepath.Join(versionDir, binary.ProgramCe.Exec())
 
-	// Destination of this version's headers: <scope>/versions/tarantool/<version>/inc/tarantool.
+	// This version's headers: <scope>/versions/tarantool/<version>/include/tarantool.
 	incPath := filepath.Join(versionDir, binary.IncDirName, binary.ProgramCe.Exec())
 
 	// Check if program is already installed.
@@ -215,7 +215,7 @@ func installTarantoolFromSource(installCtx InstallCtx, artifactRoot string) erro
 	return nil
 }
 
-// activateTarantoolVersion updates the scope's active links and reports its PATH directory.
+// activateTarantoolVersion updates the scope's active links.
 func activateTarantoolVersion(binPath, incPath, artifactRoot string) error {
 	log.Infof("Changing symlinks...")
 
@@ -226,7 +226,6 @@ func activateTarantoolVersion(binPath, incPath, artifactRoot string) error {
 
 	binDir := filepath.Join(artifactRoot, binary.BinDirName)
 	log.Infof("Made default by symlink %q", filepath.Join(binDir, binary.ProgramCe.Exec()))
-	log.Infof("Add %q to PATH to use this as default.", binDir)
 	log.Infof("Done.")
 
 	return nil

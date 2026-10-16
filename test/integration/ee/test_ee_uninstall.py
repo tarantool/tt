@@ -26,7 +26,7 @@ def prepare_testdata(program: str, case: str, tmp_path: Path) -> Path:
         if executable == "tarantool":
             copytree(
                 source / "include" / "include" / binary.name,
-                installation / "inc" / "tarantool",
+                installation / "include" / "tarantool",
             )
 
     for link in (source / "bin").iterdir():
@@ -37,8 +37,8 @@ def prepare_testdata(program: str, case: str, tmp_path: Path) -> Path:
         (root / "bin").mkdir(exist_ok=True)
         (root / "bin" / link.name).symlink_to(installation / link.name)
         if link.name == "tarantool":
-            (root / "inc").mkdir()
-            (root / "inc" / link.name).symlink_to(installation / "inc" / link.name)
+            (root / "include").mkdir()
+            (root / "include" / link.name).symlink_to(installation / "include" / link.name)
     return work_dir
 
 
@@ -56,12 +56,12 @@ def assert_no_extra_in_rest_files(root: Path, rest_files: dict[str, str]) -> Non
         assert target == installations[target.parent.name] / link.name
         actual[link.name] = target.parent.name
         if link.name == "tarantool":
-            assert (root / "inc" / link.name).resolve() == target.parent / "inc" / link.name
+            assert (root / "include" / link.name).resolve() == target.parent / "include" / link.name
     assert actual == rest_files
     for installation in installations.values():
         if installation.parent.name in {"tarantool", "tarantool-ee"}:
             assert (installation / "tarantool").is_file()
-            assert (installation / "inc" / "tarantool").is_dir()
+            assert (installation / "include" / "tarantool").is_dir()
 
 
 @pytest.mark.parametrize(
@@ -286,7 +286,7 @@ def test_uninstall_no_active(tt_cmd: Path, tmp_path: Path, program: str) -> None
 
 
 @pytest.mark.parametrize(
-    "program, executable, version, bundle_name, bundle_dir",
+    "program, executable, version, bundle_name, bundle_dir, installed_version",
     [
         (
             "tarantool-ee",
@@ -294,8 +294,16 @@ def test_uninstall_no_active(tt_cmd: Path, tmp_path: Path, program: str) -> None
             "gc64-3.4.0-0-r60",
             "tarantool-enterprise-sdk-gc64-3.4.0-0-r60.linux.x86_64.tar.gz",
             "tarantool-enterprise",
+            "3.4.0",
         ),
-        ("tcm", "tcm", "1.3.1-0-g074b5ffa", "tcm-1.3.1-0-g074b5ffa.linux.amd64.tar.gz", ""),
+        (
+            "tcm",
+            "tcm",
+            "1.3.1-0-g074b5ffa",
+            "tcm-1.3.1-0-g074b5ffa.linux.amd64.tar.gz",
+            "",
+            "1.3.1-0-g074b5ffa",
+        ),
     ],
 )
 def test_uninstall_installed_local_bundle(
@@ -306,6 +314,7 @@ def test_uninstall_installed_local_bundle(
     version,
     bundle_name,
     bundle_dir,
+    installed_version,
 ):
     source = tmp_path / "source" / bundle_dir
     source.mkdir(parents=True)
@@ -338,20 +347,20 @@ def test_uninstall_installed_local_bundle(
     )
     assert rc == 0, output
     root = tmp_path / ".tarantool"
-    installation = root / "versions" / program / f"{program}_{version}"
+    installation = root / "versions" / program / f"{program}_{installed_version}"
     assert (installation / executable).read_bytes() == binary.read_bytes()
     assert (root / "bin" / executable).resolve() == installation / executable
     if executable == "tarantool":
-        assert (installation / "inc" / "tarantool" / "module.h").is_file()
+        assert (installation / "include" / "tarantool" / "module.h").is_file()
 
     rc, output = run_command_and_get_output(
         [tt_cmd, "--self", "binary", "uninstall", program],
         cwd=tmp_path,
     )
     assert rc == 0, output
-    assert f"{program}={version} is uninstalled." in output
+    assert f"{program}={installed_version} is uninstalled." in output
     assert not installation.exists()
     assert not (root / "bin" / executable).is_symlink()
-    assert not (root / "inc" / executable).is_symlink()
+    assert not (root / "include" / executable).is_symlink()
     assert archive.is_file()
     assert binary.is_file()

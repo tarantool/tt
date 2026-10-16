@@ -62,6 +62,20 @@ def install_tt(tt_cmd, tmp_path, flags=(), version="1.2.3"):
     )
 
 
+@pytest.mark.parametrize("requested", ["1", "1.2", "1.2.3", "1ce", "1.2ce", "1.2.3ce"])
+def test_install_tt_community_selector(tt_cmd, tmp_path, local_tt_build, requested):
+    built_binary, build_log = local_tt_build
+    rc, output = install_tt(tt_cmd, tmp_path, version=requested)
+
+    assert rc == 0, output
+    root = tmp_path / ".tarantool"
+    installed = root / "versions" / "tt" / "tt_v1.2.3" / "tt"
+    assert installed.read_bytes() == built_binary.read_bytes()
+    assert (root / "bin" / "tt").resolve() == installed
+    assert build_log.read_text() == "build\n"
+    assert not (root / "versions" / "tt-ee").exists()
+
+
 @pytest.mark.parametrize("scope", [None, "project", "user"])
 @pytest.mark.parametrize("reinstall", [False, True])
 def test_install_tt_scope(tt_cmd, tmp_path, local_tt_build, scope, reinstall):
@@ -72,6 +86,7 @@ def test_install_tt_scope(tt_cmd, tmp_path, local_tt_build, scope, reinstall):
 
     rc, output = install_tt(tt_cmd, tmp_path, flags)
     assert rc == 0, output
+    assert "to PATH to use this as default" not in output
     if scope == "user":
         if platform.system() == "Darwin":
             root = tmp_path / "home" / "Library" / "Application Support" / "tarantool"
@@ -88,8 +103,15 @@ def test_install_tt_scope(tt_cmd, tmp_path, local_tt_build, scope, reinstall):
     assert not (binary.parent / "bin").exists()
     assert (root / "bin" / "tt").resolve() == binary
     assert build_log.read_text() == "build\n"
-    assert not (root / "inc").exists()
+    assert not (root / "include").exists()
     assert not (tmp_path / "tt.yaml").exists()
+    if scope == "user":
+        assert not (tmp_path / ".env").exists()
+        assert "source .env/activate.sh" not in output
+    else:
+        assert (tmp_path / ".env" / "activate.sh").is_file()
+        assert (tmp_path / ".env" / "deactivate.sh").is_file()
+        assert output.count("source .env/activate.sh") == 1
 
 
 @pytest.mark.parametrize("with_symlink", [False, True])
@@ -109,6 +131,9 @@ def test_install_tt_existing_version(tt_cmd, tmp_path, local_tt_build, with_syml
     assert "already exists" in output
     assert (root / "bin" / "tt").resolve() == binary
     assert not build_log.exists()
+    assert (tmp_path / ".env" / "activate.sh").is_file()
+    assert (tmp_path / ".env" / "deactivate.sh").is_file()
+    assert output.count("source .env/activate.sh") == 1
 
 
 def test_install_tt_reinstall(tt_cmd, tmp_path, local_tt_build):
@@ -138,6 +163,8 @@ def test_install_tt_failure_leaves_no_scope(tt_cmd, tmp_path, local_tt_build, mo
     rc, output = install_tt(tt_cmd, tmp_path, version=version)
     assert rc != 0, output
     assert not (tmp_path / ".tarantool").exists()
+    assert not (tmp_path / ".env").exists()
+    assert "source .env/activate.sh" not in output
     assert not build_log.exists()
 
 
