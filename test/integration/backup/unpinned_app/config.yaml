@@ -1,0 +1,40 @@
+# One replicaset of three members named in this file and nowhere else: no
+# database.instance_uuid, no replicaset_uuid -- the shape a deployment that
+# only names its instances has. Tarantool then binds a restored member to its
+# name through the snapshot alone, so the checkpoint a full backup ships has
+# to carry every member's _cluster row.
+#
+# The leader bootstraps the replicaset by itself and the others join it, so
+# the bootstrap snapshot holds the leader's row only: the replicas register
+# into the journals that follow it. The members replicate over the socket each
+# of them listens on, spelled out here so that a sibling's address is read out
+# of this file alone.
+credentials:
+  users:
+    guest:
+      roles: [super]
+    client:
+      password: 'secret'
+      roles: [super]
+    replicator:
+      password: 'secret'
+      roles: [replication]
+iproto:
+  listen:
+    - uri: 'unix/:./var/run/{{ instance_name }}/tarantool.sock'
+  advertise:
+    peer:
+      login: replicator
+groups:
+  storages:
+    app:
+      file: 'storage.lua'
+    replication:
+      failover: manual
+    replicasets:
+      storage-001:
+        leader: storage-001-a
+        instances:
+          storage-001-a: {}
+          storage-001-b: {}
+          storage-001-c: {}
