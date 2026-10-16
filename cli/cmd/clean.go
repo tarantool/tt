@@ -41,7 +41,8 @@ func NewCleanCmd() *cobra.Command {
 	}
 
 	cleanCmd.Flags().BoolVarP(&forceRemove, "force", "f", false, "do not ask for confirmation")
-	cleanCmd.Flags().BoolVarP(&verboseList, "verbose", "V", false, "list all files to remove before confirmation")
+	cleanCmd.Flags().BoolVarP(&verboseList, "verbose", "V", false,
+		"list all files to remove before confirmation")
 
 	return cleanCmd
 }
