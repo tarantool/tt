@@ -50,6 +50,10 @@ type BackupStartOpts struct {
 	// Dir is the directory the archive and the manifest fragment are written
 	// to. Empty means <os.TempDir()>/tt-backup/<backup-id>.
 	Dir string
+	// Snapshot takes a new checkpoint with box.snapshot() before a full backup
+	// opens. Without it the full ships the newest checkpoint as it is. Full
+	// backups only.
+	Snapshot bool
 }
 
 // Start opens box.backup on the instance, packs the WAL files and a per-shard
@@ -63,6 +67,11 @@ func Start(conn connector.Connector, opts BackupStartOpts) (string, error) {
 	// leaving a lease behind, and keeps the archive inside the backup root.
 	if err := ValidateBackupID(opts.BackupID); err != nil {
 		return "", err //nolint:wrapcheck
+	}
+
+	if opts.Snapshot && opts.FromVclock != nil {
+		return "", errors.New("a new checkpoint is taken for a full backup only: " +
+			"an incremental backup ships no checkpoint")
 	}
 
 	info, err := openBackup(conn, opts)
@@ -162,6 +171,14 @@ func openBackup(conn connector.Connector, opts BackupStartOpts) (*BackupInfo, er
 	if info != nil {
 		return nil, fmt.Errorf("%w (type=%s, vclock_begin=%v)",
 			ErrAlreadyInProgress, info.Type, info.PrevVclock)
+	}
+
+	// A full backup ships the newest checkpoint; --snapshot makes it a fresh
+	// one. Start refuses the flag for an increment, which ships journals only.
+	if opts.Snapshot {
+		if err := snapshotCheckpoint(conn); err != nil {
+			return nil, err //nolint:wrapcheck
+		}
 	}
 
 	if err := startBackup(conn, StartOpts{

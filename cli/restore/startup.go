@@ -225,8 +225,8 @@ func repairHints(names xlog.SnapshotNames) string {
 
 	return fmt.Sprintf("to recover, set %s in the instance's own environment (a "+
 		"unit drop-in) and run box.snapshot() on every node once it is up, before "+
-		"the variable is removed; or take the full backup after box.snapshot(), "+
-		"so that its snapshot names every member",
+		"the variable is removed; or take the full backup with tt backup start "+
+		"--snapshot, so that its snapshot names every member",
 		strings.Join(variables, " and "))
 }
 

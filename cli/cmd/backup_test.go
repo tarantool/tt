@@ -54,6 +54,26 @@ func TestParseFromVclock_emptyObject(t *testing.T) {
 	assert.Contains(t, err.Error(), "--from-vclock")
 }
 
+// --snapshot asks for a checkpoint an incremental backup does not ship, so the
+// pair is refused as a flag error, before the target is dialed.
+func TestRunBackupStartSnapshotWithFromVclock(t *testing.T) {
+	backupStartSnapshot = true
+	backupStartFromVclock = `{"1":1500}`
+	t.Cleanup(func() {
+		backupStartSnapshot = false
+		backupStartFromVclock = ""
+	})
+
+	// The address is never reached: the check runs before the dial.
+	_, err := runBackupStartInner([]string{"127.0.0.1:0"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid flag: --snapshot applies to a full backup only")
+
+	var argError *util.ArgError
+	assert.False(t, errors.As(err, &argError),
+		"the error is reported once, without the root usage")
+}
+
 // Execute prints an ArgError a second time and follows it with the root
 // command's usage -- the list of every tt subcommand, which says nothing about
 // a malformed vclock. The backup commands silence the usage block for exactly
