@@ -158,3 +158,54 @@ func TestPlanForReportsAManifestSetThatDisagreesWithItself(t *testing.T) {
 	require.ErrorContains(t, err, "late")
 	require.ErrorContains(t, err, "full")
 }
+
+// The core lists in a full backup only the points past its checkpoint, while a
+// full is bounded only by its end vclock. A full of another chain whose
+// checkpoint is already past a point therefore covers that point's position
+// without carrying it. The plan must look only at the chain the point was
+// stitched from, however the backup ids of the two chains sort.
+func TestPlanForIgnoresAFullOfAnotherChainCoveringThePosition(t *testing.T) {
+	for _, ids := range [][3]string{
+		{"z-full", "z-inc", "a-full"},
+		{"a-full", "a-inc", "z-full"},
+	} {
+		t.Run(ids[0], func(t *testing.T) {
+			full := manifestFixture(ids[0], "", ids[0], backup.BackupTypeFull,
+				10, 0, 100, nil)
+			incremental := manifestFixture(ids[1], ids[0], ids[0],
+				backup.BackupTypeIncremental, 20, 100, 200,
+				clusterPointFixture("target", 150, 20))
+			other := manifestFixture(ids[2], "", ids[2], backup.BackupTypeFull,
+				30, 0, 300, nil)
+			chain := buildFixtureChain(t, full, incremental, other)
+
+			plan, err := chain.PlanFor(findPoint(t, chain, "target"))
+			require.NoError(t, err)
+			for _, replicasetUUID := range []string{replicasetA, replicasetB} {
+				require.Equal(t,
+					[]backup.BackupID{
+						backup.BackupID(ids[0]), backup.BackupID(ids[1]),
+					},
+					manifestIDs(plan.Shards[replicasetUUID].Backups),
+				)
+			}
+		})
+	}
+}
+
+// A backup covering the position and carrying the label, but at another
+// position, holds no such point either: trimming inside it would land on a
+// state no point describes.
+func TestPlanForReportsALabelCarriedAtAnotherPosition(t *testing.T) {
+	full := manifestFixture("full", "", "full", backup.BackupTypeFull, 10, 0, 100,
+		clusterPointFixture("target", 50, 50))
+	chain := buildFixtureChain(t, full)
+
+	_, err := chain.PlanFor(ClusterPoint{Name: "target", Shards: map[string]Position{
+		replicasetA: {ReplicaID: 1, LSN: 60},
+		replicasetB: {ReplicaID: 2, LSN: 60},
+	}})
+
+	require.ErrorContains(t, err, "target")
+	require.ErrorContains(t, err, "full")
+}

@@ -31,13 +31,17 @@ func (c *Chain) covers(t time.Time) bool {
 	return !c.coverageStart.IsZero() && !t.Before(c.coverageStart)
 }
 
-// orderedEntries returns every entry from the oldest full backup to the newest,
-// following previous_backup_id within each group. It is the order to walk when
-// an answer must not depend on map iteration.
-func (c *Chain) orderedEntries() []*Entry {
+// pointEntries returns the entries of every segment that stitched a point with
+// the given name, segment by segment in time order and in chain order within
+// each, or nil when no segment did. These are the only manifests a point of
+// that name can be planned from: a manifest of another segment never took part
+// in stitching it.
+func (c *Chain) pointEntries(name string) []*Entry {
 	var entries []*Entry
-	for _, group := range c.groups {
-		entries = append(entries, group.Entries...)
+	for i := range c.segments {
+		if c.segments[i].hasPoint(name) {
+			entries = append(entries, c.segments[i].entries...)
+		}
 	}
 
 	return entries
@@ -46,8 +50,21 @@ func (c *Chain) orderedEntries() []*Entry {
 // segment is a contiguous run of cluster points with uniform topology plus the
 // reason it is separated from the previous segment.
 type segment struct {
-	points    []ClusterPoint
+	points []ClusterPoint
+	// entries are the manifests the points were stitched from, in chain order.
+	entries   []*Entry
 	gapBefore gapKind
+}
+
+// hasPoint reports whether the segment stitched a point with the given name.
+func (s *segment) hasPoint(name string) bool {
+	for i := range s.points {
+		if s.points[i].Name == name {
+			return true
+		}
+	}
+
+	return false
 }
 
 // gapKind classifies the separation between two adjacent segments.
