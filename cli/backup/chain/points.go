@@ -66,7 +66,11 @@ func segmentsFromGroup(group Group, sel *Selection) []segment {
 			gap = maxGap(gap, pendingGap)
 		}
 
-		segments = append(segments, segment{points: points, gapBefore: gap})
+		segments = append(segments, segment{
+			points:    points,
+			entries:   run.entries,
+			gapBefore: gap,
+		})
 
 		pendingGap = gapNone
 	}
