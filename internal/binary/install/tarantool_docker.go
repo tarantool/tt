@@ -82,7 +82,7 @@ func tarantoolDockerRunOptions(tmpDir, tntVersion, artifactRoot string,
 
 	// The host already decided to build this version, including checking for master updates.
 	tntInstallCommandLine = append(tntInstallCommandLine, "install", "-f",
-		binary.ProgramCe.Exec(), tntVersion, "--reinstall")
+		binary.ProgramCe.Exec(), tntVersion, "--reinstall", "--source-build")
 
 	binds := []string{
 		fmt.Sprintf("%s:%s", filepath.Join(artifactRoot, binary.VersionsDirName),

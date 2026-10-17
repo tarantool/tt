@@ -114,6 +114,27 @@ def test_switch_selects_edition_then_version(
     assert_active(root, selected, program)
 
 
+@pytest.mark.parametrize("enterprise", [False, True])
+def test_switch_sdk_only_in_enterprise_menu(tt_cmd, tmp_path, enterprise):
+    root = tmp_path / ".tarantool"
+    community = install_version(root, "tarantool", "3.8.1")
+    install_version(root, "tarantool-ee", "3.8.1")
+    sdk_id = "sdk-gc64-3.6.4-0-r93"
+    sdk = install_version(root, "tarantool-ee", sdk_id)
+    sdk = sdk.rename(sdk.with_name(f"tarantool_sdk_{sdk_id[4:]}"))
+
+    keys = "\x1b[B\n" if enterprise else "\n"
+    rc, output = run_interactive_switch(
+        [tt_cmd, "--self", "binary", "switch", "tarantool"],
+        tmp_path,
+        [("Select tarantool edition", keys), ("Select version", keys)],
+    )
+
+    assert rc == 0, output
+    assert (sdk_id in output) == enterprise
+    assert_active(root, sdk if enterprise else community, "tarantool")
+
+
 @pytest.mark.parametrize(
     "requested,program,stored",
     [

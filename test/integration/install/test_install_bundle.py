@@ -551,6 +551,7 @@ def test_ee_switches_both_ce_active_links(tt_cmd, tmp_path):
             "binary",
             "install",
             "tarantool",
+            "--source-build",
             "3.2.1",
             "--force",
             "--local-repo",

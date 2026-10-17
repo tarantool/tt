@@ -213,7 +213,15 @@ func TestBinaryInstallFromBuildOptions(t *testing.T) {
 	}{
 		{name: "build", args: []string{"--from-build", "/build"}},
 		{name: "headers", args: []string{"--from-build", "/build", "--include-dir", "/headers"}},
-		{name: "local repository", args: []string{"--local-repo", "/sources", "3.0.0"}},
+		{
+			name: "local repository",
+			args: []string{"--local-repo", "/sources", "3.0.0"},
+		},
+		{
+			name: "conflicting source build",
+			args: []string{"--from-build", "/build", "--source-build"},
+			want: "group [from-build source-build]",
+		},
 		{
 			name: "conflicting source",
 			args: []string{"--from-build", "/build", "--local-repo", "/sources"},
@@ -311,6 +319,9 @@ func TestBinaryInstallEditionFlags(t *testing.T) {
 		{"tarantool", []string{"3.8ee", "--local-repo", "/sources"},
 			"--local-repo is not supported"},
 		{"tarantool", []string{"3.8ee", "--dynamic"}, "--dynamic is not supported"},
+		{"tarantool", []string{"3.8ee", "--source-build"}, "--source-build is not supported"},
+		{"tarantool", []string{"3.8ee", "--source-build=false"},
+			"--source-build is not supported"},
 		{"tarantool", []string{"3.8ee", "--use-docker"}, "--use-docker is not supported"},
 		{"tarantool", []string{"3.8", "--local-dir", "/bundles"}, "--local-dir is not supported"},
 		{"tarantool", []string{"3.8ce", "--dev"}, "--dev is not supported"},
@@ -439,6 +450,7 @@ func TestBinaryCommandOptionsAreIndependent(t *testing.T) {
 	}{
 		{[]string{"install", "tarantool"}, "scope", "project", "system"},
 		{[]string{"install", "tarantool"}, "dynamic", "true", "false"},
+		{[]string{"install", "tarantool"}, "source-build", "true", "false"},
 		{[]string{"install", "tarantool"}, "from-build", "/first", "/second"},
 		{[]string{"install", "tarantool"}, "local-repo", "/first", "/second"},
 		{[]string{"install", "tarantool-ee"}, "local-dir", "/first", "/second"},

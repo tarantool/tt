@@ -22,23 +22,29 @@ type bundleArtifact struct {
 	headers    string
 }
 
-// copyBuiltTarantool copies the binary and headers to their installation paths.
-func copyBuiltTarantool(binPath, incPath, destBinPath, destIncPath string) error {
-	log.Infof("Copying executable...")
+// tarantoolArtifacts contains prepared files, independent of their source and installation scope.
+type tarantoolArtifacts struct {
+	executable string
+	headers    string
+}
 
-	err := copyExecutable(binPath, destBinPath)
+// copyTarantoolArtifacts copies the binary and headers to their installation paths.
+func copyTarantoolArtifacts(artifacts tarantoolArtifacts, dstExecutable, dstHeaders string) error {
+	log.Debugf("Copying executable...")
+
+	err := copyExecutable(artifacts.executable, dstExecutable)
 	if err != nil {
 		return err
 	}
 
-	log.Infof("Copying headers...")
+	log.Debugf("Copying headers...")
 
-	err = copyHeaders(incPath, destIncPath)
+	err = copyHeaders(artifacts.headers, dstHeaders)
 	if err != nil {
 		return err
 	}
 
-	log.Infof("Tarantool executable is installed to: %q", destBinPath)
+	log.Infof("Tarantool executable is installed to: %q", dstExecutable)
 
 	return nil
 }

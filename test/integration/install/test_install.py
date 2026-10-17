@@ -288,6 +288,7 @@ def test_install_tarantool_commit(tt_cmd, tmp_path):
         "install",
         "-f",
         "tarantool",
+        "--source-build",
         "00a9e59",
     ]
     instance_process = subprocess.Popen(
@@ -358,6 +359,7 @@ def test_install_tarantool_in_docker(tt_cmd, tmp_path):
         "install",
         "-f",
         "tarantool",
+        "--source-build",
         commit,
         "--use-docker",
     ]
@@ -502,6 +504,7 @@ def test_install_tarantool_fetch_latest_version(
         "install",
         "-f",
         "tarantool",
+        "--source-build",
         old_tarantool_version,
         "--dynamic",
     ]
@@ -526,7 +529,17 @@ def test_install_tarantool_fetch_latest_version(
     if not is_interactive:
         install_cmd.append("--no-prompt")
     install_cmd.extend(
-        ["binary", "--scope", "project", "install", "-f", "tarantool", "master", "--dynamic"],
+        [
+            "binary",
+            "--scope",
+            "project",
+            "install",
+            "-f",
+            "tarantool",
+            "--source-build",
+            "master",
+            "--dynamic",
+        ],
     )
 
     instance_process_rc, output = run_command_and_get_output(

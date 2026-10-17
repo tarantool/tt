@@ -107,7 +107,17 @@ def tmpdir_with_tarantool(tt_cmd, tmp_path_factory):
 
     utils.create_tt_config(tmpdir)
 
-    cmd = [tt_cmd, "binary", "--scope", "project", "install", "-f", "tarantool", "--dynamic"]
+    cmd = [
+        tt_cmd,
+        "binary",
+        "--scope",
+        "project",
+        "install",
+        "-f",
+        "tarantool",
+        "--source-build",
+        "--dynamic",
+    ]
     p = subprocess.run(cmd, cwd=tmpdir)
     assert p.returncode == 0
 

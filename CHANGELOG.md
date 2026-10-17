@@ -221,6 +221,17 @@ for machine-readable output.
 
 ### Changed
 
+- `tt binary install tarantool [version]`: install prebuilt Community release
+  binaries and matching headers from RWS by default on Linux amd64/arm64 with
+  glibc, activating the installed version in the selected scope. Omitting the
+  version selects the latest stable release; `X` and `X.Y` select the latest
+  matching stable release, and `X.Y.Z` selects a specific release.
+  Build from source automatically when the platform or matching packages are
+  unavailable. Use `--source-build` to always compile Community releases.
+  Git commits, `master`, pull requests, `--local-repo`, `--dynamic`, and
+  `--use-docker` also select source builds.
+  Installation details about copying files, replacing installations, and
+  updating active links are now shown only with `--verbose` (`-V`).
 - `tt binary uninstall`: remove versions only from the selected
   `--scope project` (the default), `user`, or `system`, using the same installation
   paths as install. Version completion and automatic selection of a replacement
