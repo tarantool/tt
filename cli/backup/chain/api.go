@@ -110,23 +110,15 @@ func gapResolution(gap gapKind, before, after *ClusterPoint) Resolution {
 // PlanFor builds per-replicaset backup paths for a cluster recovery point, or
 // errors if p is not a point produced by this chain.
 func (c *Chain) PlanFor(p ClusterPoint) (Plan, error) {
-	found := false
-	for i := range c.points {
-		if c.points[i].Name == p.Name {
-			found = true
-			break
-		}
-	}
-
-	if !found {
+	entries := c.pointEntries(p.Name)
+	if len(entries) == 0 {
 		return Plan{}, fmt.Errorf("cluster point %q not found in chain", p.Name)
 	}
 
 	index := c.byID
-	ordered := c.orderedEntries()
 	shards := make(map[string]ShardPlan, len(p.Shards))
 	for replicasetUUID, pos := range p.Shards {
-		sp, err := shardPlan(replicasetUUID, pos, p, index, ordered)
+		sp, err := shardPlan(replicasetUUID, pos, p, index, entries)
 		if err != nil {
 			return Plan{}, fmt.Errorf("build plan for replicaset %q: %w", replicasetUUID, err)
 		}
@@ -199,19 +191,29 @@ func shardPlan(
 // position yields either no trim at all or a trim inside the wrong backup -
 // both of which restore an instance that looks healthy at the wrong state.
 // Labels cannot carry that weight: the core creates two points with the same
-// label without complaint, and nothing downstream enforces uniqueness. The
-// label is still checked, because an entry that covers the position without
-// carrying the label means the manifests disagree with each other.
+// label without complaint, and nothing downstream enforces uniqueness. So the
+// entry must carry the label at exactly that position, and an entry that
+// covers the position without doing so means the manifests disagree with each
+// other.
 //
-// Entries are walked in chain order, oldest first, so the answer does not
-// depend on map iteration order.
+// The entries are those of the segments the point was stitched in, never the
+// whole storage. A full backup is bounded only from above - see
+// coversPosition - while the core lists in it just the points past its
+// checkpoint. A full of another chain whose checkpoint is already past the
+// point would therefore cover a position it carries nothing for, and the
+// answer would depend on how backup ids happen to sort. Within the point's own
+// segment no such full exists: a point before its full's checkpoint is not in
+// that chain at all.
+//
+// Entries are walked in the order given, so the answer does not depend on map
+// iteration order.
 func findSourceEntry(
 	replicasetUUID string,
 	pointName string,
 	pos Position,
-	ordered []*Entry,
+	entries []*Entry,
 ) (*Entry, error) {
-	for _, entry := range ordered {
+	for _, entry := range entries {
 		shard := entry.Manifest.Shards[replicasetUUID]
 		if shard.Instance == nil {
 			continue
@@ -221,14 +223,12 @@ func findSourceEntry(
 			continue
 		}
 
-		for _, rp := range shard.Instance.Artifact.RecoveryPoints {
-			if rp.Label == pointName {
-				return entry, nil
-			}
+		if carriesPoint(shard.Instance, pointName, pos) {
+			return entry, nil
 		}
 
 		return nil, fmt.Errorf(
-			"backup %q covers %s for replicaset %q but carries no point %q",
+			"backup %q covers %s for replicaset %q but carries no point %q there",
 			entry.Manifest.BackupID, pos, replicasetUUID, pointName,
 		)
 	}
@@ -237,6 +237,18 @@ func findSourceEntry(
 		"no manifest covers %s for replicaset %q, wanted for point %q",
 		pos, replicasetUUID, pointName,
 	)
+}
+
+// carriesPoint reports whether the shard lists a recovery point with the given
+// label at exactly pos.
+func carriesPoint(instance *backup.ShardInstance, label string, pos Position) bool {
+	for _, rp := range instance.Artifact.RecoveryPoints {
+		if rp.Label == label && rp.ReplicaID == pos.ReplicaID && rp.LSN == pos.LSN {
+			return true
+		}
+	}
+
+	return false
 }
 
 // coversPosition reports whether the shard's backup range contains pos. A full
