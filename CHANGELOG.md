@@ -279,7 +279,8 @@ for machine-readable output.
 - `tt binary install`: the first successful project installation of any product
   creates `.env/activate.sh` and `.env/deactivate.sh`, preserving existing scripts.
   Activation sets the project directory, binary search path, and Tarantool header
-  prefix; deactivation restores the previous shell environment. User and system
+  prefix and enables tt completion for Bash and for Zsh with `compinit` loaded;
+  deactivation restores the previous shell environment. User and system
   scopes do not create these scripts.
 - `tt start`: a failed periodic integrity check (`--integrity-check-period`)
   stops the instance for good. The watchdog kills it and exits, whatever
