@@ -1,5 +1,6 @@
 import os
 import platform
+import re
 import subprocess
 
 import pytest
@@ -79,6 +80,36 @@ def install_tarantool(tt_cmd, tmp_path, flags=(), version="3.2.1"):
         ],
         cwd=tmp_path,
     )
+
+
+@pytest.mark.skipif(
+    platform.system() != "Linux"
+    or platform.machine().lower() not in ("x86_64", "amd64", "aarch64", "arm64")
+    or platform.libc_ver()[0] != "glibc",
+    reason="Prebuilt Tarantool packages require Linux amd64/arm64 with glibc",
+)
+def test_install_tarantool_prebuilt_release(tt_cmd, tmp_path):
+    version = "3.7.1"
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "--self", "binary", "install", "tarantool", version, "--scope", "project"],
+        cwd=tmp_path,
+    )
+    assert rc == 0, output
+    assert "Downloading Tarantool binary and headers..." in output
+    assert "Building tarantool..." not in output
+
+    root = tmp_path / ".tarantool"
+    installed = root / "versions" / "tarantool" / f"tarantool_{version}"
+    executable = root / "bin" / "tarantool"
+    assert executable.resolve(strict=True) == installed / "tarantool"
+    assert (root / "include" / "tarantool").resolve(strict=True) == (
+        installed / "include" / "tarantool"
+    )
+    assert (root / "include" / "tarantool" / "module.h").is_file()
+
+    rc, output = run_command_and_get_output([executable, "--version"], cwd=tmp_path)
+    assert rc == 0, output
+    assert re.search(rf"^Tarantool {re.escape(version)}\b", output), output
 
 
 @pytest.mark.parametrize("scope", [None, "project", "user"])
@@ -252,9 +283,18 @@ def test_install_tarantool_scopes_are_independent(tt_cmd, tmp_path, local_tarant
     assert (user / "include" / "tarantool" / "module.h").read_bytes() == built_header.read_bytes()
 
 
-@pytest.mark.parametrize("revision", ["release", "commit", "master", "pull-request"])
+@pytest.mark.parametrize(
+    ("revision", "flags"),
+    [
+        ("release", ["--source-build"]),
+        ("release", ["--dynamic"]),
+        ("commit", []),
+        ("master", []),
+        ("pull-request", []),
+    ],
+)
 @pytest.mark.usefixtures("local_tarantool_build")
-def test_install_tarantool_remote_revision(tt_cmd, tmp_path, monkeypatch, revision):
+def test_install_tarantool_remote_revision(tt_cmd, tmp_path, monkeypatch, revision, flags):
     repository = tmp_path / "distfiles" / "tarantool"
 
     def git(*args):
@@ -287,7 +327,8 @@ def test_install_tarantool_remote_revision(tt_cmd, tmp_path, monkeypatch, revisi
         "https://github.com/tarantool/tarantool.git",
     )
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(git_config))
-    monkeypatch.setenv("TT_CE_SCOPE_TEST_BINARY", "../../README")
+    source_binary = "../README" if "--dynamic" in flags else "../../README"
+    monkeypatch.setenv("TT_CE_SCOPE_TEST_BINARY", source_binary)
     revisions = {
         "release": ("3.2.1", "local tarantool sources\n", "3.2.1"),
         "commit": (release_commit, "local tarantool sources\n", release_commit[:7]),
@@ -296,7 +337,16 @@ def test_install_tarantool_remote_revision(tt_cmd, tmp_path, monkeypatch, revisi
     }
     requested, expected, name = revisions[revision]
     rc, output = run_command_and_get_output(
-        [tt_cmd, "--self", "binary", "install", "tarantool", requested, "--force"],
+        [
+            tt_cmd,
+            "--self",
+            "binary",
+            "install",
+            "tarantool",
+            requested,
+            *flags,
+            "--force",
+        ],
         cwd=tmp_path,
     )
     assert rc == 0, output

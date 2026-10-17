@@ -18,7 +18,7 @@ func TestTarantoolDockerRunOptions(t *testing.T) {
 				installCtx)
 			assert.Equal(t, []string{
 				"./tt", "binary", "--scope", "project", "install", "-f", "tarantool", "3.0.0",
-				"--reinstall",
+				"--reinstall", "--source-build",
 			}, opts.Command)
 			assert.Equal(t, []string{
 				filepath.Join(artifactRoot, "versions") + ":/work/.tarantool/versions",
@@ -40,7 +40,7 @@ func TestTarantoolDockerRunOptions(t *testing.T) {
 			installCtx)
 		assert.Equal(t, []string{
 			"./tt", "binary", "--scope", "project", "-V", "install", "-f", "tarantool", "master",
-			"--reinstall", "--local-repo", "/tt_distfiles", "--dynamic",
+			"--reinstall", "--source-build", "--local-repo", "/tt_distfiles", "--dynamic",
 		}, opts.Command)
 		assert.Equal(t, []string{
 			"user-root/versions:/work/.tarantool/versions",

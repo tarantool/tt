@@ -370,7 +370,7 @@ func updateSymlinks(params *bundleParams) error {
 
 // activateBundle applies a selection already checked by validateBundleInstallation.
 func activateBundle(params *bundleParams, sdk binary.SDKInstallation) error {
-	log.Infof("Updating symlinks to point to %s...", params.selection().ID)
+	log.Debugf("Updating symlinks to point to %s...", params.selection().ID)
 
 	var err error
 

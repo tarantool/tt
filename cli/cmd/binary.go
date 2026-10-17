@@ -120,7 +120,7 @@ func newBinaryInstallCmd(base *binary.BinaryContext,
 	installCmd := &cobra.Command{
 		Use:   "install",
 		Short: "Install a program",
-		Long: `Build tt or Tarantool from source, or install Enterprise and TCM binaries.
+		Long: `Install tt, Tarantool, Enterprise, and TCM.
 
 The installed version becomes active in the selected scope. See
 "tt binary --help" for scope locations and the binary layout.
@@ -128,7 +128,7 @@ The installed version becomes active in the selected scope. See
 Project installations create .env/activate.sh and .env/deactivate.sh once.
 Source them to use the project binaries and headers or restore your shell environment.
 `,
-		Example: `# Build the latest Tarantool release for this project.
+		Example: `# Install the latest Tarantool release for this project.
   $ tt binary install tarantool
 
   # Build tt for the current user.
@@ -212,18 +212,28 @@ func newInstallTarantoolCmd(base *binary.BinaryContext,
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramCe.String() + " [version|commit|pull-request]",
 		Short: "Install Tarantool Community or Enterprise Edition",
-		Long: `Build Tarantool Community Edition from source or install Enterprise binaries.
+		Long: `Install Tarantool Community or Enterprise Edition and its headers.
 
-Bare versions select Community Edition: 3, 3.8, or 3.8.0. Append ce or ee to
-select an edition explicitly: 3ce, 3.8ce, 3.8.0ce, 3ee, 3.8ee, or 3.8.0ee.
+Bare versions select Community Edition: 3, 3.8, or 3.8.0.
+
+On Linux amd64/arm64 with glibc, use prebuilt Community release binaries when available.
+Other platforms and releases without prebuilt packages are built from source automatically.
+Use --source-build to always compile Community releases from source.
+
+EE suffix selects Enterprise Edition: 3.8.1ee or 3ee.
+
 Enterprise archive names such as gc64-3.8.0-0-r94 also select Enterprise Edition.
 Use "tt binary search tarantool" or "tt binary search tarantool-ee" to list versions.
 
 Omitting the version selects the latest Community release. Git commits, master,
-and pull requests also select Community Edition.
-Use pr/<number> for a pull request. With --local-repo <dir>, <dir>/tarantool
+and pull requests also select Community Edition. Use pr/<number> for a pull request.
+
+With --local-repo <dir>, <dir>/tarantool
 must be a local Git clone of the Tarantool source repository.
 Use --local-dir <dir> to install Enterprise SDK archives from a local directory.
+
+Git commits, master, and pull requests are built from source automatically.
+The --local-repo, --dynamic, and --use-docker options also select source builds.
 
 Use --from-build <dir> to link an existing Community or Enterprise build into
 the selected scope without copying or rebuilding it. Use --include-dir to
@@ -241,7 +251,7 @@ select the headers directory. --from-build accepts no version argument.`,
       --include-dir ~/src/tarantool/include
 
   # Build Tarantool with two parallel jobs.
-  $ MAKEFLAGS="-j2" tt binary install tarantool 3.4.0
+  $ MAKEFLAGS="-j2" tt binary install tarantool 3.4.0 --source-build
 
   # Install the latest Enterprise release in minor version 3.8.
   $ tt binary install tarantool 3.8ee`,
@@ -264,10 +274,17 @@ select the headers directory. --from-build accepts no version argument.`,
 				return err
 			}
 
-			return validateEditionInstallFlags(cmd, args)
+			err = validateEditionInstallFlags(cmd, args)
+			if err != nil {
+				return err
+			}
+
+			return nil
 		},
 	}
 
+	tntCmd.Flags().BoolVar(&installCtx.SourceBuild, "source-build", false,
+		"Always build Tarantool Community releases from source")
 	tntCmd.Flags().BoolVar(&installCtx.BuildInDocker, "use-docker", false,
 		"Build Tarantool in an Ubuntu Docker container")
 	tntCmd.Flags().BoolVar(&installCtx.Dynamic, "dynamic", false,
@@ -285,6 +302,7 @@ select the headers directory. --from-build accepts no version argument.`,
 	tntCmd.MarkFlagsMutuallyExclusive("from-build", "credentials-file")
 	tntCmd.MarkFlagsMutuallyExclusive("from-build", "use-docker")
 	tntCmd.MarkFlagsMutuallyExclusive("from-build", "dynamic")
+	tntCmd.MarkFlagsMutuallyExclusive("from-build", "source-build")
 
 	return tntCmd
 }
@@ -303,7 +321,7 @@ func validateEditionInstallFlags(cmd *cobra.Command, args []string) error {
 
 	incompatible := []string{"local-dir", "dev", "credentials-file"}
 	if request.Program.BundleSource() != binary.ProgramUnknown {
-		incompatible = []string{"local-repo", "use-docker", "dynamic"}
+		incompatible = []string{"local-repo", "use-docker", "dynamic", "source-build"}
 	}
 
 	for _, flag := range incompatible {

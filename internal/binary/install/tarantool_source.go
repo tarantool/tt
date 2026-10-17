@@ -17,6 +17,75 @@ const (
 	makeExec  = "make"
 )
 
+// prepareTarantoolFromSource builds binary and headers in the caller's temporary directory.
+func prepareTarantoolFromSource(installCtx InstallCtx, tempDir string,
+	resolved resolvedInstallVersion,
+) (tarantoolArtifacts, error) {
+	log.Infof("Installing tarantool=%s", resolved.ref)
+
+	if !installCtx.Force {
+		log.Infof("Checking dependencies...")
+
+		err := programDependenciesInstalled(binary.ProgramCe)
+		if err != nil {
+			return tarantoolArtifacts{}, err
+		}
+	}
+
+	logFile, err := os.CreateTemp("", "tarantool_install")
+	if err != nil {
+		return tarantoolArtifacts{}, fmt.Errorf("failed to create log file: %w", err)
+	}
+
+	defer func() {
+		_ = logFile.Close()
+		_ = os.Remove(logFile.Name())
+	}()
+
+	err = downloadTarantoolSource(installCtx, tempDir, resolved, logFile)
+	if err != nil {
+		_ = printLog(logFile.Name())
+
+		return tarantoolArtifacts{}, err
+	}
+
+	log.Infof("Building tarantool...")
+
+	buildDir, err := buildTarantool(tempDir, installCtx, logFile)
+	if err != nil {
+		_ = printLog(logFile.Name())
+
+		return tarantoolArtifacts{}, err
+	}
+
+	if resolved.kind == versionKindPullRequest {
+		log.Debugf("Binary name is %s", resolved.name)
+	}
+
+	return tarantoolArtifacts{
+		executable: filepath.Join(buildDir, "tarantool-prefix", "bin", "tarantool"),
+		headers:    filepath.Join(buildDir, "tarantool-prefix", "include", "tarantool"),
+	}, nil
+}
+
+func downloadTarantoolSource(installCtx InstallCtx, destination string,
+	resolved resolvedInstallVersion, logFile *os.File,
+) error {
+	if installCtx.LocalRepo != "" {
+		log.Infof("Checking local files...")
+
+		localRepoPath := filepath.Join(installCtx.LocalRepo, installCtx.Program.String())
+
+		return copyLocalTarantool(localRepoPath, destination, resolved.ref,
+			installCtx.Verbose, logFile)
+	}
+
+	log.Infof("Downloading tarantool...")
+
+	return downloadGitVersion(installCtx.Program.GitRepo(), destination, resolved,
+		installCtx.Verbose, logFile)
+}
+
 // prepareCmakeOpts prepares cmake command line options for tarantool building.
 func prepareCmakeOpts(buildPath string,
 	installCtx InstallCtx,
