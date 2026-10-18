@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [2.15.1] - 2026-10-18
+
+This release tightens `tt backup` and `tt restore` around replicaset
+membership: backup manifests now record the full frozen membership,
+`restore plan` puts every member on its own chain and refuses points
+across a topology change, and `restore apply` validates `--patch-uuid`
+against the restored `_cluster` and refuses archive chains with journal
+holes. Commands that open binary connections gain `--sslpassword`,
+`--sslpasswordfile` and `--connect-timeout`.
+
+### Added
+
 - `tt restore plan`: `restore_targets.instances` now names every member
   the backup recorded with its original instance uuid, master first, so
   the orchestrator runs `tt restore apply` per instance and every member
