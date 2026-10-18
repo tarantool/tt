@@ -80,7 +80,7 @@ jobs:
 
   create-packages-linux-arm64:
     needs: validate-tag
-    runs-on: graviton
+    runs-on: ubuntu-24.04-arm
     strategy:
       fail-fast: false
     container:
@@ -103,6 +103,9 @@ jobs:
           fi
 
       # These scripts will be picked up while building packages with goreleaser.
+      - name: Trust the workspace for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Generate ZSH, Bash and Fish completion scripts
         run: |
           mage build
