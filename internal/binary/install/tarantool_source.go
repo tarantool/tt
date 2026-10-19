@@ -20,7 +20,7 @@ const (
 // prepareTarantoolFromSource builds binary and headers in the caller's temporary directory.
 func prepareTarantoolFromSource(installCtx InstallCtx, tempDir string,
 	resolved resolvedInstallVersion,
-) (tarantoolArtifacts, error) {
+) (programArtifact, error) {
 	log.Infof("Installing tarantool=%s", resolved.ref)
 
 	if !installCtx.Force {
@@ -28,13 +28,13 @@ func prepareTarantoolFromSource(installCtx InstallCtx, tempDir string,
 
 		err := programDependenciesInstalled(binary.ProgramCe)
 		if err != nil {
-			return tarantoolArtifacts{}, err
+			return programArtifact{}, err
 		}
 	}
 
 	logFile, err := os.CreateTemp("", "tarantool_install")
 	if err != nil {
-		return tarantoolArtifacts{}, fmt.Errorf("failed to create log file: %w", err)
+		return programArtifact{}, fmt.Errorf("failed to create log file: %w", err)
 	}
 
 	defer func() {
@@ -46,7 +46,7 @@ func prepareTarantoolFromSource(installCtx InstallCtx, tempDir string,
 	if err != nil {
 		_ = printLog(logFile.Name())
 
-		return tarantoolArtifacts{}, err
+		return programArtifact{}, err
 	}
 
 	log.Infof("Building tarantool...")
@@ -55,14 +55,15 @@ func prepareTarantoolFromSource(installCtx InstallCtx, tempDir string,
 	if err != nil {
 		_ = printLog(logFile.Name())
 
-		return tarantoolArtifacts{}, err
+		return programArtifact{}, err
 	}
 
 	if resolved.kind == versionKindPullRequest {
 		log.Debugf("Binary name is %s", resolved.name)
 	}
 
-	return tarantoolArtifacts{
+	return programArtifact{
+		program:    binary.ProgramCe,
 		executable: filepath.Join(buildDir, "tarantool-prefix", "bin", "tarantool"),
 		headers:    filepath.Join(buildDir, "tarantool-prefix", "include", "tarantool"),
 	}, nil

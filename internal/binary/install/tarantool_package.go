@@ -1,7 +1,6 @@
 package install
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -13,51 +12,47 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
-	"time"
 
 	"golang.org/x/net/html"
 
 	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/v3/internal/binary"
 )
 
 const (
 	tarantoolPackageRepositoryURL = "https://rws.tarantool.org/release/series-3/linux-rpm/static/"
-	maxPackageIndexSize           = 8 << 20
-	maxTarantoolPackageSize       = 512 << 20
-	tarantoolPackageTimeout       = 5 * time.Minute
 )
 
 var (
-	errPrebuiltPackageUnavailable = errors.New("prebuilt Tarantool package unavailable")
-	errPackageHTTPStatus          = errors.New("unexpected HTTP status")
-	errPackageTooLarge            = errors.New("package response exceeds size limit")
-	errPackageContents            = errors.New("invalid Tarantool package contents")
-	packageVersionPattern         = regexp.MustCompile(`^3\.[0-9]+\.[0-9]+(?:[-.][A-Za-z0-9.]+)?$`)
-	packageReleasePattern         = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+~^]*$`)
+	packageVersionPattern = regexp.MustCompile(`^3\.[0-9]+\.[0-9]+(?:[-.][A-Za-z0-9.]+)?$`)
+	packageReleasePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+~^]*$`)
 )
 
 // tarantoolPackageDownloader keeps HTTP configuration local, including in tests.
 type tarantoolPackageDownloader struct {
-	client        *http.Client
+	packageDownloader
+
 	repositoryURL string
 	indexLimit    int64
-	fileLimit     int64
-	keepTemp      bool
 	systemRoot    string
 }
 
 // preparePrebuiltTarantool downloads and extracts binary and headers for a resolved release.
 func preparePrebuiltTarantool(version, destination string, keepTemp bool) (
-	tarantoolArtifacts, error,
+	programArtifact, error,
 ) {
+	if runtime.GOOS != osLinux {
+		return programArtifact{}, fmt.Errorf("%w: unsupported platform %s/%s; "+
+			"use --source-build to build from source",
+			errPrebuiltPackageUnavailable, runtime.GOOS, runtime.GOARCH)
+	}
+
 	log.Infof("Installing prebuilt tarantool=%s", version)
 
 	downloader := tarantoolPackageDownloader{
-		client:        &http.Client{Timeout: tarantoolPackageTimeout},
+		client:     &http.Client{Timeout: packageDownloadTimeout},
+		indexLimit: maxPackageIndexSize, fileLimit: maxPackageSize, keepTemp: keepTemp,
 		repositoryURL: tarantoolPackageRepositoryURL,
-		indexLimit:    maxPackageIndexSize,
-		fileLimit:     maxTarantoolPackageSize,
-		keepTemp:      keepTemp,
 		systemRoot:    "/",
 	}
 
@@ -65,18 +60,18 @@ func preparePrebuiltTarantool(version, destination string, keepTemp bool) (
 }
 
 func (d tarantoolPackageDownloader) prepare(version, destination, goarch string) (
-	tarantoolArtifacts, error,
+	programArtifact, error,
 ) {
 	packageArch := map[string]string{archAMD64: rpmArchAMD64, archARM64: rpmArchARM64}[goarch]
 	if packageArch == "" || !packageVersionPattern.MatchString(version) {
-		return tarantoolArtifacts{}, fmt.Errorf("%w: no prebuilt Tarantool package "+
+		return programArtifact{}, fmt.Errorf("%w: no prebuilt Tarantool package "+
 			"for %q on linux/%s; use --source-build to build from source",
 			errPrebuiltPackageUnavailable, version, goarch)
 	}
 
 	err := checkTarantoolPackagePlatform(goarch, d.systemRoot)
 	if err != nil {
-		return tarantoolArtifacts{}, err
+		return programArtifact{}, err
 	}
 
 	log.Infof("Downloading Tarantool binary and headers...")
@@ -86,22 +81,22 @@ func (d tarantoolPackageDownloader) prepare(version, destination, goarch string)
 
 	runtimeName, headersName, err := d.selectPackages(packagesURL, version, packageArch)
 	if err != nil {
-		return tarantoolArtifacts{}, err
+		return programArtifact{}, err
 	}
 
 	absoluteDestination, err := filepath.Abs(destination)
 	if err != nil {
-		return tarantoolArtifacts{}, fmt.Errorf("resolve package destination: %w", err)
+		return programArtifact{}, fmt.Errorf("resolve package destination: %w", err)
 	}
 
 	err = os.MkdirAll(absoluteDestination, defaultDirPermissions)
 	if err != nil {
-		return tarantoolArtifacts{}, fmt.Errorf("create package destination: %w", err)
+		return programArtifact{}, fmt.Errorf("create package destination: %w", err)
 	}
 
 	extractDir, err := os.MkdirTemp(absoluteDestination, "tarantool-package-")
 	if err != nil {
-		return tarantoolArtifacts{}, fmt.Errorf("create package extraction directory: %w", err)
+		return programArtifact{}, fmt.Errorf("create package extraction directory: %w", err)
 	}
 
 	succeeded := false
@@ -119,12 +114,12 @@ func (d tarantoolPackageDownloader) prepare(version, destination, goarch string)
 
 		err = os.Mkdir(directory, defaultDirPermissions)
 		if err != nil {
-			return tarantoolArtifacts{}, fmt.Errorf("create RPM extraction directory: %w", err)
+			return programArtifact{}, fmt.Errorf("create RPM extraction directory: %w", err)
 		}
 
 		err = d.downloadAndExtractRPM(packagesURL+item.name, directory)
 		if err != nil {
-			return tarantoolArtifacts{}, err
+			return programArtifact{}, err
 		}
 	}
 
@@ -133,20 +128,22 @@ func (d tarantoolPackageDownloader) prepare(version, destination, goarch string)
 	info, err := os.Lstat(srcExecutable)
 
 	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o100 == 0 {
-		return tarantoolArtifacts{}, fmt.Errorf("%w: prebuilt Tarantool package has no executable "+
+		return programArtifact{}, fmt.Errorf("%w: prebuilt Tarantool package has no executable "+
 			"usr/bin/tarantool; use --source-build to build from source", errPackageContents)
 	}
 
 	info, err = os.Lstat(filepath.Join(srcHeaders, "module.h"))
 	if err != nil || !info.Mode().IsRegular() {
-		return tarantoolArtifacts{}, fmt.Errorf("%w: prebuilt Tarantool devel package has no "+
+		return programArtifact{}, fmt.Errorf("%w: prebuilt Tarantool devel package has no "+
 			"usr/include/tarantool/module.h; use --source-build to build from source",
 			errPackageContents)
 	}
 
 	succeeded = true
 
-	return tarantoolArtifacts{executable: srcExecutable, headers: srcHeaders}, nil
+	return programArtifact{
+		program: binary.ProgramCe, executable: srcExecutable, headers: srcHeaders,
+	}, nil
 }
 
 func (d tarantoolPackageDownloader) selectPackages(
@@ -260,69 +257,21 @@ func parsePackageIndex(reader io.Reader) (map[string]struct{}, error) {
 func (d tarantoolPackageDownloader) downloadAndExtractRPM(
 	address, destination string,
 ) error {
-	response, err := d.get(address)
+	archive, err := d.download(address, destination, "package-*.rpm", "Tarantool")
 	if err != nil {
-		return fmt.Errorf("download Tarantool package %s: %w", address, err)
-	}
-
-	defer func() { _ = response.Body.Close() }()
-
-	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("%w: download Tarantool package %s: HTTP %s; "+
-			"use --source-build to build from source",
-			errPackageHTTPStatus, address, response.Status)
-	}
-
-	if response.ContentLength > d.fileLimit {
-		return fmt.Errorf("%w: Tarantool package %s exceeds %d bytes",
-			errPackageTooLarge, address, d.fileLimit)
-	}
-
-	archive, err := os.CreateTemp(destination, "package-*.rpm")
-	if err != nil {
-		return fmt.Errorf("create temporary RPM: %w", err)
+		return err
 	}
 
 	if !d.keepTemp {
-		defer func() { _ = os.Remove(archive.Name()) }()
+		defer func() { _ = os.Remove(archive) }()
 	}
 
-	written, copyErr := io.Copy(archive, io.LimitReader(response.Body, d.fileLimit+1))
-	closeErr := archive.Close()
-
-	if copyErr != nil {
-		return fmt.Errorf("download Tarantool package %s: %w", address, copyErr)
-	}
-
-	if closeErr != nil {
-		return fmt.Errorf("close downloaded RPM: %w", closeErr)
-	}
-
-	if written > d.fileLimit {
-		return fmt.Errorf("%w: Tarantool package %s exceeds %d bytes",
-			errPackageTooLarge, address, d.fileLimit)
-	}
-
-	err = extractRPM(archive.Name(), destination)
+	err = extractRPM(archive, destination)
 	if err != nil {
 		return fmt.Errorf("extract Tarantool package %s: %w", address, err)
 	}
 
 	return nil
-}
-
-func (d tarantoolPackageDownloader) get(address string) (*http.Response, error) {
-	request, err := http.NewRequestWithContext(context.Background(), http.MethodGet, address, nil)
-	if err != nil {
-		return nil, fmt.Errorf("create package request: %w", err)
-	}
-
-	response, err := d.client.Do(request)
-	if err != nil {
-		return nil, fmt.Errorf("request package repository: %w", err)
-	}
-
-	return response, nil
 }
 
 // comparePackageReleases compares RPM release segments: numbers compare by value,

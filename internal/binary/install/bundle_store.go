@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-
-	"github.com/tarantool/tt/v3/internal/binary"
 )
 
 type stagedBundleDirectory struct {
@@ -63,23 +61,6 @@ func stageBundleDirectory(destination string) (stagedBundleDirectory, error) {
 	}
 
 	return staged, nil
-}
-
-func stageBundleArtifact(directory string, artifact bundleArtifact) error {
-	err := copyExecutable(artifact.executable, filepath.Join(directory, artifact.program.Exec()))
-	if err != nil {
-		return err
-	}
-
-	if artifact.headers != "" {
-		err = copyHeaders(artifact.headers,
-			filepath.Join(directory, binary.IncDirName, artifact.program.Exec()))
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // placeBundleArtifacts stages every product before replacing existing versions.

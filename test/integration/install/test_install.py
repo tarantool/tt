@@ -455,7 +455,17 @@ def test_install_tt_fail_exit_code_dependency_check(tt_cmd, tmp_path, package_to
     configPath = os.path.join(tmp_path, config_name)
     with open(configPath, "w") as f:
         f.write("env:\n  bin_dir:\n  inc_dir:\n")
-    install_cmd = [tt_cmd, "--cfg", configPath, "binary", "--scope", "project", "install", "tt"]
+    install_cmd = [
+        tt_cmd,
+        "--cfg",
+        configPath,
+        "binary",
+        "--scope",
+        "project",
+        "install",
+        "tt",
+        "--source-build",
+    ]
     install_process = subprocess.Popen(
         install_cmd,
         cwd=tmp_path,
@@ -556,7 +566,7 @@ def test_install_tarantool_fetch_latest_version(
     "active_symlink, expected_install_msg, is_interactive",
     [
         ("tt_master", "Found newest commit of tt in master", True),
-        ("tt_master", "tt_master version of tt already exists, updating symlink...", False),
+        ("tt_master", "tt_master version of tt already exists.", False),
         ("tt_v1.2.3", "Found newest commit of tt in master", True),
     ],
 )

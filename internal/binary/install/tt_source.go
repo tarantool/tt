@@ -10,6 +10,57 @@ import (
 	"github.com/tarantool/tt/v3/internal/binary"
 )
 
+// prepareTtFromSource builds the executable in the caller's temporary directory.
+func prepareTtFromSource(installCtx InstallCtx, tempDir string,
+	resolved resolvedInstallVersion,
+) (programArtifact, error) {
+	log.Infof("Installing tt=%s", resolved.ref)
+
+	if !installCtx.Force {
+		log.Infof("Checking dependencies...")
+
+		err := programDependenciesInstalled(binary.ProgramTt)
+		if err != nil {
+			return programArtifact{}, err
+		}
+	}
+
+	logFile, err := os.CreateTemp("", "tt_install")
+	if err != nil {
+		return programArtifact{}, fmt.Errorf("failed to create log file: %w", err)
+	}
+
+	defer func() {
+		_ = logFile.Close()
+		_ = os.Remove(logFile.Name())
+	}()
+
+	err = downloadTtSource(installCtx, tempDir, resolved, logFile)
+	if err != nil {
+		_ = printLog(logFile.Name())
+
+		return programArtifact{}, err
+	}
+
+	log.Infof("Building tt...")
+
+	err = binary.ExecuteCommand(mageExec, installCtx.Verbose, logFile, tempDir, "build")
+	if err != nil {
+		_ = printLog(logFile.Name())
+
+		return programArtifact{}, err
+	}
+
+	if resolved.kind == versionKindPullRequest {
+		log.Debugf("Binary name is %s", resolved.name)
+	}
+
+	return programArtifact{
+		program:    binary.ProgramTt,
+		executable: filepath.Join(tempDir, binary.ProgramTt.Exec()), headers: "",
+	}, nil
+}
+
 // downloadTtSource prepares the selected tt sources in the temporary build directory.
 func downloadTtSource(installCtx InstallCtx, buildPath string,
 	resolved resolvedInstallVersion, logFile *os.File,

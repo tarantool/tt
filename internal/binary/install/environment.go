@@ -19,8 +19,8 @@ var projectActivateScript string
 //go:embed templates/deactivate.sh
 var projectDeactivateScript string
 
-// prepareProjectEnvironment creates missing shell scripts after a successful
-// project installation. Existing scripts belong to the user and are preserved.
+// prepareProjectEnvironment creates missing shell scripts before activation.
+// Existing scripts belong to the user and are preserved.
 func prepareProjectEnvironment(scope binary.Scope) error {
 	if scope != binary.ScopeProject {
 		return nil

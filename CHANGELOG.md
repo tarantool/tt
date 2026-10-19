@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt binary install tt`: install Community release binaries from GitHub Releases
+  on Linux amd64/arm64 and macOS amd64 when available. Other platforms and
+  releases without matching archives build from source automatically, sharing
+  the Tarantool installation flow. Use `--source-build` to always compile from
+  source. Archives are downloaded directly from release URLs. A missing archive
+  (HTTP 404) falls back to a source build; other download errors and damaged
+  archives stop installation.
 - `tt binary install`: select `--scope project` (the default), `user`, or
   `system` when installing `tt`, `tarantool`, `tarantool-ee`, `tcm`, or
   `tarantool-sdk`.
@@ -447,6 +454,9 @@ for machine-readable output.
 
 ### Fixed
 
+- `tt binary install`: change active executable and header links only after
+  preparing all installed files, scope directories, and project environment
+  scripts. This also applies to existing installations, SDKs, and `--from-build`.
 - `tt binary install tarantool-ee`: reject bundles without Tarantool headers
   before replacing an installed version, and refuse to activate an incomplete
   installation. Installing TCM no longer creates unused header directories.
