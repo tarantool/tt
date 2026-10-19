@@ -15,36 +15,33 @@ import (
 // access to everyone.
 const defaultDirPermissions = 0o755
 
-// bundleArtifact is a prepared product, independent of its archive source and scope.
-type bundleArtifact struct {
+// programArtifact is one prepared program, independent of its source and installation scope.
+// An SDK is a collection of these artifacts, one per included program.
+type programArtifact struct {
 	program    binary.Program
 	executable string
 	headers    string
 }
 
-// tarantoolArtifacts contains prepared files, independent of their source and installation scope.
-type tarantoolArtifacts struct {
-	executable string
-	headers    string
-}
-
-// copyTarantoolArtifacts copies the binary and headers to their installation paths.
-func copyTarantoolArtifacts(artifacts tarantoolArtifacts, dstExecutable, dstHeaders string) error {
+// copyProgramArtifact copies a program's executable and optional headers into a version directory.
+// The same layout is used for final installation directories and staged bundle directories.
+func copyProgramArtifact(directory string, artifact programArtifact) error {
 	log.Debugf("Copying executable...")
 
-	err := copyExecutable(artifacts.executable, dstExecutable)
+	err := copyExecutable(artifact.executable, filepath.Join(directory, artifact.program.Exec()))
 	if err != nil {
 		return err
 	}
 
-	log.Debugf("Copying headers...")
+	if artifact.headers != "" {
+		log.Debugf("Copying headers...")
 
-	err = copyHeaders(artifacts.headers, dstHeaders)
-	if err != nil {
-		return err
+		err = copyHeaders(artifact.headers,
+			filepath.Join(directory, binary.IncDirName, artifact.program.Exec()))
+		if err != nil {
+			return err
+		}
 	}
-
-	log.Infof("Tarantool executable is installed to: %q", dstExecutable)
 
 	return nil
 }
@@ -88,30 +85,25 @@ func copyHeaders(srcPath, destPath string) error {
 	return nil
 }
 
-// changeActiveTarantoolVersion selects the binary and headers in the installation scope.
-func changeActiveTarantoolVersion(binPath, incPath, artifactRoot string) error {
-	binDir := filepath.Join(artifactRoot, binary.BinDirName)
-	incDir := filepath.Join(artifactRoot, binary.IncDirName)
+func activateInstalledVersion(root string, selected binary.Selection) error {
+	log.Debugf("Changing symlinks...")
 
-	err := os.MkdirAll(binDir, defaultDirPermissions)
-	if err != nil {
-		return fmt.Errorf("failed to create the binary directory: %w", err)
-	}
-
-	err = os.MkdirAll(incDir, defaultDirPermissions)
-	if err != nil {
-		return fmt.Errorf("failed to create the headers directory: %w", err)
-	}
-
-	err = binary.CreateSymlink(binPath, filepath.Join(binDir, binary.ProgramCe.Exec()), true)
+	err := binary.ValidateInstallation(root, selected)
 	if err != nil {
 		return err
 	}
 
-	err = binary.CreateSymlink(incPath, filepath.Join(incDir, binary.ProgramCe.Exec()), true)
+	err = binary.ActivateSelections(root, []binary.Selection{selected})
 	if err != nil {
 		return err
 	}
+
+	log.Infof("%s executable is installed to: %q", selected.Program,
+		filepath.Join(binary.InstallationPath(root, selected.Program, selected.ID),
+			selected.Program.Exec()))
+	log.Infof("Made default by symlink %q", filepath.Join(root, binary.BinDirName,
+		selected.Program.Exec()))
+	log.Infof("Done.")
 
 	return nil
 }

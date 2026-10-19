@@ -229,7 +229,7 @@ func findBundlePathsInDir(baseDir string, program binary.Program) (
 }
 
 // produceBundle validates the archive layout before placing any files.
-func produceBundle(directory string, program binary.Program) ([]bundleArtifact, error) {
+func produceBundle(directory string, program binary.Program) ([]programArtifact, error) {
 	source := program.BundleSource()
 	switch {
 	case source == binary.ProgramSDK:
@@ -242,11 +242,11 @@ func produceBundle(directory string, program binary.Program) ([]bundleArtifact, 
 			return nil, err
 		}
 
-		var artifact bundleArtifact
+		var artifact programArtifact
 
 		artifact.program, artifact.executable = program, executable
 
-		return []bundleArtifact{artifact}, nil
+		return []programArtifact{artifact}, nil
 	default:
 		return nil, fmt.Errorf("%w: %s", errUnsupportedBundleProgram, program)
 	}
@@ -254,17 +254,17 @@ func produceBundle(directory string, program binary.Program) ([]bundleArtifact, 
 
 // produceSDK prepares the Enterprise SDK once and selects the requested products.
 // Installing an individual product selects a subset of the same prepared artifacts.
-func produceSDK(directory string, requested binary.Program) ([]bundleArtifact, error) {
+func produceSDK(directory string, requested binary.Program) ([]programArtifact, error) {
 	products := []binary.Program{requested}
 	if requested == binary.ProgramSDK {
 		products = binary.SDKProducts()
 	}
 
-	artifacts := make([]bundleArtifact, 0, len(products))
+	artifacts := make([]programArtifact, 0, len(products))
 	root := filepath.Join(directory, "tarantool-enterprise")
 
 	for _, program := range products {
-		var artifact bundleArtifact
+		var artifact programArtifact
 
 		artifact.program = program
 		artifact.executable = filepath.Join(root, program.Exec())
@@ -288,7 +288,7 @@ func produceSDK(directory string, requested binary.Program) ([]bundleArtifact, e
 
 // prepareBundlePlacements resolves ownership and destinations once, before the
 // store stages any files. The manifest records the artifacts actually prepared.
-func prepareBundlePlacements(params *bundleParams, artifacts []bundleArtifact) []bundlePlacement {
+func prepareBundlePlacements(params *bundleParams, artifacts []programArtifact) []bundlePlacement {
 	selected := params.selection()
 
 	var sdk binary.SDKInstallation
@@ -311,7 +311,7 @@ func prepareBundlePlacements(params *bundleParams, artifacts []bundleArtifact) [
 			destination: binary.InstallationPath(params.artifactRoot,
 				selection.Program, selection.ID),
 			prepare: func(directory string) error {
-				err := stageBundleArtifact(directory, artifact)
+				err := copyProgramArtifact(directory, artifact)
 
 				return err
 			},
@@ -591,14 +591,13 @@ func executeBundleInstallationSteps(params *bundleParams) error {
 	return nil
 }
 
-// installBundleProgram installs SDK and standalone products through one pipeline.
-func installBundleProgram(installCtx InstallCtx) error {
+// prepareBundleProgram installs SDK and standalone products without activating them.
+func prepareBundleProgram(installCtx InstallCtx) (installationActivation, error) {
 	artifactRoot, err := installCtx.Scope.ArtifactPath()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// The remaining fields are filled in by the installation steps.
 	var params bundleParams
 
 	params.inst = &installCtx
@@ -608,59 +607,51 @@ func installBundleProgram(installCtx InstallCtx) error {
 	if err != nil {
 		log.Errorf("Failed to find bundles to install: %v", err)
 
-		return err
+		return nil, err
 	}
 
-	existing, err := prepareExistingBundle(&params)
-	if err != nil {
-		return err
-	}
-
-	if existing {
-		return nil
+	if prepareExistingBundle(&params) {
+		return func() error { return updateSymlinks(&params) }, nil
 	}
 
 	log.Infof("Installing %s=%s", params.inst.Program, params.bundleInfo.Version.Str)
 
 	logFilePath, err := executeBundleInstallation(&params)
 	if err != nil {
-		return fmt.Errorf("%w%s): %w",
+		return nil, fmt.Errorf("%w%s): %w",
 			errInstallationFailedDuringExecutionPhaseSeeLog, logFilePath, err)
 	}
 
-	err = updateSymlinks(&params)
-	if err != nil {
-		return fmt.Errorf("%w: %w", errInstallationFailedDuringFinaleUpdateSymlinks, err)
-	}
+	return func() error {
+		err := updateSymlinks(&params)
+		if err != nil {
+			return fmt.Errorf("%w: %w", errInstallationFailedDuringFinaleUpdateSymlinks, err)
+		}
 
-	log.Infof("Successfully installed %s version %s",
-		params.inst.Program, params.selection().ID)
-	log.Info("Done.")
+		log.Infof("Successfully installed %s version %s",
+			params.inst.Program, params.selection().ID)
+		log.Info("Done.")
 
-	return nil
+		return nil
+	}, nil
 }
 
-// prepareExistingBundle reactivates a complete version unless replacement was requested.
-func prepareExistingBundle(params *bundleParams) (bool, error) {
+// prepareExistingBundle checks for a complete version without changing active links.
+func prepareExistingBundle(params *bundleParams) bool {
 	if params.inst.Reinstall {
-		return false, nil
+		return false
 	}
 
 	log.Infof("Checking existing installation...")
 
-	sdk, err := validateBundleInstallation(params)
+	_, err := validateBundleInstallation(params)
 	if err != nil {
 		log.Debugf("No complete installation found for %s: %v", params.selection().ID, err)
 
-		return false, nil
+		return false
 	}
 
 	log.Infof("%s version %s already exists.", params.inst.Program, params.selection().ID)
 
-	err = activateBundle(params, sdk)
-	if err != nil {
-		return false, err
-	}
-
-	return true, nil
+	return true
 }

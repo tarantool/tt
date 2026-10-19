@@ -1,5 +1,6 @@
 import os
 import platform
+import re
 import subprocess
 
 import pytest
@@ -60,6 +61,40 @@ def install_tt(tt_cmd, tmp_path, flags=(), version="1.2.3"):
         ],
         cwd=tmp_path,
     )
+
+
+@pytest.mark.skipif(
+    (platform.system(), platform.machine().lower())
+    not in (
+        ("Linux", "x86_64"),
+        ("Linux", "amd64"),
+        ("Linux", "aarch64"),
+        ("Linux", "arm64"),
+        ("Darwin", "x86_64"),
+        ("Darwin", "amd64"),
+    ),
+    reason="Prebuilt tt archives require Linux amd64/arm64 or macOS amd64",
+)
+def test_install_tt_prebuilt_release(tt_cmd, tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.delenv("TT_CLI_CFG", raising=False)
+    version = "2.15.0"
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "--self", "binary", "install", "tt", version, "--scope", "project"],
+        cwd=tmp_path,
+    )
+    assert rc == 0, output
+    assert "Downloading tt binary..." in output
+    assert "Building tt..." not in output
+
+    root = tmp_path / ".tarantool"
+    executable = root / "bin" / "tt"
+    assert executable.resolve(strict=True) == root / "versions" / "tt" / f"tt_v{version}" / "tt"
+    assert not (root / "include").exists()
+
+    rc, output = run_command_and_get_output([executable, "version"], cwd=tmp_path)
+    assert rc == 0, output
+    assert re.search(rf"^Tarantool CLI version {re.escape(version)}\b", output), output
 
 
 @pytest.mark.parametrize("requested", ["1", "1.2", "1.2.3", "1ce", "1.2ce", "1.2.3ce"])
@@ -227,8 +262,9 @@ def test_install_tt_remote_revision(tt_cmd, tmp_path, monkeypatch, revision):
         "pull-request": ("pr/42", "pull request sources\n"),
     }
     requested, expected = revisions[revision]
+    flags = ["--source-build"] if revision == "release" else []
     rc, output = run_command_and_get_output(
-        [tt_cmd, "--self", "binary", "install", "tt", requested, "--force"],
+        [tt_cmd, "--self", "binary", "install", "tt", requested, "--force", *flags],
         cwd=tmp_path,
     )
     assert rc == 0, output

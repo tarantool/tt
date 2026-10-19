@@ -26,7 +26,7 @@ type InstallCtx struct {
 	CredentialsFile string
 	// BuildInDocker is set if tarantool must be built in docker container.
 	BuildInDocker bool
-	// SourceBuild always compiles CE releases instead of using prebuilt packages.
+	// SourceBuild always compiles Community releases instead of using prebuilt packages.
 	SourceBuild bool
 	// Version of the program to install. Specified by user.
 	requestedVersion string

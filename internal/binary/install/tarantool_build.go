@@ -47,8 +47,10 @@ func searchTarantoolHeaders(buildDir, includeDir string) (string, error) {
 	return "", nil
 }
 
-// installTarantoolFromBuild links Tarantool from a local build directory.
-func installTarantoolFromBuild(installCtx InstallCtx, artifactRoot string) error {
+// prepareTarantoolFromBuild validates a local build and returns its final activation step.
+func prepareTarantoolFromBuild(installCtx InstallCtx, artifactRoot string) (
+	installationActivation, error,
+) {
 	ttBinDir := filepath.Join(artifactRoot, binary.BinDirName)
 	ttIncludeDir := filepath.Join(artifactRoot, binary.IncDirName)
 	includeDir := installCtx.IncDir
@@ -56,11 +58,11 @@ func installTarantoolFromBuild(installCtx InstallCtx, artifactRoot string) error
 	// Validate build directory.
 	buildDir, err := filepath.Abs(installCtx.FromBuild)
 	if err != nil {
-		return fmt.Errorf("failed to get absolute path: %w", err)
+		return nil, fmt.Errorf("failed to get absolute path: %w", err)
 	}
 
 	if !binary.IsDir(buildDir) {
-		return fmt.Errorf("%w%v doesn't exist, or isn't directory",
+		return nil, fmt.Errorf("%w%v doesn't exist, or isn't directory",
 			errInvalidDirectory, buildDir)
 	}
 
@@ -85,53 +87,48 @@ func installTarantoolFromBuild(installCtx InstallCtx, artifactRoot string) error
 
 		includeDir, err = searchTarantoolHeaders(buildDir, includeDir)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		// Create the scope's directories only after validating the build and headers.
-		err = binary.CreateDirectory(ttBinDir, defaultDirPermissions)
-		if err != nil {
-			return err
-		}
-
-		err = binary.CreateDirectory(ttIncludeDir, defaultDirPermissions)
-		if err != nil {
-			return err
-		}
-
-		log.Infof("Changing symlinks...")
-
-		err = binary.CreateSymlink(binaryPath, filepath.Join(ttBinDir, "tarantool"), true)
-		if err != nil {
-			return err
-		}
-
-		tarantoolIncludeSymlink := filepath.Join(ttIncludeDir, "tarantool")
-		// Remove old symlink to the tarantool headers.
-		// RemoveAll is used to perform deletion even if the file is not a symlink.
-		err = os.RemoveAll(tarantoolIncludeSymlink)
-		if err != nil {
-			return fmt.Errorf("failed to remove the headers symlink: %w", err)
-		}
-
-		if includeDir == "" {
-			log.Warn("Tarantool headers location was not specified. " +
-				"`tt package build`, `tt rocks` may not work properly.\n" +
-				"  To specify include files location use --include-dir option.")
-		} else {
-			err = binary.CreateSymlink(includeDir, tarantoolIncludeSymlink, true)
-			if err != nil {
-				return err
-			}
-
-			log.Infof("tarantool headers directory set as %v.", includeDir)
-		}
-
-		log.Infof("Done.")
-
-		return nil
+		return func() error {
+			return activateTarantoolFromBuild(binaryPath, includeDir, ttBinDir, ttIncludeDir)
+		}, nil
 	}
 
-	return fmt.Errorf("%w:\n%s",
+	return nil, fmt.Errorf("%w:\n%s",
 		errTarantoolBinaryWasNotFoundInThePaths, strings.Join(checkedBinaryPaths, "\n"))
+}
+
+func activateTarantoolFromBuild(binaryPath, includeDir, ttBinDir, ttIncludeDir string) error {
+	log.Debugf("Changing symlinks...")
+
+	err := binary.CreateSymlink(binaryPath, filepath.Join(ttBinDir, "tarantool"), true)
+	if err != nil {
+		return err
+	}
+
+	tarantoolIncludeSymlink := filepath.Join(ttIncludeDir, "tarantool")
+	// Remove old symlink to the tarantool headers.
+	// RemoveAll is used to perform deletion even if the file is not a symlink.
+	err = os.RemoveAll(tarantoolIncludeSymlink)
+	if err != nil {
+		return fmt.Errorf("failed to remove the headers symlink: %w", err)
+	}
+
+	if includeDir == "" {
+		log.Warn("Tarantool headers location was not specified. " +
+			"`tt package build`, `tt rocks` may not work properly.\n" +
+			"  To specify include files location use --include-dir option.")
+	} else {
+		err = binary.CreateSymlink(includeDir, tarantoolIncludeSymlink, true)
+		if err != nil {
+			return err
+		}
+
+		log.Infof("tarantool headers directory set as %v.", includeDir)
+	}
+
+	log.Infof("Done.")
+
+	return nil
 }

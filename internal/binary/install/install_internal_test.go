@@ -40,7 +40,7 @@ func Test_getLatestRelease(t *testing.T) {
 	require.Empty(t, latestRelease)
 }
 
-func Test_installTarantoolFromBuild(t *testing.T) {
+func TestPrepareTarantoolFromBuild(t *testing.T) {
 	ttBinDir := "bin"
 	ttIncDir := "include"
 
@@ -104,8 +104,9 @@ func Test_installTarantoolFromBuild(t *testing.T) {
 
 		for _, testCase := range cases {
 			installCtx := InstallCtx{FromBuild: testCase.buildDir}
-			err := installTarantoolFromBuild(installCtx, tempDirectory)
+			activate, err := prepareTarantoolFromBuild(installCtx, tempDirectory)
 			require.NoError(t, err)
+			require.NoError(t, activate())
 
 			link, err := os.Readlink(filepath.Join(ttBinPath, "tarantool"))
 			require.NoError(t, err)
@@ -156,8 +157,9 @@ func Test_installTarantoolFromBuild(t *testing.T) {
 
 		for _, testCase := range cases {
 			installCtx := InstallCtx{FromBuild: testCase.buildDir, IncDir: testCase.incDir}
-			err := installTarantoolFromBuild(installCtx, tempDirectory)
+			activate, err := prepareTarantoolFromBuild(installCtx, tempDirectory)
 			require.NoError(t, err)
+			require.NoError(t, activate())
 
 			execLink, err := os.Readlink(filepath.Join(ttBinPath, "tarantool"))
 			require.NoError(t, err)
@@ -177,7 +179,7 @@ func Test_installTarantoolFromBuild(t *testing.T) {
 		_ = os.MkdirAll(buildDir, os.ModePerm)
 
 		installCtx := InstallCtx{FromBuild: buildDir}
-		err := installTarantoolFromBuild(installCtx, tempDirectory)
+		_, err := prepareTarantoolFromBuild(installCtx, tempDirectory)
 		assert.Error(t, err)
 	})
 }

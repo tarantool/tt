@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/internal/binary"
 )
@@ -80,4 +81,41 @@ func installedTtCommit(binPath string) (string, error) {
 	}
 
 	return binVersion.Hash, nil
+}
+
+func prepareExistingProgram(installCtx *InstallCtx, binPath, incPath string,
+	resolved resolvedInstallVersion,
+) (bool, error) {
+	if installCtx.Reinstall {
+		return false, nil
+	}
+
+	log.Infof("Checking existing...")
+
+	if !binary.IsRegularFile(binPath) || incPath != "" && !binary.IsDir(incPath) {
+		return false, nil
+	}
+
+	isBinExecutable, err := binary.IsExecOwner(binPath)
+	if err != nil {
+		return false, err
+	}
+
+	updatePossible, err := isUpdatePossible(*installCtx, binPath, resolved.kind, isBinExecutable)
+	if err != nil {
+		return false, err
+	}
+
+	if updatePossible {
+		log.Infof("Found newest commit of %s in master", installCtx.Program)
+
+		installCtx.Reinstall = true
+
+		return false, nil
+	}
+
+	log.Infof("%s version of %s already exists.",
+		resolved.installName(installCtx.Program), installCtx.Program)
+
+	return true, nil
 }

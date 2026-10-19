@@ -131,7 +131,7 @@ Source them to use the project binaries and headers or restore your shell enviro
 		Example: `# Install the latest Tarantool release for this project.
   $ tt binary install tarantool
 
-  # Build tt for the current user.
+  # Install tt for the current user.
   $ tt binary install tt --scope user
 
   # Install a local Enterprise archive system-wide.
@@ -171,18 +171,24 @@ func newInstallTtCmd(base *binary.BinaryContext,
 	tntCmd := &cobra.Command{
 		Use:   binary.ProgramTt.String() + " [version|commit|pull-request]",
 		Short: "Install tt Community or Enterprise Edition",
-		Long: `Build tt Community Edition from source or install tt Enterprise binaries.
+		Long: `Install tt Community or Enterprise Edition.
+
+On Linux amd64/arm64 and macOS amd64, install prebuilt Community binaries
+from GitHub Releases when available. Other platforms and releases without
+prebuilt archives are built from source automatically.
+Use --source-build to always compile Community releases from source.
 
 Bare versions select Community Edition: 2, 2.15, or 2.15.0. Append ce or ee to
 select an edition explicitly: 2ce, 2.15ce, 2.15.0ce, 2ee, 2.15ee, or 2.15.0ee.
 Omitting the version selects the latest Community release. Git commits, master,
 and pull requests also select Community Edition. Use pr/<number> for a pull request.
+Git commits, master, pull requests, and --local-repo select source builds automatically.
 
 With --local-repo <dir>, <dir>/tt must be a local Git clone of the tt source
 repository. Use --local-dir <dir> with standalone tt-ee-*.tar.gz archives to install
 Enterprise Edition. Enterprise search and installation are available only on Linux.
 Use "tt binary search tt" or "tt binary search tt-ee" to list available versions.`,
-		Example: `# Build the latest tt release for the current user.
+		Example: `# Install the latest tt release for the current user.
   $ tt binary install tt --scope user
 
   # Build tt from a pull request for this project.
@@ -197,6 +203,8 @@ Use "tt binary search tt" or "tt binary search tt-ee" to list available versions
 		Args: cobra.MatchAll(cobra.MaximumNArgs(1), validateEditionInstallFlags),
 	}
 
+	tntCmd.Flags().BoolVar(&installCtx.SourceBuild, "source-build", false,
+		"Always build tt Community releases from source")
 	tntCmd.Flags().StringVar(&installCtx.LocalRepo, "local-repo", "",
 		"Directory containing the tt Git source repository in tt/")
 	addStandaloneInstallFlags(tntCmd, installCtx, binary.ProgramTtEe)

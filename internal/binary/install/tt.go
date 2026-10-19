@@ -10,199 +10,75 @@ import (
 	"github.com/tarantool/tt/v3/internal/binary"
 )
 
-// copyBuiltTT copies the built binary into the version's bin directory.
-func copyBuiltTT(binPath, buildPath string, reinstall bool) error {
-	err := os.MkdirAll(filepath.Dir(binPath), defaultDirPermissions)
-	if err != nil {
-		return fmt.Errorf("failed to create the version directory: %w", err)
-	}
-
-	if reinstall {
-		err = os.Remove(binPath)
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("failed to remove the installed version: %w", err)
-		}
-	}
-
-	err = binary.CopyFilePreserve(filepath.Join(buildPath, binary.ProgramTt.Exec()), binPath)
-	if err != nil {
-		return err
-	}
-
-	log.Infof("Tt executable is installed to: %q", binPath)
-
-	return nil
-}
-
-// changeActiveTtVersion points the scope's tt executable at the selected version.
-func changeActiveTtVersion(binPath, symlinkPath string) error {
-	err := os.MkdirAll(filepath.Dir(symlinkPath), defaultDirPermissions)
-	if err != nil {
-		return fmt.Errorf("failed to create the binary directory: %w", err)
-	}
-
-	return binary.CreateSymlink(binPath, symlinkPath, true)
-}
-
-func prepareExistingTt(installCtx *InstallCtx, pathToBin, symlinkPath string,
-	resolved resolvedInstallVersion,
-) (bool, error) {
-	if installCtx.Reinstall {
-		return false, nil
-	}
-
-	log.Infof("Checking existing...")
-
-	if !binary.IsRegularFile(pathToBin) {
-		return false, nil
-	}
-
-	isBinExecutable, err := binary.IsExecOwner(pathToBin)
-	if err != nil {
-		return false, err
-	}
-
-	updatePossible, err := isUpdatePossible(*installCtx, pathToBin, resolved.kind,
-		isBinExecutable)
-	if err != nil {
-		return false, err
-	}
-
-	if updatePossible {
-		log.Info("Found newest commit of tt in master")
-
-		// Reduce the case to a reinstallation.
-		installCtx.Reinstall = true
-
-		return false, nil
-	}
-
-	log.Infof("%s version of tt already exists, updating symlink...", resolved.name)
-
-	err = changeActiveTtVersion(pathToBin, symlinkPath)
-	if err != nil {
-		return false, err
-	}
-
-	log.Infof("Done")
-
-	return true, nil
-}
-
-// installTt installs selected version of tt.
-func installTt(installCtx InstallCtx) error {
+// prepareTtInstallation installs tt and returns its final activation step.
+func prepareTtInstallation(installCtx InstallCtx) (installationActivation, error) {
 	log.Infof("Installing tt in the %s scope...", installCtx.Scope.String())
 
 	artifactRoot, err := installCtx.Scope.ArtifactPath()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	resolved, err := resolveInstallVersion(installCtx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	versionStr := resolved.installName(installCtx.Program)
+	selected := binary.Selection{Program: binary.ProgramTt, ID: resolved.name}
+	directory := binary.InstallationPath(artifactRoot, selected.Program, selected.ID)
+	executable := filepath.Join(directory, selected.Program.Exec())
 
-	// Destination of this version's executable: <scope>/versions/tt/<version>/tt.
-	binPath := filepath.Join(artifactRoot, binary.VersionsDirName, binary.ProgramTt.String(),
-		versionStr, binary.ProgramTt.Exec())
-
-	// Directory of active executable symlinks: <scope>/bin, intended for PATH.
-	binDir := filepath.Join(artifactRoot, binary.BinDirName)
-
-	// Symlink selecting the active tt version: <scope>/bin/tt points to binPath.
-	symlinkPath := filepath.Join(binDir, binary.ProgramTt.Exec())
-
-	// Check if that version is already installed.
-	// If it is installed, check if the newest version exists.
-	done, err := prepareExistingTt(&installCtx, binPath, symlinkPath, resolved)
+	existing, err := prepareExistingProgram(&installCtx, executable, "", resolved)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	if done {
-		return nil
+	activate := func() error { return activateInstalledVersion(artifactRoot, selected) }
+	if existing {
+		return activate, nil
 	}
 
-	logFile, err := os.CreateTemp("", "tarantool_install")
+	temporary, cleanup, err := prepareInstallDirectory(installCtx)
 	if err != nil {
-		return fmt.Errorf("failed to create log file: %w", err)
+		return nil, err
 	}
 
-	defer func() {
-		_ = os.Remove(logFile.Name())
-	}()
+	defer cleanup()
 
-	log.Infof("Installing tt=" + resolved.ref)
+	artifact, err := prepareTtArtifact(installCtx, temporary, resolved)
+	if err != nil {
+		return nil, err
+	}
 
-	// Check tt dependencies.
-	if !installCtx.Force {
-		log.Infof("Checking dependencies...")
+	if installCtx.Reinstall {
+		log.Debugf("Removing the installed version...")
 
-		err = programDependenciesInstalled(binary.ProgramTt)
+		err = os.RemoveAll(directory)
 		if err != nil {
-			return err
+			return nil, fmt.Errorf("failed to remove the installed version: %w", err)
 		}
 	}
 
-	tempBuildPath, err := os.MkdirTemp("", "tt_install")
+	err = copyProgramArtifact(directory, artifact)
 	if err != nil {
-		return fmt.Errorf("failed to create a temporary directory: %w", err)
+		return nil, err
 	}
 
-	_ = os.Chmod(tempBuildPath, defaultDirPermissions)
+	return activate, nil
+}
 
-	if !installCtx.KeepTemp {
-		defer func() {
-			_ = os.RemoveAll(tempBuildPath)
-		}()
+func prepareTtArtifact(installCtx InstallCtx, temporary string,
+	resolved resolvedInstallVersion,
+) (programArtifact, error) {
+	if resolved.kind == versionKindTag && !installCtx.SourceBuild && installCtx.LocalRepo == "" {
+		artifact, err := preparePrebuiltTt(resolved.ref, temporary, installCtx.KeepTemp)
+		if !errors.Is(err, errPrebuiltPackageUnavailable) {
+			return artifact, err
+		}
+
+		log.Infof("Prebuilt tt is unavailable, building from source...")
+		log.Debugf("Prebuilt package unavailable: %v", err)
 	}
 
-	// Download tt.
-	err = downloadTtSource(installCtx, tempBuildPath, resolved, logFile)
-	if err != nil {
-		_ = printLog(logFile.Name())
-		return err
-	}
-
-	// Build tt.
-	log.Infof("Building tt...")
-
-	err = binary.ExecuteCommand(mageExec, installCtx.Verbose, logFile, tempBuildPath,
-		"build")
-	if err != nil {
-		_ = printLog(logFile.Name())
-		return err
-	}
-
-	if resolved.kind == versionKindPullRequest {
-		log.Infof("Binary name is %s", resolved.name)
-	}
-
-	// Copy binary.
-	log.Infof("Copying executable...")
-
-	err = copyBuiltTT(binPath, tempBuildPath, installCtx.Reinstall)
-	if err != nil {
-		_ = printLog(logFile.Name())
-		return err
-	}
-
-	// Set symlink.
-	err = changeActiveTtVersion(binPath, symlinkPath)
-	if err != nil {
-		_ = printLog(logFile.Name())
-		return err
-	}
-
-	log.Infof("Made default by symlink %q", symlinkPath)
-	log.Infof("Done.")
-
-	if installCtx.KeepTemp {
-		log.Infof("Artifacts can be found at: %s", tempBuildPath)
-	}
-
-	return nil
+	return prepareTtFromSource(installCtx, temporary, resolved)
 }

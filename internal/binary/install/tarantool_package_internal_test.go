@@ -2,7 +2,7 @@ package install
 
 import (
 	"bytes"
-	"encoding/binary"
+	encodingbinary "encoding/binary"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/v3/internal/binary"
 	"github.com/ulikunitz/xz"
 )
 
@@ -105,6 +106,7 @@ func TestPreparePrebuiltTarantool(t *testing.T) {
 			downloader := packageTestDownloader(t, server)
 			artifacts, err := downloader.prepare("3.7.1", destination, goarch)
 			require.NoError(t, err)
+			require.Equal(t, binary.ProgramCe, artifacts.program)
 			require.True(t, filepath.IsAbs(artifacts.executable))
 			require.True(t, filepath.IsAbs(artifacts.headers))
 
@@ -247,10 +249,10 @@ func packageTestDownloader(t *testing.T, server *httptest.Server) tarantoolPacka
 	t.Helper()
 
 	return tarantoolPackageDownloader{
-		client: server.Client(), repositoryURL: server.URL,
-		indexLimit: maxPackageIndexSize, fileLimit: maxTarantoolPackageSize,
-		keepTemp:   false,
-		systemRoot: packagePlatformFixture(t),
+		client: server.Client(), indexLimit: maxPackageIndexSize,
+		fileLimit: maxPackageSize, keepTemp: false,
+		repositoryURL: server.URL,
+		systemRoot:    packagePlatformFixture(t),
 	}
 }
 
@@ -291,11 +293,11 @@ func packageTestRPM(t *testing.T, name, content string, mode uint32) []byte {
 	archive.Write(make([]byte, 8)) // Empty signature header, already aligned to 8 bytes.
 	archive.Write(headerMagic)
 
-	_ = binary.Write(&archive, binary.BigEndian, uint32(2))
-	_ = binary.Write(&archive, binary.BigEndian, uint32(len("cpio\x00xz\x00")))
+	_ = encodingbinary.Write(&archive, encodingbinary.BigEndian, uint32(2))
+	_ = encodingbinary.Write(&archive, encodingbinary.BigEndian, uint32(len("cpio\x00xz\x00")))
 
 	for _, entry := range [][4]uint32{{1124, 6, 0, 1}, {1125, 6, 5, 1}} {
-		_ = binary.Write(&archive, binary.BigEndian, entry)
+		_ = encodingbinary.Write(&archive, encodingbinary.BigEndian, entry)
 	}
 
 	archive.WriteString("cpio\x00xz\x00")

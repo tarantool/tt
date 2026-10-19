@@ -48,6 +48,18 @@ var tarantoolPackagePlatforms = map[string]struct {
 	},
 }
 
+// checkTtPackagePlatform recognizes the platforms published in GitHub Releases.
+func checkTtPackagePlatform(goos, goarch string) error {
+	supported := goos == osLinux && (goarch == archAMD64 || goarch == archARM64) ||
+		goos == osDarwin && goarch == archAMD64
+	if !supported {
+		return fmt.Errorf("%w: unsupported platform %s/%s; "+
+			"use --source-build to build from source", errPrebuiltPackageUnavailable, goos, goarch)
+	}
+
+	return nil
+}
+
 // checkTarantoolPackagePlatform checks for the loader, libc and libgcc used by the prebuilt RPMs.
 // It only inspects file metadata and symlinks. systemRoot is "/" on the host.
 func checkTarantoolPackagePlatform(goarch, systemRoot string) error {
@@ -88,7 +100,8 @@ func checkTarantoolPackagePlatform(goarch, systemRoot string) error {
 			strings.Contains(name, gcompatLibraryMarker) {
 			return fmt.Errorf("%w: /%s uses %s or %s; "+
 				"use --source-build to build from source",
-				errPrebuiltPackageUnavailable, platform.loaderPath, muslLibraryMarker, gcompatLibraryMarker)
+				errPrebuiltPackageUnavailable, platform.loaderPath,
+				muslLibraryMarker, gcompatLibraryMarker)
 		}
 	}
 

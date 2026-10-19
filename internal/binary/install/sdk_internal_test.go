@@ -163,9 +163,8 @@ func TestSDKLifecycle(t *testing.T) {
 			params.inst.Program = binary.ProgramSDK
 			params.bundleInfo.Version.Str = first
 
-			done, err := prepareExistingBundle(params)
-			require.NoError(t, err)
-			require.True(t, done)
+			require.True(t, prepareExistingBundle(params))
+			require.NoError(t, updateSymlinks(params))
 
 			entries, err := os.ReadDir(filepath.Join(root, "versions/tarantool-sdk"))
 			require.NoError(t, err)

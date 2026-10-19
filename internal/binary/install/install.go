@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/fatih/color"
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/internal/binary"
 )
 
@@ -21,7 +22,10 @@ func printLog(logName string) error {
 	return nil
 }
 
-// Install installs program.
+// installationActivation changes active links after all installation files are prepared.
+type installationActivation func() error
+
+// Install prepares a program and its environment, then activates it as the final step.
 func Install(installCtx InstallCtx) error {
 	if installCtx.LocalRepo != "" {
 		localRepo, err := filepath.Abs(installCtx.LocalRepo)
@@ -32,15 +36,18 @@ func Install(installCtx InstallCtx) error {
 		installCtx.LocalRepo = localRepo
 	}
 
-	var err error
+	var (
+		activate installationActivation
+		err      error
+	)
 
 	switch {
 	case installCtx.Program == binary.ProgramTt:
-		err = installTt(installCtx)
+		activate, err = prepareTtInstallation(installCtx)
 	case installCtx.Program == binary.ProgramCe:
-		err = installTarantool(installCtx)
+		activate, err = prepareTarantoolInstallation(installCtx)
 	case installCtx.Program.BundleSource() != binary.ProgramUnknown:
-		err = installBundleProgram(installCtx)
+		activate, err = prepareBundleProgram(installCtx)
 	default:
 		return fmt.Errorf("%w%s", binary.ErrUnknownApplication, installCtx.Program)
 	}
@@ -49,7 +56,7 @@ func Install(installCtx InstallCtx) error {
 		return err
 	}
 
-	err = prepareProjectEnvironment(installCtx.Scope)
+	err = finishInstallation(installCtx, activate)
 	if err != nil {
 		return err
 	}
@@ -60,4 +67,56 @@ func Install(installCtx InstallCtx) error {
 	}
 
 	return nil
+}
+
+// finishInstallation completes every filesystem preparation before changing active links.
+func finishInstallation(installCtx InstallCtx, activate installationActivation) error {
+	artifactRoot, err := installCtx.Scope.ArtifactPath()
+	if err != nil {
+		return err
+	}
+
+	directories := []string{binary.BinDirName}
+	if installCtx.Program.IsTarantool() || installCtx.Program == binary.ProgramSDK {
+		directories = append(directories, binary.IncDirName)
+	}
+
+	for _, directory := range directories {
+		err = binary.CreateDirectory(filepath.Join(artifactRoot, directory), defaultDirPermissions)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = prepareProjectEnvironment(installCtx.Scope)
+	if err != nil {
+		return err
+	}
+
+	return activate()
+}
+
+// prepareInstallDirectory owns downloaded and built artifacts until they have been staged.
+func prepareInstallDirectory(installCtx InstallCtx) (string, func(), error) {
+	directory, err := os.MkdirTemp("", installCtx.Program.String()+"_install")
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to create a temporary directory: %w", err)
+	}
+
+	cleanup := func() {
+		if installCtx.KeepTemp {
+			log.Infof("Artifacts can be found at: %s", directory)
+		} else {
+			_ = os.RemoveAll(directory)
+		}
+	}
+
+	err = os.Chmod(directory, defaultDirPermissions)
+	if err != nil {
+		cleanup()
+
+		return "", nil, fmt.Errorf("failed to set temporary directory permissions: %w", err)
+	}
+
+	return directory, cleanup, nil
 }
