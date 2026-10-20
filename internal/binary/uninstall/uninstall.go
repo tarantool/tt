@@ -479,6 +479,8 @@ func replacementVersion(root string, program binary.Program,
 		productVersion = sdkVersion
 	}
 
+	productVersion = strings.TrimPrefix(productVersion, binary.DevVersionPrefix)
+
 	if program == binary.ProgramTtEe || (fromSDK && program == binary.ProgramTcm) {
 		ctx, cancel := context.WithTimeout(context.Background(), productVersionTimeout)
 		defer cancel()
@@ -630,7 +632,7 @@ func latestCompleteSDK(root string, installed []string) binary.SDKInstallation {
 			continue
 		}
 
-		parsed, err := version.Parse(selected)
+		parsed, err := version.Parse(strings.TrimPrefix(selected, binary.DevVersionPrefix))
 		if err != nil {
 			continue
 		}

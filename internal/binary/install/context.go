@@ -2,6 +2,7 @@ package install
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/internal/binary"
@@ -57,6 +58,21 @@ func FillCtx(cmdCtx *cmdcontext.CmdCtx, installCtx *InstallCtx, args []string) e
 
 	installCtx.Program = request.Program
 	installCtx.requestedVersion = request.Version
+
+	if request.Program == binary.ProgramSDK {
+		installCtx.requestedVersion = strings.TrimPrefix(installCtx.requestedVersion,
+			binary.SDKVersionPrefix)
+	}
+
+	if request.Program == binary.ProgramEe || request.Program == binary.ProgramSDK ||
+		request.Program == binary.ProgramTcm {
+		if source, dev := strings.CutPrefix(installCtx.requestedVersion,
+			binary.DevVersionPrefix); dev {
+			installCtx.requestedVersion = source
+			installCtx.DevBuild = true
+		}
+	}
+
 	installCtx.Verbose = installCtx.Verbose || cmdCtx.Cli.Verbose
 	installCtx.skipMasterUpdate = cmdCtx.Cli.NoPrompt
 

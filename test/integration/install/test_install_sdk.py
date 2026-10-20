@@ -96,13 +96,17 @@ def install_tt_ee(tt_cmd, tmp_path, version=TT_EE_VERSION, scope="project"):
     )
 
 
-def install_sdk(tt_cmd, tmp_path, version=None, alias="sdk", scope="project", reinstall=False):
+def install_sdk(
+    tt_cmd, tmp_path, version=None, alias="sdk", scope="project", reinstall=False, dev=False,
+):
     args = ["install", alias]
     if version is not None:
         args.append(version)
     args.extend(["--local-dir", "local bundles"])
     if reinstall:
         args.append("--reinstall")
+    if dev:
+        args.append("--dev")
     return binary_command(tt_cmd, tmp_path, *args, scope=scope)
 
 
@@ -120,6 +124,79 @@ def assert_sdk_active(root, version):
     for directory in (root, enterprise, tcm, tt):
         assert not os.path.lexists(directory / "env.sh")
         assert not os.path.lexists(directory / "rocks")
+
+
+@pytest.mark.parametrize("scope", ["project", "user"])
+@pytest.mark.parametrize("uninstall_active", [False, True])
+def test_sdk_dev_coexists_with_release(tt_cmd, tmp_path, scope, uninstall_active):
+    make_sdk(tmp_path, content="release")
+    rc, output = install_sdk(tt_cmd, tmp_path, scope=scope)
+    assert rc == 0, output
+    root = sdk_root(tmp_path, scope)
+    assert_sdk_active(root, SDK_VERSION)
+
+    make_sdk(tmp_path, content="development")
+    dev_version = f"dev_{SDK_VERSION}"
+    rc, output = install_sdk(tt_cmd, tmp_path, scope=scope, dev=True)
+    assert rc == 0, output
+    assert "already exists" not in output
+    assert_sdk_active(root, dev_version)
+    manifest = root / "versions" / "tarantool-sdk" / f"tarantool-sdk_{dev_version}" / "sdk.json"
+    assert json.loads(manifest.read_text())["version"] == dev_version
+
+    for product, executable in [("tarantool-ee", "tarantool"), ("tcm", "tcm"), ("tt-ee", "tt")]:
+        directory = root / "versions" / product
+        release = directory / f"{executable}_sdk_{SDK_VERSION}" / executable
+        development = directory / f"{executable}_sdk_{dev_version}" / executable
+        assert "release" in release.read_text()
+        assert "development" in development.read_text()
+        for selector, target in [
+            (f"sdk-{SDK_VERSION}", release), (f"sdk-{dev_version}", development),
+        ]:
+            public_product = "tarantool" if product == "tarantool-ee" else executable
+            rc, output = binary_command(
+                tt_cmd, tmp_path, "switch", public_product, selector, scope=scope,
+            )
+            assert rc == 0, output
+            assert (root / "bin" / executable).resolve(strict=True) == target
+    assert_sdk_active(root, dev_version)
+
+    for flags, label in [([], "installed"), (["--dev"], "active")]:
+        rc, output = binary_command(
+            tt_cmd, tmp_path, "search", "sdk", "--local-dir", "local bundles", *flags, scope=scope,
+        )
+        assert rc == 0, output
+        selected = dev_version if flags else SDK_VERSION
+        assert f"{selected} [{label}]" in output
+    rc, output = binary_command(tt_cmd, tmp_path, "list", scope=scope)
+    assert rc == 0, output
+    assert f"{dev_version} [active]" in output
+    assert f"sdk-{dev_version} [active]" in output
+
+    make_sdk(tmp_path, content="replacement")
+    rc, output = install_sdk(tt_cmd, tmp_path, scope=scope, dev=True)
+    assert rc == 0, output
+    assert "already exists" in output
+    assert "development" in (root / "bin" / "tarantool").read_text()
+    rc, output = install_sdk(tt_cmd, tmp_path, dev_version, scope=scope, reinstall=True)
+    assert rc == 0, output
+    assert_sdk_active(root, dev_version)
+    assert "replacement" in (root / "bin" / "tarantool").read_text()
+
+    rc, output = binary_command(tt_cmd, tmp_path, "switch", "sdk", SDK_VERSION, scope=scope)
+    assert rc == 0, output
+    assert_sdk_active(root, SDK_VERSION)
+    assert "release" in (root / "bin" / "tarantool").read_text()
+    if uninstall_active:
+        rc, output = binary_command(tt_cmd, tmp_path, "switch", "sdk", dev_version, scope=scope)
+        assert rc == 0, output
+        assert_sdk_active(root, dev_version)
+    rc, output = binary_command(tt_cmd, tmp_path, "uninstall", "sdk", dev_version, scope=scope)
+    assert rc == 0, output
+    assert not manifest.parent.exists()
+    assert_sdk_active(root, SDK_VERSION)
+    for product, executable in [("tarantool-ee", "tarantool"), ("tcm", "tcm"), ("tt-ee", "tt")]:
+        assert not (root / "versions" / product / f"{executable}_sdk_{dev_version}").exists()
 
 
 @pytest.mark.parametrize("alias", ["tarantool-sdk", "sdk", "SDK"])

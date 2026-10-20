@@ -15,6 +15,8 @@ import (
 const (
 	// SDKVersionPrefix distinguishes SDK components from standalone installations.
 	SDKVersionPrefix = "sdk-"
+	// DevVersionPrefix separates development builds from release installations.
+	DevVersionPrefix = "dev_"
 	// SDKManifestName records the products owned by an installed SDK.
 	SDKManifestName         = "sdk.json"
 	sdkFilePermissions      = 0o644
@@ -62,8 +64,12 @@ func SDKComponentVersion(program Program, selected string) (string, bool) {
 }
 
 // BundleInstallationID separates standalone EE versions from SDK archive revisions.
-// SDKs and other archive products retain the complete source version.
-func BundleInstallationID(program Program, source version.Version) string {
+// SDKs, development builds, and other archive products retain the complete source version.
+func BundleInstallationID(program Program, source version.Version, dev bool) string {
+	if dev {
+		return DevVersionPrefix + source.Str
+	}
+
 	if program != ProgramEe {
 		return source.Str
 	}
@@ -93,33 +99,45 @@ func BundleInstallationID(program Program, source version.Version) string {
 	return selected
 }
 
-// MatchInstalledVersion keeps SDK component requests in their own namespace.
+// MatchInstalledVersion keeps SDK components and development builds in separate namespaces.
 func MatchInstalledVersion(program Program, requested string, installed []string) (string, error) {
-	candidates := installed
 	fromSDK := false
 
 	if program == ProgramSDK {
 		requested = strings.TrimPrefix(requested, SDKVersionPrefix)
 	} else {
 		requested, fromSDK = strings.CutPrefix(requested, SDKVersionPrefix)
-		candidates = make([]string, 0, len(installed))
+	}
 
-		for _, candidate := range installed {
-			plain, isSDK := strings.CutPrefix(candidate, SDKVersionPrefix)
-			if isSDK == fromSDK {
-				candidates = append(candidates, plain)
+	requested, dev := strings.CutPrefix(requested, DevVersionPrefix)
+	candidates := make([]string, 0, len(installed))
+
+	for _, candidate := range installed {
+		plain := candidate
+
+		if program != ProgramSDK {
+			var isSDK bool
+
+			plain, isSDK = strings.CutPrefix(plain, SDKVersionPrefix)
+			if isSDK != fromSDK {
+				continue
 			}
+		}
+
+		plain, isDev := strings.CutPrefix(plain, DevVersionPrefix)
+		if isDev == dev {
+			candidates = append(candidates, plain)
 		}
 	}
 
-	if program == ProgramEe && !fromSDK {
+	if program == ProgramEe && !fromSDK && !dev {
 		if slices.Contains(candidates, requested) {
 			return requested, nil
 		}
 
 		parsed, err := version.Parse(requested)
 		if err == nil {
-			selected := BundleInstallationID(program, parsed)
+			selected := BundleInstallationID(program, parsed, false)
 			if slices.Contains(candidates, selected) {
 				return selected, nil
 			}
@@ -129,6 +147,10 @@ func MatchInstalledVersion(program Program, requested string, installed []string
 	selected, err := version.MatchInstalledVersion(requested, candidates)
 	if err != nil {
 		return "", err
+	}
+
+	if dev {
+		selected = DevVersionPrefix + selected
 	}
 
 	if fromSDK {

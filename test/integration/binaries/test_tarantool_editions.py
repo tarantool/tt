@@ -55,6 +55,8 @@ def test_install_enterprise_through_tarantool(tt_cmd, tmp_path, requested):
         ("gc64-3.8.0-0-r94", "tarantool-ee", "3.8.0"),
         ("abcdefce", "tarantool", "abcdefce"),
         ("sdk-gc64-3.8.0-0-r94", "tarantool-ee", "sdk-gc64-3.8.0-0-r94"),
+        ("dev_gc64-3.8.0-0-r94", "tarantool-ee", "dev_gc64-3.8.0-0-r94"),
+        ("sdk-dev_gc64-3.8.0-0-r94", "tarantool-ee", "sdk-dev_gc64-3.8.0-0-r94"),
     ],
 )
 def test_switch_and_uninstall_edition(tt_cmd, tmp_path, requested, program, stored):
@@ -112,6 +114,20 @@ def test_switch_selects_edition_then_version(
 
     assert rc == 0, output
     assert_active(root, selected, program)
+
+
+def test_switch_displays_full_dev_version(tt_cmd, tmp_path):
+    root = tmp_path / ".tarantool"
+    dev_version = "dev_gc64-3.8.1-0-r94"
+    selected = install_version(root, "tarantool-ee", dev_version)
+    rc, output = run_interactive_switch(
+        [tt_cmd, "--self", "binary", "switch", "tarantool"],
+        tmp_path,
+        [("Select tarantool edition", "\x1b[B\n"), ("Select version", "\n")],
+    )
+    assert rc == 0, output
+    assert dev_version in output
+    assert_active(root, selected, "tarantool-ee")
 
 
 @pytest.mark.parametrize("enterprise", [False, True])
