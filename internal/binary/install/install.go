@@ -56,17 +56,7 @@ func Install(installCtx InstallCtx) error {
 		return err
 	}
 
-	err = finishInstallation(installCtx, activate)
-	if err != nil {
-		return err
-	}
-
-	if installCtx.Scope == binary.ScopeProject {
-		_, _ = fmt.Fprintf(os.Stdout, "\nTo activate the installed binaries, run:\n\n  %s\n\n",
-			color.GreenString("source .env/activate.sh"))
-	}
-
-	return nil
+	return finishInstallation(installCtx, activate)
 }
 
 // finishInstallation completes every filesystem preparation before changing active links.
@@ -93,7 +83,21 @@ func finishInstallation(installCtx InstallCtx, activate installationActivation) 
 		return err
 	}
 
-	return activate()
+	err = activate()
+	if err != nil {
+		return err
+	}
+
+	if installCtx.Scope == binary.ScopeProject {
+		_, _ = fmt.Fprintf(os.Stdout, "\nTo activate the installed binaries, run:\n\n  %s\n\n",
+			color.GreenString("source .env/activate.sh"))
+	} else {
+		_, _ = fmt.Fprintf(os.Stdout,
+			"\nTo use the installed binaries, add this directory to your PATH:\n\n  %s\n\n",
+			color.GreenString(filepath.Join(artifactRoot, binary.BinDirName)))
+	}
+
+	return nil
 }
 
 // prepareInstallDirectory owns downloaded and built artifacts until they have been staged.

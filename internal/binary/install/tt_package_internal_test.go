@@ -6,7 +6,6 @@ import (
 	"compress/gzip"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -53,11 +52,11 @@ func ttPackageTestArchive(t *testing.T, entries ...ttArchiveEntry) []byte {
 	return contents.Bytes()
 }
 
-func ttPackageTestDownloader(server *httptest.Server) ttPackageDownloader {
+func ttPackageTestDownloader(client *http.Client) ttPackageDownloader {
 	return ttPackageDownloader{
-		client:    server.Client(),
+		client:    client,
 		fileLimit: maxPackageSize, keepTemp: false,
-		releasesURL: server.URL + "/releases/download/",
+		releasesURL: packageTestURL + "/releases/download/",
 	}
 }
 
@@ -80,7 +79,7 @@ func TestPreparePrebuiltTt(t *testing.T) {
 				name := fmt.Sprintf("tt-%s-%s-%s.tar.gz", strings.TrimPrefix(version, "v"),
 					platform.os, platform.arch)
 				downloadPath := "/releases/download/" + version + "/" + name
-				server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter,
+				client := packageTestClient(t, func(writer http.ResponseWriter,
 					request *http.Request,
 				) {
 					requests = append(requests, request.URL.Path)
@@ -93,12 +92,10 @@ func TestPreparePrebuiltTt(t *testing.T) {
 						t.Errorf("unexpected download request: %s", request.URL.Path)
 						writer.WriteHeader(http.StatusNotFound)
 					}
-				}))
-
-				defer server.Close()
+				})
 
 				destination := filepath.Join(t.TempDir(), "new-directory")
-				downloader := ttPackageTestDownloader(server)
+				downloader := ttPackageTestDownloader(client)
 				artifacts, err := downloader.prepare(version, destination,
 					platform.os, platform.arch)
 				require.NoError(t, err)
@@ -130,14 +127,13 @@ func TestPreparePrebuiltTtUnsupportedPlatform(t *testing.T) {
 		{"freebsd", archAMD64, "v2.15.0"}, {osLinux, archAMD64, "master"},
 	} {
 		t.Run(test.os+"/"+test.arch+"/"+test.version, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter,
+			client := packageTestClient(t, func(_ http.ResponseWriter,
 				_ *http.Request,
 			) {
 				t.Error("unsupported platform or version must not make HTTP requests")
-			}))
-			defer server.Close()
+			})
 
-			downloader := ttPackageTestDownloader(server)
+			downloader := ttPackageTestDownloader(client)
 			_, err := downloader.prepare(test.version, t.TempDir(), test.os, test.arch)
 			require.ErrorIs(t, err, errPrebuiltPackageUnavailable)
 			require.ErrorContains(t, err, "--source-build")
@@ -166,7 +162,7 @@ func TestPreparePrebuiltTtErrors(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			archive := ttPackageTestArchive(t,
 				ttArchiveEntry{name: "tt", kind: tar.TypeReg, mode: 0o755, content: "executable"})
-			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter,
+			client := packageTestClient(t, func(writer http.ResponseWriter,
 				request *http.Request,
 			) {
 				assert.Equal(t,
@@ -185,11 +181,9 @@ func TestPreparePrebuiltTtErrors(t *testing.T) {
 				}
 
 				_, _ = writer.Write(archive)
-			}))
+			})
 
-			defer server.Close()
-
-			downloader := ttPackageTestDownloader(server)
+			downloader := ttPackageTestDownloader(client)
 
 			downloader.keepTemp = test.keepTemp
 

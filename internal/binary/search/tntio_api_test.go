@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"testing"
@@ -61,6 +62,28 @@ type mockDoer struct {
 // into JSON and returns it as the response body.
 func (m *mockDoer) Do(req *http.Request) ([]byte, error) {
 	m.t.Helper()
+
+	const catalogPath = "/en/accounts/customer_zone/packages/tt-ee"
+
+	if req.Method == http.MethodGet && strings.HasPrefix(req.URL.Path, catalogPath) {
+		cookie, err := req.Cookie("sessionid")
+		require.NoError(m.t, err)
+		require.Equal(m.t, m.Token(), cookie.Value)
+
+		var body strings.Builder
+
+		if req.URL.Path == catalogPath {
+			for selected := range m.content {
+				fmt.Fprintf(&body, `<a href="%s/">%s</a>`, selected, selected)
+			}
+		} else {
+			for _, archive := range m.content[path.Base(req.URL.Path)] {
+				fmt.Fprintf(&body, `<a href="%s">%s</a>`, archive, archive)
+			}
+		}
+
+		return []byte(body.String()), nil
+	}
 
 	if req.Method != http.MethodPost {
 		m.t.Errorf("expected POST method, got %s", req.Method)
@@ -120,6 +143,7 @@ func (m *mockDoer) Do(req *http.Request) ([]byte, error) {
 	}
 
 	require.Equal(m.t, expectedRequest, actualRequest, "request body mismatch")
+	require.NotEmpty(m.t, actualRequest.Query, "customer-zone API requires a nonempty query")
 
 	if m.t.Failed() {
 		return nil, errInvalidRequestBodyContent
@@ -198,22 +222,22 @@ func TestSearchVersions_TntIo(t *testing.T) {
 					"tarantool-enterprise-sdk-gc64-3.8.0-0-r94.linux.x86_64.tar.gz",
 				},
 			},
-			expectedQuery:    "tt-ee",
+			expectedQuery:    "enterprise",
 			expectedVersions: []string{"2.14.0", "2.15.0"},
 		},
 		"tt_ee_root_catalog_version_filter": {
 			program:         binary.ProgramTtEe,
-			platform:        platformInfo{arch: "aarch64", os: binary.OsLinux},
+			platform:        platformInfo{arch: "x86_64", os: binary.OsLinux},
 			specificVersion: "2.15",
 			doerContent: map[string][]string{
-				"2.14.0": {"tt-ee-2.14.0-linux-arm64.tar.gz"},
+				"2.14.0": {"tt-ee-2.14.0-linux-amd64.tar.gz"},
 				"2.15.0": {
 					"tt-ee-2.15.0-linux-amd64.tar.gz",
 					"tt-ee-2.15.0-linux-arm64.tar.gz",
 				},
-				"2.15.1": {"tt-ee-2.15.1-linux-arm64.tar.gz"},
+				"2.15.1": {"tt-ee-2.15.1-linux-amd64.tar.gz"},
 			},
-			expectedQuery:    "tt-ee",
+			expectedQuery:    "enterprise",
 			expectedVersions: []string{"2.15.0", "2.15.1"},
 		},
 		"tcm_release_all_versions": {
@@ -546,9 +570,19 @@ func TestTntIoMakePkgURI(t *testing.T) {
 				platform: &platformInfo{arch: "aarch64", os: binary.OsMacos},
 				program:  binary.ProgramTtEe,
 				version:  "2.15.0",
-				tarball:  "tt-ee-2.15.0-linux-arm64.tar.gz",
+				tarball:  "tt-ee-2.15.0-linux-amd64.tar.gz",
 			},
-			errMsg: "tt-ee archives are available only for Linux",
+			errMsg: "tt-ee archives are available only for Linux amd64",
+		},
+		"tt-ee arm linux unsupported": {
+			args: args{
+				platform: &platformInfo{arch: "aarch64", os: binary.OsLinux},
+				program:  binary.ProgramTtEe,
+				version:  "2.15.0",
+				tarball:  "tt-ee-2.15.0-linux-amd64.tar.gz",
+			},
+			errMsg: "unsupported architecture: arm64: " +
+				"tt-ee archives are available only for Linux amd64",
 		},
 		"tcm x86 linux": {
 			args: args{
@@ -665,6 +699,7 @@ func TestTtEeRejectsPlatformBeforeCredentials(t *testing.T) {
 		{arch: "x86_64", os: binary.OsMacos},
 		{arch: "aarch64", os: binary.OsMacos},
 		{arch: "x86_64", os: binary.OsUnknown},
+		{arch: "aarch64", os: binary.OsLinux},
 		{arch: "arm", os: binary.OsLinux},
 	} {
 		ctx := search.NewSearchCtx(&platform, nil)

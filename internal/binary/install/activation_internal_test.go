@@ -20,15 +20,9 @@ func activationTestContext(t *testing.T, program binary.Program, delivery string
 
 	switch delivery {
 	case "prebuilt":
-		if program == binary.ProgramTt {
-			mockTtPrebuiltRepository(t)
+		mockTtPrebuiltRepository(t)
 
-			ctx.requestedVersion = "2.15.0"
-		} else {
-			mockPrebuiltRepository(t)
-
-			ctx.requestedVersion = "3.7.1"
-		}
+		ctx.requestedVersion = "2.15.0"
 	case "source":
 		ctx.requestedVersion = masterVersion
 		ctx.SourceBuild = true
@@ -70,11 +64,11 @@ printf 'headers' > tarantool-prefix/include/tarantool/module.h
 			name := "tcm-3.7.1.linux.amd64.tar.gz"
 
 			if program == binary.ProgramTtEe {
-				if runtime.GOOS != osLinux {
-					t.Skip("tt Enterprise archives require Linux")
+				if runtime.GOOS != osLinux || runtime.GOARCH != archAMD64 {
+					t.Skip("tt Enterprise archives require Linux amd64")
 				}
 
-				name = "tt-ee-3.7.1-linux-" + runtime.GOARCH + ".tar.gz"
+				name = "tt-ee-3.7.1-linux-amd64.tar.gz"
 			}
 
 			archive := ttPackageTestArchive(t, ttArchiveEntry{
@@ -94,7 +88,7 @@ func TestInstallationPreparationFailurePreservesActiveLinks(t *testing.T) {
 		program  binary.Program
 		delivery string
 	}{
-		{binary.ProgramTt, "prebuilt"}, {binary.ProgramCe, "prebuilt"},
+		{binary.ProgramTt, "prebuilt"},
 		{binary.ProgramTt, "source"}, {binary.ProgramCe, "source"},
 		{binary.ProgramCe, "build"}, {binary.ProgramCe, "build without headers"},
 		{binary.ProgramEe, "bundle"}, {binary.ProgramTtEe, "bundle"},

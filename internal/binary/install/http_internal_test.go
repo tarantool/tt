@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,8 +19,40 @@ var (
 
 const (
 	// testToken is a token for the TntIoDownloader.
-	testToken = "test-token"
+	testToken      = "test-token"
+	packageTestURL = "https://packages.test"
 )
+
+type prebuiltTestTransport func(*http.Request) (*http.Response, error)
+
+func (transport prebuiltTestTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	return transport(request)
+}
+
+// packageTestClient handles requests in memory, including redirects and streamed bodies.
+func packageTestClient(t *testing.T, handler http.HandlerFunc) *http.Client {
+	t.Helper()
+
+	return &http.Client{Transport: prebuiltTestTransport(func(request *http.Request) (
+		*http.Response, error,
+	) {
+		require.Equal(t, "packages.test", request.URL.Host)
+
+		writer := httptest.NewRecorder()
+
+		handler(writer, request)
+
+		response := writer.Result()
+
+		response.Request = request
+
+		if !writer.Flushed && response.Header.Get("Content-Length") == "" {
+			response.ContentLength = int64(writer.Body.Len())
+		}
+
+		return response, nil
+	})}
+}
 
 // mockBundleDoer is a mock implementation of TntIoDoer for DownloadBundle tests.
 type mockBundleDoer struct {

@@ -5,7 +5,6 @@ import (
 	encodingbinary "encoding/binary"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -50,17 +49,16 @@ func TestTarantoolPackageSelection(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(
+			client := packageTestClient(t, func(
 				writer http.ResponseWriter, _ *http.Request,
 			) {
 				for _, file := range test.files {
 					_, _ = fmt.Fprintf(writer, `<a href="/Packages/%s">package</a>`, file)
 				}
-			}))
-			defer server.Close()
+			})
 
-			downloader := packageTestDownloader(t, server)
-			binName, incName, err := downloader.selectPackages(server.URL, "3.7.1", "x86_64")
+			downloader := packageTestDownloader(t, client)
+			binName, incName, err := downloader.selectPackages(packageTestURL, "3.7.1", "x86_64")
 
 			if test.wantError != "" {
 				require.ErrorContains(t, err, test.wantError)
@@ -83,7 +81,7 @@ func TestPreparePrebuiltTarantool(t *testing.T) {
 			headersName := "tarantool-devel-3.7.1-1." + rpmArch + ".rpm"
 			runtimeRPM := packageTestRPM(t, "./usr/bin/tarantool", "executable", 0100755)
 			headersRPM := packageTestRPM(t, "./usr/include/tarantool/module.h", "headers", 0100644)
-			server := httptest.NewServer(http.HandlerFunc(func(
+			client := packageTestClient(t, func(
 				writer http.ResponseWriter, request *http.Request,
 			) {
 				requests = append(requests, request.URL.Path)
@@ -98,12 +96,10 @@ func TestPreparePrebuiltTarantool(t *testing.T) {
 				default:
 					http.NotFound(writer, request)
 				}
-			}))
-
-			defer server.Close()
+			})
 
 			destination := filepath.Join(t.TempDir(), "new-directory")
-			downloader := packageTestDownloader(t, server)
+			downloader := packageTestDownloader(t, client)
 			artifacts, err := downloader.prepare("3.7.1", destination, goarch)
 			require.NoError(t, err)
 			require.Equal(t, binary.ProgramCe, artifacts.program)
@@ -163,7 +159,7 @@ func TestPreparePrebuiltTarantoolErrors(t *testing.T) {
 			}
 
 			requests := 0
-			server := httptest.NewServer(http.HandlerFunc(func(
+			client := packageTestClient(t, func(
 				writer http.ResponseWriter, request *http.Request,
 			) {
 				requests++
@@ -194,11 +190,9 @@ func TestPreparePrebuiltTarantoolErrors(t *testing.T) {
 				default:
 					_, _ = writer.Write(runtimeRPM)
 				}
-			}))
+			})
 
-			defer server.Close()
-
-			downloader := packageTestDownloader(t, server)
+			downloader := packageTestDownloader(t, client)
 			if test.indexLimit != 0 {
 				downloader.indexLimit = test.indexLimit
 			}
@@ -245,13 +239,13 @@ func TestComparePackageReleases(t *testing.T) {
 	}
 }
 
-func packageTestDownloader(t *testing.T, server *httptest.Server) tarantoolPackageDownloader {
+func packageTestDownloader(t *testing.T, client *http.Client) tarantoolPackageDownloader {
 	t.Helper()
 
 	return tarantoolPackageDownloader{
-		client: server.Client(), indexLimit: maxPackageIndexSize,
+		client: client, indexLimit: maxPackageIndexSize,
 		fileLimit: maxPackageSize, keepTemp: false,
-		repositoryURL: server.URL,
+		repositoryURL: packageTestURL,
 		systemRoot:    packagePlatformFixture(t),
 	}
 }

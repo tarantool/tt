@@ -23,9 +23,9 @@ import (
 func TestBinaryDefaultScope(t *testing.T) {
 	cases := [][]string{
 		{"install", "tarantool"},
-		{"install", "tarantool-ee"},
+		{"install", "tarantool", "3.8ee"},
 		{"install", "tt"},
-		{"install", "tt-ee"},
+		{"install", "tt", "2.15ee"},
 		{"install", "tcm"},
 		{"uninstall", "tarantool"},
 		{"uninstall", "tarantool-ee"},
@@ -282,6 +282,11 @@ func TestBinaryLocalSourceFlags(t *testing.T) {
 			{"tarantool-sdk", "local-dir", "local-repo"},
 			{"tcm", "local-dir", "local-repo"},
 		} {
+			if operation == "install" &&
+				(testCase.program == "tarantool-ee" || testCase.program == "tt-ee") {
+				continue
+			}
+
 			t.Run(operation+"/"+testCase.program, func(t *testing.T) {
 				command, _, err := NewBinaryCmd().Find([]string{operation, testCase.program})
 				require.NoError(t, err)
@@ -457,7 +462,7 @@ func TestBinaryCommandOptionsAreIndependent(t *testing.T) {
 		{[]string{"install", "tt"}, "source-build", "true", "false"},
 		{[]string{"install", "tarantool"}, "from-build", "/first", "/second"},
 		{[]string{"install", "tarantool"}, "local-repo", "/first", "/second"},
-		{[]string{"install", "tarantool-ee"}, "local-dir", "/first", "/second"},
+		{[]string{"install", "tarantool"}, "local-dir", "/first", "/second"},
 		{[]string{"install", "tarantool-sdk"}, "local-dir", "/first", "/second"},
 		{[]string{"search", "tarantool-ee"}, "version", "3.0", "3.1"},
 		{[]string{"search", "tarantool"}, "local-repo", "/first", "/second"},
@@ -482,7 +487,7 @@ func TestBinaryCommandOptionsAreIndependent(t *testing.T) {
 }
 
 func TestBinaryInstallAdapterOptions(t *testing.T) {
-	for _, program := range []binary.Program{binary.ProgramEe, binary.ProgramTcm} {
+	for _, program := range []binary.Program{binary.ProgramCe, binary.ProgramTcm} {
 		t.Run(program.String(), func(t *testing.T) {
 			restoreProcessState(t)
 
@@ -490,10 +495,10 @@ func TestBinaryInstallAdapterOptions(t *testing.T) {
 			options := install.InstallCtx{
 				Force: true, KeepTemp: true, LocalRepo: "/bundles", Reinstall: true, DevBuild: true,
 			}
-			command := newInstallEnterpriseCmd(&base, &options, binary.ProgramEe)
+			command := newInstallTarantoolCmd(&base, &options)
 
 			if program == binary.ProgramTcm {
-				command = newInstallStandaloneCmd(&base, &options, program)
+				command = newInstallTcmCmd(&base, &options)
 			}
 
 			// Flag registration initializes options to their defaults.
@@ -658,7 +663,6 @@ func TestBinaryCredentialsFile(t *testing.T) {
 		{"search", "sdk"},
 		{"search", "SDK"},
 		{"search", "tcm"},
-		{"install", "tarantool-ee", "gc64-3.4.0-0-r60"},
 		{"install", "tarantool", "gc64-3.4.0-0-r60"},
 		{"install", "tarantool", "3.4ee"},
 		{"install", "tcm", "1.3.1-0-g074b5ffa"},
