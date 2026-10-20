@@ -43,12 +43,13 @@ func ParseVersionRequest(programName, requested string) (VersionRequest, error) 
 
 	match := productEditionSuffix.FindStringSubmatch(requested)
 	switch {
-	case match != nil && version.IsVersion(match[1]):
+	case match != nil && version.IsVersion(strings.TrimPrefix(match[1], DevVersionPrefix)):
 		request.Version = match[1]
 		if match[2] == "ee" {
 			request.Program = enterprise
 		}
-	case program == ProgramCe && tarantoolEnterpriseBuild.MatchString(requested),
+	case program == ProgramCe && (tarantoolEnterpriseBuild.MatchString(requested) ||
+		strings.HasPrefix(requested, DevVersionPrefix)),
 		strings.HasPrefix(requested, SDKVersionPrefix):
 		request.Program = enterprise
 	}

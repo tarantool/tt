@@ -414,7 +414,7 @@ with `--local-dir`. Complete Tarantool Enterprise build names, including
 `nogc64` or RC, also select Enterprise Edition. For tt Enterprise, append `ee`
 to a version from `tt binary search tt-ee` to select that archive.
 
-Standalone `tarantool-ee` installations use the Tarantool version without the SDK
+Standalone `tarantool-ee` release installations use the Tarantool version without the SDK
 revision, commit count, or hash: `3.8.1` for 3.x and newer, or `gc64-2.11.1` /
 `nogc64-2.11.1` for older versions. Prerelease and debug variants remain separate,
 such as `3.8.1-rc1`, `debug-3.8.1`, or `debug-gc64-2.11.1`.
@@ -425,6 +425,18 @@ These installed names also work with `install`, selecting the latest matching
 archive revision, and with `switch` and `uninstall`. A full archive name resolves
 to the same installed version. `search` continues to list full archive versions
 and marks them using the corresponding standalone installation.
+
+Use `--dev` to install development builds of Tarantool Enterprise, SDK, or TCM.
+They keep the full archive version, including the revision, with a `dev_` prefix.
+For example, `tt binary install tarantool 3.8.1ee --dev` installs into
+`versions/tarantool-ee/tarantool-ee_dev_gc64-3.8.1-0-r94/` when that archive is selected.
+Development builds coexist with releases and with other development revisions.
+`list`, `switch`, and `search --dev` display `dev_<full-version>`; use that name
+with `install`, `switch`, or `uninstall` to select the development build.
+For example, `tt binary switch tarantool dev_gc64-3.8.1-0-r94` selects that build.
+SDK development components use `sdk-dev_<full-version>` identities and directories
+such as `versions/tarantool-ee/tarantool_sdk_dev_gc64-3.8.1-0-r94/`.
+Version selectors without `dev_` match release installations independently.
 
 For `tt binary switch` and `tt binary uninstall`, EE, tt-ee, and TCM accept `X.Y.Z`
 to match installed versions in the selected scope; `X` and `X.Y` are not expanded.

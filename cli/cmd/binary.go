@@ -232,6 +232,8 @@ Use --source-build to always compile Community releases from source.
 EE suffix selects Enterprise Edition: 3.8.1ee or 3ee.
 
 Enterprise archive names such as gc64-3.8.0-0-r94 also select Enterprise Edition.
+Use --dev for Enterprise development builds, stored as dev_<full-archive-version>
+with their revision, separately from releases.
 Use "tt binary search tarantool" or "tt binary search tarantool-ee" to list versions.
 
 Omitting the version selects the latest Community release. Git commits, master,
@@ -372,6 +374,8 @@ an exact build, including RC.
 Partial names with prerelease or commit suffixes are not supported.
 Use "tt binary search %s" to list available versions.
 
+Use --dev for development builds, stored separately as dev_<full-archive-version>.
+
 With --local-dir <dir>, the directory must contain %s-*.tar.gz archives.
 The archive contains the %s executable directly at its root.`,
 			program, program, program, program.Exec()),
@@ -414,6 +418,8 @@ Use --local-dir <dir> to install an SDK archive from a local directory.
 
 Components have separate sdk-<bundle-version> identities. Use "tt binary switch sdk"
 to select the entire SDK, or switch individual products independently.
+With --dev, the SDK uses dev_<bundle-version> and its components use sdk-dev_<bundle-version>,
+including the full archive revision, separately from releases.
 For project installations, run "source .env/activate.sh" to activate the installed binaries.`,
 		Example: `# Install the latest stable SDK for this project.
   $ tt binary install tarantool-sdk
