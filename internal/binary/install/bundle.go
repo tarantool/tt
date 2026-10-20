@@ -55,7 +55,7 @@ func (params *bundleParams) selection() binary.Selection {
 	return binary.Selection{
 		Program: params.inst.Program,
 		ID: binary.BundleInstallationID(params.inst.Program,
-			params.bundleInfo.Version),
+			params.bundleInfo.Version, params.inst.DevBuild),
 	}
 }
 
@@ -65,12 +65,14 @@ func validateBundleInstallation(params *bundleParams) (binary.SDKInstallation, e
 	var sdk binary.SDKInstallation
 
 	if params.inst.Program == binary.ProgramSDK {
-		sdk, err := binary.ReadSDK(params.artifactRoot, params.bundleInfo.Version.Str)
+		selected := params.selection().ID
+
+		sdk, err := binary.ReadSDK(params.artifactRoot, selected)
 		if err != nil {
 			return sdk, err
 		}
 
-		err = binary.ValidateSDKManifest(sdk, params.bundleInfo.Version.Str)
+		err = binary.ValidateSDKManifest(sdk, selected)
 		if err != nil {
 			return sdk, err
 		}
@@ -479,7 +481,7 @@ func selectBundleVersion(bundles search.BundleInfoSlice, requested string, progr
 
 	if program == binary.ProgramEe {
 		for _, bundle := range slices.Backward(bundles) {
-			if binary.BundleInstallationID(program, bundle.Version) == requested {
+			if binary.BundleInstallationID(program, bundle.Version, false) == requested {
 				return bundle, nil
 			}
 		}
@@ -624,7 +626,7 @@ func prepareBundleProgram(installCtx InstallCtx) (installationActivation, error)
 		return func() error { return updateSymlinks(&params) }, nil
 	}
 
-	log.Infof("Installing %s=%s", params.inst.Program, params.bundleInfo.Version.Str)
+	log.Infof("Installing %s=%s", params.inst.Program, params.selection().ID)
 
 	logFilePath, err := executeBundleInstallation(&params)
 	if err != nil {

@@ -32,6 +32,10 @@ func TestParseVersionRequest(t *testing.T) {
 		{"debug-gc64-3.8.0-0-r94", binary.ProgramEe, "debug-gc64-3.8.0-0-r94"},
 		{"debug-3.8.0", binary.ProgramEe, "debug-3.8.0"},
 		{"sdk-gc64-3.8.0-0-r94", binary.ProgramEe, "sdk-gc64-3.8.0-0-r94"},
+		{"dev_gc64-3.8.0-0-r94", binary.ProgramEe, "dev_gc64-3.8.0-0-r94"},
+		{"dev_gc64-3.8.0-0-r94ee", binary.ProgramEe, "dev_gc64-3.8.0-0-r94"},
+		{"dev_3.8.0-0-r94ee", binary.ProgramEe, "dev_3.8.0-0-r94"},
+		{"sdk-dev_gc64-3.8.0-0-r94", binary.ProgramEe, "sdk-dev_gc64-3.8.0-0-r94"},
 		{"master", binary.ProgramCe, "master"},
 		{"abcdef0", binary.ProgramCe, "abcdef0"},
 		{"abcdefce", binary.ProgramCe, "abcdefce"},
@@ -111,9 +115,12 @@ func TestVersionArgumentRoundTrip(t *testing.T) {
 		{binary.ProgramEe, []string{
 			"3.8.0", "3.8.0-rc1", "3.8.0-0-r94", "gc64-2.11.9",
 			"debug-3.8.0", "sdk-gc64-3.8.0-0-r94",
+			"dev_gc64-3.8.0-0-r94", "dev_3.8.0-0-r94", "sdk-dev_gc64-3.8.0-0-r94",
 		}},
 		{binary.ProgramTt, []string{"2.15.0", "v2.15.0", "master", "abcdefce"}},
-		{binary.ProgramTtEe, []string{"2.15.0", "2.15.0-rc1", "sdk-gc64-3.8.0-0-r94"}},
+		{binary.ProgramTtEe, []string{
+			"2.15.0", "2.15.0-rc1", "sdk-gc64-3.8.0-0-r94", "sdk-dev_gc64-3.8.0-0-r94",
+		}},
 	} {
 		for _, installed := range testCase.versions {
 			t.Run(testCase.program.String()+"/"+installed, func(t *testing.T) {

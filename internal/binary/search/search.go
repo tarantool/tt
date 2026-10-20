@@ -61,15 +61,19 @@ func NewSearchCtx(informer PlatformInformer, doer binary.TntIoDoer) SearchCtx {
 }
 
 // printVersion annotates a version using only paths in the selected scope.
-func printVersion(root string, program binary.Program, available version.Version) {
+func printVersion(root string, program binary.Program, available version.Version, dev bool) {
 	versionStr := available.Str
+	if dev {
+		versionStr = binary.DevVersionPrefix + versionStr
+	}
+
+	selected := binary.BundleInstallationID(program, available, dev)
 	if program == binary.ProgramSDK {
-		printSDKVersion(root, versionStr)
+		printSDKVersion(root, selected)
 
 		return
 	}
 
-	selected := binary.BundleInstallationID(program, available)
 	installedPath := filepath.Join(binary.InstallationPath(root, program, selected), program.Exec())
 	info, err := os.Stat(installedPath)
 
@@ -153,7 +157,7 @@ func SearchVersions(searchCtx SearchCtx) error {
 	}
 
 	for _, v := range vers {
-		printVersion(root, prg, v)
+		printVersion(root, prg, v, searchCtx.DevBuilds)
 	}
 
 	return nil

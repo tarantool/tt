@@ -40,7 +40,11 @@ func printInstalledVersion(versionString string) {
 
 // displayVersion parses ordering information without changing installation identity.
 func displayVersion(raw string) (version.Version, error) {
-	name := strings.TrimPrefix(raw, "v")
+	name := strings.TrimPrefix(raw, binary.SDKVersionPrefix)
+
+	name = strings.TrimPrefix(name, binary.DevVersionPrefix)
+	name = strings.TrimPrefix(name, "v")
+
 	isCommit, _ := binary.IsValidCommitHash(name)
 
 	var parsed version.Version

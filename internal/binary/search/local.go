@@ -189,7 +189,7 @@ func SearchVersionsLocal(searchCtx SearchCtx) error {
 
 	for _, v := range vers {
 		if matchesReleaseFilter(&searchCtx, v) {
-			printVersion(root, prg, v)
+			printVersion(root, prg, v, searchCtx.DevBuilds)
 		}
 	}
 

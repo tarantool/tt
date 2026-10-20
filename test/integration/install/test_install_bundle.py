@@ -99,10 +99,13 @@ def install(
     scope=None,
     reinstall=False,
     repository="local bundles",
+    dev=False,
 ):
     flags = [] if scope is None else ["--scope", scope]
     if reinstall:
         flags.append("--reinstall")
+    if dev:
+        flags.append("--dev")
     if program == "tarantool-ee":
         program = "tarantool"
         if version and version[0].isdigit():
@@ -127,7 +130,7 @@ def install(
 
 def assert_active(root, program, version):
     executable = "tarantool" if program == "tarantool-ee" else "tcm"
-    if program == "tarantool-ee":
+    if program == "tarantool-ee" and not version.startswith("dev_"):
         match = re.match(r"(.*?)(\d+\.\d+\.\d+(?:-(?:entrypoint|alpha|beta|rc)\d*)?)", version)
         build, number = match.groups()
         if int(number.split(".")[0]) >= 3:
@@ -142,6 +145,116 @@ def assert_active(root, program, version):
         assert (root / "include" / "tarantool").readlink() == destination / "include" / "tarantool"
         assert (root / "include" / "tarantool" / "module.h").read_text()
     return destination
+
+
+@pytest.mark.parametrize("scope", ["project", "user"])
+@pytest.mark.parametrize(
+    "program,full_version", [("tarantool-ee", EE_VERSION), ("tcm", TCM_VERSION)],
+)
+def test_bundle_dev_coexists_with_release(tt_cmd, tmp_path, scope, program, full_version):
+    make_bundle(tmp_path, program, full_version, content="release")
+    rc, output = install(tt_cmd, tmp_path, program, full_version, scope=scope)
+    assert rc == 0, output
+    root = scope_root(tmp_path, scope)
+    release = assert_active(root, program, full_version)
+    executable = "tarantool" if program == "tarantool-ee" else program
+    dev_version = f"dev_{full_version}"
+    development = root / "versions" / program / f"{program}_{dev_version}"
+
+    make_bundle(tmp_path, program, full_version, content="development")
+    rc, output = install(tt_cmd, tmp_path, program, full_version, scope=scope, dev=True)
+    assert rc == 0, output
+    assert "already exists" not in output
+    assert (root / "bin" / executable).resolve(strict=True) == development / executable
+    assert "development" in (development / executable).read_text()
+    assert "release" in (release / executable).read_text()
+    if program == "tarantool-ee":
+        assert (root / "include" / "tarantool").resolve(strict=True) == (
+            development / "include" / "tarantool"
+        )
+        assert (release / "include" / "tarantool" / "module.h").read_text() == "release"
+
+    command = [tt_cmd, "--self", "binary", "--scope", scope]
+    for flags, label in [([], "installed"), (["--dev"], "active")]:
+        rc, output = run_command_and_get_output(
+            [*command, "search", program, "--local-dir", "local bundles", *flags], cwd=tmp_path,
+        )
+        assert rc == 0, output
+        selected = dev_version if flags else full_version
+        assert f"{selected} [{label}]" in output
+    rc, output = run_command_and_get_output([*command, "list"], cwd=tmp_path)
+    assert rc == 0, output
+    assert f"{dev_version} [active]" in output
+
+    make_bundle(tmp_path, program, full_version, content="replacement")
+    rc, output = install(tt_cmd, tmp_path, program, full_version, scope=scope, dev=True)
+    assert rc == 0, output
+    assert "already exists" in output
+    assert "development" in (development / executable).read_text()
+    rc, output = install(
+        tt_cmd, tmp_path, program, dev_version, scope=scope, reinstall=True,
+    )
+    assert rc == 0, output
+    assert "replacement" in (development / executable).read_text()
+    assert "release" in (release / executable).read_text()
+
+    for selected, destination in [
+        (full_version, release), (dev_version, development), (full_version, release),
+    ]:
+        public_program = "tarantool" if program == "tarantool-ee" else program
+        rc, output = run_command_and_get_output(
+            [*command, "switch", public_program, selected], cwd=tmp_path,
+        )
+        assert rc == 0, output
+        assert (root / "bin" / executable).resolve(strict=True) == destination / executable
+    rc, output = run_command_and_get_output(
+        [*command, "uninstall", program, full_version], cwd=tmp_path,
+    )
+    assert rc == 0, output
+    assert not release.exists()
+    assert (root / "bin" / executable).resolve(strict=True) == development / executable
+    # An unqualified release selector must not switch to or remove a dev installation.
+    numeric_version = "3.4.0" if program == "tarantool-ee" else "1.3.1"
+    for operation in ("switch", "uninstall"):
+        rc, output = run_command_and_get_output(
+            [*command, operation, program, numeric_version], cwd=tmp_path,
+        )
+        assert rc != 0, output
+        assert "not installed" in output
+        assert development.is_dir()
+    rc, output = run_command_and_get_output(
+        [*command, "uninstall", public_program, dev_version], cwd=tmp_path,
+    )
+    assert rc == 0, output
+    assert not development.exists()
+    assert not os.path.lexists(root / "bin" / executable)
+
+
+def test_ee_dev_revisions_remain_separate(tt_cmd, tmp_path):
+    root = scope_root(tmp_path)
+    versions = [EE_VERSION, "gc64-3.4.0-0-r61"]
+    for selected in versions:
+        make_bundle(tmp_path, version=selected, content=selected)
+        rc, output = install(tt_cmd, tmp_path, version="3.4", dev=True)
+        assert rc == 0, output
+        assert "already exists" not in output
+        directory = root / "versions" / "tarantool-ee" / f"tarantool-ee_dev_{selected}"
+        assert (root / "bin" / "tarantool").resolve(strict=True) == directory / "tarantool"
+
+    command = [tt_cmd, "--self", "binary"]
+    for operation in ("switch", "uninstall"):
+        rc, output = run_command_and_get_output(
+            [*command, operation, "tarantool", "dev_3.4.0"], cwd=tmp_path,
+        )
+        assert rc != 0, output
+        assert "more than one installed version matches" in output
+    rc, output = run_command_and_get_output(
+        [*command, "uninstall", "tarantool", f"dev_{versions[1]}"], cwd=tmp_path,
+    )
+    assert rc == 0, output
+    first = root / "versions" / "tarantool-ee" / f"tarantool-ee_dev_{versions[0]}"
+    assert (root / "bin" / "tarantool").resolve(strict=True) == first / "tarantool"
+    assert (root / "include" / "tarantool").resolve(strict=True) == first / "include" / "tarantool"
 
 
 @pytest.mark.parametrize(
@@ -617,5 +730,6 @@ def test_public_tarantool_enterprise_selector(tt_cmd, tmp_path, requested, extra
         cwd=tmp_path,
     )
     assert rc == 0, output
-    assert_active(scope_root(tmp_path), "tarantool-ee", EE_VERSION)
+    selected = f"dev_{EE_VERSION}" if "--dev" in extra else EE_VERSION
+    assert_active(scope_root(tmp_path), "tarantool-ee", selected)
     assert not (scope_root(tmp_path) / "versions/tarantool").exists()

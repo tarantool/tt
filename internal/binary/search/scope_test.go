@@ -138,7 +138,7 @@ func TestSearchVersionsLocalPreservesBundleFilters(t *testing.T) {
 	}
 	output, err := captureSearch(t, func() error { return search.SearchVersionsLocal(ctx) })
 	require.NoError(t, err)
-	require.Equal(t, "debug-gc64-3.3.2-0-r59\ngc64-3.3.2-0-r59\n", output)
+	require.Equal(t, "dev_debug-gc64-3.3.2-0-r59\ndev_gc64-3.3.2-0-r59\n", output)
 }
 
 func TestSearchVersionsLocalEmpty(t *testing.T) {
