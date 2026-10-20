@@ -1,8 +1,10 @@
 import os
+import platform
 import re
+import shutil
+import subprocess
 import tarfile
 from pathlib import Path
-from typing import Optional
 
 import pytest
 
@@ -73,7 +75,7 @@ def test_install_local_bundle(
             "--scope",
             "project",
             "install",
-            program,
+            program.removesuffix("-ee"),
             version,
             "--local-dir",
             str(distfiles),
@@ -93,83 +95,171 @@ def test_install_local_bundle(
         assert (installed_headers / executable / "module.h").read_text() == "/* bundle headers */\n"
 
 
+# The real customer-zone tests inherit CI-injected credentials directly in the
+# child process. Never read credentials or a developer's credentials file here.
+REMOTE_PRODUCTS = [
+    ("tarantool-ee", False),
+    ("tarantool-ee", True),
+    ("tarantool-sdk", False),
+    ("tarantool-sdk", True),
+    ("tcm", False),
+    ("tcm", True),
+    ("tt-ee", False),
+]
+
+
+def remote_command(tt_cmd, tmp_path, *args):
+    temporary = tmp_path / "temporary"
+    temporary.mkdir(exist_ok=True)
+    return subprocess.run(
+        [
+            "env",
+            "-u",
+            "TT_CLI_CFG",
+            f"HOME={tmp_path / 'home'}",
+            f"XDG_DATA_HOME={tmp_path / 'user-data'}",
+            f"TMPDIR={temporary}",
+            tt_cmd,
+            "--self",
+            "binary",
+            "--scope",
+            "project",
+            *args,
+        ],
+        cwd=tmp_path,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        timeout=300,
+    )
+
+
+def assert_runtime_version(binary, executable):
+    version_args = {
+        "tarantool": ["--version"],
+        "tcm": ["version"],
+        "tt": ["--self", "version"],
+    }
+    result = subprocess.run(
+        [binary, *version_args[executable]],
+        cwd=binary.parent,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 @pytest.mark.slow_ee
-@pytest.mark.parametrize(
-    "prog,exec,incl",
-    [
-        ("tarantool-ee", "tarantool", "tarantool"),
-        ("tcm", "tcm", None),
-    ],
-)
-def test_install_ee(
-    tt_cmd: Path,
-    tmp_path: Path,
-    prog: str,
-    exec: str,
-    incl: Optional[str],
-) -> None:
+@pytest.mark.parametrize("program,development", REMOTE_PRODUCTS)
+@pytest.mark.parametrize("keep", [False, True], ids=["cleanup", "no-clean"])
+def test_install_remote_enterprise(tt_cmd: Path, tmp_path: Path, program, development, keep):
+    system, machine = platform.system(), platform.machine()
+    if program == "tt-ee" and (system != "Linux" or machine != "x86_64"):
+        pytest.skip("Standalone tt-ee archives are available only on Linux amd64")
+    if system not in ("Linux", "Darwin") or machine not in ("x86_64", "aarch64", "arm64"):
+        pytest.skip("Customer-zone archives require Linux/macOS on amd64/arm64")
+    required = {"TT_CLI_EE_USERNAME", "TT_CLI_EE_PASSWORD"}
+    if not required.issubset(set(os.environ)):
+        pytest.skip("Real customer-zone tests require credentials injected by CI")
     create_tt_config(tmp_path)
-
-    rc, output = run_command_and_get_output(
-        [tt_cmd, "binary", "search", prog],
-        cwd=tmp_path,
-        env=dict(os.environ, PWD=tmp_path),
+    flags = ["--dev"] if development else []
+    result = remote_command(tt_cmd, tmp_path, "search", program, *flags)
+    assert result.returncode == 0, result.stdout
+    pattern = (
+        r"gc64-\d+\.\d+\.\d+\S*"
+        if program
+        in (
+            "tarantool-ee",
+            "tarantool-sdk",
+        )
+        else r"\d+\.\d+\.\d+\S*"
     )
-
-    version = output.split("\n")[1]
-    assert re.search(r"(\d+.\d+.\d+|<unknown>)", version)
-
-    rc, output = run_command_and_get_output(
-        [tt_cmd, "binary", "--scope", "project", "install", "-f", prog, version],
-        cwd=tmp_path,
-        env=dict(os.environ, PWD=tmp_path),
+    versions = [
+        line.split()[0]
+        for line in result.stdout.splitlines()
+        if re.fullmatch(pattern, line.split()[0] if line.split() else "")
+    ]
+    assert versions, result.stdout
+    selected = versions[-1]
+    semantic_version = re.search(r"\d+\.\d+\.\d+", selected)[0]
+    result = remote_command(
+        tt_cmd,
+        tmp_path,
+        "install",
+        program.removesuffix("-ee"),
+        f"{selected}ee" if program == "tt-ee" else selected,
+        "--force",
+        *flags,
+        *(["--no-clean"] if keep else []),
     )
-
-    assert rc == 0
-    assert re.search(f"Installing {prog}={version}", output)
-    assert re.search(f"Downloading {prog}...", output)
-    assert re.search("Done.", output)
-    assert (tmp_path / ".tarantool" / "bin" / exec).exists()
-    if incl:
-        assert (tmp_path / ".tarantool" / "include" / incl).exists()
-
-
-@pytest.mark.slow_ee
-@pytest.mark.parametrize(
-    "prog,exec,incl",
-    [
-        ("tarantool-ee", "tarantool", "tarantool"),
-        ("tcm", "tcm", None),
-    ],
-)
-def test_install_ee_dev(
-    tt_cmd: Path,
-    tmp_path: Path,
-    prog: str,
-    exec: str,
-    incl: Optional[str],
-) -> None:
-    create_tt_config(tmp_path)
-
-    rc, output = run_command_and_get_output(
-        [tt_cmd, "binary", "search", prog, "--dev"],
-        cwd=tmp_path,
-        env=dict(os.environ, PWD=tmp_path),
-    )
-
-    version = output.split("\n")[1]
-    assert re.search(r"(\d+.\d+.\d+|<unknown>)", version)
-
-    rc, output = run_command_and_get_output(
-        [tt_cmd, "binary", "--scope", "project", "install", "-f", prog, version, "--dev"],
-        cwd=tmp_path,
-        env=dict(os.environ, PWD=tmp_path),
-    )
-
-    assert rc == 0
-    assert re.search(f"Installing {prog}={version}", output)
-    assert re.search(f"Downloading {prog}...", output)
-    assert re.search("Done.", output)
-    assert (tmp_path / ".tarantool" / "bin" / exec).exists()
-    if incl:
-        assert (tmp_path / ".tarantool" / "include" / incl).exists()
+    assert result.returncode == 0, result.stdout
+    assert f"Installing {program}={selected}" in result.stdout
+    assert f"Downloading {program}..." in result.stdout
+    assert "Done." in result.stdout
+    root = tmp_path / ".tarantool"
+    if program == "tarantool-sdk":
+        components = [
+            ("tarantool-ee", "tarantool", f"tarantool_sdk_{selected}"),
+            ("tcm", "tcm", f"tcm_sdk_{selected}"),
+            ("tt-ee", "tt", f"tt_sdk_{selected}"),
+        ]
+    else:
+        executable = {"tarantool-ee": "tarantool", "tcm": "tcm", "tt-ee": "tt"}[program]
+        identity = selected
+        if program == "tarantool-ee":
+            # Standalone EE omits commit counts, git hashes and SDK revisions,
+            # but retains prerelease labels such as rc1.
+            identity = re.sub(r"-\d+(?:-g[0-9a-f]+)?-r\d+$", "", selected)
+            if int(semantic_version.split(".")[0]) >= 3:
+                identity = identity.removeprefix("gc64-")
+        components = [(program, executable, f"{program}_{identity}")]
+    for product, executable, identity in components:
+        installation = root / "versions" / product / identity
+        active = root / "bin" / executable
+        assert active.is_symlink()
+        assert active.resolve(strict=True) == installation / executable
+        assert_runtime_version(active, executable)
+        assert not (installation / "rocks").exists()
+        assert not (installation / "env.sh").exists()
+    if program in ("tarantool-ee", "tarantool-sdk"):
+        headers = root / "versions" / "tarantool-ee" / components[0][2] / "include" / "tarantool"
+        assert (root / "include" / "tarantool").resolve(strict=True) == headers
+        assert any(headers.iterdir())
+    assert not (root / "rocks").exists()
+    assert not (root / "env.sh").exists()
+    temporary = tmp_path / "temporary"
+    if keep:
+        match = re.search(r"Artifacts can be found at: (.+)", result.stdout)
+        assert match, result.stdout
+        retained = Path(match[1].strip())
+        assert retained.parent == temporary
+        archives = list(retained.glob("*.tar.gz"))
+        assert len(archives) == 1
+        assert selected in archives[0].name
+        # SDK component versions differ from the archive's version. Verify every
+        # installed executable is the one from the selected SDK archive.
+        with tarfile.open(archives[0]) as archive:
+            members = {
+                member.name.removeprefix("./"): member
+                for member in archive.getmembers()
+                if member.isfile()
+            }
+            for _, executable, _ in components:
+                name = (
+                    "tarantool-enterprise/" + executable
+                    if program in ("tarantool-ee", "tarantool-sdk")
+                    else executable
+                )
+                if program == "tcm" and name not in members:
+                    name = "tarantool-cluster-manager"
+                assert name in members, members.keys()
+                expected_binary = archive.extractfile(members[name]).read()
+                assert (root / "bin" / executable).read_bytes() == expected_binary
+        shutil.rmtree(retained)
+        for log in temporary.iterdir():
+            log.unlink()
+    else:
+        assert "Artifacts can be found at:" not in result.stdout
+        assert not list(temporary.iterdir())

@@ -305,7 +305,7 @@ func TestFindLocalTtEeBundles(t *testing.T) {
 		return
 	}
 
-	if runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64" {
+	if runtime.GOARCH != "amd64" {
 		require.ErrorContains(t, err, "unsupported architecture")
 
 		return
@@ -314,5 +314,5 @@ func TestFindLocalTtEeBundles(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, bundles, 1)
 	require.Equal(t, "2.15.0", bundles[0].Version.Str)
-	require.Equal(t, "tt-ee-2.15.0-linux-"+runtime.GOARCH+".tar.gz", bundles[0].Version.Tarball)
+	require.Equal(t, "tt-ee-2.15.0-linux-amd64.tar.gz", bundles[0].Version.Tarball)
 }

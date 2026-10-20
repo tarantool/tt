@@ -866,9 +866,9 @@ Each scope stores executables directly in
 <root>/versions/<product>/<product>_<version>/, with Tarantool headers in
 include/tarantool.
 Active executables are linked from <root>/bin/, and active Tarantool headers
-from <root>/include/tarantool. CE and EE keep separate versions and share the
-active
-Tarantool links.
+from <root>/include/tarantool.
+
+Tarantool CE and EE keep separate versions and share the active Tarantool links.
 tt and tt-ee keep separate versions and share the active tt executable.
 
 For project installations, run "source .env/activate.sh" to activate the
@@ -905,6 +905,8 @@ Source them to use the project binaries and headers or restore your shell
 environment.
 
 [0;1;39mUSAGE[0m
+  tt binary install [flags]
+
   tt binary install [flags] <command> [command flags]
 [0;1;39m
 COMMANDS[0m
@@ -940,6 +942,7 @@ Use "tt binary install <command> --help" for more information about a command.
 Install Tarantool Community or Enterprise Edition and its headers.
 
 Bare versions select Community Edition: 3, 3.8, or 3.8.0.
+Tarantool Community Edition installation supports version 3.0 and newer.
 
 On Linux amd64/arm64 with glibc, use prebuilt Community release binaries when
 available.
@@ -977,7 +980,8 @@ select the headers directory. --from-build accepts no version argument.
 FLAGS[0m
       --credentials-file string   File containing customer-zone login and
                                   password on separate lines
-      --dev                       Install a development build
+      --dev                       Install a development build (Enterprise
+                                  Edition only)
       --dynamic                   Build Tarantool with dynamic linking
       --from-build string         Link Tarantool from an existing build
                                   directory
@@ -1017,52 +1021,6 @@ EXAMPLES[0m
 
   # Install the latest Enterprise release in minor version 3.8.
   $ tt binary install tarantool 3.8ee
-
-=== tt binary install tarantool-ee --help [hidden]
-Install tarantool-ee from a Tarantool Enterprise SDK archive.
-
-Omitting the version selects the latest stable gc64 build. Specify X, X.Y,
-or X.Y.Z to select the latest matching stable gc64 build, or a complete version
-name from "tt binary search" to select an exact archive, including nogc64 or RC.
-
-Use "tt binary search tarantool-ee" to list available versions.
-
-With --local-dir <dir>, the directory must contain Tarantool Enterprise SDK
-archives named tarantool-enterprise-sdk-*.tar.gz. Archives are read directly
-from that directory.
-
-Standalone Tarantool Enterprise versions omit SDK revisions: 3.8.1 for 3.x and
-newer, or gc64-2.11.1 / nogc64-2.11.1 for older releases. Prerelease and debug
-variants remain separate (for example, 3.8.1-rc1 or debug-3.8.1). These names
-also select the latest matching archive revision. An installed version is
-preserved across SDK revisions unless --reinstall is specified.
-
-[0;1;39mUSAGE[0m
-  tt binary install tarantool-ee [version] [flags]
-
-  tt binary install tarantool-ee [version] [flags]
-[0;1;39m
-FLAGS[0m
-      --credentials-file string   File containing customer-zone login and
-                                  password on separate lines
-      --dev                       Install a development build
-  -h, --help                      help for tarantool-ee
-      --local-dir string          Directory with Tarantool Enterprise SDK
-                                  archives (tarantool-enterprise-sdk-*.tar.gz)
-[0;1;39m
-GLOBAL FLAGS[0m
-  -f, --force          Skip dependency checks
-      --no-clean       Keep temporary files
-      --reinstall      Reinstall an existing version
-      --scope string   Scope: project, user or system (default "project")
-  -V, --verbose        Show diagnostic output and build commands
-[0;1;39m
-EXAMPLES[0m
-  # Download and install the latest stable gc64 release in major version 3.
-  $ tt binary install tarantool-ee 3 --scope user
-
-  # Install an Enterprise archive from a local directory for this project.
-  $ tt binary install tarantool-ee gc64-3.4.0-0-r60 --local-dir ./bundles
 
 === tt binary install tarantool-sdk --help
 Install Tarantool Enterprise, tt Enterprise, and TCM together with headers.
@@ -1159,7 +1117,7 @@ With --local-repo <dir>, <dir>/tt must be a local Git clone of the tt source
 repository. Use --local-dir <dir> with standalone tt-ee-*.tar.gz archives to
 install
 Enterprise Edition. Enterprise search and installation are available only on
-Linux.
+Linux amd64.
 Use "tt binary search tt" or "tt binary search tt-ee" to list available
 versions.
 
@@ -1196,38 +1154,6 @@ EXAMPLES[0m
 
   # Install the latest tt Enterprise release in minor version 2.15.
   $ tt binary install tt 2.15ee
-
-=== tt binary install tt-ee --help [hidden]
-Install tt-ee from its standalone archive.
-
-Omitting the version selects the latest stable build. Specify X, X.Y, or X.Y.Z
-to select the latest matching stable build, or a complete version name to select
-an exact build, including RC.
-Partial names with prerelease or commit suffixes are not supported.
-Use "tt binary search tt-ee" to list available versions.
-
-With --local-dir <dir>, the directory must contain tt-ee-*.tar.gz archives.
-The archive contains the tt executable directly at its root.
-
-tt-ee search and installation are available only on Linux.
-
-[0;1;39mUSAGE[0m
-  tt binary install tt-ee [version] [flags]
-
-  tt binary install tt-ee [version] [flags]
-[0;1;39m
-FLAGS[0m
-      --credentials-file string   File containing customer-zone login and
-                                  password on separate lines
-  -h, --help                      help for tt-ee
-      --local-dir string          Directory containing tt-ee standalone archives
-[0;1;39m
-GLOBAL FLAGS[0m
-  -f, --force          Skip dependency checks
-      --no-clean       Keep temporary files
-      --reinstall      Reinstall an existing version
-      --scope string   Scope: project, user or system (default "project")
-  -V, --verbose        Show diagnostic output and build commands
 
 === tt binary list --help
 List installed versions and active binaries in the selected scope.
@@ -1289,6 +1215,8 @@ Use "tt binary search <command> --help" for more information about a command.
 
 === tt binary search tarantool --help
 Search available Tarantool Community Edition versions.
+
+Available Tarantool Community Edition releases start with version 3.0.
 
 With --local-repo <dir>, <dir>/tarantool must be a local Git clone of the
 Tarantool source repository. Versions are read from its Git tags.
@@ -1415,7 +1343,7 @@ Search available tt-ee versions from standalone archives.
 With --local-dir <dir>, the directory must contain tt-ee-*.tar.gz archives.
 Archives are read directly from that directory.
 
-tt-ee search and installation are available only on Linux.
+tt-ee search and installation are available only on Linux amd64.
 
 [0;1;39mUSAGE[0m
   tt binary search tt-ee [flags]

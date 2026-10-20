@@ -217,6 +217,14 @@ func findBundlePathsInDir(baseDir string, program binary.Program) (
 	}
 
 	binPath := filepath.Join(baseDir, program.Exec())
+	if program == binary.ProgramTcm && !binary.IsRegularFile(binPath) {
+		// Older TCM development bundles use the full product name.
+		legacyPath := filepath.Join(baseDir, "tarantool-cluster-manager")
+		if binary.IsRegularFile(legacyPath) {
+			binPath = legacyPath
+		}
+	}
+
 	if !binary.IsRegularFile(binPath) {
 		return "", "", fmt.Errorf("%w%q", errCouldNotFindBinaryAt, binPath)
 	}
@@ -534,6 +542,8 @@ func finishBundleInstallation(params *bundleParams, installErr error) {
 
 	_ = params.logFile.Close()
 	if params.inst.KeepTemp {
+		log.Infof("Artifacts can be found at: %s", params.tmpDir)
+
 		return
 	}
 

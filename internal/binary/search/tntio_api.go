@@ -8,19 +8,27 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"path"
 	"reflect"
 	"strings"
 
 	"github.com/tarantool/tt/sdk/connect"
+	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
+	"golang.org/x/net/html"
 )
 
 var (
 	errNoAPIDoerWasApplied          = errors.New("no API doer was applied")
 	errNoPlatformInformerWasApplied = errors.New("no platform informer was applied")
+	errAPIRequestFailed             = errors.New("API request failed")
 
 	errUnsupportedArchitecture = errors.New("unsupported architecture: ")
 	errUnsupportedOS           = errors.New("unsupported OS: ")
+	errMissingCatalogSession   = errors.New(
+		"tarantool.io API returned no session for package catalog",
+	)
 )
 
 const (
@@ -87,12 +95,19 @@ func (d *httpDoer) Do(req *http.Request) ([]byte, error) {
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, err := io.ReadAll(resp.Body)
+		apiErr := fmt.Errorf("%w with status %s: %q", errAPIRequestFailed,
+			resp.Status, string(bodyBytes))
 
-		return nil, fmt.Errorf("API request failed with status %s: %q; %w",
-			resp.Status, string(bodyBytes), err)
+		if err != nil {
+			return nil, fmt.Errorf("%w; reading response body: %w", apiErr, err)
+		}
+
+		return nil, apiErr
 	}
 
-	d.token = getSessionToken(resp.Cookies())
+	if token := getSessionToken(resp.Cookies()); token != "" {
+		d.token = token
+	}
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -168,8 +183,8 @@ func TntIoMakePkgURI(searchCtx *SearchCtx, tarball string) (string, error) {
 	return PkgURI + "/" + query + "/" + tarball, nil
 }
 
-// bundlePlatformSuffix validates Linux-only tt-ee availability and filters its
-// flat version catalog by host architecture. Other sources already group by platform.
+// bundlePlatformSuffix validates Linux amd64 tt-ee availability and filters its
+// flat version catalog. Other sources already group by platform.
 func bundlePlatformSuffix(program binary.Program, informer PlatformInformer) (string, error) {
 	if program.BundleSource() != binary.ProgramTtEe {
 		return "", nil
@@ -185,7 +200,7 @@ func bundlePlatformSuffix(program binary.Program, informer PlatformInformer) (st
 	}
 
 	if osType != "linux" {
-		return "", fmt.Errorf("%w%s: tt-ee archives are available only for Linux",
+		return "", fmt.Errorf("%w%s: tt-ee archives are available only for Linux amd64",
 			errUnsupportedOS, osType)
 	}
 
@@ -194,7 +209,12 @@ func bundlePlatformSuffix(program binary.Program, informer PlatformInformer) (st
 		return "", err
 	}
 
-	return "-" + osType + "-" + arch + ".tar.gz", nil
+	if arch != "amd64" {
+		return "", fmt.Errorf("%w%s: tt-ee archives are available only for Linux amd64",
+			errUnsupportedArchitecture, arch)
+	}
+
+	return "-linux-amd64.tar.gz", nil
 }
 
 // packageQuery is shared by discovery and downloads. SDK/TCM catalogs group by
@@ -235,13 +255,7 @@ func packageQuery(searchCtx *SearchCtx, releaseVersion string) (string, error) {
 func buildAPIQuery(searchCtx *SearchCtx, credentials connect.UserCredentials) (
 	apiRequest, error,
 ) {
-	releaseVersion := searchCtx.ReleaseVersion
-	if searchCtx.Program.BundleSource() == binary.ProgramTtEe {
-		// Read the flat catalog once; --version may be a partial version mask.
-		releaseVersion = ""
-	}
-
-	query, err := packageQuery(searchCtx, releaseVersion)
+	query, err := packageQuery(searchCtx, searchCtx.ReleaseVersion)
 	if err != nil {
 		return apiRequest{}, err
 	}
@@ -329,6 +343,21 @@ func tntIoGetPkgVersions(credentials connect.UserCredentials, searchCtx *SearchC
 		return nil, errNoPlatformInformerWasApplied
 	}
 
+	if searchCtx.Program == binary.ProgramTtEe {
+		// The API requires a nonempty query, so authenticate through its existing
+		// enterprise catalog. Discover tt-ee versions in the website catalog.
+		_, err := sendAPIRequest(apiRequest{
+			Username: credentials.Username,
+			Password: credentials.Password,
+			Query:    GetAPIPackage(binary.ProgramSDK),
+		}, searchCtx.TntIoDoer)
+		if err != nil {
+			return nil, err
+		}
+
+		return ttEECatalogVersions(searchCtx)
+	}
+
 	request, err := buildAPIQuery(searchCtx, credentials)
 	if err != nil {
 		return nil, err
@@ -339,10 +368,90 @@ func tntIoGetPkgVersions(credentials connect.UserCredentials, searchCtx *SearchC
 		return nil, err
 	}
 
-	apiReply, err := parseAPIResponse(resp)
+	return parseAPIResponse(resp)
+}
+
+func ttEECatalogVersions(searchCtx *SearchCtx) (map[string][]string, error) {
+	address := PkgURI + "/tt-ee"
+
+	entries, err := ttEEDirectoryEntries(address, searchCtx.TntIoDoer)
 	if err != nil {
 		return nil, err
 	}
 
-	return apiReply, nil
+	versions := make(map[string][]string)
+
+	for _, entry := range entries {
+		if _, exists := versions[entry]; exists {
+			continue
+		}
+
+		parsed, err := version.Parse(entry)
+		if err != nil || !matchesReleaseFilter(searchCtx, parsed) {
+			continue
+		}
+
+		files, err := ttEEDirectoryEntries(address+"/"+url.PathEscape(entry), searchCtx.TntIoDoer)
+		if err != nil {
+			return nil, err
+		}
+
+		versions[entry] = files
+	}
+
+	return versions, nil
+}
+
+func ttEEDirectoryEntries(address string, doer binary.TntIoDoer) ([]string, error) {
+	if doer.Token() == "" {
+		return nil, errMissingCatalogSession
+	}
+
+	request, err := http.NewRequestWithContext(context.Background(), http.MethodGet, address, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create package catalog request: %w", err)
+	}
+
+	request.Header.Set("User-Agent", "tt")
+	request.AddCookie(&http.Cookie{ //nolint:gosec // Request cookie carries only name/value.
+		Name: "sessionid", Value: doer.Token(),
+	})
+
+	body, err := doer.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("read package catalog %s: %w", address, err)
+	}
+
+	// Only collect names. Requests are built from PkgURI; catalog links are
+	// never followed directly.
+	var entries []string
+
+	tokenizer := html.NewTokenizer(bytes.NewReader(body))
+	for tokenizer.Next() != html.ErrorToken {
+		token := tokenizer.Token()
+		if token.Type != html.StartTagToken || token.Data != "a" {
+			continue
+		}
+
+		for _, attribute := range token.Attr {
+			if attribute.Key != "href" {
+				continue
+			}
+
+			link, err := url.Parse(attribute.Val)
+			if err != nil || link.User != nil || link.RawQuery != "" || link.Fragment != "" ||
+				(link.Host != "" && link.Host != request.URL.Host) {
+				continue
+			}
+
+			entries = append(entries, path.Base(strings.TrimRight(link.Path, "/")))
+		}
+	}
+
+	err = tokenizer.Err()
+	if !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("parse tt-ee catalog: %w", err)
+	}
+
+	return entries, nil
 }
