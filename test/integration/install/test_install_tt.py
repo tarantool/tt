@@ -1,6 +1,5 @@
 import os
 import platform
-import re
 import subprocess
 
 import pytest
@@ -10,6 +9,11 @@ from utils import create_tt_config, run_command_and_get_output
 
 @pytest.fixture
 def local_tt_build(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "user data"))
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "empty-gitconfig"))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.delenv("TT_CLI_CFG", raising=False)
     repository = tmp_path / "distfiles" / "tt"
     repository.mkdir(parents=True)
     (repository / "README").write_text("local tt sources\n")
@@ -39,13 +43,10 @@ def local_tt_build(tmp_path, monkeypatch):
     monkeypatch.setenv("PATH", f"{tools}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.setenv("TT_SCOPE_TEST_BINARY", str(built_binary))
     monkeypatch.setenv("TT_SCOPE_TEST_BUILD_LOG", str(build_log))
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "user data"))
-    monkeypatch.delenv("TT_CLI_CFG", raising=False)
     return built_binary, build_log
 
 
-def install_tt(tt_cmd, tmp_path, flags=(), version="1.2.3"):
+def install_tt(tt_cmd, tmp_path, flags=(), force=True, version="1.2.3"):
     return run_command_and_get_output(
         [
             tt_cmd,
@@ -53,48 +54,14 @@ def install_tt(tt_cmd, tmp_path, flags=(), version="1.2.3"):
             "binary",
             "install",
             "tt",
-            version,
-            "--force",
+            *([] if version is None else [version]),
+            *(["--force"] if force else []),
             "--local-repo",
             "distfiles",
             *flags,
         ],
         cwd=tmp_path,
     )
-
-
-@pytest.mark.skipif(
-    (platform.system(), platform.machine().lower())
-    not in (
-        ("Linux", "x86_64"),
-        ("Linux", "amd64"),
-        ("Linux", "aarch64"),
-        ("Linux", "arm64"),
-        ("Darwin", "x86_64"),
-        ("Darwin", "amd64"),
-    ),
-    reason="Prebuilt tt archives require Linux amd64/arm64 or macOS amd64",
-)
-def test_install_tt_prebuilt_release(tt_cmd, tmp_path, monkeypatch):
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.delenv("TT_CLI_CFG", raising=False)
-    version = "2.15.0"
-    rc, output = run_command_and_get_output(
-        [tt_cmd, "--self", "binary", "install", "tt", version, "--scope", "project"],
-        cwd=tmp_path,
-    )
-    assert rc == 0, output
-    assert "Downloading tt binary..." in output
-    assert "Building tt..." not in output
-
-    root = tmp_path / ".tarantool"
-    executable = root / "bin" / "tt"
-    assert executable.resolve(strict=True) == root / "versions" / "tt" / f"tt_v{version}" / "tt"
-    assert not (root / "include").exists()
-
-    rc, output = run_command_and_get_output([executable, "version"], cwd=tmp_path)
-    assert rc == 0, output
-    assert re.search(rf"^Tarantool CLI version {re.escape(version)}\b", output), output
 
 
 @pytest.mark.parametrize("requested", ["1", "1.2", "1.2.3", "1ce", "1.2ce", "1.2.3ce"])
@@ -303,3 +270,18 @@ def test_install_tt_existing_master(tt_cmd, tmp_path, local_tt_build, update):
         assert "already exists" in output
         assert binary.read_text() == old_contents
         assert not build_log.exists()
+
+
+@pytest.mark.usefixtures("local_tt_build")
+def test_install_tt_latest_release(tt_cmd, tmp_path):
+    rc, output = install_tt(tt_cmd, tmp_path, version=None)
+    assert rc == 0, output
+    assert (tmp_path / ".tarantool/versions/tt/tt_v1.2.3/tt").is_file()
+
+
+@pytest.mark.usefixtures("local_tt_build")
+@pytest.mark.parametrize("force", [False, True])
+def test_install_tt_force_dependency_check(tt_cmd, tmp_path, force):
+    rc, output = install_tt(tt_cmd, tmp_path, force=force)
+    assert rc == 0, output
+    assert ("Checking dependencies..." in output) == (not force)

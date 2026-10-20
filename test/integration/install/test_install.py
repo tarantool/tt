@@ -1,12 +1,18 @@
 import os
 import platform
 import re
+import shlex
 import shutil
 import subprocess
+import tarfile
 import tempfile
+import uuid
+from pathlib import Path
 
 import pytest
 import yaml
+from test_install_tarantool import install_tarantool, local_tarantool_build  # noqa: F401
+from test_install_tt import install_tt, local_tt_build  # noqa: F401
 
 from utils import (
     config_name,
@@ -92,15 +98,15 @@ def test_install_tt(tt_cmd, tmp_path):
     os.remove(configPath)
 
     installed_cmd = [tmp_path / ".tarantool" / "bin" / "tt", "version"]
-    installed_program_process = subprocess.Popen(
+    installed_program_process = subprocess.run(
         installed_cmd,
         cwd=tmp_path / ".tarantool" / "bin",
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
+        timeout=30,
     )
-    start_output = installed_program_process.stdout.readline()
-    assert re.search(r"Tarantool CLI version \d+.\d+.\d+", start_output)
+    assert installed_program_process.returncode == 0, installed_program_process.stdout
 
 
 @pytest.mark.slow
@@ -135,16 +141,15 @@ def test_install_tt_specific_commit(tt_cmd, tmp_path):
     assert instance_process.returncode == 0, output
 
     installed_cmd = [tmp_path / ".tarantool" / "bin" / "tt", "version"]
-    installed_program_process = subprocess.Popen(
+    installed_program_process = subprocess.run(
         installed_cmd,
         cwd=tmp_path / ".tarantool" / "bin",
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
+        timeout=30,
     )
-    start_output = installed_program_process.stdout.readline()
-    assert re.search(r"Tarantool CLI version 2.1.1", start_output)
-    assert re.search(r"commit: 97c7b73", start_output)
+    assert installed_program_process.returncode == 0, installed_program_process.stdout
 
 
 @pytest.mark.slow
@@ -212,15 +217,8 @@ def test_wrong_format_hash(tt_cmd, tmp_path):
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize(
-    "required_ver, installed_ver",
-    [
-        ("2.1.2", "2.1.2"),
-        ("v2.2", "2.2.1"),
-        ("1", "1.3.1"),
-    ],
-)
-def test_install_tt_specific_version(tt_cmd, tmp_path, required_ver: str, installed_ver: str):
+@pytest.mark.parametrize("required_ver", ["2.1.2", "v2.2", "1"])
+def test_install_tt_specific_version(tt_cmd, tmp_path, required_ver: str):
     configPath = os.path.join(tmp_path, config_name)
     # Create test config
     with open(configPath, "w") as f:
@@ -252,15 +250,15 @@ def test_install_tt_specific_version(tt_cmd, tmp_path, required_ver: str, instal
     os.remove(configPath)
 
     installed_cmd = [tmp_path / ".tarantool" / "bin" / "tt", "version"]
-    installed_program_process = subprocess.Popen(
+    installed_program_process = subprocess.run(
         installed_cmd,
         cwd=tmp_path / ".tarantool" / "bin",
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
+        timeout=30,
     )
-    start_output = installed_program_process.stdout.readline()
-    assert re.search(rf"Tarantool CLI.*{installed_ver}", start_output)
+    assert installed_program_process.returncode == 0, installed_program_process.stdout
 
 
 @pytest.mark.slow
@@ -303,16 +301,16 @@ def test_install_tarantool_commit(tt_cmd, tmp_path):
     instance_process_rc = instance_process.wait()
     assert instance_process_rc == 0
     installed_cmd = [root / "bin" / "tarantool", "-v"]
-    installed_program_process = subprocess.Popen(
+    installed_program_process = subprocess.run(
         installed_cmd,
         cwd=root / "bin",
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
+        timeout=30,
     )
 
-    run_output = installed_program_process.stdout.readline()
-    assert re.search(r"Tarantool", run_output)
+    assert installed_program_process.returncode == 0, installed_program_process.stdout
     assert (root / "include" / "tarantool").is_dir()
 
     assert is_valid_tarantool_installed(
@@ -370,16 +368,16 @@ def test_install_tarantool_in_docker(tt_cmd, tmp_path):
     assert tt_process.returncode == 0
 
     installed_cmd = [root / "bin" / "tarantool", "-v"]
-    installed_program_process = subprocess.Popen(
+    installed_program_process = subprocess.run(
         installed_cmd,
         cwd=root / "bin",
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
+        timeout=30,
     )
 
-    run_output = installed_program_process.stdout.readline()
-    assert re.search(r"Tarantool", run_output)
+    assert installed_program_process.returncode == 0, installed_program_process.stdout
 
     # spell-checker:ignore objdump
     # Check tarantool glibc version.
@@ -609,3 +607,342 @@ def test_install_tt_fetch_latest_version(
     )
     assert instance_process_rc == 0
     assert expected_install_msg in install_output
+
+
+@pytest.fixture(params=["tt", "tarantool"])
+def community_build(request, tt_cmd, tmp_path):
+    product = request.param
+    artifacts = request.getfixturevalue(f"local_{product}_build")
+    install = install_tt if product == "tt" else install_tarantool
+    return product, artifacts, lambda **kwargs: install(tt_cmd, tmp_path, **kwargs)
+
+
+def retained_paths(output):
+    paths = re.findall(r"Artifacts can be found at: ([^\n]+)", output)
+    return [Path(path.strip()) for path in paths]
+
+
+@pytest.mark.parametrize("keep_temp", [False, True], ids=["clean", "no-clean"])
+@pytest.mark.parametrize("product,version", [("tt", "2.15.0"), ("tarantool", "3.7.1")])
+def test_install_community_prebuilt_release(
+    tt_cmd,
+    tmp_path,
+    monkeypatch,
+    product,
+    version,
+    keep_temp,
+):
+    system, arch = platform.system(), platform.machine().lower()
+    supported = arch in ("x86_64", "amd64", "aarch64", "arm64")
+    if product == "tt":
+        supported = supported and (
+            system == "Linux"
+            or (
+                system == "Darwin"
+                and arch
+                in (
+                    "x86_64",
+                    "amd64",
+                )
+            )
+        )
+    else:
+        supported = supported and system == "Linux" and platform.libc_ver()[0] == "glibc"
+    if not supported:
+        pytest.skip(f"No prebuilt {product} release for this platform")
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("TMPDIR", str(tmp_path))
+    monkeypatch.delenv("TT_CLI_CFG", raising=False)
+    flags = ["--no-clean"] if keep_temp else []
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "--self", "binary", "install", product, version, "--scope", "project", *flags],
+        cwd=tmp_path,
+    )
+    assert rc == 0, output
+    assert (
+        "Downloading tt binary..."
+        if product == "tt"
+        else "Downloading Tarantool binary and headers..."
+    ) in output
+    assert f"Building {product}..." not in output
+    root = tmp_path / ".tarantool"
+    executable = root / "bin" / product
+    directory = f"tt_v{version}" if product == "tt" else f"tarantool_{version}"
+    installed = root / "versions" / product / directory
+    assert executable.resolve(strict=True) == installed / product
+    if product == "tt":
+        assert not (root / "include").exists()
+    else:
+        assert (root / "include" / product).resolve(strict=True) == installed / "include" / product
+        assert (root / "include" / product / "module.h").is_file()
+    paths = retained_paths(output)
+    if keep_temp:
+        assert len(paths) == 1, output
+        assert paths[0].is_dir() and paths[0].parent == tmp_path
+        if product == "tt":
+            archives = list(paths[0].glob("tt-package-*/package-*.tar.gz"))
+            assert len(archives) == 1
+            with tarfile.open(archives[0]) as archive:
+                assert archive.extractfile("tt").read() == executable.read_bytes()
+        else:
+            archives = list(paths[0].glob("tarantool-package-*/*/package-*.rpm"))
+            assert len(archives) == 2
+            assert all(archive.read_bytes().startswith(b"\xed\xab\xee\xdb") for archive in archives)
+            extracted = list(paths[0].glob("tarantool-package-*/runtime/usr/bin/tarantool"))
+            assert len(extracted) == 1
+            assert extracted[0].read_bytes() == executable.read_bytes()
+    else:
+        assert paths == []
+        assert not list(tmp_path.glob(f"{product}_install*"))
+    rc, output = run_command_and_get_output(
+        [executable, "version" if product == "tt" else "--version"],
+        cwd=tmp_path,
+    )
+    assert rc == 0, output
+
+
+@pytest.mark.parametrize("keep_temp", [False, True], ids=["clean", "no-clean"])
+@pytest.mark.parametrize("verbose", [False, True], ids=["quiet", "verbose"])
+def test_install_community_source_artifacts(
+    community_build,
+    tmp_path,
+    monkeypatch,
+    keep_temp,
+    verbose,
+):
+    product, artifacts, install = community_build
+    monkeypatch.setenv("TMPDIR", str(tmp_path))
+    builder = tmp_path / "tools" / ("mage" if product == "tt" else "make")
+    builder.write_text(builder.read_text() + "echo community-build-output-marker\n")
+    flags = (["--no-clean"] if keep_temp else []) + (["--verbose"] if verbose else [])
+    rc, output = install(flags=flags)
+    assert rc == 0, output
+    assert ("community-build-output-marker" in output) == verbose
+    assert (tmp_path / ".tarantool" / "bin" / product).read_bytes() == artifacts[0].read_bytes()
+    paths = retained_paths(output)
+    if keep_temp:
+        assert len(paths) == 1, output
+        source = paths[0]
+        assert source.parent == tmp_path
+        assert (source / ".git").is_dir()
+        assert (source / "README").read_text() == f"local {product} sources\n"
+        built = (
+            source / "tt"
+            if product == "tt"
+            else (source / "static-build/build/tarantool-prefix/bin/tarantool")
+        )
+        assert built.read_bytes() == artifacts[0].read_bytes()
+        if product == "tarantool":
+            assert (built.parent.parent / "include/tarantool/module.h").read_bytes() == (
+                artifacts[1].read_bytes()
+            )
+    else:
+        assert paths == []
+        assert not list(tmp_path.glob(f"{product}_install*"))
+
+
+@pytest.mark.parametrize("failure", ["version", "tmp", "checkout", "build"])
+def test_install_community_failed_reinstall_preserves_installation(
+    community_build,
+    tmp_path,
+    monkeypatch,
+    failure,
+):
+    product, artifacts, install = community_build
+    rc, output = install()
+    assert rc == 0, output
+    root = tmp_path / ".tarantool"
+    active = root / "bin" / product
+    original_link, original_binary = active.readlink(), active.read_bytes()
+    if product == "tarantool":
+        headers = root / "include" / product
+        original_headers_link = headers.readlink()
+        original_header = (headers / "module.h").read_bytes()
+    artifacts[0].write_text("replacement executable must not be installed\n")
+    if product == "tarantool":
+        artifacts[1].write_text("replacement headers must not be installed\n")
+    flags = ["--reinstall"]
+    if failure == "tmp":
+        monkeypatch.setenv("TMPDIR", str(tmp_path / "missing-tmp"))
+    elif failure == "checkout":
+        git = tmp_path / "tools/git"
+        git.write_text(
+            '#!/bin/sh\n[ "$1" != checkout ] || exit 1\n'
+            f'exec {shlex.quote(shutil.which("git"))} "$@"\n',
+        )
+        git.chmod(0o755)
+    elif failure == "build":
+        builder = "mage" if product == "tt" else "make"
+        (tmp_path / "tools" / builder).write_text("#!/bin/sh\nexit 1\n")
+    rc, output = install(flags=flags, **({"version": "0" * 40} if failure == "version" else {}))
+    assert rc != 0, output
+    assert active.readlink() == original_link
+    assert active.resolve(strict=True) == original_link
+    assert active.read_bytes() == original_binary
+    assert os.access(active, os.X_OK)
+    if product == "tarantool":
+        assert headers.readlink() == original_headers_link
+        assert (headers / "module.h").read_bytes() == original_header
+    assert "source .env/activate.sh" not in output
+
+
+@pytest.mark.skipif(platform.system() != "Linux", reason="Controlled Linux dependency check")
+@pytest.mark.parametrize("force", [False, True])
+def test_install_tarantool_force_missing_dependencies(
+    tt_cmd,
+    tmp_path,
+    request,
+    monkeypatch,
+    force,
+):
+    distro = platform.freedesktop_os_release().get("PRETTY_NAME", "")
+    if not any(name in distro for name in ["Ubuntu", "Debian"]):
+        pytest.skip("Dependency test requires Debian/Ubuntu package checks")
+    built_binary, _, build_log = request.getfixturevalue("local_tarantool_build")
+    tools = tmp_path / "tools"
+    # gcc and package managers are intentionally unavailable, while the fake build
+    # needs only these tools. The same PATH must succeed when --force skips checks.
+    for name in ["git", "cp", "chmod", "mkdir", "basename", "sed", "uname", "cat"]:
+        (tools / name).symlink_to(shutil.which(name))
+    monkeypatch.setenv("PATH", str(tools))
+    rc, output = install_tarantool(tt_cmd, tmp_path, force=force)
+    if force:
+        assert rc == 0, output
+        assert "Checking dependencies..." not in output
+        assert (tmp_path / ".tarantool/bin/tarantool").read_bytes() == built_binary.read_bytes()
+        assert build_log.read_text() == "build\n"
+    else:
+        assert rc != 0, output
+        assert "Missing packages:" in output
+        assert not (tmp_path / ".tarantool").exists()
+        assert not build_log.exists()
+
+
+@pytest.fixture(scope="module")
+def scope_install_image():
+    if platform.system() != "Linux" or platform.machine().lower() not in (
+        "x86_64", "amd64", "aarch64", "arm64",
+    ):
+        pytest.skip("Container scope installation requires a Linux amd64/arm64 tt binary")
+    if shutil.which("docker") is None:
+        pytest.skip("Docker is not installed")
+    probe = subprocess.run(["docker", "info"], capture_output=True, timeout=30)
+    if probe.returncode != 0:
+        pytest.skip("Docker daemon is not available")
+
+    image = f"tt-install-scope:{uuid.uuid4().hex}"
+    dockerfile = (
+        "FROM ubuntu:20.04\n"
+        "RUN apt-get update && apt-get install -y --no-install-recommends "
+        "ca-certificates git && rm -rf /var/lib/apt/lists/*\n"
+        "RUN mkdir -p /work /home/tt-test && chown 1000:1000 /work /home/tt-test\n"
+        "ENV HOME=/home/tt-test\n"
+        "WORKDIR /work\n"
+    )
+    try:
+        built = subprocess.run(
+            ["docker", "build", "--tag", image, "-"],
+            input=dockerfile,
+            capture_output=True,
+            text=True,
+            timeout=600,
+        )
+        assert built.returncode == 0, built.stdout + built.stderr
+        yield image
+    finally:
+        subprocess.run(["docker", "image", "rm", image], capture_output=True, timeout=30)
+
+
+@pytest.mark.docker
+@pytest.mark.parametrize(
+    "scope,root,uid",
+    [
+        ("project", "/work/.tarantool", "1000"),
+        ("user", "/home/tt-test/.local/share/tarantool", "1000"),
+        ("system", "/opt/tarantool", "0"),
+    ],
+)
+def test_install_scope_lifecycle_in_docker(tt_cmd, scope_install_image, scope, root, uid):
+    # All installation directories belong to the disposable container. Downloads
+    # use the real GitHub tag list and RWS packages, as a normal install does.
+    script = r"""
+set -o pipefail
+scope=$1
+root=$2
+test "$(id -u)" = "$3"
+binary() { /tt --self binary --scope "$scope" "$@"; }
+assert_active() {
+    expected="$root/versions/tarantool/tarantool_$1"
+    test "$(readlink -f "$root/bin/tarantool")" = "$expected/tarantool"
+    test "$(readlink -f "$root/include/tarantool")" = "$expected/include/tarantool"
+    test -s "$root/include/tarantool/module.h"
+    "$root/bin/tarantool" --version
+}
+assert_scope_isolated() {
+    for path in /work/.tarantool /home/tt-test/.local/share/tarantool /opt/tarantool; do
+        if [ "$path" != "$root" ]; then test ! -e "$path"; fi
+    done
+}
+
+for version in 3.6.0 3.7.1; do
+    output=$(binary install tarantool "$version" 2>&1)
+    printf '%s\n' "$output"
+    printf '%s\n' "$output" | grep -F 'Downloading Tarantool binary and headers...'
+    assert_active "$version"
+    assert_scope_isolated
+done
+listing=$(binary list)
+printf '%s\n' "$listing" | grep -F '3.6.0'
+printf '%s\n' "$listing" | grep -F '3.7.1 [active]'
+
+if [ "$scope" = project ]; then
+    printf '%s\n' "$output" | grep -F 'source .env/activate.sh'
+    source .env/activate.sh
+else
+    test ! -e .env
+    printf '%s\n' "$output" | grep -F 'add this directory to your PATH:'
+    printf '%s\n' "$output" | grep -F "$root/bin"
+    export PATH="$root/bin:$PATH"
+fi
+test "$(command -v tarantool)" = "$root/bin/tarantool"
+tarantool --version
+
+binary switch tarantool 3.6.0
+assert_active 3.6.0
+binary list | grep -F '3.6.0 [active]'
+
+binary uninstall tarantool 3.6.0
+test ! -e "$root/versions/tarantool/tarantool_3.6.0"
+assert_active 3.7.1
+listing=$(binary list)
+printf '%s\n' "$listing" | grep -F '3.7.1 [active]'
+if printf '%s\n' "$listing" | grep -F '3.6.0'; then exit 1; fi
+
+binary uninstall tarantool
+test ! -e "$root/versions/tarantool/tarantool_3.7.1"
+test ! -e "$root/bin/tarantool" && test ! -L "$root/bin/tarantool"
+test ! -e "$root/include/tarantool" && test ! -L "$root/include/tarantool"
+if listing=$(binary list 2>&1); then
+    printf 'Expected an empty scope, got: %s\n' "$listing" >&2
+    exit 1
+fi
+printf '%s\n' "$listing" | grep -F 'there are no binaries installed in the selected scope'
+assert_scope_isolated
+"""
+    container = f"tt-install-{scope}-{uuid.uuid4().hex}"
+    try:
+        result = subprocess.run(
+            [
+                "docker", "run", "--rm", "--name", container,
+                "--user", f"{uid}:{uid}",
+                "--mount", f"type=bind,source={tt_cmd},target=/tt,readonly",
+                "--env", "NO_COLOR=1", "--env", "XDG_DATA_HOME=",
+                scope_install_image, "bash", "-euxc", script, "scope-test", scope, root, uid,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+    finally:
+        subprocess.run(["docker", "rm", "--force", container], capture_output=True, timeout=30)

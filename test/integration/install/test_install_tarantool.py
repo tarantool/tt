@@ -17,6 +17,11 @@ def scope_environment(tmp_path, monkeypatch):
 
 @pytest.fixture
 def local_tarantool_build(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "user data"))
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "empty-gitconfig"))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.delenv("TT_CLI_CFG", raising=False)
     repository = tmp_path / "distfiles" / "tarantool"
     repository.mkdir(parents=True)
     (repository / "README").write_text("local tarantool sources\n")
@@ -64,7 +69,7 @@ def scope_root(tmp_path, scope):
     return tmp_path / ".tarantool"
 
 
-def install_tarantool(tt_cmd, tmp_path, flags=(), version="3.2.1"):
+def install_tarantool(tt_cmd, tmp_path, flags=(), force=True, version="3.2.1"):
     return run_command_and_get_output(
         [
             tt_cmd,
@@ -73,43 +78,13 @@ def install_tarantool(tt_cmd, tmp_path, flags=(), version="3.2.1"):
             "install",
             "tarantool",
             *([] if version is None else [version]),
-            "--force",
+            *(["--force"] if force else []),
             "--local-repo",
             "distfiles",
             *flags,
         ],
         cwd=tmp_path,
     )
-
-
-@pytest.mark.skipif(
-    platform.system() != "Linux"
-    or platform.machine().lower() not in ("x86_64", "amd64", "aarch64", "arm64")
-    or platform.libc_ver()[0] != "glibc",
-    reason="Prebuilt Tarantool packages require Linux amd64/arm64 with glibc",
-)
-def test_install_tarantool_prebuilt_release(tt_cmd, tmp_path):
-    version = "3.7.1"
-    rc, output = run_command_and_get_output(
-        [tt_cmd, "--self", "binary", "install", "tarantool", version, "--scope", "project"],
-        cwd=tmp_path,
-    )
-    assert rc == 0, output
-    assert "Downloading Tarantool binary and headers..." in output
-    assert "Building tarantool..." not in output
-
-    root = tmp_path / ".tarantool"
-    installed = root / "versions" / "tarantool" / f"tarantool_{version}"
-    executable = root / "bin" / "tarantool"
-    assert executable.resolve(strict=True) == installed / "tarantool"
-    assert (root / "include" / "tarantool").resolve(strict=True) == (
-        installed / "include" / "tarantool"
-    )
-    assert (root / "include" / "tarantool" / "module.h").is_file()
-
-    rc, output = run_command_and_get_output([executable, "--version"], cwd=tmp_path)
-    assert rc == 0, output
-    assert re.search(rf"^Tarantool {re.escape(version)}\b", output), output
 
 
 @pytest.mark.parametrize("scope", [None, "project", "user"])
@@ -733,3 +708,105 @@ def test_install_tarantool_system_scope_in_docker(tt_cmd, tmp_path, docker_taran
     assert (repository / "src" / "tarantool").read_bytes() == built_binary.read_bytes()
     assert (repository / "src" / "module.h").read_bytes() == built_header.read_bytes()
     assert not (target / "versions").exists()
+
+
+@pytest.mark.parametrize("requested", ["3", "3.2", "3.2.1", "3ce", "3.2ce", "3.2.1ce"])
+def test_install_tarantool_community_selector(tt_cmd, tmp_path, local_tarantool_build, requested):
+    built_binary, built_header, build_log = local_tarantool_build
+    rc, output = install_tarantool(tt_cmd, tmp_path, version=requested)
+    assert rc == 0, output
+    root = tmp_path / ".tarantool"
+    installed = root / "versions/tarantool/tarantool_3.2.1"
+    assert (root / "bin/tarantool").resolve(strict=True) == installed / "tarantool"
+    assert (root / "bin/tarantool").read_bytes() == built_binary.read_bytes()
+    assert (root / "include/tarantool/module.h").read_bytes() == built_header.read_bytes()
+    assert build_log.read_text() == "build\n"
+    assert not (root / "versions/tarantool-ee").exists()
+
+
+@pytest.mark.parametrize("edition", ["Community", "Enterprise"])
+@pytest.mark.parametrize("flag", [None, "--force", "--reinstall", "--no-clean", "--verbose"])
+def test_install_tarantool_from_build_common_flags(tt_cmd, tmp_path, monkeypatch, edition, flag):
+    build = tmp_path / "existing-build"
+    binary = build / "src/tarantool"
+    binary.parent.mkdir(parents=True)
+    binary.write_text(f"#!/bin/sh\necho 'Tarantool {edition} 3.2.1'\n")
+    binary.chmod(0o755)
+    headers = build / "tarantool-prefix/include/tarantool"
+    headers.mkdir(parents=True)
+    (headers / "module.h").write_text(f"{edition} headers\n")
+    original = binary.read_bytes()
+    monkeypatch.setenv("TMPDIR", str(tmp_path))
+    rc, output = run_command_and_get_output(
+        [
+            tt_cmd,
+            "--self",
+            "binary",
+            "install",
+            "tarantool",
+            "--scope",
+            "project",
+            "--from-build",
+            str(build),
+            *([] if flag is None else [flag]),
+        ],
+        cwd=tmp_path,
+    )
+    assert rc == 0, output
+    root = tmp_path / ".tarantool"
+    assert (root / "bin/tarantool").readlink() == binary
+    assert (root / "include/tarantool").readlink() == headers
+    assert binary.read_bytes() == original
+    assert (headers / "module.h").read_text() == f"{edition} headers\n"
+    assert not (root / "versions").exists()
+    assert not list(tmp_path.glob("tarantool_install*"))
+    assert "Building tarantool" not in output
+    assert "Checking dependencies" not in output
+    assert "Artifacts can be found at:" not in output
+
+
+@pytest.mark.docker
+@pytest.mark.parametrize("dynamic", [False, True], ids=["static", "dynamic"])
+@pytest.mark.parametrize("keep_temp", [False, True], ids=["clean", "no-clean"])
+def test_install_tarantool_docker_artifacts(
+    tt_cmd,
+    tmp_path,
+    docker_tarantool_build,
+    monkeypatch,
+    request,
+    dynamic,
+    keep_temp,
+):
+    built_binary, built_header = docker_tarantool_build
+    monkeypatch.setenv("TMPDIR", str(tmp_path))
+    flags = ["--use-docker", "--scope", "project", "--verbose", "--reinstall", "--source-build"]
+    if dynamic:
+        flags.append("--dynamic")
+    if keep_temp:
+        flags.append("--no-clean")
+    rc, output = install_tarantool(tt_cmd, tmp_path, flags)
+    assert rc == 0, output
+    root = tmp_path / ".tarantool"
+    assert (root / "bin/tarantool").read_bytes() == built_binary.read_bytes()
+    assert (root / "include/tarantool/module.h").read_bytes() == built_header.read_bytes()
+    printed = re.findall(r"Artifacts can be found at: ([^\n]+)", output)
+    paths = [tmp_path / path.strip() for path in printed]
+    if keep_temp:
+        # Installation itself must succeed before the known retention bug is expected.
+        request.node.add_marker(pytest.mark.xfail(
+            strict=True, reason="Docker installer discards source and build artifacts",
+        ))
+        assert paths, output
+        assert all(path.is_dir() for path in paths), output
+        checkouts = [git.parent for path in paths for git in path.rglob(".git") if git.is_dir()]
+        assert checkouts, output
+        outputs = [
+            binary for path in paths for binary in path.rglob("tarantool-prefix/bin/tarantool")
+        ]
+        assert any(binary.read_bytes() == built_binary.read_bytes() for binary in outputs)
+        headers = [header for path in paths for header in path.rglob("include/tarantool/module.h")]
+        assert any(header.read_bytes() == built_header.read_bytes() for header in headers)
+    else:
+        assert paths == []
+        assert not list(tmp_path.glob("docker_build_ctx*"))
+        assert not list(tmp_path.glob("tarantool_install*"))

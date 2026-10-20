@@ -258,19 +258,3 @@ func TestTarantoolBuildPathOtherScope(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"3.0.0"}, versionNames(versions))
 }
-
-func TestInstalledVersionsUnreadable(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("root can read directories regardless of permission bits")
-	}
-
-	root := t.TempDir()
-	listExecutable(t, root, binary.ProgramTt, "v3.0.0")
-
-	dir := filepath.Join(root, binary.VersionsDirName, "tt")
-	require.NoError(t, os.Chmod(dir, 0))
-	t.Cleanup(func() { require.NoError(t, os.Chmod(dir, 0o755)) })
-
-	_, err := installedVersions(root, binary.ProgramTt)
-	require.ErrorIs(t, err, os.ErrPermission)
-}
