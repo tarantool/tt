@@ -22,7 +22,7 @@ BUF_VERSION=v1.73.0
 # the toolchain is pinned as well: the output does not depend on the go
 # installed on the machine. It is the Go tt is built with (GO_VERSION in
 # .github/workflows); move the two together and commit the regenerated ./pb.
-export GOTOOLCHAIN=go1.27.1
+export GOTOOLCHAIN=go1.27.3
 
 cd "$(dirname "$0")"
 go run "github.com/bufbuild/buf/cmd/buf@${BUF_VERSION}" generate
