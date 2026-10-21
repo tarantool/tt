@@ -1,6 +1,6 @@
 module github.com/tarantool/tt/sdk/integrity
 
-go 1.25.7
+go 1.26.10
 
 require (
 	github.com/spf13/pflag v1.0.10
