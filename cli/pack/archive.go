@@ -107,7 +107,7 @@ func generateVersionFile(bundlePath string, cmdCtx *cmdcontext.CmdCtx, packCtx *
 	versionFileLines = append(versionFileLines, tarantoolVersionLine)
 
 	// Rocks versions.
-	rocksVersionsMap, err := LuaGetRocksVersions(filepath.Join(bundlePath, packCtx.Name))
+	rocksVersionsMap, err := LuaGetRocksVersions(bundlePath)
 	if err != nil {
 		log.Warnf("Can't process rocks manifest file. Dependency information can't be "+
 			"shipped to the resulting package: %s", err)

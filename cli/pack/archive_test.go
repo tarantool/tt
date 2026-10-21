@@ -1,10 +1,13 @@
 package pack
 
 import (
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/util"
 )
@@ -90,4 +93,41 @@ func TestGetTarPackageName(t *testing.T) {
 				testCase.expectedName, packageName)
 		})
 	}
+}
+
+func TestGenerateVersionFile(t *testing.T) {
+	bundlePath := t.TempDir()
+	manifestPath := filepath.Join(bundlePath, rocksManifestPath)
+	require.NoError(t, os.MkdirAll(filepath.Dir(manifestPath), 0o755))
+	require.NoError(t, os.WriteFile(manifestPath, []byte(`commands = {}
+dependencies = {
+   app_name = {
+      ["scm-1"] = {}
+   },
+   stat = {
+      ["0.3.2-1"] = {}
+   },
+   vshard = {
+      ["0.1.37-1"] = {}
+   }
+}
+modules = {}
+repository = {}
+`), 0o644))
+
+	cmdCtx := cmdcontext.CmdCtx{
+		Cli: cmdcontext.CliCtx{
+			TarantoolCli: cmdcontext.TarantoolCli{
+				Executable: "testdata/single_app/bin/tarantool",
+			},
+		},
+	}
+	packCtx := PackCtx{Name: "app_name", Version: "1.2.3"}
+	require.NoError(t, generateVersionFile(bundlePath, &cmdCtx, &packCtx))
+
+	content, err := os.ReadFile(filepath.Join(bundlePath, versionFileName))
+	require.NoError(t, err)
+	lines := strings.Split(strings.TrimSuffix(string(content), "\n"), "\n")
+	require.Equal(t, []string{"app_name=1.2.3", "TARANTOOL=3.2.0-0-g19607a903"}, lines[:2])
+	require.ElementsMatch(t, []string{"stat=0.3.2-1", "vshard=0.1.37-1"}, lines[2:])
 }

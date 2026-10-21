@@ -750,6 +750,48 @@ def test_pack_tgz_files_with_compat(tt_cmd, tmp_path):
 
 
 @pytest.mark.slow
+def test_pack_tgz_compat_version_lists_rocks(tt_cmd, tmp_path):
+    base_dir = os.path.join(tmp_path, "bundle8")
+    shutil.copytree(
+        os.path.join(os.path.dirname(__file__), "test_bundles", "bundle8"),
+        base_dir,
+        symlinks=True,
+    )
+
+    # The application depends on a rock from a local repository, the rock
+    # is installed only when the application is built during packing.
+    shutil.copytree(
+        os.path.join(os.path.dirname(__file__), "..", "rocks", "repo"),
+        os.path.join(base_dir, "repo"),
+    )
+    with open(os.path.join(base_dir, "tt.yaml"), "a") as f:
+        f.write('repo:\n  rocks: "repo"\n')
+    rockspec = Path(base_dir, "app_name", "app_name-scm-1.rockspec")
+    rockspec.write_text(
+        rockspec.read_text().replace("'lua >= 5.1',", "'lua >= 5.1',\n    'stat == 0.3.1',"),
+    )
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "pack", "tgz", "--cartridge-compat", "--version", "1.2.3"],
+        cwd=base_dir,
+        env=dict(os.environ, PWD=base_dir),
+    )
+    assert rc == 0, output
+
+    package_file = os.path.join(base_dir, "app_name-1.2.3." + get_arch() + ".tar.gz")
+    extract_path = os.path.join(base_dir, "tmp")
+    with tarfile.open(package_file) as tar:
+        tar.extractall(extract_path)
+
+    assert os.path.isdir(os.path.join(extract_path, "app_name", ".rocks", "share", "tarantool"))
+    with open(os.path.join(extract_path, "app_name", "VERSION")) as f:
+        lines = f.read().splitlines()
+    assert lines[0] == "app_name=1.2.3"
+    assert lines[1].startswith("TARANTOOL=")
+    assert lines[2:] == ["stat=0.3.1-1"]
+
+
+@pytest.mark.slow
 def test_pack_tgz_git_version_compat(tt_cmd, tmp_path):
     tmp_path = os.path.join(tmp_path, "bundle9")
     shutil.copytree(
