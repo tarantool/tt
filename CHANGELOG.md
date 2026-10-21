@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt pack --cartridge-compat`: the `VERSION` file lists the versions of
+  the application rocks again. Since 2.11.1 it was generated before the
+  application build and read the rocks manifest from a wrong path, so only
+  the application and Tarantool versions were written (#1410).
+
 ## [2.15.1] - 2026-10-18
 
 This release tightens `tt backup` and `tt restore` around replicaset
