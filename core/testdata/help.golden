@@ -1126,6 +1126,17 @@ The command supports the following environment variables:
 The priority of credentials:
 environment variables < command flags < URL credentials.
 
+HTTPS connection behavior:
+* The https:// scheme enables TLS for both etcd and Tarantool Config Storage
+  (TCS), even when no ssl_* URL arguments are specified.
+* For etcd, certificate verification is skipped if neither ssl_ca_file nor
+  ssl_ca_path is specified. A configured CA enables verification unless
+  explicitly disabled.
+* TCS keeps the certificate verification behavior of its TLS backend. The
+  default Go backend uses system CAs unless ssl_ca_file is specified.
+* Do not mix http:// and https:// addresses in an etcd endpoint list. If any
+  endpoint uses https://, TLS is enabled for all endpoints.
+
 By default, the command removes all keys in etcd with prefix '/prefix/config/'
 and writes the result to '/prefix/config/all'. You could work and update a
 target key with the 'key' argument.
@@ -1205,6 +1216,17 @@ The command supports the following environment variables:
 The priority of credentials:
 environment variables < command flags < URL credentials.
 
+HTTPS connection behavior:
+* The https:// scheme enables TLS for both etcd and Tarantool Config Storage
+  (TCS), even when no ssl_* URL arguments are specified.
+* For etcd, certificate verification is skipped if neither ssl_ca_file nor
+  ssl_ca_path is specified. A configured CA enables verification unless
+  explicitly disabled.
+* TCS keeps the certificate verification behavior of its TLS backend. The
+  default Go backend uses system CAs unless ssl_ca_file is specified.
+* Do not mix http:// and https:// addresses in an etcd endpoint list. If any
+  endpoint uses https://, TLS is enabled for all endpoints.
+
 [0;1;39mUSAGE[0m
   tt cluster replicaset demote [-f] [flags] <URI> <INSTANCE_NAME>
 [0;1;39m
@@ -1249,6 +1271,17 @@ The command supports the following environment variables:
 The priority of credentials:
 environment variables < command flags < URL credentials.
 
+HTTPS connection behavior:
+* The https:// scheme enables TLS for both etcd and Tarantool Config Storage
+  (TCS), even when no ssl_* URL arguments are specified.
+* For etcd, certificate verification is skipped if neither ssl_ca_file nor
+  ssl_ca_path is specified. A configured CA enables verification unless
+  explicitly disabled.
+* TCS keeps the certificate verification behavior of its TLS backend. The
+  default Go backend uses system CAs unless ssl_ca_file is specified.
+* Do not mix http:// and https:// addresses in an etcd endpoint list. If any
+  endpoint uses https://, TLS is enabled for all endpoints.
+
 [0;1;39mUSAGE[0m
   tt cluster replicaset expel [-f] [flags] <URI> <INSTANCE_NAME>
 [0;1;39m
@@ -1292,6 +1325,17 @@ The command supports the following environment variables:
 
 The priority of credentials:
 environment variables < command flags < URL credentials.
+
+HTTPS connection behavior:
+* The https:// scheme enables TLS for both etcd and Tarantool Config Storage
+  (TCS), even when no ssl_* URL arguments are specified.
+* For etcd, certificate verification is skipped if neither ssl_ca_file nor
+  ssl_ca_path is specified. A configured CA enables verification unless
+  explicitly disabled.
+* TCS keeps the certificate verification behavior of its TLS backend. The
+  default Go backend uses system CAs unless ssl_ca_file is specified.
+* Do not mix http:// and https:// addresses in an etcd endpoint list. If any
+  endpoint uses https://, TLS is enabled for all endpoints.
 
 [0;1;39mUSAGE[0m
   tt cluster replicaset promote [-f] [flags] <URI> <INSTANCE_NAME>
@@ -1353,6 +1397,17 @@ The command supports the following environment variables:
 The priority of credentials:
 environment variables < command flags < URL credentials.
 
+HTTPS connection behavior:
+* The https:// scheme enables TLS for both etcd and Tarantool Config Storage
+  (TCS), even when no ssl_* URL arguments are specified.
+* For etcd, certificate verification is skipped if neither ssl_ca_file nor
+  ssl_ca_path is specified. A configured CA enables verification unless
+  explicitly disabled.
+* TCS keeps the certificate verification behavior of its TLS backend. The
+  default Go backend uses system CAs unless ssl_ca_file is specified.
+* Do not mix http:// and https:// addresses in an etcd endpoint list. If any
+  endpoint uses https://, TLS is enabled for all endpoints.
+
 [0;1;39mUSAGE[0m
   tt cluster replicaset roles add <URI> <ROLE_NAME> [flags]
 [0;1;39m
@@ -1404,6 +1459,17 @@ The command supports the following environment variables:
 
 The priority of credentials:
 environment variables < command flags < URL credentials.
+
+HTTPS connection behavior:
+* The https:// scheme enables TLS for both etcd and Tarantool Config Storage
+  (TCS), even when no ssl_* URL arguments are specified.
+* For etcd, certificate verification is skipped if neither ssl_ca_file nor
+  ssl_ca_path is specified. A configured CA enables verification unless
+  explicitly disabled.
+* TCS keeps the certificate verification behavior of its TLS backend. The
+  default Go backend uses system CAs unless ssl_ca_file is specified.
+* Do not mix http:// and https:// addresses in an etcd endpoint list. If any
+  endpoint uses https://, TLS is enabled for all endpoints.
 
 [0;1;39mUSAGE[0m
   tt cluster replicaset roles remove <URI> <ROLE_NAME> [flags]
@@ -1457,6 +1523,17 @@ The command supports the following environment variables:
 
 The priority of credentials:
 environment variables < command flags < URL credentials.
+
+HTTPS connection behavior:
+* The https:// scheme enables TLS for both etcd and Tarantool Config Storage
+  (TCS), even when no ssl_* URL arguments are specified.
+* For etcd, certificate verification is skipped if neither ssl_ca_file nor
+  ssl_ca_path is specified. A configured CA enables verification unless
+  explicitly disabled.
+* TCS keeps the certificate verification behavior of its TLS backend. The
+  default Go backend uses system CAs unless ssl_ca_file is specified.
+* Do not mix http:// and https:// addresses in an etcd endpoint list. If any
+  endpoint uses https://, TLS is enabled for all endpoints.
 
 [0;1;39mUSAGE[0m
   tt cluster show (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>) [flags]

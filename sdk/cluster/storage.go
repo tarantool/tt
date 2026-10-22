@@ -378,7 +378,7 @@ func connectEtcdClient(cfg gsconnect.Config) (*clientv3.Client, error) {
 }
 
 func needsEtcdTLSConfig(sslCfg gsconnect.SSLConfig) bool {
-	return sslCfg.KeyFile != "" || sslCfg.CertFile != "" || sslCfg.CaFile != "" ||
+	return sslCfg.Enable || sslCfg.KeyFile != "" || sslCfg.CertFile != "" || sslCfg.CaFile != "" ||
 		sslCfg.CaPath != "" || !sslCfg.VerifyHost || !sslCfg.VerifyPeer
 }
 
@@ -403,7 +403,11 @@ func makeEtcdTLSConfig(sslCfg gsconnect.SSLConfig) (*tls.Config, error) {
 		tlsConfig.RootCAs = roots
 	}
 
-	if !sslCfg.VerifyHost || !sslCfg.VerifyPeer {
+	// HTTPS without a custom CA encrypts the connection without verifying
+	// the server certificate, preserving cluster URI semantics. A configured CA
+	// still enables verification unless it is explicitly disabled.
+	if !sslCfg.VerifyHost || !sslCfg.VerifyPeer ||
+		(sslCfg.Enable && sslCfg.CaFile == "" && sslCfg.CaPath == "") {
 		tlsConfig.InsecureSkipVerify = true
 	}
 
@@ -429,6 +433,10 @@ func connectTarantoolConnector(cfg gsconnect.Config) (tarantool.Connector, error
 		SslPassword:     "",
 		SslPasswordFile: "",
 		Transport:       "",
+	}
+
+	if cfg.SSL.Enable {
+		dialOpts.Transport = "ssl"
 	}
 
 	dialer, err := dial.New(dialOpts)
@@ -487,6 +495,7 @@ func getEtcdCfg(connOpts ConnectOpts, uriOpts sdkconnect.URIOpts) gsconnect.Conf
 		Password:    uriOpts.Password,
 		DialTimeout: uriOpts.Timeout,
 		SSL: gsconnect.SSLConfig{
+			Enable:     uriOpts.Scheme == "https",
 			KeyFile:    uriOpts.KeyFile,
 			CertFile:   uriOpts.CertFile,
 			CaPath:     uriOpts.CaPath,
@@ -522,6 +531,7 @@ func getTarantoolCfg(connOpts ConnectOpts, uriOpts sdkconnect.URIOpts) gsconnect
 		Password:    uriOpts.Password,
 		DialTimeout: uriOpts.Timeout,
 		SSL: gsconnect.SSLConfig{
+			Enable:   uriOpts.Scheme == "https",
 			KeyFile:  uriOpts.KeyFile,
 			CertFile: uriOpts.CertFile,
 			CaFile:   uriOpts.CaFile,

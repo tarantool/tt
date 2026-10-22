@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/sdk/connect"
 )
 
@@ -288,6 +289,7 @@ func TestParseUriOpts(t *testing.T) {
 			URL: "scheme://localhost",
 			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
+				Scheme:   "scheme",
 				Host:     "localhost",
 				Timeout:  defaultTimeout,
 			},
@@ -297,6 +299,7 @@ func TestParseUriOpts(t *testing.T) {
 			URL: "scheme://localhost:3013",
 			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost:3013",
+				Scheme:   "scheme",
 				Host:     "localhost:3013",
 				Timeout:  defaultTimeout,
 			},
@@ -306,6 +309,7 @@ func TestParseUriOpts(t *testing.T) {
 			URL: "scheme://user@localhost",
 			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
+				Scheme:   "scheme",
 				Host:     "localhost",
 				Username: "user",
 				Timeout:  defaultTimeout,
@@ -316,6 +320,7 @@ func TestParseUriOpts(t *testing.T) {
 			URL: "scheme://user:pass@localhost",
 			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
+				Scheme:   "scheme",
 				Host:     "localhost",
 				Username: "user",
 				Password: "pass",
@@ -327,6 +332,7 @@ func TestParseUriOpts(t *testing.T) {
 			URL: "scheme://localhost/",
 			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
+				Scheme:   "scheme",
 				Host:     "localhost",
 				Prefix:   "/",
 				Timeout:  defaultTimeout,
@@ -337,6 +343,7 @@ func TestParseUriOpts(t *testing.T) {
 			URL: "scheme://localhost/prefix",
 			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
+				Scheme:   "scheme",
 				Host:     "localhost",
 				Prefix:   "/prefix",
 				Timeout:  defaultTimeout,
@@ -347,6 +354,7 @@ func TestParseUriOpts(t *testing.T) {
 			URL: "scheme://localhost/prefix#Fragment",
 			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
+				Scheme:   "scheme",
 				Host:     "localhost",
 				Prefix:   "/prefix",
 				Tag:      "Fragment",
@@ -358,6 +366,7 @@ func TestParseUriOpts(t *testing.T) {
 			URL: "scheme://localhost#Fragment",
 			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
+				Scheme:   "scheme",
 				Host:     "localhost",
 				Tag:      "Fragment",
 				Timeout:  defaultTimeout,
@@ -368,6 +377,7 @@ func TestParseUriOpts(t *testing.T) {
 			URL: "scheme://localhost/prefix?key=anykey",
 			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
+				Scheme:   "scheme",
 				Host:     "localhost",
 				Prefix:   "/prefix",
 				Timeout:  defaultTimeout,
@@ -379,6 +389,7 @@ func TestParseUriOpts(t *testing.T) {
 			URL: "scheme://localhost/prefix?name=anyname",
 			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
+				Scheme:   "scheme",
 				Host:     "localhost",
 				Prefix:   "/prefix",
 				Timeout:  defaultTimeout,
@@ -390,6 +401,7 @@ func TestParseUriOpts(t *testing.T) {
 			URL: "scheme://localhost?name=anyname#Fragment",
 			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
+				Scheme:   "scheme",
 				Host:     "localhost",
 				Tag:      "Fragment",
 				Timeout:  defaultTimeout,
@@ -401,6 +413,7 @@ func TestParseUriOpts(t *testing.T) {
 			URL: "scheme://localhost/prefix?name=",
 			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
+				Scheme:   "scheme",
 				Host:     "localhost",
 				Prefix:   "/prefix",
 				Timeout:  defaultTimeout,
@@ -412,6 +425,7 @@ func TestParseUriOpts(t *testing.T) {
 			URL: "scheme://localhost?ssl_key_file=/any/kfile",
 			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
+				Scheme:   "scheme",
 				Host:     "localhost",
 				KeyFile:  "/any/kfile",
 				Timeout:  defaultTimeout,
@@ -422,6 +436,7 @@ func TestParseUriOpts(t *testing.T) {
 			URL: "scheme://localhost?ssl_cert_file=/any/certfile",
 			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
+				Scheme:   "scheme",
 				Host:     "localhost",
 				CertFile: "/any/certfile",
 				Timeout:  defaultTimeout,
@@ -432,6 +447,7 @@ func TestParseUriOpts(t *testing.T) {
 			URL: "scheme://localhost?ssl_ca_path=/any/capath",
 			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
+				Scheme:   "scheme",
 				Host:     "localhost",
 				CaPath:   "/any/capath",
 				Timeout:  defaultTimeout,
@@ -442,6 +458,7 @@ func TestParseUriOpts(t *testing.T) {
 			URL: "scheme://localhost?ssl_ca_file=/any/cafile",
 			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
+				Scheme:   "scheme",
 				Host:     "localhost",
 				CaFile:   "/any/cafile",
 				Timeout:  defaultTimeout,
@@ -452,6 +469,7 @@ func TestParseUriOpts(t *testing.T) {
 			URL: "scheme://localhost?verify_peer=true&verify_host=true",
 			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
+				Scheme:   "scheme",
 				Host:     "localhost",
 				Timeout:  defaultTimeout,
 			},
@@ -461,6 +479,7 @@ func TestParseUriOpts(t *testing.T) {
 			URL: "scheme://localhost?verify_peer=&verify_host=",
 			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
+				Scheme:   "scheme",
 				Host:     "localhost",
 				Timeout:  defaultTimeout,
 			},
@@ -470,6 +489,7 @@ func TestParseUriOpts(t *testing.T) {
 			URL: "scheme://localhost?verify_peer=false",
 			Opts: connect.URIOpts{
 				Endpoint:       "scheme://localhost",
+				Scheme:         "scheme",
 				Host:           "localhost",
 				SkipPeerVerify: true,
 				Timeout:        defaultTimeout,
@@ -485,6 +505,7 @@ func TestParseUriOpts(t *testing.T) {
 			URL: "scheme://localhost?verify_host=false",
 			Opts: connect.URIOpts{
 				Endpoint:       "scheme://localhost",
+				Scheme:         "scheme",
 				Host:           "localhost",
 				SkipHostVerify: true,
 				Timeout:        defaultTimeout,
@@ -500,6 +521,7 @@ func TestParseUriOpts(t *testing.T) {
 			URL: "scheme://localhost?timeout=5.5",
 			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
+				Scheme:   "scheme",
 				Host:     "localhost",
 				Timeout:  time.Duration(float64(5.5) * float64(time.Second)),
 			},
@@ -509,6 +531,7 @@ func TestParseUriOpts(t *testing.T) {
 			URL: "scheme://localhost?timeout=",
 			Opts: connect.URIOpts{
 				Endpoint: "scheme://localhost",
+				Scheme:   "scheme",
 				Host:     "localhost",
 				Timeout:  defaultTimeout,
 			},
@@ -529,6 +552,7 @@ func TestParseUriOpts(t *testing.T) {
 				"#Fragment",
 			Opts: connect.URIOpts{
 				Endpoint:       "scheme://localhost:2012",
+				Scheme:         "scheme",
 				Host:           "localhost:2012",
 				Prefix:         "/prefix",
 				Tag:            "Fragment",
@@ -559,6 +583,21 @@ func TestParseUriOpts(t *testing.T) {
 			} else {
 				assert.Equal(t, testCase.Opts, opts)
 			}
+		})
+	}
+}
+
+func TestCreateURIOptsScheme(t *testing.T) {
+	for _, scheme := range []string{"https", "http", "tcp"} {
+		t.Run(scheme, func(t *testing.T) {
+			opts, err := connect.CreateURIOpts(scheme + "://user:pass@localhost:2379/prefix" +
+				"?ssl_ca_file=ca.pem&verify_host=false#key")
+			require.NoError(t, err)
+			assert.Equal(t, scheme, opts.Scheme)
+			assert.Equal(t, scheme+"://localhost:2379", opts.Endpoint)
+			assert.Equal(t, "ca.pem", opts.CaFile)
+			assert.True(t, opts.SkipHostVerify)
+			assert.False(t, opts.SkipPeerVerify)
 		})
 	}
 }

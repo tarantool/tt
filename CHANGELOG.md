@@ -466,6 +466,9 @@ for machine-readable output.
 
 ### Fixed
 
+- `tt cluster`: honor `https://` when connecting to etcd and Tarantool Config
+  Storage, enabling TLS even without explicit `ssl_*` URL parameters. Preserve
+  HTTPS for configured etcd endpoints passed to go-storage.
 - `tt status`: include replication errors in instance status alerts.
 - `tt log -f`: possible line loss/duplication on rename, hanging after
   a watched log directory is removed, and lines written just as the
