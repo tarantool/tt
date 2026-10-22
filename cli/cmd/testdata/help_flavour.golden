@@ -10,6 +10,8 @@ applications
   tt [flags] <command> [command flags]
 [0;1;39m
 COMMANDS[0m
+  backup      Manage Tarantool backups (PITR)
+  backup-id   Print an identifier for a new backup
   binary      Manage binaries and SDK bundles
   cat         Print into stdout the contents of .snap/.xlog FILE(s)
   cfg         Environment configuration management utility
@@ -34,6 +36,7 @@ COMMANDS[0m
   registry    Inspect the rock servers packages are resolved against
   replicaset  Manage replicasets
   restart     Restart tarantool instance(s)
+  restore     Restore a Tarantool cluster from a backup (PITR)
   rocks       LuaRocks package manager
   run         Run the current package under its Tarantool
   start       Start tarantool instance(s)

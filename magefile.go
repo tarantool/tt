@@ -67,12 +67,14 @@ var (
 	}
 
 	modules = []string{
+		"sdk/backup",
 		"sdk",
 		"sdk/integrity",
 		"sdk/cluster",
 		"modules/aeon",
 	}
 	lintModules = []string{
+		"sdk/backup",
 		".",
 		"modules/aeon",
 		"sdk",

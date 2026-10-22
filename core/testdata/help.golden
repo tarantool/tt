@@ -10,6 +10,8 @@ Utility for managing Tarantool packages and Tarantool-based applications
 [0;1;39m
 COMMANDS[0m
   aeon        Manage aeon application
+  backup      Manage Tarantool backups (PITR)
+  backup-id   Print an identifier for a new backup
   binary      Manage binaries and SDK bundles
   cat         Print into stdout the contents of .snap/.xlog FILE(s)
   cfg         Environment configuration management utility
@@ -35,6 +37,7 @@ COMMANDS[0m
   registry    Inspect the rock servers packages are resolved against
   replicaset  Manage replicasets
   restart     Restart tarantool instance(s)
+  restore     Restore a Tarantool cluster from a backup (PITR)
   rocks       LuaRocks package manager
   run         Run the current package under its Tarantool
   start       Start tarantool instance(s)
@@ -121,6 +124,729 @@ FLAGS[0m
       --sslkeyfile string    path to a private SSL key file
       --transport MODE       allowed [plain ssl] (default plain)
   -u, --username string      username (used as etcd credentials only)
+
+=== tt backup --help
+Manage Tarantool backups (PITR)
+
+[0;1;39mUSAGE[0m
+  tt backup [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  finalize    Close the backup on the instance and remove the local archive
+  gc          Delete old backup chains and dangling archives from the storage
+  last        Show the last backup manifest from the storage
+  plan        Plan the next backup: mode, master source, from_vclock
+  start       Open a backup on the instance and build a local archive
+  upload      Build cluster manifest from per-shard fragments and upload to
+              storage
+  verify      Check backup manifests and archives in the storage
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for backup
+
+Use "tt backup <command> --help" for more information about a command.
+
+=== tt backup finalize --help
+Run box.backup.stop() on the instance and remove the local .tar.zst
+archive. Idempotent: if the backup is already closed, it does not fail.
+
+--dir removes the artifacts from the directory 'tt backup start --dir' wrote
+them to and leaves that directory in place. Without it they are looked up in
+$TMPDIR/tt-backup/<backup-id>/, which is removed once it is empty.
+
+--force closes whatever backup is open on the instance without naming a
+--backup-id, for when the id that opened it is unknown or not trusted. It
+only runs box.backup.stop(): no local archive or fragment is removed.
+
+--sslkeyfile, --sslcertfile, --sslcafile and --sslciphers reach an instance
+whose iproto listener has TLS enabled.
+
+[0;1;39mUSAGE[0m
+  tt backup finalize (<APP:INSTANCE>|<URI>) [flags]
+[0;1;39m
+FLAGS[0m
+      --backup-id string           backup identifier; local artifacts of the
+                                   target replicaset are removed
+  -c, --config string              path to the tt environment configuration
+                                   (tt.yaml) that resolves an <APP:INSTANCE>
+                                   target; a <URI> target needs none
+      --connect-timeout duration   timeout for establishing a binary connection
+                                   (default 1s)
+      --dir string                 directory holding the artifacts to remove;
+                                   defaults to $TMPDIR/tt-backup/<backup-id>
+      --force                      close whatever backup is open on the
+                                   instance; removes no local file
+  -h, --help                       help for finalize
+      --sslcafile string           path to a trusted certificate authorities
+                                   (CA) file
+      --sslcertfile string         path to an SSL certificate file
+      --sslciphers string          colon-separated (:) list of SSL cipher suites
+      --sslkeyfile string          path to a private SSL key file
+      --sslpassword string         password for decrypting the private SSL key
+                                   file
+      --sslpasswordfile string     path to a file containing the password for
+                                   decrypting the private SSL key file
+
+=== tt backup gc --help
+Delete backups the retention rules no longer cover, and clean up archives
+	no manifest refers to.
+
+	Retention rules combine: a backup is deleted only when no rule keeps it.
+	Deletion cascades: a full backup goes only together with every increment
+	based on it, and a chain is cut from its newest end, so a kept increment
+	always keeps the backups it is recovered from.
+
+	Three things are never deleted, whatever the rules say: the chain
+	holding
+	the newest manifest, because an upload may be appending to it; the
+	newest
+	chain that can still be recovered from; and archives newer than the
+	newest
+	stored manifest. This means gc cannot empty a storage; remove the
+	storage
+	root with your storage tooling if that is what you want.
+
+	Chains with problems (a fork, a tail whose full backup is gone) are left
+	for 'tt backup verify' to report.
+
+	A dangling archive is re-checked with a direct read of its manifest just
+	before it is deleted, so a run may keep an archive its plan listed.
+
+The --backup-storage flag accepts a URI describing the
+storage backend, or @<path> naming a YAML config file:
+
+    file://<abs_path>?Prefix=<subdir>
+      Local filesystem storage. The path must be absolute.
+      Query parameters:
+        Prefix           - subdirectory within the path (optional).
+
+    s3://<bucket>/<prefix>
+      S3 storage taken from the standard AWS_* environment variables, so that
+      no credential is written in the command line:
+        AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY  - credentials (required).
+        AWS_SESSION_TOKEN                         - for temporary credentials.
+        AWS_REGION, AWS_DEFAULT_REGION            - region.
+        AWS_ENDPOINT_URL, AWS_ENDPOINT_URL_S3     - endpoint of an
+                                                    S3-compatible storage.
+        AWS_CA_BUNDLE                             - CA of an endpoint the
+                                                    system roots do not cover.
+
+    s3+https://host/bucket/prefix?AccessKeyID=...&SecretAccessKey=...
+    s3+http://host/bucket/prefix?AccessKeyID=...&SecretAccessKey=...
+      S3-compatible storage with the endpoint and the credentials in the URI.
+      Use s3+https for TLS, s3+http for plain TCP. The first path segment
+      after the host is the bucket name, the rest is the optional key prefix.
+      Query parameters:
+        Region           - AWS region (optional).
+        AccessKeyID      - access key ID (required).
+        SecretAccessKey  - secret access key (required).
+
+    @<path>.yaml
+      What a URI cannot express: a custom endpoint, a region, explicit
+      credentials, a private CA. The backend is chosen by 'type', an unknown
+      field is an error, and ${VAR} in a value is read from the environment
+      ('$$' is a literal '$'), so a secret stays out of the file:
+
+        type: s3
+        endpoint: https://storage.yandexcloud.net # https unless http:// is
+        asked for
+        region: ru-central1
+        bucket: payments-backups
+        prefix: tarantool # storage root in the bucket, optional
+        access_key_id: ${AWS_ACCESS_KEY_ID} # optional, AWS_* by default
+        secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+        ca_cert: /etc/ssl/private-ca.pem             # or skip_verify: true
+
+        type: fs
+        root: /mnt/backups/payments        # storage root, must be absolute
+        prefix: mycluster # subdirectory within the root, optional
+
+--cluster-name and --environment select a subtree of that storage,
+<storage_root>/<cluster_name>/<environment>/, and every command reading or
+writing a storage takes them. They compose with the prefix above, so one
+storage can hold several clusters. Pass the same pair to every command: a
+backup uploaded with them is invisible to a verify, gc, last or plan run
+without them, and those commands report an empty storage rather than an
+error. The exception is upload, which reads the pair out of the plan and
+needs the flags only to override it.
+
+[0;1;39mUSAGE[0m
+  tt backup gc [flags]
+[0;1;39m
+FLAGS[0m
+      --backup-storage string   storage URI or @path to a storage configuration
+                                file
+      --cluster-name string     cluster name; used as a storage path component
+      --dry-run                 report what would be deleted without deleting
+                                anything; a real run reports what it kept vs
+                                what the plan listed
+      --environment string      environment tag (production, staging, ...); used
+                                as a storage path component, requires
+                                --cluster-name
+      --format string           output format: table or json (default "table")
+  -h, --help                    help for gc
+      --keep-days int           keep backups created within the last D days
+      --keep-full int           keep the last N healthy backup chains; without
+                                --keep-full or --keep-days nothing is deleted at
+                                all
+      --orphan-age duration     minimum age before a dangling archive or a
+                                problem chain tail is deleted; 0 means the
+                                default (default 24h0m0s)
+      --timeout duration        timeout for connecting to and working with the
+                                storage; 0 means no limit (default 10m0s)
+[0;1;39m
+EXAMPLES[0m
+  $ tt backup gc --backup-storage=file:///var/backups --keep-full 3 --dry-run
+  $ tt backup gc --backup-storage=file:///var/backups --keep-days 30
+  $ tt backup gc --backup-storage=file:///var/backups --keep-full 2 --keep-days
+  7
+
+=== tt backup last --help
+Find the latest manifest in the storage and print it to stdout.
+
+The --backup-storage flag accepts a URI describing the
+storage backend, or @<path> naming a YAML config file:
+
+    file://<abs_path>?Prefix=<subdir>
+      Local filesystem storage. The path must be absolute.
+      Query parameters:
+        Prefix           - subdirectory within the path (optional).
+
+    s3://<bucket>/<prefix>
+      S3 storage taken from the standard AWS_* environment variables, so that
+      no credential is written in the command line:
+        AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY  - credentials (required).
+        AWS_SESSION_TOKEN                         - for temporary credentials.
+        AWS_REGION, AWS_DEFAULT_REGION            - region.
+        AWS_ENDPOINT_URL, AWS_ENDPOINT_URL_S3     - endpoint of an
+                                                    S3-compatible storage.
+        AWS_CA_BUNDLE                             - CA of an endpoint the
+                                                    system roots do not cover.
+
+    s3+https://host/bucket/prefix?AccessKeyID=...&SecretAccessKey=...
+    s3+http://host/bucket/prefix?AccessKeyID=...&SecretAccessKey=...
+      S3-compatible storage with the endpoint and the credentials in the URI.
+      Use s3+https for TLS, s3+http for plain TCP. The first path segment
+      after the host is the bucket name, the rest is the optional key prefix.
+      Query parameters:
+        Region           - AWS region (optional).
+        AccessKeyID      - access key ID (required).
+        SecretAccessKey  - secret access key (required).
+
+    @<path>.yaml
+      What a URI cannot express: a custom endpoint, a region, explicit
+      credentials, a private CA. The backend is chosen by 'type', an unknown
+      field is an error, and ${VAR} in a value is read from the environment
+      ('$$' is a literal '$'), so a secret stays out of the file:
+
+        type: s3
+        endpoint: https://storage.yandexcloud.net # https unless http:// is
+        asked for
+        region: ru-central1
+        bucket: payments-backups
+        prefix: tarantool # storage root in the bucket, optional
+        access_key_id: ${AWS_ACCESS_KEY_ID} # optional, AWS_* by default
+        secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+        ca_cert: /etc/ssl/private-ca.pem             # or skip_verify: true
+
+        type: fs
+        root: /mnt/backups/payments        # storage root, must be absolute
+        prefix: mycluster # subdirectory within the root, optional
+
+--cluster-name and --environment select a subtree of that storage,
+<storage_root>/<cluster_name>/<environment>/, and every command reading or
+writing a storage takes them. They compose with the prefix above, so one
+storage can hold several clusters. Pass the same pair to every command: a
+backup uploaded with them is invisible to a verify, gc, last or plan run
+without them, and those commands report an empty storage rather than an
+error. The exception is upload, which reads the pair out of the plan and
+needs the flags only to override it.
+
+[0;1;39mUSAGE[0m
+  tt backup last --backup-storage=<uri> [--format <table|json>] [flags]
+[0;1;39m
+FLAGS[0m
+      --backup-storage string   storage URI or @path to a storage configuration
+                                file
+      --cluster-name string     cluster name; used as a storage path component
+      --environment string      environment tag (production, staging, ...); used
+                                as a storage path component, requires
+                                --cluster-name
+      --format table            output format: table or `json` (default "table")
+  -h, --help                    help for last
+      --timeout duration        timeout for connecting to and reading from the
+                                storage; 0 means no limit (default 1m0s)
+[0;1;39m
+EXAMPLES[0m
+  $ tt backup last --backup-storage=file:///var/backups
+  $ tt backup last --backup-storage=file:///var/backups?Prefix=mycluster
+  $ tt backup last --backup-storage=s3://payments-backups/tarantool
+  $ tt backup last --backup-storage=@s3-prod.yaml
+  $ tt backup last --backup-storage=s3+https://s3.example.com:9000/... \
+    ?Region=us-east-1&AccessKeyID=minio&SecretAccessKey=minio123
+  $ tt backup last --backup-storage=file:///var/backups --format json
+  $ tt backup last --backup-storage=file:///var/backups \
+    --cluster-name payments-cluster --environment production
+
+=== tt backup plan --help
+Compute a backup plan from the current cluster topology and the latest
+manifest in the storage.
+
+The cluster configuration comes from --config: either the cluster
+configuration file (cluster.yaml) or the URI of the etcd or Tarantool Config
+Storage the cluster is configured from.
+
+backup mode (required):
+  incremental - build on top of the latest manifest (requires a valid chain)
+  full        - start a new chain, no chain checks
+
+For --target=incremental the command loads the latest manifest, builds the
+backup chain, and verifies that the latest manifest is the chain's latest
+entry with no problems. If any check fails, the command exits with a
+detailed error (no auto-promotion to full).
+
+The --backup-storage flag accepts a URI describing the
+storage backend, or @<path> naming a YAML config file:
+
+    file://<abs_path>?Prefix=<subdir>
+      Local filesystem storage. The path must be absolute.
+      Query parameters:
+        Prefix           - subdirectory within the path (optional).
+
+    s3://<bucket>/<prefix>
+      S3 storage taken from the standard AWS_* environment variables, so that
+      no credential is written in the command line:
+        AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY  - credentials (required).
+        AWS_SESSION_TOKEN                         - for temporary credentials.
+        AWS_REGION, AWS_DEFAULT_REGION            - region.
+        AWS_ENDPOINT_URL, AWS_ENDPOINT_URL_S3     - endpoint of an
+                                                    S3-compatible storage.
+        AWS_CA_BUNDLE                             - CA of an endpoint the
+                                                    system roots do not cover.
+
+    s3+https://host/bucket/prefix?AccessKeyID=...&SecretAccessKey=...
+    s3+http://host/bucket/prefix?AccessKeyID=...&SecretAccessKey=...
+      S3-compatible storage with the endpoint and the credentials in the URI.
+      Use s3+https for TLS, s3+http for plain TCP. The first path segment
+      after the host is the bucket name, the rest is the optional key prefix.
+      Query parameters:
+        Region           - AWS region (optional).
+        AccessKeyID      - access key ID (required).
+        SecretAccessKey  - secret access key (required).
+
+    @<path>.yaml
+      What a URI cannot express: a custom endpoint, a region, explicit
+      credentials, a private CA. The backend is chosen by 'type', an unknown
+      field is an error, and ${VAR} in a value is read from the environment
+      ('$$' is a literal '$'), so a secret stays out of the file:
+
+        type: s3
+        endpoint: https://storage.yandexcloud.net # https unless http:// is
+        asked for
+        region: ru-central1
+        bucket: payments-backups
+        prefix: tarantool # storage root in the bucket, optional
+        access_key_id: ${AWS_ACCESS_KEY_ID} # optional, AWS_* by default
+        secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+        ca_cert: /etc/ssl/private-ca.pem             # or skip_verify: true
+
+        type: fs
+        root: /mnt/backups/payments        # storage root, must be absolute
+        prefix: mycluster # subdirectory within the root, optional
+
+--cluster-name and --environment select a subtree of that storage,
+<storage_root>/<cluster_name>/<environment>/, and every command reading or
+writing a storage takes them. They compose with the prefix above, so one
+storage can hold several clusters. Pass the same pair to every command: a
+backup uploaded with them is invisible to a verify, gc, last or plan run
+without them, and those commands report an empty storage rather than an
+error. The exception is upload, which reads the pair out of the plan and
+needs the flags only to override it.
+
+cluster configuration source: a path to the cluster
+configuration file (cluster.yaml), or a URI of etcd or Tarantool Config Storage.
+A value that parses as a URI is fetched from the storage; anything else is read
+as a file.
+
+The URL specifies a etcd or tarantool config storage connection settings in the
+following format:
+http(s)://[username:password@]host:port/prefix[?arguments]
+
+* prefix - a base path to Tarantool configuration in etcd or tarantool config
+  storage.
+
+Possible arguments:
+* key - a target configuration key in the prefix.
+* name - a name of an instance in the cluster configuration.
+* timeout - a request timeout in seconds (default 3.0).
+* ssl_key_file - a path to a private SSL key file.
+* ssl_cert_file - a path to an SSL certificate file.
+* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
+* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
+* ssl_ciphers - a list of allowed SSL ciphers.
+* verify_host - set off (default true) verification of the certificate’s name
+  against the host.
+* verify_peer - set off (default true) verification of the peer’s SSL
+  certificate.
+
+The command supports the following environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username;
+* TT_CLI_PASSWORD - specifies a Tarantool password.
+* TT_CLI_ETCD_USERNAME - specifies a Etcd username;
+* TT_CLI_ETCD_PASSWORD - specifies a Etcd password.
+
+The priority of credentials:
+environment variables < command flags < URL credentials.
+
+HTTPS connection behavior:
+* The https:// scheme enables TLS for both etcd and Tarantool Config Storage
+  (TCS), even when no ssl_* URL arguments are specified.
+* For etcd, certificate verification is skipped if neither ssl_ca_file nor
+  ssl_ca_path is specified. A configured CA enables verification unless
+  explicitly disabled.
+* TCS keeps the certificate verification behavior of its TLS backend. The
+  default Go backend uses system CAs unless ssl_ca_file is specified.
+* Do not mix http:// and https:// addresses in an etcd endpoint list. If any
+  endpoint uses https://, TLS is enabled for all endpoints.
+
+[0;1;39mUSAGE[0m
+  tt backup plan --target=(incremental|full) --backup-storage=<uri> [flags]
+[0;1;39m
+FLAGS[0m
+      --backup-storage string      storage URI or @path to a storage
+                                   configuration file
+      --cluster-name string        cluster name; used as a storage path
+                                   component
+  -c, --config string              cluster configuration file or config storage
+                                   URI
+      --connect-timeout duration   timeout for establishing a binary connection
+                                   (default 1s)
+      --environment string         environment tag (production, staging, ...);
+                                   used as a storage path component, requires
+                                   --cluster-name
+      --format string              output format: table or json (default "json")
+  -h, --help                       help for plan
+  -p, --password string            password for the URI case
+      --sslcafile string           path to a trusted certificate authorities
+                                   (CA) file for the URI case
+      --sslcertfile string         path to an SSL certificate file for the URI
+                                   case
+      --sslciphers string          colon-separated (:) list of SSL cipher suites
+                                   for the URI case
+      --sslkeyfile string          path to a private SSL key file for the URI
+                                   case
+      --sslpassword string         password for decrypting the private SSL key
+                                   file for a cluster connection
+      --sslpasswordfile string     path to a file containing the private SSL key
+                                   password for a cluster connection
+      --target string              backup mode: incremental or full (required)
+      --timeout duration           timeout for storage operations; 0 means no
+                                   limit (default 1m0s)
+  -u, --username string            username for the URI case
+[0;1;39m
+EXAMPLES[0m
+  $ tt backup plan --target=incremental --backup-storage=file:///var/backups \
+    -c cluster.yaml
+  $ tt backup plan --target=incremental --backup-storage=file:///var/backups \
+    -c http://etcd.example.com:2379/tt
+  $ tt backup plan --target=full --backup-storage=file:///var/backups --format
+  json \
+    -c cluster.yaml
+  $ tt backup plan --target=incremental --backup-storage=s3+https://... -c
+  cluster.yaml
+  $ tt backup plan --target=incremental --backup-storage=file:///var/backups \
+    -c cluster.yaml --cluster-name payments-cluster --environment production
+
+=== tt backup start --help
+Open box.backup on the instance, pack WAL files and a per-shard manifest
+fragment into a .tar.zst archive, and leave box.backup open. The archive path
+is printed to stdout. Closing box.backup is done by 'tt backup finalize' after
+the manifest has been uploaded. Exit code 3 means a backup is already in
+progress; request and system failures use exit codes 1 and 2.
+
+A full backup ships the instance's newest checkpoint as it is, and every
+member of a replicaset restored from it boots from that snapshot. Tarantool
+looks each member's name up in the snapshot alone, so a checkpoint taken
+before a member registered or was named -- the bootstrap snapshot of a freshly
+deployed cluster, typically -- restores only members whose configuration pins
+database.instance_uuid.
+
+--snapshot takes a new checkpoint with box.snapshot() before the full backup
+opens: the full then ships a snapshot of the instance as it is, with next to
+no journal to replay after it, at the cost of writing the whole data set to
+disk once more. A checkpoint already in progress on the instance -- the
+checkpoint daemon's, say -- is waited out, for up to an hour, and shipped in
+place of a new one. A box.snapshot() that fails stops the command before
+anything is opened. It is refused together with --from-vclock.
+
+--dir writes both artifacts directly into the given directory, which is created
+if it does not exist. Without it they go to $TMPDIR/tt-backup/<backup-id>/.
+
+--sslkeyfile, --sslcertfile, --sslcafile and --sslciphers reach an instance
+whose iproto listener has TLS enabled.
+
+[0;1;39mUSAGE[0m
+  tt backup start (<APP:INSTANCE>|<URI>) [flags]
+[0;1;39m
+FLAGS[0m
+      --backup-id string           backup identifier (required); 'tt backup-id'
+                                   prints a new one
+  -c, --config string              path to the tt environment configuration
+                                   (tt.yaml) that resolves an <APP:INSTANCE>
+                                   target; a <URI> target needs none
+      --connect-timeout duration   timeout for establishing a binary connection
+                                   (default 1s)
+      --dir string                 directory for the archive and the manifest
+                                   fragment; defaults to
+                                   $TMPDIR/tt-backup/<backup-id>
+      --from-vclock string         vclock of the last manifest (JSON object,
+                                   e.g. '{"1":1500}'); incremental only
+  -h, --help                       help for start
+      --snapshot                   take a new checkpoint with box.snapshot()
+                                   before a full backup; full only
+      --sslcafile string           path to a trusted certificate authorities
+                                   (CA) file
+      --sslcertfile string         path to an SSL certificate file
+      --sslciphers string          colon-separated (:) list of SSL cipher suites
+      --sslkeyfile string          path to a private SSL key file
+      --sslpassword string         password for decrypting the private SSL key
+                                   file
+      --sslpasswordfile string     path to a file containing the password for
+                                   decrypting the private SSL key file
+      --ttl duration               force the backup to complete after this
+                                   duration (default 1h0m0s)
+
+=== tt backup upload --help
+Run on the manager host after the orchestrator collected .tar.zst archives
+and instance_backup.json fragments from all cluster nodes.
+
+The cluster and the environment come from the plan, which is where they were
+decided; --cluster-name / --environment are only needed to override them, and
+the run says so when they do.
+
+A replicaset the plan expects but no fragment covers, or a fragment whose
+archive never arrived, does not fail the run: it is recorded as a failed shard
+with a shard_unreachable / shard_partial warning, and the manifest is still
+stored for every replicaset that did produce data. The status the run reports
+says whether the backup is ok, degraded or failed.
+
+The --backup-storage flag accepts a URI describing the
+storage backend, or @<path> naming a YAML config file:
+
+    file://<abs_path>?Prefix=<subdir>
+      Local filesystem storage. The path must be absolute.
+      Query parameters:
+        Prefix           - subdirectory within the path (optional).
+
+    s3://<bucket>/<prefix>
+      S3 storage taken from the standard AWS_* environment variables, so that
+      no credential is written in the command line:
+        AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY  - credentials (required).
+        AWS_SESSION_TOKEN                         - for temporary credentials.
+        AWS_REGION, AWS_DEFAULT_REGION            - region.
+        AWS_ENDPOINT_URL, AWS_ENDPOINT_URL_S3     - endpoint of an
+                                                    S3-compatible storage.
+        AWS_CA_BUNDLE                             - CA of an endpoint the
+                                                    system roots do not cover.
+
+    s3+https://host/bucket/prefix?AccessKeyID=...&SecretAccessKey=...
+    s3+http://host/bucket/prefix?AccessKeyID=...&SecretAccessKey=...
+      S3-compatible storage with the endpoint and the credentials in the URI.
+      Use s3+https for TLS, s3+http for plain TCP. The first path segment
+      after the host is the bucket name, the rest is the optional key prefix.
+      Query parameters:
+        Region           - AWS region (optional).
+        AccessKeyID      - access key ID (required).
+        SecretAccessKey  - secret access key (required).
+
+    @<path>.yaml
+      What a URI cannot express: a custom endpoint, a region, explicit
+      credentials, a private CA. The backend is chosen by 'type', an unknown
+      field is an error, and ${VAR} in a value is read from the environment
+      ('$$' is a literal '$'), so a secret stays out of the file:
+
+        type: s3
+        endpoint: https://storage.yandexcloud.net # https unless http:// is
+        asked for
+        region: ru-central1
+        bucket: payments-backups
+        prefix: tarantool # storage root in the bucket, optional
+        access_key_id: ${AWS_ACCESS_KEY_ID} # optional, AWS_* by default
+        secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+        ca_cert: /etc/ssl/private-ca.pem             # or skip_verify: true
+
+        type: fs
+        root: /mnt/backups/payments        # storage root, must be absolute
+        prefix: mycluster # subdirectory within the root, optional
+
+--cluster-name and --environment select a subtree of that storage,
+<storage_root>/<cluster_name>/<environment>/, and every command reading or
+writing a storage takes them. They compose with the prefix above, so one
+storage can hold several clusters. Pass the same pair to every command: a
+backup uploaded with them is invisible to a verify, gc, last or plan run
+without them, and those commands report an empty storage rather than an
+error. The exception is upload, which reads the pair out of the plan and
+needs the flags only to override it.
+
+[0;1;39mUSAGE[0m
+  tt backup upload [flags]
+[0;1;39m
+FLAGS[0m
+      --archives string         comma-separated paths to .tar.zst archives
+                                (required)
+      --backup-id string        backup identifier, e.g. 20260326T120000Z
+                                (required); ids order the chain, so it must sort
+                                as text above every backup already stored
+      --backup-storage string   storage URI or @path to a storage configuration
+                                file
+      --cluster-name string     cluster name; used as a storage path component
+      --environment string      environment tag (production, staging, ...); used
+                                as a storage path component, requires
+                                --cluster-name
+      --fragments string        comma-separated paths to per-shard
+                                instance_backup.json fragments
+  -h, --help                    help for upload
+      --keep-local              keep local .tar.zst copies on the manager host
+                                after successful upload
+      --plan string             path to tt backup plan JSON (required); provides
+                                type, previous_backup_id, expected replicasets
+                                and the cluster and environment the backup
+                                belongs to
+      --timeout duration        timeout for storage operations; 0 means no limit
+                                (default 30m0s)
+[0;1;39m
+EXAMPLES[0m
+  $ tt backup upload \
+    --archives
+    /tmp/bkp/20260326T120000Z-A.tar.zst,/tmp/bkp/20260326T120000Z-B.tar.zst \
+    --fragments /tmp/bkp/A.json,/tmp/bkp/B.json \
+    --plan /tmp/bkp/plan.json \
+    --backup-storage file:///var/backups \
+    --backup-id 20260326T120000Z
+
+  $ tt backup upload --plan /tmp/bkp/plan.json --environment staging \
+    --archives /tmp/bkp/20260326T120000Z-A.tar.zst \
+    --fragments /tmp/bkp/A.json \
+    --backup-storage file:///var/backups \
+    --backup-id 20260326T120000Z
+
+=== tt backup verify --help
+Health-check the backup storage and report what is wrong with it.
+
+	The check reads the whole storage and reports:
+	  - manifests referring to archives that are not stored;
+	  - archives whose bytes do not match checksum_sha256 of the manifest;
+	  - breaks in the previous_backup_id chain (orphans and forks);
+	  - increments whose vclock_begin does not continue the previous backup;
+	  - archives no manifest refers to.
+
+	An archive of a backup newer than every stored manifest is reported too,
+	but
+	as an upload in progress rather than a problem: an upload writes its
+	archives
+	before the manifest that references them, so this is what a backup being
+	taken
+	right now looks like from the outside.
+
+	Nothing is ever deleted or repaired: removing backups is 'tt backup gc'.
+	Exit codes: 0 - the storage is healthy, 3 - problems were found,
+	1 - the request is invalid, 2 - a system failure prevented the check.
+
+The --backup-storage flag accepts a URI describing the
+storage backend, or @<path> naming a YAML config file:
+
+    file://<abs_path>?Prefix=<subdir>
+      Local filesystem storage. The path must be absolute.
+      Query parameters:
+        Prefix           - subdirectory within the path (optional).
+
+    s3://<bucket>/<prefix>
+      S3 storage taken from the standard AWS_* environment variables, so that
+      no credential is written in the command line:
+        AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY  - credentials (required).
+        AWS_SESSION_TOKEN                         - for temporary credentials.
+        AWS_REGION, AWS_DEFAULT_REGION            - region.
+        AWS_ENDPOINT_URL, AWS_ENDPOINT_URL_S3     - endpoint of an
+                                                    S3-compatible storage.
+        AWS_CA_BUNDLE                             - CA of an endpoint the
+                                                    system roots do not cover.
+
+    s3+https://host/bucket/prefix?AccessKeyID=...&SecretAccessKey=...
+    s3+http://host/bucket/prefix?AccessKeyID=...&SecretAccessKey=...
+      S3-compatible storage with the endpoint and the credentials in the URI.
+      Use s3+https for TLS, s3+http for plain TCP. The first path segment
+      after the host is the bucket name, the rest is the optional key prefix.
+      Query parameters:
+        Region           - AWS region (optional).
+        AccessKeyID      - access key ID (required).
+        SecretAccessKey  - secret access key (required).
+
+    @<path>.yaml
+      What a URI cannot express: a custom endpoint, a region, explicit
+      credentials, a private CA. The backend is chosen by 'type', an unknown
+      field is an error, and ${VAR} in a value is read from the environment
+      ('$$' is a literal '$'), so a secret stays out of the file:
+
+        type: s3
+        endpoint: https://storage.yandexcloud.net # https unless http:// is
+        asked for
+        region: ru-central1
+        bucket: payments-backups
+        prefix: tarantool # storage root in the bucket, optional
+        access_key_id: ${AWS_ACCESS_KEY_ID} # optional, AWS_* by default
+        secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+        ca_cert: /etc/ssl/private-ca.pem             # or skip_verify: true
+
+        type: fs
+        root: /mnt/backups/payments        # storage root, must be absolute
+        prefix: mycluster # subdirectory within the root, optional
+
+--cluster-name and --environment select a subtree of that storage,
+<storage_root>/<cluster_name>/<environment>/, and every command reading or
+writing a storage takes them. They compose with the prefix above, so one
+storage can hold several clusters. Pass the same pair to every command: a
+backup uploaded with them is invisible to a verify, gc, last or plan run
+without them, and those commands report an empty storage rather than an
+error. The exception is upload, which reads the pair out of the plan and
+needs the flags only to override it.
+
+[0;1;39mUSAGE[0m
+  tt backup verify [flags]
+[0;1;39m
+FLAGS[0m
+      --backup-storage string   storage URI or @path to a storage configuration
+                                file
+      --cluster-name string     cluster name; used as a storage path component
+      --environment string      environment tag (production, staging, ...); used
+                                as a storage path component, requires
+                                --cluster-name
+      --format string           output format: table or json (default "table")
+  -h, --help                    help for verify
+      --timeout duration        timeout for connecting to and reading from the
+                                storage; 0 means no limit (default 30m0s)
+[0;1;39m
+EXAMPLES[0m
+  $ tt backup verify --backup-storage=file:///var/backups
+  $ tt backup verify --backup-storage=file:///var/backups --format json
+
+=== tt backup-id --help
+Print an identifier for a new backup: the current UTC time as
+20060102T150405Z, followed by a newline. Pass it as is to --backup-id of
+'tt backup start', 'tt backup upload' and 'tt backup finalize'.
+
+Identifiers sort as text in the order they are generated, which is the order
+'tt backup upload' requires. The command exits once the second it printed is
+over, so the next call prints a later one.
+
+That holds for calls made one after another on one host. Calls running at the
+same time, calls on different hosts, or a clock stepped back can print the same
+identifier; generate one per backup run and hand it to every step.
+
+[0;1;39mUSAGE[0m
+  tt backup-id [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for backup-id
 
 === tt binary --help
 Manage tt and tt Enterprise, Tarantool Community and Enterprise, TCM,
@@ -1955,6 +2681,10 @@ Exit codes of tt commands.
 Which failure within a code it was is carried by the error message, not by a
 further number.
 
+Backup and restore commands also return command-specific verdict codes,
+documented in each command's --help. These start at 3, keeping invalid requests
+(1) and system failures (2) separate from backup and recovery verdicts.
+
 A command provided by an external module exits with the module's own code. Once
 tt test has started luatest, its exit code is luatest's own. tt run replaces
 itself with Tarantool, so its exit code is Tarantool's.
@@ -2868,6 +3598,498 @@ Restart tarantool instance(s)
 FLAGS[0m
   -h, --help   help for restart
   -y, --yes    Automatic yes to confirmation prompt
+
+=== tt restore --help
+Restore a Tarantool cluster from a backup (PITR)
+
+[0;1;39mUSAGE[0m
+  tt restore [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  apply       Prepare an instance work directory from backup archives
+  plan        Resolve a recovery time into a plan and download what it needs
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for restore
+
+Use "tt restore <command> --help" for more information about a command.
+
+=== tt restore apply --help
+Rebuild an instance's data directories from a backup chain,
+so Tarantool can start on a chosen recovery point.
+
+Usage:
+  tt restore apply --archives <full,inc1,inc2> --work-dir <path> \
+      [--target-point '{"replica_id":N,"lsn":M}'] [--patch-uuid <uuid>]
+  tt restore apply --archives <chain> -c <cluster config> --instance <name> \
+      [--work-dir <launch dir>] [...]
+  tt restore apply --archives <chain> --snapshot-dir <path> \
+      --wal-dir <path> --vinyl-dir <path> [...]
+
+Run once per instance, on every node the replicaset is restored onto, after
+the orchestrator has copied the archives over and stopped the instance.
+Those nodes are the members the backup recorded -- 'tt restore plan' lists
+them in restore_targets[<replicaset_uuid>].instances, the master first, and
+each entry carries the instance UUID that node has to own afterwards. The
+configured members the backup never saw are not among them: they are wiped
+instead and join the replicaset once it is up, so apply is not run on them.
+Apply does not stop or start Tarantool and does not talk to the backup
+storage.
+
+The chain is unpacked in the order given, so --archives takes the full backup
+first and then each increment, exactly as 'tt restore plan' lists them under
+download_plan[<replicaset_uuid>]. --target-point is that plan's
+recovery_point.trim_to_by_replicaset[<replicaset_uuid>].
+
+--patch-uuid takes the patch_uuid of the node's own entry in
+restore_targets[<replicaset_uuid>].instances -- for the master, that is the
+top-level patch_uuid as well: the instance UUID the restored node owned in
+the backed-up cluster, which is what its own _cluster records and what the
+headers must say. Restoring onto the instance the backup was taken on makes
+it the UUID already in the files, so the patch confirms rather than changes
+them. Omitting the flag keeps whatever the headers carry, which is right for
+that same case and wrong as soon as the archives are replayed onto a
+differently named node.
+
+Before an instance starts on a data directory, Tarantool's configuration
+looks up the instance's name in the newest snapshot alone: the _cluster row
+carrying the header's UUID has to name it, or the configuration has to pin
+database.instance_uuid. The journals after the snapshot do not count, so a
+member that registered after the backed-up snapshot was taken -- the
+bootstrap snapshot of a replicaset whose master has taken no snapshot since
+-- does not start, however surely the replay registers it.
+
+With -c, apply makes the same check after unpacking and trimming, together
+with the replicaset's UUID and name. A mismatch between the snapshot and the
+configuration is refused. A name the snapshot lacks and the configuration does
+not stand in for with a UUID (database.instance_uuid,
+database.replicaset_uuid) is refused as well, saying whether the journals
+register the UUID and under which name, and naming the ways out: set
+TT_DATABASE_INSTANCE_UUID=<uuid> in the instance's own environment (a unit
+drop-in) and run box.snapshot() on every node once it is up, before the
+variable is removed; or take the full backup with tt backup start --snapshot.
+The same variable in tt's own environment, holding the instance's UUID, turns
+the refusal into a warning: apply cannot see the instance's environment, and
+Tarantool does not start the instance until that carries it too. Without -c
+the instance may never be started from a cluster configuration, and the
+finding is a warning.
+
+Tarantool keeps three kinds of file in three directories it configures
+separately: snapshots in snapshot.dir, journals in wal.dir, and the vylog
+together with the vinyl run/index files in vinyl.dir. Apply routes every file
+of the backup into the directory of its own kind, and there are three ways to
+say which directories those are.
+
+--work-dir alone puts all three in one directory, which is what an instance
+that configures none of the keys uses. The directory is the data directory
+itself: nothing is appended to it, and the files land in it directly.
+
+-c and --instance read the three directories out of a cluster configuration,
+the same file or URI 'tt restore plan -c' takes. --instance names the
+instance whose configuration is read -- the node apply runs on, one of the
+instances 'tt restore plan' lists in
+restore_targets[<replicaset_uuid>].instances. The keys are resolved the
+way Tarantool resolves them: a key the configuration does not set defaults to
+var/lib/{{ instance_name }}, {{ instance_name }} is substituted (and it is the
+only variable that is; any other one is refused rather than passed through as
+part of a path), a relative directory is taken against process.work_dir, and a
+relative or absent process.work_dir against --work-dir. --work-dir means the
+directory Tarantool is launched from in this mode, not a place to put files,
+and it is needed only by a directory that is still relative once
+process.work_dir and the per-directory flags have been taken into account: a
+configuration whose three directories are absolute needs none, and neither
+does one whose process.work_dir is absolute.
+
+--snapshot-dir, --wal-dir and --vinyl-dir name one directory each. Each one
+overrides its own directory and nothing else, whether it came from -c or from
+--work-dir: '--work-dir /data --wal-dir /wal' keeps snapshots and vinyl data
+under /data and puts the journal in /wal. A directory named this way is used
+as it stands: a relative one is taken against the directory tt itself is
+running in, exactly like --work-dir and --archives, never against --work-dir,
+and {{ instance_name }} is not substituted into it. An overridden key is never
+read out of the configuration and never has to resolve, so naming all three
+leaves -c with nothing to answer -- and leaves --work-dir recording the
+restore's base directory in the marker and doing nothing else.
+
+Whichever way the directories were named, apply prints where each kind of file
+is about to go and what decided it -- a flag, or a key of the configuration --
+before it writes anything. The report is informational and the run goes
+straight on from it, so it is where a restore aimed at the wrong directories
+is visible in the log, rather than later as an instance that comes up on part
+of its data. A call whose directories have to be checked before anything is
+written is checked by reading the flags, or by making the same call a rejected
+one -- an --archives that names a file which does not exist prints the layout
+and then refuses the run with nothing touched.
+
+A layout that cannot be completed is refused, and nothing is touched. That
+covers naming nothing at all, -c without --instance, --instance without -c,
+a configuration file that cannot be read or does not parse, an instance the
+configuration does not declare, a configuration holding something other than a
+path where one of the keys belongs, some of the three directories with no
+--work-dir to fill in the rest, and a directory of the configuration that
+stays relative with no --work-dir to resolve it against.
+
+Re-running for the same point is idempotent: apply clears what the previous
+run left in each of the directories and repeats the work. Cleanup removes only
+the files a restore owns -- snapshots, journals, sort data, vinyl data and
+interrupted leftovers -- so an instance config or log kept in the same
+directory survives. It reaches every depth of each of the three directories
+and prunes the subdirectories it empties, which is what vinyl's
+<space_id>/<index_id>/ trees need; never name the directory of an instance
+that is running, or of one whose data is not meant to be replaced.
+
+On success a marker is written beside the snapshot directory, named after it:
+<absolute snapshot directory>.restore_state.json, so a snapshot directory
+/srv/memtx/storage-001-a gets /srv/memtx/storage-001-a.restore_state.json. The
+snapshot directory is the anchor because it belongs to one instance, while the
+directory --work-dir names can be shared by every instance of an application.
+The marker records schema_version, work_dir, snapshot_dir, wal_dir, vinyl_dir,
+target_point, archives and applied_at, plus instance_name, point_name and
+instance_uuid -- these three only when the run was given them, so a marker
+written without --instance, --point-name or --patch-uuid leaves them out
+rather than recording them empty. The three directories are absolute; work_dir
+is the cleaned value of --work-dir, kept relative when it was given relative,
+or the snapshot directory when the flag was omitted. Compare point_name,
+target_point and archives across the restored nodes before starting the
+cluster: a restore that silently skipped one replicaset brings up shards
+sitting on different states, each self-consistent and replicating happily,
+which surfaces much later as diverged buckets.
+
+A marker is removed only from beside the snapshot directory of the run that
+removes it. Pointing a later run at a different snapshot directory therefore
+leaves the earlier marker where it was, still claiming its own directory is
+ready; delete it by hand after moving an instance's data directories.
+
+A sort data file (<signature>.sortdata) is restored beside the snapshot it
+belongs to and is never stamped with --patch-uuid: it carries the UUID of the
+instance the backup was taken on, so a restore onto another node leaves
+Tarantool ignoring it with an error line and rebuilding the indexes from the
+snapshot. That costs startup time and nothing else.
+
+Exit codes:
+  0  the directories are ready
+  1  another operation failed while fetching configuration, unpacking,
+     patching or trimming, or the restored data was refused after unpacking:
+     --patch-uuid is not a member of the restored replicaset, or the instance
+     would not start on the restored snapshot (no marker is written)
+  2  a system operation failed (for example, permission was denied)
+  3  an input was rejected: an incomplete layout, mismatched --config and
+     --instance flags, a malformed configuration, an undeclared instance,
+     malformed checksums, recovery point or UUID, a missing archive, or an
+     archive entry that cannot be placed. Checksum and archive-chain preflight
+     checks precede cleanup; a failure during extraction can leave partial files
+  4  no xlog covers --target-point
+
+Examples:
+  tt restore apply --archives
+  /opt/restore/full.tar.zst,/opt/restore/inc1.tar.zst \
+      --work-dir /var/lib/tarantool/router-001 \
+      --target-point '{"replica_id":1,"lsn":1502}' \
+      --patch-uuid 550e8400-e29b-41d4-a716-446655440000
+  tt restore apply --archives /opt/restore/full.tar.zst \
+      -c /etc/tarantool/config.yaml --instance storage-001-a \
+      --work-dir /opt/tarantool
+  tt restore apply --archives /opt/restore/full.tar.zst \
+      -c /etc/tarantool/config.yaml --instance storage-001-a
+  tt restore apply --archives /opt/restore/full.tar.zst \
+      --snapshot-dir /data/memtx --wal-dir /ssd/wal --vinyl-dir /data/vinyl
+
+cluster configuration source: a path to the cluster
+configuration file (cluster.yaml), or a URI of etcd or Tarantool Config Storage.
+A value that parses as a URI is fetched from the storage; anything else is read
+as a file.
+
+The URL specifies a etcd or tarantool config storage connection settings in the
+following format:
+http(s)://[username:password@]host:port/prefix[?arguments]
+
+* prefix - a base path to Tarantool configuration in etcd or tarantool config
+  storage.
+
+Possible arguments:
+* key - a target configuration key in the prefix.
+* name - a name of an instance in the cluster configuration.
+* timeout - a request timeout in seconds (default 3.0).
+* ssl_key_file - a path to a private SSL key file.
+* ssl_cert_file - a path to an SSL certificate file.
+* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
+* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
+* ssl_ciphers - a list of allowed SSL ciphers.
+* verify_host - set off (default true) verification of the certificate’s name
+  against the host.
+* verify_peer - set off (default true) verification of the peer’s SSL
+  certificate.
+
+The command supports the following environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username;
+* TT_CLI_PASSWORD - specifies a Tarantool password.
+* TT_CLI_ETCD_USERNAME - specifies a Etcd username;
+* TT_CLI_ETCD_PASSWORD - specifies a Etcd password.
+
+The priority of credentials:
+environment variables < command flags < URL credentials.
+
+HTTPS connection behavior:
+* The https:// scheme enables TLS for both etcd and Tarantool Config Storage
+  (TCS), even when no ssl_* URL arguments are specified.
+* For etcd, certificate verification is skipped if neither ssl_ca_file nor
+  ssl_ca_path is specified. A configured CA enables verification unless
+  explicitly disabled.
+* TCS keeps the certificate verification behavior of its TLS backend. The
+  default Go backend uses system CAs unless ssl_ca_file is specified.
+* Do not mix http:// and https:// addresses in an etcd endpoint list. If any
+  endpoint uses https://, TLS is enabled for all endpoints.
+
+[0;1;39mUSAGE[0m
+  tt restore apply [flags]
+[0;1;39m
+FLAGS[0m
+      --archives strings      ordered backup chain: the full backup first, then
+                              each increment
+      --checksums strings     sha256 of each archive, in the same order as
+                              --archives
+  -c, --config string         cluster configuration to read the data directories
+                              of --instance out of (file path or config storage
+                              URI)
+  -h, --help                  help for apply
+      --instance string       instance whose data directories are read from
+                              --config: the node this chain is replayed onto
+      --patch-uuid string     new instance UUID to stamp into every snap/xlog
+                              header
+      --point-name string     name of the cluster recovery point, recorded in
+                              restore_state.json
+      --snapshot-dir string   directory for the .snap files and the sort data
+                              beside them, overriding snapshot.dir and
+                              --work-dir; a relative path is taken against the
+                              current directory
+      --target-point string   recovery point position to cut the final xlog at,
+                              as '{"replica_id":N,"lsn":M}'
+      --vinyl-dir string      directory for the .vylog and the vinyl run/index
+                              files, overriding vinyl.dir and --work-dir; a
+                              relative path is taken against the current
+                              directory
+      --wal-dir string        directory for the .xlog files, overriding wal.dir
+                              and --work-dir; a relative path is taken against
+                              the current directory
+      --work-dir string       directory to put every kind of file in; with
+                              --config, the directory the instance is launched
+                              from, which its relative paths resolve against;
+                              recorded in the marker either way
+
+=== tt restore plan --help
+Work out how the cluster is brought back to a moment in time, and fetch
+the backups that would do it.
+
+Usage:
+  tt restore plan --target-time <T> --backup-storage <config> -d <dir> \
+      [--cluster-name <name> --environment <env>] \
+      [-c <cluster config>] [--replicasets <names>] [--format table|json]
+
+Run on the manager host, before anything is stopped. The command lists the
+storage itself -- it is not handed a list of manifests -- walks the chain of
+every backup back to the full it stands on, stitches the per-shard recovery
+points into cluster-wide ones, and resolves --target-time into the latest
+cluster point not later than it.
+
+A cluster point is one whose label is present on every replicaset, so that
+every shard comes back to the same moment. Points on either side of a
+topology change are never stitched into one: a cluster whose composition or
+membership changed mid-window has no single state to return to.
+
+The archives the chosen point needs are downloaded into --dir and their
+checksums are verified there, so that a missing or corrupt archive stops the
+plan while the cluster is still untouched. Distributing the files to the
+nodes and applying them is the orchestrator's work and 'tt restore apply's.
+Nothing is deleted, and the cluster being restored is never contacted.
+
+With -c the point's topology is checked against the cluster the restore is
+aimed at. The composition is read from the configuration, not from the
+instances: this command's main scenario is a cluster whose nodes are dead or
+crash-looping. Replicasets are matched by the instance names they share, never
+by UUID, because the sanctioned target is a freshly deployed cluster where
+every UUID is new and 'tt restore apply' stamps each restored node with the
+UUID it owned in the backup. A replicaset that has no counterpart blocks the
+plan; an instance the config no longer carries is a warning.
+
+--replicasets names the replicasets to restore, by the names the cluster
+config gives them, and requires -c for that reason. The recovery point is
+then stitched over those replicasets alone, and so is everything built on
+it: the downloads, the restore targets and the trim positions. A cluster
+that keeps a replicaset holding no data -- a stateless vshard router, which
+writes no recovery point -- has no cluster-wide point at all until the
+storages are named here. A configured replicaset left out is reported in the
+warnings and is the operator's to bootstrap fresh; a named replicaset the
+backup has no counterpart for is code 6, because a restore that was asked
+for and cannot happen must not pass silently.
+
+Every replicaset's chain is replayed onto each member the backup recorded:
+the master first -- the instance the backup was taken on, whose headers the
+archives already fit -- and then the rest by name. restore_targets.instances
+names them together with the instance UUID each has to own afterwards, what
+'tt restore apply --patch-uuid' stamps in per node; the master's own entry is
+also at the top level, as instance_name and patch_uuid. A manifest that
+recorded no members beside the master restores him alone, and the plan says
+so in the warnings: single-target restore. With -c the configured instances
+the backup has no member for are listed under rejoin instead: they are wiped
+before the restore and come back by joining the replicaset from nothing, and
+need no UUID of their own, because Tarantool 3.x identifies an instance by
+name.
+
+Exit codes:
+  0  the plan is ready and the archives are downloaded
+  1  invalid input or another planning or download failure
+  2  a system operation failed (for example, permission was denied)
+  3  no cluster recovery point is available around the target time
+  4  the chain is broken around the target time
+  5  the target time is outside what the storage covers
+  6  the point's topology does not match the cluster config
+  7  the target time falls between two different topologies
+
+A failed plan carries nearest_safe wherever a usable point exists: the
+recovery times on either side of the target, to offer and retry with. Code 6
+also carries the difference that blocked it, manifest against config.
+
+Examples:
+  tt restore plan --target-time 2026-03-25T10:30:00Z \
+      --backup-storage @s3-prod.yaml -d /tmp/restore/
+  tt restore plan --target-time 1774435800 -c cluster.yaml \
+      --backup-storage file:///var/backups -d /tmp/restore/ --format table
+  tt restore plan --target-time 2026-03-25T10:30:00Z \
+      --backup-storage file:///var/backups -d /tmp/restore/ \
+      --cluster-name payments-cluster --environment production
+  tt restore plan --target-time 2026-03-25T10:30:00Z -c cluster.yaml \
+      --replicasets storage-a,storage-b \
+      --backup-storage file:///var/backups -d /tmp/restore/
+
+cluster configuration source: a path to the cluster
+configuration file (cluster.yaml), or a URI of etcd or Tarantool Config Storage.
+A value that parses as a URI is fetched from the storage; anything else is read
+as a file.
+
+The URL specifies a etcd or tarantool config storage connection settings in the
+following format:
+http(s)://[username:password@]host:port/prefix[?arguments]
+
+* prefix - a base path to Tarantool configuration in etcd or tarantool config
+  storage.
+
+Possible arguments:
+* key - a target configuration key in the prefix.
+* name - a name of an instance in the cluster configuration.
+* timeout - a request timeout in seconds (default 3.0).
+* ssl_key_file - a path to a private SSL key file.
+* ssl_cert_file - a path to an SSL certificate file.
+* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
+* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
+* ssl_ciphers - a list of allowed SSL ciphers.
+* verify_host - set off (default true) verification of the certificate’s name
+  against the host.
+* verify_peer - set off (default true) verification of the peer’s SSL
+  certificate.
+
+The command supports the following environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username;
+* TT_CLI_PASSWORD - specifies a Tarantool password.
+* TT_CLI_ETCD_USERNAME - specifies a Etcd username;
+* TT_CLI_ETCD_PASSWORD - specifies a Etcd password.
+
+The priority of credentials:
+environment variables < command flags < URL credentials.
+
+HTTPS connection behavior:
+* The https:// scheme enables TLS for both etcd and Tarantool Config Storage
+  (TCS), even when no ssl_* URL arguments are specified.
+* For etcd, certificate verification is skipped if neither ssl_ca_file nor
+  ssl_ca_path is specified. A configured CA enables verification unless
+  explicitly disabled.
+* TCS keeps the certificate verification behavior of its TLS backend. The
+  default Go backend uses system CAs unless ssl_ca_file is specified.
+* Do not mix http:// and https:// addresses in an etcd endpoint list. If any
+  endpoint uses https://, TLS is enabled for all endpoints.
+
+
+The --backup-storage flag accepts a URI describing the
+storage backend, or @<path> naming a YAML config file:
+
+    file://<abs_path>?Prefix=<subdir>
+      Local filesystem storage. The path must be absolute.
+      Query parameters:
+        Prefix           - subdirectory within the path (optional).
+
+    s3://<bucket>/<prefix>
+      S3 storage taken from the standard AWS_* environment variables, so that
+      no credential is written in the command line:
+        AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY  - credentials (required).
+        AWS_SESSION_TOKEN                         - for temporary credentials.
+        AWS_REGION, AWS_DEFAULT_REGION            - region.
+        AWS_ENDPOINT_URL, AWS_ENDPOINT_URL_S3     - endpoint of an
+                                                    S3-compatible storage.
+        AWS_CA_BUNDLE                             - CA of an endpoint the
+                                                    system roots do not cover.
+
+    s3+https://host/bucket/prefix?AccessKeyID=...&SecretAccessKey=...
+    s3+http://host/bucket/prefix?AccessKeyID=...&SecretAccessKey=...
+      S3-compatible storage with the endpoint and the credentials in the URI.
+      Use s3+https for TLS, s3+http for plain TCP. The first path segment
+      after the host is the bucket name, the rest is the optional key prefix.
+      Query parameters:
+        Region           - AWS region (optional).
+        AccessKeyID      - access key ID (required).
+        SecretAccessKey  - secret access key (required).
+
+    @<path>.yaml
+      What a URI cannot express: a custom endpoint, a region, explicit
+      credentials, a private CA. The backend is chosen by 'type', an unknown
+      field is an error, and ${VAR} in a value is read from the environment
+      ('$$' is a literal '$'), so a secret stays out of the file:
+
+        type: s3
+        endpoint: https://storage.yandexcloud.net # https unless http:// is
+        asked for
+        region: ru-central1
+        bucket: payments-backups
+        prefix: tarantool # storage root in the bucket, optional
+        access_key_id: ${AWS_ACCESS_KEY_ID} # optional, AWS_* by default
+        secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+        ca_cert: /etc/ssl/private-ca.pem             # or skip_verify: true
+
+        type: fs
+        root: /mnt/backups/payments        # storage root, must be absolute
+        prefix: mycluster # subdirectory within the root, optional
+
+--cluster-name and --environment select a subtree of that storage,
+<storage_root>/<cluster_name>/<environment>/, and every command reading or
+writing a storage takes them. They compose with the prefix above, so one
+storage can hold several clusters. Pass the same pair to every command: a
+backup uploaded with them is invisible to a verify, gc, last or plan run
+without them, and those commands report an empty storage rather than an
+error. The exception is upload, which reads the pair out of the plan and
+needs the flags only to override it.
+
+[0;1;39mUSAGE[0m
+  tt restore plan [flags]
+[0;1;39m
+FLAGS[0m
+      --backup-storage string   storage URI or @path to a storage configuration
+                                file
+      --cluster-name string     cluster name; used as a storage path component
+  -c, --config string           cluster configuration of the cluster being
+                                restored, to check the topology of the recovery
+                                point against (file path or config storage URI)
+  -d, --dir string              local directory to download the manifests and
+                                archives into
+      --environment string      environment tag (production, staging, ...); used
+                                as a storage path component, requires
+                                --cluster-name
+      --format string           output format: table or json (default "json")
+  -h, --help                    help for plan
+      --replicasets strings     replicasets to restore, by the names the cluster
+                                config gives them; the rest are left to
+                                bootstrap fresh. Requires -c
+      --target-time string      moment to recover to: RFC 3339
+                                (2026-03-25T10:30:00Z) or a unix timestamp
+      --timeout duration        timeout for reading from and downloading out of
+                                the storage; 0 means no limit (default 30m0s)
 
 === tt rocks (via tt help: flag parsing disabled)
 LuaRocks package manager
@@ -3958,6 +5180,8 @@ _luarocks-admin() {
 
 === tt __complete ""
 aeon	Manage aeon application
+backup	Manage Tarantool backups (PITR)
+backup-id	Print an identifier for a new backup
 binary	Manage binaries and SDK bundles
 cat	Print into stdout the contents of .snap/.xlog FILE(s)
 cfg	Environment configuration management utility
@@ -3981,6 +5205,7 @@ play	Play the contents of .snap/.xlog FILE(s) to another Tarantool instance
 registry	Inspect the rock servers packages are resolved against
 replicaset	Manage replicasets
 restart	Restart tarantool instance(s)
+restore	Restore a Tarantool cluster from a backup (PITR)
 rocks	LuaRocks package manager
 run	Run the current package under its Tarantool
 start	Start tarantool instance(s)

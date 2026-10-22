@@ -1,0 +1,23 @@
+manifest_version = '0.1'
+
+[package]
+name = 'sharded-app'
+generate_version_lua = false
+
+[platform]
+tarantool = '>=3.8.0,<4.0.0'
+tt = '>=2.11.0'
+
+# The recovery point manager's vshard router backend first shipped in 0.1.42.
+[dependencies.vshard]
+source = 'registry'
+version = '==0.1.42'
+
+[components.app]
+path = '.'
+include = ['*.lua']
+namespace = ''
+
+[products.default]
+components = ['app']
+default = true

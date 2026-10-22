@@ -1,0 +1,138 @@
+package storage
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"strings"
+	"time"
+)
+
+// Storage describes a backup object storage backend.
+//
+// Keys are canonical slash-separated paths (see CleanKey). Implementations must
+// behave uniformly: Get reports a missing object via ErrKeyNotFound, List reports
+// it via an empty (non-nil) result, Delete is idempotent (a missing key is not an
+// error), List results are sorted by key, and every method honors ctx cancellation.
+type Storage interface {
+	// List returns objects whose key starts with prefix, sorted by key.
+	List(ctx context.Context, prefix string) ([]ObjectInfo, error)
+	// Get opens the object for reading, returning ErrKeyNotFound if it is absent.
+	Get(ctx context.Context, key string) (io.ReadCloser, error)
+	// Put stores the bytes read from r under key. size must be the exact,
+	// non-negative number of bytes r yields; implementations reject a negative
+	// size or a byte-count mismatch. Streaming with an unknown length is not
+	// supported.
+	Put(ctx context.Context, key string, r io.Reader, size int64) error
+	// Delete removes the object; a missing object is not an error.
+	Delete(ctx context.Context, key string) error
+}
+
+// ObjectInfo describes one stored object.
+type ObjectInfo struct {
+	Key          string
+	Size         int64
+	LastModified time.Time
+}
+
+var (
+	// ErrKeyNotFound is returned when a requested object does not exist.
+	ErrKeyNotFound = errors.New("storage: key not found")
+	// ErrInvalidKey is returned when a key is not a canonical storage key.
+	ErrInvalidKey = errors.New("storage: invalid key")
+	// ErrStorageMissing is returned when the storage itself is not there. A
+	// reader treats that as an error -- a mistyped path must not read as an
+	// empty storage -- while a writer creating the first backup of a new
+	// storage treats it as "nothing stored yet".
+	ErrStorageMissing = errors.New("storage: does not exist")
+)
+
+// GetBytes reads a small object into memory.
+func GetBytes(ctx context.Context, s Storage, key string) ([]byte, error) {
+	reader, err := s.Get(ctx, key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get object %q: %w", key, err)
+	}
+
+	defer func() { _ = reader.Close() }()
+
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read object %q: %w", key, err)
+	}
+
+	return data, nil
+}
+
+// PutBytes stores a small object from memory.
+func PutBytes(ctx context.Context, s Storage, key string, b []byte) error {
+	putErr := s.Put(ctx, key, bytes.NewReader(b), int64(len(b)))
+	if putErr != nil {
+		return fmt.Errorf("failed to put object %q: %w", key, putErr)
+	}
+
+	return nil
+}
+
+// CleanKey returns a canonical storage object key.
+func CleanKey(key string) (string, error) {
+	key = strings.Trim(key, "/")
+	if key == "" {
+		return "", ErrInvalidKey
+	}
+
+	validationErr := validatePathParts(key)
+	if validationErr != nil {
+		return "", fmt.Errorf("failed to validate key path parts: %w", validationErr)
+	}
+
+	return key, nil
+}
+
+// CleanPrefix returns a canonical storage list prefix.
+func CleanPrefix(prefix string) (string, error) {
+	prefix = strings.TrimLeft(prefix, "/")
+	if prefix == "" {
+		return "", nil
+	}
+
+	hasTrailingSlash := strings.HasSuffix(prefix, "/")
+
+	prefix = strings.TrimRight(prefix, "/")
+
+	validationErr := validatePathParts(prefix)
+	if validationErr != nil {
+		return "", fmt.Errorf("failed to validate prefix path parts: %w", validationErr)
+	}
+
+	if hasTrailingSlash {
+		return prefix + "/", nil
+	}
+
+	return prefix, nil
+}
+
+// PrefixWithSlash ensures the prefix ends with a trailing slash, unless it is empty.
+func PrefixWithSlash(prefix string) string {
+	if prefix == "" || strings.HasSuffix(prefix, "/") {
+		return prefix
+	}
+
+	return prefix + "/"
+}
+
+func validatePathParts(key string) error {
+	if key == "" || strings.Contains(key, "\\") {
+		return ErrInvalidKey
+	}
+
+	for part := range strings.SplitSeq(key, "/") {
+		if part == "" || part == "." || part == ".." {
+			return ErrInvalidKey
+		}
+	}
+
+	return nil
+}

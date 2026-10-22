@@ -1,0 +1,42 @@
+# The synchronous twin of multi_apply_app: the same two-instance replicaset,
+# pinned uuids and peer login, with synchronous replication switched on. The
+# quorum of 2 out of 2 members makes every synchronous write and every term
+# change need both members alive; the timeout bounds a queue that cannot
+# gather its acknowledgements, so a stuck one fails a write instead of
+# hanging it forever.
+credentials:
+  users:
+    guest:
+      roles: [super]
+    client:
+      password: 'secret'
+      roles: [super]
+    replicator:
+      password: 'secret'
+      roles: [replication]
+iproto:
+  listen:
+    - uri: 'unix/:./var/run/{{ instance_name }}/tarantool.sock'
+  advertise:
+    peer:
+      login: replicator
+groups:
+  storages:
+    app:
+      file: 'storage.lua'
+    replication:
+      failover: manual
+      synchro_quorum: 2
+      synchro_timeout: 10
+    replicasets:
+      storage-001:
+        leader: storage-001-a
+        database:
+          replicaset_uuid: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+        instances:
+          storage-001-a:
+            database:
+              instance_uuid: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+          storage-001-b:
+            database:
+              instance_uuid: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab'

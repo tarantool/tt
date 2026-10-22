@@ -42,6 +42,9 @@ tt_root_command: set[str] = set(
         "kill",
         "restart",
         "tcm",
+        "backup",
+        "backup-id",
+        "restore",
     ),
 )
 

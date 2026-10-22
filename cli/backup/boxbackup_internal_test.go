@@ -1,0 +1,325 @@
+package backup
+
+import (
+	"errors"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/tarantool/tt/v3/cli/connector"
+)
+
+func TestStart_full(t *testing.T) {
+	mock := &mockEvaler{}
+
+	require.NoError(t, startBackup(mock, StartOpts{}))
+	require.Equal(t, "box.backup.start(...)", mock.exprs[len(mock.exprs)-1])
+
+	require.Len(t, mock.argsList, 1)
+
+	got, ok := mock.argsList[0][0].(map[string]any)
+
+	require.True(t, ok)
+	require.InDelta(t, defaultTTL.Seconds(), got["ttl"], 0)
+
+	_, hasFromVclock := got["from_vclock"]
+	require.False(t, hasFromVclock, "full backup must not send from_vclock")
+}
+
+func TestStart_incremental(t *testing.T) {
+	m := &mockEvaler{}
+
+	err := startBackup(m, StartOpts{FromVclock: Vclock{1: 42}})
+	require.NoError(t, err)
+
+	got, ok := m.argsList[0][0].(map[string]any)
+
+	require.True(t, ok)
+	require.Equal(t, map[uint32]uint64{1: 42}, got["from_vclock"])
+}
+
+func TestStart_customTTL(t *testing.T) {
+	m := &mockEvaler{}
+
+	require.NoError(t, startBackup(m, StartOpts{TTL: 30 * time.Minute}))
+
+	got, ok := m.argsList[0][0].(map[string]any)
+
+	require.True(t, ok)
+	require.InDelta(t, float64(1800), got["ttl"], 0)
+}
+
+func TestStart_error(t *testing.T) {
+	m := &mockEvaler{err: errors.New("boom"), errOn: 1}
+
+	err := startBackup(m, StartOpts{})
+	require.ErrorContains(t, err, "failed to start backup")
+	require.ErrorContains(t, err, "boom")
+}
+
+func TestGetInfo_noBackup(t *testing.T) {
+	m := &mockEvaler{queue: [][]any{nil}}
+
+	info, err := GetInfo(m)
+	require.NoError(t, err)
+	require.Nil(t, info)
+}
+
+func TestGetInfo_allFields(t *testing.T) {
+	mock := &mockEvaler{queue: [][]any{{map[any]any{
+		"files":       []any{"0.snap", "0.xlog"},
+		"type":        "full",
+		"vclock":      map[any]any{uint64(0): uint64(5), uint64(1): uint64(9)},
+		"prev_vclock": map[any]any{uint64(0): uint64(1)},
+		"recovery_points": []any{map[any]any{
+			"label": "rp-1", "replica_id": uint64(1),
+			"lsn": uint64(7), "timestamp": float64(123),
+		}},
+	}}}}
+
+	info, err := GetInfo(mock)
+	require.NoError(t, err)
+	require.Equal(t, []string{"0.snap", "0.xlog"}, info.Files)
+	require.Equal(t, BackupTypeFull, info.Type)
+	require.Equal(t, Vclock{0: 5, 1: 9}, info.Vclock)
+	require.Equal(t, Vclock{0: 1}, info.PrevVclock)
+	require.NotNil(t, info.RecoveryPoints)
+	require.Len(t, *info.RecoveryPoints, 1)
+
+	rp := (*info.RecoveryPoints)[0]
+	require.Equal(t, "rp-1", rp.Label)
+	require.Equal(t, uint32(1), rp.ReplicaID)
+	require.Equal(t, uint64(7), rp.LSN)
+	require.InDelta(t, float64(123), rp.Timestamp, 0)
+}
+
+func TestGetInfo_recoveryPointsStates(t *testing.T) {
+	tests := []struct {
+		name      string
+		resp      map[any]any
+		wantNil   bool
+		wantLen   int
+		wantFirst string
+	}{
+		{
+			name:    "absent maps to nil",
+			resp:    map[any]any{"type": "full"},
+			wantNil: true,
+		},
+		{
+			name:    "empty list is non-nil and empty",
+			resp:    map[any]any{"type": "full", "recovery_points": []any{}},
+			wantNil: false,
+			wantLen: 0,
+		},
+		{
+			name: "populated list is preserved",
+			resp: map[any]any{
+				"type":            "full",
+				"recovery_points": []any{map[any]any{"label": "rp-1"}},
+			},
+			wantNil:   false,
+			wantLen:   1,
+			wantFirst: "rp-1",
+		},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			// map[any]any shape (native net.box msgpack decoding).
+			infoAny, err := GetInfo(&mockEvaler{queue: [][]any{{testCase.resp}}})
+			require.NoError(t, err)
+
+			// map[string]any shape (e.g. a decoder yielding string keys).
+			infoStr, err := GetInfo(&mockEvaler{queue: [][]any{{stringKeyed(testCase.resp)}}})
+			require.NoError(t, err)
+
+			for _, info := range []*BackupInfo{infoAny, infoStr} {
+				if testCase.wantNil {
+					require.Nil(t, info.RecoveryPoints, "absent field must map to nil")
+
+					continue
+				}
+
+				require.NotNil(t, info.RecoveryPoints, "present list must be non-nil")
+				require.Len(t, *info.RecoveryPoints, testCase.wantLen)
+
+				if testCase.wantLen > 0 {
+					require.Equal(t, testCase.wantFirst, (*info.RecoveryPoints)[0].Label)
+				}
+			}
+		})
+	}
+}
+
+func stringKeyed(in map[any]any) map[string]any {
+	out := make(map[string]any, len(in))
+	for kValue, value := range in {
+		if nested, ok := value.(map[any]any); ok {
+			value = stringKeyed(nested)
+		}
+
+		if list, ok := value.([]any); ok {
+			converted := make([]any, len(list))
+			for i, item := range list {
+				if nested, ok := item.(map[any]any); ok {
+					converted[i] = stringKeyed(nested)
+				} else {
+					converted[i] = item
+				}
+			}
+
+			value = converted
+		}
+
+		key, ok := kValue.(string)
+		if !ok {
+			key = fmt.Sprintf("%v", kValue)
+		}
+
+		out[key] = value
+	}
+
+	return out
+}
+
+func TestGetInfo_error(t *testing.T) {
+	m := &mockEvaler{err: errors.New("boom"), errOn: 1}
+
+	_, err := GetInfo(m)
+	require.ErrorContains(t, err, "failed to get backup info")
+}
+
+func TestStop_ok(t *testing.T) {
+	m := &mockEvaler{}
+
+	require.NoError(t, stopBackup(m))
+	require.Equal(t, "box.backup.stop()", m.exprs[len(m.exprs)-1])
+}
+
+func TestStop_error(t *testing.T) {
+	m := &mockEvaler{err: errors.New("boom"), errOn: 1}
+
+	err := stopBackup(m)
+	require.ErrorContains(t, err, "failed to stop backup")
+	require.ErrorContains(t, err, "boom")
+}
+
+func TestStartInfoStop(t *testing.T) {
+	mock := &mockEvaler{queue: [][]any{
+		nil, // start().
+		{map[any]any{ // info().
+			"files":           []any{"0.snap"},
+			"type":            "full",
+			"recovery_points": []any{},
+		}},
+		nil, // stop().
+	}}
+
+	require.NoError(t, startBackup(mock, StartOpts{}))
+
+	info, err := GetInfo(mock)
+	require.NoError(t, err)
+	require.Equal(t, BackupTypeFull, info.Type)
+	require.NotNil(t, info.RecoveryPoints)
+
+	require.NoError(t, stopBackup(mock))
+	require.Equal(t,
+		[]string{"box.backup.start(...)", "return box.backup.info()", "box.backup.stop()"},
+		mock.exprs)
+}
+
+func TestGetInstanceInfo(t *testing.T) {
+	mock := &mockEvaler{queue: [][]any{{map[any]any{
+		"replicaset_uuid": testReplicasetUUID,
+		"instance_uuid":   testInstanceUUID,
+		"instance_name":   "router-001",
+		"hostname":        "node-1.example.com",
+		"wal_dir":         "/var/lib/tarantool/wal",
+		"memtx_dir":       "/var/lib/tarantool/memtx",
+		"vinyl_dir":       "/var/lib/tarantool/vinyl",
+	}}}}
+
+	inst, err := GetInstanceInfo(mock)
+	require.NoError(t, err)
+	require.Equal(t, testReplicasetUUID, inst.ReplicasetUUID)
+	require.Equal(t, testInstanceUUID, inst.InstanceUUID)
+	require.Equal(t, "router-001", inst.InstanceName)
+	require.Equal(t, "/var/lib/tarantool/wal", inst.WalDir)
+	require.Equal(t, "/var/lib/tarantool/memtx", inst.MemtxDir)
+	require.Equal(t, "/var/lib/tarantool/vinyl", inst.VinylDir)
+	require.Equal(t, "node-1.example.com", inst.Hostname)
+	require.Equal(t, instanceInfoExpr, mock.exprs[len(mock.exprs)-1])
+}
+
+// TestGetClusterMembers checks that the _cluster rows the fallback read
+// returns land as members: {id, uuid, name} tuples with fixnum ids (int8)
+// and wider ones at their own width, a nil name on rows written by old
+// replicas, two-field rows on the oldest ones. A non-string uuid arrives as
+// its Stringer form.
+func TestGetClusterMembers(t *testing.T) {
+	mock := &mockEvaler{queue: [][]any{{[]any{
+		[]any{int8(1), testInstanceUUID, "router-001"},
+		[]any{int8(3), "cccccccc-0000-0000-0000-000000000003", "storage-003"},
+		[]any{int16(300), "bbbbbbbb-0000-0000-0000-000000000002"},
+		[]any{int8(4), "dddddddd-0000-0000-0000-000000000004", nil},
+	}}}}
+
+	members, err := GetClusterMembers(mock)
+	require.NoError(t, err)
+	require.Equal(t, clusterMembersExpr, mock.exprs[len(mock.exprs)-1])
+	require.Equal(t, []ClusterMember{
+		{ID: 1, UUID: testInstanceUUID, Name: "router-001"},
+		{ID: 3, UUID: "cccccccc-0000-0000-0000-000000000003", Name: "storage-003"},
+		{ID: 300, UUID: "bbbbbbbb-0000-0000-0000-000000000002"},
+		{ID: 4, UUID: "dddddddd-0000-0000-0000-000000000004"},
+	}, members)
+}
+
+// stringerUUID is a uuid value that carries its text form the way a decoded
+// non-string uuid value does: behind a String() method.
+type stringerUUID string
+
+func (u stringerUUID) String() string { return string(u) }
+
+// TestGetClusterMembers_memberUUIDStringer checks a uuid the transport
+// delivers as a value rather than a string: it must still land as its text
+// form.
+func TestGetClusterMembers_memberUUIDStringer(t *testing.T) {
+	m := &mockEvaler{queue: [][]any{{[]any{[]any{
+		int8(5),
+		stringerUUID("eeeeeeee-0000-0000-0000-000000000005"), "storage-005",
+	}}}}}
+
+	members, err := GetClusterMembers(m)
+	require.NoError(t, err)
+	require.Equal(t, []ClusterMember{
+		{ID: 5, UUID: "eeeeeeee-0000-0000-0000-000000000005", Name: "storage-005"},
+	}, members)
+}
+
+func TestGetClusterMembers_error(t *testing.T) {
+	m := &mockEvaler{err: errors.New("boom"), errOn: 1}
+
+	_, err := GetClusterMembers(m)
+	require.ErrorContains(t, err, "failed to get _cluster membership")
+}
+
+func TestGetClusterMembers_empty(t *testing.T) {
+	m := &mockEvaler{queue: [][]any{nil}}
+
+	_, err := GetClusterMembers(m)
+	require.ErrorContains(t, err, "instance returned empty _cluster")
+}
+
+func TestGetInstanceInfo_error(t *testing.T) {
+	m := &mockEvaler{err: errors.New("boom"), errOn: 1}
+
+	_, err := GetInstanceInfo(m)
+	require.ErrorContains(t, err, "failed to get instance info")
+}
+
+// Ensure connector.RequestOpts zero value compiles (the wrappers pass it).
+var _ connector.RequestOpts
