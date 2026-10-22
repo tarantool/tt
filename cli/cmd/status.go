@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
@@ -13,6 +14,9 @@ import (
 
 var (
 	errInvalidFormatValidFormatsAreJSONYAMLTablePrettyTable = errors.New("invalid format: ")
+	errNegativeInstanceTimeout                              = errors.New(
+		"instance timeout must not be negative",
+	)
 )
 
 // The output formats of tt status.
@@ -31,6 +35,8 @@ type statusOpts struct {
 	details bool
 	// Deprecated: use --format instead.
 	pretty bool
+	// instanceTimeout bounds status collection for each instance; zero disables it.
+	instanceTimeout time.Duration
 }
 
 var opts statusOpts
@@ -76,11 +82,19 @@ Columns:
 
 	_ = statusCmd.Flags().MarkDeprecated("pretty", "use --format instead")
 
+	statusCmd.Flags().DurationVar(&opts.instanceTimeout, "instance-timeout",
+		status.DefaultInstanceTimeout,
+		"timeout for collecting a single instance's status; 0 disables the timeout")
+
 	return statusCmd
 }
 
 // internalStatusModule is a default status module.
 func internalStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	if opts.instanceTimeout < 0 {
+		return errNegativeInstanceTimeout
+	}
+
 	if !isConfigExist(cmdCtx) {
 		return errNoConfig
 	}
@@ -122,5 +136,10 @@ func internalStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		printer = status.NewTablePrinter(status.WithDetails(opts.details))
 	}
 
-	return status.Status(runningCtx, printer)
+	err = status.Status(runningCtx, printer, opts.instanceTimeout)
+	if err != nil {
+		return fmt.Errorf("failed to get status: %w", err)
+	}
+
+	return nil
 }
