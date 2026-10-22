@@ -839,24 +839,51 @@ func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx) error {
 	return nil
 }
 
-// Stop the Instance.
+// Stop stops an instance and reports any interruption or termination error.
 func Stop(run *InstanceCtx) error {
-	fullInstanceName := GetAppInstanceName(*run)
+	return StopAll([]InstanceCtx{*run})
+}
 
-	pid, err := process_utils.StopProcess(run.PIDFile)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			log.Debugf("The instance %s is already stopped", fullInstanceName)
-
-			return nil
-		}
-
-		return err
+// StopAll interrupts all selected instances before waiting for them to exit.
+// A missing pid file means the instance is already stopped. Other errors are
+// collected without preventing the remaining instances from stopping.
+func StopAll(runs []InstanceCtx) error {
+	type instanceProcess struct {
+		name string
+		pid  int
 	}
 
-	log.Infof("The Instance %s (PID = %v) has been terminated.", fullInstanceName, pid)
+	processes := make([]instanceProcess, 0, len(runs))
 
-	return nil
+	var stopErrors []error
+
+	for _, run := range runs {
+		name := GetAppInstanceName(run)
+		pid, err := process_utils.InterruptProcess(run.PIDFile)
+
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			log.Debugf("The instance %s is already stopped", name)
+		case err != nil:
+			stopErrors = append(stopErrors, fmt.Errorf("failed to stop instance %s: %w", name, err))
+		default:
+			processes = append(processes, instanceProcess{name: name, pid: pid})
+		}
+	}
+
+	for _, proc := range processes {
+		err := process_utils.WaitProcessTermination(proc.pid, process_utils.TerminationTimeout)
+		if err != nil {
+			stopErrors = append(stopErrors,
+				fmt.Errorf("failed to stop instance %s (PID = %d): %w", proc.name, proc.pid, err))
+
+			continue
+		}
+
+		log.Infof("The Instance %s (PID = %v) has been terminated.", proc.name, proc.pid)
+	}
+
+	return errors.Join(stopErrors...)
 }
 
 // Kill kills instance process.

@@ -179,15 +179,8 @@ func getRunningPid(pidFile string) (int, error) {
 	return pid, nil
 }
 
-// StopProcess stops the process by pidFile, waiting TerminationTimeout for it
-// to exit.
-func StopProcess(pidFile string) (int, error) {
-	return StopProcessWithin(pidFile, TerminationTimeout)
-}
-
-// StopProcessWithin sends SIGINT to the process by pidFile and waits up to
-// timeout for it to exit.
-func StopProcessWithin(pidFile string, timeout time.Duration) (int, error) {
+// InterruptProcess sends SIGINT to the process by pidFile without waiting for it to exit.
+func InterruptProcess(pidFile string) (int, error) {
 	pid, err := getRunningPid(pidFile)
 	if err != nil {
 		return 0, fmt.Errorf("can't get pid of running process: %w", err)
@@ -198,8 +191,35 @@ func StopProcessWithin(pidFile string, timeout time.Duration) (int, error) {
 		return 0, fmt.Errorf(`can't terminate the process. Error: "%w"`, err)
 	}
 
-	if res := waitProcessTermination(pid, timeout, processPollInterval); !res {
-		return 0, errProcessTermination
+	return pid, nil
+}
+
+// WaitProcessTermination waits up to timeout for the process to exit.
+func WaitProcessTermination(pid int, timeout time.Duration) error {
+	if !waitProcessTermination(pid, timeout, processPollInterval) {
+		return errProcessTermination
+	}
+
+	return nil
+}
+
+// StopProcess stops the process by pidFile, waiting TerminationTimeout for it
+// to exit.
+func StopProcess(pidFile string) (int, error) {
+	return StopProcessWithin(pidFile, TerminationTimeout)
+}
+
+// StopProcessWithin sends SIGINT to the process by pidFile and waits up to
+// timeout for it to exit.
+func StopProcessWithin(pidFile string, timeout time.Duration) (int, error) {
+	pid, err := InterruptProcess(pidFile)
+	if err != nil {
+		return 0, err
+	}
+
+	err = WaitProcessTermination(pid, timeout)
+	if err != nil {
+		return 0, err
 	}
 
 	return pid, nil

@@ -230,6 +230,8 @@ for machine-readable output.
 
 ### Changed
 
+- `tt stop` and `tt restart`: interrupt all selected instance supervisors before
+  waiting for them to exit, allowing instances to shut down in parallel.
 - `tt log -f` / `tt tcm log --follow`: only complete lines are printed. A
   half-written line stays buffered until its newline arrives instead of
   being split into two records.
