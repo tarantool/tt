@@ -77,6 +77,27 @@ func makeInstanceOrchestrator(orchestratorType replicaset.Orchestrator,
 	return orchestrator, err
 }
 
+// DiscoverInstance reads the live topology through the instance's orchestrator.
+// Backup planning uses the same discovery implementation as replicaset commands.
+func DiscoverInstance(conn connector.Connector) (replicaset.Replicasets, error) {
+	orchestratorType, err := getInstanceOrchestrator(replicaset.OrchestratorUnknown, conn)
+	if err != nil {
+		return replicaset.Replicasets{}, fmt.Errorf("failed to determine orchestrator: %w", err)
+	}
+
+	orchestrator, err := makeInstanceOrchestrator(orchestratorType, conn)
+	if err != nil {
+		return replicaset.Replicasets{}, fmt.Errorf("failed to create orchestrator: %w", err)
+	}
+
+	topology, err := orchestrator.Discovery(replicaset.SkipCache)
+	if err != nil {
+		return replicaset.Replicasets{}, fmt.Errorf("failed to discover topology: %w", err)
+	}
+
+	return topology, nil
+}
+
 // getInstanceOrchestrator determines a used orchestrator type for an instance.
 func getInstanceOrchestrator(manual replicaset.Orchestrator,
 	conn connector.Connector,

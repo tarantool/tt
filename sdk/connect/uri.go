@@ -175,6 +175,9 @@ func ParseBaseURI(uri string) (string, string) {
 	case uriLen >= 7 && uri[0:7] == "unix://":
 		network = UnixNetwork
 		address = uri[7:]
+	case strings.HasPrefix(uri, "unix/:"):
+		network = UnixNetwork
+		address = strings.TrimPrefix(uri, "unix/:")
 	case uriLen >= 6 && uri[0:6] == "tcp://":
 		network = TCPNetwork
 		address = uri[6:]

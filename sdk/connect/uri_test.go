@@ -225,6 +225,9 @@ func TestParseBaseURI(t *testing.T) {
 		{"./path/to/socket", connect.UnixNetwork, "./path/to/socket"},
 		{"/path/to/socket", connect.UnixNetwork, "/path/to/socket"},
 		{"unix:///path/to/socket", connect.UnixNetwork, "/path/to/socket"},
+		{"unix/:/path/to/socket", connect.UnixNetwork, "/path/to/socket"},
+		{"unix/:./path/to/socket", connect.UnixNetwork, "./path/to/socket"},
+		{"unix/:../path/to/socket", connect.UnixNetwork, "../path/to/socket"},
 		{"unix://..//path/to/socket", connect.UnixNetwork, "..//path/to/socket"},
 		{"..//path", connect.UnixNetwork, "..//path"},
 		{"some_uri", connect.TCPNetwork, "some_uri"}, // Keeps unchanged.

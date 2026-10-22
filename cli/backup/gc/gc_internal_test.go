@@ -1,0 +1,848 @@
+package gc
+
+import (
+	"errors"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/sdk/backup/storage"
+	"github.com/tarantool/tt/v3/cli/backup"
+	"github.com/tarantool/tt/v3/cli/backup/chain"
+)
+
+const day = 24 * time.Hour
+
+func TestGcWithoutRetentionRuleIsNoOp(t *testing.T) {
+	file := newFixture(t)
+	file.addChain("2026-01-01", 60*day, 59*day)
+	file.addChain("2026-02-01", 30*day)
+	file.addArchive("2026-01-15-dangling", 60*day)
+
+	before := file.store.keys()
+
+	plan, result := file.run(Options{OrphanAge: time.Hour})
+
+	require.True(t, plan.Empty())
+	require.Zero(t, result.Backups)
+	require.Zero(t, result.Orphans)
+	require.Equal(t, before, file.store.keys())
+	require.Empty(t, file.store.deletes)
+	require.True(t, containsNote(plan, "no retention rule given"))
+}
+
+func TestGcKeepFullDeletesOlderChains(t *testing.T) {
+	f := newFixture(t)
+	f.addChain("2026-01-01", 60*day)
+	f.addChain("2026-02-01", 30*day)
+	f.addChain("2026-02-20", 10*day)
+
+	plan, result := f.run(Options{KeepFull: 1})
+
+	// The newest chain is the head and is kept anyway; --keep-full 1 keeps it as
+	// the single retained chain, so both older chains go.
+	require.Equal(t, []string{"2026-01-01", "2026-02-01"}, deletedBackupIDs(plan))
+	require.Equal(t, 2, result.Backups)
+	require.Equal(t, 2, result.Archives)
+}
+
+func TestGcCascadesOverWholeChain(t *testing.T) {
+	file := newFixture(t)
+	file.addChain("2026-01-01", 60*day, 59*day, 58*day)
+	file.addChain("2026-02-01", 30*day)
+
+	plan, _ := file.run(Options{KeepFull: 1})
+
+	// Deleting the full backup takes every increment based on it, newest first.
+	require.Equal(t, []string{
+		"2026-01-01-inc2", "2026-01-01-inc1", "2026-01-01",
+	}, deletedBackupIDs(plan))
+	require.Equal(t, []string{
+		storage.ManifestKey("2026-01-01-inc2"),
+		storage.ArchiveKey("2026-01-01-inc2", replicasetA),
+		storage.ManifestKey("2026-01-01-inc1"),
+		storage.ArchiveKey("2026-01-01-inc1", replicasetA),
+		storage.ManifestKey("2026-01-01"),
+		storage.ArchiveKey("2026-01-01", replicasetA),
+	}, file.store.deletes)
+}
+
+func TestGcKeepDaysHoldsTheBackupsAKeptIncrementNeeds(t *testing.T) {
+	file := newFixture(t)
+	// Only inc3 falls inside the retention window; it is unrecoverable without
+	// the full backup and the increments before it, so the whole chain stays.
+	file.addChain("2026-01-01", 30*day, 25*day, 20*day, 2*day)
+	file.addChain("2026-02-25", 1*day)
+
+	plan, result := file.run(Options{KeepDays: 7})
+
+	require.True(t, plan.Empty())
+	require.Zero(t, result.Backups)
+	require.Empty(t, file.store.deletes)
+}
+
+func TestGcKeepDaysCutsTheTailAfterTheLastKeptBackup(t *testing.T) {
+	file := newFixture(t)
+	// inc1 is inside the window, inc2 and inc3 are not: the chain is cut after
+	// inc1, newest first.
+	file.addChain("2026-01-01", 30*day, 2*day)
+	file.addBackup(backupSpec{
+		id: "2026-01-01-inc2", previous: "2026-01-01-inc1", base: "2026-01-01",
+		backupType: backup.BackupTypeIncremental, age: 20 * day,
+		vclockBegin: 200, vclockEnd: 300,
+	})
+	file.addBackup(backupSpec{
+		id: "2026-01-01-inc3", previous: "2026-01-01-inc2", base: "2026-01-01",
+		backupType: backup.BackupTypeIncremental, age: 19 * day,
+		vclockBegin: 300, vclockEnd: 400,
+	})
+	file.addChain("2026-02-25", 1*day)
+
+	plan, _ := file.run(Options{KeepDays: 7})
+
+	require.Equal(t, []string{"2026-01-01-inc3", "2026-01-01-inc2"}, deletedBackupIDs(plan))
+	require.Contains(t, file.store.keys(), storage.ManifestKey("2026-01-01"))
+	require.Contains(t, file.store.keys(), storage.ManifestKey("2026-01-01-inc1"))
+}
+
+func TestGcKeepRulesCombine(t *testing.T) {
+	file := newFixture(t)
+	file.addChain("2026-01-01", 60*day)
+	file.addChain("2026-02-01", 30*day)
+	file.addChain("2026-02-25", 1*day)
+
+	// --keep-full 1 alone would delete both older chains, but --keep-days 45
+	// still covers the middle one: a backup goes only when no rule keeps it.
+	plan, _ := file.run(Options{KeepFull: 1, KeepDays: 45})
+
+	require.Equal(t, []string{"2026-01-01"}, deletedBackupIDs(plan))
+}
+
+func TestGcNeverDeletesTheHeadChain(t *testing.T) {
+	file := newFixture(t)
+	// A single chain, far outside the retention window: gc still keeps it.
+	file.addChain("2026-01-01", 60*day, 59*day)
+
+	plan, result := file.run(Options{KeepDays: 7})
+
+	require.True(t, plan.Empty())
+	require.Zero(t, result.Backups)
+	require.Empty(t, file.store.deletes)
+	require.True(t, containsNote(plan, `chain "2026-01-01" is kept`))
+	require.True(t, containsNote(plan, "newest manifest"))
+	require.True(t, containsNote(plan, "never deletes every chain"))
+}
+
+func TestGcProtectsTheNewestRecoverableChain(t *testing.T) {
+	file := newFixture(t)
+	// The newest manifest belongs to a tail whose full backup is gone (an expiry
+	// rule ate it). Protecting only that one would delete every backup that can
+	// still be recovered from and keep the one that cannot.
+	file.addChain("2026-01-01", 60*day, 59*day)
+	file.addBackup(backupSpec{
+		id: "2026-03-01-orphan", previous: "2026-02-28", base: "2026-02-28",
+		backupType: backup.BackupTypeIncremental, age: 1 * day,
+		vclockBegin: 100, vclockEnd: 200,
+	})
+
+	// A generous --orphan-age keeps the tail out of the stale-tail rule, so the
+	// only thing under test is which chain the protections land on.
+	plan, result := file.run(Options{KeepDays: 7, OrphanAge: 3 * day})
+
+	require.True(t, plan.Empty(), "plan: %+v", plan.Backups)
+	require.Zero(t, result.Backups)
+	require.Contains(t, file.store.keys(), storage.ManifestKey("2026-01-01"))
+	require.True(t, containsNote(plan, "only chain that can still be recovered"))
+}
+
+func TestGcCollectsAStaleTailEvenWhenItHoldsTheNewestManifest(t *testing.T) {
+	file := newFixture(t)
+	// Head protection exists because an upload may be appending to the chain.
+	// Nothing appends to a chain whose full backup is gone and whose manifests
+	// are all older than --orphan-age, so protecting it would leak forever.
+	file.addChain("2026-01-01", 60*day)
+	file.addBackup(backupSpec{
+		id: "2026-03-01-orphan", previous: "2026-02-28", base: "2026-02-28",
+		backupType: backup.BackupTypeIncremental, age: 40 * day,
+		vclockBegin: 100, vclockEnd: 200,
+	})
+
+	plan, _ := file.run(Options{KeepFull: 1, OrphanAge: day})
+
+	require.Equal(t, []string{"2026-03-01-orphan"}, deletedBackupIDs(plan))
+	require.Contains(t, file.store.keys(), storage.ManifestKey("2026-01-01"))
+}
+
+func TestGcInterruptedOnTheNewestManifestLeavesCollectableGarbage(t *testing.T) {
+	file := newFixture(t)
+	// The run above, killed between the manifest delete and the archive delete.
+	// The archive is left with the highest backup id in the storage, so the
+	// in-flight shield would protect it forever: nothing is going to upload that
+	// id again, and no other rule ever looks at an archive of a deleted backup.
+	file.addChain("2026-01-01", 60*day)
+	file.addBackup(backupSpec{
+		id: "2026-03-01-orphan", previous: "2026-02-28", base: "2026-02-28",
+		backupType: backup.BackupTypeIncremental, age: 40 * day,
+		vclockBegin: 100, vclockEnd: 200,
+	})
+
+	stranded := storage.ArchiveKey("2026-03-01-orphan", replicasetA)
+
+	file.removeObject(storage.ManifestKey("2026-03-01-orphan"))
+
+	plan, result := file.run(Options{KeepFull: 1, OrphanAge: day})
+
+	require.Equal(t, []string{stranded}, orphanKeys(plan))
+	require.Equal(t, 1, result.Orphans)
+	require.NotContains(t, file.store.keys(), stranded)
+}
+
+func TestGcDeletesASharedArchiveOnlyOnce(t *testing.T) {
+	file := newFixture(t)
+	file.addBackup(backupSpec{
+		id: "2026-01-01", base: "2026-01-01", backupType: backup.BackupTypeFull,
+		age: 60 * day, vclockEnd: 100,
+	})
+
+	second := file.addBackup(backupSpec{
+		id: "2026-01-02", base: "2026-01-02", backupType: backup.BackupTypeFull,
+		age: 59 * day, vclockEnd: 100,
+	})
+	// Both doomed manifests name one archive: it is deleted, once.
+	shared := storage.ArchiveKey("2026-01-01", replicasetA)
+
+	second.Shards[replicasetA].Instance.Artifact.Path = shared
+	file.putObject(storage.ManifestKey("2026-01-02"), file.encode(second), testNow)
+	file.addChain("2026-02-25", 1*day)
+
+	_, result := file.run(Options{KeepDays: 7})
+
+	require.Equal(t, 2, result.Backups)
+	require.Equal(t, 1, result.Archives)
+	require.Equal(t, 1, strings.Count(strings.Join(file.store.deletes, "\n"), shared))
+}
+
+func TestGcDeletesOldChainButKeepsTheHeadUnderTheSameRules(t *testing.T) {
+	file := newFixture(t)
+	file.addChain("2026-01-01", 60*day)
+	file.addChain("2026-01-15", 50*day)
+
+	plan, _ := file.run(Options{KeepDays: 7})
+
+	require.Equal(t, []string{"2026-01-01"}, deletedBackupIDs(plan))
+	require.Contains(t, file.store.keys(), storage.ManifestKey("2026-01-15"))
+}
+
+func TestGcDeletesManifestBeforeItsArchives(t *testing.T) {
+	file := newFixture(t)
+	file.addBackup(backupSpec{
+		id: "2026-01-01", base: "2026-01-01", backupType: backup.BackupTypeFull,
+		age: 60 * day, vclockEnd: 100,
+		replicasets: []string{replicasetA, replicasetB},
+	})
+	file.addChain("2026-02-25", 1*day)
+
+	file.run(Options{KeepDays: 7})
+
+	// The manifest goes first: archives without a manifest are collected by the
+	// next run, a manifest without archives breaks recovery.
+	require.Equal(t, []string{
+		storage.ManifestKey("2026-01-01"),
+		storage.ArchiveKey("2026-01-01", replicasetA),
+		storage.ArchiveKey("2026-01-01", replicasetB),
+	}, file.store.deletes)
+}
+
+func TestGcDryRunPlanIsNotExecuted(t *testing.T) {
+	file := newFixture(t)
+	file.addChain("2026-01-01", 60*day, 59*day)
+	file.addChain("2026-02-25", 1*day)
+	file.addArchive("2026-01-15-dangling", 30*day)
+
+	before := file.store.keys()
+
+	plan := file.plan(Options{KeepDays: 7})
+
+	require.False(t, plan.Empty())
+	require.Equal(t, before, file.store.keys())
+	require.Empty(t, file.store.deletes)
+}
+
+func TestGcDeletesDanglingArchiveOlderThanOrphanAge(t *testing.T) {
+	file := newFixture(t)
+	file.addChain("2026-02-25", 1*day)
+
+	old := file.addArchive("2026-01-15-abandoned", 30*day)
+	young := file.addArchive("2026-02-24-abandoned", 2*time.Hour)
+
+	plan, result := file.run(Options{KeepFull: 1, OrphanAge: day})
+
+	require.Equal(t, []string{old}, orphanKeys(plan))
+	require.Equal(t, 1, result.Orphans)
+	require.NotContains(t, file.store.keys(), old)
+	require.Contains(t, file.store.keys(), young)
+}
+
+func TestGcKeepsArchivesOfInvalidManifest(t *testing.T) {
+	// A structurally invalid manifest cannot say which archives it still refers
+	// to, so its archives look unreferenced without being abandoned. Collecting
+	// them would delete the live data of a backup that exists - and unlike every
+	// other command here, gc cannot take it back.
+	file := newFixture(t)
+	file.addChain("2026-02-25", 1*day)
+
+	broken := file.addBackup(backupSpec{
+		id: "2026-01-10-broken", previous: "", base: "2026-01-10-broken",
+		backupType: backup.BackupTypeFull, age: 30 * day,
+	})
+	// Readable and well-formed JSON, but not a usable manifest.
+	broken.Shards = map[string]backup.Shard{}
+	file.putObject(storage.ManifestKey(string(broken.BackupID)), file.encode(broken),
+		testNow.Add(-30*day))
+
+	plan, result := file.run(Options{KeepFull: 1, OrphanAge: day})
+
+	require.Empty(t, orphanKeys(plan))
+	require.Zero(t, result.Orphans)
+	require.Contains(t, file.store.keys(), storage.ArchiveKey(string(broken.BackupID), replicasetA))
+}
+
+func TestGcKeepsArchiveNewerThanEveryManifest(t *testing.T) {
+	file := newFixture(t)
+	file.addChain("2026-01-01", 60*day)
+
+	// An upload in progress: archives land before the manifest that refers to
+	// them, so an archive written within --orphan-age whose backup id is above
+	// every manifest is not an orphan. Age still has the last word - see
+	// TestGcInterruptedOnTheNewestManifestLeavesCollectableGarbage - so an
+	// upload slower than --orphan-age needs a wider window, not a wider id rule.
+	inFlight := file.addArchive("2026-02-28-uploading", 30*time.Minute)
+
+	plan, result := file.run(Options{KeepFull: 1, OrphanAge: time.Hour})
+
+	require.Empty(t, orphanKeys(plan))
+	require.Zero(t, result.Orphans)
+	require.Contains(t, file.store.keys(), inFlight)
+	require.True(t, containsNote(plan, "newer than the newest manifest"))
+}
+
+func TestGcRechecksManifestBeforeDeletingAnOrphan(t *testing.T) {
+	file := newFixture(t)
+	file.addChain("2026-02-25", 1*day)
+
+	// The manifest of this backup exists but the listing does not show it yet:
+	// its archive looks dangling and must survive the direct read.
+	lagging := file.addBackup(backupSpec{
+		id: "2026-02-20", base: "2026-02-20", backupType: backup.BackupTypeFull,
+		age: 30 * day, vclockEnd: 100,
+	})
+	manifestKey := storage.ManifestKey(string(lagging.BackupID))
+
+	file.store.hiddenFromList[manifestKey] = true
+
+	archiveKey := storage.ArchiveKey(string(lagging.BackupID), replicasetA)
+
+	plan, result := file.run(Options{KeepFull: 1, OrphanAge: day})
+
+	require.Equal(t, []string{archiveKey}, orphanKeys(plan))
+	require.Zero(t, result.Orphans)
+	require.Equal(t, []string{archiveKey}, result.Kept)
+	require.Contains(t, file.store.gets, manifestKey)
+	require.Contains(t, file.store.keys(), archiveKey)
+	require.Empty(t, file.store.deletes)
+}
+
+func TestGcKeepsForkedChain(t *testing.T) {
+	file := newFixture(t)
+	file.addChain("2026-01-01", 60*day, 59*day)
+	// A second increment on the same parent: the chain forks and gc leaves the
+	// whole diagnostic picture to tt backup verify.
+	file.addBackup(backupSpec{
+		id: "2026-01-01-fork", previous: "2026-01-01", base: "2026-01-01",
+		backupType: backup.BackupTypeIncremental, age: 58 * day,
+		vclockBegin: 100, vclockEnd: 200,
+	})
+	file.addChain("2026-02-25", 1*day)
+
+	plan, _ := file.run(Options{KeepDays: 7, KeepFull: 1})
+
+	require.True(t, plan.Empty())
+	require.True(t, containsNote(plan, "chain problems"))
+}
+
+func TestGcKeepsForkedChainOutOfTheKeepFullCount(t *testing.T) {
+	file := newFixture(t)
+	file.addChain("2026-01-01", 60*day)
+	file.addChain("2026-01-15", 50*day)
+	// A broken chain between the healthy ones must not consume the keep-full slot
+	// that would otherwise protect 2026-01-15. It is young, so the stale-tail
+	// rule does not fire either.
+	file.addBackup(backupSpec{
+		id: "2026-02-01-orphan", previous: "vanished", base: "2026-02-01",
+		backupType: backup.BackupTypeIncremental, age: 2 * time.Hour,
+		vclockBegin: 100, vclockEnd: 200,
+	})
+	file.addChain("2026-02-25", 1*day)
+
+	plan, _ := file.run(Options{KeepFull: 2})
+
+	require.Equal(t, []string{"2026-01-01"}, deletedBackupIDs(plan))
+}
+
+func TestGcDeletesStaleOrphanTail(t *testing.T) {
+	file := newFixture(t)
+	file.addChain("2026-02-25", 1*day)
+	// An increment whose full backup is gone: nothing can be recovered from it,
+	// and no other rule would ever collect it.
+	file.addBackup(backupSpec{
+		id: "2026-01-05-orphan", previous: "2026-01-01", base: "2026-01-01",
+		backupType: backup.BackupTypeIncremental, age: 40 * day,
+		vclockBegin: 100, vclockEnd: 200,
+	})
+
+	plan, result := file.run(Options{KeepFull: 1, OrphanAge: day})
+
+	require.Equal(t, []string{"2026-01-05-orphan"}, deletedBackupIDs(plan))
+	require.Equal(t, 1, result.Backups)
+}
+
+func TestGcKeepsFreshOrphanTail(t *testing.T) {
+	file := newFixture(t)
+	file.addChain("2026-02-25", 1*day)
+	// The same tail, but young enough to be the increment of an upload whose
+	// full backup manifest has not landed yet.
+	file.addBackup(backupSpec{
+		id: "2026-02-26-orphan", previous: "2026-02-24", base: "2026-02-24",
+		backupType: backup.BackupTypeIncremental, age: 2 * time.Hour,
+		vclockBegin: 100, vclockEnd: 200,
+	})
+
+	plan, _ := file.run(Options{KeepFull: 1, OrphanAge: day})
+
+	require.Empty(t, deletedBackupIDs(plan))
+}
+
+func TestGcKeepDaysDoesNotProtectAStaleTail(t *testing.T) {
+	file := newFixture(t)
+	file.addChain("2026-02-25", 1*day)
+	// A tail that lost its full backup is routed to the stale-tail rule, which
+	// reads --orphan-age and nothing else, so --keep-days never reaches it: a
+	// ten-year compliance hold does not stop gc from deleting a 40-day-old tail.
+	// The command's help promises the opposite - "a backup is deleted only when
+	// no rule keeps it" - and this pins what gc does, not what the help says.
+	file.addBackup(backupSpec{
+		id: "2026-01-05-orphan", previous: "2026-01-01", base: "2026-01-01",
+		backupType: backup.BackupTypeIncremental, age: 40 * day,
+		vclockBegin: 100, vclockEnd: 200,
+	})
+
+	plan, _ := file.run(Options{KeepFull: 99, KeepDays: 36500, OrphanAge: day})
+
+	require.Equal(t, []string{"2026-01-05-orphan"}, deletedBackupIDs(plan))
+	require.NotContains(t, file.store.keys(), storage.ManifestKey("2026-01-05-orphan"))
+}
+
+func TestGcKeepsArchiveOutsideTheKeyLayout(t *testing.T) {
+	file := newFixture(t)
+	file.addChain("2026-01-01", 60*day)
+	file.putObject("data/README.txt", []byte("not an archive"), testNow.Add(-60*day))
+
+	plan, result := file.run(Options{KeepFull: 1, OrphanAge: day})
+
+	require.Empty(t, orphanKeys(plan))
+	require.Zero(t, result.Orphans)
+	require.Contains(t, file.store.keys(), "data/README.txt")
+	require.True(t, containsNote(plan, "layout"))
+}
+
+func TestGcKeepsEveryArchiveWhenNoManifestIsStoredYet(t *testing.T) {
+	file := newFixture(t)
+	// The first backup of a new cluster: archives are uploaded before the
+	// manifest, so an empty manifests/ means "an upload may be in flight", not
+	// "everything here is garbage".
+	first := file.addArchive("2026-02-28-first", 30*day)
+
+	plan, result := file.run(Options{KeepFull: 1, OrphanAge: time.Hour})
+
+	require.Empty(t, orphanKeys(plan))
+	require.Zero(t, result.Orphans)
+	require.Contains(t, file.store.keys(), first)
+}
+
+func TestGcHandlesADegradedBackup(t *testing.T) {
+	file := newFixture(t)
+	// Both backups ran with replicasetB unreachable, so its shard is stored as an
+	// error and owns no archive at all. gc has to read past the hole twice: the
+	// doomed backup may schedule only the archive that exists, and the survivor's
+	// shard list has to keep protecting the archive it did produce.
+	file.addBackup(backupSpec{
+		id: "2026-01-01", base: "2026-01-01", backupType: backup.BackupTypeFull,
+		age: 60 * day, vclockEnd: 100,
+		replicasets: []string{replicasetA}, failedReplicasets: []string{replicasetB},
+	})
+	file.addBackup(backupSpec{
+		id: "2026-02-25", base: "2026-02-25", backupType: backup.BackupTypeFull,
+		age: 30 * day, vclockEnd: 100,
+		replicasets: []string{replicasetA}, failedReplicasets: []string{replicasetB},
+	})
+
+	plan, result := file.run(Options{KeepFull: 1, OrphanAge: day})
+
+	require.Equal(t, []string{"2026-01-01"}, deletedBackupIDs(plan))
+	require.Equal(t, []string{storage.ArchiveKey("2026-01-01", replicasetA)},
+		plan.Backups[0].ArchiveKeys)
+	require.Equal(t, 1, result.Archives)
+	require.Empty(t, orphanKeys(plan))
+	require.Contains(t, file.store.keys(), storage.ArchiveKey("2026-02-25", replicasetA))
+}
+
+func TestGcKeepsBackupWithoutCreationTime(t *testing.T) {
+	file := newFixture(t)
+	// Every retention rule reads creation_time, so a manifest without one has no
+	// defined age. It is an invalid manifest, which makes its chain problematic
+	// and puts it out of gc's reach: verify reports it, gc leaves it alone.
+	file.addChain("2026-02-25", 1*day)
+	file.addBackup(backupSpec{
+		id: "2026-01-01", base: "2026-01-01", backupType: backup.BackupTypeFull,
+		vclockEnd: 100, noCreationTime: true,
+	})
+
+	plan, _ := file.run(Options{KeepDays: 7, KeepFull: 1})
+
+	require.Empty(t, deletedBackupIDs(plan))
+	require.Contains(t, file.store.keys(), storage.ManifestKey("2026-01-01"))
+	require.True(t, containsNote(plan, "chain problems"))
+}
+
+func TestGcKeepsAChainWhoseAgeCannotBeEstablished(t *testing.T) {
+	// The retention rules themselves must not read a missing creation time as
+	// "ancient", whatever validation does upstream.
+	manifest := &backup.ClusterManifest{CreationTime: time.Time{}}
+	opts := Options{KeepDays: 7, Now: testNow}
+
+	require.True(t, opts.keepsByAge(manifest))
+	require.False(t, isStale(group{entries: []*chain.Entry{{Manifest: manifest}}},
+		Options{OrphanAge: day, Now: testNow}))
+}
+
+func TestGcKeepsAnObjectExactlyAtTheOrphanCutoff(t *testing.T) {
+	// Every age rule compares with !Before(cutoff), so an object dated exactly on
+	// the cutoff is kept and one nanosecond more collects it. Nothing pinned that
+	// boundary: turning one comparison into <= would move the deletion window by
+	// a whole tick with the rest of the suite still green.
+	planAged := func(age time.Duration) *Plan {
+		file := newFixture(t)
+		file.addChain("2026-02-25", 1*day)
+		file.addArchive("2026-01-15-abandoned", age)
+		file.addBackup(backupSpec{
+			id: "2026-01-05-orphan", previous: "2026-01-01", base: "2026-01-01",
+			backupType: backup.BackupTypeIncremental, age: age,
+			vclockBegin: 100, vclockEnd: 200,
+		})
+
+		return file.plan(Options{KeepFull: 1, OrphanAge: 30 * day})
+	}
+
+	require.True(t, planAged(30*day).Empty(), "collected an object dated at the cutoff")
+
+	older := planAged(30*day + 1)
+	require.Equal(t, []string{"2026-01-05-orphan"}, deletedBackupIDs(older))
+	require.Len(t, orphanKeys(older), 1)
+
+	// --keep-days counts calendar days, so its cutoff has to be pinned on its own.
+	opts := Options{KeepDays: 7, Now: testNow}
+	cutoff := testNow.AddDate(0, 0, -7)
+	require.True(t, opts.keepsByAge(&backup.ClusterManifest{CreationTime: cutoff}))
+	require.False(t, opts.keepsByAge(&backup.ClusterManifest{
+		CreationTime: cutoff.Add(-time.Nanosecond),
+	}))
+}
+
+func TestGcKeepsArchiveASurvivorStillRefersTo(t *testing.T) {
+	file := newFixture(t)
+	file.addChain("2026-01-01", 60*day)
+
+	survivor := file.addBackup(backupSpec{
+		id: "2026-02-25", base: "2026-02-25", backupType: backup.BackupTypeFull,
+		age: 1 * day, vclockEnd: 100,
+	})
+	// The surviving manifest points at the doomed backup's archive, so the
+	// archive has to outlive the backup that named it first.
+	shared := storage.ArchiveKey("2026-01-01", replicasetA)
+
+	survivor.Shards[replicasetA].Instance.Artifact.Path = shared
+	file.putObject(storage.ManifestKey("2026-02-25"), file.encode(survivor), testNow)
+
+	plan, _ := file.run(Options{KeepDays: 7})
+
+	require.Equal(t, []string{"2026-01-01"}, deletedBackupIDs(plan))
+	require.Empty(t, plan.Backups[0].ArchiveKeys)
+	require.Contains(t, file.store.keys(), shared)
+	require.True(t, containsNote(plan, "still refers to it"))
+}
+
+func TestGcRefusesToDeleteAKeyOutsideTheDataPrefix(t *testing.T) {
+	file := newFixture(t)
+	doomed := file.addBackup(backupSpec{
+		id: "2026-01-01", base: "2026-01-01", backupType: backup.BackupTypeFull,
+		age: 60 * day, vclockEnd: 100,
+	})
+	file.addChain("2026-02-20", 10*day)
+
+	// Nothing validates artifact.path, so a hand-edited or third-party manifest
+	// can name any object in the storage - here the surviving chain's manifest,
+	// the one object gc must never touch on its way to deleting an archive.
+	survivor := storage.ManifestKey("2026-02-20")
+
+	doomed.Shards[replicasetA].Instance.Artifact.Path = survivor
+	file.putObject(storage.ManifestKey("2026-01-01"), file.encode(doomed), testNow.Add(-60*day))
+
+	plan, result := file.run(Options{KeepFull: 1})
+
+	require.Equal(t, []string{"2026-01-01"}, deletedBackupIDs(plan))
+	require.Empty(t, plan.Backups[0].ArchiveKeys)
+	require.Zero(t, plan.Archives())
+	require.Zero(t, result.Archives)
+	require.Contains(t, file.store.keys(), survivor)
+	require.True(t, containsNote(plan, survivor))
+}
+
+func TestGcExecuteNeverDeletesOutsideDataPrefix(t *testing.T) {
+	file := newFixture(t)
+	file.addChain("2026-01-01", 60*day)
+	file.addChain("2026-02-20", 10*day)
+
+	// However the plan was built, Execute is the last place that can refuse.
+	plan := &Plan{Backups: []Backup{{
+		BackupID:    "2026-01-01",
+		ManifestKey: storage.ManifestKey("2026-01-01"),
+		ArchiveKeys: []string{storage.ManifestKey("2026-02-20"), "random/key"},
+	}}}
+
+	result, err := Execute(t.Context(), file.store, plan)
+
+	require.ErrorContains(t, err, storage.ManifestKey("2026-02-20"))
+	require.Zero(t, result.Backups)
+	require.Zero(t, result.Archives)
+
+	// The same invariant covers the two other kinds of key a plan carries.
+	_, err = Execute(t.Context(), file.store, &Plan{Backups: []Backup{{
+		BackupID: "2026-01-01", ManifestKey: "random/manifest.json",
+	}}})
+	require.ErrorContains(t, err, "random/manifest.json")
+
+	_, err = Execute(t.Context(), file.store, &Plan{
+		Orphans: []Orphan{{Key: storage.ManifestKey("2026-02-20")}},
+	})
+	require.ErrorContains(t, err, storage.ManifestKey("2026-02-20"))
+
+	require.False(t, slices.ContainsFunc(file.store.deletes, func(key string) bool {
+		return !strings.HasPrefix(key, storage.DataPrefix())
+	}), "deleted outside %s: %v", storage.DataPrefix(), file.store.deletes)
+	require.Contains(t, file.store.keys(), storage.ManifestKey("2026-02-20"))
+	require.Contains(t, file.store.keys(), storage.ManifestKey("2026-01-01"))
+}
+
+func TestGcKeepsBackupASurvivorIsRecoveredThrough(t *testing.T) {
+	file := newFixture(t)
+	file.addChain("2026-01-01", 60*day)
+	// An increment that declares another chain as its base but is recovered
+	// through this one. chain.Build does not call that a problem, so the plan
+	// would delete the backup this increment replays.
+	file.addBackup(backupSpec{
+		id: "2026-02-25", previous: "2026-01-01", base: "2026-02-25",
+		backupType: backup.BackupTypeIncremental, age: 1 * day,
+		vclockBegin: 100, vclockEnd: 200,
+	})
+
+	plan, _ := file.run(Options{KeepDays: 7})
+
+	require.Empty(t, deletedBackupIDs(plan))
+	require.Contains(t, file.store.keys(), storage.ManifestKey("2026-01-01"))
+	require.True(t, containsNote(plan, "recovered through it"))
+}
+
+func TestGcKeepsADoomedAncestorSharedByTwoSurvivors(t *testing.T) {
+	file := newFixture(t)
+	// Two chains were started from the same backup, so recovery replays it twice
+	// over: the ancestor walk has to stop at a backup it already decided to keep.
+	// Walking it once per survivor would repeat the note and, on a long chain,
+	// the whole walk behind it.
+	file.addChain("2026-01-01", 60*day)
+
+	for _, id := range []string{"2026-02-01", "2026-02-10"} {
+		file.addBackup(backupSpec{
+			id: id, previous: "2026-01-01", base: id,
+			backupType: backup.BackupTypeIncremental, age: 30 * day,
+			vclockBegin: 100, vclockEnd: 200,
+		})
+	}
+
+	// A healthy young chain, so the shared ancestor is not the last one standing
+	// and the retention rules really do schedule it for deletion.
+	file.addChain("2026-03-01", 1*day)
+
+	plan, result := file.run(Options{KeepDays: 45})
+
+	require.Empty(t, deletedBackupIDs(plan))
+	require.Zero(t, result.Backups)
+	require.Contains(t, file.store.keys(), storage.ArchiveKey("2026-01-01", replicasetA))
+
+	kept := `backup "2026-01-01" is kept`
+	require.Equal(t, 1, strings.Count(strings.Join(plan.Notes, "\n"), kept))
+}
+
+func TestGcAlwaysSaysItCannotEmptyTheStorage(t *testing.T) {
+	f := newFixture(t)
+	f.addChain("2026-01-01", 60*day)
+
+	// Both the flagless no-op and a run with rules owe the user the sentence.
+	require.True(t, containsNote(f.plan(Options{}), "never deletes every chain"))
+	require.True(t, containsNote(f.plan(Options{KeepFull: 1}), "never deletes every chain"))
+}
+
+func TestGcFailsOnUnreadableChain(t *testing.T) {
+	file := newFixture(t)
+	file.putObject(storage.ManifestKey("broken"), []byte("{"), testNow)
+
+	_, err := BuildPlan(t.Context(), file.store, Options{KeepFull: 1, Now: testNow})
+
+	require.ErrorContains(t, err, "decode manifest")
+	require.Empty(t, file.store.deletes)
+}
+
+func TestGcFailsOnListError(t *testing.T) {
+	f := newFixture(t)
+
+	f.store.listErr = errors.New("storage is unreachable")
+
+	_, err := BuildPlan(t.Context(), f.store, Options{KeepFull: 1, Now: testNow})
+
+	require.ErrorContains(t, err, "storage is unreachable")
+}
+
+func TestGcReportsWhatItDeletedWhenDeletionFails(t *testing.T) {
+	file := newFixture(t)
+	file.addChain("2026-01-01", 60*day, 59*day)
+	file.addChain("2026-02-25", 1*day)
+
+	failing := storage.ArchiveKey("2026-01-01-inc1", replicasetA)
+
+	file.store.deleteErr[failing] = errors.New("permission denied")
+
+	plan := file.plan(Options{KeepDays: 7})
+	result, err := Execute(t.Context(), file.store, plan)
+
+	require.ErrorContains(t, err, "permission denied")
+	require.Equal(t, 1, result.Backups)
+	require.Zero(t, result.Archives)
+	// The full backup is still there: an interrupted run leaves a valid prefix.
+	require.Contains(t, file.store.keys(), storage.ManifestKey("2026-01-01"))
+}
+
+func TestGcFailsWhenTheManifestDeleteIsDenied(t *testing.T) {
+	file := newFixture(t)
+	file.addChain("2026-01-01", 60*day)
+	file.addChain("2026-02-25", 1*day)
+
+	// manifests/ is read-only: a bucket policy, an expired credential. The backup
+	// is untouched, so nothing may be reported as deleted, and the archives the
+	// manifest still names have to stay exactly where they are.
+	file.store.deleteErr[storage.ManifestKey("2026-01-01")] = errors.New("permission denied")
+
+	plan := file.plan(Options{KeepFull: 1})
+	result, err := Execute(t.Context(), file.store, plan)
+
+	require.ErrorContains(t, err, storage.ManifestKey("2026-01-01"))
+	require.ErrorContains(t, err, "permission denied")
+	require.Zero(t, result.Backups)
+	require.Zero(t, result.Archives)
+	require.Contains(t, file.store.keys(), storage.ArchiveKey("2026-01-01", replicasetA))
+	require.Empty(t, file.store.deletes)
+}
+
+func TestGcAbortsWhenTheOrphanRecheckFails(t *testing.T) {
+	file := newFixture(t)
+	file.addChain("2026-02-25", 1*day)
+
+	first := file.addArchive("2026-01-10-abandoned", 30*day)
+	second := file.addArchive("2026-01-20-abandoned", 30*day)
+	// What makes an orphan deletion safe is the re-check GET, and a GET fails for
+	// reasons that are not "no such key": a 5xx, a throttled bucket. Reading one
+	// of those as "the manifest is gone" would delete a live archive, so the run
+	// stops here - still owing the operator the count of what it already removed.
+	file.store.getErr[storage.ManifestKey("2026-01-20-abandoned")] = errors.New("503 unavailable")
+
+	plan := file.plan(Options{KeepFull: 1, OrphanAge: day})
+	result, err := Execute(t.Context(), file.store, plan)
+
+	require.ErrorContains(t, err, "re-check manifest")
+	require.ErrorContains(t, err, second)
+	require.Equal(t, 1, result.Orphans)
+	require.NotContains(t, file.store.keys(), first)
+	require.Contains(t, file.store.keys(), second)
+}
+
+func TestGcFailsWhenAnOrphanDeleteIsDenied(t *testing.T) {
+	file := newFixture(t)
+	file.addChain("2026-02-25", 1*day)
+
+	first := file.addArchive("2026-01-10-abandoned", 30*day)
+	second := file.addArchive("2026-01-20-abandoned", 30*day)
+	// Half of data/ is writable and half is not. A run that cannot finish still
+	// has to name the object it choked on and keep what it did collect counted.
+	file.store.deleteErr[second] = errors.New("permission denied")
+
+	plan := file.plan(Options{KeepFull: 1, OrphanAge: day})
+	result, err := Execute(t.Context(), file.store, plan)
+
+	require.ErrorContains(t, err, "failed to collect dangling archive")
+	require.ErrorContains(t, err, second)
+	require.Equal(t, 1, result.Orphans)
+	require.NotContains(t, file.store.keys(), first)
+	require.Contains(t, file.store.keys(), second)
+}
+
+func TestGcFailsWhenListingDataIsDenied(t *testing.T) {
+	file := newFixture(t)
+	file.addChain("2026-01-01", 60*day)
+	file.addChain("2026-02-25", 1*day)
+
+	// A bucket policy that grants manifests/ and denies data/: the chain loads,
+	// so gc gets all the way to a deletion plan on a storage whose archives it
+	// cannot see. Executing that plan would delete manifests while the archives
+	// stay behind, and the next run could not list them to collect them either.
+	file.store.listErrByPrefix[storage.DataPrefix()] = errors.New("access denied")
+
+	_, err := BuildPlan(t.Context(), file.store, Options{KeepFull: 1, Now: testNow})
+
+	require.ErrorContains(t, err, "failed to collect dangling archives")
+	require.ErrorContains(t, err, "access denied")
+	require.Empty(t, file.store.deletes)
+}
+
+func TestGcCountsOnlyArchivesItActuallyDeleted(t *testing.T) {
+	file := newFixture(t)
+	// One of the two archives is not in the storage: a hand-cleaned bucket, a
+	// rolled-back upload, a manifest naming a key that was never written. Delete
+	// answers OK for a key that does not exist on every backend, so the count gc
+	// prints is the only thing that can tell the operator what the run freed.
+	file.addBackup(backupSpec{
+		id: "2026-01-01", base: "2026-01-01", backupType: backup.BackupTypeFull,
+		age: 60 * day, vclockEnd: 100,
+		replicasets: []string{replicasetA, replicasetB},
+	})
+	file.addChain("2026-02-25", 1*day)
+	file.removeObject(storage.ArchiveKey("2026-01-01", replicasetB))
+
+	_, result := file.run(Options{KeepFull: 1})
+
+	require.Equal(t, 1, result.Backups)
+	require.Equal(t, 1, result.Archives, "counted an archive that was not in the storage")
+}
+
+func TestGcDefaultOrphanAgeOutlivesAnUpload(t *testing.T) {
+	require.GreaterOrEqual(t, DefaultOrphanAge, day)
+}
