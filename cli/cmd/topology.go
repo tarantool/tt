@@ -2,15 +2,20 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
+	"os"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 
+	"github.com/spf13/cobra"
 	goconfig "github.com/tarantool/go-config/v2"
+	"github.com/tarantool/tt/sdk/formatter"
 	"github.com/tarantool/tt/sdk/log"
 
 	sdkcluster "github.com/tarantool/tt/sdk/cluster"
@@ -23,9 +28,16 @@ import (
 	replicasetcmd "github.com/tarantool/tt/v3/cli/replicaset/cmd"
 )
 
-var errNoTopologyInstances = errors.New("no instances found in the cluster config")
+var (
+	errNoTopologyInstances       = errors.New("no instances found in the cluster config")
+	errUnsupportedTopologyFormat = errors.New("unsupported format")
+	topologyConfigPath           string
+	topologyFormat               string
+)
 
 const (
+	topologyFormatJSON         = "json"
+	topologyFormatTable        = "table"
 	topologyStatusOK           = "OK"
 	topologyStatusNotReachable = "not reachable"
 )
@@ -180,7 +192,7 @@ func discoverInstancesParallel(
 
 // discoverClusterTopology loads the cluster config, discovers the live topology
 // from all instances, and returns the merged result. It is shared by
-// backup and restore planning.
+// cluster topology, backup and restore planning.
 func discoverClusterTopology(
 	cmdCtx *cmdcontext.CmdCtx,
 	configPath string,
@@ -294,6 +306,29 @@ func topologyFromConfig(clusterConfig goconfig.Config) replicaset.Replicasets {
 	}
 
 	indices := map[string]int{}
+
+	var groups map[string]any
+
+	_, _ = clusterConfig.Get(goconfig.NewKeyPath("groups"), &groups)
+
+	for _, groupName := range slices.Sorted(maps.Keys(groups)) {
+		var configured map[string]any
+
+		path := goconfig.KeyPath{"groups", groupName, "replicasets"}
+
+		_, _ = clusterConfig.Get(path, &configured)
+
+		for _, name := range slices.Sorted(maps.Keys(configured)) {
+			key := append(slices.Clone(path), name).String()
+
+			indices[key] = len(topology.Replicasets)
+
+			var replicaSet replicaset.Replicaset
+
+			replicaSet.Alias = name
+			topology.Replicasets = append(topology.Replicasets, replicaSet)
+		}
+	}
 
 	for _, path := range slices.Sorted(maps.Keys(all)) {
 		parts := goconfig.NewKeyPath(path)
@@ -487,4 +522,169 @@ func formatMode(mode replicaset.Mode) string {
 	}
 
 	return mode.String()
+}
+
+func printTopologyJSON(topology topologyOutput) error {
+	data, err := json.MarshalIndent(topology, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal topology: %w", err)
+	}
+
+	_, _ = fmt.Fprintln(os.Stdout, string(data))
+
+	return nil
+}
+
+// printTopologyTable prints the topology as a human-readable table.
+func printTopologyTable(
+	replicasets replicaset.Replicasets,
+	hostnames map[string]string,
+	reachable map[string]bool,
+) error {
+	if len(replicasets.Replicasets) == 0 {
+		log.Warn("No replicasets found.")
+
+		return nil
+	}
+
+	_, _ = fmt.Fprint(os.Stdout, "Active cluster topology\n\n")
+
+	for _, replicaSet := range replicasets.Replicasets {
+		alias := replicaSet.Alias
+		if alias == "" {
+			alias = replicaSet.UUID
+		}
+
+		replicasetReachable := false
+
+		for _, inst := range replicaSet.Instances {
+			if reachable[inst.UUID] || reachable[inst.Alias] {
+				replicasetReachable = true
+				break
+			}
+		}
+
+		replicasetHeader := alias
+		if replicaSet.UUID != "" {
+			replicasetHeader = fmt.Sprintf("%s (%s)", alias, replicaSet.UUID)
+		}
+
+		if !replicasetReachable {
+			replicasetHeader += "  " + topologyStatusNotReachable
+		}
+
+		_, _ = fmt.Fprintln(os.Stdout, replicasetHeader)
+
+		instances := make([]replicaset.Instance, len(replicaSet.Instances))
+		copy(instances, replicaSet.Instances)
+		sort.SliceStable(instances, func(left, right int) bool {
+			if (instances[left].Mode == replicaset.ModeRW) !=
+				(instances[right].Mode == replicaset.ModeRW) {
+				return instances[left].Mode == replicaset.ModeRW
+			}
+
+			return instances[left].Alias < instances[right].Alias
+		})
+
+		for _, inst := range instances {
+			name := inst.Alias
+			if name == "" {
+				name = inst.UUID
+			}
+
+			hostname := lookupHostname(inst.UUID, hostnames)
+			mode := formatMode(inst.Mode)
+			status := topologyStatusNotReachable
+
+			if reachable[inst.UUID] || reachable[inst.Alias] {
+				status = topologyStatusOK
+			}
+
+			_, _ = fmt.Fprintf(os.Stdout, "    %s %s  %s  %s  %s\n",
+				name, inst.UUID, hostname, mode, status)
+		}
+	}
+
+	return nil
+}
+
+// NewClusterTopologyCmd creates the command that shows the current cluster topology.
+func NewClusterTopologyCmd() *cobra.Command {
+	command := &cobra.Command{
+		Use:   "topology -c <CLUSTER_CONFIG|URI> [flags]",
+		Short: "Show the current cluster topology",
+		Long: "Discover and print the current cluster topology by connecting to " +
+			"cluster nodes via net.box.\n\n" +
+			"The cluster configuration can be loaded from a file, etcd, or " +
+			"Tarantool Config Storage. It determines the instances and their " +
+			"listen URIs. Each instance is contacted and the live topology is " +
+			"merged into one view.\n\n" +
+			"JSON output contains replicasets keyed by UUID and their instances " +
+			"(instance_uuid, instance_name, hostname, mode, status). If a replicaset " +
+			"is unreachable and its UUID is not configured, its name is used as " +
+			"the key. Unreachable instances have status \"not reachable\".\n\n" +
+			clusterURIHelp,
+		RunE: internalRunE(internalClusterTopologyModule),
+		Args: cobra.NoArgs,
+	}
+	addTarantoolConnectFlags(command)
+	command.Flags().StringVarP(&topologyConfigPath, "config", "c", "",
+		"path or URI of the cluster configuration")
+	command.Flags().StringVar(&topologyFormat, "format", topologyFormatTable,
+		"output format: table or json")
+
+	_ = command.MarkFlagRequired("config")
+
+	return command
+}
+
+// internalClusterTopologyModule is the entry point for cluster topology.
+func internalClusterTopologyModule(commandContext *cmdcontext.CmdCtx, _ []string) error {
+	switch topologyFormat {
+	case topologyFormatJSON, topologyFormatTable, "":
+	default:
+		return fmt.Errorf("%w: %s (use table or json)",
+			errUnsupportedTopologyFormat, topologyFormat)
+	}
+
+	connectContext := topologyConnectContext()
+
+	merged, hostnames, reachable, err := discoverClusterTopology(
+		commandContext, topologyConfigPath, connectContext,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to discover cluster topology: %w", err)
+	}
+
+	err = printTopology(merged, hostnames, reachable)
+	if err != nil {
+		return fmt.Errorf("failed to print topology: %w", err)
+	}
+
+	return nil
+}
+
+func topologyConnectContext() connect.ConnectCtx {
+	return connect.ConnectCtx{
+		SrcFile: "", Language: 0, Format: formatter.DefaultFormat, Interactive: false,
+		ConnectTarget: "", Binary: false, Evaler: "",
+		Username: replicasetUser, Password: replicasetPassword,
+		ConnectTimeout: replicasetConnectTimeout,
+		SslKeyFile:     replicasetSslKeyFile, SslCertFile: replicasetSslCertFile,
+		SslCaFile: replicasetSslCaFile, SslCiphers: replicasetSslCiphers,
+		SslPassword: replicasetSslPassword, SslPasswordFile: replicasetSslPasswordFile,
+	}
+}
+
+func printTopology(
+	merged replicaset.Replicasets,
+	hostnames map[string]string,
+	reachable map[string]bool,
+) error {
+	switch topologyFormat {
+	case topologyFormatJSON:
+		return printTopologyJSON(replicasetsToTopology(merged, hostnames, reachable))
+	default:
+		return printTopologyTable(merged, hostnames, reachable)
+	}
 }

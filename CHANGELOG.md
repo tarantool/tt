@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt cluster topology -c <CLUSTER_CONFIG|URI>`: show a Tarantool 3 cluster's
+  configured membership and current instance state. Read the configuration
+  from a file, etcd or Tarantool Config Storage and query instances in parallel.
+  Print a table by default or JSON with `--format json`, including replicaset
+  and instance UUIDs, instance names, hostnames, read/write modes and
+  reachability. Keep unavailable instances, unavailable replicasets and
+  configured empty replicasets in the result. Support storage credentials and
+  the connector TLS, encrypted key password and connection timeout flags.
+  Share configuration loading and topology discovery with backup and restore
+  planning.
+- `mage lint:python` and `mage lint:full`: accept `--fix` to let Ruff apply
+  automatic Python lint fixes.
 - `tt backup`: add full and incremental point-in-time backup workflows for
   Tarantool 3.8 and newer. `start` opens `box.backup`, freezes the replicaset
   membership and recovery points, and writes a compressed archive and manifest
