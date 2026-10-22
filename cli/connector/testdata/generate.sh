@@ -23,3 +23,12 @@ openssl x509 -outform pem -in ca.pem -out ca.crt
 
 openssl req -new -nodes -newkey rsa:2048 -keyout localhost.key -out localhost.csr -subj "/C=US/ST=YourState/L=YourCity/O=Example-Certificates/CN=localhost"
 openssl x509 -req -sha256 -days 8192 -in localhost.csr -CA ca.pem -CAkey ca.key -CAcreateserial -extfile domains.ext -out localhost.crt
+
+# PBES2-encrypted PKCS#8 is supported by both native and OpenSSL TLS backends.
+password=secret
+cat <<EOF > passwords
+unusedpassword
+$password
+EOF
+openssl pkcs8 -topk8 -v2 aes-256-cbc -passout "pass:${password}" \
+    -in localhost.key -out localhost.enc.key

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt connect` and connector-based `tt replicaset` commands: add
+  `--sslpassword` and `--sslpasswordfile` to decrypt private SSL keys, and
+  `--connect-timeout` to bound binary connection establishment (default: 1s).
 - `tt status`: add `--instance-timeout` to limit status collection for each
   instance; the default is 5 seconds, and `0` disables the timeout.
 - `tt binary install tt`: install Community release binaries from GitHub Releases

@@ -143,7 +143,8 @@ func ConnectContext(ctx context.Context, opts ConnectOpts) (Connector, error) {
 
 	// Detect transport and protocol.
 	ssl := opts.Ssl.KeyFile != "" || opts.Ssl.CertFile != "" ||
-		opts.Ssl.CaFile != "" || opts.Ssl.Ciphers != ""
+		opts.Ssl.CaFile != "" || opts.Ssl.Ciphers != "" || opts.Ssl.Password != "" ||
+		opts.Ssl.PasswordFile != ""
 
 	protocol, err := GetProtocol(greetingConn)
 	if ctx.Err() != nil {
@@ -185,15 +186,20 @@ func ConnectContext(ctx context.Context, opts ConnectOpts) (Connector, error) {
 			SslCertFile:     opts.Ssl.CertFile,
 			SslCaFile:       opts.Ssl.CaFile,
 			SslCiphers:      opts.Ssl.Ciphers,
-			SslPassword:     "",
-			SslPasswordFile: "",
+			SslPassword:     opts.Ssl.Password,
+			SslPasswordFile: opts.Ssl.PasswordFile,
 			Transport:       "",
 		})
 		if err != nil {
 			return nil, err
 		}
 
-		conn, err := tarantool.Connect(ctx, dialer, tarantool.Opts{
+		// Keep the existing protocol-detection deadline separate. TLS servers
+		// cannot send their greeting until the binary TLS handshake starts.
+		binaryCtx, cancel := context.WithTimeout(ctx, getConnectTimeout(opts))
+		defer cancel()
+
+		conn, err := tarantool.Connect(binaryCtx, dialer, tarantool.Opts{
 			SkipSchema: true, // We don't need a schema for eval requests.
 		})
 		if err != nil {
