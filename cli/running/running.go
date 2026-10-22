@@ -295,15 +295,8 @@ func findInstanceScriptInAppDir(appDir, instName, clusterCfgPath, defaultScript 
 	return script, nil
 }
 
-// loadInstanceConfig loads instance configuration from cluster config.
-func loadInstanceConfig(configPath, instName string,
-	integrityCtx integrity.IntegrityCtx,
-) (*goconfig.Config, error) {
-	cfg, err := cluster.GetClusterConfig(context.Background(), configPath, integrityCtx)
-	if err != nil {
-		return nil, err
-	}
-
+// loadInstanceConfig derives instance configuration from a loaded cluster config.
+func loadInstanceConfig(cfg *goconfig.MutableConfig, instName string) (*goconfig.Config, error) {
 	instCfg, err := cluster.GetInstanceConfig(cfg, instName)
 	if err != nil {
 		return nil, err
@@ -387,6 +380,12 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 
 	instances := []InstanceCtx{}
 
+	var (
+		clusterCfg       *goconfig.MutableConfig
+		clusterCfgErr    error
+		clusterCfgLoaded bool
+	)
+
 	for inst := range instParams {
 		instance := InstanceCtx{
 			AppDir:            appDir,
@@ -425,8 +424,19 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 		log.Debugf("Instance %q", instance.InstName)
 
 		if instance.ClusterConfigPath != "" {
-			instance.Configuration, err = loadInstanceConfig(instance.ClusterConfigPath,
-				instance.InstName, integrityCtx)
+			// Load only when an instance is selected, and retain failures too:
+			// optional configuration must not be retried for every instance.
+			if !clusterCfgLoaded {
+				clusterCfg, clusterCfgErr = cluster.GetClusterConfig(context.Background(),
+					instance.ClusterConfigPath, integrityCtx)
+				clusterCfgLoaded = true
+			}
+
+			err = clusterCfgErr
+			if err == nil {
+				instance.Configuration, err = loadInstanceConfig(clusterCfg, instance.InstName)
+			}
+
 			if err != nil && (loadConfig == ConfigLoadAll || loadConfig == ConfigLoadCluster) {
 				return instances, fmt.Errorf("error loading instance %q configuration from "+
 					"config %q: %w", instance.InstName, instance.ClusterConfigPath, err)

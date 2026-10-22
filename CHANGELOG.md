@@ -232,6 +232,8 @@ for machine-readable output.
 
 ### Changed
 
+- Load and build cluster configuration once per application when collecting
+  instances, reusing it for each instance's effective configuration.
 - `tt status`: collect instance statuses in parallel.
 - `tt stop` and `tt restart`: interrupt all selected instance supervisors before
   waiting for them to exit, allowing instances to shut down in parallel.
