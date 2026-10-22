@@ -13,10 +13,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+## [2.15.2] - 2026-10-22
+
+This release fixes `tt pack --cartridge-compat`, whose `VERSION` file had
+stopped listing the application rock versions, and brings back the linux
+arm64 packages that 2.15.1 shipped without.
+
+### Fixed
+
 - `tt pack --cartridge-compat`: the `VERSION` file lists the versions of
   the application rocks again. Since 2.11.1 it was generated before the
   application build and read the rocks manifest from a wrong path, so only
   the application and Tarantool versions were written (#1410).
+- `tt backup`, `tt restore`, `tt replicaset` and `tt cluster topology`
+  work again on linux arm64: the release packages are built on an arm64
+  runner instead of the self-hosted one that cannot start job containers
+  (TNTP-10885).
 
 ## [2.15.1] - 2026-10-18
 
