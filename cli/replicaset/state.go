@@ -5,11 +5,12 @@ type State int
 
 //go:generate stringer -type=State -trimprefix State -linecomment
 
+//nolint:godot // The line comments are the stringer output.
 const (
 	// StateUnknown when is unable to get a replicaset configuration.
-	StateUnknown State = iota // unknown.
+	StateUnknown State = iota // unknown
 	// StateUninitialized when a configuration found, but not bootstrapped yet.
-	StateUninitialized // uninitialized.
+	StateUninitialized // uninitialized
 	// StateBootstrapped when a replicaset already bootstrapped.
-	StateBootstrapped // bootstrapped.
+	StateBootstrapped // bootstrapped
 )

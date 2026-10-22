@@ -11,15 +11,16 @@ type StateProvider int
 
 // spell-checker:ignore etcdv
 
+//nolint:godot // The line comments are the stringer output.
 const (
 	// StateProviderUnknown is unknown type of a state provider.
-	StateProviderUnknown StateProvider = iota // unknown.
+	StateProviderUnknown StateProvider = iota // unknown
 	// StateProviderNone is used where there is no state provider.
-	StateProviderNone // none.
+	StateProviderNone // none
 	// StateProviderTarantool is used when a state provider is tarantool.
-	StateProviderTarantool // tarantool.
+	StateProviderTarantool // tarantool
 	// StateProviderEtcd2 is used when a state provider is etcdv2.
-	StateProviderEtcd2 // etcd2.
+	StateProviderEtcd2 // etcd2
 )
 
 // ParseStateProvider returns a state provider type from a string
