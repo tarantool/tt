@@ -127,7 +127,18 @@ var (
 		"env_TT_CLI_auth":      "Tarantool",
 		"env_TT_CLI_ETCD_auth": "Etcd",
 		"footer": `The priority of credentials:
-environment variables < command flags < URL credentials.`,
+environment variables < command flags < URL credentials.
+
+HTTPS connection behavior:
+* The https:// scheme enables TLS for both etcd and Tarantool Config Storage
+  (TCS), even when no ssl_* URL arguments are specified.
+* For etcd, certificate verification is skipped if neither ssl_ca_file nor
+  ssl_ca_path is specified. A configured CA enables verification unless
+  explicitly disabled.
+* TCS keeps the certificate verification behavior of its TLS backend. The
+  default Go backend uses system CAs unless ssl_ca_file is specified.
+* Do not mix http:// and https:// addresses in an etcd endpoint list. If any
+  endpoint uses https://, TLS is enabled for all endpoints.`,
 	})
 
 	failoverURIHelp = sdkconnect.MakeURLHelp(map[string]any{

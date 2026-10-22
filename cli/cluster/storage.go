@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
+	"strings"
 	"time"
 
 	goconfig "github.com/tarantool/go-config/v2"
@@ -57,14 +59,14 @@ func cfgGetFloat64(cfg goconfig.Config, path string) (float64, error) {
 }
 
 // cfgGetBool is a small helper that reads a bool value at path from cfg.
-// Returns false and no error when the path is not found.
-func cfgGetBool(cfg goconfig.Config, path string) (bool, error) {
-	var value bool
+// Returns defaultValue and no error when the path is not found.
+func cfgGetBool(cfg goconfig.Config, path string, defaultValue bool) (bool, error) {
+	value := defaultValue
 
 	_, err := cfg.Get(goconfig.NewKeyPath(path), &value)
 	if err != nil {
 		if errors.Is(err, goconfig.ErrKeyNotFound) {
-			return false, nil
+			return defaultValue, nil
 		}
 
 		return false, fmt.Errorf("get %q: %w", path, err)
@@ -292,12 +294,16 @@ func readEtcdEndpoints(
 		return nil, nil, fmt.Errorf("read etcd ca file: %w", err)
 	}
 
-	verifyPeer, err := cfgGetBool(cfg, "config/etcd/ssl/verify_peer")
+	sslEnable := slices.ContainsFunc(endpoints, func(endpoint string) bool {
+		return strings.HasPrefix(endpoint, "https://")
+	})
+
+	verifyPeer, err := cfgGetBool(cfg, "config/etcd/ssl/verify_peer", sslEnable)
 	if err != nil {
 		return nil, nil, fmt.Errorf("read etcd verify_peer: %w", err)
 	}
 
-	verifyHost, err := cfgGetBool(cfg, "config/etcd/ssl/verify_host")
+	verifyHost, err := cfgGetBool(cfg, "config/etcd/ssl/verify_host", sslEnable)
 	if err != nil {
 		return nil, nil, fmt.Errorf("read etcd verify_host: %w", err)
 	}
@@ -323,12 +329,20 @@ func readEtcdEndpoints(
 		}
 	}
 
+	// Match URI connections: HTTPS encrypts without server verification when
+	// no custom CA is configured, and verifies against an explicitly supplied CA.
+	if sslEnable && caFile == "" && caPath == "" {
+		verifyPeer = false
+		verifyHost = false
+	}
+
 	stor, gsCleanup, err := gsconnect.NewEtcdStorage(ctx, gsconnect.Config{
 		Endpoints:   endpoints,
 		Username:    username,
 		Password:    password,
 		DialTimeout: timeout,
 		SSL: gsconnect.SSLConfig{
+			Enable:     sslEnable,
 			KeyFile:    keyFile,
 			CertFile:   certFile,
 			CaPath:     caPath,
