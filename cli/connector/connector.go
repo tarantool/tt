@@ -18,15 +18,13 @@ var (
 	errEncryptionRequired = errors.New(
 		"unencrypted connection established, but encryption required",
 	)
-	errSocketNameIsLongerThanSymbols = errors.New("socket name is longer than ")
-	errUnsupportedProtocol           = errors.New("unsupported protocol: ")
+	errUnsupportedProtocol = errors.New("unsupported protocol: ")
 )
 
 const (
 	greetingOperationTimeout = 3 * time.Second
 	maxSocketPathLinux       = 108
-	maxSocketPathMac         = 106
-	socketPathPrefixLength   = 3
+	maxSocketPathMac         = 104
 )
 
 // RequestOpts describes the parameters of a request to be executed.
@@ -53,43 +51,92 @@ type Connector interface {
 	Close() error
 }
 
+// unixSocketPathLimit returns the maximum socket path length for the current OS.
+func unixSocketPathLimit() int {
+	if runtime.GOOS == "darwin" {
+		return maxSocketPathMac
+	}
+
+	return maxSocketPathLinux
+}
+
+// prepareUnixAddress shortens long Unix socket paths without changing the
+// process-wide working directory. The alias must remain until dialing completes.
+func prepareUnixAddress(address string) (string, func(), error) {
+	address, err := filepath.Abs(address)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to resolve socket path: %w", err)
+	}
+
+	if len(address)+1 <= unixSocketPathLimit() {
+		return address, nil, nil
+	}
+
+	tempRoot := os.TempDir()
+	// TMPDIR can itself exceed sun_path, particularly on macOS.
+	if len(filepath.Join(tempRoot, "tt-socket-1234567890", "socket"))+1 > unixSocketPathLimit() {
+		tempRoot = "/tmp"
+	}
+
+	dir, err := os.MkdirTemp(tempRoot, "tt-socket-")
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to create socket alias directory: %w", err)
+	}
+
+	cleanup := func() { _ = os.RemoveAll(dir) }
+	alias := filepath.Join(dir, "socket")
+
+	err = os.Symlink(address, alias)
+	if err != nil {
+		cleanup()
+
+		return "", nil, fmt.Errorf("failed to create socket alias: %w", err)
+	}
+
+	return alias, cleanup, nil
+}
+
 // Connect connects to the tarantool instance according to options.
 func Connect(opts ConnectOpts) (Connector, error) {
-	// It became common that address is longer than 108 symbols(sun_path limit).
-	// To reduce length of address we use relative path
-	// with chdir into a directory of socket.
-	// e.g foo/bar/123.sock -> ./123.sock.
-	workDir, err := os.Getwd()
-	if err != nil {
-		return nil, fmt.Errorf("failed to detect current directory: %w", err)
-	}
+	return ConnectContext(context.Background(), opts)
+}
 
-	maxSocketPath := maxSocketPathLinux
-	if runtime.GOOS == "darwin" {
-		maxSocketPath = maxSocketPathMac
-	}
-
-	_, err = os.Stat(opts.Address)
-	if err == nil {
-		_ = os.Chdir(filepath.Dir(opts.Address))
-		opts.Address = "./" + filepath.Base(opts.Address)
-
-		if len(opts.Address)+1 > maxSocketPath {
-			return nil, fmt.Errorf("%w%d symbols: %s", errSocketNameIsLongerThanSymbols,
-				maxSocketPath-socketPathPrefixLength, filepath.Base(opts.Address))
+// ConnectContext connects according to options. ctx bounds connection setup,
+// including protocol detection, authentication and binary protocol negotiation.
+func ConnectContext(ctx context.Context, opts ConnectOpts) (Connector, error) {
+	if opts.Network == UnixNetwork {
+		address, cleanup, err := prepareUnixAddress(opts.Address)
+		if err != nil {
+			return nil, fmt.Errorf("failed to prepare unix socket address: %w", err)
 		}
 
-		defer func() {
-			_ = os.Chdir(workDir)
-		}()
+		if cleanup != nil {
+			defer cleanup()
+		}
+
+		opts.Address = address
 	}
 
 	// Connect to specified address.
 	greetingConn, err := (&net.Dialer{}).DialContext(
-		context.Background(), opts.Network, opts.Address)
+		ctx, opts.Network, opts.Address)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial: %w", err)
 	}
+
+	// Cancellation must interrupt greeting reads as well as dialing.
+	cancelled := make(chan struct{})
+	stop := context.AfterFunc(ctx, func() {
+		_ = greetingConn.Close()
+
+		close(cancelled)
+	})
+
+	defer func() {
+		if !stop() {
+			<-cancelled
+		}
+	}()
 
 	// Set a deadline for the greeting.
 	_ = greetingConn.SetReadDeadline(time.Now().Add(greetingOperationTimeout))
@@ -99,10 +146,16 @@ func Connect(opts ConnectOpts) (Connector, error) {
 		opts.Ssl.CaFile != "" || opts.Ssl.Ciphers != ""
 
 	protocol, err := GetProtocol(greetingConn)
+	if ctx.Err() != nil {
+		_ = greetingConn.Close()
+		return nil, fmt.Errorf("failed to get protocol: %w", ctx.Err())
+	}
+
 	if err != nil {
 		if ssl {
 			protocol = BinaryProtocol
 		} else {
+			_ = greetingConn.Close()
 			return nil, fmt.Errorf("failed to get protocol: %w", err)
 		}
 	} else if ssl {
@@ -140,7 +193,7 @@ func Connect(opts ConnectOpts) (Connector, error) {
 			return nil, err
 		}
 
-		conn, err := tarantool.Connect(context.Background(), dialer, tarantool.Opts{
+		conn, err := tarantool.Connect(ctx, dialer, tarantool.Opts{
 			SkipSchema: true, // We don't need a schema for eval requests.
 		})
 		if err != nil {
@@ -149,6 +202,7 @@ func Connect(opts ConnectOpts) (Connector, error) {
 
 		return NewBinaryConnector(conn), nil
 	default:
+		_ = greetingConn.Close()
 		return nil, fmt.Errorf("%w%s", errUnsupportedProtocol, protocol)
 	}
 }

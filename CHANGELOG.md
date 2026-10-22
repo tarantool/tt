@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt status`: add `--instance-timeout` to limit status collection for each
+  instance; the default is 5 seconds, and `0` disables the timeout.
 - `tt binary install tt`: install Community release binaries from GitHub Releases
   on Linux amd64/arm64 and macOS amd64 when available. Other platforms and
   releases without matching archives build from source automatically, sharing
@@ -230,6 +232,7 @@ for machine-readable output.
 
 ### Changed
 
+- `tt status`: collect instance statuses in parallel.
 - `tt stop` and `tt restart`: interrupt all selected instance supervisors before
   waiting for them to exit, allowing instances to shut down in parallel.
 - `tt log -f` / `tt tcm log --follow`: only complete lines are printed. A
@@ -461,6 +464,7 @@ for machine-readable output.
 
 ### Fixed
 
+- `tt status`: include replication errors in instance status alerts.
 - `tt log -f`: possible line loss/duplication on rename, hanging after
   a watched log directory is removed, and lines written just as the
   file was read to the end not showing up until the next write.

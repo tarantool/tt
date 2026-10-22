@@ -1,11 +1,14 @@
 package status
 
 import (
+	"context"
 	_ "embed"
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/tarantool/tt/v3/cli/connector"
@@ -21,6 +24,12 @@ var (
 type InstanceStatusPrinter interface {
 	Print(instances map[string]*instanceStatus) error
 }
+
+// maxParallelStatusRequests limits concurrent instance status checks.
+const maxParallelStatusRequests = 128
+
+// DefaultInstanceTimeout bounds collection of one instance's status by default.
+const DefaultInstanceTimeout = 5 * time.Second
 
 //go:embed lua/instance_state.lua
 var instanceInfoLuaScript string
@@ -166,11 +175,21 @@ func processConfigInfo(instStatus *instanceStatus, instanceState rawInstanceStat
 
 // collectInstanceState connects to an instance and collects its state.
 func collectInstanceState(run running.InstanceCtx, fullInstanceName string,
-	instStatus *instanceStatus,
+	instStatus *instanceStatus, instanceTimeout time.Duration,
 ) (rawInstanceState, error) {
 	var instanceState rawInstanceState
 
-	conn, err := connector.Connect(connector.ConnectOpts{
+	ctx := context.Background()
+
+	if instanceTimeout > 0 {
+		var cancel context.CancelFunc
+
+		ctx, cancel = context.WithTimeout(ctx, instanceTimeout)
+
+		defer cancel()
+	}
+
+	conn, err := connector.ConnectContext(ctx, connector.ConnectOpts{
 		Network:             "unix",
 		Address:             run.ConsoleSocket,
 		Username:            "",
@@ -189,9 +208,29 @@ func collectInstanceState(run running.InstanceCtx, fullInstanceName string,
 			fullInstanceName, err)
 	}
 
+	defer func() { _ = conn.Close() }()
+
+	// Closing interrupts every I/O operation, including writes and repeated pushes.
+	cancelled := make(chan struct{})
+	stop := context.AfterFunc(ctx, func() {
+		_ = conn.Close()
+
+		close(cancelled)
+	})
+
+	defer func() {
+		if !stop() {
+			<-cancelled
+		}
+	}()
+
 	res, err := conn.Eval(filterComments(instanceInfoLuaScript), []any{},
 		connector.RequestOpts{PushCallback: nil, ReadTimeout: 0, ResData: nil})
 	if err != nil {
+		if ctx.Err() != nil {
+			err = ctx.Err()
+		}
+
 		instStatus.addAlert(fmt.Sprintf(
 			"Error while executing Lua script on instance %s: %v",
 			fullInstanceName, err), severityError)
@@ -219,36 +258,87 @@ func collectInstanceState(run running.InstanceCtx, fullInstanceName string,
 	return instanceState, nil
 }
 
-// Status writes the status as a table.
-func Status(runningCtx running.RunningCtx, printer InstanceStatusPrinter) error {
+// statusResult holds a collected status and its UUID for replication name lookup.
+type statusResult struct {
+	name   string
+	uuid   string
+	status *instanceStatus
+}
+
+func processStatusForInstance(instance running.InstanceCtx,
+	instanceTimeout time.Duration,
+) statusResult {
+	instStatus := newInstanceStatus()
+
+	instStatus.procStatus = running.Status(&instance)
+	instStatus.Status = instStatus.procStatus.Status
+
+	if instStatus.procStatus.Code == process_utils.ProcessRunningCode {
+		instStatus.PID = &instStatus.procStatus.PID
+	}
+
+	name := running.GetAppInstanceName(instance)
+	result := statusResult{name: name, uuid: "", status: &instStatus}
+
+	instanceState, err := collectInstanceState(instance, name, &instStatus, instanceTimeout)
+	if err != nil {
+		return result
+	}
+
+	result.uuid = instanceState.UUID
+	processConfigInfo(&instStatus, instanceState)
+
+	instStatus.Mode = instanceState.ReadOnly
+	instStatus.Config = instanceState.ConfigInfo.Status
+	instStatus.Box = instanceState.BoxStatus
+	instStatus.rawReplicationInfo = instanceState.ReplicationInfo
+
+	return result
+}
+
+func collectStatuses(instances []running.InstanceCtx,
+	instanceTimeout time.Duration,
+) <-chan statusResult {
+	statuses := make(chan statusResult, len(instances))
+	jobs := make(chan running.InstanceCtx)
+
+	var workers sync.WaitGroup
+
+	for range min(len(instances), maxParallelStatusRequests) {
+		workers.Go(func() {
+			for instance := range jobs {
+				statuses <- processStatusForInstance(instance, instanceTimeout)
+			}
+		})
+	}
+
+	go func() {
+		for _, instance := range instances {
+			jobs <- instance
+		}
+
+		close(jobs)
+		workers.Wait()
+		close(statuses)
+	}()
+
+	return statuses
+}
+
+// Status writes the instance statuses. instanceTimeout bounds collection of a
+// single instance's state, including connection setup; zero disables the timeout.
+func Status(runningCtx running.RunningCtx, printer InstanceStatusPrinter,
+	instanceTimeout time.Duration,
+) error {
 	instances := make(instanceStatusMap)
 	uuid2name := map[string]string{}
 
-	for _, run := range runningCtx.Instances {
-		fullInstanceName := running.GetAppInstanceName(run)
-		instStatus := newInstanceStatus()
-
-		instStatus.procStatus = running.Status(&run)
-		instStatus.Status = instStatus.procStatus.Status
-		instances[fullInstanceName] = &instStatus
-
-		if instStatus.procStatus.Code == process_utils.ProcessRunningCode {
-			instStatus.PID = &instStatus.procStatus.PID
+	for result := range collectStatuses(runningCtx.Instances, instanceTimeout) {
+		if result.uuid != "" {
+			uuid2name[result.uuid] = result.name
 		}
 
-		instanceState, err := collectInstanceState(run, fullInstanceName, &instStatus)
-		if err != nil {
-			continue
-		}
-
-		// Map UUIDs to instance names so replication alerts are readable.
-		uuid2name[instanceState.UUID] = fullInstanceName
-
-		processConfigInfo(&instStatus, instanceState)
-
-		instStatus.Mode = instanceState.ReadOnly
-		instStatus.Config = instanceState.ConfigInfo.Status
-		instStatus.Box = instanceState.BoxStatus
+		instances[result.name] = result.status
 	}
 
 	for _, instStatus := range instances {
