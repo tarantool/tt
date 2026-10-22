@@ -136,24 +136,24 @@ func getInstanceConnector(instance replicaset.Instance,
 
 	// Try to connect via unix socket.
 	conn, err := connector.Connect(connector.ConnectOpts{
-		Network:             "unix",
-		Address:             run.ConsoleSocket,
-		Username:            "",
-		Password:            "",
-		Ssl:                 connector.SslOpts{KeyFile: "", CertFile: "", CaFile: "", Ciphers: ""},
+		Network:  "unix",
+		Address:  run.ConsoleSocket,
+		Username: "",
+		Password: "",
+		Ssl: connector.SslOpts{
+			KeyFile: "", CertFile: "", CaFile: "", Ciphers: "", Password: "", PasswordFile: "",
+		},
 		MaxOutputHistoryLen: 0,
+		ConnectTimeout:      connOpts.ConnectTimeout,
 	})
 	if err != nil {
 		fErr := err
 
-		conn, err = connector.Connect(connector.ConnectOpts{
-			Network:             connOpts.Network,
-			Address:             instance.URI,
-			Username:            connOpts.Username,
-			Password:            connOpts.Password,
-			Ssl:                 connOpts.Ssl,
-			MaxOutputHistoryLen: 0,
-		})
+		fallbackOpts := connOpts
+
+		fallbackOpts.Address = instance.URI
+
+		conn, err = connector.Connect(fallbackOpts)
 		if err != nil {
 			return nil, fmt.Errorf("instance %s failed to connect via UNIX socket "+
 				"and uri: %w %w", fullInstanceName, err, fErr)

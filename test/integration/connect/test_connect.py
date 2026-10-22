@@ -513,7 +513,44 @@ def test_connect_to_ssl_app(tt_cmd, tmpdir_with_cfg):
             "--sslcafile": "ca.crt",
         }
         ret, output = try_execute_on_instance(tt_cmd, tmpdir, server, empty_file, opts=opts)
-        assert ret
+        assert ret, output
+
+        encrypted_opts = {
+            "--sslkeyfile": "localhost.enc.key",
+            "--sslcertfile": "localhost.crt",
+            "--sslcafile": "ca.crt",
+            "--connect-timeout": "2s",
+        }
+        password_cases = [
+            {"--sslpassword": "secret"},
+            {"--sslpasswordfile": "passwords"},
+            {"--sslpassword": "wrong", "--sslpasswordfile": "passwords"},
+        ]
+        for password_opts in password_cases:
+            ret, output = try_execute_on_instance(
+                tt_cmd,
+                tmpdir,
+                server,
+                empty_file,
+                opts={**encrypted_opts, **password_opts},
+            )
+            assert ret, f"connect with {list(password_opts)} failed:\n{output}"
+
+        wrong_password_file = Path(tmpdir) / "test_ssl_app" / "wrong-passwords"
+        wrong_password_file.write_text("wrong\n")
+        for password_opts in [
+            {"--sslpassword": "wrong"},
+            {"--sslpasswordfile": "wrong-passwords"},
+        ]:
+            ret, output = try_execute_on_instance(
+                tt_cmd,
+                tmpdir,
+                server,
+                empty_file,
+                opts={**encrypted_opts, **password_opts},
+            )
+            assert not ret, output
+            assert "unable to establish connection" in output
 
     finally:
         # Stop the Instance.

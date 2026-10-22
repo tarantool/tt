@@ -108,9 +108,10 @@ func evalForeach(instances []running.InstanceCtx,
 			Username: "",
 			Password: "",
 			Ssl: connector.SslOpts{
-				KeyFile: "", CertFile: "", CaFile: "", Ciphers: "",
+				KeyFile: "", CertFile: "", CaFile: "", Ciphers: "", Password: "", PasswordFile: "",
 			},
 			MaxOutputHistoryLen: 0,
+			ConnectTimeout:      0,
 		})
 		if err != nil {
 			if !skipConnectError {

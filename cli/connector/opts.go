@@ -1,8 +1,12 @@
 package connector
 
+import "time"
+
 const (
 	TCPNetwork  = "tcp"
 	UnixNetwork = "unix"
+	// DefaultConnectTimeout bounds binary connection establishment.
+	DefaultConnectTimeout = time.Second
 )
 
 // ConnectOpts describes options for a connection to a tarantool instance.
@@ -18,6 +22,9 @@ type ConnectOpts struct {
 	Password string
 	// Ssl options for a connection.
 	Ssl SslOpts
+	// ConnectTimeout bounds binary connection establishment. Non-positive values
+	// select DefaultConnectTimeout. It does not limit subsequent requests.
+	ConnectTimeout time.Duration
 	// MaxOutputHistoryLen is the maximal count of commands to output in
 	// the \history command.
 	MaxOutputHistoryLen int
@@ -34,4 +41,16 @@ type SslOpts struct {
 	// Ciphers is a colon-separated (:) list of SSL cipher suites the
 	// connection can use.
 	Ciphers string
+	// Password decrypts the private SSL key file.
+	Password string
+	// PasswordFile contains candidate passwords for the private SSL key file.
+	PasswordFile string
+}
+
+func getConnectTimeout(opts ConnectOpts) time.Duration {
+	if opts.ConnectTimeout <= 0 {
+		return DefaultConnectTimeout
+	}
+
+	return opts.ConnectTimeout
 }
