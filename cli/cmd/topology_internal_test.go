@@ -10,6 +10,7 @@ import (
 
 	clustercli "github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/connector"
 	"github.com/tarantool/tt/v3/cli/replicaset"
 )
 
@@ -193,4 +194,66 @@ func TestReplicasetsToTopology(t *testing.T) {
 	assert.Equal(t, "instance-3", instances[2].InstanceName)
 	assert.Equal(t, "ro", instances[2].Mode)
 	assert.Equal(t, topologyStatusNotReachable, instances[2].Status)
+}
+
+func TestTopologyFromConfigKeepsEmptyReplicasets(t *testing.T) {
+	config, err := clustercli.BuildGoConfigFromBytes(t.Context(), []byte(`
+groups:
+  storage:
+    replicasets:
+      rs_empty:
+        instances: {}
+      rs_with_member:
+        instances:
+          member: {}
+`))
+	require.NoError(t, err)
+
+	topology := topologyFromConfig(config)
+	require.Len(t, topology.Replicasets, 2)
+	assert.Equal(t, "rs_empty", topology.Replicasets[0].Alias)
+	assert.Empty(t, topology.Replicasets[0].Instances)
+	assert.Equal(t, "rs_with_member", topology.Replicasets[1].Alias)
+	require.Len(t, topology.Replicasets[1].Instances, 1)
+	assert.Equal(t, "member", topology.Replicasets[1].Instances[0].Alias)
+}
+
+func TestClusterTopologyCommand(t *testing.T) {
+	command := NewClusterTopologyCmd()
+	assert.Equal(t, "topology", command.Name())
+	require.Error(t, command.Args(command, []string{"unexpected"}))
+
+	for _, name := range []string{
+		"config", "format", "username", "password", "sslkeyfile", "sslcertfile", "sslcafile",
+		"sslciphers", "sslpassword", "sslpasswordfile", "connect-timeout",
+	} {
+		require.NotNil(t, command.Flags().Lookup(name), "missing --%s", name)
+	}
+
+	assert.Equal(t, topologyFormatTable, command.Flags().Lookup("format").DefValue)
+	assert.Equal(t, connector.DefaultConnectTimeout.String(),
+		command.Flags().Lookup("connect-timeout").DefValue)
+
+	registered, _, err := NewClusterCmd().Find([]string{"topology"})
+	require.NoError(t, err)
+	assert.Equal(t, "topology", registered.Name())
+}
+
+func TestTopologyConnectContextPreservesV3Options(t *testing.T) {
+	setFlag(t, &replicasetSslPassword, "key-password")
+	setFlag(t, &replicasetSslPasswordFile, "/secrets/key-password")
+	setFlag(t, &replicasetConnectTimeout, 250*time.Millisecond)
+
+	connection := topologyConnectContext()
+	assert.Equal(t, "key-password", connection.SslPassword)
+	assert.Equal(t, "/secrets/key-password", connection.SslPasswordFile)
+	assert.Equal(t, 250*time.Millisecond, connection.ConnectTimeout)
+}
+
+func TestClusterTopologyRejectsUnsupportedFormatBeforeLoadingConfig(t *testing.T) {
+	setFlag(t, &topologyFormat, "yaml")
+	setFlag(t, &topologyConfigPath, "/nonexistent/config.yaml")
+
+	err := internalClusterTopologyModule(&cmdcontext.CmdCtx{}, nil)
+	require.ErrorIs(t, err, errUnsupportedTopologyFormat)
 }

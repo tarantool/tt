@@ -1711,6 +1711,7 @@ COMMANDS[0m
   publish     Publish a cluster configuration
   replicaset  manage replicaset via 3.0 cluster config source
   show        Show a cluster configuration
+  topology    Show the current cluster topology
   worker      Manage worker configuration
 [0;1;39m
 FLAGS[0m
@@ -2276,6 +2277,85 @@ EXAMPLES[0m
   tt cluster show application_name:instance_name
   tt cluster show https://user:pass@localhost:2379/tt
   tt cluster show https://user:pass@localhost:2379/tt?name=instance
+
+=== tt cluster topology --help
+Discover and print the current cluster topology by connecting to cluster nodes
+via net.box.
+
+The cluster configuration can be loaded from a file, etcd, or Tarantool Config
+Storage. It determines the instances and their listen URIs. Each instance is
+contacted and the live topology is merged into one view.
+
+JSON output contains replicasets keyed by UUID and their instances
+(instance_uuid, instance_name, hostname, mode, status). If a replicaset is
+unreachable and its UUID is not configured, its name is used as the key.
+Unreachable instances have status "not reachable".
+
+The URL specifies a etcd or tarantool config storage connection settings in the
+following format:
+http(s)://[username:password@]host:port/prefix[?arguments]
+
+* prefix - a base path to Tarantool configuration in etcd or tarantool config
+  storage.
+
+Possible arguments:
+* key - a target configuration key in the prefix.
+* name - a name of an instance in the cluster configuration.
+* timeout - a request timeout in seconds (default 3.0).
+* ssl_key_file - a path to a private SSL key file.
+* ssl_cert_file - a path to an SSL certificate file.
+* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
+* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
+* ssl_ciphers - a list of allowed SSL ciphers.
+* verify_host - set off (default true) verification of the certificate’s name
+  against the host.
+* verify_peer - set off (default true) verification of the peer’s SSL
+  certificate.
+
+The command supports the following environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username;
+* TT_CLI_PASSWORD - specifies a Tarantool password.
+* TT_CLI_ETCD_USERNAME - specifies a Etcd username;
+* TT_CLI_ETCD_PASSWORD - specifies a Etcd password.
+
+The priority of credentials:
+environment variables < command flags < URL credentials.
+
+HTTPS connection behavior:
+* The https:// scheme enables TLS for both etcd and Tarantool Config Storage
+  (TCS), even when no ssl_* URL arguments are specified.
+* For etcd, certificate verification is skipped if neither ssl_ca_file nor
+  ssl_ca_path is specified. A configured CA enables verification unless
+  explicitly disabled.
+* TCS keeps the certificate verification behavior of its TLS backend. The
+  default Go backend uses system CAs unless ssl_ca_file is specified.
+* Do not mix http:// and https:// addresses in an etcd endpoint list. If any
+  endpoint uses https://, TLS is enabled for all endpoints.
+
+[0;1;39mUSAGE[0m
+  tt cluster topology -c <CLUSTER_CONFIG|URI> [flags]
+[0;1;39m
+FLAGS[0m
+  -c, --config string              path or URI of the cluster configuration
+      --connect-timeout duration   timeout for establishing a binary connection
+                                   (default 1s)
+      --format string              output format: table or json (default
+                                   "table")
+  -h, --help                       help for topology
+  -p, --password string            password for the URI case
+      --sslcafile string           path to a trusted certificate authorities
+                                   (CA) file for the URI case
+      --sslcertfile string         path to an SSL certificate file for the URI
+                                   case
+      --sslciphers string          colon-separated (:) list of SSL cipher suites
+                                   for the URI case
+      --sslkeyfile string          path to a private SSL key file for the URI
+                                   case
+      --sslpassword string         password for decrypting the private SSL key
+                                   file for a cluster connection
+      --sslpasswordfile string     path to a file containing the private SSL key
+                                   password for a cluster connection
+  -u, --username string            username for the URI case
 
 === tt cluster worker --help
 Manage worker configuration

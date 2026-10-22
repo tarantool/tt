@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/magefile/mage/mg"
@@ -238,6 +239,37 @@ func CheckLicenses() error {
 	return sh.RunV(home+"/go/bin/lichen", "--config", ".lichen.yaml", "tt")
 }
 
+// mageArgs keeps optional task flags before Mage parses its target list.
+var mageArgs = slices.Clone(os.Args[1:])
+
+func init() {
+	pythonLint := false
+
+	for _, argument := range mageArgs {
+		if strings.EqualFold(argument, "lint:python") || strings.EqualFold(argument, "lint:full") {
+			pythonLint = true
+		}
+	}
+
+	if !pythonLint {
+		return
+	}
+
+	arguments := []string{os.Args[0]}
+
+	for _, argument := range mageArgs {
+		if argument != "--fix" {
+			arguments = append(arguments, argument)
+		}
+	}
+
+	os.Args = arguments
+}
+
+func fixFlag() bool {
+	return slices.Contains(mageArgs, "--fix")
+}
+
 type Lint mg.Namespace
 
 // Full runs golang and python linters.
@@ -329,7 +361,12 @@ func linterVersionOf(exe string) (string, error) {
 func (Lint) Python() error {
 	_, _ = fmt.Fprintln(os.Stdout, "Running Ruff...")
 
-	return sh.RunV(pythonExecutableName, "-m", "ruff", "check", "test")
+	arguments := []string{"-m", "ruff", "check", "test"}
+	if fixFlag() {
+		arguments = append(arguments, "--fix")
+	}
+
+	return sh.RunV(pythonExecutableName, arguments...)
 }
 
 type Unit mg.Namespace
