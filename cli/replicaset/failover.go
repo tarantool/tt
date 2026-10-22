@@ -9,19 +9,20 @@ type Failover int
 
 //go:generate stringer -type=Failover -trimprefix Failover -linecomment
 
+//nolint:godot // The line comments are the stringer output.
 const (
 	// FailoverUnknown is unknown type of a failover.
-	FailoverUnknown Failover = iota // unknown.
+	FailoverUnknown Failover = iota // unknown
 	// FailoverOff is a disabled failover.
 	// Is is a "off" failover type for the centralized config.
-	FailoverOff // off.
+	FailoverOff // off
 	// FailoverManual is a "manual" failover type for the centralized config.
-	FailoverManual // manual.
+	FailoverManual // manual
 	// FailoverElection uses a RAFT based algorithm for the leader election.
 	// Is is a "election" failover type for the centralized config.
-	FailoverElection // election.
+	FailoverElection // election
 	// FailoverSupervised is a "supervised" failover type for the centralized config.
-	FailoverSupervised // supervised.
+	FailoverSupervised // supervised
 )
 
 // ParseFailover returns a failover type from a string representation.

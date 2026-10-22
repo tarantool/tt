@@ -5,11 +5,12 @@ type Mode int
 
 //go:generate stringer -type Mode -trimprefix Mode -linecomment
 
+//nolint:godot // The line comments are the stringer output.
 const (
 	// ModeUnknown is used when read-write mode is unknown.
-	ModeUnknown Mode = iota // unknown.
+	ModeUnknown Mode = iota // unknown
 	// ModeRead is used when box.cfg.read_only = true.
-	ModeRead // read.
+	ModeRead // read
 	// ModeRW is used when box.cfg.read_only = false.
-	ModeRW // rw.
+	ModeRW // rw
 )

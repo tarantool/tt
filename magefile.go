@@ -507,8 +507,7 @@ func Clean() {
 	_ = os.Remove(ttExecutableName)
 }
 
-// Generate generates code as usual `go generate` command. To work properly you
-// will need a latest Tarantool executable in PATH.
+// Generate runs go generate with stringer available in PATH.
 func Generate() error {
 	paths := append([]string{"."}, modules...)
 	for _, path := range paths {

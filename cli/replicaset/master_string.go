@@ -19,8 +19,9 @@ const _Master_name = "unknownnosinglemulti"
 var _Master_index = [...]uint8{0, 7, 9, 15, 20}
 
 func (i Master) String() string {
-	if i < 0 || i >= Master(len(_Master_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_Master_index)-1 {
 		return "Master(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _Master_name[_Master_index[i]:_Master_index[i+1]]
+	return _Master_name[_Master_index[idx]:_Master_index[idx+1]]
 }
