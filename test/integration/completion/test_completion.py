@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from subprocess import run
+from tempfile import TemporaryDirectory
 
 import pytest
 
@@ -214,16 +215,17 @@ def get_completions_from_shell(
     """
     helper_script = HELPERS_DIR / f"{completion.shell}_completion.sh"
 
-    path = os.environ.get("PATH", "")
-    path = f"{tt_cmd.parent}:{path}"
-
-    process = run(
-        [helper_script, completion.file, line_to_complete],
-        text=True,
-        capture_output=True,
-        cwd=tmp_path,
-        env=dict(os.environ, PATH=path),
-    )
+    # Completion scripts invoke the literal "tt", even if --tt-cmd has another name.
+    with TemporaryDirectory(dir=tmp_path) as bin_dir:
+        (Path(bin_dir) / "tt").symlink_to(tt_cmd.resolve())
+        path = f"{bin_dir}:{os.environ.get('PATH', '')}"
+        process = run(
+            [helper_script, completion.file, line_to_complete],
+            text=True,
+            capture_output=True,
+            cwd=tmp_path,
+            env=dict(os.environ, PATH=path),
+        )
     if process.returncode != 0:
         print("STDERR:", process.stderr)
         print("STDOUT:", process.stdout)

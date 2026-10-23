@@ -30,12 +30,13 @@ def test_install_tt_noexist_commit(tt_cmd, tmp_path):
     os.makedirs(tmp_dir + "/tt")
 
     install_cmd = ["git", "init"]
-    instance_process = subprocess.Popen(
+    subprocess.run(
         install_cmd,
         cwd=tmp_dir + "/tt",
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
+        check=True,
     )
 
     # Install tt.
@@ -61,13 +62,11 @@ def test_install_tt_noexist_commit(tt_cmd, tmp_path):
     )
 
     # Check that the process shutdown correctly.
-    instance_process_rc = instance_process.wait()
-    assert instance_process_rc != 0
+    output, _ = instance_process.communicate()
+    assert instance_process.returncode != 0, output
 
-    first_output = instance_process.stdout.readline()
-    assert re.search(r"Searching in commits", first_output)
-    second_output = instance_process.stdout.readline()
-    assert re.search(r"2df3077: unable to get hash info", second_output)
+    assert re.search(r"Searching in commits", output)
+    assert re.search(r"2df3077: unable to get hash info", output)
 
 
 @pytest.mark.slow
@@ -88,8 +87,8 @@ def test_install_tt(tt_cmd, tmp_path):
     )
 
     # Check that the process shutdown correctly.
-    instance_process_rc = instance_process.wait()
-    assert instance_process_rc == 0
+    output, _ = instance_process.communicate()
+    assert instance_process.returncode == 0, output
     os.remove(configPath)
 
     installed_cmd = [tmp_path / ".tarantool" / "bin" / "tt", "version"]
@@ -132,8 +131,8 @@ def test_install_tt_specific_commit(tt_cmd, tmp_path):
     )
 
     # Check that the process shutdown correctly.
-    instance_process_rc = instance_process.wait()
-    assert instance_process_rc == 0
+    output, _ = instance_process.communicate()
+    assert instance_process.returncode == 0, output
 
     installed_cmd = [tmp_path / ".tarantool" / "bin" / "tt", "version"]
     installed_program_process = subprocess.Popen(
@@ -176,13 +175,13 @@ def test_wrong_format_hash(tt_cmd, tmp_path):
     )
 
     # Check that the process shutdown correctly.
-    instance_process_rc = instance_process.wait()
-    assert instance_process_rc != 0
-    assert re.search(r"Searching in versions...", instance_process.stdout.readline())
-    assert re.search(r"Searching in commits...", instance_process.stdout.readline())
+    output, _ = instance_process.communicate()
+    assert instance_process.returncode != 0, output
+    assert re.search(r"Searching in versions...", output)
+    assert re.search(r"Searching in commits...", output)
     assert re.search(
         r"the hash must contain at least 7 characters",
-        instance_process.stdout.readline(),
+        output,
     )
 
     # Install specific tt's commit.
@@ -206,12 +205,10 @@ def test_wrong_format_hash(tt_cmd, tmp_path):
     )
 
     # Check that the process shutdown correctly.
-    instance_process_rc = instance_process_second.wait()
-    assert instance_process_rc != 0
-    first_output = instance_process_second.stdout.readline()
-    assert re.search(r"Searching in commits...", first_output)
-    second_output = instance_process_second.stdout.readline()
-    assert re.search(r"hash has a wrong format", second_output)
+    output, _ = instance_process_second.communicate()
+    assert instance_process_second.returncode != 0, output
+    assert re.search(r"Searching in commits...", output)
+    assert re.search(r"hash has a wrong format", output)
 
 
 @pytest.mark.slow
@@ -250,8 +247,8 @@ def test_install_tt_specific_version(tt_cmd, tmp_path, required_ver: str, instal
     )
 
     # Check that the process shutdown correctly.
-    instance_process_rc = instance_process.wait()
-    assert instance_process_rc == 0
+    output, _ = instance_process.communicate()
+    assert instance_process.returncode == 0, output
     os.remove(configPath)
 
     installed_cmd = [tmp_path / ".tarantool" / "bin" / "tt", "version"]
@@ -465,6 +462,7 @@ def test_install_tt_fail_exit_code_dependency_check(tt_cmd, tmp_path, package_to
         "install",
         "tt",
         "--source-build",
+        "master",
     ]
     install_process = subprocess.Popen(
         install_cmd,
@@ -474,8 +472,9 @@ def test_install_tt_fail_exit_code_dependency_check(tt_cmd, tmp_path, package_to
         stdout=subprocess.PIPE,
         text=True,
     )
-    install_process_rc = install_process.wait()
-    assert install_process_rc == 1
+    output, _ = install_process.communicate()
+    assert install_process.returncode == 1, output
+    assert re.search(rf"Missing packages:.*\b{package_to_exclude}\b", output)
 
 
 @pytest.mark.slow
@@ -529,10 +528,12 @@ def test_install_tarantool_fetch_latest_version(
     versions = root / "versions" / "tarantool"
     master = versions / "tarantool_master"
     (versions / ("tarantool_" + old_tarantool_version)).rename(master)
-    for directory in ["bin", "include"]:
-        link = root / directory / "tarantool"
+    for link, source in [
+        (root / "bin" / "tarantool", master / "tarantool"),
+        (root / "include" / "tarantool", master / "include" / "tarantool"),
+    ]:
         link.unlink()
-        link.symlink_to(master / directory / "tarantool")
+        link.symlink_to(source)
 
     # Installing newest version.
     install_cmd = [tt_cmd, "--cfg", config_path]

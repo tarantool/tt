@@ -134,7 +134,12 @@ def tmpdir_with_cfg(tmp_path):
 def tmpdir_with_tarantool(tt_cmd, tmp_path_factory):
     tmpdir = tmp_path_factory.mktemp("tarantool_env")
 
-    utils.create_tt_config(tmpdir)
+    # The binary installer uses the project store; legacy commands still read tt.yaml.
+    # Rocks treats inc_dir as the prefix and appends include/tarantool.
+    utils.create_tt_config(
+        tmpdir,
+        {"env": {"bin_dir": ".tarantool/bin", "inc_dir": ".tarantool"}},
+    )
 
     cmd = [
         tt_cmd,
@@ -151,6 +156,11 @@ def tmpdir_with_tarantool(tt_cmd, tmp_path_factory):
     assert p.returncode == 0
 
     return tmpdir
+
+
+@pytest.fixture(scope="session")
+def tarantool_prefix(tmpdir_with_tarantool):
+    return tmpdir_with_tarantool / ".tarantool"
 
 
 @pytest.fixture(scope="session")

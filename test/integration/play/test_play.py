@@ -482,7 +482,7 @@ def test_play_to_cluster_app_by_uri(tt, tt_app, with_scheme, uri):
 
     if with_scheme:
         uri = f"tcp://{uri}"
-    file_to_play = Path(__file__) / "test_file" / "test.snap"
+    file_to_play = Path(__file__).parent / "test_file" / "test.snap"
 
     # Start instances.
     p = tt.run(
