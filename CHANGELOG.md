@@ -9,6 +9,64 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt cluster topology -c <CLUSTER_CONFIG|URI>`: show a Tarantool 3 cluster's
+  configured membership and current instance state. Read the configuration
+  from a file, etcd or Tarantool Config Storage and query instances in parallel.
+  Print a table by default or JSON with `--format json`, including replicaset
+  and instance UUIDs, instance names, hostnames, read/write modes and
+  reachability. Keep unavailable instances, unavailable replicasets and
+  configured empty replicasets in the result. Support storage credentials and
+  the connector TLS, encrypted key password and connection timeout flags.
+  Share configuration loading and topology discovery with backup and restore
+  planning.
+- `mage lint:python` and `mage lint:full`: accept `--fix` to let Ruff apply
+  automatic Python lint fixes.
+- `tt backup`: add full and incremental point-in-time backup workflows for
+  Tarantool 3.8 and newer. `start` opens `box.backup`, freezes the replicaset
+  membership and recovery points, and writes a compressed archive and manifest
+  fragment. `--snapshot` takes a fresh checkpoint before a full backup;
+  `--from-vclock` selects an incremental backup. `finalize` closes the backup
+  and removes its local artifacts, with `--force` to close it when local metadata
+  is unavailable. Both commands accept `--dir` and the connector TLS, encrypted
+  key password and connection timeout flags. A failed start closes the backup
+  it opened; an already open backup is reported with its identifying details.
+- `tt backup plan`, `upload` and `last`: plan against the configured and live
+  cluster topology, validate and upload per-replicaset archives, aggregate a
+  versioned cluster manifest, and inspect the latest backup. Plans carry the
+  cluster and environment scope and record why a full backup is required.
+  Upload checks the plan, fragments, checksums, archive contents and current
+  storage before publication, reports missing or partial shards as warnings,
+  and records archive paths relative to the storage root. `tt backup-id`
+  generates a sortable UTC identifier for a new backup.
+- `tt backup verify` and `gc`: check manifest chains and archive checksums,
+  distinguish an unfinished upload from corruption, and apply full-backup or
+  age-based retention with optional `--dry-run`. Garbage collection preserves
+  the chains retained backups need, restricts deletion to the backup layout,
+  rechecks orphaned archives, and reports actual deletions. All storage commands
+  accept `--cluster-name` and `--environment`, and support filesystem or
+  S3-compatible storage selected by URI or a configuration file. Backup and
+  restore verdicts use command-specific exit codes from 3 upward, keeping
+  them distinct from v3 request errors (1) and system failures (2).
+- `tt restore plan`: resolve a named recovery point or timestamp within its
+  own complete backup chain, optionally select `--replicasets`, and produce
+  per-instance restore targets from the cluster configuration and frozen backup
+  membership. Plans distinguish out-of-range requests, missing points and broken
+  chains, and refuse replicasets absent from the backup.
+- `tt restore apply`: verify checksums and archive-chain metadata before
+  clearing restore-owned files. Restore the snapshot, WAL and vinyl trees
+  to separate directories derived from `--config` and
+  `--instance`, or selected with `--snapshot-dir`, `--wal-dir`, `--vinyl-dir`
+  and `--work-dir`. Truncate WAL by its recorded log position while preserving
+  its starting vclock, check restored journal continuity, target membership,
+  snapshot identity and startup compatibility, and write a per-instance
+  restore-state marker after success. Preserve vinyl space/index directories
+  and route archive names by file type even when data directories overlap.
+- `sdk/backup`: add filesystem and S3 object storage and streaming tar+zstd
+  archive APIs. Filesystem writes use atomic replacement, validate the declared
+  size, and sweep stale temporary files only on the first write; a missing
+  storage is distinct from an empty prefix. S3 reads distinguish a missing key
+  from a missing bucket. Archive readers reject unsafe names, links and
+  special-file entries, preserving the snapshot, WAL and vinyl archive layout.
 - `tt cluster`: add the worker publish, show and delete subcommands.
 
 - `tt connect` and connector-based `tt replicaset` commands: add

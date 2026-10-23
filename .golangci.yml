@@ -345,6 +345,49 @@ linters:
             - "golang.org/x/net/html"
             - "golang.org/x/sys"
             - "gopkg.in/yaml.v2"
+        dir-cli-backup:
+          files:
+            - "**/cli/backup/**"
+          allow:
+            - $gostd
+            - "github.com/google/uuid"
+            - "github.com/klauspost/compress/zstd"
+            - "github.com/mitchellh/mapstructure"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/go-iproto"
+            - "github.com/tarantool/go-tarantool/v3"
+            - "github.com/tarantool/go-xlog"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/backup"
+            - "github.com/tarantool/tt/v3/cli/connector"
+            - "github.com/tarantool/tt/v3/cli/util"
+            - "github.com/vmihailenco/msgpack/v5"
+            - "gopkg.in/yaml.v3"
+        dir-cli-restore:
+          files:
+            - "**/cli/restore/**"
+          allow:
+            - $gostd
+            - "github.com/google/uuid"
+            - "github.com/klauspost/compress/zstd"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/go-iproto"
+            - "github.com/tarantool/go-xlog"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/backup"
+            - "github.com/tarantool/tt/v3/cli/restore"
+            - "github.com/tarantool/tt/v3/cli/util/regexputil"
+            - "github.com/vmihailenco/msgpack/v5"
+        dir-sdk-backup:
+          files:
+            - "**/sdk/backup/**"
+          allow:
+            - $gostd
+            - "github.com/klauspost/compress"
+            - "github.com/minio/minio-go/v7"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/sdk/backup"
+            - "github.com/testcontainers/testcontainers-go"
         dir-cli-cfg:
           files:
             - "**/cli/cfg/**"
@@ -389,7 +432,9 @@ linters:
             - "github.com/jedib0t/go-pretty/v6"
             - "github.com/spf13/cobra"
             - "github.com/stretchr/testify"
+            - "github.com/tarantool/go-config/v2"
             - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/backup"
             - "github.com/tarantool/tt/v3/cli/cfg"
             - "github.com/tarantool/tt/v3/cli/checkpoint"
             - "github.com/tarantool/tt/v3/cli/cluster"
@@ -409,6 +454,7 @@ linters:
             - "github.com/tarantool/tt/v3/cli/printing"
             - "github.com/tarantool/tt/v3/cli/process_utils"
             - "github.com/tarantool/tt/v3/cli/replicaset"
+            - "github.com/tarantool/tt/v3/cli/restore"
             - "github.com/tarantool/tt/v3/cli/rocks"
             - "github.com/tarantool/tt/v3/cli/running"
             - "github.com/tarantool/tt/v3/cli/status"

@@ -22,6 +22,10 @@ const errorsHelpText = "Exit codes of tt commands.\n" +
 	"Which failure within a code it was is carried by the error message, " +
 	"not by a further number.\n" +
 	"\n" +
+	"Backup and restore commands also return command-specific verdict codes, " +
+	"documented in each command's --help. These start at 3, keeping invalid " +
+	"requests (1) and system failures (2) separate from backup and recovery verdicts.\n" +
+	"\n" +
 	"A command provided by an external module exits with the module's own code. " +
 	"Once tt test has started luatest, its exit code is luatest's own. " +
 	"tt run replaces itself with Tarantool, so its exit code is Tarantool's."

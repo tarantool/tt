@@ -518,6 +518,7 @@ func NewClusterCmd() *cobra.Command {
 	integrity.RegisterWithIntegrityFlag(publish.Flags(), &clusterIntegrityPrivateKey)
 
 	clusterCmd.AddCommand(publish)
+	clusterCmd.AddCommand(NewClusterTopologyCmd())
 	clusterCmd.AddCommand(newClusterReplicasetCmd())
 	clusterCmd.AddCommand(newClusterFailoverCmd())
 	clusterCmd.AddCommand(newClusterWorkerCmd())

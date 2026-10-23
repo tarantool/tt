@@ -26,13 +26,16 @@ require (
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
 	github.com/tarantool/go-config/v2 v2.0.1
+	github.com/tarantool/go-iproto v1.1.0
 	github.com/tarantool/go-luarocks v0.0.0-20260917094730-272b95159b11
 	github.com/tarantool/go-prompt v1.0.1
 	github.com/tarantool/go-storage/v2 v2.0.0
 	github.com/tarantool/go-tail v1.4.15-0.20260806154205-254b9b0cd094
 	github.com/tarantool/go-tarantool/v3 v3.0.2
+	github.com/tarantool/go-xlog v0.0.0-20260707203858-fed522934686
 	github.com/tarantool/tt/modules/aeon v0.0.0
 	github.com/tarantool/tt/sdk v0.0.0
+	github.com/tarantool/tt/sdk/backup v0.0.0
 	github.com/tarantool/tt/sdk/cluster v0.0.0
 	github.com/tarantool/tt/sdk/connect v0.0.0-0
 	github.com/tarantool/tt/sdk/dial v0.0.0-00010101000000-000000000000
@@ -40,16 +43,18 @@ require (
 	github.com/ulikunitz/xz v0.5.17
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	github.com/yuin/gopher-lua v1.1.2
+	go.etcd.io/etcd/api/v3 v3.6.14
 	go.etcd.io/etcd/client/pkg/v3 v3.6.14
 	go.etcd.io/etcd/client/v3 v3.6.14
 	golang.org/x/net v0.60.0
 	golang.org/x/term v0.46.0
+	google.golang.org/grpc v1.83.2
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
-	dario.cat/mergo v1.0.0 // indirect
+	dario.cat/mergo v1.0.2 // indirect
 	filippo.io/bigmod v0.1.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -76,9 +81,11 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.9.0 // indirect
+	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-json-experiment/json v0.0.0-20260820222146-c27c302e5fc3 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
+	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
@@ -101,6 +108,9 @@ require (
 	github.com/mattn/go-pointer v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.20 // indirect
 	github.com/mattn/go-tty v0.0.7 // indirect
+	github.com/minio/crc64nvme v1.0.2 // indirect
+	github.com/minio/md5-simd v1.1.2 // indirect
+	github.com/minio/minio-go/v7 v7.0.95 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/patternmatcher v0.6.1 // indirect
 	github.com/moby/sys/sequential v0.7.0 // indirect
@@ -110,12 +120,14 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/otiai10/mint v1.6.3 // indirect
+	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pjbgf/sha1cd v0.6.0 // indirect
 	github.com/pkg/term v1.2.0-beta.2 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.19.2 // indirect
+	github.com/rs/xid v1.6.0 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
@@ -124,16 +136,15 @@ require (
 	github.com/spacemonkeygo/spacelog v0.0.0-20180420211403-2296661a0572 // indirect
 	github.com/tarantool/go-gostcrypto v0.1.0 // indirect
 	github.com/tarantool/go-gostls v0.1.0 // indirect
-	github.com/tarantool/go-iproto v1.1.0 // indirect
 	github.com/tarantool/go-openssl v1.4.1 // indirect
 	github.com/tarantool/go-option v1.1.0 // indirect
 	github.com/tarantool/go-tlsdialer/v2 v2.0.1 // indirect
+	github.com/tinylib/msgp v1.3.0 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/xiang90/probing v0.0.0-20221125231312-a49e3df8f510 // indirect
 	go.etcd.io/bbolt v1.4.3 // indirect
-	go.etcd.io/etcd/api/v3 v3.6.14 // indirect
 	go.etcd.io/etcd/pkg/v3 v3.6.14 // indirect
 	go.etcd.io/etcd/server/v3 v3.6.14 // indirect
 	go.etcd.io/raft/v3 v3.6.0 // indirect
@@ -158,7 +169,6 @@ require (
 	golang.org/x/time v0.14.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260803160001-6ac0973c030d // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260803160001-6ac0973c030d // indirect
-	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
@@ -170,6 +180,7 @@ require (
 replace (
 	github.com/tarantool/tt/modules/aeon => ./modules/aeon
 	github.com/tarantool/tt/sdk => ./sdk
+	github.com/tarantool/tt/sdk/backup => ./sdk/backup
 	github.com/tarantool/tt/sdk/cluster => ./sdk/cluster
 	github.com/tarantool/tt/sdk/connect => ./sdk/connect
 	github.com/tarantool/tt/sdk/dial => ./sdk/dial

@@ -1,0 +1,981 @@
+package restore
+
+import (
+	"maps"
+	"reflect"
+	"slices"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/v3/cli/backup"
+)
+
+// TestPlanTopologyMatchesByNameNotUUID is the sanctioned restore target: a
+// freshly deployed cluster with the historical composition. Every UUID in the
+// backup belongs to a deployment that no longer exists, and the configuration
+// carries none at all, so the comparison has nothing but instance names to go on.
+func TestPlanTopologyMatchesByNameNotUUID(t *testing.T) {
+	for _, generation := range []string{"deploy-1", "deploy-2"} {
+		t.Run(generation, func(t *testing.T) {
+			fixture := newPlanFixture(t)
+			fixture.addBackup(clusterBackup{
+				id: fullBackupID, base: fullBackupID,
+				backupType: backup.BackupTypeFull, createdAt: 200,
+				shards: []shardBackup{
+					{
+						replicaset: shardA, master: masterOfA, generation: generation,
+						replicaID: replicaOfA, vclockEnd: 1000,
+						points: []backup.RecoveryPoint{
+							recoveryPointAt("p1", replicaOfA, 500, 110),
+							recoveryPointAt("p2", replicaOfA, 600, 210),
+						},
+					},
+					{
+						replicaset: shardB, master: masterOfB, generation: generation,
+						replicaID: replicaOfB, vclockEnd: 900,
+						points: []backup.RecoveryPoint{
+							recoveryPointAt("p1", replicaOfB, 400, 111),
+							recoveryPointAt("p2", replicaOfB, 450, 211),
+						},
+					},
+				},
+			})
+
+			result := fixture.plan(150, masterOnlyCluster())
+
+			require.Equal(t, StatusOK, result.Status)
+			require.Nil(t, result.TopologyDiff)
+			// The manifests record no members, so the plan says so: a
+			// single-target restore per replicaset, and nothing else to report.
+			require.Equal(t, []string{
+				noMembersWarning(fullBackupID, shardA),
+				noMembersWarning(fullBackupID, shardB),
+			}, result.Warnings)
+		})
+	}
+}
+
+// TestPlanTopologyExtraReplicaset covers a cluster that has grown a shard the
+// backup knows nothing about: restoring into it would leave that shard on
+// whatever it holds now, silently mixed with restored data.
+func TestPlanTopologyExtraReplicaset(t *testing.T) {
+	fixture := newPlanFixture(t)
+	fixture.standardChain()
+
+	current := configuredCluster(
+		configuredReplicaset("storage-a", masterOfA),
+		configuredReplicaset("storage-b", masterOfB),
+		configuredReplicaset("storage-c", masterOfC),
+	)
+
+	result := fixture.plan(550, current)
+
+	require.Equal(t, StatusTopologyMismatch, result.Status)
+	require.Equal(t, "the topology of the recovery point does not match the cluster config",
+		result.Reason)
+	require.Nil(t, result.RecoveryPoint)
+	require.Empty(t, result.DownloadPlan)
+
+	require.NotNil(t, result.TopologyDiff)
+	require.Equal(t, []ReplicasetDiff{{
+		Name:      "storage-c",
+		Instances: []string{masterOfC},
+	}}, result.TopologyDiff.ExtraReplicasets)
+	require.Empty(t, result.TopologyDiff.MissingReplicasets)
+	require.Empty(t, result.TopologyDiff.AmbiguousReplicasets)
+
+	// No point of this chain was taken on a topology carrying the third
+	// replicaset, so there is nothing to offer instead.
+	require.Nil(t, result.NearestSafe)
+
+	require.Empty(t, fixture.downloaded(), "a blocked plan must not download anything")
+}
+
+// TestPlanTopologyMissingReplicaset covers a backed-up replicaset the
+// configuration has no home for: its archive would have nowhere to go.
+func TestPlanTopologyMissingReplicaset(t *testing.T) {
+	fixture := newPlanFixture(t)
+	fixture.standardChain()
+
+	result := fixture.plan(550, configuredCluster(configuredReplicaset("storage-a", masterOfA)))
+
+	require.Equal(t, StatusTopologyMismatch, result.Status)
+	require.NotNil(t, result.TopologyDiff)
+
+	// The diff names the replicaset by what each side knows it as: the backup
+	// has a UUID, the configuration a name, and both know the instance names.
+	require.Equal(t, []ReplicasetDiff{{
+		ReplicasetUUID: shardB,
+		Instances:      []string{masterOfB},
+	}}, result.TopologyDiff.MissingReplicasets)
+	require.Empty(t, result.TopologyDiff.ExtraReplicasets)
+
+	require.Empty(t, fixture.downloaded())
+}
+
+// TestPlanTopologyAmbiguousReplicaset covers a replicaset that was split in
+// two: both halves share instance names with it, and picking either would be a
+// guess about where the data belongs.
+func TestPlanTopologyAmbiguousReplicaset(t *testing.T) {
+	fixture := newPlanFixture(t)
+	fixture.addBackup(clusterBackup{
+		id: fullBackupID, base: fullBackupID,
+		backupType: backup.BackupTypeFull, createdAt: 200,
+		shards: []shardBackup{
+			{
+				replicaset: shardA, master: masterOfA, generation: "deploy-1",
+				members:   []string{masterOfA, secondOfA},
+				replicaID: replicaOfA, vclockEnd: 1000,
+				points: []backup.RecoveryPoint{
+					recoveryPointAt("p1", replicaOfA, 500, 110),
+					recoveryPointAt("p2", replicaOfA, 600, 210),
+				},
+			},
+		},
+	})
+
+	current := configuredCluster(
+		configuredReplicaset("storage-a-left", masterOfA),
+		configuredReplicaset("storage-a-right", secondOfA),
+	)
+
+	result := fixture.plan(150, current)
+
+	require.Equal(t, StatusTopologyMismatch, result.Status)
+	require.NotNil(t, result.TopologyDiff)
+	require.Equal(t, []ReplicasetDiff{{
+		ReplicasetUUID: shardA,
+		Instances:      []string{masterOfA, secondOfA},
+		Candidates:     []string{"storage-a-left", "storage-a-right"},
+	}}, result.TopologyDiff.AmbiguousReplicasets)
+
+	// Neither half was claimed, so both are also reported as configured
+	// replicasets nothing in the backup maps onto.
+	require.Equal(t, []ReplicasetDiff{
+		{Name: "storage-a-left", Instances: []string{masterOfA}},
+		{Name: "storage-a-right", Instances: []string{secondOfA}},
+	}, result.TopologyDiff.ExtraReplicasets)
+
+	require.Empty(t, fixture.downloaded())
+}
+
+// TestPlanTopologyReplacedReplicaRejoins covers the usual companion of a
+// restore: a replica that was replaced while the cluster was down. It replays
+// nothing, is wiped and joins the restored node once it runs, so it neither
+// blocks the plan nor is worth a warning - it is a step of the procedure, and
+// the plan says so by naming it under rejoin.
+func TestPlanTopologyReplacedReplicaRejoins(t *testing.T) {
+	fixture := newPlanFixture(t)
+	fixture.standardChain()
+
+	current := configuredCluster(
+		configuredReplicaset("storage-a", masterOfA, "storage-a-003"),
+		configuredReplicaset("storage-b", masterOfB),
+	)
+
+	result := fixture.plan(550, current)
+
+	require.Equal(t, StatusOK, result.Status)
+	require.Nil(t, result.TopologyDiff)
+	require.Len(t, result.DownloadPlan, 2)
+	require.Equal(t, []string{
+		noMembersWarning(incTwoID, shardA),
+		noMembersWarning(incTwoID, shardB),
+	}, result.Warnings)
+
+	require.Equal(t, []string{"storage-a-003"}, result.RestoreTargets[shardA].Rejoin)
+	require.Empty(t, result.RestoreTargets[shardB].Rejoin)
+}
+
+// TestPlanTopologyRejoinsEveryConfiguredReplica pins what a realistic
+// configuration produces. A manifest's topology is built from the backup
+// fragments - one per master - so no replica of any replicaset is in it, and
+// none of them has to be: only the target replays archives, and every other
+// member comes back by joining it. A successful plan says that and warns about
+// nothing.
+func TestPlanTopologyRejoinsEveryConfiguredReplica(t *testing.T) {
+	fixture := newPlanFixture(t)
+	fixture.standardChain()
+
+	result := fixture.plan(550, liveCluster())
+
+	require.Equal(t, StatusOK, result.Status)
+	require.Equal(t, []string{
+		noMembersWarning(incTwoID, shardA),
+		noMembersWarning(incTwoID, shardB),
+	}, result.Warnings)
+
+	require.Equal(t, map[string]RestoreTarget{
+		shardA: {
+			InstanceName: masterOfA,
+			PatchUUID:    instanceUUIDOf("deploy-1", masterOfA),
+			Instances: []RestoreInstance{{
+				InstanceName: masterOfA,
+				PatchUUID:    instanceUUIDOf("deploy-1", masterOfA),
+				Role:         roleMaster,
+			}},
+			Rejoin: []string{secondOfA},
+		},
+		shardB: {
+			InstanceName: masterOfB,
+			PatchUUID:    instanceUUIDOf("deploy-1", masterOfB),
+			Instances: []RestoreInstance{{
+				InstanceName: masterOfB,
+				PatchUUID:    instanceUUIDOf("deploy-1", masterOfB),
+				Role:         roleMaster,
+			}},
+			Rejoin: []string{"storage-b-002"},
+		},
+	}, result.RestoreTargets)
+}
+
+// TestPlanTargetsRejoinKeepsTheConfiguredOrder pins what the wipe list holds
+// when a replicaset has more than one member to wipe, and that the names come
+// out sorted rather than in the order the configuration happened to list them.
+// An orchestrator diffing two plans reads this as a change otherwise.
+func TestPlanTargetsRejoinKeepsTheConfiguredOrder(t *testing.T) {
+	fixture := newPlanFixture(t)
+	fixture.standardChain()
+
+	current := configuredCluster(
+		configuredReplicaset("storage-a", "storage-a-004", masterOfA, secondOfA),
+		configuredReplicaset("storage-b", masterOfB),
+	)
+
+	result := fixture.plan(550, current)
+
+	require.Equal(t, StatusOK, result.Status)
+	require.Equal(t, []string{secondOfA, "storage-a-004"},
+		result.RestoreTargets[shardA].Rejoin)
+	require.Empty(t, result.RestoreTargets[shardB].Rejoin)
+}
+
+// TestPlanWarnsAboutAnInstanceTheConfigDropped covers the one instance-level
+// difference that is still worth reporting: the backup knew a member the
+// configuration no longer has. It is the surviving half of the comparison, and
+// unlike the other half it says something a wipe list cannot.
+func TestPlanWarnsAboutAnInstanceTheConfigDropped(t *testing.T) {
+	fixture := newPlanFixture(t)
+	fixture.standardChain()
+
+	// The backup's own topology lists both members of A.
+	for _, backupID := range []string{fullBackupID, incOneID, incTwoID} {
+		manifest := fixture.storedManifest(backupID)
+
+		manifest.Topology.Replicasets[shardA] = topologyOf(shardBackup{
+			master: masterOfA, members: []string{masterOfA, secondOfA},
+			generation: "deploy-1",
+		})
+		fixture.putManifest(manifest)
+	}
+
+	result := fixture.plan(550, masterOnlyCluster())
+
+	require.Equal(t, StatusOK, result.Status)
+	require.Equal(t, []string{
+		"replicaset " + shardA + " (storage-a): " + secondOfA +
+			" backed up but not in the cluster config",
+		noMembersWarning(incTwoID, shardB),
+	}, result.Warnings)
+	require.Empty(t, result.RestoreTargets[shardA].Rejoin)
+	require.Empty(t, result.RestoreTargets[shardA].Instances[1:])
+}
+
+// TestPlanTargetsRestoreEveryBackedUpMember covers the per-instance model:
+// every member the backup recorded is a target of its own, carrying the
+// instance UUID the manifest holds for it, and only the configured instances
+// the backup never saw are left to wipe and rejoin. The legacy top-level
+// fields stay the master's, so a reader of the older document keeps working.
+func TestPlanTargetsRestoreEveryBackedUpMember(t *testing.T) {
+	fixture := newPlanFixture(t)
+	withMembers := shardOfA(0, 1000,
+		recoveryPointAt("p1", replicaOfA, 500, 110),
+		recoveryPointAt("p2", replicaOfA, 600, 210))
+
+	withMembers.members = []string{masterOfA, secondOfA}
+
+	fixture.addBackup(clusterBackup{
+		id: fullBackupID, base: fullBackupID,
+		backupType: backup.BackupTypeFull, createdAt: 200,
+		shards: []shardBackup{
+			withMembers,
+			shardOfB(0, 900,
+				recoveryPointAt("p1", replicaOfB, 400, 111),
+				recoveryPointAt("p2", replicaOfB, 450, 211)),
+		},
+	})
+
+	result := fixture.plan(150, configuredCluster(
+		configuredReplicaset("storage-a", masterOfA, secondOfA, "storage-a-003"),
+		configuredReplicaset("storage-b", masterOfB),
+	))
+
+	require.Equal(t, StatusOK, result.Status)
+	require.Equal(t, []string{noMembersWarning(fullBackupID, shardB)}, result.Warnings)
+
+	require.Equal(t, RestoreTarget{
+		InstanceName: masterOfA,
+		PatchUUID:    instanceUUIDOf("deploy-1", masterOfA),
+		Instances: []RestoreInstance{
+			{
+				InstanceName: masterOfA,
+				PatchUUID:    instanceUUIDOf("deploy-1", masterOfA),
+				Role:         roleMaster,
+			},
+			{
+				InstanceName: secondOfA,
+				PatchUUID:    instanceUUIDOf("deploy-1", secondOfA),
+				Role:         roleReplica,
+			},
+		},
+		Rejoin: []string{"storage-a-003"},
+	}, result.RestoreTargets[shardA])
+
+	// The document the orchestrator reads: the legacy top-level fields beside
+	// the per-instance list, master first, each entry with its own uuid.
+	document := asJSON(t, result)
+	jsonTargets := requireType[map[string]any](t, document["restore_targets"])
+	target := requireType[map[string]any](t, jsonTargets[shardA])
+	require.Equal(t,
+		[]string{"instance_name", "instances", "patch_uuid", "rejoin"},
+		keysOf(t, target))
+	require.Equal(t, masterOfA, target["instance_name"])
+	require.Equal(t, instanceUUIDOf("deploy-1", masterOfA), target["patch_uuid"])
+
+	instances := requireType[[]any](t, target["instances"])
+	require.Len(t, instances, 2)
+
+	master := requireType[map[string]any](t, instances[0])
+	require.Equal(t, []string{"instance_name", "patch_uuid", "role"}, keysOf(t, master))
+	require.Equal(t, masterOfA, master["instance_name"])
+	require.Equal(t, "master", master["role"])
+	require.Equal(t, instanceUUIDOf("deploy-1", masterOfA), master["patch_uuid"])
+
+	replica := requireType[map[string]any](t, instances[1])
+	require.Equal(t, []string{"instance_name", "patch_uuid", "role"}, keysOf(t, replica))
+	require.Equal(t, secondOfA, replica["instance_name"])
+	require.Equal(t, "replica", replica["role"])
+	require.Equal(t, instanceUUIDOf("deploy-1", secondOfA), replica["patch_uuid"])
+
+	require.Equal(t, []any{"storage-a-003"}, target["rejoin"])
+}
+
+// TestPlanTargetsWithoutAClusterConfig checks what the command can still answer
+// with no -c: the node to restore onto and its UUID come from the backup, so
+// they are named either way. Only the list of members to wipe is missing, since
+// the composition of the cluster being restored into is what -c carries.
+func TestPlanTargetsWithoutAClusterConfig(t *testing.T) {
+	fixture := newPlanFixture(t)
+	fixture.standardChain()
+
+	result := fixture.plan(550, nil)
+
+	require.Equal(t, StatusOK, result.Status)
+	require.Equal(t, map[string]RestoreTarget{
+		shardA: {
+			InstanceName: masterOfA,
+			PatchUUID:    instanceUUIDOf("deploy-1", masterOfA),
+			Instances: []RestoreInstance{{
+				InstanceName: masterOfA,
+				PatchUUID:    instanceUUIDOf("deploy-1", masterOfA),
+				Role:         roleMaster,
+			}},
+		},
+		shardB: {
+			InstanceName: masterOfB,
+			PatchUUID:    instanceUUIDOf("deploy-1", masterOfB),
+			Instances: []RestoreInstance{{
+				InstanceName: masterOfB,
+				PatchUUID:    instanceUUIDOf("deploy-1", masterOfB),
+				Role:         roleMaster,
+			}},
+		},
+	}, result.RestoreTargets)
+}
+
+// TestPlanTargetsWithoutAClusterConfigKeepsEveryMember checks the members the
+// manifest records stay targets without a -c. The configuration only decides
+// which member the cluster being restored still carries, so without it the
+// manifest's own record is the whole truth; a plan that dropped the members
+// would hand the orchestrator a single target and no warning to say so.
+func TestPlanTargetsWithoutAClusterConfigKeepsEveryMember(t *testing.T) {
+	fixture := newPlanFixture(t)
+	withMembers := shardOfA(0, 1000,
+		recoveryPointAt("p1", replicaOfA, 500, 110),
+		recoveryPointAt("p2", replicaOfA, 600, 210))
+
+	withMembers.members = []string{masterOfA, secondOfA}
+
+	fixture.addBackup(clusterBackup{
+		id: fullBackupID, base: fullBackupID,
+		backupType: backup.BackupTypeFull, createdAt: 200,
+		shards: []shardBackup{
+			withMembers,
+			shardOfB(0, 900,
+				recoveryPointAt("p1", replicaOfB, 400, 111),
+				recoveryPointAt("p2", replicaOfB, 450, 211)),
+		},
+	})
+
+	result := fixture.plan(150, nil)
+
+	require.Equal(t, StatusOK, result.Status)
+	require.Equal(t, RestoreTarget{
+		InstanceName: masterOfA,
+		PatchUUID:    instanceUUIDOf("deploy-1", masterOfA),
+		Instances: []RestoreInstance{
+			{
+				InstanceName: masterOfA,
+				PatchUUID:    instanceUUIDOf("deploy-1", masterOfA),
+				Role:         roleMaster,
+			},
+			{
+				InstanceName: secondOfA,
+				PatchUUID:    instanceUUIDOf("deploy-1", secondOfA),
+				Role:         roleReplica,
+			},
+		},
+	}, result.RestoreTargets[shardA])
+
+	// No rejoin without -c -- the composition of the cluster being restored
+	// into is what -c carries -- and the warnings say exactly what a plan
+	// without one always says, plus the member-less shardB: shardA's
+	// membership is fully recorded, there is nothing else to warn.
+	require.Empty(t, result.RestoreTargets[shardA].Rejoin)
+	require.Equal(t, []string{
+		noTopologyCheckWarning,
+		noMembersWarning(fullBackupID, shardB),
+	}, result.Warnings)
+}
+
+// TestPlanTargetsFollowAMasterChange checks which manifest the target is read
+// from. A replicaset backed up on one instance and then on another has two
+// answers in one chain, and the right one is the last backup's: that is the
+// manifest the point was found in, and its archive is the one being restored.
+func TestPlanTargetsFollowAMasterChange(t *testing.T) {
+	fixture := newPlanFixture(t)
+	fixture.chainAcrossAMasterChange()
+
+	current := configuredCluster(
+		configuredReplicaset("storage-a", masterOfA, secondOfA),
+		configuredReplicaset("storage-b", masterOfB),
+	)
+
+	// The last point of this chain is the one the promoted master took, so it
+	// is also the last moment the storage covers.
+	result := fixture.plan(510, current)
+
+	require.Equal(t, StatusOK, result.Status)
+	require.Equal(t, RestoreTarget{
+		InstanceName: secondOfA,
+		PatchUUID:    instanceUUIDOf("deploy-1", secondOfA),
+		Instances: []RestoreInstance{{
+			InstanceName: secondOfA,
+			PatchUUID:    instanceUUIDOf("deploy-1", secondOfA),
+			Role:         roleMaster,
+		}},
+		Rejoin: []string{masterOfA},
+	}, result.RestoreTargets[shardA])
+}
+
+// TestRestoreTargetsWithoutARecordedUUID covers a manifest that names the
+// instance its archive was taken on but records no UUID for it. A manifest like
+// that does not validate, so a stored one never reaches a plan - the guard is
+// against a chain that grew laxer, and the point of it is that the target comes
+// out without a patch_uuid rather than with an empty one. The JSON is where
+// that matters, so it is asserted there too: an empty `--patch-uuid` means "do
+// not patch" to `tt restore apply`, a different and silently wrong instruction.
+func TestRestoreTargetsWithoutARecordedUUID(t *testing.T) {
+	shards := map[string]backedUpShard{
+		shardA: {
+			backupID: fullBackupID,
+			instance: &backup.ShardInstance{InstanceName: masterOfA},
+		},
+	}
+
+	targets, warnings := restoreTargets(shards, map[string]ConfiguredReplicaset{
+		shardA: {Name: "storage-a", Instances: []string{masterOfA, secondOfA}},
+	})
+
+	require.Equal(t, map[string]RestoreTarget{
+		shardA: {
+			InstanceName: masterOfA,
+			Instances:    []RestoreInstance{{InstanceName: masterOfA, Role: roleMaster}},
+			Rejoin:       []string{secondOfA},
+		},
+	}, targets)
+	require.Equal(t, []string{
+		"replicaset " + shardA + ": the backup records no instance uuid for " +
+			masterOfA + ", so the plan carries no patch_uuid; restore onto " +
+			"that same instance and omit --patch-uuid, whose headers already " +
+			"carry it",
+		noMembersWarning(fullBackupID, shardA),
+	}, warnings)
+
+	document := asJSON(t, &PlanResult{RestoreTargets: targets})
+	jsonTargets := requireType[map[string]any](t, document["restore_targets"])
+	target := requireType[map[string]any](t, jsonTargets[shardA])
+	require.Equal(t, []string{"instance_name", "instances", "rejoin"}, keysOf(t, target))
+
+	// The master's own entry carries the same absent uuid, and leaves it out
+	// the same way rather than sending an empty one.
+	instance := requireType[map[string]any](t, requireType[[]any](t, target["instances"])[0])
+	require.Equal(t, []string{"instance_name", "role"}, keysOf(t, instance))
+}
+
+// TestPlanTopologyBlocksAnUncoveredMaster covers a master the configuration no
+// longer carries. The archive of a replicaset is the master's, so a plan that
+// cannot place it would silently drop that replicaset's data.
+//
+// It takes a manifest whose topology lists more than the master to get here at
+// all: with the master alone, an intersection that matched the replicaset has
+// already established that the configuration carries it.
+func TestPlanTopologyBlocksAnUncoveredMaster(t *testing.T) {
+	fixture := newPlanFixture(t)
+	fixture.addBackup(clusterBackup{
+		id: fullBackupID, base: fullBackupID,
+		backupType: backup.BackupTypeFull, createdAt: 200,
+		shards: []shardBackup{
+			{
+				replicaset: shardA, master: masterOfA, generation: "deploy-1",
+				members:   []string{masterOfA, secondOfA},
+				replicaID: replicaOfA, vclockEnd: 1000,
+				points: []backup.RecoveryPoint{
+					recoveryPointAt("p1", replicaOfA, 500, 110),
+					recoveryPointAt("p2", replicaOfA, 600, 210),
+				},
+			},
+		},
+	})
+
+	// The replicaset is matched through the surviving replica, but the instance
+	// the archive was taken on is gone from the configuration.
+	result := fixture.plan(150, configuredCluster(configuredReplicaset("storage-a", secondOfA)))
+
+	require.Equal(t, StatusTopologyMismatch, result.Status)
+	require.NotNil(t, result.TopologyDiff)
+	require.Equal(t, []MasterDiff{{
+		ReplicasetUUID: shardA,
+		Name:           "storage-a",
+		MasterInstance: masterOfA,
+	}}, result.TopologyDiff.UncoveredMasters)
+	require.Empty(t, result.TopologyDiff.MissingReplicasets)
+	require.Empty(t, result.TopologyDiff.ExtraReplicasets)
+
+	// The master is the same on every point of a segment - a master change is
+	// itself a topology boundary - so a neighbouring point would fail
+	// identically and offering one would send the operator in a circle.
+	require.Nil(t, result.NearestSafe)
+
+	require.Empty(t, fixture.downloaded())
+}
+
+// TestPlanTopologyOldPointAgainstANewCluster covers a target time that lands
+// before a resharding: the point is sound, but the cluster it would be restored
+// into no longer looks like that. The nearest point whose topology does match
+// is named, so the orchestrator has something to retry with.
+func TestPlanTopologyOldPointAgainstANewCluster(t *testing.T) {
+	fixture := newPlanFixture(t)
+	fixture.chainAcrossAResharding()
+
+	// The target lands inside the old topology's own window; the gap after its
+	// last point belongs to the topology boundary, a different verdict.
+	result := fixture.plan(150, configuredCluster(
+		configuredReplicaset("storage-a", masterOfA),
+		configuredReplicaset("storage-c", masterOfC),
+	))
+
+	require.Equal(t, StatusTopologyMismatch, result.Status)
+	require.NotNil(t, result.TopologyDiff)
+	require.Equal(t, []ReplicasetDiff{{
+		ReplicasetUUID: shardB,
+		Instances:      []string{masterOfB},
+	}}, result.TopologyDiff.MissingReplicasets)
+	require.Equal(t, []ReplicasetDiff{{
+		Name:      "storage-c",
+		Instances: []string{masterOfC},
+	}}, result.TopologyDiff.ExtraReplicasets)
+
+	require.NotNil(t, result.NearestSafe)
+	require.Nil(t, result.NearestSafe.Before)
+	require.Equal(t, time.Unix(510, 0).UTC(), *result.NearestSafe.After)
+
+	require.Empty(t, fixture.downloaded())
+}
+
+// TestPlanWithoutAClusterConfigStillPlans covers a run with no -c: the check is
+// worth having, but the storage is worth reading without a cluster config at
+// hand, and the RFC's own step-1 example passes none.
+func TestPlanWithoutAClusterConfigStillPlans(t *testing.T) {
+	fixture := newPlanFixture(t)
+	fixture.standardChain()
+
+	result := fixture.plan(550, nil)
+
+	require.Equal(t, StatusOK, result.Status)
+	require.Nil(t, result.TopologyDiff)
+	require.Equal(t, append([]string{noTopologyCheckWarning},
+		noMembersWarning(incTwoID, shardA),
+		noMembersWarning(incTwoID, shardB),
+	), result.Warnings)
+	require.Len(t, result.DownloadPlan, 2)
+}
+
+// TestPlanNeverContactsTheClusterBeingRestored guards the decision that the
+// current topology comes from -c alone. The main scenario of this command is a
+// cluster whose nodes are dead or crash-looping: a source that had to connect
+// to them would pay a connect timeout per instance before the plan could even
+// be printed, and a lost replica would read as a topology change that is not
+// there.
+func TestPlanNeverContactsTheClusterBeingRestored(t *testing.T) {
+	fields := reflect.VisibleFields(reflect.TypeFor[PlanOpts]())
+
+	names := make([]string, 0, len(fields))
+	for _, field := range fields {
+		names = append(names, field.Name)
+	}
+
+	require.Equal(t,
+		[]string{"Storage", "TargetTime", "Dir", "Current", "Replicasets"}, names,
+		"a new PlanOpts field must not give the plan a way to reach the cluster")
+
+	// Current is a plain description, not a connection: it carries no addresses
+	// and nothing to dial.
+	fixture := newPlanFixture(t)
+	fixture.standardChain()
+
+	require.Equal(t, StatusOK, fixture.plan(550, masterOnlyCluster()).Status)
+}
+
+// routerWarning is what a configured replicaset left out of the selection is
+// reported as.
+const routerWarning = `replicaset "router-001" is configured but not selected: ` +
+	`it is not restored, bootstrap it fresh`
+
+// shardedCluster is the configuration of the cluster chainWithAStatelessRouter
+// backs up: two storages and the router, each on its own master.
+func shardedCluster(extra ...ConfiguredReplicaset) *ClusterTopology {
+	replicasets := make([]ConfiguredReplicaset, 0, 3+len(extra))
+
+	replicasets = append(replicasets, []ConfiguredReplicaset{
+		configuredReplicaset("storage-a", masterOfA),
+		configuredReplicaset("storage-b", masterOfB),
+		configuredReplicaset("router-001", routerOfR),
+	}...)
+
+	return configuredCluster(append(replicasets, extra...)...)
+}
+
+// TestPlanSelectionLeavesOutAStatelessRouter is what the flag exists for. The
+// router is backed up and carries no recovery point, so no label is present on
+// every replicaset and the chain has no cluster point to resolve against;
+// naming the storages makes the point cluster-wide over them alone, and the
+// whole plan - downloads, targets, trim positions - covers them and no one
+// else.
+func TestPlanSelectionLeavesOutAStatelessRouter(t *testing.T) {
+	fixture := newPlanFixture(t)
+	fixture.chainWithAStatelessRouter()
+
+	require.Equal(t, StatusNoRecoveryPoint, fixture.plan(550, shardedCluster()).Status,
+		"without a selection the router is what there is no cluster point around")
+
+	result := fixture.planSelected(550, shardedCluster(), "storage-a", "storage-b")
+
+	require.Equal(t, StatusOK, result.Status)
+	require.Nil(t, result.TopologyDiff)
+	require.Equal(t, []string{
+		noMembersWarning(incTwoID, shardA),
+		noMembersWarning(incTwoID, shardB),
+		routerWarning,
+	}, result.Warnings)
+
+	require.NotNil(t, result.RecoveryPoint)
+	require.Equal(t, "p3", result.RecoveryPoint.Label)
+	require.Equal(t, []string{shardA, shardB},
+		slices.Sorted(maps.Keys(result.RecoveryPoint.TrimToByReplicaset)))
+
+	require.Equal(t, []string{shardA, shardB},
+		slices.Sorted(maps.Keys(result.RestoreTargets)))
+	require.Equal(t, masterOfA, result.RestoreTargets[shardA].InstanceName)
+	require.Equal(t, masterOfB, result.RestoreTargets[shardB].InstanceName)
+
+	require.Equal(t, []string{shardA, shardB},
+		slices.Sorted(maps.Keys(result.DownloadPlan)))
+
+	for _, name := range fixture.downloaded() {
+		require.NotContains(t, name, shardR,
+			"an unselected replicaset's archive was downloaded")
+	}
+}
+
+// TestPlanSelectionRefusesAReplicasetTheBackupHasNot covers a name that is in
+// the config and in no backup. A replicaset left out of the selection is a
+// decision; one that was asked for and cannot be restored is a plan that would
+// come back short, so it blocks rather than warns.
+func TestPlanSelectionRefusesAReplicasetTheBackupHasNot(t *testing.T) {
+	fixture := newPlanFixture(t)
+	fixture.chainWithAStatelessRouter()
+
+	current := shardedCluster(configuredReplicaset("storage-c", masterOfC))
+
+	result := fixture.planSelected(550, current, "storage-a", "storage-b", "storage-c")
+
+	require.Equal(t, StatusTopologyMismatch, result.Status)
+	require.NotNil(t, result.TopologyDiff)
+	require.Equal(t, []ReplicasetDiff{{
+		Name:      "storage-c",
+		Instances: []string{masterOfC},
+	}}, result.TopologyDiff.ExtraReplicasets)
+	require.Empty(t, result.TopologyDiff.MissingReplicasets,
+		"the router is not part of the comparison, so it is no difference")
+
+	require.Equal(t, []string{routerWarning}, result.Warnings)
+	require.Empty(t, result.RestoreTargets)
+	require.Empty(t, fixture.downloaded())
+
+	// Every point of the chain is weighed by the same selection, and storage-c
+	// is in none of them, so there is no neighbouring point to offer.
+	require.Nil(t, result.NearestSafe)
+}
+
+// TestPlanSelectionRefusesAReplicasetNoManifestHolds is the selection made of
+// nothing the storage has: a replicaset the config declares and no manifest
+// ever saw, asked for alone. No point is stitched over it, so the chain has no
+// point to resolve, and left to the resolver the plan would say so - a true
+// answer that never names the replicaset the operator typed. Named alone or
+// beside a backed-up one, it is the same mismatch.
+func TestPlanSelectionRefusesAReplicasetNoManifestHolds(t *testing.T) {
+	fixture := newPlanFixture(t)
+	fixture.chainWithAStatelessRouter()
+
+	current := shardedCluster(configuredReplicaset("storage-c", masterOfC))
+
+	result := fixture.planSelected(550, current, "storage-c")
+
+	require.Equal(t, StatusTopologyMismatch, result.Status)
+	require.NotNil(t, result.TopologyDiff)
+	require.Equal(t, []ReplicasetDiff{{
+		Name:      "storage-c",
+		Instances: []string{masterOfC},
+	}}, result.TopologyDiff.ExtraReplicasets)
+	require.Equal(t, []string{
+		routerWarning,
+		unselectedWarning("storage-a"),
+		unselectedWarning("storage-b"),
+	}, result.Warnings)
+	require.Nil(t, result.NearestSafe)
+	require.Empty(t, result.RestoreTargets)
+	require.Empty(t, fixture.downloaded())
+}
+
+// TestPlanSelectionRefusesARenamedReplicaset is the same refusal reached from
+// the other side: the replicaset is in every manifest, but the config names its
+// instances differently now, so nothing matches it by name any more.
+func TestPlanSelectionRefusesARenamedReplicaset(t *testing.T) {
+	fixture := newPlanFixture(t)
+	fixture.chainWithAStatelessRouter()
+
+	current := configuredCluster(
+		configuredReplicaset("storage-a", "renamed-a-001"),
+		configuredReplicaset("storage-b", masterOfB),
+		configuredReplicaset("router-001", routerOfR),
+	)
+
+	result := fixture.planSelected(550, current, "storage-a")
+
+	require.Equal(t, StatusTopologyMismatch, result.Status)
+	require.NotNil(t, result.TopologyDiff)
+	require.Equal(t, []ReplicasetDiff{{
+		Name:      "storage-a",
+		Instances: []string{"renamed-a-001"},
+	}}, result.TopologyDiff.ExtraReplicasets)
+	require.Empty(t, result.RestoreTargets)
+}
+
+// unselectedWarning renders the warning a configured replicaset left out of the
+// selection produces.
+func unselectedWarning(name string) string {
+	return `replicaset "` + name + `" is configured but not selected: ` +
+		`it is not restored, bootstrap it fresh`
+}
+
+// TestPlanSelectionWarnsAboutAReplicasetNoBackupHolds covers a replicaset the
+// config declares and no manifest ever saw - a router deployed after the last
+// backup, say. Left out of the selection it is not a difference between the
+// point and the cluster: it is a replicaset the operator is bootstrapping
+// themselves, and the plan says so.
+func TestPlanSelectionWarnsAboutAReplicasetNoBackupHolds(t *testing.T) {
+	fixture := newPlanFixture(t)
+	fixture.standardChain()
+
+	result := fixture.planSelected(550, shardedCluster(), "storage-a", "storage-b")
+
+	require.Equal(t, StatusOK, result.Status)
+	require.Nil(t, result.TopologyDiff)
+	require.Equal(t, []string{
+		noMembersWarning(incTwoID, shardA),
+		noMembersWarning(incTwoID, shardB),
+		routerWarning,
+	}, result.Warnings)
+	require.Equal(t, []string{shardA, shardB},
+		slices.Sorted(maps.Keys(result.RestoreTargets)))
+}
+
+// TestPlanSelectionAcceptsAReplicaNoBackupSaw covers the ordinary shape of a
+// selected replicaset: a master the backup was taken on and a replica it never
+// saw. One backed-up instance is what makes a replicaset present in the backup;
+// the replica is restored by rejoining, as it is without a selection.
+func TestPlanSelectionAcceptsAReplicaNoBackupSaw(t *testing.T) {
+	fixture := newPlanFixture(t)
+	fixture.chainWithAStatelessRouter()
+
+	current := configuredCluster(
+		configuredReplicaset("storage-a", masterOfA, secondOfA),
+		configuredReplicaset("storage-b", masterOfB),
+		configuredReplicaset("router-001", routerOfR),
+	)
+
+	result := fixture.planSelected(550, current, "storage-a", "storage-b")
+
+	require.Equal(t, StatusOK, result.Status, result.TopologyDiff)
+	require.Equal(t, []string{shardA, shardB},
+		slices.Sorted(maps.Keys(result.RestoreTargets)))
+	require.Equal(t, masterOfA, result.RestoreTargets[shardA].InstanceName)
+	require.Equal(t, []string{secondOfA}, result.RestoreTargets[shardA].Rejoin)
+}
+
+// TestPlanSelectionKeepsAReplicasetWithAReplacedMember covers a manifest whose
+// replicaset lists two instances while the config has replaced one of them. The
+// replicaset is still selected through the instance both sides share: a point
+// is stitched over it, and the plan restores it.
+func TestPlanSelectionKeepsAReplicasetWithAReplacedMember(t *testing.T) {
+	fixture := newPlanFixture(t)
+	fixture.chainWithAStatelessRouter()
+
+	for _, id := range []string{fullBackupID, incOneID, incTwoID} {
+		manifest := fixture.storedManifest(id)
+
+		manifest.Topology.Replicasets[shardA] = topologyOf(shardBackup{
+			master:     masterOfA,
+			members:    []string{masterOfA, secondOfA},
+			generation: "deploy-1",
+		})
+		fixture.putManifest(manifest)
+	}
+
+	current := configuredCluster(
+		configuredReplicaset("storage-a", masterOfA, "storage-a-003"),
+		configuredReplicaset("storage-b", masterOfB),
+		configuredReplicaset("router-001", routerOfR),
+	)
+
+	result := fixture.planSelected(550, current, "storage-a", "storage-b")
+
+	require.Equal(t, StatusOK, result.Status, result.TopologyDiff)
+	require.NotNil(t, result.RecoveryPoint)
+	require.Equal(t, "p3", result.RecoveryPoint.Label)
+	require.Equal(t, []string{shardA, shardB},
+		slices.Sorted(maps.Keys(result.RecoveryPoint.TrimToByReplicaset)))
+	require.Equal(t, []string{shardA, shardB},
+		slices.Sorted(maps.Keys(result.RestoreTargets)))
+}
+
+// TestPlanSelectionOffersTheNearestPointOverTheSelection covers a mismatch the
+// topology comparison finds rather than the check for replicasets no backup
+// holds: storage-c joined the cluster between two full backups, so the point
+// before it lacks the replicaset and the one after has it. The neighbouring
+// point is weighed by the same selection, so the router, configured and in no
+// backup at all, does not rule out the point that would do.
+func TestPlanSelectionOffersTheNearestPointOverTheSelection(t *testing.T) {
+	fixture := newPlanFixture(t)
+
+	const earlierID = "20260324T000000Z"
+
+	fixture.addBackup(clusterBackup{
+		id: earlierID, base: earlierID,
+		backupType: backup.BackupTypeFull, createdAt: 200,
+		shards: []shardBackup{
+			shardOfA(0, 1000, recoveryPointAt("p1", replicaOfA, 500, 110)),
+			shardOfB(0, 900, recoveryPointAt("p1", replicaOfB, 400, 111)),
+		},
+	})
+
+	fixture.addBackup(clusterBackup{
+		id: fullBackupID, base: fullBackupID,
+		backupType: backup.BackupTypeFull, createdAt: 600,
+		shards: []shardBackup{
+			shardOfA(0, 4000, recoveryPointAt("p3", replicaOfA, 3500, 510)),
+			shardOfB(0, 3600, recoveryPointAt("p3", replicaOfB, 3000, 511)),
+			{
+				replicaset: shardC, master: masterOfC, generation: "deploy-1",
+				replicaID: replicaOfC, vclockBegin: 0, vclockEnd: 1800,
+				points: []backup.RecoveryPoint{
+					recoveryPointAt("p3", replicaOfC, 877, 512),
+				},
+			},
+		},
+	})
+
+	current := shardedCluster(configuredReplicaset("storage-c", masterOfC))
+
+	// A cluster point stands at the earliest of its shards' times, and the
+	// first full backup ends there: any later moment falls into the gap between
+	// the two unrelated chains.
+	result := fixture.planSelected(110, current, "storage-a", "storage-b", "storage-c")
+
+	require.Equal(t, StatusTopologyMismatch, result.Status)
+	require.NotNil(t, result.TopologyDiff)
+	require.Equal(t, []ReplicasetDiff{{
+		Name:      "storage-c",
+		Instances: []string{masterOfC},
+	}}, result.TopologyDiff.ExtraReplicasets)
+	require.Empty(t, result.TopologyDiff.MissingReplicasets)
+	require.Equal(t, []string{
+		noMembersWarning(earlierID, shardA),
+		noMembersWarning(earlierID, shardB),
+		routerWarning,
+	}, result.Warnings)
+
+	require.NotNil(t, result.NearestSafe)
+	require.Nil(t, result.NearestSafe.Before)
+	require.Equal(t, time.Unix(510, 0).UTC(), *result.NearestSafe.After)
+	require.Empty(t, fixture.downloaded())
+}
+
+// TestPlanSelectionNeedsAClusterConfig pins that the refusal happens in the
+// plan itself, not only in the command that parses the flag.
+func TestPlanSelectionNeedsAClusterConfig(t *testing.T) {
+	fixture := newPlanFixture(t)
+	fixture.standardChain()
+
+	_, err := fixture.runSelected(550, nil, []string{"storage-a"})
+
+	require.ErrorContains(t, err, "--replicasets requires -c")
+	require.Empty(t, fixture.downloaded(), "a refused plan must not download anything")
+}
+
+// A member the backup recorded without a name can be neither a target nor a
+// rejoin -- a restore matches members by name -- and the plan says so
+// instead of dropping it silently.
+func TestRestoreTargetsWarnAboutANamelessMember(t *testing.T) {
+	shards := map[string]backedUpShard{"rs": {
+		backupID: "full",
+		instance: &backup.ShardInstance{
+			InstanceName: "master",
+			InstanceUUID: masterUUID,
+		},
+		members: []backup.TopologyInstance{
+			{InstanceID: 2, InstanceUUID: replicaUUID},
+		},
+	}}
+
+	targets, warnings := restoreTargets(shards, nil)
+
+	require.Len(t, targets["rs"].Instances, 1,
+		"a nameless member is no restore target")
+	require.Len(t, warnings, 2,
+		"the nameless member and the single-target note both speak")
+	require.Contains(t, warnings[0], replicaUUID)
+	require.Contains(t, warnings[0], "without a name")
+}
