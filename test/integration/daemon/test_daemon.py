@@ -3,7 +3,6 @@ import re
 import shutil
 import subprocess
 
-import psutil
 import pytest
 import requests
 
@@ -17,17 +16,11 @@ default_url = "http://127.0.0.1:1024/tarantool"
 # This is auto run wrapper for each test case in this module.
 @pytest.fixture(autouse=True)
 def kill_remain_processes_wrapper(tt_cmd):
-    # Run test.
+    existing = set(utils.find_tt_processes(tt_cmd))
     yield
 
-    # spell-checker:ignore pgrep
-
-    # Kill a test daemon/instance if it was not stopped due to a failed test.
-    tt_proc = subprocess.Popen(["pgrep", "-f", tt_cmd], stdout=subprocess.PIPE, shell=False)
-    response = tt_proc.communicate()[0]
-    procs = [psutil.Process(int(pid)) for pid in response.split()]
-
-    utils.kill_procs(procs)
+    # Kill only new test daemons, including watchdogs reparented after a failure.
+    utils.kill_procs([proc for proc in utils.find_tt_processes(tt_cmd) if proc not in existing])
 
 
 def prepare_test_app(tmpdir):

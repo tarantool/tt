@@ -144,6 +144,8 @@ Source them to use the project binaries and headers or restore your shell enviro
 		"Keep temporary files")
 	installCmd.PersistentFlags().BoolVar(&installCtx.Reinstall, "reinstall", false,
 		"Reinstall an existing version")
+	// Cobra traversal checks local flags before it merges persistent flags.
+	installCmd.Flags().AddFlagSet(installCmd.PersistentFlags())
 
 	tarantoolCmd := newInstallTarantoolCmd(base, installCtx)
 	legacyEnterpriseCmd := newInstallEnterpriseCmd(base, installCtx, binary.ProgramEe)

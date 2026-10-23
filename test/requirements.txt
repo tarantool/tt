@@ -19,7 +19,5 @@ tomli==2.2.1; python_version < "3.11"
 # A .tt package archive is tar.zst, and tarfile grew zstd support only in
 # 3.14; without a reader no test can look inside what tt package pack built.
 zstandard==0.23.0
-# HOTFIX: Workaround to avoid cmake warning that appears after upgrading cmake on CI runners.
-# The warning occurs during CI tests in 'checks' repo and finally leads to CI failure.
-# REMOVE IT as soon as proper fixes are applied to 'checks' and all dependent repos.
-cmake==3.15.3
+# Tarantool 3.9 requires CMake 3.18. Keep this version for older build fixtures too.
+cmake==3.18.4.post1

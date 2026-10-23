@@ -9,13 +9,13 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-import psutil
 import pytest
 
 from utils import (
     BINARY_PORT_NAME,
     control_socket,
     create_tt_config,
+    find_tt_processes,
     get_tarantool_version,
     is_tarantool_major_one,
     kill_procs,
@@ -35,16 +35,11 @@ tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
 @pytest.fixture(autouse=True)
 def kill_remain_processes_wrapper(tt_cmd):
-    # Run test.
+    existing = set(find_tt_processes(tt_cmd))
     yield
 
-    # spell-checker:ignore pgrep
-
-    tt_proc = subprocess.Popen(["pgrep", "-f", tt_cmd], stdout=subprocess.PIPE, shell=False)
-    response = tt_proc.communicate()[0]
-    procs = [psutil.Process(int(pid)) for pid in response.split()]
-
-    kill_procs(procs)
+    # Include reparented watchdogs, while preserving processes from before this test.
+    kill_procs([proc for proc in find_tt_processes(tt_cmd) if proc not in existing])
 
 
 def copy_data(dst, file_paths):

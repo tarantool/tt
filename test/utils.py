@@ -163,6 +163,11 @@ def kill_child_process(pid=psutil.Process().pid):
     return kill_procs(procs)
 
 
+def find_tt_processes(tt_cmd):
+    executable = os.path.realpath(tt_cmd)
+    return [proc for proc in psutil.process_iter(["exe"]) if proc.info["exe"] == executable]
+
+
 def kill_procs(procs):
     for proc in procs:
         proc.terminate()

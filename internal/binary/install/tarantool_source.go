@@ -97,6 +97,7 @@ func prepareCmakeOpts(buildPath string,
 		`-DENABLE_WERROR=OFF;-DENABLE_BACKTRACE=ON`)
 
 	if installCtx.Dynamic {
+		cmakeOpts = append(cmakeOpts, "-DENABLE_DIST=ON")
 		cmakeOpts = append(cmakeOpts, "-DCMAKE_INSTALL_PREFIX="+filepath.Join(buildPath,
 			"tarantool-prefix"))
 	} else {
