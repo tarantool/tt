@@ -332,6 +332,9 @@ falling back to user/system installations. Binary paths are independent of the
 `env` options in `tt.yaml`. For `search`, the scope only selects the
 installed/active labels; it does not change the source of available versions.
 
+`tt binary install tarantool` supports Community Edition releases starting
+with Tarantool 3.0.
+
 The first successful `tt binary install` in project scope creates
 `.env/activate.sh` and `.env/deactivate.sh`. Existing scripts are preserved.
 Run `source .env/activate.sh` to set `TT_PROJECT_DIR` to the installation's
@@ -383,11 +386,10 @@ To install from local files without requiring `tt.yaml`, use:
 - `tt binary install tt --local-repo <dir>`: a Git clone of tt in `<dir>/tt`.
 - `tt binary install tarantool --local-repo <dir>`: a Git clone of Tarantool in
   `<dir>/tarantool`.
-- `tt binary install tarantool-ee --local-dir <dir>`: Tarantool Enterprise SDK
+- `tt binary install tarantool 3ee --local-dir <dir>`: Tarantool Enterprise SDK
   archives named `tarantool-enterprise-sdk-*.tar.gz` directly in `<dir>`.
-- `tt binary install tt-ee --local-dir <dir>`: the same SDK archives, extracting
-  only tt Enterprise. Remote installation also downloads the SDK archive;
-  tt Enterprise has no separate download archive.
+- `tt binary install tt 2ee --local-dir <dir>`: standalone tt Enterprise
+  archives named `tt-ee-*.tar.gz` directly in `<dir>`.
 - `tt binary install tarantool-sdk --local-dir <dir>`: the same SDK archives,
   installing the entire supported component set.
 - `tt binary install tcm --local-dir <dir>`: TCM archives named `tcm-*.tar.gz`
@@ -399,17 +401,20 @@ product name. Both flags require an explicit directory. Relative paths are
 resolved from the current directory;
 `repo.distfiles` is not used. For EE and TCM, `--local-dir` replaces `--local-repo`.
 
-For `tt binary install tarantool-ee`, `tt binary install tt-ee`, and
-`tt binary install tcm`, omit the version
-to select the latest stable build, or specify `X`, `X.Y`, or `X.Y.Z` to select the
-latest matching stable build. EE selects `gc64` builds by default.
-For example, `tt binary install tarantool-ee 3` selects the
+For `tt binary install tarantool` and `tt binary install tt`, append `ee` to
+the version selector: `Xee`, `X.Yee`, or `X.Y.Zee`. These select the latest
+matching stable Enterprise build. Tarantool EE selects `gc64` builds by default.
+Omitting the version selects Community Edition.
+For `tt binary install tcm`, omit the version to select the latest stable build,
+or specify `X`, `X.Y`, or `X.Y.Z` to select the latest matching stable build.
+For example, `tt binary install tarantool 3ee` selects the
 latest stable `gc64` build in major version 3, and `tt binary install tcm 1.3`
 selects the latest stable TCM build in minor version 1.3. These forms also work
-with `--local-dir`. Use a complete version name from `tt binary search` to select
-an exact archive, including `nogc64` or RC.
+with `--local-dir`. Complete Tarantool Enterprise build names, including
+`nogc64` or RC, also select Enterprise Edition. For tt Enterprise, append `ee`
+to a version from `tt binary search tt-ee` to select that archive.
 
-Standalone `tarantool-ee` installations use the Tarantool version without the SDK
+Standalone `tarantool-ee` release installations use the Tarantool version without the SDK
 revision, commit count, or hash: `3.8.1` for 3.x and newer, or `gc64-2.11.1` /
 `nogc64-2.11.1` for older versions. Prerelease and debug variants remain separate,
 such as `3.8.1-rc1`, `debug-3.8.1`, or `debug-gc64-2.11.1`.
@@ -420,6 +425,18 @@ These installed names also work with `install`, selecting the latest matching
 archive revision, and with `switch` and `uninstall`. A full archive name resolves
 to the same installed version. `search` continues to list full archive versions
 and marks them using the corresponding standalone installation.
+
+Use `--dev` to install development builds of Tarantool Enterprise, SDK, or TCM.
+They keep the full archive version, including the revision, with a `dev_` prefix.
+For example, `tt binary install tarantool 3.8.1ee --dev` installs into
+`versions/tarantool-ee/tarantool-ee_dev_gc64-3.8.1-0-r94/` when that archive is selected.
+Development builds coexist with releases and with other development revisions.
+`list`, `switch`, and `search --dev` display `dev_<full-version>`; use that name
+with `install`, `switch`, or `uninstall` to select the development build.
+For example, `tt binary switch tarantool dev_gc64-3.8.1-0-r94` selects that build.
+SDK development components use `sdk-dev_<full-version>` identities and directories
+such as `versions/tarantool-ee/tarantool_sdk_dev_gc64-3.8.1-0-r94/`.
+Version selectors without `dev_` match release installations independently.
 
 For `tt binary switch` and `tt binary uninstall`, EE, tt-ee, and TCM accept `X.Y.Z`
 to match installed versions in the selected scope; `X` and `X.Y` are not expanded.
@@ -506,7 +523,7 @@ Where:
 - `include` - directory that stores header files.
 - `distfiles` - directory that stores installation files for
     `tt binary install tt --local-repo ./distfiles` or
-    `tt binary install tarantool-ee --local-dir ./distfiles`.
+    `tt binary install tarantool 3ee --local-dir ./distfiles`.
 - `instances.yml` - optional declaration of the application's instances.
 - `tt.yaml` - tt environment configuration file.
 - `templates` - the directory where external templates are stored.

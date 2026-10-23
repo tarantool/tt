@@ -337,7 +337,7 @@ def test_uninstall_installed_local_bundle(
             "--self",
             "binary",
             "install",
-            program,
+            executable,
             version,
             "--local-dir",
             repository,

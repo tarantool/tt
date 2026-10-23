@@ -78,8 +78,9 @@ Use --scope to choose where binaries are managed:
 Each scope stores executables directly in
 <root>/versions/<product>/<product>_<version>/, with Tarantool headers in include/tarantool.
 Active executables are linked from <root>/bin/, and active Tarantool headers
-from <root>/include/tarantool. CE and EE keep separate versions and share the active
-Tarantool links.
+from <root>/include/tarantool.
+
+Tarantool CE and EE keep separate versions and share the active Tarantool links.
 tt and tt-ee keep separate versions and share the active tt executable.
 
 For project installations, run "source .env/activate.sh" to activate the installed binaries.
@@ -137,6 +138,10 @@ Source them to use the project binaries and headers or restore your shell enviro
   # Install a local Enterprise archive system-wide.
   $ sudo tt binary install tarantool gc64-3.4.0-0-r60 \
       --scope system --local-dir ./bundles`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return cmd.Help()
+		},
 	}
 	installCmd.PersistentFlags().BoolVarP(&installCtx.Force, "force", "f", false,
 		"Skip dependency checks")
@@ -146,17 +151,10 @@ Source them to use the project binaries and headers or restore your shell enviro
 		"Reinstall an existing version")
 
 	tarantoolCmd := newInstallTarantoolCmd(base, installCtx)
-	legacyEnterpriseCmd := newInstallEnterpriseCmd(base, installCtx, binary.ProgramEe)
-	legacyTtEnterpriseCmd := newInstallStandaloneCmd(base, installCtx, binary.ProgramTtEe)
-
-	legacyEnterpriseCmd.Hidden = true
-	legacyTtEnterpriseCmd.Hidden = true
 	installCmd.AddCommand(
 		newInstallTtCmd(base, installCtx),
 		tarantoolCmd,
-		legacyEnterpriseCmd,
-		legacyTtEnterpriseCmd,
-		newInstallStandaloneCmd(base, installCtx, binary.ProgramTcm),
+		newInstallTcmCmd(base, installCtx),
 		newInstallTarantoolSDKCmd(base, installCtx),
 	)
 	tarantoolCmd.MarkFlagsMutuallyExclusive("from-build", "local-repo")
@@ -186,7 +184,7 @@ Git commits, master, pull requests, and --local-repo select source builds automa
 
 With --local-repo <dir>, <dir>/tt must be a local Git clone of the tt source
 repository. Use --local-dir <dir> with standalone tt-ee-*.tar.gz archives to install
-Enterprise Edition. Enterprise search and installation are available only on Linux.
+Enterprise Edition. Enterprise search and installation are available only on Linux amd64.
 Use "tt binary search tt" or "tt binary search tt-ee" to list available versions.`,
 		Example: `# Install the latest tt release for the current user.
   $ tt binary install tt --scope user
@@ -223,6 +221,7 @@ func newInstallTarantoolCmd(base *binary.BinaryContext,
 		Long: `Install Tarantool Community or Enterprise Edition and its headers.
 
 Bare versions select Community Edition: 3, 3.8, or 3.8.0.
+Tarantool Community Edition installation supports version 3.0 and newer.
 
 On Linux amd64/arm64 with glibc, use prebuilt Community release binaries when available.
 Other platforms and releases without prebuilt packages are built from source automatically.
@@ -231,6 +230,8 @@ Use --source-build to always compile Community releases from source.
 EE suffix selects Enterprise Edition: 3.8.1ee or 3ee.
 
 Enterprise archive names such as gc64-3.8.0-0-r94 also select Enterprise Edition.
+Use --dev for Enterprise development builds, stored as dev_<full-archive-version>
+with their revision, separately from releases.
 Use "tt binary search tarantool" or "tt binary search tarantool-ee" to list versions.
 
 Omitting the version selects the latest Community release. Git commits, master,
@@ -304,6 +305,9 @@ select the headers directory. --from-build accepts no version argument.`,
 	tntCmd.Flags().StringVar(&installCtx.IncDir, "include-dir", "",
 		"Path to the Tarantool headers directory (requires --from-build)")
 	addEnterpriseInstallFlags(tntCmd, installCtx)
+
+	tntCmd.Flags().Lookup("dev").Usage = "Install a development build (Enterprise Edition only)"
+
 	tntCmd.MarkFlagsMutuallyExclusive("local-repo", "local-dir")
 	tntCmd.MarkFlagsMutuallyExclusive("from-build", "local-dir")
 	tntCmd.MarkFlagsMutuallyExclusive("from-build", "dev")
@@ -342,48 +346,6 @@ func validateEditionInstallFlags(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// newInstallEnterpriseCmd installs one product from an Enterprise SDK archive.
-func newInstallEnterpriseCmd(base *binary.BinaryContext,
-	installCtx *install.InstallCtx, program binary.Program,
-) *cobra.Command {
-	tntCmd := &cobra.Command{
-		Use:   program.String() + " [version]",
-		Short: "Install " + program.String() + " from an Enterprise SDK archive",
-		Long: fmt.Sprintf(`Install %s from a Tarantool Enterprise SDK archive.
-
-Omitting the version selects the latest stable gc64 build. Specify X, X.Y,
-or X.Y.Z to select the latest matching stable gc64 build, or a complete version
-name from "tt binary search" to select an exact archive, including nogc64 or RC.
-
-Use "tt binary search %s" to list available versions.
-
-With --local-dir <dir>, the directory must contain Tarantool Enterprise SDK
-archives named tarantool-enterprise-sdk-*.tar.gz. Archives are read directly
-from that directory.`, program, program),
-		Example: `# Download and install the latest stable gc64 release in major version 3.
-  $ tt binary install ` + program.String() + ` 3 --scope user
-
-  # Install an Enterprise archive from a local directory for this project.
-  $ tt binary install ` + program.String() + ` gc64-3.4.0-0-r60 --local-dir ./bundles`,
-		RunE: binaryRunE(base, installCtx, internalInstallModule),
-		Args: cobra.MaximumNArgs(1),
-	}
-
-	if program == binary.ProgramEe {
-		tntCmd.Long += `
-
-Standalone Tarantool Enterprise versions omit SDK revisions: 3.8.1 for 3.x and
-newer, or gc64-2.11.1 / nogc64-2.11.1 for older releases. Prerelease and debug
-variants remain separate (for example, 3.8.1-rc1 or debug-3.8.1). These names
-also select the latest matching archive revision. An installed version is
-preserved across SDK revisions unless --reinstall is specified.`
-	}
-
-	addEnterpriseInstallFlags(tntCmd, installCtx)
-
-	return tntCmd
-}
-
 // addEnterpriseInstallFlags registers the options shared by SDK archive products.
 func addEnterpriseInstallFlags(cmd *cobra.Command, installCtx *install.InstallCtx) {
 	cmd.Flags().StringVar(&installCtx.LocalRepo, "local-dir", "",
@@ -393,10 +355,12 @@ func addEnterpriseInstallFlags(cmd *cobra.Command, installCtx *install.InstallCt
 		"File containing customer-zone login and password on separate lines")
 }
 
-// newInstallStandaloneCmd shares the root-executable archive UX for tt-ee and TCM.
-func newInstallStandaloneCmd(base *binary.BinaryContext,
-	installCtx *install.InstallCtx, program binary.Program,
+// newInstallTcmCmd creates a command to install a standalone TCM archive.
+func newInstallTcmCmd(base *binary.BinaryContext,
+	installCtx *install.InstallCtx,
 ) *cobra.Command {
+	const program = binary.ProgramTcm
+
 	tntCmd := &cobra.Command{
 		Use:   program.String() + " [version]",
 		Short: "Install " + program.String() + " from an archive",
@@ -408,6 +372,8 @@ an exact build, including RC.
 Partial names with prerelease or commit suffixes are not supported.
 Use "tt binary search %s" to list available versions.
 
+Use --dev for development builds, stored separately as dev_<full-archive-version>.
+
 With --local-dir <dir>, the directory must contain %s-*.tar.gz archives.
 The archive contains the %s executable directly at its root.`,
 			program, program, program, program.Exec()),
@@ -416,10 +382,6 @@ The archive contains the %s executable directly at its root.`,
 	}
 
 	addStandaloneInstallFlags(tntCmd, installCtx, program)
-
-	if program == binary.ProgramTtEe {
-		tntCmd.Long += "\n\ntt-ee search and installation are available only on Linux."
-	}
 
 	return tntCmd
 }
@@ -454,6 +416,8 @@ Use --local-dir <dir> to install an SDK archive from a local directory.
 
 Components have separate sdk-<bundle-version> identities. Use "tt binary switch sdk"
 to select the entire SDK, or switch individual products independently.
+With --dev, the SDK uses dev_<bundle-version> and its components use sdk-dev_<bundle-version>,
+including the full archive revision, separately from releases.
 For project installations, run "source .env/activate.sh" to activate the installed binaries.`,
 		Example: `# Install the latest stable SDK for this project.
   $ tt binary install tarantool-sdk
@@ -700,6 +664,8 @@ func newSearchTarantoolCmd(base *binary.BinaryContext,
 		Short: "Search available Tarantool Community Edition versions",
 		Long: `Search available Tarantool Community Edition versions.
 
+Available Tarantool Community Edition releases start with version 3.0.
+
 With --local-repo <dir>, <dir>/tarantool must be a local Git clone of the
 Tarantool source repository. Versions are read from its Git tags.`,
 		RunE: binaryRunE(base, searchCtx, internalSearchModule),
@@ -791,7 +757,7 @@ Archives are read directly from that directory.`, program, program),
 		"File containing customer-zone login and password on separate lines")
 
 	if program == binary.ProgramTtEe {
-		tcmCmd.Long += "\n\ntt-ee search and installation are available only on Linux."
+		tcmCmd.Long += "\n\ntt-ee search and installation are available only on Linux amd64."
 	} else {
 		tcmCmd.Flags().BoolVar(&searchCtx.DevBuilds, "dev", false,
 			"Search development builds")

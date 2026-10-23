@@ -2,7 +2,6 @@ package install
 
 import (
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -155,17 +154,15 @@ func TestPreparePrebuiltTarantoolChecksPlatformBeforeHTTP(t *testing.T) {
 	} {
 		t.Run(goarch, func(t *testing.T) {
 			requests := 0
-			server := httptest.NewServer(http.HandlerFunc(func(
+			client := packageTestClient(t, func(
 				writer http.ResponseWriter, _ *http.Request,
 			) {
 				requests++
 
 				writer.WriteHeader(http.StatusInternalServerError)
-			}))
+			})
 
-			defer server.Close()
-
-			downloader := packageTestDownloader(t, server)
+			downloader := packageTestDownloader(t, client)
 
 			downloader.systemRoot = packagePlatformFixture(t)
 			require.NoError(t, os.Remove(filepath.Join(downloader.systemRoot, libraryPath)))

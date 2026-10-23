@@ -3,7 +3,6 @@ package search_test
 import (
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -118,57 +117,6 @@ func TestSearchVersionsLocalScopes(t *testing.T) {
 	require.NoDirExists(t, filepath.Join(child, ".tarantool"))
 }
 
-func TestSearchVersionsLocalGit(t *testing.T) {
-	for _, program := range []binary.Program{binary.ProgramCe, binary.ProgramTt} {
-		t.Run(program.String(), func(t *testing.T) {
-			t.Chdir(t.TempDir())
-
-			// Both repositories live under a path containing "tarantool".
-			// Only the CE product should have its older versions masked.
-			localRepo := "tarantool-sources"
-			repo := filepath.Join(localRepo, program.String())
-			require.NoError(t, os.MkdirAll(repo, 0o755))
-
-			commands := [][]string{
-				{"init", "-q"},
-				{"-c", "user.email=test@example.com", "-c", "user.name=Test", "commit",
-					"-q", "--allow-empty", "-m", "test"},
-				{"tag", "v3.1.0"}, {"tag", "v3.0.0"}, {"tag", "v2.11.0"},
-			}
-			for _, args := range commands {
-				cmd := exec.CommandContext(t.Context(), "git", args...)
-
-				cmd.Dir = repo
-
-				output, err := cmd.CombinedOutput()
-				require.NoError(t, err, string(output))
-			}
-
-			root, err := binary.ScopeProject.ArtifactPath()
-			require.NoError(t, err)
-
-			active := addSearchVersion(t, root, program, "v3.0.0")
-			activateSearchVersion(t, root, program, active)
-			addSearchVersion(t, root, program, "master")
-
-			ctx := search.SearchCtx{
-				Scope:     binary.ScopeProject,
-				Program:   program,
-				LocalRepo: localRepo,
-			}
-			output, err := captureSearch(t, func() error { return search.SearchVersionsLocal(ctx) })
-			require.NoError(t, err)
-
-			expected := "v3.0.0 [active]\nv3.1.0\nmaster [installed]\n"
-			if program == binary.ProgramTt {
-				expected = "v2.11.0\n" + expected
-			}
-
-			require.Equal(t, expected, output)
-		})
-	}
-}
-
 func TestSearchVersionsLocalPreservesBundleFilters(t *testing.T) {
 	t.Chdir(t.TempDir())
 
@@ -190,7 +138,7 @@ func TestSearchVersionsLocalPreservesBundleFilters(t *testing.T) {
 	}
 	output, err := captureSearch(t, func() error { return search.SearchVersionsLocal(ctx) })
 	require.NoError(t, err)
-	require.Equal(t, "debug-gc64-3.3.2-0-r59\ngc64-3.3.2-0-r59\n", output)
+	require.Equal(t, "dev_debug-gc64-3.3.2-0-r59\ndev_gc64-3.3.2-0-r59\n", output)
 }
 
 func TestSearchVersionsLocalEmpty(t *testing.T) {

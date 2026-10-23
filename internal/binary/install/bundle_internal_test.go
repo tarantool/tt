@@ -117,6 +117,55 @@ func TestBundleValidationPreservesInstallation(t *testing.T) {
 	require.Equal(t, "old binary", string(data))
 }
 
+func TestStandaloneBundleExecutableNames(t *testing.T) {
+	for _, testCase := range []struct {
+		name     string
+		program  binary.Program
+		files    []string
+		expected string
+	}{
+		{"tcm", binary.ProgramTcm, []string{"tcm"}, "tcm"},
+		{"legacy tcm", binary.ProgramTcm,
+			[]string{"tarantool-cluster-manager"}, "tarantool-cluster-manager"},
+		{"prefer tcm", binary.ProgramTcm,
+			[]string{"tarantool-cluster-manager", "tcm"}, "tcm"},
+		{"missing tcm", binary.ProgramTcm, nil, ""},
+		{"tt-ee ignores legacy tcm", binary.ProgramTtEe,
+			[]string{"tarantool-cluster-manager"}, ""},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			params := bundleTestParams(t, testCase.program)
+			for _, name := range testCase.files {
+				require.NoError(t, os.WriteFile(
+					filepath.Join(params.tmpDir, name), []byte(name), 0755))
+			}
+
+			err := copyNewArtifacts(params)
+			if testCase.expected == "" {
+				require.ErrorIs(t, err, errCouldNotFindBinaryAt)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.NoError(t, updateSymlinks(params))
+
+			installed := filepath.Join(binary.InstallationPath(params.artifactRoot,
+				testCase.program, params.bundleInfo.Version.Str), testCase.program.Exec())
+			target, err := os.Readlink(
+				filepath.Join(params.artifactRoot, "bin", testCase.program.Exec()))
+			require.NoError(t, err)
+			require.Equal(t, installed, target)
+
+			data, err := os.ReadFile(installed)
+			require.NoError(t, err)
+			require.Equal(t, testCase.expected, string(data))
+			require.NoFileExists(t, filepath.Join(filepath.Dir(installed),
+				"tarantool-cluster-manager"))
+		})
+	}
+}
+
 func TestBundleReinstallIsolationAndIncomplete(t *testing.T) {
 	params := bundleTestParams(t, binary.ProgramEe)
 	binPath := filepath.Join(binary.InstallationPath(params.artifactRoot,

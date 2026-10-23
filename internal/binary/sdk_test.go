@@ -79,12 +79,20 @@ func TestBundleInstallationID(t *testing.T) {
 			parsed, err := version.Parse(testCase.source)
 			require.NoError(t, err)
 			require.Equal(t, testCase.expected,
-				binary.BundleInstallationID(binary.ProgramEe, parsed))
+				binary.BundleInstallationID(binary.ProgramEe, parsed, false))
 
 			for _, program := range []binary.Program{
 				binary.ProgramSDK, binary.ProgramTcm, binary.ProgramTtEe,
 			} {
-				require.Equal(t, testCase.source, binary.BundleInstallationID(program, parsed))
+				require.Equal(t, testCase.source,
+					binary.BundleInstallationID(program, parsed, false))
+			}
+
+			for _, program := range []binary.Program{
+				binary.ProgramEe, binary.ProgramSDK, binary.ProgramTcm,
+			} {
+				require.Equal(t, "dev_"+testCase.source,
+					binary.BundleInstallationID(program, parsed, true))
 			}
 		})
 	}
@@ -126,5 +134,50 @@ func TestMatchInstalledEeVersion(t *testing.T) {
 	for _, requested := range []string{"2.11.1", "sdk-3.8.1"} {
 		_, err := binary.MatchInstalledVersion(binary.ProgramEe, requested, installed)
 		require.ErrorIs(t, err, version.ErrAmbiguousInstalledVersion)
+	}
+}
+
+func TestMatchInstalledDevVersion(t *testing.T) {
+	const (
+		first  = "gc64-3.8.1-0-r93"
+		second = "gc64-3.8.1-0-r94"
+	)
+
+	for _, testCase := range []struct {
+		program   binary.Program
+		requested string
+		installed []string
+		expected  string
+		err       error
+	}{
+		{binary.ProgramEe, "3.8.1", []string{"3.8.1", "dev_" + first}, "3.8.1", nil},
+		{binary.ProgramEe, "dev_" + first, []string{"3.8.1", "dev_" + first}, "dev_" + first, nil},
+		{binary.ProgramEe, "dev_3.8.1", []string{"3.8.1", "dev_" + first}, "dev_" + first, nil},
+		{binary.ProgramEe, "3.8.1", []string{"dev_" + first},
+			"", version.ErrInstalledVersionNotFound},
+		{binary.ProgramEe, "dev_3.8.1", []string{"3.8.1"}, "", version.ErrInstalledVersionNotFound},
+		{binary.ProgramEe, "dev_3.8.1", []string{"dev_" + first, "dev_" + second},
+			"", version.ErrAmbiguousInstalledVersion},
+		{binary.ProgramSDK, "3.8.1", []string{first, "dev_" + first}, first, nil},
+		{binary.ProgramSDK, "dev_3.8.1", []string{first, "dev_" + first}, "dev_" + first, nil},
+		{binary.ProgramSDK, "sdk-dev_" + first, []string{first, "dev_" + first},
+			"dev_" + first, nil},
+		{binary.ProgramTcm, "sdk-3.8.1", []string{"sdk-" + first, "sdk-dev_" + first},
+			"sdk-" + first, nil},
+		{binary.ProgramTcm, "sdk-dev_3.8.1", []string{"sdk-" + first, "sdk-dev_" + first},
+			"sdk-dev_" + first, nil},
+		{binary.ProgramEe, "dev_3.8.1", []string{"sdk-dev_" + first},
+			"", version.ErrInstalledVersionNotFound},
+		{binary.ProgramTcm, "1.3.1", []string{"1.3.1-0-gabcdef0", "dev_1.3.1-0-gabcdef0"},
+			"1.3.1-0-gabcdef0", nil},
+		{binary.ProgramTcm, "dev_1.3.1", []string{"1.3.1-0-gabcdef0", "dev_1.3.1-0-gabcdef0"},
+			"dev_1.3.1-0-gabcdef0", nil},
+	} {
+		t.Run(testCase.program.String()+"/"+testCase.requested, func(t *testing.T) {
+			selected, err := binary.MatchInstalledVersion(testCase.program,
+				testCase.requested, testCase.installed)
+			require.ErrorIs(t, err, testCase.err)
+			require.Equal(t, testCase.expected, selected)
+		})
 	}
 }
