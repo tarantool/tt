@@ -2,7 +2,6 @@ import os
 import platform
 import re
 import shutil
-import subprocess
 import tempfile
 
 import pytest
@@ -23,7 +22,7 @@ def test_rocks_module(tt_cmd, tmp_path):
         env=dict(os.environ, PWD=tmp_path),
     )
     assert rc == 0
-    assert re.search("^Usage: tt rocks", output)
+    assert re.search(rf"^Usage: {re.escape(tt_cmd.name)} rocks", output)
 
     rc, output = run_command_and_get_output(
         [tt_cmd, "rocks", "search", "queue"],
@@ -206,18 +205,12 @@ def test_rocks_install_local_specific_version(tt_cmd, tmp_path):
 @pytest.mark.skipif(shutil.which("tarantool") is not None, reason="tarantool found in PATH")
 def test_rock_install_without_system_tarantool(tt_cmd, tmpdir_with_tarantool):
     rocks_cmd = [tt_cmd, "rocks", "install", "pg", "2.0.1"]
-    pwd = os.environ.get("PWD")
-    os.environ["PWD"] = tmpdir_with_tarantool.as_posix()
-    tt_process = subprocess.Popen(
+    rc, output = run_command_and_get_output(
         rocks_cmd,
         cwd=tmpdir_with_tarantool,
-        stderr=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        text=True,
+        env=dict(os.environ, PWD=tmpdir_with_tarantool.as_posix()),
     )
-    tt_process.wait()
-    os.environ["PWD"] = pwd
-    assert tt_process.returncode == 0
+    assert rc == 0, output
 
     assert os.path.exists(os.path.join(tmpdir_with_tarantool, ".rocks", "lib", "tarantool", "pg"))
 
@@ -288,7 +281,7 @@ def test_rocks_install_from_env_var_repo(tt_cmd, tmp_path):
 
 @pytest.mark.notarantool
 @pytest.mark.skipif(shutil.which("tarantool") is not None, reason="tarantool found in PATH")
-def test_rock_install_with_non_system_tarantool_in_path(tt_cmd, tmpdir_with_tarantool):
+def test_rock_install_with_non_system_tarantool_in_path(tt_cmd, tarantool_prefix):
     with tempfile.TemporaryDirectory() as tmp_path:
         with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
             tnt_env_file.write('''repo:
@@ -302,7 +295,7 @@ def test_rock_install_with_non_system_tarantool_in_path(tt_cmd, tmpdir_with_tara
             env=dict(
                 os.environ,
                 PWD=tmp_path,
-                PATH=os.path.join(tmpdir_with_tarantool, "bin") + ":" + os.environ["PATH"],
+                PATH=os.path.join(tarantool_prefix, "bin") + ":" + os.environ["PATH"],
             ),
         )
 
@@ -317,8 +310,8 @@ def test_rock_install_with_non_system_tarantool_in_path(tt_cmd, tmpdir_with_tara
             env=dict(
                 os.environ,
                 PWD=tmp_path,
-                PATH=os.path.join(tmpdir_with_tarantool, "bin") + ":" + os.environ["PATH"],
-                TT_CLI_TARANTOOL_PREFIX=os.path.join(tmpdir_with_tarantool, "include"),
+                PATH=os.path.join(tarantool_prefix, "bin") + ":" + os.environ["PATH"],
+                TT_CLI_TARANTOOL_PREFIX=str(tarantool_prefix),
             ),
         )
 

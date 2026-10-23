@@ -212,11 +212,11 @@ jobs:
 
       - name: Add Tarantool to Path
         run: |
-          echo "${GITHUB_WORKSPACE}/bin" >> $GITHUB_PATH
+          echo "${GITHUB_WORKSPACE}/.tarantool/bin" >> $GITHUB_PATH
 
       - name: Set Tarantool include directory to the environment
         run: |
-          echo "TT_CLI_TARANTOOL_PREFIX=${GITHUB_WORKSPACE}/include/" >> $GITHUB_ENV
+          echo "TT_CLI_TARANTOOL_PREFIX=${GITHUB_WORKSPACE}/.tarantool" >> $GITHUB_ENV
 
       # Sometimes CI on macOS terminates with a “docker daemon not running” error.
       # To prevent this we set the path to the docker socket directly.

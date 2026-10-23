@@ -88,8 +88,8 @@ def coredump(tmp_path_factory) -> Path:
 
 
 @pytest.fixture(scope="session")
-def coredump_alt(tmp_path_factory, tmpdir_with_tarantool) -> Path:
-    return generate_coredump(tmp_path_factory, tmpdir_with_tarantool / "bin" / "tarantool")
+def coredump_alt(tmp_path_factory, tarantool_prefix) -> Path:
+    return generate_coredump(tmp_path_factory, tarantool_prefix / "bin" / "tarantool")
 
 
 @pytest.fixture(scope="session")
@@ -153,8 +153,8 @@ def check_tarantool_in_archive(tmp_path, expected_tarantool):
 
 @pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
 @pytest.mark.slow
-def test_coredump_pack_executable(tt_cmd, tmp_path, coredump_alt, tmpdir_with_tarantool):
-    tarantool_bin = tmpdir_with_tarantool / "bin" / "tarantool"
+def test_coredump_pack_executable(tt_cmd, tmp_path, coredump_alt, tarantool_prefix):
+    tarantool_bin = tarantool_prefix / "bin" / "tarantool"
 
     cmd = [tt_cmd, "coredump", "pack", "-e", tarantool_bin, coredump_alt]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
@@ -166,8 +166,8 @@ def test_coredump_pack_executable(tt_cmd, tmp_path, coredump_alt, tmpdir_with_ta
 
 @pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
 @pytest.mark.slow
-def test_coredump_pack_executable_tt_env(tt_cmd, tmp_path, coredump_alt, tmpdir_with_tarantool):
-    tarantool_bin = tmpdir_with_tarantool / "bin" / "tarantool"
+def test_coredump_pack_executable_tt_env(tt_cmd, tmp_path, coredump_alt, tarantool_prefix):
+    tarantool_bin = tarantool_prefix / "bin" / "tarantool"
 
     create_tt_config(tmp_path)
     (tmp_path / "bin").mkdir()
