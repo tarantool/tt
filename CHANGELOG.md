@@ -529,6 +529,9 @@ for machine-readable output.
 
 ### Fixed
 
+- `tt binary install`: recognize boolean flags such as `-f` and `--reinstall`
+  before the product name when `--no-prompt` is set, instead of mistaking the
+  product for a flag value and rejecting its options.
 - `tt binary install tarantool --source-build --dynamic`: generate distribution
   artifacts before installation, fixing Tarantool 3.9 builds that failed on
   missing Lua annotation files.

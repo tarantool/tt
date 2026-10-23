@@ -149,6 +149,74 @@ func TestBinaryScopeFlag(t *testing.T) {
 	}
 }
 
+// TestBinaryInstallParentFlags checks command traversal after Boot has parsed root flags.
+func TestBinaryInstallParentFlags(t *testing.T) {
+	cases := []struct {
+		flag string
+		name string
+	}{
+		{flag: "-f", name: "force"},
+		{flag: "--force", name: "force"},
+		{flag: "--reinstall", name: "reinstall"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.flag, func(t *testing.T) {
+			restoreProcessState(t)
+
+			args := []string{
+				"--no-prompt", "binary", "--scope", "project", "install", testCase.flag,
+				"tarantool", "--source-build", "master", "--dynamic",
+			}
+			root, err := Boot(BootOptions{Args: args})
+			require.NoError(t, err)
+			root.AddCommand(NewBinaryCmd())
+			root.SetOut(io.Discard)
+			root.SetErr(io.Discard)
+			root.SetArgs(args)
+
+			// Find would merge persistent flags and hide the traversal regression.
+			command := root
+
+			for _, name := range []string{"binary", "install", "tarantool"} {
+				var next *cobra.Command
+
+				for _, child := range command.Commands() {
+					if child.Name() == name {
+						next = child
+						break
+					}
+				}
+
+				require.NotNil(t, next)
+
+				command = next
+			}
+
+			called := false
+
+			command.RunE = func(cmd *cobra.Command, args []string) error {
+				called = true
+
+				assert.Equal(t, []string{"master"}, args)
+				assert.True(t, cmdCtx.Cli.NoPrompt)
+
+				for _, name := range []string{testCase.name, "source-build", "dynamic"} {
+					value, err := cmd.Flags().GetBool(name)
+					require.NoError(t, err)
+					assert.True(t, value, name)
+				}
+
+				return nil
+			}
+
+			executed, err := root.ExecuteC()
+			require.NoError(t, err)
+			assert.Same(t, command, executed)
+			assert.True(t, called)
+		})
+	}
+}
+
 // TestBinaryInstallSDK uses the archive installer without requiring tt.yaml.
 func TestBinaryInstallSDK(t *testing.T) {
 	restoreProcessState(t)
