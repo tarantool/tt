@@ -7,17 +7,15 @@ import (
 
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
-	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/running"
 	"github.com/tarantool/tt/v3/cli/util"
 )
 
 // RebootstrapCtx contains rebootstrap operations arguments.
 type RebootstrapCtx struct {
-	// AppName is an application name the instance belongs to.
-	AppName string
-	// InstanceName is an instance name to re-bootstrap.
-	InstanceName string
+	// Instance is the instance to re-bootstrap, as the instance commands
+	// resolve it.
+	Instance running.InstanceCtx
 	// Confirmed is true if re-bootstrap confirmation is not required.
 	Confirmed bool
 }
@@ -64,33 +62,14 @@ func cleanDataFiles(instCtx running.InstanceCtx) error {
 
 // Rebootstrap re-bootstraps the instance by stopping it, removing its artifacts,
 // and starting it again.
-func Rebootstrap(cmdCtx cmdcontext.CmdCtx, cliOpts config.CliOpts, rbCtx RebootstrapCtx) error {
-	instances, err := running.CollectInstancesForApp(rbCtx.AppName, &cliOpts,
-		cmdCtx.Cli.ConfigDir, cmdCtx.Integrity, running.ConfigLoadAll)
-	if err != nil {
-		return fmt.Errorf("cannot collect application instances info: %w", err)
-	}
-
-	found := false
-
-	var instCtx running.InstanceCtx
-
-	for _, instCtx = range instances {
-		if instCtx.InstName == rbCtx.InstanceName {
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		return fmt.Errorf("%w%q is not found", errInstanceNotFound, rbCtx.InstanceName)
-	}
+func Rebootstrap(cmdCtx cmdcontext.CmdCtx, rbCtx RebootstrapCtx) error {
+	instCtx := rbCtx.Instance
 
 	if !rbCtx.Confirmed {
 		yes, err := util.AskConfirm(os.Stdin, fmt.Sprintf(
 			"Rebootstrap will stop the instance %s and remove all its data files. "+
 				"Do you want to continue?",
-			rbCtx.InstanceName))
+			instCtx.InstName))
 		if err != nil || !yes {
 			return err
 		}
@@ -98,9 +77,9 @@ func Rebootstrap(cmdCtx cmdcontext.CmdCtx, cliOpts config.CliOpts, rbCtx Reboots
 
 	log.Debugf("Stopping the instance")
 
-	err = running.Stop(&instCtx)
+	err := running.Stop(&instCtx)
 	if err != nil {
-		return fmt.Errorf("failed to stop the instance %s: %w", rbCtx.InstanceName, err)
+		return fmt.Errorf("failed to stop the instance %s: %w", instCtx.InstName, err)
 	}
 
 	err = cleanDataFiles(instCtx)

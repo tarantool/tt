@@ -1622,10 +1622,11 @@ FLAGS[0m
   -r, --raw    Display the raw contents of tt environment config.
 
 === tt check --help
-Check an application file for syntax errors
+Check the Lua file each instance runs, app.file of its config, for
+syntax errors, with the tarantool the instance runs on.
 
 [0;1;39mUSAGE[0m
-  tt check [<APPLICATION_NAME>] [flags]
+  tt check [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help   help for check
@@ -1634,7 +1635,7 @@ FLAGS[0m
 Clean instance(s) files
 
 [0;1;39mUSAGE[0m
-  tt clean [INSTANCE_NAME] [flags]
+  tt clean [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
 [0;1;39m
 FLAGS[0m
   -f, --force     do not ask for confirmation
@@ -2484,11 +2485,9 @@ passed via -f flag:
 echo "print(...)" | tt connect user:pass@localhost:3013 -f- 1, 2, 3
 
 [0;1;39mUSAGE[0m
-  tt connect (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>) [flags] [-f <FILE>]
-  [-- ARGS]
-  COMMAND | tt connect (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>) [flags]
-  COMMAND | tt connect (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>) [flags]
-  [-f-] [-- ARGS]
+  tt connect (<APP>:<INSTANCE> | <URI>) [flags] [-f <FILE>] [-- ARGS]
+  COMMAND | tt connect (<APP>:<INSTANCE> | <URI>) [flags]
+  COMMAND | tt connect (<APP>:<INSTANCE> | <URI>) [flags] [-f-] [-- ARGS]
 
   The URI can be specified in the following formats:
   * [tcp://][username:password@][host:port]
@@ -2724,7 +2723,7 @@ FLAGS[0m
 Kill tarantool instance(s)
 
 [0;1;39mUSAGE[0m
-  tt kill [<APP_NAME> | <APP_NAME:INSTANCE_NAME>] [flags]
+  tt kill [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
 [0;1;39m
 FLAGS[0m
   -d, --dump    quit with dump
@@ -2735,7 +2734,7 @@ FLAGS[0m
 Get logs of instance(s)
 
 [0;1;39mUSAGE[0m
-  tt log [<APP_NAME> | <APP_NAME:INSTANCE_NAME>] [flags]
+  tt log [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
 [0;1;39m
 FLAGS[0m
   -f, --follow      Output appended data as the log file grows
@@ -2746,7 +2745,7 @@ FLAGS[0m
 Rotate logs of a started tarantool instance(s)
 
 [0;1;39mUSAGE[0m
-  tt logrotate [<APP_NAME> | <APP_NAME:INSTANCE_NAME>] [flags]
+  tt logrotate [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help   help for logrotate
@@ -3201,7 +3200,7 @@ GLOBAL FLAGS[0m
 Play the contents of .snap/.xlog FILE(s) to another Tarantool instance
 
 [0;1;39mUSAGE[0m
-  tt play (<URI> | <APP_NAME> | <APP_NAME:INSTANCE_NAME>) <FILE|DIR>... [flags]
+  tt play (<URI> | <APP>:<INSTANCE>) <FILE|DIR>... [flags]
 [0;1;39m
 FLAGS[0m
       --from uint            Show operations starting from the given lsn
@@ -3643,7 +3642,7 @@ FLAGS[0m
 Restart tarantool instance(s)
 
 [0;1;39mUSAGE[0m
-  tt restart [<APP_NAME> | <APP_NAME:INSTANCE_NAME>] [flags]
+  tt restart [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help   help for restart
@@ -4196,7 +4195,7 @@ EXAMPLES[0m
 Start tarantool instance(s)
 
 [0;1;39mUSAGE[0m
-  tt start [<APP_NAME> | <APP_NAME:INSTANCE_NAME>] [flags]
+  tt start [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help          help for start
@@ -4221,7 +4220,7 @@ Columns:
 - UPSTREAM: The replication upstream status.
 
 [0;1;39mUSAGE[0m
-  tt status [<APP_NAME> | <APP_NAME:INSTANCE_NAME>] [flags]
+  tt status [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
 [0;1;39m
 FLAGS[0m
   -d, --details                     print detailed alerts.
@@ -4235,7 +4234,7 @@ FLAGS[0m
 Stop tarantool instance(s)
 
 [0;1;39mUSAGE[0m
-  tt stop [<APP_NAME> | <APP_NAME:INSTANCE_NAME>] [flags]
+  tt stop [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help   help for stop

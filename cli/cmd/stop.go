@@ -14,17 +14,16 @@ import (
 // NewStopCmd creates stop command.
 func NewStopCmd() *cobra.Command {
 	stopCmd := &cobra.Command{
-		Use:   "stop [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
+		Use:   "stop " + instanceTargetsUsage,
 		Short: "Stop tarantool instance(s)",
 		RunE:  internalRunE(internalStopWithConfirmationModule),
-		Args:  cobra.RangeArgs(0, 1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
 			toComplete string,
 		) ([]string, cobra.ShellCompDirective) {
 			return internal.ValidArgsFunction(
-				cliOpts, &cmdCtx, cmd, toComplete,
+				&cmdCtx, cmd, toComplete,
 				running.ExtractActiveAppNames,
 				running.ExtractActiveInstanceNames)
 		},
@@ -37,20 +36,13 @@ func NewStopCmd() *cobra.Command {
 }
 
 func internalStopWithConfirmationModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if !isConfigExist(cmdCtx) {
-		return errNoConfig
+	instances, err := resolveInstances(cmdCtx, args)
+	if err != nil {
+		return err
 	}
 
 	if !autoYes && !cmdCtx.Cli.NoPrompt {
-		var instancesToConfirm string
-
-		if len(args) == 0 {
-			instancesToConfirm = "all instances"
-		} else {
-			instancesToConfirm = "'" + args[0] + "'"
-		}
-
-		confirmed, err := util.AskConfirm(os.Stdin, "Confirm stop of "+instancesToConfirm)
+		confirmed, err := util.AskConfirm(os.Stdin, "Confirm stop of "+describeTargets(args))
 		if err != nil {
 			return err
 		}
@@ -62,31 +54,15 @@ func internalStopWithConfirmationModule(cmdCtx *cmdcontext.CmdCtx, args []string
 		}
 	}
 
-	err := internalStopModule(cmdCtx, args)
-	if err != nil {
-		return err
-	}
+	stopInstances(instances)
 
 	return nil
 }
 
-// internalStopModule is a default stop module.
-func internalStopModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if !isConfigExist(cmdCtx) {
-		return errNoConfig
-	}
-
-	var runningCtx running.RunningCtx
-
-	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, running.ConfigLoadSkip)
-	if err != nil {
-		return err
-	}
-
-	err = running.StopAll(runningCtx.Instances)
+// stopInstances interrupts all instances before waiting, reporting failures.
+func stopInstances(instances []running.InstanceCtx) {
+	err := running.StopAll(instances)
 	if err != nil {
 		log.Infof("%s", err)
 	}
-
-	return nil
 }

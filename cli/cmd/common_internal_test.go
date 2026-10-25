@@ -1,12 +1,15 @@
 package cmd
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/configure"
 )
@@ -40,29 +43,65 @@ func TestInternalRunE(t *testing.T) {
 // TestCheckConfig covers the commands that act on a tt environment and so
 // cannot proceed without its config. tt run and tt test are deliberately not
 // here: they act on the package in the working directory and need no
-// environment at all.
+// environment at all; neither are the instance commands, which find the
+// application from the project (TestInstanceCommandsOutsideProject).
 func TestCheckConfig(t *testing.T) {
 	const expected = configure.ConfigName +
 		" not found, you need to create a tt environment config" +
 		" or provide exact config location with --cfg option"
 
-	cases := []struct {
-		name string
-		err  error
+	assert.ErrorContains(t, internalCreateModule(&cmdcontext.CmdCtx{}, nil), expected)
+}
+
+// TestInstanceCommandsOutsideProject checks that the instance commands do
+// not look for tt.yaml: run without a target outside of a project, they
+// report that there is no project, and point out a tt2 environment, whose
+// tt.yaml they do not read.
+func TestInstanceCommandsOutsideProject(t *testing.T) {
+	modules := []struct {
+		name   string
+		module internalFunc
 	}{
-		{"check", internalCheckModule(&cmdcontext.CmdCtx{}, nil)},
-		{"clean", internalCleanModule(&cmdcontext.CmdCtx{}, nil)},
-		{"create", internalCreateModule(&cmdcontext.CmdCtx{}, nil)},
-		{"logrotate", internalLogrotateModule(&cmdcontext.CmdCtx{}, nil)},
-		{"restart", internalRestartModule(&cmdcontext.CmdCtx{}, nil)},
-		{"start", internalStartModule(&cmdcontext.CmdCtx{}, nil)},
-		{"status", internalStatusModule(&cmdcontext.CmdCtx{}, nil)},
-		{"stop", internalStopModule(&cmdcontext.CmdCtx{}, nil)},
+		{"check", internalCheckModule},
+		{"clean", internalCleanModule},
+		{"kill", internalKillModule},
+		{"log", internalLogModule},
+		{"logrotate", internalLogrotateModule},
+		{"restart", internalRestartModule},
+		{"start", internalStartModule},
+		{"status", internalStatusModule},
+		{"stop", internalStopWithConfirmationModule},
 	}
 
-	for _, tc := range cases {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	for _, tc := range modules {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.ErrorContains(t, tc.err, expected)
+			err := tc.module(&cmdcontext.CmdCtx{}, nil)
+			require.ErrorIs(t, err, app.ErrNoProject)
+			assert.NotErrorIs(t, err, app.ErrTT2Environment)
 		})
 	}
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, configure.ConfigName), nil, 0o600))
+
+	for _, tc := range modules {
+		t.Run(tc.name+" in a tt2 environment", func(t *testing.T) {
+			err := tc.module(&cmdcontext.CmdCtx{}, nil)
+			require.ErrorIs(t, err, app.ErrNoProject)
+			require.ErrorIs(t, err, app.ErrTT2Environment)
+		})
+	}
+}
+
+// TestInstanceCommandsRefuseBareApp checks that an instance command refuses
+// a bare application name with a hint, rather than acting on every instance
+// of the application.
+func TestInstanceCommandsRefuseBareApp(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	_, err := resolveInstances(&cmdcontext.CmdCtx{}, []string{"myapp"})
+	require.ErrorIs(t, err, app.ErrInvalidTarget)
+	assert.ErrorContains(t, err, "use myapp:<instance> or myapp:*")
 }

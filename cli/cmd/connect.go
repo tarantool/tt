@@ -52,11 +52,11 @@ var (
 // NewConnectCmd creates connect command.
 func NewConnectCmd() *cobra.Command {
 	connectCmd := &cobra.Command{
-		Use: "connect (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)" +
+		Use: "connect (<APP>:<INSTANCE> | <URI>)" +
 			" [flags] [-f <FILE>] [-- ARGS]\n" +
-			"  COMMAND | tt connect (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)" +
+			"  COMMAND | tt connect (<APP>:<INSTANCE> | <URI>)" +
 			" [flags]\n" +
-			"  COMMAND | tt connect (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)" +
+			"  COMMAND | tt connect (<APP>:<INSTANCE> | <URI>)" +
 			" [flags] [-f-] [-- ARGS]\n\n" +
 			"  The URI can be specified in the following formats:\n" +
 			"  * [tcp://][username:password@][host:port]\n" +
@@ -87,7 +87,7 @@ func NewConnectCmd() *cobra.Command {
 			}
 
 			validArgs, _ := internal.ValidArgsFunction(
-				cliOpts, &cmdCtx, cmd, toComplete,
+				&cmdCtx, cmd, toComplete,
 				running.ExtractActiveAppNames,
 				running.ExtractActiveInstanceNames)
 
@@ -164,7 +164,7 @@ func getMaxHistoryOutputLen(cliOpts *config.CliOpts) int {
 // resolveConnectOpts tries to resolve target argument to replace it
 // with a control socket or as a URI with/without credentials.
 // It returns connection options and the remaining args.
-func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
+func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx,
 	connectCtx *connect.ConnectCtx, target string) (
 	connector.ConnectOpts, error,
 ) {
@@ -172,15 +172,14 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 		connOpts connector.ConnectOpts
 		err      error
 	)
-	// FillCtx returns error if no instances found.
-	var runningCtx running.RunningCtx
 
-	fillErr := running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{target},
-		running.ConfigLoadCluster)
+	// A target that resolves to no instance may still be a URI that happens
+	// to fit <app>:<instance>, such as localhost:3301.
+	instances, resolveErr := resolveInstances(cmdCtx, []string{target})
 
 	switch {
-	case fillErr == nil:
-		if len(runningCtx.Instances) > 1 {
+	case resolveErr == nil:
+		if len(instances) > 1 {
 			err = errSpecifyInstanceName
 			return connOpts, err
 		}
@@ -192,11 +191,11 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 
 		if connectCtx.Binary {
 			connOpts = makeConnOpts(
-				connector.UnixNetwork, runningCtx.Instances[0].BinaryPort, *connectCtx,
+				connector.UnixNetwork, instances[0].BinaryPort, *connectCtx,
 			)
 		} else {
 			connOpts = makeConnOpts(
-				connector.UnixNetwork, runningCtx.Instances[0].ConsoleSocket, *connectCtx,
+				connector.UnixNetwork, instances[0].ConsoleSocket, *connectCtx,
 			)
 		}
 	case sdkconnect.IsCredentialsURI(target):
@@ -226,7 +225,7 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 
 		connOpts = makeConnOpts(network, address, *connectCtx)
 	default:
-		err = fillErr
+		err = resolveErr
 		return connOpts, err
 	}
 
@@ -270,7 +269,7 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		Evaler:          connectEvaler,
 	}
 
-	connOpts, err := resolveConnectOpts(cmdCtx, cliOpts, &connectCtx, args[0])
+	connOpts, err := resolveConnectOpts(cmdCtx, &connectCtx, args[0])
 	if err != nil {
 		return err
 	}

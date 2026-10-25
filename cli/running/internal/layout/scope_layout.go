@@ -8,9 +8,9 @@ import (
 )
 
 // The names of the files an instance keeps in its run and log directories.
-// Both layouts use them: moving the directories to a scope root changes where
-// the files are, not what they are called, so whatever looks for them by
-// name, a person or a script, keeps finding them.
+// They are the names the layout of tt.yaml used: moving the directories to a
+// scope root changed where the files are, not what they are called, so
+// whatever looks for them by name, a person or a script, keeps finding them.
 const (
 	// PidFileName is the pid file of the watchdog of the instance.
 	PidFileName = "tt.pid"

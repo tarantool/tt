@@ -44,7 +44,7 @@ var opts statusOpts
 // NewStatusCmd creates status command.
 func NewStatusCmd() *cobra.Command {
 	statusCmd := &cobra.Command{
-		Use:   "status [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
+		Use:   "status " + instanceTargetsUsage,
 		Short: "Status of the tarantool instance(s)",
 		Long: `The 'status' command provides information about the status of Tarantool instances.
 
@@ -68,7 +68,7 @@ Columns:
 			toComplete string,
 		) ([]string, cobra.ShellCompDirective) {
 			return internal.ValidArgsFunction(
-				cliOpts, &cmdCtx, cmd, toComplete,
+				&cmdCtx, cmd, toComplete,
 				running.ExtractAppNames,
 				running.ExtractInstanceNames)
 		},
@@ -95,10 +95,6 @@ func internalStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return errNegativeInstanceTimeout
 	}
 
-	if !isConfigExist(cmdCtx) {
-		return errNoConfig
-	}
-
 	// Handle deprecated --pretty flag.
 	if opts.pretty {
 		opts.format = statusFormatPrettyTable
@@ -116,9 +112,7 @@ func internalStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			errInvalidFormatValidFormatsAreJSONYAMLTablePrettyTable, opts.format)
 	}
 
-	var runningCtx running.RunningCtx
-
-	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, running.ConfigLoadSkip)
+	instances, err := resolveInstances(cmdCtx, args)
 	if err != nil {
 		return err
 	}
@@ -136,7 +130,7 @@ func internalStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		printer = status.NewTablePrinter(status.WithDetails(opts.details))
 	}
 
-	err = status.Status(runningCtx, printer, opts.instanceTimeout)
+	err = status.Status(running.RunningCtx{Instances: instances}, printer, opts.instanceTimeout)
 	if err != nil {
 		return fmt.Errorf("failed to get status: %w", err)
 	}

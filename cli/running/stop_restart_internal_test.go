@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"syscall"
 	"testing"
 	"time"
@@ -27,8 +26,8 @@ func exitOf(t *testing.T, script string) supervisor.Exit {
 	return supervisor.Exit{Pid: cmd.Process.Pid, State: cmd.ProcessState, Err: err}
 }
 
-// TestRestartsAfter pins how the restart policy of an instance record, and
-// restart_on_failure of tt.yaml without one, decide on a restart.
+// TestRestartsAfter pins how the restart policy of an instance record
+// decides on a restart.
 func TestRestartsAfter(t *testing.T) {
 	exits := map[string]supervisor.Exit{
 		"success":    exitOf(t, "exit 0"),
@@ -38,37 +37,30 @@ func TestRestartsAfter(t *testing.T) {
 	}
 
 	cases := []struct {
-		name        string
-		restart     instances.RestartPolicy
-		restartable bool
-		want        map[string]bool
+		name    string
+		restart instances.RestartPolicy
+		want    map[string]bool
 	}{
 		{
-			name: "no", restart: instances.RestartNo, restartable: true,
+			name: "no", restart: instances.RestartNo,
 			want: map[string]bool{
 				"success": false, "failure": false, "signal": false, "not waited": false,
 			},
 		},
 		{
-			name: "on-failure", restart: instances.RestartOnFailure, restartable: false,
+			name: "on-failure", restart: instances.RestartOnFailure,
 			want: map[string]bool{
 				"success": false, "failure": true, "signal": true, "not waited": true,
 			},
 		},
 		{
-			name: "always", restart: instances.RestartAlways, restartable: false,
+			name: "always", restart: instances.RestartAlways,
 			want: map[string]bool{
 				"success": true, "failure": true, "signal": true, "not waited": true,
 			},
 		},
 		{
-			name: "tt.yaml restart_on_failure", restart: "", restartable: true,
-			want: map[string]bool{
-				"success": true, "failure": true, "signal": true, "not waited": true,
-			},
-		},
-		{
-			name: "tt.yaml without restart_on_failure", restart: "", restartable: false,
+			name: "unset", restart: "",
 			want: map[string]bool{
 				"success": false, "failure": false, "signal": false, "not waited": false,
 			},
@@ -77,7 +69,7 @@ func TestRestartsAfter(t *testing.T) {
 
 	for _, policy := range cases {
 		t.Run(policy.name, func(t *testing.T) {
-			inst := InstanceCtx{Restart: policy.restart, Restartable: policy.restartable}
+			inst := InstanceCtx{Restart: policy.restart}
 
 			for exitName, exit := range exits {
 				assert.Equal(t, policy.want[exitName], restartsAfter(&inst, exit), exitName)
@@ -129,28 +121,17 @@ func TestStopWait(t *testing.T) {
 	assert.Equal(t, 2*time.Minute+margin, stopWait(&InstanceCtx{StopTimeout: 2 * time.Minute}))
 }
 
-// useExitApp makes the instance a script that exits on its own, with the
-// status in the exit_status environment variable at its start.
+// useExitApp makes the instance exit on its own with status, from its next
+// start on.
 func (test *watchdogTest) useExitApp(status string) {
-	test.t.Helper()
-
-	script, err := filepath.Abs(filepath.Join(instTestAppDir, "exit_test_app.lua"))
-	require.NoError(test.t, err)
-
 	test.t.Setenv("exit_status", status)
-
-	test.mu.Lock()
-	defer test.mu.Unlock()
-
-	test.inst.InstanceScript = script
 }
 
 // TestWatchdogRestartPolicy pins the watchdog following the restart policy
-// of the instance record, which wins over restart_on_failure.
+// of the instance record.
 func TestWatchdogRestartPolicy(t *testing.T) {
 	t.Run("on-failure", func(t *testing.T) {
-		test := newWatchdogTest(t, false, &cmdcontext.CmdCtx{})
-		test.setRestart(instances.RestartOnFailure)
+		test := newWatchdogTest(t, instances.RestartOnFailure, &cmdcontext.CmdCtx{})
 		test.useExitApp("1")
 
 		done := test.run()
@@ -169,8 +150,7 @@ func TestWatchdogRestartPolicy(t *testing.T) {
 	})
 
 	t.Run("on-failure after a signal", func(t *testing.T) {
-		test := newWatchdogTest(t, false, &cmdcontext.CmdCtx{})
-		test.setRestart(instances.RestartOnFailure)
+		test := newWatchdogTest(t, instances.RestartOnFailure, &cmdcontext.CmdCtx{})
 
 		done := test.run()
 
@@ -185,8 +165,7 @@ func TestWatchdogRestartPolicy(t *testing.T) {
 	})
 
 	t.Run("always", func(t *testing.T) {
-		test := newWatchdogTest(t, false, &cmdcontext.CmdCtx{})
-		test.setRestart(instances.RestartAlways)
+		test := newWatchdogTest(t, instances.RestartAlways, &cmdcontext.CmdCtx{})
 		test.useExitApp("0")
 
 		done := test.run()
@@ -201,8 +180,7 @@ func TestWatchdogRestartPolicy(t *testing.T) {
 	})
 
 	t.Run("no", func(t *testing.T) {
-		test := newWatchdogTest(t, true, &cmdcontext.CmdCtx{})
-		test.setRestart(instances.RestartNo)
+		test := newWatchdogTest(t, instances.RestartNo, &cmdcontext.CmdCtx{})
 
 		done := test.run()
 
@@ -210,6 +188,6 @@ func TestWatchdogRestartPolicy(t *testing.T) {
 		require.NoError(t, syscall.Kill(first, syscall.SIGKILL))
 		require.NoError(t, waitDone(t, done))
 
-		assert.Len(t, test.children(), 1, "restart: no wins over restart_on_failure")
+		assert.Len(t, test.children(), 1, "restart: no is not restarted")
 	})
 }

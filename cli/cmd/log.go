@@ -30,7 +30,7 @@ const (
 // NewLogCmd creates log command.
 func NewLogCmd() *cobra.Command {
 	logCmd := &cobra.Command{
-		Use:   "log [<APP_NAME> | <APP_NAME:INSTANCE_NAME>] [flags]",
+		Use:   "log " + instanceTargetsUsage + " [flags]",
 		Short: `Get logs of instance(s)`,
 		RunE:  internalRunE(internalLogModule),
 		ValidArgsFunction: func(
@@ -39,7 +39,7 @@ func NewLogCmd() *cobra.Command {
 			toComplete string,
 		) ([]string, cobra.ShellCompDirective) {
 			return internal.ValidArgsFunction(
-				cliOpts, &cmdCtx, cmd, toComplete,
+				&cmdCtx, cmd, toComplete,
 				running.ExtractAppNames,
 				running.ExtractInstanceNames)
 		},
@@ -69,10 +69,6 @@ func printLines(ctx context.Context, in <-chan string) error {
 }
 
 func logRoot(inst running.InstanceCtx) string {
-	if inst.SingleApp {
-		return inst.LogDir
-	}
-
 	return filepath.Dir(inst.LogDir)
 }
 
@@ -196,23 +192,14 @@ func printLastN(instances []running.InstanceCtx, lineCount int) error {
 
 // internalLogModule is a default log module.
 func internalLogModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if !isConfigExist(cmdCtx) {
-		return errNoConfig
-	}
-
-	var (
-		err        error
-		runningCtx running.RunningCtx
-	)
-
-	err = running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, running.ConfigLoadCluster)
+	instances, err := resolveInstances(cmdCtx, args)
 	if err != nil {
 		return err
 	}
 
 	if logOpts.follow {
-		return follow(runningCtx.Instances, logOpts.nLines)
+		return follow(instances, logOpts.nLines)
 	}
 
-	return printLastN(runningCtx.Instances, logOpts.nLines)
+	return printLastN(instances, logOpts.nLines)
 }

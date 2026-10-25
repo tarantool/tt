@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -14,9 +13,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/ttlog"
 	"github.com/tarantool/tt/v3/internal/instances"
+	"github.com/tarantool/tt/v3/internal/scope"
 	"github.com/tarantool/tt/v3/internal/supervisor"
 )
 
@@ -31,8 +32,20 @@ func (*tamperedRepository) ValidateAll() error {
 	return errTampered
 }
 
-// watchdogTest is the watchdog of a script instance in a temporary directory,
-// with a configuration the test decides.
+// watchdogApp is the code of the instance of a watchdog test: it marks its
+// start in the file started_flag_file names, and exits at once with the
+// status exit_status gives, when it gives one.
+const watchdogApp = `local fio = require('fio')
+fio.open(os.getenv('started_flag_file'), {'O_CREAT'}):close()
+
+local status = os.getenv('exit_status')
+if status ~= nil and status ~= '' then
+    os.exit(tonumber(status))
+end
+`
+
+// watchdogTest is the watchdog of an instance of a project in a temporary
+// directory, with a restart policy the test decides.
 type watchdogTest struct {
 	t       *testing.T
 	cmdCtx  *cmdcontext.CmdCtx
@@ -44,53 +57,46 @@ type watchdogTest struct {
 	mu      sync.Mutex
 	started []int
 	exits   []supervisor.Exit
-	// restartable is what the configuration says, read at every exit.
-	restartable bool
 	// restart is the restart policy of the instance record, read at every
-	// exit; empty leaves the decision to restartable.
+	// exit.
 	restart instances.RestartPolicy
 }
 
 // testRestartDelay is the restart delay of the watchdog of a test.
 const testRestartDelay = 100 * time.Millisecond
 
-func newWatchdogTest(t *testing.T, restartable bool, cmdCtx *cmdcontext.CmdCtx,
+func newWatchdogTest(t *testing.T, restart instances.RestartPolicy, cmdCtx *cmdcontext.CmdCtx,
 	configure ...func(opts *supervisor.Options),
 ) *watchdogTest {
 	t.Helper()
 
-	appPath, err := filepath.Abs(filepath.Join(instTestAppDir, "dumb_test_app.lua"))
-	require.NoError(t, err)
+	setScopeRoots(t)
 
-	tarantool, err := exec.LookPath("tarantool")
-	require.NoError(t, err)
+	// The project is short enough for the sockets of the instance under its
+	// .tarantool, which tarantool binds by the full path then.
+	dir := filepath.Join(shortTempDir(t), fixtureApp)
+	writeFiles(t, dir, appFiles("", "app:\n  file: app.lua\n"))
+	writeFiles(t, dir, map[string]string{"app.lua": watchdogApp})
 
-	cmdCtx.Cli.TarantoolCli.Executable = tarantool
+	fixture := appFixture{scope: app.ScopeProject, root: scope.ProjectRoot(dir), dir: dir, link: ""}
 
-	// The sockets go in a directory of their own, short enough for a unix
-	// socket path.
-	dir := t.TempDir()
-	runDir := shortTempDir(t)
 	test := &watchdogTest{
-		t:      t,
-		cmdCtx: cmdCtx,
-		inst: InstanceCtx{
-			AppDir:         dir,
-			InstanceScript: appPath,
-			WalDir:         dir,
-			VinylDir:       dir,
-			MemtxDir:       dir,
-			PIDFile:        filepath.Join(dir, "tt.pid"),
-			ConsoleSocket:  filepath.Join(runDir, "tarantool.control"),
-			BinaryPort:     filepath.Join(runDir, "tarantool.sock"),
-			Restartable:    restartable,
-		},
-		flag:        filepath.Join(dir, "started"),
-		log:         &lockedBuffer{},
-		restartable: restartable,
+		t:       t,
+		cmdCtx:  cmdCtx,
+		inst:    fixture.instanceCtx(t),
+		flag:    filepath.Join(dir, "started"),
+		log:     &lockedBuffer{},
+		restart: restart,
 	}
 
+	require.NoError(t, createInstanceDataDirectories(test.inst))
+
+	// The watchdog logs into test.log, a logger of no file: with a log file
+	// in the context it would switch to that file at the first restart.
+	test.inst.Log = ""
+
 	t.Setenv("started_flag_file", test.flag)
+	t.Setenv("exit_status", "")
 
 	test.src = newInstanceSource(cmdCtx, &test.inst, &watchdogLog{
 		logger:      ttlog.NewCustomLogger(test.log, "Watchdog ", 0),
@@ -101,7 +107,6 @@ func newWatchdogTest(t *testing.T, restartable bool, cmdCtx *cmdcontext.CmdCtx,
 
 		inst := test.inst
 
-		inst.Restartable = test.restartable
 		inst.Restart = test.restart
 
 		return inst, nil
@@ -125,6 +130,8 @@ func newWatchdogTest(t *testing.T, restartable bool, cmdCtx *cmdcontext.CmdCtx,
 	for _, change := range configure {
 		change(&opts)
 	}
+
+	var err error
 
 	test.engine, err = supervisor.New(test.src, opts)
 	require.NoError(t, err)
@@ -237,14 +244,6 @@ func (test *watchdogTest) moveRunDir() InstanceCtx {
 	test.inst.BinaryPort = filepath.Join(runDir, "tarantool.sock")
 
 	return test.inst
-}
-
-// setRestartable changes what the configuration says of restart_on_failure.
-func (test *watchdogTest) setRestartable(restartable bool) {
-	test.mu.Lock()
-	defer test.mu.Unlock()
-
-	test.restartable = restartable
 }
 
 // setRestart changes the restart policy of the instance record.

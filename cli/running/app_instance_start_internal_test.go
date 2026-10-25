@@ -101,7 +101,7 @@ func startInstance(t *testing.T, inst *InstanceCtx, want string) *startedInstanc
 	started := &startedInstance{t: t, inst: inst, done: make(chan error, 1), pid: 0}
 
 	go func() {
-		started.done <- Start(&cmdcontext.CmdCtx{}, inst)
+		started.done <- Start(t.Context(), &cmdcontext.CmdCtx{}, inst)
 	}()
 
 	t.Cleanup(func() {
@@ -223,11 +223,11 @@ func TestInstalledInstanceLongSocketPath(t *testing.T) {
 
 	require.Error(t, verifySocketLength(inst.ConsoleSocket), "the root is not long enough")
 
-	canStart, err := IsAbleToStartInstances([]InstanceCtx{inst}, &cmdcontext.CmdCtx{})
+	canStart, err := IsAbleToStartInstances([]InstanceCtx{inst})
 	assert.False(t, canStart)
 	require.ErrorIs(t, err, errSocketPathIsLongerThanSymbols)
 
-	err = Start(&cmdcontext.CmdCtx{}, &inst)
+	err = Start(t.Context(), &cmdcontext.CmdCtx{}, &inst)
 	require.ErrorIs(t, err, errSocketPathIsLongerThanSymbols)
 	assert.NoDirExists(t, filepath.Join(root, "var"))
 }

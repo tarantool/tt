@@ -12,14 +12,16 @@ import (
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/process_utils"
+	"github.com/tarantool/tt/v3/internal/instances"
 	"github.com/tarantool/tt/v3/internal/supervisor"
 )
 
-// TestWatchdogRestartsAndStops pins the watchdog of a restartable instance:
-// tarantool that dies, by SIGINT or SIGKILL, starts again, and a SIGINT to
-// the watchdog stops it and the watchdog, which then removes its pid file.
+// TestWatchdogRestartsAndStops pins the watchdog of an instance with
+// restart: always: tarantool that dies, by SIGINT or SIGKILL, starts again,
+// and a SIGINT to the watchdog stops it and the watchdog, which then removes
+// its pid file.
 func TestWatchdogRestartsAndStops(t *testing.T) {
-	test := newWatchdogTest(t, true, &cmdcontext.CmdCtx{})
+	test := newWatchdogTest(t, instances.RestartAlways, &cmdcontext.CmdCtx{})
 	done := test.run()
 
 	first := test.waitStarted(1)
@@ -42,9 +44,9 @@ func TestWatchdogRestartsAndStops(t *testing.T) {
 }
 
 // TestWatchdogNotRestartable pins that tarantool that dies is not started
-// again when the configuration does not say restart_on_failure.
+// again when its record says restart: no.
 func TestWatchdogNotRestartable(t *testing.T) {
-	test := newWatchdogTest(t, false, &cmdcontext.CmdCtx{})
+	test := newWatchdogTest(t, instances.RestartNo, &cmdcontext.CmdCtx{})
 	done := test.run()
 
 	first := test.waitStarted(1)
@@ -57,7 +59,7 @@ func TestWatchdogNotRestartable(t *testing.T) {
 }
 
 // TestWatchdogIntegrityHardStop pins that a failed integrity check stops the
-// instance for good, although the configuration says restart_on_failure, and
+// instance for good, although its record says restart: always, and
 // that the watchdog removes the sockets tarantool leaves when it is killed.
 func TestWatchdogIntegrityHardStop(t *testing.T) {
 	cmdCtx := &cmdcontext.CmdCtx{}
@@ -65,7 +67,7 @@ func TestWatchdogIntegrityHardStop(t *testing.T) {
 	cmdCtx.Cli.IntegrityCheckPeriod = 1
 	cmdCtx.Integrity = integrity.IntegrityCtx{Repository: &tamperedRepository{}}
 
-	test := newWatchdogTest(t, true, cmdCtx)
+	test := newWatchdogTest(t, instances.RestartAlways, cmdCtx)
 	done := test.run()
 
 	test.waitStarted(1)
@@ -90,11 +92,13 @@ func TestWatchdogIntegrityHardStop(t *testing.T) {
 // them meanwhile: at the end of the watchdog when the instance is not
 // restarted, and before the next start when it is.
 func TestWatchdogCleanupAfterRunDirChange(t *testing.T) {
-	cases := map[string]bool{"not restarted": false, "restarted": true}
+	cases := map[string]instances.RestartPolicy{
+		"not restarted": instances.RestartNo, "restarted": instances.RestartAlways,
+	}
 
-	for name, restartable := range cases {
+	for name, policy := range cases {
 		t.Run(name, func(t *testing.T) {
-			test := newWatchdogTest(t, true, &cmdcontext.CmdCtx{})
+			test := newWatchdogTest(t, instances.RestartAlways, &cmdcontext.CmdCtx{})
 			done := test.run()
 
 			first := test.waitStarted(1)
@@ -104,12 +108,12 @@ func TestWatchdogCleanupAfterRunDirChange(t *testing.T) {
 
 			moved := test.moveRunDir()
 
-			test.setRestartable(restartable)
+			test.setRestart(policy)
 
 			// Killed, tarantool leaves its sockets behind.
 			require.NoError(t, syscall.Kill(first, syscall.SIGKILL))
 
-			if restartable {
+			if policy == instances.RestartAlways {
 				test.waitStarted(2)
 				waitSockets(t, &moved)
 				assertNoSockets(t, &old)
@@ -132,7 +136,7 @@ func TestWatchdogCleanupAfterFailedStart(t *testing.T) {
 	errStart := errors.New("the start failed")
 	starts := 0
 
-	test := newWatchdogTest(t, true, &cmdcontext.CmdCtx{}, func(opts *supervisor.Options) {
+	failSecondStart := func(opts *supervisor.Options) {
 		opts.Start = func(cmd *exec.Cmd) error {
 			starts++
 			if starts > 1 {
@@ -141,7 +145,9 @@ func TestWatchdogCleanupAfterFailedStart(t *testing.T) {
 
 			return supervisor.StartCmd(cmd)
 		}
-	})
+	}
+
+	test := newWatchdogTest(t, instances.RestartAlways, &cmdcontext.CmdCtx{}, failSecondStart)
 	done := test.run()
 
 	first := test.waitStarted(1)
@@ -183,7 +189,7 @@ func TestWatchdogForwardsStopSignal(t *testing.T) {
 	require.NoError(t, syscall.Setrlimit(syscall.RLIMIT_CORE, &noCore))
 	t.Cleanup(func() { _ = syscall.Setrlimit(syscall.RLIMIT_CORE, &limit) })
 
-	test := newWatchdogTest(t, true, &cmdcontext.CmdCtx{})
+	test := newWatchdogTest(t, instances.RestartAlways, &cmdcontext.CmdCtx{})
 	done := test.run()
 
 	test.waitStarted(1)

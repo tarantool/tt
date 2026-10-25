@@ -67,28 +67,12 @@ func integrityOf(cmdCtx *cmdcontext.CmdCtx) *integrity.IntegrityCtx {
 	return &cmdCtx.Integrity
 }
 
-// instanceSpec is the Spec of the tarantool process of an instance: an
-// instance built from the application model runs from the config of its
-// pair on the tarantool of its application; one collected through tt.yaml
-// runs from its cluster config, or its script, on the tarantool of tt.yaml.
-// The stop settings of the instance record, if any, apply to every kind.
-func instanceSpec(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx, opts specOptions) (
-	supervisor.Spec, error,
-) {
-	var (
-		spec supervisor.Spec
-		err  error
-	)
-
-	switch {
-	case inst.Scope != "":
-		spec, err = appClusterSpec(inst, opts)
-	case inst.ClusterConfigPath != "":
-		spec, err = clusterSpec(cmdCtx.Cli.TarantoolCli.Executable, inst, opts)
-	default:
-		spec, err = scriptSpec(cmdCtx.Cli.TarantoolCli.Executable, inst, opts)
-	}
-
+// instanceSpec is the Spec of the tarantool process of an instance: a
+// Tarantool instance runs from the config of the pair of its application on
+// the tarantool of its application (appClusterSpec). The stop settings of
+// the instance record apply on top.
+func instanceSpec(inst *InstanceCtx, opts specOptions) (supervisor.Spec, error) {
+	spec, err := appClusterSpec(inst, opts)
 	if err != nil {
 		return supervisor.Spec{}, err
 	}
@@ -154,6 +138,9 @@ func tarantoolSpec(tarantoolPath string, args, env []string, dir string,
 
 // scriptSpec is the Spec of an instance that runs its script: tarantool reads
 // the launcher from its standard input, and the launcher runs the script.
+//
+// Nothing builds an instance that runs its script while NewInstanceCtx
+// refuses the records with script; it is kept, with its launcher, for them.
 func scriptSpec(tarantoolPath string, inst *InstanceCtx, opts specOptions) (
 	supervisor.Spec, error,
 ) {
@@ -240,53 +227,6 @@ func scriptSpec(tarantoolPath string, inst *InstanceCtx, opts specOptions) (
 	return spec, nil
 }
 
-func clusterSpec(tarantoolPath string, inst *InstanceCtx, opts specOptions) (
-	supervisor.Spec, error,
-) {
-	_, err := exec.LookPath(tarantoolPath)
-	if err != nil {
-		return supervisor.Spec{}, fmt.Errorf("looking for the tarantool executable: %w", err)
-	}
-
-	args := []string{"-n", inst.InstName, "-c", inst.ClusterConfigPath}
-	if opts.integrity != nil {
-		args = append(args, "--integrity-check",
-			filepath.Join(inst.AppDir, integrity.HashesFileName))
-	}
-
-	env := os.Environ()
-
-	for _, dir := range [...][2]string{
-		{"TT_VINYL_DIR_DEFAULT", inst.VinylDir},
-		{"TT_WAL_DIR_DEFAULT", inst.WalDir},
-		{"TT_SNAPSHOT_DIR_DEFAULT", inst.MemtxDir},
-	} {
-		env = appendEnvIfNotEmpty(env, dir[0], dir[1])
-	}
-
-	if inst.RunDir != "" {
-		env = append(env, "TT_PROCESS_PID_FILE_DEFAULT="+
-			filepath.Join(inst.RunDir, "tarantool.pid"))
-	}
-
-	if !util.IsDir(inst.AppDir) {
-		return supervisor.Spec{}, fmt.Errorf("%w%q is not a directory",
-			errApplicationIsNotADirectory, inst.AppDir)
-	}
-
-	consoleSocket, err := shortenSocketPath(inst.ConsoleSocket, inst.AppDir)
-	if err != nil {
-		return supervisor.Spec{}, err
-	}
-
-	env = append(env,
-		"PWD="+inst.AppDir,
-		"TT_CONSOLE_SOCKET_DEFAULT="+consoleSocket,
-		"TT_IPROTO_LISTEN_DEFAULT="+"[{\"uri\":\""+inst.BinaryPort+"\"}]")
-
-	return tarantoolSpec(tarantoolPath, args, env, inst.AppDir, opts), nil
-}
-
 // appClusterSpec is the Spec of an instance built from the application model
 // (NewInstanceCtx): a Tarantool instance configured by the config of the pair
 // of its application, on the tarantool of its application.
@@ -353,14 +293,6 @@ func appClusterSpec(inst *InstanceCtx, opts specOptions) (supervisor.Spec, error
 		"TT_IPROTO_LISTEN_DEFAULT="+listen)
 
 	return tarantoolSpec(exe.Path, args, env, inst.AppDir, opts), nil
-}
-
-func appendEnvIfNotEmpty(env []string, envVarName, value string) []string {
-	if value != "" {
-		env = append(env, fmt.Sprintf("%s=%s", envVarName, value))
-	}
-
-	return env
 }
 
 // socketPathLimit is the size of sun_path, the room for the path in a unix

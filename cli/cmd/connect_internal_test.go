@@ -80,7 +80,7 @@ func TestConnectionTLSFlags(t *testing.T) {
 			}
 
 			// An absent local config selects URI resolution, including credentials.
-			opts, err := resolveConnectOpts(&cmdcontext.CmdCtx{}, &config.CliOpts{},
+			opts, err := resolveConnectOpts(&cmdcontext.CmdCtx{},
 				&connectCtx, "tcp://user:pass@localhost:3301")
 			require.NoError(t, err)
 			assert.Equal(t, connector.TCPNetwork, opts.Network)

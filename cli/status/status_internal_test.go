@@ -167,7 +167,7 @@ func TestStatusParallelAndClosesConnections(t *testing.T) {
 	instances := make([]running.InstanceCtx, count)
 	for i := range instances {
 		instances[i] = running.InstanceCtx{AppName: fmt.Sprintf("app%d", i),
-			SingleApp: true, ConsoleSocket: address}
+			ConsoleSocket: address}
 	}
 
 	printer := &capturePrinter{}
@@ -272,7 +272,7 @@ func TestStatusTimeout(t *testing.T) {
 
 			go func() {
 				done <- processStatusForInstance(running.InstanceCtx{
-					AppName: "app", SingleApp: true, ConsoleSocket: address,
+					AppName: "app", ConsoleSocket: address,
 				}, 50*time.Millisecond)
 			}()
 
@@ -305,7 +305,7 @@ func TestStatusZeroTimeoutWaitsForResponse(t *testing.T) {
 
 	go func() {
 		done <- processStatusForInstance(running.InstanceCtx{
-			AppName: "app", SingleApp: true, ConsoleSocket: address,
+			AppName: "app", ConsoleSocket: address,
 		}, 0)
 	}()
 
