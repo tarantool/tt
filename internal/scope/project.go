@@ -122,38 +122,72 @@ func FindProject(start string) (string, bool, error) {
 // holds nothing tt installed, so it is skipped. A root set to a relative path
 // is an error, as it is everywhere else the root is used.
 func InstalledTree(dir string) (bool, error) {
+	_, found, err := FindInstallation(dir)
+
+	return found, err
+}
+
+// Installation is the scope root whose versions/ or apps/ tree a directory is
+// in.
+type Installation struct {
+	// Root is the scope root, as UserRoot or SystemRoot returns it.
+	Root string
+	// User tells the user scope from the system one.
+	User bool
+}
+
+// FindInstallation reports which scope root's versions/ or apps/ tree dir is
+// in, by the same rules as InstalledTree. found is false outside every such
+// tree. The user root is checked before the system one.
+func FindInstallation(dir string) (Installation, bool, error) {
 	paths, err := spellings(dir)
 	if err != nil {
-		return false, fmt.Errorf("cannot check for an installed version: %w", err)
+		return Installation{}, false, fmt.Errorf("cannot check for an installed version: %w", err)
 	}
 
-	for _, rootOf := range []func() (string, error){UserRoot, SystemRoot} {
-		root, err := rootOf()
+	for _, candidate := range []struct {
+		rootOf func() (string, error)
+		user   bool
+	}{{UserRoot, true}, {SystemRoot, false}} {
+		root, err := candidate.rootOf()
 		if errors.Is(err, ErrRelativeRoot) {
-			return false, err
+			return Installation{}, false, err
 		}
 
 		if err != nil {
 			continue
 		}
 
-		roots, err := spellings(root)
-		if err != nil {
-			continue
+		if inInstalledTree(paths, root) {
+			return Installation{Root: root, User: candidate.user}, true, nil
 		}
+	}
 
-		for _, root := range roots {
-			for _, tree := range []string{VersionsDirName, AppsDirName} {
-				for _, path := range paths {
-					if within(path, filepath.Join(root, tree)) {
-						return true, nil
-					}
+	var none Installation
+
+	return none, false, nil
+}
+
+// inInstalledTree reports whether any of paths is inside the versions/ or
+// apps/ tree of root, the root taken both as spelled and with its links
+// resolved.
+func inInstalledTree(paths []string, root string) bool {
+	roots, err := spellings(root)
+	if err != nil {
+		return false
+	}
+
+	for _, root := range roots {
+		for _, tree := range []string{VersionsDirName, AppsDirName} {
+			for _, path := range paths {
+				if within(path, filepath.Join(root, tree)) {
+					return true
 				}
 			}
 		}
 	}
 
-	return false, nil
+	return false
 }
 
 // spellings returns the absolute path and, when it differs, the path with its

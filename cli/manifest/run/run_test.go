@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/run"
 )
 
@@ -314,4 +315,90 @@ func TestTestDirAcceptsAnAbsolutePathInsideTheProject(t *testing.T) {
 	dir, err := run.TestDir(root, filepath.Join(root, "test", "unit"))
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join("test", "unit")+string(filepath.Separator), dir)
+}
+
+// writeInstalledApp lays out an installed version of an application at dir:
+// the manifest and a lock that bundles tarantool at version bundled.
+func writeInstalledApp(t *testing.T, dir, bundled string) {
+	t.Helper()
+
+	require.NoError(t, os.MkdirAll(dir, dirMode))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, run.ManifestFileName),
+		[]byte("manifest_version = \"0.1\"\n\n[package]\nname = \"app\"\n\n"+
+			"[platform]\ntarantool = \">=3.0.0\"\ntt = \">=3.0.0\"\n"), fileMode))
+
+	lock, err := manifest.Lock{
+		LockVersion:      manifest.LockVersion,
+		ManifestVersion:  manifest.ManifestVersion,
+		GeneratedBy:      "tt 3.0.0",
+		ManifestHash:     "sha256:0",
+		BundledTarantool: bundled,
+		BundledTt:        "",
+		BundledTcm:       "",
+		Products:         nil,
+		DevDependencies:  nil,
+	}.Marshal()
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "app.manifest.lock"), lock, fileMode))
+}
+
+// installedVersion lays out an installed version of an application in the
+// scope root, with the apps/ link to it, and returns both.
+func installedVersion(t *testing.T, root, bundled string) (string, string) {
+	t.Helper()
+
+	version := filepath.Join(root, "versions", "app", "app_1.0.0")
+	writeInstalledApp(t, version, bundled)
+
+	link := filepath.Join(root, "apps", "app")
+	require.NoError(t, os.MkdirAll(filepath.Dir(link), dirMode))
+	require.NoError(t, os.Symlink(filepath.Join("..", "versions", "app", "app_1.0.0"), link))
+
+	return version, link
+}
+
+// An installed version is no project: it runs on the tarantool its lock names
+// in its own scope rather than on PATH, reached either as the version or
+// through its apps/ link.
+func TestTarantoolOfAnInstalledVersion(t *testing.T) {
+	t.Setenv("TT_USE_SYSTEM_TARANTOOL", "")
+
+	for _, envName := range []string{"TT_USER_ROOT", "TT_SYSTEM_ROOT"} {
+		t.Run(envName, func(t *testing.T) {
+			t.Setenv("TT_USER_ROOT", t.TempDir())
+			t.Setenv("TT_SYSTEM_ROOT", t.TempDir())
+
+			root := t.TempDir()
+			t.Setenv(envName, root)
+			onPath(t)
+
+			locked := filepath.Join(root, "versions", "tarantool", "tarantool_3.8.1", "tarantool")
+			writeExecutable(t, locked)
+
+			version, link := installedVersion(t, root, "3.8.1")
+
+			for _, dir := range []string{version, link} {
+				exe, err := run.Tarantool(dir)
+				require.NoError(t, err, dir)
+				assert.Equal(t, locked, exe.Path, dir)
+			}
+		})
+	}
+}
+
+// The tarantool of an installed version is the locked one or none: a missing
+// installation is reported with its install hint, not replaced by PATH.
+func TestTarantoolOfAnInstalledVersionDoesNotFallBackToPath(t *testing.T) {
+	t.Setenv("TT_USE_SYSTEM_TARANTOOL", "")
+
+	root := t.TempDir()
+	t.Setenv("TT_USER_ROOT", root)
+	t.Setenv("TT_SYSTEM_ROOT", t.TempDir())
+	onPath(t)
+
+	version, _ := installedVersion(t, root, "3.8.1")
+
+	_, err := run.Tarantool(version)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "tt binary install tarantool 3.8.1 --scope user")
 }
