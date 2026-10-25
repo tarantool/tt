@@ -13,6 +13,10 @@ const (
 	lockFileName     = "app.manifest.lock"
 	versionFileName  = "VERSION"
 	runtimeDirName   = "_runtime"
+	// templatesDirName holds the package's instance templates. Unlike the
+	// metadata files it is laid into the install-root as is: it is how the
+	// installed application describes the instances it runs.
+	templatesDirName = ".templates"
 )
 
 var (
@@ -27,6 +31,9 @@ var (
 	// errLockStale reports that the archive's lock no longer matches its manifest
 	// while --locked forbids proceeding.
 	errLockStale = errors.New("lock is out of date")
+	// errTemplatesExist reports a project install-root that already has a
+	// .templates/ the archive's own would be laid over.
+	errTemplatesExist = errors.New("install root already has .templates/")
 	// errRuntimeMismatch reports a bundled runtime whose version conflicts with
 	// the one the project's primary package (or an earlier install) already
 	// fixed.

@@ -76,41 +76,47 @@ type Header struct {
 	// dependency closure (the default pack mode). A --without-deps archive has
 	// neither, and installing it refetches the closure from the registry.
 	WithDeps bool
+	// HasTemplates reports whether the archive carries .templates/, the
+	// package's instance templates. Pack puts them there in either mode, so
+	// this is independent of WithDeps.
+	HasTemplates bool
 }
 
 // ReadHeader scans the archive once, reading the three tt-owned metadata members
-// into memory and noting whether a _runtime/ tree is present. It never writes to
-// disk, so a scope or runtime rejection happens before any extraction.
+// into memory and noting whether a _runtime/ or a .templates/ tree is present.
+// It never writes to disk, so a scope, runtime or templates rejection happens
+// before any extraction.
 func (a *Archive) ReadHeader() (*Header, error) {
-	manifestBytes, lockBytes, versionBytes, hasRuntime, err := a.readMetaMembers()
+	meta, err := a.readMetaMembers()
 	if err != nil {
 		return nil, err
 	}
 
-	if manifestBytes == nil {
+	if meta.manifest == nil {
 		return nil, fmt.Errorf("%w: missing %s", errBadArchive, manifestFileName)
 	}
 
-	if lockBytes == nil {
+	if meta.lock == nil {
 		return nil, fmt.Errorf("%w: missing %s", errBadArchive, lockFileName)
 	}
 
-	man, _, err := manifest.ParseManifest(manifestBytes)
+	man, _, err := manifest.ParseManifest(meta.manifest)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errBadArchive, err)
 	}
 
-	lock, err := manifest.ParseLock(lockBytes)
+	lock, err := manifest.ParseLock(meta.lock)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errBadArchive, err)
 	}
 
 	return &Header{
 		Manifest:      man,
-		ManifestBytes: manifestBytes,
+		ManifestBytes: meta.manifest,
 		Lock:          lock,
-		Version:       strings.TrimSpace(string(versionBytes)),
-		WithDeps:      hasRuntime,
+		Version:       strings.TrimSpace(string(meta.version)),
+		WithDeps:      meta.hasRuntime,
+		HasTemplates:  meta.hasTemplates,
 	}, nil
 }
 
@@ -156,21 +162,30 @@ func (a *Archive) Extract(dstDir string, mapEntry func(name string) (string, boo
 	})
 }
 
-// readMetaMembers scans the archive once and returns the raw bytes of the three
-// tt-owned metadata members plus whether a _runtime/ tree is present.
-func (a *Archive) readMetaMembers() ([]byte, []byte, []byte, bool, error) {
-	var (
-		manifestBytes []byte
-		lockBytes     []byte
-		versionBytes  []byte
-		hasRuntime    bool
-	)
+// metaMembers is what one scan of an archive learns about it: the raw bytes of
+// the three tt-owned metadata members (nil when absent) and which of the
+// tt-owned trees it carries.
+type metaMembers struct {
+	manifest     []byte
+	lock         []byte
+	version      []byte
+	hasRuntime   bool
+	hasTemplates bool
+}
+
+// readMetaMembers scans the archive once and returns its metadata members and
+// whether a _runtime/ or a .templates/ tree is present.
+func (a *Archive) readMetaMembers() (metaMembers, error) {
+	var meta metaMembers
 
 	err := a.walk(func(hdr *tar.Header, reader io.Reader) (bool, error) {
 		name := path.Clean(filepath.ToSlash(hdr.Name))
 
-		if top, _, _ := strings.Cut(name, "/"); top == runtimeDirName {
-			hasRuntime = true
+		switch top, _, _ := strings.Cut(name, "/"); top {
+		case runtimeDirName:
+			meta.hasRuntime = true
+		case templatesDirName:
+			meta.hasTemplates = true
 		}
 
 		if hdr.Typeflag != tar.TypeReg {
@@ -184,20 +199,20 @@ func (a *Archive) readMetaMembers() ([]byte, []byte, []byte, bool, error) {
 
 		switch name {
 		case manifestFileName:
-			manifestBytes = data
+			meta.manifest = data
 		case lockFileName:
-			lockBytes = data
+			meta.lock = data
 		case versionFileName:
-			versionBytes = data
+			meta.version = data
 		}
 
 		return true, nil
 	})
 	if err != nil {
-		return nil, nil, nil, false, err
+		return metaMembers{}, err
 	}
 
-	return manifestBytes, lockBytes, versionBytes, hasRuntime, nil
+	return meta, nil
 }
 
 // walk opens the archive, decompresses it and calls visit for each tar entry.
