@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"text/tabwriter"
+
+	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
 
 // tabColumnPadding is the gap between table columns.
@@ -27,7 +29,10 @@ func (l *Listing) Human(w io.Writer) error {
 }
 
 // renderTable writes the human-readable listing: one row per package, with the
-// primary package marked so it is obvious which one uninstall will refuse.
+// primary package marked so it is obvious which one uninstall will refuse. In
+// the user and system scopes, where a package is an application installed at
+// several versions side by side, the row gives the active version and every
+// installed one instead.
 //
 // An empty scope prints a sentence rather than a bare header — "nothing is
 // installed" is the answer, and a lone header row reads like a bug.
@@ -44,14 +49,26 @@ func renderTable(out io.Writer, listing *Listing) error {
 
 	table := tabwriter.NewWriter(out, 0, 0, tabColumnPadding, ' ', 0)
 
-	_, err := fmt.Fprintln(table, "NAME\tVERSION\tORIGIN\tDESCRIPTION")
+	apps := listing.Scope == state.ScopeUser || listing.Scope == state.ScopeSystem
+
+	header := "NAME\tVERSION\tORIGIN\tDESCRIPTION"
+	if apps {
+		header = "NAME\tACTIVE\tVERSIONS\tDESCRIPTION"
+	}
+
+	_, err := fmt.Fprintln(table, header)
 	if err != nil {
 		return fmt.Errorf("rendering table: %w", err)
 	}
 
 	for _, entry := range listing.Packages {
+		third := originOf(entry)
+		if apps {
+			third = dash(strings.Join(entry.Versions, ", "))
+		}
+
 		_, err = fmt.Fprintf(table, "%s\t%s\t%s\t%s\n",
-			entry.Name, dash(entry.Version), originOf(entry), oneLine(entry.Description))
+			entry.Name, dash(entry.Version), third, oneLine(entry.Description))
 		if err != nil {
 			return fmt.Errorf("rendering table: %w", err)
 		}
@@ -144,8 +161,8 @@ func buildTree(listing *Listing) treeNode {
 	}
 
 	if !rooted {
-		// No project package to root at — a shared tree, or a deploy directory
-		// holding guests only.
+		// No project package to root at — a deploy directory holding guests
+		// only.
 		root = treeNode{label: "(no project package)", children: nil}
 	}
 

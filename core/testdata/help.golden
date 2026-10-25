@@ -3009,12 +3009,16 @@ GLOBAL FLAGS[0m
 
 === tt package list --help
 Show the packages present in the chosen scope: in the project scope the
-project's own package plus every guest installed from an archive. The source is
-the metadata install records under .rocks/manifests/, so nothing is fetched and
+project's own package plus every guest installed from an archive, read from the
+metadata install records under .rocks/manifests/; in the user and system scopes
+every application installed under <root>/versions/, with the version
+<root>/apps/<name> selects and every installed one. Nothing is fetched and
 nothing is resolved. This is what is on disk — not what the current manifest
 declares, which is what tt package deps reports. --tree additionally shows each
 package's dependencies and, for every one of them, whether another package holds
-it too — that is, whether it would be removed along with the package or stay.
+it too — that is, whether it would be removed along with the package or stay; it
+applies to the project scope, the versions of the user and system scopes sharing
+no dependencies.
 
 [0;1;39mUSAGE[0m
   tt package list [flags]
@@ -3024,8 +3028,9 @@ it too — that is, whether it would be removed along with the package or stay.
 FLAGS[0m
   -o, --format string   output format: table, json or yaml (default "table")
   -h, --help            help for list
-      --scope string    scope to list: project, user or system (default
-                        "project")
+      --scope string    scope to list: project (the working directory), user or
+                        system (the applications under the root tt binary uses)
+                        (default "project")
       --tree            show each package's dependencies and which of them are
                         shared
 [0;1;39m
@@ -3143,7 +3148,13 @@ Remove a guest package: its files and its metadata, plus every shared dependency
 that nothing else still needs. A dependency is owned by every installed package
 whose lock pins it, so one that another package still holds stays in place. The
 project's own package — the one app.manifest.toml in the working directory
-declares — is not a guest, and uninstall refuses to remove it.
+declares — is not a guest, and uninstall refuses to remove it. In the user and
+system scopes uninstall removes an application: every installed version under
+<root>/versions/<name>/ and the link <root>/apps/<name>. It refuses while an
+instance of the application runs, as its pid file under <root>/var/run/<name>/
+tells, and keeps the instance data under <root>/var/, the host files under
+<root>/etc/<name>/ and the runtimes in <root>/versions/ other applications may
+use.
 
 [0;1;39mUSAGE[0m
   tt package uninstall NAME [flags]
@@ -3152,8 +3163,9 @@ declares — is not a guest, and uninstall refuses to remove it.
 [0;1;39m
 FLAGS[0m
   -h, --help           help for uninstall
-      --scope string   scope to remove from: project, user or system (default
-                       "project")
+      --scope string   scope to remove from: project (the working directory),
+                       user or system (an application under the root tt binary
+                       uses) (default "project")
   -y, --yes            skip the confirmation prompt
 [0;1;39m
 GLOBAL FLAGS[0m

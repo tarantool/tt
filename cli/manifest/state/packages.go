@@ -32,10 +32,12 @@ const (
 	metaDirPerm = 0o755
 )
 
-// Package is one package present in a scope: the primary package the project
-// develops (project scope only) or a guest installed from an archive. Its
-// manifest and lock drive collision checks, the joint resolution of shared
-// dependencies at install time, and the ownership ledger at uninstall time.
+// Package is one package present in an install root: the primary package,
+// declared at the top of the root — the package the project develops, or the
+// application an installed version is — or a guest installed from an archive
+// into a project. Its manifest and lock drive collision checks, the joint
+// resolution of shared dependencies at install time, and the ownership ledger
+// at uninstall time.
 type Package struct {
 	// Name is the package name.
 	Name string
@@ -51,21 +53,19 @@ type Package struct {
 	Primary bool
 }
 
-// Packages enumerates every package present in the scope: the primary package
-// (project scope, when <root>/app.manifest.toml exists) plus every guest under
+// Packages enumerates every package present in the install root: the primary
+// package, when <root>/app.manifest.toml exists, plus every guest under
 // manifests/. A guest whose metadata is missing or unreadable is skipped rather
 // than failing the whole call — a half-written earlier install must not wedge
 // every later one, nor make the inventory unreadable.
 //
 // The primary package, when present, comes first; guests follow in directory
 // order, which os.ReadDir sorts by name.
-func Packages(lay Layout, scope Scope) ([]Package, error) {
+func Packages(lay Layout) ([]Package, error) {
 	var packages []Package
 
-	if scope.HasPrimary() {
-		if primary, ok := ReadPrimary(lay.Root); ok {
-			packages = append(packages, primary)
-		}
+	if primary, ok := ReadPrimary(lay.Root); ok {
+		packages = append(packages, primary)
 	}
 
 	entries, err := os.ReadDir(lay.Manifests)

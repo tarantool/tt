@@ -421,18 +421,23 @@ func newPackageListCmd() *cobra.Command {
 		Short: "List the packages installed in a scope",
 		Long: "Show the packages present in the chosen scope: in the project " +
 			"scope the project's own package plus every guest installed from an " +
-			"archive. The source is the metadata install records under " +
-			".rocks/manifests/, so nothing is fetched and nothing is resolved. " +
+			"archive, read from the metadata install records under " +
+			".rocks/manifests/; in the user and system scopes every application " +
+			"installed under <root>/versions/, with the version <root>/apps/<name> " +
+			"selects and every installed one. Nothing is fetched and nothing is " +
+			"resolved. " +
 			"This is what is on disk — not what the current manifest declares, " +
 			"which is what tt package deps reports. --tree additionally shows " +
 			"each package's dependencies and, for every one of them, whether " +
 			"another package holds it too — that is, whether it would be removed " +
-			"along with the package or stay.",
+			"along with the package or stay; it applies to the project scope, " +
+			"the versions of the user and system scopes sharing no dependencies.",
 		Args: cobra.NoArgs,
 	}
 
 	listCmd.Flags().StringVar(&packageScope, "scope", "project",
-		"scope to list: project, user or system")
+		"scope to list: project (the working directory), user or system "+
+			"(the applications under the root tt binary uses)")
 
 	format := bindFormatFlag(listCmd)
 
@@ -476,7 +481,14 @@ func newPackageUninstallCmd() *cobra.Command {
 			"owned by every installed package whose lock pins it, so one that " +
 			"another package still holds stays in place. The project's own " +
 			"package — the one app.manifest.toml in the working directory " +
-			"declares — is not a guest, and uninstall refuses to remove it.",
+			"declares — is not a guest, and uninstall refuses to remove it. " +
+			"In the user and system scopes uninstall removes an application: " +
+			"every installed version under <root>/versions/<name>/ and the link " +
+			"<root>/apps/<name>. It refuses while an instance of the application " +
+			"runs, as its pid file under <root>/var/run/<name>/ tells, and keeps " +
+			"the instance data under <root>/var/, the host files under " +
+			"<root>/etc/<name>/ and the runtimes in <root>/versions/ other " +
+			"applications may use.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return commandError(cmd, runPackageUninstall(args[0]))
@@ -484,7 +496,8 @@ func newPackageUninstallCmd() *cobra.Command {
 	}
 
 	uninstallCmd.Flags().StringVar(&packageScope, "scope", "project",
-		"scope to remove from: project, user or system")
+		"scope to remove from: project (the working directory), user or system "+
+			"(an application under the root tt binary uses)")
 	uninstallCmd.Flags().BoolVarP(&packageYes, "yes", "y", false,
 		"skip the confirmation prompt")
 
@@ -514,8 +527,13 @@ func runPackageUninstall(name string) error {
 		return err
 	}
 
-	_, _ = fmt.Fprintf(os.Stdout, "removed %s %s from %s scope\n",
-		result.Package, result.Version, result.Scope)
+	if len(result.Versions) > 0 {
+		_, _ = fmt.Fprintf(os.Stdout, "removed %s from %s scope: versions %s\n",
+			result.Package, result.Scope, strings.Join(result.Versions, ", "))
+	} else {
+		_, _ = fmt.Fprintf(os.Stdout, "removed %s %s from %s scope\n",
+			result.Package, result.Version, result.Scope)
+	}
 
 	for _, dep := range result.RemovedDependencies {
 		_, _ = fmt.Fprintf(os.Stdout, "  removed unused dependency %s\n", dep)

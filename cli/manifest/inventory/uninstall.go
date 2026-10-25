@@ -18,7 +18,8 @@ type UninstallOptions struct {
 	ProjectDir string
 	// Scope selects which tree to remove from. The zero value ("") is project.
 	Scope state.Scope
-	// Package is the name of the guest package to remove.
+	// Package is the name of the guest package, or of the application in the
+	// user and system scopes, to remove.
 	Package string
 	// Yes skips the confirmation prompt.
 	Yes bool
@@ -59,8 +60,12 @@ type KeptDependency struct {
 type UninstallResult struct {
 	// Package is the removed package's name.
 	Package string `json:"package" yaml:"package"`
-	// Version is the version that was installed.
+	// Version is the version that was installed; for an application of the
+	// user or system scope, the version that was active.
 	Version string `json:"version,omitempty" yaml:"version,omitempty"`
+	// Versions are the versions of an application of the user or system scope
+	// that were removed, lowest first.
+	Versions []string `json:"versions,omitempty" yaml:"versions,omitempty"`
 	// Scope is the tree it was removed from.
 	Scope state.Scope `json:"scope" yaml:"scope"`
 	// RemovedDependencies are the shared dependencies dropped along with it,
@@ -84,8 +89,12 @@ type UninstallResult struct {
 // Removal order matters for a re-run: files first, metadata last. An uninstall
 // interrupted halfway leaves the metadata in place, so running it again finishes
 // the job; the reverse would orphan files that nothing remembers owning.
+//
+// In the user and system scopes there is no shared tree and no ledger: the
+// package is an application, and uninstall removes it with all its installed
+// versions (see uninstallApp).
 func Uninstall(opts UninstallOptions) (*UninstallResult, error) {
-	scope, lay, err := resolve(opts.Scope, opts.ProjectDir)
+	scope, err := parseScope(opts.Scope)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +105,13 @@ func Uninstall(opts UninstallOptions) (*UninstallResult, error) {
 		return nil, stateErrorf("%w: %q", ErrBadPackageName, opts.Package)
 	}
 
-	packages, err := state.Packages(lay, scope)
+	if scope != state.ScopeProject {
+		return uninstallApp(opts, scope)
+	}
+
+	lay := state.ProjectLayout(opts.ProjectDir)
+
+	packages, err := state.Packages(lay)
 	if err != nil {
 		return nil, stateErrorf("%w", err)
 	}
@@ -317,6 +332,7 @@ func (p uninstallPlan) result(scope state.Scope) *UninstallResult {
 	result := &UninstallResult{
 		Package:             p.target.name,
 		Version:             p.target.version,
+		Versions:            nil,
 		Scope:               scope,
 		RemovedDependencies: removed,
 		KeptDependencies:    p.kept,

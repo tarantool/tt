@@ -188,7 +188,7 @@ func installIntoProject(
 	archivePath := archive.Path()
 	lay := state.ProjectLayout(opts.ProjectDir)
 
-	installed, err := state.Packages(lay, opts.Scope)
+	installed, err := state.Packages(lay)
 	if err != nil {
 		return nil, stateErrorf("%w", err)
 	}

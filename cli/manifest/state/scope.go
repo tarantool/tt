@@ -1,38 +1,65 @@
-// Package state owns tt's on-disk install state: where a scope puts a package's
-// files, and the per-package metadata tt records under manifests/<pkg>/.
+// Package state owns tt's on-disk install state: where each scope puts what
+// tt package install unpacks, and the metadata list and uninstall read back.
 //
 // Install writes that state, list reads it and uninstall unwinds it, so the
 // three commands must agree on the layout down to the directory name. Keeping
 // it in one package is what makes that agreement checkable instead of
-// duplicated: a scope's directories are resolved once, by ResolveLayout, and
-// the metadata file names are constants nobody re-spells.
+// duplicated: the directories are named once, here, and the metadata file
+// names are constants nobody re-spells.
 //
-// The dependency ledger uninstall stands on lives here too, and it is derived
-// rather than stored: a dependency is owned by every installed package whose
-// lock pins it, so removing a package's manifests/<pkg>/ directory is what
+// The scopes hold two different shapes.
+//
+// The project scope is one install root, the project directory. The project's
+// own package is declared by app.manifest.toml at its top, and every package
+// installed into it is a guest: its files join the shared .rocks/ tree and its
+// manifest, lock and VERSION are recorded under .rocks/manifests/<pkg>/. The
+// dependency ledger uninstall stands on is derived from those records rather
+// than stored: a dependency is owned by every installed package whose lock
+// pins it, so removing a package's manifests/<pkg>/ directory is what
 // decrements the count. Nothing has to be kept in sync by hand, and a
 // half-written install cannot corrupt a counter that does not exist.
+//
+// The user and system scopes hold applications, laid out the way tt binary
+// lays out its products and under the same root (internal/scope), so an
+// application finds the tarantool installed next to it and tt instance finds
+// both (decision 8):
+//
+//	<root>/
+//	├── bin/, include/                  active links of tt binary
+//	├── apps/<app> -> ../versions/<app>/<app>_<ver>
+//	└── versions/
+//	    ├── tarantool/tarantool_<ver>/   installations of tt binary
+//	    └── <app>/<app>_<ver>/           an installed version of an application
+//
+// Each version is an install root of its own, laid out like a project
+// (ProjectLayout): the package's manifest is its primary manifest, at its
+// top, and its rocks are in its own .rocks/. Versions share nothing with each
+// other or with other applications, so there is no ledger there: a version
+// goes with everything in it. apps/<app> selects the active version. Runtime
+// files of instances, under <root>/var/, and host files, under <root>/etc/,
+// are outside versions/ and belong to tt instance; tt package only reads the
+// pid files to tell whether an application runs (see versions.go).
 package state
 
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 )
 
 // Scope is where tt package install lays a package down, and where list and
-// uninstall look for it. The three scopes differ in install-root and in the
-// on-disk layout Tarantool's loaders expect.
+// uninstall look for it.
 type Scope string
 
 const (
-	// ScopeProject installs into <cwd>/.rocks/, the self-contained deployment
-	// tree. It is the default.
+	// ScopeProject installs into the project directory, the self-contained
+	// deployment tree: a guest package joins its .rocks/. It is the default.
 	ScopeProject Scope = "project"
-	// ScopeUser installs into ~/.luarocks/, the personal LuaRocks tree.
+	// ScopeUser installs application versions into the user root,
+	// TT_USER_ROOT or ~/.local/share/tarantool by default.
 	ScopeUser Scope = "user"
-	// ScopeSystem installs into /usr/, the OS-package-style tree.
+	// ScopeSystem installs application versions into the system root,
+	// TT_SYSTEM_ROOT or /opt/tarantool by default.
 	ScopeSystem Scope = "system"
 )
 
@@ -53,20 +80,13 @@ func ParseScope(raw string) (Scope, error) {
 	}
 }
 
-// HasPrimary reports whether the scope can hold a primary package — the package
-// the project itself develops, declared by app.manifest.toml in the install
-// root. Only the project scope can: user and system trees are shared
-// destinations with no project of their own, so everything in them is a guest.
-func (scope Scope) HasPrimary() bool {
-	return scope == ScopeProject
-}
-
-// Layout is the resolved set of directories one scope installs into.
+// Layout is the set of directories of one project-shaped install root.
 type Layout struct {
-	// Root is the install-root: <cwd> for project, the tree root otherwise.
+	// Root is the install root: the project directory, or an installed
+	// version of an application.
 	Root string
 	// Tree is the rocks tree root the go-luarocks adapter reads and installs
-	// into (<cwd>/.rocks for project, the root itself for user/system).
+	// into, <root>/.rocks.
 	Tree string
 	// Share and Lib are the module directories a package's own files and its
 	// dependencies land under, relative subtrees of the tree.
@@ -95,50 +115,7 @@ func ProjectLayout(dir string) Layout {
 	}
 }
 
-// ResolveLayout maps a scope to its concrete directories. projectDir is the
-// install-root for project scope (the caller's cwd); user and system derive
-// their roots from the environment. The returned paths are absolute.
-func ResolveLayout(scope Scope, projectDir string) (Layout, error) {
-	switch scope {
-	case ScopeProject:
-		return ProjectLayout(projectDir), nil
-	case ScopeUser:
-		home, err := os.UserHomeDir()
-		if err != nil {
-			var zero Layout
-
-			return zero, fmt.Errorf("locating home directory: %w", err)
-		}
-
-		root := filepath.Join(home, ".luarocks")
-
-		return Layout{
-			Root:      root,
-			Tree:      root,
-			Share:     filepath.Join(root, shareLua),
-			Lib:       filepath.Join(root, libLua),
-			Manifests: filepath.Join(root, ManifestsDirName),
-		}, nil
-	case ScopeSystem:
-		root := SystemRoot
-
-		return Layout{
-			Root:      root,
-			Tree:      root,
-			Share:     filepath.Join(root, shareTarantool),
-			Lib:       filepath.Join(root, libTarantool),
-			Manifests: filepath.Join(root, ManifestsDirName),
-		}, nil
-	default:
-		var zero Layout
-
-		return zero, fmt.Errorf("%w %q", ErrUnknownScope, scope)
-	}
-}
-
-// Rocks-tree layout roots. The project and system scopes follow the Tarantool
-// convention (share/tarantool, lib/tarantool); the user scope follows the
-// LuaRocks 5.1 convention.
+// Rocks-tree layout, the Tarantool convention for a project's .rocks/.
 const (
 	// RocksDirName is the project scope's tree directory, and the prefix archive
 	// entries carry.
@@ -148,8 +125,4 @@ const (
 	ManifestsDirName = "manifests"
 	shareTarantool   = "share/tarantool"
 	libTarantool     = "lib/tarantool"
-	shareLua         = "share/lua/5.1"
-	libLua           = "lib/lua/5.1"
-	// SystemRoot is the OS-package install-root.
-	SystemRoot = "/usr"
 )

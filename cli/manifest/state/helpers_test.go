@@ -136,8 +136,5 @@ func writeFile(t *testing.T, path string, content []byte) {
 func projectLayout(t *testing.T) state.Layout {
 	t.Helper()
 
-	lay, err := state.ResolveLayout(state.ScopeProject, t.TempDir())
-	require.NoError(t, err)
-
-	return lay
+	return state.ProjectLayout(t.TempDir())
 }

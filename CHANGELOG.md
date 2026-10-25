@@ -194,9 +194,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   run), and `--yes` skips the reconciliation prompt. Installing several
   archives at once exits 3 when some succeed and some fail.
 - `tt package list`: show the packages installed in a scope — in the project
-  scope the project's own package plus every guest installed from an archive.
-  The source is the metadata `tt package install` records under
-  `.rocks/manifests/<pkg>/`, so nothing is fetched and nothing is resolved; this
+  scope the project's own package plus every guest installed from an archive,
+  read from the metadata `tt package install` records under
+  `.rocks/manifests/<pkg>/`; in `user` and `system` every application under
+  `<root>/versions/` (skipping the products of `tt binary`), with the active
+  version `<root>/apps/<pkg>` selects and every installed one (`versions` in
+  the machine formats). Nothing is fetched and nothing is resolved; this
   reports what is on disk, not what the current manifest declares. `--scope`
   selects the tree and `-o/--format` picks the output: `table` (the default),
   `json` or `yaml`.
@@ -211,12 +214,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   what it `requires`, plus a per-package `direct` list naming the declared
   subset of the closure. The index is `rocks` rather than `dependencies` because
   a package entry already carries a `dependencies` object, and one name must not
-  stand for two shapes.
+  stand for two shapes. `--tree` applies to the project scope only: the
+  versions of `user` and `system` share no dependencies.
 - `tt package uninstall <name>`: remove an installed guest package — its files
   and its metadata, plus every shared dependency nothing else still needs. A
   dependency is owned by every installed package whose lock pins it, so one
   another package still holds stays in place and is reported as kept. The
   project's own package is not a guest and uninstall refuses to remove it.
+  In `--scope user` and `--scope system` it removes an application: every
+  installed version under `<root>/versions/<pkg>/` and `<root>/apps/<pkg>`. It
+  refuses while an instance of the application runs, as a pid file under
+  `<root>/var/run/<pkg>/` naming a live process tells, and it keeps the
+  instance data under `<root>/var/`, the host files under `<root>/etc/<pkg>/`
+  and the runtimes in `<root>/versions/` other applications may use.
   `--scope` selects the tree and `--yes` skips the confirmation prompt.
 - `tt package add <name> [<constraint>]`, `tt package remove <name>` and
   `tt package update [<name>]`: edit `[dependencies]` in `app.manifest.toml`

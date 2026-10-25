@@ -21,11 +21,15 @@ var (
 	// ErrAborted reports that the user declined the confirmation prompt; nothing
 	// was removed.
 	ErrAborted = errors.New("aborted")
+	// ErrTreeScope reports --tree asked of a scope whose packages share no
+	// tree.
+	ErrTreeScope = errors.New("--tree applies to the project scope only")
 )
 
 // stateErrorf wraps a formatted error as a usage or state failure
 // (sdk.ExitFailure): an unknown --scope, a package that is not installed, a
-// refusal to remove the primary package, an unreadable tree.
+// refusal to remove the primary package or an application whose instances
+// run, an unreadable tree.
 func stateErrorf(format string, args ...any) error {
 	return sdk.Errorf(sdk.ExitFailure, format, args...)
 }
