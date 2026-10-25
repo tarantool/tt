@@ -724,6 +724,38 @@ func TestBinaryScopedAdaptersDoNotFindParent(t *testing.T) {
 	assert.NoDirExists(t, filepath.Join(parent, ".tarantool", "bin"))
 }
 
+// TestBinaryScopedAdaptersFindProject runs the project-scope commands from a
+// subdirectory of a project: they work on the project's .tarantool.
+func TestBinaryScopedAdaptersFindProject(t *testing.T) {
+	restoreProcessState(t)
+
+	project := t.TempDir()
+	child := filepath.Join(project, "src", "lib")
+	require.NoError(t, os.MkdirAll(child, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(project, "app.manifest.toml"), nil, 0o644))
+
+	installed := filepath.Join(project, ".tarantool", "versions", "tt", "tt_v3.0.0", "tt")
+	require.NoError(t, os.MkdirAll(filepath.Dir(installed), 0o755))
+	require.NoError(t, os.WriteFile(installed, nil, 0o755))
+	t.Chdir(child)
+
+	base := binary.BinaryContext{Scope: binary.ScopeProject}
+	ctx := &cmdcontext.CmdCtx{}
+	require.NoError(t, internalSwitchModule(base, switcher.SwitchCtx{}, ctx,
+		[]string{"tt", "3.0.0"}))
+
+	active, err := filepath.EvalSymlinks(filepath.Join(project, ".tarantool", "bin", "tt"))
+	require.NoError(t, err)
+	assert.Equal(t, installed, active)
+	require.NoError(t, internalListModule(base, list.ListCtx{}, ctx, nil))
+
+	ctx.CommandName = "tt"
+	require.NoError(t, internalUninstallModule(base, uninstall.UninstallCtx{}, ctx,
+		[]string{"3.0.0"}))
+	assert.NoFileExists(t, installed)
+	assert.NoDirExists(t, filepath.Join(child, ".tarantool"))
+}
+
 func TestBinaryCredentialsFile(t *testing.T) {
 	cases := [][]string{
 		{"search", "tarantool-ee"},

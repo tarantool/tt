@@ -83,6 +83,28 @@ printf 'headers' > tarantool-prefix/include/tarantool/module.h
 	return ctx
 }
 
+// TestInstallProjectFromSubdirectory installs from a subdirectory of a
+// project: the installation and the activation scripts go to the project
+// directory, and nothing is created where the command runs.
+func TestInstallProjectFromSubdirectory(t *testing.T) {
+	project := t.TempDir()
+	currentDir := filepath.Join(project, "src")
+	require.NoError(t, os.WriteFile(filepath.Join(project, "app.manifest.toml"), nil, 0o644))
+	require.NoError(t, os.Mkdir(currentDir, 0o755))
+	t.Chdir(currentDir)
+
+	require.NoError(t, Install(activationTestContext(t, binary.ProgramTcm, "bundle")))
+
+	active, err := filepath.EvalSymlinks(filepath.Join(project, ".tarantool", "bin", "tcm"))
+	require.NoError(t, err)
+	require.Equal(t,
+		filepath.Join(project, ".tarantool", "versions", "tcm", "tcm_3.7.1", "tcm"), active)
+	require.FileExists(t, filepath.Join(project, ".env", "activate.sh"))
+	require.FileExists(t, filepath.Join(project, ".env", "deactivate.sh"))
+	require.NoDirExists(t, filepath.Join(currentDir, ".tarantool"))
+	require.NoDirExists(t, filepath.Join(currentDir, ".env"))
+}
+
 func TestInstallationPreparationFailurePreservesActiveLinks(t *testing.T) {
 	flows := []struct {
 		program  binary.Program

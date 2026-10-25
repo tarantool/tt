@@ -84,7 +84,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt binary install`: select `--scope project` (the default), `user`, or
   `system` when installing `tt`, `tarantool`, `tarantool-ee`, `tcm`, or
   `tarantool-sdk`.
-  Project installations use `.tarantool/` in the current directory.
+  Project installations use `.tarantool/` in the project directory: the
+  current directory or its nearest parent with `app.manifest.toml` or
+  `.templates/<name>/instances.yaml`, so running from a subdirectory of a
+  project installs into the project. Outside a project, the current
+  directory is used. A directory inside the `versions/` or `apps/` tree of
+  the user or system root is an installed version, not a project: the
+  project scope refuses to work there and points at `--scope user` or
+  `--scope system`.
   On Linux, user installations use `$XDG_DATA_HOME/tarantool` when
   `XDG_DATA_HOME` is absolute, falling back to `~/.local/share/tarantool`.
   System installations use `/opt/tarantool`. On macOS, the corresponding
@@ -325,14 +332,15 @@ for machine-readable output.
   Tarantool build preserves its source files. Installation paths no longer
   depend on `env.bin_dir` or `env.inc_dir` in `tt.yaml`.
 - `tt binary switch`: select installed versions only in the chosen
-  `--scope project` (the default), `user`, or `system`, without searching
-  parents or falling back to other scopes. Switching CE or EE updates both
-  the active executable and headers in that scope. Installation paths no
-  longer depend on `env.bin_dir` or `env.inc_dir` in `tt.yaml`.
+  `--scope project` (the default), `user`, or `system`, without falling back
+  to other scopes. Switching CE or EE updates both the active executable and
+  headers in that scope. Installation paths no longer depend on
+  `env.bin_dir` or `env.inc_dir` in `tt.yaml`.
 - `tt binary list`: show installations only in the selected `--scope project`
   (the default), `user`, or `system`. Project scope is `.tarantool/` in the
-  current directory, without searching parents or falling back to other
-  scopes. Installation paths no longer depend on `env.bin_dir` in `tt.yaml`.
+  project directory, as for `tt binary install`, without falling back to
+  other scopes. Installation paths no longer depend on `env.bin_dir` in
+  `tt.yaml`.
 - `tt binary search`: show `[installed]` and `[active]` labels for the selected
   scope only. Scope does not affect the available versions returned by remote
   sources or the local repository.
@@ -374,7 +382,8 @@ for machine-readable output.
   Removing an active tt-ee version can select a remaining tt-ee or ordinary tt;
   comparisons use the executable's own version rather than its SDK bundle version.
 - `tt binary install`: the first successful project installation of any product
-  creates `.env/activate.sh` and `.env/deactivate.sh`, preserving existing scripts.
+  creates `.env/activate.sh` and `.env/deactivate.sh` in the project directory,
+  preserving existing scripts.
   Activation sets the project directory, binary search path, and Tarantool header
   prefix and enables tt completion for Bash and for Zsh with `compinit` loaded;
   deactivation restores the previous shell environment. User and system

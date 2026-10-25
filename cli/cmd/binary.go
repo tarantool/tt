@@ -66,7 +66,9 @@ func NewBinaryCmd() *cobra.Command {
 and SDK bundles.
 
 Use --scope to choose where binaries are managed:
-  project (default): .tarantool/ in the current working directory.
+  project (default): .tarantool/ in the project directory: the current
+    directory or its nearest parent with app.manifest.toml or
+    .templates/<name>/instances.yaml; the current directory outside a project.
   user: $TT_USER_ROOT when set; otherwise
     Linux: $XDG_DATA_HOME/tarantool when XDG_DATA_HOME is an absolute path;
       otherwise ~/.local/share/tarantool.
@@ -84,7 +86,8 @@ from <root>/include/tarantool.
 Tarantool CE and EE keep separate versions and share the active Tarantool links.
 tt and tt-ee keep separate versions and share the active tt executable.
 
-For project installations, run "source .env/activate.sh" to activate the installed binaries.
+For project installations, run "source .env/activate.sh" in the project
+directory to activate the installed binaries.
 
 SDK installations select Tarantool Enterprise, tt Enterprise, TCM, and headers together.`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -127,7 +130,8 @@ func newBinaryInstallCmd(base *binary.BinaryContext,
 The installed version becomes active in the selected scope. See
 "tt binary --help" for scope locations and the binary layout.
 
-Project installations create .env/activate.sh and .env/deactivate.sh once.
+Project installations create .env/activate.sh and .env/deactivate.sh in the
+project directory once.
 Source them to use the project binaries and headers or restore your shell environment.
 `,
 		Example: `# Install the latest Tarantool release for this project.
@@ -421,7 +425,8 @@ Components have separate sdk-<bundle-version> identities. Use "tt binary switch 
 to select the entire SDK, or switch individual products independently.
 With --dev, the SDK uses dev_<bundle-version> and its components use sdk-dev_<bundle-version>,
 including the full archive revision, separately from releases.
-For project installations, run "source .env/activate.sh" to activate the installed binaries.`,
+For project installations, run "source .env/activate.sh" in the project
+directory to activate the installed binaries.`,
 		Example: `# Install the latest stable SDK for this project.
   $ tt binary install tarantool-sdk
 

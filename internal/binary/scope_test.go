@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/v3/internal/binary"
+	"github.com/tarantool/tt/v3/internal/scope"
 )
 
 func TestScopeArtifactPathProject(t *testing.T) {
@@ -23,6 +24,73 @@ func TestScopeArtifactPathProject(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(currentDir, ".tarantool"), artifactPath)
 	assert.NoDirExists(t, artifactPath)
+}
+
+func TestScopeArtifactPathProjectSubdirectory(t *testing.T) {
+	for marker, files := range map[string][]string{
+		"manifest":  {"app.manifest.toml"},
+		"templates": {".templates", "default", "instances.yaml"},
+	} {
+		t.Run(marker, func(t *testing.T) {
+			projectDir := t.TempDir()
+			currentDir := filepath.Join(projectDir, "src", "lib")
+			markerPath := filepath.Join(append([]string{projectDir}, files...)...)
+			require.NoError(t, os.MkdirAll(filepath.Dir(markerPath), 0o755))
+			require.NoError(t, os.WriteFile(markerPath, nil, 0o644))
+			require.NoError(t, os.MkdirAll(currentDir, 0o755))
+			t.Chdir(currentDir)
+
+			gotProjectDir, err := binary.ProjectDir()
+			require.NoError(t, err)
+			assert.Equal(t, projectDir, gotProjectDir)
+
+			artifactPath, err := binary.ScopeProject.ArtifactPath()
+			require.NoError(t, err)
+			assert.Equal(t, filepath.Join(projectDir, ".tarantool"), artifactPath)
+			assert.NoDirExists(t, artifactPath)
+			assert.NoDirExists(t, filepath.Join(currentDir, ".tarantool"))
+		})
+	}
+}
+
+func TestScopeArtifactPathProjectInstalledVersion(t *testing.T) {
+	// An installed version carries a manifest like a project, but it is not
+	// one, and the working directory is no fallback either: the project
+	// scope there would put .tarantool into the version.
+	userRoot := t.TempDir()
+	t.Setenv("TT_USER_ROOT", userRoot)
+	t.Setenv("TT_SYSTEM_ROOT", t.TempDir())
+
+	versionDir := filepath.Join(userRoot, "versions", "myapp", "myapp_1.2.0")
+	require.NoError(t, os.MkdirAll(versionDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(versionDir, "app.manifest.toml"), nil, 0o644))
+	t.Chdir(versionDir)
+
+	projectDir, err := binary.ProjectDir()
+	require.ErrorIs(t, err, scope.ErrInstalledTree)
+	require.ErrorContains(t, err, "--scope user or --scope system")
+	assert.Empty(t, projectDir)
+
+	artifactPath, err := binary.ScopeProject.ArtifactPath()
+	require.ErrorIs(t, err, scope.ErrInstalledTree)
+	assert.Empty(t, artifactPath)
+	assert.NoDirExists(t, filepath.Join(versionDir, ".tarantool"))
+}
+
+func TestScopeArtifactPathProjectError(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads any directory")
+	}
+
+	currentDir := t.TempDir()
+	templatesDir := filepath.Join(currentDir, ".templates")
+	require.NoError(t, os.Mkdir(templatesDir, 0o000))
+	t.Cleanup(func() { _ = os.Chmod(templatesDir, 0o755) })
+	t.Chdir(currentDir)
+
+	artifactPath, err := binary.ScopeProject.ArtifactPath()
+	require.ErrorContains(t, err, "cannot resolve project artifact path")
+	assert.Empty(t, artifactPath)
 }
 
 func TestScopeArtifactPath(t *testing.T) {
