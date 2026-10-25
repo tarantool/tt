@@ -17,8 +17,11 @@ from utils import (
     create_tt_config,
     find_tt_processes,
     get_tarantool_version,
+    inst_run_dir,
     is_tarantool_major_one,
     kill_procs,
+    make_project,
+    project_root,
     run_command_and_get_output,
     run_path,
     skip_if_cluster_app_unsupported,
@@ -47,7 +50,32 @@ def copy_data(dst, file_paths):
         shutil.copy(path, dst)
 
 
+def single_instance_pair(app_name, script):
+    """Return the instances description and the cluster config of a project
+    with one instance, named like the application, that runs script."""
+    instances = {app_name: None}
+    config = {
+        "groups": {
+            "group-001": {
+                "replicasets": {
+                    "replicaset-001": {
+                        "instances": {app_name: {"app": {"file": script}}},
+                    },
+                },
+            },
+        },
+    }
+    return instances, config
+
+
+def is_project(path):
+    return (Path(path) / ".templates" / "default" / "instances.yaml").exists()
+
+
 def prepare_app_workdir(workdir, app_name):
+    """Return the project directory of app_name in workdir. A script
+    <app_name>.lua in workdir becomes a project of one instance, named like
+    the application, that runs it."""
     workdir = Path(workdir)
     if workdir.name == app_name:
         app_dir = workdir
@@ -60,13 +88,10 @@ def prepare_app_workdir(workdir, app_name):
         if app_script.exists() and not dst_script.exists():
             shutil.copy(app_script, dst_script)
 
-    config_path = app_dir / "tt.yaml"
-    if not config_path.exists():
-        source_config = workdir / "tt.yaml"
-        if source_config != config_path and source_config.exists():
-            shutil.copy(source_config, config_path)
-        else:
-            create_tt_config(app_dir)
+    if not is_project(app_dir):
+        script = f"{app_name}.lua" if (app_dir / f"{app_name}.lua").exists() else "init.lua"
+        instances, config = single_instance_pair(app_name, script)
+        make_project(app_dir, instances, config)
     return app_dir
 
 
@@ -74,24 +99,25 @@ def find_app_workdir(workdir, app_name=None):
     workdir = Path(workdir)
     if app_name is not None:
         app_dir = workdir / app_name
-        if app_dir.is_dir() and (app_dir / "tt.yaml").exists():
+        if app_dir.is_dir() and is_project(app_dir):
             return app_dir
-    if (workdir / "tt.yaml").exists() and (workdir / "init.lua").exists():
+    if is_project(workdir):
         return workdir
-    app_dirs = [path for path in workdir.iterdir() if path.is_dir() and (path / "tt.yaml").exists()]
+    app_dirs = [path for path in workdir.iterdir() if path.is_dir() and is_project(path)]
     assert len(app_dirs) == 1
     return app_dirs[0]
 
 
 def start_app(tt_cmd, tmpdir_with_cfg, app_name, start_binary_port=False):
+    app_name = app_name.partition(":")[0]
     app_dir = prepare_app_workdir(tmpdir_with_cfg, app_name)
     test_env = os.environ.copy()
     # Set empty TT_LISTEN, so no binary port will be created.
     if start_binary_port is False:
         test_env["TT_LISTEN"] = ""
 
-    # Start an instance.
-    start_cmd = [tt_cmd, "start", app_name]
+    # Start the instances.
+    start_cmd = [tt_cmd, "start", f"{app_name}:*"]
     instance_process = subprocess.Popen(
         start_cmd,
         cwd=app_dir,
@@ -105,7 +131,8 @@ def start_app(tt_cmd, tmpdir_with_cfg, app_name, start_binary_port=False):
 
 
 def stop_app(tt_cmd, tmpdir, app_name):
-    stop_cmd = [tt_cmd, "stop", "-y", app_name]
+    app_name = app_name.partition(":")[0]
+    stop_cmd = [tt_cmd, "stop", "-y", f"{app_name}:*"]
     run_command_and_get_output(stop_cmd, cwd=find_app_workdir(tmpdir, app_name))
 
 
@@ -171,7 +198,7 @@ def prepare_test_app_languages(tt_cmd, tmpdir):
     # Check for start.
     file = wait_file(os.path.join(tmpdir, "test_app"), "configured", [])
     assert file != ""
-    return "test_app", lua_file, sql_file
+    return "test_app:test_app", lua_file, sql_file
 
 
 def is_language_supported():
@@ -407,14 +434,18 @@ def test_connect_and_execute_quit(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"), control_socket, [])
+    file = wait_file(
+        inst_run_dir(os.path.join(tmpdir, "test_app"), "test_app", "test_app"),
+        control_socket,
+        [],
+    )
     assert file != ""
 
     try:
         ret, output = try_execute_on_instance(
             tt_cmd,
             tmpdir,
-            "test_app",
+            "test_app:test_app",
             stdin="\\q",
             stdin_as_file=True,
         )
@@ -684,23 +715,32 @@ def test_connect_to_single_instance_app(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
     try:
         # Check for start.
-        file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"), control_socket, [])
+        file = wait_file(
+            inst_run_dir(os.path.join(tmpdir, "test_app"), "test_app", "test_app"),
+            control_socket,
+            [],
+        )
         assert file != ""
 
-        # Connect to a wrong instance.
-        ret, output = try_execute_on_instance(tt_cmd, tmpdir, "any_app", empty_file)
+        # Connect to a wrong application.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, "any_app:any_app", empty_file)
         assert not ret
-        assert re.search(r"   ⨯ can\'t collect instance information for any_app", output)
+        assert re.search(r"   ⨯ application not found", output)
+
+        # A bare application name is not an instance target.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, "test_app", empty_file)
+        assert not ret
+        assert "use test_app:<instance> or test_app:*" in output
 
         # Connect to the instance and execute a script.
-        ret, output = try_execute_on_instance(tt_cmd, tmpdir, "test_app", empty_file)
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, "test_app:test_app", empty_file)
         assert ret
 
         # Connect to the instance and execute stdout.
         ret, output = try_execute_on_instance(
             tt_cmd,
             tmpdir,
-            "test_app",
+            "test_app:test_app",
             stdin="return ...",
             args=["-f-", "Hello", "World"],
         )
@@ -727,12 +767,22 @@ def test_connect_to_single_instance_app_credentials(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
     try:
         # Check for start.
-        file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"), control_socket, [])
+        file = wait_file(
+            inst_run_dir(os.path.join(tmpdir, "test_app"), "test_app", "test_app"),
+            control_socket,
+            [],
+        )
         assert file != ""
 
         # Connect with a wrong credentials.
         opts = {"-u": "test", "-p": "wrong_password"}
-        ret, output = try_execute_on_instance(tt_cmd, tmpdir, "test_app", empty_file, opts=opts)
+        ret, output = try_execute_on_instance(
+            tt_cmd,
+            tmpdir,
+            "test_app:test_app",
+            empty_file,
+            opts=opts,
+        )
         assert not ret
         assert re.search(
             r"   ⨯ username and password are not supported with a"
@@ -742,7 +792,13 @@ def test_connect_to_single_instance_app_credentials(tt_cmd, tmpdir_with_cfg):
 
         # Connect with a valid credentials.
         opts = {"-u": "test", "-p": "password"}
-        ret, output = try_execute_on_instance(tt_cmd, tmpdir, "test_app", empty_file, opts=opts)
+        ret, output = try_execute_on_instance(
+            tt_cmd,
+            tmpdir,
+            "test_app:test_app",
+            empty_file,
+            opts=opts,
+        )
         assert not ret
         assert re.search(
             r"   ⨯ username and password are not supported with a"
@@ -752,7 +808,13 @@ def test_connect_to_single_instance_app_credentials(tt_cmd, tmpdir_with_cfg):
 
         # Connect with environment variables.
         env = {"TT_CLI_USERNAME": "test", "TT_CLI_PASSWORD": "wrong_password"}
-        ret, output = try_execute_on_instance(tt_cmd, tmpdir, "test_app", empty_file, env=env)
+        ret, output = try_execute_on_instance(
+            tt_cmd,
+            tmpdir,
+            "test_app:test_app",
+            empty_file,
+            env=env,
+        )
         assert ret
 
     finally:
@@ -779,7 +841,7 @@ def test_connect_to_multi_instances_app(tt_cmd, tmpdir_with_cfg):
     try:
         # Check for start.
         for instance in instances:
-            master_run_path = os.path.join(tmpdir, app_name, run_path, instance)
+            master_run_path = inst_run_dir(os.path.join(tmpdir, app_name), app_name, instance)
             file = wait_file(master_run_path, control_socket, [])
             assert file != ""
 
@@ -787,7 +849,7 @@ def test_connect_to_multi_instances_app(tt_cmd, tmpdir_with_cfg):
         non_exist = app_name + ":" + "any_name"
         ret, output = try_execute_on_instance(tt_cmd, tmpdir, non_exist, empty_file)
         assert not ret
-        assert re.search(rf"   ⨯ can't collect instance information for {non_exist}", output)
+        assert f'instance not found: "any_name" of "{app_name}"' in output
 
         # Connect to instances.
         for instance in instances:
@@ -817,7 +879,7 @@ def test_connect_to_multi_instances_app_credentials(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, app_name)
     try:
         # Check for start.
-        master_run_path = os.path.join(tmpdir, app_name, run_path, "master")
+        master_run_path = inst_run_dir(os.path.join(tmpdir, app_name), app_name, "master")
         file = wait_file(master_run_path, control_socket, [])
         assert file != ""
 
@@ -2924,20 +2986,29 @@ def test_connect_to_single_instance_app_binary(tt_cmd):
     start_app(tt_cmd, tmpdir, "test_app", True)
 
     # Check for start.
-    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"), BINARY_PORT_NAME, [])
+    file = wait_file(
+        inst_run_dir(os.path.join(tmpdir, "test_app"), "test_app", "test_app"),
+        BINARY_PORT_NAME,
+        [],
+    )
     assert file != ""
     file = wait_file(os.path.join(tmpdir, "test_app"), "configured", [])
     assert file != ""
 
     # Remove console socket
-    os.remove(os.path.join(tmpdir, "test_app", run_path, "test_app", "tarantool.control"))
+    os.remove(
+        os.path.join(
+            inst_run_dir(os.path.join(tmpdir, "test_app"), "test_app", "test_app"),
+            "tarantool.control",
+        ),
+    )
 
     # Connect to the instance and execute a script.
     try:
         connect_cmd = [
             tt_cmd,
             "connect",
-            "test_app",
+            "test_app:test_app",
             "--binary",
             "-u",
             "test",
@@ -2956,7 +3027,16 @@ def test_connect_to_single_instance_app_binary(tt_cmd):
         assert instance_process.returncode == 0
 
         # Connect to the instance and execute stdin.
-        connect_cmd = [tt_cmd, "connect", "test_app", "--binary", "-u", "test", "-p", "password"]
+        connect_cmd = [
+            tt_cmd,
+            "connect",
+            "test_app:test_app",
+            "--binary",
+            "-u",
+            "test",
+            "-p",
+            "password",
+        ]
         instance_process = subprocess.run(
             connect_cmd,
             cwd=find_app_workdir(tmpdir, "test_app"),
@@ -2995,7 +3075,7 @@ def test_connect_to_multi_instances_app_binary(tt_cmd):
         # Check for start.
         instances = ["master", "replica", "router"]
         for instance in instances:
-            master_run_path = os.path.join(tmpdir, app_name, run_path, instance)
+            master_run_path = inst_run_dir(os.path.join(tmpdir, app_name), app_name, instance)
             file = wait_file(master_run_path, control_socket, [])
             assert file != ""
             file = wait_file(master_run_path, BINARY_PORT_NAME, [])
@@ -3047,17 +3127,35 @@ def test_connect_to_instance_binary_missing_port(tt_cmd):
     start_app(tt_cmd, tmpdir, "test_app", True)
 
     # Check for start.
-    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"), BINARY_PORT_NAME, [])
+    file = wait_file(
+        inst_run_dir(os.path.join(tmpdir, "test_app"), "test_app", "test_app"),
+        BINARY_PORT_NAME,
+        [],
+    )
     assert file != ""
     file = wait_file(os.path.join(tmpdir, "test_app"), "configured", [])
     assert file != ""
 
     # Remove binary port.
-    os.remove(os.path.join(tmpdir, "test_app", run_path, "test_app", BINARY_PORT_NAME))
+    os.remove(
+        os.path.join(
+            inst_run_dir(os.path.join(tmpdir, "test_app"), "test_app", "test_app"),
+            BINARY_PORT_NAME,
+        ),
+    )
 
     try:
         # Connect to the instance and execute stdin.
-        connect_cmd = [tt_cmd, "connect", "test_app", "--binary", "-u", "test", "-p", "password"]
+        connect_cmd = [
+            tt_cmd,
+            "connect",
+            "test_app:test_app",
+            "--binary",
+            "-u",
+            "test",
+            "-p",
+            "password",
+        ]
         instance_process = subprocess.run(
             connect_cmd,
             cwd=find_app_workdir(tmpdir, "test_app"),
@@ -3092,16 +3190,28 @@ def test_connect_to_instance_binary_port_is_broken(tt_cmd):
     start_app(tt_cmd, tmpdir, "test_app", True)
 
     # Check for start.
-    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"), BINARY_PORT_NAME, [])
+    file = wait_file(
+        inst_run_dir(os.path.join(tmpdir, "test_app"), "test_app", "test_app"),
+        BINARY_PORT_NAME,
+        [],
+    )
     assert file != ""
     file = wait_file(os.path.join(tmpdir, "test_app"), "configured", [])
     assert file != ""
 
     # Remove binary port.
-    os.remove(os.path.join(tmpdir, "test_app", run_path, "test_app", BINARY_PORT_NAME))
+    os.remove(
+        os.path.join(
+            inst_run_dir(os.path.join(tmpdir, "test_app"), "test_app", "test_app"),
+            BINARY_PORT_NAME,
+        ),
+    )
     # Create fake binary port.
     fake_binary_port = open(
-        os.path.join(tmpdir, "test_app", run_path, "test_app", BINARY_PORT_NAME),
+        os.path.join(
+            inst_run_dir(os.path.join(tmpdir, "test_app"), "test_app", "test_app"),
+            BINARY_PORT_NAME,
+        ),
         "a",
     )
     fake_binary_port.write("I am totally not a binary port.")
@@ -3109,7 +3219,16 @@ def test_connect_to_instance_binary_port_is_broken(tt_cmd):
 
     try:
         # Connect to the instance and execute stdin.
-        connect_cmd = [tt_cmd, "connect", "test_app", "--binary", "-u", "test", "-p", "password"]
+        connect_cmd = [
+            tt_cmd,
+            "connect",
+            "test_app:test_app",
+            "--binary",
+            "-u",
+            "test",
+            "-p",
+            "password",
+        ]
         instance_process = subprocess.run(
             connect_cmd,
             cwd=find_app_workdir(tmpdir, "test_app"),
@@ -3151,7 +3270,7 @@ def test_connect_to_cluster_app(tt_cmd):
         # Check for start.
         instances = ["master"]
         for instance in instances:
-            master_run_path = os.path.join(tmpdir, app_name, run_path, instance)
+            master_run_path = inst_run_dir(os.path.join(tmpdir, app_name), app_name, instance)
             file = wait_file(master_run_path, control_socket, [])
             assert file != ""
             file = wait_file(master_run_path, BINARY_PORT_NAME, [])
@@ -3221,7 +3340,11 @@ def test_connect_to_cluster_app_by_uri(tt, tt_app, with_scheme, uri):
 @pytest.mark.parametrize(
     "instance, opts, ready_file",
     (
-        ("test_app", None, Path(run_path, "test_app", control_socket)),
+        (
+            "test_app:test_app",
+            None,
+            Path(project_root, run_path, "test_app", "test_app", control_socket),
+        ),
         (
             "localhost:3013",
             {"-u": "test", "-p": "password"},
@@ -3374,7 +3497,7 @@ def test_custom_evaler_errors(tt_cmd, tmpdir_with_cfg):
         stop_app(tt_cmd, tmpdir, "test_app")
 
 
-@pytest.mark.tt_app(app_path="test_single_app/test_app.lua")
+@pytest.mark.tt_app(app_path="test_single_app", app_name="test_app", instances=["test_app"])
 @pytest.mark.parametrize(
     "sig",
     [
@@ -3384,13 +3507,13 @@ def test_custom_evaler_errors(tt_cmd, tmpdir_with_cfg):
 )
 def test_disconnect_by_signal(tt, tt_app, sig):
     # Start an instance.
-    tt.exec("start", "test_app")
+    tt.exec("start", "test_app:test_app")
     # Check for start.
     assert wait_files(5, [tt_app.path("configured")])
 
     p = tt.popen(
         "connect",
-        "test_app",
+        "test_app:test_app",
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -3407,7 +3530,7 @@ def test_disconnect_by_signal(tt, tt_app, sig):
     assert p.wait(1) is not None
 
     # Make sure the instance is stopped.
-    tt.exec("kill", "-f", "test_app")
+    tt.exec("kill", "-f", "test_app:test_app")
 
 
 def test_connect_refused_exits_2(tt_cmd, tmp_path):

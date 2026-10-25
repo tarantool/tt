@@ -10,14 +10,15 @@ from integration.connect.test_connect import start_app, stop_app, try_execute_on
 from utils import (
     BINARY_PORT_NAME,
     TarantoolTestInstance,
+    cluster_config_file,
     control_socket,
-    create_tt_config,
     get_tarantool_version,
     initial_snap,
     initial_xlog,
-    lib_path,
+    inst_lib_dir,
+    inst_run_dir,
+    instances_file,
     run_command_and_get_output,
-    run_path,
     skip_if_cluster_app_unsupported,
     skip_if_tarantool_ce,
     wait_file,
@@ -285,7 +286,10 @@ def test_play_creds(tt_cmd, tmp_path, opts, test_instance):
     assert rc == 0
 
 
-def test_play_to_single_instance_app(tt_cmd, tmp_path):
+def test_play_to_single_instance_app(tt_cmd):
+    # The binary port of the instance, under .tarantool/var/run/<app>/<inst>/ of
+    # the project, is given to tarantool by its full path: keep it short.
+    tmp_path = Path(tempfile.mkdtemp(dir="/tmp"))
     # The test application file.
     app_name = "test_app"
     test_app_path = os.path.join(os.path.dirname(__file__), "test_file", "test_app.lua")
@@ -297,43 +301,57 @@ def test_play_to_single_instance_app(tt_cmd, tmp_path):
         test_xlog_name,
     )
     app_dir = tmp_path / app_name
-    app_dir.mkdir()
-    # Copy test data into the standalone application directory.
+    os.makedirs(app_dir / os.path.dirname(instances_file))
+    # Copy test data into the project: the pair runs instance001.
     shutil.copy(test_app_path, app_dir)
     shutil.copy(test_xlog_path, app_dir)
-    shutil.copy(os.path.join(os.path.dirname(__file__), "test_file", "config.yml"), app_dir)
-    shutil.copy(os.path.join(os.path.dirname(__file__), "test_file", "instances.yml"), app_dir)
-    create_tt_config(app_dir)
+    test_file_dir = os.path.join(os.path.dirname(__file__), "test_file")
+    shutil.copy(os.path.join(test_file_dir, "instances.yml"), app_dir / instances_file)
+    # The config of test_file listens on a TCP port; the instance of the
+    # project keeps the binary port tt gives it, which tt play uses.
+    with open(app_dir / cluster_config_file, "w") as f:
+        f.write(
+            "app:\n"
+            "  file: test_app.lua\n"
+            "groups:\n"
+            "  group001:\n"
+            "    replicasets:\n"
+            "      replicaset001:\n"
+            "        instances:\n"
+            "          instance001: {}\n",
+        )
+    target = f"{app_name}:instance001"
 
     # Start an instance.
     start_app(tt_cmd, tmp_path, app_name, start_binary_port=True)
     try:
         # Check for start.
         file = wait_file(
-            os.path.join(app_dir, run_path, app_name),
+            inst_run_dir(app_dir, app_name, "instance001"),
             control_socket,
             [],
         )
         assert file != ""
 
         # Wait until application is ready.
-        lib_dir = os.path.join(app_dir, lib_path, app_name)
+        lib_dir = inst_lib_dir(app_dir, app_name, "instance001")
         file = wait_file(lib_dir, initial_snap, [])
         assert file != ""
         file = wait_file(lib_dir, initial_xlog, [])
         assert file != ""
 
         # Connect to the instance and execute a script.
-        rc, _ = try_execute_on_instance(tt_cmd, tmp_path, app_name, test_app_path)
+        rc, _ = try_execute_on_instance(tt_cmd, tmp_path, target, test_app_path)
         assert rc
 
-        cmd = [tt_cmd, "play", "test_app", test_xlog_name]
+        cmd = [tt_cmd, "play", target, test_xlog_name]
         rc, _ = run_command_and_get_output(cmd, cwd=app_dir)
         assert rc == 0
 
     finally:
         # Stop the Instance.
         stop_app(tt_cmd, tmp_path, app_name)
+        shutil.rmtree(tmp_path)
 
 
 def test_play_to_single_instance_without_binary_port(tt_cmd, test_instance):
@@ -345,12 +363,12 @@ def test_play_to_single_instance_without_binary_port(tt_cmd, test_instance):
     shutil.copy(test_xlog_path, app_dir)
     shutil.copy(test_instance._tmpdir / INSTANCE_NAME, app_dir)
     shutil.copy(test_instance._tmpdir / "utils.lua", app_dir)
-    create_tt_config(app_dir)
 
-    # Start an instance.
+    # Start an instance: a project of one instance, named like the
+    # application, that runs the script.
     start_app(tt_cmd, test_instance._tmpdir, app_name, start_binary_port=False)
 
-    cmd = [tt_cmd, "play", app_name, test_xlog_name]
+    cmd = [tt_cmd, "play", f"{app_name}:{app_name}", test_xlog_name]
     rc, cmd_output = run_command_and_get_output(cmd, cwd=app_dir)
     assert rc == 1
     assert "application binary port does not exist" in cmd_output
@@ -359,7 +377,9 @@ def test_play_to_single_instance_without_binary_port(tt_cmd, test_instance):
 
 
 def test_play_to_cluster_app(tt_cmd):
-    tmpdir = tempfile.mkdtemp()
+    # The binary port of the instance, under .tarantool/var/run/<app>/<inst>/ of
+    # the project, is given to tarantool by its full path: keep it short.
+    tmpdir = tempfile.mkdtemp(dir="/tmp")
     skip_if_cluster_app_unsupported()
 
     empty_file = "empty.lua"
@@ -369,7 +389,6 @@ def test_play_to_cluster_app(tt_cmd):
     test_app_path = os.path.join(os.path.dirname(__file__), app_name)
     tmp_app_path = os.path.join(tmpdir, app_name)
     shutil.copytree(test_app_path, tmp_app_path)
-    create_tt_config(tmp_app_path)
     # The test file.
     empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
     test_xlog_path = os.path.join(os.path.dirname(__file__), "test_file", test_xlog_name)
@@ -383,7 +402,7 @@ def test_play_to_cluster_app(tt_cmd):
         # Check for start.
         instances = ["master"]
         for instance in instances:
-            master_run_path = os.path.join(tmp_app_path, run_path, instance)
+            master_run_path = inst_run_dir(tmp_app_path, app_name, instance)
             file = wait_file(master_run_path, control_socket, [])
             assert file != ""
             file = wait_file(master_run_path, BINARY_PORT_NAME, [])
@@ -426,7 +445,6 @@ def test_play_to_ssl_app(tt_cmd, tmpdir_with_cfg):
     app_dir = Path(tmpdir) / "test_ssl_app"
     shutil.copytree(test_app_path, app_dir)
     shutil.copy(empty_file_path, app_dir / empty_file)
-    create_tt_config(app_dir)
 
     # Start an instance.
     start_app(tt_cmd, app_dir, "test_ssl_app")
