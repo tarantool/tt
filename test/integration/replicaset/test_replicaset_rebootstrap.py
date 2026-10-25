@@ -1,11 +1,14 @@
 import glob
 import os
+from pathlib import Path
 
 import pytest
 from retry import retry
 
 from utils import (
     get_tarantool_version,
+    inst_lib_dir,
+    inst_log_dir,
     lib_path,
     log_file,
     log_path,
@@ -98,13 +101,13 @@ def test_rebootstrap_cconfig_replicaset(tt_cmd, vshard_app, flags, input):
 
         inst_name = "storage-002-b"
 
-        lib_dir = vshard_app.app_dir / lib_path / inst_name
+        lib_dir = Path(inst_lib_dir(vshard_app.app_dir, vshard_app.app_name, inst_name))
         snaps = glob.glob((lib_dir / "*.snap").as_posix())
         assert len(snaps) > 0
 
         oldSnapName = os.path.basename(snaps[0])
 
-        inst_log = vshard_app.app_dir / log_path / inst_name / log_file
+        inst_log = Path(inst_log_dir(vshard_app.app_dir, vshard_app.app_name, inst_name)) / log_file
         os.remove(inst_log)
         rs_cmd = [tt_cmd, "-V", "replicaset", "rebootstrap", f"{vshard_app.app_name}:{inst_name}"]
         rs_cmd.extend(flags)
@@ -138,7 +141,7 @@ def test_rebootstrap_not_confirmed(tt_cmd, vshard_app):
 
         inst_name = "storage-002-b"
 
-        lib_dir = vshard_app.app_dir / lib_path / inst_name
+        lib_dir = Path(inst_lib_dir(vshard_app.app_dir, vshard_app.app_name, inst_name))
         snaps = glob.glob((lib_dir / "*.snap").as_posix())
         assert len(snaps) > 0
 
@@ -164,7 +167,7 @@ def test_rebootstrap_already_stopped(tt_cmd, vshard_app):
 
         inst_name = "storage-002-b"
 
-        lib_dir = vshard_app.app_dir / lib_path / inst_name
+        lib_dir = Path(inst_lib_dir(vshard_app.app_dir, vshard_app.app_name, inst_name))
         snaps = glob.glob((lib_dir / "*.snap").as_posix())
         assert len(snaps) > 0
 
@@ -172,7 +175,7 @@ def test_rebootstrap_already_stopped(tt_cmd, vshard_app):
 
         vshard_app.stop(inst_name)
 
-        inst_log = vshard_app.app_dir / log_path / inst_name / log_file
+        inst_log = Path(inst_log_dir(vshard_app.app_dir, vshard_app.app_name, inst_name)) / log_file
         os.remove(inst_log)
         rs_cmd = [tt_cmd, "-V", "replicaset", "rebootstrap", f"{vshard_app.app_name}:{inst_name}"]
         rs_rc, _ = run_command_and_get_output(rs_cmd, cwd=vshard_app.env_dir, input="y\n")
@@ -200,13 +203,13 @@ def test_rebootstrap_bad_cli_args(tt_cmd, vshard_app):
     rs_cmd = [tt_cmd, "replicaset", "rebootstrap", f"{vshard_app.app_name}:inst"]
     rs_rc, out = run_command_and_get_output(rs_cmd, cwd=vshard_app.env_dir)
     assert rs_rc != 0
-    assert 'instance "inst" is not found' in out
+    assert f'instance not found: "inst" of "{vshard_app.app_name}"' in out
 
     # Non-existing app.
     rs_cmd = [tt_cmd, "replicaset", "rebootstrap", "app:inst"]
     rs_rc, out = run_command_and_get_output(rs_cmd, cwd=vshard_app.env_dir)
     assert rs_rc != 0
-    assert "can't collect instance information for app:" in out
+    assert "application not found" in out
 
     # No args.
     rs_cmd = [tt_cmd, "replicaset", "rebootstrap"]

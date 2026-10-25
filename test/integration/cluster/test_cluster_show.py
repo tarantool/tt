@@ -4,15 +4,19 @@ import subprocess
 
 import pytest
 
+from utils import cluster_config_file
+
 
 def copy_app(tmpdir, app_name):
+    """Copy the project app_name into tmpdir."""
     app_path = os.path.join(tmpdir, app_name)
     shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
-    shutil.copy(os.path.join(tmpdir, "tt.yaml"), app_path)
 
 
-def app_cmd(tt_cmd, tmpdir, app_name):
-    return [tt_cmd, "--cfg", os.path.join(tmpdir, app_name, "tt.yaml")]
+def app_cmd(tt_cmd, _tmpdir, _app_name):
+    """Return the start of a command acting on the project app_name: it
+    runs in the project directory, where the application is found."""
+    return [tt_cmd]
 
 
 test_simple_app_cfg = r"""groups:
@@ -74,43 +78,38 @@ def test_cluster_show_config_not_exist_app(tt_cmd, tmpdir_with_cfg):
     )
     show_output = instance_process.stdout.read()
 
-    expected = r"   ⨯ can't collect instance information for unknown:"
+    expected = r'   ⨯ unable to resolve the application "unknown": application not found'
     assert expected in show_output
 
 
-# spell-checker:ignore testsimpleapp
-
-
 @pytest.mark.parametrize(
-    "app_name, config_file",
-    [
-        pytest.param("test_simple_app", "config.yaml"),
-        pytest.param("testsimpleapp", "config.yml"),
-    ],
+    "app_name",
+    ["test_simple_app"],
 )
-def test_cluster_show_config_app_without_config(tt_cmd, tmpdir_with_cfg, app_name, config_file):
+def test_cluster_show_config_app_without_config(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
     copy_app(tmpdir, app_name)
 
     app_path = os.path.join(tmpdir, app_name)
-    cfg_path = os.path.join(app_path, config_file)
+    cfg_path = os.path.join(app_path, cluster_config_file)
     os.remove(cfg_path)
 
     show_cmd = [*app_cmd(tt_cmd, tmpdir, app_name), "cluster", "show", app_name]
     instance_process = subprocess.Popen(
         show_cmd,
-        cwd=tmpdir,
+        cwd=os.path.join(tmpdir, app_name),
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
     )
     show_output = instance_process.stdout.read()
 
-    expected = r"   ⨯ cluster configuration file does not exist for the application"
+    # The description without its cluster config is an incomplete pair.
+    expected = r"incomplete pair"
     assert expected in show_output
 
 
-@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
+@pytest.mark.parametrize("app_name", ["test_simple_app"])
 def test_cluster_show_config_app(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
     copy_app(tmpdir, app_name)
@@ -118,7 +117,7 @@ def test_cluster_show_config_app(tt_cmd, tmpdir_with_cfg, app_name):
     show_cmd = [*app_cmd(tt_cmd, tmpdir, app_name), "cluster", "show", app_name]
     instance_process = subprocess.Popen(
         show_cmd,
-        cwd=tmpdir,
+        cwd=os.path.join(tmpdir, app_name),
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
@@ -128,7 +127,7 @@ def test_cluster_show_config_app(tt_cmd, tmpdir_with_cfg, app_name):
     assert test_simple_app_cfg == show_output
 
 
-@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
+@pytest.mark.parametrize("app_name", ["test_simple_app"])
 def test_cluster_show_config_app_validate_no_error(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
     copy_app(tmpdir, app_name)
@@ -136,7 +135,7 @@ def test_cluster_show_config_app_validate_no_error(tt_cmd, tmpdir_with_cfg, app_
     show_cmd = [*app_cmd(tt_cmd, tmpdir, app_name), "cluster", "show", "--validate", app_name]
     instance_process = subprocess.Popen(
         show_cmd,
-        cwd=tmpdir,
+        cwd=os.path.join(tmpdir, app_name),
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
@@ -159,7 +158,7 @@ def test_cluster_show_config_app_validate_error(tt_cmd, tmpdir_with_cfg):
     show_cmd = [*app_cmd(tt_cmd, tmpdir, app_name), "cluster", "show", "--validate", app_name]
     instance_process = subprocess.Popen(
         show_cmd,
-        cwd=tmpdir,
+        cwd=os.path.join(tmpdir, app_name),
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
@@ -185,7 +184,7 @@ invalid path "database.txn_timeout": failed to parse value "asd" to type number
     assert expected == show_output
 
 
-@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
+@pytest.mark.parametrize("app_name", ["test_simple_app"])
 def test_cluster_show_config_app_not_exist_instance(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
     copy_app(tmpdir, app_name)
@@ -193,7 +192,7 @@ def test_cluster_show_config_app_not_exist_instance(tt_cmd, tmpdir_with_cfg, app
     show_cmd = [*app_cmd(tt_cmd, tmpdir, app_name), "cluster", "show", f"{app_name}:unknown"]
     instance_process = subprocess.Popen(
         show_cmd,
-        cwd=tmpdir,
+        cwd=os.path.join(tmpdir, app_name),
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
@@ -204,7 +203,7 @@ def test_cluster_show_config_app_not_exist_instance(tt_cmd, tmpdir_with_cfg, app
     assert expected in show_output
 
 
-@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
+@pytest.mark.parametrize("app_name", ["test_simple_app"])
 def test_cluster_show_config_app_instance(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
     copy_app(tmpdir, app_name)
@@ -212,7 +211,7 @@ def test_cluster_show_config_app_instance(tt_cmd, tmpdir_with_cfg, app_name):
     show_cmd = [*app_cmd(tt_cmd, tmpdir, app_name), "cluster", "show", f"{app_name}:storage"]
     instance_process = subprocess.Popen(
         show_cmd,
-        cwd=tmpdir,
+        cwd=os.path.join(tmpdir, app_name),
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,

@@ -14,7 +14,13 @@ from replicaset_helpers import (
     wait_election_leader_known,
 )
 
-from utils import get_tarantool_version, read_kv, run_command_and_get_output, wait_event
+from utils import (
+    get_tarantool_version,
+    instances_file,
+    read_kv,
+    run_command_and_get_output,
+    wait_event,
+)
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
@@ -159,8 +165,8 @@ def test_promote_cconfig_failovers(
             ],
         ),
     )
-    # Replace instances.yml to start only necessary replicaset.
-    with open(os.path.join(app_path, "instances.yml"), "w") as f:
+    # Replace the description to start only necessary replicaset.
+    with open(os.path.join(app_path, instances_file), "w") as f:
         f.write("\n".join(list(map(lambda x: f"{x}:", instances))))
 
     try:
@@ -253,8 +259,8 @@ def test_promote_cconfig_election_errors(
     app_path = copy_application(tmpdir, app_name)
 
     instances = ["election-failover-1", "election-failover-2"]
-    # Replace instances.yml to start only necessary replicaset.
-    with open(os.path.join(app_path, "instances.yml"), "w") as f:
+    # Replace the description to start only necessary replicaset.
+    with open(os.path.join(app_path, instances_file), "w") as f:
         f.write("\n".join(list(map(lambda x: f"{x}:", instances))))
     try:
         start_application(tt_cmd, app_path, app_name, instances)

@@ -10,7 +10,13 @@ from integration.replicaset.replicaset_helpers import (
     stop_application,
 )
 
-from utils import get_tarantool_version, read_kv, run_command_and_get_output
+from utils import (
+    cluster_config_file,
+    get_tarantool_version,
+    read_kv,
+    run_command_and_get_output,
+    template_dir,
+)
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
@@ -53,7 +59,7 @@ def make_test_roles_remove_param(
     "args, err_msg",
     [
         pytest.param(["some_role"], "Error: accepts 2 arg(s), received 1"),
-        pytest.param(["some_app", "some_role"], "can't collect instance information for some_app"),
+        pytest.param(["some_app", "some_role"], "application not found"),
     ],
 )
 def test_roles_add_missing_args(tt_cmd, tmpdir_with_cfg, args, err_msg):
@@ -189,10 +195,10 @@ def test_replicaset_cconfig_roles_remove(
     app_path = copy_application(tmpdir_with_cfg, app_name)
 
     if patch_cfg_content:
-        with open(os.path.join(app_path, "config.yaml"), "a") as f:
+        with open(os.path.join(app_path, cluster_config_file), "a") as f:
             f.write(patch_cfg_content)
 
-    kv = read_kv(app_path)
+    kv = read_kv(os.path.join(app_path, template_dir))
     instances = parse_yml(kv["instances"]).keys()
 
     try:
@@ -232,7 +238,7 @@ def test_replicaset_cconfig_roles_remove(
         rc, out = run_command_and_get_output(roles_add_cmd, cwd=app_path)
         if err_msg == "":
             assert rc == 0
-            kv = read_kv(app_path)
+            kv = read_kv(os.path.join(app_path, template_dir))
             cluster_cfg = parse_yml(kv["config"])
             if is_global:
                 assert "Remove role from global scope"

@@ -1,0 +1,8 @@
+groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          single-t2-app:
+            app:
+              file: init.lua

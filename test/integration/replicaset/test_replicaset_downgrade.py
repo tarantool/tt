@@ -6,7 +6,7 @@ import tempfile
 import pytest
 from replicaset_helpers import copy_application, start_application, stop_application
 
-from utils import get_tarantool_version, run_command_and_get_output, wait_file
+from utils import get_tarantool_version, inst_lib_dir, run_command_and_get_output, wait_file
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 cmd_master = """box.space._schema:run_triggers(false)
@@ -48,7 +48,7 @@ def test_downgrade_multi_master(tt_cmd, tmpdir_with_cfg):
     app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
-        start_cmd = [tt_cmd, "start", app_name]
+        start_cmd = [tt_cmd, "start", f"{app_name}:*"]
         rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
@@ -79,16 +79,29 @@ def test_downgrade_t2_app_dummy_replicaset(tt_cmd):
     with tempfile.TemporaryDirectory() as tmpdir:
         test_app_path = os.path.join(tmpdir, app_name)
         shutil.copytree(test_app_path_src, test_app_path)
-        memtx_dir = os.path.join(test_app_path, "var", "lib", app_name)
+        memtx_dir = inst_lib_dir(test_app_path, app_name, app_name)
         os.makedirs(memtx_dir, exist_ok=True)
 
         try:
-            start_cmd = [tt_cmd, "start", app_name]
+            start_cmd = [tt_cmd, "start", f"{app_name}:*"]
             rc, out = run_command_and_get_output(start_cmd, cwd=test_app_path)
             assert rc == 0
 
             file = wait_file(test_app_path, "ready", [])
             assert file != ""
+
+            # The application runs on a cluster config, which names the
+            # replicaset and the instance; Tarantool before 3.3 refuses to
+            # downgrade with names set, so they are dropped first.
+            inst_name = f"{app_name}:{app_name}"
+            out = run_command_on_instance(
+                tt_cmd,
+                test_app_path,
+                inst_name,
+                "box.cfg{force_recovery=true} return box.cfg.force_recovery",
+            )
+            assert "true" in out
+            _ = run_command_on_instance(tt_cmd, test_app_path, inst_name, cmd_master)
 
             downgrade_cmd = [tt_cmd, "replicaset", "downgrade", app_name, "2.8.2", "--custom"]
             rc, out = run_command_and_get_output(downgrade_cmd, cwd=test_app_path)
@@ -231,7 +244,7 @@ def test_downgrade_remote_replicasets(tt_cmd, tmpdir_with_cfg):
         assert "['version', 2, 11, 1]" in out
 
     finally:
-        stop_cmd = [tt_cmd, "stop", app_name, "-y"]
+        stop_cmd = [tt_cmd, "stop", f"{app_name}:*", "-y"]
         stop_rc, _ = run_command_and_get_output(stop_cmd, cwd=app_path)
         assert stop_rc == 0
 

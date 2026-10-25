@@ -1,6 +1,0 @@
-default:
-  app:
-    dir: .
-    file: init.lua
-    memtx_dir: ./
-    wal_dir: ./

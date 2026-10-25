@@ -9,8 +9,8 @@ from replicaset_helpers import copy_application, eval_on_instance, parse_status,
 from utils import (
     create_tt_config,
     get_tarantool_version,
+    inst_log_dir,
     log_file,
-    log_path,
     run_command_and_get_output,
     wait_event,
     wait_file,
@@ -54,7 +54,7 @@ def test_vshard_bootstrap_custom_app(tt_cmd, tmpdir_with_cfg, flag):
     app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
-        start_cmd = [tt_cmd, "start", app_name]
+        start_cmd = [tt_cmd, "start", f"{app_name}:*"]
         rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
@@ -86,7 +86,7 @@ Replicasets state: bootstrapped
             out,
         )
     finally:
-        stop_cmd = [tt_cmd, "stop", "-y", app_name]
+        stop_cmd = [tt_cmd, "stop", "-y", f"{app_name}:*"]
         rc, _ = run_command_and_get_output(stop_cmd, cwd=app_path)
         assert rc == 0
 
@@ -101,7 +101,7 @@ def test_vshard_bootstrap_cconfig_vshard_not_installed(tt_cmd, tmpdir_with_cfg):
     app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
-        start_cmd = [tt_cmd, "start", app_name]
+        start_cmd = [tt_cmd, "start", f"{app_name}:*"]
         rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
@@ -152,7 +152,7 @@ def vshard_cconfig_app_tt_env(tt_cmd, tmp_path, vshard_tt_env_session):
     )
 
     # Start a cluster.
-    start_cmd = [tt_cmd, "start", vshard_cconfig_app_name]
+    start_cmd = [tt_cmd, "start", f"{vshard_cconfig_app_name}:*"]
     rc, _ = run_command_and_get_output(start_cmd, cwd=app_path)
     assert rc == 0
 
@@ -163,14 +163,14 @@ def vshard_cconfig_app_tt_env(tt_cmd, tmp_path, vshard_tt_env_session):
             file = wait_file(app_path, f"ready-{inst}", [])
             assert file != ""
 
-        wait_string_in_file(
-            app_path / log_path / "router-001-a" / log_file,
-            "All replicas are ok",
-        )
+        def log(inst):
+            return os.path.join(inst_log_dir(app_path, vshard_cconfig_app_name, inst), log_file)
+
+        wait_string_in_file(log("router-001-a"), "All replicas are ok")
         for inst in ["storage-001-a", "storage-002-a"]:
-            wait_string_in_file(app_path / log_path / inst / log_file, "leaving orphan mode")
+            wait_string_in_file(log(inst), "leaving orphan mode")
         for inst in ["storage-001-b", "storage-002-b"]:
-            wait_string_in_file(app_path / log_path / inst / log_file, "subscribed replica")
+            wait_string_in_file(log(inst), "subscribed replica")
         yield app_path
     finally:
         stop_application(
@@ -246,8 +246,8 @@ def vshard_cconfig_app_timeout_tt_env(tt_cmd, tmp_path, vshard_tt_env_session):
         dirs_exist_ok=True,
     )
 
-    # Start a cluster.
-    start_cmd = [tt_cmd, "start", vshard_cconfig_app_name_timeout]
+    # Start a cluster: every instance of the pair in .templates/default/.
+    start_cmd = [tt_cmd, "start", f"{vshard_cconfig_app_name_timeout}:*"]
     rc, _ = run_command_and_get_output(start_cmd, cwd=app_path)
     assert rc == 0
 

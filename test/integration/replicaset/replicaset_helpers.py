@@ -7,22 +7,19 @@ from pathlib import Path
 
 import yaml
 
-from utils import run_command_and_get_output, wait_event, wait_file
-
-run_path = os.path.join("var", "run")
+from utils import inst_run_dir, run_command_and_get_output, wait_event, wait_file
 
 
 def copy_application(env_dir, app_name):
-    """Copy a test application and make it a standalone tt environment."""
+    """Copy the project app_name into env_dir and return its directory."""
     env_dir = Path(env_dir)
     app_dir = env_dir / app_name
     shutil.copytree(Path(__file__).parent / app_name, app_dir)
-    shutil.copy(env_dir / "tt.yaml", app_dir / "tt.yaml")
     return app_dir.as_posix()
 
 
 def start_application(tt_cmd, workdir, app_name, instances):
-    start_cmd = [tt_cmd, "start", app_name]
+    start_cmd = [tt_cmd, "start", f"{app_name}:*"]
     rc, _ = run_command_and_get_output(start_cmd, cwd=workdir)
 
     assert rc == 0
@@ -32,7 +29,7 @@ def start_application(tt_cmd, workdir, app_name, instances):
 
 
 def stop_application(tt_cmd, app_name, workdir, instances, force=False):
-    stop_cmd = [tt_cmd, "stop", "-y", app_name]
+    stop_cmd = [tt_cmd, "stop", "-y", f"{app_name}:*"]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=workdir)
     assert stop_rc == 0
 
@@ -43,7 +40,7 @@ def stop_application(tt_cmd, app_name, workdir, instances, force=False):
                 stop_out,
             )
             assert not os.path.exists(
-                os.path.join(workdir, run_path, inst, "tarantool.pid"),
+                os.path.join(inst_run_dir(workdir, app_name, inst), "tarantool.pid"),
             )
 
 

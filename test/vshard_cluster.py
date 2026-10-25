@@ -1,14 +1,20 @@
 import os
 import platform
-import shutil
 import subprocess
 import time
 from pathlib import Path
 
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python < 3.11, which is what CI runs.
+    import tomli as tomllib
+
 from utils import (
     create_tt_config,
+    inst_log_dir,
+    instances_file,
     log_file,
-    log_path,
+    make_project,
     run_command_and_get_output,
     wait_string_in_file,
 )
@@ -16,41 +22,45 @@ from utils import (
 instances = ["router-001-a", "storage-001-a", "storage-001-b", "storage-002-a", "storage-002-b"]
 
 
-# VshardCluster wraps tt environment with tnt 3 vshard cluster application.
+def project_name(app_dir: Path) -> str:
+    """Return the name of the project in app_dir: [package].name of its
+    manifest, or the name of the directory without one."""
+    manifest = app_dir / "app.manifest.toml"
+    if manifest.exists():
+        with open(manifest, "rb") as f:
+            return tomllib.load(f)["package"]["name"]
+    return app_dir.name
+
+
+# VshardCluster wraps a project with tnt 3 vshard cluster application.
 class VshardCluster:
-    def __init__(self, tt_cmd, env_dir: Path, app_name: str) -> None:
+    def __init__(self, tt_cmd, env_dir: Path, dir_name: str) -> None:
+        """Wrap the project in env_dir or in env_dir/dir_name, or create one
+        in env_dir/dir_name with tt create. The application is named by the
+        manifest tt create writes, app_name."""
         env_dir = Path(env_dir)
         self.tt_cmd = tt_cmd
         self.instances = instances
-        self.app_name = app_name
 
-        if (env_dir / "tt.yaml").exists() or (env_dir / "tt.yml").exists():
-            if env_dir.name == app_name:
-                self.app_dir = env_dir
-            else:
-                # The session fixture copies a standalone application into a
-                # pytest directory with a generated name. Nest it once more so
-                # the config directory has the declarative application name.
-                self.app_dir = env_dir / app_name
-                self.app_dir.mkdir()
-                for path in list(env_dir.iterdir()):
-                    if path != self.app_dir:
-                        shutil.move(path, self.app_dir / path.name)
-            self.env_dir = self.app_dir
-            print(f"Wrapping existing application in {self.app_dir}.")
-            return
+        if (env_dir / instances_file).exists():
+            self.app_dir = env_dir
+        elif (env_dir / dir_name / instances_file).exists():
+            self.app_dir = env_dir / dir_name
+        else:
+            create_tt_config(env_dir)
 
-        create_tt_config(env_dir)
+            rc, _ = run_command_and_get_output(
+                [tt_cmd, "create", "vshard_cluster", "--name", dir_name, "-s", "-f"],
+                cwd=env_dir,
+            )
+            assert rc == 0
 
-        rc, out = run_command_and_get_output(
-            [tt_cmd, "create", "vshard_cluster", "--name", self.app_name, "-s", "-f"],
-            cwd=env_dir,
-        )
-        assert rc == 0
+            self.app_dir = env_dir / dir_name
+            make_project(self.app_dir)
 
-        self.app_dir = env_dir / self.app_name
-        shutil.move(env_dir / "tt.yaml", self.app_dir / "tt.yaml")
         self.env_dir = self.app_dir
+        self.app_name = project_name(self.app_dir)
+        print(f"Wrapping application {self.app_name} in {self.app_dir}.")
 
     def build(self, attempts=3):
         # The build downloads vshard from rocks.tarantool.org, which drops a
@@ -68,7 +78,7 @@ class VshardCluster:
         assert rc == 0, out
 
     def start(self):
-        start_cmd = [self.tt_cmd, "start", self.app_name]
+        start_cmd = [self.tt_cmd, "start", f"{self.app_name}:*"]
         test_env = os.environ.copy()
 
         # Avoid too long path.
@@ -77,27 +87,21 @@ class VshardCluster:
         rc, _ = run_command_and_get_output(start_cmd, cwd=self.app_dir, env=test_env)
         assert rc == 0
 
-        wait_string_in_file(
-            self.app_dir / log_path / "router-001-a" / log_file,
-            "All replicas are ok",
-        )
+        def log(inst):
+            return Path(inst_log_dir(self.app_dir, self.app_name, inst)) / log_file
+
+        wait_string_in_file(log("router-001-a"), "All replicas are ok")
 
         for inst in ["storage-001-a", "storage-002-a"]:
-            wait_string_in_file(
-                self.app_dir / log_path / inst / log_file,
-                "leaving orphan mode",
-            )
+            wait_string_in_file(log(inst), "leaving orphan mode")
 
         for inst in ["storage-001-b", "storage-002-b"]:
-            wait_string_in_file(
-                self.app_dir / log_path / inst / log_file,
-                "subscribed replica",
-            )
+            wait_string_in_file(log(inst), "subscribed replica")
 
     def stop(self, inst=None):
-        stop_arg = self.app_name
+        stop_arg = f"{self.app_name}:*"
         if inst is not None:
-            stop_arg = stop_arg + ":" + inst
+            stop_arg = f"{self.app_name}:{inst}"
 
         cmd = [self.tt_cmd, "stop", "-y", stop_arg]
         rc, _ = run_command_and_get_output(cmd, cwd=self.app_dir)
