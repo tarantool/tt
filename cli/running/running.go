@@ -165,6 +165,10 @@ type InstanceCtx struct {
 	// Root is the root of that scope, which the runtime artifacts of the
 	// instance are under (layout.ScopeLayout); empty for tt.yaml.
 	Root string
+	// Template is the --template value the instance was resolved with,
+	// empty for none: the watchdog resolves the instance again with it
+	// (PinnedOptions).
+	Template string
 	// Env holds the variables the instance record sets on top of the
 	// inherited environment of tarantool.
 	Env map[string]string
@@ -225,6 +229,7 @@ func searchApplicationScript(applicationsDir, appName string) (InstanceCtx, erro
 		Configuration:     nil,
 		Scope:             "",
 		Root:              "",
+		Template:          "",
 		Env:               nil,
 	}
 
@@ -390,6 +395,7 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 				Configuration:     nil,
 				Scope:             "",
 				Root:              "",
+				Template:          "",
 				Env:               nil,
 			}}, nil
 		}
@@ -451,6 +457,7 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 			Configuration:     nil,
 			Scope:             "",
 			Root:              "",
+			Template:          "",
 			Env:               nil,
 		}
 
