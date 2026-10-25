@@ -7,8 +7,9 @@ import (
 )
 
 // File and directory names pack reads from the project and writes into the
-// archive. The archive-side names are the reserved set tt owns: [package]
-// include and license_files entries may not collide with them.
+// archive. The archive-side names are the reserved set tt owns (see
+// reservedArchiveNames): [package] include and license_files entries may not
+// collide with them.
 const (
 	manifestFileName = "app.manifest.toml"
 	lockFileName     = "app.manifest.lock"
@@ -16,6 +17,16 @@ const (
 	runtimeDirName   = "_runtime"
 	rocksDirName     = ".rocks"
 	buildDirName     = "_build"
+	// templatesDirName holds the project's instance templates, one directory
+	// per template. It travels whole at the archive root: without it an
+	// installed version has no description of the instances it runs.
+	templatesDirName = ".templates"
+	// templateInstancesFile and templateConfigFile are the pair every template
+	// is: the instance description and the cluster config that goes with it.
+	// They are selected together, since the instance names of one have to
+	// match the topology of the other.
+	templateInstancesFile = "instances.yaml"
+	templateConfigFile    = "config.yaml"
 	// packSubDir is the _build subdirectory the archive is produced in.
 	packSubDir = "pack"
 	// archiveExt is the tt-native archive extension. The payload is tar+zstd.
@@ -41,6 +52,12 @@ var (
 	// errEscapingPath reports an include or license_files entry that resolves
 	// outside the project directory.
 	errEscapingPath = errors.New("path escapes the project directory")
+	// errBadTemplate reports an entry of .templates/ that is not a complete
+	// template with a valid instance description.
+	errBadTemplate = errors.New("invalid instance template")
+	// errNotRegular reports a template file that exists but is not a regular
+	// file.
+	errNotRegular = errors.New("not a regular file")
 )
 
 // stateErrorf wraps a formatted error as a usage or state failure

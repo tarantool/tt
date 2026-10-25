@@ -303,6 +303,15 @@ for machine-readable output.
   `level` and `msg` keys.
 - `tt connect`: add `\history` command to display the last executed
   commands in the interactive console.
+- `tt package pack`: carry the project's instance templates, `.templates/`,
+  at the archive root in both packing modes, whatever `[package].include`
+  says. Every template is checked first: each `.templates/<name>/` must hold
+  both `instances.yaml` and `config.yaml`, and `instances.yaml` must be a
+  valid instance description; a broken template, or a file directly under
+  `.templates/`, fails the pack naming it. Hidden entries directly under
+  `.templates/`, such as `.gitkeep`, are skipped. `.templates` joins the
+  names tt reserves in the archive, so `include` and `license_files` entries
+  may not land on it.
 
 ### Changed
 
