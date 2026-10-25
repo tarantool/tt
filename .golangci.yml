@@ -398,8 +398,16 @@ linters:
           allow:
             - $gostd
             - "github.com/stretchr/testify"
+            - "github.com/tarantool/go-config/v2"
+            # The integration test serves a thin config from an embedded etcd.
+            - "github.com/tarantool/go-storage/v2"
             - "github.com/tarantool/tt/sdk"
             - "github.com/tarantool/tt/v3/cli/app"
+            - "github.com/tarantool/tt/v3/cli/cluster"
+            - "github.com/tarantool/tt/v3/cli/manifest"
+            - "github.com/tarantool/tt/v3/internal/instances"
+            - "github.com/tarantool/tt/v3/internal/scope"
+            - "go.etcd.io/etcd/client/v3"
         dir-cli-cfg:
           files:
             - "**/cli/cfg/**"
