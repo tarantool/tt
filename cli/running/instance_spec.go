@@ -5,16 +5,19 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"syscall"
 	"time"
 
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/process_utils"
+	"github.com/tarantool/tt/v3/cli/running/internal/layout"
 	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/internal/supervisor"
 )
@@ -43,6 +46,17 @@ type specOptions struct {
 	integrity *integrity.IntegrityCtx
 	stdout    io.Writer
 	stderr    io.Writer
+	// warn reports a diagnostic that does not stop the start, such as the
+	// tarantool of a project differing from the one its lock bundles; nil
+	// drops it.
+	warn func(message string)
+}
+
+// warnf reports a diagnostic through warn, if there is one.
+func (opts *specOptions) warnf(format string, args ...any) {
+	if opts.warn != nil {
+		opts.warn(fmt.Sprintf(format, args...))
+	}
 }
 
 func integrityOf(cmdCtx *cmdcontext.CmdCtx) *integrity.IntegrityCtx {
@@ -54,8 +68,10 @@ func integrityOf(cmdCtx *cmdcontext.CmdCtx) *integrity.IntegrityCtx {
 }
 
 // instanceSpec is the Spec of the tarantool process of an instance: an
-// instance with a cluster config runs from it, any other one runs its script.
-// The stop settings of the instance record, if any, apply to either.
+// instance built from the application model runs from the config of its
+// pair on the tarantool of its application; one collected through tt.yaml
+// runs from its cluster config, or its script, on the tarantool of tt.yaml.
+// The stop settings of the instance record, if any, apply to every kind.
 func instanceSpec(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx, opts specOptions) (
 	supervisor.Spec, error,
 ) {
@@ -64,9 +80,12 @@ func instanceSpec(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx, opts specOptions
 		err  error
 	)
 
-	if inst.ClusterConfigPath != "" {
+	switch {
+	case inst.Scope != "":
+		spec, err = appClusterSpec(inst, opts)
+	case inst.ClusterConfigPath != "":
 		spec, err = clusterSpec(cmdCtx.Cli.TarantoolCli.Executable, inst, opts)
-	} else {
+	default:
 		spec, err = scriptSpec(cmdCtx.Cli.TarantoolCli.Executable, inst, opts)
 	}
 
@@ -268,6 +287,74 @@ func clusterSpec(tarantoolPath string, inst *InstanceCtx, opts specOptions) (
 	return tarantoolSpec(tarantoolPath, args, env, inst.AppDir, opts), nil
 }
 
+// appClusterSpec is the Spec of an instance built from the application model
+// (NewInstanceCtx): a Tarantool instance configured by the config of the pair
+// of its application, on the tarantool of its application.
+//
+// It checks the instance at every start (checkStart), since a restart runs
+// with a config that may have changed since the first one. tarantool runs in
+// the application directory and gets the paths of the layout as the
+// TT_*_DEFAULT variables, all absolute but a socket too long for that, which
+// is given relative to the application directory where tarantool takes it
+// so (socketArgs): the config overrides them, and a relative default would
+// be resolved against a version directory, which is never written to.
+// log.file is among them, so that an instance that logs to a file without
+// naming one logs next to tt.log rather than into the application directory.
+//
+// The env of the instance record goes on top of the inherited environment,
+// and the defaults above go on top of it: a record changes the config of its
+// instance through the TT_ variables, which tarantool ranks above the config
+// files and NewInstanceCtx reads, not by moving the layout under tt.
+func appClusterSpec(inst *InstanceCtx, opts specOptions) (supervisor.Spec, error) {
+	err := checkStart(inst)
+	if err != nil {
+		return supervisor.Spec{}, err
+	}
+
+	if !util.IsDir(inst.AppDir) {
+		return supervisor.Spec{}, fmt.Errorf("%w%q is not a directory",
+			errApplicationIsNotADirectory, inst.AppDir)
+	}
+
+	exe, err := resolveTarantool(inst)
+	if err != nil {
+		return supervisor.Spec{}, err
+	}
+
+	for _, warning := range exe.Warnings {
+		opts.warnf("instance %q of %q: %s", inst.InstName, inst.AppName, warning)
+	}
+
+	console, listen, err := socketArgs(inst)
+	if err != nil {
+		return supervisor.Spec{}, err
+	}
+
+	args := []string{"-n", inst.InstName, "-c", inst.ClusterConfigPath}
+	if opts.integrity != nil {
+		args = append(args, "--integrity-check",
+			filepath.Join(inst.AppDir, integrity.HashesFileName))
+	}
+
+	env := os.Environ()
+
+	for _, name := range slices.Sorted(maps.Keys(inst.Env)) {
+		env = append(env, name+"="+inst.Env[name])
+	}
+
+	env = append(env,
+		"PWD="+inst.AppDir,
+		"TT_WAL_DIR_DEFAULT="+inst.WalDir,
+		"TT_SNAPSHOT_DIR_DEFAULT="+inst.MemtxDir,
+		"TT_VINYL_DIR_DEFAULT="+inst.VinylDir,
+		"TT_LOG_FILE_DEFAULT="+filepath.Join(inst.LogDir, layout.TarantoolLogFileName),
+		"TT_PROCESS_PID_FILE_DEFAULT="+filepath.Join(inst.RunDir, layout.TarantoolPidFileName),
+		"TT_CONSOLE_SOCKET_DEFAULT="+console,
+		"TT_IPROTO_LISTEN_DEFAULT="+listen)
+
+	return tarantoolSpec(exe.Path, args, env, inst.AppDir, opts), nil
+}
+
 func appendEnvIfNotEmpty(env []string, envVarName, value string) []string {
 	if value != "" {
 		env = append(env, fmt.Sprintf("%s=%s", envVarName, value))
@@ -276,14 +363,19 @@ func appendEnvIfNotEmpty(env []string, envVarName, value string) []string {
 	return env
 }
 
-// verifySocketLength refuses a path that does not fit a unix socket address:
-// maxSocketPathLinux and maxSocketPathMac are the sizes of sun_path, which
-// also holds the terminating NUL.
-func verifySocketLength(socketPath string) error {
-	maxSocketPath := maxSocketPathLinux
+// socketPathLimit is the size of sun_path, the room for the path in a unix
+// socket address, which also holds the terminating NUL.
+func socketPathLimit() int {
 	if runtime.GOOS == "darwin" {
-		maxSocketPath = maxSocketPathMac
+		return maxSocketPathMac
 	}
+
+	return maxSocketPathLinux
+}
+
+// verifySocketLength refuses a path that does not fit a unix socket address.
+func verifySocketLength(socketPath string) error {
+	maxSocketPath := socketPathLimit()
 
 	if socketPath != "" && len(socketPath) >= maxSocketPath {
 		return fmt.Errorf("%w%d symbols: %q",

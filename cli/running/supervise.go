@@ -117,6 +117,9 @@ func (src *instanceSource) Next(context.Context) (supervisor.Spec, error) {
 		integrity: integrityOf(src.cmdCtx),
 		stdout:    src.log.logger,
 		stderr:    src.log.logger,
+		warn: func(message string) {
+			src.log.logger.Printf("(WARN): %s.", message)
+		},
 	})
 }
 
