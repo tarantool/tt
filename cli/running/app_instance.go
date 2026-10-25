@@ -145,6 +145,7 @@ func NewInstanceCtx(application *app.App, inst instances.Instance) (InstanceCtx,
 		Configuration:     nil,
 		Scope:             application.Scope,
 		Root:              application.Root,
+		Template:          "",
 		Env:               maps.Clone(inst.Env),
 	}
 
