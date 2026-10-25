@@ -7,11 +7,11 @@ import (
 )
 
 // The failures the resolver tells apart. An error about a target, a flag, a
-// missing application or a pair that does not fit together wraps one of
-// them, so that a caller matches it with errors.Is rather than by the
-// message, which names the paths and the names involved. A description that
-// does not parse wraps instances.ErrInvalid instead, and a file or a config
-// storage that cannot be read wraps what failed.
+// missing application or instance, or a pair that does not fit together
+// wraps one of them, so that a caller matches it with errors.Is rather than
+// by the message, which names the paths and the names involved. A
+// description that does not parse wraps instances.ErrInvalid instead, and a
+// file or a config storage that cannot be read wraps what failed.
 var (
 	// ErrInvalidTarget is a target outside the grammar of instance-level
 	// commands, such as a bare application name, or a name that cannot be
@@ -48,6 +48,12 @@ var (
 	// ErrTopologyMismatch is a Tarantool instance of the description that the
 	// cluster config does not declare.
 	ErrTopologyMismatch = errors.New("instances missing from the cluster topology")
+	// ErrInstanceNotFound is a target naming an instance the description
+	// does not declare.
+	ErrInstanceNotFound = errors.New("instance not found")
+	// ErrNoInstances is a target that selects every instance of a
+	// description that declares none.
+	ErrNoInstances = errors.New("no instances")
 )
 
 // failf wraps a formatted error as a request that cannot be carried out as
