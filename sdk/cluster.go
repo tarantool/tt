@@ -30,9 +30,10 @@ type ClusterConfig struct {
 	// Config is the configuration: an immutable go-config snapshot carrying
 	// the Tarantool hierarchy, so [Instances] and [InstanceConfig] read it.
 	Config goconfig.Config
-	// Dir is the absolute directory of the cluster configuration file the
-	// configuration was read from, the directory a relative path in it -
-	// such as an SSL file of an instance - is relative to. It is "" for a
+	// Dir is the absolute directory a relative path in the configuration -
+	// such as an SSL file of an instance - is relative to: the application
+	// directory, where its instances run, for an application, and the
+	// directory of the file for a cluster configuration file. It is "" for a
 	// configuration storage, whose paths have no directory of their own.
 	Dir string
 }
@@ -43,7 +44,7 @@ type sourceKind uint8
 const (
 	// sourceNone is the zero ClusterSource, which names nothing.
 	sourceNone sourceKind = iota
-	// sourceApp is an application of the tt environment.
+	// sourceApp is an application, as the instance commands find it.
 	sourceApp
 	// sourceFile is a cluster configuration file.
 	sourceFile
@@ -52,7 +53,7 @@ const (
 )
 
 // ClusterSource names where a cluster configuration comes from: an
-// application of the tt environment ([AppSource]), a cluster configuration
+// application ([AppSource]), a cluster configuration
 // file ([FileSource]) or a configuration storage ([StorageSource]).
 // [ParseClusterSource] tells them apart in a command-line argument.
 //
@@ -66,10 +67,10 @@ type ClusterSource struct {
 	creds Credentials
 }
 
-// AppSource names the cluster configuration of the application name of the
-// tt environment: the configuration its cluster config file declares,
-// together with the TT_* environment and the centralized storage the file
-// names. name is an application name without an instance; see
+// AppSource names the cluster configuration of the application name, found
+// as the instance commands find it: the cluster config of the pair it runs
+// from, together with the TT_* environment and the centralized storage the
+// file names. name is an application name without an instance; see
 // [SplitInstance].
 func AppSource(name string) ClusterSource {
 	return ClusterSource{

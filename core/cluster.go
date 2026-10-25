@@ -14,20 +14,14 @@ import (
 	sdkcluster "github.com/tarantool/tt/sdk/cluster"
 	"github.com/tarantool/tt/sdk/connect"
 	"github.com/tarantool/tt/sdk/integrity"
+	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/cli/cmd"
-	"github.com/tarantool/tt/v3/cli/running"
 )
 
 var (
 	// errNoSource reports the zero ClusterSource.
 	errNoSource = errors.New("no cluster configuration source given")
-	// errNoEnvironment reports an application asked for outside a tt
-	// environment.
-	errNoEnvironment = errors.New("no tt environment")
-	// errNoClusterConfig reports an application without a cluster
-	// configuration.
-	errNoClusterConfig = errors.New("no cluster configuration")
 )
 
 // ClusterConfig returns the cluster configuration src names, read the way
@@ -40,7 +34,7 @@ func (s *services) ClusterConfig(
 	integ := cmd.GetCmdCtxPtr().Integrity
 
 	if name, ok := src.App(); ok {
-		return appClusterConfig(ctx, name, integ)
+		return appClusterConfig(ctx, name)
 	}
 
 	if path, ok := src.File(); ok {
@@ -54,20 +48,15 @@ func (s *services) ClusterConfig(
 	return sdk.ClusterConfig{}, errNoSource
 }
 
-// appClusterConfig returns the cluster configuration of the application name
-// of the tt environment: its cluster config file, with the environment and
-// the storage the file names.
-func appClusterConfig(
-	ctx context.Context, name string, integ integrity.IntegrityCtx,
-) (sdk.ClusterConfig, error) {
-	if cmd.GetCmdCtxPtr().Cli.ConfigPath == "" {
-		return sdk.ClusterConfig{}, notFoundError{
-			err: fmt.Errorf("cluster configuration of application %q: %w", name, errNoEnvironment),
-		}
-	}
-
-	path, err := cmd.ClusterConfigPath(name)
-	if errors.Is(err, running.ErrApplicationNotFound) {
+// appClusterConfig returns the cluster configuration of the application
+// name: the config of the pair it runs from, with what the storage the config
+// names holds merged in, found as the instance commands find it. Dir is the
+// application directory, the working directory of its instances, which a
+// relative path in the config is resolved against.
+func appClusterConfig(ctx context.Context, name string) (sdk.ClusterConfig, error) {
+	application, err := cmd.LoadApp(ctx, name)
+	if errors.Is(err, app.ErrAppNotFound) || errors.Is(err, app.ErrNoProject) ||
+		errors.Is(err, app.ErrNoPair) {
 		return sdk.ClusterConfig{}, notFoundError{
 			err: fmt.Errorf("cluster configuration of application %q: %w", name, err),
 		}
@@ -78,13 +67,7 @@ func appClusterConfig(
 			name, err)
 	}
 
-	if path == "" {
-		return sdk.ClusterConfig{}, notFoundError{
-			err: fmt.Errorf("application %q: %w", name, errNoClusterConfig),
-		}
-	}
-
-	return clusterConfigFile(ctx, path, integ)
+	return sdk.ClusterConfig{Config: application.Config.Snapshot(), Dir: application.Dir}, nil
 }
 
 // fileClusterConfig returns the cluster configuration of the file at path,
