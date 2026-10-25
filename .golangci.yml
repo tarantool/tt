@@ -708,6 +708,21 @@ linters:
             - "github.com/tarantool/go-tail"
             - "github.com/tarantool/tt/sdk"
             - "github.com/tarantool/tt/v3/cli/tail"
+        # The one rule choosing the tarantool an application runs on, shared
+        # by tt run and tt instance: it reads the manifest and the lock and
+        # looks into the tt binary layout of the application's scope.
+        dir-cli-tarantool:
+          files:
+            - "**/cli/tarantool/**"
+          allow:
+            - $gostd
+            - "github.com/hashicorp/go-version"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/v3/cli/manifest"
+            - "github.com/tarantool/tt/v3/cli/tarantool"
+            - "github.com/tarantool/tt/v3/cli/version"
+            - "github.com/tarantool/tt/v3/internal/binary"
+            - "github.com/tarantool/tt/v3/internal/scope"
         dir-cli-tcm:
           files:
             - "**/cli/tcm/**"
