@@ -770,6 +770,15 @@ linters:
             - $gostd
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/v3/internal/pidfile"
+        # The scope roots tt binary, tt package and tt instance share: a leaf,
+        # so that none of them has to import another to agree on a path.
+        dir-internal-scope:
+          files:
+            - "**/internal/scope/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/v3/internal/scope"
         # The process supervisor sits under the commands that run it and
         # depends on none of them.
         dir-internal-supervisor:
