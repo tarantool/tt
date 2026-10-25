@@ -676,7 +676,10 @@ func newPackagePackCmd() *cobra.Command {
 			".tt archive. By default the archive is self-contained: it carries " +
 			"_runtime/ (Tarantool, tt and TCM when [platform].tcm is set) and the " +
 			"whole dependency closure in .rocks/, so installing it needs no " +
-			"network. --without-deps drops both. A separate tt package build " +
+			"network. --without-deps drops both. The project's instance " +
+			"templates in .templates/ travel at the archive root in either mode; " +
+			"each .templates/<name>/ must hold instances.yaml and config.yaml, " +
+			"and a broken template fails the pack. A separate tt package build " +
 			"beforehand is not needed. The archive path is printed to stdout.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {

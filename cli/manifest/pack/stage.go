@@ -20,8 +20,9 @@ const (
 )
 
 // stage assembles the archive tree under stageDir: the manifest, lock, VERSION,
-// license files, [package].include payload and the .rocks/ subtree, filtered by
-// packing mode. _runtime/ is added separately by bundleRuntime.
+// license files, [package].include payload, the instance templates in
+// .templates/ and the .rocks/ subtree, filtered by packing mode. _runtime/ is
+// added separately by bundleRuntime.
 //
 // Everything is copied into a staging directory rather than streamed straight
 // from the project, so the tar layer sees one flat, already-correct tree and
@@ -38,6 +39,11 @@ func stage(stageDir string, req stageRequest) error {
 	}
 
 	err = stagePayload(stageDir, req)
+	if err != nil {
+		return err
+	}
+
+	err = stageTemplates(stageDir, req.ProjectDir)
 	if err != nil {
 		return err
 	}

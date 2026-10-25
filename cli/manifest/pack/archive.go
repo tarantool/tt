@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -203,6 +204,22 @@ func writeRegular(tarWriter *tar.Writer, path, name string, info fs.FileInfo) er
 	return nil
 }
 
+// reservedArchiveNames are the top-level names of the archive that tt owns: the
+// set the manifest RFC calls the reserved names of the archive. Each is written
+// by pack itself, so a [package] include or license_files entry landing on one
+// would either overwrite tt's content or be overwritten by it.
+//
+// The list is the spec's, entry for entry; a test pins it, so a name added here
+// is a name added to the RFC as well.
+var reservedArchiveNames = []string{
+	manifestFileName,
+	lockFileName,
+	versionFileName,
+	rocksDirName,
+	runtimeDirName,
+	templatesDirName,
+}
+
 // isReservedName reports whether a path inside the archive would collide with a
 // name tt owns. The check is on the first path segment, so both "VERSION" and
 // ".rocks/share/..." are caught.
@@ -213,16 +230,20 @@ func writeRegular(tarWriter *tar.Writer, path, name string, info fs.FileInfo) er
 // VERSION file and truncates it. Matching only the exact case would let a
 // manifest silently overwrite tt's own metadata inside the archive.
 //
-// "." and ".." are reserved too: "." resolves to the project root, which
-// contains the staging directory, and copying it would recurse into itself.
+// Beyond the archive's reserved names, three more are refused for what they
+// are in the project rather than in the archive. _build holds the staging
+// directory, and "." resolves to the project root, which contains it: copying
+// either would recurse into itself. ".." and "" name nothing inside the
+// project at all.
 func isReservedName(name string) bool {
 	top, _, _ := strings.Cut(filepath.ToSlash(name), "/")
 
 	switch strings.ToLower(top) {
-	case manifestFileName, lockFileName, strings.ToLower(versionFileName),
-		runtimeDirName, rocksDirName, buildDirName, ".", "..", "":
+	case buildDirName, ".", "..", "":
 		return true
-	default:
-		return false
 	}
+
+	return slices.ContainsFunc(reservedArchiveNames, func(reserved string) bool {
+		return strings.EqualFold(top, reserved)
+	})
 }

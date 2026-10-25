@@ -268,6 +268,9 @@ linters:
             # cli/manifest/deps, install and registry carry their exit codes
             # in the SDK's ExitError.
             - "github.com/tarantool/tt/sdk"
+            # cli/manifest/pack checks the instance descriptions of the
+            # templates it packs with the parser tt instance reads them with.
+            - "github.com/tarantool/tt/v3/internal/instances"
         manifest-test:
           files:
             - "**/cli/manifest/**/*_test.go"
@@ -302,6 +305,9 @@ linters:
             # and check its version the way tt itself does.
             - "github.com/tarantool/tt/v3/cli/cmdcontext"
             - "github.com/tarantool/tt/v3/cli/version"
+            # cli/manifest/pack tests match the parser's error for a broken
+            # instance description.
+            - "github.com/tarantool/tt/v3/internal/instances"
         # One allow-list per top-level directory, tests included; their file
         # globs do not overlap, so each file is checked against exactly one
         # of them (plus the deny-only rules above). An import from another
