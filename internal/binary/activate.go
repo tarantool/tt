@@ -56,6 +56,18 @@ func installationLinks(root string, selected Selection) []activeLink {
 	return links
 }
 
+// ReplaceLink points the symbolic link at path to target, or removes it when
+// target is empty. The parent directory of path must exist.
+//
+// The link is replaced by renaming a new one over it, so a reader resolving
+// path sees either the old target or the new one and never a missing link.
+// tt package selects the active version of an installed application with it,
+// <root>/apps/<app>, the same way the active links of the products are
+// replaced here.
+func ReplaceLink(path, target string) error {
+	return replaceActiveLink(activeLink{path: path, target: target})
+}
+
 // replaceActiveLink prepares the new link before replacing the old selection.
 func replaceActiveLink(link activeLink) error {
 	if link.target == "" {

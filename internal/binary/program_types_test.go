@@ -146,3 +146,16 @@ func TestProgram_BundleSource(t *testing.T) {
 
 	assert.True(t, binary.ProgramTtEe.CanBeSDKComponent())
 }
+
+func TestIsProductName(t *testing.T) {
+	for _, name := range []string{
+		"tarantool", "tarantool-ee", "tarantool-sdk", "tt", "tt-ee", "tcm",
+	} {
+		assert.True(t, binary.IsProductName(name), name)
+	}
+
+	// The aliases of the SDK name no directory, and neither does anything else.
+	for _, name := range []string{"sdk", "SDK", "my-app", "", "unknown(0)"} {
+		assert.False(t, binary.IsProductName(name), name)
+	}
+}
