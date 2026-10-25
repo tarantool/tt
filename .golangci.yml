@@ -389,6 +389,17 @@ linters:
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/sdk/backup"
             - "github.com/testcontainers/testcontainers-go"
+        # The resolver of the application an instance command acts on: it
+        # reads the manifest and loads the cluster config the way the rest
+        # of tt does, and knows nothing of how instances are run.
+        dir-cli-app:
+          files:
+            - "**/cli/app/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/app"
         dir-cli-cfg:
           files:
             - "**/cli/cfg/**"
