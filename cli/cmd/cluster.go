@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -12,6 +12,7 @@ import (
 	sdkcluster "github.com/tarantool/tt/sdk/cluster"
 	sdkconnect "github.com/tarantool/tt/sdk/connect"
 	"github.com/tarantool/tt/sdk/integrity"
+	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cluster"
 	clustercmd "github.com/tarantool/tt/v3/cli/cluster/cmd"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
@@ -19,16 +20,6 @@ import (
 	"github.com/tarantool/tt/v3/cli/replicaset"
 	"github.com/tarantool/tt/v3/cli/running"
 	"github.com/tarantool/tt/v3/cli/util"
-)
-
-var (
-	errCannotUpdateInstanceConfigurationWithoutClusterConfiguration = errors.New(
-		"can not to update an instance configuration " +
-			"if a cluster configuration file does not exist for the application",
-	)
-	errClusterConfigurationFileDoesNotExistForTheApplication = errors.New(
-		"cluster configuration file does not exist for the application",
-	)
 )
 
 const (
@@ -546,10 +537,6 @@ func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	if configPath == "" {
-		return errClusterConfigurationFileDoesNotExistForTheApplication
-	}
-
 	showCtx.Integrity = cmdCtx.Integrity
 
 	return clustercmd.ShowCluster(showCtx, configPath, instName)
@@ -583,17 +570,6 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 	configPath, instName, err := parseAppStr(cmdCtx, args[0])
 	if err != nil {
 		return err
-	}
-
-	if configPath == "" {
-		if instName != "" {
-			return errCannotUpdateInstanceConfigurationWithoutClusterConfiguration
-		}
-
-		configPath, err = running.GetClusterConfigPath(cmdCtx.Cli.ConfigDir, false)
-		if err != nil {
-			return err
-		}
 	}
 
 	return clustercmd.PublishCluster(publishCtx, configPath, instName)
@@ -820,14 +796,15 @@ func readSourceFile(path string) ([]byte, map[string]any, error) {
 	return data, decoded, nil
 }
 
-// parseAppStr parses a string and returns an application cluster config path,
-// instance name and an error.
+// parseAppStr parses appStr, <APP> or <APP>:<INSTANCE>, and returns the
+// cluster config of the application and the instance name, empty for none.
+//
+// The config is the one of the pair the application runs from, found as the
+// instance commands find it (app.Load): an application has one config,
+// whichever command reaches it. The instance does not have to be in the
+// description, so that tt cluster publish can configure one before it runs
+// on this host.
 func parseAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, string, error) {
-	if !isConfigExist(cmdCtx) {
-		return "", "",
-			fmt.Errorf("unable to resolve the application name %q: %w", appStr, errNoConfig)
-	}
-
 	appName, instName, _ := strings.Cut(appStr, string(running.InstanceDelimiter))
 
 	configPath, err := appClusterConfigPath(cmdCtx, appName)
@@ -838,32 +815,43 @@ func parseAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, string, erro
 	return configPath, instName, nil
 }
 
-// ClusterConfigPath returns the path to the cluster configuration file of the
-// application appName of the tt environment, or "" when the application has
-// none. The tt environment must exist; an application it does not have is an
-// error wrapping running.ErrApplicationNotFound.
-func ClusterConfigPath(appName string) (string, error) {
-	return appClusterConfigPath(&cmdCtx, appName)
-}
-
-// appClusterConfigPath returns the path to the cluster configuration file of
-// the application appName, or "" when the application has none.
+// appClusterConfigPath returns the path to the cluster config of the pair of
+// the application appName.
 func appClusterConfigPath(cmdCtx *cmdcontext.CmdCtx, appName string) (string, error) {
-	// Fill context for the entire application.
-	// publish app:inst can work even if the `inst` instance doesn't exist right now.
-	var runningCtx running.RunningCtx
-
-	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{appName},
-		running.ConfigLoadCluster)
+	application, err := loadApp(cmdCtx, appName)
 	if err != nil {
 		return "", err
 	}
 
-	if len(runningCtx.Instances) == 0 {
-		return "", nil
+	return application.Pair.ConfigFile, nil
+}
+
+// loadApp loads the application appName and its pair as the instance
+// commands do.
+func loadApp(cmdCtx *cmdcontext.CmdCtx, appName string) (*app.App, error) {
+	opts, err := instanceOptions(cmdCtx)
+	if err != nil {
+		return nil, err
 	}
 
-	return runningCtx.Instances[0].ClusterConfigPath, nil
+	application, err := app.Load(context.Background(), appName, opts)
+	if err != nil {
+		return nil, fmt.Errorf("unable to resolve the application %q: %w", appName, err)
+	}
+
+	return application, nil
+}
+
+// LoadApp loads the application appName and its pair as the instance
+// commands do, for the core: the project search starts in the directory the
+// commands work in, and the files are read through the integrity checks.
+func LoadApp(ctx context.Context, appName string) (*app.App, error) {
+	opts, err := instanceOptions(&cmdCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	return app.Load(ctx, appName, opts)
 }
 
 // checkRolesChangeFlags checks that flags from 'cluster rs roles add/remove' command

@@ -476,6 +476,9 @@ linters:
             - "github.com/tarantool/go-config/v2"
             - "github.com/tarantool/tt/sdk"
             - "github.com/tarantool/tt/v3/cli/backup"
+            # The instance commands find their instances through the
+            # application resolver.
+            - "github.com/tarantool/tt/v3/cli/app"
             - "github.com/tarantool/tt/v3/cli/cfg"
             - "github.com/tarantool/tt/v3/cli/checkpoint"
             - "github.com/tarantool/tt/v3/cli/cluster"
@@ -810,6 +813,8 @@ linters:
             - "github.com/tarantool/go-storage/v2"
             - "github.com/tarantool/tt/modules/aeon"
             - "github.com/tarantool/tt/sdk"
+            # The cluster config of an application comes from its pair.
+            - "github.com/tarantool/tt/v3/cli/app"
             - "github.com/tarantool/tt/v3/cli/cluster"
             - "github.com/tarantool/tt/v3/cli/cmd"
             - "github.com/tarantool/tt/v3/cli/cmdcontext"
