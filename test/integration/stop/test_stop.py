@@ -23,33 +23,26 @@ confirmation_input_params = [
 def test_stop_no_prompt(tt_cmd, tmp_path):
     app_name = "test_app"
     app_path = tmp_path / app_name
-    utils.create_tt_config(app_path)
-    shutil.copy(os.path.join(os.path.dirname(__file__), "test_app.lua"), app_path)
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "simple_app"), app_path)
+    target = f"{app_name}:main"
+    pid_path = os.path.join(utils.inst_run_dir(app_path, app_name, "main"), utils.pid_file)
 
-    start_cmd = [tt_cmd, "start", app_name]
+    start_cmd = [tt_cmd, "start", target]
     rc, out = utils.run_command_and_get_output(start_cmd, cwd=app_path)
     assert rc == 0
     assert "Starting an instance" in out
-    assert (
-        utils.wait_file(
-            os.path.join(app_path, utils.run_path, app_name),
-            utils.pid_file,
-            [],
-        )
-        != ""
-    )
+    assert utils.wait_files(5, [pid_path])
 
     try:
         # Test stop with tt --no-prompt flag.
-        stop_cmd = [tt_cmd, "--no-prompt", "stop", app_name]
+        stop_cmd = [tt_cmd, "--no-prompt", "stop", target]
         rc, out = utils.run_command_and_get_output(stop_cmd, cwd=app_path)
-        assert f"Confirm stop of '{app_name}' [y/n]" not in out
+        assert f"Confirm stop of '{target}' [y/n]" not in out
         assert "has been terminated" in out
-        pid_path = os.path.join(app_path, utils.run_path, app_name, utils.pid_file)
         assert not os.path.exists(pid_path)
 
     finally:
-        stop_cmd = [tt_cmd, "stop", "-y", app_name]
+        stop_cmd = [tt_cmd, "stop", "-y", target]
         utils.run_command_and_get_output(stop_cmd, cwd=app_path)
 
 
@@ -93,7 +86,12 @@ def check_stop(tt, tt_app, target, input, is_confirm, *args):
 ################################################################
 # Simple app
 
-tt_simple_app = dict(app_path="test_app.lua", app_name="app", post_start=tt_helper.post_start_base)
+tt_simple_app = dict(
+    app_path="simple_app",
+    app_name="app",
+    instances=["main"],
+    post_start=tt_helper.post_start_base,
+)
 
 
 # Auto-confirmation (short option).
@@ -103,14 +101,14 @@ tt_simple_app = dict(app_path="test_app.lua", app_name="app", post_start=tt_help
     "tt_running_targets",
     [
         pytest.param([], id="running:none"),
-        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:*"], id="running:all"),
     ],
 )
 @pytest.mark.parametrize(
     "target",
     [
         None,
-        "app",
+        "app:*",
     ],
 )
 def test_stop_simple_app_auto_y(tt, tt_app, target):
@@ -118,9 +116,9 @@ def test_stop_simple_app_auto_y(tt, tt_app, target):
 
 
 # Auto-confirmation (long option; less variations).
-@pytest.mark.tt_app(**dict(tt_simple_app, running_targets=["app"]))
+@pytest.mark.tt_app(**dict(tt_simple_app, running_targets=["app:*"]))
 def test_stop_simple_app_auto_yes(tt, tt_app):
-    check_stop(tt, tt_app, "app", None, True, "--yes")
+    check_stop(tt, tt_app, "app:*", None, True, "--yes")
 
 
 # Various inputs.
@@ -130,12 +128,12 @@ def test_stop_simple_app_auto_yes(tt, tt_app):
     "tt_running_targets",
     [
         pytest.param([], id="running:none"),
-        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:*"], id="running:all"),
     ],
 )
 @pytest.mark.parametrize("input, is_confirmed", confirmation_input_params)
 def test_stop_simple_app_input(tt, tt_app, input, is_confirmed):
-    check_stop(tt, tt_app, "app", input, is_confirmed)
+    check_stop(tt, tt_app, "app:*", input, is_confirmed)
 
 
 ################################################################
@@ -155,7 +153,7 @@ tt_multi_inst_app = dict(
     "tt_running_targets",
     [
         pytest.param([], id="running:none"),
-        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:*"], id="running:all"),
         pytest.param(["app:master"], id="running:master"),
         pytest.param(["app:master", "app:router"], id="running:master_router"),
     ],
@@ -164,7 +162,7 @@ tt_multi_inst_app = dict(
     "target",
     [
         None,
-        "app",
+        "app:*",
         "app:master",
         "app:router",
     ],
@@ -174,9 +172,9 @@ def test_stop_multi_inst_auto_y(tt, tt_app, target):
 
 
 # Auto-confirmation (long option; less variations).
-@pytest.mark.tt_app(**dict(tt_multi_inst_app, running_target=["app"]))
+@pytest.mark.tt_app(**dict(tt_multi_inst_app, running_targets=["app:*"]))
 def test_stop_multi_inst_auto_yes(tt, tt_app):
-    check_stop(tt, tt_app, "app", None, True, "--yes")
+    check_stop(tt, tt_app, "app:*", None, True, "--yes")
 
 
 # Various inputs.
@@ -186,14 +184,14 @@ def test_stop_multi_inst_auto_yes(tt, tt_app):
     "tt_running_targets",
     [
         pytest.param([], id="running:none"),
-        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:*"], id="running:all"),
     ],
 )
 @pytest.mark.parametrize(
     "target",
     [
         None,
-        "app",
+        "app:*",
         "app:master",
         "app:router",
     ],
@@ -214,14 +212,14 @@ tt_multi_inst_app_no_script = dict(
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
-        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:*"], id="running:all"),
         pytest.param(["app:master"], id="running:master"),
     ],
 )
 @pytest.mark.parametrize(
     "target",
     [
-        "app",
+        "app:*",
         "app:master",
     ],
 )
@@ -248,7 +246,7 @@ tt_cluster_app = dict(
     "tt_running_targets",
     [
         pytest.param([], id="running:none"),
-        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:*"], id="running:all"),
         pytest.param(["app:storage-master"], id="running:storage-master"),
     ],
 )
@@ -256,7 +254,7 @@ tt_cluster_app = dict(
     "target",
     [
         None,
-        "app",
+        "app:*",
         "app:storage-master",
         "app:storage-replica",
     ],
@@ -267,9 +265,9 @@ def test_stop_cluster_auto_y(tt, tt_app, target):
 
 # Auto-confirmation (long option; less variations).
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
-@pytest.mark.tt_app(**dict(tt_cluster_app, running_targets=["app"]))
+@pytest.mark.tt_app(**dict(tt_cluster_app, running_targets=["app:*"]))
 def test_stop_cluster_auto_yes(tt, tt_app):
-    check_stop(tt, tt_app, "app", None, True, "--yes")
+    check_stop(tt, tt_app, "app:*", None, True, "--yes")
 
 
 # Various inputs.
@@ -280,14 +278,14 @@ def test_stop_cluster_auto_yes(tt, tt_app):
     "tt_running_targets",
     [
         pytest.param([], id="running:none"),
-        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:*"], id="running:all"),
     ],
 )
 @pytest.mark.parametrize(
     "target",
     [
         None,
-        "app",
+        "app:*",
         "app:storage-master",
         "app:storage-replica",
     ],
@@ -297,7 +295,8 @@ def test_stop_cluster_input(tt, tt_app, target, input, is_confirmed):
     check_stop(tt, tt_app, target, input, is_confirmed)
 
 
-# Cluster configuration is missing.
+# Cluster configuration is missing: the pair is incomplete, and the command
+# refuses to act on any instance.
 tt_cluster_app_no_config = dict(
     tt_cluster_app,
     post_start=tt_helper.post_start_no_config_decorator(tt_cluster_app["post_start"]),
@@ -305,21 +304,20 @@ tt_cluster_app_no_config = dict(
 
 
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
-@pytest.mark.slow
 @pytest.mark.tt_app(**tt_cluster_app_no_config)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
-        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:*"], id="running:all"),
         pytest.param(["app:storage-master"], id="running:storage-master"),
     ],
 )
 @pytest.mark.parametrize(
     "target",
     [
-        "app",
+        "app:*",
         "app:storage-master",
     ],
 )
 def test_stop_cluster_no_config(tt, tt_app, target):
-    check_stop(tt, tt_app, target, None, True, "-y")
+    tt_helper.check_broken_pair(tt, tt_app, "stop", "-y", target)

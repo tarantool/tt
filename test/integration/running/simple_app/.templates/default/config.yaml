@@ -1,0 +1,7 @@
+# One instance, which keeps the defaults tt gives.
+groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          main: {}

@@ -1,21 +1,20 @@
-local inst_name = os.getenv('TARANTOOL_INSTANCE_NAME')
-local app_name = os.getenv('TARANTOOL_APP_NAME')
+local fiber = require('fiber')
+local fio = require('fio')
 
-local inst = "unknown instance"
-local file_name = 'flag'
+-- tt runs the instance in the project directory, which is named after the
+-- application.
+local inst = fio.basename(fio.cwd()) .. ":" .. box.info.name
 
-if app_name ~= nil and inst_name ~= nil then
-    inst = app_name .. ":" .. inst_name
-    file_name = file_name .. "-" .. inst
-end
-
-fh = require('fio').open(file_name, {'O_WRONLY', 'O_CREAT'})
+local fh = fio.open('flag-' .. inst, {'O_WRONLY', 'O_CREAT'})
 if fh ~= nil then
     fh:close()
 end
 
-while true do
-    print("custom init file...")
-    print(inst)
-    require("fiber").sleep(1)
-end
+fiber.create(function()
+    while true do
+        print("custom init file...")
+        print(inst)
+        io.stdout:flush()
+        fiber.sleep(1)
+    end
+end)

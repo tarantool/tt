@@ -1,0 +1,20 @@
+# Three independent instances, each a replicaset of its own: they run
+# the application code and need nothing from each other.
+groups:
+  group-001:
+    replicasets:
+      rs-router:
+        instances:
+          router:
+            app:
+              file: router.init.lua
+      rs-master:
+        instances:
+          master:
+            app:
+              file: init.lua
+      rs-replica:
+        instances:
+          replica:
+            app:
+              file: init.lua

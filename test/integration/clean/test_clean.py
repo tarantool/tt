@@ -167,18 +167,18 @@ tt_multi_inst_app = dict(
     "tt_running_targets, stop_targets",
     [
         pytest.param([], [], id="running:none/none"),
-        pytest.param(["app"], [], id="running:all/none"),
-        pytest.param(["app"], ["app"], id="running:all/all"),
+        pytest.param(["app:*"], [], id="running:all/none"),
+        pytest.param(["app:*"], ["app:*"], id="running:all/all"),
         pytest.param(["app:master"], ["app:master"], id="running:master/master"),
-        pytest.param(["app"], ["app:master"], id="running:all/master"),
-        pytest.param(["app"], ["app:master", "app:router"], id="running:all/master,router"),
+        pytest.param(["app:*"], ["app:master"], id="running:all/master"),
+        pytest.param(["app:*"], ["app:master", "app:router"], id="running:all/master,router"),
     ],
 )
 @pytest.mark.parametrize(
     "target",
     [
         None,
-        "app",
+        "app:*",
         "app:master",
         "app:router",
     ],
@@ -188,9 +188,9 @@ def test_clean_multi_inst_auto_y(tt, tt_app, stop_targets, target):
 
 
 # Auto-confirmation (long option; less variations).
-@pytest.mark.tt_app(**dict(tt_multi_inst_app, running_targets=["app"]))
+@pytest.mark.tt_app(**dict(tt_multi_inst_app, running_targets=["app:*"]))
 def test_clean_multi_inst_auto_yes(tt, tt_app):
-    check_clean(tt, tt_app, ["app"], "app", "--force")
+    check_clean(tt, tt_app, ["app:*"], "app:*", "--force")
 
 
 # Instance script is missing.
@@ -204,20 +204,20 @@ tt_multi_inst_app_no_script = dict(
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
-        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:*"], id="running:all"),
     ],
 )
 @pytest.mark.parametrize(
     "stop_targets",
     [
         pytest.param([], id="stopped:none"),
-        pytest.param(["app"], id="stopped:all"),
+        pytest.param(["app:*"], id="stopped:all"),
     ],
 )
 @pytest.mark.parametrize(
     "target",
     [
-        "app",
+        "app:*",
         "app:master",
     ],
 )
@@ -244,21 +244,21 @@ tt_cluster_app = dict(
     "tt_running_targets, stop_targets",
     [
         pytest.param([], [], id="running:none/none"),
-        pytest.param(["app"], [], id="running:all/none"),
-        pytest.param(["app"], ["app"], id="running:all/all"),
+        pytest.param(["app:*"], [], id="running:all/none"),
+        pytest.param(["app:*"], ["app:*"], id="running:all/all"),
         pytest.param(
             ["app:storage-master"],
             ["app:storage-master"],
             id="running:storage-master/storage-master",
         ),
-        pytest.param(["app"], ["app:storage-master"], id="running:all/storage-master"),
+        pytest.param(["app:*"], ["app:storage-master"], id="running:all/storage-master"),
     ],
 )
 @pytest.mark.parametrize(
     "target",
     [
         None,
-        "app",
+        "app:*",
         "app:storage-master",
         "app:storage-replica",
     ],
@@ -269,12 +269,13 @@ def test_clean_cluster_auto_y(tt, tt_app, stop_targets, target):
 
 # Auto-confirmation (long option; less variations).
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
-@pytest.mark.tt_app(**dict(tt_cluster_app, running_targets=["app"]))
+@pytest.mark.tt_app(**dict(tt_cluster_app, running_targets=["app:*"]))
 def test_clean_cluster_auto_yes(tt, tt_app):
-    check_clean(tt, tt_app, ["app"], "app", "--force")
+    check_clean(tt, tt_app, ["app:*"], "app:*", "--force")
 
 
-# Cluster configuration is missing.
+# Cluster configuration is missing: the pair is incomplete, and the command
+# refuses to act on any instance.
 tt_cluster_app_no_config = dict(
     tt_cluster_app,
     post_start=tt_helper.post_start_no_config_decorator(tt_cluster_app["post_start"]),
@@ -282,21 +283,20 @@ tt_cluster_app_no_config = dict(
 
 
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
-@pytest.mark.slow
 @pytest.mark.tt_app(**tt_cluster_app_no_config)
 @pytest.mark.parametrize(
-    "tt_running_targets, stop_targets",
+    "tt_running_targets",
     [
-        pytest.param(["app"], ["app"], id="running:all/all"),
-        pytest.param(["app"], ["app:storage-master"], id="running:all/storage-master"),
+        pytest.param(["app:*"], id="running:all"),
+        pytest.param(["app:storage-master"], id="running:storage-master"),
     ],
 )
 @pytest.mark.parametrize(
     "target",
     [
-        "app",
+        "app:*",
         "app:storage-master",
     ],
 )
-def test_clean_cluster_no_config(tt, tt_app, stop_targets, target):
-    check_clean(tt, tt_app, stop_targets, target, "-f")
+def test_clean_cluster_no_config(tt, tt_app, target):
+    tt_helper.check_broken_pair(tt, tt_app, "clean", "-f", target)

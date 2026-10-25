@@ -69,12 +69,12 @@ class Tt:
 
 
 class TtApp:
+    """A project the instance commands act on: app_path is the project
+    directory, instances the <app>:<inst> targets of its instances."""
+
     def __init__(self, tt, app_path, instances):
         self.tt = tt
-        if os.path.isdir(app_path):
-            self.__work_dir = app_path
-        else:
-            self.__work_dir = os.path.dirname(app_path)
+        self.__work_dir = app_path
         self.__instances = instances
 
     @property
@@ -86,15 +86,15 @@ class TtApp:
         return self.__instances
 
     def instances_of(self, *targets):
+        """Return the instances the targets select: None selects every
+        instance, <app>:* every instance of app."""
+
         def is_instance_of(inst, *targets):
-            app_name, sep, _ = inst.partition(":")
+            app_name, _, _ = inst.partition(":")
             for target in targets:
                 if target is None or target == inst:
                     return True
-                if sep == "":
-                    continue
-                target_app_name, target_sep, _ = target.partition(":")
-                if target_sep == "" and target_app_name == app_name:
+                if target == f"{app_name}:*":
                     return True
             return False
 
@@ -103,11 +103,12 @@ class TtApp:
     def path(self, *paths):
         return os.path.join(self.__work_dir, *paths)
 
-    def inst_path(self, inst, *paths):
-        app_name, sep, inst_name = inst.partition(":")
-        if sep == "":
-            inst_name = app_name
-        return os.path.join(self.path(*paths), inst_name)
+    def inst_path(self, inst, kind):
+        """Return the directory of the runtime artifacts of kind,
+        utils.run_path, lib_path or log_path, of the instance inst, an
+        <app>:<inst> target, under the project root."""
+        app_name, _, inst_name = inst.partition(":")
+        return utils.inst_dir(self.__work_dir, kind, app_name, inst_name)
 
     def run_path(self, inst, *paths):
         return os.path.join(self.inst_path(inst, utils.run_path), *paths)
@@ -127,8 +128,7 @@ class TtCluster:
         p = self.__tt.run("create", "cluster", "--name", self.__app_name, input=input)
         assert p.returncode == 0
         app_dir = Path(self.__tt.path(self.__app_name))
-        if not (app_dir / utils.config_name).exists():
-            utils.create_tt_config(app_dir)
+        utils.make_project(app_dir)
         self.__tt.work_dir = app_dir
         self.__instances = None
 
@@ -153,7 +153,7 @@ class TtCluster:
 
     @property
     def config_path(self):
-        return self.__tt.work_dir / "config.yaml"
+        return self.__tt.work_dir / utils.cluster_config_file
 
     @property
     def config(self):
@@ -165,16 +165,16 @@ class TtCluster:
         self.config_path.write_text(yaml.dump(config))
 
     def start(self, *args):
-        return self.__tt.run("start", self.__app_name, *args)
+        return self.__tt.run("start", f"{self.__app_name}:*", *args)
 
     def stop(self, *args):
-        return self.__tt.run("stop", self.__app_name, *args)
+        return self.__tt.run("stop", f"{self.__app_name}:*", *args)
 
     def kill(self, *args):
-        return self.__tt.run("kill", self.__app_name, *args)
+        return self.__tt.run("kill", f"{self.__app_name}:*", *args)
 
     def status(self, inst=None):
-        target = self.__app_name if inst is None else f"{self.app_name}:{inst}"
+        target = f"{self.__app_name}:*" if inst is None else f"{self.app_name}:{inst}"
         p = self.__tt.run("status", target)
         assert p.returncode == 0
         return utils.extract_status(p.stdout)
@@ -305,9 +305,40 @@ def post_start_no_script_decorator(func):
 def post_start_no_config_decorator(func):
     def wrapper_func(tt_app):
         func(tt_app)
-        # 'no_config' decoration.
+        # 'no_config' decoration: the pair loses its cluster config.
         flag_files = [tt_app.run_path(inst, "flag") for inst in tt_app.running_instances]
         assert utils.wait_files(5, flag_files)
-        os.remove(tt_app.path("config.yaml"))
+        os.rename(
+            tt_app.path(utils.cluster_config_file),
+            tt_app.path(utils.cluster_config_file + ".removed"),
+        )
 
     return wrapper_func
+
+
+def restore_config(tt_app):
+    """Restore the cluster config post_start_no_config_decorator removed,
+    so that the instances can be stopped."""
+    removed = tt_app.path(utils.cluster_config_file + ".removed")
+    if os.path.exists(removed):
+        os.rename(removed, tt_app.path(utils.cluster_config_file))
+
+
+def check_broken_pair(tt, tt_app, *args, input=None):
+    """Run tt args on tt_app, whose pair has lost its cluster config, and
+    check that the command refuses with a clear error, exit code 1, and acts
+    on no instance: an instance command needs the whole pair."""
+    orig_status = {}
+    for inst in tt_app.instances:
+        pid_file = tt_app.run_path(inst, utils.pid_file)
+        orig_status[inst] = os.path.exists(pid_file)
+
+    rc, out = tt.exec(*args, input=input)
+    assert rc == 1
+    assert "incomplete pair" in out
+
+    for inst in tt_app.instances:
+        pid_file = tt_app.run_path(inst, utils.pid_file)
+        assert os.path.exists(pid_file) == orig_status[inst]
+
+    restore_config(tt_app)

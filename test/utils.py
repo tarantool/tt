@@ -19,6 +19,15 @@ var_path = "var"
 lib_path = os.path.join(var_path, "lib")
 run_path = os.path.join(var_path, "run")
 log_path = os.path.join(var_path, "log")
+# The root of the project scope, which the runtime artifacts of the
+# instances of a project go under: <project>/.tarantool/var/{lib,log,run}/
+# <app>/<inst>/.
+project_root = ".tarantool"
+# The pair of instances description and cluster config a project runs from
+# without --template.
+template_dir = os.path.join(".templates", "default")
+instances_file = os.path.join(template_dir, "instances.yaml")
+cluster_config_file = os.path.join(template_dir, "config.yaml")
 config_name = "tt.yaml"
 control_socket = "tarantool.control"
 pid_file = "tt.pid"
@@ -83,6 +92,64 @@ def create_tt_config(config_path: Path | str, config: dict | None = None) -> Pat
         yaml.dump({} if config is None else config, f)
 
     return config_path
+
+
+def inst_dir(project_dir, kind, app_name, inst_name):
+    """Return the directory of the runtime artifacts of kind, utils.run_path,
+    lib_path or log_path, of the instance inst_name of the application
+    app_name, which runs from the project in project_dir."""
+    return os.path.join(project_dir, project_root, kind, app_name, inst_name)
+
+
+def inst_run_dir(project_dir, app_name, inst_name):
+    """Return the directory of the pid file and the sockets of an instance of
+    the project in project_dir."""
+    return inst_dir(project_dir, run_path, app_name, inst_name)
+
+
+def inst_log_dir(project_dir, app_name, inst_name):
+    """Return the directory of tt.log of an instance of the project in
+    project_dir."""
+    return inst_dir(project_dir, log_path, app_name, inst_name)
+
+
+def inst_lib_dir(project_dir, app_name, inst_name):
+    """Return the data directory of an instance of the project in
+    project_dir."""
+    return inst_dir(project_dir, lib_path, app_name, inst_name)
+
+
+def make_project(app_dir, instances=None, config=None):
+    """Lay the application in app_dir out as a project: the instances
+    description and the cluster config it runs from go into the default
+    template, .templates/default/. The files already in app_dir, as tt
+    create leaves them, instances.yml and config.yaml, are moved there;
+    instances and config, a dict each, are written there instead when given.
+    tt.yaml next to them is removed: the instance commands do not read it.
+    Returns the path of the cluster config."""
+    app_dir = Path(app_dir)
+    pair_dir = app_dir / template_dir
+    pair_dir.mkdir(parents=True, exist_ok=True)
+
+    for name, content, dst in [
+        ("instances", instances, pair_dir / "instances.yaml"),
+        ("config", config, pair_dir / "config.yaml"),
+    ]:
+        if content is not None:
+            with open(dst, "w") as f:
+                yaml.dump(content, f)
+            continue
+        for ext in ("yml", "yaml"):
+            src = app_dir / f"{name}.{ext}"
+            if src.exists():
+                shutil.move(src, dst)
+                break
+
+    for name in (config_name, "tt.yml"):
+        if (app_dir / name).exists():
+            (app_dir / name).unlink()
+
+    return pair_dir / "config.yaml"
 
 
 def modules_path_env(*dirs: Path | str) -> dict[str, str]:
@@ -156,13 +223,6 @@ def wait_file(dir_name, file_pattern, exclude_list, timeout_sec=10):
     return ""
 
 
-def kill_child_process(pid=psutil.Process().pid):
-    parent = psutil.Process(int(pid))
-    procs = parent.children()
-
-    return kill_procs(procs)
-
-
 def find_tt_processes(tt_cmd):
     executable = os.path.realpath(tt_cmd)
     return [proc for proc in psutil.process_iter(["exe"]) if proc.info["exe"] == executable]
@@ -177,29 +237,6 @@ def kill_procs(procs):
         proc.kill()
 
     return len(procs)
-
-
-def wait_instance_start(log_path, timeout_sec=10):
-    started = False
-    iter_timeout_sec = 0.05
-
-    iter_count = 0
-    while not started:
-        if (iter_count * iter_timeout_sec) > timeout_sec:
-            break
-
-        time.sleep(iter_timeout_sec)
-
-        with open(log_path, "r") as log_file:
-            lines = log_file.readlines()
-            for line in lines:
-                if "started" in line:
-                    started = True
-                    break
-
-        iter_count = iter_count + 1
-
-    return started
 
 
 def wait_instance_stop(pid_path, timeout_sec=5):

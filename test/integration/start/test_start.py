@@ -57,7 +57,7 @@ tt_multi_inst_app = dict(
     "tt_running_targets",
     [
         pytest.param([], id="running:none"),
-        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:*"], id="running:all"),
         pytest.param(["app:master"], id="running:master"),
         pytest.param(["app:master", "app:router"], id="running:master_router"),
     ],
@@ -66,7 +66,7 @@ tt_multi_inst_app = dict(
     "target",
     [
         None,
-        "app",
+        "app:*",
         "app:master",
         "app:router",
     ],
@@ -94,7 +94,7 @@ tt_cluster_app = dict(
     "tt_running_targets",
     [
         pytest.param([], id="running:none"),
-        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:*"], id="running:all"),
         pytest.param(["app:storage-master"], id="running:storage-master"),
     ],
 )
@@ -102,7 +102,7 @@ tt_cluster_app = dict(
     "target",
     [
         None,
-        "app",
+        "app:*",
         "app:storage-master",
         "app:storage-replica",
     ],
