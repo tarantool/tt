@@ -393,3 +393,41 @@ func lockInChild(t *testing.T, path string) int {
 
 	return cmd.Process.Pid
 }
+
+// TestAlive pins how a pid file is judged without owning it: it names a live
+// process while that process runs, and no process once it is gone, when the
+// file is missing or when it holds no pid.
+func TestAlive(t *testing.T) {
+	dir := t.TempDir()
+
+	pid, live, err := Alive(filepath.Join(dir, "missing.pid"))
+	require.NoError(t, err)
+	assert.False(t, live)
+	assert.Zero(t, pid)
+
+	garbage := filepath.Join(dir, "garbage.pid")
+	require.NoError(t, os.WriteFile(garbage, []byte("not a pid"), 0o600))
+
+	_, live, err = Alive(garbage)
+	require.NoError(t, err)
+	assert.False(t, live)
+
+	path := filepath.Join(dir, "x.pid")
+	cmd := sleeper(t)
+
+	owned, err := Acquire(path, cmd.Process.Pid)
+	require.NoError(t, err)
+	require.NoError(t, owned.Keep())
+
+	pid, live, err = Alive(path)
+	require.NoError(t, err)
+	assert.True(t, live)
+	assert.Equal(t, cmd.Process.Pid, pid)
+
+	require.NoError(t, cmd.Process.Kill())
+	require.Error(t, cmd.Wait())
+
+	_, live, err = Alive(path)
+	require.NoError(t, err)
+	assert.False(t, live, "the process the file names is gone")
+}
