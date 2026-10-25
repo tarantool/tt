@@ -518,8 +518,11 @@ for machine-readable output.
   `tt binary install`/`switch`, and by a with-deps `tt package install` to the
   bundled runtime when the project selects none), and the first `tarantool` on
   `PATH` otherwise, with `TT_USE_SYSTEM_TARANTOOL=1` forcing `PATH` either
-  way; `bin_dir` of `tt.yaml` plays no part. `tt test` and the Tarantool
-  modules get through the SDK follow the same rule. Arguments still reach
+  way; `bin_dir` of `tt.yaml` plays no part. An installed version of an
+  application (`<root>/versions/<app>/<app>_<ver>` of the user or system
+  scope, or its `<root>/apps/<app>` link) is no project: it runs on the
+  tarantool its lock names in that scope, never on `PATH`. `tt test` and the
+  Tarantool modules get through the SDK follow the same rule. Arguments still reach
   Tarantool untouched,
   `--` included, and tt still replaces itself with the interpreter, so signals
   and the exit code are Tarantool's own.

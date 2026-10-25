@@ -321,6 +321,29 @@ func TestFindProjectInstalledVersion(t *testing.T) {
 	assert.False(t, installed)
 }
 
+func TestFindInstallation(t *testing.T) {
+	userRoot := filepath.Join(t.TempDir(), "user")
+	systemRoot := filepath.Join(t.TempDir(), "system")
+	t.Setenv(scope.UserRootEnv, userRoot)
+	t.Setenv(scope.SystemRootEnv, systemRoot)
+
+	for root, user := range map[string]bool{userRoot: true, systemRoot: false} {
+		version, link := installedVersion(t, root)
+
+		for _, start := range []string{version, link} {
+			installation, found, err := scope.FindInstallation(start)
+			require.NoError(t, err, start)
+			assert.True(t, found, start)
+			assert.Equal(t, scope.Installation{Root: root, User: user}, installation, start)
+		}
+	}
+
+	installation, found, err := scope.FindInstallation(t.TempDir())
+	require.NoError(t, err)
+	assert.False(t, found)
+	assert.Equal(t, scope.Installation{}, installation)
+}
+
 func TestFindProjectInstalledVersionLinkedRoot(t *testing.T) {
 	// The root itself is reached through a link, as /opt -> /data/opt: the
 	// version is recognised by its resolved path as well.

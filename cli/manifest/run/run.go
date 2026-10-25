@@ -9,7 +9,9 @@
 // tarantool .tarantool/bin/tarantool selects, which tt binary sets and a
 // with-deps tt package install sets to the bundled runtime when the project
 // has none, and otherwise the first on PATH; TT_USE_SYSTEM_TARANTOOL forces
-// PATH. Handing over is a real exec: the process image is replaced, so
+// PATH. An installed version of an application in the user or system scope is
+// no project: it runs on the tarantool its lock names in that scope. Handing
+// over is a real exec: the process image is replaced, so
 // signals, the terminal and the exit code pass through by construction rather
 // than by being forwarded.
 //
@@ -29,6 +31,7 @@ import (
 
 	"github.com/tarantool/tt/v3/cli/tarantool"
 	"github.com/tarantool/tt/v3/internal/binary"
+	"github.com/tarantool/tt/v3/internal/scope"
 )
 
 // Names the project layout fixes.
@@ -97,15 +100,51 @@ func ProjectRoot(dir string) (string, error) {
 // tarantool of its own selects the bundled one there, so a package installed
 // that way runs on the runtime it was packed with.
 //
+// A root inside an installed version, <root>/versions/<app>/<app>_<ver> or the
+// <root>/apps/<app> link to it, is not a project: it runs on the tarantool its
+// lock names in its own scope, as the instance commands start it, rather than
+// on whatever PATH offers. The version is read through the link once, here,
+// so the choice is the version the link names at this moment.
+//
 // The warnings the choice comes with, such as a project tarantool that is not
 // the one the lock bundles, are in the result, for the caller to report.
 func Tarantool(root string) (tarantool.Executable, error) {
-	exe, err := tarantool.Resolve(tarantool.App{Scope: binary.ScopeProject, Dir: root})
+	app, err := tarantoolApp(root)
+	if err != nil {
+		return tarantool.Executable{}, err
+	}
+
+	exe, err := tarantool.Resolve(app)
 	if err != nil {
 		return tarantool.Executable{}, fmt.Errorf("choosing the tarantool of %s: %w", root, err)
 	}
 
 	return exe, nil
+}
+
+// tarantoolApp describes the application at root to the resolver: a project,
+// or the installed version root is in, in the scope that installed it.
+func tarantoolApp(root string) (tarantool.App, error) {
+	installation, found, err := scope.FindInstallation(root)
+	if err != nil {
+		return tarantool.App{}, fmt.Errorf("choosing the tarantool of %s: %w", root, err)
+	}
+
+	if !found {
+		return tarantool.App{Scope: binary.ScopeProject, Dir: root}, nil
+	}
+
+	version, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return tarantool.App{}, fmt.Errorf("choosing the tarantool of %s: %w", root, err)
+	}
+
+	appScope := binary.ScopeSystem
+	if installation.User {
+		appScope = binary.ScopeUser
+	}
+
+	return tarantool.App{Scope: appScope, Dir: version}, nil
 }
 
 // isExecutableFile reports whether path is a regular file anyone may execute.
