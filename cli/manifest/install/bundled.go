@@ -27,11 +27,11 @@ import (
 //
 // An installation is named by the version the lock records for it, so the
 // name and the lock agree by construction and the resolver finds what install
-// put there. That version is what pack read from the bundled binary, and it
-// may be longer than the one tt binary install takes on its command line
-// (3.8.1-0-ge643f88a5e0c against 3.8.1); the two are different installations
-// of the same release. Versions are not normalised here: which spelling names
-// an installation is not decided yet.
+// put there. Pack records a Community build of a release tag as the release
+// (decision 26), the name tt binary install gives it, so such a runtime and
+// one tt binary installed share an installation. Any other build keeps the
+// full version it reports, and is installed under that; install takes the
+// lock as it is and normalises nothing itself.
 //
 // Only an installation that does not exist yet is laid down. One that exists,
 // whoever installed it, is the same version and is left alone: replacing it

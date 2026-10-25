@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -48,6 +49,9 @@ type runtimeSource struct {
 	// Fallback marks a component resolved from the active tt environment
 	// rather than the runtime cache, which is worth warning about.
 	Fallback bool
+	// Flavor is the build's flavor, "ce" or "ee": the cache tree it was found
+	// in, or what the active binary reported. Empty when undetermined.
+	Flavor string
 }
 
 // RuntimeOptions carries what bundleRuntime needs to find and place runtimes.
@@ -166,7 +170,7 @@ func bundleRuntime(stageDir string, req RuntimeOptions) (BundledVersions, error)
 
 		switch want.name {
 		case runtimeTarantool:
-			bundled.Tarantool = src.Version
+			bundled.Tarantool = lockedTarantoolVersion(src)
 		case runtimeTt:
 			bundled.Tt = src.Version
 		case runtimeTcm:
@@ -175,6 +179,32 @@ func bundleRuntime(stageDir string, req RuntimeOptions) (BundledVersions, error)
 	}
 
 	return bundled, nil
+}
+
+// releaseBuild matches the version a Community tarantool built from a release
+// tag reports: the release, zero commits after the tag and the commit hash.
+var releaseBuild = regexp.MustCompile(`^(\d+\.\d+\.\d+)-0-g[0-9a-f]+$`)
+
+// lockedTarantoolVersion is the version the lock records for the bundled
+// tarantool (decision 26). A Community build of a release tag,
+// 3.8.1-0-ge643f88a5e0c, is recorded as the release, 3.8.1: the name
+// tt binary install tarantool 3.8.1 installs it under, so tt package install
+// lays the bundled runtime into versions/ under the same name instead of a
+// second one, and an install hint built from the lock names a version that
+// can be installed. A build that is not on a tag keeps the full version, as it
+// is no release; an Enterprise version, or one of an undetermined flavor, is
+// kept as reported.
+func lockedTarantoolVersion(src runtimeSource) string {
+	if src.Flavor != flavorCE {
+		return src.Version
+	}
+
+	match := releaseBuild.FindStringSubmatch(src.Version)
+	if match == nil {
+		return src.Version
+	}
+
+	return match[1]
 }
 
 // activeBinary describes the running tt environment's copy of one component,
@@ -216,14 +246,14 @@ func resolveRuntime(
 	flavor := constraint.EffectiveFlavor()
 	accepted := acceptedFlavors(flavor)
 
-	for _, f := range accepted {
-		dir, ver, ok, err := findInCache(req.CacheDir, name, f, constraint)
+	for _, tree := range accepted {
+		dir, ver, ok, err := findInCache(req.CacheDir, name, tree, constraint)
 		if err != nil {
 			return runtimeSource{}, err
 		}
 
 		if ok {
-			return runtimeSource{Name: name, Version: ver, Dir: dir}, nil
+			return runtimeSource{Name: name, Version: ver, Dir: dir, Flavor: tree}, nil
 		}
 	}
 
@@ -239,6 +269,7 @@ func resolveRuntime(
 			Binary:   active.path,
 			Prefix:   active.prefix,
 			Fallback: true,
+			Flavor:   active.flavor,
 		}, nil
 	}
 

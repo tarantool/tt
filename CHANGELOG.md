@@ -148,7 +148,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `[ee]` one; a Community build satisfies only `[ce]`. The bundled Tarantool's
   license file travels with it when the build ships one, wherever it sits
   relative to the binary; the Enterprise SDK ships none, and the pack then says
-  so and continues.
+  so and continues. A Community Tarantool built from a release tag
+  (`3.8.1-0-ge643f88a5e0c`, zero commits after the tag) is recorded in
+  `bundled_tarantool_version` as the release, `3.8.1` — the name
+  `tt binary install tarantool 3.8.1` installs it under; a build off a tag
+  keeps its full version, and Enterprise versions are recorded as reported.
   Archives are byte-reproducible for a given commit; set `SOURCE_DATE_EPOCH` to
   pin the build timestamp explicitly.
 - `tt package install`: unpack a `.tt` archive into a scope and bring the tree
@@ -161,9 +165,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `include/` — into `versions/` of the scope root, unless that installation
   exists already, so `tt binary list` shows it and applications bundling the
   same runtime share it. The installation is named by the version the lock
-  records (`bundled_tarantool_version` and so on), which can be longer than the
-  one `tt binary install` takes (`3.8.1-0-ge643f88a5e0c` against `3.8.1`), so
-  the same release may end up installed twice. In the project scope that is
+  records (`bundled_tarantool_version` and so on), so a release Community
+  Tarantool shares the installation `tt binary install` makes, while a build off
+  a tag, an Enterprise build, tt and TCM are installed under the full version
+  they report and may sit next to a `tt binary` installation of the same
+  release. In the project scope that is
   `.tarantool/versions/`, and there is no `_runtime/` in the project any more;
   a project that selects no tarantool yet gets the bundled one selected in
   `.tarantool/bin` (and `.tarantool/include`), one that does keeps its choice
