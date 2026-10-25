@@ -1,7 +1,3 @@
-local fiber = require('fiber')
-
+-- The config of the instance configures everything; box.cfg() without
+-- arguments changes nothing.
 box.cfg()
-
-while true do
-    fiber.sleep(5)
-end

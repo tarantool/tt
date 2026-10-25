@@ -7,26 +7,31 @@ from contextlib import contextmanager
 import pytest
 from async_reader import AsyncProcessReader
 
-from utils import config_name
+from utils import (
+    cluster_config_file,
+    inst_log_dir,
+    instances_file,
+    project_root,
+)
 
 
 @pytest.fixture(scope="function")
 def mock_env_dir(tmp_path):
     app = os.path.join(tmp_path, "app0")
-    os.makedirs(app, 0o755)
-    with open(os.path.join(app, config_name), "w") as f:
-        f.write("")
+    os.makedirs(os.path.join(app, os.path.dirname(instances_file)), 0o755)
 
-    with open(os.path.join(app, "instances.yml"), "w") as f:
+    with open(os.path.join(app, instances_file), "w") as f:
         for i in range(4):
             f.write(f"inst{i}:\n")
-            os.makedirs(os.path.join(app, "var", "log", f"inst{i}"), 0o755)
+            os.makedirs(inst_log_dir(app, "app0", f"inst{i}"), 0o755)
 
-    with open(os.path.join(app, "init.lua"), "w") as f:
-        f.write("")
+    with open(os.path.join(app, cluster_config_file), "w") as f:
+        f.write("groups:\n  g:\n    replicasets:\n      r:\n        instances:\n")
+        for i in range(4):
+            f.write(f"          inst{i}: {{}}\n")
 
     for i in range(3):  # Skip the log for inst3.
-        with open(os.path.join(app, "var", "log", f"inst{i}", "tt.log"), "w") as f:
+        with open(os.path.join(inst_log_dir(app, "app0", f"inst{i}"), "tt.log"), "w") as f:
             f.writelines([f"line {j}\n" for j in range(20)])
 
     return app
@@ -80,7 +85,7 @@ def wait_for_watcher(reader, path, output_prefix):
 
 
 def log_path(root, instance):
-    return os.path.join(root, "var", "log", instance, "tt.log")
+    return os.path.join(inst_log_dir(root, "app0", instance), "tt.log")
 
 
 def test_log_output_default_run(tt_cmd, mock_env_dir):
@@ -171,7 +176,7 @@ def test_log_specific_instance(tt_cmd, mock_env_dir):
 
 
 def test_log_specific_app(tt_cmd, mock_env_dir):
-    cmd = [tt_cmd, "log", "app0"]
+    cmd = [tt_cmd, "log", "app0:*"]
     process = subprocess.Popen(
         cmd,
         cwd=mock_env_dir,
@@ -203,8 +208,24 @@ def test_log_negative_lines_num(tt_cmd, mock_env_dir):
     assert "negative" in output
 
 
+def test_log_bare_app(tt_cmd, mock_env_dir):
+    cmd = [tt_cmd, "log", "app0"]
+    process = subprocess.Popen(
+        cmd,
+        cwd=mock_env_dir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+
+    assert process.wait(10) == 1
+    output = process.stdout.read()
+
+    assert "use app0:<instance> or app0:*" in output
+
+
 def test_log_no_app(tt_cmd, mock_env_dir):
-    cmd = [tt_cmd, "log", "no_app"]
+    cmd = [tt_cmd, "log", "no_app:*"]
     process = subprocess.Popen(
         cmd,
         cwd=mock_env_dir,
@@ -216,7 +237,8 @@ def test_log_no_app(tt_cmd, mock_env_dir):
     assert process.wait(10) != 0
     output = process.stdout.read()
 
-    assert "can't collect instance information for no_app" in output
+    assert "application not found" in output
+    assert '"no_app" is not installed' in output
 
 
 def test_log_no_inst(tt_cmd, mock_env_dir):
@@ -232,7 +254,7 @@ def test_log_no_inst(tt_cmd, mock_env_dir):
     assert process.wait(10) != 0
     output = process.stdout.read()
 
-    assert "app0:inst4: instance(s) not found" in output
+    assert 'instance not found: "inst4" of "app0"' in output
 
 
 def test_log_output_default_follow(tt_cmd, mock_env_dir):
@@ -375,7 +397,7 @@ def test_log_dir_removed_after_follow(tt_cmd, mock_env_dir):
             ],
         )
 
-        var_dir = os.path.join(mock_env_dir, "var")
+        var_dir = os.path.join(mock_env_dir, project_root, "var")
         assert os.path.exists(var_dir)
         shutil.rmtree(var_dir)
 

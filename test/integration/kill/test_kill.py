@@ -33,8 +33,8 @@ def check_kill(tt, tt_app, target, input, is_confirm, *args):
         confirmation_target = (
             "all instances"
             if target is None
-            else f"instances of {target}"
-            if target.find(":") == -1
+            else f"instances of {target.removesuffix(':*')}"
+            if target.endswith(":*")
             else f"{target} instance"
         )
         assert f"Kill {confirmation_target}?" in out
@@ -79,7 +79,7 @@ tt_multi_inst_app = dict(
     "tt_running_targets",
     [
         pytest.param([], id="running:none"),
-        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:*"], id="running:all"),
         pytest.param(["app:master"], id="running:master"),
         pytest.param(["app:master", "app:router"], id="running:master_router"),
     ],
@@ -88,7 +88,7 @@ tt_multi_inst_app = dict(
     "target",
     [
         None,
-        "app",
+        "app:*",
         "app:master",
         "app:router",
     ],
@@ -98,9 +98,9 @@ def test_kill_multi_inst_auto_y(tt, tt_app, target):
 
 
 # Auto-confirmation (long option; less variations).
-@pytest.mark.tt_app(**dict(tt_multi_inst_app, running_target=["app"]))
+@pytest.mark.tt_app(**dict(tt_multi_inst_app, running_targets=["app:*"]))
 def test_kill_multi_inst_auto_yes(tt, tt_app):
-    check_kill(tt, tt_app, "app", None, True, "--force")
+    check_kill(tt, tt_app, "app:*", None, True, "--force")
 
 
 # Various inputs.
@@ -110,14 +110,14 @@ def test_kill_multi_inst_auto_yes(tt, tt_app):
     "tt_running_targets",
     [
         pytest.param([], id="running:none"),
-        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:*"], id="running:all"),
     ],
 )
 @pytest.mark.parametrize(
     "target",
     [
         None,
-        "app",
+        "app:*",
         "app:master",
         "app:router",
     ],
@@ -139,14 +139,14 @@ tt_multi_inst_app_no_script = dict(
     "tt_running_targets",
     [
         pytest.param([], id="running:none"),
-        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:*"], id="running:all"),
         pytest.param(["app:master"], id="running:master"),
     ],
 )
 @pytest.mark.parametrize(
     "target",
     [
-        "app",
+        "app:*",
         "app:master",
     ],
 )
@@ -173,7 +173,7 @@ tt_cluster_app = dict(
     "tt_running_targets",
     [
         pytest.param([], id="running:none"),
-        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:*"], id="running:all"),
         pytest.param(["app:storage-master"], id="running:storage-master"),
     ],
 )
@@ -181,7 +181,7 @@ tt_cluster_app = dict(
     "target",
     [
         None,
-        "app",
+        "app:*",
         "app:storage-master",
         "app:storage-replica",
     ],
@@ -192,9 +192,9 @@ def test_kill_cluster_auto_y(tt, tt_app, target):
 
 # Auto-confirmation (long option; less variations).
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
-@pytest.mark.tt_app(**dict(tt_cluster_app, running_targets=["app"]))
+@pytest.mark.tt_app(**dict(tt_cluster_app, running_targets=["app:*"]))
 def test_kill_cluster_auto_yes(tt, tt_app):
-    check_kill(tt, tt_app, "app", None, True, "--force")
+    check_kill(tt, tt_app, "app:*", None, True, "--force")
 
 
 # Various inputs.
@@ -205,14 +205,14 @@ def test_kill_cluster_auto_yes(tt, tt_app):
     "tt_running_targets",
     [
         pytest.param([], id="running:none"),
-        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:*"], id="running:all"),
     ],
 )
 @pytest.mark.parametrize(
     "target",
     [
         None,
-        "app",
+        "app:*",
         "app:storage-master",
         "app:storage-replica",
     ],
@@ -222,7 +222,8 @@ def test_kill_cluster_input(tt, tt_app, target, input, is_confirmed):
     check_kill(tt, tt_app, target, input, is_confirmed)
 
 
-# Cluster configuration is missing.
+# Cluster configuration is missing: the pair is incomplete, and the command
+# refuses to act on any instance.
 tt_cluster_app_no_config = dict(
     tt_cluster_app,
     post_start=tt_helper.post_start_no_config_decorator(tt_cluster_app["post_start"]),
@@ -235,16 +236,16 @@ tt_cluster_app_no_config = dict(
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
-        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:*"], id="running:all"),
         pytest.param(["app:storage-master"], id="running:storage-master"),
     ],
 )
 @pytest.mark.parametrize(
     "target",
     [
-        "app",
+        "app:*",
         "app:storage-master",
     ],
 )
 def test_kill_cluster_no_config(tt, tt_app, target):
-    check_kill(tt, tt_app, target, None, True, "-f")
+    tt_helper.check_broken_pair(tt, tt_app, "kill", "-f", target)

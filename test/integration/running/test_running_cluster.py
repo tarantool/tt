@@ -7,14 +7,15 @@ import pytest
 import yaml
 
 from utils import (
-    config_name,
+    cluster_config_file,
     control_socket,
     extract_status,
     get_tarantool_version,
-    lib_path,
-    log_path,
+    inst_lib_dir,
+    inst_log_dir,
+    inst_run_dir,
+    instances_file,
     run_command_and_get_output,
-    run_path,
     wait_event,
     wait_files,
     wait_pid_disappear,
@@ -37,7 +38,7 @@ def start_application(cmd, workdir, app_name, instances):
 
 
 def stop_application(tt_cmd, workdir, app_name, instances):
-    stop_cmd = [tt_cmd, "stop", "-y", app_name]
+    stop_cmd = [tt_cmd, "stop", "-y", f"{app_name}:*"]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=workdir)
     assert stop_rc == 0
 
@@ -46,7 +47,9 @@ def stop_application(tt_cmd, workdir, app_name, instances):
             rf"The Instance {app_name}:{inst} \(PID = \d+\) has been terminated.",
             stop_out,
         )
-        assert not os.path.exists(os.path.join(workdir, run_path, inst, "tarantool.pid"))
+        assert not os.path.exists(
+            os.path.join(inst_run_dir(workdir, app_name, inst), "tarantool.pid"),
+        )
 
 
 def wait_cluster_started(tt_cmd, workdir, app_name, instances, inst_conf):
@@ -58,7 +61,7 @@ def wait_cluster_started(tt_cmd, workdir, app_name, instances, inst_conf):
     assert wait_files(5, files)
 
     def are_all_box_statuses_running():
-        status_cmd = [tt_cmd, "status", app_name]
+        status_cmd = [tt_cmd, "status", f"{app_name}:*"]
         status_rc, status_out = run_command_and_get_output(status_cmd, cwd=workdir)
         assert status_rc == 0
         status_info = extract_status(status_out)
@@ -71,20 +74,20 @@ def wait_cluster_started(tt_cmd, workdir, app_name, instances, inst_conf):
     assert wait_event(5, are_all_box_statuses_running)
 
 
-def default_inst_conf(workdir, _app_name, inst):
+def default_inst_conf(workdir, app_name, inst):
     return {
-        "pid_file": os.path.join(workdir, run_path, inst, "tarantool.pid"),
-        "log_file": os.path.join(workdir, log_path, inst, "tt.log"),
-        "console_socket": os.path.join(workdir, run_path, inst, control_socket),
-        "wal_dir": os.path.join(workdir, lib_path),
-        "snapshot_dir": os.path.join(workdir, lib_path),
+        "pid_file": os.path.join(inst_run_dir(workdir, app_name, inst), "tarantool.pid"),
+        "log_file": os.path.join(inst_log_dir(workdir, app_name, inst), "tt.log"),
+        "console_socket": os.path.join(inst_run_dir(workdir, app_name, inst), control_socket),
+        "wal_dir": inst_lib_dir(workdir, app_name, inst),
+        "snapshot_dir": inst_lib_dir(workdir, app_name, inst),
     }
 
 
-def prepare_app(tmpdir, app_name):
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
-    shutil.copy(os.path.join(tmpdir, config_name), app_path)
+def prepare_app(tmpdir, project):
+    """Copy the project fixture project into tmpdir and return its path."""
+    app_path = os.path.join(tmpdir, project)
+    shutil.copytree(os.path.join(os.path.dirname(__file__), project), app_path)
     return app_path
 
 
@@ -93,12 +96,12 @@ def check_base_functionality(tt_cmd, tmpdir, app_name, instances, inst_conf):
 
     try:
         # Start an instance.
-        start_cmd = [tt_cmd, "start", app_name]
+        start_cmd = [tt_cmd, "start", f"{app_name}:*"]
         start_application(start_cmd, app_path, app_name, instances)
         wait_cluster_started(tt_cmd, app_path, app_name, instances, inst_conf)
 
         # Check status.
-        status_cmd = [tt_cmd, "status", app_name]
+        status_cmd = [tt_cmd, "status", f"{app_name}:*"]
         status_rc, status_out = run_command_and_get_output(status_cmd, cwd=app_path)
         assert status_rc == 0
         status_info = extract_status(status_out)
@@ -134,7 +137,7 @@ def check_base_functionality(tt_cmd, tmpdir, app_name, instances, inst_conf):
             assert "42" in output
 
         # Restart an application.
-        restart_cmd = [tt_cmd, "restart", app_name, "-y"]
+        restart_cmd = [tt_cmd, "restart", f"{app_name}:*", "-y"]
         instance_process = subprocess.Popen(
             restart_cmd,
             cwd=app_path,
@@ -158,7 +161,7 @@ def check_base_functionality(tt_cmd, tmpdir, app_name, instances, inst_conf):
         wait_cluster_started(tt_cmd, app_path, app_name, instances, inst_conf)
 
         # Check status.
-        status_cmd = [tt_cmd, "status", app_name]
+        status_cmd = [tt_cmd, "status", f"{app_name}:*"]
         status_rc, status_out = run_command_and_get_output(status_cmd, cwd=app_path)
         assert status_rc == 0
         status_info = extract_status(status_out)
@@ -189,8 +192,9 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
 @pytest.mark.slow
 def test_running_base_functionality_crud_app(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
-    app_name = "cluster_crud_app"
-    app_path = prepare_app(tmpdir, app_name)
+    # The project is named by [package].name of its manifest.
+    app_name = "crud-app"
+    app_path = prepare_app(tmpdir, "cluster_crud_app")
 
     # Build app.
     build_cmd = [tt_cmd, "package", "build"]
@@ -209,12 +213,12 @@ def test_running_base_functionality_crud_app(tt_cmd, tmpdir_with_cfg):
 
     try:
         # Start an application.
-        start_cmd = [tt_cmd, "start", app_name]
+        start_cmd = [tt_cmd, "start", f"{app_name}:*"]
         start_application(start_cmd, app_path, app_name, instances)
         wait_cluster_started(tt_cmd, app_path, app_name, instances, inst_conf)
 
         # Check status.
-        status_cmd = [tt_cmd, "status", app_name]
+        status_cmd = [tt_cmd, "status", f"{app_name}:*"]
         status_rc, status_out = run_command_and_get_output(status_cmd, cwd=app_path)
         assert status_rc == 0
         status_info = extract_status(status_out)
@@ -244,26 +248,25 @@ def test_running_base_functionality_error_cases(tt_cmd, tmpdir_with_cfg):
         text=True,
     )
     start_output = instance_process.stdout.read()
-    assert f"can't collect instance information for {app_name}:unknown: "
-    "instance(s) not found" in start_output
+    assert f'instance not found: "unknown" of "{app_name}"' in start_output
     rc = instance_process.wait(5)
     assert rc != 0
 
-    # Remove instances.yml.
-    os.remove(os.path.join(app_path, "instances.yml"))
-    # Start storage-master instance.
+    # Remove the cluster config of the pair: the description alone is an
+    # incomplete pair.
+    config_path = os.path.join(app_path, cluster_config_file)
+    os.rename(config_path, config_path + ".removed")
     start_cmd = [tt_cmd, "start", f"{app_name}:storage-master"]
-    instance_process = subprocess.Popen(
-        start_cmd,
-        cwd=app_path,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    start_output = instance_process.stdout.read()
-    assert r"instances config (instances.yml) is missing" in start_output
-    rc = instance_process.wait(5)
-    assert rc != 0
+    rc, start_output = run_command_and_get_output(start_cmd, cwd=app_path)
+    assert rc == 1
+    assert "incomplete pair" in start_output
+    os.rename(config_path + ".removed", config_path)
+
+    # Remove the instances description: the directory is no project then.
+    os.remove(os.path.join(app_path, instances_file))
+    rc, start_output = run_command_and_get_output(start_cmd, cwd=app_path)
+    assert rc == 1
+    assert "application not found" in start_output
 
 
 @pytest.mark.skipif(tarantool_major_version > 2, reason="test is for tnt version < 3")
@@ -296,12 +299,14 @@ def test_cluster_cfg_changes_defaults(tt_cmd, tmpdir_with_cfg):
     app_name = "cluster_app_changed_defaults"
     instances = ["master"]
 
+    # The relative paths of the config are resolved against the project
+    # directory.
     def inst_conf(workdir, _app_name, inst):
         return {
             "pid_file": os.path.join(workdir, f"run_{inst}.pid"),
             "console_socket": os.path.join(workdir, f"run_{inst}.control"),
-            "wal_dir": os.path.join(workdir, lib_path, f"{inst}_wal"),
-            "snapshot_dir": os.path.join(workdir, lib_path, f"{inst}_snapshot"),
+            "wal_dir": os.path.join(workdir, "data", f"{inst}_wal"),
+            "snapshot_dir": os.path.join(workdir, "data", f"{inst}_snapshot"),
             "log_file": os.path.join(workdir, "tnt_" + inst + ".log"),
         }
 
@@ -317,11 +322,11 @@ def test_cluster_error_cases(tt_cmd, tmpdir_with_cfg):
     app_name = "cluster_app_changed_defaults"
     app_path = prepare_app(tmpdir, app_name)
 
-    cluster_config = os.path.join(app_path, "instances.yml")
-    with open(cluster_config, "w") as f:
+    description = os.path.join(app_path, instances_file)
+    with open(description, "w") as f:
         yaml.dump({"master": {}, "storage": {}}, f)  # No storage instance in cluster config.
 
-    start_cmd = [tt_cmd, "start", app_name]
+    start_cmd = [tt_cmd, "start", f"{app_name}:*"]
     instance_process = subprocess.Popen(
         start_cmd,
         cwd=app_path,
@@ -333,4 +338,5 @@ def test_cluster_error_cases(tt_cmd, tmpdir_with_cfg):
     rc = instance_process.wait()
     assert rc != 0
     start_output = instance_process.stdout.read()
-    assert 'an instance "storage" not found' in start_output
+    assert "instances missing from the cluster topology" in start_output
+    assert '"storage"' in start_output

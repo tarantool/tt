@@ -249,24 +249,16 @@ def tt(tt_cmd, tmpdir_with_cfg):
 
 @pytest.fixture(scope="function")
 def tt_path(tmp_path, request):
+    """Copy the project the tt_app mark names into the test directory, as a
+    directory named app_name, the name of the application when the project
+    has no manifest, and return its path."""
     mark_app = request.node.get_closest_marker("tt_app")
     app_path = mark_app.kwargs["app_path"]
     if not os.path.isabs(app_path):
         app_path = os.path.join(os.path.dirname(request.path), app_path)
-    if os.path.isdir(app_path):
-        app_name = mark_app.kwargs.get("app_name", os.path.basename(app_path))
-        app_path = shutil.copytree(app_path, tmp_path / app_name)
-    else:
-        app_name, app_ext = os.path.splitext(os.path.basename(app_path))
-        app_name = mark_app.kwargs.get("app_name", app_name)
-        app_dir = tmp_path / app_name
-        app_dir.mkdir()
-        app_path = shutil.copy(app_path, app_dir / (app_name + app_ext))
-
-    app_dir = Path(app_path) if os.path.isdir(app_path) else Path(app_path).parent
-    if not (app_dir / utils.config_name).exists():
-        utils.create_tt_config(app_dir)
-    return app_path
+    assert os.path.isdir(app_path), f"{app_path}: a project is a directory"
+    app_name = mark_app.kwargs.get("app_name", os.path.basename(app_path))
+    return shutil.copytree(app_path, tmp_path / app_name)
 
 
 @pytest.fixture(scope="function")
@@ -274,14 +266,8 @@ def tt_instances(tt_path, request):
     mark_app = request.node.get_closest_marker("tt_app")
     instances = mark_app.kwargs.get("instances")
     app_name = os.path.basename(tt_path)
-    if not os.path.isdir(tt_path):
-        app_name, _ = os.path.splitext(app_name)
-        assert instances is None
-        instances = [app_name]
-    else:
-        assert instances is not None
-        instances = list(map(lambda x: f"{app_name}:{x}", instances))
-    return instances
+    assert instances is not None
+    return list(map(lambda x: f"{app_name}:{x}", instances))
 
 
 @pytest.fixture(scope="function")

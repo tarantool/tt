@@ -1,0 +1,8 @@
+groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          test_env_app:
+            app:
+              file: test_env_app.lua

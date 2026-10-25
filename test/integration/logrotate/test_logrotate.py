@@ -89,7 +89,7 @@ tt_multi_inst_app = dict(
     "tt_running_targets",
     [
         pytest.param([], id="running:none"),
-        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:*"], id="running:all"),
         pytest.param(["app:master"], id="running:master"),
         pytest.param(["app:master", "app:router"], id="running:master_router"),
     ],
@@ -98,7 +98,7 @@ tt_multi_inst_app = dict(
     "target",
     [
         None,
-        "app",
+        "app:*",
         "app:master",
         "app:router",
     ],
@@ -118,14 +118,14 @@ tt_multi_inst_app_no_script = dict(
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
-        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:*"], id="running:all"),
         pytest.param(["app:master"], id="running:master"),
     ],
 )
 @pytest.mark.parametrize(
     "target",
     [
-        "app",
+        "app:*",
         "app:master",
     ],
 )
@@ -151,7 +151,7 @@ tt_cluster_app = dict(
     "tt_running_targets",
     [
         pytest.param([], id="running:none"),
-        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:*"], id="running:all"),
         pytest.param(["app:storage-master"], id="running:storage-master"),
     ],
 )
@@ -159,7 +159,7 @@ tt_cluster_app = dict(
     "target",
     [
         None,
-        "app",
+        "app:*",
         "app:storage-master",
         "app:storage-replica",
     ],
@@ -168,7 +168,8 @@ def test_logrotate_cluster(tt, tt_app, target):
     check_logrotate(tt, tt_app, target)
 
 
-# Cluster configuration is missing.
+# Cluster configuration is missing: the pair is incomplete, and the command
+# refuses to act on any instance.
 tt_cluster_app_no_config = dict(
     tt_cluster_app,
     post_start=tt_helper.post_start_no_config_decorator(tt_cluster_app["post_start"]),
@@ -181,16 +182,16 @@ tt_cluster_app_no_config = dict(
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
-        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:*"], id="running:all"),
         pytest.param(["app:storage-master"], id="running:storage-master"),
     ],
 )
 @pytest.mark.parametrize(
     "target",
     [
-        "app",
+        "app:*",
         "app:storage-master",
     ],
 )
 def test_logrotate_cluster_no_config(tt, tt_app, target):
-    check_logrotate(tt, tt_app, target)
+    tt_helper.check_broken_pair(tt, tt_app, "logrotate", target)

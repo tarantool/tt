@@ -576,17 +576,22 @@ func TestInstanceKind(t *testing.T) {
 	}
 }
 
-// TestParseRunningFixtures parses the instances.yml of the applications the
-// integration tests of tt start: that a tt2 description is valid as it is,
-// and needs fields added only to use them, is the promise of the format.
+// TestParseRunningFixtures parses the descriptions of the projects the
+// integration tests of tt start, most of them the instances.yml of their tt2
+// days moved into .templates/default/ as they were: that a tt2 description
+// is valid as it is, and needs fields added only to use them, is the promise
+// of the format.
 func TestParseRunningFixtures(t *testing.T) {
 	paths, err := filepath.Glob(filepath.Join("..", "..", "test", "integration", "running", "*",
-		"instances.yml"))
+		".templates", "default", "instances.yaml"))
 	require.NoError(t, err)
 	require.NotEmpty(t, paths, "the fixtures have moved")
 
 	for _, path := range paths {
-		t.Run(filepath.Base(filepath.Dir(path)), func(t *testing.T) {
+		// The path is <project>/.templates/default/instances.yaml.
+		project := filepath.Dir(filepath.Dir(filepath.Dir(path)))
+
+		t.Run(filepath.Base(project), func(t *testing.T) {
 			data, err := os.ReadFile(path)
 			require.NoError(t, err)
 
