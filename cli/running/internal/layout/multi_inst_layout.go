@@ -43,22 +43,22 @@ func NewMultiInstLayout(baseDir, appName, instanceName string) (*MultiInstLayout
 
 // PidFile returns pid file path.
 func (layout MultiInstLayout) PidFile(dir string) string {
-	return layout.genFilePath(dir, "tt.pid")
+	return layout.genFilePath(dir, PidFileName)
 }
 
 // LogFile returns log file path.
 func (layout MultiInstLayout) LogFile(dir string) string {
-	return layout.genFilePath(dir, "tt.log")
+	return layout.genFilePath(dir, LogFileName)
 }
 
 // ConsoleSocket returns console file path.
 func (layout MultiInstLayout) ConsoleSocket(dir string) string {
-	return layout.genFilePath(dir, "tarantool.control")
+	return layout.genFilePath(dir, ConsoleSocketName)
 }
 
 // BinaryPort returns binary port file path.
 func (layout MultiInstLayout) BinaryPort(dir string) string {
-	return layout.genFilePath(dir, "tarantool.sock")
+	return layout.genFilePath(dir, BinaryPortName)
 }
 
 // DataDir returns data directory path.
