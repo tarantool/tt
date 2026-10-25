@@ -66,7 +66,7 @@ func TestExtractMapperTemplates(t *testing.T) {
 
 	entry := ".templates/default/instances.yaml"
 
-	dst, ok := extractMapper(nil, false)(entry)
+	dst, ok := extractMapper(nil)(entry)
 	assert.True(t, ok)
 	assert.Equal(t, entry, dst)
 
@@ -109,7 +109,7 @@ func TestInstallRefusesExistingTemplates(t *testing.T) {
 
 	// Nothing was written: no package, no runtime, no template of the archive.
 	assert.NoDirExists(t, filepath.Join(dir, ".rocks"))
-	assert.NoDirExists(t, filepath.Join(dir, "_runtime"))
+	assert.NoDirExists(t, filepath.Join(dir, ".tarantool"))
 	assert.NoDirExists(t, filepath.Join(dir, ".templates", "default"))
 	assert.Equal(t, "mine-1:\n", readFile(t, mine))
 }

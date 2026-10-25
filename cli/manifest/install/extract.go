@@ -21,24 +21,18 @@ const (
 //   - the tt-owned root metadata (manifest, lock, VERSION) and payload files
 //     are never laid into the tree — a guest's manifest must not overwrite the
 //     project's own, and the metadata is recorded under manifests/ separately;
-//   - _runtime/ is written only when it is placed for the first time
-//     (extractRuntime);
+//   - _runtime/ is not laid into the tree at all: its components are installed
+//     into the project's .tarantool/versions/ (see placeRuntimes);
 //   - .templates/ is written as is, the install-root being the application
 //     directory; checkTemplates has already refused an install that would lay
 //     it over an existing one;
 //   - a dependency whose reconciled version stays what is already installed is
 //     skipped (skipNames).
-func extractMapper(skipNames map[string]struct{}, extractRuntime bool) func(string) (string, bool) {
+func extractMapper(skipNames map[string]struct{}) func(string) (string, bool) {
 	return func(name string) (string, bool) {
 		top, rest, _ := strings.Cut(name, "/")
 
 		switch top {
-		case runtimeDirName:
-			if !extractRuntime {
-				return "", false
-			}
-
-			return name, true
 		case templatesDirName:
 			return name, true
 		case state.RocksDirName:
@@ -60,8 +54,8 @@ func extractMapper(skipNames map[string]struct{}, extractRuntime bool) func(stri
 // directory.
 //
 // Only _runtime/ is left out: the runtimes it bundles are installed next to
-// the products of tt binary, not inside the version. tt's own install state
-// never travels in an archive and is dropped if it does.
+// the products of tt binary (see placeRuntimes), not inside the version. tt's
+// own install state never travels in an archive and is dropped if it does.
 func versionMapper() func(string) (string, bool) {
 	return func(name string) (string, bool) {
 		top, rest, _ := strings.Cut(name, "/")

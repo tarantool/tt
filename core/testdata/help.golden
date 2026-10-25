@@ -2967,17 +2967,22 @@ GLOBAL FLAGS[0m
 
 === tt package install --help
 Unpack a package archive into the chosen scope and bring the tree to a runnable
-state. A with-deps archive in the project scope is a plain offline extraction;
-otherwise the package is unpacked and its dependencies are refetched from the
-registry using the lock's pins. Several packages installed into one project
-share a .rocks/ tree, so a dependency they lock at different versions is
-reconciled to one both accept, or the install fails with an explanation. In the
-user and system scopes the archive becomes one version of an application,
-<root>/versions/<name>/<name>_<version>/, laid out like a project next to what
-tt binary installs into the same root, and <root>/apps/<name> is pointed at it:
-install activates the version it installed. Versions live side by side;
-installing one that is already there needs --force, which is refused while
-instances of the application run.
+state. A with-deps archive is a plain offline extraction; a --without-deps one
+is unpacked and its dependencies are refetched from the registry using the
+lock's pins. The runtime a with-deps archive bundles (_runtime/) is installed
+the way tt binary installs it, into versions/ of the scope root —
+<root>/versions/ in the user and system scopes, .tarantool/versions/ in the
+project — unless that version is there already. Several packages installed into
+one project share a .rocks/ tree, so a dependency they lock at different
+versions is reconciled to one both accept, or the install fails with an
+explanation; a project that selects no tarantool yet gets the bundled one
+selected in .tarantool/bin. In the user and system scopes the archive becomes
+one version of an application, <root>/versions/<name>/<name>_<version>/, laid
+out like a project next to what tt binary installs into the same root, and
+<root>/apps/<name> is pointed at it: install activates the version it installed.
+It runs on the tarantool its lock bundles, whatever <root>/bin/tarantool
+selects. Versions live side by side; installing one that is already there needs
+--force, which is refused while instances of the application run.
 
 [0;1;39mUSAGE[0m
   tt package install ARCHIVE... [flags]

@@ -23,20 +23,16 @@ import (
 
 // Scope is where tt package install lays a package down, and where list and
 // uninstall look for it. The three scopes differ in install-root and in the
-// on-disk layout Tarantool's loaders expect; they also differ in what archive
-// they accept (only project takes a with-deps archive).
+// on-disk layout Tarantool's loaders expect.
 type Scope string
 
 const (
 	// ScopeProject installs into <cwd>/.rocks/, the self-contained deployment
-	// tree. It is the default and the only scope that accepts a with-deps
-	// archive (the bundled _runtime/ has no place in a user or system tree).
+	// tree. It is the default.
 	ScopeProject Scope = "project"
-	// ScopeUser installs into ~/.luarocks/, the personal LuaRocks tree. It
-	// accepts only a --without-deps archive.
+	// ScopeUser installs into ~/.luarocks/, the personal LuaRocks tree.
 	ScopeUser Scope = "user"
-	// ScopeSystem installs into /usr/, the OS-package-style tree. It needs root
-	// and accepts only a --without-deps archive.
+	// ScopeSystem installs into /usr/, the OS-package-style tree.
 	ScopeSystem Scope = "system"
 )
 
@@ -55,13 +51,6 @@ func ParseScope(raw string) (Scope, error) {
 	default:
 		return "", fmt.Errorf("%w %q (want project, user or system)", ErrUnknownScope, raw)
 	}
-}
-
-// AcceptsWithDeps reports whether the scope may receive a with-deps archive.
-// Only project does: user and system are shared LuaRocks trees where bundling a
-// runtime is meaningless, so a with-deps archive is rejected before any write.
-func (scope Scope) AcceptsWithDeps() bool {
-	return scope == ScopeProject
 }
 
 // HasPrimary reports whether the scope can hold a primary package — the package

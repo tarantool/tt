@@ -35,7 +35,10 @@ const (
 // there is, unless --force replaces it. Every version is an install root of
 // its own: nothing is shared with the other versions, or with other
 // applications, so there is no joint resolution and no dependency ledger
-// here — removing a version removes its rocks with it.
+// here — removing a version removes its rocks with it. The one thing shared is
+// the runtime a with-deps archive bundles, installed into versions/ of the
+// scope like any product of tt binary; the application finds it there by the
+// version its lock records.
 //
 // Install activates what it installed. There is no command yet to switch
 // between installed versions or to roll back to an earlier one; until there
@@ -79,6 +82,13 @@ func installVersion(
 		result.Skipped = true
 
 		return result, nil
+	}
+
+	// The runtime is shared, so it goes first and stays even if the version
+	// then fails to install: it is an installation like any tt binary makes.
+	_, err = placeRuntimes(opts, archive, header, root)
+	if err != nil {
+		return nil, err
 	}
 
 	err = placeVersion(ctx, opts, archive, header, root, replace)

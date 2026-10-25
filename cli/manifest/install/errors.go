@@ -20,11 +20,6 @@ const (
 )
 
 var (
-	// errWithDepsScope reports a with-deps archive aimed at user or system,
-	// which accept only --without-deps archives. Caught from the archive header,
-	// before anything is written.
-	errWithDepsScope = errors.New(
-		"a with-deps archive can only be installed into the project scope")
 	// errNameCollision reports a package already installed in the scope while
 	// neither --force nor --upgrade was given.
 	errNameCollision = errors.New("package already installed")
@@ -54,7 +49,8 @@ var (
 
 // stateErrorf wraps a formatted error as a usage or state failure
 // (sdk.ExitFailure): a name collision without --force/--upgrade, an
-// incompatible runtime, a with-deps archive into user/system, a stale lock
+// incompatible runtime, an application name or version the user and system
+// scopes cannot take, running instances in the way of --force, a stale lock
 // under --locked, an unreconcilable shared dependency.
 func stateErrorf(format string, args ...any) error {
 	return sdk.Errorf(sdk.ExitFailure, format, args...)

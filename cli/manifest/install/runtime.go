@@ -1,18 +1,11 @@
 package install
 
 import (
-	"path/filepath"
-
 	"github.com/tarantool/go-luarocks/deps"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
-
-// runtimePath is the install-root's _runtime/ directory.
-func runtimePath(lay state.Layout) string {
-	return filepath.Join(lay.Root, runtimeDirName)
-}
 
 // versionHigher reports whether candidate is a strictly higher version than
 // current. An unparseable or empty current counts as lower, so a first install
