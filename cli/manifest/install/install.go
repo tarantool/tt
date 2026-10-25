@@ -199,6 +199,11 @@ func installOne(ctx context.Context, opts Options, archivePath string) (*OneResu
 		return nil, err
 	}
 
+	err = checkTemplates(opts, header, lay)
+	if err != nil {
+		return nil, err
+	}
+
 	err = apply(ctx, opts, archive, header, lay, installed)
 	if err != nil {
 		return nil, err

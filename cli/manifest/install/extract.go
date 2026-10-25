@@ -23,6 +23,9 @@ const (
 //     project's own, and the metadata is recorded under manifests/ separately;
 //   - _runtime/ is written only for a project-scope install that is placing it
 //     for the first time (extractRuntime);
+//   - .templates/ is written only for a project-scope install, where the
+//     install-root is the application directory; checkTemplates has already
+//     refused an install that would lay it over an existing one;
 //   - a dependency whose reconciled version stays what is already installed is
 //     skipped (skipNames);
 //   - for the user and system scopes the leading .rocks/ prefix is stripped so
@@ -36,6 +39,12 @@ func extractMapper(
 		switch top {
 		case runtimeDirName:
 			if scope != ScopeProject || !extractRuntime {
+				return "", false
+			}
+
+			return name, true
+		case templatesDirName:
+			if !templatesInstalled(scope) {
 				return "", false
 			}
 

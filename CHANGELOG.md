@@ -311,7 +311,10 @@ for machine-readable output.
   `.templates/`, fails the pack naming it. Hidden entries directly under
   `.templates/`, such as `.gitkeep`, are skipped. `.templates` joins the
   names tt reserves in the archive, so `include` and `license_files` entries
-  may not land on it.
+  may not land on it. `tt package install --scope project` lays the
+  templates into the install root, and refuses an archive carrying templates
+  when the root already has a `.templates/`; the `user` and `system` scopes
+  leave them out.
 
 ### Changed
 
