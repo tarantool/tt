@@ -89,7 +89,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `XDG_DATA_HOME` is absolute, falling back to `~/.local/share/tarantool`.
   System installations use `/opt/tarantool`. On macOS, the corresponding
   roots are `~/Library/Application Support/tarantool` and
-  `/Library/Application Support/tarantool`.
+  `/Library/Application Support/tarantool`. `TT_USER_ROOT` and
+  `TT_SYSTEM_ROOT` override the user and system roots on any OS;
+  `TT_USER_ROOT` takes precedence over `XDG_DATA_HOME`. Unlike a relative
+  `XDG_DATA_HOME`, which is ignored, a relative value of either variable is
+  an error.
 - `tt binary search` and `tt binary install`: add `--credentials-file <path>`
   for remote EE/TCM/SDK searches and downloads, allowing customer-zone
   credentials to be supplied from a file without `tt.yaml`.

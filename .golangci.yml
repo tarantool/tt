@@ -341,6 +341,7 @@ linters:
             - "github.com/tarantool/tt/v3/cli/templates"
             - "github.com/tarantool/tt/v3/cli/version"
             - "github.com/tarantool/tt/v3/internal/binary"
+            - "github.com/tarantool/tt/v3/internal/scope"
             - "github.com/ulikunitz/xz"
             - "golang.org/x/net/html"
             - "golang.org/x/sys"

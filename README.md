@@ -328,8 +328,10 @@ templates:
 `include/tarantool/` directory. Active executable links are in `bin/` and Tarantool
 header links in `include/`. Each command uses only the selected scope; the project
 scope is `.tarantool` in the current directory, without searching parents or
-falling back to user/system installations. Binary paths are independent of the
-`env` options in `tt.yaml`. For `search`, the scope only selects the
+falling back to user/system installations. `TT_USER_ROOT` and `TT_SYSTEM_ROOT`
+replace the default user and system roots and must be absolute paths. Binary
+paths are independent of the `env` options in `tt.yaml`. For `search`, the
+scope only selects the
 installed/active labels; it does not change the source of available versions.
 
 `tt binary install tarantool` supports Community Edition releases starting

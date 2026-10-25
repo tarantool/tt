@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/tarantool/tt/v3/cli/version"
+	"github.com/tarantool/tt/v3/internal/scope"
 )
 
 // Scope selects the installation scope.
@@ -33,117 +34,54 @@ const (
 	IncDirName = "include"
 )
 
-const (
-	projectArtifactDir     = ".tarantool"
-	linuxUserArtifactDir   = ".local/share/tarantool"
-	linuxSystemArtifactDir = "/opt/tarantool"
-	macosUserArtifactDir   = "Library/Application Support/tarantool"
-	macosSystemArtifactDir = "/Library/Application Support/tarantool"
-	artifactDirName        = "tarantool"
-	xdgDataHomeEnv         = "XDG_DATA_HOME"
-)
-
 var scopeToString = map[Scope]string{
 	ScopeProject: "project",
 	ScopeUser:    "user",
 	ScopeSystem:  "system",
 }
 
-var userArtifactDirs = map[OsType]string{
-	OsLinux: linuxUserArtifactDir,
-	OsMacos: macosUserArtifactDir,
-}
-
-var systemArtifactDirs = map[OsType]string{
-	OsLinux: linuxSystemArtifactDir,
-	OsMacos: macosSystemArtifactDir,
-}
-
 // ErrUnknownScope reports an unsupported scope name.
 var ErrUnknownScope = errors.New("unknown scope")
 
-var errUnsupportedArtifactOs = errors.New(
-	"artifact paths are unsupported for this operating system",
-)
-
 // String returns the scope name.
-func (scope Scope) String() string {
-	if name, ok := scopeToString[scope]; ok {
+func (s Scope) String() string {
+	if name, ok := scopeToString[s]; ok {
 		return name
 	}
 
-	return fmt.Sprintf("unknown(%d)", scope)
+	return fmt.Sprintf("unknown(%d)", s)
 }
 
 // ParseScope converts a scope name to Scope.
 func ParseScope(value string) (Scope, error) {
-	for scope, name := range scopeToString {
+	for candidate, name := range scopeToString {
 		if name == value {
-			return scope, nil
+			return candidate, nil
 		}
 	}
 
 	return ScopeUnknown, fmt.Errorf("%w %q: use project, user or system", ErrUnknownScope, value)
 }
 
-// ArtifactPath returns the absolute artifact root for the scope without creating it.
-func (scope Scope) ArtifactPath() (string, error) {
-	switch scope {
+// ArtifactPath returns the absolute artifact root for the scope without
+// creating it. The roots are shared with the other command groups that work
+// in a scope, so internal/scope resolves them.
+func (s Scope) ArtifactPath() (string, error) {
+	switch s {
 	case ScopeProject:
-		artifactPath, err := filepath.Abs(projectArtifactDir)
+		workingDir, err := os.Getwd()
 		if err != nil {
 			return "", fmt.Errorf("cannot resolve project artifact path: %w", err)
 		}
 
-		return artifactPath, nil
+		return scope.ProjectRoot(workingDir), nil
 	case ScopeUser:
-		return userArtifactPath()
+		return scope.UserRoot()
 	case ScopeSystem:
-		return systemArtifactPath()
+		return scope.SystemRoot()
 	default:
-		return "", fmt.Errorf("%w: %d", ErrUnknownScope, scope)
+		return "", fmt.Errorf("%w: %d", ErrUnknownScope, s)
 	}
-}
-
-// userArtifactPath resolves the user's artifact root using the OS and environment variables.
-func userArtifactPath() (string, error) {
-	operatingSystem, err := GetOs()
-	if err != nil {
-		return "", fmt.Errorf("cannot determine OS for artifact path: %w", err)
-	}
-
-	artifactDir, ok := userArtifactDirs[operatingSystem]
-	if !ok {
-		return "", errUnsupportedArtifactOs
-	}
-
-	// User can specify XDG folder.
-	dataHome := os.Getenv(xdgDataHomeEnv)
-	if operatingSystem == OsLinux && filepath.IsAbs(dataHome) {
-		return filepath.Join(dataHome, artifactDirName), nil
-	}
-
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("cannot resolve home directory for artifact path: %w", err)
-	}
-
-	return filepath.Join(homeDir, artifactDir), nil
-}
-
-// systemArtifactPath returns the system artifact root for the OS.
-func systemArtifactPath() (string, error) {
-	operatingSystem, err := GetOs()
-	if err != nil {
-		return "", fmt.Errorf("cannot determine OS for artifact path: %w", err)
-	}
-
-	artifactDir, ok := systemArtifactDirs[operatingSystem]
-	if !ok {
-		return "", errUnsupportedArtifactOs
-	}
-
-	return artifactDir, nil
 }
 
 // InstallationName returns the directory name of a standalone or SDK component.

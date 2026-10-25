@@ -97,6 +97,9 @@ func TestScopeArtifactPath(t *testing.T) {
 			t.Setenv("PATH", toolDir)
 			t.Setenv("HOME", testCase.homeDir)
 			t.Setenv("XDG_DATA_HOME", testCase.dataHome)
+			// The defaults are checked here; the overrides in internal/scope.
+			t.Setenv("TT_USER_ROOT", "")
+			t.Setenv("TT_SYSTEM_ROOT", "")
 
 			artifactPath, err := testCase.scope.ArtifactPath()
 			if testCase.wantErr != "" {
