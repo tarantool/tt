@@ -75,6 +75,23 @@ func (p Program) String() string {
 	return fmt.Sprintf("unknown(%d)", p)
 }
 
+// IsProductName reports whether name is the directory a product is installed
+// under in <root>/versions/, as tt binary installs it there.
+//
+// Applications installed by tt package share versions/ with the products, so
+// an application of such a name would mix its versions into the directory of
+// a product. Only the names Program.String returns count: the aliases
+// ParseProgram also accepts, such as sdk, name no directory.
+func IsProductName(name string) bool {
+	for _, product := range programToString {
+		if product == name {
+			return true
+		}
+	}
+
+	return false
+}
+
 // ParseProgram converts the string to Program type.
 func ParseProgram(s string) (Program, error) {
 	if p, ok := stringToProgram[s]; ok {
