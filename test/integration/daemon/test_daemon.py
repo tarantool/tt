@@ -24,10 +24,10 @@ def kill_remain_processes_wrapper(tt_cmd):
 
 
 def prepare_test_app(tmpdir):
+    """Copy the project test_app, one instance also named test_app, into
+    tmpdir, with the tt.yaml of tmpdir, which configures the daemon."""
     app_dir = os.path.join(tmpdir, "test_app")
-    os.mkdir(app_dir)
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_app", "test_app.lua")
-    shutil.copy(test_app_path, app_dir)
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_app"), app_dir)
     shutil.copy(os.path.join(tmpdir, utils.config_name), app_dir)
     return app_dir
 
@@ -200,29 +200,29 @@ def test_daemon_http_requests(tt_cmd, tmpdir_with_cfg):
     assert status_rc == 0
     assert re.search(r"RUNNING. PID: \d+.", status_out)
 
-    body = {"command_name": "start", "params": ["test_app"]}
+    body = {"command_name": "start", "params": ["test_app:test_app"]}
     response = requests.post(default_url, json=body)
     assert response.status_code == 200
     assert re.search(r"Starting an instance", response.json()["res"])
 
     file = utils.wait_file(
-        os.path.join(app_dir, utils.run_path, "test_app"),
+        utils.inst_run_dir(app_dir, "test_app", "test_app"),
         utils.pid_file,
         [],
     )
     assert file != ""
 
-    body = {"command_name": "status", "params": ["test_app"]}
+    body = {"command_name": "status", "params": ["test_app:test_app"]}
     response = requests.post(default_url, json=body)
     assert response.status_code == 200
     status_info = utils.extract_status(response.json()["res"])
-    assert status_info["test_app"]["STATUS"] == "RUNNING"
+    assert status_info["test_app:test_app"]["STATUS"] == "RUNNING"
 
-    body = {"command_name": "stop", "params": ["-y", "test_app"]}
+    body = {"command_name": "stop", "params": ["-y", "test_app:test_app"]}
     response = requests.post(default_url, json=body)
     assert response.status_code == 200
     assert re.search(
-        r"The Instance test_app \(PID = \d+\) has been terminated.",
+        r"The Instance test_app:test_app \(PID = \d+\) has been terminated.",
         response.json()["res"],
     )
 
@@ -278,28 +278,28 @@ def test_daemon_http_requests_with_cfg(tt_cmd, tmpdir_with_cfg):
 
     url = "http://" + conn.laddr.ip + ":" + str(port) + "/tarantool"
 
-    body = {"command_name": "start", "params": ["test_app"]}
+    body = {"command_name": "start", "params": ["test_app:test_app"]}
     response = requests.post(url, json=body)
     assert response.status_code == 200
     assert re.search(r"Starting an instance", response.json()["res"])
 
     file = utils.wait_file(
-        os.path.join(app_dir, utils.run_path, "test_app"),
+        utils.inst_run_dir(app_dir, "test_app", "test_app"),
         utils.pid_file,
         [],
     )
     assert file != ""
 
-    body = {"command_name": "status", "params": ["test_app"]}
+    body = {"command_name": "status", "params": ["test_app:test_app"]}
     response = requests.post(url, json=body)
     assert response.status_code == 200
     status_info = utils.extract_status(response.json()["res"])
-    assert status_info["test_app"]["STATUS"] == "RUNNING"
-    body = {"command_name": "stop", "params": ["-y", "test_app"]}
+    assert status_info["test_app:test_app"]["STATUS"] == "RUNNING"
+    body = {"command_name": "stop", "params": ["-y", "test_app:test_app"]}
     response = requests.post(url, json=body)
     assert response.status_code == 200
     assert re.search(
-        r"The Instance test_app \(PID = \d+\) has been terminated.",
+        r"The Instance test_app:test_app \(PID = \d+\) has been terminated.",
         response.json()["res"],
     )
 
