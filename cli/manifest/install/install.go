@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 
 	"github.com/tarantool/go-luarocks/client"
 
@@ -167,12 +166,6 @@ func installOne(ctx context.Context, opts Options, archivePath string) (*OneResu
 		return nil, stateErrorf("%w", err)
 	}
 
-	// A with-deps archive into user/system is refused from the header alone,
-	// before anything touches disk.
-	if header.WithDeps && !opts.Scope.AcceptsWithDeps() {
-		return nil, stateErrorf("%w (scope %s)", errWithDepsScope, opts.Scope)
-	}
-
 	if opts.Locked {
 		if want := manifest.HashBytes(header.ManifestBytes); header.Lock.ManifestHash != want {
 			return nil, stateErrorf("%w: archive lock does not match its manifest", errLockStale)
@@ -269,7 +262,8 @@ func checkCollision(opts Options, header *Header, installed []state.Package) (bo
 }
 
 // apply resolves the dependency plan and realizes it: remove stale versions,
-// extract the archive, and refetch any registry-sourced dependency.
+// install the bundled runtime into the project's .tarantool/, extract the
+// archive, and refetch any registry-sourced dependency.
 func apply(
 	ctx context.Context, opts Options, archive *Archive,
 	header *Header, lay state.Layout, installed []state.Package,
@@ -294,11 +288,22 @@ func apply(
 		return err
 	}
 
-	extractRuntime := header.WithDeps && !runtimeExists(lay)
+	root, err := state.ScopeRoot(ScopeProject, lay.Root)
+	if err != nil {
+		return stateErrorf("%w", err)
+	}
 
-	mapper := extractMapper(plan.skipNames, extractRuntime)
+	runtimes, err := placeRuntimes(opts, archive, header, root)
+	if err != nil {
+		return err
+	}
 
-	err = archive.Extract(lay.Root, mapper)
+	err = activateProjectTarantool(opts, root, runtimes)
+	if err != nil {
+		return err
+	}
+
+	err = archive.Extract(lay.Root, extractMapper(plan.skipNames))
 	if err != nil {
 		return fmt.Errorf("extracting %s: %w", archive.Path(), err)
 	}
@@ -402,11 +407,4 @@ func installDeps(
 	}
 
 	return nil
-}
-
-// runtimeExists reports whether the install-root already holds a _runtime/ tree.
-func runtimeExists(lay state.Layout) bool {
-	info, err := os.Stat(runtimePath(lay))
-
-	return err == nil && info.IsDir()
 }

@@ -37,15 +37,6 @@ func TestParseScopeRejectsUnknown(t *testing.T) {
 	assert.Contains(t, err.Error(), "global")
 }
 
-// TestAcceptsWithDeps pins the rule that only project takes a with-deps archive.
-func TestAcceptsWithDeps(t *testing.T) {
-	t.Parallel()
-
-	assert.True(t, state.ScopeProject.AcceptsWithDeps())
-	assert.False(t, state.ScopeUser.AcceptsWithDeps())
-	assert.False(t, state.ScopeSystem.AcceptsWithDeps())
-}
-
 // TestHasPrimary pins the rule that only the project scope has a primary
 // package; user and system trees hold guests only.
 func TestHasPrimary(t *testing.T) {

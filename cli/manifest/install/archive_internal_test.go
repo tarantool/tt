@@ -63,11 +63,12 @@ func TestExtractProjectKeepsRocksPrefix(t *testing.T) {
 	require.NoError(t, err)
 
 	root := t.TempDir()
-	mapper := extractMapper(nil, true)
+	mapper := extractMapper(nil)
 	require.NoError(t, ar.Extract(root, mapper))
 
 	assert.FileExists(t, filepath.Join(root, ".rocks", "share", "tarantool", "my-app", "init.lua"))
-	assert.FileExists(t, filepath.Join(root, "_runtime", "tarantool", "bin", "tarantool"))
+	assert.NoDirExists(t, filepath.Join(root, "_runtime"),
+		"the bundled runtime is installed into .tarantool/versions/, not into the tree")
 
 	// Root metadata must not be laid into the tree.
 	assert.NoFileExists(t, filepath.Join(root, "app.manifest.toml"))
@@ -89,7 +90,7 @@ func TestExtractSkipsDependency(t *testing.T) {
 
 	root := t.TempDir()
 	skip := map[string]struct{}{"luasocket": {}}
-	require.NoError(t, ar.Extract(root, extractMapper(skip, true)))
+	require.NoError(t, ar.Extract(root, extractMapper(skip)))
 
 	assert.FileExists(t, filepath.Join(root, ".rocks", "share", "tarantool", "my-app", "init.lua"))
 	assert.NoFileExists(t,

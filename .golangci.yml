@@ -316,6 +316,10 @@ linters:
             # cli/manifest/pack tests match the parser's error for a broken
             # instance description.
             - "github.com/tarantool/tt/v3/internal/instances"
+            # cli/manifest/install tests check that what install lays out is
+            # what tt binary lists and what the tarantool resolver finds.
+            - "github.com/tarantool/tt/v3/cli/tarantool"
+            - "github.com/tarantool/tt/v3/internal/binary"
         # One allow-list per top-level directory, tests included; their file
         # globs do not overlap, so each file is checked against exactly one
         # of them (plus the deny-only rules above). An import from another

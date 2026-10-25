@@ -56,7 +56,9 @@ func TestInstallWithDepsOffline(t *testing.T) {
 	assert.FileExists(t, filepath.Join(dir, ".rocks", "share", "tarantool", "my-app", "init.lua"))
 	assert.FileExists(t,
 		filepath.Join(dir, ".rocks", "share", "tarantool", "luasocket", "init.lua"))
-	assert.FileExists(t, filepath.Join(dir, "_runtime", "tarantool", "bin", "tarantool"))
+	assert.FileExists(t,
+		filepath.Join(dir, ".tarantool", "versions", "tarantool", "tarantool_3.0.5", "tarantool"))
+	assert.NoDirExists(t, filepath.Join(dir, "_runtime"))
 }
 
 // TestInstallWritesMetadata checks the per-package metadata install records for
@@ -81,18 +83,6 @@ func TestInstallWritesMetadata(t *testing.T) {
 	pin, ok := state.LockedVersion(lock, "luasocket")
 	require.True(t, ok)
 	assert.Equal(t, "3.0.4", pin)
-}
-
-// TestInstallWithDepsIntoUserRejected pins the header check: a with-deps archive
-// aimed at user or system is exit 1, before anything is written.
-func TestInstallWithDepsIntoUserRejected(t *testing.T) {
-	t.Parallel()
-
-	archive := withRocks("my-app", "1.0.0", "3.0.4", ">=3.0.0").build(t)
-
-	_, err := installInto(t, t.TempDir(), Options{Scope: ScopeUser}, archive)
-	require.ErrorIs(t, err, errWithDepsScope)
-	assert.Equal(t, 1, exitcode.Code(err))
 }
 
 // TestInstallCollision covers the name-collision policy: a second install of the

@@ -35,8 +35,11 @@ type archiveSpec struct {
 	lockDeps []manifest.LockDependency
 	// withRuntime bundles a fake _runtime/ and stamps bundled_* into the lock,
 	// marking the archive as with-deps. Bundled tarantool version; "" means
-	// --without-deps.
+	// --without-deps. The bundled tt is always 3.2.0.
 	withRuntime string
+	// runtime replaces the default _runtime/ entries of a with-deps archive
+	// (defaultRuntime): archive-relative slash path -> content.
+	runtime map[string]string
 	// files are extra archive entries: archive-relative slash path -> content.
 	// Used to place package and dependency subtrees under .rocks/.
 	files map[string]string
@@ -119,7 +122,12 @@ func (s archiveSpec) build(t *testing.T) string {
 	}
 
 	if s.withRuntime != "" {
-		entries["_runtime/tarantool/bin/tarantool"] = "#!/bin/sh\n"
+		runtime := s.runtime
+		if runtime == nil {
+			runtime = defaultRuntime()
+		}
+
+		maps.Copy(entries, runtime)
 	}
 
 	maps.Copy(entries, s.files)
@@ -128,6 +136,20 @@ func (s archiveSpec) build(t *testing.T) string {
 	writeTarZst(t, dst, entries)
 
 	return dst
+}
+
+// defaultRuntime is the _runtime/ of a with-deps archive the way pack bundles
+// a runtime cache entry: tarantool with its headers, its LICENSE and Lua
+// modules under share/, and tt.
+func defaultRuntime() map[string]string {
+	return map[string]string{
+		"_runtime/tarantool/bin/tarantool":                 "#!/bin/sh\necho tarantool\n",
+		"_runtime/tarantool/include/tarantool/module.h":    "/* module.h */\n",
+		"_runtime/tarantool/include/tarantool/lua.h":       "/* lua.h */\n",
+		"_runtime/tarantool/LICENSE":                       "BSD\n",
+		"_runtime/tarantool/share/tarantool/some/init.lua": "return 1\n",
+		"_runtime/tt/bin/tt":                               "#!/bin/sh\necho tt\n",
+	}
 }
 
 // writeTarZst writes entries as a tar+zstd stream, mirroring the pack writer's
@@ -156,7 +178,7 @@ func writeTarZst(t *testing.T, dst string, entries map[string]string) {
 		content := entries[name]
 
 		mode := int64(0o644)
-		if filepath.Base(name) == "tarantool" {
+		if base := filepath.Base(name); base == "tarantool" || base == "tt" || base == "tcm" {
 			mode = 0o755
 		}
 

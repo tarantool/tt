@@ -152,12 +152,24 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   Archives are byte-reproducible for a given commit; set `SOURCE_DATE_EPOCH` to
   pin the build timestamp explicitly.
 - `tt package install`: unpack a `.tt` archive into a scope and bring the tree
-  to a runnable state. `--scope project` (default) accepts both archive modes; a
-  with-deps archive in the project scope is a plain offline extraction, while a
-  `--without-deps` archive additionally refetches its dependency closure from
-  the registry using the lock's pins. `--scope user`/`--scope system` accept
-  only `--without-deps` archives — a with-deps archive there is refused from the
-  archive header before anything is written. Several packages installed into one
+  to a runnable state. Every scope accepts both archive modes: a with-deps
+  archive is a plain offline extraction, while a `--without-deps` archive
+  additionally refetches its dependency closure from the registry using the
+  lock's pins. The runtime a with-deps archive bundles in `_runtime/` is
+  installed the way `tt binary install` installs it — the executable at
+  `versions/<product>/<product>_<version>/<exec>`, Tarantool headers under its
+  `include/` — into `versions/` of the scope root, unless that installation
+  exists already, so `tt binary list` shows it and applications bundling the
+  same runtime share it. The installation is named by the version the lock
+  records (`bundled_tarantool_version` and so on), which can be longer than the
+  one `tt binary install` takes (`3.8.1-0-ge643f88a5e0c` against `3.8.1`), so
+  the same release may end up installed twice. In the project scope that is
+  `.tarantool/versions/`, and there is no `_runtime/` in the project any more;
+  a project that selects no tarantool yet gets the bundled one selected in
+  `.tarantool/bin` (and `.tarantool/include`), one that does keeps its choice
+  with a warning. In `user` and `system` the active links `bin/` and `include/`
+  are not touched: an installed application runs on the tarantool its lock
+  bundles. Several packages installed into one
   project share a `.rocks/` tree, so a dependency they lock at different
   versions is reconciled to the highest locked version satisfying every
   package's constraints, or the install fails with a breakdown. Per-package
