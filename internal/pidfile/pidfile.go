@@ -193,6 +193,30 @@ func alive(pid int) bool {
 	return err == nil || errors.Is(err, syscall.EPERM)
 }
 
+// Alive returns the pid the file at path names and whether that process is
+// alive, judged as Acquire judges it before taking a file over: a process
+// this one may not signal is alive too. A missing file, or one that names no
+// pid, names no live process.
+//
+// The file is read without the lock, the way tt status reads it, so the
+// answer can be out of date by the time the caller acts on it. It is for a
+// command that refuses to act while a process runs, such as tt package
+// uninstall, not for deciding who owns the file.
+func Alive(path string) (int, bool, error) {
+	file, err := os.Open(path)
+
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return 0, false, nil
+	case err != nil:
+		return 0, false, fmt.Errorf("opening the pid file: %w", err)
+	}
+
+	pid, err := readPid(file)
+
+	return pid, alive(pid), errors.Join(err, closeFile(file))
+}
+
 func (owned *File) Path() string {
 	return owned.path
 }
