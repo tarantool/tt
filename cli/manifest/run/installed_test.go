@@ -107,7 +107,15 @@ func TestRunInstalledProjectUsesBundledTarantool(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, hostVersion, packed.Bundled.Tarantool)
+
+	// A Community build of a release tag is locked as the release (decision
+	// 26), and the bundled runtime is installed under that name.
+	locked := hostVersion
+	if release, _, onTag := strings.Cut(hostVersion, "-0-g"); onTag {
+		locked = release
+	}
+
+	require.Equal(t, locked, packed.Bundled.Tarantool)
 
 	deploy := t.TempDir()
 	writeSource(t, deploy, map[string]string{"app.manifest.toml": deployManifest})
@@ -130,7 +138,7 @@ func TestRunInstalledProjectUsesBundledTarantool(t *testing.T) {
 	require.NoError(t, err)
 
 	bundled := filepath.Join(deploy, ".tarantool", "versions", "tarantool",
-		"tarantool_"+hostVersion, "tarantool")
+		"tarantool_"+locked, "tarantool")
 	assert.Equal(t, bundled, exe.Path)
 	assert.NoDirExists(t, filepath.Join(deploy, "_runtime"))
 
