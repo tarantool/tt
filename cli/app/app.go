@@ -21,6 +21,15 @@ type Options struct {
 	// Start is the directory the search for the project starts from: the
 	// -C directory, or the working directory when it is empty.
 	Start string
+	// Dir pins the application directory: the application is loaded from
+	// Dir, an absolute path, rather than looked for, and Scope must name
+	// the scope Dir belongs to. Empty finds the application as usual.
+	//
+	// It is how a running instance gets back to its application, the
+	// project or the very version it started from, while the pair is still
+	// chosen and read anew. Dir applies to every application the targets of
+	// Resolve name, so it goes with targets naming one.
+	Dir string
 	// Integrity checks the files the resolver reads and the config storage
 	// the cluster config may point to. A context without a repository checks
 	// nothing.

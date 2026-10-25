@@ -56,6 +56,16 @@ var (
 	ErrNoInstances = errors.New("no instances")
 )
 
+var (
+	// errNotAbsolute is a pinned application directory given as a relative
+	// path, which would mean another directory from another working
+	// directory.
+	errNotAbsolute = errors.New("is not an absolute path")
+	// errPinnedWithoutScope is a pinned application directory given without
+	// the scope it belongs to, which says where its root is.
+	errPinnedWithoutScope = errors.New("is pinned without its scope")
+)
+
 // failf wraps a formatted error as a request that cannot be carried out as
 // given (sdk.ExitFailure), the code of every failure here: the fix is a
 // target, a flag or a file on the user's side. A failure of the system

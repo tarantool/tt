@@ -38,6 +38,10 @@ type location struct {
 // name the chosen one lacks: what a command acts on must not depend on what
 // happens to be installed where.
 func locate(name string, opts Options, start string) (location, error) {
+	if opts.Dir != "" {
+		return locatePinned(name, opts)
+	}
+
 	switch opts.Scope {
 	case ScopeUser, ScopeSystem:
 		if name == "" {
@@ -129,6 +133,70 @@ func locateProject(name, start string, integ integrity.IntegrityCtx) (location, 
 	}
 
 	return project, nil
+}
+
+// locatePinned returns the location of the application name in the directory
+// opts.Dir of the scope opts.Scope, without looking for it.
+//
+// The watchdog of an instance comes back here to restart it after it exits:
+// the restart is the same run, so it stays on the version the instance
+// started from, which <root>/apps/<app> may no longer point to, and on the
+// project it started in, wherever the command that started it ran. Looking
+// the application up again would follow the link to whatever version is
+// active by then. The directory is therefore taken as it is: a project is
+// not searched for upward from it, and a version is not checked against the
+// link. The name must still be the application's, and the scope root is
+// found as usual, so the pair of the host and the runtime artifacts stay
+// where they were.
+func locatePinned(name string, opts Options) (location, error) {
+	dir := opts.Dir
+	if !filepath.IsAbs(dir) {
+		return location{}, failf("the application directory %q %w", dir, errNotAbsolute)
+	}
+
+	info, err := os.Stat(dir)
+	if isAbsent(err) {
+		return location{}, failf("%w: the application directory %s is gone", ErrAppNotFound, dir)
+	}
+
+	if err != nil {
+		return location{}, failf("cannot reach the application directory: %w", err)
+	}
+
+	if !info.IsDir() {
+		return location{}, failf("%w: %s is not a directory", ErrAppNotFound, dir)
+	}
+
+	switch opts.Scope {
+	case ScopeProject:
+		project, err := projectLocation(dir, opts.Integrity)
+		if err != nil {
+			return location{}, err
+		}
+
+		if name != "" && project.name != name {
+			return location{}, failf("%w: the project in %s is called %q, not %q",
+				ErrAppNotFound, dir, project.name, name)
+		}
+
+		return project, nil
+	case ScopeUser, ScopeSystem:
+		if name == "" {
+			return location{}, failf("%w: --scope %s needs a target; "+
+				"use <app>:<instance> or <app>:*", ErrInvalidTarget, opts.Scope)
+		}
+
+		root, err := scopeRoot(opts.Scope)
+		if err != nil {
+			return location{}, failf("%w", err)
+		}
+
+		return location{name: name, scope: opts.Scope, root: root, dir: dir}, nil
+	case "":
+		return location{}, failf("the application directory %s %w", dir, errPinnedWithoutScope)
+	default:
+		return location{}, failf("%w %q", ErrUnknownScope, opts.Scope)
+	}
 }
 
 // noProjectError reports that start is in no project, with hint appended, and
