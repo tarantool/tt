@@ -17,7 +17,8 @@ type Scope int
 const (
 	// ScopeUnknown means no scope was selected.
 	ScopeUnknown Scope = iota
-	// ScopeProject manages binaries in the current directory without searching its parents.
+	// ScopeProject manages binaries in the project the current directory is
+	// in, or in the current directory outside a project.
 	ScopeProject
 	// ScopeUser manages binaries for the current user.
 	ScopeUser
@@ -69,12 +70,12 @@ func ParseScope(value string) (Scope, error) {
 func (s Scope) ArtifactPath() (string, error) {
 	switch s {
 	case ScopeProject:
-		workingDir, err := os.Getwd()
+		projectDir, err := ProjectDir()
 		if err != nil {
-			return "", fmt.Errorf("cannot resolve project artifact path: %w", err)
+			return "", err
 		}
 
-		return scope.ProjectRoot(workingDir), nil
+		return scope.ProjectRoot(projectDir), nil
 	case ScopeUser:
 		return scope.UserRoot()
 	case ScopeSystem:
@@ -82,6 +83,46 @@ func (s Scope) ArtifactPath() (string, error) {
 	default:
 		return "", fmt.Errorf("%w: %d", ErrUnknownScope, s)
 	}
+}
+
+// ProjectDir returns the directory whose .tarantool is the root of the
+// project scope: the project the working directory is in, or the working
+// directory itself when it is in none.
+//
+// Falling back to the working directory keeps tt binary install usable in a
+// directory that is not a project yet, so the binaries can come before the
+// manifest. tt binary has no -C, so the search always starts from the
+// working directory. Inside an installed version (scope.InstalledTree) there
+// is no fallback: the project scope there would write into the version, so
+// ProjectDir fails with scope.ErrInstalledTree and points at the other scopes.
+func ProjectDir() (string, error) {
+	workingDir, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve project artifact path: %w", err)
+	}
+
+	projectDir, found, err := scope.FindProject(workingDir)
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve project artifact path: %w", err)
+	}
+
+	if found {
+		return projectDir, nil
+	}
+
+	// Inside an installed version there is no project to fall back on: the
+	// working directory would put .tarantool into the version itself.
+	installed, err := scope.InstalledTree(workingDir)
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve project artifact path: %w", err)
+	}
+
+	if installed {
+		return "", fmt.Errorf("cannot resolve project artifact path: %s %w; "+
+			"use --scope user or --scope system", workingDir, scope.ErrInstalledTree)
+	}
+
+	return workingDir, nil
 }
 
 // InstallationName returns the directory name of a standalone or SDK component.
