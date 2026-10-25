@@ -34,8 +34,7 @@ func TestPlanWithoutDepsRoutesToRegistry(t *testing.T) {
 		lockDeps: []LockDep{{Name: "luasocket", Version: "3.0.4", Source: "registry"}},
 	})
 
-	lay, err := state.ResolveLayout(ScopeProject, t.TempDir())
-	require.NoError(t, err)
+	lay := state.ProjectLayout(t.TempDir())
 
 	plan, err := planDeps(header, "default", nil, lay, false)
 	require.NoError(t, err)
@@ -57,8 +56,7 @@ func TestPlanWithDepsRoutesToArchive(t *testing.T) {
 		lockDeps: []LockDep{{Name: "luasocket", Version: "3.0.4", Source: "registry"}},
 	})
 
-	lay, err := state.ResolveLayout(ScopeProject, t.TempDir())
-	require.NoError(t, err)
+	lay := state.ProjectLayout(t.TempDir())
 
 	plan, err := planDeps(header, "default", nil, lay, true)
 	require.NoError(t, err)

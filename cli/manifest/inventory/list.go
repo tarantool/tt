@@ -1,11 +1,13 @@
 // Package inventory implements the two commands that work over what an install
 // left on disk: tt package list, which reports the packages present in a scope,
 // and tt package uninstall, which removes a guest package and the shared
-// dependencies it was the last to hold.
+// dependencies it was the last to hold, or, in the user and system scopes, an
+// application with all its installed versions.
 //
 // Both are pure metadata operations. Nothing here contacts a registry, runs a
-// build, or re-resolves anything: the source of truth is manifests/<pkg>/, which
-// install writes and cli/manifest/state reads back.
+// build, or re-resolves anything: the source of truth is what install wrote and
+// cli/manifest/state reads back — manifests/<pkg>/ in a project, the versions/
+// and apps/ directories of the user and system roots.
 //
 // List reports what is on disk, which is deliberately not what tt package deps
 // reports — deps prints the dependencies the current manifest declares, whether
@@ -27,7 +29,8 @@ type ListOptions struct {
 	// Scope selects which tree to read. The zero value ("") is project.
 	Scope state.Scope
 	// Rocks asks for the rock index alongside the packages: every rock in the
-	// scope with the packages that brought it and what it requires in turn. It is
+	// project with the packages that brought it and what it requires in turn;
+	// the user and system scopes refuse it, their versions sharing no tree. It is
 	// the question a plain listing cannot answer — which of a package's rocks
 	// would go with it, and which another package still holds — so it is computed
 	// only when asked for.
@@ -40,8 +43,13 @@ type Entry struct {
 	Name string `json:"name" yaml:"name"`
 	// Version is the recorded version. Empty when nothing recorded one: a guest
 	// installed by a tt that predates the VERSION metadata, or a project with no
-	// VERSION pin next to its manifest.
+	// VERSION pin next to its manifest. For an application of the user or
+	// system scope it is the active version, empty when none is active.
 	Version string `json:"version,omitempty" yaml:"version,omitempty"`
+	// Versions are the installed versions of an application of the user or
+	// system scope, lowest first. Empty in the project scope, where a package is
+	// installed at one version.
+	Versions []string `json:"versions,omitempty" yaml:"versions,omitempty"`
 	// Primary marks the project's own package rather than a guest installed from
 	// an archive. Only the project scope can hold one, and uninstall refuses to
 	// touch it.
@@ -108,12 +116,18 @@ type Listing struct {
 // nothing installed is an empty listing, not an error: a project that has never
 // been installed into is a normal state, not a broken one.
 func List(opts ListOptions) (*Listing, error) {
-	scope, lay, err := resolve(opts.Scope, opts.ProjectDir)
+	scope, err := parseScope(opts.Scope)
 	if err != nil {
 		return nil, err
 	}
 
-	packages, err := state.Packages(lay, scope)
+	if scope != state.ScopeProject {
+		return listApps(scope, opts)
+	}
+
+	lay := state.ProjectLayout(opts.ProjectDir)
+
+	packages, err := state.Packages(lay)
 	if err != nil {
 		return nil, stateErrorf("%w", err)
 	}
@@ -206,6 +220,7 @@ func entryOf(pkg state.Package) Entry {
 	entry := Entry{
 		Name:         pkg.Name,
 		Version:      pkg.Version,
+		Versions:     nil,
 		Primary:      pkg.Primary,
 		Description:  "",
 		Dependencies: state.LockedDependencies(pkg.Lock),
@@ -236,20 +251,12 @@ func entryOf(pkg state.Package) Entry {
 	return entry
 }
 
-// resolve validates the scope and resolves its directories, mapping both
-// failures to exit 1.
-func resolve(raw state.Scope, projectDir string) (state.Scope, state.Layout, error) {
-	var zero state.Layout
-
+// parseScope validates the scope, mapping a bad value to exit 1.
+func parseScope(raw state.Scope) (state.Scope, error) {
 	scope, err := state.ParseScope(string(raw))
 	if err != nil {
-		return "", zero, stateErrorf("%w", err)
+		return "", stateErrorf("%w", err)
 	}
 
-	lay, err := state.ResolveLayout(scope, projectDir)
-	if err != nil {
-		return "", zero, stateErrorf("%w", err)
-	}
-
-	return scope, lay, nil
+	return scope, nil
 }

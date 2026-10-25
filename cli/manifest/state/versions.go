@@ -160,6 +160,30 @@ func Activate(root, name, ver string) error {
 	return nil
 }
 
+// RemoveApp removes every installed version of the application name and the
+// link selecting the active one. The link goes first, so nothing resolves the
+// application to a version that is being removed, and a removal interrupted
+// halfway leaves versions/<name>/ for a second run to find and finish.
+//
+// Nothing else under the root is touched: the runtimes in versions/ may be
+// used by other applications, and the runtime files under var/ and the host
+// files under etc/ outlive the application (decision 16).
+func RemoveApp(root, name string) error {
+	link := ActiveLink(root, name)
+
+	err := os.Remove(link)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("removing %s: %w", link, err)
+	}
+
+	err = os.RemoveAll(AppDir(root, name))
+	if err != nil {
+		return fmt.Errorf("removing %s: %w", AppDir(root, name), err)
+	}
+
+	return nil
+}
+
 // App is an application installed in the user or system scope.
 type App struct {
 	// Name is the application name, the name of its directories in versions/

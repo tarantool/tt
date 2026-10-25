@@ -19,7 +19,7 @@ func TestPackagesEmptyTree(t *testing.T) {
 
 	lay := projectLayout(t)
 
-	packages, err := state.Packages(lay, state.ScopeProject)
+	packages, err := state.Packages(lay)
 	require.NoError(t, err)
 	assert.Empty(t, packages)
 }
@@ -37,7 +37,7 @@ func TestPackagesListsPrimaryAndGuests(t *testing.T) {
 	writeGuest(t, lay, "monitoring", "2.0.0", nil, map[string]string{"metrics": "1.0.0"})
 	writeGuest(t, lay, "alerting", "0.5.0", nil, nil)
 
-	packages, err := state.Packages(lay, state.ScopeProject)
+	packages, err := state.Packages(lay)
 	require.NoError(t, err)
 	require.Len(t, packages, 3)
 
@@ -52,23 +52,6 @@ func TestPackagesListsPrimaryAndGuests(t *testing.T) {
 
 	assert.Equal(t, "monitoring", packages[2].Name)
 	assert.Equal(t, "2.0.0", packages[2].Version)
-}
-
-// TestPackagesSkipsPrimaryOutsideProjectScope pins that user and system trees
-// hold guests only: a stray app.manifest.toml at the root of a shared tree is
-// not the project's primary package.
-func TestPackagesSkipsPrimaryOutsideProjectScope(t *testing.T) {
-	t.Parallel()
-
-	lay := projectLayout(t)
-
-	writePrimary(t, lay, "shared-tree-app", "1.2.3", nil, nil)
-	writeGuest(t, lay, "some-lib", "2.0.0", nil, nil)
-
-	packages, err := state.Packages(lay, state.ScopeUser)
-	require.NoError(t, err)
-	require.Len(t, packages, 1)
-	assert.Equal(t, "some-lib", packages[0].Name)
 }
 
 // TestPackagesSkipsUnreadableGuest pins the robustness rule: a half-written or
@@ -91,7 +74,7 @@ func TestPackagesSkipsUnreadableGuest(t *testing.T) {
 	// A stray regular file where a package directory would be.
 	writeFile(t, filepath.Join(lay.Manifests, "stray.txt"), []byte("junk"))
 
-	packages, err := state.Packages(lay, state.ScopeProject)
+	packages, err := state.Packages(lay)
 	require.NoError(t, err)
 	require.Len(t, packages, 1)
 	assert.Equal(t, "good", packages[0].Name)
@@ -108,7 +91,7 @@ func TestPackagesTolerantOfMissingLock(t *testing.T) {
 	require.NoError(t, os.Remove(
 		filepath.Join(lay.Manifests, "some-lib", state.MetaLockFile)))
 
-	packages, err := state.Packages(lay, state.ScopeProject)
+	packages, err := state.Packages(lay)
 	require.NoError(t, err)
 	require.Len(t, packages, 1)
 	assert.Nil(t, packages[0].Lock)
@@ -126,7 +109,7 @@ func TestPackagesNameComesFromManifest(t *testing.T) {
 	writeFile(t, filepath.Join(lay.Manifests, "dir-name", state.MetaManifestFile),
 		[]byte(source))
 
-	packages, err := state.Packages(lay, state.ScopeProject)
+	packages, err := state.Packages(lay)
 	require.NoError(t, err)
 	require.Len(t, packages, 1)
 	assert.Equal(t, "real-name", packages[0].Name)
@@ -145,7 +128,7 @@ func TestGuestManifestCarriesDeclaredConstraints(t *testing.T) {
 		map[string]string{"metrics": ">=1.0.0,<2.0.0"},
 		map[string]string{"metrics": "1.4.0"})
 
-	packages, err := state.Packages(lay, state.ScopeProject)
+	packages, err := state.Packages(lay)
 	require.NoError(t, err)
 	require.Len(t, packages, 1)
 	require.NotNil(t, packages[0].Manifest)
@@ -164,7 +147,7 @@ func TestPrimaryWithoutVersionFile(t *testing.T) {
 
 	writePrimary(t, lay, "my-app", "", nil, nil)
 
-	packages, err := state.Packages(lay, state.ScopeProject)
+	packages, err := state.Packages(lay)
 	require.NoError(t, err)
 	require.Len(t, packages, 1)
 	assert.True(t, packages[0].Primary)
@@ -179,7 +162,7 @@ func TestFind(t *testing.T) {
 
 	writeGuest(t, lay, "monitoring", "2.0.0", nil, nil)
 
-	packages, err := state.Packages(lay, state.ScopeProject)
+	packages, err := state.Packages(lay)
 	require.NoError(t, err)
 
 	found, ok := state.Find(packages, "monitoring")
@@ -199,7 +182,7 @@ func TestFindPrimary(t *testing.T) {
 
 	writeGuest(t, lay, "monitoring", "2.0.0", nil, nil)
 
-	packages, err := state.Packages(lay, state.ScopeProject)
+	packages, err := state.Packages(lay)
 	require.NoError(t, err)
 
 	_, ok := state.FindPrimary(packages)
@@ -207,7 +190,7 @@ func TestFindPrimary(t *testing.T) {
 
 	writePrimary(t, lay, "my-app", "1.0.0", nil, nil)
 
-	packages, err = state.Packages(lay, state.ScopeProject)
+	packages, err = state.Packages(lay)
 	require.NoError(t, err)
 
 	primary, ok := state.FindPrimary(packages)
@@ -225,7 +208,7 @@ func TestLockedDependencies(t *testing.T) {
 	writeGuest(t, lay, "monitoring", "2.0.0", nil,
 		map[string]string{"metrics": "1.0.0", "checks": "3.1.0"})
 
-	packages, err := state.Packages(lay, state.ScopeProject)
+	packages, err := state.Packages(lay)
 	require.NoError(t, err)
 	require.Len(t, packages, 1)
 
@@ -264,7 +247,7 @@ func TestWriteAndRemoveMetadata(t *testing.T) {
 	require.NoError(t, state.RemoveMetadata(lay, "monitoring"))
 	assert.NoDirExists(t, metaDir)
 
-	packages, err := state.Packages(lay, state.ScopeProject)
+	packages, err := state.Packages(lay)
 	require.NoError(t, err)
 	assert.Empty(t, packages)
 }
@@ -300,7 +283,7 @@ func TestDeclaredDependencies(t *testing.T) {
 		map[string]string{"metrics": ">=1.0.0"},
 		map[string]string{"metrics": "1.0.0", "luasocket": "3.0.4"})
 
-	packages, err := state.Packages(lay, state.ScopeProject)
+	packages, err := state.Packages(lay)
 	require.NoError(t, err)
 	require.Len(t, packages, 1)
 
@@ -331,7 +314,7 @@ func TestDeclaredDependenciesIncludesComponents(t *testing.T) {
 	writeFile(t, filepath.Join(lay.Manifests, "monitoring", state.MetaManifestFile),
 		[]byte(source))
 
-	packages, err := state.Packages(lay, state.ScopeProject)
+	packages, err := state.Packages(lay)
 	require.NoError(t, err)
 	require.Len(t, packages, 1)
 

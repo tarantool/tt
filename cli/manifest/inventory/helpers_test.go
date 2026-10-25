@@ -22,19 +22,13 @@ type tree struct {
 	lay state.Layout
 }
 
-// newTree resolves a fresh install tree for the given scope over a temp
-// directory. Only the project scope is rooted in a temp dir; user and system
-// point at real machine paths, so tests that need those layouts build the
-// project layout and pass the scope separately.
+// newTree resolves a fresh project install tree over a temp directory.
 func newTree(t *testing.T) tree {
 	t.Helper()
 
 	dir := t.TempDir()
 
-	lay, err := state.ResolveLayout(state.ScopeProject, dir)
-	require.NoError(t, err)
-
-	return tree{dir: dir, lay: lay}
+	return tree{dir: dir, lay: state.ProjectLayout(dir)}
 }
 
 // pkg describes one package to lay into a fixture tree.

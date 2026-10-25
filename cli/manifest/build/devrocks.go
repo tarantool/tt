@@ -71,11 +71,7 @@ func EnsureDevRocks(
 
 	opts.emit(warnings)
 
-	missing, err := notInstalled(opts.ProjectDir, closure)
-	if err != nil {
-		return err
-	}
-
+	missing := notInstalled(opts.ProjectDir, closure)
 	if len(missing) == 0 {
 		return nil
 	}
@@ -102,13 +98,8 @@ func EnsureDevRocks(
 // unlike the lock's own, which a build materializes once per lock change. A
 // path dependency is always rebuilt: its version says nothing about its
 // contents, which is why the lock pins it by content hash instead.
-func notInstalled(
-	projectDir string, closure []manifest.LockDependency,
-) ([]manifest.LockDependency, error) {
-	layout, err := state.ResolveLayout(state.ScopeProject, projectDir)
-	if err != nil {
-		return nil, fmt.Errorf("resolving the project tree: %w", err)
-	}
+func notInstalled(projectDir string, closure []manifest.LockDependency) []manifest.LockDependency {
+	layout := state.ProjectLayout(projectDir)
 
 	missing := make([]manifest.LockDependency, 0, len(closure))
 
@@ -123,5 +114,5 @@ func notInstalled(
 		missing = append(missing, dependency)
 	}
 
-	return missing, nil
+	return missing
 }

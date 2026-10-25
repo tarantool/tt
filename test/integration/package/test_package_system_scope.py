@@ -1,124 +1,163 @@
 """System-scope coverage for `tt package list` and `tt package uninstall`.
 
-The system scope installs into `/usr`, so exercising it means writing to a tree
-no test may touch on a developer machine and no CI job should own. A container
-gives a disposable `/usr` and a root user, which is the only way these paths get
-run at all — every other test drives the project or user scope.
+The system scope lays an application out the way `tt binary` lays out a
+program (decision 8): every installed version in
+`<root>/versions/<name>/<name>_<version>/` and the active one selected by the
+link `<root>/apps/<name>`. `TT_SYSTEM_ROOT` moves the root into the test's
+directory, so these run on the host, without the `/opt/tarantool` no test may
+touch.
+
+The applications are packed and installed for real, `--without-deps`, which
+needs no network and no runtime: list and uninstall read what install wrote.
+The run of their instances is in `integration/scopes`.
 """
 
 import json
-import shutil
+import os
 import subprocess
+from pathlib import Path
 
 import pytest
 
-# The image only needs a shell; tt is mounted in and runs standalone.
-IMAGE = "ubuntu"
+MANIFEST = """manifest_version = '0.1'
 
-pytestmark = pytest.mark.docker
+[package]
+name = '{name}'
+
+[platform]
+tarantool = '>=3.0.0'
+tt = '>=3.1.0'
+
+[products.default]
+components = ['lua']
+default = true
+
+[components.lua]
+path = 'src'
+"""
 
 
-def docker_available() -> bool:
-    if shutil.which("docker") is None:
-        return False
-    return subprocess.run(["docker", "ps"], capture_output=True).returncode == 0
-
-
-def run_in_container(tt_cmd, staging, script: str) -> subprocess.CompletedProcess:
-    """Copy the staging tree over /usr in a container and run `script` there.
-
-    tt is mounted read-only at /tt. `cp -a /staging/.` merges the fixture into
-    the image's own /usr rather than replacing it, so the container keeps its
-    shell and coreutils.
-    """
+def run(tt_cmd, cwd: Path, env: dict, *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [
-            "docker",
-            "run",
-            "--rm",
-            "-v",
-            f"{tt_cmd}:/tt:ro",
-            "-v",
-            f"{staging}:/staging:ro",
-            IMAGE,
-            "bash",
-            "-c",
-            f"cp -a /staging/. /usr/ && {script}",
-        ],
+        [str(tt_cmd), *args],
+        cwd=cwd,
+        env=env,
         capture_output=True,
         text=True,
     )
 
 
-@pytest.fixture(autouse=True)
-def require_docker(tt_cmd):
-    """Skip unless docker runs and the built tt is executable in the image.
+def pack(tt_cmd, path: Path, name: str, version: str) -> Path:
+    """Pack the application name of version, written into path, and return
+    the archive."""
+    (path / "src").mkdir(parents=True)
+    (path / "src" / "init.lua").write_text("return {}\n")
+    (path / "VERSION").write_text(version + "\n")
+    (path / "app.manifest.toml").write_text(MANIFEST.format(name=name))
 
-    tt is built for the host, so a macOS binary cannot run in a Linux container.
-    Skipping on that is honest: on Linux CI the same test executes for real.
-    """
-    if not docker_available():
-        pytest.skip("docker is not available on this system")
-
-    probe = subprocess.run(
-        ["docker", "run", "--rm", "-v", f"{tt_cmd}:/tt:ro", IMAGE, "/tt", "version"],
-        capture_output=True,
-        text=True,
-    )
-    if probe.returncode != 0:
-        pytest.skip(f"the built tt does not run in {IMAGE}: {probe.stderr.strip()[:200]}")
+    result = run(tt_cmd, path, None, "package", "pack", "--without-deps")
+    assert result.returncode == 0, result.stderr
+    archives = list((path / "_build" / "pack").glob("*.tt"))
+    assert len(archives) == 1, archives
+    return archives[0]
 
 
-def test_system_scope_list(tt_cmd, system_staging):
-    """`--scope system` reads /usr, not the working directory's .rocks/."""
-    result = run_in_container(
-        tt_cmd,
-        system_staging.root,
-        "/tt package list --scope system -o json",
-    )
+class SystemScope:
+    """The system scope of a root in the test's directory, with two
+    applications installed: monitoring 1.0.0 and 2.0.0, and alerting 0.5.0."""
+
+    def __init__(self, tt_cmd, tmp_path: Path):
+        self.tt_cmd = tt_cmd
+        self.root = tmp_path / "root"
+        self.cwd = tmp_path / "cwd"
+        self.cwd.mkdir()
+        self.env = dict(
+            os.environ,
+            TT_SYSTEM_ROOT=str(self.root),
+            TT_USER_ROOT=str(tmp_path / "user"),
+        )
+
+        for name, version in [
+            ("monitoring", "1.0.0"),
+            ("monitoring", "2.0.0"),
+            ("alerting", "0.5.0"),
+        ]:
+            archive = pack(tt_cmd, tmp_path / "src" / f"{name}-{version}", name, version)
+            result = self.tt("package", "install", "--scope", "system", str(archive))
+            assert result.returncode == 0, result.stderr
+
+    def tt(self, *args: str) -> subprocess.CompletedProcess:
+        return run(self.tt_cmd, self.cwd, self.env, *args)
+
+    def version(self, name: str, version: str) -> Path:
+        return self.root / "versions" / name / f"{name}_{version}"
+
+
+@pytest.fixture
+def system_scope(tt_cmd, tmp_path) -> SystemScope:
+    return SystemScope(tt_cmd, tmp_path)
+
+
+def test_system_scope_list(system_scope):
+    """`--scope system` lists the applications of the root, not the working
+    directory's .rocks/: every installed version and the active one."""
+    result = system_scope.tt("package", "list", "--scope", "system", "-o", "json")
     assert result.returncode == 0, result.stderr
 
     payload = json.loads(result.stdout)
     assert payload["scope"] == "system"
-    assert payload["root"] == "/usr"
-    assert {entry["name"] for entry in payload["packages"]} == {"monitoring", "alerting"}
+    assert payload["root"] == str(system_scope.root)
+    assert payload["packages"] == [
+        {"name": "alerting", "version": "0.5.0", "versions": ["0.5.0"], "primary": False},
+        {
+            "name": "monitoring",
+            "version": "2.0.0",
+            "versions": ["1.0.0", "2.0.0"],
+            "primary": False,
+        },
+    ]
 
-    # A system tree holds guests only: nothing there is the project's own package.
-    assert all(entry["primary"] is False for entry in payload["packages"])
+    # The versions share no rocks, so there is no tree to show.
+    result = system_scope.tt("package", "list", "--scope", "system", "--tree")
+    assert result.returncode == 1
+    assert "--tree applies to the project scope only" in result.stderr
 
 
-def test_system_scope_uninstall_refcounts(tt_cmd, system_staging):
-    """Removal in /usr drops the sole-owner dependency and keeps the shared one."""
-    script = (
-        "/tt package uninstall monitoring --scope system --yes && "
-        "echo --- && "
-        "ls /usr/share/tarantool && "
-        "echo --- && "
-        "ls /usr/manifests"
-    )
-    result = run_in_container(tt_cmd, system_staging.root, script)
+def test_system_scope_uninstall(system_scope):
+    """Removal in the system scope takes every version of the application and
+    its link, and leaves the other application, the data and the host files
+    alone."""
+    root = system_scope.root
+    for kept in [
+        root / "var" / "lib" / "monitoring" / "storage" / "00000000000000000000.snap",
+        root / "etc" / "monitoring" / "instances.yaml",
+    ]:
+        kept.parent.mkdir(parents=True)
+        kept.write_text("kept\n")
+
+    result = system_scope.tt("package", "uninstall", "monitoring", "--scope", "system", "--yes")
     assert result.returncode == 0, result.stderr
+    assert "removed monitoring from system scope: versions 1.0.0, 2.0.0" in result.stdout
 
-    assert "removed unused dependency metrics" in result.stdout
-    assert "kept checks (required by alerting)" in result.stdout
+    assert not (root / "versions" / "monitoring").exists()
+    assert not os.path.lexists(root / "apps" / "monitoring")
+    assert system_scope.version("alerting", "0.5.0").is_dir()
+    assert os.readlink(root / "apps" / "alerting") == os.path.join(
+        "..",
+        "versions",
+        "alerting",
+        "alerting_0.5.0",
+    )
+    assert (root / "var" / "lib" / "monitoring" / "storage").is_dir()
+    assert (root / "etc" / "monitoring" / "instances.yaml").read_text() == "kept\n"
 
-    _, modules, manifests = result.stdout.split("---")
-    assert "monitoring" not in modules.split()
-    assert "metrics" not in modules.split()
-    assert "checks" in modules.split()
-    assert "alerting" in modules.split()
-    assert manifests.split() == ["alerting"]
 
-
-def test_system_scope_uninstall_unknown_package(tt_cmd, system_staging):
+def test_system_scope_uninstall_unknown_package(system_scope):
     """A miss in the system scope is exit 1, and touches nothing."""
-    result = run_in_container(
-        tt_cmd,
-        system_staging.root,
-        "/tt package uninstall nosuch --scope system --yes; echo exit=$?; ls /usr/manifests",
-    )
-    assert result.returncode == 0, result.stderr
+    result = system_scope.tt("package", "uninstall", "nosuch", "--scope", "system", "--yes")
+    assert result.returncode == 1
+    assert 'package is not installed: "nosuch" in system scope' in result.stderr
 
-    assert "not installed" in result.stderr
-    assert "exit=1" in result.stdout
-    assert "monitoring" in result.stdout
+    assert system_scope.version("monitoring", "1.0.0").is_dir()
+    assert system_scope.version("monitoring", "2.0.0").is_dir()
+    assert system_scope.version("alerting", "0.5.0").is_dir()

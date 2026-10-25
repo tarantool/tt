@@ -65,16 +65,11 @@ class Tree:
     independent of the installer's own correctness.
     """
 
-    def __init__(self, root: Path, *, system: bool = False) -> None:
-        """Mirror the layout `state.ResolveLayout` resolves for a scope.
-
-        The project scope nests everything under `.rocks/`; the system scope is
-        the tree root itself, so a staging directory for it has no `.rocks/`
-        level. Getting this wrong would make a system-scope test pass against
-        paths tt never reads.
-        """
+    def __init__(self, root: Path) -> None:
+        """Mirror the layout `state.ResolveLayout` resolves for the project
+        scope: everything under `.rocks/`."""
         self.root = root
-        self.rocks = root if system else root / ".rocks"
+        self.rocks = root / ".rocks"
         self.share = self.rocks / "share" / "tarantool"
         self.lib = self.rocks / "lib" / "tarantool"
         self.manifests = self.rocks / "manifests"
@@ -221,20 +216,6 @@ def tree_fixture(tree: Tree) -> Tree:
         {"metrics": "1.0.0", "shared-lib": "1.0.0"},
     )
     return tree
-
-
-@pytest.fixture()
-def system_staging(tmp_path: Path) -> Tree:
-    """A system-layout staging tree: two guests, one dependency shared.
-
-    Built through the same Tree helper the project-scope tests use, so the
-    metadata format cannot drift between the two scopes. The caller copies it
-    over a container's /usr; nothing here touches the host's.
-    """
-    staging = Tree(tmp_path / "staging", system=True)
-    staging.install_guest("monitoring", "2.0.0", {"metrics": "1.0.0", "checks": "3.1.0"})
-    staging.install_guest("alerting", "0.5.0", {"checks": "3.1.0"})
-    return staging
 
 
 @pytest.fixture()

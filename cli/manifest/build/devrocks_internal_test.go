@@ -37,8 +37,7 @@ func TestNotInstalledKeepsRocksTheTreeDoesNotHold(t *testing.T) {
 		registryDep("luatest", "1.0.1-1"),
 	}
 
-	missing, err := notInstalled(projectDir, closure)
-	require.NoError(t, err)
+	missing := notInstalled(projectDir, closure)
 	assert.Equal(t, closure, missing)
 }
 
@@ -49,11 +48,10 @@ func TestNotInstalledSkipsAnInstalledVersion(t *testing.T) {
 	projectDir := t.TempDir()
 	installRock(t, projectDir, "checks", "3.1.0-1")
 
-	missing, err := notInstalled(projectDir, []manifest.LockDependency{
+	missing := notInstalled(projectDir, []manifest.LockDependency{
 		registryDep("checks", "3.1.0-1"),
 		registryDep("luatest", "1.0.1-1"),
 	})
-	require.NoError(t, err)
 	require.Len(t, missing, 1)
 	assert.Equal(t, "luatest", missing[0].Name)
 }
@@ -64,10 +62,9 @@ func TestNotInstalledKeepsADifferentInstalledVersion(t *testing.T) {
 	projectDir := t.TempDir()
 	installRock(t, projectDir, "luatest", "0.5.7-1")
 
-	missing, err := notInstalled(projectDir, []manifest.LockDependency{
+	missing := notInstalled(projectDir, []manifest.LockDependency{
 		registryDep("luatest", "1.0.1-1"),
 	})
-	require.NoError(t, err)
 	require.Len(t, missing, 1)
 	assert.Equal(t, "1.0.1-1", missing[0].Version)
 }
@@ -78,10 +75,9 @@ func TestNotInstalledAlwaysRebuildsAPathDependency(t *testing.T) {
 	projectDir := t.TempDir()
 	installRock(t, projectDir, "helper", "0.1.0-1")
 
-	missing, err := notInstalled(projectDir, []manifest.LockDependency{
+	missing := notInstalled(projectDir, []manifest.LockDependency{
 		{Name: "helper", Version: "0.1.0-1", Source: sourcePath, Path: "helper"},
 	})
-	require.NoError(t, err)
 	assert.Len(t, missing, 1)
 }
 
