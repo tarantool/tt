@@ -26,6 +26,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/ttlog"
 	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/cli/util/regexputil"
+	"github.com/tarantool/tt/v3/internal/instances"
 	"github.com/tarantool/tt/v3/internal/pidfile"
 	"github.com/tarantool/tt/v3/internal/supervisor"
 )
@@ -127,9 +128,21 @@ type InstanceCtx struct {
 	// The name of the file with the watchdog PID under which the
 	// instance was started.
 	PIDFile string
-	// If the instance is started under the watchdog it should
-	// restart on if it crashes.
+	// Restartable is restart_on_failure of tt.yaml: the watchdog starts
+	// the instance again after any exit of its own. It decides only when
+	// Restart is empty.
 	Restartable bool
+	// Restart is the restart policy of the instance record. Empty for an
+	// instance collected through tt.yaml, which leaves the decision to
+	// Restartable.
+	Restart instances.RestartPolicy
+	// StopSignal is the signal the instance record stops the instance
+	// with. Zero leaves tarantool the stop signal the watchdog receives,
+	// SIGINT from tt stop.
+	StopSignal syscall.Signal
+	// StopTimeout is how long the instance record lets the instance take to
+	// stop before it is killed. Zero is instanceStopTimeout.
+	StopTimeout time.Duration
 	// Control UNIX socket for started instance.
 	ConsoleSocket string
 	// Unix socket used as "binary port".
@@ -189,6 +202,9 @@ func searchApplicationScript(applicationsDir, appName string) (InstanceCtx, erro
 		LogMaxAge:         0,
 		PIDFile:           "",
 		Restartable:       false,
+		Restart:           "",
+		StopSignal:        0,
+		StopTimeout:       0,
 		ConsoleSocket:     "",
 		BinaryPort:        "",
 		SingleApp:         true,
@@ -348,6 +364,9 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 				LogMaxAge:         0,
 				PIDFile:           "",
 				Restartable:       false,
+				Restart:           "",
+				StopSignal:        0,
+				StopTimeout:       0,
 				ConsoleSocket:     "",
 				BinaryPort:        "",
 				SingleApp:         true,
@@ -403,6 +422,9 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 			LogMaxAge:         0,
 			PIDFile:           "",
 			Restartable:       false,
+			Restart:           "",
+			StopSignal:        0,
+			StopTimeout:       0,
 			ConsoleSocket:     "",
 			BinaryPort:        "",
 			SingleApp:         false,
@@ -861,6 +883,7 @@ func StopAll(runs []InstanceCtx) error {
 	type instanceProcess struct {
 		name string
 		pid  int
+		wait time.Duration
 	}
 
 	processes := make([]instanceProcess, 0, len(runs))
@@ -877,12 +900,12 @@ func StopAll(runs []InstanceCtx) error {
 		case err != nil:
 			stopErrors = append(stopErrors, fmt.Errorf("failed to stop instance %s: %w", name, err))
 		default:
-			processes = append(processes, instanceProcess{name: name, pid: pid})
+			processes = append(processes, instanceProcess{name: name, pid: pid, wait: stopWait(&run)})
 		}
 	}
 
 	for _, proc := range processes {
-		err := process_utils.WaitProcessTermination(proc.pid, process_utils.TerminationTimeout)
+		err := process_utils.WaitProcessTermination(proc.pid, proc.wait)
 		if err != nil {
 			stopErrors = append(stopErrors,
 				fmt.Errorf("failed to stop instance %s (PID = %d): %w", proc.name, proc.pid, err))

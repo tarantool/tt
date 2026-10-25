@@ -9,6 +9,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/configure"
 	"github.com/tarantool/tt/v3/cli/ttlog"
+	"github.com/tarantool/tt/v3/internal/instances"
 	"github.com/tarantool/tt/v3/internal/supervisor"
 )
 
@@ -120,9 +121,9 @@ func (src *instanceSource) Next(context.Context) (supervisor.Spec, error) {
 }
 
 // Restart removes the sockets tarantool left as it exited, then restarts the
-// instance as its current restart_on_failure setting says, and switches to a
-// new log if the log settings have changed.
-func (src *instanceSource) Restart(context.Context, supervisor.Exit) (bool, error) {
+// instance as its current restart policy says (restartsAfter), and switches
+// to a new log if the log settings have changed.
+func (src *instanceSource) Restart(_ context.Context, exit supervisor.Exit) (bool, error) {
 	removeSockets(&src.ran)
 
 	inst, err := src.refresh()
@@ -132,7 +133,7 @@ func (src *instanceSource) Restart(context.Context, supervisor.Exit) (bool, erro
 		return false, nil //nolint:nilerr // Logged above; the watchdog ends.
 	}
 
-	if !inst.Restartable {
+	if !restartsAfter(&inst, exit) {
 		return false, nil
 	}
 
@@ -146,6 +147,30 @@ func (src *instanceSource) Restart(context.Context, supervisor.Exit) (bool, erro
 	src.log.logger = logger
 
 	return true, nil
+}
+
+// restartsAfter reports whether the watchdog starts inst again after exit,
+// an exit of its own: an exit that follows tt stop or a failed integrity
+// check never gets this far (supervisor.Source.Restart).
+//
+// The restart field of the instance record decides, with the meanings the
+// instances package gives its values: no never restarts, always restarts
+// after any exit, and on-failure after a non-zero exit status or death by a
+// signal. An exit that could not be waited for counts as a failure, since
+// nothing says the instance ended well. An instance collected through
+// tt.yaml has no policy, and restart_on_failure decides as it always has:
+// after any exit, whatever its status.
+func restartsAfter(inst *InstanceCtx, exit supervisor.Exit) bool {
+	switch inst.Restart {
+	case "":
+		return inst.Restartable
+	case instances.RestartAlways:
+		return true
+	case instances.RestartOnFailure:
+		return exit.State == nil || !exit.State.Success()
+	default:
+		return false
+	}
 }
 
 // started records that tarantool runs with the context of the last Spec.

@@ -704,6 +704,7 @@ linters:
             - "github.com/tarantool/tt/v3/cli/running"
             - "github.com/tarantool/tt/v3/cli/ttlog"
             - "github.com/tarantool/tt/v3/cli/util"
+            - "github.com/tarantool/tt/v3/internal/instances"
             - "github.com/tarantool/tt/v3/internal/pidfile"
             - "github.com/tarantool/tt/v3/internal/supervisor"
         dir-cli-status:
