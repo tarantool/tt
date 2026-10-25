@@ -145,6 +145,57 @@ func TestPackInstallRoundtripCarriesTemplates(t *testing.T) {
 		filepath.Join(deploy, ".rocks", "share", "tarantool", "round-app", "init.lua"))
 }
 
+// TestPackInstallRoundtripUserScope drives the real pack writer into an
+// install into the user scope: the archive becomes one version directory
+// laid out like a project — manifest, lock and VERSION at its top, the
+// package in .rocks/, the templates in .templates/ — and apps/<app> selects
+// it. Not parallel: the user root comes from TT_USER_ROOT.
+func TestPackInstallRoundtripUserScope(t *testing.T) {
+	root := userRoot(t)
+
+	src := t.TempDir()
+	writeSource(t, src, map[string]string{
+		"app.manifest.toml":                 roundtripManifest,
+		"VERSION":                           "1.0.0\n",
+		"init.lua":                          "return 1\n",
+		"README.md":                         "round-app\n",
+		".templates/default/instances.yaml": "router-1:\n",
+		".templates/default/config.yaml":    "groups: {}\n",
+	})
+
+	packed, err := pack.Run(context.Background(), pack.Options{
+		ProjectDir:  src,
+		WithoutDeps: true,
+		OutputDir:   filepath.Join(src, "_out"),
+		Build: build.Options{
+			TtVersion: "tt test",
+			Tarantool: rocks.TarantoolInfo{Prefix: "/nonexistent", Version: "3.0.0"},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = Run(context.Background(), Options{
+		ProjectDir: t.TempDir(),
+		Scope:      ScopeUser,
+		Archives:   []string{packed.Path},
+		Yes:        true,
+	})
+	require.NoError(t, err)
+
+	dir := filepath.Join(root, "versions", "round-app", "round-app_1.0.0")
+	assert.Equal(t, roundtripManifest, readFile(t, filepath.Join(dir, "app.manifest.toml")))
+	assert.FileExists(t, filepath.Join(dir, "app.manifest.lock"))
+	assert.Equal(t, "1.0.0\n", readFile(t, filepath.Join(dir, "VERSION")))
+	assert.Equal(t, "round-app\n", readFile(t, filepath.Join(dir, "README.md")))
+	assert.FileExists(t,
+		filepath.Join(dir, ".rocks", "share", "tarantool", "round-app", "init.lua"))
+	assert.FileExists(t, filepath.Join(dir, ".templates", "default", "instances.yaml"))
+
+	target, err := os.Readlink(filepath.Join(root, "apps", "round-app"))
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join("..", "versions", "round-app", "round-app_1.0.0"), target)
+}
+
 // TestPackRefusesBrokenTemplate: the real pack fails on an incomplete template
 // and writes no archive, so a broken description never reaches a host.
 func TestPackRefusesBrokenTemplate(t *testing.T) {

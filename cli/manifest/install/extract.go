@@ -14,52 +14,76 @@ const (
 	rockManifestDepth = 4
 )
 
-// extractMapper builds the per-entry mapper Extract uses for one install. It
-// decides, for each archive entry, where it lands under the install-root and
-// whether it is written at all:
+// extractMapper builds the per-entry mapper Extract uses for one install into
+// the project scope. It decides, for each archive entry, where it lands under
+// the install-root and whether it is written at all:
 //
 //   - the tt-owned root metadata (manifest, lock, VERSION) and payload files
 //     are never laid into the tree — a guest's manifest must not overwrite the
 //     project's own, and the metadata is recorded under manifests/ separately;
-//   - _runtime/ is written only for a project-scope install that is placing it
-//     for the first time (extractRuntime);
-//   - .templates/ is written only for a project-scope install, where the
-//     install-root is the application directory; checkTemplates has already
-//     refused an install that would lay it over an existing one;
+//   - _runtime/ is written only when it is placed for the first time
+//     (extractRuntime);
+//   - .templates/ is written as is, the install-root being the application
+//     directory; checkTemplates has already refused an install that would lay
+//     it over an existing one;
 //   - a dependency whose reconciled version stays what is already installed is
-//     skipped (skipNames);
-//   - for the user and system scopes the leading .rocks/ prefix is stripped so
-//     files land directly in the shared tree.
-func extractMapper(
-	scope Scope, skipNames map[string]struct{}, extractRuntime bool,
-) func(string) (string, bool) {
+//     skipped (skipNames).
+func extractMapper(skipNames map[string]struct{}, extractRuntime bool) func(string) (string, bool) {
 	return func(name string) (string, bool) {
 		top, rest, _ := strings.Cut(name, "/")
 
 		switch top {
 		case runtimeDirName:
-			if scope != ScopeProject || !extractRuntime {
+			if !extractRuntime {
 				return "", false
 			}
 
 			return name, true
 		case templatesDirName:
-			if !templatesInstalled(scope) {
-				return "", false
-			}
-
 			return name, true
 		case state.RocksDirName:
-			return mapRocksEntry(scope, rest, skipNames)
+			return mapRocksEntry(rest, skipNames)
 		default:
 			return "", false
 		}
 	}
 }
 
-// mapRocksEntry maps one entry under the archive's .rocks/ tree. rest is the
-// path with the .rocks/ prefix already stripped.
-func mapRocksEntry(scope Scope, rest string, skipNames map[string]struct{}) (string, bool) {
+// versionMapper builds the mapper Extract uses for a version installed into
+// the user or system scope. The version directory is the package's alone, so
+// it receives the archive whole: the manifest, the lock and VERSION at its
+// top, the payload and license files next to them, .rocks/ and .templates/.
+// That makes it the install root of a project, which is what tt instance and
+// the tarantool resolver read an installed version as, and it keeps every
+// file the package shipped where the package expects it — a relative
+// ./bin/<tool> of an instance description resolves from the application
+// directory.
+//
+// Only _runtime/ is left out: the runtimes it bundles are installed next to
+// the products of tt binary, not inside the version. tt's own install state
+// never travels in an archive and is dropped if it does.
+func versionMapper() func(string) (string, bool) {
+	return func(name string) (string, bool) {
+		top, rest, _ := strings.Cut(name, "/")
+
+		switch top {
+		case runtimeDirName:
+			return "", false
+		case state.RocksDirName:
+			if first, _, _ := strings.Cut(rest, "/"); first == state.ManifestsDirName {
+				return "", false
+			}
+
+			return name, true
+		default:
+			return name, true
+		}
+	}
+}
+
+// mapRocksEntry maps one entry under the archive's .rocks/ tree into the
+// project's. rest is the path with the .rocks/ prefix already stripped.
+func mapRocksEntry(rest string, skipNames map[string]struct{}) (string, bool) {
 	if rest == "" {
 		return "", false
 	}
@@ -76,12 +100,7 @@ func mapRocksEntry(scope Scope, rest string, skipNames map[string]struct{}) (str
 		}
 	}
 
-	if scope == ScopeProject {
-		return state.RocksDirName + "/" + rest, true
-	}
-
-	// user / system: the shared tree has no .rocks/ level.
-	return rest, true
+	return state.RocksDirName + "/" + rest, true
 }
 
 // rocksDepName extracts the rock name owning a path under the .rocks/ tree:

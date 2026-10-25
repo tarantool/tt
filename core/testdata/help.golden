@@ -2971,7 +2971,13 @@ state. A with-deps archive in the project scope is a plain offline extraction;
 otherwise the package is unpacked and its dependencies are refetched from the
 registry using the lock's pins. Several packages installed into one project
 share a .rocks/ tree, so a dependency they lock at different versions is
-reconciled to one both accept, or the install fails with an explanation.
+reconciled to one both accept, or the install fails with an explanation. In the
+user and system scopes the archive becomes one version of an application,
+<root>/versions/<name>/<name>_<version>/, laid out like a project next to what
+tt binary installs into the same root, and <root>/apps/<name> is pointed at it:
+install activates the version it installed. Versions live side by side;
+installing one that is already there needs --force, which is refused while
+instances of the application run.
 
 [0;1;39mUSAGE[0m
   tt package install ARCHIVE... [flags]
@@ -2979,13 +2985,16 @@ reconciled to one both accept, or the install fails with an explanation.
   tt package install ARCHIVE... [flags]
 [0;1;39m
 FLAGS[0m
-      --force          reinstall over an existing package (destructive)
+      --force          reinstall over an existing package or version
+                       (destructive)
   -h, --help           help for install
       --locked         fail if the archive lock does not match its manifest
-      --scope string   install scope: project, user or system (default
-                       "project")
-      --upgrade        install over an existing package only when the archive
-                       version is higher
+      --scope string   install scope: project (the working directory), user or
+                       system (an application version under the root tt binary
+                       uses) (default "project")
+      --upgrade        install only when the archive version is higher than the
+                       installed one (in user and system, than every installed
+                       version)
   -y, --yes            skip the confirmation prompt when reconciling shared
                        dependencies
 [0;1;39m

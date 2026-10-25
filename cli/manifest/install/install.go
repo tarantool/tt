@@ -1,14 +1,21 @@
 // Package install implements tt package install: it unpacks a .tt package
 // archive into a chosen scope and brings the tree to a runnable state. A
-// with-deps archive installed into the project scope is a plain offline
-// extraction; every other case extracts the package's own files and refetches
-// its dependency closure from the registry using the lock's pins.
+// with-deps archive is a plain offline extraction; a --without-deps one has
+// its package's own files extracted and its dependency closure refetched from
+// the registry using the lock's pins.
+//
+// The scopes install into different shapes. The project scope is one install
+// root shared by the project's own package and every guest installed into it.
+// The user and system scopes hold applications, one install root per
+// installed version, laid out next to the products tt binary installs (see
+// version.go).
 //
 // The one genuinely new problem it solves is joint resolution: several packages
 // installed side by side in one project share a single .rocks/ tree, so a
 // dependency two of them lock at different versions must be reconciled to one
 // version both can accept — or fail with an explanation rather than a silent
-// pick. See reconcile.go.
+// pick. See reconcile.go. A version installed into the user or system scope
+// shares its tree with nothing, so there is nothing to reconcile there.
 package install
 
 import (
@@ -172,10 +179,21 @@ func installOne(ctx context.Context, opts Options, archivePath string) (*OneResu
 		}
 	}
 
-	lay, err := state.ResolveLayout(opts.Scope, opts.ProjectDir)
-	if err != nil {
-		return nil, stateErrorf("%w", err)
+	if opts.Scope != ScopeProject {
+		return installVersion(ctx, opts, archive, header)
 	}
+
+	return installIntoProject(ctx, opts, archive, header)
+}
+
+// installIntoProject installs a guest package into the project install root:
+// its files join the shared .rocks/ tree after joint resolution with every
+// package already there, and its metadata goes under .rocks/manifests/<pkg>/.
+func installIntoProject(
+	ctx context.Context, opts Options, archive *Archive, header *Header,
+) (*OneResult, error) {
+	archivePath := archive.Path()
+	lay := state.ProjectLayout(opts.ProjectDir)
 
 	installed, err := state.Packages(lay, opts.Scope)
 	if err != nil {
@@ -199,7 +217,7 @@ func installOne(ctx context.Context, opts Options, archivePath string) (*OneResu
 		return nil, err
 	}
 
-	err = checkTemplates(opts, header, lay)
+	err = checkTemplates(header, lay)
 	if err != nil {
 		return nil, err
 	}
@@ -278,7 +296,7 @@ func apply(
 
 	extractRuntime := header.WithDeps && !runtimeExists(lay)
 
-	mapper := extractMapper(opts.Scope, plan.skipNames, extractRuntime)
+	mapper := extractMapper(plan.skipNames, extractRuntime)
 
 	err = archive.Extract(lay.Root, mapper)
 	if err != nil {

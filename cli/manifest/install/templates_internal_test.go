@@ -59,21 +59,20 @@ func TestReadHeaderReportsTemplates(t *testing.T) {
 	}
 }
 
-// TestExtractMapperTemplates: .templates/ lands at the project install-root as
-// is, and nowhere in the user and system trees.
+// TestExtractMapperTemplates: .templates/ lands as is at the top of the
+// install-root, the project directory or an installed version alike.
 func TestExtractMapperTemplates(t *testing.T) {
 	t.Parallel()
 
 	entry := ".templates/default/instances.yaml"
 
-	dst, ok := extractMapper(ScopeProject, nil, false)(entry)
+	dst, ok := extractMapper(nil, false)(entry)
 	assert.True(t, ok)
 	assert.Equal(t, entry, dst)
 
-	for _, scope := range []Scope{ScopeUser, ScopeSystem} {
-		_, ok := extractMapper(scope, nil, false)(entry)
-		assert.False(t, ok, scope)
-	}
+	dst, ok = versionMapper()(entry)
+	assert.True(t, ok)
+	assert.Equal(t, entry, dst)
 }
 
 // TestInstallLaysTemplatesIntoProject: a project install puts the archive's
@@ -159,13 +158,12 @@ func TestInstallWithoutTemplatesKeepsExisting(t *testing.T) {
 	assert.NoDirExists(t, filepath.Join(dir, ".templates", "default"))
 }
 
-// TestInstallUserScopeLeavesTemplatesOut: the user tree is a LuaRocks tree with
-// no application directory, so the templates stay in the archive - the
-// behaviour of every install before .templates/ was packed. Not parallel: the
-// user scope's root comes from HOME.
-func TestInstallUserScopeLeavesTemplatesOut(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+// TestInstallUserScopeLaysTemplatesIntoVersion: an installed version is the
+// application directory tt instance reads, so the templates land inside it,
+// <root>/versions/<app>/<app>_<ver>/.templates/, and nowhere else in the
+// scope. Not parallel: the user scope's root comes from TT_USER_ROOT.
+func TestInstallUserScopeLaysTemplatesIntoVersion(t *testing.T) {
+	root := userRoot(t)
 
 	archive := archiveSpec{
 		name: "my-app", version: "1.0.0",
@@ -175,8 +173,10 @@ func TestInstallUserScopeLeavesTemplatesOut(t *testing.T) {
 	_, err := installInto(t, t.TempDir(), Options{Scope: ScopeUser}, archive)
 	require.NoError(t, err)
 
-	root := filepath.Join(home, ".luarocks")
-	assert.FileExists(t, filepath.Join(root, "share", "tarantool", "my-app", "init.lua"))
+	version := filepath.Join(root, "versions", "my-app", "my-app_1.0.0")
+	assert.Equal(t, "router-1:\n",
+		readFile(t, filepath.Join(version, ".templates", "default", "instances.yaml")))
+	assert.Equal(t, "groups: {}\n",
+		readFile(t, filepath.Join(version, ".templates", "default", "config.yaml")))
 	assert.NoDirExists(t, filepath.Join(root, ".templates"))
-	assert.NoDirExists(t, filepath.Join(home, ".templates"))
 }
