@@ -156,25 +156,25 @@ def test_test_leaves_the_manifest_and_the_lock_alone(run_tt, project: Path, fake
     assert b"luatest" not in lock_after_first
 
 
-def test_test_runs_under_the_bundled_runtime(
+def test_test_runs_under_the_project_tarantool(
     run_tt,
     project: Path,
-    bundled_tarantool,
+    project_tarantool,
     fake_luatest,
 ):
     """The runner script is fed to the interpreter tt run would have chosen.
 
-    The bundled fake prints its arguments, so seeing the luatest script among
+    The project fake prints its arguments, so seeing the luatest script among
     them is the proof that the selection reaches the test run too.
     """
     fake_luatest()
-    bundled_tarantool()
+    project_tarantool()
     (project / "test").mkdir()
 
     result = run_tt("test")
 
     assert result.returncode == 0, result.stderr
-    assert "BUNDLED" in result.stdout
+    assert "PROJECT" in result.stdout
     assert "bin/luatest" in result.stdout
 
 

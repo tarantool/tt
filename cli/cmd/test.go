@@ -100,7 +100,7 @@ func splitTestArgs(cmd *cobra.Command, args []string) (string, []string, error) 
 
 // runTest builds the package and hands the suite to luatest.
 func runTest(subPath string, luatestArgs []string) error {
-	root, tarantool, err := selectProjectTarantool(&cmdCtx)
+	root, tarantool, err := selectProjectTarantool()
 	if err != nil {
 		return err
 	}

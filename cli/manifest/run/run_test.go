@@ -63,96 +63,112 @@ func TestProjectRootRefusesAManifestThatIsADirectory(t *testing.T) {
 	require.ErrorIs(t, err, run.ErrNoManifest)
 }
 
-func TestSelectTarantoolPrefersTheBundledRuntime(t *testing.T) {
-	root := projectDir(t)
-	bundled := filepath.Join(root, "_runtime", "tarantool", "bin", "tarantool")
-	writeExecutable(t, bundled)
+// selectInProject lays an installation of tarantool into the project scope
+// and selects it with .tarantool/bin/tarantool, as tt binary install and a
+// with-deps tt package install do, returning its executable.
+func selectInProject(t *testing.T, root string) string {
+	t.Helper()
 
-	system := filepath.Join(t.TempDir(), "tarantool")
+	installed := filepath.Join(root, ".tarantool", "versions", "tarantool",
+		"tarantool_3.8.1", "tarantool")
+	writeExecutable(t, installed)
+
+	link := filepath.Join(root, ".tarantool", "bin", "tarantool")
+	require.NoError(t, os.MkdirAll(filepath.Dir(link), dirMode))
+	require.NoError(t, os.Symlink(installed, link))
+
+	return installed
+}
+
+// onPath puts a tarantool on a PATH of its own and returns it.
+func onPath(t *testing.T) string {
+	t.Helper()
+
+	binDir := t.TempDir()
+	system := filepath.Join(binDir, "tarantool")
 	writeExecutable(t, system)
+	t.Setenv("PATH", binDir)
 
-	chosen, err := run.SelectTarantool(root, run.Environment{Executable: system})
-	require.NoError(t, err)
-	assert.Equal(t, bundled, chosen)
+	return system
 }
 
-// The Enterprise SDK tree is flat, so a cache entry copied from one puts the
-// interpreter a directory above the bin/ layout every other source produces.
-func TestSelectTarantoolAcceptsAFlatBundledLayout(t *testing.T) {
-	root := projectDir(t)
-	bundled := filepath.Join(root, "_runtime", "tarantool", "tarantool")
-	writeExecutable(t, bundled)
+// Not parallel, here and below: PATH and TT_USE_SYSTEM_TARANTOOL are
+// process-wide.
+func TestTarantoolPrefersTheProjectSelection(t *testing.T) {
+	t.Setenv("TT_USE_SYSTEM_TARANTOOL", "")
 
-	chosen, err := run.SelectTarantool(root, run.Environment{})
+	root := projectDir(t)
+	installed := selectInProject(t, root)
+	onPath(t)
+
+	exe, err := run.Tarantool(root)
 	require.NoError(t, err)
-	assert.Equal(t, bundled, chosen)
+	assert.Equal(t, installed, exe.Path)
+	assert.Equal(t, "3.8.1", exe.Version)
 }
 
-func TestSelectTarantoolUseSystemIgnoresTheBundledRuntime(t *testing.T) {
+// A _runtime/ tree in the project is no longer where the interpreter comes
+// from: a with-deps install lays the bundled runtime into .tarantool/versions/
+// and selects it from there.
+func TestTarantoolIgnoresARuntimeTree(t *testing.T) {
+	t.Setenv("TT_USE_SYSTEM_TARANTOOL", "")
+
 	root := projectDir(t)
+	system := onPath(t)
+
 	writeExecutable(t, filepath.Join(root, "_runtime", "tarantool", "bin", "tarantool"))
 
-	system := filepath.Join(t.TempDir(), "tarantool")
-	writeExecutable(t, system)
-
-	chosen, err := run.SelectTarantool(root, run.Environment{
-		Executable: system,
-		UseSystem:  true,
-	})
+	exe, err := run.Tarantool(root)
 	require.NoError(t, err)
-	assert.Equal(t, system, chosen)
+	assert.Equal(t, system, exe.Path)
 }
 
-func TestSelectTarantoolFallsBackToTheEnvironmentExecutable(t *testing.T) {
+func TestTarantoolUseSystemIgnoresTheProjectSelection(t *testing.T) {
+	t.Setenv("TT_USE_SYSTEM_TARANTOOL", "1")
+
 	root := projectDir(t)
+	system := onPath(t)
 
-	system := filepath.Join(t.TempDir(), "tarantool")
-	writeExecutable(t, system)
+	selectInProject(t, root)
 
-	chosen, err := run.SelectTarantool(root, run.Environment{Executable: system})
+	exe, err := run.Tarantool(root)
 	require.NoError(t, err)
-	assert.Equal(t, system, chosen)
+	assert.Equal(t, system, exe.Path)
 }
 
-// A non-executable file under _runtime/ is not an interpreter; the selection
-// must fall through to the host rather than exec something it cannot run.
-func TestSelectTarantoolSkipsANonExecutableBundle(t *testing.T) {
-	root := projectDir(t)
-	bundled := filepath.Join(root, "_runtime", "tarantool", "bin", "tarantool")
-	require.NoError(t, os.MkdirAll(filepath.Dir(bundled), dirMode))
-	require.NoError(t, os.WriteFile(bundled, []byte("not executable"), fileMode))
+// The project's selection is looked up in the root itself: tt run does not
+// search upwards, and neither does the choice of its interpreter.
+func TestTarantoolLooksInTheRootOnly(t *testing.T) {
+	t.Setenv("TT_USE_SYSTEM_TARANTOOL", "")
 
-	system := filepath.Join(t.TempDir(), "tarantool")
-	writeExecutable(t, system)
+	parent := projectDir(t)
+	selectInProject(t, parent)
 
-	chosen, err := run.SelectTarantool(root, run.Environment{Executable: system})
+	root := filepath.Join(parent, "sub")
+	require.NoError(t, os.Mkdir(root, dirMode))
+	require.NoError(t, os.WriteFile(filepath.Join(root, run.ManifestFileName),
+		[]byte("manifest_version = '0.1'\n"), fileMode))
+
+	system := onPath(t)
+
+	exe, err := run.Tarantool(root)
 	require.NoError(t, err)
-	assert.Equal(t, system, chosen)
+	assert.Equal(t, system, exe.Path)
 }
 
-func TestSelectTarantoolNamesBothPlacesWhenNothingIsFound(t *testing.T) {
+func TestTarantoolReportsNoneFound(t *testing.T) {
+	t.Setenv("TT_USE_SYSTEM_TARANTOOL", "")
+
 	root := projectDir(t)
 
 	// An empty PATH is what makes the lookup fail deterministically; without it
 	// the developer's own tarantool answers and the case never runs.
 	t.Setenv("PATH", "")
 
-	_, err := run.SelectTarantool(root, run.Environment{})
+	_, err := run.Tarantool(root)
 	require.ErrorIs(t, err, run.ErrNoTarantool)
-	assert.Contains(t, err.Error(), "_runtime")
+	assert.Contains(t, err.Error(), filepath.Join(".tarantool", "bin", "tarantool"))
 	assert.Contains(t, err.Error(), "PATH")
-}
-
-func TestSelectTarantoolFindsTheInterpreterOnPath(t *testing.T) {
-	root := projectDir(t)
-
-	binDir := t.TempDir()
-	writeExecutable(t, filepath.Join(binDir, "tarantool"))
-	t.Setenv("PATH", binDir)
-
-	chosen, err := run.SelectTarantool(root, run.Environment{})
-	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(binDir, "tarantool"), chosen)
 }
 
 func TestLuatestScriptPrefersThePerRockCopy(t *testing.T) {
@@ -206,22 +222,6 @@ func TestLuatestInstalledSeesAnInstalledRock(t *testing.T) {
 	writeExecutable(t, filepath.Join(root, ".rocks", "bin", "luatest"))
 
 	assert.True(t, run.LuatestInstalled(root))
-}
-
-func TestUseSystemFromEnvReadsTheDocumentedValues(t *testing.T) {
-	cases := map[string]bool{
-		"":      false,
-		"0":     false,
-		"false": false,
-		"1":     true,
-		"true":  true,
-		"yes":   true,
-	}
-
-	for value, want := range cases {
-		t.Setenv(run.UseSystemEnv, value)
-		assert.Equal(t, want, run.UseSystemFromEnv(), "value %q", value)
-	}
 }
 
 // The trailing separator is load-bearing: luatest reads a bare "test" as a
