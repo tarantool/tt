@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/ttlog"
+	"github.com/tarantool/tt/v3/internal/instances"
 	"github.com/tarantool/tt/v3/internal/supervisor"
 )
 
@@ -45,6 +46,9 @@ type watchdogTest struct {
 	exits   []supervisor.Exit
 	// restartable is what the configuration says, read at every exit.
 	restartable bool
+	// restart is the restart policy of the instance record, read at every
+	// exit; empty leaves the decision to restartable.
+	restart instances.RestartPolicy
 }
 
 // testRestartDelay is the restart delay of the watchdog of a test.
@@ -98,6 +102,7 @@ func newWatchdogTest(t *testing.T, restartable bool, cmdCtx *cmdcontext.CmdCtx,
 		inst := test.inst
 
 		inst.Restartable = test.restartable
+		inst.Restart = test.restart
 
 		return inst, nil
 	})
@@ -240,6 +245,14 @@ func (test *watchdogTest) setRestartable(restartable bool) {
 	defer test.mu.Unlock()
 
 	test.restartable = restartable
+}
+
+// setRestart changes the restart policy of the instance record.
+func (test *watchdogTest) setRestart(policy instances.RestartPolicy) {
+	test.mu.Lock()
+	defer test.mu.Unlock()
+
+	test.restart = policy
 }
 
 // waitSockets waits for the sockets of inst to exist.

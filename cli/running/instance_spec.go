@@ -14,6 +14,7 @@ import (
 
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/internal/supervisor"
 )
@@ -54,14 +55,59 @@ func integrityOf(cmdCtx *cmdcontext.CmdCtx) *integrity.IntegrityCtx {
 
 // instanceSpec is the Spec of the tarantool process of an instance: an
 // instance with a cluster config runs from it, any other one runs its script.
+// The stop settings of the instance record, if any, apply to either.
 func instanceSpec(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx, opts specOptions) (
 	supervisor.Spec, error,
 ) {
+	var (
+		spec supervisor.Spec
+		err  error
+	)
+
 	if inst.ClusterConfigPath != "" {
-		return clusterSpec(cmdCtx.Cli.TarantoolCli.Executable, inst, opts)
+		spec, err = clusterSpec(cmdCtx.Cli.TarantoolCli.Executable, inst, opts)
+	} else {
+		spec, err = scriptSpec(cmdCtx.Cli.TarantoolCli.Executable, inst, opts)
 	}
 
-	return scriptSpec(cmdCtx.Cli.TarantoolCli.Executable, inst, opts)
+	if err != nil {
+		return supervisor.Spec{}, err
+	}
+
+	applyStopSettings(&spec, inst)
+
+	return spec, nil
+}
+
+// applyStopSettings applies the stop_signal and stop_timeout of the instance
+// record to spec, over the defaults of tarantoolSpec.
+//
+// Without stop_signal the stop signal the watchdog receives reaches tarantool
+// as it was sent, as it always has: SIGINT from tt stop, SIGQUIT from tt quit.
+// A record that names a signal is the authority on how its instance stops,
+// as KillSignal= is for a systemd unit, so that signal is sent whatever
+// stopped the watchdog, and nothing is forwarded.
+func applyStopSettings(spec *supervisor.Spec, inst *InstanceCtx) {
+	if inst.StopSignal != 0 {
+		spec.StopSignal = inst.StopSignal
+		spec.ForwardStopSignal = false
+	}
+
+	if inst.StopTimeout > 0 {
+		spec.StopTimeout = inst.StopTimeout
+	}
+}
+
+// stopWait is how long tt stop waits for the watchdog of inst to exit: the
+// time tarantool may take to stop, plus the margin process_utils keeps over
+// instanceStopTimeout. Waiting less for an instance whose record allows it
+// longer would report a failure while the instance is still stopping.
+func stopWait(inst *InstanceCtx) time.Duration {
+	if inst.StopTimeout <= instanceStopTimeout {
+		return process_utils.TerminationTimeout
+	}
+
+	return inst.StopTimeout + process_utils.TerminationTimeout - instanceStopTimeout
 }
 
 // tarantoolSpec is what the Specs of both kinds of instances share: how
