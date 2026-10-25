@@ -89,21 +89,30 @@ type Layout struct {
 	Manifests string
 }
 
+// ProjectLayout returns the layout of a project-shaped install root at dir:
+// the project directory itself, or an installed version of an application in
+// the user or system scope, which is laid out the same way. The rocks tree is
+// dir/.rocks, Tarantool finds it from dir by its own loaders, and the
+// per-package metadata of guests goes under dir/.rocks/manifests.
+func ProjectLayout(dir string) Layout {
+	tree := filepath.Join(dir, RocksDirName)
+
+	return Layout{
+		Root:      dir,
+		Tree:      tree,
+		Share:     filepath.Join(tree, shareTarantool),
+		Lib:       filepath.Join(tree, libTarantool),
+		Manifests: filepath.Join(tree, ManifestsDirName),
+	}
+}
+
 // ResolveLayout maps a scope to its concrete directories. projectDir is the
 // install-root for project scope (the caller's cwd); user and system derive
 // their roots from the environment. The returned paths are absolute.
 func ResolveLayout(scope Scope, projectDir string) (Layout, error) {
 	switch scope {
 	case ScopeProject:
-		tree := filepath.Join(projectDir, RocksDirName)
-
-		return Layout{
-			Root:      projectDir,
-			Tree:      tree,
-			Share:     filepath.Join(tree, shareTarantool),
-			Lib:       filepath.Join(tree, libTarantool),
-			Manifests: filepath.Join(tree, ManifestsDirName),
-		}, nil
+		return ProjectLayout(projectDir), nil
 	case ScopeUser:
 		home, err := os.UserHomeDir()
 		if err != nil {

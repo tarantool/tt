@@ -271,6 +271,14 @@ linters:
             # cli/manifest/pack checks the instance descriptions of the
             # templates it packs with the parser tt instance reads them with.
             - "github.com/tarantool/tt/v3/internal/instances"
+            # cli/manifest/state lays applications of the user and system
+            # scopes out next to the products of tt binary: the scope roots,
+            # the versions/ naming and the link replacement are theirs, and a
+            # running instance is told by its pid file.
+            - "github.com/tarantool/tt/v3/internal/binary"
+            - "github.com/tarantool/tt/v3/internal/pidfile"
+            - "github.com/tarantool/tt/v3/internal/scope"
+            - "github.com/tarantool/tt/v3/cli/version"
         manifest-test:
           files:
             - "**/cli/manifest/**/*_test.go"
