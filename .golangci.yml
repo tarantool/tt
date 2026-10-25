@@ -780,6 +780,16 @@ linters:
             - $gostd
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/v3/internal/scope"
+        # The parser of instance descriptions takes bytes and reads nothing
+        # itself: a leaf under the commands, the supervisor's peer.
+        dir-internal-instances:
+          files:
+            - "**/internal/instances/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/v3/internal/instances"
+            - "gopkg.in/yaml.v3"
         # The process supervisor sits under the commands that run it and
         # depends on none of them.
         dir-internal-supervisor:
