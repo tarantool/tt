@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -17,6 +18,7 @@ import (
 	goconfig "github.com/tarantool/go-config/v2"
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/config"
@@ -156,6 +158,16 @@ type InstanceCtx struct {
 	// Configuration is instance configuration loaded from cluster config.
 	// Nil when no cluster config is loaded.
 	Configuration *goconfig.Config
+	// Scope is the scope of the application of an instance NewInstanceCtx
+	// built from the application model, and empty for one collected
+	// through tt.yaml: what differs between the two models goes by it.
+	Scope app.Scope
+	// Root is the root of that scope, which the runtime artifacts of the
+	// instance are under (layout.ScopeLayout); empty for tt.yaml.
+	Root string
+	// Env holds the variables the instance record sets on top of the
+	// inherited environment of tarantool.
+	Env map[string]string
 }
 
 // ConfigLoad defines an enumeration of instance script and cluster configuration load types.
@@ -211,6 +223,9 @@ func searchApplicationScript(applicationsDir, appName string) (InstanceCtx, erro
 		IsFileApp:         true,
 		ClusterConfigPath: "",
 		Configuration:     nil,
+		Scope:             "",
+		Root:              "",
+		Env:               nil,
 	}
 
 	luaPath := filepath.Join(applicationsDir, appName+".lua")
@@ -373,6 +388,9 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 				IsFileApp:         false,
 				ClusterConfigPath: "",
 				Configuration:     nil,
+				Scope:             "",
+				Root:              "",
+				Env:               nil,
 			}}, nil
 		}
 
@@ -431,6 +449,9 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 			IsFileApp:         false,
 			ClusterConfigPath: appDirFiles.clusterCfgPath,
 			Configuration:     nil,
+			Scope:             "",
+			Root:              "",
+			Env:               nil,
 		}
 
 		if selectedInstName != "" && instance.InstName != selectedInstName {
@@ -766,6 +787,11 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 func RunInstance(ctx context.Context, cmdCtx *cmdcontext.CmdCtx, inst InstanceCtx,
 	stdOut, stdErr io.Writer,
 ) error {
+	err := checkStart(&inst)
+	if err != nil {
+		return err
+	}
+
 	for _, dataDir := range [...]string{inst.WalDir, inst.VinylDir, inst.MemtxDir, inst.RunDir} {
 		err := util.CreateDirectory(dataDir, defaultDirPerms)
 		if err != nil {
@@ -779,6 +805,9 @@ func RunInstance(ctx context.Context, cmdCtx *cmdcontext.CmdCtx, inst InstanceCt
 		integrity: integrityOf(cmdCtx),
 		stdout:    stdOut,
 		stderr:    stdErr,
+		warn: func(message string) {
+			logger.Println("(WARN) " + message)
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create the instance %q: %w", inst.InstName, err)
@@ -841,8 +870,38 @@ func waitOrKill(cmd *exec.Cmd, timeout time.Duration) {
 // --watchdog, until the supervision is over. The pid file of the instance
 // names the watchdog, so tt stop, status, kill, quit and logrotate reach it;
 // watchdogOptions says what it does with their signals.
+//
+// The watchdog of an instance collected through tt.yaml reads tt.yaml again
+// before every start. One built from the application model restarts with
+// the context it was started with, until the commands that build it learn
+// to load the application again for a restart.
 func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx) error {
-	err := createInstanceDataDirectories(*inst)
+	refresh := func() (InstanceCtx, error) {
+		return refreshFromConfig(cmdCtx, inst)
+	}
+
+	if inst.Scope != "" {
+		started := *inst
+
+		refresh = func() (InstanceCtx, error) {
+			return started, nil
+		}
+	}
+
+	return superviseInstance(cmdCtx, inst, refresh)
+}
+
+// superviseInstance runs the watchdog of inst, which takes the context of
+// the instance from refresh before every start and after every exit.
+func superviseInstance(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx,
+	refresh func() (InstanceCtx, error),
+) error {
+	err := checkStart(inst)
+	if err != nil {
+		return err
+	}
+
+	err = createInstanceDataDirectories(*inst)
 	if err != nil {
 		return fmt.Errorf("failed to create a directory: %w", err)
 	}
@@ -857,9 +916,7 @@ func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx) error {
 	src := newInstanceSource(cmdCtx, inst, &watchdogLog{
 		logger:      logger,
 		checkPeriod: time.Duration(cmdCtx.Cli.IntegrityCheckPeriod) * time.Second,
-	}, func() (InstanceCtx, error) {
-		return refreshFromConfig(cmdCtx, inst)
-	})
+	}, refresh)
 
 	engine, err := supervisor.New(src, watchdogOptions(cmdCtx, src))
 	if err != nil {
@@ -1062,13 +1119,52 @@ func GetAppInstanceName(instance InstanceCtx) string {
 	return fullInstanceName
 }
 
-// IsAbleToStartInstances checks if it is possible to start instances.
+// IsAbleToStartInstances checks if it is possible to start instances: the
+// tarantool of tt.yaml runs, for the instances collected through it; and for
+// those built from the application model, the instance passes the checks
+// before a start and its application has a tarantool, whose warnings are
+// logged once per application.
+//
+// The command that starts the instances calls it before it detaches their
+// watchdogs, so that what stops an instance from starting reaches the user
+// rather than only the log of the watchdog.
 func IsAbleToStartInstances(instances []InstanceCtx, cmdCtx *cmdcontext.CmdCtx) (
 	bool, error,
 ) {
-	_, err := cmdCtx.Cli.TarantoolCli.GetVersion()
-	if err != nil {
-		return false, err
+	if len(instances) == 0 || slices.ContainsFunc(instances, func(inst InstanceCtx) bool {
+		return inst.Scope == ""
+	}) {
+		_, err := cmdCtx.Cli.TarantoolCli.GetVersion()
+		if err != nil {
+			return false, err
+		}
+	}
+
+	warned := map[string]bool{}
+
+	for i := range instances {
+		inst := &instances[i]
+		if inst.Scope == "" {
+			continue
+		}
+
+		err := checkStart(inst)
+		if err != nil {
+			return false, err
+		}
+
+		exe, err := resolveTarantool(inst)
+		if err != nil {
+			return false, err
+		}
+
+		if !warned[inst.AppDir] {
+			for _, warning := range exe.Warnings {
+				log.Warnf("%s: %s", inst.AppName, warning)
+			}
+
+			warned[inst.AppDir] = true
+		}
 	}
 
 	return true, nil

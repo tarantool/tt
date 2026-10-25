@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -70,22 +69,22 @@ func TestCollectInstances(t *testing.T) {
 		}, ConfigLoadAll)
 	require.NoError(t, err)
 	require.Len(t, instances, 3)
-	assert.True(t, slices.Contains(instances, InstanceCtx{
+	assert.Contains(t, instances, InstanceCtx{
 		AppDir:         "testdata/applications/multi_inst_app",
 		AppName:        appName,
 		InstName:       "router",
 		InstanceScript: filepath.Join(appPath, "router.init.lua"),
 		SingleApp:      false,
 		IsFileApp:      false,
-	}))
-	assert.True(t, slices.Contains(instances, InstanceCtx{
+	})
+	assert.Contains(t, instances, InstanceCtx{
 		AppDir:         "testdata/applications/multi_inst_app",
 		AppName:        appName,
 		InstName:       "master1",
 		InstanceScript: filepath.Join(appPath, "init.lua"),
 		SingleApp:      false,
 		IsFileApp:      false,
-	}))
+	})
 
 	_, err = collectInstances("another_app", singleAppPath, integrity.IntegrityCtx{
 		Repository: &mockRepository{},
