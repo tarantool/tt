@@ -854,13 +854,14 @@ and SDK bundles.
 
 Use --scope to choose where binaries are managed:
   project (default): .tarantool/ in the current working directory.
-  user:
+  user: $TT_USER_ROOT when set; otherwise
     Linux: $XDG_DATA_HOME/tarantool when XDG_DATA_HOME is an absolute path;
       otherwise ~/.local/share/tarantool.
     macOS: ~/Library/Application Support/tarantool.
-  system:
+  system: $TT_SYSTEM_ROOT when set; otherwise
     Linux: /opt/tarantool.
     macOS: /Library/Application Support/tarantool.
+TT_USER_ROOT and TT_SYSTEM_ROOT must be absolute paths.
 
 Each scope stores executables directly in
 <root>/versions/<product>/<product>_<version>/, with Tarantool headers in
