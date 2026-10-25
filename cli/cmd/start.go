@@ -12,21 +12,31 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/sdk/integrity"
+	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/running"
 	"github.com/tarantool/tt/v3/cli/tail"
+	"github.com/tarantool/tt/v3/cli/util"
 )
 
-var (
-	errTarantoolBinaryNotFound = errors.New("tarantool binary is not found")
-)
+// errPinWithoutWatchdog reports a pin of the application directory given to
+// tt start without --watchdog.
+var errPinWithoutWatchdog = errors.New("--" + running.AppDirFlag +
+	" is only for the watchdog of an instance")
 
 var (
 	// "watchdog" is a hidden flag used to daemonize a process.
 	// In go, we can't just fork the process (reason - goroutines).
 	// So, for daemonize, we restarts the process with "watchdog" flag.
 	watchdog bool
+	// watchdogPin is what the hidden flags that come with --watchdog say of
+	// the application the watchdog runs its instance from (StartWatchdog).
+	watchdogPin struct {
+		scope    string
+		template string
+		dir      string
+	}
 	// integrityCheckPeriod is a flag that enables periodic integrity checks.
 	// The default period is 1 day.
 	integrityCheckPeriod = 24 * 60 * 60
@@ -39,7 +49,7 @@ var (
 // NewStartCmd creates start command.
 func NewStartCmd() *cobra.Command {
 	startCmd := &cobra.Command{
-		Use:   "start [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
+		Use:   "start " + instanceTargetsUsage,
 		Short: "Start tarantool instance(s)",
 		RunE:  internalRunE(internalStartModule),
 		ValidArgsFunction: func(
@@ -48,15 +58,23 @@ func NewStartCmd() *cobra.Command {
 			toComplete string,
 		) ([]string, cobra.ShellCompDirective) {
 			return internal.ValidArgsFunction(
-				cliOpts, &cmdCtx, cmd, toComplete,
+				&cmdCtx, cmd, toComplete,
 				running.ExtractInactiveAppNames,
 				running.ExtractInactiveInstanceNames)
 		},
 	}
 
-	startCmd.Flags().BoolVar(&watchdog, "watchdog", false, "")
+	startCmd.Flags().BoolVar(&watchdog, running.WatchdogFlag, false, "")
+	startCmd.Flags().StringVar(&watchdogPin.scope, running.ScopeFlag, "", "")
+	startCmd.Flags().StringVar(&watchdogPin.template, running.TemplateFlag, "", "")
+	startCmd.Flags().StringVar(&watchdogPin.dir, running.AppDirFlag, "", "")
 
-	_ = startCmd.Flags().MarkHidden("watchdog")
+	for _, name := range []string{
+		running.WatchdogFlag, running.ScopeFlag, running.TemplateFlag, running.AppDirFlag,
+	} {
+		_ = startCmd.Flags().MarkHidden(name)
+	}
+
 	startCmd.Flags().BoolVarP(&startInteractive, "interactive", "i", false, "")
 
 	integrity.RegisterIntegrityCheckPeriodFlag(startCmd.Flags(), &cmdCtx.Cli.IntegrityCheckPeriod)
@@ -127,32 +145,57 @@ func startInstances(cmdCtx *cmdcontext.CmdCtx, instances []running.InstanceCtx) 
 
 // internalStartModule is a default start module.
 func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if !isConfigExist(cmdCtx) {
-		return errNoConfig
-	}
-
-	if cmdCtx.Cli.TarantoolCli.Executable == "" {
-		return fmt.Errorf("cannot start: %w", errTarantoolBinaryNotFound)
-	}
-
-	var runningCtx running.RunningCtx
-
-	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, running.ConfigLoadAll)
+	opts, err := startOptions(cmdCtx)
 	if err != nil {
 		return err
 	}
 
-	if canStart, err := running.IsAbleToStartInstances(runningCtx.Instances, cmdCtx); !canStart {
+	instances, err := resolveInstancesWith(args, opts)
+	if err != nil {
+		return err
+	}
+
+	if canStart, err := running.IsAbleToStartInstances(instances); !canStart {
 		return err
 	}
 
 	if !watchdog {
-		return startInstances(cmdCtx, runningCtx.Instances)
+		return startInstances(cmdCtx, instances)
+	}
+
+	if len(instances) != 1 {
+		return util.NewArgError("the watchdog runs one instance")
 	}
 
 	cmdCtx.Cli.IntegrityCheckPeriod = integrityCheckPeriodOf(&cmdCtx.Cli)
 
-	return running.Start(cmdCtx, &runningCtx.Instances[0])
+	return running.Start(context.Background(), cmdCtx, &instances[0])
+}
+
+// startOptions are the options tt start resolves its targets with. The
+// watchdog of an instance gets the scope, the template and the application
+// directory the instance was resolved with, so that it runs it from the
+// application directory the command that started it found
+// (running.StartWatchdog).
+func startOptions(cmdCtx *cmdcontext.CmdCtx) (app.Options, error) {
+	opts, err := instanceOptions(cmdCtx)
+	if err != nil {
+		return app.Options{}, err
+	}
+
+	if watchdogPin.dir != "" && !watchdog {
+		return app.Options{}, util.NewArgError(errPinWithoutWatchdog.Error())
+	}
+
+	opts.Scope, err = app.ParseScope(watchdogPin.scope)
+	if err != nil {
+		return app.Options{}, err
+	}
+
+	opts.Template = watchdogPin.template
+	opts.Dir = watchdogPin.dir
+
+	return opts, nil
 }
 
 // integrityCheckPeriodOf returns the integrity check period of a watchdog in

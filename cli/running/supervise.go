@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
-	"github.com/tarantool/tt/v3/cli/configure"
 	"github.com/tarantool/tt/v3/cli/ttlog"
 	"github.com/tarantool/tt/v3/internal/instances"
 	"github.com/tarantool/tt/v3/internal/supervisor"
@@ -77,8 +76,9 @@ func (wl *watchdogLog) onEnd(err error) {
 }
 
 // instanceSource is the Source of the watchdog of an instance. It reads the
-// configuration again before every start and after every exit, so that a
-// change of the configuration applies from the next start on.
+// instance again from its pair before every start and after every exit, so
+// that a change of the config or of the description applies from the next
+// start on.
 type instanceSource struct {
 	cmdCtx *cmdcontext.CmdCtx
 	// ran is the context tarantool started last runs, or ran, with: the one
@@ -89,7 +89,7 @@ type instanceSource struct {
 	// tarantool has started with it.
 	next InstanceCtx
 	log  *watchdogLog
-	// refresh reads the context of the instance from the configuration.
+	// refresh reads the context of the instance anew from its pair.
 	refresh func() (InstanceCtx, error)
 }
 
@@ -113,7 +113,7 @@ func (src *instanceSource) Next(context.Context) (supervisor.Spec, error) {
 			inst.ClusterConfigPath, inst.InstName)
 	}
 
-	return instanceSpec(src.cmdCtx, &src.next, specOptions{
+	return instanceSpec(&src.next, specOptions{
 		integrity: integrityOf(src.cmdCtx),
 		stdout:    src.log.logger,
 		stderr:    src.log.logger,
@@ -160,13 +160,9 @@ func (src *instanceSource) Restart(_ context.Context, exit supervisor.Exit) (boo
 // instances package gives its values: no never restarts, always restarts
 // after any exit, and on-failure after a non-zero exit status or death by a
 // signal. An exit that could not be waited for counts as a failure, since
-// nothing says the instance ended well. An instance collected through
-// tt.yaml has no policy, and restart_on_failure decides as it always has:
-// after any exit, whatever its status.
+// nothing says the instance ended well.
 func restartsAfter(inst *InstanceCtx, exit supervisor.Exit) bool {
 	switch inst.Restart {
-	case "":
-		return inst.Restartable
 	case instances.RestartAlways:
 		return true
 	case instances.RestartOnFailure:
@@ -179,30 +175,6 @@ func restartsAfter(inst *InstanceCtx, exit supervisor.Exit) bool {
 // started records that tarantool runs with the context of the last Spec.
 func (src *instanceSource) started() {
 	src.ran = src.next
-}
-
-func refreshFromConfig(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx) (InstanceCtx, error) {
-	cliOpts, _, err := configure.GetCliOpts(cmdCtx.Cli.ConfigPath, cmdCtx.Integrity.Repository)
-	if err != nil {
-		return InstanceCtx{}, err
-	}
-
-	var args []string
-
-	if inst.SingleApp {
-		args = []string{inst.AppName}
-	} else {
-		args = []string{inst.AppName + string(InstanceDelimiter) + inst.InstName}
-	}
-
-	var runningCtx RunningCtx
-
-	err = FillCtx(cliOpts, cmdCtx, &runningCtx, args, ConfigLoadSkip)
-	if err != nil {
-		return InstanceCtx{}, err
-	}
-
-	return runningCtx.Instances[0], nil
 }
 
 // isLoggerChanged reports whether instanceCtx names another log file than

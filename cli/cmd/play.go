@@ -13,7 +13,6 @@ import (
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/checkpoint"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
-	"github.com/tarantool/tt/v3/cli/running"
 	"github.com/tarantool/tt/v3/cli/util"
 )
 
@@ -57,7 +56,7 @@ var (
 // NewPlayCmd creates a new play command.
 func NewPlayCmd() *cobra.Command {
 	playCmd := &cobra.Command{
-		Use:   "play (<URI> | <APP_NAME> | <APP_NAME:INSTANCE_NAME>) <FILE|DIR>...",
+		Use:   "play (<URI> | <APP>:<INSTANCE>) <FILE|DIR>...",
 		Short: "Play the contents of .snap/.xlog FILE(s) to another Tarantool instance",
 		RunE:  internalRunE(internalPlayModule),
 		Example: "tt play localhost:3013 /path/to/file.snap /path/to/file.xlog " +
@@ -107,27 +106,26 @@ func playValidateArgs(cmd *cobra.Command, args []string) error {
 
 // internalPlayModule is a default play module.
 func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	// FillCtx returns error if no instances found.
-	var runningCtx running.RunningCtx
-
-	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{args[0]}, running.ConfigLoadAll)
+	// A target that resolves to no instance may still be a URI that happens
+	// to fit <app>:<instance>, such as localhost:3301.
+	instances, err := resolveInstances(cmdCtx, []string{args[0]})
 
 	switch {
 	case err == nil:
-		if len(runningCtx.Instances) > 1 {
+		if len(instances) > 1 {
 			return util.InternalError(
 				"Internal error: specify instance name",
 				flavour.GetVersion)
 		}
 
-		_, err := os.Stat(runningCtx.Instances[0].BinaryPort)
+		_, err := os.Stat(instances[0].BinaryPort)
 		if err != nil {
 			return util.InternalError(
 				"Internal error: application binary port does not exist: %s",
 				flavour.GetVersion, err)
 		}
 
-		args[0] = runningCtx.Instances[0].BinaryPort
+		args[0] = instances[0].BinaryPort
 	case sdkconnect.IsCredentialsURI(args[0]):
 		if playUsername != "" || playPassword != "" {
 			return errCredentialsSpecifiedByFlagsAndURI

@@ -9,22 +9,14 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"slices"
-	"strings"
 	"syscall"
 	"time"
 
 	goconfig "github.com/tarantool/go-config/v2"
-	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/app"
-	"github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
-	"github.com/tarantool/tt/v3/cli/config"
-	"github.com/tarantool/tt/v3/cli/configure"
 	"github.com/tarantool/tt/v3/cli/process_utils"
-	"github.com/tarantool/tt/v3/cli/running/internal/layout"
 	"github.com/tarantool/tt/v3/cli/ttlog"
 	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/cli/util/regexputil"
@@ -33,31 +25,15 @@ import (
 	"github.com/tarantool/tt/v3/internal/supervisor"
 )
 
-// ErrApplicationNotFound reports an application the tt environment does not
-// have. The error that wraps it names the application.
-var ErrApplicationNotFound = errors.New("application ")
-
 var (
 	errCannotGetConfigValueAtAs = errors.New(
 		"cannot get config value at ",
 	)
-	errClusterConfigRequiresInstancesYAML = errors.New("cluster config ")
-	errInvalidApplicationDirectory        = errors.New(
-		" doesn't exist or not a directory",
-	)
-	errInitLuaOrInitLuaIsMissing = errors.New("init.lua or ")
-	errInstanceDead              = errors.New(
+	errInstanceDead = errors.New(
 		process_utils.ProcStateDead.String(),
-	)
-	errInstancesNotFound = errors.New(
-		"instance(s) not found",
 	)
 	errLoggerChangedCheckFailedPassingNullAsAnInstanceContext = errors.New(
 		"logger changed check failed: passing null as an instance context",
-	)
-	errNotFound                                   = errors.New(" not found")
-	errRequiredFilesMissingInApplicationDirectory = errors.New(
-		"require files are missing in application directory ",
 	)
 	errTheInstanceIsNotRunningItMustBeStarted = errors.New(
 		": the instance is not running, it must be started",
@@ -73,10 +49,20 @@ const (
 	killCleanupTimeout = 5 * time.Second
 )
 
+// The hidden flags of tt start that make it the watchdog of one instance
+// (StartWatchdog), and pin the application the watchdog runs the instance
+// from: the watchdog must find the same application directory that the
+// command that started it found, not whatever <root>/apps/<app> points to by
+// the time it comes up.
 const (
-	// clusterConfigDefaultFileName is a default filename for the cluster config.
-	// When using, make sure that both "yml" and "yaml" are considered.
-	clusterConfigDefaultFileName = "config.yml"
+	// WatchdogFlag makes tt start run the watchdog of its one target.
+	WatchdogFlag = "watchdog"
+	// ScopeFlag is the scope of the application.
+	ScopeFlag = "scope"
+	// TemplateFlag is the template the instance was resolved with.
+	TemplateFlag = "template"
+	// AppDirFlag pins the application directory (app.Options.Dir).
+	AppDirFlag = "app-dir"
 )
 
 type syntaxCheckError string
@@ -93,11 +79,15 @@ type RunningCtx struct {
 
 // InstanceCtx contains information about application instance.
 type InstanceCtx struct {
-	// AppDir is an application directory.
+	// AppDir is the application directory, the working directory of the
+	// instance: the project directory, or the version directory
+	// <root>/apps/<app> pointed to when the application was resolved.
 	AppDir string
-	// InstanceScript is a script to run if any.
+	// InstanceScript is the script of a Tarantool instance that configures
+	// itself, run by scriptSpec. Nothing sets it while NewInstanceCtx
+	// refuses such instances.
 	InstanceScript string
-	// AppName contains the name of the application as it was passed on start.
+	// AppName is the name of the application.
 	AppName string
 	// Instance name.
 	InstName string
@@ -130,13 +120,8 @@ type InstanceCtx struct {
 	// The name of the file with the watchdog PID under which the
 	// instance was started.
 	PIDFile string
-	// Restartable is restart_on_failure of tt.yaml: the watchdog starts
-	// the instance again after any exit of its own. It decides only when
-	// Restart is empty.
-	Restartable bool
-	// Restart is the restart policy of the instance record. Empty for an
-	// instance collected through tt.yaml, which leaves the decision to
-	// Restartable.
+	// Restart is the restart policy of the instance record, which the
+	// watchdog follows after the instance exits on its own (restartsAfter).
 	Restart instances.RestartPolicy
 	// StopSignal is the signal the instance record stops the instance
 	// with. Zero leaves tarantool the stop signal the watchdog receives,
@@ -149,21 +134,16 @@ type InstanceCtx struct {
 	ConsoleSocket string
 	// Unix socket used as "binary port".
 	BinaryPort string
-	// True if this is a single instance application (no instances.yml).
-	SingleApp bool
-	// IsFileApp true if this instance is lua-script instance (no-dir).
-	IsFileApp bool
-	// ClusterConfigPath is a path of cluster configuration.
+	// ClusterConfigPath is the cluster config of the pair of the
+	// application, the file tarantool -c gets.
 	ClusterConfigPath string
 	// Configuration is instance configuration loaded from cluster config.
 	// Nil when no cluster config is loaded.
 	Configuration *goconfig.Config
-	// Scope is the scope of the application of an instance NewInstanceCtx
-	// built from the application model, and empty for one collected
-	// through tt.yaml: what differs between the two models goes by it.
+	// Scope is the scope of the application.
 	Scope app.Scope
 	// Root is the root of that scope, which the runtime artifacts of the
-	// instance are under (layout.ScopeLayout); empty for tt.yaml.
+	// instance are under (layout.ScopeLayout).
 	Root string
 	// Template is the --template value the instance was resolved with,
 	// empty for none: the watchdog resolves the instance again with it
@@ -172,379 +152,6 @@ type InstanceCtx struct {
 	// Env holds the variables the instance record sets on top of the
 	// inherited environment of tarantool.
 	Env map[string]string
-}
-
-// ConfigLoad defines an enumeration of instance script and cluster configuration load types.
-type ConfigLoad int
-
-const (
-	// ConfigLoadSkip skips loading cluster config and instance scripts.
-	ConfigLoadSkip ConfigLoad = iota
-	// ConfigLoadCluster requires cluster configuration and reports an error if it is missing.
-	// Instances scripts could be omitted.
-	ConfigLoadCluster
-	// ConfigLoadScripts requires an instance script and reports an error if it is missing.
-	// Cluster configuration could be omitted.
-	ConfigLoadScripts
-	// ConfigLoadAll loads cluster config and instance scripts and reports errors if missing.
-	ConfigLoadAll
-)
-
-// GetAppPath return application path for the instance. It is a script file path in case of
-// single instance file-only app, or directory in case of directory-based application.
-func GetAppPath(instance InstanceCtx) string {
-	if instance.IsFileApp {
-		return instance.InstanceScript
-	}
-
-	return instance.AppDir
-}
-
-// searchApplicationScript searches for application script in a directory.
-func searchApplicationScript(applicationsDir, appName string) (InstanceCtx, error) {
-	instCtx := InstanceCtx{
-		AppDir:            applicationsDir,
-		InstanceScript:    "",
-		AppName:           appName,
-		InstName:          appName,
-		RunDir:            "",
-		LogDir:            "",
-		Log:               "",
-		WalDir:            "",
-		MemtxDir:          "",
-		VinylDir:          "",
-		LogMaxSize:        0,
-		LogMaxBackups:     0,
-		LogMaxAge:         0,
-		PIDFile:           "",
-		Restartable:       false,
-		Restart:           "",
-		StopSignal:        0,
-		StopTimeout:       0,
-		ConsoleSocket:     "",
-		BinaryPort:        "",
-		SingleApp:         true,
-		IsFileApp:         true,
-		ClusterConfigPath: "",
-		Configuration:     nil,
-		Scope:             "",
-		Root:              "",
-		Template:          "",
-		Env:               nil,
-	}
-
-	luaPath := filepath.Join(applicationsDir, appName+".lua")
-
-	_, err := os.Stat(luaPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return instCtx, nil
-		}
-
-		return instCtx, fmt.Errorf("checking the application script: %w", err)
-	}
-
-	instCtx.InstanceScript = luaPath
-
-	return instCtx, nil
-}
-
-// appDirCtx describes important files in application directory.
-type appDirCtx struct {
-	// defaultLuaPath - path to the default lua script.
-	defaultLuaPath string
-	// clusterCfgPath is a cluster config file path.
-	clusterCfgPath string
-	// instCfgPath instances configuration file path.
-	instCfgPath string
-}
-
-// collectAppDirFiles searches for config files and default instance script.
-func collectAppDirFiles(appDir string) (appDirCtx, error) {
-	var (
-		files appDirCtx
-		err   error
-	)
-
-	files.defaultLuaPath = filepath.Join(appDir, "init.lua")
-
-	_, err = os.Stat(files.defaultLuaPath)
-
-	switch {
-	case os.IsNotExist(err):
-		files.defaultLuaPath = ""
-	case err != nil:
-		return files, fmt.Errorf("checking the default instance script: %w", err)
-	}
-
-	files.clusterCfgPath, err = util.GetYamlFileName(
-		filepath.Join(appDir, clusterConfigDefaultFileName), false)
-	if err != nil {
-		return files, err
-	}
-
-	files.instCfgPath, err = util.GetYamlFileName(
-		filepath.Join(appDir, "instances.yml"), false)
-	if err != nil {
-		return files, err
-	}
-
-	return files, err
-}
-
-// getInstanceName gets instance name from app name + instance name.
-func getInstanceName(fullInstanceName string, isClusterInstance bool) string {
-	if isClusterInstance {
-		// If we have a cluster instance, delimiters are ignored.
-		return fullInstanceName
-	}
-
-	_, instanceName, hasDelimiter := strings.Cut(fullInstanceName, ".")
-	if !hasDelimiter {
-		return fullInstanceName
-	}
-
-	return instanceName
-}
-
-// findInstanceScriptInAppDir searches for instance script.
-func findInstanceScriptInAppDir(appDir, instName, clusterCfgPath, defaultScript string) (
-	string, error,
-) {
-	if clusterCfgPath != "" {
-		// TODO: add searching for app: file: script from instance config.
-		return "", nil
-	}
-
-	script := filepath.Join(appDir, instName+".init.lua")
-
-	_, err := os.Stat(script)
-	if err != nil {
-		if defaultScript != "" {
-			return defaultScript, nil
-		} else {
-			return "", fmt.Errorf("%w%s.init.lua is missing",
-				errInitLuaOrInitLuaIsMissing, instName)
-		}
-	}
-
-	return script, nil
-}
-
-// loadInstanceConfig derives instance configuration from a loaded cluster config.
-func loadInstanceConfig(cfg *goconfig.MutableConfig, instName string) (*goconfig.Config, error) {
-	instCfg, err := cluster.GetInstanceConfig(cfg, instName)
-	if err != nil {
-		return nil, err
-	}
-
-	return &instCfg, nil
-}
-
-// collectInstancesFromAppDir collects instances information from application directory.
-func collectInstancesFromAppDir(appDir, selectedInstName string,
-	integrityCtx integrity.IntegrityCtx, loadConfig ConfigLoad) (
-	[]InstanceCtx,
-	error,
-) {
-	log.Debugf("Collecting instances from application directory %q", appDir)
-
-	if !util.IsDir(appDir) {
-		return nil, fmt.Errorf("%q%w", appDir, errInvalidApplicationDirectory)
-	}
-
-	appDirFiles, err := collectAppDirFiles(appDir)
-	if err != nil {
-		return nil, err
-	}
-
-	if appDirFiles.instCfgPath == "" {
-		if appDirFiles.clusterCfgPath != "" {
-			// Cluster config will work only if instances.yml exists nearby.
-			return nil, fmt.Errorf(
-				"%w%q is found, but instances config (instances.yml) is missing",
-				errClusterConfigRequiresInstancesYAML,
-				appDirFiles.clusterCfgPath)
-		}
-
-		if appDirFiles.defaultLuaPath != "" {
-			return []InstanceCtx{{
-				AppDir:            appDir,
-				InstanceScript:    appDirFiles.defaultLuaPath,
-				AppName:           filepath.Base(appDir),
-				InstName:          filepath.Base(appDir),
-				RunDir:            "",
-				LogDir:            "",
-				Log:               "",
-				WalDir:            "",
-				MemtxDir:          "",
-				VinylDir:          "",
-				LogMaxSize:        0,
-				LogMaxBackups:     0,
-				LogMaxAge:         0,
-				PIDFile:           "",
-				Restartable:       false,
-				Restart:           "",
-				StopSignal:        0,
-				StopTimeout:       0,
-				ConsoleSocket:     "",
-				BinaryPort:        "",
-				SingleApp:         true,
-				IsFileApp:         false,
-				ClusterConfigPath: "",
-				Configuration:     nil,
-				Scope:             "",
-				Root:              "",
-				Template:          "",
-				Env:               nil,
-			}}, nil
-		}
-
-		if loadConfig == ConfigLoadAll || loadConfig == ConfigLoadScripts {
-			return nil, fmt.Errorf("%w%q: "+
-				"there must be instances config or the default instance script (%q)",
-				errRequiredFilesMissingInApplicationDirectory, appDir, "init.lua")
-		}
-	}
-
-	f, err := integrityCtx.Repository.Read(appDirFiles.instCfgPath)
-	if err != nil {
-		return nil, fmt.Errorf("can't check integrity of %q: %w", appDirFiles.instCfgPath, err)
-	}
-
-	_ = f.Close()
-
-	instParams, err := util.ParseYAML(appDirFiles.instCfgPath)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Debug("Processing application instances file")
-
-	instances := []InstanceCtx{}
-
-	var (
-		clusterCfg       *goconfig.MutableConfig
-		clusterCfgErr    error
-		clusterCfgLoaded bool
-	)
-
-	for inst := range instParams {
-		instance := InstanceCtx{
-			AppDir:            appDir,
-			InstanceScript:    "",
-			AppName:           filepath.Base(appDir),
-			InstName:          getInstanceName(inst, appDirFiles.clusterCfgPath != ""),
-			RunDir:            "",
-			LogDir:            "",
-			Log:               "",
-			WalDir:            "",
-			MemtxDir:          "",
-			VinylDir:          "",
-			LogMaxSize:        0,
-			LogMaxBackups:     0,
-			LogMaxAge:         0,
-			PIDFile:           "",
-			Restartable:       false,
-			Restart:           "",
-			StopSignal:        0,
-			StopTimeout:       0,
-			ConsoleSocket:     "",
-			BinaryPort:        "",
-			SingleApp:         false,
-			IsFileApp:         false,
-			ClusterConfigPath: appDirFiles.clusterCfgPath,
-			Configuration:     nil,
-			Scope:             "",
-			Root:              "",
-			Template:          "",
-			Env:               nil,
-		}
-
-		if selectedInstName != "" && instance.InstName != selectedInstName {
-			continue
-		}
-
-		if instance.InstName == instance.AppName {
-			log.Debugf("Skipping %q instance since it is an application name", instance.InstName)
-
-			continue
-		}
-
-		log.Debugf("Instance %q", instance.InstName)
-
-		if instance.ClusterConfigPath != "" {
-			// Load only when an instance is selected, and retain failures too:
-			// optional configuration must not be retried for every instance.
-			if !clusterCfgLoaded {
-				clusterCfg, clusterCfgErr = cluster.GetClusterConfig(context.Background(),
-					instance.ClusterConfigPath, integrityCtx)
-				clusterCfgLoaded = true
-			}
-
-			err = clusterCfgErr
-			if err == nil {
-				instance.Configuration, err = loadInstanceConfig(clusterCfg, instance.InstName)
-			}
-
-			if err != nil && (loadConfig == ConfigLoadAll || loadConfig == ConfigLoadCluster) {
-				return instances, fmt.Errorf("error loading instance %q configuration from "+
-					"config %q: %w", instance.InstName, instance.ClusterConfigPath, err)
-			}
-		}
-
-		instance.SingleApp = false
-		instance.InstanceScript, err = findInstanceScriptInAppDir(appDir, instance.InstName,
-			appDirFiles.clusterCfgPath, appDirFiles.defaultLuaPath)
-
-		if err != nil && (loadConfig == ConfigLoadAll || loadConfig == ConfigLoadScripts) {
-			return instances, fmt.Errorf("cannot find instance script for %q in config %q: %w ",
-				instance.InstName, appDirFiles.clusterCfgPath, err)
-		}
-
-		instances = append(instances, instance)
-	}
-
-	if len(instances) == 0 {
-		return nil, errInstancesNotFound
-	}
-
-	return instances, nil
-}
-
-// collectInstances searches all instances available in the configured application.
-func collectInstances(appName, applicationDir string,
-	integrityCtx integrity.IntegrityCtx, loadConfig ConfigLoad) (
-	[]InstanceCtx, error,
-) {
-	// The user can select a specific instance from the application.
-	// Example: `tt status application:server`.
-	selectedInstName := ""
-	colonIDs := strings.Index(appName, string(InstanceDelimiter))
-
-	if colonIDs != -1 {
-		appNameTmp := appName
-
-		appName = appNameTmp[:colonIDs]
-		selectedInstName = appNameTmp[colonIDs+1:]
-	}
-
-	appName = strings.TrimSuffix(appName, ".lua")
-
-	expectedAppName := filepath.Base(filepath.Clean(applicationDir))
-
-	if appName != expectedAppName {
-		return nil, fmt.Errorf("%w%q not found", ErrApplicationNotFound, appName)
-	}
-
-	// A single application can be represented by `<appName>.lua` or by
-	// the application directory itself.
-	instCtx, err := searchApplicationScript(applicationDir, appName)
-	if err != nil || instCtx.InstanceScript != "" {
-		return []InstanceCtx{instCtx}, err
-	}
-
-	return collectInstancesFromAppDir(applicationDir, selectedInstName, integrityCtx, loadConfig)
 }
 
 // removeSockets removes the console socket and the binary port socket of an
@@ -575,91 +182,6 @@ func createLogger(run *InstanceCtx) (ttlog.Logger, error) {
 	return ttlog.NewFileLogger(opts)
 }
 
-// configMap is a helper structure to bind cluster config path with a pointer to value storage.
-type configMap[T any] struct {
-	// path is a path to the value to get from config.
-	path goconfig.KeyPath
-	// destination is destination pointer for storing the value.
-	destination *T
-}
-
-// mapValuesFromConfig get values specified by paths from cfg config and stores them by pointers
-// and modifying with mapFunc.
-func mapValuesFromConfig[T any](cfg goconfig.Config, mapFunc func(val T) (T, error),
-	maps ...configMap[T],
-) error {
-	for _, cfgMapping := range maps {
-		var raw any
-
-		_, err := cfg.Get(cfgMapping.path, &raw)
-		if err != nil {
-			if errors.Is(err, goconfig.ErrKeyNotFound) {
-				continue
-			}
-
-			return fmt.Errorf("getting %q from the config: %w", cfgMapping.path, err)
-		}
-
-		castedValue, ok := raw.(T)
-		if !ok {
-			return fmt.Errorf("%w%q as %T", errCannotGetConfigValueAtAs, cfgMapping.path, *new(T))
-		}
-
-		newValue, err := mapFunc(castedValue)
-		if err != nil {
-			return err
-		}
-
-		*cfgMapping.destination = newValue
-	}
-
-	return nil
-}
-
-// setInstCtxFromTtConfig sets instance context members from tt config.
-func setInstCtxFromTtConfig(inst *InstanceCtx, cliOpts *config.CliOpts) error {
-	if cliOpts.Env != nil {
-		inst.Restartable = cliOpts.Env.Restartable
-	}
-
-	if cliOpts.App != nil {
-		envLayout, err := layout.NewMultiInstLayout(inst.AppDir, inst.AppName, inst.InstName)
-		if err != nil {
-			return err
-		}
-
-		inst.ConsoleSocket = envLayout.ConsoleSocket(cliOpts.App.RunDir)
-		inst.BinaryPort = envLayout.BinaryPort(cliOpts.App.RunDir)
-		inst.PIDFile = envLayout.PidFile(cliOpts.App.RunDir)
-		inst.RunDir = filepath.Dir(inst.ConsoleSocket)
-
-		inst.Log = envLayout.LogFile(cliOpts.App.LogDir)
-		inst.LogDir = filepath.Dir(inst.Log)
-
-		inst.WalDir = envLayout.DataDir(cliOpts.App.WalDir)
-		inst.VinylDir = envLayout.DataDir(cliOpts.App.VinylDir)
-		inst.MemtxDir = envLayout.DataDir(cliOpts.App.MemtxDir)
-	}
-
-	return nil
-}
-
-// setInstCtxFromClusterConfig set instance context values from loaded configuration.
-func setInstCtxFromClusterConfig(instance *InstanceCtx) error {
-	if instance.Configuration != nil {
-		return mapValuesFromConfig(*instance.Configuration,
-			func(val string) (string, error) {
-				return util.JoinAbspath(instance.AppDir, val)
-			},
-			configMap[string]{goconfig.NewKeyPath("wal/dir"), &instance.WalDir},
-			configMap[string]{goconfig.NewKeyPath("vinyl/dir"), &instance.VinylDir},
-			configMap[string]{goconfig.NewKeyPath("snapshot/dir"), &instance.MemtxDir},
-			configMap[string]{goconfig.NewKeyPath("console/socket"), &instance.ConsoleSocket})
-	}
-
-	return nil
-}
-
 // renderInstCtxMembers instantiates some members of instance context.
 func renderInstCtxMembers(instance *InstanceCtx) error {
 	templateData := map[string]string{
@@ -680,65 +202,6 @@ func renderInstCtxMembers(instance *InstanceCtx) error {
 	return nil
 }
 
-// GetClusterConfigPath returns a cluster config path for the application.
-// If mustExist flag is set and config is not found, ErrNotExists error is returned,
-// default config filepath is returned otherwise.
-func GetClusterConfigPath(ttConfigDir string, mustExist bool) (string, error) {
-	configPath := filepath.Join(ttConfigDir, clusterConfigDefaultFileName)
-	ret, err := util.GetYamlFileName(configPath, true)
-
-	if errors.Is(err, os.ErrNotExist) {
-		if mustExist {
-			return "", err
-		}
-
-		return configPath, nil
-	}
-
-	if err != nil {
-		return "", err
-	}
-
-	return ret, nil
-}
-
-// CollectInstancesForApp collects instances information for the configured application.
-func CollectInstancesForApp(appName string, cliOpts *config.CliOpts,
-	ttConfigDir string, integrityCtx integrity.IntegrityCtx, loadConfig ConfigLoad) (
-	[]InstanceCtx, error,
-) {
-	appName = strings.TrimSuffix(appName, ".lua")
-
-	collectedInstances, err := collectInstances(appName, ttConfigDir, integrityCtx, loadConfig)
-	if err != nil {
-		return nil, fmt.Errorf("can't collect instance information for %s: %w", appName, err)
-	}
-
-	instances := make([]InstanceCtx, 0, len(collectedInstances))
-	for _, inst := range collectedInstances {
-		instance := inst
-
-		err = setInstCtxFromTtConfig(&instance, cliOpts)
-		if err != nil {
-			return nil, err
-		}
-
-		err = setInstCtxFromClusterConfig(&instance)
-		if err != nil {
-			return nil, err
-		}
-
-		err = renderInstCtxMembers(&instance)
-		if err != nil {
-			return nil, err
-		}
-
-		instances = append(instances, instance)
-	}
-
-	return instances, nil
-}
-
 // createInstanceDataDirectories creates directories for data and runtime artifacts.
 func createInstanceDataDirectories(instance InstanceCtx) error {
 	for _, dataDir := range [...]string{
@@ -750,42 +213,6 @@ func createInstanceDataDirectories(instance InstanceCtx) error {
 			return err
 		}
 	}
-
-	return nil
-}
-
-// FillCtx fills the RunningCtx context.
-func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
-	runningCtx *RunningCtx, args []string, loadConfig ConfigLoad,
-) error {
-	var err error
-
-	if len(args) > 1 && cmdCtx.CommandName != "run" && cmdCtx.CommandName != "connect" &&
-		cmdCtx.CommandName != "add" && cmdCtx.CommandName != "remove" {
-		return util.NewArgError("currently, you can specify only one instance at a time")
-	}
-
-	// All relative paths are built from the path of the tt.yaml file.
-	// If tt.yaml does not exists we must return error.
-	if cmdCtx.Cli.ConfigPath == "" {
-		return fmt.Errorf("%s%w", configure.ConfigName, errNotFound)
-	}
-
-	var appName string
-
-	if len(args) == 0 {
-		appName = filepath.Base(filepath.Clean(cmdCtx.Cli.ConfigDir))
-	} else {
-		appName = args[0]
-	}
-
-	instances, err := CollectInstancesForApp(appName, cliOpts, cmdCtx.Cli.ConfigDir,
-		cmdCtx.Integrity, loadConfig)
-	if err != nil {
-		return err
-	}
-
-	runningCtx.Instances = append(runningCtx.Instances, instances...)
 
 	return nil
 }
@@ -808,7 +235,7 @@ func RunInstance(ctx context.Context, cmdCtx *cmdcontext.CmdCtx, inst InstanceCt
 
 	logger := ttlog.NewCustomLogger(stdOut, "", 0)
 
-	spec, err := instanceSpec(cmdCtx, &inst, specOptions{
+	spec, err := instanceSpec(&inst, specOptions{
 		integrity: integrityOf(cmdCtx),
 		stdout:    stdOut,
 		stderr:    stdErr,
@@ -878,24 +305,18 @@ func waitOrKill(cmd *exec.Cmd, timeout time.Duration) {
 // names the watchdog, so tt stop, status, kill, quit and logrotate reach it;
 // watchdogOptions says what it does with their signals.
 //
-// The watchdog of an instance collected through tt.yaml reads tt.yaml again
-// before every start. One built from the application model restarts with
-// the context it was started with, until the commands that build it learn
-// to load the application again for a restart.
-func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx) error {
-	refresh := func() (InstanceCtx, error) {
-		return refreshFromConfig(cmdCtx, inst)
-	}
+// Before every start the watchdog reads the instance anew from the pair of
+// the application directory it started from (reload): a restart after an
+// exit picks up an edited config and restart policy, and stays on the
+// version it started from. ctx bounds those reads, which may go to a config
+// storage.
+func Start(ctx context.Context, cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx) error {
+	pinned := *inst
 
-	if inst.Scope != "" {
-		started := *inst
-
-		refresh = func() (InstanceCtx, error) {
-			return started, nil
-		}
-	}
-
-	return superviseInstance(cmdCtx, inst, refresh)
+	//nolint:contextcheck // The watchdog runs until it is stopped; ctx bounds the reads.
+	return superviseInstance(cmdCtx, inst, func() (InstanceCtx, error) {
+		return reload(ctx, &pinned, cmdCtx.Integrity)
+	})
 }
 
 // superviseInstance runs the watchdog of inst, which takes the context of
@@ -1092,18 +513,43 @@ func Logrotate(run *InstanceCtx) error {
 	return nil
 }
 
-// Check returns the result of checking the syntax of the application file.
-func Check(cmdCtx *cmdcontext.CmdCtx, run *InstanceCtx) error {
+// AppFile returns the application file of inst, the Lua file its config
+// runs: app.file of its effective config, resolved against its application
+// directory, which is what tarantool resolves it against. found is false
+// when the config names none.
+func AppFile(inst *InstanceCtx) (string, bool, error) {
+	file, found, err := effectiveString(inst, "app.file")
+	if err != nil || !found {
+		return "", false, err
+	}
+
+	path, err := util.JoinAbspath(inst.AppDir, file)
+	if err != nil {
+		return "", false, fmt.Errorf("instance %q of %q: app.file %q: %w",
+			inst.InstName, inst.AppName, file, err)
+	}
+
+	return path, true, nil
+}
+
+// Check checks the syntax of file, a Lua file of the application of inst,
+// with the tarantool the instance runs on: the syntax that counts is the
+// one that tarantool accepts.
+func Check(ctx context.Context, inst *InstanceCtx, file string) error {
+	exe, err := resolveTarantool(inst)
+	if err != nil {
+		return err
+	}
+
 	var errBuff bytes.Buffer
 
-	_ = os.Setenv("TT_CLI_INSTANCE", run.InstanceScript)
+	cmd := exec.CommandContext(ctx, exe.Path, "-e", checkSyntax)
 
-	cmd := exec.CommandContext(
-		context.Background(), cmdCtx.Cli.TarantoolCli.Executable, "-e", checkSyntax)
-
+	cmd.Env = append(os.Environ(), "TT_CLI_INSTANCE="+file)
+	cmd.Dir = inst.AppDir
 	cmd.Stderr = &errBuff
 
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
 		return syntaxCheckError(errBuff.String())
 	}
@@ -1111,49 +557,24 @@ func Check(cmdCtx *cmdcontext.CmdCtx, run *InstanceCtx) error {
 	return nil
 }
 
-// GetAppInstanceName returns the full instance name for the passed context.
-// If an application is multi-instance, the format will be AppName:InstName.
-// Otherwise, the format is AppName.
+// GetAppInstanceName returns the target that names the instance,
+// <app>:<instance>.
 func GetAppInstanceName(instance InstanceCtx) string {
-	var fullInstanceName string
-
-	if instance.SingleApp {
-		fullInstanceName = instance.AppName
-	} else {
-		fullInstanceName = instance.AppName + string(InstanceDelimiter) + instance.InstName
-	}
-
-	return fullInstanceName
+	return instance.AppName + string(InstanceDelimiter) + instance.InstName
 }
 
-// IsAbleToStartInstances checks if it is possible to start instances: the
-// tarantool of tt.yaml runs, for the instances collected through it; and for
-// those built from the application model, the instance passes the checks
-// before a start and its application has a tarantool, whose warnings are
-// logged once per application.
+// IsAbleToStartInstances checks if it is possible to start instances: each
+// passes the checks before a start and its application has a tarantool,
+// whose warnings are logged once per application.
 //
 // The command that starts the instances calls it before it detaches their
 // watchdogs, so that what stops an instance from starting reaches the user
 // rather than only the log of the watchdog.
-func IsAbleToStartInstances(instances []InstanceCtx, cmdCtx *cmdcontext.CmdCtx) (
-	bool, error,
-) {
-	if len(instances) == 0 || slices.ContainsFunc(instances, func(inst InstanceCtx) bool {
-		return inst.Scope == ""
-	}) {
-		_, err := cmdCtx.Cli.TarantoolCli.GetVersion()
-		if err != nil {
-			return false, err
-		}
-	}
-
+func IsAbleToStartInstances(instances []InstanceCtx) (bool, error) {
 	warned := map[string]bool{}
 
 	for i := range instances {
 		inst := &instances[i]
-		if inst.Scope == "" {
-			continue
-		}
 
 		err := checkStart(inst)
 		if err != nil {
@@ -1177,7 +598,32 @@ func IsAbleToStartInstances(instances []InstanceCtx, cmdCtx *cmdcontext.CmdCtx) 
 	return true, nil
 }
 
-// StartWatchdog starts tarantool instance with watchdog.
+// watchdogArgs returns the arguments of tt start that run the watchdog of
+// instance: its target, and the scope, the application directory and the
+// template it was resolved with, so that the watchdog runs the instance from
+// the same application directory (PinnedOptions). Resolving the target anew
+// in the watchdog could find another version, should <root>/apps/<app> move
+// before the watchdog comes up.
+func watchdogArgs(instance *InstanceCtx) []string {
+	args := []string{
+		"start", "--" + WatchdogFlag,
+		"--" + ScopeFlag, instance.Scope.String(),
+		"--" + AppDirFlag, instance.AppDir,
+	}
+
+	if instance.Template != "" {
+		args = append(args, "--"+TemplateFlag, instance.Template)
+	}
+
+	return append(args, GetAppInstanceName(*instance))
+}
+
+// StartWatchdog starts the watchdog of instance in the background, a tt
+// start --watchdog detached from the command, unless the instance is already
+// running. args go before the arguments that run the watchdog.
+//
+// The watchdog gets no tt.yaml: it finds the application from what it is
+// given (watchdogArgs).
 func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance InstanceCtx,
 	args []string,
 ) error {
@@ -1197,17 +643,7 @@ func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance Inst
 	}
 
 	newArgs = append(newArgs, args...)
-
-	switch {
-	case cmdCtx.Cli.IsSystem:
-		newArgs = append(newArgs, "-S")
-	case cmdCtx.Cli.LocalLaunchDir != "":
-		newArgs = append(newArgs, "-L", cmdCtx.Cli.LocalLaunchDir)
-	default:
-		newArgs = append(newArgs, "--cfg", cmdCtx.Cli.ConfigPath)
-	}
-
-	newArgs = append(newArgs, "start", "--watchdog", appName)
+	newArgs = append(newArgs, watchdogArgs(&instance)...)
 
 	f, err := cmdCtx.Integrity.Repository.Read(ttExecutable)
 	if err != nil {

@@ -317,7 +317,8 @@ templates:
 - `bin_dir` (string) - directory that stores binary files.
 - `inc_dir` (string) - directory that stores header files. The path
     will be padded with a directory named include.
-- `restart_on_failure` (bool) - should it restart on failure.
+- `restart_on_failure` (bool) - not used: the instance commands take the
+    restart policy from the `restart` field of the instance record.
 - `output_history_max` (int) - the maximum number of commands output
     by the "\history" command. Default value is 10
 
@@ -468,6 +469,10 @@ Without the flag, credentials come from `TT_CLI_EE_USERNAME` and
 credentials from `tt.yaml`.
 
 #### app
+
+The instance commands do not read this section: the runtime artifacts of an
+instance go under the root of the scope of its application (see
+[Working with a set of instances](#working-with-a-set-of-instances)).
 
 - `run_dir` (string) - path to directory that stores various instance
     runtime artifacts like console socket, PID file, etc.
@@ -624,38 +629,51 @@ templates from the configuration file.
 
 ### Working with a set of instances
 
-`tt` can manage a set of instances of one application based on one source
-file.
+`tt start`, `stop`, `status`, `restart`, `kill`, `log`, `logrotate`, `check`,
+`clean`, `connect` and `play` act on the instances of an application. They do
+not read `tt.yaml`.
 
-To work with a set of instances, create an application root containing
-`tt.yaml`, `init.lua`, and `instances.yml`. Run `tt` from this directory (or
-select its `tt.yaml` using `--cfg`).
+A project is a directory with `app.manifest.toml` or
+`.templates/<name>/instances.yaml`; `tt` finds it from the current directory
+or any directory inside it. The project runs from a pair of files in
+`.templates/default/`: `instances.yaml`, what runs on this host, and
+`config.yaml`, the cluster config `tarantool -c` gets:
 
-- `tt.yaml` - tt environment configuration file.
-- `init.lua` - application source file.
-- `instances.yml` - description of instances.
-
-Instances are described in `instances.yml` with format:
-
-``` yaml
-instance_name:
-  parameter: value
+```text
+    .
+    ├── .templates
+    │   └── default
+    │       ├── config.yaml
+    │       └── instances.yaml
+    ├── app.manifest.toml
+    └── storage.lua
 ```
 
-The dot character in instance names is reserved for system use.
-Also, if an instance name ends with `-stateboard`, it will be recognized
-as `stateboard`.
-If it is necessary for a certain instance to work on a source file
-other than `init.lua`, then you need to create a script with a name in
-the format: `instance_name.init.lua`.
+`instances.yaml` maps instance names to their records; every instance must be
+in the topology of `config.yaml`:
 
-The following environment variables are associated with each instance:
+```yaml
+storage-001:
+storage-002:
+  restart: on-failure
+```
 
-- `TARANTOOL_APP_NAME` - application name (the name of the directory
-    where the application files are present).
-- `TARANTOOL_INSTANCE_NAME` - instance name.
+The application is named by `[package].name` of the manifest, or after the
+project directory without one. A target is `<app>:<instance>`, `<app>:*`, or
+a comma-separated list of them; no target is every instance of the current
+project. `<app>:...` is the current project when it is called `<app>`, and
+the application installed in the system scope otherwise: `<root>/apps/<app>`,
+where `<root>` is `/opt/tarantool` or `TT_SYSTEM_ROOT`. An installed
+application runs from the pair of the host, `<root>/etc/<app>/`, when there is
+one. A bare `<app>` is refused: it is not an instance target.
 
-[Example](https://github.com/tarantool/tt/blob/master/doc/examples.md#working-with-a-set-of-instances)
+The data, the logs and the pid files and sockets of an instance are in
+`<root>/var/lib/<app>/<instance>/`, `<root>/var/log/<app>/<instance>/` and
+`<root>/var/run/<app>/<instance>/`; in a project `<root>` is `.tarantool` in
+the project directory. The instance runs in the application directory.
+
+Records with `script` or `binary`, Tarantool instances configured by their
+own script and external processes, are not supported yet.
 
 ### Working with application templates
 

@@ -24,7 +24,7 @@ var (
 // NewCleanCmd creates clean command.
 func NewCleanCmd() *cobra.Command {
 	cleanCmd := &cobra.Command{
-		Use:   "clean [INSTANCE_NAME]",
+		Use:   "clean " + instanceTargetsUsage,
 		Short: "Clean instance(s) files",
 		RunE:  internalRunE(internalCleanModule),
 		ValidArgsFunction: func(
@@ -33,7 +33,7 @@ func NewCleanCmd() *cobra.Command {
 			toComplete string,
 		) ([]string, cobra.ShellCompDirective) {
 			return internal.ValidArgsFunction(
-				cliOpts, &cmdCtx, cmd, toComplete,
+				&cmdCtx, cmd, toComplete,
 				running.ExtractAppNames,
 				running.ExtractInstanceNames)
 		},
@@ -143,18 +143,12 @@ func clean(run *running.InstanceCtx) error {
 
 // internalCleanModule is a default clean module.
 func internalCleanModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if !isConfigExist(cmdCtx) {
-		return errNoConfig
-	}
-
-	var runningCtx running.RunningCtx
-
-	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, running.ConfigLoadCluster)
+	instances, err := resolveInstances(cmdCtx, args)
 	if err != nil {
 		return err
 	}
 
-	for _, run := range runningCtx.Instances {
+	for _, run := range instances {
 		status := running.Status(&run)
 		if status.Code == process_utils.ProcessStoppedCode {
 			var statusMsg string

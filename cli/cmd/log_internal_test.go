@@ -23,11 +23,10 @@ func TestLogRoot(t *testing.T) {
 
 	t.Run("single-instance application", func(t *testing.T) {
 		inst := running.InstanceCtx{
-			LogDir:    filepath.Join("var", "log"),
-			SingleApp: true,
+			LogDir: filepath.Join(".tarantool", "var", "log", "app", "instance"),
 		}
 		actual := logRoot(inst)
-		require.Equal(t, inst.LogDir, actual)
+		require.Equal(t, filepath.Join(".tarantool", "var", "log", "app"), actual)
 	})
 }
 

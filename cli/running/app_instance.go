@@ -34,7 +34,7 @@ var (
 	// installed instance that is relative to its version directory.
 	errRelativePath = errors.New("relative paths in the config of an installed instance")
 	// errOldLayout is wrapped by the error for a project whose data is still
-	// where the tt.yaml layout kept it.
+	// where tt kept it before the scope layout, <project>/var/lib.
 	errOldLayout = errors.New("the project keeps instance data in the old layout")
 	// errUnknownScope is wrapped by the error for an instance context whose
 	// scope tt binary has no counterpart for.
@@ -42,8 +42,7 @@ var (
 )
 
 // varLibDir is the directory of the data of the instances: under the scope
-// root in the scope layout, under the application directory in the tt.yaml
-// one.
+// root now, and under the project directory before the scope layout.
 const varLibDir = "var/lib"
 
 // writtenPathKeys are the keys of the config of a Tarantool instance that
@@ -61,10 +60,8 @@ var writtenPathKeys = []string{
 
 // NewInstanceCtx builds the context of the instance record inst of
 // application, as app.Load and app.Resolve return them: what the commands
-// that start, stop, inspect and clean up an instance need from it. It is the
-// application model's counterpart of collecting the instances of the
-// application tt.yaml is in, and it reads nothing but what application
-// holds.
+// that start, stop, inspect and clean up an instance need from it. It reads
+// nothing but what application holds.
 //
 // The runtime artifacts of the instance go under the root of the scope of
 // the application (layout.ScopeLayout), and its working directory is the
@@ -133,14 +130,11 @@ func NewInstanceCtx(application *app.App, inst instances.Instance) (InstanceCtx,
 		LogMaxBackups:     0,
 		LogMaxAge:         0,
 		PIDFile:           scopeLayout.PidFile(),
-		Restartable:       false,
 		Restart:           inst.Restart,
 		StopSignal:        inst.StopSignal,
 		StopTimeout:       inst.StopTimeout,
 		ConsoleSocket:     scopeLayout.ConsoleSocket(),
 		BinaryPort:        scopeLayout.BinaryPort(),
-		SingleApp:         false,
-		IsFileApp:         false,
 		ClusterConfigPath: application.Pair.ConfigFile,
 		Configuration:     nil,
 		Scope:             application.Scope,
@@ -172,8 +166,8 @@ func NewInstanceCtx(application *app.App, inst instances.Instance) (InstanceCtx,
 }
 
 // setInstCtxFromEffectiveConfig sets the paths the effective config of
-// inst names, resolved against its application directory, as
-// setInstCtxFromClusterConfig does for an instance collected through tt.yaml.
+// inst names, resolved against its application directory, over the paths of
+// the layout: the config has the last word on where its instance writes.
 func setInstCtxFromEffectiveConfig(inst *InstanceCtx) error {
 	for _, target := range [...]struct {
 		key  string
@@ -239,26 +233,20 @@ func effectiveString(inst *InstanceCtx, key string) (string, bool, error) {
 	return value, value != "", nil
 }
 
-// checkStart checks, for an instance built from the application model, what
-// has to hold before it starts. An instance collected through tt.yaml passes:
-// none of this applies to it.
+// checkStart checks what has to hold before an instance starts.
 //
 // It runs before the directories of the instance are created, which would
 // hide data left in the old layout, and again before every start of the
 // watchdog, since a restart reads a config that may have changed. Every
 // problem is reported at once, so that one pass fixes them.
 func checkStart(inst *InstanceCtx) error {
-	if inst.Scope == "" {
-		return nil
-	}
-
 	_, _, socketErr := socketArgs(inst)
 
 	return errors.Join(checkOldLayout(inst), checkRelativePaths(inst), socketErr)
 }
 
 // checkOldLayout refuses to start an instance of a project that still keeps
-// the data of its instances where the tt.yaml layout did, <project>/var/lib,
+// the data of its instances where tt did before, <project>/var/lib,
 // while nothing is in <project>/.tarantool/var/lib yet.
 //
 // The instance would start on an empty database next to its data, and the
@@ -355,13 +343,11 @@ func isWithin(path, dir string) bool {
 }
 
 // socketArgs returns the console socket and the iproto listen setting
-// tarantool gets, as TT_CONSOLE_SOCKET_DEFAULT and TT_IPROTO_LISTEN_DEFAULT,
-// for an instance built from the application model.
+// tarantool gets, as TT_CONSOLE_SOCKET_DEFAULT and TT_IPROTO_LISTEN_DEFAULT.
 //
 // A socket path that is too long for a unix socket address is given
-// relative to the working directory of tarantool, as shortenSocketPath does
-// for an instance collected through tt.yaml, where tarantool takes it that
-// way: the iproto listen URI whatever the path, and the console socket only
+// relative to the working directory of tarantool where tarantool takes it
+// that way: the iproto listen URI whatever the path, and the console socket only
 // inside the working directory, since the config of tarantool turns a
 // console socket outside of it back into an absolute path
 // (rebase_file_path). So in a project, whose root is in the project

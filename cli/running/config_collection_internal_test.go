@@ -14,8 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	goconfig "github.com/tarantool/go-config/v2"
-	"github.com/tarantool/tt/sdk/integrity"
-	"github.com/tarantool/tt/v3/cli/config"
+	"github.com/tarantool/tt/v3/cli/app"
 	"go.etcd.io/etcd/api/v3/etcdserverpb"
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	"google.golang.org/grpc"
@@ -92,6 +91,9 @@ func collectionConfigApp(t *testing.T, endpoint string, count int) (string, stri
 	t.Helper()
 
 	appDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(appDir, ".templates/default"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(appDir, "app.manifest.toml"),
+		[]byte(fixtureManifest), 0o644))
 
 	var instances, scopes strings.Builder
 
@@ -121,9 +123,9 @@ groups:
         instances:
 %s`, endpoint, scopes.String())
 
-	require.NoError(t, os.WriteFile(filepath.Join(appDir, "instances.yml"),
+	require.NoError(t, os.WriteFile(filepath.Join(appDir, ".templates/default/instances.yaml"),
 		[]byte(instances.String()), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(appDir, "config.yml"),
+	require.NoError(t, os.WriteFile(filepath.Join(appDir, ".templates/default/config.yaml"),
 		[]byte(clusterConfig), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(appDir, "init.lua"), []byte("-- test"), 0o644))
 
@@ -142,6 +144,18 @@ func collectionConfigString(t *testing.T, instance InstanceCtx, path string) str
 	return value
 }
 
+func collectConfigApp(t *testing.T, appDir, selected string) ([]InstanceCtx, error) {
+	t.Helper()
+
+	var targets []app.Target
+
+	if selected != "" {
+		targets = []app.Target{{App: fixtureApp, Instance: selected}}
+	}
+
+	return Collect(t.Context(), targets, app.Options{Start: appDir, Scope: app.ScopeProject})
+}
+
 func TestCollectInstancesReusesClusterConfig(t *testing.T) {
 	storage := &collectionConfigStorage{}
 	endpoint := startCollectionConfigStorage(t, storage)
@@ -149,36 +163,30 @@ func TestCollectInstancesReusesClusterConfig(t *testing.T) {
 	t.Setenv("TT_WAL_MODE_DEFAULT", "write")
 	t.Setenv("TT_LOG_LEVEL", "warn")
 
-	for _, mode := range []ConfigLoad{
-		ConfigLoadSkip, ConfigLoadScripts, ConfigLoadCluster, ConfigLoadAll,
-	} {
-		t.Run(fmt.Sprint(mode), func(t *testing.T) {
-			before := storage.reads.Load()
-			instances, err := CollectInstancesForApp(filepath.Base(appDir), &config.CliOpts{},
-				appDir, integrity.IntegrityCtx{Repository: &mockRepository{}}, mode)
-			require.NoError(t, err)
-			require.Len(t, instances, 20)
-			assert.Equal(t, before+1, storage.reads.Load())
+	before := storage.reads.Load()
 
-			seen := make(map[string]bool)
+	instances, err := collectConfigApp(t, appDir, "")
+	require.NoError(t, err)
+	require.Len(t, instances, 20)
+	assert.Equal(t, before+1, storage.reads.Load())
 
-			for _, instance := range instances {
-				assert.False(t, seen[instance.InstName])
+	seen := make(map[string]bool)
 
-				seen[instance.InstName] = true
+	for _, instance := range instances {
+		assert.False(t, seen[instance.InstName])
 
-				assert.Equal(t, instance.InstName+".sock",
-					collectionConfigString(t, instance, "console/socket"))
-				assert.Equal(t, "write", collectionConfigString(t, instance, "wal/mode"))
-				assert.Equal(t, "warn", collectionConfigString(t, instance, "log/level"))
-				assert.Equal(t, "json", collectionConfigString(t, instance, "log/format"))
-				assert.Equal(t, filepath.Join(appDir, "global-wal"), instance.WalDir)
-				assert.Equal(t, filepath.Join(appDir, "group-snapshot"), instance.MemtxDir)
-				assert.Equal(t, filepath.Join(appDir, "replicaset-vinyl"), instance.VinylDir)
-				assert.Equal(t, filepath.Join(appDir, instance.InstName+".sock"),
-					instance.ConsoleSocket)
-			}
-		})
+		seen[instance.InstName] = true
+
+		assert.Equal(t, instance.InstName+".sock",
+			collectionConfigString(t, instance, "console/socket"))
+		assert.Equal(t, "write", collectionConfigString(t, instance, "wal/mode"))
+		assert.Equal(t, "warn", collectionConfigString(t, instance, "log/level"))
+		assert.Equal(t, "json", collectionConfigString(t, instance, "log/format"))
+		assert.Equal(t, filepath.Join(appDir, "global-wal"), instance.WalDir)
+		assert.Equal(t, filepath.Join(appDir, "group-snapshot"), instance.MemtxDir)
+		assert.Equal(t, filepath.Join(appDir, "replicaset-vinyl"), instance.VinylDir)
+		assert.Equal(t, filepath.Join(appDir, instance.InstName+".sock"),
+			instance.ConsoleSocket)
 	}
 }
 
@@ -186,17 +194,17 @@ func TestCollectInstancesReloadsClusterConfig(t *testing.T) {
 	storage := &collectionConfigStorage{}
 	endpoint := startCollectionConfigStorage(t, storage)
 	appDir, original := collectionConfigApp(t, endpoint, 2)
-	integrityCtx := integrity.IntegrityCtx{Repository: &mockRepository{}}
 
-	instances, err := collectInstancesFromAppDir(appDir, "", integrityCtx, ConfigLoadAll)
+	instances, err := collectConfigApp(t, appDir, "")
 	require.NoError(t, err)
 	require.Len(t, instances, 2)
 	assert.Equal(t, int32(1), storage.reads.Load())
 
 	updated := strings.ReplaceAll(original, "global-wal", "changed-wal")
-	require.NoError(t, os.WriteFile(filepath.Join(appDir, "config.yml"), []byte(updated), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(appDir, ".templates/default/config.yaml"),
+		[]byte(updated), 0o644))
 
-	newInstances, err := collectInstancesFromAppDir(appDir, "", integrityCtx, ConfigLoadAll)
+	newInstances, err := collectConfigApp(t, appDir, "")
 	require.NoError(t, err)
 	require.Len(t, newInstances, 2)
 	assert.Equal(t, int32(2), storage.reads.Load())
@@ -215,135 +223,81 @@ func TestCollectInstancesClusterConfigFailure(t *testing.T) {
 	endpoint := startCollectionConfigStorage(t, storage)
 	appDir, _ := collectionConfigApp(t, endpoint, 20)
 
-	for _, mode := range []ConfigLoad{
-		ConfigLoadSkip, ConfigLoadScripts, ConfigLoadCluster, ConfigLoadAll,
-	} {
-		t.Run(fmt.Sprint(mode), func(t *testing.T) {
-			before := storage.reads.Load()
-			instances, err := collectInstancesFromAppDir(appDir, "",
-				integrity.IntegrityCtx{Repository: &mockRepository{}}, mode)
-
-			if mode == ConfigLoadAll || mode == ConfigLoadCluster {
-				require.ErrorContains(t, err, "config storage rejected the request")
-				assert.Empty(t, instances)
-			} else {
-				require.NoError(t, err)
-				require.Len(t, instances, 20)
-
-				for _, instance := range instances {
-					assert.Nil(t, instance.Configuration)
-				}
-			}
-
-			assert.Equal(t, before+1, storage.reads.Load())
-		})
-	}
+	instances, err := collectConfigApp(t, appDir, "")
+	require.ErrorContains(t, err, "config storage rejected the request")
+	assert.Empty(t, instances)
+	assert.Equal(t, int32(1), storage.reads.Load())
 }
 
 func TestCollectInstancesClusterConfigSelection(t *testing.T) {
-	storage := &collectionConfigStorage{fail: true}
+	storage := &collectionConfigStorage{}
 	endpoint := startCollectionConfigStorage(t, storage)
 	appDir, _ := collectionConfigApp(t, endpoint, 2)
-	integrityCtx := integrity.IntegrityCtx{Repository: &mockRepository{}}
 
-	_, err := collectInstancesFromAppDir(appDir, "missing", integrityCtx, ConfigLoadAll)
-	require.ErrorIs(t, err, errInstancesNotFound)
-	assert.Zero(t, storage.reads.Load())
+	_, err := collectConfigApp(t, appDir, "missing")
+	require.Error(t, err)
+	// The resolver validates the complete pair before selecting an instance.
+	assert.Equal(t, int32(1), storage.reads.Load())
 
-	require.NoError(t, os.WriteFile(filepath.Join(appDir, "instances.yml"), nil, 0o644))
+	for _, description := range []string{"", "invalid: ["} {
+		require.NoError(t, os.WriteFile(filepath.Join(appDir, ".templates/default/instances.yaml"),
+			[]byte(description), 0o644))
 
-	_, err = collectInstancesFromAppDir(appDir, "", integrityCtx, ConfigLoadAll)
-	require.ErrorIs(t, err, errInstancesNotFound)
-	assert.Zero(t, storage.reads.Load())
+		before := storage.reads.Load()
 
-	require.NoError(t, os.WriteFile(filepath.Join(appDir, "instances.yml"),
-		[]byte(filepath.Base(appDir)+":\n"), 0o644))
-
-	_, err = collectInstancesFromAppDir(appDir, "", integrityCtx, ConfigLoadAll)
-	require.ErrorIs(t, err, errInstancesNotFound)
-	assert.Zero(t, storage.reads.Load())
+		_, err = collectConfigApp(t, appDir, "")
+		require.Error(t, err)
+		assert.Equal(t, before, storage.reads.Load())
+	}
+	require.NoError(t, os.Remove(filepath.Join(appDir, ".templates/default/instances.yaml")))
+	before := storage.reads.Load()
+	_, err = collectConfigApp(t, appDir, "")
+	require.Error(t, err)
+	assert.Equal(t, before, storage.reads.Load())
 }
 
 func TestCollectInstancesMalformedClusterConfig(t *testing.T) {
 	storage := &collectionConfigStorage{}
 	endpoint := startCollectionConfigStorage(t, storage)
 	appDir, _ := collectionConfigApp(t, endpoint, 2)
-	require.NoError(t, os.WriteFile(filepath.Join(appDir, "config.yml"), []byte("["), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(appDir, ".templates/default/config.yaml"),
+		[]byte("["), 0o644))
 
-	for _, mode := range []ConfigLoad{
-		ConfigLoadSkip, ConfigLoadScripts, ConfigLoadCluster, ConfigLoadAll,
-	} {
-		t.Run(fmt.Sprint(mode), func(t *testing.T) {
-			instances, err := collectInstancesFromAppDir(appDir, "",
-				integrity.IntegrityCtx{Repository: &mockRepository{}}, mode)
-			if mode == ConfigLoadAll || mode == ConfigLoadCluster {
-				require.ErrorContains(t, err, "unable to load config")
-				assert.Empty(t, instances)
-			} else {
-				require.NoError(t, err)
-				require.Len(t, instances, 2)
-
-				for _, instance := range instances {
-					assert.Nil(t, instance.Configuration)
-				}
-			}
-		})
-	}
-
+	instances, err := collectConfigApp(t, appDir, "")
+	require.ErrorContains(t, err, "unable to load config")
+	assert.Empty(t, instances)
 	assert.Zero(t, storage.reads.Load())
 }
 
 func TestCollectInstancesWithoutClusterConfig(t *testing.T) {
 	appDir, _ := collectionConfigApp(t, "unused", 2)
-	require.NoError(t, os.Remove(filepath.Join(appDir, "config.yml")))
+	require.NoError(t, os.Remove(filepath.Join(appDir, ".templates/default/config.yaml")))
 
-	for _, mode := range []ConfigLoad{
-		ConfigLoadSkip, ConfigLoadScripts, ConfigLoadCluster, ConfigLoadAll,
-	} {
-		t.Run(fmt.Sprint(mode), func(t *testing.T) {
-			instances, err := collectInstancesFromAppDir(appDir, "",
-				integrity.IntegrityCtx{Repository: &mockRepository{}}, mode)
-			require.NoError(t, err)
-			require.Len(t, instances, 2)
-
-			for _, instance := range instances {
-				assert.Nil(t, instance.Configuration)
-			}
-		})
-	}
+	instances, err := collectConfigApp(t, appDir, "")
+	require.Error(t, err)
+	assert.Empty(t, instances)
 }
 
 func TestCollectInstancesSelectedClusterInstance(t *testing.T) {
 	storage := &collectionConfigStorage{}
 	endpoint := startCollectionConfigStorage(t, storage)
 	appDir, _ := collectionConfigApp(t, endpoint, 2)
-	integrityCtx := integrity.IntegrityCtx{Repository: &mockRepository{}}
 
-	require.NoError(t, os.WriteFile(filepath.Join(appDir, "instances.yml"),
-		[]byte("instance-0:\nmissing:\n"), 0o644))
-
-	instances, err := collectInstancesFromAppDir(appDir, "instance-0", integrityCtx, ConfigLoadAll)
+	instances, err := collectConfigApp(t, appDir, "instance-0")
 	require.NoError(t, err)
 	require.Len(t, instances, 1)
 	assert.Equal(t, "instance-0", instances[0].InstName)
 	assert.Equal(t, "instance-0.sock", collectionConfigString(t, instances[0], "console/socket"))
 	assert.Equal(t, int32(1), storage.reads.Load())
+	require.NoError(t, os.WriteFile(filepath.Join(appDir, ".templates/default/instances.yaml"),
+		[]byte("instance-0:\nmissing:\n"), 0o644))
 
-	_, err = collectInstancesFromAppDir(appDir, "missing", integrityCtx, ConfigLoadAll)
-	require.ErrorContains(t, err, `instance "missing" not found`)
-	assert.Equal(t, int32(2), storage.reads.Load())
+	for _, selected := range []string{"instance-0", "missing", ""} {
+		before := storage.reads.Load()
 
-	instances, err = collectInstancesFromAppDir(appDir, "", integrityCtx, ConfigLoadSkip)
-	require.NoError(t, err)
-	require.Len(t, instances, 2)
-	assert.Equal(t, int32(3), storage.reads.Load())
-
-	for _, instance := range instances {
-		if instance.InstName == "missing" {
-			assert.Nil(t, instance.Configuration)
-		} else {
-			assert.Equal(t, "instance-0.sock",
-				collectionConfigString(t, instance, "console/socket"))
-		}
+		instances, err = collectConfigApp(t, appDir, selected)
+		require.ErrorContains(t, err, "missing")
+		assert.Empty(t, instances)
+		assert.Equal(t, before+1, storage.reads.Load())
 	}
 }

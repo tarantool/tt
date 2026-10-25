@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/running"
@@ -21,7 +22,7 @@ var (
 // NewKillCmd creates kill command.
 func NewKillCmd() *cobra.Command {
 	killCmd := &cobra.Command{
-		Use:   "kill [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
+		Use:   "kill " + instanceTargetsUsage,
 		Short: "Kill tarantool instance(s)",
 		RunE:  internalRunE(internalKillModule),
 		ValidArgsFunction: func(
@@ -30,7 +31,7 @@ func NewKillCmd() *cobra.Command {
 			toComplete string,
 		) ([]string, cobra.ShellCompDirective) {
 			return internal.ValidArgsFunction(
-				cliOpts, &cmdCtx, cmd, toComplete,
+				&cmdCtx, cmd, toComplete,
 				running.ExtractActiveAppNames,
 				running.ExtractActiveInstanceNames)
 		},
@@ -47,23 +48,31 @@ func askConfirmation(args []string) (bool, error) {
 		return true, nil
 	}
 
-	confirmationMsg := "Kill all instances?"
+	return util.AskConfirm(os.Stdin, "Kill "+killTargets(args)+"?")
+}
 
-	if len(args) > 0 {
-		if strings.ContainsRune(args[0], running.InstanceDelimiter) {
-			confirmationMsg = fmt.Sprintf("Kill %s instance?", args[0])
-		} else {
-			confirmationMsg = fmt.Sprintf("Kill instances of %s?", args[0])
-		}
+// killTargets names what args, the targets of tt kill, kill for the prompt:
+// all instances, the instances of an application or one instance.
+func killTargets(args []string) string {
+	targets, err := app.ParseTargets(args)
+
+	switch {
+	case err != nil || len(targets) > 1:
+		return "instances " + strings.Join(args, ",")
+	case len(targets) == 0:
+		return "all instances"
+	case targets[0].Instance == app.AllInstances:
+		return "instances of " + targets[0].App
+	default:
+		return targets[0].String() + " instance"
 	}
-
-	return util.AskConfirm(os.Stdin, confirmationMsg)
 }
 
 // internalKillModule is a kill module.
 func internalKillModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if !isConfigExist(cmdCtx) {
-		return errNoConfig
+	instances, err := resolveInstances(cmdCtx, args)
+	if err != nil {
+		return err
 	}
 
 	confirm, err := askConfirmation(args)
@@ -75,14 +84,7 @@ func internalKillModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return nil
 	}
 
-	var runningCtx running.RunningCtx
-
-	err = running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, running.ConfigLoadSkip)
-	if err != nil {
-		return err
-	}
-
-	for _, run := range runningCtx.Instances {
+	for _, run := range instances {
 		if dumpQuit {
 			err = running.Quit(run)
 			if err != nil {

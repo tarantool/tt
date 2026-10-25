@@ -11,7 +11,7 @@ import (
 // NewLogrotateCmd creates logrotate command.
 func NewLogrotateCmd() *cobra.Command {
 	logrotateCmd := &cobra.Command{
-		Use:   "logrotate [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
+		Use:   "logrotate " + instanceTargetsUsage,
 		Short: "Rotate logs of a started tarantool instance(s)",
 		RunE:  internalRunE(internalLogrotateModule),
 		ValidArgsFunction: func(
@@ -20,7 +20,7 @@ func NewLogrotateCmd() *cobra.Command {
 			toComplete string,
 		) ([]string, cobra.ShellCompDirective) {
 			return internal.ValidArgsFunction(
-				cliOpts, &cmdCtx, cmd, toComplete,
+				&cmdCtx, cmd, toComplete,
 				running.ExtractAppNames,
 				running.ExtractInstanceNames)
 		},
@@ -31,18 +31,12 @@ func NewLogrotateCmd() *cobra.Command {
 
 // internalLogrotateModule is a default logrotate module.
 func internalLogrotateModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if !isConfigExist(cmdCtx) {
-		return errNoConfig
-	}
-
-	var runningCtx running.RunningCtx
-
-	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, running.ConfigLoadSkip)
+	instances, err := resolveInstances(cmdCtx, args)
 	if err != nil {
 		return err
 	}
 
-	for _, run := range runningCtx.Instances {
+	for _, run := range instances {
 		err := running.Logrotate(&run)
 		if err != nil {
 			log.Infof(err.Error())

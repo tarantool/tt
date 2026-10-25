@@ -16,17 +16,16 @@ var autoYes bool
 // NewRestartCmd creates start command.
 func NewRestartCmd() *cobra.Command {
 	restartCmd := &cobra.Command{
-		Use:   "restart [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
+		Use:   "restart " + instanceTargetsUsage,
 		Short: "Restart tarantool instance(s)",
 		RunE:  internalRunE(internalRestartModule),
-		Args:  cobra.RangeArgs(0, 1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
 			toComplete string,
 		) ([]string, cobra.ShellCompDirective) {
 			return internal.ValidArgsFunction(
-				cliOpts, &cmdCtx, cmd, toComplete,
+				&cmdCtx, cmd, toComplete,
 				running.ExtractActiveAppNames,
 				running.ExtractActiveInstanceNames)
 		},
@@ -38,26 +37,17 @@ func NewRestartCmd() *cobra.Command {
 	return restartCmd
 }
 
-// internalRestartModule is a default restart module.
+// internalRestartModule is a default restart module: it stops the instances
+// and starts them again, resolving their applications anew, so that an
+// installed application restarts on its active version.
 func internalRestartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if !isConfigExist(cmdCtx) {
-		return errNoConfig
-	}
-
-	if cmdCtx.Cli.TarantoolCli.Executable == "" {
-		return errTarantoolBinaryNotFound
+	instances, err := resolveInstances(cmdCtx, args)
+	if err != nil {
+		return err
 	}
 
 	if !autoYes {
-		var instancesToConfirm string
-
-		if len(args) == 0 {
-			instancesToConfirm = "all instances"
-		} else {
-			instancesToConfirm = "'" + args[0] + "'"
-		}
-
-		confirmed, err := util.AskConfirm(os.Stdin, "Confirm restart of "+instancesToConfirm)
+		confirmed, err := util.AskConfirm(os.Stdin, "Confirm restart of "+describeTargets(args))
 		if err != nil {
 			return err
 		}
@@ -69,10 +59,7 @@ func internalRestartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		}
 	}
 
-	err := internalStopModule(cmdCtx, args)
-	if err != nil {
-		return err
-	}
+	stopInstances(instances)
 
 	err = internalStartModule(cmdCtx, args)
 	if err != nil {

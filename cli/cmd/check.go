@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"context"
+
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
@@ -10,52 +12,52 @@ import (
 // NewCheckCmd creates a new check command.
 func NewCheckCmd() *cobra.Command {
 	checkCmd := &cobra.Command{
-		Use:   "check [<APPLICATION_NAME>]",
+		Use:   "check " + instanceTargetsUsage,
 		Short: "Check an application file for syntax errors",
-		RunE:  internalRunE(internalCheckModule),
+		Long: "Check the Lua file each instance runs, app.file of its config, for\n" +
+			"syntax errors, with the tarantool the instance runs on.",
+		RunE: internalRunE(internalCheckModule),
 	}
 
 	return checkCmd
 }
 
-// internalCheckModule is a default check module.
+// internalCheckModule is a default check module: it checks the application
+// file of every instance the targets select, each file once. An instance
+// whose config names no app.file has nothing of its own to check.
 func internalCheckModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if !isConfigExist(cmdCtx) {
-		return errNoConfig
-	}
-
-	var runningCtx running.RunningCtx
-
-	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, running.ConfigLoadAll)
+	instances, err := resolveInstances(cmdCtx, args)
 	if err != nil {
 		return err
 	}
 
-	// Collect a list of instances with unique scripts.
-	uniqueInst := []running.InstanceCtx{}
+	checked := map[string]bool{}
 
-	for _, inst := range runningCtx.Instances {
-		found := false
-
-		for _, unique := range uniqueInst {
-			if inst.InstanceScript == unique.InstanceScript {
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			uniqueInst = append(uniqueInst, inst)
-		}
-	}
-
-	for _, inst := range uniqueInst {
-		err := running.Check(cmdCtx, &inst)
+	for _, inst := range instances {
+		file, found, err := running.AppFile(&inst)
 		if err != nil {
 			return err
 		}
 
-		log.Infof("Result of check: syntax of file '%s' is OK", inst.InstanceScript)
+		if !found {
+			log.Infof("%s: the config names no application file (app.file) to check",
+				running.GetAppInstanceName(inst))
+
+			continue
+		}
+
+		if checked[file] {
+			continue
+		}
+
+		checked[file] = true
+
+		err = running.Check(context.Background(), &inst, file)
+		if err != nil {
+			return err
+		}
+
+		log.Infof("Result of check: syntax of file '%s' is OK", file)
 	}
 
 	return nil

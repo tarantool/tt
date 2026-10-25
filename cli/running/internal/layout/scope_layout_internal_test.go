@@ -22,25 +22,6 @@ func TestScopeLayout(t *testing.T) {
 		scopeLayout.BinaryPort())
 }
 
-// TestScopeLayoutSameNamesAsMultiInstLayout pins that the scope layout moves
-// the files of an instance without renaming them.
-func TestScopeLayoutSameNamesAsMultiInstLayout(t *testing.T) {
-	scopeLayout, err := NewScopeLayout("/root", "app", "inst")
-	require.NoError(t, err)
-
-	multiLayout, err := NewMultiInstLayout("/base", "app", "inst")
-	require.NoError(t, err)
-
-	for _, pair := range [...][2]string{
-		{scopeLayout.PidFile(), multiLayout.PidFile("/var/run")},
-		{scopeLayout.LogFile(), multiLayout.LogFile("/var/log")},
-		{scopeLayout.ConsoleSocket(), multiLayout.ConsoleSocket("/var/run")},
-		{scopeLayout.BinaryPort(), multiLayout.BinaryPort("/var/run")},
-	} {
-		assert.Equal(t, "/root"+pair[1], pair[0])
-	}
-}
-
 func TestScopeLayoutErrors(t *testing.T) {
 	for name, args := range map[string][3]string{
 		"relative root":        {"var", "app", "inst"},

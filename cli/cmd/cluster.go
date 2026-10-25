@@ -452,7 +452,7 @@ func NewClusterCmd() *cobra.Command {
 			}
 
 			return internal.ValidArgsFunction(
-				cliOpts, &cmdCtx, cmd, toComplete,
+				&cmdCtx, cmd, toComplete,
 				running.ExtractActiveAppNames,
 				running.ExtractActiveInstanceNames)
 		},
@@ -492,7 +492,7 @@ func NewClusterCmd() *cobra.Command {
 			toComplete string,
 		) ([]string, cobra.ShellCompDirective) {
 			return internal.ValidArgsFunction(
-				cliOpts, &cmdCtx, cmd, toComplete,
+				&cmdCtx, cmd, toComplete,
 				running.ExtractActiveAppNames,
 				running.ExtractActiveInstanceNames)
 		},

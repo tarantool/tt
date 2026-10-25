@@ -1476,7 +1476,7 @@ func dialBackupTarget(cfg, target string) (connector.Connector, error) {
 
 	connCtx := backupConnectCtx()
 
-	connOpts, err := resolveConnectOpts(&cmdCtx, cliOpts, &connCtx, target)
+	connOpts, err := resolveConnectOpts(&cmdCtx, &connCtx, target)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve connection options for %q: %w", target, err)
 	}

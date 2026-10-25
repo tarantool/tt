@@ -360,14 +360,34 @@ for machine-readable output.
 
 ### Changed
 
-- Load and build cluster configuration once per application when collecting
-  instances, reusing it for each instance's effective configuration.
+- The instance commands read the cluster config of an application, a
+  centralized one included, once per command rather than once per instance.
 - `tt status`: collect instance statuses in parallel.
 - `tt stop` and `tt restart`: interrupt all selected instance supervisors before
   waiting for them to exit, allowing instances to shut down in parallel.
 - `tt log -f` / `tt tcm log --follow`: only complete lines are printed. A
   half-written line stays buffered until its newline arrives instead of
   being split into two records.
+- `tt start`, `stop`, `status`, `restart`, `kill`, `log`, `logrotate`,
+  `check`, `clean`, `connect` and `play`, the application targets of
+  `tt replicaset` and `tt cluster`: the instance commands no longer use
+  `tt.yaml`. An application is the project found from the current directory
+  upward (`app.manifest.toml` or `.templates/<name>/instances.yaml`), or
+  `<root>/apps/<app>` of the system scope; it is named by `[package].name`
+  of its manifest or after the project directory. Its instances and cluster
+  config come from the pair `.templates/default/{instances,config}.yaml`, or
+  `<root>/etc/<app>/` for an installed application. Data, logs, pid files
+  and sockets go to `<root>/var/{lib,log,run}/<app>/<instance>/`, where
+  `<root>` is `.tarantool` in a project. Targets are `<app>:<instance>`,
+  `<app>:*` and comma-separated lists of them, or none for every instance of
+  the current project; a bare `<app>` is refused with a hint. The restart
+  policy is the `restart` field of the instance record: a restart after a
+  crash stays on the version the instance started from and re-reads the
+  pair, while `tt restart` takes the active version. `tt check` checks the
+  `app.file` of each instance. Records with `script` or `binary` are not
+  supported yet. `<name>.lua`, `init.lua` and `<instance>.init.lua`
+  applications next to `tt.yaml` are not recognized any more.
+
 - `tt binary install tarantool [version]`: install prebuilt Community release
   binaries and matching headers from RWS by default on Linux amd64/arm64 with
   glibc, activating the installed version in the selected scope. Omitting the

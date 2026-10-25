@@ -21,6 +21,7 @@ import (
 )
 
 var (
+	errTarantoolBinaryNotFound        = errors.New("tarantool binary is not found")
 	errCannotStartTCMBinaryIsNotFound = errors.New("cannot start: tcm binary is not found")
 	errProcessIsNotRunning            = errors.New("process is not running")
 )

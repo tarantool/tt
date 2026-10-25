@@ -13,13 +13,14 @@ func TestCompletionHelpers(t *testing.T) {
 		getStatus = savedGetStatus
 	}()
 
+	// An instance may be called as its application.
 	instances := []InstanceCtx{
-		{AppName: "single_run", SingleApp: true},
+		{AppName: "single_run", InstName: "single_run"},
 
 		{AppName: "app1", InstName: "master"},
 		{AppName: "app1", InstName: "replica"},
 
-		{AppName: "single_stopped", SingleApp: true},
+		{AppName: "single_stopped", InstName: "single_stopped"},
 
 		{AppName: "app2", InstName: "master"},
 		{AppName: "app2", InstName: "replica1"},
@@ -31,12 +32,12 @@ func TestCompletionHelpers(t *testing.T) {
 	}
 
 	statuses := map[string]process_utils.ProcessState{
-		"single_run": process_utils.ProcStateRunning,
+		"single_run:single_run": process_utils.ProcStateRunning,
 
 		"app1:master":  process_utils.ProcStateRunning,
 		"app1:replica": process_utils.ProcStateRunning,
 
-		"single_stopped": process_utils.ProcStateStopped,
+		"single_stopped:single_stopped": process_utils.ProcStateStopped,
 
 		"app2:master":   process_utils.ProcStateDead,
 		"app2:replica1": process_utils.ProcStateStopped,
@@ -60,7 +61,7 @@ func TestCompletionHelpers(t *testing.T) {
 			name: "active instances",
 			tf:   ExtractActiveInstanceNames,
 			expected: []string{
-				"single_run",
+				"single_run:single_run",
 				"app1:master", "app1:replica", "app3:router",
 			},
 		},
@@ -68,7 +69,7 @@ func TestCompletionHelpers(t *testing.T) {
 			name: "inactive instances",
 			tf:   ExtractInactiveInstanceNames,
 			expected: []string{
-				"single_stopped",
+				"single_stopped:single_stopped",
 				"app2:master", "app2:replica1", "app2:replica2",
 				"app3:master", "app3:replica1",
 			},

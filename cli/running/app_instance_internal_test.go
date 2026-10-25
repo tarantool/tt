@@ -259,7 +259,6 @@ func TestNewInstanceCtxLayout(t *testing.T) {
 			assert.Equal(t, filepath.Join(fixture.dir, ".templates", "default", "config.yaml"),
 				inst.ClusterConfigPath)
 			assert.NotNil(t, inst.Configuration)
-			assert.False(t, inst.SingleApp)
 			assert.Equal(t, fixtureApp+":"+fixtureInst, GetAppInstanceName(inst))
 		})
 	}
@@ -275,7 +274,6 @@ func TestNewInstanceCtxRecordSettings(t *testing.T) {
 	assert.Equal(t, syscall.SIGTERM, inst.StopSignal)
 	assert.Equal(t, time.Minute, inst.StopTimeout)
 	assert.Equal(t, instances.RestartOnFailure, inst.Restart)
-	assert.False(t, inst.Restartable)
 	assert.Equal(t, map[string]string{"A": "b"}, inst.Env)
 
 	fixture = newAppFixture(t, app.ScopeUser, appFiles("", ""))
@@ -365,7 +363,7 @@ func TestAppClusterSpec(t *testing.T) {
 				warn:      func(message string) { warnings = append(warnings, message) },
 			}
 
-			spec, err := instanceSpec(&cmdcontext.CmdCtx{}, &inst, opts)
+			spec, err := instanceSpec(&inst, opts)
 			require.NoError(t, err)
 
 			assert.Equal(t, tarantoolPath, spec.Path)
@@ -447,7 +445,7 @@ func TestAppClusterSpecStopSettings(t *testing.T) {
 
 	inst := fixture.instanceCtx(t)
 
-	spec, err := instanceSpec(&cmdcontext.CmdCtx{}, &inst, specOptions{})
+	spec, err := instanceSpec(&inst, specOptions{})
 	require.NoError(t, err)
 
 	assert.Equal(t, syscall.SIGTERM, spec.StopSignal)
@@ -465,7 +463,7 @@ func TestAppClusterSpecNoTarantool(t *testing.T) {
 	_, err := appClusterSpec(&inst, specOptions{})
 	require.ErrorContains(t, err, "tt binary install")
 
-	canStart, err := IsAbleToStartInstances([]InstanceCtx{inst}, &cmdcontext.CmdCtx{})
+	canStart, err := IsAbleToStartInstances([]InstanceCtx{inst})
 	assert.False(t, canStart)
 	require.Error(t, err)
 }
@@ -490,8 +488,7 @@ func TestRelativePathsInInstalledScopes(t *testing.T) {
 
 			startErr := checkStart(&inst)
 			_, specErr := appClusterSpec(&inst, specOptions{})
-			canStart, ableErr := IsAbleToStartInstances([]InstanceCtx{inst},
-				&cmdcontext.CmdCtx{})
+			canStart, ableErr := IsAbleToStartInstances([]InstanceCtx{inst})
 
 			if appScope == app.ScopeProject {
 				require.NoError(t, startErr)
@@ -543,7 +540,7 @@ func TestOldLayoutGuard(t *testing.T) {
 			io.Discard, io.Discard)
 		require.ErrorIs(t, err, errOldLayout)
 
-		err = Start(&cmdcontext.CmdCtx{}, &inst)
+		err = Start(t.Context(), &cmdcontext.CmdCtx{}, &inst)
 		require.ErrorIs(t, err, errOldLayout)
 
 		assert.NoDirExists(t, fixture.root, "a refused start creates nothing")
@@ -688,7 +685,7 @@ func TestIsAbleToStartInstancesWarnsOnce(t *testing.T) {
 	slog.SetDefault(logger)
 	t.Cleanup(func() { slog.SetDefault(previous) })
 
-	canStart, err := IsAbleToStartInstances([]InstanceCtx{first, second}, &cmdcontext.CmdCtx{})
+	canStart, err := IsAbleToStartInstances([]InstanceCtx{first, second})
 	require.NoError(t, err)
 	assert.True(t, canStart)
 
