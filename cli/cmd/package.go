@@ -554,7 +554,14 @@ func newPackageInstallCmd() *cobra.Command {
 			"dependencies are refetched from the registry using the lock's pins. " +
 			"Several packages installed into one project share a .rocks/ tree, so a " +
 			"dependency they lock at different versions is reconciled to one both " +
-			"accept, or the install fails with an explanation.",
+			"accept, or the install fails with an explanation. In the user and " +
+			"system scopes the archive becomes one version of an application, " +
+			"<root>/versions/<name>/<name>_<version>/, laid out like a project " +
+			"next to what tt binary installs into the same root, and " +
+			"<root>/apps/<name> is pointed at it: install activates the version it " +
+			"installed. Versions live side by side; installing one that is already " +
+			"there needs --force, which is refused while instances of the " +
+			"application run.",
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return commandError(cmd, runPackageInstall(args))
@@ -562,13 +569,15 @@ func newPackageInstallCmd() *cobra.Command {
 	}
 
 	installCmd.Flags().StringVar(&packageScope, "scope", "project",
-		"install scope: project, user or system")
+		"install scope: project (the working directory), user or system "+
+			"(an application version under the root tt binary uses)")
 	installCmd.Flags().BoolVar(&packageLocked, "locked", false,
 		"fail if the archive lock does not match its manifest")
 	installCmd.Flags().BoolVar(&packageUpgrade, "upgrade", false,
-		"install over an existing package only when the archive version is higher")
+		"install only when the archive version is higher than the installed one "+
+			"(in user and system, than every installed version)")
 	installCmd.Flags().BoolVar(&packageForce, "force", false,
-		"reinstall over an existing package (destructive)")
+		"reinstall over an existing package or version (destructive)")
 	installCmd.Flags().BoolVarP(&packageYes, "yes", "y", false,
 		"skip the confirmation prompt when reconciling shared dependencies")
 

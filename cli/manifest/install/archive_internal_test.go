@@ -63,7 +63,7 @@ func TestExtractProjectKeepsRocksPrefix(t *testing.T) {
 	require.NoError(t, err)
 
 	root := t.TempDir()
-	mapper := extractMapper(ScopeProject, nil, true)
+	mapper := extractMapper(nil, true)
 	require.NoError(t, ar.Extract(root, mapper))
 
 	assert.FileExists(t, filepath.Join(root, ".rocks", "share", "tarantool", "my-app", "init.lua"))
@@ -89,7 +89,7 @@ func TestExtractSkipsDependency(t *testing.T) {
 
 	root := t.TempDir()
 	skip := map[string]struct{}{"luasocket": {}}
-	require.NoError(t, ar.Extract(root, extractMapper(ScopeProject, skip, true)))
+	require.NoError(t, ar.Extract(root, extractMapper(skip, true)))
 
 	assert.FileExists(t, filepath.Join(root, ".rocks", "share", "tarantool", "my-app", "init.lua"))
 	assert.NoFileExists(t,

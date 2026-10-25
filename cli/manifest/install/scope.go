@@ -9,13 +9,15 @@ import "github.com/tarantool/tt/v3/cli/manifest/state"
 type Scope = state.Scope
 
 const (
-	// ScopeProject installs into <cwd>/.rocks/, the self-contained deployment
-	// tree. It is the default and the only scope that accepts a with-deps
-	// archive.
+	// ScopeProject installs into the project directory: the package joins
+	// its shared .rocks/ tree as a guest. It is the default.
 	ScopeProject = state.ScopeProject
-	// ScopeUser installs into ~/.luarocks/, the personal LuaRocks tree.
+	// ScopeUser installs an application version into the user root,
+	// <root>/versions/<app>/<app>_<ver>, next to what tt binary installs
+	// for the user.
 	ScopeUser = state.ScopeUser
-	// ScopeSystem installs into /usr/, the OS-package-style tree.
+	// ScopeSystem installs an application version into the system root the
+	// same way.
 	ScopeSystem = state.ScopeSystem
 )
 

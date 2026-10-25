@@ -162,11 +162,25 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   versions is reconciled to the highest locked version satisfying every
   package's constraints, or the install fails with a breakdown. Per-package
   metadata (manifest, lock, VERSION) is recorded under `.rocks/manifests/<pkg>/`
-  for inventory and dependency refcounting. `--locked` refuses an archive whose
-  lock diverges from its manifest, `--upgrade` installs only a strictly higher
-  version, `--force` reinstalls over a collision, and `--yes` skips the
-  reconciliation prompt. Installing several archives at once exits 3 when some
-  succeed and some fail.
+  for inventory and dependency refcounting. In `--scope user` and
+  `--scope system` the archive becomes one version of an application, laid out
+  the way `tt binary` lays out its products and under the same root
+  (`TT_USER_ROOT`, by default `~/.local/share/tarantool`; `TT_SYSTEM_ROOT`, by
+  default `/opt/tarantool`): `<root>/versions/<pkg>/<pkg>_<version>/` holds the
+  whole archive like a project — manifest, lock and `VERSION` at its top,
+  `.rocks/`, `.templates/`, payload and license files — and
+  `<root>/apps/<pkg>` is pointed at it, replaced atomically. Install activates
+  the version it installed; there is no command to switch between installed
+  versions yet. Versions live side by side and share nothing, so there is no
+  reconciliation there; the version comes from the archive's `VERSION`, and
+  names of `tt binary` products (`tarantool`, `tt`, `tcm`, ...) are refused.
+  `--locked`
+  refuses an archive whose lock diverges from its manifest, `--upgrade` installs
+  only a strictly higher version (in `user` and `system`, higher than every
+  installed one), `--force` reinstalls over a collision (in `user` and
+  `system`, replaces that version, refused while instances of the application
+  run), and `--yes` skips the reconciliation prompt. Installing several
+  archives at once exits 3 when some succeed and some fail.
 - `tt package list`: show the packages installed in a scope — in the project
   scope the project's own package plus every guest installed from an archive.
   The source is the metadata `tt package install` records under
@@ -314,7 +328,7 @@ for machine-readable output.
   may not land on it. `tt package install --scope project` lays the
   templates into the install root, and refuses an archive carrying templates
   when the root already has a `.templates/`; the `user` and `system` scopes
-  leave them out.
+  lay them into the installed version.
 
 ### Changed
 
