@@ -279,6 +279,9 @@ linters:
             - "github.com/tarantool/tt/v3/internal/pidfile"
             - "github.com/tarantool/tt/v3/internal/scope"
             - "github.com/tarantool/tt/v3/cli/version"
+            # cli/manifest/run starts the tarantool the instance commands
+            # start, chosen by the one resolver.
+            - "github.com/tarantool/tt/v3/cli/tarantool"
         manifest-test:
           files:
             - "**/cli/manifest/**/*_test.go"

@@ -4139,9 +4139,11 @@ LuaRocks package manager
 Run the package in the current directory under Tarantool.
 
 The directory must hold app.manifest.toml; no tt environment and no tt.yaml are
-involved. The interpreter is the one the package bundles under _runtime/ when it
-has one, and the host's tarantool otherwise — TT_USE_SYSTEM_TARANTOOL=1 forces
-the host's either way.
+involved. The interpreter is the project's own, the one .tarantool/bin/tarantool
+in the directory selects, and the first tarantool on PATH when there is none —
+TT_USE_SYSTEM_TARANTOOL=1 forces PATH either way. tt binary install and
+tt binary switch set that link; a with-deps tt package install sets it to the
+runtime the package bundles when the project selects no tarantool yet.
 
 Every argument is handed to Tarantool untouched, '--' included, and the
 environment is inherited unchanged: no LUA_PATH or LUA_CPATH is composed, since
@@ -4173,7 +4175,7 @@ EXAMPLES[0m
 
     $ echo 'print(42)' | tt run -
 
-# Ignore the bundled runtime and use the host's tarantool:
+# Ignore the project's tarantool and use the one on PATH:
 
     $ TT_USE_SYSTEM_TARANTOOL=1 tt run script.lua
 

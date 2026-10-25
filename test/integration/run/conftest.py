@@ -74,18 +74,32 @@ def project(tmp_path: Path) -> Path:
 
 
 @pytest.fixture()
-def bundled_tarantool(project: Path):
-    """Install a fake bundled interpreter under the project's _runtime/.
+def project_tarantool(project: Path):
+    """Install a fake interpreter as the project's tarantool.
+
+    tt binary install makes .tarantool/bin/tarantool a link into
+    .tarantool/versions/, and so does a with-deps tt package install for the
+    runtime it bundles; an executable put there by hand is chosen the same
+    way, only its version is unknown.
 
     It prints a marker and its arguments, so which interpreter ran and what it
-    was handed are both readable from stdout.
+    was handed are both readable from stdout. Asked for --version it answers
+    as a release build does, since tt asks the tarantool it runs for its
+    version and install prefix before building the package.
     """
 
-    def install(marker: str = "BUNDLED") -> Path:
-        path = project / "_runtime" / "tarantool" / "bin" / "tarantool"
+    def install(marker: str = "PROJECT") -> Path:
+        path = project / ".tarantool" / "bin" / "tarantool"
         write_executable(
             path,
-            f'#!/bin/sh\necho "{marker}"\nfor a in "$@"; do echo "arg:$a"; done\n',
+            "#!/bin/sh\n"
+            'if [ "$1" = "--version" ]; then\n'
+            "  echo 'Tarantool 3.8.1-0-ge643f88a5e0c'\n"
+            "  echo 'Target: Linux-x86_64-RelWithDebInfo'\n"
+            "  echo 'Build options: cmake . -DCMAKE_INSTALL_PREFIX=/usr -DENABLE_BACKTRACE=TRUE'\n"
+            "  exit 0\n"
+            "fi\n"
+            f'echo "{marker}"\nfor a in "$@"; do echo "arg:$a"; done\n',
         )
         return path
 

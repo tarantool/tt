@@ -68,29 +68,29 @@ def test_run_returns_tarantools_exit_code(run_tt):
     assert result.returncode == 7
 
 
-def test_run_prefers_the_bundled_runtime(run_tt, bundled_tarantool):
-    """A bundled runtime is what an installed package was given to run under.
+def test_run_prefers_the_project_tarantool(run_tt, project_tarantool):
+    """The tarantool of the project is what the project chose to run under.
 
     The fake prints a marker, so this fails loudly if the host's interpreter is
     chosen instead — which is the whole priority rule.
     """
-    bundled_tarantool()
+    project_tarantool()
 
     result = run_tt("run", "hello")
 
     assert result.returncode == 0, result.stderr
-    assert "BUNDLED" in result.stdout
+    assert "PROJECT" in result.stdout
     assert "arg:hello" in result.stdout
 
 
-def test_use_system_tarantool_inverts_the_priority(run_tt, bundled_tarantool):
-    bundled_tarantool()
+def test_use_system_tarantool_inverts_the_priority(run_tt, project_tarantool):
+    project_tarantool()
 
     result = run_tt("run", "-e", "print('SYSTEM')", env={"TT_USE_SYSTEM_TARANTOOL": "1"})
 
     assert result.returncode == 0, result.stderr
     assert "SYSTEM" in result.stdout
-    assert "BUNDLED" not in result.stdout
+    assert "PROJECT" not in result.stdout
 
 
 def test_run_works_in_the_project_root(run_tt, project: Path):
@@ -131,5 +131,5 @@ def test_run_without_any_tarantool_names_both_places(run_tt):
     result = run_tt("run", "--version")
 
     assert result.returncode == 1
-    assert "_runtime" in result.stderr
+    assert ".tarantool/bin/tarantool" in result.stderr
     assert "PATH" in result.stderr

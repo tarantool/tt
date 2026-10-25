@@ -497,9 +497,14 @@ for machine-readable output.
 - `tt run` now runs the package in the current directory rather than an
   instance of a tt environment. The directory must hold `app.manifest.toml`; no
   `tt.yaml` and no tt environment are needed, and none is looked for. The
-  interpreter is the one the package bundles under `_runtime/` when it has one
-  and the host's `tarantool` otherwise, with `TT_USE_SYSTEM_TARANTOOL=1`
-  forcing the host's either way. Arguments still reach Tarantool untouched,
+  interpreter is chosen by the rule the instance commands follow for a project:
+  the one `.tarantool/bin/tarantool` in the directory selects (set by
+  `tt binary install`/`switch`, and by a with-deps `tt package install` to the
+  bundled runtime when the project selects none), and the first `tarantool` on
+  `PATH` otherwise, with `TT_USE_SYSTEM_TARANTOOL=1` forcing `PATH` either
+  way; `bin_dir` of `tt.yaml` plays no part. `tt test` and the Tarantool
+  modules get through the SDK follow the same rule. Arguments still reach
+  Tarantool untouched,
   `--` included, and tt still replaces itself with the interpreter, so signals
   and the exit code are Tarantool's own.
 - `tt init`, `tt pack`, and `tt build` commands removed. Use

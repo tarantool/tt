@@ -119,6 +119,10 @@ func TestServicesLog(t *testing.T) {
 	assert.Contains(t, written.String(), "module=demo")
 }
 
+// useSystemEnv is the variable that makes a project run on the tarantool from
+// PATH, spelled out because it is the public name.
+const useSystemEnv = "TT_USE_SYSTEM_TARANTOOL"
+
 // writeTarantool writes a fake tarantool at path whose --version prints
 // banner.
 func writeTarantool(t *testing.T, path, banner string) {
@@ -130,26 +134,33 @@ func writeTarantool(t *testing.T, path, banner string) {
 	require.NoError(t, os.WriteFile(path, []byte(script), 0o755))
 }
 
-// TestServicesTarantool checks that Tarantool prefers the project's bundled
-// runtime, falls back to the environment's and reports its version and
+// TestServicesTarantool checks that Tarantool prefers the tarantool the
+// project selects, falls back to the one on PATH and reports its version and
 // edition.
 //
-//nolint:paralleltest // Changes the directory, the environment and the CmdCtx.
+//nolint:paralleltest // Changes the directory and the environment.
 func TestServicesTarantool(t *testing.T) {
 	restoreProcess(t)
 
 	project := t.TempDir()
 	t.Chdir(project)
-	t.Setenv(run.UseSystemEnv, "")
-	t.Setenv("PATH", t.TempDir())
+	t.Setenv(useSystemEnv, "")
 
-	environment := filepath.Join(t.TempDir(), "tarantool")
+	pathDir := t.TempDir()
+	t.Setenv("PATH", pathDir)
+
+	environment := filepath.Join(pathDir, "tarantool")
 	writeTarantool(t, environment, "Tarantool 3.9.0-0-gabcdef1")
 
-	bundled := filepath.Join(project, "_runtime", "tarantool", "bin", "tarantool")
+	// The project selects an installation the way tt binary and a with-deps
+	// tt package install do.
+	bundled := filepath.Join(project, ".tarantool", "versions", "tarantool-ee",
+		"tarantool-ee_3.2.1-12-g1a2b3c4-r579", "tarantool")
 	writeTarantool(t, bundled, "Tarantool Enterprise 3.2.1-12-g1a2b3c4-r579")
 
-	cmd.GetCmdCtxPtr().Cli.TarantoolCli.Executable = environment
+	link := filepath.Join(project, ".tarantool", "bin", "tarantool")
+	require.NoError(t, os.MkdirAll(filepath.Dir(link), 0o755))
+	require.NoError(t, os.Symlink(bundled, link))
 
 	svc := readyServices(strings.NewReader(""), io.Discard, io.Discard)
 
@@ -182,14 +193,14 @@ func TestServicesTarantool(t *testing.T) {
 
 	check(bundled, bundledVersion)
 
-	t.Setenv(run.UseSystemEnv, "1")
+	t.Setenv(useSystemEnv, "1")
 	check(environment, environmentVersion)
-	t.Setenv(run.UseSystemEnv, "")
+	t.Setenv(useSystemEnv, "")
 
-	require.NoError(t, os.RemoveAll(filepath.Join(project, "_runtime")))
+	require.NoError(t, os.Remove(link))
 	check(environment, environmentVersion)
 
-	cmd.GetCmdCtxPtr().Cli.TarantoolCli.Executable = ""
+	require.NoError(t, os.Remove(environment))
 
 	_, err := svc.Tarantool()
 	require.ErrorIs(t, err, sdk.ErrNotFound)

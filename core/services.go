@@ -56,9 +56,10 @@ func (s *services) Log() *slog.Logger {
 	return log.Logger().With(moduleKey, s.module)
 }
 
-// Tarantool returns the Tarantool the project bundles under _runtime/ when
-// it has one, and otherwise the one the tt environment resolved or the first
-// on PATH. TT_USE_SYSTEM_TARANTOOL puts the bundled one last.
+// Tarantool returns the tarantool tt run would start in the project: the one
+// .tarantool/bin/tarantool of the project selects, and otherwise the first on
+// PATH. TT_USE_SYSTEM_TARANTOOL forces PATH. What the choice warns about is
+// logged.
 func (s *services) Tarantool() (sdk.Tarantool, error) {
 	s.mustBeReady("Tarantool")
 
@@ -67,10 +68,7 @@ func (s *services) Tarantool() (sdk.Tarantool, error) {
 		return nil, err
 	}
 
-	path, err := run.SelectTarantool(dir, run.Environment{
-		Executable: cmd.GetCmdCtxPtr().Cli.TarantoolCli.Executable,
-		UseSystem:  run.UseSystemFromEnv(),
-	})
+	exe, err := run.Tarantool(dir)
 	if errors.Is(err, run.ErrNoTarantool) {
 		return nil, notFoundError{err: err}
 	}
@@ -79,10 +77,14 @@ func (s *services) Tarantool() (sdk.Tarantool, error) {
 		return nil, err
 	}
 
+	for _, warning := range exe.Warnings {
+		s.Log().Warn(warning)
+	}
+
 	// Only the path is known here: Version fills the rest on first use.
 	found := new(tarantool)
 
-	found.path = path
+	found.path = exe.Path
 
 	return found, nil
 }
