@@ -30,13 +30,13 @@ def test_expel_invalid_argument(tt_cmd, tmpdir_with_cfg):
 
 def test_expel_no_instance(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
-    app_name = "test_custom_app"
+    app_name = "test_ccluster_app"
     app_path = copy_application(tmpdir, app_name)
 
-    status_cmd = [tt_cmd, "replicaset", "expel", "test_custom_app:noexist"]
+    status_cmd = [tt_cmd, "replicaset", "expel", f"{app_name}:noexist"]
     rc, out = run_command_and_get_output(status_cmd, cwd=app_path)
     assert rc == 1
-    assert re.search(r"   ⨯ instance \"noexist\" not found", out)
+    assert f'   ⨯ instance not found: "noexist" of "{app_name}"' in out
 
 
 @pytest.mark.skipif(tarantool_major_version > 2, reason="skip custom test for Tarantool > 2")
@@ -47,7 +47,7 @@ def test_expel_custom_app(tt_cmd, tmpdir_with_cfg, flag):
     app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
-        start_cmd = [tt_cmd, "start", app_name]
+        start_cmd = [tt_cmd, "start", f"{app_name}:*"]
         rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
@@ -79,7 +79,7 @@ Replicasets state: bootstrapped
             out,
         )
     finally:
-        stop_cmd = [tt_cmd, "stop", "-y", app_name]
+        stop_cmd = [tt_cmd, "stop", "-y", f"{app_name}:*"]
         rc, _ = run_command_and_get_output(stop_cmd, cwd=app_path)
         assert rc == 0
 
@@ -95,7 +95,7 @@ def test_expel_cconfig(tt_cmd, tmpdir_with_cfg, flag):
     app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
-        start_cmd = [tt_cmd, "start", app_name]
+        start_cmd = [tt_cmd, "start", f"{app_name}:*"]
         rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
@@ -157,6 +157,6 @@ Replicasets state: bootstrapped
         )
 
     finally:
-        stop_cmd = [tt_cmd, "stop", "-y", app_name]
+        stop_cmd = [tt_cmd, "stop", "-y", f"{app_name}:*"]
         rc, _ = run_command_and_get_output(stop_cmd, cwd=app_path)
         assert rc == 0

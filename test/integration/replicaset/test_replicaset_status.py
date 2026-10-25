@@ -32,7 +32,7 @@ def test_status_cconfig_uri(tt_cmd, tmpdir_with_cfg, flag):
     app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
-        start_cmd = [tt_cmd, "start", app_name]
+        start_cmd = [tt_cmd, "start", f"{app_name}:*"]
         rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
@@ -79,7 +79,7 @@ def test_status_cconfig_uri_force_custom(tt_cmd, tmpdir_with_cfg):
     app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
-        start_cmd = [tt_cmd, "start", app_name]
+        start_cmd = [tt_cmd, "start", f"{app_name}:*"]
         rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
@@ -127,7 +127,7 @@ def test_status_cconfig_app_and_instance(tt_cmd, tmpdir_with_cfg, flag, target):
     app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
-        start_cmd = [tt_cmd, "start", app_name]
+        start_cmd = [tt_cmd, "start", f"{app_name}:*"]
         rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
@@ -175,7 +175,7 @@ def test_status_cconfig_app_and_instance_force_custom(tt_cmd, tmpdir_with_cfg, t
     app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
-        start_cmd = [tt_cmd, "start", app_name]
+        start_cmd = [tt_cmd, "start", f"{app_name}:*"]
         rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
@@ -217,7 +217,7 @@ def test_status_custom_app(tt_cmd, tmpdir_with_cfg, flag):
     app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
-        start_cmd = [tt_cmd, "start", app_name]
+        start_cmd = [tt_cmd, "start", f"{app_name}:*"]
         rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 

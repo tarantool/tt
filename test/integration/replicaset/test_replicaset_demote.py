@@ -10,7 +10,7 @@ from replicaset_helpers import (
     stop_application,
 )
 
-from utils import get_tarantool_version, run_command_and_get_output
+from utils import get_tarantool_version, instances_file, run_command_and_get_output
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
@@ -25,8 +25,8 @@ def test_demote_cconfig_failover_off(tt_cmd, tmpdir_with_cfg, force):
     app_name = "cluster_app_failovers"
     app_path = copy_application(tmpdir, app_name)
     instances = ["off-failover-1", "off-failover-2"]
-    # Replace instances.yml to start only necessary replicaset.
-    with open(os.path.join(app_path, "instances.yml"), "w") as f:
+    # Replace the description to start only necessary replicaset.
+    with open(os.path.join(app_path, instances_file), "w") as f:
         f.write("\n".join(list(map(lambda x: f"{x}:", instances))))
 
     try:
@@ -73,8 +73,8 @@ def test_demote_cconfig_failover_election(tt_cmd, tmpdir_with_cfg):
     app_name = "cluster_app_failovers"
     app_path = copy_application(tmpdir, app_name)
     instances = ["election-failover-1", "election-failover-2"]
-    # Replace instances.yml to start only necessary replicaset.
-    with open(os.path.join(app_path, "instances.yml"), "w") as f:
+    # Replace the description to start only necessary replicaset.
+    with open(os.path.join(app_path, instances_file), "w") as f:
         f.write("\n".join(list(map(lambda x: f"{x}:", instances))))
 
     try:
@@ -130,8 +130,7 @@ def test_demote_cconfig_failover_election(tt_cmd, tmpdir_with_cfg):
         pytest.param(
             ["off-failover-1", "off-failover-2"],
             "off-failover-3",
-            "can't collect instance information for cluster_app_failovers:off-failover-3: "
-            + "instance(s) not found",
+            'instance not found: "off-failover-3" of "cluster_app_failovers"',
             None,
             id="instance not found",
         ),
@@ -156,8 +155,8 @@ def test_demote_cconfig_errors(
     tmpdir = tmpdir_with_cfg
     app_name = "cluster_app_failovers"
     app_path = copy_application(tmpdir, app_name)
-    # Replace instances.yml to start only necessary replicaset.
-    with open(os.path.join(app_path, "instances.yml"), "w") as f:
+    # Replace the description to start only necessary replicaset.
+    with open(os.path.join(app_path, instances_file), "w") as f:
         f.write("\n".join(list(map(lambda x: f"{x}:", instances))))
 
     try:
