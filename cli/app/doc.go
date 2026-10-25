@@ -40,6 +40,10 @@
 // working directory and the description's paths point into it, so an
 // instance keeps running the version it started from when the link moves.
 //
+// A caller may pin the application directory instead (Options.Dir): the
+// watchdog of a running instance does, so that restarting it after an exit
+// stays on the version it started from, while the pair is read anew.
+//
 // # Pairs
 //
 // An application runs from a pair: instances.yaml, what runs on this host,

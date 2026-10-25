@@ -315,6 +315,150 @@ func TestLoadInstalledMissing(t *testing.T) {
 	})
 }
 
+// TestLoadPinnedVersion pins that a pinned directory keeps an installed
+// application on the version it names after apps/<app> has moved on, while
+// its pair is read anew from that version.
+func TestLoadPinnedVersion(t *testing.T) {
+	for _, scp := range []app.Scope{app.ScopeUser, app.ScopeSystem} {
+		t.Run(string(scp), func(t *testing.T) {
+			user, system := roots(t)
+
+			root := system
+			if scp == app.ScopeUser {
+				root = user
+			}
+
+			first, err := filepath.EvalSymlinks(install(t, root, "myapp", "1.0.0",
+				templateFiles(".", "default", "storage-1")))
+			require.NoError(t, err)
+
+			install(t, root, "myapp", "2.0.0",
+				templateFiles(".", "default", "storage-1", "storage-2"))
+
+			// The pair of the pinned version changes after it was first read.
+			writeTree(t, first, templateFiles(".", "default", "storage-1", "storage-3"))
+
+			got, err := load(t, "myapp", app.Options{Scope: scp, Dir: first, Start: t.TempDir()})
+			require.NoError(t, err)
+
+			assert.Equal(t, "myapp", got.Name)
+			assert.Equal(t, scp, got.Scope)
+			assert.Equal(t, root, got.Root)
+			assert.Equal(t, first, got.Dir)
+			assert.Equal(t, []string{"storage-1", "storage-3"}, names(got.Instances))
+
+			active, err := load(t, "myapp", app.Options{Scope: scp, Start: t.TempDir()})
+			require.NoError(t, err)
+			assert.Equal(t, []string{"storage-1", "storage-2"}, names(active.Instances),
+				"without a pin the active version is loaded")
+		})
+	}
+}
+
+// TestLoadPinnedHostPair pins that a pinned version still runs from the pair
+// of the host when the host has one: the pin chooses the version, not the
+// pair.
+func TestLoadPinnedHostPair(t *testing.T) {
+	_, system := roots(t)
+
+	version := install(t, system, "myapp", "1.0.0", templateFiles(".", "default", "storage-1"))
+	writeTree(t, filepath.Join(system, "etc", "myapp"), map[string]string{
+		"instances.yaml": description("storage-2"),
+		"config.yaml":    topology("storage-1", "storage-2"),
+	})
+
+	got, err := load(t, "myapp", app.Options{Scope: app.ScopeSystem, Dir: version})
+	require.NoError(t, err)
+	assert.True(t, got.Pair.Host())
+	assert.Equal(t, []string{"storage-2"}, names(got.Instances))
+}
+
+// TestLoadPinnedProject pins that a pinned project is loaded from its
+// directory whatever the start directory, and is still named by its
+// manifest.
+func TestLoadPinnedProject(t *testing.T) {
+	roots(t)
+
+	tree := t.TempDir()
+	projectDir := filepath.Join(tree, "work")
+	writeTree(t, tree, merge(templateFiles("work", "default", "storage-1"),
+		map[string]string{"work/app.manifest.toml": manifestOf("myapp")}))
+
+	outside := t.TempDir()
+
+	for _, name := range []string{"", "myapp"} {
+		got, err := load(t, name, app.Options{
+			Scope: app.ScopeProject, Dir: projectDir, Start: outside,
+		})
+		require.NoError(t, err)
+
+		assert.Equal(t, "myapp", got.Name)
+		assert.Equal(t, app.ScopeProject, got.Scope)
+		assert.Equal(t, filepath.Join(projectDir, ".tarantool"), got.Root)
+		assert.Equal(t, projectDir, got.Dir)
+	}
+
+	_, err := load(t, "other", app.Options{Scope: app.ScopeProject, Dir: projectDir})
+	requireFailure(t, err, app.ErrAppNotFound)
+	require.ErrorContains(t, err, `called "myapp", not "other"`)
+}
+
+func TestLoadPinnedErrors(t *testing.T) {
+	_, system := roots(t)
+
+	version := install(t, system, "myapp", "1.0.0", templateFiles(".", "default", "storage-1"))
+
+	file := filepath.Join(t.TempDir(), "file")
+	require.NoError(t, os.WriteFile(file, nil, 0o644))
+
+	cases := []struct {
+		name   string
+		target string
+		opts   app.Options
+		want   error
+		msg    string
+	}{
+		{
+			name: "relative", target: "myapp",
+			opts: app.Options{Scope: app.ScopeSystem, Dir: "versions/myapp"},
+			want: nil, msg: "not an absolute path",
+		},
+		{
+			name: "gone", target: "myapp",
+			opts: app.Options{Scope: app.ScopeSystem, Dir: filepath.Join(system, "nowhere")},
+			want: app.ErrAppNotFound, msg: "is gone",
+		},
+		{
+			name: "a file", target: "myapp",
+			opts: app.Options{Scope: app.ScopeSystem, Dir: file},
+			want: app.ErrAppNotFound, msg: "not a directory",
+		},
+		{
+			name: "no scope", target: "myapp",
+			opts: app.Options{Dir: version},
+			want: nil, msg: "pinned without its scope",
+		},
+		{
+			name: "no name", target: "",
+			opts: app.Options{Scope: app.ScopeSystem, Dir: version},
+			want: app.ErrInvalidTarget, msg: "needs a target",
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := load(t, test.target, test.opts)
+			require.Error(t, err)
+			assert.Equal(t, sdk.ExitFailure, sdk.ExitCode(err))
+			require.ErrorContains(t, err, test.msg)
+
+			if test.want != nil {
+				require.ErrorIs(t, err, test.want)
+			}
+		})
+	}
+}
+
 func TestScopeSelection(t *testing.T) {
 	user, system := roots(t)
 
