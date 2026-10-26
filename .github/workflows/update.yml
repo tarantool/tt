@@ -31,9 +31,8 @@ jobs:
         sudo apt install -y tt
         mkdir /tmp/tt
         cd /tmp/tt
-        printf '{}\n' > tt.yaml
         tt binary install tarantool --scope project master
-        echo "/tmp/tt/bin" >> $GITHUB_PATH
+        echo "/tmp/tt/.tarantool/bin" >> $GITHUB_PATH
 
     - name: Setup dependencies for the code generation
       run: |

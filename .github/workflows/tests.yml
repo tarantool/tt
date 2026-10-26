@@ -223,6 +223,9 @@ jobs:
       - name: Build tt
         run: mage build
 
+      # The checkout is no project: the project scope installs into
+      # .tarantool/ of the working directory, the binary into
+      # .tarantool/bin and the headers into .tarantool/include/tarantool.
       - name: Install tarantool
         run: |
           ./tt -V binary install tarantool --scope project 3.0.2
