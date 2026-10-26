@@ -34,19 +34,21 @@ type Options struct {
 	// the cluster config may point to. A context without a repository checks
 	// nothing.
 	Integrity integrity.IntegrityCtx
-	// SkipConfig leaves the cluster config of the pair unread: neither the
-	// file nor the config storage it names is read, the description is not
-	// checked against the topology, and App.Config is nil. A pair whose
-	// config is missing, broken or out of reach loads all the same; the
-	// description is read and checked as always.
+	// BestEffortConfig reads the cluster config of the pair, and the config
+	// storage it names, as far as it can be read: a config that is missing,
+	// broken or out of reach leaves App.Config nil and App.ConfigError set,
+	// rather than failing the load, and the description is not checked
+	// against the topology. The description is read and checked as always.
 	//
 	// It is for the commands that act on the processes of the instances,
-	// which find them by the description and their pid files alone, such as
+	// which find them by the description and their pid files, such as
 	// tt instance stop and status: an etcd that is down or a config broken
 	// by an edit must not keep a running instance from being stopped or
-	// looked at, as it did not in tt2. A command that needs the config to
-	// act, such as tt instance start, reads it.
-	SkipConfig bool
+	// looked at, as it did not in tt2; and a config that can be read still
+	// says where the instance keeps what it moves out of the layout, such
+	// as its console socket. A command that needs the config to act, such
+	// as tt instance start, requires it.
+	BestEffortConfig bool
 }
 
 // App is an application found and loaded with its pair.
@@ -69,10 +71,18 @@ type App struct {
 	Pair Pair
 	// Config is the cluster config of the pair, with what a config storage
 	// it names holds merged in. It is nil when the description has no
-	// Tarantool instance configured by it (HasClusterInstances), and when
-	// Options.SkipConfig leaves it unread: the config is not read then,
-	// whether the pair has one or not.
+	// Tarantool instance configured by it (HasClusterInstances): the config
+	// is not read then, whether the pair has one or not. With
+	// Options.BestEffortConfig it is nil as well when it cannot be read.
 	Config *goconfig.MutableConfig
+	// BestEffortConfig is Options.BestEffortConfig the application was
+	// loaded with: Config may lack an instance of the description, or hold
+	// what does not fit it, and the instance is then taken as the layout
+	// gives it.
+	BestEffortConfig bool
+	// ConfigError is why the config of the pair could not be read, with
+	// Options.BestEffortConfig; nil when it was read or not needed.
+	ConfigError error
 	// Instances are every record of the description, in its order.
 	Instances []instances.Instance
 }
@@ -91,8 +101,8 @@ func (app *App) HasClusterInstances() bool {
 // Load checks the pair as a whole, whichever instances a command then acts
 // on: a Tarantool instance the topology does not declare, or a field an
 // instance cannot honour, breaks every command on the application alike,
-// but for those that leave the config unread (Options.SkipConfig), which
-// have no topology to check against.
+// but for those that read the config as far as they can
+// (Options.BestEffortConfig), which do not check the topology.
 func Load(ctx context.Context, name string, opts Options) (*App, error) {
 	if name != "" && !validName(name) {
 		return nil, failf("%w: %q cannot be an application name", ErrInvalidTarget, name)
@@ -119,18 +129,25 @@ func Load(ctx context.Context, name string, opts Options) (*App, error) {
 		return nil, err
 	}
 
-	records, cfg, err := loadPair(ctx, pair, loc.dir, opts.Integrity, opts.SkipConfig)
+	loaded, err := loadPair(ctx, pair, loc.dir, opts.Integrity, opts.BestEffortConfig)
 	if err != nil {
 		return nil, fmt.Errorf("application %q: %w", loc.name, err)
 	}
 
+	configErr := loaded.configErr
+	if configErr != nil {
+		configErr = fmt.Errorf("application %q: %w", loc.name, configErr)
+	}
+
 	return &App{
-		Name:      loc.name,
-		Scope:     loc.scope,
-		Root:      loc.root,
-		Dir:       loc.dir,
-		Pair:      pair,
-		Config:    cfg,
-		Instances: records,
+		Name:             loc.name,
+		Scope:            loc.scope,
+		Root:             loc.root,
+		Dir:              loc.dir,
+		Pair:             pair,
+		Config:           loaded.config,
+		BestEffortConfig: opts.BestEffortConfig,
+		ConfigError:      configErr,
+		Instances:        loaded.records,
 	}, nil
 }

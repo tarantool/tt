@@ -13,6 +13,7 @@ import (
 	"syscall"
 
 	goconfig "github.com/tarantool/go-config/v2"
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/cli/running/internal/layout"
@@ -94,6 +95,11 @@ var scriptWrittenPathKeys = []string{
 // A Tarantool instance that runs its script, a record with script, has every
 // path of the layout, and no cluster config: its script configures it with
 // box.cfg (setScriptCtx).
+//
+// A config read by the best effort (app.App.BestEffortConfig) that does not
+// declare the instance, or does not fit it, is left out for it, as one that
+// cannot be read is: the instance gets the paths of the layout, and the
+// reason goes to the debug log.
 func NewInstanceCtx(application *app.App, inst instances.Instance) (InstanceCtx, error) {
 	if application == nil {
 		return InstanceCtx{}, fmt.Errorf("instance %q: %w", inst.Name, errNoApplication)
@@ -164,15 +170,33 @@ func NewInstanceCtx(application *app.App, inst instances.Instance) (InstanceCtx,
 	case instances.KindCluster:
 		if application.Config != nil {
 			cfg, err := cluster.GetInstanceConfig(application.Config, inst.Name)
-			if err != nil {
+
+			switch {
+			case err == nil:
+				instCtx.Configuration = &cfg
+			case application.BestEffortConfig:
+				log.Debugf("%s; the cluster config is left out for it", wrap(err))
+			default:
 				return InstanceCtx{}, wrap(err)
 			}
-
-			instCtx.Configuration = &cfg
 		}
 	}
 
+	withoutConfig := instCtx
+
+	withoutConfig.Configuration = nil
+
 	err = setInstCtxFromEffectiveConfig(&instCtx)
+	if err != nil && application.BestEffortConfig && instCtx.Configuration != nil {
+		// A config that does not fit the instance is left out, as one that
+		// cannot be read is: the layout and the env of the record give the
+		// paths.
+		log.Debugf("%s; the cluster config is left out for it", wrap(err))
+
+		instCtx = withoutConfig
+		err = setInstCtxFromEffectiveConfig(&instCtx)
+	}
+
 	if err != nil {
 		return InstanceCtx{}, wrap(err)
 	}

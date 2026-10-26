@@ -25,13 +25,14 @@ var errNotAnAppTarget = errors.New("not an application target")
 type pairConfig bool
 
 const (
-	// readConfig reads the config, for a command that acts on the cluster
+	// readConfig requires the config, for a command that acts on the cluster
 	// the config describes.
 	readConfig pairConfig = true
-	// skipConfig leaves it unread (app.Options.SkipConfig), for a command
-	// that only asks the running instances, as tt replicaset status does:
-	// as in tt2, a config storage out of reach does not keep it from them.
-	skipConfig pairConfig = false
+	// tryConfig reads it as far as it can be read
+	// (app.Options.BestEffortConfig), for a command that only asks the
+	// running instances, as tt replicaset status does: as in tt2, a config
+	// storage out of reach does not keep it from them.
+	tryConfig pairConfig = false
 )
 
 // instanceOptions are the options an instance command finds the
@@ -46,12 +47,12 @@ func instanceOptions(cmdCtx *cmdcontext.CmdCtx) (app.Options, error) {
 	}
 
 	return app.Options{
-		Scope:      "",
-		Template:   "",
-		Start:      start,
-		Dir:        "",
-		Integrity:  cmdCtx.Integrity,
-		SkipConfig: false,
+		Scope:            "",
+		Template:         "",
+		Start:            start,
+		Dir:              "",
+		Integrity:        cmdCtx.Integrity,
+		BestEffortConfig: false,
 	}, nil
 }
 
@@ -71,22 +72,25 @@ func resolveInstances(cmdCtx *cmdcontext.CmdCtx, args []string) ([]running.Insta
 }
 
 // resolveProcesses resolves the targets of a command that acts on the
-// processes of the instances, as resolveInstances does, but leaves the
-// cluster config of the pair unread (app.Options.SkipConfig).
+// processes of the instances, as resolveInstances does, but reads the
+// cluster config of the pair as far as it can be read
+// (app.Options.BestEffortConfig).
 //
 // tt instance stop, kill, status, logrotate and logs find an instance by its
-// record and its pid file alone, as they did in tt2: an etcd that is down,
-// or a config broken by an edit, must not keep a running instance from being
-// stopped or looked at. What they lose is what only the config says, such as
-// a console socket it moves from the layout, which tt instance status then
-// does not reach.
+// record and its pid file, as they did in tt2: an etcd that is down, or a
+// config broken by an edit, must not keep a running instance from being
+// stopped or looked at, and the instance is then taken as the layout gives
+// it. A config that can be read still says what the instance moves out of
+// the layout, such as its console socket, which tt instance status asks it
+// over. The price is the wait for a config storage that is down, as long as
+// the timeout of the connection to it.
 func resolveProcesses(cmdCtx *cmdcontext.CmdCtx, args []string) ([]running.InstanceCtx, error) {
 	opts, err := instanceTargetOptions(cmdCtx)
 	if err != nil {
 		return nil, err
 	}
 
-	opts.SkipConfig = true
+	opts.BestEffortConfig = true
 
 	return resolveInstancesWith(args, opts)
 }
@@ -147,8 +151,9 @@ func describeTargets(args []string) string {
 // tt2 ran without a config of Tarantool 3, keeps them: they are its
 // instances, which the custom orchestrator acts on.
 //
-// config tells whether the cluster config of the pair is read; the kinds of
-// the instances come from the description either way.
+// config tells whether the cluster config of the pair is required or read
+// as far as it can be; the kinds of the instances come from the description
+// either way.
 func resolveAppTarget(cmdCtx *cmdcontext.CmdCtx, target string, config pairConfig) (
 	*app.App, []running.InstanceCtx, string, error,
 ) {
@@ -162,7 +167,7 @@ func resolveAppTarget(cmdCtx *cmdcontext.CmdCtx, target string, config pairConfi
 		return nil, nil, "", err
 	}
 
-	opts.SkipConfig = config == skipConfig
+	opts.BestEffortConfig = config == tryConfig
 
 	application, err := app.Load(context.Background(), appName, opts)
 	if err != nil {

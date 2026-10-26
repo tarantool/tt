@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/tarantool/tt/sdk/integrity"
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/internal/instances"
 )
@@ -53,7 +54,16 @@ func Collect(ctx context.Context, targets []app.Target, opts app.Options) ([]Ins
 // application, in their order. A record whose context cannot be built fails
 // them all (NewInstanceCtx): a command must not act on part of what it was
 // asked for while reporting success.
+//
+// A config the application read by the best effort and could not read goes
+// to the debug log: the command acts on the instances all the same, with
+// the paths of the layout.
 func InstancesOf(application *app.App, records []instances.Instance) ([]InstanceCtx, error) {
+	if application != nil && application.ConfigError != nil {
+		log.Debugf("%s; the instances are taken as the layout gives them",
+			application.ConfigError)
+	}
+
 	insts := make([]InstanceCtx, 0, len(records))
 
 	for _, record := range records {
@@ -75,12 +85,12 @@ func InstancesOf(application *app.App, records []instances.Instance) ([]Instance
 // included: the watchdog starts the instance as the config says.
 func PinnedOptions(inst *InstanceCtx, integ integrity.IntegrityCtx) app.Options {
 	return app.Options{
-		Scope:      inst.Scope,
-		Template:   inst.Template,
-		Start:      "",
-		Dir:        inst.AppDir,
-		Integrity:  integ,
-		SkipConfig: false,
+		Scope:            inst.Scope,
+		Template:         inst.Template,
+		Start:            "",
+		Dir:              inst.AppDir,
+		Integrity:        integ,
+		BestEffortConfig: false,
 	}
 }
 

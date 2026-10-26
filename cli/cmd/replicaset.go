@@ -796,7 +796,7 @@ func internalReplicasetStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) er
 
 	// The status comes from the running instances, which tell their
 	// replicasets themselves.
-	err := replicasetFillCtx(cmdCtx, &ctx, args[0], false, skipConfig)
+	err := replicasetFillCtx(cmdCtx, &ctx, args[0], false, tryConfig)
 	if err != nil {
 		return err
 	}

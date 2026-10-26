@@ -1019,22 +1019,24 @@ func unreachableConfig(t *testing.T) string {
 		closedAddress(t))
 }
 
-// TestLoadSkipConfig pins that Options.SkipConfig leaves the cluster config
-// of the pair unread: a config that does not parse, one that sends tt to an
-// etcd out of reach, a topology that does not declare the instances and a
-// pair without a config load all the same, with no Config, while the
-// description is read and checked as always.
-func TestLoadSkipConfig(t *testing.T) {
+// TestLoadBestEffortConfig pins that Options.BestEffortConfig reads the
+// cluster config of the pair as far as it can be read: a config that does
+// not parse, one that sends tt to an etcd out of reach and a pair without a
+// config load all the same, without Config and with ConfigError; a config
+// that can be read is read, whether its topology declares the instances or
+// not. The description is read and checked as always.
+func TestLoadBestEffortConfig(t *testing.T) {
 	loaded := []struct {
 		name   string
 		desc   string
 		config string // The file is left out when it is empty.
+		read   bool   // Whether the config is read.
 	}{
 		{name: "a config that does not parse", desc: "storage-1:\n", config: "groups: [\n"},
 		{name: "a config storage out of reach", desc: "storage-1:\n", config: "unreachable"},
 		{
 			name: "a topology without the instance", desc: "storage-9:\n",
-			config: topology("storage-1"),
+			config: topology("storage-1"), read: true,
 		},
 		{name: "no config", desc: "storage-1:\n"},
 	}
@@ -1057,15 +1059,42 @@ func TestLoadSkipConfig(t *testing.T) {
 			writeTree(t, tree, files)
 
 			_, err := load(t, "", app.Options{Start: tree})
-			require.Error(t, err, "the config is read without SkipConfig")
+			require.Error(t, err, "the config is required without BestEffortConfig")
 
-			got, err := load(t, "", app.Options{Start: tree, SkipConfig: true})
+			got, err := load(t, "", app.Options{Start: tree, BestEffortConfig: true})
 			require.NoError(t, err)
-			assert.Nil(t, got.Config)
+			assert.True(t, got.BestEffortConfig)
 			assert.Equal(t, []string{strings.TrimSuffix(test.desc, ":\n")}, names(got.Instances))
 			assert.True(t, got.HasClusterInstances())
+
+			if test.read {
+				assert.NotNil(t, got.Config)
+				require.NoError(t, got.ConfigError)
+
+				return
+			}
+
+			assert.Nil(t, got.Config)
+			require.Error(t, got.ConfigError)
+			assert.Contains(t, got.ConfigError.Error(), `application "`)
 		})
 	}
+
+	t.Run("a config that can be read", func(t *testing.T) {
+		roots(t)
+
+		tree := t.TempDir()
+		writeTree(t, tree, templateFiles(".", "default", "storage-1"))
+
+		got, err := load(t, "", app.Options{Start: tree, BestEffortConfig: true})
+		require.NoError(t, err)
+		assert.NotNil(t, got.Config)
+		require.NoError(t, got.ConfigError)
+
+		got, err = load(t, "", app.Options{Start: tree})
+		require.NoError(t, err)
+		assert.False(t, got.BestEffortConfig)
+	})
 
 	failed := []struct {
 		name  string
@@ -1105,7 +1134,7 @@ func TestLoadSkipConfig(t *testing.T) {
 			tree := t.TempDir()
 			writeTree(t, tree, test.files)
 
-			_, err := load(t, "", app.Options{Start: tree, SkipConfig: true})
+			_, err := load(t, "", app.Options{Start: tree, BestEffortConfig: true})
 			requireFailure(t, err, test.err)
 		})
 	}

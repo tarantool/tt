@@ -81,16 +81,16 @@ func completeTarget(
 	directive := cobra.ShellCompDirectiveNoFileComp
 
 	// The instances come from the description of the pair, and those still
-	// running from their pid files: the config is not read, so that a
-	// config storage out of reach does not keep tt instance stop from
-	// completing what it may stop.
+	// running from their pid files: the config is read as far as it can be,
+	// so that a config storage out of reach does not keep tt instance stop
+	// from completing what it may stop.
 	opts := app.Options{
-		Scope:      "",
-		Template:   flagValue(cmd, templateFlag),
-		Start:      "",
-		Dir:        "",
-		Integrity:  cmdCtx.Integrity,
-		SkipConfig: true,
+		Scope:            "",
+		Template:         flagValue(cmd, templateFlag),
+		Start:            "",
+		Dir:              "",
+		Integrity:        cmdCtx.Integrity,
+		BestEffortConfig: true,
 	}
 
 	scp, err := app.ParseScope(flagValue(cmd, scopeFlag))

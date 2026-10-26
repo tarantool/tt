@@ -219,6 +219,17 @@ func listTemplates(templatesDir string) []string {
 	return names
 }
 
+// loadedPair is what loadPair reads from a pair.
+type loadedPair struct {
+	// records are the records of the description.
+	records []instances.Instance
+	// config is the cluster config, nil when it is not read.
+	config *goconfig.MutableConfig
+	// configErr is why the config could not be read, when it was read as far
+	// as it can be.
+	configErr error
+}
+
 // loadPair reads the instances description and the cluster config of pair,
 // for the application in appDir, and checks that they fit together.
 //
@@ -232,53 +243,76 @@ func listTemplates(templatesDir string) []string {
 // external processes, needs no config, and one the pair has anyway is left
 // unread: whatever it holds, an empty file or a storage out of reach, does
 // not keep those instances from running. A description with them needs the
-// config, and a pair without one is incomplete. With skipConfig
-// (Options.SkipConfig) it is left unread whatever the description holds,
-// and a pair without one is no less complete for that.
+// config, and a pair without one is incomplete. With bestEffort
+// (Options.BestEffortConfig) the config is read as far as it can be: why it
+// cannot is configErr rather than a failure, and the topology is not
+// checked.
 func loadPair(
 	ctx context.Context,
 	pair Pair,
 	appDir string,
 	integ integrity.IntegrityCtx,
-	skipConfig bool,
-) ([]instances.Instance, *goconfig.MutableConfig, error) {
+	bestEffort bool,
+) (loadedPair, error) {
 	data, err := readFile(integ, pair.InstancesFile)
 	if err != nil {
-		return nil, nil, failf("%w", err)
+		return loadedPair{}, failf("%w", err)
 	}
 
 	records, err := instances.Parse(data, appDir)
 	if err != nil {
-		return nil, nil, failf("invalid instance description %s:\n%w", pair.InstancesFile, err)
+		return loadedPair{}, failf("invalid instance description %s:\n%w",
+			pair.InstancesFile, err)
 	}
 
 	err = checkFields(pair, records)
 	if err != nil {
-		return nil, nil, err
+		return loadedPair{}, err
 	}
 
+	loaded := loadedPair{records: records, config: nil, configErr: nil}
+
 	configured := clusterInstances(records)
-	if len(configured) == 0 || skipConfig {
-		return records, nil, nil
+	if len(configured) == 0 {
+		return loaded, nil
 	}
 
 	if pair.ConfigFile == "" {
-		return nil, nil, failf("%w: %s has %s but no %s next to it to configure "+
+		err = failf("%w: %s has %s but no %s next to it to configure "+
 			"its Tarantool instances %s", ErrIncompletePair, pair.String(),
 			scope.InstancesFileName, configFileName, quoteNames(configured))
+		if bestEffort {
+			loaded.configErr = err
+
+			return loaded, nil
+		}
+
+		return loadedPair{}, err
 	}
 
 	cfg, err := cluster.GetClusterConfig(ctx, pair.ConfigFile, integ)
 	if err != nil {
-		return nil, nil, failf("%w", err)
+		if bestEffort {
+			loaded.configErr = err
+
+			return loaded, nil
+		}
+
+		return loadedPair{}, failf("%w", err)
+	}
+
+	loaded.config = cfg
+
+	if bestEffort {
+		return loaded, nil
 	}
 
 	err = checkTopology(pair, records, cfg)
 	if err != nil {
-		return nil, nil, err
+		return loadedPair{}, err
 	}
 
-	return records, cfg, nil
+	return loaded, nil
 }
 
 // checkFields refuses the fields of a record that an instance of its kind
