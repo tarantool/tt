@@ -14,7 +14,6 @@ import pytest
 from utils import (
     BINARY_PORT_NAME,
     control_socket,
-    create_tt_config,
     find_tt_processes,
     get_tarantool_version,
     inst_run_dir,
@@ -2973,7 +2972,6 @@ def test_connect_to_single_instance_app_binary(tt_cmd):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported by test")
     tmpdir = tempfile.mkdtemp()
-    create_tt_config(tmpdir)
     empty_file = "empty.lua"
     # The test application file.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_single_app", "test_app.lua")
@@ -3057,7 +3055,6 @@ def test_connect_to_multi_instances_app_binary(tt_cmd):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported by test")
     tmpdir = tempfile.mkdtemp()
-    create_tt_config(tmpdir)
     app_name = "test_multi_inst_app"
     empty_file = "empty.lua"
     # Copy the test application to the "run" directory.
@@ -3114,7 +3111,6 @@ def test_connect_to_instance_binary_missing_port(tt_cmd):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported by test")
     tmpdir = tempfile.mkdtemp()
-    create_tt_config(tmpdir)
     empty_file = "empty.lua"
     # The test application file.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_single_app", "test_app.lua")
@@ -3177,7 +3173,6 @@ def test_connect_to_instance_binary_port_is_broken(tt_cmd):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported by test")
     tmpdir = tempfile.mkdtemp()
-    create_tt_config(tmpdir)
     empty_file = "empty.lua"
     # The test application file.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_single_app", "test_app.lua")
@@ -3250,7 +3245,6 @@ def test_connect_to_cluster_app(tt_cmd):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported by test")
     tmpdir = tempfile.mkdtemp()
-    create_tt_config(tmpdir)
     skip_if_cluster_app_unsupported()
 
     empty_file = "empty.lua"
