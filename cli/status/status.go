@@ -90,16 +90,19 @@ type instanceAlert struct {
 	Severity severity `json:"severity" yaml:"severity"`
 }
 
+// instanceStatus is the status of an instance. Unit is the systemd unit that
+// manages the instance, left out when none does.
 type instanceStatus struct {
-	Status             string                     `json:"status"   yaml:"status"`
-	PID                *int                       `json:"pid"      yaml:"pid"`
-	Mode               string                     `json:"mode"     yaml:"mode"`
-	Config             string                     `json:"config"   yaml:"config"`
-	Box                string                     `json:"box"      yaml:"box"`
-	Upstream           string                     `json:"upstream" yaml:"upstream"`
-	Alerts             []instanceAlert            `json:"alerts"   yaml:"alerts"`
-	rawReplicationInfo []rawReplicationInfo       `json:"-"        yaml:"-"`
-	procStatus         process_utils.ProcessState `json:"-"        yaml:"-"`
+	Status             string                     `json:"status"         yaml:"status"`
+	PID                *int                       `json:"pid"            yaml:"pid"`
+	Unit               string                     `json:"unit,omitempty" yaml:"unit,omitempty"`
+	Mode               string                     `json:"mode"           yaml:"mode"`
+	Config             string                     `json:"config"         yaml:"config"`
+	Box                string                     `json:"box"            yaml:"box"`
+	Upstream           string                     `json:"upstream"       yaml:"upstream"`
+	Alerts             []instanceAlert            `json:"alerts"         yaml:"alerts"`
+	rawReplicationInfo []rawReplicationInfo       `json:"-"              yaml:"-"`
+	procStatus         process_utils.ProcessState `json:"-"              yaml:"-"`
 }
 
 func (is *instanceStatus) addAlert(message string, severity severity) {
@@ -113,6 +116,7 @@ func newInstanceStatus() instanceStatus {
 	return instanceStatus{
 		Status:             "",
 		PID:                nil,
+		Unit:               "",
 		Mode:               "",
 		Config:             defaultModuleStatus,
 		Box:                defaultModuleStatus,
@@ -274,6 +278,7 @@ func processStatusForInstance(instance running.InstanceCtx,
 
 	instStatus.procStatus = running.Status(&instance)
 	instStatus.Status = instStatus.procStatus.Status
+	instStatus.Unit = instance.Unit
 
 	if instStatus.procStatus.Code == process_utils.ProcessRunningCode {
 		instStatus.PID = &instStatus.procStatus.PID
@@ -284,10 +289,11 @@ func processStatusForInstance(instance running.InstanceCtx,
 
 	// External processes have no Tarantool console to query.
 	if running.IsExternal(&instance) {
-		if orphan := running.Orphan(&instance); orphan != 0 {
-			instStatus.addAlert(fmt.Sprintf("the process of %s (PID = %d) runs without "+
-				"its watchdog: stop it with tt instance stop %s or tt instance kill %s", name, orphan, name, name), severityError)
+		orphan := running.Orphan(&instance)
+		if orphan != 0 {
+			instStatus.addAlert(orphanAlert(&instance, name, orphan), severityError)
 		}
+
 		return result
 	}
 
@@ -357,4 +363,17 @@ func Status(runningCtx running.RunningCtx, printer InstanceStatusPrinter,
 	}
 
 	return printer.Print(instances)
+}
+
+// orphanAlert is the alert for the process orphan of the external process
+// run, named name, that runs without its watchdog: it names how to stop it,
+// through the unit that manages the instance, if one does.
+func orphanAlert(run *running.InstanceCtx, name string, orphan int) string {
+	stop := fmt.Sprintf("tt instance stop %s or tt instance kill %s", name, name)
+	if run.Unit != "" {
+		stop = "systemctl stop " + run.Unit
+	}
+
+	return fmt.Sprintf("the process of %s (PID = %d) runs without its watchdog: stop it with %s",
+		name, orphan, stop)
 }

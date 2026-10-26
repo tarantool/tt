@@ -3,6 +3,7 @@ package status
 import (
 	"fmt"
 	"os"
+	"slices"
 
 	"github.com/fatih/color"
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -14,6 +15,9 @@ const (
 	statusColumn      = 2
 	pidColumn         = 3
 	modeColumn        = 4
+	// unitColumn is the UNIT column, right after STATUS, when there is one:
+	// the columns after it move one to the right.
+	unitColumn = 3
 )
 
 var (
@@ -81,18 +85,44 @@ func hasAlerts(instances map[string]*instanceStatus) bool {
 	return false
 }
 
-// Print outputs the instance status map in table format.
+// hasUnits checks if any instance is managed by a systemd unit.
+func hasUnits(instances map[string]*instanceStatus) bool {
+	for _, instStatus := range instances {
+		if instStatus.Unit != "" {
+			return true
+		}
+	}
+
+	return false
+}
+
+// Print outputs the instance status map in table format. The UNIT column,
+// the systemd unit that manages an instance, is there only when a unit
+// manages some of the instances.
 func (t TablePrinter) Print(instances map[string]*instanceStatus) error {
+	withUnits := hasUnits(instances)
+
+	header := table.Row{"INSTANCE", "STATUS", "PID", "MODE", "CONFIG", "BOX", "UPSTREAM"}
+	shift := 0
+
+	if withUnits {
+		header = slices.Insert(header, unitColumn-1, any("UNIT"))
+		shift = 1
+	}
+
 	writer := table.NewWriter()
 	writer.SetOutputMirror(os.Stdout)
-	writer.AppendHeader(
-		table.Row{"INSTANCE", "STATUS", "PID", "MODE", "CONFIG", "BOX", "UPSTREAM"})
+	writer.AppendHeader(header)
 
 	for instName, instData := range instances {
-		row := make([]any, 0, statusRowCapacity)
+		row := make([]any, 0, statusRowCapacity+shift)
 
 		row = append(row, instName)
 		row = append(row, instData.procStatus.FormattedStatus())
+
+		if withUnits {
+			row = append(row, instData.Unit)
+		}
 
 		if instData.PID == nil {
 			writer.AppendRow(row)
@@ -124,12 +154,20 @@ func (t TablePrinter) Print(instances map[string]*instanceStatus) error {
 		writer.Style().Options.SeparateHeader = false
 	}
 
-	writer.SetColumnConfigs([]table.ColumnConfig{
+	columns := []table.ColumnConfig{
 		{Number: 1, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
 		{Number: statusColumn, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
-		{Number: pidColumn, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
-		{Number: modeColumn, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
-	})
+		{Number: pidColumn + shift, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
+		{Number: modeColumn + shift, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
+	}
+
+	if withUnits {
+		columns = append(columns, table.ColumnConfig{
+			Number: unitColumn, Align: text.AlignLeft, AlignHeader: text.AlignLeft,
+		})
+	}
+
+	writer.SetColumnConfigs(columns)
 	writer.Render()
 
 	if !t.details && hasAlerts(instances) {
