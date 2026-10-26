@@ -274,12 +274,6 @@ def tntapp(host, tt_cmd, tmp_path_factory):
     return host
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="tt package install creates the version directory with mode 0700 "
-    "(os.MkdirTemp of swapVersion, cli/manifest/install/version.go), so the user "
-    "the units run as cannot read an application root installed",
-)
 def test_systemd_installed_version_is_readable(tntapp):
     # The units run tt and the instances as tarantool, while the deployment
     # installs the application as root: the version must be readable to
@@ -299,12 +293,6 @@ def test_systemd_tarantool_in_container(tntapp):
     rc, out = host.sh(f"{ROOT}/versions/tarantool/tarantool_*/tarantool --version")
     if rc != 0:
         pytest.skip(f"the tarantool of the host does not run in the container: {out[-300:]}")
-
-    # Until install lays the version out readable to others
-    # (test_systemd_installed_version_is_readable), the deployment opens it
-    # for the user of the units.
-    rc, out = host.sh(f"chmod -R o+rX {TNTAPP_VERSION}")
-    assert rc == 0, out
 
     rc, out = host.tt("service", "systemd", "install", "tntapp")
     assert rc == 0, out

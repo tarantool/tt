@@ -209,6 +209,16 @@ func swapVersion(
 	// After the rename there is nothing left to remove here.
 	defer func() { _ = os.RemoveAll(stage) }()
 
+	// MkdirTemp makes the stage 0700, and the stage becomes the version
+	// directory. The version gets the mode of every other directory of the
+	// installation, as tt binary gives its own: in the system scope the
+	// instances run as another user than the one that installs, the user
+	// of the units of tt service systemd, and read the version.
+	err = os.Chmod(stage, dirPerm)
+	if err != nil {
+		return fmt.Errorf("setting the mode of %s: %w", stage, err)
+	}
+
 	// The tree belongs to this version alone and starts empty, so the plan
 	// reconciles against nothing: it only says which rocks the archive
 	// carries and which the registry has to supply.

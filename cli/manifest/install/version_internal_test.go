@@ -1,6 +1,7 @@
 package install
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -292,6 +293,46 @@ func TestInstallSystemScope(t *testing.T) {
 	entries, err := os.ReadDir(project)
 	require.NoError(t, err)
 	assert.Empty(t, entries, "the project directory is not touched")
+}
+
+// TestInstallVersionReadableByOthers: the version directory gets the mode of
+// the directories of an installation, not the 0700 of the temporary directory
+// it is staged in, and so does everything in it: in the system scope the
+// instances run as the user of the systemd units, not as the one that
+// installs.
+func TestInstallVersionReadableByOthers(t *testing.T) {
+	root := systemRoot(t)
+
+	_, err := installInto(t, t.TempDir(), Options{Scope: ScopeSystem},
+		myAppV1With(map[string]string{"bin/gateway": "#!/bin/sh\n"}).build(t))
+	require.NoError(t, err)
+
+	dir := versionPath(root, "1.0.0")
+
+	info, err := os.Stat(dir)
+	require.NoError(t, err)
+	assert.Equal(t, dirPerm, info.Mode().Perm())
+
+	// The directories in the version are made with dirPerm through the
+	// umask, as versions/my-app/ next to it is.
+	parent, err := os.Stat(filepath.Dir(dir))
+	require.NoError(t, err)
+
+	err = filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || path == dir || !entry.IsDir() {
+			return err
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+
+		assert.Equal(t, parent.Mode().Perm(), info.Mode().Perm(), path)
+
+		return nil
+	})
+	require.NoError(t, err)
 }
 
 // TestInstallVersionRollsBackFailedFetch: when a dependency cannot be fetched,
