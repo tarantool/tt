@@ -78,6 +78,142 @@ def test_partial_success_exit_code(tt_cmd, tmp_path):
         utils.run_command_and_get_output([tt_cmd, "instance", "stop", "-y", worker], cwd=app_path)
 
 
+def write_stale_pid_file(app_path, inst):
+    """Leave the pid file of the instance inst of app naming a process that
+    is gone, as a watchdog killed with SIGKILL does: tt finds no running
+    process to stop by it."""
+    gone = subprocess.Popen(["true"])
+    gone.wait()
+    run_dir = utils.inst_run_dir(app_path, "app", inst)
+    os.makedirs(run_dir)
+    with open(os.path.join(run_dir, utils.pid_file), "w") as f:
+        f.write(f"{gone.pid}\n")
+
+
+def worker_pid(app_path):
+    """Return the pid of the watchdog of app:worker, None while there is
+    none."""
+    pid_file = os.path.join(utils.inst_run_dir(app_path, "app", "worker"), utils.pid_file)
+    if not utils.wait_files(5, [pid_file]):
+        return None
+    with open(pid_file) as f:
+        return int(f.read())
+
+
+def test_stop_and_restart_partial_success(tt_cmd, tmp_path):
+    # stop and restart go on after a target they fail for, and exit 3 when
+    # they failed for some of the targets only. master fails: the pid file a
+    # killed watchdog left behind names no running process.
+    app_path = tmp_path / "app"
+    shutil.copytree(EXTERNAL_APP, app_path)
+    write_stale_pid_file(app_path, "master")
+
+    targets = ["app:master", "app:worker"]
+    try:
+        rc, _ = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "start", "app:worker"],
+            cwd=app_path,
+        )
+        assert rc == 0
+        started = worker_pid(app_path)
+        assert started is not None
+
+        rc, out = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "restart", "--yes", *targets],
+            cwd=app_path,
+        )
+        assert rc == 3, out
+        assert "app:master: can't get pid of running process" in out
+        assert f"The Instance app:worker (PID = {started}) has been terminated." in out
+        assert "Starting an instance [app:worker]..." in out
+        assert "Starting an instance [app:master]" not in out
+        assert "restart failed for 1 of 2 instances: app:master" in out
+        assert utils.wait_event(5, lambda: worker_pid(app_path) not in (None, started))
+
+        rc, out = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "stop", "--yes", *targets],
+            cwd=app_path,
+        )
+        assert rc == 3, out
+        assert "app:master: can't get pid of running process" in out
+        assert "The Instance app:worker (PID = " in out
+        assert "stop failed for 1 of 2 instances: app:master" in out
+
+        rc, out = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "status", "app:worker"],
+            cwd=app_path,
+        )
+        assert rc == 0
+        assert utils.extract_status(out)["app:worker"]["STATUS"] == "NOT RUNNING"
+
+        # Every target failed.
+        rc, out = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "restart", "--yes", "app:master"],
+            cwd=app_path,
+        )
+        assert rc == 1, out
+        assert "failed for" not in out
+    finally:
+        utils.run_command_and_get_output(
+            [tt_cmd, "instance", "stop", "-y", "app:worker"],
+            cwd=app_path,
+        )
+
+
+def test_check_partial_success(tt_cmd, tmp_path):
+    # check goes on after an instance whose application file it rejects, and
+    # exits 3 when it rejected some of them only. An external process has
+    # nothing to check, and is no failure.
+    app_path = tmp_path / "app"
+    shutil.copytree(EXTERNAL_APP, app_path)
+    (app_path / "good.lua").write_text("return {}\n")
+    (app_path / "broken.lua").write_text("return {\n")
+    with open(app_path / utils.instances_file, "a") as f:
+        f.write("replica:\n")
+    (app_path / utils.cluster_config_file).write_text(
+        "groups:\n  group-001:\n    replicasets:\n      rs-001:\n        instances:\n"
+        "          master:\n            app: {file: broken.lua}\n"
+        "          replica:\n            app: {file: good.lua}\n",
+    )
+
+    rc, out = utils.run_command_and_get_output(
+        [tt_cmd, "instance", "check", "app:*"],
+        cwd=app_path,
+    )
+    assert rc == 3, out
+    assert f"syntax of file '{app_path / 'good.lua'}' is OK" in out
+    assert "app:worker: an external process" in out
+    assert "app:master: Result of check: syntax errors detected:" in out
+    assert "broken.lua:2: unexpected symbol near '<eof>'" in out
+    assert "check failed for 1 of 3 instances: app:master" in out
+
+    rc, out = utils.run_command_and_get_output(
+        [tt_cmd, "instance", "check", "app:master"],
+        cwd=app_path,
+    )
+    assert rc == 1, out
+    assert "failed for" not in out
+
+
+def test_start_checks_every_target_first(tt_cmd, tmp_path):
+    # start checks every target before it starts any: a target it cannot
+    # start fails the command with 1 and nothing starts. A watchdog it has
+    # started can fail only once detached, which the command does not see,
+    # so start does not exit 3.
+    app_path = tmp_path / "app"
+    shutil.copytree(EXTERNAL_APP, app_path)
+    os.remove(app_path / "worker.sh")
+
+    rc, out = utils.run_command_and_get_output(
+        [tt_cmd, "instance", "start", "app:master", "app:worker"],
+        cwd=app_path,
+    )
+    assert rc == 1, out
+    assert 'instance "worker" of "app"' in out
+    assert "Starting" not in out
+    assert not os.path.exists(os.path.join(app_path, utils.project_root, utils.run_path))
+
+
 @pytest.mark.parametrize("command", ["stop", "restart", "kill"])
 def test_confirmation_needs_terminal(tt_cmd, tmp_path, command):
     # A command that asks for a confirmation asks a terminal only: without
