@@ -222,10 +222,14 @@ func updateLogger(logger ttlog.Logger, instanceCtx *InstanceCtx) (ttlog.Logger, 
 // the periodic integrity check, when there is one, is a hard stop. The
 // sockets removed at the end are those of the context tarantool last ran
 // with, whatever the configuration says by then.
+//
+// The watchdog of an external process writes the pid of the process into
+// its own pid file as well, since the process leads a group of its own that
+// tt kill has to find (killProcess); a SIGHUP reaches its whole group.
 func watchdogOptions(cmdCtx *cmdcontext.CmdCtx, src *instanceSource) supervisor.Options {
 	opts := supervisor.Options{
 		PidFile:       src.ran.PIDFile,
-		ChildPidFile:  "",
+		ChildPidFile:  src.ran.ProcessPIDFile,
 		StopSignals:   []syscall.Signal{syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT},
 		IgnoreSignals: nil,
 		ReloadSignal:  syscall.SIGHUP,

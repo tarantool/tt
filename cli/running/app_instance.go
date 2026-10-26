@@ -24,7 +24,7 @@ import (
 
 // ErrUnsupportedKind is wrapped by the error NewInstanceCtx returns for an
 // instance record it cannot run yet: a Tarantool instance configured by its
-// script, and an external process.
+// script.
 var ErrUnsupportedKind = errors.New("not supported yet")
 
 var (
@@ -79,8 +79,13 @@ var writtenPathKeys = []string{
 // the context of an instance that cannot start is still the one to stop,
 // inspect and clean it with.
 //
-// Only Tarantool instances configured by the cluster config run so far; a
-// record with script or binary is an error wrapping ErrUnsupportedKind.
+// An external process, a record with binary, keeps its log and its pid files
+// in the same layout. It runs in workdir of its record, or else in its data
+// directory in the layout, the one data directory it has. It has no sockets
+// and no config, so tt status asks it nothing.
+//
+// Tarantool instances configured by their script do not run yet; a record
+// with script is an error wrapping ErrUnsupportedKind.
 func NewInstanceCtx(application *app.App, inst instances.Instance) (InstanceCtx, error) {
 	if application == nil {
 		return InstanceCtx{}, fmt.Errorf("instance %q: %w", inst.Name, errNoApplication)
@@ -90,10 +95,7 @@ func NewInstanceCtx(application *app.App, inst instances.Instance) (InstanceCtx,
 	case instances.KindScript:
 		return InstanceCtx{}, fmt.Errorf("instance %q of %q: an instance that runs its script "+
 			"(script: %s) is %w", inst.Name, application.Name, inst.Script, ErrUnsupportedKind)
-	case instances.KindExternal:
-		return InstanceCtx{}, fmt.Errorf("instance %q of %q: an external process "+
-			"(binary: %s) is %w", inst.Name, application.Name, inst.Binary, ErrUnsupportedKind)
-	case instances.KindCluster:
+	case instances.KindExternal, instances.KindCluster:
 	}
 
 	for _, dir := range [...]struct{ what, path string }{
@@ -118,6 +120,11 @@ func NewInstanceCtx(application *app.App, inst instances.Instance) (InstanceCtx,
 	instCtx := InstanceCtx{
 		AppDir:            application.Dir,
 		InstanceScript:    "",
+		Kind:              inst.Kind(),
+		Binary:            "",
+		Args:              nil,
+		Workdir:           "",
+		DataDir:           "",
 		AppName:           application.Name,
 		InstName:          inst.Name,
 		RunDir:            scopeLayout.RunDir(),
@@ -130,6 +137,7 @@ func NewInstanceCtx(application *app.App, inst instances.Instance) (InstanceCtx,
 		LogMaxBackups:     0,
 		LogMaxAge:         0,
 		PIDFile:           scopeLayout.PidFile(),
+		ProcessPIDFile:    "",
 		Restart:           inst.Restart,
 		StopSignal:        inst.StopSignal,
 		StopTimeout:       inst.StopTimeout,
@@ -141,6 +149,12 @@ func NewInstanceCtx(application *app.App, inst instances.Instance) (InstanceCtx,
 		Root:              application.Root,
 		Template:          "",
 		Env:               maps.Clone(inst.Env),
+	}
+
+	if inst.Kind() == instances.KindExternal {
+		setExternalCtx(&instCtx, inst, scopeLayout)
+
+		return instCtx, nil
 	}
 
 	if application.Config != nil {
@@ -238,8 +252,14 @@ func effectiveString(inst *InstanceCtx, key string) (string, bool, error) {
 // It runs before the directories of the instance are created, which would
 // hide data left in the old layout, and again before every start of the
 // watchdog, since a restart reads a config that may have changed. Every
-// problem is reported at once, so that one pass fixes them.
+// problem is reported at once, so that one pass fixes them. An external
+// process has checks of its own (checkExternal): the TT_ variables in the env
+// of its record are not a config of tarantool.
 func checkStart(inst *InstanceCtx) error {
+	if IsExternal(inst) {
+		return checkExternal(inst)
+	}
+
 	_, _, socketErr := socketArgs(inst)
 
 	return errors.Join(checkOldLayout(inst), checkRelativePaths(inst), socketErr)

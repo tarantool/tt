@@ -92,6 +92,11 @@ func PinnedOptions(inst *InstanceCtx, integ integrity.IntegrityCtx) app.Options 
 // edited meanwhile applies from the restart on, its restart policy among
 // them. Switching to another version is up to an explicit restart, which
 // stops the instance and resolves its application anew.
+//
+// A record that has turned into another kind of instance, a Tarantool
+// instance into an external process or back, is an error: the watchdog has
+// been set up for the kind it started (watchdogOptions), and an explicit
+// restart sets up a new one.
 func reload(ctx context.Context, inst *InstanceCtx, integ integrity.IntegrityCtx) (
 	InstanceCtx, error,
 ) {
@@ -105,6 +110,12 @@ func reload(ctx context.Context, inst *InstanceCtx, integ integrity.IntegrityCtx
 	if len(insts) != 1 {
 		return InstanceCtx{}, fmt.Errorf("%w %s: it resolves to %d instances",
 			errNotReloaded, target, len(insts))
+	}
+
+	if insts[0].Kind != inst.Kind {
+		return InstanceCtx{}, fmt.Errorf("%w %s: %w: it was %s and is %s now; "+
+			"restart it to run it as it is described now", errNotReloaded, target,
+			errKindChanged, kindName(inst.Kind), kindName(insts[0].Kind))
 	}
 
 	return insts[0], nil
