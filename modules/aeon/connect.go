@@ -109,7 +109,7 @@ func newConnectCmd(services sdk.Services) *cobra.Command {
 	})
 
 	cmd := &cobra.Command{
-		Use:   "connect (<URI> | <URI INSTANCE> | <PATH INSTANCE> | <APP:INSTANCE>)",
+		Use:   "connect (<URI> | <URI INSTANCE> | <PATH INSTANCE> | <APP>:<INSTANCE>)",
 		Short: "Connect to the aeon instance",
 		Long: `Connect to the aeon instance.
 		tt aeon connect http://localhost:50051

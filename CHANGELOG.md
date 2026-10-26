@@ -484,7 +484,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   Completion of a target offers the current project and the applications of
   the system scope, or of the scope `--scope` names, each followed by `:`, and
   then the instances of the pair of the application named; the usage, the
-  completion and the errors spell a target `<APP>:<INSTANCE>` and `<APP>:*`.
+  completion and the errors spell a target `<APP>:<INSTANCE>` and `<APP>:*`,
+  as do the usage and the errors of `tt replicaset`, `tt cluster show` and
+  `publish` and `tt aeon connect`, which spelled it `<APP_NAME:INSTANCE_NAME>`,
+  `app:instance` or `application_name:instance_name`.
   `tt instance status --details` names the tarantool every Tarantool instance
   starts on and where it comes from: the version the lock bundles or the
   highest one `[platform].tarantool` allows in the user and system scopes,

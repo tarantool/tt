@@ -100,7 +100,7 @@ Possible arguments:
   certificate.
 
 [0;1;39mUSAGE[0m
-  tt aeon connect (<URI> | <URI INSTANCE> | <PATH INSTANCE> | <APP:INSTANCE>)
+  tt aeon connect (<URI> | <URI INSTANCE> | <PATH INSTANCE> | <APP>:<INSTANCE>)
   [flags]
 [0;1;39m
 FLAGS[0m
@@ -1767,8 +1767,7 @@ and writes the result to '/prefix/config/all'. You could work and update a
 target key with the 'key' argument.
 
 [0;1;39mUSAGE[0m
-  tt cluster publish (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>) file
-  [flags]
+  tt cluster publish (<APP> | <APP>:<INSTANCE> | <URI>) file [flags]
 [0;1;39m
 FLAGS[0m
       --force               force publish and skip validation
@@ -2165,7 +2164,7 @@ HTTPS connection behavior:
   endpoint uses https://, TLS is enabled for all endpoints.
 
 [0;1;39mUSAGE[0m
-  tt cluster show (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>) [flags]
+  tt cluster show (<APP> | <APP>:<INSTANCE> | <URI>) [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help              help for show
@@ -3527,8 +3526,7 @@ Use "tt replicaset <command> --help" for more information about a command.
 Bootstrap an application or instance.
 
 [0;1;39mUSAGE[0m
-  tt replicaset bootstrap [--timeout secs] [flags]
-  <APP_NAME|APP_NAME:INSTANCE_NAME>
+  tt replicaset bootstrap [--timeout secs] [flags] (<APP> | <APP>:<INSTANCE>)
 [0;1;39m
 FLAGS[0m
       --bootstrap-vshard    bootstrap vshard
@@ -3546,7 +3544,7 @@ FLAGS[0m
 Demote an instance.
 
 [0;1;39mUSAGE[0m
-  tt replicaset demote [-f] [--timeout secs] [flags] <APP_NAME:INSTANCE_NAME>
+  tt replicaset demote [-f] [--timeout secs] [flags] <APP>:<INSTANCE>
 [0;1;39m
 FLAGS[0m
       --config            to force the centralized config orchestrator
@@ -3567,7 +3565,7 @@ The command supports the following Tarantool environment variables:
 * TT_CLI_PASSWORD - specifies a Tarantool password
 
 [0;1;39mUSAGE[0m
-  tt replicaset downgrade (<APP_NAME> | <URI>) VERSION [flags]
+  tt replicaset downgrade (<APP> | <URI>) VERSION [flags]
 
   The URI can be specified in the following formats:
   * [tcp://][username:password@][host:port]
@@ -3606,8 +3604,8 @@ FLAGS[0m
 Expel an instance from a replicaset.
 
 [0;1;39mUSAGE[0m
-  tt replicaset expel [-f] [--config|--custom] [--timeout secs]
-  <APP_NAME:INSTANCE_NAME> [flags]
+  tt replicaset expel [-f] [--config|--custom] [--timeout secs] <APP>:<INSTANCE>
+  [flags]
 [0;1;39m
 FLAGS[0m
       --config            to force the centralized config orchestrator
@@ -3629,7 +3627,7 @@ The command supports the following Tarantool environment variables:
 
 [0;1;39mUSAGE[0m
   tt replicaset promote [--config|--custom] [-f] [--timeout secs] [flags]
-  (<APP_NAME:INSTANCE_NAME> | <URI>)
+  (<APP>:<INSTANCE> | <URI>)
 
   The URI can be specified in the following formats:
   * [tcp://][username:password@][host:port]
@@ -3668,7 +3666,7 @@ FLAGS[0m
 Re-bootstraps an instance
 
 [0;1;39mUSAGE[0m
-  tt replicaset rebootstrap <APP_NAME:INSTANCE_NAME>
+  tt replicaset rebootstrap <APP>:<INSTANCE>
 [0;1;39m
 FLAGS[0m
   -h, --help              help for rebootstrap
@@ -3697,8 +3695,8 @@ Use "tt replicaset roles <command> --help" for more information about a command.
 Adds a role for Tarantool 3 orchestrator
 
 [0;1;39mUSAGE[0m
-  tt replicaset roles add [--config|--custom] [-f] [--timeout
-  secs]<APP_NAME:INSTANCE_NAME> <ROLE_NAME> [flags]
+  tt replicaset roles add [--config|--custom] [-f] [--timeout secs]
+  <APP>:<INSTANCE> <ROLE_NAME> [flags]
 [0;1;39m
 FLAGS[0m
       --config                     to force the centralized config orchestrator
@@ -3736,8 +3734,8 @@ FLAGS[0m
 Removes a role for Tarantool 3 orchestrator
 
 [0;1;39mUSAGE[0m
-  tt replicaset roles remove [--config|--custom] [-f] [--timeout
-  secs]<APP_NAME:INSTANCE_NAME> <ROLE_NAME> [flags]
+  tt replicaset roles remove [--config|--custom] [-f] [--timeout secs]
+  <APP>:<INSTANCE> <ROLE_NAME> [flags]
 [0;1;39m
 FLAGS[0m
       --config                     to force the centralized config orchestrator
@@ -3779,8 +3777,8 @@ The command supports the following Tarantool environment variables:
 * TT_CLI_PASSWORD - specifies a Tarantool password
 
 [0;1;39mUSAGE[0m
-  tt replicaset status [--config|--custom] [flags] (<APP_NAME> |
-  <APP_NAME:INSTANCE_NAME> | <URI>)
+  tt replicaset status [--config|--custom] [flags] (<APP> | <APP>:<INSTANCE> |
+  <URI>)
 
   The URI can be specified in the following formats:
   * [tcp://][username:password@][host:port]
@@ -3820,7 +3818,7 @@ The command supports the following Tarantool environment variables:
 * TT_CLI_PASSWORD - specifies a Tarantool password
 
 [0;1;39mUSAGE[0m
-  tt replicaset upgrade (<APP_NAME> | <URI>) [flags]
+  tt replicaset upgrade (<APP> | <URI>) [flags]
 
   The URI can be specified in the following formats:
   * [tcp://][username:password@][host:port]
@@ -3882,7 +3880,7 @@ The command supports the following Tarantool environment variables:
 
 [0;1;39mUSAGE[0m
   tt replicaset vshard bootstrap [--config|--custom] [--timeout secs] [flags]
-  (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)
+  (<APP> | <APP>:<INSTANCE> | <URI>)
 
   The URI can be specified in the following formats:
   * [tcp://][username:password@][host:port]
