@@ -47,7 +47,7 @@ def test_expel_custom_app(tt_cmd, tmpdir_with_cfg, flag):
     app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
-        start_cmd = [tt_cmd, "start", f"{app_name}:*"]
+        start_cmd = [tt_cmd, "instance", "start", f"{app_name}:*"]
         rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
@@ -79,7 +79,7 @@ Replicasets state: bootstrapped
             out,
         )
     finally:
-        stop_cmd = [tt_cmd, "stop", "-y", f"{app_name}:*"]
+        stop_cmd = [tt_cmd, "instance", "stop", "-y", f"{app_name}:*"]
         rc, _ = run_command_and_get_output(stop_cmd, cwd=app_path)
         assert rc == 0
 
@@ -95,7 +95,7 @@ def test_expel_cconfig(tt_cmd, tmpdir_with_cfg, flag):
     app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
-        start_cmd = [tt_cmd, "start", f"{app_name}:*"]
+        start_cmd = [tt_cmd, "instance", "start", f"{app_name}:*"]
         rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
@@ -157,6 +157,6 @@ Replicasets state: bootstrapped
         )
 
     finally:
-        stop_cmd = [tt_cmd, "stop", "-y", f"{app_name}:*"]
+        stop_cmd = [tt_cmd, "instance", "stop", "-y", f"{app_name}:*"]
         rc, _ = run_command_and_get_output(stop_cmd, cwd=app_path)
         assert rc == 0

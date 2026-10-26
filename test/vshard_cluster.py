@@ -75,7 +75,7 @@ class VshardCluster:
         assert rc == 0, out
 
     def start(self):
-        start_cmd = [self.tt_cmd, "start", f"{self.app_name}:*"]
+        start_cmd = [self.tt_cmd, "instance", "start", f"{self.app_name}:*"]
         test_env = os.environ.copy()
 
         # Avoid too long path.
@@ -100,7 +100,7 @@ class VshardCluster:
         if inst is not None:
             stop_arg = f"{self.app_name}:{inst}"
 
-        cmd = [self.tt_cmd, "stop", "-y", stop_arg]
+        cmd = [self.tt_cmd, "instance", "stop", "-y", stop_arg]
         rc, _ = run_command_and_get_output(cmd, cwd=self.app_dir)
         assert rc == 0
 

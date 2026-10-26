@@ -16,21 +16,12 @@ skip_cluster_reason = "skip cluster instances test for Tarantool < 3"
 # Unchecked precondition for not force_mode:
 # more than 0 total files to remove.
 def check_clean(tt, tt_app, stop_targets, target, *args):
-    force_mode = "-f" in args or "--force" in args
+    force_mode = "-y" in args or "--yes" in args
     verbose_mode = "-V" in args or "--verbose" in args
-    n_of_target_instances = len(tt_app.instances_of(target))
-    if not force_mode and n_of_target_instances > 1:
-        # Can't emulate more than one confirmation.
-        # See a note for go func AskConfirm().
-        pytest.skip("Misconfig: non force mode with multi instance app")
-    if force_mode:
-        input = ""
-    else:
-        input = "y\n" * n_of_target_instances
 
     # Stop the specified targets.
     for target in stop_targets:
-        rc, _ = tt.exec("stop", target, "-y")
+        rc, _ = tt.exec("instance", "stop", target, "-y")
         assert rc == 0
 
     # Store original state.
@@ -49,12 +40,22 @@ def check_clean(tt, tt_app, stop_targets, target, *args):
                 "wals": glob.glob(wals[0]),
             }
 
-    # Do clean.
-    rc, out = tt.exec("clean", target, *args, input=input)
-    assert rc == 0
-
     stop_instances = tt_app.instances_of(*stop_targets)
     target_instances = tt_app.instances_of(target)
+
+    # Do clean. A running instance is left alone, which fails it; the others
+    # are cleaned all the same.
+    if force_mode:
+        rc, out = tt.exec("instance", "clean", target, *args)
+    else:
+        # The confirmation is asked on a terminal only.
+        rc, out = tt.exec_tty("instance", "clean", target, *args, tty_input="y\n")
+    running = [
+        inst
+        for inst in target_instances
+        if inst in tt_app.running_instances and inst not in stop_instances
+    ]
+    assert rc == tt_helper.instances_rc(len(target_instances), len(running))
 
     # Check the instances.
     status = tt_helper.status(tt)
@@ -101,10 +102,18 @@ def check_clean(tt, tt_app, stop_targets, target, *args):
                 else:
                     assert msg in out
             else:
-                assert f"{inst}...\t[ERR]" in out
-    if not force_mode:
-        assert len(re.findall(r"Total files to remove: \d+", out)) == cleaned
-        assert len(re.findall(r"Confirm \[y/n\]:", out)) == cleaned
+                # Nothing to remove for an instance that never ran.
+                assert f"{inst}...\t[OK]" in out
+    # With --yes nothing is shown and nothing asked; otherwise the files are
+    # shown, and the question asked when there is any to remove.
+    totals = re.findall(r"Total files to remove: (\d+)\r?\n", out)
+    confirmations = re.findall(r"Confirm clean of .*\[y/n\]:", out)
+    if force_mode:
+        assert totals == []
+        assert confirmations == []
+    else:
+        assert len(totals) == 1
+        assert len(confirmations) == (1 if int(totals[0]) > 0 else 0)
 
 
 def post_start_clean_decorator(func):
@@ -129,25 +138,26 @@ def post_start_clean_decorator(func):
 # Simple app
 
 tt_simple_data_app = dict(
-    app_path="test_data_app.lua",
+    app_path="../running/test_data_app",
     app_name="app",
+    instances=["test_data_app"],
     post_start=tt_helper.post_start_base,
 )
 
 
 # Ask confirmation with verbose mode variations.
-@pytest.mark.tt_app(**dict(tt_simple_data_app, running_targets=["app"]))
+@pytest.mark.tt_app(**dict(tt_simple_data_app, running_targets=["app:*"]))
 @pytest.mark.parametrize(
     "args",
     [
         pytest.param([], id="verbose_mode:none"),
         pytest.param(["-V"], id="verbose_mode:short"),
         pytest.param(["--verbose"], id="verbose_mode:long"),
-        pytest.param(["-V", "-f"], id="force_mode:verbose_ignored-no_confirmation"),
+        pytest.param(["-V", "-y"], id="force_mode:verbose_ignored-no_confirmation"),
     ],
 )
 def test_clean_single_inst(tt, tt_app, args):
-    check_clean(tt, tt_app, ["app"], "app", *args)
+    check_clean(tt, tt_app, ["app:*"], "app:*", *args)
 
 
 ################################################################
@@ -185,13 +195,24 @@ tt_multi_inst_app = dict(
     ],
 )
 def test_clean_multi_inst_auto_y(tt, tt_app, stop_targets, target):
-    check_clean(tt, tt_app, stop_targets, target, "-f")
+    check_clean(tt, tt_app, stop_targets, target, "-y")
+
+
+# Nothing to remove: there is nothing to ask about, so neither a terminal nor
+# --yes is needed.
+@pytest.mark.tt_app(**tt_multi_inst_app)
+@pytest.mark.usefixtures("tt_app")
+def test_clean_multi_inst_nothing_to_remove(tt):
+    rc, out = tt.exec("instance", "clean", "app:*")
+    assert rc == 0, out
+    assert "Total files to remove: 0\n" in out
+    assert "Confirm" not in out
 
 
 # Auto-confirmation (long option; less variations).
 @pytest.mark.tt_app(**dict(tt_multi_inst_app, running_targets=["app:*"]))
 def test_clean_multi_inst_auto_yes(tt, tt_app):
-    check_clean(tt, tt_app, ["app:*"], "app:*", "--force")
+    check_clean(tt, tt_app, ["app:*"], "app:*", "--yes")
 
 
 # Instance script is missing.
@@ -223,7 +244,7 @@ tt_multi_inst_app_no_script = dict(
     ],
 )
 def test_clean_multi_inst_no_instance_script(tt, tt_app, stop_targets, target):
-    check_clean(tt, tt_app, stop_targets, target, "-f")
+    check_clean(tt, tt_app, stop_targets, target, "-y")
 
 
 ################################################################
@@ -265,14 +286,14 @@ tt_cluster_app = dict(
     ],
 )
 def test_clean_cluster_auto_y(tt, tt_app, stop_targets, target):
-    check_clean(tt, tt_app, stop_targets, target, "-f")
+    check_clean(tt, tt_app, stop_targets, target, "-y")
 
 
 # Auto-confirmation (long option; less variations).
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.tt_app(**dict(tt_cluster_app, running_targets=["app:*"]))
 def test_clean_cluster_auto_yes(tt, tt_app):
-    check_clean(tt, tt_app, ["app:*"], "app:*", "--force")
+    check_clean(tt, tt_app, ["app:*"], "app:*", "--yes")
 
 
 # Cluster configuration is missing: the pair is incomplete, and the command
@@ -300,11 +321,11 @@ tt_cluster_app_no_config = dict(
     ],
 )
 def test_clean_cluster_no_config(tt, tt_app, target):
-    tt_helper.check_broken_pair(tt, tt_app, "clean", "-f", target)
+    tt_helper.check_broken_pair(tt, tt_app, "instance", "clean", "-y", target)
 
 
 def test_clean_external(tt_cmd, tmp_path):
-    # tt clean removes the log of an external process and what it wrote into
+    # tt instance clean removes the log of an external process and what it wrote into
     # its data directory, the working directory of a record without workdir.
     app_path = tmp_path / "app"
     shutil.copytree(os.path.join(os.path.dirname(__file__), "../start/external_app"), app_path)
@@ -313,20 +334,29 @@ def test_clean_external(tt_cmd, tmp_path):
     log_file = os.path.join(utils.inst_log_dir(app_path, "app", "worker"), utils.log_file)
     state_file = os.path.join(utils.inst_lib_dir(app_path, "app", "worker"), "worker.state")
 
-    rc, _ = utils.run_command_and_get_output([tt_cmd, "start", worker], cwd=app_path)
+    rc, _ = utils.run_command_and_get_output([tt_cmd, "instance", "start", worker], cwd=app_path)
     assert rc == 0
     try:
         assert utils.wait_files(5, [log_file, state_file])
 
-        rc, out = utils.run_command_and_get_output([tt_cmd, "clean", "-f", worker], cwd=app_path)
-        assert rc == 0
+        rc, out = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "clean", "-y", worker],
+            cwd=app_path,
+        )
+        assert rc == 1
         assert "instance `worker` must be stopped" in out
         assert os.path.exists(state_file)
     finally:
-        rc, _ = utils.run_command_and_get_output([tt_cmd, "stop", "-y", worker], cwd=app_path)
+        rc, _ = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "stop", "-y", worker],
+            cwd=app_path,
+        )
         assert rc == 0
 
-    rc, out = utils.run_command_and_get_output([tt_cmd, "clean", "-f", worker], cwd=app_path)
+    rc, out = utils.run_command_and_get_output(
+        [tt_cmd, "instance", "clean", "-y", worker],
+        cwd=app_path,
+    )
     assert rc == 0
     assert f"{worker}...\t[OK]" in out
     assert not os.path.exists(log_file)

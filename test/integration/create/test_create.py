@@ -736,14 +736,14 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
         "Build and start 'app1' application",
         "$ cd app1",
         "$ tt package build",
-        "$ tt start",
+        "$ tt instance start",
         "Application 'app1' created successfully",
         "Pay attention that default passwords were generated,",
         "you can change it in .templates/default/config.yaml.",
     ]
     for line in expected_lines:
         assert output.find(line) != -1
-    assert "$ tt start app1" not in output
+    assert "$ tt instance start app1" not in output
 
     app_path = tmp_path / "app1"
     check_project_files(
@@ -763,7 +763,7 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
     assert tt_process.returncode == 0
 
     # Start every instance of the project, as the follow-up message says.
-    start_cmd = [tt_cmd, "start"]
+    start_cmd = [tt_cmd, "instance", "start"]
     instance_process = subprocess.Popen(
         start_cmd,
         cwd=app_path,
@@ -784,7 +784,7 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
         assert file != ""
 
     # Check status.
-    status_cmd = [tt_cmd, "status", "app1:*"]
+    status_cmd = [tt_cmd, "instance", "status", "app1:*"]
     status_rc, status_out = run_command_and_get_output(status_cmd, cwd=app_path)
     assert status_rc == 0
     status_info = extract_status(status_out)
@@ -826,7 +826,7 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
             print(inst, f.read())
 
     # Stop the vshard_cluster app.
-    stop_cmd = [tt_cmd, "stop", "--yes"]
+    stop_cmd = [tt_cmd, "instance", "stop", "--yes"]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=app_path)
     assert stop_rc == 0
     for inst in instances:
@@ -875,7 +875,7 @@ def check_create_cluster(
 
 
 def get_status_info(tt_cmd, workdir, target):
-    cmd = [tt_cmd, "status", target]
+    cmd = [tt_cmd, "instance", "status", target]
     p = subprocess.run(
         cmd,
         cwd=workdir,
@@ -906,7 +906,7 @@ def check_running_cluster(tt_cmd, workdir, app_name, instances, check_func, *che
     workdir = workdir / app_name
 
     # Start every instance of the project, as the follow-up message says.
-    cmd = [tt_cmd, "start"]
+    cmd = [tt_cmd, "instance", "start"]
     p = subprocess.run(
         cmd,
         cwd=workdir,
@@ -926,7 +926,7 @@ def check_running_cluster(tt_cmd, workdir, app_name, instances, check_func, *che
 
     finally:
         # Stop app.
-        cmd = [tt_cmd, "stop", "--yes", f"{app_name}:*"]
+        cmd = [tt_cmd, "instance", "stop", "--yes", f"{app_name}:*"]
         p = subprocess.run(
             cmd,
             cwd=workdir,

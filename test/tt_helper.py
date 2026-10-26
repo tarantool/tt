@@ -164,17 +164,17 @@ class TtCluster:
         self.config_path.write_text(yaml.dump(config))
 
     def start(self, *args):
-        return self.__tt.run("start", f"{self.__app_name}:*", *args)
+        return self.__tt.run("instance", "start", f"{self.__app_name}:*", *args)
 
     def stop(self, *args):
-        return self.__tt.run("stop", f"{self.__app_name}:*", *args)
+        return self.__tt.run("instance", "stop", f"{self.__app_name}:*", *args)
 
     def kill(self, *args):
-        return self.__tt.run("kill", f"{self.__app_name}:*", *args)
+        return self.__tt.run("instance", "kill", f"{self.__app_name}:*", *args)
 
     def status(self, inst=None):
         target = f"{self.__app_name}:*" if inst is None else f"{self.app_name}:{inst}"
-        p = self.__tt.run("status", target)
+        p = self.__tt.run("instance", "status", target)
         assert p.returncode == 0
         return utils.extract_status(p.stdout)
 
@@ -225,8 +225,19 @@ def make_cluster_params(params):
     return default_params | params
 
 
+def instances_rc(total, failed):
+    """Return the exit code of an instance command that acted on total
+    instances and failed for failed of them: 0 when none failed, 3 when some
+    did, 1 when every one did or the command acted on one instance."""
+    if failed == 0:
+        return 0
+    if total == 1 or failed == total:
+        return 1
+    return 3
+
+
 def status(tt, *args):
-    rc, out = tt.exec("status", *args)
+    rc, out = tt.exec("instance", "status", *args)
     assert rc == 0
     return utils.extract_status(out)
 

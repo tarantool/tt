@@ -237,7 +237,7 @@ def vshard_app(tt_cmd, tmp_path, vshard_app_session) -> VshardCluster:
 def tt(tt_cmd, tmpdir_with_cfg):
     tt_ = tt_helper.Tt(tt_cmd, Path(tmpdir_with_cfg))
     yield tt_
-    tt_.run("stop", "-y")
+    tt_.run("instance", "stop", "-y")
 
 
 @pytest.fixture(scope="function")
@@ -280,7 +280,7 @@ def tt_app(tt, tt_path, tt_instances, tt_running_targets, tt_post_start):
     app = tt_helper.TtApp(tt, tt_path, tt_instances)
     tt.work_dir = app.work_dir
     for target in tt_running_targets:
-        p = tt.run("start", target)
+        p = tt.run("instance", "start", target)
         assert p.returncode == 0
     app.running_instances = app.instances_of(*tt_running_targets)
     assert tt_helper.wait_status(5, app, app.running_instances, ["RUNNING"])

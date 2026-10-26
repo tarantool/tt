@@ -27,7 +27,7 @@ def test_stop_no_prompt(tt_cmd, tmp_path):
     target = f"{app_name}:main"
     pid_path = os.path.join(utils.inst_run_dir(app_path, app_name, "main"), utils.pid_file)
 
-    start_cmd = [tt_cmd, "start", target]
+    start_cmd = [tt_cmd, "instance", "start", target]
     rc, out = utils.run_command_and_get_output(start_cmd, cwd=app_path)
     assert rc == 0
     assert "Starting an instance" in out
@@ -35,14 +35,14 @@ def test_stop_no_prompt(tt_cmd, tmp_path):
 
     try:
         # Test stop with tt --no-prompt flag.
-        stop_cmd = [tt_cmd, "--no-prompt", "stop", target]
+        stop_cmd = [tt_cmd, "--no-prompt", "instance", "stop", target]
         rc, out = utils.run_command_and_get_output(stop_cmd, cwd=app_path)
         assert f"Confirm stop of '{target}' [y/n]" not in out
         assert "has been terminated" in out
         assert not os.path.exists(pid_path)
 
     finally:
-        stop_cmd = [tt_cmd, "stop", "-y", target]
+        stop_cmd = [tt_cmd, "instance", "stop", "-y", target]
         utils.run_command_and_get_output(stop_cmd, cwd=app_path)
 
 
@@ -51,7 +51,7 @@ def check_stop(tt, tt_app, target, input, is_confirm, *args):
     orig_status = tt_helper.status(tt)
 
     # Do stop.
-    rc, out = tt.exec("stop", target, *args, input=input)
+    rc, out = tt.exec("instance", "stop", target, *args, input=input)
     assert rc == 0
 
     # Check the confirmation prompt.
@@ -320,7 +320,7 @@ tt_cluster_app_no_config = dict(
     ],
 )
 def test_stop_cluster_no_config(tt, tt_app, target):
-    tt_helper.check_broken_pair(tt, tt_app, "stop", "-y", target)
+    tt_helper.check_broken_pair(tt, tt_app, "instance", "stop", "-y", target)
 
 
 ################################################################
@@ -351,7 +351,7 @@ def test_stop_external(tt, tt_app, target):
     check_stop(tt, tt_app, target, None, True, "-y")
 
     # The external process got SIGTERM, its default stop signal, and stopped
-    # on it before tt stop returned; its watchdog removed both pid files.
+    # on it before tt instance stop returned; its watchdog removed both pid files.
     assert "worker got TERM" in read_log(log_file)
     assert not os.path.exists(tt_app.run_path(worker, utils.pid_file))
     assert not os.path.exists(tt_app.run_path(worker, "process.pid"))

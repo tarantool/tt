@@ -31,14 +31,14 @@ def prepare_project(tmp_path, app_name, script_name=None):
 
 def test_check_bare_name(tt_cmd, tmp_path):
     # A bare name is an application, not an instance target.
-    cmd = [tt_cmd, "check", "file1"]
+    cmd = [tt_cmd, "instance", "check", "file1"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 1
     assert "use file1:<instance> or file1:*" in output
 
 
 def test_check_unknown_app(tt_cmd, tmp_path):
-    cmd = [tt_cmd, "check", "path-to-non-existent-app:*"]
+    cmd = [tt_cmd, "instance", "check", "path-to-non-existent-app:*"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 1
     assert "application not found" in output
@@ -49,7 +49,7 @@ def test_check_incorrect_syntax_file(tt_cmd, tmp_path):
     app_dir = prepare_project(tmp_path, "incorrect_syntax", "incorrect_syntax.lua")
 
     # Testing application file with incorrect syntax.
-    cmd = [tt_cmd, "check", "incorrect_syntax:storage"]
+    cmd = [tt_cmd, "instance", "check", "incorrect_syntax:storage"]
     rc, output = run_command_and_get_output(cmd, cwd=app_dir)
     assert rc == 1
     assert re.search(r"syntax errors detected:", output)
@@ -60,7 +60,7 @@ def test_check_correct_syntax_file(tt_cmd, tmp_path):
 
     # Testing application file with correct syntax, every instance of the
     # project the command runs in.
-    cmd = [tt_cmd, "check"]
+    cmd = [tt_cmd, "instance", "check"]
     rc, output = run_command_and_get_output(cmd, cwd=app_dir)
     assert rc == 0
     assert re.search(r"is OK", output)
@@ -70,7 +70,7 @@ def test_check_correct_syntax_file(tt_cmd, tmp_path):
 def test_check_no_app_file(tt_cmd, tmp_path):
     app_dir = prepare_project(tmp_path, "no_file")
 
-    cmd = [tt_cmd, "check", "no_file:*"]
+    cmd = [tt_cmd, "instance", "check", "no_file:*"]
     rc, output = run_command_and_get_output(cmd, cwd=app_dir)
     assert rc == 0
     assert "no_file:storage: the config names no application file (app.file)" in output

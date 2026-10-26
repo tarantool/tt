@@ -1,5 +1,8 @@
 import os
 import re
+import shutil
+import signal
+import subprocess
 
 import pytest
 import tt_helper
@@ -15,7 +18,7 @@ def check_start(tt, tt_app, target):
     orig_status = tt_helper.status(tt)
 
     # Do start.
-    rc, out = tt.exec("start", target)
+    rc, out = tt.exec("instance", "start", target)
     assert rc == 0
     assert utils.wait_files(5, tt_helper.pid_files(tt_app, tt_app.instances_of(target)))
 
@@ -237,7 +240,7 @@ def test_start_script_without_config(tt, tt_app):
         )
     insts = ["app:legacy", "app:worker"]
 
-    rc, out = tt.exec("start")
+    rc, out = tt.exec("instance", "start")
     assert rc == 0
     for inst in insts:
         assert f"Starting an instance [{inst}]" in out
@@ -254,7 +257,7 @@ def test_start_script_without_config(tt, tt_app):
     assert "no cluster config" in out
     assert not os.path.exists(tt_app.path(utils.cluster_config_file))
 
-    rc, out = tt.exec("stop", "-y")
+    rc, out = tt.exec("instance", "stop", "-y")
     assert rc == 0
     status = tt_helper.status(tt)
     for inst in insts:
@@ -267,9 +270,227 @@ def test_start_script_pair_needs_config(tt, tt_app):
     # description: without it the pair is incomplete, and nothing starts.
     os.remove(tt_app.path(utils.cluster_config_file))
 
-    rc, out = tt.exec("start")
+    rc, out = tt.exec("instance", "start")
     assert rc == 1
     assert "incomplete pair" in out
     assert 'no config.yaml next to it to configure its Tarantool instances "master"' in out
     for inst in tt_app.instances:
         assert not os.path.exists(tt_app.run_path(inst, utils.pid_file))
+
+
+################################################################
+# Foreground
+
+
+def write_project(path, description):
+    """Lay out at path a project whose default template is description,
+    the instances.yaml of external processes alone, which need no config."""
+    template = path / ".templates" / "default"
+    template.mkdir(parents=True)
+    (template / "instances.yaml").write_text(description)
+
+
+def start_foreground(tt_cmd, cwd, *targets):
+    """Run tt instance start --foreground with targets until it exits, in a
+    session of its own, as a supervisor would run it."""
+    return subprocess.run(
+        [tt_cmd, "instance", "start", "--foreground", *targets],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        start_new_session=True,
+    )
+
+
+def test_start_foreground_exit_code(tt_cmd, tmp_path):
+    # One instance: tt exits with its exit code once it has ended and does
+    # not restart it, whatever its restart policy says. Its output goes to
+    # the standard output as it is, and to tt.log, and tt says how it ended.
+    app_path = tmp_path / "fg"
+    write_project(
+        app_path,
+        "job:\n"
+        "  binary: sh\n"
+        '  args: [-c, "echo start >> starts; echo job says hi; exit 7"]\n'
+        "  restart: always\n",
+    )
+
+    p = start_foreground(tt_cmd, app_path, "fg:job")
+    assert p.returncode == 7, p.stderr
+    assert "Starting an instance [fg:job] in the foreground..." in p.stderr
+    assert p.stdout == "job says hi\nfg:job exited with code 7\n"
+
+    with open(os.path.join(utils.inst_lib_dir(app_path, "fg", "job"), "starts")) as f:
+        assert f.read() == "start\n"
+    with open(os.path.join(utils.inst_log_dir(app_path, "fg", "job"), utils.log_file)) as f:
+        assert "job says hi" in f.read()
+    assert not os.path.exists(
+        os.path.join(utils.inst_run_dir(app_path, "fg", "job"), utils.pid_file),
+    )
+
+    p = start_foreground(tt_cmd, app_path, "fg:job", "--scope", "project")
+    assert p.returncode == 7, p.stderr
+
+
+def test_start_foreground_several(tt_cmd, tmp_path):
+    # Several instances: their output is prefixed with the instance, an
+    # instance that fails does not stop the others, and tt exits once they
+    # all have ended, with the code of the first that failed.
+    app_path = tmp_path / "fg"
+    write_project(
+        app_path,
+        "failing:\n"
+        "  binary: sh\n"
+        '  args: [-c, "echo failing says hi; exit 5"]\n'
+        "  restart: always\n"
+        "lasting:\n"
+        "  binary: sh\n"
+        '  args: [-c, "sleep 2; echo lasting is done"]\n',
+    )
+
+    p = start_foreground(tt_cmd, app_path)
+    assert p.returncode == 5, p.stderr
+    assert "fg:failing failing says hi\n" in p.stdout
+    failed = p.stdout.index("fg:failing exited with code 5\n")
+    assert p.stdout.index("fg:lasting lasting is done\n") > failed
+    assert p.stdout.index("fg:lasting exited with code 0\n") > failed
+
+    # Every instance exits with 0: so does tt.
+    write_project(
+        tmp_path / "ok",
+        "one:\n  binary: sh\n  args: [-c, 'true']\ntwo:\n  binary: sh\n  args: [-c, 'true']\n",
+    )
+    p = start_foreground(tt_cmd, tmp_path / "ok")
+    assert p.returncode == 0, p.stderr
+
+
+def popen_foreground(tt_cmd, cwd, *targets):
+    """Start tt instance start --foreground with targets in a session of its
+    own, as a supervisor would run it, with its standard output piped."""
+    return subprocess.Popen(
+        [tt_cmd, "instance", "start", "--foreground", *targets],
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        start_new_session=True,
+    )
+
+
+def status_of(tt_cmd, cwd):
+    rc, out = utils.run_command_and_get_output([tt_cmd, "instance", "status"], cwd=cwd)
+    assert rc == 0
+    return utils.extract_status(out)
+
+
+# Two processes that stop on SIGTERM, as sleep does: killed by the signal.
+SLEEPERS = (
+    "a:\n"
+    "  binary: sh\n"
+    '  args: [-c, "echo a is up; exec sleep 1000"]\n'
+    "b:\n"
+    "  binary: sh\n"
+    '  args: [-c, "echo b is up; exec sleep 1000"]\n'
+)
+
+
+def test_start_foreground_stop_one(tt_cmd, tmp_path):
+    # Every instance has a watchdog and a pid file of its own: tt instance
+    # stop from another process stops one instance, and tt goes on with the
+    # others; a stop signal to tt stops them, and a stop is no failure, also
+    # for a process killed by its SIGTERM: tt exits with 0.
+    app_path = tmp_path / "fg"
+    write_project(app_path, SLEEPERS)
+
+    process = popen_foreground(tt_cmd, app_path)
+    try:
+        utils.wait_for_lines_in_output(process.stdout, ["fg:a a is up", "fg:b b is up"])
+
+        status = status_of(tt_cmd, app_path)
+        assert status["fg:a"]["STATUS"] == "RUNNING"
+        assert status["fg:b"]["STATUS"] == "RUNNING"
+        pids = {status["fg:a"]["PID"], status["fg:b"]["PID"], process.pid}
+        assert len(pids) == 3, "a watchdog of its own for every instance"
+
+        rc, out = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "stop", "-y", "fg:a"],
+            cwd=app_path,
+        )
+        assert rc == 0, out
+        assert "fg:a exited with code 0" in utils.wait_for_lines_in_output(
+            process.stdout,
+            ["fg:a exited with code 0"],
+        )
+
+        status = status_of(tt_cmd, app_path)
+        assert status["fg:a"]["STATUS"] == "NOT RUNNING"
+        assert status["fg:b"]["STATUS"] == "RUNNING"
+        assert process.poll() is None
+
+        process.send_signal(signal.SIGTERM)
+        out, _ = process.communicate(timeout=30)
+        assert process.returncode == 0, out
+        assert "fg:b exited" not in out
+        assert status_of(tt_cmd, app_path)["fg:b"]["STATUS"] == "NOT RUNNING"
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(5)
+        utils.run_command_and_get_output([tt_cmd, "instance", "stop", "-y"], cwd=app_path)
+
+
+def test_start_foreground_stop_timeout(tt_cmd, tmp_path):
+    # An instance that does not stop within its stop_timeout is killed, and
+    # tt exits with a code other than 0, that of a kill.
+    app_path = tmp_path / "fg"
+    write_project(
+        app_path,
+        "stubborn:\n"
+        "  binary: sh\n"
+        "  args: [-c, \"trap '' TERM INT; echo stubborn is up; "
+        'while true; do sleep 1; done"]\n'
+        "  stop_timeout: 1s\n",
+    )
+
+    process = popen_foreground(tt_cmd, app_path, "fg:stubborn")
+    try:
+        utils.wait_for_lines_in_output(process.stdout, ["stubborn is up"])
+
+        process.send_signal(signal.SIGTERM)
+        out, _ = process.communicate(timeout=30)
+        assert process.returncode == 137, out
+        assert "fg:stubborn exited with code 137" in out
+        log_path = os.path.join(utils.inst_log_dir(app_path, "fg", "stubborn"), utils.log_file)
+        with open(log_path) as f:
+            assert "the instance was killed: stop timeout" in f.read()
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(5)
+        utils.run_command_and_get_output([tt_cmd, "instance", "kill", "-y"], cwd=app_path)
+
+
+def test_start_foreground_already_running(tt_cmd, tmp_path):
+    # An instance that runs already is an error before anything starts: a
+    # supervisor that runs tt must learn that it does not run it.
+    app_path = tmp_path / "app"
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "external_app"), app_path)
+
+    worker = "app:worker"
+    try:
+        rc, _ = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "start", worker],
+            cwd=app_path,
+        )
+        assert rc == 0
+        run_dir = utils.inst_run_dir(app_path, "app", "worker")
+        assert utils.wait_files(5, [os.path.join(run_dir, utils.pid_file)])
+
+        p = start_foreground(tt_cmd, app_path, worker)
+        assert p.returncode == 1
+        assert "instance app:worker is already running" in p.stderr
+        assert "tt instance stop app:worker" in p.stderr
+        assert p.stdout == ""
+    finally:
+        utils.run_command_and_get_output([tt_cmd, "instance", "stop", "-y", worker], cwd=app_path)

@@ -504,6 +504,7 @@ def test_play_to_cluster_app_by_uri(tt, tt_app, with_scheme, uri):
 
     # Start instances.
     p = tt.run(
+        "instance",
         "start",
         env={"TT_IPROTO_LISTEN": f'[{{"uri":"{uri}"}}]'},
     )

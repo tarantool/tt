@@ -56,7 +56,7 @@ s2:""")
         f.write("""env:""")
 
     try:
-        cmd = [tt_cmd, "start"]
+        cmd = [tt_cmd, "instance", "start"]
         rc, _ = run_command_and_get_output(cmd, cwd=tmp_path)
         assert rc == 0
 
@@ -84,7 +84,7 @@ s2:""")
             assert oldSnapName != os.path.basename(snaps[0])
 
     finally:
-        run_command_and_get_output([tt_cmd, "stop", "-y"], cwd=tmp_path)
+        run_command_and_get_output([tt_cmd, "instance", "stop", "-y"], cwd=tmp_path)
 
 
 @pytest.mark.skipif(tarantool_major_version < 3, reason="skip cconfig test for Tarantool < 3")

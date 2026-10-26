@@ -54,7 +54,7 @@ def test_vshard_bootstrap_custom_app(tt_cmd, tmpdir_with_cfg, flag):
     app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
-        start_cmd = [tt_cmd, "start", f"{app_name}:*"]
+        start_cmd = [tt_cmd, "instance", "start", f"{app_name}:*"]
         rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
@@ -86,7 +86,7 @@ Replicasets state: bootstrapped
             out,
         )
     finally:
-        stop_cmd = [tt_cmd, "stop", "-y", f"{app_name}:*"]
+        stop_cmd = [tt_cmd, "instance", "stop", "-y", f"{app_name}:*"]
         rc, _ = run_command_and_get_output(stop_cmd, cwd=app_path)
         assert rc == 0
 
@@ -101,7 +101,7 @@ def test_vshard_bootstrap_cconfig_vshard_not_installed(tt_cmd, tmpdir_with_cfg):
     app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
-        start_cmd = [tt_cmd, "start", f"{app_name}:*"]
+        start_cmd = [tt_cmd, "instance", "start", f"{app_name}:*"]
         rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
@@ -152,7 +152,7 @@ def vshard_cconfig_app_tt_env(tt_cmd, tmp_path, vshard_tt_env_session):
     )
 
     # Start a cluster.
-    start_cmd = [tt_cmd, "start", f"{vshard_cconfig_app_name}:*"]
+    start_cmd = [tt_cmd, "instance", "start", f"{vshard_cconfig_app_name}:*"]
     rc, _ = run_command_and_get_output(start_cmd, cwd=app_path)
     assert rc == 0
 
@@ -247,7 +247,7 @@ def vshard_cconfig_app_timeout_tt_env(tt_cmd, tmp_path, vshard_tt_env_session):
     )
 
     # Start a cluster: every instance of the pair in .templates/default/.
-    start_cmd = [tt_cmd, "start", f"{vshard_cconfig_app_name_timeout}:*"]
+    start_cmd = [tt_cmd, "instance", "start", f"{vshard_cconfig_app_name_timeout}:*"]
     rc, _ = run_command_and_get_output(start_cmd, cwd=app_path)
     assert rc == 0
 
