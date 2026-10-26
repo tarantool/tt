@@ -6,6 +6,7 @@ import uuid
 from pathlib import Path
 
 import pytest
+from integration.scopes.scopes_helpers import make_project, pack, runtime_cache
 from integration.service.service_helpers import install_app
 
 # The image of a host with systemd, built from systemd_image/.
@@ -69,15 +70,15 @@ class Host:
         _, out = self.sh(f"systemctl show -p {prop} --value {unit}")
         return out.strip()
 
-    def status(self):
-        """Return tt instance status of myapp as JSON."""
+    def status(self, app="myapp"):
+        """Return tt instance status of app as JSON."""
         rc, out = docker(
             "exec",
             self.name,
             f"{ROOT}/bin/tt",
             "instance",
             "status",
-            "myapp:*",
+            f"{app}:*",
             "-o",
             "json",
         )
@@ -232,3 +233,116 @@ def test_systemd_units_in_container(host):
     )
     assert rc != 0, out
     assert "unit" not in host.status()["myapp:worker"]
+
+
+# The pair of the host of tntapp: a Tarantool instance of the cluster config.
+TNTAPP_INSTANCES = "storage:\n  restart: on-failure\n"
+TNTAPP_CONFIG = """\
+groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          storage: {}
+"""
+
+# The version of tntapp tt package install lays out in the container.
+TNTAPP_VERSION = f"{ROOT}/versions/tntapp/tntapp_1.0.0"
+
+
+@pytest.fixture(scope="module")
+def tntapp(host, tt_cmd, tmp_path_factory):
+    """tntapp, installed into the system scope of the host as a deployment
+    does it: tt package install, run as root, of a with-deps archive, which
+    bundles the tarantool on PATH, with the pair of the host in
+    <root>/etc/tntapp/."""
+    tmp = tmp_path_factory.mktemp("tntapp")
+    project = make_project(tmp / "tntapp", "1.0.0", name="tntapp")
+    archive = pack(tt_cmd, project, with_deps=True, env=runtime_cache(tmp / "cache"))
+    rc, out = docker("cp", str(archive), f"{host.name}:/root/tntapp.tt")
+    assert rc == 0, out
+
+    rc, out = host.tt("package", "install", "--scope", "system", "/root/tntapp.tt")
+    assert rc == 0, out
+
+    pair = tmp / "etc"
+    pair.mkdir()
+    (pair / "instances.yaml").write_text(TNTAPP_INSTANCES)
+    (pair / "config.yaml").write_text(TNTAPP_CONFIG)
+    rc, out = docker("cp", f"{pair}/.", f"{host.name}:{ROOT}/etc/tntapp")
+    assert rc == 0, out
+    return host
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="tt package install creates the version directory with mode 0700 "
+    "(os.MkdirTemp of swapVersion, cli/manifest/install/version.go), so the user "
+    "the units run as cannot read an application root installed",
+)
+def test_systemd_installed_version_is_readable(tntapp):
+    # The units run tt and the instances as tarantool, while the deployment
+    # installs the application as root: the version must be readable to
+    # others, as the tarantool it bundles is.
+    rc, out = tntapp.sh(
+        f"runuser -u tarantool -- cat {ROOT}/apps/tntapp/app.manifest.toml "
+        f"&& runuser -u tarantool -- ls {ROOT}/versions/tarantool",
+    )
+    assert rc == 0, out
+
+
+def test_systemd_tarantool_in_container(tntapp):
+    # A Tarantool instance of an application tt package install laid out runs
+    # under its unit on the tarantool the archive bundles, as tarantool, and
+    # stops with the unit.
+    host = tntapp
+    rc, out = host.sh(f"{ROOT}/versions/tarantool/tarantool_*/tarantool --version")
+    if rc != 0:
+        pytest.skip(f"the tarantool of the host does not run in the container: {out[-300:]}")
+
+    # Until install lays the version out readable to others
+    # (test_systemd_installed_version_is_readable), the deployment opens it
+    # for the user of the units.
+    rc, out = host.sh(f"chmod -R o+rX {TNTAPP_VERSION}")
+    assert rc == 0, out
+
+    rc, out = host.tt("service", "systemd", "install", "tntapp")
+    assert rc == 0, out
+    assert "systemctl enable --now tntapp@storage.service" in out
+
+    rc, out = host.sh("systemctl daemon-reload && systemctl start tntapp@storage")
+    assert rc == 0, out
+    assert wait(
+        30,
+        lambda: host.status("tntapp")["tntapp:storage"]["box"] == "running",
+    ), host.sh("systemctl status tntapp@storage; journalctl -u tntapp@storage --no-pager")[1]
+    status = host.status("tntapp")["tntapp:storage"]
+    assert status["status"] == "RUNNING"
+    assert status["unit"] == "tntapp@storage.service"
+
+    # tarantool runs as tarantool, in the version, on the tarantool the
+    # archive bundles, and keeps its data under the root.
+    rc, out = host.sh(
+        f"pid=$(cat {ROOT}/var/run/tntapp/storage/tarantool.pid) && "
+        "ps -o user= -p $pid && readlink /proc/$pid/cwd /proc/$pid/exe && "
+        f"stat -c %U {ROOT}/var/lib/tntapp/storage/*.snap",
+    )
+    assert rc == 0, out
+    user, cwd, exe, owner = out.split()[:4]
+    assert user == "tarantool"
+    assert cwd == TNTAPP_VERSION
+    assert exe.startswith(f"{ROOT}/versions/tarantool/tarantool_")
+    assert owner == "tarantool"
+
+    rc, out = host.sh("systemctl stop tntapp@storage")
+    assert rc == 0, out
+    assert host.unit("tntapp@storage", "ActiveState") == "inactive"
+    assert host.unit("tntapp@storage", "Result") == "success"
+    assert host.status("tntapp")["tntapp:storage"]["status"] == "NOT RUNNING"
+
+    rc, out = host.tt("service", "systemd", "uninstall", "tntapp")
+    assert rc == 0, out
+    rc, out = host.tt("package", "uninstall", "--scope", "system", "tntapp", "--yes")
+    assert rc == 0, out
+    rc, out = host.sh(f"test ! -e {TNTAPP_VERSION} && ls {ROOT}/var/lib/tntapp/storage/*.snap")
+    assert rc == 0, out
