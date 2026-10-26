@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"syscall"
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/sdk"
@@ -14,6 +15,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/running"
 	"github.com/tarantool/tt/v3/cli/util"
+	"golang.org/x/term"
 )
 
 // instanceCmdName is the name of the tt instance group.
@@ -25,9 +27,19 @@ var (
 	// failed for some of them, which ends tt with sdk.ExitPartial.
 	errInstancesFailed = errors.New("failed")
 	// errNoAnswer is wrapped by the error of a confirmation that got no
-	// answer, such as one asked with nothing on the standard input.
+	// answer: one that cannot be asked, since the standard input is not a
+	// terminal, and one the terminal closed.
 	errNoAnswer = errors.New("no answer to the confirmation")
+	// errNotTerminal is wrapped by the error of a confirmation asked with
+	// no terminal on the standard input.
+	errNotTerminal = errors.New("the standard input is not a terminal")
 )
+
+// stdinIsTerminal reports whether the standard input is a terminal, where a
+// confirmation can be asked.
+var stdinIsTerminal = func() bool {
+	return term.IsTerminal(syscall.Stdin)
+}
 
 // instanceFlags hold the flags that every command of tt instance takes, and
 // tt connect, its facade, with them: where the application of a target is
@@ -99,7 +111,7 @@ func addInstanceFlags(cmd *cobra.Command) {
 // addYesFlag declares --yes, which skips the confirmation of cmd.
 func addYesFlag(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&instanceYes, "yes", "y", false,
-		"skip the confirmation prompt")
+		"confirm without a prompt, as is needed when the standard input is not a terminal")
 }
 
 // instanceTargetOptions are the options an instance command resolves its
@@ -122,11 +134,20 @@ func instanceTargetOptions(cmdCtx *cmdcontext.CmdCtx) (app.Options, error) {
 }
 
 // confirm asks the user to confirm what question asks, unless --yes says it
-// is confirmed already. A confirmation that cannot be read, such as one with
-// nothing on the standard input, is an error that points at --yes.
+// is confirmed already.
+//
+// The confirmation is asked on a terminal only (RFC 4.3). Without one on the
+// standard input there is no one to answer, and an answer piped in is not
+// the user's: the command fails at once, pointing at --yes, and does not read
+// the standard input. A confirmation the terminal closes fails the same way.
 func confirm(question string) (bool, error) {
 	if instanceYes {
 		return true, nil
+	}
+
+	if !stdinIsTerminal() {
+		return false, fmt.Errorf("%w: %w; pass --yes to confirm without a prompt",
+			errNoAnswer, errNotTerminal)
 	}
 
 	confirmed, err := util.AskConfirm(os.Stdin, question)

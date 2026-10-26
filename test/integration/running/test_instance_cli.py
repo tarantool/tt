@@ -78,6 +78,86 @@ def test_partial_success_exit_code(tt_cmd, tmp_path):
         utils.run_command_and_get_output([tt_cmd, "instance", "stop", "-y", worker], cwd=app_path)
 
 
+@pytest.mark.parametrize("command", ["stop", "restart", "kill"])
+def test_confirmation_needs_terminal(tt_cmd, tmp_path, command):
+    # A command that asks for a confirmation asks a terminal only: without
+    # one and without --yes it fails at once, pointing at --yes, reads no
+    # answer from its standard input and acts on nothing.
+    app_path = tmp_path / "app"
+    shutil.copytree(EXTERNAL_APP, app_path)
+
+    worker = "app:worker"
+    try:
+        rc, _ = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "start", worker],
+            cwd=app_path,
+        )
+        assert rc == 0
+        pid_file = os.path.join(utils.inst_run_dir(app_path, "app", "worker"), utils.pid_file)
+        assert utils.wait_files(5, [pid_file])
+        with open(pid_file) as f:
+            pid = f.read()
+
+        rc, out = utils.run_command_and_get_output(
+            [tt_cmd, "instance", command, worker],
+            cwd=app_path,
+            input="y\n",
+        )
+        assert rc == 1, out
+        assert "the standard input is not a terminal; pass --yes" in out
+        assert "[y/n]" not in out
+        with open(pid_file) as f:
+            assert f.read() == pid
+
+        # A terminal is asked, and its no is no failure.
+        rc, out = utils.run_command_with_tty(
+            [tt_cmd, "instance", command, worker],
+            "n\n",
+            cwd=app_path,
+        )
+        assert rc == 0, out
+        assert "[y/n]" in out
+        with open(pid_file) as f:
+            assert f.read() == pid
+    finally:
+        utils.run_command_and_get_output([tt_cmd, "instance", "stop", "-y", worker], cwd=app_path)
+
+
+def test_clean_confirmation_needs_terminal(tt_cmd, tmp_path):
+    # clean asks only when it has something to remove, which a running
+    # instance never has, and then it asks a terminal only, as the other
+    # commands do: without one it fails at once and removes nothing.
+    app_path = tmp_path / "app"
+    shutil.copytree(EXTERNAL_APP, app_path)
+
+    worker = "app:worker"
+    log_file = os.path.join(utils.inst_log_dir(app_path, "app", "worker"), utils.log_file)
+    rc, _ = utils.run_command_and_get_output([tt_cmd, "instance", "start", worker], cwd=app_path)
+    assert rc == 0
+    assert utils.wait_files(5, [log_file])
+    rc, _ = utils.run_command_and_get_output(
+        [tt_cmd, "instance", "stop", "-y", worker],
+        cwd=app_path,
+    )
+    assert rc == 0
+
+    rc, out = utils.run_command_and_get_output(
+        [tt_cmd, "instance", "clean", worker],
+        cwd=app_path,
+        input="y\n",
+    )
+    assert rc == 1, out
+    assert "the standard input is not a terminal; pass --yes" in out
+    assert "[y/n]" not in out
+    assert os.path.exists(log_file)
+
+    # A terminal is asked, and its no is no failure.
+    rc, out = utils.run_command_with_tty([tt_cmd, "instance", "clean", worker], "n\n", cwd=app_path)
+    assert rc == 0, out
+    assert "[y/n]" in out
+    assert os.path.exists(log_file)
+
+
 def flags_of(help_text):
     """Return the FLAGS section of the help text of a command."""
     return help_text[help_text.index("FLAGS") :]

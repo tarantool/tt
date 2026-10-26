@@ -2730,7 +2730,8 @@ FLAGS[0m
       --template string   template of the application the instances are
                           described in (default "default")
   -V, --verbose           list all files to remove before confirmation
-  -y, --yes               skip the confirmation prompt
+  -y, --yes               confirm without a prompt, as is needed when the
+                          standard input is not a terminal
 
 === tt instance connect --help
 Connect to the tarantool instance.
@@ -2804,7 +2805,8 @@ FLAGS[0m
                           or system
       --template string   template of the application the instances are
                           described in (default "default")
-  -y, --yes               skip the confirmation prompt
+  -y, --yes               confirm without a prompt, as is needed when the
+                          standard input is not a terminal
 
 === tt instance logrotate --help
 Rotate logs of a started tarantool instance(s)
@@ -2847,7 +2849,8 @@ FLAGS[0m
                           or system
       --template string   template of the application the instances are
                           described in (default "default")
-  -y, --yes               skip the confirmation prompt
+  -y, --yes               confirm without a prompt, as is needed when the
+                          standard input is not a terminal
 
 === tt instance start --help
 Start the instances the targets select. By default every instance runs in the
@@ -2921,7 +2924,8 @@ FLAGS[0m
                           or system
       --template string   template of the application the instances are
                           described in (default "default")
-  -y, --yes               skip the confirmation prompt
+  -y, --yes               confirm without a prompt, as is needed when the
+                          standard input is not a terminal
 
 === tt modules --help
 Manage tt cli modules

@@ -96,12 +96,14 @@ top-level ones are gone:
 | `tt connect` | `tt connect` or `tt instance connect`, the same command |
 
 `-f` is no longer the short form of a confirmation, of follow or of a format
-in these commands. `tt instance start --foreground` runs every instance under
-a watchdog of its own, as in the background, writes their output into their
-`tt.log` as well, and does not restart an instance: it exits with 0 when the
-instances were stopped, and with the exit code of an instance that failed. A
-command over several instances goes on after an instance it fails for and
-exits with 3 when some of them failed.
+in these commands. A confirmation is asked on a terminal only: a script that
+piped `y` into `tt stop` or ran `tt --no-prompt stop` passes `--yes` now, or
+the command fails with code 1. `tt instance start --foreground` runs every
+instance under a watchdog of its own, as in the background, writes their
+output into their `tt.log` as well, and does not restart an instance: it
+exits with 0 when the instances were stopped, and with the exit code of an
+instance that failed. A command over several instances goes on after an
+instance it fails for and exits with 3 when some of them failed.
 
 ## 1.3.1 -> 2.0.0
 

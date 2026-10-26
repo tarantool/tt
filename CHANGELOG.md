@@ -432,13 +432,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   the group: `tt instance logs --follow` has no short form,
   `tt instance status -o` selects the format, and `tt instance kill` and
   `tt instance clean` take `--yes` (`-y`) where they took `-f`/`--force`.
-  `tt instance clean` asks once for all its targets, removes nothing for an
-  instance that never ran instead of failing it, and counts a running
-  instance it leaves alone as failed. Completion of a target offers the
-  current project and the applications of the system scope, or of the scope
-  `--scope` names, each followed by `:`, and then the instances of the pair
-  of the application named. The messages that suggest a command name the
-  new one, as the follow-up message of `tt create` does.
+  `stop`, `restart`, `kill` and `clean` ask for a confirmation on a terminal
+  only: without a terminal on the standard input and without `--yes` they fail
+  at once with code 1, pointing at `--yes`, and read no answer from the
+  standard input; a no on the terminal is no failure. `--no-prompt` no longer
+  confirms `tt instance stop`: `--yes` does. `tt instance clean` asks once for
+  all its targets, removes nothing for an instance that never ran instead of
+  failing it, and counts a running instance it leaves alone as failed.
+  Completion of a target offers the current project and the applications of
+  the system scope, or of the scope `--scope` names, each followed by `:`, and
+  then the instances of the pair of the application named. The messages that
+  suggest a command name the new one, as the follow-up message of `tt create`
+  does.
 
 - `tt instance start`, `stop`, `status`, `restart`, `kill`, `logs`,
   `logrotate`, `check`, `clean` and `connect`, `tt connect`, `tt play`, the

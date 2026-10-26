@@ -595,6 +595,10 @@ exits with 3 when it failed for some of them only, with 1 when it failed for
 every one of them, and with the code of the error of the instance when there
 is one instance. `stop`, `restart`, `kill` and `clean` ask for a confirmation,
 which `--yes` (`-y`) skips; `-f` is not a short form of any of their flags.
+The confirmation is asked on a terminal only: without a terminal on the
+standard input, in a script or a pipe, a command that needs one fails with
+code 1 unless it is given `--yes`, and an answer piped into it is not read.
+`--no-prompt` confirms nothing.
 
 `tt instance start` runs every instance in the background under a watchdog of
 `tt`, which restarts it as its `restart` field says. With `--foreground`, for
