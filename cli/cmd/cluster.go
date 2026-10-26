@@ -140,6 +140,10 @@ var (
 // tt cluster show or publish whose pair has no cluster config.
 var errNoClusterConfig = errors.New("no cluster config")
 
+// errPublishToVersion is wrapped by the error for an application target of
+// tt cluster publish that runs from a template of its installed version.
+var errPublishToVersion = errors.New("tt does not write into an installed version")
+
 var (
 	defaultSwitchTimeout       uint64 = 30
 	clusterIntegrityPrivateKey string
@@ -571,7 +575,7 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 	}
 
 	// It looks like an application or an application:instance.
-	configPath, instName, err := parseAppStr(cmdCtx, args[0])
+	configPath, instName, err := parsePublishAppStr(cmdCtx, args[0])
 	if err != nil {
 		return err
 	}
@@ -816,26 +820,78 @@ func readSourceFile(path string) ([]byte, map[string]any, error) {
 // make one up next to its description: the author of the pair adds it, as
 // adding it changes what the pair runs.
 func parseAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, string, error) {
+	application, instName, err := loadAppTarget(cmdCtx, appStr)
+	if err != nil {
+		return "", "", err
+	}
+
+	configPath, err := appConfigFile(application)
+	if err != nil {
+		return "", "", err
+	}
+
+	return configPath, instName, nil
+}
+
+// parsePublishAppStr is parseAppStr for tt cluster publish, which writes the
+// config it returns. An application of the user or the system scope that
+// runs from a template of its installed version is refused: the version is
+// immutable, and a config written into it would go with the version, or
+// change what another host of the same version runs. The pair of the host,
+// <root>/etc/<app>/, is the one to write into; a project is the project's
+// own.
+func parsePublishAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, string, error) {
+	application, instName, err := loadAppTarget(cmdCtx, appStr)
+	if err != nil {
+		return "", "", err
+	}
+
+	if application.Scope != app.ScopeProject && !application.Pair.Host() {
+		return "", "", fmt.Errorf("application %q of the %s scope: %w: it runs from %s, "+
+			"which belongs to the installed version; put instances.yaml and config.yaml "+
+			"into %s to publish into the pair of the host, or publish to a config storage "+
+			"by its URI", application.Name, application.Scope, errPublishToVersion,
+			application.Pair.String(), app.HostDir(application.Root, application.Name))
+	}
+
+	configPath, err := appConfigFile(application)
+	if err != nil {
+		return "", "", err
+	}
+
+	return configPath, instName, nil
+}
+
+// loadAppTarget loads the application appStr, <APP> or <APP>:<INSTANCE>,
+// names, and returns it with the instance name, empty for none, which must
+// not name an external process or an instance that runs its script.
+func loadAppTarget(cmdCtx *cmdcontext.CmdCtx, appStr string) (*app.App, string, error) {
 	appName, instName, _ := strings.Cut(appStr, string(running.InstanceDelimiter))
 
 	application, err := loadApp(cmdCtx, appName)
 	if err != nil {
-		return "", "", err
+		return nil, "", err
 	}
 
 	err = running.RequireClusterRecord(application, instName)
 	if err != nil {
-		return "", "", err
+		return nil, "", err
 	}
 
+	return application, instName, nil
+}
+
+// appConfigFile returns the cluster config of the pair of application, which
+// must have one.
+func appConfigFile(application *app.App) (string, error) {
 	if application.Pair.ConfigFile == "" {
-		return "", "", fmt.Errorf("application %q: %w: %s has instances.yaml and no "+
+		return "", fmt.Errorf("application %q: %w: %s has instances.yaml and no "+
 			"config.yaml next to it; tt does not create it: add it to the pair, or use the "+
 			"URI of a config storage", application.Name, errNoClusterConfig,
 			application.Pair.String())
 	}
 
-	return application.Pair.ConfigFile, instName, nil
+	return application.Pair.ConfigFile, nil
 }
 
 // loadApp loads the application appName and its pair as the instance

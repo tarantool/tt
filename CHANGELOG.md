@@ -503,8 +503,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `.templates/default/{instances,config}.yaml`, or `<root>/etc/<app>/` for an
   installed application; a description with only `script` and `binary` records
   needs no `config.yaml` and does not read one, while `tt cluster show` and
-  `publish` refuse an application without it. `tt instance stop`, `kill`,
-  `status`, `logrotate` and `logs`, the completion of a target and
+  `publish` refuse an application without it. `tt cluster publish` writes the
+  config of an application of the user or the system scope into its pair of
+  the host, `<root>/etc/<app>/config.yaml`, and refuses one that runs from a
+  template of its installed version, which is never written to, pointing at
+  `<root>/etc/<app>/` and at the URI of a config storage. `tt instance stop`,
+  `kill`, `status`, `logrotate` and `logs`, the completion of a target and
   `tt replicaset status` read `config.yaml` and the config storage it names
   as far as they can, as they did with `tt.yaml`: they find the instances by
   `instances.yaml` and their pid files, so a broken config or an etcd that is

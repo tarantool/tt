@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 
-from utils import cluster_config_file
+from utils import cluster_config_file, run_command_and_get_output
 
 
 def copy_app(tmpdir, app_name):
@@ -89,6 +89,50 @@ def test_cluster_publish_in_place(tt_cmd, tmp_path):
 
     with open(env_path / cluster_config_file) as f:
         assert f.read() == cfg
+
+
+@pytest.mark.parametrize("scope", ["user", "system"])
+def test_cluster_publish_installed(tt_cmd, tmp_path, scope):
+    # tt cluster publish does not write into the installed version of an
+    # application: it points at the pair of the host, which it writes into
+    # once there is one.
+    root = tmp_path / scope
+    version = root / "versions" / "myapp" / "myapp_1.0.0"
+    template = version / os.path.dirname(cluster_config_file)
+    template.mkdir(parents=True)
+    (template / "instances.yaml").write_text("master:\n")
+    (version / cluster_config_file).write_text(valid_cluster_cfg)
+    (root / "apps").mkdir()
+    os.symlink(version, root / "apps" / "myapp")
+
+    other = "user" if scope == "system" else "system"
+    env = dict(
+        os.environ,
+        **{
+            f"TT_{scope.upper()}_ROOT": str(root),
+            f"TT_{other.upper()}_ROOT": str(tmp_path / other),
+        },
+    )
+    cfg = valid_cluster_cfg.replace("3301", "3311")
+    (tmp_path / "cfg.yml").write_text(cfg)
+    publish_cmd = [tt_cmd, "cluster", "publish", "--scope", scope, "myapp", "cfg.yml"]
+
+    rc, out = run_command_and_get_output(publish_cmd, cwd=tmp_path, env=env)
+    assert rc == 1
+    assert "tt does not write into an installed version" in out
+    assert str(root / "etc" / "myapp") in out
+    assert "publish to a config storage by its URI" in out
+    assert (version / cluster_config_file).read_text() == valid_cluster_cfg
+
+    host = root / "etc" / "myapp"
+    host.mkdir(parents=True)
+    (host / "instances.yaml").write_text("master:\n")
+    (host / "config.yaml").write_text(valid_cluster_cfg)
+
+    rc, out = run_command_and_get_output(publish_cmd, cwd=tmp_path, env=env)
+    assert rc == 0, out
+    assert (host / "config.yaml").read_text() == cfg
+    assert (version / cluster_config_file).read_text() == valid_cluster_cfg
 
 
 @pytest.mark.parametrize("app_name", ["test_simple_app"])

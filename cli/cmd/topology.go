@@ -727,13 +727,12 @@ func clusterConfigSource(commandContext *cmdcontext.CmdCtx, args []string, confi
 		return "", "", err
 	}
 
-	if application.Pair.ConfigFile == "" {
-		return "", "", fmt.Errorf("application %q: %w: %s has instances.yaml and no "+
-			"config.yaml next to it", application.Name, errNoClusterConfig,
-			application.Pair.String())
+	configPath, err := appConfigFile(application)
+	if err != nil {
+		return "", "", err
 	}
 
-	return application.Pair.ConfigFile, application.Dir, nil
+	return configPath, application.Dir, nil
 }
 
 func topologyConnectContext() connect.ConnectCtx {
