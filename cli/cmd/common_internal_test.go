@@ -75,7 +75,7 @@ func TestInstanceCommandsOutsideProject(t *testing.T) {
 		{"check", internalCheckModule},
 		{"clean", internalCleanModule},
 		{"kill", internalKillModule},
-		{"log", internalLogModule},
+		{"logs", internalLogsModule},
 		{"logrotate", internalLogrotateModule},
 		{"restart", internalRestartModule},
 		{"start", internalStartModule},

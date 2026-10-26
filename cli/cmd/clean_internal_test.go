@@ -43,24 +43,24 @@ func TestCleanVerboseDirectoryBoundaries(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, output.Close()) })
 
 			oldInput, oldOutput := os.Stdin, os.Stdout
-			oldForce, oldVerbose := forceRemove, verboseList
+			oldVerbose := verboseList
 
 			t.Cleanup(func() {
 				os.Stdin, os.Stdout = oldInput, oldOutput
-				forceRemove, verboseList = oldForce, oldVerbose
+				verboseList = oldVerbose
 			})
 
 			os.Stdin, os.Stdout = input, output
-			forceRemove, verboseList = false, true
+			verboseList = true
 
 			if trailingSeparator {
 				dataDir += string(filepath.Separator)
 			}
 
-			err = clean(&running.InstanceCtx{
+			err = previewClean(&running.InstanceCtx{
 				LogDir: dataDir, WalDir: otherDir, VinylDir: otherDir, MemtxDir: otherDir,
 			})
-			require.ErrorIs(t, err, ErrCanceledByUser)
+			require.NoError(t, err)
 
 			data, err := os.ReadFile(outputPath)
 			require.NoError(t, err)

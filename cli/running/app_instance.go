@@ -89,7 +89,7 @@ var scriptWrittenPathKeys = []string{
 // An external process, a record with binary, keeps its log and its pid files
 // in the same layout. It runs in workdir of its record, or else in its data
 // directory in the layout, the one data directory it has. It has no sockets
-// and no config, so tt status asks it nothing.
+// and no config, so tt instance status asks it nothing.
 //
 // A Tarantool instance that runs its script, a record with script, has every
 // path of the layout, and no cluster config: its script configures it with

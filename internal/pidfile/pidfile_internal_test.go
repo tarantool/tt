@@ -153,7 +153,7 @@ func TestExclusive(t *testing.T) {
 				}
 
 				// While it is owned, nobody can replace it: the owner's file
-				// is the one tt stop and tt status read.
+				// is the one tt instance stop and tt instance status read.
 				same, err := stillAt(file.file, path)
 				if err != nil || !same {
 					orphaned.Add(1)
@@ -362,9 +362,9 @@ func TestRemoveFor(t *testing.T) {
 }
 
 // lockInChild has a child process own the pid file at path, then kills the
-// child with SIGKILL, as tt kill does, and returns its pid. The child holds
-// the lock through an inherited descriptor, since the test cannot run this
-// package in a child of its own.
+// child with SIGKILL, as tt instance kill does, and returns its pid. The
+// child holds the lock through an inherited descriptor, since the test cannot
+// run this package in a child of its own.
 func lockInChild(t *testing.T, path string) int {
 	t.Helper()
 

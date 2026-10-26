@@ -136,7 +136,8 @@ func (started *startedInstance) version() string {
 	return string(data)
 }
 
-// stop stops the watchdog as tt stop does and waits for Start to return.
+// stop stops the watchdog as tt instance stop does and waits for Start to
+// return.
 func (started *startedInstance) stop() {
 	started.t.Helper()
 

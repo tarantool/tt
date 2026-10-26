@@ -583,10 +583,10 @@ func TestInstanceKind(t *testing.T) {
 }
 
 // TestParseRunningFixtures parses the descriptions of the projects the
-// integration tests of tt start, most of them the instances.yml of their tt2
-// days moved into .templates/default/ as they were: that a tt2 description
-// is valid as it is, and needs fields added only to use them, is the promise
-// of the format.
+// integration tests of tt instance start, most of them the instances.yml of
+// their tt2 days moved into .templates/default/ as they were: that a tt2
+// description is valid as it is, and needs fields added only to use them, is
+// the promise of the format.
 func TestParseRunningFixtures(t *testing.T) {
 	paths, err := filepath.Glob(filepath.Join("..", "..", "test", "integration", "running", "*",
 		".templates", "default", "instances.yaml"))

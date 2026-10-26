@@ -3,6 +3,6 @@ follow-up-message: |
   What's next?
   Enter and start '{{ .name }}' application:
       $ cd {{ .name }}
-      $ tt start
+      $ tt instance start
 
 vars:

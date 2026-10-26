@@ -3,6 +3,7 @@ package running
 import (
 	"context"
 	"errors"
+	"io"
 	"syscall"
 	"time"
 
@@ -91,12 +92,24 @@ type instanceSource struct {
 	log  *watchdogLog
 	// refresh reads the context of the instance anew from its pair.
 	refresh func() (InstanceCtx, error)
+	// stdout and stderr are where the output of tarantool goes; nil is the
+	// log of the watchdog, tt.log.
+	stdout io.Writer
+	stderr io.Writer
 }
 
 func newInstanceSource(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx, log *watchdogLog,
 	refresh func() (InstanceCtx, error),
 ) *instanceSource {
-	return &instanceSource{cmdCtx: cmdCtx, ran: *inst, next: *inst, log: log, refresh: refresh}
+	return &instanceSource{
+		cmdCtx:  cmdCtx,
+		ran:     *inst,
+		next:    *inst,
+		log:     log,
+		refresh: refresh,
+		stdout:  nil,
+		stderr:  nil,
+	}
 }
 
 // Next reads the configuration and builds the Spec of the instance from it.
@@ -115,8 +128,8 @@ func (src *instanceSource) Next(context.Context) (supervisor.Spec, error) {
 
 	return instanceSpec(&src.next, specOptions{
 		integrity: integrityOf(src.cmdCtx),
-		stdout:    src.log.logger,
-		stderr:    src.log.logger,
+		stdout:    outputOr(src.stdout, src.log.logger),
+		stderr:    outputOr(src.stderr, src.log.logger),
 		warn: func(message string) {
 			src.log.logger.Printf("(WARN): %s.", message)
 		},
@@ -152,9 +165,9 @@ func (src *instanceSource) Restart(_ context.Context, exit supervisor.Exit) (boo
 	return true, nil
 }
 
-// restartsAfter reports whether the watchdog starts inst again after exit,
-// an exit of its own: an exit that follows tt stop or a failed integrity
-// check never gets this far (supervisor.Source.Restart).
+// restartsAfter reports whether the watchdog starts inst again after exit, an
+// exit of its own: an exit that follows tt instance stop or a failed
+// integrity check never gets this far (supervisor.Source.Restart).
 //
 // The restart field of the instance record decides, with the meanings the
 // instances package gives its values: no never restarts, always restarts
@@ -170,6 +183,16 @@ func restartsAfter(inst *InstanceCtx, exit supervisor.Exit) bool {
 	default:
 		return false
 	}
+}
+
+// outputOr returns out, the writer the output of tarantool goes to, or log,
+// the log of the watchdog, when out is nil.
+func outputOr(out, log io.Writer) io.Writer {
+	if out != nil {
+		return out
+	}
+
+	return log
 }
 
 // started records that tarantool runs with the context of the last Spec.
@@ -223,10 +246,10 @@ func updateLogger(logger ttlog.Logger, instanceCtx *InstanceCtx) (ttlog.Logger, 
 // sockets removed at the end are those of the context tarantool last ran
 // with, whatever the configuration says by then.
 //
-// The watchdog of an external process writes the pid of the process into
-// its own pid file as well, since the process leads a group of its own that
-// tt kill has to find (killProcess); a SIGHUP reaches the process as its
-// logrotate_signal, if it has one (externalSpec).
+// The watchdog of an external process writes the pid of the process into its
+// own pid file as well, since the process leads a group of its own that
+// tt instance kill has to find (killProcess); a SIGHUP reaches the process as
+// its logrotate_signal, if it has one (externalSpec).
 func watchdogOptions(cmdCtx *cmdcontext.CmdCtx, src *instanceSource) supervisor.Options {
 	opts := supervisor.Options{
 		PidFile:       src.ran.PIDFile,

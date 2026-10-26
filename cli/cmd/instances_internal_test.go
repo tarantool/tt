@@ -103,17 +103,11 @@ func TestTarantoolCommandsRefuseExternal(t *testing.T) {
 	require.ErrorIs(t, err, running.ErrNotTarantool)
 }
 
-// TestCleanExternal pins that tt clean removes the log of an external
+// TestCleanExternal pins that tt instance clean removes the log of an external
 // process and what it has written into its data directory, the working
 // directory of a process without workdir.
 func TestCleanExternal(t *testing.T) {
 	externalProject(t)
-
-	previous := forceRemove
-
-	forceRemove = true
-
-	t.Cleanup(func() { forceRemove = previous })
 
 	insts, err := resolveInstances(&cmdcontext.CmdCtx{}, []string{"myapp:worker-1"})
 	require.NoError(t, err)

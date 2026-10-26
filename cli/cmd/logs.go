@@ -27,28 +27,32 @@ const (
 	logRootCheckInterval = 100 * time.Millisecond
 )
 
-// NewLogCmd creates log command.
-func NewLogCmd() *cobra.Command {
-	logCmd := &cobra.Command{
-		Use:   "log " + instanceTargetsUsage + " [flags]",
+// NewLogsCmd creates the logs command of tt instance.
+func NewLogsCmd() *cobra.Command {
+	logsCmd := &cobra.Command{
+		Use:   "logs " + instanceTargetsUsage + " [flags]",
 		Short: `Get logs of instance(s)`,
-		RunE:  internalRunE(internalLogModule),
+		Long: "Print the last lines of tt.log of the instances, the log their output " +
+			"goes to, whether they run in the background or in the foreground.",
+		RunE: internalRunE(internalLogsModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
 			toComplete string,
 		) ([]string, cobra.ShellCompDirective) {
-			return internal.ValidArgsFunction(&cmdCtx, cmd, toComplete,
-				internal.Any)
+			return internal.ValidArgsFunction(&cmdCtx, cmd, toComplete, internal.Any)
 		},
 	}
 
-	logCmd.Flags().IntVarP(&logOpts.nLines, "lines", "n", defaultLogLines,
+	addInstanceFlags(logsCmd)
+
+	logsCmd.Flags().IntVarP(&logOpts.nLines, "lines", "n", defaultLogLines,
 		"Count of last lines to output")
-	logCmd.Flags().BoolVarP(&logOpts.follow, "follow", "f", false,
+	// No -f: it is --force.
+	logsCmd.Flags().BoolVar(&logOpts.follow, "follow", false,
 		"Output appended data as the log file grows")
 
-	return logCmd
+	return logsCmd
 }
 
 func printLines(ctx context.Context, in <-chan string) error {
@@ -188,8 +192,8 @@ func printLastN(instances []running.InstanceCtx, lineCount int) error {
 	return nil
 }
 
-// internalLogModule is a default log module.
-func internalLogModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+// internalLogsModule is a default logs module.
+func internalLogsModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	instances, err := resolveInstances(cmdCtx, args)
 	if err != nil {
 		return err

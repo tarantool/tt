@@ -5,10 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/signal"
 	"strconv"
-	"sync"
-	"syscall"
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/sdk/integrity"
@@ -16,12 +13,11 @@ import (
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/running"
-	"github.com/tarantool/tt/v3/cli/tail"
 	"github.com/tarantool/tt/v3/cli/util"
 )
 
 // errPinWithoutWatchdog reports a pin of the application directory given to
-// tt start without --watchdog.
+// tt instance start without --watchdog.
 var errPinWithoutWatchdog = errors.New("--" + running.AppDirFlag +
 	" is only for the watchdog of an instance")
 
@@ -30,50 +26,58 @@ var (
 	// In go, we can't just fork the process (reason - goroutines).
 	// So, for daemonize, we restarts the process with "watchdog" flag.
 	watchdog bool
-	// watchdogPin is what the hidden flags that come with --watchdog say of
-	// the application the watchdog runs its instance from (StartWatchdog).
-	watchdogPin struct {
-		scope    string
-		template string
-		dir      string
-	}
+	// watchdogDir is --app-dir, the application directory the watchdog runs
+	// its instance from (StartWatchdog). The scope and the template come with
+	// it as --scope and --template.
+	watchdogDir string
 	// integrityCheckPeriod is a flag that enables periodic integrity checks.
 	// The default period is 1 day.
 	integrityCheckPeriod = 24 * 60 * 60
-	// startInteractive is startInteractive mode flag. If set, the main process does not exit after
-	// watchdog children start and waits for them to complete. Also all logging is performed
-	// to standard output.
-	startInteractive bool
+	// startForeground is --foreground: tt stays in the foreground while the
+	// watchdogs of the instances, which do not restart them, run under it;
+	// with --watchdog it runs one of those watchdogs.
+	startForeground bool
 )
 
-// NewStartCmd creates start command.
+// NewStartCmd creates the start command of tt instance.
 func NewStartCmd() *cobra.Command {
 	startCmd := &cobra.Command{
 		Use:   "start " + instanceTargetsUsage,
 		Short: "Start tarantool instance(s)",
-		RunE:  internalRunE(internalStartModule),
+		Long: "Start the instances the targets select. By default every instance runs " +
+			"in the background under a watchdog of tt, which restarts it as the restart " +
+			"field of its record says.\n\n" +
+			"With --" + running.ForegroundFlag + " tt stays in the foreground, for " +
+			"systemd, a container or a terminal, while every instance runs under a " +
+			"watchdog of its own that does not restart it. The output of the instances " +
+			"goes to their tt.log and to the standard output, prefixed with the " +
+			"instance when there are several. SIGINT, SIGTERM and SIGQUIT stop every " +
+			"instance, as a stop of its watchdog does; tt instance stop stops one of " +
+			"them from another terminal. An instance that ends does not stop the " +
+			"others. tt exits once all of them have ended: with 0 when they were " +
+			"stopped in time, with the exit code of the first instance that failed " +
+			"otherwise, " + strconv.Itoa(running.ExitKilledOnStop) + " for one killed " +
+			"as it did not stop in time.",
+		RunE: internalRunE(internalStartModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
 			toComplete string,
 		) ([]string, cobra.ShellCompDirective) {
-			return internal.ValidArgsFunction(&cmdCtx, cmd, toComplete,
-				internal.Inactive)
+			return internal.ValidArgsFunction(&cmdCtx, cmd, toComplete, internal.Inactive)
 		},
 	}
 
-	startCmd.Flags().BoolVar(&watchdog, running.WatchdogFlag, false, "")
-	startCmd.Flags().StringVar(&watchdogPin.scope, running.ScopeFlag, "", "")
-	startCmd.Flags().StringVar(&watchdogPin.template, running.TemplateFlag, "", "")
-	startCmd.Flags().StringVar(&watchdogPin.dir, running.AppDirFlag, "", "")
+	addInstanceFlags(startCmd)
 
-	for _, name := range []string{
-		running.WatchdogFlag, running.ScopeFlag, running.TemplateFlag, running.AppDirFlag,
-	} {
+	startCmd.Flags().BoolVar(&startForeground, running.ForegroundFlag, false,
+		"stay in the foreground while the instances run, without restarting them")
+	startCmd.Flags().BoolVar(&watchdog, running.WatchdogFlag, false, "")
+	startCmd.Flags().StringVar(&watchdogDir, running.AppDirFlag, "", "")
+
+	for _, name := range []string{running.WatchdogFlag, running.AppDirFlag} {
 		_ = startCmd.Flags().MarkHidden(name)
 	}
-
-	startCmd.Flags().BoolVarP(&startInteractive, "interactive", "i", false, "")
 
 	integrity.RegisterIntegrityCheckPeriodFlag(startCmd.Flags(), &cmdCtx.Cli.IntegrityCheckPeriod)
 
@@ -87,15 +91,8 @@ func startInstancesUnderWatchdog(cmdCtx *cmdcontext.CmdCtx, instances []running.
 		return fmt.Errorf("failed to get the tt executable path: %w", err)
 	}
 
-	startArgs := []string{}
-	if cmdCtx.Cli.IntegrityCheck != "" {
-		startArgs = append(startArgs, "--integrity-check-period",
-			//nolint:gosec // G115: the period is passed on exactly as tt has always formatted it.
-			strconv.FormatUint(uint64(cmdCtx.Cli.IntegrityCheckPeriod), 10))
-	}
-
 	for _, instance := range instances {
-		err := running.StartWatchdog(cmdCtx, ttBin, instance, startArgs)
+		err := running.StartWatchdog(cmdCtx, ttBin, instance, watchdogStartArgs(cmdCtx))
 		if err != nil {
 			return err
 		}
@@ -104,41 +101,19 @@ func startInstancesUnderWatchdog(cmdCtx *cmdcontext.CmdCtx, instances []running.
 	return nil
 }
 
-// startInstancesInteractive starts tarantool instances and waits for them to complete.
-func startInstancesInteractive(cmdCtx *cmdcontext.CmdCtx, instances []running.InstanceCtx) error {
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
-	waitGroup := sync.WaitGroup{}
-	pickColor := tail.DefaultColorPicker()
-
-	for _, instCtx := range instances {
-		clr := pickColor()
-		prefix := running.GetAppInstanceName(instCtx) + " "
-
-		waitGroup.Add(1)
-
-		go func(inst running.InstanceCtx) {
-			_ = running.RunInstance(ctx, cmdCtx, inst,
-				running.NewColorizedPrefixWriter(os.Stdout, clr, prefix),
-				running.NewColorizedPrefixWriter(os.Stderr, clr, prefix))
-
-			waitGroup.Done()
-		}(instCtx)
+// watchdogStartArgs are the arguments of tt that go before those that run
+// the watchdog of an instance: the period of the integrity checks, when
+// they are on.
+func watchdogStartArgs(cmdCtx *cmdcontext.CmdCtx) []string {
+	if cmdCtx.Cli.IntegrityCheck == "" {
+		return nil
 	}
 
-	waitGroup.Wait()
-
-	return nil
-}
-
-// startInstances starts tarantool instances.
-func startInstances(cmdCtx *cmdcontext.CmdCtx, instances []running.InstanceCtx) error {
-	if startInteractive {
-		return startInstancesInteractive(cmdCtx, instances)
+	return []string{
+		"--integrity-check-period",
+		//nolint:gosec // G115: the period is passed on exactly as tt has always formatted it.
+		strconv.FormatUint(uint64(cmdCtx.Cli.IntegrityCheckPeriod), 10),
 	}
-
-	return startInstancesUnderWatchdog(cmdCtx, instances)
 }
 
 // internalStartModule is a default start module.
@@ -153,45 +128,59 @@ func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	if canStart, err := running.IsAbleToStartInstances(instances); !canStart {
-		return err
-	}
+	return startResolved(cmdCtx, instances)
+}
 
-	if !watchdog {
-		return startInstances(cmdCtx, instances)
-	}
-
-	if len(instances) != 1 {
+// startResolved starts instances, resolved by tt instance start or anew by
+// tt instance restart, as the flags of tt instance start say: in the
+// background, in the foreground, or as the watchdog of one instance, of the
+// background or of the foreground.
+func startResolved(cmdCtx *cmdcontext.CmdCtx, instances []running.InstanceCtx) error {
+	if watchdog && len(instances) != 1 {
 		return util.NewArgError("the watchdog runs one instance")
+	}
+
+	// The watchdog of the foreground has been checked by tt in the
+	// foreground, whose output its own would repeat.
+	if !watchdog || !startForeground {
+		canStart, err := running.IsAbleToStartInstances(instances)
+		if !canStart {
+			return err
+		}
+	}
+
+	switch {
+	case !watchdog && startForeground:
+		return startInstancesForeground(cmdCtx, instances)
+	case !watchdog:
+		return startInstancesUnderWatchdog(cmdCtx, instances)
 	}
 
 	cmdCtx.Cli.IntegrityCheckPeriod = integrityCheckPeriodOf(&cmdCtx.Cli)
 
+	if startForeground {
+		return startForegroundWatchdog(cmdCtx, &instances[0])
+	}
+
 	return running.Start(context.Background(), cmdCtx, &instances[0])
 }
 
-// startOptions are the options tt start resolves its targets with. The
-// watchdog of an instance gets the scope, the template and the application
-// directory the instance was resolved with, so that it runs it from the
-// application directory the command that started it found
+// startOptions are the options tt instance start resolves its targets with.
+// The watchdog of an instance gets the scope, the template and the
+// application directory the instance was resolved with, so that it runs it
+// from the application directory the command that started it found
 // (running.StartWatchdog).
 func startOptions(cmdCtx *cmdcontext.CmdCtx) (app.Options, error) {
-	opts, err := instanceOptions(cmdCtx)
-	if err != nil {
-		return app.Options{}, err
-	}
-
-	if watchdogPin.dir != "" && !watchdog {
+	if watchdogDir != "" && !watchdog {
 		return app.Options{}, util.NewArgError(errPinWithoutWatchdog.Error())
 	}
 
-	opts.Scope, err = app.ParseScope(watchdogPin.scope)
+	opts, err := instanceTargetOptions(cmdCtx)
 	if err != nil {
 		return app.Options{}, err
 	}
 
-	opts.Template = watchdogPin.template
-	opts.Dir = watchdogPin.dir
+	opts.Dir = watchdogDir
 
 	return opts, nil
 }

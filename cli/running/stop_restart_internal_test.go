@@ -110,8 +110,8 @@ func TestApplyStopSettings(t *testing.T) {
 	}
 }
 
-// TestStopWait pins that tt stop waits for an instance at least as long as
-// its record lets it take to stop.
+// TestStopWait pins that tt instance stop waits for an instance at least as
+// long as its record lets it take to stop.
 func TestStopWait(t *testing.T) {
 	margin := process_utils.TerminationTimeout - instanceStopTimeout
 

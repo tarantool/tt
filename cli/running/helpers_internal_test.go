@@ -70,7 +70,7 @@ type specRun struct {
 	waitErr error
 }
 
-// startSpec runs spec once, as tt start --interactive does.
+// startSpec runs spec once, without a supervisor, as a process of the test.
 func startSpec(t *testing.T, ctx context.Context, spec supervisor.Spec) *specRun {
 	t.Helper()
 

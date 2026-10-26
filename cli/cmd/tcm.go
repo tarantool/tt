@@ -172,8 +172,8 @@ func startTcmInteractive(logLevel string) error {
 }
 
 // tcmWatchdogOpts are the options of the watchdog of TCM: the pid files in
-// the working directory, and the integrity check period that tt start would
-// use.
+// the working directory, and the integrity check period that
+// tt instance start would use.
 func tcmWatchdogOpts(cmdCtx *cmdcontext.CmdCtx, executable string) tcmCmd.WatchdogOpts {
 	repository := cmdCtx.Integrity.Repository
 

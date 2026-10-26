@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -11,15 +9,12 @@ import (
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/running"
-	"github.com/tarantool/tt/v3/cli/util"
 )
 
-var (
-	forceKill bool
-	dumpQuit  bool
-)
+// dumpQuit is --dump of tt instance kill: quit with a dump instead.
+var dumpQuit bool
 
-// NewKillCmd creates kill command.
+// NewKillCmd creates the kill command of tt instance.
 func NewKillCmd() *cobra.Command {
 	killCmd := &cobra.Command{
 		Use:   "kill " + instanceTargetsUsage,
@@ -30,27 +25,19 @@ func NewKillCmd() *cobra.Command {
 			args []string,
 			toComplete string,
 		) ([]string, cobra.ShellCompDirective) {
-			return internal.ValidArgsFunction(&cmdCtx, cmd, toComplete,
-				internal.Active)
+			return internal.ValidArgsFunction(&cmdCtx, cmd, toComplete, internal.Active)
 		},
 	}
 
-	killCmd.Flags().BoolVarP(&forceKill, "force", "f", false, "do not ask for confirmation")
+	addInstanceFlags(killCmd)
+	addYesFlag(killCmd)
 	killCmd.Flags().BoolVarP(&dumpQuit, "dump", "d", false, "quit with dump")
 
 	return killCmd
 }
 
-func askConfirmation(args []string) (bool, error) {
-	if forceKill {
-		return true, nil
-	}
-
-	return util.AskConfirm(os.Stdin, "Kill "+killTargets(args)+"?")
-}
-
-// killTargets names what args, the targets of tt kill, kill for the prompt:
-// all instances, the instances of an application or one instance.
+// killTargets names what args, the targets of tt instance kill, kill for the
+// prompt: all instances, the instances of an application or one instance.
 func killTargets(args []string) string {
 	targets, err := app.ParseTargets(args)
 
@@ -73,26 +60,24 @@ func internalKillModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	confirm, err := askConfirmation(args)
+	confirmed, err := confirm("Kill " + killTargets(args) + "?")
 	if err != nil {
-		return fmt.Errorf("error asking for confirmation: %w", err)
+		return err
 	}
 
-	if !confirm {
+	if !confirmed {
 		return nil
 	}
 
 	for _, run := range instances {
 		if dumpQuit {
 			err = running.Quit(run)
-			if err != nil {
-				log.Infof(err.Error())
-			}
 		} else {
 			err = running.Kill(run)
-			if err != nil {
-				log.Infof(err.Error())
-			}
+		}
+
+		if err != nil {
+			log.Infof(err.Error())
 		}
 	}
 

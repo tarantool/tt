@@ -17,8 +17,8 @@ var (
 
 // commandJSON describes the tt command sent using the HTTP API.
 type commandJSON struct {
-	// Name is a name of the command.
-	// Now available: start, stop, status, restart.
+	// Name is a name of the top-level command the daemon runs as
+	// tt <Name> <Params...>, such as instance for tt instance start.
 	Name string `json:"command_name"`
 	// Params are command parameters.
 	Params []string `json:"params"`

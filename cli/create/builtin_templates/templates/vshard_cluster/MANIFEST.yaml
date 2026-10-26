@@ -4,7 +4,7 @@ follow-up-message: |
   Build and start '{{ .name }}' application:
       $ cd {{ .name }}
       $ tt package build
-      $ tt start
+      $ tt instance start
 
   Pay attention that default passwords were generated,
   you can change it in .templates/default/config.yaml.

@@ -14,32 +14,24 @@ COMMANDS[0m
   backup-id   Print an identifier for a new backup
   binary      Manage binaries and SDK bundles
   cat         Print into stdout the contents of .snap/.xlog FILE(s)
-  check       Check an application file for syntax errors
-  clean       Clean instance(s) files
   cluster     Manage cluster configuration
   completion  Generate autocomplete for a specified shell. Supported shell type:
               bash | zsh | fish
-  connect     Connect to the tarantool instance
+  connect     Connect to the tarantool instance (tt instance connect)
   coredump    Perform manipulations with the tarantool coredumps
   create      Create an application from a template
   daemon      Perform manipulations with the tt daemon (experimental)
   help        Help about any command
-  kill        Kill tarantool instance(s)
-  log         Get logs of instance(s)
-  logrotate   Rotate logs of a started tarantool instance(s)
+  instance    Manage the instances of applications
   new         Create a skeleton app.manifest.toml in the current directory
   package     Manage tt manifest packages
   play        Play the contents of .snap/.xlog FILE(s) to another Tarantool
               instance
   registry    Inspect the rock servers packages are resolved against
   replicaset  Manage replicasets
-  restart     Restart tarantool instance(s)
   restore     Restore a Tarantool cluster from a backup (PITR)
   rocks       LuaRocks package manager
   run         Run the current package under its Tarantool
-  start       Start tarantool instance(s)
-  status      Status of the tarantool instance(s)
-  stop        Stop tarantool instance(s)
   tcm         Manage tcm application
   test        Build the current package and run its tests
   version     Show Tarantool CLI EE version information

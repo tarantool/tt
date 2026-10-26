@@ -369,10 +369,10 @@ func runningInstance(t *testing.T, inst string, kind instances.Kind) running.Ins
 	return ctx
 }
 
-// TestStatusExternal pins that tt status shows the state of the process of
-// an external process and asks it nothing more: no alert about a console it
-// does not have, while a running Tarantool instance without its console gets
-// one.
+// TestStatusExternal pins that tt instance status shows the state of the
+// process of an external process and asks it nothing more: no alert about a
+// console it does not have, while a running Tarantool instance without its
+// console gets one.
 func TestStatusExternal(t *testing.T) {
 	printer := &recordingPrinter{}
 
@@ -439,5 +439,5 @@ func TestStatusOrphan(t *testing.T) {
 	assert.Equal(t, severityError, worker.Alerts[0].Severity)
 	assert.Contains(t, worker.Alerts[0].Message, strconv.Itoa(process.Process.Pid))
 	assert.Contains(t, worker.Alerts[0].Message, "runs without its watchdog")
-	assert.Contains(t, worker.Alerts[0].Message, "tt kill myapp:worker-1")
+	assert.Contains(t, worker.Alerts[0].Message, "tt instance kill myapp:worker-1")
 }

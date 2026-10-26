@@ -27,6 +27,8 @@ func NewCheckCmd() *cobra.Command {
 		},
 	}
 
+	addInstanceFlags(checkCmd)
+
 	return checkCmd
 }
 

@@ -277,14 +277,16 @@ func loadPair(
 // runs in the application directory, so that relative paths in its config
 // mean the same as everywhere else in the application; and tt makes up its
 // command line. workdir and args in its record would be silently ignored,
-// which is the tt2 behaviour users complained about, so they are refused.
-// So is logrotate_signal: tarantool reopens its log on SIGHUP, which tt
-// logrotate always sends it. Allowing them later breaks no description.
+// which is the tt2 behaviour users complained about, so they are refused. So
+// is logrotate_signal: tarantool reopens its log on SIGHUP, which
+// tt instance logrotate always sends it. Allowing them later breaks no
+// description.
 func checkFields(pair Pair, records []instances.Instance) error {
 	const (
 		runs      = "a Tarantool instance runs in the application directory"
 		arguments = "a Tarantool instance runs with the arguments tt gives it"
-		logrotate = "a Tarantool instance reopens its log on SIGHUP, which tt logrotate sends it"
+		logrotate = "a Tarantool instance reopens its log on SIGHUP, " +
+			"which tt instance logrotate sends it"
 	)
 
 	var errs []error
