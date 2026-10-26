@@ -559,6 +559,10 @@ for machine-readable output.
   selected environment root and no longer creates a symlink in
   `instances.enabled`.
 - `tt enable` and `tt instances` commands removed.
+- `tt cfg`, `tt cfg dump` and `tt env` commands removed along with
+  `tt.yaml`: there is no tt environment left to print or to put on `PATH`.
+  `source .env/activate.sh`, which `tt binary install` creates in a project,
+  puts the binaries of the project on `PATH` instead of `. <(tt env)`.
 - `tt run` now runs the package in the current directory rather than an
   instance of a tt environment. The directory must hold `app.manifest.toml`; no
   `tt.yaml` and no tt environment are needed, and none is looked for. The

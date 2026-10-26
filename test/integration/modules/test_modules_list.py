@@ -203,7 +203,7 @@ def test_list_available_modules_version_and_path(tt_cmd, tmp_path):
 @pytest.mark.parametrize(
     "module, args",
     [
-        pytest.param("env", ["--flag", "arg"], id="command"),
+        pytest.param("cat", ["--flag", "arg"], id="command"),
         pytest.param("cluster", ["show", "app", "--flag"], id="group"),
     ],
 )

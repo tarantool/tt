@@ -14,7 +14,6 @@ COMMANDS[0m
   backup-id   Print an identifier for a new backup
   binary      Manage binaries and SDK bundles
   cat         Print into stdout the contents of .snap/.xlog FILE(s)
-  cfg         Environment configuration management utility
   check       Check an application file for syntax errors
   clean       Clean instance(s) files
   cluster     Manage cluster configuration
@@ -24,7 +23,6 @@ COMMANDS[0m
   coredump    Perform manipulations with the tarantool coredumps
   create      Create an application from a template
   daemon      Perform manipulations with the tt daemon (experimental)
-  env         Add current environment binaries location to the PATH variable
   help        Help about any command
   kill        Kill tarantool instance(s)
   log         Get logs of instance(s)
@@ -1595,32 +1593,6 @@ EXAMPLES[0m
   --timestamp=1731592956.818
   tt cat --recursive /path/to/dir1 /path/to/dir2
 
-=== tt cfg (via tt help: flag parsing disabled)
-Environment configuration management utility
-
-[0;1;39mUSAGE[0m
-  tt cfg [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
-  dump        Print environment configuration
-[0;1;39m
-EXAMPLES[0m
-  # Print tt environment configuration:
-
-	$ tt cfg dump
-
-Use "tt cfg <command> --help" for more information about a command.
-
-=== tt cfg dump --help
-Print environment configuration
-
-[0;1;39mUSAGE[0m
-  tt cfg dump [flags]
-[0;1;39m
-FLAGS[0m
-  -h, --help   help for dump
-  -r, --raw    Display the raw contents of tt environment config.
-
 === tt check --help
 Check the Lua file each instance runs, app.file of its config, for
 syntax errors, with the tarantool the instance runs on.
@@ -2672,16 +2644,6 @@ stop tt daemon
 [0;1;39m
 FLAGS[0m
   -h, --help   help for stop
-
-=== tt env --help
-Add current environment binaries location to the PATH variable.
-Also sets TARANTOOL_DIR variable.
-
-[0;1;39mUSAGE[0m
-  tt env [flags]
-[0;1;39m
-FLAGS[0m
-  -h, --help   help for env
 
 === tt errors --help
 Exit codes of tt commands.
@@ -5235,7 +5197,6 @@ backup	Manage Tarantool backups (PITR)
 backup-id	Print an identifier for a new backup
 binary	Manage binaries and SDK bundles
 cat	Print into stdout the contents of .snap/.xlog FILE(s)
-cfg	Environment configuration management utility
 check	Check an application file for syntax errors
 clean	Clean instance(s) files
 cluster	Manage cluster configuration
@@ -5244,7 +5205,6 @@ connect	Connect to the tarantool instance
 coredump	Perform manipulations with the tarantool coredumps
 create	Create an application from a template
 daemon	Perform manipulations with the tt daemon (experimental)
-env	Add current environment binaries location to the PATH variable
 help	Help about any command
 kill	Kill tarantool instance(s)
 log	Get logs of instance(s)
