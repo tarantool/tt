@@ -2,14 +2,17 @@ package status
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -395,4 +398,46 @@ func TestStatusExternal(t *testing.T) {
 	assert.Equal(t, defaultModuleStatus, worker.Config)
 	assert.Equal(t, defaultModuleStatus, worker.Box)
 	assert.Equal(t, defaultModuleStatus, worker.Upstream)
+}
+
+// TestStatusOrphan pins that an external process whose watchdog is gone
+// while its process runs on is not shown running: nothing supervises it. An
+// alert names the process and how to stop it.
+func TestStatusOrphan(t *testing.T) {
+	process := exec.CommandContext(context.Background(), "sleep", "60")
+
+	process.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	require.NoError(t, process.Start())
+
+	t.Cleanup(func() {
+		_ = process.Process.Kill()
+		_ = process.Wait()
+	})
+
+	dir := t.TempDir()
+	inst := running.InstanceCtx{
+		AppName:        "myapp",
+		InstName:       "worker-1",
+		Kind:           instances.KindExternal,
+		PIDFile:        filepath.Join(dir, "tt.pid"),
+		ProcessPIDFile: filepath.Join(dir, "process.pid"),
+	}
+
+	require.NoError(t, os.WriteFile(inst.ProcessPIDFile,
+		[]byte(strconv.Itoa(process.Process.Pid)), 0o600))
+
+	printer := &recordingPrinter{}
+
+	require.NoError(t, Status(running.RunningCtx{Instances: []running.InstanceCtx{inst}},
+		printer, DefaultInstanceTimeout))
+
+	worker := printer.printed["myapp:worker-1"]
+	require.NotNil(t, worker)
+	assert.Equal(t, process_utils.ProcStateStopped.Status, worker.Status)
+	assert.Nil(t, worker.PID)
+	require.Len(t, worker.Alerts, 1)
+	assert.Equal(t, severityError, worker.Alerts[0].Severity)
+	assert.Contains(t, worker.Alerts[0].Message, strconv.Itoa(process.Process.Pid))
+	assert.Contains(t, worker.Alerts[0].Message, "runs without its watchdog")
+	assert.Contains(t, worker.Alerts[0].Message, "tt kill myapp:worker-1")
 }

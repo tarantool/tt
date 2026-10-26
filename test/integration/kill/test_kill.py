@@ -1,5 +1,7 @@
 import os
 import re
+import shutil
+import signal
 
 import pytest
 import tt_helper
@@ -249,3 +251,79 @@ tt_cluster_app_no_config = dict(
 )
 def test_kill_cluster_no_config(tt, tt_app, target):
     tt_helper.check_broken_pair(tt, tt_app, "kill", "-f", target)
+
+
+################################################################
+# External process left by its watchdog
+
+
+def process_alive(pid):
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+def read_pid(path):
+    with open(path) as f:
+        return int(f.read().strip())
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        pytest.param(["kill", "-f"], id="kill"),
+        pytest.param(["stop", "-y"], id="stop"),
+    ],
+)
+def test_external_orphan(tt_cmd, tmp_path, command):
+    # A watchdog killed by anything but tt kill leaves its external process
+    # running in a process group of its own. tt status does not show it
+    # running and points at it, tt start refuses to start a second one next
+    # to it, and tt kill and tt stop reach it by process.pid.
+    app_path = tmp_path / "app"
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "../start/external_app"), app_path)
+
+    worker = "app:worker"
+    run_dir = utils.inst_run_dir(app_path, "app", "worker")
+    pid_file = os.path.join(run_dir, utils.pid_file)
+    process_pid_file = os.path.join(run_dir, "process.pid")
+    process = None
+    try:
+        rc, _ = utils.run_command_and_get_output([tt_cmd, "start", worker], cwd=app_path)
+        assert rc == 0
+        assert utils.wait_files(5, [pid_file, process_pid_file])
+        process = read_pid(process_pid_file)
+
+        os.kill(read_pid(pid_file), signal.SIGKILL)
+        assert utils.wait_event(5, lambda: not process_alive(read_pid(pid_file)))
+        assert process_alive(process)
+
+        status_cmd = [tt_cmd, "status", worker, "--details"]
+        rc, out = utils.run_command_and_get_output(status_cmd, cwd=app_path)
+        assert rc == 0
+        assert "RUNNING" not in out.replace("NOT RUNNING", "")
+        assert f"(PID = {process}) runs without its watchdog" in out
+        assert f"tt kill {worker}" in out
+
+        rc, out = utils.run_command_and_get_output([tt_cmd, "start", worker], cwd=app_path)
+        assert rc == 1
+        assert "runs without its watchdog" in out
+        assert f"tt kill {worker}" in out
+        assert "Starting an instance" not in out
+
+        rc, out = utils.run_command_and_get_output([tt_cmd, *command, worker], cwd=app_path)
+        assert rc == 0
+        assert f"(PID = {process}), left without its watchdog, has been" in out
+        assert utils.wait_event(5, lambda: not process_alive(process))
+        assert not os.path.exists(process_pid_file)
+        assert not os.path.exists(pid_file)
+
+        rc, out = utils.run_command_and_get_output([tt_cmd, "status", worker], cwd=app_path)
+        assert rc == 0
+        assert utils.extract_status(out)[worker]["STATUS"] == "NOT RUNNING"
+    finally:
+        if process is not None and process_alive(process):
+            os.killpg(process, signal.SIGKILL)
+        utils.run_command_and_get_output([tt_cmd, "stop", "-y", worker], cwd=app_path)

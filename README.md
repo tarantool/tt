@@ -704,6 +704,11 @@ the record has one; `tt clean` removes the log and the data directory.
 external process: it is not a Tarantool instance. The instances start in the
 order of `instances.yaml`, and none waits for another to be ready.
 
+A process whose watchdog was killed by something else than `tt kill` runs on
+without it. `tt status` does not show it running and names it in an alert,
+`tt start` refuses to start a second one, and `tt stop` and `tt kill` stop it
+by `process.pid`.
+
 Records with `script`, Tarantool instances configured by their own script, are
 not supported yet.
 

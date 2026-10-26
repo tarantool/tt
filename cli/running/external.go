@@ -12,6 +12,7 @@ import (
 
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/app"
+	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/cli/running/internal/layout"
 	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/internal/instances"
@@ -38,7 +39,14 @@ var (
 	// errNotDirectory is wrapped by the error for a working directory that
 	// is a file.
 	errNotDirectory = errors.New("is not a directory")
+	// errOrphan is wrapped by the error for an external process whose
+	// process runs without its watchdog (Orphan).
+	errOrphan = errors.New("the process of an earlier start still runs")
 )
+
+// orphanPollInterval is how often tt stop and tt kill look whether the
+// process of an external process without its watchdog is gone.
+const orphanPollInterval = 50 * time.Millisecond
 
 // IsExternal reports whether inst is an external process, a record with
 // binary, rather than a Tarantool instance.
@@ -218,6 +226,158 @@ func externalSpec(inst *InstanceCtx, opts specOptions) (supervisor.Spec, error) 
 	}, nil
 }
 
+// leadsGroup reports whether the process pid leads its process group, as an
+// external process does (externalSpec).
+func leadsGroup(pid int) bool {
+	pgid, err := syscall.Getpgid(pid)
+
+	return err == nil && pgid == pid
+}
+
+// Orphan returns the pid of the process of the external process inst that
+// runs without its watchdog, or zero: tt.pid names no live watchdog, while
+// process.pid, which the watchdog wrote, names a live process that leads its
+// process group, as the process does.
+//
+// A watchdog killed by anything but tt kill leaves its process running in its
+// group, which killing the group of the watchdog does not reach. Such a
+// process is not the instance running, since nothing supervises it, and not
+// an instance stopped either: tt start refuses to start a second copy next
+// to it, tt stop and tt kill stop it, and tt status reports it.
+//
+// A pid that leads no group is not the process, which leads its own; a pid
+// reused by another group leader, which nothing tells from the process, is
+// taken for it.
+func Orphan(inst *InstanceCtx) int {
+	if inst.ProcessPIDFile == "" {
+		return 0
+	}
+
+	if process_utils.ProcessStatus(inst.PIDFile).Code == process_utils.ProcessRunningCode {
+		return 0
+	}
+
+	pid, alive, err := pidfile.Alive(inst.ProcessPIDFile)
+	if err != nil || !alive || !leadsGroup(pid) {
+		return 0
+	}
+
+	return pid
+}
+
+// checkOrphan refuses to start an external process whose process runs
+// without its watchdog (Orphan).
+func checkOrphan(inst *InstanceCtx) error {
+	pid := Orphan(inst)
+	if pid == 0 {
+		return nil
+	}
+
+	name := GetAppInstanceName(*inst)
+
+	return fmt.Errorf("instance %q of %q: %w: its process (PID = %d, %s) runs without "+
+		"its watchdog, and a start would run a second one; stop it with tt stop %s or "+
+		"tt kill %s, then start the instance", inst.InstName, inst.AppName, errOrphan, pid,
+		inst.ProcessPIDFile, name, name)
+}
+
+// stopOrphan stops the process pid of the external process of run that runs
+// without its watchdog (Orphan), as the watchdog would have stopped it: its
+// process group gets its stop signal, and SIGKILL if the process has not
+// exited by its stop timeout. The pid files the watchdog left go then.
+func stopOrphan(run *InstanceCtx, pid int) error {
+	sig := run.StopSignal
+	if sig == 0 {
+		sig = syscall.SIGTERM
+	}
+
+	timeout := run.StopTimeout
+	if timeout <= 0 {
+		timeout = instanceStopTimeout
+	}
+
+	err := syscall.Kill(-pid, sig)
+	if err != nil && !errors.Is(err, syscall.ESRCH) {
+		return fmt.Errorf("cannot stop the process group %d of %s: %w", pid,
+			GetAppInstanceName(*run), err)
+	}
+
+	if !waitGone(pid, timeout) {
+		log.Warnf("The process of %s (PID = %v) did not stop in %s, killing it.",
+			GetAppInstanceName(*run), pid, timeout)
+
+		_ = syscall.Kill(-pid, syscall.SIGKILL)
+		_ = waitGone(pid, killCleanupTimeout)
+	}
+
+	removeLeftPidFiles(run, pid)
+
+	log.Infof("The process of %s (PID = %v), left without its watchdog, has been stopped.",
+		GetAppInstanceName(*run), pid)
+
+	return nil
+}
+
+// killOrphan kills the process group of the process pid of the external
+// process of run that runs without its watchdog (Orphan), and removes the
+// pid files the watchdog left.
+func killOrphan(run *InstanceCtx, pid int) error {
+	err := syscall.Kill(-pid, syscall.SIGKILL)
+	if err != nil && !errors.Is(err, syscall.ESRCH) {
+		return fmt.Errorf("failed to kill the process group %d of %s: %w", pid,
+			GetAppInstanceName(*run), err)
+	}
+
+	_ = waitGone(pid, killCleanupTimeout)
+
+	removeLeftPidFiles(run, pid)
+
+	log.Infof("The process of %s (PID = %v), left without its watchdog, has been killed.",
+		GetAppInstanceName(*run), pid)
+
+	return nil
+}
+
+// waitGone waits up to timeout for the process pid to be gone, and reports
+// whether it is.
+func waitGone(pid int, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+
+	for {
+		alive, _ := process_utils.IsProcessAlive(pid)
+		if !alive {
+			return true
+		}
+
+		if time.Now().After(deadline) {
+			return false
+		}
+
+		time.Sleep(orphanPollInterval)
+	}
+}
+
+// removeLeftPidFiles removes the pid files a dead watchdog left: process.pid
+// while it names pid, the process just stopped, and tt.pid while it names a
+// process that is gone. A file that names something else is a newer one,
+// and stays.
+func removeLeftPidFiles(run *InstanceCtx, pid int) {
+	_, err := pidfile.RemoveFor(run.ProcessPIDFile, pid, killCleanupTimeout, nil)
+	if err != nil {
+		log.Warnf("cannot remove the pid file %q: %s", run.ProcessPIDFile, err)
+	}
+
+	watchdog, alive, err := pidfile.Alive(run.PIDFile)
+	if err != nil || watchdog == 0 || alive {
+		return
+	}
+
+	_, err = pidfile.RemoveFor(run.PIDFile, watchdog, killCleanupTimeout, nil)
+	if err != nil {
+		log.Warnf("cannot remove the pid file %q: %s", run.PIDFile, err)
+	}
+}
+
 // killProcess kills the process group of the external process of run, after
 // tt kill has killed the watchdog: the group of the watchdog does not hold
 // the process, which leads a group of its own (externalSpec).
@@ -242,14 +402,11 @@ func killProcess(run *InstanceCtx, wait time.Duration) {
 		return
 	}
 
-	if alive {
-		pgid, err := syscall.Getpgid(pid)
-		if err == nil && pgid == pid {
-			err = syscall.Kill(-pid, syscall.SIGKILL)
-			if err != nil {
-				log.Warnf("cannot kill the process group %d of %s: %s", pid,
-					GetAppInstanceName(*run), err)
-			}
+	if alive && leadsGroup(pid) {
+		err = syscall.Kill(-pid, syscall.SIGKILL)
+		if err != nil {
+			log.Warnf("cannot kill the process group %d of %s: %s", pid,
+				GetAppInstanceName(*run), err)
 		}
 	}
 

@@ -409,9 +409,18 @@ func StopAll(runs []InstanceCtx) error {
 	processes := make([]instanceProcess, 0, len(runs))
 
 	var stopErrors []error
+	type orphanProcess struct {
+		run InstanceCtx
+		pid int
+	}
+	var orphans []orphanProcess
 
 	for _, run := range runs {
 		name := GetAppInstanceName(run)
+		if pid := Orphan(&run); pid != 0 {
+			orphans = append(orphans, orphanProcess{run: run, pid: pid})
+			continue
+		}
 		pid, err := process_utils.InterruptProcess(run.PIDFile)
 
 		switch {
@@ -421,6 +430,12 @@ func StopAll(runs []InstanceCtx) error {
 			stopErrors = append(stopErrors, fmt.Errorf("failed to stop instance %s: %w", name, err))
 		default:
 			processes = append(processes, instanceProcess{name: name, pid: pid, wait: stopWait(&run)})
+		}
+	}
+
+	for _, orphan := range orphans {
+		if err := stopOrphan(&orphan.run, orphan.pid); err != nil {
+			stopErrors = append(stopErrors, err)
 		}
 	}
 
@@ -440,8 +455,14 @@ func StopAll(runs []InstanceCtx) error {
 }
 
 // Kill kills instance process: the process group of its watchdog, and the
-// process group of an external process, which is a group of its own.
+// process group of an external process, which is a group of its own, also
+// when its watchdog is gone (killOrphan).
 func Kill(run InstanceCtx) error {
+	orphan := Orphan(&run)
+	if orphan != 0 {
+		return killOrphan(&run, orphan)
+	}
+
 	pid, err := process_utils.KillProcessGroup(run.PIDFile)
 	if err != nil {
 		return fmt.Errorf("failed to kill the processes: %w", err)
@@ -614,7 +635,8 @@ func GetAppInstanceName(instance InstanceCtx) string {
 // IsAbleToStartInstances checks if it is possible to start instances: each
 // passes the checks before a start and its application has a tarantool,
 // whose warnings are logged once per application. An external process needs
-// no tarantool, only its binary (checkExternal).
+// no tarantool, only its binary (checkExternal), and must not run already
+// without its watchdog (Orphan): a second copy would start next to it.
 //
 // The command that starts the instances calls it before it detaches their
 // watchdogs, so that what stops an instance from starting reaches the user
@@ -631,6 +653,11 @@ func IsAbleToStartInstances(instances []InstanceCtx) (bool, error) {
 		}
 
 		if IsExternal(inst) {
+			err = checkOrphan(inst)
+			if err != nil {
+				return false, err
+			}
+
 			continue
 		}
 
