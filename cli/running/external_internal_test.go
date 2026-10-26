@@ -314,8 +314,7 @@ func TestExternalStartChecks(t *testing.T) {
 }
 
 // TestCollectExternal pins that the commands find an external process among
-// the instances of an application, in the order of the description, while a
-// record that runs its script is still refused.
+// the instances of an application, in the order of the description.
 func TestCollectExternal(t *testing.T) {
 	setScopeRoots(t)
 
@@ -331,8 +330,10 @@ func TestCollectExternal(t *testing.T) {
 		assert.True(t, IsExternal(&insts[0]), target)
 	}
 
-	_, err := collect(t, app.Options{Start: dir}, "myapp:*")
-	require.ErrorIs(t, err, ErrUnsupportedKind)
+	insts, err := collect(t, app.Options{Start: dir}, "myapp:*")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"myapp:worker-1", "myapp:storage-1", "myapp:legacy-1"},
+		instNames(insts))
 }
 
 // TestReloadRefusesAnotherKind pins that the watchdog does not run an
