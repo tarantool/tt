@@ -304,9 +304,9 @@ func TestExternalStartChecks(t *testing.T) {
 			require.ErrorContains(t, err, `instance "worker-1" of "myapp"`)
 			require.ErrorIs(t, specErr, test.want)
 
-			err = superviseInstance(nil, &inst, func() (InstanceCtx, error) {
+			_, err = superviseInstance(nil, &inst, func() (InstanceCtx, error) {
 				return inst, nil
-			})
+			}, nil)
 			require.ErrorIs(t, err, test.want)
 			assert.NoDirExists(t, fixture.root, "nothing is created")
 		})
@@ -383,7 +383,7 @@ func TestRequireTarantoolRecord(t *testing.T) {
 		"myapp:worker-1 is an external process (binary: python3): not a Tarantool instance")
 }
 
-// TestQuitRefusesExternal pins that tt kill --dump does not signal an
+// TestQuitRefusesExternal pins that tt instance kill --dump does not signal an
 // external process, which would stop without a dump.
 func TestQuitRefusesExternal(t *testing.T) {
 	run := killRun(t)
@@ -458,8 +458,8 @@ func orphanRun(t *testing.T, pid int) *InstanceCtx {
 
 // TestOrphan pins what counts as the process of an external process left
 // running by its watchdog: a live group leader in process.pid while tt.pid
-// names no live watchdog; and that tt start refuses to start a second copy
-// next to it, naming tt stop and tt kill.
+// names no live watchdog; and that tt instance start refuses to start a
+// second copy next to it, naming tt instance stop and tt instance kill.
 func TestOrphan(t *testing.T) {
 	leader, _ := orphanProcess(t, "sleep", "60")
 
@@ -469,8 +469,8 @@ func TestOrphan(t *testing.T) {
 	canStart, err := IsAbleToStartInstances([]InstanceCtx{*run})
 	assert.False(t, canStart)
 	require.ErrorIs(t, err, errOrphan)
-	require.ErrorContains(t, err, "tt kill myapp:worker-1")
-	require.ErrorContains(t, err, "tt stop myapp:worker-1")
+	require.ErrorContains(t, err, "tt instance kill myapp:worker-1")
+	require.ErrorContains(t, err, "tt instance stop myapp:worker-1")
 	require.ErrorContains(t, err, strconv.Itoa(leader))
 
 	// tt.pid missing altogether.
@@ -498,9 +498,9 @@ func TestOrphan(t *testing.T) {
 	assert.Zero(t, Orphan(run))
 }
 
-// TestKillOrphan pins that tt kill kills the process group of an external
-// process whose watchdog is gone, and removes the pid files the watchdog
-// left.
+// TestKillOrphan pins that tt instance kill kills the process group of an
+// external process whose watchdog is gone, and removes the pid files the
+// watchdog left.
 func TestKillOrphan(t *testing.T) {
 	grandchildFile := filepath.Join(t.TempDir(), "grandchild")
 	leader, done := orphanProcess(t, "sh", "-c",
@@ -515,15 +515,15 @@ func TestKillOrphan(t *testing.T) {
 
 	<-done
 	assert.Eventually(t, func() bool { return gone(grandchild) }, 20*time.Second,
-		10*time.Millisecond, "the grandchild survived tt kill")
+		10*time.Millisecond, "the grandchild survived tt instance kill")
 	assert.NoFileExists(t, run.ProcessPIDFile)
 	assert.NoFileExists(t, run.PIDFile)
 	assert.Equal(t, process_utils.ProcessStoppedCode, Status(run).Code)
 }
 
-// TestStopOrphan pins that tt stop stops the process group of an external
-// process whose watchdog is gone as the watchdog would: with its stop
-// signal, and with SIGKILL once its stop timeout is over.
+// TestStopOrphan pins that tt instance stop stops the process group of an
+// external process whose watchdog is gone as the watchdog would: with its
+// stop signal, and with SIGKILL once its stop timeout is over.
 func TestStopOrphan(t *testing.T) {
 	t.Run("stops", func(t *testing.T) {
 		leader, done := orphanProcess(t, "sleep", "60")

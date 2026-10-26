@@ -334,7 +334,7 @@ func gone(pid int) bool {
 }
 
 // runningWatchdog is the watchdog of an external process, run by Start in a
-// goroutine of the test, as tt start --watchdog runs it.
+// goroutine of the test, as tt instance start --watchdog runs it.
 type runningWatchdog struct {
 	t    *testing.T
 	inst *InstanceCtx
@@ -361,8 +361,8 @@ func startWatchdog(t *testing.T, inst *InstanceCtx) *runningWatchdog {
 	return watchdog
 }
 
-// stop stops the watchdog as tt stop does, with SIGINT, and waits for Start
-// to return.
+// stop stops the watchdog as tt instance stop does, with SIGINT, and waits
+// for Start to return.
 func (watchdog *runningWatchdog) stop() {
 	watchdog.t.Helper()
 
@@ -377,12 +377,12 @@ func (watchdog *runningWatchdog) log() string {
 	return string(data)
 }
 
-// TestExternalProcessStartStop starts an external process as tt start does
-// and stops it as tt stop does: it runs the binary with the arguments, the
-// env and the working directory of its record in a process group of its own,
-// its output goes to tt.log, its watchdog writes its pid file, nothing is
-// created for data, and it gets its stop signal rather than the SIGINT that
-// stopped the watchdog.
+// TestExternalProcessStartStop starts an external process as
+// tt instance start does and stops it as tt instance stop does: it runs the
+// binary with the arguments, the env and the working directory of its record
+// in a process group of its own, its output goes to tt.log, its watchdog
+// writes its pid file, nothing is created for data, and it gets its stop
+// signal rather than the SIGINT that stopped the watchdog.
 func TestExternalProcessStartStop(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -697,8 +697,8 @@ func TestExternalProcessFromPath(t *testing.T) {
 	assert.NoDirExists(t, fixture.root)
 }
 
-// TestExternalProcessLogrotate pins that tt logrotate reopens tt.log of an
-// external process, where its output goes, and sends the process its
+// TestExternalProcessLogrotate pins that tt instance logrotate reopens tt.log
+// of an external process, where its output goes, and sends the process its
 // logrotate_signal, the SIGHUP the watchdog got being no signal of the
 // process; without logrotate_signal the process gets nothing and goes on.
 func TestExternalProcessLogrotate(t *testing.T) {
@@ -754,9 +754,10 @@ func TestExternalProcessLogrotate(t *testing.T) {
 	}
 }
 
-// TestKillExternalProcess pins that tt kill kills the process group of an
-// external process along with the group of its watchdog: the process leads
-// a group of its own, which killing the group of the watchdog leaves alone.
+// TestKillExternalProcess pins that tt instance kill kills the process group
+// of an external process along with the group of its watchdog: the process
+// leads a group of its own, which killing the group of the watchdog leaves
+// alone.
 func TestKillExternalProcess(t *testing.T) {
 	run := killRun(t)
 
@@ -791,7 +792,7 @@ func TestKillExternalProcess(t *testing.T) {
 	assert.Equal(t, syscall.SIGKILL, termSignalOf(process.ProcessState))
 
 	assert.Eventually(t, func() bool { return gone(grandchild) }, 20*time.Second,
-		10*time.Millisecond, "the grandchild survived tt kill")
+		10*time.Millisecond, "the grandchild survived tt instance kill")
 	assert.NoFileExists(t, run.PIDFile)
 	assert.NoFileExists(t, run.ProcessPIDFile)
 }

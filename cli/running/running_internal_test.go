@@ -26,7 +26,9 @@ func (mock *mockRepository) ValidateAll() error {
 }
 
 // TestWatchdogArgs pins the arguments the watchdog of an instance is
-// started with: its target and what pins its application directory.
+// started with: tt instance start --watchdog, its target and what pins its
+// application directory, and --foreground for the watchdog of
+// tt instance start --foreground.
 func TestWatchdogArgs(t *testing.T) {
 	inst := InstanceCtx{
 		AppName: "myapp", InstName: "storage-1", Scope: app.ScopeSystem,
@@ -34,21 +36,28 @@ func TestWatchdogArgs(t *testing.T) {
 	}
 
 	assert.Equal(t, []string{
-		"start", "--watchdog", "--scope", "system",
+		"instance", "start", "--watchdog", "--scope", "system",
 		"--app-dir", "/opt/tarantool/versions/myapp/myapp_1.0.0", "myapp:storage-1",
-	}, watchdogArgs(&inst))
+	}, watchdogArgs(&inst, false))
 
 	inst.Template = "big"
 
 	assert.Equal(t, []string{
-		"start", "--watchdog", "--scope", "system",
+		"instance", "start", "--watchdog", "--scope", "system",
 		"--app-dir", "/opt/tarantool/versions/myapp/myapp_1.0.0", "--template", "big",
 		"myapp:storage-1",
-	}, watchdogArgs(&inst))
+	}, watchdogArgs(&inst, false))
+
+	// The watchdog of tt instance start --foreground.
+	assert.Equal(t, []string{
+		"instance", "start", "--watchdog", "--scope", "system",
+		"--app-dir", "/opt/tarantool/versions/myapp/myapp_1.0.0", "--template", "big",
+		"--foreground", "myapp:storage-1",
+	}, watchdogArgs(&inst, true))
 }
 
-// TestAppFile pins the application file tt check checks: app.file of the
-// config, resolved against the application directory.
+// TestAppFile pins the application file tt instance check checks: app.file of
+// the config, resolved against the application directory.
 func TestAppFile(t *testing.T) {
 	fixture := newAppFixture(t, app.ScopeProject, appFiles("", "app:\n  file: src/app.lua\n"))
 	inst := fixture.instanceCtx(t)
@@ -66,8 +75,8 @@ func TestAppFile(t *testing.T) {
 	assert.False(t, found)
 }
 
-// TestCheck pins that tt check runs the syntax check with the tarantool of
-// the application.
+// TestCheck pins that tt instance check runs the syntax check with the
+// tarantool of the application.
 func TestCheck(t *testing.T) {
 	fixture := newAppFixture(t, app.ScopeProject, appFiles("", "app:\n  file: app.lua\n"))
 	inst := fixture.instanceCtx(t)

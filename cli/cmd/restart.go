@@ -1,18 +1,13 @@
 package cmd
 
 import (
-	"os"
-
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
-	"github.com/tarantool/tt/v3/cli/util"
 )
 
-var autoYes bool
-
-// NewRestartCmd creates start command.
+// NewRestartCmd creates the restart command of tt instance.
 func NewRestartCmd() *cobra.Command {
 	restartCmd := &cobra.Command{
 		Use:   "restart " + instanceTargetsUsage,
@@ -23,13 +18,12 @@ func NewRestartCmd() *cobra.Command {
 			args []string,
 			toComplete string,
 		) ([]string, cobra.ShellCompDirective) {
-			return internal.ValidArgsFunction(&cmdCtx, cmd, toComplete,
-				internal.Active)
+			return internal.ValidArgsFunction(&cmdCtx, cmd, toComplete, internal.Active)
 		},
 	}
 
-	restartCmd.Flags().BoolVarP(&autoYes, "yes", "y", false,
-		`Automatic yes to confirmation prompt`)
+	addInstanceFlags(restartCmd)
+	addYesFlag(restartCmd)
 
 	return restartCmd
 }
@@ -43,25 +37,18 @@ func internalRestartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	if !autoYes {
-		confirmed, err := util.AskConfirm(os.Stdin, "Confirm restart of "+describeTargets(args))
-		if err != nil {
-			return err
-		}
-
-		if !confirmed {
-			log.Info("Restart is cancelled.")
-
-			return nil
-		}
-	}
-
-	stopInstances(instances)
-
-	err = internalStartModule(cmdCtx, args)
+	confirmed, err := confirm("Confirm restart of " + describeTargets(args))
 	if err != nil {
 		return err
 	}
 
-	return nil
+	if !confirmed {
+		log.Info("Restart is cancelled.")
+
+		return nil
+	}
+
+	stopInstances(instances)
+
+	return internalStartModule(cmdCtx, args)
 }

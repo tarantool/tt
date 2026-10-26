@@ -109,8 +109,8 @@ func TestTcmWatchdogOpts(t *testing.T) {
 }
 
 // TestTcmWatchdogCheckPeriodDefault pins that with integrity checking on and
-// no --integrity-check-period, TCM is checked as often as tt start checks an
-// instance, and not at all with integrity checking off.
+// no --integrity-check-period, TCM is checked as often as tt instance start
+// checks an instance, and not at all with integrity checking off.
 func TestTcmWatchdogCheckPeriodDefault(t *testing.T) {
 	cmdCtx := &cmdcontext.CmdCtx{}
 

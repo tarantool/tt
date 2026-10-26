@@ -72,8 +72,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt connect` and connector-based `tt replicaset` commands: add
   `--sslpassword` and `--sslpasswordfile` to decrypt private SSL keys, and
   `--connect-timeout` to bound binary connection establishment (default: 1s).
-- `tt status`: add `--instance-timeout` to limit status collection for each
-  instance; the default is 5 seconds, and `0` disables the timeout.
+- `tt instance status`: add `--instance-timeout` to limit status collection
+  for each instance; the default is 5 seconds, and `0` disables the timeout.
 - `tt binary install tt`: install Community release binaries from GitHub Releases
   on Linux amd64/arm64 and macOS amd64 when available. Other platforms and
   releases without matching archives build from source automatically, sharing
@@ -392,12 +392,13 @@ for machine-readable output.
 
 - The instance commands read the cluster config of an application, a
   centralized one included, once per command rather than once per instance.
-- `tt status`: collect instance statuses in parallel.
-- `tt stop` and `tt restart`: interrupt all selected instance supervisors before
-  waiting for them to exit, allowing instances to shut down in parallel.
-- `tt log -f` / `tt tcm log --follow`: only complete lines are printed. A
-  half-written line stays buffered until its newline arrives instead of
-  being split into two records.
+- `tt instance status`: collect instance statuses in parallel.
+- `tt instance stop` and `tt instance restart`: interrupt all selected instance
+  supervisors before waiting for them to exit, allowing instances to shut down
+  in parallel.
+- `tt instance logs --follow` / `tt tcm log --follow`: only complete lines
+  are printed. A half-written line stays buffered until its newline arrives
+  instead of being split into two records.
 - `tt start`, `stop`, `status`, `restart`, `kill`, `log`, `logrotate`,
   `check`, `clean`, `connect` and `play`, the application targets of
   `tt replicaset` and `tt cluster`: the instance commands no longer use
@@ -732,13 +733,13 @@ for machine-readable output.
 - `tt cluster`: honor `https://` when connecting to etcd and Tarantool Config
   Storage, enabling TLS even without explicit `ssl_*` URL parameters. Preserve
   HTTPS for configured etcd endpoints passed to go-storage.
-- `tt status`: include replication errors in instance status alerts.
-- `tt log -f`: possible line loss/duplication on rename, hanging after
-  a watched log directory is removed, and lines written just as the
-  file was read to the end not showing up until the next write.
-- `tt log -f` / `tt tcm log --follow`: a line could be delivered twice
-  right after a log rotation, and the follow could stall, never picking
-  up the rotated file (go-tail v1.4.15).
+- `tt instance status`: include replication errors in instance status alerts.
+- `tt instance logs --follow`: possible line loss/duplication on rename,
+  hanging after a watched log directory is removed, and lines written just as
+  the file was read to the end not showing up until the next write.
+- `tt instance logs --follow` / `tt tcm log --follow`: a line could be
+  delivered twice right after a log rotation, and the follow could stall,
+  never picking up the rotated file (go-tail v1.4.15).
 - `tt binary install`: change active executable and header links only after
   preparing all installed files, scope directories, and project environment
   scripts. This also applies to existing installations, SDKs, and `--from-build`.
@@ -793,8 +794,10 @@ for machine-readable output.
   `tt <module>` next to the name of every external module, which showed up
   at `tt <TAB>` and after a `t`, and bash and zsh no longer fall back to file
   names there when no command matches: only commands are offered.
-- `tt clean`: fixed showing files to delete before confirmation. Verbose option
-  added.
+- `tt instance clean`: show the files it is going to remove, by instance and
+  directory, before asking for confirmation, and every one of them with `-V`
+  (`--verbose`). With nothing to remove it asks nothing, and with `--yes` it
+  shows nothing.
 
 ## [2.11.5] - 2026-03-19
 

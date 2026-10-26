@@ -3,7 +3,7 @@ follow-up-message: |
   What's next?
   Enter and start '{{ .name }}' application:
       $ cd {{ .name }}
-      $ tt start
+      $ tt instance start
 
   Pay attention that default user and password were generated
   for the 'replication' role, you can change it in

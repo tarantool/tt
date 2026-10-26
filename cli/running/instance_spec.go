@@ -95,10 +95,10 @@ func instanceSpec(inst *InstanceCtx, opts specOptions) (supervisor.Spec, error) 
 // record to spec, over the defaults of tarantoolSpec or externalSpec.
 //
 // Without stop_signal the stop signal the watchdog receives reaches tarantool
-// as it was sent, as it always has: SIGINT from tt stop, SIGQUIT from tt quit.
-// A record that names a signal is the authority on how its instance stops,
-// as KillSignal= is for a systemd unit, so that signal is sent whatever
-// stopped the watchdog, and nothing is forwarded.
+// as it was sent, as it always has: SIGINT from tt instance stop, SIGQUIT
+// from tt instance kill --dump. A record that names a signal is the authority
+// on how its instance stops, as KillSignal= is for a systemd unit, so that
+// signal is sent whatever stopped the watchdog, and nothing is forwarded.
 func applyStopSettings(spec *supervisor.Spec, inst *InstanceCtx) {
 	if inst.StopSignal != 0 {
 		spec.StopSignal = inst.StopSignal
@@ -110,10 +110,11 @@ func applyStopSettings(spec *supervisor.Spec, inst *InstanceCtx) {
 	}
 }
 
-// stopWait is how long tt stop waits for the watchdog of inst to exit: the
-// time tarantool may take to stop, plus the margin process_utils keeps over
-// instanceStopTimeout. Waiting less for an instance whose record allows it
-// longer would report a failure while the instance is still stopping.
+// stopWait is how long tt instance stop waits for the watchdog of inst to
+// exit: the time tarantool may take to stop, plus the margin process_utils
+// keeps over instanceStopTimeout. Waiting less for an instance whose record
+// allows it longer would report a failure while the instance is still
+// stopping.
 func stopWait(inst *InstanceCtx) time.Duration {
 	if inst.StopTimeout <= instanceStopTimeout {
 		return process_utils.TerminationTimeout
@@ -133,16 +134,18 @@ func tarantoolSpec(tarantoolPath string, args, env []string, dir string,
 		Env:   env,
 		Dir:   dir,
 		Stdin: nil,
-		// tt stop, tt quit and a SIGTERM reach tarantool as they were sent.
+		// tt instance stop, tt instance kill --dump and a SIGTERM reach
+		// tarantool as they were sent.
 		StopSignal:        syscall.SIGINT,
 		ForwardStopSignal: true,
 		StopTimeout:       instanceStopTimeout,
 		Stdout:            opts.stdout,
 		Stderr:            opts.stderr,
-		// tarantool stays in the group of its watchdog, so that tt kill
-		// kills both.
+		// tarantool stays in the group of its watchdog, so that
+		// tt instance kill kills both.
 		ProcessGroup: false,
-		// tt logrotate reaches tarantool as SIGHUP, which reopens its log.
+		// tt instance logrotate reaches tarantool as SIGHUP, which reopens
+		// its log.
 		ReloadSignal:        0,
 		ForwardReloadSignal: true,
 	}

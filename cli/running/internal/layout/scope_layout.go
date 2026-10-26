@@ -25,7 +25,7 @@ const (
 	TarantoolPidFileName = "tarantool.pid"
 	// ProcessPidFileName is the pid file of an external process, which its
 	// watchdog writes: the process leads a process group of its own, which
-	// tt kill has to reach apart from the group of the watchdog.
+	// tt instance kill has to reach apart from the group of the watchdog.
 	ProcessPidFileName = "process.pid"
 	// TarantoolLogFileName is the log file of tarantool when its config logs
 	// to a file without naming one.

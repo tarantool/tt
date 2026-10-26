@@ -50,8 +50,8 @@ func sleeper(t *testing.T, grouped bool) *exec.Cmd {
 	return cmd
 }
 
-// TestKillRemovesWhatWasItsOwn pins that tt kill removes the pid file and the
-// sockets of the watchdog it killed.
+// TestKillRemovesWhatWasItsOwn pins that tt instance kill removes the pid
+// file and the sockets of the watchdog it killed.
 func TestKillRemovesWhatWasItsOwn(t *testing.T) {
 	run := killRun(t)
 	watchdog := sleeper(t, true)
@@ -67,10 +67,10 @@ func TestKillRemovesWhatWasItsOwn(t *testing.T) {
 	assert.NoFileExists(t, run.BinaryPort)
 }
 
-// TestKillCleanupSparesNewerOwner pins that the cleanup after tt kill leaves
-// alone the pid file and the sockets of a watchdog that came up after the
-// killed one: one that holds the pid file, and one whose file names a live
-// process that is not the killed one.
+// TestKillCleanupSparesNewerOwner pins that the cleanup after
+// tt instance kill leaves alone the pid file and the sockets of a watchdog
+// that came up after the killed one: one that holds the pid file, and one
+// whose file names a live process that is not the killed one.
 func TestKillCleanupSparesNewerOwner(t *testing.T) {
 	const killed = 1<<31 - 2
 

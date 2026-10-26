@@ -8,7 +8,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/running"
 )
 
-// NewLogrotateCmd creates logrotate command.
+// NewLogrotateCmd creates the logrotate command of tt instance.
 func NewLogrotateCmd() *cobra.Command {
 	logrotateCmd := &cobra.Command{
 		Use:   "logrotate " + instanceTargetsUsage,
@@ -19,10 +19,11 @@ func NewLogrotateCmd() *cobra.Command {
 			args []string,
 			toComplete string,
 		) ([]string, cobra.ShellCompDirective) {
-			return internal.ValidArgsFunction(&cmdCtx, cmd, toComplete,
-				internal.Any)
+			return internal.ValidArgsFunction(&cmdCtx, cmd, toComplete, internal.Any)
 		},
 	}
+
+	addInstanceFlags(logrotateCmd)
 
 	return logrotateCmd
 }

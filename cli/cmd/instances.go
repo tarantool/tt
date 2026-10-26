@@ -44,9 +44,10 @@ func instanceOptions(cmdCtx *cmdcontext.CmdCtx) (app.Options, error) {
 // command line gives them, to the contexts of the instances they select:
 // <app>:<instance>, <app>:* and comma-separated lists of them, or every
 // instance of the project the command runs in without a target. A bare
-// application name is refused with a hint.
+// application name is refused with a hint. --scope and --template of the
+// command apply.
 func resolveInstances(cmdCtx *cmdcontext.CmdCtx, args []string) ([]running.InstanceCtx, error) {
-	opts, err := instanceOptions(cmdCtx)
+	opts, err := instanceTargetOptions(cmdCtx)
 	if err != nil {
 		return nil, err
 	}

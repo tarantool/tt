@@ -14,19 +14,15 @@ COMMANDS[0m
   backup-id   Print an identifier for a new backup
   binary      Manage binaries and SDK bundles
   cat         Print into stdout the contents of .snap/.xlog FILE(s)
-  check       Check an application file for syntax errors
-  clean       Clean instance(s) files
   cluster     Manage cluster configuration
   completion  Generate autocomplete for a specified shell. Supported shell type:
               bash | zsh | fish
-  connect     Connect to the tarantool instance
+  connect     Connect to the tarantool instance (tt instance connect)
   coredump    Perform manipulations with the tarantool coredumps
   create      Create an application from a template
   daemon      Perform manipulations with the tt daemon (experimental)
   help        Help about any command
-  kill        Kill tarantool instance(s)
-  log         Get logs of instance(s)
-  logrotate   Rotate logs of a started tarantool instance(s)
+  instance    Manage the instances of applications
   modules     Manage tt cli modules
   new         Create a skeleton app.manifest.toml in the current directory
   package     Manage tt manifest packages
@@ -34,13 +30,9 @@ COMMANDS[0m
               instance
   registry    Inspect the rock servers packages are resolved against
   replicaset  Manage replicasets
-  restart     Restart tarantool instance(s)
   restore     Restore a Tarantool cluster from a backup (PITR)
   rocks       LuaRocks package manager
   run         Run the current package under its Tarantool
-  start       Start tarantool instance(s)
-  status      Status of the tarantool instance(s)
-  stop        Stop tarantool instance(s)
   tcm         Manage tcm application
   test        Build the current package and run its tests
   version     Show Tarantool CLI version information
@@ -1583,27 +1575,6 @@ EXAMPLES[0m
   --timestamp=1731592956.818
   tt cat --recursive /path/to/dir1 /path/to/dir2
 
-=== tt check --help
-Check the Lua file each instance runs, its script or app.file of its
-config, for syntax errors, with the tarantool the instance runs on.
-
-[0;1;39mUSAGE[0m
-  tt check [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
-[0;1;39m
-FLAGS[0m
-  -h, --help   help for check
-
-=== tt clean --help
-Clean instance(s) files
-
-[0;1;39mUSAGE[0m
-  tt clean [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
-[0;1;39m
-FLAGS[0m
-  -f, --force     do not ask for confirmation
-  -h, --help      help for clean
-  -V, --verbose   list all files to remove before confirmation
-
 === tt cluster --help
 Manage cluster configuration
 
@@ -2476,6 +2447,8 @@ FLAGS[0m
   -x, --outputformat string        output format: yaml, lua, table or ttable
                                    (default "yaml")
   -p, --password string            password
+      --scope string               scope the application is looked for in:
+                                   project, user or system
       --sslcafile string           path to a trusted certificate authorities
                                    (CA) file
       --sslcertfile string         path to an SSL certificate file
@@ -2486,6 +2459,8 @@ FLAGS[0m
                                    file
       --sslpasswordfile string     path to a file containing the password for
                                    decrypting the private SSL key file
+      --template string            template of the application the instances are
+                                   described in (default "default")
   -u, --username string            username
 
 === tt coredump --help
@@ -2685,36 +2660,260 @@ Help about any command
 FLAGS[0m
   -h, --help   help for help
 
-=== tt kill --help
+=== tt instance --help
+Start, stop and inspect the instances of an application on this host.
+
+A target is <APP>:<INSTANCE>, every instance of an application <APP>:*, a
+comma-separated list of them, or none, which is every instance of the project
+the command runs in. An application is looked for in the project the command
+runs in when the project has its name, and in the system scope otherwise;
+--scope project, user or system picks the scope outright. The instances are
+those of the pair of the application: the host's <root>/etc/<app>/, or the
+template .templates/<template>/ of the application, "default" unless --template
+names another.
+
+[0;1;39mUSAGE[0m
+  tt instance [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  check       Check an application file for syntax errors
+  clean       Clean instance(s) files
+  connect     Connect to the tarantool instance
+  kill        Kill tarantool instance(s)
+  logrotate   Rotate logs of a started tarantool instance(s)
+  logs        Get logs of instance(s)
+  restart     Restart tarantool instance(s)
+  start       Start tarantool instance(s)
+  status      Status of the tarantool instance(s)
+  stop        Stop tarantool instance(s)
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for instance
+
+Use "tt instance <command> --help" for more information about a command.
+
+=== tt instance check --help
+Check the Lua file each instance runs, its script or app.file of its
+config, for syntax errors, with the tarantool the instance runs on.
+
+[0;1;39mUSAGE[0m
+  tt instance check [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help              help for check
+      --scope string      scope the application is looked for in: project, user
+                          or system
+      --template string   template of the application the instances are
+                          described in (default "default")
+
+=== tt instance clean --help
+Remove the data and the logs of the instances: the files of
+<root>/var/lib/<app>/<instance>/ and <root>/var/log/<app>/<instance>/, and of
+the data directories their config moves elsewhere. A running instance is left
+alone.
+
+[0;1;39mUSAGE[0m
+  tt instance clean [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help              help for clean
+      --scope string      scope the application is looked for in: project, user
+                          or system
+      --template string   template of the application the instances are
+                          described in (default "default")
+  -V, --verbose           list all files to remove before confirmation
+  -y, --yes               skip the confirmation prompt
+
+=== tt instance connect --help
+Connect to the tarantool instance.
+
+The command supports the following Tarantool environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username
+* TT_CLI_PASSWORD - specifies a Tarantool password
+
+You could pass command line arguments to the interpreted SCRIPT or COMMAND
+passed via -f flag:
+
+echo "print(...)" | tt instance connect user:pass@localhost:3013 -f- 1, 2, 3
+
+[0;1;39mUSAGE[0m
+  tt instance connect (<APP>:<INSTANCE> | <URI>) [flags] [-f <FILE>] [-- ARGS]
+  COMMAND | tt instance connect (<APP>:<INSTANCE> | <URI>) [flags]
+  COMMAND | tt instance connect (<APP>:<INSTANCE> | <URI>) [flags] [-f-] [--
+  ARGS]
+
+  The URI can be specified in the following formats:
+  * [tcp://][username:password@][host:port]
+  * [unix://][username:password@]socketpath
+  To specify relative path without `unix://` use `./`.
+
+  Available commands:
+  * \shortcuts - get the full list of available shortcuts
+  * \set language <language> - set language (lua or sql)
+  * \set output <format> - set output format (lua[,line|block] or yaml)
+  * \set delimiter <delimiter> - set expression delimiter
+  * \help - show available backslash commands
+  * \quit - quit interactive console
+[0;1;39m
+FLAGS[0m
+      --binary                     connect to instance using binary port
+      --connect-timeout duration   timeout for establishing a binary connection
+                                   (default 1s)
+  -f, --file string                file to read the script for evaluation. "-" -
+                                   read the script from stdin
+  -h, --help                       help for connect
+  -i, --interactive                enter interactive mode after executing 'FILE'
+  -l, --language string            language: lua or sql
+  -x, --outputformat string        output format: yaml, lua, table or ttable
+                                   (default "yaml")
+  -p, --password string            password
+      --scope string               scope the application is looked for in:
+                                   project, user or system
+      --sslcafile string           path to a trusted certificate authorities
+                                   (CA) file
+      --sslcertfile string         path to an SSL certificate file
+      --sslciphers string          colon-separated (:) list of SSL cipher suites
+                                   the connection
+      --sslkeyfile string          path to a private SSL key file
+      --sslpassword string         password for decrypting the private SSL key
+                                   file
+      --sslpasswordfile string     path to a file containing the password for
+                                   decrypting the private SSL key file
+      --template string            template of the application the instances are
+                                   described in (default "default")
+  -u, --username string            username
+
+=== tt instance kill --help
 Kill tarantool instance(s)
 
 [0;1;39mUSAGE[0m
-  tt kill [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
+  tt instance kill [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
 [0;1;39m
 FLAGS[0m
-  -d, --dump    quit with dump
-  -f, --force   do not ask for confirmation
-  -h, --help    help for kill
+  -d, --dump              quit with dump
+  -h, --help              help for kill
+      --scope string      scope the application is looked for in: project, user
+                          or system
+      --template string   template of the application the instances are
+                          described in (default "default")
+  -y, --yes               skip the confirmation prompt
 
-=== tt log --help
-Get logs of instance(s)
-
-[0;1;39mUSAGE[0m
-  tt log [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
-[0;1;39m
-FLAGS[0m
-  -f, --follow      Output appended data as the log file grows
-  -h, --help        help for log
-  -n, --lines int   Count of last lines to output (default 10)
-
-=== tt logrotate --help
+=== tt instance logrotate --help
 Rotate logs of a started tarantool instance(s)
 
 [0;1;39mUSAGE[0m
-  tt logrotate [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
+  tt instance logrotate [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
 [0;1;39m
 FLAGS[0m
-  -h, --help   help for logrotate
+  -h, --help              help for logrotate
+      --scope string      scope the application is looked for in: project, user
+                          or system
+      --template string   template of the application the instances are
+                          described in (default "default")
+
+=== tt instance logs --help
+Print the last lines of tt.log of the instances, the log their output goes to,
+whether they run in the background or in the foreground.
+
+[0;1;39mUSAGE[0m
+  tt instance logs [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
+[0;1;39m
+FLAGS[0m
+      --follow            Output appended data as the log file grows
+  -h, --help              help for logs
+  -n, --lines int         Count of last lines to output (default 10)
+      --scope string      scope the application is looked for in: project, user
+                          or system
+      --template string   template of the application the instances are
+                          described in (default "default")
+
+=== tt instance restart --help
+Restart tarantool instance(s)
+
+[0;1;39mUSAGE[0m
+  tt instance restart [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help              help for restart
+      --scope string      scope the application is looked for in: project, user
+                          or system
+      --template string   template of the application the instances are
+                          described in (default "default")
+  -y, --yes               skip the confirmation prompt
+
+=== tt instance start --help
+Start the instances the targets select. By default every instance runs in the
+background under a watchdog of tt, which restarts it as the restart field of its
+record says.
+
+With --foreground tt stays in the foreground, for systemd, a container or a
+terminal, while every instance runs under a watchdog of its own that does not
+restart it. The output of the instances goes to their tt.log and to the standard
+output, prefixed with the instance when there are several. SIGINT, SIGTERM and
+SIGQUIT stop every instance, as a stop of its watchdog does; tt instance stop
+stops one of them from another terminal. An instance that ends does not stop the
+others. tt exits once all of them have ended: with 0 when they were stopped in
+time, with the exit code of the first instance that failed otherwise, 137 for
+one killed as it did not stop in time.
+
+[0;1;39mUSAGE[0m
+  tt instance start [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
+[0;1;39m
+FLAGS[0m
+      --foreground        stay in the foreground while the instances run,
+                          without restarting them
+  -h, --help              help for start
+      --scope string      scope the application is looked for in: project, user
+                          or system
+      --template string   template of the application the instances are
+                          described in (default "default")
+
+=== tt instance status --help
+The 'status' command provides information about the status of Tarantool
+instances.
+
+Columns:
+- INSTANCE: The name of the Tarantool instance.
+- STATUS: The current status of the instance:
+	- RUNNING: The instance is up and running.
+	- NOT RUNNING: The instance is not running.
+	- ERROR: The process has terminated unexpectedly.
+- PID: The watchdog process PID.
+- MODE: The mode of the instance, indicating its read/write status:
+	- RO: The instance is in read-only mode.
+	- RW: The instance is in read-write mode.
+- CONFIG: The config info status (for Tarantool 3+).
+- BOX: The box info status.
+- UPSTREAM: The replication upstream status.
+
+[0;1;39mUSAGE[0m
+  tt instance status [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
+[0;1;39m
+FLAGS[0m
+  -d, --details                     print detailed alerts.
+  -o, --format string               output format: json, yaml, table,
+                                    pretty-table (default "table")
+  -h, --help                        help for status
+      --instance-timeout duration   timeout for collecting a single instance's
+                                    status; 0 disables the timeout (default 5s)
+      --scope string                scope the application is looked for in:
+                                    project, user or system
+      --template string             template of the application the instances
+                                    are described in (default "default")
+
+=== tt instance stop --help
+Stop tarantool instance(s)
+
+[0;1;39mUSAGE[0m
+  tt instance stop [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help              help for stop
+      --scope string      scope the application is looked for in: project, user
+                          or system
+      --template string   template of the application the instances are
+                          described in (default "default")
+  -y, --yes               skip the confirmation prompt
 
 === tt modules --help
 Manage tt cli modules
@@ -3604,16 +3803,6 @@ FLAGS[0m
       --timeout int                timeout (default 10)
   -u, --username string            username for the URI case
 
-=== tt restart --help
-Restart tarantool instance(s)
-
-[0;1;39mUSAGE[0m
-  tt restart [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
-[0;1;39m
-FLAGS[0m
-  -h, --help   help for restart
-  -y, --yes    Automatic yes to confirmation prompt
-
 === tt restore --help
 Restore a Tarantool cluster from a backup (PITR)
 
@@ -4159,55 +4348,6 @@ EXAMPLES[0m
 
     $ TT_USE_SYSTEM_TARANTOOL=1 tt run script.lua
 
-
-=== tt start --help
-Start tarantool instance(s)
-
-[0;1;39mUSAGE[0m
-  tt start [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
-[0;1;39m
-FLAGS[0m
-  -h, --help          help for start
-  -i, --interactive
-
-=== tt status --help
-The 'status' command provides information about the status of Tarantool
-instances.
-
-Columns:
-- INSTANCE: The name of the Tarantool instance.
-- STATUS: The current status of the instance:
-	- RUNNING: The instance is up and running.
-	- NOT RUNNING: The instance is not running.
-	- ERROR: The process has terminated unexpectedly.
-- PID: The watchdog process PID.
-- MODE: The mode of the instance, indicating its read/write status:
-	- RO: The instance is in read-only mode.
-	- RW: The instance is in read-write mode.
-- CONFIG: The config info status (for Tarantool 3+).
-- BOX: The box info status.
-- UPSTREAM: The replication upstream status.
-
-[0;1;39mUSAGE[0m
-  tt status [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
-[0;1;39m
-FLAGS[0m
-  -d, --details                     print detailed alerts.
-  -f, --format string               output format: json, yaml, table,
-                                    pretty-table (default "table")
-  -h, --help                        help for status
-      --instance-timeout duration   timeout for collecting a single instance's
-                                    status; 0 disables the timeout (default 5s)
-
-=== tt stop --help
-Stop tarantool instance(s)
-
-[0;1;39mUSAGE[0m
-  tt stop [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
-[0;1;39m
-FLAGS[0m
-  -h, --help   help for stop
-  -y, --yes    Automatic yes to confirmation prompt
 
 === tt tcm --help
 Manage tcm application
@@ -5204,31 +5344,23 @@ backup	Manage Tarantool backups (PITR)
 backup-id	Print an identifier for a new backup
 binary	Manage binaries and SDK bundles
 cat	Print into stdout the contents of .snap/.xlog FILE(s)
-check	Check an application file for syntax errors
-clean	Clean instance(s) files
 cluster	Manage cluster configuration
 completion	Generate autocomplete for a specified shell. Supported shell type: bash | zsh | fish
-connect	Connect to the tarantool instance
+connect	Connect to the tarantool instance (tt instance connect)
 coredump	Perform manipulations with the tarantool coredumps
 create	Create an application from a template
 daemon	Perform manipulations with the tt daemon (experimental)
 help	Help about any command
-kill	Kill tarantool instance(s)
-log	Get logs of instance(s)
-logrotate	Rotate logs of a started tarantool instance(s)
+instance	Manage the instances of applications
 modules	Manage tt cli modules
 new	Create a skeleton app.manifest.toml in the current directory
 package	Manage tt manifest packages
 play	Play the contents of .snap/.xlog FILE(s) to another Tarantool instance
 registry	Inspect the rock servers packages are resolved against
 replicaset	Manage replicasets
-restart	Restart tarantool instance(s)
 restore	Restore a Tarantool cluster from a backup (PITR)
 rocks	LuaRocks package manager
 run	Run the current package under its Tarantool
-start	Start tarantool instance(s)
-status	Status of the tarantool instance(s)
-stop	Stop tarantool instance(s)
 tcm	Manage tcm application
 test	Build the current package and run its tests
 version	Show Tarantool CLI version information

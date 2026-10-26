@@ -48,14 +48,26 @@ var (
 	connectEvaler          string
 )
 
-// NewConnectCmd creates connect command.
+// NewConnectCmd creates tt connect, the documented facade of
+// tt instance connect: the same command, with the same flags, which has no
+// behaviour of its own.
 func NewConnectCmd() *cobra.Command {
+	connectCmd := newConnectCmd("connect")
+
+	connectCmd.Short = "Connect to the tarantool instance (tt instance connect)"
+
+	return connectCmd
+}
+
+// newConnectCmd creates the connect command that the command line tt path
+// runs: tt connect or tt instance connect.
+func newConnectCmd(path string) *cobra.Command {
 	connectCmd := &cobra.Command{
 		Use: "connect (<APP>:<INSTANCE> | <URI>)" +
 			" [flags] [-f <FILE>] [-- ARGS]\n" +
-			"  COMMAND | tt connect (<APP>:<INSTANCE> | <URI>)" +
+			"  COMMAND | tt " + path + " (<APP>:<INSTANCE> | <URI>)" +
 			" [flags]\n" +
-			"  COMMAND | tt connect (<APP>:<INSTANCE> | <URI>)" +
+			"  COMMAND | tt " + path + " (<APP>:<INSTANCE> | <URI>)" +
 			" [flags] [-f-] [-- ARGS]\n\n" +
 			"  The URI can be specified in the following formats:\n" +
 			"  * [tcp://][username:password@][host:port]\n" +
@@ -73,7 +85,7 @@ func NewConnectCmd() *cobra.Command {
 			sdkconnect.EnvTarantoolCredentialsHelp + "\n\n" +
 			"You could pass command line arguments to the interpreted SCRIPT" +
 			" or COMMAND passed via -f flag:\n\n" +
-			`echo "print(...)" | tt connect user:pass@localhost:3013 -f- 1, 2, 3`,
+			`echo "print(...)" | tt ` + path + ` user:pass@localhost:3013 -f- 1, 2, 3`,
 		RunE: internalRunE(internalConnectModule),
 		Args: cobra.MinimumNArgs(1),
 		ValidArgsFunction: func(
@@ -95,6 +107,8 @@ func NewConnectCmd() *cobra.Command {
 			return validArgs, directive
 		},
 	}
+
+	addInstanceFlags(connectCmd)
 
 	connectCmd.Flags().StringVarP(&connectUser, "username", "u", "", "username")
 	connectCmd.Flags().StringVarP(&connectPassword, "password", "p", "", "password")

@@ -1,17 +1,14 @@
 package cmd
 
 import (
-	"os"
-
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/running"
-	"github.com/tarantool/tt/v3/cli/util"
 )
 
-// NewStopCmd creates stop command.
+// NewStopCmd creates the stop command of tt instance.
 func NewStopCmd() *cobra.Command {
 	stopCmd := &cobra.Command{
 		Use:   "stop " + instanceTargetsUsage,
@@ -22,13 +19,12 @@ func NewStopCmd() *cobra.Command {
 			args []string,
 			toComplete string,
 		) ([]string, cobra.ShellCompDirective) {
-			return internal.ValidArgsFunction(&cmdCtx, cmd, toComplete,
-				internal.Active)
+			return internal.ValidArgsFunction(&cmdCtx, cmd, toComplete, internal.Active)
 		},
 	}
 
-	stopCmd.Flags().BoolVarP(&autoYes, "yes", "y", false,
-		`Automatic yes to confirmation prompt`)
+	addInstanceFlags(stopCmd)
+	addYesFlag(stopCmd)
 
 	return stopCmd
 }
@@ -39,8 +35,8 @@ func internalStopWithConfirmationModule(cmdCtx *cmdcontext.CmdCtx, args []string
 		return err
 	}
 
-	if !autoYes && !cmdCtx.Cli.NoPrompt {
-		confirmed, err := util.AskConfirm(os.Stdin, "Confirm stop of "+describeTargets(args))
+	if !cmdCtx.Cli.NoPrompt {
+		confirmed, err := confirm("Confirm stop of " + describeTargets(args))
 		if err != nil {
 			return err
 		}

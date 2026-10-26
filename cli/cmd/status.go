@@ -19,7 +19,7 @@ var (
 	)
 )
 
-// The output formats of tt status.
+// The output formats of tt instance status.
 const (
 	statusFormatJSON        = "json"
 	statusFormatYAML        = "yaml"
@@ -27,21 +27,19 @@ const (
 	statusFormatPrettyTable = "pretty-table"
 )
 
-// statusOpts contains options for tt status.
+// statusOpts contains options for tt instance status.
 type statusOpts struct {
 	// Output format: json, yaml, table, pretty-table.
 	format string
 	// Option for detailed alerts output for each instance, such as warnings and errors.
 	details bool
-	// Deprecated: use --format instead.
-	pretty bool
 	// instanceTimeout bounds status collection for each instance; zero disables it.
 	instanceTimeout time.Duration
 }
 
 var opts statusOpts
 
-// NewStatusCmd creates status command.
+// NewStatusCmd creates the status command of tt instance.
 func NewStatusCmd() *cobra.Command {
 	statusCmd := &cobra.Command{
 		Use:   "status " + instanceTargetsUsage,
@@ -67,18 +65,16 @@ Columns:
 			args []string,
 			toComplete string,
 		) ([]string, cobra.ShellCompDirective) {
-			return internal.ValidArgsFunction(&cmdCtx, cmd, toComplete,
-				internal.Any)
+			return internal.ValidArgsFunction(&cmdCtx, cmd, toComplete, internal.Any)
 		},
 	}
 
-	statusCmd.Flags().StringVarP(&opts.format, "format", "f", statusFormatTable,
+	addInstanceFlags(statusCmd)
+
+	// -o, as every command that prints a result has it: -f is --force.
+	statusCmd.Flags().StringVarP(&opts.format, "format", "o", statusFormatTable,
 		"output format: json, yaml, table, pretty-table")
 	statusCmd.Flags().BoolVarP(&opts.details, "details", "d", false, "print detailed alerts.")
-	statusCmd.Flags().BoolVarP(&opts.pretty, "pretty", "p", false,
-		"output a pretty-formatted table (deprecated, use --format instead)")
-
-	_ = statusCmd.Flags().MarkDeprecated("pretty", "use --format instead")
 
 	statusCmd.Flags().DurationVar(&opts.instanceTimeout, "instance-timeout",
 		status.DefaultInstanceTimeout,
@@ -91,11 +87,6 @@ Columns:
 func internalStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if opts.instanceTimeout < 0 {
 		return errNegativeInstanceTimeout
-	}
-
-	// Handle deprecated --pretty flag.
-	if opts.pretty {
-		opts.format = statusFormatPrettyTable
 	}
 
 	// Validate format option.

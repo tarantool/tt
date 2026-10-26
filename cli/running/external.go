@@ -44,8 +44,8 @@ var (
 	errOrphan = errors.New("the process of an earlier start still runs")
 )
 
-// orphanPollInterval is how often tt stop and tt kill look whether the
-// process of an external process without its watchdog is gone.
+// orphanPollInterval is how often tt instance stop and tt instance kill look
+// whether the process of an external process without its watchdog is gone.
 const orphanPollInterval = 50 * time.Millisecond
 
 // IsExternal reports whether inst is an external process, a record with
@@ -107,7 +107,7 @@ func kindName(kind instances.Kind) string {
 // application directory of an installed application is its version, which
 // is never written to, and what the process writes there would be lost with
 // the version. That directory is the one data directory it has, created at
-// its start and emptied by tt clean; a process with workdir has none.
+// its start and emptied by tt instance clean; a process with workdir has none.
 func setExternalCtx(instCtx *InstanceCtx, inst instances.Instance, scopeLayout layout.ScopeLayout) {
 	instCtx.Binary = inst.Binary
 	instCtx.Args = slices.Clone(inst.Args)
@@ -175,20 +175,21 @@ func checkExternal(inst *InstanceCtx) error {
 // The process stops with SIGTERM, unless its record names another stop
 // signal, and is killed after instanceStopTimeout, as a Tarantool instance
 // is, unless its record allows another (applyStopSettings). The stop signal
-// the watchdog receives is not forwarded: SIGINT, which tt stop sends it, is
-// an interrupt from a terminal to most programs, while SIGTERM is the request
-// to stop that systemd sends too (decision 31).
+// the watchdog receives is not forwarded: SIGINT, which tt instance stop
+// sends it, is an interrupt from a terminal to most programs, while SIGTERM
+// is the request to stop that systemd sends too (decision 31).
 //
-// tt logrotate makes the watchdog reopen tt.log, where the output of the
-// process goes, and sends the process its logrotate_signal; without one the
-// process gets nothing (decision 32), since SIGHUP ends a program that does
-// not handle it.
+// tt instance logrotate makes the watchdog reopen tt.log, where the output of
+// the process goes, and sends the process its logrotate_signal; without one
+// the process gets nothing (decision 32), since SIGHUP ends a program that
+// does not handle it.
 //
 // The process leads a process group of its own, and every signal goes to the
 // whole group: an external process may be a wrapper, such as a shell script
 // that runs the actual program, and a signal to the wrapper alone would leave
-// the program running. tt kill, which kills the group of the watchdog, finds
-// the group of the process through its pid file (killProcess).
+// the program running. tt instance kill, which kills the group of the
+// watchdog, finds the group of the process through its pid file
+// (killProcess).
 func externalSpec(inst *InstanceCtx, opts specOptions) (supervisor.Spec, error) {
 	err := checkExternal(inst)
 	if err != nil {
@@ -239,11 +240,12 @@ func leadsGroup(pid int) bool {
 // process.pid, which the watchdog wrote, names a live process that leads its
 // process group, as the process does.
 //
-// A watchdog killed by anything but tt kill leaves its process running in its
-// group, which killing the group of the watchdog does not reach. Such a
-// process is not the instance running, since nothing supervises it, and not
-// an instance stopped either: tt start refuses to start a second copy next
-// to it, tt stop and tt kill stop it, and tt status reports it.
+// A watchdog killed by anything but tt instance kill leaves its process
+// running in its group, which killing the group of the watchdog does not
+// reach. Such a process is not the instance running, since nothing supervises
+// it, and not an instance stopped either: tt instance start refuses to start
+// a second copy next to it, tt instance stop and tt instance kill stop it,
+// and tt instance status reports it.
 //
 // A pid that leads no group is not the process, which leads its own; a pid
 // reused by another group leader, which nothing tells from the process, is
@@ -276,9 +278,9 @@ func checkOrphan(inst *InstanceCtx) error {
 	name := GetAppInstanceName(*inst)
 
 	return fmt.Errorf("instance %q of %q: %w: its process (PID = %d, %s) runs without "+
-		"its watchdog, and a start would run a second one; stop it with tt stop %s or "+
-		"tt kill %s, then start the instance", inst.InstName, inst.AppName, errOrphan, pid,
-		inst.ProcessPIDFile, name, name)
+		"its watchdog, and a start would run a second one; stop it with "+
+		"tt instance stop %s or tt instance kill %s, then start the instance",
+		inst.InstName, inst.AppName, errOrphan, pid, inst.ProcessPIDFile, name, name)
 }
 
 // stopOrphan stops the process pid of the external process of run that runs
@@ -379,8 +381,8 @@ func removeLeftPidFiles(run *InstanceCtx, pid int) {
 }
 
 // killProcess kills the process group of the external process of run, after
-// tt kill has killed the watchdog: the group of the watchdog does not hold
-// the process, which leads a group of its own (externalSpec).
+// tt instance kill has killed the watchdog: the group of the watchdog does
+// not hold the process, which leads a group of its own (externalSpec).
 //
 // The pid file is read once the watchdog is dead, so that it no longer
 // changes. The process leads its group, so a pid that leads none is no

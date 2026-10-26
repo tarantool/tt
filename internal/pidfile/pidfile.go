@@ -1,10 +1,11 @@
 // Package pidfile implements the ownership of the pid files tt writes.
 //
-// A pid file holds the decimal pid without a newline, the format tt stop and
-// tt status read; reading one takes no lock. Owning one means holding an
-// exclusive flock on it, taken without waiting and kept for as long as the
-// pid in it is current. The lock descriptor is close-on-exec, so no child
-// inherits it, and the kernel drops it when the owner dies, however it dies.
+// A pid file holds the decimal pid without a newline, the format
+// tt instance stop and tt instance status read; reading one takes no lock.
+// Owning one means holding an exclusive flock on it, taken without waiting
+// and kept for as long as the pid in it is current. The lock descriptor is
+// close-on-exec, so no child inherits it, and the kernel drops it when the
+// owner dies, however it dies.
 //
 // A file whose lock is held is refused. A file nobody holds is stale and is
 // taken over in place, under the lock, unless it names a live process: that
@@ -198,9 +199,9 @@ func alive(pid int) bool {
 // this one may not signal is alive too. A missing file, or one that names no
 // pid, names no live process.
 //
-// The file is read without the lock, the way tt status reads it, so the
-// answer can be out of date by the time the caller acts on it. It is for a
-// command that refuses to act while a process runs, such as tt package
+// The file is read without the lock, the way tt instance status reads it, so
+// the answer can be out of date by the time the caller acts on it. It is for
+// a command that refuses to act while a process runs, such as tt package
 // uninstall, not for deciding who owns the file.
 func Alive(path string) (int, bool, error) {
 	file, err := os.Open(path)

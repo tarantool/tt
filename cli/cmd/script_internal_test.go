@@ -178,7 +178,7 @@ func writeSource(t *testing.T) string {
 
 // TestInstanceCommandsOfScripts pins that the commands that reach an
 // instance through its sockets take an instance that runs its script, and
-// that tt clean removes its data and its log.
+// that tt instance clean removes its data and its log.
 func TestInstanceCommandsOfScripts(t *testing.T) {
 	scriptProject(t, scriptFiles())
 
@@ -194,12 +194,6 @@ func TestInstanceCommandsOfScripts(t *testing.T) {
 	connOpts, err := resolveConnectOpts(cmdCtx, &connect.ConnectCtx{}, "myapp:legacy-1")
 	require.NoError(t, err)
 	assert.Equal(t, inst.ConsoleSocket, connOpts.Address)
-
-	previous := forceRemove
-
-	forceRemove = true
-
-	t.Cleanup(func() { forceRemove = previous })
 
 	snapshot := filepath.Join(inst.MemtxDir, "00000000000000000000.snap")
 	require.NoError(t, os.MkdirAll(inst.MemtxDir, 0o755))

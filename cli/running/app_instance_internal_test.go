@@ -514,8 +514,7 @@ func TestOldLayoutGuard(t *testing.T) {
 		require.ErrorContains(t, err,
 			filepath.Join(fixture.dir, ".tarantool", "var", "lib", fixtureApp, "<instance>"))
 
-		err = RunInstance(context.Background(), &cmdcontext.CmdCtx{}, inst,
-			io.Discard, io.Discard)
+		_, err = StartForeground(t.Context(), &cmdcontext.CmdCtx{}, &inst, io.Discard)
 		require.ErrorIs(t, err, errOldLayout)
 
 		err = Start(t.Context(), &cmdcontext.CmdCtx{}, &inst)
