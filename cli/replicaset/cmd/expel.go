@@ -23,7 +23,7 @@ type ExpelCtx struct {
 	Collectors sdkcluster.Factory
 	// Integrity is the integrity context for cluster reads.
 	Integrity integrity.IntegrityCtx
-	// Orchestrator is a forced orchestrator choice.
+	// Orchestrator is the orchestrator to use.
 	Orchestrator replicaset.Orchestrator
 	// RunningCtx is an application running context.
 	RunningCtx running.RunningCtx
@@ -36,13 +36,7 @@ type ExpelCtx struct {
 
 // Expel expels an instance from a replicaset.
 func Expel(expelCtx ExpelCtx) error {
-	orchestratorType, err := getApplicationOrchestrator(expelCtx.Orchestrator,
-		expelCtx.RunningCtx)
-	if err != nil {
-		return err
-	}
-
-	orchestrator, err := makeApplicationOrchestrator(orchestratorType,
+	orchestrator, err := makeApplicationOrchestrator(expelCtx.Orchestrator,
 		expelCtx.RunningCtx, expelCtx.Collectors, expelCtx.Publishers, expelCtx.Integrity)
 	if err != nil {
 		return err

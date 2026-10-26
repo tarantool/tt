@@ -22,7 +22,7 @@ type DemoteCtx struct {
 	Collectors sdkcluster.Factory
 	// Integrity is the integrity context for cluster reads.
 	Integrity integrity.IntegrityCtx
-	// Orchestrator is a forced orchestrator choice.
+	// Orchestrator is the orchestrator to use.
 	Orchestrator replicaset.Orchestrator
 	// Conn is an active connection to a passed instance.
 	Conn connector.Connector
@@ -37,12 +37,7 @@ type DemoteCtx struct {
 
 // Demote demotes an instance.
 func Demote(ctx DemoteCtx) error {
-	orchestratorType, err := getInstanceOrchestrator(ctx.Orchestrator, ctx.Conn)
-	if err != nil {
-		return err
-	}
-
-	orchestrator, err := makeApplicationOrchestrator(orchestratorType,
+	orchestrator, err := makeApplicationOrchestrator(ctx.Orchestrator,
 		ctx.RunningCtx, ctx.Collectors, ctx.Publishers, ctx.Integrity)
 	if err != nil {
 		return err

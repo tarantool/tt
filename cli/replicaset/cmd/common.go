@@ -80,12 +80,7 @@ func makeInstanceOrchestrator(orchestratorType replicaset.Orchestrator,
 // DiscoverInstance reads the live topology through the instance's orchestrator.
 // Backup planning uses the same discovery implementation as replicaset commands.
 func DiscoverInstance(conn connector.Connector) (replicaset.Replicasets, error) {
-	orchestratorType, err := getInstanceOrchestrator(replicaset.OrchestratorUnknown, conn)
-	if err != nil {
-		return replicaset.Replicasets{}, fmt.Errorf("failed to determine orchestrator: %w", err)
-	}
-
-	orchestrator, err := makeInstanceOrchestrator(orchestratorType, conn)
+	orchestrator, err := makeInstanceOrchestrator(replicaset.OrchestratorCentralizedConfig, conn)
 	if err != nil {
 		return replicaset.Replicasets{}, fmt.Errorf("failed to create orchestrator: %w", err)
 	}
@@ -96,58 +91,4 @@ func DiscoverInstance(conn connector.Connector) (replicaset.Replicasets, error) 
 	}
 
 	return topology, nil
-}
-
-// getInstanceOrchestrator determines a used orchestrator type for an instance.
-func getInstanceOrchestrator(manual replicaset.Orchestrator,
-	conn connector.Connector,
-) (replicaset.Orchestrator, error) {
-	if manual != replicaset.OrchestratorUnknown {
-		return manual, nil
-	}
-
-	return replicaset.EvalOrchestrator(conn)
-}
-
-// getApplicationOrchestrator determines a used orchestrator type for an application.
-func getApplicationOrchestrator(manual replicaset.Orchestrator,
-	runningCtx running.RunningCtx,
-) (replicaset.Orchestrator, error) {
-	if manual != replicaset.OrchestratorUnknown {
-		return manual, nil
-	}
-
-	var orchestrator replicaset.Orchestrator
-
-	eval := func(_ running.InstanceCtx, evaler connector.Evaler) (bool, error) {
-		instanceOrchestrator, err := replicaset.EvalOrchestrator(evaler)
-		if err == nil {
-			orchestrator = instanceOrchestrator
-		}
-
-		return true, err
-	}
-
-	instances := runningCtx.Instances
-
-	err := replicaset.EvalAny(instances, replicaset.InstanceEvalFunc(eval))
-	if err != nil {
-		return orchestrator,
-			fmt.Errorf("unable to determinate an orchestrator type: %w", err)
-	}
-
-	return orchestrator, nil
-}
-
-// getOrchestratorType determines a used orchestrator.
-func getOrchestratorType(
-	orchestrator replicaset.Orchestrator,
-	conn connector.Connector,
-	runningCtx running.RunningCtx,
-) (replicaset.Orchestrator, error) {
-	if conn != nil {
-		return getInstanceOrchestrator(orchestrator, conn)
-	}
-
-	return getApplicationOrchestrator(orchestrator, runningCtx)
 }

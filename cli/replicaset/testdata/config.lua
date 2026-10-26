@@ -10,17 +10,6 @@ box.once("init", function()
     box.schema.user.grant('test', 'execute', 'universe')
 end)
 
-rawset(_G, "_TARANTOOL_BACK", _TARANTOOL)
-local function set_tarantool_version(version)
-    rawset(_G, "_TARANTOOL", version)
-end
-rawset(_G, 'set_tarantool_version', set_tarantool_version)
-
-local function reset_tarantool_version()
-    rawset(_G, "_TARANTOOL", _TARANTOOL_BACK)
-end
-rawset(_G, 'reset_tarantool_version', reset_tarantool_version)
-
 require("console").listen("unix/:./console.control")
 -- Set listen only when every other thing is configured.
 box.cfg{
