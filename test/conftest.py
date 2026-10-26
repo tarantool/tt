@@ -126,7 +126,9 @@ def tt_cmd(tmp_path_factory: TempPathFactory, request: pytest.FixtureRequest) ->
 
 @pytest.fixture()
 def tmpdir_with_cfg(tmp_path):
-    utils.create_tt_config(tmp_path)
+    """The temporary directory of the test, as a string. It held the tt.yaml
+    of a tt environment once; tt reads none now, and the directory is just
+    where the test puts its projects."""
     return tmp_path.as_posix()
 
 

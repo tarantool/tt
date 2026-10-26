@@ -162,7 +162,6 @@ def test_install_remote_enterprise(tt_cmd: Path, tmp_path: Path, program, develo
     required = {"TT_CLI_EE_USERNAME", "TT_CLI_EE_PASSWORD"}
     if not required.issubset(set(os.environ)):
         pytest.skip("Real customer-zone tests require credentials injected by CI")
-    create_tt_config(tmp_path)
     flags = ["--dev"] if development else []
     result = remote_command(tt_cmd, tmp_path, "search", program, *flags)
     assert result.returncode == 0, result.stdout
