@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
@@ -209,11 +210,57 @@ func TestClusterLookup(t *testing.T) {
 	got, _ = internal.ClusterValidArgsFunction(cmdCtx, show, "", internal.Any)
 	assert.Empty(t, got, "the system scope holds nothing")
 
+	findCommand(t, NewClusterCmd(), []string{"publish"}, "--template", "other")
+
+	path, _, err = parsePublishAppStr(cmdCtx, "myapp:router-1")
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(project, ".templates", "other", "config.yaml"), path)
+}
+
+// TestClusterPublishInstalled pins where tt cluster publish writes the config
+// of an application of the user or the system scope: never into its
+// installed version, which it refuses with a hint, but into the pair of the
+// host when there is one.
+//
+//nolint:paralleltest // Sets the environment, the working directory and the flags.
+func TestClusterPublishInstalled(t *testing.T) {
+	version, _ := lookupFixture(t)
+
+	cmdCtx := &cmdcontext.CmdCtx{}
+	versionConfig := filepath.Join(version, ".templates", "default", "config.yaml")
+	source := writeSource(t)
+
 	findCommand(t, NewClusterCmd(), []string{"publish"}, "--scope", "user")
 
-	path, _, err = parseAppStr(cmdCtx, "myapp:storage-2")
+	err := internalClusterPublishModule(cmdCtx, []string{"myapp", source})
+	require.ErrorIs(t, err, errPublishToVersion)
+	assert.Equal(t, sdk.ExitFailure, sdk.ExitCode(err))
+
+	host := app.HostDir(os.Getenv("TT_USER_ROOT"), "myapp")
+	require.ErrorContains(t, err, host)
+	require.ErrorContains(t, err, "publish to a config storage by its URI")
+
+	data, err := os.ReadFile(versionConfig)
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(version, ".templates", "default", "config.yaml"), path)
+	assert.Equal(t, lookupTopology, string(data), "the version is not written")
+
+	_, _, err = parseAppStr(cmdCtx, "myapp")
+	require.NoError(t, err, "tt cluster show reads it all the same")
+
+	writeFiles(t, host, map[string]string{
+		"instances.yaml": "storage-1:\n",
+		"config.yaml":    lookupTopology,
+	})
+
+	require.NoError(t, internalClusterPublishModule(cmdCtx, []string{"myapp", source}))
+
+	data, err = os.ReadFile(filepath.Join(host, "config.yaml"))
+	require.NoError(t, err)
+	assert.NotContains(t, string(data), "router-1", "the host pair gets the published config")
+
+	data, err = os.ReadFile(versionConfig)
+	require.NoError(t, err)
+	assert.Equal(t, lookupTopology, string(data))
 }
 
 // TestPlayLookup pins that tt play finds the instance of its target as
