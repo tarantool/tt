@@ -23,6 +23,10 @@ const (
 	BinaryPortName = "tarantool.sock"
 	// TarantoolPidFileName is the pid file tarantool writes itself.
 	TarantoolPidFileName = "tarantool.pid"
+	// ProcessPidFileName is the pid file of an external process, which its
+	// watchdog writes: the process leads a process group of its own, which
+	// tt kill has to reach apart from the group of the watchdog.
+	ProcessPidFileName = "process.pid"
 	// TarantoolLogFileName is the log file of tarantool when its config logs
 	// to a file without naming one.
 	TarantoolLogFileName = "tarantool.log"
@@ -47,6 +51,9 @@ var (
 //	<root>/var/lib/<app>/<inst>/    wal, snapshots and vinyl files
 //	<root>/var/log/<app>/<inst>/    tt.log
 //	<root>/var/run/<app>/<inst>/    tt.pid, tarantool.pid, tarantool.control, tarantool.sock
+//
+// An external process has no data and no sockets: it keeps tt.log, tt.pid and
+// process.pid.
 //
 // The root is <project>/.tarantool in a project and the user or the system
 // root otherwise. The artifacts live outside of the application directory on
@@ -115,6 +122,11 @@ func (layout ScopeLayout) ConsoleSocket() string {
 // BinaryPort is the unix socket tarantool listens on for iproto.
 func (layout ScopeLayout) BinaryPort() string {
 	return filepath.Join(layout.RunDir(), BinaryPortName)
+}
+
+// ProcessPidFile is the pid file of an external process.
+func (layout ScopeLayout) ProcessPidFile() string {
+	return filepath.Join(layout.RunDir(), ProcessPidFileName)
 }
 
 func (layout ScopeLayout) dir(kind string) string {

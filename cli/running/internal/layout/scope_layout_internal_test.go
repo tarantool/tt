@@ -16,6 +16,8 @@ func TestScopeLayout(t *testing.T) {
 	assert.Equal(t, "/opt/tarantool/var/run/myapp/storage-1", scopeLayout.RunDir())
 	assert.Equal(t, "/opt/tarantool/var/log/myapp/storage-1/tt.log", scopeLayout.LogFile())
 	assert.Equal(t, "/opt/tarantool/var/run/myapp/storage-1/tt.pid", scopeLayout.PidFile())
+	assert.Equal(t, "/opt/tarantool/var/run/myapp/storage-1/process.pid",
+		scopeLayout.ProcessPidFile())
 	assert.Equal(t, "/opt/tarantool/var/run/myapp/storage-1/tarantool.control",
 		scopeLayout.ConsoleSocket())
 	assert.Equal(t, "/opt/tarantool/var/run/myapp/storage-1/tarantool.sock",

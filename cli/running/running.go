@@ -87,6 +87,23 @@ type InstanceCtx struct {
 	// itself, run by scriptSpec. Nothing sets it while NewInstanceCtx
 	// refuses such instances.
 	InstanceScript string
+	// Kind tells how the instance runs: a Tarantool instance configured by
+	// the cluster config, or an external process (IsExternal).
+	Kind instances.Kind
+	// Binary is the executable of an external process: an absolute path, or
+	// the name of a program looked up in PATH when the process starts.
+	Binary string
+	// Args are the arguments of an external process.
+	Args []string
+	// Workdir is the working directory of an external process: workdir of
+	// its record, or else DataDir.
+	Workdir string
+	// DataDir is the data directory of an external process that runs in it,
+	// one whose record sets no workdir: <root>/var/lib/<app>/<inst>/, which
+	// the start creates and tt clean empties. It is empty for a process with
+	// workdir and for a Tarantool instance, whose data directories are
+	// WalDir, MemtxDir and VinylDir.
+	DataDir string
 	// AppName is the name of the application.
 	AppName string
 	// Instance name.
@@ -120,12 +137,15 @@ type InstanceCtx struct {
 	// The name of the file with the watchdog PID under which the
 	// instance was started.
 	PIDFile string
+	// ProcessPIDFile is the pid file of an external process, which its
+	// watchdog writes; empty for a Tarantool instance.
+	ProcessPIDFile string
 	// Restart is the restart policy of the instance record, which the
 	// watchdog follows after the instance exits on its own (restartsAfter).
 	Restart instances.RestartPolicy
 	// StopSignal is the signal the instance record stops the instance
 	// with. Zero leaves tarantool the stop signal the watchdog receives,
-	// SIGINT from tt stop.
+	// SIGINT from tt stop, and stops an external process with SIGTERM.
 	StopSignal syscall.Signal
 	// StopTimeout is how long the instance record lets the instance take to
 	// stop before it is killed. Zero is instanceStopTimeout.
@@ -202,12 +222,18 @@ func renderInstCtxMembers(instance *InstanceCtx) error {
 	return nil
 }
 
-// createInstanceDataDirectories creates directories for data and runtime artifacts.
+// createInstanceDataDirectories creates directories for data and runtime
+// artifacts. An external process has a data directory only when it runs in
+// it (DataDir).
 func createInstanceDataDirectories(instance InstanceCtx) error {
 	for _, dataDir := range [...]string{
 		instance.WalDir, instance.VinylDir,
-		instance.MemtxDir, instance.RunDir, instance.LogDir,
+		instance.MemtxDir, instance.RunDir, instance.LogDir, instance.DataDir,
 	} {
+		if dataDir == "" {
+			continue
+		}
+
 		err := util.CreateDirectory(dataDir, defaultDirPerms)
 		if err != nil {
 			return err
@@ -226,7 +252,13 @@ func RunInstance(ctx context.Context, cmdCtx *cmdcontext.CmdCtx, inst InstanceCt
 		return err
 	}
 
-	for _, dataDir := range [...]string{inst.WalDir, inst.VinylDir, inst.MemtxDir, inst.RunDir} {
+	for _, dataDir := range [...]string{
+		inst.WalDir, inst.VinylDir, inst.MemtxDir, inst.RunDir, inst.DataDir,
+	} {
+		if dataDir == "" {
+			continue
+		}
+
 		err := util.CreateDirectory(dataDir, defaultDirPerms)
 		if err != nil {
 			return err
@@ -404,13 +436,15 @@ func StopAll(runs []InstanceCtx) error {
 	return errors.Join(stopErrors...)
 }
 
-// Kill kills instance process.
+// Kill kills instance process: the process group of its watchdog, and the
+// process group of an external process, which is a group of its own.
 func Kill(run InstanceCtx) error {
 	pid, err := process_utils.KillProcessGroup(run.PIDFile)
 	if err != nil {
 		return fmt.Errorf("failed to kill the processes: %w", err)
 	}
 
+	killProcess(&run, killCleanupTimeout)
 	cleanupAfterKill(&run, pid, killCleanupTimeout, removeSockets)
 
 	fullInstanceName := GetAppInstanceName(run)
@@ -464,7 +498,16 @@ func cleanupAfterKill(run *InstanceCtx, pid int, wait time.Duration,
 }
 
 // Quit the Instance.
+//
+// An external process is refused: the watchdog stops it with its stop signal
+// whatever stopped the watchdog, so it would stop without a dump while the
+// command reported one.
 func Quit(run InstanceCtx) error {
+	err := RequireTarantool(&run)
+	if err != nil {
+		return fmt.Errorf("cannot quit with a dump: %w", err)
+	}
+
 	pid, err := process_utils.QuitProcess(run.PIDFile)
 	if err != nil {
 		return fmt.Errorf("failed to quit the process: %w", err)
@@ -565,7 +608,8 @@ func GetAppInstanceName(instance InstanceCtx) string {
 
 // IsAbleToStartInstances checks if it is possible to start instances: each
 // passes the checks before a start and its application has a tarantool,
-// whose warnings are logged once per application.
+// whose warnings are logged once per application. An external process needs
+// no tarantool, only its binary (checkExternal).
 //
 // The command that starts the instances calls it before it detaches their
 // watchdogs, so that what stops an instance from starting reaches the user
@@ -579,6 +623,10 @@ func IsAbleToStartInstances(instances []InstanceCtx) (bool, error) {
 		err := checkStart(inst)
 		if err != nil {
 			return false, err
+		}
+
+		if IsExternal(inst) {
+			continue
 		}
 
 		exe, err := resolveTarantool(inst)

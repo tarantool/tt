@@ -145,8 +145,8 @@ func TestCollectSystemScope(t *testing.T) {
 		inst.Log)
 }
 
-// TestCollectUnsupportedKinds pins that a record that runs its script or an
-// external process is refused when a target selects it, and only then.
+// TestCollectUnsupportedKinds pins that a record that runs its script is
+// refused when a target selects it, and only then.
 func TestCollectUnsupportedKinds(t *testing.T) {
 	setScopeRoots(t)
 
@@ -155,14 +155,14 @@ func TestCollectUnsupportedKinds(t *testing.T) {
 		"storage-1:\nlegacy-1:\n  script: init.lua\nworker-1:\n  binary: ./bin/worker\n",
 		"storage-1"))
 
-	for _, target := range []string{"myapp:*", "myapp:legacy-1", "myapp:worker-1"} {
+	for _, target := range []string{"myapp:*", "myapp:legacy-1"} {
 		_, err := collect(t, app.Options{Start: dir}, target)
 		require.ErrorIs(t, err, ErrUnsupportedKind, target)
 	}
 
-	insts, err := collect(t, app.Options{Start: dir}, "myapp:storage-1")
+	insts, err := collect(t, app.Options{Start: dir}, "myapp:storage-1,myapp:worker-1")
 	require.NoError(t, err)
-	assert.Equal(t, []string{"myapp:storage-1"}, instNames(insts))
+	assert.Equal(t, []string{"myapp:storage-1", "myapp:worker-1"}, instNames(insts))
 }
 
 // TestReloadStaysOnPinnedVersion pins what the watchdog reads before it

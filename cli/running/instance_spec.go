@@ -67,12 +67,18 @@ func integrityOf(cmdCtx *cmdcontext.CmdCtx) *integrity.IntegrityCtx {
 	return &cmdCtx.Integrity
 }
 
-// instanceSpec is the Spec of the tarantool process of an instance: a
-// Tarantool instance runs from the config of the pair of its application on
-// the tarantool of its application (appClusterSpec). The stop settings of
-// the instance record apply on top.
+// instanceSpec is the Spec of the process of an instance: a Tarantool
+// instance runs from the config of the pair of its application on the
+// tarantool of its application (appClusterSpec), an external process runs
+// its binary (externalSpec). The stop settings of the instance record apply
+// on top.
 func instanceSpec(inst *InstanceCtx, opts specOptions) (supervisor.Spec, error) {
-	spec, err := appClusterSpec(inst, opts)
+	build := appClusterSpec
+	if IsExternal(inst) {
+		build = externalSpec
+	}
+
+	spec, err := build(inst, opts)
 	if err != nil {
 		return supervisor.Spec{}, err
 	}
@@ -83,7 +89,7 @@ func instanceSpec(inst *InstanceCtx, opts specOptions) (supervisor.Spec, error) 
 }
 
 // applyStopSettings applies the stop_signal and stop_timeout of the instance
-// record to spec, over the defaults of tarantoolSpec.
+// record to spec, over the defaults of tarantoolSpec or externalSpec.
 //
 // Without stop_signal the stop signal the watchdog receives reaches tarantool
 // as it was sent, as it always has: SIGINT from tt stop, SIGQUIT from tt quit.
