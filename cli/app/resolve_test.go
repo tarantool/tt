@@ -1,12 +1,14 @@
 package app_test
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/v3/cli/app"
+	"github.com/tarantool/tt/v3/internal/scope"
 )
 
 // resolveFixture lays down a project called myapp with router-1, storage-1
@@ -158,4 +160,69 @@ func TestResolveErrors(t *testing.T) {
 		requireFailure(t, err, app.ErrAppNotFound)
 		assert.Nil(t, got)
 	})
+}
+
+// TestScopeOf pins the scope a command that acts on what an application left
+// in its scope picks for a name: the one Load picks, without looking for the
+// application there, so that it works for an application that is gone.
+func TestScopeOf(t *testing.T) {
+	projectDir := resolveFixture(t)
+	user, system := os.Getenv(scope.UserRootEnv), os.Getenv(scope.SystemRootEnv)
+	projectRoot := filepath.Join(projectDir, ".tarantool")
+
+	cases := []struct {
+		name  string
+		app   string
+		opts  app.Options
+		scope app.Scope
+		root  string
+	}{
+		{
+			name: "the project of that name", app: "myapp",
+			opts: app.Options{Start: projectDir}, scope: app.ScopeProject, root: projectRoot,
+		},
+		{
+			name: "another name in a project", app: "other",
+			opts: app.Options{Start: projectDir}, scope: app.ScopeSystem, root: system,
+		},
+		{
+			name: "an application that is not installed", app: "gone",
+			opts: app.Options{Start: t.TempDir()}, scope: app.ScopeSystem, root: system,
+		},
+		{
+			name: "--scope wins", app: "myapp",
+			opts:  app.Options{Start: projectDir, Scope: app.ScopeSystem},
+			scope: app.ScopeSystem, root: system,
+		},
+		{
+			name: "--scope user", app: "myapp",
+			opts:  app.Options{Start: projectDir, Scope: app.ScopeUser},
+			scope: app.ScopeUser, root: user,
+		},
+		{
+			name: "--scope project", app: "myapp",
+			opts:  app.Options{Start: projectDir, Scope: app.ScopeProject},
+			scope: app.ScopeProject, root: projectRoot,
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			got, root, err := app.ScopeOf(test.app, test.opts)
+			require.NoError(t, err)
+			assert.Equal(t, test.scope, got)
+			assert.Equal(t, test.root, root)
+		})
+	}
+
+	_, _, err := app.ScopeOf("other", app.Options{Start: projectDir, Scope: app.ScopeProject})
+	requireFailure(t, err, app.ErrAppNotFound)
+
+	_, _, err = app.ScopeOf("myapp:*", app.Options{Start: projectDir})
+	requireFailure(t, err, app.ErrInvalidTarget)
+
+	_, _, err = app.ScopeOf("myapp", app.Options{Start: projectDir, Scope: "global"})
+	requireFailure(t, err, app.ErrUnknownScope)
+
+	assert.Equal(t, filepath.Join(system, "etc", "other"), app.HostDir(system, "other"))
 }
