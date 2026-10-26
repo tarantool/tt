@@ -346,7 +346,9 @@ def restore_config(tt_app):
 def check_broken_pair(tt, tt_app, *args, input=None):
     """Run tt args on tt_app, whose pair has lost its cluster config, and
     check that the command refuses with a clear error, exit code 1, and acts
-    on no instance: an instance command needs the whole pair."""
+    on no instance: a command that reads the config, such as
+    tt instance clean, needs the whole pair. Those that only act on the
+    processes of the instances, such as tt instance stop, do not."""
     orig_status = {}
     for inst in tt_app.instances:
         pid_file = tt_app.run_path(inst, utils.pid_file)

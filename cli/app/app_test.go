@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -989,6 +990,123 @@ func TestPairContents(t *testing.T) {
 			for _, msg := range test.msg {
 				require.ErrorContains(t, err, msg)
 			}
+		})
+	}
+}
+
+// closedAddress returns an address on the loopback nobody listens on.
+func closedAddress(t *testing.T) string {
+	t.Helper()
+
+	var config net.ListenConfig
+
+	listener, err := config.Listen(t.Context(), "tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	address := listener.Addr().String()
+	require.NoError(t, listener.Close())
+
+	return address
+}
+
+// unreachableConfig returns a thin cluster config that sends tt for the rest
+// of the config to an etcd nobody listens on.
+func unreachableConfig(t *testing.T) string {
+	t.Helper()
+
+	return fmt.Sprintf("config:\n  etcd:\n    endpoints:\n      - http://%s\n"+
+		"    prefix: /myapp\n    http:\n      request:\n        timeout: 0.5\n",
+		closedAddress(t))
+}
+
+// TestLoadSkipConfig pins that Options.SkipConfig leaves the cluster config
+// of the pair unread: a config that does not parse, one that sends tt to an
+// etcd out of reach, a topology that does not declare the instances and a
+// pair without a config load all the same, with no Config, while the
+// description is read and checked as always.
+func TestLoadSkipConfig(t *testing.T) {
+	loaded := []struct {
+		name   string
+		desc   string
+		config string // The file is left out when it is empty.
+	}{
+		{name: "a config that does not parse", desc: "storage-1:\n", config: "groups: [\n"},
+		{name: "a config storage out of reach", desc: "storage-1:\n", config: "unreachable"},
+		{
+			name: "a topology without the instance", desc: "storage-9:\n",
+			config: topology("storage-1"),
+		},
+		{name: "no config", desc: "storage-1:\n"},
+	}
+
+	for _, test := range loaded {
+		t.Run(test.name, func(t *testing.T) {
+			roots(t)
+
+			config := test.config
+			if config == "unreachable" {
+				config = unreachableConfig(t)
+			}
+
+			files := map[string]string{".templates/default/instances.yaml": test.desc}
+			if config != "" {
+				files[".templates/default/config.yaml"] = config
+			}
+
+			tree := t.TempDir()
+			writeTree(t, tree, files)
+
+			_, err := load(t, "", app.Options{Start: tree})
+			require.Error(t, err, "the config is read without SkipConfig")
+
+			got, err := load(t, "", app.Options{Start: tree, SkipConfig: true})
+			require.NoError(t, err)
+			assert.Nil(t, got.Config)
+			assert.Equal(t, []string{strings.TrimSuffix(test.desc, ":\n")}, names(got.Instances))
+			assert.True(t, got.HasClusterInstances())
+		})
+	}
+
+	failed := []struct {
+		name  string
+		files map[string]string
+		err   error
+	}{
+		{
+			name: "an invalid description",
+			files: map[string]string{
+				".templates/default/instances.yaml": "storage-1:\n  colour: red\n",
+				".templates/default/config.yaml":    "groups: [\n",
+			},
+			err: instances.ErrInvalid,
+		},
+		{
+			name: "a field a Tarantool instance cannot honour",
+			files: map[string]string{
+				".templates/default/instances.yaml": "storage-1:\n  workdir: var\n",
+				".templates/default/config.yaml":    "groups: [\n",
+			},
+			err: app.ErrUnsupportedField,
+		},
+		{
+			name: "a config without a description",
+			files: map[string]string{
+				".templates/default/config.yaml": topology("storage-1"),
+				"app.manifest.toml":              manifestOf("myapp"),
+			},
+			err: app.ErrIncompletePair,
+		},
+	}
+
+	for _, test := range failed {
+		t.Run(test.name, func(t *testing.T) {
+			roots(t)
+
+			tree := t.TempDir()
+			writeTree(t, tree, test.files)
+
+			_, err := load(t, "", app.Options{Start: tree, SkipConfig: true})
+			requireFailure(t, err, test.err)
 		})
 	}
 }

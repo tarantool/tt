@@ -52,6 +52,17 @@ def stop_application(tt_cmd, workdir, app_name, instances):
         )
 
 
+def box_running_via_connect(tt_cmd, workdir, target):
+    """Report whether the box of the instance target runs, as tt connect
+    finds it."""
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "connect", target, "-f", "-"],
+        cwd=workdir,
+        input="return box.info.status\n",
+    )
+    return rc == 0 and "running" in out
+
+
 def wait_cluster_started(tt_cmd, workdir, app_name, instances, inst_conf):
     files = []
     for inst in instances:
@@ -67,7 +78,18 @@ def wait_cluster_started(tt_cmd, workdir, app_name, instances, inst_conf):
         status_info = extract_status(status_out)
         for inst in instances:
             inst_id = app_name + ":" + inst
-            if status_info[inst_id].get("BOX") != "running":
+            assert status_info[inst_id]["STATUS"] == "RUNNING"
+            # tt instance status reads no cluster config, so it asks an
+            # instance over the console socket of the layout; one the config
+            # moves elsewhere is asked through tt connect, which reads it.
+            conf = inst_conf(workdir, app_name, inst)
+            if (
+                conf["console_socket"]
+                != default_inst_conf(workdir, app_name, inst)["console_socket"]
+            ):
+                if not box_running_via_connect(tt_cmd, workdir, inst_id):
+                    return False
+            elif status_info[inst_id].get("BOX") != "running":
                 return False
         return True
 

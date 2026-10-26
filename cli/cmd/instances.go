@@ -20,6 +20,20 @@ const instanceTargetsUsage = "[<APP>:<INSTANCE> | <APP>:*][,...]"
 // command that cannot name an application.
 var errNotAnAppTarget = errors.New("not an application target")
 
+// pairConfig tells whether the application target of a cluster-level command
+// is resolved with the cluster config of its pair.
+type pairConfig bool
+
+const (
+	// readConfig reads the config, for a command that acts on the cluster
+	// the config describes.
+	readConfig pairConfig = true
+	// skipConfig leaves it unread (app.Options.SkipConfig), for a command
+	// that only asks the running instances, as tt replicaset status does:
+	// as in tt2, a config storage out of reach does not keep it from them.
+	skipConfig pairConfig = false
+)
+
 // instanceOptions are the options an instance command finds the
 // applications of its targets with: the project search starts in the -C
 // directory, where the command has the flag, or else in the working
@@ -32,11 +46,12 @@ func instanceOptions(cmdCtx *cmdcontext.CmdCtx) (app.Options, error) {
 	}
 
 	return app.Options{
-		Scope:     "",
-		Template:  "",
-		Start:     start,
-		Dir:       "",
-		Integrity: cmdCtx.Integrity,
+		Scope:      "",
+		Template:   "",
+		Start:      start,
+		Dir:        "",
+		Integrity:  cmdCtx.Integrity,
+		SkipConfig: false,
 	}, nil
 }
 
@@ -51,6 +66,27 @@ func resolveInstances(cmdCtx *cmdcontext.CmdCtx, args []string) ([]running.Insta
 	if err != nil {
 		return nil, err
 	}
+
+	return resolveInstancesWith(args, opts)
+}
+
+// resolveProcesses resolves the targets of a command that acts on the
+// processes of the instances, as resolveInstances does, but leaves the
+// cluster config of the pair unread (app.Options.SkipConfig).
+//
+// tt instance stop, kill, status, logrotate and logs find an instance by its
+// record and its pid file alone, as they did in tt2: an etcd that is down,
+// or a config broken by an edit, must not keep a running instance from being
+// stopped or looked at. What they lose is what only the config says, such as
+// a console socket it moves from the layout, which tt instance status then
+// does not reach.
+func resolveProcesses(cmdCtx *cmdcontext.CmdCtx, args []string) ([]running.InstanceCtx, error) {
+	opts, err := instanceTargetOptions(cmdCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	opts.SkipConfig = true
 
 	return resolveInstancesWith(args, opts)
 }
@@ -109,7 +145,10 @@ func describeTargets(args []string) string {
 // running.ErrNotClusterInstance. An application of such instances alone, as
 // tt2 ran without a config of Tarantool 3, keeps them: they are its
 // instances, which the custom orchestrator acts on.
-func resolveAppTarget(cmdCtx *cmdcontext.CmdCtx, target string) (
+//
+// config tells whether the cluster config of the pair is read; the kinds of
+// the instances come from the description either way.
+func resolveAppTarget(cmdCtx *cmdcontext.CmdCtx, target string, config pairConfig) (
 	*app.App, []running.InstanceCtx, string, error,
 ) {
 	appName, instName, found := strings.Cut(target, string(running.InstanceDelimiter))
@@ -121,6 +160,8 @@ func resolveAppTarget(cmdCtx *cmdcontext.CmdCtx, target string) (
 	if err != nil {
 		return nil, nil, "", err
 	}
+
+	opts.SkipConfig = config == skipConfig
 
 	application, err := app.Load(context.Background(), appName, opts)
 	if err != nil {

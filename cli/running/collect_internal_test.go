@@ -236,3 +236,35 @@ func TestReloadProject(t *testing.T) {
 	require.ErrorIs(t, err, errNotReloaded)
 	require.ErrorIs(t, err, app.ErrInstanceNotFound)
 }
+
+// TestReloadReadsConfig pins that the watchdog reads the instance anew with
+// the cluster config of its pair, whatever the context it was given was
+// built with: the commands that only stop and inspect instances leave the
+// config unread (app.Options.SkipConfig), the start of an instance does not.
+func TestReloadReadsConfig(t *testing.T) {
+	setScopeRoots(t)
+
+	dir := filepath.Join(t.TempDir(), fixtureApp)
+	wal := filepath.Join(t.TempDir(), "wal")
+	files := pairFiles("storage-1:\n", "storage-1")
+	config := files[".templates/default/config.yaml"] + "wal:\n  dir: " + wal + "\n"
+
+	files[".templates/default/config.yaml"] = config
+	writeFiles(t, dir, files)
+
+	insts, err := collect(t, app.Options{Start: dir, SkipConfig: true})
+	require.NoError(t, err)
+	require.Len(t, insts, 1)
+	assert.Nil(t, insts[0].Configuration)
+	assert.NotEqual(t, wal, insts[0].WalDir, "the layout without the config")
+
+	reloaded, err := reload(t.Context(), &insts[0], integrity.IntegrityCtx{Repository: nil})
+	require.NoError(t, err)
+	assert.NotNil(t, reloaded.Configuration)
+	assert.Equal(t, wal, reloaded.WalDir, "the config has the last word")
+
+	writeFiles(t, dir, map[string]string{".templates/default/config.yaml": "groups: [\n"})
+
+	_, err = reload(t.Context(), &insts[0], integrity.IntegrityCtx{Repository: nil})
+	require.ErrorIs(t, err, errNotReloaded)
+}

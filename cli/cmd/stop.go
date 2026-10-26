@@ -30,7 +30,7 @@ func NewStopCmd() *cobra.Command {
 }
 
 func internalStopWithConfirmationModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	instances, err := resolveInstances(cmdCtx, args)
+	instances, err := resolveProcesses(cmdCtx, args)
 	if err != nil {
 		return err
 	}

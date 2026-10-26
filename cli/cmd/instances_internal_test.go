@@ -59,14 +59,14 @@ func TestResolveAppTargetExternal(t *testing.T) {
 	for target, wantInst := range map[string]string{
 		"myapp": "", "myapp:*": "", "myapp:storage-2": "storage-2",
 	} {
-		application, insts, instName, err := resolveAppTarget(cmdCtx, target)
+		application, insts, instName, err := resolveAppTarget(cmdCtx, target, readConfig)
 		require.NoError(t, err, target)
 		assert.Len(t, application.Instances, 3, "the description is whole")
 		assert.Equal(t, []string{"storage-1", "storage-2"}, instanceNames(insts), target)
 		assert.Equal(t, wantInst, instName, target)
 	}
 
-	application, insts, _, err := resolveAppTarget(cmdCtx, "myapp:worker-1")
+	application, insts, _, err := resolveAppTarget(cmdCtx, "myapp:worker-1", readConfig)
 	require.ErrorIs(t, err, running.ErrNotTarantool)
 	assert.Nil(t, application)
 	assert.Nil(t, insts)

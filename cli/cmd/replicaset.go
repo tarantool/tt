@@ -505,10 +505,11 @@ func newReplicasetConnectCtx() connect.ConnectCtx {
 
 // replicasetFillCtx fills the replicaset command context. target is an
 // application, <APP> or <APP>:<INSTANCE>, resolved as the instance commands
-// resolve it, or else, unless isRunningCtxRequired, a URI to connect to. The
+// resolve it, with the cluster config of its pair or without it as config
+// says, or else, unless isRunningCtxRequired, a URI to connect to. The
 // orchestrator of an application target is chosen by appOrchestrator.
 func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, target string,
-	isRunningCtxRequired bool,
+	isRunningCtxRequired bool, config pairConfig,
 ) error {
 	var err error
 
@@ -521,7 +522,7 @@ func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, target str
 
 	var connOpts connector.ConnectOpts
 
-	application, instances, instName, err := resolveAppTarget(cmdCtx, target)
+	application, instances, instName, err := resolveAppTarget(cmdCtx, target, config)
 	if err != nil {
 		// A target that is no URI is an application, and why it is none is
 		// the error to report: trying it as an instance target, as tt connect
@@ -637,7 +638,7 @@ func fillReplicasetAppCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, instNam
 func internalReplicasetUpgradeModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var ctx replicasetCtx
 
-	err := replicasetFillCtx(cmdCtx, &ctx, args[0], false)
+	err := replicasetFillCtx(cmdCtx, &ctx, args[0], false, readConfig)
 	if err != nil {
 		return err
 	}
@@ -672,7 +673,7 @@ func internalReplicasetDowngradeModule(cmdCtx *cmdcontext.CmdCtx, args []string)
 
 	var ctx replicasetCtx
 
-	err := replicasetFillCtx(cmdCtx, &ctx, args[0], false)
+	err := replicasetFillCtx(cmdCtx, &ctx, args[0], false, readConfig)
 	if err != nil {
 		return err
 	}
@@ -705,7 +706,7 @@ func internalReplicasetDowngradeModule(cmdCtx *cmdcontext.CmdCtx, args []string)
 func internalReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var ctx replicasetCtx
 
-	err := replicasetFillCtx(cmdCtx, &ctx, args[0], false)
+	err := replicasetFillCtx(cmdCtx, &ctx, args[0], false, readConfig)
 	if err != nil {
 		return err
 	}
@@ -742,7 +743,7 @@ func internalReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) e
 func internalReplicasetDemoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var ctx replicasetCtx
 
-	err := replicasetFillCtx(cmdCtx, &ctx, args[0], true)
+	err := replicasetFillCtx(cmdCtx, &ctx, args[0], true, readConfig)
 	if err != nil {
 		return err
 	}
@@ -782,7 +783,9 @@ func internalReplicasetDemoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) er
 func internalReplicasetStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var ctx replicasetCtx
 
-	err := replicasetFillCtx(cmdCtx, &ctx, args[0], false)
+	// The status comes from the running instances, which tell their
+	// replicasets themselves.
+	err := replicasetFillCtx(cmdCtx, &ctx, args[0], false, skipConfig)
 	if err != nil {
 		return err
 	}
@@ -809,7 +812,7 @@ func internalReplicasetExpelModule(cmdCtx *cmdcontext.CmdCtx, args []string) err
 
 	var ctx replicasetCtx
 
-	err := replicasetFillCtx(cmdCtx, &ctx, args[0], true)
+	err := replicasetFillCtx(cmdCtx, &ctx, args[0], true, readConfig)
 	if err != nil {
 		return err
 	}
@@ -843,7 +846,7 @@ func internalReplicasetExpelModule(cmdCtx *cmdcontext.CmdCtx, args []string) err
 func internalReplicasetBootstrapVShardModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var ctx replicasetCtx
 
-	err := replicasetFillCtx(cmdCtx, &ctx, args[0], false)
+	err := replicasetFillCtx(cmdCtx, &ctx, args[0], false, readConfig)
 	if err != nil {
 		return err
 	}
@@ -880,7 +883,7 @@ func internalReplicasetBootstrapModule(cmdCtx *cmdcontext.CmdCtx, args []string)
 
 	var ctx replicasetCtx
 
-	err := replicasetFillCtx(cmdCtx, &ctx, args[0], true)
+	err := replicasetFillCtx(cmdCtx, &ctx, args[0], true, readConfig)
 	if err != nil {
 		return err
 	}
@@ -993,7 +996,7 @@ func internalReplicasetRebootstrapModule(cmdCtx *cmdcontext.CmdCtx, args []strin
 func internalReplicasetRolesAddModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var ctx replicasetCtx
 
-	err := replicasetFillCtx(cmdCtx, &ctx, args[0], false)
+	err := replicasetFillCtx(cmdCtx, &ctx, args[0], false, readConfig)
 	if err != nil {
 		return err
 	}
@@ -1044,7 +1047,7 @@ func internalReplicasetRolesAddModule(cmdCtx *cmdcontext.CmdCtx, args []string) 
 func internalReplicasetRolesRemoveModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var ctx replicasetCtx
 
-	err := replicasetFillCtx(cmdCtx, &ctx, args[0], false)
+	err := replicasetFillCtx(cmdCtx, &ctx, args[0], false, readConfig)
 	if err != nil {
 		return err
 	}

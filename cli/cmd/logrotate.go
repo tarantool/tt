@@ -30,7 +30,7 @@ func NewLogrotateCmd() *cobra.Command {
 // internalLogrotateModule is a default logrotate module. An instance that
 // does not run has no log to reopen, which fails it (actOnInstances).
 func internalLogrotateModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	instances, err := resolveInstances(cmdCtx, args)
+	instances, err := resolveProcesses(cmdCtx, args)
 	if err != nil {
 		return err
 	}
