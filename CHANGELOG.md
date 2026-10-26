@@ -555,9 +555,13 @@ for machine-readable output.
 - Application discovery now uses only the directory containing `tt.yaml` as
   the application root. The multi-application layout is no longer supported;
   `env.instances_enabled` is retained as an ignored compatibility option.
-- `tt create` now creates the application directory directly under the
-  selected environment root and no longer creates a symlink in
-  `instances.enabled`.
+- `tt create` needs no `tt.yaml`: it creates the application directory in
+  the current directory, or under `--dst`, and no longer creates a symlink in
+  `instances.enabled`. A template of your own is given by its path, a
+  directory or a `.tgz`/`.tar.gz` archive (`tt create ./templates/basic`),
+  instead of being looked up in the `templates` paths of `tt.yaml`; a name
+  without a slash is a built-in template. The `rundir` template variable,
+  which came from `app.run_dir` of `tt.yaml`, is gone.
 - `tt enable` and `tt instances` commands removed.
 - `tt cfg`, `tt cfg dump` and `tt env` commands removed along with
   `tt.yaml`: there is no tt environment left to print or to put on `PATH`.

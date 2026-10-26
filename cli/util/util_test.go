@@ -358,20 +358,6 @@ func TestInstantiateFileFromTemplate(t *testing.T) {
 	}
 }
 
-func TestRelativeToCurrentWorkingDir(t *testing.T) {
-	cwd, err := os.Getwd()
-	require.NoError(t, err)
-
-	relDir := util.RelativeToCurrentWorkingDir(filepath.Join(cwd, "dir1", "subdir"))
-	assert.Equal(t, filepath.Join("dir1", "subdir"), relDir)
-
-	relDir = util.RelativeToCurrentWorkingDir(filepath.Join(cwd, "..", "dir1"))
-	assert.Equal(t, filepath.Join("..", "dir1"), relDir)
-
-	relDir = util.RelativeToCurrentWorkingDir("dir1/subdir")
-	assert.Equal(t, filepath.Join("dir1", "subdir"), relDir)
-}
-
 func TestParseYaml(t *testing.T) {
 	type args struct {
 		yamlFilePath string

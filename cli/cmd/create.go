@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
@@ -50,11 +50,21 @@ Built-in templates:
 	single_instance: Tarantool 3 application with a single instance configuration.
 	cluster: Tarantool 3 cluster application.
 	vshard_cluster: Tarantool 3 vshard cluster application.
-	config_storage: Tarantool 3 cluster configuration storage.`,
+	config_storage: Tarantool 3 cluster configuration storage.
+
+A template of your own is given by its path: a directory, or a .tgz or
+.tar.gz archive, which may be named without its extension. A path is told
+from the name of a built-in template by a slash in it, so a template in the
+current directory is given as ./<name>.`,
 		Example: `
 # Create an application app1 from a template.
 
     $ tt create <template name> --name app1
+
+# Create an application app1 from the template in the templates/basic
+# directory.
+
+    $ tt create ./templates/basic --name app1
 
 # Create a Tarantool 3 application with a single instance configuration.
 
@@ -94,6 +104,12 @@ func createValidArgsFunction(
 		return nil, cobra.ShellCompDirectiveDefault
 	}
 
+	// A template of the user's own is given by its path: the shell completes
+	// it once it is typed as one.
+	if strings.ContainsRune(toComplete, filepath.Separator) {
+		return nil, cobra.ShellCompDirectiveDefault
+	}
+
 	templates := make([]string, 0, len(builtin_templates.Names))
 
 	// Append built-in templates.
@@ -101,58 +117,28 @@ func createValidArgsFunction(
 		templates = append(templates, template)
 	}
 
-	// Append cfg's templates.
-	for _, templateDir := range cliOpts.Templates {
-		path := templateDir.Path
-
-		entries, err := os.ReadDir(path)
-		if err != nil {
-			continue
-		}
-
-		for _, entry := range entries {
-			eName := entry.Name()
-			ext := filepath.Ext(eName)
-
-			switch {
-			case entry.IsDir():
-				templates = append(templates, eName)
-			case ext == ".tgz":
-				templates = append(templates, eName[:len(eName)-4])
-			case ext == ".gz" && filepath.Ext(eName[:len(eName)-3]) == ".tar":
-				templates = append(templates, eName[:len(eName)-7])
-			}
-		}
-	}
-
 	return templates, cobra.ShellCompDirectiveNoFileComp
 }
 
 // internalCreateModule is a default create module.
 func internalCreateModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if !isConfigExist(cmdCtx) {
-		return errNoConfig
-	}
-
 	if len(appName) == 0 {
 		return errNoAppName
 	}
 
-	// FillCtx fills the working directory and the template search paths.
+	// FillCtx fills the working directory.
 	createCtx := create_ctx.CreateCtx{
-		AppName:             appName,
-		WorkDir:             "",
-		TemplateName:        args[0],
-		TemplateSearchPaths: nil,
-		ForceMode:           forceMode,
-		SilentMode:          nonInteractiveMode,
-		VarsFromCli:         *varsFromCli,
-		VarsFile:            varsFile,
-		DestinationDir:      dstPath,
-		CliOpts:             cliOpts,
+		AppName:        appName,
+		WorkDir:        "",
+		TemplateName:   args[0],
+		ForceMode:      forceMode,
+		SilentMode:     nonInteractiveMode,
+		VarsFromCli:    *varsFromCli,
+		VarsFile:       varsFile,
+		DestinationDir: dstPath,
 	}
 
-	err := create.FillCtx(cliOpts, &createCtx)
+	err := create.FillCtx(&createCtx)
 	if err != nil {
 		return err
 	}

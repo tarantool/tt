@@ -748,22 +748,6 @@ func InstantiateFileFromTemplate(templatePath, templateContent string, params an
 	return nil
 }
 
-// RelativeToCurrentWorkingDir returns a path relative to current working dir.
-// In case of error, fullPath is returned.
-func RelativeToCurrentWorkingDir(fullPath string) string {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fullPath
-	}
-
-	relPath, err := filepath.Rel(cwd, fullPath)
-	if err != nil {
-		return fullPath
-	}
-
-	return relPath
-}
-
 // CopyFileDeep copies a file resolving symlinks.
 func CopyFileDeep(src, dst string) error {
 	src, err := filepath.EvalSymlinks(src)
