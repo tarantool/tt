@@ -868,6 +868,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   one an installed application runs on under `<root>/versions/`, before
   they start anything. Before, `tt instance start` reported the instance
   started, and only its `tt.log` told that the watchdog could not run it.
+- `tt package install --scope user|system` lays the version directory out
+  with mode 0755, as every other directory of the installation. Before, it
+  was 0700, and the instances of an application root installed into the
+  system scope could not run under the units of `tt service systemd`, which
+  run as `tarantool`: tt failed to read the application manifest.
 - A second `tt tcm start --watchdog` in a directory where one runs is refused
   before it starts anything. Before, it started a second TCM and stopped it
   again once it found the pid file taken.
