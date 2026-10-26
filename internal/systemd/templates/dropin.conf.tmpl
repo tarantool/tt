@@ -1,0 +1,6 @@
+{{.Header}}: the instance {{.Instance}} of {{.App}},
+# from restart and stop_timeout of its record in instances.yaml.
+# tt service systemd install writes this file anew.
+[Service]
+Restart={{.Restart}}
+TimeoutStopSec={{.StopTimeout}}

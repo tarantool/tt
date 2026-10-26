@@ -1,0 +1,30 @@
+{{.Header}}: the instances of the application {{.App}}.
+# tt service systemd install writes this file anew: put settings of your own,
+# such as User=, into a drop-in, {{.Template}}.d/override.conf. Restart= and
+# TimeoutStopSec= of an instance come from instances.yaml, through its drop-in
+# {{.App}}@<instance>.service.d/tt.conf.
+[Unit]
+Description=Tarantool application {{.App}}, instance %i
+After=network.target
+
+[Service]
+Type=simple
+User={{.User}}
+Group={{.Group}}
+Environment=TT_SYSTEM_ROOT={{.Root}}
+Environment={{.UnitEnv}}=%n
+ExecStart={{.TT}} instance start --foreground --scope system {{.App}}:%i
+# tt stops the instance itself: SIGTERM goes to tt alone, which sends the
+# instance its stop signal and kills it once its stop_timeout is up.
+KillMode=mixed
+KillSignal=SIGTERM
+SendSIGKILL=yes
+# For an instance without a drop-in: the defaults of instances.yaml.
+Restart=no
+RestartSec=5s
+TimeoutStopSec={{.StopTimeout}}
+LimitNOFILE=65535
+LimitCORE=infinity
+
+[Install]
+WantedBy=multi-user.target
