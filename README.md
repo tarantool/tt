@@ -608,8 +608,33 @@ without it. `tt status` does not show it running and names it in an alert,
 `tt start` refuses to start a second one, and `tt stop` and `tt kill` stop it
 by `process.pid`.
 
-Records with `script`, Tarantool instances configured by their own script, are
-not supported yet.
+A record with `script` is a Tarantool instance configured by its own Lua
+script rather than by the cluster config, as the `init.lua` and
+`<instance>.init.lua` applications of tt2 were:
+
+```yaml
+legacy-001:
+  script: init.lua          # relative to the application directory
+  env: {TT_MEMTX_MEMORY: "268435456"}
+```
+
+`tarantool` runs the script in the application directory. `box.cfg` takes the
+data directory and the binary port of the layout from `TT_WAL_DIR`,
+`TT_MEMTX_DIR`, `TT_VINYL_DIR` and `TT_LISTEN` for the options the script does
+not pass; `TT_LISTEN` set in the environment of `tt` is kept. The console
+socket is `tarantool.control` in the run directory, and the output goes to
+`tt.log`. `env` of the record goes on top and may move the data with the same
+variables; in the user and system scopes a relative path there is refused.
+A relative path the script passes to `box.cfg` itself `tt` cannot check: in
+the user and system scopes it is resolved against the installed version, and
+the instance writes into the version, which an upgrade replaces.
+`tt connect`, `tt play`, `tt status` and `tt logrotate` work as with any
+Tarantool instance, `tt check` checks the syntax of the script, and `tt clean`
+removes its data and log. `tt cluster show` and `publish` refuse it: no cluster
+config configures it. The application targets of `tt replicaset` leave it out
+next to instances of the cluster config; an application of such instances
+alone keeps them for the custom orchestrator, which Tarantool 3 needs to be
+told about with `--custom`.
 
 ### Working with application templates
 

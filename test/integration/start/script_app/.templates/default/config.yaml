@@ -1,0 +1,9 @@
+# The topology names the Tarantool instance of the cluster config only: the
+# instance that runs its script and the external process are not instances
+# of the cluster.
+groups:
+  group-001:
+    replicasets:
+      rs-001:
+        instances:
+          master: {}

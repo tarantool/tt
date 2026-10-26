@@ -341,23 +341,67 @@ def test_status_external_process(tt_cmd, tmp_path):
     assert extract_status(out)[worker]["STATUS"] == "NOT RUNNING"
 
 
-def test_status_script_instance_not_supported(tt_cmd, tmp_path):
-    # An instance configured by its own script, without a cluster config, is
-    # not supported yet: the command says so instead of starting it.
+def test_status_script_instance(tt_cmd, tmp_path):
+    # An instance configured by its own script, without a cluster config,
+    # runs from a pair without config.yaml, and tt status asks it over its
+    # console socket, as tt2 did.
     app_name = "single_app"
     app_path = tmp_path / app_name
     shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
     os.makedirs(os.path.dirname(app_path / instances_file))
     with open(app_path / instances_file, "w") as f:
         f.write("single_app:\n  script: init.lua\n")
-    with open(app_path / cluster_config_file, "w") as f:
-        f.write("{}\n")
+    inst = f"{app_name}:{app_name}"
 
-    for cmd in ["start", "status"]:
-        rc, out = run_command_and_get_output([tt_cmd, cmd, f"{app_name}:*"], cwd=app_path)
-        assert rc == 1
-        assert "not supported yet" in out
-        assert not os.path.exists(inst_run_dir(app_path, app_name, app_name))
+    try:
+        rc, out = run_command_and_get_output([tt_cmd, "start", f"{app_name}:*"], cwd=app_path)
+        assert rc == 0
+        assert f"Starting an instance [{inst}]" in out
+        run_dir = inst_run_dir(app_path, app_name, app_name)
+        assert wait_file(run_dir, pid_file, []) != ""
+        assert wait_file(run_dir, control_socket, []) != ""
+
+        status_info = {}
+
+        def box_running():
+            nonlocal status_info
+            rc, out = run_command_and_get_output(
+                [tt_cmd, "status", "--format=json"],
+                cwd=app_path,
+            )
+            assert rc == 0
+            status_info = extract_status_from_json(out)
+            return status_info[inst]["box"] == "running"
+
+        deadline = time.time() + 10
+        while not box_running() and time.time() < deadline:
+            time.sleep(0.2)
+
+        assert status_info[inst]["status"] == "RUNNING"
+        assert isinstance(status_info[inst]["pid"], int)
+        assert status_info[inst]["mode"] == "RW"
+        assert status_info[inst]["config"] == "uninitialized"
+        assert status_info[inst]["box"] == "running"
+        assert status_info[inst]["alerts"] is None
+
+        # The data goes under the project root, not into the project.
+        lib_dir = inst_lib_dir(app_path, app_name, app_name)
+        assert wait_file(lib_dir, r".*\.snap", []) != ""
+        assert not os.path.exists(app_path / "00000000000000000000.snap")
+
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "connect", inst, "-f", "-"],
+            cwd=app_path,
+            input="return box.info.ro\n",
+        )
+        assert rc == 0
+        assert "- false" in out
+    finally:
+        stop_application(tt_cmd, app_name, app_path)
+
+    rc, out = run_command_and_get_output([tt_cmd, "status", inst], cwd=app_path)
+    assert rc == 0
+    assert extract_status(out)[inst]["STATUS"] == "NOT RUNNING"
 
 
 def test_status_invalid_format(tt_cmd, tmpdir_with_cfg):

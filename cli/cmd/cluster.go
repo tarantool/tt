@@ -808,8 +808,9 @@ func readSourceFile(path string) ([]byte, map[string]any, error) {
 // instance commands find it (app.Load): an application has one config,
 // whichever command reaches it. The instance does not have to be in the
 // description, so that tt cluster publish can configure one before it runs
-// on this host; but an external process the description declares is no
-// instance of the cluster, and naming it is an error.
+// on this host; but an external process or an instance that runs its script
+// the description declares is no instance of the cluster config, and naming
+// it is an error.
 //
 // A pair without a config, of instances that run their scripts and of
 // external processes, has nothing to show, and tt cluster publish does not
@@ -823,7 +824,7 @@ func parseAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, string, erro
 		return "", "", err
 	}
 
-	err = running.RequireTarantoolRecord(application, instName)
+	err = running.RequireClusterRecord(application, instName)
 	if err != nil {
 		return "", "", err
 	}

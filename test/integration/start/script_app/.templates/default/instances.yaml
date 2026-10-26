@@ -1,0 +1,10 @@
+# A Tarantool instance of the cluster config, a Tarantool instance that runs
+# its script, and an external process next to them.
+master:
+legacy:
+  script: legacy.lua
+  env:
+    LEGACY_GREETING: hello
+worker:
+  binary: ./worker.sh
+  args: [--name, worker]

@@ -416,9 +416,22 @@ for machine-readable output.
   policy is the `restart` field of the instance record: a restart after a
   crash stays on the version the instance started from and re-reads the
   pair, while `tt restart` takes the active version. `tt check` checks the
-  `app.file` of each instance. Records with `script` are not supported
-  yet. `<name>.lua`, `init.lua` and `<instance>.init.lua`
-  applications next to `tt.yaml` are not recognized any more.
+  `app.file` of each instance. A record with `script` is a Tarantool
+  instance configured by its own Lua script, as `init.lua` and
+  `<instance>.init.lua` of tt2 were: `tarantool` runs the script, relative to
+  the application directory, in the application directory, and `box.cfg`
+  takes the data directory and the binary port of the layout from
+  `TT_WAL_DIR`, `TT_MEMTX_DIR`, `TT_VINYL_DIR` and `TT_LISTEN` for the
+  options the script does not pass. The console socket and `tt.log` are those
+  of any instance; `env` of the record may move the data with the same
+  variables, relative paths there being refused in the `user` and `system`
+  scopes. `TARANTOOL_CFG` is no longer set. `tt check` checks the script.
+  `tt cluster show` and `publish` refuse such an instance, and the
+  application targets of `tt replicaset` leave it out next to the instances
+  of the cluster config; an application of such instances alone keeps them
+  for the custom orchestrator. `<name>.lua`, `init.lua` and
+  `<instance>.init.lua` applications next to `tt.yaml` are not recognized
+  any more: a pair with a `script` record runs them.
 
 - `tt binary install tarantool [version]`: install prebuilt Community release
   binaries and matching headers from RWS by default on Linux amd64/arm64 with

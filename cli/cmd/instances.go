@@ -88,6 +88,14 @@ func describeTargets(args []string) string {
 // An external process is no instance of the cluster: it is left out of the
 // instances of the application, and a target naming one is an error
 // wrapping running.ErrNotTarantool.
+//
+// Nor is an instance that runs its script an instance of the cluster config,
+// which the centralized config orchestrator acts on and which it does not
+// answer for. Next to Tarantool instances configured by the cluster config
+// it is left out as well, and a target naming one is an error wrapping
+// running.ErrNotClusterInstance. An application of such instances alone, as
+// tt2 ran without a config of Tarantool 3, keeps them: they are its
+// instances, which the custom orchestrator acts on.
 func resolveAppTarget(cmdCtx *cmdcontext.CmdCtx, target string) (
 	*app.App, []running.InstanceCtx, string, error,
 ) {
@@ -115,13 +123,20 @@ func resolveAppTarget(cmdCtx *cmdcontext.CmdCtx, target string) (
 		instName = ""
 	}
 
-	err = running.RequireTarantoolRecord(application, instName)
+	clustered := application.HasClusterInstances()
+
+	requireRecord := running.RequireTarantoolRecord
+	if clustered {
+		requireRecord = running.RequireClusterRecord
+	}
+
+	err = requireRecord(application, instName)
 	if err != nil {
 		return nil, nil, "", err
 	}
 
 	insts = slices.DeleteFunc(insts, func(inst running.InstanceCtx) bool {
-		return running.IsExternal(&inst)
+		return running.IsExternal(&inst) || clustered && running.IsScript(&inst)
 	})
 
 	if instName != "" && !slices.ContainsFunc(insts, func(inst running.InstanceCtx) bool {
