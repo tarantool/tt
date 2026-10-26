@@ -7,7 +7,6 @@ import (
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
-	"github.com/tarantool/tt/v3/cli/configure"
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/util"
 )
@@ -19,16 +18,6 @@ const (
 	// jsonNull is how encoding/json renders a nil slice.
 	jsonNull = "null"
 )
-
-// errNoConfig is returned if environment config file tt.yaml not found.
-var errNoConfig = errors.New(configure.ConfigName +
-	" not found, you need to create a tt environment config" +
-	" or provide exact config location with --cfg option")
-
-// isConfigExist returns `true` if environment config file tt.yaml exist.
-func isConfigExist(cmdCtx *cmdcontext.CmdCtx) bool {
-	return cmdCtx.Cli.ConfigPath != ""
-}
 
 // internalFunc is the implementation of a command: it works on the
 // process's CmdCtx with the command's arguments.

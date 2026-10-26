@@ -11,7 +11,6 @@ import (
 
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
-	"github.com/tarantool/tt/v3/cli/configure"
 )
 
 // TestInternalRunE checks that the adapter records the command's name in
@@ -40,17 +39,28 @@ func TestInternalRunE(t *testing.T) {
 	assert.Equal(t, []string{"3.2.0"}, gotArgs)
 }
 
-// TestCheckConfig covers the commands that act on a tt environment and so
-// cannot proceed without its config. tt run and tt test are deliberately not
-// here: they act on the package in the working directory and need no
-// environment at all; neither are the instance commands, which find the
-// application from the project (TestInstanceCommandsOutsideProject).
-func TestCheckConfig(t *testing.T) {
-	const expected = configure.ConfigName +
-		" not found, you need to create a tt environment config" +
-		" or provide exact config location with --cfg option"
+// TestCreateWithoutConfig checks that tt create needs no tt environment: it
+// creates the application in the working directory, from a template given
+// by its path.
+func TestCreateWithoutConfig(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
 
-	assert.ErrorContains(t, internalCreateModule(&cmdcontext.CmdCtx{}, nil), expected)
+	template := filepath.Join(dir, "templates", "basic")
+	require.NoError(t, os.MkdirAll(template, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(template, "init.lua"), []byte("return\n"),
+		0o644))
+
+	previousName, previousSilent, previousVars := appName, nonInteractiveMode, varsFromCli
+
+	t.Cleanup(func() {
+		appName, nonInteractiveMode, varsFromCli = previousName, previousSilent, previousVars
+	})
+
+	appName, nonInteractiveMode, varsFromCli = "app1", true, &[]string{}
+
+	require.NoError(t, internalCreateModule(&cmdcontext.CmdCtx{}, []string{"./templates/basic"}))
+	assert.FileExists(t, filepath.Join(dir, "app1", "init.lua"))
 }
 
 // TestInstanceCommandsOutsideProject checks that the instance commands do
@@ -84,7 +94,7 @@ func TestInstanceCommandsOutsideProject(t *testing.T) {
 		})
 	}
 
-	require.NoError(t, os.WriteFile(filepath.Join(dir, configure.ConfigName), nil, 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "tt.yaml"), nil, 0o600))
 
 	for _, tc := range modules {
 		t.Run(tc.name+" in a tt2 environment", func(t *testing.T) {

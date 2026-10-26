@@ -126,12 +126,6 @@ local login = {{.user_name}}
 require("fiber").sleep(1)
 ```
 
-`tt.yaml`:
-
-```yaml
-{}
-```
-
 `MANIFEST.yaml`:
 
 ``` yaml
@@ -147,31 +141,22 @@ vars:
 After instantiation, `.tt.template` suffix is removed from the file
 name.
 
-Create `./tt.yaml` and add templates search path to it:
-
-``` yaml
-  templates:
-    - path: ./templates
-```
-
 Here is how the current directory structure looks like:
 
 ``` text
     ./
-    ├── tt.yaml
     └── templates
         └── simple
             ├── init.lua.tt.template
-            ├── tt.yaml
             └── MANIFEST.yaml
 ```
 
-Directory name `simple` can now be used as template name in create
-command. Create an application from the `simple` template and type
-`user1` in `User name` prompt:
+The path of the template directory can now be given to the create command.
+Create an application from the `simple` template and type `user1` in
+`User name` prompt:
 
 ``` console
-$ tt create simple --name simple_app
+$ tt create ./templates/simple --name simple_app
 • Creating application in <current_directory>/simple_app
 • Using template from <current_directory>/templates/simple
 User name (default: admin): user1
@@ -182,13 +167,8 @@ following content:
 
 ``` text
     simple_app/
-    ├── init.lua
-    └── tt.yaml
+    └── init.lua
 ```
-
-The generated `tt.yaml` makes `simple_app` an independent application root.
-Change into that directory before running lifecycle commands for the new
-application.
 
 Instantiated `init.lua` content:
 

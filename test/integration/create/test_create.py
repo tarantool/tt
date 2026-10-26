@@ -19,11 +19,9 @@ from utils import (
     wait_files,
 )
 
-tt_config_text = """app:
-  run_dir: .
-  log_dir: .
-templates:
-  - path: ./templates"""
+# The template of the tests, given by its path from the directory the
+# templates are copied to.
+BASIC = "./templates/basic"
 
 
 rendered_text = """#! /usr/bin/env tarantool
@@ -49,21 +47,16 @@ def check_file_contains(filepath, text):
         assert text in f.read()
 
 
-def create_tnt_env_in_dir(tmp_path):
-    # Create env file.
-    with open(tmp_path / config_name, "w") as tnt_env_file:
-        tnt_env_file.write(tt_config_text.format(tmp_path.as_posix()))
-
-    # Copy templates to tmp dir.
+def copy_templates(tmp_path):
     shutil.copytree(os.path.join(os.path.dirname(__file__), "templates"), tmp_path / "templates")
 
 
 def test_create_basic_functionality(tt_cmd, tmp_path):
-    create_tnt_env_in_dir(tmp_path)
+    copy_templates(tmp_path)
 
     subdir = tmp_path / "subdir"
     subdir.mkdir(0o755)
-    create_cmd = [tt_cmd, "create", "basic", "--name", "app1"]
+    create_cmd = [tt_cmd, "create", "../templates/basic", "--name", "app1"]
     tt_process = subprocess.Popen(
         create_cmd,
         cwd=subdir,
@@ -126,12 +119,12 @@ def test_create_basic_functionality(tt_cmd, tmp_path):
 
 
 def test_vars_passed_from_cli(tt_cmd, tmp_path):
-    create_tnt_env_in_dir(tmp_path)
+    copy_templates(tmp_path)
 
     create_cmd = [
         tt_cmd,
         "create",
-        "basic",
+        BASIC,
         "--var",
         "user_name=user2",
         "--var",
@@ -190,12 +183,12 @@ def test_vars_passed_from_cli(tt_cmd, tmp_path):
 
 
 def test_not_interactive_mode(tt_cmd, tmp_path):
-    create_tnt_env_in_dir(tmp_path)
+    copy_templates(tmp_path)
 
     create_cmd = [
         tt_cmd,
         "create",
-        "basic",
+        BASIC,
         "--var",
         "password=weak_pwd",
         "--non-interactive",
@@ -234,7 +227,7 @@ def test_not_interactive_mode(tt_cmd, tmp_path):
 
 
 def test_app_already_exist(tt_cmd, tmp_path):
-    create_tnt_env_in_dir(tmp_path)
+    copy_templates(tmp_path)
     os.mkdir(tmp_path / "app1")
     file_in_app = tmp_path / "app1" / "file.txt"
     with open(file_in_app, "w") as f:
@@ -243,7 +236,7 @@ def test_app_already_exist(tt_cmd, tmp_path):
     create_cmd = [
         tt_cmd,
         "create",
-        "basic",
+        BASIC,
         "--name",
         "app1",
         "--var",
@@ -340,7 +333,7 @@ def run_and_check_non_interactive(tt_cmd, tmp_path, template_path, template_name
 
 
 def test_template_as_archive(tt_cmd, tmp_path):
-    create_tnt_env_in_dir(tmp_path)
+    copy_templates(tmp_path)
 
     # spell-checker:disable-next-line
     pack_template_cmd = ["tar", "-czvf", "../luakit.tgz", "./"]
@@ -354,11 +347,12 @@ def test_template_as_archive(tt_cmd, tmp_path):
         os.path.join(tmp_path, "templates", "mykit.tar.gz"),
     )
 
+    # An archive is named by its path, with or without the extension.
     run_and_check_non_interactive(
         tt_cmd,
         tmp_path,
         tmp_path / "templates" / "luakit",
-        "luakit",
+        "./templates/luakit",
         tmp_path / "app1",
         "--name",
         "app1",
@@ -367,7 +361,7 @@ def test_template_as_archive(tt_cmd, tmp_path):
         tt_cmd,
         tmp_path,
         tmp_path / "templates" / "mykit",
-        "mykit",
+        "templates/mykit.tar.gz",
         tmp_path / "app2",
         "--name",
         "app2",
@@ -375,20 +369,8 @@ def test_template_as_archive(tt_cmd, tmp_path):
     )
 
 
-def test_template_search_paths(tt_cmd, tmp_path):
-    # Create env file.
-    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
-        tnt_env_file.write("""app:
-  run_dir: .
-  log_dir: .
-templates:
-  - path: ./templates
-  - path: ./templates2
-  - path: ./templates3""")
-
-    # Copy templates to tmp dir.
-    shutil.copytree(os.path.join(os.path.dirname(__file__), "templates"), tmp_path / "templates")
-    os.mkdir(tmp_path / "templates2")
+def test_template_by_absolute_path(tt_cmd, tmp_path):
+    copy_templates(tmp_path)
     os.mkdir(tmp_path / "templates3")
 
     # spell-checker:disable-next-line
@@ -403,15 +385,33 @@ templates:
         tt_cmd,
         tmp_path,
         tmp_path / "templates3" / "luakit",
-        "luakit",
+        str(tmp_path / "templates3" / "luakit.tgz"),
         tmp_path / "app1",
         "--name",
         "app1",
     )
 
 
+def test_template_name_is_not_a_path(tt_cmd, tmp_path):
+    # A name without a slash is a built-in template, even when a template
+    # directory of that name is in the working directory.
+    copy_templates(tmp_path)
+    shutil.move(tmp_path / "templates" / "basic", tmp_path / "basic")
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "create", "basic", "--name", "app1", "--non-interactive"],
+        cwd=tmp_path,
+    )
+    assert rc == 1
+    assert (
+        "template 'basic' is not found: a template of your own is given by its path, "
+        "such as ./basic"
+    ) in output
+    assert not os.path.exists(tmp_path / "app1")
+
+
 def test_vars_file_support(tt_cmd, tmp_path):
-    create_tnt_env_in_dir(tmp_path)
+    copy_templates(tmp_path)
 
     vars_file = os.path.join(tmp_path, "vars.txt")
     with open(vars_file, "w") as f:
@@ -422,7 +422,7 @@ retry_count=6""")
     create_cmd = [
         tt_cmd,
         "create",
-        "basic",
+        BASIC,
         "--var",
         "user_name=user2",
         "--vars-file",
@@ -480,7 +480,7 @@ retry_count=6""")
 
 
 def test_create_app_in_specified_path(tt_cmd, tmp_path):
-    create_tnt_env_in_dir(tmp_path)
+    copy_templates(tmp_path)
 
     dst_dir = tmp_path / "dst_dir"
     dst_dir.mkdir(0o755)
@@ -488,7 +488,7 @@ def test_create_app_in_specified_path(tt_cmd, tmp_path):
         tt_cmd,
         tmp_path,
         tmp_path / "templates" / "basic",
-        "basic",
+        BASIC,
         dst_dir / "app1",
         "--dst",
         dst_dir,
@@ -498,7 +498,7 @@ def test_create_app_in_specified_path(tt_cmd, tmp_path):
 
 
 def test_app_create_missing_required_args(tt_cmd, tmp_path):
-    create_tnt_env_in_dir(tmp_path)
+    copy_templates(tmp_path)
 
     create_cmd = [tt_cmd, "create"]
     tt_process = subprocess.Popen(
@@ -532,12 +532,12 @@ def test_app_create_missing_required_args(tt_cmd, tmp_path):
 
 
 def test_default_var_can_be_overwritten(tt_cmd, tmp_path):
-    create_tnt_env_in_dir(tmp_path)
+    copy_templates(tmp_path)
 
     create_cmd = [
         tt_cmd,
         "create",
-        "basic",
+        BASIC,
         "--var",
         "password=pwd",
         "--non-interactive",
@@ -563,7 +563,7 @@ def test_default_var_can_be_overwritten(tt_cmd, tmp_path):
 
 
 def test_app_dir_is_not_removed_on_interrupt(tt_cmd, tmp_path):
-    create_tnt_env_in_dir(tmp_path)
+    copy_templates(tmp_path)
 
     app_path = tmp_path / "app1" / "subdir"
     os.makedirs(app_path / "subdir")
@@ -571,7 +571,7 @@ def test_app_dir_is_not_removed_on_interrupt(tt_cmd, tmp_path):
     create_cmd = [
         tt_cmd,
         "create",
-        "basic",
+        BASIC,
         "--var",
         "user_name=user2",
         "--var",
@@ -597,14 +597,14 @@ def test_app_dir_is_not_removed_on_interrupt(tt_cmd, tmp_path):
 
 
 def test_create_basic_functionality_with_yml_manifest(tt_cmd, tmp_path):
-    create_tnt_env_in_dir(tmp_path)
+    copy_templates(tmp_path)
 
     os.rename(
         tmp_path / "templates" / "basic" / "MANIFEST.yaml",
         tmp_path / "templates" / "basic" / "MANIFEST.yml",
     )
 
-    create_cmd = [tt_cmd, "create", "basic", "--name", "app1"]
+    create_cmd = [tt_cmd, "create", BASIC, "--name", "app1"]
     tt_process = subprocess.Popen(
         create_cmd,
         cwd=tmp_path,
@@ -668,7 +668,7 @@ def test_create_basic_functionality_with_yml_manifest(tt_cmd, tmp_path):
 
 
 def test_create_ambiguous_manifest(tt_cmd, tmp_path):
-    create_tnt_env_in_dir(tmp_path)
+    copy_templates(tmp_path)
 
     shutil.copy(
         os.path.join(tmp_path, "templates", "basic", "MANIFEST.yaml"),
@@ -676,7 +676,7 @@ def test_create_ambiguous_manifest(tt_cmd, tmp_path):
     )
 
     with tempfile.TemporaryDirectory(dir=tmp_path) as tmp_pathname:
-        create_cmd = [tt_cmd, "create", "basic", "--name", "app1"]
+        create_cmd = [tt_cmd, "create", str(tmp_path / BASIC), "--name", "app1"]
         tt_process = subprocess.Popen(
             create_cmd,
             cwd=tmp_pathname,
@@ -710,9 +710,6 @@ def test_create_ambiguous_manifest(tt_cmd, tmp_path):
     reason="skip centralized config test for Tarantool < 3",
 )
 def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
-    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
-        tnt_env_file.write(tt_config_text.format(tmp_path))
-
     create_cmd = [tt_cmd, "create", "vshard_cluster", "--name", "app1"]
     tt_process = subprocess.Popen(
         create_cmd,
@@ -744,7 +741,6 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
 
     app_path = tmp_path / "app1"
     assert os.path.exists(app_path / config_name)
-    shutil.copy(tmp_path / config_name, app_path / config_name)
     assert os.path.exists(app_path / "storage.lua")
     assert os.path.exists(app_path / "router.lua")
 
@@ -846,9 +842,6 @@ def check_create_cluster(
     params,
     expected_files,
 ):
-    with open(os.path.join(workdir, config_name), "w") as tnt_env_file:
-        tnt_env_file.write(tt_config_text.format(workdir))
-
     input = "".join(["\n" if x is None else f"{x}\n" for x in params])
     cmd = [tt_cmd, "create", template, "--name", app_name]
     p = subprocess.run(
@@ -865,9 +858,6 @@ def check_create_cluster(
         path = workdir / app_name / f
         assert os.path.exists(path)
         assert os.access(path, os.W_OK)
-
-    with open(workdir / app_name / config_name, "w") as f:
-        f.write("app:\n  run_dir: .\n  log_dir: .\n")
 
 
 def get_status_info(tt_cmd, workdir, target):

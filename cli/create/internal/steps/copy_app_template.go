@@ -6,8 +6,8 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/otiai10/copy"
 	"github.com/tarantool/tt/sdk/log"
@@ -74,38 +74,73 @@ func copyEmbedFs(srcFs fs.FS, dst string) error {
 	return nil
 }
 
+// templateArchiveExts are the extensions of a template packed into an
+// archive.
+func templateArchiveExts() []string {
+	return []string{".tgz", ".tar.gz"}
+}
+
+// isTemplatePath reports whether templateName names a template of the user's
+// own by its path rather than a built-in template. A path is told from a name
+// by a separator in it: ./basic is the directory, basic the built-in template.
+func isTemplatePath(templateName string) bool {
+	return strings.ContainsRune(templateName, filepath.Separator)
+}
+
+// hasArchiveExt reports whether path has the extension of a template archive.
+func hasArchiveExt(path string) bool {
+	for _, ext := range templateArchiveExts() {
+		if strings.HasSuffix(path, ext) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// copyTemplateFromPath copies or extracts the template at templatePath, taken
+// relative to workDir, to appPath. The path names a directory or an archive;
+// an archive may be named without its extension.
+func copyTemplateFromPath(templatePath, workDir, appPath string) error {
+	if !filepath.IsAbs(templatePath) {
+		templatePath = filepath.Join(workDir, templatePath)
+	}
+
+	if util.IsDir(templatePath) {
+		log.Infof("Using template from %s", templatePath)
+
+		err := copy.Copy(templatePath, appPath)
+		if err != nil {
+			return fmt.Errorf("template copying failed: %w", err)
+		}
+
+		return nil
+	}
+
+	archivesToCheck := []string{templatePath}
+	for _, ext := range templateArchiveExts() {
+		archivesToCheck = append(archivesToCheck, templatePath+ext)
+	}
+
+	for _, archivePath := range archivesToCheck {
+		if hasArchiveExt(archivePath) && util.IsRegularFile(archivePath) {
+			log.Infof("Using template from %s", archivePath)
+
+			return util.ExtractTarGz(archivePath, appPath)
+		}
+	}
+
+	return fmt.Errorf("%w%s' is not found", errTemplateIsNotFound, templatePath)
+}
+
 // Run copies/extracts application template to target application directory.
 func (CopyAppTemplate) Run(createCtx *create_ctx.CreateCtx,
 	templateCtx *app_template.TemplateCtx,
 ) error {
 	templateName := createCtx.TemplateName
 
-	// Search for template in template paths.
-	for _, templatesLocation := range createCtx.TemplateSearchPaths {
-		templatePath := path.Join(templatesLocation, templateName)
-
-		if util.IsDir(templatePath) {
-			log.Infof("Using template from %s", templatePath)
-
-			err := copy.Copy(templatePath, templateCtx.AppPath)
-			if err != nil {
-				return fmt.Errorf("template copying failed: %w", err)
-			}
-
-			return nil
-		}
-
-		archivesToCheck := [2]string{
-			path.Join(templatesLocation, templateName+".tgz"),
-			path.Join(templatesLocation, templateName+".tar.gz"),
-		}
-		for _, archivePath := range archivesToCheck {
-			if util.IsRegularFile(archivePath) {
-				log.Infof("Using template from %s", archivePath)
-
-				return util.ExtractTarGz(archivePath, templateCtx.AppPath)
-			}
-		}
+	if isTemplatePath(templateName) {
+		return copyTemplateFromPath(templateName, createCtx.WorkDir, templateCtx.AppPath)
 	}
 
 	// Search for a template in built-in templates.
@@ -128,5 +163,8 @@ func (CopyAppTemplate) Run(createCtx *create_ctx.CreateCtx,
 		}
 	}
 
-	return fmt.Errorf("%w%s' is not found", errTemplateIsNotFound, templateName)
+	// A template of the user's own used to be found by its name in the
+	// directories tt.yaml listed, so the name may be meant as one of them.
+	return fmt.Errorf("%w%s' is not found: a template of your own is given by its path, "+
+		"such as ./%s", errTemplateIsNotFound, templateName, templateName)
 }

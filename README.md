@@ -622,8 +622,8 @@ For commands whose argument is an application or instance, autocompletion
 shows the current application name before the `:` delimiter and instances
 declared by that application after it.
 
-For `tt create` command it will show a list of built-in templates and
-templates from the configuration file.
+For `tt create` command it will show a list of built-in templates; a
+template given by its path is completed as a file name.
 
 ## TT usage
 
@@ -716,17 +716,11 @@ not supported yet.
 
 `tt` can create applications from templates.
 
-To work with application template, you need:
-
-- A `<path>` where templates directories or archives are located.
-
-- `tt.yaml` configured to search templates in \<path\>:
-
-    ``` yaml
-    templates:
-      - path: <path1>
-      - path: <path2>
-    ```
+A template is a built-in one, named by its name (`tt create cluster`), or a
+template of your own, given by its path: a directory, or a `.tgz` or
+`.tar.gz` archive, which may be named without its extension
+(`tt create ./templates/basic`). A path is told from a name by a slash in
+it, so a template in the current directory is given as `./<name>`.
 
 Application template may contain:
 

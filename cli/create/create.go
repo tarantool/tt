@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/tarantool/tt/v3/cli/config"
 	create_ctx "github.com/tarantool/tt/v3/cli/create/context"
 	"github.com/tarantool/tt/v3/cli/create/internal/app_template"
 	"github.com/tarantool/tt/v3/cli/create/internal/steps"
@@ -19,11 +18,7 @@ var (
 )
 
 // FillCtx fills create context.
-func FillCtx(cliOpts *config.CliOpts, createCtx *create_ctx.CreateCtx) error {
-	for _, p := range cliOpts.Templates {
-		createCtx.TemplateSearchPaths = append(createCtx.TemplateSearchPaths, p.Path)
-	}
-
+func FillCtx(createCtx *create_ctx.CreateCtx) error {
 	workingDir, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to detect current directory: %w", err)
