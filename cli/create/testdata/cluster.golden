@@ -1,0 +1,56 @@
+==> .templates/default/config.yaml <==
+credentials:
+  users:
+    client:
+      password: 'secret'
+      roles: [super]
+    replicator:
+      password: 'topsecret'
+      roles: [replication]
+
+iproto:
+  advertise:
+    peer:
+      login: replicator
+
+replication:
+  failover: manual
+
+groups:
+  group-001:
+    app:
+      file: 'app.lua'
+    replicasets:
+      replicaset-001:
+        leader: replicaset-001-a
+        instances:
+          replicaset-001-a:
+            iproto:
+              listen:
+              - uri: 127.0.0.1:3301
+          replicaset-001-b:
+            iproto:
+              listen:
+              - uri: 127.0.0.1:3302
+      replicaset-002:
+        leader: replicaset-002-a
+        instances:
+          replicaset-002-a:
+            iproto:
+              listen:
+              - uri: 127.0.0.1:3303
+          replicaset-002-b:
+            iproto:
+              listen:
+              - uri: 127.0.0.1:3304
+==> .templates/default/instances.yaml <==
+---
+replicaset-001-a:
+replicaset-001-b:
+replicaset-002-a:
+replicaset-002-b:
+==> app.lua <==
+local log = require('log')
+local config = require('config')
+
+log.info(('application \'%s\' is started'):format(config:get('app.file')))

@@ -1,0 +1,188 @@
+==> .templates/default/config.yaml <==
+credentials:
+  users:
+    client:
+      password: 'secret'
+      roles: [super]
+    replicator:
+      password: 'secret'
+      roles: [replication]
+    storage:
+      password: 'secret'
+      roles: [sharding]
+
+iproto:
+  advertise:
+    peer:
+      login: replicator
+    sharding:
+      login: storage
+
+sharding:
+  bucket_count: 3000
+
+groups:
+  storages:
+    app:
+      module: storage
+    sharding:
+      roles: [storage]
+    replication:
+      failover: manual
+    replicasets: 
+      storage-001:
+        leader: storage-001-a
+        instances: 
+          storage-001-a:
+            iproto:
+              listen:
+                - uri: localhost:3301
+          storage-001-b:
+            iproto:
+              listen:
+                - uri: localhost:3302
+      storage-002:
+        leader: storage-002-a
+        instances: 
+          storage-002-a:
+            iproto:
+              listen:
+                - uri: localhost:3303
+          storage-002-b:
+            iproto:
+              listen:
+                - uri: localhost:3304
+  routers:
+    app:
+      module: router
+    sharding:
+      roles: [router]
+    replicasets: 
+      router-001:
+        instances: 
+          router-001-a:
+            iproto:
+              listen:
+                - uri: localhost:3305
+==> .templates/default/instances.yaml <==
+---
+storage-001-a:
+storage-001-b:
+storage-002-a:
+storage-002-b:
+router-001-a:
+==> app.manifest.toml <==
+manifest_version = '0.1'
+
+[package]
+name = 'app1'
+generate_version_lua = false
+
+[platform]
+tarantool = '>=3.0.0,<4.0.0'
+tt = '>=2.11.0'
+
+[dependencies.vshard]
+source = 'registry'
+version = '==1.0.0'
+
+[components.app]
+path = '.'
+include = ['*.lua']
+namespace = ''
+
+[products.default]
+components = ['app']
+default = true
+==> router.lua <==
+local vshard = require('vshard')
+local log = require('log')
+
+-- Bootstrap the vshard router.
+while true do
+    local ok, err = vshard.router.bootstrap({
+        if_not_bootstrapped = true,
+    })
+    if ok then
+        break
+    end
+    log.info(('Router bootstrap error: %s'):format(err))
+end
+
+-- Put data into the cluster.
+function put(id, name, age)
+    local bucket_id = vshard.router.bucket_id_mpcrc32({id})
+    vshard.router.callrw(bucket_id, 'put', {id, bucket_id, name, age})
+end
+
+-- Get data from the cluster.
+function get(id)
+    local bucket_id = vshard.router.bucket_id_mpcrc32({id})
+    return vshard.router.callro(bucket_id, 'get', {id})
+end
+
+-- Put sample data.
+function put_sample_data()
+    put(1, 'Elizabeth', 12)
+    put(2, 'Mary', 46)
+    put(3, 'David', 33)
+    put(4, 'William', 81)
+    put(5, 'Jack', 35)
+end
+==> storage.lua <==
+local vshard = require('vshard')
+
+-- Create 'customers' space.
+box.once('customers', function()
+    box.schema.create_space('customers', {
+        format = {{
+            name = 'id',
+            type = 'unsigned'
+        }, {
+            name = 'bucket_id',
+            type = 'unsigned'
+        }, {
+            name = 'name',
+            type = 'string'
+        }, {
+            name = 'age',
+            type = 'number'
+        }}
+    })
+    box.space.customers:create_index('primary_index', {
+        parts = {{
+            field = 1,
+            type = 'unsigned'
+        }}
+    })
+    box.space.customers:create_index('bucket_id', {
+        parts = {{
+            field = 2,
+            type = 'unsigned'
+        }},
+        unique = false
+    })
+    box.space.customers:create_index('age', {
+        parts = {{
+            field = 4,
+            type = 'number'
+        }},
+        unique = false
+    })
+end)
+
+-- Put data to the 'customers' space.
+-- Function should be called by the router.
+function put(id, bucket_id, name, age)
+    box.space.customers:insert({id, bucket_id, name, age})
+end
+
+-- Get data from the 'customers' space.
+-- Function should be called by the router.
+function get(id)
+    local tuple = box.space.customers:get(id)
+    if tuple == nil then
+        return nil
+    end
+    return {tuple.id, tuple.name, tuple.age}
+end

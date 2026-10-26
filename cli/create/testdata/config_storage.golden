@@ -1,0 +1,58 @@
+==> .templates/default/config.yaml <==
+credentials:
+  users:
+    replicator:
+      password: 'topsecret'
+      roles: [replication]
+    client:
+      password: 'secret'
+      privileges:
+        - permissions: [execute]
+          lua_call:
+            - config.storage.get
+            - config.storage.put
+            - config.storage.delete
+            - config.storage.keepalive
+            - config.storage.txn
+            - config.storage.info
+        # Not necessary since tarantool 3.5.0, 3.4.1, 3.3.3, 3.2.2.
+        - permissions: [read, write]
+          spaces: [config_storage, config_storage_meta]
+
+iproto:
+  advertise:
+    peer:
+      login: replicator
+
+replication:
+  failover: election
+
+database:
+  use_mvcc_engine: true
+
+groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        roles: [config.storage]
+        roles_cfg:
+          config.storage:
+            status_check_interval: 5
+        instances:
+          replicaset-001-a:
+            iproto:
+              listen:
+              - uri: 127.0.0.1:3301
+          replicaset-001-b:
+            iproto:
+              listen:
+              - uri: 127.0.0.1:3302
+          replicaset-001-c:
+            iproto:
+              listen:
+              - uri: 127.0.0.1:3303
+==> .templates/default/instances.yaml <==
+---
+replicaset-001-a:
+replicaset-001-b:
+replicaset-001-c:

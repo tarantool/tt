@@ -127,9 +127,8 @@ class TtCluster:
         input = "".join(["\n" if x is None else f"{x}\n" for x in input_params])
         p = self.__tt.run("create", "cluster", "--name", self.__app_name, input=input)
         assert p.returncode == 0
-        app_dir = Path(self.__tt.path(self.__app_name))
-        utils.make_project(app_dir)
-        self.__tt.work_dir = app_dir
+        # tt create lays the project out: the pair is in .templates/default/.
+        self.__tt.work_dir = Path(self.__tt.path(self.__app_name))
         self.__instances = None
 
     @property

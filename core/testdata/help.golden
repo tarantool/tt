@@ -2551,6 +2551,10 @@ Built-in templates:
 	vshard_cluster: Tarantool 3 vshard cluster application.
 	config_storage: Tarantool 3 cluster configuration storage.
 
+A built-in template creates a project: the code of the application in its
+directory, and the instances description and the cluster config it runs from
+in .templates/default/.
+
 A template of your own is given by its path: a directory, or a .tgz or
 .tar.gz archive, which may be named without its extension. A path is told
 from the name of a built-in template by a slash in it, so a template in the

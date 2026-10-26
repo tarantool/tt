@@ -7,7 +7,7 @@ follow-up-message: |
       $ tt start
 
   Pay attention that default passwords were generated,
-  you can change it in the config.yaml.
+  you can change it in .templates/default/config.yaml.
 
 vars:
   - prompt: Bucket count

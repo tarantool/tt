@@ -6,7 +6,8 @@ follow-up-message: |
       $ tt start
 
   Pay attention that default user and password were generated
-  for the 'replication' role, you can change it in the config.yaml.
+  for the 'replication' role, you can change it in
+  .templates/default/config.yaml.
 
 vars:
   - prompt: Storages replicas (odd, >=3)

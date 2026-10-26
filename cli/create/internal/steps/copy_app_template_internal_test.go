@@ -96,6 +96,9 @@ func TestCopyTemplateDirectory(t *testing.T) {
 	require.DirExists(t, templateCtx.AppPath)
 	require.FileExists(t, filepath.Join(templateCtx.AppPath, "init.lua"))
 	require.FileExists(t, filepath.Join(templateCtx.AppPath, subdirName, "file.txt"))
+	// A template that lays a project out keeps its pair in a hidden directory.
+	require.FileExists(t, filepath.Join(templateCtx.AppPath, ".templates", "default",
+		"instances.yaml"))
 }
 
 func TestCopyTemplateDirectoryRelative(t *testing.T) {

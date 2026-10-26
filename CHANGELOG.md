@@ -582,7 +582,19 @@ for machine-readable output.
   directory or a `.tgz`/`.tar.gz` archive (`tt create ./templates/basic`),
   instead of being looked up in the `templates` paths of `tt.yaml`; a name
   without a slash is a built-in template. The `rundir` template variable,
-  which came from `app.run_dir` of `tt.yaml`, is gone.
+  which came from `app.run_dir` of `tt.yaml`, is gone. The built-in templates
+  create a project that starts as it is: the pair it runs from,
+  `instances.yaml` and `config.yaml`, is in `.templates/default/` rather than
+  next to the code of the application, and there is no `tt.yaml`;
+  `single_instance` names the files `.yaml` rather than `.yml`.
+- `tt create` refuses an application name that the template turns into a
+  `[package].name` of `app.manifest.toml` that is not a package name
+  (lowercase letters, digits and dashes, starting with a letter), and creates
+  nothing. `vshard_cluster` replaces `_` in `--name` with `-`, so
+  `--name my_app` is a project called `my-app`, while `--name My_App` is
+  refused. Templates without a manifest take any name, as before.
+- The `vshard_cluster` template depends on vshard 1.0.0 instead of 0.1.25,
+  which no longer builds with CMake 4.
 - `tt enable` and `tt instances` commands removed.
 - `tt.yaml` is not read by any command: tt no longer looks for it from the
   current directory upward, nor at `/etc/tarantool/tt.yaml`. The `-S`
