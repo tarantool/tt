@@ -4113,7 +4113,10 @@ FLAGS[0m
                                 the storage; 0 means no limit (default 30m0s)
 
 === tt rocks (via tt help: flag parsing disabled)
-LuaRocks package manager
+Run LuaRocks on the .rocks tree of the current directory. The rock servers are
+the ones tt registry list shows when they come from TT_REGISTRIES or
+[platform].registries of app.manifest.toml; without either LuaRocks queries its
+own.
 
 [0;1;39mUSAGE[0m
   tt rocks
