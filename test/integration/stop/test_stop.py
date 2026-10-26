@@ -321,3 +321,45 @@ tt_cluster_app_no_config = dict(
 )
 def test_stop_cluster_no_config(tt, tt_app, target):
     tt_helper.check_broken_pair(tt, tt_app, "stop", "-y", target)
+
+
+################################################################
+# External process
+
+tt_external_app = dict(
+    app_path="../start/external_app",
+    app_name="app",
+    instances=["master", "worker"],
+    post_start=tt_helper.post_start_base,
+)
+
+
+@pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
+@pytest.mark.tt_app(**dict(tt_external_app, running_targets=["app:*"]))
+@pytest.mark.parametrize(
+    "target",
+    [
+        None,
+        "app:worker",
+    ],
+)
+def test_stop_external(tt, tt_app, target):
+    worker = "app:worker"
+    log_file = tt_app.log_path(worker, utils.log_file)
+    assert utils.wait_event(5, lambda: "worker started" in read_log(log_file))
+
+    check_stop(tt, tt_app, target, None, True, "-y")
+
+    # The external process got SIGTERM, its default stop signal, and stopped
+    # on it before tt stop returned; its watchdog removed both pid files.
+    assert "worker got TERM" in read_log(log_file)
+    assert not os.path.exists(tt_app.run_path(worker, utils.pid_file))
+    assert not os.path.exists(tt_app.run_path(worker, "process.pid"))
+
+
+def read_log(path):
+    try:
+        with open(path) as log:
+            return log.read()
+    except FileNotFoundError:
+        return ""

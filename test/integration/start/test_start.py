@@ -1,3 +1,6 @@
+import os
+import re
+
 import pytest
 import tt_helper
 
@@ -109,3 +112,54 @@ tt_cluster_app = dict(
 )
 def test_start_cluster(tt, tt_app, target):
     check_start(tt, tt_app, target)
+
+
+################################################################
+# External process
+
+tt_external_app = dict(
+    app_path="external_app",
+    app_name="app",
+    instances=["master", "worker"],
+    post_start=tt_helper.post_start_base,
+)
+
+
+@pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
+@pytest.mark.tt_app(**tt_external_app)
+@pytest.mark.parametrize(
+    "tt_running_targets",
+    [
+        pytest.param([], id="running:none"),
+        pytest.param(["app:*"], id="running:all"),
+        pytest.param(["app:worker"], id="running:worker"),
+    ],
+)
+@pytest.mark.parametrize(
+    "target",
+    [
+        None,
+        "app:*",
+        "app:worker",
+    ],
+)
+def test_start_external(tt, tt_app, target):
+    check_start(tt, tt_app, target)
+
+    # The external process runs with the arguments and the env of its record
+    # in its data directory, which its record names no workdir instead of,
+    # and its output goes to tt.log.
+    log_file = tt_app.log_path("app:worker", utils.log_file)
+    started = re.compile(r"worker started: --name worker hello in (\S+)")
+    assert utils.wait_event(5, lambda: started.search(read_log(log_file)) is not None)
+    data_dir = tt_app.lib_path("app:worker")
+    assert os.path.samefile(started.search(read_log(log_file)).group(1), data_dir)
+    assert utils.wait_files(5, [os.path.join(data_dir, "worker.state")])
+
+
+def read_log(path):
+    try:
+        with open(path) as log:
+            return log.read()
+    except FileNotFoundError:
+        return ""

@@ -2,6 +2,7 @@ import glob
 import itertools
 import os
 import re
+import shutil
 
 import pytest
 import tt_helper
@@ -300,3 +301,33 @@ tt_cluster_app_no_config = dict(
 )
 def test_clean_cluster_no_config(tt, tt_app, target):
     tt_helper.check_broken_pair(tt, tt_app, "clean", "-f", target)
+
+
+def test_clean_external(tt_cmd, tmp_path):
+    # tt clean removes the log of an external process and what it wrote into
+    # its data directory, the working directory of a record without workdir.
+    app_path = tmp_path / "app"
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "../start/external_app"), app_path)
+
+    worker = "app:worker"
+    log_file = os.path.join(utils.inst_log_dir(app_path, "app", "worker"), utils.log_file)
+    state_file = os.path.join(utils.inst_lib_dir(app_path, "app", "worker"), "worker.state")
+
+    rc, _ = utils.run_command_and_get_output([tt_cmd, "start", worker], cwd=app_path)
+    assert rc == 0
+    try:
+        assert utils.wait_files(5, [log_file, state_file])
+
+        rc, out = utils.run_command_and_get_output([tt_cmd, "clean", "-f", worker], cwd=app_path)
+        assert rc == 0
+        assert "instance `worker` must be stopped" in out
+        assert os.path.exists(state_file)
+    finally:
+        rc, _ = utils.run_command_and_get_output([tt_cmd, "stop", "-y", worker], cwd=app_path)
+        assert rc == 0
+
+    rc, out = utils.run_command_and_get_output([tt_cmd, "clean", "-f", worker], cwd=app_path)
+    assert rc == 0
+    assert f"{worker}...\t[OK]" in out
+    assert not os.path.exists(log_file)
+    assert not os.path.exists(state_file)

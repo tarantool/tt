@@ -94,7 +94,15 @@ func clean(run *running.InstanceCtx) error {
 		err    error
 	)
 
-	for _, dir := range [...]string{run.LogDir, run.WalDir, run.VinylDir, run.MemtxDir} {
+	// An external process has one data directory at most, DataDir, the one it
+	// runs in without workdir.
+	for _, dir := range [...]string{
+		run.LogDir, run.WalDir, run.VinylDir, run.MemtxDir, run.DataDir,
+	} {
+		if dir == "" {
+			continue
+		}
+
 		removeFiles, nFiles, err = collectFiles(removeFiles, dir)
 		if err != nil {
 			return err

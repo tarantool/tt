@@ -184,6 +184,11 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx,
 			return connOpts, err
 		}
 
+		err = running.RequireTarantool(&instances[0])
+		if err != nil {
+			return connOpts, err
+		}
+
 		if (connectCtx.Username != "" || connectCtx.Password != "") && !connectCtx.Binary {
 			err = errControlSocketCredentialsUnsupported
 			return connOpts, err
