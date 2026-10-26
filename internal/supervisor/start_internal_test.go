@@ -342,6 +342,38 @@ func TestSpecCommand(t *testing.T) {
 	}
 }
 
+// TestSpecCommandProcessGroup pins that with ProcessGroup cancelling the
+// context sends the stop signal to the whole group of the process, as the
+// engine does.
+func TestSpecCommandProcessGroup(t *testing.T) {
+	dir := t.TempDir()
+	spec := helperSpec(t, dir, modeFamily)
+
+	spec.StopSignal = syscall.SIGUSR1
+	spec.StopTimeout = 300 * time.Millisecond
+	spec.ProcessGroup = true
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cmd := spec.Command(ctx)
+
+	require.NoError(t, cmd.Start())
+	t.Cleanup(func() { _ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) })
+
+	grandchild, err := strconv.Atoi(waitFile(t, filepath.Join(dir, "grandchild")))
+	require.NoError(t, err)
+	waitReady(t, dir, cmd.Process.Pid)
+	waitReady(t, dir, grandchild)
+
+	cancel()
+
+	waitSignals(t, dir, cmd.Process.Pid, syscall.SIGUSR1)
+	waitSignals(t, dir, grandchild, syscall.SIGUSR1)
+
+	err = cmd.Wait()
+	require.Error(t, err)
+	assert.Equal(t, syscall.SIGKILL, termSignal(cmd.ProcessState))
+}
+
 // TestDetach pins that a detached process leads its own process group and is
 // waited for once it dies, and that Detach fails when the StartFunc does.
 func TestDetach(t *testing.T) {
