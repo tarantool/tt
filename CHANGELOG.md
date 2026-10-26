@@ -357,6 +357,31 @@ for machine-readable output.
   templates into the install root, and refuses an archive carrying templates
   when the root already has a `.templates/`; the `user` and `system` scopes
   lay them into the installed version.
+- `tt start`, `stop`, `status`, `restart`, `kill`, `log`, `logrotate` and
+  `clean`: run external processes, the records of `instances.yaml` with
+  `binary`, next to the Tarantool instances and under the same watchdog. The
+  process runs `binary` with `args` in `workdir`, or else in its data
+  directory `<root>/var/lib/<app>/<inst>/`, which the start creates, with
+  `env` on top of the environment of `tt`; relative paths are resolved
+  against the application directory, and a `binary` without a slash is
+  looked up in `PATH` of `tt`. `tt start` reports a binary it cannot run, or
+  a `workdir` that does not exist, before it starts anything. The process
+  leads a process group of its own, which every signal reaches, so that a
+  wrapper stops with the program it runs. It stops with `stop_signal`,
+  SIGTERM by default, whatever stopped the watchdog, and is killed with its
+  group after `stop_timeout`, 30 seconds by default; `restart` applies as to
+  a Tarantool instance. Its output goes to `<root>/var/log/<app>/<inst>/tt.log`,
+  and its watchdog keeps `tt.pid` and `process.pid`, the pid of the process,
+  in `<root>/var/run/<app>/<inst>/`. `tt status` shows the state of the
+  process only. `tt logrotate` reopens `tt.log` and sends the process group
+  SIGHUP, which stops a program that does not handle it. `tt clean` removes
+  the log and the data directory, and `tt check` skips the process.
+  `tt connect`, `tt play`, `tt kill --dump` and
+  `tt replicaset rebootstrap` refuse it as not a Tarantool instance; the
+  application targets of `tt replicaset` and `tt cluster` leave external
+  processes out of the instances of the application and refuse one named
+  explicitly. Instances start in the order of `instances.yaml`, and none
+  waits for another to be ready.
 
 ### Changed
 
@@ -384,8 +409,8 @@ for machine-readable output.
   policy is the `restart` field of the instance record: a restart after a
   crash stays on the version the instance started from and re-reads the
   pair, while `tt restart` takes the active version. `tt check` checks the
-  `app.file` of each instance. Records with `script` or `binary` are not
-  supported yet. `<name>.lua`, `init.lua` and `<instance>.init.lua`
+  `app.file` of each instance. Records with `script` are not supported
+  yet. `<name>.lua`, `init.lua` and `<instance>.init.lua`
   applications next to `tt.yaml` are not recognized any more.
 
 - `tt binary install tarantool [version]`: install prebuilt Community release
