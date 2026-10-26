@@ -2,11 +2,15 @@ package cmd
 
 import (
 	"log/slog"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
 )
 
 // restoreProcessState puts back the package state and the process logger a
@@ -82,6 +86,38 @@ func TestBootRefusesRemovedFlags(t *testing.T) {
 		err = root.ParseFlags(append(args, "version"))
 		require.ErrorContains(t, err, "unknown", args)
 	}
+}
+
+// TestConfigureFindsTheProject checks that Configure finds the project from a
+// directory inside it, ignores a tt.yaml there, broken as it is, and takes
+// the tcm config from the project directory.
+//
+//nolint:paralleltest // Replaces the package context and the working directory.
+func TestConfigureFindsTheProject(t *testing.T) {
+	restoreProcessState(t)
+	t.Setenv("TT_USER_ROOT", t.TempDir())
+	t.Setenv("TT_SYSTEM_ROOT", t.TempDir())
+
+	project := t.TempDir()
+	nested := filepath.Join(project, "nested")
+	require.NoError(t, os.Mkdir(nested, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(project, "app.manifest.toml"),
+		[]byte("manifest_version = '0.1'\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(project, "tcm.yaml"), nil, 0o644))
+
+	for _, dir := range []string{project, nested} {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "tt.yaml"), []byte("[broken"),
+			0o644))
+	}
+
+	t.Chdir(nested)
+
+	cmdCtx = cmdcontext.CmdCtx{}
+
+	require.NoError(t, Configure())
+	assert.Equal(t, project, cmdCtx.Cli.ProjectDir)
+	assert.Equal(t, filepath.Join(project, "tcm.yaml"), cmdCtx.Cli.TcmCli.ConfigPath)
+	assert.NotNil(t, cmdCtx.Integrity.Repository)
 }
 
 // TestBuiltinCommandsAreLegacy checks that every builtin is marked legacy.

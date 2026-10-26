@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -172,13 +171,9 @@ func Configure() error {
 		return fmt.Errorf("integrity check failed: %w", err)
 	}
 
-	currentDir, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("can't get current dir: %w", err)
-	}
-
-	// TCM config, if any, is located in the working directory.
-	tcmConfigBasename := filepath.Join(currentDir, "tcm")
+	// TCM config, if any, is located in the project directory, where it was
+	// next to tt.yaml before.
+	tcmConfigBasename := filepath.Join(cmdCtx.Cli.ProjectDir, "tcm")
 
 	cmdCtx.Cli.TcmCli.ConfigPath, _ = util.GetYamlFileName(tcmConfigBasename, false)
 
