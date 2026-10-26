@@ -349,9 +349,9 @@ for machine-readable output.
 - `tt package pack`: carry the project's instance templates, `.templates/`,
   at the archive root in both packing modes, whatever `[package].include`
   says. Every template is checked first: each `.templates/<name>/` must hold
-  both `instances.yaml` and `config.yaml`, and `instances.yaml` must be a
-  valid instance description; a broken template, or a file directly under
-  `.templates/`, fails the pack naming it. Hidden entries directly under
+  `instances.yaml`, a valid instance description, and `config.yaml` next to
+  it unless the description has only `script` and `binary` records; a broken
+  template, or a file directly under `.templates/`, fails the pack naming it. Hidden entries directly under
   `.templates/`, such as `.gitkeep`, are skipped. `.templates` joins the
   names tt reserves in the archive, so `include` and `license_files` entries
   may not land on it. `tt package install --scope project` lays the

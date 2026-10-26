@@ -200,6 +200,26 @@ func TestStageTemplatesRelativePathsAreNotChecked(t *testing.T) {
 	require.NoError(t, stage(t.TempDir(), baseRequest(projectDir, man, testTree(t, projectDir))))
 }
 
+// TestStageTemplatesWithoutConfig: a template of instances that run their
+// scripts and of external processes alone needs no config.yaml, as the pair
+// it makes on a host needs none, and is packed without one.
+func TestStageTemplatesWithoutConfig(t *testing.T) {
+	t.Parallel()
+
+	projectDir, man := testProject(t, map[string]string{
+		".templates/default/instances.yaml": "legacy-1:\n  script: init.lua\n" +
+			"worker-1:\n  binary: ./bin/worker\n",
+		".templates/empty/instances.yaml": "",
+	})
+	stageDir := t.TempDir()
+
+	require.NoError(t, stage(stageDir, baseRequest(projectDir, man, testTree(t, projectDir))))
+	assert.ElementsMatch(t, []string{
+		".templates/default/instances.yaml",
+		".templates/empty/instances.yaml",
+	}, templateNames(stagedNames(t, stageDir)))
+}
+
 // TestStageTemplatesRejectsBrokenTemplates covers every way a template is
 // refused. Each is a pack error naming the template, exit 1, and nothing is
 // archived.
@@ -217,9 +237,13 @@ func TestStageTemplatesRejectsBrokenTemplates(t *testing.T) {
 		{
 			name: "missing config",
 			files: map[string]string{
-				".templates/default/instances.yaml": "router-1:\n",
+				".templates/default/instances.yaml": "router-1:\nlegacy-1:\n  script: init.lua\n" +
+					"storage-1:\n",
 			},
-			mention: []string{".templates/default", "missing config.yaml"},
+			mention: []string{
+				".templates/default",
+				`missing config.yaml to configure its Tarantool instances "router-1", "storage-1"`,
+			},
 		},
 		{
 			name: "missing instances",
@@ -233,7 +257,7 @@ func TestStageTemplatesRejectsBrokenTemplates(t *testing.T) {
 			files: map[string]string{
 				".templates/default/notes.txt": "nothing else",
 			},
-			mention: []string{".templates/default", "missing instances.yaml and config.yaml"},
+			mention: []string{".templates/default", "missing instances.yaml"},
 		},
 		{
 			name: "unknown field",

@@ -98,14 +98,17 @@ func checkTemplates(dir, projectDir string) error {
 }
 
 // checkTemplate checks one entry of .templates/: it must be a directory holding
-// both files of the pair, and its instance description must parse.
+// the pair, and its instance description must parse.
 //
 // The description is parsed against the project directory, the directory a
 // template's relative paths are resolved from, as they will be from the
 // installed version. Parse reads nothing from it, so a path that exists only
 // after the build or on the host does not fail the pack. The cluster config is
 // checked only for presence: matching its topology against the description is
-// the job of whoever loads the two together.
+// the job of whoever loads the two together. It is needed by the Tarantool
+// instances it configures alone, so a description of instances that run
+// their scripts and of external processes makes a template without it, as it
+// makes a pair when the template runs.
 func checkTemplate(dir, name, projectDir string) error {
 	label := templatesDirName + "/" + name
 	path := filepath.Join(dir, name)
@@ -122,24 +125,25 @@ func checkTemplate(dir, name, projectDir string) error {
 			label, errBadTemplate, templatesDirName)
 	}
 
-	var missing []string
+	present := map[string]bool{}
 
 	for _, file := range []string{templateInstancesFile, templateConfigFile} {
 		err = checkTemplateFile(filepath.Join(path, file))
 		if errors.Is(err, fs.ErrNotExist) {
-			missing = append(missing, file)
-
 			continue
 		}
 
 		if err != nil {
 			return fmt.Errorf("%s: %w: %s: %w", label, errBadTemplate, file, err)
 		}
+
+		present[file] = true
 	}
 
-	if len(missing) > 0 {
-		return fmt.Errorf("%s: %w: missing %s; a template is a pair of %s and %s",
-			label, errBadTemplate, strings.Join(missing, " and "),
+	if !present[templateInstancesFile] {
+		return fmt.Errorf("%s: %w: missing %s; a template is %s, with %s next to it "+
+			"unless it describes only instances that run their scripts and external "+
+			"processes", label, errBadTemplate, templateInstancesFile,
 			templateInstancesFile, templateConfigFile)
 	}
 
@@ -148,9 +152,26 @@ func checkTemplate(dir, name, projectDir string) error {
 		return fmt.Errorf("%s: %w: %w", label, errBadTemplate, err)
 	}
 
-	_, err = instances.Parse(data, projectDir)
+	records, err := instances.Parse(data, projectDir)
 	if err != nil {
 		return templateParseError(label, err)
+	}
+
+	if present[templateConfigFile] {
+		return nil
+	}
+
+	var configured []string
+
+	for _, record := range records {
+		if record.Kind() == instances.KindCluster {
+			configured = append(configured, fmt.Sprintf("%q", record.Name))
+		}
+	}
+
+	if len(configured) > 0 {
+		return fmt.Errorf("%s: %w: missing %s to configure its Tarantool instances %s",
+			label, errBadTemplate, templateConfigFile, strings.Join(configured, ", "))
 	}
 
 	return nil
