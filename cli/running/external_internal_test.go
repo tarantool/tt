@@ -1,10 +1,12 @@
 package running
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -13,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/app"
+	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/internal/instances"
 )
 
@@ -397,4 +400,160 @@ func TestQuitRefusesExternal(t *testing.T) {
 	err := Quit(*run)
 	require.ErrorIs(t, err, ErrNotTarantool)
 	require.NoError(t, syscall.Kill(pid, 0), "the watchdog got a signal")
+}
+
+// orphanProcess starts args in a process group of its own, as the process of
+// an external process whose watchdog is gone, and returns its pid. The test
+// reaps it, as init reaps a real one.
+func orphanProcess(t *testing.T, args ...string) (int, <-chan struct{}) {
+	t.Helper()
+
+	cmd := exec.CommandContext(context.Background(), args[0], args[1:]...)
+
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	require.NoError(t, cmd.Start())
+
+	done := make(chan struct{})
+
+	go func() {
+		_ = cmd.Wait()
+
+		close(done)
+	}()
+
+	t.Cleanup(func() {
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+
+		<-done
+	})
+
+	return cmd.Process.Pid, done
+}
+
+// orphanRun is the context of an external process whose run directory is
+// in a temporary directory: tt.pid names a watchdog that is gone, and
+// process.pid names pid.
+func orphanRun(t *testing.T, pid int) *InstanceCtx {
+	t.Helper()
+
+	dir := t.TempDir()
+	run := &InstanceCtx{
+		AppName:        fixtureApp,
+		InstName:       externalInst,
+		Kind:           instances.KindExternal,
+		Binary:         "sleep",
+		PIDFile:        filepath.Join(dir, "tt.pid"),
+		ProcessPIDFile: filepath.Join(dir, "process.pid"),
+	}
+
+	// A pid no process has: the watchdog is gone.
+	const gone = 1<<31 - 2
+
+	require.NoError(t, os.WriteFile(run.PIDFile, []byte(strconv.Itoa(gone)), 0o600))
+	require.NoError(t, os.WriteFile(run.ProcessPIDFile, []byte(strconv.Itoa(pid)), 0o600))
+
+	return run
+}
+
+// TestOrphan pins what counts as the process of an external process left
+// running by its watchdog: a live group leader in process.pid while tt.pid
+// names no live watchdog; and that tt start refuses to start a second copy
+// next to it, naming tt stop and tt kill.
+func TestOrphan(t *testing.T) {
+	leader, _ := orphanProcess(t, "sleep", "60")
+
+	run := orphanRun(t, leader)
+	assert.Equal(t, leader, Orphan(run))
+
+	canStart, err := IsAbleToStartInstances([]InstanceCtx{*run})
+	assert.False(t, canStart)
+	require.ErrorIs(t, err, errOrphan)
+	require.ErrorContains(t, err, "tt kill myapp:worker-1")
+	require.ErrorContains(t, err, "tt stop myapp:worker-1")
+	require.ErrorContains(t, err, strconv.Itoa(leader))
+
+	// tt.pid missing altogether.
+	require.NoError(t, os.Remove(run.PIDFile))
+	assert.Equal(t, leader, Orphan(run))
+
+	// A live watchdog supervises the process.
+	watchdog := sleeper(t, true)
+	require.NoError(t, os.WriteFile(run.PIDFile,
+		[]byte(strconv.Itoa(watchdog.Process.Pid)), 0o600))
+	assert.Zero(t, Orphan(run))
+
+	// A pid that leads no group is not the process.
+	other := sleeper(t, false)
+
+	run = orphanRun(t, other.Process.Pid)
+	assert.Zero(t, Orphan(run))
+
+	// A process that is gone.
+	run = orphanRun(t, 1<<31-3)
+	assert.Zero(t, Orphan(run))
+
+	// A Tarantool instance has no process.pid.
+	run.ProcessPIDFile = ""
+	assert.Zero(t, Orphan(run))
+}
+
+// TestKillOrphan pins that tt kill kills the process group of an external
+// process whose watchdog is gone, and removes the pid files the watchdog
+// left.
+func TestKillOrphan(t *testing.T) {
+	grandchildFile := filepath.Join(t.TempDir(), "grandchild")
+	leader, done := orphanProcess(t, "sh", "-c",
+		`sleep 60 & echo $! > "$0.tmp" && mv "$0.tmp" "$0"; wait`, grandchildFile)
+
+	grandchild, err := strconv.Atoi(strings.TrimSpace(waitFileContent(t, grandchildFile)))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = syscall.Kill(grandchild, syscall.SIGKILL) })
+
+	run := orphanRun(t, leader)
+	require.NoError(t, Kill(*run))
+
+	<-done
+	assert.Eventually(t, func() bool { return gone(grandchild) }, 20*time.Second,
+		10*time.Millisecond, "the grandchild survived tt kill")
+	assert.NoFileExists(t, run.ProcessPIDFile)
+	assert.NoFileExists(t, run.PIDFile)
+	assert.Equal(t, process_utils.ProcessStoppedCode, Status(run).Code)
+}
+
+// TestStopOrphan pins that tt stop stops the process group of an external
+// process whose watchdog is gone as the watchdog would: with its stop
+// signal, and with SIGKILL once its stop timeout is over.
+func TestStopOrphan(t *testing.T) {
+	t.Run("stops", func(t *testing.T) {
+		leader, done := orphanProcess(t, "sleep", "60")
+		run := orphanRun(t, leader)
+
+		require.NoError(t, Stop(run))
+
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			require.Fail(t, "the process still runs")
+		}
+
+		assert.NoFileExists(t, run.ProcessPIDFile)
+		assert.NoFileExists(t, run.PIDFile)
+	})
+
+	t.Run("killed after its stop timeout", func(t *testing.T) {
+		leader, done := orphanProcess(t, "sh", "-c", `trap "" TERM; while :; do sleep 1; done`)
+		run := orphanRun(t, leader)
+
+		run.StopTimeout = 300 * time.Millisecond
+		// Let the shell set its trap.
+		time.Sleep(200 * time.Millisecond)
+
+		stopped := time.Now()
+
+		require.NoError(t, Stop(run))
+		assert.GreaterOrEqual(t, time.Since(stopped), run.StopTimeout)
+
+		<-done
+		assert.NoFileExists(t, run.ProcessPIDFile)
+	})
 }

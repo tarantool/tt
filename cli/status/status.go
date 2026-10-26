@@ -285,6 +285,10 @@ func processStatusForInstance(instance running.InstanceCtx,
 
 	// External processes have no Tarantool console to query.
 	if running.IsExternal(&instance) {
+		if orphan := running.Orphan(&instance); orphan != 0 {
+			instStatus.addAlert(fmt.Sprintf("the process of %s (PID = %d) runs without "+
+				"its watchdog: stop it with tt stop %s or tt kill %s", name, orphan, name, name), severityError)
+		}
 		return result
 	}
 

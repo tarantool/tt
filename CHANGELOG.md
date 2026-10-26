@@ -382,7 +382,10 @@ for machine-readable output.
   application targets of `tt replicaset` and `tt cluster` leave external
   processes out of the instances of the application and refuse one named
   explicitly. Instances start in the order of `instances.yaml`, and none
-  waits for another to be ready.
+  waits for another to be ready. A process whose watchdog was killed by
+  something else than `tt kill` runs on in its group: `tt status` does not
+  show it running and names it in an alert, `tt start` refuses to start a
+  second one, and `tt stop` and `tt kill` stop it by `process.pid`.
 
 ### Changed
 
