@@ -46,56 +46,9 @@ def write_manifest(directory) -> None:
         f.write(MANIFEST)
 
 
-# The tests that check which tt.yaml tt finds read the answer from
-# `tt cfg dump`, which prints the path of the configuration tt was given or
-# found - with --cfg, the flag's value as typed - and its env.bin_dir. The
-# configuration below sets bin_dir to a relative path no default produces, and
-# tt resolves it against the directory holding the file, so bin_dir is what
-# proves the file was loaded.
-FOUND_BIN_DIR = "bin_of_found_config"
-
-
-def create_found_config(directory) -> Path:
-    return create_tt_config(directory, {"env": {"bin_dir": FOUND_BIN_DIR}})
-
-
-def assert_found_config(output: str, directory) -> None:
-    lines = [line.strip() for line in output.splitlines()]
-    assert f"{Path(directory) / config_name}:" in lines
-    assert f"bin_dir: {Path(directory) / FOUND_BIN_DIR}" in lines
-
-
 # ##### #
 # Tests #
 # ##### #
-def test_local_launch(tt_cmd, tmp_path):
-    cmd = [tt_cmd, "-L", tmp_path, "cfg", "dump"]
-
-    # No configuration file specified.
-    rc, output = run_command_and_get_output(cmd, cwd=os.getcwd())
-    assert rc == 1
-    assert "failed to find Tarantool CLI config for " in output
-
-    # With the specified config file.
-    create_found_config(tmp_path)
-
-    rc, output = run_command_and_get_output(cmd, cwd=os.getcwd())
-    assert rc == 0
-    assert_found_config(output, tmp_path)
-
-
-def test_local_launch_find_cfg(tt_cmd, tmp_path):
-    # Find tt.yaml at the parent of the launch directory.
-    tmpdir_without_config = tempfile.mkdtemp(dir=tmp_path)
-    cmd = [tt_cmd, "-L", tmpdir_without_config, "cfg", "dump"]
-
-    create_found_config(tmp_path)
-
-    rc, output = run_command_and_get_output(cmd, cwd=os.getcwd())
-    assert rc == 0
-    assert_found_config(output, tmp_path)
-
-
 def test_local_launch_non_existent_dir(tt_cmd, tmp_path):
     module = "version"
     cmd = [tt_cmd, "-L", "non-exists-dir", module]
@@ -103,28 +56,6 @@ def test_local_launch_non_existent_dir(tt_cmd, tmp_path):
 
     assert rc == 1
     assert "failed to change working directory" in output
-
-
-# This test looking for tt.yaml from cwd to root (without -L flag).
-def test_default_launch_find_cfg_at_cwd(tt_cmd, tmp_path):
-    # Find tt.yaml at current work directory.
-    create_found_config(tmp_path)
-
-    cmd = [tt_cmd, "cfg", "dump"]
-    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
-    assert rc == 0
-    assert_found_config(output, tmp_path)
-
-
-def test_default_launch_find_cfg_at_parent(tt_cmd, tmp_path):
-    create_found_config(tmp_path)
-    cmd = [tt_cmd, "cfg", "dump"]
-
-    # Find tt.yaml at cwd parent.
-    tmpdir_without_config = tempfile.mkdtemp(dir=tmp_path)
-    rc, output = run_command_and_get_output(cmd, cwd=tmpdir_without_config)
-    assert rc == 0
-    assert_found_config(output, tmp_path)
 
 
 def test_launch_local_tt_executable(tt_cmd, tmp_path):
@@ -472,25 +403,7 @@ def test_external_module_without_internal_implementation(tt_cmd, tmp_path):
     assert module_message in output
 
 
-def test_launch_with_cfg_flag(tt_cmd, tmp_path):
-    # Send non existent config path.
-    non_exist_cfg_tmpdir = tempfile.mkdtemp(dir=tmp_path)
-    cmd = [tt_cmd, "--cfg", "non-exists-path", "cfg", "dump"]
-    rc, output = run_command_and_get_output(cmd, cwd=non_exist_cfg_tmpdir)
-    assert rc == 1
-    assert "specified path to the configuration file is invalid" in output
-
-    # Create one more temporary directory
-    exists_cfg_tmpdir = Path(tempfile.mkdtemp(dir=tmp_path))
-    config_path = create_found_config(exists_cfg_tmpdir)
-
-    cmd = [tt_cmd, "--cfg", config_path, "cfg", "dump"]
-    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
-    assert rc == 0
-    assert_found_config(output, exists_cfg_tmpdir)
-
-
-@pytest.mark.parametrize("module", ["env", "non-exists-module"])
+@pytest.mark.parametrize("module", ["cat", "non-exists-module"])
 def test_launch_external_cmd_with_flags(tt_cmd, tmp_path, module):
     module_message = create_external_module(module, tmp_path / "modules")
 
@@ -538,51 +451,6 @@ def test_std_err_stream_local_launch_non_existent_dir(tt_cmd, tmp_path):
     assert tt_process.returncode == 1
     assert "failed to change working directory" not in tt_process.stdout.readline()
     assert "failed to change working directory" in tt_process.stderr.readline()
-
-
-def test_launch_with_env_cfg(tt_cmd):
-    cmd = [tt_cmd, "cfg", "dump"]
-
-    tmpdir_with_env_config = tempfile.mkdtemp()
-    tmpdir_with_flag_config = tempfile.mkdtemp()
-    try:
-        # Test 'TT_CLI_CFG' env. variable.
-        env_config_path = tmpdir_with_env_config + "/tt.yaml"
-        with open(env_config_path, "w") as f:
-            yaml.dump({"env": {"bin_dir": "foo/binaries"}}, f)
-        test_env = os.environ.copy()
-        test_env["TT_CLI_CFG"] = env_config_path
-
-        rc, output = run_command_and_get_output(cmd, cwd=os.getcwd(), env=test_env)
-        expected_bin_dir = "bin_dir: " + tmpdir_with_env_config + "/foo/binaries"
-        assert rc == 0
-        assert expected_bin_dir in output
-
-        # Test that '-c' flag has higher priority than 'TT_CLI_CFG'.
-        flag_config_path = tmpdir_with_flag_config + "/tt.yaml"
-        with open(flag_config_path, "w") as f:
-            yaml.dump({"env": {"bin_dir": "foo/my_cool_binaries"}}, f)
-        cmd = [tt_cmd, "-c", flag_config_path, "cfg", "dump"]
-
-        rc, output = run_command_and_get_output(cmd, cwd=os.getcwd(), env=test_env)
-        expected_bin_dir = "bin_dir: " + tmpdir_with_flag_config + "/foo/my_cool_binaries"
-        assert rc == 0
-        assert expected_bin_dir in output
-    finally:
-        shutil.rmtree(tmpdir_with_env_config)
-        shutil.rmtree(tmpdir_with_flag_config)
-
-
-def test_launch_with_invalid_env_cfg(tt_cmd):
-    cmd = [tt_cmd, "cfg", "dump"]
-
-    # Set invalid 'TT_CLI_CFG' env. variable.
-    test_env = os.environ.copy()
-    test_env["TT_CLI_CFG"] = "foo/bar"
-
-    rc, output = run_command_and_get_output(cmd, cwd=os.getcwd(), env=test_env)
-    assert rc == 1
-    assert "specified path to the configuration file is invalid" in output
 
 
 def test_launch_with_verbose_output(tt_cmd):

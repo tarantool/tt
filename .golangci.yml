@@ -429,17 +429,6 @@ linters:
             - "github.com/tarantool/tt/v3/internal/instances"
             - "github.com/tarantool/tt/v3/internal/scope"
             - "go.etcd.io/etcd/client/v3"
-        dir-cli-cfg:
-          files:
-            - "**/cli/cfg/**"
-          allow:
-            - $gostd
-            - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/v3/cli/cfg"
-            - "github.com/tarantool/tt/v3/cli/cmdcontext"
-            - "github.com/tarantool/tt/v3/cli/config"
-            - "github.com/tarantool/tt/v3/cli/configure"
-            - "gopkg.in/yaml.v2"
         dir-cli-checkpoint:
           files:
             - "**/cli/checkpoint/**"
@@ -479,7 +468,6 @@ linters:
             # The instance commands find their instances through the
             # application resolver.
             - "github.com/tarantool/tt/v3/cli/app"
-            - "github.com/tarantool/tt/v3/cli/cfg"
             - "github.com/tarantool/tt/v3/cli/checkpoint"
             - "github.com/tarantool/tt/v3/cli/cluster"
             - "github.com/tarantool/tt/v3/cli/cmd"
@@ -491,7 +479,6 @@ linters:
             - "github.com/tarantool/tt/v3/cli/coredump"
             - "github.com/tarantool/tt/v3/cli/create"
             - "github.com/tarantool/tt/v3/cli/daemon"
-            - "github.com/tarantool/tt/v3/cli/env"
             - "github.com/tarantool/tt/v3/cli/exitcode"
             - "github.com/tarantool/tt/v3/cli/logging"
             - "github.com/tarantool/tt/v3/cli/manifest"
@@ -613,15 +600,6 @@ linters:
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/sdk"
             - "github.com/tarantool/tt/v3/cli/docker"
-        dir-cli-env:
-          files:
-            - "**/cli/env/**"
-          allow:
-            - $gostd
-            - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/v3/cli/config"
-            - "github.com/tarantool/tt/v3/cli/configure"
-            - "github.com/tarantool/tt/v3/cli/env"
         dir-cli-exitcode:
           files:
             - "**/cli/exitcode/**"

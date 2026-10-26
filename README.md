@@ -579,8 +579,8 @@ export TT_CLI_MODULES_PATH=/path/to/modules:/path/to/other/modules
 A relative directory is taken from the working directory tt runs in (with
 `-L`, from the directory it names), so list absolute paths.
 
-For example, you have an external `env` module. When you type `tt env`, the
-external `env` module will be launched, and every argument after `env` goes
+For example, you have an external `cat` module. When you type `tt cat`, the
+external `cat` module will be launched, and every argument after `cat` goes
 to it; with `-V`, tt logs that the module replaces the command. A module
 named like a group of commands, such as `cluster`, takes over the whole
 group, and a module answers to the aliases of the command it replaces. To
@@ -826,16 +826,6 @@ support it. The name of a variable should have the following pattern:
 [box.cfg](https://www.tarantool.io/en/doc/latest/reference/configuration/#box-cfg-params-ref)
 parameter.
 
-### Add current environment binaries location to the PATH variable
-
-You can add current environment binaries location to the PATH variable:
-
-``` console
-. <(tt env)
-```
-
-Also TARANTOOL_DIR variable is set.
-
 ## Commands
 
 Common description. For a detailed description, use `tt help command` .
@@ -862,13 +852,11 @@ Common description. For a detailed description, use `tt help command` .
 - `install` - install tarantool/tt.
 - `uninstall` - uninstall tarantool/tt.
 - `daemon (experimental)` - manage tt daemon.
-- `cfg dump` - print tt environment configuration.
 - `package` - build, pack, install, and manage manifest-based application
     packages.
 - `binaries list` - show a list of installed binaries and their versions.
 - `binaries switch` - switch to installed binary.
 - `cluster` - manage cluster configuration.
-- `env` - add current environment binaries location to the PATH variable.
 - `replicaset` - manage replicasets.
 - `download` - download Tarantool SDK.
 - `kill` - kill application instances.
