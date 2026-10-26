@@ -428,8 +428,9 @@ for machine-readable output.
   scopes. `TARANTOOL_CFG` is no longer set. `tt check` checks the script.
   `tt cluster show` and `publish` refuse such an instance, and the
   application targets of `tt replicaset` leave it out next to the instances
-  of the cluster config; an application of such instances alone keeps them
-  for the custom orchestrator. `<name>.lua`, `init.lua` and
+  of the cluster config; an application of such instances alone keeps them,
+  and `tt replicaset` chooses the custom orchestrator for it without
+  `--custom`. `<name>.lua`, `init.lua` and
   `<instance>.init.lua` applications next to `tt.yaml` are not recognized
   any more: a pair with a `script` record runs them.
 

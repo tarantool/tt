@@ -11,6 +11,7 @@ import (
 	sdkconnect "github.com/tarantool/tt/sdk/connect"
 	"github.com/tarantool/tt/sdk/formatter"
 	"github.com/tarantool/tt/sdk/integrity"
+	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/connect"
@@ -504,7 +505,8 @@ func newReplicasetConnectCtx() connect.ConnectCtx {
 
 // replicasetFillCtx fills the replicaset command context. target is an
 // application, <APP> or <APP>:<INSTANCE>, resolved as the instance commands
-// resolve it, or else, unless isRunningCtxRequired, a URI to connect to.
+// resolve it, or else, unless isRunningCtxRequired, a URI to connect to. The
+// orchestrator of an application target is chosen by appOrchestrator.
 func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, target string,
 	isRunningCtxRequired bool,
 ) error {
@@ -519,7 +521,7 @@ func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, target str
 
 	var connOpts connector.ConnectOpts
 
-	_, instances, instName, err := resolveAppTarget(cmdCtx, target)
+	application, instances, instName, err := resolveAppTarget(cmdCtx, target)
 	if err != nil {
 		// A target that is no URI is an application, and why it is none is
 		// the error to report: trying it as an instance target, as tt connect
@@ -536,6 +538,7 @@ func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, target str
 
 		ctx.IsInstanceConnect = true
 	} else {
+		ctx.Orchestrator = appOrchestrator(ctx.Orchestrator, application)
 		ctx.RunningCtx.Instances = instances
 
 		connOpts, err = fillReplicasetAppCtx(cmdCtx, ctx, instName, connectCtx)
@@ -898,6 +901,26 @@ func internalReplicasetBootstrapModule(cmdCtx *cmdcontext.CmdCtx, args []string)
 	}
 
 	return replicasetcmd.Bootstrap(bootstrapCtx)
+}
+
+// appOrchestrator returns the orchestrator of application: forced, the one
+// the flags force, if any; else the custom orchestrator for an application
+// without Tarantool instances configured by the cluster config, whose
+// instances run their scripts, as tt2 ran them without a config of
+// Tarantool 3; else none, which leaves the choice to the version of
+// tarantool the instances report.
+//
+// The centralized config orchestrator cannot act on such an application: it
+// has no cluster config, and config:get() of its instances fails. Asking
+// tarantool would choose it on Tarantool 3 all the same.
+func appOrchestrator(
+	forced replicaset.Orchestrator, application *app.App,
+) replicaset.Orchestrator {
+	if forced != replicaset.OrchestratorUnknown || application.HasClusterInstances() {
+		return forced
+	}
+
+	return replicaset.OrchestratorCustom
 }
 
 // getOrchestrator returns a chosen orchestrator or an unknown one.

@@ -632,9 +632,10 @@ the instance writes into the version, which an upgrade replaces.
 Tarantool instance, `tt check` checks the syntax of the script, and `tt clean`
 removes its data and log. `tt cluster show` and `publish` refuse it: no cluster
 config configures it. The application targets of `tt replicaset` leave it out
-next to instances of the cluster config; an application of such instances
-alone keeps them for the custom orchestrator, which Tarantool 3 needs to be
-told about with `--custom`.
+next to instances of the cluster config. An application of such instances
+alone keeps them, and `tt replicaset` acts on it with the custom orchestrator
+without `--custom`, whatever the version of Tarantool; `--config` and
+`--custom` still force an orchestrator.
 
 ### Working with application templates
 

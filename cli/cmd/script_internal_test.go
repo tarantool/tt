@@ -8,8 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/connect"
+	"github.com/tarantool/tt/v3/cli/replicaset"
 	"github.com/tarantool/tt/v3/cli/running"
 )
 
@@ -208,4 +210,66 @@ func TestInstanceCommandsOfScripts(t *testing.T) {
 	require.NoError(t, clean(&inst))
 	assert.NoFileExists(t, snapshot)
 	assert.NoFileExists(t, inst.Log)
+}
+
+// TestAppOrchestrator pins the orchestrator of an application target of
+// tt replicaset: the one the flags force, else the custom orchestrator for an
+// application without Tarantool instances of the cluster config, else none,
+// which leaves it to the version of tarantool.
+func TestAppOrchestrator(t *testing.T) {
+	load := func(files map[string]string) *app.App {
+		scriptProject(t, files)
+
+		application, err := loadApp(&cmdcontext.CmdCtx{}, "myapp")
+		require.NoError(t, err)
+
+		return application
+	}
+
+	scripts := load(scriptFiles())
+	mixed := load(mixedFiles())
+
+	for _, test := range []struct {
+		name        string
+		forced      replicaset.Orchestrator
+		application *app.App
+		want        replicaset.Orchestrator
+	}{
+		{"scripts", replicaset.OrchestratorUnknown, scripts, replicaset.OrchestratorCustom},
+		{"mixed", replicaset.OrchestratorUnknown, mixed, replicaset.OrchestratorUnknown},
+		{
+			"scripts with --config", replicaset.OrchestratorCentralizedConfig, scripts,
+			replicaset.OrchestratorCentralizedConfig,
+		},
+		{
+			"mixed with --custom", replicaset.OrchestratorCustom, mixed,
+			replicaset.OrchestratorCustom,
+		},
+	} {
+		assert.Equal(t, test.want, appOrchestrator(test.forced, test.application), test.name)
+	}
+}
+
+// TestReplicasetFillCtxScripts pins that tt replicaset acts on an
+// application of instances that run their scripts with the custom
+// orchestrator without --custom, and that a flag still forces another.
+func TestReplicasetFillCtxScripts(t *testing.T) {
+	scriptProject(t, scriptFiles())
+
+	var ctx replicasetCtx
+
+	require.NoError(t, replicasetFillCtx(&cmdcontext.CmdCtx{}, &ctx, "myapp", false))
+	assert.Equal(t, replicaset.OrchestratorCustom, ctx.Orchestrator)
+	assert.Equal(t, []string{"legacy-1", "legacy-2"}, instanceNames(ctx.RunningCtx.Instances))
+
+	previous := orchestratorCentralizedConfig
+
+	orchestratorCentralizedConfig = true
+
+	t.Cleanup(func() { orchestratorCentralizedConfig = previous })
+
+	ctx = replicasetCtx{}
+
+	require.NoError(t, replicasetFillCtx(&cmdcontext.CmdCtx{}, &ctx, "myapp", false))
+	assert.Equal(t, replicaset.OrchestratorCentralizedConfig, ctx.Orchestrator)
 }

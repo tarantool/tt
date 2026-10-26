@@ -209,9 +209,11 @@ Replicasets state: bootstrapped
         stop_application(tt_cmd, app_name, app_path, [])
 
 
-@pytest.mark.skipif(tarantool_major_version > 2, reason="skip custom test for Tarantool > 2")
 @pytest.mark.parametrize("flag", [None, "--custom"])
 def test_status_custom_app(tt_cmd, tmpdir_with_cfg, flag):
+    # The application runs an instance that configures itself in its script,
+    # and no instance of a cluster config: the custom orchestrator acts on it
+    # without --custom, whatever the version of tarantool.
     tmpdir = tmpdir_with_cfg
     app_name = "test_custom_app"
     app_path = copy_application(tmpdir, app_name)
