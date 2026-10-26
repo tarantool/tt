@@ -72,7 +72,7 @@ cd demo
 Now we can run all instances at once:
 
 ``` console
-$ tt start demo
+$ tt instance start demo:*
 • Starting an instance [demo:router]...
 • Starting an instance [demo:master]...
 • Starting an instance [demo:replica]...
@@ -81,7 +81,7 @@ $ tt start demo
 Or just one of them:
 
 ``` console
-$ tt start demo:master
+$ tt instance start demo:master
 • Starting an instance [demo:master]...
 ```
 
@@ -89,7 +89,7 @@ To start all instances of the current application without specifying its name,
 run:
 
 ``` console
-$ tt start
+$ tt instance start
 • Starting an instance [demo:router]...
 • Starting an instance [demo:master]...
 • Starting an instance [demo:replica]...
@@ -400,15 +400,17 @@ $ tt daemon status
 • RUNNING. PID: 6189.
 ```
 
-To send request to daemon you can use CURL. In this example the client sends a
-request to start the `test_app` application. The daemon is started in the
-`test_app` project directory.
+To send request to daemon you can use CURL. The daemon runs
+`tt <command_name> <params...>`: in this example the client sends a request to
+start the instances of the `test_app` application,
+`tt instance start test_app:*`. The daemon is started in the `test_app` project
+directory.
 
 ``` sh
 curl --header "Content-Type: application/json" --request POST \
---data '{"command_name":"start", "params":["test_app"]}' \
+--data '{"command_name":"instance", "params":["start", "test_app:*"]}' \
 http://127.0.0.1:1024/tarantool
-{"res":"   • Starting an instance [test_app]...\n"}
+{"res":"   • Starting an instance [test_app:test_app]...\n"}
 ```
 
 Below is an example of running a command with flags.

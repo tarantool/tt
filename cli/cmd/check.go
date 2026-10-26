@@ -7,10 +7,11 @@ import (
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/running"
 )
 
-// NewCheckCmd creates a new check command.
+// NewCheckCmd creates the check command of tt instance.
 func NewCheckCmd() *cobra.Command {
 	checkCmd := &cobra.Command{
 		Use:   "check " + instanceTargetsUsage,
@@ -37,47 +38,50 @@ func NewCheckCmd() *cobra.Command {
 // an instance that runs one, as tt2 did, or app.file of its config. An
 // instance whose config names no app.file has nothing of its own to check,
 // and neither has an external process, whose binary tt knows nothing about.
+//
+// An instance whose file has a syntax error fails, and so does every other
+// instance that runs the same file; the error is reported once.
 func internalCheckModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	instances, err := resolveInstances(cmdCtx, args)
 	if err != nil {
 		return err
 	}
 
-	checked := map[string]bool{}
+	checked := map[string]error{}
 
-	for _, inst := range instances {
-		if running.IsExternal(&inst) {
+	return actOnInstances("check", instances, func(inst *running.InstanceCtx) error {
+		if running.IsExternal(inst) {
 			log.Infof("%s: an external process (binary: %s) has nothing to check",
-				running.GetAppInstanceName(inst), inst.Binary)
+				running.GetAppInstanceName(*inst), inst.Binary)
 
-			continue
+			return nil
 		}
 
-		file, found, err := running.AppFile(&inst)
+		file, found, err := running.AppFile(inst)
 		if err != nil {
 			return err
 		}
 
 		if !found {
 			log.Infof("%s: the config names no application file (app.file) to check",
-				running.GetAppInstanceName(inst))
+				running.GetAppInstanceName(*inst))
 
-			continue
+			return nil
 		}
 
-		if checked[file] {
-			continue
+		if err, done := checked[file]; done {
+			return exitcode.Silent(err)
 		}
 
-		checked[file] = true
+		err = running.Check(context.Background(), inst, file)
+		checked[file] = err
 
-		err = running.Check(context.Background(), &inst, file)
 		if err != nil {
 			return err
 		}
 
 		log.Infof("Result of check: syntax of file '%s' is OK", file)
-	}
 
-	return nil
+		return nil
+	})
 }

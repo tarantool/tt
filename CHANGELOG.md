@@ -328,8 +328,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   that refuses an operation for want of permission or space; 3 for a
   multi-package install that partly succeeded. `tt help errors` describes
   them, and the root help lists it under a new HELP TOPICS section.
-- `tt status`: add `--format` option to support JSON and YAML output formats
-for machine-readable output.
+- `tt instance status`: add `--format` (`-o`) option to support JSON and YAML
+  output formats for machine-readable output.
 - `tt test`: build the package in the current directory and run its tests with
   luatest. Tests come from `test/`, or from `tests/` when there is no `test/`;
   a sub-path relative to the project narrows the run to one directory or one
@@ -358,35 +358,36 @@ for machine-readable output.
   templates into the install root, and refuses an archive carrying templates
   when the root already has a `.templates/`; the `user` and `system` scopes
   lay them into the installed version.
-- `tt start`, `stop`, `status`, `restart`, `kill`, `log`, `logrotate` and
-  `clean`: run external processes, the records of `instances.yaml` with
-  `binary`, next to the Tarantool instances and under the same watchdog. The
-  process runs `binary` with `args` in `workdir`, or else in its data
-  directory `<root>/var/lib/<app>/<inst>/`, which the start creates, with
-  `env` on top of the environment of `tt`; relative paths are resolved
-  against the application directory, and a `binary` without a slash is
-  looked up in `PATH` of `tt`. `tt start` reports a binary it cannot run, or
-  a `workdir` that does not exist, before it starts anything. The process
-  leads a process group of its own, which every signal reaches, so that a
-  wrapper stops with the program it runs. It stops with `stop_signal`,
+- `tt instance start`, `stop`, `status`, `restart`, `kill`, `logs`,
+  `logrotate` and `clean`: run external processes, the records of
+  `instances.yaml` with `binary`, next to the Tarantool instances and under
+  the same watchdog. The process runs `binary` with `args` in `workdir`, or
+  else in its data directory `<root>/var/lib/<app>/<inst>/`, which the start
+  creates, with `env` on top of the environment of `tt`; relative paths are
+  resolved against the application directory, and a `binary` without a slash
+  is looked up in `PATH` of `tt`. `tt instance start` reports a binary it
+  cannot run, or a `workdir` that does not exist, before it starts anything.
+  The process leads a process group of its own, which every signal reaches, so
+  that a wrapper stops with the program it runs. It stops with `stop_signal`,
   SIGTERM by default, whatever stopped the watchdog, and is killed with its
-  group after `stop_timeout`, 30 seconds by default; `restart` applies as to
-  a Tarantool instance. Its output goes to `<root>/var/log/<app>/<inst>/tt.log`,
+  group after `stop_timeout`, 30 seconds by default; `restart` applies as to a
+  Tarantool instance. Its output goes to `<root>/var/log/<app>/<inst>/tt.log`,
   and its watchdog keeps `tt.pid` and `process.pid`, the pid of the process,
-  in `<root>/var/run/<app>/<inst>/`. `tt status` shows the state of the
-  process only. `tt logrotate` reopens `tt.log` and sends the process group
-  the new `logrotate_signal` field of the record, if it has one; the field is
-  refused in the records of Tarantool instances, which get SIGHUP as before.
-  `tt clean` removes the log and the data directory, and `tt check` skips the
-  process. `tt connect`, `tt play`, `tt kill --dump` and
-  `tt replicaset rebootstrap` refuse it as not a Tarantool instance; the
-  application targets of `tt replicaset` and `tt cluster` leave external
-  processes out of the instances of the application and refuse one named
-  explicitly. Instances start in the order of `instances.yaml`, and none
-  waits for another to be ready. A process whose watchdog was killed by
-  something else than `tt kill` runs on in its group: `tt status` does not
-  show it running and names it in an alert, `tt start` refuses to start a
-  second one, and `tt stop` and `tt kill` stop it by `process.pid`.
+  in `<root>/var/run/<app>/<inst>/`. `tt instance status` shows the state of
+  the process only. `tt instance logrotate` reopens `tt.log` and sends the
+  process group the new `logrotate_signal` field of the record, if it has one;
+  the field is refused in the records of Tarantool instances, which get SIGHUP
+  as before. `tt instance clean` removes the log and the data directory, and
+  `tt instance check` skips the process. `tt connect`, `tt play`,
+  `tt instance kill --dump` and `tt replicaset rebootstrap` refuse it as not a
+  Tarantool instance; the application targets of `tt replicaset` and
+  `tt cluster` leave external processes out of the instances of the
+  application and refuse one named explicitly. Instances start in the order of
+  `instances.yaml`, and none waits for another to be ready. A process whose
+  watchdog was killed by something else than `tt instance kill` runs on in its
+  group: `tt instance status` does not show it running and names it in an
+  alert, `tt instance start` refuses to start a second one, and
+  `tt instance stop` and `tt instance kill` stop it by `process.pid`.
 
 ### Changed
 
@@ -399,40 +400,80 @@ for machine-readable output.
 - `tt instance logs --follow` / `tt tcm log --follow`: only complete lines
   are printed. A half-written line stays buffered until its newline arrives
   instead of being split into two records.
-- `tt start`, `stop`, `status`, `restart`, `kill`, `log`, `logrotate`,
-  `check`, `clean`, `connect` and `play`, the application targets of
-  `tt replicaset` and `tt cluster`: the instance commands no longer use
-  `tt.yaml`. An application is the project found from the current directory
-  upward (`app.manifest.toml` or `.templates/<name>/instances.yaml`), or
-  `<root>/apps/<app>` of the system scope; it is named by `[package].name`
-  of its manifest or after the project directory. Its instances and cluster
-  config come from the pair `.templates/default/{instances,config}.yaml`, or
-  `<root>/etc/<app>/` for an installed application; a description with only
-  `script` and `binary` records needs no `config.yaml` and does not read one,
-  while `tt cluster show` and `publish` refuse an application without it. Data, logs, pid files
-  and sockets go to `<root>/var/{lib,log,run}/<app>/<instance>/`, where
-  `<root>` is `.tarantool` in a project. Targets are `<app>:<instance>`,
-  `<app>:*` and comma-separated lists of them, or none for every instance of
-  the current project; a bare `<app>` is refused with a hint. The restart
-  policy is the `restart` field of the instance record: a restart after a
-  crash stays on the version the instance started from and re-reads the
-  pair, while `tt restart` takes the active version. `tt check` checks the
-  `app.file` of each instance. A record with `script` is a Tarantool
+- `tt instance`: the commands that act on the instances of an application move
+  under `tt instance`: `start`, `stop`, `restart`, `kill`, `status`, `logs`
+  (was `tt log`), `logrotate`, `check`, `clean` and `connect`. The top-level
+  `tt start`, `tt stop`, `tt restart`, `tt kill`, `tt status`, `tt log`,
+  `tt logrotate`, `tt check` and `tt clean` are removed without aliases.
+  `tt connect` stays as the facade of `tt instance connect`: the same command
+  with the same flags. Every command of the group takes
+  `--scope project|user|system` and `--template <name>`; the watchdog of an
+  instance runs as `tt instance start --watchdog`. `--foreground` replaces
+  `-i` of `tt start`, for systemd, a container or a terminal: `tt` stays in
+  the foreground while every instance runs under a watchdog of its own,
+  `tt instance start --watchdog --foreground`, which does not restart it and
+  leads a process group of its own with its own pid file, so that
+  `tt instance stop`, `kill`, `logrotate` and `status` act on one instance
+  from another terminal and Ctrl-C reaches an instance once; the output of the
+  instances goes to their `tt.log` and to the standard output, prefixed with
+  the instance when there are several; SIGINT, SIGTERM and SIGQUIT stop every
+  instance as a stop of its watchdog does; an instance that ends does not stop
+  the others, and `tt` writes with what code it exited; `tt` exits once all
+  have ended, with 0 when they were stopped in time, a process killed by its
+  stop signal included, with 137 when one had to be killed after its
+  `stop_timeout`, and with the exit code of the first instance that ended on
+  its own with another code otherwise; an instance that runs already is an
+  error before anything starts. A command over several instances goes on after
+  an instance it fails for, where `tt start` stopped at the first watchdog
+  that did not start and `tt check` at the first file with an error, and exits
+  with 3 when it failed for some of the instances, with 1 when it failed for
+  all of them, and with the code of the error of the instance when it acted on
+  one. `-f` is no longer the short form of follow, format or a confirmation in
+  the group: `tt instance logs --follow` has no short form,
+  `tt instance status -o` selects the format, and `tt instance kill` and
+  `tt instance clean` take `--yes` (`-y`) where they took `-f`/`--force`.
+  `tt instance clean` asks once for all its targets, removes nothing for an
+  instance that never ran instead of failing it, and counts a running
+  instance it leaves alone as failed. Completion of a target offers the
+  current project and the applications of the system scope, or of the scope
+  `--scope` names, each followed by `:`, and then the instances of the pair
+  of the application named. The messages that suggest a command name the
+  new one, as the follow-up message of `tt create` does.
+
+- `tt instance start`, `stop`, `status`, `restart`, `kill`, `logs`,
+  `logrotate`, `check`, `clean` and `connect`, `tt connect`, `tt play`, the
+  application targets of `tt replicaset` and `tt cluster`: the instance
+  commands no longer use `tt.yaml`. An application is the project found from
+  the current directory upward (`app.manifest.toml` or
+  `.templates/<name>/instances.yaml`), or `<root>/apps/<app>` of the system
+  scope; it is named by `[package].name` of its manifest or after the project
+  directory. Its instances and cluster config come from the pair
+  `.templates/default/{instances,config}.yaml`, or `<root>/etc/<app>/` for an
+  installed application; a description with only `script` and `binary` records
+  needs no `config.yaml` and does not read one, while `tt cluster show` and
+  `publish` refuse an application without it. Data, logs, pid files and
+  sockets go to `<root>/var/{lib,log,run}/<app>/<instance>/`, where `<root>`
+  is `.tarantool` in a project. Targets are `<app>:<instance>`, `<app>:*` and
+  comma-separated lists of them, or none for every instance of the current
+  project; a bare `<app>` is refused with a hint. The restart policy is the
+  `restart` field of the instance record: a restart after a crash stays on the
+  version the instance started from and re-reads the pair, while
+  `tt instance restart` takes the active version. `tt instance check` checks
+  the `app.file` of each instance. A record with `script` is a Tarantool
   instance configured by its own Lua script, as `init.lua` and
   `<instance>.init.lua` of tt2 were: `tarantool` runs the script, relative to
-  the application directory, in the application directory, and `box.cfg`
-  takes the data directory and the binary port of the layout from
-  `TT_WAL_DIR`, `TT_MEMTX_DIR`, `TT_VINYL_DIR` and `TT_LISTEN` for the
-  options the script does not pass. The console socket and `tt.log` are those
-  of any instance; `env` of the record may move the data with the same
-  variables, relative paths there being refused in the `user` and `system`
-  scopes. `TARANTOOL_CFG` is no longer set. `tt check` checks the script.
-  `tt cluster show` and `publish` refuse such an instance, and the
-  application targets of `tt replicaset` leave it out next to the instances
-  of the cluster config; an application of such instances alone keeps them,
-  and `tt replicaset` chooses the custom orchestrator for it without
-  `--custom`. `<name>.lua`, `init.lua` and
-  `<instance>.init.lua` applications next to `tt.yaml` are not recognized
+  the application directory, in the application directory, and `box.cfg` takes
+  the data directory and the binary port of the layout from `TT_WAL_DIR`,
+  `TT_MEMTX_DIR`, `TT_VINYL_DIR` and `TT_LISTEN` for the options the script
+  does not pass. The console socket and `tt.log` are those of any instance;
+  `env` of the record may move the data with the same variables, relative
+  paths there being refused in the `user` and `system` scopes. `TARANTOOL_CFG`
+  is no longer set. `tt instance check` checks the script. `tt cluster show`
+  and `publish` refuse such an instance, and the application targets of
+  `tt replicaset` leave it out next to the instances of the cluster config; an
+  application of such instances alone keeps them, and `tt replicaset` chooses
+  the custom orchestrator for it without `--custom`. `<name>.lua`, `init.lua`
+  and `<instance>.init.lua` applications next to `tt.yaml` are not recognized
   any more: a pair with a `script` record runs them.
 
 - `tt binary install tarantool [version]`: install prebuilt Community release
@@ -509,12 +550,13 @@ for machine-readable output.
   prefix and enables tt completion for Bash and for Zsh with `compinit` loaded;
   deactivation restores the previous shell environment. User and system
   scopes do not create these scripts.
-- `tt start`: a failed periodic integrity check (`--integrity-check-period`)
-  stops the instance for good. The watchdog kills it and exits, whatever
-  `restart_on_failure` says; starting it again is up to an administrator.
-  Before, an instance with `restart_on_failure: true` was restarted over the
-  files that had failed the check.
-- `tt tcm start --watchdog` runs TCM under the watchdog `tt start` uses:
+- `tt instance start`: a failed periodic integrity check
+  (`--integrity-check-period`) stops the instance for good. The watchdog kills
+  it and exits, whatever `restart_on_failure` says; starting it again is up to
+  an administrator. Before, an instance with `restart_on_failure: true` was
+  restarted over the files that had failed the check.
+- `tt tcm start --watchdog` runs TCM under the watchdog `tt instance start`
+  uses:
   - `tt tcm stop` stops TCM with SIGTERM and kills its process group if it
     still runs 30 seconds later. Before, the watchdog waited for TCM without
     a limit.
@@ -524,16 +566,17 @@ for machine-readable output.
   - With `--integrity-check-period`, the integrity of the environment is
     checked periodically while TCM runs, and a failed check stops TCM for
     good. With `--integrity-check` and no period, the period is one day, as
-    for `tt start`.
+    for `tt instance start`.
 - `tt tcm status` finds TCM the way `tt tcm stop` does: through
   `watchdog.pid` first, and reports TCM as `RUNNING` while the watchdog runs,
   also while it waits to restart TCM; through `tcm.pid` otherwise. With
   neither file it reports `NOT RUNNING` and exits with 0. Before, it read
   `tcm.pid` only, and failed with `path does not exist` without it.
-- `tt stop`, `tt quit`, `tt tcm stop` and `tt daemon stop` wait 35 seconds for
-  the process to exit, longer than the 30 seconds a watchdog gives its child
-  before it kills it. Before, they gave up after 30 seconds and reported a
-  failure while the watchdog was completing the stop.
+- `tt instance stop`, `tt instance kill --dump`, `tt tcm stop` and
+  `tt daemon stop` wait 35 seconds for the process to exit, longer than the 30
+  seconds a watchdog gives its child before it kills it. Before, they gave up
+  after 30 seconds and reported a failure while the watchdog was completing
+  the stop.
 - tt logs through `log/slog`. The text log keeps its look with two changes:
   a warning is marked `⚠` instead of `•`, and a message is no longer padded
   with trailing spaces. A debug line is marked `·`, the continuation lines of
@@ -653,7 +696,8 @@ for machine-readable output.
 - `tt package list`: the table's `KIND` column is now `ORIGIN`. `kind` names
   what a component is (`library` or `binary`); what this column reports is
   where a package came from — the project itself or an installed archive.
-- `tt status`: deprecate `--pretty` option in favor of `--format=pretty-table`.
+- `tt instance status`: remove the `--pretty` option; use
+  `--format pretty-table`.
 - tarantoolctl layout is no longer supported.
 - `tt create`: cartridge support removed.
 - tarantoolctl support has been completely removed.
@@ -751,18 +795,18 @@ for machine-readable output.
   again once it found the pid file taken.
 - `tt tcm start` without `--watchdog`, refused because `tcm.pid` names a
   running TCM, no longer leaves the TCM it started running.
-- `tt stop` sent while the watchdog waits to restart a failed instance stops
-  the watchdog. Before, the signal was lost: the instance was restarted, and
-  `tt stop` gave up after 30 seconds.
-- Two `tt start` of one instance at the same time no longer start two
+- `tt instance stop` sent while the watchdog waits to restart a failed
+  instance stops the watchdog. Before, the signal was lost: the instance was
+  restarted, and `tt instance stop` gave up after 30 seconds.
+- Two `tt instance start` of one instance at the same time no longer start two
   watchdogs. Every tt pid file is now owned through a lock, so of any number of
   processes starting at once exactly one takes the file, and a stale file is
   taken over under that lock instead of being removed and created again.
-- A second `tt start` of a running instance no longer removes the pid file and
-  the sockets of the watchdog that runs it.
-- `tt kill` no longer removes the pid file and the sockets of a watchdog that
-  started after the one it killed: it removes them only while the pid file
-  still names the killed watchdog.
+- A second `tt instance start` of a running instance no longer removes the pid
+  file and the sockets of the watchdog that runs it.
+- `tt instance kill` no longer removes the pid file and the sockets of a
+  watchdog that started after the one it killed: it removes them only while
+  the pid file still names the killed watchdog.
 - Signals sent to an instance while its watchdog stops it are handled at once
   instead of after the stop, which could take 30 seconds.
 - Table formatter: fix a potential panic when the scalar encoder receives a

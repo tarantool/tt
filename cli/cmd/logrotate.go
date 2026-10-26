@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/running"
@@ -28,19 +27,13 @@ func NewLogrotateCmd() *cobra.Command {
 	return logrotateCmd
 }
 
-// internalLogrotateModule is a default logrotate module.
+// internalLogrotateModule is a default logrotate module. An instance that
+// does not run has no log to reopen, which fails it (actOnInstances).
 func internalLogrotateModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	instances, err := resolveInstances(cmdCtx, args)
 	if err != nil {
 		return err
 	}
 
-	for _, run := range instances {
-		err := running.Logrotate(&run)
-		if err != nil {
-			log.Infof(err.Error())
-		}
-	}
-
-	return nil
+	return actOnInstances("logrotate", instances, running.Logrotate)
 }

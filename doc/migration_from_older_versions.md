@@ -81,6 +81,28 @@ by, `ee.credential_path` by the `--credentials-file` flag of `tt binary`, and
 `modules.directory` by `TT_CLI_MODULES_PATH`. The `app` directories have no
 replacement: the runtime artifacts go under the root of the scope.
 
+### The instance commands are under tt instance
+
+The commands that act on instances moved under `tt instance`, and the
+top-level ones are gone:
+
+| `tt` 2.x | `tt` 3.0 |
+|---|---|
+| `tt start`, `stop`, `restart`, `kill`, `status`, `logrotate`, `check`, `clean` | `tt instance start`, `stop`, ... |
+| `tt log`, `tt log -f` | `tt instance logs`, `tt instance logs --follow` |
+| `tt start -i` | `tt instance start --foreground` |
+| `tt kill -f`, `tt clean -f` | `tt instance kill --yes`, `tt instance clean --yes` |
+| `tt status -f json`, `tt status --pretty` | `tt instance status -o json`, `tt instance status -o pretty-table` |
+| `tt connect` | `tt connect` or `tt instance connect`, the same command |
+
+`-f` is no longer the short form of a confirmation, of follow or of a format
+in these commands. `tt instance start --foreground` runs every instance under
+a watchdog of its own, as in the background, writes their output into their
+`tt.log` as well, and does not restart an instance: it exits with 0 when the
+instances were stopped, and with the exit code of an instance that failed. A
+command over several instances goes on after an instance it fails for and
+exits with 3 when some of them failed.
+
 ## 1.3.1 -> 2.0.0
 
 ### New format of tt config file

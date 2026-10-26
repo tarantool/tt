@@ -57,10 +57,11 @@ func TestCleanVerboseDirectoryBoundaries(t *testing.T) {
 				dataDir += string(filepath.Separator)
 			}
 
-			err = previewClean(&running.InstanceCtx{
+			total, err := previewClean([]running.InstanceCtx{{
 				LogDir: dataDir, WalDir: otherDir, VinylDir: otherDir, MemtxDir: otherDir,
-			})
+			}})
 			require.NoError(t, err)
+			assert.Equal(t, 2, total)
 
 			data, err := os.ReadFile(outputPath)
 			require.NoError(t, err)

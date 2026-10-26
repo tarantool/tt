@@ -2636,8 +2636,9 @@ Exit codes of tt commands.
      server could not be reached or did not answer in time, a host name did not
      resolve, the filesystem refused an operation for want of permission or
      space.
-  3  A multi-package operation partly succeeded: some of its targets went
-     through and some did not.
+  3  A multi-target operation partly succeeded: some of its targets went through
+     and some did not, such as some of the packages of an install or some of the
+     instances of a stop.
 
 Which failure within a code it was is carried by the error message, not by a
 further number.
@@ -2648,7 +2649,10 @@ documented in each command's --help. These start at 3, keeping invalid requests
 
 A command provided by an external module exits with the module's own code. Once
 tt test has started luatest, its exit code is luatest's own. tt run replaces
-itself with Tarantool, so its exit code is Tarantool's.
+itself with Tarantool, so its exit code is Tarantool's. tt instance start
+--foreground exits once its instances have ended: with 0 when they were stopped
+in time, with the exit code of the first instance that ended on its own with
+another code, with 137 when an instance did not stop in time and was killed.
 
 
 === tt help --help
@@ -2671,6 +2675,10 @@ runs in when the project has its name, and in the system scope otherwise;
 those of the pair of the application: the host's <root>/etc/<app>/, or the
 template .templates/<template>/ of the application, "default" unless --template
 names another.
+
+A command that acts on several instances goes on after a failure of one of them
+and exits 3 when it failed for some of them only. What the exit codes mean is in
+tt help errors.
 
 [0;1;39mUSAGE[0m
   tt instance [flags] <command> [command flags]

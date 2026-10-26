@@ -48,15 +48,18 @@ func internalStopWithConfirmationModule(cmdCtx *cmdcontext.CmdCtx, args []string
 		}
 	}
 
-	stopInstances(instances)
-
-	return nil
+	return stopInstances(instances)
 }
 
-// stopInstances interrupts all instances before waiting, reporting failures.
-func stopInstances(instances []running.InstanceCtx) {
-	err := running.StopAll(instances)
-	if err != nil {
-		log.Infof("%s", err)
+// stopInstances interrupts all supervisors before collecting individual outcomes.
+func stopInstances(instances []running.InstanceCtx) error {
+	result := newInstancesResult("stop", len(instances))
+
+	for i, err := range running.StopAllResults(instances) {
+		if err != nil {
+			result.fail(running.GetAppInstanceName(instances[i]), err)
+		}
 	}
+
+	return result.err()
 }

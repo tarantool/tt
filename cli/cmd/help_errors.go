@@ -16,8 +16,9 @@ const errorsHelpText = "Exit codes of tt commands.\n" +
 	"  2  The system the command ran on failed: a component build backend failed, " +
 	"a server could not be reached or did not answer in time, a host name did not resolve, " +
 	"the filesystem refused an operation for want of permission or space.\n" +
-	"  3  A multi-package operation partly succeeded: " +
-	"some of its targets went through and some did not.\n" +
+	"  3  A multi-target operation partly succeeded: " +
+	"some of its targets went through and some did not, " +
+	"such as some of the packages of an install or some of the instances of a stop.\n" +
 	"\n" +
 	"Which failure within a code it was is carried by the error message, " +
 	"not by a further number.\n" +
@@ -28,7 +29,10 @@ const errorsHelpText = "Exit codes of tt commands.\n" +
 	"\n" +
 	"A command provided by an external module exits with the module's own code. " +
 	"Once tt test has started luatest, its exit code is luatest's own. " +
-	"tt run replaces itself with Tarantool, so its exit code is Tarantool's."
+	"tt run replaces itself with Tarantool, so its exit code is Tarantool's. " +
+	"tt instance start --foreground exits once its instances have ended: with 0 when they " +
+	"were stopped in time, with the exit code of the first instance that ended on its own " +
+	"with another code, with 137 when an instance did not stop in time and was killed."
 
 // NewErrorsHelpTopic creates the errors help topic, which explains the exit
 // codes of tt commands. It has no Run, which is what makes it a help topic
