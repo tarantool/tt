@@ -10,22 +10,22 @@ from utils import config_name, run_command_and_get_output
 
 
 def test_version_cmd(tt_cmd, tmp_path):
-    cmd = [tt_cmd, "--self", "binary", "search", "tarantool"]
+    cmd = [tt_cmd, "binary", "search", "tarantool"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
     assert re.search(r"Available versions of tarantool:", output)
 
-    cmd = [tt_cmd, "--self", "binary", "search", "tt"]
+    cmd = [tt_cmd, "binary", "search", "tt"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
     assert re.search(r"Available versions of tt:", output)
 
-    cmd = [tt_cmd, "--self", "binary", "search", "git"]
+    cmd = [tt_cmd, "binary", "search", "git"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
     assert "Search available program versions" in output
 
-    cmd = [tt_cmd, "--self", "binary", "search"]
+    cmd = [tt_cmd, "binary", "search"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
     assert "Search available program versions" in output
@@ -66,7 +66,7 @@ def test_local_dir_archives(
     versions: list[str],
 ) -> None:
     local_repo = Path(__file__).parent / "testdata" / "distfiles.test"
-    cmd = [tt_cmd, "--self", "binary", "search", program, "--local-dir", local_repo]
+    cmd = [tt_cmd, "binary", "search", program, "--local-dir", local_repo]
     rc, got_versions = run_command_and_get_output(cmd, cwd=tmp_path, stderr=None)
     assert rc == 0
     expected = "\n".join(versions)
@@ -116,13 +116,13 @@ def test_sdk_search_alias(tt_cmd, tmp_path, alias):
     flags = ["--scope", "project", "--local-dir", local_dir]
 
     rc, expected = run_command_and_get_output(
-        [tt_cmd, "--self", "binary", "search", "tarantool-sdk", *flags],
+        [tt_cmd, "binary", "search", "tarantool-sdk", *flags],
         cwd=tmp_path,
         stderr=None,
     )
     assert rc == 0, expected
     rc, output = run_command_and_get_output(
-        [tt_cmd, "--self", "binary", "search", alias, *flags],
+        [tt_cmd, "binary", "search", alias, *flags],
         cwd=tmp_path,
         stderr=None,
     )
@@ -142,7 +142,7 @@ def test_ee_search_tracks_standalone_installations(tt_cmd, tmp_path):
     flags = ["--local-dir", local_dir]
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "--self", "binary", "search", "tarantool-ee", *flags],
+        [tt_cmd, "binary", "search", "tarantool-ee", *flags],
         cwd=tmp_path,
     )
     assert rc == 0, output
@@ -152,7 +152,7 @@ def test_ee_search_tracks_standalone_installations(tt_cmd, tmp_path):
     assert "gc64-3.3.2-0-r58 [active]" in output
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "--self", "binary", "search", "sdk", *flags],
+        [tt_cmd, "binary", "search", "sdk", *flags],
         cwd=tmp_path,
     )
     assert rc == 0, output
@@ -192,7 +192,7 @@ def test_version_cmd_local(tt_cmd, tmp_path, program):
     (tmp_path / config_name).write_text(
         "env:\n  bin_dir: legacy-bin\n  inc_dir: legacy-inc\nrepo:\n  distfiles: wrong-repo\n",
     )
-    cmd = [tt_cmd, "--self", "binary", "search", program, "--local-repo", "sources"]
+    cmd = [tt_cmd, "binary", "search", program, "--local-repo", "sources"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path, stderr=None)
     assert rc == 0
     expected = ["v3.0.0 [active]", "v3.1.0", "master [installed]"]
@@ -241,7 +241,7 @@ def test_local_dir_scope_isolation(tt_cmd, tmp_path, monkeypatch, scope, explici
 
     cwd = child if scope == "nested-project" else project
     selected_scope = "project" if scope == "nested-project" else scope
-    cmd = [tt_cmd, "--self"]
+    cmd = [tt_cmd]
     env = None
     if explicit_config:
         # A tt.yaml named outright, as TT_CLI_CFG named it, is not read either.
@@ -275,7 +275,7 @@ def test_missing_local_repo(tt_cmd, tmp_path, program):
     distfiles.mkdir()
     (distfiles / "tcm-1.3.0-0-gbbbbbbb.linux.amd64.tar.gz").touch()
     local_flag = "--local-dir" if program in ("tarantool-ee", "tcm") else "--local-repo"
-    cmd = [tt_cmd, "--self", "binary", "search", program, local_flag, "missing"]
+    cmd = [tt_cmd, "binary", "search", program, local_flag, "missing"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path, stderr=None)
     assert rc == 0
     assert output == ""
@@ -284,7 +284,7 @@ def test_missing_local_repo(tt_cmd, tmp_path, program):
 
 def test_local_dir_flag_requires_directory(tt_cmd, tmp_path):
     rc, output = run_command_and_get_output(
-        [tt_cmd, "--self", "binary", "search", "tcm", "--local-dir"],
+        [tt_cmd, "binary", "search", "tcm", "--local-dir"],
         cwd=tmp_path,
     )
     assert rc != 0

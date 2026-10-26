@@ -82,7 +82,7 @@ def test_switch(tt_cmd: Path, tmp_path: Path, program: str, version: str, active
             (root / "include").mkdir()
             (root / "include" / executable).symlink_to(previous / "include" / executable)
 
-    cmd = [tt_cmd, "--self", "binary", "--scope", "project", "switch", program, version]
+    cmd = [tt_cmd, "binary", "--scope", "project", "switch", program, version]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
 
     assert rc == 0
@@ -113,7 +113,7 @@ def test_switch_invalid_program(tt_cmd, tmp_path):
 def test_switch_tt_version_spelling(tt_cmd, tmp_path, stored, requested):
     root = tmp_path / ".tarantool"
     selected = install_version(root, "tt", stored)
-    cmd = [tt_cmd, "--self", "binary", "--scope", "project", "switch", "tt", requested]
+    cmd = [tt_cmd, "binary", "--scope", "project", "switch", "tt", requested]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
 
     assert rc == 0
@@ -135,7 +135,7 @@ def test_switch_rejects_incomplete_version(tt_cmd, tmp_path, program, stored, re
     root = tmp_path / ".tarantool"
     active = install_version(root, program, "2.10.3")
     install_version(root, program, stored)
-    cmd = [tt_cmd, "--self", "binary", "--scope", "project", "switch", program]
+    cmd = [tt_cmd, "binary", "--scope", "project", "switch", program]
     rc, output = run_command_and_get_output([*cmd, "2.10.3"], cwd=tmp_path)
     assert rc == 0, output
 
@@ -152,7 +152,7 @@ def test_switch_exact_version_wins(tt_cmd, tmp_path, requested):
     installations = {
         version: install_version(root, "tt", version) for version in ["7.7.7", "v7.7.7"]
     }
-    cmd = [tt_cmd, "--self", "binary", "switch", "tt", requested]
+    cmd = [tt_cmd, "binary", "switch", "tt", requested]
     rc, _ = run_command_and_get_output(cmd, cwd=tmp_path)
 
     assert rc == 0
@@ -166,7 +166,7 @@ def test_switch_tarantool_editions(tt_cmd, tmp_path):
         for program in ["tarantool", "tarantool-ee"]
     }
     for program in ["tarantool", "tarantool-ee", "tarantool"]:
-        cmd = [tt_cmd, "--self", "binary", "switch", program, "3.0.0"]
+        cmd = [tt_cmd, "binary", "switch", program, "3.0.0"]
         rc, _ = run_command_and_get_output(cmd, cwd=tmp_path)
         assert rc == 0
         assert_active(root, installations[program], program)
@@ -184,7 +184,7 @@ def test_switch_missing_headers_preserves_local_build(tt_cmd, tmp_path):
     (root / "include").mkdir()
     (root / "bin" / "tarantool").symlink_to(build / "bin" / "tarantool")
     (root / "include" / "tarantool").symlink_to(build / "include" / "tarantool")
-    cmd = [tt_cmd, "--self", "binary", "switch", "tarantool-ee", "3.0.0"]
+    cmd = [tt_cmd, "binary", "switch", "tarantool-ee", "3.0.0"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
 
     assert rc != 0
@@ -209,7 +209,7 @@ def test_switch_project_ignores_parent_and_user(tt_cmd, tmp_path, user_root, sco
     parent_root = project / ".tarantool"
     install_version(parent_root, "tt", "v7.7.7")
     install_version(user_root, "tt", "v7.7.7")
-    cmd = [tt_cmd, "--self", "binary", *scope_args, "switch", "tt", "7.7.7"]
+    cmd = [tt_cmd, "binary", *scope_args, "switch", "tt", "7.7.7"]
     rc, output = run_command_and_get_output(cmd, cwd=nested)
 
     assert rc != 0
@@ -223,7 +223,7 @@ def test_switch_user_ignores_project(tt_cmd, tmp_path, user_root):
     project_root = tmp_path / ".tarantool"
     project = install_version(project_root, "tt", "v7.7.7")
     selected = install_version(user_root, "tt", "v7.7.7")
-    cmd = [tt_cmd, "--self", "binary", "--scope", "user", "switch", "tt", "7.7.7"]
+    cmd = [tt_cmd, "binary", "--scope", "user", "switch", "tt", "7.7.7"]
     rc, _ = run_command_and_get_output(cmd, cwd=tmp_path)
 
     assert rc == 0
@@ -245,7 +245,7 @@ def test_switch_user_ignores_project(tt_cmd, tmp_path, user_root):
 def test_switch_interactive_raw_version(tt_cmd, tmp_path, version):
     root = tmp_path / ".tarantool"
     selected = install_version(root, "tt", version)
-    cmd = [tt_cmd, "--self", "binary", "switch", "tt"]
+    cmd = [tt_cmd, "binary", "switch", "tt"]
     rc, output = run_interactive_switch(
         cmd, tmp_path, [("Select tt edition", "\n"), ("Select version", "\n")],
     )
@@ -261,7 +261,7 @@ def test_switch_interactive_preserves_colliding_release_identity(tt_cmd, tmp_pat
     selected = install_version(root, "tt", "v3.0.0")
     (root / "bin").mkdir()
     (root / "bin" / "tt").symlink_to(selected / "tt")
-    cmd = [tt_cmd, "--self", "binary", "switch", "tt"]
+    cmd = [tt_cmd, "binary", "switch", "tt"]
     rc, output = run_interactive_switch(
         cmd, tmp_path, [("Select tt edition", "\n"), ("Select version", "\x1b[B\n")],
     )
@@ -280,7 +280,7 @@ def test_switch_interactive_preserves_numeric_identity(tt_cmd, tmp_path, program
     root = tmp_path / ".tarantool"
     selected = install_version(root, program, "3.8.1")
     install_version(root, program, other_version)
-    cmd = [tt_cmd, "--self", "binary", "switch", program]
+    cmd = [tt_cmd, "binary", "switch", program]
 
     rc, output = run_command_and_get_output([*cmd, "3.8.1"], cwd=tmp_path)
     if program == "tarantool-ee":
@@ -301,7 +301,7 @@ def test_switch_ignores_configured_directories(tt_cmd, tmp_path):
     root = tmp_path / ".tarantool"
     selected = install_version(root, "tarantool", "3.0.0")
     (tmp_path / "tt.yaml").write_text("env:\n  bin_dir: legacy-bin\n  inc_dir: legacy-inc\n")
-    cmd = [tt_cmd, "--self", "binary", "switch", "tarantool", "3.0.0"]
+    cmd = [tt_cmd, "binary", "switch", "tarantool", "3.0.0"]
     rc, _ = run_command_and_get_output(cmd, cwd=tmp_path)
 
     assert rc == 0

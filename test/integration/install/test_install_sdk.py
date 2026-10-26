@@ -62,7 +62,7 @@ def make_sdk(tmp_path, version=SDK_VERSION, missing=None, content=None):
 
 def binary_command(tt_cmd, tmp_path, *args, scope="project"):
     return run_command_and_get_output(
-        [tt_cmd, "--self", "binary", "--scope", scope, *args],
+        [tt_cmd, "binary", "--scope", scope, *args],
         cwd=tmp_path,
     )
 
@@ -240,7 +240,7 @@ def test_tt_ee_install_scope_and_lifecycle(tt_cmd, tmp_path, scope):
         assert not (first.parent / name).exists()
     assert (tmp_path / ".env" / "activate.sh").is_file() == (scope == "project")
 
-    rc, output = run_command_and_get_output([first, "--self", "version", "--commit"])
+    rc, output = run_command_and_get_output([first, "version", "--commit"])
     assert rc == 0, output
     rc, output = binary_command(tt_cmd, tmp_path, "list", scope=scope)
     assert rc == 0, output

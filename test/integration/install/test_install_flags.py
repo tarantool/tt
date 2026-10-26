@@ -47,7 +47,7 @@ def invalid_install(tt_cmd, tmp_path, args, error):
     seed_active_binary(tmp_path)
     before = project_snapshot(tmp_path)
     rc, output = run_command_and_get_output(
-        [tt_cmd, "--self", "binary", "--scope", "project", "install", *args],
+        [tt_cmd, "binary", "--scope", "project", "install", *args],
         cwd=tmp_path,
     )
     assert rc != 0, output
@@ -216,7 +216,6 @@ def test_local_archive_needs_no_credentials(
     rc, output = run_command_and_get_output(
         [
             tt_cmd,
-            "--self",
             "binary",
             "--scope",
             "project",
@@ -255,7 +254,6 @@ def test_local_bundle_temporary_artifacts(
     rc, output = run_command_and_get_output(
         [
             tt_cmd,
-            "--self",
             "binary",
             "--scope",
             "project",

@@ -50,7 +50,6 @@ def install_tt(tt_cmd, tmp_path, flags=(), force=True, version="1.2.3"):
     return run_command_and_get_output(
         [
             tt_cmd,
-            "--self",
             "binary",
             "install",
             "tt",
@@ -231,7 +230,7 @@ def test_install_tt_remote_revision(tt_cmd, tmp_path, monkeypatch, revision):
     requested, expected = revisions[revision]
     flags = ["--source-build"] if revision == "release" else []
     rc, output = run_command_and_get_output(
-        [tt_cmd, "--self", "binary", "install", "tt", requested, "--force", *flags],
+        [tt_cmd, "binary", "install", "tt", requested, "--force", *flags],
         cwd=tmp_path,
     )
     assert rc == 0, output
@@ -251,7 +250,7 @@ def test_install_tt_existing_master(tt_cmd, tmp_path, local_tt_build, update):
     binary.write_text(old_contents)
     binary.chmod(0o755)
 
-    args = [tt_cmd, "--self"]
+    args = [tt_cmd]
     if not update:
         args.append("--no-prompt")
     args.extend(["binary", "install", "tt", "master", "--local-repo", "distfiles", "--force"])

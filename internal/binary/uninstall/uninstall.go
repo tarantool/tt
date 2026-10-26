@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
 )
@@ -488,13 +489,18 @@ func replacementVersion(root string, program binary.Program,
 		executable := filepath.Join(binary.InstallationPath(root, program, selected),
 			program.Exec())
 
-		args := []string{"version"}
+		var (
+			output []byte
+			err    error
+		)
+
 		if program == binary.ProgramTtEe {
-			args = []string{"--self", "version", "--commit"}
+			output, err = cmdcontext.TtVersionOutput(ctx, executable)
 			parseVersion = version.ParseTt
+		} else {
+			output, err = exec.CommandContext(ctx, executable, "version").Output()
 		}
 
-		output, err := exec.CommandContext(ctx, executable, args...).Output()
 		if err != nil {
 			return version.Version{}, fmt.Errorf("failed to get %s version: %w", program, err)
 		}

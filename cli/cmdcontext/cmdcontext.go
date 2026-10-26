@@ -85,14 +85,50 @@ func (tntCli *TarantoolCli) GetVersion() (version.Version, error) {
 	return tntCli.version, nil
 }
 
+// selfFlagUnknown is what a tt that has no --self flag says when it is given
+// one.
+const selfFlagUnknown = "unknown flag: --self"
+
+// TtVersionOutput returns what the tt at pathToBin prints for version
+// --commit.
+//
+// The tt asked may be an older one, which runs the tt of the bin_dir of the
+// tt.yaml it finds - from its working directory upward, or the system one -
+// in its own place unless it is given --self; asked plainly, it could report
+// the version of that other tt. So --self is passed first, and the question is
+// asked again without it only when the tt says it knows no such flag: a tt
+// that has none runs no other tt either.
+func TtVersionOutput(ctx context.Context, pathToBin string) ([]byte, error) {
+	var stderr strings.Builder
+
+	command := exec.CommandContext(ctx, pathToBin, "--self", "version", "--commit")
+
+	command.Stderr = &stderr
+
+	output, err := command.Output()
+	if err == nil {
+		return output, nil
+	}
+
+	if !strings.Contains(stderr.String(), selfFlagUnknown) {
+		return nil, fmt.Errorf("%s --self version --commit: %w", pathToBin, err)
+	}
+
+	output, err = exec.CommandContext(ctx, pathToBin, "version", "--commit").Output()
+	if err != nil {
+		return nil, fmt.Errorf("%s version --commit: %w", pathToBin, err)
+	}
+
+	return output, nil
+}
+
 // GetTtVersion returns version of Tt provided by its executable path.
 func GetTtVersion(pathToBin string) (version.Version, error) {
 	if !util.IsRegularFile(pathToBin) {
 		return version.Version{}, fmt.Errorf("%w%q not found", errFileNotFound, pathToBin)
 	}
 
-	output, err := exec.CommandContext(context.Background(), pathToBin, "--self", "version",
-		"--commit").Output()
+	output, err := TtVersionOutput(context.Background(), pathToBin)
 	if err != nil {
 		return version.Version{}, fmt.Errorf("failed to get tt version: %w", err)
 	}
@@ -130,12 +166,6 @@ type CliCtx struct {
 	IntegrityCheck string
 	// IntegrityCheckPeriod is an period during which the integrity check is reproduced.
 	IntegrityCheckPeriod int
-	// IsSelfExec is the --self flag. It kept tt from running the tt of its
-	// environment, bin_dir/tt of tt.yaml, in its place. tt runs no other tt
-	// any more, so the flag does nothing, but it is still accepted: scripts
-	// pass it, and so does GetTtVersion to the tt it asks for its version,
-	// which may be one of this version.
-	IsSelfExec bool
 	// NoPrompt flag needs to skip cli interaction using default behavior.
 	NoPrompt bool
 }

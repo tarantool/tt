@@ -583,7 +583,7 @@ def test_install_community_prebuilt_release(
     monkeypatch.delenv("TT_CLI_CFG", raising=False)
     flags = ["--no-clean"] if keep_temp else []
     rc, output = run_command_and_get_output(
-        [tt_cmd, "--self", "binary", "install", product, version, "--scope", "project", *flags],
+        [tt_cmd, "binary", "install", product, version, "--scope", "project", *flags],
         cwd=tmp_path,
     )
     assert rc == 0, output
@@ -798,7 +798,7 @@ set -o pipefail
 scope=$1
 root=$2
 test "$(id -u)" = "$3"
-binary() { /tt --self binary --scope "$scope" "$@"; }
+binary() { /tt binary --scope "$scope" "$@"; }
 assert_active() {
     expected="$root/versions/tarantool/tarantool_$1"
     test "$(readlink -f "$root/bin/tarantool")" = "$expected/tarantool"

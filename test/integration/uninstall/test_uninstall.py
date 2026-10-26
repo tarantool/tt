@@ -43,7 +43,7 @@ def assert_active(root: Path, installation: Path, program: str) -> None:
 
 
 def uninstall(tt_cmd, cwd, program, version=None, *, scope="project"):
-    cmd = [tt_cmd, "--self", "binary", "--scope", scope, "uninstall", program]
+    cmd = [tt_cmd, "binary", "--scope", scope, "uninstall", program]
     if version is not None:
         cmd.append(version)
     return run_command_and_get_output(cmd, cwd=cwd)

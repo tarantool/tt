@@ -577,13 +577,16 @@ for machine-readable output.
   `<APP>:<INSTANCE>` target with. tt no longer runs the `tt` of `bin_dir` in
   place of itself;
   `source .env/activate.sh`, which `tt binary install` creates in a project,
-  puts the project's `tt` on `PATH` instead, and `--self` is still accepted
-  but does nothing. The `tarantool` and `tcm` the commands run are the
-  project's `.tarantool/bin/tarantool` and `.tarantool/bin/tcm`, which
-  `tt binary install` and `switch` set, and otherwise the first on `PATH`;
-  `tt rocks` and the `tt package` builds take the headers of a project
-  `tarantool` from `.tarantool/include/tarantool`. The project is found from
-  the current directory upward, as the instance commands find it.
+  puts the project's `tt` on `PATH` instead, and the `-s` (`--self`) flag,
+  which kept tt from doing so, is removed too. When tt asks another `tt` for
+  its version, it still passes `--self` first, so that an older `tt` does
+  not answer for the `tt` of its `bin_dir`, and asks again without it only
+  when that `tt` knows no such flag. The `tarantool` and `tcm` the commands
+  run are the project's `.tarantool/bin/tarantool` and `.tarantool/bin/tcm`,
+  which `tt binary install` and `switch` set, and otherwise the first on
+  `PATH`; `tt rocks` and the `tt package` builds take the headers of a
+  project `tarantool` from `.tarantool/include/tarantool`. The project is
+  found from the current directory upward, as the instance commands find it.
 - The deb and rpm packages no longer install `/etc/tarantool/tt.yaml`, nor
   the system tt environment it described: the `sys_env` directories under
   `/var/lib/tarantool`, `/var/run/tarantool` and `/var/log/tarantool`, and

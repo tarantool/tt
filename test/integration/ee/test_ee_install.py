@@ -120,7 +120,6 @@ def remote_command(tt_cmd, tmp_path, *args):
             f"XDG_DATA_HOME={tmp_path / 'user-data'}",
             f"TMPDIR={temporary}",
             tt_cmd,
-            "--self",
             "binary",
             "--scope",
             "project",

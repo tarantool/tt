@@ -54,7 +54,6 @@ FLAGS[0m
       --log-format text|json   Format of the log written to stderr: text or json
                                (default text)
       --no-prompt              Skip cli interaction using default behavior
-  -s, --self                   Skip searching for other tt versions to run
   -V, --verbose                Verbose output
 [0;1;39m
 EXAMPLES[0m

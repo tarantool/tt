@@ -99,7 +99,6 @@ def test_uninstall_active_version(
     wort_dir = prepare_testdata(program, "2vers_installed", tmp_path)
     cmd = [
         tt_cmd,
-        "--self",
         "-V",
         "binary",
         "--scope",
@@ -155,7 +154,6 @@ def test_uninstall_inactive_version(
     wort_dir = prepare_testdata(program, "3vers_installed", tmp_path)
     cmd = [
         tt_cmd,
-        "--self",
         "-V",
         "binary",
         "--scope",
@@ -210,7 +208,6 @@ def test_uninstall_switch_version(
     wort_dir = prepare_testdata(program, "3vers_installed", tmp_path)
     cmd = [
         tt_cmd,
-        "--self",
         "-V",
         "binary",
         "--scope",
@@ -241,7 +238,6 @@ def test_uninstall_no_version(tt_cmd: Path, tmp_path: Path, program: str) -> Non
 
     cmd = [
         tt_cmd,
-        "--self",
         "binary",
         "--scope",
         "project",
@@ -269,7 +265,6 @@ def test_uninstall_no_active(tt_cmd: Path, tmp_path: Path, program: str) -> None
 
     cmd = [
         tt_cmd,
-        "--self",
         "-V",
         "binary",
         "--scope",
@@ -334,7 +329,6 @@ def test_uninstall_installed_local_bundle(
     rc, output = run_command_and_get_output(
         [
             tt_cmd,
-            "--self",
             "binary",
             "install",
             executable,
@@ -354,7 +348,7 @@ def test_uninstall_installed_local_bundle(
         assert (installation / "include" / "tarantool" / "module.h").is_file()
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "--self", "binary", "uninstall", program],
+        [tt_cmd, "binary", "uninstall", program],
         cwd=tmp_path,
     )
     assert rc == 0, output

@@ -65,8 +65,6 @@ ROOT_TT_TEST_CASES: CompletionCases = [
             "--internal",
             "-I",
             "--log-format",
-            "--self",
-            "-s",
             "-h",
         },
     ),

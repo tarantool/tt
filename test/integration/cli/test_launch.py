@@ -83,10 +83,20 @@ def write_bin_dir(directory) -> None:
 # ##### #
 @pytest.mark.parametrize(
     "flags",
-    [["-S"], ["--system"], ["-L", "."], ["--local", "."], ["-c", "tt.yaml"], ["--cfg", "tt.yaml"]],
+    [
+        ["-S"],
+        ["--system"],
+        ["-L", "."],
+        ["--local", "."],
+        ["-c", "tt.yaml"],
+        ["--cfg", "tt.yaml"],
+        ["-s"],
+        ["--self"],
+    ],
 )
 def test_launch_removed_flags(tt_cmd, tmp_path, flags):
-    # The flags that chose a tt.yaml are gone along with it.
+    # The flags that chose a tt.yaml are gone along with it, and so is the one
+    # that kept tt from running the tt of its bin_dir.
     rc, stdout, stderr = run_command_and_get_streams([tt_cmd, *flags, "version"], cwd=tmp_path)
     assert rc == 1
     assert stdout == ""
@@ -126,15 +136,13 @@ def test_tt_yaml_is_not_read(tt_cmd, tmp_path, content):
     assert stdout.startswith("Tarantool ")
 
 
-@pytest.mark.parametrize("flags", [[], ["-s"], ["--self"]])
-def test_launch_does_not_run_tt_of_bin_dir(tt_cmd, tmp_path, flags):
-    # tt no longer runs the tt of a tt environment in its place; --self,
-    # which kept it from doing so, is still accepted.
+def test_launch_does_not_run_tt_of_bin_dir(tt_cmd, tmp_path):
+    # tt no longer runs the tt of a tt environment in its place.
     with open(tmp_path / "tt.yaml", "w") as f:
         yaml.dump(TT_YAML, f)
     write_bin_dir(tmp_path)
 
-    rc, output = run_command_and_get_output([tt_cmd, *flags, "version"], cwd=tmp_path)
+    rc, output = run_command_and_get_output([tt_cmd, "version"], cwd=tmp_path)
     assert rc == 0
     assert "Tarantool CLI" in output
     assert BIN_DIR_MESSAGE not in output
