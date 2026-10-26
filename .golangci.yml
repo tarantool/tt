@@ -697,6 +697,9 @@ linters:
             - "github.com/tarantool/tt/v3/internal/pidfile"
             - "github.com/tarantool/tt/v3/internal/scope"
             - "github.com/tarantool/tt/v3/internal/supervisor"
+            # The context of an instance names the systemd unit that manages
+            # it, as the mark of the units says.
+            - "github.com/tarantool/tt/v3/internal/systemd"
         dir-cli-status:
           files:
             - "**/cli/status/**"

@@ -183,6 +183,10 @@ type InstanceCtx struct {
 	// Env holds the variables the instance record sets on top of the
 	// inherited environment of tarantool.
 	Env map[string]string
+	// Unit is the systemd unit that manages the instance, as the mark of the
+	// units tt service systemd install wrote says, or empty. AttachUnits sets
+	// it; NewInstanceCtx leaves it empty.
+	Unit string
 }
 
 // removeSockets removes the console socket and the binary port socket of an
