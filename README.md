@@ -647,6 +647,42 @@ template of your own, given by its path: a directory, or a `.tgz` or
 (`tt create ./templates/basic`). A path is told from a name by a slash in
 it, so a template in the current directory is given as `./<name>`.
 
+The application is created in the `--name` directory of the current
+directory, or of the `--dst` directory.
+
+The built-in templates are `single_instance`, `cluster`, `vshard_cluster`
+and `config_storage`. Each of them creates a project that starts on
+localhost as it is: the code of the application in the project directory,
+and the pair it runs from, `instances.yaml` and `config.yaml`, in
+`.templates/default/`:
+
+```text
+    $ tt create cluster --name app1
+    app1/
+    ├── .templates
+    │   └── default
+    │       ├── config.yaml
+    │       └── instances.yaml
+    └── app.lua
+```
+
+`app.file` and the other paths of `config.yaml` are relative to the project
+directory, the directory the instances run in; the data, logs and sockets go
+to `.tarantool/var/` there. The project is named after its directory;
+`vshard_cluster` also writes `app.manifest.toml`, which names it `--name` with
+`_` replaced by `-`, and needs `tt package build` for its `vshard`
+dependency before it starts. `config_storage` needs Tarantool Enterprise
+Edition, which provides the `config.storage` role.
+
+When the template writes `app.manifest.toml`, `tt create` refuses a `--name`
+that does not make a package name there - lowercase letters, digits and
+dashes, starting with a letter - and creates nothing: `--name my_app` gives
+`vshard_cluster` the name `my-app`, `--name My_App` is refused.
+
+A template of your own lays a project out the same way when it carries
+`.templates/<name>/instances.yaml` and `config.yaml`; the files under
+`.templates/` are instantiated like any other.
+
 Application template may contain:
 
 - `*.tt.template` - template files, that will be instantiated during
@@ -671,7 +707,8 @@ pre-hook: ./hooks/pre-gen.sh
 post-hook: ./hooks/post-gen.sh
 include:
 - init.lua
-- instances.yml
+- .templates/default/instances.yaml
+- .templates/default/config.yaml
 ```
 
 Where:

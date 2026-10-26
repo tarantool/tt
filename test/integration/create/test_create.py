@@ -8,15 +8,21 @@ import tempfile
 import pytest
 
 from utils import (
+    cluster_config_file,
     config_name,
     extract_status,
     get_tarantool_version,
+    inst_log_dir,
+    inst_run_dir,
+    instances_file,
     is_tarantool_ee,
+    log_file,
     pid_file,
     run_command_and_get_output,
     wait_event,
     wait_file,
     wait_files,
+    wait_string_in_file,
 )
 
 # The template of the tests, given by its path from the directory the
@@ -733,19 +739,17 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
         "$ tt start",
         "Application 'app1' created successfully",
         "Pay attention that default passwords were generated,",
-        "you can change it in the config.yaml.",
+        "you can change it in .templates/default/config.yaml.",
     ]
     for line in expected_lines:
         assert output.find(line) != -1
     assert "$ tt start app1" not in output
 
     app_path = tmp_path / "app1"
-    assert os.path.exists(app_path / config_name)
-    assert os.path.exists(app_path / "storage.lua")
-    assert os.path.exists(app_path / "router.lua")
-
-    assert os.path.exists(app_path / "app.manifest.toml")
-    assert os.path.exists(app_path / "instances.yaml")
+    check_project_files(
+        app_path,
+        [cluster_config_file, instances_file, "storage.lua", "router.lua", "app.manifest.toml"],
+    )
 
     build_cmd = [tt_cmd, "package", "build"]
     tt_process = subprocess.Popen(
@@ -758,8 +762,8 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
     tt_process.wait()
     assert tt_process.returncode == 0
 
-    # Start vshard cluster app.
-    start_cmd = [tt_cmd, "start", "app1"]
+    # Start every instance of the project, as the follow-up message says.
+    start_cmd = [tt_cmd, "start"]
     instance_process = subprocess.Popen(
         start_cmd,
         cwd=app_path,
@@ -773,17 +777,18 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
     instances = ["storage-001-a", "storage-001-b", "storage-002-a", "storage-002-b", "router-001-a"]
     for inst in instances:
         file = wait_file(
-            os.path.join(app_path, inst),
+            inst_run_dir(app_path, "app1", inst),
             pid_file,
             [],
         )
         assert file != ""
 
     # Check status.
-    status_cmd = [tt_cmd, "status", "app1"]
+    status_cmd = [tt_cmd, "status", "app1:*"]
     status_rc, status_out = run_command_and_get_output(status_cmd, cwd=app_path)
     assert status_rc == 0
     status_info = extract_status(status_out)
+    assert sorted(status_info.keys()) == sorted(f"app1:{inst}" for inst in instances)
     for key in status_info.keys():
         assert status_info[key]["STATUS"] == "RUNNING"
 
@@ -817,21 +822,33 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
 
     # Print instances log to find out the reason in case of an assert fall.
     for inst in instances:
-        with open(os.path.join(tmp_path, "app1", inst, "tt.log")) as f:
+        with open(os.path.join(inst_log_dir(app_path, "app1", inst), log_file)) as f:
             print(inst, f.read())
 
     # Stop the vshard_cluster app.
-    stop_cmd = [tt_cmd, "stop", "--yes", "app1"]
+    stop_cmd = [tt_cmd, "stop", "--yes"]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=app_path)
     assert stop_rc == 0
     for inst in instances:
         assert re.search(rf"The Instance app1:{inst} \(PID = \d+\) has been terminated.", stop_out)
 
-    with open(app_path / "router-001-a" / "tt.log") as f:
+    with open(os.path.join(inst_log_dir(app_path, "app1", "router-001-a"), log_file)) as f:
         print("\n".join(f.readlines()))
     # Assert here to be sure that instances are stopped.
     assert can_insert, "can not insert data into the vshard cluster"
     assert can_select, "can not select data from the vshard cluster"
+
+
+def check_project_files(app_dir, expected_files):
+    """Check that a built-in template laid a project out in app_dir: the
+    expected files are there, and the pair it runs from is in
+    .templates/default/ rather than in its root, with no tt.yaml next to it."""
+    for f in expected_files:
+        path = app_dir / f
+        assert os.path.exists(path)
+        assert os.access(path, os.W_OK)
+    for f in [config_name, "config.yaml", "instances.yaml", "instances.yml"]:
+        assert not os.path.exists(app_dir / f)
 
 
 def check_create_cluster(
@@ -854,10 +871,7 @@ def check_create_cluster(
     )
     assert p.returncode == 0
     assert f"Application '{app_name}' created successfully" in p.stdout
-    for f in expected_files:
-        path = workdir / app_name / f
-        assert os.path.exists(path)
-        assert os.access(path, os.W_OK)
+    check_project_files(workdir / app_name, expected_files)
 
 
 def get_status_info(tt_cmd, workdir, target):
@@ -877,7 +891,7 @@ def wait_cluster_started(timeout, tt_cmd, workdir, app_name, instances):
     instances = [f"{app_name}:{inst}" for inst in instances]
 
     def are_all_box_statuses_running():
-        status_info = get_status_info(tt_cmd, workdir, app_name)
+        status_info = get_status_info(tt_cmd, workdir, f"{app_name}:*")
         running_instances = []
         for instance, status in status_info.items():
             if status.get("BOX") != "running":
@@ -891,8 +905,8 @@ def wait_cluster_started(timeout, tt_cmd, workdir, app_name, instances):
 def check_running_cluster(tt_cmd, workdir, app_name, instances, check_func, *check_func_args):
     workdir = workdir / app_name
 
-    # Start app.
-    cmd = [tt_cmd, "start", app_name]
+    # Start every instance of the project, as the follow-up message says.
+    cmd = [tt_cmd, "start"]
     p = subprocess.run(
         cmd,
         cwd=workdir,
@@ -901,7 +915,9 @@ def check_running_cluster(tt_cmd, workdir, app_name, instances, check_func, *che
     try:
         # Common check.
         assert p.returncode == 0
-        pid_files = [os.path.join(workdir, inst, pid_file) for inst in instances]
+        pid_files = [
+            os.path.join(inst_run_dir(workdir, app_name, inst), pid_file) for inst in instances
+        ]
         assert wait_files(5, pid_files)
         assert wait_cluster_started(10, tt_cmd, workdir, app_name, instances)
 
@@ -910,7 +926,7 @@ def check_running_cluster(tt_cmd, workdir, app_name, instances, check_func, *che
 
     finally:
         # Stop app.
-        cmd = [tt_cmd, "stop", "--yes", app_name]
+        cmd = [tt_cmd, "stop", "--yes", f"{app_name}:*"]
         p = subprocess.run(
             cmd,
             cwd=workdir,
@@ -930,7 +946,7 @@ def exec_on_inst(tt_cmd, workdir, inst, cmd):
 
 
 def check_running_config_storage(tt_cmd, workdir, app_name):
-    status_info = get_status_info(tt_cmd, workdir, app_name)
+    status_info = get_status_info(tt_cmd, workdir, f"{app_name}:*")
     master = None
     replica = None
     for instance, status in status_info.items():
@@ -975,7 +991,7 @@ def test_create_config_storage(tt_cmd, tmp_path, num_replicas):
     app_name = "app1"
     params = [num_replicas, None, None, None]
 
-    files = ["config.yaml", "instances.yaml", config_name]
+    files = [cluster_config_file, instances_file]
     instances = [f"replicaset-001-{chr(ord('a') + i)}" for i in range(num_replicas)]
 
     check_create_cluster(tt_cmd, tmp_path, "config_storage", app_name, params, files)
@@ -986,7 +1002,7 @@ def check_running_simple_cluster(tt_cmd, workdir, app_name, instances_tree):
     running_instances = {}
 
     # Collect running instances info.
-    status_info = get_status_info(tt_cmd, workdir, app_name)
+    status_info = get_status_info(tt_cmd, workdir, f"{app_name}:*")
     for instance, status in status_info.items():
         assert status["STATUS"] == "RUNNING"
         app, sep, inst = instance.partition(":")
@@ -1085,7 +1101,7 @@ def test_create_simple_cluster(tt_cmd, tmp_path, num_replicasets, num_replicas):
     def inst_name(rs_name, i):
         return f"{rs_name}-{chr(ord('a') + i)}"
 
-    files = ["config.yaml", "instances.yaml", "app.lua", config_name]
+    files = [cluster_config_file, instances_file, "app.lua"]
     replicasets = [f"replicaset-00{i + 1}" for i in range(num_replicasets)]
     instances = [inst_name(rs, i) for rs in replicasets for i in range(num_replicas)]
     instances_tree = {rs: [inst_name(rs, i) for i in range(num_replicas)] for rs in replicasets}
@@ -1098,6 +1114,35 @@ def test_create_simple_cluster(tt_cmd, tmp_path, num_replicasets, num_replicas):
         instances,
         check_running_simple_cluster,
         instances_tree,
+    )
+
+
+def check_running_single_instance(tt_cmd, workdir, app_name):
+    status_info = get_status_info(tt_cmd, workdir, f"{app_name}:*")
+    assert list(status_info.keys()) == [f"{app_name}:instance001"]
+    assert status_info[f"{app_name}:instance001"]["STATUS"] == "RUNNING"
+    assert status_info[f"{app_name}:instance001"]["MODE"] == "RW"
+
+    # init.lua of the project root is the code the instance runs.
+    log = os.path.join(inst_log_dir(workdir, app_name, "instance001"), log_file)
+    wait_string_in_file(log, "loaded")
+
+
+@pytest.mark.skipif(
+    tarantool_major_version < 3,
+    reason="skip centralized config test for Tarantool < 3",
+)
+def test_create_single_instance(tt_cmd, tmp_path):
+    app_name = "app1"
+    files = [cluster_config_file, instances_file, "init.lua"]
+
+    check_create_cluster(tt_cmd, tmp_path, "single_instance", app_name, [], files)
+    check_running_cluster(
+        tt_cmd,
+        tmp_path,
+        app_name,
+        ["instance001"],
+        check_running_single_instance,
     )
 
 
@@ -1120,18 +1165,18 @@ def test_create_builtin_template_with_defaults(tt_cmd, tmp_path, template):
     templates_data = {
         "vshard_cluster": {
             "default_params": [3000, 2, 2, 1],
-            "parametrizable_files": ["config.yaml", "instances.yaml"],
+            "parametrizable_files": [cluster_config_file, instances_file],
         },
         "config_storage": {
             "default_params": [3, 5, "client", "secret"],
-            "parametrizable_files": ["config.yaml", "instances.yaml"],
+            "parametrizable_files": [cluster_config_file, instances_file],
         },
         "cluster": {
             "default_params": [2, 2, "client", "secret"],
-            "parametrizable_files": ["config.yaml", "instances.yaml"],
+            "parametrizable_files": [cluster_config_file, instances_file],
         },
     }
-    files = [*templates_data[template]["parametrizable_files"], config_name]
+    files = templates_data[template]["parametrizable_files"]
 
     # Create reference app (default values are specified explicitly).
     ref_app_name = "ref_app"
@@ -1148,3 +1193,35 @@ def test_create_builtin_template_with_defaults(tt_cmd, tmp_path, template):
         default_path = tmp_path / default_app_name / f
         ref_path = tmp_path / ref_app_name / f
         assert filecmp.cmp(default_path, ref_path, shallow=False)
+
+
+def test_create_name_not_a_package_name(tt_cmd, tmp_path):
+    """vshard_cluster names the project in app.manifest.toml after --name with
+    "_" replaced by "-": a name that does not make a package name is refused
+    before anything is created, while a template without a manifest takes
+    it."""
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "create", "vshard_cluster", "--name", "My_App", "-s"],
+        cwd=tmp_path,
+    )
+    assert rc == 1
+    assert (
+        'application name "My_App" gives package.name "My-App" in app.manifest.toml, '
+        "which is not a package name: use lowercase letters, digits and dashes, "
+        "starting with a letter, and not a reserved name"
+    ) in out
+    assert os.listdir(tmp_path) == []
+
+    rc, _ = run_command_and_get_output(
+        [tt_cmd, "create", "vshard_cluster", "--name", "my_app", "-s"],
+        cwd=tmp_path,
+    )
+    assert rc == 0
+    check_file_contains(tmp_path / "my_app" / "app.manifest.toml", "name = 'my-app'")
+
+    rc, _ = run_command_and_get_output(
+        [tt_cmd, "create", "cluster", "--name", "My_App", "-s"],
+        cwd=tmp_path,
+    )
+    assert rc == 0
+    check_project_files(tmp_path / "My_App", [cluster_config_file, instances_file, "app.lua"])

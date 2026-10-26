@@ -575,7 +575,13 @@ linters:
             - "github.com/otiai10/copy"
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/sdk"
+            # Tests load the project a built-in template creates the way the
+            # instance commands do.
+            - "github.com/tarantool/tt/v3/cli/app"
             - "github.com/tarantool/tt/v3/cli/create"
+            # The package name of the project manifest a template writes is
+            # checked by the manifest's own rules.
+            - "github.com/tarantool/tt/v3/cli/manifest"
             - "github.com/tarantool/tt/v3/cli/templates"
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/tarantool/tt/v3/cli/version"

@@ -10,7 +10,7 @@ tt = '>=2.11.0'
 
 [dependencies.vshard]
 source = 'registry'
-version = '==0.1.25'
+version = '==1.0.0'
 
 [components.app]
 path = '.'

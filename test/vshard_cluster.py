@@ -13,7 +13,6 @@ from utils import (
     inst_log_dir,
     instances_file,
     log_file,
-    make_project,
     run_command_and_get_output,
     wait_string_in_file,
 )
@@ -52,8 +51,9 @@ class VshardCluster:
             )
             assert rc == 0
 
+            # tt create lays the project out: the pair is in
+            # .templates/default/.
             self.app_dir = env_dir / dir_name
-            make_project(self.app_dir)
 
         self.env_dir = self.app_dir
         self.app_name = project_name(self.app_dir)

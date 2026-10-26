@@ -122,8 +122,8 @@ def inst_lib_dir(project_dir, app_name, inst_name):
 def make_project(app_dir, instances=None, config=None):
     """Lay the application in app_dir out as a project: the instances
     description and the cluster config it runs from go into the default
-    template, .templates/default/. The files already in app_dir, as tt
-    create leaves them, instances.yml and config.yaml, are moved there;
+    template, .templates/default/. The files already in app_dir, as a tt2
+    application keeps them, instances.yml and config.yaml, are moved there;
     instances and config, a dict each, are written there instead when given.
     tt.yaml next to them is removed: the instance commands do not read it.
     Returns the path of the cluster config."""
