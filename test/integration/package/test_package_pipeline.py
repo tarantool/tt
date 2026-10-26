@@ -17,7 +17,10 @@ import subprocess
 import tarfile
 from pathlib import Path
 
-import zstandard
+try:
+    import zstandard
+except ImportError:  # Python 3.14 reads zstd itself; no wheel may build for it.
+    zstandard = None
 
 ROCKS_REPO = Path(__file__).parent.parent / "rocks" / "repo"
 
@@ -73,8 +76,13 @@ def archive_names(archive: Path) -> list[str]:
 
     A .tt is tar.zst, which tarfile cannot open before Python 3.14, so the
     stream is decompressed first and read in tarfile's streaming mode, since
-    the decompressed stream is not seekable.
+    the decompressed stream is not seekable. Without zstandard, tarfile of
+    Python 3.14 reads it.
     """
+    if zstandard is None:
+        with tarfile.open(archive, mode="r:zst") as tar:
+            return tar.getnames()
+
     with archive.open("rb") as raw:
         with zstandard.ZstdDecompressor().stream_reader(raw) as stream:
             with tarfile.open(fileobj=stream, mode="r|") as tar:
@@ -282,3 +290,61 @@ def test_install_refuses_a_collision_without_a_flag(tt_cmd, tmp_path):
 
     forced = run(tt_cmd, target, "package", "install", str(archive), "--force", env=env)
     assert forced.returncode == 0, forced.stderr
+
+
+def make_template_project(root: Path, name: str, instances: str) -> Path:
+    """Write a project without dependencies, which packs offline, whose
+    template name has the instance description instances and no config."""
+    (root / "src").mkdir(parents=True)
+    (root / "src" / "init.lua").write_text("return {}\n")
+    (root / "app.manifest.toml").write_text(
+        MANIFEST.replace("include = ['README.md']\n", "").replace(
+            "[dependencies]\nstat = '>=0.3.0'\n",
+            "",
+        ),
+    )
+    template = root / ".templates" / name
+    template.mkdir(parents=True)
+    (template / "instances.yaml").write_text(instances)
+    return root
+
+
+def test_pack_carries_a_template_without_config(tt_cmd, tmp_path):
+    """A template of instances that run their scripts and of external
+    processes alone needs no config.yaml, as the pair it makes needs none: it
+    is packed as it is."""
+    project = make_template_project(
+        tmp_path / "project",
+        "default",
+        "legacy-1:\n  script: init.lua\nworker-1:\n  binary: ./bin/worker\n",
+    )
+
+    names = archive_names(pack(tt_cmd, project))
+
+    assert any(name.endswith(".templates/default/instances.yaml") for name in names), names
+    assert not any(name.endswith(".templates/default/config.yaml") for name in names), names
+
+
+def test_pack_refuses_a_template_missing_its_config(tt_cmd, tmp_path):
+    """A template with a Tarantool instance of the cluster config needs
+    config.yaml next to its description."""
+    project = make_template_project(
+        tmp_path / "project",
+        "default",
+        "storage-1:\nlegacy-1:\n  script: init.lua\n",
+    )
+
+    result = run(
+        tt_cmd,
+        project,
+        "package",
+        "pack",
+        "--without-deps",
+        "--registry",
+        str(ROCKS_REPO),
+    )
+
+    assert result.returncode == 1
+    assert ".templates/default" in result.stderr
+    assert 'missing config.yaml to configure its Tarantool instances "storage-1"' in result.stderr
+    assert not list((project / "_build" / "pack").glob("*.tt"))
