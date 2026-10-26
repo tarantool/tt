@@ -4386,12 +4386,12 @@ system scope.
 
 The template unit <APP>@.service runs one instance, tt instance start
 --foreground <APP>:%i, with TT_SYSTEM_ROOT set to the root of the system scope,
-as the user and the group tarantool. tt does not restart the instance: systemd
-does, as Restart= says. The drop-in <APP>@<INSTANCE>.service.d/tt.conf of every
-instance sets Restart= from the restart field of its record and TimeoutStopSec=
-from its stop_timeout, with a margin for tt, which stops the instance itself.
-ExecStart= runs <root>/bin/tt, or the tt that makes the units when the system
-scope has none.
+as the user and the group --run-as names, tarantool by default. tt does not
+restart the instance: systemd does, as Restart= says. The drop-in
+<APP>@<INSTANCE>.service.d/tt.conf of every instance sets Restart= from the
+restart field of its record and TimeoutStopSec= from its stop_timeout, with a
+margin for tt, which stops the instance itself. ExecStart= runs <root>/bin/tt,
+or the tt that makes the units when the system scope has none.
 
 install records the instances in <root>/etc/<APP>/systemd.yaml: tt instance
 start, stop, restart and kill refuse them and point at systemctl. tt does not
@@ -4425,11 +4425,14 @@ instances to the units.
   tt service systemd generate <APP> [flags]
 [0;1;39m
 FLAGS[0m
-  -h, --help              help for generate
-      --scope string      scope the application is looked for in: only system is
-                          supported
-      --unit-dir string   write the units into this directory instead of
-                          printing them
+  -h, --help                  help for generate
+      --run-as user[:group]   the user and the group the units run the instances
+                              as; the group is the user's name when left out
+                              (default tarantool:tarantool)
+      --scope string          scope the application is looked for in: only
+                              system is supported
+      --unit-dir string       write the units into this directory instead of
+                              printing them
 
 === tt service systemd install --help
 Write the systemd units of the application into the unit directory,
@@ -4440,17 +4443,23 @@ the drop-ins of the instances that are gone. A unit file of the same name that
 tt did not write is an error, and so is an instance that runs without a unit:
 stop it with tt instance stop first.
 
+--run-as is recorded with the units: without it, an install over installed units
+keeps the user and the group they run as.
+
 systemctl is not run: the command prints what to run.
 
 [0;1;39mUSAGE[0m
   tt service systemd install <APP> [flags]
 [0;1;39m
 FLAGS[0m
-  -h, --help              help for install
-      --scope string      scope the application is looked for in: only system is
-                          supported
-      --unit-dir string   the directory the units are written into (default
-                          "/etc/systemd/system")
+  -h, --help                  help for install
+      --run-as user[:group]   the user and the group the units run the instances
+                              as; the group is the user's name when left out
+                              (default tarantool:tarantool)
+      --scope string          scope the application is looked for in: only
+                              system is supported
+      --unit-dir string       the directory the units are written into (default
+                              "/etc/systemd/system")
 
 === tt service systemd uninstall --help
 Remove the systemd units tt service systemd install wrote for the application,

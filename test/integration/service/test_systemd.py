@@ -226,6 +226,51 @@ def test_systemd_install_uninstall(tt_cmd, system_root, tmp_path):
     assert "invalid mark of systemd units" in out
 
 
+def test_systemd_run_as(tt_cmd, system_root, tmp_path):
+    # --run-as sets User= and Group=; install records it, and an install that
+    # names none keeps it.
+    rc, out = run(
+        tt_cmd,
+        system_root,
+        "service",
+        "systemd",
+        "generate",
+        "myapp",
+        "--run-as",
+        "tt-svc:daemon",
+    )
+    assert rc == 0, out
+    assert "\nUser=tt-svc\nGroup=daemon\n" in out
+
+    unit_dir = tmp_path / "units"
+    unit_dir.mkdir()
+    install = ["service", "systemd", "install", "myapp", "--unit-dir", str(unit_dir)]
+    mark = system_root / "etc" / "myapp" / "systemd.yaml"
+    template = unit_dir / "myapp@.service"
+
+    rc, out = run(tt_cmd, system_root, *install, "--run-as", "tt-no-such-user")
+    assert rc == 0, out
+    assert "run as tt-no-such-user:tt-no-such-user" in out
+    assert "the user tt-no-such-user, which this host does not have" in out
+    assert "the group tt-no-such-user, which this host does not have" in out
+    assert "\nUser=tt-no-such-user\nGroup=tt-no-such-user\n" in template.read_text()
+    assert "\nrun_as: tt-no-such-user:tt-no-such-user\n" in mark.read_text()
+
+    rc, out = run(tt_cmd, system_root, *install)
+    assert rc == 0, out
+    assert "\nUser=tt-no-such-user\nGroup=tt-no-such-user\n" in template.read_text()
+
+    rc, out = run(tt_cmd, system_root, *install, "--run-as", "tarantool")
+    assert rc == 0, out
+    assert "\nUser=tarantool\nGroup=tarantool\n" in template.read_text()
+    assert "\nrun_as: tarantool:tarantool\n" in mark.read_text()
+
+    rc, out = run(tt_cmd, system_root, *install, "--run-as", "tt svc")
+    assert rc == 1, out
+    assert 'user "tt svc" cannot be written into a systemd unit' in out
+    assert "\nUser=tarantool\n" in template.read_text()
+
+
 def test_systemd_install_refuses_foreign_unit(tt_cmd, system_root, tmp_path):
     # A unit of the same name that tt did not write is not tt's to replace.
     unit_dir = tmp_path / "units"

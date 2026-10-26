@@ -27,13 +27,16 @@ func setServiceFlags(t *testing.T, scope, generateDir, installDir string) {
 
 	previousScope, previousGenerate, previousInstall := serviceScope, generateUnitDir,
 		installUnitDir
+	previousGenerateRunAs, previousInstallRunAs := *generateRunAs, *installRunAs
 
 	t.Cleanup(func() {
 		serviceScope, generateUnitDir, installUnitDir = previousScope, previousGenerate,
 			previousInstall
+		*generateRunAs, *installRunAs = previousGenerateRunAs, previousInstallRunAs
 	})
 
 	serviceScope, generateUnitDir, installUnitDir = scope, generateDir, installDir
+	*generateRunAs, *installRunAs = *newRunAsValue(), *newRunAsValue()
 }
 
 // TestServiceGroup pins the commands of tt service systemd and their flags.
@@ -69,6 +72,17 @@ func TestServiceGroup(t *testing.T) {
 	assert.Empty(t, find("generate").Flags().Lookup("unit-dir").DefValue)
 	assert.Equal(t, "/etc/systemd/system", find("install").Flags().Lookup("unit-dir").DefValue)
 	assert.Nil(t, find("uninstall").Flags().Lookup("unit-dir"), "uninstall takes the mark's")
+
+	for _, name := range []string{"generate", "install"} {
+		runAs := find(name).Flags().Lookup("run-as")
+		require.NotNil(t, runAs, name)
+		assert.Equal(t, "tarantool:tarantool", runAs.DefValue, name)
+		assert.Equal(t, "user[:group]", runAs.Value.Type(), name)
+
+		require.ErrorIs(t, find(name).Flags().Set("run-as", "tt svc"), systemd.ErrUnitAccount)
+	}
+
+	assert.Nil(t, find("uninstall").Flags().Lookup("run-as"))
 }
 
 // TestSystemdGenerateGolden pins the units of an application with different
@@ -222,6 +236,7 @@ func TestSystemdInstallUninstall(t *testing.T) {
 	assert.Equal(t, systemd.Mark{
 		UnitDir:  unitDir,
 		Template: "myapp@.service",
+		RunAs:    "tarantool:tarantool",
 		Instances: map[string]string{
 			"router-1": "myapp@router-1.service", "storage-1": "myapp@storage-1.service",
 			"legacy": "myapp@legacy.service", "gateway": "myapp@gateway.service",
@@ -282,6 +297,80 @@ func TestSystemdInstallUninstall(t *testing.T) {
 	err = internalSystemdUninstallModule(cmdCtx, []string{"myapp"})
 	require.ErrorIs(t, err, systemd.ErrInvalidMark)
 	assert.FileExists(t, systemd.MarkPath(hostDir))
+}
+
+// TestSystemdRunAs pins --run-as: User= and Group= of the units, the group of
+// the user's name without one; install records it with the units and keeps
+// it when an install over them names none, and a flag given replaces it.
+//
+//nolint:paralleltest // Sets the environment and the flags.
+func TestSystemdRunAs(t *testing.T) {
+	root := systemdFixture(t)
+	unitDir := t.TempDir()
+	hostDir := filepath.Join(root, "etc", "myapp")
+	cmdCtx := &cmdcontext.CmdCtx{}
+
+	generate := func(runAs string) string {
+		t.Helper()
+
+		setServiceFlags(t, "", "", unitDir)
+
+		if runAs != "" {
+			require.NoError(t, generateRunAs.Set(runAs))
+		}
+
+		out, err := captureStdout(t, func() error {
+			return internalSystemdGenerateModule(cmdCtx, []string{"myapp"})
+		})
+		require.NoError(t, err)
+
+		return out
+	}
+
+	assert.Contains(t, generate(""), "\nUser=tarantool\nGroup=tarantool\n")
+	assert.Contains(t, generate("tt-svc:daemon"), "\nUser=tt-svc\nGroup=daemon\n")
+	assert.Contains(t, generate("1001"), "\nUser=1001\nGroup=1001\n")
+
+	install := func(runAs string) (string, systemd.Mark) {
+		t.Helper()
+
+		setServiceFlags(t, "", "", unitDir)
+
+		if runAs != "" {
+			require.NoError(t, installRunAs.Set(runAs))
+		}
+
+		_, err := captureStdout(t, func() error {
+			return internalSystemdInstallModule(cmdCtx, []string{"myapp"})
+		})
+		require.NoError(t, err)
+
+		unit, err := os.ReadFile(filepath.Join(unitDir, "myapp@.service"))
+		require.NoError(t, err)
+
+		mark, found, err := systemd.ReadMark(hostDir)
+		require.NoError(t, err)
+		require.True(t, found)
+
+		return string(unit), mark
+	}
+
+	unit, mark := install("")
+	assert.Contains(t, unit, "\nUser=tarantool\nGroup=tarantool\n")
+	assert.Equal(t, "tarantool:tarantool", mark.RunAs)
+
+	unit, mark = install("tt-svc")
+	assert.Contains(t, unit, "\nUser=tt-svc\nGroup=tt-svc\n")
+	assert.Equal(t, "tt-svc:tt-svc", mark.RunAs)
+
+	// An install without the flag keeps what the units run as.
+	unit, mark = install("")
+	assert.Contains(t, unit, "\nUser=tt-svc\nGroup=tt-svc\n")
+	assert.Equal(t, "tt-svc:tt-svc", mark.RunAs)
+
+	unit, mark = install("tarantool:daemon")
+	assert.Contains(t, unit, "\nUser=tarantool\nGroup=daemon\n")
+	assert.Equal(t, "tarantool:daemon", mark.RunAs)
 }
 
 // TestSystemdInstallRefusesRunning pins that install refuses an instance that

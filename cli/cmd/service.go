@@ -30,6 +30,9 @@ const (
 	systemUnitDir = "/etc/systemd/system"
 	// unitDirFlag is the flag of the directory the units go to.
 	unitDirFlag = "unit-dir"
+	// runAsFlag is the flag of the user and the group the units run the
+	// instances as.
+	runAsFlag = "run-as"
 )
 
 var (
@@ -54,7 +57,57 @@ var (
 	generateUnitDir string
 	// installUnitDir is --unit-dir of tt service systemd install.
 	installUnitDir string
+	// generateRunAs and installRunAs are --run-as of tt service systemd
+	// generate and install.
+	generateRunAs = newRunAsValue()
+	installRunAs  = newRunAsValue()
 )
+
+// runAsValue is the value of --run-as, <user>[:<group>]
+// (systemd.ParseRunAs), and whether the flag was given: install keeps the
+// user and the group of the units installed before when it was not.
+type runAsValue struct {
+	runAs systemd.RunAs
+	given bool
+}
+
+// newRunAsValue returns --run-as as it is without the flag: tarantool for
+// the user and the group.
+func newRunAsValue() *runAsValue {
+	return &runAsValue{
+		runAs: systemd.RunAs{User: systemd.DefaultRunAs, Group: systemd.DefaultRunAs},
+		given: false,
+	}
+}
+
+// String returns the user and the group, <user>:<group>.
+func (value *runAsValue) String() string {
+	return value.runAs.String()
+}
+
+// Set parses the flag.
+func (value *runAsValue) Set(text string) error {
+	runAs, err := systemd.ParseRunAs(text)
+	if err != nil {
+		return err
+	}
+
+	value.runAs = runAs
+	value.given = true
+
+	return nil
+}
+
+// Type names the value in the help.
+func (*runAsValue) Type() string {
+	return "user[:group]"
+}
+
+// addRunAsFlag declares --run-as of cmd, bound to value.
+func addRunAsFlag(cmd *cobra.Command, value *runAsValue) {
+	cmd.Flags().Var(value, runAsFlag, "the user and the group the units run the instances "+
+		"as; the group is the user's name when left out")
+}
 
 // NewServiceCmd creates the tt service group: what ties the instances of
 // applications to the service manager of the system.
@@ -78,8 +131,9 @@ func newSystemdCmd() *cobra.Command {
 			"installed in the system scope.\n\n" +
 			"The template unit <APP>@.service runs one instance, " +
 			"tt instance start --foreground <APP>:%i, with TT_SYSTEM_ROOT set to the " +
-			"root of the system scope, as the user and the group " + systemd.RunAs +
-			". tt does not restart the instance: systemd does, as Restart= says. " +
+			"root of the system scope, as the user and the group --" + runAsFlag +
+			" names, " + systemd.DefaultRunAs + " by default. " +
+			"tt does not restart the instance: systemd does, as Restart= says. " +
 			"The drop-in <APP>@<INSTANCE>.service.d/" + systemd.DropInName + " of " +
 			"every instance sets Restart= from the restart field of its record and " +
 			"TimeoutStopSec= from its stop_timeout, with a margin for tt, which " +
@@ -121,6 +175,7 @@ func newSystemdGenerateCmd() *cobra.Command {
 	addServiceScopeFlag(generateCmd)
 	generateCmd.Flags().StringVar(&generateUnitDir, unitDirFlag, "",
 		"write the units into this directory instead of printing them")
+	addRunAsFlag(generateCmd, generateRunAs)
 
 	return generateCmd
 }
@@ -137,6 +192,8 @@ func newSystemdInstallCmd() *cobra.Command {
 			"rewrites the units and removes the drop-ins of the instances that are gone. " +
 			"A unit file of the same name that tt did not write is an error, and so is " +
 			"an instance that runs without a unit: stop it with tt instance stop first.\n\n" +
+			"--" + runAsFlag + " is recorded with the units: without it, an install " +
+			"over installed units keeps the user and the group they run as.\n\n" +
 			"systemctl is not run: the command prints what to run.",
 		Args:              cobra.ExactArgs(1),
 		RunE:              internalRunE(internalSystemdInstallModule),
@@ -146,6 +203,7 @@ func newSystemdInstallCmd() *cobra.Command {
 	addServiceScopeFlag(installCmd)
 	installCmd.Flags().StringVar(&installUnitDir, unitDirFlag, systemUnitDir,
 		"the directory the units are written into")
+	addRunAsFlag(installCmd, installRunAs)
 
 	return installCmd
 }
@@ -272,12 +330,14 @@ func loadSystemdApp(cmdCtx *cmdcontext.CmdCtx, name string) (
 }
 
 // unitsOf returns what the units of application, with the contexts insts of
-// its instances, are made of.
+// its instances, run as runAs, are made of.
 //
 // TimeoutStopSec= of an instance is its stop timeout, after which its
 // watchdog kills it, and the margin tt instance stop allows the watchdog over
 // it: systemd must not kill the instance before tt does.
-func unitsOf(application *app.App, insts []running.InstanceCtx) (systemd.Units, error) {
+func unitsOf(application *app.App, insts []running.InstanceCtx, runAs systemd.RunAs) (
+	systemd.Units, error,
+) {
 	ttPath, err := unitTT(application.Root)
 	if err != nil {
 		return systemd.Units{}, err
@@ -285,6 +345,7 @@ func unitsOf(application *app.App, insts []running.InstanceCtx) (systemd.Units, 
 
 	units := systemd.Units{
 		App:         application.Name,
+		RunAs:       runAs,
 		Root:        application.Root,
 		TT:          ttPath,
 		StopTimeout: running.DefaultStopTimeout + running.StopMargin,
@@ -334,7 +395,7 @@ func internalSystemdGenerateModule(cmdCtx *cmdcontext.CmdCtx, args []string) err
 		return err
 	}
 
-	units, err := unitsOf(application, insts)
+	units, err := unitsOf(application, insts, generateRunAs.runAs)
 	if err != nil {
 		return err
 	}
@@ -382,18 +443,12 @@ func printUnits(out io.Writer, files []systemd.File) error {
 // error: once they are recorded, tt instance stop would refuse them, and
 // their units would fail to start next to them. An instance the units
 // managed before may run: it runs under its unit.
+//
+// The units run as --run-as says, and without the flag as the units
+// installed before ran, as their mark records: an install that only follows
+// a changed description must not move the instances to another user.
 func internalSystemdInstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	application, insts, err := loadSystemdApp(cmdCtx, args[0])
-	if err != nil {
-		return err
-	}
-
-	units, err := unitsOf(application, insts)
-	if err != nil {
-		return err
-	}
-
-	files, err := systemd.Generate(units)
 	if err != nil {
 		return err
 	}
@@ -421,9 +476,29 @@ func internalSystemdInstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 		return err
 	}
 
+	runAs := installRunAs.runAs
+	if !installRunAs.given && previous.RunAs != "" {
+		// ReadMark has checked it.
+		runAs, err = systemd.ParseRunAs(previous.RunAs)
+		if err != nil {
+			return fmt.Errorf("the units of %s: %w", application.Name, err)
+		}
+	}
+
+	units, err := unitsOf(application, insts, runAs)
+	if err != nil {
+		return err
+	}
+
+	files, err := systemd.Generate(units)
+	if err != nil {
+		return err
+	}
+
 	mark := systemd.Mark{
 		UnitDir:   unitDir,
 		Template:  systemd.TemplateName(application.Name),
+		RunAs:     runAs.String(),
 		Instances: make(map[string]string, len(insts)),
 	}
 
@@ -462,10 +537,11 @@ func internalSystemdInstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 		return err
 	}
 
-	log.Infof("Installed the systemd units of %s into %s; tt instance start, stop, restart "+
-		"and kill leave its instances to systemctl.", application.Name, unitDir)
+	log.Infof("Installed the systemd units of %s into %s, run as %s; tt instance start, "+
+		"stop, restart and kill leave its instances to systemctl.", application.Name, unitDir,
+		runAs)
 
-	warnNoRunAsUser()
+	warnNoRunAs(runAs)
 
 	if len(gone) > 0 {
 		log.Warnf("Removed the drop-ins of the units of instances gone from %s: %s. Stop "+
@@ -507,16 +583,35 @@ func refuseRunningWithoutUnits(insts []running.InstanceCtx, previous systemd.Mar
 		strings.Join(runningNames, ","))
 }
 
-// warnNoRunAsUser warns when the host has no user the units run the
-// instances as: systemd would fail to start them.
-func warnNoRunAsUser() {
-	_, err := user.Lookup(systemd.RunAs)
-	if err == nil {
-		return
+// warnNoRunAs warns when the host has no user or no group the units run the
+// instances as, runAs: systemd would fail to start them. A name of digits
+// alone is a numeric id, as systemd takes it.
+func warnNoRunAs(runAs systemd.RunAs) {
+	numeric := func(name string) bool { return strings.Trim(name, "0123456789") == "" }
+
+	var err error
+
+	if numeric(runAs.User) {
+		_, err = user.LookupId(runAs.User)
+	} else {
+		_, err = user.Lookup(runAs.User)
 	}
 
-	log.Warnf("The units run the instances as the user %s, which this host does not have: "+
-		"create it, or set User= and Group= in a drop-in of your own.", systemd.RunAs)
+	if err != nil {
+		log.Warnf("The units run the instances as the user %s, which this host does not "+
+			"have: create it, or pass another to --%s.", runAs.User, runAsFlag)
+	}
+
+	if numeric(runAs.Group) {
+		_, err = user.LookupGroupId(runAs.Group)
+	} else {
+		_, err = user.LookupGroup(runAs.Group)
+	}
+
+	if err != nil {
+		log.Warnf("The units run the instances as the group %s, which this host does not "+
+			"have: create it, or pass another to --%s.", runAs.Group, runAsFlag)
+	}
 }
 
 // internalSystemdUninstallModule is tt service systemd uninstall. It works

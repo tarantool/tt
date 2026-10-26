@@ -55,6 +55,7 @@ func compareGolden(t *testing.T, name, got string) {
 func sampleUnits() systemd.Units {
 	return systemd.Units{
 		App:         "myapp",
+		RunAs:       systemd.RunAs{User: "tt-svc", Group: "tarantool"},
 		Root:        "/app/tarantool",
 		TT:          "/app/tarantool/bin/tt",
 		StopTimeout: 35 * time.Second,
@@ -121,6 +122,10 @@ func TestGenerateRefuses(t *testing.T) {
 		"a root with a space": func(units *systemd.Units) { units.Root = "/opt/my tarantool" },
 		"a relative root":     func(units *systemd.Units) { units.Root = "opt/tarantool" },
 		"tt with a dollar":    func(units *systemd.Units) { units.TT = "/opt/$tt/bin/tt" },
+		"no user":             func(units *systemd.Units) { units.RunAs.User = "" },
+		"a group with a space": func(units *systemd.Units) {
+			units.RunAs.Group = "tt group"
+		},
 		"an unknown restart": func(units *systemd.Units) {
 			units.Instances[0].Restart = "on-abort"
 		},
@@ -153,4 +158,28 @@ func TestNames(t *testing.T) {
 	assert.Equal(t, "myapp@storage-1.service", systemd.UnitName("myapp", "storage-1"))
 	assert.Equal(t, "myapp@storage-1.service.d/tt.conf",
 		systemd.DropInPath("myapp@storage-1.service"))
+}
+
+// TestParseRunAs pins --run-as: <user>[:<group>], the group of the user's
+// name without one, and names a unit takes as they are.
+func TestParseRunAs(t *testing.T) {
+	for value, want := range map[string]systemd.RunAs{
+		"tarantool":      {User: "tarantool", Group: "tarantool"},
+		"tt-svc:daemon":  {User: "tt-svc", Group: "daemon"},
+		"1001:1001":      {User: "1001", Group: "1001"},
+		"svc.user_1:grp": {User: "svc.user_1", Group: "grp"},
+	} {
+		got, err := systemd.ParseRunAs(value)
+		require.NoError(t, err, value)
+		assert.Equal(t, want, got, value)
+		assert.Equal(t, want.User+":"+want.Group, got.String(), value)
+	}
+
+	for _, value := range []string{
+		"", ":", "svc:", ":grp", "-svc", "svc:-grp", "svc grp", "svc:grp:x", "%u", "svc$",
+		"svc@host", `svc\x2d`,
+	} {
+		_, err := systemd.ParseRunAs(value)
+		require.ErrorIs(t, err, systemd.ErrUnitAccount, value)
+	}
 }

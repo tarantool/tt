@@ -39,6 +39,10 @@ type Mark struct {
 	UnitDir string `yaml:"unit_dir"`
 	// Template is the name of the template unit, <app>@.service.
 	Template string `yaml:"template"`
+	// RunAs is the user and the group the units run the instances as,
+	// <user>:<group>, so that an install that names none keeps them. Empty
+	// is the default, DefaultRunAs.
+	RunAs string `yaml:"run_as,omitempty"`
 	// Instances maps the name of every instance the units manage to its
 	// unit, <app>@<inst>.service.
 	Instances map[string]string `yaml:"instances"`
@@ -80,7 +84,7 @@ func ReadMark(hostDir string) (Mark, bool, error) {
 
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return Mark{UnitDir: "", Template: "", Instances: nil}, false, nil
+		return Mark{UnitDir: "", Template: "", RunAs: "", Instances: nil}, false, nil
 	}
 
 	if err != nil {
@@ -106,6 +110,13 @@ func ReadMark(hostDir string) (Mark, bool, error) {
 		if name == "" || unit == "" {
 			return Mark{}, false, fmt.Errorf("%w %s: an instance and its unit must be named",
 				ErrInvalidMark, path)
+		}
+	}
+
+	if mark.RunAs != "" {
+		_, err = ParseRunAs(mark.RunAs)
+		if err != nil {
+			return Mark{}, false, fmt.Errorf("%w %s: run_as: %w", ErrInvalidMark, path, err)
 		}
 	}
 

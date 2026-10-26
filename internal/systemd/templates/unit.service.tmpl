@@ -1,8 +1,8 @@
 {{.Header}}: the instances of the application {{.App}}.
-# tt service systemd install writes this file anew: put settings of your own,
-# such as User=, into a drop-in, {{.Template}}.d/override.conf. Restart= and
-# TimeoutStopSec= of an instance come from instances.yaml, through its drop-in
-# {{.App}}@<instance>.service.d/tt.conf.
+# tt service systemd install writes this file anew: put settings of your own
+# into a drop-in, {{.Template}}.d/override.conf. User= and Group= come from
+# --run-as, Restart= and TimeoutStopSec= of an instance from instances.yaml,
+# through its drop-in {{.App}}@<instance>.service.d/tt.conf.
 [Unit]
 Description=Tarantool application {{.App}}, instance %i
 After=network.target

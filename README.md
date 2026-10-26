@@ -710,6 +710,7 @@ name it is the project, and `--scope system` picks the installed one.
 tt service systemd generate myapp                    # print the units
 tt service systemd generate myapp --unit-dir ./units # write them into ./units
 tt service systemd install myapp                     # into /etc/systemd/system
+tt service systemd install myapp --run-as tt:tarantool
 tt service systemd uninstall myapp
 ```
 
@@ -766,13 +767,17 @@ TimeoutStopSec=65s
   `<root>/bin/tt`, the `tt` of the scope, which
   `tt binary install tt --scope system` installs; without it the units run the
   `tt` that makes them, with a warning.
-- The instances run as the user and the group `tarantool`, which the deb and
-  rpm packages of `tt` create: `<root>/var` must be writable by them.
-  `install` warns when the host has no such user. Settings of your own, such
-  as `User=`, go into a drop-in of your own, `myapp@.service.d/override.conf`;
+- The instances run as the user and the group `--run-as <user>[:<group>]`
+  names, `tarantool:tarantool` by default, the user the deb and rpm packages
+  of `tt` create; without a group the group is the user's name, and a numeric
+  id is taken as well. `<root>/var` must be writable by them. `install`
+  records the value with the units, and an `install` over them without the
+  flag keeps it; it warns when the host has no such user or group. Settings of
+  your own go into a drop-in of your own, `myapp@.service.d/override.conf`;
   `Restart=` and `TimeoutStopSec=` come from `instances.yaml`.
-- An application or instance name that a unit name would have to escape, and
-  a root or a path of `tt` that a unit would have to quote, are refused.
+- An application or instance name that a unit name would have to escape, a
+  user or a group that `User=` and `Group=` would have to escape, and a root or
+  a path of `tt` that a unit would have to quote, are refused.
 
 `install` writes the units into `/etc/systemd/system`, or the directory
 `--unit-dir` names, and records in `<root>/etc/<app>/systemd.yaml` which

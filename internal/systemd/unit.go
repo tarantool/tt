@@ -22,10 +22,10 @@ const (
 	// the unit of the instance asks for, which the instance commands do not
 	// refuse.
 	UnitEnv = "TT_SYSTEMD_UNIT"
-	// RunAs is the user and the group the units run the instances as: the
-	// system user the deb and rpm packages of tt create, as the units tt2
-	// packed ran them.
-	RunAs = "tarantool"
+	// DefaultRunAs is the user and the group the units run the instances as
+	// by default: the system user the deb and rpm packages of tt create, as
+	// the units tt2 packed ran them.
+	DefaultRunAs = "tarantool"
 	// DropInName is the name of the drop-in of an instance in its drop-in
 	// directory.
 	DropInName = "tt.conf"
@@ -43,6 +43,9 @@ var (
 	// ErrUnitPath is wrapped by the error for a path that cannot go into a
 	// unit as it is.
 	ErrUnitPath = errors.New("cannot be written into a systemd unit")
+	// ErrUnitAccount is wrapped by the error for a user or a group whose
+	// name cannot go into a unit as it is.
+	ErrUnitAccount = errors.New("cannot be written into a systemd unit")
 	// errRestartPolicy is wrapped by the error for a restart policy that has
 	// no Restart= of the same name.
 	errRestartPolicy = errors.New("unknown restart policy")
@@ -58,10 +61,60 @@ var (
 	dropInTemplate = template.Must(template.New("dropin").Parse(dropInTemplateText))
 )
 
+// RunAs is the user and the group the units run the instances as, User= and
+// Group= of the template.
+type RunAs struct {
+	// User is the name or the numeric id of the user.
+	User string
+	// Group is the name or the numeric id of the group.
+	Group string
+}
+
+// ParseRunAs parses <user>[:<group>]; without a group the group is the
+// user's name. A name is made of what a unit takes without escaping
+// (checkAccount).
+func ParseRunAs(value string) (RunAs, error) {
+	userName, group, found := strings.Cut(value, ":")
+	if !found {
+		group = userName
+	}
+
+	runAs := RunAs{User: userName, Group: group}
+
+	err := runAs.check()
+	if err != nil {
+		return RunAs{}, err
+	}
+
+	return runAs, nil
+}
+
+// String returns the user and the group as ParseRunAs takes them,
+// <user>:<group>.
+func (runAs RunAs) String() string {
+	return runAs.User + ":" + runAs.Group
+}
+
+// check checks that the user and the group can go into a unit as they are.
+func (runAs RunAs) check() error {
+	for _, account := range [...]struct{ what, name string }{
+		{"user", runAs.User}, {"group", runAs.Group},
+	} {
+		err := checkAccount(account.what, account.name)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // Units is what the units of an application are made of.
 type Units struct {
 	// App is the name of the application.
 	App string
+	// RunAs is the user and the group the units run the instances as.
+	RunAs RunAs
 	// Root is the root of the system scope the application is installed in,
 	// which the units pass to tt as TT_SYSTEM_ROOT.
 	Root string
@@ -137,8 +190,8 @@ func Generate(units Units) ([]File, error) {
 		"Header":      GeneratedHeader,
 		"App":         units.App,
 		"Template":    TemplateName(units.App),
-		"User":        RunAs,
-		"Group":       RunAs,
+		"User":        units.RunAs.User,
+		"Group":       units.RunAs.Group,
 		"Root":        units.Root,
 		"UnitEnv":     UnitEnv,
 		"TT":          units.TT,
@@ -189,6 +242,11 @@ func checkUnits(units Units) error {
 	// would be taken for a flag.
 	if strings.HasPrefix(units.App, "-") {
 		return fmt.Errorf("application %q %w: it starts with a dash", units.App, ErrUnitName)
+	}
+
+	err = units.RunAs.check()
+	if err != nil {
+		return err
 	}
 
 	for _, path := range [...]struct{ what, path string }{
@@ -248,6 +306,29 @@ func checkName(what, name string, valid func(rune) bool) error {
 	for _, char := range name {
 		if !valid(char) {
 			return fmt.Errorf("%s %q %w: %q would need escaping", what, name, ErrUnitName,
+				char)
+		}
+	}
+
+	return nil
+}
+
+// checkAccount checks that name, the name of a user or a group as what says,
+// can go into User= or Group= as it is: what an application name takes
+// (prefixChar), a numeric id among them, but not a dash first, which systemd
+// refuses.
+func checkAccount(what, name string) error {
+	if name == "" {
+		return fmt.Errorf("an empty %s name %w", what, ErrUnitAccount)
+	}
+
+	if strings.HasPrefix(name, "-") {
+		return fmt.Errorf("%s %q %w: it starts with a dash", what, name, ErrUnitAccount)
+	}
+
+	for _, char := range name {
+		if !prefixChar(char) {
+			return fmt.Errorf("%s %q %w: %q would need escaping", what, name, ErrUnitAccount,
 				char)
 		}
 	}
