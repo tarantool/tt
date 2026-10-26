@@ -67,8 +67,9 @@ func TestHTTPDoerAPIError(t *testing.T) {
 }
 
 func Test_getBundles(t *testing.T) {
-	pkgRelease := "tarantool-enterprise-sdk-nogc64-2.10.6-0-r549.linux.x86_64.tar.gz"
-	pkgDebug := "tarantool-enterprise-sdk-debug-nogc64-2.10.6-0-r549.linux.x86_64.tar.gz"
+	pkgRelease := "tarantool-enterprise-sdk-nogc64-3.4.1-0-r63.linux.x86_64.tar.gz"
+	pkgDebug := "tarantool-enterprise-sdk-debug-nogc64-3.4.1-0-r63.linux.x86_64.tar.gz"
+	pkgOld := "tarantool-enterprise-sdk-gc64-2.11.1-0-r563.linux.x86_64.tar.gz"
 
 	type args struct {
 		rawBundleInfoList map[string][]string
@@ -93,24 +94,24 @@ func Test_getBundles(t *testing.T) {
 		{
 			name: "Search release (OK)",
 			args: args{
-				map[string][]string{"2.10": {pkgRelease}},
+				map[string][]string{"3.4": {pkgRelease}},
 				SearchRelease,
 			},
 			want: BundleInfoSlice{
 				{
 					Version: version.Version{
-						Major:      2,
-						Minor:      10,
-						Patch:      6,
+						Major:      3,
+						Minor:      4,
+						Patch:      1,
 						Additional: 0,
-						Revision:   549,
+						Revision:   63,
 						Release:    version.Release{Type: version.TypeRelease},
 						Hash:       "",
-						Str:        "nogc64-2.10.6-0-r549",
+						Str:        "nogc64-3.4.1-0-r63",
 						Tarball:    pkgRelease,
 						BuildName:  "nogc64",
 					},
-					Release: "2.10",
+					Release: "3.4",
 					Package: "enterprise",
 				},
 			},
@@ -119,33 +120,68 @@ func Test_getBundles(t *testing.T) {
 		{
 			name: "Search debug (OK)",
 			args: args{
-				map[string][]string{"2.10": {pkgDebug}},
+				map[string][]string{"3.4": {pkgDebug}},
 				SearchDebug,
 			},
 			want: BundleInfoSlice{
 				{
 					Version: version.Version{
-						Major:      2,
-						Minor:      10,
-						Patch:      6,
+						Major:      3,
+						Minor:      4,
+						Patch:      1,
 						Additional: 0,
-						Revision:   549,
+						Revision:   63,
 						Release:    version.Release{Type: version.TypeRelease},
 						Hash:       "",
-						Str:        "debug-nogc64-2.10.6-0-r549",
+						Str:        "debug-nogc64-3.4.1-0-r63",
 						Tarball:    pkgDebug,
 						BuildName:  "debug-nogc64",
 					},
-					Release: "2.10",
+					Release: "3.4",
 					Package: "enterprise",
 				},
 			},
 			wantErr: false,
 		},
 		{
+			name: "Tarantool 2.x is not offered",
+			args: args{
+				map[string][]string{"2.11": {pkgOld}, "3.4": {pkgRelease}},
+				SearchRelease,
+			},
+			want: BundleInfoSlice{
+				{
+					Version: version.Version{
+						Major:      3,
+						Minor:      4,
+						Patch:      1,
+						Additional: 0,
+						Revision:   63,
+						Release:    version.Release{Type: version.TypeRelease},
+						Hash:       "",
+						Str:        "nogc64-3.4.1-0-r63",
+						Tarball:    pkgRelease,
+						BuildName:  "nogc64",
+					},
+					Release: "3.4",
+					Package: "enterprise",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "Only Tarantool 2.x (Err)",
+			args: args{
+				map[string][]string{"2.11": {pkgOld}},
+				SearchRelease,
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
 			name: "Search release (Err)",
 			args: args{
-				map[string][]string{"2.10": {pkgDebug}},
+				map[string][]string{"3.4": {pkgDebug}},
 				SearchRelease,
 			},
 			want:    nil,
@@ -154,7 +190,7 @@ func Test_getBundles(t *testing.T) {
 		{
 			name: "Search debug (Err)",
 			args: args{
-				map[string][]string{"2.10": {pkgRelease}},
+				map[string][]string{"3.4": {pkgRelease}},
 				SearchDebug,
 			},
 			want:    nil,
@@ -180,6 +216,28 @@ func Test_getBundles(t *testing.T) {
 
 			assert.Equalf(t, tt.want, got, "getBundles()")
 		})
+	}
+}
+
+func TestIsMasked(t *testing.T) {
+	old, err := version.Parse("gc64-2.11.1-0-r563")
+	require.NoError(t, err)
+
+	current, err := version.Parse("gc64-3.0.0-0-r1")
+	require.NoError(t, err)
+
+	for _, program := range []binary.Program{
+		binary.ProgramCe, binary.ProgramEe, binary.ProgramSDK,
+	} {
+		assert.True(t, isMasked(program, old), program.String())
+		assert.False(t, isMasked(program, current), program.String())
+	}
+
+	// tt, tt-ee and TCM have versions of their own.
+	for _, program := range []binary.Program{
+		binary.ProgramTt, binary.ProgramTtEe, binary.ProgramTcm,
+	} {
+		assert.False(t, isMasked(program, old), program.String())
 	}
 }
 

@@ -172,6 +172,40 @@ def test_switch_tarantool_editions(tt_cmd, tmp_path):
         assert_active(root, installations[program], program)
 
 
+def test_legacy_enterprise_names(tt_cmd, tmp_path):
+    # tt binary no longer installs Tarantool 2.x; installations made by older
+    # versions keep their gc64/nogc64 names and are listed, switched and removed.
+    root = tmp_path / ".tarantool"
+    gc64 = install_version(root, "tarantool-ee", "gc64-2.11.1")
+    nogc64 = install_version(root, "tarantool-ee", "nogc64-2.11.1")
+
+    def binary(*args):
+        cmd = [tt_cmd, "binary", "--scope", "project", *args]
+        return run_command_and_get_output(cmd, cwd=tmp_path)
+
+    rc, output = binary("list")
+    assert rc == 0, output
+    assert {"\tgc64-2.11.1", "\tnogc64-2.11.1"} <= set(output.splitlines())
+
+    rc, output = binary("switch", "tarantool-ee", "2.11.1")
+    assert rc != 0, output
+    assert "more than one installed version matches" in output
+    assert not (root / "bin").exists()
+
+    rc, output = binary("switch", "tarantool", "gc64-2.11.1")
+    assert rc == 0, output
+    assert_active(root, gc64, "tarantool-ee")
+
+    rc, output = binary("uninstall", "tarantool-ee", "nogc64-2.11.1")
+    assert rc == 0, output
+    assert not nogc64.exists()
+    assert_active(root, gc64, "tarantool-ee")
+
+    rc, output = binary("uninstall", "tarantool", "2.11.1ee")
+    assert rc == 0, output
+    assert not gc64.exists()
+
+
 def test_switch_missing_headers_preserves_local_build(tt_cmd, tmp_path):
     root = tmp_path / ".tarantool"
     build = tmp_path / "build" / "versions" / "tarantool" / "tarantool_master"

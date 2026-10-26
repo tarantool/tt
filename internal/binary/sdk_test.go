@@ -65,14 +65,11 @@ func TestBundleInstallationID(t *testing.T) {
 		{"gc64-3.8.1-0-r94", "3.8.1"},
 		{"nogc64-3.8.1-0-r94", "3.8.1"},
 		{"gc64-4.0.0-0-r1", "4.0.0"},
-		{"gc64-2.11.1-0-r93", "gc64-2.11.1"},
-		{"nogc64-2.11.1-0-r93", "nogc64-2.11.1"},
-		{"debug-gc64-2.11.1-0-r93", "debug-gc64-2.11.1"},
 		{"debug-gc64-3.8.1-0-r93", "debug-3.8.1"},
 		{"debug-nogc64-3.8.1-0-r94", "debug-3.8.1"},
 		{"gc64-3.8.1-rc2-0-r93", "3.8.1-rc2"},
 		{"gc64-3.8.1-beta1-10-gabcdef0-r93", "3.8.1-beta1"},
-		{"gc64-2.11.1-alpha1-0-r93", "gc64-2.11.1-alpha1"},
+		{"gc64-3.8.1-alpha1-0-r93", "3.8.1-alpha1"},
 		{"3.8.1", "3.8.1"},
 	} {
 		t.Run(testCase.source, func(t *testing.T) {
@@ -99,6 +96,8 @@ func TestBundleInstallationID(t *testing.T) {
 }
 
 func TestMatchInstalledEeVersion(t *testing.T) {
+	// tt binary no longer installs Tarantool 2.x, but installations made by
+	// older versions keep their gc64-2.11.1 and nogc64-2.11.1 names.
 	installed := []string{
 		"3.8.1", "3.8.1-rc2", "debug-3.8.1", "gc64-2.11.1", "nogc64-2.11.1",
 		"sdk-gc64-3.8.1-0-r93", "sdk-gc64-3.8.1-0-r94",
@@ -112,7 +111,7 @@ func TestMatchInstalledEeVersion(t *testing.T) {
 		{"gc64-3.8.1-0-r93", "3.8.1"},
 		{"gc64-3.8.1-0-r94", "3.8.1"},
 		{"nogc64-3.8.1-0-r94", "3.8.1"},
-		{"gc64-2.11.1-0-r93", "gc64-2.11.1"},
+		{"gc64-2.11.1", "gc64-2.11.1"},
 		{"nogc64-2.11.1", "nogc64-2.11.1"},
 		{"gc64-3.8.1-rc2-0-r93", "3.8.1-rc2"},
 		{"debug-gc64-3.8.1-0-r93", "debug-3.8.1"},
@@ -135,6 +134,10 @@ func TestMatchInstalledEeVersion(t *testing.T) {
 		_, err := binary.MatchInstalledVersion(binary.ProgramEe, requested, installed)
 		require.ErrorIs(t, err, version.ErrAmbiguousInstalledVersion)
 	}
+
+	_, err := binary.MatchInstalledVersion(binary.ProgramEe, "3.8.1",
+		[]string{"3.8.1-rc1", "debug-3.8.1"})
+	require.ErrorIs(t, err, version.ErrAmbiguousInstalledVersion)
 }
 
 func TestMatchInstalledDevVersion(t *testing.T) {

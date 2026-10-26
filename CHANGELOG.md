@@ -772,6 +772,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt create`: cartridge support removed.
 - tarantoolctl support has been completely removed.
 - Removed support for Tarantool 1.10 and 2.x. Only Tarantool 3.x is supported.
+- `tt binary search` and `tt binary install`: Tarantool Enterprise and the
+  Enterprise SDK below 3 are no longer listed or installed, as Community
+  Edition already is not. The standalone Enterprise names `gc64-<version>` and
+  `nogc64-<version>` of 2.x are gone: every version is installed without the GC
+  prefix, such as `3.8.1`. Enterprise 2.x installed earlier is still listed by
+  `tt binary list` and is switched to or removed by `tt binary switch` and
+  `tt binary uninstall` under its installed name, such as `gc64-2.11.1`.
 - `lib/cluster`: removed `EnvCollector` and the generated `ConfigEnvPaths`;
   `cli/cluster` now loads config files and environment variables via upstream
   go-config.

@@ -18,9 +18,8 @@ const (
 	// DevVersionPrefix separates development builds from release installations.
 	DevVersionPrefix = "dev_"
 	// SDKManifestName records the products owned by an installed SDK.
-	SDKManifestName         = "sdk.json"
-	sdkFilePermissions      = 0o644
-	tarantoolUnifiedGCMajor = 3
+	SDKManifestName    = "sdk.json"
+	sdkFilePermissions = 0o644
 )
 
 // ErrInvalidSDK identifies an unusable ownership record.
@@ -64,6 +63,7 @@ func SDKComponentVersion(program Program, selected string) (string, bool) {
 }
 
 // BundleInstallationID separates standalone EE versions from SDK archive revisions.
+// A standalone EE release omits the GC prefix (gc64 or nogc64) of the archive.
 // SDKs, development builds, and other archive products retain the complete source version.
 func BundleInstallationID(program Program, source version.Version, dev bool) string {
 	if dev {
@@ -74,18 +74,15 @@ func BundleInstallationID(program Program, source version.Version, dev bool) str
 		return source.Str
 	}
 
-	build := source.BuildName
-	if source.Major >= tarantoolUnifiedGCMajor {
-		parts := make([]string, 0)
+	parts := make([]string, 0)
 
-		for part := range strings.SplitSeq(build, "-") {
-			if part != "gc64" && part != "nogc64" {
-				parts = append(parts, part)
-			}
+	for part := range strings.SplitSeq(source.BuildName, "-") {
+		if part != "gc64" && part != "nogc64" {
+			parts = append(parts, part)
 		}
-
-		build = strings.Join(parts, "-")
 	}
+
+	build := strings.Join(parts, "-")
 
 	selected := fmt.Sprintf("%d.%d.%d", source.Major, source.Minor, source.Patch)
 	if release := source.Release.String(); release != "" {

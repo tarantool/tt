@@ -80,6 +80,10 @@ func fetchBundlesInfoLocal(files []string, program binary.Program) (BundleInfoSl
 			return nil, fmt.Errorf("failed to parse version from file %s: %w", file, err)
 		}
 
+		if isMasked(program, ver) {
+			continue
+		}
+
 		ver.Tarball = file
 		versions = append(versions, BundleInfo{Version: ver, Package: "", Release: "", Token: ""})
 	}
