@@ -2,6 +2,7 @@ package pack
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -70,6 +71,80 @@ func bundleActiveTarantool(
 	require.NoError(t, err)
 
 	return bundled
+}
+
+// TestIsPrerelease: a build of a release tag is the release, with or without
+// what git describe adds to it; a build past its tag, of an -rc or -beta tag,
+// a development build and a dirty one are prereleases.
+func TestIsPrerelease(t *testing.T) {
+	for ver, want := range map[string]bool{
+		"3.8.1":                           false,
+		"v3.8.1":                          false,
+		"3.8.1-0-ge643f88a5e0c":           false,
+		"3.2.0-0-g19607a903":              false,
+		"1.3.1-0-g074b5ffa":               false,
+		"3.8.1-5-gabc1234":                true,
+		"3.9.0-rc1":                       true,
+		"3.9.0-beta2-0-gabc1234":          true,
+		"3.8.0-entrypoint-49-g97a3b38040": true,
+		"3.8.1-0-ge643f88a5e0c-dirty":     true,
+		"3.8.1+build":                     true,
+	} {
+		assert.Equal(t, want, isPrerelease(ver), ver)
+	}
+}
+
+// bundleWarnings bundles the active tarantool of version ver and returns the
+// warnings of the bundling.
+func bundleWarnings(t *testing.T, ver string) []string {
+	t.Helper()
+
+	prefix := t.TempDir()
+	writeTree(t, prefix, map[string]string{
+		"bin/tarantool": "#!/bin/sh\n",
+		"LICENSE":       "BSD-2-Clause",
+		"bin/tt":        "#!/bin/sh\n",
+	})
+
+	var warnings []string
+
+	_, err := bundleRuntime(t.TempDir(), RuntimeOptions{
+		CacheDir: filepath.Join(t.TempDir(), "empty"),
+		Platform: manifest.Platform{
+			Tarantool: constraint(">=3.0.0,<4.0.0"),
+			Tt:        constraint(">=2.0.0,<3.0.0"),
+		},
+		ActiveTarantool:        filepath.Join(prefix, "bin", "tarantool"),
+		ActiveTarantoolVersion: ver,
+		ActiveTarantoolFlavor:  flavorCE,
+		ActiveTt:               filepath.Join(prefix, "bin", "tt"),
+		ActiveTtVersion:        "2.4.0",
+		Warn:                   func(msg string) { warnings = append(warnings, msg) },
+	})
+	require.NoError(t, err)
+
+	return warnings
+}
+
+// TestBundleRuntimeWarnsOfPrereleaseOnly: bundling a release build of
+// tarantool is not called bundling a prerelease, as bundling a build past
+// its tag or of an -rc tag is.
+func TestBundleRuntimeWarnsOfPrereleaseOnly(t *testing.T) {
+	for ver, prerelease := range map[string]bool{
+		"3.8.1-0-ge643f88a5e0c": false,
+		"3.8.1-5-gabc1234":      true,
+		"3.9.0-rc1":             true,
+	} {
+		warned := false
+
+		for _, warning := range bundleWarnings(t, ver) {
+			if strings.Contains(warning, "a prerelease build") {
+				warned = true
+			}
+		}
+
+		assert.Equal(t, prerelease, warned, ver)
+	}
 }
 
 // TestBundleRuntimeLocksCEReleaseAsRelease: what pack stamps into the lock for

@@ -121,6 +121,30 @@ def test_user_scope(tt_cmd, tmp_path, user_scope):
     assert "worker got TERM" in user_scope.log("worker")
 
 
+def test_pack_bundles_a_release_quietly(tt_cmd, tmp_path):
+    # The tarantool a with-deps archive bundles is a build of a release tag:
+    # pack records it as the release and has nothing to warn about.
+    version = subprocess.run(
+        ["tarantool", "--version"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    if not re.match(r"Tarantool \d+\.\d+\.\d+-0-g[0-9a-f]+\n", version):
+        pytest.skip("the tarantool on PATH is not a Community build of a release tag")
+
+    project = make_project(tmp_path / "myapp", "1.0.0")
+    p = subprocess.run(
+        [tt_cmd, "package", "pack"],
+        cwd=project,
+        env=runtime_cache(tmp_path / "cache"),
+        capture_output=True,
+        text=True,
+    )
+    assert p.returncode == 0, p.stderr
+    assert "prerelease" not in p.stderr
+
+
 # The pair of the host of myapp: other instances than those of its templates.
 HOST_INSTANCES = """\
 host-storage:

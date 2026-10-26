@@ -873,6 +873,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   was 0700, and the instances of an application root installed into the
   system scope could not run under the units of `tt service systemd`, which
   run as `tarantool`: tt failed to read the application manifest.
+- `tt package pack` no longer warns that it bundles "a prerelease build" when
+  the runtime it bundles is a build of a release tag, such as tarantool
+  `3.8.1-0-ge643f88a5e0c`, which the lock records as `3.8.1`. A build past
+  its tag, or of an `-rc` or `-beta` tag, is still warned about.
 - A second `tt tcm start --watchdog` in a directory where one runs is refused
   before it starts anything. Before, it started a second TCM and stopped it
   again once it found the pid file taken.
