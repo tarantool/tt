@@ -365,13 +365,29 @@ func (run *supervision) onSignal(received os.Signal) {
 
 		err = run.stop(out)
 	case ActionReload:
-		err = errors.Join(engine.opts.OnReload(), run.proc.signal(sig))
+		err = errors.Join(engine.opts.OnReload(), run.reload(sig))
 	case ActionForward:
 		err = run.proc.signal(sig)
 	case ActionIgnore:
 	}
 
 	engine.emit(SignalReceived{Signal: sig, Action: action, Err: err})
+}
+
+// reload signals the child as its Spec says once the reload hook has run on
+// the reload signal sig: with sig itself, with Spec.ReloadSignal, or not at
+// all.
+func (run *supervision) reload(sig syscall.Signal) error {
+	out := run.spec.ReloadSignal
+	if run.spec.ForwardReloadSignal {
+		out = sig
+	}
+
+	if out == 0 {
+		return nil
+	}
+
+	return run.proc.signal(out)
 }
 
 func (run *supervision) onCheck(err error) {

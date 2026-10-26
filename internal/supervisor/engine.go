@@ -47,8 +47,9 @@ type Options struct {
 	// IgnoreSignals are the received signals that are dropped: never
 	// forwarded, never stopping anything.
 	IgnoreSignals []syscall.Signal
-	// ReloadSignal is the received signal that runs OnReload before it is
-	// forwarded. It is set together with OnReload.
+	// ReloadSignal is the received signal that runs OnReload before the
+	// child is signalled as its Spec says (Spec.ReloadSignal). It is set
+	// together with OnReload.
 	ReloadSignal syscall.Signal
 	// OnReload runs on ReloadSignal, for example to reopen a log file.
 	OnReload func() error

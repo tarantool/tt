@@ -139,6 +139,9 @@ func tarantoolSpec(tarantoolPath string, args, env []string, dir string,
 		// tarantool stays in the group of its watchdog, so that tt kill
 		// kills both.
 		ProcessGroup: false,
+		// tt logrotate reaches tarantool as SIGHUP, which reopens its log.
+		ReloadSignal:        0,
+		ForwardReloadSignal: true,
 	}
 }
 

@@ -207,6 +207,10 @@ func externalSpec(inst *InstanceCtx, opts specOptions) (supervisor.Spec, error) 
 		ForwardStopSignal: false,
 		StopTimeout:       instanceStopTimeout,
 		ProcessGroup:      true,
+		// tt logrotate reaches the process group as SIGHUP, as it reaches
+		// tarantool.
+		ReloadSignal:        0,
+		ForwardReloadSignal: true,
 	}, nil
 }
 

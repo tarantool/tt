@@ -37,6 +37,13 @@ type Spec struct {
 	// with SIGKILL. It also bounds how long the output of an exited child is
 	// drained.
 	StopTimeout time.Duration
+	// ReloadSignal is the signal the child gets after Options.OnReload has
+	// run on the reload signal, unless ForwardReloadSignal is set; zero
+	// sends the child nothing.
+	ReloadSignal syscall.Signal
+	// ForwardReloadSignal sends the child the reload signal the supervisor
+	// received instead of ReloadSignal.
+	ForwardReloadSignal bool
 	// ProcessGroup starts the child in a process group of its own and sends
 	// every signal to that whole group.
 	ProcessGroup bool
