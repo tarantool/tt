@@ -69,7 +69,7 @@ def start_application(cmd, workdir, app_name, instances):
 
 
 def stop_application(tt_cmd, app_name, workdir):
-    stop_cmd = [tt_cmd, "stop", f"{app_name}:*", "-y"]
+    stop_cmd = [tt_cmd, "instance", "stop", f"{app_name}:*", "-y"]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=workdir)
     assert stop_rc == 0
 
@@ -141,7 +141,7 @@ def test_t3_instance_names_with_config(tt_cmd, tmpdir_with_cfg):
     instances = ["storage-master", "storage-replica"]
     try:
         # Start an instance.
-        start_cmd = [tt_cmd, "start", f"{app_name}:*"]
+        start_cmd = [tt_cmd, "instance", "start", f"{app_name}:*"]
         start_application(start_cmd, app_path, app_name, instances)
 
         # Check status.
@@ -154,9 +154,9 @@ def test_t3_instance_names_with_config(tt_cmd, tmpdir_with_cfg):
 
             target = f"{app_name}:*"
             for status_cmd, extract_func in [
-                ([tt_cmd, "status", target], extract_status),
-                ([tt_cmd, "status", target, "--format=json"], extract_status_from_json),
-                ([tt_cmd, "status", target, "--format=yaml"], extract_status_from_yaml),
+                ([tt_cmd, "instance", "status", target], extract_status),
+                ([tt_cmd, "instance", "status", target, "--format=json"], extract_status_from_json),
+                ([tt_cmd, "instance", "status", target, "--format=yaml"], extract_status_from_yaml),
             ]:
                 status_rc, status_out = run_command_and_get_output(status_cmd, cwd=app_path)
                 assert status_rc == 0
@@ -187,7 +187,7 @@ def test_t3_instance_names_with_config(tt_cmd, tmpdir_with_cfg):
         error_message = '[cluster_config] Unexpected field "invalid_field"'
         assert error_message in res
 
-        status_cmd = [tt_cmd, "status", full_master_inst_name, "--details"]
+        status_cmd = [tt_cmd, "instance", "status", full_master_inst_name, "--details"]
         status_rc, status_out = run_command_and_get_output(status_cmd, cwd=app_path)
         assert status_rc == 0
 
@@ -223,7 +223,7 @@ def test_t3_instances_without_console(tt_cmd):
 
         try:
             # Start the instances: no target is every instance of the project.
-            start_cmd = [tt_cmd, "start"]
+            start_cmd = [tt_cmd, "instance", "start"]
             instance_process = subprocess.Popen(
                 start_cmd,
                 cwd=test_app_path,
@@ -247,7 +247,7 @@ def test_t3_instances_without_console(tt_cmd):
                 # We need to remove console explicitly to avoid a race.
                 os.remove(os.path.join(run_dir, control_socket))
 
-            status_cmd = [tt_cmd, "status", "app:*", "--details"]
+            status_cmd = [tt_cmd, "instance", "status", "app:*", "--details"]
             status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
             assert status_rc == 0
             status_table = status_out[status_out.find("INSTANCE") :]
@@ -273,8 +273,14 @@ def test_t3_instances_without_console(tt_cmd):
 
             # No separate details block for json and yaml formats, so check alerts list.
             for status_cmd, extract_func in [
-                ([tt_cmd, "status", "app:*", "--format=json"], extract_status_from_json),
-                ([tt_cmd, "status", "app:*", "--format=yaml"], extract_status_from_yaml),
+                (
+                    [tt_cmd, "instance", "status", "app:*", "--format=json"],
+                    extract_status_from_json,
+                ),
+                (
+                    [tt_cmd, "instance", "status", "app:*", "--format=yaml"],
+                    extract_status_from_yaml,
+                ),
             ]:
                 status_rc, status_out = run_command_and_get_output(
                     status_cmd,
@@ -307,14 +313,17 @@ def test_status_external_process(tt_cmd, tmp_path):
     worker = f"{app_name}:worker"
 
     try:
-        rc, out = run_command_and_get_output([tt_cmd, "start"], cwd=app_path)
+        rc, out = run_command_and_get_output([tt_cmd, "instance", "start"], cwd=app_path)
         assert rc == 0
         assert f"Starting an instance [{worker}]" in out
         for inst in ["master", "worker"]:
             assert wait_file(inst_run_dir(app_path, app_name, inst), pid_file, []) != ""
         assert wait_file(inst_run_dir(app_path, app_name, "worker"), "process.pid", []) != ""
 
-        rc, out = run_command_and_get_output([tt_cmd, "status", "--format=json"], cwd=app_path)
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "instance", "status", "--format=json"],
+            cwd=app_path,
+        )
         assert rc == 0
         status_info = extract_status_from_json(out)
         assert status_info[f"{app_name}:master"]["status"] == "RUNNING"
@@ -325,7 +334,10 @@ def test_status_external_process(tt_cmd, tmp_path):
             assert status_info[worker][column] == "--"
         assert status_info[worker]["alerts"] is None
 
-        rc, out = run_command_and_get_output([tt_cmd, "status", worker, "--details"], cwd=app_path)
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "instance", "status", worker, "--details"],
+            cwd=app_path,
+        )
         assert rc == 0
         assert re.search(rf"{worker}\s+RUNNING\s+\d+\s+--\s+--\s+--", out)
         assert "Alerts" not in out
@@ -336,14 +348,14 @@ def test_status_external_process(tt_cmd, tmp_path):
     finally:
         stop_application(tt_cmd, app_name, app_path)
 
-    rc, out = run_command_and_get_output([tt_cmd, "status", worker], cwd=app_path)
+    rc, out = run_command_and_get_output([tt_cmd, "instance", "status", worker], cwd=app_path)
     assert rc == 0
     assert extract_status(out)[worker]["STATUS"] == "NOT RUNNING"
 
 
 def test_status_script_instance(tt_cmd, tmp_path):
     # An instance configured by its own script, without a cluster config,
-    # runs from a pair without config.yaml, and tt status asks it over its
+    # runs from a pair without config.yaml, and tt instance status asks it over its
     # console socket, as tt2 did.
     app_name = "single_app"
     app_path = tmp_path / app_name
@@ -354,7 +366,10 @@ def test_status_script_instance(tt_cmd, tmp_path):
     inst = f"{app_name}:{app_name}"
 
     try:
-        rc, out = run_command_and_get_output([tt_cmd, "start", f"{app_name}:*"], cwd=app_path)
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "instance", "start", f"{app_name}:*"],
+            cwd=app_path,
+        )
         assert rc == 0
         assert f"Starting an instance [{inst}]" in out
         run_dir = inst_run_dir(app_path, app_name, app_name)
@@ -366,7 +381,7 @@ def test_status_script_instance(tt_cmd, tmp_path):
         def box_running():
             nonlocal status_info
             rc, out = run_command_and_get_output(
-                [tt_cmd, "status", "--format=json"],
+                [tt_cmd, "instance", "status", "--format=json"],
                 cwd=app_path,
             )
             assert rc == 0
@@ -399,14 +414,14 @@ def test_status_script_instance(tt_cmd, tmp_path):
     finally:
         stop_application(tt_cmd, app_name, app_path)
 
-    rc, out = run_command_and_get_output([tt_cmd, "status", inst], cwd=app_path)
+    rc, out = run_command_and_get_output([tt_cmd, "instance", "status", inst], cwd=app_path)
     assert rc == 0
     assert extract_status(out)[inst]["STATUS"] == "NOT RUNNING"
 
 
 def test_status_invalid_format(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
-    status_cmd = [tt_cmd, "status", "--format=invalid"]
+    status_cmd = [tt_cmd, "instance", "status", "--format=invalid"]
     status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
     assert status_rc != 0
     assert "invalid format: invalid" in status_out

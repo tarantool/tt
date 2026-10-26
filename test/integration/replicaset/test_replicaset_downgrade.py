@@ -48,7 +48,7 @@ def test_downgrade_multi_master(tt_cmd, tmpdir_with_cfg):
     app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
-        start_cmd = [tt_cmd, "start", f"{app_name}:*"]
+        start_cmd = [tt_cmd, "instance", "start", f"{app_name}:*"]
         rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
@@ -83,7 +83,7 @@ def test_downgrade_t2_app_dummy_replicaset(tt_cmd):
         os.makedirs(memtx_dir, exist_ok=True)
 
         try:
-            start_cmd = [tt_cmd, "start", f"{app_name}:*"]
+            start_cmd = [tt_cmd, "instance", "start", f"{app_name}:*"]
             rc, out = run_command_and_get_output(start_cmd, cwd=test_app_path)
             assert rc == 0
 
@@ -244,7 +244,7 @@ def test_downgrade_remote_replicasets(tt_cmd, tmpdir_with_cfg):
         assert "['version', 2, 11, 1]" in out
 
     finally:
-        stop_cmd = [tt_cmd, "stop", f"{app_name}:*", "-y"]
+        stop_cmd = [tt_cmd, "instance", "stop", f"{app_name}:*", "-y"]
         stop_rc, _ = run_command_and_get_output(stop_cmd, cwd=app_path)
         assert stop_rc == 0
 

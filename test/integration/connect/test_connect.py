@@ -117,7 +117,7 @@ def start_app(tt_cmd, tmpdir_with_cfg, app_name, start_binary_port=False):
         test_env["TT_LISTEN"] = ""
 
     # Start the instances.
-    start_cmd = [tt_cmd, "start", f"{app_name}:*"]
+    start_cmd = [tt_cmd, "instance", "start", f"{app_name}:*"]
     instance_process = subprocess.Popen(
         start_cmd,
         cwd=app_dir,
@@ -132,7 +132,7 @@ def start_app(tt_cmd, tmpdir_with_cfg, app_name, start_binary_port=False):
 
 def stop_app(tt_cmd, tmpdir, app_name):
     app_name = app_name.partition(":")[0]
-    stop_cmd = [tt_cmd, "stop", "-y", f"{app_name}:*"]
+    stop_cmd = [tt_cmd, "instance", "stop", "-y", f"{app_name}:*"]
     run_command_and_get_output(stop_cmd, cwd=find_app_workdir(tmpdir, app_name))
 
 
@@ -3320,6 +3320,7 @@ def test_connect_to_cluster_app_by_uri(tt, tt_app, with_scheme, uri):
     skip_if_cluster_app_unsupported()
     # Start instances.
     p = tt.run(
+        "instance",
         "start",
         env={"TT_IPROTO_LISTEN": f'[{{"uri":"{uri}"}}]'},
     )
@@ -3507,7 +3508,7 @@ def test_custom_evaler_errors(tt_cmd, tmpdir_with_cfg):
 )
 def test_disconnect_by_signal(tt, tt_app, sig):
     # Start an instance.
-    tt.exec("start", "test_app:test_app")
+    tt.exec("instance", "start", "test_app:test_app")
     # Check for start.
     assert wait_files(5, [tt_app.path("configured")])
 
@@ -3530,7 +3531,7 @@ def test_disconnect_by_signal(tt, tt_app, sig):
     assert p.wait(1) is not None
 
     # Make sure the instance is stopped.
-    tt.exec("kill", "-f", "test_app:test_app")
+    tt.exec("instance", "kill", "-y", "test_app:test_app")
 
 
 def test_connect_refused_exits_2(tt_cmd, tmp_path):

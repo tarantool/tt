@@ -26,9 +26,15 @@ def check_kill(tt, tt_app, target, input, is_confirm, *args):
     # Store original state.
     orig_status = tt_helper.status(tt)
 
-    # Do kill.
-    rc, out = tt.exec("kill", target, *args, input=input)
-    assert rc == 0
+    # Do kill. An instance that does not run cannot be killed, which fails
+    # it; the others are killed all the same.
+    rc, out = tt.exec("instance", "kill", target, *args, input=input)
+    target_instances = tt_app.instances_of(target)
+    if is_confirm:
+        not_running = [i for i in target_instances if i not in tt_app.running_instances]
+        assert rc == tt_helper.instances_rc(len(target_instances), len(not_running))
+    else:
+        assert rc == 0
 
     # Check the confirmation prompt.
     if input is not None:
@@ -42,8 +48,6 @@ def check_kill(tt, tt_app, target, input, is_confirm, *args):
         assert f"Kill {confirmation_target}?" in out
 
     # Check the instances.
-    target_instances = tt_app.instances_of(target)
-
     status = tt_helper.status(tt)
     for inst in tt_app.instances:
         was_running = inst in tt_app.running_instances
@@ -96,13 +100,13 @@ tt_multi_inst_app = dict(
     ],
 )
 def test_kill_multi_inst_auto_y(tt, tt_app, target):
-    check_kill(tt, tt_app, target, None, True, "-f")
+    check_kill(tt, tt_app, target, None, True, "-y")
 
 
 # Auto-confirmation (long option; less variations).
 @pytest.mark.tt_app(**dict(tt_multi_inst_app, running_targets=["app:*"]))
 def test_kill_multi_inst_auto_yes(tt, tt_app):
-    check_kill(tt, tt_app, "app:*", None, True, "--force")
+    check_kill(tt, tt_app, "app:*", None, True, "--yes")
 
 
 # Various inputs.
@@ -153,7 +157,7 @@ tt_multi_inst_app_no_script = dict(
     ],
 )
 def test_kill_multi_inst_no_instance_script(tt, tt_app, target):
-    check_kill(tt, tt_app, target, None, True, "-f")
+    check_kill(tt, tt_app, target, None, True, "-y")
 
 
 ################################################################
@@ -189,14 +193,14 @@ tt_cluster_app = dict(
     ],
 )
 def test_kill_cluster_auto_y(tt, tt_app, target):
-    check_kill(tt, tt_app, target, None, True, "-f")
+    check_kill(tt, tt_app, target, None, True, "-y")
 
 
 # Auto-confirmation (long option; less variations).
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.tt_app(**dict(tt_cluster_app, running_targets=["app:*"]))
 def test_kill_cluster_auto_yes(tt, tt_app):
-    check_kill(tt, tt_app, "app:*", None, True, "--force")
+    check_kill(tt, tt_app, "app:*", None, True, "--yes")
 
 
 # Various inputs.
@@ -250,7 +254,7 @@ tt_cluster_app_no_config = dict(
     ],
 )
 def test_kill_cluster_no_config(tt, tt_app, target):
-    tt_helper.check_broken_pair(tt, tt_app, "kill", "-f", target)
+    tt_helper.check_broken_pair(tt, tt_app, "instance", "kill", "-y", target)
 
 
 ################################################################
@@ -273,15 +277,15 @@ def read_pid(path):
 @pytest.mark.parametrize(
     "command",
     [
-        pytest.param(["kill", "-f"], id="kill"),
-        pytest.param(["stop", "-y"], id="stop"),
+        pytest.param(["instance", "kill", "-y"], id="kill"),
+        pytest.param(["instance", "stop", "-y"], id="stop"),
     ],
 )
 def test_external_orphan(tt_cmd, tmp_path, command):
-    # A watchdog killed by anything but tt kill leaves its external process
-    # running in a process group of its own. tt status does not show it
-    # running and points at it, tt start refuses to start a second one next
-    # to it, and tt kill and tt stop reach it by process.pid.
+    # A watchdog killed by anything but tt instance kill leaves its external process
+    # running in a process group of its own. tt instance status does not show it
+    # running and points at it, tt instance start refuses to start a second one next
+    # to it, and tt instance kill and tt instance stop reach it by process.pid.
     app_path = tmp_path / "app"
     shutil.copytree(os.path.join(os.path.dirname(__file__), "../start/external_app"), app_path)
 
@@ -291,7 +295,10 @@ def test_external_orphan(tt_cmd, tmp_path, command):
     process_pid_file = os.path.join(run_dir, "process.pid")
     process = None
     try:
-        rc, _ = utils.run_command_and_get_output([tt_cmd, "start", worker], cwd=app_path)
+        rc, _ = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "start", worker],
+            cwd=app_path,
+        )
         assert rc == 0
         assert utils.wait_files(5, [pid_file, process_pid_file])
         process = read_pid(process_pid_file)
@@ -300,17 +307,20 @@ def test_external_orphan(tt_cmd, tmp_path, command):
         assert utils.wait_event(5, lambda: not process_alive(read_pid(pid_file)))
         assert process_alive(process)
 
-        status_cmd = [tt_cmd, "status", worker, "--details"]
+        status_cmd = [tt_cmd, "instance", "status", worker, "--details"]
         rc, out = utils.run_command_and_get_output(status_cmd, cwd=app_path)
         assert rc == 0
         assert "RUNNING" not in out.replace("NOT RUNNING", "")
         assert f"(PID = {process}) runs without its watchdog" in out
-        assert f"tt kill {worker}" in out
+        assert f"tt instance kill {worker}" in out
 
-        rc, out = utils.run_command_and_get_output([tt_cmd, "start", worker], cwd=app_path)
+        rc, out = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "start", worker],
+            cwd=app_path,
+        )
         assert rc == 1
         assert "runs without its watchdog" in out
-        assert f"tt kill {worker}" in out
+        assert f"tt instance kill {worker}" in out
         assert "Starting an instance" not in out
 
         rc, out = utils.run_command_and_get_output([tt_cmd, *command, worker], cwd=app_path)
@@ -320,10 +330,13 @@ def test_external_orphan(tt_cmd, tmp_path, command):
         assert not os.path.exists(process_pid_file)
         assert not os.path.exists(pid_file)
 
-        rc, out = utils.run_command_and_get_output([tt_cmd, "status", worker], cwd=app_path)
+        rc, out = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "status", worker],
+            cwd=app_path,
+        )
         assert rc == 0
         assert utils.extract_status(out)[worker]["STATUS"] == "NOT RUNNING"
     finally:
         if process is not None and process_alive(process):
             os.killpg(process, signal.SIGKILL)
-        utils.run_command_and_get_output([tt_cmd, "stop", "-y", worker], cwd=app_path)
+        utils.run_command_and_get_output([tt_cmd, "instance", "stop", "-y", worker], cwd=app_path)

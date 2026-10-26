@@ -89,7 +89,7 @@ def log_path(root, instance):
 
 
 def test_log_output_default_run(tt_cmd, mock_env_dir):
-    cmd = [tt_cmd, "log"]
+    cmd = [tt_cmd, "instance", "logs"]
     process = subprocess.Popen(
         cmd,
         cwd=mock_env_dir,
@@ -108,7 +108,7 @@ def test_log_output_default_run(tt_cmd, mock_env_dir):
 
 
 def test_log_limit_lines_count(tt_cmd, mock_env_dir):
-    cmd = [tt_cmd, "log", "-n", "3"]
+    cmd = [tt_cmd, "instance", "logs", "-n", "3"]
     process = subprocess.Popen(
         cmd,
         cwd=mock_env_dir,
@@ -125,7 +125,7 @@ def test_log_limit_lines_count(tt_cmd, mock_env_dir):
 
 
 def test_log_more_lines(tt_cmd, mock_env_dir):
-    cmd = [tt_cmd, "log", "-n", "300"]
+    cmd = [tt_cmd, "instance", "logs", "-n", "300"]
     process = subprocess.Popen(
         cmd,
         cwd=mock_env_dir,
@@ -142,7 +142,7 @@ def test_log_more_lines(tt_cmd, mock_env_dir):
 
 
 def test_log_want_zero(tt_cmd, mock_env_dir):
-    cmd = [tt_cmd, "log", "-n", "0"]
+    cmd = [tt_cmd, "instance", "logs", "-n", "0"]
     process = subprocess.Popen(
         cmd,
         cwd=mock_env_dir,
@@ -158,7 +158,7 @@ def test_log_want_zero(tt_cmd, mock_env_dir):
 
 
 def test_log_specific_instance(tt_cmd, mock_env_dir):
-    cmd = [tt_cmd, "log", "app0:inst1", "-n", "3"]
+    cmd = [tt_cmd, "instance", "logs", "app0:inst1", "-n", "3"]
     process = subprocess.Popen(
         cmd,
         cwd=mock_env_dir,
@@ -176,7 +176,7 @@ def test_log_specific_instance(tt_cmd, mock_env_dir):
 
 
 def test_log_specific_app(tt_cmd, mock_env_dir):
-    cmd = [tt_cmd, "log", "app0:*"]
+    cmd = [tt_cmd, "instance", "logs", "app0:*"]
     process = subprocess.Popen(
         cmd,
         cwd=mock_env_dir,
@@ -193,7 +193,7 @@ def test_log_specific_app(tt_cmd, mock_env_dir):
 
 
 def test_log_negative_lines_num(tt_cmd, mock_env_dir):
-    cmd = [tt_cmd, "log", "-n", "-10"]
+    cmd = [tt_cmd, "instance", "logs", "-n", "-10"]
     process = subprocess.Popen(
         cmd,
         cwd=mock_env_dir,
@@ -209,7 +209,7 @@ def test_log_negative_lines_num(tt_cmd, mock_env_dir):
 
 
 def test_log_bare_app(tt_cmd, mock_env_dir):
-    cmd = [tt_cmd, "log", "app0"]
+    cmd = [tt_cmd, "instance", "logs", "app0"]
     process = subprocess.Popen(
         cmd,
         cwd=mock_env_dir,
@@ -225,7 +225,7 @@ def test_log_bare_app(tt_cmd, mock_env_dir):
 
 
 def test_log_no_app(tt_cmd, mock_env_dir):
-    cmd = [tt_cmd, "log", "no_app:*"]
+    cmd = [tt_cmd, "instance", "logs", "no_app:*"]
     process = subprocess.Popen(
         cmd,
         cwd=mock_env_dir,
@@ -242,7 +242,7 @@ def test_log_no_app(tt_cmd, mock_env_dir):
 
 
 def test_log_no_inst(tt_cmd, mock_env_dir):
-    cmd = [tt_cmd, "log", "app0:inst4"]
+    cmd = [tt_cmd, "instance", "logs", "app0:inst4"]
     process = subprocess.Popen(
         cmd,
         cwd=mock_env_dir,
@@ -258,7 +258,7 @@ def test_log_no_inst(tt_cmd, mock_env_dir):
 
 
 def test_log_output_default_follow(tt_cmd, mock_env_dir):
-    cmd = [tt_cmd, "log", "-f"]
+    cmd = [tt_cmd, "instance", "logs", "--follow"]
     with managed_reader(cmd, mock_env_dir) as reader:
         output = wait_for_output(
             reader,
@@ -299,7 +299,7 @@ def test_log_output_default_follow(tt_cmd, mock_env_dir):
 
 
 def test_log_output_default_follow_want_zero_last(tt_cmd, mock_env_dir):
-    cmd = [tt_cmd, "log", "-f", "-n", "0"]
+    cmd = [tt_cmd, "instance", "logs", "--follow", "-n", "0"]
     with managed_reader(cmd, mock_env_dir) as reader:
         inst0_log = log_path(mock_env_dir, "inst0")
         inst2_log = log_path(mock_env_dir, "inst2")
@@ -330,7 +330,7 @@ def test_log_output_default_follow_want_zero_last(tt_cmd, mock_env_dir):
 
 
 def test_log_rotation_preserves_pending_lines(tt_cmd, mock_env_dir):
-    cmd = [tt_cmd, "log", "app0:inst0", "-f", "-n", "1"]
+    cmd = [tt_cmd, "instance", "logs", "app0:inst0", "--follow", "-n", "1"]
     with managed_reader(cmd, mock_env_dir) as reader:
         output = wait_for_output(
             reader,
@@ -386,7 +386,7 @@ def test_log_rotation_preserves_pending_lines(tt_cmd, mock_env_dir):
 
 
 def test_log_dir_removed_after_follow(tt_cmd, mock_env_dir):
-    cmd = [tt_cmd, "log", "-f"]
+    cmd = [tt_cmd, "instance", "logs", "--follow"]
     with managed_reader(cmd, mock_env_dir) as reader:
         wait_for_output(
             reader,

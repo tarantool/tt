@@ -28,9 +28,13 @@ def check_logrotate(tt, tt_app, target):
         os.rename(log_path, log_path + "0")
         expected_instances.append(inst)
 
-    # Do logrotate.
-    p = tt.run("logrotate", target)
-    assert p.returncode == 0
+    # Do logrotate. An instance that does not run has no log to reopen,
+    # which fails it; the others rotate their logs all the same.
+    p = tt.run("instance", "logrotate", target)
+    assert p.returncode == tt_helper.instances_rc(
+        len(target_instances),
+        len(target_instances) - len(expected_instances),
+    )
 
     # Wait for the log files to be re-created.
     assert utils.wait_files(5, tt_helper.log_files(tt_app, expected_instances))
@@ -50,15 +54,13 @@ def check_logrotate(tt, tt_app, target):
                 with open(tt_app.log_path(inst, utils.log_file)) as f:
                     assert "reopened" in f.read()
             else:
-                _, sep, inst_name = inst.partition(":")
-                assert sep != ""
-                assert f"{inst_name}: the instance is not running, it must be started" in p.stdout
+                assert f"{inst}: the instance is not running, it must be started" in p.stdout
 
     # Stop running instances and make sure there are non-watchdog messages,
     # i.e. tarantool binary also puts its logs here (exclude v1.x because
     # it produce no message at stopping).
     if not is_tarantool_major_one:
-        p = tt.run("stop", "-y", target)
+        p = tt.run("instance", "stop", "-y", target)
         assert p.returncode == 0
         for inst in tt_app.instances:
             if inst in target_instances and inst in tt_app.running_instances:
@@ -196,7 +198,7 @@ tt_cluster_app_no_config = dict(
     ],
 )
 def test_logrotate_cluster_no_config(tt, tt_app, target):
-    tt_helper.check_broken_pair(tt, tt_app, "logrotate", target)
+    tt_helper.check_broken_pair(tt, tt_app, "instance", "logrotate", target)
 
 
 @pytest.mark.parametrize(
@@ -207,7 +209,7 @@ def test_logrotate_cluster_no_config(tt, tt_app, target):
     ],
 )
 def test_logrotate_external(tt_cmd, tmp_path, logrotate_signal):
-    # tt logrotate reopens tt.log of an external process, where its output
+    # tt instance logrotate reopens tt.log of an external process, where its output
     # goes, and sends the process its logrotate_signal; without the field
     # the process gets no signal, which would end a program that does not
     # handle it.
@@ -220,12 +222,18 @@ def test_logrotate_external(tt_cmd, tmp_path, logrotate_signal):
     worker = "app:worker"
     log_file = os.path.join(utils.inst_log_dir(app_path, "app", "worker"), utils.log_file)
     try:
-        rc, out = utils.run_command_and_get_output([tt_cmd, "start", worker], cwd=app_path)
+        rc, out = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "start", worker],
+            cwd=app_path,
+        )
         assert rc == 0
         assert utils.wait_event(5, lambda: "worker started" in read_file(log_file))
 
         os.rename(log_file, log_file + "0")
-        rc, out = utils.run_command_and_get_output([tt_cmd, "logrotate", worker], cwd=app_path)
+        rc, out = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "logrotate", worker],
+            cwd=app_path,
+        )
         assert rc == 0
         assert "logs has been rotated" in out
         assert utils.wait_event(5, lambda: "reopened" in read_file(log_file))
@@ -236,11 +244,14 @@ def test_logrotate_external(tt_cmd, tmp_path, logrotate_signal):
         else:
             assert utils.wait_event(5, lambda: "worker got HUP" in read_file(log_file))
 
-        rc, out = utils.run_command_and_get_output([tt_cmd, "status", worker], cwd=app_path)
+        rc, out = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "status", worker],
+            cwd=app_path,
+        )
         assert rc == 0
         assert utils.extract_status(out)[worker]["STATUS"] == "RUNNING"
     finally:
-        utils.run_command_and_get_output([tt_cmd, "stop", "-y", worker], cwd=app_path)
+        utils.run_command_and_get_output([tt_cmd, "instance", "stop", "-y", worker], cwd=app_path)
 
 
 def read_file(path):

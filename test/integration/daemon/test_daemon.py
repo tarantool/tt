@@ -199,7 +199,9 @@ def test_daemon_http_requests(tt_cmd, tmpdir_with_cfg):
     assert status_rc == 0
     assert re.search(r"RUNNING. PID: \d+.", status_out)
 
-    body = {"command_name": "start", "params": ["test_app:test_app"]}
+    # The daemon runs tt <command_name> <params...>: the instance commands
+    # are tt instance <command>.
+    body = {"command_name": "instance", "params": ["start", "test_app:test_app"]}
     response = requests.post(default_url, json=body)
     assert response.status_code == 200
     assert re.search(r"Starting an instance", response.json()["res"])
@@ -211,13 +213,13 @@ def test_daemon_http_requests(tt_cmd, tmpdir_with_cfg):
     )
     assert file != ""
 
-    body = {"command_name": "status", "params": ["test_app:test_app"]}
+    body = {"command_name": "instance", "params": ["status", "test_app:test_app"]}
     response = requests.post(default_url, json=body)
     assert response.status_code == 200
     status_info = utils.extract_status(response.json()["res"])
     assert status_info["test_app:test_app"]["STATUS"] == "RUNNING"
 
-    body = {"command_name": "stop", "params": ["-y", "test_app:test_app"]}
+    body = {"command_name": "instance", "params": ["stop", "-y", "test_app:test_app"]}
     response = requests.post(default_url, json=body)
     assert response.status_code == 200
     assert re.search(
@@ -277,7 +279,7 @@ def test_daemon_http_requests_with_cfg(tt_cmd, tmpdir_with_cfg):
 
     url = "http://" + conn.laddr.ip + ":" + str(port) + "/tarantool"
 
-    body = {"command_name": "start", "params": ["test_app:test_app"]}
+    body = {"command_name": "instance", "params": ["start", "test_app:test_app"]}
     response = requests.post(url, json=body)
     assert response.status_code == 200
     assert re.search(r"Starting an instance", response.json()["res"])
@@ -289,12 +291,12 @@ def test_daemon_http_requests_with_cfg(tt_cmd, tmpdir_with_cfg):
     )
     assert file != ""
 
-    body = {"command_name": "status", "params": ["test_app:test_app"]}
+    body = {"command_name": "instance", "params": ["status", "test_app:test_app"]}
     response = requests.post(url, json=body)
     assert response.status_code == 200
     status_info = utils.extract_status(response.json()["res"])
     assert status_info["test_app:test_app"]["STATUS"] == "RUNNING"
-    body = {"command_name": "stop", "params": ["-y", "test_app:test_app"]}
+    body = {"command_name": "instance", "params": ["stop", "-y", "test_app:test_app"]}
     response = requests.post(url, json=body)
     assert response.status_code == 200
     assert re.search(

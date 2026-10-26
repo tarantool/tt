@@ -164,7 +164,7 @@ def test_replicaset_cconfig_roles_add(
         start_application(tt_cmd, app_path, app_name, instances)
 
         if stop_instance:
-            stop_cmd = [tt_cmd, "stop", "-y", f"{app_name}:{stop_instance}"]
+            stop_cmd = [tt_cmd, "instance", "stop", "-y", f"{app_name}:{stop_instance}"]
             rc, _ = run_command_and_get_output(stop_cmd, cwd=app_path)
             assert rc == 0
         if is_add_role:

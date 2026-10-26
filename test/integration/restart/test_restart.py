@@ -45,7 +45,7 @@ def check_restart(tt, tt_app, target, input, is_confirm, *args):
     orig_status = tt_helper.status(tt)
 
     # Do restart.
-    rc, out = tt.exec("restart", target, *args, input=input)
+    rc, out = tt.exec("instance", "restart", target, *args, input=input)
     assert rc == 0
 
     # Check the confirmation prompt.

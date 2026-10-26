@@ -188,7 +188,7 @@ def test_promote_cconfig_failovers(
             )
 
         if stop_inst:
-            stop_cmd = [tt_cmd, "stop", "-y", f"{app_name}:{stop_inst}"]
+            stop_cmd = [tt_cmd, "instance", "stop", "-y", f"{app_name}:{stop_inst}"]
             rc, _ = run_command_and_get_output(stop_cmd, cwd=app_path)
             assert rc == 0
 

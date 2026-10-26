@@ -38,7 +38,7 @@ def start_application(cmd, workdir, app_name, instances):
 
 
 def stop_application(tt_cmd, workdir, app_name, instances):
-    stop_cmd = [tt_cmd, "stop", "-y", f"{app_name}:*"]
+    stop_cmd = [tt_cmd, "instance", "stop", "-y", f"{app_name}:*"]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=workdir)
     assert stop_rc == 0
 
@@ -61,7 +61,7 @@ def wait_cluster_started(tt_cmd, workdir, app_name, instances, inst_conf):
     assert wait_files(5, files)
 
     def are_all_box_statuses_running():
-        status_cmd = [tt_cmd, "status", f"{app_name}:*"]
+        status_cmd = [tt_cmd, "instance", "status", f"{app_name}:*"]
         status_rc, status_out = run_command_and_get_output(status_cmd, cwd=workdir)
         assert status_rc == 0
         status_info = extract_status(status_out)
@@ -96,12 +96,12 @@ def check_base_functionality(tt_cmd, tmpdir, app_name, instances, inst_conf):
 
     try:
         # Start an instance.
-        start_cmd = [tt_cmd, "start", f"{app_name}:*"]
+        start_cmd = [tt_cmd, "instance", "start", f"{app_name}:*"]
         start_application(start_cmd, app_path, app_name, instances)
         wait_cluster_started(tt_cmd, app_path, app_name, instances, inst_conf)
 
         # Check status.
-        status_cmd = [tt_cmd, "status", f"{app_name}:*"]
+        status_cmd = [tt_cmd, "instance", "status", f"{app_name}:*"]
         status_rc, status_out = run_command_and_get_output(status_cmd, cwd=app_path)
         assert status_rc == 0
         status_info = extract_status(status_out)
@@ -137,7 +137,7 @@ def check_base_functionality(tt_cmd, tmpdir, app_name, instances, inst_conf):
             assert "42" in output
 
         # Restart an application.
-        restart_cmd = [tt_cmd, "restart", f"{app_name}:*", "-y"]
+        restart_cmd = [tt_cmd, "instance", "restart", f"{app_name}:*", "-y"]
         instance_process = subprocess.Popen(
             restart_cmd,
             cwd=app_path,
@@ -161,7 +161,7 @@ def check_base_functionality(tt_cmd, tmpdir, app_name, instances, inst_conf):
         wait_cluster_started(tt_cmd, app_path, app_name, instances, inst_conf)
 
         # Check status.
-        status_cmd = [tt_cmd, "status", f"{app_name}:*"]
+        status_cmd = [tt_cmd, "instance", "status", f"{app_name}:*"]
         status_rc, status_out = run_command_and_get_output(status_cmd, cwd=app_path)
         assert status_rc == 0
         status_info = extract_status(status_out)
@@ -213,12 +213,12 @@ def test_running_base_functionality_crud_app(tt_cmd, tmpdir_with_cfg):
 
     try:
         # Start an application.
-        start_cmd = [tt_cmd, "start", f"{app_name}:*"]
+        start_cmd = [tt_cmd, "instance", "start", f"{app_name}:*"]
         start_application(start_cmd, app_path, app_name, instances)
         wait_cluster_started(tt_cmd, app_path, app_name, instances, inst_conf)
 
         # Check status.
-        status_cmd = [tt_cmd, "status", f"{app_name}:*"]
+        status_cmd = [tt_cmd, "instance", "status", f"{app_name}:*"]
         status_rc, status_out = run_command_and_get_output(status_cmd, cwd=app_path)
         assert status_rc == 0
         status_info = extract_status(status_out)
@@ -239,7 +239,7 @@ def test_running_base_functionality_error_cases(tt_cmd, tmpdir_with_cfg):
     app_path = prepare_app(tmpdir, app_name)
 
     # Start unknown instance.
-    start_cmd = [tt_cmd, "start", f"{app_name}:unknown"]
+    start_cmd = [tt_cmd, "instance", "start", f"{app_name}:unknown"]
     instance_process = subprocess.Popen(
         start_cmd,
         cwd=app_path,
@@ -256,7 +256,7 @@ def test_running_base_functionality_error_cases(tt_cmd, tmpdir_with_cfg):
     # incomplete pair.
     config_path = os.path.join(app_path, cluster_config_file)
     os.rename(config_path, config_path + ".removed")
-    start_cmd = [tt_cmd, "start", f"{app_name}:storage-master"]
+    start_cmd = [tt_cmd, "instance", "start", f"{app_name}:storage-master"]
     rc, start_output = run_command_and_get_output(start_cmd, cwd=app_path)
     assert rc == 1
     assert "incomplete pair" in start_output
@@ -276,7 +276,7 @@ def test_cluster_config_not_supported(tt_cmd, tmpdir_with_cfg):
     app_path = prepare_app(tmpdir, app_name)
 
     # Start storage-master instance.
-    start_cmd = [tt_cmd, "start", f"{app_name}:storage-master"]
+    start_cmd = [tt_cmd, "instance", "start", f"{app_name}:storage-master"]
     instance_process = subprocess.Popen(
         start_cmd,
         cwd=app_path,
@@ -326,7 +326,7 @@ def test_cluster_error_cases(tt_cmd, tmpdir_with_cfg):
     with open(description, "w") as f:
         yaml.dump({"master": {}, "storage": {}}, f)  # No storage instance in cluster config.
 
-    start_cmd = [tt_cmd, "start", f"{app_name}:*"]
+    start_cmd = [tt_cmd, "instance", "start", f"{app_name}:*"]
     instance_process = subprocess.Popen(
         start_cmd,
         cwd=app_path,

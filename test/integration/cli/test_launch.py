@@ -118,7 +118,7 @@ def test_tt_yaml_is_not_read(tt_cmd, tmp_path, content):
     for cmd in [
         ["-V", "version"],
         ["run", "--version"],
-        ["status"],
+        ["instance", "status"],
         ["completion", "bash"],
         ["registry", "list"],
         ["rocks", "help"],
@@ -128,7 +128,11 @@ def test_tt_yaml_is_not_read(tt_cmd, tmp_path, content):
         assert BIN_DIR_MESSAGE not in stdout + stderr, cmd
         assert "tt.yaml" not in stderr, cmd
 
-    rc, stdout, _ = run_command_and_get_streams([tt_cmd, "status"], cwd=tmp_path, env=env)
+    rc, stdout, _ = run_command_and_get_streams(
+        [tt_cmd, "instance", "status"],
+        cwd=tmp_path,
+        env=env,
+    )
     assert "launch:launch" in stdout
     assert "NOT RUNNING" in stdout
 
