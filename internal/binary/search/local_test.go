@@ -129,26 +129,8 @@ func TestFindLocalBundles(t *testing.T) {
 					name: "tarantool-enterprise-sdk-debug-2.8.4-0-r680.tar.gz.sha256",
 				},
 			},
+			// Tarantool 2.x archives are not offered.
 			expectedVersion: version.VersionSlice{
-				{
-					Tarball:  "tarantool-enterprise-sdk-2.8.4-0-r680.tar.gz",
-					Major:    2,
-					Minor:    8,
-					Patch:    4,
-					Revision: 680,
-					Release:  version.Release{Type: version.TypeRelease},
-					Str:      "2.8.4-0-r680",
-				},
-				{
-					Tarball:   "tarantool-enterprise-sdk-debug-2.8.4-0-r680.tar.gz",
-					Major:     2,
-					Minor:     8,
-					Patch:     4,
-					Revision:  680,
-					Release:   version.Release{Type: version.TypeRelease},
-					Str:       "debug-2.8.4-0-r680",
-					BuildName: "debug",
-				},
 				{
 					Tarball:   "tarantool-enterprise-sdk-debug-gc64-3.3.2-0-r5.linux.x86_64.tar.gz",
 					Major:     3,

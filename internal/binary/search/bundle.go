@@ -157,7 +157,7 @@ func getBundles(rawBundleInfoList map[string][]string, searchCtx *SearchCtx) (
 				continue
 			}
 
-			if !matchesReleaseFilter(searchCtx, version) {
+			if isMasked(searchCtx.Program, version) || !matchesReleaseFilter(searchCtx, version) {
 				continue
 			}
 

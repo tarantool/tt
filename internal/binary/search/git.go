@@ -25,10 +25,14 @@ var (
 
 const minSupportedMajorVersion = 3
 
-// isMasked function checks that the given version of tarantool is masked.
-// Tarantool 1.x and 2.x are no longer supported.
-func isMasked(version version.Version) bool {
-	return version.Major < minSupportedMajorVersion
+// isMasked reports whether a version of program is no longer offered for
+// installation: Tarantool 1.x and 2.x, Community or Enterprise, are not
+// supported. SDK archives carry the version of their Tarantool; tt, tt-ee and
+// TCM have versions of their own.
+func isMasked(program binary.Program, ver version.Version) bool {
+	isTarantool := program == binary.ProgramCe || program.BundleSource() == binary.ProgramSDK
+
+	return isTarantool && ver.Major < minSupportedMajorVersion
 }
 
 // GetVersionsFromGitRemote returns sorted versions list from specified remote git repo.
@@ -64,7 +68,7 @@ func GetVersionsFromGitRemote(repo string) (version.VersionSlice, error) {
 			continue
 		}
 
-		if isMasked(version) && repo == binary.ProgramCe.GitRepo() {
+		if repo == binary.ProgramCe.GitRepo() && isMasked(binary.ProgramCe, version) {
 			continue
 		}
 
@@ -194,7 +198,7 @@ func GetVersionsFromGitLocal(repo string, program binary.Program) (version.Versi
 			continue
 		}
 
-		if program == binary.ProgramCe && isMasked(version) {
+		if isMasked(program, version) {
 			continue
 		}
 

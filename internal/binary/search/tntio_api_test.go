@@ -315,10 +315,8 @@ func TestSearchVersions_TntIo(t *testing.T) {
 				},
 			},
 			expectedQuery: "enterprise/release/linux/x86_64",
+			// Tarantool 2.x archives are not offered.
 			expectedVersions: []string{
-				"2.8.4-0-r677",
-				"2.8.4-0-r679",
-				"2.8.4-0-r680",
 				"gc64-3.2.0-0-r40",
 				"gc64-3.3.1-0-r55",
 				"gc64-3.3.2-0-r58",

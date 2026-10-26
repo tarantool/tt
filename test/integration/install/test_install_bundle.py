@@ -12,11 +12,11 @@ from utils import create_tt_config, run_command_and_get_output
 EE_VERSION = "gc64-3.4.0-0-r60"
 TCM_VERSION = "1.3.1-0-g074b5ffa"
 
+# Tarantool 2.x archives that search and install do not offer.
+OLD_EE_BUNDLES = ["gc64-2.11.1-0-r9", "nogc64-2.11.1-0-r10"]
+
 VERSION_SELECTION_BUNDLES = {
     "tarantool-ee": [
-        "gc64-2.11.1-0-r8",
-        "gc64-2.11.1-0-r9",
-        "nogc64-2.11.1-0-r10",
         "gc64-3.4.0-0-r9",
         "gc64-3.4.0-0-r60",
         "gc64-3.4.1-0-r61",
@@ -132,9 +132,7 @@ def assert_active(root, program, version):
     if program == "tarantool-ee" and not version.startswith("dev_"):
         match = re.match(r"(.*?)(\d+\.\d+\.\d+(?:-(?:entrypoint|alpha|beta|rc)\d*)?)", version)
         build, number = match.groups()
-        if int(number.split(".")[0]) >= 3:
-            build = build.replace("nogc64-", "").replace("gc64-", "")
-        version = build + number
+        version = build.replace("nogc64-", "").replace("gc64-", "") + number
     destination = root / "versions" / program / f"{program}_{version}"
     binary = destination / executable
     assert os.access(binary, os.X_OK)
@@ -263,8 +261,6 @@ def test_ee_dev_revisions_remain_separate(tt_cmd, tmp_path):
         ("tarantool-ee", "3", "gc64-3.8.1-0-r70"),
         ("tarantool-ee", "3.4", "gc64-3.4.1-0-r61"),
         ("tarantool-ee", "3.4.0", "gc64-3.4.0-0-r60"),
-        ("tarantool-ee", "gc64-2.11.1", "gc64-2.11.1-0-r9"),
-        ("tarantool-ee", "nogc64-2.11.1", "nogc64-2.11.1-0-r10"),
         ("tarantool-ee", "3.9.0-rc2", "gc64-3.9.0-rc2-0-r80"),
         ("tarantool-ee", "debug-3.9.2", "debug-gc64-3.9.2-0-r99"),
         ("tarantool-ee", "gc64-3.4.0-0-r9", "gc64-3.4.0-0-r9"),
@@ -282,6 +278,9 @@ def test_ee_dev_revisions_remain_separate(tt_cmd, tmp_path):
 def test_bundle_version_selection(tt_cmd, tmp_path, program, requested, expected):
     for version in VERSION_SELECTION_BUNDLES[program]:
         make_bundle(tmp_path, program, version, content=version)
+    if program == "tarantool-ee":
+        for version in OLD_EE_BUNDLES:
+            make_bundle(tmp_path, program, version, content=version)
 
     rc, output = install(tt_cmd, tmp_path, program, requested)
     assert rc == 0, output
@@ -295,11 +294,26 @@ def test_bundle_version_selection(tt_cmd, tmp_path, program, requested, expected
         assert (root / "include" / "tarantool" / "module.h").read_text() == expected
 
 
+@pytest.mark.parametrize("requested", [None, "2", "2.11.1", "gc64-2.11.1", "gc64-2.11.1-0-r9"])
+def test_bundle_tarantool_2_is_not_installed(tt_cmd, tmp_path, requested):
+    for version in OLD_EE_BUNDLES:
+        make_bundle(tmp_path, version=version)
+
+    rc, output = install(tt_cmd, tmp_path, version=requested)
+    assert rc != 0, output
+    root = scope_root(tmp_path)
+    assert not (root / "versions" / "tarantool-ee").exists()
+    assert not (root / "bin" / "tarantool").exists()
+
+
 @pytest.mark.parametrize("program", ["tarantool-ee", "tcm"])
 def test_bundle_search_keeps_full_versions(tt_cmd, tmp_path, program):
     versions = VERSION_SELECTION_BUNDLES[program]
     for version in versions:
         make_bundle(tmp_path, program, version)
+    if program == "tarantool-ee":
+        for version in OLD_EE_BUNDLES:
+            make_bundle(tmp_path, program, version)
 
     rc, output = run_command_and_get_output(
         [tt_cmd, "binary", "search", program, "--local-dir", "local bundles"],
@@ -390,7 +404,7 @@ def test_bundle_short_version_preserves_sole_installation(
 @pytest.mark.parametrize(
     "program,first,second,requested",
     [
-        ("tarantool-ee", "gc64-2.11.1-0-r60", "nogc64-2.11.1-0-r60", "2.11.1"),
+        ("tarantool-ee", "gc64-3.4.0-rc1-0-r60", "debug-gc64-3.4.0-0-r60", "3.4.0"),
         ("tcm", TCM_VERSION, "1.3.1-1-g3857712a", "1.3.1"),
         ("tcm", TCM_VERSION, "1.3.1-rc1-0-g074b5ffa", "1.3.1"),
     ],
@@ -518,8 +532,6 @@ def test_bundle_existing_version_reactivates_without_extraction(
     [
         (EE_VERSION, "gc64-3.4.0-0-r61", "3.4.0"),
         (EE_VERSION, "nogc64-3.4.0-0-r61", "3.4.0"),
-        ("gc64-2.11.1-0-r60", "gc64-2.11.1-0-r61", "gc64-2.11.1"),
-        ("nogc64-2.11.1-0-r60", "nogc64-2.11.1-0-r61", "nogc64-2.11.1"),
         ("gc64-3.4.0-rc1-0-r60", "gc64-3.4.0-rc1-0-r61", "3.4.0-rc1"),
         ("debug-gc64-3.4.0-0-r60", "debug-gc64-3.4.0-0-r61", "debug-3.4.0"),
     ],

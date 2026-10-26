@@ -377,10 +377,10 @@ with `--local-dir`. Complete Tarantool Enterprise build names, including
 `nogc64` or RC, also select Enterprise Edition. For tt Enterprise, append `ee`
 to a version from `tt binary search tt-ee` to select that archive.
 
-Standalone `tarantool-ee` release installations use the Tarantool version without the SDK
-revision, commit count, or hash: `3.8.1` for 3.x and newer, or `gc64-2.11.1` /
-`nogc64-2.11.1` for older versions. Prerelease and debug variants remain separate,
-such as `3.8.1-rc1`, `debug-3.8.1`, or `debug-gc64-2.11.1`.
+Standalone `tarantool-ee` release installations use the Tarantool version
+without the `gc64`/`nogc64` prefix, SDK revision, commit count, or hash, such as
+`3.8.1`. Prerelease and debug variants remain separate, such as `3.8.1-rc1` or
+`debug-3.8.1`.
 For example, `gc64-3.8.1-0-r93` and `gc64-3.8.1-0-r94` both install into
 `versions/tarantool-ee/tarantool-ee_3.8.1/`. Installing another revision preserves
 the existing executable and headers unless `--reinstall` is specified.
@@ -404,9 +404,9 @@ Version selectors without `dev_` match release installations independently.
 For `tt binary switch` and `tt binary uninstall`, EE, tt-ee, and TCM accept `X.Y.Z`
 to match installed versions in the selected scope; `X` and `X.Y` are not expanded.
 For standalone EE, an exact installed name takes precedence. Otherwise exactly
-one installation must match. For example, if both `gc64-2.11.1` and
-`nogc64-2.11.1` are installed, `tt binary switch tarantool-ee 2.11.1` fails
-with both names listed. Specify `gc64-2.11.1` to select that variant.
+one installation must match. For example, if both `3.8.1-rc1` and
+`debug-3.8.1` are installed, `tt binary switch tarantool-ee 3.8.1` fails
+with both names listed. Specify `debug-3.8.1` to select that variant.
 For tt-ee, TCM, and SDK components, different build variants, revisions, and
 prereleases count as separate matches.
 Ambiguous requests leave installations and active links unchanged.
