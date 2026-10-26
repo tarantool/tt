@@ -1,14 +1,15 @@
 local ok, config = pcall(require, 'config')
 
--- Default configuration in case the Tarantool 3.x config module is unavailable.
+-- Defaults for when require('config') gives no config module of Tarantool:
+-- it fails, or gives a module of another library of that name, such as
+-- 'moonlibs/config'.
 local config_info_full = {
     status = "uninitialized",
     alerts = {},
 }
 
--- The type check for 'config.info' ensures that we are working with the correct
--- Tarantool 3.x config module. This is necessary because another module,
--- 'moonlibs/config', shares the same name.
+-- The type check for 'config.info' ensures that we are working with the
+-- config module of Tarantool and not with another one of the same name.
 if ok and config ~= nil and type(config) == "table" and type(config.info) == "function" then
     config_info_full = config:info()
 end
