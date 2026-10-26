@@ -395,14 +395,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `<root>/bin/tt instance start --foreground --scope system <app>:%i`, or the
   `tt` that makes it, with a warning, when the scope has no `tt`, with
   `TT_SYSTEM_ROOT` set to the root of the scope, as the user and the group
-  `tarantool`, after `network.target`. `tt` stops the instance itself, so the
+  `--run-as <user>[:<group>]` names, `tarantool:tarantool` by default, after
+  `network.target`. `tt` stops the instance itself, so the
   stop signal of systemd goes to `tt` alone (`KillMode=mixed`). The drop-in
   `<app>@<instance>.service.d/tt.conf` of every instance sets `Restart=` from
   its `restart` and `TimeoutStopSec=` from its `stop_timeout`, 30 seconds by
   default, plus 5 seconds, so that systemd kills nothing before `tt` does.
   `generate` prints the units, or writes them into `--unit-dir`. `install`
   writes them into `/etc/systemd/system`, or `--unit-dir`, records the
-  instances they manage in `<root>/etc/<app>/systemd.yaml`, removes the
+  instances they manage and `--run-as` in `<root>/etc/<app>/systemd.yaml`,
+  keeps the recorded `--run-as` when the flag is not given, warns when the
+  host has no such user or group, removes the
   drop-ins of instances gone from the description, and prints the
   `systemctl` commands to run rather than running them; it refuses a unit file
   it did not write and an instance that runs without a unit. `uninstall`

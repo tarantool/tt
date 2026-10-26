@@ -31,12 +31,13 @@
 // # Mark
 //
 // tt service systemd install writes the units and the mark, <root>/etc/<app>/
-// systemd.yaml (MarkFileName): the unit directory, the template, and the
-// unit of every instance the units manage. tt instance start, stop, restart
-// and kill refuse those instances, pointing at systemctl: a watchdog of tt
-// next to the unit would supervise the instance twice, and a stop behind the
-// back of the unit would leave it out of step. tt service systemd uninstall
-// removes the units and the mark.
+// systemd.yaml (MarkFileName): the unit directory, the template, the user and
+// the group the units run the instances as, which an install that names none
+// keeps, and the unit of every instance the units manage. tt instance start,
+// stop, restart and kill refuse those instances, pointing at systemctl: a
+// watchdog of tt next to the unit would supervise the instance twice, and a
+// stop behind the back of the unit would leave it out of step.
+// tt service systemd uninstall removes the units and the mark.
 //
 // The files tt writes start with GeneratedHeader. install overwrites only
 // such files, and uninstall removes only such files: a unit of the same name

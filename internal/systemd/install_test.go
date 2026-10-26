@@ -16,6 +16,7 @@ func sampleMark(unitDir string) systemd.Mark {
 	return systemd.Mark{
 		UnitDir:  unitDir,
 		Template: "myapp@.service",
+		RunAs:    "tt-svc:tarantool",
 		Instances: map[string]string{
 			"router-1":  "myapp@router-1.service",
 			"storage-1": "myapp@storage-1.service",
@@ -92,6 +93,7 @@ func TestInstallUninstall(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(data), "# Written by tt service systemd install")
 	assert.Contains(t, string(data), "  storage-1: myapp@storage-1.service\n")
+	assert.Contains(t, string(data), "\nrun_as: tt-svc:tarantool\n")
 
 	kept, err := systemd.Uninstall(hostDir, mark)
 	require.NoError(t, err)
@@ -259,6 +261,8 @@ func TestReadMarkInvalid(t *testing.T) {
 		"no unit":       "unit_dir: /etc/systemd/system\ntemplate: a@.service\ninstances: {a: }\n",
 		"empty instance": "unit_dir: /etc/systemd/system\ntemplate: a@.service\n" +
 			"instances: {'': b}\n",
+		"bad run_as": "unit_dir: /etc/systemd/system\ntemplate: a@.service\n" +
+			"run_as: 'tt svc'\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			require.NoError(t, os.WriteFile(systemd.MarkPath(hostDir), []byte(content), 0o644))
