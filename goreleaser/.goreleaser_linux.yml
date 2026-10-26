@@ -23,7 +23,6 @@ builds:
       - -s -w
       - -X github.com/tarantool/tt/v3/cli/version.gitTag={{ .Tag }}
       - -X github.com/tarantool/tt/v3/cli/version.gitCommit={{ .ShortCommit }}
-      - -X github.com/tarantool/tt/v3/cli/configure.defaultConfigPath=/etc/tarantool
 
     goos:
       - linux
@@ -66,47 +65,6 @@ nfpms:
       - unzip
       - curl
     contents:
-      - src: "package/tt.yaml.default"
-        dst: "/etc/tarantool/tt.yaml"
-        type: config
-
-      - src: "package/logrotate.conf"
-        dst: "/etc/logrotate.d/tt.conf"
-        type: config
-        file_info:
-          mode: 0600
-
-      - dst: /etc/tarantool
-        type: ghost
-
-      # Artifacts directories for the system tt environment.
-      - dst: /var/lib/tarantool/sys_env
-        type: dir
-        file_info:
-          mode: 0750
-          owner: tarantool
-          group: tarantool
-      - dst: /var/lib/tarantool
-        type: ghost
-
-      - dst: /var/run/tarantool/sys_env
-        type: dir
-        file_info:
-          mode: 0750
-          owner: tarantool
-          group: tarantool
-      - dst: /var/run/tarantool
-        type: ghost
-
-      - dst: /var/log/tarantool/sys_env
-        type: dir
-        file_info:
-          mode: 0750
-          owner: tarantool
-          group: tarantool
-      - dst: /var/log/tarantool
-        type: ghost
-
       # ZSH, Bash and Fish autocompletion scripts get placed in appropriate directories
       # and get activated automatically with restarting corresponding shell after
       # the package installation.

@@ -22,7 +22,6 @@ builds:
       - -s -w
       - -X github.com/tarantool/tt/v3/cli/version.gitTag={{ .Tag }}
       - -X github.com/tarantool/tt/v3/cli/version.gitCommit={{ .ShortCommit }}
-      - -X github.com/tarantool/tt/v3/cli/configure.defaultConfigPath=/etc/tarantool
 
     goos:
       - darwin
