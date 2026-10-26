@@ -1584,8 +1584,8 @@ EXAMPLES[0m
   tt cat --recursive /path/to/dir1 /path/to/dir2
 
 === tt check --help
-Check the Lua file each instance runs, app.file of its config, for
-syntax errors, with the tarantool the instance runs on.
+Check the Lua file each instance runs, its script or app.file of its
+config, for syntax errors, with the tarantool the instance runs on.
 
 [0;1;39mUSAGE[0m
   tt check [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
