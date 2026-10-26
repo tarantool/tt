@@ -37,14 +37,14 @@ func restoreProcessState(t *testing.T) {
 func TestBootParsesGlobalFlags(t *testing.T) {
 	restoreProcessState(t)
 
-	root, err := Boot(BootOptions{Args: []string{"-V", "--no-prompt", "version", "-s"}})
+	root, err := Boot(BootOptions{Args: []string{"-V", "--no-prompt", "version", "-I"}})
 	require.NoError(t, err)
 
 	assert.Same(t, rootCmd, root)
 	assert.Empty(t, root.Commands())
 	assert.True(t, cmdCtx.Cli.Verbose)
 	assert.True(t, cmdCtx.Cli.NoPrompt)
-	assert.False(t, cmdCtx.Cli.IsSelfExec, "flags after the command are not the root's")
+	assert.False(t, cmdCtx.Cli.ForceInternal, "flags after the command are not the root's")
 	assert.True(t, slog.Default().Enabled(t.Context(), slog.LevelDebug))
 }
 
@@ -57,7 +57,7 @@ func TestBuiltinCommandsAfterBoot(t *testing.T) {
 	restoreProcessState(t)
 
 	root, err := Boot(BootOptions{Args: []string{
-		"-V", "--no-prompt", "-I", "-s", "start",
+		"-V", "--no-prompt", "-I", "start",
 	}})
 	require.NoError(t, err)
 
@@ -66,17 +66,17 @@ func TestBuiltinCommandsAfterBoot(t *testing.T) {
 	assert.True(t, cmdCtx.Cli.Verbose)
 	assert.True(t, cmdCtx.Cli.NoPrompt)
 	assert.True(t, cmdCtx.Cli.ForceInternal)
-	assert.True(t, cmdCtx.Cli.IsSelfExec)
 }
 
 // TestBootRefusesRemovedFlags checks that the flags that chose a tt.yaml are
-// gone: -S, -L and -c, long and short, are unknown flags of the root.
+// gone, and so is -s, which kept tt from running the tt of its bin_dir: -S,
+// -L, -c and -s, long and short, are unknown flags of the root.
 //
 //nolint:paralleltest // Replaces the package root and the process logger.
 func TestBootRefusesRemovedFlags(t *testing.T) {
 	for _, args := range [][]string{
 		{"-S"}, {"--system"}, {"-L", "dir"}, {"--local", "dir"}, {"-c", "tt.yaml"},
-		{"--cfg", "tt.yaml"},
+		{"--cfg", "tt.yaml"}, {"-s"}, {"--self"},
 	} {
 		restoreProcessState(t)
 

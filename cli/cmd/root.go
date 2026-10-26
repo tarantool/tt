@@ -112,8 +112,6 @@ func newRootCmd() *cobra.Command {
 		false, "Verbose output")
 	rootCmd.Flags().Var(&logFormat, "log-format",
 		"Format of the log written to stderr: text or json")
-	rootCmd.Flags().BoolVarP(&cmdCtx.Cli.IsSelfExec, "self", "s",
-		false, "Skip searching for other tt versions to run")
 	rootCmd.Flags().BoolVarP(&cmdCtx.Cli.NoPrompt, "no-prompt", "",
 		false, "Skip cli interaction using default behavior")
 

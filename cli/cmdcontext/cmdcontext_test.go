@@ -158,3 +158,63 @@ func TestTtCli_GetVersion(t *testing.T) {
 		})
 	}
 }
+
+// TestTtVersionOutputSelf checks how the version of another tt is asked for:
+// with --self, which keeps an older tt from running the tt of its bin_dir in
+// its place, and again without it only when the tt knows no --self.
+func TestTtVersionOutputSelf(t *testing.T) {
+	for _, testCase := range []struct {
+		name   string
+		script string
+		output string
+		err    string
+		calls  string
+	}{
+		{
+			// An older tt answers with --self, and would answer for another
+			// tt without it.
+			name: "older tt",
+			script: `if [ "$1" = --self ]; then echo 2.3.1.f7cc1de; ` +
+				`else echo 9.9.9.0000000; fi`,
+			output: "2.3.1.f7cc1de\n",
+			calls:  "--self version --commit\n",
+		},
+		{
+			// A tt without the flag refuses it and is asked again.
+			name: "tt without --self",
+			script: `if [ "$1" = --self ]; then ` +
+				`echo "   ⨯ Error: unknown flag: --self" >&2; exit 1; fi; ` +
+				`echo 3.0.0.f7cc1de`,
+			output: "3.0.0.f7cc1de\n",
+			calls:  "--self version --commit\nversion --commit\n",
+		},
+		{
+			// Any other failure is not a reason to ask without --self.
+			name:   "failing tt",
+			script: `echo "something else" >&2; exit 2`,
+			err:    "--self version --commit: exit status 2",
+			calls:  "--self version --commit\n",
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			dir := t.TempDir()
+			calls := filepath.Join(dir, "calls")
+			tt := filepath.Join(dir, "tt")
+
+			require.NoError(t, os.WriteFile(tt, []byte("#!/bin/sh\n"+
+				`echo "$*" >> '`+calls+"'\n"+testCase.script+"\n"), 0o755))
+
+			output, err := cmdcontext.TtVersionOutput(t.Context(), tt)
+			if testCase.err != "" {
+				require.ErrorContains(t, err, testCase.err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, testCase.output, string(output))
+			}
+
+			made, err := os.ReadFile(calls)
+			require.NoError(t, err)
+			assert.Equal(t, testCase.calls, string(made))
+		})
+	}
+}

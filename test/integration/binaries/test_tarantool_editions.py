@@ -28,7 +28,6 @@ def test_install_enterprise_through_tarantool(tt_cmd, tmp_path, requested):
 
     cmd = [
         tt_cmd,
-        "--self",
         "binary",
         "install",
         "tarantool",
@@ -68,7 +67,7 @@ def test_switch_and_uninstall_edition(tt_cmd, tmp_path, requested, program, stor
         selected = install_version(root, program, stored)
     if stored.startswith("sdk-"):
         selected = selected.rename(selected.with_name(f"tarantool_sdk_{stored[4:]}"))
-    cmd = [tt_cmd, "--self", "binary"]
+    cmd = [tt_cmd, "binary"]
 
     rc, output = run_command_and_get_output(
         [*cmd, "switch", "tarantool", requested],
@@ -100,7 +99,7 @@ def test_switch_selects_edition_then_version(
     }
     program = family + "-ee" if enterprise else family
     selected = installed[program]
-    cmd = [tt_cmd, "--self", "binary", "switch"]
+    cmd = [tt_cmd, "binary", "switch"]
     answers = []
     if choose_program:
         keys = "\n" if family == "tarantool" else "\x1b[B\n"
@@ -121,7 +120,7 @@ def test_switch_displays_full_dev_version(tt_cmd, tmp_path):
     dev_version = "dev_gc64-3.8.1-0-r94"
     selected = install_version(root, "tarantool-ee", dev_version)
     rc, output = run_interactive_switch(
-        [tt_cmd, "--self", "binary", "switch", "tarantool"],
+        [tt_cmd, "binary", "switch", "tarantool"],
         tmp_path,
         [("Select tarantool edition", "\x1b[B\n"), ("Select version", "\n")],
     )
@@ -141,7 +140,7 @@ def test_switch_sdk_only_in_enterprise_menu(tt_cmd, tmp_path, enterprise):
 
     keys = "\x1b[B\n" if enterprise else "\n"
     rc, output = run_interactive_switch(
-        [tt_cmd, "--self", "binary", "switch", "tarantool"],
+        [tt_cmd, "binary", "switch", "tarantool"],
         tmp_path,
         [("Select tarantool edition", keys), ("Select version", keys)],
     )
@@ -168,7 +167,7 @@ def test_switch_and_uninstall_tt_edition(tt_cmd, tmp_path, requested, program, s
     selected = installed[program]
     if stored != "2.15.0":
         selected = install_version(root, program, stored)
-    cmd = [tt_cmd, "--self", "binary"]
+    cmd = [tt_cmd, "binary"]
 
     rc, output = run_command_and_get_output([*cmd, "switch", "tt", requested], cwd=tmp_path)
     assert rc == 0, output

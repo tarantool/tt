@@ -114,7 +114,6 @@ def install(
     return run_command_and_get_output(
         [
             tt_cmd,
-            "--self",
             "binary",
             "install",
             program,
@@ -174,7 +173,7 @@ def test_bundle_dev_coexists_with_release(tt_cmd, tmp_path, scope, program, full
         )
         assert (release / "include" / "tarantool" / "module.h").read_text() == "release"
 
-    command = [tt_cmd, "--self", "binary", "--scope", scope]
+    command = [tt_cmd, "binary", "--scope", scope]
     for flags, label in [([], "installed"), (["--dev"], "active")]:
         rc, output = run_command_and_get_output(
             [*command, "search", program, "--local-dir", "local bundles", *flags], cwd=tmp_path,
@@ -241,7 +240,7 @@ def test_ee_dev_revisions_remain_separate(tt_cmd, tmp_path):
         directory = root / "versions" / "tarantool-ee" / f"tarantool-ee_dev_{selected}"
         assert (root / "bin" / "tarantool").resolve(strict=True) == directory / "tarantool"
 
-    command = [tt_cmd, "--self", "binary"]
+    command = [tt_cmd, "binary"]
     for operation in ("switch", "uninstall"):
         rc, output = run_command_and_get_output(
             [*command, operation, "tarantool", "dev_3.4.0"], cwd=tmp_path,
@@ -303,7 +302,7 @@ def test_bundle_search_keeps_full_versions(tt_cmd, tmp_path, program):
         make_bundle(tmp_path, program, version)
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "--self", "binary", "search", program, "--local-dir", "local bundles"],
+        [tt_cmd, "binary", "search", program, "--local-dir", "local bundles"],
         cwd=tmp_path,
         stderr=None,
     )
@@ -340,14 +339,14 @@ def test_bundle_switch_and_uninstall_numeric_version(
     assert_active(root, program, other_version)
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "--self", "binary", "switch", program, numeric_version],
+        [tt_cmd, "binary", "switch", program, numeric_version],
         cwd=tmp_path,
     )
     assert rc == 0, output
     assert_active(root, program, full_version)
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "--self", "binary", "uninstall", program, numeric_version],
+        [tt_cmd, "binary", "uninstall", program, numeric_version],
         cwd=tmp_path,
     )
     assert rc == 0, output
@@ -378,7 +377,7 @@ def test_bundle_short_version_preserves_sole_installation(
     selected = assert_active(root, program, full_version)
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "--self", "binary", operation, program, requested],
+        [tt_cmd, "binary", operation, program, requested],
         cwd=tmp_path,
     )
     assert rc != 0, output
@@ -417,7 +416,7 @@ def test_bundle_ambiguous_version_preserves_installations(
     links_before = [(root / directory / executable).readlink() for directory in link_dirs]
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "--self", "binary", operation, program, requested],
+        [tt_cmd, "binary", operation, program, requested],
         cwd=tmp_path,
     )
     assert rc != 0, output
@@ -429,7 +428,7 @@ def test_bundle_ambiguous_version_preserves_installations(
     assert_active(root, program, second)
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "--self", "binary", operation, program, first],
+        [tt_cmd, "binary", operation, program, first],
         cwd=tmp_path,
     )
     assert rc == 0, output
@@ -568,7 +567,7 @@ def test_ee_canonical_stable_version_with_prerelease_and_debug(
         assert rc == 0, output
         assert_active(root, "tarantool-ee", version)
 
-    rc, output = run_command_and_get_output([tt_cmd, "--self", "binary", "list"], cwd=tmp_path)
+    rc, output = run_command_and_get_output([tt_cmd, "binary", "list"], cwd=tmp_path)
     assert rc == 0, output
     for identity in ["3.4.0", "3.4.0-rc1", "debug-3.4.0"]:
         assert identity in output
@@ -576,7 +575,7 @@ def test_ee_canonical_stable_version_with_prerelease_and_debug(
 
     requested = "gc64-3.4.0-0-r61" if full_request else "3.4.0"
     rc, output = run_command_and_get_output(
-        [tt_cmd, "--self", "binary", operation, "tarantool-ee", requested],
+        [tt_cmd, "binary", operation, "tarantool-ee", requested],
         cwd=tmp_path,
     )
     assert rc == 0, output
@@ -675,7 +674,6 @@ def test_ee_switches_both_ce_active_links(tt_cmd, tmp_path):
     rc, output = run_command_and_get_output(
         [
             tt_cmd,
-            "--self",
             "binary",
             "install",
             "tarantool",
@@ -716,7 +714,6 @@ def test_public_tarantool_enterprise_selector(tt_cmd, tmp_path, requested, extra
     rc, output = run_command_and_get_output(
         [
             tt_cmd,
-            "--self",
             "binary",
             "--scope",
             "project",

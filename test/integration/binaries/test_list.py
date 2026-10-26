@@ -45,7 +45,7 @@ def list_fixture(project: Path) -> Path:
 
 def list_binaries(tt_cmd, project, scope="project"):
     return run_command_and_get_output(
-        [tt_cmd, "--self", "binary", "--scope", scope, "list"],
+        [tt_cmd, "binary", "--scope", scope, "list"],
         cwd=project,
     )
 

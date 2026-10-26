@@ -73,7 +73,6 @@ def install_tarantool(tt_cmd, tmp_path, flags=(), force=True, version="3.2.1"):
     return run_command_and_get_output(
         [
             tt_cmd,
-            "--self",
             "binary",
             "install",
             "tarantool",
@@ -314,7 +313,6 @@ def test_install_tarantool_remote_revision(tt_cmd, tmp_path, monkeypatch, revisi
     rc, output = run_command_and_get_output(
         [
             tt_cmd,
-            "--self",
             "binary",
             "install",
             "tarantool",
@@ -356,7 +354,7 @@ def test_install_tarantool_existing_master(tt_cmd, tmp_path, local_tarantool_bui
     headers = version / "include" / "tarantool"
     headers.mkdir(parents=True)
 
-    args = [tt_cmd, "--self"]
+    args = [tt_cmd]
     if not update:
         args.append("--no-prompt")
     args.extend(
@@ -417,7 +415,6 @@ def test_install_tarantool_from_build(tt_cmd, tmp_path, scope, binary_path, head
     rc, output = run_command_and_get_output(
         [
             tt_cmd,
-            "--self",
             "binary",
             "install",
             "tarantool",
@@ -481,7 +478,7 @@ def test_install_tarantool_from_build_failure(tt_cmd, tmp_path, failure):
         flags = ["--include-dir", str(includes)]
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "--self", "binary", "install", "tarantool", "--from-build", str(build), *flags],
+        [tt_cmd, "binary", "install", "tarantool", "--from-build", str(build), *flags],
         cwd=tmp_path,
     )
     assert rc != 0, output
@@ -508,7 +505,6 @@ def test_install_tarantool_from_build_invalid_headers_preserves_links(
     rc, output = run_command_and_get_output(
         [
             tt_cmd,
-            "--self",
             "binary",
             "install",
             "tarantool",
@@ -550,7 +546,6 @@ def test_install_tarantool_from_build_uses_current_directory(tt_cmd, tmp_path):
     rc, output = run_command_and_get_output(
         [
             tt_cmd,
-            "--self",
             "binary",
             "install",
             "tarantool",
@@ -649,7 +644,6 @@ def test_install_tarantool_docker_existing_master(tt_cmd, tmp_path, docker_taran
     rc, output = run_command_and_get_output(
         [
             tt_cmd,
-            "--self",
             "binary",
             "install",
             "tarantool",
@@ -692,7 +686,6 @@ def test_install_tarantool_system_scope_in_docker(tt_cmd, tmp_path, docker_taran
             f"type=bind,source={target},target=/opt/tarantool",
             "ubuntu:20.04",
             "/tt",
-            "--self",
             "binary",
             "install",
             "tarantool",
@@ -743,7 +736,6 @@ def test_install_tarantool_from_build_common_flags(tt_cmd, tmp_path, monkeypatch
     rc, output = run_command_and_get_output(
         [
             tt_cmd,
-            "--self",
             "binary",
             "install",
             "tarantool",
