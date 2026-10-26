@@ -237,10 +237,11 @@ func TestReloadProject(t *testing.T) {
 	require.ErrorIs(t, err, app.ErrInstanceNotFound)
 }
 
-// TestReloadReadsConfig pins that the watchdog reads the instance anew with
-// the cluster config of its pair, whatever the context it was given was
-// built with: the commands that only stop and inspect instances leave the
-// config unread (app.Options.SkipConfig), the start of an instance does not.
+// TestReloadReadsConfig pins that the watchdog requires the cluster config
+// of its pair when it reads the instance anew, whatever the context it was
+// given was built with: the commands that only stop and inspect instances
+// read the config as far as they can (app.Options.BestEffortConfig), the
+// start of an instance does not do without it.
 func TestReloadReadsConfig(t *testing.T) {
 	setScopeRoots(t)
 
@@ -249,22 +250,70 @@ func TestReloadReadsConfig(t *testing.T) {
 	files := pairFiles("storage-1:\n", "storage-1")
 	config := files[".templates/default/config.yaml"] + "wal:\n  dir: " + wal + "\n"
 
-	files[".templates/default/config.yaml"] = config
+	files[".templates/default/config.yaml"] = "groups: [\n"
 	writeFiles(t, dir, files)
 
-	insts, err := collect(t, app.Options{Start: dir, SkipConfig: true})
+	insts, err := collect(t, app.Options{Start: dir, BestEffortConfig: true})
 	require.NoError(t, err)
 	require.Len(t, insts, 1)
 	assert.Nil(t, insts[0].Configuration)
 	assert.NotEqual(t, wal, insts[0].WalDir, "the layout without the config")
 
+	_, err = reload(t.Context(), &insts[0], integrity.IntegrityCtx{Repository: nil})
+	require.ErrorIs(t, err, errNotReloaded)
+
+	writeFiles(t, dir, map[string]string{".templates/default/config.yaml": config})
+
 	reloaded, err := reload(t.Context(), &insts[0], integrity.IntegrityCtx{Repository: nil})
 	require.NoError(t, err)
 	assert.NotNil(t, reloaded.Configuration)
 	assert.Equal(t, wal, reloaded.WalDir, "the config has the last word")
+}
+
+// TestCollectBestEffortConfig pins the contexts of the instances of a pair
+// whose config is read as far as it can be: a config that can be read has
+// the last word on the paths it sets, the console socket among them; an
+// instance it does not declare, or does not fit, and every instance of a
+// config that cannot be read get the paths of the layout.
+func TestCollectBestEffortConfig(t *testing.T) {
+	setScopeRoots(t)
+
+	dir := filepath.Join(t.TempDir(), fixtureApp)
+	socket := filepath.Join(t.TempDir(), "console.sock")
+	topology := "groups:\n  g:\n    replicasets:\n      r:\n        instances:\n" +
+		"          storage-1:\n            console:\n              socket: " + socket + "\n" +
+		"          storage-2:\n            wal:\n              dir: 5\n"
+	files := pairFiles("storage-1:\nstorage-2:\nstorage-3:\n")
+
+	files[".templates/default/config.yaml"] = topology
+	writeFiles(t, dir, files)
+
+	opts := app.Options{Start: dir, BestEffortConfig: true}
+
+	insts, err := collect(t, opts)
+	require.NoError(t, err)
+	require.Len(t, insts, 3)
+
+	layout, err := collect(t, app.Options{Start: dir, BestEffortConfig: true}, "myapp:storage-3")
+	require.NoError(t, err)
+
+	layoutSocket := func(inst string) string {
+		return strings.Replace(layout[0].ConsoleSocket, "storage-3", inst, 1)
+	}
+
+	assert.Equal(t, socket, insts[0].ConsoleSocket, "the config moves the socket")
+	assert.NotNil(t, insts[0].Configuration)
+	assert.Equal(t, layoutSocket("storage-2"), insts[1].ConsoleSocket, "a config that does not fit")
+	assert.Nil(t, insts[1].Configuration)
+	assert.Equal(t, layoutSocket("storage-3"), insts[2].ConsoleSocket, "an instance it lacks")
+	assert.Nil(t, insts[2].Configuration)
+
+	_, err = collect(t, app.Options{Start: dir})
+	require.ErrorIs(t, err, app.ErrTopologyMismatch, "the config is required without it")
 
 	writeFiles(t, dir, map[string]string{".templates/default/config.yaml": "groups: [\n"})
 
-	_, err = reload(t.Context(), &insts[0], integrity.IntegrityCtx{Repository: nil})
-	require.ErrorIs(t, err, errNotReloaded)
+	insts, err = collect(t, opts)
+	require.NoError(t, err)
+	assert.Equal(t, layoutSocket("storage-1"), insts[0].ConsoleSocket, "a config not read")
 }

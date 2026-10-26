@@ -505,11 +505,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   needs no `config.yaml` and does not read one, while `tt cluster show` and
   `publish` refuse an application without it. `tt instance stop`, `kill`,
   `status`, `logrotate` and `logs`, the completion of a target and
-  `tt replicaset status` read neither `config.yaml` nor the config storage it
-  names, as they did not with `tt.yaml`: they find the instances by
+  `tt replicaset status` read `config.yaml` and the config storage it names
+  as far as they can, as they did with `tt.yaml`: they find the instances by
   `instances.yaml` and their pid files, so a broken config or an etcd that is
-  down does not keep them from the running instances, which
-  `tt instance status` asks for their state over the console socket. Data,
+  down does not keep them from the running instances, which then get the
+  paths of the layout, after the wait for the storage; a config that can be
+  read still moves the console socket and the other paths it sets. Data,
   logs, pid files and sockets go to
   `<root>/var/{lib,log,run}/<app>/<instance>/`, where `<root>` is `.tarantool`
   in a project. Targets are `<APP>:<INSTANCE>`, `<APP>:*` and

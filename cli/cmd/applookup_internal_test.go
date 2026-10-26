@@ -157,7 +157,7 @@ func TestReplicasetLookup(t *testing.T) {
 
 	var ctx replicasetCtx
 
-	require.NoError(t, replicasetFillCtx(cmdCtx, &ctx, "myapp", false, skipConfig))
+	require.NoError(t, replicasetFillCtx(cmdCtx, &ctx, "myapp", false, tryConfig))
 	assert.Equal(t, []string{"storage-1", "storage-2"}, instanceNames(ctx.RunningCtx.Instances))
 	assert.Equal(t, version, ctx.RunningCtx.Instances[0].AppDir)
 
@@ -170,7 +170,7 @@ func TestReplicasetLookup(t *testing.T) {
 
 	findCommand(t, NewReplicasetCmd(), []string{"status"}, "--scope", "global")
 
-	_, insts, _, err = resolveAppTarget(cmdCtx, "myapp", skipConfig)
+	_, insts, _, err = resolveAppTarget(cmdCtx, "myapp", tryConfig)
 	require.ErrorIs(t, err, app.ErrUnknownScope)
 	assert.Empty(t, insts)
 }

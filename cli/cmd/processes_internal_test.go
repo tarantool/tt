@@ -126,8 +126,8 @@ func statusOf(t *testing.T) map[string]string {
 // logrotate and logs, the completion of a target and tt replicaset status
 // find the instances of a pair whose cluster config cannot be read, a thin
 // config pointing at an etcd that is down or a config broken by an edit, by
-// the description and the pid files alone, and act on the running ones;
-// while tt instance start, which needs the config, fails on it.
+// the description and the pid files, and act on the running ones; while
+// tt instance start, which needs the config, fails on it.
 //
 //nolint:paralleltest // Sets the environment, the working directory and the flags.
 func TestProcessCommandsWithoutConfig(t *testing.T) {
@@ -180,9 +180,36 @@ func TestProcessCommandsWithoutConfig(t *testing.T) {
 			require.Error(t, err)
 			assert.Empty(t, replicas)
 
-			_, replicas, _, err = resolveAppTarget(cmdCtx, "myapp", skipConfig)
+			_, replicas, _, err = resolveAppTarget(cmdCtx, "myapp", tryConfig)
 			require.NoError(t, err)
 			assert.Equal(t, []string{"storage-1", "storage-2"}, instanceNames(replicas))
 		})
 	}
+}
+
+// TestProcessCommandsReadConfig pins that the commands that act on the
+// processes of the instances still take what a config that can be read
+// says: the console socket it moves out of the layout, which
+// tt instance status and tt replicaset status ask an instance over.
+//
+//nolint:paralleltest // Sets the environment, the working directory and the flags.
+func TestProcessCommandsReadConfig(t *testing.T) {
+	socket := filepath.Join(t.TempDir(), "storage-1.control")
+
+	configlessProject(t, "groups:\n  g:\n    replicasets:\n      r:\n        instances:\n"+
+		"          storage-1:\n            console:\n              socket: "+socket+"\n"+
+		"          storage-2: {}\n")
+
+	cmdCtx := &cmdcontext.CmdCtx{}
+
+	insts, err := resolveProcesses(cmdCtx, nil)
+	require.NoError(t, err)
+	require.Len(t, insts, 2)
+	assert.Equal(t, socket, insts[0].ConsoleSocket)
+	assert.NotEqual(t, socket, insts[1].ConsoleSocket)
+
+	_, replicas, _, err := resolveAppTarget(cmdCtx, "myapp", tryConfig)
+	require.NoError(t, err)
+	require.Len(t, replicas, 2)
+	assert.Equal(t, socket, replicas[0].ConsoleSocket)
 }
