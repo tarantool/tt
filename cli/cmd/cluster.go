@@ -456,10 +456,8 @@ func NewClusterCmd() *cobra.Command {
 				return nil, cobra.ShellCompDirectiveNoFileComp
 			}
 
-			return internal.ValidArgsFunction(
-				&cmdCtx, cmd, toComplete,
-				running.ExtractActiveAppNames,
-				running.ExtractActiveInstanceNames)
+			return internal.ClusterValidArgsFunction(&cmdCtx, cmd, toComplete,
+				internal.Active)
 		},
 	}
 	show.Flags().StringVarP(&showCtx.Username, "username", "u", "",
@@ -496,10 +494,8 @@ func NewClusterCmd() *cobra.Command {
 			args []string,
 			toComplete string,
 		) ([]string, cobra.ShellCompDirective) {
-			return internal.ValidArgsFunction(
-				&cmdCtx, cmd, toComplete,
-				running.ExtractActiveAppNames,
-				running.ExtractActiveInstanceNames)
+			return internal.ClusterValidArgsFunction(&cmdCtx, cmd, toComplete,
+				internal.Active)
 		},
 	}
 	publish.Flags().StringVarP(&publishCtx.Username, "username", "u", "",

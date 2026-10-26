@@ -7,7 +7,6 @@ import (
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
-	"github.com/tarantool/tt/v3/cli/running"
 	"github.com/tarantool/tt/v3/cli/util"
 )
 
@@ -24,10 +23,8 @@ func NewRestartCmd() *cobra.Command {
 			args []string,
 			toComplete string,
 		) ([]string, cobra.ShellCompDirective) {
-			return internal.ValidArgsFunction(
-				&cmdCtx, cmd, toComplete,
-				running.ExtractActiveAppNames,
-				running.ExtractActiveInstanceNames)
+			return internal.ValidArgsFunction(&cmdCtx, cmd, toComplete,
+				internal.Active)
 		},
 	}
 

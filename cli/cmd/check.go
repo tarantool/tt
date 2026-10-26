@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/running"
 )
@@ -17,6 +18,13 @@ func NewCheckCmd() *cobra.Command {
 		Long: "Check the Lua file each instance runs, its script or app.file of its\n" +
 			"config, for syntax errors, with the tarantool the instance runs on.",
 		RunE: internalRunE(internalCheckModule),
+		ValidArgsFunction: func(
+			cmd *cobra.Command,
+			args []string,
+			toComplete string,
+		) ([]string, cobra.ShellCompDirective) {
+			return internal.ValidArgsFunction(&cmdCtx, cmd, toComplete, internal.Any)
+		},
 	}
 
 	return checkCmd
