@@ -33,6 +33,7 @@ COMMANDS[0m
   restore     Restore a Tarantool cluster from a backup (PITR)
   rocks       LuaRocks package manager
   run         Run the current package under its Tarantool
+  service     Integrate with the service manager of the system
   tcm         Manage tcm application
   test        Build the current package and run its tests
   version     Show Tarantool CLI version information
@@ -2680,6 +2681,10 @@ A command that acts on several instances goes on after a failure of one of them
 and exits 3 when it failed for some of them only. What the exit codes mean is in
 tt help errors.
 
+An instance that tt service systemd install put under a systemd unit is started
+and stopped with systemctl: start, stop, restart and kill refuse it, and status
+shows its unit.
+
 [0;1;39mUSAGE[0m
   tt instance [flags] <command> [command flags]
 [0;1;39m
@@ -4361,6 +4366,108 @@ EXAMPLES[0m
     $ TT_USE_SYSTEM_TARANTOOL=1 tt run script.lua
 
 
+=== tt service --help
+Integrate with the service manager of the system
+
+[0;1;39mUSAGE[0m
+  tt service [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  systemd     Run the instances of an application under systemd units
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for service
+
+Use "tt service <command> --help" for more information about a command.
+
+=== tt service systemd --help
+Make the systemd units that run the instances of an application installed in the
+system scope.
+
+The template unit <APP>@.service runs one instance, tt instance start
+--foreground <APP>:%i, with TT_SYSTEM_ROOT set to the root of the system scope,
+as the user and the group tarantool. tt does not restart the instance: systemd
+does, as Restart= says. The drop-in <APP>@<INSTANCE>.service.d/tt.conf of every
+instance sets Restart= from the restart field of its record and TimeoutStopSec=
+from its stop_timeout, with a margin for tt, which stops the instance itself.
+ExecStart= runs <root>/bin/tt, or the tt that makes the units when the system
+scope has none.
+
+install records the instances in <root>/etc/<APP>/systemd.yaml: tt instance
+start, stop, restart and kill refuse them and point at systemctl. tt does not
+run systemctl itself.
+
+<APP> names an application as the instance commands name it, and the units are
+made for the system scope only: the user scope and projects are refused; inside
+a project of the same name, --scope system picks the installed application.
+
+[0;1;39mUSAGE[0m
+  tt service systemd [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  generate    Print the systemd units of an application
+  install     Install the systemd units of an application
+  uninstall   Remove the systemd units of an application
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for systemd
+
+Use "tt service systemd <command> --help" for more information about a command.
+
+=== tt service systemd generate --help
+Print the systemd units of the application: the template unit and the drop-in of
+every instance, each after a line ==> <file> <==. With --unit-dir the units are
+written into the directory instead, which is created if need be. Nothing is
+installed and nothing is recorded: tt instance commands do not leave the
+instances to the units.
+
+[0;1;39mUSAGE[0m
+  tt service systemd generate <APP> [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help              help for generate
+      --scope string      scope the application is looked for in: only system is
+                          supported
+      --unit-dir string   write the units into this directory instead of
+                          printing them
+
+=== tt service systemd install --help
+Write the systemd units of the application into the unit directory,
+/etc/systemd/system unless --unit-dir names another, and record in
+<root>/etc/<APP>/systemd.yaml that the units manage its instances. Run it again
+after the instances of the application change: it rewrites the units and removes
+the drop-ins of the instances that are gone. A unit file of the same name that
+tt did not write is an error, and so is an instance that runs without a unit:
+stop it with tt instance stop first.
+
+systemctl is not run: the command prints what to run.
+
+[0;1;39mUSAGE[0m
+  tt service systemd install <APP> [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help              help for install
+      --scope string      scope the application is looked for in: only system is
+                          supported
+      --unit-dir string   the directory the units are written into (default
+                          "/etc/systemd/system")
+
+=== tt service systemd uninstall --help
+Remove the systemd units tt service systemd install wrote for the application,
+from the directory it wrote them into, and the record in
+<root>/etc/<APP>/systemd.yaml. The application itself is not needed. Units that
+are not installed are no failure: there is nothing to remove. An instance that
+runs under its unit is an error: stop the units first, with systemctl disable
+--now. A file tt did not write is left in place.
+
+[0;1;39mUSAGE[0m
+  tt service systemd uninstall <APP> [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help           help for uninstall
+      --scope string   scope the application is looked for in: only system is
+                       supported
+
 === tt tcm --help
 Manage tcm application
 
@@ -5373,6 +5480,7 @@ replicaset	Manage replicasets
 restore	Restore a Tarantool cluster from a backup (PITR)
 rocks	LuaRocks package manager
 run	Run the current package under its Tarantool
+service	Integrate with the service manager of the system
 tcm	Manage tcm application
 test	Build the current package and run its tests
 version	Show Tarantool CLI version information

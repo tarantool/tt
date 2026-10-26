@@ -105,6 +105,17 @@ exits with 0 when the instances were stopped, and with the exit code of an
 instance that failed. A command over several instances goes on after an
 instance it fails for and exits with 3 when some of them failed.
 
+### systemd units come from tt service systemd
+
+The units `tt pack` of `tt` 2.x put into packages ran `tt -L <environment>
+start` as forking services, and do not work with `tt` 3.0. For an application
+installed in the system scope, `tt service systemd install <app>` writes a
+template unit `<app>@.service`, which runs one instance with
+`tt instance start --foreground`, and a drop-in for every instance with the
+`restart` and `stop_timeout` of its record; `systemctl` starts and stops the
+instances then, and `tt instance start`, `stop`, `restart` and `kill` refuse
+them. See [Running instances under systemd](../README.md#running-instances-under-systemd).
+
 ## 1.3.1 -> 2.0.0
 
 ### New format of tt config file

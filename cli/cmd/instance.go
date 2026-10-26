@@ -68,7 +68,10 @@ func NewInstanceCmd() *cobra.Command {
 			"the application, \"default\" unless --template names another.\n\n" +
 			"A command that acts on several instances goes on after a failure of one " +
 			"of them and exits 3 when it failed for some of them only. " +
-			"What the exit codes mean is in tt help errors.",
+			"What the exit codes mean is in tt help errors.\n\n" +
+			"An instance that tt service systemd install put under a systemd unit is " +
+			"started and stopped with systemctl: start, stop, restart and kill refuse " +
+			"it, and status shows its unit.",
 	}
 
 	instanceCmd.AddCommand(

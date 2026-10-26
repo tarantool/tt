@@ -64,6 +64,7 @@ func BuiltinCommands() []*cobra.Command {
 		NewVersionCmd(),
 		NewCompletionCmd(),
 		NewInstanceCmd(),
+		NewServiceCmd(),
 		NewConnectCmd(),
 		NewRocksCmd(),
 		NewCatCmd(),

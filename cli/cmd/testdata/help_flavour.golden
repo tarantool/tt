@@ -32,6 +32,7 @@ COMMANDS[0m
   restore     Restore a Tarantool cluster from a backup (PITR)
   rocks       LuaRocks package manager
   run         Run the current package under its Tarantool
+  service     Integrate with the service manager of the system
   tcm         Manage tcm application
   test        Build the current package and run its tests
   version     Show Tarantool CLI EE version information
