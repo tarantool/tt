@@ -85,6 +85,11 @@ func fromProjectLink(link string) (Executable, bool, error) {
 			return Executable{}, false, fmt.Errorf("%w: %s", errBrokenLink, link)
 		}
 
+		err = checkExecutable(link)
+		if err != nil {
+			return Executable{}, false, err
+		}
+
 		return Executable{
 			Path:     link,
 			Origin:   OriginProject,
@@ -107,6 +112,11 @@ func fromProjectLink(link string) (Executable, bool, error) {
 		return Executable{}, false, fmt.Errorf(
 			"%w: %s selects %s; select an installed version with: tt binary switch tarantool",
 			errBrokenLink, link, target)
+	}
+
+	err = checkExecutable(target)
+	if err != nil {
+		return Executable{}, false, fmt.Errorf("%w; %s selects it", err, link)
 	}
 
 	program, selected := installationOf(target)

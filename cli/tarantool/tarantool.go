@@ -67,6 +67,9 @@ var (
 	// ErrNoTarantool reports a project with no tarantool of its own and none on
 	// PATH.
 	ErrNoTarantool = errors.New("no tarantool executable found")
+	// ErrNotExecutable reports that the tarantool chosen for the application
+	// is there, but has no execute permission.
+	ErrNotExecutable = errors.New("tarantool is not executable")
 )
 
 // Origin tells where Resolve took the executable from.
@@ -168,6 +171,28 @@ func useSystem() bool {
 func installHint(program binary.Program, version string, appScope binary.Scope) string {
 	return fmt.Sprintf("tt binary install %s %s --scope %s", binary.ProgramCe,
 		binary.VersionArgument(program, version), appScope)
+}
+
+// checkExecutable returns ErrNotExecutable for the chosen tarantool at path
+// that has no execute permission.
+//
+// Such a file is chosen all the same, as nothing else is in its place, and
+// the failure to run it would come only once tarantool is executed: for
+// tt instance start that is in the watchdog, already detached from the
+// command, which would report the instance started while its tt.log tells
+// that it was not. Resolve runs nothing, so the permission bits are what it
+// looks at, as exec.LookPath does.
+func checkExecutable(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("cannot inspect %s: %w", path, err)
+	}
+
+	if info.Mode().Perm()&0o111 == 0 {
+		return fmt.Errorf("%w: %s has no execute permission", ErrNotExecutable, path)
+	}
+
+	return nil
 }
 
 // manifestPath returns the path of the manifest in the application directory.
