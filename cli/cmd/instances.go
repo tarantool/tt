@@ -56,13 +56,25 @@ func resolveInstances(cmdCtx *cmdcontext.CmdCtx, args []string) ([]running.Insta
 }
 
 // resolveInstancesWith resolves args, as resolveInstances does, with opts.
+// The contexts name the systemd units that manage the instances, if any
+// (running.AttachUnits).
 func resolveInstancesWith(args []string, opts app.Options) ([]running.InstanceCtx, error) {
 	targets, err := app.ParseTargets(args)
 	if err != nil {
 		return nil, err
 	}
 
-	return running.Collect(context.Background(), targets, opts)
+	insts, err := running.Collect(context.Background(), targets, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	err = running.AttachUnits(insts)
+	if err != nil {
+		return nil, err
+	}
+
+	return insts, nil
 }
 
 // describeTargets names the targets args give for a confirmation prompt.

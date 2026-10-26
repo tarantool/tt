@@ -35,6 +35,11 @@ func internalStopWithConfirmationModule(cmdCtx *cmdcontext.CmdCtx, args []string
 		return err
 	}
 
+	err = refuseManaged(instances, "stop", nil)
+	if err != nil {
+		return err
+	}
+
 	// --no-prompt is no confirmation: --yes is.
 	confirmed, err := confirm("Confirm stop of " + describeTargets(args))
 	if err != nil {

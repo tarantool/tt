@@ -154,9 +154,20 @@ func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 // tt instance restart, as the flags of tt instance start say: in the
 // background, in the foreground, or as the watchdog of one instance, of the
 // background or of the foreground.
+//
+// An instance that a systemd unit manages is refused, but when its unit
+// starts it (startedByItsUnit). The watchdog is started by a tt that has
+// checked that already.
 func startResolved(cmdCtx *cmdcontext.CmdCtx, instances []running.InstanceCtx) error {
 	if watchdog && len(instances) != 1 {
 		return util.NewArgError("the watchdog runs one instance")
+	}
+
+	if !watchdog {
+		err := refuseManaged(instances, "start", startedByItsUnit)
+		if err != nil {
+			return err
+		}
 	}
 
 	// The watchdog of the foreground has been checked by tt in the

@@ -44,6 +44,11 @@ func internalRestartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
+	err = refuseManaged(instances, "restart", nil)
+	if err != nil {
+		return err
+	}
+
 	confirmed, err := confirm("Confirm restart of " + describeTargets(args))
 	if err != nil {
 		return err
