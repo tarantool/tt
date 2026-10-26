@@ -206,11 +206,11 @@ func TestInstanceCommandsOfScripts(t *testing.T) {
 	assert.NoFileExists(t, inst.Log)
 }
 
-// TestAppOrchestrator pins the orchestrator of an application target of
-// tt replicaset: the one the flags force, else the custom orchestrator for an
-// application without Tarantool instances of the cluster config, else none,
-// which leaves it to the version of tarantool.
-func TestAppOrchestrator(t *testing.T) {
+// TestTargetOrchestrator pins the orchestrator of a target of tt replicaset:
+// the one the flags force, else the custom orchestrator for an application
+// without Tarantool instances of the cluster config, else the centralized
+// config orchestrator, which an instance given by its URI also gets.
+func TestTargetOrchestrator(t *testing.T) {
 	load := func(files map[string]string) *app.App {
 		scriptProject(t, files)
 
@@ -230,7 +230,11 @@ func TestAppOrchestrator(t *testing.T) {
 		want        replicaset.Orchestrator
 	}{
 		{"scripts", replicaset.OrchestratorUnknown, scripts, replicaset.OrchestratorCustom},
-		{"mixed", replicaset.OrchestratorUnknown, mixed, replicaset.OrchestratorUnknown},
+		{
+			"mixed", replicaset.OrchestratorUnknown, mixed,
+			replicaset.OrchestratorCentralizedConfig,
+		},
+		{"uri", replicaset.OrchestratorUnknown, nil, replicaset.OrchestratorCentralizedConfig},
 		{
 			"scripts with --config", replicaset.OrchestratorCentralizedConfig, scripts,
 			replicaset.OrchestratorCentralizedConfig,
@@ -239,8 +243,9 @@ func TestAppOrchestrator(t *testing.T) {
 			"mixed with --custom", replicaset.OrchestratorCustom, mixed,
 			replicaset.OrchestratorCustom,
 		},
+		{"uri with --custom", replicaset.OrchestratorCustom, nil, replicaset.OrchestratorCustom},
 	} {
-		assert.Equal(t, test.want, appOrchestrator(test.forced, test.application), test.name)
+		assert.Equal(t, test.want, targetOrchestrator(test.forced, test.application), test.name)
 	}
 }
 

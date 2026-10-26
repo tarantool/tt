@@ -27,7 +27,7 @@ type VShardCmdCtx struct {
 	RunningCtx running.RunningCtx
 	// Conn is an active connection to a passed instance.
 	Conn connector.Connector
-	// Orchestrator is a forced orchestrator choice.
+	// Orchestrator is the orchestrator to use.
 	Orchestrator replicaset.Orchestrator
 	// Publishers is data publisher factory.
 	Publishers sdkcluster.Factory
@@ -54,21 +54,19 @@ func discoverApp(orchestrator replicasetOrchestrator) error {
 
 // BootstrapVShard bootstraps vshard in the cluster.
 func BootstrapVShard(ctx VShardCmdCtx) error {
-	orchestratorType, err := getOrchestratorType(ctx.Orchestrator, ctx.Conn, ctx.RunningCtx)
-	if err != nil {
-		return err
-	}
-
-	var orchestrator replicasetOrchestrator
+	var (
+		orchestrator replicasetOrchestrator
+		err          error
+	)
 
 	if ctx.IsApplication {
 		orchestrator, err = makeApplicationOrchestrator(
-			orchestratorType, ctx.RunningCtx, ctx.Collectors, ctx.Publishers, ctx.Integrity)
+			ctx.Orchestrator, ctx.RunningCtx, ctx.Collectors, ctx.Publishers, ctx.Integrity)
 		if err != nil {
 			return err
 		}
 	} else {
-		orchestrator, err = makeInstanceOrchestrator(orchestratorType, ctx.Conn)
+		orchestrator, err = makeInstanceOrchestrator(ctx.Orchestrator, ctx.Conn)
 		if err != nil {
 			return err
 		}

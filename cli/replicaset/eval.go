@@ -13,6 +13,7 @@ import (
 var (
 	errFailedToConnectToAnyInstance = errors.New("failed to connect to any instance")
 	errNoInstancesToConnect         = errors.New("no instances to connect")
+	errUnexpectedResponse           = errors.New("unexpected response")
 )
 
 // EvalFunc is a function that implements connector.Evaler.

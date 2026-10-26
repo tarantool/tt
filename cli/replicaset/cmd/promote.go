@@ -25,7 +25,7 @@ type PromoteCtx struct {
 	Integrity integrity.IntegrityCtx
 	// IsApplication true if an application passed.
 	IsApplication bool
-	// Orchestrator is a forced orchestrator choice.
+	// Orchestrator is the orchestrator to use.
 	Orchestrator replicaset.Orchestrator
 	// Conn is an active connection to a passed instance.
 	Conn connector.Connector
@@ -40,21 +40,19 @@ type PromoteCtx struct {
 
 // Promote promotes an instance.
 func Promote(ctx PromoteCtx) error {
-	orchestratorType, err := getInstanceOrchestrator(ctx.Orchestrator, ctx.Conn)
-	if err != nil {
-		return err
-	}
-
-	var orchestrator replicasetOrchestrator
+	var (
+		orchestrator replicasetOrchestrator
+		err          error
+	)
 
 	if ctx.IsApplication {
 		orchestrator, err = makeApplicationOrchestrator(
-			orchestratorType, ctx.RunningCtx, ctx.Collectors, ctx.Publishers, ctx.Integrity)
+			ctx.Orchestrator, ctx.RunningCtx, ctx.Collectors, ctx.Publishers, ctx.Integrity)
 		if err != nil {
 			return err
 		}
 	} else {
-		orchestrator, err = makeInstanceOrchestrator(orchestratorType, ctx.Conn)
+		orchestrator, err = makeInstanceOrchestrator(ctx.Orchestrator, ctx.Conn)
 		if err != nil {
 			return err
 		}

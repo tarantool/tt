@@ -23,7 +23,7 @@ var (
 
 // BootstrapCtx describes context to bootstrap an instance or application.
 type BootstrapCtx struct {
-	// Orchestrator is a forced orchestrator choice.
+	// Orchestrator is the orchestrator to use.
 	Orchestrator replicaset.Orchestrator
 	// RunningCtx is an application running context.
 	RunningCtx running.RunningCtx
@@ -50,13 +50,7 @@ func Bootstrap(ctx BootstrapCtx) error {
 		}
 	}
 
-	orchestratorType, err := getApplicationOrchestrator(ctx.Orchestrator,
-		ctx.RunningCtx)
-	if err != nil {
-		return err
-	}
-
-	orchestrator, err := makeApplicationOrchestrator(orchestratorType,
+	orchestrator, err := makeApplicationOrchestrator(ctx.Orchestrator,
 		ctx.RunningCtx, sdkcluster.Factory{}, sdkcluster.Factory{},
 		integrity.IntegrityCtx{Repository: nil})
 	if err != nil {

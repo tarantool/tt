@@ -28,25 +28,23 @@ type DiscoveryCtx struct {
 	RunningCtx running.RunningCtx
 	// Conn is an active connection to a passed instance.
 	Conn connector.Connector
-	// Orchestrator is a forced orchestrator choice.
+	// Orchestrator is the orchestrator to use.
 	Orchestrator replicaset.Orchestrator
 }
 
 // getReplicasets discovers and returns the list of replicasets.
 func getReplicasets(ctx DiscoveryCtx) (replicaset.Replicasets, error) {
-	orchestratorType, err := getOrchestratorType(ctx.Orchestrator, ctx.Conn, ctx.RunningCtx)
-	if err != nil {
-		return replicaset.Replicasets{}, err
-	}
-
-	var orchestrator replicasetOrchestrator
+	var (
+		orchestrator replicasetOrchestrator
+		err          error
+	)
 
 	if ctx.IsApplication {
-		orchestrator, err = makeApplicationOrchestrator(orchestratorType,
+		orchestrator, err = makeApplicationOrchestrator(ctx.Orchestrator,
 			ctx.RunningCtx, sdkcluster.Factory{}, sdkcluster.Factory{},
 			integrity.IntegrityCtx{Repository: nil})
 	} else {
-		orchestrator, err = makeInstanceOrchestrator(orchestratorType, ctx.Conn)
+		orchestrator, err = makeInstanceOrchestrator(ctx.Orchestrator, ctx.Conn)
 	}
 
 	if err != nil {

@@ -1,22 +1,5 @@
 package replicaset
 
-import (
-	_ "embed"
-	"errors"
-	"fmt"
-	"strings"
-
-	"github.com/tarantool/tt/v3/cli/connector"
-)
-
-var (
-	errUnexpectedResponse  = errors.New("unexpected response")
-	errUnknownOrchestrator = errors.New("unknown orchestrator: ")
-)
-
-//go:embed lua/get_orchestrator.lua
-var getOrchestratorBody string
-
 // Orchestrator defines an enumeration of available orchestrators.
 type Orchestrator int
 
@@ -31,44 +14,3 @@ const (
 	// OrchestratorCustom is a custom orchestrator.
 	OrchestratorCustom // custom
 )
-
-var knownOrchestrators = []Orchestrator{
-	OrchestratorCentralizedConfig,
-	OrchestratorCustom,
-}
-
-// ParseOrchestrator parses an orchestrator from the string.
-func ParseOrchestrator(str string) Orchestrator {
-	for _, o := range knownOrchestrators {
-		if strings.EqualFold(str, o.String()) {
-			return o
-		}
-	}
-
-	return OrchestratorUnknown
-}
-
-// EvalOrchestrator returns an orchestrator version determined from an
-// evaler.
-func EvalOrchestrator(evaler connector.Evaler) (Orchestrator, error) {
-	opts := connector.RequestOpts{PushCallback: nil, ReadTimeout: 0, ResData: nil}
-
-	data, err := evaler.Eval(getOrchestratorBody, []any{}, opts)
-	if err != nil {
-		return OrchestratorCustom,
-			fmt.Errorf("failed to recognize orchestrator: %w", err)
-	}
-
-	if len(data) == 1 {
-		if str, ok := data[0].(string); ok {
-			parsed := ParseOrchestrator(str)
-			if parsed == OrchestratorUnknown {
-				return parsed, fmt.Errorf("%w%s", errUnknownOrchestrator, str)
-			}
-
-			return parsed, nil
-		}
-	}
-
-	return OrchestratorCustom, errUnexpectedResponse
-}

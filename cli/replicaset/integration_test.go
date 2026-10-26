@@ -21,8 +21,6 @@ import (
 	"github.com/tarantool/tt/v3/cli/running"
 )
 
-// spell-checker:ignore evaled
-
 const (
 	workDir = "work_dir"
 	server  = "127.0.0.1:3015"
@@ -38,98 +36,6 @@ var dialer = tarantool.NetDialer{
 var opts = tarantool.Opts{
 	Timeout:    500 * time.Millisecond,
 	SkipSchema: true,
-}
-
-func doRequest(req tarantool.Request) error {
-	conn, err := tarantool.Connect(context.Background(), dialer, opts)
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		_ = conn.Close()
-	}()
-
-	future := conn.Do(req)
-	defer future.Release()
-
-	_, err = future.Get()
-
-	return err
-}
-
-func setTarantoolVersion(str string) error {
-	req := tarantool.NewCallRequest("set_tarantool_version").Args([]any{str})
-	return doRequest(req)
-}
-
-func resetTarantoolVersion() error {
-	req := tarantool.NewCallRequest("reset_tarantool_version")
-	return doRequest(req)
-}
-
-func testConnect(t *testing.T) connector.Connector {
-	t.Helper()
-
-	conn, err := connector.Connect(connector.ConnectOpts{
-		Network: "unix",
-		Address: console,
-	})
-	require.NoError(t, err)
-
-	return conn
-}
-
-func setCConfigTestEnvironment(t *testing.T) func() {
-	t.Helper()
-	require.NoError(t, setTarantoolVersion("3.0.0-foo-bar"))
-
-	return func() {
-		require.NoError(t, resetTarantoolVersion())
-	}
-}
-
-func setCustomTestEnvironment(t *testing.T, version string) func() {
-	t.Helper()
-
-	err := setTarantoolVersion(version)
-	require.NoError(t, err)
-
-	return func() {
-		require.NoError(t, resetTarantoolVersion())
-	}
-}
-
-func TestEvalOrchestrator_cconfig(t *testing.T) {
-	reset := setCConfigTestEnvironment(t)
-	defer reset()
-
-	conn := testConnect(t)
-	defer func() {
-		_ = conn.Close()
-	}()
-
-	evaled, err := replicaset.EvalOrchestrator(conn)
-	require.NoError(t, err)
-	require.Equal(t, replicaset.OrchestratorCentralizedConfig, evaled)
-}
-
-func TestEvalOrchestrator_custom(t *testing.T) {
-	for _, tc := range []string{"1.10.11-foo-bar", "2-0-0-foo-bar", "2.2.2-foo-bar"} {
-		t.Run(tc, func(t *testing.T) {
-			reset := setCustomTestEnvironment(t, tc)
-			defer reset()
-
-			conn := testConnect(t)
-			defer func() {
-				_ = conn.Close()
-			}()
-
-			evaled, err := replicaset.EvalOrchestrator(conn)
-			require.NoError(t, err)
-			require.Equal(t, replicaset.OrchestratorCustom, evaled)
-		})
-	}
 }
 
 type instanceEvalerMock struct {

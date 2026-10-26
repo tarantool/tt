@@ -14,6 +14,7 @@ import (
 )
 
 var (
+	errFoo       = errors.New("foo")
 	errSomeError = errors.New("some error")
 )
 
