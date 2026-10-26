@@ -51,11 +51,12 @@ func RegisterIntegrityCheckPeriodFlag(flagset *pflag.FlagSet, dst *int) {
 	disabledProvider{}.RegisterIntegrityCheckPeriodFlag(flagset, dst)
 }
 
-// InitializeIntegrityCheck is a noop setup of integrity checking.
+// InitializeIntegrityCheck is a noop setup of integrity checking of the
+// files rooted at rootDir.
 func InitializeIntegrityCheck(
-	publicKeyPath, configDir string,
+	publicKeyPath, rootDir string,
 ) (IntegrityCtx, error) {
-	return disabledProvider{}.InitializeIntegrityCheck(publicKeyPath, configDir)
+	return disabledProvider{}.InitializeIntegrityCheck(publicKeyPath, rootDir)
 }
 
 // GetCheckFunction returns a function that checks a map of hashes and a

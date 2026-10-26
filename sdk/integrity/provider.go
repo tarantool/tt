@@ -27,10 +27,11 @@ type Provider interface {
 	// HashesFileName is the name of the file with the hashes of an
 	// application's files.
 	HashesFileName() string
-	// InitializeIntegrityCheck sets up integrity checking of the
-	// environment rooted at configDir with the public key at
-	// publicKeyPath. An empty publicKeyPath disables the checks.
-	InitializeIntegrityCheck(publicKeyPath, configDir string) (IntegrityCtx, error)
+	// InitializeIntegrityCheck sets up integrity checking of the files
+	// rooted at rootDir with the public key at publicKeyPath. tt passes the
+	// project directory it works in, or the working directory outside a
+	// project. An empty publicKeyPath disables the checks.
+	InitializeIntegrityCheck(publicKeyPath, rootDir string) (IntegrityCtx, error)
 	// NewSigner creates a Signer of an environment for the private key at
 	// privateKeyPath.
 	NewSigner(privateKeyPath string) (Signer, error)

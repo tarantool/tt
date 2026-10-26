@@ -546,6 +546,11 @@ for machine-readable output.
   `github.com/tarantool/tt/sdk/connect`, `github.com/tarantool/tt/sdk/dial`
   and `github.com/tarantool/tt/sdk/integrity`. Their API is alpha and may
   change incompatibly.
+- Integrity checks: the root tt hands the integrity provider is the project
+  directory, found from the current directory upward, or the current
+  directory outside a project, instead of the directory of `tt.yaml`; a
+  project that cannot be looked for fails the command while a public key
+  enables the checks.
 - Updated Go client dependencies to `go-tarantool/v3`, `go-config/v2`,
   `go-storage/v2`, and `go-tlsdialer/v2`.
 - TLS build modes are now selected through `TT_CLI_BUILD_SSL`: leave it unset or

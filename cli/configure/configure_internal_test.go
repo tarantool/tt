@@ -77,26 +77,46 @@ func TestProjectDir(t *testing.T) {
 	writeProject(t, project)
 	require.NoError(t, os.MkdirAll(nested, 0o755))
 
-	t.Chdir(nested)
+	for _, strict := range []bool{false, true} {
+		t.Chdir(nested)
 
-	dir, err := projectDir()
-	require.NoError(t, err)
-	assert.Equal(t, project, dir)
+		dir, err := projectDir(strict)
+		require.NoError(t, err)
+		assert.Equal(t, project, dir)
 
-	t.Chdir(root)
+		t.Chdir(root)
 
-	dir, err = projectDir()
-	require.NoError(t, err)
-	assert.Equal(t, root, dir)
+		dir, err = projectDir(strict)
+		require.NoError(t, err)
+		assert.Equal(t, root, dir)
+	}
 
 	// A relative root fails the project search, which no command but those
-	// acting on the project has to stop for.
+	// acting on the project has to stop for; the integrity checks, which
+	// check the project, do.
 	t.Chdir(nested)
 	t.Setenv("TT_USER_ROOT", "relative")
 
-	dir, err = projectDir()
+	dir, err := projectDir(false)
 	require.NoError(t, err)
 	assert.Equal(t, nested, dir)
+
+	_, err = projectDir(true)
+	require.ErrorContains(t, err, "failed to find the project: ")
+}
+
+// TestCliIntegrityRoot checks that the integrity checks, enabled by a public
+// key, need the project to be found.
+func TestCliIntegrityRoot(t *testing.T) {
+	isolate(t)
+	t.Chdir(t.TempDir())
+	t.Setenv("TT_USER_ROOT", "relative")
+
+	cmdCtx := cmdcontext.CmdCtx{}
+	require.NoError(t, Cli(&cmdCtx))
+
+	cmdCtx.Cli.IntegrityCheck = "public.pem"
+	require.ErrorContains(t, Cli(&cmdCtx), "failed to find the project: ")
 }
 
 // TestCliIgnoresTTYaml checks that tt.yaml configures nothing: neither a
