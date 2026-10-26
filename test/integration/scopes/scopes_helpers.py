@@ -21,7 +21,7 @@ TARANTOOL_CONSTRAINT = ">=3.0.0,<4.0.0"
 MANIFEST = """manifest_version = '0.1'
 
 [package]
-name = 'myapp'
+name = '{name}'
 include = ['app.lua', 'bin/worker.sh']
 
 [platform]
@@ -89,11 +89,11 @@ def cluster_config(*instances):
 DEFAULT_TEMPLATE = (DEFAULT_INSTANCES, cluster_config("storage"))
 
 
-def make_project(path: Path, version: str, templates=None, instances_extra="") -> Path:
+def make_project(path: Path, version: str, templates=None, name="myapp") -> Path:
     """Write the project of myapp version in path, without dependencies,
     with templates, a map of a template name to the pair of its
-    instances.yaml and config.yaml, the default template by default, whose
-    instances.yaml gets instances_extra appended."""
+    instances.yaml and config.yaml, the default template by default. The
+    package is called name."""
     templates = templates or {"default": DEFAULT_TEMPLATE}
     (path / "src").mkdir(parents=True)
     (path / "src" / "init.lua").write_text("return {}\n")
@@ -102,11 +102,13 @@ def make_project(path: Path, version: str, templates=None, instances_extra="") -
     (path / "bin" / "worker.sh").chmod(0o755)
     (path / "app.lua").write_text(APP_LUA)
     (path / "VERSION").write_text(version + "\n")
-    (path / "app.manifest.toml").write_text(MANIFEST.format(tarantool=TARANTOOL_CONSTRAINT))
-    for name, (instances, config) in templates.items():
-        template = path / ".templates" / name
+    (path / "app.manifest.toml").write_text(
+        MANIFEST.format(name=name, tarantool=TARANTOOL_CONSTRAINT),
+    )
+    for template_name, (instances, config) in templates.items():
+        template = path / ".templates" / template_name
         template.mkdir(parents=True)
-        (template / "instances.yaml").write_text(instances + instances_extra)
+        (template / "instances.yaml").write_text(instances)
         (template / "config.yaml").write_text(config)
     return path
 
