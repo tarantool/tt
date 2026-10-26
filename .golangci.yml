@@ -851,3 +851,15 @@ linters:
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/v3/internal/pidfile"
             - "github.com/tarantool/tt/v3/internal/supervisor"
+        # The systemd units of an application and the mark of what they
+        # manage: a leaf, which takes what the units are made of and knows
+        # nothing of how tt finds an application or runs an instance.
+        dir-internal-systemd:
+          files:
+            - "**/internal/systemd/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/v3/internal/instances"
+            - "github.com/tarantool/tt/v3/internal/systemd"
+            - "gopkg.in/yaml.v3"
