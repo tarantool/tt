@@ -91,8 +91,8 @@ func kindName(kind instances.Kind) string {
 
 // setExternalCtx makes instCtx, built for the record inst with the paths of
 // a Tarantool instance, the context of the external process inst describes:
-// its binary, arguments and working directory, and the pid file its watchdog
-// writes for it, with no sockets or config.
+// its binary, arguments and working directory, its logrotate_signal, and the
+// pid file its watchdog writes for it, with no sockets or config.
 //
 // Without workdir the process runs in its data directory in the layout,
 // <root>/var/lib/<app>/<inst>/, in every scope (decision 33): the
@@ -103,6 +103,7 @@ func kindName(kind instances.Kind) string {
 func setExternalCtx(instCtx *InstanceCtx, inst instances.Instance, scopeLayout layout.ScopeLayout) {
 	instCtx.Binary = inst.Binary
 	instCtx.Args = slices.Clone(inst.Args)
+	instCtx.LogrotateSignal = inst.LogrotateSignal
 
 	instCtx.Workdir = inst.Workdir
 	if instCtx.Workdir == "" {
@@ -168,7 +169,12 @@ func checkExternal(inst *InstanceCtx) error {
 // is, unless its record allows another (applyStopSettings). The stop signal
 // the watchdog receives is not forwarded: SIGINT, which tt stop sends it, is
 // an interrupt from a terminal to most programs, while SIGTERM is the request
-// to stop that systemd sends too.
+// to stop that systemd sends too (decision 31).
+//
+// tt logrotate makes the watchdog reopen tt.log, where the output of the
+// process goes, and sends the process its logrotate_signal; without one the
+// process gets nothing (decision 32), since SIGHUP ends a program that does
+// not handle it.
 //
 // The process leads a process group of its own, and every signal goes to the
 // whole group: an external process may be a wrapper, such as a shell script
@@ -196,21 +202,19 @@ func externalSpec(inst *InstanceCtx, opts specOptions) (supervisor.Spec, error) 
 	}
 
 	return supervisor.Spec{
-		Path:              inst.Binary,
-		Args:              slices.Clone(inst.Args),
-		Env:               env,
-		Dir:               inst.Workdir,
-		Stdin:             nil,
-		Stdout:            opts.stdout,
-		Stderr:            opts.stderr,
-		StopSignal:        syscall.SIGTERM,
-		ForwardStopSignal: false,
-		StopTimeout:       instanceStopTimeout,
-		ProcessGroup:      true,
-		// tt logrotate reaches the process group as SIGHUP, as it reaches
-		// tarantool.
-		ReloadSignal:        0,
-		ForwardReloadSignal: true,
+		Path:                inst.Binary,
+		Args:                slices.Clone(inst.Args),
+		Env:                 env,
+		Dir:                 inst.Workdir,
+		Stdin:               nil,
+		Stdout:              opts.stdout,
+		Stderr:              opts.stderr,
+		StopSignal:          syscall.SIGTERM,
+		ForwardStopSignal:   false,
+		StopTimeout:         instanceStopTimeout,
+		ProcessGroup:        true,
+		ReloadSignal:        inst.LogrotateSignal,
+		ForwardReloadSignal: false,
 	}, nil
 }
 

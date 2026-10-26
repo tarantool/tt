@@ -23,6 +23,7 @@
 //	  workdir: ./var/worker
 //	  stop_signal: SIGINT
 //	  stop_timeout: 30s
+//	  logrotate_signal: SIGHUP
 //	  restart: on-failure
 //
 // The fields a record sets tell what the instance is (Kind): with neither
@@ -61,10 +62,10 @@
 // a plain YAML type (!!binary, a local tag) is refused, because its text is
 // not the value its author meant.
 //
-// stop_signal is a signal name with or without the SIG prefix, in upper
-// case; only the signals that Linux and macOS share are known, so that a
-// description runs on either. stop_timeout is a positive Go duration such as
-// 30s. restart is one of the values of systemd's Restart= that the
+// stop_signal and logrotate_signal are signal names with or without the SIG
+// prefix, in upper case; only the signals that Linux and macOS share are
+// known, so that a description runs on either. stop_timeout is a positive Go
+// duration such as 30s. restart is one of the values of systemd's Restart= that the
 // supervisor can follow: no (the default), on-failure and always.
 //
 // # Paths

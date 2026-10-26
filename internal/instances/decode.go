@@ -36,6 +36,9 @@ const (
 	fieldStopSignal  = "stop_signal"
 	fieldStopTimeout = "stop_timeout"
 	fieldRestart     = "restart"
+	// fieldLogrotateSignal is the signal that makes an external process
+	// reopen its logs.
+	fieldLogrotateSignal = "logrotate_signal"
 )
 
 // The reasons a node holds no string. Each one completes a sentence about
@@ -197,15 +200,16 @@ func (dec *decoder) name(key *yaml.Node) (string, bool) {
 // false when the record has a problem, which it has reported.
 func (dec *decoder) record(name string, line int, node *yaml.Node) (Instance, bool) {
 	inst := Instance{
-		Name:        name,
-		Binary:      "",
-		Script:      "",
-		Args:        nil,
-		Env:         nil,
-		Workdir:     "",
-		StopSignal:  0,
-		StopTimeout: 0,
-		Restart:     RestartNo,
+		Name:            name,
+		Binary:          "",
+		Script:          "",
+		Args:            nil,
+		Env:             nil,
+		Workdir:         "",
+		StopSignal:      0,
+		StopTimeout:     0,
+		Restart:         RestartNo,
+		LogrotateSignal: 0,
 	}
 
 	switch {
@@ -267,7 +271,9 @@ func (dec *decoder) field(inst *Instance, field string, key, value *yaml.Node) {
 	case fieldEnv:
 		inst.Env = dec.env(inst.Name, value)
 	case fieldStopSignal:
-		inst.StopSignal = dec.stopSignal(inst.Name, value)
+		inst.StopSignal = dec.signal(inst.Name, field, value)
+	case fieldLogrotateSignal:
+		inst.LogrotateSignal = dec.signal(inst.Name, field, value)
 	case fieldStopTimeout:
 		inst.StopTimeout = dec.stopTimeout(inst.Name, value)
 	case fieldRestart:
@@ -443,17 +449,17 @@ func (dec *decoder) env(instance string, node *yaml.Node) map[string]string {
 	return env
 }
 
-// stopSignal returns the signal the stop_signal field names.
-func (dec *decoder) stopSignal(instance string, node *yaml.Node) syscall.Signal {
-	text, ok := dec.str(instance, fieldStopSignal, node)
+// signal returns the signal a field, stop_signal or logrotate_signal, names.
+func (dec *decoder) signal(instance, field string, node *yaml.Node) syscall.Signal {
+	text, ok := dec.str(instance, field, node)
 	if !ok {
 		return 0
 	}
 
 	sig, ok := parseSignal(text)
 	if !ok {
-		dec.failf(node.Line, instance, fieldStopSignal,
-			"field %q: %q is not a signal name such as SIGTERM or TERM", fieldStopSignal, text)
+		dec.failf(node.Line, instance, field,
+			"field %q: %q is not a signal name such as SIGTERM or TERM", field, text)
 
 		return 0
 	}

@@ -225,7 +225,8 @@ func updateLogger(logger ttlog.Logger, instanceCtx *InstanceCtx) (ttlog.Logger, 
 //
 // The watchdog of an external process writes the pid of the process into
 // its own pid file as well, since the process leads a group of its own that
-// tt kill has to find (killProcess); a SIGHUP reaches its whole group.
+// tt kill has to find (killProcess); a SIGHUP reaches the process as its
+// logrotate_signal, if it has one (externalSpec).
 func watchdogOptions(cmdCtx *cmdcontext.CmdCtx, src *instanceSource) supervisor.Options {
 	opts := supervisor.Options{
 		PidFile:       src.ran.PIDFile,

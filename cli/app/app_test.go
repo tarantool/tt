@@ -814,7 +814,7 @@ func TestPairContents(t *testing.T) {
 			name: "script and binary records are not in the topology",
 			desc: "storage-1:\nlegacy-1:\n  script: init.lua\n" +
 				"worker-1:\n  binary: ./bin/worker\n  args: [--port, \"8080\"]\n" +
-				"  workdir: var/worker\n",
+				"  workdir: var/worker\n  logrotate_signal: HUP\n",
 			config: topology("storage-1"),
 			want:   []string{"storage-1", "legacy-1", "worker-1"},
 		},
@@ -844,6 +844,20 @@ func TestPairContents(t *testing.T) {
 			config: topology(),
 			err:    app.ErrUnsupportedField,
 			msg:    []string{`instance "legacy-1"`, "args"},
+		},
+		{
+			name:   "logrotate_signal of a cluster instance",
+			desc:   "storage-1:\n  logrotate_signal: SIGHUP\n",
+			config: topology("storage-1"),
+			err:    app.ErrUnsupportedField,
+			msg:    []string{`instance "storage-1"`, "logrotate_signal", "SIGHUP"},
+		},
+		{
+			name:   "logrotate_signal of a script instance",
+			desc:   "legacy-1:\n  script: init.lua\n  logrotate_signal: USR1\n",
+			config: topology(),
+			err:    app.ErrUnsupportedField,
+			msg:    []string{`instance "legacy-1"`, "logrotate_signal"},
 		},
 		{
 			name:   "an invalid description",
