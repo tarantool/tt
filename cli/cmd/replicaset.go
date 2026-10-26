@@ -975,6 +975,14 @@ func internalReplicasetRebootstrapModule(cmdCtx *cmdcontext.CmdCtx, args []strin
 		return err
 	}
 
+	// The rebootstrap stops the instance and starts it under a watchdog of
+	// tt, next to its unit.
+	if unit := instances[0].Unit; unit != "" {
+		return fmt.Errorf("%s is %w through the unit %s: stop it with systemctl stop %s, "+
+			"remove its data with tt instance clean %s --yes and start it with "+
+			"systemctl start %s", args[0], errManagedBySystemd, unit, unit, args[0], unit)
+	}
+
 	return replicaset.Rebootstrap(*cmdCtx, replicaset.RebootstrapCtx{
 		Instance:  instances[0],
 		Confirmed: rebootstrapConfirmed,

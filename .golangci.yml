@@ -492,6 +492,9 @@ linters:
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/tarantool/tt/v3/cli/version"
             - "github.com/tarantool/tt/v3/internal/binary"
+            # tt service systemd writes the units and the mark of an
+            # application; the instance commands read whom the mark names.
+            - "github.com/tarantool/tt/v3/internal/systemd"
             - "golang.org/x/term"
             - "gopkg.in/yaml.v3"
         dir-cli-cmdcontext:

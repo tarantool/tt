@@ -59,6 +59,20 @@ func internalKillModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
+	// systemctl kill sends the signal to every process of the unit, the
+	// instance among them: SIGKILL kills it as tt instance kill does, SIGQUIT
+	// has it quit with a dump as --dump does. systemd then restarts it as
+	// Restart= says.
+	signal := "SIGKILL"
+	if dumpQuit {
+		signal = "SIGQUIT"
+	}
+
+	err = refuseManaged(instances, "kill --signal="+signal, nil)
+	if err != nil {
+		return err
+	}
+
 	confirmed, err := confirm("Kill " + killTargets(args) + "?")
 	if err != nil {
 		return err
