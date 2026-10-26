@@ -7,12 +7,17 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/cli/running"
+	"github.com/tarantool/tt/v3/internal/instances"
 )
 
 // These fixtures encode [{uuid: uuid-a, read_only: RW, box_status: running,
@@ -323,4 +328,71 @@ func TestStatusZeroTimeoutWaitsForResponse(t *testing.T) {
 	if result.status.Box != "running" {
 		t.Fatalf("failed to collect status: %+v", result.status)
 	}
+}
+
+// recordingPrinter keeps what Status prints.
+type recordingPrinter struct {
+	printed map[string]*instanceStatus
+}
+
+func (printer *recordingPrinter) Print(instances map[string]*instanceStatus) error {
+	printer.printed = instances
+
+	return nil
+}
+
+// runningInstance returns the context of the instance inst of myapp of kind,
+// whose pid file names the test process, so that it counts as running, and
+// whose console socket does not exist.
+func runningInstance(t *testing.T, inst string, kind instances.Kind) running.InstanceCtx {
+	t.Helper()
+
+	dir := t.TempDir()
+	pidFile := filepath.Join(dir, "tt.pid")
+
+	require.NoError(t, os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0o600))
+
+	ctx := running.InstanceCtx{
+		AppName:  "myapp",
+		InstName: inst,
+		Kind:     kind,
+		PIDFile:  pidFile,
+	}
+
+	if kind != instances.KindExternal {
+		ctx.ConsoleSocket = filepath.Join(dir, "tarantool.control")
+	}
+
+	return ctx
+}
+
+// TestStatusExternal pins that tt status shows the state of the process of
+// an external process and asks it nothing more: no alert about a console it
+// does not have, while a running Tarantool instance without its console gets
+// one.
+func TestStatusExternal(t *testing.T) {
+	printer := &recordingPrinter{}
+
+	err := Status(running.RunningCtx{Instances: []running.InstanceCtx{
+		runningInstance(t, "storage-1", instances.KindCluster),
+		runningInstance(t, "worker-1", instances.KindExternal),
+	}}, printer, DefaultInstanceTimeout)
+	require.NoError(t, err)
+	require.Len(t, printer.printed, 2)
+
+	storage := printer.printed["myapp:storage-1"]
+	require.NotNil(t, storage)
+	assert.Equal(t, process_utils.ProcStateRunning.Status, storage.Status)
+	assert.Len(t, storage.Alerts, 1, "a Tarantool instance without its console")
+
+	worker := printer.printed["myapp:worker-1"]
+	require.NotNil(t, worker)
+	assert.Equal(t, process_utils.ProcStateRunning.Status, worker.Status)
+	require.NotNil(t, worker.PID)
+	assert.Equal(t, os.Getpid(), *worker.PID)
+	assert.Empty(t, worker.Alerts)
+	assert.Empty(t, worker.Mode)
+	assert.Equal(t, defaultModuleStatus, worker.Config)
+	assert.Equal(t, defaultModuleStatus, worker.Box)
+	assert.Equal(t, defaultModuleStatus, worker.Upstream)
 }

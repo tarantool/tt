@@ -24,7 +24,8 @@ func NewCheckCmd() *cobra.Command {
 
 // internalCheckModule is a default check module: it checks the application
 // file of every instance the targets select, each file once. An instance
-// whose config names no app.file has nothing of its own to check.
+// whose config names no app.file has nothing of its own to check, and
+// neither has an external process, whose binary tt knows nothing about.
 func internalCheckModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	instances, err := resolveInstances(cmdCtx, args)
 	if err != nil {
@@ -34,6 +35,13 @@ func internalCheckModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	checked := map[string]bool{}
 
 	for _, inst := range instances {
+		if running.IsExternal(&inst) {
+			log.Infof("%s: an external process (binary: %s) has nothing to check",
+				running.GetAppInstanceName(inst), inst.Binary)
+
+			continue
+		}
+
 		file, found, err := running.AppFile(&inst)
 		if err != nil {
 			return err

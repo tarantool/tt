@@ -13,6 +13,7 @@ import (
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/checkpoint"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/running"
 	"github.com/tarantool/tt/v3/cli/util"
 )
 
@@ -118,7 +119,12 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 				flavour.GetVersion)
 		}
 
-		_, err := os.Stat(instances[0].BinaryPort)
+		err = running.RequireTarantool(&instances[0])
+		if err != nil {
+			return err
+		}
+
+		_, err = os.Stat(instances[0].BinaryPort)
 		if err != nil {
 			return util.InternalError(
 				"Internal error: application binary port does not exist: %s",

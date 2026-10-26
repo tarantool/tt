@@ -1,0 +1,7 @@
+# A Tarantool instance and an external process next to it.
+master:
+worker:
+  binary: ./worker.sh
+  args: [--name, worker]
+  env:
+    WORKER_GREETING: hello

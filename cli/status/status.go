@@ -283,6 +283,11 @@ func processStatusForInstance(instance running.InstanceCtx,
 	name := running.GetAppInstanceName(instance)
 	result := statusResult{name: name, uuid: "", status: &instStatus}
 
+	// External processes have no Tarantool console to query.
+	if running.IsExternal(&instance) {
+		return result
+	}
+
 	instanceState, err := collectInstanceState(instance, name, &instStatus, instanceTimeout)
 	if err != nil {
 		return result

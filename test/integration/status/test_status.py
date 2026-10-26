@@ -294,6 +294,53 @@ def test_t3_instances_without_console(tt_cmd):
             stop_application(tt_cmd, "app", test_app_path)
 
 
+@pytest.mark.skipif(
+    tarantool_major_version < 3,
+    reason="skip cluster instances test for Tarantool < 3",
+)
+def test_status_external_process(tt_cmd, tmp_path):
+    # An external process shows the state of its process alone: nothing is
+    # asked over a console it does not have, and no alert says so.
+    app_name = "app"
+    app_path = tmp_path / app_name
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "../start/external_app"), app_path)
+    worker = f"{app_name}:worker"
+
+    try:
+        rc, out = run_command_and_get_output([tt_cmd, "start"], cwd=app_path)
+        assert rc == 0
+        assert f"Starting an instance [{worker}]" in out
+        for inst in ["master", "worker"]:
+            assert wait_file(inst_run_dir(app_path, app_name, inst), pid_file, []) != ""
+        assert wait_file(inst_run_dir(app_path, app_name, "worker"), "process.pid", []) != ""
+
+        rc, out = run_command_and_get_output([tt_cmd, "status", "--format=json"], cwd=app_path)
+        assert rc == 0
+        status_info = extract_status_from_json(out)
+        assert status_info[f"{app_name}:master"]["status"] == "RUNNING"
+        assert status_info[worker]["status"] == "RUNNING"
+        assert isinstance(status_info[worker]["pid"], int)
+        assert status_info[worker]["mode"] == ""
+        for column in ["config", "box", "upstream"]:
+            assert status_info[worker][column] == "--"
+        assert status_info[worker]["alerts"] is None
+
+        rc, out = run_command_and_get_output([tt_cmd, "status", worker, "--details"], cwd=app_path)
+        assert rc == 0
+        assert re.search(rf"{worker}\s+RUNNING\s+\d+\s+--\s+--\s+--", out)
+        assert "Alerts" not in out
+
+        # The external process runs in its data directory, its record naming
+        # no workdir.
+        assert os.path.isdir(inst_lib_dir(app_path, app_name, "worker"))
+    finally:
+        stop_application(tt_cmd, app_name, app_path)
+
+    rc, out = run_command_and_get_output([tt_cmd, "status", worker], cwd=app_path)
+    assert rc == 0
+    assert extract_status(out)[worker]["STATUS"] == "NOT RUNNING"
+
+
 def test_status_script_instance_not_supported(tt_cmd, tmp_path):
     # An instance configured by its own script, without a cluster config, is
     # not supported yet: the command says so instead of starting it.
