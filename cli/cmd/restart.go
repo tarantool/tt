@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"slices"
-
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
@@ -35,9 +33,15 @@ func NewRestartCmd() *cobra.Command {
 // and starts them again in the background, resolving their applications
 // anew, so that an installed application restarts on its active version.
 //
-// An instance that does not stop is not started again, and does not keep
-// the others from restarting; the outcome counts the instances that failed
-// to stop or to start (instancesResult).
+// Every target is resolved and checked as tt instance start checks it, the
+// pair, the tarantool and the layout, before any of them stops: a typo in
+// the description must not take running instances down, so a target that
+// cannot start fails the command before it acts, and the error names it.
+// So does a target that a systemd unit manages.
+//
+// After that an instance that does not stop is not started again, and does
+// not keep the others from restarting; the outcome counts the instances
+// that failed to stop or to start (instancesResult).
 func internalRestartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	instances, err := resolveInstances(cmdCtx, args)
 	if err != nil {
@@ -60,59 +64,29 @@ func internalRestartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return nil
 	}
 
+	canStart, err := running.IsAbleToStartInstances(instances)
+	if !canStart {
+		return err
+	}
+
 	result := newInstancesResult("restart", len(instances))
+	stopped := make([]running.InstanceCtx, 0, len(instances))
 
-	var stopped []string
-
-	for i := range instances {
-		name := running.GetAppInstanceName(instances[i])
-
-		err := running.Stop(&instances[i])
+	// Every watchdog is interrupted before any is waited for, so that the
+	// instances shut down together (running.StopAllResults).
+	for index, err := range running.StopAllResults(instances) {
 		if err != nil {
-			result.fail(name, err)
+			result.fail(running.GetAppInstanceName(instances[index]), err)
 
 			continue
 		}
 
-		stopped = append(stopped, name)
+		stopped = append(stopped, instances[index])
 	}
 
 	if len(stopped) > 0 {
-		startStopped(cmdCtx, args, stopped, result)
+		startWatchdogs(cmdCtx, stopped, result)
 	}
 
 	return result.err()
-}
-
-// startStopped starts again the instances of args that restart stopped,
-// named by stopped, resolving them anew, and records in result those that
-// fail to start. A failure before any of them starts, such as a pair broken
-// in the meantime, fails them all.
-func startStopped(cmdCtx *cmdcontext.CmdCtx, args, stopped []string, result *instancesResult) {
-	opts, err := startOptions(cmdCtx)
-	if err != nil {
-		result.failAll(stopped, err)
-
-		return
-	}
-
-	instances, err := resolveInstancesWith(args, opts)
-	if err != nil {
-		result.failAll(stopped, err)
-
-		return
-	}
-
-	instances = slices.DeleteFunc(instances, func(inst running.InstanceCtx) bool {
-		return !slices.Contains(stopped, running.GetAppInstanceName(inst))
-	})
-
-	canStart, err := running.IsAbleToStartInstances(instances)
-	if !canStart {
-		result.failAll(stopped, err)
-
-		return
-	}
-
-	startWatchdogs(cmdCtx, instances, result)
 }

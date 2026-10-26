@@ -224,6 +224,37 @@ def test_restart_multi_inst_input(tt, tt_app, target, input, is_confirmed):
     check_restart(tt, tt_app, target, input, is_confirmed)
 
 
+# A target that cannot start.
+@pytest.mark.tt_app(**dict(tt_multi_inst_app, running_targets=["app:master", "app:replica"]))
+@pytest.mark.parametrize("target", ["app:*", "app:replica"])
+def test_restart_checks_before_stop(tt, tt_app, target):
+    # tt instance restart checks that every target can start before it stops
+    # any: a record that a typo has broken fails the command with code 1,
+    # naming its instance, and the running instances keep running.
+    orig_status = tt_helper.status(tt)
+    instances_path = tt_app.path(utils.instances_file)
+    with open(instances_path) as f:
+        description = f.read()
+
+    with open(instances_path, "w") as f:
+        f.write("router:\nmaster:\nreplica:\n  script: missing.lua\n")
+
+    try:
+        rc, out = tt.exec("instance", "restart", "-y", target)
+        assert rc == 1, out
+        assert 'instance "replica" of "app"' in out
+        assert "has been terminated" not in out
+        assert "Starting an instance" not in out
+
+        status = tt_helper.status(tt)
+        for inst in ["app:master", "app:replica"]:
+            assert status[inst]["STATUS"] == "RUNNING"
+            assert status[inst]["PID"] == orig_status[inst]["PID"]
+    finally:
+        with open(instances_path, "w") as f:
+            f.write(description)
+
+
 ################################################################
 # Cluster
 

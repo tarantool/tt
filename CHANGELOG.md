@@ -525,8 +525,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   project; a bare `<APP>` is refused with a hint. The restart policy is the
   `restart` field of the instance record: a restart after a crash stays on the
   version the instance started from and re-reads the pair, while
-  `tt instance restart` takes the active version. `tt instance check` checks
-  the `app.file` of each instance. A record with `script` is a Tarantool
+  `tt instance restart` takes the active version, and checks every target as
+  `tt instance start` does, its pair, tarantool and layout, before it stops
+  any: a target that cannot start fails the command with code 1, naming it,
+  and nothing is stopped. `tt instance check` checks the `app.file` of each
+  instance. A record with `script` is a Tarantool
   instance configured by its own Lua script, as `init.lua` and
   `<instance>.init.lua` of tt2 were: `tarantool` runs the script, relative to
   the application directory, in the application directory, and `box.cfg` takes
