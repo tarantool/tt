@@ -71,14 +71,16 @@ func InstancesOf(application *app.App, records []instances.Instance) ([]Instance
 // PinnedOptions are the options that find the application of inst again
 // where it runs from: the scope and the application directory it was built
 // with, the version itself rather than <root>/apps/<app>, and the template
-// it was resolved with. The pair is chosen and read anew.
+// it was resolved with. The pair is chosen and read anew, its cluster config
+// included: the watchdog starts the instance as the config says.
 func PinnedOptions(inst *InstanceCtx, integ integrity.IntegrityCtx) app.Options {
 	return app.Options{
-		Scope:     inst.Scope,
-		Template:  inst.Template,
-		Start:     "",
-		Dir:       inst.AppDir,
-		Integrity: integ,
+		Scope:      inst.Scope,
+		Template:   inst.Template,
+		Start:      "",
+		Dir:        inst.AppDir,
+		Integrity:  integ,
+		SkipConfig: false,
 	}
 }
 

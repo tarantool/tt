@@ -198,7 +198,12 @@ tt_cluster_app_no_config = dict(
     ],
 )
 def test_logrotate_cluster_no_config(tt, tt_app, target):
-    tt_helper.check_broken_pair(tt, tt_app, "instance", "logrotate", target)
+    # tt instance logrotate reads no cluster config: the instances of a pair
+    # that has lost it are found by instances.yaml and their pid files.
+    try:
+        check_logrotate(tt, tt_app, target)
+    finally:
+        tt_helper.restore_config(tt_app)
 
 
 @pytest.mark.parametrize(

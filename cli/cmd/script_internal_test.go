@@ -71,18 +71,18 @@ func TestResolveAppTargetScriptsNextToCluster(t *testing.T) {
 	cmdCtx := &cmdcontext.CmdCtx{}
 
 	for _, target := range []string{"myapp", "myapp:*"} {
-		application, insts, _, err := resolveAppTarget(cmdCtx, target)
+		application, insts, _, err := resolveAppTarget(cmdCtx, target, readConfig)
 		require.NoError(t, err, target)
 		assert.Len(t, application.Instances, 3, "the description is whole")
 		assert.Equal(t, []string{"storage-1"}, instanceNames(insts), target)
 	}
 
-	application, insts, _, err := resolveAppTarget(cmdCtx, "myapp:legacy-1")
+	application, insts, _, err := resolveAppTarget(cmdCtx, "myapp:legacy-1", readConfig)
 	require.ErrorIs(t, err, running.ErrNotClusterInstance)
 	assert.Nil(t, application)
 	assert.Nil(t, insts)
 
-	application, insts, _, err = resolveAppTarget(cmdCtx, "myapp:worker-1")
+	application, insts, _, err = resolveAppTarget(cmdCtx, "myapp:worker-1", readConfig)
 	require.ErrorIs(t, err, running.ErrNotTarantool)
 	assert.Nil(t, application)
 	assert.Nil(t, insts)
@@ -97,17 +97,17 @@ func TestResolveAppTargetScriptsAlone(t *testing.T) {
 
 	cmdCtx := &cmdcontext.CmdCtx{}
 
-	_, insts, instName, err := resolveAppTarget(cmdCtx, "myapp")
+	_, insts, instName, err := resolveAppTarget(cmdCtx, "myapp", readConfig)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"legacy-1", "legacy-2"}, instanceNames(insts))
 	assert.Empty(t, instName)
 
-	_, insts, instName, err = resolveAppTarget(cmdCtx, "myapp:legacy-2")
+	_, insts, instName, err = resolveAppTarget(cmdCtx, "myapp:legacy-2", readConfig)
 	require.NoError(t, err)
 	assert.Len(t, insts, 2)
 	assert.Equal(t, "legacy-2", instName)
 
-	application, insts, _, err := resolveAppTarget(cmdCtx, "myapp:worker-1")
+	application, insts, _, err := resolveAppTarget(cmdCtx, "myapp:worker-1", readConfig)
 	require.ErrorIs(t, err, running.ErrNotTarantool)
 	assert.Nil(t, application)
 	assert.Nil(t, insts)
@@ -252,7 +252,7 @@ func TestReplicasetFillCtxScripts(t *testing.T) {
 
 	var ctx replicasetCtx
 
-	require.NoError(t, replicasetFillCtx(&cmdcontext.CmdCtx{}, &ctx, "myapp", false))
+	require.NoError(t, replicasetFillCtx(&cmdcontext.CmdCtx{}, &ctx, "myapp", false, readConfig))
 	assert.Equal(t, replicaset.OrchestratorCustom, ctx.Orchestrator)
 	assert.Equal(t, []string{"legacy-1", "legacy-2"}, instanceNames(ctx.RunningCtx.Instances))
 
@@ -264,6 +264,6 @@ func TestReplicasetFillCtxScripts(t *testing.T) {
 
 	ctx = replicasetCtx{}
 
-	require.NoError(t, replicasetFillCtx(&cmdcontext.CmdCtx{}, &ctx, "myapp", false))
+	require.NoError(t, replicasetFillCtx(&cmdcontext.CmdCtx{}, &ctx, "myapp", false, readConfig))
 	assert.Equal(t, replicaset.OrchestratorCentralizedConfig, ctx.Orchestrator)
 }

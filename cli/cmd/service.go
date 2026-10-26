@@ -251,11 +251,12 @@ func completeSystemdApp(
 	}
 
 	return app.Names(app.Options{
-		Scope:     app.ScopeSystem,
-		Template:  "",
-		Start:     "",
-		Dir:       "",
-		Integrity: cmdCtx.Integrity,
+		Scope:      app.ScopeSystem,
+		Template:   "",
+		Start:      "",
+		Dir:        "",
+		Integrity:  cmdCtx.Integrity,
+		SkipConfig: true,
 	}), cobra.ShellCompDirectiveNoFileComp
 }
 

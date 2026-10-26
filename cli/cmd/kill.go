@@ -54,7 +54,7 @@ func killTargets(args []string) string {
 
 // internalKillModule is a kill module.
 func internalKillModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	instances, err := resolveInstances(cmdCtx, args)
+	instances, err := resolveProcesses(cmdCtx, args)
 	if err != nil {
 		return err
 	}

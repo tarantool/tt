@@ -101,7 +101,7 @@ func internalStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			errInvalidFormatValidFormatsAreJSONYAMLTablePrettyTable, opts.format)
 	}
 
-	instances, err := resolveInstances(cmdCtx, args)
+	instances, err := resolveProcesses(cmdCtx, args)
 	if err != nil {
 		return err
 	}

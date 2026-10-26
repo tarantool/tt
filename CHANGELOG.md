@@ -484,9 +484,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `.templates/default/{instances,config}.yaml`, or `<root>/etc/<app>/` for an
   installed application; a description with only `script` and `binary` records
   needs no `config.yaml` and does not read one, while `tt cluster show` and
-  `publish` refuse an application without it. Data, logs, pid files and
-  sockets go to `<root>/var/{lib,log,run}/<app>/<instance>/`, where `<root>`
-  is `.tarantool` in a project. Targets are `<app>:<instance>`, `<app>:*` and
+  `publish` refuse an application without it. `tt instance stop`, `kill`,
+  `status`, `logrotate` and `logs`, the completion of a target and
+  `tt replicaset status` read neither `config.yaml` nor the config storage it
+  names, as they did not with `tt.yaml`: they find the instances by
+  `instances.yaml` and their pid files, so a broken config or an etcd that is
+  down does not keep them from the running instances, which
+  `tt instance status` asks for their state over the console socket. Data,
+  logs, pid files and sockets go to
+  `<root>/var/{lib,log,run}/<app>/<instance>/`, where `<root>` is `.tarantool`
+  in a project. Targets are `<app>:<instance>`, `<app>:*` and
   comma-separated lists of them, or none for every instance of the current
   project; a bare `<app>` is refused with a hint. The restart policy is the
   `restart` field of the instance record: a restart after a crash stays on the

@@ -194,7 +194,7 @@ func printLastN(instances []running.InstanceCtx, lineCount int) error {
 
 // internalLogsModule is a default logs module.
 func internalLogsModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	instances, err := resolveInstances(cmdCtx, args)
+	instances, err := resolveProcesses(cmdCtx, args)
 	if err != nil {
 		return err
 	}

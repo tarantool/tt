@@ -1,6 +1,7 @@
 import os
 import re
 import shutil
+import socket
 import subprocess
 import tempfile
 import time
@@ -417,6 +418,110 @@ def test_status_script_instance(tt_cmd, tmp_path):
     rc, out = run_command_and_get_output([tt_cmd, "instance", "status", inst], cwd=app_path)
     assert rc == 0
     assert extract_status(out)[inst]["STATUS"] == "NOT RUNNING"
+
+
+def closed_address():
+    """Return an address on the loopback nobody listens on."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return "{}:{}".format(*sock.getsockname())
+
+
+@pytest.mark.skipif(
+    tarantool_major_version < 3,
+    reason="skip cluster instances test for Tarantool < 3",
+)
+@pytest.mark.parametrize("spoil", ["broken", "etcd out of reach"])
+def test_status_and_stop_without_config(tt_cmd, tmp_path, spoil):
+    # tt instance status, logrotate and stop find the running instances by
+    # instances.yaml and their pid files alone: a config broken by an edit,
+    # or one that sends tt to an etcd that is down, does not keep them from
+    # the instances. tt instance start, which needs the config, fails on it.
+    app_name = "small_cluster_app"
+    app_path = tmp_path / app_name
+    shutil.copytree(os.path.join(os.path.dirname(__file__), f"../running/{app_name}"), app_path)
+    instances = ["storage-master", "storage-replica"]
+    config_path = app_path / cluster_config_file
+    good_config = config_path.read_text()
+
+    try:
+        rc, out = run_command_and_get_output([tt_cmd, "instance", "start"], cwd=app_path)
+        assert rc == 0
+        for inst in instances:
+            run_dir = inst_run_dir(app_path, app_name, inst)
+            assert wait_file(run_dir, pid_file, []) != ""
+            assert wait_file(run_dir, control_socket, []) != ""
+
+        # The config is spoiled once the instances have read it: tarantool
+        # reads it again while it starts.
+        for inst in instances:
+            assert wait_instance_status(tt_cmd, app_path, f"{app_name}:{inst}", "config")
+
+        with open(app_path / cluster_config_file, "w") as config:
+            if spoil == "broken":
+                config.write("groups: [\n")
+            else:
+                config.write(
+                    "config:\n  etcd:\n    endpoints:\n"
+                    f"      - http://{closed_address()}\n"
+                    "    prefix: /small_cluster_app\n"
+                    "    http:\n      request:\n        timeout: 1\n",
+                )
+
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "instance", "start", f"{app_name}:storage-master"],
+            cwd=app_path,
+        )
+        assert rc != 0
+        assert "config.yaml" in out or "etcd" in out
+
+        status_info = {}
+
+        def box_running():
+            nonlocal status_info
+            rc, out = run_command_and_get_output(
+                [tt_cmd, "instance", "status", "--format=json"],
+                cwd=app_path,
+            )
+            assert rc == 0, out
+            status_info = extract_status_from_json(out)
+            return all(status_info[f"{app_name}:{inst}"]["box"] == "running" for inst in instances)
+
+        deadline = time.time() + 10
+        while not box_running() and time.time() < deadline:
+            time.sleep(0.2)
+
+        for inst in instances:
+            # What the instance itself tells is shown: the config is not
+            # needed to ask it.
+            assert status_info[f"{app_name}:{inst}"]["status"] == "RUNNING"
+            assert status_info[f"{app_name}:{inst}"]["box"] == "running"
+
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "instance", "logrotate", f"{app_name}:*"],
+            cwd=app_path,
+        )
+        assert rc == 0, out
+        assert out.count("logs has been rotated") == len(instances)
+
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "instance", "stop", "--yes"],
+            cwd=app_path,
+        )
+        assert rc == 0, out
+        for inst in instances:
+            assert f"The Instance {app_name}:{inst} (PID = " in out
+
+        rc, out = run_command_and_get_output([tt_cmd, "instance", "status"], cwd=app_path)
+        assert rc == 0, out
+        status_info = extract_status(out)
+        for inst in instances:
+            assert status_info[f"{app_name}:{inst}"]["STATUS"] == "NOT RUNNING"
+    finally:
+        # The config is put back, so that a tt that cannot stop the instances
+        # without it does not leave them running.
+        config_path.write_text(good_config)
+        stop_application(tt_cmd, app_name, app_path)
 
 
 def test_status_invalid_format(tt_cmd, tmpdir_with_cfg):

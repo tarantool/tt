@@ -232,12 +232,15 @@ func listTemplates(templatesDir string) []string {
 // external processes, needs no config, and one the pair has anyway is left
 // unread: whatever it holds, an empty file or a storage out of reach, does
 // not keep those instances from running. A description with them needs the
-// config, and a pair without one is incomplete.
+// config, and a pair without one is incomplete. With skipConfig
+// (Options.SkipConfig) it is left unread whatever the description holds,
+// and a pair without one is no less complete for that.
 func loadPair(
 	ctx context.Context,
 	pair Pair,
 	appDir string,
 	integ integrity.IntegrityCtx,
+	skipConfig bool,
 ) ([]instances.Instance, *goconfig.MutableConfig, error) {
 	data, err := readFile(integ, pair.InstancesFile)
 	if err != nil {
@@ -255,7 +258,7 @@ func loadPair(
 	}
 
 	configured := clusterInstances(records)
-	if len(configured) == 0 {
+	if len(configured) == 0 || skipConfig {
 		return records, nil, nil
 	}
 

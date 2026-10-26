@@ -34,6 +34,19 @@ type Options struct {
 	// the cluster config may point to. A context without a repository checks
 	// nothing.
 	Integrity integrity.IntegrityCtx
+	// SkipConfig leaves the cluster config of the pair unread: neither the
+	// file nor the config storage it names is read, the description is not
+	// checked against the topology, and App.Config is nil. A pair whose
+	// config is missing, broken or out of reach loads all the same; the
+	// description is read and checked as always.
+	//
+	// It is for the commands that act on the processes of the instances,
+	// which find them by the description and their pid files alone, such as
+	// tt instance stop and status: an etcd that is down or a config broken
+	// by an edit must not keep a running instance from being stopped or
+	// looked at, as it did not in tt2. A command that needs the config to
+	// act, such as tt instance start, reads it.
+	SkipConfig bool
 }
 
 // App is an application found and loaded with its pair.
@@ -56,8 +69,9 @@ type App struct {
 	Pair Pair
 	// Config is the cluster config of the pair, with what a config storage
 	// it names holds merged in. It is nil when the description has no
-	// Tarantool instance configured by it (HasClusterInstances): the config
-	// is not read then, whether the pair has one or not.
+	// Tarantool instance configured by it (HasClusterInstances), and when
+	// Options.SkipConfig leaves it unread: the config is not read then,
+	// whether the pair has one or not.
 	Config *goconfig.MutableConfig
 	// Instances are every record of the description, in its order.
 	Instances []instances.Instance
@@ -76,7 +90,9 @@ func (app *App) HasClusterInstances() bool {
 //
 // Load checks the pair as a whole, whichever instances a command then acts
 // on: a Tarantool instance the topology does not declare, or a field an
-// instance cannot honour, breaks every command on the application alike.
+// instance cannot honour, breaks every command on the application alike,
+// but for those that leave the config unread (Options.SkipConfig), which
+// have no topology to check against.
 func Load(ctx context.Context, name string, opts Options) (*App, error) {
 	if name != "" && !validName(name) {
 		return nil, failf("%w: %q cannot be an application name", ErrInvalidTarget, name)
@@ -103,7 +119,7 @@ func Load(ctx context.Context, name string, opts Options) (*App, error) {
 		return nil, err
 	}
 
-	records, cfg, err := loadPair(ctx, pair, loc.dir, opts.Integrity)
+	records, cfg, err := loadPair(ctx, pair, loc.dir, opts.Integrity, opts.SkipConfig)
 	if err != nil {
 		return nil, fmt.Errorf("application %q: %w", loc.name, err)
 	}
