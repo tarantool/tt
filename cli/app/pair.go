@@ -64,6 +64,14 @@ func (pair *Pair) String() string {
 	return fmt.Sprintf("template %q in %s", pair.Template, pair.Dir)
 }
 
+// HostDir returns the directory of the host files of the application name
+// installed under root, the root of the user or the system scope:
+// <root>/etc/<app>/. It holds the pair of the host, and the files tt keeps
+// for the application on the host, such as the mark of its systemd units.
+func HostDir(root, name string) string {
+	return filepath.Join(root, hostDirName, name)
+}
+
 // newPair returns the pair in dir.
 func newPair(template, dir string) Pair {
 	return Pair{
@@ -99,7 +107,7 @@ func selectPair(loc location, template string) (Pair, error) {
 	}
 
 	if loc.scope != ScopeProject {
-		host := newPair("", filepath.Join(loc.root, hostDirName, loc.name))
+		host := newPair("", HostDir(loc.root, loc.name))
 
 		present, err := checkPair(&host)
 		if err != nil {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/manifest"
@@ -57,6 +58,71 @@ func locate(name string, opts Options, start string) (location, error) {
 	default:
 		return location{}, failf("%w %q", ErrUnknownScope, opts.Scope)
 	}
+}
+
+// ScopeOf returns the scope Load looks for the application name in with opts,
+// and the root of that scope, without looking for the application in it:
+// --scope when it is given; otherwise the project the command runs in when
+// the project has that name, and the system scope when it does not.
+//
+// It is for a command that acts on what an application has left in its
+// scope rather than on the application, such as the systemd units of one
+// that may be gone: the target names the same scope there as it does in the
+// instance commands. A project, in the project scope or found by the rules,
+// is read for its name, as Load reads it.
+func ScopeOf(name string, opts Options) (Scope, string, error) {
+	if !validName(name) || strings.ContainsAny(name, instanceDelimiter+targetSeparator) {
+		return "", "", failf("%w %q: the command takes an application, <APP>",
+			ErrInvalidTarget, name)
+	}
+
+	start := opts.Start
+	if start == "" {
+		start = "."
+	}
+
+	start, err := filepath.Abs(start)
+	if err != nil {
+		return "", "", failf("cannot resolve the start directory %q: %w", opts.Start, err)
+	}
+
+	switch opts.Scope {
+	case ScopeUser, ScopeSystem:
+	case ScopeProject:
+		loc, err := locateProject(name, start, opts.Integrity)
+		if err != nil {
+			return "", "", err
+		}
+
+		return ScopeProject, loc.root, nil
+	case "":
+		projectDir, found, err := scope.FindProject(start)
+		if err != nil {
+			return "", "", failf("%w", err)
+		}
+
+		if found {
+			project, err := projectLocation(projectDir, opts.Integrity)
+			if err != nil {
+				return "", "", err
+			}
+
+			if project.name == name {
+				return ScopeProject, project.root, nil
+			}
+		}
+
+		opts.Scope = ScopeSystem
+	default:
+		return "", "", failf("%w %q", ErrUnknownScope, opts.Scope)
+	}
+
+	root, err := scopeRoot(opts.Scope)
+	if err != nil {
+		return "", "", failf("%w", err)
+	}
+
+	return opts.Scope, root, nil
 }
 
 // locateAuto applies the rules for a command without --scope.
