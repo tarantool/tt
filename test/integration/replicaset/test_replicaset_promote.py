@@ -15,14 +15,11 @@ from replicaset_helpers import (
 )
 
 from utils import (
-    get_tarantool_version,
     instances_file,
     read_kv,
     run_command_and_get_output,
     wait_event,
 )
-
-tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
 tnt_username = "client"
 tnt_password = "secret"
@@ -44,10 +41,6 @@ def make_test_failovers_param(
     return pytest.param(key, replicaset, inst, is_uri, stop_inst, err_text, args, id=id)
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip centralized config test for Tarantool < 3",
-)
 @pytest.mark.parametrize(
     TEST_FAILOVERS_PARAMS,
     [
@@ -244,10 +237,6 @@ def test_promote_cconfig_failovers(
         stop_application(tt_cmd, app_name, app_path, instances)
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip centralized config test for Tarantool < 3",
-)
 @pytest.mark.parametrize("election_mode", ["voter", "off"])
 def test_promote_cconfig_election_errors(
     tt_cmd,

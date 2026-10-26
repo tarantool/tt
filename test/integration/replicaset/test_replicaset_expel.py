@@ -3,9 +3,7 @@ import re
 import pytest
 from replicaset_helpers import copy_application
 
-from utils import get_tarantool_version, run_command_and_get_output, wait_file
-
-tarantool_major_version, tarantool_minor_version = get_tarantool_version()
+from utils import run_command_and_get_output, wait_file
 
 
 @pytest.mark.parametrize(
@@ -83,10 +81,6 @@ Replicasets state: bootstrapped
         assert rc == 0
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip centralized config test for Tarantool < 3",
-)
 @pytest.mark.parametrize("flag", [None, "--config"])
 def test_expel_cconfig(tt_cmd, tmpdir_with_cfg, flag):
     tmpdir = tmpdir_with_cfg

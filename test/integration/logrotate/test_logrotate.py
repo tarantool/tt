@@ -7,11 +7,6 @@ import tt_helper
 
 import utils
 
-skip_cluster_cond = not utils.is_tarantool_3()
-skip_cluster_reason = "skip cluster instances test for Tarantool < 3"
-
-is_tarantool_major_one = utils.is_tarantool_major_one()
-
 
 def check_logrotate(tt, tt_app, target):
     # Store original state.
@@ -57,15 +52,13 @@ def check_logrotate(tt, tt_app, target):
                 assert f"{inst}: the instance is not running, it must be started" in p.stdout
 
     # Stop running instances and make sure there are non-watchdog messages,
-    # i.e. tarantool binary also puts its logs here (exclude v1.x because
-    # it produce no message at stopping).
-    if not is_tarantool_major_one:
-        p = tt.run("instance", "stop", "-y", target)
-        assert p.returncode == 0
-        for inst in tt_app.instances:
-            if inst in target_instances and inst in tt_app.running_instances:
-                with open(tt_app.log_path(inst, utils.log_file)) as f:
-                    assert [line for line in f if not line.startswith("Watchdog")]
+    # i.e. tarantool binary also puts its logs here.
+    p = tt.run("instance", "stop", "-y", target)
+    assert p.returncode == 0
+    for inst in tt_app.instances:
+        if inst in target_instances and inst in tt_app.running_instances:
+            with open(tt_app.log_path(inst, utils.log_file)) as f:
+                assert [line for line in f if not line.startswith("Watchdog")]
 
 
 def post_start_logrotate_decorator(func):
@@ -148,7 +141,6 @@ tt_cluster_app = dict(
 )
 
 
-@pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
 @pytest.mark.tt_app(**tt_cluster_app)
 @pytest.mark.parametrize(
@@ -180,7 +172,6 @@ tt_cluster_app_no_config = dict(
 )
 
 
-@pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
 @pytest.mark.tt_app(**tt_cluster_app_no_config)
 @pytest.mark.parametrize(

@@ -10,10 +10,7 @@ from integration.replicaset.replicaset_helpers import (
     stop_application,
 )
 
-from utils import get_tarantool_version, read_kv, run_command_and_get_output, template_dir
-
-tarantool_major_version, tarantool_minor_version = get_tarantool_version()
-
+from utils import read_kv, run_command_and_get_output, template_dir
 
 TEST_ROLES_ADD_PARAMS_CCONFIG = (
     "role_name, inst, inst_flg, group, rs, is_uri, is_global, err_msg,"
@@ -64,10 +61,6 @@ def test_roles_add_missing_args(tt_cmd, tmpdir_with_cfg, args, err_msg):
     assert err_msg in out
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip centralized config test for Tarantool < 3",
-)
 @pytest.mark.parametrize(
     TEST_ROLES_ADD_PARAMS_CCONFIG,
     [

@@ -7,7 +7,6 @@ import pytest
 from replicaset_helpers import copy_application, eval_on_instance, parse_status, stop_application
 
 from utils import (
-    get_tarantool_version,
     inst_log_dir,
     log_file,
     run_command_and_get_output,
@@ -15,8 +14,6 @@ from utils import (
     wait_file,
     wait_string_in_file,
 )
-
-tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
 
 @pytest.mark.parametrize(
@@ -87,10 +84,6 @@ Replicasets state: bootstrapped
         assert rc == 0
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip centralized config test for Tarantool < 3",
-)
 def test_vshard_bootstrap_cconfig_vshard_not_installed(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "test_ccluster_app"
@@ -176,10 +169,6 @@ def vshard_cconfig_app_tt_env(tt_cmd, tmp_path, vshard_tt_env_session):
         )
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip centralized config test for Tarantool < 3",
-)
 def test_vshard_bootstrap_cconfig_via_uri_no_router(tt_cmd, vshard_cconfig_app_tt_env):
     tmpdir = vshard_cconfig_app_tt_env
     cmd = [
@@ -198,10 +187,6 @@ def test_vshard_bootstrap_cconfig_via_uri_no_router(tt_cmd, vshard_cconfig_app_t
     assert "instance must be a router to bootstrap vshard" in out
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip centralized config test for Tarantool < 3",
-)
 @pytest.mark.parametrize("flag", [None, "--config"])
 def test_vshard_bootstrap_cconfig(tt_cmd, vshard_cconfig_app_tt_env, flag):
     tmpdir = vshard_cconfig_app_tt_env
@@ -260,10 +245,6 @@ def vshard_cconfig_app_timeout_tt_env(tt_cmd, tmp_path, vshard_tt_env_session):
         )
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip centralized config test for Tarantool < 3",
-)
 def test_vshard_bootstrap_enough_timeout(tt_cmd, vshard_cconfig_app_timeout_tt_env):
     tmpdir = vshard_cconfig_app_timeout_tt_env
 
@@ -283,10 +264,6 @@ def test_vshard_bootstrap_enough_timeout(tt_cmd, vshard_cconfig_app_timeout_tt_e
     assert "Done." in out
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip centralized config test for Tarantool < 3",
-)
 def test_vshard_bootstrap_not_enough_timeout(tt_cmd, vshard_cconfig_app_timeout_tt_env):
     tmpdir = vshard_cconfig_app_timeout_tt_env
 

@@ -15,24 +15,18 @@ from utils import (
     BINARY_PORT_NAME,
     control_socket,
     find_tt_processes,
-    get_tarantool_version,
     inst_run_dir,
-    is_tarantool_major_one,
     kill_procs,
     make_project,
     project_root,
     run_command_and_get_output,
     run_path,
-    skip_if_cluster_app_unsupported,
-    skip_if_quit_unsupported,
     skip_if_tarantool_ce,
     skip_if_tuple_format_supported,
     skip_if_tuple_format_unsupported,
     wait_file,
     wait_files,
 )
-
-tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
 
 @pytest.fixture(autouse=True)
@@ -198,23 +192,6 @@ def prepare_test_app_languages(tt_cmd, tmpdir):
     file = wait_file(os.path.join(tmpdir, "test_app"), "configured", [])
     assert file != ""
     return "test_app:test_app", lua_file, sql_file
-
-
-def is_language_supported():
-    major, minor = get_tarantool_version()
-    return major >= 2
-
-
-def skip_if_language_unsupported(tt_cmd, tmpdir, test_app):
-    if not is_language_supported():
-        stop_app(tt_cmd, tmpdir, test_app)
-        pytest.skip("\\set language is unsupported")
-
-
-def skip_if_language_supported(tt_cmd, tmpdir, test_app):
-    if is_language_supported():
-        stop_app(tt_cmd, tmpdir, test_app)
-        pytest.skip("\\set language is supported")
 
 
 def test_connect_and_get_commands_outputs(tt_cmd, tmpdir_with_cfg):
@@ -419,8 +396,6 @@ def test_connect_and_handle_lua_parse_error(tt_cmd, tmpdir_with_cfg):
 def test_connect_and_execute_quit(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     empty_file = "empty.lua"
-
-    skip_if_quit_unsupported()
 
     # The test application file.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_single_app", "test_app.lua")
@@ -936,8 +911,6 @@ def test_connect_language_lua(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     test_app, lua_file, sql_file = prepare_test_app_languages(tt_cmd, tmpdir)
     try:
-        skip_if_language_unsupported(tt_cmd, tmpdir, test_app)
-
         # Execute Lua-code.
         opts = {"-l": "lua"}
         ret, output = try_execute_on_instance(tt_cmd, tmpdir, test_app, lua_file, opts=opts)
@@ -960,8 +933,6 @@ def test_connect_language_sql(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     test_app, lua_file, sql_file = prepare_test_app_languages(tt_cmd, tmpdir)
     try:
-        skip_if_language_unsupported(tt_cmd, tmpdir, test_app)
-
         # Execute Lua-code.
         opts = {"-l": "sql"}
         ret, output = try_execute_on_instance(tt_cmd, tmpdir, test_app, lua_file, opts=opts)
@@ -984,8 +955,6 @@ def test_connect_language_l_equal_language(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     test_app, lua_file, sql_file = prepare_test_app_languages(tt_cmd, tmpdir)
     try:
-        skip_if_language_unsupported(tt_cmd, tmpdir, test_app)
-
         for opt in ["-l", "--language"]:
             # Execute Lua-code.
             opts = {opt: "sql"}
@@ -1019,29 +988,6 @@ def test_connect_language_invalid(tt_cmd, tmpdir_with_cfg):
         ret, output = try_execute_on_instance(tt_cmd, tmpdir, test_app, sql_file, opts=opts)
         assert not ret
         assert re.search(r"   ⨯ unsupported language: invalid", output)
-
-    finally:
-        # Stop the Instance.
-        stop_app(tt_cmd, tmpdir, test_app)
-
-
-def test_connect_language_set_if_unsupported(tt_cmd, tmpdir_with_cfg):
-    tmpdir = tmpdir_with_cfg
-    test_app, lua_file, sql_file = prepare_test_app_languages(tt_cmd, tmpdir)
-    try:
-        skip_if_language_supported(tt_cmd, tmpdir, test_app)
-
-        # Execute Lua-code.
-        opts = {"-l": "lua"}
-        ret, output = try_execute_on_instance(tt_cmd, tmpdir, test_app, lua_file, opts=opts)
-        assert not ret
-        assert re.search(r"   ⨯ unable to change a language: unexpected response:", output)
-
-        # Execute SQL-code.
-        opts = {"-l": "sql"}
-        ret, output = try_execute_on_instance(tt_cmd, tmpdir, test_app, sql_file, opts=opts)
-        assert not ret
-        assert re.search(r"   ⨯ unable to change a language: unexpected response:", output)
 
     finally:
         # Stop the Instance.
@@ -1710,51 +1656,43 @@ def test_table_output_format(tt_cmd, tmpdir_with_cfg):
                 "+------+------+-------+------+\n"
             )
 
-            if not is_tarantool_major_one():
-                # Execute stdin.
-                ret, output = try_execute_on_instance(
-                    tt_cmd,
-                    tmpdir,
-                    uri,
-                    stdin="box.execute('select 1 as FOO, 30, 50, 4+4 as DATA')",
-                    opts={"-x": "table"},
-                )
-                assert ret
-                assert output == (
-                    "+-----+----------+----------+------+\n"
-                    "| FOO | COLUMN_1 | COLUMN_2 | DATA |\n"
-                    "+-----+----------+----------+------+\n"
-                    "| 1   | 30       | 50       | 8    |\n"
-                    "+-----+----------+----------+------+\n"
-                )
+            # Execute stdin.
+            ret, output = try_execute_on_instance(
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin="box.execute('select 1 as FOO, 30, 50, 4+4 as DATA')",
+                opts={"-x": "table"},
+            )
+            assert ret
+            assert output == (
+                "+-----+----------+----------+------+\n"
+                "| FOO | COLUMN_1 | COLUMN_2 | DATA |\n"
+                "+-----+----------+----------+------+\n"
+                "| 1   | 30       | 50       | 8    |\n"
+                "+-----+----------+----------+------+\n"
+            )
 
-                # Execute stdin.
-                if tarantool_major_version >= 3 or (
-                    tarantool_major_version == 2 and tarantool_minor_version >= 11
-                ):
-                    select = "select * from seqscan table1"
-                else:
-                    select = "select * from table1"
-
-                ret, output = try_execute_on_instance(
-                    tt_cmd,
-                    tmpdir,
-                    uri,
-                    stdin=f"box.execute('{select}')",
-                    opts={"-x": "table"},
-                )
-                assert ret
-                assert output == (
-                    "+---------+-------------------+\n"
-                    "| COLUMN1 | COLUMN2           |\n"
-                    "+---------+-------------------+\n"
-                    "| 10      | Hello SQL world!  |\n"
-                    "+---------+-------------------+\n"
-                    "| 20      | Hello LUA world!  |\n"
-                    "+---------+-------------------+\n"
-                    "| 30      | Hello YAML world! |\n"
-                    "+---------+-------------------+\n"
-                )
+            # Execute stdin.
+            ret, output = try_execute_on_instance(
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin="box.execute('select * from seqscan table1')",
+                opts={"-x": "table"},
+            )
+            assert ret
+            assert output == (
+                "+---------+-------------------+\n"
+                "| COLUMN1 | COLUMN2           |\n"
+                "+---------+-------------------+\n"
+                "| 10      | Hello SQL world!  |\n"
+                "+---------+-------------------+\n"
+                "| 20      | Hello LUA world!  |\n"
+                "+---------+-------------------+\n"
+                "| 30      | Hello YAML world! |\n"
+                "+---------+-------------------+\n"
+            )
 
             # Execute stdin.
             ret, output = try_execute_on_instance(
@@ -3245,7 +3183,6 @@ def test_connect_to_cluster_app(tt_cmd):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported by test")
     tmpdir = tempfile.mkdtemp()
-    skip_if_cluster_app_unsupported()
 
     empty_file = "empty.lua"
     app_name = "test_simple_cluster_app"
@@ -3311,7 +3248,6 @@ def test_connect_to_cluster_app(tt_cmd):
 def test_connect_to_cluster_app_by_uri(tt, tt_app, with_scheme, uri):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported by test")
-    skip_if_cluster_app_unsupported()
     # Start instances.
     p = tt.run(
         "instance",
@@ -3399,7 +3335,6 @@ return a
 # spell-checker:ignore seqscan, evalers
 
 
-@pytest.mark.skipif(tarantool_major_version == 1, reason="skip custom evaler test for Tarantool 1")
 def test_custom_evaler(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     test_app_path = os.path.join(
@@ -3423,12 +3358,7 @@ def test_custom_evaler(tt_cmd, tmpdir_with_cfg):
         with open(os.path.join(tmpdir, "evaler.lua"), "w") as f:
             f.write("return box.execute(cmd)")
 
-        if tarantool_major_version >= 3 or (
-            tarantool_major_version == 2 and tarantool_minor_version >= 11
-        ):
-            select = "select COLUMN2 from seqscan table1 WHERE COLUMN1 = 10"
-        else:
-            select = "select COLUMN2 from table1 WHERE COLUMN1 = 10"
+        select = "select COLUMN2 from seqscan table1 WHERE COLUMN1 = 10"
 
         uris = ["localhost:3013", "tcp://localhost:3013"]
         evalers = ["return box.execute(cmd)", os.path.join("@" + tmpdir, "evaler.lua")]

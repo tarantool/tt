@@ -9,9 +9,6 @@ import tt_helper
 
 import utils
 
-skip_cluster_cond = not utils.is_tarantool_3()
-skip_cluster_reason = "skip cluster instances test for Tarantool < 3"
-
 
 # Unchecked precondition for not force_mode:
 # more than 0 total files to remove.
@@ -259,7 +256,6 @@ tt_cluster_app = dict(
 
 
 # Auto-confirmation (short option).
-@pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
 @pytest.mark.tt_app(**tt_cluster_app)
 @pytest.mark.parametrize(
@@ -290,7 +286,6 @@ def test_clean_cluster_auto_y(tt, tt_app, stop_targets, target):
 
 
 # Auto-confirmation (long option; less variations).
-@pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.tt_app(**dict(tt_cluster_app, running_targets=["app:*"]))
 def test_clean_cluster_auto_yes(tt, tt_app):
     check_clean(tt, tt_app, ["app:*"], "app:*", "--yes")
@@ -304,7 +299,6 @@ tt_cluster_app_no_config = dict(
 )
 
 
-@pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.tt_app(**tt_cluster_app_no_config)
 @pytest.mark.parametrize(
     "tt_running_targets",
