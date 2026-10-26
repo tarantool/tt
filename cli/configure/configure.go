@@ -140,7 +140,7 @@ func ValidateCliOpts(cliCtx *cmdcontext.CliCtx) error {
 func Cli(cmdCtx *cmdcontext.CmdCtx) error {
 	var err error
 
-	cmdCtx.Cli.ProjectDir, err = projectDir()
+	cmdCtx.Cli.ProjectDir, err = projectDir(cmdCtx.Cli.IntegrityCheck != "")
 	if err != nil {
 		return err
 	}
@@ -165,13 +165,20 @@ func Cli(cmdCtx *cmdcontext.CmdCtx) error {
 // the working directory in its place rather than failing the command: the
 // commands that act on a project look for it themselves and report why it
 // is not there, and the others, tt version for one, have no use for it.
-func projectDir() (string, error) {
+// With strict, which the integrity checks ask for, it is an error: the
+// project is the root they check, and checking another directory in its
+// place would pass files nobody signed.
+func projectDir(strict bool) (string, error) {
 	workingDir, err := os.Getwd()
 	if err != nil {
 		return "", fmt.Errorf("failed to detect current directory: %w", err)
 	}
 
 	dir, found, err := scope.FindProject(workingDir)
+	if err != nil && strict {
+		return "", fmt.Errorf("failed to find the project: %w", err)
+	}
+
 	if err != nil {
 		log.Debugf("Failed to look for the project, %q stands for it: %s", workingDir, err)
 

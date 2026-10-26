@@ -162,17 +162,19 @@ func Configure() error {
 		return fmt.Errorf("Failed to configure Tarantool CLI: %w", err)
 	}
 
-	currentDir, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("can't get current dir: %w", err)
-	}
-
+	// The files of the project are what is checked: the project replaces the
+	// tt environment tt.yaml rooted.
 	cmdCtx.Integrity, err = integrity.InitializeIntegrityCheck(
 		cmdCtx.Cli.IntegrityCheck,
-		currentDir,
+		cmdCtx.Cli.ProjectDir,
 	)
 	if err != nil {
 		return fmt.Errorf("integrity check failed: %w", err)
+	}
+
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("can't get current dir: %w", err)
 	}
 
 	// TCM config, if any, is located in the working directory.
