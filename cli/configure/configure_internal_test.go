@@ -1,407 +1,200 @@
 package configure
 
 import (
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
-	"github.com/tarantool/tt/v3/cli/config"
-	"github.com/tarantool/tt/v3/cli/util"
 )
 
-type mockRepository struct {
-	fileRequestLog []string
+// writeExecutable writes a shell script that prints its name to path,
+// creating the directories above it.
+func writeExecutable(t *testing.T, path string) {
+	t.Helper()
+
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte("#!/bin/sh\necho "+path+"\n"), 0o755))
 }
 
-func (m *mockRepository) Read(path string) (io.ReadCloser, error) {
-	m.fileRequestLog = append(m.fileRequestLog, path)
+// writeProject makes dir a project: a directory holding a manifest.
+func writeProject(t *testing.T, dir string) {
+	t.Helper()
 
-	return os.Open(path)
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "app.manifest.toml"),
+		[]byte("manifest_version = '0.1'\n"), 0o644))
 }
 
-func (m *mockRepository) ReadFile(path string) ([]byte, error) {
-	m.fileRequestLog = append(m.fileRequestLog, path)
+// isolate keeps the user and system roots, PATH and the tarantool choice of
+// the environment out of a test.
+func isolate(t *testing.T) {
+	t.Helper()
 
-	return os.ReadFile(path)
-}
-
-func (m *mockRepository) ValidateAll() error {
-	return nil
-}
-
-func (m *mockRepository) resetLog() {
-	m.fileRequestLog = []string{}
-}
-
-func newMockRepository() mockRepository {
-	return mockRepository{
-		fileRequestLog: []string{},
-	}
-}
-
-// Test Tarantool CLI configuration (system and local).
-func TestConfigureCli(t *testing.T) {
-	assert := assert.New(t)
-	cwd, err := os.Getwd()
-	require.NoError(t, err)
-
-	mockRepository := newMockRepository()
-
-	cmdCtx := cmdcontext.CmdCtx{
-		Integrity: integrity.IntegrityCtx{
-			Repository: &mockRepository,
-		},
-	}
-
-	// Test system configuration.
-	cmdCtx.Cli.IsSystem = true
-	require.NoError(t, Cli(&cmdCtx))
-
-	// In fact, cmdCtx.Cli.ConfigPath must contain the path, for example
-	// /etc/tarantool/tt.yaml on Linux, to the standard configuration file.
-	// But, the path to the system configuration file is set at the compilation
-	// stage of the application (therefore, we get only the file name `tt.yaml`,
-	// not the entire path). We cannot set the path to the file at build time because
-	// we run `go test`, which compiles the functions again.
-	assert.Equal(ConfigName, cmdCtx.Cli.ConfigPath)
-
-	testDir := t.TempDir()
-	// Cli changes the process working directory for a local launch. Register
-	// restoration before calling it and before the temporary directory cleanup.
-	t.Chdir(cwd)
-
-	// Test local configuration.
-	cmdCtx.Cli.IsSystem = false
-	cmdCtx.Cli.LocalLaunchDir = testDir
-	cmdCtx.Cli.ConfigPath = ""
-
-	expectedConfigPath, err := util.JoinAbspath(testDir, ConfigName)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(expectedConfigPath, []byte(`env:
-  bin_dir: "."
-`), 0o644))
-
-	// Create local tarantool and check that it is found during configuration.
-	expectedTarantoolPath := filepath.Join(cmdCtx.Cli.LocalLaunchDir, "tarantool")
-	require.NoError(t, os.WriteFile(
-		expectedTarantoolPath, []byte("I am [fake] local Tarantool!"), 0o777,
-	))
-
-	defer func() {
-		_ = os.Remove(expectedTarantoolPath)
-	}()
-
-	require.NoError(t, Cli(&cmdCtx))
-	assert.Equal(expectedConfigPath, cmdCtx.Cli.ConfigPath)
-	assert.Equal(expectedTarantoolPath, cmdCtx.Cli.TarantoolCli.Executable)
-
-	// Check that all necessary files have been checked.
-	assert.Equal([]string{expectedConfigPath},
-		mockRepository.fileRequestLog)
-
-	// Test default configuration (no flags specified).
-	cmdCtx.Cli.LocalLaunchDir = ""
-	cmdCtx.Cli.ConfigPath = ""
-
-	dir := t.TempDir()
-
-	mockRepository.resetLog()
-
-	// Check if it will go down to the bottom of the directory looking
-	// for the tt.yaml configuration file, specifically skip a file
-	// in the working directory.
-	t.Chdir(dir)
-
-	expectedConfigPath = filepath.Join(filepath.Dir(dir), ConfigName)
-
-	require.NoError(t, os.WriteFile(
-		expectedConfigPath, []byte("app:"), 0o755,
-	))
-
-	defer func() {
-		_ = os.Remove(expectedConfigPath)
-	}()
-
-	require.NoError(t, Cli(&cmdCtx))
-	assert.Equal(expectedConfigPath, cmdCtx.Cli.ConfigPath)
-	assert.Equal([]string{expectedConfigPath},
-		mockRepository.fileRequestLog)
-}
-
-func TestAdjustPathWithConfigLocation(t *testing.T) {
-	type args struct {
-		filePath    string
-		baseDir     string
-		defaultPath string
-	}
-
-	cwd, err := os.Getwd()
-	require.NoError(t, err)
-
-	tests := []struct {
-		name     string
-		args     args
-		wantPath string
-		wantErr  bool
-	}{
-		{
-			name:     "Test empty file path",
-			args:     args{"", "/abs/path", "bin"},
-			wantPath: "/abs/path/bin",
-			wantErr:  false,
-		},
-		{
-			name:     "Test absolute file path",
-			args:     args{"/abs/my_bin", "/base/dir", "bin"},
-			wantPath: "/abs/my_bin",
-			wantErr:  false,
-		},
-		{
-			name:     "Test relative file path",
-			args:     args{"./rel/my_bin", "/base/dir", "bin"},
-			wantPath: "/base/dir/rel/my_bin",
-			wantErr:  false,
-		},
-		{
-			name:     "Test relative file path without dot",
-			args:     args{"rel/my_bin", "/base/dir", "bin"},
-			wantPath: "/base/dir/rel/my_bin",
-			wantErr:  false,
-		},
-		{
-			name:     "Test relative base dir",
-			args:     args{"my_bin", "rel/path", "bin"},
-			wantPath: filepath.Join(cwd, "rel/path/my_bin"),
-			wantErr:  false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			str, err := adjustPathWithConfigLocation(tt.args.filePath, tt.args.baseDir,
-				tt.args.defaultPath)
-			if tt.wantErr {
-				require.Error(t, err)
-
-				return
-			} else {
-				require.NoError(t, err)
-			}
-
-			require.Equal(t, tt.wantPath, str)
-		})
-	}
-}
-
-func TestExcludeArgs(t *testing.T) {
-	type argsData struct {
-		input, expected []string
-	}
-
-	testArgsData := []argsData{
-		{[]string{"a", "b", "c"}, []string{"a", "b", "c"}},
-		{[]string{"a", "b", "-L"}, []string{"a", "b"}},
-		{[]string{"a", "b", "-L", "/dir"}, []string{"a", "b"}},
-		{[]string{"a", "-L", "/dir", "b"}, []string{"a", "b"}},
-		{[]string{"a", "--local", "/dir", "b"}, []string{"a", "b"}},
-	}
-
-	for _, testData := range testArgsData {
-		require.Equal(t, testData.expected, excludeArgumentsForChildTt(testData.input))
-	}
+	t.Setenv("TT_USER_ROOT", t.TempDir())
+	t.Setenv("TT_SYSTEM_ROOT", t.TempDir())
+	t.Setenv("TT_USE_SYSTEM_TARANTOOL", "")
+	t.Setenv("PATH", t.TempDir())
 }
 
 func TestValidateCliOpts(t *testing.T) {
-	type cliCtxTest struct {
+	for _, testCase := range []struct {
 		input     cmdcontext.CliCtx
 		errString string
-	}
-
-	testData := []cliCtxTest{
+	}{
 		{
-			cmdcontext.CliCtx{IsSystem: true, ConfigPath: "/" + ConfigName},
-			"you can specify only one of -S(--system), -c(--cfg) and 'TT_CLI_CFG' options",
+			cmdcontext.CliCtx{IntegrityCheckPeriod: 1},
+			"need to specify public key in --integrity-check to use --integrity-check-period",
 		},
 		{
-			cmdcontext.CliCtx{LocalLaunchDir: "/", ConfigPath: "/" + ConfigName},
-			"you can specify only one of -L(--local), -c(--cfg) and 'TT_CLI_CFG' options",
+			cmdcontext.CliCtx{IntegrityCheck: "public.pem", IntegrityCheckPeriod: -1},
+			"--integrity-check-period must take non-negative value",
 		},
-		{
-			cmdcontext.CliCtx{IsSystem: true, LocalLaunchDir: "."},
-			"you can specify only one of -L(--local) and -S(--system) options",
-		},
-		{cmdcontext.CliCtx{IsSystem: true}, ""},
-		{cmdcontext.CliCtx{LocalLaunchDir: "."}, ""},
-		{cmdcontext.CliCtx{ConfigPath: ConfigName}, ""},
-	}
-
-	for _, cliCtxTestData := range testData {
-		if cliCtxTestData.errString != "" {
-			require.EqualError(t, ValidateCliOpts(&cliCtxTestData.input), cliCtxTestData.errString)
+		{cmdcontext.CliCtx{IntegrityCheck: "public.pem", IntegrityCheckPeriod: 1}, ""},
+		{cmdcontext.CliCtx{}, ""},
+	} {
+		if testCase.errString != "" {
+			require.EqualError(t, ValidateCliOpts(&testCase.input), testCase.errString)
 		} else {
-			require.NoError(t, ValidateCliOpts(&cliCtxTestData.input))
+			require.NoError(t, ValidateCliOpts(&testCase.input))
 		}
 	}
 }
 
-func TestDetectLocalTarantool(t *testing.T) {
-	// Tarantool executable is in bin_dir.
-	cliOpts := config.CliOpts{Env: &config.TtEnvOpts{BinDir: "./testdata/bin_dir"}}
-	cmdCtx := cmdcontext.CmdCtx{}
-	require.NoError(t, detectLocalTarantool(&cmdCtx, &cliOpts))
+// TestProjectDir checks that the project directory is the project the
+// working directory is in, and the working directory outside a project or
+// when the project cannot be looked for.
+func TestProjectDir(t *testing.T) {
+	isolate(t)
 
-	expected, err := filepath.Abs("./testdata/bin_dir/tarantool")
+	root := t.TempDir()
+	project := filepath.Join(root, "project")
+	nested := filepath.Join(project, "a", "b")
+
+	writeProject(t, project)
+	require.NoError(t, os.MkdirAll(nested, 0o755))
+
+	t.Chdir(nested)
+
+	dir, err := projectDir()
 	require.NoError(t, err)
-	require.Equal(t, expected, cmdCtx.Cli.TarantoolCli.Executable)
+	assert.Equal(t, project, dir)
 
-	// Chdir to temporary directory to avoid loading tt.yaml from parent directories.
-	t.Chdir(t.TempDir())
+	t.Chdir(root)
 
-	// Tarantool executable is in PATH.
-	cliOpts.Env.BinDir = "./testdata"
-	_ = Cli(&cmdCtx)
-	require.NoError(t, detectLocalTarantool(&cmdCtx, &cliOpts))
-
-	expected, err = exec.LookPath("tarantool")
+	dir, err = projectDir()
 	require.NoError(t, err)
-	require.Equal(t, expected, cmdCtx.Cli.TarantoolCli.Executable)
+	assert.Equal(t, root, dir)
+
+	// A relative root fails the project search, which no command but those
+	// acting on the project has to stop for.
+	t.Chdir(nested)
+	t.Setenv("TT_USER_ROOT", "relative")
+
+	dir, err = projectDir()
+	require.NoError(t, err)
+	assert.Equal(t, nested, dir)
 }
 
-func TestDetectLocalTt(t *testing.T) {
-	cliOpts := config.CliOpts{Env: &config.TtEnvOpts{BinDir: "./testdata/bin_dir"}}
-	localTt, err := detectLocalTt(&cliOpts)
-	require.NoError(t, err)
+// TestCliIgnoresTTYaml checks that tt.yaml configures nothing: neither a
+// broken one nor the bin_dir of a valid one, whose tarantool, tt and tcm are
+// not taken.
+func TestCliIgnoresTTYaml(t *testing.T) {
+	isolate(t)
 
-	expected, err := filepath.Abs("./testdata/bin_dir/tt")
-	require.NoError(t, err)
-	require.Equal(t, expected, localTt)
+	dir := t.TempDir()
+	t.Chdir(dir)
 
-	cliOpts.Env.BinDir = "./testdata"
-	localTt, err = detectLocalTt(&cliOpts)
-	require.NoError(t, err)
-	require.Empty(t, localTt)
-}
-
-func TestGetSystemConfigPath(t *testing.T) {
-	require.Equal(t, filepath.Join(defaultConfigPath, ConfigName), getSystemConfigPath())
-	t.Setenv(systemConfigDirEnvName, "/system_config_dir")
-	require.Equal(t, filepath.Join("/system_config_dir", ConfigName), getSystemConfigPath())
-}
-
-func TestGetConfigPath(t *testing.T) {
-	tempDir := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "a", "b"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "a", ConfigName), []byte(""),
-		0o664))
-	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "a", "tt.yml"), []byte(""),
-		0o664))
-	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "tt.yaml"), []byte(""),
-		0o664))
-
-	t.Chdir(filepath.Join(tempDir, "a", "b"))
-
-	workdir, _ := os.Getwd()
-
-	workdir = strings.TrimSuffix(workdir, "/a/b")
-
-	configName, err := getConfigPath()
-	assert.Empty(t, configName)
-	assert.Contains(t, err.Error(), "more than one YAML files are found")
-
-	require.NoError(t, os.Remove(filepath.Join(tempDir, "a", ConfigName)))
-
-	configName, err = getConfigPath()
-
-	assert.Equal(t, filepath.Join(workdir, "a", "tt.yml"), configName)
-	assert.NoError(t, err)
-}
-
-func TestUpdateCliOpts(t *testing.T) {
-	cliOpts := config.CliOpts{
-		App: &config.AppOpts{
-			RunDir:   "/var/run",
-			LogDir:   "var/log",
-			WalDir:   "./var/lib/wal",
-			VinylDir: "./var/lib/vinyl",
-			MemtxDir: "./var/lib/snap",
-		},
-		Env: &config.TtEnvOpts{
-			IncludeDir: "../include_dir",
-		},
-		EE:   &config.EEOpts{},
-		Repo: &config.RepoOpts{},
-	}
-	configDir := "/etc/tarantool"
-
-	err := updateCliOpts(&cliOpts, configDir)
-	require.NoError(t, err)
-	assert.Equal(t, "/var/run", cliOpts.App.RunDir)
-	assert.Equal(t, filepath.Join("var", "log"), cliOpts.App.LogDir)
-	assert.Equal(t, "./var/lib/wal", cliOpts.App.WalDir)
-	assert.Equal(t, "./var/lib/vinyl", cliOpts.App.VinylDir)
-	assert.Equal(t, "./var/lib/snap", cliOpts.App.MemtxDir)
-	assert.Equal(t, filepath.Join(configDir, "..", "include_dir"), cliOpts.Env.IncludeDir)
-}
-
-// TestGetCliOpts_modulesSectionIgnored checks that a tt.yaml naming module
-// directories, a section tt does not read, still loads, and loads as if the
-// section were not there.
-func TestGetCliOpts_modulesSectionIgnored(t *testing.T) {
-	workDir, err := os.Getwd()
-	require.NoError(t, err)
-
-	workDir = filepath.Join(workDir, "testdata/modules_cfg")
-
-	tests := []struct {
-		name    string
-		config  string
-		cfgPath string
-	}{
-		{
-			name:    "Single string relative path",
-			config:  "tt-modules1",
-			cfgPath: "tt-modules1.yaml",
-		},
-		{
-			name:    "Single entry list",
-			config:  "tt-modules2",
-			cfgPath: "tt-modules2.yml",
-		},
-		{
-			name:    "Multiple entries list",
-			config:  "tt-modules3.",
-			cfgPath: "tt-modules3.yaml",
-		},
-		{
-			name:    "Empty value",
-			config:  "tt-modules4.yaml",
-			cfgPath: "tt-modules4.yml",
-		},
-		{
-			name:    "Single string absolute path",
-			config:  "tt-modules5.yml",
-			cfgPath: "tt-modules5.yaml",
-		},
+	for _, name := range []string{"tarantool", "tt", "tcm"} {
+		writeExecutable(t, filepath.Join(dir, "bin", name))
 	}
 
-	want := GetDefaultCliOpts()
-	require.NoError(t, updateCliOpts(want, workDir))
+	for _, content := range []string{"[broken", "env:\n  bin_dir: bin\n"} {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "tt.yaml"), []byte(content),
+			0o644))
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := newMockRepository()
-			config := filepath.Join(workDir, tt.config)
-			opts, cfg, err := GetCliOpts(config, &mockRepo)
-			require.NoError(t, err)
-			require.Equal(t, want, opts)
-			require.Equal(t, filepath.Join(workDir, tt.cfgPath), cfg)
-		})
+		var cmdCtx cmdcontext.CmdCtx
+
+		require.NoError(t, Cli(&cmdCtx))
+		assert.Equal(t, dir, cmdCtx.Cli.ProjectDir)
+		assert.Empty(t, cmdCtx.Cli.TarantoolCli.Executable)
+		assert.Empty(t, cmdCtx.Cli.TarantoolPrefix)
+		assert.Empty(t, cmdCtx.Cli.TcmCli.Executable)
 	}
+}
+
+// TestDetectTarantool checks that the tarantool is the one of the project
+// scope, whose root is its prefix, and the one from PATH otherwise.
+func TestDetectTarantool(t *testing.T) {
+	isolate(t)
+
+	pathDir := t.TempDir()
+	t.Setenv("PATH", pathDir)
+	writeExecutable(t, filepath.Join(pathDir, "tarantool"))
+
+	project := t.TempDir()
+	writeProject(t, project)
+
+	installed := filepath.Join(project, ".tarantool", "versions", "tarantool",
+		"tarantool_3.8.1", "tarantool")
+	writeExecutable(t, installed)
+
+	link := filepath.Join(project, ".tarantool", "bin", "tarantool")
+
+	// Without the project link, the tarantool from PATH.
+	cli := cmdcontext.CliCtx{ProjectDir: project}
+	detectTarantool(&cli)
+	assert.Equal(t, filepath.Join(pathDir, "tarantool"), cli.TarantoolCli.Executable)
+	assert.Empty(t, cli.TarantoolPrefix)
+
+	require.NoError(t, os.MkdirAll(filepath.Dir(link), 0o755))
+	require.NoError(t, os.Symlink(installed, link))
+
+	cli = cmdcontext.CliCtx{ProjectDir: project}
+	detectTarantool(&cli)
+	assert.Equal(t, installed, cli.TarantoolCli.Executable)
+	assert.Equal(t, filepath.Join(project, ".tarantool"), cli.TarantoolPrefix)
+
+	// TT_USE_SYSTEM_TARANTOOL takes the one from PATH in a project too.
+	t.Setenv("TT_USE_SYSTEM_TARANTOOL", "1")
+
+	cli = cmdcontext.CliCtx{ProjectDir: project}
+	detectTarantool(&cli)
+	assert.Equal(t, filepath.Join(pathDir, "tarantool"), cli.TarantoolCli.Executable)
+	assert.Empty(t, cli.TarantoolPrefix)
+
+	t.Setenv("TT_USE_SYSTEM_TARANTOOL", "")
+
+	// A link that selects nothing leaves no tarantool, and no error: tt
+	// binary, which repairs the link, must still run.
+	require.NoError(t, os.Remove(installed))
+
+	cli = cmdcontext.CliCtx{ProjectDir: project}
+	detectTarantool(&cli)
+	assert.Empty(t, cli.TarantoolCli.Executable)
+	assert.Empty(t, cli.TarantoolPrefix)
+}
+
+// TestDetectTcm checks that tcm is the one of the project scope, else the one
+// from PATH, else none.
+func TestDetectTcm(t *testing.T) {
+	isolate(t)
+
+	project := t.TempDir()
+	assert.Empty(t, detectTcm(project))
+
+	pathDir := t.TempDir()
+	t.Setenv("PATH", pathDir)
+	writeExecutable(t, filepath.Join(pathDir, "tcm"))
+
+	expected, err := exec.LookPath("tcm")
+	require.NoError(t, err)
+	assert.Equal(t, expected, detectTcm(project))
+
+	local := filepath.Join(project, ".tarantool", "bin", "tcm")
+	writeExecutable(t, local)
+	assert.Equal(t, local, detectTcm(project))
 }

@@ -49,20 +49,17 @@ HELP TOPICS[0m
  
 [0;1;39m
 FLAGS[0m
-  -c, --cfg string             Path to configuration file
   -h, --help                   help for tt
   -I, --internal               Use internal module
-  -L, --local string           Local launch
       --log-format text|json   Format of the log written to stderr: text or json
                                (default text)
       --no-prompt              Skip cli interaction using default behavior
   -s, --self                   Skip searching for other tt versions to run
-  -S, --system                 System launch
   -V, --verbose                Verbose output
 [0;1;39m
 EXAMPLES[0m
-  $ tt -L /path/to/local/dir version
-  $ tt -S -I help
+  $ tt -V version
+  $ tt -I help
   $ tt completion
 
 Use "tt <command> --help" for more information about a command.

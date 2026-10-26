@@ -12,7 +12,6 @@ import (
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
-	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/connect"
 	"github.com/tarantool/tt/v3/cli/connector"
 	"github.com/tarantool/tt/v3/cli/running"
@@ -143,22 +142,13 @@ func makeConnOpts(network, address string, connCtx connect.ConnectCtx) connector
 	}
 
 	return connector.ConnectOpts{
-		Network:             network,
-		Address:             address,
-		Username:            connCtx.Username,
-		Password:            connCtx.Password,
-		Ssl:                 ssl,
-		ConnectTimeout:      connCtx.ConnectTimeout,
-		MaxOutputHistoryLen: 0,
+		Network:        network,
+		Address:        address,
+		Username:       connCtx.Username,
+		Password:       connCtx.Password,
+		Ssl:            ssl,
+		ConnectTimeout: connCtx.ConnectTimeout,
 	}
-}
-
-func getMaxHistoryOutputLen(cliOpts *config.CliOpts) int {
-	if cliOpts.Env == nil || cliOpts.Env.OutputHistoryMax <= 0 {
-		return connect.DefaultOutputHistorySize
-	}
-
-	return cliOpts.Env.OutputHistoryMax
 }
 
 // resolveConnectOpts tries to resolve target argument to replace it
@@ -237,8 +227,6 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx,
 	if connectCtx.ConnectTarget == "" {
 		connectCtx.ConnectTarget = target
 	}
-
-	connOpts.MaxOutputHistoryLen = getMaxHistoryOutputLen(cliOpts)
 
 	return connOpts, err
 }

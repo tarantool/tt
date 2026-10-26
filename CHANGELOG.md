@@ -343,8 +343,9 @@ for machine-readable output.
 - `--log-format text|json`: a global flag that selects the format of the log
   tt writes to stderr. `json` prints one JSON object per record, with `time`,
   `level` and `msg` keys.
-- `tt connect`: add `\history` command to display the last executed
-  commands in the interactive console.
+- `tt connect`: add the `\history [<count>]` command to display the last
+  executed commands in the interactive console, 10 unless `<count>` says
+  otherwise.
 - `tt package pack`: carry the project's instance templates, `.templates/`,
   at the archive root in both packing modes, whatever `[package].include`
   says. Every template is checked first: each `.templates/<name>/` must hold
@@ -552,9 +553,8 @@ for machine-readable output.
   OpenSSL, or `openssl_static` for OpenSSL and a statically linked binary. The
   static mode requires OpenSSL static libraries at build time. The former `no`,
   `shared`, and `static` values are no longer accepted.
-- Application discovery now uses only the directory containing `tt.yaml` as
-  the application root. The multi-application layout is no longer supported;
-  `env.instances_enabled` is retained as an ignored compatibility option.
+- The multi-application layout of a tt environment, `env.instances_enabled`
+  of `tt.yaml`, is no longer supported.
 - `tt create` needs no `tt.yaml`: it creates the application directory in
   the current directory, or under `--dst`, and no longer creates a symlink in
   `instances.enabled`. A template of your own is given by its path, a
@@ -563,6 +563,22 @@ for machine-readable output.
   without a slash is a built-in template. The `rundir` template variable,
   which came from `app.run_dir` of `tt.yaml`, is gone.
 - `tt enable` and `tt instances` commands removed.
+- `tt.yaml` is not read by any command: tt no longer looks for it from the
+  current directory upward, nor at `/etc/tarantool/tt.yaml`. The `-S`
+  (`--system`), `-L` (`--local`) and `-c` (`--cfg`) flags and the
+  `TT_CLI_CFG` and `TT_SYSTEM_CONFIG_DIR` variables, which chose a `tt.yaml`,
+  are removed, and so is the `-c` (`--config`) flag of `tt backup start` and
+  `tt backup finalize`, which named the `tt.yaml` to resolve an
+  `<APP>:<INSTANCE>` target with. tt no longer runs the `tt` of `bin_dir` in
+  place of itself;
+  `source .env/activate.sh`, which `tt binary install` creates in a project,
+  puts the project's `tt` on `PATH` instead, and `--self` is still accepted
+  but does nothing. The `tarantool` and `tcm` the commands run are the
+  project's `.tarantool/bin/tarantool` and `.tarantool/bin/tcm`, which
+  `tt binary install` and `switch` set, and otherwise the first on `PATH`;
+  `tt rocks` and the `tt package` builds take the headers of a project
+  `tarantool` from `.tarantool/include/tarantool`. The project is found from
+  the current directory upward, as the instance commands find it.
 - `tt cfg`, `tt cfg dump` and `tt env` commands removed along with
   `tt.yaml`: there is no tt environment left to print or to put on `PATH`.
   `source .env/activate.sh`, which `tt binary install` creates in a project,

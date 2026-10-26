@@ -25,10 +25,9 @@ def kill_remain_processes_wrapper(tt_cmd):
 
 def prepare_test_app(tmpdir):
     """Copy the project test_app, one instance also named test_app, into
-    tmpdir, with the tt.yaml of tmpdir, which configures the daemon."""
+    tmpdir."""
     app_dir = os.path.join(tmpdir, "test_app")
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_app"), app_dir)
-    shutil.copy(os.path.join(tmpdir, utils.config_name), app_dir)
     return app_dir
 
 

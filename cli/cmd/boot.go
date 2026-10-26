@@ -147,42 +147,13 @@ func InjectCommands(root *cobra.Command) error {
 	return nil
 }
 
-// Configure configures tt for the command line Boot parsed: it loads the tt
-// environment and its integrity checks.
+// Configure configures tt for the command line Boot parsed: it finds the
+// project and the executables the commands run, and sets up the integrity
+// checks. No configuration file of tt is read: tt.yaml is gone.
 func Configure() error {
-	_, configPathEnvSet := os.LookupEnv("TT_CLI_CFG")
-	if cmdCtx.Cli.ConfigPath == "" && configPathEnvSet {
-		configPathEnv, err := filepath.Abs(os.Getenv("TT_CLI_CFG"))
-		if err != nil {
-			return fmt.Errorf("failed getting config path from environment variable: %w", err)
-		}
-
-		cmdCtx.Cli.ConfigPath = configPathEnv
-	}
-
 	err := configure.ValidateCliOpts(&cmdCtx.Cli)
 	if err != nil {
 		return err
-	}
-
-	currentDir, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("can't get current dir: %w", err)
-	}
-
-	configPath, _ := util.GetYamlFileName(
-		filepath.Join(currentDir, configure.ConfigName),
-		false,
-	)
-
-	// Initialize integrity before loading tt.yaml because the configuration loader
-	// uses the integrity repository.
-	cmdCtx.Integrity, err = integrity.InitializeIntegrityCheck(
-		cmdCtx.Cli.IntegrityCheck,
-		filepath.Dir(configPath),
-	)
-	if err != nil {
-		return fmt.Errorf("integrity check failed: %w", err)
 	}
 
 	err = configure.Cli(&cmdCtx)
@@ -191,26 +162,21 @@ func Configure() error {
 		return fmt.Errorf("Failed to configure Tarantool CLI: %w", err)
 	}
 
-	cliOpts, cmdCtx.Cli.ConfigPath, err = configure.GetCliOpts(cmdCtx.Cli.ConfigPath,
-		cmdCtx.Integrity.Repository)
+	currentDir, err := os.Getwd()
 	if err != nil {
-		//nolint:staticcheck // ST1005: user-facing message, kept as it is printed.
-		return fmt.Errorf("Failed to get Tarantool CLI configuration: %w", err)
+		return fmt.Errorf("can't get current dir: %w", err)
 	}
 
-	if cmdCtx.Cli.ConfigPath == "" {
-		// Config is not found, use current dir as base dir.
-		cmdCtx.Cli.ConfigDir, err = os.Getwd()
-		if err != nil {
-			return fmt.Errorf("can't get current dir: %w", err)
-		}
-	} else {
-		cmdCtx.Cli.ConfigDir = filepath.Dir(cmdCtx.Cli.ConfigPath)
-		log.Debugf("Using configuration file %q", cmdCtx.Cli.ConfigPath)
+	cmdCtx.Integrity, err = integrity.InitializeIntegrityCheck(
+		cmdCtx.Cli.IntegrityCheck,
+		currentDir,
+	)
+	if err != nil {
+		return fmt.Errorf("integrity check failed: %w", err)
 	}
 
-	// TCM config, if any, is located next to tt config.
-	tcmConfigBasename := filepath.Join(cmdCtx.Cli.ConfigDir, "tcm")
+	// TCM config, if any, is located in the working directory.
+	tcmConfigBasename := filepath.Join(currentDir, "tcm")
 
 	cmdCtx.Cli.TcmCli.ConfigPath, _ = util.GetYamlFileName(tcmConfigBasename, false)
 

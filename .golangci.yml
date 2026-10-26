@@ -355,8 +355,6 @@ linters:
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/sdk"
             - "github.com/tarantool/tt/v3/cli/cmdcontext"
-            - "github.com/tarantool/tt/v3/cli/config"
-            - "github.com/tarantool/tt/v3/cli/configure"
             - "github.com/tarantool/tt/v3/cli/docker"
             - "github.com/tarantool/tt/v3/cli/exitcode"
             - "github.com/tarantool/tt/v3/cli/templates"
@@ -514,6 +512,9 @@ linters:
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/v3/cli/config"
             - "gopkg.in/yaml.v3"
+        # The process context: the project of the working directory and the
+        # tarantool and tcm of its scope, as the instance commands and tt binary
+        # find them.
         dir-cli-configure:
           files:
             - "**/cli/configure/**"
@@ -525,7 +526,10 @@ linters:
             - "github.com/tarantool/tt/v3/cli/cmdcontext"
             - "github.com/tarantool/tt/v3/cli/config"
             - "github.com/tarantool/tt/v3/cli/configure"
+            - "github.com/tarantool/tt/v3/cli/tarantool"
             - "github.com/tarantool/tt/v3/cli/util"
+            - "github.com/tarantool/tt/v3/internal/binary"
+            - "github.com/tarantool/tt/v3/internal/scope"
         dir-cli-connect:
           files:
             - "**/cli/connect/**"
@@ -571,7 +575,6 @@ linters:
             - "github.com/otiai10/copy"
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/sdk"
-            - "github.com/tarantool/tt/v3/cli/config"
             - "github.com/tarantool/tt/v3/cli/create"
             - "github.com/tarantool/tt/v3/cli/templates"
             - "github.com/tarantool/tt/v3/cli/util"
@@ -663,7 +666,6 @@ linters:
             - "github.com/tarantool/go-luarocks"
             - "github.com/tarantool/tt/sdk"
             - "github.com/tarantool/tt/v3/cli/cmdcontext"
-            - "github.com/tarantool/tt/v3/cli/config"
             - "github.com/tarantool/tt/v3/cli/rocks"
             - "github.com/tarantool/tt/v3/cli/util"
         dir-cli-running:

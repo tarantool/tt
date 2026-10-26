@@ -30,8 +30,8 @@ Tarantool-based applications.
     * [Dependencies](#dependencies)
     * [Run tests](#run-tests)
 - [Configuration](#configuration)
-  + [Configuration file](#configuration-file)
-- [Creating a local tt configuration](#creating-a-local-tt-configuration)
+  + [Binaries](#binaries)
+  + [Rock servers](#rock-servers)
 - [Migrating from instances.enabled](#migrating-from-instancesenabled)
 - [External modules](#external-modules)
 - [CLI Args](#cli-args)
@@ -41,7 +41,6 @@ Tarantool-based applications.
   + [Working with application templates](#working-with-application-templates)
   + [Working with tt daemon (experimental)](#working-with-tt-daemon-experimental)
   + [Setting Tarantool configuration parameters via environment variables](#setting-tarantool-configuration-parameters-via-environment-variables)
-  + [Add current environment binaries location to the PATH variable](#add-current-environment-binaries-location-to-the-path-variable)
 - [Migration from older TT versions](doc/migration_from_older_versions.md)
 - [Known issues](doc/known_issues.md)
 - [Commands](#commands)
@@ -51,46 +50,40 @@ Tarantool-based applications.
 `tt` is tarantool's instance and environment management utility and is used to
 develop, deploy, run and operate an application.
 
-One of the basic concepts that `tt` introduces is "environment".
-The "environment" is an isolated workspace for a tarantool application.
-[`tt.yaml` configuration file](#configuration) defines the root and
-configuration of the *environment*. A package-manager installation may include
-the system configuration `/etc/tarantool/tt.yaml`, selected by `--system`.
-Its directory is still treated as a single application root; `tt` does not
-scan child directories for applications.
-For local development, place a `tt.yaml` in the application root. This keeps
-the application's `tarantool`/`tt` versions, runtime paths and repositories
-isolated from other applications.
+One of the basic concepts that `tt` works with is the "project": the
+directory of a tarantool application, with its `app.manifest.toml` or its
+instance templates, `.templates/<name>/instances.yaml`. `tt` finds the project
+from the current directory upward. The binaries the project runs on and the
+runtime artifacts of its instances are in its `.tarantool` directory, apart
+from other applications. There is no configuration file of the environment:
+`tt.yaml` of `tt` 2.x is not read.
 
-The example of a typical "environment":
+The example of a typical project:
 
 ```mermaid
 graph LR
     %% Colors %%
     classDef lime fill:#C7EA46,stroke:#000,color:#000
 
-    subgraph dot[Application root]
-      config(tt.yaml):::lime
+    subgraph dot[Project]
+      manifest(app.manifest.toml):::lime
       init(init.lua):::lime
-      instances(instances.yml):::lime
-      cluster_config(config.yaml):::lime
-      bin
-      templates
-      var
-      subgraph local_reps[Local repositories]
-        dist[distfiles]
-        rocks[rocks]
-      end
+      templates[.templates] --> template_default[default]
+      template_default --> instances(instances.yaml):::lime
+      template_default --> cluster_config(config.yaml):::lime
+      root[.tarantool]
     end
-    var --> run[run] --> inst11[instance]
+    root --> bin
+    root --> var
+    var --> run[run] --> app1[app] --> inst11[instance]
     inst11 --> pid1(tt.pid):::lime
     inst11 --> control1(tarantool.control):::lime
     inst11 --> binary1(tarantool.sock):::lime
 
-    var --> log1[log] --> inst12[instance] --> logfile1(tt.log):::lime
-    var --> lib1[lib] --> inst13[instance] --> xlogs1(*.xlog,*.snap):::lime
+    var --> log1[log] --> app2[app] --> inst12[instance] --> logfile1(tt.log):::lime
+    var --> lib1[lib] --> app3[app] --> inst13[instance] --> xlogs1(*.xlog,*.snap):::lime
 
-    bin --> bin_dir(tarantool<br/>tarantool-ee<br/>tt-ee<br/>tt):::lime
+    bin --> binaries(tarantool<br/>tarantool-ee<br/>tt-ee<br/>tt<br/>tcm):::lime
 ```
 
 ## Getting started
@@ -262,65 +255,29 @@ be corrected manually.
 
 ## Configuration
 
-Tarantool CLI can be launched in several modes:
+`tt` has no configuration file. `tt.yaml` of `tt` 2.x is not read by any
+command, and neither is `/etc/tarantool/tt.yaml`. What it configured is set
+elsewhere:
 
-- System launch (flag `-S`) - the working directory is current,
-    configuration file searched in `/etc/tarantool` directory.
-- Local launch (flag `-L`) - the working directory is the one you
-    specified, configuration file is searched in this directory. If
-    configuration file doesn't exists, config searched from the working
-    directory to the root. If it is also not found, then take config
-    from `/etc/tarantool`. If tarantool or tt executable files are found
-    in working directory, they will be used further.
-- Default launch (no flags specified) - configuration file searched
-    from the current directory to the root, going down the directory
-    until file is found. Working directory - the one where the
-    configuration file is found. If configuration file isn't found,
-    config taken from `/etc/tarantool` directory. In this case working
-    directory is current.
+- `env.bin_dir`, `env.inc_dir`: the binaries and headers `tt binary install`
+    puts into a scope (see [Binaries](#binaries)). In a project the commands
+    run the `tarantool` and `tcm` of `.tarantool/bin`, and otherwise the first
+    on `PATH`.
+- `env.output_history_max`: the argument of `\history` in the `tt connect`
+    console, such as `\history 15` (10 without one).
+- `env.restart_on_failure`: the `restart` field of the instance record.
+- `app.*_dir`: the runtime artifacts of an instance go under the root of the
+    scope of its application (see
+    [Working with a set of instances](#working-with-a-set-of-instances)).
+- `repo.rocks`: the rock servers of `tt registry` (see
+    [Rock servers](#rock-servers)).
+- `ee.credential_path`: the `--credentials-file` flag of `tt binary`.
+- `templates`: `tt create` takes a template of your own by its path (see
+    [Working with application templates](#working-with-application-templates)).
+- `modules.directory`: `TT_CLI_MODULES_PATH` (see
+    [External modules](#external-modules)).
 
-### Configuration file
-
-By default, configuration file is named `tt.yaml`.
-
-You can specify the path to the configuration file by using the `--cfg`
-command line option or by setting the `TT_CLI_CFG` environment variable.
-The `TT_CLI_CFG` variable has a lower priority than the `--cfg` option.
-
-Example of configuration
-file format:
-
-``` yaml
-env:
-  bin_dir: path/to/bin_dir
-  inc_dir: path/to/inc_dir
-  restart_on_failure: bool
-  output_history_max: 15
-app:
-  run_dir: path/to/run_dir
-  log_dir: path/to/log_dir
-  wal_dir: var/lib
-  vinyl_dir: var/lib
-  memtx_dir: var/lib
-repo:
-  rocks: path/to/rocks
-  distfiles: path/to/install
-ee:
-  credential_path: path/to/file
-templates:
-  - path: path/to/templates_dir1
-  - path: path/to/templates_dir2
-```
-
-#### env
-
-- `bin_dir` (string) - directory that stores binary files.
-- `inc_dir` (string) - directory that stores header files. The path
-    will be padded with a directory named include.
-- `restart_on_failure` (bool) - not used: the instance commands take the
-    restart policy from the `restart` field of the instance record.
-- `output_history_max` (int) - the maximum number of commands output
-    by the "\history" command. Default value is 10
+### Binaries
 
 `tt binary install`, `search`, `list`, `switch`, and `uninstall` for `tt`, `tarantool`,
 `tarantool-ee`, `tt-ee`, `tcm`, and `tarantool-sdk` use `--scope project` (the default),
@@ -332,10 +289,9 @@ falling back to user/system installations. The project scope is `.tarantool` in
 the project directory: the current directory or its nearest parent with
 `app.manifest.toml` or `.templates/<name>/instances.yaml`, and the current
 directory outside a project. `TT_USER_ROOT` and `TT_SYSTEM_ROOT` replace the
-default user and system roots and must be absolute paths. Binary paths are
-independent of the `env` options in `tt.yaml`. For `search`, the scope only
-selects the installed/active labels; it does not change the source of available
-versions.
+default user and system roots and must be absolute paths. For `search`, the
+scope only selects the installed/active labels; it does not change the source
+of available versions.
 
 `tt binary install tarantool` supports Community Edition releases starting
 with Tarantool 3.0.
@@ -387,7 +343,7 @@ complete SDK installations and report them as active when all components are sel
 `tt binary search tarantool-ee` uses the same archive catalog and marks standalone
 Enterprise installations independently.
 
-To install from local files without requiring `tt.yaml`, use:
+To install from local files, use:
 
 - `tt binary install tt --local-repo <dir>`: a Git clone of tt in `<dir>/tt`.
 - `tt binary install tarantool --local-repo <dir>`: a Git clone of Tarantool in
@@ -404,8 +360,8 @@ To install from local files without requiring `tt.yaml`, use:
 `tt binary search <product>` accepts the same product-specific flag and marks
 installed/active versions in the selected scope. Put the source flag after the
 product name. Both flags require an explicit directory. Relative paths are
-resolved from the current directory;
-`repo.distfiles` is not used. For EE and TCM, `--local-dir` replaces `--local-repo`.
+resolved from the current directory. For EE and TCM, `--local-dir` replaces
+`--local-repo`.
 
 For `tt binary install tarantool` and `tt binary install tt`, append `ee` to
 the version selector: `Xee`, `X.Yee`, or `X.Y.Zee`. These select the latest
@@ -465,84 +421,29 @@ tt binary install tcm 1.3.1-0-g074b5ffa --credentials-file ./credentials
 ```
 
 Without the flag, credentials come from `TT_CLI_EE_USERNAME` and
-`TT_CLI_EE_PASSWORD`, or an interactive prompt. Binary commands do not read
-credentials from `tt.yaml`.
+`TT_CLI_EE_PASSWORD`, or an interactive prompt.
 
-#### app
+`tt rocks` and `tt package build` build a rock with a C part against the
+headers of the `tarantool` they run: the ones in `.tarantool/include/tarantool`
+for the `tarantool` of the project, `TT_CLI_TARANTOOL_PREFIX` for another one,
+and otherwise the install prefix that `tarantool` was built with.
 
-The instance commands do not read this section: the runtime artifacts of an
-instance go under the root of the scope of its application (see
-[Working with a set of instances](#working-with-a-set-of-instances)).
+### Rock servers
 
-- `run_dir` (string) - path to directory that stores various instance
-    runtime artifacts like console socket, PID file, etc.
-- `log_dir` (string) - directory that stores log files.
-- `wal_dir` (string) - directory where write-ahead log (.xlog) files
-    are stored.
-- `memtx_dir` (string) - directory where memtx stores snapshot (.snap)
-    files.
-- `vinyl_dir` (string) - directory where vinyl files or subdirectories
-    will be stored.
-
-#### repo
-
-- `rocks` (string) - directory that stores rocks files.
-- `distfiles` (string) - legacy local repository setting; binary commands use
-    `--local-repo <dir>` for Git sources or `--local-dir <dir>` for EE/TCM archives.
-
-#### ee
-
-- `credential_path` (string) - path to file with credentials for
-    downloading tarantool-ee. File must contain login and password. Each
-    parameter on a separate line. Alternatively credentials can be set
-    via environment variables: `TT_CLI_EE_USERNAME` and `TT_CLI_EE_PASSWORD`.
-
-#### templates
-
-- `path` (string) - the path to templates search directory.
-
-## Creating a local tt configuration
-
-Create `tt.yaml` in the application root. An empty mapping is a valid minimal
-configuration and uses the default relative paths:
-
-```yaml
-{}
-```
-
-A configured application can use the following filesystem tree:
-
-```text
-    .
-    ├── bin
-    ├── config.yaml
-    ├── init.lua
-    ├── include
-    ├── distfiles
-    ├── instances.yml
-    ├── templates
-    ├── tt.yaml
-    └── var
-```
-
-Where:
-
-- `bin` - directory that stores binary files.
-- `config.yaml` - optional Tarantool 3 application configuration.
-- `init.lua` - application source file (primarily for Tarantool 2).
-- `include` - directory that stores header files.
-- `distfiles` - directory that stores installation files for
-    `tt binary install tt --local-repo ./distfiles` or
-    `tt binary install tarantool 3ee --local-dir ./distfiles`.
-- `instances.yml` - optional declaration of the application's instances.
-- `tt.yaml` - tt environment configuration file.
-- `templates` - the directory where external templates are stored.
-- `var` - default directory for application runtime artifacts and data.
+`tt registry list` shows the rock servers the package commands query: the ones
+`--registry` names, else `TT_REGISTRIES` (comma-separated), else
+`[platform].registries` of `app.manifest.toml` in the current directory, else
+the built-in defaults. `tt rocks` queries the servers of `TT_REGISTRIES` or of
+the manifest too, in place of the servers LuaRocks queries by default; without
+either, LuaRocks keeps its own. A relative directory is taken from the current
+directory for `TT_REGISTRIES` and from the manifest's directory for the
+manifest.
 
 ## Migrating from instances.enabled
 
 See the [2.x to 3.0 migration guide](doc/migration_from_older_versions.md#2x---300)
-for converting a symlink-based environment to the single-application layout.
+for converting a `tt` 2.x environment, `instances.enabled` included, into
+projects.
 
 ## External modules
 
@@ -576,8 +477,8 @@ Modules are looked for in the directories listed in the
 export TT_CLI_MODULES_PATH=/path/to/modules:/path/to/other/modules
 ```
 
-A relative directory is taken from the working directory tt runs in (with
-`-L`, from the directory it names), so list absolute paths.
+A relative directory is taken from the working directory tt runs in, so list
+absolute paths.
 
 For example, you have an external `cat` module. When you type `tt cat`, the
 external `cat` module will be launched, and every argument after `cat` goes
@@ -599,12 +500,8 @@ To see list of available modules, type `tt -h`.
 
 Arguments of Tarantool CLI:
 
-- `--cfg | -c` (string) - path to Tarantool CLI config.
 - `--internal | -I` - use internal module.
-- `--local | -L` (string) - run Tarantool CLI as local, in the
-    specified directory.
-- `--system | -S` - use the system configuration
-    `/etc/tarantool/tt.yaml`.
+- `--verbose | -V` - verbose output.
 - `--help | -h` - help.
 
 ### Autocompletion
@@ -630,8 +527,7 @@ template given by its path is completed as a file name.
 ### Working with a set of instances
 
 `tt start`, `stop`, `status`, `restart`, `kill`, `log`, `logrotate`, `check`,
-`clean`, `connect` and `play` act on the instances of an application. They do
-not read `tt.yaml`.
+`clean`, `connect` and `play` act on the instances of an application.
 
 A project is a directory with `app.manifest.toml` or
 `.templates/<name>/instances.yaml`; `tt` finds it from the current directory

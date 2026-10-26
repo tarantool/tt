@@ -108,21 +108,18 @@ func GetTtVersion(pathToBin string) (version.Version, error) {
 // CliCtx - CLI context. Contains flags passed when starting
 // Tarantool CLI and some other parameters.
 type CliCtx struct {
-	// Is CLI launch system (or local).
-	IsSystem bool
 	// Use internal module even if an external one is found.
 	ForceInternal bool
-	// Path to local directory (or empty string if CLI launch is system).
-	LocalLaunchDir string
-	// Path to Tarantool CLI (tt.yaml) config.
-	ConfigPath string
-	// ConfigDir is tt configuration file directory.
-	// And current working directory, if there is no config.
-	ConfigDir string
+	// ProjectDir is the project directory the working directory is in, as
+	// internal/scope finds it, or the working directory outside a project.
+	ProjectDir string
 	// Path to tt daemon (tt_daemon.yaml) config.
 	DaemonCfgPath string
-	// The flag determines if the tarantool binary is from the internal tt repository.
-	IsTarantoolBinFromRepo bool
+	// TarantoolPrefix is the directory TarantoolCli is installed under, whose
+	// include/tarantool holds its headers, when tt binary installed it: the
+	// root of the project scope for the tarantool of the project. It is
+	// empty for a tarantool from PATH.
+	TarantoolPrefix string
 	// Verbose logging flag. Enables debug log output.
 	Verbose bool
 	// TarantoolCli is current tarantool cli.
@@ -133,8 +130,11 @@ type CliCtx struct {
 	IntegrityCheck string
 	// IntegrityCheckPeriod is an period during which the integrity check is reproduced.
 	IntegrityCheckPeriod int
-	// This flag disables searching of other tt versions to run
-	// instead of the current one.
+	// IsSelfExec is the --self flag. It kept tt from running the tt of its
+	// environment, bin_dir/tt of tt.yaml, in its place. tt runs no other tt
+	// any more, so the flag does nothing, but it is still accepted: scripts
+	// pass it, and so does GetTtVersion to the tt it asks for its version,
+	// which may be one of this version.
 	IsSelfExec bool
 	// NoPrompt flag needs to skip cli interaction using default behavior.
 	NoPrompt bool

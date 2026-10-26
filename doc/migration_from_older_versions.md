@@ -11,12 +11,20 @@ contains breaking changes descriptions.
 
 ## 2.x -> 3.0.0
 
-### Migrate applications from instances.enabled
+### tt.yaml is not read
 
-`tt` 3.0 uses the directory containing `tt.yaml` as the only application root.
-It no longer reads `env.instances_enabled` or scans an `instances.enabled`
-directory. A legacy environment can therefore no longer manage several
-applications through symlinks such as these:
+`tt` 3.0 reads no `tt.yaml`, neither the one of an environment nor the system
+`/etc/tarantool/tt.yaml`. The `-S`, `-L` and `-c` flags, the `TT_CLI_CFG`
+variable and the `tt cfg` and `tt env` commands are removed, and `tt` no
+longer runs the `tt` of `bin_dir` in its place. A directory that holds
+`tt.yaml` or `instances.yml` and is not a project is reported as a `tt` 2.x
+environment.
+
+An application is a project instead: a directory with `app.manifest.toml`
+(`tt new` writes one) or with instance templates,
+`.templates/<name>/instances.yaml`. `tt` finds the project from the current
+directory upward. A tt environment with several applications in
+`instances.enabled` becomes one project per application:
 
 ```text
 <environment>/
@@ -26,53 +34,52 @@ applications through symlinks such as these:
 │   │   ├── init.lua
 │   │   └── instances.yml
 │   └── app2/
-│       ├── init.lua
-│       └── instances.yml
 └── instances.enabled/
     ├── app1 -> ../instances.available/app1
     └── app2 -> ../instances.available/app2
 ```
 
-Migrate every application while still using `tt` 2.x:
+For every application, with the instances stopped by `tt` 2.x:
 
-1. Stop the application and resolve its `instances.enabled` symlink. Use the
-   real target directory as the application root, or copy it to a new
-   standalone location. Do not copy the symlink itself.
-2. Put a separate `tt.yaml` into the application root. If it is copied from the
-   shared environment, check all relative paths because they are now resolved
-   from the new configuration location.
-3. Set `env.instances_enabled` to `.` in the application configuration:
+1. Use the real application directory, not the `instances.enabled` symlink, as
+   the project directory, and run `tt new` there.
+2. Move the instances description, `instances.yml`, to
+   `.templates/default/instances.yaml` and the cluster config, `config.yaml`,
+   to `.templates/default/config.yaml`. Every instance must be in the topology
+   of the config; the restart policy is the `restart` field of an instance
+   record now, not `env.restart_on_failure`.
+3. Move the data of each instance from `var/lib/<instance>` to
+   `.tarantool/var/lib/<app>/<instance>`. `tt` refuses to start an instance
+   while the data is only in the old place, rather than start it on an empty
+   database. Logs, pid files and sockets go to `.tarantool/var/log` and
+   `.tarantool/var/run` the same way.
+4. Install the binaries the project runs on with `tt binary install`, which
+   puts them into `.tarantool/bin` and the headers into
+   `.tarantool/include/tarantool`, in place of `env.bin_dir` and
+   `env.inc_dir`.
+5. Remove `tt.yaml`.
 
-   ```yaml
-   env:
-     instances_enabled: .
-   ```
-
-   This is a compatibility step that lets `tt` 2.x manage the application
-   directly from its future root.
-4. Run `tt` with that application's configuration and verify that lifecycle
-   commands work without going through the symlink. For example:
-
-   ```console
-   tt --cfg /srv/apps/app1/tt.yaml status app1
-   ```
-
-The final layout has one configuration and no registry symlink per
-application:
+The resulting project:
 
 ```text
 /srv/apps/app1/
-├── tt.yaml
+├── app.manifest.toml
 ├── init.lua
-├── instances.yml
-└── var/
+├── .templates/
+│   └── default/
+│       ├── config.yaml
+│       └── instances.yaml
+└── .tarantool/
+    ├── bin/
+    └── var/
 ```
 
-Repeat the procedure for every application before upgrading to `tt` 3.0.
-After the upgrade, remove `instances_enabled` from each `tt.yaml`: the option no
-longer exists. Run `tt` from the application root or pass its configuration via
-`--cfg`. Remove the old `instances.enabled` directory only after every
-application has been verified.
+The other settings of `tt.yaml` are replaced as follows: `repo.rocks` by the
+rock servers of `tt registry` (`TT_REGISTRIES` or `[platform].registries` of
+the manifest), `templates` by the path `tt create` takes a template of your own
+by, `ee.credential_path` by the `--credentials-file` flag of `tt binary`, and
+`modules.directory` by `TT_CLI_MODULES_PATH`. The `app` directories have no
+replacement: the runtime artifacts go under the root of the scope.
 
 ## 1.3.1 -> 2.0.0
 

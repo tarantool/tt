@@ -103,7 +103,6 @@ def start_backup(
     backup_id,
     from_vclock=None,
     ttl=None,
-    config=None,
     directory=None,
     extra_args=None,
     **kwargs,
@@ -127,8 +126,6 @@ def start_backup(
         args.extend(["--from-vclock", json.dumps({str(k): v for k, v in from_vclock.items()})])
     if ttl is not None:
         args.extend(["--ttl", ttl])
-    if config is not None:
-        args.extend(["-c", str(config)])
     if directory is not None:
         args.extend(["--dir", str(directory)])
     if extra_args:
@@ -140,7 +137,6 @@ def finalize_backup(
     tt,
     target,
     backup_id,
-    config=None,
     force=False,
     directory=None,
     extra_args=None,
@@ -153,8 +149,6 @@ def finalize_backup(
         args.append("--force")
     if backup_id is not None:
         args.extend(["--backup-id", backup_id])
-    if config is not None:
-        args.extend(["-c", str(config)])
     if directory is not None:
         args.extend(["--dir", str(directory)])
     if extra_args:

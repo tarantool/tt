@@ -10,7 +10,6 @@ except ModuleNotFoundError:  # Python < 3.11, which is what CI runs.
     import tomli as tomllib
 
 from utils import (
-    create_tt_config,
     inst_log_dir,
     instances_file,
     log_file,
@@ -47,8 +46,6 @@ class VshardCluster:
         elif (env_dir / dir_name / instances_file).exists():
             self.app_dir = env_dir / dir_name
         else:
-            create_tt_config(env_dir)
-
             rc, _ = run_command_and_get_output(
                 [tt_cmd, "create", "vshard_cluster", "--name", dir_name, "-s", "-f"],
                 cwd=env_dir,

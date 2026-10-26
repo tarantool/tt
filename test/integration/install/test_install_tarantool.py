@@ -527,7 +527,7 @@ def test_install_tarantool_from_build_invalid_headers_preserves_links(
 @pytest.mark.usefixtures("scope_environment")
 def test_install_tarantool_from_build_uses_current_directory(tt_cmd, tmp_path):
     config_dir = tmp_path / "environment"
-    config = create_tt_config(config_dir, {"env": {"bin_dir": "bin", "inc_dir": "inc"}})
+    config_dir.mkdir()
     build = tmp_path / "build"
     binary = build / "src" / "tarantool"
     binary.parent.mkdir(parents=True)
@@ -541,13 +541,16 @@ def test_install_tarantool_from_build_uses_current_directory(tt_cmd, tmp_path):
     parent_scope.mkdir()
     project = tmp_path / "project"
     project.mkdir()
+    # The tt.yaml tt 2.x would have found names the legacy directories.
+    create_tt_config(
+        project,
+        {"env": {"bin_dir": "../environment/bin", "inc_dir": "../environment/inc"}},
+    )
 
     rc, output = run_command_and_get_output(
         [
             tt_cmd,
             "--self",
-            "--cfg",
-            str(config),
             "binary",
             "install",
             "tarantool",

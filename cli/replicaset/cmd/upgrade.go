@@ -143,8 +143,7 @@ func getInstanceConnector(instance replicaset.Instance,
 		Ssl: connector.SslOpts{
 			KeyFile: "", CertFile: "", CaFile: "", Ciphers: "", Password: "", PasswordFile: "",
 		},
-		MaxOutputHistoryLen: 0,
-		ConnectTimeout:      connOpts.ConnectTimeout,
+		ConnectTimeout: connOpts.ConnectTimeout,
 	})
 	if err != nil {
 		fErr := err

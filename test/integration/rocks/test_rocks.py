@@ -109,6 +109,75 @@ def test_rocks_module(tt_cmd, tmp_path):
     assert "fs.current_dir()\n" in output
 
 
+NATIVE_ROCKSPEC = """package = "native"
+version = "scm-1"
+source = {url = "."}
+build = {type = "builtin", modules = {native = "native.c"}}
+"""
+
+# The C part of the native rock: it includes the Lua headers and module.h,
+# all of which Tarantool installs into include/tarantool.
+NATIVE_C = """#include <lua.h>
+#include <lauxlib.h>
+#include <module.h>
+
+static int hello(lua_State *L)
+{
+    lua_pushstring(L, "native");
+    return 1;
+}
+
+int luaopen_native(lua_State *L)
+{
+    lua_newtable(L);
+    lua_pushcfunction(L, hello);
+    lua_setfield(L, -2, "hello");
+    return 1;
+}
+"""
+
+
+def test_rocks_make_native_rock_with_project_headers(tt_cmd, tmp_path):
+    # The tarantool of a project is laid out the way tt binary install lays
+    # it out: an installation under .tarantool/versions/, selected by the
+    # .tarantool/bin/tarantool and .tarantool/include/tarantool links. tt
+    # rocks builds a rock with a C part against those headers.
+    tarantool = shutil.which("tarantool")
+    if tarantool is None or shutil.which("cc") is None:
+        pytest.skip("tarantool or a C compiler is not found")
+    headers = os.path.join(os.path.dirname(os.path.dirname(tarantool)), "include", "tarantool")
+    if not os.path.isfile(os.path.join(headers, "module.h")):
+        pytest.skip("the headers of tarantool are not found next to it")
+
+    with open(tmp_path / "app.manifest.toml", "w") as f:
+        f.write("manifest_version = '0.1'\n\n[package]\nname = 'native'\n")
+
+    root = tmp_path / ".tarantool"
+    installation = root / "versions" / "tarantool" / "tarantool_3.8.1"
+    os.makedirs(installation / "include")
+    os.symlink(tarantool, installation / "tarantool")
+    os.symlink(headers, installation / "include" / "tarantool")
+    os.makedirs(root / "bin")
+    os.symlink(installation / "tarantool", root / "bin" / "tarantool")
+    os.makedirs(root / "include")
+    os.symlink(installation / "include" / "tarantool", root / "include" / "tarantool")
+
+    with open(tmp_path / "native-scm-1.rockspec", "w") as f:
+        f.write(NATIVE_ROCKSPEC)
+    with open(tmp_path / "native.c", "w") as f:
+        f.write(NATIVE_C)
+
+    env = {k: v for k, v in os.environ.items() if k != "TT_CLI_TARANTOOL_PREFIX"}
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "rocks", "make"],
+        cwd=tmp_path,
+        env=dict(env, PWD=str(tmp_path)),
+    )
+    assert rc == 0
+    assert f"-I{root / 'include' / 'tarantool'}" in output
+    assert os.path.isfile(tmp_path / ".rocks" / "lib" / "tarantool" / "native.so")
+
+
 def test_rocks_admin_module(tt_cmd, tmp_path):
     repo_path = os.path.join(tmp_path, "rocks_repo")
     os.mkdir(repo_path)

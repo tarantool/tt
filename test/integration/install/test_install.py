@@ -10,12 +10,10 @@ import uuid
 from pathlib import Path
 
 import pytest
-import yaml
 from test_install_tarantool import install_tarantool, local_tarantool_build  # noqa: F401
 from test_install_tt import install_tt, local_tt_build  # noqa: F401
 
 from utils import (
-    config_name,
     get_tarantool_commit,
     is_tarantool_ee,
     is_valid_tarantool_installed,
@@ -25,13 +23,7 @@ from utils import (
 
 @pytest.mark.slow
 def test_install_tt_noexist_commit(tt_cmd, tmp_path):
-    configPath = os.path.join(tmp_path, config_name)
-
-    # Create test config
     tmp_dir = tempfile.mkdtemp(dir=tmp_path)
-    tmp_name = tmp_dir.rpartition("/")[2]
-    with open(configPath, "w") as f:
-        f.write('env:\n  bin_dir:\n  inc_dir:\nrepo:\n  distfiles: "%s"' % tmp_name)
 
     os.makedirs(tmp_dir + "/tt")
 
@@ -48,8 +40,6 @@ def test_install_tt_noexist_commit(tt_cmd, tmp_path):
     # Install tt.
     install_cmd = [
         tt_cmd,
-        "--cfg",
-        configPath,
         "binary",
         "--scope",
         "project",
@@ -77,13 +67,8 @@ def test_install_tt_noexist_commit(tt_cmd, tmp_path):
 
 @pytest.mark.slow
 def test_install_tt(tt_cmd, tmp_path):
-    configPath = os.path.join(tmp_path, config_name)
-    # Create test config
-    with open(configPath, "w") as f:
-        f.write("env:\n  bin_dir:\n  inc_dir:\n")
-
     # Install latest tt.
-    install_cmd = [tt_cmd, "--cfg", configPath, "binary", "--scope", "project", "install", "tt"]
+    install_cmd = [tt_cmd, "binary", "--scope", "project", "install", "tt"]
     instance_process = subprocess.Popen(
         install_cmd,
         cwd=tmp_path,
@@ -95,7 +80,6 @@ def test_install_tt(tt_cmd, tmp_path):
     # Check that the process shutdown correctly.
     output, _ = instance_process.communicate()
     assert instance_process.returncode == 0, output
-    os.remove(configPath)
 
     installed_cmd = [tmp_path / ".tarantool" / "bin" / "tt", "version"]
     installed_program_process = subprocess.run(
@@ -111,16 +95,9 @@ def test_install_tt(tt_cmd, tmp_path):
 
 @pytest.mark.slow
 def test_install_tt_specific_commit(tt_cmd, tmp_path):
-    configPath = os.path.join(tmp_path, config_name)
-    # Create test config
-    with open(configPath, "w") as f:
-        f.write("env:\n  bin_dir:\n  inc_dir:\n")
-
     # Install specific tt's commit.
     install_cmd = [
         tt_cmd,
-        "--cfg",
-        configPath,
         "binary",
         "--scope",
         "project",
@@ -154,16 +131,9 @@ def test_install_tt_specific_commit(tt_cmd, tmp_path):
 
 @pytest.mark.slow
 def test_wrong_format_hash(tt_cmd, tmp_path):
-    configPath = os.path.join(tmp_path, config_name)
-    # Create test config
-    with open(configPath, "w") as f:
-        f.write("env:\n  bin_dir:\n  inc_dir:\n")
-
     # Install specific tt's commit.
     install_cmd = [
         tt_cmd,
-        "--cfg",
-        configPath,
         "binary",
         "--scope",
         "project",
@@ -192,8 +162,6 @@ def test_wrong_format_hash(tt_cmd, tmp_path):
     # Install specific tt's commit.
     install_cmd_second = [
         tt_cmd,
-        "--cfg",
-        configPath,
         "binary",
         "--scope",
         "project",
@@ -219,16 +187,9 @@ def test_wrong_format_hash(tt_cmd, tmp_path):
 @pytest.mark.slow
 @pytest.mark.parametrize("required_ver", ["2.1.2", "v2.2", "1"])
 def test_install_tt_specific_version(tt_cmd, tmp_path, required_ver: str):
-    configPath = os.path.join(tmp_path, config_name)
-    # Create test config
-    with open(configPath, "w") as f:
-        f.write("env:\n  bin_dir:\n  inc_dir:\n")
-
     # Install latest tt.
     install_cmd = [
         tt_cmd,
-        "--cfg",
-        configPath,
         "binary",
         "--scope",
         "project",
@@ -247,7 +208,6 @@ def test_install_tt_specific_version(tt_cmd, tmp_path, required_ver: str):
     # Check that the process shutdown correctly.
     output, _ = instance_process.communicate()
     assert instance_process.returncode == 0, output
-    os.remove(configPath)
 
     installed_cmd = [tmp_path / ".tarantool" / "bin" / "tt", "version"]
     installed_program_process = subprocess.run(
@@ -263,20 +223,13 @@ def test_install_tt_specific_version(tt_cmd, tmp_path, required_ver: str):
 
 @pytest.mark.slow
 def test_install_tarantool_commit(tt_cmd, tmp_path):
-    config_path = os.path.join(tmp_path, config_name)
-    # Create test config.
-    with open(config_path, "w") as f:
-        yaml.dump({"env": {"bin_dir": "", "inc_dir": "./my_inc"}}, f)
-
-    tmp_path_without_config = tmp_path / "project"
-    tmp_path_without_config.mkdir()
-    root = tmp_path_without_config / ".tarantool"
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+    root = project_dir / ".tarantool"
 
     # Install specific tarantool's commit.
     install_cmd = [
         tt_cmd,
-        "--cfg",
-        config_path,
         "binary",
         "--scope",
         "project",
@@ -288,7 +241,7 @@ def test_install_tarantool_commit(tt_cmd, tmp_path):
     ]
     instance_process = subprocess.Popen(
         install_cmd,
-        cwd=tmp_path_without_config,
+        cwd=project_dir,
         stderr=subprocess.STDOUT,
         # Do not use pipe for stdout, if you are not going to read from it.
         # In case of build failure, logs are printed to stdout. It fills pipe buffer and
@@ -331,14 +284,9 @@ def test_install_tarantool_in_docker(tt_cmd, tmp_path):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported")
 
-    config_path = os.path.join(tmp_path, config_name)
-    # Create test config.
-    with open(config_path, "w") as f:
-        yaml.dump({"env": {"bin_dir": "", "inc_dir": "./my_inc"}}, f)
-
-    tmp_path_without_config = tmp_path / "project"
-    tmp_path_without_config.mkdir()
-    root = tmp_path_without_config / ".tarantool"
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+    root = project_dir / ".tarantool"
 
     commit = get_tarantool_commit()
 
@@ -346,8 +294,6 @@ def test_install_tarantool_in_docker(tt_cmd, tmp_path):
     install_cmd = [
         tt_cmd,
         "-V",
-        "--cfg",
-        config_path,
         "binary",
         "--scope",
         "project",
@@ -360,7 +306,7 @@ def test_install_tarantool_in_docker(tt_cmd, tmp_path):
     ]
     tt_process = subprocess.run(
         install_cmd,
-        cwd=tmp_path_without_config,
+        cwd=project_dir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
@@ -446,14 +392,8 @@ def test_install_tt_fail_exit_code_dependency_check(tt_cmd, tmp_path, package_to
         ),
     )
 
-    # Create test config.
-    configPath = os.path.join(tmp_path, config_name)
-    with open(configPath, "w") as f:
-        f.write("env:\n  bin_dir:\n  inc_dir:\n")
     install_cmd = [
         tt_cmd,
-        "--cfg",
-        configPath,
         "binary",
         "--scope",
         "project",
@@ -491,20 +431,13 @@ def test_install_tarantool_fetch_latest_version(
     expected_install_msg,
     is_interactive,
 ):
-    config_path = os.path.join(tmp_path, config_name)
-    # Create test config.
-    with open(config_path, "w") as f:
-        yaml.dump({"env": {"bin_dir": "", "inc_dir": "./my_inc"}}, f)
-
-    tmp_path_without_config = tmp_path / "project"
-    tmp_path_without_config.mkdir()
-    root = tmp_path_without_config / ".tarantool"
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+    root = project_dir / ".tarantool"
 
     # Install not latest version of tarantool by commit hash.
     install_cmd = [
         tt_cmd,
-        "--cfg",
-        config_path,
         "binary",
         "--scope",
         "project",
@@ -517,7 +450,7 @@ def test_install_tarantool_fetch_latest_version(
     ]
     instance_process_rc, _ = run_command_and_get_output(
         install_cmd,
-        cwd=tmp_path_without_config,
+        cwd=project_dir,
         stdout=subprocess.DEVNULL,
     )
     assert instance_process_rc == 0
@@ -534,7 +467,7 @@ def test_install_tarantool_fetch_latest_version(
         link.symlink_to(source)
 
     # Installing newest version.
-    install_cmd = [tt_cmd, "--cfg", config_path]
+    install_cmd = [tt_cmd]
     if not is_interactive:
         install_cmd.append("--no-prompt")
     install_cmd.extend(
@@ -553,7 +486,7 @@ def test_install_tarantool_fetch_latest_version(
 
     instance_process_rc, output = run_command_and_get_output(
         install_cmd,
-        cwd=tmp_path_without_config,
+        cwd=project_dir,
         input="y\n" if is_interactive is True else None,
     )
     assert instance_process_rc == 0
@@ -576,11 +509,6 @@ def test_install_tt_fetch_latest_version(
     tt_cmd,
     tmp_path,
 ):
-    config_path = os.path.join(tmp_path, config_name)
-    # Create test config
-    with open(config_path, "w") as f:
-        f.write("env:\n  bin_dir: \n  inc_dir:\n")
-
     # Create executable file with 'tt version --commit'
     # functionality to emulate real work of tt. We need
     # the following to avoid a situation where the last
@@ -596,7 +524,7 @@ def test_install_tt_fetch_latest_version(
     (root / "bin").mkdir()
     (root / "bin" / "tt").symlink_to(versions / active_symlink / "tt")
 
-    install_cmd = [tt_cmd, "--cfg", config_path]
+    install_cmd = [tt_cmd]
     if not is_interactive:
         install_cmd.append("--no-prompt")
     install_cmd.extend(["binary", "--scope", "project", "install", "tt", "master"])

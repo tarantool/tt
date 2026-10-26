@@ -15,7 +15,7 @@ var errNotADirectory = errors.New("not a directory")
 // projectDir holds -C: the directory the manifest commands work on instead of
 // the process working directory. Empty means the working directory itself.
 //
-// It is package state like cmdCtx and cliOpts, because the flag is declared on
+// It is package state like cmdCtx, because the flag is declared on
 // several command groups and read through absoluteWorkingDir, which every
 // project-scope command already calls.
 var projectDir string

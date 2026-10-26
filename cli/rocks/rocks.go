@@ -15,7 +15,6 @@ import (
 	"github.com/tarantool/go-luarocks/client"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
-	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/util"
 )
 
@@ -67,17 +66,15 @@ func addLuarocksRepoOpts(repo string, args []string) []string {
 	return args
 }
 
-// GetTarantoolPrefix returns tarantool installation prefix.
-func GetTarantoolPrefix(cli *cmdcontext.CliCtx, cliOpts *config.CliOpts) (string, error) {
-	if cli.IsTarantoolBinFromRepo {
-		prefixDir, err := util.JoinAbspath(cliOpts.Env.IncludeDir)
-		if err != nil {
-			return "", err
-		}
+// GetTarantoolPrefix returns tarantool installation prefix: the directory
+// tt binary installed the tarantool of cli under, which holds its headers in
+// include/tarantool, else TT_CLI_TARANTOOL_PREFIX, else the install prefix
+// the tarantool was built with.
+func GetTarantoolPrefix(cli *cmdcontext.CliCtx) (string, error) {
+	if cli.TarantoolPrefix != "" {
+		log.Debugf("Tarantool prefix path: %q", cli.TarantoolPrefix)
 
-		log.Debugf("Tarantool prefix path: %q", prefixDir)
-
-		return prefixDir, nil
+		return cli.TarantoolPrefix, nil
 	}
 
 	if prefixPathFromEnv := os.Getenv(tarantoolPrefixEnvVarName); prefixPathFromEnv != "" {
@@ -128,7 +125,7 @@ func GetTarantoolPrefix(cli *cmdcontext.CliCtx, cliOpts *config.CliOpts) (string
 // list of tt registry replaces its defaults; an empty one leaves the defaults
 // of LuaRocks in place. The repository TT_CLI_REPO_ROCKS names is added on top
 // of them with --server, which LuaRocks queries first.
-func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, servers, args []string) error {
+func Exec(cmdCtx *cmdcontext.CmdCtx, servers, args []string) error {
 	args = addLuarocksRepoOpts(os.Getenv(repoRocksPathEnvVarName), args)
 
 	version, err := cmdCtx.Cli.TarantoolCli.GetVersion()
@@ -136,7 +133,7 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, servers, args []st
 		return err
 	}
 
-	tarantoolPrefixDir, err := GetTarantoolPrefix(&cmdCtx.Cli, cliOpts)
+	tarantoolPrefixDir, err := GetTarantoolPrefix(&cmdCtx.Cli)
 	if err != nil {
 		return err
 	}

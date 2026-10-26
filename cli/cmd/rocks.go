@@ -32,7 +32,7 @@ func internalRocksModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	return rocks.Exec(cmdCtx, cliOpts, servers, args)
+	return rocks.Exec(cmdCtx, servers, args)
 }
 
 // rocksServers returns the rock servers tt rocks queries: the list tt registry

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from utils import create_tt_config, get_tarantool_version, run_command_and_get_output
+from utils import get_tarantool_version, run_command_and_get_output
 
 # spell-checker:ignore getrlimit setrlimit rlimit rlim coredumps coredumpctl apport
 
@@ -166,12 +166,12 @@ def test_coredump_pack_executable(tt_cmd, tmp_path, coredump_alt, tarantool_pref
 
 @pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
 @pytest.mark.slow
-def test_coredump_pack_executable_tt_env(tt_cmd, tmp_path, coredump_alt, tarantool_prefix):
+def test_coredump_pack_executable_project(tt_cmd, tmp_path, coredump_alt, tarantool_prefix):
     tarantool_bin = tarantool_prefix / "bin" / "tarantool"
 
-    create_tt_config(tmp_path)
-    (tmp_path / "bin").mkdir()
-    os.symlink(tarantool_bin, tmp_path / "bin" / "tarantool")
+    # The tarantool of the project scope, as tt binary install selects it.
+    (tmp_path / ".tarantool" / "bin").mkdir(parents=True)
+    os.symlink(tarantool_bin, tmp_path / ".tarantool" / "bin" / "tarantool")
 
     cmd = [tt_cmd, "coredump", "pack", coredump_alt]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)

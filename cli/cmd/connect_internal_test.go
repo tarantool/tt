@@ -8,28 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
-	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/connect"
 	"github.com/tarantool/tt/v3/cli/connector"
 )
-
-func TestGenMaxHistoryOption(t *testing.T) {
-	t.Run("not configured", func(t *testing.T) {
-		opts := config.CliOpts{}
-		actual := getMaxHistoryOutputLen(&opts)
-		assert.Equal(t, connect.DefaultOutputHistorySize, actual)
-	})
-	t.Run("invalid configuration", func(t *testing.T) {
-		opts := config.CliOpts{Env: &config.TtEnvOpts{OutputHistoryMax: 0}}
-		actual := getMaxHistoryOutputLen(&opts)
-		assert.Equal(t, connect.DefaultOutputHistorySize, actual)
-	})
-	t.Run("correct configuration", func(t *testing.T) {
-		opts := config.CliOpts{Env: &config.TtEnvOpts{OutputHistoryMax: 2}}
-		actual := getMaxHistoryOutputLen(&opts)
-		assert.Equal(t, 2, actual)
-	})
-}
 
 func TestConnectionTLSFlags(t *testing.T) {
 	oldPassword, oldPasswordFile, oldTimeout := connectSslPassword,
