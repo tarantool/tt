@@ -47,9 +47,10 @@ func command(ctx context.Context, spec *Spec) *exec.Cmd {
 }
 
 // Command prepares a command that runs the Spec once, for a caller that runs
-// it without a supervisor. Cancelling ctx sends the process Spec.StopSignal;
-// Spec.StopTimeout later the process is killed. The output of the process is
-// drained for at most Spec.StopTimeout after it has exited.
+// it without a supervisor. Cancelling ctx sends the process Spec.StopSignal,
+// or its whole group with Spec.ProcessGroup; Spec.StopTimeout later the
+// process is killed. The output of the process is drained for at most
+// Spec.StopTimeout after it has exited.
 func (spec *Spec) Command(ctx context.Context) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, spec.Path, spec.Args...)
 
@@ -65,7 +66,14 @@ func (spec *Spec) Command(ctx context.Context) *exec.Cmd {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: spec.ProcessGroup}
 	cmd.WaitDelay = spec.StopTimeout
 	cmd.Cancel = func() error {
-		return cmd.Process.Signal(spec.StopSignal)
+		err := signaller(cmd.Process, spec.ProcessGroup)(spec.StopSignal)
+		if errors.Is(err, syscall.ESRCH) {
+			// The group is gone with its leader, which has exited, as
+			// Process.Signal reports it.
+			return os.ErrProcessDone
+		}
+
+		return err
 	}
 
 	return cmd
