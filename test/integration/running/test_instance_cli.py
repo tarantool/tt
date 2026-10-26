@@ -299,7 +299,6 @@ def flags_of(help_text):
     return help_text[help_text.index("FLAGS") :]
 
 
-@pytest.mark.skipif(not utils.is_tarantool_3(), reason="the project runs on Tarantool 3")
 def test_connect_is_instance_connect(tt_cmd, tmp_path):
     # tt connect is a facade of tt instance connect: the same command with
     # the same flags.

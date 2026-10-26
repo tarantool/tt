@@ -15,7 +15,6 @@ from utils import (
     extract_status,
     extract_status_from_json,
     extract_status_from_yaml,
-    get_tarantool_version,
     inst_lib_dir,
     inst_log_dir,
     inst_run_dir,
@@ -24,8 +23,6 @@ from utils import (
     run_command_and_get_output,
     wait_file,
 )
-
-tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
 # Define field mappings for different extract functions.
 field_mappings = {
@@ -129,10 +126,6 @@ def wait_instance_status(tt_cmd, tmpdir, full_inst_name, status, port=None, time
         time.sleep(1)
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip cluster instances test for Tarantool < 3",
-)
 def test_t3_instance_names_with_config(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "small_cluster_app"
@@ -207,10 +200,6 @@ def test_t3_instance_names_with_config(tt_cmd, tmpdir_with_cfg):
         stop_application(tt_cmd, app_name, app_path)
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip cluster instances test for Tarantool < 3",
-)
 def test_t3_instances_without_console(tt_cmd):
     test_app_path_src = os.path.join(os.path.dirname(__file__), "../running/multi_inst_app")
     instances = ["router", "master", "replica"]
@@ -301,10 +290,6 @@ def test_t3_instances_without_console(tt_cmd):
             stop_application(tt_cmd, "app", test_app_path)
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip cluster instances test for Tarantool < 3",
-)
 def test_status_external_process(tt_cmd, tmp_path):
     # An external process shows the state of its process alone: nothing is
     # asked over a console it does not have, and no alert says so.
@@ -427,10 +412,6 @@ def closed_address():
         return "{}:{}".format(*sock.getsockname())
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip cluster instances test for Tarantool < 3",
-)
 @pytest.mark.parametrize("spoil", ["broken", "etcd out of reach"])
 def test_status_and_stop_without_config(tt_cmd, tmp_path, spoil):
     # tt instance status, logrotate and stop find the running instances by

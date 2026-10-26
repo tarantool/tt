@@ -3,12 +3,10 @@ import shutil
 import subprocess
 import tempfile
 
-import pytest
 from replicaset_helpers import copy_application, start_application, stop_application
 
-from utils import get_tarantool_version, inst_lib_dir, run_command_and_get_output, wait_file
+from utils import inst_lib_dir, run_command_and_get_output, wait_file
 
-tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 cmd_master = """box.space._schema:run_triggers(false)
 box.space._schema:delete('replicaset_name')
 box.space._schema:run_triggers(true)
@@ -38,10 +36,6 @@ def run_command_on_instance(tt_cmd, tmpdir, full_inst_name, cmd):
     return instance_process.stdout.read()
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip centralized config test for Tarantool < 3",
-)
 def test_downgrade_multi_master(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "test_ccluster_app"
@@ -68,10 +62,6 @@ def test_downgrade_multi_master(tt_cmd, tmpdir_with_cfg):
 
 # The `box.schema.downgrade()` function was introduced in Tarantool 2.11.0.
 # see https://www.tarantool.io/ru/doc/latest/release/2.11.0/#downgrading-a-database
-@pytest.mark.skipif(
-    tarantool_major_version < 2 or (tarantool_major_version == 2 and tarantool_minor_version < 11),
-    reason="The oldest release available for downgrade is 2.8.2",
-)
 def test_downgrade_t2_app_dummy_replicaset(tt_cmd):
     app_name = "single-t2-app"
     test_app_path_src = os.path.join(os.path.dirname(__file__), app_name)
@@ -112,10 +102,6 @@ def test_downgrade_t2_app_dummy_replicaset(tt_cmd):
             stop_application(tt_cmd, app_name, test_app_path, [])
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip test with cluster config for Tarantool < 3",
-)
 def test_cluster_replicasets(tt_cmd, vshard_app):
     app = vshard_app
     app_name = app.app_name
@@ -173,10 +159,6 @@ def test_cluster_replicasets(tt_cmd, vshard_app):
         app.stop()
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip test with cluster config for Tarantool < 3",
-)
 def test_downgrade_invalid_version(tt_cmd, vshard_app):
     app = vshard_app
     app_name = app.app_name
@@ -197,10 +179,6 @@ def test_downgrade_invalid_version(tt_cmd, vshard_app):
         app.stop()
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip cluster instances test for Tarantool < 3",
-)
 def test_downgrade_remote_replicasets(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "small_cluster_app"

@@ -11,7 +11,6 @@ from utils import (
     cluster_config_file,
     config_name,
     extract_status,
-    get_tarantool_version,
     inst_log_dir,
     inst_run_dir,
     instances_file,
@@ -38,9 +37,6 @@ conf_path = '/etc/{user_name}/conf.lua'
 password={pwd}
 attempts={retry_count}
 """
-
-
-tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
 
 def check_file_text(filepath, text):
@@ -711,10 +707,6 @@ def test_create_ambiguous_manifest(tt_cmd, tmp_path):
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip centralized config test for Tarantool < 3",
-)
 def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
     create_cmd = [tt_cmd, "create", "vshard_cluster", "--name", "app1"]
     tt_process = subprocess.Popen(
@@ -979,10 +971,6 @@ def check_running_config_storage(tt_cmd, workdir, app_name):
 
 @pytest.mark.slow
 @pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip centralized config test for Tarantool < 3",
-)
-@pytest.mark.skipif(
     not is_tarantool_ee(),
     reason="required Tarantool EE",
 )
@@ -1083,10 +1071,6 @@ def check_running_simple_cluster(tt_cmd, workdir, app_name, instances_tree):
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip centralized config test for Tarantool < 3",
-)
 @pytest.mark.parametrize(
     "num_replicasets,num_replicas",
     [
@@ -1128,10 +1112,6 @@ def check_running_single_instance(tt_cmd, workdir, app_name):
     wait_string_in_file(log, "loaded")
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip centralized config test for Tarantool < 3",
-)
 def test_create_single_instance(tt_cmd, tmp_path):
     app_name = "app1"
     files = [cluster_config_file, instances_file, "init.lua"]
@@ -1146,10 +1126,6 @@ def test_create_single_instance(tt_cmd, tmp_path):
     )
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip centralized config test for Tarantool < 3",
-)
 @pytest.mark.parametrize(
     "template",
     [

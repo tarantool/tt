@@ -9,9 +9,6 @@ import tt_helper
 
 import utils
 
-skip_cluster_cond = not utils.is_tarantool_3()
-skip_cluster_reason = "skip cluster instances test for Tarantool < 3"
-
 
 def check_start(tt, tt_app, target):
     # Store original state.
@@ -93,7 +90,6 @@ tt_cluster_app = dict(
 
 
 # Auto-confirmation (short option).
-@pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
 @pytest.mark.tt_app(**tt_cluster_app)
 @pytest.mark.parametrize(
@@ -128,7 +124,6 @@ tt_external_app = dict(
 )
 
 
-@pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.tt_app(**tt_external_app)
 @pytest.mark.parametrize(
     "tt_running_targets",
@@ -179,7 +174,6 @@ tt_script_app = dict(
 )
 
 
-@pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.tt_app(**tt_script_app)
 @pytest.mark.parametrize(
     "tt_running_targets",

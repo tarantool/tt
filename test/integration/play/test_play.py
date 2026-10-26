@@ -12,20 +12,16 @@ from utils import (
     TarantoolTestInstance,
     cluster_config_file,
     control_socket,
-    get_tarantool_version,
     initial_snap,
     initial_xlog,
     inst_lib_dir,
     inst_run_dir,
     instances_file,
     run_command_and_get_output,
-    skip_if_cluster_app_unsupported,
     skip_if_tarantool_ce,
     wait_file,
     wait_files,
 )
-
-tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
 # The name of instance config file within this integration tests.
 # This file should be in /test/integration/play/test_file/.
@@ -414,7 +410,6 @@ def test_play_to_cluster_app(tt_cmd):
     # The binary port of the instance, under .tarantool/var/run/<app>/<inst>/ of
     # the project, is given to tarantool by its full path: keep it short.
     tmpdir = tempfile.mkdtemp(dir="/tmp")
-    skip_if_cluster_app_unsupported()
 
     empty_file = "empty.lua"
     app_name = "test_simple_cluster_app"
@@ -462,7 +457,6 @@ def test_play_to_cluster_app(tt_cmd):
         shutil.rmtree(tmpdir)
 
 
-@pytest.mark.skipif(tarantool_major_version == 1, reason="skip TLS test for Tarantool 1.0")
 def test_play_to_ssl_app(tt_cmd, tmpdir_with_cfg):
     skip_if_tarantool_ce()
 
@@ -530,8 +524,6 @@ def test_play_to_ssl_app(tt_cmd, tmpdir_with_cfg):
     ],
 )
 def test_play_to_cluster_app_by_uri(tt, tt_app, with_scheme, uri):
-    skip_if_cluster_app_unsupported()
-
     if with_scheme:
         uri = f"tcp://{uri}"
     file_to_play = Path(__file__).parent / "test_file" / "test.snap"

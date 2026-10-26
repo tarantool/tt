@@ -6,15 +6,12 @@ import pytest
 from retry import retry
 
 from utils import (
-    get_tarantool_version,
     inst_lib_dir,
     inst_log_dir,
     log_file,
     run_command_and_get_output,
     wait_string_in_file,
 )
-
-tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
 
 def test_rebootstrap_custom_replicaset(tt_cmd, tmp_path):
@@ -92,7 +89,6 @@ s2:
         run_command_and_get_output([tt_cmd, "instance", "stop", "-y"], cwd=app_path)
 
 
-@pytest.mark.skipif(tarantool_major_version < 3, reason="skip cconfig test for Tarantool < 3")
 @pytest.mark.parametrize(
     "flags,input",
     [
@@ -139,7 +135,6 @@ def test_rebootstrap_cconfig_replicaset(tt_cmd, vshard_app, flags, input):
         vshard_app.stop()
 
 
-@pytest.mark.skipif(tarantool_major_version < 3, reason="skip cconfig test for Tarantool < 3")
 def test_rebootstrap_not_confirmed(tt_cmd, vshard_app):
     try:
         vshard_app.start()
@@ -165,7 +160,6 @@ def test_rebootstrap_not_confirmed(tt_cmd, vshard_app):
         vshard_app.stop()
 
 
-@pytest.mark.skipif(tarantool_major_version < 3, reason="skip cconfig test for Tarantool < 3")
 def test_rebootstrap_already_stopped(tt_cmd, vshard_app):
     try:
         vshard_app.start()

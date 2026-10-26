@@ -33,13 +33,6 @@ from integration.scopes.scopes_helpers import (
     wait,
 )
 
-import utils
-
-pytestmark = pytest.mark.skipif(
-    not utils.is_tarantool_3(),
-    reason="the instances of myapp run on Tarantool 3",
-)
-
 
 def assert_runs_from(scope, inst, version, tarantool, template=None):
     """Assert that the Tarantool instance inst of myapp, of template, runs

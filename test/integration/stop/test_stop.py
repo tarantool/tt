@@ -6,9 +6,6 @@ import tt_helper
 
 import utils
 
-skip_cluster_cond = not utils.is_tarantool_3()
-skip_cluster_reason = "skip cluster instances test for Tarantool < 3"
-
 # Values to be used to parametrize input at confirmation prompt.
 confirmation_input_params = [
     pytest.param("y\n", True, id="y"),  # Confirm (lowercase).
@@ -252,7 +249,6 @@ tt_cluster_app = dict(
 
 
 # Auto-confirmation (short option).
-@pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
 @pytest.mark.tt_app(**tt_cluster_app)
 @pytest.mark.parametrize(
@@ -277,14 +273,12 @@ def test_stop_cluster_auto_y(tt, tt_app, target):
 
 
 # Auto-confirmation (long option; less variations).
-@pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.tt_app(**dict(tt_cluster_app, running_targets=["app:*"]))
 def test_stop_cluster_auto_yes(tt, tt_app):
     check_stop(tt, tt_app, "app:*", None, True, "--yes")
 
 
 # Various inputs.
-@pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
 @pytest.mark.tt_app(**tt_cluster_app)
 @pytest.mark.parametrize(
@@ -316,7 +310,6 @@ tt_cluster_app_no_config = dict(
 )
 
 
-@pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.tt_app(**tt_cluster_app_no_config)
 @pytest.mark.parametrize(
     "tt_running_targets",
@@ -352,7 +345,6 @@ tt_external_app = dict(
 )
 
 
-@pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.tt_app(**dict(tt_external_app, running_targets=["app:*"]))
 @pytest.mark.parametrize(
     "target",

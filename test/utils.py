@@ -368,8 +368,8 @@ class TarantoolTestInstance:
             set it into class field. (default is empty string)
         instance_host (str): host which will try to connect to instance. If check is successful,
             set it into class field. (default is empty string)
-        use_lua (bool): needs to specify if we want to start tarantool with lua configuration
-            even if tarantool major version more than 3. (default is false)
+        use_lua (bool): start tarantool with the Lua configuration file instead of the cluster
+            config. (default is false)
 
         Raises:
             RuntimeError:
@@ -381,12 +381,11 @@ class TarantoolTestInstance:
                 made if there is an option connection_test=True that is present by default).
         """
         tnt_start_cmd = []
-        major_version, _ = get_tarantool_version()
-        if major_version < 3 or use_lua:
+        if use_lua:
             if instance_name != "" and (
                 ".yml" in self._instance_cfg_file_name or ".yaml" in self._instance_cfg_file_name
             ):
-                raise Exception("instance_name cannot be used with Tarantool version < 3")
+                raise Exception("instance_name cannot be used with use_lua")
             tnt_start_cmd = ["tarantool", self._instance_cfg_file_name]
         else:
             tnt_start_cmd = [
@@ -677,10 +676,6 @@ def is_tarantool_less(maj, min=0):
     return major_version < maj or (major_version == maj and minor_version < min)
 
 
-def is_tarantool_3():
-    return not is_tarantool_less(3)
-
-
 def is_tarantool_ee():
     cmd = ["tarantool", "--version"]
     try:
@@ -701,39 +696,13 @@ def skip_if_tarantool_ce():
         pytest.skip("Tarantool Enterprise required")
 
 
-def is_quit_supported():
-    return not is_tarantool_less(2)
-
-
-def is_cluster_app_supported():
-    return is_tarantool_3()
-
-
 def skip_if_tcm_not_supported():
     if not is_tarantool_ee():
         pytest.skip("Tarantool Enterprise required")
 
-    if not is_tarantool_3():
-        pytest.skip("TCM not supported")
-
 
 def is_tuple_format_supported():
     return not is_tarantool_less(3, 2)
-
-
-def is_tarantool_major_one():
-    major, minor = get_tarantool_version()
-    return major == 1
-
-
-def skip_if_quit_unsupported():
-    if not is_quit_supported():
-        pytest.skip("\\q is unsupported")
-
-
-def skip_if_cluster_app_unsupported():
-    if not is_cluster_app_supported():
-        pytest.skip("Tarantool 3.0 or above required")
 
 
 def skip_if_tuple_format_supported():

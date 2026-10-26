@@ -8,9 +8,7 @@ from pathlib import Path
 import pytest
 from replicaset_helpers import copy_application, stop_application
 
-from utils import get_tarantool_version, run_command_and_get_output, wait_file
-
-tarantool_major_version, tarantool_minor_version = get_tarantool_version()
+from utils import run_command_and_get_output, wait_file
 
 
 @pytest.mark.parametrize(
@@ -26,10 +24,6 @@ def test_status_orchestrators_force_mix(tt_cmd, tmpdir_with_cfg, case):
     assert re.search(r"   ⨯ only one type of orchestrator can be forced", out)
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip centralized config test for Tarantool < 3",
-)
 @pytest.mark.parametrize("flag", [None, "--config"])
 def test_status_cconfig_uri(tt_cmd, tmpdir_with_cfg, flag):
     tmpdir = tmpdir_with_cfg
@@ -74,10 +68,6 @@ Replicasets state: bootstrapped
         stop_application(tt_cmd, app_name, app_path, [])
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip centralized config test for Tarantool < 3",
-)
 def test_status_cconfig_uri_force_custom(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "test_ccluster_app"
@@ -120,10 +110,6 @@ Replicasets state: bootstrapped
         stop_application(tt_cmd, app_name, app_path, [])
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip centralized config test for Tarantool < 3",
-)
 @pytest.mark.parametrize("flag", [None, "--config"])
 @pytest.mark.parametrize("target", ["test_ccluster_app", "test_ccluster_app:instance-001"])
 def test_status_cconfig_app_and_instance(tt_cmd, tmpdir_with_cfg, flag, target):
@@ -169,10 +155,6 @@ Replicasets state: bootstrapped
         stop_application(tt_cmd, app_name, app_path, [])
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip centralized config test for Tarantool < 3",
-)
 @pytest.mark.parametrize("target", ["test_ccluster_app", "test_ccluster_app:instance-001"])
 def test_status_cconfig_app_and_instance_force_custom(tt_cmd, tmpdir_with_cfg, target):
     tmpdir = tmpdir_with_cfg
@@ -266,10 +248,6 @@ def install_user_app(root):
     os.symlink(shutil.which("tarantool"), installation / "tarantool")
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="skip centralized config test for Tarantool < 3",
-)
 def test_status_user_scope(tt_cmd, tmp_path):
     # --scope user reaches an application installed in the user scope, as it
     # does for the instance commands that start it; without it the
