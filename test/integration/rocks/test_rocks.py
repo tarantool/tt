@@ -6,7 +6,18 @@ import tempfile
 
 import pytest
 
-from utils import config_name, create_lua_config, create_tt_config, run_command_and_get_output
+from utils import create_lua_config, run_command_and_get_output
+
+# A manifest whose [platform].registries names the rock repository in the
+# repo directory next to it.
+MANIFEST_WITH_REPO = """manifest_version = '0.1'
+
+[package]
+name = 'rocks-test'
+
+[platform]
+registries = ['repo']
+"""
 
 # ##### #
 # Tests #
@@ -14,8 +25,6 @@ from utils import config_name, create_lua_config, create_tt_config, run_command_
 
 
 def test_rocks_module(tt_cmd, tmp_path):
-    create_tt_config(tmp_path)
-
     rc, output = run_command_and_get_output(
         [tt_cmd, "rocks", "help"],
         cwd=tmp_path,
@@ -133,9 +142,6 @@ def test_rocks_admin_module(tt_cmd, tmp_path):
 
 
 def test_rocks_install_remote(tt_cmd, tmp_path):
-    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
-        tnt_env_file.write('''repo:
-  rocks: "repo"''')
     rc, output = run_command_and_get_output(
         [tt_cmd, "rocks", "install", "stat"],
         cwd=tmp_path,
@@ -149,9 +155,10 @@ def test_rocks_install_local(tt_cmd, tmp_path):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported")
 
-    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
-        tnt_env_file.write('''repo:
-  rocks: "repo"''')
+    # The rock servers of tt registry are the servers of tt rocks: here the
+    # ones [platform].registries of the manifest names.
+    with open(tmp_path / "app.manifest.toml", "w") as f:
+        f.write(MANIFEST_WITH_REPO)
 
     shutil.copytree(os.path.join(os.path.dirname(__file__), "repo"), os.path.join(tmp_path, "repo"))
 
@@ -169,10 +176,6 @@ def test_rocks_install_local_if_network_is_up(tt_cmd, tmp_path):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported")
 
-    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
-        tnt_env_file.write('''repo:
-  rocks: "repo"''')
-
     shutil.copytree(os.path.join(os.path.dirname(__file__), "repo"), os.path.join(tmp_path, "repo"))
 
     rc, output = run_command_and_get_output(
@@ -186,16 +189,12 @@ def test_rocks_install_local_if_network_is_up(tt_cmd, tmp_path):
 
 
 def test_rocks_install_local_specific_version(tt_cmd, tmp_path):
-    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
-        tnt_env_file.write('''repo:
-  rocks: "repo"''')
-
     shutil.copytree(os.path.join(os.path.dirname(__file__), "repo"), os.path.join(tmp_path, "repo"))
 
     rc, output = run_command_and_get_output(
         [tt_cmd, "rocks", "install", "stat", "0.3.1-1"],
         cwd=tmp_path,
-        env=dict(os.environ, PWD=tmp_path),
+        env=dict(os.environ, PWD=tmp_path, TT_REGISTRIES="repo"),
     )
     assert rc == 0
     assert f"Installing {tmp_path}/repo/stat-0.3.1-1.all.rock" in output
@@ -219,19 +218,16 @@ def test_rocks_install_from_dir_with_no_repo(tt_cmd, tmp_path):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported")
 
-    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
-        tnt_env_file.write('''repo:
-  rocks: "repo"''')
-
     shutil.copytree(os.path.join(os.path.dirname(__file__), "repo"), os.path.join(tmp_path, "repo"))
 
     os.mkdir(os.path.join(tmp_path, "subdir"))
 
-    # Disable network with unshare.
+    # Disable network with unshare. A relative registry is taken from the
+    # working directory.
     rc, output = run_command_and_get_output(
-        ["unshare", "-r", "-n", tt_cmd, "-c", "../tt.yaml", "rocks", "install", "stat"],
+        ["unshare", "-r", "-n", tt_cmd, "rocks", "install", "stat"],
         cwd=os.path.join(tmp_path, "subdir"),
-        env=dict(os.environ, PWD=os.path.join(tmp_path, "subdir")),
+        env=dict(os.environ, PWD=os.path.join(tmp_path, "subdir"), TT_REGISTRIES="../repo"),
     )
     assert rc == 0
     print(output)
@@ -244,17 +240,13 @@ def test_rocks_install_from_env_var_repo(tt_cmd, tmp_path):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported")
 
-    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
-        tnt_env_file.write('''repo:
-  distfiles: "distfiles"''')
-
     shutil.copytree(os.path.join(os.path.dirname(__file__), "repo"), os.path.join(tmp_path, "repo"))
 
     os.mkdir(os.path.join(tmp_path, "subdir"))
 
     # Without env and network. Must fail.
     rc, output = run_command_and_get_output(
-        ["unshare", "-r", "-n", tt_cmd, "-c", "../tt.yaml", "rocks", "install", "stat"],
+        ["unshare", "-r", "-n", tt_cmd, "rocks", "install", "stat"],
         cwd=os.path.join(tmp_path, "subdir"),
         env=dict(os.environ, PWD=os.path.join(tmp_path, "subdir")),
     )
@@ -264,7 +256,7 @@ def test_rocks_install_from_env_var_repo(tt_cmd, tmp_path):
 
     # Tets with env set, no network.
     rc, output = run_command_and_get_output(
-        ["unshare", "-r", "-n", tt_cmd, "-c", "../tt.yaml", "rocks", "install", "stat"],
+        ["unshare", "-r", "-n", tt_cmd, "rocks", "install", "stat"],
         cwd=tmp_path / "subdir",
         env=dict(
             os.environ,
@@ -283,10 +275,6 @@ def test_rocks_install_from_env_var_repo(tt_cmd, tmp_path):
 @pytest.mark.skipif(shutil.which("tarantool") is not None, reason="tarantool found in PATH")
 def test_rock_install_with_non_system_tarantool_in_path(tt_cmd, tarantool_prefix):
     with tempfile.TemporaryDirectory() as tmp_path:
-        with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
-            tnt_env_file.write('''repo:
-  distfiles: "distfiles"''')
-
         # Rocks install must fail due to not found tarantool headers.
         rocks_cmd = [tt_cmd, "rocks", "install", "crud", "1.1.1-1"]
         rc, output = run_command_and_get_output(
@@ -345,8 +333,6 @@ def test_rocks_with_hardcoded(tt_cmd, tmp_path):
     etc_luarocks_path = tmp_path / "luarocks"
     os.mkdir(etc_luarocks_path)
     create_lua_config(etc_luarocks_path)
-
-    create_tt_config(tmp_path)
 
     shutil.copy(tt_cmd, tmp_path / "tt")
     os.chmod(tmp_path / "tt", 0o755)

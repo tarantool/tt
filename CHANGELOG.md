@@ -567,6 +567,12 @@ for machine-readable output.
   `tt.yaml`: there is no tt environment left to print or to put on `PATH`.
   `source .env/activate.sh`, which `tt binary install` creates in a project,
   puts the binaries of the project on `PATH` instead of `. <(tt env)`.
+- `tt rocks` queries the rock servers of `tt registry`: `TT_REGISTRIES`, or
+  `[platform].registries` of `app.manifest.toml` in the current directory,
+  replace the servers LuaRocks queries by default, as they replace the
+  defaults of `tt package`; without either LuaRocks keeps its own. `repo.rocks`
+  of `tt.yaml`, which added a server LuaRocks queried first, is not read any
+  more; `TT_CLI_REPO_ROCKS` still adds one.
 - `tt run` now runs the package in the current directory rather than an
   instance of a tt environment. The directory must hold `app.manifest.toml`; no
   `tt.yaml` and no tt environment are needed, and none is looked for. The

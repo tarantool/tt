@@ -28,16 +28,16 @@ var (
 var EmbedCompletions embed.FS
 
 const (
-	rocksRepoManifestName     = "manifest"
 	repoRocksPathEnvVarName   = "TT_CLI_REPO_ROCKS"
 	tarantoolPrefixEnvVarName = "TT_CLI_TARANTOOL_PREFIX"
 	tarantoolDefaultPrefixDir = "/usr"
 	minVersionOutputLines     = 3
 )
 
-// addLuarocksRepoOpts adds --server option to luarocks command line if rocks repository
-// info is specified in tt config. Return updated args slice.
-func addLuarocksRepoOpts(cliOpts *config.CliOpts, args []string) []string {
+// addLuarocksRepoOpts adds the rocks repository repo to the luarocks command
+// line as a --server option, unless repo is empty or the command line names
+// --only-server. Return updated args slice.
+func addLuarocksRepoOpts(repo string, args []string) []string {
 	// Make sure there is no --only-server option is specified.
 	for _, opt := range args {
 		if opt == "--only-server" || strings.HasPrefix(opt, "--only-server=") {
@@ -45,41 +45,26 @@ func addLuarocksRepoOpts(cliOpts *config.CliOpts, args []string) []string {
 		}
 	}
 
-	// Check whether rocks repository is specified in tt config.
-	if cliOpts.Repo != nil && cliOpts.Repo.Rocks != "" {
+	if repo != "" {
 		isServerSet := false
 
 		for argIdx, opt := range args {
 			if opt == "--server" {
 				isServerSet = true
-				args[argIdx+1] = args[argIdx+1] + " " + cliOpts.Repo.Rocks
+				args[argIdx+1] = args[argIdx+1] + " " + repo
 			} else if strings.HasPrefix(opt, "--server=") {
 				isServerSet = true
 
-				args[argIdx] += " " + cliOpts.Repo.Rocks
+				args[argIdx] += " " + repo
 			}
 		}
 
 		if !isServerSet {
-			args = append(args, "--server", cliOpts.Repo.Rocks)
+			args = append(args, "--server", repo)
 		}
 	}
 
 	return args
-}
-
-// getRocksRepoPath returns actual rocks repo path: either from passed path argument or
-// from current environment.
-func getRocksRepoPath(rocksRepoPath string) string {
-	rockRepoPathFromEnv := os.Getenv(repoRocksPathEnvVarName)
-	if rocksRepoPath == "" || (rocksRepoPath != "" &&
-		!util.IsRegularFile(filepath.Join(rocksRepoPath, rocksRepoManifestName))) {
-		if rockRepoPathFromEnv != "" {
-			rocksRepoPath = rockRepoPathFromEnv
-		}
-	}
-
-	return rocksRepoPath
 }
 
 // GetTarantoolPrefix returns tarantool installation prefix.
@@ -138,10 +123,13 @@ func GetTarantoolPrefix(cli *cmdcontext.CliCtx, cliOpts *config.CliOpts) (string
 // dispatcher, which parses them and prints its own output. This is the
 // transitional `tt rocks` escape-hatch; the new manifest commands go through
 // cli/manifest/rocks instead.
-func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) error {
-	cliOpts.Repo.Rocks = getRocksRepoPath(cliOpts.Repo.Rocks)
-
-	args = addLuarocksRepoOpts(cliOpts, args)
+//
+// servers replace the rock servers LuaRocks queries by default, as the server
+// list of tt registry replaces its defaults; an empty one leaves the defaults
+// of LuaRocks in place. The repository TT_CLI_REPO_ROCKS names is added on top
+// of them with --server, which LuaRocks queries first.
+func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, servers, args []string) error {
+	args = addLuarocksRepoOpts(os.Getenv(repoRocksPathEnvVarName), args)
 
 	version, err := cmdCtx.Cli.TarantoolCli.GetVersion()
 	if err != nil {
@@ -176,6 +164,7 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) err
 	cfg := luarocks.Config{
 		Tree:       filepath.Join(workingDir, ".rocks"),
 		WorkingDir: workingDir,
+		Servers:    servers,
 		Tarantool: luarocks.TarantoolConfig{
 			Executable: cmdCtx.Cli.TarantoolCli.Executable,
 			Prefix:     tarantoolPrefixDir,

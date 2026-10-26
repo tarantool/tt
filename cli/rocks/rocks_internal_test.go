@@ -10,112 +10,51 @@ import (
 	"github.com/tarantool/tt/v3/cli/config"
 )
 
-// spell-checker:ignore emptyrepo
-
 func TestAddLuarocksRepoOpts(t *testing.T) {
-	type args struct {
-		cliOpts *config.CliOpts
-		args    []string
-	}
-
 	tests := []struct {
 		name string
-		args args
+		repo string
+		args []string
 		want []string
 	}{
 		{
 			"Rocks repo is not specified",
-			args{
-				&config.CliOpts{
-					Repo: &config.RepoOpts{
-						Rocks: "",
-					},
-				},
-				[]string{},
-			},
+			"",
 			[]string{},
-		},
-		{
-			"Nil repo config",
-			args{
-				&config.CliOpts{
-					Repo: nil,
-				},
-				[]string{},
-			},
 			[]string{},
 		},
 		{
 			"Rock repo is specified",
-			args{
-				&config.CliOpts{
-					Repo: &config.RepoOpts{
-						Rocks: "local_path",
-					},
-				},
-				[]string{},
-			},
+			"local_path",
+			[]string{},
 			[]string{"--server", "local_path"},
 		},
 		{
 			"Rock repo is specified and --only-server opt is provided",
-			args{
-				&config.CliOpts{
-					Repo: &config.RepoOpts{
-						Rocks: "local_path",
-					},
-				},
-				[]string{"--only-server", "/other/repo"},
-			},
+			"local_path",
+			[]string{"--only-server", "/other/repo"},
 			[]string{"--only-server", "/other/repo"}, // No --server option is added.
 		},
 		{
 			"Rock repo is specified and --server is passed",
-			args{
-				&config.CliOpts{
-					Repo: &config.RepoOpts{
-						Rocks: "local_path",
-					},
-				},
-				[]string{"--server", "/other/repo"},
-			},
+			"local_path",
+			[]string{"--server", "/other/repo"},
 			[]string{"--server", "/other/repo local_path"},
 		},
 		{
 			"Rock repo is specified and --server= is passed",
-			args{
-				&config.CliOpts{
-					Repo: &config.RepoOpts{
-						Rocks: "local_path",
-					},
-				},
-				[]string{"--server=/other/repo"},
-			},
+			"local_path",
+			[]string{"--server=/other/repo"},
 			[]string{"--server=/other/repo local_path"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := addLuarocksRepoOpts(tt.args.cliOpts, tt.args.args)
+			got := addLuarocksRepoOpts(tt.repo, tt.args)
 			require.Equal(t, tt.want, got)
 		})
 	}
-}
-
-func TestGetRocksRepoPath(t *testing.T) {
-	_ = os.Unsetenv(repoRocksPathEnvVarName)
-
-	assert.Equal(t, "./testdata/repo", getRocksRepoPath("./testdata/repo"))
-	assert.Equal(t, "./testdata/emptyrepo", getRocksRepoPath("./testdata/emptyrepo"))
-
-	t.Setenv(repoRocksPathEnvVarName, "./other_repo")
-	// If env var is set, return it if manifests is missing in passed repo.
-	assert.Equal(t, "./other_repo", getRocksRepoPath("./testdata/emptyrepo"))
-	// Return passed repo path, since manifest exists. Env var is ignored.
-	assert.Equal(t, "./testdata/repo", getRocksRepoPath("./testdata/repo"))
-
-	_ = os.Unsetenv(repoRocksPathEnvVarName)
 }
 
 func TestSetupTarantoolPrefix(t *testing.T) {
