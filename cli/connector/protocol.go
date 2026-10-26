@@ -12,7 +12,9 @@ var (
 )
 
 const (
-	// https://www.tarantool.io/en/doc/1.10/dev_guide/internals_index/#greeting-packet
+	// greetingSize is the size of the greeting message a Tarantool server
+	// sends first, see "Greeting message" in
+	// https://www.tarantool.io/en/doc/latest/reference/internals/iproto/authentication/
 	greetingSize = 128
 )
 

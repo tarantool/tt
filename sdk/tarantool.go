@@ -76,7 +76,7 @@ const (
 )
 
 // TarantoolVersion is the version of a Tarantool build, as its --version
-// reports it: 2.11.1-0-g96877bd-r579, say. It is a plain value; the zero
+// reports it: 3.2.0-0-g8aef7fc-r40, say. It is a plain value; the zero
 // value is 0.0.0.
 type TarantoolVersion struct {
 	// Major, Minor and Patch are the version numbers.
