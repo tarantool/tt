@@ -25,7 +25,7 @@ def test_expel_invalid_argument(tt_cmd, tmpdir_with_cfg):
     status_cmd = [tt_cmd, "replicaset", "expel", "app"]
     rc, out = run_command_and_get_output(status_cmd, cwd=tmpdir_with_cfg)
     assert rc == 1
-    assert re.search(r"   ⨯ the command expects argument application_name:instance_name", out)
+    assert re.search(r"   ⨯ the command expects <APP>:<INSTANCE>", out)
 
 
 def test_expel_no_instance(tt_cmd, tmpdir_with_cfg):

@@ -442,7 +442,7 @@ func NewClusterCmd() *cobra.Command {
 	}
 
 	show := &cobra.Command{
-		Use:   "show (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)",
+		Use:   "show (<APP> | <APP>:<INSTANCE> | <URI>)",
 		Short: "Show a cluster configuration",
 		Long: "Show a cluster configuration for an application, instance," +
 			" from etcd URI or from tarantool config storage URI.\n\n" + clusterURIHelp,
@@ -475,7 +475,7 @@ func NewClusterCmd() *cobra.Command {
 	clusterCmd.AddCommand(show)
 
 	publish := &cobra.Command{
-		Use:   "publish (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>) file",
+		Use:   "publish (<APP> | <APP>:<INSTANCE> | <URI>) file",
 		Short: "Publish a cluster configuration",
 		Long: "Publish an application or an instance configuration to a cluster " +
 			"configuration file, to a etcd URI or to a tarantool config storage URI.\n\n" +

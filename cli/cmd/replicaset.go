@@ -22,8 +22,8 @@ import (
 )
 
 var (
-	errAnInstanceNameIsNotSpecifiedPleaseUseAppInstanceFormat = errors.New(
-		"an instance name is not specified. Please use app:instance format",
+	errAnInstanceNameIsNotSpecified = errors.New(
+		"an instance name is not specified; use <APP>:<INSTANCE>",
 	)
 	errCannotConnectToAnyInstanceFromReplicaset = errors.New(
 		"cannot connect to any instance from replicaset",
@@ -52,8 +52,8 @@ var (
 	errSpecifyAnInstanceToPromote = errors.New(
 		"specify an instance to promote",
 	)
-	errTheCommandExpectsArgumentApplicationNameInstanceName = errors.New(
-		"the command expects argument application_name:instance_name",
+	errTheCommandExpectsAnInstanceTarget = errors.New(
+		"the command expects <APP>:<INSTANCE>",
 	)
 	errThereAreNoRunningInstances = errors.New(
 		"there are no running instances",
@@ -111,7 +111,7 @@ const defaultLSNSyncTimeout = 5
 // newUpgradeCmd creates a "replicaset upgrade" command.
 func newUpgradeCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "upgrade (<APP_NAME> | <URI>) [flags]\n\n" +
+		Use: "upgrade (<APP> | <URI>) [flags]\n\n" +
 			replicasetURIHelp,
 		DisableFlagsInUseLine: true,
 		Short:                 "Upgrade tarantool cluster",
@@ -152,7 +152,7 @@ func newDowngradeCmd() *cobra.Command {
 	}
 
 	cmd := &cobra.Command{
-		Use: "downgrade (<APP_NAME> | <URI>) VERSION [flags]\n\n" +
+		Use: "downgrade (<APP> | <URI>) VERSION [flags]\n\n" +
 			replicasetURIHelp,
 		DisableFlagsInUseLine: true,
 		Short:                 "Downgrade tarantool cluster",
@@ -179,7 +179,7 @@ func newDowngradeCmd() *cobra.Command {
 func newStatusCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "status [--config|--custom] [flags] " +
-			"(<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)\n\n" +
+			"(<APP> | <APP>:<INSTANCE> | <URI>)\n\n" +
 			replicasetURIHelp,
 		DisableFlagsInUseLine: true,
 		Short:                 "Show a replicaset status",
@@ -200,7 +200,7 @@ func newStatusCmd() *cobra.Command {
 func newPromoteCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "promote [--config|--custom] [-f] [--timeout secs] [flags] " +
-			"(<APP_NAME:INSTANCE_NAME> | <URI>)\n\n" +
+			"(<APP>:<INSTANCE> | <URI>)\n\n" +
 			replicasetURIHelp,
 		DisableFlagsInUseLine: true,
 		Short:                 "Promote an instance",
@@ -226,7 +226,7 @@ func newPromoteCmd() *cobra.Command {
 // newDemoteCmd creates a "replicaset demote" command.
 func newDemoteCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:                   "demote [-f] [--timeout secs] [flags] <APP_NAME:INSTANCE_NAME>",
+		Use:                   "demote [-f] [--timeout secs] [flags] <APP>:<INSTANCE>",
 		DisableFlagsInUseLine: true,
 		Short:                 "Demote an instance",
 		Long:                  "Demote an instance.",
@@ -248,7 +248,7 @@ func newDemoteCmd() *cobra.Command {
 func newExpelCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "expel [-f] [--config|--custom] [--timeout secs] " +
-			"<APP_NAME:INSTANCE_NAME>",
+			"<APP>:<INSTANCE>",
 		Short: "Expel an instance from a replicaset",
 		Long:  "Expel an instance from a replicaset.",
 		RunE:  internalRunE(internalReplicasetExpelModule),
@@ -268,7 +268,7 @@ func newExpelCmd() *cobra.Command {
 // newBootstrapCmd creates a "replicaset bootstrap" command.
 func newBootstrapCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "bootstrap [--timeout secs] [flags] <APP_NAME|APP_NAME:INSTANCE_NAME>",
+		Use:   "bootstrap [--timeout secs] [flags] (<APP> | <APP>:<INSTANCE>)",
 		Short: "Bootstrap an application or instance",
 		Long:  "Bootstrap an application or instance.",
 		RunE:  internalRunE(internalReplicasetBootstrapModule),
@@ -291,7 +291,7 @@ func newBootstrapCmd() *cobra.Command {
 func newBootstrapVShardCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "bootstrap [--config|--custom] [--timeout secs] [flags] " +
-			"(<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)\n\n" +
+			"(<APP> | <APP>:<INSTANCE> | <URI>)\n\n" +
 			replicasetURIHelp,
 		DisableFlagsInUseLine: true,
 		Short:                 "Bootstrap vshard in the cluster",
@@ -327,7 +327,7 @@ func newVShardCmd() *cobra.Command {
 // newRebootstrapCmd creates a "replicaset rebootstrap" command.
 func newRebootstrapCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:                   "rebootstrap <APP_NAME:INSTANCE_NAME>",
+		Use:                   "rebootstrap <APP>:<INSTANCE>",
 		DisableFlagsInUseLine: true,
 		Short:                 "Re-bootstraps an instance",
 		RunE:                  internalRunE(internalReplicasetRebootstrapModule),
@@ -358,8 +358,8 @@ func newRolesAddCmd() *cobra.Command {
 	const commandArgs = 2
 
 	cmd := &cobra.Command{
-		Use: "add [--config|--custom] [-f] [--timeout secs]" +
-			"<APP_NAME:INSTANCE_NAME> <ROLE_NAME> [flags]",
+		Use: "add [--config|--custom] [-f] [--timeout secs] " +
+			"<APP>:<INSTANCE> <ROLE_NAME> [flags]",
 		Short: "Adds a role for Tarantool 3 orchestrator",
 		Long:  "Adds a role for Tarantool 3 orchestrator",
 		RunE:  internalRunE(internalReplicasetRolesAddModule),
@@ -393,8 +393,8 @@ func newRolesRemoveCmd() *cobra.Command {
 	const commandArgs = 2
 
 	cmd := &cobra.Command{
-		Use: "remove [--config|--custom] [-f] [--timeout secs]" +
-			"<APP_NAME:INSTANCE_NAME> <ROLE_NAME> [flags]",
+		Use: "remove [--config|--custom] [-f] [--timeout secs] " +
+			"<APP>:<INSTANCE> <ROLE_NAME> [flags]",
 		Short: "Removes a role for Tarantool 3 orchestrator",
 		Long:  "Removes a role for Tarantool 3 orchestrator",
 		RunE:  internalRunE(internalReplicasetRolesRemoveModule),
@@ -818,7 +818,7 @@ func internalReplicasetStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) er
 // internalReplicasetExpelModule is a "expel" command for the replicaset module.
 func internalReplicasetExpelModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if _, _, found := strings.Cut(args[0], string(running.InstanceDelimiter)); !found {
-		return errTheCommandExpectsArgumentApplicationNameInstanceName
+		return errTheCommandExpectsAnInstanceTarget
 	}
 
 	var ctx replicasetCtx
@@ -967,7 +967,7 @@ func replicasetRebootstrapValidateArgs(cmd *cobra.Command, args []string) error 
 	}
 
 	if !strings.Contains(args[0], string(running.InstanceDelimiter)) {
-		return errAnInstanceNameIsNotSpecifiedPleaseUseAppInstanceFormat
+		return errAnInstanceNameIsNotSpecified
 	}
 
 	return nil
