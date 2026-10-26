@@ -251,8 +251,15 @@ func loadPair(
 // mean the same as everywhere else in the application; and tt makes up its
 // command line. workdir and args in its record would be silently ignored,
 // which is the tt2 behaviour users complained about, so they are refused.
-// Allowing them later breaks no description.
+// So is logrotate_signal: tarantool reopens its log on SIGHUP, which tt
+// logrotate always sends it. Allowing them later breaks no description.
 func checkFields(pair Pair, records []instances.Instance) error {
+	const (
+		runs      = "a Tarantool instance runs in the application directory"
+		arguments = "a Tarantool instance runs with the arguments tt gives it"
+		logrotate = "a Tarantool instance reopens its log on SIGHUP, which tt logrotate sends it"
+	)
+
 	var errs []error
 
 	for _, record := range records {
@@ -261,11 +268,15 @@ func checkFields(pair Pair, records []instances.Instance) error {
 		}
 
 		if record.Workdir != "" {
-			errs = append(errs, fieldError(record.Name, "workdir"))
+			errs = append(errs, fieldError(record.Name, "workdir", runs))
 		}
 
 		if len(record.Args) > 0 {
-			errs = append(errs, fieldError(record.Name, "args"))
+			errs = append(errs, fieldError(record.Name, "args", arguments))
+		}
+
+		if record.LogrotateSignal != 0 {
+			errs = append(errs, fieldError(record.Name, "logrotate_signal", logrotate))
 		}
 	}
 
@@ -276,11 +287,10 @@ func checkFields(pair Pair, records []instances.Instance) error {
 	return nil
 }
 
-// fieldError reports a field a Tarantool instance cannot have.
-func fieldError(inst, field string) error {
-	return fmt.Errorf("instance %q: %w %s: a Tarantool instance runs in the "+
-		"application directory with the arguments tt gives it; "+
-		"%s is only for an external process (binary)", inst, ErrUnsupportedField, field, field)
+// fieldError reports a field a Tarantool instance cannot have, and why.
+func fieldError(inst, field, why string) error {
+	return fmt.Errorf("instance %q: %w %s: %s; %s is only for an external process (binary)",
+		inst, ErrUnsupportedField, field, why, field)
 }
 
 // checkTopology checks that every Tarantool instance the description

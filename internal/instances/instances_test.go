@@ -60,17 +60,19 @@ func TestParse(t *testing.T) {
   workdir: var/worker
   stop_signal: SIGINT
   stop_timeout: 1m30s
+  logrotate_signal: HUP
   restart: on-failure
 `,
 			want: []instances.Instance{{
-				Name:        "worker-1",
-				Binary:      "/srv/myapp/bin/worker",
-				Args:        []string{"--port", "8080", ""},
-				Env:         map[string]string{"LOG_LEVEL": "info", "EMPTY": ""},
-				Workdir:     "/srv/myapp/var/worker",
-				StopSignal:  syscall.SIGINT,
-				StopTimeout: 90 * time.Second,
-				Restart:     instances.RestartOnFailure,
+				Name:            "worker-1",
+				Binary:          "/srv/myapp/bin/worker",
+				Args:            []string{"--port", "8080", ""},
+				Env:             map[string]string{"LOG_LEVEL": "info", "EMPTY": ""},
+				Workdir:         "/srv/myapp/var/worker",
+				StopSignal:      syscall.SIGINT,
+				StopTimeout:     90 * time.Second,
+				Restart:         instances.RestartOnFailure,
+				LogrotateSignal: syscall.SIGHUP,
 			}},
 		},
 		{
@@ -209,22 +211,26 @@ func TestParseSignals(t *testing.T) {
 	}
 	for name, want := range valid {
 		t.Run(name, func(t *testing.T) {
-			got, err := instances.Parse([]byte("a: {stop_signal: "+name+"}\n"), appDir)
+			got, err := instances.Parse(
+				[]byte("a: {stop_signal: "+name+", logrotate_signal: "+name+"}\n"), appDir)
 			require.NoError(t, err)
 			require.Len(t, got, 1)
 			assert.Equal(t, want, got[0].StopSignal)
+			assert.Equal(t, want, got[0].LogrotateSignal)
 		})
 	}
 
 	// PWR is Linux-only and INFO macOS-only: a description runs on both.
 	invalid := []string{"sigterm", "Term", "SIG", "SIGSIGTERM", "15", "PWR", "INFO", "TERM "}
-	for _, name := range invalid {
-		t.Run(name, func(t *testing.T) {
-			_, err := instances.Parse(fmt.Appendf(nil, "a: {stop_signal: %q}\n", name), appDir)
-			require.ErrorIs(t, err, instances.ErrInvalid)
-			assert.EqualError(t, err, fmt.Sprintf(`line 1: instance "a": field "stop_signal": `+
-				"%q is not a signal name such as SIGTERM or TERM", name))
-		})
+	for _, field := range []string{"stop_signal", "logrotate_signal"} {
+		for _, name := range invalid {
+			t.Run(field+"/"+name, func(t *testing.T) {
+				_, err := instances.Parse(fmt.Appendf(nil, "a: {%s: %q}\n", field, name), appDir)
+				require.ErrorIs(t, err, instances.ErrInvalid)
+				assert.EqualError(t, err, fmt.Sprintf(`line 1: instance "a": field %q: `+
+					"%q is not a signal name such as SIGTERM or TERM", field, name))
+			})
+		}
 	}
 }
 

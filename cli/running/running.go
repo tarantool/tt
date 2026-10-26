@@ -104,6 +104,9 @@ type InstanceCtx struct {
 	// workdir and for a Tarantool instance, whose data directories are
 	// WalDir, MemtxDir and VinylDir.
 	DataDir string
+	// LogrotateSignal is the signal tt logrotate sends an external process
+	// after reopening tt.log; zero sends it none.
+	LogrotateSignal syscall.Signal
 	// AppName is the name of the application.
 	AppName string
 	// Instance name.
@@ -531,7 +534,9 @@ func Status(run *InstanceCtx) process_utils.ProcessState {
 	return process_utils.ProcessStatus(run.PIDFile)
 }
 
-// Logrotate rotates logs of a started tarantool instance.
+// Logrotate rotates logs of a started instance: its watchdog reopens tt.log
+// on SIGHUP and passes SIGHUP on to tarantool, which reopens its own log, or
+// sends an external process its logrotate_signal, if it has one.
 func Logrotate(run *InstanceCtx) error {
 	fullInstanceName := GetAppInstanceName(*run)
 

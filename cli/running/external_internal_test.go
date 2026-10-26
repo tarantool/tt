@@ -64,7 +64,8 @@ func TestNewInstanceCtxExternal(t *testing.T) {
 		t.Run(string(appScope), func(t *testing.T) {
 			fixture := newAppFixture(t, appScope, externalFiles(
 				`{binary: ./bin/worker, args: [-v, "1"], env: {FOO: bar}, `+
-					`stop_signal: SIGUSR1, stop_timeout: 3s, restart: on-failure}`))
+					`stop_signal: SIGUSR1, stop_timeout: 3s, logrotate_signal: HUP, `+
+					`restart: on-failure}`))
 			loaded := fixture.load(t)
 
 			insts, err := InstancesOf(loaded, loaded.Instances)
@@ -86,6 +87,7 @@ func TestNewInstanceCtxExternal(t *testing.T) {
 			assert.Equal(t, data, inst.DataDir)
 			assert.Equal(t, data, inst.Workdir)
 			assert.Equal(t, loaded.Dir, inst.AppDir)
+			assert.Equal(t, syscall.SIGHUP, inst.LogrotateSignal)
 			assert.Equal(t, map[string]string{"FOO": "bar"}, inst.Env)
 			assert.Equal(t, syscall.SIGUSR1, inst.StopSignal)
 			assert.Equal(t, 3*time.Second, inst.StopTimeout)
@@ -169,6 +171,8 @@ func TestExternalSpec(t *testing.T) {
 	assert.False(t, spec.ForwardStopSignal)
 	assert.Equal(t, instanceStopTimeout, spec.StopTimeout)
 	assert.True(t, spec.ProcessGroup)
+	assert.Equal(t, syscall.Signal(0), spec.ReloadSignal, "no logrotate_signal, no signal")
+	assert.False(t, spec.ForwardReloadSignal)
 	assert.NoDirExists(t, filepath.Join(fixture.root, "var", "lib"))
 
 	for name, want := range map[string]string{
@@ -190,14 +194,16 @@ func TestExternalSpec(t *testing.T) {
 	}
 }
 
-// TestExternalSpecRecordSettings pins that the stop settings and the PWD of
-// the record win over the defaults, and that a process without workdir runs
-// in its data directory, which the Spec creates.
+// TestExternalSpecRecordSettings pins that the stop settings, the
+// logrotate_signal and the PWD of the record win over the defaults, and that
+// a process without workdir runs in its data directory, which the Spec
+// creates.
 func TestExternalSpecRecordSettings(t *testing.T) {
 	setScopeRoots(t)
 
 	fixture := newAppFixture(t, app.ScopeProject, externalFiles(
-		`{binary: ./bin/worker, stop_signal: INT, stop_timeout: 2m, env: {PWD: /elsewhere}}`))
+		`{binary: ./bin/worker, stop_signal: INT, stop_timeout: 2m, logrotate_signal: USR2, `+
+			`env: {PWD: /elsewhere}}`))
 	writeExecutable(t, filepath.Join(fixture.dir, "bin", "worker"))
 
 	inst := fixture.instanceCtxOf(t, externalInst)
@@ -210,6 +216,8 @@ func TestExternalSpecRecordSettings(t *testing.T) {
 	assert.Equal(t, syscall.SIGINT, spec.StopSignal)
 	assert.False(t, spec.ForwardStopSignal)
 	assert.Equal(t, 2*time.Minute, spec.StopTimeout)
+	assert.Equal(t, syscall.SIGUSR2, spec.ReloadSignal)
+	assert.False(t, spec.ForwardReloadSignal)
 	assert.Equal(t, data, spec.Dir)
 	assert.DirExists(t, data)
 

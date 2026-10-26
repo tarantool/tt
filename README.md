@@ -678,13 +678,14 @@ start, stop and show next to the Tarantool instances, under the same watchdog:
 ```yaml
 storage-001:
 gateway:
-  binary: ./bin/gateway   # or a program in PATH, such as python3
+  binary: ./bin/gateway     # or a program in PATH, such as python3
   args: [--port, "8080"]
   env: {GATEWAY_MODE: production}
-  workdir: ./gateway      # <root>/var/lib/<app>/<instance>/ by default
-  stop_signal: SIGINT     # SIGTERM by default
-  stop_timeout: 10s       # 30s by default
-  restart: on-failure     # no by default
+  workdir: ./gateway        # <root>/var/lib/<app>/<instance>/ by default
+  stop_signal: SIGINT       # SIGTERM by default
+  stop_timeout: 10s         # 30s by default
+  logrotate_signal: SIGHUP  # none by default
+  restart: on-failure       # no by default
 ```
 
 `binary` and `workdir` are relative to the application directory, also in the
@@ -697,12 +698,11 @@ its own, which its stop signal and `tt kill` reach whole, so that a wrapper
 script stops with the program it runs. Its output goes to `tt.log`; its
 watchdog keeps `tt.pid` and the pid of the process, `process.pid`, in the run
 directory. `tt status` shows whether the process runs and nothing more;
-`tt logrotate` reopens `tt.log` and sends the process SIGHUP, which stops a
-program that does not handle it; `tt clean` removes the log and the data
-directory. `tt connect`, `tt play`, `tt kill --dump` and the cluster commands
-refuse an external process: it is not a Tarantool instance. The instances
-start in the order of `instances.yaml`, and none waits for another to be
-ready.
+`tt logrotate` reopens `tt.log` and sends the process `logrotate_signal`, if
+the record has one; `tt clean` removes the log and the data directory.
+`tt connect`, `tt play`, `tt kill --dump` and the cluster commands refuse an
+external process: it is not a Tarantool instance. The instances start in the
+order of `instances.yaml`, and none waits for another to be ready.
 
 Records with `script`, Tarantool instances configured by their own script, are
 not supported yet.

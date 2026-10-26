@@ -1,4 +1,6 @@
 import os
+import shutil
+import time
 
 import pytest
 import tt_helper
@@ -195,3 +197,55 @@ tt_cluster_app_no_config = dict(
 )
 def test_logrotate_cluster_no_config(tt, tt_app, target):
     tt_helper.check_broken_pair(tt, tt_app, "logrotate", target)
+
+
+@pytest.mark.parametrize(
+    "logrotate_signal",
+    [
+        pytest.param(None, id="no-logrotate_signal"),
+        pytest.param("SIGHUP", id="logrotate_signal"),
+    ],
+)
+def test_logrotate_external(tt_cmd, tmp_path, logrotate_signal):
+    # tt logrotate reopens tt.log of an external process, where its output
+    # goes, and sends the process its logrotate_signal; without the field
+    # the process gets no signal, which would end a program that does not
+    # handle it.
+    app_path = tmp_path / "app"
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "../start/external_app"), app_path)
+    if logrotate_signal is not None:
+        with open(app_path / utils.instances_file, "a") as description:
+            description.write(f"  logrotate_signal: {logrotate_signal}\n")
+
+    worker = "app:worker"
+    log_file = os.path.join(utils.inst_log_dir(app_path, "app", "worker"), utils.log_file)
+    try:
+        rc, out = utils.run_command_and_get_output([tt_cmd, "start", worker], cwd=app_path)
+        assert rc == 0
+        assert utils.wait_event(5, lambda: "worker started" in read_file(log_file))
+
+        os.rename(log_file, log_file + "0")
+        rc, out = utils.run_command_and_get_output([tt_cmd, "logrotate", worker], cwd=app_path)
+        assert rc == 0
+        assert "logs has been rotated" in out
+        assert utils.wait_event(5, lambda: "reopened" in read_file(log_file))
+
+        if logrotate_signal is None:
+            time.sleep(1)
+            assert "worker got HUP" not in read_file(log_file)
+        else:
+            assert utils.wait_event(5, lambda: "worker got HUP" in read_file(log_file))
+
+        rc, out = utils.run_command_and_get_output([tt_cmd, "status", worker], cwd=app_path)
+        assert rc == 0
+        assert utils.extract_status(out)[worker]["STATUS"] == "RUNNING"
+    finally:
+        utils.run_command_and_get_output([tt_cmd, "stop", "-y", worker], cwd=app_path)
+
+
+def read_file(path):
+    try:
+        with open(path) as f:
+            return f.read()
+    except FileNotFoundError:
+        return ""

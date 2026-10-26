@@ -698,30 +698,60 @@ func TestExternalProcessFromPath(t *testing.T) {
 }
 
 // TestExternalProcessLogrotate pins that tt logrotate reopens tt.log of an
-// external process and passes SIGHUP on to the process, which goes on.
+// external process, where its output goes, and sends the process its
+// logrotate_signal, the SIGHUP the watchdog got being no signal of the
+// process; without logrotate_signal the process gets nothing and goes on.
 func TestExternalProcessLogrotate(t *testing.T) {
-	setScopeRoots(t)
+	cases := []struct {
+		name   string
+		mode   string
+		record string
+		want   []string
+	}{
+		{name: "no logrotate_signal", mode: processServe, record: "", want: nil},
+		{
+			name: "logrotate_signal", mode: processStubborn,
+			record: ", logrotate_signal: SIGUSR2, stop_timeout: 1s",
+			want:   signalNames(syscall.SIGUSR2),
+		},
+	}
 
-	_, inst, files := processFixture(t, processServe, "")
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			setScopeRoots(t)
 
-	watchdog := startWatchdog(t, &inst)
-	run := waitProcess(t, &inst, files)
+			_, inst, files := processFixture(t, test.mode, test.record)
 
-	rotated := inst.Log + ".1"
-	require.NoError(t, os.Rename(inst.Log, rotated))
-	require.NoError(t, Logrotate(&inst))
+			watchdog := startWatchdog(t, &inst)
+			run := waitProcess(t, &inst, files)
 
-	require.Eventually(t, func() bool {
-		return slices.Equal(signalNames(syscall.SIGHUP), signalsOf(files, run.Pid))
-	}, 20*time.Second, 10*time.Millisecond, "the process did not get SIGHUP")
+			rotated := inst.Log + ".1"
+			require.NoError(t, os.Rename(inst.Log, rotated))
+			require.NoError(t, Logrotate(&inst))
 
-	require.Eventually(t, func() bool {
-		return strings.Contains(watchdog.log(), fmt.Sprintf("process %d got hangup", run.Pid))
-	}, 20*time.Second, 10*time.Millisecond, "the output does not reach the new tt.log")
+			require.Eventually(t, func() bool {
+				return strings.Contains(watchdog.log(), "log file has been reopened")
+			}, 20*time.Second, 10*time.Millisecond, "tt.log was not reopened")
 
-	assert.False(t, gone(run.Pid), "the process stopped on SIGHUP")
+			if test.want != nil {
+				require.Eventually(t, func() bool {
+					return slices.Equal(test.want, signalsOf(files, run.Pid))
+				}, 20*time.Second, 10*time.Millisecond, "the process got no signal")
+				require.Eventually(t, func() bool {
+					return strings.Contains(watchdog.log(), fmt.Sprintf("process %d got", run.Pid))
+				}, 20*time.Second, 10*time.Millisecond, "the output does not reach the new tt.log")
+			} else {
+				// The watchdog signals the process right after it has
+				// reopened the log, if it does at all.
+				time.Sleep(300 * time.Millisecond)
+				assert.Empty(t, signalsOf(files, run.Pid))
+			}
 
-	watchdog.stop()
+			assert.False(t, gone(run.Pid), "the process stopped on the log rotation")
+
+			watchdog.stop()
+		})
+	}
 }
 
 // TestKillExternalProcess pins that tt kill kills the process group of an

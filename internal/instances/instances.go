@@ -74,6 +74,9 @@ type Instance struct {
 	StopTimeout time.Duration
 	// Restart is the restart policy; RestartNo when the record sets none.
 	Restart RestartPolicy
+	// LogrotateSignal is the signal that makes an external process reopen
+	// its logs; zero when the record sets none.
+	LogrotateSignal syscall.Signal
 }
 
 // Kind tells how the instance runs.

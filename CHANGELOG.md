@@ -374,9 +374,10 @@ for machine-readable output.
   and its watchdog keeps `tt.pid` and `process.pid`, the pid of the process,
   in `<root>/var/run/<app>/<inst>/`. `tt status` shows the state of the
   process only. `tt logrotate` reopens `tt.log` and sends the process group
-  SIGHUP, which stops a program that does not handle it. `tt clean` removes
-  the log and the data directory, and `tt check` skips the process.
-  `tt connect`, `tt play`, `tt kill --dump` and
+  the new `logrotate_signal` field of the record, if it has one; the field is
+  refused in the records of Tarantool instances, which get SIGHUP as before.
+  `tt clean` removes the log and the data directory, and `tt check` skips the
+  process. `tt connect`, `tt play`, `tt kill --dump` and
   `tt replicaset rebootstrap` refuse it as not a Tarantool instance; the
   application targets of `tt replicaset` and `tt cluster` leave external
   processes out of the instances of the application and refuse one named
