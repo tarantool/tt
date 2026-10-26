@@ -2,6 +2,7 @@ package status
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 
@@ -141,9 +142,7 @@ func (t TablePrinter) Print(instances map[string]*instanceStatus) error {
 	writer.SortBy([]table.SortBy{{Name: "INSTANCE", Mode: table.Asc}})
 
 	if t.details {
-		for instanceName, instStatus := range instances {
-			t.printInstanceAlerts(instanceName, instStatus)
-		}
+		t.printDetails(instances)
 	}
 
 	if t.pretty {
@@ -179,6 +178,42 @@ func (t TablePrinter) Print(instances map[string]*instanceStatus) error {
 	}
 
 	return nil
+}
+
+// withDetails reports whether the table shows the details of the instances
+// (detailsPrinter).
+func (t TablePrinter) withDetails() bool {
+	return t.details
+}
+
+// printDetails prints the details of the instances, by name: the tarantool
+// every Tarantool instance starts on, with the warnings of the choice, and
+// then the alerts of every instance.
+func (t TablePrinter) printDetails(instances map[string]*instanceStatus) {
+	names := slices.Sorted(maps.Keys(instances))
+	printed := false
+
+	for _, name := range names {
+		instStatus := instances[name]
+		if instStatus.tarantool == "" {
+			continue
+		}
+
+		_, _ = fmt.Fprintf(os.Stdout, "Tarantool for %s: %s\n", name, instStatus.tarantool)
+		for _, warning := range instStatus.tarantoolWarnings {
+			_, _ = fmt.Fprintf(os.Stdout, "  • %s\n", printYellow(warning))
+		}
+
+		printed = true
+	}
+
+	if printed {
+		_, _ = fmt.Fprintln(os.Stdout)
+	}
+
+	for _, name := range names {
+		t.printInstanceAlerts(name, instances[name])
+	}
 }
 
 // printInstanceAlerts prints alerts for a specific instance.

@@ -563,3 +563,45 @@ func resolveTarantool(inst *InstanceCtx) (tarantool.Executable, error) {
 
 	return exe, nil
 }
+
+// DescribeTarantool names the tarantool the Tarantool instance inst starts
+// on and where it comes from, as a phrase such as "/usr/bin/tarantool, the
+// first tarantool on PATH", with the warnings of the choice, for
+// tt instance status --details.
+//
+// The choice is made as the next start of the instance makes it
+// (resolveTarantool), and runs no tarantool: an instance that runs already
+// may have started on another one, should the choice have changed since,
+// such as by tt binary switch in a project.
+func DescribeTarantool(inst *InstanceCtx) (string, []string, error) {
+	exe, err := resolveTarantool(inst)
+	if err != nil {
+		return "", nil, err
+	}
+
+	// The version is known for an installation of tt binary, and is the
+	// version of its directory under versions/.
+	version := "the tarantool"
+	if exe.Version != "" {
+		version = "version " + exe.Version
+	}
+
+	var origin string
+
+	switch exe.Origin {
+	case tarantool.OriginLock:
+		origin = fmt.Sprintf("%s app.manifest.lock bundles, installed in the %s scope",
+			version, inst.Scope)
+	case tarantool.OriginConstraint:
+		origin = fmt.Sprintf("%s, the highest installed in the %s scope that "+
+			"[platform].tarantool allows", version, inst.Scope)
+	case tarantool.OriginProject:
+		origin = version + " the project selects in .tarantool/bin"
+	case tarantool.OriginPath:
+		origin = "the first tarantool on PATH"
+	case tarantool.OriginUnknown:
+		origin = "of unknown origin"
+	}
+
+	return exe.Path + ", " + origin, exe.Warnings, nil
+}

@@ -477,12 +477,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   standard input; a no on the terminal is no failure. `--no-prompt` no longer
   confirms `tt instance stop`: `--yes` does. `tt instance clean` asks once for
   all its targets, removes nothing for an instance that never ran instead of
-  failing it, and counts a running instance it leaves alone as failed.
+  failing it, and counts a running instance it leaves alone as failed; next
+  to `<root>/var/lib/<app>/<instance>/` and `<root>/var/log/<app>/<instance>/`
+  it removes the data directories the config of the instance moves elsewhere
+  (`wal.dir`, `snapshot.dir`, `vinyl.dir`).
   Completion of a target offers the current project and the applications of
   the system scope, or of the scope `--scope` names, each followed by `:`, and
-  then the instances of the pair of the application named. The messages that
-  suggest a command name the new one, as the follow-up message of `tt create`
-  does.
+  then the instances of the pair of the application named; the usage, the
+  completion and the errors spell a target `<APP>:<INSTANCE>` and `<APP>:*`.
+  `tt instance status --details` names the tarantool every Tarantool instance
+  starts on and where it comes from: the version the lock bundles or the
+  highest one `[platform].tarantool` allows in the user and system scopes,
+  the tarantool the project selects or the one on `PATH` in a project. The
+  messages that suggest a command name the new one, as the follow-up message
+  of `tt create` does.
 
 - `tt instance start`, `stop`, `status`, `restart`, `kill`, `logs`,
   `logrotate`, `check`, `clean` and `connect`, `tt connect`, `tt play`, the
@@ -504,9 +512,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `tt instance status` asks for their state over the console socket. Data,
   logs, pid files and sockets go to
   `<root>/var/{lib,log,run}/<app>/<instance>/`, where `<root>` is `.tarantool`
-  in a project. Targets are `<app>:<instance>`, `<app>:*` and
+  in a project. Targets are `<APP>:<INSTANCE>`, `<APP>:*` and
   comma-separated lists of them, or none for every instance of the current
-  project; a bare `<app>` is refused with a hint. The restart policy is the
+  project; a bare `<APP>` is refused with a hint. The restart policy is the
   `restart` field of the instance record: a restart after a crash stays on the
   version the instance started from and re-reads the pair, while
   `tt instance restart` takes the active version. `tt instance check` checks

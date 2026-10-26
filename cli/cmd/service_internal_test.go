@@ -184,6 +184,50 @@ func TestSystemdScopes(t *testing.T) {
 	require.NoError(t, internalSystemdGenerateModule(cmdCtx, []string{"myapp"}))
 }
 
+// TestCompleteSystemdApp pins the completion of the application of
+// tt service systemd: the applications installed in the system scope, and
+// neither the project the command runs in nor those of the user scope,
+// which units are not made for; nothing after the application.
+//
+//nolint:paralleltest // Sets the environment and the working directory.
+func TestCompleteSystemdApp(t *testing.T) {
+	root := systemdFixture(t)
+
+	// Another application of the system scope, and what is not one: a file
+	// in apps/ and a link to nothing.
+	billing := filepath.Join(root, "versions", "billing", "billing_1.0.0")
+	require.NoError(t, os.MkdirAll(billing, 0o755))
+	require.NoError(t, os.Symlink(billing, filepath.Join(root, "apps", "billing")))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "apps", "notes"), nil, 0o644))
+	require.NoError(t, os.Symlink(filepath.Join(root, "nowhere"),
+		filepath.Join(root, "apps", "gone")))
+
+	user := os.Getenv("TT_USER_ROOT")
+	userApp := filepath.Join(user, "versions", "mine", "mine_1.0.0")
+	require.NoError(t, os.MkdirAll(userApp, 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(user, "apps"), 0o755))
+	require.NoError(t, os.Symlink(userApp, filepath.Join(user, "apps", "mine")))
+
+	project := filepath.Join(t.TempDir(), "local")
+	require.NoError(t, os.MkdirAll(filepath.Join(project, ".templates", "default"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(project, ".templates", "default",
+		"instances.yaml"), []byte("worker:\n  binary: sh\n"), 0o644))
+	t.Chdir(project)
+
+	got, directive := completeSystemdApp(nil, nil, "")
+	assert.Equal(t, []string{"billing", "myapp"}, got)
+	assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
+
+	got, directive = completeSystemdApp(nil, []string{"myapp"}, "")
+	assert.Empty(t, got)
+	assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
+
+	t.Setenv("TT_SYSTEM_ROOT", t.TempDir())
+
+	got, _ = completeSystemdApp(nil, nil, "")
+	assert.Empty(t, got, "an empty system scope")
+}
+
 // TestSystemdNotInstalled pins the error for an application the system scope
 // does not have: it points at tt package install, not at another scope.
 //

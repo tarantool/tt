@@ -730,7 +730,7 @@ def test_connect_to_single_instance_app(tt_cmd, tmpdir_with_cfg):
         # A bare application name is not an instance target.
         ret, output = try_execute_on_instance(tt_cmd, tmpdir, "test_app", empty_file)
         assert not ret
-        assert "use test_app:<instance> or test_app:*" in output
+        assert "use test_app:<INSTANCE> or test_app:*" in output
 
         # Connect to the instance and execute a script.
         ret, output = try_execute_on_instance(tt_cmd, tmpdir, "test_app:test_app", empty_file)

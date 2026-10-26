@@ -103,6 +103,12 @@ type instanceStatus struct {
 	Alerts             []instanceAlert            `json:"alerts"         yaml:"alerts"`
 	rawReplicationInfo []rawReplicationInfo       `json:"-"              yaml:"-"`
 	procStatus         process_utils.ProcessState `json:"-"              yaml:"-"`
+	// tarantool names the tarantool a Tarantool instance starts on and where
+	// it comes from, or why none can be chosen, and tarantoolWarnings are the
+	// warnings of the choice. They are for a printer that shows the details
+	// (detailsPrinter), and empty for an external process.
+	tarantool         string   `json:"-" yaml:"-"`
+	tarantoolWarnings []string `json:"-" yaml:"-"`
 }
 
 func (is *instanceStatus) addAlert(message string, severity severity) {
@@ -124,7 +130,37 @@ func newInstanceStatus() instanceStatus {
 		Alerts:             nil,
 		rawReplicationInfo: nil,
 		procStatus:         process_utils.ProcessState{Code: 0, Status: "", PID: 0},
+		tarantool:          "",
+		tarantoolWarnings:  nil,
 	}
+}
+
+// detailsPrinter is a printer that shows the details of the instances, the
+// table with --details: Status collects for it what only the details show,
+// the tarantool of every Tarantool instance.
+type detailsPrinter interface {
+	withDetails() bool
+}
+
+// showsDetails reports whether printer shows the details of the instances.
+func showsDetails(printer InstanceStatusPrinter) bool {
+	details, ok := printer.(detailsPrinter)
+
+	return ok && details.withDetails()
+}
+
+// setTarantool sets the tarantool the Tarantool instance run starts on, and
+// where it comes from, in instStatus (running.DescribeTarantool).
+func setTarantool(instStatus *instanceStatus, run *running.InstanceCtx) {
+	described, warnings, err := running.DescribeTarantool(run)
+	if err != nil {
+		instStatus.tarantool = "none can be chosen: " + err.Error()
+
+		return
+	}
+
+	instStatus.tarantool = described
+	instStatus.tarantoolWarnings = warnings
 }
 
 type instanceStatusMap = map[string]*instanceStatus
@@ -343,12 +379,31 @@ func collectStatuses(instances []running.InstanceCtx,
 }
 
 // Status writes the instance statuses. instanceTimeout bounds collection of a
-// single instance's state, including connection setup; zero disables the timeout.
+// single instance's state, including connection setup; zero disables the
+// timeout. An external process gets the state of its process alone: it has no
+// console to ask about the rest.
+//
+// The state is the state of the watchdog, as for a Tarantool instance: an
+// external process whose watchdog is gone while its process runs on
+// (running.Orphan) is not running, since nothing supervises it, and gets an
+// alert that names the process and how to stop it.
+//
+// An instance that a systemd unit manages is read from the same pid file as
+// any, that of the watchdog its unit runs, and shows its unit.
+//
+// A printer that shows the details gets the tarantool every Tarantool
+// instance starts on as well, chosen without running it.
 func Status(runningCtx running.RunningCtx, printer InstanceStatusPrinter,
 	instanceTimeout time.Duration,
 ) error {
 	instances := make(instanceStatusMap)
 	uuid2name := map[string]string{}
+	details := showsDetails(printer)
+
+	byName := make(map[string]running.InstanceCtx, len(runningCtx.Instances))
+	for _, run := range runningCtx.Instances {
+		byName[running.GetAppInstanceName(run)] = run
+	}
 
 	for result := range collectStatuses(runningCtx.Instances, instanceTimeout) {
 		if result.uuid != "" {
@@ -356,6 +411,12 @@ func Status(runningCtx running.RunningCtx, printer InstanceStatusPrinter,
 		}
 
 		instances[result.name] = result.status
+		if details {
+			run := byName[result.name]
+			if !running.IsExternal(&run) {
+				setTarantool(result.status, &run)
+			}
+		}
 	}
 
 	for _, instStatus := range instances {

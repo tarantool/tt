@@ -68,14 +68,14 @@ func TestParseTargetsInvalid(t *testing.T) {
 		{
 			name: "bare application",
 			args: []string{"myapp"},
-			msg:  "use myapp:<instance> or myapp:*",
+			msg:  "use myapp:<INSTANCE> or myapp:*",
 		},
 		{
 			name: "bare application in a list",
 			args: []string{"myapp:storage-1,myapp"},
 			msg:  "an instance-level command needs an instance target",
 		},
-		{name: "no short form", args: []string{":storage-1"}, msg: "use <app>:storage-1"},
+		{name: "no short form", args: []string{":storage-1"}, msg: "use <APP>:storage-1"},
 		{name: "no instance", args: []string{"myapp:"}, msg: "the instance name is missing"},
 		{name: "empty argument", args: []string{""}, msg: "empty target"},
 		{name: "empty item", args: []string{"a:x,,a:y"}, msg: "empty target"},

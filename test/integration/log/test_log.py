@@ -221,7 +221,7 @@ def test_log_bare_app(tt_cmd, mock_env_dir):
     assert process.wait(10) == 1
     output = process.stdout.read()
 
-    assert "use app0:<instance> or app0:*" in output
+    assert "use app0:<INSTANCE> or app0:*" in output
 
 
 def test_log_no_app(tt_cmd, mock_env_dir):

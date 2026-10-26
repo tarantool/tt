@@ -357,7 +357,7 @@ def test_running_multi_inst_app_error_cases(tt_cmd):
         start_cmd = [tt_cmd, "instance", "start", "app"]
         rc, start_output = run_command_and_get_output(start_cmd, cwd=test_app_path)
         assert rc == 1
-        assert "use app:<instance> or app:*" in start_output
+        assert "use app:<INSTANCE> or app:*" in start_output
 
 
 def wait_tarantool(watchdog_pid, exclude=None, timeout=10):

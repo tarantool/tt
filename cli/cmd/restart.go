@@ -14,7 +14,7 @@ import (
 func NewRestartCmd() *cobra.Command {
 	restartCmd := &cobra.Command{
 		Use:   "restart " + instanceTargetsUsage,
-		Short: "Restart tarantool instance(s)",
+		Short: "Restart instance(s)",
 		RunE:  internalRunE(internalRestartModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,

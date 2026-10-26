@@ -12,7 +12,7 @@ import (
 func NewStopCmd() *cobra.Command {
 	stopCmd := &cobra.Command{
 		Use:   "stop " + instanceTargetsUsage,
-		Short: "Stop tarantool instance(s)",
+		Short: "Stop instance(s)",
 		RunE:  internalRunE(internalStopWithConfirmationModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,

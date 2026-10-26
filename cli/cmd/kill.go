@@ -17,7 +17,7 @@ var dumpQuit bool
 func NewKillCmd() *cobra.Command {
 	killCmd := &cobra.Command{
 		Use:   "kill " + instanceTargetsUsage,
-		Short: "Kill tarantool instance(s)",
+		Short: "Kill instance(s)",
 		RunE:  internalRunE(internalKillModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
