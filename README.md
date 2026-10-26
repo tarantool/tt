@@ -546,7 +546,10 @@ or any directory inside it. The project runs from a pair of files in
 ```
 
 `instances.yaml` maps instance names to their records; every Tarantool
-instance must be in the topology of `config.yaml`:
+instance configured by the cluster config must be in the topology of
+`config.yaml`. A description of instances that run their scripts and of
+external processes alone needs no `config.yaml`, and one next to it is not
+read:
 
 ```yaml
 storage-001:

@@ -406,7 +406,9 @@ for machine-readable output.
   `<root>/apps/<app>` of the system scope; it is named by `[package].name`
   of its manifest or after the project directory. Its instances and cluster
   config come from the pair `.templates/default/{instances,config}.yaml`, or
-  `<root>/etc/<app>/` for an installed application. Data, logs, pid files
+  `<root>/etc/<app>/` for an installed application; a description with only
+  `script` and `binary` records needs no `config.yaml` and does not read one,
+  while `tt cluster show` and `publish` refuse an application without it. Data, logs, pid files
   and sockets go to `<root>/var/{lib,log,run}/<app>/<instance>/`, where
   `<root>` is `.tarantool` in a project. Targets are `<app>:<instance>`,
   `<app>:*` and comma-separated lists of them, or none for every instance of

@@ -56,10 +56,10 @@
 // when it is there; otherwise, and always in a project, the pair is the
 // template .templates/<template>/ of the application, "default" unless
 // --template names another. The pair of the host lives outside of the
-// version, which is immutable, so that it survives switching versions. One
-// file of a pair without the other is an error, never a reason to fall back
-// to the template, which would start a topology the host was not given; and
-// --template is refused when the host has a pair.
+// version, which is immutable, so that it survives switching versions. A
+// broken pair is an error, never a reason to fall back to the template,
+// which would start a topology the host was not given; and --template is
+// refused when the host has a pair.
 //
 // The config is loaded by cluster.GetClusterConfig, so a config holding only
 // config.etcd or config.storage brings in the rest of the cluster config
@@ -67,6 +67,13 @@
 // or script is a Tarantool instance configured by that config, and must be
 // in its topology; the topology may hold more instances, which run on other
 // hosts. Records with script or binary are not checked against it.
+//
+// Only those Tarantool instances need the config. A description of
+// instances that run their scripts and of external processes alone makes a
+// pair without config.yaml, and a config.yaml next to it is not read. A
+// description with a Tarantool instance configured by the config and no
+// config.yaml next to it, or a config.yaml without a description, is an
+// incomplete pair.
 //
 // A Tarantool instance, configured by the cluster config or by its script,
 // runs in the application directory with the command line tt makes up, so

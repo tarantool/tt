@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -133,6 +134,10 @@ var (
 	workerDeleteUsername string
 	workerDeletePassword string
 )
+
+// errNoClusterConfig is wrapped by the error for an application target of
+// tt cluster show or publish whose pair has no cluster config.
+var errNoClusterConfig = errors.New("no cluster config")
 
 var (
 	defaultSwitchTimeout       uint64 = 30
@@ -805,6 +810,11 @@ func readSourceFile(path string) ([]byte, map[string]any, error) {
 // description, so that tt cluster publish can configure one before it runs
 // on this host; but an external process the description declares is no
 // instance of the cluster, and naming it is an error.
+//
+// A pair without a config, of instances that run their scripts and of
+// external processes, has nothing to show, and tt cluster publish does not
+// make one up next to its description: the author of the pair adds it, as
+// adding it changes what the pair runs.
 func parseAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, string, error) {
 	appName, instName, _ := strings.Cut(appStr, string(running.InstanceDelimiter))
 
@@ -816,6 +826,13 @@ func parseAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, string, erro
 	err = running.RequireTarantoolRecord(application, instName)
 	if err != nil {
 		return "", "", err
+	}
+
+	if application.Pair.ConfigFile == "" {
+		return "", "", fmt.Errorf("application %q: %w: %s has instances.yaml and no "+
+			"config.yaml next to it; tt does not create it: add it to the pair, or use the "+
+			"URI of a config storage", application.Name, errNoClusterConfig,
+			application.Pair.String())
 	}
 
 	return application.Pair.ConfigFile, instName, nil

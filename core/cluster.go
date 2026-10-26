@@ -22,6 +22,9 @@ import (
 var (
 	// errNoSource reports the zero ClusterSource.
 	errNoSource = errors.New("no cluster configuration source given")
+	// errNoAppConfig reports an application whose pair has no cluster
+	// config.
+	errNoAppConfig = errors.New("the application has no cluster config")
 )
 
 // ClusterConfig returns the cluster configuration src names, read the way
@@ -34,7 +37,7 @@ func (s *services) ClusterConfig(
 	integ := cmd.GetCmdCtxPtr().Integrity
 
 	if name, ok := src.App(); ok {
-		return appClusterConfig(ctx, name)
+		return appClusterConfig(ctx, name, integ)
 	}
 
 	if path, ok := src.File(); ok {
@@ -53,7 +56,13 @@ func (s *services) ClusterConfig(
 // names holds merged in, found as the instance commands find it. Dir is the
 // application directory, the working directory of its instances, which a
 // relative path in the config is resolved against.
-func appClusterConfig(ctx context.Context, name string) (sdk.ClusterConfig, error) {
+//
+// A pair of instances that run their scripts and of external processes may
+// have no config, which is not found; app.Load leaves one it has unread, as
+// none of its instances needs it, and it is read here.
+func appClusterConfig(
+	ctx context.Context, name string, integ integrity.IntegrityCtx,
+) (sdk.ClusterConfig, error) {
 	application, err := cmd.LoadApp(ctx, name)
 	if errors.Is(err, app.ErrAppNotFound) || errors.Is(err, app.ErrNoProject) ||
 		errors.Is(err, app.ErrNoPair) {
@@ -67,7 +76,23 @@ func appClusterConfig(ctx context.Context, name string) (sdk.ClusterConfig, erro
 			name, err)
 	}
 
-	return sdk.ClusterConfig{Config: application.Config.Snapshot(), Dir: application.Dir}, nil
+	cfg := application.Config
+	if cfg == nil {
+		if application.Pair.ConfigFile == "" {
+			return sdk.ClusterConfig{}, notFoundError{
+				err: fmt.Errorf("cluster configuration of application %q: %w: %s has no "+
+					"config.yaml", name, errNoAppConfig, application.Pair.String()),
+			}
+		}
+
+		cfg, err = cluster.GetClusterConfig(ctx, application.Pair.ConfigFile, integ)
+		if err != nil {
+			return sdk.ClusterConfig{}, fmt.Errorf(
+				"cluster configuration of application %q: %w", name, err)
+		}
+	}
+
+	return sdk.ClusterConfig{Config: cfg.Snapshot(), Dir: application.Dir}, nil
 }
 
 // fileClusterConfig returns the cluster configuration of the file at path,

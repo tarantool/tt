@@ -71,6 +71,13 @@ func TestMainClusterConfig(t *testing.T) {
 		"myapp/.templates/default/instances.yaml": "master:\nstorage:\n",
 		"plain/app.manifest.toml":                 manifest("plain"),
 		"empty/.keep":                             "",
+		// Pairs of instances that run their scripts need no config; one that
+		// has it anyway still has the config of the cluster.
+		"scripts/app.manifest.toml":                  manifest("scripts"),
+		"scripts/.templates/default/instances.yaml":  "legacy:\n  script: init.lua\n",
+		"scripted/app.manifest.toml":                 manifest("scripted"),
+		"scripted/.templates/default/instances.yaml": "legacy:\n  script: init.lua\n",
+		"scripted/.templates/default/config.yaml":    appClusterYAML,
 	})
 	writeFiles(t, filepath.Join(system, "versions", "sysapp", "sysapp_1.0.0"), map[string]string{
 		".templates/default/config.yaml":    appClusterYAML,
@@ -119,6 +126,17 @@ func TestMainClusterConfig(t *testing.T) {
 			dir: "plain", prefix: true,
 			stdout: "not found: cluster configuration of application \"plain\": " +
 				"no instances description",
+		},
+		{
+			name: "application without a config", args: []string{"demo", "cluster", "scripts"},
+			dir: "scripts", prefix: true,
+			stdout: "not found: cluster configuration of application \"scripts\": " +
+				"the application has no cluster config: template \"default\"",
+		},
+		{
+			name: "config of an application that runs scripts",
+			args: []string{"demo", "cluster", "scripted", "storage"},
+			dir:  "scripted", stdout: "master storage\nmode=ro\n",
 		},
 		{
 			name: "no application anywhere", args: []string{"demo", "cluster", "myapp"},
