@@ -1,0 +1,4 @@
+# The instance configures itself in init.lua, without a cluster config:
+# the pair needs no config.yaml.
+test_custom_app:
+  script: init.lua
