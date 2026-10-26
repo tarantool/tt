@@ -3,6 +3,7 @@ package status
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -440,4 +441,89 @@ func TestStatusOrphan(t *testing.T) {
 	assert.Contains(t, worker.Alerts[0].Message, strconv.Itoa(process.Process.Pid))
 	assert.Contains(t, worker.Alerts[0].Message, "runs without its watchdog")
 	assert.Contains(t, worker.Alerts[0].Message, "tt instance kill myapp:worker-1")
+
+	// An instance that a unit manages is stopped through its unit.
+	inst.Unit = "myapp@worker-1.service"
+
+	require.NoError(t, Status(running.RunningCtx{Instances: []running.InstanceCtx{inst}},
+		printer, DefaultInstanceTimeout))
+
+	worker = printer.printed["myapp:worker-1"]
+	require.NotNil(t, worker)
+	require.Len(t, worker.Alerts, 1)
+	assert.Contains(t, worker.Alerts[0].Message,
+		"stop it with systemctl stop myapp@worker-1.service")
+}
+
+// captureStdout returns what run writes to the standard output.
+func captureStdout(t *testing.T, run func() error) string {
+	t.Helper()
+
+	reader, writer, err := os.Pipe()
+	require.NoError(t, err)
+
+	previous := os.Stdout
+
+	os.Stdout = writer
+
+	output := make(chan string)
+
+	go func() {
+		data, _ := io.ReadAll(reader)
+		output <- string(data)
+	}()
+
+	runErr := run()
+
+	os.Stdout = previous
+
+	require.NoError(t, writer.Close())
+	require.NoError(t, runErr)
+
+	return <-output
+}
+
+// TestStatusUnits pins that tt instance status shows the systemd unit that
+// manages an instance: in the UNIT column, right after STATUS, which is there
+// only when a unit manages some of the instances, and in the unit field of
+// JSON and YAML, which is left out for an instance without one.
+func TestStatusUnits(t *testing.T) {
+	managed := runningInstance(t, "worker-1", instances.KindExternal)
+
+	managed.Unit = "myapp@worker-1.service"
+
+	stopped := running.InstanceCtx{
+		AppName:  "myapp",
+		InstName: "worker-2",
+		Kind:     instances.KindExternal,
+		PIDFile:  filepath.Join(t.TempDir(), "tt.pid"),
+	}
+
+	both := running.RunningCtx{Instances: []running.InstanceCtx{managed, stopped}}
+
+	table := captureStdout(t, func() error {
+		return Status(both, NewTablePrinter(), DefaultInstanceTimeout)
+	})
+	lines := strings.Split(table, "\n")
+	require.GreaterOrEqual(t, len(lines), 3, table)
+	assert.Regexp(t, `^\s*INSTANCE\s+STATUS\s+UNIT\s+PID\s+MODE\s`, lines[0])
+	assert.Regexp(t, `^\s*myapp:worker-1\s+RUNNING\s+myapp@worker-1\.service\s+`+
+		strconv.Itoa(os.Getpid())+`\s`, lines[1])
+	assert.Regexp(t, `^\s*myapp:worker-2\s+NOT RUNNING\s*$`, lines[2])
+
+	table = captureStdout(t, func() error {
+		return Status(running.RunningCtx{Instances: []running.InstanceCtx{stopped}},
+			NewTablePrinter(), DefaultInstanceTimeout)
+	})
+	assert.NotContains(t, table, "UNIT")
+
+	out := captureStdout(t, func() error {
+		return Status(both, NewJSONPrinter(), DefaultInstanceTimeout)
+	})
+
+	var statuses map[string]map[string]any
+
+	require.NoError(t, json.Unmarshal([]byte(out), &statuses))
+	assert.Equal(t, "myapp@worker-1.service", statuses["myapp:worker-1"]["unit"])
+	assert.NotContains(t, statuses["myapp:worker-2"], "unit")
 }
