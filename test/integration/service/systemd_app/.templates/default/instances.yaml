@@ -1,0 +1,3 @@
+# The template of the version; the host pair of the tests wins over it.
+worker:
+  binary: ./worker.sh

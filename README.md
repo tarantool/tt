@@ -38,6 +38,7 @@ Tarantool-based applications.
   + [Autocompletion](#autocompletion)
 - [TT usage](#tt-usage)
   + [Working with a set of instances](#working-with-a-set-of-instances)
+  + [Running instances under systemd](#running-instances-under-systemd)
   + [Working with application templates](#working-with-application-templates)
   + [Working with tt daemon (experimental)](#working-with-tt-daemon-experimental)
   + [Setting Tarantool configuration parameters via environment variables](#setting-tarantool-configuration-parameters-via-environment-variables)
@@ -695,6 +696,118 @@ application of such instances alone keeps them, and `tt replicaset` acts on it
 with the custom orchestrator without `--custom`, whatever the version of
 Tarantool; `--config` and `--custom` still force an orchestrator.
 
+### Running instances under systemd
+
+`tt service systemd` makes the systemd units that run the instances of an
+application installed in the system scope, `<root>/apps/<app>`, from its pair:
+the pair of the host in `<root>/etc/<app>/`, or else the default template of
+the installed version. Units are made for the system scope only; the user
+scope and projects are refused as not supported. `<app>` names the
+application as the instance commands name it: inside a project of the same
+name it is the project, and `--scope system` picks the installed one.
+
+```text
+tt service systemd generate myapp                    # print the units
+tt service systemd generate myapp --unit-dir ./units # write them into ./units
+tt service systemd install myapp                     # into /etc/systemd/system
+tt service systemd uninstall myapp
+```
+
+The template unit `myapp@.service` runs one instance of `myapp`:
+
+```ini
+[Unit]
+Description=Tarantool application myapp, instance %i
+After=network.target
+
+[Service]
+Type=simple
+User=tarantool
+Group=tarantool
+Environment=TT_SYSTEM_ROOT=/opt/tarantool
+Environment=TT_SYSTEMD_UNIT=%n
+ExecStart=/opt/tarantool/bin/tt instance start --foreground --scope system myapp:%i
+KillMode=mixed
+KillSignal=SIGTERM
+SendSIGKILL=yes
+Restart=no
+RestartSec=5s
+TimeoutStopSec=35s
+LimitNOFILE=65535
+LimitCORE=infinity
+
+[Install]
+WantedBy=multi-user.target
+```
+
+and every instance gets a drop-in, `myapp@<instance>.service.d/tt.conf`, with
+what differs between the instances:
+
+```ini
+[Service]
+Restart=on-failure
+TimeoutStopSec=65s
+```
+
+- `tt instance start --foreground` does not restart the instance: it exits
+  with the code of the instance, and systemd restarts it as `Restart=` says,
+  which is the `restart` field of the record: `no`, `on-failure` and `always`
+  are the values of systemd.
+- `tt` stops the instance itself: it sends the instance its stop signal and
+  kills it once its `stop_timeout` is up. So the stop signal of systemd goes
+  to `tt` alone (`KillMode=mixed`), and `TimeoutStopSec=` is the
+  `stop_timeout` of the record, 30 seconds by default, plus 5 seconds for `tt`
+  to kill the instance and exit: systemd kills nothing before `tt` does. A
+  stop in time ends the unit with 0, a kill with 137.
+- Tarantool instances, instances with `script` and external processes with
+  `binary` run under the same template.
+- `TT_SYSTEM_ROOT` is the root of the system scope the units are made in, so
+  that `tt` under systemd finds the application there. `ExecStart=` runs
+  `<root>/bin/tt`, the `tt` of the scope, which
+  `tt binary install tt --scope system` installs; without it the units run the
+  `tt` that makes them, with a warning.
+- The instances run as the user and the group `tarantool`, which the deb and
+  rpm packages of `tt` create: `<root>/var` must be writable by them.
+  `install` warns when the host has no such user. Settings of your own, such
+  as `User=`, go into a drop-in of your own, `myapp@.service.d/override.conf`;
+  `Restart=` and `TimeoutStopSec=` come from `instances.yaml`.
+- An application or instance name that a unit name would have to escape, and
+  a root or a path of `tt` that a unit would have to quote, are refused.
+
+`install` writes the units into `/etc/systemd/system`, or the directory
+`--unit-dir` names, and records in `<root>/etc/<app>/systemd.yaml` which
+instances the units manage. It does not run `systemctl`, it prints what to
+run:
+
+```text
+systemctl daemon-reload
+systemctl enable --now myapp@router-1.service myapp@storage-1.service
+```
+
+Run it again after the instances of the application change: it rewrites the
+units and removes the drop-ins of the instances that are gone. It refuses a
+unit file of the same name that it did not write, and an instance that runs
+without a unit: stop it with `tt instance stop` first.
+
+`tt instance start`, `stop`, `restart` and `kill`, and
+`tt replicaset rebootstrap`, refuse the instances the units manage and print
+the `systemctl` command to use instead: a watchdog of `tt` next to the unit
+would supervise the instance twice, and a stop behind the back of the unit
+would leave it out of step. The start the unit itself runs is told by
+`TT_SYSTEMD_UNIT`, the name of the unit. `tt instance status` reads the same
+pid files and shows the unit, in the `UNIT` column and the `unit` field of
+`-o json` and `-o yaml`; `logs`, `logrotate`, `check`, `clean` and `connect`
+work as with any instance.
+
+`uninstall` removes the units and the record, from the directory they were
+installed into, and needs only the record: it works for an application that
+is gone. Without a record there is nothing to remove: it says the units are
+not installed and exits with 0, so that it can be run again; a record that
+cannot be read is an error. It refuses while an instance runs under its unit:
+stop the units with `systemctl disable --now` first. A file it did not write
+is left in place. `generate` writes the units only and records nothing: the instance
+commands do not refuse the instances of units installed by hand.
+
 ### Working with application templates
 
 `tt` can create applications from templates.
@@ -847,6 +960,8 @@ Common description. For a detailed description, use `tt help command` .
 - `instance` - manage the instances of applications: `start`, `stop`,
     `restart`, `kill`, `status`, `logs`, `logrotate`, `check`, `clean` and
     `connect`.
+- `service systemd` - generate, install and uninstall the systemd units of an
+    application of the system scope.
 - `version` - show Tarantool CLI version information.
 - `completion` - generate autocomplete for a specified shell.
 - `help` - display help for any command.
