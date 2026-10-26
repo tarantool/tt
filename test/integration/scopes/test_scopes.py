@@ -11,11 +11,14 @@ downloaded.
 """
 
 import os
+import platform
 import re
+import signal
 import subprocess
 
 import pytest
 from integration.scopes.scopes_helpers import (
+    DEFAULT_INSTANCES,
     DEFAULT_TEMPLATE,
     cluster_config,
     install_decoy_tarantool,
@@ -232,6 +235,68 @@ def test_system_scope_template(tt_cmd, tmp_path, system_scope):
     assert rc == 0, err
     status = system_scope.status("--template", "other")
     assert all(inst["status"] == "NOT RUNNING" for inst in status.values())
+
+
+def crash(scope, inst, pid_file):
+    """Kill the process of the instance inst of myapp that the pid file
+    pid_file names, and wait for its watchdog to run it again."""
+    failed = scope.pid(inst, pid_file)
+    assert failed != 0
+    os.kill(failed, signal.SIGKILL)
+
+    def restarted():
+        pid = scope.pid(inst, pid_file)
+        return pid not in (0, failed) and os.path.exists(f"/proc/{pid}")
+
+    assert wait(20, restarted), scope.log(inst)
+
+
+@pytest.mark.skipif(platform.system() != "Linux", reason="the restart is seen through /proc")
+def test_restart_takes_the_active_version(tt_cmd, tmp_path, user_scope):
+    # An instance the watchdog restarts after a failure stays on the version
+    # it started from; tt instance restart runs the active one (decision 29).
+    restart = "  restart: on-failure\n"
+    instances = DEFAULT_INSTANCES.replace("storage:\n", "storage:\n" + restart) + restart
+    templates = {"default": (instances, cluster_config("storage"))}
+    first = pack(tt_cmd, make_project(tmp_path / "1.0.0", "1.0.0", templates))
+    second = pack(tt_cmd, make_project(tmp_path / "2.0.0", "2.0.0", templates))
+    tarantool = install_tarantool(user_scope.root, tarantool_version())
+
+    user_scope.install(first)
+    rc, _, err = user_scope.tt("instance", "start", "--scope", "user", "myapp:*")
+    assert rc == 0, err
+    assert wait(10, lambda: running(user_scope, "storage", "worker"))
+    assert_runs_from(user_scope, "storage", "1.0.0", tarantool)
+    assert_worker_runs_from(user_scope, "worker", "1.0.0")
+    watchdogs = {inst: user_scope.pid(inst) for inst in ["storage", "worker"]}
+
+    user_scope.install(second)
+    assert os.readlink(user_scope.root / "apps" / "myapp").endswith("myapp_2.0.0")
+
+    # Both instances fail; their watchdogs run them again from 1.0.0.
+    for inst, pid_file in [("storage", "tarantool.pid"), ("worker", "process.pid")]:
+        crash(user_scope, inst, pid_file)
+        assert user_scope.pid(inst) == watchdogs[inst], "the same watchdog restarts it"
+
+    version_dir = os.path.realpath(user_scope.version_dir("1.0.0"))
+    assert wait(
+        10,
+        lambda: user_scope.log("storage").count(f"myapp 1.0.0 runs in {version_dir}") == 2,
+    )
+    assert wait(10, lambda: user_scope.log("worker").count("worker of myapp 1.0.0 runs") == 2)
+    assert "myapp 2.0.0" not in user_scope.log("storage") + user_scope.log("worker")
+    storage = user_scope.pid("storage", "tarantool.pid")
+    assert os.readlink(f"/proc/{storage}/cwd") == version_dir
+
+    rc, _, err = user_scope.tt("instance", "restart", "--scope", "user", "myapp:*", "--yes")
+    assert rc == 0, err
+    assert wait(10, lambda: running(user_scope, "storage", "worker"))
+    assert_runs_from(user_scope, "storage", "2.0.0", tarantool)
+    assert_worker_runs_from(user_scope, "worker", "2.0.0")
+    assert user_scope.pid("storage") != watchdogs["storage"]
+
+    rc, _, err = user_scope.tt("instance", "stop", "--scope", "user", "myapp:*", "--yes")
+    assert rc == 0, err
 
 
 @pytest.mark.parametrize("scope_name", ["project", "user"])
