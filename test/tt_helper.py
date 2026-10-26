@@ -27,6 +27,15 @@ class Tt:
         tt_kwargs.update(kwargs)
         return utils.run_command_and_get_output(cmd, **tt_kwargs)
 
+    def exec_tty(self, *args, tty_input, **kwargs):
+        """Works like Tt.exec, with a terminal on the standard input of tt,
+        which gets tty_input: the answers to the prompts."""
+        args = list(filter(lambda x: x is not None, args))
+        cmd = [self.__tt_cmd, *args]
+        tt_kwargs = dict(cwd=self.__work_dir)
+        tt_kwargs.update(kwargs)
+        return utils.run_command_with_tty(cmd, tty_input, **tt_kwargs)
+
     def run(self, *args, **kwargs):
         """Works like subprocess.run (actually it is invoked), but:
         1. Command arguments are passed as separate function arguments and starts with the one

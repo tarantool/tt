@@ -34,9 +34,18 @@ def test_stop_no_prompt(tt_cmd, tmp_path):
     assert utils.wait_files(5, [pid_path])
 
     try:
-        # Test stop with tt --no-prompt flag.
+        # --no-prompt is no confirmation: without a terminal and --yes the
+        # stop fails, asking nothing and stopping nothing.
         stop_cmd = [tt_cmd, "--no-prompt", "instance", "stop", target]
+        rc, out = utils.run_command_and_get_output(stop_cmd, cwd=app_path, input="y\n")
+        assert rc == 1
+        assert f"Confirm stop of '{target}' [y/n]" not in out
+        assert "the standard input is not a terminal; pass --yes" in out
+        assert os.path.exists(pid_path)
+
+        stop_cmd = [tt_cmd, "--no-prompt", "instance", "stop", "--yes", target]
         rc, out = utils.run_command_and_get_output(stop_cmd, cwd=app_path)
+        assert rc == 0
         assert f"Confirm stop of '{target}' [y/n]" not in out
         assert "has been terminated" in out
         assert not os.path.exists(pid_path)
@@ -51,7 +60,11 @@ def check_stop(tt, tt_app, target, input, is_confirm, *args):
     orig_status = tt_helper.status(tt)
 
     # Do stop.
-    rc, out = tt.exec("instance", "stop", target, *args, input=input)
+    # The answers go to a terminal: without one, a confirmation is not asked.
+    if input is None:
+        rc, out = tt.exec("instance", "stop", target, *args)
+    else:
+        rc, out = tt.exec_tty("instance", "stop", target, *args, tty_input=input)
     assert rc == 0
 
     # Check the confirmation prompt.

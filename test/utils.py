@@ -1,6 +1,7 @@
 import glob
 import ipaddress
 import os
+import pty
 import re
 import shutil
 import socket
@@ -56,6 +57,32 @@ def run_command_and_get_output(
     )
 
     # This print is here to make running tests with -s flag more verbose
+    print(process.stdout)
+
+    return process.returncode, process.stdout
+
+
+def run_command_with_tty(cmd, tty_input, cwd=None, env=None):
+    """Run cmd with a terminal on its standard input, which gets tty_input
+    as a user would type it, and return its exit code and its output, the
+    standard output and error together. A confirmation is asked on a
+    terminal only."""
+    master, slave = pty.openpty()
+    try:
+        os.write(master, tty_input.encode())
+        process = subprocess.run(
+            cmd,
+            env=env,
+            cwd=cwd,
+            stdin=slave,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+    finally:
+        os.close(slave)
+        os.close(master)
+
     print(process.stdout)
 
     return process.returncode, process.stdout

@@ -28,7 +28,11 @@ def check_kill(tt, tt_app, target, input, is_confirm, *args):
 
     # Do kill. An instance that does not run cannot be killed, which fails
     # it; the others are killed all the same.
-    rc, out = tt.exec("instance", "kill", target, *args, input=input)
+    # The answers go to a terminal: without one, a confirmation is not asked.
+    if input is None:
+        rc, out = tt.exec("instance", "kill", target, *args)
+    else:
+        rc, out = tt.exec_tty("instance", "kill", target, *args, tty_input=input)
     target_instances = tt_app.instances_of(target)
     if is_confirm:
         not_running = [i for i in target_instances if i not in tt_app.running_instances]

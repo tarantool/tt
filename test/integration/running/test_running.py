@@ -628,7 +628,7 @@ def test_running_start(tt_cmd):
     "cmd,input",
     [
         (["instance", "kill", "test_app:test_app", "-y"], None),
-        (["instance", "kill", "test_app:test_app"], "y\n"),
+        (["instance", "kill", "test_app:test_app", "--yes"], None),
     ],
 )
 def test_kill(tt_cmd, tmpdir_with_cfg, cmd, input):
@@ -686,7 +686,7 @@ def test_kill(tt_cmd, tmpdir_with_cfg, cmd, input):
     "cmd,input",
     [
         (["instance", "kill", "-y"], None),
-        (["instance", "kill"], "y\n"),
+        (["instance", "kill", "--yes"], None),
     ],
 )
 def test_kill_without_app_name(tt_cmd, tmp_path, cmd, input):
