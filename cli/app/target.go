@@ -67,12 +67,12 @@ func parseTarget(item string) (Target, error) {
 	app, inst, found := strings.Cut(item, instanceDelimiter)
 	if !found {
 		return Target{}, failf("%w %q: an instance-level command needs an instance target; "+
-			"use %s:<instance> or %s:*", ErrInvalidTarget, item, item, item)
+			"use %s:<INSTANCE> or %s:*", ErrInvalidTarget, item, item, item)
 	}
 
 	if app == "" {
 		return Target{}, failf("%w %q: the application name is missing; "+
-			"use <app>:%s", ErrInvalidTarget, item, inst)
+			"use <APP>:%s", ErrInvalidTarget, item, inst)
 	}
 
 	if !validName(app) {
@@ -82,7 +82,7 @@ func parseTarget(item string) (Target, error) {
 
 	if inst == "" {
 		return Target{}, failf("%w %q: the instance name is missing; "+
-			"use %s:<instance> or %s:*", ErrInvalidTarget, item, app, app)
+			"use %s:<INSTANCE> or %s:*", ErrInvalidTarget, item, app, app)
 	}
 
 	if inst != AllInstances && !validName(inst) {

@@ -138,7 +138,7 @@ func TestResolveErrors(t *testing.T) {
 	t.Run("no target outside of any project", func(t *testing.T) {
 		_, err := resolve(t, t.TempDir())
 		requireFailure(t, err, app.ErrNoProject)
-		require.ErrorContains(t, err, "use <app>:<instance> or <app>:*")
+		require.ErrorContains(t, err, "use <APP>:<INSTANCE> or <APP>:*")
 	})
 
 	t.Run("a description without instances", func(t *testing.T) {

@@ -527,3 +527,44 @@ func TestStatusUnits(t *testing.T) {
 	assert.Equal(t, "myapp@worker-1.service", statuses["myapp:worker-1"]["unit"])
 	assert.NotContains(t, statuses["myapp:worker-2"], "unit")
 }
+
+// TestStatusDetailsTarantool pins that the table with --details names the
+// tarantool every Tarantool instance starts on and where it comes from, and
+// that nothing else shows it: neither the table without --details nor JSON
+// and YAML.
+func TestStatusDetailsTarantool(t *testing.T) {
+	bin := t.TempDir()
+	exe := filepath.Join(bin, "tarantool")
+
+	require.NoError(t, os.WriteFile(exe, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	t.Setenv("PATH", bin)
+	t.Setenv("TT_USE_SYSTEM_TARANTOOL", "")
+
+	storage := running.InstanceCtx{
+		AppName:  "myapp",
+		InstName: "storage-1",
+		Kind:     instances.KindCluster,
+		PIDFile:  filepath.Join(t.TempDir(), "tt.pid"),
+		Scope:    "project",
+		AppDir:   t.TempDir(),
+	}
+	both := running.RunningCtx{Instances: []running.InstanceCtx{
+		storage, runningInstance(t, "worker-1", instances.KindExternal),
+	}}
+
+	table := captureStdout(t, func() error {
+		return Status(both, NewTablePrinter(WithDetails(true)), DefaultInstanceTimeout)
+	})
+	assert.Contains(t, table,
+		"Tarantool for myapp:storage-1: "+exe+", the first tarantool on PATH\n")
+	assert.NotContains(t, table, "Tarantool for myapp:worker-1")
+
+	for _, printer := range []InstanceStatusPrinter{
+		NewTablePrinter(), NewTablePrinter(WithPretty()), NewJSONPrinter(), NewYAMLPrinter(),
+	} {
+		out := captureStdout(t, func() error {
+			return Status(both, printer, DefaultInstanceTimeout)
+		})
+		assert.NotContains(t, out, exe)
+	}
+}

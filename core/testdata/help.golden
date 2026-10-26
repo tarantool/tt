@@ -2731,13 +2731,13 @@ COMMANDS[0m
   check       Check an application file for syntax errors
   clean       Clean instance(s) files
   connect     Connect to the tarantool instance
-  kill        Kill tarantool instance(s)
-  logrotate   Rotate logs of a started tarantool instance(s)
+  kill        Kill instance(s)
+  logrotate   Rotate logs of started instance(s)
   logs        Get logs of instance(s)
-  restart     Restart tarantool instance(s)
-  start       Start tarantool instance(s)
-  status      Status of the tarantool instance(s)
-  stop        Stop tarantool instance(s)
+  restart     Restart instance(s)
+  start       Start instance(s)
+  status      Status of instance(s)
+  stop        Stop instance(s)
 [0;1;39m
 FLAGS[0m
   -h, --help   help for instance
@@ -2762,7 +2762,7 @@ FLAGS[0m
 Remove the data and the logs of the instances: the files of
 <root>/var/lib/<app>/<instance>/ and <root>/var/log/<app>/<instance>/, and of
 the data directories their config moves elsewhere. A running instance is left
-alone.
+alone, which counts as a failure for it.
 
 [0;1;39mUSAGE[0m
   tt instance clean [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
@@ -2837,7 +2837,7 @@ FLAGS[0m
   -u, --username string            username
 
 === tt instance kill --help
-Kill tarantool instance(s)
+Kill instance(s)
 
 [0;1;39mUSAGE[0m
   tt instance kill [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
@@ -2853,7 +2853,7 @@ FLAGS[0m
                           standard input is not a terminal
 
 === tt instance logrotate --help
-Rotate logs of a started tarantool instance(s)
+Rotate logs of started instance(s)
 
 [0;1;39mUSAGE[0m
   tt instance logrotate [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
@@ -2882,7 +2882,7 @@ FLAGS[0m
                           described in (default "default")
 
 === tt instance restart --help
-Restart tarantool instance(s)
+Restart instance(s)
 
 [0;1;39mUSAGE[0m
   tt instance restart [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
@@ -2924,15 +2924,17 @@ FLAGS[0m
                           described in (default "default")
 
 === tt instance status --help
-The 'status' command provides information about the status of Tarantool
-instances.
+The 'status' command provides information about the status of the instances.
 
 Columns:
-- INSTANCE: The name of the Tarantool instance.
+- INSTANCE: The name of the instance, <APP>:<INSTANCE>.
 - STATUS: The current status of the instance:
 	- RUNNING: The instance is up and running.
 	- NOT RUNNING: The instance is not running.
 	- ERROR: The process has terminated unexpectedly.
+- UNIT: The systemd unit that manages the instance, for an instance that
+  tt service systemd install put under a unit. The column is shown only when
+  a unit manages some of the instances.
 - PID: The watchdog process PID.
 - MODE: The mode of the instance, indicating its read/write status:
 	- RO: The instance is in read-only mode.
@@ -2941,11 +2943,17 @@ Columns:
 - BOX: The box info status.
 - UPSTREAM: The replication upstream status.
 
+MODE, CONFIG, BOX and UPSTREAM are what a running Tarantool instance tells
+over its console socket; an external process shows the state of its process
+alone. --details prints the alerts of the instances, and the tarantool each
+Tarantool instance starts on and where it comes from.
+
 [0;1;39mUSAGE[0m
   tt instance status [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
 [0;1;39m
 FLAGS[0m
-  -d, --details                     print detailed alerts.
+  -d, --details                     print detailed alerts and the tarantool the
+                                    instances start on
   -o, --format string               output format: json, yaml, table,
                                     pretty-table (default "table")
   -h, --help                        help for status
@@ -2957,7 +2965,7 @@ FLAGS[0m
                                     are described in (default "default")
 
 === tt instance stop --help
-Stop tarantool instance(s)
+Stop instance(s)
 
 [0;1;39mUSAGE[0m
   tt instance stop [<APP>:<INSTANCE> | <APP>:*][,...] [flags]

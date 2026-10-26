@@ -554,7 +554,7 @@ func TestScopeSelectionErrors(t *testing.T) {
 	t.Run("no target outside of any project", func(t *testing.T) {
 		_, err := load(t, "", app.Options{Start: filepath.Join(tree, "outside")})
 		requireFailure(t, err, app.ErrNoProject)
-		require.ErrorContains(t, err, "use <app>:<instance> or <app>:*")
+		require.ErrorContains(t, err, "use <APP>:<INSTANCE> or <APP>:*")
 		require.NotErrorIs(t, err, app.ErrTT2Environment)
 	})
 

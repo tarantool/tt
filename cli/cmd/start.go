@@ -43,7 +43,7 @@ var (
 func NewStartCmd() *cobra.Command {
 	startCmd := &cobra.Command{
 		Use:   "start " + instanceTargetsUsage,
-		Short: "Start tarantool instance(s)",
+		Short: "Start instance(s)",
 		Long: "Start the instances the targets select. By default every instance runs " +
 			"in the background under a watchdog of tt, which restarts it as the restart " +
 			"field of its record says.\n\n" +
@@ -84,7 +84,7 @@ func NewStartCmd() *cobra.Command {
 	return startCmd
 }
 
-// startInstancesUnderWatchdog starts tarantool instances under tt watchdog.
+// startInstancesUnderWatchdog starts instances under tt watchdog.
 // An instance whose watchdog does not start does not keep the others from
 // starting (instancesResult).
 func startInstancesUnderWatchdog(cmdCtx *cmdcontext.CmdCtx, instances []running.InstanceCtx) error {

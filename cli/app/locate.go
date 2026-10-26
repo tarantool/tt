@@ -47,7 +47,7 @@ func locate(name string, opts Options, start string) (location, error) {
 	case ScopeUser, ScopeSystem:
 		if name == "" {
 			return location{}, failf("%w: --scope %s needs a target; "+
-				"use <app>:<instance> or <app>:*", ErrInvalidTarget, opts.Scope)
+				"use <APP>:<INSTANCE> or <APP>:*", ErrInvalidTarget, opts.Scope)
 		}
 
 		return locateInstalled(name, opts.Scope)
@@ -139,7 +139,7 @@ func locateAuto(name, start string, integ integrity.IntegrityCtx) (location, err
 
 	if name == "" {
 		if !found {
-			return location{}, noProjectError(start, "; use <app>:<instance> or <app>:*")
+			return location{}, noProjectError(start, "; use <APP>:<INSTANCE> or <APP>:*")
 		}
 
 		return projectLocation(projectDir, integ)
@@ -249,7 +249,7 @@ func locatePinned(name string, opts Options) (location, error) {
 	case ScopeUser, ScopeSystem:
 		if name == "" {
 			return location{}, failf("%w: --scope %s needs a target; "+
-				"use <app>:<instance> or <app>:*", ErrInvalidTarget, opts.Scope)
+				"use <APP>:<INSTANCE> or <APP>:*", ErrInvalidTarget, opts.Scope)
 		}
 
 		root, err := scopeRoot(opts.Scope)

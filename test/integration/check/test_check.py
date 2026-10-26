@@ -34,7 +34,7 @@ def test_check_bare_name(tt_cmd, tmp_path):
     cmd = [tt_cmd, "instance", "check", "file1"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 1
-    assert "use file1:<instance> or file1:*" in output
+    assert "use file1:<INSTANCE> or file1:*" in output
 
 
 def test_check_unknown_app(tt_cmd, tmp_path):

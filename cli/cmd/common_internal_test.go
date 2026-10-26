@@ -113,5 +113,5 @@ func TestInstanceCommandsRefuseBareApp(t *testing.T) {
 
 	_, err := resolveInstances(&cmdcontext.CmdCtx{}, []string{"myapp"})
 	require.ErrorIs(t, err, app.ErrInvalidTarget)
-	assert.ErrorContains(t, err, "use myapp:<instance> or myapp:*")
+	assert.ErrorContains(t, err, "use myapp:<INSTANCE> or myapp:*")
 }

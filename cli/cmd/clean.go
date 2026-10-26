@@ -35,7 +35,7 @@ func NewCleanCmd() *cobra.Command {
 		Long: "Remove the data and the logs of the instances: the files of " +
 			"<root>/var/lib/<app>/<instance>/ and <root>/var/log/<app>/<instance>/, " +
 			"and of the data directories their config moves elsewhere. A running " +
-			"instance is left alone.",
+			"instance is left alone, which counts as a failure for it.",
 		RunE: internalRunE(internalCleanModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
