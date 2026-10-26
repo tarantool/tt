@@ -466,8 +466,18 @@ func coreVersion(ver string) string {
 
 // isPrerelease reports whether a reported version carries a prerelease or
 // build-metadata suffix, i.e. whether coreVersion had to drop anything.
+//
+// A build of a release tag, 3.8.1-0-ge643f88a5e0c, is the release itself
+// (decision 26, lockedTarantoolVersion): the zero commits after the tag and
+// the commit git describe adds make no prerelease of it. A build that is
+// commits past its tag, or one of an -rc or -beta tag, is still one.
 func isPrerelease(ver string) bool {
-	return coreVersion(ver) != normalizeVersion(ver)
+	ver = normalizeVersion(ver)
+	if releaseBuild.MatchString(ver) {
+		return false
+	}
+
+	return coreVersion(ver) != ver
 }
 
 // normalizeVersion strips a leading "v" and surrounding whitespace, leaving the
