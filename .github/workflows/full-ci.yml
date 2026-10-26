@@ -205,10 +205,7 @@ jobs:
 
       - name: Install tarantool
         run: |
-          printf '{}\n' > tt.yaml
           ./tt binary install tarantool --scope project 3.0.2
-          # Delete the tt config so that it does not affect the test environment.
-          rm -f tt.yaml
 
       - name: Add Tarantool to Path
         run: |

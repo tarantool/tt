@@ -584,6 +584,12 @@ for machine-readable output.
   `tt rocks` and the `tt package` builds take the headers of a project
   `tarantool` from `.tarantool/include/tarantool`. The project is found from
   the current directory upward, as the instance commands find it.
+- The deb and rpm packages no longer install `/etc/tarantool/tt.yaml`, nor
+  the system tt environment it described: the `sys_env` directories under
+  `/var/lib/tarantool`, `/var/run/tarantool` and `/var/log/tarantool`, and
+  `/etc/logrotate.d/tt.conf`, which ran `tt -S logrotate` on their logs.
+  Upgrading a deb package leaves the old configuration files in place until
+  the package is purged.
 - `tt cfg`, `tt cfg dump` and `tt env` commands removed along with
   `tt.yaml`: there is no tt environment left to print or to put on `PATH`.
   `source .env/activate.sh`, which `tt binary install` creates in a project,
@@ -650,11 +656,9 @@ for machine-readable output.
 - External modules are found only in the directories listed in
   `TT_CLI_MODULES_PATH`, separated by colons. tt no longer reads module
   directories from `modules.directory` in `tt.yaml`, nor searches the default
-  `modules` directory next to it; a `modules` section left in `tt.yaml` is
-  ignored, and the system `tt.yaml` the deb and rpm packages install no longer
-  names `/opt/tarantool/modules`. This breaks setups that keep external modules
-  in the tt environment, next to `tt.yaml` or in a directory it names: those
-  modules are not found until their directories are listed in
+  `modules` directory next to it. This breaks setups that keep external
+  modules in the tt environment, next to `tt.yaml` or in a directory it names:
+  those modules are not found until their directories are listed in
   `TT_CLI_MODULES_PATH`, and a command such a module replaced, `tt version`
   for one, runs tt's own implementation again. A relative directory in
   `TT_CLI_MODULES_PATH` is taken from the working directory, not from the tt

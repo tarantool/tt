@@ -35,9 +35,6 @@ const (
 
 	packagePath = "./cli"
 
-	defaultLinuxConfigPath  = "/etc/tarantool"
-	defaultDarwinConfigPath = "/usr/local/etc/tarantool"
-
 	// tagsFlag is the go flag that sets the build tags.
 	tagsFlag = "-tags"
 
@@ -52,7 +49,6 @@ var (
 		"-X ${PACKAGE}/version.gitCommit=${GIT_COMMIT}",
 		"-X ${PACKAGE}/version.gitCommitSinceTag=${GIT_COMMIT_SINCE_TAG}",
 		"-X ${PACKAGE}/version.versionLabel=${VERSION_LABEL}",
-		"-X ${PACKAGE}/configure.defaultConfigPath=${CONFIG_PATH}",
 	}
 	staticLdflags = []string{
 		"-linkmode=external", "-extldflags", "-static",
@@ -560,22 +556,6 @@ func Generate() error {
 	return nil
 }
 
-// getDefaultConfigPath returns the path to the configuration file,
-// determining it based on the OS.
-func getDefaultConfigPath() string {
-	switch runtime.GOOS {
-	case "linux":
-		return defaultLinuxConfigPath
-	case "darwin", "freebsd":
-		return defaultDarwinConfigPath
-	}
-
-	fmt.Fprintln(os.Stderr, "Trying to get default config path file on an unsupported OS")
-	os.Exit(1)
-
-	return ""
-}
-
 // getBuildEnvironment return map with build environment variables.
 func getBuildEnvironment() map[string]string {
 	var err error
@@ -608,7 +588,6 @@ func getBuildEnvironment() map[string]string {
 		"GIT_COMMIT_SINCE_TAG": gitCommitSinceTag,
 		"VERSION_LABEL":        os.Getenv("VERSION_LABEL"),
 		"PWD":                  currentDir,
-		"CONFIG_PATH":          getDefaultConfigPath(),
 		"CGO_ENABLED":          "1",
 	}
 }
