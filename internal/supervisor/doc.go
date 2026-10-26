@@ -52,8 +52,9 @@
 //     SIGKILL. Once the child has exited, Run returns without asking about a
 //     restart. A further stop signal is sent to the child as well but does
 //     not restart the timeout.
-//   - The reload signal (Options.ReloadSignal) runs Options.OnReload and is
-//     then forwarded to the child.
+//   - The reload signal (Options.ReloadSignal) runs Options.OnReload, and
+//     then sends the child Spec.ReloadSignal, or the received signal itself
+//     with Spec.ForwardReloadSignal, or nothing when neither is set.
 //   - An ignored signal (Options.IgnoreSignals) is reported and dropped, with
 //     a child or without.
 //   - Any other signal is forwarded to the child.

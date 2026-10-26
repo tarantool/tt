@@ -531,6 +531,9 @@ func (run *fuzzRun) next(context.Context) (Spec, error) {
 		ForwardStopSignal: run.cfg.forwardStop,
 		StopTimeout:       fuzzStopTimeout,
 		ProcessGroup:      false,
+		// The model expects the reload signal to reach the child.
+		ReloadSignal:        0,
+		ForwardReloadSignal: true,
 	}
 
 	return spec, err

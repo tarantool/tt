@@ -87,6 +87,9 @@ func (src tcmSource) Next(context.Context) (supervisor.Spec, error) {
 		ForwardStopSignal: false,
 		StopTimeout:       src.opts.StopTimeout,
 		ProcessGroup:      true,
+		// The watchdog of TCM has no reload signal.
+		ReloadSignal:        0,
+		ForwardReloadSignal: false,
 	}, nil
 }
 

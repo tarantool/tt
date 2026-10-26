@@ -50,6 +50,59 @@ func TestForwardSignals(t *testing.T) {
 	assert.Equal(t, SignalReceived{Signal: syscall.SIGUSR2, Action: ActionForward}, got[2])
 }
 
+// TestReloadSignalOfSpec pins what the child gets once the reload hook has
+// run: the signal its Spec names instead of the received one, or nothing
+// when the Spec names none and does not forward.
+func TestReloadSignalOfSpec(t *testing.T) {
+	cases := []struct {
+		name   string
+		reload syscall.Signal
+		want   []string
+	}{
+		{name: "another signal", reload: syscall.SIGUSR1,
+			want: []string{syscall.SIGUSR1.String(), syscall.SIGUSR2.String()}},
+		{name: "none", reload: 0, want: []string{syscall.SIGUSR2.String()}},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			spec := helperSpec(t, dir, modeServe)
+
+			spec.ReloadSignal = test.reload
+			spec.ForwardReloadSignal = false
+
+			var reloads atomic.Int32
+
+			sup := newHarness(t, fixedSource(spec, false), Options{
+				StopSignals:  stopSignals,
+				ReloadSignal: syscall.SIGHUP,
+				OnReload: func() error {
+					reloads.Add(1)
+
+					return nil
+				},
+			})
+			sup.start()
+
+			started := waitEvent[Started](t, sup.rec, 1)
+			waitReady(t, dir, started.Pid)
+
+			// SIGUSR2, forwarded after it, marks when the reload is over.
+			sup.send(syscall.SIGHUP, syscall.SIGUSR2)
+			waitSignals(t, dir, started.Pid, syscall.SIGUSR2)
+
+			recorded, err := os.ReadFile(helperFile(dir, "signals", started.Pid))
+			require.NoError(t, err)
+			assert.Equal(t, test.want, strings.Split(strings.TrimSpace(string(recorded)), "\n"))
+			assert.Equal(t, int32(1), reloads.Load())
+
+			sup.send(syscall.SIGTERM)
+			require.NoError(t, sup.wait())
+		})
+	}
+}
+
 // TestIgnoreSignals pins the ignore set: an ignored signal is dropped with
 // an event, never forwarded and never stopping anything, with a child and
 // without one.

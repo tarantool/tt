@@ -40,11 +40,12 @@ func helperSpec(t *testing.T, dir, mode string, env ...string) Spec {
 	}
 
 	return Spec{
-		Path:              exe,
-		Env:               append(append(os.Environ(), own...), env...),
-		StopSignal:        syscall.SIGTERM,
-		ForwardStopSignal: false,
-		StopTimeout:       longStopTimeout,
+		Path:                exe,
+		Env:                 append(append(os.Environ(), own...), env...),
+		StopSignal:          syscall.SIGTERM,
+		ForwardStopSignal:   false,
+		StopTimeout:         longStopTimeout,
+		ForwardReloadSignal: true,
 	}
 }
 

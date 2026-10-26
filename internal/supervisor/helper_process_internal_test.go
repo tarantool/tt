@@ -250,9 +250,10 @@ func (superviseSource) Next(context.Context) (Spec, error) {
 		Path: exe,
 		Env: append(os.Environ(), helperEnv+"="+modeServe,
 			"GORACE=atexit_sleep_ms=0"),
-		StopSignal:        syscall.SIGTERM,
-		ForwardStopSignal: true,
-		StopTimeout:       10 * time.Second,
+		StopSignal:          syscall.SIGTERM,
+		ForwardStopSignal:   true,
+		StopTimeout:         10 * time.Second,
+		ForwardReloadSignal: true,
 	}, nil
 }
 
