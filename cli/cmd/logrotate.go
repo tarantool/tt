@@ -19,10 +19,8 @@ func NewLogrotateCmd() *cobra.Command {
 			args []string,
 			toComplete string,
 		) ([]string, cobra.ShellCompDirective) {
-			return internal.ValidArgsFunction(
-				&cmdCtx, cmd, toComplete,
-				running.ExtractAppNames,
-				running.ExtractInstanceNames)
+			return internal.ValidArgsFunction(&cmdCtx, cmd, toComplete,
+				internal.Any)
 		},
 	}
 

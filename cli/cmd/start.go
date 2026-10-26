@@ -57,10 +57,8 @@ func NewStartCmd() *cobra.Command {
 			args []string,
 			toComplete string,
 		) ([]string, cobra.ShellCompDirective) {
-			return internal.ValidArgsFunction(
-				&cmdCtx, cmd, toComplete,
-				running.ExtractInactiveAppNames,
-				running.ExtractInactiveInstanceNames)
+			return internal.ValidArgsFunction(&cmdCtx, cmd, toComplete,
+				internal.Inactive)
 		},
 	}
 

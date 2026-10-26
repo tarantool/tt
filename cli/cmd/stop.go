@@ -22,10 +22,8 @@ func NewStopCmd() *cobra.Command {
 			args []string,
 			toComplete string,
 		) ([]string, cobra.ShellCompDirective) {
-			return internal.ValidArgsFunction(
-				&cmdCtx, cmd, toComplete,
-				running.ExtractActiveAppNames,
-				running.ExtractActiveInstanceNames)
+			return internal.ValidArgsFunction(&cmdCtx, cmd, toComplete,
+				internal.Active)
 		},
 	}
 

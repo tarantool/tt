@@ -85,12 +85,14 @@ func NewConnectCmd() *cobra.Command {
 				return nil, cobra.ShellCompDirectiveNoFileComp
 			}
 
-			validArgs, _ := internal.ValidArgsFunction(
-				&cmdCtx, cmd, toComplete,
-				running.ExtractActiveAppNames,
-				running.ExtractActiveInstanceNames)
+			validArgs, directive := internal.ValidArgsFunction(&cmdCtx, cmd, toComplete,
+				internal.Active)
+			if len(validArgs) == 0 {
+				// A unix socket may be given by its path.
+				return nil, cobra.ShellCompDirectiveDefault
+			}
 
-			return validArgs, cobra.ShellCompDirectiveDefault
+			return validArgs, directive
 		},
 	}
 
