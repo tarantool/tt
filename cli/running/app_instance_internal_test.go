@@ -301,27 +301,6 @@ func TestNewInstanceCtxConfigWins(t *testing.T) {
 	assert.Equal(t, filepath.Join(fixture.dir, "run", "storage-1.control"), inst.ConsoleSocket)
 }
 
-// TestNewInstanceCtxUnsupportedKinds pins that the Tarantool instances that
-// run their script are refused for now.
-func TestNewInstanceCtxUnsupportedKinds(t *testing.T) {
-	application := &app.App{
-		Name:  fixtureApp,
-		Scope: app.ScopeUser,
-		Root:  "/root",
-		Dir:   "/root/versions/myapp/myapp_1.0.0",
-	}
-
-	for name, record := range map[string]instances.Instance{
-		"script": {Name: "legacy-1", Script: "/root/versions/myapp/myapp_1.0.0/init.lua"},
-	} {
-		t.Run(name, func(t *testing.T) {
-			_, err := NewInstanceCtx(application, record)
-			require.ErrorIs(t, err, ErrUnsupportedKind)
-			assert.ErrorContains(t, err, record.Name)
-		})
-	}
-}
-
 func TestNewInstanceCtxErrors(t *testing.T) {
 	record := instances.Instance{Name: fixtureInst, Restart: instances.RestartNo}
 

@@ -50,9 +50,9 @@ func Collect(ctx context.Context, targets []app.Target, opts app.Options) ([]Ins
 }
 
 // InstancesOf builds the contexts of records, instance records of
-// application, in their order. A record that cannot run yet fails them all
-// (NewInstanceCtx): a command must not act on part of what it was asked for
-// while reporting success.
+// application, in their order. A record whose context cannot be built fails
+// them all (NewInstanceCtx): a command must not act on part of what it was
+// asked for while reporting success.
 func InstancesOf(application *app.App, records []instances.Instance) ([]InstanceCtx, error) {
 	insts := make([]InstanceCtx, 0, len(records))
 

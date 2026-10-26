@@ -84,11 +84,12 @@ type InstanceCtx struct {
 	// <root>/apps/<app> pointed to when the application was resolved.
 	AppDir string
 	// InstanceScript is the script of a Tarantool instance that configures
-	// itself, run by scriptSpec. Nothing sets it while NewInstanceCtx
-	// refuses such instances.
+	// itself (IsScript), an absolute path, which scriptSpec runs; empty for
+	// the other kinds.
 	InstanceScript string
 	// Kind tells how the instance runs: a Tarantool instance configured by
-	// the cluster config, or an external process (IsExternal).
+	// the cluster config or by its script (IsScript), or an external process
+	// (IsExternal).
 	Kind instances.Kind
 	// Binary is the executable of an external process: an absolute path, or
 	// the name of a program looked up in PATH when the process starts.
@@ -158,7 +159,8 @@ type InstanceCtx struct {
 	// Unix socket used as "binary port".
 	BinaryPort string
 	// ClusterConfigPath is the cluster config of the pair of the
-	// application, the file tarantool -c gets.
+	// application, the file tarantool -c gets; empty for an instance the
+	// cluster config does not configure.
 	ClusterConfigPath string
 	// Configuration is instance configuration loaded from cluster config.
 	// Nil when no cluster config is loaded.
@@ -582,11 +584,15 @@ func Logrotate(run *InstanceCtx) error {
 	return nil
 }
 
-// AppFile returns the application file of inst, the Lua file its config
-// runs: app.file of its effective config, resolved against its application
-// directory, which is what tarantool resolves it against. found is false
-// when the config names none.
+// AppFile returns the application file of inst, the Lua file it runs: the
+// script of an instance that runs one, or app.file of its effective config,
+// resolved against its application directory, which is what tarantool
+// resolves it against. found is false when the config names none.
 func AppFile(inst *InstanceCtx) (string, bool, error) {
+	if IsScript(inst) {
+		return inst.InstanceScript, true, nil
+	}
+
 	file, found, err := effectiveString(inst, "app.file")
 	if err != nil || !found {
 		return "", false, err

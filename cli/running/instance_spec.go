@@ -7,7 +7,6 @@ import (
 	"io"
 	"maps"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -68,14 +67,18 @@ func integrityOf(cmdCtx *cmdcontext.CmdCtx) *integrity.IntegrityCtx {
 }
 
 // instanceSpec is the Spec of the process of an instance: a Tarantool
-// instance runs from the config of the pair of its application on the
-// tarantool of its application (appClusterSpec), an external process runs
-// its binary (externalSpec). The stop settings of the instance record apply
-// on top.
+// instance runs from the config of the pair of its application
+// (appClusterSpec) or from its script (appScriptSpec) on the tarantool of its
+// application, an external process runs its binary (externalSpec). The stop
+// settings of the instance record apply on top.
 func instanceSpec(inst *InstanceCtx, opts specOptions) (supervisor.Spec, error) {
 	build := appClusterSpec
-	if IsExternal(inst) {
+
+	switch {
+	case IsExternal(inst):
 		build = externalSpec
+	case IsScript(inst):
+		build = appScriptSpec
 	}
 
 	spec, err := build(inst, opts)
@@ -145,95 +148,119 @@ func tarantoolSpec(tarantoolPath string, args, env []string, dir string,
 	}
 }
 
-// scriptSpec is the Spec of an instance that runs its script: tarantool reads
-// the launcher from its standard input, and the launcher runs the script.
+// scriptSpec is the Spec of an instance that runs its script on the
+// tarantool at tarantoolPath: tarantool reads the launcher from its standard
+// input, and the launcher binds the console socket and runs the script, which
+// configures the instance with box.cfg. tarantool runs in the application
+// directory, as an instance configured by the cluster config does.
 //
-// Nothing builds an instance that runs its script while NewInstanceCtx
-// refuses the records with script; it is kept, with its launcher, for them.
+// The paths of the layout reach box.cfg as tt2 passed them: as the TT_
+// variables of its options, TT_WAL_DIR, TT_MEMTX_DIR, TT_VINYL_DIR and
+// TT_LISTEN, which box.cfg takes for the options the script leaves out,
+// while an option the script passes wins. TT_LISTEN is left to the
+// environment of tt when it has one, as tt2 left it. The launcher binds the
+// console socket from its directory, so its path may be of any length. The
+// log goes to the standard error, which the watchdog writes into tt.log;
+// TARANTOOL_LOG is emptied for cartridge, which would log elsewhere.
+// TARANTOOL_WORKDIR, TARANTOOL_APP_NAME and TARANTOOL_INSTANCE_NAME are
+// there for cartridge as well; TARANTOOL_CFG, which pointed to instances.yml
+// of tt2, is not, and the record sets it if the script needs it.
+//
+// The env of the instance record goes on top of the inherited environment
+// and of those TT_ variables: a record configures its instance through them,
+// as box.cfg would take them from any environment, and NewInstanceCtx
+// follows the data directories it moves, as it does for a Tarantool instance
+// configured by the cluster config. The variables of tt and of the launcher
+// go on top of the record: it cannot move them under its own instance.
 func scriptSpec(tarantoolPath string, inst *InstanceCtx, opts specOptions) (
 	supervisor.Spec, error,
 ) {
-	_, err := exec.LookPath(tarantoolPath)
+	listen, err := listenURI(inst)
 	if err != nil {
-		return supervisor.Spec{}, fmt.Errorf("looking for the tarantool executable: %w", err)
-	}
-
-	_, err = os.Stat(inst.InstanceScript)
-	if err != nil {
-		return supervisor.Spec{}, fmt.Errorf("checking the instance script: %w", err)
+		return supervisor.Spec{}, err
 	}
 
 	args := []string{}
-
 	if opts.integrity != nil {
-		file, err := opts.integrity.Repository.Read(tarantoolPath)
-		if err != nil {
-			return supervisor.Spec{}, err
-		}
-
-		_ = file.Close()
-
-		args = append(args, "--integrity-check", integrity.HashesFileName)
+		args = append(args, "--integrity-check",
+			filepath.Join(inst.AppDir, integrity.HashesFileName))
 	}
 
 	args = append(args, "-")
 
-	workDir := inst.AppDir
-	if workDir == "" {
-		workDir = filepath.Dir(inst.InstanceScript)
-	}
+	env := os.Environ()
 
-	if !util.IsDir(workDir) {
-		err = os.MkdirAll(workDir, defaultDirPerms)
-		if err != nil {
-			return supervisor.Spec{}, fmt.Errorf("failed to create application directory %q: %w",
-				workDir, err)
+	for _, dir := range [...]struct{ name, path string }{
+		{"TT_WAL_DIR", inst.WalDir},
+		{"TT_MEMTX_DIR", inst.MemtxDir},
+		{"TT_VINYL_DIR", inst.VinylDir},
+	} {
+		if dir.path != "" {
+			env = append(env, dir.name+"="+dir.path)
 		}
 	}
-
-	env := append(os.Environ(), "TT_CLI_INSTANCE="+inst.InstanceScript, "PWD="+workDir)
 
 	_, listenSet := os.LookupEnv("TT_LISTEN")
-	if inst.BinaryPort != "" && !listenSet {
-		env = append(env, "TT_LISTEN="+inst.BinaryPort)
+	if listen != "" && !listenSet {
+		env = append(env, "TT_LISTEN="+listen)
 	}
 
-	if inst.ConsoleSocket != "" {
-		consoleSocket, err := shortenSocketPath(inst.ConsoleSocket, workDir)
-		if err != nil {
-			return supervisor.Spec{}, err
-		}
-
-		env = append(env,
-			"TT_CLI_CONSOLE_SOCKET="+"unix/:./"+filepath.Base(consoleSocket),
-			"TT_CLI_CONSOLE_SOCKET_DIR="+filepath.Dir(consoleSocket))
+	for _, name := range slices.Sorted(maps.Keys(inst.Env)) {
+		env = append(env, name+"="+inst.Env[name])
 	}
 
 	env = append(env,
-		"TT_CLI_INSTANCE="+inst.InstanceScript,
-		"TT_CLI_WORK_DIR="+workDir,
+		"PWD="+inst.AppDir,
 		"TT_CLI=true",
-		"TT_VINYL_DIR="+inst.VinylDir,
-		"TT_WAL_DIR="+inst.WalDir,
-		"TT_MEMTX_DIR="+inst.MemtxDir,
+		"TT_CLI_INSTANCE="+inst.InstanceScript,
+		"TT_CLI_WORK_DIR="+inst.AppDir,
 		"TARANTOOL_WORKDIR="+inst.WalDir,
 		"TARANTOOL_APP_NAME="+inst.AppName,
 		"TARANTOOL_INSTANCE_NAME="+inst.InstName)
 
-	if inst.AppName != inst.InstName {
+	if inst.ConsoleSocket != "" {
 		env = append(env,
-			"TARANTOOL_CFG="+filepath.Dir(inst.InstanceScript)+"/instances.yml")
+			"TT_CLI_CONSOLE_SOCKET=unix/:./"+filepath.Base(inst.ConsoleSocket),
+			"TT_CLI_CONSOLE_SOCKET_DIR="+filepath.Dir(inst.ConsoleSocket))
 	}
 
 	if inst.LogDir != "" {
 		env = append(env, "TARANTOOL_LOG=")
 	}
 
-	spec := tarantoolSpec(tarantoolPath, args, env, workDir, opts)
+	spec := tarantoolSpec(tarantoolPath, args, env, inst.AppDir, opts)
 
 	spec.Stdin = instanceLauncher
 
 	return spec, nil
+}
+
+// appScriptSpec is the Spec of an instance built from the application model
+// (NewInstanceCtx) that runs its script, on the tarantool of its application
+// (scriptSpec). Like appClusterSpec, it checks the instance at every start,
+// since a restart runs with a record that may have changed since the first
+// one.
+func appScriptSpec(inst *InstanceCtx, opts specOptions) (supervisor.Spec, error) {
+	err := checkStart(inst)
+	if err != nil {
+		return supervisor.Spec{}, err
+	}
+
+	if !util.IsDir(inst.AppDir) {
+		return supervisor.Spec{}, fmt.Errorf("%w%q is not a directory",
+			errApplicationIsNotADirectory, inst.AppDir)
+	}
+
+	exe, err := resolveTarantool(inst)
+	if err != nil {
+		return supervisor.Spec{}, err
+	}
+
+	for _, warning := range exe.Warnings {
+		opts.warnf("instance %q of %q: %s", inst.InstName, inst.AppName, warning)
+	}
+
+	return scriptSpec(exe.Path, inst, opts)
 }
 
 // appClusterSpec is the Spec of an instance built from the application model
@@ -324,25 +351,4 @@ func verifySocketLength(socketPath string) error {
 	}
 
 	return nil
-}
-
-// shortenSocketPath returns socketPath, or, when it is too long for a unix
-// socket, the path relative to basePath, the working directory of tarantool.
-func shortenSocketPath(socketPath, basePath string) (string, error) {
-	err := verifySocketLength(socketPath)
-	if err == nil {
-		return socketPath, nil
-	}
-
-	relativeSocketPath, err := filepath.Rel(basePath, socketPath)
-	if err != nil {
-		return "", fmt.Errorf("shortening the socket path %q: %w", socketPath, err)
-	}
-
-	err = verifySocketLength(relativeSocketPath)
-	if err != nil {
-		return "", err
-	}
-
-	return relativeSocketPath, nil
 }

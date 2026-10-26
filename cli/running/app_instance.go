@@ -22,11 +22,6 @@ import (
 	"github.com/tarantool/tt/v3/internal/instances"
 )
 
-// ErrUnsupportedKind is wrapped by the error NewInstanceCtx returns for an
-// instance record it cannot run yet: a Tarantool instance configured by its
-// script.
-var ErrUnsupportedKind = errors.New("not supported yet")
-
 var (
 	errNoApplication = errors.New("no application")
 	errNotAbsolute   = errors.New("is not an absolute path")
@@ -58,6 +53,18 @@ var writtenPathKeys = []string{
 	"process.pid_file",
 }
 
+// scriptWrittenPathKeys are the options of box.cfg that name a file or a
+// directory an instance that runs its script writes to, among those tt can
+// see: the TT_ variables of the env of its record. Relative, they are
+// resolved against the working directory of the instance, its application
+// directory. log is left out, since not every value of it is a path.
+var scriptWrittenPathKeys = []string{
+	"wal_dir",
+	"memtx_dir",
+	"vinyl_dir",
+	"pid_file",
+}
+
 // NewInstanceCtx builds the context of the instance record inst of
 // application, as app.Load and app.Resolve return them: what the commands
 // that start, stop, inspect and clean up an instance need from it. It reads
@@ -84,18 +91,12 @@ var writtenPathKeys = []string{
 // directory in the layout, the one data directory it has. It has no sockets
 // and no config, so tt status asks it nothing.
 //
-// Tarantool instances configured by their script do not run yet; a record
-// with script is an error wrapping ErrUnsupportedKind.
+// A Tarantool instance that runs its script, a record with script, has every
+// path of the layout, and no cluster config: its script configures it with
+// box.cfg (setScriptCtx).
 func NewInstanceCtx(application *app.App, inst instances.Instance) (InstanceCtx, error) {
 	if application == nil {
 		return InstanceCtx{}, fmt.Errorf("instance %q: %w", inst.Name, errNoApplication)
-	}
-
-	switch inst.Kind() {
-	case instances.KindScript:
-		return InstanceCtx{}, fmt.Errorf("instance %q of %q: an instance that runs its script "+
-			"(script: %s) is %w", inst.Name, application.Name, inst.Script, ErrUnsupportedKind)
-	case instances.KindExternal, instances.KindCluster:
 	}
 
 	for _, dir := range [...]struct{ what, path string }{
@@ -152,19 +153,22 @@ func NewInstanceCtx(application *app.App, inst instances.Instance) (InstanceCtx,
 		Env:               maps.Clone(inst.Env),
 	}
 
-	if inst.Kind() == instances.KindExternal {
+	switch inst.Kind() {
+	case instances.KindExternal:
 		setExternalCtx(&instCtx, inst, scopeLayout)
 
 		return instCtx, nil
-	}
+	case instances.KindScript:
+		setScriptCtx(&instCtx, inst)
+	case instances.KindCluster:
+		if application.Config != nil {
+			cfg, err := cluster.GetInstanceConfig(application.Config, inst.Name)
+			if err != nil {
+				return InstanceCtx{}, wrap(err)
+			}
 
-	if application.Config != nil {
-		cfg, err := cluster.GetInstanceConfig(application.Config, inst.Name)
-		if err != nil {
-			return InstanceCtx{}, wrap(err)
+			instCtx.Configuration = &cfg
 		}
-
-		instCtx.Configuration = &cfg
 	}
 
 	err = setInstCtxFromEffectiveConfig(&instCtx)
@@ -180,19 +184,39 @@ func NewInstanceCtx(application *app.App, inst instances.Instance) (InstanceCtx,
 	return instCtx, nil
 }
 
-// setInstCtxFromEffectiveConfig sets the paths the effective config of
-// inst names, resolved against its application directory, over the paths of
-// the layout: the config has the last word on where its instance writes.
-func setInstCtxFromEffectiveConfig(inst *InstanceCtx) error {
-	for _, target := range [...]struct {
-		key  string
-		dest *string
-	}{
+// configPath is a key of the effective config of an instance that names a
+// path tt keeps in its context.
+type configPath struct {
+	key  string
+	dest *string
+}
+
+// effectivePaths returns the keys of the effective config of inst whose
+// paths tt keeps in its context: those of the cluster config for a
+// Tarantool instance it configures, and those of box.cfg tt passes an
+// instance that runs its script (scriptSpec) for that one.
+func effectivePaths(inst *InstanceCtx) []configPath {
+	if IsScript(inst) {
+		return []configPath{
+			{"wal_dir", &inst.WalDir},
+			{"vinyl_dir", &inst.VinylDir},
+			{"memtx_dir", &inst.MemtxDir},
+		}
+	}
+
+	return []configPath{
 		{"wal.dir", &inst.WalDir},
 		{"vinyl.dir", &inst.VinylDir},
 		{"snapshot.dir", &inst.MemtxDir},
 		{"console.socket", &inst.ConsoleSocket},
-	} {
+	}
+}
+
+// setInstCtxFromEffectiveConfig sets the paths the effective config of
+// inst names, resolved against its application directory, over the paths of
+// the layout: the config has the last word on where its instance writes.
+func setInstCtxFromEffectiveConfig(inst *InstanceCtx) error {
+	for _, target := range effectivePaths(inst) {
 		value, found, err := effectiveString(inst, target.key)
 		if err != nil {
 			return err
@@ -219,9 +243,12 @@ func setInstCtxFromEffectiveConfig(inst *InstanceCtx) error {
 //
 // The variables the environment of tt sets are in the config already:
 // cluster.GetClusterConfig reads them the way tarantool does.
+//
+// An instance that runs its script has no config: its key is an option of
+// box.cfg, such as wal_dir, and only the TT_ variable of the option in the
+// env of its record counts. What the script passes to box.cfg is beyond tt.
 func effectiveString(inst *InstanceCtx, key string) (string, bool, error) {
-	envName := "TT_" + strings.ToUpper(strings.ReplaceAll(key, ".", "_"))
-	if value, ok := inst.Env[envName]; ok {
+	if value, ok := inst.Env[envName(key)]; ok {
 		return value, value != "", nil
 	}
 
@@ -248,6 +275,12 @@ func effectiveString(inst *InstanceCtx, key string) (string, bool, error) {
 	return value, value != "", nil
 }
 
+// envName returns the TT_ variable of the config key, dotted as in wal.dir,
+// or of the box.cfg option, as in wal_dir.
+func envName(key string) string {
+	return "TT_" + strings.ToUpper(strings.ReplaceAll(key, ".", "_"))
+}
+
 // checkStart checks what has to hold before an instance starts.
 //
 // It runs before the directories of the instance are created, which would
@@ -255,15 +288,24 @@ func effectiveString(inst *InstanceCtx, key string) (string, bool, error) {
 // watchdog, since a restart reads a config that may have changed. Every
 // problem is reported at once, so that one pass fixes them. An external
 // process has checks of its own (checkExternal): the TT_ variables in the env
-// of its record are not a config of tarantool.
+// of its record are not a config of tarantool. An instance that runs its
+// script needs the script (checkScript), and binds its console socket
+// wherever it is (scriptSpec), so only its binary port has to fit.
 func checkStart(inst *InstanceCtx) error {
 	if IsExternal(inst) {
 		return checkExternal(inst)
 	}
 
-	_, _, socketErr := socketArgs(inst)
+	var socketErr, scriptErr error
 
-	return errors.Join(checkOldLayout(inst), checkRelativePaths(inst), socketErr)
+	if IsScript(inst) {
+		scriptErr = checkScript(inst)
+		_, socketErr = listenURI(inst)
+	} else {
+		_, _, socketErr = socketArgs(inst)
+	}
+
+	return errors.Join(scriptErr, checkOldLayout(inst), checkRelativePaths(inst), socketErr)
 }
 
 // checkOldLayout refuses to start an instance of a project that still keeps
@@ -321,7 +363,8 @@ func checkOldLayout(inst *InstanceCtx) error {
 
 // checkRelativePaths refuses a relative path in writtenPathKeys in the
 // effective config of an instance installed into the user or the system
-// scope.
+// scope, or in scriptWrittenPathKeys in the env of the record of an
+// instance that runs its script.
 //
 // An installed instance runs in its version directory, and a relative path
 // would have it write into that version, which is immutable: the next
@@ -333,16 +376,21 @@ func checkRelativePaths(inst *InstanceCtx) error {
 		return nil
 	}
 
+	keys, name := writtenPathKeys, func(key string) string { return key }
+	if IsScript(inst) {
+		keys, name = scriptWrittenPathKeys, envName
+	}
+
 	var relative []string
 
-	for _, key := range writtenPathKeys {
+	for _, key := range keys {
 		value, found, err := effectiveString(inst, key)
 		if err != nil {
 			return err
 		}
 
 		if found && !filepath.IsAbs(value) {
-			relative = append(relative, fmt.Sprintf("%s %q", key, value))
+			relative = append(relative, fmt.Sprintf("%s %q", name(key), value))
 		}
 	}
 
@@ -383,9 +431,31 @@ func socketArgs(inst *InstanceCtx) (string, string, error) {
 			inst.InstName, inst.AppName, err)
 	}
 
+	uri, err := listenURI(inst)
+	if err != nil {
+		return "", "", err
+	}
+
+	listen, err := json.Marshal([]map[string]string{{"uri": uri}})
+	if err != nil {
+		return "", "", fmt.Errorf("encoding the iproto listen setting: %w", err)
+	}
+
+	return console, string(listen), nil
+}
+
+// listenURI returns the URI tarantool listens for iproto on, the binary
+// port of inst: its path, or the path relative to the application directory
+// behind unix/: when it is too long (socketArgs). An instance without a
+// binary port gets an empty URI.
+func listenURI(inst *InstanceCtx) (string, error) {
+	if inst.BinaryPort == "" {
+		return "", nil
+	}
+
 	uri, err := appSocketPath(inst.BinaryPort, inst.AppDir, true)
 	if err != nil {
-		return "", "", fmt.Errorf("instance %q of %q: the binary port: %w",
+		return "", fmt.Errorf("instance %q of %q: the binary port: %w",
 			inst.InstName, inst.AppName, err)
 	}
 
@@ -397,19 +467,14 @@ func socketArgs(inst *InstanceCtx) (string, string, error) {
 
 		err = verifySocketLength(uri)
 		if err != nil {
-			return "", "", fmt.Errorf("instance %q of %q: the binary port: %w",
+			return "", fmt.Errorf("instance %q of %q: the binary port: %w",
 				inst.InstName, inst.AppName, err)
 		}
 
 		uri = "unix/:" + uri
 	}
 
-	listen, err := json.Marshal([]map[string]string{{"uri": uri}})
-	if err != nil {
-		return "", "", fmt.Errorf("encoding the iproto listen setting: %w", err)
-	}
-
-	return console, string(listen), nil
+	return uri, nil
 }
 
 // appSocketPath returns socketPath when it fits a unix socket address, and
