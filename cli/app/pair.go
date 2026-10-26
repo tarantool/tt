@@ -32,6 +32,10 @@ const (
 // runs from. The two agree on the names of the Tarantool instances, and
 // different templates describe different topologies, so a pair is taken
 // whole from one directory.
+//
+// The cluster config is needed only by the Tarantool instances it
+// configures: a description of instances that run their scripts and of
+// external processes alone makes a pair without one.
 type Pair struct {
 	// Template is the name of the template the pair is, or empty for the
 	// pair of the host, <root>/etc/<app>/.
@@ -40,7 +44,8 @@ type Pair struct {
 	Dir string
 	// InstancesFile is the path of the instances description.
 	InstancesFile string
-	// ConfigFile is the path of the cluster config.
+	// ConfigFile is the path of the cluster config, empty when the pair has
+	// none.
 	ConfigFile string
 }
 
@@ -77,9 +82,10 @@ func newPair(template, dir string) Pair {
 // The pair of the host lives outside of the version, because a version is
 // immutable and the description of what runs on a host must survive
 // switching to the next one; that is why it wins. Either of its files makes
-// it the pair: one without the other is an incomplete pair and an error, not
-// a reason to run the template, which would start a topology the host was
-// not given.
+// it the pair: a config without a description, or a description that needs
+// the config it lacks (loadPair), is an incomplete pair and an error, not a
+// reason to run the template, which would start a topology the host was not
+// given.
 //
 // --template is refused when the host has a pair. The host chose what runs
 // on it; a template that quietly loses to the host pair would run something
@@ -95,7 +101,7 @@ func selectPair(loc location, template string) (Pair, error) {
 	if loc.scope != ScopeProject {
 		host := newPair("", filepath.Join(loc.root, hostDirName, loc.name))
 
-		present, err := checkPair(host)
+		present, err := checkPair(&host)
 		if err != nil {
 			return Pair{}, err
 		}
@@ -116,7 +122,7 @@ func selectPair(loc location, template string) (Pair, error) {
 
 	pair := newPair(template, filepath.Join(loc.dir, scope.TemplatesDirName, template))
 
-	present, err := checkPair(pair)
+	present, err := checkPair(&pair)
 	if err != nil {
 		return Pair{}, err
 	}
@@ -138,9 +144,11 @@ func validTemplate(name string) error {
 	return nil
 }
 
-// checkPair reports whether the files of pair are there: false when neither
-// is, true when both are, and an error when only one is.
-func checkPair(pair Pair) (bool, error) {
+// checkPair reports whether pair is there: true when its description is,
+// false when neither of its files is, and an error for a config without a
+// description. A pair without a config gets an empty ConfigFile; whether its
+// description can do without one is up to loadPair, which reads it.
+func checkPair(pair *Pair) (bool, error) {
 	hasInstances, err := exists(pair.InstancesFile)
 	if err != nil {
 		return false, failf("%w", err)
@@ -152,11 +160,12 @@ func checkPair(pair Pair) (bool, error) {
 	}
 
 	switch {
-	case hasInstances && hasConfig:
-		return true, nil
 	case hasInstances:
-		return false, failf("%w: %s has %s but no %s next to it", ErrIncompletePair,
-			pair.String(), scope.InstancesFileName, configFileName)
+		if !hasConfig {
+			pair.ConfigFile = ""
+		}
+
+		return true, nil
 	case hasConfig:
 		return false, failf("%w: %s has %s but no %s next to it", ErrIncompletePair,
 			pair.String(), configFileName, scope.InstancesFileName)
@@ -209,6 +218,13 @@ func listTemplates(templatesDir string) []string {
 // local file, while the config may send tt to etcd for the rest of the
 // cluster config, and a typo in the description is better reported without
 // a round trip.
+//
+// The config is read only for the Tarantool instances it configures. A
+// description without them, of instances that run their scripts and of
+// external processes, needs no config, and one the pair has anyway is left
+// unread: whatever it holds, an empty file or a storage out of reach, does
+// not keep those instances from running. A description with them needs the
+// config, and a pair without one is incomplete.
 func loadPair(
 	ctx context.Context,
 	pair Pair,
@@ -228,6 +244,17 @@ func loadPair(
 	err = checkFields(pair, records)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	configured := clusterInstances(records)
+	if len(configured) == 0 {
+		return records, nil, nil
+	}
+
+	if pair.ConfigFile == "" {
+		return nil, nil, failf("%w: %s has %s but no %s next to it to configure "+
+			"its Tarantool instances %s", ErrIncompletePair, pair.String(),
+			scope.InstancesFileName, configFileName, quoteNames(configured))
 	}
 
 	cfg, err := cluster.GetClusterConfig(ctx, pair.ConfigFile, integ)
@@ -300,14 +327,7 @@ func fieldError(inst, field, why string) error {
 // and the rest of the cluster runs on others. Instances with a script or a
 // binary are not checked, since the cluster config does not configure them.
 func checkTopology(pair Pair, records []instances.Instance, cfg *goconfig.MutableConfig) error {
-	var declared []string
-
-	for _, record := range records {
-		if record.Kind() == instances.KindCluster {
-			declared = append(declared, record.Name)
-		}
-	}
-
+	declared := clusterInstances(records)
 	if len(declared) == 0 {
 		return nil
 	}
@@ -321,14 +341,38 @@ func checkTopology(pair Pair, records []instances.Instance, cfg *goconfig.Mutabl
 
 	for _, name := range declared {
 		if !slices.Contains(topology, name) {
-			missing = append(missing, fmt.Sprintf("%q", name))
+			missing = append(missing, name)
 		}
 	}
 
 	if len(missing) > 0 {
 		return failf("%w: %s from %s not declared in %s", ErrTopologyMismatch,
-			strings.Join(missing, ", "), pair.InstancesFile, pair.ConfigFile)
+			quoteNames(missing), pair.InstancesFile, pair.ConfigFile)
 	}
 
 	return nil
+}
+
+// clusterInstances returns the names of the records that are Tarantool
+// instances configured by the cluster config, in their order.
+func clusterInstances(records []instances.Instance) []string {
+	var names []string
+
+	for _, record := range records {
+		if record.Kind() == instances.KindCluster {
+			names = append(names, record.Name)
+		}
+	}
+
+	return names
+}
+
+// quoteNames lists names for a message, each quoted.
+func quoteNames(names []string) string {
+	quoted := make([]string, 0, len(names))
+	for _, name := range names {
+		quoted = append(quoted, fmt.Sprintf("%q", name))
+	}
+
+	return strings.Join(quoted, ", ")
 }

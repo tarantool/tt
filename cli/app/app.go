@@ -55,10 +55,19 @@ type App struct {
 	// Pair is the pair the application runs from.
 	Pair Pair
 	// Config is the cluster config of the pair, with what a config storage
-	// it names holds merged in.
+	// it names holds merged in. It is nil when the description has no
+	// Tarantool instance configured by it (HasClusterInstances): the config
+	// is not read then, whether the pair has one or not.
 	Config *goconfig.MutableConfig
 	// Instances are every record of the description, in its order.
 	Instances []instances.Instance
+}
+
+// HasClusterInstances reports whether the description of app has Tarantool
+// instances configured by the cluster config, rather than only instances
+// that run their scripts and external processes.
+func (app *App) HasClusterInstances() bool {
+	return len(clusterInstances(app.Instances)) > 0
 }
 
 // Load finds the application name names, chooses its pair, and loads and

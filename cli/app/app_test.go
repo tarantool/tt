@@ -704,6 +704,27 @@ func TestPairSelection(t *testing.T) {
 		requireFailure(t, err, app.ErrTemplateConflict)
 	})
 
+	t.Run("the host pair of scripts and processes needs no config", func(t *testing.T) {
+		hostDir := filepath.Join(system, "etc", "myapp")
+		writeTree(t, hostDir, map[string]string{
+			"instances.yaml": "legacy-1:\n  script: init.lua\nworker-1:\n  binary: python3\n",
+		})
+		t.Cleanup(func() { _ = os.RemoveAll(hostDir) })
+
+		got, err := load(t, "myapp", app.Options{Start: start})
+		require.NoError(t, err)
+		assert.Equal(t, app.Pair{
+			Template:      "",
+			Dir:           hostDir,
+			InstancesFile: filepath.Join(hostDir, "instances.yaml"),
+			ConfigFile:    "",
+		}, got.Pair)
+		assert.Nil(t, got.Config)
+		assert.Equal(t, []string{"legacy-1", "worker-1"}, names(got.Instances))
+		assert.Equal(t, filepath.Join(versionDir, "init.lua"), got.Instances[0].Script,
+			"the script is in the version")
+	})
+
 	for _, file := range []string{"instances.yaml", "config.yaml"} {
 		t.Run("an incomplete host pair with only "+file, func(t *testing.T) {
 			hostDir := filepath.Join(system, "etc", "myapp")
@@ -757,12 +778,72 @@ func TestProjectPair(t *testing.T) {
 	t.Run("a template without config", func(t *testing.T) {
 		tree := t.TempDir()
 		writeTree(t, tree, map[string]string{
-			".templates/default/instances.yaml": "storage-1:\n",
+			".templates/default/instances.yaml": "legacy-1:\n  script: init.lua\n" +
+				"storage-1:\nstorage-2:\n",
 		})
 
 		_, err := load(t, "", app.Options{Start: tree})
 		requireFailure(t, err, app.ErrIncompletePair)
-		require.ErrorContains(t, err, "has instances.yaml but no config.yaml")
+		require.ErrorContains(t, err, "has instances.yaml but no config.yaml next to it "+
+			`to configure its Tarantool instances "storage-1", "storage-2"`)
+	})
+
+	t.Run("a template without config of scripts and processes", func(t *testing.T) {
+		tree := t.TempDir()
+		writeTree(t, tree, map[string]string{
+			".templates/default/instances.yaml": "legacy-1:\n  script: init.lua\n" +
+				"worker-1:\n  binary: ./bin/worker\n",
+		})
+
+		got, err := load(t, "", app.Options{Start: tree})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"legacy-1", "worker-1"}, names(got.Instances))
+		assert.Empty(t, got.Pair.ConfigFile, "the pair has no config")
+		assert.Nil(t, got.Config)
+		assert.False(t, got.HasClusterInstances())
+		assert.Equal(t, filepath.Join(tree, ".templates", "default", "instances.yaml"),
+			got.Pair.InstancesFile)
+	})
+
+	t.Run("an empty template without config", func(t *testing.T) {
+		tree := t.TempDir()
+		writeTree(t, tree, map[string]string{".templates/default/instances.yaml": ""})
+
+		got, err := load(t, "", app.Options{Start: tree})
+		require.NoError(t, err)
+		assert.Empty(t, got.Instances)
+
+		_, err = app.Resolve(context.Background(), nil, app.Options{Start: tree})
+		requireFailure(t, err, app.ErrNoInstances)
+	})
+
+	t.Run("the config of scripts and processes is not read", func(t *testing.T) {
+		tree := t.TempDir()
+		writeTree(t, tree, map[string]string{
+			".templates/default/instances.yaml": "legacy-1:\n  script: init.lua\n",
+			// cluster.GetClusterConfig refuses an empty config, and one that
+			// sends it to a storage out of reach.
+			".templates/default/config.yaml": "config:\n  etcd:\n    endpoints: " +
+				"[http://127.0.0.1:1]\n    prefix: /myapp\n",
+		})
+
+		repo := &fileRepository{}
+
+		got, err := load(t, "", app.Options{
+			Start:     tree,
+			Integrity: integrity.IntegrityCtx{Repository: repo},
+		})
+		require.NoError(t, err)
+		assert.Nil(t, got.Config)
+		assert.Equal(t, filepath.Join(tree, ".templates", "default", "config.yaml"),
+			got.Pair.ConfigFile, "the pair has a config, which is left unread")
+		assert.Equal(t, []string{filepath.Join(tree, ".templates", "default",
+			"instances.yaml")}, repo.read)
+
+		writeTree(t, tree, map[string]string{".templates/default/config.yaml": ""})
+
+		_, err = load(t, "", app.Options{Start: tree})
+		require.NoError(t, err)
 	})
 
 	t.Run("a template without instances", func(t *testing.T) {
