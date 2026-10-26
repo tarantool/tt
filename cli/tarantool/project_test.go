@@ -124,6 +124,30 @@ func TestResolveProjectBrokenLink(t *testing.T) {
 	require.ErrorContains(t, err, "the project tarantool is not an executable")
 }
 
+func TestResolveProjectNotExecutable(t *testing.T) {
+	pathTarantool(t)
+
+	// The project chose a tarantool that may not be run: an error before
+	// anything runs it, rather than the one from PATH in its place.
+	dir, target := project(t, ce("3.8.1"))
+	require.NoError(t, os.Chmod(target, fileMode))
+
+	_, err := tarantool.Resolve(tarantool.App{Scope: binary.ScopeProject, Dir: dir})
+	require.ErrorIs(t, err, tarantool.ErrNotExecutable)
+	require.ErrorContains(t, err, target+" has no execute permission")
+	require.ErrorContains(t, err,
+		filepath.Join(scope.ProjectRoot(dir), "bin", "tarantool")+" selects it")
+
+	copied := t.TempDir()
+	copiedPath := filepath.Join(scope.ProjectRoot(copied), "bin", "tarantool")
+	writeExecutable(t, copiedPath)
+	require.NoError(t, os.Chmod(copiedPath, fileMode))
+
+	_, err = tarantool.Resolve(tarantool.App{Scope: binary.ScopeProject, Dir: copied})
+	require.ErrorIs(t, err, tarantool.ErrNotExecutable)
+	assert.ErrorContains(t, err, copiedPath+" has no execute permission")
+}
+
 func TestResolveProjectPath(t *testing.T) {
 	want := pathTarantool(t)
 	dir := t.TempDir()

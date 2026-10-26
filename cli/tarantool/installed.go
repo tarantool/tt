@@ -116,6 +116,12 @@ func fromLock(
 		for _, selected := range installationIDs(program, bundled) {
 			path, ok := installedExecutable(root, program, selected)
 			if ok {
+				err := checkExecutable(path)
+				if err != nil {
+					return Executable{}, fmt.Errorf("%w; %s in %s bundles it",
+						err, lockFileName, app.Dir)
+				}
+
 				return Executable{
 					Path:     path,
 					Origin:   OriginLock,
@@ -196,6 +202,14 @@ func fromConstraint(
 		}
 
 		path, _ := installedExecutable(root, program, best.id)
+
+		// The highest version is the one asked for: an older one is not run
+		// in its place because this one may not be executed.
+		err = checkExecutable(path)
+		if err != nil {
+			return Executable{}, fmt.Errorf("%w; it is the highest version that satisfies "+
+				"%q of [platform].tarantool", err, platform.String())
+		}
 
 		var warnings []string
 

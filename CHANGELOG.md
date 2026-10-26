@@ -863,6 +863,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt binary install tarantool-ee`: reject bundles without Tarantool headers
   before replacing an installed version, and refuse to activate an incomplete
   installation. Installing TCM no longer creates unused header directories.
+- `tt instance start`, `restart` and `tt run` refuse a `tarantool` without
+  execute permission, the one a project selects in `.tarantool/bin/` or the
+  one an installed application runs on under `<root>/versions/`, before
+  they start anything. Before, `tt instance start` reported the instance
+  started, and only its `tt.log` told that the watchdog could not run it.
 - A second `tt tcm start --watchdog` in a directory where one runs is refused
   before it starts anything. Before, it started a second TCM and stopped it
   again once it found the pid file taken.

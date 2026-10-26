@@ -386,3 +386,32 @@ func TestResolveInstalledBadRoot(t *testing.T) {
 	_, err := tarantool.Resolve(tarantool.App{Scope: binary.ScopeUser, Dir: t.TempDir()})
 	require.ErrorIs(t, err, scope.ErrRelativeRoot)
 }
+
+func TestResolveInstalledNotExecutable(t *testing.T) {
+	for _, appScope := range installedScopes {
+		t.Run(appScope.String(), func(t *testing.T) {
+			root := scopeRoot(t, appScope)
+			pathTarantool(t)
+			install(t, root, ce("3.7.0"))
+
+			// The version the application asks for is there, but may not be
+			// run: an error, not another version or the one on PATH.
+			chosen := install(t, root, ce("3.8.1"))
+			require.NoError(t, os.Chmod(chosen, fileMode))
+
+			fromLock := installApp(t, root, ">=3.0.0,<4.0.0", "3.8.1")
+
+			_, err := tarantool.Resolve(tarantool.App{Scope: appScope, Dir: fromLock})
+			require.ErrorIs(t, err, tarantool.ErrNotExecutable)
+			require.ErrorContains(t, err, chosen+" has no execute permission")
+			require.ErrorContains(t, err, "app.manifest.lock in "+fromLock+" bundles it")
+
+			fromConstraint := installApp(t, root, ">=3.0.0,<4.0.0", "")
+
+			_, err = tarantool.Resolve(tarantool.App{Scope: appScope, Dir: fromConstraint})
+			require.ErrorIs(t, err, tarantool.ErrNotExecutable)
+			require.ErrorContains(t, err, chosen+" has no execute permission")
+			assert.ErrorContains(t, err, `the highest version that satisfies ">=3.0.0,<4.0.0"`)
+		})
+	}
+}
