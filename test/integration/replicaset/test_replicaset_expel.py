@@ -39,7 +39,6 @@ def test_expel_no_instance(tt_cmd, tmpdir_with_cfg):
     assert f'   ⨯ instance not found: "noexist" of "{app_name}"' in out
 
 
-@pytest.mark.skipif(tarantool_major_version > 2, reason="skip custom test for Tarantool > 2")
 @pytest.mark.parametrize("flag", [None, "--custom"])
 def test_expel_custom_app(tt_cmd, tmpdir_with_cfg, flag):
     tmpdir = tmpdir_with_cfg

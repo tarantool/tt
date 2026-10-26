@@ -20,7 +20,6 @@ from utils import (
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
 
-@pytest.mark.skipif(tarantool_major_version > 2, reason="skip custom test for Tarantool > 2")
 @pytest.mark.parametrize(
     "case",
     [
@@ -34,7 +33,6 @@ def test_vshard_bootstrap(tt_cmd, tmpdir_with_cfg, case):
     assert re.search(r"   ⨯ only one type of orchestrator can be forced", out)
 
 
-@pytest.mark.skipif(tarantool_major_version > 2, reason="skip custom test for Tarantool > 2")
 def test_vshard_bootstrap_no_instance(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "test_custom_app"
@@ -43,10 +41,9 @@ def test_vshard_bootstrap_no_instance(tt_cmd, tmpdir_with_cfg):
     status_cmd = [tt_cmd, "rs", "vs", "bootstrap", "test_custom_app:noexist"]
     rc, out = run_command_and_get_output(status_cmd, cwd=app_path)
     assert rc == 1
-    assert re.search(r"   ⨯ instance \"noexist\" not found", out)
+    assert '   ⨯ instance not found: "noexist" of "test_custom_app"' in out
 
 
-@pytest.mark.skipif(tarantool_major_version > 2, reason="skip custom test for Tarantool > 2")
 @pytest.mark.parametrize("flag", [None, "--custom"])
 def test_vshard_bootstrap_custom_app(tt_cmd, tmpdir_with_cfg, flag):
     tmpdir = tmpdir_with_cfg
