@@ -1,3 +1,11 @@
+// Package configure fills the process context of tt for the command line:
+// the project the working directory is in, the tarantool and tcm executables
+// the commands run, and the config of tt daemon.
+//
+// No configuration file of tt is read here. tt.yaml, which described a tt
+// environment, is gone: the project is found by its markers, and the
+// executables come from the project scope tt binary installs into, and from
+// PATH.
 package configure
 
 import (
@@ -6,25 +14,20 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"syscall"
 
 	"github.com/mitchellh/mapstructure"
-	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/config"
+	"github.com/tarantool/tt/v3/cli/tarantool"
 	"github.com/tarantool/tt/v3/cli/util"
+	"github.com/tarantool/tt/v3/internal/binary"
+	"github.com/tarantool/tt/v3/internal/scope"
 )
 
 var (
-	errFailedToFindTarantoolCLIConfigFor = errors.New(
-		"failed to find Tarantool CLI config for '",
-	)
 	errFailedToParseDaemonConfigurationMissingDaemonSection = errors.New(
 		"failed to parse daemon configuration: missing daemon section",
-	)
-	errFailedToParseTarantoolCLIConfigurationMissingTTSection = errors.New(
-		"failed to parse Tarantool CLI configuration: missing tt section",
 	)
 	errIntegrityCheckPeriodMustTakeNonNegativeValue = errors.New(
 		"--integrity-check-period must take non-negative value",
@@ -32,23 +35,6 @@ var (
 	errIntegrityCheckPublicKeyRequired = errors.New(
 		"need to specify public key in --integrity-check to use --integrity-check-period",
 	)
-	errYouCanSpecifyOnlyOneOfLLocalAndSSystemOptions = errors.New(
-		"you can specify only one of -L(--local) and -S(--system) options",
-	)
-	errYouCanSpecifyOnlyOneOfLLocalCCfgAndTTCLICfgOptions = errors.New(
-		"you can specify only one of -L(--local), -c(--cfg) and 'TT_CLI_CFG' options",
-	)
-	errYouCanSpecifyOnlyOneOfSSystemCCfgAndTTCLICfgOptions = errors.New(
-		"you can specify only one of -S(--system), -c(--cfg) and 'TT_CLI_CFG' options",
-	)
-)
-
-const (
-	ConfigName        = "tt.yaml"
-	cliExecutableName = "tt"
-	// systemConfigDirEnvName is an environment variable that contains a path to
-	// search system config.
-	systemConfigDirEnvName = "TT_SYSTEM_CONFIG_DIR"
 )
 
 const (
@@ -60,266 +46,25 @@ const (
 	configHomeEnvName = "XDG_CONFIG_HOME"
 )
 
-const (
-	VarPath       = "var"
-	LogPath       = "log"
-	RunPath       = "run"
-	DataPath      = "lib"
-	BinPath       = "bin"
-	IncludePath   = "include"
-	DistfilesPath = "distfiles"
-	SnapPath      = "snap"
-	VinylPath     = "vinyl"
-	WalPath       = "wal"
-)
-
 var (
-	VarDataPath  = filepath.Join(VarPath, DataPath)
-	VarWalPath   = filepath.Join(VarPath, WalPath)
-	VarMemtxPath = filepath.Join(VarPath, SnapPath)
-	VarVinylPath = filepath.Join(VarPath, VinylPath)
-	VarLogPath   = filepath.Join(VarPath, LogPath)
-	VarRunPath   = filepath.Join(VarPath, RunPath)
+	// varRunPath is where tt daemon keeps its pid file when its config does
+	// not say, relative to the config.
+	varRunPath = filepath.Join("var", "run")
+	// varLogPath is where tt daemon keeps its log when its config does not
+	// say, relative to the config.
+	varLogPath = filepath.Join("var", "log")
 )
-
-// Path to default tt.yaml configuration file.
-// Defined at build time, see magefile.
-var defaultConfigPath string
-
-// getDefaultAppOpts generates default app config.
-func getDefaultAppOpts() *config.AppOpts {
-	return &config.AppOpts{
-		RunDir:   VarRunPath,
-		LogDir:   VarLogPath,
-		WalDir:   VarDataPath,
-		VinylDir: VarDataPath,
-		MemtxDir: VarDataPath,
-	}
-}
-
-// getDefaultAppOpts generates default app config.
-func getDefaultTtEnvOpts() *config.TtEnvOpts {
-	return &config.TtEnvOpts{
-		Restartable:      false,
-		BinDir:           BinPath,
-		IncludeDir:       IncludePath,
-		OutputHistoryMax: 0,
-	}
-}
-
-// getDefaultAppOpts generates default app config.
-func getSystemAppOpts() *config.AppOpts {
-	systemDataDir := filepath.Join(string(filepath.Separator), VarDataPath, "tarantool")
-
-	return &config.AppOpts{
-		RunDir:   filepath.Join(string(filepath.Separator), VarRunPath, "tarantool"),
-		LogDir:   filepath.Join(string(filepath.Separator), VarLogPath, "tarantool"),
-		WalDir:   systemDataDir,
-		VinylDir: systemDataDir,
-		MemtxDir: systemDataDir,
-	}
-}
-
-// GetSystemCliOpts returns `CliOpts` filled with system defaults.
-func GetSystemCliOpts() *config.CliOpts {
-	eeOpts := config.EEOpts{
-		CredPath: "",
-	}
-	repo := config.RepoOpts{
-		Rocks:   "",
-		Install: DistfilesPath,
-	}
-	templates := []config.TemplateOpts{
-		{Path: "templates"},
-	}
-
-	return &config.CliOpts{
-		Env:       getDefaultTtEnvOpts(),
-		App:       getSystemAppOpts(),
-		Repo:      &repo,
-		EE:        &eeOpts,
-		Templates: templates,
-	}
-}
-
-// GetDefaultCliOpts returns `CliOpts` filled with default values.
-func GetDefaultCliOpts() *config.CliOpts {
-	eeOpts := config.EEOpts{
-		CredPath: "",
-	}
-	repo := config.RepoOpts{
-		Rocks:   "",
-		Install: DistfilesPath,
-	}
-	templates := []config.TemplateOpts{
-		{Path: "templates"},
-	}
-
-	return &config.CliOpts{
-		Env:       getDefaultTtEnvOpts(),
-		App:       getDefaultAppOpts(),
-		Repo:      &repo,
-		EE:        &eeOpts,
-		Templates: templates,
-	}
-}
 
 // getDefaultDaemonOpts returns `DaemonOpts` filled with default values.
 func getDefaultDaemonOpts() *config.DaemonOpts {
 	return &config.DaemonOpts{
 		Port:            defaultDaemonPort,
 		PIDFile:         defaultDaemonPidFile,
-		RunDir:          VarRunPath,
-		LogDir:          VarLogPath,
+		RunDir:          varRunPath,
+		LogDir:          varLogPath,
 		LogFile:         defaultDaemonLogFile,
 		ListenInterface: "",
 	}
-}
-
-// adjustPathWithConfigLocation adjust provided filePath with configDir.
-// Absolute filePath is returned as is. Relative filePath is calculated relative to configDir.
-// If filePath is empty, defaultDirName is appended to configDir.
-func adjustPathWithConfigLocation(filePath, configDir string,
-	defaultDirName string,
-) (string, error) {
-	if filePath == "" {
-		if defaultDirName == "" {
-			return "", nil
-		}
-
-		filePath = defaultDirName
-	} else if filepath.IsAbs(filePath) {
-		return filePath, nil
-	}
-
-	absPath, err := filepath.Abs(filepath.Join(configDir, filePath))
-	if err != nil {
-		return "", fmt.Errorf("failed to get absolute path of %q: %w", filePath, err)
-	}
-
-	return absPath, nil
-}
-
-// resolveConfigPaths resolves all paths in config relative to specified location, and
-// sets uninitialized values to defaults.
-func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
-	var err error
-
-	for _, dir := range []struct {
-		path       *string
-		defaultDir string
-	}{
-		{&cliOpts.Env.BinDir, BinPath},
-		{&cliOpts.Env.IncludeDir, IncludePath},
-		{&cliOpts.Repo.Install, DistfilesPath},
-		{&cliOpts.Repo.Rocks, ""},
-	} {
-		*dir.path, err = adjustPathWithConfigLocation(*dir.path, configDir, dir.defaultDir)
-		if err != nil {
-			return err
-		}
-	}
-
-	for i := range cliOpts.Templates {
-		cliOpts.Templates[i].Path, err = adjustPathWithConfigLocation(
-			cliOpts.Templates[i].Path, configDir, ".")
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// decodeConfig decodes the raw tt configuration into cfg. The returned error
-// is ready to be shown to the user.
-func decodeConfig(input map[string]any, cfg *config.CliOpts) error {
-	decoderConfig := mapstructure.DecoderConfig{
-		Result: cfg,
-	}
-
-	decoder, err := mapstructure.NewDecoder(&decoderConfig)
-	if err != nil {
-		return fmt.Errorf("failed to parse Tarantool CLI configuration: %w", err)
-	}
-
-	err = decoder.Decode(input)
-	if err != nil {
-		return fmt.Errorf("failed to parse Tarantool CLI configuration: %w", err)
-	}
-
-	return nil
-}
-
-// GetCliOpts returns Tarantool CLI options from the config file
-// located at path configurePath.
-func GetCliOpts(configurePath string, repository integrity.Repository) (
-	*config.CliOpts, string, error,
-) {
-	cfg := GetDefaultCliOpts()
-	// Config could not be processed.
-	configPath, err := util.GetYamlFileName(configurePath, true)
-	// Before loading configure file, we'll initialize integrity checking.
-	switch {
-	case err == nil:
-		configPath, err = filepath.Abs(configPath)
-		if err != nil {
-			return nil, "", fmt.Errorf("cannot determine config file path: %w", err)
-		}
-
-		// Config file is found, load it.
-		if repository != nil {
-			configFile, err := repository.Read(configPath)
-			if err != nil {
-				return nil, "",
-					fmt.Errorf("failed to validate integrity of %q: %w", configPath, err)
-			}
-
-			_ = configFile.Close()
-		}
-
-		rawConfigOpts, err := util.ParseYAML(configPath)
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to parse Tarantool CLI configuration: %w", err)
-		}
-
-		err = decodeConfig(rawConfigOpts, cfg)
-		if err != nil {
-			return nil, "", err
-		}
-
-		if cfg == nil {
-			return nil, "",
-				errFailedToParseTarantoolCLIConfigurationMissingTTSection
-		}
-	case err != nil && !os.IsNotExist(err):
-		// TODO: Add warning in next patches, discussion
-		// what if the file exists, but access is denied, etc.
-		return nil, "", fmt.Errorf("failed to get access to configuration file: %w", err)
-	case os.IsNotExist(err):
-		configPath = ""
-	}
-
-	var configDir string
-
-	if configPath == "" {
-		configDir, err = os.Getwd()
-		if err != nil {
-			return cfg, configPath, fmt.Errorf("failed to detect current directory: %w", err)
-		}
-	} else {
-		configDir, err = filepath.Abs(filepath.Dir(configPath))
-		if err != nil {
-			return cfg, configPath, fmt.Errorf("cannot determine config directory: %w", err)
-		}
-	}
-
-	err = updateCliOpts(cfg, configDir)
-	if err != nil {
-		return cfg, "", err
-	}
-
-	return cfg, configPath, nil
 }
 
 // GetDaemonOpts returns tt daemon options from the config file
@@ -365,31 +110,20 @@ func GetDaemonOpts(configurePath string) (*config.DaemonOpts, error) {
 
 	if cfg.DaemonConfig.RunDir == "" {
 		cfg.DaemonConfig.RunDir = filepath.Join(filepath.Dir(configurePath),
-			VarRunPath)
+			varRunPath)
 	}
 
 	if cfg.DaemonConfig.LogDir == "" {
 		cfg.DaemonConfig.LogDir = filepath.Join(filepath.Dir(configurePath),
-			VarLogPath)
+			varLogPath)
 	}
 
 	return cfg.DaemonConfig, nil
 }
 
-// ValidateCliOpts checks for ambiguous config options.
+// ValidateCliOpts checks the root flags for values that contradict each
+// other.
 func ValidateCliOpts(cliCtx *cmdcontext.CliCtx) error {
-	if cliCtx.LocalLaunchDir != "" {
-		if cliCtx.IsSystem {
-			return errYouCanSpecifyOnlyOneOfLLocalAndSSystemOptions
-		}
-
-		if cliCtx.ConfigPath != "" {
-			return errYouCanSpecifyOnlyOneOfLLocalCCfgAndTTCLICfgOptions
-		}
-	} else if cliCtx.IsSystem && cliCtx.ConfigPath != "" {
-		return errYouCanSpecifyOnlyOneOfSSystemCCfgAndTTCLICfgOptions
-	}
-
 	if len(cliCtx.IntegrityCheck) == 0 && cliCtx.IntegrityCheckPeriod != 0 {
 		return errIntegrityCheckPublicKeyRequired
 	}
@@ -401,15 +135,14 @@ func ValidateCliOpts(cliCtx *cmdcontext.CliCtx) error {
 	return nil
 }
 
-// Cli performs initial CLI configuration.
+// Cli fills the process context in cmdCtx: the project directory, the
+// tarantool and tcm executables and the path of the tt daemon config.
 func Cli(cmdCtx *cmdcontext.CmdCtx) error {
 	var err error
 
-	if cmdCtx.Cli.ConfigPath != "" {
-		_, err = os.Stat(cmdCtx.Cli.ConfigPath)
-		if err != nil {
-			return fmt.Errorf("specified path to the configuration file is invalid: %w", err)
-		}
+	cmdCtx.Cli.ProjectDir, err = projectDir()
+	if err != nil {
+		return err
 	}
 
 	cmdCtx.Cli.DaemonCfgPath, err = getDaemonCfgPath(daemonCfgPath)
@@ -417,356 +150,83 @@ func Cli(cmdCtx *cmdcontext.CmdCtx) error {
 		return fmt.Errorf("failed to get tt daemon config: %w", err)
 	}
 
-	// Set default (system) tarantool binary, can be replaced by "local" or "system" later.
-	cmdCtx.Cli.TarantoolCli.Executable, _ = exec.LookPath("tarantool")
+	detectTarantool(&cmdCtx.Cli)
 
-	// Set default (system) tcm binary, can be replaced by "local" or "system" later.
-	cmdCtx.Cli.TcmCli.Executable, _ = exec.LookPath("tcm")
-
-	switch {
-	case cmdCtx.Cli.IsSystem:
-		return configureSystemCli(cmdCtx)
-	case cmdCtx.Cli.LocalLaunchDir != "":
-		return configureLocalLaunch(cmdCtx)
-	}
-
-	// No flags specified.
-	return configureDefaultCli(cmdCtx)
-}
-
-// detectLocalTarantool searches for available Tarantool executable.
-func detectLocalTarantool(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
-	localTarantool, err := util.JoinAbspath(cliOpts.Env.BinDir, "tarantool")
-	if err != nil {
-		return err
-	}
-
-	_, err = os.Stat(localTarantool)
-
-	switch {
-	case err == nil:
-		_, err = exec.LookPath(localTarantool)
-		if err != nil {
-			return fmt.Errorf(`found Tarantool binary '%s' isn't executable: %w`,
-				localTarantool, err)
-		}
-
-		cmdCtx.Cli.TarantoolCli.Executable = localTarantool
-		cmdCtx.Cli.IsTarantoolBinFromRepo = true
-	case !os.IsNotExist(err):
-		return fmt.Errorf("failed to get access to Tarantool binary file: %w", err)
-	}
-
-	log.Debugf("Tarantool executable found: '%s'", cmdCtx.Cli.TarantoolCli.Executable)
-
-	return nil
-}
-
-// detectLocalTt searches for available TT executable.
-func detectLocalTt(cliOpts *config.CliOpts) (string, error) {
-	localCli, err := util.JoinAbspath(cliOpts.Env.BinDir, cliExecutableName)
-	if err != nil {
-		return "", err
-	}
-
-	_, err = os.Stat(localCli)
-
-	switch {
-	case err == nil:
-		resolvedCli, err := filepath.EvalSymlinks(localCli)
-		if err != nil {
-			return "", fmt.Errorf("failed to resolve tt executable %q: %w", localCli, err)
-		}
-
-		localCli = resolvedCli
-	case os.IsNotExist(err):
-		return "", nil
-	}
-
-	log.Debugf("TT executable found: '%s'", localCli)
-
-	return localCli, nil
-}
-
-// detectLocalTcm searches for available Tcm executable.
-func detectLocalTcm(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) (string, error) {
-	localTcm, err := util.JoinAbspath(cliOpts.Env.BinDir, "tcm")
-	if err != nil {
-		return "", err
-	}
-
-	_, err = os.Stat(localTcm)
-
-	switch {
-	case err == nil:
-		_, err = exec.LookPath(localTcm)
-		if err != nil {
-			return "", fmt.Errorf(`found TCM binary %q isn't executable: %w`,
-				localTcm, err)
-		}
-
-		cmdCtx.Cli.TcmCli.Executable = localTcm
-	case !os.IsNotExist(err):
-		return "", fmt.Errorf("failed to get access to TCM binary file: %w", err)
-	}
-
+	cmdCtx.Cli.TcmCli.Executable = detectTcm(cmdCtx.Cli.ProjectDir)
 	log.Debugf("tcm executable found: %q", cmdCtx.Cli.TcmCli.Executable)
 
-	return localTcm, nil
-}
-
-// configureLocalCli configures Tarantool CLI if the launch is local.
-func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
-	launchDir, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to detect current directory: %w", err)
-	}
-
-	err = ensureCliConfigPath(cmdCtx, launchDir)
-	if err != nil {
-		return err
-	}
-
-	cliOpts, _, err := GetCliOpts(cmdCtx.Cli.ConfigPath, cmdCtx.Integrity.Repository)
-	if err != nil {
-		return err
-	}
-
-	if cliOpts.Env == nil || cliOpts.Env.BinDir == "" {
-		// No bid_dir specified.
-		return nil
-	}
-
-	err = detectLocalTarantool(cmdCtx, cliOpts)
-	if err != nil {
-		return err
-	}
-
-	_, err = detectLocalTcm(cmdCtx, cliOpts)
-	if err != nil {
-		return err
-	}
-
-	var localCli string
-
-	if !cmdCtx.Cli.IsSelfExec {
-		localCli, err = detectLocalTt(cliOpts)
-		if err != nil {
-			return err
-		}
-	}
-
-	// We have to use the absolute path to the current binary "tt" for
-	// comparison with "localCli", because the same binary can be started
-	// using a relative path, and we don't want to execute "exec" in this case.
-	currentCli, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("failed to get the current tt executable: %w", err)
-	}
-
-	currentCli, err = filepath.EvalSymlinks(currentCli)
-	if err != nil {
-		return fmt.Errorf("failed to resolve the current tt executable: %w", err)
-	}
-
-	return switchToLocalCli(cmdCtx, localCli, currentCli, launchDir)
-}
-
-func ensureCliConfigPath(cmdCtx *cmdcontext.CmdCtx, launchDir string) error {
-	if cmdCtx.Cli.ConfigPath != "" {
-		return nil
-	}
-
-	configPath, err := util.GetYamlFileName(filepath.Join(launchDir, ConfigName), true)
-	if err == nil {
-		cmdCtx.Cli.ConfigPath = configPath
-		return nil
-	}
-
-	// TODO: Add warning messages, discussion what if the file
-	// exists, but access is denied, etc.
-	if !os.IsNotExist(err) {
-		return fmt.Errorf("failed to get access to configuration file: %w", err)
-	}
-
-	configPath, err = getConfigPath()
-	if err != nil {
-		return fmt.Errorf("failed to get Tarantool CLI config: %w", err)
-	}
-
-	if configPath != "" {
-		cmdCtx.Cli.ConfigPath = configPath
-		return nil
-	}
-
-	if cmdCtx.Cli.LocalLaunchDir != "" {
-		return fmt.Errorf("%w%s'",
-			errFailedToFindTarantoolCLIConfigFor, cmdCtx.Cli.LocalLaunchDir)
-	}
-
-	cmdCtx.Cli.ConfigPath = getSystemConfigPath()
-
 	return nil
 }
 
-func switchToLocalCli(cmdCtx *cmdcontext.CmdCtx, localCli, currentCli, launchDir string) error {
-	// This should save us from exec looping.
-	if localCli == "" || localCli == currentCli {
-		return nil
-	}
-
-	_, err := os.Stat(localCli)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-
-		return fmt.Errorf("failed to get access to tt binary file: %w", err)
-	}
-
-	_, err = exec.LookPath(localCli)
-	if err != nil {
-		return fmt.Errorf(
-			`found tt binary in local directory "%s" isn't executable: %w`, launchDir, err)
-	}
-
-	// Before switching to local cli, we shall check its integrity.
-	cliFile, err := cmdCtx.Integrity.Repository.Read(localCli)
-	if err != nil {
-		return err
-	}
-
-	_ = cliFile.Close()
-
-	// The local tt replaces this process rather than running as its child, the way
-	// an external module runs: there is no reason to have several "tt" processes, and
-	// "tt" starting "tt" that starts tarantool or an external module looks strange.
-	err = syscall.Exec(localCli, append([]string{localCli},
-		excludeArgumentsForChildTt(os.Args[1:])...), os.Environ())
-	if err != nil {
-		return fmt.Errorf("failed to execute local tt %q: %w", localCli, err)
-	}
-
-	return nil
-}
-
-// configureLocalLaunch configures the context using the specified local launch path.
-func configureLocalLaunch(cmdCtx *cmdcontext.CmdCtx) error {
-	var (
-		err       error
-		launchDir string
-	)
-
-	if cmdCtx.Cli.LocalLaunchDir != "" {
-		launchDir, err = filepath.Abs(cmdCtx.Cli.LocalLaunchDir)
-		if err != nil {
-			return fmt.Errorf(`failed to get absolute path to local directory: %w`, err)
-		}
-
-		log.Debugf("Local launch directory: %s", launchDir)
-
-		_, err = util.Chdir(launchDir)
-		if err != nil {
-			return fmt.Errorf(`failed to change working directory: %w`, err)
-		}
-	}
-
-	return configureLocalCli(cmdCtx)
-}
-
-// excludeArgumentsForChildTt removes arguments that are not required for child tt.
-func excludeArgumentsForChildTt(args []string) []string {
-	filteredArgs := []string{}
-	skip := 0
-
-	for _, arg := range args {
-		if skip > 0 {
-			skip--
-			continue
-		}
-
-		switch arg {
-		case "-L", "--local":
-			skip = 1
-			continue
-		}
-
-		filteredArgs = append(filteredArgs, arg)
-	}
-
-	return filteredArgs
-}
-
-// getSystemConfigPath returns system config path.
-func getSystemConfigPath() string {
-	if configPathFromEnv := os.Getenv(systemConfigDirEnvName); configPathFromEnv != "" {
-		return filepath.Join(configPathFromEnv, ConfigName)
-	} else {
-		return filepath.Join(defaultConfigPath, ConfigName)
-	}
-}
-
-// configureSystemCli configures Tarantool CLI if the launch is system.
-func configureSystemCli(cmdCtx *cmdcontext.CmdCtx) error {
-	if cmdCtx.Cli.ConfigPath == "" {
-		cmdCtx.Cli.ConfigPath = getSystemConfigPath()
-	}
-
-	return configureLocalCli(cmdCtx)
-}
-
-// configureDefaultCLI configures Tarantool CLI if the launch was without flags (-S or -L).
-func configureDefaultCli(cmdCtx *cmdcontext.CmdCtx) error {
-	var err error
-
-	// It may be fine that the system tarantool is absent because:
-	// 1) We use the "local" tarantool.
-	// 2) For our purpose, tarantool is not needed at all.
-	if err != nil {
-		log.Info("Can't set the default tarantool from the system")
-	}
-
-	// If neither the local start nor the system flag is specified,
-	// we ourselves determine what kind of launch it is.
-
-	if cmdCtx.Cli.ConfigPath == "" {
-		// We start looking for config in the current directory, going down to root directory.
-		// If the config is found, we assume that it is a local launch in this directory.
-		// If the config is not found, then we take it from the standard place (/etc/tarantool).
-		cmdCtx.Cli.ConfigPath, err = getConfigPath()
-		if err != nil {
-			return fmt.Errorf("failed to get Tarantool CLI config: %w", err)
-		}
-	}
-
-	if cmdCtx.Cli.ConfigPath != "" {
-		return configureLocalCli(cmdCtx)
-	}
-
-	return configureSystemCli(cmdCtx)
-}
-
-// getConfigPath looks for the path to the tt.yaml configuration file,
-// looking through all directories from the current one to the root.
-// This search pattern is chosen for the convenience of the user.
-func getConfigPath() (string, error) {
-	curDir, err := os.Getwd()
+// projectDir returns the project directory the working directory is in, as
+// internal/scope finds it, or the working directory itself outside a project.
+//
+// A failure to look for the project, such as a relative TT_USER_ROOT, leaves
+// the working directory in its place rather than failing the command: the
+// commands that act on a project look for it themselves and report why it
+// is not there, and the others, tt version for one, have no use for it.
+func projectDir() (string, error) {
+	workingDir, err := os.Getwd()
 	if err != nil {
 		return "", fmt.Errorf("failed to detect current directory: %w", err)
 	}
 
-	for curDir != "/" {
-		configPath, err := util.GetYamlFileName(filepath.Join(curDir, ConfigName), true)
-		if err == nil {
-			return configPath, nil
-		} else if !os.IsNotExist(err) {
-			return "", err
-		}
+	dir, found, err := scope.FindProject(workingDir)
+	if err != nil {
+		log.Debugf("Failed to look for the project, %q stands for it: %s", workingDir, err)
 
-		curDir = filepath.Dir(curDir)
+		return workingDir, nil
 	}
 
-	return "", nil
+	if !found {
+		return workingDir, nil
+	}
+
+	return dir, nil
+}
+
+// detectTarantool sets the tarantool the commands run, the one tt run would
+// run in the project: its .tarantool/bin/tarantool, which tt binary install
+// and switch set, else the first on PATH (cli/tarantool tells the rule). The
+// headers of a project tarantool are under the root of the project scope,
+// include/tarantool, where tt binary install lays them out, so the root
+// becomes the prefix of the tarantool.
+//
+// A missing tarantool is not an error here: most commands run none, and those
+// that do report it. Neither is a broken project tarantool, which is only
+// logged, and at the debug level: every command would warn about it
+// otherwise, tt binary included, which lists and repairs the link.
+func detectTarantool(cli *cmdcontext.CliCtx) {
+	exe, err := tarantool.Resolve(tarantool.App{Scope: binary.ScopeProject, Dir: cli.ProjectDir})
+	if err != nil {
+		log.Debugf("Tarantool executable is not found: %s", err)
+
+		return
+	}
+
+	cli.TarantoolCli.Executable = exe.Path
+	if exe.Origin == tarantool.OriginProject {
+		cli.TarantoolPrefix = scope.ProjectRoot(cli.ProjectDir)
+	}
+
+	log.Debugf("Tarantool executable found: %q", exe.Path)
+}
+
+// detectTcm returns the tcm the tcm commands run: the active one of the
+// project scope, .tarantool/bin/tcm, which tt binary install sets, else the
+// first on PATH, else none.
+func detectTcm(projectDir string) string {
+	local := filepath.Join(scope.ProjectRoot(projectDir), binary.BinDirName,
+		binary.ProgramTcm.Exec())
+
+	path, err := exec.LookPath(local)
+	if err == nil {
+		return path
+	}
+
+	path, _ = exec.LookPath(binary.ProgramTcm.Exec())
+
+	return path
 }
 
 // getDaemonCfgPath looks for the path to the tt_daemon.yaml configuration file.

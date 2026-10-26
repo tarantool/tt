@@ -242,8 +242,10 @@ def test_local_dir_scope_isolation(tt_cmd, tmp_path, monkeypatch, scope, explici
     cwd = child if scope == "nested-project" else project
     selected_scope = "project" if scope == "nested-project" else scope
     cmd = [tt_cmd, "--self"]
+    env = None
     if explicit_config:
-        cmd.extend(["--cfg", foreign_config])
+        # A tt.yaml named outright, as TT_CLI_CFG named it, is not read either.
+        env = dict(os.environ, TT_CLI_CFG=str(foreign_config))
     cmd.extend(
         [
             "binary",
@@ -255,7 +257,7 @@ def test_local_dir_scope_isolation(tt_cmd, tmp_path, monkeypatch, scope, explici
             os.path.relpath(local_repo, cwd),
         ],
     )
-    rc, output = run_command_and_get_output(cmd, cwd=cwd, stderr=None)
+    rc, output = run_command_and_get_output(cmd, cwd=cwd, stderr=None, env=env)
     assert rc == 0
     labels = {
         "project": [" [installed]", " [active]", ""],

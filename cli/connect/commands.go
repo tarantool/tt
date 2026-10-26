@@ -454,15 +454,31 @@ func getShortcutsFunc(console *Console, cmd string, args []string) (string, erro
 	return shortcutListText, nil
 }
 
-// getHistoryFunc returns last {maxHistorySize} executed commands.
-func getHistoryFunc(console *Console, _ string, _ []string) (string, error) {
+// getHistoryFunc returns the last executed commands: as many as its argument
+// says, and DefaultOutputHistorySize without one.
+func getHistoryFunc(console *Console, _ string, args []string) (string, error) {
+	limit := DefaultOutputHistorySize
+
+	switch len(args) {
+	case 0:
+	case 1:
+		count, err := strconv.Atoi(args[0])
+		if err != nil || count < 0 {
+			return "", errNotUnsigned
+		}
+
+		limit = count
+	default:
+		return "", errTheCommandExpectsZeroOrSingleArgument
+	}
+
 	if console.history == nil || len(console.history.commands) == 0 {
 		return "", nil
 	}
 
 	outputData := console.history.commands
-	if len(console.history.commands) > console.connOpts.MaxOutputHistoryLen {
-		outputData = outputData[len(outputData)-console.connOpts.MaxOutputHistoryLen:]
+	if len(outputData) > limit {
+		outputData = outputData[len(outputData)-limit:]
 	}
 
 	return strings.Join(outputData, "\n-----\n"), nil
@@ -613,11 +629,9 @@ var cmdInfos = []cmdInfo{
 		),
 	},
 	{
-		Short: getHistoryList,
-		Long:  "show history of executed commands",
-		Cmd: newNoArgsCmdDecorator(
-			newBaseCmd([]string{getHistoryList}, getHistoryFunc),
-		),
+		Short: getHistoryList + " [<count>]",
+		Long:  "show the last <count> executed commands (default 10)",
+		Cmd:   newBaseCmd([]string{getHistoryList}, getHistoryFunc),
 	},
 	// The Tarantool console has `\quit` command, but it requires execute
 	// access.

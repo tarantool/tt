@@ -53,7 +53,7 @@ func TestBuiltinCommandsAfterBoot(t *testing.T) {
 	restoreProcessState(t)
 
 	root, err := Boot(BootOptions{Args: []string{
-		"-V", "--no-prompt", "-I", "-s", "--cfg", "x.yaml", "start",
+		"-V", "--no-prompt", "-I", "-s", "start",
 	}})
 	require.NoError(t, err)
 
@@ -63,7 +63,25 @@ func TestBuiltinCommandsAfterBoot(t *testing.T) {
 	assert.True(t, cmdCtx.Cli.NoPrompt)
 	assert.True(t, cmdCtx.Cli.ForceInternal)
 	assert.True(t, cmdCtx.Cli.IsSelfExec)
-	assert.Equal(t, "x.yaml", cmdCtx.Cli.ConfigPath)
+}
+
+// TestBootRefusesRemovedFlags checks that the flags that chose a tt.yaml are
+// gone: -S, -L and -c, long and short, are unknown flags of the root.
+//
+//nolint:paralleltest // Replaces the package root and the process logger.
+func TestBootRefusesRemovedFlags(t *testing.T) {
+	for _, args := range [][]string{
+		{"-S"}, {"--system"}, {"-L", "dir"}, {"--local", "dir"}, {"-c", "tt.yaml"},
+		{"--cfg", "tt.yaml"},
+	} {
+		restoreProcessState(t)
+
+		root, err := Boot(BootOptions{Args: append(args, "version")})
+		require.NoError(t, err)
+
+		err = root.ParseFlags(append(args, "version"))
+		require.ErrorContains(t, err, "unknown", args)
+	}
 }
 
 // TestBuiltinCommandsAreLegacy checks that every builtin is marked legacy.

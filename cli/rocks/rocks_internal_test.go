@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
-	"github.com/tarantool/tt/v3/cli/config"
 )
 
 func TestAddLuarocksRepoOpts(t *testing.T) {
@@ -60,7 +59,6 @@ func TestAddLuarocksRepoOpts(t *testing.T) {
 func TestSetupTarantoolPrefix(t *testing.T) {
 	type prefixInput struct {
 		cli          cmdcontext.CliCtx
-		cliOpts      *config.CliOpts
 		data         *[]byte
 		tntPrefixEnv string
 	}
@@ -77,9 +75,6 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 
 	tntBinPath := testDir + "/bin/tarantool"
 
-	cwd, err := os.Getwd()
-	require.NoError(t, err)
-
 	testCases := make(map[prefixInput]prefixOutput)
 
 	tntOkData := []byte("#!/bin/sh\n" +
@@ -88,8 +83,7 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 		"Build options: cmake . -DCMAKE_INSTALL_PREFIX=/usr -DENABLE_BACKTRACE=yes'")
 
 	testCases[prefixInput{cli: cmdcontext.CliCtx{
-		IsTarantoolBinFromRepo: false,
-		TarantoolCli:           cmdcontext.TarantoolCli{Executable: tntBinPath},
+		TarantoolCli: cmdcontext.TarantoolCli{Executable: tntBinPath},
 	}, data: &tntOkData}] = prefixOutput{
 		prefix: "/usr",
 		err:    nil,
@@ -97,8 +91,7 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 
 	testCases[prefixInput{
 		cli: cmdcontext.CliCtx{
-			IsTarantoolBinFromRepo: false,
-			TarantoolCli:           cmdcontext.TarantoolCli{Executable: tntBinPath},
+			TarantoolCli: cmdcontext.TarantoolCli{Executable: tntBinPath},
 		},
 		data:         &tntOkData,
 		tntPrefixEnv: "/tnt/prefix",
@@ -113,8 +106,7 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 		"Build options: cmake . -D_FAIL_HERE_=/usr -DENABLE_BACKTRACE=yes'")
 
 	testCases[prefixInput{cli: cmdcontext.CliCtx{
-		IsTarantoolBinFromRepo: false,
-		TarantoolCli:           cmdcontext.TarantoolCli{Executable: tntBinPath},
+		TarantoolCli: cmdcontext.TarantoolCli{Executable: tntBinPath},
 	}, data: &tntBadData0}] = prefixOutput{
 		err: errPrefixPathRegexpMismatch,
 	}
@@ -124,25 +116,22 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 		"Target: Linux-x86_64-RelWithDebInfo\n'")
 
 	testCases[prefixInput{cli: cmdcontext.CliCtx{
-		IsTarantoolBinFromRepo: false,
-		TarantoolCli:           cmdcontext.TarantoolCli{Executable: tntBinPath},
+		TarantoolCli: cmdcontext.TarantoolCli{Executable: tntBinPath},
 	}, data: &tntBadData1}] = prefixOutput{
 		err: errPrefixPathExpectedMoreData,
 	}
 
-	appOpts := config.TtEnvOpts{IncludeDir: "hdr"}
-	cliOpts := config.CliOpts{Env: &appOpts}
-
+	// The prefix of a tarantool tt binary installed comes first, before
+	// the environment.
 	testCases[prefixInput{
 		cli: cmdcontext.CliCtx{
-			IsTarantoolBinFromRepo: true,
-			TarantoolCli:           cmdcontext.TarantoolCli{Executable: tntBinPath},
+			TarantoolPrefix: "/project/.tarantool",
+			TarantoolCli:    cmdcontext.TarantoolCli{Executable: tntBinPath},
 		},
-		cliOpts:      &cliOpts,
 		data:         &tntOkData,
 		tntPrefixEnv: "/tnt/prefix",
 	}] = prefixOutput{
-		prefix: cwd + "/hdr",
+		prefix: "/project/.tarantool",
 		err:    nil,
 	}
 
@@ -164,7 +153,7 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 			t.Setenv(tarantoolPrefixEnvVarName, input.tntPrefixEnv)
 		}
 
-		tarantoolPrefix, err := GetTarantoolPrefix(&input.cli, input.cliOpts)
+		tarantoolPrefix, err := GetTarantoolPrefix(&input.cli)
 
 		_ = os.Unsetenv(tarantoolPrefixEnvVarName)
 

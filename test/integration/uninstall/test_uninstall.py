@@ -42,11 +42,8 @@ def assert_active(root: Path, installation: Path, program: str) -> None:
         assert (root / "include" / executable).resolve() == installation / "include" / executable
 
 
-def uninstall(tt_cmd, cwd, program, version=None, *, scope="project", config=None):
-    cmd = [tt_cmd, "--self"]
-    if config:
-        cmd.extend(["--cfg", config])
-    cmd.extend(["binary", "--scope", scope, "uninstall", program])
+def uninstall(tt_cmd, cwd, program, version=None, *, scope="project"):
+    cmd = [tt_cmd, "--self", "binary", "--scope", scope, "uninstall", program]
     if version is not None:
         cmd.append(version)
     return run_command_and_get_output(cmd, cwd=cwd)
@@ -322,11 +319,11 @@ def test_uninstall_ignores_configured_directories(tt_cmd, tmp_path):
     (legacy / "bin").mkdir()
     (legacy / "bin" / "tarantool_3.0.0").write_text("legacy binary")
     (legacy / "include" / "tarantool_3.0.0").mkdir(parents=True)
-    config = legacy / config_name
-    config.write_text("env:\n  bin_dir: bin\n  inc_dir: include\n")
+    # The tt.yaml tt 2.x would have found names the legacy directories.
+    (tmp_path / config_name).write_text("env:\n  bin_dir: legacy/bin\n  inc_dir: legacy/include\n")
     root = tmp_path / ".tarantool"
     removed = install_version(root, "tarantool", "3.0.0", active=True)
-    rc, output = uninstall(tt_cmd, tmp_path, "tarantool", "3.0.0", config=config)
+    rc, output = uninstall(tt_cmd, tmp_path, "tarantool", "3.0.0")
     assert rc == 0, output
     assert not removed.exists()
     assert (legacy / "bin" / "tarantool_3.0.0").read_text() == "legacy binary"

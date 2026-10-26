@@ -250,7 +250,7 @@ def test_connect_and_get_commands_outputs(tt_cmd, tmpdir_with_cfg):
   \\x[l,t,T,y]                     -- set output format lua, table, ttable or yaml
   \\x[g,G]                         -- disables/enables pseudographics for table modes
   \\shortcuts                      -- show available hotkeys and shortcuts
-  \\history                        -- show history of executed commands
+  \\history [<count>]              -- show the last <count> executed commands (default 10)
   \\quit, \\q                       -- quit from the console
 
 """

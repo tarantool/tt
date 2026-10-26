@@ -217,7 +217,7 @@ func TestBinaryInstallParentFlags(t *testing.T) {
 	}
 }
 
-// TestBinaryInstallSDK uses the archive installer without requiring tt.yaml.
+// TestBinaryInstallSDK uses the archive installer.
 func TestBinaryInstallSDK(t *testing.T) {
 	restoreProcessState(t)
 	t.Chdir(t.TempDir())
@@ -225,8 +225,6 @@ func TestBinaryInstallSDK(t *testing.T) {
 	root := NewCmdRoot()
 	root.SetOut(io.Discard)
 	root.SetErr(io.Discard)
-
-	cmdCtx.Cli.ConfigPath = ""
 
 	directory := filepath.Join(t.TempDir(), "missing")
 	root.SetArgs([]string{
@@ -599,19 +597,14 @@ func TestBinaryScopedCommandsWithoutConfig(t *testing.T) {
 		t.Run(scope.String(), func(t *testing.T) {
 			restoreProcessState(t)
 
-			previousOpts := cliOpts
-
-			t.Cleanup(func() { cliOpts = previousOpts })
-
-			cliOpts = nil
-
 			work := t.TempDir()
 			t.Chdir(work)
 			t.Setenv("HOME", t.TempDir())
 			t.Setenv("XDG_DATA_HOME", t.TempDir())
 
-			cmdCtx.Cli.ConfigPath = filepath.Join(work, "tt.yaml")
-			require.NoError(t, os.WriteFile(cmdCtx.Cli.ConfigPath, []byte("[broken"), 0o600))
+			// A tt.yaml is not read, broken or not.
+			require.NoError(t, os.WriteFile(filepath.Join(work, "tt.yaml"), []byte("[broken"),
+				0o600))
 
 			root, err := scope.ArtifactPath()
 			require.NoError(t, err)
@@ -789,12 +782,6 @@ func TestBinaryCredentialsFile(t *testing.T) {
 
 func TestBinaryUninstallCompletionScope(t *testing.T) {
 	restoreProcessState(t)
-
-	previousOpts := cliOpts
-
-	t.Cleanup(func() { cliOpts = previousOpts })
-
-	cliOpts = nil
 
 	parent := t.TempDir()
 	child := filepath.Join(parent, "child")

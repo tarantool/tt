@@ -447,47 +447,6 @@ func RemoveScheme(inputURL string) (string, error) {
 	return result, nil
 }
 
-// Chdir changes current directory and updates PWD environment var accordingly.
-// This can be useful for some scripts, which use getenv('PWD') to get working directory.
-func Chdir(newPath string) (func() error, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get current directory: %w", err)
-	}
-
-	err = os.Chdir(newPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to change directory: %w", err)
-	}
-
-	// Update PWD environment var.
-	err = os.Setenv("PWD", newPath)
-	if err != nil {
-		err = os.Chdir(cwd)
-		if err != nil {
-			return nil, fmt.Errorf("failed to change directory back: %w", err)
-		}
-
-		_ = os.Setenv("PWD", cwd) // Return PWD back.
-
-		return nil, fmt.Errorf("failed to change PWD environment variable: %w", err)
-	}
-
-	return func() error {
-		err = os.Chdir(cwd)
-		if err != nil {
-			return fmt.Errorf("failed to change directory back: %w", err)
-		}
-
-		err = os.Setenv("PWD", cwd)
-		if err != nil {
-			return fmt.Errorf("failed to change PWD environment variable: %w", err)
-		}
-
-		return nil
-	}, nil
-}
-
 // BitHas32 checks if a bit is set in b.
 func BitHas32(b, flag uint32) bool { return b&flag != 0 }
 

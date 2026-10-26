@@ -230,33 +230,6 @@ def test_start_failure_after_open_closes_the_backup(tt, tt_app, tmp_path):
 
 @pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
 @pytest.mark.tt_app(**TT_BACKUP_APP)
-def test_start_with_explicit_config(tt, tt_app, tmp_path):
-    """--config is how the orchestrator points a start at an environment its
-    job does not stand in. The same command without it cannot even resolve the
-    target, so the flag has to carry the whole environment, not just the dial."""
-    target = app_instance(tt_app, STORAGE_1_A)
-    config = Path(tt.work_dir) / "tt.yaml"
-    backup_id = "itest-cfg"
-
-    # "/" is the one cwd guaranteed to be outside the environment: tt searches
-    # parent directories for tt.yaml, so any dir below it would find the config
-    # on its own and the flag would prove nothing.
-    rc, out = start_backup(tt, target, backup_id, cwd="/")
-    assert rc != 0, f"without --config the environment must not resolve:\n{out}"
-    assert not os.path.exists(backup_dir(backup_id))
-
-    rc, out = start_backup(tt, target, backup_id, config=config, cwd="/")
-    assert rc == 0, f"tt backup start -c failed:\n{out}"
-
-    try:
-        inspect_backup_artifact(archive_path_from_output(out), tmp_path / "cfg", backup_id)
-    finally:
-        rc, cleanup_out = finalize_backup(tt, target, backup_id, config=config, cwd="/")
-        assert rc == 0, f"backup cleanup failed:\n{cleanup_out}"
-
-
-@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
-@pytest.mark.tt_app(**TT_BACKUP_APP)
 def test_start_dir_holds_both_artifacts_directly(tt, tt_app, tmp_path):
     """--dir names the directory the orchestrator collects from, so both
     artifacts land in it and nothing goes anywhere else: a <backup-id> level

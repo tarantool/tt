@@ -1121,7 +1121,7 @@ func tarantoolInfo() (manifestrocks.TarantoolInfo, error) {
 		return manifestrocks.TarantoolInfo{}, err
 	}
 
-	prefix, err := oldrocks.GetTarantoolPrefix(&cmdCtx.Cli, cliOpts)
+	prefix, err := oldrocks.GetTarantoolPrefix(&cmdCtx.Cli)
 	if err != nil {
 		return manifestrocks.TarantoolInfo{}, err
 	}

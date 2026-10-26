@@ -229,49 +229,6 @@ def test_finalize_rejects_traversing_backup_id(tt, tt_app, tmp_path):
 
 @pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
 @pytest.mark.tt_app(**TT_BACKUP_APP)
-def test_finalize_with_config(tt, tt_app):
-    """The orchestrator finalizes from wherever its job runs, not from the
-    environment directory; --config is the only thing that makes the target
-    resolvable there, and the sweep must be as complete as a local one."""
-    target = app_instance(tt_app, STORAGE_1_A)
-    config = Path(tt.work_dir) / "tt.yaml"
-    backup_id = "itest-fin-cfg"
-
-    # "/" is the one cwd guaranteed to be outside the environment: tt walks up
-    # from the cwd looking for tt.yaml, so any directory below it would find
-    # the config on its own and the flag would prove nothing.
-    rc, out = start_backup(tt, target, backup_id, config=config, cwd="/")
-    assert rc == 0, f"tt backup start -c failed:\n{out}"
-    archive_path = Path(archive_path_from_output(out))
-
-    rc, out = finalize_backup(tt, target, backup_id, cwd="/")
-    assert rc != 0, f"without --config the environment must not resolve:\n{out}"
-    assert archive_path.is_file(), "a finalize that never reached the instance removes nothing"
-
-    rc, out = finalize_backup(tt, target, backup_id, config=config, cwd="/")
-
-    assert rc == 0, f"tt backup finalize -c failed:\n{out}"
-    assert get_backup_info_app(tt, target) is None
-    assert not Path(backup_dir(backup_id)).exists()
-
-
-@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
-@pytest.mark.tt_app(**TT_BACKUP_APP)
-def test_finalize_bad_config_names_the_path(tt, tt_app, tmp_path):
-    """A --config that does not exist has to be named in the error. The
-    generic "tt.yaml not found" sends the operator looking for a config in the
-    cwd, while the job passed an explicit path that was silently ignored."""
-    target = app_instance(tt_app, STORAGE_1_A)
-    missing = tmp_path / "nowhere" / "tt.yaml"
-
-    rc, out = finalize_backup(tt, target, "itest-fin-nocfg", config=missing, cwd="/")
-
-    assert rc != 0, f"a missing --config must fail the command:\n{out}"
-    assert str(missing) in out, out
-
-
-@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
-@pytest.mark.tt_app(**TT_BACKUP_APP)
 def test_finalize_force_closes_open_backup_and_keeps_local_artifacts(tt, tt_app):
     target = app_instance(tt_app, STORAGE_1_A)
     backup_id = "itest-finalize-force"

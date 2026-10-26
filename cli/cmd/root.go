@@ -14,7 +14,6 @@ import (
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
-	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/logging"
 )
 
@@ -25,7 +24,6 @@ var (
 
 var (
 	cmdCtx  cmdcontext.CmdCtx
-	cliOpts *config.CliOpts
 	rootCmd *cobra.Command
 	// logFormat is the value of the --log-format flag.
 	logFormat = logging.FormatText
@@ -95,8 +93,8 @@ func newRootCmd() *cobra.Command {
 		Use:   "tt",
 		Short: short,
 		Long:  long,
-		Example: `$ tt -L /path/to/local/dir version
-  $ tt -S -I help
+		Example: `$ tt -V version
+  $ tt -I help
   $ tt completion`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
@@ -108,14 +106,8 @@ func newRootCmd() *cobra.Command {
 		TraverseChildren: true,
 	}
 
-	rootCmd.Flags().BoolVarP(&cmdCtx.Cli.IsSystem, "system", "S",
-		false, "System launch")
-	rootCmd.Flags().StringVarP(&cmdCtx.Cli.LocalLaunchDir, "local", "L",
-		"", "Local launch")
 	rootCmd.Flags().BoolVarP(&cmdCtx.Cli.ForceInternal, "internal", "I",
 		false, "Use internal module")
-	rootCmd.Flags().StringVarP(&cmdCtx.Cli.ConfigPath, "cfg", "c",
-		"", "Path to configuration file")
 	rootCmd.Flags().BoolVarP(&cmdCtx.Cli.Verbose, "verbose", "V",
 		false, "Verbose output")
 	rootCmd.Flags().Var(&logFormat, "log-format",

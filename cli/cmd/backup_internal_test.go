@@ -938,53 +938,6 @@ func TestPrintManifestTableNamesShardWithoutReason(t *testing.T) {
 	assert.Contains(t, rendered, "no instance recorded")
 }
 
-// keepBackupGlobals restores the process-wide config state applyBackupConfig
-// writes into.
-func keepBackupGlobals(t *testing.T) {
-	t.Helper()
-
-	previousOpts, previousCli := cliOpts, cmdCtx.Cli
-
-	t.Cleanup(func() {
-		cliOpts = previousOpts
-		cmdCtx.Cli = previousCli
-	})
-}
-
-func TestApplyBackupConfigMissingFileNamesThePath(t *testing.T) {
-	keepBackupGlobals(t)
-
-	// A missing config is answered with the built-in defaults, so the flag is
-	// ignored and the failure surfaces as "tt.yaml not found" -- pointing at the
-	// cwd instead of the path the job passed.
-	missing := filepath.Join(t.TempDir(), "nowhere", "tt.yaml")
-
-	err := applyBackupConfig(missing)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), missing)
-	assert.Nil(t, cliOpts, "a rejected config must not be applied")
-}
-
-func TestApplyBackupConfigLoadsExistingFile(t *testing.T) {
-	keepBackupGlobals(t)
-
-	dir := t.TempDir()
-	path := filepath.Join(dir, "tt.yaml")
-	require.NoError(t, os.WriteFile(path, []byte("env:\n  instances_enabled: .\n"), 0o644))
-
-	require.NoError(t, applyBackupConfig(path))
-	assert.Equal(t, path, cmdCtx.Cli.ConfigPath)
-	assert.Equal(t, dir, cmdCtx.Cli.ConfigDir)
-	require.NotNil(t, cliOpts)
-}
-
-func TestApplyBackupConfigEmptyFlagIsANoop(t *testing.T) {
-	keepBackupGlobals(t)
-
-	require.NoError(t, applyBackupConfig(""))
-	assert.Nil(t, cliOpts, "without the flag the root config stays in charge")
-}
-
 func TestRunBackupPlanRejectsInvalidStorageURI(t *testing.T) {
 	// Nothing in the full path reads the storage, so the URI has to be rejected
 	// up front: otherwise the typo survives the plan and is only found a whole

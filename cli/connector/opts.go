@@ -25,9 +25,6 @@ type ConnectOpts struct {
 	// ConnectTimeout bounds binary connection establishment. Non-positive values
 	// select DefaultConnectTimeout. It does not limit subsequent requests.
 	ConnectTimeout time.Duration
-	// MaxOutputHistoryLen is the maximal count of commands to output in
-	// the \history command.
-	MaxOutputHistoryLen int
 }
 
 // SslOpts is a way to configure SSL connection.

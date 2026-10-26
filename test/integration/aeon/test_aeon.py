@@ -5,6 +5,8 @@ from subprocess import PIPE, STDOUT, run
 
 import pytest
 
+from utils import make_project
+
 AeonConnectCommand = ("aeon", "connect")
 
 
@@ -24,9 +26,11 @@ def check_tt_aeon_response(output: str):
 
 
 def copy_app(tmpdir, app_name):
+    """Copy the application app_name into tmpdir, laid out as a project,
+    and return its path."""
     app_path = os.path.join(tmpdir, app_name)
     shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
-    shutil.copy2(os.path.join(tmpdir, "tt.yaml"), app_path)
+    make_project(app_path)
     return app_path
 
 

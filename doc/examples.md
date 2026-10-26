@@ -19,12 +19,6 @@ For example, we want to launch two instances based on one `init.lua`
 file and one instance based on the `router.init.lua` file. In order to
 do this, we create an application directory called `demo` with the content:
 
-`tt.yaml`:
-
-```yaml
-{}
-```
-
 `init.lua`:
 
 ``` lua
@@ -289,7 +283,7 @@ etcdctl get --prefix "/tt/"
 ```
 
 The same works for an application configuration. The following commands are
-run from the `test_app` application root, which contains `tt.yaml`:
+run from the `test_app` project directory:
 
 ```text
 $ tt cluster publish test_app cluster.yaml
@@ -408,8 +402,7 @@ $ tt daemon status
 
 To send request to daemon you can use CURL. In this example the client sends a
 request to start the `test_app` application. The daemon is started in the
-`test_app` application root, which contains `tt.yaml` and the application
-files.
+`test_app` project directory.
 
 ``` sh
 curl --header "Content-Type: application/json" --request POST \
@@ -470,9 +463,8 @@ http://127.0.0.1:1024/tarantool
     ...
 ```
 
-`tt` analog follows. The name-based commands are run from the `app1`
-application root containing `tt.yaml`; URI-based connections do not require
-application discovery:
+`tt` analog follows. The name-based commands are run from the `app1` project
+directory; URI-based connections do not require application discovery:
 
 ```text
     $ tt connect app1

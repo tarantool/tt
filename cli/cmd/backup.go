@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"maps"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -21,7 +20,6 @@ import (
 	"github.com/tarantool/tt/v3/cli/backup/chain"
 	"github.com/tarantool/tt/v3/cli/backup/gc"
 	"github.com/tarantool/tt/v3/cli/backup/verify"
-	"github.com/tarantool/tt/v3/cli/configure"
 	"github.com/tarantool/tt/v3/cli/connect"
 	"github.com/tarantool/tt/v3/cli/connector"
 	"github.com/tarantool/tt/v3/cli/exitcode"
@@ -38,7 +36,6 @@ var (
 		"--keep-full and --keep-days must not be negative",
 	)
 	errBackupNegativeOrphanAge       = errors.New("--orphan-age must not be negative")
-	errBackupConfigFile              = errors.New("config file")
 	errBackupSnapshotWithIncremental = errors.New(
 		"invalid flag: --snapshot applies to a full backup only; --from-vclock " +
 			"selects an incremental one, which ships no checkpoint",
@@ -58,14 +55,12 @@ var (
 // tt backup start / finalize / last / verify / gc flags. They are package-level because
 // cobra flag bindings need stable addresses; only one backup subcommand runs per process.
 var (
-	backupStartCfg        string
 	backupStartID         string
 	backupStartFromVclock string
 	backupStartTTL        time.Duration
 	backupStartDir        string
 	backupStartSnapshot   bool
 
-	backupFinalizeCfg   string
 	backupFinalizeID    string
 	backupFinalizeForce bool
 	backupFinalizeDir   string
@@ -387,9 +382,6 @@ whose iproto listener has TLS enabled.`,
 		Args: cobra.ExactArgs(1),
 		RunE: backupRunE(runBackupStart),
 	}
-	cmd.Flags().StringVarP(&backupStartCfg, "config", "c", "",
-		"path to the tt environment configuration (tt.yaml) that resolves an "+
-			"<APP:INSTANCE> target; a <URI> target needs none")
 	cmd.Flags().StringVar(&backupStartID, "backup-id", "",
 		"backup identifier (required); 'tt backup-id' prints a new one")
 	cmd.Flags().StringVar(&backupStartFromVclock, "from-vclock", "",
@@ -432,9 +424,6 @@ whose iproto listener has TLS enabled.`,
 		RunE: backupRunE(runBackupFinalize),
 	}
 
-	cmd.Flags().StringVarP(&backupFinalizeCfg, "config", "c", "",
-		"path to the tt environment configuration (tt.yaml) that resolves an "+
-			"<APP:INSTANCE> target; a <URI> target needs none")
 	cmd.Flags().StringVar(&backupFinalizeID, "backup-id", "",
 		"backup identifier; local artifacts of the target replicaset are removed")
 	cmd.Flags().BoolVar(&backupFinalizeForce, "force", false,
@@ -1394,35 +1383,6 @@ func printBackupGcTable(plan *gc.Plan, result *gc.Result) {
 	}
 }
 
-// applyBackupConfig reloads cliOpts/cmdCtx.Cli.ConfigPath from a per-command
-// --config flag. Other tt subcommands rely on the root -c/--cfg flag, but
-// 'tt backup' is invoked by the orchestrator with its own --config, so the
-// config is reloaded here when the flag is set.
-func applyBackupConfig(localCfg string) error {
-	if localCfg == "" {
-		return nil
-	}
-
-	opts, configPath, err := configure.GetCliOpts(localCfg, cmdCtx.Integrity.Repository)
-	if err != nil {
-		return fmt.Errorf("failed to load config %q: %w", localCfg, err)
-	}
-
-	// A missing file is answered with the built-in defaults and an empty path,
-	// so the flag would be silently ignored and the run would fail much later
-	// with "tt.yaml not found" -- sending the operator to look in the cwd for a
-	// config the job passed by an explicit path.
-	if configPath == "" {
-		return fmt.Errorf("%w %q does not exist", errBackupConfigFile, localCfg)
-	}
-
-	cmdCtx.Cli.ConfigPath = configPath
-	cmdCtx.Cli.ConfigDir = filepath.Dir(configPath)
-	cliOpts = opts
-
-	return nil
-}
-
 // addBackupConnectFlags registers the connection flags on a backup subcommand
 // that dials an instance. The names match the ones `tt connect` takes.
 func addBackupConnectFlags(cmd *cobra.Command) {
@@ -1452,7 +1412,6 @@ func backupConnectCtx() connect.ConnectCtx {
 		SrcFile:         "",
 		Language:        0,
 		Format:          formatter.DefaultFormat,
-		Interactive:     false,
 		ConnectTarget:   "",
 		Evaler:          "",
 		Binary:          true,
@@ -1468,12 +1427,7 @@ func backupConnectCtx() connect.ConnectCtx {
 
 // dialBackupTarget resolves <APP:INSTANCE> or <URI> and dials the binary port
 // (box.backup.* is a binary-protocol eval surface).
-func dialBackupTarget(cfg, target string) (connector.Connector, error) {
-	applyBackupConfigErr := applyBackupConfig(cfg)
-	if applyBackupConfigErr != nil {
-		return nil, fmt.Errorf("failed to apply backup config: %w", applyBackupConfigErr)
-	}
-
+func dialBackupTarget(target string) (connector.Connector, error) {
 	connCtx := backupConnectCtx()
 
 	connOpts, err := resolveConnectOpts(&cmdCtx, &connCtx, target)
@@ -1543,7 +1497,7 @@ func runBackupStartInner(args []string) (string, error) {
 		return "", errBackupSnapshotWithIncremental
 	}
 
-	conn, err := dialBackupTarget(backupStartCfg, args[0])
+	conn, err := dialBackupTarget(args[0])
 	if err != nil {
 		return "", fmt.Errorf("failed to dial backup target %q: %w", args[0], err)
 	}
@@ -1575,7 +1529,7 @@ func runBackupFinalize(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	conn, err := dialBackupTarget(backupFinalizeCfg, args[0])
+	conn, err := dialBackupTarget(args[0])
 	if err != nil {
 		return fmt.Errorf("failed to dial backup target %q: %w", args[0], err)
 	}
@@ -1636,7 +1590,6 @@ func discoverLiveTopology() (backup.LiveTopology, error) {
 		SrcFile:         "",
 		Language:        0,
 		Format:          formatter.DefaultFormat,
-		Interactive:     false,
 		ConnectTarget:   "",
 		Binary:          false,
 		Evaler:          "",

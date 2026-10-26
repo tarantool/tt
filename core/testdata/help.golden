@@ -50,20 +50,17 @@ HELP TOPICS[0m
  
 [0;1;39m
 FLAGS[0m
-  -c, --cfg string             Path to configuration file
   -h, --help                   help for tt
   -I, --internal               Use internal module
-  -L, --local string           Local launch
       --log-format text|json   Format of the log written to stderr: text or json
                                (default text)
       --no-prompt              Skip cli interaction using default behavior
   -s, --self                   Skip searching for other tt versions to run
-  -S, --system                 System launch
   -V, --verbose                Verbose output
 [0;1;39m
 EXAMPLES[0m
-  $ tt -L /path/to/local/dir version
-  $ tt -S -I help
+  $ tt -V version
+  $ tt -I help
   $ tt completion
 
 Use "tt <command> --help" for more information about a command.
@@ -165,9 +162,6 @@ whose iproto listener has TLS enabled.
 FLAGS[0m
       --backup-id string           backup identifier; local artifacts of the
                                    target replicaset are removed
-  -c, --config string              path to the tt environment configuration
-                                   (tt.yaml) that resolves an <APP:INSTANCE>
-                                   target; a <URI> target needs none
       --connect-timeout duration   timeout for establishing a binary connection
                                    (default 1s)
       --dir string                 directory holding the artifacts to remove;
@@ -589,9 +583,6 @@ whose iproto listener has TLS enabled.
 FLAGS[0m
       --backup-id string           backup identifier (required); 'tt backup-id'
                                    prints a new one
-  -c, --config string              path to the tt environment configuration
-                                   (tt.yaml) that resolves an <APP:INSTANCE>
-                                   target; a <URI> target needs none
       --connect-timeout duration   timeout for establishing a binary connection
                                    (default 1s)
       --dir string                 directory for the archive and the manifest
