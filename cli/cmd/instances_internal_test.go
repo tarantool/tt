@@ -38,6 +38,48 @@ func externalProject(t *testing.T) {
 	withProjectDir(t, dir)
 }
 
+// instanceNames returns the names of insts.
+func instanceNames(insts []running.InstanceCtx) []string {
+	names := make([]string, 0, len(insts))
+	for _, inst := range insts {
+		names = append(names, inst.InstName)
+	}
+
+	return names
+}
+
+// TestResolveAppTargetExternal pins how tt replicaset and tt cluster treat an
+// external process: it is no instance of the cluster, so it is left out of
+// the instances of the application, and naming it is an error.
+func TestResolveAppTargetExternal(t *testing.T) {
+	externalProject(t)
+
+	cmdCtx := &cmdcontext.CmdCtx{}
+
+	for target, wantInst := range map[string]string{
+		"myapp": "", "myapp:*": "", "myapp:storage-2": "storage-2",
+	} {
+		application, insts, instName, err := resolveAppTarget(cmdCtx, target)
+		require.NoError(t, err, target)
+		assert.Len(t, application.Instances, 3, "the description is whole")
+		assert.Equal(t, []string{"storage-1", "storage-2"}, instanceNames(insts), target)
+		assert.Equal(t, wantInst, instName, target)
+	}
+
+	application, insts, _, err := resolveAppTarget(cmdCtx, "myapp:worker-1")
+	require.ErrorIs(t, err, running.ErrNotTarantool)
+	assert.Nil(t, application)
+	assert.Nil(t, insts)
+
+	_, _, err = parseAppStr(cmdCtx, "myapp:worker-1")
+	require.ErrorIs(t, err, running.ErrNotTarantool)
+
+	// tt cluster may configure an instance that does not run on this host.
+	_, instName, err := parseAppStr(cmdCtx, "myapp:storage-3")
+	require.NoError(t, err)
+	assert.Equal(t, "storage-3", instName)
+}
+
 // TestTarantoolCommandsRefuseExternal pins that the commands that reach an
 // instance through its sockets refuse an external process, while the
 // instance commands find it.
@@ -55,6 +97,9 @@ func TestTarantoolCommandsRefuseExternal(t *testing.T) {
 	require.ErrorIs(t, err, running.ErrNotTarantool)
 
 	err = internalPlayModule(cmdCtx, []string{"myapp:worker-1", "00000000000000000000.xlog"})
+	require.ErrorIs(t, err, running.ErrNotTarantool)
+
+	err = internalReplicasetRebootstrapModule(cmdCtx, []string{"myapp:worker-1"})
 	require.ErrorIs(t, err, running.ErrNotTarantool)
 }
 

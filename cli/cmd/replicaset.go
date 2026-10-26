@@ -947,6 +947,11 @@ func internalReplicasetRebootstrapModule(cmdCtx *cmdcontext.CmdCtx, args []strin
 		return errOnlyOneInstanceSupportedForReBootstrap
 	}
 
+	err = running.RequireTarantool(&instances[0])
+	if err != nil {
+		return err
+	}
+
 	return replicaset.Rebootstrap(*cmdCtx, replicaset.RebootstrapCtx{
 		Instance:  instances[0],
 		Confirmed: rebootstrapConfirmed,

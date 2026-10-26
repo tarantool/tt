@@ -803,27 +803,22 @@ func readSourceFile(path string) ([]byte, map[string]any, error) {
 // instance commands find it (app.Load): an application has one config,
 // whichever command reaches it. The instance does not have to be in the
 // description, so that tt cluster publish can configure one before it runs
-// on this host.
+// on this host; but an external process the description declares is no
+// instance of the cluster, and naming it is an error.
 func parseAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, string, error) {
 	appName, instName, _ := strings.Cut(appStr, string(running.InstanceDelimiter))
 
-	configPath, err := appClusterConfigPath(cmdCtx, appName)
+	application, err := loadApp(cmdCtx, appName)
 	if err != nil {
 		return "", "", err
 	}
 
-	return configPath, instName, nil
-}
-
-// appClusterConfigPath returns the path to the cluster config of the pair of
-// the application appName.
-func appClusterConfigPath(cmdCtx *cmdcontext.CmdCtx, appName string) (string, error) {
-	application, err := loadApp(cmdCtx, appName)
+	err = running.RequireTarantoolRecord(application, instName)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return application.Pair.ConfigFile, nil
+	return application.Pair.ConfigFile, instName, nil
 }
 
 // loadApp loads the application appName and its pair as the instance

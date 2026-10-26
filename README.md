@@ -649,8 +649,8 @@ or any directory inside it. The project runs from a pair of files in
     └── storage.lua
 ```
 
-`instances.yaml` maps instance names to their records; every instance must be
-in the topology of `config.yaml`:
+`instances.yaml` maps instance names to their records; every Tarantool
+instance must be in the topology of `config.yaml`:
 
 ```yaml
 storage-001:
@@ -672,8 +672,40 @@ The data, the logs and the pid files and sockets of an instance are in
 `<root>/var/run/<app>/<instance>/`; in a project `<root>` is `.tarantool` in
 the project directory. The instance runs in the application directory.
 
-Records with `script` or `binary`, Tarantool instances configured by their
-own script and external processes, are not supported yet.
+A record with `binary` is an external process, which the instance commands
+start, stop and show next to the Tarantool instances, under the same watchdog:
+
+```yaml
+storage-001:
+gateway:
+  binary: ./bin/gateway   # or a program in PATH, such as python3
+  args: [--port, "8080"]
+  env: {GATEWAY_MODE: production}
+  workdir: ./gateway      # <root>/var/lib/<app>/<instance>/ by default
+  stop_signal: SIGINT     # SIGTERM by default
+  stop_timeout: 10s       # 30s by default
+  restart: on-failure     # no by default
+```
+
+`binary` and `workdir` are relative to the application directory, also in the
+pair of the host; a `binary` without a slash is looked up in `PATH` of `tt`,
+and `tt start` reports one it cannot run, or a `workdir` that does not exist,
+before it starts anything. Without `workdir` the process runs in its data
+directory, `<root>/var/lib/<app>/<instance>/`, which `tt start` creates. `env`
+goes on top of the environment of `tt`. The process leads a process group of
+its own, which its stop signal and `tt kill` reach whole, so that a wrapper
+script stops with the program it runs. Its output goes to `tt.log`; its
+watchdog keeps `tt.pid` and the pid of the process, `process.pid`, in the run
+directory. `tt status` shows whether the process runs and nothing more;
+`tt logrotate` reopens `tt.log` and sends the process SIGHUP, which stops a
+program that does not handle it; `tt clean` removes the log and the data
+directory. `tt connect`, `tt play`, `tt kill --dump` and the cluster commands
+refuse an external process: it is not a Tarantool instance. The instances
+start in the order of `instances.yaml`, and none waits for another to be
+ready.
+
+Records with `script`, Tarantool instances configured by their own script, are
+not supported yet.
 
 ### Working with application templates
 
