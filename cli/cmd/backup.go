@@ -20,6 +20,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/backup/chain"
 	"github.com/tarantool/tt/v3/cli/backup/gc"
 	"github.com/tarantool/tt/v3/cli/backup/verify"
+	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/connect"
 	"github.com/tarantool/tt/v3/cli/connector"
 	"github.com/tarantool/tt/v3/cli/exitcode"
@@ -473,15 +474,19 @@ func newBackupLastCmd() *cobra.Command {
 
 func newBackupPlanCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "plan --target=(incremental|full) --backup-storage=<uri> [flags]",
+		Use:   "plan [<APP>] --target=(incremental|full) --backup-storage=<uri> [flags]",
 		Short: "Plan the next backup: mode, master source, from_vclock",
 		Long: `Compute a backup plan from the current cluster topology and the latest
 manifest in the storage.
 
 The cluster configuration comes from --config: either the cluster
 configuration file (cluster.yaml) or the URI of the etcd or Tarantool Config
-Storage the cluster is configured from.`,
-		Example: `$ tt backup plan --target=incremental --backup-storage=file:///var/backups \
+Storage the cluster is configured from. <APP> names an application tt runs
+instead, found as the instance commands find it, with --scope and --template:
+the configuration is the one of its pair, and a relative unix socket of an
+instance is taken against the application directory its instances run in.`,
+		Example: `$ tt backup plan myapp --target=full --backup-storage=file:///var/backups
+  $ tt backup plan --target=incremental --backup-storage=file:///var/backups \
     -c cluster.yaml
   $ tt backup plan --target=incremental --backup-storage=file:///var/backups \
     -c http://etcd.example.com:2379/tt
@@ -490,10 +495,23 @@ Storage the cluster is configured from.`,
   $ tt backup plan --target=incremental --backup-storage=s3+https://... -c cluster.yaml
   $ tt backup plan --target=incremental --backup-storage=file:///var/backups \
     -c cluster.yaml --cluster-name payments-cluster --environment production`,
-		Args: cobra.NoArgs,
+		Args: cobra.MaximumNArgs(1),
 		RunE: backupRunE(runBackupPlan),
+		ValidArgsFunction: func(
+			cmd *cobra.Command,
+			args []string,
+			toComplete string,
+		) ([]string, cobra.ShellCompDirective) {
+			if len(args) != 0 {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+
+			return internal.ClusterValidArgsFunction(&cmdCtx, cmd, toComplete,
+				internal.Active)
+		},
 	}
 
+	addInstanceFlags(cmd)
 	addTarantoolConnectFlags(cmd)
 	cmd.Flags().StringVar(&backupPlanMode, "target", "",
 		"backup mode: incremental or full (required)")
@@ -511,7 +529,6 @@ Storage the cluster is configured from.`,
 
 	_ = cmd.MarkFlagRequired("target")
 	_ = cmd.MarkFlagRequired("backup-storage")
-	_ = cmd.MarkFlagRequired("config")
 
 	return cmd
 }
@@ -1386,6 +1403,7 @@ func printBackupGcTable(plan *gc.Plan, result *gc.Result) {
 // addBackupConnectFlags registers the connection flags on a backup subcommand
 // that dials an instance. The names match the ones `tt connect` takes.
 func addBackupConnectFlags(cmd *cobra.Command) {
+	addInstanceFlags(cmd)
 	cmd.Flags().StringVar(&backupSslKeyFile, "sslkeyfile", "",
 		"path to a private SSL key file")
 	cmd.Flags().StringVar(&backupSslCertFile, "sslcertfile", "",
@@ -1583,9 +1601,10 @@ func parseFromVclock(value string) (backup.Vclock, error) {
 	return vclock, nil
 }
 
-// discoverLiveTopology reads the cluster the plan is made for: which
+// discoverLiveTopology reads the cluster the plan is made for, the one of
+// configPath whose instances work in workDir (discoverClusterTopology): which
 // replicasets it has and which instance of each is writable right now.
-func discoverLiveTopology() (backup.LiveTopology, error) {
+func discoverLiveTopology(configPath, workDir string) (backup.LiveTopology, error) {
 	connectCtx := connect.ConnectCtx{
 		SrcFile:         "",
 		Language:        0,
@@ -1604,7 +1623,8 @@ func discoverLiveTopology() (backup.LiveTopology, error) {
 		SslPasswordFile: replicasetSslPasswordFile,
 	}
 
-	merged, hostnames, reachable, err := discoverClusterTopology(&cmdCtx, backupPlanCfg, connectCtx)
+	merged, hostnames, reachable, err := discoverClusterTopology(&cmdCtx, configPath, workDir,
+		connectCtx)
 	if err != nil {
 		return backup.LiveTopology{}, fmt.Errorf("failed to discover cluster topology: %w", err)
 	}
@@ -1639,7 +1659,12 @@ func runBackupPlan(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	live, err := discoverLiveTopology()
+	configPath, workDir, err := clusterConfigSource(&cmdCtx, args, backupPlanCfg)
+	if err != nil {
+		return err
+	}
+
+	live, err := discoverLiveTopology(configPath, workDir)
 	if err != nil {
 		return err
 	}

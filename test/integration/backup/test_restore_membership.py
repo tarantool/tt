@@ -39,7 +39,10 @@ from pathlib import Path
 import pytest
 import tt_helper
 from backup_helpers import (
+    app_config_path,
     app_instance,
+    app_instances_path,
+    app_name,
     archive_path_from_output,
     backup_dir,
     backup_plan,
@@ -47,6 +50,7 @@ from backup_helpers import (
     eval_yaml_app,
     exec_split,
     finalize_backup,
+    instance_data_dir,
     start_backup,
 )
 from storage_helpers import FileStorage
@@ -100,7 +104,7 @@ TT_MEMBERSHIP_ALL = dict(
     app_path="membership_app",
     app_name="app",
     instances=list(ALL_INSTANCES),
-    running_targets=["app"],
+    running_targets=["app:*"],
     post_start=post_start_two_members,
 )
 
@@ -111,7 +115,7 @@ TT_MEMBERSHIP_ALL = dict(
 def data_dir(tt_app, instance):
     """The instance's data directory: the app configures none of the three
     keys, so Tarantool and a restore agree on the default var/lib/<name>."""
-    return Path(tt_app.path("var", "lib", instance))
+    return Path(instance_data_dir(tt_app, instance))
 
 
 # The app ships with all three members declared; a scenario keeps the
@@ -128,23 +132,23 @@ MEMBER_C_INSTANCE = "storage-001-c:\n"
 
 
 def drop_member_c(tt_app):
-    config = Path(tt_app.path("config.yaml"))
+    config = Path(app_config_path(tt_app))
     text = config.read_text(encoding="utf-8")
     assert MEMBER_C_STANZA in text, "storage-001-c is not declared"
     config.write_text(text.replace(MEMBER_C_STANZA, ""), encoding="utf-8")
 
-    instances = Path(tt_app.path("instances.yml"))
+    instances = Path(app_instances_path(tt_app))
     text = instances.read_text(encoding="utf-8")
     instances.write_text(text.replace(MEMBER_C_INSTANCE, ""), encoding="utf-8")
 
 
 def add_member_c(tt_app):
-    config = Path(tt_app.path("config.yaml"))
+    config = Path(app_config_path(tt_app))
     text = config.read_text(encoding="utf-8")
     assert MEMBER_C_STANZA not in text, "storage-001-c is already declared"
     config.write_text(text + MEMBER_C_STANZA, encoding="utf-8")
 
-    instances = Path(tt_app.path("instances.yml"))
+    instances = Path(app_instances_path(tt_app))
     text = instances.read_text(encoding="utf-8")
     instances.write_text(text + MEMBER_C_INSTANCE, encoding="utf-8")
 
@@ -252,9 +256,9 @@ def create_recovery_point(tt, target, label):
     )
 
 
-def backup_plan_file(tt, target, storage_uri, config_path, tmp_path, name):
+def backup_plan_file(tt, target, storage_uri, app, tmp_path, name):
     """Run tt backup plan and keep its raw output as the file upload reads."""
-    rc, out = backup_plan(tt, target, storage_uri, config=config_path, fmt="json")
+    rc, out = backup_plan(tt, target, storage_uri, app=app, fmt="json")
     assert rc == 0, f"tt backup plan --target={target} failed:\n{out}"
 
     path = tmp_path / name
@@ -325,8 +329,9 @@ def restore_plan_document(tt, storage_uri, target_time, dest, config):
 def apply_for_instance(tt, tt_app, items, point, label, instance, uuid, work_dir=None):
     """tt restore apply for one member of the replicaset: the same chain, the
     same point and the same label for everyone, --patch-uuid the only thing
-    that differs. Without a work_dir the directories come from the app's own
-    config for that instance; a work_dir names a flat throwaway directory."""
+    that differs. Without a work_dir the instance is the target, and the
+    directories are the ones tt starts it with; a work_dir names a flat
+    throwaway directory."""
     args = [
         "restore",
         "apply",
@@ -342,9 +347,7 @@ def apply_for_instance(tt, tt_app, items, point, label, instance, uuid, work_dir
         uuid,
     ]
     if work_dir is None:
-        args.extend(
-            ["-c", tt_app.path("config.yaml"), "--instance", instance, "--work-dir", tt_app.path()],
-        )
+        args.append(f"{app_name(tt_app)}:{instance}")
     else:
         args.extend(["--work-dir", str(work_dir)])
     return tt.exec(*args)
@@ -352,7 +355,7 @@ def apply_for_instance(tt, tt_app, items, point, label, instance, uuid, work_dir
 
 def stop_instances(tt, tt_app, names):
     for name in names:
-        proc = tt.run("stop", app_instance(tt_app, name), "-y")
+        proc = tt.run("instance", "stop", app_instance(tt_app, name), "-y")
         assert proc.returncode == 0, f"tt stop {name} failed:\n{proc.stdout}"
 
 
@@ -363,7 +366,7 @@ def wipe_instances(tt_app, names):
 
 def start_instances(tt, tt_app, names):
     for name in names:
-        proc = tt.run("start", app_instance(tt_app, name))
+        proc = tt.run("instance", "start", app_instance(tt_app, name))
         assert proc.returncode == 0, f"tt start {name} failed:\n{proc.stdout}"
     assert tt_helper.wait_box_status(
         60,
@@ -431,7 +434,7 @@ def commit_sync_row(tt, tt_app, row_id):
 @pytest.mark.tt_app(**TT_MEMBERSHIP_TWO)
 def test_membership_replica_added_between_full_and_increment(tt, tt_app, tmp_path):
     leader = app_instance(tt_app, STORAGE_A)
-    config_path = tt_app.path("config.yaml")
+    config_path = app_config_path(tt_app)
 
     # -- Two members up, in step, under their pinned identities; the third
     # is out of the config until it joins between the two backups.
@@ -455,7 +458,7 @@ def test_membership_replica_added_between_full_and_increment(tt, tt_app, tmp_pat
         tt,
         "full",
         storage.uri,
-        config_path,
+        app_name(tt_app),
         tmp_path,
         "plan-full.json",
     )
@@ -474,7 +477,7 @@ def test_membership_replica_added_between_full_and_increment(tt, tt_app, tmp_pat
 
     # -- The third member joins the live replicaset after the full was taken.
     add_member_c(tt_app)
-    proc = tt.run("start", app_instance(tt_app, STORAGE_C))
+    proc = tt.run("instance", "start", app_instance(tt_app, STORAGE_C))
     assert proc.returncode == 0, f"tt start {STORAGE_C} failed:\n{proc.stdout}"
     assert tt_helper.wait_box_status(
         60,
@@ -501,7 +504,7 @@ def test_membership_replica_added_between_full_and_increment(tt, tt_app, tmp_pat
         tt,
         "incremental",
         storage.uri,
-        config_path,
+        app_name(tt_app),
         tmp_path,
         "plan-inc.json",
     )
@@ -672,12 +675,12 @@ def replace_member_uuid(tt, tt_app, name, old_uuid, new_uuid):
     )
     assert row[1] == old_uuid, row
 
-    config_path = Path(tt_app.path("config.yaml"))
+    config_path = Path(app_config_path(tt_app))
     config = config_path.read_text(encoding="utf-8")
     assert config.count(old_uuid) == 1, "the old uuid must name exactly one site"
     config_path.write_text(config.replace(old_uuid, new_uuid), encoding="utf-8")
 
-    proc = tt.run("start", app_instance(tt_app, name))
+    proc = tt.run("instance", "start", app_instance(tt_app, name))
     assert proc.returncode == 0, f"tt start {name} failed:\n{proc.stdout}"
     assert tt_helper.wait_box_status(
         60,
@@ -691,7 +694,7 @@ def replace_member_uuid(tt, tt_app, name, old_uuid, new_uuid):
 @pytest.mark.tt_app(**TT_MEMBERSHIP_TWO)
 def test_membership_uuid_replaced_between_backups(tt, tt_app, tmp_path):
     leader = app_instance(tt_app, STORAGE_A)
-    config_path = tt_app.path("config.yaml")
+    config_path = app_config_path(tt_app)
 
     # -- {A, B} in step; the full and the first increment are taken on it.
     # storage-001-c never joins this scenario, so it stays out of the config.
@@ -713,7 +716,7 @@ def test_membership_uuid_replaced_between_backups(tt, tt_app, tmp_path):
         tt,
         "full",
         storage.uri,
-        config_path,
+        app_name(tt_app),
         tmp_path,
         "plan-full.json",
     )
@@ -729,7 +732,7 @@ def test_membership_uuid_replaced_between_backups(tt, tt_app, tmp_path):
         tt,
         "incremental",
         storage.uri,
-        config_path,
+        app_name(tt_app),
         tmp_path,
         "plan-inc1.json",
     )
@@ -765,7 +768,7 @@ def test_membership_uuid_replaced_between_backups(tt, tt_app, tmp_path):
         tt,
         "incremental",
         storage.uri,
-        config_path,
+        app_name(tt_app),
         tmp_path,
         "plan-inc2.json",
     )
@@ -969,7 +972,7 @@ def test_membership_uuid_replaced_between_backups(tt, tt_app, tmp_path):
 @pytest.mark.tt_app(**TT_MEMBERSHIP_ALL)
 def test_membership_member_removed_between_backups(tt, tt_app, tmp_path):
     leader = app_instance(tt_app, STORAGE_A)
-    config_path = tt_app.path("config.yaml")
+    config_path = app_config_path(tt_app)
 
     # -- All three members up and following the leader.
     for name in (STORAGE_B, STORAGE_C):
@@ -990,7 +993,7 @@ def test_membership_member_removed_between_backups(tt, tt_app, tmp_path):
         tt,
         "full",
         storage.uri,
-        config_path,
+        app_name(tt_app),
         tmp_path,
         "plan-full.json",
     )
@@ -1005,7 +1008,7 @@ def test_membership_member_removed_between_backups(tt, tt_app, tmp_path):
         tt,
         "incremental",
         storage.uri,
-        config_path,
+        app_name(tt_app),
         tmp_path,
         "plan-inc1.json",
     )
@@ -1048,7 +1051,7 @@ def test_membership_member_removed_between_backups(tt, tt_app, tmp_path):
         tt,
         "incremental",
         storage.uri,
-        config_path,
+        app_name(tt_app),
         tmp_path,
         "plan-inc2.json",
     )
@@ -1169,14 +1172,13 @@ def test_backup_membership_covers_the_frozen_range(tt, tt_app, tmp_path):
     entry carries its cluster id, the way every member always has.
     """
     leader = app_instance(tt_app, STORAGE_A)
-    config_path = tt_app.path("config.yaml")
     wait_following(tt, tt_app, STORAGE_B, 1)
     drop_member_c(tt_app)
 
     eval_yaml_app(tt, leader, "return box.snapshot()")
 
     add_member_c(tt_app)
-    proc = tt.run("start", app_instance(tt_app, STORAGE_C))
+    proc = tt.run("instance", "start", app_instance(tt_app, STORAGE_C))
     assert proc.returncode == 0, f"tt start {STORAGE_C} failed:\n{proc.stdout}"
     assert tt_helper.wait_box_status(
         60,
@@ -1197,7 +1199,7 @@ def test_backup_membership_covers_the_frozen_range(tt, tt_app, tmp_path):
         tt,
         "full",
         storage.uri,
-        config_path,
+        app_name(tt_app),
         tmp_path,
         "plan-frozen.json",
     )
@@ -1235,7 +1237,7 @@ def test_raced_membership_is_refused_at_apply(tt, tt_app, tmp_path):
     _cluster the restored data actually folds into.
     """
     leader = app_instance(tt_app, STORAGE_A)
-    config_path = tt_app.path("config.yaml")
+    config_path = app_config_path(tt_app)
 
     # The chain is taken on the two-member replicaset: storage-001-c stays
     # out of the config until it joins after the chain was taken.
@@ -1252,7 +1254,7 @@ def test_raced_membership_is_refused_at_apply(tt, tt_app, tmp_path):
         tt,
         "full",
         storage.uri,
-        config_path,
+        app_name(tt_app),
         tmp_path,
         "plan-full.json",
     )
@@ -1267,7 +1269,7 @@ def test_raced_membership_is_refused_at_apply(tt, tt_app, tmp_path):
         tt,
         "incremental",
         storage.uri,
-        config_path,
+        app_name(tt_app),
         tmp_path,
         "plan-inc.json",
     )
@@ -1282,7 +1284,7 @@ def test_raced_membership_is_refused_at_apply(tt, tt_app, tmp_path):
 
     # The third member joins the live replicaset after the chain was taken.
     add_member_c(tt_app)
-    proc = tt.run("start", app_instance(tt_app, STORAGE_C))
+    proc = tt.run("instance", "start", app_instance(tt_app, STORAGE_C))
     assert proc.returncode == 0, f"tt start {STORAGE_C} failed:\n{proc.stdout}"
     assert tt_helper.wait_box_status(
         60,

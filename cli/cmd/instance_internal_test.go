@@ -148,7 +148,7 @@ func TestStartOptionsRefuse(t *testing.T) {
 	require.ErrorContains(t, err, "--app-dir is only for the watchdog")
 
 	watchdog, watchdogDir, startForeground = false, "", false
-	instanceFlags.scope = "global"
+	instanceFlags.Scope = "global"
 
 	_, err = startOptions(cmdCtx)
 	require.ErrorContains(t, err, `unknown scope "global"`)
@@ -300,7 +300,7 @@ func TestCompleteInstanceTargets(t *testing.T) {
 	assert.Empty(t, got)
 
 	require.NoError(t, stop.Flags().Set("scope", "system"))
-	t.Cleanup(func() { instanceFlags.scope = "" })
+	t.Cleanup(func() { instanceFlags.Scope = "" })
 
 	got, _ = internal.ValidArgsFunction(cmdCtx, stop, "", internal.Any)
 	assert.Empty(t, got, "the system scope holds nothing")

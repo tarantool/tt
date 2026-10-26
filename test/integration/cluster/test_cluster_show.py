@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 
-from utils import cluster_config_file
+from utils import cluster_config_file, run_command_and_get_output
 
 
 def copy_app(tmpdir, app_name):
@@ -125,6 +125,40 @@ def test_cluster_show_config_app(tt_cmd, tmpdir_with_cfg, app_name):
     show_output = instance_process.stdout.read()
 
     assert test_simple_app_cfg == show_output
+
+
+def test_cluster_show_config_app_template(tt_cmd, tmp_path):
+    # --template selects the pair whose config tt cluster show reads, as it
+    # selects the pair tt instance start runs; the default template without
+    # it. The template of another topology is a copy of the default one with
+    # one instance.
+    app_name = "test_simple_app"
+    copy_app(tmp_path, app_name)
+    app_path = tmp_path / app_name
+    other = app_path / ".templates" / "other"
+    other.mkdir()
+    (other / "instances.yaml").write_text("master:\n")
+    (other / "config.yaml").write_text(valid_cluster_cfg)
+
+    for args, expected in [
+        (["--template", "other"], valid_cluster_cfg),
+        ([], test_simple_app_cfg),
+        (["--template", "default"], test_simple_app_cfg),
+    ]:
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "cluster", "show", *args, app_name],
+            cwd=app_path,
+        )
+        assert rc == 0, out
+        assert out == expected
+
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "cluster", "show", "--template", "nosuch", app_name],
+        cwd=app_path,
+    )
+    assert rc == 1
+    assert 'has no template "nosuch"' in out
+    assert "its templates are default, other" in out
 
 
 @pytest.mark.parametrize("app_name", ["test_simple_app"])

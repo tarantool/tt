@@ -29,13 +29,16 @@ from pathlib import Path
 import pytest
 import tt_helper
 from backup_helpers import (
+    app_config_path,
     app_instance,
+    app_name,
     archive_path_from_output,
     backup_plan,
     backup_upload,
     eval_yaml_app,
     exec_split,
     finalize_backup,
+    instance_data_dir,
     start_backup,
 )
 from storage_helpers import FileStorage
@@ -71,7 +74,7 @@ TT_UNPINNED_APP = dict(
     app_path="unpinned_app",
     app_name="app",
     instances=list(INSTANCES),
-    running_targets=["app"],
+    running_targets=["app:*"],
     post_start=post_start_unpinned_app,
 )
 
@@ -82,7 +85,7 @@ TT_UNPINNED_APP = dict(
 def data_dir(tt_app, instance):
     """The instance's data directory: the app configures none of the three
     keys, so Tarantool and a restore agree on the default var/lib/<name>."""
-    return Path(tt_app.path("var", "lib", instance))
+    return Path(instance_data_dir(tt_app, instance))
 
 
 def capture_members(tt, tt_app):
@@ -186,7 +189,7 @@ def backup_and_upload(tt, tt_app, target, storage, backup_id, kind, tmp_path, ex
         tt,
         kind,
         storage.uri,
-        config=tt_app.path("config.yaml"),
+        app=app_name(tt_app),
         fmt="json",
     )
     assert rc == 0, f"tt backup plan --target={kind} failed:\n{out}"
@@ -288,7 +291,7 @@ def test_restore_members_named_in_config_only(tt, tt_app, tmp_path):
         "-d",
         str(dest),
         "-c",
-        tt_app.path("config.yaml"),
+        app_config_path(tt_app),
         "--format",
         "json",
     )
@@ -307,7 +310,7 @@ def test_restore_members_named_in_config_only(tt, tt_app, tmp_path):
 
     # -- Stop, wipe, apply the same chain on every member.
     for name in INSTANCES:
-        proc = tt.run("stop", app_instance(tt_app, name), "-y")
+        proc = tt.run("instance", "stop", app_instance(tt_app, name), "-y")
         assert proc.returncode == 0, f"tt stop {name} failed:\n{proc.stdout}"
 
     for name in INSTANCES:
@@ -321,12 +324,7 @@ def test_restore_members_named_in_config_only(tt, tt_app, tmp_path):
             ",".join(item["artifact"] for item in items),
             "--checksums",
             ",".join(item["checksum_sha256"] for item in items),
-            "-c",
-            tt_app.path("config.yaml"),
-            "--instance",
-            name,
-            "--work-dir",
-            tt_app.path(),
+            f"{app_name(tt_app)}:{name}",
             "--target-point",
             json.dumps(point),
             "--point-name",
@@ -338,7 +336,7 @@ def test_restore_members_named_in_config_only(tt, tt_app, tmp_path):
 
     # -- Every member comes back, under its own name and uuid.
     for name in INSTANCES:
-        proc = tt.run("start", app_instance(tt_app, name))
+        proc = tt.run("instance", "start", app_instance(tt_app, name))
         assert proc.returncode == 0, f"tt start {name} failed:\n{proc.stdout}"
 
     assert tt_helper.wait_box_status(60, tt_app, tt_app.instances, ["running"]), (

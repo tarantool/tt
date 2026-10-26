@@ -29,18 +29,22 @@ EXPECTED_MODES = {
 }
 
 
+def app_config_path(tmpdir):
+    """The cluster config of the test application copied into tmpdir."""
+    return os.path.join(tmpdir, CCONFIG_APP_NAME, ".templates", "default", "config.yaml")
+
+
 @pytest.fixture
 def ccluster_app(request, tt_cmd, tmpdir_with_cfg, port_factory):
     """Start the centralized-config cluster app and tear it down after."""
     tmpdir = tmpdir_with_cfg
     app_path = os.path.join(tmpdir, CCONFIG_APP_NAME)
     shutil.copytree(CCONFIG_APP_DIR, app_path)
-    shutil.copy(os.path.join(tmpdir, "tt.yaml"), app_path)
 
     transport = getattr(request, "param", "unix")
     assert transport in ("unix", "tcp")
 
-    config_path = os.path.join(app_path, "config.yaml")
+    config_path = app_config_path(tmpdir)
     with open(config_path) as config_file:
         config = config_file.read()
 
@@ -68,7 +72,7 @@ def ccluster_app(request, tt_cmd, tmpdir_with_cfg, port_factory):
         config_file.write(config)
 
     rc, _ = run_command_and_get_output(
-        [tt_cmd, "start", CCONFIG_APP_NAME],
+        [tt_cmd, "instance", "start", f"{CCONFIG_APP_NAME}:*"],
         cwd=os.path.join(tmpdir, CCONFIG_APP_NAME),
     )
     assert rc == 0
@@ -78,19 +82,19 @@ def ccluster_app(request, tt_cmd, tmpdir_with_cfg, port_factory):
     yield tmpdir
 
     run_command_and_get_output(
-        [tt_cmd, "stop", "-y", CCONFIG_APP_NAME],
+        [tt_cmd, "instance", "stop", "-y", f"{CCONFIG_APP_NAME}:*"],
         cwd=os.path.join(tmpdir, CCONFIG_APP_NAME),
     )
 
 
-def _topology_cmd(tt_cmd, config_path, tmpdir, fmt=None):
-    """Build and run a topology command, return (rc, output)."""
+def _topology_cmd(tt_cmd, source, tmpdir, fmt=None):
+    """Build and run a topology command of source, the application or
+    ["-c", <config>], return (rc, output)."""
     cmd = [
         tt_cmd,
         "cluster",
         "topology",
-        "-c",
-        config_path,
+        *source,
         "-u",
         "client",
         "-p",
@@ -137,8 +141,7 @@ def _instance_names_from_json(data):
 def test_topology_table(tt_cmd, ccluster_app):
     """tt cluster topology -c <config.yaml> — table output."""
     tmpdir = ccluster_app
-    config_path = os.path.join(tmpdir, CCONFIG_APP_NAME, "config.yaml")
-    rc, out = _topology_cmd(tt_cmd, config_path, tmpdir)
+    rc, out = _topology_cmd(tt_cmd, [CCONFIG_APP_NAME], tmpdir)
     assert rc == 0
 
     # Two replicasets.
@@ -183,8 +186,7 @@ def test_topology_table(tt_cmd, ccluster_app):
 def test_topology_json(tt_cmd, ccluster_app):
     """tt cluster topology -c <config.yaml> --format json."""
     tmpdir = ccluster_app
-    config_path = os.path.join(tmpdir, CCONFIG_APP_NAME, "config.yaml")
-    rc, out = _topology_cmd(tt_cmd, config_path, tmpdir, fmt="json")
+    rc, out = _topology_cmd(tt_cmd, [CCONFIG_APP_NAME], tmpdir, fmt="json")
     assert rc == 0
 
     data = _parse_json_output(out)
@@ -212,6 +214,30 @@ def test_topology_json(tt_cmd, ccluster_app):
             assert inst["status"] == "OK"
 
 
+@pytest.mark.parametrize("ccluster_app", ["tcp"], indirect=True)
+def test_topology_config_file(tt_cmd, ccluster_app):
+    """tt cluster topology -c <config.yaml>: the config named by its path."""
+    tmpdir = ccluster_app
+    rc, out = _topology_cmd(tt_cmd, ["-c", app_config_path(tmpdir)], tmpdir, fmt="json")
+    assert rc == 0, out
+
+    data = _parse_json_output(out)
+    assert _instance_names_from_json(data) == set(INSTANCES)
+    for instances in data["replicasets"].values():
+        for instance in instances:
+            assert instance["status"] == "OK"
+
+
+def test_topology_app_and_config(tt_cmd, tmpdir_with_cfg):
+    """An application and -c together name the cluster twice."""
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "cluster", "topology", CCONFIG_APP_NAME, "-c", "config.yaml"],
+        cwd=tmpdir_with_cfg,
+    )
+    assert rc == 1
+    assert "not both" in out
+
+
 @pytest.mark.skipif(
     tarantool_major_version < 3,
     reason="centralized config requires Tarantool 3.x",
@@ -225,7 +251,7 @@ def test_topology_config_storage(
 ):
     tmpdir = ccluster_app
     app_path = os.path.join(tmpdir, CCONFIG_APP_NAME)
-    config_path = os.path.join(app_path, "config.yaml")
+    config_path = app_config_path(tmpdir)
     with open(config_path) as config_file:
         config = config_file.read()
 
@@ -259,7 +285,7 @@ def test_topology_config_storage(
         if config_storage_type == "etcd":
             config_storage.enable_auth()
 
-        rc, out = _topology_cmd(tt_cmd, uri, tmpdir, fmt="json")
+        rc, out = _topology_cmd(tt_cmd, ["-c", uri], tmpdir, fmt="json")
     finally:
         if config_storage_type == "etcd":
             config_storage.disable_auth()
@@ -284,16 +310,15 @@ def test_topology_config_storage(
 )
 def test_topology_unreachable_instance_included(tt_cmd, ccluster_app):
     tmpdir = ccluster_app
-    config_path = os.path.join(tmpdir, CCONFIG_APP_NAME, "config.yaml")
 
     # Stop one instance from replicaset-001.
     rc, out = run_command_and_get_output(
-        [tt_cmd, "stop", "-y", f"{CCONFIG_APP_NAME}:instance-003"],
+        [tt_cmd, "instance", "stop", "-y", f"{CCONFIG_APP_NAME}:instance-003"],
         cwd=os.path.join(tmpdir, CCONFIG_APP_NAME),
     )
     assert rc == 0, out
 
-    rc, out = _topology_cmd(tt_cmd, config_path, tmpdir)
+    rc, out = _topology_cmd(tt_cmd, [CCONFIG_APP_NAME], tmpdir)
     assert rc == 0
     assert "replicaset-001" in out
     assert "instance-001" in out
@@ -318,7 +343,7 @@ def test_topology_unreachable_instance_included(tt_cmd, ccluster_app):
         assert "OK" in instance_lines[0]
         assert "not reachable" not in instance_lines[0]
 
-    rc, out = _topology_cmd(tt_cmd, config_path, tmpdir, fmt="json")
+    rc, out = _topology_cmd(tt_cmd, [CCONFIG_APP_NAME], tmpdir, fmt="json")
     assert rc == 0
     data = _parse_json_output(out)
     assert _instance_names_from_json(data) == set(INSTANCES)
@@ -344,21 +369,20 @@ def test_topology_unreachable_instance_included(tt_cmd, ccluster_app):
 )
 def test_topology_unreachable_replicaset_included(tt_cmd, ccluster_app):
     tmpdir = ccluster_app
-    config_path = os.path.join(tmpdir, CCONFIG_APP_NAME, "config.yaml")
 
     # Stop all instances of replicaset-002.
     rc, out = run_command_and_get_output(
-        [tt_cmd, "stop", "-y", f"{CCONFIG_APP_NAME}:instance-004"],
+        [tt_cmd, "instance", "stop", "-y", f"{CCONFIG_APP_NAME}:instance-004"],
         cwd=os.path.join(tmpdir, CCONFIG_APP_NAME),
     )
     assert rc == 0, out
     rc, out = run_command_and_get_output(
-        [tt_cmd, "stop", "-y", f"{CCONFIG_APP_NAME}:instance-005"],
+        [tt_cmd, "instance", "stop", "-y", f"{CCONFIG_APP_NAME}:instance-005"],
         cwd=os.path.join(tmpdir, CCONFIG_APP_NAME),
     )
     assert rc == 0, out
 
-    rc, out = _topology_cmd(tt_cmd, config_path, tmpdir)
+    rc, out = _topology_cmd(tt_cmd, [CCONFIG_APP_NAME], tmpdir)
     assert rc == 0
     lines = out.splitlines()
     greetings_position = lines.index("Active cluster topology")
@@ -381,7 +405,7 @@ def test_topology_unreachable_replicaset_included(tt_cmd, ccluster_app):
         assert "OK" in instance_lines[0]
         assert "not reachable" not in instance_lines[0]
 
-    rc, out = _topology_cmd(tt_cmd, config_path, tmpdir, fmt="json")
+    rc, out = _topology_cmd(tt_cmd, [CCONFIG_APP_NAME], tmpdir, fmt="json")
     assert rc == 0
     data = _parse_json_output(out)
     names = _instance_names_from_json(data)
@@ -422,15 +446,14 @@ def test_topology_unreachable_replicaset_included(tt_cmd, ccluster_app):
 )
 def test_topology_unreachable_cluster_included(tt_cmd, ccluster_app):
     tmpdir = ccluster_app
-    config_path = os.path.join(tmpdir, CCONFIG_APP_NAME, "config.yaml")
 
     rc, out = run_command_and_get_output(
-        [tt_cmd, "stop", "-y", CCONFIG_APP_NAME],
+        [tt_cmd, "instance", "stop", "-y", f"{CCONFIG_APP_NAME}:*"],
         cwd=os.path.join(tmpdir, CCONFIG_APP_NAME),
     )
     assert rc == 0, out
 
-    rc, out = _topology_cmd(tt_cmd, config_path, tmpdir)
+    rc, out = _topology_cmd(tt_cmd, [CCONFIG_APP_NAME], tmpdir)
     assert rc == 0, out
     lines = out.splitlines()
     greetings_position = lines.index("Active cluster topology")
@@ -445,7 +468,7 @@ def test_topology_unreachable_cluster_included(tt_cmd, ccluster_app):
         assert len(instance_lines) == 1
         assert "not reachable" in instance_lines[0]
 
-    rc, out = _topology_cmd(tt_cmd, config_path, tmpdir, fmt="json")
+    rc, out = _topology_cmd(tt_cmd, [CCONFIG_APP_NAME], tmpdir, fmt="json")
     assert rc == 0, out
     data = _parse_json_output(out)
     assert set(data["replicasets"]) == {"replicaset-001", "replicaset-002"}

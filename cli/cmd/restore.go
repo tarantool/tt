@@ -13,7 +13,10 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/exitcode"
+	"github.com/tarantool/tt/v3/cli/process_utils"
+	"github.com/tarantool/tt/v3/cli/running"
 
 	goconfig "github.com/tarantool/go-config/v2"
 	"github.com/tarantool/tt/v3/cli/restore"
@@ -89,6 +92,8 @@ const restoreApplyLong = `Rebuild an instance's data directories from a backup c
 so Tarantool can start on a chosen recovery point.
 
 Usage:
+  tt restore apply <APP>:<INSTANCE> --archives <chain> \
+      [--scope <scope>] [--template <name>] [...]
   tt restore apply --archives <full,inc1,inc2> --work-dir <path> \
       [--target-point '{"replica_id":N,"lsn":M}'] [--patch-uuid <uuid>]
   tt restore apply --archives <chain> -c <cluster config> --instance <name> \
@@ -147,8 +152,17 @@ finding is a warning.
 Tarantool keeps three kinds of file in three directories it configures
 separately: snapshots in snapshot.dir, journals in wal.dir, and the vylog
 together with the vinyl run/index files in vinyl.dir. Apply routes every file
-of the backup into the directory of its own kind, and there are three ways to
+of the backup into the directory of its own kind, and there are four ways to
 say which directories those are.
+
+<APP>:<INSTANCE> names an instance tt runs, found as tt instance start finds
+it, with --scope and --template: the three directories are the ones tt starts
+it with -- those its cluster config sets, relative ones taken against the
+application directory it runs in, and otherwise its data directory under the
+root of its scope, <root>/var/lib/<app>/<instance> -- and the cluster config
+is the one of its pair, the variables of its record included. The instance
+must be stopped. -c, --instance and --work-dir name an instance tt does not
+run and are refused with a target; the per-directory flags still override.
 
 --work-dir alone puts all three in one directory, which is what an instance
 that configures none of the keys uses. The directory is the data directory
@@ -243,7 +257,8 @@ Exit codes:
      --patch-uuid is not a member of the restored replicaset, or the instance
      would not start on the restored snapshot (no marker is written)
   2  a system operation failed (for example, permission was denied)
-  3  an input was rejected: an incomplete layout, mismatched --config and
+  3  an input was rejected: a target that is not one stopped instance of a
+     cluster config, an incomplete layout, mismatched --config and
      --instance flags, a malformed configuration, an undeclared instance,
      malformed checksums, recovery point or UUID, a missing archive, or an
      archive entry that cannot be placed. Checksum and archive-chain preflight
@@ -251,6 +266,9 @@ Exit codes:
   4  no xlog covers --target-point
 
 Examples:
+  tt restore apply myapp:storage-001-a \
+      --archives /opt/restore/full.tar.zst,/opt/restore/inc1.tar.zst \
+      --target-point '{"replica_id":1,"lsn":1502}'
   tt restore apply --archives /opt/restore/full.tar.zst,/opt/restore/inc1.tar.zst \
       --work-dir /var/lib/tarantool/router-001 \
       --target-point '{"replica_id":1,"lsn":1502}' \
@@ -266,11 +284,22 @@ Examples:
 // newRestoreApplyCmd creates `tt restore apply`.
 func newRestoreApplyCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "apply",
+		Use:   "apply [<APP>:<INSTANCE>]",
 		Short: "Prepare an instance work directory from backup archives",
 		Long:  restoreApplyLong + "\n\n" + backupClusterConfigHelp,
-		Args:  cobra.NoArgs,
-		RunE:  restoreRunE(runRestoreApply),
+		Args:  cobra.MaximumNArgs(1),
+		ValidArgsFunction: func(
+			cmd *cobra.Command,
+			args []string,
+			toComplete string,
+		) ([]string, cobra.ShellCompDirective) {
+			if len(args) > 0 {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+
+			return internal.ValidArgsFunction(&cmdCtx, cmd, toComplete, internal.Any)
+		},
+		RunE: restoreRunE(runRestoreApply),
 		// A failed run has already said what it managed to do; burying that
 		// under the flag list is the last thing an operator needs here.
 		SilenceUsage: true,
@@ -309,6 +338,8 @@ func newRestoreApplyCmd() *cobra.Command {
 	cmd.Flags().StringVar(&restoreApplyPatchUUID, "patch-uuid", "",
 		"new instance UUID to stamp into every snap/xlog header")
 
+	addInstanceFlags(cmd)
+
 	_ = cmd.MarkFlagRequired("archives")
 
 	return cmd
@@ -317,7 +348,12 @@ func newRestoreApplyCmd() *cobra.Command {
 func runRestoreApply(cmd *cobra.Command, args []string) error {
 	cmdCtx.CommandName = cmd.Name()
 
-	result, layout, err := runRestoreApplyInner()
+	target := ""
+	if len(args) > 0 {
+		target = args[0]
+	}
+
+	result, layout, err := runRestoreApplyInner(target)
 	if err != nil {
 		switch {
 		case errors.Is(err, restore.ErrNoTrimFile):
@@ -334,57 +370,33 @@ func runRestoreApply(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// runRestoreApplyInner parses the flags and runs the restore, returning the
-// layout it resolved along with the result so that the report can say where
-// each file went.
-func runRestoreApplyInner() (*restore.ApplyResult, restore.Layout, error) {
+// runRestoreApplyInner parses the flags and runs the restore onto target, an
+// instance tt runs, or onto the directories the flags name when it is empty,
+// returning the layout it resolved along with the result so that the report
+// can say where each file went.
+func runRestoreApplyInner(target string) (*restore.ApplyResult, restore.Layout, error) {
 	var (
 		point *restore.Point
+		dest  restoreDestination
 		err   error
 	)
-
-	// The configuration is read once, by the layout step, and kept for the
-	// identity it also holds: one named by URI is a fetch from a storage.
-	var clusterConfig *goconfig.Config
-
-	loadConfigDirs := func(
-		configPath, instance string, override restore.Layout,
-	) (restore.ConfigDirs, error) {
-		loaded, err := loadRestoreClusterConfig(configPath)
-		if err != nil {
-			return restore.ConfigDirs{}, err
-		}
-
-		clusterConfig = &loaded
-
-		return instanceConfigDirs(loaded, instance, override)
-	}
 
 	// Before anything else: the layout decides where a whole instance's data
 	// goes, and a rejected one must be reported while the previous attempt is
 	// still intact.
-	layout, sources, err := resolveRestoreLayout(restoreLayoutFlags{
-		WorkDir:     restoreApplyWorkDir,
-		SnapshotDir: restoreApplySnapshotDir,
-		WALDir:      restoreApplyWALDir,
-		VinylDir:    restoreApplyVinylDir,
-		Config:      restoreApplyCfg,
-		Instance:    restoreApplyInstance,
-	}, loadConfigDirs)
+	if target != "" {
+		dest, err = targetRestoreDestination(target)
+	} else {
+		dest, err = flagsRestoreDestination()
+	}
+
 	if err != nil {
-		return nil, restore.Layout{}, err
+		return nil, dest.layout, err
 	}
 
-	var identity *restore.ConfigIdentity
+	layout := dest.layout
 
-	if clusterConfig != nil {
-		identity, err = instanceConfigIdentity(*clusterConfig, restoreApplyInstance, os.Getenv)
-		if err != nil {
-			return nil, layout, err
-		}
-	}
-
-	reportRestoreLayout(layout, sources)
+	reportRestoreLayout(layout, dest.sources)
 
 	if restoreApplyPoint != "" {
 		point, err = restore.ParsePoint(restoreApplyPoint)
@@ -417,15 +429,163 @@ func runRestoreApplyInner() (*restore.ApplyResult, restore.Layout, error) {
 		Archives:     restoreApplyArchives,
 		Checksums:    restoreApplyChecksums,
 		Layout:       layout,
-		WorkDir:      restoreApplyWorkDir,
-		InstanceName: restoreApplyInstance,
+		WorkDir:      dest.workDir,
+		InstanceName: dest.instance,
 		Point:        point,
 		PointName:    restoreApplyPointName,
 		PatchUUID:    restoreApplyPatchUUID,
-		Config:       identity,
+		Config:       dest.identity,
 	})
 
 	return result, layout, err
+}
+
+// restoreDestination is where tt restore apply puts the files of an instance
+// and what it checks them against: the layout and where each of its
+// directories came from, the identity of the instance in its cluster config,
+// nil without one, the directory recorded as work_dir in the marker and the
+// instance name.
+type restoreDestination struct {
+	layout   restore.Layout
+	sources  restoreLayoutSources
+	identity *restore.ConfigIdentity
+	workDir  string
+	instance string
+}
+
+// flagsRestoreDestination is the destination the flags name: --work-dir, -c
+// and --instance, and the per-directory flags.
+func flagsRestoreDestination() (restoreDestination, error) {
+	dest := restoreDestination{
+		layout:   restore.Layout{Snapshot: "", WAL: "", Vinyl: ""},
+		sources:  restoreLayoutSources{Snapshot: "", WAL: "", Vinyl: ""},
+		identity: nil,
+		workDir:  restoreApplyWorkDir,
+		instance: restoreApplyInstance,
+	}
+
+	// The configuration is read once, by the layout step, and kept for the
+	// identity it also holds: one named by URI is a fetch from a storage.
+	var clusterConfig *goconfig.Config
+
+	loadConfigDirs := func(
+		configPath, instance string, override restore.Layout,
+	) (restore.ConfigDirs, error) {
+		loaded, err := loadRestoreClusterConfig(configPath)
+		if err != nil {
+			return restore.ConfigDirs{}, err
+		}
+
+		clusterConfig = &loaded
+
+		return instanceConfigDirs(loaded, instance, override)
+	}
+
+	var err error
+
+	dest.layout, dest.sources, err = resolveRestoreLayout(restoreLayoutFlags{
+		WorkDir:     restoreApplyWorkDir,
+		SnapshotDir: restoreApplySnapshotDir,
+		WALDir:      restoreApplyWALDir,
+		VinylDir:    restoreApplyVinylDir,
+		Config:      restoreApplyCfg,
+		Instance:    restoreApplyInstance,
+	}, loadConfigDirs)
+	if err != nil {
+		return restoreDestination{}, err
+	}
+
+	if clusterConfig != nil {
+		dest.identity, err = instanceConfigIdentity(*clusterConfig, restoreApplyInstance,
+			os.Getenv)
+		if err != nil {
+			return dest, err
+		}
+	}
+
+	return dest, nil
+}
+
+// targetRestoreDestination is the destination of target, <APP>:<INSTANCE>,
+// an instance tt runs: the directories tt starts it with
+// (running.InstanceCtx), each of which a per-directory flag still overrides,
+// and the cluster config of its pair, read with the variables of its record
+// over those of tt. The work_dir of the marker is the directory the instance
+// runs in. An instance that runs is refused: apply would replace the data
+// under it.
+func targetRestoreDestination(target string) (restoreDestination, error) {
+	if restoreApplyCfg != "" || restoreApplyInstance != "" || restoreApplyWorkDir != "" {
+		return restoreDestination{}, fmt.Errorf("%w: %s names the instance, its cluster "+
+			"config and the directory it runs in: --config, --instance and --work-dir are "+
+			"for an instance tt does not run", restore.ErrValidation, target)
+	}
+
+	instances, err := resolveInstances(&cmdCtx, []string{target})
+	if err != nil {
+		return restoreDestination{}, fmt.Errorf("%w: %w", restore.ErrValidation, err)
+	}
+
+	if len(instances) != 1 {
+		return restoreDestination{}, fmt.Errorf("%w: %s selects %d instances: "+
+			"name one as <APP>:<INSTANCE>", restore.ErrValidation, target, len(instances))
+	}
+
+	inst := &instances[0]
+	name := running.GetAppInstanceName(*inst)
+
+	if running.IsExternal(inst) || running.IsScript(inst) || inst.ClusterConfigPath == "" {
+		return restoreDestination{}, fmt.Errorf("%w: %s is no instance of a cluster "+
+			"config, which is what a backup is taken of", restore.ErrValidation, name)
+	}
+
+	if running.Status(inst).Code == process_utils.ProcessRunningCode {
+		return restoreDestination{}, fmt.Errorf("%w: %s is running: stop it first "+
+			"(tt instance stop %s)", restore.ErrValidation, name, name)
+	}
+
+	source := "instance " + name
+	flags := restoreLayoutFlags{
+		WorkDir:     "",
+		SnapshotDir: restoreApplySnapshotDir,
+		WALDir:      restoreApplyWALDir,
+		VinylDir:    restoreApplyVinylDir,
+		Config:      "",
+		Instance:    "",
+	}
+
+	layout, sources, err := overrideRestoreDirs(
+		restore.Layout{Snapshot: inst.MemtxDir, WAL: inst.WalDir, Vinyl: inst.VinylDir},
+		restoreLayoutSources{Snapshot: source, WAL: source, Vinyl: source},
+		flags)
+	if err != nil {
+		return restoreDestination{}, err
+	}
+
+	clusterConfig, err := loadRestoreClusterConfig(inst.ClusterConfigPath)
+	if err != nil {
+		return restoreDestination{}, err
+	}
+
+	identity, err := instanceConfigIdentity(clusterConfig, inst.InstName,
+		func(variable string) string {
+			value, found := inst.Env[variable]
+			if found {
+				return value
+			}
+
+			return os.Getenv(variable)
+		})
+	if err != nil {
+		return restoreDestination{}, err
+	}
+
+	return restoreDestination{
+		layout:   layout.Resolved(),
+		sources:  sources,
+		identity: identity,
+		workDir:  inst.AppDir,
+		instance: inst.InstName,
+	}, nil
 }
 
 // reportRestoreLayout says where each kind of file is about to go and what

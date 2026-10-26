@@ -17,7 +17,6 @@ the storages from stitching any cluster point at all, and the plan refuses.
 
 import json
 import time
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -32,7 +31,7 @@ from backup_helpers import (
 from sharded_helpers import (
     ROUTER_REPLICASET_UUID,
     ROUTER_URI,
-    SHARDED_APP_NAME,
+    SHARDED_APP,
     STORAGE_REPLICASET_UUIDS,
     STORAGE_URIS,
     _wait_buckets_discovered,
@@ -46,7 +45,7 @@ from utils import get_tarantool_version, is_tarantool_less
 PLAN_OK = 0
 PLAN_NO_RECOVERY_POINT = 3
 
-CONFIG_PATH = "config.yaml"
+CONFIG_PATH = ".templates/default/config.yaml"
 
 REPLICASET_UUIDS = {
     **STORAGE_REPLICASET_UUIDS,
@@ -90,12 +89,8 @@ skip_reason = (
 
 
 def data_dir(app, instance):
-    """The directory the instance keeps snapshots, journals and vinyl data in.
-
-    sharded_app sets none of the three keys, so Tarantool puts all of them in
-    the default var/lib/<instance name> under the application directory.
-    """
-    return Path(app.env_dir) / "var" / "lib" / instance
+    """The directory the instance keeps snapshots, journals and vinyl data in."""
+    return app.data_dir(instance)
 
 
 def restore_marker(app, instance):
@@ -109,7 +104,7 @@ def backup_round(app, storage, target, backup_id, tmp_path, plan_name):
     """plan -> start on every master -> one upload -> finalize, the way an
     orchestrator drives a sharded cluster: the plan is computed once, each node
     produces its own archive, and the manager stores them as one backup."""
-    rc, out = backup_plan(app, target, storage.uri, config=CONFIG_PATH, fmt="json")
+    rc, out = backup_plan(app, target, storage.uri, app=SHARDED_APP, fmt="json")
     assert rc == 0, f"tt backup plan --target={target} failed:\n{out}"
 
     plan = json.loads(out.strip())
@@ -176,9 +171,9 @@ def apply_shard(app, doc, replicaset_uuid):
     """Run tt restore apply on one replicaset with nothing but the plan.
 
     The archives, their order, the position to trim to, the point label and the
-    UUID the node has to own afterwards all come out of the document; -c and
-    --instance let apply read the instance's own three data directories out of
-    the cluster configuration instead of being told where they are.
+    UUID the node has to own afterwards all come out of the document; the
+    target lets apply take the instance's own three data directories from tt
+    instead of being told where they are.
     """
     items = doc["download_plan"][replicaset_uuid]
     target = doc["restore_targets"][replicaset_uuid]
@@ -186,6 +181,7 @@ def apply_shard(app, doc, replicaset_uuid):
     return app.tt(
         "restore",
         "apply",
+        f"{SHARDED_APP}:{target['instance_name']}",
         "--archives",
         ",".join(item["artifact"] for item in items),
         "--checksums",
@@ -196,14 +192,6 @@ def apply_shard(app, doc, replicaset_uuid):
         doc["recovery_point"]["label"],
         "--patch-uuid",
         target["patch_uuid"],
-        "-c",
-        CONFIG_PATH,
-        "--instance",
-        target["instance_name"],
-        # The launch directory of the application, which is what the relative
-        # var/lib/<instance name> of the configuration resolves against.
-        "--work-dir",
-        ".",
         assert_rc=False,
     )
 
@@ -213,7 +201,7 @@ def storage_state(app, instance):
     were written after the recovery point, and the instance UUID the restored
     files carry."""
     return app.eval(
-        f"{SHARDED_APP_NAME}:{instance}",
+        f"{SHARDED_APP}:{instance}",
         "return {"
         "  rows = box.space.backup_test:len(), "
         f" behind = #box.space.backup_test.index.pk:select({{{POINT_ROWS}}}, "
@@ -263,7 +251,7 @@ def sharded_backups(sharded_app, tmp_path_factory):
     # -- Rows 1..50 land in the full backup.
     sharded_app.eval_router(f"fill({FULL_ROWS})")
     for instance in STORAGE_URIS:
-        sharded_app.eval(f"{SHARDED_APP_NAME}:{instance}", "return box.snapshot()")
+        sharded_app.eval(f"{SHARDED_APP}:{instance}", "return box.snapshot()")
 
     plan_full = backup_round(
         sharded_app,
@@ -374,7 +362,7 @@ def test_sharded_restore_lifecycle(sharded_app, sharded_backups, tmp_path):
     # nothing on it to restore, and it rediscovers the buckets by itself once
     # the storages are back.
     for instance in STORAGE_URIS:
-        sharded_app.tt("stop", f"{SHARDED_APP_NAME}:{instance}", "-y")
+        sharded_app.tt("instance", "stop", f"{SHARDED_APP}:{instance}", "-y")
 
     for instance, replicaset_uuid in STORAGE_REPLICASET_UUIDS.items():
         rc, out = apply_shard(sharded_app, doc, replicaset_uuid)
@@ -390,7 +378,7 @@ def test_sharded_restore_lifecycle(sharded_app, sharded_backups, tmp_path):
         assert marker["instance_name"] == instance, marker
 
     for instance in STORAGE_URIS:
-        sharded_app.tt("start", f"{SHARDED_APP_NAME}:{instance}")
+        sharded_app.tt("instance", "start", f"{SHARDED_APP}:{instance}")
     _wait_ready(sharded_app)
     _wait_buckets_discovered(sharded_app)
 

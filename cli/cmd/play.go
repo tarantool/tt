@@ -92,6 +92,7 @@ func NewPlayCmd() *cobra.Command {
 		"Show the contents of system spaces")
 	playCmd.Flags().BoolVarP(&playFlags.Recursive, "recursive", "r", playFlags.Recursive,
 		"Process WAL files in directories recursively")
+	addInstanceFlags(playCmd)
 
 	return playCmd
 }

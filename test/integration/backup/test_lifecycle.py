@@ -23,6 +23,7 @@ import pytest
 import tt_helper
 from backup_helpers import (
     app_instance,
+    app_name,
     archive_path_from_output,
     backup_dir,
     backup_gc,
@@ -66,7 +67,7 @@ TT_LIFECYCLE_APP = dict(
     app_path="restore_app",
     app_name="app",
     instances=[STORAGE_1_A],
-    running_targets=["app"],
+    running_targets=["app:*"],
     post_start=post_start_lifecycle_app,
 )
 
@@ -119,9 +120,9 @@ def read_fragment(archive_path):
         return json.load(src)
 
 
-def plan_json(tt, target, storage_uri, config_path, tmp_path, name):
+def plan_json(tt, target, storage_uri, app, tmp_path, name):
     """Run tt backup plan and keep its raw output as the file upload reads."""
-    rc, out = backup_plan(tt, target, storage_uri, config=config_path, fmt="json")
+    rc, out = backup_plan(tt, target, storage_uri, app=app, fmt="json")
     assert rc == 0, f"tt backup plan --target={target} failed:\n{out}"
 
     path = tmp_path / name
@@ -196,7 +197,6 @@ def download_chain(storage, last_id, dest_dir):
 @pytest.mark.tt_app(**TT_LIFECYCLE_APP)
 def test_lifecycle_pitr(tt, tt_app, tmp_path):
     target = app_instance(tt_app, STORAGE_1_A)
-    config_path = tt_app.path("config.yaml")
 
     storage_root = tmp_path / "backups"
     storage_root.mkdir()
@@ -207,7 +207,7 @@ def test_lifecycle_pitr(tt, tt_app, tmp_path):
         tt,
         "full",
         storage.uri,
-        config_path,
+        app_name(tt_app),
         tmp_path,
         "plan-full.json",
     )
@@ -237,7 +237,7 @@ def test_lifecycle_pitr(tt, tt_app, tmp_path):
         tt,
         "incremental",
         storage.uri,
-        config_path,
+        app_name(tt_app),
         tmp_path,
         "plan-inc.json",
     )
@@ -325,13 +325,12 @@ def test_upload_refuses_a_backup_taken_off_the_planned_master(tt, tt_app, tmp_pa
     because that is what makes the disagreement a refusal rather than a note.
     """
     target = app_instance(tt_app, STORAGE_1_A)
-    config_path = tt_app.path("config.yaml")
 
     storage_root = tmp_path / "backups"
     storage_root.mkdir()
     storage = FileStorage(str(storage_root))
 
-    plan, plan_path = plan_json(tt, "full", storage.uri, config_path, tmp_path, "plan.json")
+    plan, plan_path = plan_json(tt, "full", storage.uri, app_name(tt_app), tmp_path, "plan.json")
     assert plan["checksum_sha256"], "tt backup plan has to sign what it produced"
     assert plan["replicasets"][REPLICASET_UUID]["master_instance_uuid"] == APP_INSTANCE_UUID
 
@@ -371,13 +370,12 @@ def test_upload_reports_but_accepts_a_hand_written_plan(tt, tt_app, tmp_path):
     an operator who knows better is not blocked.
     """
     target = app_instance(tt_app, STORAGE_1_A)
-    config_path = tt_app.path("config.yaml")
 
     storage_root = tmp_path / "backups"
     storage_root.mkdir()
     storage = FileStorage(str(storage_root))
 
-    plan, _ = plan_json(tt, "full", storage.uri, config_path, tmp_path, "plan.json")
+    plan, _ = plan_json(tt, "full", storage.uri, app_name(tt_app), tmp_path, "plan.json")
 
     # The same edit as above, on the plan rather than on the fragment: the
     # checksum stops matching, which is what tells tt the plan is hand-made.

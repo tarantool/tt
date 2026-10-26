@@ -1,9 +1,11 @@
-# The synchronous twin of multi_apply_app: the same two-instance replicaset,
-# pinned uuids and peer login, with synchronous replication switched on. The
-# quorum of 2 out of 2 members makes every synchronous write and every term
-# change need both members alive; the timeout bounds a queue that cannot
-# gather its acknowledgements, so a stuck one fails a write instead of
-# hanging it forever.
+# One replicaset of two instances: the leader the backups are taken on and
+# the replica that follows it. The uuids are pinned so a restored node can be
+# stamped back to the identity its name owned in the backed-up cluster.
+#
+# The members replicate over the socket each of them listens on, and a
+# sibling's address is read out of this file alone, so the socket tt would
+# pick as a per-process default is spelled out here: the two then agree on it
+# without any help. The peer login is looked up under credentials above.
 credentials:
   users:
     guest:
@@ -16,7 +18,7 @@ credentials:
       roles: [replication]
 iproto:
   listen:
-    - uri: 'unix/:./var/run/{{ instance_name }}/tarantool.sock'
+    - uri: 'unix/:./.tarantool/var/run/app/{{ instance_name }}/tarantool.sock'
   advertise:
     peer:
       login: replicator
@@ -26,8 +28,6 @@ groups:
       file: 'storage.lua'
     replication:
       failover: manual
-      synchro_quorum: 2
-      synchro_timeout: 10
     replicasets:
       storage-001:
         leader: storage-001-a

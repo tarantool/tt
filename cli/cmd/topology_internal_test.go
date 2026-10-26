@@ -221,11 +221,12 @@ groups:
 func TestClusterTopologyCommand(t *testing.T) {
 	command := NewClusterTopologyCmd()
 	assert.Equal(t, "topology", command.Name())
-	require.Error(t, command.Args(command, []string{"unexpected"}))
+	require.NoError(t, command.Args(command, []string{"myapp"}))
+	require.Error(t, command.Args(command, []string{"myapp", "unexpected"}))
 
 	for _, name := range []string{
 		"config", "format", "username", "password", "sslkeyfile", "sslcertfile", "sslcafile",
-		"sslciphers", "sslpassword", "sslpasswordfile", "connect-timeout",
+		"sslciphers", "sslpassword", "sslpasswordfile", "connect-timeout", "scope", "template",
 	} {
 		require.NotNil(t, command.Flags().Lookup(name), "missing --%s", name)
 	}
@@ -256,4 +257,43 @@ func TestClusterTopologyRejectsUnsupportedFormatBeforeLoadingConfig(t *testing.T
 
 	err := internalClusterTopologyModule(&cmdcontext.CmdCtx{}, nil)
 	require.ErrorIs(t, err, errUnsupportedTopologyFormat)
+}
+
+// TestClusterConfigSource pins what tt cluster topology reads: -c as it is, with
+// relative unix sockets taken against the directory of the file, or the
+// config of the pair of an application, with them taken against the
+// application directory its instances run in; one of the two, never both.
+//
+//nolint:paralleltest // Sets -c of the command.
+func TestClusterConfigSource(t *testing.T) {
+	externalProject(t)
+
+	previous := topologyConfigPath
+
+	t.Cleanup(func() { topologyConfigPath = previous })
+
+	cmdCtx := &cmdcontext.CmdCtx{}
+
+	topologyConfigPath = ""
+
+	_, _, err := clusterConfigSource(cmdCtx, nil, topologyConfigPath)
+	require.ErrorIs(t, err, errTopologySource)
+
+	_, _, err = clusterConfigSource(cmdCtx, []string{"myapp:storage-1"}, topologyConfigPath)
+	require.ErrorIs(t, err, errTopologySource)
+
+	configPath, workDir, err := clusterConfigSource(cmdCtx, []string{"myapp"}, topologyConfigPath)
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(projectDir, ".templates", "default", "config.yaml"), configPath)
+	assert.Equal(t, projectDir, workDir)
+
+	topologyConfigPath = "/etc/tarantool/config.yaml"
+
+	_, _, err = clusterConfigSource(cmdCtx, []string{"myapp"}, topologyConfigPath)
+	require.ErrorIs(t, err, errTopologySource)
+
+	configPath, workDir, err = clusterConfigSource(cmdCtx, nil, topologyConfigPath)
+	require.NoError(t, err)
+	assert.Equal(t, topologyConfigPath, configPath)
+	assert.Empty(t, workDir)
 }

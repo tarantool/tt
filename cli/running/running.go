@@ -14,6 +14,7 @@ import (
 	"time"
 
 	goconfig "github.com/tarantool/go-config/v2"
+	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
@@ -60,9 +61,9 @@ const (
 	// target.
 	WatchdogFlag = "watchdog"
 	// ScopeFlag is the scope of the application.
-	ScopeFlag = "scope"
+	ScopeFlag = sdk.ScopeFlag
 	// TemplateFlag is the template the instance was resolved with.
-	TemplateFlag = "template"
+	TemplateFlag = sdk.TemplateFlag
 	// AppDirFlag pins the application directory (app.Options.Dir).
 	AppDirFlag = "app-dir"
 )

@@ -49,7 +49,7 @@ TT_RESTORE_APP = dict(
     app_path="restore_app",
     app_name="app",
     instances=[STORAGE_1_A],
-    running_targets=["app"],
+    running_targets=["app:*"],
     post_start=post_start_restore_app,
 )
 
@@ -1308,7 +1308,7 @@ TT_SORTDATA_APP = dict(
     app_path="sortdata_app",
     app_name="app",
     instances=[STORAGE_1_A],
-    running_targets=["app"],
+    running_targets=["app:*"],
     post_start=post_start_restore_app,
 )
 

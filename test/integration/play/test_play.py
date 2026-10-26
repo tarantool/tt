@@ -354,6 +354,40 @@ def test_play_to_single_instance_app(tt_cmd):
         shutil.rmtree(tmp_path)
 
 
+def test_play_scope(tt_cmd, tmp_path):
+    # --scope selects where the application of the target is looked for, as
+    # in the instance commands: the instance of the user scope is found, and
+    # its binary port is looked for under the user root.
+    user = tmp_path / "user"
+    version = user / "versions" / "myapp" / "myapp_1.0.0"
+    (version / ".templates" / "default").mkdir(parents=True)
+    (version / ".templates" / "default" / "instances.yaml").write_text("storage-1:\n")
+    (version / ".templates" / "default" / "config.yaml").write_text(
+        "groups:\n  g:\n    replicasets:\n      r:\n        instances:\n          storage-1: {}\n",
+    )
+    (user / "apps").mkdir()
+    os.symlink(version, user / "apps" / "myapp")
+    shutil.copy(os.path.join(os.path.dirname(__file__), "test_file", "test.xlog"), tmp_path)
+    env = dict(os.environ, TT_USER_ROOT=str(user), TT_SYSTEM_ROOT=str(tmp_path / "system"))
+
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "play", "--scope", "user", "myapp:storage-1", "test.xlog"],
+        cwd=tmp_path,
+        env=env,
+    )
+    assert rc == 1
+    assert "application binary port does not exist" in out
+    assert os.path.join(user, "var", "run", "myapp", "storage-1", BINARY_PORT_NAME) in out
+
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "play", "myapp:storage-1", "test.xlog"],
+        cwd=tmp_path,
+        env=env,
+    )
+    assert rc == 1
+    assert '"myapp" is not installed in the system scope' in out
+
+
 def test_play_to_single_instance_without_binary_port(tt_cmd, test_instance):
     test_xlog_name = "test.xlog"
     test_xlog_path = os.path.join(os.path.dirname(__file__), "test_file", test_xlog_name)

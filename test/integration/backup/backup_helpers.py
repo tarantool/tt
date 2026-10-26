@@ -40,6 +40,26 @@ def app_instance(tt_app, instance):
     return targets[0]
 
 
+def app_config_path(tt_app):
+    """The cluster config of the pair the test application runs from."""
+    return tt_app.path(".templates", "default", "config.yaml")
+
+
+def app_instances_path(tt_app):
+    """The description of the pair the test application runs from."""
+    return tt_app.path(".templates", "default", "instances.yaml")
+
+
+def app_name(tt_app):
+    """The name of the test application: the name of its directory."""
+    return os.path.basename(tt_app.path())
+
+
+def instance_data_dir(tt_app, instance):
+    """The data directory tt gives the instance of the test application."""
+    return tt_app.lib_path(f"{app_name(tt_app)}:{instance}")
+
+
 def post_start_backup_app(tt_app):
     tt_helper.post_start_base(tt_app)
     assert tt_helper.wait_box_status(
@@ -54,7 +74,7 @@ TT_BACKUP_APP = dict(
     app_path="test_app",
     app_name="app",
     instances=["storage-001-a"],
-    running_targets=["app"],
+    running_targets=["app:*"],
     post_start=post_start_backup_app,
 )
 
@@ -249,12 +269,16 @@ def backup_plan(
     target,
     storage_uri,
     config=None,
+    app=None,
     fmt=None,
     timeout=None,
     cluster_name=None,
     environment=None,
 ):
-    args = ["backup", "plan", "--target", target, "--backup-storage", storage_uri]
+    args = ["backup", "plan"]
+    if app:
+        args.append(app)
+    args.extend(["--target", target, "--backup-storage", storage_uri])
     args.extend(scope_args(cluster_name, environment))
     if config:
         args.extend(["-c", config])

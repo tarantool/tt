@@ -1,4 +1,9 @@
+import os
 import re
+import shutil
+import tempfile
+import time
+from pathlib import Path
 
 import pytest
 from replicaset_helpers import copy_application, stop_application
@@ -207,6 +212,112 @@ Replicasets state: bootstrapped
         )
     finally:
         stop_application(tt_cmd, app_name, app_path, [])
+
+
+USER_APP_MANIFEST = """manifest_version = "0.1"
+
+[package]
+name = "myapp"
+
+[platform]
+tarantool = ">=3.0.0"
+"""
+
+USER_APP_LOCK = """lock_version = "0.1"
+manifest_version = "0.1"
+generated_by = "tt 3.0.0"
+manifest_hash = "sha256:0"
+"""
+
+USER_APP_CONFIG = """credentials:
+  users:
+    guest:
+      roles: [super]
+
+groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          storage-1: {}
+"""
+
+
+def install_user_app(root):
+    """Install myapp of one Tarantool instance, storage-1, into the user root
+    root the way tt package install lays an application out, with the
+    tarantool of PATH as the tarantool of the scope."""
+    version = root / "versions" / "myapp" / "myapp_1.0.0"
+    pair = version / ".templates" / "default"
+    pair.mkdir(parents=True)
+    (version / "app.manifest.toml").write_text(USER_APP_MANIFEST)
+    (version / "app.manifest.lock").write_text(USER_APP_LOCK)
+    (pair / "instances.yaml").write_text("storage-1:\n")
+    (pair / "config.yaml").write_text(USER_APP_CONFIG)
+    (root / "apps").mkdir()
+    os.symlink(os.path.join("..", "versions", "myapp", "myapp_1.0.0"), root / "apps" / "myapp")
+
+    _, tarantool_version = run_command_and_get_output(["tarantool", "--version"])
+    match = re.match(r"Tarantool\s+(Enterprise\s+)?(\d+\.\d+\.\d+)", tarantool_version)
+    assert match is not None, tarantool_version
+    version_id = match.group(2)
+    installation = root / "versions" / "tarantool" / f"tarantool_{version_id}"
+    installation.mkdir(parents=True)
+    os.symlink(shutil.which("tarantool"), installation / "tarantool")
+
+
+@pytest.mark.skipif(
+    tarantool_major_version < 3,
+    reason="skip centralized config test for Tarantool < 3",
+)
+def test_status_user_scope(tt_cmd, tmp_path):
+    # --scope user reaches an application installed in the user scope, as it
+    # does for the instance commands that start it; without it the
+    # application is looked for in the system scope.
+    #
+    # The scope root is under /tmp: the console socket of an installed
+    # instance is bound by its full path, which must fit a unix socket address.
+    with tempfile.TemporaryDirectory(dir="/tmp") as tmpdir:
+        user = Path(tmpdir) / "user"
+        install_user_app(user)
+        env = dict(os.environ, TT_USER_ROOT=str(user), TT_SYSTEM_ROOT=str(Path(tmpdir) / "system"))
+
+        try:
+            rc, out = run_command_and_get_output(
+                [tt_cmd, "instance", "start", "--scope", "user", "myapp:*"],
+                cwd=tmp_path,
+                env=env,
+            )
+            assert rc == 0, out
+            run_dir = user / "var" / "run" / "myapp" / "storage-1"
+            assert wait_file(run_dir, "tarantool.control", []) != ""
+
+            status_cmd = [tt_cmd, "replicaset", "status", "--scope", "user", "myapp"]
+            deadline = time.time() + 10
+            while True:
+                rc, out = run_command_and_get_output(status_cmd, cwd=tmp_path, env=env)
+                if (rc == 0 and "bootstrapped" in out) or time.time() > deadline:
+                    break
+                time.sleep(0.2)
+
+            assert rc == 0, out
+            assert "Orchestrator:      centralized config" in out
+            assert "• replicaset-001" in out
+            assert "• storage-1 " in out
+
+            rc, out = run_command_and_get_output(
+                [tt_cmd, "replicaset", "status", "myapp"],
+                cwd=tmp_path,
+                env=env,
+            )
+            assert rc != 0
+            assert '"myapp" is not installed in the system scope' in out
+        finally:
+            run_command_and_get_output(
+                [tt_cmd, "instance", "stop", "--scope", "user", "--yes", "myapp:*"],
+                cwd=tmp_path,
+                env=env,
+            )
 
 
 @pytest.mark.parametrize("flag", [None, "--custom"])

@@ -235,15 +235,18 @@ func demoModule(services sdk.Services) []sdk.Mount {
 // the instances of the cluster configuration of the source, then the
 // database mode of the instance when one is named. A source or an instance
 // that is not found is printed as "not found: <error>" and is no failure.
+// --scope and --template find an application source.
 func newDemoClusterCmd(services sdk.Services) *cobra.Command {
-	return &cobra.Command{
+	var lookup sdk.AppLookup
+
+	cluster := &cobra.Command{
 		Use:  "cluster",
 		Args: cobra.RangeArgs(1, 2),
 		RunE: func(command *cobra.Command, args []string) error {
 			out := services.Streams().IO().Out
 
 			cfg, err := services.ClusterConfig(command.Context(),
-				sdk.ParseClusterSource(args[0], sdk.Credentials{}))
+				sdk.ParseClusterSource(args[0], sdk.Credentials{}).WithLookup(lookup))
 			if errors.Is(err, sdk.ErrNotFound) {
 				_, err = fmt.Fprintf(out, "not found: %v\n", err)
 
@@ -287,6 +290,10 @@ func newDemoClusterCmd(services sdk.Services) *cobra.Command {
 			return err
 		},
 	}
+
+	sdk.AddAppFlags(cluster, &lookup)
+
+	return cluster
 }
 
 // newEEVersionCmd returns a command shaped like tt-ee's version: injected,

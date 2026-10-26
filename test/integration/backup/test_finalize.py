@@ -294,7 +294,7 @@ def test_finalize_after_instance_restart(tt, tt_app):
     fragment_path = Path(str(archive_path).removesuffix(".tar.zst") + ".json")
 
     try:
-        rc, out = tt.exec("restart", "app", "-y")
+        rc, out = tt.exec("instance", "restart", "app:*", "-y")
         assert rc == 0, f"restarting the app failed:\n{out}"
         assert tt_helper.wait_box_status(30, tt_app, tt_app.running_instances, ["running"])
 

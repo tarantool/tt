@@ -128,6 +128,7 @@ func newUpgradeCmd() *cobra.Command {
 		"timeout for waiting the LSN synchronization (in seconds)")
 
 	addOrchestratorFlags(cmd)
+	addInstanceFlags(cmd)
 	addTarantoolConnectFlags(cmd)
 
 	return cmd
@@ -168,6 +169,7 @@ func newDowngradeCmd() *cobra.Command {
 		"timeout for waiting the LSN synchronization (in seconds)")
 
 	addOrchestratorFlags(cmd)
+	addInstanceFlags(cmd)
 	addTarantoolConnectFlags(cmd)
 
 	return cmd
@@ -188,6 +190,7 @@ func newStatusCmd() *cobra.Command {
 	}
 
 	addOrchestratorFlags(cmd)
+	addInstanceFlags(cmd)
 	addTarantoolConnectFlags(cmd)
 
 	return cmd
@@ -208,6 +211,7 @@ func newPromoteCmd() *cobra.Command {
 	}
 
 	addOrchestratorFlags(cmd)
+	addInstanceFlags(cmd)
 	addTarantoolConnectFlags(cmd)
 	cmd.Flags().BoolVarP(&replicasetForce, "force", "f", false,
 		"to force a promotion:\n"+
@@ -231,6 +235,7 @@ func newDemoteCmd() *cobra.Command {
 	}
 
 	addOrchestratorFlags(cmd)
+	addInstanceFlags(cmd)
 	cmd.Flags().BoolVarP(&replicasetForce, "force", "f", false,
 		"skip instances not found locally")
 	cmd.Flags().IntVarP(&replicasetTimeout, "timeout", "", replicasetcmd.DefaultTimeout, "timeout")
@@ -251,6 +256,7 @@ func newExpelCmd() *cobra.Command {
 	}
 
 	addOrchestratorFlags(cmd)
+	addInstanceFlags(cmd)
 	cmd.Flags().BoolVarP(&replicasetForce, "force", "f", false,
 		"skip instances not found locally")
 	cmd.Flags().IntVarP(&replicasetTimeout, "timeout", "", replicasetcmd.DefaultTimeout, "timeout")
@@ -270,6 +276,7 @@ func newBootstrapCmd() *cobra.Command {
 	}
 
 	addOrchestratorFlags(cmd)
+	addInstanceFlags(cmd)
 	cmd.Flags().BoolVarP(&replicasetBootstrapVshard, "bootstrap-vshard", "", false,
 		"bootstrap vshard")
 	cmd.Flags().StringVarP(&replicasetReplicasetName, "replicaset", "",
@@ -295,6 +302,7 @@ func newBootstrapVShardCmd() *cobra.Command {
 	}
 
 	addOrchestratorFlags(cmd)
+	addInstanceFlags(cmd)
 	addTarantoolConnectFlags(cmd)
 	integrity.RegisterWithIntegrityFlag(cmd.Flags(), &replicasetIntegrityPrivateKey)
 	cmd.Flags().IntVarP(&replicasetBootstrapTimeout, "timeout", "",
@@ -328,6 +336,7 @@ func newRebootstrapCmd() *cobra.Command {
 
 	cmd.Flags().BoolVarP(&rebootstrapConfirmed, "yes", "y", false,
 		"automatically confirm rebootstrap")
+	addInstanceFlags(cmd)
 
 	return cmd
 }
@@ -367,6 +376,7 @@ func newRolesAddCmd() *cobra.Command {
 		"global config context")
 
 	addOrchestratorFlags(cmd)
+	addInstanceFlags(cmd)
 	addTarantoolConnectFlags(cmd)
 	cmd.Flags().BoolVarP(&replicasetForce, "force", "f", false,
 		"to force a promotion:\n"+
@@ -401,6 +411,7 @@ func newRolesRemoveCmd() *cobra.Command {
 		"global config context")
 
 	addOrchestratorFlags(cmd)
+	addInstanceFlags(cmd)
 	addTarantoolConnectFlags(cmd)
 	cmd.Flags().BoolVarP(&replicasetForce, "force", "f", false,
 		"to force a promotion:\n"+

@@ -37,7 +37,7 @@ func (s *services) ClusterConfig(
 	integ := cmd.GetCmdCtxPtr().Integrity
 
 	if name, ok := src.App(); ok {
-		return appClusterConfig(ctx, name, integ)
+		return appClusterConfig(ctx, name, src.Lookup(), integ)
 	}
 
 	if path, ok := src.File(); ok {
@@ -53,17 +53,18 @@ func (s *services) ClusterConfig(
 
 // appClusterConfig returns the cluster configuration of the application
 // name: the config of the pair it runs from, with what the storage the config
-// names holds merged in, found as the instance commands find it. Dir is the
-// application directory, the working directory of its instances, which a
-// relative path in the config is resolved against.
+// names holds merged in, found as the instance commands find it with the
+// scope and the template lookup gives. Dir is the application directory, the
+// working directory of its instances, which a relative path in the config is
+// resolved against.
 //
 // A pair of instances that run their scripts and of external processes may
 // have no config, which is not found; app.Load leaves one it has unread, as
 // none of its instances needs it, and it is read here.
 func appClusterConfig(
-	ctx context.Context, name string, integ integrity.IntegrityCtx,
+	ctx context.Context, name string, lookup sdk.AppLookup, integ integrity.IntegrityCtx,
 ) (sdk.ClusterConfig, error) {
-	application, err := cmd.LoadApp(ctx, name)
+	application, err := cmd.LoadApp(ctx, name, lookup)
 	if errors.Is(err, app.ErrAppNotFound) || errors.Is(err, app.ErrNoProject) ||
 		errors.Is(err, app.ErrNoPair) {
 		return sdk.ClusterConfig{}, notFoundError{

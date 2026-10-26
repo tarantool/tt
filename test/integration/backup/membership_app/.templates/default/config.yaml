@@ -27,7 +27,7 @@ credentials:
       roles: [replication]
 iproto:
   listen:
-    - uri: 'unix/:./var/run/{{ instance_name }}/tarantool.sock'
+    - uri: 'unix/:./.tarantool/var/run/app/{{ instance_name }}/tarantool.sock'
   advertise:
     peer:
       login: replicator
