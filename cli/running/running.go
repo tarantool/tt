@@ -344,50 +344,67 @@ func Stop(run *InstanceCtx) error {
 // A missing pid file means the instance is already stopped. Other errors are
 // collected without preventing the remaining instances from stopping.
 func StopAll(runs []InstanceCtx) error {
+	return errors.Join(StopAllResults(runs)...)
+}
+
+// StopAllResults stops the batch and returns one error per input instance, in
+// order. The process of an external process whose watchdog is gone is stopped
+// as the watchdog would have stopped it (stopOrphan).
+func StopAllResults(runs []InstanceCtx) []error {
 	type instanceProcess struct {
-		name string
-		pid  int
-		wait time.Duration
+		index int
+		name  string
+		pid   int
+		wait  time.Duration
+	}
+
+	type orphanProcess struct {
+		index int
+		run   InstanceCtx
+		pid   int
 	}
 
 	processes := make([]instanceProcess, 0, len(runs))
+	stopErrors := make([]error, len(runs))
 
-	var stopErrors []error
-	type orphanProcess struct {
-		run InstanceCtx
-		pid int
-	}
 	var orphans []orphanProcess
 
-	for _, run := range runs {
-		name := GetAppInstanceName(run)
-		if pid := Orphan(&run); pid != 0 {
-			orphans = append(orphans, orphanProcess{run: run, pid: pid})
+	for index, run := range runs {
+		orphan := Orphan(&run)
+		if orphan != 0 {
+			orphans = append(orphans, orphanProcess{index: index, run: run, pid: orphan})
+
 			continue
 		}
+
+		name := GetAppInstanceName(run)
+
 		pid, err := process_utils.InterruptProcess(run.PIDFile)
 
 		switch {
 		case errors.Is(err, fs.ErrNotExist):
 			log.Debugf("The instance %s is already stopped", name)
 		case err != nil:
-			stopErrors = append(stopErrors, fmt.Errorf("failed to stop instance %s: %w", name, err))
+			stopErrors[index] = fmt.Errorf("failed to stop instance %s: %w", name, err)
 		default:
-			processes = append(processes, instanceProcess{name: name, pid: pid, wait: stopWait(&run)})
+			processes = append(processes, instanceProcess{
+				index: index, name: name, pid: pid, wait: stopWait(&run),
+			})
 		}
 	}
 
 	for _, orphan := range orphans {
-		if err := stopOrphan(&orphan.run, orphan.pid); err != nil {
-			stopErrors = append(stopErrors, err)
+		err := stopOrphan(&orphan.run, orphan.pid)
+		if err != nil {
+			stopErrors[orphan.index] = err
 		}
 	}
 
 	for _, proc := range processes {
 		err := process_utils.WaitProcessTermination(proc.pid, proc.wait)
 		if err != nil {
-			stopErrors = append(stopErrors,
-				fmt.Errorf("failed to stop instance %s (PID = %d): %w", proc.name, proc.pid, err))
+			stopErrors[proc.index] = fmt.Errorf("failed to stop instance %s (PID = %d): %w",
+				proc.name, proc.pid, err)
 
 			continue
 		}
@@ -395,7 +412,7 @@ func StopAll(runs []InstanceCtx) error {
 		log.Infof("The Instance %s (PID = %v) has been terminated.", proc.name, proc.pid)
 	}
 
-	return errors.Join(stopErrors...)
+	return stopErrors
 }
 
 // Kill kills instance process: the process group of its watchdog, and the

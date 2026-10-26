@@ -1,14 +1,18 @@
 package cmd
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/exitcode"
+	"github.com/tarantool/tt/v3/cli/running"
 )
 
 // instanceSubcommands are the commands of tt instance.
@@ -148,6 +152,111 @@ func TestStartOptionsRefuse(t *testing.T) {
 
 	_, err = startOptions(cmdCtx)
 	require.ErrorContains(t, err, `unknown scope "global"`)
+}
+
+// errBroken is the failure of an instance in the tests of instancesResult.
+var errBroken = errors.New("broken")
+
+// TestInstancesResult pins the outcome of an instance command that acts on
+// several instances: 0 when all went through, 3 when some did, 1 when none
+// did, and the error of the instance itself when there is one instance.
+func TestInstancesResult(t *testing.T) {
+	system := sdk.WithCode(sdk.ExitSystem, errBroken)
+
+	cases := []struct {
+		name   string
+		total  int
+		failed map[string]error
+		code   int
+		same   error
+	}{
+		{name: "every instance", total: 3, failed: nil, code: sdk.ExitOK},
+		{
+			name: "some instances", total: 3, failed: map[string]error{"app:b": errBroken},
+			code: sdk.ExitPartial,
+		},
+		{
+			name: "every instance failed", total: 2,
+			failed: map[string]error{"app:a": system, "app:b": errBroken},
+			code:   sdk.ExitFailure,
+		},
+		{
+			name: "one instance keeps its error", total: 1,
+			failed: map[string]error{"app:a": system}, code: sdk.ExitSystem, same: system,
+		},
+		{
+			name: "one silent instance", total: 1,
+			failed: map[string]error{"app:a": exitcode.Silent(errBroken)},
+			code:   sdk.ExitFailure,
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			result := newInstancesResult("stop", test.total)
+
+			for _, name := range []string{"app:a", "app:b", "app:c"}[:test.total] {
+				if err, failed := test.failed[name]; failed {
+					result.fail(name, err)
+				}
+			}
+
+			err := result.err()
+			assert.Equal(t, test.code, exitcode.Code(err))
+
+			if test.same != nil {
+				assert.Same(t, test.same, err)
+			}
+
+			if test.code == sdk.ExitPartial || test.total > 1 && test.code == sdk.ExitFailure {
+				require.ErrorIs(t, err, errInstancesFailed)
+				assert.ErrorContains(t, err, "stop failed for")
+			}
+		})
+	}
+}
+
+// TestInstancesResultFailAll pins that a failure before the instances are
+// acted on fails every one of them.
+func TestInstancesResultFailAll(t *testing.T) {
+	result := newInstancesResult("restart", 3)
+
+	result.fail("app:a", errBroken)
+	result.failAll([]string{"app:b", "app:c"}, errBroken)
+
+	err := result.err()
+	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
+	require.ErrorContains(t, err, "restart failed for 3 of 3 instances: app:a, app:b, app:c")
+
+	result = newInstancesResult("restart", 3)
+	result.failAll(nil, errBroken)
+	require.NoError(t, result.err())
+}
+
+// TestActOnInstancesGoesOn pins that a command goes on after an instance it
+// fails to act on.
+func TestActOnInstancesGoesOn(t *testing.T) {
+	instances := []running.InstanceCtx{
+		{AppName: "app", InstName: "a"},
+		{AppName: "app", InstName: "b"},
+		{AppName: "app", InstName: "c"},
+	}
+
+	var acted []string
+
+	err := actOnInstances("kill", instances, func(inst *running.InstanceCtx) error {
+		acted = append(acted, inst.InstName)
+
+		if inst.InstName == "a" {
+			return errBroken
+		}
+
+		return nil
+	})
+
+	assert.Equal(t, []string{"a", "b", "c"}, acted)
+	assert.Equal(t, sdk.ExitPartial, exitcode.Code(err))
+	assert.ErrorContains(t, err, "kill failed for 1 of 3 instances: app:a")
 }
 
 // TestCompleteInstanceTargets pins the completion of the target of an

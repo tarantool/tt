@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
@@ -69,17 +68,13 @@ func internalKillModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return nil
 	}
 
-	for _, run := range instances {
-		if dumpQuit {
-			err = running.Quit(run)
-		} else {
-			err = running.Kill(run)
-		}
-
-		if err != nil {
-			log.Infof(err.Error())
-		}
+	if dumpQuit {
+		return actOnInstances("kill", instances, func(inst *running.InstanceCtx) error {
+			return running.Quit(*inst)
+		})
 	}
 
-	return nil
+	return actOnInstances("kill", instances, func(inst *running.InstanceCtx) error {
+		return running.Kill(*inst)
+	})
 }

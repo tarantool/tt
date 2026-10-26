@@ -85,20 +85,39 @@ func NewStartCmd() *cobra.Command {
 }
 
 // startInstancesUnderWatchdog starts tarantool instances under tt watchdog.
+// An instance whose watchdog does not start does not keep the others from
+// starting (instancesResult).
 func startInstancesUnderWatchdog(cmdCtx *cmdcontext.CmdCtx, instances []running.InstanceCtx) error {
+	result := newInstancesResult("start", len(instances))
+
+	startWatchdogs(cmdCtx, instances, result)
+
+	return result.err()
+}
+
+// startWatchdogs starts the watchdogs of instances, in order, and records in
+// result those that do not start.
+func startWatchdogs(cmdCtx *cmdcontext.CmdCtx, instances []running.InstanceCtx,
+	result *instancesResult,
+) {
+	names := make([]string, 0, len(instances))
+	for i := range instances {
+		names = append(names, running.GetAppInstanceName(instances[i]))
+	}
+
 	ttBin, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("failed to get the tt executable path: %w", err)
+		result.failAll(names, fmt.Errorf("failed to get the tt executable path: %w", err))
+
+		return
 	}
 
-	for _, instance := range instances {
-		err := running.StartWatchdog(cmdCtx, ttBin, instance, watchdogStartArgs(cmdCtx))
+	for i := range instances {
+		err := running.StartWatchdog(cmdCtx, ttBin, instances[i], watchdogStartArgs(cmdCtx))
 		if err != nil {
-			return err
+			result.fail(names[i], err)
 		}
 	}
-
-	return nil
 }
 
 // watchdogStartArgs are the arguments of tt that go before those that run

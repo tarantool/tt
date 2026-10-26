@@ -515,9 +515,11 @@ You can generate autocompletion for `bash`, `zsh` and `fish` shell:
 Enter `tt`, press tab and you will see a list of available modules with
 descriptions. Also, autocomplete supports external modules.
 
-For commands whose argument is an application or instance, autocompletion
-shows the current application name before the `:` delimiter and instances
-declared by that application after it.
+For the target of the `tt instance` commands, autocompletion offers the
+current project and the applications installed in the system scope, or in the
+scope `--scope` names, before the `:` delimiter, and the instances of the pair
+of that application after it, those the command can act on: `stop` offers the
+running ones.
 
 For `tt create` command it will show a list of built-in templates; a
 template given by its path is completed as a file name.
@@ -526,8 +528,18 @@ template given by its path is completed as a file name.
 
 ### Working with a set of instances
 
-`tt start`, `stop`, `status`, `restart`, `kill`, `log`, `logrotate`, `check`,
-`clean`, `connect` and `play` act on the instances of an application.
+`tt instance` acts on the instances of an application on this host:
+
+```text
+tt instance start | stop | restart | kill | status
+tt instance logs | logrotate
+tt instance check | clean
+tt instance connect
+```
+
+`tt connect` is the same command as `tt instance connect`, with the same
+flags; `tt play` takes the same targets. The top-level `tt start`, `tt stop`
+and the rest of tt2 are gone, and `tt log` is `tt instance logs`.
 
 A project is a directory with `app.manifest.toml` or
 `.templates/<name>/instances.yaml`; `tt` finds it from the current directory
@@ -566,6 +578,46 @@ where `<root>` is `/opt/tarantool` or `TT_SYSTEM_ROOT`. An installed
 application runs from the pair of the host, `<root>/etc/<app>/`, when there is
 one. A bare `<app>` is refused: it is not an instance target.
 
+Every `tt instance` command takes `--scope project|user|system`, which picks
+the scope of the application outright, and `--template <name>`, which runs a
+project or an installed version from `.templates/<name>/` instead of
+`.templates/default/`:
+
+```text
+tt instance start                          # every instance of the project
+tt instance start myapp:storage-1 --scope user
+tt instance stop myapp:* --yes
+tt instance logs myapp:storage-1 --follow
+```
+
+A command over several instances goes on after an instance it fails for and
+exits with 3 when it failed for some of them only, with 1 when it failed for
+every one of them, and with the code of the error of the instance when there
+is one instance. `stop`, `restart`, `kill` and `clean` ask for a confirmation,
+which `--yes` (`-y`) skips; `-f` is not a short form of any of their flags.
+
+`tt instance start` runs every instance in the background under a watchdog of
+`tt`, which restarts it as its `restart` field says. With `--foreground`, for
+systemd, a container or a terminal, `tt` stays in the foreground instead, and
+every instance runs under a watchdog of its own that does not restart it, in
+a process group of its own and with its own pid file, as in the background:
+`tt instance stop`, `kill`, `logrotate` and `status` act on one instance from
+another terminal. The output of the instances goes to their `tt.log` and to
+the standard output of `tt`, prefixed with the instance when there are
+several. SIGINT, SIGTERM and SIGQUIT sent to `tt` stop every instance as a
+stop of its watchdog does; Ctrl-C reaches every instance once, as `tt` passes
+it on. An instance that ends does not stop the others: `tt` writes with what
+code it exited and goes on. `tt` exits once all of them have ended: with 0
+when they were stopped and stopped in time, a process killed by its stop
+signal included; with 137 when one did not stop within its `stop_timeout`
+and was killed; with the exit code of the first instance that ended on its
+own with another code otherwise, 128 plus the signal for one killed by a
+signal. An instance that runs already is an error before anything starts.
+
+`tt instance clean` removes the data and the log of the instances, the files
+of `<root>/var/lib/<app>/<instance>/` and `<root>/var/log/<app>/<instance>/`,
+and leaves a running instance alone.
+
 The data, the logs and the pid files and sockets of an instance are in
 `<root>/var/lib/<app>/<instance>/`, `<root>/var/log/<app>/<instance>/` and
 `<root>/var/run/<app>/<instance>/`; in a project `<root>` is `.tarantool` in
@@ -589,24 +641,26 @@ gateway:
 
 `binary` and `workdir` are relative to the application directory, also in the
 pair of the host; a `binary` without a slash is looked up in `PATH` of `tt`,
-and `tt start` reports one it cannot run, or a `workdir` that does not exist,
-before it starts anything. Without `workdir` the process runs in its data
-directory, `<root>/var/lib/<app>/<instance>/`, which `tt start` creates. `env`
-goes on top of the environment of `tt`. The process leads a process group of
-its own, which its stop signal and `tt kill` reach whole, so that a wrapper
-script stops with the program it runs. Its output goes to `tt.log`; its
-watchdog keeps `tt.pid` and the pid of the process, `process.pid`, in the run
-directory. `tt status` shows whether the process runs and nothing more;
-`tt logrotate` reopens `tt.log` and sends the process `logrotate_signal`, if
-the record has one; `tt clean` removes the log and the data directory.
-`tt connect`, `tt play`, `tt kill --dump` and the cluster commands refuse an
-external process: it is not a Tarantool instance. The instances start in the
-order of `instances.yaml`, and none waits for another to be ready.
+and `tt instance start` reports one it cannot run, or a `workdir` that does
+not exist, before it starts anything. Without `workdir` the process runs in
+its data directory, `<root>/var/lib/<app>/<instance>/`, which
+`tt instance start` creates. `env` goes on top of the environment of `tt`. The
+process leads a process group of its own, which its stop signal and
+`tt instance kill` reach whole, so that a wrapper script stops with the
+program it runs. Its output goes to `tt.log`; its watchdog keeps `tt.pid` and
+the pid of the process, `process.pid`, in the run directory.
+`tt instance status` shows whether the process runs and nothing more;
+`tt instance logrotate` reopens `tt.log` and sends the process
+`logrotate_signal`, if the record has one; `tt instance clean` removes the log
+and the data directory. `tt connect`, `tt play`, `tt instance kill --dump` and
+the cluster commands refuse an external process: it is not a Tarantool
+instance. The instances start in the order of `instances.yaml`, and none waits
+for another to be ready.
 
-A process whose watchdog was killed by something else than `tt kill` runs on
-without it. `tt status` does not show it running and names it in an alert,
-`tt start` refuses to start a second one, and `tt stop` and `tt kill` stop it
-by `process.pid`.
+A process whose watchdog was killed by something else than `tt instance kill`
+runs on without it. `tt instance status` does not show it running and names it
+in an alert, `tt instance start` refuses to start a second one, and
+`tt instance stop` and `tt instance kill` stop it by `process.pid`.
 
 A record with `script` is a Tarantool instance configured by its own Lua
 script rather than by the cluster config, as the `init.lua` and
@@ -624,18 +678,18 @@ data directory and the binary port of the layout from `TT_WAL_DIR`,
 not pass; `TT_LISTEN` set in the environment of `tt` is kept. The console
 socket is `tarantool.control` in the run directory, and the output goes to
 `tt.log`. `env` of the record goes on top and may move the data with the same
-variables; in the user and system scopes a relative path there is refused.
-A relative path the script passes to `box.cfg` itself `tt` cannot check: in
-the user and system scopes it is resolved against the installed version, and
-the instance writes into the version, which an upgrade replaces.
-`tt connect`, `tt play`, `tt status` and `tt logrotate` work as with any
-Tarantool instance, `tt check` checks the syntax of the script, and `tt clean`
-removes its data and log. `tt cluster show` and `publish` refuse it: no cluster
-config configures it. The application targets of `tt replicaset` leave it out
-next to instances of the cluster config. An application of such instances
-alone keeps them, and `tt replicaset` acts on it with the custom orchestrator
-without `--custom`, whatever the version of Tarantool; `--config` and
-`--custom` still force an orchestrator.
+variables; in the user and system scopes a relative path there is refused. A
+relative path the script passes to `box.cfg` itself `tt` cannot check: in the
+user and system scopes it is resolved against the installed version, and the
+instance writes into the version, which an upgrade replaces. `tt connect`,
+`tt play`, `tt instance status` and `tt instance logrotate` work as with any
+Tarantool instance, `tt instance check` checks the syntax of the script, and
+`tt instance clean` removes its data and log. `tt cluster show` and `publish`
+refuse it: no cluster config configures it. The application targets of
+`tt replicaset` leave it out next to instances of the cluster config. An
+application of such instances alone keeps them, and `tt replicaset` acts on it
+with the custom orchestrator without `--custom`, whatever the version of
+Tarantool; `--config` and `--custom` still force an orchestrator.
 
 ### Working with application templates
 
@@ -786,16 +840,13 @@ parameter.
 
 Common description. For a detailed description, use `tt help command` .
 
-- `start` - start a tarantool instance(s).
-- `stop` - stop the tarantool instance(s).
-- `status` - get current status of the instance(s).
-- `restart` - restart the instance(s).
+- `instance` - manage the instances of applications: `start`, `stop`,
+    `restart`, `kill`, `status`, `logs`, `logrotate`, `check`, `clean` and
+    `connect`.
 - `version` - show Tarantool CLI version information.
 - `completion` - generate autocomplete for a specified shell.
 - `help` - display help for any command.
-- `logrotate` - rotate logs of a started tarantool instance(s).
-- `check` - check an application file for syntax errors.
-- `connect` - connect to the tarantool instance.
+- `connect` - connect to the tarantool instance, as `tt instance connect`.
 - `rocks` - LuaRocks package manager.
 - `cat` - print into stdout the contents of .snap/.xlog files.
 - `play` - play the contents of .snap/.xlog files to another Tarantool
@@ -803,7 +854,6 @@ Common description. For a detailed description, use `tt help command` .
 - `coredump` - pack/unpack/inspect tarantool coredump.
 - `run` - start a tarantool instance.
 - `search` - show available tt/tarantool versions.
-- `clean` - clean instance(s) files.
 - `create` - create an application from a template.
 - `install` - install tarantool/tt.
 - `uninstall` - uninstall tarantool/tt.
@@ -815,8 +865,6 @@ Common description. For a detailed description, use `tt help command` .
 - `cluster` - manage cluster configuration.
 - `replicaset` - manage replicasets.
 - `download` - download Tarantool SDK.
-- `kill` - kill application instances.
-- `log` - show instance logs.
 - `aeon` - connect to an Aeon instance.
 - `tcm` - manage Tarantool Cluster Manager.
 - `modules` - list external modules.

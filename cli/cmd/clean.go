@@ -1,19 +1,31 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/cli/running"
 )
 
+// errInstanceRunning is wrapped by the error for an instance
+// tt instance clean leaves alone because it runs.
+var errInstanceRunning = errors.New("must be stopped")
+
 var verboseList bool
+
+// cleanDirKinds is the number of the kinds of directory clean removes the
+// files of: the log, WAL, vinyl, memtx and data directories.
+const cleanDirKinds = 5
 
 // NewCleanCmd creates the clean command of tt instance.
 func NewCleanCmd() *cobra.Command {
@@ -45,6 +57,9 @@ func NewCleanCmd() *cobra.Command {
 // collectFiles adds the files under dirname to files. A directory that is
 // not there holds nothing to remove: an instance that never ran has none.
 func collectFiles(files map[string]bool, dirname string) (map[string]bool, error) {
+	if missing(dirname) {
+		return files, nil
+	}
 
 	err := filepath.Walk(dirname,
 		func(path string, info os.FileInfo, err error) error {
@@ -65,54 +80,124 @@ func collectFiles(files map[string]bool, dirname string) (map[string]bool, error
 	return files, nil
 }
 
-func printCleanFiles(files map[string]bool, dir string) {
-	for file := range files {
-		relativePath, err := filepath.Rel(dir, file)
-		if err != nil || !filepath.IsLocal(relativePath) {
+// missing reports whether there is no directory entry at path.
+func missing(path string) bool {
+	_, err := os.Lstat(path)
+
+	return errors.Is(err, fs.ErrNotExist)
+}
+
+// cleanDirs returns the directories tt instance clean removes the files of:
+// the log and the data directories of run, each once. An external process has
+// one data directory at most, DataDir, the one it runs in without workdir.
+func cleanDirs(run *running.InstanceCtx) []string {
+	dirs := make([]string, 0, cleanDirKinds)
+
+	for _, dir := range [...]string{
+		run.LogDir, run.WalDir, run.VinylDir, run.MemtxDir, run.DataDir,
+	} {
+		if dir != "" && !slices.Contains(dirs, dir) {
+			dirs = append(dirs, dir)
+		}
+	}
+
+	return dirs
+}
+
+// cleanGroup is what clean removes from dir: the files under it that no
+// directory before it in cleanDirs holds, sorted.
+type cleanGroup struct {
+	dir   string
+	files []string
+}
+
+// cleanGroups returns the files clean is going to remove from run, by
+// directory: a file of a directory nested in another one counts once.
+func cleanGroups(run *running.InstanceCtx) ([]cleanGroup, error) {
+	seen := map[string]bool{}
+
+	var groups []cleanGroup
+
+	for _, dir := range cleanDirs(run) {
+		files, err := collectFiles(map[string]bool{}, dir)
+		if err != nil {
+			return nil, err
+		}
+
+		group := cleanGroup{dir: dir, files: nil}
+
+		for file := range files {
+			if !seen[file] {
+				seen[file] = true
+				group.files = append(group.files, file)
+			}
+		}
+
+		if len(group.files) == 0 {
 			continue
 		}
 
-		if relativePath != "." {
+		slices.Sort(group.files)
+
+		groups = append(groups, group)
+	}
+
+	return groups, nil
+}
+
+// printCleanFiles lists the files of group, relative to its directory.
+func printCleanFiles(group cleanGroup) {
+	for _, file := range group.files {
+		relativePath, err := filepath.Rel(group.dir, file)
+		if err == nil {
 			relativePath = "." + string(filepath.Separator) + relativePath
+		} else {
+			relativePath = file
 		}
 
-		_, _ = fmt.Fprintf(os.Stdout, "\nto remove %q", relativePath)
+		_, _ = fmt.Fprintf(os.Stdout, "to remove %q\n", relativePath)
 	}
 }
 
-// previewClean lists the files before the command asks for confirmation.
-func previewClean(run *running.InstanceCtx) error {
-	files := map[string]bool{}
-	counts := map[string]int{}
+// previewClean prints what clean is going to remove from the stopped
+// instances, by instance and directory, every file with --verbose, and the
+// total, and returns the total. A running instance is left alone, so it has
+// nothing in the preview.
+func previewClean(instances []running.InstanceCtx) (int, error) {
+	total := 0
 
-	for _, dir := range []string{run.LogDir, run.WalDir, run.VinylDir, run.MemtxDir, run.DataDir} {
-		if dir == "" {
+	for i := range instances {
+		run := &instances[i]
+		if running.Status(run).Code != process_utils.ProcessStoppedCode {
 			continue
 		}
 
-		entries, err := collectFiles(map[string]bool{}, dir)
+		groups, err := cleanGroups(run)
 		if err != nil {
-			return err
+			return 0, err
 		}
 
-		counts[dir] = len(entries)
+		if len(groups) == 0 {
+			continue
+		}
 
-		for file := range entries {
-			files[file] = true
+		_, _ = fmt.Fprintf(os.Stdout, "%s:\n", running.GetAppInstanceName(*run))
+
+		for _, group := range groups {
+			total += len(group.files)
+
+			_, _ = fmt.Fprintf(os.Stdout, "to remove %d file(s) in %q\n",
+				len(group.files), group.dir)
+
+			if verboseList {
+				printCleanFiles(group)
+			}
 		}
 	}
 
-	_, _ = fmt.Fprintf(os.Stdout, "\nTotal files to remove: %d", len(files))
+	_, _ = fmt.Fprintf(os.Stdout, "Total files to remove: %d\n", total)
 
-	for dir, count := range counts {
-		_, _ = fmt.Fprintf(os.Stdout, "\nto remove %d file(s) in %q", count, dir)
-
-		if verboseList {
-			printCleanFiles(files, dir)
-		}
-	}
-
-	return nil
+	return total, nil
 }
 
 // clean removes the files of the log and the data directories of run.
@@ -121,15 +206,7 @@ func clean(run *running.InstanceCtx) error {
 
 	var err error
 
-	// An external process has one data directory at most, DataDir, the one it
-	// runs in without workdir.
-	for _, dir := range [...]string{
-		run.LogDir, run.WalDir, run.VinylDir, run.MemtxDir, run.DataDir,
-	} {
-		if dir == "" {
-			continue
-		}
-
+	for _, dir := range cleanDirs(run) {
 		removeFiles, err = collectFiles(removeFiles, dir)
 		if err != nil {
 			return err
@@ -148,6 +225,27 @@ func clean(run *running.InstanceCtx) error {
 	return nil
 }
 
+// confirmClean shows what clean is going to remove from instances, the
+// targets args select, and asks whether to. The preview is what the question
+// is about: with --yes there is no question and no preview, and with nothing
+// to remove there is nothing to ask about.
+func confirmClean(instances []running.InstanceCtx, args []string) (bool, error) {
+	if instanceYes {
+		return true, nil
+	}
+
+	total, err := previewClean(instances)
+	if err != nil {
+		return false, err
+	}
+
+	if total == 0 {
+		return true, nil
+	}
+
+	return confirm("Confirm clean of " + describeTargets(args))
+}
+
 // internalCleanModule is a default clean module. It asks once whether to
 // clean what the targets select. A running instance is left alone and
 // counts as failed: what the targets asked for is not done for it
@@ -158,18 +256,7 @@ func internalCleanModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	for _, run := range instances {
-		if running.Status(&run).Code != process_utils.ProcessStoppedCode {
-			continue
-		}
-
-		err = previewClean(&run)
-		if err != nil {
-			return err
-		}
-	}
-
-	confirmed, err := confirm("Confirm clean of " + describeTargets(args))
+	confirmed, err := confirmClean(instances, args)
 	if err != nil {
 		return err
 	}
@@ -180,16 +267,25 @@ func internalCleanModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return nil
 	}
 
-	for _, run := range instances {
-		if running.Status(&run).Code != process_utils.ProcessStoppedCode {
+	return actOnInstances("clean", instances, func(run *running.InstanceCtx) error {
+		status := running.Status(run)
+		if status.Code != process_utils.ProcessStoppedCode {
 			log.Infof("instance `%s` must be stopped", run.InstName)
-			continue
+
+			return exitcode.Silent(fmt.Errorf("instance %s %w",
+				running.GetAppInstanceName(*run), errInstanceRunning))
 		}
-		statusMsg := "[OK]"
-		if err := clean(&run); err != nil {
-			statusMsg = "[ERR] " + err.Error()
+
+		err := clean(run)
+		if err != nil {
+			log.Infof("%s%c%s...\t[ERR] %s", run.AppName, running.InstanceDelimiter,
+				run.InstName, err)
+
+			return exitcode.Silent(err)
 		}
-		log.Infof("%s%c%s...\t%s", run.AppName, running.InstanceDelimiter, run.InstName, statusMsg)
-	}
-	return nil
+
+		log.Infof("%s%c%s...\t[OK]", run.AppName, running.InstanceDelimiter, run.InstName)
+
+		return nil
+	})
 }

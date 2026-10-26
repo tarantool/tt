@@ -4,10 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/running"
 	"github.com/tarantool/tt/v3/cli/util"
 )
@@ -15,9 +19,15 @@ import (
 // instanceCmdName is the name of the tt instance group.
 const instanceCmdName = "instance"
 
-// errNoAnswer is wrapped by the error of a confirmation that got no
-// answer, such as one asked with nothing on the standard input.
-var errNoAnswer = errors.New("no answer to the confirmation")
+var (
+	// errInstancesFailed is wrapped by the error of an instance command that
+	// failed for every instance it acted on, and by the error of one that
+	// failed for some of them, which ends tt with sdk.ExitPartial.
+	errInstancesFailed = errors.New("failed")
+	// errNoAnswer is wrapped by the error of a confirmation that got no
+	// answer, such as one asked with nothing on the standard input.
+	errNoAnswer = errors.New("no answer to the confirmation")
+)
 
 // instanceFlags hold the flags that every command of tt instance takes, and
 // tt connect, its facade, with them: where the application of a target is
@@ -43,7 +53,10 @@ func NewInstanceCmd() *cobra.Command {
 			"the system scope otherwise; --scope project, user or system picks the " +
 			"scope outright. The instances are those of the pair of the application: " +
 			"the host's <root>/etc/<app>/, or the template .templates/<template>/ of " +
-			"the application, \"default\" unless --template names another.",
+			"the application, \"default\" unless --template names another.\n\n" +
+			"A command that acts on several instances goes on after a failure of one " +
+			"of them and exits 3 when it failed for some of them only. " +
+			"What the exit codes mean is in tt help errors.",
 	}
 
 	instanceCmd.AddCommand(
@@ -123,4 +136,109 @@ func confirm(question string) (bool, error) {
 	}
 
 	return confirmed, nil
+}
+
+// actOnInstances runs act on every instance, in order, and goes on after a
+// failure: one instance that cannot be stopped must not keep the others
+// running. what names the action, such as "stop". The outcome is that of the
+// command as a whole (instancesResult).
+func actOnInstances(what string, instances []running.InstanceCtx,
+	act func(inst *running.InstanceCtx) error,
+) error {
+	result := newInstancesResult(what, len(instances))
+
+	for i := range instances {
+		err := act(&instances[i])
+		if err != nil {
+			result.fail(running.GetAppInstanceName(instances[i]), err)
+		}
+	}
+
+	return result.err()
+}
+
+// instancesResult collects the failures of an instance command that acts on
+// several instances one by one, and makes up the outcome of the command:
+//
+//   - nil when the command succeeded for every instance;
+//   - the error of the one instance, as it failed, when the command acted on
+//     one instance: it is the error of the command, with its code;
+//   - an error with sdk.ExitPartial when the command failed for some of the
+//     instances, which tells a script that some went through;
+//   - an error with sdk.ExitFailure when it failed for every instance.
+//
+// The failure of an instance among several is logged as it happens, naming
+// the instance unless the error names it already, and unless it is marked
+// with exitcode.Silent as reported already; the error of the command sums
+// them up.
+type instancesResult struct {
+	// what names the action, such as "stop".
+	what string
+	// total is the number of instances the command acts on.
+	total  int
+	failed []string
+	// only is the failure of the one instance the command acts on.
+	only error
+}
+
+func newInstancesResult(what string, total int) *instancesResult {
+	return &instancesResult{what: what, total: total, failed: nil, only: nil}
+}
+
+// fail records err, the failure of the instance name.
+func (result *instancesResult) fail(name string, err error) {
+	result.failed = append(result.failed, name)
+
+	if result.total == 1 {
+		result.only = err
+
+		return
+	}
+
+	switch {
+	case exitcode.IsSilent(err):
+	case strings.Contains(err.Error(), name):
+		log.Error(err.Error())
+	default:
+		log.Errorf("%s: %s", name, err)
+	}
+}
+
+// failAll records err, one failure of all the instances names, such as one
+// that stops them from starting before any does. It is logged once.
+func (result *instancesResult) failAll(names []string, err error) {
+	if len(names) == 0 {
+		return
+	}
+
+	result.failed = append(result.failed, names...)
+
+	if result.total == 1 {
+		result.only = err
+
+		return
+	}
+
+	if !exitcode.IsSilent(err) {
+		log.Errorf("%s: %s", strings.Join(names, ", "), err)
+	}
+}
+
+// err returns the outcome of the command.
+func (result *instancesResult) err() error {
+	if len(result.failed) == 0 {
+		return nil
+	}
+
+	if result.total == 1 {
+		return result.only
+	}
+
+	code := sdk.ExitPartial
+	if len(result.failed) == result.total {
+		code = sdk.ExitFailure
+	}
+
+	return sdk.Errorf(code, "%s %w for %d of %d instances: %s", result.what,
+		errInstancesFailed, len(result.failed), result.total, strings.Join(result.failed, ", "))
 }
