@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/running"
@@ -25,10 +26,11 @@ var (
 )
 
 // The flags of the command line being completed that the resolver takes,
-// those of tt instance.
+// those of tt instance and of every other command that takes an
+// application.
 const (
-	scopeFlag    = "scope"
-	templateFlag = "template"
+	scopeFlag    = sdk.ScopeFlag
+	templateFlag = sdk.TemplateFlag
 )
 
 // ValidArgsFunction completes the target of an instance command in the one

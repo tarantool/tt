@@ -42,12 +42,10 @@ var stdinIsTerminal = func() bool {
 }
 
 // instanceFlags hold the flags that every command of tt instance takes, and
-// tt connect, its facade, with them: where the application of a target is
-// looked for, and the template of the pair it runs from.
-var instanceFlags struct {
-	scope    string
-	template string
-}
+// with them every other command that takes an application, tt connect,
+// tt replicaset, tt cluster and tt play: where the application of a target
+// is looked for, and the template of the pair it runs from.
+var instanceFlags sdk.AppLookup
 
 // instanceYes is --yes of the commands of tt instance that ask for a
 // confirmation.
@@ -96,19 +94,13 @@ const instanceTargetForms = "<APP>:<INSTANCE>, every instance of an application 
 	"<APP>:*, a comma-separated list of them, or none, which is every instance " +
 	"of the project the command runs in"
 
-// addInstanceFlags declares the flags every command of tt instance takes:
-// --scope and --template.
+// addInstanceFlags declares the flags every command of tt instance takes,
+// --scope and --template, on cmd: a command of the group, or another command
+// that takes an application. They are the flags the SDK gives a module for
+// the same purpose (sdk.AddAppFlags), so that every command of tt finds an
+// application the same way.
 func addInstanceFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&instanceFlags.scope, running.ScopeFlag, "",
-		"scope the application is looked for in: project, user or system")
-	cmd.Flags().StringVar(&instanceFlags.template, running.TemplateFlag, "",
-		`template of the application the instances are described in (default "`+
-			app.DefaultTemplate+`")`)
-
-	_ = cmd.RegisterFlagCompletionFunc(running.ScopeFlag, cobra.FixedCompletions(
-		[]string{
-			app.ScopeProject.String(), app.ScopeUser.String(), app.ScopeSystem.String(),
-		}, cobra.ShellCompDirectiveNoFileComp))
+	sdk.AddAppFlags(cmd, &instanceFlags)
 }
 
 // addYesFlag declares --yes, which skips the confirmation of cmd.
@@ -121,17 +113,23 @@ func addYesFlag(cmd *cobra.Command) {
 // targets with: instanceOptions, with the scope and the template its flags
 // give.
 func instanceTargetOptions(cmdCtx *cmdcontext.CmdCtx) (app.Options, error) {
+	return lookupOptions(cmdCtx, instanceFlags)
+}
+
+// lookupOptions are instanceOptions with the scope and the template lookup
+// gives, as --scope and --template give them.
+func lookupOptions(cmdCtx *cmdcontext.CmdCtx, lookup sdk.AppLookup) (app.Options, error) {
 	opts, err := instanceOptions(cmdCtx)
 	if err != nil {
 		return app.Options{}, err
 	}
 
-	opts.Scope, err = app.ParseScope(instanceFlags.scope)
+	opts.Scope, err = app.ParseScope(lookup.Scope)
 	if err != nil {
 		return app.Options{}, err
 	}
 
-	opts.Template = instanceFlags.template
+	opts.Template = lookup.Template
 
 	return opts, nil
 }

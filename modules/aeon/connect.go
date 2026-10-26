@@ -79,6 +79,9 @@ type connectCmd struct {
 	// creds are the credentials of a configuration storage given as the
 	// cluster configuration.
 	creds sdk.Credentials
+	// lookup is how the application of APP:INSTANCE is found: --scope and
+	// --template, as the instance commands take them.
+	lookup sdk.AppLookup
 	// conn is where to connect and how.
 	conn client.ConnectCtx
 }
@@ -88,6 +91,7 @@ func newConnectCmd(services sdk.Services) *cobra.Command {
 	connectCmd := &connectCmd{
 		services: services,
 		creds:    sdk.Credentials{Username: "", Password: ""},
+		lookup:   sdk.AppLookup{Scope: "", Template: ""},
 		conn: client.ConnectCtx{
 			Ssl:       client.Ssl{KeyFile: "", CertFile: "", CaFile: ""},
 			Transport: client.TransportPlain,
@@ -130,6 +134,7 @@ func newConnectCmd(services sdk.Services) *cobra.Command {
 		"path to a trusted certificate authorities (CA) file")
 	flags.Var(&connectCmd.conn.Transport, "transport",
 		"allowed "+client.ListValidTransports())
+	sdk.AddAppFlags(cmd, &connectCmd.lookup)
 
 	_ = cmd.RegisterFlagCompletionFunc("transport", transportCompletion)
 
@@ -190,9 +195,10 @@ func (c *connectCmd) validateArgs(cmd *cobra.Command, args []string) error {
 }
 
 // resolve sets where to connect from the arguments: an aeon URL, an
-// "app:instance" of the tt environment, or a cluster configuration file or
-// storage URI followed by an instance name. An instance's address and
-// transport are its aeon.grpc advertise section.
+// "app:instance" of the tt environment, found as --scope and --template say,
+// or a cluster configuration file or storage URI followed by an instance
+// name. An instance's address and transport are its aeon.grpc advertise
+// section.
 func (c *connectCmd) resolve(ctx context.Context, args []string) error {
 	if len(args) == 1 && isURL(args[0]) {
 		address, err := removeScheme(args[0])
@@ -208,7 +214,9 @@ func (c *connectCmd) resolve(ctx context.Context, args []string) error {
 	if len(args) == 1 {
 		app, instance := sdk.SplitInstance(args[0])
 
-		return c.resolveInstance(ctx, sdk.ParseClusterSource(app, c.creds), instance)
+		src := sdk.ParseClusterSource(app, c.creds).WithLookup(c.lookup)
+
+		return c.resolveInstance(ctx, src, instance)
 	}
 
 	src := sdk.ParseClusterSource(args[0], c.creds)

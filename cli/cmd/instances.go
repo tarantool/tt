@@ -129,7 +129,8 @@ func describeTargets(args []string) string {
 // for none.
 //
 // The application and its pair are found as an instance command finds them
-// (app.Load), so that both reach the config of an application one way. A
+// (app.Load), with --scope and --template of the command, so that both reach
+// the config of an application one way. A
 // target that cannot name an application, such as a URI, is an error
 // wrapping errNotAnAppTarget; the caller may try any target that fails as
 // something else, a URI, as it may be one that happens to fit <app>:<inst>.
@@ -156,7 +157,7 @@ func resolveAppTarget(cmdCtx *cmdcontext.CmdCtx, target string, config pairConfi
 		return nil, nil, "", fmt.Errorf("%q: %w", target, errNotAnAppTarget)
 	}
 
-	opts, err := instanceOptions(cmdCtx)
+	opts, err := instanceTargetOptions(cmdCtx)
 	if err != nil {
 		return nil, nil, "", err
 	}

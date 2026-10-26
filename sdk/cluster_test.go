@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	goconfig "github.com/tarantool/go-config/v2"
@@ -167,6 +168,59 @@ func TestClusterSourceAccessors(t *testing.T) {
 	assert.Equal(t, 2, sources[sdk.FileSource("x")])
 	assert.NotEqual(t, sdk.StorageSource("http://h:1/p", creds),
 		sdk.StorageSource("http://h:1/p", sdk.Credentials{}))
+}
+
+// TestClusterSourceLookup checks that an application source carries how its
+// application is found, that the other sources do not, and that the lookup
+// tells application sources apart.
+func TestClusterSourceLookup(t *testing.T) {
+	t.Parallel()
+
+	lookup := sdk.AppLookup{Scope: "user", Template: "other"}
+	app := sdk.AppSource("app").WithLookup(lookup)
+
+	name, ok := app.App()
+	assert.True(t, ok)
+	assert.Equal(t, "app", name)
+	assert.Equal(t, lookup, app.Lookup())
+	assert.Equal(t, sdk.AppLookup{}, sdk.AppSource("app").Lookup())
+	assert.NotEqual(t, sdk.AppSource("app"), app)
+	assert.Equal(t, sdk.AppSource("app"), sdk.AppSource("app").WithLookup(sdk.AppLookup{}))
+
+	file := sdk.FileSource("/c.yaml")
+	assert.Equal(t, file, file.WithLookup(lookup))
+	assert.Equal(t, sdk.AppLookup{}, file.WithLookup(lookup).Lookup())
+
+	storage := sdk.StorageSource("http://h:1/p", sdk.Credentials{})
+	assert.Equal(t, storage, storage.WithLookup(lookup))
+}
+
+// TestAddAppFlags checks the flags AddAppFlags declares: their names, the
+// lookup they fill and the completion of the scope.
+func TestAddAppFlags(t *testing.T) {
+	t.Parallel()
+
+	var lookup sdk.AppLookup
+
+	cmd := &cobra.Command{Use: "connect"}
+	sdk.AddAppFlags(cmd, &lookup)
+
+	for _, name := range []string{sdk.ScopeFlag, sdk.TemplateFlag} {
+		flag := cmd.Flags().Lookup(name)
+		require.NotNil(t, flag, name)
+		assert.Empty(t, flag.Shorthand, name)
+		assert.Empty(t, flag.DefValue, name)
+	}
+
+	require.NoError(t, cmd.Flags().Parse([]string{"--scope", "user", "--template", "other"}))
+	assert.Equal(t, sdk.AppLookup{Scope: "user", Template: "other"}, lookup)
+
+	complete, ok := cmd.GetFlagCompletionFunc(sdk.ScopeFlag)
+	require.True(t, ok)
+
+	got, directive := complete(cmd, nil, "")
+	assert.Equal(t, []string{"project", "user", "system"}, got)
+	assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive)
 }
 
 // TestClusterSourceString checks that a source's description never shows

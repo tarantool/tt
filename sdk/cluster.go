@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/spf13/cobra"
 	goconfig "github.com/tarantool/go-config/v2"
 
 	"github.com/tarantool/tt/sdk/connect"
@@ -59,22 +60,72 @@ const (
 //
 // The zero ClusterSource names nothing, and [Services.ClusterConfig] refuses
 // it. ClusterSource is comparable: two sources are equal when they were built
-// by the same constructor from the same arguments, so a source can be a map
-// key.
+// by the same constructor from the same arguments, with the same
+// [AppLookup], so a source can be a map key.
 type ClusterSource struct {
-	kind  sourceKind
-	name  string
-	creds Credentials
+	kind   sourceKind
+	name   string
+	creds  Credentials
+	lookup AppLookup
+}
+
+// The flags with which a command of tt that takes an application finds it,
+// as the instance commands do. [AddAppFlags] declares them.
+const (
+	// ScopeFlag is --scope, the scope the application is looked for in:
+	// project, user or system.
+	ScopeFlag = "scope"
+	// TemplateFlag is --template, the template of the application its
+	// instances and its cluster config are taken from.
+	TemplateFlag = "template"
+)
+
+// defaultTemplate is the template of an application without --template.
+const defaultTemplate = "default"
+
+// AppLookup is how the application of an [AppSource] is found: the scope it
+// is looked for in and the template its pair, the instances description and
+// the cluster config, is taken from - the values of --scope and --template
+// ([AddAppFlags]). An empty field leaves the choice to the rules the
+// instance commands follow without the flag: the project the command runs in
+// when it has the name, and the system scope otherwise; the template the
+// application runs from, "default" unless the host has a pair of its own.
+type AppLookup struct {
+	// Scope is "project", "user" or "system", or empty.
+	Scope string
+	// Template is the name of a template of the application, or empty.
+	Template string
+}
+
+// AddAppFlags declares --scope and --template on cmd, bound to lookup, as
+// every command of tt that takes an application declares them, with the
+// same help and the same completion. The values are checked when the
+// application is looked for: [Services.ClusterConfig] refuses a scope other
+// than project, user and system, and a template the application cannot
+// have.
+func AddAppFlags(cmd *cobra.Command, lookup *AppLookup) {
+	flags := cmd.Flags()
+
+	flags.StringVar(&lookup.Scope, ScopeFlag, "",
+		"scope the application is looked for in: project, user or system")
+	flags.StringVar(&lookup.Template, TemplateFlag, "",
+		`template of the application the instances are described in (default "`+
+			defaultTemplate+`")`)
+
+	_ = cmd.RegisterFlagCompletionFunc(ScopeFlag, cobra.FixedCompletions(
+		[]string{"project", "user", "system"}, cobra.ShellCompDirectiveNoFileComp))
 }
 
 // AppSource names the cluster configuration of the application name, found
-// as the instance commands find it: the cluster config of the pair it runs
-// from, together with the TT_* environment and the centralized storage the
-// file names. name is an application name without an instance; see
-// [SplitInstance].
+// as the instance commands find it without --scope and --template: the
+// cluster config of the pair it runs from, together with the TT_*
+// environment and the centralized storage the file names. name is an
+// application name without an instance; see [SplitInstance].
+// [ClusterSource.WithLookup] finds it as the flags say.
 func AppSource(name string) ClusterSource {
 	return ClusterSource{
 		kind: sourceApp, name: name, creds: Credentials{Username: "", Password: ""},
+		lookup: AppLookup{Scope: "", Template: ""},
 	}
 }
 
@@ -84,6 +135,7 @@ func AppSource(name string) ClusterSource {
 func FileSource(path string) ClusterSource {
 	return ClusterSource{
 		kind: sourceFile, name: path, creds: Credentials{Username: "", Password: ""},
+		lookup: AppLookup{Scope: "", Template: ""},
 	}
 }
 
@@ -98,7 +150,28 @@ func FileSource(path string) ClusterSource {
 // TT_CLI_ETCD_PASSWORD for etcd, TT_CLI_USERNAME and TT_CLI_PASSWORD for a
 // Tarantool config storage.
 func StorageSource(uri string, creds Credentials) ClusterSource {
-	return ClusterSource{kind: sourceStorage, name: uri, creds: creds}
+	return ClusterSource{
+		kind: sourceStorage, name: uri, creds: creds,
+		lookup: AppLookup{Scope: "", Template: ""},
+	}
+}
+
+// WithLookup returns s, built by [AppSource], with its application found as
+// lookup says, as --scope and --template of a command give it. Any other
+// source is returned as it is: a file and a storage are not looked for.
+func (s ClusterSource) WithLookup(lookup AppLookup) ClusterSource {
+	if s.kind == sourceApp {
+		s.lookup = lookup
+	}
+
+	return s
+}
+
+// Lookup returns how the application of a source built by [AppSource] is
+// found ([ClusterSource.WithLookup]), and the zero AppLookup for any other
+// source.
+func (s ClusterSource) Lookup() AppLookup {
+	return s.lookup
 }
 
 // ParseClusterSource classifies arg, a command-line argument naming a cluster

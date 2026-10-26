@@ -15,7 +15,7 @@ groups:
           storage-001-a:
             iproto:
               advertise:
-                client: 'unix://./var/run/storage-001-a/tarantool.sock'
+                client: 'unix://./.tarantool/var/run/app/storage-001-a/tarantool.sock'
             database:
               instance_uuid: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
               replicaset_uuid: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'

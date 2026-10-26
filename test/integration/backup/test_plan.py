@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 from backup_helpers import (
     TT_BACKUP_APP,
+    app_config_path,
+    app_name,
     backup_plan,
     write_manifest_to_storage,
 )
@@ -37,7 +39,7 @@ PLAN_MANIFEST_ORPHAN = _load_manifest("plan_manifest_orphan.json")
 
 def _config_path(tt_app):
     """Return the cluster config path inside the running test app."""
-    return tt_app.path("config.yaml")
+    return app_config_path(tt_app)
 
 
 def _storage_uri(tmp_path):
@@ -67,7 +69,7 @@ def test_plan_full_empty_storage(tt, tt_app, tmp_path):
     """Full plan on empty storage succeeds and returns mode=full."""
     storage_uri, _ = _storage_uri(tmp_path)
 
-    rc, out = backup_plan(tt, "full", storage_uri, config=_config_path(tt_app), fmt="json")
+    rc, out = backup_plan(tt, "full", storage_uri, app=app_name(tt_app), fmt="json")
     assert rc == 0, f"tt backup plan failed:\n{out}"
 
     plan = json.loads(out.strip())
@@ -101,7 +103,7 @@ def test_plan_records_the_scope_it_was_given(tt, tt_app, tmp_path):
         tt,
         "full",
         storage_uri,
-        config=_config_path(tt_app),
+        app=app_name(tt_app),
         fmt="json",
         cluster_name="payments",
         environment="production",
@@ -114,7 +116,7 @@ def test_plan_records_the_scope_it_was_given(tt, tt_app, tmp_path):
 
     # Without the flags the keys are absent rather than empty: a plan that names
     # no cluster leaves the choice to upload.
-    rc, out = backup_plan(tt, "full", storage_uri, config=_config_path(tt_app), fmt="json")
+    rc, out = backup_plan(tt, "full", storage_uri, app=app_name(tt_app), fmt="json")
     assert rc == 0, out
 
     plan = json.loads(out.strip())
@@ -126,7 +128,7 @@ def test_plan_records_the_scope_it_was_given(tt, tt_app, tmp_path):
         tt,
         "full",
         storage_uri,
-        config=_config_path(tt_app),
+        app=app_name(tt_app),
         fmt="table",
         cluster_name="payments",
         environment="production",
@@ -143,7 +145,7 @@ def test_plan_full_ignores_storage_manifests(tt, tt_app, tmp_path):
     storage_uri, storage_dir = _storage_uri(tmp_path)
     _write_manifest(storage_dir, PLAN_MANIFEST_FULL)
 
-    rc, out = backup_plan(tt, "full", storage_uri, config=_config_path(tt_app), fmt="json")
+    rc, out = backup_plan(tt, "full", storage_uri, app=app_name(tt_app), fmt="json")
     assert rc == 0, f"tt backup plan failed:\n{out}"
 
     plan = json.loads(out.strip())
@@ -161,7 +163,7 @@ def test_plan_incremental_no_backups(tt, tt_app, tmp_path):
     """Incremental plan on empty storage fails with a clear error."""
     storage_uri, _ = _storage_uri(tmp_path)
 
-    rc, out = backup_plan(tt, "incremental", storage_uri, config=_config_path(tt_app))
+    rc, out = backup_plan(tt, "incremental", storage_uri, app=app_name(tt_app))
     assert rc != 0
     assert "no backups found" in out.lower()
     assert "--target=full" in out
@@ -174,7 +176,7 @@ def test_plan_incremental_after_full(tt, tt_app, tmp_path):
     storage_uri, storage_dir = _storage_uri(tmp_path)
     _write_manifest(storage_dir, PLAN_MANIFEST_FULL)
 
-    rc, out = backup_plan(tt, "incremental", storage_uri, config=_config_path(tt_app), fmt="json")
+    rc, out = backup_plan(tt, "incremental", storage_uri, app=app_name(tt_app), fmt="json")
     assert rc == 0, f"tt backup plan failed:\n{out}"
 
     plan = json.loads(out.strip())
@@ -196,7 +198,7 @@ def test_plan_incremental_after_incremental(tt, tt_app, tmp_path):
     _write_manifest(storage_dir, PLAN_MANIFEST_FULL)
     _write_manifest(storage_dir, PLAN_MANIFEST_INCREMENTAL)
 
-    rc, out = backup_plan(tt, "incremental", storage_uri, config=_config_path(tt_app), fmt="json")
+    rc, out = backup_plan(tt, "incremental", storage_uri, app=app_name(tt_app), fmt="json")
     assert rc == 0, f"tt backup plan failed:\n{out}"
 
     plan = json.loads(out.strip())
@@ -214,7 +216,7 @@ def test_plan_incremental_orphan_chain(tt, tt_app, tmp_path):
     _write_manifest(storage_dir, PLAN_MANIFEST_FULL)
     _write_manifest(storage_dir, PLAN_MANIFEST_ORPHAN)
 
-    rc, out = backup_plan(tt, "incremental", storage_uri, config=_config_path(tt_app))
+    rc, out = backup_plan(tt, "incremental", storage_uri, app=app_name(tt_app))
     assert rc != 0
     assert "chain problems" in out.lower()
     assert "not found" in out.lower()
@@ -228,7 +230,7 @@ def test_plan_incremental_topology_changed(tt, tt_app, tmp_path):
     storage_uri, storage_dir = _storage_uri(tmp_path)
     _write_manifest(storage_dir, PLAN_MANIFEST_WRONG_TOPOLOGY)
 
-    rc, out = backup_plan(tt, "incremental", storage_uri, config=_config_path(tt_app))
+    rc, out = backup_plan(tt, "incremental", storage_uri, app=app_name(tt_app))
     assert rc != 0
     assert "topology changed" in out.lower()
     assert "--target=full" in out
@@ -241,7 +243,7 @@ def test_plan_incremental_master_changed(tt, tt_app, tmp_path):
     storage_uri, storage_dir = _storage_uri(tmp_path)
     _write_manifest(storage_dir, PLAN_MANIFEST_WRONG_MASTER)
 
-    rc, out = backup_plan(tt, "incremental", storage_uri, config=_config_path(tt_app))
+    rc, out = backup_plan(tt, "incremental", storage_uri, app=app_name(tt_app))
     assert rc != 0
     assert "master changed" in out.lower()
     assert "--target=full" in out
@@ -256,7 +258,7 @@ def test_plan_invalid_storage_uri(tt, tt_app):
     reaches the storage, and the usage block a failure used to print carried
     the word "storage" on its own.
     """
-    rc, out = backup_plan(tt, "incremental", "not-a-uri", config=_config_path(tt_app))
+    rc, out = backup_plan(tt, "incremental", "not-a-uri", app=app_name(tt_app))
     assert rc != 0
     assert "unsupported storage scheme" in out.lower()
     assert "usage" not in out.lower()
@@ -279,12 +281,30 @@ def test_plan_missing_target_flag(tt, tmp_path):
     assert "required" in out.lower()
 
 
-def test_plan_missing_config_flag(tt, tmp_path):
-    """Missing --config flag is rejected."""
+def test_plan_missing_cluster(tt, tmp_path):
+    """A plan names its cluster, as an application or with --config."""
     storage_uri, _ = _storage_uri(tmp_path)
     rc, out = tt.exec("backup", "plan", "--target", "full", "--backup-storage", storage_uri)
     assert rc != 0
-    assert "required" in out.lower()
+    assert "name the cluster either as an application or by its config with -c" in out
+
+
+def test_plan_app_and_config(tt, tmp_path):
+    """An application and --config together name the cluster twice."""
+    storage_uri, _ = _storage_uri(tmp_path)
+    rc, out = tt.exec(
+        "backup",
+        "plan",
+        "app",
+        "--target",
+        "full",
+        "--backup-storage",
+        storage_uri,
+        "-c",
+        "/dev/null",
+    )
+    assert rc != 0
+    assert "not both" in out
 
 
 def test_plan_missing_backup_storage_flag(tt):
@@ -308,7 +328,7 @@ def test_plan_table_format(tt, tt_app, tmp_path):
     """Table format produces human-readable output."""
     storage_uri, _ = _storage_uri(tmp_path)
 
-    rc, out = backup_plan(tt, "full", storage_uri, config=_config_path(tt_app), fmt="table")
+    rc, out = backup_plan(tt, "full", storage_uri, app=app_name(tt_app), fmt="table")
     assert rc == 0, f"tt backup plan failed:\n{out}"
     assert not out.lstrip().startswith("{")
     assert "full" in out
@@ -326,7 +346,7 @@ def test_plan_full_s3(tt, tt_app, garage):
         f"&SecretAccessKey={garage.secret_key}"
     )
     try:
-        rc, out = backup_plan(tt, "full", uri, config=_config_path(tt_app), fmt="json")
+        rc, out = backup_plan(tt, "full", uri, app=app_name(tt_app), fmt="json")
         assert rc == 0, f"tt backup plan failed:\n{out}"
         plan = json.loads(out.strip())
         assert plan["mode"] == "full"
@@ -347,7 +367,7 @@ def test_plan_incremental_s3(tt, tt_app, garage):
     )
     try:
         _write_manifest_s3(garage, "", PLAN_MANIFEST_FULL)
-        rc, out = backup_plan(tt, "incremental", uri, config=_config_path(tt_app), fmt="json")
+        rc, out = backup_plan(tt, "incremental", uri, app=app_name(tt_app), fmt="json")
         assert rc == 0, f"tt backup plan failed:\n{out}"
         plan = json.loads(out.strip())
         assert plan["mode"] == "incremental"
@@ -368,7 +388,7 @@ def test_plan_timeout_expires(tt, tt_app, tmp_path):
         tt,
         "incremental",
         storage_uri,
-        config=_config_path(tt_app),
+        app=app_name(tt_app),
         timeout="1ns",
     )
 
@@ -386,7 +406,7 @@ def test_plan_full_rejects_invalid_backup_storage(tt, tt_app):
     upload tries to write the manifest with the archives already built. The
     incremental sibling is test_plan_invalid_storage_uri.
     """
-    rc, out = backup_plan(tt, "full", "bogus://backups", config=_config_path(tt_app), fmt="json")
+    rc, out = backup_plan(tt, "full", "bogus://backups", app=app_name(tt_app), fmt="json")
 
     assert rc != 0, out
     assert "bogus" in out, out
@@ -429,7 +449,7 @@ def test_plan_table_output_is_deterministic(tt, tt_app, tmp_path):
             tt,
             "incremental",
             storage_uri,
-            config=_config_path(tt_app),
+            app=app_name(tt_app),
             fmt="table",
         )
         assert rc == 0, f"tt backup plan failed:\n{out}"

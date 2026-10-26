@@ -435,7 +435,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `tt logrotate`, `tt check` and `tt clean` are removed without aliases.
   `tt connect` stays as the facade of `tt instance connect`: the same command
   with the same flags. Every command of the group takes
-  `--scope project|user|system` and `--template <name>`; the watchdog of an
+  `--scope project|user|system` and `--template <name>`, and so do the
+  commands of `tt replicaset`, `tt cluster show` and `publish`, `tt play` and
+  `tt aeon connect`: an application target there is found, and its pair read,
+  as the group finds and reads it, so an application of the user scope is
+  reachable and the cluster commands act on the template the instances run
+  from; a URI target ignores them. `tt backup start` and `finalize` take them
+  for an `<APP>:<INSTANCE>` target as well. `tt cluster topology <APP>` and
+  `tt backup plan <APP>` read the config of the pair of the application and
+  take a relative unix socket of an instance against the application
+  directory the instances run in, and
+  `tt restore apply <APP>:<INSTANCE>` restores into the data directories tt
+  starts the instance with, refusing one that runs. The watchdog of an
   instance runs as `tt instance start --watchdog`. `--foreground` replaces
   `-i` of `tt start`, for systemd, a container or a terminal: `tt` stays in
   the foreground while every instance runs under a watchdog of its own,
@@ -763,7 +774,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt aeon connect` is a module built on the tt SDK. `APP:INSTANCE` and
   `PATH INSTANCE` read the cluster configuration the way `tt cluster show`
   does, with the `TT_*` environment and the etcd or Tarantool config storage
-  the file names. `URI INSTANCE` accepts a storage URI without credentials,
+  the file names; `--scope` and `--template` find the application of
+  `APP:INSTANCE` as the instance commands find it, and the SDK gives a module
+  the same flags (`sdk.AddAppFlags`, `sdk.ClusterSource.WithLookup`).
+  `URI INSTANCE` accepts a storage URI without credentials,
   taking them from `-u`/`-p`, and a storage that cannot be read is reported
   instead of ending in a failed connection to an empty address. The SSL files
   the `--ssl*` flags name take precedence over the advertise parameters in

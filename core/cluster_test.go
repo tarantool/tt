@@ -87,7 +87,21 @@ func TestMainClusterConfig(t *testing.T) {
 	require.NoError(t, os.Symlink("../versions/sysapp/sysapp_1.0.0",
 		filepath.Join(system, "apps", "sysapp")))
 
-	env := []string{"TT_SYSTEM_ROOT=" + system, "TT_USER_ROOT=" + filepath.Join(dir, "user")}
+	// The user scope has an application of the same name, with a template
+	// of another topology: --scope and --template select it.
+	user := filepath.Join(dir, "user")
+	other := strings.ReplaceAll(appClusterYAML, "storage", "replica")
+	writeFiles(t, filepath.Join(user, "versions", "sysapp", "sysapp_2.0.0"), map[string]string{
+		".templates/default/config.yaml":    appClusterYAML,
+		".templates/default/instances.yaml": "master:\n",
+		".templates/other/config.yaml":      other,
+		".templates/other/instances.yaml":   "replica:\n",
+	})
+	require.NoError(t, os.MkdirAll(filepath.Join(user, "apps"), 0o750))
+	require.NoError(t, os.Symlink("../versions/sysapp/sysapp_2.0.0",
+		filepath.Join(user, "apps", "sysapp")))
+
+	env := []string{"TT_SYSTEM_ROOT=" + system, "TT_USER_ROOT=" + user}
 
 	for _, testCase := range []struct {
 		name string
@@ -114,6 +128,13 @@ func TestMainClusterConfig(t *testing.T) {
 			name: "application of the system scope",
 			args: []string{"demo", "cluster", "sysapp", "master"},
 			dir:  "empty", stdout: "master storage\nmode=rw\n",
+		},
+		{
+			name: "application of the user scope and a template",
+			args: []string{
+				"demo", "cluster", "sysapp", "replica", "--scope", "user", "--template", "other",
+			},
+			dir: "empty", stdout: "master replica\nmode=ro\n",
 		},
 		{
 			name: "unknown application", args: []string{"demo", "cluster", "nosuch"},
@@ -169,6 +190,18 @@ func TestMainClusterConfig(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("unknown scope", func(t *testing.T) {
+		t.Parallel()
+
+		got := runTT(t, ttRun{
+			program: "demo", args: []string{"demo", "cluster", "sysapp", "--scope", "global"},
+			env: env, dir: filepath.Join(dir, "empty"),
+		})
+
+		assert.Equal(t, int(sdk.ExitFailure), got.code)
+		assert.Contains(t, got.stderr, `unknown scope "global"`)
+	})
 }
 
 // TestMainClusterConfigDir checks that Services.ClusterConfig reports the

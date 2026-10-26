@@ -112,6 +112,35 @@ func TestConnectApp(t *testing.T) {
 	require.ErrorContains(t, got.Err, pingError(address))
 }
 
+// TestConnectAppLookup checks that --scope and --template find the
+// application of "app:instance" as the instance commands find it: the
+// cluster configuration asked for is the one of the application they select,
+// and without them the one found by the default rules.
+func TestConnectAppLookup(t *testing.T) {
+	t.Parallel()
+
+	selected := closedAddress(t)
+	other := closedAddress(t)
+	lookup := sdk.AppLookup{Scope: "user", Template: "other"}
+
+	run := func(args ...string) sdktest.Result {
+		services := sdktest.New(t,
+			sdktest.WithClusterConfig(sdk.AppSource("app").WithLookup(lookup), cluster(selected)),
+			sdktest.WithClusterConfig(sdk.AppSource("app"), cluster(other)))
+
+		return services.Run(aeon.New, append([]string{"aeon", "connect"}, args...)...)
+	}
+
+	got := run("--scope", "user", "--template", "other", "app:router-plain")
+	require.ErrorContains(t, got.Err, pingError(selected))
+
+	got = run("app:router-plain")
+	require.ErrorContains(t, got.Err, pingError(other))
+
+	got = run("--scope", "system", "app:router-plain")
+	require.ErrorIs(t, got.Err, sdk.ErrNotFound)
+}
+
 // TestConnectAppSSLPaths checks that the SSL files an application's cluster
 // configuration names by relative paths are relative to the directory of
 // its cluster config file, not to the working directory.

@@ -21,18 +21,22 @@ import (
 	sdkcluster "github.com/tarantool/tt/sdk/cluster"
 	sdkconnect "github.com/tarantool/tt/sdk/connect"
 	clustercli "github.com/tarantool/tt/v3/cli/cluster"
+	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/connect"
 	"github.com/tarantool/tt/v3/cli/connector"
 	"github.com/tarantool/tt/v3/cli/replicaset"
 	replicasetcmd "github.com/tarantool/tt/v3/cli/replicaset/cmd"
+	"github.com/tarantool/tt/v3/cli/running"
 )
 
 var (
 	errNoTopologyInstances       = errors.New("no instances found in the cluster config")
 	errUnsupportedTopologyFormat = errors.New("unsupported format")
-	topologyConfigPath           string
-	topologyFormat               string
+	errTopologySource            = errors.New(
+		"name the cluster either as an application or by its config with -c")
+	topologyConfigPath string
+	topologyFormat     string
 )
 
 const (
@@ -193,15 +197,24 @@ func discoverInstancesParallel(
 // discoverClusterTopology loads the cluster config, discovers the live topology
 // from all instances, and returns the merged result. It is shared by
 // cluster topology, backup and restore planning.
+//
+// A relative unix socket of an instance is taken against workDir, the
+// directory the instances work in, or against the directory of the config
+// file when workDir is empty.
 func discoverClusterTopology(
 	cmdCtx *cmdcontext.CmdCtx,
 	configPath string,
+	workDir string,
 	connectCtx connect.ConnectCtx,
 ) (replicaset.Replicasets, map[string]string, map[string]bool, error) {
 	clusterConfig, configDir, err := loadTopologyConfig(cmdCtx, configPath)
 	if err != nil {
 		return replicaset.Replicasets{}, nil, nil,
 			fmt.Errorf("failed to load topology config: %w", err)
+	}
+
+	if workDir != "" {
+		configDir = workDir
 	}
 
 	instanceNames, err := clustercli.Instances(clusterConfig)
@@ -611,7 +624,7 @@ func printTopologyTable(
 // NewClusterTopologyCmd creates the command that shows the current cluster topology.
 func NewClusterTopologyCmd() *cobra.Command {
 	command := &cobra.Command{
-		Use:   "topology -c <CLUSTER_CONFIG|URI> [flags]",
+		Use:   "topology (<APP> | -c <CLUSTER_CONFIG|URI>) [flags]",
 		Short: "Show the current cluster topology",
 		Long: "Discover and print the current cluster topology by connecting to " +
 			"cluster nodes via net.box.\n\n" +
@@ -619,27 +632,43 @@ func NewClusterTopologyCmd() *cobra.Command {
 			"Tarantool Config Storage. It determines the instances and their " +
 			"listen URIs. Each instance is contacted and the live topology is " +
 			"merged into one view.\n\n" +
+			"<APP> names an application tt runs, found as the instance commands " +
+			"find it, with --scope and --template: the cluster configuration is " +
+			"the one of its pair, and a relative unix socket is taken against the " +
+			"application directory its instances run in. With -c a relative unix " +
+			"socket is taken against the directory of the configuration file.\n\n" +
 			"JSON output contains replicasets keyed by UUID and their instances " +
 			"(instance_uuid, instance_name, hostname, mode, status). If a replicaset " +
 			"is unreachable and its UUID is not configured, its name is used as " +
 			"the key. Unreachable instances have status \"not reachable\".\n\n" +
 			clusterURIHelp,
 		RunE: internalRunE(internalClusterTopologyModule),
-		Args: cobra.NoArgs,
+		Args: cobra.MaximumNArgs(1),
+		ValidArgsFunction: func(
+			cmd *cobra.Command,
+			args []string,
+			toComplete string,
+		) ([]string, cobra.ShellCompDirective) {
+			if len(args) != 0 {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+
+			return internal.ClusterValidArgsFunction(&cmdCtx, cmd, toComplete,
+				internal.Active)
+		},
 	}
+	addInstanceFlags(command)
 	addTarantoolConnectFlags(command)
 	command.Flags().StringVarP(&topologyConfigPath, "config", "c", "",
 		"path or URI of the cluster configuration")
 	command.Flags().StringVar(&topologyFormat, "format", topologyFormatTable,
 		"output format: table or json")
 
-	_ = command.MarkFlagRequired("config")
-
 	return command
 }
 
 // internalClusterTopologyModule is the entry point for cluster topology.
-func internalClusterTopologyModule(commandContext *cmdcontext.CmdCtx, _ []string) error {
+func internalClusterTopologyModule(commandContext *cmdcontext.CmdCtx, args []string) error {
 	switch topologyFormat {
 	case topologyFormatJSON, topologyFormatTable, "":
 	default:
@@ -647,10 +676,15 @@ func internalClusterTopologyModule(commandContext *cmdcontext.CmdCtx, _ []string
 			errUnsupportedTopologyFormat, topologyFormat)
 	}
 
+	configPath, workDir, err := clusterConfigSource(commandContext, args, topologyConfigPath)
+	if err != nil {
+		return err
+	}
+
 	connectContext := topologyConnectContext()
 
 	merged, hostnames, reachable, err := discoverClusterTopology(
-		commandContext, topologyConfigPath, connectContext,
+		commandContext, configPath, workDir, connectContext,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to discover cluster topology: %w", err)
@@ -662,6 +696,44 @@ func internalClusterTopologyModule(commandContext *cmdcontext.CmdCtx, _ []string
 	}
 
 	return nil
+}
+
+// clusterConfigSource returns the cluster config a command that discovers
+// the live topology reads, tt cluster topology and tt backup plan: the one
+// configFlag, its -c, names, or the one of the pair of the application args
+// name; and the directory the instances work in: the application directory
+// for an application, and empty for -c, whose relative unix sockets are taken
+// against the directory of the file (discoverClusterTopology).
+func clusterConfigSource(commandContext *cmdcontext.CmdCtx, args []string, configFlag string) (
+	string, string, error,
+) {
+	switch {
+	case len(args) == 0 && configFlag == "":
+		return "", "", errTopologySource
+	case len(args) == 0:
+		return configFlag, "", nil
+	case configFlag != "":
+		return "", "", fmt.Errorf("%w, not both", errTopologySource)
+	}
+
+	appName := args[0]
+	if strings.ContainsRune(appName, running.InstanceDelimiter) {
+		return "", "", fmt.Errorf("%w: %q names an instance; the topology is that of "+
+			"the whole application", errTopologySource, appName)
+	}
+
+	application, err := loadApp(commandContext, appName)
+	if err != nil {
+		return "", "", err
+	}
+
+	if application.Pair.ConfigFile == "" {
+		return "", "", fmt.Errorf("application %q: %w: %s has instances.yaml and no "+
+			"config.yaml next to it", application.Name, errNoClusterConfig,
+			application.Pair.String())
+	}
+
+	return application.Pair.ConfigFile, application.Dir, nil
 }
 
 func topologyConnectContext() connect.ConnectCtx {

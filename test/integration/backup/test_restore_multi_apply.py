@@ -33,7 +33,9 @@ from pathlib import Path
 import pytest
 import tt_helper
 from backup_helpers import (
+    app_config_path,
     app_instance,
+    app_name,
     archive_path_from_output,
     backup_dir,
     backup_plan,
@@ -41,6 +43,7 @@ from backup_helpers import (
     eval_yaml_app,
     exec_split,
     finalize_backup,
+    instance_data_dir,
     start_backup,
 )
 from storage_helpers import FileStorage
@@ -94,7 +97,7 @@ TT_MULTI_APPLY_APP = dict(
     app_path="multi_apply_app",
     app_name="app",
     instances=list(INSTANCES),
-    running_targets=["app"],
+    running_targets=["app:*"],
     post_start=post_start_multi_apply_app,
 )
 
@@ -102,7 +105,7 @@ TT_MULTI_SYNC_APP = dict(
     app_path="multi_sync_app",
     app_name="app",
     instances=list(INSTANCES),
-    running_targets=["app"],
+    running_targets=["app:*"],
     post_start=post_start_multi_apply_app,
 )
 
@@ -113,7 +116,7 @@ TT_MULTI_SYNC_APP = dict(
 def data_dir(tt_app, instance):
     """The instance's data directory: the app configures none of the three
     keys, so Tarantool and a restore agree on the default var/lib/<name>."""
-    return Path(tt_app.path("var", "lib", instance))
+    return Path(instance_data_dir(tt_app, instance))
 
 
 def restore_marker(tt_app, instance):
@@ -269,9 +272,9 @@ def create_recovery_point(tt, target, label):
     )
 
 
-def backup_plan_file(tt, target, storage_uri, config_path, tmp_path, name):
+def backup_plan_file(tt, target, storage_uri, app, tmp_path, name):
     """Run tt backup plan and keep its raw output as the file upload reads."""
-    rc, out = backup_plan(tt, target, storage_uri, config=config_path, fmt="json")
+    rc, out = backup_plan(tt, target, storage_uri, app=app, fmt="json")
     assert rc == 0, f"tt backup plan --target={target} failed:\n{out}"
 
     path = tmp_path / name
@@ -393,9 +396,8 @@ def apply_for_instance(tt, tt_app, items, point, label, instance, uuid):
     Every member gets the same chain, the same point and the same label; the
     only thing that differs is --patch-uuid, which takes the instance's own
     original uuid, the one its name owned in the backed-up cluster's _cluster.
-    -c and --instance read the data directories out of the app's own config,
-    and --work-dir names the directory tt launches the instance from, which
-    the relative default var/lib/<instance> resolves against.
+    The target names the instance, so apply takes its data directories from
+    tt, the ones tt starts it with.
     """
     return tt.exec(
         "restore",
@@ -404,12 +406,7 @@ def apply_for_instance(tt, tt_app, items, point, label, instance, uuid):
         ",".join(item["artifact"] for item in items),
         "--checksums",
         ",".join(item["checksum_sha256"] for item in items),
-        "-c",
-        tt_app.path("config.yaml"),
-        "--instance",
-        instance,
-        "--work-dir",
-        tt_app.path(),
+        f"{app_name(tt_app)}:{instance}",
         "--target-point",
         json.dumps(point),
         "--point-name",
@@ -426,7 +423,7 @@ def apply_for_instance(tt, tt_app, items, point, label, instance, uuid):
 @pytest.mark.tt_app(**TT_MULTI_APPLY_APP)
 def test_apply_per_instance_bring_up_the_whole_replicaset(tt, tt_app, tmp_path):
     leader = app_instance(tt_app, STORAGE_1_A)
-    config_path = tt_app.path("config.yaml")
+    config_path = app_config_path(tt_app)
 
     # -- The live replicaset: original identities, both members in step.
     wait_replicaset_connected(tt, tt_app)
@@ -450,7 +447,7 @@ def test_apply_per_instance_bring_up_the_whole_replicaset(tt, tt_app, tmp_path):
         tt,
         "full",
         storage.uri,
-        config_path,
+        app_name(tt_app),
         tmp_path,
         "plan-full.json",
     )
@@ -473,7 +470,7 @@ def test_apply_per_instance_bring_up_the_whole_replicaset(tt, tt_app, tmp_path):
         tt,
         "incremental",
         storage.uri,
-        config_path,
+        app_name(tt_app),
         tmp_path,
         "plan-inc.json",
     )
@@ -532,7 +529,7 @@ def test_apply_per_instance_bring_up_the_whole_replicaset(tt, tt_app, tmp_path):
 
     # -- Stop the replicaset, wipe the members, distribute the chain.
     for name in INSTANCES:
-        proc = tt.run("stop", app_instance(tt_app, name), "-y")
+        proc = tt.run("instance", "stop", app_instance(tt_app, name), "-y")
         assert proc.returncode == 0, f"tt stop {name} failed:\n{proc.stdout}"
 
     for name in INSTANCES:
@@ -572,7 +569,7 @@ def test_apply_per_instance_bring_up_the_whole_replicaset(tt, tt_app, tmp_path):
 
     # -- The replicaset comes back on the distributed chain.
     for name in INSTANCES:
-        proc = tt.run("start", app_instance(tt_app, name))
+        proc = tt.run("instance", "start", app_instance(tt_app, name))
         assert proc.returncode == 0, f"tt start {name} failed:\n{proc.stdout}"
 
     assert tt_helper.wait_box_status(30, tt_app, tt_app.instances, ["running"])
@@ -659,7 +656,7 @@ def test_apply_per_instance_with_synchro_quorum(tt, tt_app, tmp_path):
     was taken on, and a synchronous write commits.
     """
     leader = app_instance(tt_app, STORAGE_1_A)
-    config_path = tt_app.path("config.yaml")
+    config_path = app_config_path(tt_app)
     spaces = ("restore_test", SYNC_SPACE)
 
     def assert_sync_configuration():
@@ -708,7 +705,7 @@ def test_apply_per_instance_with_synchro_quorum(tt, tt_app, tmp_path):
         tt,
         "full",
         storage.uri,
-        config_path,
+        app_name(tt_app),
         tmp_path,
         "plan-full.json",
     )
@@ -730,7 +727,7 @@ def test_apply_per_instance_with_synchro_quorum(tt, tt_app, tmp_path):
         tt,
         "incremental",
         storage.uri,
-        config_path,
+        app_name(tt_app),
         tmp_path,
         "plan-inc.json",
     )
@@ -779,7 +776,7 @@ def test_apply_per_instance_with_synchro_quorum(tt, tt_app, tmp_path):
 
     # -- Stop the replicaset, wipe the members, distribute the chain.
     for name in INSTANCES:
-        proc = tt.run("stop", app_instance(tt_app, name), "-y")
+        proc = tt.run("instance", "stop", app_instance(tt_app, name), "-y")
         assert proc.returncode == 0, f"tt stop {name} failed:\n{proc.stdout}"
 
     for name in INSTANCES:
@@ -817,7 +814,7 @@ def test_apply_per_instance_with_synchro_quorum(tt, tt_app, tmp_path):
     # -- The replicaset comes back on the distributed chain: no member stuck
     # in startup, everyone following everyone.
     for name in INSTANCES:
-        proc = tt.run("start", app_instance(tt_app, name))
+        proc = tt.run("instance", "start", app_instance(tt_app, name))
         assert proc.returncode == 0, f"tt start {name} failed:\n{proc.stdout}"
 
     assert tt_helper.wait_box_status(30, tt_app, tt_app.instances, ["running"])
@@ -879,7 +876,7 @@ def test_apply_per_instance_with_synchro_quorum(tt, tt_app, tmp_path):
         assert state["rows"] == POINT_ROWS, (name, state)
 
     replica = app_instance(tt_app, STORAGE_1_B)
-    proc = tt.run("stop", replica, "-y")
+    proc = tt.run("instance", "stop", replica, "-y")
     assert proc.returncode == 0, proc.stdout
 
     deadline = time.monotonic() + 30
@@ -909,7 +906,7 @@ def test_apply_per_instance_with_synchro_quorum(tt, tt_app, tmp_path):
     assert failed_write["absent"] is True, failed_write
     assert failed_write["ro"] is False, failed_write
 
-    proc = tt.run("start", replica)
+    proc = tt.run("instance", "start", replica)
     assert proc.returncode == 0, proc.stdout
     assert tt_helper.wait_box_status(30, tt_app, tt_app.instances, ["running"])
     wait_replicaset_connected(tt, tt_app)

@@ -26,7 +26,9 @@ import pytest
 import tt_helper
 import yaml
 from backup_helpers import (
+    app_config_path,
     app_instance,
+    app_name,
     archive_path_from_output,
     backup_dir,
     backup_plan,
@@ -140,7 +142,7 @@ TT_PITR_APP = dict(
     app_path="restore_app",
     app_name="app",
     instances=[STORAGE_1_A],
-    running_targets=["app"],
+    running_targets=["app:*"],
     post_start=post_start_pitr_app,
 )
 
@@ -1272,9 +1274,9 @@ def boot_restored(work_dir, tmp_path):
     )
 
 
-def backup_plan_file(tt, target, storage_uri, config_path, tmp_path, name):
+def backup_plan_file(tt, target, storage_uri, app, tmp_path, name):
     """Run tt backup plan and keep its raw output as the file upload reads."""
-    rc, out = backup_plan(tt, target, storage_uri, config=config_path, fmt="json")
+    rc, out = backup_plan(tt, target, storage_uri, app=app, fmt="json")
     assert rc == 0, f"tt backup plan --target={target} failed:\n{out}"
 
     path = tmp_path / name
@@ -1323,7 +1325,7 @@ def test_plan_pitr(tt, tt_app, tmp_path):
     and not only from the manifests the other tests synthesize.
     """
     target = app_instance(tt_app, STORAGE_1_A)
-    config_path = tt_app.path("config.yaml")
+    config_path = app_config_path(tt_app)
 
     storage = file_storage(tmp_path)
 
@@ -1332,7 +1334,7 @@ def test_plan_pitr(tt, tt_app, tmp_path):
         tt,
         "full",
         storage.uri,
-        config_path,
+        app_name(tt_app),
         tmp_path,
         "plan-full.json",
     )
@@ -1347,7 +1349,7 @@ def test_plan_pitr(tt, tt_app, tmp_path):
         tt,
         "incremental",
         storage.uri,
-        config_path,
+        app_name(tt_app),
         tmp_path,
         "plan-inc.json",
     )

@@ -5,10 +5,13 @@ from pathlib import Path
 
 from backup_helpers import parse_yaml
 
-from utils import create_tt_config, run_command_and_get_output
+from utils import inst_dir, lib_path, run_command_and_get_output
 
 SHARDED_APP_NAME = "sharded_app"
 SHARDED_APP_SRC = Path(__file__).parent / SHARDED_APP_NAME
+# The name of the application: [package].name of its manifest, which the
+# targets of the instance commands name it by.
+SHARDED_APP = "sharded-app"
 
 # Ports must match sharded_app/config.yaml. vshard needs a real advertise URI,
 # so the sharded app listens on TCP instead of tt's default unix socket; that
@@ -18,7 +21,7 @@ STORAGE_URIS = {
     "storage-001-a": "client:secret@localhost:3341",
     "storage-002-a": "client:secret@localhost:3342",
 }
-ROUTER_INSTANCE = f"{SHARDED_APP_NAME}:router-001-a"
+ROUTER_INSTANCE = f"{SHARDED_APP}:router-001-a"
 # The router listens on iproto like the storages do, so a backup command
 # addresses it the same way; what it never holds is a recovery point.
 ROUTER_URI = "client:secret@localhost:3343"
@@ -37,7 +40,7 @@ class ShardedApp:
     def __init__(self, tt_cmd, env_dir: Path) -> None:
         self.tt_cmd = tt_cmd
         self.env_dir = env_dir
-        self.app_name = SHARDED_APP_NAME
+        self.app_name = SHARDED_APP
 
     def exec(self, *args, **kwargs):
         """Same contract as tt_helper.Tt.exec, so that the backup_helpers
@@ -51,6 +54,11 @@ class ShardedApp:
         if assert_rc:
             assert rc == 0, f"tt {' '.join(args)} failed:\n{out}"
         return rc, out
+
+    def data_dir(self, instance):
+        """The data directory tt gives the instance: sharded_app sets none of
+        snapshot.dir, wal.dir and vinyl.dir, so all of them go there."""
+        return Path(inst_dir(self.env_dir, lib_path, self.app_name, instance))
 
     def eval(self, target, lua):
         _, out = self.tt("connect", target, "-f-", input=lua)
@@ -96,12 +104,19 @@ def _wait(timeout, predicate, message):
 def _wait_ready(app, timeout=60):
     """Wait until tt can talk to every instance, not merely until the processes
     exist. A RUNNING status only means the watchdog wrote a pid file; `box` is
-    filled in only once tt has connected over var/run/<instance>/tarantool.control,
+    filled in only once tt has connected over the console socket of the instance,
     and that socket is what `tt replicaset vshard bootstrap` needs."""
     instances = [f"{app.app_name}:{name}" for name in STORAGE_URIS] + [ROUTER_INSTANCE]
 
     def check():
-        _, out = app.tt("status", app.app_name, "--format", "json", assert_rc=False)
+        _, out = app.tt(
+            "instance",
+            "status",
+            f"{app.app_name}:*",
+            "--format",
+            "json",
+            assert_rc=False,
+        )
         try:
             status = json.loads(out)
         except json.JSONDecodeError:
@@ -145,24 +160,17 @@ def _wait_buckets_discovered(app, timeout=60):
 
 
 def start_sharded_app(tt_cmd, env_dir: Path) -> ShardedApp:
-    """Create a tt environment with sharded_app, build it (this installs the
-    pinned vshard rock), start it and bootstrap vshard."""
+    """Copy the sharded_app project, build it (this installs the pinned vshard
+    rock), start it and bootstrap vshard."""
     app_dir = env_dir / SHARDED_APP_NAME
     app = ShardedApp(tt_cmd, app_dir)
-    # A minimal tt.yaml instead of `tt init`, and the app straight in the
-    # environment root instead of under instances.enabled/, the way the other
-    # backup tests lay it out. Those 18 characters matter: `tt replicaset`
-    # reaches instances over var/run/<instance>/tarantool.control, and the full
-    # path has to stay under the 108-byte sun_path limit once pytest's own
-    # temporary directory is prepended.
     shutil.copytree(SHARDED_APP_SRC, app_dir)
-    create_tt_config(app_dir)
 
     rc, out = app.exec("package", "build", cwd=app_dir)
     assert rc == 0, out
-    app.tt("start", SHARDED_APP_NAME)
+    app.tt("instance", "start", f"{SHARDED_APP}:*")
     _wait_ready(app)
-    app.tt("replicaset", "vshard", "bootstrap", SHARDED_APP_NAME)
+    app.tt("replicaset", "vshard", "bootstrap", SHARDED_APP)
     _wait_buckets_discovered(app)
     return app
 

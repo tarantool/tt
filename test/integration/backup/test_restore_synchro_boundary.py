@@ -35,12 +35,14 @@ import pytest
 import tt_helper
 from backup_helpers import (
     app_instance,
+    app_name,
     archive_path_from_output,
     backup_dir,
     backup_plan,
     backup_upload,
     eval_yaml_app,
     finalize_backup,
+    instance_data_dir,
     start_backup,
 )
 from storage_helpers import FileStorage
@@ -87,13 +89,13 @@ TT_SYNCHRO_BOUNDARY_APP = dict(
     app_path="membership_app",
     app_name="app",
     instances=list(ALL_INSTANCES),
-    running_targets=["app"],
+    running_targets=["app:*"],
     post_start=post_start_all,
 )
 
 
 def data_dir(tt_app, instance):
-    return Path(tt_app.path("var", "lib", instance))
+    return Path(instance_data_dir(tt_app, instance))
 
 
 def eval_on(tt, tt_app, instance, lua):
@@ -163,7 +165,7 @@ def fire_hung_sync_write(tt, tt_app):
 
 def stop_followers(tt, tt_app):
     for name in (STORAGE_B, STORAGE_C):
-        proc = tt.run("stop", app_instance(tt_app, name), "-y")
+        proc = tt.run("instance", "stop", app_instance(tt_app, name), "-y")
         assert proc.returncode == 0, f"tt stop {name} failed:\n{proc.stdout}"
 
 
@@ -192,7 +194,7 @@ def build_full_backup(tt, tt_app, tmp_path):
         f"box.space.restore_test:replace({{i, 'row-' .. i}}) end return true",
     )
 
-    rc, out = backup_plan(tt, "full", storage.uri, config=tt_app.path("config.yaml"), fmt="json")
+    rc, out = backup_plan(tt, "full", storage.uri, app=app_name(tt_app), fmt="json")
     assert rc == 0, out
     plan_full = tmp_path / "plan-full.json"
     plan_full.write_text(out.strip(), encoding="utf-8")
@@ -217,7 +219,7 @@ def build_full_backup(tt, tt_app, tmp_path):
         tt,
         "incremental",
         storage.uri,
-        config=tt_app.path("config.yaml"),
+        app=app_name(tt_app),
         fmt="json",
     )
     assert rc == 0, out
@@ -382,7 +384,7 @@ def test_apply_boots_a_replicaset_on_an_unconfirmed_request(tt, tt_app, tmp_path
     # -- Everyone is stopped, wiped and restored onto the trimmed chain: the
     # same unconfirmed REQUEST on every member, the ROLLBACK and the rows
     # past it dropped by the cut at the REQUEST's own lsn.
-    proc = tt.run("stop", leader, "-y")
+    proc = tt.run("instance", "stop", leader, "-y")
     assert proc.returncode == 0, proc.stdout
 
     for name in ALL_INSTANCES:
@@ -397,12 +399,7 @@ def test_apply_boots_a_replicaset_on_an_unconfirmed_request(tt, tt_app, tmp_path
             ",".join(archives),
             "--checksums",
             ",".join(checksums),
-            "-c",
-            tt_app.path("config.yaml"),
-            "--instance",
-            name,
-            "--work-dir",
-            tt_app.path(),
+            f"{app_name(tt_app)}:{name}",
             "--target-point",
             json.dumps(point),
             "--point-name",
@@ -415,7 +412,7 @@ def test_apply_boots_a_replicaset_on_an_unconfirmed_request(tt, tt_app, tmp_path
     # -- The replicaset comes back on the distributed chain: nobody stuck in
     # startup, everyone following the leader.
     for name in ALL_INSTANCES:
-        proc = tt.run("start", app_instance(tt_app, name))
+        proc = tt.run("instance", "start", app_instance(tt_app, name))
         assert proc.returncode == 0, f"tt start {name} failed:\n{proc.stdout}"
     assert tt_helper.wait_box_status(60, tt_app, tt_app.instances, ["running"])
 

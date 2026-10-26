@@ -22,9 +22,12 @@
 //   - [ClusterSource] names where a cluster configuration comes from - an
 //     application ([AppSource]), a file ([FileSource]) or a configuration
 //     storage ([StorageSource]) - and [ParseClusterSource] tells them apart
-//     in a command-line argument; [SplitInstance] splits an "app:instance"
-//     reference, and [Instances] and [InstanceConfig] read the instances of
-//     a cluster configuration and the configuration each of them resolves.
+//     in a command-line argument; [AddAppFlags] declares --scope and
+//     --template, which find an application as the instance commands find
+//     it ([AppLookup], [ClusterSource.WithLookup]); [SplitInstance] splits
+//     an "app:instance" reference, and [Instances] and [InstanceConfig] read
+//     the instances of a cluster configuration and the configuration each of
+//     them resolves.
 //
 // The subpackages hold the rest:
 //

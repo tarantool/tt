@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
+	"github.com/tarantool/tt/sdk"
 	sdkcluster "github.com/tarantool/tt/sdk/cluster"
 	sdkconnect "github.com/tarantool/tt/sdk/connect"
 	"github.com/tarantool/tt/sdk/integrity"
@@ -466,6 +467,7 @@ func NewClusterCmd() *cobra.Command {
 		"password (used as etcd credentials only)")
 	show.Flags().BoolVar(&showCtx.Validate, "validate", showCtx.Validate,
 		"validate the configuration")
+	addInstanceFlags(show)
 	clusterCmd.AddCommand(show)
 
 	publish := &cobra.Command{
@@ -506,6 +508,7 @@ func NewClusterCmd() *cobra.Command {
 	publish.Flags().StringVarP(&publishCtx.Replicaset, "replicaset", "", "", "replicaset name")
 	publish.Flags().BoolVar(&publishCtx.Force, "force", publishCtx.Force,
 		"force publish and skip validation")
+	addInstanceFlags(publish)
 	// Integrity flags.
 	integrity.RegisterWithIntegrityFlag(publish.Flags(), &clusterIntegrityPrivateKey)
 
@@ -836,9 +839,9 @@ func parseAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, string, erro
 }
 
 // loadApp loads the application appName and its pair as the instance
-// commands do.
+// commands do, with --scope and --template of the command.
 func loadApp(cmdCtx *cmdcontext.CmdCtx, appName string) (*app.App, error) {
-	opts, err := instanceOptions(cmdCtx)
+	opts, err := instanceTargetOptions(cmdCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -853,9 +856,11 @@ func loadApp(cmdCtx *cmdcontext.CmdCtx, appName string) (*app.App, error) {
 
 // LoadApp loads the application appName and its pair as the instance
 // commands do, for the core: the project search starts in the directory the
-// commands work in, and the files are read through the integrity checks.
-func LoadApp(ctx context.Context, appName string) (*app.App, error) {
-	opts, err := instanceOptions(&cmdCtx)
+// commands work in, the application is looked for and its pair chosen as
+// lookup says, as --scope and --template of an instance command, and the
+// files are read through the integrity checks.
+func LoadApp(ctx context.Context, appName string, lookup sdk.AppLookup) (*app.App, error) {
+	opts, err := lookupOptions(&cmdCtx, lookup)
 	if err != nil {
 		return nil, err
 	}

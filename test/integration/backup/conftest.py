@@ -163,4 +163,4 @@ def sharded_app(tt_cmd, tmp_path_factory):
     try:
         yield app
     finally:
-        app.tt("stop", "-y", assert_rc=False)
+        app.tt("instance", "stop", "-y", f"{app.app_name}:*", assert_rc=False)
