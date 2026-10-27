@@ -263,6 +263,9 @@ type loadedPair struct {
 	// records are the instances of the description, with "*" replaced by
 	// the instances it stands for.
 	records []instances.Instance
+	// named are the records of the description that name an instance, in
+	// its order: records without the instances "*" stands for.
+	named []instances.Instance
 	// wildcard tells that the description has "*", or that the pair has
 	// none and runs the whole topology of its config.
 	wildcard bool
@@ -293,7 +296,11 @@ type loadedPair struct {
 // it cannot is configErr rather than a failure, and the topology is not
 // checked. "*" then stands for the instances that have run in the scope of
 // the application (ranInstances): a config storage that is down must not
-// keep them from being stopped.
+// keep them from being stopped. With the config read, "*" stands as well
+// for the instances the topology has lost while they run here
+// (runningInstances): tt cluster publish may drop an instance of "*" from
+// the topology (App.CheckTopology), which does not stop it, and it is still
+// there to be stopped and looked at.
 func loadPair(ctx context.Context, pair Pair, loc location, opts Options) (loadedPair, error) {
 	bestEffort := opts.BestEffortConfig
 	check := !bestEffort
@@ -310,6 +317,7 @@ func loadPair(ctx context.Context, pair Pair, loc location, opts Options) (loade
 
 	loaded := loadedPair{
 		records:   desc.Instances,
+		named:     desc.Instances,
 		wildcard:  desc.Wildcard != nil,
 		config:    nil,
 		configErr: nil,
@@ -341,11 +349,23 @@ func loadPair(ctx context.Context, pair Pair, loc location, opts Options) (loade
 	}
 
 	loaded.config = cfg
-	loaded.records = expand(desc, topology)
 
 	if !check {
+		if desc.Wildcard != nil {
+			running, listErr := runningInstances(loc)
+			if listErr != nil {
+				return loadedPair{}, listErr
+			}
+
+			topology = slices.Concat(topology, running)
+		}
+
+		loaded.records = expand(desc, topology)
+
 		return loaded, nil
 	}
+
+	loaded.records = expand(desc, topology)
 
 	err = checkTopology(pair.InstancesFile, pair.ConfigFile, desc.Instances, topology)
 	if err != nil {
@@ -474,6 +494,39 @@ func ranInstances(loc location) ([]string, error) {
 	return names, nil
 }
 
+// runningInstances returns the names of those of ranInstances whose run
+// directory holds the pid file of the watchdog,
+// <root>/var/run/<app>/<inst>/tt.pid, sorted: those that run there, or have
+// crashed and left the file behind. The watchdog removes the file when its
+// instance stops, while the directory stays, so a stopped instance is not
+// among them. With the config of the pair read, "*" stands for these
+// besides the topology to a command that acts on the processes of the
+// instances. A pid file that cannot be looked for is an error, as a run
+// directory that cannot be read is.
+func runningInstances(loc location) ([]string, error) {
+	ran, err := ranInstances(loc)
+	if err != nil {
+		return nil, err
+	}
+
+	dir := filepath.Join(loc.root, scope.RunDirName, loc.name)
+
+	var names []string
+
+	for _, name := range ran {
+		found, err := exists(filepath.Join(dir, name, scope.PidFileName))
+		if err != nil {
+			return nil, failf("cannot look for the instances that run: %w", err)
+		}
+
+		if found {
+			names = append(names, name)
+		}
+	}
+
+	return names, nil
+}
+
 // checkFields refuses the fields of a record that an instance of its kind
 // cannot honour, "*" among the records.
 //
@@ -585,27 +638,23 @@ func checkTopology(descFile, config string, records []instances.Instance,
 	return nil
 }
 
-// CheckTopology checks the instances of app against topology, the instances
-// of a cluster config about to take the place of the config of its pair, as
-// tt cluster publish publishes one; config names that config for a message.
-// Every Tarantool instance of the cluster config app runs, those "*" stands
-// for now among them, must stay in it, and no instance that runs its script
-// and no external process may take a name of it. A config that leaves an
-// instance of the description out would leave the pair broken, or an
-// instance of "*" running without its config.
+// CheckTopology checks the description of app against topology, the
+// instances of a cluster config about to take the place of the config of its
+// pair, as tt cluster publish publishes one; config names that config for a
+// message. Every Tarantool instance of the cluster config the description
+// names must stay in it, and no instance that runs its script and no
+// external process may take a name of it. A config that leaves out an
+// instance the description names would leave the pair broken.
 //
-// app is loaded with Options.BestEffortConfig for this: "*" stands for the
-// instances of the topology the pair has now, or, when its config cannot be
-// read, for those that have run in the scope.
+// The instances "*" stands for are not checked: "*" follows the topology,
+// whichever instances the config gives it, and every project tt create
+// makes has it, so checking them would keep a project from ever dropping an
+// instance by publishing. One dropped while it runs keeps running without
+// its config; the commands that act on the processes of the instances still
+// find it by its pid file (Options.BestEffortConfig), so that it can be
+// stopped.
 func (app *App) CheckTopology(topology []string, config string) error {
-	err := checkTopology(app.Pair.DescriptionFile(), config, app.Instances, topology)
-	if err != nil && app.wildcard && errors.Is(err, ErrTopologyMismatch) {
-		return failf("%w;\n%q stands for the instances the pair runs now: a config "+
-			"that drops some of them is to be written by hand, or published to its "+
-			"storage by the URI", err, instances.WildcardName)
-	}
-
-	return err
+	return checkTopology(app.Pair.DescriptionFile(), config, app.named, topology)
 }
 
 // CheckTemplate checks a template the way Load checks a pair, for

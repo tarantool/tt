@@ -169,30 +169,36 @@ func TestClusterPublishMendsPair(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestClusterPublishWildcard pins the choice made where the decision is
-// silent: the instances "*" stands for now are instances of the
-// description, and a config that drops one of them is not published into
-// the pair, which would leave it running without its config.
+// TestClusterPublishWildcard pins that tt cluster publish leaves the
+// instances "*" stands for unchecked: a config that drops one of them is
+// published, as one that adds one is, while a config that drops an instance
+// the description names next to "*" is refused.
 //
 //nolint:paralleltest // Sets the environment, the working directory and the flags.
 func TestClusterPublishWildcard(t *testing.T) {
-	config := publishProject(t, "\"*\":\n", topologyOf("s-1", "s-2"))
+	config := publishProject(t, "\"*\":\nr-1:\n", topologyOf("r-1", "s-1", "s-2"))
 
 	source := publishSource(t, topologyOf("s-1"))
 
 	err := internalClusterPublishModule(&cmdcontext.CmdCtx{}, []string{"myapp", source})
 	require.ErrorIs(t, err, app.ErrTopologyMismatch)
-	require.ErrorContains(t, err, `"s-2" from `)
-	require.ErrorContains(t, err, `"*" stands for the instances the pair runs now`)
-
-	source = publishSource(t, topologyOf("s-1", "s-2", "s-3"))
-
-	require.NoError(t, internalClusterPublishModule(&cmdcontext.CmdCtx{},
-		[]string{"myapp", source}))
+	require.ErrorContains(t, err, `"r-1" from `)
+	assert.NotContains(t, err.Error(), `"s-2"`, "an instance of \"*\" may be dropped")
 
 	data, err := os.ReadFile(config)
 	require.NoError(t, err)
-	assert.Equal(t, topologyOf("s-1", "s-2", "s-3"), string(data))
+	assert.Equal(t, topologyOf("r-1", "s-1", "s-2"), string(data), "the config is not written")
+
+	for _, topology := range [][]string{{"r-1", "s-1"}, {"r-1", "s-1", "s-3"}, {"r-1"}} {
+		source = publishSource(t, topologyOf(topology...))
+
+		require.NoError(t, internalClusterPublishModule(&cmdcontext.CmdCtx{},
+			[]string{"myapp", source}))
+
+		data, err = os.ReadFile(config)
+		require.NoError(t, err)
+		assert.Equal(t, topologyOf(topology...), string(data))
+	}
 }
 
 // TestClusterPublishIncompletePair pins that a pair that has lost the config

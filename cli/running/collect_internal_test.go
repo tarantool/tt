@@ -317,3 +317,36 @@ func TestCollectBestEffortConfig(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, layoutSocket("storage-1"), insts[0].ConsoleSocket, "a config not read")
 }
+
+// TestCollectDroppedInstance pins the context of an instance that "*" stands
+// for by its pid file alone, dropped from the topology while it runs: a
+// command that reads the config as far as it can gets it with the fields of
+// "*" and the paths of the layout, without the cluster config, which does
+// not declare it; one that requires the config does not get it.
+func TestCollectDroppedInstance(t *testing.T) {
+	setScopeRoots(t)
+
+	dir := filepath.Join(t.TempDir(), fixtureApp)
+	writeFiles(t, dir, pairFiles("\"*\":\n  restart: always\n", "storage-1"))
+
+	declared, err := collect(t, app.Options{Start: dir}, "myapp:storage-1")
+	require.NoError(t, err)
+
+	pidFile := strings.Replace(declared[0].PIDFile, "storage-1", "storage-2", 1)
+	require.NoError(t, os.MkdirAll(filepath.Dir(pidFile), 0o755))
+	require.NoError(t, os.WriteFile(pidFile, nil, 0o644))
+
+	insts, err := collect(t, app.Options{Start: dir, BestEffortConfig: true}, "myapp:storage-2")
+	require.NoError(t, err)
+	require.Len(t, insts, 1)
+	assert.Equal(t, pidFile, insts[0].PIDFile)
+	assert.Equal(t, filepath.Dir(pidFile), insts[0].RunDir)
+	assert.Equal(t,
+		strings.Replace(declared[0].ConsoleSocket, "storage-1", "storage-2", 1),
+		insts[0].ConsoleSocket)
+	assert.Nil(t, insts[0].Configuration)
+	assert.Equal(t, instances.RestartAlways, insts[0].Restart)
+
+	_, err = collect(t, app.Options{Start: dir}, "myapp:storage-2")
+	require.ErrorIs(t, err, app.ErrInstanceNotFound)
+}

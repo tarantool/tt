@@ -281,8 +281,10 @@ func TestWildcardBestEffort(t *testing.T) {
 			root := filepath.Join(tree, ".tarantool")
 			runDirs(t, root, "myapp", "storage-3", "storage-2", "worker-1", "storage-1")
 			// Neither a file nor the directory of another application is an
-			// instance that has run.
+			// instance that has run; a pid file makes no difference, and
+			// storage-3 without one counts all the same.
 			writeTree(t, root, map[string]string{
+				"var/run/myapp/storage-1/tt.pid":   "",
 				"var/run/myapp/notes.txt":          "",
 				"var/run/other/storage-9/tt.pid":   "",
 				"var/lib/myapp/storage-8/00.snap":  "",
@@ -395,6 +397,165 @@ func TestWildcardBestEffort(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []string{"storage-1"}, names(got.Instances))
 	})
+}
+
+// TestWildcardRunning pins that "*" stands, to a command that reads the
+// config as far as it can and reads it, for the instances of the topology
+// and for those the topology lacks whose run directory holds the pid file of
+// the watchdog: the instances dropped from the topology while they run, or
+// left by a crash. They get the fields of "*" and take their place among its
+// instances in the order of the names. A run directory without the pid file,
+// which a stopped instance leaves, adds none; nor does a pid file without
+// "*", and a command that checks the topology sees none of them.
+func TestWildcardRunning(t *testing.T) {
+	const desc = "worker-1:\n  binary: ./bin/worker\n\"*\":\n  restart: always\n" +
+		"storage-2:\n"
+
+	roots(t)
+
+	tree := t.TempDir()
+	writeTree(t, tree, map[string]string{
+		"app.manifest.toml":                 manifestOf("myapp"),
+		".templates/default/instances.yaml": desc,
+		".templates/default/config.yaml":    topology("storage-1", "storage-2", "storage-4"),
+		".templates/named/instances.yaml":   "storage-1:\n",
+		".templates/named/config.yaml":      topology("storage-1"),
+	})
+
+	root := filepath.Join(tree, ".tarantool")
+	// storage-5 has stopped; the others run, storage-0 and storage-3 dropped
+	// from the topology. The records of storage-2 and worker-1 take their
+	// names whatever runs.
+	runDirs(t, root, "myapp", "storage-5")
+	writeTree(t, root, map[string]string{
+		"var/run/myapp/storage-0/tt.pid": "",
+		"var/run/myapp/storage-1/tt.pid": "",
+		"var/run/myapp/storage-2/tt.pid": "",
+		"var/run/myapp/storage-3/tt.pid": "",
+		"var/run/myapp/worker-1/tt.pid":  "",
+		"var/run/other/storage-9/tt.pid": "",
+	})
+
+	bestEffort := app.Options{Start: tree, BestEffortConfig: true}
+
+	got, err := load(t, "", bestEffort)
+	require.NoError(t, err)
+	require.NotNil(t, got.Config)
+	require.NoError(t, got.ConfigError)
+	assert.Equal(t,
+		[]string{"worker-1", "storage-0", "storage-1", "storage-3", "storage-4", "storage-2"},
+		names(got.Instances))
+	assert.Equal(t, instances.RestartAlways, got.Instances[3].Restart,
+		"an instance that runs gets the fields of \"*\"")
+	assert.Equal(t, instances.KindCluster, got.Instances[3].Kind())
+
+	ctx := context.Background()
+
+	selections, err := app.Resolve(ctx, []app.Target{{App: "myapp", Instance: "storage-3"}},
+		bestEffort)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"storage-3"}, names(selections[0].Instances))
+
+	got, err = load(t, "", app.Options{Start: tree})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"worker-1", "storage-1", "storage-4", "storage-2"},
+		names(got.Instances), "a command that checks the topology sees what it declares")
+
+	_, err = app.Resolve(ctx, []app.Target{{App: "myapp", Instance: "storage-3"}},
+		app.Options{Start: tree})
+	requireFailure(t, err, app.ErrInstanceNotFound)
+
+	// The instances the description names are all there is without "*".
+	got, err = load(t, "", app.Options{Start: tree, Template: "named", BestEffortConfig: true})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"storage-1"}, names(got.Instances))
+
+	t.Run("a pid file that cannot be looked for", func(t *testing.T) {
+		if os.Geteuid() == 0 {
+			t.Skip("root reads any directory")
+		}
+
+		runDir := filepath.Join(root, "var", "run", "myapp", "storage-3")
+		require.NoError(t, os.Chmod(runDir, 0o000))
+		t.Cleanup(func() { _ = os.Chmod(runDir, 0o755) })
+
+		_, err := load(t, "", bestEffort)
+		require.ErrorIs(t, err, os.ErrPermission)
+		require.ErrorContains(t, err, "cannot look for the instances that run")
+	})
+}
+
+// TestCheckTopology pins the check tt cluster publish makes of the cluster
+// config it publishes into the pair: every instance the description names
+// stays in the topology, and no script or binary record takes a name of it,
+// while the instances "*" stands for may be dropped: those of the topology,
+// and one found by its pid file alone.
+func TestCheckTopology(t *testing.T) {
+	const desc = "\"*\":\nrouter-1:\nlegacy-1:\n  script: init.lua\n"
+
+	files := map[string]string{
+		".templates/default/instances.yaml": desc,
+		".templates/default/config.yaml":    topology("router-1", "storage-1", "storage-2"),
+	}
+
+	cases := []struct {
+		name     string
+		topology []string
+		err      error
+		msg      []string // Parts of the message.
+	}{
+		{name: "an instance of \"*\" dropped", topology: []string{"router-1", "storage-1"}},
+		{name: "every instance of \"*\" dropped", topology: []string{"router-1"}},
+		{
+			name:     "an instance added",
+			topology: []string{"router-1", "storage-1", "storage-2", "storage-3"},
+		},
+		{
+			name:     "a named instance dropped",
+			topology: []string{"storage-1", "storage-2"},
+			err:      app.ErrTopologyMismatch,
+			msg:      []string{`"router-1" from `, "not declared in the config to publish"},
+		},
+		{
+			name:     "a script named as an instance",
+			topology: []string{"router-1", "legacy-1"},
+			err:      app.ErrTopologyConflict,
+			msg:      []string{`"legacy-1" of `, "with script or binary"},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			roots(t)
+
+			tree := t.TempDir()
+			writeTree(t, tree, files)
+			// An instance dropped before, which still runs, is no instance
+			// of the description to keep.
+			writeTree(t, filepath.Join(tree, ".tarantool"), map[string]string{
+				"var/run/" + filepath.Base(tree) + "/storage-9/tt.pid": "",
+			})
+
+			got, err := load(t, "", app.Options{Start: tree, BestEffortConfig: true})
+			require.NoError(t, err)
+			require.Contains(t, names(got.Instances), "storage-9")
+
+			err = got.CheckTopology(test.topology, "the config to publish")
+			if test.err == nil {
+				require.NoError(t, err)
+
+				return
+			}
+
+			requireFailure(t, err, test.err)
+
+			for _, msg := range test.msg {
+				require.ErrorContains(t, err, msg)
+			}
+
+			assert.NotContains(t, err.Error(), "storage-", "\"*\" is not checked")
+		})
+	}
 }
 
 // TestTopologyConflict pins that a record with a script or a binary named as

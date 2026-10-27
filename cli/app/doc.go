@@ -77,7 +77,9 @@
 // an instance added to the config is not left out because it was forgotten
 // in the description. The pair of a host needs its description, "*"
 // included: it says what runs on that host, while the rest of a cluster may
-// run on others.
+// run on others. The topology is free to lose an instance "*" stands for: a
+// cluster config published into the pair is checked against the other
+// records alone (App.CheckTopology).
 //
 // Only the Tarantool instances of the config, and "*", need the config. A
 // description of instances that run their scripts and of external
@@ -89,7 +91,12 @@
 // as far as they can (Options.BestEffortConfig). When they cannot, "*"
 // stands for the instances that have run in the scope of the application,
 // those with a directory in <root>/var/run/<app>/: an etcd that is down does
-// not keep them from being stopped.
+// not keep them from being stopped. When they can, "*" stands as well for
+// the instances the topology lacks whose directory there still holds the
+// pid file of the watchdog, tt.pid: an instance dropped from the topology
+// keeps running, and is still there to be stopped and looked at, as the
+// layout gives it. The directory alone, which outlives a stopped instance,
+// brings back none.
 //
 // A Tarantool instance, configured by the cluster config or by its script,
 // runs in the application directory with the command line tt makes up, so

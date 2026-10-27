@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	etcdtest "github.com/tarantool/go-storage/v2/test_helpers/etcd"
 	"github.com/tarantool/tt/sdk/integrity"
-	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 )
@@ -42,8 +41,9 @@ func storedTopology(t *testing.T, path string) []string {
 // pair of an application whose config.yaml points to an empty etcd goes
 // there: the pair is read without the config the storage does not hold yet.
 // The config of an instance has no cluster config to go into before it, and
-// is refused saying so; after it, the config is checked against what "*"
-// stands for, and the config of an instance goes into it.
+// is refused saying so; after it, a config that drops an instance "*" stands
+// for goes there as well (decision 53), and so does the config of an
+// instance.
 //
 //nolint:paralleltest // Sets the environment, the working directory and the flags.
 func TestClusterPublishIntoEmptyStorage(t *testing.T) {
@@ -70,11 +70,12 @@ func TestClusterPublishIntoEmptyStorage(t *testing.T) {
 	assert.Equal(t, []string{"s-1", "s-2"}, storedTopology(t, config))
 
 	source = publishSource(t, topologyOf("s-1"))
-	err = internalClusterPublishModule(cmdCtx, []string{"myapp", source})
-	require.ErrorIs(t, err, app.ErrTopologyMismatch, `"*" stands for s-2 now`)
+	require.NoError(t, internalClusterPublishModule(cmdCtx, []string{"myapp", source}),
+		`"*" stands for s-2 now, which does not keep it in the topology`)
+	assert.Equal(t, []string{"s-1"}, storedTopology(t, config))
 
 	require.NoError(t, internalClusterPublishModule(cmdCtx, []string{"myapp:s-1", instance}))
-	assert.Equal(t, []string{"s-1", "s-2"}, storedTopology(t, config))
+	assert.Equal(t, []string{"s-1"}, storedTopology(t, config))
 
 	cfg, err := cluster.GetClusterConfig(t.Context(), config, integrity.IntegrityCtx{})
 	require.NoError(t, err)
