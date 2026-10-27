@@ -50,13 +50,12 @@ type Options struct {
 	// says where the instance keeps what it moves out of the layout, such
 	// as its console socket. A command that needs the config to act, such
 	// as tt instance start, requires it.
+	//
+	// tt cluster publish into the pair reads it so as well: the config it
+	// writes takes the place of the one that cannot be read, an empty
+	// storage before the first publication among them, and is checked
+	// against the description instead (App.CheckTopology).
 	BestEffortConfig bool
-	// SkipTopologyCheck reads the pair, its cluster config included, as
-	// always, but does not check the description against the topology of
-	// the config. It is for tt cluster publish, which may mend a pair whose
-	// topology has lost an instance of the description, and which checks the
-	// config it publishes instead (App.CheckTopology).
-	SkipTopologyCheck bool
 }
 
 // App is an application found and loaded with its pair.

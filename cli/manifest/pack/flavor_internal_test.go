@@ -16,26 +16,6 @@ func flavored(spec, flavor string) manifest.Constraint {
 	return manifest.Constraint{Version: spec, Flavor: flavor}
 }
 
-func TestFlavorFromBanner(t *testing.T) {
-	tests := []struct {
-		name   string
-		banner string
-		want   string
-	}{
-		{"community", "Tarantool 3.2.0-0-g19607a903\nTarget: Darwin\n", flavorCE},
-		{"enterprise", "Tarantool Enterprise 3.2.0-0-g19607a903\nTarget: Linux\n", flavorEE},
-		{"entrypoint community", "Tarantool 3.8.0-entrypoint-49-g97a3b38040\n", flavorCE},
-		{"unrecognized banner", "weird\n", ""},
-		{"empty", "", ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, FlavorFromBanner(tt.banner))
-		})
-	}
-}
-
 // TestFindInCacheSeparatesFlavors pins the cache layout: findInCache searches
 // exactly one flavor tree, so the two flavors of one version can coexist.
 // Which trees a requirement may draw from is resolveRuntime's decision.

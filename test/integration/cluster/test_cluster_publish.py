@@ -226,6 +226,50 @@ def test_cluster_publish_valid_cluster(tt_cmd, tmpdir_with_cfg, app_name):
     assert valid_cluster_cfg + storage_instance_cfg == uploaded
 
 
+def test_cluster_publish_app_to_its_storage(tt_cmd, tmp_path, etcd):
+    """The pair of an application whose config.yaml points to etcd gets a
+    published config in etcd, under the prefix of the reference, the first
+    one into the empty storage included, and the file keeps its reference;
+    the config is checked against the description all the same."""
+    app_name = "test_simple_app"
+    copy_app(tmp_path, app_name)
+    app_path = tmp_path / app_name
+    config = app_path / cluster_config_file
+    reference = f"config:\n  etcd:\n    endpoints:\n      - {etcd.endpoint}\n    prefix: /myapp\n"
+    config.write_text(reference)
+
+    conn = etcd.conn()
+    stored = valid_cluster_cfg + storage_instance_cfg
+    src = tmp_path / "src.yaml"
+    src.write_text(stored)
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "cluster", "publish", app_name, str(src)],
+        cwd=app_path,
+    )
+    assert rc == 0, out
+    assert conn.get("/myapp/config/all")[0].decode() == stored
+    assert config.read_text() == reference
+
+    published = stored + "          replica: {}\n"
+    src.write_text(published)
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "cluster", "publish", app_name, str(src)],
+        cwd=app_path,
+    )
+    assert rc == 0, out
+    assert conn.get("/myapp/config/all")[0].decode() == published
+    assert config.read_text() == reference
+
+    src.write_text(valid_cluster_cfg)
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "cluster", "publish", app_name, str(src)],
+        cwd=app_path,
+    )
+    assert rc == 1
+    assert '"storage" from ' in out
+    assert conn.get("/myapp/config/all")[0].decode() == published
+
+
 def test_cluster_publish_keeps_the_description(tt_cmd, tmp_path):
     """A config published into the pair of an application keeps every
     Tarantool instance of its description: one that drops master, or that

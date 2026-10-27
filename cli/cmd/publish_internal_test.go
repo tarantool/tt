@@ -183,8 +183,7 @@ func TestClusterPublishWildcard(t *testing.T) {
 	err := internalClusterPublishModule(&cmdcontext.CmdCtx{}, []string{"myapp", source})
 	require.ErrorIs(t, err, app.ErrTopologyMismatch)
 	require.ErrorContains(t, err, `"s-2" from `)
-	require.ErrorContains(t, err, `"*" stands for the instances of the topology the pair `+
-		"has now")
+	require.ErrorContains(t, err, `"*" stands for the instances the pair runs now`)
 
 	source = publishSource(t, topologyOf("s-1", "s-2", "s-3"))
 
@@ -194,4 +193,21 @@ func TestClusterPublishWildcard(t *testing.T) {
 	data, err := os.ReadFile(config)
 	require.NoError(t, err)
 	assert.Equal(t, topologyOf("s-1", "s-2", "s-3"), string(data))
+}
+
+// TestClusterPublishIncompletePair pins that a pair that has lost the config
+// its description needs is refused as incomplete, as every other command
+// refuses it, though tt cluster publish reads the config by the best effort.
+//
+//nolint:paralleltest // Sets the environment, the working directory and the flags.
+func TestClusterPublishIncompletePair(t *testing.T) {
+	config := publishProject(t, "storage-1:\n", topologyOf("storage-1"))
+	require.NoError(t, os.Remove(config))
+
+	source := publishSource(t, topologyOf("storage-1"))
+
+	err := internalClusterPublishModule(&cmdcontext.CmdCtx{}, []string{"myapp", source})
+	require.ErrorIs(t, err, app.ErrIncompletePair)
+	require.ErrorContains(t, err, `to configure its Tarantool instances "storage-1"`)
+	assert.NoFileExists(t, config, "no config is made up for the pair")
 }

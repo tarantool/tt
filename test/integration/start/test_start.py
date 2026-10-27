@@ -272,6 +272,31 @@ def test_start_script_pair_needs_config(tt, tt_app):
         assert not os.path.exists(tt_app.run_path(inst, utils.pid_file))
 
 
+@pytest.mark.skipif(utils.is_tarantool_ee(), reason="checks Tarantool Community Edition")
+@pytest.mark.tt_app(**tt_multi_inst_app)
+def test_start_config_storage_on_ce(tt, tt_app, etcd):
+    # Tarantool CE takes no config.etcd: an instance whose cluster config is
+    # kept in etcd is refused by tt instance start and check with the reason,
+    # rather than stopping right after the start with it in its log alone.
+    config = tt_app.path(utils.cluster_config_file)
+    with open(config) as f:
+        etcd.conn().put("/myapp/config/all", f.read())
+    with open(config, "w") as f:
+        f.write(f"config:\n  etcd:\n    endpoints:\n      - {etcd.endpoint}\n    prefix: /myapp\n")
+
+    for command in ["start", "check"]:
+        rc, out = tt.exec("instance", command, "app:master")
+        assert rc == 1
+        assert "a config storage needs Tarantool Enterprise Edition" in out
+        assert "config.etcd of its cluster config points to a config storage" in out
+        assert "Tarantool Community Edition" in out
+    assert not os.path.exists(tt_app.run_path("app:master", utils.pid_file))
+
+    # tt reads the storage itself: the instances are there to look at.
+    status = tt_helper.status(tt)
+    assert status["app:master"]["STATUS"] == "NOT RUNNING"
+
+
 ################################################################
 # The whole topology
 

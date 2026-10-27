@@ -251,13 +251,12 @@ func completeSystemdApp(
 	}
 
 	return app.Names(app.Options{
-		Scope:             app.ScopeSystem,
-		Template:          "",
-		Start:             "",
-		Dir:               "",
-		Integrity:         cmdCtx.Integrity,
-		BestEffortConfig:  true,
-		SkipTopologyCheck: false,
+		Scope:            app.ScopeSystem,
+		Template:         "",
+		Start:            "",
+		Dir:              "",
+		Integrity:        cmdCtx.Integrity,
+		BestEffortConfig: true,
 	}), cobra.ShellCompDirectiveNoFileComp
 }
 

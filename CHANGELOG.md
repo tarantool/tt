@@ -529,11 +529,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   the host, `<root>/etc/<app>/config.yaml`, and refuses one that runs from a
   template of its installed version, which is never written to, pointing at
   `<root>/etc/<app>/` and at the URI of a config storage. It reads the pair
-  without checking it against the topology, so a pair out of step is mended
-  by publishing, and refuses a config that drops a Tarantool instance of the
+  with its config as far as the config can be read and without checking it
+  against the topology, so a pair out of step or a `config.yaml` that does
+  not parse is mended by publishing, and the first config goes into an
+  empty storage, and refuses a config that drops a Tarantool instance of the
   description, those `"*"` stands for now included, or that names an
   instance of the cluster as a `script` or `binary` record, naming them;
-  publishing to a config storage by its URI checks nothing, as before. `tt instance stop`,
+  publishing to a config storage by its URI checks nothing, as before. Into
+  a pair whose `config.yaml` points to a config storage with `config.etcd`
+  or `config.storage`, it publishes into that storage, with the endpoints,
+  the prefix, the credentials and the TLS settings of the reference, and
+  leaves the file and its reference as they are. Tarantool takes
+  `config.etcd` and `config.storage` in Enterprise Edition alone: with a
+  tarantool of Community Edition, `tt instance start`, `restart`, before it
+  stops anything, and `check` refuse a Tarantool instance of the cluster
+  config whose config points to a storage, saying why, while tt itself
+  reads the storage in either edition. `tt instance stop`,
   `kill`, `status`, `logrotate` and `logs`, the completion of a target and
   `tt replicaset status` read `config.yaml` and the config storage it names
   as far as they can, as they did with `tt.yaml`: they find the instances by

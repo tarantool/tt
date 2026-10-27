@@ -10,6 +10,8 @@ import (
 	"time"
 
 	goconfig "github.com/tarantool/go-config/v2"
+	gcttarantool "github.com/tarantool/go-config/v2/tarantool"
+	"github.com/tarantool/go-storage/v2"
 	gsconnect "github.com/tarantool/go-storage/v2/connect"
 	sdkcluster "github.com/tarantool/tt/sdk/cluster"
 	"github.com/tarantool/tt/sdk/connect"
@@ -20,7 +22,12 @@ var (
 	errEndpointUnexpectedType       = errors.New("endpoint[")
 	errEndpointUnknownTransportType = errors.New("endpoint[")
 	errEtcdEndpointIsNotAString     = errors.New("etcd endpoint is not a string: ")
+	errNoStorageEndpoints           = errors.New("names no endpoints of the config storage")
 )
+
+// ErrConfigFile is wrapped by the error of OpenConfigStorage for a cluster
+// config file that cannot be read as one.
+var ErrConfigFile = errors.New("cannot read the cluster config file")
 
 const defaultEtcdTimeout = 3 * time.Second
 
@@ -204,6 +211,66 @@ func CollectDataBytes(ctx context.Context, collector sdkcluster.DataCollector) (
 	return merged, nil
 }
 
+// The types of a config storage, as sdkcluster names them.
+const (
+	storageEtcd      = "etcd"
+	storageTarantool = "tarantool"
+)
+
+// storageRef is the config storage the file part of a cluster config points
+// to with config.etcd or config.storage: where tarantool takes the rest of
+// its cluster config from, and where tt reads it and publishes into it.
+type storageRef struct {
+	// kind is the type of the storage: storageEtcd or storageTarantool.
+	kind string
+	// prefix is the prefix of the keys of the cluster config.
+	prefix string
+	// timeout bounds a request to the storage.
+	timeout time.Duration
+	// endpoints are the connections to try, in order: one to every endpoint
+	// of etcd, and one per endpoint of a Tarantool config storage, of which
+	// the first that answers serves.
+	endpoints []storageEndpoint
+	// errs are the endpoints of a Tarantool config storage that cannot be
+	// tried, and why.
+	errs []error
+}
+
+// storageEndpoint is one connection of a storageRef.
+type storageEndpoint struct {
+	// name names the endpoint of a Tarantool config storage for a message;
+	// empty for etcd, whose messages name the storage.
+	name string
+	// config is what to connect with.
+	config gsconnect.Config
+}
+
+// open connects to endpoint, one of the storage. The caller says what
+// failed.
+//
+//nolint:wrapcheck
+func (ref storageRef) open(ctx context.Context, endpoint storageEndpoint) (
+	storage.Storage, gsconnect.CleanupFunc, error,
+) {
+	if ref.kind == storageEtcd {
+		return gsconnect.NewEtcdStorage(ctx, endpoint.config)
+	}
+
+	return sdkcluster.NewTCSStorage(ctx, endpoint.config)
+}
+
+// readStorageRef returns the config storage cfg points to: etcd when
+// config.etcd has endpoints, and a Tarantool config storage when
+// config.storage has them. found is false when neither has.
+func readStorageRef(cfg goconfig.Config) (storageRef, bool, error) {
+	ref, found, err := readEtcdRef(cfg)
+	if err != nil || found {
+		return ref, found, err
+	}
+
+	return readTcsRef(cfg)
+}
+
 // readStorageFromConfig extracts etcd or TCS endpoints from cfg, dials, reads
 // the centralized config bytes, and parses them into a goconfig.Config.
 //
@@ -219,47 +286,38 @@ func readStorageFromConfig(
 		return goconfig.Config{}, nil, fmt.Errorf("collector factory: %w", err)
 	}
 
-	// Try etcd first.
-	etcdResult, cleanup, err := readEtcdEndpoints(ctx, cfg, collectorFactory)
+	ref, found, err := readStorageRef(cfg)
+	if err != nil || !found {
+		return goconfig.Config{}, nil, err
+	}
+
+	if ref.kind == storageEtcd {
+		return readEtcd(ctx, ref, collectorFactory)
+	}
+
+	tcsResult, err := readTcs(ctx, ref, collectorFactory)
 	if err != nil {
 		return goconfig.Config{}, nil, err
 	}
 
-	if etcdResult != nil {
-		return *etcdResult, cleanup, nil
-	}
-
-	// Try TCS (Tarantool Config Storage).
-	tcsResult, tcsFound, err := readTcsEndpoints(ctx, cfg, collectorFactory)
-	if err != nil {
-		return goconfig.Config{}, nil, err
-	}
-
-	if tcsFound {
-		return tcsResult, nil, nil
-	}
-
-	return goconfig.Config{}, nil, nil
+	return tcsResult, nil, nil
 }
 
-// readEtcdEndpoints reads etcd configuration from cfg, connects, and returns
-// the parsed goconfig.Config plus a cleanup function.
-// Returns (nil, nil, nil) if no etcd endpoints are configured.
-func readEtcdEndpoints(
-	ctx context.Context,
-	cfg goconfig.Config,
-	collectorFactory sdkcluster.Factory,
-) (*goconfig.Config, func(), error) {
+// readEtcdRef reads the etcd config.etcd of cfg points to. found is false
+// when it has no endpoints.
+func readEtcdRef(cfg goconfig.Config) (storageRef, bool, error) {
+	var none storageRef
+
 	// Read endpoints list.
 	var rawEndpoints any
 
 	_, err := cfg.Get(goconfig.NewKeyPath("config/etcd/endpoints"), &rawEndpoints)
 	if err != nil {
 		if errors.Is(err, goconfig.ErrKeyNotFound) {
-			return nil, nil, nil
+			return none, false, nil
 		}
 
-		return nil, nil, fmt.Errorf("read etcd endpoints: %w", err)
+		return none, false, fmt.Errorf("read etcd endpoints: %w", err)
 	}
 
 	// Convert to []string.
@@ -270,7 +328,7 @@ func readEtcdEndpoints(
 		for _, e := range typed {
 			s, ok := e.(string)
 			if !ok {
-				return nil, nil, fmt.Errorf("%w%T", errEtcdEndpointIsNotAString, e)
+				return none, false, fmt.Errorf("%w%T", errEtcdEndpointIsNotAString, e)
 			}
 
 			endpoints = append(endpoints, s)
@@ -280,38 +338,38 @@ func readEtcdEndpoints(
 	}
 
 	if len(endpoints) == 0 {
-		return nil, nil, nil
+		return none, false, nil
 	}
 
 	// Build EtcdOpts from cfg.
 	username, err := cfgGetString(cfg, "config/etcd/username")
 	if err != nil {
-		return nil, nil, fmt.Errorf("read etcd username: %w", err)
+		return none, false, fmt.Errorf("read etcd username: %w", err)
 	}
 
 	password, err := cfgGetString(cfg, "config/etcd/password")
 	if err != nil {
-		return nil, nil, fmt.Errorf("read etcd password: %w", err)
+		return none, false, fmt.Errorf("read etcd password: %w", err)
 	}
 
 	keyFile, err := cfgGetString(cfg, "config/etcd/ssl/ssl_key")
 	if err != nil {
-		return nil, nil, fmt.Errorf("read etcd ssl key: %w", err)
+		return none, false, fmt.Errorf("read etcd ssl key: %w", err)
 	}
 
 	certFile, err := cfgGetString(cfg, "config/etcd/ssl/ssl_cert")
 	if err != nil {
-		return nil, nil, fmt.Errorf("read etcd ssl cert: %w", err)
+		return none, false, fmt.Errorf("read etcd ssl cert: %w", err)
 	}
 
 	caPath, err := cfgGetString(cfg, "config/etcd/ssl/ca_path")
 	if err != nil {
-		return nil, nil, fmt.Errorf("read etcd ca path: %w", err)
+		return none, false, fmt.Errorf("read etcd ca path: %w", err)
 	}
 
 	caFile, err := cfgGetString(cfg, "config/etcd/ssl/ca_file")
 	if err != nil {
-		return nil, nil, fmt.Errorf("read etcd ca file: %w", err)
+		return none, false, fmt.Errorf("read etcd ca file: %w", err)
 	}
 
 	sslEnable := slices.ContainsFunc(endpoints, func(endpoint string) bool {
@@ -320,22 +378,22 @@ func readEtcdEndpoints(
 
 	verifyPeer, err := cfgGetBool(cfg, "config/etcd/ssl/verify_peer", sslEnable)
 	if err != nil {
-		return nil, nil, fmt.Errorf("read etcd verify_peer: %w", err)
+		return none, false, fmt.Errorf("read etcd verify_peer: %w", err)
 	}
 
 	verifyHost, err := cfgGetBool(cfg, "config/etcd/ssl/verify_host", sslEnable)
 	if err != nil {
-		return nil, nil, fmt.Errorf("read etcd verify_host: %w", err)
+		return none, false, fmt.Errorf("read etcd verify_host: %w", err)
 	}
 
 	timeoutSec, err := cfgGetFloat64(cfg, "config/etcd/http/request/timeout")
 	if err != nil {
-		return nil, nil, fmt.Errorf("read etcd timeout: %w", err)
+		return none, false, fmt.Errorf("read etcd timeout: %w", err)
 	}
 
 	prefix, err := cfgGetString(cfg, "config/etcd/prefix")
 	if err != nil {
-		return nil, nil, fmt.Errorf("read etcd prefix: %w", err)
+		return none, false, fmt.Errorf("read etcd prefix: %w", err)
 	}
 
 	timeout := defaultEtcdTimeout
@@ -345,7 +403,7 @@ func readEtcdEndpoints(
 
 		timeout, err = time.ParseDuration(timeoutStr)
 		if err != nil {
-			return nil, nil, fmt.Errorf("unable to parse etcd request timeout: %w", err)
+			return none, false, fmt.Errorf("unable to parse etcd request timeout: %w", err)
 		}
 	}
 
@@ -356,162 +414,190 @@ func readEtcdEndpoints(
 		verifyHost = false
 	}
 
-	stor, gsCleanup, err := gsconnect.NewEtcdStorage(ctx, gsconnect.Config{
-		Endpoints:   endpoints,
-		Username:    username,
-		Password:    password,
-		DialTimeout: timeout,
-		SSL: gsconnect.SSLConfig{
-			Enable:     sslEnable,
-			KeyFile:    keyFile,
-			CertFile:   certFile,
-			CaPath:     caPath,
-			CaFile:     caFile,
-			VerifyPeer: verifyPeer,
-			VerifyHost: verifyHost,
-		},
-	})
+	return storageRef{
+		kind:    storageEtcd,
+		prefix:  prefix,
+		timeout: timeout,
+		endpoints: []storageEndpoint{{
+			name: "",
+			config: gsconnect.Config{
+				Endpoints:   endpoints,
+				Username:    username,
+				Password:    password,
+				DialTimeout: timeout,
+				SSL: gsconnect.SSLConfig{
+					Enable:     sslEnable,
+					KeyFile:    keyFile,
+					CertFile:   certFile,
+					CaPath:     caPath,
+					CaFile:     caFile,
+					VerifyPeer: verifyPeer,
+					VerifyHost: verifyHost,
+				},
+			},
+		}},
+		errs: nil,
+	}, true, nil
+}
+
+// readEtcd connects to the etcd ref names, and returns the parsed
+// goconfig.Config plus a cleanup function.
+func readEtcd(
+	ctx context.Context,
+	ref storageRef,
+	collectorFactory sdkcluster.Factory,
+) (goconfig.Config, func(), error) {
+	stor, gsCleanup, err := ref.open(ctx, ref.endpoints[0])
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to connect to etcd: %w", err)
+		return goconfig.Config{}, nil, fmt.Errorf("unable to connect to etcd: %w", err)
 	}
 
 	cleanup := func() { gsCleanup() }
 
-	etcdCollector, err := collectorFactory.NewRemoteStorage(stor, prefix, "", timeout, "etcd")
+	etcdCollector, err := collectorFactory.NewRemoteStorage(stor, ref.prefix, "", ref.timeout,
+		storageEtcd)
 	if err != nil {
 		cleanup()
 
-		return nil, nil, fmt.Errorf("failed to create etcd collector: %w", err)
+		return goconfig.Config{}, nil, fmt.Errorf("failed to create etcd collector: %w", err)
 	}
 
 	rawBytes, err := CollectDataBytes(ctx, etcdCollector)
 	if err != nil {
 		cleanup()
 
-		return nil, nil, fmt.Errorf("unable to get config from etcd: %w", err)
+		return goconfig.Config{}, nil, fmt.Errorf("unable to get config from etcd: %w", err)
 	}
 
 	parsedCfg, err := BuildGoConfigFromBytes(ctx, rawBytes)
 	if err != nil {
 		cleanup()
 
-		return nil, nil, fmt.Errorf("unable to parse etcd config: %w", err)
+		return goconfig.Config{}, nil, fmt.Errorf("unable to parse etcd config: %w", err)
 	}
 
-	return &parsedCfg, cleanup, nil
+	return parsedCfg, cleanup, nil
 }
 
-// readTcsEndpoints reads TCS (Tarantool Config Storage) configuration from cfg,
-// connects to the first reachable endpoint, and returns the parsed goconfig.Config.
-// The boolean result is false if no TCS endpoints are configured.
-//
-// Per TCS semantics: stop on first successful connect, aggregate errors only if
-// all endpoints fail.
-func readTcsEndpoints(
-	ctx context.Context,
-	cfg goconfig.Config,
-	collectorFactory sdkcluster.Factory,
-) (goconfig.Config, bool, error) {
+// readTcsRef reads the TCS (Tarantool Config Storage) config.storage of cfg
+// points to. found is false when it has no endpoints. An endpoint that
+// cannot be tried goes to the errs of the result.
+func readTcsRef(cfg goconfig.Config) (storageRef, bool, error) {
+	var none storageRef
+
 	// Read endpoints list as []any (each element is a map[string]any).
 	var rawEndpoints any
 
 	_, err := cfg.Get(goconfig.NewKeyPath("config/storage/endpoints"), &rawEndpoints)
 	if err != nil {
 		if errors.Is(err, goconfig.ErrKeyNotFound) {
-			return goconfig.Config{}, false, nil
+			return none, false, nil
 		}
 
-		return goconfig.Config{}, false, fmt.Errorf("read storage endpoints: %w", err)
+		return none, false, fmt.Errorf("read storage endpoints: %w", err)
 	}
 
 	endpointList, ok := rawEndpoints.([]any)
 	if !ok || len(endpointList) == 0 {
-		return goconfig.Config{}, false, nil
+		return none, false, nil
 	}
 
 	prefix, err := cfgGetString(cfg, "config/storage/prefix")
 	if err != nil {
-		return goconfig.Config{}, false, fmt.Errorf("read storage prefix: %w", err)
+		return none, false, fmt.Errorf("read storage prefix: %w", err)
 	}
 
 	timeoutSec, err := cfgGetFloat64(cfg, "config/storage/timeout")
 	if err != nil {
-		return goconfig.Config{}, false, fmt.Errorf("read storage timeout: %w", err)
+		return none, false, fmt.Errorf("read storage timeout: %w", err)
 	}
 
-	timeout := time.Duration(timeoutSec * float64(time.Second))
-
-	var connectionErrors []error
+	ref := storageRef{
+		kind:      storageTarantool,
+		prefix:    prefix,
+		timeout:   time.Duration(timeoutSec * float64(time.Second)),
+		endpoints: nil,
+		errs:      nil,
+	}
 
 	for idx, rawEp := range endpointList {
-		epMap, ok := rawEp.(map[string]any)
-		if !ok {
-			connectionErrors = append(connectionErrors,
-				fmt.Errorf("%w%d]: unexpected type %T", errEndpointUnexpectedType, idx, rawEp))
+		endpoint, err := tcsEndpoint(idx, rawEp, ref.timeout)
+		if err != nil {
+			ref.errs = append(ref.errs, err)
 
 			continue
 		}
 
-		uri, _ := epMap["uri"].(string)
-		login, _ := epMap["login"].(string)
-		password, _ := epMap["password"].(string)
+		ref.endpoints = append(ref.endpoints, endpoint)
+	}
 
-		var params map[string]any
+	return ref, true, nil
+}
 
-		if p, ok := epMap["params"]; ok {
-			params, _ = p.(map[string]any)
+// tcsEndpoint returns the connection to the endpoint idx of config.storage,
+// rawEp.
+func tcsEndpoint(idx int, rawEp any, timeout time.Duration) (storageEndpoint, error) {
+	epMap, ok := rawEp.(map[string]any)
+	if !ok {
+		return storageEndpoint{}, fmt.Errorf("%w%d]: unexpected type %T",
+			errEndpointUnexpectedType, idx, rawEp)
+	}
+
+	uri, _ := epMap["uri"].(string)
+	login, _ := epMap["login"].(string)
+	password, _ := epMap["password"].(string)
+
+	var params map[string]any
+
+	if p, ok := epMap["params"]; ok {
+		params, _ = p.(map[string]any)
+	}
+
+	sslKeyFile, _ := params["ssl_key_file"].(string)
+	sslCertFile, _ := params["ssl_cert_file"].(string)
+	sslCaFile, _ := params["ssl_ca_file"].(string)
+	sslCiphers, _ := params["ssl_ciphers"].(string)
+	sslPassword, _ := params["ssl_password"].(string)
+	sslPasswordFile, _ := params["ssl_password_file"].(string)
+	transport, _ := params["transport"].(string)
+
+	var network, address string
+
+	switch {
+	case strings.HasPrefix(uri, "http://"), strings.HasPrefix(uri, "https://"):
+		uriOpts, err := connect.CreateURIOpts(uri)
+		if err != nil {
+			return storageEndpoint{}, fmt.Errorf("endpoint[%d] %q: invalid URI: %w", idx, uri, err)
 		}
 
-		sslKeyFile, _ := params["ssl_key_file"].(string)
-		sslCertFile, _ := params["ssl_cert_file"].(string)
-		sslCaFile, _ := params["ssl_ca_file"].(string)
-		sslCiphers, _ := params["ssl_ciphers"].(string)
-		sslPassword, _ := params["ssl_password"].(string)
-		sslPasswordFile, _ := params["ssl_password_file"].(string)
-		transport, _ := params["transport"].(string)
+		network, address = connect.TCPNetwork, uriOpts.Host
+	case !connect.IsBaseURI(uri):
+		network, address = "tcp", uri
+	default:
+		network, address = connect.ParseBaseURI(uri)
+	}
 
-		var network, address string
+	addr := fmt.Sprintf("%s://%s", network, address)
 
-		switch {
-		case strings.HasPrefix(uri, "http://"), strings.HasPrefix(uri, "https://"):
-			uriOpts, err := connect.CreateURIOpts(uri)
-			if err != nil {
-				connectionErrors = append(connectionErrors,
-					fmt.Errorf("endpoint[%d] %q: invalid URI: %w", idx, uri, err))
+	var sslEnable bool
 
-				continue
-			}
+	switch transport {
+	case "ssl":
+		sslEnable = true
+	case "plain":
+		sslEnable = false
+	case "":
+		sslEnable = strings.HasPrefix(uri, "https://") || sslKeyFile != "" ||
+			sslCertFile != "" || sslCaFile != "" ||
+			sslCiphers != "" || sslPassword != "" || sslPasswordFile != ""
+	default:
+		return storageEndpoint{}, fmt.Errorf("%w%d] %q: unknown transport type: %s",
+			errEndpointUnknownTransportType, idx, addr, transport)
+	}
 
-			network, address = connect.TCPNetwork, uriOpts.Host
-		case !connect.IsBaseURI(uri):
-			network = "tcp"
-			address = uri
-		default:
-			network, address = connect.ParseBaseURI(uri)
-		}
-
-		addr := fmt.Sprintf("%s://%s", network, address)
-
-		var sslEnable bool
-
-		switch transport {
-		case "ssl":
-			sslEnable = true
-		case "plain":
-			sslEnable = false
-		case "":
-			sslEnable = strings.HasPrefix(uri, "https://") || sslKeyFile != "" ||
-				sslCertFile != "" || sslCaFile != "" ||
-				sslCiphers != "" || sslPassword != "" || sslPasswordFile != ""
-		default:
-			connectionErrors = append(connectionErrors, fmt.Errorf(
-				"%w%d] %q: unknown transport type: %s",
-				errEndpointUnknownTransportType, idx, addr, transport))
-
-			continue
-		}
-
-		stor, gsCleanup, err := sdkcluster.NewTCSStorage(ctx, gsconnect.Config{
+	return storageEndpoint{
+		name: fmt.Sprintf("endpoint[%d] %q", idx, addr),
+		config: gsconnect.Config{
 			Endpoints:   []string{addr},
 			Username:    login,
 			Password:    password,
@@ -527,10 +613,27 @@ func readTcsEndpoints(
 				VerifyPeer:   sslEnable,
 				VerifyHost:   sslEnable,
 			},
-		})
+		},
+	}, nil
+}
+
+// readTcs connects to the first reachable endpoint of the TCS ref names, and
+// returns the parsed goconfig.Config.
+//
+// Per TCS semantics: stop on first successful connect, aggregate errors only if
+// all endpoints fail.
+func readTcs(
+	ctx context.Context,
+	ref storageRef,
+	collectorFactory sdkcluster.Factory,
+) (goconfig.Config, error) {
+	connectionErrors := slices.Clone(ref.errs)
+
+	for _, endpoint := range ref.endpoints {
+		stor, gsCleanup, err := ref.open(ctx, endpoint)
 		if err != nil {
 			connectionErrors = append(connectionErrors,
-				fmt.Errorf("endpoint[%d] %q: connect: %w", idx, addr, err))
+				fmt.Errorf("%s: connect: %w", endpoint.name, err))
 
 			continue
 		}
@@ -538,14 +641,14 @@ func readTcsEndpoints(
 
 		tcsCollector, err := collectorFactory.NewRemoteStorage(
 			stor,
-			prefix,
+			ref.prefix,
 			"",
-			timeout,
-			"tarantool",
+			ref.timeout,
+			storageTarantool,
 		)
 		if err != nil {
 			connectionErrors = append(connectionErrors,
-				fmt.Errorf("endpoint[%d] %q: create collector: %w", idx, addr, err))
+				fmt.Errorf("%s: create collector: %w", endpoint.name, err))
 
 			continue
 		}
@@ -553,7 +656,7 @@ func readTcsEndpoints(
 		rawBytes, err := CollectDataBytes(ctx, tcsCollector)
 		if err != nil {
 			connectionErrors = append(connectionErrors,
-				fmt.Errorf("endpoint[%d] %q: collect: %w", idx, addr, err))
+				fmt.Errorf("%s: collect: %w", endpoint.name, err))
 
 			continue
 		}
@@ -561,18 +664,120 @@ func readTcsEndpoints(
 		parsedCfg, err := BuildGoConfigFromBytes(ctx, rawBytes)
 		if err != nil {
 			connectionErrors = append(connectionErrors,
-				fmt.Errorf("endpoint[%d] %q: parse config: %w", idx, addr, err))
+				fmt.Errorf("%s: parse config: %w", endpoint.name, err))
 
 			continue
 		}
 
 		// First reachable endpoint wins.
-		return parsedCfg, true, nil
+		return parsedCfg, nil
 	}
 
 	if len(connectionErrors) > 0 {
-		return goconfig.Config{}, false, errors.Join(connectionErrors...)
+		return goconfig.Config{}, errors.Join(connectionErrors...)
 	}
 
-	return goconfig.Config{}, false, nil
+	return goconfig.Config{}, nil
+}
+
+// ConfigStorage is the config storage a cluster config file points to,
+// connected (OpenConfigStorage).
+type ConfigStorage struct {
+	// Collector reads the cluster config kept in the storage.
+	Collector sdkcluster.DataCollector
+	// Publisher writes it.
+	Publisher sdkcluster.DataPublisher
+	// FileInstances are the instances the file declares itself, next to the
+	// reference to the storage: they are in the topology whatever the
+	// storage holds, as the file wins over the storage.
+	FileInstances []string
+
+	cleanup gsconnect.CleanupFunc
+}
+
+// Close closes the connection to the storage.
+func (s *ConfigStorage) Close() {
+	s.cleanup()
+}
+
+// OpenConfigStorage connects to the config storage that the cluster config
+// file at path points to with config.etcd or config.storage, as tarantool
+// reads them from the file and the TT_ environment: its endpoints, prefix,
+// credentials and TLS settings. It returns false when the file points to no
+// storage. A Tarantool config storage is served by the first of its
+// endpoints that can be connected to.
+//
+// The collector and the publisher come from collectors and publishers, as
+// for a storage given by its URI. A file that names a storage without
+// endpoints is an error: there is nowhere to publish to, and writing the
+// file over would drop its reference to the storage.
+func OpenConfigStorage(ctx context.Context, path string,
+	collectors, publishers sdkcluster.Factory,
+) (*ConfigStorage, bool, error) {
+	mut, err := gcttarantool.New().
+		WithoutValidation().
+		WithEnvIgnore("TT_*_DEFAULT").
+		WithConfigFile(path).
+		BuildMutable(ctx)
+	if err != nil {
+		return nil, false, fmt.Errorf("%w %q: %w", ErrConfigFile, path, err)
+	}
+
+	cfg := mut.Snapshot()
+
+	key, referenced := StorageReference(cfg)
+	if !referenced {
+		return nil, false, nil
+	}
+
+	ref, found, err := readStorageRef(cfg)
+	if err != nil {
+		return nil, false, err
+	}
+
+	if !found {
+		return nil, false, fmt.Errorf("%s of %s %w", key, path, errNoStorageEndpoints)
+	}
+
+	fileInstances, err := Instances(cfg)
+	if err != nil {
+		return nil, false, fmt.Errorf("cannot read the topology of %s: %w", path, err)
+	}
+
+	connectionErrors := slices.Clone(ref.errs)
+
+	for _, endpoint := range ref.endpoints {
+		stor, cleanup, err := ref.open(ctx, endpoint)
+		if err != nil {
+			connectionErrors = append(connectionErrors, fmt.Errorf("unable to connect to "+
+				"the %s of %s: %w", key, path, err))
+
+			continue
+		}
+
+		publisher, err := publishers.NewRemoteStorage(stor, ref.prefix, "", ref.timeout,
+			ref.kind)
+		if err != nil {
+			cleanup()
+
+			return nil, false, fmt.Errorf("failed to create %s publisher: %w", ref.kind, err)
+		}
+
+		collector, err := collectors.NewRemoteStorage(stor, ref.prefix, "", ref.timeout,
+			ref.kind)
+		if err != nil {
+			cleanup()
+
+			return nil, false, fmt.Errorf("failed to create %s collector: %w", ref.kind, err)
+		}
+
+		return &ConfigStorage{
+			Collector:     collector,
+			Publisher:     publisher,
+			FileInstances: fileInstances,
+			cleanup:       cleanup,
+		}, true, nil
+	}
+
+	return nil, false, errors.Join(connectionErrors...)
 }

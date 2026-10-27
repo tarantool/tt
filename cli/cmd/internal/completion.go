@@ -85,13 +85,12 @@ func completeTarget(
 	// so that a config storage out of reach does not keep tt instance stop
 	// from completing what it may stop.
 	opts := app.Options{
-		Scope:             "",
-		Template:          flagValue(cmd, templateFlag),
-		Start:             "",
-		Dir:               "",
-		Integrity:         cmdCtx.Integrity,
-		BestEffortConfig:  true,
-		SkipTopologyCheck: false,
+		Scope:            "",
+		Template:         flagValue(cmd, templateFlag),
+		Start:            "",
+		Dir:              "",
+		Integrity:        cmdCtx.Integrity,
+		BestEffortConfig: true,
 	}
 
 	scp, err := app.ParseScope(flagValue(cmd, scopeFlag))

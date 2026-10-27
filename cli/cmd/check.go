@@ -40,7 +40,10 @@ func NewCheckCmd() *cobra.Command {
 // and neither has an external process, whose binary tt knows nothing about.
 //
 // An instance whose file has a syntax error fails, and so does every other
-// instance that runs the same file; the error is reported once.
+// instance that runs the same file; the error is reported once. So does an
+// instance its tarantool cannot run, as a config kept in a config storage
+// on Tarantool Community Edition (running.CheckTarantool), which would only
+// tell after the start.
 func internalCheckModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	instances, err := resolveInstances(cmdCtx, args)
 	if err != nil {
@@ -55,6 +58,11 @@ func internalCheckModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 				running.GetAppInstanceName(*inst), inst.Binary)
 
 			return nil
+		}
+
+		err := running.CheckTarantool(context.Background(), inst)
+		if err != nil {
+			return err
 		}
 
 		file, found, err := running.AppFile(inst)

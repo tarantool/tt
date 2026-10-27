@@ -480,6 +480,10 @@ func NewClusterCmd() *cobra.Command {
 		Short: "Publish a cluster configuration",
 		Long: "Publish an application or an instance configuration to a cluster " +
 			"configuration file, to a etcd URI or to a tarantool config storage URI.\n\n" +
+			"An application gets the configuration in the config.yaml of its pair, or " +
+			"in the config storage its config.yaml points to with config.etcd or " +
+			"config.storage. A configuration that drops an instance of the cluster " +
+			"the application describes is refused.\n\n" +
 			clusterURIHelp + "\n" +
 			"By default, the command removes all keys in etcd with prefix " +
 			"'/prefix/config/' and writes the result to '/prefix/config/all'. " +
@@ -588,7 +592,7 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 		return application.CheckTopology(topology, "the config to publish, "+args[1])
 	}
 
-	return clustercmd.PublishCluster(publishCtx, configPath, instName)
+	return clustercmd.PublishApp(publishCtx, configPath, instName)
 }
 
 // internalClusterReplicasetPromoteModule is a "cluster replicaset promote" command.
@@ -849,10 +853,13 @@ func parseAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, string, erro
 // runs. The pair of the host, <root>/etc/<app>/, is the one to write into; a
 // project is the project's own.
 //
-// The pair is read without checking its description against the topology of
-// its config: a config published into it may mend a pair whose topology has
-// lost an instance of the description. The config to publish is checked
-// instead (app.App.CheckTopology).
+// The pair is read with its cluster config as far as the config can be read
+// (app.Options.BestEffortConfig), without checking the description against
+// the topology: the config to publish takes the place of a config that
+// cannot be read, such as an empty storage before the first publication, or
+// of one whose topology has lost an instance of the description, and is
+// checked instead (app.App.CheckTopology). Where the config goes is the
+// path of the file of the pair, which is there all the same.
 func parsePublishAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (
 	*app.App, string, string, error,
 ) {
@@ -869,6 +876,13 @@ func parsePublishAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (
 			application.Pair.String(), app.HostDir(application.Root, application.Name))
 	}
 
+	// A pair whose description needs the config it lacks is incomplete, as
+	// every other command says; read by the best effort, it loads all the
+	// same.
+	if errors.Is(application.ConfigError, app.ErrIncompletePair) {
+		return nil, "", "", application.ConfigError
+	}
+
 	configPath, err := appConfigFile(application)
 	if err != nil {
 		return nil, "", "", err
@@ -880,14 +894,14 @@ func parsePublishAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (
 // loadAppTarget loads the application appStr, <APP> or <APP>:<INSTANCE>,
 // names, and returns it with the instance name, empty for none, which must
 // not name an external process or an instance that runs its script. With
-// unchecked, the description of its pair is not checked against the
-// topology (app.Options.SkipTopologyCheck).
-func loadAppTarget(cmdCtx *cmdcontext.CmdCtx, appStr string, unchecked bool) (
+// bestEffort, the cluster config of its pair is read as far as it can be
+// (app.Options.BestEffortConfig).
+func loadAppTarget(cmdCtx *cmdcontext.CmdCtx, appStr string, bestEffort bool) (
 	*app.App, string, error,
 ) {
 	appName, instName, _ := strings.Cut(appStr, string(running.InstanceDelimiter))
 
-	application, err := loadApp(cmdCtx, appName, unchecked)
+	application, err := loadApp(cmdCtx, appName, bestEffort)
 	if err != nil {
 		return nil, "", err
 	}
@@ -914,15 +928,15 @@ func appConfigFile(application *app.App) (string, error) {
 }
 
 // loadApp loads the application appName and its pair as the instance
-// commands do, with --scope and --template of the command; with unchecked,
-// without checking the description against the topology.
-func loadApp(cmdCtx *cmdcontext.CmdCtx, appName string, unchecked bool) (*app.App, error) {
+// commands do, with --scope and --template of the command; with bestEffort,
+// reading the cluster config as far as it can be read.
+func loadApp(cmdCtx *cmdcontext.CmdCtx, appName string, bestEffort bool) (*app.App, error) {
 	opts, err := instanceTargetOptions(cmdCtx)
 	if err != nil {
 		return nil, err
 	}
 
-	opts.SkipTopologyCheck = unchecked
+	opts.BestEffortConfig = bestEffort
 
 	application, err := app.Load(context.Background(), appName, opts)
 	if err != nil {

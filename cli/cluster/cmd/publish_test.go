@@ -1,6 +1,8 @@
 package cmd_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -9,10 +11,10 @@ import (
 	clustercmd "github.com/tarantool/tt/v3/cli/cluster/cmd"
 )
 
-// TestPublishCluster_FileWithIntegrity_Errors verifies that PublishCluster
-// returns an error when the publisher factory does not support file publishing
-// with integrity data (e.g. IntegrityDataPublisherFactory).
-func TestPublishCluster_FileWithIntegrity_Errors(t *testing.T) {
+// TestPublishApp_FileWithIntegrity_Errors verifies that PublishApp returns an
+// error when the publisher factory does not support file publishing with
+// integrity data (e.g. IntegrityDataPublisherFactory).
+func TestPublishApp_FileWithIntegrity_Errors(t *testing.T) {
 	src := []byte(`groups:
   g:
     replicasets:
@@ -30,8 +32,11 @@ func TestPublishCluster_FileWithIntegrity_Errors(t *testing.T) {
 		Src:        src,
 	}
 
-	// Publish without instance — goes through the "easy" path: publisher.Publish.
+	// A config that points to no storage is published into the file itself.
 	// IntegrityDataPublisherFactory.NewFile returns an error, so this must fail.
-	err := clustercmd.PublishCluster(ctx, "any/path.yaml", "")
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, src, 0o600))
+
+	err := clustercmd.PublishApp(ctx, path, "")
 	require.ErrorContains(t, err, "publishing into a file with integrity data is not supported")
 }
