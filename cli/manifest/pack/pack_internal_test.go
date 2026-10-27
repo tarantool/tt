@@ -1,6 +1,7 @@
 package pack
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -10,6 +11,8 @@ import (
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/build"
+	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
 // TestLockWithBundledStampsVersions covers the lock side of a with-deps pack:
@@ -158,29 +161,103 @@ default = true
 	})
 }
 
-func TestHasNativeArtifacts(t *testing.T) {
-	t.Run("pure lua tree is universal", func(t *testing.T) {
-		dir := t.TempDir()
-		writeTree(t, dir, map[string]string{
-			".rocks/share/tarantool/my-app/init.lua": "return 1",
-			"README.md":                              "readme",
-		})
+// nativeManifest is a dependency-free pure-Lua package whose payload carries
+// whatever bin/ holds: it packs with no compiler, registry or tarantool.
+const nativeManifest = `manifest_version = '0.1'
 
-		native, err := hasNativeArtifacts(dir)
-		require.NoError(t, err)
-		assert.False(t, native)
+[package]
+name = 'native-app'
+include = ['bin']
+
+[platform]
+tarantool = '>=3.0.0,<4.0.0'
+tt = '>=3.1.0'
+
+[products.default]
+components = ['lua']
+default = true
+
+[components.lua]
+path = '.'
+include = ['*.lua']
+`
+
+// packWithoutDeps runs the real pack, --without-deps, on a project made of
+// nativeManifest and files, and returns the output directory alongside.
+func packWithoutDeps(t *testing.T, files map[string]string) (*Result, string, error) {
+	t.Helper()
+
+	src := t.TempDir()
+	writeTree(t, src, map[string]string{
+		manifestFileName: nativeManifest,
+		versionFileName:  "1.0.0\n",
+		"init.lua":       "return 1\n",
+	})
+	writeTree(t, src, files)
+
+	out := filepath.Join(src, "_out")
+
+	result, err := Run(context.Background(), Options{
+		ProjectDir:  src,
+		WithoutDeps: true,
+		OutputDir:   out,
+		Build: build.Options{
+			TtVersion: "tt test",
+			Tarantool: rocks.TarantoolInfo{Prefix: "/nonexistent", Version: "3.0.0"},
+		},
 	})
 
-	t.Run("a shared object pins the platform", func(t *testing.T) {
-		dir := t.TempDir()
-		writeTree(t, dir, map[string]string{
-			".rocks/lib/tarantool/my-app/fast.so": "native",
-		})
+	return result, out, err
+}
 
-		native, err := hasNativeArtifacts(dir)
-		require.NoError(t, err)
-		assert.True(t, native)
+// TestPackWithoutDepsNativeIncludeTakesHostToken: an executable from
+// [package].include pins a --without-deps archive to the host platform just as
+// a compiled module does, whatever its name.
+func TestPackWithoutDepsNativeIncludeTakesHostToken(t *testing.T) {
+	t.Parallel()
+
+	result, _, err := packWithoutDeps(t, map[string]string{
+		"bin/helper": string(hostNative(t)),
+		"bin/run.sh": "#!/bin/sh\nexec tarantool\n",
 	})
+	require.NoError(t, err)
+
+	assert.Equal(t, hostToken(), result.Token)
+	assert.Equal(t, "native-app-1.0.0-"+hostToken()+archiveExt, filepath.Base(result.Path))
+	assert.Contains(t, readArchive(t, result.Path), "bin/helper")
+}
+
+// TestPackWithoutDepsPureLuaIsUniversal: scripts and Lua are no native files,
+// so such an archive stays "any".
+func TestPackWithoutDepsPureLuaIsUniversal(t *testing.T) {
+	t.Parallel()
+
+	result, _, err := packWithoutDeps(t, map[string]string{
+		"bin/run.sh": "#!/bin/sh\nexec tarantool\n",
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, anyToken, result.Token)
+	assert.Equal(t, "native-app-1.0.0-"+anyToken+archiveExt, filepath.Base(result.Path))
+}
+
+// TestPackRejectsForeignNative: a native file the host-labeled archive could
+// not run fails the pack, naming it, and no archive is written.
+func TestPackRejectsForeignNative(t *testing.T) {
+	t.Parallel()
+
+	foreign, foreignPlatform := foreignNative(t)
+
+	_, out, err := packWithoutDeps(t, map[string]string{
+		"bin/helper": string(foreign),
+	})
+	require.ErrorIs(t, err, errForeignNative)
+	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
+	assert.Contains(t, err.Error(), "bin/helper")
+	assert.Contains(t, err.Error(), "runs on "+foreignPlatform.String())
+	assert.Contains(t, err.Error(), "packed for "+hostToken())
+
+	assert.NoDirExists(t, out)
 }
 
 // TestOutputDir pins where the archive lands: _build/pack under the project,

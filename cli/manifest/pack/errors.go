@@ -59,6 +59,9 @@ var (
 	// errNotRegular reports a template file that exists but is not a regular
 	// file.
 	errNotRegular = errors.New("not a regular file")
+	// errForeignNative reports a native file in the archive that does not run
+	// on the platform the archive is packed for.
+	errForeignNative = errors.New("native file of another platform")
 )
 
 // stateErrorf wraps a formatted error as a usage or state failure

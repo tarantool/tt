@@ -117,12 +117,20 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 		return nil, err
 	}
 
-	native, err := hasNativeArtifacts(stageDir)
+	native, err := nativeFiles(stageDir)
 	if err != nil {
 		return nil, err
 	}
 
-	token := platformToken(!opts.WithoutDeps, native)
+	// The archive is labeled with the host platform as soon as it carries a
+	// native file, so a file built for another one has to fail here rather
+	// than on the machine it is installed on.
+	err = checkNativeFiles(native, hostPlatform())
+	if err != nil {
+		return nil, err
+	}
+
+	token := platformToken(!opts.WithoutDeps, len(native) > 0)
 	dest := filepath.Join(outputDir(opts),
 		archiveName(man.Package.Name, built.Version.SemVer, token))
 
@@ -319,27 +327,4 @@ func devOnlyRocks(lock *manifest.Lock) []manifest.LockDependency {
 	}
 
 	return devOnly
-}
-
-// hasNativeArtifacts reports whether the staged tree carries any compiled
-// module, which pins an otherwise universal archive to the host platform.
-func hasNativeArtifacts(stageDir string) (bool, error) {
-	found := false
-
-	err := filepath.WalkDir(stageDir, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if !d.IsDir() && filepath.Ext(path) == ".so" {
-			found = true
-		}
-
-		return nil
-	})
-	if err != nil {
-		return false, fmt.Errorf("scanning for native artifacts: %w", err)
-	}
-
-	return found, nil
 }

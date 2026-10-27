@@ -13,6 +13,8 @@ and would need a Tarantool runtime in the cache, which a test cannot assume.
 """
 
 import os
+import re
+import shutil
 import subprocess
 import tarfile
 from pathlib import Path
@@ -236,6 +238,41 @@ def test_pack_without_deps_builds_a_portable_archive(tt_cmd, tmp_path):
     # The fields pack fills only for a with-deps archive stay empty.
     lock = (project / "app.manifest.lock").read_text()
     assert "bundled_tarantool_version" not in lock
+
+
+def host_token(tt_cmd, cwd: Path) -> str:
+    """The platform token of the host, which tt version reports as <os>/<arch>."""
+    result = run(tt_cmd, cwd, "version")
+    assert result.returncode == 0, result.stderr
+
+    match = re.search(r"\b(linux|darwin)/(\w+)", result.stdout)
+    assert match, result.stdout
+    return f"{match[1]}-{match[2]}"
+
+
+def test_pack_without_deps_with_a_native_include_names_the_host(tt_cmd, tmp_path):
+    """An executable in [package].include pins the archive to the host platform.
+
+    A compiled module is not the only native file: a binary shipped beside the
+    Lua carries no .so in its name, and an archive labeled any would install it
+    on a platform it cannot run on.
+    """
+    project = make_project(tmp_path / "project")
+    include = "include = ['README.md']"
+    assert include in MANIFEST
+    (project / "app.manifest.toml").write_text(
+        MANIFEST.replace(include, "include = ['README.md', 'bin']"),
+    )
+
+    # Any small executable of the host does; true is one everywhere.
+    native = shutil.which("true")
+    assert native, "no true on PATH"
+    (project / "bin").mkdir()
+    shutil.copy(native, project / "bin" / "helper")
+
+    archive = pack(tt_cmd, project)
+    assert archive.name.endswith(f"-{host_token(tt_cmd, tmp_path)}.tt"), archive.name
+    assert "bin/helper" in archive_names(archive)
 
 
 def test_install_refetches_the_closure(tt_cmd, tmp_path):
