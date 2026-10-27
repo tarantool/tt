@@ -268,8 +268,9 @@ func locatePinned(name string, opts Options) (location, error) {
 // noProjectError reports that start is in no project, with hint appended, and
 // says so when start is in a tt2 environment.
 func noProjectError(start, hint string) error {
-	err := failf("%w: no %s or %s/*/%s in %s or its parents%s", ErrNoProject,
-		scope.ManifestFileName, scope.TemplatesDirName, scope.InstancesFileName, start, hint)
+	err := failf("%w: no %s, %s/*/%s or %s/*/%s in %s or its parents%s", ErrNoProject,
+		scope.ManifestFileName, scope.TemplatesDirName, scope.InstancesFileName,
+		scope.TemplatesDirName, scope.ConfigFileName, start, hint)
 
 	return withTT2Hint(err, start)
 }

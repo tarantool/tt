@@ -68,12 +68,26 @@
 // in its topology; the topology may hold more instances, which run on other
 // hosts. Records with script or binary are not checked against it.
 //
-// Only those Tarantool instances need the config. A description of
-// instances that run their scripts and of external processes alone makes a
-// pair without config.yaml, and a config.yaml next to it is not read. A
-// description with a Tarantool instance configured by the config and no
-// config.yaml next to it, or a config.yaml without a description, is an
-// incomplete pair.
+// The record "*" stands for every instance of the topology that no other
+// record names, as a Tarantool instance configured by the config with the
+// fields of "*"; its instances take its place in the description, in the
+// order of their names (App.Instances). A record naming an instance of the
+// topology replaces "*" for it whole. A config.yaml without a description
+// is a pair as well, one that runs its whole topology, as the description
+// "*": {} would: an instance added to the config is not left out because
+// it was forgotten in the description.
+//
+// Only the Tarantool instances of the config, and "*", need the config. A
+// description of instances that run their scripts and of external
+// processes alone makes a pair without config.yaml, and a config.yaml next
+// to it is not read. A description that needs the config without
+// config.yaml next to it is an incomplete pair.
+//
+// The commands that act on the processes of the instances read the config
+// as far as they can (Options.BestEffortConfig). When they cannot, "*"
+// stands for the instances that have run in the scope of the application,
+// those with a directory in <root>/var/run/<app>/: an etcd that is down does
+// not keep them from being stopped.
 //
 // A Tarantool instance, configured by the cluster config or by its script,
 // runs in the application directory with the command line tt makes up, so

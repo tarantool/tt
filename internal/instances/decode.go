@@ -7,6 +7,8 @@ import (
 	"io"
 	"iter"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -41,6 +43,13 @@ const (
 	fieldLogrotateSignal = "logrotate_signal"
 )
 
+// wildcardRefused names, for each field the record "*" cannot have, the kind
+// of instance the field makes, as a clause of the message refusing it.
+var wildcardRefused = map[string]string{
+	fieldBinary: "is an external process",
+	fieldScript: "runs its script",
+}
+
 // The reasons a node holds no string. Each one completes a sentence about
 // the node, such as `field "binary" has no value`.
 var (
@@ -63,7 +72,7 @@ func decodeDocument(data []byte) (*yaml.Node, error) {
 	}
 
 	if err != nil {
-		return nil, syntaxError(err)
+		return nil, syntaxError(err, data)
 	}
 
 	// Decoding stops after the first document, and yaml.Unmarshal would drop
@@ -81,7 +90,7 @@ func decodeDocument(data []byte) (*yaml.Node, error) {
 	}
 
 	if !errors.Is(err, io.EOF) {
-		return nil, syntaxError(err)
+		return nil, syntaxError(err, data)
 	}
 
 	// The parser gives a document exactly one child; this guards the index.
@@ -92,15 +101,66 @@ func decodeDocument(data []byte) (*yaml.Node, error) {
 	return doc.Content[0], nil
 }
 
+// unnamedAlias is the problem the YAML parser reports for a * that starts no
+// alias name, as the * of an unquoted "*" does.
+const unnamedAlias = "did not find expected alphabetic or numeric character"
+
+// syntaxLine finds the line the YAML parser puts first in its message, as
+// "line 3: ". The parser leaves the first line unnamed.
+var syntaxLine = regexp.MustCompile(`^line ([0-9]+): `)
+
+// bareWildcard matches a line that declares the record "*" without quotes,
+// in the block style or in a flow mapping.
+var bareWildcard = regexp.MustCompile(`(?:^|[{,])[ \t]*\*[ \t]*:`)
+
 // syntaxError turns an error of the YAML parser into an *Error. The parser
 // puts the line into its message, which is kept.
-func syntaxError(err error) error {
+//
+// A * starts an alias in YAML, so the record "*" written without quotes is
+// a syntax error whose message says nothing of the record. It is the one
+// mistake every author of "*" is bound to make once, so the message gets a
+// hint when the line it names declares *.
+func syntaxError(err error, data []byte) error {
+	msg := strings.TrimPrefix(err.Error(), "yaml: ")
+
+	if strings.HasSuffix(msg, unnamedAlias) && bareWildcard.Match(lineOf(data, msg)) {
+		msg += fmt.Sprintf(`: an unquoted * starts a YAML alias; write %q: in quotes `+
+			`for the instances of the topology`, WildcardName)
+	}
+
 	return &Error{
 		Line:     0,
 		Instance: "",
 		Field:    "",
-		Msg:      strings.TrimPrefix(err.Error(), "yaml: "),
+		Msg:      msg,
 	}
+}
+
+// lineOf returns the line of data the message of the YAML parser names.
+func lineOf(data []byte, msg string) []byte {
+	line := 1
+
+	match := syntaxLine.FindStringSubmatch(msg)
+	if match != nil {
+		number, err := strconv.Atoi(match[1])
+		if err != nil {
+			return nil
+		}
+
+		line = number
+	}
+
+	number := 0
+
+	for text := range bytes.Lines(data) {
+		number++
+
+		if number == line {
+			return text
+		}
+	}
+
+	return nil
 }
 
 // decoder walks the nodes of a description. It collects the problems it
@@ -121,21 +181,23 @@ func (dec *decoder) failf(line int, instance, field, format string, args ...any)
 	})
 }
 
-// instances decodes the root node of a description into its records, in the
-// order they are written in.
-func (dec *decoder) instances(root *yaml.Node) []Instance {
+// description decodes the root node of a description into its records, in
+// the order they are written in.
+func (dec *decoder) description(root *yaml.Node) Description {
+	var desc Description
+
 	if isNull(root) {
-		return nil
+		return desc
 	}
 
 	if root.Kind != yaml.MappingNode {
 		dec.failf(root.Line, "", "", "the description must be a mapping of instance names "+
 			"to records, got %s", describe(root))
 
-		return nil
+		return desc
 	}
 
-	list := make([]Instance, 0, entryCount(root))
+	desc.Instances = make([]Instance, 0, entryCount(root))
 	// firstLine is where each name was declared, for the message about a
 	// name declared again: the node tree keeps duplicate keys.
 	firstLine := make(map[string]int, entryCount(root))
@@ -147,7 +209,13 @@ func (dec *decoder) instances(root *yaml.Node) []Instance {
 		}
 
 		if line, seen := firstLine[name]; seen {
-			dec.failf(key.Line, name, "", "the instance is declared twice, first at line %d", line)
+			what := "instance"
+			if name == WildcardName {
+				what = "record"
+			}
+
+			dec.failf(key.Line, name, "", "the %s is declared twice, first at line %d", what,
+				line)
 
 			continue
 		}
@@ -155,12 +223,17 @@ func (dec *decoder) instances(root *yaml.Node) []Instance {
 		firstLine[name] = key.Line
 
 		inst, ok := dec.record(name, key.Line, value)
-		if ok {
-			list = append(list, inst)
+
+		switch {
+		case !ok:
+		case name == WildcardName:
+			desc.Wildcard = &Wildcard{At: len(desc.Instances), Fields: inst}
+		default:
+			desc.Instances = append(desc.Instances, inst)
 		}
 	}
 
-	return list
+	return desc
 }
 
 // name returns the instance name a key holds. A name ends up as a directory
@@ -259,6 +332,14 @@ func (dec *decoder) record(name string, line int, node *yaml.Node) (Instance, bo
 
 // field decodes the value of one field into the instance.
 func (dec *decoder) field(inst *Instance, field string, key, value *yaml.Node) {
+	if inst.Name == WildcardName && (field == fieldBinary || field == fieldScript) {
+		dec.failf(key.Line, inst.Name, field, "field %q is not allowed: %q stands for "+
+			"Tarantool instances configured by the cluster config; an instance that %s "+
+			"is declared by its name", field, WildcardName, wildcardRefused[field])
+
+		return
+	}
+
 	switch field {
 	case fieldBinary:
 		inst.Binary = dec.binary(inst.Name, value)

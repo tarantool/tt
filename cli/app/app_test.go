@@ -726,17 +726,34 @@ func TestPairSelection(t *testing.T) {
 			"the script is in the version")
 	})
 
-	for _, file := range []string{"instances.yaml", "config.yaml"} {
-		t.Run("an incomplete host pair with only "+file, func(t *testing.T) {
-			hostDir := filepath.Join(system, "etc", "myapp")
-			writeTree(t, hostDir, map[string]string{file: "storage-1:\n"})
-			t.Cleanup(func() { _ = os.RemoveAll(hostDir) })
+	t.Run("an incomplete host pair with only instances.yaml", func(t *testing.T) {
+		hostDir := filepath.Join(system, "etc", "myapp")
+		writeTree(t, hostDir, map[string]string{"instances.yaml": "storage-1:\n"})
+		t.Cleanup(func() { _ = os.RemoveAll(hostDir) })
 
-			_, err := load(t, "myapp", app.Options{Start: start})
-			requireFailure(t, err, app.ErrIncompletePair)
-			require.ErrorContains(t, err, "the pair of the host in "+hostDir)
-		})
-	}
+		_, err := load(t, "myapp", app.Options{Start: start})
+		requireFailure(t, err, app.ErrIncompletePair)
+		require.ErrorContains(t, err, "the pair of the host in "+hostDir)
+	})
+
+	t.Run("the host pair of config.yaml alone runs its topology", func(t *testing.T) {
+		hostDir := filepath.Join(system, "etc", "myapp")
+		writeTree(t, hostDir, map[string]string{"config.yaml": topology("s-2", "s-1")})
+		t.Cleanup(func() { _ = os.RemoveAll(hostDir) })
+
+		got, err := load(t, "myapp", app.Options{Start: start})
+		require.NoError(t, err)
+		assert.Equal(t, app.Pair{
+			Template:      "",
+			Dir:           hostDir,
+			InstancesFile: "",
+			ConfigFile:    filepath.Join(hostDir, "config.yaml"),
+		}, got.Pair)
+		assert.Equal(t, []string{"s-1", "s-2"}, names(got.Instances))
+
+		_, err = load(t, "myapp", app.Options{Template: "staging", Start: start})
+		requireFailure(t, err, app.ErrTemplateConflict)
+	})
 
 	t.Run("a missing template", func(t *testing.T) {
 		_, err := load(t, "myapp", app.Options{Template: "prod", Start: start})
@@ -759,7 +776,7 @@ func TestProjectPair(t *testing.T) {
 
 		_, err := load(t, "", app.Options{Start: tree})
 		requireFailure(t, err, app.ErrNoPair)
-		require.ErrorContains(t, err, "has no instances.yaml in "+
+		require.ErrorContains(t, err, "has no instances.yaml or config.yaml in "+
 			filepath.Join(tree, ".templates", "default"))
 	})
 
@@ -847,16 +864,39 @@ func TestProjectPair(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("a template without instances", func(t *testing.T) {
+	t.Run("a template of config.yaml alone runs its topology", func(t *testing.T) {
 		tree := t.TempDir()
 		writeTree(t, tree, map[string]string{
-			"app.manifest.toml":              manifestOf("myapp"),
-			".templates/default/config.yaml": topology("storage-1"),
+			".templates/default/config.yaml": topology("storage-2", "router-1", "storage-1"),
+			".templates/prod/config.yaml":    topology("storage-1"),
 		})
 
-		_, err := load(t, "", app.Options{Start: tree})
-		requireFailure(t, err, app.ErrIncompletePair)
-		require.ErrorContains(t, err, "has config.yaml but no instances.yaml")
+		got, err := load(t, "", app.Options{Start: tree})
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Base(tree), got.Name, "the template marks the project")
+		assert.Empty(t, got.Pair.InstancesFile, "the pair has no description")
+		assert.Equal(t, filepath.Join(tree, ".templates", "default", "config.yaml"),
+			got.Pair.ConfigFile)
+		assert.Equal(t, filepath.Join(tree, ".templates", "default", "config.yaml"),
+			got.Pair.DescriptionFile())
+		assert.NotNil(t, got.Config)
+		assert.True(t, got.HasClusterInstances())
+		assert.Equal(t, []string{"router-1", "storage-1", "storage-2"}, names(got.Instances))
+
+		for _, inst := range got.Instances {
+			assert.Equal(t, instances.Instance{Name: inst.Name, Restart: instances.RestartNo},
+				inst, `as "*": {} would`)
+		}
+
+		_, err = load(t, "", app.Options{Template: "missing", Start: tree})
+		requireFailure(t, err, app.ErrNoPair)
+		require.ErrorContains(t, err, "its templates are default, prod")
+
+		_, err = app.Resolve(context.Background(),
+			[]app.Target{{App: got.Name, Instance: "storage-9"}}, app.Options{Start: tree})
+		requireFailure(t, err, app.ErrInstanceNotFound)
+		require.ErrorContains(t, err, "not in "+got.Pair.ConfigFile+
+			"; it describes router-1, storage-1, storage-2")
 	})
 
 	t.Run("a project ignores the host pair", func(t *testing.T) {
@@ -1118,12 +1158,12 @@ func TestLoadBestEffortConfig(t *testing.T) {
 			err: app.ErrUnsupportedField,
 		},
 		{
-			name: "a config without a description",
+			name: "a field of the record for the topology",
 			files: map[string]string{
-				".templates/default/config.yaml": topology("storage-1"),
-				"app.manifest.toml":              manifestOf("myapp"),
+				".templates/default/instances.yaml": "\"*\": {args: [-x]}\n",
+				".templates/default/config.yaml":    "groups: [\n",
 			},
-			err: app.ErrIncompletePair,
+			err: app.ErrUnsupportedField,
 		},
 	}
 

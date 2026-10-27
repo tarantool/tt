@@ -22,6 +22,10 @@ const (
 	// InstancesFileName is the instances description of a template; in any
 	// template it is a project marker.
 	InstancesFileName = "instances.yaml"
+	// ConfigFileName is the cluster config of a template; in any template it
+	// is a project marker as well, since a template of the config alone runs
+	// every instance of its topology.
+	ConfigFileName = "config.yaml"
 	// VersionsDirName is the directory of a user or system root that holds
 	// the installed versions of binaries and applications.
 	VersionsDirName = "versions"
@@ -56,12 +60,14 @@ func ProjectRoot(projectDir string) string {
 // root. found is false when none of them does. A relative start is resolved
 // against the working directory; it must be an existing directory.
 //
-// A marker is an app.manifest.toml, or an instances.yaml in any template
-// directory under .templates/: a project is described by its manifest, by
-// its instance templates, or by both. config.yaml, .rocks/, .git/ and Lua
-// files are not markers: they turn up in directories that are not projects.
-// Neither is .tarantool/: tt binary install creates it in a directory that
-// is not a project yet, and that must not capture the directories below it.
+// A marker is an app.manifest.toml, or an instances.yaml or a config.yaml in
+// any template directory under .templates/: a project is described by its
+// manifest, by its instance templates, or by both, and a template of the
+// cluster config alone runs every instance of its topology. A config.yaml
+// elsewhere, .rocks/, .git/ and Lua files are not markers: they turn up in
+// directories that are not projects. Neither is .tarantool/: tt binary
+// install creates it in a directory that is not a project yet, and that must
+// not capture the directories below it.
 //
 // A marker counts by its existence alone; its contents are not read. A
 // directory whose manifest does not parse is still the project, and the
@@ -245,9 +251,11 @@ func hasProjectMarker(dir string) (bool, error) {
 	}
 
 	for _, template := range templates {
-		found, err := exists(filepath.Join(templatesDir, template.Name(), InstancesFileName))
-		if found || err != nil {
-			return found, err
+		for _, name := range []string{InstancesFileName, ConfigFileName} {
+			found, err := exists(filepath.Join(templatesDir, template.Name(), name))
+			if found || err != nil {
+				return found, err
+			}
 		}
 	}
 

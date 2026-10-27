@@ -85,9 +85,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `system` when installing `tt`, `tarantool`, `tarantool-ee`, `tcm`, or
   `tarantool-sdk`.
   Project installations use `.tarantool/` in the project directory: the
-  current directory or its nearest parent with `app.manifest.toml` or
-  `.templates/<name>/instances.yaml`, so running from a subdirectory of a
-  project installs into the project. Outside a project, the current
+  current directory or its nearest parent with `app.manifest.toml`,
+  `.templates/<name>/instances.yaml` or `.templates/<name>/config.yaml`, so
+  running from a subdirectory of a project installs into the project. Outside a project, the current
   directory is used. A directory inside the `versions/` or `apps/` tree of
   the user or system root is an installed version, not a project: the
   project scope refuses to work there and points at `--scope user` or
@@ -499,14 +499,23 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `logrotate`, `check`, `clean` and `connect`, `tt connect`, `tt play`, the
   application targets of `tt replicaset` and `tt cluster`: the instance
   commands no longer use `tt.yaml`. An application is the project found from
-  the current directory upward (`app.manifest.toml` or
-  `.templates/<name>/instances.yaml`), or `<root>/apps/<app>` of the system
-  scope; it is named by `[package].name` of its manifest or after the project
-  directory. Its instances and cluster config come from the pair
-  `.templates/default/{instances,config}.yaml`, or `<root>/etc/<app>/` for an
-  installed application; a description with only `script` and `binary` records
-  needs no `config.yaml` and does not read one, while `tt cluster show` and
-  `publish` refuse an application without it. `tt cluster publish` writes the
+  the current directory upward (`app.manifest.toml`,
+  `.templates/<name>/instances.yaml` or `.templates/<name>/config.yaml`), or
+  `<root>/apps/<app>` of the system scope; it is named by `[package].name` of
+  its manifest or after the project directory. Its instances and cluster
+  config come from the pair `.templates/default/{instances,config}.yaml`, or
+  `<root>/etc/<app>/` for an installed application. The record `"*"` of
+  `instances.yaml` stands for every instance of the topology of `config.yaml`
+  that the description does not name, started in its place in the order of
+  their names, as Tarantool instances with the `restart`, `stop_signal`,
+  `stop_timeout` and `env` of `"*"` (`binary` and `script` are refused in it;
+  unquoted, `*:` is a YAML alias, and the error says to quote it); a record
+  naming one of them replaces `"*"` for it whole. The names of the other
+  records are checked against the topology. A pair of `config.yaml` alone is
+  the description `"*": {}`: the template runs the whole cluster. A
+  description with only `script` and `binary` records needs no `config.yaml`
+  and does not read one, while `tt cluster show` and `publish` refuse an
+  application without it. `tt cluster publish` writes the
   config of an application of the user or the system scope into its pair of
   the host, `<root>/etc/<app>/config.yaml`, and refuses one that runs from a
   template of its installed version, which is never written to, pointing at
@@ -514,7 +523,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `kill`, `status`, `logrotate` and `logs`, the completion of a target and
   `tt replicaset status` read `config.yaml` and the config storage it names
   as far as they can, as they did with `tt.yaml`: they find the instances by
-  `instances.yaml` and their pid files, so a broken config or an etcd that is
+  `instances.yaml` and their pid files, and `"*"` stands for the instances
+  with a directory in `<root>/var/run/<app>/`, those that run or have run
+  there, when the config cannot be read, so a broken config or an etcd that is
   down does not keep them from the running instances, which then get the
   paths of the layout, after the wait for the storage; a config that can be
   read still moves the console socket and the other paths it sets. Data,

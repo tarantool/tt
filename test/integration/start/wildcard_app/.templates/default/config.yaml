@@ -1,0 +1,16 @@
+# Three independent instances, each a replicaset of its own; the external
+# process of the description is no instance of the cluster.
+app:
+  file: flavour.lua
+groups:
+  group-001:
+    replicasets:
+      rs-b:
+        instances:
+          b-master: {}
+      rs-replica:
+        instances:
+          replica: {}
+      rs-a:
+        instances:
+          a-master: {}

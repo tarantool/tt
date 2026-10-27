@@ -546,7 +546,7 @@ func internalSystemdInstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 
 	if len(gone) > 0 {
 		log.Warnf("Removed the drop-ins of the units of instances gone from %s: %s. Stop "+
-			"them with systemctl disable --now %s", application.Pair.InstancesFile,
+			"them with systemctl disable --now %s", application.Pair.DescriptionFile(),
 			strings.Join(gone, ", "), strings.Join(gone, " "))
 	}
 

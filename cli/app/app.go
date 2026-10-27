@@ -38,7 +38,9 @@ type Options struct {
 	// storage it names, as far as it can be read: a config that is missing,
 	// broken or out of reach leaves App.Config nil and App.ConfigError set,
 	// rather than failing the load, and the description is not checked
-	// against the topology. The description is read and checked as always.
+	// against the topology. The description is read and checked as always;
+	// its "*" stands, without the config, for the instances that have run in
+	// the scope, those with a directory in <root>/var/run/<app>/.
 	//
 	// It is for the commands that act on the processes of the instances,
 	// which find them by the description and their pid files, such as
@@ -73,7 +75,8 @@ type App struct {
 	// it names holds merged in. It is nil when the description has no
 	// Tarantool instance configured by it (HasClusterInstances): the config
 	// is not read then, whether the pair has one or not. With
-	// Options.BestEffortConfig it is nil as well when it cannot be read.
+	// Options.BestEffortConfig it is nil as well when it, or the topology in
+	// it, cannot be read.
 	Config *goconfig.MutableConfig
 	// BestEffortConfig is Options.BestEffortConfig the application was
 	// loaded with: Config may lack an instance of the description, or hold
@@ -83,15 +86,22 @@ type App struct {
 	// ConfigError is why the config of the pair could not be read, with
 	// Options.BestEffortConfig; nil when it was read or not needed.
 	ConfigError error
-	// Instances are every record of the description, in its order.
+	// Instances are every instance of the description, in its order: its
+	// records, and the instances "*" stands for in place of it.
 	Instances []instances.Instance
+
+	// wildcard tells that the description has "*", or that the pair has
+	// none, so that the application is one of the cluster config even when
+	// "*" stands for no instance.
+	wildcard bool
 }
 
 // HasClusterInstances reports whether the description of app has Tarantool
 // instances configured by the cluster config, rather than only instances
-// that run their scripts and external processes.
+// that run their scripts and external processes. "*" counts, whatever
+// instances it stands for: it is the topology of the cluster config.
 func (app *App) HasClusterInstances() bool {
-	return len(clusterInstances(app.Instances)) > 0
+	return app.wildcard || len(clusterInstances(app.Instances)) > 0
 }
 
 // Load finds the application name names, chooses its pair, and loads and
@@ -129,7 +139,7 @@ func Load(ctx context.Context, name string, opts Options) (*App, error) {
 		return nil, err
 	}
 
-	loaded, err := loadPair(ctx, pair, loc.dir, opts.Integrity, opts.BestEffortConfig)
+	loaded, err := loadPair(ctx, pair, loc, opts.Integrity, opts.BestEffortConfig)
 	if err != nil {
 		return nil, fmt.Errorf("application %q: %w", loc.name, err)
 	}
@@ -149,5 +159,6 @@ func Load(ctx context.Context, name string, opts Options) (*App, error) {
 		BestEffortConfig: opts.BestEffortConfig,
 		ConfigError:      configErr,
 		Instances:        loaded.records,
+		wildcard:         loaded.wildcard,
 	}, nil
 }

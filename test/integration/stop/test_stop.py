@@ -373,3 +373,64 @@ def read_log(path):
             return log.read()
     except FileNotFoundError:
         return ""
+
+
+################################################################
+# The whole topology
+
+tt_wildcard_app = dict(
+    app_path="../start/wildcard_app",
+    app_name="app",
+    instances=["a-master", "b-master", "worker", "replica"],
+    running_targets=["app:a-master", "app:worker", "app:replica"],
+    post_start=tt_helper.post_start_base,
+)
+
+
+@pytest.mark.tt_app(**tt_wildcard_app)
+def test_stop_wildcard_broken_config(tt, tt_app):
+    # Without a cluster config that can be read, "*" stands for the instances
+    # that have run here, those with a run directory: a broken config.yaml
+    # does not keep tt instance status and stop from a-master, while
+    # b-master, which never ran, is not there to act on.
+    #
+    # A watchdog reads the pair anew before it starts its instance, so the
+    # config breaks only once every instance runs.
+    assert utils.wait_event(
+        5,
+        lambda: (
+            all(read_log(tt_app.path(f"flavour-{name}")) != "" for name in ["a-master", "replica"])
+            and "worker started" in read_log(tt_app.log_path("app:worker", utils.log_file))
+        ),
+    )
+    config = tt_app.path(utils.cluster_config_file)
+    os.rename(config, config + ".orig")
+    try:
+        with open(config, "w") as f:
+            f.write("groups: [\n")
+
+        # tt instance start needs the config.
+        rc, out = tt.exec("instance", "start", "app:b-master")
+        assert rc == 1
+        assert "unable to load config" in out
+
+        ran = ["app:a-master", "app:worker", "app:replica"]
+        status = tt_helper.status(tt)
+        assert sorted(status) == sorted(ran)
+        for inst in ran:
+            assert status[inst]["STATUS"] == "RUNNING"
+
+        rc, out = tt.exec("instance", "stop", "-y")
+        assert rc == 0
+        for inst in ran:
+            assert f"The Instance {inst} (PID = " in out
+            assert not os.path.exists(tt_app.run_path(inst, utils.pid_file))
+
+        # The run directories outlive the instances: they are still there to
+        # look at.
+        status = tt_helper.status(tt)
+        assert sorted(status) == sorted(ran)
+        for inst in ran:
+            assert status[inst]["STATUS"] == "NOT RUNNING"
+    finally:
+        os.replace(config + ".orig", config)

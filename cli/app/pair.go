@@ -20,12 +20,13 @@ const (
 	// DefaultTemplate is the template a command runs without --template.
 	DefaultTemplate = "default"
 
-	// configFileName is the cluster config of a pair, the file tarantool -c
-	// gets.
-	configFileName = "config.yaml"
 	// hostDirName is the directory under a user or system root holding the
 	// pair of the host for every application, <root>/etc/<app>/.
 	hostDirName = "etc"
+
+	// implicitDescription is the description of a pair that has none: the
+	// config alone runs every instance of its topology.
+	implicitDescription = `"*": {}`
 )
 
 // Pair is the instances description and the cluster config an application
@@ -35,17 +36,21 @@ const (
 //
 // The cluster config is needed only by the Tarantool instances it
 // configures: a description of instances that run their scripts and of
-// external processes alone makes a pair without one.
+// external processes alone makes a pair without one. The description is
+// needed only to say which instances of the topology run here and how: a
+// config alone makes a pair that runs every instance of its topology, as the
+// description "*": {} would.
 type Pair struct {
 	// Template is the name of the template the pair is, or empty for the
 	// pair of the host, <root>/etc/<app>/.
 	Template string
 	// Dir is the directory holding the pair.
 	Dir string
-	// InstancesFile is the path of the instances description.
+	// InstancesFile is the path of the instances description, empty when the
+	// pair has none.
 	InstancesFile string
-	// ConfigFile is the path of the cluster config, empty when the pair has
-	// none.
+	// ConfigFile is the path of the cluster config, the file tarantool -c
+	// gets; empty when the pair has none.
 	ConfigFile string
 }
 
@@ -64,6 +69,17 @@ func (pair *Pair) String() string {
 	return fmt.Sprintf("template %q in %s", pair.Template, pair.Dir)
 }
 
+// DescriptionFile names, for a message, the file the instances of the pair
+// are described by: the instances description, or the cluster config of a
+// pair without one, whose topology is all the description it has.
+func (pair *Pair) DescriptionFile() string {
+	if pair.InstancesFile == "" {
+		return pair.ConfigFile
+	}
+
+	return pair.InstancesFile
+}
+
 // HostDir returns the directory of the host files of the application name
 // installed under root, the root of the user or the system scope:
 // <root>/etc/<app>/. It holds the pair of the host, and the files tt keeps
@@ -78,7 +94,7 @@ func newPair(template, dir string) Pair {
 		Template:      template,
 		Dir:           dir,
 		InstancesFile: filepath.Join(dir, scope.InstancesFileName),
-		ConfigFile:    filepath.Join(dir, configFileName),
+		ConfigFile:    filepath.Join(dir, scope.ConfigFileName),
 	}
 }
 
@@ -90,10 +106,10 @@ func newPair(template, dir string) Pair {
 // The pair of the host lives outside of the version, because a version is
 // immutable and the description of what runs on a host must survive
 // switching to the next one; that is why it wins. Either of its files makes
-// it the pair: a config without a description, or a description that needs
-// the config it lacks (loadPair), is an incomplete pair and an error, not a
-// reason to run the template, which would start a topology the host was not
-// given.
+// it the pair: a config alone runs its whole topology on the host, and a
+// description that needs the config it lacks (loadPair) is an incomplete
+// pair and an error, not a reason to run the template, which would start a
+// topology the host was not given.
 //
 // --template is refused when the host has a pair. The host chose what runs
 // on it; a template that quietly loses to the host pair would run something
@@ -152,10 +168,10 @@ func validTemplate(name string) error {
 	return nil
 }
 
-// checkPair reports whether pair is there: true when its description is,
-// false when neither of its files is, and an error for a config without a
-// description. A pair without a config gets an empty ConfigFile; whether its
-// description can do without one is up to loadPair, which reads it.
+// checkPair reports whether pair is there: true when either of its files is,
+// false when neither is. A file the pair lacks gets an empty path: whether
+// the description can do without a config, and what runs without a
+// description, is up to loadPair, which reads them.
 func checkPair(pair *Pair) (bool, error) {
 	hasInstances, err := exists(pair.InstancesFile)
 	if err != nil {
@@ -167,19 +183,15 @@ func checkPair(pair *Pair) (bool, error) {
 		return false, failf("%w", err)
 	}
 
-	switch {
-	case hasInstances:
-		if !hasConfig {
-			pair.ConfigFile = ""
-		}
-
-		return true, nil
-	case hasConfig:
-		return false, failf("%w: %s has %s but no %s next to it", ErrIncompletePair,
-			pair.String(), configFileName, scope.InstancesFileName)
-	default:
-		return false, nil
+	if !hasInstances {
+		pair.InstancesFile = ""
 	}
+
+	if !hasConfig {
+		pair.ConfigFile = ""
+	}
+
+	return hasInstances || hasConfig, nil
 }
 
 // noTemplateError reports that the application at loc has no pair, naming
@@ -187,8 +199,8 @@ func checkPair(pair *Pair) (bool, error) {
 func noTemplateError(loc location, pair Pair) error {
 	templates := listTemplates(filepath.Join(loc.dir, scope.TemplatesDirName))
 	if len(templates) == 0 {
-		return failf("%w: %q has no %s in %s", ErrNoPair, loc.name,
-			scope.InstancesFileName, pair.Dir)
+		return failf("%w: %q has no %s or %s in %s", ErrNoPair, loc.name,
+			scope.InstancesFileName, scope.ConfigFileName, pair.Dir)
 	}
 
 	return failf("%w: %q has no template %q in %s; its templates are %s, "+
@@ -196,9 +208,9 @@ func noTemplateError(loc location, pair Pair) error {
 		filepath.Dir(pair.Dir), strings.Join(templates, ", "))
 }
 
-// listTemplates returns the names of the templates in templatesDir that hold
-// an instances description, sorted. A failure to look gives no names: this
-// only adds a hint to an error.
+// listTemplates returns the names of the templates in templatesDir, the
+// directories that hold either file of a pair, sorted. A failure to look
+// gives no names: this only adds a hint to an error.
 func listTemplates(templatesDir string) []string {
 	entries, err := os.ReadDir(templatesDir)
 	if err != nil {
@@ -208,7 +220,9 @@ func listTemplates(templatesDir string) []string {
 	var names []string
 
 	for _, entry := range entries {
-		found, err := exists(filepath.Join(templatesDir, entry.Name(), scope.InstancesFileName))
+		pair := newPair(entry.Name(), filepath.Join(templatesDir, entry.Name()))
+
+		found, err := checkPair(&pair)
 		if found && err == nil {
 			names = append(names, entry.Name())
 		}
@@ -221,8 +235,12 @@ func listTemplates(templatesDir string) []string {
 
 // loadedPair is what loadPair reads from a pair.
 type loadedPair struct {
-	// records are the records of the description.
+	// records are the instances of the description, with "*" replaced by
+	// the instances it stands for.
 	records []instances.Instance
+	// wildcard tells that the description has "*", or that the pair has
+	// none and runs the whole topology of its config.
+	wildcard bool
 	// config is the cluster config, nil when it is not read.
 	config *goconfig.MutableConfig
 	// configErr is why the config could not be read, when it was read as far
@@ -231,83 +249,82 @@ type loadedPair struct {
 }
 
 // loadPair reads the instances description and the cluster config of pair,
-// for the application in appDir, and checks that they fit together.
+// for the application at loc, and checks that they fit together.
 //
 // The description is parsed and checked before the config is loaded: it is a
 // local file, while the config may send tt to etcd for the rest of the
 // cluster config, and a typo in the description is better reported without
 // a round trip.
 //
-// The config is read only for the Tarantool instances it configures. A
-// description without them, of instances that run their scripts and of
-// external processes, needs no config, and one the pair has anyway is left
-// unread: whatever it holds, an empty file or a storage out of reach, does
-// not keep those instances from running. A description with them needs the
-// config, and a pair without one is incomplete. With bestEffort
-// (Options.BestEffortConfig) the config is read as far as it can be: why it
-// cannot is configErr rather than a failure, and the topology is not
-// checked.
+// The config is read only for the Tarantool instances it configures, and for
+// "*", which stands for those of its topology that the description does not
+// name (expand). A description without them, of instances that run their
+// scripts and of external processes, needs no config, and one the pair has
+// anyway is left unread: whatever it holds, an empty file or a storage out of
+// reach, does not keep those instances from running. A description with them
+// needs the config, and a pair without one is incomplete.
+//
+// With bestEffort (Options.BestEffortConfig) the config is read as far as it
+// can be: why it cannot is configErr rather than a failure, and the topology
+// is not checked. "*" then stands for the instances that have run in the
+// scope of the application (ranInstances): a config storage that is down
+// must not keep them from being stopped.
 func loadPair(
 	ctx context.Context,
 	pair Pair,
-	appDir string,
+	loc location,
 	integ integrity.IntegrityCtx,
 	bestEffort bool,
 ) (loadedPair, error) {
-	data, err := readFile(integ, pair.InstancesFile)
-	if err != nil {
-		return loadedPair{}, failf("%w", err)
-	}
-
-	records, err := instances.Parse(data, appDir)
-	if err != nil {
-		return loadedPair{}, failf("invalid instance description %s:\n%w",
-			pair.InstancesFile, err)
-	}
-
-	err = checkFields(pair, records)
+	desc, err := readDescription(pair, loc.dir, integ)
 	if err != nil {
 		return loadedPair{}, err
 	}
 
-	loaded := loadedPair{records: records, config: nil, configErr: nil}
+	err = checkFields(pair, desc)
+	if err != nil {
+		return loadedPair{}, err
+	}
 
-	configured := clusterInstances(records)
-	if len(configured) == 0 {
+	loaded := loadedPair{
+		records:   desc.Instances,
+		wildcard:  desc.Wildcard != nil,
+		config:    nil,
+		configErr: nil,
+	}
+
+	if len(clusterRecords(desc)) == 0 {
 		return loaded, nil
 	}
 
-	if pair.ConfigFile == "" {
-		err = failf("%w: %s has %s but no %s next to it to configure "+
-			"its Tarantool instances %s", ErrIncompletePair, pair.String(),
-			scope.InstancesFileName, configFileName, quoteNames(configured))
-		if bestEffort {
-			loaded.configErr = err
-
-			return loaded, nil
-		}
-
+	cfg, topology, err := readConfig(ctx, pair, desc, integ, bestEffort)
+	if err != nil && !bestEffort {
 		return loadedPair{}, err
 	}
 
-	cfg, err := cluster.GetClusterConfig(ctx, pair.ConfigFile, integ)
 	if err != nil {
-		if bestEffort {
-			loaded.configErr = err
+		loaded.configErr = err
 
-			return loaded, nil
+		if desc.Wildcard != nil {
+			ran, listErr := ranInstances(loc)
+			if listErr != nil {
+				return loadedPair{}, listErr
+			}
+
+			loaded.records = expand(desc, ran)
 		}
 
-		return loadedPair{}, failf("%w", err)
+		return loaded, nil
 	}
 
 	loaded.config = cfg
+	loaded.records = expand(desc, topology)
 
 	if bestEffort {
 		return loaded, nil
 	}
 
-	err = checkTopology(pair, records, cfg)
+	err = checkTopology(pair, desc.Instances, topology)
 	if err != nil {
 		return loadedPair{}, err
 	}
@@ -315,8 +332,128 @@ func loadPair(
 	return loaded, nil
 }
 
+// readDescription reads and parses the instances description of pair, for
+// the application in appDir. A pair without one runs every instance of the
+// topology of its config, and gets the description that says so.
+func readDescription(pair Pair, appDir string, integ integrity.IntegrityCtx) (
+	instances.Description, error,
+) {
+	data := []byte(implicitDescription)
+
+	if pair.InstancesFile != "" {
+		var err error
+
+		data, err = readFile(integ, pair.InstancesFile)
+		if err != nil {
+			return instances.Description{}, failf("%w", err)
+		}
+	}
+
+	desc, err := instances.Parse(data, appDir)
+	if err != nil {
+		return instances.Description{}, failf("invalid instance description %s:\n%w",
+			pair.DescriptionFile(), err)
+	}
+
+	return desc, nil
+}
+
+// readConfig reads the cluster config of pair, which some records of desc
+// need (clusterRecords), and the topology of the config: "*" stands for it,
+// and the Tarantool instances of desc are checked against it unless
+// bestEffort.
+func readConfig(
+	ctx context.Context,
+	pair Pair,
+	desc instances.Description,
+	integ integrity.IntegrityCtx,
+	bestEffort bool,
+) (*goconfig.MutableConfig, []string, error) {
+	if pair.ConfigFile == "" {
+		return nil, nil, failf("%w: %s has %s but no %s next to it to configure "+
+			"its Tarantool instances %s", ErrIncompletePair, pair.String(),
+			scope.InstancesFileName, scope.ConfigFileName, quoteNames(clusterRecords(desc)))
+	}
+
+	cfg, err := cluster.GetClusterConfig(ctx, pair.ConfigFile, integ)
+	if err != nil {
+		return nil, nil, failf("%w", err)
+	}
+
+	if bestEffort && desc.Wildcard == nil {
+		return cfg, nil, nil
+	}
+
+	topology, err := cluster.Instances(cfg.Snapshot())
+	if err != nil {
+		return nil, nil, failf("cannot read the topology of %s: %w", pair.ConfigFile, err)
+	}
+
+	return cfg, topology, nil
+}
+
+// expand returns the instances of desc: its records, with "*" replaced by the
+// instances of topology that no record names, in the order of their names,
+// where "*" is written. A record naming an instance of the topology replaces
+// "*" for it whole: none of the fields of "*" go into it.
+func expand(desc instances.Description, topology []string) []instances.Instance {
+	if desc.Wildcard == nil {
+		return desc.Instances
+	}
+
+	named := make(map[string]bool, len(desc.Instances))
+	for _, record := range desc.Instances {
+		named[record.Name] = true
+	}
+
+	rest := slices.Compact(slices.Sorted(slices.Values(topology)))
+
+	records := make([]instances.Instance, 0, len(desc.Instances)+len(rest))
+
+	records = append(records, desc.Instances[:desc.Wildcard.At]...)
+
+	for _, name := range rest {
+		if !named[name] {
+			records = append(records, desc.Wildcard.Instance(name))
+		}
+	}
+
+	return append(records, desc.Instances[desc.Wildcard.At:]...)
+}
+
+// ranInstances returns the names of the instances of the application at loc
+// that have a run directory under the root of its scope,
+// <root>/var/run/<app>/<inst>/, sorted: those that run or have run there,
+// since the directory outlives the instance. Without the config of the pair
+// these are what "*" stands for to a command that acts on the processes of
+// the instances. A root without the directory has none; one that cannot be
+// read is an error, so that a command does not report success while it
+// leaves some of the instances meant out.
+func ranInstances(loc location) ([]string, error) {
+	dir := filepath.Join(loc.root, scope.RunDirName, loc.name)
+
+	entries, err := os.ReadDir(dir)
+	if isAbsent(err) {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, failf("cannot look for the instances that have run: %w", err)
+	}
+
+	var names []string
+
+	for _, entry := range entries {
+		if entry.IsDir() && validName(entry.Name()) {
+			names = append(names, entry.Name())
+		}
+	}
+
+	return names, nil
+}
+
 // checkFields refuses the fields of a record that an instance of its kind
-// cannot honour.
+// cannot honour, "*" among the records.
 //
 // A Tarantool instance, configured by the cluster config or by its script,
 // runs in the application directory, so that relative paths in its config
@@ -326,13 +463,18 @@ func loadPair(
 // is logrotate_signal: tarantool reopens its log on SIGHUP, which
 // tt instance logrotate always sends it. Allowing them later breaks no
 // description.
-func checkFields(pair Pair, records []instances.Instance) error {
+func checkFields(pair Pair, desc instances.Description) error {
 	const (
 		runs      = "a Tarantool instance runs in the application directory"
 		arguments = "a Tarantool instance runs with the arguments tt gives it"
 		logrotate = "a Tarantool instance reopens its log on SIGHUP, " +
 			"which tt instance logrotate sends it"
 	)
+
+	records := desc.Instances
+	if desc.Wildcard != nil {
+		records = slices.Insert(slices.Clone(records), desc.Wildcard.At, desc.Wildcard.Fields)
+	}
 
 	var errs []error
 
@@ -355,38 +497,36 @@ func checkFields(pair Pair, records []instances.Instance) error {
 	}
 
 	if len(errs) > 0 {
-		return failf("%s:\n%w", pair.InstancesFile, errors.Join(errs...))
+		return failf("%s:\n%w", pair.DescriptionFile(), errors.Join(errs...))
 	}
 
 	return nil
 }
 
-// fieldError reports a field a Tarantool instance cannot have, and why.
+// fieldError reports a field a Tarantool instance cannot have, and why. inst
+// is the name of its record, "*" included.
 func fieldError(inst, field, why string) error {
-	return fmt.Errorf("instance %q: %w %s: %s; %s is only for an external process (binary)",
-		inst, ErrUnsupportedField, field, why, field)
+	record := "instance"
+	if inst == instances.WildcardName {
+		record = "record"
+	}
+
+	return fmt.Errorf("%s %q: %w %s: %s; %s is only for an external process (binary)",
+		record, inst, ErrUnsupportedField, field, why, field)
 }
 
-// checkTopology checks that every Tarantool instance the description
-// configures through the cluster config is in its topology.
+// checkTopology checks that every Tarantool instance the records configure
+// through the cluster config is in its topology.
 //
 // The topology may hold more: the description says what runs on this host,
-// and the rest of the cluster runs on others. Instances with a script or a
-// binary are not checked, since the cluster config does not configure them.
-func checkTopology(pair Pair, records []instances.Instance, cfg *goconfig.MutableConfig) error {
-	declared := clusterInstances(records)
-	if len(declared) == 0 {
-		return nil
-	}
-
-	topology, err := cluster.Instances(cfg.Snapshot())
-	if err != nil {
-		return failf("cannot read the topology of %s: %w", pair.ConfigFile, err)
-	}
-
+// and the rest of the cluster runs on others, unless "*" takes it here.
+// Instances with a script or a binary are not checked, since the cluster
+// config does not configure them; nor are the instances of "*", which come
+// from the topology.
+func checkTopology(pair Pair, records []instances.Instance, topology []string) error {
 	var missing []string
 
-	for _, name := range declared {
+	for _, name := range clusterInstances(records) {
 		if !slices.Contains(topology, name) {
 			missing = append(missing, name)
 		}
@@ -412,6 +552,21 @@ func clusterInstances(records []instances.Instance) []string {
 	}
 
 	return names
+}
+
+// clusterRecords returns the names of the records of desc that need the
+// cluster config, in the order of the description: the Tarantool instances
+// it configures, and "*", which stands for its topology.
+func clusterRecords(desc instances.Description) []string {
+	names := clusterInstances(desc.Instances)
+	if desc.Wildcard == nil {
+		return names
+	}
+
+	// "*" goes before the first of the records written after it.
+	at := len(clusterInstances(desc.Instances[:desc.Wildcard.At]))
+
+	return slices.Insert(names, at, instances.WildcardName)
 }
 
 // quoteNames lists names for a message, each quoted.

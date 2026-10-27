@@ -246,6 +246,17 @@ func TestStageTemplatesRejectsBrokenTemplates(t *testing.T) {
 			},
 		},
 		{
+			name: "missing config for the topology",
+			files: map[string]string{
+				".templates/default/instances.yaml": "worker-1:\n  binary: ./bin/w\n" +
+					"\"*\":\nrouter-1:\n",
+			},
+			mention: []string{
+				".templates/default",
+				`missing config.yaml to configure its Tarantool instances "*", "router-1"`,
+			},
+		},
+		{
 			name: "missing instances",
 			files: map[string]string{
 				".templates/default/config.yaml": "groups: {}\n",
@@ -258,6 +269,15 @@ func TestStageTemplatesRejectsBrokenTemplates(t *testing.T) {
 				".templates/default/notes.txt": "nothing else",
 			},
 			mention: []string{".templates/default", "missing instances.yaml"},
+		},
+		{
+			name: "binary in the record for the topology",
+			files: map[string]string{
+				".templates/default/instances.yaml": "\"*\":\n  binary: ./bin/x\n",
+				".templates/default/config.yaml":    "groups: {}\n",
+			},
+			mention: []string{".templates/default/instances.yaml", `field "binary"`},
+			invalid: true,
 		},
 		{
 			name: "unknown field",
