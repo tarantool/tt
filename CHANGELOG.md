@@ -399,8 +399,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   else in its data directory `<root>/var/lib/<app>/<inst>/`, which the start
   creates, with `env` on top of the environment of `tt`; relative paths are
   resolved against the application directory, and a `binary` without a slash
-  is looked up in `PATH` of `tt`. `tt instance start` reports a binary it
-  cannot run, or a `workdir` that does not exist, before it starts anything.
+  is looked up in `.rocks/bin/` of the application directory, where
+  executable components put the programs they build, then in `PATH` of `tt`.
+  `tt instance start` reports a binary it cannot run, naming both places it
+  looked in, or a `workdir` that does not exist, before it starts anything;
+  it builds nothing, and when the project's manifest has an executable
+  component that builds the missing binary it says to run
+  `tt package build`.
   The process leads a process group of its own, which every signal reaches, so
   that a wrapper stops with the program it runs. It stops with `stop_signal`,
   SIGTERM by default, whatever stopped the watchdog, and is killed with its
@@ -412,7 +417,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   process group the new `logrotate_signal` field of the record, if it has one;
   the field is refused in the records of Tarantool instances, which get SIGHUP
   as before. `tt instance clean` removes the log and the data directory, and
-  `tt instance check` skips the process. `tt connect`, `tt play`,
+  `tt instance check` checks that the binary of the process is found.
+  `tt connect`, `tt play`,
   `tt instance kill --dump` and `tt replicaset rebootstrap` refuse it as not a
   Tarantool instance; the application targets of `tt replicaset` and
   `tt cluster` leave external processes out of the instances of the

@@ -389,10 +389,11 @@ func (dec *decoder) path(instance, field string, node *yaml.Node) string {
 
 // binary returns the executable the binary field holds. A value with a slash
 // is a path and is resolved like the other path fields. A value without one
-// names a program and is kept as it is: it is looked up in PATH when the
-// instance starts, the way a shell and exec look up a command, so
-// "binary: python3" runs the python3 of the host rather than a file of that
-// name in the application directory.
+// names a program and is kept as it is: it is looked up when the instance
+// starts, in .rocks/bin of the application, where tt builds its executable
+// components, and then in PATH, the way a shell and exec look up a command,
+// so "binary: python3" runs the python3 of the host rather than a file of
+// that name in the application directory.
 func (dec *decoder) binary(instance string, node *yaml.Node) string {
 	text, ok := dec.pathText(instance, fieldBinary, node)
 

@@ -697,6 +697,10 @@ linters:
             - "github.com/tarantool/tt/v3/cli/app"
             - "github.com/tarantool/tt/v3/cli/cluster"
             - "github.com/tarantool/tt/v3/cli/cmdcontext"
+            # A binary missing from .rocks/bin is looked for among the
+            # executable components of the project's manifest, to tell the
+            # user to build it.
+            - "github.com/tarantool/tt/v3/cli/manifest"
             - "github.com/tarantool/tt/v3/cli/process_utils"
             - "github.com/tarantool/tt/v3/cli/running"
             - "github.com/tarantool/tt/v3/cli/tarantool"

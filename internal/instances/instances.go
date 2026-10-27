@@ -64,7 +64,8 @@ type Instance struct {
 	Name string
 	// Binary is the executable of an external process: an absolute path, or,
 	// when the record names it without a slash, the name of a program to look
-	// up in PATH when the instance starts.
+	// up when the instance starts, in .rocks/bin of the application and then
+	// in PATH.
 	Binary string
 	// Script is the absolute path of the script of a Tarantool instance that
 	// configures itself.

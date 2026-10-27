@@ -100,10 +100,12 @@
 // the description of a host lives in <root>/etc/<app>/, while the paths in
 // it point into the version of the application, so ./bin/worker means the
 // same in a template and in the description of a host. The one exception is
-// a binary without a slash: "binary: python3" names a program, looked up in
-// PATH when the instance starts, the way a shell looks up a command. A file
-// shipped with the application is spelled with a slash, as bin/worker or
-// ./worker; a script is always a path, since it is never looked up.
+// a binary without a slash: "binary: python3" names a program, looked up when
+// the instance starts in .rocks/bin of the application, where tt builds its
+// executable components, and then in PATH, the way a shell looks up a
+// command. Any other file shipped with the application is spelled with a
+// slash, as bin/worker or ./worker; a script is always a path, since it is
+// never looked up.
 //
 // # Out of scope
 //

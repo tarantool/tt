@@ -17,7 +17,8 @@ func NewCheckCmd() *cobra.Command {
 		Use:   "check " + instanceTargetsUsage,
 		Short: "Check an application file for syntax errors",
 		Long: "Check the Lua file each instance runs, its script or app.file of its\n" +
-			"config, for syntax errors, with the tarantool the instance runs on.",
+			"config, for syntax errors, with the tarantool the instance runs on, and\n" +
+			"that the binary of each external process is found.",
 		RunE: internalRunE(internalCheckModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
@@ -36,8 +37,9 @@ func NewCheckCmd() *cobra.Command {
 // internalCheckModule is a default check module: it checks the application
 // file of every instance the targets select, each file once: the script of
 // an instance that runs one, as tt2 did, or app.file of its config. An
-// instance whose config names no app.file has nothing of its own to check,
-// and neither has an external process, whose binary tt knows nothing about.
+// instance whose config names no app.file has nothing of its own to check.
+// An external process has its binary found, as its start would find it, in
+// .rocks/bin/ of the application or in PATH: tt knows nothing else about it.
 //
 // An instance whose file has a syntax error fails, and so does every other
 // instance that runs the same file; the error is reported once. So does an
@@ -54,8 +56,13 @@ func internalCheckModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	return actOnInstances("check", instances, func(inst *running.InstanceCtx) error {
 		if running.IsExternal(inst) {
-			log.Infof("%s: an external process (binary: %s) has nothing to check",
-				running.GetAppInstanceName(*inst), inst.Binary)
+			path, err := running.ResolveBinary(inst)
+			if err != nil {
+				return err
+			}
+
+			log.Infof("%s: an external process, its binary %s is found",
+				running.GetAppInstanceName(*inst), path)
 
 			return nil
 		}

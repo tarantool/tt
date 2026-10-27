@@ -2751,7 +2751,8 @@ Use "tt instance <command> --help" for more information about a command.
 
 === tt instance check --help
 Check the Lua file each instance runs, its script or app.file of its
-config, for syntax errors, with the tarantool the instance runs on.
+config, for syntax errors, with the tarantool the instance runs on, and
+that the binary of each external process is found.
 
 [0;1;39mUSAGE[0m
   tt instance check [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
