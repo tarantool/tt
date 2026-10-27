@@ -73,6 +73,14 @@ type stageRequest struct {
 	// HasFlatNamespace records that some component declares namespace = "",
 	// which --without-deps cannot express (see stageRocks).
 	HasFlatNamespace bool
+	// Programs lists the file names in the tree's bin/ the executable
+	// components of the packed product built. They are the package's own
+	// and travel in both packing modes.
+	Programs []string
+	// OtherPrograms lists the file names in bin/ the build recorded for the
+	// executable components outside the packed product. They travel in
+	// neither mode.
+	OtherPrograms []string
 	// DevOnly lists the locked rocks that only the dev closure brings. Their
 	// files are dropped from .rocks/ in both packing modes: they are the
 	// developer's tools, and the spec is explicit that they never reach the
@@ -162,15 +170,17 @@ func stageEntry(stageDir, projectDir, entry, field string) error {
 
 // stageRocks copies the project's .rocks/ tree into the archive. In --with-deps
 // mode the tree is copied whole; in --without-deps mode only the package's own
-// namespace subtrees under share/tarantool/ and lib/tarantool/ survive, which
-// is what leaves the dependency closure to be refetched from the lock at
-// install time.
+// namespace subtrees under share/tarantool/ and lib/tarantool/ survive, with
+// the programs its executable components built into bin/, which is what
+// leaves the dependency closure to be refetched from the lock at install time.
 //
-// Dev-only rocks are dropped in both modes. The two filters compose rather than
-// override: --without-deps decides which subtrees are copied at all, the dev
-// filter decides which files inside a copied subtree are skipped, and the skip
-// predicate is evaluated against the tree-relative path either way, so a
-// namespace that happens to share a dev rock's name is not a hole in it.
+// Dev-only rocks are dropped in both modes, and so are the programs of
+// executable components outside the packed product. The filters compose
+// rather than override: --without-deps decides which subtrees are copied at
+// all, the skip filter decides which files inside a copied subtree are
+// skipped, and the skip predicate is evaluated against the tree-relative path
+// either way, so a namespace that happens to share a dev rock's name is not a
+// hole in it.
 func stageRocks(stageDir string, req stageRequest) error {
 	_, err := os.Stat(req.Tree)
 	if os.IsNotExist(err) {
@@ -179,10 +189,15 @@ func stageRocks(stageDir string, req stageRequest) error {
 	}
 
 	dstRocks := filepath.Join(stageDir, rocksDirName)
-	skip := devRockFilter(req.Tree, req.DevOnly)
+	skip := skipPrograms(devRockFilter(req.Tree, req.DevOnly), req.OtherPrograms)
 
 	if req.WithDeps {
 		return copyTreeFiltered(req.Tree, dstRocks, "", skip)
+	}
+
+	err = stagePrograms(dstRocks, req)
+	if err != nil {
+		return err
 	}
 
 	if req.HasFlatNamespace {
@@ -221,6 +236,45 @@ func stageRocks(stageDir string, req stageRequest) error {
 	}
 
 	return nil
+}
+
+// stagePrograms copies the package's own programs from the tree's bin/ into
+// the staged tree of a --without-deps archive. The build has just made each
+// of them, so one that is gone is an error rather than a program the archive
+// silently lacks.
+func stagePrograms(dstRocks string, req stageRequest) error {
+	for _, program := range req.Programs {
+		src := filepath.Join(req.Tree, binDir, program)
+
+		_, err := os.Stat(src)
+		if err != nil {
+			return stateErrorf("program %s of an executable component: %w", src, err)
+		}
+
+		err = copyFile(src, filepath.Join(dstRocks, binDir, program))
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// skipPrograms extends the skip predicate skip of stageRocks to the programs
+// in bin/ named by programs.
+func skipPrograms(skip func(string) bool, programs []string) func(string) bool {
+	if len(programs) == 0 {
+		return skip
+	}
+
+	excluded := make(map[string]bool, len(programs))
+	for _, program := range programs {
+		excluded[binDir+"/"+program] = true
+	}
+
+	return func(rel string) bool {
+		return excluded[rel] || (skip != nil && skip(rel))
+	}
 }
 
 // Rocks-tree layout roots, mirroring cli/manifest/build.

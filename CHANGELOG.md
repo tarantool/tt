@@ -133,6 +133,29 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   run each component's build backend, lay component files out under their
   install namespace and generate `version.lua`. `--product` selects the product
   and `--locked` fails on a stale lock instead of re-resolving.
+- Manifest: executable components. A component with `kind = "executable"`
+  builds the external processes of an application from their sources into
+  `.rocks/bin/`, its `TT_OUTPUT_DIR`, instead of laying files out under the
+  package's namespace; `include`, `exclude` and `namespace` are refused on it
+  and `build` is required. It takes the new `go` backend (`go build -trimpath`
+  for the build platform; fields `package`, `name`, `tags`, `ldflags`, `cgo`,
+  `static`; cgo off unless `cgo = true`), the new `cargo` backend
+  (`cargo build --profile --bin`, the binary's path taken from cargo's JSON
+  messages; fields `bin`, `package`, `features`, `profile`, `static`), or
+  `make` and `shell`. `static = true` makes a cgo Go program static
+  (`-linkmode external -extldflags -static`, tags `netgo,osusergo`) and builds
+  a Rust one for `<arch>-unknown-linux-musl`; it is refused for darwin. A
+  field of another backend on a `go` or `cargo` build, or a field of `go` or
+  `cargo` on another backend's build, is a validation error, and two
+  components may not build one program name. A missing `go` or `cargo` fails
+  the build before anything is built. Every program the build puts into
+  `.rocks/bin/` must be an executable ELF or Mach-O program of the build
+  platform, and a static one under `static = true`, or the build fails
+  (exit code 2). The build records which files of `.rocks/bin/` are the
+  package's own in `_build/executables.json`, and `tt package pack` carries
+  them, and not the console scripts of rocks, in a `--without-deps` archive
+  too, which they pin to the host platform; the programs of components outside
+  the packed product travel in neither mode.
 - `tt package fetch`: materialize `.rocks/` strictly from the lock, without
   re-resolving or running component build backends.
 - `tt package pack`: run the full build and assemble the result into a
