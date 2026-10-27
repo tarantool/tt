@@ -36,7 +36,7 @@ backend = "go"
 package = "./cmd/gw"
 name = "gateway"
 tags = ["prod"]
-ldflags = ["-s", "-X main.version=1.0"]
+ldflags = ["-s", "-X", "main.version=1.0"]
 cgo = true
 static = true
 env = { CC = "musl-gcc" }
@@ -61,7 +61,7 @@ static = true
 	assert.Equal(t, "./cmd/gw", gateway.Build.Package)
 	assert.Equal(t, "gateway", gateway.Build.Name)
 	assert.Equal(t, []string{"prod"}, gateway.Build.Tags)
-	assert.Equal(t, []string{"-s", "-X main.version=1.0"}, gateway.Build.Ldflags)
+	assert.Equal(t, []string{"-s", "-X", "main.version=1.0"}, gateway.Build.Ldflags)
 	assert.True(t, gateway.Build.CgoValue())
 	assert.True(t, gateway.Build.StaticValue())
 	assert.Equal(t, []string{"gateway"}, gateway.Build.Executables("gw"))

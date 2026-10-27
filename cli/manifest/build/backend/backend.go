@@ -2,9 +2,10 @@
 // resulting artifacts in TT_OUTPUT_DIR.
 //
 // A component with a native part (or a generation step) is built by one of
-// four isolated executors selected by the [components.<name>.build] backend
-// field: shell (argv-style execve), make (make -C -f target), and a shared cc
-// driver serving both c and lua-c. Each executor receives the parsed
+// the isolated executors selected by the [components.<name>.build] backend
+// field: shell (argv-style execve), make (make -C -f target), a shared cc
+// driver serving both c and lua-c, and, for an executable component, go
+// (go build) and cargo (cargo build). Each executor receives the parsed
 // manifest.Build block, an absolute working directory, and the Env contract.
 // None of them order components, lay out install namespaces, resolve the lock,
 // or run lifecycle hooks — that orchestration is the caller's job; a backend
@@ -45,6 +46,10 @@ const (
 	BackendC = "c"
 	// BackendLuaC compiles a Lua C extension (exports luaopen_<module>).
 	BackendLuaC = "lua-c"
+	// BackendGo builds a Go program with go build.
+	BackendGo = "go"
+	// BackendCargo builds a Rust binary with cargo build.
+	BackendCargo = "cargo"
 )
 
 // dirPerm is the mode used when creating output directories.
@@ -182,6 +187,10 @@ func New(name string, flags lrbuild.Flags, showOutput bool) (Backend, error) {
 		return makeBackend{showOutput: showOutput}, nil
 	case BackendC, BackendLuaC:
 		return ccBackend{flags: flags, showOutput: showOutput}, nil
+	case BackendGo:
+		return goBackend{showOutput: showOutput}, nil
+	case BackendCargo:
+		return cargoBackend{showOutput: showOutput}, nil
 	default:
 		return nil, fmt.Errorf("%w %q", errUnknownBackend, name)
 	}
