@@ -3,6 +3,7 @@ package manifest
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -235,6 +236,11 @@ func validateDependency(field string, dep Dependency) error {
 }
 
 func (m *Manifest) validateComponents() error {
+	// programs maps a program an executable component builds to that
+	// component: two of them building one name would overwrite each other's
+	// file in .rocks/bin/.
+	programs := map[string]string{}
+
 	for _, name := range sortedKeys(m.Components) {
 		comp := m.Components[name]
 
@@ -252,16 +258,109 @@ func (m *Manifest) validateComponents() error {
 			return err
 		}
 
+		err = validateKind(field, comp)
+		if err != nil {
+			return err
+		}
+
 		if comp.Build != nil {
 			err := validateBuild(field+".build", *comp.Build)
 			if err != nil {
 				return err
 			}
+
+			err = validateKindBackend(field+".build", comp)
+			if err != nil {
+				return err
+			}
+		}
+
+		if !comp.IsExecutable() {
+			continue
+		}
+
+		for _, program := range comp.Build.Executables(name) {
+			if other, taken := programs[program]; taken {
+				return invalid(field+".build",
+					"program %q is built by component %q too", program, other)
+			}
+
+			programs[program] = name
 		}
 	}
 
 	return nil
 }
+
+// validateKind checks the kind of a component and what the kind rules out.
+// An executable component is made by its build alone: it lays no files out,
+// so include, exclude and namespace have nothing to act on, and without a
+// build it would make nothing.
+func validateKind(field string, comp Component) error {
+	switch comp.Kind {
+	case "", KindModule:
+		return nil
+	case KindExecutable:
+	default:
+		return invalid(field+".kind",
+			"%q is not supported in manifest_version %q (want %s or %s)",
+			comp.Kind, ManifestVersion, KindModule, KindExecutable)
+	}
+
+	notForPrograms := []struct {
+		name string
+		set  bool
+	}{
+		{"include", comp.Include != nil},
+		{"exclude", comp.Exclude != nil},
+		{"namespace", comp.Namespace != nil},
+	}
+
+	for _, key := range notForPrograms {
+		if key.set {
+			return invalid(field+"."+key.name,
+				"is not allowed for kind %q: its build places its programs in .rocks/bin",
+				KindExecutable)
+		}
+	}
+
+	if comp.Build == nil {
+		return invalid(field+".build", "is required for kind %q", KindExecutable)
+	}
+
+	return nil
+}
+
+// validateKindBackend checks that the backend of a component's build makes
+// what the kind of the component is: go and cargo make programs only, c and
+// lua-c make modules only, make and shell make either.
+func validateKindBackend(field string, comp Component) error {
+	backend := comp.Build.Backend
+
+	switch {
+	case comp.IsExecutable() && (backend == backendC || backend == backendLuaC):
+		return invalid(field, "backend %q builds a module, not a program (kind %q wants "+
+			"go, cargo, make or shell)", backend, KindExecutable)
+	case !comp.IsExecutable() && isProgramBackend(backend):
+		return invalid(field, "backend %q builds a program: set kind = %q on the component",
+			backend, KindExecutable)
+	}
+
+	return nil
+}
+
+// isProgramBackend reports whether backend builds programs only.
+func isProgramBackend(backend string) bool {
+	return backend == backendGo || backend == backendCargo
+}
+
+// programNameRe is the shape of a program name a go or cargo build is given:
+// a plain file name, which tt instance finds in .rocks/bin/ by the binary of
+// an instance description given without a slash.
+var programNameRe = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._+-]*$`)
+
+// cargoProfileRe is the shape cargo allows a profile name.
+var cargoProfileRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 func validateBuild(field string, build Build) error {
 	switch build.Backend {
@@ -281,12 +380,125 @@ func validateBuild(field string, build Build) error {
 		if len(build.Sources) == 0 {
 			return invalid(field, "sources is required for backend %q", build.Backend)
 		}
+	case backendGo:
+		err := validateGoBuild(field, build)
+		if err != nil {
+			return err
+		}
+	case backendCargo:
+		err := validateCargoBuild(field, build)
+		if err != nil {
+			return err
+		}
 	case "":
 		return invalid(field, "backend is required")
 	default:
 		return invalid(field,
-			"backend %q is not supported in manifest_version %q (want make, shell, c or lua-c)",
+			"backend %q is not supported in manifest_version %q "+
+				"(want make, shell, c, lua-c, go or cargo)",
 			build.Backend, ManifestVersion)
+	}
+
+	return validateBackendFields(field, build)
+}
+
+func validateGoBuild(field string, build Build) error {
+	if build.Name != "" && !programNameRe.MatchString(build.Name) {
+		return invalid(field+".name", "%q is not a file name", build.Name)
+	}
+
+	for _, tag := range build.Tags {
+		if tag == "" || strings.ContainsAny(tag, ", \t\n") {
+			return invalid(field+".tags", "%q is not a build tag", tag)
+		}
+	}
+
+	if slices.Contains(build.Ldflags, "") {
+		return invalid(field+".ldflags", "must not contain an empty entry")
+	}
+
+	return nil
+}
+
+func validateCargoBuild(field string, build Build) error {
+	if build.Bin != "" && !programNameRe.MatchString(build.Bin) {
+		return invalid(field+".bin", "%q is not a file name", build.Bin)
+	}
+
+	for _, feature := range build.Features {
+		if feature == "" || strings.ContainsAny(feature, ", \t\n") {
+			return invalid(field+".features", "%q is not a feature name", feature)
+		}
+	}
+
+	if build.Profile != "" && !cargoProfileRe.MatchString(build.Profile) {
+		return invalid(field+".profile", "%q is not a profile name", build.Profile)
+	}
+
+	return nil
+}
+
+// backendField is a field of a build block one or more backends own.
+type backendField struct {
+	name   string
+	set    bool
+	owners []string
+}
+
+// backendFields lists the fields of build that belong to some backends only,
+// with whether each is set.
+func backendFields(build Build) []backendField {
+	ccDriver := []string{backendC, backendLuaC}
+
+	return []backendField{
+		{"make_target", build.MakeTarget != "", []string{backendMake}},
+		{"entrypoint", build.Entrypoint != "", []string{backendMake}},
+		{"flags", build.Flags != nil, []string{backendMake}},
+		{"command", build.Command != "", []string{backendShell}},
+		{"args", build.Args != nil, []string{backendShell}},
+		{"module", build.Module != "", ccDriver},
+		{"sources", build.Sources != nil, ccDriver},
+		{"include_dirs", build.IncludeDirs != nil, ccDriver},
+		{"libraries", build.Libraries != nil, ccDriver},
+		{"library_dirs", build.LibraryDirs != nil, ccDriver},
+		{"defines", build.Defines != nil, ccDriver},
+		{"platforms", build.Platforms != nil, ccDriver},
+		// go and cargo name their program themselves.
+		{"output", build.Output != nil, []string{backendMake, backendShell, backendC, backendLuaC}},
+		{"package", build.Package != "", []string{backendGo, backendCargo}},
+		{"static", build.Static != nil, []string{backendGo, backendCargo}},
+		{"name", build.Name != "", []string{backendGo}},
+		{"tags", build.Tags != nil, []string{backendGo}},
+		{"ldflags", build.Ldflags != nil, []string{backendGo}},
+		{"cgo", build.Cgo != nil, []string{backendGo}},
+		{"bin", build.Bin != "", []string{backendCargo}},
+		{"features", build.Features != nil, []string{backendCargo}},
+		{"profile", build.Profile != "", []string{backendCargo}},
+	}
+}
+
+// validateBackendFields rejects a field of another backend: a go build with
+// make_target, a make build with static. Such a field does nothing, and a
+// user who wrote static = true on a make build expects a static program he
+// would not get.
+//
+// The fields the go and cargo backends brought, and every field on a go or
+// cargo build, are checked. A field of make, shell, c or lua-c on a build of
+// another of those four is still let through, as it always was: a manifest
+// that carries one would stop building.
+func validateBackendFields(field string, build Build) error {
+	for _, key := range backendFields(build) {
+		if !key.set || slices.Contains(key.owners, build.Backend) {
+			continue
+		}
+
+		legacyField := !slices.ContainsFunc(key.owners, isProgramBackend)
+		if legacyField && !isProgramBackend(build.Backend) {
+			continue
+		}
+
+		return invalid(field+"."+key.name, "is a field of backend %s, not of %q",
+			strings.Join(key.owners, " or "), build.Backend)
 	}
 
 	return nil
