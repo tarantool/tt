@@ -20,8 +20,10 @@ import (
 // against them: go test ./cli/create -run TestBuiltinTemplates -update.
 var update = flag.Bool("update", false, "rewrite golden files")
 
-// builtinInstances are the instances every built-in template describes with
-// the default values of its variables, in the order of the description.
+// builtinInstances are the instances every built-in template runs with the
+// default values of its variables, in the order they start in: the
+// description of every one is "*", the whole topology of its config, in the
+// order of the names.
 func builtinInstances() map[string][]string {
 	return map[string][]string{
 		"single_instance": {"instance001"},
@@ -31,9 +33,9 @@ func builtinInstances() map[string][]string {
 		},
 		"config_storage": {"replicaset-001-a", "replicaset-001-b", "replicaset-001-c"},
 		"vshard_cluster": {
+			"router-001-a",
 			"storage-001-a", "storage-001-b",
 			"storage-002-a", "storage-002-b",
-			"router-001-a",
 		},
 	}
 }

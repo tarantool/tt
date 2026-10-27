@@ -12,7 +12,23 @@ groups:
               listen:
               - uri: '127.0.0.1:3301'
 ==> .templates/default/instances.yaml <==
-instance001:
+# The instances the template runs: "*" stands for every instance of the
+# topology of config.yaml, started in the order of their names.
+#
+# Settings for all of them go into "*", such as starting an instance again
+# after it fails:
+#
+#   "*":
+#     restart: on-failure
+#
+# An instance given a record of its own takes the settings of that record,
+# and none of "*". An external process is declared by its name, with its
+# binary relative to the project directory:
+#
+#   worker:
+#     binary: ./bin/worker
+#     args: [--port, "8080"]
+"*": {}
 ==> init.lua <==
 local app_name = "app1"
 

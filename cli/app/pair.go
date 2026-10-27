@@ -36,18 +36,18 @@ const (
 //
 // The cluster config is needed only by the Tarantool instances it
 // configures: a description of instances that run their scripts and of
-// external processes alone makes a pair without one. The description is
-// needed only to say which instances of the topology run here and how: a
-// config alone makes a pair that runs every instance of its topology, as the
-// description "*": {} would.
+// external processes alone makes a pair without one. A template of the
+// config alone runs every instance of its topology, as the description
+// "*": {} would; the pair of a host needs its description, which says what
+// runs on that host.
 type Pair struct {
 	// Template is the name of the template the pair is, or empty for the
 	// pair of the host, <root>/etc/<app>/.
 	Template string
 	// Dir is the directory holding the pair.
 	Dir string
-	// InstancesFile is the path of the instances description, empty when the
-	// pair has none.
+	// InstancesFile is the path of the instances description, empty for a
+	// template without one.
 	InstancesFile string
 	// ConfigFile is the path of the cluster config, the file tarantool -c
 	// gets; empty when the pair has none.
@@ -71,7 +71,7 @@ func (pair *Pair) String() string {
 
 // DescriptionFile names, for a message, the file the instances of the pair
 // are described by: the instances description, or the cluster config of a
-// pair without one, whose topology is all the description it has.
+// template without one, whose topology is all the description it has.
 func (pair *Pair) DescriptionFile() string {
 	if pair.InstancesFile == "" {
 		return pair.ConfigFile
@@ -106,10 +106,15 @@ func newPair(template, dir string) Pair {
 // The pair of the host lives outside of the version, because a version is
 // immutable and the description of what runs on a host must survive
 // switching to the next one; that is why it wins. Either of its files makes
-// it the pair: a config alone runs its whole topology on the host, and a
-// description that needs the config it lacks (loadPair) is an incomplete
-// pair and an error, not a reason to run the template, which would start a
-// topology the host was not given.
+// it the pair: a config without a description, or a description that needs
+// the config it lacks (loadPair), is an incomplete pair and an error, not a
+// reason to run the template, which would start a topology the host was not
+// given.
+//
+// Unlike a template, the pair of a host does not take a config alone for
+// "*": {}. A host of a cluster spread over several runs a part of its
+// topology, and a description forgotten on one of them would start there
+// the instances that already run on the others.
 //
 // --template is refused when the host has a pair. The host chose what runs
 // on it; a template that quietly loses to the host pair would run something
@@ -123,19 +128,17 @@ func selectPair(loc location, template string) (Pair, error) {
 	}
 
 	if loc.scope != ScopeProject {
-		host := newPair("", HostDir(loc.root, loc.name))
-
-		present, err := checkPair(&host)
+		host, present, err := hostPair(loc)
 		if err != nil {
 			return Pair{}, err
 		}
 
-		if present {
-			if template != "" {
-				return Pair{}, failf("%w: %q runs from %s; remove --template",
-					ErrTemplateConflict, loc.name, host.String())
-			}
+		if present && template != "" {
+			return Pair{}, failf("%w: %q runs from %s; remove --template",
+				ErrTemplateConflict, loc.name, host.String())
+		}
 
+		if present {
 			return host, nil
 		}
 	}
@@ -158,6 +161,28 @@ func selectPair(loc location, template string) (Pair, error) {
 	return pair, nil
 }
 
+// hostPair returns the pair of the host of the application at loc, an
+// application of the user or the system scope, and whether the host has one.
+// A host with a config and no description has an incomplete pair (see
+// selectPair).
+func hostPair(loc location) (Pair, bool, error) {
+	host := newPair("", HostDir(loc.root, loc.name))
+
+	present, err := checkPair(&host)
+	if err != nil {
+		return Pair{}, false, err
+	}
+
+	if present && host.InstancesFile == "" {
+		return Pair{}, false, failf("%w: %s has %s but no %s next to it; the pair of a "+
+			"host describes what runs on the host, %q: {} for every instance of the "+
+			"topology", ErrIncompletePair, host.String(), scope.ConfigFileName,
+			scope.InstancesFileName, instances.WildcardName)
+	}
+
+	return host, present, nil
+}
+
 // validTemplate checks a --template value: it names one directory under
 // .templates/.
 func validTemplate(name string) error {
@@ -170,8 +195,8 @@ func validTemplate(name string) error {
 
 // checkPair reports whether pair is there: true when either of its files is,
 // false when neither is. A file the pair lacks gets an empty path: whether
-// the description can do without a config, and what runs without a
-// description, is up to loadPair, which reads them.
+// the description can do without a config is up to loadPair, which reads
+// them, and whether the pair can do without a description, to selectPair.
 func checkPair(pair *Pair) (bool, error) {
 	hasInstances, err := exists(pair.InstancesFile)
 	if err != nil {

@@ -736,23 +736,35 @@ func TestPairSelection(t *testing.T) {
 		require.ErrorContains(t, err, "the pair of the host in "+hostDir)
 	})
 
-	t.Run("the host pair of config.yaml alone runs its topology", func(t *testing.T) {
+	t.Run("an incomplete host pair with only config.yaml", func(t *testing.T) {
+		// A template of config.yaml alone runs its whole topology; the pair of
+		// a host says what runs on the host, and needs its description.
 		hostDir := filepath.Join(system, "etc", "myapp")
 		writeTree(t, hostDir, map[string]string{"config.yaml": topology("s-2", "s-1")})
 		t.Cleanup(func() { _ = os.RemoveAll(hostDir) })
 
+		_, err := load(t, "myapp", app.Options{Start: start})
+		requireFailure(t, err, app.ErrIncompletePair)
+		require.ErrorContains(t, err, "the pair of the host in "+hostDir+
+			" has config.yaml but no instances.yaml next to it")
+		require.ErrorContains(t, err, `"*": {} for every instance of the topology`)
+
+		_, err = load(t, "myapp", app.Options{Start: start, BestEffortConfig: true})
+		requireFailure(t, err, app.ErrIncompletePair)
+	})
+
+	t.Run("the host pair of \"*\" runs its topology", func(t *testing.T) {
+		hostDir := filepath.Join(system, "etc", "myapp")
+		writeTree(t, hostDir, map[string]string{
+			"instances.yaml": "\"*\": {}\n",
+			"config.yaml":    topology("s-2", "s-1"),
+		})
+		t.Cleanup(func() { _ = os.RemoveAll(hostDir) })
+
 		got, err := load(t, "myapp", app.Options{Start: start})
 		require.NoError(t, err)
-		assert.Equal(t, app.Pair{
-			Template:      "",
-			Dir:           hostDir,
-			InstancesFile: "",
-			ConfigFile:    filepath.Join(hostDir, "config.yaml"),
-		}, got.Pair)
+		assert.True(t, got.Pair.Host())
 		assert.Equal(t, []string{"s-1", "s-2"}, names(got.Instances))
-
-		_, err = load(t, "myapp", app.Options{Template: "staging", Start: start})
-		requireFailure(t, err, app.ErrTemplateConflict)
 	})
 
 	t.Run("a missing template", func(t *testing.T) {

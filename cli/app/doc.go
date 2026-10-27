@@ -72,10 +72,12 @@
 // record names, as a Tarantool instance configured by the config with the
 // fields of "*"; its instances take its place in the description, in the
 // order of their names (App.Instances). A record naming an instance of the
-// topology replaces "*" for it whole. A config.yaml without a description
-// is a pair as well, one that runs its whole topology, as the description
-// "*": {} would: an instance added to the config is not left out because
-// it was forgotten in the description.
+// topology replaces "*" for it whole. A template of config.yaml without a
+// description runs its whole topology, as the description "*": {} would:
+// an instance added to the config is not left out because it was forgotten
+// in the description. The pair of a host needs its description, "*"
+// included: it says what runs on that host, while the rest of a cluster may
+// run on others.
 //
 // Only the Tarantool instances of the config, and "*", need the config. A
 // description of instances that run their scripts and of external

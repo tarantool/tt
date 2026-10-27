@@ -848,10 +848,9 @@ func parsePublishAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, strin
 
 	if application.Scope != app.ScopeProject && !application.Pair.Host() {
 		return "", "", fmt.Errorf("application %q of the %s scope: %w: it runs from %s, "+
-			"which belongs to the installed version; put config.yaml, with instances.yaml "+
-			"unless the host runs its whole topology, into %s to publish into the pair of "+
-			"the host, or publish to a config storage by its URI", application.Name,
-			application.Scope, errPublishToVersion,
+			"which belongs to the installed version; put instances.yaml and config.yaml "+
+			"into %s to publish into the pair of the host, or publish to a config storage "+
+			"by its URI", application.Name, application.Scope, errPublishToVersion,
 			application.Pair.String(), app.HostDir(application.Root, application.Name))
 	}
 
