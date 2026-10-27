@@ -501,6 +501,9 @@ linters:
             - "github.com/tarantool/tt/v3/internal/systemd"
             - "golang.org/x/term"
             - "gopkg.in/yaml.v3"
+            # The integration tests of tt cluster publish run an etcd in the
+            # process.
+            - "github.com/tarantool/go-storage/v2/test_helpers/etcd"
         dir-cli-cmdcontext:
           files:
             - "**/cli/cmdcontext/**"

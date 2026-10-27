@@ -563,6 +563,7 @@ func AppFile(inst *InstanceCtx) (string, bool, error) {
 // with the tarantool the instance runs on: the syntax that counts is the
 // one that tarantool accepts.
 func Check(ctx context.Context, inst *InstanceCtx, file string) error {
+	//nolint:contextcheck // The scope roots ask uname and take no context.
 	exe, err := resolveTarantool(inst)
 	if err != nil {
 		return err
@@ -592,15 +593,19 @@ func GetAppInstanceName(instance InstanceCtx) string {
 
 // IsAbleToStartInstances checks if it is possible to start instances: each
 // passes the checks before a start and its application has a tarantool,
-// whose warnings are logged once per application. An external process needs
-// no tarantool, only its binary (checkExternal), and must not run already
-// without its watchdog (Orphan): a second copy would start next to it.
+// whose warnings are logged once per application, and which can run it
+// (checkConfigStorage). An external process needs no tarantool, only its
+// binary (checkExternal), and must not run already without its watchdog
+// (Orphan): a second copy would start next to it.
 //
 // The command that starts the instances calls it before it detaches their
 // watchdogs, so that what stops an instance from starting reaches the user
 // rather than only the log of the watchdog.
 func IsAbleToStartInstances(instances []InstanceCtx) (bool, error) {
 	warned := map[string]bool{}
+	// flavors are the flavors of the tarantools asked so far, by path: a
+	// tarantool from PATH is run to tell, once.
+	flavors := map[string]string{}
 
 	for i := range instances {
 		inst := &instances[i]
@@ -630,6 +635,21 @@ func IsAbleToStartInstances(instances []InstanceCtx) (bool, error) {
 			}
 
 			warned[inst.AppDir] = true
+		}
+
+		if _, stored := storageReference(inst); !stored {
+			continue
+		}
+
+		flavor, known := flavors[exe.Path]
+		if !known {
+			flavor = exe.Flavor(context.Background())
+			flavors[exe.Path] = flavor
+		}
+
+		err = checkConfigStorage(inst, exe, flavor)
+		if err != nil {
+			return false, err
 		}
 	}
 

@@ -293,11 +293,10 @@ type loadedPair struct {
 // it cannot is configErr rather than a failure, and the topology is not
 // checked. "*" then stands for the instances that have run in the scope of
 // the application (ranInstances): a config storage that is down must not
-// keep them from being stopped. With Options.SkipTopologyCheck the config is
-// required and the topology is not checked either.
+// keep them from being stopped.
 func loadPair(ctx context.Context, pair Pair, loc location, opts Options) (loadedPair, error) {
 	bestEffort := opts.BestEffortConfig
-	check := !bestEffort && !opts.SkipTopologyCheck
+	check := !bestEffort
 
 	desc, err := readDescription(pair, loc.dir, opts.Integrity)
 	if err != nil {
@@ -594,12 +593,16 @@ func checkTopology(descFile, config string, records []instances.Instance,
 // and no external process may take a name of it. A config that leaves an
 // instance of the description out would leave the pair broken, or an
 // instance of "*" running without its config.
+//
+// app is loaded with Options.BestEffortConfig for this: "*" stands for the
+// instances of the topology the pair has now, or, when its config cannot be
+// read, for those that have run in the scope.
 func (app *App) CheckTopology(topology []string, config string) error {
 	err := checkTopology(app.Pair.DescriptionFile(), config, app.Instances, topology)
 	if err != nil && app.wildcard && errors.Is(err, ErrTopologyMismatch) {
-		return failf("%w;\n%q stands for the instances of the topology the pair has "+
-			"now: a config that drops some of them is to be written by hand, or "+
-			"published to its storage by the URI", err, instances.WildcardName)
+		return failf("%w;\n%q stands for the instances the pair runs now: a config "+
+			"that drops some of them is to be written by hand, or published to its "+
+			"storage by the URI", err, instances.WildcardName)
 	}
 
 	return err

@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	goconfig "github.com/tarantool/go-config/v2"
 	etcdtest "github.com/tarantool/go-storage/v2/test_helpers/etcd"
 	sdkcluster "github.com/tarantool/tt/sdk/cluster"
 	"go.etcd.io/etcd/client/pkg/v3/transport"
@@ -91,10 +92,14 @@ func TestReadEtcdEndpointsHTTPS(t *testing.T) {
 				endpoints, sslBlock))
 			require.NoError(t, err)
 
-			got, cleanup, err := readEtcdEndpoints(t.Context(), cfg, sdkcluster.NewFactory())
+			ref, found, err := readEtcdRef(cfg)
+			require.NoError(t, err)
+			require.True(t, found)
+
+			got, cleanup, err := readEtcd(t.Context(), ref, sdkcluster.NewFactory())
 			if testCase.wantErr {
 				require.Error(t, err)
-				assert.Nil(t, got)
+				assert.Equal(t, goconfig.Config{}, got)
 				assert.Nil(t, cleanup)
 
 				return
@@ -103,9 +108,9 @@ func TestReadEtcdEndpointsHTTPS(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, cleanup)
 			t.Cleanup(cleanup)
-			require.NotNil(t, got)
+			require.NotEqual(t, goconfig.Config{}, got)
 
-			value, err := cfgGetString(*got, "foo")
+			value, err := cfgGetString(got, "foo")
 			require.NoError(t, err)
 			assert.Equal(t, "bar", value)
 		})

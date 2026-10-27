@@ -437,9 +437,6 @@ func TestTopologyConflict(t *testing.T) {
 			got, err := load(t, "", app.Options{Start: tree, BestEffortConfig: true})
 			require.NoError(t, err)
 			assert.Contains(t, names(got.Instances), "storage-1")
-
-			_, err = load(t, "", app.Options{Start: tree, SkipTopologyCheck: true})
-			require.NoError(t, err)
 		})
 	}
 }

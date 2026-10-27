@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	goconfig "github.com/tarantool/go-config/v2"
 
 	sdkcluster "github.com/tarantool/tt/sdk/cluster"
 	"github.com/tarantool/tt/sdk/connect"
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cluster"
 )
 
@@ -82,19 +84,65 @@ func PublishURI(publishCtx PublishCtx, opts connect.URIOpts) error {
 	return publish(publishCtx, collector, publisher, instance)
 }
 
-// PublishCluster publishes a configuration to the configuration path.
-func PublishCluster(publishCtx PublishCtx, path, instance string) error {
-	err := publishCtxValidateConfig(publishCtx, instance)
-	if err != nil {
-		return err
-	}
-
+// publishFile publishes publishCtx.Src into the file at path, as publish
+// does.
+func publishFile(publishCtx PublishCtx, path, instance string) error {
 	publisher, err := publishCtx.Publishers.NewFilePublisher(path)
 	if err != nil {
 		return fmt.Errorf("failed to create a file publisher: %w", err)
 	}
 
 	return publish(publishCtx, publishCtx.Collectors.NewFileCollector(path), publisher, instance)
+}
+
+// PublishApp publishes a configuration into the cluster config of the pair
+// of an application, the file at path: into the config storage the file
+// points to with config.etcd or config.storage, with the endpoints, the
+// prefix, the credentials and the TLS settings it gives, and into the file
+// itself when it points to none.
+//
+// A file that points to a storage is left as it is. Written over with the
+// whole config, it would no longer point there: its instances would leave
+// the storage for the file at their next start, while the storage kept the
+// config they left. The instances the file declares itself next to the
+// reference stay in the topology the config is checked with
+// (PublishCtx.CheckTopology), as the file wins over the storage.
+//
+// A file that cannot be read as a cluster config points to no storage
+// tarantool could follow either, and the config goes into it, mending it;
+// what kept it from being read is told.
+func PublishApp(publishCtx PublishCtx, path, instance string) error {
+	err := publishCtxValidateConfig(publishCtx, instance)
+	if err != nil {
+		return err
+	}
+
+	stor, found, err := cluster.OpenConfigStorage(context.Background(), path,
+		publishCtx.Collectors, publishCtx.Publishers)
+	if errors.Is(err, cluster.ErrConfigFile) {
+		log.Warnf("%s; the config is published into the file", err)
+
+		return publishFile(publishCtx, path, instance)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if !found {
+		return publishFile(publishCtx, path, instance)
+	}
+
+	defer stor.Close()
+
+	check := publishCtx.CheckTopology
+	if check != nil {
+		publishCtx.CheckTopology = func(topology []string) error {
+			return check(append(slices.Clone(topology), stor.FileInstances...))
+		}
+	}
+
+	return publish(publishCtx, stor.Collector, stor.Publisher, instance)
 }
 
 // publish publishes publishCtx.Src through publisher: whole, or, for an
@@ -109,6 +157,12 @@ func publish(publishCtx PublishCtx, collector sdkcluster.DataCollector,
 	if instance != "" {
 		// Build a MutableConfig from the target (collected) key's bytes.
 		collectedBytes, err := cluster.CollectDataBytes(context.Background(), collector)
+		if errors.Is(err, sdkcluster.ErrNoConfiguration) {
+			return fmt.Errorf("failed to get a cluster configuration to update an "+
+				"instance %q: %w; there is no cluster config to set the config of the "+
+				"instance in: publish the cluster config first", instance, err)
+		}
+
 		if err != nil {
 			return fmt.Errorf("failed to get a cluster configuration to update an "+
 				"instance %q: %w", instance, err)
