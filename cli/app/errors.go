@@ -39,8 +39,8 @@ var (
 	// neither file of it is there.
 	ErrNoPair = errors.New("no instances description")
 	// ErrIncompletePair is a pair whose description needs the cluster
-	// config it lacks: for a Tarantool instance configured by it, or for
-	// "*".
+	// config it lacks, for a Tarantool instance configured by it or for
+	// "*", or the pair of a host without its description.
 	ErrIncompletePair = errors.New("incomplete pair")
 	// ErrTemplateConflict is --template given for an application that runs
 	// from the pair of the host.

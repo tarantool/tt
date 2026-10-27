@@ -513,8 +513,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `stop_timeout` and `env` of `"*"` (`binary` and `script` are refused in it;
   unquoted, `*:` is a YAML alias, and the error says to quote it); a record
   naming one of them replaces `"*"` for it whole. The names of the other
-  records are checked against the topology. A pair of `config.yaml` alone is
-  the description `"*": {}`: the template runs the whole cluster. A
+  records are checked against the topology. A template of `config.yaml`
+  alone is the description `"*": {}` and runs the whole cluster; the pair of
+  a host, which says what runs on that host, needs its `instances.yaml`,
+  `"*"` or not, and is incomplete without it. A
   description with only `script` and `binary` records needs no `config.yaml`
   and does not read one, while `tt cluster show` and `publish` refuse an
   application without it. `tt cluster publish` writes the
@@ -714,6 +716,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `instances.yaml` and `config.yaml`, is in `.templates/default/` rather than
   next to the code of the application, and there is no `tt.yaml`;
   `single_instance` names the files `.yaml` rather than `.yml`.
+  `instances.yaml` holds `"*": {}`, every instance of the topology of
+  `config.yaml` in the order of their names, rather than a list of the names
+  of the topology, with a comment on giving the instances settings such as
+  `restart` and on adding an external process.
 - `tt create` refuses an application name that the template turns into a
   `[package].name` of `app.manifest.toml` that is not a package name
   (lowercase letters, digits and dashes, starting with a letter), and creates
