@@ -141,7 +141,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   default the archive is self-contained: it carries `_runtime/` (Tarantool, tt,
   and TCM when `[platform].tcm` is set) and the whole dependency closure, so
   installing it needs no network. `--without-deps` drops both and leaves the
-  `bundled_*_version` lock fields empty. Runtime components are taken from
+  `bundled_*_version` lock fields empty. The `<token>` is the host platform
+  (`linux-amd64`, `darwin-arm64`, ...), and `any` only for a `--without-deps`
+  archive with no native file: any ELF or Mach-O file in the archive, by
+  content rather than name — a compiled module, an executable from
+  `[package].include`, a hook's output — pins it to the host platform, and one
+  built for another OS or architecture fails the pack, naming the file.
+  Runtime components are taken from
   `<user cache>/tt/runtimes/<component>/<flavor>/<version>/`, falling back to
   the active tt environment when it satisfies `[platform]`, with a warning. An
   Enterprise build satisfies a `[ce]` requirement (the default) as well as an
