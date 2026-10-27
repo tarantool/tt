@@ -28,6 +28,15 @@ const (
 	// AppsDirName is the directory of a user or system root that holds the
 	// links to the active versions of installed applications.
 	AppsDirName = "apps"
+	// DataDirName, LogDirName and RunDirName are the directories of every
+	// scope root that hold the runtime artifacts of the instances, one
+	// subdirectory per application and instance in each, as
+	// <root>/var/run/<app>/<inst>/. The layout of an instance is built on
+	// them; and the run directory of an instance, which tt instance clean
+	// leaves, tells that the instance has run under the root.
+	DataDirName = "var/lib"
+	LogDirName  = "var/log"
+	RunDirName  = "var/run"
 )
 
 // ErrInstalledTree reports a directory inside the versions/ or apps/ tree of

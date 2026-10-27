@@ -27,12 +27,8 @@ const (
 	// AppsDirName holds one link per installed application, apps/<app>,
 	// selecting its active version.
 	AppsDirName = "apps"
-	// varDirName, runDirName and PidFileName locate the pid file of a running
-	// instance, <root>/var/run/<app>/<inst>/tt.pid.
-	varDirName = "var"
-	runDirName = "run"
 	// PidFileName is the pid file an instance of an application leaves in its
-	// run directory.
+	// run directory, <root>/var/run/<app>/<inst>/tt.pid (ttscope.RunDirName).
 	PidFileName = "tt.pid"
 )
 
@@ -307,7 +303,7 @@ type RunningInstance struct {
 // from is not recorded there, so a running instance counts against every
 // version of its application.
 func RunningInstances(root, name string) ([]RunningInstance, error) {
-	runDir := filepath.Join(root, varDirName, runDirName, name)
+	runDir := filepath.Join(root, ttscope.RunDirName, name)
 
 	entries, err := os.ReadDir(runDir)
 	if errors.Is(err, fs.ErrNotExist) {

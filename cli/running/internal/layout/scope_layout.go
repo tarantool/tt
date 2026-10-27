@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"github.com/tarantool/tt/v3/internal/scope"
 )
 
 // The names of the files an instance keeps in its run and log directories.
@@ -33,11 +35,14 @@ const (
 )
 
 // The directories under a scope root that hold the runtime artifacts of the
-// instances, one subdirectory per application and instance in each.
+// instances, one subdirectory per application and instance in each. They are
+// the scope's: the resolver of an application, which cannot import this
+// package, finds the instances that have run under a root by the run
+// directories.
 const (
-	dataDirName = "var/lib"
-	logDirName  = "var/log"
-	runDirName  = "var/run"
+	dataDirName = scope.DataDirName
+	logDirName  = scope.LogDirName
+	runDirName  = scope.RunDirName
 )
 
 var (
