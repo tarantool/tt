@@ -74,8 +74,7 @@ func reserved() mount.Reserved {
 	}
 }
 
-// render lists the tree under root, one command per line with its owner,
-// and marks placeholders.
+// render lists the tree under root, one command per line with its owner.
 func render(root *cobra.Command, registry *mount.Registry) string {
 	var out strings.Builder
 
@@ -86,13 +85,7 @@ func render(root *cobra.Command, registry *mount.Registry) string {
 			subPath := strings.TrimSpace(path + " " + sub.Name())
 			owner, _ := registry.Owner(sub)
 
-			out.WriteString(subPath + " <- " + owner)
-
-			if registry.Placeholder(sub) {
-				out.WriteString(" (placeholder)")
-			}
-
-			out.WriteString("\n")
+			out.WriteString(subPath + " <- " + owner + "\n")
 			walk(sub, subPath)
 		}
 	}
@@ -145,7 +138,7 @@ func commands(cmd *cobra.Command) []*cobra.Command {
 }
 
 // owners lists cmd and every command under it with the module the registry
-// has it come from, "-" for none, and marks placeholders.
+// has it come from, "-" for none.
 func owners(registry *mount.Registry, cmd *cobra.Command) string {
 	if cmd == nil {
 		return ""
@@ -159,13 +152,7 @@ func owners(registry *mount.Registry, cmd *cobra.Command) string {
 			owner = "-"
 		}
 
-		out.WriteString(each.Name() + " <- " + owner)
-
-		if registry.Placeholder(each) {
-			out.WriteString(" (placeholder)")
-		}
-
-		out.WriteString("\n")
+		out.WriteString(each.Name() + " <- " + owner + "\n")
 	}
 
 	return out.String()
@@ -216,7 +203,7 @@ func TestHang(t *testing.T) {
 			entries: func() []mount.Entry {
 				return []mount.Entry{{Module: "a", Path: "x  y", Cmd: leaf("z")}}
 			},
-			want: "x <- a (placeholder)\nx y <- a (placeholder)\nx y z <- a\n",
+			want: "x <- a\nx y <- a\nx y z <- a\n",
 		},
 		{
 			name: "provided group is used whatever the order",
@@ -250,7 +237,7 @@ func TestHang(t *testing.T) {
 					{Module: "a", Path: "g", Cmd: leaf("one")},
 				}
 			},
-			want: "g <- a (placeholder)\ng one <- a\ng two <- b\n",
+			want: "g <- a\ng one <- a\ng two <- b\n",
 		},
 		{
 			name: "under its own runnable command",
@@ -692,8 +679,6 @@ func TestReplace(t *testing.T) {
 			for _, gone := range commands(old) {
 				_, owned := registry.Owner(gone)
 				assert.False(t, owned, "%q must leave the registry", gone.Name())
-				assert.False(t, registry.Placeholder(gone), "%q must leave the registry",
-					gone.Name())
 			}
 		})
 	}

@@ -51,22 +51,6 @@ func (errorLogWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// NewCmdRoot creates a new root command with every builtin and injected
-// command.
-func NewCmdRoot() *cobra.Command {
-	root := newRootCmd()
-	root.AddCommand(BuiltinCommands()...)
-
-	err := InjectCommands(root)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	root.SetErr(errorLogWriter{})
-
-	return root
-}
-
 // rootLong is what the root help says tt is.
 const rootLong = "Utility for managing Tarantool packages and Tarantool-based applications"
 

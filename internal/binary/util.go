@@ -3,7 +3,6 @@ package binary
 import (
 	"archive/tar"
 	"bufio"
-	"cmp"
 	"compress/gzip"
 	"context"
 	"errors"
@@ -18,7 +17,6 @@ import (
 	"strings"
 
 	"github.com/tarantool/tt/sdk/log"
-	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -349,35 +347,6 @@ func IsRegularFile(filePath string) bool {
 	return fileInfo.Mode().IsRegular()
 }
 
-// JoinAbspath concat paths and makes the resulting path absolute.
-func JoinAbspath(paths ...string) (string, error) {
-	var err error
-
-	path := JoinPaths(paths...)
-
-	path, err = filepath.Abs(path)
-	if err != nil {
-		return "", fmt.Errorf("failed to get absolute path: %w", err)
-	}
-
-	return path, nil
-}
-
-// JoinPaths concat paths.
-func JoinPaths(paths ...string) string {
-	path := ""
-
-	for _, pathPart := range paths {
-		if filepath.IsAbs(pathPart) {
-			path = pathPart
-		} else {
-			path = filepath.Join(path, pathPart)
-		}
-	}
-
-	return path
-}
-
 // Max returns the maximum value.
 func Max(x, y int) int {
 	if x < y {
@@ -385,15 +354,6 @@ func Max(x, y int) int {
 	}
 
 	return x
-}
-
-// Min returns minimal of two values.
-func Min[T cmp.Ordered](a, b T) T {
-	if a < b {
-		return a
-	}
-
-	return b
 }
 
 // ResolveSymlink resolves symlink path.
@@ -419,26 +379,4 @@ func RunCommandAndGetOutput(program string, args ...string) (string, error) {
 	}
 
 	return strings.TrimSpace(string(out)), nil
-}
-
-// WriteYaml writes YAML encoding of object obj to fileName.
-func WriteYaml(fileName string, obj any) error {
-	file, err := os.Create(fileName)
-	if err != nil {
-		return fmt.Errorf("cannot create the YAML file: %w", err)
-	}
-
-	defer func() {
-		closeErr := file.Close()
-		if closeErr != nil {
-			log.Warnf("Failed to close a file '%s': %s", file.Name(), closeErr)
-		}
-	}()
-
-	err = yaml.NewEncoder(file).Encode(obj)
-	if err != nil {
-		return fmt.Errorf("cannot write YAML to %q: %w", fileName, err)
-	}
-
-	return nil
 }

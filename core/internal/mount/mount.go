@@ -59,8 +59,7 @@ type Reserved struct {
 
 // Registry records which module each command in the tree comes from.
 type Registry struct {
-	owners       map[*cobra.Command]string
-	placeholders map[*cobra.Command]bool
+	owners map[*cobra.Command]string
 }
 
 // Owner returns the module cmd comes from: the module that mounted it or
@@ -71,12 +70,6 @@ func (r *Registry) Owner(cmd *cobra.Command) (string, bool) {
 	owner, ok := r.owners[cmd]
 
 	return owner, ok
-}
-
-// Placeholder reports whether cmd is a group in the tree that Hang created
-// because no module provided it.
-func (r *Registry) Placeholder(cmd *cobra.Command) bool {
-	return r.placeholders[cmd]
 }
 
 // The errors Hang and Replace refuse a command with. Each is the reason part
@@ -109,8 +102,7 @@ type mount struct {
 // the tree is then incomplete and must not be run.
 func Hang(root *cobra.Command, entries []Entry, reserved Reserved) (*Registry, error) {
 	registry := &Registry{
-		owners:       map[*cobra.Command]string{},
-		placeholders: map[*cobra.Command]bool{},
+		owners: map[*cobra.Command]string{},
 	}
 
 	sorted := slices.Clone(entries)
@@ -202,7 +194,6 @@ func (r *Registry) record(top *cobra.Command, module string) {
 func (r *Registry) forget(top *cobra.Command) {
 	for _, cmd := range subtree(top) {
 		delete(r.owners, cmd)
-		delete(r.placeholders, cmd)
 	}
 }
 
@@ -335,7 +326,6 @@ func walk(root *cobra.Command, mnt mount, registry *Registry) (*cobra.Command, e
 			parent.AddCommand(child)
 
 			registry.owners[child] = mnt.Module
-			registry.placeholders[child] = true
 		} else if owner := ownerName(registry, child); child.Runnable() && owner != mnt.Module {
 			return nil, fmt.Errorf("module %q: cannot mount %q under %q: it is a command "+
 				"of module %q, %w", mnt.Module, mnt.Cmd.Name(), displayPath(child), owner,

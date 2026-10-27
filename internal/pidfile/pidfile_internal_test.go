@@ -234,7 +234,6 @@ func TestRelease(t *testing.T) {
 
 	owned, err := Acquire(path, os.Getpid())
 	require.NoError(t, err)
-	assert.Equal(t, path, owned.Path())
 	require.NoError(t, owned.Release())
 	assert.NoFileExists(t, path)
 

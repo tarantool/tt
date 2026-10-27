@@ -737,7 +737,7 @@ func clusterConfigSource(commandContext *cmdcontext.CmdCtx, args []string, confi
 
 func topologyConnectContext() connect.ConnectCtx {
 	return connect.ConnectCtx{
-		SrcFile: "", Language: 0, Format: formatter.DefaultFormat, Interactive: false,
+		SrcFile: "", Language: 0, Format: formatter.DefaultFormat,
 		ConnectTarget: "", Binary: false, Evaler: "",
 		Username: replicasetUser, Password: replicasetPassword,
 		ConnectTimeout: replicasetConnectTimeout,

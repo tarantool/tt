@@ -150,25 +150,23 @@ func TestMatchVersion_NotFoundError(t *testing.T) {
 
 func TestIsVersion(t *testing.T) {
 	tests := []struct {
-		version    string
-		want       bool
-		wantStrict bool
+		version string
+		want    bool
 	}{
-		{"1.2.3", true, true},
-		{"1.2", true, false},
-		{"2.11.0-rc1", true, true},
-		{"2.11-rc1", true, false},
-		{"2-rc1", true, false},
-		{"v1-ga73da88", true, false},
-		{"gc64-3.0.0-1-ga73da88-r123", true, true},
-		{"1,2,3", false, false},
-		{"master", false, false},
-		{"pr/42", false, false},
+		{"1.2.3", true},
+		{"1.2", true},
+		{"2.11.0-rc1", true},
+		{"2.11-rc1", true},
+		{"2-rc1", true},
+		{"v1-ga73da88", true},
+		{"gc64-3.0.0-1-ga73da88-r123", true},
+		{"1,2,3", false},
+		{"master", false},
+		{"pr/42", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.version, func(t *testing.T) {
 			require.Equal(t, tt.want, version.IsVersion(tt.version))
-			require.Equal(t, tt.wantStrict, version.IsStrictVersion(tt.version))
 		})
 	}
 }

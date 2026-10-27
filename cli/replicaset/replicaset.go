@@ -15,8 +15,6 @@ type Replicaset struct {
 	Master Master
 	// Failover is a configured failover.
 	Failover Failover
-	// StateProvider is a configured state provider.
-	StateProvider StateProvider
 	// Instances is a list of instances in the replicaset.
 	Instances []Instance
 }

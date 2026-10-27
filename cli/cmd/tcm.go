@@ -27,9 +27,8 @@ var (
 )
 
 var tcmCtx = tcmCmd.TcmCtx{
-	Executable:      "",
-	Watchdog:        false,
-	WatchdogPidFile: "",
+	Executable: "",
+	Watchdog:   false,
 	Log: tcmCmd.LoggerOpts{
 		Level:      "",
 		Lines:      0,

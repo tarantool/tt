@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -10,7 +9,6 @@ import (
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/configure"
-	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/cli/version"
 )
 
@@ -163,12 +161,6 @@ func Configure() error {
 	if err != nil {
 		return fmt.Errorf("integrity check failed: %w", err)
 	}
-
-	// TCM config, if any, is located in the project directory, where it was
-	// next to tt.yaml before.
-	tcmConfigBasename := filepath.Join(cmdCtx.Cli.ProjectDir, "tcm")
-
-	cmdCtx.Cli.TcmCli.ConfigPath, _ = util.GetYamlFileName(tcmConfigBasename, false)
 
 	return nil
 }

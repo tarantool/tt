@@ -132,12 +132,6 @@ func replicasetToString(replicas replicaset.Replicaset) string {
 	result.WriteString(replicas.Failover.String())
 	result.WriteByte('\n')
 
-	if replicas.StateProvider != replicaset.StateProviderUnknown {
-		result.WriteString("  Provider: ")
-		result.WriteString(replicas.StateProvider.String())
-		result.WriteByte('\n')
-	}
-
 	if replicas.Master != replicaset.MasterUnknown {
 		result.WriteString("  Master:   ")
 		result.WriteString(replicas.Master.String())

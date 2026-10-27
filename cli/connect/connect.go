@@ -50,8 +50,6 @@ type ConnectCtx struct {
 	SslPassword string
 	// SslPasswordFile contains candidate passwords for the private SSL key file.
 	SslPasswordFile string
-	// Interactive mode is used.
-	Interactive bool
 	// ConnectTarget contains connection target string: URI or instance name.
 	ConnectTarget string
 	// Binary port is used.

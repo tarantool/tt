@@ -272,7 +272,6 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		SslCiphers:      connectSslCiphers,
 		SslPassword:     connectSslPassword,
 		SslPasswordFile: connectSslPasswordFile,
-		Interactive:     connectInteractive,
 		ConnectTarget:   "",
 		Binary:          connectBinary,
 		Evaler:          connectEvaler,

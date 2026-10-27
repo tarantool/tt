@@ -23,8 +23,6 @@ type TcmCtx struct {
 	Executable string
 	// Flag indicating whether the watchdog is enabled.
 	Watchdog bool
-	// Path to the file storing the watchdog process PID.
-	WatchdogPidFile string
 	// Log configuration to display TCM logs.
 	Log LoggerOpts
 }
