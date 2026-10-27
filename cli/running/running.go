@@ -99,7 +99,8 @@ type InstanceCtx struct {
 	// (IsExternal).
 	Kind instances.Kind
 	// Binary is the executable of an external process: an absolute path, or
-	// the name of a program looked up in PATH when the process starts.
+	// the name of a program looked up when the process starts, in .rocks/bin
+	// of the application and then in PATH (ResolveBinary).
 	Binary string
 	// Args are the arguments of an external process.
 	Args []string

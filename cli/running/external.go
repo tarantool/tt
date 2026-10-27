@@ -3,20 +3,25 @@ package running
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/app"
+	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/cli/running/internal/layout"
 	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/internal/instances"
 	"github.com/tarantool/tt/v3/internal/pidfile"
+	"github.com/tarantool/tt/v3/internal/scope"
 	"github.com/tarantool/tt/v3/internal/supervisor"
 )
 
@@ -28,7 +33,8 @@ var ErrNotTarantool = errors.New("not a Tarantool instance")
 
 var (
 	// errNoExecutable is wrapped by the error for an external process whose
-	// binary is not an executable, or is not found in PATH.
+	// binary is not an executable, or is not found in .rocks/bin/ of the
+	// application or in PATH.
 	errNoExecutable = errors.New("cannot run the binary")
 	// errNoWorkdir is wrapped by the error for an external process whose
 	// working directory is not a directory.
@@ -128,9 +134,112 @@ func setExternalCtx(instCtx *InstanceCtx, inst instances.Instance, scopeLayout l
 	instCtx.ClusterConfigPath = ""
 }
 
+// rocksBinDir is where the executable components of a package put the
+// programs they build, under the application directory: .rocks/bin/ of the
+// project, or of the installed version.
+var rocksBinDir = filepath.Join(".rocks", "bin")
+
+// ResolveBinary returns the executable the external process inst runs, or
+// an error wrapping errNoExecutable that says where it was looked for.
+//
+// A binary with a slash is a path, resolved against the application
+// directory when the description was read. A binary without one names a
+// program: it is looked up first in .rocks/bin/ of the application
+// directory, where the executable components of the package put what they
+// build, then in PATH of tt (decision 52). So gw: {binary: gw} reads the
+// same in the project and in an installed version, as a script of
+// node_modules/.bin does, and runs the program the package built rather than
+// one of the host that has its name. A file of .rocks/bin/ that cannot be
+// run is an error rather than a reason to run another program of that name.
+//
+// tt instance start builds nothing: when the program is missing from a
+// project whose manifest has an executable component that builds it, the
+// error says to run tt package build (buildHint).
+func ResolveBinary(inst *InstanceCtx) (string, error) {
+	path, err := resolveBinary(inst)
+	if err != nil {
+		return "", fmt.Errorf("instance %q of %q: %w: %w", inst.InstName, inst.AppName,
+			errNoExecutable, err)
+	}
+
+	return path, nil
+}
+
+func resolveBinary(inst *InstanceCtx) (string, error) {
+	if strings.ContainsRune(inst.Binary, '/') {
+		return exec.LookPath(inst.Binary) //nolint:wrapcheck // ResolveBinary names the instance.
+	}
+
+	local := filepath.Join(inst.AppDir, rocksBinDir, inst.Binary)
+
+	_, err := os.Stat(local)
+	if err == nil {
+		return exec.LookPath(local) //nolint:wrapcheck // ResolveBinary names the instance.
+	}
+
+	if !errors.Is(err, fs.ErrNotExist) {
+		return "", err //nolint:wrapcheck // ResolveBinary names the instance.
+	}
+
+	path, err := exec.LookPath(inst.Binary)
+	if err == nil {
+		return path, nil
+	}
+
+	return "", &notFoundError{fmt.Sprintf("%q is neither in %s nor in PATH%s", inst.Binary,
+		filepath.Join(inst.AppDir, rocksBinDir), buildHint(inst))}
+}
+
+// notFoundError is the error for a program named without a slash that is
+// found neither in .rocks/bin/ of the application nor in PATH. It names both
+// places, and is exec.ErrNotFound to errors.Is, as the error of the lookup
+// in PATH alone was.
+type notFoundError struct {
+	msg string
+}
+
+func (e *notFoundError) Error() string {
+	return e.msg
+}
+
+func (e *notFoundError) Unwrap() error {
+	return exec.ErrNotFound
+}
+
+// buildHint tells to run tt package build when inst runs in a project whose
+// manifest has an executable component that builds its binary: the program
+// is then missing only because the project has not been built, and
+// tt instance start does not build it, so that a long build is not hidden in
+// a start or in a restart by the watchdog. A manifest that cannot be read
+// gives no hint; tt package build reports what is wrong with it.
+func buildHint(inst *InstanceCtx) string {
+	if inst.Scope != app.ScopeProject {
+		return ""
+	}
+
+	data, err := os.ReadFile(filepath.Join(inst.AppDir, scope.ManifestFileName))
+	if err != nil {
+		return ""
+	}
+
+	man, _, err := manifest.ParseManifest(data)
+	if err != nil {
+		return ""
+	}
+
+	component, ok := man.ExecutableComponent(inst.Binary)
+	if !ok {
+		return ""
+	}
+
+	return fmt.Sprintf("; the executable component %q of the project builds it: "+
+		"run tt package build", component)
+}
+
 // checkExternal checks what has to hold before an external process starts:
-// its binary is an executable, found in PATH of tt when the record names a
-// program rather than a path, and the workdir of its record is a directory.
+// its binary is an executable, found in .rocks/bin/ of the application or in
+// PATH of tt when the record names a program rather than a path
+// (ResolveBinary), and the workdir of its record is a directory.
 //
 // The command that starts the process checks it before it detaches the
 // watchdog (IsAbleToStartInstances), so that a typo in the description is
@@ -141,10 +250,9 @@ func setExternalCtx(instCtx *InstanceCtx, inst instances.Instance, scopeLayout l
 // The data directory, the working directory without workdir, is tt's to
 // create (externalSpec).
 func checkExternal(inst *InstanceCtx) error {
-	_, err := exec.LookPath(inst.Binary)
+	_, err := ResolveBinary(inst)
 	if err != nil {
-		return fmt.Errorf("instance %q of %q: %w: %w", inst.InstName, inst.AppName,
-			errNoExecutable, err)
+		return err
 	}
 
 	if inst.Workdir == inst.DataDir {
@@ -169,8 +277,9 @@ func checkExternal(inst *InstanceCtx) error {
 // data directory, with the env of the record on top of the inherited
 // environment. tt adds nothing to it but PWD, which a program reads its
 // working directory from, and which the record may still override. A binary
-// named without a slash is looked up in PATH of tt as the process starts,
-// not in PATH the env of the record may set.
+// named without a slash is looked up in .rocks/bin/ of the application and
+// in PATH of tt as the process starts (ResolveBinary), not in PATH the env
+// of the record may set.
 //
 // The process stops with SIGTERM, unless its record names another stop
 // signal, and is killed after instanceStopTimeout, as a Tarantool instance
@@ -196,6 +305,11 @@ func externalSpec(inst *InstanceCtx, opts specOptions) (supervisor.Spec, error) 
 		return supervisor.Spec{}, err
 	}
 
+	binary, err := ResolveBinary(inst)
+	if err != nil {
+		return supervisor.Spec{}, err
+	}
+
 	if inst.DataDir != "" {
 		err = util.CreateDirectory(inst.DataDir, defaultDirPerms)
 		if err != nil {
@@ -211,7 +325,7 @@ func externalSpec(inst *InstanceCtx, opts specOptions) (supervisor.Spec, error) 
 	}
 
 	return supervisor.Spec{
-		Path:                inst.Binary,
+		Path:                binary,
 		Args:                slices.Clone(inst.Args),
 		Env:                 env,
 		Dir:                 inst.Workdir,
