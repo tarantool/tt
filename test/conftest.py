@@ -88,16 +88,6 @@ def update_testdata(request: pytest.FixtureRequest) -> bool:
 
 
 @pytest.fixture(scope="session")
-def cli_config_dir():
-    if platform.system() == "Darwin":
-        return "/usr/local/etc/tarantool"
-    if platform.system() == "Linux":
-        return "/etc/tarantool"
-
-    return ""
-
-
-@pytest.fixture(scope="session")
 def tt_cmd(tmp_path_factory: TempPathFactory, request: pytest.FixtureRequest) -> Path:
     tt_path = request.config.getoption("--tt-cmd")
     if tt_path is not None:
