@@ -12,8 +12,8 @@ import (
 )
 
 // stageTemplates copies the project's .templates/ into the archive root, after
-// checking that every template in it is complete and its instance description
-// parses. A project without .templates/ stages nothing.
+// checking that every template in it is complete and its instance description,
+// if it has one, parses. A project without .templates/ stages nothing.
 //
 // The directory bypasses the component filter on purpose. Components select
 // what lands under .rocks/, and their filter drops every hidden name ahead of
@@ -109,6 +109,9 @@ func checkTemplates(dir, projectDir string) error {
 // instances it configures alone, so a description of instances that run
 // their scripts and of external processes makes a template without it, as it
 // makes a pair when the template runs.
+//
+// A config without a description is a template too: it runs every instance
+// of its topology, as a description of "*" alone would.
 func checkTemplate(dir, name, projectDir string) error {
 	label := templatesDirName + "/" + name
 	path := filepath.Join(dir, name)
@@ -140,11 +143,16 @@ func checkTemplate(dir, name, projectDir string) error {
 		present[file] = true
 	}
 
-	if !present[templateInstancesFile] {
-		return fmt.Errorf("%s: %w: missing %s; a template is %s, with %s next to it "+
-			"unless it describes only instances that run their scripts and external "+
-			"processes", label, errBadTemplate, templateInstancesFile,
-			templateInstancesFile, templateConfigFile)
+	switch {
+	case present[templateInstancesFile]:
+	case present[templateConfigFile]:
+		return nil
+	default:
+		return fmt.Errorf("%s: %w: missing %s and %s; a template is %s, with %s next "+
+			"to it unless it runs every instance of the topology, or %s alone when it "+
+			"describes only instances that run their scripts and external processes",
+			label, errBadTemplate, templateConfigFile, templateInstancesFile,
+			templateConfigFile, templateInstancesFile, templateInstancesFile)
 	}
 
 	data, err := os.ReadFile(filepath.Join(path, templateInstancesFile))

@@ -856,8 +856,9 @@ and SDK bundles.
 
 Use --scope to choose where binaries are managed:
   project (default): .tarantool/ in the project directory: the current
-    directory or its nearest parent with app.manifest.toml or
-    .templates/<name>/instances.yaml; the current directory outside a project.
+    directory or its nearest parent with app.manifest.toml,
+    .templates/<name>/instances.yaml or .templates/<name>/config.yaml; the
+    current directory outside a project.
   user: $TT_USER_ROOT when set; otherwise
     Linux: $XDG_DATA_HOME/tarantool when XDG_DATA_HOME is an absolute path;
       otherwise ~/.local/share/tarantool.
@@ -3271,9 +3272,9 @@ default the archive is self-contained: it carries _runtime/ (Tarantool, tt and
 TCM when [platform].tcm is set) and the whole dependency closure in .rocks/, so
 installing it needs no network. --without-deps drops both. The project's
 instance templates in .templates/ travel at the archive root in either mode;
-each .templates/<name>/ must hold instances.yaml and config.yaml, and a broken
-template fails the pack. A separate tt package build beforehand is not needed.
-The archive path is printed to stdout.
+each .templates/<name>/ must hold config.yaml, instances.yaml or both, and a
+broken template fails the pack. A separate tt package build beforehand is not
+needed. The archive path is printed to stdout.
 
 [0;1;39mUSAGE[0m
   tt package pack [flags]

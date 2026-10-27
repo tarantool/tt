@@ -220,6 +220,28 @@ func TestStageTemplatesWithoutConfig(t *testing.T) {
 	}, templateNames(stagedNames(t, stageDir)))
 }
 
+// TestStageTemplatesConfigAlone: a template of config.yaml alone runs every
+// instance of its topology, as a description of "*" alone would, and is
+// packed as it is, without a description made up for it.
+func TestStageTemplatesConfigAlone(t *testing.T) {
+	t.Parallel()
+
+	projectDir, man := testProject(t, map[string]string{
+		".templates/default/config.yaml": "groups: {}\n",
+		".templates/prod/instances.yaml": "\"*\":\n  restart: always\nworker-1:\n" +
+			"  binary: ./bin/worker\n",
+		".templates/prod/config.yaml": "groups: {}\n",
+	})
+	stageDir := t.TempDir()
+
+	require.NoError(t, stage(stageDir, baseRequest(projectDir, man, testTree(t, projectDir))))
+	assert.ElementsMatch(t, []string{
+		".templates/default/config.yaml",
+		".templates/prod/instances.yaml",
+		".templates/prod/config.yaml",
+	}, templateNames(stagedNames(t, stageDir)))
+}
+
 // TestStageTemplatesRejectsBrokenTemplates covers every way a template is
 // refused. Each is a pack error naming the template, exit 1, and nothing is
 // archived.
@@ -257,18 +279,11 @@ func TestStageTemplatesRejectsBrokenTemplates(t *testing.T) {
 			},
 		},
 		{
-			name: "missing instances",
-			files: map[string]string{
-				".templates/default/config.yaml": "groups: {}\n",
-			},
-			mention: []string{".templates/default", "missing instances.yaml"},
-		},
-		{
 			name: "empty template",
 			files: map[string]string{
 				".templates/default/notes.txt": "nothing else",
 			},
-			mention: []string{".templates/default", "missing instances.yaml"},
+			mention: []string{".templates/default", "missing config.yaml and instances.yaml"},
 		},
 		{
 			name: "binary in the record for the topology",
