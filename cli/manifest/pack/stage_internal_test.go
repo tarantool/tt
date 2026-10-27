@@ -167,6 +167,58 @@ func TestStageWithoutDeps(t *testing.T) {
 	assert.Contains(t, names, "LICENSE")
 }
 
+// TestStagePrograms: the package's own programs in .rocks/bin travel in both
+// modes, the console scripts of rocks with the dependencies only, and the
+// programs of another product's components in neither.
+func TestStagePrograms(t *testing.T) {
+	projectDir, man := testProject(t, nil)
+	tree := testTree(t, projectDir)
+	writeTree(t, tree, map[string]string{
+		"bin/gw":      "own program",
+		"bin/gw-cli":  "program of another product",
+		"bin/luatest": "console script of a rock",
+	})
+
+	for _, withDeps := range []bool{true, false} {
+		stageDir := t.TempDir()
+
+		req := baseRequest(projectDir, man, tree)
+
+		req.WithDeps = withDeps
+		req.Programs = []string{"gw"}
+		req.OtherPrograms = []string{"gw-cli"}
+
+		require.NoError(t, stage(t.Context(), stageDir, req))
+
+		names := stagedNames(t, stageDir)
+		assert.Contains(t, names, ".rocks/bin/gw", "with deps: %v", withDeps)
+		assert.NotContains(t, names, ".rocks/bin/gw-cli", "with deps: %v", withDeps)
+
+		if withDeps {
+			assert.Contains(t, names, ".rocks/bin/luatest")
+		} else {
+			assert.NotContains(t, names, ".rocks/bin/luatest")
+		}
+	}
+}
+
+// TestStageWithoutDepsMissingProgram: a program the build recorded and that
+// is gone fails the pack rather than leaving the archive without it.
+func TestStageWithoutDepsMissingProgram(t *testing.T) {
+	projectDir, man := testProject(t, nil)
+	tree := testTree(t, projectDir)
+
+	req := baseRequest(projectDir, man, tree)
+
+	req.WithDeps = false
+	req.Programs = []string{"gone"}
+
+	err := stage(t.Context(), t.TempDir(), req)
+	require.Error(t, err)
+	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
+	assert.Contains(t, err.Error(), filepath.Join(tree, "bin", "gone"))
+}
+
 func TestStageMissingTreeIsNotFatal(t *testing.T) {
 	projectDir, man := testProject(t, nil)
 	stageDir := t.TempDir()

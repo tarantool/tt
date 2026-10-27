@@ -7,7 +7,9 @@
 // The cycle, in order: derive the version, run pre_build, gate the
 // lock (resolve and rewrite unless --locked), materialize the pinned closure
 // into .rocks/, run each component's build backend, lay the component files out
-// under their install namespace, generate version.lua, then run post_build.
+// under their install namespace, generate version.lua, then run post_build. An
+// executable component builds programs into .rocks/bin/ instead, and lays
+// nothing out; what it built is checked and recorded (see executables.go).
 // tt package fetch is the same materialization step in isolation: strictly from
 // the lock, without resolving or running backends.
 //
@@ -36,6 +38,7 @@ import (
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build/backend"
+	"github.com/tarantool/tt/v3/cli/manifest/native"
 	"github.com/tarantool/tt/v3/cli/manifest/resolve"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 	"github.com/tarantool/tt/v3/cli/manifest/version"
@@ -121,6 +124,12 @@ type Result struct {
 	Product string
 	// Tree is the absolute path of the materialized .rocks/ tree.
 	Tree string
+	// Executables maps every executable component of the manifest to the
+	// programs its build put into the bin directory of Tree, by file name:
+	// the package's own files there, as against the console scripts of its
+	// dependencies. A component the run did not build is reported as its
+	// last build recorded it, if at all. A fetch run reports none.
+	Executables map[string][]string
 }
 
 // Run executes the build (or fetch) described by opts, discarding the result.
@@ -263,6 +272,11 @@ func runBuild(
 		return nil, err
 	}
 
+	err = preflightBackends(man, components)
+	if err != nil {
+		return nil, err
+	}
+
 	// Version is derived before pre_build so the hook sees TT_VERSION, and
 	// before the tree is touched so a hook-generated file does not flip .dirty.
 	// version.Derive spawns git internally and takes no context.
@@ -311,9 +325,9 @@ func runBuild(
 		return nil, matErr
 	}
 
-	backendErr := runBackends(ctx, opts, man, adapter, tree, components, ver)
-	if backendErr != nil {
-		return nil, backendErr
+	programs, err := runBackends(ctx, opts, man, adapter, tree, components, ver)
+	if err != nil {
+		return nil, err
 	}
 
 	laidOut, err := layoutComponents(opts.ProjectDir, tree, man, components)
@@ -333,22 +347,53 @@ func runBuild(
 	}
 
 	return &Result{
-		Manifest: man,
-		Lock:     lock,
-		Version:  ver,
-		Product:  productName,
-		Tree:     tree,
+		Manifest:    man,
+		Lock:        lock,
+		Version:     ver,
+		Product:     productName,
+		Tree:        tree,
+		Executables: programs,
 	}, nil
+}
+
+// preflightBackends checks what the go and cargo builds of the selected
+// components need before any of them runs (backend.Preflight): a missing
+// toolchain then fails the build before it has resolved the closure and
+// compiled the components ahead of it.
+func preflightBackends(man *manifest.Manifest, components []string) error {
+	target := native.Host()
+
+	for _, name := range components {
+		component := man.Components[name]
+		if component.Build == nil {
+			continue
+		}
+
+		err := backend.Preflight(*component.Build, backend.Env{OS: target.OS, Arch: target.Arch})
+		if err != nil {
+			return sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
+		}
+	}
+
+	return nil
 }
 
 // runBackends runs the build backend of every selected component that declares
 // one, in the product's component order, placing artifacts in the component's
-// lib namespace directory. A backend failure is exit code 2.
+// lib namespace directory, or, for an executable component, in the bin
+// directory of the tree. A backend failure is exit code 2.
+//
+// It returns the record of the programs in the bin directory each executable
+// component built, those of the components not built this time as an
+// earlier build recorded them.
 func runBackends(
 	ctx context.Context, opts Options, man *manifest.Manifest,
 	adapter *rocks.Adapter, tree string, components []string, ver version.Version,
-) error {
+) (map[string][]string, error) {
 	flags := adapter.Flags()
+	target := native.Host()
+	programs := readExecutables(opts.ProjectDir, opts.Warn)
+	built := false
 
 	for _, name := range components {
 		component := man.Components[name]
@@ -358,35 +403,57 @@ func runBackends(
 
 		executor, err := backend.New(component.Build.Backend, flags, opts.ShowOutput)
 		if err != nil {
-			return fmt.Errorf("component %q: %w", name, err)
+			return nil, fmt.Errorf("component %q: %w", name, err)
 		}
 
-		namespace := component.EffectiveNamespace(man.Package.Name)
+		outputDir := componentOutputDir(tree, component.EffectiveNamespace(man.Package.Name))
+		if component.IsExecutable() {
+			outputDir = filepath.Join(tree, binDirName)
+		}
+
 		env := backend.Env{
-			OutputDir:   componentOutputDir(tree, namespace),
+			OutputDir:   outputDir,
 			ProjectRoot: opts.ProjectDir,
 			Package:     man.Package.Name,
 			Component:   name,
 			Version:     ver.SemVer,
-			OS:          "",
-			Arch:        "",
+			OS:          target.OS,
+			Arch:        target.Arch,
 			Extra:       component.Build.Env,
 		}
 
 		cwd := backendCwd(opts.ProjectDir, component)
 
+		if component.IsExecutable() {
+			programs[name], err = buildExecutable(ctx, executor, component, name, cwd, env,
+				programs[name])
+			if err != nil {
+				return nil, err
+			}
+
+			built = true
+
+			continue
+		}
+
 		runErr := executor.Run(ctx, *component.Build, cwd, env)
 		if runErr != nil {
-			return sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, runErr)
+			return nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, runErr)
 		}
 	}
 
-	return nil
+	if !built {
+		return keepExecutable(man, programs), nil
+	}
+
+	return writeExecutables(opts.ProjectDir, man, programs)
 }
 
 // layoutComponents lays every selected component out under its namespace and
 // returns the union of destination paths written, for the version.lua collision
-// check.
+// check. An executable component has nothing to lay out: its build placed its
+// programs already, and the default include would otherwise copy the Lua of,
+// say, a test fixture of its sources into the package's namespace.
 func layoutComponents(
 	projectDir, tree string, man *manifest.Manifest, components []string,
 ) ([]string, error) {
@@ -394,6 +461,10 @@ func layoutComponents(
 
 	for _, name := range components {
 		component := man.Components[name]
+		if component.IsExecutable() {
+			continue
+		}
+
 		compAbsPath := resolveDir(projectDir, component.Path)
 
 		written, err := layoutComponent(tree, man.Package.Name, component, compAbsPath)

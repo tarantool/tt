@@ -5,7 +5,8 @@
 // archive carrying _runtime/ (Tarantool, tt and optionally TCM) and the full
 // dependency closure in .rocks/, so installing it is a plain extraction with no
 // network. The --without-deps mode drops both, leaving the package's own
-// namespace subtrees; installing that archive extracts it and refetches the
+// namespace subtrees and the programs its executable components built into
+// .rocks/bin/; installing that archive extracts it and refetches the
 // dependencies from the registry using the lock's pins.
 //
 // Neither mode carries the dev closure's rocks. The build pack runs first
@@ -26,6 +27,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build"
@@ -102,6 +104,7 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 
 	man := built.Manifest
 	namespaces, hasFlat := packageNamespaces(man, built.Product)
+	programs, otherPrograms := packagePrograms(man, built.Product, built.Executables)
 
 	err = stage(ctx, stageDir, stageRequest{
 		ProjectDir:       opts.ProjectDir,
@@ -112,6 +115,8 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 		WithDeps:         !opts.WithoutDeps,
 		Namespaces:       namespaces,
 		HasFlatNamespace: hasFlat,
+		Programs:         programs,
+		OtherPrograms:    otherPrograms,
 		DevOnly:          devOnlyRocks(built.Lock),
 	})
 	if err != nil {
@@ -277,7 +282,8 @@ func packageNamespaces(man *manifest.Manifest, productName string) ([]string, bo
 
 	for _, name := range product.Components {
 		component, ok := man.Components[name]
-		if !ok {
+		if !ok || component.IsExecutable() {
+			// An executable component owns programs in bin/, not a namespace.
 			continue
 		}
 
@@ -290,6 +296,37 @@ func packageNamespaces(man *manifest.Manifest, productName string) ([]string, bo
 	}
 
 	return namespaces, flat
+}
+
+// packagePrograms splits the programs the executable components put into the
+// tree's bin/ (build.Result.Executables) into those of the packed product's
+// components, which the archive carries in both packing modes, and those of
+// the other components, which it carries in neither: a program of another
+// product left in bin/ by an earlier build is no more the packed product's
+// than its rocks are. Both lists are sorted.
+//
+// The build records which files of bin/ it made, and that record rather than
+// the names is what tells them from the console scripts the dependencies
+// install there.
+func packagePrograms(
+	man *manifest.Manifest, productName string, executables map[string][]string,
+) ([]string, []string) {
+	product := man.EffectiveProducts()[productName]
+
+	var own, other []string
+
+	for component, names := range executables {
+		if slices.Contains(product.Components, component) {
+			own = append(own, names...)
+		} else {
+			other = append(other, names...)
+		}
+	}
+
+	slices.Sort(own)
+	slices.Sort(other)
+
+	return slices.Compact(own), slices.Compact(other)
 }
 
 // devOnlyRocks lists the dev closure's rocks that no product closure holds -

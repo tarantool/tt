@@ -2,6 +2,8 @@ package pack
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -258,6 +260,90 @@ func TestPackRejectsForeignNative(t *testing.T) {
 	assert.Contains(t, err.Error(), "packed for "+hostToken())
 
 	assert.NoDirExists(t, out)
+}
+
+// executableManifest is a package with a Lua component and an executable one,
+// whose shell build copies the program named by $HELPER into TT_OUTPUT_DIR,
+// and a second product without the executable component.
+const executableManifest = `manifest_version = '0.1'
+
+[package]
+name = 'exec-app'
+
+[platform]
+tarantool = '>=3.0.0'
+tt = '>=3.1.0'
+
+[components.lua]
+path = '.'
+include = ['*.lua']
+
+[components.helper]
+path = 'helper'
+kind = 'executable'
+
+[components.helper.build]
+backend = 'shell'
+command = 'sh'
+args = ['-c', 'cp "$HELPER" "$TT_OUTPUT_DIR/helper"']
+env = { HELPER = '%s' }
+
+[products.default]
+components = ['lua', 'helper']
+default = true
+
+[products.lua-only]
+components = ['lua']
+`
+
+// TestPackWithoutDepsCarriesOwnPrograms: the programs an executable component
+// built travel in a --without-deps archive, labeled for the host, and the
+// console script a rock left in .rocks/bin does not; a product without the
+// component carries none of its programs.
+func TestPackWithoutDepsCarriesOwnPrograms(t *testing.T) {
+	t.Parallel()
+
+	helper, err := os.Executable()
+	require.NoError(t, err)
+
+	src := t.TempDir()
+	writeTree(t, src, map[string]string{
+		manifestFileName:   fmt.Sprintf(executableManifest, helper),
+		versionFileName:    "1.0.0\n",
+		"init.lua":         "return 1\n",
+		"helper/README":    "the helper",
+		".rocks/bin/tool":  "#!/bin/sh\n",
+		".rocks/bin/other": "#!/bin/sh\n",
+	})
+
+	pack := func(product string) (*Result, error) {
+		return Run(context.Background(), Options{
+			ProjectDir:  src,
+			Product:     product,
+			WithoutDeps: true,
+			OutputDir:   filepath.Join(src, "_out", product),
+			Build: build.Options{
+				TtVersion: "tt test",
+				Tarantool: rocks.TarantoolInfo{Prefix: "/nonexistent", Version: "3.0.0"},
+			},
+		})
+	}
+
+	result, err := pack("")
+	require.NoError(t, err)
+
+	entries := readArchive(t, result.Path)
+	assert.Contains(t, entries, ".rocks/bin/helper")
+	assert.NotContains(t, entries, ".rocks/bin/tool")
+	assert.NotContains(t, entries, ".rocks/bin/other")
+	assert.Contains(t, entries, ".rocks/share/tarantool/exec-app/init.lua")
+	assert.NotContains(t, entries, ".rocks/share/tarantool/exec-app/README")
+	assert.Equal(t, hostToken(), result.Token)
+
+	result, err = pack("lua-only")
+	require.NoError(t, err)
+	assert.NotContains(t, readArchive(t, result.Path), ".rocks/bin/helper")
+	assert.Equal(t, anyToken, result.Token)
 }
 
 // TestOutputDir pins where the archive lands: _build/pack under the project,
