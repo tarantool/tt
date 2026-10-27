@@ -483,7 +483,8 @@ func NewClusterCmd() *cobra.Command {
 			"An application gets the configuration in the config.yaml of its pair, or " +
 			"in the config storage its config.yaml points to with config.etcd or " +
 			"config.storage. A configuration that drops an instance of the cluster " +
-			"the application describes is refused.\n\n" +
+			"instances.yaml of the application names is refused; the instances its " +
+			"\"*\" stands for may be dropped.\n\n" +
 			clusterURIHelp + "\n" +
 			"By default, the command removes all keys in etcd with prefix " +
 			"'/prefix/config/' and writes the result to '/prefix/config/all'. " +

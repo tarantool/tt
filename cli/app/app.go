@@ -40,7 +40,11 @@ type Options struct {
 	// rather than failing the load, and the description is not checked
 	// against the topology. The description is read and checked as always;
 	// its "*" stands, without the config, for the instances that have run in
-	// the scope, those with a directory in <root>/var/run/<app>/.
+	// the scope, those with a directory in <root>/var/run/<app>/. With the
+	// config, it stands for the topology, and for the instances whose
+	// directory there holds the pid file of the watchdog, tt.pid, as well:
+	// an instance dropped from the topology while it runs is still found,
+	// without the config, to be stopped.
 	//
 	// It is for the commands that act on the processes of the instances,
 	// which find them by the description and their pid files, such as
@@ -95,6 +99,10 @@ type App struct {
 	// records, and the instances "*" stands for in place of it.
 	Instances []instances.Instance
 
+	// named are the records of the description that name an instance, in
+	// its order: Instances without those "*" stands for. They are what a
+	// cluster config published into the pair must keep (CheckTopology).
+	named []instances.Instance
 	// wildcard tells that the description has "*", or that the pair has
 	// none, so that the application is one of the cluster config even when
 	// "*" stands for no instance.
@@ -164,6 +172,7 @@ func Load(ctx context.Context, name string, opts Options) (*App, error) {
 		BestEffortConfig: opts.BestEffortConfig,
 		ConfigError:      configErr,
 		Instances:        loaded.records,
+		named:            loaded.named,
 		wildcard:         loaded.wildcard,
 	}, nil
 }

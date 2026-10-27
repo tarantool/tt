@@ -567,14 +567,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   with its config as far as the config can be read and without checking it
   against the topology, so a pair out of step or a `config.yaml` that does
   not parse is mended by publishing, and the first config goes into an
-  empty storage, and refuses a config that drops a Tarantool instance of the
-  description, those `"*"` stands for now included, or that names an
-  instance of the cluster as a `script` or `binary` record, naming them;
-  publishing to a config storage by its URI checks nothing, as before. Into
-  a pair whose `config.yaml` points to a config storage with `config.etcd`
-  or `config.storage`, it publishes into that storage, with the endpoints,
-  the prefix, the credentials and the TLS settings of the reference, and
-  leaves the file and its reference as they are. Tarantool takes
+  empty storage, and refuses a config that drops a Tarantool instance the
+  description names, or that names an instance of the cluster as a `script`
+  or `binary` record, naming them, while the instances `"*"` stands for may
+  be dropped; publishing to a config storage by its URI checks nothing, as
+  before. Into a pair whose `config.yaml` points to a config storage with
+  `config.etcd` or `config.storage`, it publishes into that storage, with the
+  endpoints, the prefix, the credentials and the TLS settings of the
+  reference, and leaves the file and its reference as they are. Tarantool takes
   `config.etcd` and `config.storage` in Enterprise Edition alone: with a
   tarantool of Community Edition, `tt instance start`, `restart`, before it
   stops anything, and `check` refuse a Tarantool instance of the cluster
@@ -588,7 +588,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   there, when the config cannot be read, so a broken config or an etcd that is
   down does not keep them from the running instances, which then get the
   paths of the layout, after the wait for the storage; a config that can be
-  read still moves the console socket and the other paths it sets. Data,
+  read still moves the console socket and the other paths it sets, and
+  `"*"` then stands as well for the instances the topology lacks whose
+  directory there holds the pid file `tt.pid`, so an instance dropped from
+  the topology while it runs is still listed, stopped and looked at, with
+  the fields of `"*"` and the paths of the layout, until it stops. Data,
   logs, pid files and sockets go to
   `<root>/var/{lib,log,run}/<app>/<instance>/`, where `<root>` is `.tarantool`
   in a project. Targets are `<APP>:<INSTANCE>`, `<APP>:*` and

@@ -434,3 +434,56 @@ def test_stop_wildcard_broken_config(tt, tt_app):
             assert status[inst]["STATUS"] == "NOT RUNNING"
     finally:
         os.replace(config + ".orig", config)
+
+
+@pytest.mark.tt_app(**dict(tt_wildcard_app, running_targets=["app:*"]))
+def test_stop_wildcard_dropped_instance(tt, tt_app, tmp_path):
+    # tt cluster publish may drop an instance "*" stands for from the
+    # topology, while it refuses a config that drops replica, which the
+    # description names. b-master, dropped while it runs, keeps running
+    # without its config: tt instance status still finds it by its pid file
+    # and tt instance stop stops it, while tt instance start, which checks
+    # the topology, does not know it. Once it has stopped, its run directory
+    # alone brings it back no more.
+    config = tt_app.path(utils.cluster_config_file)
+    with open(config) as f:
+        original = f.read()
+    rs_b = "      rs-b:\n        instances:\n          b-master: {}\n"
+    rs_replica = "      rs-replica:\n        instances:\n          replica: {}\n"
+    assert rs_b in original and rs_replica in original
+
+    src = tmp_path / "publish.yaml"
+    src.write_text(original.replace(rs_replica, ""))
+    rc, out = tt.exec("cluster", "publish", "app", str(src))
+    assert rc == 1
+    assert '"replica" from ' in out
+    with open(config) as f:
+        assert f.read() == original
+
+    src.write_text(original.replace(rs_b, ""))
+    rc, out = tt.exec("cluster", "publish", "app", str(src))
+    assert rc == 0, out
+    with open(config) as f:
+        assert f.read() == original.replace(rs_b, "")
+
+    status = tt_helper.status(tt)
+    assert sorted(status) == sorted(tt_app.instances)
+    for inst in tt_app.instances:
+        assert status[inst]["STATUS"] == "RUNNING"
+
+    rc, out = tt.exec("instance", "start", "app:b-master")
+    assert rc == 1
+    assert 'instance not found: "b-master" of "app"' in out
+
+    pid_file = tt_app.run_path("app:b-master", utils.pid_file)
+    assert os.path.exists(pid_file)
+    rc, out = tt.exec("instance", "stop", "-y", "app:b-master")
+    assert rc == 0, out
+    assert "The Instance app:b-master (PID = " in out
+    assert not os.path.exists(pid_file)
+    assert os.path.isdir(tt_app.run_path("app:b-master"))
+
+    status = tt_helper.status(tt)
+    assert "app:b-master" not in status
+    for inst in ["app:a-master", "app:worker", "app:replica"]:
+        assert status[inst]["STATUS"] == "RUNNING"

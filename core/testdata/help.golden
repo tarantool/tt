@@ -1724,8 +1724,8 @@ file, to a etcd URI or to a tarantool config storage URI.
 
 An application gets the configuration in the config.yaml of its pair, or in the
 config storage its config.yaml points to with config.etcd or config.storage. A
-configuration that drops an instance of the cluster the application describes is
-refused.
+configuration that drops an instance of the cluster instances.yaml of the
+application names is refused; the instances its "*" stands for may be dropped.
 
 The URL specifies a etcd or tarantool config storage connection settings in the
 following format:
