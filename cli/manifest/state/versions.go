@@ -29,7 +29,7 @@ const (
 	AppsDirName = "apps"
 	// PidFileName is the pid file an instance of an application leaves in its
 	// run directory, <root>/var/run/<app>/<inst>/tt.pid (ttscope.RunDirName).
-	PidFileName = "tt.pid"
+	PidFileName = ttscope.PidFileName
 )
 
 var (

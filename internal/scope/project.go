@@ -41,6 +41,11 @@ const (
 	DataDirName = "var/lib"
 	LogDirName  = "var/log"
 	RunDirName  = "var/run"
+	// PidFileName is the pid file the watchdog of an instance keeps in its
+	// run directory, <root>/var/run/<app>/<inst>/tt.pid, while the instance
+	// runs, and removes when it stops. Unlike the directory, it tells that
+	// the instance runs under the root, or has crashed and left it behind.
+	PidFileName = "tt.pid"
 )
 
 // ErrInstalledTree reports a directory inside the versions/ or apps/ tree of

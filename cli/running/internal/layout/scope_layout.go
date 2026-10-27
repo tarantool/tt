@@ -14,8 +14,10 @@ import (
 // scope root changed where the files are, not what they are called, so
 // whatever looks for them by name, a person or a script, keeps finding them.
 const (
-	// PidFileName is the pid file of the watchdog of the instance.
-	PidFileName = "tt.pid"
+	// PidFileName is the pid file of the watchdog of the instance. It is the
+	// scope's, as the run directory is: the resolver of an application finds
+	// the instances that run under a root by it.
+	PidFileName = scope.PidFileName
 	// LogFileName is the log of the watchdog, which the output of tarantool
 	// goes to as well.
 	LogFileName = "tt.log"
