@@ -29,6 +29,7 @@ import (
 
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build"
+	"github.com/tarantool/tt/v3/cli/manifest/native"
 )
 
 // Options configures one pack run. The build-facing fields mirror
@@ -117,7 +118,7 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 		return nil, err
 	}
 
-	native, err := nativeFiles(stageDir)
+	natives, err := native.Files(stageDir)
 	if err != nil {
 		return nil, err
 	}
@@ -125,12 +126,12 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 	// The archive is labeled with the host platform as soon as it carries a
 	// native file, so a file built for another one has to fail here rather
 	// than on the machine it is installed on.
-	err = checkNativeFiles(native, hostPlatform())
+	err = checkNativeFiles(natives, native.Host())
 	if err != nil {
 		return nil, err
 	}
 
-	token := platformToken(!opts.WithoutDeps, len(native) > 0)
+	token := platformToken(!opts.WithoutDeps, len(natives) > 0)
 	dest := filepath.Join(outputDir(opts),
 		archiveName(man.Package.Name, built.Version.SemVer, token))
 
