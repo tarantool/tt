@@ -67,8 +67,9 @@ and SDK bundles.
 
 Use --scope to choose where binaries are managed:
   project (default): .tarantool/ in the project directory: the current
-    directory or its nearest parent with app.manifest.toml or
-    .templates/<name>/instances.yaml; the current directory outside a project.
+    directory or its nearest parent with app.manifest.toml,
+    .templates/<name>/instances.yaml or .templates/<name>/config.yaml; the
+    current directory outside a project.
   user: $TT_USER_ROOT when set; otherwise
     Linux: $XDG_DATA_HOME/tarantool when XDG_DATA_HOME is an absolute path;
       otherwise ~/.local/share/tarantool.

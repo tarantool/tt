@@ -24,7 +24,8 @@ const (
 	// templateInstancesFile and templateConfigFile are the pair every template
 	// is: the instance description and the cluster config that goes with it.
 	// They are selected together, since the instance names of one have to
-	// match the topology of the other.
+	// match the topology of the other. A template may lack one of them, never
+	// both (checkTemplate).
 	templateInstancesFile = "instances.yaml"
 	templateConfigFile    = "config.yaml"
 	// packSubDir is the _build subdirectory the archive is produced in.

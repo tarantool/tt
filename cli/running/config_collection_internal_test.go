@@ -249,11 +249,15 @@ func TestCollectInstancesClusterConfigSelection(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, before, storage.reads.Load())
 	}
+
 	require.NoError(t, os.Remove(filepath.Join(appDir, ".templates/default/instances.yaml")))
+
 	before := storage.reads.Load()
-	_, err = collectConfigApp(t, appDir, "")
-	require.Error(t, err)
-	assert.Equal(t, before, storage.reads.Load())
+
+	instances, err := collectConfigApp(t, appDir, "")
+	require.NoError(t, err)
+	require.Len(t, instances, 2)
+	assert.Equal(t, before+1, storage.reads.Load())
 }
 
 func TestCollectInstancesMalformedClusterConfig(t *testing.T) {
