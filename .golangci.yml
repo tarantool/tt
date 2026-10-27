@@ -269,8 +269,10 @@ linters:
             # in the SDK's ExitError.
             - "github.com/tarantool/tt/sdk"
             # cli/manifest/pack checks the instance descriptions of the
-            # templates it packs with the parser tt instance reads them with.
+            # templates it packs with the parser tt instance reads them with,
+            # and against the topology of their configs as tt instance does.
             - "github.com/tarantool/tt/v3/internal/instances"
+            - "github.com/tarantool/tt/v3/cli/app"
             # cli/manifest/state lays applications of the user and system
             # scopes out next to the products of tt binary: the scope roots,
             # the versions/ naming and the link replacement are theirs, and a
@@ -317,8 +319,10 @@ linters:
             - "github.com/tarantool/tt/v3/cli/cmdcontext"
             - "github.com/tarantool/tt/v3/cli/version"
             # cli/manifest/pack tests match the parser's error for a broken
-            # instance description.
+            # instance description, and the resolver's for one that does not
+            # fit its topology.
             - "github.com/tarantool/tt/v3/internal/instances"
+            - "github.com/tarantool/tt/v3/cli/app"
             # cli/manifest/install tests check that what install lays out is
             # what tt binary lists and what the tarantool resolver finds.
             - "github.com/tarantool/tt/v3/cli/tarantool"

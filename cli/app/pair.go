@@ -289,19 +289,17 @@ type loadedPair struct {
 // reach, does not keep those instances from running. A description with them
 // needs the config, and a pair without one is incomplete.
 //
-// With bestEffort (Options.BestEffortConfig) the config is read as far as it
-// can be: why it cannot is configErr rather than a failure, and the topology
-// is not checked. "*" then stands for the instances that have run in the
-// scope of the application (ranInstances): a config storage that is down
-// must not keep them from being stopped.
-func loadPair(
-	ctx context.Context,
-	pair Pair,
-	loc location,
-	integ integrity.IntegrityCtx,
-	bestEffort bool,
-) (loadedPair, error) {
-	desc, err := readDescription(pair, loc.dir, integ)
+// With Options.BestEffortConfig the config is read as far as it can be: why
+// it cannot is configErr rather than a failure, and the topology is not
+// checked. "*" then stands for the instances that have run in the scope of
+// the application (ranInstances): a config storage that is down must not
+// keep them from being stopped. With Options.SkipTopologyCheck the config is
+// required and the topology is not checked either.
+func loadPair(ctx context.Context, pair Pair, loc location, opts Options) (loadedPair, error) {
+	bestEffort := opts.BestEffortConfig
+	check := !bestEffort && !opts.SkipTopologyCheck
+
+	desc, err := readDescription(pair, loc.dir, opts.Integrity)
 	if err != nil {
 		return loadedPair{}, err
 	}
@@ -322,7 +320,8 @@ func loadPair(
 		return loaded, nil
 	}
 
-	cfg, topology, err := readConfig(ctx, pair, desc, integ, bestEffort)
+	cfg, topology, err := readConfig(ctx, pair, desc, opts.Integrity,
+		check || desc.Wildcard != nil)
 	if err != nil && !bestEffort {
 		return loadedPair{}, err
 	}
@@ -345,11 +344,11 @@ func loadPair(
 	loaded.config = cfg
 	loaded.records = expand(desc, topology)
 
-	if bestEffort {
+	if !check {
 		return loaded, nil
 	}
 
-	err = checkTopology(pair, desc.Instances, topology)
+	err = checkTopology(pair.InstancesFile, pair.ConfigFile, desc.Instances, topology)
 	if err != nil {
 		return loadedPair{}, err
 	}
@@ -384,15 +383,14 @@ func readDescription(pair Pair, appDir string, integ integrity.IntegrityCtx) (
 }
 
 // readConfig reads the cluster config of pair, which some records of desc
-// need (clusterRecords), and the topology of the config: "*" stands for it,
-// and the Tarantool instances of desc are checked against it unless
-// bestEffort.
+// need (clusterRecords), and, with withTopology, the topology of the config,
+// which "*" stands for and the description is checked against.
 func readConfig(
 	ctx context.Context,
 	pair Pair,
 	desc instances.Description,
 	integ integrity.IntegrityCtx,
-	bestEffort bool,
+	withTopology bool,
 ) (*goconfig.MutableConfig, []string, error) {
 	if pair.ConfigFile == "" {
 		return nil, nil, failf("%w: %s has %s but no %s next to it to configure "+
@@ -405,7 +403,7 @@ func readConfig(
 		return nil, nil, failf("%w", err)
 	}
 
-	if bestEffort && desc.Wildcard == nil {
+	if !withTopology {
 		return cfg, nil, nil
 	}
 
@@ -540,29 +538,104 @@ func fieldError(inst, field, why string) error {
 		record, inst, ErrUnsupportedField, field, why, field)
 }
 
-// checkTopology checks that every Tarantool instance the records configure
-// through the cluster config is in its topology.
+// checkTopology checks records, of the description descFile, against
+// topology, the instances of the cluster config named config: every
+// Tarantool instance the cluster config configures is in it, and no
+// instance that runs its script and no external process takes a name of it.
 //
 // The topology may hold more: the description says what runs on this host,
-// and the rest of the cluster runs on others, unless "*" takes it here.
-// Instances with a script or a binary are not checked, since the cluster
-// config does not configure them; nor are the instances of "*", which come
-// from the topology.
-func checkTopology(pair Pair, records []instances.Instance, topology []string) error {
-	var missing []string
+// and the rest of the cluster runs on others, unless "*" takes it here. A
+// record with a script or a binary is not in the topology, as the cluster
+// config does not configure it; one that takes a name of the topology would
+// silently take the place of the instance of the cluster, "*" standing for
+// it or not, and both would answer to the name.
+func checkTopology(descFile, config string, records []instances.Instance,
+	topology []string,
+) error {
+	var missing, taken []string
 
-	for _, name := range clusterInstances(records) {
-		if !slices.Contains(topology, name) {
-			missing = append(missing, name)
+	for _, record := range records {
+		inTopology := slices.Contains(topology, record.Name)
+
+		switch {
+		case record.Kind() == instances.KindCluster && !inTopology:
+			missing = append(missing, record.Name)
+		case record.Kind() != instances.KindCluster && inTopology:
+			taken = append(taken, record.Name)
 		}
 	}
 
+	var errs []error
+
 	if len(missing) > 0 {
-		return failf("%w: %s from %s not declared in %s", ErrTopologyMismatch,
-			quoteNames(missing), pair.InstancesFile, pair.ConfigFile)
+		errs = append(errs, fmt.Errorf("%w: %s from %s not declared in %s",
+			ErrTopologyMismatch, quoteNames(missing), descFile, config))
+	}
+
+	if len(taken) > 0 {
+		errs = append(errs, fmt.Errorf("%w: %s of %s, with script or binary, take the "+
+			"names of instances of the cluster declared in %s; a record of an instance "+
+			"of the cluster has neither", ErrTopologyConflict, quoteNames(taken),
+			descFile, config))
+	}
+
+	if len(errs) > 0 {
+		return failf("%w", errors.Join(errs...))
 	}
 
 	return nil
+}
+
+// CheckTopology checks the instances of app against topology, the instances
+// of a cluster config about to take the place of the config of its pair, as
+// tt cluster publish publishes one; config names that config for a message.
+// Every Tarantool instance of the cluster config app runs, those "*" stands
+// for now among them, must stay in it, and no instance that runs its script
+// and no external process may take a name of it. A config that leaves an
+// instance of the description out would leave the pair broken, or an
+// instance of "*" running without its config.
+func (app *App) CheckTopology(topology []string, config string) error {
+	err := checkTopology(app.Pair.DescriptionFile(), config, app.Instances, topology)
+	if err != nil && app.wildcard && errors.Is(err, ErrTopologyMismatch) {
+		return failf("%w;\n%q stands for the instances of the topology the pair has "+
+			"now: a config that drops some of them is to be written by hand, or "+
+			"published to its storage by the URI", err, instances.WildcardName)
+	}
+
+	return err
+}
+
+// CheckTemplate checks a template the way Load checks a pair, for
+// tt package pack: desc, the description descFile, against the topology of
+// the cluster config file configFile, when that file holds the cluster
+// config itself. A config that points to a config storage (config.etcd,
+// config.storage) is left unread, and checked reports so: the storage may be
+// out of reach where the package is packed, and the instances check it when
+// they start. The file alone is read, without the TT_ environment of the
+// packing host, since the template goes into the package as it is.
+func CheckTemplate(ctx context.Context, desc instances.Description, descFile, configFile string,
+) (bool, error) {
+	data, err := os.ReadFile(configFile)
+	if err != nil {
+		return false, failf("%w", err)
+	}
+
+	cfg, err := cluster.BuildGoConfigFromBytes(ctx, data)
+	if err != nil {
+		return false, failf("cannot read %s: %w", configFile, err)
+	}
+
+	_, stored := cluster.StorageReference(cfg)
+	if stored {
+		return false, nil
+	}
+
+	topology, err := cluster.Instances(cfg)
+	if err != nil {
+		return false, failf("cannot read the topology of %s: %w", configFile, err)
+	}
+
+	return true, checkTopology(descFile, configFile, desc.Instances, topology)
 }
 
 // clusterInstances returns the names of the records that are Tarantool

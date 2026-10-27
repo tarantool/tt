@@ -92,7 +92,7 @@ func packArchive(t *testing.T, req stageRequest) []string {
 	t.Helper()
 
 	stageDir := t.TempDir()
-	require.NoError(t, stage(stageDir, req))
+	require.NoError(t, stage(t.Context(), stageDir, req))
 
 	dest := filepath.Join(t.TempDir(), "my-app-1.0.0-any.tt")
 	_, err := writeArchive(stageDir, dest)
@@ -282,7 +282,7 @@ func TestStageRocksMissingTreeWithDevOnly(t *testing.T) {
 	req.DevOnly = devOnlyRocks(devTreeLock())
 
 	stageDir := t.TempDir()
-	require.NoError(t, stage(stageDir, req))
+	require.NoError(t, stage(t.Context(), stageDir, req))
 
 	_, err := os.Stat(filepath.Join(stageDir, rocksDirName))
 	assert.True(t, os.IsNotExist(err))

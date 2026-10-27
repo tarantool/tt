@@ -1,6 +1,7 @@
 package pack
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/internal/instances"
 )
 
@@ -26,7 +28,7 @@ import (
 // Checking at pack time is what keeps a broken template from reaching a host,
 // where it would surface only at the first start of an instance, far from the
 // author who could fix it.
-func stageTemplates(stageDir, projectDir string) error {
+func stageTemplates(ctx context.Context, stageDir, projectDir string) error {
 	src := filepath.Join(projectDir, templatesDirName)
 
 	// Lstat first, so a dangling .templates link is reported rather than
@@ -45,7 +47,7 @@ func stageTemplates(stageDir, projectDir string) error {
 		return stateErrorf("%s: %w: not a directory", templatesDirName, errBadTemplate)
 	}
 
-	err = checkTemplates(src, projectDir)
+	err = checkTemplates(ctx, src, projectDir)
 	if err != nil {
 		return err
 	}
@@ -73,7 +75,7 @@ func isHiddenTemplateEntry(rel string) bool {
 // would read it, and a file where a template was meant (an instances.yaml one
 // level too high, say) is better caught here than shipped. Hidden entries
 // (.gitkeep) are skipped: they are how git keeps a directory, not templates.
-func checkTemplates(dir, projectDir string) error {
+func checkTemplates(ctx context.Context, dir, projectDir string) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return stateErrorf("reading %s: %w", templatesDirName, err)
@@ -86,7 +88,7 @@ func checkTemplates(dir, projectDir string) error {
 			continue
 		}
 
-		problems = append(problems, checkTemplate(dir, entry.Name(), projectDir))
+		problems = append(problems, checkTemplate(ctx, dir, entry.Name(), projectDir))
 	}
 
 	joined := errors.Join(problems...)
@@ -104,15 +106,17 @@ func checkTemplates(dir, projectDir string) error {
 // template's relative paths are resolved from, as they will be from the
 // installed version. Parse reads nothing from it, so a path that exists only
 // after the build or on the host does not fail the pack. The cluster config is
-// checked only for presence: matching its topology against the description is
-// the job of whoever loads the two together. It is needed by the Tarantool
-// instances it configures alone, so a description of instances that run
-// their scripts and of external processes makes a template without it, as it
-// makes a pair when the template runs.
+// needed by the Tarantool instances it configures and by "*" alone, so a
+// description of instances that run their scripts and of external processes
+// makes a template without it, as it makes a pair when the template runs.
+// When it is needed, the description is checked against its topology as the
+// instance commands check it (app.CheckTemplate), unless the config points to
+// a config storage, which is out of reach here: a template that does not fit
+// its own config would fail every start on every host it goes to.
 //
 // A config without a description is a template too: it runs every instance
 // of its topology, as a description of "*" alone would.
-func checkTemplate(dir, name, projectDir string) error {
+func checkTemplate(ctx context.Context, dir, name, projectDir string) error {
 	label := templatesDirName + "/" + name
 	path := filepath.Join(dir, name)
 
@@ -165,14 +169,20 @@ func checkTemplate(dir, name, projectDir string) error {
 		return templateParseError(label, err)
 	}
 
-	if present[templateConfigFile] {
-		return nil
-	}
-
 	configured := clusterRecords(desc)
-	if len(configured) > 0 {
+
+	switch {
+	case len(configured) == 0:
+		return nil
+	case !present[templateConfigFile]:
 		return fmt.Errorf("%s: %w: missing %s to configure its Tarantool instances %s",
 			label, errBadTemplate, templateConfigFile, strings.Join(configured, ", "))
+	}
+
+	_, err = app.CheckTemplate(ctx, desc,
+		label+"/"+templateInstancesFile, filepath.Join(path, templateConfigFile))
+	if err != nil {
+		return fmt.Errorf("%s: %w: %w", label, errBadTemplate, err)
 	}
 
 	return nil

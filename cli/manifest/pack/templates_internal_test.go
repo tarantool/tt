@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/internal/instances"
 )
@@ -20,7 +21,7 @@ import (
 func validTemplate(name string) map[string]string {
 	return map[string]string{
 		".templates/" + name + "/instances.yaml": "router-1:\nstorage-1: {}\n",
-		".templates/" + name + "/config.yaml":    "groups: {}\n",
+		".templates/" + name + "/config.yaml":    templateTopology,
 	}
 }
 
@@ -131,7 +132,8 @@ func TestStageTemplatesContentIsVerbatim(t *testing.T) {
 	projectDir, man := testProject(t, validTemplate("default"))
 	stageDir := t.TempDir()
 
-	require.NoError(t, stage(stageDir, baseRequest(projectDir, man, testTree(t, projectDir))))
+	require.NoError(t, stage(t.Context(), stageDir,
+		baseRequest(projectDir, man, testTree(t, projectDir))))
 
 	staged, err := os.ReadFile(filepath.Join(stageDir, ".templates", "default", "instances.yaml"))
 	require.NoError(t, err)
@@ -179,7 +181,8 @@ func TestStageWithoutTemplatesIsUnchanged(t *testing.T) {
 	projectDir, man := testProject(t, nil)
 	stageDir := t.TempDir()
 
-	require.NoError(t, stage(stageDir, baseRequest(projectDir, man, testTree(t, projectDir))))
+	require.NoError(t, stage(t.Context(), stageDir,
+		baseRequest(projectDir, man, testTree(t, projectDir))))
 
 	assert.NoDirExists(t, filepath.Join(stageDir, templatesDirName))
 	assert.Empty(t, templateNames(stagedNames(t, stageDir)))
@@ -197,7 +200,8 @@ func TestStageTemplatesRelativePathsAreNotChecked(t *testing.T) {
 		".templates/default/config.yaml": "groups: {}\n",
 	})
 
-	require.NoError(t, stage(t.TempDir(), baseRequest(projectDir, man, testTree(t, projectDir))))
+	require.NoError(t, stage(t.Context(), t.TempDir(),
+		baseRequest(projectDir, man, testTree(t, projectDir))))
 }
 
 // TestStageTemplatesWithoutConfig: a template of instances that run their
@@ -213,11 +217,87 @@ func TestStageTemplatesWithoutConfig(t *testing.T) {
 	})
 	stageDir := t.TempDir()
 
-	require.NoError(t, stage(stageDir, baseRequest(projectDir, man, testTree(t, projectDir))))
+	require.NoError(t, stage(t.Context(), stageDir,
+		baseRequest(projectDir, man, testTree(t, projectDir))))
 	assert.ElementsMatch(t, []string{
 		".templates/default/instances.yaml",
 		".templates/empty/instances.yaml",
 	}, templateNames(stagedNames(t, stageDir)))
+}
+
+// templateTopology is a cluster config declaring router-1 and storage-1.
+const templateTopology = "groups:\n  g:\n    replicasets:\n      r:\n        instances:\n" +
+	"          router-1: {}\n          storage-1: {}\n"
+
+// TestStageTemplatesChecksTopology: a template whose description does not
+// fit the topology of its own config fails the pack, as it would fail every
+// start; a config that points to a config storage is not read, and the
+// check is left to the start.
+func TestStageTemplatesChecksTopology(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		desc    string
+		config  string
+		err     error
+		mention []string
+	}{
+		{
+			name:   "an instance missing from the topology",
+			desc:   "router-1:\nstorage-9:\n",
+			config: templateTopology,
+			err:    app.ErrTopologyMismatch,
+			mention: []string{
+				`.templates/default: invalid instance template: `,
+				`"storage-9" from .templates/default/instances.yaml not declared in`,
+			},
+		},
+		{
+			name:    "a script named as an instance of the topology",
+			desc:    "\"*\":\nstorage-1:\n  script: init.lua\n",
+			config:  templateTopology,
+			err:     app.ErrTopologyConflict,
+			mention: []string{`"storage-1" of .templates/default/instances.yaml`},
+		},
+		{
+			name:   "a config in etcd",
+			desc:   "router-1:\nstorage-9:\n",
+			config: "config:\n  etcd:\n    endpoints: [http://127.0.0.1:1]\n" + templateTopology,
+		},
+		{
+			name:   "scripts and processes leave the config unread",
+			desc:   "legacy-1:\n  script: init.lua\n",
+			config: "groups: [\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			projectDir, man := testProject(t, map[string]string{
+				".templates/default/instances.yaml": test.desc,
+				".templates/default/config.yaml":    test.config,
+			})
+
+			err := stage(t.Context(), t.TempDir(),
+				baseRequest(projectDir, man, testTree(t, projectDir)))
+			if test.err == nil {
+				require.NoError(t, err)
+
+				return
+			}
+
+			require.ErrorIs(t, err, errBadTemplate)
+			require.ErrorIs(t, err, test.err)
+			assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
+
+			for _, want := range test.mention {
+				assert.Contains(t, err.Error(), want)
+			}
+		})
+	}
 }
 
 // TestStageTemplatesConfigAlone: a template of config.yaml alone runs every
@@ -234,7 +314,8 @@ func TestStageTemplatesConfigAlone(t *testing.T) {
 	})
 	stageDir := t.TempDir()
 
-	require.NoError(t, stage(stageDir, baseRequest(projectDir, man, testTree(t, projectDir))))
+	require.NoError(t, stage(t.Context(), stageDir,
+		baseRequest(projectDir, man, testTree(t, projectDir))))
 	assert.ElementsMatch(t, []string{
 		".templates/default/config.yaml",
 		".templates/prod/instances.yaml",
@@ -336,7 +417,8 @@ func TestStageTemplatesRejectsBrokenTemplates(t *testing.T) {
 			projectDir, man := testProject(t, test.files)
 			stageDir := t.TempDir()
 
-			err := stage(stageDir, baseRequest(projectDir, man, testTree(t, projectDir)))
+			err := stage(t.Context(), stageDir,
+				baseRequest(projectDir, man, testTree(t, projectDir)))
 
 			require.Error(t, err)
 			require.ErrorIs(t, err, errBadTemplate)
@@ -362,7 +444,7 @@ func TestStageTemplatesNotADirectory(t *testing.T) {
 
 	projectDir, man := testProject(t, map[string]string{".templates": "not a dir"})
 
-	err := stage(t.TempDir(), baseRequest(projectDir, man, testTree(t, projectDir)))
+	err := stage(t.Context(), t.TempDir(), baseRequest(projectDir, man, testTree(t, projectDir)))
 
 	require.Error(t, err)
 	require.ErrorIs(t, err, errBadTemplate)
@@ -381,7 +463,7 @@ func TestStageTemplatesReportsEveryBrokenTemplate(t *testing.T) {
 		".templates/bad/config.yaml":     "groups: {}\n",
 	}))
 
-	err := stage(t.TempDir(), baseRequest(projectDir, man, testTree(t, projectDir)))
+	err := stage(t.Context(), t.TempDir(), baseRequest(projectDir, man, testTree(t, projectDir)))
 	require.Error(t, err)
 
 	lines := strings.Split(err.Error(), "\n")
@@ -410,7 +492,8 @@ func TestStageIncludeCollidingWithTemplates(t *testing.T) {
 
 			man.Package.Include = []string{entry}
 
-			err := stage(t.TempDir(), baseRequest(projectDir, man, testTree(t, projectDir)))
+			err := stage(t.Context(), t.TempDir(),
+				baseRequest(projectDir, man, testTree(t, projectDir)))
 
 			require.Error(t, err)
 			require.ErrorIs(t, err, errReservedName)
@@ -425,7 +508,8 @@ func TestStageIncludeCollidingWithTemplates(t *testing.T) {
 
 		man.Package.LicenseFiles = []string{".templates/default/config.yaml"}
 
-		err := stage(t.TempDir(), baseRequest(projectDir, man, testTree(t, projectDir)))
+		err := stage(t.Context(), t.TempDir(),
+			baseRequest(projectDir, man, testTree(t, projectDir)))
 
 		require.ErrorIs(t, err, errReservedName)
 	})
@@ -441,13 +525,14 @@ func TestStageTemplatesFollowsSymlinkedTemplate(t *testing.T) {
 	shared := filepath.Join(t.TempDir(), "shared")
 	writeTree(t, shared, map[string]string{
 		"instances.yaml": "router-1:\n",
-		"config.yaml":    "groups: {}\n",
+		"config.yaml":    templateTopology,
 	})
 	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, templatesDirName), dirPerm))
 	require.NoError(t, os.Symlink(shared, filepath.Join(projectDir, templatesDirName, "default")))
 
 	stageDir := t.TempDir()
-	require.NoError(t, stage(stageDir, baseRequest(projectDir, man, testTree(t, projectDir))))
+	require.NoError(t, stage(t.Context(), stageDir,
+		baseRequest(projectDir, man, testTree(t, projectDir))))
 
 	assert.Equal(t, []string{
 		".templates/default/config.yaml",

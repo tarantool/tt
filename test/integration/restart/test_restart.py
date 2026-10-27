@@ -227,14 +227,24 @@ def test_restart_multi_inst_input(tt, tt_app, target, input, is_confirmed):
 def test_restart_checks_before_stop(tt, tt_app, target):
     # tt instance restart checks that every target can start before it stops
     # any: a record that a typo has broken fails the command with code 1,
-    # naming its instance, and the running instances keep running.
+    # naming its instance, and the running instances keep running. replica
+    # leaves the topology as it turns into a script record: a script record
+    # named as an instance of the topology is refused when the pair is read,
+    # before the check this test is about. The pair is changed only once the
+    # instances are up: a watchdog reads it as it starts its instance.
+    assert tt_helper.wait_box_status(10, tt_app, ["app:master", "app:replica"], ["running"])
     orig_status = tt_helper.status(tt)
     instances_path = tt_app.path(utils.instances_file)
+    config_path = tt_app.path(utils.cluster_config_file)
     with open(instances_path) as f:
         description = f.read()
+    with open(config_path) as f:
+        config = f.read()
 
     with open(instances_path, "w") as f:
         f.write("router:\nmaster:\nreplica:\n  script: missing.lua\n")
+    with open(config_path, "w") as f:
+        f.write(config.split("      rs-replica:")[0])
 
     try:
         rc, out = tt.exec("instance", "restart", "-y", target)
@@ -250,6 +260,8 @@ def test_restart_checks_before_stop(tt, tt_app, target):
     finally:
         with open(instances_path, "w") as f:
             f.write(description)
+        with open(config_path, "w") as f:
+            f.write(config)
 
 
 ################################################################

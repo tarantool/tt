@@ -42,15 +42,16 @@ var showCtx = clustercmd.ShowCtx{
 }
 
 var publishCtx = clustercmd.PublishCtx{
-	Username:   "",
-	Password:   "",
-	Force:      false,
-	Publishers: sdkcluster.Factory{},
-	Collectors: sdkcluster.Factory{},
-	Src:        nil,
-	Config:     nil,
-	Group:      "",
-	Replicaset: "",
+	Username:      "",
+	Password:      "",
+	Force:         false,
+	Publishers:    sdkcluster.Factory{},
+	Collectors:    sdkcluster.Factory{},
+	Src:           nil,
+	Config:        nil,
+	Group:         "",
+	Replicaset:    "",
+	CheckTopology: nil,
 }
 
 var promoteCtx = clustercmd.PromoteCtx{
@@ -568,6 +569,9 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 
 	publishCtx.Src = data
 	publishCtx.Config = config
+	// A config storage given by its URI belongs to no pair, and nothing
+	// checks what goes into it.
+	publishCtx.CheckTopology = nil
 
 	opts, err := sdkconnect.CreateURIOpts(args[0])
 	if err == nil {
@@ -575,9 +579,13 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 	}
 
 	// It looks like an application or an application:instance.
-	configPath, instName, err := parsePublishAppStr(cmdCtx, args[0])
+	application, configPath, instName, err := parsePublishAppStr(cmdCtx, args[0])
 	if err != nil {
 		return err
+	}
+
+	publishCtx.CheckTopology = func(topology []string) error {
+		return application.CheckTopology(topology, "the config to publish, "+args[1])
 	}
 
 	return clustercmd.PublishCluster(publishCtx, configPath, instName)
@@ -820,7 +828,7 @@ func readSourceFile(path string) ([]byte, map[string]any, error) {
 // make one up next to its description: the author of the pair adds it, as
 // adding it changes what the pair runs.
 func parseAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, string, error) {
-	application, instName, err := loadAppTarget(cmdCtx, appStr)
+	application, instName, err := loadAppTarget(cmdCtx, appStr, false)
 	if err != nil {
 		return "", "", err
 	}
@@ -834,20 +842,27 @@ func parseAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, string, erro
 }
 
 // parsePublishAppStr is parseAppStr for tt cluster publish, which writes the
-// config it returns. An application of the user or the system scope that
-// runs from a template of its installed version is refused: the version is
-// immutable, and a config written into it would go with the version, or
-// change what another host of the same version runs. The pair of the host,
-// <root>/etc/<app>/, is the one to write into; a project is the project's
-// own.
-func parsePublishAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, string, error) {
-	application, instName, err := loadAppTarget(cmdCtx, appStr)
+// config it returns, and returns the application as well. An application of
+// the user or the system scope that runs from a template of its installed
+// version is refused: the version is immutable, and a config written into it
+// would go with the version, or change what another host of the same version
+// runs. The pair of the host, <root>/etc/<app>/, is the one to write into; a
+// project is the project's own.
+//
+// The pair is read without checking its description against the topology of
+// its config: a config published into it may mend a pair whose topology has
+// lost an instance of the description. The config to publish is checked
+// instead (app.App.CheckTopology).
+func parsePublishAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (
+	*app.App, string, string, error,
+) {
+	application, instName, err := loadAppTarget(cmdCtx, appStr, true)
 	if err != nil {
-		return "", "", err
+		return nil, "", "", err
 	}
 
 	if application.Scope != app.ScopeProject && !application.Pair.Host() {
-		return "", "", fmt.Errorf("application %q of the %s scope: %w: it runs from %s, "+
+		return nil, "", "", fmt.Errorf("application %q of the %s scope: %w: it runs from %s, "+
 			"which belongs to the installed version; put instances.yaml and config.yaml "+
 			"into %s to publish into the pair of the host, or publish to a config storage "+
 			"by its URI", application.Name, application.Scope, errPublishToVersion,
@@ -856,19 +871,23 @@ func parsePublishAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, strin
 
 	configPath, err := appConfigFile(application)
 	if err != nil {
-		return "", "", err
+		return nil, "", "", err
 	}
 
-	return configPath, instName, nil
+	return application, configPath, instName, nil
 }
 
 // loadAppTarget loads the application appStr, <APP> or <APP>:<INSTANCE>,
 // names, and returns it with the instance name, empty for none, which must
-// not name an external process or an instance that runs its script.
-func loadAppTarget(cmdCtx *cmdcontext.CmdCtx, appStr string) (*app.App, string, error) {
+// not name an external process or an instance that runs its script. With
+// unchecked, the description of its pair is not checked against the
+// topology (app.Options.SkipTopologyCheck).
+func loadAppTarget(cmdCtx *cmdcontext.CmdCtx, appStr string, unchecked bool) (
+	*app.App, string, error,
+) {
 	appName, instName, _ := strings.Cut(appStr, string(running.InstanceDelimiter))
 
-	application, err := loadApp(cmdCtx, appName)
+	application, err := loadApp(cmdCtx, appName, unchecked)
 	if err != nil {
 		return nil, "", err
 	}
@@ -895,12 +914,15 @@ func appConfigFile(application *app.App) (string, error) {
 }
 
 // loadApp loads the application appName and its pair as the instance
-// commands do, with --scope and --template of the command.
-func loadApp(cmdCtx *cmdcontext.CmdCtx, appName string) (*app.App, error) {
+// commands do, with --scope and --template of the command; with unchecked,
+// without checking the description against the topology.
+func loadApp(cmdCtx *cmdcontext.CmdCtx, appName string, unchecked bool) (*app.App, error) {
 	opts, err := instanceTargetOptions(cmdCtx)
 	if err != nil {
 		return nil, err
 	}
+
+	opts.SkipTopologyCheck = unchecked
 
 	application, err := app.Load(context.Background(), appName, opts)
 	if err != nil {

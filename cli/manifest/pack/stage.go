@@ -1,6 +1,7 @@
 package pack
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
@@ -27,7 +28,7 @@ const (
 // Everything is copied into a staging directory rather than streamed straight
 // from the project, so the tar layer sees one flat, already-correct tree and
 // the mode filtering happens exactly once, in one place.
-func stage(stageDir string, req stageRequest) error {
+func stage(ctx context.Context, stageDir string, req stageRequest) error {
 	err := os.MkdirAll(stageDir, dirPerm)
 	if err != nil {
 		return fmt.Errorf("creating staging directory: %w", err)
@@ -43,7 +44,7 @@ func stage(stageDir string, req stageRequest) error {
 		return err
 	}
 
-	err = stageTemplates(stageDir, req.ProjectDir)
+	err = stageTemplates(ctx, stageDir, req.ProjectDir)
 	if err != nil {
 		return err
 	}

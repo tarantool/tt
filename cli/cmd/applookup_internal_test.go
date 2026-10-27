@@ -212,7 +212,7 @@ func TestClusterLookup(t *testing.T) {
 
 	findCommand(t, NewClusterCmd(), []string{"publish"}, "--template", "other")
 
-	path, _, err = parsePublishAppStr(cmdCtx, "myapp:router-1")
+	_, path, _, err = parsePublishAppStr(cmdCtx, "myapp:router-1")
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(project, ".templates", "other", "config.yaml"), path)
 }

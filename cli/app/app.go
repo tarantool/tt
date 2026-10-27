@@ -51,6 +51,12 @@ type Options struct {
 	// as its console socket. A command that needs the config to act, such
 	// as tt instance start, requires it.
 	BestEffortConfig bool
+	// SkipTopologyCheck reads the pair, its cluster config included, as
+	// always, but does not check the description against the topology of
+	// the config. It is for tt cluster publish, which may mend a pair whose
+	// topology has lost an instance of the description, and which checks the
+	// config it publishes instead (App.CheckTopology).
+	SkipTopologyCheck bool
 }
 
 // App is an application found and loaded with its pair.
@@ -139,7 +145,7 @@ func Load(ctx context.Context, name string, opts Options) (*App, error) {
 		return nil, err
 	}
 
-	loaded, err := loadPair(ctx, pair, loc, opts.Integrity, opts.BestEffortConfig)
+	loaded, err := loadPair(ctx, pair, loc, opts)
 	if err != nil {
 		return nil, fmt.Errorf("application %q: %w", loc.name, err)
 	}

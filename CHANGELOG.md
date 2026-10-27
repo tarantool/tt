@@ -352,8 +352,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `config.yaml`, `instances.yaml` or both; `instances.yaml` must be a valid
   instance description, and `config.yaml` is needed next to it unless the
   description has only `script` and `binary` records, while `config.yaml`
-  alone runs its whole topology; a broken template, or a file directly under
-  `.templates/`, fails the pack naming it. Hidden entries directly under
+  alone runs its whole topology; the description must fit the topology of a
+  `config.yaml` that holds the cluster config itself, as at the start of the
+  instances, while one with `config.etcd` or `config.storage` is not read; a
+  broken template, or a file directly under `.templates/`, fails the pack
+  naming it. Hidden entries directly under
   `.templates/`, such as `.gitkeep`, are skipped. `.templates` joins the
   names tt reserves in the archive, so `include` and `license_files` entries
   may not land on it. `tt package install --scope project` lays the
@@ -513,7 +516,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `stop_timeout` and `env` of `"*"` (`binary` and `script` are refused in it;
   unquoted, `*:` is a YAML alias, and the error says to quote it); a record
   naming one of them replaces `"*"` for it whole. The names of the other
-  records are checked against the topology. A template of `config.yaml`
+  records are checked against the topology, and a `script` or `binary`
+  record named as an instance of the topology is an error rather than a
+  silent stand-in for it. A template of `config.yaml`
   alone is the description `"*": {}` and runs the whole cluster; the pair of
   a host, which says what runs on that host, needs its `instances.yaml`,
   `"*"` or not, and is incomplete without it. A
@@ -523,7 +528,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   config of an application of the user or the system scope into its pair of
   the host, `<root>/etc/<app>/config.yaml`, and refuses one that runs from a
   template of its installed version, which is never written to, pointing at
-  `<root>/etc/<app>/` and at the URI of a config storage. `tt instance stop`,
+  `<root>/etc/<app>/` and at the URI of a config storage. It reads the pair
+  without checking it against the topology, so a pair out of step is mended
+  by publishing, and refuses a config that drops a Tarantool instance of the
+  description, those `"*"` stands for now included, or that names an
+  instance of the cluster as a `script` or `binary` record, naming them;
+  publishing to a config storage by its URI checks nothing, as before. `tt instance stop`,
   `kill`, `status`, `logrotate` and `logs`, the completion of a target and
   `tt replicaset status` read `config.yaml` and the config storage it names
   as far as they can, as they did with `tt.yaml`: they find the instances by
