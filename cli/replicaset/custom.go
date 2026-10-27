@@ -93,14 +93,13 @@ func (c *CustomInstance) discovery() (Replicasets, error) {
 		Orchestrator: OrchestratorCustom,
 		Replicasets: []Replicaset{
 			{
-				UUID:          topology.UUID,
-				LeaderUUID:    topology.LeaderUUID,
-				Alias:         topology.Alias,
-				Roles:         nil,
-				Master:        MasterUnknown,
-				Failover:      FailoverUnknown,
-				StateProvider: StateProviderUnknown,
-				Instances:     topology.Instances,
+				UUID:       topology.UUID,
+				LeaderUUID: topology.LeaderUUID,
+				Alias:      topology.Alias,
+				Roles:      nil,
+				Master:     MasterUnknown,
+				Failover:   FailoverUnknown,
+				Instances:  topology.Instances,
 			},
 		},
 	}), nil
@@ -250,14 +249,13 @@ func mergeCustomTopologies(topologies []customTopology) (Replicasets, error) {
 			updateCustomInstances(replicaset, topology)
 		} else {
 			replicasets.Replicasets = append(replicasets.Replicasets, Replicaset{
-				UUID:          topology.UUID,
-				LeaderUUID:    topology.LeaderUUID,
-				Alias:         topology.Alias,
-				Roles:         nil,
-				Master:        MasterUnknown,
-				Failover:      FailoverUnknown,
-				StateProvider: StateProviderUnknown,
-				Instances:     topology.Instances,
+				UUID:       topology.UUID,
+				LeaderUUID: topology.LeaderUUID,
+				Alias:      topology.Alias,
+				Roles:      nil,
+				Master:     MasterUnknown,
+				Failover:   FailoverUnknown,
+				Instances:  topology.Instances,
 			})
 		}
 	}

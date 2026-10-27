@@ -89,8 +89,7 @@ func TestBootRefusesRemovedFlags(t *testing.T) {
 }
 
 // TestConfigureFindsTheProject checks that Configure finds the project from a
-// directory inside it, ignores a tt.yaml there, broken as it is, and takes
-// the tcm config from the project directory.
+// directory inside it and ignores a tt.yaml there, broken as it is.
 //
 //nolint:paralleltest // Replaces the package context and the working directory.
 func TestConfigureFindsTheProject(t *testing.T) {
@@ -103,7 +102,6 @@ func TestConfigureFindsTheProject(t *testing.T) {
 	require.NoError(t, os.Mkdir(nested, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(project, "app.manifest.toml"),
 		[]byte("manifest_version = '0.1'\n"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(project, "tcm.yaml"), nil, 0o644))
 
 	for _, dir := range []string{project, nested} {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "tt.yaml"), []byte("[broken"),
@@ -116,7 +114,6 @@ func TestConfigureFindsTheProject(t *testing.T) {
 
 	require.NoError(t, Configure())
 	assert.Equal(t, project, cmdCtx.Cli.ProjectDir)
-	assert.Equal(t, filepath.Join(project, "tcm.yaml"), cmdCtx.Cli.TcmCli.ConfigPath)
 	assert.NotNil(t, cmdCtx.Integrity.Repository)
 }
 

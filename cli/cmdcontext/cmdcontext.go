@@ -46,8 +46,6 @@ type TarantoolCli struct {
 type TcmCli struct {
 	// Executable is a path to tcm executable.
 	Executable string
-	// ConfigPath is a path to tcm config (tcm.yaml).
-	ConfigPath string
 }
 
 const minVersionFields = 2

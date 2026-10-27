@@ -183,14 +183,13 @@ func (c *CConfigInstance) discovery() (Replicasets, error) {
 		Orchestrator: OrchestratorCentralizedConfig,
 		Replicasets: []Replicaset{
 			{
-				UUID:          topology.UUID,
-				LeaderUUID:    topology.LeaderUUID,
-				Alias:         topology.Alias,
-				Roles:         nil,
-				Master:        MasterUnknown,
-				Failover:      ParseFailover(topology.Failover),
-				StateProvider: StateProviderUnknown,
-				Instances:     topology.Instances,
+				UUID:       topology.UUID,
+				LeaderUUID: topology.LeaderUUID,
+				Alias:      topology.Alias,
+				Roles:      nil,
+				Master:     MasterUnknown,
+				Failover:   ParseFailover(topology.Failover),
+				Instances:  topology.Instances,
 			},
 		},
 	}), nil
@@ -340,14 +339,13 @@ func mergeCConfigTopologies(topologies []cconfigTopology) (Replicasets, error) {
 			updateCConfigInstances(replicaset, topology)
 		} else {
 			replicasets.Replicasets = append(replicasets.Replicasets, Replicaset{
-				UUID:          topology.UUID,
-				LeaderUUID:    topology.LeaderUUID,
-				Alias:         topology.Alias,
-				Roles:         []string{},
-				Master:        MasterUnknown,
-				Failover:      ParseFailover(topology.Failover),
-				StateProvider: StateProviderUnknown,
-				Instances:     topology.Instances,
+				UUID:       topology.UUID,
+				LeaderUUID: topology.LeaderUUID,
+				Alias:      topology.Alias,
+				Roles:      []string{},
+				Master:     MasterUnknown,
+				Failover:   ParseFailover(topology.Failover),
+				Instances:  topology.Instances,
 			})
 		}
 	}

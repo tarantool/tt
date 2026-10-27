@@ -23,9 +23,6 @@ import (
 	"github.com/tarantool/tt/v3/cli/exitcode"
 )
 
-// EvalFunc defines a function type for evaluating an expression via connection.
-type EvalFunc func(console *Console, funcBodyFmt string, args ...any) (any, error)
-
 const (
 	HistoryFileName       = ".tarantool_history"
 	suggestionReadTimeout = 3 * time.Second
@@ -65,8 +62,7 @@ type Console struct {
 	livePrefix        string
 	livePrefixFunc    func() (string, bool)
 
-	connOpts connector.ConnectOpts
-	conn     connector.Connector
+	conn connector.Connector
 
 	executor   func(in string)
 	completer  func(in prompt.Document) []prompt.Suggest
@@ -92,7 +88,6 @@ func NewConsole(connOpts connector.ConnectOpts, connectCtx ConnectCtx, title str
 	console := &Console{
 		input:    "",
 		title:    title,
-		connOpts: connOpts,
 		language: connectCtx.Language,
 		format:   connectCtx.Format,
 		formatOpts: formatter.Opts{

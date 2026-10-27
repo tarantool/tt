@@ -13,7 +13,6 @@ import (
 	"github.com/klauspost/compress/zstd"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
-	"github.com/tarantool/tt/v3/cli/util"
 )
 
 // File modes install writes with. Directories and executables get 0755, plain
@@ -47,17 +46,6 @@ func OpenArchive(archivePath string) (*Archive, error) {
 
 // Path is the archive's filesystem path.
 func (a *Archive) Path() string { return a.path }
-
-// SHA256 returns the archive's checksum, lowercase hex — the same value
-// tt package pack reported when it wrote the file.
-func (a *Archive) SHA256() (string, error) {
-	sum, err := util.FileSHA256Hex(a.path)
-	if err != nil {
-		return "", fmt.Errorf("checksumming archive: %w", err)
-	}
-
-	return sum, nil
-}
 
 // Header is the tt-owned metadata read from an archive without extracting it:
 // the manifest, the lock and the declared version, plus whether the archive

@@ -218,10 +218,6 @@ func Alive(path string) (int, bool, error) {
 	return pid, alive(pid), errors.Join(err, closeFile(file))
 }
 
-func (owned *File) Path() string {
-	return owned.path
-}
-
 // Release removes the pid file, if the path still names it, and gives up the
 // ownership. The file is unlinked before it is unlocked, so a process that
 // locks it afterwards sees that it is gone.

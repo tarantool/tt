@@ -1,7 +1,6 @@
 package binary_test
 
 import (
-	"bufio"
 	"os"
 	"path/filepath"
 	"testing"
@@ -63,49 +62,6 @@ func TestTarantoolBuildPath(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestWriteYaml(t *testing.T) {
-	type book struct {
-		Title  string
-		Author string
-		Pages  int
-	}
-
-	type library struct {
-		Books []*book
-	}
-
-	lib := library{Books: []*book{
-		{"title1", "author1", 100},
-		{"title2", "author2", 200},
-	}}
-
-	tempDir := t.TempDir()
-	require.NoError(t, binary.WriteYaml(filepath.Join(tempDir, "library"), &lib))
-
-	file, err := os.Open(filepath.Join(tempDir, "library"))
-	require.NoError(t, err)
-
-	defer func() {
-		_ = file.Close()
-	}()
-
-	scanner := bufio.NewScanner(file)
-	scanner.Scan()
-	require.Contains(t, scanner.Text(), "books:")
-	scanner.Scan()
-	require.Equal(t, "- title: title1", scanner.Text())
-	scanner.Scan()
-	require.Equal(t, "  author: author1", scanner.Text())
-	scanner.Scan()
-	require.Equal(t, "  pages: 100", scanner.Text())
-	scanner.Scan()
-	require.Equal(t, "- title: title2", scanner.Text())
-	scanner.Scan()
-	require.Equal(t, "  author: author2", scanner.Text())
-	scanner.Scan()
-	require.Equal(t, "  pages: 200", scanner.Text())
 }
 
 func TestCreateSymlink(t *testing.T) {

@@ -2,14 +2,11 @@ package util
 
 import (
 	"bufio"
-	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"math"
-	"net/url"
 	"os"
 	"os/exec"
 	"os/user"
@@ -18,10 +15,8 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
-	"text/template"
 	"time"
 
-	"github.com/otiai10/copy"
 	"github.com/tarantool/tt/sdk/log"
 	"gopkg.in/yaml.v2"
 )
@@ -31,7 +26,6 @@ var (
 	errInternal                        = errors.New(
 		"whoops! It looks like something is wrong with this version of Tarantool CLI.\nError: ",
 	)
-	errMissedRequiredBinaries                         = errors.New("missed required binaries ")
 	errMoreThanOneYAMLFilesAreFoundAmbiguousSelection = errors.New(
 		"more than one YAML files are found",
 	)
@@ -89,16 +83,6 @@ func GetFileContentBytes(path string) ([]byte, error) {
 	return fileContent, nil
 }
 
-// GetFileContent returns file content as a string.
-func GetFileContent(path string) (string, error) {
-	fileContentBytes, err := GetFileContentBytes(path)
-	if err != nil {
-		return "", err
-	}
-
-	return string(fileContentBytes), nil
-}
-
 // JoinPaths concat paths.
 func JoinPaths(paths ...string) string {
 	path := ""
@@ -126,19 +110,6 @@ func JoinAbspath(paths ...string) (string, error) {
 	}
 
 	return path, nil
-}
-
-// Find find index of specified string in the slice.
-//
-// Deprecated: use [slices.Index] or [slices.Contains] instead.
-func Find(src []string, find string) int {
-	for i, elem := range src {
-		if find == elem {
-			return i
-		}
-	}
-
-	return -1
 }
 
 // InternalError shows error information, version of tt and call stack.
@@ -418,38 +389,6 @@ func IsRegularFile(filePath string) bool {
 	return fileInfo.Mode().IsRegular()
 }
 
-// IsURL checks if str is a valid URL.
-func IsURL(str string) bool {
-	if strings.HasPrefix(str, "unix:") {
-		return true
-	}
-
-	u, err := url.Parse(str)
-
-	return err == nil && u.Scheme != "" && u.Host != "" && u.Opaque == "" && u.User == nil
-}
-
-// RemoveScheme removes the scheme from the input URL.
-func RemoveScheme(inputURL string) (string, error) {
-	parsedURL, err := url.Parse(inputURL)
-	if err != nil {
-		return "", fmt.Errorf("cannot remove the scheme: %w", err)
-	}
-
-	if parsedURL.Scheme == "unix" {
-		return inputURL, nil
-	}
-
-	parsedURL.Scheme = ""
-
-	result := strings.Replace(parsedURL.String(), "//", "", 1)
-
-	return result, nil
-}
-
-// BitHas32 checks if a bit is set in b.
-func BitHas32(b, flag uint32) bool { return b&flag != 0 }
-
 // FsCopyFileChangePerms copies file from the certain FS with changing perms.
 func FsCopyFileChangePerms(fsys fs.FS, src, dst string, perms int) error {
 	// Read data from src.
@@ -463,89 +402,6 @@ func FsCopyFileChangePerms(fsys fs.FS, src, dst string, perms int) error {
 	err = os.WriteFile(dst, data, fs.FileMode(perms))
 	if err != nil {
 		return fmt.Errorf("cannot write the destination file: %w", err)
-	}
-
-	return nil
-}
-
-// ExecuteCommandStdin executes program with given args in verbose or quiet mode
-// and sends stdinData to stdin pipe.
-func ExecuteCommandStdin(program string, isVerbose bool, logFile *os.File, workDir string,
-	stdinData []byte, args ...string,
-) error {
-	cmd := exec.CommandContext(context.Background(), program, args...)
-	if isVerbose {
-		log.Infof("Run: %s\n", cmd)
-	}
-
-	if isVerbose {
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-	} else {
-		if logFile != nil {
-			cmd.Stdout = logFile
-			cmd.Stderr = logFile
-		} else {
-			cmd.Stdout = io.Discard
-			cmd.Stderr = io.Discard
-		}
-	}
-
-	if workDir == "" {
-		workDir, _ = os.Getwd()
-	}
-
-	cmd.Dir = workDir
-
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return fmt.Errorf("cannot open the stdin of %s: %w", program, err)
-	}
-
-	err = cmd.Start()
-	if err != nil {
-		return fmt.Errorf("cannot start %s: %w", program, err)
-	}
-
-	_, _ = stdin.Write(stdinData)
-	_ = stdin.Close()
-
-	err = cmd.Wait()
-	if err != nil {
-		return fmt.Errorf("%s failed: %w", program, err)
-	}
-
-	return nil
-}
-
-// IsApp detects if the passed path is an application.
-func IsApp(path string) bool {
-	entry, err := os.Stat(path)
-	if err != nil {
-		return false
-	}
-
-	if entry.IsDir() {
-		// Check if the directory contains init.lua script or instances.yml file.
-		for _, fileToCheck := range [...]string{"init.lua", "instances.yml", "instances.yaml"} {
-			fileInfo, err := os.Stat(filepath.Join(path, fileToCheck))
-			if err == nil && !fileInfo.IsDir() {
-				return true
-			}
-		}
-	} else if filepath.Ext(entry.Name()) == ".lua" {
-		return true
-	}
-
-	return false
-}
-
-// CheckRequiredBinaries returns an error if some binaries not found in PATH.
-func CheckRequiredBinaries(binaries ...string) error {
-	missedBinaries := getMissedBinaries(binaries...)
-
-	if len(missedBinaries) > 0 {
-		return fmt.Errorf("%w%s", errMissedRequiredBinaries, strings.Join(missedBinaries, ", "))
 	}
 
 	return nil
@@ -569,48 +425,6 @@ func CreateDirectory(dirName string, fileMode os.FileMode) error {
 	err = os.MkdirAll(dirName, fileMode)
 	if err != nil {
 		return fmt.Errorf("cannot create the directory: %w", err)
-	}
-
-	return nil
-}
-
-// ConcatBuffers appends sources content to dest.
-func ConcatBuffers(dest *bytes.Buffer, sources ...*bytes.Buffer) error {
-	for _, src := range sources {
-		_, err := io.Copy(dest, src)
-		if err != nil {
-			return fmt.Errorf("cannot append a buffer: %w", err)
-		}
-	}
-
-	return nil
-}
-
-// MergeFiles creates a file that is a concatenation of srcFilePaths.
-func MergeFiles(destFilePath string, srcFilePaths ...string) error {
-	destFile, err := os.Create(destFilePath)
-	if err != nil {
-		_ = os.Remove(destFilePath)
-		return fmt.Errorf("failed to create result file %s: %w", destFilePath, err)
-	}
-
-	defer func() {
-		_ = destFile.Close()
-	}()
-
-	for _, srcFilePath := range srcFilePaths {
-		srcFile, err := os.Open(srcFilePath)
-		if err != nil {
-			_ = os.Remove(destFilePath)
-			return fmt.Errorf("failed to open source file %s: %w", srcFilePath, err)
-		}
-
-		_, err = io.Copy(destFile, srcFile)
-		_ = srcFile.Close()
-
-		if err != nil {
-			return fmt.Errorf("failed to copy source file %s: %w", srcFilePath, err)
-		}
 	}
 
 	return nil
@@ -662,64 +476,6 @@ func GetYamlFileName(fileName string, mustExist bool) (string, error) {
 	}
 
 	return "", os.ErrNotExist
-}
-
-// InstantiateFileFromTemplate accepts the path to file,
-// template content and parameters for its filling.
-func InstantiateFileFromTemplate(templatePath, templateContent string, params any) error {
-	file, err := os.Create(templatePath)
-	if err != nil {
-		return fmt.Errorf("cannot create the file: %w", err)
-	}
-
-	defer func() {
-		_ = file.Close()
-	}()
-
-	unitContent, err := GetTextTemplatedStr(&templateContent, params)
-	if err != nil {
-		removeErr := os.Remove(templatePath)
-		if removeErr != nil {
-			log.Warnf("Failed to remove a file %s", templatePath)
-		}
-
-		return err
-	}
-
-	parsedTemplate, err := template.New(templatePath).Parse(unitContent)
-	if err != nil {
-		return fmt.Errorf("error parsing %s: %w", templatePath, err)
-	}
-
-	// spell-checker:ignore missingkey
-	parsedTemplate.Option("missingkey=error") // Treat missing variable as error.
-
-	_, err = file.WriteString(unitContent)
-	if err != nil {
-		removeErr := os.Remove(templatePath)
-		if removeErr != nil {
-			log.Warnf("Failed to remove a file %s", templatePath)
-		}
-
-		return fmt.Errorf("cannot write %q: %w", templatePath, err)
-	}
-
-	return nil
-}
-
-// CopyFileDeep copies a file resolving symlinks.
-func CopyFileDeep(src, dst string) error {
-	src, err := filepath.EvalSymlinks(src)
-	if err != nil {
-		return fmt.Errorf("cannot resolve the source path: %w", err)
-	}
-
-	err = copy.Copy(src, dst)
-	if err != nil {
-		return fmt.Errorf("cannot copy %q to %q: %w", src, dst, err)
-	}
-
-	return nil
 }
 
 // StringToTimestamp transforms string with number or RFC339Nano time

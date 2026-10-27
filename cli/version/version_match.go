@@ -205,12 +205,6 @@ func IsVersion(version string) bool {
 	return re.MatchString(version)
 }
 
-// IsStrictVersion reports whether the string matches a version with major, minor and patch.
-func IsStrictVersion(version string) bool {
-	re := createVersionRegexp(true)
-	return re.MatchString(version)
-}
-
 // IsNumericVersion reports whether the request has the form X, X.Y, or X.Y.Z.
 func IsNumericVersion(requested string) bool {
 	return numericVersionMask.MatchString(requested)

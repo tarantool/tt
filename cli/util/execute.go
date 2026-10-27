@@ -1,23 +1,14 @@
 package util
 
 import (
-	"bytes"
-	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/tarantool/tt/sdk/log"
 )
-
-var errHookShouldBeExecutable = errors.New("hook `")
-
-// execOwnerPerm is a bitmask to check owner exec bit.
-const execOwnerPerm uint32 = 0o100
 
 // RunCommand runs specified command and returns an error.
 // If showOutput is set to true, command output is shown.
@@ -74,43 +65,6 @@ func RunCommand(cmd *exec.Cmd, workingDir string, showOutput bool) error {
 	return nil
 }
 
-// RunHook runs the specified hook.
-// If showOutput is set to true, command output is shown.
-func RunHook(hookPath string, showOutput bool) error {
-	hookName := filepath.Base(hookPath)
-	hookDir := filepath.Dir(hookPath)
-
-	isExec, err := IsExecOwner(hookPath)
-	if err != nil {
-		return fmt.Errorf("failed go check hook file `%s`: %w", hookName, err)
-	}
-
-	if !isExec {
-		return fmt.Errorf("%w%s` should be executable", errHookShouldBeExecutable, hookName)
-	}
-
-	hookCmd := exec.CommandContext(context.Background(), hookPath)
-
-	err = RunCommand(hookCmd, hookDir, showOutput)
-	if err != nil {
-		return fmt.Errorf("failed to run hook `%s`: %w", hookName, err)
-	}
-
-	return nil
-}
-
-// IsExecOwner checks if specified file has owner execute permissions.
-func IsExecOwner(path string) (bool, error) {
-	fileInfo, err := os.Stat(path)
-	if err != nil {
-		return false, fmt.Errorf("cannot stat the file: %w", err)
-	}
-
-	perm := fileInfo.Mode().Perm()
-
-	return BitHas32(uint32(perm), execOwnerPerm), nil
-}
-
 func PrintFromStart(file *os.File) error {
 	_, err := file.Seek(0, io.SeekStart)
 	if err != nil {
@@ -123,45 +77,4 @@ func PrintFromStart(file *os.File) error {
 	}
 
 	return nil
-}
-
-// ExecuteCommandGetOutput executes program with given args in verbose or quiet mode
-// and sends stdinData to stdin pipe.
-func ExecuteCommandGetOutput(program, workDir string, stdinData []byte,
-	args ...string,
-) ([]byte, error) {
-	cmd := exec.CommandContext(context.Background(), program, args...)
-
-	var out bytes.Buffer
-
-	cmd.Stdout = &out
-	cmd.Stderr = &out
-
-	if workDir == "" {
-		var err error
-
-		workDir, err = os.Getwd()
-		if err != nil {
-			return out.Bytes(), err
-		}
-	}
-
-	cmd.Dir = workDir
-
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return out.Bytes(), err
-	}
-
-	err = cmd.Start()
-	if err != nil {
-		return out.Bytes(), err
-	}
-
-	_, _ = stdin.Write(stdinData)
-	_ = stdin.Close()
-
-	err = cmd.Wait()
-
-	return out.Bytes(), err
 }

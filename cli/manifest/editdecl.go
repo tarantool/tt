@@ -12,25 +12,8 @@ import (
 // splices. Anything that does not classify cleanly is refused with
 // ErrUnsupportedForm rather than guessed at.
 
-// declForm is the shape a dependency is written in.
-type declForm int
-
-const (
-	// formShort is `name = ">=1.0.0"` - a bare constraint string.
-	formShort declForm = iota
-	// formInline is `name = { source = "registry", version = ">=1.0.0" }`.
-	formInline
-	// formTable covers every spelling of the long form that puts the fields on
-	// their own lines: a [dependencies.name] header with its body, and the
-	// dotted keys (`dependencies.name.version = "..."`) that mean the same
-	// thing. They are one form because they index identically - both produce
-	// key/value expressions with the path dependencies.name.<field>.
-	formTable
-)
-
 // declaration is one dependency located in a document.
 type declaration struct {
-	form declForm
 	// matches indexes every expression that belongs to the declaration, in
 	// source order.
 	matches []int
@@ -167,7 +150,6 @@ func (d *document) describeEntry(
 	item := &d.exprs[entry]
 
 	decl := &declaration{
-		form:        formShort,
 		matches:     matches,
 		header:      -1,
 		hasVersion:  false,
@@ -181,7 +163,6 @@ func (d *document) describeEntry(
 		decl.version = item.value
 		decl.versionData = item.valueData
 	case unstable.InlineTable:
-		decl.form = formInline
 		decl.hasVersion = item.hasVersion
 		decl.version = item.version
 		decl.versionData = item.versionData
@@ -199,7 +180,6 @@ func (d *document) describeTable(
 	table DepTable, name string, matches []int, header int, fields []int,
 ) (*declaration, error) {
 	decl := &declaration{
-		form:        formTable,
 		matches:     matches,
 		header:      header,
 		hasVersion:  false,

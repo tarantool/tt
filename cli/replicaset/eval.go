@@ -16,37 +16,6 @@ var (
 	errUnexpectedResponse           = errors.New("unexpected response")
 )
 
-// EvalFunc is a function that implements connector.Evaler.
-type EvalFunc func(expr string, args []any, opts connector.RequestOpts) ([]any, error)
-
-// Eval helps to satisfy connector.Evaler interface.
-func (evaler EvalFunc) Eval(expr string, args []any, opts connector.RequestOpts) ([]any, error) {
-	return evaler(expr, args, opts)
-}
-
-// MakeInstanceEvalFunc makes a function to eval an expression on the specified instance.
-func MakeInstanceEvalFunc(instance running.InstanceCtx) EvalFunc {
-	return func(expr string, args []any, opts connector.RequestOpts) ([]any, error) {
-		var resp []any
-
-		instEvaler := func(instance running.InstanceCtx, evaler connector.Evaler) (bool, error) {
-			var err error
-
-			resp, err = evaler.Eval(expr, args, opts)
-
-			return true, err
-		}
-
-		err := EvalForeach(
-			[]running.InstanceCtx{instance}, InstanceEvalFunc(instEvaler))
-		if err != nil {
-			return nil, err
-		}
-
-		return resp, nil
-	}
-}
-
 // InstanceEvaler is the interface that wraps Eval method for an instance.
 type InstanceEvaler interface {
 	// Eval could return true or an error to stop execution.
@@ -82,13 +51,6 @@ func EvalAny(instances []running.InstanceCtx, iEvaler InstanceEvaler) error {
 			// Always return true to stop execution on the first instance.
 			return true, err
 		}))
-}
-
-// EvalForeachAliveDiscovered calls evaler for only connectable instances among discovered.
-func EvalForeachAliveDiscovered(instances []running.InstanceCtx,
-	discovered Replicasets, iEvaler InstanceEvaler,
-) error {
-	return EvalForeachAlive(filterDiscovered(instances, discovered), iEvaler)
 }
 
 // evalForeach is an internal implementation of iteration over instances with

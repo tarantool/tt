@@ -507,7 +507,6 @@ func newReplicasetConnectCtx() connect.ConnectCtx {
 		SslCiphers:      replicasetSslCiphers,
 		SslPassword:     replicasetSslPassword,
 		SslPasswordFile: replicasetSslPasswordFile,
-		Interactive:     false,
 		ConnectTarget:   "",
 		Binary:          false,
 		Evaler:          "",
