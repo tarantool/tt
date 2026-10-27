@@ -214,7 +214,7 @@ func TestTargetOrchestrator(t *testing.T) {
 	load := func(files map[string]string) *app.App {
 		scriptProject(t, files)
 
-		application, err := loadApp(&cmdcontext.CmdCtx{}, "myapp")
+		application, err := loadApp(&cmdcontext.CmdCtx{}, "myapp", false)
 		require.NoError(t, err)
 
 		return application

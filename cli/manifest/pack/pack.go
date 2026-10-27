@@ -102,7 +102,7 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 	man := built.Manifest
 	namespaces, hasFlat := packageNamespaces(man, built.Product)
 
-	err = stage(stageDir, stageRequest{
+	err = stage(ctx, stageDir, stageRequest{
 		ProjectDir:       opts.ProjectDir,
 		Manifest:         man,
 		LockBytes:        lockBytes,

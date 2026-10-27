@@ -45,6 +45,14 @@ invalid_cluster_cfg = r"""groups:
                 - uri: 127.0.0.1:3301
 """
 
+# The second instance test_simple_app describes: a config published into its
+# pair keeps every instance of the description.
+storage_instance_cfg = r"""          storage:
+            iproto:
+              listen:
+                - uri: 127.0.0.1:3302
+"""
+
 valid_instance_cfg = r"""database:
   mode: rw
 iproto:
@@ -195,7 +203,7 @@ def test_cluster_publish_valid_cluster(tt_cmd, tmpdir_with_cfg, app_name):
 
     src_cfg_path = os.path.join(tmpdir, "src.yaml")
     with open(src_cfg_path, "w") as f:
-        f.write(valid_cluster_cfg)
+        f.write(valid_cluster_cfg + storage_instance_cfg)
 
     app_path = os.path.join(tmpdir, app_name)
     dst_cfg_path = os.path.join(app_path, cluster_config_file)
@@ -215,7 +223,47 @@ def test_cluster_publish_valid_cluster(tt_cmd, tmpdir_with_cfg, app_name):
     with open(dst_cfg_path, "r") as f:
         uploaded = f.read()
 
-    assert valid_cluster_cfg == uploaded
+    assert valid_cluster_cfg + storage_instance_cfg == uploaded
+
+
+def test_cluster_publish_keeps_the_description(tt_cmd, tmp_path):
+    """A config published into the pair of an application keeps every
+    Tarantool instance of its description: one that drops master, or that
+    gives the name of a script instance to an instance of the cluster, is
+    refused, and the config of the pair stays as it was."""
+    app_name = "test_simple_app"
+    copy_app(tmp_path, app_name)
+    app_path = tmp_path / app_name
+    config = app_path / cluster_config_file
+    original = config.read_text()
+    (app_path / ".templates" / "default" / "instances.yaml").write_text(
+        "master:\nlegacy:\n  script: init.lua\n",
+    )
+
+    src = tmp_path / "src.yaml"
+    for cfg, err in [
+        (valid_cluster_cfg.replace("master:", "replica:"), '"master" from '),
+        (
+            valid_cluster_cfg + "          legacy: {}\n",
+            '"legacy" of ',
+        ),
+    ]:
+        src.write_text(cfg)
+        rc, out = run_command_and_get_output(
+            [tt_cmd, "cluster", "publish", app_name, str(src)],
+            cwd=app_path,
+        )
+        assert rc == 1
+        assert err in out
+        assert config.read_text() == original
+
+    src.write_text(valid_cluster_cfg + "          replica: {}\n")
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "cluster", "publish", app_name, str(src)],
+        cwd=app_path,
+    )
+    assert rc == 0, out
+    assert config.read_text() == valid_cluster_cfg + "          replica: {}\n"
 
 
 @pytest.mark.parametrize(
@@ -295,7 +343,7 @@ def test_cluster_publish_invalid_cluster_force(tt_cmd, tmpdir_with_cfg, app_name
 
     src_cfg_path = os.path.join(tmpdir, "src.yaml")
     with open(src_cfg_path, "w") as f:
-        f.write(invalid_cluster_cfg)
+        f.write(invalid_cluster_cfg + storage_instance_cfg)
 
     app_path = os.path.join(tmpdir, app_name)
     dst_cfg_path = os.path.join(app_path, cluster_config_file)
@@ -321,7 +369,7 @@ def test_cluster_publish_invalid_cluster_force(tt_cmd, tmpdir_with_cfg, app_name
     with open(dst_cfg_path, "r") as f:
         uploaded = f.read()
 
-    assert invalid_cluster_cfg == uploaded
+    assert invalid_cluster_cfg + storage_instance_cfg == uploaded
 
 
 @pytest.mark.parametrize(

@@ -85,12 +85,13 @@ func InstancesOf(application *app.App, records []instances.Instance) ([]Instance
 // included: the watchdog starts the instance as the config says.
 func PinnedOptions(inst *InstanceCtx, integ integrity.IntegrityCtx) app.Options {
 	return app.Options{
-		Scope:            inst.Scope,
-		Template:         inst.Template,
-		Start:            "",
-		Dir:              inst.AppDir,
-		Integrity:        integ,
-		BestEffortConfig: false,
+		Scope:             inst.Scope,
+		Template:          inst.Template,
+		Start:             "",
+		Dir:               inst.AppDir,
+		Integrity:         integ,
+		BestEffortConfig:  false,
+		SkipTopologyCheck: false,
 	}
 }
 

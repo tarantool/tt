@@ -100,7 +100,8 @@ func TestPackInstallRoundtripCarriesTemplates(t *testing.T) {
 	// Compared byte for byte below: pack and install copy the files, they do
 	// not re-render them.
 	instancesBody := "router-1:\nworker-1:\n  binary: ./bin/worker\n"
-	configBody := "groups:\n  routers: {}\n"
+	configBody := "groups:\n  routers:\n    replicasets:\n      r:\n        instances:\n" +
+		"          router-1: {}\n"
 
 	src := t.TempDir()
 	writeSource(t, src, map[string]string{
@@ -159,7 +160,7 @@ func TestPackInstallRoundtripUserScope(t *testing.T) {
 		"VERSION":                           "1.0.0\n",
 		"init.lua":                          "return 1\n",
 		"README.md":                         "round-app\n",
-		".templates/default/instances.yaml": "router-1:\n",
+		".templates/default/instances.yaml": "\"*\":\n",
 		".templates/default/config.yaml":    "groups: {}\n",
 	})
 

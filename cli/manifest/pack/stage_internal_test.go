@@ -115,7 +115,7 @@ func TestStageWithDeps(t *testing.T) {
 	tree := testTree(t, projectDir)
 	stageDir := t.TempDir()
 
-	require.NoError(t, stage(stageDir, baseRequest(projectDir, man, tree)))
+	require.NoError(t, stage(t.Context(), stageDir, baseRequest(projectDir, man, tree)))
 
 	assert.Equal(t, []string{
 		".rocks/lib/tarantool/cjson/cjson.so",
@@ -151,7 +151,7 @@ func TestStageWithoutDeps(t *testing.T) {
 
 	req.WithDeps = false
 
-	require.NoError(t, stage(stageDir, req))
+	require.NoError(t, stage(t.Context(), stageDir, req))
 
 	names := stagedNames(t, stageDir)
 
@@ -173,7 +173,7 @@ func TestStageMissingTreeIsNotFatal(t *testing.T) {
 
 	req := baseRequest(projectDir, man, filepath.Join(projectDir, ".rocks"))
 
-	require.NoError(t, stage(stageDir, req))
+	require.NoError(t, stage(t.Context(), stageDir, req))
 	assert.Contains(t, stagedNames(t, stageDir), "app.manifest.toml")
 }
 
@@ -290,7 +290,8 @@ func TestStageReservedNameIsCaseInsensitive(t *testing.T) {
 
 	man.Package.Include = []string{"version"}
 
-	err := stage(t.TempDir(), baseRequest(projectDir, man, filepath.Join(projectDir, ".rocks")))
+	err := stage(t.Context(), t.TempDir(),
+		baseRequest(projectDir, man, filepath.Join(projectDir, ".rocks")))
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errReservedName)
@@ -309,7 +310,7 @@ func TestStageWithoutDepsRejectsFlatNamespace(t *testing.T) {
 	req.WithDeps = false
 	req.HasFlatNamespace = true
 
-	err := stage(t.TempDir(), req)
+	err := stage(t.Context(), t.TempDir(), req)
 
 	require.Error(t, err)
 	require.ErrorIs(t, err, errFlatNamespace)
@@ -325,7 +326,7 @@ func TestStageWithDepsAllowsFlatNamespace(t *testing.T) {
 
 	req.HasFlatNamespace = true
 
-	require.NoError(t, stage(t.TempDir(), req))
+	require.NoError(t, stage(t.Context(), t.TempDir(), req))
 }
 
 func TestStageEntryCopiesDirectory(t *testing.T) {

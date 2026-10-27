@@ -44,7 +44,8 @@ func TestWildcard(t *testing.T) {
 			name:   "a record of another kind with a name of the topology",
 			desc:   "\"*\":\nstorage-1:\n  binary: ./bin/fake\n",
 			config: topology("storage-1", "storage-2"),
-			want:   []string{"storage-2", "storage-1"},
+			err:    app.ErrTopologyConflict,
+			msg:    []string{`"storage-1" of `},
 		},
 		{
 			name:   "every instance named",
@@ -393,5 +394,113 @@ func TestWildcardBestEffort(t *testing.T) {
 		got, err := load(t, "", app.Options{Start: tree, BestEffortConfig: true})
 		require.NoError(t, err)
 		assert.Equal(t, []string{"storage-1"}, names(got.Instances))
+	})
+}
+
+// TestTopologyConflict pins that a record with a script or a binary named as
+// an instance of the topology is refused where the description is checked
+// against the topology, "*" standing for that instance or not: it would
+// take the place of the instance of the cluster without a word. A command
+// that reads the config as far as it can checks nothing, as before.
+func TestTopologyConflict(t *testing.T) {
+	cases := []struct {
+		name string
+		desc string
+	}{
+		{
+			name: "a script in place of an instance of \"*\"",
+			desc: "\"*\":\nstorage-1:\n  script: init.lua\n",
+		},
+		{
+			name: "a binary in place of an instance of the topology",
+			desc: "storage-2:\nstorage-1:\n  binary: ./bin/fake\n",
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			roots(t)
+
+			tree := t.TempDir()
+			writeTree(t, tree, map[string]string{
+				".templates/default/instances.yaml": test.desc,
+				".templates/default/config.yaml":    topology("storage-1", "storage-2"),
+			})
+
+			_, err := load(t, "", app.Options{Start: tree})
+			requireFailure(t, err, app.ErrTopologyConflict)
+			require.ErrorContains(t, err, `"storage-1" of `)
+			require.ErrorContains(t, err, "with script or binary, take the names of "+
+				"instances of the cluster declared in "+
+				filepath.Join(tree, ".templates", "default", "config.yaml"))
+
+			got, err := load(t, "", app.Options{Start: tree, BestEffortConfig: true})
+			require.NoError(t, err)
+			assert.Contains(t, names(got.Instances), "storage-1")
+
+			_, err = load(t, "", app.Options{Start: tree, SkipTopologyCheck: true})
+			require.NoError(t, err)
+		})
+	}
+}
+
+// TestCheckTemplate pins the check tt package pack makes of a template: the
+// description against the topology of a config that holds the cluster
+// config itself, and nothing against one that points to a config storage.
+func TestCheckTemplate(t *testing.T) {
+	ctx := context.Background()
+
+	parse := func(t *testing.T, desc string) instances.Description {
+		t.Helper()
+
+		parsed, err := instances.Parse([]byte(desc), "/app")
+		require.NoError(t, err)
+
+		return parsed
+	}
+
+	write := func(t *testing.T, config string) string {
+		t.Helper()
+
+		path := filepath.Join(t.TempDir(), "config.yaml")
+		require.NoError(t, os.WriteFile(path, []byte(config), 0o644))
+
+		return path
+	}
+
+	t.Run("a description that fits", func(t *testing.T) {
+		checked, err := app.CheckTemplate(ctx, parse(t, "\"*\":\nstorage-1:\n"),
+			"instances.yaml", write(t, topology("storage-1", "storage-2")))
+		require.NoError(t, err)
+		assert.True(t, checked)
+	})
+
+	t.Run("an instance missing from the topology", func(t *testing.T) {
+		checked, err := app.CheckTemplate(ctx, parse(t, "storage-9:\n"), "instances.yaml",
+			write(t, topology("storage-1")))
+		requireFailure(t, err, app.ErrTopologyMismatch)
+		require.ErrorContains(t, err, `"storage-9" from instances.yaml not declared in`)
+		assert.True(t, checked)
+	})
+
+	t.Run("a script named as an instance of the topology", func(t *testing.T) {
+		_, err := app.CheckTemplate(ctx, parse(t, "storage-1: {script: init.lua}\n"),
+			"instances.yaml", write(t, topology("storage-1")))
+		requireFailure(t, err, app.ErrTopologyConflict)
+	})
+
+	for _, key := range []string{"etcd", "storage"} {
+		t.Run("a config in "+key, func(t *testing.T) {
+			checked, err := app.CheckTemplate(ctx, parse(t, "storage-9:\n"), "instances.yaml",
+				write(t, "config:\n  "+key+":\n    prefix: /myapp\n"+topology("storage-1")))
+			require.NoError(t, err, "a config storage is not read at packing")
+			assert.False(t, checked)
+		})
+	}
+
+	t.Run("a config that does not parse", func(t *testing.T) {
+		_, err := app.CheckTemplate(ctx, parse(t, "storage-1:\n"), "instances.yaml",
+			write(t, "groups: [\n"))
+		require.Error(t, err)
 	})
 }

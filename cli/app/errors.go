@@ -51,6 +51,10 @@ var (
 	// ErrTopologyMismatch is a Tarantool instance of the description that the
 	// cluster config does not declare.
 	ErrTopologyMismatch = errors.New("instances missing from the cluster topology")
+	// ErrTopologyConflict is an instance of the description that runs its
+	// script or is an external process, named as an instance of the cluster
+	// config.
+	ErrTopologyConflict = errors.New("records taking names of the cluster topology")
 	// ErrInstanceNotFound is a target naming an instance the description
 	// does not declare.
 	ErrInstanceNotFound = errors.New("instance not found")

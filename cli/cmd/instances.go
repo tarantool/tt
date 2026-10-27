@@ -47,12 +47,13 @@ func instanceOptions(cmdCtx *cmdcontext.CmdCtx) (app.Options, error) {
 	}
 
 	return app.Options{
-		Scope:            "",
-		Template:         "",
-		Start:            start,
-		Dir:              "",
-		Integrity:        cmdCtx.Integrity,
-		BestEffortConfig: false,
+		Scope:             "",
+		Template:          "",
+		Start:             start,
+		Dir:               "",
+		Integrity:         cmdCtx.Integrity,
+		BestEffortConfig:  false,
+		SkipTopologyCheck: false,
 	}, nil
 }
 

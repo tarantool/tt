@@ -48,6 +48,12 @@ type PublishCtx struct {
 	Group string
 	// Replicaset is a replicaset name for a new instance configuration publishing.
 	Replicaset string
+	// CheckTopology, when set, checks the names of the instances of the
+	// cluster config about to be published, whole, before it is written: the
+	// pair of an application refuses a config that leaves out an instance of
+	// its description. nil checks nothing, as for a config storage given by
+	// its URI.
+	CheckTopology func(topology []string) error
 }
 
 // PublishURI publishes a configuration to URI.
@@ -73,25 +79,7 @@ func PublishURI(publishCtx PublishCtx, opts connect.URIOpts) error {
 	}
 	defer cancel()
 
-	if instance == "" {
-		// The easy case, just publish the configuration as is.
-		return publisher.Publish(0, publishCtx.Src)
-	}
-
-	// Build a MutableConfig from the target (collected) key's bytes.
-	collectedBytes, err := cluster.CollectDataBytes(context.Background(), collector)
-	if err != nil {
-		return fmt.Errorf("failed to get a cluster configuration to update an instance %q: %w",
-			instance, err)
-	}
-
-	mut, err := cluster.BuildMutableFromBytes(context.Background(), collectedBytes)
-	if err != nil {
-		return fmt.Errorf("failed to build mutable config: %w", err)
-	}
-
-	return setInstanceConfig(publishCtx.Group, publishCtx.Replicaset, instance,
-		publishCtx.Config, mut, publisher)
+	return publish(publishCtx, collector, publisher, instance)
 }
 
 // PublishCluster publishes a configuration to the configuration path.
@@ -106,26 +94,67 @@ func PublishCluster(publishCtx PublishCtx, path, instance string) error {
 		return fmt.Errorf("failed to create a file publisher: %w", err)
 	}
 
-	if instance == "" {
-		// The easy case, just publish the configuration as is.
-		return publisher.Publish(0, publishCtx.Src)
+	return publish(publishCtx, publishCtx.Collectors.NewFileCollector(path), publisher, instance)
+}
+
+// publish publishes publishCtx.Src through publisher: whole, or, for an
+// instance, as the config of the instance within the cluster config
+// collector collects. What is published is checked first
+// (PublishCtx.CheckTopology).
+func publish(publishCtx PublishCtx, collector sdkcluster.DataCollector,
+	publisher sdkcluster.DataPublisher, instance string,
+) error {
+	data := publishCtx.Src
+
+	if instance != "" {
+		// Build a MutableConfig from the target (collected) key's bytes.
+		collectedBytes, err := cluster.CollectDataBytes(context.Background(), collector)
+		if err != nil {
+			return fmt.Errorf("failed to get a cluster configuration to update an "+
+				"instance %q: %w", instance, err)
+		}
+
+		mut, err := cluster.BuildMutableFromBytes(context.Background(), collectedBytes)
+		if err != nil {
+			return fmt.Errorf("failed to build mutable config: %w", err)
+		}
+
+		data, err = setInstanceConfig(publishCtx.Group, publishCtx.Replicaset, instance,
+			publishCtx.Config, mut)
+		if err != nil {
+			return err
+		}
 	}
 
-	collector := publishCtx.Collectors.NewFileCollector(path)
-
-	collectedBytes, err := cluster.CollectDataBytes(context.Background(), collector)
+	err := checkTopology(publishCtx.CheckTopology, data)
 	if err != nil {
-		return fmt.Errorf("failed to get a cluster configuration to update an instance %q: %w",
-			instance, err)
+		return err
 	}
 
-	mut, err := cluster.BuildMutableFromBytes(context.Background(), collectedBytes)
+	return publisher.Publish(0, data)
+}
+
+// checkTopology passes the names of the instances of data, a cluster config
+// about to be published, to check, unless check is nil. A config that cannot
+// be read is not published then, --force or not: whether it keeps the
+// instances it must is unknown.
+func checkTopology(check func([]string) error, data []byte) error {
+	if check == nil {
+		return nil
+	}
+
+	cfg, err := cluster.BuildGoConfigFromBytes(context.Background(), data)
 	if err != nil {
-		return fmt.Errorf("failed to build mutable config: %w", err)
+		return fmt.Errorf("cannot read the cluster config to publish: %w", err)
 	}
 
-	return setInstanceConfig(publishCtx.Group, publishCtx.Replicaset, instance,
-		publishCtx.Config, mut, publisher)
+	topology, err := cluster.Instances(cfg)
+	if err != nil {
+		return fmt.Errorf("cannot read the topology of the cluster config to publish: %w",
+			err)
+	}
+
+	return check(topology)
 }
 
 // publishCtxValidateConfig validates a source configuration from the publish
@@ -139,21 +168,21 @@ func publishCtxValidateConfig(publishCtx PublishCtx, instance string) error {
 }
 
 // setInstanceConfig sets an instance configuration in the collected cluster
-// configuration and republishes it.
+// configuration and returns the result to publish.
 //
 // mut is a MutableConfig built from the target key's current bytes. The
 // function locates the instance, validates group/replicaset names, patches the
-// instance subtree, marshals the result, and publishes it.
+// instance subtree, and marshals the result.
 func setInstanceConfig(group, replicaset, instance string, instanceMap map[string]any,
-	mut *goconfig.MutableConfig, publisher sdkcluster.DataPublisher,
-) error {
+	mut *goconfig.MutableConfig,
+) ([]byte, error) {
 	snap := mut.Snapshot()
 
 	gname, rname, found := cluster.FindInstance(snap, instance)
 	if !found {
 		// Instance not found: resolve group/replicaset.
 		if replicaset == "" {
-			return fmt.Errorf("%w%q instance configuration",
+			return nil, fmt.Errorf("%w%q instance configuration",
 				errReplicasetNameIsNotSpecifiedForInstanceConfiguration, instance)
 		}
 
@@ -163,7 +192,7 @@ func setInstanceConfig(group, replicaset, instance string, instanceMap map[strin
 			group, ok = cluster.FindGroupByReplicaset(snap, replicaset)
 
 			if !ok {
-				return fmt.Errorf("%w%q replicaset",
+				return nil, fmt.Errorf("%w%q replicaset",
 					errFailedToDetermineTheGroupOfTheReplicaset, replicaset)
 			}
 		}
@@ -172,12 +201,12 @@ func setInstanceConfig(group, replicaset, instance string, instanceMap map[strin
 	if found {
 		// Instance already exists: validate group/replicaset names.
 		if replicaset != "" && replicaset != rname {
-			return fmt.Errorf("%w%q, have %q",
+			return nil, fmt.Errorf("%w%q, have %q",
 				errWrongReplicasetNameExpectedHave, rname, replicaset)
 		}
 
 		if group != "" && group != gname {
-			return fmt.Errorf("%w%q, have %q", errWrongGroupNameExpectedHave, gname, group)
+			return nil, fmt.Errorf("%w%q, have %q", errWrongGroupNameExpectedHave, gname, group)
 		}
 
 		group = gname
@@ -189,15 +218,15 @@ func setInstanceConfig(group, replicaset, instance string, instanceMap map[strin
 
 	err := mut.Set(keyPath, instanceMap)
 	if err != nil {
-		return fmt.Errorf("failed to set instance %q configuration: %w", instance, err)
+		return nil, fmt.Errorf("failed to set instance %q configuration: %w", instance, err)
 	}
 
 	afterSet := mut.Snapshot()
 
 	b, err := afterSet.MarshalYAML()
 	if err != nil {
-		return fmt.Errorf("marshal cluster config: %w", err)
+		return nil, fmt.Errorf("marshal cluster config: %w", err)
 	}
 
-	return publisher.Publish(0, b)
+	return b, nil
 }

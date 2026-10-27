@@ -24,6 +24,26 @@ var (
 
 const defaultEtcdTimeout = 3 * time.Second
 
+// storageKeys are the sections of a cluster config that point to the config
+// storage the rest of the cluster config is kept in.
+var storageKeys = []string{"config.etcd", "config.storage"}
+
+// StorageReference returns the section of cfg, the file part of a cluster
+// config, that points to a config storage, config.etcd or config.storage,
+// and false when it has neither: the cluster config is then the file
+// itself. A section without endpoints counts as well, since tarantool takes
+// it for one.
+func StorageReference(cfg goconfig.Config) (string, bool) {
+	for _, key := range storageKeys {
+		_, found := cfg.Lookup(goconfig.NewKeyPath(strings.ReplaceAll(key, ".", "/")))
+		if found {
+			return key, true
+		}
+	}
+
+	return "", false
+}
+
 // cfgGetString is a small helper that reads a string value at path from cfg.
 // Returns "" and no error when the path is not found.
 func cfgGetString(cfg goconfig.Config, path string) (string, error) {

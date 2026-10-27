@@ -722,7 +722,7 @@ func clusterConfigSource(commandContext *cmdcontext.CmdCtx, args []string, confi
 			"the whole application", errTopologySource, appName)
 	}
 
-	application, err := loadApp(commandContext, appName)
+	application, err := loadApp(commandContext, appName, false)
 	if err != nil {
 		return "", "", err
 	}
