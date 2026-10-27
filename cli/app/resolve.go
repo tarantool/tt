@@ -3,10 +3,12 @@ package app
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/tarantool/tt/v3/internal/instances"
+	"github.com/tarantool/tt/v3/internal/scope"
 )
 
 // Selection is the instances a command acts on in one application.
@@ -23,12 +25,12 @@ type Selection struct {
 // one Selection per application, in the order the targets first name them.
 // No targets select every instance of the project the command runs in.
 //
-// app:* and no target select every record of the description, which is what
-// runs on this host, not the whole topology of the cluster; selecting none
-// is an error, since a command that does nothing while reporting success
-// hides a mistake. app:inst must name a record of the description: an
-// instance only the topology knows runs on another host. A target given
-// twice selects its instance once.
+// app:* and no target select every instance of the description, which is
+// what runs on this host: the whole topology of the cluster only when "*"
+// stands for it. Selecting none is an error, since a command that does
+// nothing while reporting success hides a mistake. app:inst must name an
+// instance of the description: one only the topology knows runs on another
+// host. A target given twice selects its instance once.
 func Resolve(ctx context.Context, targets []Target, opts Options) ([]Selection, error) {
 	if len(targets) == 0 {
 		app, err := Load(ctx, "", opts)
@@ -76,14 +78,29 @@ func Resolve(ctx context.Context, targets []Target, opts Options) ([]Selection, 
 	return selections, nil
 }
 
-// selectAll selects every record of the description of app.
+// selectAll selects every instance of the description of app.
 func selectAll(app *App) ([]instances.Instance, error) {
-	if len(app.Instances) == 0 {
-		return nil, failf("%w: %s describes no instances", ErrNoInstances,
-			app.Pair.InstancesFile)
+	if len(app.Instances) > 0 {
+		return slices.Clone(app.Instances), nil
 	}
 
-	return slices.Clone(app.Instances), nil
+	pair := &app.Pair
+
+	switch {
+	case !app.wildcard:
+		return nil, failf("%w: %s describes no instances", ErrNoInstances,
+			pair.DescriptionFile())
+	case app.Config != nil:
+		return nil, failf("%w: %s describes no instances, and %q stands for those of "+
+			"the topology of %s, which declares none", ErrNoInstances,
+			pair.DescriptionFile(), instances.WildcardName, pair.ConfigFile)
+	default:
+		// Read by the best effort, the config could not be read.
+		return nil, failf("%w: %s describes no instances, and %q stands for those that "+
+			"have run in %s, as the cluster config cannot be read, and none has: %w",
+			ErrNoInstances, pair.DescriptionFile(), instances.WildcardName,
+			filepath.Join(app.Root, scope.RunDirName, app.Name), app.ConfigError)
+	}
 }
 
 // selectInstances selects the records of app that names name, each an
@@ -138,5 +155,5 @@ func notDescribedError(app *App, names []string, missing map[string]bool) error 
 	}
 
 	return failf("%w: %s of %q not in %s; %s", ErrInstanceNotFound,
-		strings.Join(quoted, ", "), app.Name, app.Pair.InstancesFile, described)
+		strings.Join(quoted, ", "), app.Name, app.Pair.DescriptionFile(), described)
 }

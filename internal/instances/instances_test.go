@@ -187,14 +187,15 @@ func TestParse(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			got, err := instances.Parse([]byte(test.input), appDir)
 			require.NoError(t, err)
+			assert.Nil(t, got.Wildcard)
 
 			if len(test.want) == 0 {
-				assert.Empty(t, got)
+				assert.Empty(t, got.Instances)
 
 				return
 			}
 
-			assert.Equal(t, test.want, got)
+			assert.Equal(t, test.want, got.Instances)
 		})
 	}
 }
@@ -211,9 +212,11 @@ func TestParseSignals(t *testing.T) {
 	}
 	for name, want := range valid {
 		t.Run(name, func(t *testing.T) {
-			got, err := instances.Parse(
+			desc, err := instances.Parse(
 				[]byte("a: {stop_signal: "+name+", logrotate_signal: "+name+"}\n"), appDir)
 			require.NoError(t, err)
+
+			got := desc.Instances
 			require.Len(t, got, 1)
 			assert.Equal(t, want, got[0].StopSignal)
 			assert.Equal(t, want, got[0].LogrotateSignal)
@@ -260,12 +263,12 @@ func TestParseKeepsOrder(t *testing.T) {
 		}
 	}
 
-	got, err := instances.Parse([]byte(input.String()), appDir)
+	desc, err := instances.Parse([]byte(input.String()), appDir)
 	require.NoError(t, err)
 
-	names := make([]string, 0, len(got))
-	for i := range got {
-		names = append(names, got[i].Name)
+	names := make([]string, 0, len(desc.Instances))
+	for i := range desc.Instances {
+		names = append(names, desc.Instances[i].Name)
 	}
 
 	assert.Equal(t, want, names)
@@ -517,7 +520,7 @@ func TestParseErrors(t *testing.T) {
 			got, err := instances.Parse([]byte(test.input), appDir)
 			require.ErrorIs(t, err, instances.ErrInvalid)
 			require.EqualError(t, err, test.want)
-			assert.Nil(t, got)
+			assert.Zero(t, got)
 		})
 	}
 }
@@ -546,7 +549,7 @@ func TestParseRelativeAppDir(t *testing.T) {
 			got, err := instances.Parse([]byte("a:\n"), dir)
 			require.Error(t, err)
 			require.NotErrorIs(t, err, instances.ErrInvalid)
-			assert.Nil(t, got)
+			assert.Zero(t, got)
 		})
 	}
 }
@@ -601,8 +604,10 @@ func TestParseRunningFixtures(t *testing.T) {
 			data, err := os.ReadFile(path)
 			require.NoError(t, err)
 
-			got, err := instances.Parse(data, appDir)
+			desc, err := instances.Parse(data, appDir)
 			require.NoError(t, err)
+
+			got := desc.Instances
 			require.NotEmpty(t, got)
 
 			for i := range got {
@@ -623,12 +628,182 @@ func TestErrorMessage(t *testing.T) {
 		{err: instances.Error{Line: 3, Msg: "m"}, want: "line 3: m"},
 		{err: instances.Error{Instance: "a", Field: "f", Msg: "m"}, want: `instance "a": m`},
 		{err: instances.Error{Line: 3, Instance: "a", Msg: "m"}, want: `line 3: instance "a": m`},
+		{err: instances.Error{Line: 3, Instance: "*", Msg: "m"}, want: `line 3: record "*": m`},
 	}
 
 	for _, test := range cases {
 		t.Run(test.want, func(t *testing.T) {
 			assert.Equal(t, test.want, test.err.Error())
 			assert.ErrorIs(t, &test.err, instances.ErrInvalid)
+		})
+	}
+}
+
+// TestParseWildcard pins that "*" comes apart from the records that name
+// instances, with its fields and its place among them, in either quoting.
+func TestParseWildcard(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		names []string // The names of Description.Instances.
+		want  instances.Wildcard
+	}{
+		{
+			name:  "alone",
+			input: "\"*\":\n",
+			names: []string{},
+			want:  instances.Wildcard{At: 0, Fields: bare("*")},
+		},
+		{
+			name:  "single quotes and an empty mapping",
+			input: "'*': {}\n",
+			names: []string{},
+			want:  instances.Wildcard{At: 0, Fields: bare("*")},
+		},
+		{
+			name: "between records",
+			input: "router-1:\n\"*\":\nworker-1: {binary: ./bin/worker}\n" +
+				"legacy-1: {script: x.lua}\n",
+			names: []string{"router-1", "worker-1", "legacy-1"},
+			want:  instances.Wildcard{At: 1, Fields: bare("*")},
+		},
+		{
+			name:  "last",
+			input: "a:\nb:\n\"*\":\n",
+			names: []string{"a", "b"},
+			want:  instances.Wildcard{At: 2, Fields: bare("*")},
+		},
+		{
+			name: "the fields of a Tarantool instance",
+			input: "\"*\":\n  restart: on-failure\n  stop_signal: INT\n  stop_timeout: 10s\n" +
+				"  env: {A: b}\n",
+			names: []string{},
+			want: instances.Wildcard{At: 0, Fields: instances.Instance{
+				Name:        "*",
+				Env:         map[string]string{"A": "b"},
+				StopSignal:  syscall.SIGINT,
+				StopTimeout: 10 * time.Second,
+				Restart:     instances.RestartOnFailure,
+			}},
+		},
+		{
+			// The parser accepts these in every record; whoever builds the
+			// instances refuses those a Tarantool instance cannot have.
+			name:  "the fields of an external process",
+			input: "\"*\": {workdir: var, args: [-x], logrotate_signal: HUP}\n",
+			names: []string{},
+			want: instances.Wildcard{At: 0, Fields: instances.Instance{
+				Name:            "*",
+				Args:            []string{"-x"},
+				Workdir:         filepath.Join(appDir, "var"),
+				Restart:         instances.RestartNo,
+				LogrotateSignal: syscall.SIGHUP,
+			}},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := instances.Parse([]byte(test.input), appDir)
+			require.NoError(t, err)
+
+			names := make([]string, 0, len(got.Instances))
+			for i := range got.Instances {
+				names = append(names, got.Instances[i].Name)
+			}
+
+			assert.Equal(t, test.names, names, `"*" is no instance`)
+			require.NotNil(t, got.Wildcard)
+			assert.Equal(t, test.want, *got.Wildcard)
+			assert.Equal(t, instances.KindCluster, got.Wildcard.Fields.Kind())
+		})
+	}
+}
+
+// TestWildcardInstance checks the instances "*" stands for get its fields
+// under their names, and share none of them with each other.
+func TestWildcardInstance(t *testing.T) {
+	desc, err := instances.Parse([]byte("\"*\": {restart: always, env: {A: b}, "+
+		"stop_timeout: 5s}\n"), appDir)
+	require.NoError(t, err)
+	require.NotNil(t, desc.Wildcard)
+
+	first := desc.Wildcard.Instance("storage-1")
+	second := desc.Wildcard.Instance("storage-2")
+
+	assert.Equal(t, instances.Instance{
+		Name:        "storage-1",
+		Env:         map[string]string{"A": "b"},
+		StopTimeout: 5 * time.Second,
+		Restart:     instances.RestartAlways,
+	}, first)
+	assert.Equal(t, "storage-2", second.Name)
+
+	first.Env["A"] = "c"
+
+	assert.Equal(t, "b", second.Env["A"])
+	assert.Equal(t, "b", desc.Wildcard.Fields.Env["A"])
+	assert.Equal(t, "*", desc.Wildcard.Fields.Name)
+}
+
+func TestParseWildcardErrors(t *testing.T) {
+	// hint is what the message about an unquoted * ends with.
+	const hint = `did not find expected alphabetic or numeric character: an unquoted * ` +
+		`starts a YAML alias; write "*": in quotes for the instances of the topology`
+
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "binary",
+			input: "\"*\":\n  binary: ./bin/worker\n",
+			want: `line 2: record "*": field "binary" is not allowed: "*" stands for ` +
+				"Tarantool instances configured by the cluster config; an instance that " +
+				"is an external process is declared by its name",
+		},
+		{
+			name:  "script",
+			input: "\"*\": {script: init.lua, restart: always}\n",
+			want: `line 1: record "*": field "script" is not allowed: "*" stands for ` +
+				"Tarantool instances configured by the cluster config; an instance that " +
+				"runs its script is declared by its name",
+		},
+		{
+			name:  "declared twice",
+			input: "\"*\":\na:\n'*': {}\n",
+			want:  `line 3: record "*": the record is declared twice, first at line 1`,
+		},
+		{
+			name:  "a problem in a field",
+			input: "\"*\": {restart: sometimes}\n",
+			want: `line 1: record "*": field "restart": "sometimes" is not one of no, ` +
+				"on-failure and always",
+		},
+		{name: "unquoted on the first line", input: "*:\n", want: hint},
+		{name: "unquoted with a record", input: "*: {}\n", want: hint},
+		{name: "unquoted with a space", input: "* :\n", want: hint},
+		{
+			name:  "unquoted after a comment",
+			input: "# every instance\nrouter-1:\n*:\n  restart: always\n",
+			want:  "line 3: " + hint,
+		},
+		{name: "unquoted in a flow mapping", input: "{a: {}, *: {}}\n", want: hint},
+		{
+			// An alias without a name elsewhere gets no hint: it is no "*".
+			name:  "an alias without a name in a value",
+			input: "a: *\n",
+			want:  "did not find expected alphabetic or numeric character",
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := instances.Parse([]byte(test.input), appDir)
+			require.ErrorIs(t, err, instances.ErrInvalid)
+			require.EqualError(t, err, test.want)
+			assert.Zero(t, got)
 		})
 	}
 }

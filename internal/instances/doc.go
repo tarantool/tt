@@ -36,6 +36,31 @@
 // instances start in and the order status lists them in follow it, so
 // neither may depend on the iteration order of a map.
 //
+// # The record "*"
+//
+// The record named "*" stands for every instance of the topology of the
+// cluster config that no other record names, so that an instance added to
+// the config runs without being repeated in the description:
+//
+//	"*":
+//	  restart: on-failure
+//	router-1:
+//	  restart: always
+//	worker-1:
+//	  binary: ./bin/worker
+//
+// Its instances are Tarantool instances configured by the cluster config,
+// each with the fields of "*"; binary and script, which would make them
+// something else, are refused in it. A record naming one of them replaces
+// "*" for it whole: router-1 above restarts always and takes nothing from
+// "*". Which instances "*" stands for is up to whoever reads the config with
+// the description, which is why Parse returns "*" apart from the records
+// that name instances (Description.Wildcard), with the place it takes among
+// them: whoever iterates the instances cannot take "*" for one.
+//
+// "*" has to be quoted. Unquoted, a * starts an alias, which YAML refuses
+// without a name; the message of that error points at the quotes.
+//
 // # Strictness
 //
 // Whatever the parser does not understand is an error, never dropped: an
@@ -82,9 +107,10 @@
 //
 // # Out of scope
 //
-// The parser reads no files. Whether the names of the Tarantool instances
-// are in the topology of the cluster config is checked by whoever loads the
-// config together with the description. Every field is accepted in every
+// The parser reads no files and knows no topology. Whether the names of the
+// Tarantool instances are in the topology of the cluster config, and which
+// instances "*" stands for, is up to whoever loads the config together with
+// the description. Every field is accepted in every
 // record, and fields a record leaves out stay zero, except restart: which
 // fields an instance of each kind honours, and the defaults for the stop
 // signal and the stop timeout, belong to whoever builds its supervisor.Spec,

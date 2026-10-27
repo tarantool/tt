@@ -35,9 +35,12 @@ var (
 	// ErrAppNotFound is an application missing from the scope it was looked
 	// for in.
 	ErrAppNotFound = errors.New("application not found")
-	// ErrNoPair is an application without the pair it is to run from.
+	// ErrNoPair is an application without the pair it is to run from:
+	// neither file of it is there.
 	ErrNoPair = errors.New("no instances description")
-	// ErrIncompletePair is a pair with one of its two files missing.
+	// ErrIncompletePair is a pair whose description needs the cluster
+	// config it lacks: for a Tarantool instance configured by it, or for
+	// "*".
 	ErrIncompletePair = errors.New("incomplete pair")
 	// ErrTemplateConflict is --template given for an application that runs
 	// from the pair of the host.
@@ -52,7 +55,7 @@ var (
 	// does not declare.
 	ErrInstanceNotFound = errors.New("instance not found")
 	// ErrNoInstances is a target that selects every instance of a
-	// description that declares none.
+	// description that declares none, "*" standing for none either.
 	ErrNoInstances = errors.New("no instances")
 )
 

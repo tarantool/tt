@@ -37,6 +37,8 @@ var fuzzSeeds = []string{
 	"'': {}\n..:\na/b:\n~:\n? [a]\n: {}\n",
 	"a: {env: {A: !!binary aGk=, '': x, B=C: d}, args: [1, ~, [x]], stop_timeout: 0s}\n",
 	"a: {binary: a, script: b, stop_signal: sigterm, restart: false}\na:\n",
+	"a:\n\"*\": {restart: always, env: {A: b}}\nb: {binary: w}\n",
+	"*:\n'*': {script: x}\n\"*\":\n",
 }
 
 // FuzzParse checks Parse neither panics nor returns a result that breaks
@@ -51,7 +53,7 @@ func FuzzParse(f *testing.F) {
 		got, err := instances.Parse(data, appDir)
 		if err != nil {
 			require.ErrorIs(t, err, instances.ErrInvalid)
-			require.Nil(t, got)
+			require.Zero(t, got)
 
 			return
 		}
@@ -60,15 +62,25 @@ func FuzzParse(f *testing.F) {
 		require.NoError(t, err)
 		require.Equal(t, got, again, "the result is not deterministic")
 
-		names := make([]string, 0, len(got))
-		for i := range got {
-			checkInstance(t, &got[i])
+		names := make([]string, 0, len(got.Instances))
+		for i := range got.Instances {
+			checkInstance(t, &got.Instances[i])
+			assert.NotEqual(t, instances.WildcardName, got.Instances[i].Name,
+				`"*" is among the instances`)
 
-			names = append(names, got[i].Name)
+			names = append(names, got.Instances[i].Name)
 		}
 
 		slices.Sort(names)
-		assert.Len(t, slices.Compact(names), len(got), "a name is declared twice")
+		assert.Len(t, slices.Compact(names), len(got.Instances), "a name is declared twice")
+
+		if got.Wildcard != nil {
+			assert.GreaterOrEqual(t, got.Wildcard.At, 0)
+			assert.LessOrEqual(t, got.Wildcard.At, len(got.Instances))
+			assert.Equal(t, instances.WildcardName, got.Wildcard.Fields.Name)
+			assert.Equal(t, instances.KindCluster, got.Wildcard.Fields.Kind())
+			checkInstance(t, &got.Wildcard.Fields)
+		}
 	})
 }
 

@@ -203,7 +203,7 @@ func resolveAppTarget(cmdCtx *cmdcontext.CmdCtx, target string, config pairConfi
 		return inst.InstName == instName
 	}) {
 		return nil, nil, "", fmt.Errorf("%w: %q of %q not in %s", app.ErrInstanceNotFound,
-			instName, application.Name, application.Pair.InstancesFile)
+			instName, application.Name, application.Pair.DescriptionFile())
 	}
 
 	return application, insts, instName, nil

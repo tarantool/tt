@@ -152,7 +152,7 @@ func checkTemplate(dir, name, projectDir string) error {
 		return fmt.Errorf("%s: %w: %w", label, errBadTemplate, err)
 	}
 
-	records, err := instances.Parse(data, projectDir)
+	desc, err := instances.Parse(data, projectDir)
 	if err != nil {
 		return templateParseError(label, err)
 	}
@@ -161,20 +161,36 @@ func checkTemplate(dir, name, projectDir string) error {
 		return nil
 	}
 
-	var configured []string
-
-	for _, record := range records {
-		if record.Kind() == instances.KindCluster {
-			configured = append(configured, fmt.Sprintf("%q", record.Name))
-		}
-	}
-
+	configured := clusterRecords(desc)
 	if len(configured) > 0 {
 		return fmt.Errorf("%s: %w: missing %s to configure its Tarantool instances %s",
 			label, errBadTemplate, templateConfigFile, strings.Join(configured, ", "))
 	}
 
 	return nil
+}
+
+// clusterRecords returns the quoted names of the records of desc that need
+// the cluster config, in the order of the description: the Tarantool
+// instances it configures, and "*", which stands for its topology.
+func clusterRecords(desc instances.Description) []string {
+	var names []string
+
+	for index, record := range desc.Instances {
+		if desc.Wildcard != nil && desc.Wildcard.At == index {
+			names = append(names, fmt.Sprintf("%q", instances.WildcardName))
+		}
+
+		if record.Kind() == instances.KindCluster {
+			names = append(names, fmt.Sprintf("%q", record.Name))
+		}
+	}
+
+	if desc.Wildcard != nil && desc.Wildcard.At == len(desc.Instances) {
+		names = append(names, fmt.Sprintf("%q", instances.WildcardName))
+	}
+
+	return names
 }
 
 // checkTemplateFile reports whether path is a regular file, following links.

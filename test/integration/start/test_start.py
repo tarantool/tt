@@ -273,6 +273,86 @@ def test_start_script_pair_needs_config(tt, tt_app):
 
 
 ################################################################
+# The whole topology
+
+
+def started_instances(out):
+    """Return the instances tt instance start reports starting, in order."""
+    return re.findall(r"Starting an instance \[(\S+)\]", out)
+
+
+@pytest.mark.tt_app(**tt_multi_inst_app)
+def test_start_config_alone(tt, tt_app):
+    # A template of config.yaml alone marks the project and runs every
+    # instance of its topology, as the description "*": {} would, in the
+    # order of their names.
+    os.remove(tt_app.path(utils.instances_file))
+    insts = ["app:master", "app:replica", "app:router"]
+
+    rc, out = tt.exec("instance", "start")
+    assert rc == 0
+    assert started_instances(out) == insts
+    assert utils.wait_files(5, tt_helper.pid_files(tt_app, insts))
+
+    status = tt_helper.status(tt)
+    assert sorted(status) == insts
+    for inst in insts:
+        assert status[inst]["STATUS"] == "RUNNING"
+
+    rc, out = tt.exec("instance", "stop", "-y")
+    assert rc == 0
+    status = tt_helper.status(tt)
+    for inst in insts:
+        assert status[inst]["STATUS"] == "NOT RUNNING"
+        assert not os.path.exists(tt_app.run_path(inst, utils.pid_file))
+
+
+tt_wildcard_app = dict(
+    app_path="wildcard_app",
+    app_name="app",
+    instances=["a-master", "b-master", "worker", "replica"],
+    post_start=tt_helper.post_start_base,
+)
+
+
+def read_flavour(tt_app, name):
+    """Return what the instance name of wildcard_app wrote of its FLAVOUR."""
+    return read_log(tt_app.path(f"flavour-{name}"))
+
+
+@pytest.mark.tt_app(**tt_wildcard_app)
+def test_start_wildcard(tt, tt_app):
+    # "*" stands for the instances of the topology the description does not
+    # name: they start in its place, in the order of their names, with its
+    # env; replica, which the description names, has the env of its own
+    # record and none of "*"; the external process runs next to them.
+    rc, out = tt.exec("instance", "start")
+    assert rc == 0
+    assert started_instances(out) == tt_app.instances
+    assert utils.wait_files(5, tt_helper.pid_files(tt_app, tt_app.instances))
+
+    flavours = {"a-master": "wildcard", "b-master": "wildcard", "replica": "own"}
+    assert utils.wait_event(
+        5,
+        lambda: all(read_flavour(tt_app, name) != "" for name in flavours),
+    )
+    for name, flavour in flavours.items():
+        assert read_flavour(tt_app, name) == flavour
+
+    worker_log = tt_app.log_path("app:worker", utils.log_file)
+    assert utils.wait_event(5, lambda: "worker started: --name worker" in read_log(worker_log))
+
+    status = tt_helper.status(tt)
+    for inst in tt_app.instances:
+        assert status[inst]["STATUS"] == "RUNNING"
+
+    # An instance only the topology would know is no instance here.
+    rc, out = tt.exec("instance", "start", "app:c-master")
+    assert rc == 1
+    assert 'instance not found: "c-master" of "app"' in out
+
+
+################################################################
 # Foreground
 
 

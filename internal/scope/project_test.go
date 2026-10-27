@@ -63,9 +63,18 @@ func TestFindProject(t *testing.T) {
 		{
 			name: "any template name",
 			files: map[string]string{
-				"app/.templates/staging/config.yaml":       "",
+				"app/.templates/staging/notes.txt":         "",
 				"app/.templates/production/config.yaml":    "",
 				"app/.templates/production/instances.yaml": "router-1:\n",
+			},
+			start: "app/src", want: "app",
+		},
+		{
+			// A template of the cluster config alone runs its whole
+			// topology.
+			name: "template of config alone",
+			files: map[string]string{
+				"app/.templates/default/config.yaml": "",
 			},
 			start: "app/src", want: "app",
 		},
@@ -127,8 +136,9 @@ func TestFindProject(t *testing.T) {
 				"app/tt.yaml":                          "",
 				"app/instances.yaml":                   "",
 				"app/.templates/instances.yaml":        "",
+				"app/.templates/config.yaml":           "",
 				"app/.templates/default/instances.yml": "",
-				"app/.templates/default/config.yaml":   "",
+				"app/.templates/default/config.yml":    "",
 			},
 			start: "app",
 		},

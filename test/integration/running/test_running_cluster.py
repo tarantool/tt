@@ -247,8 +247,17 @@ def test_running_base_functionality_error_cases(tt_cmd, tmpdir_with_cfg):
     assert "incomplete pair" in start_output
     os.rename(config_path + ".removed", config_path)
 
-    # Remove the instances description: the directory is no project then.
+    # Remove the instances description: the config alone is the pair then,
+    # which runs its whole topology, and an instance it does not declare is
+    # still not found.
     os.remove(os.path.join(app_path, instances_file))
+    unknown_cmd = [tt_cmd, "instance", "start", f"{app_name}:unknown"]
+    rc, start_output = run_command_and_get_output(unknown_cmd, cwd=app_path)
+    assert rc == 1
+    assert f'instance not found: "unknown" of "{app_name}"' in start_output
+
+    # Remove the config as well: the directory is no project then.
+    os.remove(config_path)
     rc, start_output = run_command_and_get_output(start_cmd, cwd=app_path)
     assert rc == 1
     assert "application not found" in start_output

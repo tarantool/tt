@@ -1,0 +1,12 @@
+# "*" stands for the instances of the topology the description does not
+# name: a-master and b-master, which start in its place, in the order of
+# their names. replica is named, and takes nothing of "*".
+"*":
+  env:
+    FLAVOUR: wildcard
+worker:
+  binary: ./worker.sh
+  args: [--name, worker]
+replica:
+  env:
+    FLAVOUR: own
