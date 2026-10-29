@@ -15,33 +15,13 @@ env:
   PYTHON_VERSION: '3.10'
 
 jobs:
-  check-commit-msg:
-    if: contains(github.event.pull_request.labels.*.name, 'full-commit-check')
+  # Run project-wide lint and consistency checks on every push and pull request.
+  lint:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Check commit messages
-        uses: ./.github/actions/check-commit-msg
-
-  static-code-check:
-    if: contains(github.event.pull_request.labels.*.name, 'full-commit-check')
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@master
-        with:
-          fetch-depth: 0
-
-      - name: Static code check
-        uses: ./.github/actions/static-code-check
-
-  # Run the single project-wide Go lint ruleset on every push and pull request.
-  golang-lint:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
 
       - name: Setup Go
         uses: actions/setup-go@v7
@@ -49,10 +29,7 @@ jobs:
           go-version: '${{ env.GO_VERSION }}'
 
       - name: Setup Mage
-        run: |
-          git clone https://github.com/magefile/mage
-          cd mage
-          go run bootstrap.go
+        run: go install github.com/magefile/mage@v1.15.0
         shell: bash
 
       # Linter releases add checks, so keep the CI version in sync with the
@@ -61,9 +38,43 @@ jobs:
         run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
         shell: bash
 
-      - name: Golint
-        run: mage lint:golang
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '${{ env.PYTHON_VERSION }}'
+
+      - name: Install Python linters
         shell: bash
+        run: python3 -m pip install -r <(grep -E '^(ruff|codespell|tomli)==' test/requirements.txt)
+
+      - name: Setup stringer
+        run: go install golang.org/x/tools/cmd/stringer@v0.52.0
+
+      - name: Go lint
+        run: mage lint:golang
+
+      - name: Python lint and formatting
+        run: mage lint:python
+
+      - name: Spelling
+        run: mage codespell
+
+      - name: Check generated sources
+        run: |
+          mage generate
+          git diff --exit-code
+
+      - name: Check Go modules
+        run: mage lint:modules
+
+      - name: Build tt for license checks
+        run: mage build
+
+      - name: Install license checker
+        run: go install github.com/uw-labs/lichen@v0.1.7
+
+      - name: License checker
+        run: ci/retry-network.sh mage checklicenses
 
   tests-ce:
     if: |
@@ -88,13 +99,6 @@ jobs:
         uses: ./.github/actions/prepare-ce-test-env
         with:
           tarantool-version: '${{ matrix.tarantool-version }}'
-
-      - name: License checker
-        if: matrix.suite != 'backup'
-        run: |
-          go install github.com/uw-labs/lichen@latest
-          mage checklicenses
-        shell: bash
 
       - name: Unit tests
         if: matrix.suite != 'backup'

@@ -32,7 +32,11 @@ def run_interactive_switch(cmd, cwd, answers):
     # Each menu owns an input reader; send answers when their own prompts open.
     output = b""
     with subprocess.Popen(
-        cmd, cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        cmd,
+        cwd=cwd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
     ) as process:
         for prompt, answer in answers:
             screen = b""
@@ -281,7 +285,9 @@ def test_switch_interactive_raw_version(tt_cmd, tmp_path, version):
     selected = install_version(root, "tt", version)
     cmd = [tt_cmd, "binary", "switch", "tt"]
     rc, output = run_interactive_switch(
-        cmd, tmp_path, [("Select tt edition", "\n"), ("Select version", "\n")],
+        cmd,
+        tmp_path,
+        [("Select tt edition", "\n"), ("Select version", "\n")],
     )
 
     assert rc == 0
@@ -297,7 +303,9 @@ def test_switch_interactive_preserves_colliding_release_identity(tt_cmd, tmp_pat
     (root / "bin" / "tt").symlink_to(selected / "tt")
     cmd = [tt_cmd, "binary", "switch", "tt"]
     rc, output = run_interactive_switch(
-        cmd, tmp_path, [("Select tt edition", "\n"), ("Select version", "\x1b[B\n")],
+        cmd,
+        tmp_path,
+        [("Select tt edition", "\n"), ("Select version", "\x1b[B\n")],
     )
 
     assert rc == 0

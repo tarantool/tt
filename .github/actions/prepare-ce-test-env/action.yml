@@ -34,10 +34,7 @@ runs:
         python-version: '${{ env.PYTHON_VERSION }}'
 
     - name: Setup Mage
-      run: |
-        git clone https://github.com/magefile/mage
-        cd mage
-        go run bootstrap.go
+      run: go install github.com/magefile/mage@v1.15.0
       shell: bash
 
     - name: Install build requirements

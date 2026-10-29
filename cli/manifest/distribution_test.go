@@ -260,11 +260,12 @@ func TestDistributionParseErrors(t *testing.T) {
 		"unknown field":   minimalDistribution + "unknown = 1\n",
 		"bad short form":  minimalDistribution + "[dependencies]\na = \"github.com/a/b@\"\n",
 		"inline non-text": minimalDistribution + "[dependencies]\na = { module = 1 }\n",
-		"inline unknown":  minimalDistribution + "[dependencies]\na = { modul = \"x\" }\n",
-		"no kind":         "manifest_version = \"0.1\"\n",
-		"app kind":        "manifest_version = \"0.1\"\nmanifest_kind = \"app\"\n",
-		"unknown kind":    "manifest_version = \"0.1\"\nmanifest_kind = \"plugin\"\n",
-		"major":           "manifest_version = \"1.0\"\nmanifest_kind = \"tt-distribution\"\n",
+		"inline unknown": minimalDistribution +
+			"[dependencies]\na = { modul = \"x\" }\n", // codespell:ignore modul
+		"no kind":      "manifest_version = \"0.1\"\n",
+		"app kind":     "manifest_version = \"0.1\"\nmanifest_kind = \"app\"\n",
+		"unknown kind": "manifest_version = \"0.1\"\nmanifest_kind = \"plugin\"\n",
+		"major":        "manifest_version = \"1.0\"\nmanifest_kind = \"tt-distribution\"\n",
 	}
 
 	for name, src := range cases {

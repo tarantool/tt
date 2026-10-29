@@ -1,6 +1,7 @@
 [tool.codespell]
 skip = 'go.sum, **/go.sum, **/third_party, tarantool-*, mage'
-ignore-words-list = ["fo"]
+# Keep API names, GOST, the crash-test fixture and the accepted spelling "unparseable".
+ignore-words-list = ["atleast", "crasher", "fo", "gost", "unparseable"]
 count = false
 quiet-level = 3
 

@@ -124,8 +124,8 @@ func newestInstanceSchema() ([]byte, error) {
 	}
 
 	for key, value := range replicaset {
-		_, onTop := top[key]
-		if !onTop && key != "instances" {
+		_, inTop := top[key]
+		if !inTop && key != "instances" {
 			top[key] = value
 		}
 	}
