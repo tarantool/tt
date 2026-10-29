@@ -34,12 +34,14 @@ jobs:
   aeon-pb:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # Only go is needed: the script runs buf and the plugins with go run
       # and switches to the Go toolchain it pins.
       - name: Setup Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '${{ env.GO_VERSION }}'
           # Nothing from the tt module cache is used here.

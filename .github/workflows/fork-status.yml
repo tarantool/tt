@@ -1,0 +1,44 @@
+name: Fork statuses
+
+# A fork pull request runs CI with a read-only token, so its run cannot
+# publish ci-ok or full-ok. When such a run completes, including a run that
+# waits for approval, this workflow publishes the status from its ce-result
+# job. GitHub starts workflow_run only from the default branch, so the code
+# here and the ci/status.py it loads are trusted; the fork is only read
+# through the API.
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers] -- Never checks out the fork; reads its run through the API.
+    workflows: [CI, Full CI]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: >-
+      ${{ github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name != github.repository }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      statuses: write
+    # The same group as the status jobs of the workflow, so a fork status and
+    # a push status of one commit are never published at the same time.
+    concurrency:
+      group: ${{ github.event.workflow_run.name }}-status-${{ github.event.workflow_run.head_sha }}
+      cancel-in-progress: false
+    steps:
+      # Load only the status helper from the trusted workflow revision.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+          sparse-checkout: ci/status.py
+          sparse-checkout-cone-mode: false
+      - name: Publish the status of the fork run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 ci/status.py --fork-run

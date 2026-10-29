@@ -2,8 +2,14 @@ name: "Prepare test environment with Tarantool CE"
 description: "Prepares test environment with Tarantool CE"
 
 inputs:
+  build-tt:
+    description: Build tt when no binary artifact has been supplied
+    default: 'true'
+  cache:
+    description: Enable Go caching
+    default: 'true'
   tarantool-version:
-    description: Tarantool CE version to install
+    description: Tarantool CE version, or min or latest from ci/tarantool-versions.env
     required: true
   skip-tarantool-install:
     description: Whether to skip tarantool installation
@@ -18,12 +24,14 @@ runs:
   using: "composite"
   steps:
     - name: Setup Go
-      uses: actions/setup-go@v7
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: '${{ env.GO_VERSION }}'
+        cache: ${{ inputs.cache == 'true' }}
+        cache-dependency-path: '**/go.sum'
 
     - name: Setup python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
       with:
         python-version: '${{ env.PYTHON_VERSION }}'
 
@@ -52,18 +60,37 @@ runs:
         unshare -r -n true
       shell: bash
 
+    - name: Resolve the Tarantool version
+      id: version
+      env:
+        REQUESTED: ${{ inputs.tarantool-version }}
+      run: |
+        version=$(ci/tarantool-version.sh ce "$REQUESTED")
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+      shell: bash
+
+    # download.tarantool.org times out now and then: try once more.
     - name: Install Tarantool
+      id: tarantool
       if: |
         inputs.skip-tarantool-install == 'false'
-      uses: tarantool/setup-tarantool@v3
+      continue-on-error: true
+      uses: tarantool/setup-tarantool@8b72738988f4b0ce0aac18ffd060756871197ec0 # v3
       with:
-        tarantool-version: '${{ inputs.tarantool-version }}'
+        tarantool-version: '${{ steps.version.outputs.version }}'
+
+    - name: Install Tarantool, second attempt
+      if: steps.tarantool.outcome == 'failure'
+      uses: tarantool/setup-tarantool@8b72738988f4b0ce0aac18ffd060756871197ec0 # v3
+      with:
+        tarantool-version: '${{ steps.version.outputs.version }}'
 
     - name: Install etcd
-      uses: ./.github/actions/setup-etcd
+      uses: ./.github/actions/setup-etcd # zizmor: ignore[self-repository] -- Test the checked-out revision.
       if: ${{ inputs.skip-etcd-install == 'false' }}
 
     - name: Build tt
+      if: inputs.build-tt == 'true'
       run: mage build
       shell: bash
 
