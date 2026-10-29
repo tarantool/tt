@@ -1,7 +1,16 @@
 name: "Prepare test environment with Tarantool EE"
-description: "Prepares test environment with the latest stable Tarantool 3 EE SDK"
+description: "Prepares test environment with a stable Tarantool 3 EE SDK"
 
 inputs:
+  build-tt:
+    description: Build tt when no binary artifact has been supplied
+    default: 'true'
+  cache:
+    description: Enable Go caching
+    default: 'true'
+  tarantool-version:
+    description: SDK series, or min or latest from ci/tarantool-versions.env
+    default: latest
   ee-username:
     description: Customer-zone username
     required: true
@@ -17,12 +26,14 @@ runs:
   using: "composite"
   steps:
     - name: Setup Go
-      uses: actions/setup-go@v7
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: '${{ env.GO_VERSION }}'
+        cache: ${{ inputs.cache == 'true' }}
+        cache-dependency-path: '**/go.sum'
 
     - name: Setup Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
       with:
         python-version: '${{ env.PYTHON_VERSION }}'
 
@@ -47,11 +58,51 @@ runs:
       shell: bash
 
     - name: Build tt
+      if: inputs.build-tt == 'true'
       run: mage build
       shell: bash
 
-    - name: Install the latest stable Tarantool 3 EE SDK
+    # Resolve the newest stable SDK of the series first, so that every job
+    # tests the same SDK and only a new SDK is downloaded again.
+    - name: Resolve the EE SDK
+      id: sdk
       env:
+        REQUESTED: ${{ inputs.tarantool-version }}
+        EE_USERNAME: ${{ inputs.ee-username }}
+        EE_PASSWORD: ${{ inputs.ee-password }}
+      run: |
+        series=$(ci/tarantool-version.sh ee "$REQUESTED")
+        umask 077
+        credentials=$(mktemp)
+        trap 'rm -f "$credentials"' EXIT
+        printf '%s\n%s\n' "$EE_USERNAME" "$EE_PASSWORD" > "$credentials"
+        # --version takes a release directory such as 3.5, not a major
+        # version, so list every SDK and pick the series here.
+        ./tt binary search tarantool-sdk --credentials-file "$credentials" \
+          > "$RUNNER_TEMP/sdk-search.txt"
+        sdk=$(awk -v prefix="gc64-$series." \
+          'index($1, prefix) == 1 && $1 ~ /^gc64-[0-9]+\.[0-9]+\.[0-9]+-[0-9]+-r[0-9]+$/ {print $1}' \
+          "$RUNNER_TEMP/sdk-search.txt" | sort -V | tail -n 1)
+        if [ -z "$sdk" ]; then
+          cat "$RUNNER_TEMP/sdk-search.txt"
+          echo "No stable EE SDK found in series $series" >&2
+          exit 1
+        fi
+        echo "EE SDK $series: $sdk" | tee -a "$GITHUB_STEP_SUMMARY"
+        echo "version=$sdk" >> "$GITHUB_OUTPUT"
+      shell: bash
+
+    - name: Restore the EE SDK
+      id: cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/tt-ee-sdk
+        key: tarantool-sdk-${{ steps.sdk.outputs.version }}-${{ runner.os }}-${{ runner.arch }}
+
+    - name: Install the EE SDK
+      if: steps.cache.outputs.cache-hit != 'true'
+      env:
+        SDK: ${{ steps.sdk.outputs.version }}
         EE_USERNAME: ${{ inputs.ee-username }}
         EE_PASSWORD: ${{ inputs.ee-password }}
         TT_USER_ROOT: ${{ runner.temp }}/tt-ee-sdk
@@ -60,14 +111,21 @@ runs:
         credentials=$(mktemp)
         trap 'rm -f "$credentials"' EXIT
         printf '%s\n%s\n' "$EE_USERNAME" "$EE_PASSWORD" > "$credentials"
-        ./tt binary install tarantool-sdk 3 --scope user --credentials-file "$credentials"
+        ./tt binary install tarantool-sdk "$SDK" --scope user --credentials-file "$credentials"
+      shell: bash
+
+    - name: Use the EE SDK
+      env:
+        TT_USER_ROOT: ${{ runner.temp }}/tt-ee-sdk
+      # Only the runner-owned installation directory is exported.
+      run: | # zizmor: ignore[github-env]
         "$TT_USER_ROOT/bin/tarantool" --version
         echo "$TT_USER_ROOT/bin" >> "$GITHUB_PATH"
         echo "TT_CLI_TARANTOOL_PREFIX=$TT_USER_ROOT" >> "$GITHUB_ENV"
       shell: bash
 
     - name: Install etcd
-      uses: ./.github/actions/setup-etcd
+      uses: ./.github/actions/setup-etcd # zizmor: ignore[self-repository] -- Test the checked-out revision.
       if: ${{ inputs.skip-etcd-install == 'false' }}
 
     - name: Install test requirements

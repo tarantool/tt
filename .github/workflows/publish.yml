@@ -21,28 +21,31 @@ jobs:
   validate-tag:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           ref: 'master'
           fetch-depth: 0
         if: startsWith(github.ref, 'refs/tags')
 
       - name: Validation
-        run: git branch -r --contains ${{ github.ref }} | grep "origin/master"
+        run: git branch -r --contains "$GITHUB_REF" | grep "origin/master"
         if: startsWith(github.ref, 'refs/tags')
 
   create-packages-linux:
     needs: validate-tag
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: false
 
       - name: Setup Mage
         run: |
@@ -76,11 +79,13 @@ jobs:
       - name: Build packages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_FLAGS: ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }}
         run: |
-          goreleaser release ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }} --skip-publish --config ./goreleaser/.goreleaser_linux.yml
+          read -r -a flags <<< "$GORELEASER_FLAGS"
+          goreleaser release "${flags[@]}" --skip-publish --config ./goreleaser/.goreleaser_linux.yml
 
       - name: Upload packages artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: packages-linux
           path: dist
@@ -93,17 +98,19 @@ jobs:
     container:
       image: tarantool/testing:tt-build
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '${{ env.GO_VERSION }}'
+          cache: false
 
       - name: Install etcd
-        uses: ./.github/actions/setup-etcd
+        uses: ./.github/actions/setup-etcd # zizmor: ignore[self-repository] -- Test the checked-out revision.
 
       - name: Set GoReleaser flags
         id: set-goreleaser-flags
@@ -128,12 +135,14 @@ jobs:
       - name: Build packages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_FLAGS: ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }}
         run: |
-          goreleaser release ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }} \
+          read -r -a flags <<< "$GORELEASER_FLAGS"
+          goreleaser release "${flags[@]}" \
             --skip-publish --config ./goreleaser/.goreleaser_linux_arm64.yml
 
       - name: Upload packages artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: packages-linux-arm64
           path: dist
@@ -142,14 +151,16 @@ jobs:
     needs: validate-tag
     runs-on: macos-15-intel
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: false
 
       - name: Setup Mage
         run: |
@@ -169,13 +180,13 @@ jobs:
       - name: Build packages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        uses: goreleaser/goreleaser-action@v2
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           version: v1.26.2
           args: release ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }} --skip-publish --config ./goreleaser/.goreleaser_macOS.yml
 
       - name: Upload packages artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: packages-macos
           path: dist
@@ -186,13 +197,15 @@ jobs:
     needs: [create-packages-linux, create-packages-linux-arm64, create-packages-macos]
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: false
 
       - name: Make directories
         run: |
@@ -201,19 +214,19 @@ jobs:
           mkdir -p ./dist-prebuilt/packages-linux-arm64
 
       - name: Download linux binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: packages-linux
           path: ./dist-prebuilt/packages-linux
 
       - name: Download linux arm64 binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: packages-linux-arm64
           path: ./dist-prebuilt/packages-linux-arm64
 
       - name: Download macos binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: packages-macos
           path: ./dist-prebuilt/packages-macos
@@ -235,15 +248,15 @@ jobs:
 
       - name: Pack additional archives
         run: |
-          ./.gen_tarballs.sh -t ${{ github.ref_name }}
+          ./.gen_tarballs.sh -t "$GITHUB_REF_NAME"
           mv /tmp/gentoo_tarballs/tt*.tar.* ./dist-prebuilt/packages-linux/
 
       - name: merge checksum file
         run: |
           cd ./dist-prebuilt
-          cat ./packages-linux/tt*checksums.txt >> checksums.txt
-          cat ./packages-linux-arm64/tt*checksums.txt >> checksums.txt
-          cat ./packages-macos/tt*checksums.txt >> checksums.txt
+          cat ./packages-linux/tt*checksums.txt \
+              ./packages-linux-arm64/tt*checksums.txt \
+              ./packages-macos/tt*checksums.txt >> checksums.txt
           rm ./packages-linux/tt*checksums.txt
           rm ./packages-linux-arm64/tt*checksums.txt
           rm ./packages-macos/tt*checksums.txt
@@ -253,13 +266,13 @@ jobs:
         id: set-goreleaser-flags
         run: |
           if ${{ startsWith(github.ref, 'refs/tags') }} ; then
-            echo "GORELEASER_FLAGS=--skip-validate" >> $GITHUB_OUTPUT
+            echo "GORELEASER_FLAGS=--skip-validate" >> "$GITHUB_OUTPUT"
           else
-            echo "GORELEASER_FLAGS=--snapshot" >> $GITHUB_OUTPUT
+            echo "GORELEASER_FLAGS=--snapshot" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Release
-        uses: goreleaser/goreleaser-action@v2
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           version: v1.26.2
           args: release ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }} --config ./goreleaser/.goreleaser_publish.yml
@@ -271,12 +284,15 @@ jobs:
     runs-on: ubuntu-24.04
     if: startsWith(github.ref, 'refs/tags')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: false
 
       - name: Setup Mage
         run: |
@@ -285,7 +301,7 @@ jobs:
           go run bootstrap.go
 
       - name: Download x86_64 packages artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: packages-linux
           path: dist
@@ -297,7 +313,7 @@ jobs:
         run: mage publishRWS && rm -rf dist
 
       - name: Download arm64 packages artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: packages-linux-arm64
           path: dist

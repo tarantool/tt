@@ -1,0 +1,54 @@
+# Integration test groups that CI runs as separate jobs. Each group lists
+# directories or files under test/integration; a file listed by itself
+# belongs to its group even when another group lists its directory. Every
+# test file must belong to exactly one group: test/ci.py check-shards fails
+# otherwise.
+#
+# The groups balance the EE run time of the fast tier, measured from its
+# junit reports, rather than the subject of the tests.
+cluster:
+- cluster/test_cluster_worker.py
+- cluster/test_cluster_promote.py
+- cluster/test_cluster_roles_add.py
+- cluster/test_cluster_roles_remove.py
+replicaset:
+- cluster
+- replicaset
+- tcm
+instances:
+- backup
+- connect
+- running
+- start
+- stop
+- restart
+- kill
+- status
+- log
+- logrotate
+- daemon
+- clean
+- play
+- cat
+- coredump
+- run
+tooling:
+- cluster/test_cluster_publish.py
+- aeon
+- binaries
+- check
+- cli
+- completion
+- create
+- ee
+- help
+- install
+- modules
+- package
+- registry
+- rocks
+- scopes
+- search
+- service
+- uninstall
+- version
