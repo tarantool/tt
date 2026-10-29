@@ -60,14 +60,31 @@ def eval_on_instance(tt_cmd, app_name, inst_name, workdir, eval):
 
 
 def box_ctl_promote(tt_cmd, app_name, inst_name, workdir):
-    eval_on_instance(tt_cmd, app_name, inst_name, workdir, "box.ctl.promote()")
+    # The ready file only guarantees membership, not active connections.
+    # Wait for replication in both directions before starting an election.
+    lua = (
+        "if #box.cfg.replication > #box.info.replication then return false end "
+        "for id, replica in pairs(box.info.replication) do "
+        "if id ~= box.info.id and "
+        "(replica.upstream == nil or replica.upstream.status ~= 'follow' or "
+        "replica.downstream == nil or replica.downstream.status ~= 'follow') then "
+        "return false end end return true"
+    )
+
+    def peers_connected():
+        out = eval_on_instance(tt_cmd, app_name, inst_name, workdir, lua)
+        return parse_yml(out) == [True]
+
+    assert wait_event(30, peers_connected), f"{inst_name}: replication peers did not connect"
+
+    out = eval_on_instance(tt_cmd, app_name, inst_name, workdir, "box.ctl.promote()")
+    assert parse_yml(out) is None, out
 
     def is_leader_elected():
         out = eval_on_instance(tt_cmd, app_name, inst_name, workdir, "box.info.ro")
         return out.find("false") != -1
 
-    # 30s — election negotiation in a 3-voter replicaset can take longer
-    # than the original 10s on slower hosts (and reliably did on macOS).
+    # Wait for the promoted instance to become writable after the election.
     assert wait_event(30, is_leader_elected)
 
 

@@ -1,7 +1,7 @@
 import os
 from subprocess import PIPE, STDOUT, Popen, run
 
-from utils import skip_if_tcm_not_supported, wait_for_lines_in_output
+from utils import skip_if_tarantool_ce, wait_for_lines_in_output
 
 TcmStartCommand = ("tcm", "start")
 TcmStartWatchdogCommand = ("tcm", "start", "--watchdog")
@@ -10,7 +10,7 @@ TcmStopCommand = ("tcm", "stop")
 
 
 def test_tcm_start_success(tt_cmd, tmp_path):
-    skip_if_tcm_not_supported()
+    skip_if_tarantool_ce()
 
     start_cmd = [tt_cmd, *TcmStartCommand]
     print(f"Run: {start_cmd}")
@@ -66,7 +66,7 @@ def test_tcm_start_success(tt_cmd, tmp_path):
 
 
 def test_tcm_start_with_watchdog_success(tt_cmd, tmp_path):
-    skip_if_tcm_not_supported()
+    skip_if_tarantool_ce()
 
     cmd = [str(tt_cmd), *TcmStartWatchdogCommand]
     print(f"Run: {' '.join(cmd)}")

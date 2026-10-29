@@ -9,10 +9,17 @@ on:
   pull_request_target:
     types: [labeled]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/v3' && github.ref != 'refs/heads/master' }}
+
 env:
   # Note: Use exactly match version of tool, to avoid unexpected issues with test on CI.
   GO_VERSION: '1.27.3'
-  PYTHON_VERSION: '3.10'
+  PYTHON_VERSION: '3.12'
 
 jobs:
   full-ci-ce:
@@ -24,13 +31,10 @@ jobs:
       (github.event_name == 'pull_request' &&
         github.event.action == 'synchronize' &&
         contains(github.event.pull_request.labels.*.name, 'full-ci'))
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
-        tarantool-version: ["3.0"]
-        include:
-          - tarantool-version: "3.8"
-            suite: backup
+        tarantool-version: ["3.3", "3.9"]
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
@@ -43,32 +47,18 @@ jobs:
           tarantool-version: '${{ matrix.tarantool-version }}'
 
       - name: Unit tests
-        if: matrix.suite != 'backup'
         run: mage unitfull
 
-      # This server starts and listen on 8084 port that is used for tests.
-      - name: Stop Mono server
-        run: sudo systemctl kill mono-xsp4 || true
-
       - name: Integration tests (only docker tests)
-        if: matrix.suite != 'backup'
         env:
           TT_ENABLE_COREDUMP_TESTS: '1'
           TT_ENABLE_DOCKER_CLEANUP: '1'
         run: mage integrationfulldocker
 
       - name: Integration tests (w/o docker tests)
-        if: matrix.suite != 'backup'
         env:
           TT_ENABLE_COREDUMP_TESTS: '1'
         run: mage integrationfullskipdocker
-
-      - name: Backup integration tests
-        if: matrix.suite == 'backup'
-        run: |
-          cd test
-          python3 -m pytest integration/backup/ -v
-        shell: bash
 
   full-ci-ce-linux-arm64:
     if: false
@@ -82,6 +72,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '${{ env.GO_VERSION }}'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '${{ env.PYTHON_VERSION }}'
 
       - name: Install test requirements
         run: |
@@ -123,12 +123,7 @@ jobs:
         github.event.action == 'synchronize' &&
         github.event.pull_request.head.repo.full_name == github.repository &&
         contains(github.event.pull_request.labels.*.name, 'full-ci'))
-    runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        sdk-version:
-          - "3.2.0-0-r40.linux.x86_64"
-      fail-fast: false
+    runs-on: ubuntu-24.04
     steps:
         # `ref` as merge request is needed for pull_request_target because this
         # target runs in the context of the base commit of the pull request.
@@ -146,15 +141,11 @@ jobs:
       - name: Prepare EE env
         uses: ./.github/actions/prepare-ee-test-env
         with:
-          sdk-version: '${{ matrix.sdk-version }}'
-          sdk-download-token: '${{ secrets.SDK_DOWNLOAD_TOKEN }}'
+          ee-username: '${{ secrets.TT_EE_USERNAME }}'
+          ee-password: '${{ secrets.TT_EE_PASSWORD }}'
 
       - name: Unit tests
         run: mage unitfull
-
-      # This server starts and listen on 8084 port that is used for tests.
-      - name: Stop Mono server
-        run: sudo systemctl kill mono-xsp4 || true
 
       - name: Integration tests (only docker tests)
         env:
@@ -176,14 +167,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - name: Setup Go
+        uses: actions/setup-go@v7
         with:
-          python-version: '3.10'
+          go-version: '${{ env.GO_VERSION }}'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '${{ env.PYTHON_VERSION }}'
 
       - name: Install dependencies
         run: |
-          brew install --overwrite go mage wget node
+          brew install --overwrite mage wget node
           pip3 install -r test/requirements.txt
 
       - name: Install etcd
@@ -197,7 +193,7 @@ jobs:
       # .tarantool/bin and the headers into .tarantool/include/tarantool.
       - name: Install tarantool
         run: |
-          ./tt binary install tarantool --scope project 3.0.2
+          ./tt binary install tarantool --scope project 3.9
 
       - name: Add Tarantool to Path
         run: |
@@ -250,10 +246,19 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '${{ env.GO_VERSION }}'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '${{ env.PYTHON_VERSION }}'
+
       - name: Install dependencies
         run: |
-          brew install --overwrite go mage
-          brew install python3
+          brew install --overwrite mage
           pip3 install -r test/requirements.txt
 
       - name: Build tt
@@ -281,12 +286,7 @@ jobs:
         github.event.action == 'synchronize' &&
         github.event.pull_request.head.repo.full_name == github.repository &&
         contains(github.event.pull_request.labels.*.name, 'full-ci'))
-    runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        sdk-version:
-          - "3.2.0-0-r40.linux.x86_64"
-      fail-fast: false
+    runs-on: ubuntu-24.04
     steps:
       # `ref` as merge request is needed for pull_request_target because this
       # target runs in the context of the base commit of the pull request.
@@ -304,8 +304,8 @@ jobs:
       - name: Prepare EE env
         uses: ./.github/actions/prepare-ee-test-env
         with:
-          sdk-version: '${{ matrix.sdk-version }}'
-          sdk-download-token: '${{ secrets.SDK_DOWNLOAD_TOKEN }}'
+          ee-username: '${{ secrets.TT_EE_USERNAME }}'
+          ee-password: '${{ secrets.TT_EE_PASSWORD }}'
 
       - name: Install dependencies
         run: |
@@ -329,10 +329,10 @@ jobs:
         github.event.action == 'synchronize' &&
         github.event.pull_request.head.repo.full_name == github.repository &&
         contains(github.event.pull_request.labels.*.name, 'full-ci'))
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
-        tarantool-version: ["3.0"]
+        tarantool-version: ["3.3", "3.9"]
       fail-fast: false
     steps:
       # `ref` as merge request is needed for pull_request_target because this
@@ -373,7 +373,7 @@ jobs:
       (github.event_name == 'pull_request' &&
         github.event.action == 'synchronize' &&
         contains(github.event.pull_request.labels.*.name, 'full-ci'))
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -382,7 +382,7 @@ jobs:
       - name: Prepare CE env
         uses: ./.github/actions/prepare-ce-test-env
         with:
-          tarantool-version: '3.0'
+          tarantool-version: '3.3'
           skip-tarantool-install: true
 
       - name: Install dependencies

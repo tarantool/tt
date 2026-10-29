@@ -47,8 +47,8 @@ def test_upgrade_multi_master(tt_cmd, tmpdir_with_cfg):
         stop_application(tt_cmd, app_name, app_path, [])
 
 
-def test_upgrade_t2_app_dummy_replicaset(tt_cmd):
-    app_name = "single-t2-app"
+def test_upgrade_custom_app_dummy_replicaset(tt_cmd):
+    app_name = "single-custom-app"
     test_app_path_src = os.path.join(os.path.dirname(__file__), app_name)
 
     with tempfile.TemporaryDirectory() as tmpdir:

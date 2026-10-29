@@ -3,6 +3,6 @@ groups:
     replicasets:
       replicaset-001:
         instances:
-          single-t2-app:
+          single-custom-app:
             app:
               file: init.lua

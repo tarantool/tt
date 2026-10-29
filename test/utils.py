@@ -696,25 +696,6 @@ def skip_if_tarantool_ce():
         pytest.skip("Tarantool Enterprise required")
 
 
-def skip_if_tcm_not_supported():
-    if not is_tarantool_ee():
-        pytest.skip("Tarantool Enterprise required")
-
-
-def is_tuple_format_supported():
-    return not is_tarantool_less(3, 2)
-
-
-def skip_if_tuple_format_supported():
-    if is_tuple_format_supported():
-        pytest.skip("Tuple format is supported")
-
-
-def skip_if_tuple_format_unsupported():
-    if not is_tuple_format_supported():
-        pytest.skip("Tuple format is unsupported")
-
-
 @retry(Exception, tries=40, delay=0.5)
 def wait_string_in_file(file, text):
     with open(file, "r") as fp:
