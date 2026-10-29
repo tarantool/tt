@@ -29,7 +29,7 @@ TT_BACKUP_SSL_APP = dict(
     # which must fit into sun_path.
     app_name="ssl",
     instances=[STORAGE_1_A],
-    running_targets=["ssl"],
+    running_targets=["ssl:*"],
     post_start=post_start_backup_app,
 )
 

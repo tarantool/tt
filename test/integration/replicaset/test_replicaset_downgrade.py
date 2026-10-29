@@ -60,10 +60,8 @@ def test_downgrade_multi_master(tt_cmd, tmpdir_with_cfg):
         stop_application(tt_cmd, app_name, app_path, [])
 
 
-# The `box.schema.downgrade()` function was introduced in Tarantool 2.11.0.
-# see https://www.tarantool.io/ru/doc/latest/release/2.11.0/#downgrading-a-database
-def test_downgrade_t2_app_dummy_replicaset(tt_cmd):
-    app_name = "single-t2-app"
+def test_downgrade_custom_app_dummy_replicaset(tt_cmd):
+    app_name = "single-custom-app"
     test_app_path_src = os.path.join(os.path.dirname(__file__), app_name)
 
     with tempfile.TemporaryDirectory() as tmpdir:

@@ -3,33 +3,27 @@ description: "Prepares test environment with Tarantool CE"
 
 inputs:
   tarantool-version:
+    description: Tarantool CE version to install
     required: true
-    type: string
   skip-tarantool-install:
     description: Whether to skip tarantool installation
-    type: boolean
     required: false
-    default: false
+    default: 'false'
   skip-etcd-install:
     description: Whether to skip etcd installation
-    type: boolean
     required: false
-    default: false
-
-env:
-  # Note: Use exactly match version of tool, to avoid unexpected issues with test on CI.
-  GO_VERSION: '1.27.3'
+    default: 'false'
 
 runs:
   using: "composite"
   steps:
     - name: Setup Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v7
       with:
         go-version: '${{ env.GO_VERSION }}'
 
     - name: Setup python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '${{ env.PYTHON_VERSION }}'
 
@@ -44,12 +38,15 @@ runs:
         sudo apt-get --allow-releaseinfo-change update
         sudo apt-get -y -f install \
         build-essential ninja-build \
-        lua5.1 luarocks lcov \
-        ruby-dev liblz4-dev  autoconf \
+        liblz4-dev autoconf \
         automake libtool zsh fish
-        sudo luarocks install luacheck 0.26.1
-        sudo gem install coveralls-lcov
-        sudo pip3 install tarantool
+      shell: bash
+
+    - name: Enable network isolation for rocks tests
+      run: |
+        # Ubuntu 24.04 restricts the user namespace used by unshare -r -n.
+        sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+        unshare -r -n true
       shell: bash
 
     - name: Install Tarantool

@@ -1,6 +1,6 @@
 module github.com/tarantool/tt/sdk/dial
 
-go 1.26.10
+go 1.27.0
 
 require (
 	github.com/stretchr/testify v1.11.1

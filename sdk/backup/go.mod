@@ -1,6 +1,6 @@
 module github.com/tarantool/tt/sdk/backup
 
-go 1.26.10
+go 1.27.0
 
 require (
 	github.com/klauspost/compress v1.20.3

@@ -1,6 +1,7 @@
 package running
 
 import (
+	"context"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/cli/running/internal/layout"
+	"github.com/tarantool/tt/v3/cli/tarantool"
 	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/internal/supervisor"
 )
@@ -330,6 +332,19 @@ func appClusterSpec(inst *InstanceCtx, opts specOptions) (supervisor.Spec, error
 		"TT_PROCESS_PID_FILE_DEFAULT="+filepath.Join(inst.RunDir, layout.TarantoolPidFileName),
 		"TT_CONSOLE_SOCKET_DEFAULT="+console,
 		"TT_IPROTO_LISTEN_DEFAULT="+listen)
+
+	// Quiver creates its data directory even when no space uses the engine.
+	// CE rejects this option, so only give the default to EE instances.
+	// Inspect the binary: a package with a CE platform requirement can bundle
+	// EE and install it under versions/tarantool rather than tarantool-ee.
+	if tarantool.DetectFlavor(context.Background(), exe.Path) == tarantool.FlavorEE {
+		scopeLayout, err := layout.NewScopeLayout(inst.Root, inst.AppName, inst.InstName)
+		if err != nil {
+			return supervisor.Spec{}, err
+		}
+
+		env = append(env, "TT_QUIVER_DIR_DEFAULT="+scopeLayout.DataDir())
+	}
 
 	return tarantoolSpec(exe.Path, args, env, inst.AppDir, opts), nil
 }

@@ -163,10 +163,11 @@ def test_install_remote_enterprise(tt_cmd: Path, tmp_path: Path, program, develo
     if not required.issubset(set(os.environ)):
         pytest.skip("Real customer-zone tests require credentials injected by CI")
     flags = ["--dev"] if development else []
-    result = remote_command(tt_cmd, tmp_path, "search", program, *flags)
+    version_flags = ["--version=3"] if program in ("tarantool-ee", "tarantool-sdk") else []
+    result = remote_command(tt_cmd, tmp_path, "search", program, *version_flags, *flags)
     assert result.returncode == 0, result.stdout
     pattern = (
-        r"gc64-\d+\.\d+\.\d+\S*"
+        r"gc64-3\.\d+\.\d+\S*"
         if program
         in (
             "tarantool-ee",
@@ -181,7 +182,6 @@ def test_install_remote_enterprise(tt_cmd: Path, tmp_path: Path, program, develo
     ]
     assert versions, result.stdout
     selected = versions[-1]
-    semantic_version = re.search(r"\d+\.\d+\.\d+", selected)[0]
     result = remote_command(
         tt_cmd,
         tmp_path,
@@ -210,8 +210,7 @@ def test_install_remote_enterprise(tt_cmd: Path, tmp_path: Path, program, develo
             # Standalone EE omits commit counts, git hashes and SDK revisions,
             # but retains prerelease labels such as rc1.
             identity = re.sub(r"-\d+(?:-g[0-9a-f]+)?-r\d+$", "", selected)
-            if int(semantic_version.split(".")[0]) >= 3:
-                identity = identity.removeprefix("gc64-")
+            identity = identity.removeprefix("gc64-")
         components = [(program, executable, f"{program}_{identity}")]
     for product, executable, identity in components:
         installation = root / "versions" / product / identity

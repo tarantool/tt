@@ -18,6 +18,13 @@ on:
       - 'modules/aeon/generate-pb.sh'
       - '.github/workflows/aeon-pb.yml'
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/v3' && github.ref != 'refs/heads/master' }}
+
 env:
   # Note: Use exactly match version of tool, to avoid unexpected issues with test on CI.
   GO_VERSION: '1.27.3'
@@ -25,7 +32,7 @@ env:
 jobs:
   # Regenerate modules/aeon/pb and fail when it differs from the committed files.
   aeon-pb:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 

@@ -1,6 +1,11 @@
 # Docker file used in workflows:
 # full-ci-ce-linux-arm64, create-packages-linux-arm64, tests-ce-linux-arm64
-FROM ubuntu:20.04
+FROM golang:1.27.3 AS go-toolchain
+
+FROM ubuntu:24.04
+
+COPY --from=go-toolchain /usr/local/go /usr/local/go
+ENV PATH="/opt/venv/bin:/usr/local/go/bin:${PATH}"
 
 ARG DEBIAN_FRONTEND=noninteractive
 ENV TZ=Etc/UTC
@@ -14,7 +19,6 @@ RUN apt update \
         wget \
         curl \
         rsync \
-        golang \
         make \
         sudo \
         gcc \
@@ -23,26 +27,18 @@ RUN apt update \
         zip \
         build-essential \
         ninja-build \
-        lua5.1 \
-        luarocks \
-        lcov \
-        ruby-dev \
         liblz4-dev \
         autoconf \
         automake \
         libtool \
         libssl-dev \
-        python3-pytest \
-        python3-psutil \
         python3-pip \
+        python3-dev \
+        python3-venv \
         lsb-release \
-        software-properties-common \
     && apt clean
 
-RUN add-apt-repository ppa:longsleep/golang-backports \
-    && apt update \
-    && apt install -y golang \
-    && apt clean
+RUN python3 -m venv /opt/venv
 
 RUN if [ "$(uname -m)" = "x86_64" ]; \
         then ARCHITECTURE="64bit"; \
