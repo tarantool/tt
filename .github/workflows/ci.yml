@@ -1,0 +1,374 @@
+name: CI
+
+# ci-ok joins all required checks on the exact PR head.
+# Forks run CE only. EE secrets are used only by pushes in tarantool/tt.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+  # Only publish statuses for fork CE checks. These jobs load trusted code,
+  # never check out the PR head, and have no EE secrets.
+  pull_request_target: # zizmor: ignore[dangerous-triggers]
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  # Updating PR notes on a label change must not cancel the running tests.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}-${{ (github.event.action == 'labeled' || github.event.action == 'unlabeled') && 'notes' || 'tests' }}
+  cancel-in-progress: ${{ github.event_name != 'push' || (github.ref != 'refs/heads/v3' && github.ref != 'refs/heads/master') }}
+
+env:
+  GO_VERSION: '1.27.3'
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  ci-start:
+    if: >-
+      ${{ github.event_name == 'push' ||
+      (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      statuses: write
+    concurrency:
+      group: ${{ github.workflow }}-status-${{ github.event.pull_request.head.sha || github.sha }}
+      cancel-in-progress: false
+    steps:
+      # Load only the status helper from the trusted workflow revision.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+          sparse-checkout: ci/status.py
+          sparse-checkout-cone-mode: false
+      - name: Publish the aggregate status
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          STATUS_CONTEXT: ci-ok
+        run: python3 ci/status.py
+
+  lint:
+    if: >-
+      ${{ github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository &&
+      github.event.action != 'labeled' && github.event.action != 'unlabeled') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: '**/go.sum'
+
+      - name: Setup Mage
+        run: go install github.com/magefile/mage@v1.15.0
+        shell: bash
+
+      # Linter releases add checks, so keep the CI version in sync with the
+      # version required by mage lint:golang.
+      - name: Setup golangci-lint
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
+        shell: bash
+
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '${{ env.PYTHON_VERSION }}'
+
+      - name: Install Python linters
+        shell: bash
+        run: |
+          python3 -m pip install -r <(grep -E '^(ruff|codespell|pyyaml)==' test/requirements.txt)
+          python3 -m pip install zizmor==1.31.1
+
+      - name: Setup stringer
+        run: go install golang.org/x/tools/cmd/stringer@v0.52.0
+
+      - name: Go lint
+        run: mage lint:golang
+
+      - name: Python lint and formatting
+        run: |
+          mage lint:python
+          python3 -m ruff check ci
+          python3 -m ruff format --check ci
+
+      - name: Spelling
+        run: mage codespell
+
+      - name: Check generated sources
+        run: |
+          mage generate
+          git diff --exit-code
+
+      - name: Check Go modules
+        run: mage lint:modules
+
+      - name: Build tt for license checks
+        run: mage build
+
+      - name: Install license checker
+        run: go install github.com/uw-labs/lichen@latest
+
+      - name: License checker
+        shell: bash
+        run: |
+          network_errors='stream error|INTERNAL_ERROR|connection (reset|refused|timed out)'
+          network_errors+='|i/o timeout|TLS handshake timeout|no such host|network is unreachable'
+          network_errors+='|temporary failure|unexpected EOF|context deadline exceeded'
+          network_errors+='|HTTP[^[:digit:]]*5[0-9]{2}|[[:space:]]5[0-9]{2}[[:space:]]'
+          log=$(mktemp)
+          trap 'rm -f "$log"' EXIT
+          for attempt in 1 2 3; do
+            if mage checklicenses 2>&1 | tee "$log"; then
+              exit 0
+            fi
+            # Retry network failures, but fail immediately on license violations.
+            if ! grep -Eiq "$network_errors" "$log"; then
+              exit 1
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+            sleep 10
+          done
+
+      - name: Check status aggregation
+        run: python3 -m unittest discover -s ci -p 'test_*.py'
+
+      - name: Validate integration shards
+        run: python3 test/ci.py check-shards
+
+      - name: Install actionlint
+        run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+
+      - name: Check workflows
+        run: |
+          actionlint
+          zizmor --offline .github
+
+  build-variants:
+    if: >-
+      ${{ github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository &&
+      github.event.action != 'labeled' && github.event.action != 'unlabeled') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        ssl: [default, openssl, openssl_static]
+    uses: ./.github/workflows/_build.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
+    with:
+      ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      build-ssl: ${{ matrix.ssl }}
+      artifact-name: tt-${{ matrix.ssl }}
+
+  go:
+    needs: build-variants
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: tt-default
+
+      - name: Prepare binary
+        run: chmod +x tt
+
+      - name: Prepare CE environment
+        uses: ./.github/actions/prepare-ce-test-env # zizmor: ignore[self-repository] -- Test the checked-out revision.
+        with:
+          tarantool-version: '3.9'
+          build-tt: 'false'
+
+      - name: Go tests with integration
+        run: mage unit:fullSkipDocker
+
+  it-ce:
+    needs: build-variants
+    strategy:
+      fail-fast: false
+      matrix:
+        tarantool-version: ['3.3', '3.9']
+    uses: ./.github/workflows/_integration.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
+    with:
+      ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      edition: ce
+      tarantool-version: ${{ matrix.tarantool-version }}
+      shard: all
+      marker: not slow and not slow_ee and not notarantool
+
+  it-ee:
+    needs: build-variants
+    if: github.repository == 'tarantool/tt' && github.event_name == 'push'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [cluster, instances, tooling]
+    uses: ./.github/workflows/_integration.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
+    with:
+      ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      edition: ee
+      tarantool-version: '3'
+      shard: ${{ matrix.shard }}
+      marker: not slow and not slow_ee and not notarantool
+    secrets:
+      TT_EE_USERNAME: ${{ secrets.TT_EE_USERNAME }}
+      TT_EE_PASSWORD: ${{ secrets.TT_EE_PASSWORD }}
+
+  pr-notes:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: '**/go.sum'
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install review tools
+        run: |
+          python3 -m pip install gitlint==0.19.1
+          go install golang.org/x/exp/cmd/apidiff@v0.0.0-20261014143641-f0251eb4aa3e
+
+      - name: Commit messages
+        continue-on-error: true
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 ci/pr_notes.py gitlint --base "$BASE_SHA" --head "$HEAD_SHA"
+
+      - name: Changelog
+        continue-on-error: true
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 ci/pr_notes.py changelog --base "$BASE_SHA" --head "$HEAD_SHA"
+
+      - name: SDK API changes
+        continue-on-error: true
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 ci/pr_notes.py api --base "$BASE_SHA" --head "$HEAD_SHA"
+
+      - name: Upload PR notes
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-notes
+          path: pr-notes/
+          retention-days: 7
+
+  ce-result:
+    if: >-
+      ${{ always() && (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository &&
+      github.event.action != 'labeled' && github.event.action != 'unlabeled') }}
+    needs: [lint, build-variants, go, it-ce]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check the unprivileged jobs
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          results = json.loads(os.environ["RESULTS"])
+          for name, job in results.items():
+              print(f"{name}: {job['result']}")
+          sys.exit(not all(job["result"] == "success" for job in results.values()))
+          PY
+
+  wait-ce:
+    if: >-
+      ${{ !cancelled() && github.event_name == 'pull_request_target' &&
+      github.event.pull_request.head.repo.full_name != github.repository &&
+      needs.ci-start.result == 'success' }}
+    needs: ci-start
+    runs-on: ubuntu-24.04
+    # Waiting now starts immediately, before the CE build and tests finish.
+    timeout-minutes: 125
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      # Load only the status helper from the trusted workflow revision.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+          sparse-checkout: ci/status.py
+          sparse-checkout-cone-mode: false
+      - name: Wait for the CE run on the same PR head
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 ci/status.py --wait-ce 7200
+
+  ci-result:
+    if: >-
+      ${{ always() && (github.event_name == 'push' ||
+      (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository)) }}
+    needs: [ci-start, lint, build-variants, go, it-ce, it-ee, wait-ce]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      statuses: write
+    concurrency:
+      group: ${{ github.workflow }}-status-${{ github.event.pull_request.head.sha || github.sha }}
+      cancel-in-progress: false
+    steps:
+      # Load only the status helper from the trusted workflow revision.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+          sparse-checkout: ci/status.py
+          sparse-checkout-cone-mode: false
+      - name: Publish the aggregate status
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          STATUS_CONTEXT: ci-ok
+          RESULTS: ${{ toJSON(needs) }}
+          REQUIRED: >-
+            ${{ github.event_name == 'pull_request_target' &&
+            '["ci-start","wait-ce"]' ||
+            github.repository == 'tarantool/tt' &&
+            '["ci-start","lint","build-variants","go","it-ce","it-ee"]' ||
+            '["ci-start","lint","build-variants","go","it-ce"]' }}
+        run: python3 ci/status.py

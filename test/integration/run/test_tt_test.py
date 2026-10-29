@@ -9,7 +9,23 @@ the build, the directory choice and the invocation — the parts that are tt's.
 from pathlib import Path
 
 import pytest
-from conftest import FAILING_TEST, PASSING_TEST
+
+# A test that passes, and a group name the assertions can look for.
+PASSING_TEST = """local t = require('luatest')
+local g = t.group('sample')
+
+function g.test_ok()
+    t.assert_equals(1, 1)
+end
+"""
+
+FAILING_TEST = """local t = require('luatest')
+local g = t.group('failing')
+
+function g.test_bad()
+    t.assert_equals(1, 2)
+end
+"""
 
 
 def test_test_needs_a_manifest(run_tt, tmp_path: Path):

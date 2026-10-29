@@ -1,7 +1,16 @@
 name: "Prepare test environment with Tarantool EE"
-description: "Prepares test environment with the latest stable Tarantool 3 EE SDK"
+description: "Prepares test environment with a stable Tarantool 3 EE SDK"
 
 inputs:
+  build-tt:
+    description: Build tt when no binary artifact has been supplied
+    default: 'true'
+  cache:
+    description: Enable Go caching
+    default: 'true'
+  tarantool-version:
+    description: Stable SDK series (3 for latest, or a minor such as 3.3)
+    default: '3'
   ee-username:
     description: Customer-zone username
     required: true
@@ -17,12 +26,14 @@ runs:
   using: "composite"
   steps:
     - name: Setup Go
-      uses: actions/setup-go@v7
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: '${{ env.GO_VERSION }}'
+        cache: ${{ inputs.cache == 'true' }}
+        cache-dependency-path: '**/go.sum'
 
     - name: Setup Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
       with:
         python-version: '${{ env.PYTHON_VERSION }}'
 
@@ -44,27 +55,30 @@ runs:
       shell: bash
 
     - name: Build tt
+      if: inputs.build-tt == 'true'
       run: mage build
       shell: bash
 
-    - name: Install the latest stable Tarantool 3 EE SDK
+    - name: Install a stable Tarantool 3 EE SDK
       env:
+        TARANTOOL_VERSION: ${{ inputs.tarantool-version }}
         EE_USERNAME: ${{ inputs.ee-username }}
         EE_PASSWORD: ${{ inputs.ee-password }}
         TT_USER_ROOT: ${{ runner.temp }}/tt-ee-sdk
-      run: |
+      # Only the runner-owned installation directory is exported.
+      run: | # zizmor: ignore[github-env]
         umask 077
         credentials=$(mktemp)
         trap 'rm -f "$credentials"' EXIT
         printf '%s\n%s\n' "$EE_USERNAME" "$EE_PASSWORD" > "$credentials"
-        ./tt binary install tarantool-sdk 3 --scope user --credentials-file "$credentials"
+        ./tt binary install tarantool-sdk "$TARANTOOL_VERSION" --scope user --credentials-file "$credentials"
         "$TT_USER_ROOT/bin/tarantool" --version
         echo "$TT_USER_ROOT/bin" >> "$GITHUB_PATH"
         echo "TT_CLI_TARANTOOL_PREFIX=$TT_USER_ROOT" >> "$GITHUB_ENV"
       shell: bash
 
     - name: Install etcd
-      uses: ./.github/actions/setup-etcd
+      uses: ./.github/actions/setup-etcd # zizmor: ignore[self-repository] -- Test the checked-out revision.
       if: ${{ inputs.skip-etcd-install == 'false' }}
 
     - name: Install test requirements

@@ -1,0 +1,11 @@
+[general]
+ignore=body-is-missing,body-min-length
+
+[title-max-length]
+line-length=50
+
+[body-max-line-length]
+line-length=72
+
+[title-match-regex]
+regex=^[a-z][a-z0-9_/-]*: .+$
