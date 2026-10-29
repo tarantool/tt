@@ -1,6 +1,6 @@
 module github.com/tarantool/tt/sdk/connect
 
-go 1.26.10
+go 1.27.0
 
 require (
 	github.com/pmezard/go-difflib v1.0.0

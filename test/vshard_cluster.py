@@ -2,12 +2,8 @@ import os
 import platform
 import subprocess
 import time
+import tomllib
 from pathlib import Path
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # Python < 3.11, which is what CI runs.
-    import tomli as tomllib
 
 from utils import (
     inst_log_dir,

@@ -22,8 +22,6 @@ from utils import (
     run_command_and_get_output,
     run_path,
     skip_if_tarantool_ce,
-    skip_if_tuple_format_supported,
-    skip_if_tuple_format_unsupported,
     wait_file,
     wait_files,
 )
@@ -1109,8 +1107,6 @@ def test_output_format_lua(tt_cmd, tmpdir_with_cfg):
 
 
 def test_lua_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
-    skip_if_tuple_format_unsupported()
-
     tmpdir = tmpdir_with_cfg
     # The test application file.
     test_app_path = os.path.join(
@@ -1221,8 +1217,6 @@ def test_lua_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
 
 
 def test_yaml_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
-    skip_if_tuple_format_unsupported()
-
     tmpdir = tmpdir_with_cfg
     # The test application file.
     test_app_path = os.path.join(
@@ -1754,66 +1748,7 @@ def test_table_output_format(tt_cmd, tmpdir_with_cfg):
         stop_app(tt_cmd, tmpdir, "test_app")
 
 
-def test_table_output_format_for_tuples_no_format(tt_cmd, tmpdir_with_cfg):
-    skip_if_tuple_format_supported()
-
-    tmpdir = tmpdir_with_cfg
-    # The test application file.
-    test_app_path = os.path.join(
-        os.path.dirname(__file__),
-        "test_output_format_app",
-        "test_app.lua",
-    )
-    # Copy test data into temporary directory.
-    copy_data(tmpdir, [test_app_path])
-
-    # Start an instance.
-    start_app(tt_cmd, tmpdir, "test_app")
-    try:
-        # Check for start.
-        file = wait_file(os.path.join(tmpdir, "test_app"), "ready", [])
-        assert file != ""
-
-        # Connect to the instance.
-        uris = ["localhost:3013", "tcp://localhost:3013"]
-        for uri in uris:
-            # Execute stdin.
-            ret, output = try_execute_on_instance(
-                tt_cmd,
-                tmpdir,
-                uri,
-                stdin="box.space.customers:select()",
-                opts={"-x": "table"},
-            )
-            assert ret
-            assert output == (
-                "+------+-----------+------+\n"
-                "| col1 | col2      | col3 |\n"
-                "+------+-----------+------+\n"
-                "| 1    | Elizabeth | 12   |\n"
-                "+------+-----------+------+\n"
-                "| 2    | Mary      | 46   |\n"
-                "+------+-----------+------+\n"
-                "| 3    | David     | 33   |\n"
-                "+------+-----------+------+\n"
-                "| 4    | William   | 81   |\n"
-                "+------+-----------+------+\n"
-                "| 5    | Jack      | 35   |\n"
-                "+------+-----------+------+\n"
-                "| 6    | William   | 25   |\n"
-                "+------+-----------+------+\n"
-                "| 7    | Elizabeth | 18   |\n"
-                "+------+-----------+------+\n"
-            )
-
-    finally:
-        # Stop the Instance.
-        stop_app(tt_cmd, tmpdir, "test_app")
-
-
 def test_table_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
-    skip_if_tuple_format_unsupported()
-
     tmpdir = tmpdir_with_cfg
     # The test application file.
     test_app_path = os.path.join(
@@ -2238,62 +2173,7 @@ def test_ttable_output_format(tt_cmd, tmpdir_with_cfg):
         stop_app(tt_cmd, tmpdir, "test_app")
 
 
-def test_ttable_output_format_for_tuples_no_format(tt_cmd, tmpdir_with_cfg):
-    skip_if_tuple_format_supported()
-
-    tmpdir = tmpdir_with_cfg
-    # The test application file.
-    test_app_path = os.path.join(
-        os.path.dirname(__file__),
-        "test_output_format_app",
-        "test_app.lua",
-    )
-    # Copy test data into temporary directory.
-    copy_data(tmpdir, [test_app_path])
-
-    # Start an instance.
-    start_app(tt_cmd, tmpdir, "test_app")
-    try:
-        # Check for start.
-        file = wait_file(os.path.join(tmpdir, "test_app"), "ready", [])
-        assert file != ""
-
-        # Connect to the instance.
-        uris = ["localhost:3013", "tcp://localhost:3013"]
-        for uri in uris:
-            # Execute stdin.
-            ret, output = try_execute_on_instance(
-                tt_cmd,
-                tmpdir,
-                uri,
-                stdin="box.space.customers:select()",
-                opts={"-x": "ttable"},
-            )
-            assert ret
-            assert output == (
-                "+------+-----------+------+-------+---------+"
-                "------+---------+-----------+\n"
-                "| col1 | 1         | 2    | 3     | 4       |"
-                " 5    | 6       | 7         |\n"
-                "+------+-----------+------+-------+---------+"
-                "------+---------+-----------+\n"
-                "| col2 | Elizabeth | Mary | David | William |"
-                " Jack | William | Elizabeth |\n"
-                "+------+-----------+------+-------+---------+"
-                "------+---------+-----------+\n"
-                "| col3 | 12        | 46   | 33    | 81      |"
-                " 35   | 25      | 18        |\n"
-                "+------+-----------+------+-------+---------+"
-                "------+---------+-----------+\n"
-            )
-    finally:
-        # Stop the Instance.
-        stop_app(tt_cmd, tmpdir, "test_app")
-
-
 def test_ttable_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
-    skip_if_tuple_format_unsupported()
-
     tmpdir = tmpdir_with_cfg
     # The test application file.
     test_app_path = os.path.join(

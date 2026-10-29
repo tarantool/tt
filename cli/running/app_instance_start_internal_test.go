@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/tarantool"
 	"github.com/tarantool/tt/v3/internal/scope"
 )
 
@@ -61,7 +62,12 @@ func installTarantoolLink(t *testing.T, root string) {
 	tarantoolPath, err := exec.LookPath("tarantool")
 	require.NoError(t, err)
 
-	installed := filepath.Join(root, "versions", "tarantool", "tarantool_"+fixtureTarantool,
+	product := "tarantool"
+	if tarantool.DetectFlavor(t.Context(), tarantoolPath) == tarantool.FlavorEE {
+		product = "tarantool-ee"
+	}
+
+	installed := filepath.Join(root, "versions", product, product+"_"+fixtureTarantool,
 		"tarantool")
 	require.NoError(t, os.MkdirAll(filepath.Dir(installed), 0o755))
 	require.NoError(t, os.Symlink(tarantoolPath, installed))

@@ -4,9 +4,7 @@ import shutil
 
 import pytest
 
-from utils import get_tarantool_version, run_command_and_get_output, wait_file
-
-tarantool_major_version, _ = get_tarantool_version()
+from utils import run_command_and_get_output, wait_file
 
 # The cconfig test app lives in the replicaset test directory.
 CCONFIG_APP_NAME = "test_ccluster_app"
@@ -134,10 +132,6 @@ def _instance_names_from_json(data):
     return names
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="centralized config requires Tarantool 3.x",
-)
 def test_topology_table(tt_cmd, ccluster_app):
     """tt cluster topology -c <config.yaml> — table output."""
     tmpdir = ccluster_app
@@ -173,10 +167,6 @@ def test_topology_table(tt_cmd, ccluster_app):
     assert "M instance" not in out
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="centralized config requires Tarantool 3.x",
-)
 @pytest.mark.parametrize(
     "ccluster_app",
     ["unix", "tcp"],
@@ -238,10 +228,6 @@ def test_topology_app_and_config(tt_cmd, tmpdir_with_cfg):
     assert "not both" in out
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="centralized config requires Tarantool 3.x",
-)
 @pytest.mark.parametrize("config_storage_type", ["etcd", "tcs"])
 def test_topology_config_storage(
     tt_cmd,
@@ -304,10 +290,6 @@ def test_topology_config_storage(
             assert instance["status"] == "OK"
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="centralized config requires Tarantool 3.x",
-)
 def test_topology_unreachable_instance_included(tt_cmd, ccluster_app):
     tmpdir = ccluster_app
 
@@ -363,10 +345,6 @@ def test_topology_unreachable_instance_included(tt_cmd, ccluster_app):
         assert instances[instance]["mode"] == EXPECTED_MODES[instance]
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="centralized config requires Tarantool 3.x",
-)
 def test_topology_unreachable_replicaset_included(tt_cmd, ccluster_app):
     tmpdir = ccluster_app
 
@@ -440,10 +418,6 @@ def test_topology_unreachable_replicaset_included(tt_cmd, ccluster_app):
         assert instance["status"] == "OK"
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3,
-    reason="centralized config requires Tarantool 3.x",
-)
 def test_topology_unreachable_cluster_included(tt_cmd, ccluster_app):
     tmpdir = ccluster_app
 

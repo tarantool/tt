@@ -154,7 +154,6 @@ def test_promote_cconfig_failovers(
                 "manual-failover-2",
                 "election-failover-1",
                 "election-failover-2",
-                "eleciton-failover-3",  # spell-checker:disable-line
             ],
         ),
     )

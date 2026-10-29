@@ -176,25 +176,23 @@ func startGarage(ctx context.Context, t *testing.T) garageInstance {
 	}
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        "dxflrs/garage:v2.3.0",
-			ExposedPorts: []string{"3900/tcp"},
-			Cmd:          []string{"/garage", "server", "--single-node", "--default-bucket"},
-			Env: map[string]string{
-				"GARAGE_DEFAULT_ACCESS_KEY": inst.accessKey,
-				"GARAGE_DEFAULT_SECRET_KEY": inst.secretKey,
-				"GARAGE_DEFAULT_BUCKET":     inst.bucket,
-			},
-			Files: []testcontainers.ContainerFile{
-				{
-					Reader:            strings.NewReader(garageConfig),
-					ContainerFilePath: "/etc/garage.toml",
-					FileMode:          0o644,
-				},
-			},
-			WaitingFor: wait.ForListeningPort("3900/tcp").WithStartupTimeout(time.Minute),
+		Image:        "dxflrs/garage:v2.3.0",
+		ExposedPorts: []string{"3900/tcp"},
+		Cmd:          []string{"/garage", "server", "--single-node", "--default-bucket"},
+		Env: map[string]string{
+			"GARAGE_DEFAULT_ACCESS_KEY": inst.accessKey,
+			"GARAGE_DEFAULT_SECRET_KEY": inst.secretKey,
+			"GARAGE_DEFAULT_BUCKET":     inst.bucket,
 		},
-		Started: true,
+		Files: []testcontainers.ContainerFile{
+			{
+				Reader:            strings.NewReader(garageConfig),
+				ContainerFilePath: "/etc/garage.toml",
+				FileMode:          0o644,
+			},
+		},
+		WaitingFor: wait.ForListeningPort("3900/tcp").WithStartupTimeout(time.Minute),
+		Started:    true,
 	})
 	testcontainers.CleanupContainer(t, container)
 	require.NoError(t, err)

@@ -202,6 +202,21 @@ def tcs(request, tmp_path, tcs_params):
         instance_port=tcs_params.get("instance_port"),
     )
     request.addfinalizer(lambda: inst.stop())
+
+    # The listener comes up before the config.storage role defines its
+    # functions, which takes a while longer on older Enterprise releases.
+    def storage_ready():
+        try:
+            conn = inst.conn()
+            try:
+                conn.call("config.storage.get", "/")
+            finally:
+                conn.close()
+        except Exception:
+            return False
+        return True
+
+    assert utils.wait_event(10, storage_ready), "config.storage did not start"
     return inst
 
 

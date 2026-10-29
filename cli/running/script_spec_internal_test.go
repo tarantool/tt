@@ -163,8 +163,9 @@ func TestInstanceLogs(t *testing.T) {
 	require.NotZero(t, waitForFile(os.Getenv("started_flag_file")), "Instance is not started")
 	assert.True(t, inst.alive())
 
-	assert.FileExists(t, filepath.Join(filepath.Dir(binPath), "test.sock"))
-	assert.FileExists(t, filepath.Join(filepath.Dir(binPath), "testbin.sock"))
+	// The script marks the start before box.cfg, which opens the sockets.
+	assert.NotZero(t, waitForFile(consoleSock), "No console socket")
+	assert.NotZero(t, waitForFile(binaryPort), "No binary port socket")
 }
 
 func TestInstanceStopByContext(t *testing.T) {

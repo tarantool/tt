@@ -2,8 +2,6 @@ import subprocess
 
 import pytest
 
-import utils
-
 
 def compose_switch_cmd(timeout=30):
     return f"""command: switch
@@ -149,18 +147,12 @@ def test_cluster_failover_switch_wait_timeout(
     assert "Timeout for command execution reached" in p.stdout
 
 
-tcs_manual_failover_mark = pytest.mark.skipif(
-    utils.is_tarantool_less(3, 3),
-    reason="manual failover over TcS requires tarantool 3.3 or newer",
-)
-
-
 @pytest.mark.slow
 @pytest.mark.parametrize(
     "config_storage_type",
     [
         "etcd",
-        pytest.param("tcs", marks=tcs_manual_failover_mark),
+        "tcs",
     ],
 )
 @pytest.mark.parametrize(

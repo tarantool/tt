@@ -12,14 +12,10 @@ property under test as the output is: the command has to answer from disk.
 
 import hashlib
 import json
+import tomllib
 from pathlib import Path
 
 import yaml
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # Python < 3.11, which is what CI runs.
-    import tomli as tomllib
 
 MANIFEST_HEAD = """manifest_version = '0.1'
 
