@@ -1,0 +1,40 @@
+cluster:
+- cluster
+- replicaset
+- tcm
+instances:
+- connect
+- running
+- start
+- stop
+- restart
+- kill
+- status
+- log
+- logrotate
+- daemon
+- clean
+- play
+- cat
+- coredump
+- run
+tooling:
+- aeon
+- backup
+- binaries
+- check
+- cli
+- completion
+- create
+- ee
+- help
+- install
+- modules
+- package
+- registry
+- rocks
+- scopes
+- search
+- service
+- uninstall
+- version

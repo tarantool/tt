@@ -1,0 +1,141 @@
+name: Integration tests
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Exact source commit
+        type: string
+        required: true
+      edition:
+        description: ce, ee, or none for tests without Tarantool
+        type: string
+        required: true
+      tarantool-version:
+        description: CE version or stable EE SDK series
+        type: string
+        required: true
+      runner:
+        type: string
+        default: ubuntu-24.04
+      shard:
+        type: string
+        default: all
+      marker:
+        type: string
+        required: true
+      tt-artifact:
+        description: Binary produced by _build.yml
+        type: string
+        default: tt-default
+      test-dir:
+        description: Optional single integration directory (ee for credential tests)
+        type: string
+        default: ''
+      ee-credentials:
+        description: Expose customer-zone credentials to the EE tests
+        type: boolean
+        default: false
+      full:
+        description: Enable coredump tests and Docker cleanup on the disposable runner
+        type: boolean
+        default: false
+      environment:
+        description: Required approval environment for fork code
+        type: string
+        default: ''
+      cache:
+        type: boolean
+        default: true
+      continue-on-error:
+        type: boolean
+        default: false
+    secrets:
+      TT_EE_USERNAME:
+        required: false
+      TT_EE_PASSWORD:
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: '1.27.3'
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  integration:
+    runs-on: ${{ inputs.runner }}
+    environment: ${{ inputs.environment }}
+    continue-on-error: ${{ inputs.continue-on-error }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+          # The caller gates privileged fork jobs through the ee-fork environment.
+          allow-unsafe-pr-checkout: ${{ github.event_name == 'pull_request_target' }}
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ inputs.tt-artifact }}
+
+      - name: Prepare binary
+        env:
+          EDITION: ${{ inputs.edition }}
+        run: |
+          case "$EDITION" in ce|ee|none) ;; *) exit 2 ;; esac
+          chmod +x tt
+          ./tt version
+
+      - name: Prepare CE environment
+        if: inputs.edition != 'ee'
+        uses: ./.github/actions/prepare-ce-test-env # zizmor: ignore[self-repository] -- Test the checked-out revision.
+        with:
+          tarantool-version: ${{ inputs.tarantool-version }}
+          skip-tarantool-install: ${{ inputs.edition == 'none' }}
+          skip-etcd-install: ${{ inputs.edition == 'none' }}
+          build-tt: 'false'
+          cache: ${{ inputs.cache }}
+
+      - name: Prepare EE environment
+        if: inputs.edition == 'ee'
+        uses: ./.github/actions/prepare-ee-test-env # zizmor: ignore[self-repository] -- Test the checked-out revision.
+        with:
+          tarantool-version: ${{ inputs.tarantool-version }}
+          ee-username: ${{ secrets.TT_EE_USERNAME }}
+          ee-password: ${{ secrets.TT_EE_PASSWORD }}
+          build-tt: 'false'
+          cache: ${{ inputs.cache }}
+
+      - name: Run integration tests
+        env:
+          SHARD: ${{ inputs.shard }}
+          MARKER: ${{ inputs.marker }}
+          TEST_DIR: ${{ inputs.test-dir }}
+          FULL: ${{ inputs.full }}
+          EE_CREDENTIALS: ${{ inputs.ee-credentials }}
+          TT_CLI_EE_USERNAME: ${{ inputs.ee-credentials && secrets.TT_EE_USERNAME || '' }}
+          TT_CLI_EE_PASSWORD: ${{ inputs.ee-credentials && secrets.TT_EE_PASSWORD || '' }}
+        run: |
+          if [ "$FULL" = true ]; then
+            export TT_ENABLE_COREDUMP_TESTS=1 TT_ENABLE_DOCKER_CLEANUP=1
+          fi
+          if [ "$EE_CREDENTIALS" != true ]; then
+            unset TT_CLI_EE_USERNAME TT_CLI_EE_PASSWORD
+          fi
+          extra=()
+          if [ -n "$TEST_DIR" ]; then
+            extra+=(--test-dir "$TEST_DIR")
+          fi
+          python3 test/ci.py run --shard "$SHARD" --marker "$MARKER" \
+            --tt-cmd "$PWD/tt" --report-dir reports "${extra[@]}"
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pytest-${{ inputs.edition }}-${{ inputs.tarantool-version }}-${{ inputs.shard }}-${{ inputs.test-dir || 'all' }}
+          path: reports/
+          retention-days: 7
