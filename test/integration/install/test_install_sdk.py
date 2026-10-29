@@ -97,7 +97,13 @@ def install_tt_ee(tt_cmd, tmp_path, version=TT_EE_VERSION, scope="project"):
 
 
 def install_sdk(
-    tt_cmd, tmp_path, version=None, alias="sdk", scope="project", reinstall=False, dev=False,
+    tt_cmd,
+    tmp_path,
+    version=None,
+    alias="sdk",
+    scope="project",
+    reinstall=False,
+    dev=False,
 ):
     args = ["install", alias]
     if version is not None:
@@ -151,11 +157,17 @@ def test_sdk_dev_coexists_with_release(tt_cmd, tmp_path, scope, uninstall_active
         assert "release" in release.read_text()
         assert "development" in development.read_text()
         for selector, target in [
-            (f"sdk-{SDK_VERSION}", release), (f"sdk-{dev_version}", development),
+            (f"sdk-{SDK_VERSION}", release),
+            (f"sdk-{dev_version}", development),
         ]:
             public_product = "tarantool" if product == "tarantool-ee" else executable
             rc, output = binary_command(
-                tt_cmd, tmp_path, "switch", public_product, selector, scope=scope,
+                tt_cmd,
+                tmp_path,
+                "switch",
+                public_product,
+                selector,
+                scope=scope,
             )
             assert rc == 0, output
             assert (root / "bin" / executable).resolve(strict=True) == target
@@ -163,7 +175,14 @@ def test_sdk_dev_coexists_with_release(tt_cmd, tmp_path, scope, uninstall_active
 
     for flags, label in [([], "installed"), (["--dev"], "active")]:
         rc, output = binary_command(
-            tt_cmd, tmp_path, "search", "sdk", "--local-dir", "local bundles", *flags, scope=scope,
+            tt_cmd,
+            tmp_path,
+            "search",
+            "sdk",
+            "--local-dir",
+            "local bundles",
+            *flags,
+            scope=scope,
         )
         assert rc == 0, output
         selected = dev_version if flags else SDK_VERSION
@@ -593,7 +612,8 @@ def test_sdk_search_and_list_recognize_scope_alias(tt_cmd, tmp_path):
 
 
 @pytest.mark.parametrize(
-    "failure", ["corrupt", "tarantool", "tcm", "tt", "include/tarantool/module.h"],
+    "failure",
+    ["corrupt", "tarantool", "tcm", "tt", "include/tarantool/module.h"],
 )
 def test_sdk_invalid_fresh_archive_leaves_no_installation(tt_cmd, tmp_path, failure):
     archive = make_sdk(tmp_path, missing=failure)
@@ -667,7 +687,13 @@ def test_tt_ee_reactivation_and_reinstall(tt_cmd, tmp_path, dangling):
     make_tt_ee(tmp_path, "2.17.0-rc1")
     # The major-version selector must pick the latest stable Enterprise archive.
     rc, output = binary_command(
-        tt_cmd, tmp_path, "install", "tt", "2ee", "--local-dir", "local bundles",
+        tt_cmd,
+        tmp_path,
+        "install",
+        "tt",
+        "2ee",
+        "--local-dir",
+        "local bundles",
     )
     assert rc == 0, output
     root = sdk_root(tmp_path, "project")

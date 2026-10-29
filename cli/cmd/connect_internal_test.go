@@ -321,7 +321,7 @@ func TestResolveConnectOptsDoNotLeakPassword(t *testing.T) {
 	for _, target := range []string{
 		"user:secretpw@host",
 		"user:secretpw@host:port",
-		"u/ser:secretpw@host:3301",
+		"u/ser:secretpw@host:3301", // codespell:ignore ser
 		"user:sec/retpw@host:3301",
 		"tcp://user:secretpw@host",
 		"secretpw@host:3301",
