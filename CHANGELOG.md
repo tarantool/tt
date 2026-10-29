@@ -1022,7 +1022,7 @@ The release includes fixes identified by CVE linters.
 
 ## [2.11.4] - 2026-03-04
 
-The auxilary release just to keep version matching with `tt-ee`
+The auxiliary release just to keep version matching with `tt-ee`
 (no functional changes in `tt`).
 
 ## [2.11.3] - 2026-02-25

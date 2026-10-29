@@ -174,10 +174,16 @@ def test_promote_cconfig_failovers(
             # propagation and intermittently fails with "Not enough peers
             # connected to start elections".
             wait_election_leader_known(
-                tt_cmd, app_name, "election-failover-1", app_path,
+                tt_cmd,
+                app_name,
+                "election-failover-1",
+                app_path,
             )
             wait_election_leader_known(
-                tt_cmd, app_name, "election-failover-2", app_path,
+                tt_cmd,
+                app_name,
+                "election-failover-2",
+                app_path,
             )
 
         if stop_inst:

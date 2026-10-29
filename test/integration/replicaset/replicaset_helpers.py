@@ -107,9 +107,7 @@ def wait_election_leader_known(tt_cmd, app_name, inst_name, workdir):
                 return True
         return False
 
-    assert wait_event(15, election_settled), (
-        f"{inst_name} did not settle election state within 15s"
-    )
+    assert wait_event(15, election_settled), f"{inst_name} did not settle election state within 15s"
 
 
 def parse_status(buf: io.StringIO):

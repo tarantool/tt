@@ -5,6 +5,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -38,6 +39,8 @@ const (
 	// tagsFlag is the go flag that sets the build tags.
 	tagsFlag = "-tags"
 
+	testDir = "test"
+
 	lintConfig  = ".golangci.yml"
 	lintVersion = "2.14.0"
 	lintExeEnv  = "GOLANGCI_LINT"
@@ -61,25 +64,6 @@ var (
 		"build":    Build.Release,
 		"unit":     Unit.Default,
 		"unitfull": Unit.Full,
-	}
-
-	modules = []string{
-		"sdk/backup",
-		"sdk",
-		"sdk/integrity",
-		"sdk/cluster",
-		"modules/aeon",
-	}
-	lintModules = []string{
-		"sdk/backup",
-		".",
-		"modules/aeon",
-		"sdk",
-		"sdk/cluster",
-		"sdk/connect",
-		"sdk/dial",
-		"sdk/integrity",
-		"test/integration/aeon/server",
 	}
 
 	// lintVersionRe pulls the version out of `golangci-lint version`, which
@@ -114,6 +98,42 @@ func init() {
 	// We want to use Go 1.11 modules even if the source lives inside GOPATH.
 	// The default is "auto".
 	_ = os.Setenv("GO111MODULE", "on")
+}
+
+// findModules discovers project modules, including the root module. Test fixtures,
+// vendored dependencies and local environments are not project modules.
+func findModules() ([]string, error) {
+	var modules []string
+
+	err := filepath.WalkDir(".", func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if entry.IsDir() {
+			switch entry.Name() {
+			case testDir, "third_party", "vendor":
+				return filepath.SkipDir
+			}
+
+			if path != "." && strings.HasPrefix(entry.Name(), ".") {
+				return filepath.SkipDir
+			}
+
+			return nil
+		}
+
+		if entry.Name() == "go.mod" {
+			modules = append(modules, filepath.Dir(path))
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover Go modules: %w", err)
+	}
+
+	return modules, nil
 }
 
 type optsUpdater func([]string) ([]string, error)
@@ -289,7 +309,16 @@ func (Lint) Golang() error {
 		return fmt.Errorf("failed to get current dir: %w", err)
 	}
 
-	for _, dir := range lintModules {
+	modules, err := findModules()
+	if err != nil {
+		return err
+	}
+
+	// The Aeon mock server is an integration fixture: keep linting it, but do
+	// not include it in the project module list used for unit tests or generation.
+	modules = append(modules, "test/integration/aeon/server")
+
+	for _, dir := range modules {
 		err := os.Chdir(filepath.Join(root, dir))
 		if err != nil {
 			return fmt.Errorf("failed to enter lint directory %q: %w", dir, err)
@@ -357,19 +386,56 @@ func linterVersionOf(exe string) (string, error) {
 func (Lint) Python() error {
 	_, _ = fmt.Fprintln(os.Stdout, "Running Ruff...")
 
-	arguments := []string{"-m", "ruff", "check", "test"}
+	arguments := []string{"-m", "ruff", "check", testDir}
 	if fixFlag() {
 		arguments = append(arguments, "--fix")
+	}
+
+	err := sh.RunV(pythonExecutableName, arguments...)
+	if err != nil {
+		return err
+	}
+
+	arguments = []string{"-m", "ruff", "format", testDir}
+	if !fixFlag() {
+		arguments = append(arguments, "--check")
 	}
 
 	return sh.RunV(pythonExecutableName, arguments...)
 }
 
+// Modules checks that project module files are tidy and dependencies are intact.
+func (Lint) Modules() error {
+	modules, err := findModules()
+	if err != nil {
+		return err
+	}
+
+	for _, module := range modules {
+		// -diff reports drift without changing go.mod or go.sum.
+		err = sh.RunV(goExecutableName, "-C", module, "mod", "tidy", "-diff")
+		if err != nil {
+			return err
+		}
+
+		err = sh.RunV(goExecutableName, "-C", module, "mod", "verify")
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 type Unit mg.Namespace
 
 func runUnitTests(flags []string) error {
-	testDirs := append([]string{"."}, modules...)
-	for _, module := range testDirs {
+	modules, err := findModules()
+	if err != nil {
+		return err
+	}
+
+	for _, module := range modules {
 		args := []string{"test", "-C", module}
 		if mg.Verbose() {
 			args = append(args, "-v")
@@ -544,8 +610,12 @@ func Clean() {
 
 // Generate runs go generate with stringer available in PATH.
 func Generate() error {
-	paths := append([]string{"."}, modules...)
-	for _, path := range paths {
+	modules, err := findModules()
+	if err != nil {
+		return err
+	}
+
+	for _, path := range modules {
 		err := sh.RunWith(getBuildEnvironment(), goExecutableName, "-C", path,
 			"generate", "./...")
 		if err != nil {

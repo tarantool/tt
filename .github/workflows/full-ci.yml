@@ -15,17 +15,6 @@ env:
   PYTHON_VERSION: '3.10'
 
 jobs:
-  static-code-check:
-    if: contains(github.event.pull_request.labels.*.name, 'full-commit-check')
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@master
-        with:
-          fetch-depth: 0
-
-      - name: Static code check
-        uses: ./.github/actions/static-code-check
-
   full-ci-ce:
     if: |
       (github.event_name == 'push') ||

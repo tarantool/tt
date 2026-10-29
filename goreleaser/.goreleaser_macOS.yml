@@ -28,11 +28,6 @@ builds:
     goarch:
       - amd64
 
-    hooks:
-      pre:
-        - mage PatchCC
-        - mage GenerateGoCode
-
 archives:
   -
     id: "tt"
