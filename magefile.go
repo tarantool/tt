@@ -226,7 +226,8 @@ func (Build) Debug() error {
 func (Build) Coverage() error {
 	_, _ = fmt.Fprintln(os.Stdout, "Building release tt with coverage...")
 
-	err := buildTt(appendFlags("-cover"), appendTags, appendLdFlags("-s", "-w"))
+	err := buildTt(appendFlags("-cover", "-covermode=atomic"), appendTags,
+		appendLdFlags("-s", "-w"))
 	if err != nil {
 		return err
 	}
@@ -417,6 +418,27 @@ func (Lint) Modules() error {
 	return nil
 }
 
+// Vuln checks every project module with the govulncheck installed by CI.
+func (Lint) Vuln() error {
+	modules, err := findModules()
+	if err != nil {
+		return err
+	}
+
+	var failures []error
+
+	for _, module := range modules {
+		_, _ = fmt.Fprintf(os.Stdout, "Checking vulnerabilities in %s...\n", module)
+
+		err = sh.RunV("govulncheck", "-C", module, "./...")
+		if err != nil {
+			failures = append(failures, fmt.Errorf("govulncheck %s: %w", module, err))
+		}
+	}
+
+	return errors.Join(failures...)
+}
+
 type Unit mg.Namespace
 
 func runUnitTests(flags []string) error {
@@ -431,9 +453,10 @@ func runUnitTests(flags []string) error {
 			args = append(args, "-v")
 		}
 
-		args = append(args, "./...")
+		// Go flags must precede -args, which forwards the remaining arguments
+		// directly to the test binary (used by Unit.Coverage).
+		args = append(args, "./...", "-count=1")
 		args = append(args, flags...)
-		args = append(args, "-count=1")
 
 		err := sh.RunV(goExecutableName, args...)
 		if err != nil {
@@ -449,6 +472,11 @@ func (Unit) Default() error {
 	_, _ = fmt.Fprintln(os.Stdout, "Running unit tests...")
 
 	return runUnitTests([]string{})
+}
+
+// Race runs unit tests in every project module with the race detector.
+func (Unit) Race() error {
+	return runUnitTests([]string{"-race"})
 }
 
 // Full runs unit tests with Tarantool instance integration.
@@ -483,7 +511,7 @@ func (Unit) Coverage() error {
 
 	err = runUnitTests([]string{
 		tagsFlag, "integration,integration_docker",
-		"-cover",
+		"-cover", "-covermode=atomic",
 		"-args", "-test.gocoverdir=" + coverDir,
 	})
 	if err != nil {
@@ -532,14 +560,15 @@ func Integration() error {
 	_, _ = fmt.Fprintln(os.Stdout, "Running integration tests...")
 
 	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m", "not slow and not slow_ee "+
-		"and not notarantool", "test/integration")
+		"and not notarantool and not tarantool_master", "test/integration")
 }
 
 // IntegrationFull runs the full set of integration tests.
 func IntegrationFull() error {
 	_, _ = fmt.Fprintln(os.Stdout, "Running all integration tests...")
 
-	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m", "not slow_ee and not notarantool",
+	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m",
+		"not slow_ee and not notarantool and not tarantool_master",
 		"test/integration")
 }
 
@@ -548,7 +577,8 @@ func IntegrationFullSkipDocker() error {
 	_, _ = fmt.Fprintln(os.Stdout, "Running all integration tests, excluding docker...")
 
 	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m",
-		"not slow_ee and not notarantool and not docker", "test/integration")
+		"not slow_ee and not notarantool and not docker and not tarantool_master",
+		"test/integration")
 }
 
 // IntegrationFullDocker runs only docker tests from the full set.
@@ -556,7 +586,7 @@ func IntegrationFullDocker() error {
 	_, _ = fmt.Fprintln(os.Stdout, "Running docker integration tests...")
 
 	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m",
-		"not slow_ee and not notarantool and docker", "test/integration")
+		"not slow_ee and not notarantool and docker and not tarantool_master", "test/integration")
 }
 
 // IntegrationEE runs the set of EE integration tests.

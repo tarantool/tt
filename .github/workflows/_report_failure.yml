@@ -1,0 +1,46 @@
+name: Report scheduled CI failure
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: true
+      branch:
+        type: string
+        required: true
+      suite:
+        type: string
+        required: true
+      results:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  report:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    concurrency:
+      group: ci-issue-${{ inputs.suite }}-${{ inputs.branch }}
+      cancel-in-progress: false
+    steps:
+      # Only scheduled or manually selected repository code reaches this job.
+      # Test jobs have no issue-write token and do not supply executable artifacts.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+          sparse-checkout: ci/report_failure.py
+          sparse-checkout-cone-mode: false
+      - name: Create or update the failure issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_SHA: ${{ inputs.ref }}
+          SOURCE_BRANCH: ${{ inputs.branch }}
+          SUITE: ${{ inputs.suite }}
+          RESULTS: ${{ inputs.results }}
+        run: python3 ci/report_failure.py
