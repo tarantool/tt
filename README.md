@@ -558,6 +558,19 @@ and `tt.manifest.sum` next to the manifest. Commit both: while the manifest
 stays the same, the next build takes its versions from the lock, and
 `--locked` fails when the lock or the Go modules differ.
 
+`tt version` of the result shows the version of the distribution and of the
+tt core it is built on; `tt version --modules` lists its modules with the
+versions Go recorded for their Go modules, `(devel)` for a local one:
+
+``` sh
+$ ./tt version --modules
+Tarantool CLI EE version 3.0.0, linux/amd64. commit: 1a2b3c4
+Tarantool CLI core version 3.0.0. commit: 9031d7ad96d9 (v3.0.1-0.20261028190206-9031d7ad96d9)
+  aeon        v0.0.0-20261028190206-9031d7ad96d9    github.com/tarantool/tt/modules/aeon
+  builtin     v3.0.1-0.20261028190206-9031d7ad96d9  github.com/tarantool/tt/v3
+  migrations  (devel)                               example.com/tt-ee/plugins/migrations
+```
+
 ### Building on another core
 
 `--core VALUE`, or the `TT_DIST_CORE` environment variable (the flag wins),
