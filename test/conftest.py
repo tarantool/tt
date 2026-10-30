@@ -16,6 +16,8 @@ from vshard_cluster import VshardCluster
 
 import utils
 
+pytest_plugins = ["tls_helper"]
+
 
 # ######## #
 # Fixtures #

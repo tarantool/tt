@@ -1,5 +1,0 @@
-paths:
-  .github/workflows/publish.yml:
-    ignore:
-      # Migrate these outputs with the publishing workflow in the packaging stage.
-      - 'workflow command "set-output" was deprecated'

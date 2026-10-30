@@ -1,0 +1,26 @@
+name: Package checks
+
+on:
+  pull_request:
+    paths:
+      - 'goreleaser/**'
+      - 'package/**'
+      - 'magefile*'
+      - 'ci/package_artifacts.py'
+      - '.github/workflows/_build.yml'
+      - '.github/workflows/_packages.yml'
+      - '.github/workflows/packages.yml'
+      - '.github/workflows/publish.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  snapshot:
+    uses: ./.github/workflows/_packages.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
+    with:
+      ref: ${{ github.event.pull_request.head.sha }}
