@@ -267,7 +267,8 @@ linters:
             # helper rather than reinventing exec plumbing.
             - "github.com/tarantool/tt/v3/cli/util"
             # cli/manifest/build filters component files with gitignore-syntax
-            # include/exclude patterns via go-git's matcher.
+            # include/exclude patterns via go-git's matcher; cli/manifest/distbuild
+            # reads the .gitignore files of the local modules it hashes with it.
             - "github.com/go-git/go-git/v5/plumbing/format/gitignore"
             # cli/manifest/pack compresses the .tt archive as tar+zstd.
             - "github.com/klauspost/compress/zstd"
