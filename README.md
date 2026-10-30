@@ -648,11 +648,11 @@ offline machine; on macOS `build.sh` takes `TT_DIST_LDFLAGS_DARWIN_*`.
 
 A distribution built with `integrity = "rsa"` signs packages with an RSA
 private key and runs them checked with the public key. tt itself checks
-nothing: it has no integrity provider. The keys are PEM, the private one
-PKCS#1 and the public one PKIX, as openssl makes them:
+nothing: it has no integrity provider. The keys are PEM: the private one
+PKCS#1 or PKCS#8, the public one PKIX or PKCS#1, as openssl makes them:
 
 ``` sh
-openssl genrsa -traditional -out private.pem 2048
+openssl genrsa -out private.pem 2048
 openssl rsa -in private.pem -pubout -out public.pem
 ```
 
