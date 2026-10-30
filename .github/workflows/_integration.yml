@@ -24,6 +24,10 @@ on:
       marker:
         type: string
         required: true
+      tt-source:
+        description: build or snapshot, recorded with the binary provenance
+        type: string
+        default: build
       tt-artifact:
         description: Binary produced by _build.yml
         type: string
@@ -84,8 +88,13 @@ jobs:
       - name: Prepare binary
         env:
           EDITION: ${{ inputs.edition }}
+          TT_SOURCE: ${{ inputs.tt-source }}
+          TT_ARTIFACT: ${{ inputs.tt-artifact }}
         run: |
           case "$EDITION" in ce|ee|none) ;; *) exit 2 ;; esac
+          case "$TT_SOURCE" in build|snapshot) ;; *) exit 2 ;; esac
+          echo "Testing $TT_SOURCE binary from artifact $TT_ARTIFACT"
+          sha256sum tt
           chmod +x tt
           ./tt version
 
@@ -119,6 +128,7 @@ jobs:
           TT_CLI_EE_USERNAME: ${{ inputs.ee-credentials && secrets.TT_EE_USERNAME || '' }}
           TT_CLI_EE_PASSWORD: ${{ inputs.ee-credentials && secrets.TT_EE_PASSWORD || '' }}
         run: |
+          go version -m ./tt
           if [ "$FULL" = true ]; then
             export TT_ENABLE_COREDUMP_TESTS=1 TT_ENABLE_DOCKER_CLEANUP=1
           fi
@@ -136,6 +146,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: pytest-${{ inputs.edition }}-${{ inputs.tarantool-version }}-${{ inputs.shard }}-${{ inputs.test-dir || 'all' }}
+          name: pytest-${{ inputs.edition }}-${{ inputs.tarantool-version }}-${{ inputs.shard }}-${{ inputs.test-dir || 'all' }}-${{ inputs.tt-artifact }}
           path: reports/
           retention-days: 7

@@ -24,17 +24,16 @@ env:
   PYTHON_VERSION: '3.12'
 
 jobs:
-  build:
+  snapshot:
     if: >-
       ${{ github.event_name == 'push' ||
       (github.event_name == 'pull_request' &&
       contains(github.event.pull_request.labels.*.name, 'full-ci') &&
       (github.event.action != 'labeled' ||
       github.event.label.name == 'full-ci')) }}
-    uses: ./.github/workflows/_build.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
+    uses: ./.github/workflows/_packages.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
     with:
       ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      artifact-name: tt-default
 
   full-start:
     if: >-
@@ -74,15 +73,14 @@ jobs:
       contains(github.event.pull_request.labels.*.name, 'full-ci') &&
       (github.event.action != 'labeled' || github.event.label.name == 'full-ci') }}
     needs: full-start
-    uses: ./.github/workflows/_build.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
+    uses: ./.github/workflows/_packages.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
     with:
       ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      artifact-name: tt-default
       environment: ee-fork
       cache: false
 
   go-docker:
-    needs: build
+    needs: snapshot
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -93,7 +91,7 @@ jobs:
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: tt-default
+          name: tt-snapshot-default-linux-amd64
 
       - name: Prepare binary
         run: chmod +x tt
@@ -108,7 +106,7 @@ jobs:
         run: mage unit:full
 
   it-ce:
-    needs: build
+    needs: snapshot
     strategy:
       fail-fast: false
       matrix:
@@ -116,6 +114,8 @@ jobs:
         shard: [cluster, instances, tooling]
     uses: ./.github/workflows/_integration.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
     with:
+      tt-source: snapshot
+      tt-artifact: tt-snapshot-default-linux-amd64
       ref: ${{ github.event.pull_request.head.sha || github.sha }}
       edition: ce
       tarantool-version: ${{ matrix.tarantool-version }}
@@ -124,10 +124,10 @@ jobs:
       full: true
 
   it-ee:
-    needs: [build, build-ee-fork]
+    needs: [snapshot, build-ee-fork]
     if: |
       !cancelled() &&
-      ((needs.build.result == 'success' &&
+      ((needs.snapshot.result == 'success' &&
         (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)) ||
        needs.build-ee-fork.result == 'success')
     strategy:
@@ -137,6 +137,8 @@ jobs:
         tarantool-version: ['3.3', '3']
     uses: ./.github/workflows/_integration.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
     with:
+      tt-source: snapshot
+      tt-artifact: tt-snapshot-default-linux-amd64
       ref: ${{ github.event.pull_request.head.sha || github.sha }}
       edition: ee
       tarantool-version: ${{ matrix.tarantool-version }}
@@ -150,14 +152,16 @@ jobs:
       TT_EE_PASSWORD: ${{ secrets.TT_EE_PASSWORD }}
 
   ee-creds:
-    needs: [build, build-ee-fork]
+    needs: [snapshot, build-ee-fork]
     if: |
       !cancelled() &&
-      ((needs.build.result == 'success' &&
+      ((needs.snapshot.result == 'success' &&
         (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)) ||
        needs.build-ee-fork.result == 'success')
     uses: ./.github/workflows/_integration.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
     with:
+      tt-source: snapshot
+      tt-artifact: tt-snapshot-default-linux-amd64
       ref: ${{ github.event.pull_request.head.sha || github.sha }}
       edition: ee
       tarantool-version: '3'
@@ -170,10 +174,33 @@ jobs:
       TT_EE_USERNAME: ${{ secrets.TT_EE_USERNAME }}
       TT_EE_PASSWORD: ${{ secrets.TT_EE_PASSWORD }}
 
-  notarantool:
-    needs: build
+  tls-openssl:
+    needs: [snapshot, build-ee-fork]
+    if: |
+      !cancelled() &&
+      ((needs.snapshot.result == 'success' &&
+        (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)) ||
+       needs.build-ee-fork.result == 'success')
     uses: ./.github/workflows/_integration.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
     with:
+      tt-source: snapshot
+      tt-artifact: tt-snapshot-openssl_static-linux-amd64
+      ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      edition: ee
+      tarantool-version: '3'
+      marker: tls
+      environment: ${{ github.event_name == 'pull_request_target' && 'ee-fork' || '' }}
+      cache: ${{ github.event_name != 'pull_request_target' }}
+    secrets:
+      TT_EE_USERNAME: ${{ secrets.TT_EE_USERNAME }}
+      TT_EE_PASSWORD: ${{ secrets.TT_EE_PASSWORD }}
+
+  notarantool:
+    needs: snapshot
+    uses: ./.github/workflows/_integration.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
+    with:
+      tt-source: snapshot
+      tt-artifact: tt-snapshot-default-linux-amd64
       ref: ${{ github.event.pull_request.head.sha || github.sha }}
       edition: none
       tarantool-version: ''
@@ -184,7 +211,7 @@ jobs:
       ${{ always() && (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository &&
       contains(github.event.pull_request.labels.*.name, 'full-ci') &&
       (github.event.action != 'labeled' || github.event.label.name == 'full-ci')) }}
-    needs: [build, go-docker, it-ce, notarantool]
+    needs: [snapshot, go-docker, it-ce, notarantool]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -209,8 +236,8 @@ jobs:
       github.event.pull_request.head.repo.full_name != github.repository &&
       contains(github.event.pull_request.labels.*.name, 'full-ci') &&
       (github.event.action != 'labeled' || github.event.label.name == 'full-ci') &&
-      needs.full-start.result == 'success' && needs.it-ee.result == 'success' && needs.ee-creds.result == 'success' }}
-    needs: [full-start, it-ee, ee-creds]
+      needs.full-start.result == 'success' && needs.it-ee.result == 'success' && needs.ee-creds.result == 'success' && needs.tls-openssl.result == 'success' }}
+    needs: [full-start, it-ee, ee-creds, tls-openssl]
     runs-on: ubuntu-24.04
     timeout-minutes: 125
     permissions:
@@ -237,7 +264,7 @@ jobs:
       github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository) &&
       contains(github.event.pull_request.labels.*.name, 'full-ci') &&
       (github.event.action != 'labeled' || github.event.label.name == 'full-ci'))) }}
-    needs: [full-start, build, go-docker, it-ce, it-ee, ee-creds, notarantool, build-ee-fork, wait-ce]
+    needs: [full-start, snapshot, go-docker, it-ce, it-ee, ee-creds, tls-openssl, notarantool, build-ee-fork, wait-ce]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -263,6 +290,6 @@ jobs:
           RESULTS: ${{ toJSON(needs) }}
           REQUIRED: >-
             ${{ github.event_name == 'pull_request_target' &&
-            '["full-start","build-ee-fork","it-ee","ee-creds","wait-ce"]' ||
-            '["full-start","build","go-docker","it-ce","it-ee","ee-creds","notarantool"]' }}
+            '["full-start","build-ee-fork","it-ee","ee-creds","tls-openssl","wait-ce"]' ||
+            '["full-start","snapshot","go-docker","it-ce","it-ee","ee-creds","tls-openssl","notarantool"]' }}
         run: python3 ci/status.py

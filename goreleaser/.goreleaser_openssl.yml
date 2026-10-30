@@ -1,0 +1,109 @@
+# GoReleaser v2.19.0; keep the version in _build.yml in sync.
+version: 2
+project_name: tt-openssl
+dist: dist/openssl
+env:
+  - GO111MODULE=on
+before:
+  hooks:
+    - go mod download
+builds:
+  - binary: tt
+    dir: cli
+    env:
+      - CGO_ENABLED=1
+    goarch:
+      - amd64
+    goos:
+      - linux
+    id: tt-amd64
+    ldflags:
+      - -linkmode=external -extldflags=-static
+      - -s -w
+      - -X github.com/tarantool/tt/v3/cli/version.gitTag={{ .Tag }}
+      - -X github.com/tarantool/tt/v3/cli/version.gitCommit={{ .ShortCommit }}
+    tags:
+      - netgo
+      - osusergo
+      - openssl
+      - openssl_static
+    main: .
+    skip: '{{ ne .Env.GOARCH "amd64" }}'
+  - binary: tt
+    dir: cli
+    env:
+      - CGO_ENABLED=1
+    goarch:
+      - arm64
+    goos:
+      - linux
+    id: tt-arm64
+    ldflags:
+      - -linkmode=external -extldflags=-static
+      - -s -w
+      - -X github.com/tarantool/tt/v3/cli/version.gitTag={{ .Tag }}
+      - -X github.com/tarantool/tt/v3/cli/version.gitCommit={{ .ShortCommit }}
+    tags:
+      - netgo
+      - osusergo
+      - openssl
+      - openssl_static
+    main: .
+    skip: '{{ ne .Env.GOARCH "arm64" }}'
+archives:
+  - files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+    id: tt
+    name_template: '{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}'
+    ids:
+      - tt-amd64
+      - tt-arm64
+    formats:
+      - tar.gz
+nfpms:
+  - contents:
+      - dst: /usr/share/bash-completion/completions/tt
+        src: dist/completions/tt.bash
+      - dst: /usr/share/zsh/vendor-completions/_tt
+        src: dist/completions/tt.zsh
+      - dst: /usr/share/fish/completions/tt.fish
+        src: dist/completions/tt.fish
+    description: Command-line utility to manage Tarantool applications (static OpenSSL TLS backend)
+    formats:
+      - deb
+      - rpm
+    homepage: https://github.com/tarantool/tt
+    id: tt
+    license: BSD-2 MIT Apache-2.0 BSD MPL-2.0
+    maintainer: Leonid Vasiliev <lvasiliev@tarantool.org>
+    overrides:
+      deb:
+        file_name_template: '{{ .PackageName }}_{{ .Version }}_{{ .Arch }}'
+      rpm:
+        file_name_template: '{{ .PackageName }}-{{ .Version }}.{{ if eq .Arch "amd64" }}x86_64{{ else
+          if eq .Arch "arm64" }}aarch64{{ else }}{{ .Arch }}{{ end }}'
+    recommends:
+      - git
+      - zip
+      - unzip
+      - curl
+    scripts:
+      preinstall: package/scripts/preinstall.sh
+    ids:
+      - tt-amd64
+      - tt-arm64
+    package_name: tt-openssl
+    conflicts:
+      - tt
+    replaces:
+      - tt
+    provides:
+      - tt
+snapshot:
+  version_template: '{{ .Tag }}-{{ .ShortCommit }}'
+checksum:
+  name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Env.GOARCH }}_checksums.txt'
+changelog:
+  disable: true

@@ -1,27 +1,16 @@
+version: 2
+project_name: tt
+dist: dist/publish
 builds:
   - skip: true
-
-archives:
-  -
-    id: "tt"
-    builds: ['tt']
-    format: tar.gz
-    name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
-    files:
-      - README.md
-      - LICENSE
-      - CHANGELOG.md
-
-snapshot:
-  name_template: "{{ .Tag }}-{{ .ShortCommit }}"
-
 changelog:
-  skip: true
-
+  disable: true
+checksum:
+  disable: true
 release:
   draft: true
   mode: append
   extra_files:
-    - glob: ./dist-prebuilt/**/*
+    - glob: dist/release/*
   header: |
     # Overview
