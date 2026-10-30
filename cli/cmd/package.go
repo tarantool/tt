@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/sdk/output"
 
@@ -26,6 +28,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 	oldrocks "github.com/tarantool/tt/v3/cli/rocks"
 	"github.com/tarantool/tt/v3/cli/util"
+	"github.com/tarantool/tt/v3/internal/integrityprovider"
 )
 
 // errNoTarantool reports that no tarantool executable was found; the manifest
@@ -38,6 +41,10 @@ var (
 	packageProduct     string
 	packageLocked      bool
 	packageWithoutDeps bool
+	// packageIntegrityKey is --with-integrity-check of tt package pack: the
+	// private key that signs the archive. The flag exists only when the
+	// integrity provider of the distribution signs.
+	packageIntegrityKey string
 )
 
 // Flags shared by the scope-addressed subcommands: install, list and uninstall.
@@ -729,6 +736,15 @@ func newPackagePackCmd() *cobra.Command {
 		"pack without _runtime/ and without foreign dependencies in .rocks/")
 	addRegistryFlag(packCmd)
 
+	// The flag exists when the integrity provider of the distribution signs,
+	// and so does the paragraph that says what it does.
+	usage := packCmd.Flags().FlagUsages()
+	integrityprovider.Get().RegisterWithIntegrityFlag(packCmd.Flags(), &packageIntegrityKey)
+
+	if packCmd.Flags().FlagUsages() != usage {
+		packCmd.Long += integritySigningHelp
+	}
+
 	return packCmd
 }
 
@@ -750,9 +766,15 @@ func runPackagePack() error {
 		return err
 	}
 
+	signer, err := packageSigner()
+	if err != nil {
+		return err
+	}
+
 	ctx := context.Background()
 
 	result, err := pack.Run(ctx, pack.Options{
+		Signer:      signer,
 		ProjectDir:  projectDir,
 		Product:     packageProduct,
 		Locked:      packageLocked,
@@ -1132,3 +1154,26 @@ func tarantoolInfo() (manifestrocks.TarantoolInfo, error) {
 		Version:    ver.Str,
 	}, nil
 }
+
+// packageSigner returns the signer of tt package pack --with-integrity-check,
+// or nil when the archive is not signed.
+func packageSigner() (integrity.Signer, error) {
+	if packageIntegrityKey == "" {
+		return nil, nil //nolint:nilnil // No key, no signer: the archive is not signed.
+	}
+
+	signer, err := integrityprovider.Get().NewSigner(packageIntegrityKey)
+	if err != nil {
+		return nil, sdk.WithUsage(fmt.Errorf("--with-integrity-check: %w", err))
+	}
+
+	return signer, nil
+}
+
+// integritySigningHelp is what the help of tt package pack says about
+// signing, in a distribution whose integrity provider signs.
+const integritySigningHelp = " With --with-integrity-check the archive is signed for the " +
+	"integrity checks: the package and each runtime it bundles get their hashes files, and " +
+	"the instance records of its templates may run only the files of the package. A signed " +
+	"archive is installed into the user or the system scope with tt package install " +
+	"--integrity-check; it is not packed --without-deps."
