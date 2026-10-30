@@ -31,9 +31,8 @@ func TestFlags(t *testing.T) {
 	t.Parallel()
 
 	assert.Equal(t, []string{"netgo", "osusergo"}, buildflags.Default.Tags())
-	assert.Equal(t, []string{"netgo", "osusergo", "openssl", "go_storage_ssl"},
-		buildflags.OpenSSL.Tags())
-	assert.Equal(t, []string{"netgo", "osusergo", "openssl", "go_storage_ssl", "openssl_static"},
+	assert.Equal(t, []string{"netgo", "osusergo", "openssl"}, buildflags.OpenSSL.Tags())
+	assert.Equal(t, []string{"netgo", "osusergo", "openssl", "openssl_static"},
 		buildflags.OpenSSLStatic.Tags())
 
 	assert.Empty(t, buildflags.Default.Ldflags("linux"))
