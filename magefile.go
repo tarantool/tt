@@ -15,19 +15,19 @@ import (
 
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
+
+	"github.com/tarantool/tt/v3/internal/buildflags"
 )
 
 var (
 	errCannotParseAVersionOutOf                  = errors.New("cannot parse a version out of ")
 	errIsGolangciLintWantTheProjectPinnedVersion = errors.New(" is golangci-lint ")
 	errIsNotADirectory                           = errors.New(" is not a directory")
-	errUnsupportedBuildType                      = errors.New("unsupported build type: ")
 )
 
 // spell-checker:ignore trimpath extldflags asmflags covdata GOEXE TTEXE GOCOVERDIR
 
 const (
-	buildTypeEnv  = "TT_CLI_BUILD_SSL"
 	goPackageName = "github.com/tarantool/tt/v3/cli"
 
 	asmflags = "all=-trimpath=${PWD}"
@@ -49,9 +49,6 @@ var (
 		"-X ${PACKAGE}/version.gitCommit=${GIT_COMMIT}",
 		"-X ${PACKAGE}/version.gitCommitSinceTag=${GIT_COMMIT_SINCE_TAG}",
 		"-X ${PACKAGE}/version.versionLabel=${VERSION_LABEL}",
-	}
-	staticLdflags = []string{
-		"-linkmode=external", "-extldflags", "-static",
 	}
 	goExecutableName     = "go"
 	pythonExecutableName = "python3"
@@ -87,14 +84,6 @@ var (
 	lintVersionRe = regexp.MustCompile(`\bversion v?(\d+)\.(\d+)\.(\d+)\b`)
 )
 
-type BuildType string
-
-const (
-	BuildTypeDefault       BuildType = "default"
-	BuildTypeOpenSSL       BuildType = "openssl"
-	BuildTypeOpenSSLStatic BuildType = "openssl_static"
-)
-
 func init() {
 	var err error
 
@@ -128,37 +117,30 @@ func appendFlags(flags ...string) optsUpdater {
 // appendLdFlags appends linker flags.
 func appendLdFlags(flags ...string) optsUpdater {
 	return func(args []string) ([]string, error) {
+		ssl, err := buildflags.Parse(os.Getenv(buildflags.Env))
+		if err != nil {
+			return nil, err
+		}
+
 		buildLdflags := append([]string(nil), ldflags...)
 
 		buildLdflags = append(buildLdflags, flags...)
-
-		buildType := os.Getenv(buildTypeEnv)
-		if BuildType(buildType) == BuildTypeOpenSSLStatic && runtime.GOOS != "darwin" {
-			buildLdflags = append(buildLdflags, staticLdflags...)
-		}
+		buildLdflags = append(buildLdflags, ssl.Ldflags(runtime.GOOS)...)
 
 		return append(append(args, "-ldflags"), strings.Join(buildLdflags, " ")), nil
 	}
 }
 
-// appendTags appends tags.
+// appendTags appends the build tags of the TLS implementation
+// TT_CLI_BUILD_SSL selects (default, openssl or openssl_static; unset is
+// default).
 func appendTags(args []string) ([]string, error) {
-	tags := []string{"netgo", "osusergo"}
-
-	buildType := os.Getenv(buildTypeEnv)
-	switch BuildType(buildType) {
-	case "", BuildTypeDefault:
-	case BuildTypeOpenSSL:
-		tags = append(tags, "openssl")
-	case BuildTypeOpenSSLStatic:
-		tags = append(tags, "openssl", "openssl_static")
-	default:
-		return []string{}, fmt.Errorf("%w%s, supported: default, %s, %s",
-			errUnsupportedBuildType, buildType,
-			BuildTypeOpenSSL, BuildTypeOpenSSLStatic)
+	ssl, err := buildflags.Parse(os.Getenv(buildflags.Env))
+	if err != nil {
+		return nil, err
 	}
 
-	return append(append(args, tagsFlag), strings.Join(tags, ",")), nil
+	return append(append(args, tagsFlag), strings.Join(ssl.Tags(), ",")), nil
 }
 
 // Building tt executable. Supported environment variables:
