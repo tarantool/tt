@@ -1057,10 +1057,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   instead, so it could not read a configuration tt 2 had published with
   `--with-integrity-check`, and what it published itself was not where the
   instances look for it.
-- Builds with `TT_CLI_BUILD_SSL=openssl` or `openssl_static` reach a Tarantool
-  config storage over TLS: they set `go_storage_ssl`, without which
-  go-storage refuses TLS to it. The default pure-Go build still has no TLS to
-  a config storage.
+- The modules of a distribution that connect to a Tarantool config storage
+  through go-storage reach it over TLS in every build: in pure Go by default,
+  through OpenSSL with `TT_CLI_BUILD_SSL=openssl` or `openssl_static`.
+  go-storage refused TLS to a config storage unless built with
+  `go_storage_ssl`, which no build of tt 3 set. tt itself connects to one
+  through `sdk/dial` and was not affected.
 - `tt binary install`: recognize boolean flags such as `-f` and `--reinstall`
   before the product name when `--no-prompt` is set, instead of mistaking the
   product for a flag value and rejecting its options.
