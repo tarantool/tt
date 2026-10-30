@@ -186,6 +186,11 @@ type InstanceCtx struct {
 	// integrityFor finds the checks again where the watchdog reloads the
 	// instance (PinnedOptions): app.Options.IntegrityFor it was found with.
 	integrityFor func(app.Scope, string) (integrity.IntegrityCtx, error)
+
+	// configVars are the variables tarantool substitutes into the config of
+	// a Tarantool instance the cluster config configures, such as
+	// {{ instance_name }} (configVars); nil for any other instance.
+	configVars map[string]string
 }
 
 // removeSockets removes the console socket and the binary port socket of an
@@ -216,11 +221,16 @@ func createLogger(run *InstanceCtx) (ttlog.Logger, error) {
 	return ttlog.NewFileLogger(opts)
 }
 
-// renderInstCtxMembers instantiates some members of instance context.
+// renderInstCtxMembers substitutes the variables of the config, such as
+// {{ instance_name }}, into the paths of the instance context (configVars;
+// instance_name alone for an instance the cluster config does not
+// configure). A variable tarantool would not know is an error.
 func renderInstCtxMembers(instance *InstanceCtx) error {
-	templateData := map[string]string{
-		"instance_name": instance.InstName,
+	templateData := instance.configVars
+	if templateData == nil {
+		templateData = map[string]string{"instance_name": instance.InstName}
 	}
+
 	for _, dstString := range []*string{
 		&instance.WalDir, &instance.VinylDir, &instance.MemtxDir, &instance.ConsoleSocket,
 		&instance.BinaryPort,
