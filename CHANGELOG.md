@@ -1011,6 +1011,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt cluster publish` and `tt cluster show --validate` refused a valid cluster
+  config of Tarantool 3 whose replicaset sets `leader`, or `bootstrap_leader`,
+  with "Additional properties 'leader' do not match the schema": the config of
+  each instance, folded from every level, was checked against a schema
+  that has no place for keys of the replicaset. They are accepted on the
+  replicaset, as Tarantool accepts them, and still refused globally, in a
+  group and in an instance, where Tarantool refuses them too.
 - A path the cluster config of an instance sets with `{{ replicaset_name }}`
   or `{{ group_name }}` in it failed the instance commands with "missing
   vars": tt substitutes them as Tarantool does, as it did

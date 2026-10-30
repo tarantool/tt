@@ -217,3 +217,115 @@ func TestClusterPublishIncompletePair(t *testing.T) {
 	require.ErrorContains(t, err, `to configure its Tarantool instances "storage-1"`)
 	assert.NoFileExists(t, config, "no config is made up for the pair")
 }
+
+// leaderConfig returns a cluster config of one replicaset of the instances
+// s-1 and s-2, with failover manual, whose lines are put at the place the
+// level names: "global", "group", "replicaset" or "instance".
+func leaderConfig(level, lines string) string {
+	indent := map[string]string{
+		"global": "", "group": "    ", "replicaset": "        ", "instance": "            ",
+	}[level]
+
+	put := func(at string) string {
+		if at != level {
+			return ""
+		}
+
+		var out strings.Builder
+
+		for line := range strings.SplitSeq(strings.TrimSpace(lines), "\n") {
+			out.WriteString(indent + line + "\n")
+		}
+
+		return out.String()
+	}
+
+	return "replication:\n  failover: manual\n" + put("global") +
+		"groups:\n  g:\n" + put("group") +
+		"    replicasets:\n      r:\n" + put("replicaset") +
+		"        instances:\n          s-1:\n" + put("instance") + "          s-2: {}\n"
+}
+
+// TestClusterPublishLeaderLevel pins that tt cluster publish takes the keys
+// only a replicaset may set, leader and bootstrap_leader, on the replicaset,
+// as Tarantool does, and refuses them on any other level, as Tarantool
+// does, as well as a key it does not know, and a leader of a wrong type.
+//
+//nolint:paralleltest // Sets the environment, the working directory and the flags.
+func TestClusterPublishLeaderLevel(t *testing.T) {
+	const (
+		leader    = "leader: s-1"
+		bootstrap = "bootstrap_leader: s-1"
+		wrongKey  = "no_such_key: 1"
+	)
+
+	cases := []struct {
+		name   string
+		source string
+		msg    string
+	}{
+		{name: "leader on the replicaset", source: leaderConfig("replicaset", leader)},
+		{
+			name:   "leader and bootstrap_leader on the replicaset",
+			source: leaderConfig("replicaset", leader+"\n"+bootstrap),
+		},
+		{
+			name:   "leader on the top",
+			source: leaderConfig("global", leader),
+			msg:    "leader [schema]",
+		},
+		{
+			name:   "leader on the group",
+			source: leaderConfig("group", leader),
+			msg:    "leader [schema]",
+		},
+		{
+			name:   "leader on the instance",
+			source: leaderConfig("instance", leader),
+			msg:    "leader [schema]",
+		},
+		{
+			name:   "bootstrap_leader on the top",
+			source: leaderConfig("global", bootstrap),
+			msg:    "bootstrap_leader [schema]",
+		},
+		{
+			name:   "bootstrap_leader on the instance",
+			source: leaderConfig("instance", bootstrap),
+			msg:    "bootstrap_leader [schema]",
+		},
+		{
+			name:   "leader of a wrong type",
+			source: leaderConfig("replicaset", "leader: 1"),
+			msg:    "leader [type] invalid type",
+		},
+		{
+			name:   "unknown key on the replicaset",
+			source: leaderConfig("replicaset", leader+"\n"+wrongKey),
+			msg:    "no_such_key [schema]",
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			original := topologyOf("s-1", "s-2")
+			config := publishProject(t, "s-1:\ns-2:\n", original)
+			source := publishSource(t, test.source)
+
+			err := internalClusterPublishModule(&cmdcontext.CmdCtx{}, []string{"myapp", source})
+
+			data, readErr := os.ReadFile(config)
+			require.NoError(t, readErr)
+
+			if test.msg == "" {
+				require.NoError(t, err)
+				assert.Contains(t, string(data), "leader: s-1")
+
+				return
+			}
+
+			require.ErrorContains(t, err, test.msg)
+			assert.Equal(t, original, string(data), "the config is not written")
+		})
+	}
+}

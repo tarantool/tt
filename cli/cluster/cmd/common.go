@@ -111,7 +111,10 @@ func validateRawClusterConfig(yamlBytes []byte) error {
 
 // validateGoConfig validates a goconfig.Config as a cluster configuration.
 // Each discovered instance is validated using its effective (inherited) config
-// (obtained via cluster.InstanceConfig which calls EffectiveAll internally).
+// (obtained via cluster.InstanceConfig which calls EffectiveAll internally)
+// with cluster.ValidateInstance: the replicaset keys the folding brings in,
+// like "leader", are not refused there. Their level is checked in the whole
+// config.
 // The full parameter is unused for the raw-bytes path but kept for symmetry.
 func validateGoConfig(view goconfig.Config, _ bool) error {
 	var errs []error
@@ -132,9 +135,9 @@ func validateGoConfig(view goconfig.Config, _ bool) error {
 			return err
 		}
 
-		err = validateInstanceConfig(instView, name)
+		err = cluster.ValidateInstance(instView)
 		if err != nil {
-			errs = append(errs, err)
+			errs = append(errs, fmt.Errorf("an invalid instance %q configuration: %w", name, err))
 		}
 	}
 
