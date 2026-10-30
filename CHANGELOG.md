@@ -45,6 +45,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt.manifest.lock` records `content_hash` of every local module and local
   core - the hash of the files a bundle would copy - and `tt binary build tt
   --locked` fails when they changed since the lock was written.
+- `[replace]` in `tt.manifest.toml`: replace a Go module of the build with a
+  local directory or with another module version, as a `replace` directive of
+  a `go.mod` does. Go applies those of the main module only, so a tt module
+  that depends on an unpublished library had no way to be built into a
+  distribution. The version may be a query; the lock pins it, records a
+  directory by `content_hash`, and `tt binary build tt --locked` fails when
+  the directory changed. `--vendor` copies the directories into the bundle,
+  which builds offline. The core, the modules of its repository and the
+  `[dependencies]` modules are refused: they have `[core].path`, `--core`,
+  `path` and `version`.
 - `tt version` of a distribution with a version of its own also shows the
   version of the tt core it is built on, and `tt version --modules` lists the
   modules the binary is built from with the versions Go recorded for their
