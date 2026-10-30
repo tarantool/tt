@@ -395,7 +395,9 @@ func envName(key string) string {
 // process has checks of its own (checkExternal): the TT_ variables in the env
 // of its record are not a config of tarantool. An instance that runs its
 // script needs the script (checkScript), and binds its console socket
-// wherever it is (scriptSpec), so only its binary port has to fit.
+// wherever it is (scriptSpec), so only its binary port has to fit. With the
+// integrity checks on, a Tarantool instance gets no env from its record and
+// runs on the links of its version (checkIntegrityStart).
 func checkStart(inst *InstanceCtx) error {
 	if IsExternal(inst) {
 		return checkExternal(inst)
@@ -410,7 +412,8 @@ func checkStart(inst *InstanceCtx) error {
 		_, _, socketErr = socketArgs(inst)
 	}
 
-	return errors.Join(scriptErr, checkOldLayout(inst), checkRelativePaths(inst), socketErr)
+	return errors.Join(scriptErr, checkOldLayout(inst), checkRelativePaths(inst), socketErr,
+		checkIntegrityStart(inst))
 }
 
 // checkOldLayout refuses to start an instance of a project that still keeps

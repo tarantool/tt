@@ -307,6 +307,11 @@ func superviseInstance(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx,
 		return supervisionEnd{}, fmt.Errorf("failed to create a directory: %w", err)
 	}
 
+	err = linkIntegrityLayout(inst)
+	if err != nil {
+		return supervisionEnd{}, err
+	}
+
 	logger, err := createLogger(inst)
 	if err != nil {
 		return supervisionEnd{}, fmt.Errorf("cannot create a logger: %w", err)
@@ -643,6 +648,11 @@ func IsAbleToStartInstances(instances []InstanceCtx) (bool, error) {
 			}
 
 			continue
+		}
+
+		err = linkIntegrityLayout(inst)
+		if err != nil {
+			return false, err
 		}
 
 		exe, err := resolveTarantool(inst)
