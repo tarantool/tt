@@ -402,6 +402,15 @@ func TestBuildReplace(t *testing.T) {
 		t.Skip("go is not in PATH")
 	}
 
+	// The replacement of uuid is a version query, which only the module
+	// proxy answers: the other tests here build from the module cache alone.
+	proxy, err := exec.CommandContext(t.Context(), goTool, "env", "GOPROXY").Output()
+	require.NoError(t, err)
+
+	if strings.TrimSpace(string(proxy)) == "off" {
+		t.Skip("a version query needs the module proxy, and GOPROXY is off")
+	}
+
 	coreDir, err := filepath.Abs(filepath.Join("..", "..", ".."))
 	require.NoError(t, err)
 
