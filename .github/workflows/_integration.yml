@@ -54,6 +54,10 @@ on:
       continue-on-error:
         type: boolean
         default: false
+      timeout-minutes:
+        description: Time for environment preparation and tests
+        type: number
+        default: 60
     secrets:
       TT_EE_USERNAME:
         required: false
@@ -72,7 +76,7 @@ jobs:
     runs-on: ${{ inputs.runner }}
     environment: ${{ inputs.environment }}
     continue-on-error: ${{ inputs.continue-on-error }}
-    timeout-minutes: 60
+    timeout-minutes: ${{ inputs.timeout-minutes }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -94,7 +98,7 @@ jobs:
           case "$EDITION" in ce|ee|none) ;; *) exit 2 ;; esac
           case "$TT_SOURCE" in build|snapshot) ;; *) exit 2 ;; esac
           echo "Testing $TT_SOURCE binary from artifact $TT_ARTIFACT"
-          sha256sum tt
+          shasum -a 256 tt
           chmod +x tt
           ./tt version
 

@@ -123,6 +123,33 @@ jobs:
       marker: not slow_ee and not notarantool
       full: true
 
+  arm64:
+    needs: snapshot
+    uses: ./.github/workflows/_integration.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
+    with:
+      runner: ubuntu-24.04-arm
+      tt-source: snapshot
+      tt-artifact: tt-snapshot-default-linux-arm64
+      ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      edition: ce
+      tarantool-version: '3.9'
+      marker: not slow and not slow_ee and not notarantool
+
+  macos:
+    needs: snapshot
+    uses: ./.github/workflows/_integration.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
+    with:
+      runner: macos-15
+      tt-source: snapshot
+      tt-artifact: tt-snapshot-default-darwin-arm64
+      ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      edition: ce
+      tarantool-version: '3.9'
+      marker: not slow and not slow_ee and not notarantool and not docker
+      # Allow time for tt binary install to build Tarantool from source.
+      timeout-minutes: 90
+      continue-on-error: true
+
   it-ee:
     needs: [snapshot, build-ee-fork]
     if: |
@@ -211,7 +238,8 @@ jobs:
       ${{ always() && (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository &&
       contains(github.event.pull_request.labels.*.name, 'full-ci') &&
       (github.event.action != 'labeled' || github.event.label.name == 'full-ci')) }}
-    needs: [snapshot, go-docker, it-ce, notarantool]
+    # macos is informational until the platform tests are stable.
+    needs: [snapshot, go-docker, it-ce, arm64, notarantool]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -264,7 +292,8 @@ jobs:
       github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository) &&
       contains(github.event.pull_request.labels.*.name, 'full-ci') &&
       (github.event.action != 'labeled' || github.event.label.name == 'full-ci'))) }}
-    needs: [full-start, snapshot, go-docker, it-ce, it-ee, ee-creds, tls-openssl, notarantool, build-ee-fork, wait-ce]
+    # macos is informational until the platform tests are stable.
+    needs: [full-start, snapshot, go-docker, it-ce, arm64, it-ee, ee-creds, tls-openssl, notarantool, build-ee-fork, wait-ce]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -291,5 +320,5 @@ jobs:
           REQUIRED: >-
             ${{ github.event_name == 'pull_request_target' &&
             '["full-start","build-ee-fork","it-ee","ee-creds","tls-openssl","wait-ce"]' ||
-            '["full-start","snapshot","go-docker","it-ce","it-ee","ee-creds","tls-openssl","notarantool"]' }}
+            '["full-start","snapshot","go-docker","it-ce","arm64","it-ee","ee-creds","tls-openssl","notarantool"]' }}
         run: python3 ci/status.py
