@@ -1,0 +1,272 @@
+# The help of a distribution named "Tarantool CLI EE" that checks
+# integrity with the RSA provider. Regenerate with:
+#   go test ./cli/cmd -run TestHelpIntegrityGolden -update
+
+=== tt --help
+Tarantool CLI EE — utility for managing Tarantool packages and Tarantool-based
+applications
+
+[0;1;39mUSAGE[0m
+  tt [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  backup      Manage Tarantool backups (PITR)
+  backup-id   Print an identifier for a new backup
+  binary      Manage binaries and SDK bundles
+  cat         Print into stdout the contents of .snap/.xlog FILE(s)
+  cluster     Manage cluster configuration
+  completion  Generate autocomplete for a specified shell. Supported shell type:
+              bash | zsh | fish
+  connect     Connect to the tarantool instance (tt instance connect)
+  coredump    Perform manipulations with the tarantool coredumps
+  create      Create an application from a template
+  daemon      Perform manipulations with the tt daemon (experimental)
+  help        Help about any command
+  instance    Manage the instances of applications
+  new         Create a skeleton app.manifest.toml in the current directory
+  package     Manage tt manifest packages
+  play        Play the contents of .snap/.xlog FILE(s) to another Tarantool
+              instance
+  registry    Inspect the rock servers packages are resolved against
+  replicaset  Manage replicasets
+  restore     Restore a Tarantool cluster from a backup (PITR)
+  rocks       LuaRocks package manager
+  run         Run the current package under its Tarantool
+  service     Integrate with the service manager of the system
+  tcm         Manage tcm application
+  test        Build the current package and run its tests
+  version     Show Tarantool CLI EE version information
+[0;1;39m
+HELP TOPICS[0m
+  errors      Exit codes of tt commands
+ 
+[0;1;39m
+FLAGS[0m
+  -h, --help                         help for tt
+      --integrity-check string       path to the public key that enables
+                                     integrity checks
+      --integrity-check-period int   how often the watchdog re-checks integrity,
+                                     in seconds
+  -I, --internal                     Use internal module
+      --log-format text|json         Format of the log written to stderr: text
+                                     or json (default text)
+      --no-prompt                    Skip cli interaction using default behavior
+  -V, --verbose                      Verbose output
+[0;1;39m
+EXAMPLES[0m
+  $ tt -V version
+  $ tt -I help
+  $ tt completion
+
+Use "tt <command> --help" for more information about a command.
+
+=== tt instance start --help
+Start the instances the targets select. By default every instance runs in the
+background under a watchdog of tt, which restarts it as the restart field of its
+record says.
+
+With --foreground tt stays in the foreground, for systemd, a container or a
+terminal, while every instance runs under a watchdog of its own that does not
+restart it. The output of the instances goes to their tt.log and to the standard
+output, prefixed with the instance when there are several. SIGINT, SIGTERM and
+SIGQUIT stop every instance, as a stop of its watchdog does; tt instance stop
+stops one of them from another terminal. An instance that ends does not stop the
+others. tt exits once all of them have ended: with 0 when they were stopped in
+time, with the exit code of the first instance that failed otherwise, 137 for
+one killed as it did not stop in time.
+
+[0;1;39mUSAGE[0m
+  tt instance start [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
+[0;1;39m
+FLAGS[0m
+      --foreground                   stay in the foreground while the instances
+                                     run, without restarting them
+  -h, --help                         help for start
+      --integrity-check-period int   how often the watchdog re-checks integrity,
+                                     in seconds
+      --scope string                 scope the application is looked for in:
+                                     project, user or system
+      --template string              template of the application the instances
+                                     are described in (default "default")
+
+=== tt cluster publish --help
+Publish an application or an instance configuration to a cluster configuration
+file, to a etcd URI or to a tarantool config storage URI.
+
+An application gets the configuration in the config.yaml of its pair, or in the
+config storage its config.yaml points to with config.etcd or config.storage. A
+configuration that drops an instance of the cluster instances.yaml of the
+application names is refused; the instances its "*" stands for may be dropped.
+
+The URL specifies a etcd or tarantool config storage connection settings in the
+following format:
+http(s)://[username:password@]host:port/prefix[?arguments]
+
+* prefix - a base path to Tarantool configuration in etcd or tarantool config
+  storage.
+
+Possible arguments:
+* key - a target configuration key in the prefix.
+* name - a name of an instance in the cluster configuration.
+* timeout - a request timeout in seconds (default 3.0).
+* ssl_key_file - a path to a private SSL key file.
+* ssl_cert_file - a path to an SSL certificate file.
+* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
+* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
+* ssl_ciphers - a list of allowed SSL ciphers.
+* verify_host - set off (default true) verification of the certificate’s name
+  against the host.
+* verify_peer - set off (default true) verification of the peer’s SSL
+  certificate.
+
+The command supports the following environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username;
+* TT_CLI_PASSWORD - specifies a Tarantool password.
+* TT_CLI_ETCD_USERNAME - specifies a Etcd username;
+* TT_CLI_ETCD_PASSWORD - specifies a Etcd password.
+
+The priority of credentials:
+environment variables < command flags < URL credentials.
+
+HTTPS connection behavior:
+* The https:// scheme enables TLS for both etcd and Tarantool Config Storage
+  (TCS), even when no ssl_* URL arguments are specified.
+* For etcd, certificate verification is skipped if neither ssl_ca_file nor
+  ssl_ca_path is specified. A configured CA enables verification unless
+  explicitly disabled.
+* TCS keeps the certificate verification behavior of its TLS backend. The
+  default Go backend uses system CAs unless ssl_ca_file is specified.
+* Do not mix http:// and https:// addresses in an etcd endpoint list. If any
+  endpoint uses https://, TLS is enabled for all endpoints.
+
+By default, the command removes all keys in etcd with prefix '/prefix/config/'
+and writes the result to '/prefix/config/all'. You could work and update a
+target key with the 'key' argument.
+
+[0;1;39mUSAGE[0m
+  tt cluster publish (<APP> | <APP>:<INSTANCE> | <URI>) file [flags]
+[0;1;39m
+FLAGS[0m
+      --force                         force publish and skip validation
+      --group string                  group name
+  -h, --help                          help for publish
+  -p, --password string               password (used as etcd credentials only)
+      --replicaset string             replicaset name
+      --scope string                  scope the application is looked for in:
+                                      project, user or system
+      --template string               template of the application the instances
+                                      are described in (default "default")
+  -u, --username string               username (used as etcd credentials only)
+      --with-integrity-check string   path to the private key that signs
+                                      published data and packages
+[0;1;39m
+EXAMPLES[0m
+  tt cluster publish application_name cluster.yaml
+  tt cluster publish application_name:instance_name instance.yaml
+  tt cluster publish https://user:pass@localhost:2379/tt cluster.yaml
+  tt cluster publish https://user:pass@localhost:2379/tt?name=instance
+  instance.yaml
+  tt cluster publish --group group --replicaset replicaset
+  https://user:pass@localhost:2379/tt?name=instance instance.yaml
+
+=== tt cluster replicaset promote --help
+Promote an instance
+
+The URL specifies a etcd or tarantool config storage connection settings in the
+following format:
+http(s)://[username:password@]host:port/prefix[?arguments]
+
+* prefix - a base path to Tarantool configuration in etcd or tarantool config
+  storage.
+
+Possible arguments:
+* key - a target configuration key in the prefix.
+* name - a name of an instance in the cluster configuration.
+* timeout - a request timeout in seconds (default 3.0).
+* ssl_key_file - a path to a private SSL key file.
+* ssl_cert_file - a path to an SSL certificate file.
+* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
+* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
+* ssl_ciphers - a list of allowed SSL ciphers.
+* verify_host - set off (default true) verification of the certificate’s name
+  against the host.
+* verify_peer - set off (default true) verification of the peer’s SSL
+  certificate.
+
+The command supports the following environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username;
+* TT_CLI_PASSWORD - specifies a Tarantool password.
+* TT_CLI_ETCD_USERNAME - specifies a Etcd username;
+* TT_CLI_ETCD_PASSWORD - specifies a Etcd password.
+
+The priority of credentials:
+environment variables < command flags < URL credentials.
+
+HTTPS connection behavior:
+* The https:// scheme enables TLS for both etcd and Tarantool Config Storage
+  (TCS), even when no ssl_* URL arguments are specified.
+* For etcd, certificate verification is skipped if neither ssl_ca_file nor
+  ssl_ca_path is specified. A configured CA enables verification unless
+  explicitly disabled.
+* TCS keeps the certificate verification behavior of its TLS backend. The
+  default Go backend uses system CAs unless ssl_ca_file is specified.
+* Do not mix http:// and https:// addresses in an etcd endpoint list. If any
+  endpoint uses https://, TLS is enabled for all endpoints.
+
+[0;1;39mUSAGE[0m
+  tt cluster replicaset promote [-f] [flags] <URI> <INSTANCE_NAME>
+[0;1;39m
+FLAGS[0m
+  -f, --force                         skip selecting a key for patching
+  -h, --help                          help for promote
+  -p, --password string               password (used as etcd/tarantool config
+                                      storage credentials)
+  -u, --username string               username (used as etcd/tarantool config
+                                      storage credentials)
+      --with-integrity-check string   path to the private key that signs
+                                      published data and packages
+
+=== tt replicaset vshard bootstrap --help
+Bootstrap vshard in the cluster.
+
+The command supports the following Tarantool environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username
+* TT_CLI_PASSWORD - specifies a Tarantool password
+
+[0;1;39mUSAGE[0m
+  tt replicaset vshard bootstrap [--config|--custom] [--timeout secs] [flags]
+  (<APP> | <APP>:<INSTANCE> | <URI>)
+
+  The URI can be specified in the following formats:
+  * [tcp://][username:password@][host:port]
+  * [unix://][username:password@]socketpath
+  To specify relative path without `unix://` use `./`.
+[0;1;39m
+FLAGS[0m
+      --config                        to force the centralized config
+                                      orchestrator
+      --connect-timeout duration      timeout for establishing a binary
+                                      connection (default 1s)
+      --custom                        to force a custom orchestrator
+  -h, --help                          help for bootstrap
+  -p, --password string               password for the URI case
+      --scope string                  scope the application is looked for in:
+                                      project, user or system
+      --sslcafile string              path to a trusted certificate authorities
+                                      (CA) file for the URI case
+      --sslcertfile string            path to an SSL certificate file for the
+                                      URI case
+      --sslciphers string             colon-separated (:) list of SSL cipher
+                                      suites for the URI case
+      --sslkeyfile string             path to a private SSL key file for the URI
+                                      case
+      --sslpassword string            password for decrypting the private SSL
+                                      key file for a cluster connection
+      --sslpasswordfile string        path to a file containing the private SSL
+                                      key password for a cluster connection
+      --template string               template of the application the instances
+                                      are described in (default "default")
+      --timeout int                   timeout (default 10)
+  -u, --username string               username for the URI case
+      --with-integrity-check string   path to the private key that signs
+                                      published data and packages
