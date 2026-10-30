@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/sdk/integrity"
 )
 
 // assertNoFile checks that there is no directory entry at path.
@@ -17,435 +18,209 @@ func assertNoFile(t *testing.T, path string) {
 	require.ErrorIs(t, err, os.ErrNotExist, "%s must not exist", path)
 }
 
-func TestRSASignerWritesRootApplication(t *testing.T) {
+// writePackage writes the files of a package tree into base: a manifest,
+// a lock, a template pair, Lua sources, a shared library, a program built
+// into .rocks/bin and a file of no kind Tarantool loads.
+func writePackage(t *testing.T, base string) {
+	t.Helper()
+
+	writeFile(t, filepath.Join(base, "app.manifest.toml"), "manifest\n", 0o644)
+	writeFile(t, filepath.Join(base, "app.manifest.lock"), "lock\n", 0o644)
+	writeFile(t, filepath.Join(base, "VERSION"), "1.0.0\n", 0o644)
+	writeFile(t, filepath.Join(base, ".templates", "default", "config.yaml"), "config\n", 0o644)
+	writeFile(t, filepath.Join(base, ".templates", "default", "instances.yaml"),
+		"instances\n", 0o644)
+	writeFile(t, filepath.Join(base, ".rocks", "share", "tarantool", "app", "init.lua"),
+		"init\n", 0o644)
+	writeFile(t, filepath.Join(base, ".rocks", "lib", "tarantool", "app", "B.so"), "B\n", 0o644)
+	writeFile(t, filepath.Join(base, ".rocks", "lib", "tarantool", "app", "a.dylib"), "a\n", 0o644)
+	writeFile(t, filepath.Join(base, ".rocks", "bin", "gw"), "gateway\n", 0o755)
+	writeFile(t, filepath.Join(base, "run.lua"), "run\n", 0o755)
+	writeFile(t, filepath.Join(base, "data", "notes.txt"), "notes\n", 0o644)
+}
+
+func TestRSASignerSignsPackageTree(t *testing.T) {
 	key := signingKey(t)
 	base := t.TempDir()
 
-	writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-	writeFile(t, filepath.Join(base, "config.yaml"), "config\n", 0o644)
-	// A configuration file that is also executable is listed once, first.
-	writeFile(t, filepath.Join(base, "instances.yml"), "instances\n", 0o755)
-	writeFile(t, filepath.Join(base, "README.md"), "readme\n", 0o644)
-	writeFile(t, filepath.Join(base, "B.so"), "B\n", 0o644)
-	writeFile(t, filepath.Join(base, "a", "x.lua"), "a/x\n", 0o644)
-	writeFile(t, filepath.Join(base, "a-b.lua"), "a-b\n", 0o644)
-	writeFile(t, filepath.Join(base, "a.dylib"), "a\n", 0o644)
-	writeFile(t, filepath.Join(base, "init.lua"), "init\n", 0o644)
-	writeFile(t, filepath.Join(base, "run.sh"), "#!/bin/sh\n", 0o755)
-	writeFile(t, filepath.Join(base, "data", "notes.txt"), "notes\n", 0o644)
-	writeFile(t, filepath.Join(base, "bin", "tt"), "tt binary\n", 0o755)
-	writeFile(t, filepath.Join(base, "bin", "tools", "helper.lua"), "helper\n", 0o644)
-	writeFile(t, filepath.Join(base, "modules", "m.lua"), "module\n", 0o644)
-	writeFile(t, filepath.Join(base, "modules", "README"), "module readme\n", 0o644)
+	writePackage(t, base)
 
-	require.NoError(t, newSigner(t, key).Sign(base, nil))
+	require.NoError(t, newSigner(t, key).Sign(base, integrity.SignOptions{}))
 
-	// Configuration files first, then executable files depth-first with
-	// the names of each directory in byte order: "a" is walked before
-	// "a-b.lua", uppercase before lowercase. bin and modules of the
-	// environment are not part of the application.
+	// What Tarantool loads: Lua sources, shared libraries and cluster
+	// configs, whatever their modes, depth-first in byte order.
 	assert.Equal(t, hashesJSON(
-		entry("config.yaml", "config\n"),
-		entry("instances.yml", "instances\n"),
-		entry("B.so", "B\n"),
-		entry("a/x.lua", "a/x\n"),
-		entry("a-b.lua", "a-b\n"),
-		entry("a.dylib", "a\n"),
-		entry("init.lua", "init\n"),
-		entry("run.sh", "#!/bin/sh\n"),
+		entry(".rocks/lib/tarantool/app/B.so", "B\n"),
+		entry(".rocks/lib/tarantool/app/a.dylib", "a\n"),
+		entry(".rocks/share/tarantool/app/init.lua", "init\n"),
+		entry(".templates/default/config.yaml", "config\n"),
+		entry("run.lua", "run\n"),
 	), readFile(t, filepath.Join(base, "hashes.json")))
 
-	// Every file under bin, then under modules, then tt.yaml.
+	// Everything else, the programs tt runs and the files it reads among
+	// them; no tt.yaml is needed.
 	assert.Equal(t, hashesJSON(
-		entry("bin/tools/helper.lua", "helper\n"),
-		entry("bin/tt", "tt binary\n"),
-		entry("modules/README", "module readme\n"),
-		entry("modules/m.lua", "module\n"),
-		entry("tt.yaml", "env: {}\n"),
+		entry(".rocks/bin/gw", "gateway\n"),
+		entry(".templates/default/instances.yaml", "instances\n"),
+		entry("VERSION", "1.0.0\n"),
+		entry("app.manifest.lock", "lock\n"),
+		entry("app.manifest.toml", "manifest\n"),
+		entry("data/notes.txt", "notes\n"),
 	), readFile(t, filepath.Join(base, "env_hashes.json")))
 
 	for _, name := range []string{"hashes.json", "env_hashes.json"} {
-		entries := readSignedHashes(t, key, filepath.Join(base, name))
-		assertDigests(t, base, entries)
+		assertDigests(t, base, readSignedHashes(t, key, filepath.Join(base, name)))
 	}
-}
-
-func TestRSASignerListsAllConfigurationFiles(t *testing.T) {
-	key := signingKey(t)
-	base := t.TempDir()
-	app := filepath.Join(base, "app")
-
-	writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-	writeFile(t, filepath.Join(base, "shared", "instances.yaml"), "shared instances\n", 0o644)
-
-	// The four configuration files, one of them executable and one a link,
-	// among scripts whose names sort before, between and after theirs.
-	writeFile(t, filepath.Join(app, "a.lua"), "a\n", 0o644)
-	writeFile(t, filepath.Join(app, "config.yaml"), "config yaml\n", 0o644)
-	writeFile(t, filepath.Join(app, "config.yml"), "config yml\n", 0o755)
-	writeFile(t, filepath.Join(app, "d.lua"), "d\n", 0o644)
-	symlink(t, filepath.Join("..", "shared", "instances.yaml"),
-		filepath.Join(app, "instances.yaml"))
-	writeFile(t, filepath.Join(app, "instances.yml"), "instances yml\n", 0o644)
-	writeFile(t, filepath.Join(app, "z.lua"), "z\n", 0o644)
-	// A configuration name below the application directory does not make
-	// a configuration file.
-	writeFile(t, filepath.Join(app, "roles", "config.yaml"), "role config\n", 0o644)
-	writeFile(t, filepath.Join(app, "roles", "role.lua"), "role\n", 0o644)
-
-	require.NoError(t, newSigner(t, key).Sign(base, []string{"app"}))
-
-	hashes := filepath.Join(app, "hashes.json")
-	assert.Equal(t, hashesJSON(
-		entry("config.yaml", "config yaml\n"),
-		entry("config.yml", "config yml\n"),
-		entry("instances.yaml", "shared instances\n"),
-		entry("instances.yml", "instances yml\n"),
-		entry("a.lua", "a\n"),
-		entry("d.lua", "d\n"),
-		entry("roles/role.lua", "role\n"),
-		entry("z.lua", "z\n"),
-	), readFile(t, hashes))
-	assertDigests(t, app, readSignedHashes(t, key, hashes))
-}
-
-func TestRSASignerRootApplicationIsChecked(t *testing.T) {
-	key := signingKey(t)
-	base := t.TempDir()
-
-	writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-	writeFile(t, filepath.Join(base, "config.yaml"), "config\n", 0o644)
-	writeFile(t, filepath.Join(base, "init.lua"), "init\n", 0o644)
-	writeFile(t, filepath.Join(base, "bin", "tt"), "tt binary\n", 0o755)
-	writeFile(t, filepath.Join(base, "README.md"), "readme\n", 0o644)
-
-	require.NoError(t, newSigner(t, key).Sign(base, nil))
 
 	ctx, err := initializeCheck(t, key, base)
 	require.NoError(t, err)
 	require.NoError(t, ctx.Repository.ValidateAll())
 
-	// Files of both hashes files are known.
-	for name, content := range map[string]string{
-		"tt.yaml":     "env: {}\n",
-		"config.yaml": "config\n",
-		"init.lua":    "init\n",
-		"bin/tt":      "tt binary\n",
-	} {
-		data, err := readThrough(t, ctx.Repository, filepath.Join(base, name))
+	for _, name := range []string{"app.manifest.toml", ".rocks/bin/gw", "run.lua"} {
+		_, err := readThrough(t, ctx.Repository, filepath.Join(base, name))
 		require.NoError(t, err, name)
-		assert.Equal(t, content, data, name)
 	}
 
-	_, err = readThrough(t, ctx.Repository, filepath.Join(base, "README.md"))
-	require.ErrorContains(t, err, "in repository")
+	require.NoError(t, integrity.NewRSAProvider().VerifyTree(
+		writePublicKey(t, t.TempDir(), key), base))
 }
 
-func TestRSASignerNamedApplications(t *testing.T) {
+func TestRSASignerSkipsAndLoads(t *testing.T) {
 	key := signingKey(t)
 	base := t.TempDir()
 
-	writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-	writeFile(t, filepath.Join(base, "app", "config.yaml"), "app config\n", 0o644)
-	writeFile(t, filepath.Join(base, "app", "init.lua"), "app init\n", 0o644)
-	writeFile(t, filepath.Join(base, "app", "roles", "role.lua"), "role\n", 0o644)
-	writeFile(t, filepath.Join(base, "app", "notes.txt"), "notes\n", 0o644)
-	// bin and modules are skipped at the root of the environment only.
-	writeFile(t, filepath.Join(base, "app", "bin", "tool.lua"), "tool\n", 0o644)
-	writeFile(t, filepath.Join(base, "app", "modules", "m.lua"), "module\n", 0o644)
-	writeFile(t, filepath.Join(base, "single.lua"), "single\n", 0o644)
-	symlink(t, filepath.Join("..", "single.lua"),
-		filepath.Join(base, "instances.enabled", "single.lua"))
+	writeFile(t, filepath.Join(base, "app.manifest.toml"), "manifest\n", 0o644)
+	writeFile(t, filepath.Join(base, "bin", "start"), "start script\n", 0o644)
+	writeFile(t, filepath.Join(base, "_runtime", "tt", "bin", "tt"), "tt\n", 0o755)
+	writeFile(t, filepath.Join(base, ".rocks", "manifests", "guest", "state"), "state\n", 0o644)
+	writeFile(t, filepath.Join(base, ".rocks", "manifests.lua"), "not skipped\n", 0o644)
 
-	require.NoError(t, newSigner(t, key).Sign(base, []string{"app", "single"}))
+	require.NoError(t, newSigner(t, key).Sign(base, integrity.SignOptions{
+		Skip:   []string{"_runtime", ".rocks/manifests"},
+		Loaded: []string{"bin/start"},
+	}))
 
-	appHashes := filepath.Join(base, "app", "hashes.json")
 	assert.Equal(t, hashesJSON(
-		entry("config.yaml", "app config\n"),
-		entry("bin/tool.lua", "tool\n"),
-		entry("init.lua", "app init\n"),
-		entry("modules/m.lua", "module\n"),
-		entry("roles/role.lua", "role\n"),
-	), readFile(t, appHashes))
-	assertDigests(t, filepath.Dir(appHashes), readSignedHashes(t, key, appHashes))
+		entry(".rocks/manifests.lua", "not skipped\n"),
+		entry("bin/start", "start script\n"),
+	), readFile(t, filepath.Join(base, "hashes.json")))
+	assert.Equal(t, hashesJSON(entry("app.manifest.toml", "manifest\n")),
+		readFile(t, filepath.Join(base, "env_hashes.json")))
 
-	singleHashes := filepath.Join(base, "instances.enabled", "single", "hashes.json")
-	assert.Equal(t, hashesJSON(entry("../single.lua", "single\n")), readFile(t, singleHashes))
-	assertDigests(t, filepath.Dir(singleHashes), readSignedHashes(t, key, singleHashes))
+	t.Run("loaded file missing", func(t *testing.T) {
+		dir := t.TempDir()
+		writeFile(t, filepath.Join(dir, "init.lua"), "init\n", 0o644)
 
-	envHashes := filepath.Join(base, "env_hashes.json")
-	assert.Equal(t, hashesJSON(entry("tt.yaml", "env: {}\n")), readFile(t, envHashes))
-	assertDigests(t, base, readSignedHashes(t, key, envHashes))
-
-	// Named applications do not make the environment an application.
-	assertNoFile(t, filepath.Join(base, "hashes.json"))
-
-	// The check reads the hashes files of configDir only: the files of the
-	// applications are not known to it, and their tampering goes unnoticed.
-	writeFile(t, filepath.Join(base, "app", "init.lua"), "tampered\n", 0o644)
-	writeFile(t, filepath.Join(base, "single.lua"), "tampered\n", 0o644)
-
-	ctx, err := initializeCheck(t, key, base)
-	require.NoError(t, err)
-	require.NoError(t, ctx.Repository.ValidateAll())
-
-	for _, path := range []string{
-		filepath.Join(base, "app", "init.lua"),
-		filepath.Join(base, "instances.enabled", "single.lua"),
-	} {
-		_, err = readThrough(t, ctx.Repository, path)
-		require.ErrorContains(t, err, "in repository")
-	}
-}
-
-func TestRSASignerSingleFileApplicationCopy(t *testing.T) {
-	key := signingKey(t)
-	base := t.TempDir()
-
-	writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-	writeFile(t, filepath.Join(base, "single.lua"), "packed\n", 0o644)
-	writeFile(t, filepath.Join(base, "instances.enabled", "single.lua"), "enabled\n", 0o644)
-
-	require.NoError(t, newSigner(t, key).Sign(base, []string{"single"}))
-
-	// The file signed is the one in instances.enabled, not the probe.
-	hashes := filepath.Join(base, "instances.enabled", "single", "hashes.json")
-	assert.Equal(t, hashesJSON(entry("../single.lua", "enabled\n")), readFile(t, hashes))
-}
-
-func TestRSASignerProbesThroughLinks(t *testing.T) {
-	key := signingKey(t)
-
-	t.Run("link to a file", func(t *testing.T) {
-		base := t.TempDir()
-
-		writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-		writeFile(t, filepath.Join(base, "scripts", "app.lua"), "script\n", 0o644)
-		symlink(t, filepath.Join("scripts", "app.lua"), filepath.Join(base, "app.lua"))
-		symlink(t, filepath.Join("..", "app.lua"),
-			filepath.Join(base, "instances.enabled", "app.lua"))
-
-		require.NoError(t, newSigner(t, key).Sign(base, []string{"app"}))
-		assert.Equal(t, hashesJSON(entry("../app.lua", "script\n")),
-			readFile(t, filepath.Join(base, "instances.enabled", "app", "hashes.json")))
+		err := newSigner(t, key).Sign(dir, integrity.SignOptions{Loaded: []string{"run"}})
+		require.ErrorContains(t, err, `"run" is not a file of the tree`)
+		assertNoFile(t, filepath.Join(dir, "hashes.json"))
+		assertNoFile(t, filepath.Join(dir, "env_hashes.json"))
 	})
 
-	t.Run("link to a directory", func(t *testing.T) {
-		base := t.TempDir()
-		probe := filepath.Join(base, "app.lua")
+	t.Run("loaded file skipped", func(t *testing.T) {
+		dir := t.TempDir()
+		writeFile(t, filepath.Join(dir, "_runtime", "run"), "run\n", 0o644)
 
-		writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-		writeFile(t, filepath.Join(base, "scripts", "init.lua"), "script\n", 0o644)
-		writeFile(t, filepath.Join(base, "app", "init.lua"), "init\n", 0o644)
-		symlink(t, "scripts", probe)
-
-		err := newSigner(t, key).Sign(base, []string{"app"})
-		require.ErrorContains(t, err, probe)
-	})
-
-	t.Run("link that does not resolve", func(t *testing.T) {
-		// Not found through the link: a directory application.
-		base := t.TempDir()
-
-		writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-		writeFile(t, filepath.Join(base, "app", "init.lua"), "init\n", 0o644)
-		symlink(t, "missing.lua", filepath.Join(base, "app.lua"))
-
-		require.NoError(t, newSigner(t, key).Sign(base, []string{"app"}))
-		assert.Equal(t, hashesJSON(entry("init.lua", "init\n")),
-			readFile(t, filepath.Join(base, "app", "hashes.json")))
-	})
-}
-
-func TestRSASignerNilAndEmptyApplications(t *testing.T) {
-	key := signingKey(t)
-
-	for name, appNames := range map[string][]string{"nil": nil, "empty": {}} {
-		t.Run(name, func(t *testing.T) {
-			base := t.TempDir()
-			writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-			writeFile(t, filepath.Join(base, "init.lua"), "init\n", 0o644)
-
-			require.NoError(t, newSigner(t, key).Sign(base, appNames))
-
-			assert.Equal(t, hashesJSON(entry("tt.yaml", "env: {}\n")),
-				readFile(t, filepath.Join(base, "env_hashes.json")))
-
-			if appNames == nil {
-				assert.Equal(t, hashesJSON(entry("init.lua", "init\n")),
-					readFile(t, filepath.Join(base, "hashes.json")))
-			} else {
-				assertNoFile(t, filepath.Join(base, "hashes.json"))
-			}
+		err := newSigner(t, key).Sign(dir, integrity.SignOptions{
+			Skip: []string{"_runtime"}, Loaded: []string{"_runtime/run"},
 		})
-	}
+		require.ErrorContains(t, err, "not a file of the tree")
+	})
 }
 
 func TestRSASignerNeverListsItsOutputs(t *testing.T) {
 	key := signingKey(t)
 	outputs := []string{"hashes.json", "hashes.json.sig", "env_hashes.json", "env_hashes.json.sig"}
 
-	// Executable files named as the outputs, below the application
-	// directory, are left out as well; an executable file next to them is
-	// listed.
 	for _, name := range outputs {
 		t.Run("nested "+name, func(t *testing.T) {
 			base := t.TempDir()
 
-			writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
 			writeFile(t, filepath.Join(base, "init.lua"), "init\n", 0o644)
 			writeFile(t, filepath.Join(base, "sub", name), "nested\n", 0o755)
 			writeFile(t, filepath.Join(base, "sub", "tool"), "tool\n", 0o755)
 
-			require.NoError(t, newSigner(t, key).Sign(base, nil))
-			assert.Equal(t, hashesJSON(entry("init.lua", "init\n"), entry("sub/tool", "tool\n")),
+			require.NoError(t, newSigner(t, key).Sign(base, integrity.SignOptions{}))
+			assert.Equal(t, hashesJSON(entry("init.lua", "init\n")),
 				readFile(t, filepath.Join(base, "hashes.json")))
+			assert.Equal(t, hashesJSON(entry("sub/tool", "tool\n")),
+				readFile(t, filepath.Join(base, "env_hashes.json")))
 		})
 	}
 
-	// A signed tree whose outputs were made executable signs again into
-	// the same bytes, and the result checks.
-	cases := map[string]struct {
-		appNames []string
-		appDir   string
-	}{
-		"root application":  {appNames: nil, appDir: ""},
-		"named application": {appNames: []string{"app"}, appDir: "app"},
-	}
-
-	for name, testCase := range cases {
-		t.Run(name, func(t *testing.T) {
-			base := t.TempDir()
-			appDir := filepath.Join(base, testCase.appDir)
-
-			writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-			writeFile(t, filepath.Join(appDir, "init.lua"), "init\n", 0o644)
-
-			require.NoError(t, newSigner(t, key).Sign(base, testCase.appNames))
-
-			appHashes := filepath.Join(appDir, "hashes.json")
-			envHashes := filepath.Join(base, "env_hashes.json")
-			expectedApp := hashesJSON(entry("init.lua", "init\n"))
-			expectedEnv := hashesJSON(entry("tt.yaml", "env: {}\n"))
-
-			require.Equal(t, expectedApp, readFile(t, appHashes))
-			require.Equal(t, expectedEnv, readFile(t, envHashes))
-
-			written := []string{appHashes, appHashes + ".sig", envHashes, envHashes + ".sig"}
-			for _, path := range written {
-				require.NoError(t, os.Chmod(path, 0o755))
-			}
-
-			require.NoError(t, newSigner(t, key).Sign(base, testCase.appNames))
-
-			assert.Equal(t, expectedApp, readFile(t, appHashes))
-			assert.Equal(t, expectedEnv, readFile(t, envHashes))
-			assertDigests(t, appDir, readSignedHashes(t, key, appHashes))
-
-			ctx, err := initializeCheck(t, key, base)
-			require.NoError(t, err)
-			require.NoError(t, ctx.Repository.ValidateAll())
-		})
-	}
-}
-
-func TestRSASignerApplicationWithoutFiles(t *testing.T) {
-	key := signingKey(t)
+	// A signed tree signs again into the same lists, and the result checks.
 	base := t.TempDir()
+	writeFile(t, filepath.Join(base, "init.lua"), "init\n", 0o644)
+	writeFile(t, filepath.Join(base, "VERSION"), "1\n", 0o644)
 
-	writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-	writeFile(t, filepath.Join(base, "app", "notes.txt"), "notes\n", 0o644)
+	require.NoError(t, newSigner(t, key).Sign(base, integrity.SignOptions{}))
+	require.NoError(t, newSigner(t, key).Sign(base, integrity.SignOptions{}))
 
-	require.NoError(t, newSigner(t, key).Sign(base, nil))
-	require.NoError(t, newSigner(t, key).Sign(base, []string{"app"}))
-
-	// Exactly {"files":[]}, what hashesJSON returns without entries: an
-	// empty array, never null.
-	assert.Equal(t, hashesJSON(), readFile(t, filepath.Join(base, "hashes.json")))
-	assert.Equal(t, hashesJSON(), readFile(t, filepath.Join(base, "app", "hashes.json")))
-	assert.Empty(t, readSignedHashes(t, key, filepath.Join(base, "app", "hashes.json")))
-}
-
-func TestRSASignerEnvironmentWithoutBinAndModules(t *testing.T) {
-	key := signingKey(t)
-	base := t.TempDir()
-
-	writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-
-	require.NoError(t, newSigner(t, key).Sign(base, []string{}))
-
-	assert.Equal(t, hashesJSON(entry("tt.yaml", "env: {}\n")),
+	assert.Equal(t, hashesJSON(entry("init.lua", "init\n")),
+		readFile(t, filepath.Join(base, "hashes.json")))
+	assert.Equal(t, hashesJSON(entry("VERSION", "1\n")),
 		readFile(t, filepath.Join(base, "env_hashes.json")))
 
 	ctx, err := initializeCheck(t, key, base)
 	require.NoError(t, err)
-
-	data, err := readThrough(t, ctx.Repository, filepath.Join(base, "tt.yaml"))
-	require.NoError(t, err)
-	assert.Equal(t, "env: {}\n", data)
+	require.NoError(t, ctx.Repository.ValidateAll())
 }
 
-func TestRSASignerWithoutTTYaml(t *testing.T) {
+func TestRSASignerTreeWithoutFiles(t *testing.T) {
+	key := signingKey(t)
 	base := t.TempDir()
-	writeFile(t, filepath.Join(base, "bin", "tt"), "tt binary\n", 0o755)
-	writeFile(t, filepath.Join(base, "app", "init.lua"), "init\n", 0o644)
 
-	err := newSigner(t, signingKey(t)).Sign(base, []string{"app"})
-	require.ErrorIs(t, err, os.ErrNotExist)
-	require.ErrorContains(t, err, "tt.yaml: no such file or directory")
-	assertNoFile(t, filepath.Join(base, "env_hashes.json"))
+	require.NoError(t, newSigner(t, key).Sign(base, integrity.SignOptions{}))
 
-	// The application signed before stays written.
-	assert.Equal(t, hashesJSON(entry("init.lua", "init\n")),
-		readFile(t, filepath.Join(base, "app", "hashes.json")))
+	// Exactly {"files":[]}: an empty array, never null.
+	assert.Equal(t, hashesJSON(), readFile(t, filepath.Join(base, "hashes.json")))
+	assert.Equal(t, hashesJSON(), readFile(t, filepath.Join(base, "env_hashes.json")))
+	assert.Empty(t, readSignedHashes(t, key, filepath.Join(base, "env_hashes.json")))
 }
 
-func TestRSASignerRefusesEnvironmentFilesForDirectories(t *testing.T) {
+func TestRSASignerRefusesTrees(t *testing.T) {
 	key := signingKey(t)
 
-	// A bin or a modules that exists is walked: a file there is not a
-	// tree to list.
-	for _, name := range []string{"bin", "modules"} {
-		t.Run(name, func(t *testing.T) {
-			base := t.TempDir()
-			path := filepath.Join(base, name)
+	t.Run("missing", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "missing")
 
-			writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-			writeFile(t, path, "not a directory\n", 0o644)
+		err := newSigner(t, key).Sign(dir, integrity.SignOptions{})
+		require.ErrorIs(t, err, os.ErrNotExist)
+	})
 
-			err := newSigner(t, key).Sign(base, []string{})
-			require.ErrorContains(t, err, path)
-			assertNoFile(t, filepath.Join(base, "env_hashes.json"))
-		})
-	}
+	t.Run("file", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "file")
+		writeFile(t, dir, "not a directory\n", 0o644)
+
+		err := newSigner(t, key).Sign(dir, integrity.SignOptions{})
+		require.ErrorContains(t, err, dir)
+		require.ErrorContains(t, err, "not a directory")
+	})
 }
 
 func TestRSASignerSymbolicLinks(t *testing.T) {
 	key := signingKey(t)
 	base := t.TempDir()
 
-	writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
 	writeFile(t, filepath.Join(base, "data", "notes.txt"), "notes\n", 0o644)
 	writeFile(t, filepath.Join(base, "data", "lib.txt"), "library\n", 0o644)
-	writeFile(t, filepath.Join(base, "data", "tool"), "tool\n", 0o755)
-	// The execute bits are those of the target, not of the link.
-	symlink(t, filepath.Join("data", "notes.txt"), filepath.Join(base, "notes"))
-	symlink(t, filepath.Join("data", "tool"), filepath.Join(base, "tool"))
-	// A link is listed under its own name, with the content of its target.
+	// A link is listed under its own name, with the content of its target,
+	// and its name says what loads it.
 	symlink(t, filepath.Join("data", "lib.txt"), filepath.Join(base, "lib.lua"))
+	symlink(t, filepath.Join("data", "notes.txt"), filepath.Join(base, "notes"))
 	// Links to directories are neither descended into nor listed.
 	symlink(t, "data", filepath.Join(base, "linked"))
 	symlink(t, "data", filepath.Join(base, "linked.lua"))
 
-	require.NoError(t, newSigner(t, key).Sign(base, nil))
+	require.NoError(t, newSigner(t, key).Sign(base, integrity.SignOptions{}))
 
-	hashes := filepath.Join(base, "hashes.json")
+	assert.Equal(t, hashesJSON(entry("lib.lua", "library\n")),
+		readFile(t, filepath.Join(base, "hashes.json")))
 	assert.Equal(t, hashesJSON(
-		entry("data/tool", "tool\n"),
-		entry("lib.lua", "library\n"),
-		entry("tool", "tool\n"),
-	), readFile(t, hashes))
-	assertDigests(t, base, readSignedHashes(t, key, hashes))
+		entry("data/lib.txt", "library\n"),
+		entry("data/notes.txt", "notes\n"),
+		entry("notes", "notes\n"),
+	), readFile(t, filepath.Join(base, "env_hashes.json")))
 
 	ctx, err := initializeCheck(t, key, base)
 	require.NoError(t, err)
@@ -455,157 +230,22 @@ func TestRSASignerSymbolicLinks(t *testing.T) {
 	assert.Equal(t, "library\n", data)
 }
 
-func TestRSASignerWalksLinkedRoots(t *testing.T) {
-	key := signingKey(t)
-	base := t.TempDir()
-	outside := t.TempDir()
-
-	writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-	writeFile(t, filepath.Join(outside, "app", "init.lua"), "app init\n", 0o644)
-	writeFile(t, filepath.Join(outside, "bin", "tt"), "tt binary\n", 0o755)
-	symlink(t, filepath.Join(outside, "app"), filepath.Join(base, "app"))
-	symlink(t, filepath.Join(outside, "bin"), filepath.Join(base, "bin"))
-
-	require.NoError(t, newSigner(t, key).Sign(base, []string{"app"}))
-
-	assert.Equal(t, hashesJSON(entry("init.lua", "app init\n")),
-		readFile(t, filepath.Join(outside, "app", "hashes.json")))
-	assert.Equal(t, hashesJSON(
-		entry("bin/tt", "tt binary\n"),
-		entry("tt.yaml", "env: {}\n"),
-	), readFile(t, filepath.Join(base, "env_hashes.json")))
-}
-
 func TestRSASignerDanglingSymbolicLinks(t *testing.T) {
 	key := signingKey(t)
+	base := t.TempDir()
+	link := filepath.Join(base, "sub", "broken.lua")
 
-	// A link that does not resolve fails whether or not it would be
-	// listed, and no hashes file is written.
-	for _, name := range []string{"broken.lua", "broken"} {
-		t.Run(name, func(t *testing.T) {
-			base := t.TempDir()
-			link := filepath.Join(base, "app", "sub", name)
+	writeFile(t, filepath.Join(base, "init.lua"), "init\n", 0o644)
+	symlink(t, filepath.Join(base, "missing"), link)
 
-			writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-			writeFile(t, filepath.Join(base, "app", "init.lua"), "init\n", 0o644)
-			symlink(t, filepath.Join(base, "missing"), link)
+	// A link that does not resolve fails, and no hashes file is written.
+	err := newSigner(t, key).Sign(base, integrity.SignOptions{})
+	require.ErrorContains(t, err, link)
+	assertNoFile(t, filepath.Join(base, "hashes.json"))
+	assertNoFile(t, filepath.Join(base, "env_hashes.json"))
 
-			err := newSigner(t, key).Sign(base, []string{"app"})
-			require.ErrorContains(t, err, link)
-			assertNoFile(t, filepath.Join(base, "app", "hashes.json"))
-			assertNoFile(t, filepath.Join(base, "app", "hashes.json.sig"))
-			assertNoFile(t, filepath.Join(base, "env_hashes.json"))
-		})
-	}
-
-	t.Run("existing hashes file", func(t *testing.T) {
-		base := t.TempDir()
-		hashes := filepath.Join(base, "app", "hashes.json")
-
-		writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-		writeFile(t, filepath.Join(base, "app", "init.lua"), "init\n", 0o644)
-		writeFile(t, hashes, "previous hashes", 0o644)
-		writeFile(t, hashes+".sig", "previous signature", 0o644)
-		symlink(t, filepath.Join(base, "missing"), filepath.Join(base, "app", "broken.lua"))
-
-		require.Error(t, newSigner(t, key).Sign(base, []string{"app"}))
-		assert.Equal(t, "previous hashes", readFile(t, hashes))
-		assert.Equal(t, "previous signature", readFile(t, hashes+".sig"))
-	})
-
-	for name, appNames := range map[string][]string{"root application": nil, "no": {}} {
-		t.Run("bin with "+name, func(t *testing.T) {
-			base := t.TempDir()
-			bin := filepath.Join(base, "bin")
-
-			writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-			symlink(t, filepath.Join(base, "missing"), bin)
-
-			err := newSigner(t, key).Sign(base, appNames)
-			require.ErrorContains(t, err, bin)
-			assertNoFile(t, filepath.Join(base, "env_hashes.json"))
-		})
-	}
-}
-
-func TestRSASignerRefusesApplications(t *testing.T) {
-	key := signingKey(t)
-
-	t.Run("missing directory", func(t *testing.T) {
-		base := t.TempDir()
-		app := filepath.Join(base, "app")
-
-		writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-
-		// The directory itself is reported missing, not a file to write in
-		// it.
-		err := newSigner(t, key).Sign(base, []string{"app"})
-		require.ErrorContains(t, err, "stat "+app+": no such file or directory")
-		assertNoFile(t, filepath.Join(base, "env_hashes.json"))
-	})
-
-	t.Run("directory named like a script", func(t *testing.T) {
-		base := t.TempDir()
-		probe := filepath.Join(base, "app.lua")
-
-		writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-		writeFile(t, filepath.Join(probe, "init.lua"), "init\n", 0o644)
-		writeFile(t, filepath.Join(base, "app", "init.lua"), "init\n", 0o644)
-
-		err := newSigner(t, key).Sign(base, []string{"app"})
-		require.ErrorContains(t, err, probe)
-		assertNoFile(t, filepath.Join(base, "app", "hashes.json"))
-	})
-
-	t.Run("probe that does not resolve", func(t *testing.T) {
-		base := t.TempDir()
-		probe := filepath.Join(base, "app.lua")
-
-		writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-		writeFile(t, filepath.Join(base, "app", "init.lua"), "init\n", 0o644)
-		// A link to itself is a stat error other than not-found.
-		symlink(t, "app.lua", probe)
-
-		err := newSigner(t, key).Sign(base, []string{"app"})
-		require.ErrorContains(t, err, probe)
-		assertNoFile(t, filepath.Join(base, "app", "hashes.json"))
-	})
-
-	t.Run("single file not enabled", func(t *testing.T) {
-		base := t.TempDir()
-		enabled := filepath.Join(base, "instances.enabled", "single.lua")
-
-		writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-		writeFile(t, filepath.Join(base, "single.lua"), "single\n", 0o644)
-
-		err := newSigner(t, key).Sign(base, []string{"single"})
-		require.ErrorContains(t, err, enabled)
-		assertNoFile(t, filepath.Join(base, "instances.enabled", "single"))
-	})
-
-	t.Run("application that is a file", func(t *testing.T) {
-		base := t.TempDir()
-		app := filepath.Join(base, "app")
-
-		writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-		writeFile(t, app, "not a directory\n", 0o755)
-
-		err := newSigner(t, key).Sign(base, []string{"app"})
-		require.ErrorContains(t, err, app)
-		assertNoFile(t, filepath.Join(base, "env_hashes.json"))
-	})
-
-	t.Run("configuration directory", func(t *testing.T) {
-		base := t.TempDir()
-		config := filepath.Join(base, "app", "config.yaml")
-
-		writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-		writeFile(t, filepath.Join(config, "nested.yaml"), "nested\n", 0o644)
-
-		err := newSigner(t, key).Sign(base, []string{"app"})
-		require.ErrorContains(t, err, config)
-		assertNoFile(t, filepath.Join(base, "app", "hashes.json"))
-	})
+	// In a skipped directory it is not looked at.
+	require.NoError(t, newSigner(t, key).Sign(base, integrity.SignOptions{Skip: []string{"sub"}}))
 }
 
 func TestRSASignerReportsWriteFailures(t *testing.T) {
@@ -615,13 +255,12 @@ func TestRSASignerReportsWriteFailures(t *testing.T) {
 	// runs the test.
 	t.Run("hashes file", func(t *testing.T) {
 		base := t.TempDir()
-		hashes := filepath.Join(base, "app", "hashes.json")
+		hashes := filepath.Join(base, "hashes.json")
 
-		writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-		writeFile(t, filepath.Join(base, "app", "init.lua"), "init\n", 0o644)
+		writeFile(t, filepath.Join(base, "init.lua"), "init\n", 0o644)
 		require.NoError(t, os.MkdirAll(hashes, 0o755))
 
-		err := newSigner(t, key).Sign(base, []string{"app"})
+		err := newSigner(t, key).Sign(base, integrity.SignOptions{})
 		require.ErrorContains(t, err, hashes)
 		assertNoFile(t, hashes+".sig")
 		assertNoFile(t, filepath.Join(base, "env_hashes.json"))
@@ -629,33 +268,161 @@ func TestRSASignerReportsWriteFailures(t *testing.T) {
 
 	t.Run("signature", func(t *testing.T) {
 		base := t.TempDir()
-		hashes := filepath.Join(base, "app", "hashes.json")
+		hashes := filepath.Join(base, "env_hashes.json")
 
-		writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-		writeFile(t, filepath.Join(base, "app", "init.lua"), "init\n", 0o644)
+		writeFile(t, filepath.Join(base, "VERSION"), "1\n", 0o644)
 		require.NoError(t, os.MkdirAll(hashes+".sig", 0o755))
 
-		err := newSigner(t, key).Sign(base, []string{"app"})
+		err := newSigner(t, key).Sign(base, integrity.SignOptions{})
 		require.ErrorContains(t, err, hashes+".sig")
 
 		// The hashes file and its signature are not replaced atomically.
-		assert.Equal(t, hashesJSON(entry("init.lua", "init\n")), readFile(t, hashes))
-		assertNoFile(t, filepath.Join(base, "env_hashes.json"))
+		assert.Equal(t, hashesJSON(entry("VERSION", "1\n")), readFile(t, hashes))
 	})
 }
 
-func TestRSASignerKeepsWrittenApplications(t *testing.T) {
+func TestRSASignerSignFiles(t *testing.T) {
 	key := signingKey(t)
-	base := t.TempDir()
+	source := t.TempDir()
+	dir := t.TempDir()
 
-	writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-	writeFile(t, filepath.Join(base, "first", "init.lua"), "first\n", 0o644)
+	writeFile(t, filepath.Join(source, "bin", "tarantool"), "tarantool\n", 0o755)
+	writeFile(t, filepath.Join(source, "include", "tarantool", "module.h"), "header\n", 0o644)
 
-	err := newSigner(t, key).Sign(base, []string{"first", "second"})
-	require.ErrorContains(t, err, filepath.Join(base, "second"))
+	// The files are listed under the paths they are to have in dir, in the
+	// order of those paths, whatever the paths they come from.
+	require.NoError(t, newSigner(t, key).SignFiles(dir, []integrity.SignedFile{
+		{Path: "tarantool", Source: filepath.Join(source, "bin", "tarantool")},
+		{
+			Path:   "include/tarantool/module.h",
+			Source: filepath.Join(source, "include", "tarantool", "module.h"),
+		},
+	}))
 
-	// Applications are signed in order: the first one stays signed.
-	assert.Equal(t, hashesJSON(entry("init.lua", "first\n")),
-		readFile(t, filepath.Join(base, "first", "hashes.json")))
-	assertNoFile(t, filepath.Join(base, "env_hashes.json"))
+	hashes := filepath.Join(dir, "env_hashes.json")
+	assert.Equal(t, hashesJSON(
+		entry("include/tarantool/module.h", "header\n"),
+		entry("tarantool", "tarantool\n"),
+	), readFile(t, hashes))
+	assertNoFile(t, filepath.Join(dir, "hashes.json"))
+
+	// Once laid out so, the tree checks.
+	writeFile(t, filepath.Join(dir, "tarantool"), "tarantool\n", 0o755)
+	writeFile(t, filepath.Join(dir, "include", "tarantool", "module.h"), "header\n", 0o644)
+
+	publicKey := writePublicKey(t, t.TempDir(), key)
+	require.NoError(t, integrity.NewRSAProvider().VerifyTree(publicKey, dir))
+
+	for _, bad := range []string{"", "/abs", "a/../b", "./a", "a//b", "a/", "..", `a\b`} {
+		err := newSigner(t, key).SignFiles(t.TempDir(), []integrity.SignedFile{
+			{Path: bad, Source: filepath.Join(source, "bin", "tarantool")},
+		})
+		require.ErrorContains(t, err, "invalid path to list", bad)
+	}
+
+	err := newSigner(t, key).SignFiles(t.TempDir(), []integrity.SignedFile{
+		{Path: "tarantool", Source: filepath.Join(source, "bin", "tarantool")},
+		{Path: "tarantool", Source: filepath.Join(source, "bin", "tarantool")},
+	})
+	require.ErrorContains(t, err, "listed twice")
+
+	err = newSigner(t, key).SignFiles(t.TempDir(), []integrity.SignedFile{
+		{Path: "tarantool", Source: filepath.Join(source, "missing")},
+	})
+	require.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestRSAVerifyTree(t *testing.T) {
+	key := signingKey(t)
+	publicKey := writePublicKey(t, t.TempDir(), key)
+	provider := integrity.NewRSAProvider()
+
+	signed := func(t *testing.T) string {
+		t.Helper()
+
+		base := t.TempDir()
+		writePackage(t, base)
+		require.NoError(t, newSigner(t, key).Sign(base, integrity.SignOptions{}))
+
+		return base
+	}
+
+	require.NoError(t, provider.VerifyTree(publicKey, signed(t)))
+
+	t.Run("unsigned", func(t *testing.T) {
+		base := t.TempDir()
+		writePackage(t, base)
+
+		err := provider.VerifyTree(publicKey, base)
+		require.ErrorContains(t, err, "not signed")
+	})
+
+	t.Run("tampered", func(t *testing.T) {
+		base := signed(t)
+		writeFile(t, filepath.Join(base, ".rocks", "bin", "gw"), "tampered\n", 0o755)
+
+		require.ErrorContains(t, provider.VerifyTree(publicKey, base), "hash mismatch")
+	})
+
+	t.Run("file added", func(t *testing.T) {
+		base := signed(t)
+		added := filepath.Join(base, ".rocks", "share", "tarantool", "app", "evil.lua")
+		writeFile(t, added, "evil\n", 0o644)
+
+		err := provider.VerifyTree(publicKey, base)
+		require.ErrorContains(t, err, "not listed in the hashes files")
+		require.ErrorContains(t, err, added)
+	})
+
+	t.Run("foreign key", func(t *testing.T) {
+		base := t.TempDir()
+		writePackage(t, base)
+		require.NoError(t, newSigner(t, foreignKey(t)).Sign(base, integrity.SignOptions{}))
+
+		require.ErrorContains(t, provider.VerifyTree(publicKey, base), "verification error")
+	})
+
+	t.Run("disabled", func(t *testing.T) {
+		err := integrity.NewDisabledProvider().VerifyTree(publicKey, signed(t))
+		require.ErrorIs(t, err, integrity.ErrNoVerifierInCE)
+	})
+}
+
+func TestRSACheckSeveralRoots(t *testing.T) {
+	key := signingKey(t)
+	app := t.TempDir()
+	runtime := t.TempDir()
+	unsigned := t.TempDir()
+
+	writePackage(t, app)
+	require.NoError(t, newSigner(t, key).Sign(app, integrity.SignOptions{}))
+
+	writeFile(t, filepath.Join(runtime, "tarantool"), "tarantool\n", 0o755)
+	require.NoError(t, newSigner(t, key).SignFiles(runtime, []integrity.SignedFile{
+		{Path: "tarantool", Source: filepath.Join(runtime, "tarantool")},
+	}))
+
+	writeFile(t, filepath.Join(unsigned, "tt"), "tt\n", 0o755)
+
+	publicKey := writePublicKey(t, t.TempDir(), key)
+
+	// A root named twice is checked once; a root without hashes files lists
+	// nothing.
+	ctx, err := integrity.NewRSAProvider().InitializeIntegrityCheck(publicKey,
+		app, runtime, app, unsigned)
+	require.NoError(t, err)
+
+	for _, path := range []string{
+		filepath.Join(app, "app.manifest.toml"),
+		filepath.Join(runtime, "tarantool"),
+	} {
+		_, err := readThrough(t, ctx.Repository, path)
+		require.NoError(t, err, path)
+	}
+
+	_, err = readThrough(t, ctx.Repository, filepath.Join(unsigned, "tt"))
+	require.ErrorContains(t, err, "not in repository")
+
+	writeFile(t, filepath.Join(runtime, "tarantool"), "tampered\n", 0o755)
+	require.ErrorContains(t, ctx.Repository.ValidateAll(), "hash mismatch")
 }

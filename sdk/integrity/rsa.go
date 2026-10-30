@@ -64,11 +64,12 @@ func (rsaProvider) HashesFileName() string {
 	return appHashesFileName
 }
 
-// InitializeIntegrityCheck checks the signed hashes files in configDir
-// with the public key at publicKeyPath and every file they list. Without a
-// public key the returned repository reads files unchecked.
+// InitializeIntegrityCheck checks the signed hashes files in every one of
+// roots with the public key at publicKeyPath, and every file they list. A
+// root is checked once, however many times roots name it. Without a public
+// key the returned repository reads files unchecked.
 func (rsaProvider) InitializeIntegrityCheck(
-	publicKeyPath, configDir string,
+	publicKeyPath string, roots ...string,
 ) (IntegrityCtx, error) {
 	if publicKeyPath == "" {
 		return IntegrityCtx{Repository: uncheckedRepository{}, publicKey: nil}, nil
@@ -79,12 +80,25 @@ func (rsaProvider) InitializeIntegrityCheck(
 		return IntegrityCtx{}, err
 	}
 
-	repository, err := loadRepository(publicKey, configDir)
+	repository, err := loadRepository(publicKey, roots...)
 	if err != nil {
 		return IntegrityCtx{}, err
 	}
 
 	return IntegrityCtx{Repository: repository, publicKey: publicKey}, nil
+}
+
+// VerifyTree checks the signed hashes files in dir with the public key at
+// publicKeyPath and every file they list, and that they list every file of
+// the tree: a tree without an environment hashes file is not signed, and a
+// file of the tree that no hashes file lists was not signed either.
+func (rsaProvider) VerifyTree(publicKeyPath, dir string) error {
+	publicKey, err := loadPublicKey(publicKeyPath)
+	if err != nil {
+		return err
+	}
+
+	return verifyTree(publicKey, dir)
 }
 
 // NewSigner creates a Signer of an environment for the private key at

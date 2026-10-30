@@ -16,8 +16,8 @@ import (
 	"github.com/tarantool/tt/sdk/integrity"
 )
 
-// signedEnvironment signs, as one application, an environment with
-// tt.yaml, bin/tt and init.lua, and returns its root.
+// signedEnvironment signs a tree with tt.yaml, bin/tt and init.lua, and
+// returns its root.
 func signedEnvironment(t *testing.T, key *rsa.PrivateKey) string {
 	t.Helper()
 
@@ -26,7 +26,7 @@ func signedEnvironment(t *testing.T, key *rsa.PrivateKey) string {
 	writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
 	writeFile(t, filepath.Join(base, "bin", "tt"), "tt binary\n", 0o755)
 	writeFile(t, filepath.Join(base, "init.lua"), "init\n", 0o644)
-	require.NoError(t, newSigner(t, key).Sign(base, nil))
+	require.NoError(t, newSigner(t, key).Sign(base, integrity.SignOptions{}))
 
 	return base
 }
@@ -649,20 +649,23 @@ func TestRSACheckJoinsPathsLexically(t *testing.T) {
 func TestRSACheckResolvesLinksOnce(t *testing.T) {
 	key := signingKey(t)
 	base := t.TempDir()
+	outside := t.TempDir()
 	one := filepath.Join(base, "versions", "one")
+	two := filepath.Join(outside, "two")
 	link := filepath.Join(base, "bin", "tt")
 
 	writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
 	writeFile(t, one, "one\n", 0o755)
-	writeFile(t, filepath.Join(base, "versions", "two"), "two\n", 0o755)
+	writeFile(t, two, "two\n", 0o755)
 	writeFile(t, filepath.Join(base, "bin", "other"), "other\n", 0o755)
 	symlink(t, one, link)
 
-	require.NoError(t, newSigner(t, key).Sign(base, []string{}))
+	require.NoError(t, newSigner(t, key).Sign(base, integrity.SignOptions{}))
 	assert.Equal(t, hashesJSON(
 		entry("bin/other", "other\n"),
 		entry("bin/tt", "one\n"),
 		entry("tt.yaml", "env: {}\n"),
+		entry("versions/one", "one\n"),
 	), readFile(t, filepath.Join(base, "env_hashes.json")))
 
 	ctx, err := initializeCheck(t, key, base)
@@ -671,7 +674,7 @@ func TestRSACheckResolvesLinksOnce(t *testing.T) {
 	// Redirected to a file the repository does not know: Read refuses it,
 	// ValidateAll still checks the target the link had.
 	require.NoError(t, os.Remove(link))
-	symlink(t, filepath.Join(base, "versions", "two"), link)
+	symlink(t, two, link)
 
 	require.NoError(t, ctx.Repository.ValidateAll())
 

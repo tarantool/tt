@@ -14,6 +14,8 @@ import (
 // registers integrity flags, initializes integrity checking or builds
 // signers and verifiers. An IntegrityCtx is only meaningful to the provider
 // that created it.
+//
+//nolint:interfacebloat // One method per operation, mirrored by the package-level functions.
 type Provider interface {
 	// RegisterWithIntegrityFlag adds the flag naming the private key used
 	// to sign published data.
@@ -27,13 +29,20 @@ type Provider interface {
 	// HashesFileName is the name of the file with the hashes of an
 	// application's files.
 	HashesFileName() string
-	// InitializeIntegrityCheck sets up integrity checking of the files
-	// rooted at rootDir with the public key at publicKeyPath. tt passes the
-	// project directory it works in, or the working directory outside a
-	// project. An empty publicKeyPath disables the checks.
-	InitializeIntegrityCheck(publicKeyPath, rootDir string) (IntegrityCtx, error)
-	// NewSigner creates a Signer of an environment for the private key at
-	// privateKeyPath.
+	// InitializeIntegrityCheck sets up integrity checking of the files the
+	// signed hashes files in the directories roots list, with the public
+	// key at publicKeyPath; a root without hashes files lists nothing. tt
+	// passes the directory of the application it works on - the project,
+	// or an installed version - and the directories of the runtimes it
+	// runs, tarantool, tt and tcm. An empty publicKeyPath disables the
+	// checks.
+	InitializeIntegrityCheck(publicKeyPath string, roots ...string) (IntegrityCtx, error)
+	// VerifyTree checks the tree rooted at dir with the public key at
+	// publicKeyPath: it must be signed, every file its hashes files list
+	// must match, and every file of the tree must be listed. It is the
+	// check of what is about to be installed.
+	VerifyTree(publicKeyPath, dir string) error
+	// NewSigner creates a Signer for the private key at privateKeyPath.
 	NewSigner(privateKeyPath string) (Signer, error)
 	// GetCheckFunction returns a function that checks a map of hashes and
 	// a signature of a data.

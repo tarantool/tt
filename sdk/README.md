@@ -21,9 +21,10 @@ Each directory is a separate Go module:
   Tarantool config storage.
 - `integrity` defines the integrity-checking interface. Its disabled
   provider, the one tt uses unless its distribution chooses another with
-  `core.WithIntegrity`, checks nothing; its RSA provider signs the files of
-  an environment and published data with an RSA private key and checks them
-  with the public key.
+  `core.WithIntegrity`, checks nothing; its RSA provider signs the tree of a
+  package, the runtimes it bundles and published data with an RSA private
+  key and checks them with the public key, an application together with the
+  runtimes it runs on.
 
 ## Contract module
 

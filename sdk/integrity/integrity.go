@@ -22,10 +22,44 @@ type IntegrityCtx struct {
 // require checking.
 const HashesFileName = ""
 
-// Signer implements high-level API for package signing.
+// Signer writes signed hashes files: the lists of the files of a tree with
+// their digests that a check rooted at the tree knows them by.
 type Signer interface {
-	// Sign generates data to sign a package.
-	Sign(basePath string, appNames []string) error
+	// Sign signs the tree of a package rooted at dir. It writes two hashes
+	// files in dir, each with its signature: hashes.json lists the files
+	// Tarantool loads - Lua sources, shared libraries, cluster configs, the
+	// files opts.Loaded names - and is what tt hands Tarantool to check
+	// them; env_hashes.json lists every other file of the tree, the ones tt
+	// reads and runs itself. Every file of the tree is listed exactly once,
+	// but for the directories opts.Skip names and the hashes files and
+	// signatures themselves, wherever they are.
+	Sign(dir string, opts SignOptions) error
+	// SignFiles writes the environment hashes file of dir, env_hashes.json,
+	// listing files under the paths they are to have there, and its
+	// signature. It signs a tree that is laid out after it is signed, such
+	// as the runtime a package bundles, which is installed apart from it.
+	SignFiles(dir string, files []SignedFile) error
+}
+
+// SignOptions tune what Signer.Sign lists.
+type SignOptions struct {
+	// Skip are directories of the tree, as slash-separated paths relative
+	// to its root, that are not listed: what is installed apart from the
+	// package, such as the runtime it bundles.
+	Skip []string
+	// Loaded are files of the tree, as slash-separated paths relative to its
+	// root, that Tarantool loads whatever their names, such as the scripts
+	// the instance records run. Each must be a file of the tree.
+	Loaded []string
+}
+
+// SignedFile is a file Signer.SignFiles lists.
+type SignedFile struct {
+	// Path is the path the file is listed under: relative to the directory
+	// of the hashes file, slash-separated, without "." or "..".
+	Path string
+	// Source is the file whose content is listed.
+	Source string
 }
 
 // NewSigner constructs a noop Signer.
@@ -52,11 +86,16 @@ func RegisterIntegrityCheckPeriodFlag(flagset *pflag.FlagSet, dst *int) {
 }
 
 // InitializeIntegrityCheck is a noop setup of integrity checking of the
-// files rooted at rootDir.
+// files rooted at roots.
 func InitializeIntegrityCheck(
-	publicKeyPath, rootDir string,
+	publicKeyPath string, roots ...string,
 ) (IntegrityCtx, error) {
-	return disabledProvider{}.InitializeIntegrityCheck(publicKeyPath, rootDir)
+	return disabledProvider{}.InitializeIntegrityCheck(publicKeyPath, roots...)
+}
+
+// VerifyTree refuses to check a tree: the disabled provider checks nothing.
+func VerifyTree(publicKeyPath, dir string) error {
+	return disabledProvider{}.VerifyTree(publicKeyPath, dir)
 }
 
 // GetCheckFunction returns a function that checks a map of hashes and a

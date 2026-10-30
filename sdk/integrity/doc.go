@@ -10,11 +10,19 @@
 //
 // The RSA provider, returned by NewRSAProvider, signs with an RSA private
 // key and checks with its public key. Its Signer writes hashes files that
-// list the SHA-256 digests of the files of an environment, each with an
-// RSASSA-PSS signature next to it. Its check verifies those signatures and
-// digests, and its Repository hashes a file again every time it reads it.
-// Data published to a configuration storage carries a digest and a
-// signature of the same kind.
+// list the SHA-256 digests of the files of a tree, each with an RSASSA-PSS
+// signature next to it: for the tree of a package, hashes.json lists what
+// Tarantool loads and env_hashes.json everything else, so that every file
+// is listed once; for a runtime a package bundles, env_hashes.json lists the
+// files under the paths they are installed at. Its check verifies the
+// signatures and the digests of the hashes files of every root it is given
+// - an application and the runtimes it runs on - and its Repository hashes
+// a file again every time it reads it. VerifyTree checks that a whole tree
+// is signed, before it is installed. Data published to a configuration
+// storage carries a digest and a signature of the same kind.
+//
+// A signature of RSASSA-PSS has a random salt: signing the same tree twice
+// gives the same hashes files and different signatures.
 //
 // The API of this package is alpha and may change incompatibly.
 package integrity
