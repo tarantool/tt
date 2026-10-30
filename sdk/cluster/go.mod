@@ -4,7 +4,7 @@ go 1.26.10
 
 require (
 	github.com/stretchr/testify v1.11.1
-	github.com/tarantool/go-storage/v2 v2.0.0
+	github.com/tarantool/go-storage/v2 v2.0.1-0.20261030080914-3d28af2e7c8c
 	github.com/tarantool/go-tarantool/v3 v3.0.2
 	github.com/tarantool/tt/sdk/connect v0.0.0-0
 	github.com/tarantool/tt/sdk/dial v0.0.0-00010101000000-000000000000

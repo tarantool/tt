@@ -99,20 +99,31 @@ func NewStorage(
 	}
 
 	if integrityOpts != nil {
+		// The names of the signatures, a signer and its verifier sharing one.
+		sigs := make(map[string]struct{})
+
 		for _, h := range integrityOpts.Hashers {
 			codec = codec.WithHasher(h)
 		}
 
 		for _, sv := range integrityOpts.SignerVerifiers {
 			codec = codec.WithSignerVerifier(sv)
+			sigs[sv.Name()] = struct{}{}
 		}
 
 		for _, signer := range integrityOpts.Signers {
 			codec = codec.WithSigner(signer)
+			sigs[signer.Name()] = struct{}{}
 		}
 
 		for _, verifier := range integrityOpts.Verifiers {
 			codec = codec.WithVerifier(verifier)
+			sigs[verifier.Name()] = struct{}{}
+		}
+
+		// The key of the one signature names no algorithm, as in tt 2.
+		if len(sigs) == 1 {
+			codec = codec.WithSingleSigCompact()
 		}
 	}
 
@@ -147,17 +158,9 @@ func NewStorage(
 //
 // that is, <prefix>/config/all with <prefix>/hashes/sha256/all and
 // <prefix>/sig/all for a configuration published whole. The hash and the
-// signature keys do not repeat the object location (namer.LegacyHashSigLayout),
-// and the signature key names no algorithm when there is one signature
-// (namer.CompactSingleSig).
-//
-// The codec builder has WithSingleSigCompact for the latter, but go-storage
-// v2.0.0 refuses it for a codec that only verifies: Build demands exactly one
-// signature location from the generator, the validator and the namer that
-// parses keys alike, and the generator of a verifying codec has none. The
-// option is therefore given here, to every namer that has exactly one
-// signature location: the generator of a verifying codec emits no signature
-// keys, so its layout does not matter.
+// signature keys do not repeat the object location (namer.LegacyHashSigLayout);
+// that the signature key names no algorithm when there is one signature is
+// the codec's WithSingleSigCompact, which NewStorage sets.
 func newLegacyNamer(
 	objectLocation string,
 	hashLocations []namer.HashLocation,
@@ -165,9 +168,6 @@ func newLegacyNamer(
 	opts ...namer.Option,
 ) (namer.Namer, error) {
 	opts = append(opts, namer.LegacyHashSigLayout())
-	if len(sigLocations) == 1 {
-		opts = append(opts, namer.CompactSingleSig())
-	}
 
 	layout, err := namer.New(objectLocation, hashLocations, sigLocations, opts...)
 	if err != nil {

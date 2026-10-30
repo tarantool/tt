@@ -29,7 +29,7 @@ require (
 	github.com/tarantool/go-iproto v1.1.0
 	github.com/tarantool/go-luarocks v0.0.0-20260917094730-272b95159b11
 	github.com/tarantool/go-prompt v1.0.1
-	github.com/tarantool/go-storage/v2 v2.0.0
+	github.com/tarantool/go-storage/v2 v2.0.1-0.20261030080914-3d28af2e7c8c
 	github.com/tarantool/go-tail v1.4.15-0.20260806154205-254b9b0cd094
 	github.com/tarantool/go-tarantool/v3 v3.0.2
 	github.com/tarantool/go-xlog v0.0.0-20260707203858-fed522934686
