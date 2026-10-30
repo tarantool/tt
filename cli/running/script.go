@@ -76,6 +76,13 @@ func checkScript(inst *InstanceCtx) error {
 		err = fmt.Errorf("%s %w", inst.InstanceScript, errIsDirectory)
 	}
 
+	if err == nil {
+		// Tarantool runs it, and checks it with the hashes file of the
+		// application; tt refuses one the signature does not list at all,
+		// such as a script outside the package.
+		return checkSigned(inst, "script", inst.InstanceScript)
+	}
+
 	if err != nil {
 		return fmt.Errorf("instance %q of %q: %w: %w", inst.InstName, inst.AppName,
 			errNoScript, err)

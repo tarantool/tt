@@ -155,11 +155,20 @@ var rocksBinDir = filepath.Join(".rocks", "bin")
 // tt instance start builds nothing: when the program is missing from a
 // project whose manifest has an executable component that builds it, the
 // error says to run tt package build (buildHint).
+//
+// With the integrity checks on, a program is not looked up in PATH: an
+// instance runs only what its package and its runtimes sign, and the binary
+// found is checked against the signature before it runs.
 func ResolveBinary(inst *InstanceCtx) (string, error) {
 	path, err := resolveBinary(inst)
 	if err != nil {
 		return "", fmt.Errorf("instance %q of %q: %w: %w", inst.InstName, inst.AppName,
 			errNoExecutable, err)
+	}
+
+	err = checkSigned(inst, "binary", path)
+	if err != nil {
+		return "", err
 	}
 
 	return path, nil
@@ -179,6 +188,12 @@ func resolveBinary(inst *InstanceCtx) (string, error) {
 
 	if !errors.Is(err, fs.ErrNotExist) {
 		return "", err //nolint:wrapcheck // ResolveBinary names the instance.
+	}
+
+	if inst.Integrity != nil {
+		return "", &notFoundError{fmt.Sprintf("%q is not in %s, and with the integrity "+
+			"checks on a program is not looked up in PATH%s", inst.Binary,
+			filepath.Join(inst.AppDir, rocksBinDir), buildHint(inst))}
 	}
 
 	path, err := exec.LookPath(inst.Binary)

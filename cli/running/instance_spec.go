@@ -251,6 +251,11 @@ func appScriptSpec(inst *InstanceCtx, opts specOptions) (supervisor.Spec, error)
 		return supervisor.Spec{}, err
 	}
 
+	err = checkSignedTarantool(inst, exe)
+	if err != nil {
+		return supervisor.Spec{}, err
+	}
+
 	for _, warning := range exe.Warnings {
 		opts.warnf("instance %q of %q: %s", inst.InstName, inst.AppName, warning)
 	}
@@ -288,6 +293,11 @@ func appClusterSpec(inst *InstanceCtx, opts specOptions) (supervisor.Spec, error
 	}
 
 	exe, err := resolveTarantool(inst)
+	if err != nil {
+		return supervisor.Spec{}, err
+	}
+
+	err = checkSignedTarantool(inst, exe)
 	if err != nil {
 		return supervisor.Spec{}, err
 	}
