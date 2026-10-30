@@ -5,7 +5,7 @@ go 1.26.10
 require (
 	github.com/stretchr/testify v1.11.1
 	github.com/tarantool/go-tarantool/v3 v3.0.2
-	github.com/tarantool/go-tlsdialer/v2 v2.0.1
+	github.com/tarantool/go-tlsdialer/v2 v2.1.0
 )
 
 require (
@@ -15,7 +15,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spacemonkeygo/spacelog v0.0.0-20180420211403-2296661a0572 // indirect
 	github.com/tarantool/go-gostcrypto v0.1.0 // indirect
-	github.com/tarantool/go-gostls v0.1.0 // indirect
+	github.com/tarantool/go-gostls v0.1.1 // indirect
 	github.com/tarantool/go-iproto v1.1.0 // indirect
 	github.com/tarantool/go-openssl v1.4.1 // indirect
 	github.com/tarantool/go-option v1.1.0 // indirect

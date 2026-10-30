@@ -29,8 +29,8 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/tarantool/go-gostcrypto v0.1.0 h1:sGjZil1nfXzxvBU4TOIZErTXcvCuCLH/pZnwfXr9uaY=
 github.com/tarantool/go-gostcrypto v0.1.0/go.mod h1:oieRliQHLNWjZ5qrpIamIFNHJ3j7dEvU4evBr6HeEFc=
-github.com/tarantool/go-gostls v0.1.0 h1:f9aTi8hdqc9ZTKO6ktjQAEg/PQAKw/ARY14CmqMCxXs=
-github.com/tarantool/go-gostls v0.1.0/go.mod h1:KDZGrcItICcy0lx+hfgRm3uIy5HOekT9OyjnG79Axvc=
+github.com/tarantool/go-gostls v0.1.1 h1:BSXmhPBVS2IeahMVjDsuo6fL2R8OSiZudSb1HtF3jQM=
+github.com/tarantool/go-gostls v0.1.1/go.mod h1:KDZGrcItICcy0lx+hfgRm3uIy5HOekT9OyjnG79Axvc=
 github.com/tarantool/go-iproto v1.1.0 h1:HULVOIHsiehI+FnHfM7wMDntuzUddO09DKqu2WnFQ5A=
 github.com/tarantool/go-iproto v1.1.0/go.mod h1:LNCtdyZxojUed8SbOiYHoc3v9NvaZTB7p96hUySMlIo=
 github.com/tarantool/go-openssl v1.4.1 h1:SqYKZj7rSjTCyMHo1g6+1HNw1T/afmhWFEVwF57kPVo=
@@ -39,8 +39,8 @@ github.com/tarantool/go-option v1.1.0 h1:ShoOhNsdL41sRpm4hXCRDjV8H0WzPkd4UnKhLKb
 github.com/tarantool/go-option v1.1.0/go.mod h1:hMr9z2JXOWlgdCBpCPSL2nwp8718GKYvNBJ+ZuzJbCo=
 github.com/tarantool/go-tarantool/v3 v3.0.2 h1:9ZtHllun80QX7KS9tqd3dXa+QAu2BfqFtX1ZWcNnaW8=
 github.com/tarantool/go-tarantool/v3 v3.0.2/go.mod h1:TXxLWhUCgdxXFfelnTSkq+goKRTRj660zxq4/WXPe8k=
-github.com/tarantool/go-tlsdialer/v2 v2.0.1 h1:mlerqjP6KClXuvc+5kxRm7vZLhU84JrZtLlT0Y0c5Bk=
-github.com/tarantool/go-tlsdialer/v2 v2.0.1/go.mod h1:xQw6bV+X7gfhbo15yNfgB/11AFpagLnrgw0qdqYXyDI=
+github.com/tarantool/go-tlsdialer/v2 v2.1.0 h1:PGVjS26nl7WtMncIXQ0zpoKtSVpflHOVOQOFhJVfLf0=
+github.com/tarantool/go-tlsdialer/v2 v2.1.0/go.mod h1:eUb+2n0Yi3HBUguhPh9heRFv7D+wvsFdpdPfqDTn6N4=
 github.com/vmihailenco/msgpack/v5 v5.4.1 h1:cQriyiUvjTwOHg8QZaPihLWeRAAVoCpE00IUPn0Bjt8=
 github.com/vmihailenco/msgpack/v5 v5.4.1/go.mod h1:GaZTsDaehaPpQVyxrf5mtQlH+pc21PIudVV/E3rRQok=
 github.com/vmihailenco/tagparser/v2 v2.0.0 h1:y09buUbR+b5aycVFQs/g70pqKVZNBmxwAhO7/IwNM9g=

@@ -11,7 +11,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -345,12 +344,8 @@ func TestConnectSslTransportWithoutOptions(t *testing.T) {
 	cert, err := tls.LoadX509KeyPair("testdata/localhost.crt", "testdata/localhost.key")
 	require.NoError(t, err)
 
-	// No CA is given: a backend that checks the chain of the server against
-	// the system roots finds the CA of the test there.
-	ca, err := filepath.Abs("testdata/ca.crt")
-	require.NoError(t, err)
-	t.Setenv("SSL_CERT_FILE", ca)
-
+	// No CA is given, so the chain of the server goes unchecked, as OpenSSL
+	// leaves it, and only its name has to fit.
 	hellos := make(chan struct{}, 1)
 	config := &tls.Config{
 		Certificates: []tls.Certificate{cert},
