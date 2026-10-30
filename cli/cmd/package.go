@@ -390,7 +390,7 @@ func dependencyOptions() (deps.Options, error) {
 
 	return deps.Options{
 		ProjectDir: projectDir,
-		TtVersion:  "tt " + coreVersion(),
+		TtVersion:  lockStamp(),
 		Tarantool:  tntInfo,
 		Registries: sources,
 		Logger:     luarocksLogger(),
@@ -766,7 +766,7 @@ func runPackagePack() error {
 			Component:  "",
 			Locked:     false,
 			FetchOnly:  false,
-			TtVersion:  "tt " + coreVersion(),
+			TtVersion:  lockStamp(),
 			Tarantool:  tntInfo,
 			Registries: sources,
 			ShowOutput: cmdCtx.Cli.Verbose,
@@ -868,7 +868,7 @@ func runPackage(args []string, fetchOnly bool) error {
 		Component:  component,
 		Locked:     packageLocked,
 		FetchOnly:  fetchOnly,
-		TtVersion:  "tt " + coreVersion(),
+		TtVersion:  lockStamp(),
 		Tarantool:  tntInfo,
 		Registries: sources,
 		ShowOutput: cmdCtx.Cli.Verbose,

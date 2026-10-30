@@ -140,3 +140,41 @@ func TestFlavourCoreVersion(t *testing.T) {
 	_, ok = Flavour{Title: "Tarantool CLI EE", Version: nil, Edition: "ee"}.CoreVersion()
 	assert.False(t, ok, "a distribution without a version of its own shows the core's")
 }
+
+// TestStamp checks the version a lock records as its author: the short
+// version when the build knows the tag, else the pseudo-version Go recorded,
+// else the commit.
+//
+//nolint:paralleltest // Replaces the values the build stamps and the build info.
+func TestStamp(t *testing.T) {
+	for _, testCase := range []struct {
+		name                  string
+		tag, commit, sinceTag string
+		module                string
+		moduleOK              bool
+		want                  string
+	}{
+		{name: "tagged", tag: "v3.1.0", commit: "abc1234", want: "3.1.0"},
+		{
+			name: "past a tag", tag: "v3.1.0-2-gabc1234", commit: "abc1234", sinceTag: "2",
+			want: "3.1.0",
+		},
+		{
+			name: "pseudo-version past a tag", module: "v3.1.1-0.20260925120000-abcdef123456",
+			moduleOK: true, want: "3.1.0",
+		},
+		{
+			name: "development build", module: "v3.0.0-20261029093150-616860857592+dirty",
+			moduleOK: true, want: "v3.0.0-20261029093150-616860857592+dirty",
+		},
+		{name: "commit only", commit: "abc1234", want: "abc1234"},
+		{name: "nothing", want: unknownVersion},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			setCoreBuild(t, testCase.tag, testCase.commit, testCase.sinceTag, "")
+			setBuildInfo(t, testCase.module, testCase.moduleOK)
+
+			assert.Equal(t, testCase.want, Stamp())
+		})
+	}
+}

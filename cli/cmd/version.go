@@ -70,6 +70,13 @@ func internalVersionModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	return nil
 }
 
+// lockStamp returns the author files tt writes record, as generated_by of a
+// lock: "tt" and the version of the core, precise even for a development
+// build (version.Stamp).
+func lockStamp() string {
+	return "tt " + version.Stamp()
+}
+
 // coreVersion returns the short version of the tt core: the version
 // [platform].tt constraints are checked against and the one written to the
 // files tt generates. It stays the core's whatever distribution runs it.

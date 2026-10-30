@@ -128,7 +128,7 @@ func runTest(subPath string, luatestArgs []string) error {
 		Component:  "",
 		Locked:     false,
 		FetchOnly:  false,
-		TtVersion:  "tt " + coreVersion(),
+		TtVersion:  lockStamp(),
 		Tarantool:  tntInfo,
 		Registries: sources,
 		ShowOutput: cmdCtx.Cli.Verbose,
