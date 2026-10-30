@@ -22,6 +22,8 @@ type DistributionLock struct {
 	Core            LockedCore              `toml:"core"`
 	Build           LockedBuild             `toml:"build"`
 	Modules         map[string]LockedModule `toml:"modules,omitempty"`
+	// Replace pins the entries of [replace], by their keys.
+	Replace map[string]LockedReplace `toml:"replace,omitempty"`
 }
 
 // LockedCore is the core a distribution was built on ([core]).
@@ -68,6 +70,22 @@ type LockedModule struct {
 	// ContentHash is the hash of the files of a local module,
 	// "sha256:<hex>"; a build from the lock fails when they changed. Empty
 	// for a module from a module proxy, which go.sum checks.
+	ContentHash string `toml:"content_hash,omitempty"`
+}
+
+// LockedReplace is one entry of [replace] of a distribution
+// ([replace."<key>"]).
+type LockedReplace struct {
+	// Module is the module the entry replaces with: its path for a
+	// replacement with a module, empty for a local directory.
+	Module string `toml:"module,omitempty"`
+	// Version is the exact version of Module; empty for a local directory.
+	Version string `toml:"version,omitempty"`
+	// Path is the local directory, as the manifest names it.
+	Path string `toml:"path,omitempty"`
+	// ContentHash is the hash of the files of a local directory,
+	// "sha256:<hex>"; a build from the lock fails when they changed. Empty
+	// for a replacement with a module, which go.sum checks.
 	ContentHash string `toml:"content_hash,omitempty"`
 }
 

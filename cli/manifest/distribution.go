@@ -66,6 +66,10 @@ type Distribution struct {
 	Distribution    DistributionOptions         `toml:"distribution,omitempty"`
 	Build           DistributionBuild           `toml:"build,omitempty"`
 	Dependencies    map[string]ModuleDependency `toml:"dependencies,omitempty"`
+	// Replace overrides Go modules of the build, like replace directives of
+	// its go.mod: a module path, with an optional @version, to a local
+	// directory or to module@version. See Replacement.
+	Replace map[string]string `toml:"replace,omitempty"`
 
 	raw []byte // Raw file bytes, source for manifest_hash.
 }

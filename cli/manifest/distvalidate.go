@@ -35,6 +35,7 @@ func (d *Distribution) Validate() error {
 		d.validateOptions,
 		d.validateBuild,
 		d.validateDependencies,
+		d.validateReplace,
 	}
 
 	for _, check := range checks {
