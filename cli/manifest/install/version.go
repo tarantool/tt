@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/tarantool/tt/v3/cli/manifest/state"
+	ttscope "github.com/tarantool/tt/v3/internal/scope"
 )
 
 // Names of the temporary directories a version install leaves in
@@ -39,6 +40,14 @@ const (
 // the runtime a with-deps archive bundles, installed into versions/ of the
 // scope like any product of tt binary; the application finds it there by the
 // version its lock records.
+//
+// A signed install (opts.Integrity) also gives the version var/lib,
+// var/run and var/log as links to the directories of the layout of its
+// instances under the root (ttscope.LinkVar): Tarantool Enterprise starts
+// with an empty environment when it checks integrity, and finds the layout
+// tt keeps its instances in only by its own defaults, which name those
+// directories under the version. The links are not part of what was
+// signed; the package itself cannot hold var/ (pack refuses it).
 //
 // Install activates what it installed. There is no command yet to switch
 // between installed versions or to roll back to an earlier one; until there
@@ -263,6 +272,16 @@ func swapVersion(
 	err = refetch(ctx, opts, state.ProjectLayout(final), plan)
 	if err != nil {
 		return errors.Join(err, removeAll(final), putBack(replaced, final))
+	}
+
+	// A signed version links the layout of its instances, which Tarantool
+	// Enterprise only finds by its defaults when it checks integrity.
+	if opts.Integrity != nil {
+		err = ttscope.LinkVar(root, name, final, dirPerm)
+		if err != nil {
+			return errors.Join(fmt.Errorf("linking the layout of %s %s: %w", name,
+				header.Version, err), removeAll(final), putBack(replaced, final))
+		}
 	}
 
 	if replaced != "" {
