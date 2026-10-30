@@ -84,6 +84,10 @@ func installVersion(
 		return result, nil
 	}
 
+	if opts.Integrity != nil && !header.WithDeps {
+		return nil, stateErrorf("%w", errSignedWithoutDeps)
+	}
+
 	// The runtime is shared, so it goes first and stays even if the version
 	// then fails to install: it is an installation like any tt binary makes.
 	_, err = placeRuntimes(opts, archive, header, root)
@@ -230,6 +234,16 @@ func swapVersion(
 	err = archive.Extract(stage, versionMapper())
 	if err != nil {
 		return fmt.Errorf("extracting %s: %w", archive.Path(), err)
+	}
+
+	// The version is checked as it is to be installed, before it is: a
+	// signed install puts nothing in place that fails the check.
+	if opts.Integrity != nil {
+		err = opts.Integrity.VerifyTree(stage)
+		if err != nil {
+			return stateErrorf("%s %s of %s: integrity check failed: %w", name,
+				header.Version, archive.Path(), err)
+		}
 	}
 
 	replaced := ""

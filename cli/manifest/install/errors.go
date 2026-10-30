@@ -20,6 +20,20 @@ const (
 )
 
 var (
+	// errSignedIntoProject reports a signed install into the project scope,
+	// whose install root the project shares with every guest package: the
+	// hashes files of one would lay over those of another.
+	errSignedIntoProject = errors.New(
+		"a signed archive is installed into the user or the system scope only")
+	// errSignedWithoutDeps reports a signed install of an archive packed
+	// --without-deps: what the install fetches from the registry is not
+	// signed.
+	errSignedWithoutDeps = errors.New(
+		"an archive packed --without-deps is not signed: install it without " +
+			"--integrity-check")
+	// errRuntimeNotSigned reports a runtime component that cannot be checked
+	// with the key a signed install was given.
+	errRuntimeNotSigned = errors.New("does not match the signed runtime of the archive")
 	// errNameCollision reports a package already installed in the scope while
 	// neither --force nor --upgrade was given.
 	errNameCollision = errors.New("package already installed")

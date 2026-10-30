@@ -69,6 +69,23 @@ type Options struct {
 	// version; returning false aborts that archive. Nil proceeds (the CLI wires a
 	// real prompt; Yes bypasses it entirely).
 	Confirm func(prompt string) bool
+	// Integrity, when set, installs only a signed archive: the version and
+	// each runtime component it bundles are checked before they are put in
+	// place (see installVersion). A signed install goes into the user or the
+	// system scope only.
+	Integrity Integrity
+}
+
+// Integrity checks what a signed archive installs, with the public key the
+// install was given.
+type Integrity interface {
+	// VerifyTree checks that the tree in dir is signed as a whole: its
+	// hashes files verify, the files they list match, and they list every
+	// file of the tree.
+	VerifyTree(dir string) error
+	// VerifyFile checks that file is listed, and matches, in the signed
+	// hashes files of the tree in root.
+	VerifyFile(root, file string) error
 }
 
 func (o Options) warn(msg string) {
@@ -174,6 +191,10 @@ func installOne(ctx context.Context, opts Options, archivePath string) (*OneResu
 
 	if opts.Scope != ScopeProject {
 		return installVersion(ctx, opts, archive, header)
+	}
+
+	if opts.Integrity != nil {
+		return nil, stateErrorf("%w", errSignedIntoProject)
 	}
 
 	return installIntoProject(ctx, opts, archive, header)
