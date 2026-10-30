@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"github.com/tarantool/tt/sdk/connect"
 )
 
 // Redacted is what a secret is replaced with.
@@ -213,6 +215,20 @@ func RedactURL(raw string) string {
 	parsed.User = nil
 
 	return Redact(parsed.String())
+}
+
+// RedactTarget returns target, a connection URI or whatever a user typed in
+// the place of one, fit to be shown in an error or a log message: the
+// credentials of a URI are hidden whether or not it parses
+// ([connect.RedactCredentials]), and so is every secret registered with the
+// process ([Redact]).
+//
+// Unlike [RedactURL] it does not need the string to be a URL, nor the
+// userinfo to be well formed: a message that quotes a piece of a target cut
+// at a ":", such as the "instance" of user:password@host:3301, or a target
+// with a "/" in its password, passes through here.
+func RedactTarget(target string) string {
+	return Redact(connect.RedactCredentials(target))
 }
 
 // Secret holds a value that must never reach a log or an output: its fmt

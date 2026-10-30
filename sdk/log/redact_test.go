@@ -333,6 +333,37 @@ func TestRedactURL(t *testing.T) {
 	}
 }
 
+func TestRedactTarget(t *testing.T) {
+	t.Parallel()
+
+	const registered = "redact-target-registered-3e5d"
+
+	require.True(t, log.RegisterSecret(registered))
+
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"instance target", "app:inst", "app:inst"},
+		{"uri", "localhost:3301?transport=ssl", "localhost:3301?transport=ssl"},
+		{"credentials", "user:secretpw@host:3301", "[REDACTED]@host:3301"},
+		{"scheme", "tcp://user:secretpw@host:3301", "tcp://[REDACTED]@host:3301"},
+		{"query", "user:secretpw@host:3301?a=/x", "[REDACTED]@host:3301?a=/x"},
+		// The piece of a target cut at its first colon.
+		{"piece", "secretpw@host:3301?a=/x", "[REDACTED]@host:3301?a=/x"},
+		{"slash in the password", "user:sec/ret@host:3301", "[REDACTED]@host:3301"},
+		{"registered value", "app:" + registered, "app:" + log.Redacted},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, log.RedactTarget(tc.in))
+		})
+	}
+}
+
 func TestSecretNeverRendersValue(t *testing.T) {
 	t.Parallel()
 
