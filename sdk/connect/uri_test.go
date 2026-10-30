@@ -1,6 +1,7 @@
 package connect_test
 
 import (
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -37,6 +38,20 @@ var validBaseUris = []string{
 	".//a",
 	"~/a",
 	"..//..//file",
+	"unix/:/path/to/file",
+	"unix/:./path/to/file",
+	"unix/:../path/to/file",
+	"unix/:~/file",
+	"unix/:/path/to/file?transport=plain",
+	"localhost:3301?transport=ssl",
+	"localhost:3301?transport=ssl&ssl_ca_file=/x",
+	"localhost:3301?ssl_ca_file=/etc/ssl/a@b",
+	"localhost:3301?",
+	"127.0.0.1:3301?transport=ssl&ssl_ca_file=ca.pem&ssl_ciphers=ECDHE:AES256",
+	"[::1]:3301?transport=ssl",
+	"tcp://localhost:3301?transport=ssl&ssl_key_file=k.pem",
+	"tcp://[::1]:3301?ssl_cert_file=c.pem",
+	"unix://path?transport=plain",
 }
 
 var validCredentialsUris = []string{
@@ -57,6 +72,14 @@ var validCredentialsUris = []string{
 	testUserPass + "@//path",
 	"https://" + testUserPass + "@localhost:2379/prefix",
 	"https://" + testUserPass + "@localhost:2379",
+	testUserPass + "@localhost:3301?transport=ssl",
+	testUserPass + "@localhost:3301?transport=ssl&ssl_ca_file=/x",
+	testUserPass + "@127.0.0.1:3301?ssl_ca_file=ca.pem&ssl_ciphers=ECDHE:AES256",
+	testUserPass + "@[::1]:3301?transport=ssl",
+	"tcp://" + testUserPass + "@localhost:3301?transport=ssl&ssl_key_file=k.pem",
+	"tcp://" + testUserPass + "@[::1]:3301?ssl_ca_file=/etc/ssl/a@b",
+	"unix://" + testUserPass + "@path?transport=plain",
+	"user:secretpw@127.0.0.1:3311?transport=ssl&ssl_ca_file=/x",
 }
 
 var invalidBaseUris = []string{
@@ -87,6 +110,16 @@ var invalidBaseUris = []string{
 	"~.",
 	"~~~~~~/a",
 	".../a",
+	"localhost?transport=ssl",
+	"localhost:asd?transport=ssl",
+	"?transport=ssl",
+	":3301?transport=ssl",
+	"tcp:/localhost:3301?transport=ssl",
+	"asd://localhost:3301?transport=ssl",
+	"unix/:?transport=ssl",
+	"unix/:2?transport=ssl",
+	"unix/:/?transport=ssl",
+	"unix//:asd?transport=ssl",
 }
 
 var invalidCredentialsUris = []string{
@@ -102,6 +135,10 @@ var invalidCredentialsUris = []string{
 	"user:password@~./",
 	"user:password@~~/",
 	"user:password@../",
+	"user@localhost:3301?transport=ssl",
+	"tcp://user@localhost:3301?transport=ssl",
+	"user:password@localhost?transport=ssl",
+	"user:password@localhost:asd?transport=ssl",
 }
 
 func TestIsBaseURIValid(t *testing.T) {
@@ -251,6 +288,104 @@ func TestParseBaseURI(t *testing.T) {
 		assert.Equal(t, connect.UnixNetwork, network)
 		assert.Equal(t, homeDir+"/a/b", address)
 	})
+}
+
+func TestSplitURIQuery(t *testing.T) {
+	cases := []struct {
+		uri    string
+		base   string
+		params map[string][]string
+	}{
+		{uri: "localhost:3301", base: "localhost:3301"},
+		{uri: "localhost:3301?", base: "localhost:3301", params: map[string][]string{}},
+		{
+			uri:    "localhost:3301?transport=ssl&ssl_ca_file=%2Fx",
+			base:   "localhost:3301",
+			params: map[string][]string{"transport": {"ssl"}, "ssl_ca_file": {"/x"}},
+		},
+		{
+			uri:    "tcp://[::1]:3301?ssl_ciphers=ECDHE:AES256",
+			base:   "tcp://[::1]:3301",
+			params: map[string][]string{"ssl_ciphers": {"ECDHE:AES256"}},
+		},
+		{
+			uri:    "unix/:/tmp/s.sock?transport=plain",
+			base:   "unix/:/tmp/s.sock",
+			params: map[string][]string{"transport": {"plain"}},
+		},
+		// The path forms keep a "?": it is a part of the path.
+		{uri: "/tmp/s?.sock", base: "/tmp/s?.sock"},
+		{uri: "./s?a=b", base: "./s?a=b"},
+		{uri: "~/s?a=b", base: "~/s?a=b"},
+		{uri: "../s?a=b", base: "../s?a=b"},
+		{uri: "unix://path?a=b", base: "unix://path?a=b"},
+		{uri: "", base: ""},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.uri, func(t *testing.T) {
+			base, params, err := connect.SplitURIQuery(testCase.uri)
+			require.NoError(t, err)
+			assert.Equal(t, testCase.base, base)
+
+			if testCase.params == nil {
+				assert.Nil(t, params)
+			} else {
+				assert.Equal(t, url.Values(testCase.params), params)
+			}
+		})
+	}
+}
+
+func TestSplitURIQueryMalformedDoesNotQuoteQuery(t *testing.T) {
+	_, _, err := connect.SplitURIQuery("localhost:3301?ssl_password=secretpw%zz&a;b")
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "secretpw")
+}
+
+func TestRedactCredentials(t *testing.T) {
+	//nolint:gosec // Fixtures, not credentials.
+	cases := map[string]string{
+		"":                                    "",
+		"localhost:3301":                      "localhost:3301",
+		"app:inst":                            "app:inst",
+		"user:secretpw@localhost:3301":        "[REDACTED]@localhost:3301",
+		"secretpw@localhost:3301?a=b":         "[REDACTED]@localhost:3301?a=b",
+		"tcp://user:secretpw@localhost:3301":  "tcp://[REDACTED]@localhost:3301",
+		"https://token@host/prefix":           "https://[REDACTED]@host/prefix",
+		"user:sec/ret:pw@host:3301":           "[REDACTED]@host:3301",
+		"user:sec@ret@host:3301":              "[REDACTED]@host:3301",
+		"unix://user:secretpw@/run/s.sock":    "unix://[REDACTED]@/run/s.sock",
+		"user:secretpw@127.0.0.1:3311?a=/x":   "[REDACTED]@127.0.0.1:3311?a=/x",
+		"host:3301?ssl_ca_file=/etc/ssl/a@b":  "[REDACTED]@b",
+		"secretpw@127.0.0.1:3311?transport=s": "[REDACTED]@127.0.0.1:3311?transport=s",
+	}
+
+	for in, want := range cases {
+		t.Run(in, func(t *testing.T) {
+			assert.Equal(t, want, connect.RedactCredentials(in))
+		})
+	}
+}
+
+func TestCreateURIOptsErrorDoesNotLeakPassword(t *testing.T) {
+	for _, uri := range []string{
+		"https://user:secretpw@localhost:badport/prefix",
+		"https://user:secretpw@local host:2379",
+		"https://user:secretpw@localhost:2379/%zz",
+		"https://user:secretpw@localhost:2379/\x7f",
+	} {
+		t.Run(uri, func(t *testing.T) {
+			_, err := connect.CreateURIOpts(uri)
+			require.Error(t, err)
+			assert.NotContains(t, err.Error(), "secretpw")
+		})
+	}
+
+	// Not an error of the parser, but of the shape.
+	_, err := connect.CreateURIOpts("user:secretpw@localhost:3301")
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "secretpw")
 }
 
 // spell-checker:ignore anyname cafile capath
