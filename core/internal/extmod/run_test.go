@@ -30,6 +30,7 @@ func TestModuleExitStatus(t *testing.T) {
 
 		cmd, err := tree.run("status")
 		if err != nil {
+			t.Logf("external module error: %v", err)
 			assert.True(t, cmd.SilenceErrors, "the core reports the error")
 			assert.Empty(t, tree.errOut.String())
 		}
