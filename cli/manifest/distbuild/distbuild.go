@@ -49,6 +49,9 @@ var (
 	errSumMismatch = errors.New("the Go modules of the build differ from tt.manifest.sum")
 	// errLockedUpdate reports --locked and --update together.
 	errLockedUpdate = errors.New("--locked and --update exclude each other")
+	// errCoreLocked reports a core override in a build from the lock.
+	errCoreLocked = errors.New("--core (or TT_DIST_CORE) excludes --locked: " +
+		"a build on another core than the lock's is not reproducible")
 	// errVendorAndOutput reports a bundle asked for with a binary or a work
 	// directory of its own.
 	errVendorAndOutput = errors.New("--vendor excludes --output and --work: " +
@@ -71,6 +74,15 @@ type Options struct {
 	// WorkDir is where the main module is generated and kept. Empty: a
 	// temporary directory, removed after the build.
 	WorkDir string
+	// Core overrides [core] of the manifest for this build: a local
+	// checkout of the core - an existing directory, or a path that starts
+	// with ./, ../ or / - or else a Go version query. A relative path is
+	// taken from CoreDir. The core of such a build is not taken from the
+	// lock, and the lock is not written: the build is a development one.
+	// It excludes Locked.
+	Core string
+	// CoreDir is the directory a relative Core path is taken from.
+	CoreDir string
 	// Vendor makes a bundle in this directory instead of a binary: the main
 	// module with every module it is built from vendored, and the build
 	// parameters, which go build turns into the binary without a network,
@@ -115,6 +127,10 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 		return nil, sdk.WithCode(sdk.ExitFailure, errVendorAndOutput)
 	}
 
+	if opts.Core != "" && opts.Locked {
+		return nil, sdk.WithCode(sdk.ExitFailure, errCoreLocked)
+	}
+
 	if opts.gocmd == nil {
 		opts.gocmd = execGo{showOutput: opts.ShowOutput}
 	}
@@ -126,6 +142,10 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 	dist, err := readManifest(opts.Manifest)
 	if err != nil {
 		return nil, err
+	}
+
+	if opts.Core != "" {
+		dist.Core = overrideCore(dist.Core, opts.Core, opts.CoreDir)
 	}
 
 	dir := filepath.Dir(opts.Manifest)
@@ -184,7 +204,7 @@ func (b builder) build(ctx context.Context) (*Result, error) {
 	env := b.goEnv(b.ssl)
 	res := resolver{
 		gocmd: b.opts.gocmd, dir: b.dir, work: b.work, env: env,
-		pinned: b.lock, runningCore: b.opts.RunningCore,
+		pinned: b.lock, unpinnedCore: b.opts.Core != "", runningCore: b.opts.RunningCore,
 	}
 
 	log.Infof("Resolving the core %s", b.dist.CoreModule())
@@ -240,7 +260,11 @@ func (b builder) build(ctx context.Context) (*Result, error) {
 		return nil, err
 	}
 
-	if !b.opts.Locked {
+	switch {
+	case b.opts.Locked:
+	case b.opts.Core != "":
+		log.Infof("The core is overridden: %s is left as it is", manifest.DistributionLockFile)
+	default:
 		err = b.writeLock(lock)
 		if err != nil {
 			return nil, err
@@ -479,6 +503,27 @@ func (b builder) output() string {
 	}
 
 	return filepath.Join(b.dir, b.dist.Name())
+}
+
+// overrideCore returns base with the core value names: a local checkout
+// when value is an existing directory or starts with ./, ../ or /, taken
+// from dir when relative, and a Go version query otherwise. The module
+// stays the manifest's.
+func overrideCore(base manifest.DistributionCore, value, dir string) manifest.DistributionCore {
+	path := value
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(dir, path)
+	}
+
+	info, err := os.Stat(path)
+	isDir := err == nil && info.IsDir()
+
+	if isDir || value == "." || value == ".." || strings.HasPrefix(value, "./") ||
+		strings.HasPrefix(value, "../") || filepath.IsAbs(value) {
+		return manifest.DistributionCore{Tt: "", Path: path, Module: base.Module}
+	}
+
+	return manifest.DistributionCore{Tt: value, Path: "", Module: base.Module}
 }
 
 // readManifest reads and checks tt.manifest.toml.

@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   local modules copied in, and `build.env` and `build.sh` with the tags and
   linker flags of each TLS implementation - which builds with the Go
   toolchain alone, with no network, no module cache and no tt.
+- `tt binary build tt --core VALUE` and `TT_DIST_CORE`: build a distribution
+  on a local checkout of the core or on a version query instead of `[core]`,
+  without editing the manifest. The lock is neither read for the core nor
+  written, and `--locked` refuses the override.
 
 - `tt cluster topology -c <CLUSTER_CONFIG|URI>`: show a Tarantool 3 cluster's
   configured membership and current instance state. Read the configuration

@@ -76,6 +76,9 @@ type resolver struct {
 	env []string
 	// pinned is the lock to take versions from; nil re-resolves everything.
 	pinned *manifest.DistributionLock
+	// unpinnedCore resolves the core and its repository's modules again
+	// even when pinned is set: the core is overridden.
+	unpinnedCore bool
 	// runningCore is the version of the core of the tt that builds; empty
 	// when unknown.
 	runningCore string
@@ -88,8 +91,8 @@ func (r *resolver) resolveCore(ctx context.Context, dist *manifest.Distribution)
 	}
 
 	query := dist.Core.Tt
-	if r.pinned != nil {
-		query = r.pinned.Core.Version
+	if r.pinnedCore() != nil {
+		query = r.pinnedCore().Version
 	}
 
 	if query == "" {
@@ -186,8 +189,8 @@ func (r *resolver) pinRepository(
 		}
 
 		version := ""
-		if r.pinned != nil {
-			version = r.pinned.Core.Repository[rep.Old.Path]
+		if r.pinnedCore() != nil {
+			version = r.pinnedCore().Repository[rep.Old.Path]
 		}
 
 		if version == "" {
@@ -325,6 +328,16 @@ func (r *resolver) registryModule(
 	mod.Version = info.Version
 
 	return mod, nil
+}
+
+// pinnedCore returns the locked core, or nil when the core is resolved
+// again.
+func (r *resolver) pinnedCore() *manifest.LockedCore {
+	if r.pinned == nil || r.unpinnedCore {
+		return nil
+	}
+
+	return &r.pinned.Core
 }
 
 // abs returns path, relative to the manifest's directory, as an absolute

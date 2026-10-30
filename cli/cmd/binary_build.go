@@ -16,9 +16,13 @@ import (
 	"github.com/tarantool/tt/v3/internal/buildflags"
 )
 
-// versionLabelEnv names the label that follows the version of a build, as
-// it does for the magefile's builds of tt.
-const versionLabelEnv = "VERSION_LABEL"
+const (
+	// versionLabelEnv names the label that follows the version of a build,
+	// as it does for the magefile's builds of tt.
+	versionLabelEnv = "VERSION_LABEL"
+	// distCoreEnv overrides the core of a distribution, as --core does.
+	distCoreEnv = "TT_DIST_CORE"
+)
 
 // buildTtCtx holds the flags of tt binary build tt.
 type buildTtCtx struct {
@@ -30,6 +34,8 @@ type buildTtCtx struct {
 	work string
 	// vendor makes an offline bundle there instead of a binary.
 	vendor string
+	// core overrides [core] of the manifest.
+	core string
 	// locked builds strictly from the lock.
 	locked bool
 	// update resolves every version again.
@@ -114,6 +120,12 @@ build.sh, which builds the binary with nothing but the Go toolchain: no
 network, no module cache, no tt. The bundle names no directory of the machine
 that made it and is built once offline to check it.
 
+--core VALUE, or TT_DIST_CORE, builds on another core than [core] says, without
+editing the manifest: a local checkout (an existing directory or a path that
+starts with ./, ../ or /) or a version query. Such a build is a development
+one: its core is not taken from the lock, the lock is not written, and
+--locked refuses it. The modules still come from the lock.
+
 TT_CLI_BUILD_SSL, when set, overrides [build].ssl. VERSION_LABEL follows the
 version of the distribution, which is taken from git describe in the
 manifest's directory. The path to the binary, or to the bundle, is printed to
@@ -126,6 +138,9 @@ stdout.`,
 
   # Build exactly what the lock says, as CI does.
   $ tt binary build tt --locked -o dist/tt
+
+  # Try the distribution on the core of a local checkout.
+  $ tt binary build tt --core ../tt
 
   # Make an offline bundle, then build it where there is no network.
   $ tt binary build tt --locked --vendor dist/bundle
@@ -147,7 +162,11 @@ stdout.`,
 		"resolve the core and the modules again, ignoring the lock")
 	flags.StringVar(&buildCtx.vendor, "vendor", "",
 		"make a bundle in DIR that go build turns into the binary offline, instead of the binary")
+	flags.StringVar(&buildCtx.core, "core", "",
+		"build on this core instead of [core]: a local checkout or a version query "+
+			"(env "+distCoreEnv+"); the lock is left as it is")
 	ttCmd.MarkFlagsMutuallyExclusive("locked", "update")
+	ttCmd.MarkFlagsMutuallyExclusive("locked", "core")
 	ttCmd.MarkFlagsMutuallyExclusive("vendor", "output")
 	ttCmd.MarkFlagsMutuallyExclusive("vendor", "work")
 	addProjectDirFlag(ttCmd)
@@ -172,12 +191,19 @@ func internalBuildTtModule(base binary.BinaryContext, buildCtx buildTtCtx,
 
 	runningCore, _ := sdk.CoreVersion()
 
+	core := buildCtx.core
+	if core == "" {
+		core = os.Getenv(distCoreEnv)
+	}
+
 	result, err := distbuild.Run(context.Background(), distbuild.Options{
 		Manifest:    inDir(dir, manifestPath),
 		Output:      inDir(dir, buildCtx.output),
 		Locked:      buildCtx.locked,
 		Update:      buildCtx.update,
 		WorkDir:     inDir(dir, buildCtx.work),
+		Core:        core,
+		CoreDir:     dir,
 		Vendor:      inDir(dir, buildCtx.vendor),
 		SSL:         os.Getenv(buildflags.Env),
 		Label:       os.Getenv(versionLabelEnv),
