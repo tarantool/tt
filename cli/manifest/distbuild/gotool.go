@@ -151,6 +151,13 @@ type goModFile struct {
 	Module  goModVersion   `json:"Module"`
 	Go      string         `json:"Go"`
 	Replace []goModReplace `json:"Replace"`
+	Require []goModRequire `json:"Require"`
+}
+
+// goModRequire is a require directive.
+type goModRequire struct {
+	Path    string `json:"Path"`
+	Version string `json:"Version"`
 }
 
 // goModVersion is a module path with an optional version, or a directory.

@@ -223,26 +223,34 @@ func (b builder) build(ctx context.Context) (*Result, error) {
 
 	logModules(modules)
 
+	replaces, err := res.resolveReplaces(ctx, b.dist, resolved, modules)
+	if err != nil {
+		return nil, err
+	}
+
+	logReplaces(replaces)
+
 	// A build on another core writes no lock, so it has nothing to hash.
 	var hashes contentHashes
 
 	if b.opts.Core == "" {
-		hashes, err = b.hashLocal(resolved, modules)
+		hashes, err = b.hashLocal(resolved, modules, replaces)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	if b.opts.Locked {
-		err = b.checkContentHashes(resolved, modules, hashes)
+		err = b.checkContentHashes(resolved, modules, replaces, hashes)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	generated, generatedModules := resolved, modules
+	generated, generatedModules, generatedReplaces := resolved, modules, replaces
 	if b.opts.Vendor != "" {
-		generated, generatedModules, err = b.localize(resolved, modules)
+		generated, generatedModules, generatedReplaces, err = b.localize(
+			resolved, modules, replaces)
 		if err != nil {
 			return nil, err
 		}
@@ -250,7 +258,7 @@ func (b builder) build(ctx context.Context) (*Result, error) {
 
 	version := describe(ctx, b.dir, b.opts.Label)
 
-	err = b.generate(generated, generatedModules, version)
+	err = b.generate(generated, generatedModules, generatedReplaces, version)
 	if err != nil {
 		return nil, err
 	}
@@ -259,6 +267,8 @@ func (b builder) build(ctx context.Context) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	b.warnUnusedReplaces(ctx, env, replaces)
 
 	var output string
 
@@ -272,7 +282,7 @@ func (b builder) build(ctx context.Context) (*Result, error) {
 		return nil, err
 	}
 
-	lock, err := b.lockOf(ctx, resolved, modules, hashes, env)
+	lock, err := b.lockOf(ctx, resolved, modules, replaces, hashes, env)
 	if err != nil {
 		return nil, err
 	}
@@ -325,8 +335,10 @@ func (b builder) binary(ctx context.Context, env []string) (string, error) {
 }
 
 // generate writes the main module into the work directory.
-func (b builder) generate(resolved core, modules []module, version versionInfo) error {
-	gomod, err := generateGoMod(resolved, modules)
+func (b builder) generate(
+	resolved core, modules []module, replaces []replacement, version versionInfo,
+) error {
+	gomod, err := generateGoMod(resolved, modules, replaces)
 	if err != nil {
 		return err
 	}
@@ -372,6 +384,33 @@ func (b builder) tidy(ctx context.Context, env []string) error {
 	}
 
 	return nil
+}
+
+// warnUnusedReplaces warns of an entry of [replace] whose module the tidied
+// go.mod does not require: no package of the build comes from it, so the
+// replacement is not used, and a mistyped key is the likely reason. The
+// check is advisory and never fails the build.
+func (b builder) warnUnusedReplaces(ctx context.Context, env []string, replaces []replacement) {
+	if len(replaces) == 0 {
+		return
+	}
+
+	gomod, err := readGoMod(ctx, b.opts.gocmd, b.work, env, filepath.Join(b.work, "go.mod"))
+	if err != nil {
+		log.Debugf("checking the replacements: %s", err)
+
+		return
+	}
+
+	for _, rep := range replaces {
+		used := slices.ContainsFunc(gomod.Require, func(req goModRequire) bool {
+			return req.Path == rep.Module && (rep.Version == "" || req.Version == rep.Version)
+		})
+		if !used {
+			log.Warnf("replace %q: the build does not use %s, so the replacement "+
+				"has no effect", rep.Key, rep.Module)
+		}
+	}
 }
 
 // buildArgs are the arguments of go build that builds output for goos with
@@ -440,7 +479,8 @@ func (b builder) checkSum() error {
 
 // lockOf describes the build as a lock.
 func (b builder) lockOf(
-	ctx context.Context, resolved core, modules []module, hashes contentHashes, env []string,
+	ctx context.Context, resolved core, modules []module, replaces []replacement,
+	hashes contentHashes, env []string,
 ) (*manifest.DistributionLock, error) {
 	out, err := b.opts.gocmd.Output(ctx, b.work, env, "env", "GOVERSION")
 	if err != nil {
@@ -466,6 +506,7 @@ func (b builder) lockOf(
 			Tags:      slices.Concat(b.ssl.Tags(), b.dist.Build.Tags),
 		},
 		Modules: nil,
+		Replace: nil,
 	}
 
 	for _, repo := range resolved.Repository {
@@ -488,6 +529,17 @@ func (b builder) lockOf(
 		lock.Modules[mod.Name] = manifest.LockedModule{
 			Module: mod.Module, Version: mod.Version, Path: mod.Path,
 			ContentHash: hashes.modules[mod.Name],
+		}
+	}
+
+	for _, rep := range replaces {
+		if lock.Replace == nil {
+			lock.Replace = map[string]manifest.LockedReplace{}
+		}
+
+		lock.Replace[rep.Key] = manifest.LockedReplace{
+			Module: rep.Target, Version: rep.TargetVersion, Path: rep.Path,
+			ContentHash: hashes.replaces[rep.Key],
 		}
 	}
 
@@ -770,6 +822,17 @@ func logCore(resolved core) {
 	}
 
 	log.Infof("  core %s@%s", resolved.Module, resolved.Version)
+}
+
+// logReplaces tells what Go modules the build replaces.
+func logReplaces(replaces []replacement) {
+	for _, rep := range replaces {
+		if rep.Dir != "" {
+			log.Infof("  replace %s (path %s)", rep.Key, rep.Path)
+		} else {
+			log.Infof("  replace %s %s@%s", rep.Key, rep.Target, rep.TargetVersion)
+		}
+	}
 }
 
 // logModules tells what tt modules the distribution has.
