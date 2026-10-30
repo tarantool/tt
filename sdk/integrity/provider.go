@@ -39,8 +39,9 @@ type Provider interface {
 	InitializeIntegrityCheck(publicKeyPath string, roots ...string) (IntegrityCtx, error)
 	// VerifyTree checks the tree rooted at dir with the public key at
 	// publicKeyPath: it must be signed, every file its hashes files list
-	// must match, and every file of the tree must be listed. It is the
-	// check of what is about to be installed.
+	// must match, and every file of the tree must be listed. A symbolic
+	// link to a directory, or one that leads nowhere, holds no file and is
+	// passed over. It is the check of what is about to be installed.
 	VerifyTree(publicKeyPath, dir string) error
 	// NewSigner creates a Signer for the private key at privateKeyPath.
 	NewSigner(privateKeyPath string) (Signer, error)

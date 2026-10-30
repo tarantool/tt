@@ -72,6 +72,8 @@ func (signer rsaSigner) Sign(dir string, opts SignOptions) error {
 
 	walker := treeWalker{
 		skipDir: func(path string) bool { return skipped[path] },
+		// What is signed is never short of an entry it could not read.
+		skipDangling: false,
 		visit: func(relPath, path string, _ fs.FileInfo) error {
 			if isSignerOutput(path) {
 				return nil
@@ -226,10 +228,16 @@ func isSignerOutput(path string) bool {
 // directory in ascending byte order of their names. The root may be a
 // symbolic link to a directory; below it, a symbolic link to a directory is
 // skipped and a symbolic link to anything else stands for its target under
-// its own path. A symbolic link that does not resolve is an error.
+// its own path. A symbolic link that does not resolve is an error, unless
+// skipDangling says to skip it.
 type treeWalker struct {
 	// skipDir reports whether the directory at a lexical path is skipped.
 	skipDir func(path string) bool
+	// skipDangling skips a symbolic link that does not resolve, as a link
+	// to a directory is skipped: it holds no file. A check of a tree sets
+	// it, a signature does not, so that what is signed is never short of
+	// an entry it could not read.
+	skipDangling bool
 	// visit is called for every entry that is not a directory, with its
 	// path relative to the root of the tree, its lexical path and the file
 	// information of what it resolves to.
@@ -288,6 +296,10 @@ func (walker treeWalker) walkEntry(entry fs.DirEntry, path, relPath string) erro
 		return walker.walkDir(path, relPath)
 	case entry.Type()&fs.ModeSymlink != 0:
 		info, err := os.Stat(path)
+		if walker.skipDangling && errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+
 		if err != nil {
 			return fmt.Errorf("failed to resolve symbolic link: %w", err)
 		}
