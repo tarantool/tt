@@ -667,9 +667,10 @@ archive bundles in `_runtime/` gets an `env_hashes.json` of its own, listing
 its executable, and the headers of tarantool, by the paths
 `tt package install` lays them out at. A signed package runs only its own
 files: a record of its templates that runs a script or a binary outside of
-it, or a program it does not build into `.rocks/bin/`, fails the pack. A
-package is not signed `--without-deps`, as its install fetches dependencies
-nobody signed.
+it, or a program it does not build into `.rocks/bin/`, fails the pack, as
+does a Tarantool instance record with `env` and a `var/` at the top of the
+package (see the layout on Tarantool Enterprise below). A package is not
+signed `--without-deps`, as its install fetches dependencies nobody signed.
 
 `tt --integrity-check public.pem package install` installs only a signed
 archive, into the user or the system scope: the version and each bundled
@@ -706,11 +707,29 @@ sockets and its log - through the `TT_*_DEFAULT` variables of its
 environment. Tarantool Enterprise starts with an empty environment when it
 checks integrity, so under `--integrity-check` they do not reach it, and it
 falls back to the defaults of Tarantool, relative to its working directory,
-the installed version: `var/lib/<instance>`, `var/run/<instance>/tarantool.pid`
-and `var/run/<instance>/tarantool.control` inside the version, which is never
-to be written to, and no iproto socket at all. The cluster config of a package
-meant to run checked therefore names the layout itself. In the system scope,
-whose root is `/opt/tarantool` on Linux, for the package `<app>`:
+the installed version: `var/lib/<instance>` for the data,
+`var/run/<instance>/tarantool.pid` and `var/run/<instance>/tarantool.control`,
+and `var/log/<instance>/tarantool.log` for a log file.
+
+A signed install makes those defaults the layout. `tt package install
+--integrity-check` gives the version `var/lib`, `var/run` and `var/log` as
+links to `<root>/var/lib/<app>`, `<root>/var/run/<app>` and
+`<root>/var/log/<app>`, so a config that names no path keeps the data, the
+pid file and the console socket of an instance in the layout of the root,
+where tt finds them, as without the checks. Every version of the application
+links the same directories, so the data outlives an upgrade, and removing a
+version removes its links, not the data. The links are not part of what is
+signed, and a signed package cannot have a `var/` of its own: the pack
+refuses it. `tt instance start --integrity-check` makes the links a version
+lacks - one installed before tt made them - when it may write into it, and
+refuses to start an instance whose version has something else there.
+
+A config may still name the paths itself, in the cluster config of the
+package or in its config storage; tt reads the data directories, the console
+socket and the first unix socket of `iproto.listen` from the config of an
+instance, with `{{ instance_name }}`, `{{ replicaset_name }}` and
+`{{ group_name }}` substituted. In the system scope, whose root is
+`/opt/tarantool` on Linux, for the package `<app>`:
 
 ``` yaml
 snapshot:
@@ -731,30 +750,26 @@ iproto:
 ```
 
 `quiver.dir` is an option of Tarantool Enterprise, which Tarantool Community
-refuses. The TCP addresses the instance listens on go into `iproto.listen`
-next to the socket.
+refuses. `process.work_dir` is no way to move the defaults: Tarantool looks
+for the modules of the application, `app.file` among them, in its working
+directory, and finds none once it moves there.
 
-Paths relative to the version work in either scope, whatever its root: the
-version, `<root>/versions/<app>/<app>_<version>`, is always three levels under
-the root, so `../../../var/lib/<app>/{{ instance_name }}` is the data
-directory, and
-`unix/:./../../../var/run/<app>/{{ instance_name }}/tarantool.sock` the
-socket, which Tarantool takes relative only behind `./`. A project
-resolves them against the project directory, though, so a config with them is
-for installed versions only. `process.work_dir` is no way out: Tarantool
-looks for the modules of the application, `app.file` among them, in its
-working directory, and finds none once it moves there.
+What the checks take away with the environment stays away, as it did in tt
+2:
 
-tt reads the data directories, the console socket and the first unix socket
-of `iproto.listen` from the config of an instance, with `{{ instance_name }}`,
-`{{ replicaset_name }}` and `{{ group_name }}` substituted, so
-`tt instance status`, `tt connect` (`--binary` too), `tt instance logrotate`
-and `tt instance stop` find what they need where the config puts it. The log
-goes to the standard error of the instance by default, which tt writes into
-`tt.log` of the layout, where `tt instance logs` reads it; `log.to: file` with
-`log.file` under `var/log/<app>/{{ instance_name }}/` keeps it apart. The
-`env` of an instance record does not reach Tarantool Enterprise under the
-checks either: what the application needs from it belongs in the config.
+- No iproto address by default: an instance listens on what `iproto.listen`
+  of its config names, and `tt connect --binary` needs a unix socket there;
+  `tt connect` over the console socket works without one.
+- The log goes to the standard error of the instance, which tt writes into
+  `tt.log` of the layout, where `tt instance logs` reads it; `log.to: file`
+  writes `tarantool.log` next to it.
+- The `env` of the record of a Tarantool instance does not reach it: the pack
+  of a signed package and `tt instance start --integrity-check` refuse a
+  record that sets it, and the values belong in the config. An external
+  process keeps its `env`: tt runs it.
+- A record that runs its script is refused under the checks: tt starts it
+  through a launcher that takes the script and the paths of the instance from
+  the environment. The instance is configured by the cluster config instead.
 
 ## CLI Args
 
