@@ -223,6 +223,23 @@ func (b builder) build(ctx context.Context) (*Result, error) {
 
 	logModules(modules)
 
+	// A build on another core writes no lock, so it has nothing to hash.
+	var hashes contentHashes
+
+	if b.opts.Core == "" {
+		hashes, err = b.hashLocal(resolved, modules)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if b.opts.Locked {
+		err = b.checkContentHashes(resolved, modules, hashes)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	generated, generatedModules := resolved, modules
 	if b.opts.Vendor != "" {
 		generated, generatedModules, err = b.localize(resolved, modules)
@@ -255,7 +272,7 @@ func (b builder) build(ctx context.Context) (*Result, error) {
 		return nil, err
 	}
 
-	lock, err := b.lockOf(ctx, resolved, modules, env)
+	lock, err := b.lockOf(ctx, resolved, modules, hashes, env)
 	if err != nil {
 		return nil, err
 	}
@@ -423,7 +440,7 @@ func (b builder) checkSum() error {
 
 // lockOf describes the build as a lock.
 func (b builder) lockOf(
-	ctx context.Context, resolved core, modules []module, env []string,
+	ctx context.Context, resolved core, modules []module, hashes contentHashes, env []string,
 ) (*manifest.DistributionLock, error) {
 	out, err := b.opts.gocmd.Output(ctx, b.work, env, "env", "GOVERSION")
 	if err != nil {
@@ -436,11 +453,12 @@ func (b builder) lockOf(
 		GeneratedBy:     b.opts.GeneratedBy,
 		ManifestHash:    b.dist.Hash(),
 		Core: manifest.LockedCore{
-			Module:     resolved.Module,
-			Version:    resolved.Version,
-			Revision:   resolved.Revision,
-			Path:       resolved.Path,
-			Repository: nil,
+			Module:      resolved.Module,
+			Version:     resolved.Version,
+			Revision:    resolved.Revision,
+			Path:        resolved.Path,
+			ContentHash: hashes.core,
+			Repository:  nil,
 		},
 		Build: manifest.LockedBuild{
 			Toolchain: string(bytes.TrimSpace(out)),
@@ -469,6 +487,7 @@ func (b builder) lockOf(
 
 		lock.Modules[mod.Name] = manifest.LockedModule{
 			Module: mod.Module, Version: mod.Version, Path: mod.Path,
+			ContentHash: hashes.modules[mod.Name],
 		}
 	}
 

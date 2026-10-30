@@ -108,10 +108,11 @@ other module without a version at its latest. A module's constructor is New
 in its root package unless package and symbol say otherwise.
 
 The build writes tt.manifest.lock and tt.manifest.sum next to the manifest:
-the exact versions and the go.sum it was built from. While the manifest does
-not change, the next build takes the versions from the lock; --update
-resolves them again. --locked builds strictly from the lock and fails when it
-or the Go modules differ.
+the exact versions and the go.sum it was built from, and a hash of the files
+of every local module and local core. While the manifest does not change, the
+next build takes the versions from the lock; --update resolves them again.
+--locked builds strictly from the lock and fails when it, the Go modules or
+the files of a local module differ.
 
 --vendor DIR makes an offline bundle instead of the binary: the generated main
 module with every module it is built from in vendor/, the local modules copied

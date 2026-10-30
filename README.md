@@ -558,6 +558,14 @@ and `tt.manifest.sum` next to the manifest. Commit both: while the manifest
 stays the same, the next build takes its versions from the lock, and
 `--locked` fails when the lock or the Go modules differ.
 
+A local module or a local core has no version to pin, so the lock records
+`content_hash`, a hash of its files: the files the bundle of `--vendor` would
+copy - every regular file of its directory but those in VCS and `vendor`
+directories and in nested modules - by path and content, as Go hashes a
+module for `go.sum`. `--locked` fails when they changed; an ordinary build
+records them again. Files the build leaves in a local module, a binary say,
+count as a change.
+
 `tt version` of the result shows the version of the distribution and of the
 tt core it is built on; `tt version --modules` lists its modules with the
 versions Go recorded for their Go modules, `(devel)` for a local one:

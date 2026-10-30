@@ -34,6 +34,10 @@ type LockedCore struct {
 	Revision string `toml:"revision,omitempty"`
 	// Path is the local core, as the manifest names it.
 	Path string `toml:"path,omitempty"`
+	// ContentHash is the hash of the files of a local core and of the
+	// modules of its repository it is built with, "sha256:<hex>"; a build
+	// from the lock fails when they changed. Empty for a versioned core.
+	ContentHash string `toml:"content_hash,omitempty"`
 	// Repository maps every other module of the core's repository to its
 	// exact version at Revision; empty for a local core, whose modules are
 	// taken from its directory.
@@ -61,6 +65,10 @@ type LockedModule struct {
 	Version string `toml:"version,omitempty"`
 	// Path is the local module, as the manifest names it.
 	Path string `toml:"path,omitempty"`
+	// ContentHash is the hash of the files of a local module,
+	// "sha256:<hex>"; a build from the lock fails when they changed. Empty
+	// for a module from a module proxy, which go.sum checks.
+	ContentHash string `toml:"content_hash,omitempty"`
 }
 
 // ParseDistributionLock parses tt.manifest.lock bytes. A newer major

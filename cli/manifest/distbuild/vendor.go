@@ -176,19 +176,10 @@ func (b builder) copyModule(src, dst string) error {
 }
 
 // copyDir creates the copy of the directory path of the module in src under
-// dst, or skips it: a VCS directory, a nested module, a vendor directory,
-// and the bundle itself.
+// dst, or skips it as skipModuleDir says.
 func (b builder) copyDir(src, dst, path string, entry fs.DirEntry) error {
-	if path != src {
-		if slices.Contains(vcsDirs, entry.Name()) || entry.Name() == "vendor" ||
-			path == b.work {
-			return filepath.SkipDir
-		}
-
-		_, err := os.Stat(filepath.Join(path, "go.mod"))
-		if err == nil {
-			return filepath.SkipDir
-		}
+	if skipModuleDir(src, path, entry, b.work) {
+		return filepath.SkipDir
 	}
 
 	rel, err := filepath.Rel(src, path)
@@ -202,6 +193,25 @@ func (b builder) copyDir(src, dst, path string, entry fs.DirEntry) error {
 	}
 
 	return nil
+}
+
+// skipModuleDir reports whether the directory path met walking the module
+// in root holds none of its files: a VCS directory, a vendor directory, a
+// nested module - a directory with a go.mod of its own - or work, the
+// directory of the build. These are the directories the go command leaves
+// out of a module zip, and work is not the module's at all.
+func skipModuleDir(root, path string, entry fs.DirEntry, work string) bool {
+	if path == root {
+		return false
+	}
+
+	if slices.Contains(vcsDirs, entry.Name()) || entry.Name() == "vendor" || path == work {
+		return true
+	}
+
+	_, err := os.Stat(filepath.Join(path, "go.mod"))
+
+	return err == nil
 }
 
 // copyFile copies the regular file src to dst with its mode.
