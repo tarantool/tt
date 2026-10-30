@@ -570,6 +570,20 @@ func getBuildEnvironment() map[string]string {
 		"GIT_COMMIT_SINCE_TAG": gitCommitSinceTag,
 		"VERSION_LABEL":        os.Getenv("VERSION_LABEL"),
 		"PWD":                  currentDir,
-		"CGO_ENABLED":          "1",
+		"CGO_ENABLED":          cgoEnabled(),
 	}
+}
+
+// cgoEnabled returns CGO_ENABLED for the TLS implementation TT_CLI_BUILD_SSL
+// selects: "1" for the OpenSSL ones, which link OpenSSL through cgo, and "0"
+// for the default, whose binary is pure Go and runs whatever the C library
+// of the machine. tt binary build tt decides the same way. An invalid value
+// is "0": the build reports it before it runs.
+func cgoEnabled() string {
+	ssl, err := buildflags.Parse(os.Getenv(buildflags.Env))
+	if err != nil || !ssl.Cgo() {
+		return "0"
+	}
+
+	return "1"
 }

@@ -488,6 +488,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- `mage build` without `TT_CLI_BUILD_SSL`, or with `default`, builds with
+  `CGO_ENABLED=0`: the default TLS is pure Go, so the binary is static and
+  needs no C library; the OpenSSL builds still use cgo. `tt binary build tt`
+  decides the same way.
 - The instance commands read the cluster config of an application, a
   centralized one included, once per command rather than once per instance.
 - `tt instance status`: collect instance statuses in parallel.
