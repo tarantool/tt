@@ -34,6 +34,14 @@ type Options struct {
 	// the cluster config may point to. A context without a repository checks
 	// nothing.
 	Integrity integrity.IntegrityCtx
+	// IntegrityFor, when set, gives the integrity checks of the application
+	// found in dir in the scope: Load reads its pair through them, rather
+	// than through Integrity, which then checks only what finding the
+	// application reads, and hands them on as App.Integrity. tt sets it when
+	// the checks are on, rooting them at the application - a project or an
+	// installed version - and at the runtimes it runs on, whatever the
+	// directory tt runs in.
+	IntegrityFor func(scope Scope, dir string) (integrity.IntegrityCtx, error)
 	// BestEffortConfig reads the cluster config of the pair, and the config
 	// storage it names, as far as it can be read: a config that is missing,
 	// broken or out of reach leaves App.Config nil and App.ConfigError set,
@@ -98,6 +106,10 @@ type App struct {
 	// Instances are every instance of the description, in its order: its
 	// records, and the instances "*" stands for in place of it.
 	Instances []instances.Instance
+	// Integrity are the integrity checks of the application,
+	// Options.IntegrityFor's for it; nil when the application was loaded
+	// without them, as it is while the checks are off.
+	Integrity *integrity.IntegrityCtx
 
 	// named are the records of the description that name an instance, in
 	// its order: Instances without those "*" stands for. They are what a
@@ -152,6 +164,18 @@ func Load(ctx context.Context, name string, opts Options) (*App, error) {
 		return nil, err
 	}
 
+	var checks *integrity.IntegrityCtx
+
+	if opts.IntegrityFor != nil {
+		integ, err := opts.IntegrityFor(loc.scope, loc.dir)
+		if err != nil {
+			return nil, fmt.Errorf("application %q: integrity check failed: %w", loc.name, err)
+		}
+
+		opts.Integrity = integ
+		checks = &integ
+	}
+
 	loaded, err := loadPair(ctx, pair, loc, opts)
 	if err != nil {
 		return nil, fmt.Errorf("application %q: %w", loc.name, err)
@@ -172,6 +196,7 @@ func Load(ctx context.Context, name string, opts Options) (*App, error) {
 		BestEffortConfig: opts.BestEffortConfig,
 		ConfigError:      configErr,
 		Instances:        loaded.records,
+		Integrity:        checks,
 		named:            loaded.named,
 		wildcard:         loaded.wildcard,
 	}, nil

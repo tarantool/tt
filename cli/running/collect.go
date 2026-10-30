@@ -42,6 +42,7 @@ func Collect(ctx context.Context, targets []app.Target, opts app.Options) ([]Ins
 
 		for i := range insts {
 			insts[i].Template = opts.Template
+			insts[i].integrityFor = opts.IntegrityFor
 		}
 
 		collected = append(collected, insts...)
@@ -90,6 +91,7 @@ func PinnedOptions(inst *InstanceCtx, integ integrity.IntegrityCtx) app.Options 
 		Start:            "",
 		Dir:              inst.AppDir,
 		Integrity:        integ,
+		IntegrityFor:     inst.integrityFor,
 		BestEffortConfig: false,
 	}
 }

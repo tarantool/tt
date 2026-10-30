@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync/atomic"
 	"syscall"
 	"time"
 
+	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/ttlog"
 	"github.com/tarantool/tt/v3/internal/instances"
@@ -96,12 +98,16 @@ type instanceSource struct {
 	// log of the watchdog, tt.log.
 	stdout io.Writer
 	stderr io.Writer
+	// checks are the integrity checks of the context the last Spec was built
+	// from, nil while they are off: the periodic check, on a goroutine of
+	// its own, validates them.
+	checks atomic.Pointer[integrity.IntegrityCtx]
 }
 
 func newInstanceSource(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx, log *watchdogLog,
 	refresh func() (InstanceCtx, error),
 ) *instanceSource {
-	return &instanceSource{
+	src := &instanceSource{
 		cmdCtx:  cmdCtx,
 		ran:     *inst,
 		next:    *inst,
@@ -109,7 +115,12 @@ func newInstanceSource(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx, log *watchd
 		refresh: refresh,
 		stdout:  nil,
 		stderr:  nil,
+		checks:  atomic.Pointer[integrity.IntegrityCtx]{},
 	}
+
+	src.checks.Store(inst.Integrity)
+
+	return src
 }
 
 // Next reads the configuration and builds the Spec of the instance from it.
@@ -126,8 +137,10 @@ func (src *instanceSource) Next(context.Context) (supervisor.Spec, error) {
 			inst.ClusterConfigPath, inst.InstName)
 	}
 
+	src.checks.Store(inst.Integrity)
+
 	return instanceSpec(&src.next, specOptions{
-		integrity: integrityOf(src.cmdCtx),
+		integrity: inst.Integrity,
 		stdout:    outputOr(src.stdout, src.log.logger),
 		stderr:    outputOr(src.stderr, src.log.logger),
 		warn: func(message string) {
@@ -280,7 +293,15 @@ func watchdogOptions(cmdCtx *cmdcontext.CmdCtx, src *instanceSource) supervisor.
 	if src.log.checkPeriod != 0 {
 		opts.CheckPeriod = src.log.checkPeriod
 		opts.Check = func(context.Context) error {
-			return cmdCtx.Integrity.Repository.ValidateAll()
+			// The checks of the instance, as its last start found them: they
+			// know the files of its application and its runtimes, wherever
+			// the watchdog runs.
+			checks := src.checks.Load()
+			if checks == nil {
+				return cmdCtx.Integrity.Repository.ValidateAll()
+			}
+
+			return checks.Repository.ValidateAll()
 		}
 	}
 
