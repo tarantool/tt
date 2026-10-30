@@ -331,7 +331,7 @@ func requireSignsWith(t *testing.T, path string, key *rsa.PrivateKey) {
 
 	base := t.TempDir()
 	writeFile(t, filepath.Join(base, "tt.yaml"), "env: {}\n", 0o644)
-	require.NoError(t, signer.Sign(base, []string{}))
+	require.NoError(t, signer.Sign(base, integrity.SignOptions{}))
 	readSignedHashes(t, key, filepath.Join(base, "env_hashes.json"))
 }
 

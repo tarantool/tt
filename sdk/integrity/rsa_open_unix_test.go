@@ -143,7 +143,7 @@ func TestRSASignerRefusesFIFOs(t *testing.T) {
 
 			signer := newSigner(t, key)
 
-			err := promptly(t, func() error { return signer.Sign(base, nil) })
+			err := promptly(t, func() error { return signer.Sign(base, integrity.SignOptions{}) })
 			requireFIFORefused(t, err, path)
 		})
 	}

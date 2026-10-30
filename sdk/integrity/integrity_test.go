@@ -31,6 +31,11 @@ func TestInitializeIntegrityCheckWithoutKey(t *testing.T) {
 	require.NotNil(t, ctx.Repository)
 }
 
+func TestVerifyTreeDisabled(t *testing.T) {
+	err := integrity.VerifyTree("public.pem", t.TempDir())
+	require.ErrorIs(t, err, integrity.ErrNoVerifierInCE)
+}
+
 func TestRegisterNoopFlagFuncs(t *testing.T) {
 	var (
 		text   string

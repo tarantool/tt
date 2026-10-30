@@ -17,6 +17,8 @@ var (
 	errHashMismatch         = errors.New("hash mismatch")
 	errNotInRepository      = errors.New("file is not in repository")
 	errUnsupportedAlgorithm = errors.New("unsupported hash algorithm")
+	errNotSigned            = errors.New("not signed")
+	errNotListed            = errors.New("file is not listed in the hashes files")
 )
 
 // rsaRepository is a Repository that knows the files listed in the signed
@@ -157,18 +159,39 @@ func checkOpenFile(file *os.File, path string, digest []byte) error {
 	return nil
 }
 
-// loadRepository checks the environment whose hashes files are in
-// configDir with publicKey and returns the repository of the files they
-// list.
-func loadRepository(publicKey *rsa.PublicKey, configDir string) (*rsaRepository, error) {
-	dir, err := filepath.Abs(configDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find hashes files: %w", err)
-	}
+// loadRepository checks the trees whose hashes files are in roots with
+// publicKey and returns the repository of the files they list. A root that
+// resolves to one checked already is skipped.
+func loadRepository(publicKey *rsa.PublicKey, roots ...string) (*rsaRepository, error) {
+	var hashesPaths []string
 
-	hashesPaths, err := checkedHashesFiles(dir)
-	if err != nil {
-		return nil, err
+	seen := make(map[string]bool, len(roots))
+
+	for _, root := range roots {
+		dir, err := filepath.Abs(root)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find hashes files: %w", err)
+		}
+
+		key := dir
+
+		resolved, err := filepath.EvalSymlinks(dir)
+		if err == nil {
+			key = resolved
+		}
+
+		if seen[key] {
+			continue
+		}
+
+		seen[key] = true
+
+		paths, err := checkedHashesFiles(dir)
+		if err != nil {
+			return nil, err
+		}
+
+		hashesPaths = append(hashesPaths, paths...)
 	}
 
 	var records []hashRecord
@@ -188,13 +211,55 @@ func loadRepository(publicKey *rsa.PublicKey, configDir string) (*rsaRepository,
 	}
 
 	for _, record := range records {
-		err = repository.register(record)
+		err := repository.register(record)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	return repository, nil
+}
+
+// verifyTree checks the tree rooted at dir with publicKey: its hashes files
+// are signed, the files they list match, and they list every file of the
+// tree but themselves and their signatures.
+func verifyTree(publicKey *rsa.PublicKey, dir string) error {
+	hashesPaths, err := checkedHashesFiles(dir)
+	if err != nil {
+		return err
+	}
+
+	if len(hashesPaths) == 0 {
+		return fmt.Errorf("%w: %q has no %s", errNotSigned, dir, envHashesFileName)
+	}
+
+	repository, err := loadRepository(publicKey, dir)
+	if err != nil {
+		return err
+	}
+
+	walker := treeWalker{
+		skipDir: func(string) bool { return false },
+		visit: func(_, path string, _ fs.FileInfo) error {
+			if isSignerOutput(path) {
+				return nil
+			}
+
+			resolved, err := filepath.EvalSymlinks(path)
+			if err != nil {
+				return fmt.Errorf("failed to check %q: %w", path, err)
+			}
+
+			_, known := repository.digests[resolved]
+			if !known {
+				return fmt.Errorf("%w: %q", errNotListed, path)
+			}
+
+			return nil
+		},
+	}
+
+	return walker.walk(dir, "")
 }
 
 // checkedHashesFiles returns the hashes files that are checked in the

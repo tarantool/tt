@@ -55,7 +55,7 @@ func (disabledProvider) HashesFileName() string { return HashesFileName }
 // InitializeIntegrityCheck returns a context whose repository reads files
 // without checks, and refuses a public key.
 func (disabledProvider) InitializeIntegrityCheck(
-	publicKeyPath, _ string,
+	publicKeyPath string, _ ...string,
 ) (IntegrityCtx, error) {
 	if publicKeyPath != "" {
 		return IntegrityCtx{}, ErrNoVerifierInCE
@@ -65,6 +65,11 @@ func (disabledProvider) InitializeIntegrityCheck(
 		Repository: dummyRepository{},
 		publicKey:  nil,
 	}, nil
+}
+
+// VerifyTree refuses to check a tree.
+func (disabledProvider) VerifyTree(string, string) error {
+	return ErrNoVerifierInCE
 }
 
 // NewSigner refuses to create a signer.
