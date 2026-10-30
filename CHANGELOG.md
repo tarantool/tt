@@ -500,6 +500,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- tt takes the binary port of an instance from its config: the first unix
+  socket of `iproto.listen`, unless the env of its record sets
+  `TT_IPROTO_LISTEN`. `tt connect --binary`, `tt play` and the cleanup at stop
+  find the socket the config puts elsewhere than the layout.
+- An instance installed into the user or the system scope may have a
+  relative path in its config that leads out of its version directory, such
+  as `../../../var/lib/<app>/{{ instance_name }}` to the layout of the scope
+  root; only one that leads into the version is refused.
 - `mage build` without `TT_CLI_BUILD_SSL`, or with `default`, builds with
   `CGO_ENABLED=0`: the default TLS is pure Go, so the binary is static and
   needs no C library; the OpenSSL builds still use cgo. `tt binary build tt`
@@ -985,6 +993,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- A path the cluster config of an instance sets with `{{ replicaset_name }}`
+  or `{{ group_name }}` in it failed the instance commands with "missing
+  vars": tt substitutes them as Tarantool does, as it did
+  `{{ instance_name }}`, and in every key it reads, `app.file` and the paths
+  it checks at start among them.
 - The RSA integrity provider takes a private key in PKCS #8, what `openssl
   genrsa` of OpenSSL 3 writes unless told `-traditional`, as well as in
   PKCS #1, and a public key in PKCS #1 as well as in PKIX. A key of another

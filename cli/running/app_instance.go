@@ -157,6 +157,7 @@ func NewInstanceCtx(application *app.App, inst instances.Instance) (InstanceCtx,
 		Unit:              "",
 		Integrity:         application.Integrity,
 		integrityFor:      nil,
+		configVars:        nil,
 	}
 
 	switch inst.Kind() {
@@ -167,6 +168,8 @@ func NewInstanceCtx(application *app.App, inst instances.Instance) (InstanceCtx,
 	case instances.KindScript:
 		setScriptCtx(&instCtx, inst)
 	case instances.KindCluster:
+		instCtx.configVars = configVars(application.Config, inst.Name)
+
 		if application.Config != nil {
 			cfg, err := cluster.GetInstanceConfig(application.Config, inst.Name)
 
@@ -238,7 +241,8 @@ func effectivePaths(inst *InstanceCtx) []configPath {
 
 // setInstCtxFromEffectiveConfig sets the paths the effective config of
 // inst names, resolved against its application directory, over the paths of
-// the layout: the config has the last word on where its instance writes.
+// the layout: the config has the last word on where its instance writes, and
+// on the unix socket it listens for iproto on (configBinaryPort).
 func setInstCtxFromEffectiveConfig(inst *InstanceCtx) error {
 	for _, target := range effectivePaths(inst) {
 		value, found, err := effectiveString(inst, target.key)
@@ -256,7 +260,69 @@ func setInstCtxFromEffectiveConfig(inst *InstanceCtx) error {
 		}
 	}
 
+	port, found, err := configBinaryPort(inst)
+	if err != nil {
+		return err
+	}
+
+	if found {
+		inst.BinaryPort = port
+	}
+
 	return nil
+}
+
+// unixURIPrefix starts the URI of a unix socket in iproto.listen.
+const unixURIPrefix = "unix/:"
+
+// configBinaryPort returns the unix socket the config of a Tarantool
+// instance has it listen for iproto on: the first entry of iproto.listen
+// whose URI is unix/:<path>, with the variables of the config substituted
+// and resolved against the application directory, as tarantool resolves it.
+// found is false when the config lists no unix socket - no iproto.listen,
+// TCP addresses only - or when the env of the record sets TT_IPROTO_LISTEN,
+// which tarantool ranks above the config and tt does not parse: the binary
+// port of the layout is kept then.
+func configBinaryPort(inst *InstanceCtx) (string, bool, error) {
+	if IsScript(inst) || inst.Configuration == nil {
+		return "", false, nil
+	}
+
+	if _, ok := inst.Env[envName("iproto.listen")]; ok {
+		return "", false, nil
+	}
+
+	var raw any
+
+	_, err := inst.Configuration.Get(goconfig.NewKeyPath("iproto/listen"), &raw)
+	if errors.Is(err, goconfig.ErrKeyNotFound) {
+		return "", false, nil
+	}
+
+	if err != nil {
+		return "", false, fmt.Errorf("getting %q from the config: %w", "iproto.listen", err)
+	}
+
+	entries, _ := raw.([]any)
+
+	for _, entry := range entries {
+		fields, _ := entry.(map[string]any)
+		uri, _ := fields["uri"].(string)
+
+		path, ok := strings.CutPrefix(applyConfigVars(uri, inst.configVars), unixURIPrefix)
+		if !ok || path == "" {
+			continue
+		}
+
+		port, err := util.JoinAbspath(inst.AppDir, path)
+		if err != nil {
+			return "", false, fmt.Errorf("iproto.listen %q: %w", uri, err)
+		}
+
+		return port, true, nil
+	}
+
+	return "", false, nil
 }
 
 // effectiveString returns the value of the config key, dotted as in
@@ -271,7 +337,22 @@ func setInstCtxFromEffectiveConfig(inst *InstanceCtx) error {
 // An instance that runs its script has no config: its key is an option of
 // box.cfg, such as wal_dir, and only the TT_ variable of the option in the
 // env of its record counts. What the script passes to box.cfg is beyond tt.
+//
+// The variables of the config of the instance, such as {{ instance_name }},
+// are substituted into the value, as tarantool substitutes them into the
+// config, wherever the value came from (applyConfigVars).
 func effectiveString(inst *InstanceCtx, key string) (string, bool, error) {
+	value, found, err := rawEffectiveString(inst, key)
+	if err != nil || !found {
+		return value, found, err
+	}
+
+	return applyConfigVars(value, inst.configVars), true, nil
+}
+
+// rawEffectiveString is effectiveString with the variables of the config
+// left as they are.
+func rawEffectiveString(inst *InstanceCtx, key string) (string, bool, error) {
 	if value, ok := inst.Env[envName(key)]; ok {
 		return value, value != "", nil
 	}
@@ -388,13 +469,16 @@ func checkOldLayout(inst *InstanceCtx) error {
 // checkRelativePaths refuses a relative path in writtenPathKeys in the
 // effective config of an instance installed into the user or the system
 // scope, or in scriptWrittenPathKeys in the env of the record of an
-// instance that runs its script.
+// instance that runs its script, that leads into its version directory.
 //
-// An installed instance runs in its version directory, and a relative path
+// An installed instance runs in its version directory, and such a path
 // would have it write into that version, which is immutable: the next
 // version would not have the data, and removing the version would remove it.
-// In a project a relative path is resolved against the project directory,
-// like everything else in the project, and is fine.
+// A relative path that climbs out of the version, such as
+// ../../../var/lib/<app>/{{ instance_name }} to the layout of the scope
+// root, writes where an absolute one would, and is fine. In a project a
+// relative path is resolved against the project directory, like everything
+// else in the project, and is fine.
 func checkRelativePaths(inst *InstanceCtx) error {
 	if inst.Scope == app.ScopeProject {
 		return nil
@@ -413,7 +497,11 @@ func checkRelativePaths(inst *InstanceCtx) error {
 			return err
 		}
 
-		if found && !filepath.IsAbs(value) {
+		if !found || filepath.IsAbs(value) {
+			continue
+		}
+
+		if isWithin(filepath.Join(inst.AppDir, value), inst.AppDir) {
 			relative = append(relative, fmt.Sprintf("%s %q", name(key), value))
 		}
 	}
@@ -423,9 +511,10 @@ func checkRelativePaths(inst *InstanceCtx) error {
 	}
 
 	return fmt.Errorf("instance %q of %q: %w: %s; the instance runs in %s, which belongs "+
-		"to the installed version and is never written to: make the paths absolute, "+
-		"or remove them to keep the files under %s", inst.InstName, inst.AppName,
-		errRelativePath, strings.Join(relative, ", "), inst.AppDir, inst.Root)
+		"to the installed version and is never written to: make the paths absolute or "+
+		"lead them out of the version, or remove them to keep the files under %s",
+		inst.InstName, inst.AppName, errRelativePath, strings.Join(relative, ", "),
+		inst.AppDir, inst.Root)
 }
 
 // isWithin reports whether path is dir or lies under it.
