@@ -642,6 +642,61 @@ CGO_ENABLED=$TT_DIST_CGO_DEFAULT \
 The OpenSSL implementations need a C compiler and the OpenSSL headers on the
 offline machine; on macOS `build.sh` takes `TT_DIST_LDFLAGS_DARWIN_*`.
 
+## Signed packages
+
+A distribution built with `integrity = "rsa"` signs packages with an RSA
+private key and runs them checked with the public key. tt itself checks
+nothing: it has no integrity provider. The keys are PEM, the private one
+PKCS#1 and the public one PKIX, as openssl makes them:
+
+``` sh
+openssl genrsa -traditional -out private.pem 2048
+openssl rsa -in private.pem -pubout -out public.pem
+```
+
+`tt package pack --with-integrity-check private.pem` signs the archive it
+packs. The package gets two hashes files at its root, each with an
+RSASSA-PSS signature next to it (`.sig`): `hashes.json` lists what Tarantool
+loads - the Lua sources, the shared libraries, the cluster configs of the
+templates and the scripts the instance records run - and `env_hashes.json`
+every other file of the package: the manifest, the lock, `VERSION`, the
+instances descriptions, the programs in `.rocks/bin/`. Every runtime the
+archive bundles in `_runtime/` gets an `env_hashes.json` of its own, listing
+its executable, and the headers of tarantool, by the paths
+`tt package install` lays them out at. A signed package runs only its own
+files: a record of its templates that runs a script or a binary outside of
+it, or a program it does not build into `.rocks/bin/`, fails the pack. A
+package is not signed `--without-deps`, as its install fetches dependencies
+nobody signed.
+
+`tt --integrity-check public.pem package install` installs only a signed
+archive, into the user or the system scope: the version and each bundled
+runtime are checked before they are put in place - their signatures, every
+file they list, and that they list every file - so that a changed or an added
+file is refused. A runtime installed there already, by `tt binary` or an
+earlier install, must be the signed one: without hashes files of its own it
+gets those of the archive and is checked with them.
+
+`tt --integrity-check public.pem instance start` checks each application at
+its own directory - the project, or the installed version - and at the
+directories of the runtimes it runs on, whatever the directory tt runs in,
+and runs only what they sign: the tarantool of the application, which must
+be the signed one it bundles rather than one from `PATH`, the script of a
+record, the binary of an external process, which is looked up in
+`.rocks/bin/` of the application only, and the tt that runs the watchdog,
+which must be the bundled one. The watchdog checks them again every
+`--integrity-check-period` seconds and stops the instance for good on a
+failure. Tarantool gets `hashes.json` of the application to check what it
+loads.
+
+The pair of the host in `<root>/etc/<app>/` is not part of a package, and
+an application that runs from one is refused with the checks on; it runs
+from a template of its package, `--template`. A signed install into the
+project scope, whose install root the project shares with its guest
+packages, and the signing of a project as it is developed are not supported
+yet. The signatures have a random salt, so a signed archive is not reproduced
+bit for bit, unlike an unsigned one.
+
 ## CLI Args
 
 Arguments of Tarantool CLI:
