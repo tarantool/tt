@@ -84,6 +84,30 @@ func (f Flavour) GetVersion(showShort, needCommit bool) string {
 	return release.format(f.Name(), f.Edition, showShort, needCommit)
 }
 
+// CoreVersion returns the line tt version shows under the version of a
+// distribution with a version of its own: the version of the tt core it is
+// built on, with the commit. It reports false for a distribution without a
+// version of its own, tt's among them, whose version is the core's.
+func (f Flavour) CoreVersion() (string, bool) {
+	if f.Version == nil {
+		return "", false
+	}
+
+	core := coreRelease()
+
+	commit := core.commit
+	if commit == "" {
+		commit = unknownVersion
+	}
+
+	line := fmt.Sprintf("%s core version %s. commit: %s", DefaultTitle, core.version, commit)
+	if core.exact != "" {
+		line += fmt.Sprintf(" (%s)", core.exact)
+	}
+
+	return line, true
+}
+
 // GetVersion returns the version of the tt core, in the forms
 // Flavour.GetVersion describes. It is the version the core is, whichever
 // distribution of tt runs it.

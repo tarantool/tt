@@ -20,13 +20,13 @@ func restoreProcessState(t *testing.T) {
 	t.Helper()
 
 	previousRoot, previousCtx := rootCmd, cmdCtx
-	previousFlavour := flavour
+	previousFlavour, previousModules := flavour, modules
 	previousProvider := integrityprovider.Get()
 	previousLogger := slog.Default()
 
 	t.Cleanup(func() {
 		rootCmd, cmdCtx = previousRoot, previousCtx
-		flavour = previousFlavour
+		flavour, modules = previousFlavour, previousModules
 
 		integrityprovider.Set(previousProvider)
 

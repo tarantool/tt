@@ -23,7 +23,10 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"reflect"
+	"runtime"
 	"slices"
+	"strings"
 	"sync/atomic"
 
 	"github.com/spf13/cobra"
@@ -189,6 +192,7 @@ func build(
 ) (*cobra.Command, error) {
 	root, err := cmd.Boot(cmd.BootOptions{
 		Args: args, Flavour: config.flavour, Integrity: config.integrity,
+		Modules: moduleTable(modules),
 	})
 	if err != nil {
 		return nil, err
@@ -286,6 +290,47 @@ func construct(
 	}
 
 	return entries, errors.Join(errs...)
+}
+
+// moduleTable returns modules in the order of their names, each with the
+// package of its constructor, for tt version --modules.
+func moduleTable(modules Modules) []version.Module {
+	table := make([]version.Module, 0, len(modules))
+
+	for _, name := range slices.Sorted(maps.Keys(modules)) {
+		table = append(table, version.Module{
+			Name: name, Package: constructorPackage(modules[name]),
+		})
+	}
+
+	return table
+}
+
+// constructorPackage returns the import path of the package that defines
+// ctor, or "" when ctor is nil or the runtime does not know it. The runtime
+// names a function by its package path and its name - path/to/pkg.New, or
+// path/to/pkg.New.func1 for a closure - and the path may have dots in its
+// last element only before the name.
+func constructorPackage(ctor sdk.Constructor) string {
+	if ctor == nil {
+		return ""
+	}
+
+	fn := runtime.FuncForPC(reflect.ValueOf(ctor).Pointer())
+	if fn == nil {
+		return ""
+	}
+
+	name := fn.Name()
+
+	slash := strings.LastIndex(name, "/")
+	dot := strings.Index(name[slash+1:], ".")
+
+	if dot < 0 {
+		return name
+	}
+
+	return name[:slash+1+dot]
 }
 
 // errNoConstructor reports a module listed without a constructor.

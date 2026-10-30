@@ -100,6 +100,16 @@ hello = "./plugins/hello"
 	require.NoError(t, err, string(out))
 	assert.Contains(t, string(out), "+hello")
 
+	// tt version --modules lists the table of the generated main with the Go
+	// modules of the constructors: the local ones are built from directories.
+	out, err = exec.CommandContext(t.Context(), result.Output, "version", "--modules").
+		CombinedOutput()
+	require.NoError(t, err, string(out))
+	assert.Contains(t, string(out), "Tarantool CLI core version")
+	assert.Regexp(t, `(?m)^  aeon +\(devel\) +github\.com/tarantool/tt/modules/aeon$`, string(out))
+	assert.Regexp(t, `(?m)^  builtin +\(devel\) +github\.com/tarantool/tt/v3$`, string(out))
+	assert.Regexp(t, `(?m)^  hello +\(devel\) +example\.com/hello$`, string(out))
+
 	out, err = exec.CommandContext(t.Context(), result.Output, "aeon", "--help").
 		CombinedOutput()
 	require.NoError(t, err, string(out))

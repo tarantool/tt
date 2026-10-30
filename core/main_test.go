@@ -508,7 +508,15 @@ func TestMainWithFlavour(t *testing.T) {
 		{
 			name: "full", args: []string{"version"},
 			stdout: "Tarantool CLI EE version 2.15.0, " + platform +
-				". commit: def5678 (v2.15.0-3-gdef5678)\n",
+				". commit: def5678 (v2.15.0-3-gdef5678)\n" +
+				"Tarantool CLI core version <unknown>. commit: <unknown>\n",
+		},
+		{
+			name: "modules", args: []string{"version", "--modules"},
+			stdout: "Tarantool CLI EE version 2.15.0, " + platform +
+				". commit: def5678 (v2.15.0-3-gdef5678)\n" +
+				"Tarantool CLI core version <unknown>. commit: <unknown>\n" +
+				"  builtin  (devel)  github.com/tarantool/tt/v3\n",
 		},
 		{name: "short", args: []string{"version", "--short"}, stdout: "2.15.0+ee\n"},
 		{name: "commit", args: []string{"version", "--commit"}, stdout: "2.15.0+ee.def5678\n"},

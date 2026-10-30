@@ -30,6 +30,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   on a local checkout of the core or on a version query instead of `[core]`,
   without editing the manifest. The lock is neither read for the core nor
   written, and `--locked` refuses the override.
+- `tt version` of a distribution with a version of its own also shows the
+  version of the tt core it is built on, and `tt version --modules` lists the
+  modules the binary is built from with the versions Go recorded for their
+  Go modules.
 
 - `tt cluster topology -c <CLUSTER_CONFIG|URI>`: show a Tarantool 3 cluster's
   configured membership and current instance state. Read the configuration

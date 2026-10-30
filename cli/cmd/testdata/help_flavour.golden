@@ -63,6 +63,7 @@ Show Tarantool CLI EE version information
   tt version [flags]
 [0;1;39m
 FLAGS[0m
-      --commit   Show commit
-  -h, --help     help for version
-      --short    Show version in short format
+      --commit    Show commit
+  -h, --help      help for version
+      --modules   Show the modules tt is built from and their versions
+      --short     Show version in short format

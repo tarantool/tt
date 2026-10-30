@@ -35,6 +35,9 @@ type BootOptions struct {
 	// a configuration storage. Nil is the disabled provider, which checks
 	// nothing and registers no flag.
 	Integrity integrity.Provider
+	// Modules are the modules the distribution is built from, as the table
+	// of the core names them, for tt version --modules.
+	Modules []version.Module
 }
 
 // Boot creates the root command - the global flags, no subcommands - and
@@ -47,6 +50,7 @@ type BootOptions struct {
 // An invalid --log-format leaves the default format in place until then.
 func Boot(opts BootOptions) (*cobra.Command, error) {
 	flavour = opts.Flavour
+	modules = opts.Modules
 
 	integrityprovider.Set(opts.Integrity)
 
