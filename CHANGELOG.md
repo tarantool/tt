@@ -508,10 +508,23 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   relative path in its config that leads out of its version directory, such
   as `../../../var/lib/<app>/{{ instance_name }}` to the layout of the scope
   root; only one that leads into the version is refused.
-- The README tells the cluster config of a package that runs on Tarantool
-  Enterprise with the integrity checks to name the layout of its instances:
-  Tarantool Enterprise starts with an empty environment then, and the
-  `TT_*_DEFAULT` variables tt passes the layout through do not reach it.
+- A signed install links `var/lib`, `var/run` and `var/log` of the version
+  to `<root>/var/lib/<app>`, `<root>/var/run/<app>` and `<root>/var/log/<app>`.
+  Tarantool Enterprise starts with an empty environment when it checks
+  integrity, so the `TT_*_DEFAULT` variables tt passes the layout through do
+  not reach it, and it puts the files of an instance where the defaults of
+  Tarantool say, under the version; through the links they are in the layout
+  of the root, and a config with no path runs checked as it runs unchecked.
+  The data outlives an upgrade, and an uninstall removes the links, not the
+  data. `tt instance start --integrity-check` makes the links a version
+  lacks, when it may, and refuses a version with something else there; a
+  signed package cannot have its own `var/`. A config may still name the
+  paths itself, as the README shows.
+- With the integrity checks on, the `env` of the record of a Tarantool
+  instance, which does not reach Tarantool Enterprise, is refused by the pack
+  of a signed package and by `tt instance start`, and so is a record that
+  runs its script, whose launcher takes the script and the paths of the
+  instance from the environment.
 - `mage build` without `TT_CLI_BUILD_SSL`, or with `default`, builds with
   `CGO_ENABLED=0`: the default TLS is pure Go, so the binary is static and
   needs no C library; the OpenSSL builds still use cgo. `tt binary build tt`
@@ -527,7 +540,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `github.com/tarantool/tt/sdk/integrity`: `Signer.Sign` signs the tree of a
   package (`SignOptions`) rather than a tt 2 environment, and no longer needs
   `tt.yaml`; `Signer.SignFiles` signs a runtime by the paths it is installed
-  at; `Provider.VerifyTree` checks a whole tree before it is installed; and
+  at; `Provider.VerifyTree` checks a whole tree before it is installed, and
+  takes a symbolic link that leads nowhere for no file; and
   `InitializeIntegrityCheck` takes several roots.
 - The instance commands read the cluster config of an application, a
   centralized one included, once per command rather than once per instance.
