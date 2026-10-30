@@ -94,8 +94,8 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/tarantool/go-gostcrypto v0.1.0 h1:sGjZil1nfXzxvBU4TOIZErTXcvCuCLH/pZnwfXr9uaY=
 github.com/tarantool/go-gostcrypto v0.1.0/go.mod h1:oieRliQHLNWjZ5qrpIamIFNHJ3j7dEvU4evBr6HeEFc=
-github.com/tarantool/go-gostls v0.1.0 h1:f9aTi8hdqc9ZTKO6ktjQAEg/PQAKw/ARY14CmqMCxXs=
-github.com/tarantool/go-gostls v0.1.0/go.mod h1:KDZGrcItICcy0lx+hfgRm3uIy5HOekT9OyjnG79Axvc=
+github.com/tarantool/go-gostls v0.1.1 h1:BSXmhPBVS2IeahMVjDsuo6fL2R8OSiZudSb1HtF3jQM=
+github.com/tarantool/go-gostls v0.1.1/go.mod h1:KDZGrcItICcy0lx+hfgRm3uIy5HOekT9OyjnG79Axvc=
 github.com/tarantool/go-iproto v1.1.0 h1:HULVOIHsiehI+FnHfM7wMDntuzUddO09DKqu2WnFQ5A=
 github.com/tarantool/go-iproto v1.1.0/go.mod h1:LNCtdyZxojUed8SbOiYHoc3v9NvaZTB7p96hUySMlIo=
 github.com/tarantool/go-openssl v1.4.1 h1:SqYKZj7rSjTCyMHo1g6+1HNw1T/afmhWFEVwF57kPVo=
@@ -106,8 +106,8 @@ github.com/tarantool/go-storage/v2 v2.0.1-0.20261030080914-3d28af2e7c8c h1:usYsq
 github.com/tarantool/go-storage/v2 v2.0.1-0.20261030080914-3d28af2e7c8c/go.mod h1:pPWYB3D/+AkvKNaVDM/FVMMLszIlf2vX1u2iUMNqWtk=
 github.com/tarantool/go-tarantool/v3 v3.0.2 h1:9ZtHllun80QX7KS9tqd3dXa+QAu2BfqFtX1ZWcNnaW8=
 github.com/tarantool/go-tarantool/v3 v3.0.2/go.mod h1:TXxLWhUCgdxXFfelnTSkq+goKRTRj660zxq4/WXPe8k=
-github.com/tarantool/go-tlsdialer/v2 v2.0.1 h1:mlerqjP6KClXuvc+5kxRm7vZLhU84JrZtLlT0Y0c5Bk=
-github.com/tarantool/go-tlsdialer/v2 v2.0.1/go.mod h1:xQw6bV+X7gfhbo15yNfgB/11AFpagLnrgw0qdqYXyDI=
+github.com/tarantool/go-tlsdialer/v2 v2.1.0 h1:PGVjS26nl7WtMncIXQ0zpoKtSVpflHOVOQOFhJVfLf0=
+github.com/tarantool/go-tlsdialer/v2 v2.1.0/go.mod h1:eUb+2n0Yi3HBUguhPh9heRFv7D+wvsFdpdPfqDTn6N4=
 github.com/tmc/grpc-websocket-proxy v0.0.0-20201229170055-e5319fda7802 h1:uruHq4dN7GR16kFc5fp3d1RIYzJW5onx8Ybykw2YQFA=
 github.com/tmc/grpc-websocket-proxy v0.0.0-20201229170055-e5319fda7802/go.mod h1:ncp9v5uamzpCO7NfCPTXjqaC+bZgJeR0sMTm6dMHP7U=
 github.com/vmihailenco/msgpack/v5 v5.4.1 h1:cQriyiUvjTwOHg8QZaPihLWeRAAVoCpE00IUPn0Bjt8=

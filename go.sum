@@ -297,8 +297,8 @@ github.com/tarantool/go-config/v2 v2.0.1 h1:vJwh67sfVX+h8Ewk/ltTLgDHEk64M9gLnv2+
 github.com/tarantool/go-config/v2 v2.0.1/go.mod h1:uqG7xAVuIxrwLcTbWRInA4rl9eslQCitIFsOAD25RLY=
 github.com/tarantool/go-gostcrypto v0.1.0 h1:sGjZil1nfXzxvBU4TOIZErTXcvCuCLH/pZnwfXr9uaY=
 github.com/tarantool/go-gostcrypto v0.1.0/go.mod h1:oieRliQHLNWjZ5qrpIamIFNHJ3j7dEvU4evBr6HeEFc=
-github.com/tarantool/go-gostls v0.1.0 h1:f9aTi8hdqc9ZTKO6ktjQAEg/PQAKw/ARY14CmqMCxXs=
-github.com/tarantool/go-gostls v0.1.0/go.mod h1:KDZGrcItICcy0lx+hfgRm3uIy5HOekT9OyjnG79Axvc=
+github.com/tarantool/go-gostls v0.1.1 h1:BSXmhPBVS2IeahMVjDsuo6fL2R8OSiZudSb1HtF3jQM=
+github.com/tarantool/go-gostls v0.1.1/go.mod h1:KDZGrcItICcy0lx+hfgRm3uIy5HOekT9OyjnG79Axvc=
 github.com/tarantool/go-iproto v1.1.0 h1:HULVOIHsiehI+FnHfM7wMDntuzUddO09DKqu2WnFQ5A=
 github.com/tarantool/go-iproto v1.1.0/go.mod h1:LNCtdyZxojUed8SbOiYHoc3v9NvaZTB7p96hUySMlIo=
 github.com/tarantool/go-luarocks v0.0.0-20260917094730-272b95159b11 h1:TbASNyo5kW6z8VicPvwiv2yEGrjMRg/AyvduUjcJl0s=
@@ -315,8 +315,8 @@ github.com/tarantool/go-tail v1.4.15-0.20260806154205-254b9b0cd094 h1:uNFHojM8qO
 github.com/tarantool/go-tail v1.4.15-0.20260806154205-254b9b0cd094/go.mod h1:7OEbsSv1hZ/XfBlgeglrMry5GUeJS3be9SoGLxbA1fo=
 github.com/tarantool/go-tarantool/v3 v3.0.2 h1:9ZtHllun80QX7KS9tqd3dXa+QAu2BfqFtX1ZWcNnaW8=
 github.com/tarantool/go-tarantool/v3 v3.0.2/go.mod h1:TXxLWhUCgdxXFfelnTSkq+goKRTRj660zxq4/WXPe8k=
-github.com/tarantool/go-tlsdialer/v2 v2.0.1 h1:mlerqjP6KClXuvc+5kxRm7vZLhU84JrZtLlT0Y0c5Bk=
-github.com/tarantool/go-tlsdialer/v2 v2.0.1/go.mod h1:xQw6bV+X7gfhbo15yNfgB/11AFpagLnrgw0qdqYXyDI=
+github.com/tarantool/go-tlsdialer/v2 v2.1.0 h1:PGVjS26nl7WtMncIXQ0zpoKtSVpflHOVOQOFhJVfLf0=
+github.com/tarantool/go-tlsdialer/v2 v2.1.0/go.mod h1:eUb+2n0Yi3HBUguhPh9heRFv7D+wvsFdpdPfqDTn6N4=
 github.com/tarantool/go-xlog v0.0.0-20260707203858-fed522934686 h1:2SjjYqDhtjen/3pHeSwpXDBM9dNZoXhuYb/s6vhKnU4=
 github.com/tarantool/go-xlog v0.0.0-20260707203858-fed522934686/go.mod h1:ZDu6simTStt+JG8BlHStzS2JAs/8k9HeynblSoR8+bo=
 github.com/testcontainers/testcontainers-go v0.43.0 h1:oEQx5MW2DGd9z3AeEQfB2lPM0eLs7ztyaGRu75bFo5A=

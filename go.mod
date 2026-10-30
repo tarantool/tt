@@ -135,10 +135,10 @@ require (
 	github.com/soheilhy/cmux v0.1.5 // indirect
 	github.com/spacemonkeygo/spacelog v0.0.0-20180420211403-2296661a0572 // indirect
 	github.com/tarantool/go-gostcrypto v0.1.0 // indirect
-	github.com/tarantool/go-gostls v0.1.0 // indirect
+	github.com/tarantool/go-gostls v0.1.1 // indirect
 	github.com/tarantool/go-openssl v1.4.1 // indirect
 	github.com/tarantool/go-option v1.1.0 // indirect
-	github.com/tarantool/go-tlsdialer/v2 v2.0.1 // indirect
+	github.com/tarantool/go-tlsdialer/v2 v2.1.0 // indirect
 	github.com/tinylib/msgp v1.3.0 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect

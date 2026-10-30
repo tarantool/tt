@@ -881,6 +881,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   OpenSSL, or `openssl_static` for OpenSSL and a statically linked binary. The
   static mode requires OpenSSL static libraries at build time. The former `no`,
   `shared`, and `static` values are no longer accepted.
+- TLS in pure Go, the default build, connects as the OpenSSL builds do
+  (`go-tlsdialer/v2` v2.1.0): without a CA file the chain of the server is not
+  checked, its name still is, falling back to the common name as OpenSSL
+  does; a private key in the traditional encrypted PEM of OpenSSL, an EC key
+  and the other PKCS #8 forms OpenSSL loads are taken; the lines of a
+  password file are trimmed; and a server that refuses the client is
+  reported by its alert, `remote error: tls: handshake failure`, rather than
+  `expected ChangeCipherSpec, got content type 21`.
 - The multi-application layout of a tt environment, `env.instances_enabled`
   of `tt.yaml`, is no longer supported.
 - `tt create` needs no `tt.yaml`: it creates the application directory in
