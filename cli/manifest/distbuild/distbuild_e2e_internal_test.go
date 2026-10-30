@@ -120,6 +120,9 @@ hello = "./plugins/hello"
 	lock, err := os.ReadFile(filepath.Join(dir, "tt.manifest.lock"))
 	require.NoError(t, err)
 	assert.Contains(t, string(lock), `path = './plugins/hello'`)
+	assert.Regexp(t, `(?m)^\[core\][^\[]*content_hash = 'sha256:[0-9a-f]{64}'`, string(lock))
+	assert.Regexp(t, `(?m)^\[modules\.hello\][^\[]*content_hash = 'sha256:[0-9a-f]{64}'`,
+		string(lock))
 
 	// The lock rebuilds the same modules and writes nothing.
 	output := filepath.Join(dir, "out", "tt")
@@ -133,6 +136,31 @@ hello = "./plugins/hello"
 	again, err := os.ReadFile(filepath.Join(dir, "tt.manifest.sum"))
 	require.NoError(t, err)
 	assert.Equal(t, string(sum), string(again))
+
+	// A local module that changed fails a build from the lock and is
+	// recorded again by a build that may write it.
+	writeFile(t, filepath.Join(dir, "plugins", "hello", "hello.go"),
+		strings.Replace(helloModule, "hello from a module", "hello again", 1))
+
+	_, err = Run(t.Context(), Options{
+		Manifest: manifestPath, Output: output, Locked: true, GeneratedBy: "tt test",
+	})
+	require.ErrorIs(t, err, errLocalChanged)
+	assert.Contains(t, err.Error(), "./plugins/hello changed since tt.manifest.lock was written")
+
+	_, err = Run(t.Context(), Options{
+		Manifest: manifestPath, Output: output, GeneratedBy: "tt test",
+	})
+	require.NoError(t, err)
+
+	relocked, err := os.ReadFile(filepath.Join(dir, "tt.manifest.lock"))
+	require.NoError(t, err)
+	assert.NotEqual(t, string(lock), string(relocked))
+
+	_, err = Run(t.Context(), Options{
+		Manifest: manifestPath, Output: output, Locked: true, GeneratedBy: "tt test",
+	})
+	require.NoError(t, err)
 
 	// A changed manifest makes the lock stale.
 	f, err := os.OpenFile(manifestPath, os.O_APPEND|os.O_WRONLY, 0)
@@ -177,13 +205,6 @@ hello = "./hello"
 	require.ErrorContains(t, err, `duplicate command "binary"`)
 	assert.NoFileExists(t, filepath.Join(dir, "tt"))
 	assert.NoFileExists(t, filepath.Join(dir, "tt.manifest.lock"))
-}
-
-func writeFile(t *testing.T, path, data string) {
-	t.Helper()
-
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	require.NoError(t, os.WriteFile(path, []byte(data), 0o644))
 }
 
 // TestBundleOffline makes a bundle of the core of this checkout and a local

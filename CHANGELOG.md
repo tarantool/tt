@@ -30,6 +30,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   on a local checkout of the core or on a version query instead of `[core]`,
   without editing the manifest. The lock is neither read for the core nor
   written, and `--locked` refuses the override.
+- `tt.manifest.lock` records `content_hash` of every local module and local
+  core - the hash of the files a bundle would copy - and `tt binary build tt
+  --locked` fails when they changed since the lock was written.
 - `tt version` of a distribution with a version of its own also shows the
   version of the tt core it is built on, and `tt version --modules` lists the
   modules the binary is built from with the versions Go recorded for their
