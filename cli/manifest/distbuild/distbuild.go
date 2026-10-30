@@ -196,6 +196,8 @@ type builder struct {
 	lock *manifest.DistributionLock
 	// sum is the locked go.sum, for a locked build.
 	sum []byte
+	// coreLdflags stamp the version of a local core into the binary.
+	coreLdflags []string
 }
 
 // build resolves, generates, compiles and checks the distribution, then
@@ -215,6 +217,12 @@ func (b builder) build(ctx context.Context) (*Result, error) {
 	}
 
 	logCore(resolved)
+
+	// Go records no version for a core built from a directory, so the build
+	// stamps the one git describe tells of it, as the magefile of tt does.
+	if resolved.Dir != "" {
+		b.coreLdflags = describe(ctx, resolved.Dir, "").ldflags()
+	}
 
 	modules, err := res.resolveModules(ctx, b.dist, resolved)
 	if err != nil {
@@ -427,10 +435,12 @@ func (b builder) buildArgs(ssl buildflags.SSL, goos, output string) ([]string, e
 }
 
 // flags returns the -tags and the -ldflags of a build for goos with ssl: the
-// canonical ones of the TLS implementation, the manifest's after them.
+// version of a local core and the canonical ones of the TLS implementation,
+// the manifest's after them.
 func (b builder) flags(ssl buildflags.SSL, goos string) (string, string, error) {
 	tags := slices.Concat(ssl.Tags(), b.dist.Build.Tags)
-	ldflags := slices.Concat([]string{"-s", "-w"}, ssl.Ldflags(goos), b.dist.Build.Ldflags)
+	ldflags := slices.Concat([]string{"-s", "-w"}, b.coreLdflags, ssl.Ldflags(goos),
+		b.dist.Build.Ldflags)
 
 	quoted, err := backend.QuoteFlags(ldflags)
 	if err != nil {

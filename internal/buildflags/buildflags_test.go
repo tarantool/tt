@@ -45,3 +45,18 @@ func TestFlags(t *testing.T) {
 	assert.True(t, buildflags.OpenSSL.Cgo())
 	assert.True(t, buildflags.OpenSSLStatic.Cgo())
 }
+
+func TestVersionLdflags(t *testing.T) {
+	t.Parallel()
+
+	version := buildflags.Version{
+		Tag: "v3.1.0-2-gabcdef1", Commit: "abcdef1", CommitsSinceTag: "2", Label: "rc",
+	}
+
+	assert.Equal(t, []string{
+		"-X", "github.com/tarantool/tt/v3/cli/version.gitTag=v3.1.0-2-gabcdef1",
+		"-X", "github.com/tarantool/tt/v3/cli/version.gitCommit=abcdef1",
+		"-X", "github.com/tarantool/tt/v3/cli/version.gitCommitSinceTag=2",
+		"-X", "github.com/tarantool/tt/v3/cli/version.versionLabel=rc",
+	}, version.Ldflags())
+}

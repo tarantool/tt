@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/tarantool/tt/v3/internal/buildflags"
 )
 
 // describeRe splits git describe --tags --long: the tag, the number of
@@ -43,6 +45,21 @@ func describe(ctx context.Context, dir, label string) versionInfo {
 	}
 
 	return info
+}
+
+// ldflags returns the linker flags that stamp v into a tt binary as the
+// version of its core, or none when v says nothing.
+func (v versionInfo) ldflags() []string {
+	if !v.known() {
+		return nil
+	}
+
+	return buildflags.Version{
+		Tag:             v.Tag,
+		Commit:          v.Commit,
+		CommitsSinceTag: strconv.Itoa(v.CommitsSinceTag),
+		Label:           v.Label,
+	}.Ldflags()
 }
 
 // gitOutput runs git with args in dir and returns its trimmed output, or
