@@ -114,6 +114,12 @@ linters:
         text: 'yaml\(snake\): got ''tt-version'''
         linters:
           - tagliatelle
+      # The build of a distribution reads the JSON the go command prints,
+      # whose fields are named the Go way.
+      - path: ^cli/manifest/distbuild/
+        text: 'json\(snake\)'
+        linters:
+          - tagliatelle
       # Mage configures its process environment before any target runs.
       - path: ^magefile\.go$
         text: don't use `init` function
@@ -278,6 +284,9 @@ linters:
             # the versions/ naming and the link replacement are theirs, and a
             # running instance is told by its pid file.
             - "github.com/tarantool/tt/v3/internal/binary"
+            # cli/manifest/distbuild builds a distribution of tt with the
+            # build tags and linker flags the magefile builds tt with.
+            - "github.com/tarantool/tt/v3/internal/buildflags"
             - "github.com/tarantool/tt/v3/internal/pidfile"
             - "github.com/tarantool/tt/v3/internal/scope"
             - "github.com/tarantool/tt/v3/cli/version"
