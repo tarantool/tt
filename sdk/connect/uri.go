@@ -16,6 +16,9 @@ var (
 	errURLMustContainTheSchemeAndTheHostParts = errors.New(
 		"URL must contain the scheme and the host parts",
 	)
+	// errMalformedQuery is a query that does not parse. It does not carry the
+	// query: a parameter may hold a password.
+	errMalformedQuery = errors.New("malformed URI query")
 )
 
 const (
@@ -70,7 +73,17 @@ const (
 	defaultTimeoutParam = 3 * time.Second
 
 	credentialURISections = 2
+
+	// queryRe is a regexp for the optional query of a tcp URI:
+	// host:port?key=value&key=value.
+	queryRe = `(\?.*)?`
+
+	// Redacted is what RedactCredentials replaces the credentials with.
+	Redacted = "[REDACTED]"
 )
+
+// schemePrefixRe matches the scheme with which a URI may start: "tcp://".
+var schemePrefixRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.\-]*://`)
 
 // URIOpts is a universal list of connect options retrieved from a URI.
 type URIOpts struct {
@@ -115,8 +128,14 @@ type URIOpts struct {
 func IsBaseURI(str string) bool {
 	// tcp://host:port
 	// host:port
+	// host:port?transport=ssl&ssl_ca_file=ca.pem
 	hostReStr := `(?:([\w\\.-]+)|(\[[\w:]+\]))`
-	tcpReStr := `(tcp://)?(` + hostReStr + `:\d+)`
+	tcpReStr := `(tcp://)?(` + hostReStr + `:\d+)` + queryRe
+	// unix/:../path
+	// unix/:~/path
+	// unix/:/path
+	// unix/:./path.
+	unixSlashReStr := `unix/:` + systemPathPrefixRe + `[^\./?].*`
 	// unix://../path
 	// unix://~/path
 	// unix:///path
@@ -128,7 +147,8 @@ func IsBaseURI(str string) bool {
 	// ./path.
 	pathReStr := systemPathPrefixRe + `[^\./].*`
 
-	uriReStr := "^((" + tcpReStr + ")|(" + unixReStr + ")|(" + pathReStr + "))$"
+	uriReStr := "^((" + tcpReStr + ")|(" + unixReStr + ")|(" + unixSlashReStr +
+		")|(" + pathReStr + "))$"
 	uriRe := regexp.MustCompile(uriReStr)
 
 	return uriRe.MatchString(str)
@@ -138,8 +158,9 @@ func IsBaseURI(str string) bool {
 func IsCredentialsURI(str string) bool {
 	// tcp://user:password@host:port
 	// user:password@host:port
+	// user:password@host:port?transport=ssl&ssl_ca_file=ca.pem
 	hostReStr := `(?:([\w\\.-]+)|(\[[\w:%]+\]))`
-	tcpReStr := `(tcp://)?` + userPassRe + `@(` + hostReStr + `:\d+)`
+	tcpReStr := `(tcp://)?` + userPassRe + `@(` + hostReStr + `:\d+)` + queryRe
 	// unix://user:password@../path
 	// unix://user:password@~/path
 	// unix://user:password@/path
@@ -196,6 +217,49 @@ func ParseBaseURI(uri string) (string, string) {
 	}
 
 	return network, address
+}
+
+// SplitURIQuery splits the query off a base URI that has one, as
+// host:port?transport=ssl, tcp://host:port?k=v and unix/:path?k=v, and
+// returns the URI without it and the parameters. A URI without a query is
+// returned as it is, with no parameters. The path forms (./path, /path,
+// ~/path, ../path, unix://path) are returned as they are: a "?" there is a
+// part of the path.
+//
+// The error does not quote the query, which may hold a password.
+func SplitURIQuery(uri string) (string, url.Values, error) {
+	if uri == "" || strings.ContainsRune("./~", rune(uri[0])) ||
+		strings.HasPrefix(uri, "unix://") {
+		return uri, nil, nil
+	}
+
+	base, rawQuery, found := strings.Cut(uri, "?")
+	if !found {
+		return uri, nil, nil
+	}
+
+	params, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		return "", nil, errMalformedQuery
+	}
+
+	return base, params, nil
+}
+
+// RedactCredentials returns a target (a URI, or anything a user typed in
+// the place of one) fit to be shown in a message: if it holds credentials,
+// that is an "@", everything before the last "@" other than the scheme is
+// replaced by Redacted. The string is not parsed, so it works for what no
+// parser accepts: a password with a "/" or an unescaped "@", and a piece of a
+// URI cut at a ":", such as the "instance" of user:password@host:port. The
+// price is that an "@" in the query hides the host as well.
+func RedactCredentials(str string) string {
+	at := strings.LastIndex(str, "@")
+	if at < 0 {
+		return str
+	}
+
+	return schemePrefixRe.FindString(str) + Redacted + str[at:]
 }
 
 // ParseCredentialsURI parses a URI with credentials and returns:
@@ -330,6 +394,11 @@ func parseURL(str string) (*url.URL, error) {
 	// So it is enough to check scheme, host and opaque to avoid to handle
 	// app:instance as a URL.
 	if err != nil {
+		// A *url.Error quotes the URL, which may hold a password.
+		if urlErr, ok := errors.AsType[*url.Error](err); ok {
+			urlErr.URL = RedactCredentials(urlErr.URL)
+		}
+
 		return nil, err //nolint:wrapcheck // A *url.Error names the operation and the URL.
 	}
 
