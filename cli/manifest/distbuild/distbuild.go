@@ -290,10 +290,7 @@ func (b builder) build(ctx context.Context) (*Result, error) {
 		return nil, err
 	}
 
-	lock, err := b.lockOf(ctx, resolved, modules, replaces, hashes, env)
-	if err != nil {
-		return nil, err
-	}
+	lock := b.lockOf(resolved, modules, replaces, hashes)
 
 	switch {
 	case b.opts.Locked:
@@ -487,16 +484,12 @@ func (b builder) checkSum() error {
 	return nil
 }
 
-// lockOf describes the build as a lock.
+// lockOf describes the build as a lock: what it was built from, not how it
+// was compiled - the TLS implementation, the tags and the toolchain are the
+// choice of each build of the same lock.
 func (b builder) lockOf(
-	ctx context.Context, resolved core, modules []module, replaces []replacement,
-	hashes contentHashes, env []string,
-) (*manifest.DistributionLock, error) {
-	out, err := b.opts.gocmd.Output(ctx, b.work, env, "env", "GOVERSION")
-	if err != nil {
-		return nil, err
-	}
-
+	resolved core, modules []module, replaces []replacement, hashes contentHashes,
+) *manifest.DistributionLock {
 	lock := &manifest.DistributionLock{
 		LockVersion:     manifest.LockVersion,
 		ManifestVersion: b.dist.ManifestVersion,
@@ -509,11 +502,6 @@ func (b builder) lockOf(
 			Path:        resolved.Path,
 			ContentHash: hashes.core,
 			Repository:  nil,
-		},
-		Build: manifest.LockedBuild{
-			Toolchain: string(bytes.TrimSpace(out)),
-			SSL:       string(b.ssl),
-			Tags:      slices.Concat(b.ssl.Tags(), b.dist.Build.Tags),
 		},
 		Modules: nil,
 		Replace: nil,
@@ -553,11 +541,12 @@ func (b builder) lockOf(
 		}
 	}
 
-	return lock, nil
+	return lock
 }
 
 // writeLock writes the lock and the go.sum of the build next to the
-// manifest.
+// manifest, unless the ones there pin the same: a build by another tt would
+// change no more than generated_by, which is no reason to touch them.
 func (b builder) writeLock(lock *manifest.DistributionLock) error {
 	data, err := lock.Marshal()
 	if err != nil {
@@ -569,12 +558,45 @@ func (b builder) writeLock(lock *manifest.DistributionLock) error {
 		return sdk.Errorf(sdk.ExitSystem, "reading go.sum: %w", err)
 	}
 
+	if b.lockWritten(lock, sum) {
+		return nil
+	}
+
 	err = writeFileAtomic(filepath.Join(b.dir, manifest.DistributionLockFile), data)
 	if err != nil {
 		return err
 	}
 
 	return writeFileAtomic(filepath.Join(b.dir, manifest.DistributionSumFile), sum)
+}
+
+// lockWritten reports whether the lock and the sum next to the manifest are
+// lock and sum already, generated_by aside.
+func (b builder) lockWritten(lock *manifest.DistributionLock, sum []byte) bool {
+	data, err := os.ReadFile(filepath.Join(b.dir, manifest.DistributionLockFile))
+	if err != nil {
+		return false
+	}
+
+	written, err := os.ReadFile(filepath.Join(b.dir, manifest.DistributionSumFile))
+	if err != nil || !bytes.Equal(written, sum) {
+		return false
+	}
+
+	existing, err := manifest.ParseDistributionLock(data)
+	if err != nil {
+		return false
+	}
+
+	probe := *lock
+
+	probe.GeneratedBy = existing.GeneratedBy
+
+	// The bytes are compared, not the parsed locks, so that a lock with
+	// fields this tt no longer writes is written anew.
+	marshalled, err := probe.Marshal()
+
+	return err == nil && bytes.Equal(marshalled, data)
 }
 
 // output is where the binary goes.

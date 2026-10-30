@@ -30,8 +30,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   commit. `[distribution]` sets the title, the edition, the integrity
   provider and whether tt's own commands and external modules are in;
   `[build]` sets the TLS implementation and extra tags and linker flags.
-  `tt.manifest.lock` and `tt.manifest.sum` pin the build; `--update`
-  re-resolves it and `--locked` reproduces it. An application manifest and a
+  `tt.manifest.lock` and `tt.manifest.sum` pin what the build is made of,
+  not how it is compiled, so one lock builds every TLS implementation and
+  stays as it is while nothing it pins changes; `--update` re-resolves it and
+  `--locked` reproduces it. An application manifest and a
   distribution manifest refuse each other's command by name.
 - `tt binary build tt --vendor DIR`: make an offline bundle of a distribution
   instead of the binary - the main module with every module vendored, the
