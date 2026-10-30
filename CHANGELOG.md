@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- The Go API for distributions and tt modules: `core.WithIntegrity` lets a
+  distribution choose the integrity provider of tt;
+  `github.com/tarantool/tt/sdk/connect.RedactCredentials` and
+  `github.com/tarantool/tt/sdk/log.RedactTarget` hide the credentials of a
+  URI and of a target a message quotes;
+  `github.com/tarantool/tt/sdk/cluster.ErrIntegrityCheckFailed` is wrapped by
+  the error for data in a config storage that fails the integrity checks.
 - `tt package pack --with-integrity-check KEY`, in a distribution with the
   RSA integrity provider: sign the archive. The package gets `hashes.json`,
   listing what Tarantool loads, and `env_hashes.json`, listing every other
@@ -566,6 +573,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   at; `Provider.VerifyTree` checks a whole tree before it is installed, and
   takes a symbolic link that leads nowhere for no file; and
   `InitializeIntegrityCheck` takes several roots.
+- `InjectedCmds` of `github.com/tarantool/tt/v3/cli/cmd`, through which a
+  build of tt replaced commands of tt with its own, is removed: a
+  distribution adds its commands as tt modules and chooses its integrity
+  provider with `core.WithIntegrity`.
 - The instance commands read the cluster config of an application, a
   centralized one included, once per command rather than once per instance.
 - `tt instance status`: collect instance statuses in parallel.
