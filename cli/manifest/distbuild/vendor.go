@@ -36,10 +36,6 @@ var bundleFiles = []string{
 	"go.mod", "go.sum", "main.go", "vendor", bundleLocal, bundleEnv, bundleScript,
 }
 
-// vcsDirs are the directories of version control systems, which no module
-// copy carries.
-var vcsDirs = []string{".git", ".hg", ".svn", ".bzr"}
-
 // errNotBundle reports a --vendor directory that holds something other than
 // a bundle.
 var errNotBundle = errors.New("is neither empty nor a bundle tt made")
@@ -91,9 +87,10 @@ func prepareBundle(dir string) (string, error) {
 // bundle and returns the core and
 // the modules with their directories relative to it, so that neither the
 // go.mod of the bundle nor its vendor/modules.txt names a directory of the
-// machine that made it. The copies are the modules as the go command would
-// zip them: no VCS directories, no nested modules, no vendor directories,
-// regular files only.
+// machine that made it. A copy holds the files the content hash of the
+// module covers (see moduleFiles): no VCS directories, no nested modules,
+// no vendor directories, nothing .gitignore ignores that the build does
+// not need.
 func (b builder) localize(
 	resolved core, modules []module, replaces []replacement,
 ) (core, []module, []replacement, error) {
@@ -181,72 +178,28 @@ func (b builder) localizeCore(local string, resolved core) (core, error) {
 	return resolved, nil
 }
 
-// copyModule copies the module in src to dst.
+// copyModule copies the files of the module in src that are its content,
+// those its content hash covers (see moduleFiles), to dst.
 func (b builder) copyModule(src, dst string) error {
-	err := filepath.WalkDir(src, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if entry.IsDir() {
-			return b.copyDir(src, dst, path, entry)
-		}
-
-		if !entry.Type().IsRegular() {
-			return nil
-		}
-
-		rel, err := filepath.Rel(src, path)
-		if err != nil {
-			return fmt.Errorf("copying %s: %w", path, err)
-		}
-
-		return copyFile(path, filepath.Join(dst, rel))
-	})
+	files, err := moduleFiles(src, b.dir, b.work)
 	if err != nil {
 		return sdk.Errorf(sdk.ExitSystem, "copying %s into the bundle: %w", src, err)
 	}
 
-	return nil
-}
+	for _, file := range files {
+		target := filepath.Join(dst, filepath.FromSlash(file.rel))
 
-// copyDir creates the copy of the directory path of the module in src under
-// dst, or skips it as skipModuleDir says.
-func (b builder) copyDir(src, dst, path string, entry fs.DirEntry) error {
-	if skipModuleDir(src, path, entry, b.work) {
-		return filepath.SkipDir
-	}
+		err = os.MkdirAll(filepath.Dir(target), dirPerm)
+		if err == nil {
+			err = copyFile(file.path, target)
+		}
 
-	rel, err := filepath.Rel(src, path)
-	if err != nil {
-		return fmt.Errorf("copying %s: %w", path, err)
-	}
-
-	err = os.MkdirAll(filepath.Join(dst, rel), dirPerm)
-	if err != nil {
-		return fmt.Errorf("copying %s: %w", path, err)
+		if err != nil {
+			return sdk.Errorf(sdk.ExitSystem, "copying %s into the bundle: %w", src, err)
+		}
 	}
 
 	return nil
-}
-
-// skipModuleDir reports whether the directory path met walking the module
-// in root holds none of its files: a VCS directory, a vendor directory, a
-// nested module - a directory with a go.mod of its own - or work, the
-// directory of the build. These are the directories the go command leaves
-// out of a module zip, and work is not the module's at all.
-func skipModuleDir(root, path string, entry fs.DirEntry, work string) bool {
-	if path == root {
-		return false
-	}
-
-	if slices.Contains(vcsDirs, entry.Name()) || entry.Name() == "vendor" || path == work {
-		return true
-	}
-
-	_, err := os.Stat(filepath.Join(path, "go.mod"))
-
-	return err == nil
 }
 
 // copyFile copies the regular file src to dst with its mode.

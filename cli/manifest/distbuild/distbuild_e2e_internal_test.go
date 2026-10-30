@@ -69,6 +69,8 @@ func TestBuildLocalCore(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "plugins", "hello", "go.mod"), helloGoMod)
 	writeFile(t, filepath.Join(dir, "plugins", "hello", "hello.go"), helloModule)
+	writeFile(t, filepath.Join(dir, "plugins", "hello", ".gitignore"), "/build/\n")
+	writeFile(t, filepath.Join(dir, ".gitignore"), "*.log\n")
 
 	manifestPath := filepath.Join(dir, "tt.manifest.toml")
 	writeFile(t, manifestPath, `manifest_version = "0.1"
@@ -145,6 +147,16 @@ hello = "./plugins/hello"
 	again, err := os.ReadFile(filepath.Join(dir, "tt.manifest.sum"))
 	require.NoError(t, err)
 	assert.Equal(t, string(sum), string(again))
+
+	// What .gitignore ignores in a local module - of its own or of the
+	// project - is no change of it: a binary built in it, a log.
+	writeFile(t, filepath.Join(dir, "plugins", "hello", "build", "tt-hello"), "a binary\n")
+	writeFile(t, filepath.Join(dir, "plugins", "hello", "debug.log"), "a log\n")
+
+	_, err = Run(t.Context(), Options{
+		Manifest: manifestPath, Output: output, Locked: true, GeneratedBy: "tt test",
+	})
+	require.NoError(t, err)
 
 	// A local module that changed fails a build from the lock and is
 	// recorded again by a build that may write it.
@@ -232,9 +244,17 @@ func TestBundleOffline(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "plugins", "hello", "go.mod"), helloGoMod)
 	writeFile(t, filepath.Join(dir, "plugins", "hello", "hello.go"),
 		strings.Replace(helloModule, `"hello from a module"`, "greeting", 1))
-	writeFile(t, filepath.Join(dir, "plugins", "hello", "greeting.go"),
-		"package hello\n\nimport _ \"embed\"\n\n//go:embed greeting.txt\nvar greeting string\n")
-	writeFile(t, filepath.Join(dir, "plugins", "hello", "greeting.txt"), "hello, offline")
+	writeFile(t, filepath.Join(dir, "plugins", "hello", "greeting.go"), "package hello\n\n"+
+		"import _ \"embed\"\n\n//go:embed assets/greeting.txt\nvar greeting string\n")
+	// The module ignores the directory of what it embeds: the build needs
+	// the file, so the bundle carries it, and nothing else ignored.
+	writeFile(t, filepath.Join(dir, "plugins", "hello", ".gitignore"),
+		"/assets/\n/build/\n*.log\n")
+	writeFile(t, filepath.Join(dir, "plugins", "hello", "assets", "greeting.txt"),
+		"hello, offline")
+	writeFile(t, filepath.Join(dir, "plugins", "hello", "assets", "draft.txt"), "a draft\n")
+	writeFile(t, filepath.Join(dir, "plugins", "hello", "build", "tt-hello"), "a binary\n")
+	writeFile(t, filepath.Join(dir, "plugins", "hello", "debug.log"), "a log\n")
 	// Neither a VCS directory nor a nested module is carried into the bundle.
 	writeFile(t, filepath.Join(dir, "plugins", "hello", ".git", "HEAD"), "ref: refs/heads/x\n")
 	writeFile(t, filepath.Join(dir, "plugins", "hello", "nested", "go.mod"),
@@ -263,9 +283,18 @@ hello = "./plugins/hello"
 	assert.FileExists(t, filepath.Join(dir, "tt.manifest.lock"))
 	assert.NoDirExists(t, filepath.Join(bundle, "local", "modules", "hello", ".git"))
 	assert.NoDirExists(t, filepath.Join(bundle, "local", "modules", "hello", "nested"))
+	assert.NoDirExists(t, filepath.Join(bundle, "local", "modules", "hello", "build"))
+	assert.NoFileExists(t, filepath.Join(bundle, "local", "modules", "hello", "debug.log"))
+	assert.NoFileExists(t, filepath.Join(bundle, "local", "modules", "hello", "assets",
+		"draft.txt"))
+	assert.FileExists(t, filepath.Join(bundle, "local", "modules", "hello", "assets",
+		"greeting.txt"))
+	// Nor is a tt built in the checkout of the core: its .gitignore ignores it.
+	assert.NoFileExists(t, filepath.Join(bundle, "local", "core", "tt"))
 
 	// The embedded files of the core and of the module are vendored.
-	assert.FileExists(t, filepath.Join(bundle, "vendor", "example.com", "hello", "greeting.txt"))
+	assert.FileExists(t, filepath.Join(bundle, "vendor", "example.com", "hello", "assets",
+		"greeting.txt"))
 	assert.DirExists(t, filepath.Join(bundle, "vendor", "github.com", "tarantool", "tt", "v3",
 		"cli", "create", "builtin_templates", "templates", "cluster", ".templates"))
 	assert.FileExists(t, filepath.Join(bundle, "vendor", "github.com", "tarantool", "tt", "v3",

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"maps"
 	"os"
 	"path"
@@ -37,47 +36,25 @@ type hashRoot struct {
 }
 
 // contentHash returns the content hash of the files of the module
-// directories roots: every regular file the bundle of the distribution
-// would copy for them (see skipModuleDir; symbolic links and other
-// non-regular files are left out, as the bundle leaves them), listed by its
-// slash-separated path under the root's prefix. The hash is the SHA-256 of
-// the listing in the order of the paths, one line per file - the hex
-// SHA-256 of its content, two spaces and its path - the shape of the h1:
-// hash Go puts in go.sum, so the same files hash the same wherever they
-// are and whatever their modes and times. work is the directory of the
-// build, which is no module's.
-func contentHash(roots []hashRoot, work string) (string, error) {
+// directories roots: the files moduleFiles lists for each, which the bundle
+// of the distribution copies, each by its slash-separated path under the
+// root's prefix. The hash is the SHA-256 of the listing in the order of the
+// paths, one line per file - the hex SHA-256 of its content, two spaces and
+// its path - the shape of the h1: hash Go puts in go.sum, so the same files
+// hash the same wherever they are and whatever their modes and times.
+// manifestDir is the directory of the manifest and work the directory of
+// the build, as moduleFiles takes them.
+func contentHash(roots []hashRoot, manifestDir, work string) (string, error) {
 	files := map[string]string{}
 
 	for _, root := range roots {
-		err := filepath.WalkDir(root.dir, func(name string, entry fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-
-			if entry.IsDir() {
-				if skipModuleDir(root.dir, name, entry, work) {
-					return filepath.SkipDir
-				}
-
-				return nil
-			}
-
-			if !entry.Type().IsRegular() {
-				return nil
-			}
-
-			rel, err := filepath.Rel(root.dir, name)
-			if err != nil {
-				return fmt.Errorf("listing %s: %w", name, err)
-			}
-
-			files[path.Join(root.prefix, filepath.ToSlash(rel))] = name
-
-			return nil
-		})
+		listed, err := moduleFiles(root.dir, manifestDir, work)
 		if err != nil {
 			return "", sdk.Errorf(sdk.ExitSystem, "hashing %s: %w", root.dir, err)
+		}
+
+		for _, file := range listed {
+			files[path.Join(root.prefix, file.rel)] = file.path
 		}
 	}
 
@@ -154,7 +131,7 @@ func (b builder) hashLocal(
 			roots = append(roots, hashRoot{dir: repo.Dir, prefix: prefix})
 		}
 
-		sum, err := contentHash(roots, b.work)
+		sum, err := contentHash(roots, b.dir, b.work)
 		if err != nil {
 			return contentHashes{}, err
 		}
@@ -167,7 +144,7 @@ func (b builder) hashLocal(
 			continue
 		}
 
-		sum, err := contentHash([]hashRoot{{dir: mod.Dir, prefix: ""}}, b.work)
+		sum, err := contentHash([]hashRoot{{dir: mod.Dir, prefix: ""}}, b.dir, b.work)
 		if err != nil {
 			return contentHashes{}, err
 		}
@@ -180,7 +157,7 @@ func (b builder) hashLocal(
 			continue
 		}
 
-		sum, err := contentHash([]hashRoot{{dir: rep.Dir, prefix: ""}}, b.work)
+		sum, err := contentHash([]hashRoot{{dir: rep.Dir, prefix: ""}}, b.dir, b.work)
 		if err != nil {
 			return contentHashes{}, err
 		}

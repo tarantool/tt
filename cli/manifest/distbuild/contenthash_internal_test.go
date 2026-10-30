@@ -53,7 +53,9 @@ func TestContentHashCoversTheFilesOfTheModule(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "m.go"), "package m\n")
 	writeFile(t, filepath.Join(dir, "lua", "init.lua"), "return {}\n")
 	writeFile(t, filepath.Join(dir, ".gitignore"), "/tt\n")
-	// Left out: VCS, vendor, a nested module, the build's directory, links.
+	// Left out: what .gitignore ignores, VCS, vendor, a nested module, the
+	// build's directory, links.
+	writeFile(t, filepath.Join(dir, "tt"), "a binary\n")
 	writeFile(t, filepath.Join(dir, ".git", "HEAD"), "ref: refs/heads/x\n")
 	writeFile(t, filepath.Join(dir, "vendor", "modules.txt"), "# x\n")
 	writeFile(t, filepath.Join(dir, "nested", "go.mod"), "module example.com/m/nested\n")
@@ -61,7 +63,7 @@ func TestContentHashCoversTheFilesOfTheModule(t *testing.T) {
 	writeFile(t, filepath.Join(work, "main.go"), "package main\n")
 	require.NoError(t, os.Symlink("m.go", filepath.Join(dir, "link.go")))
 
-	got, err := contentHash([]hashRoot{{dir: dir, prefix: ""}}, work)
+	got, err := contentHash([]hashRoot{{dir: dir, prefix: ""}}, dir, work)
 	require.NoError(t, err)
 
 	assert.Equal(t, listingHash([][2]string{
@@ -84,7 +86,7 @@ func TestContentHashFollowsTheContent(t *testing.T) {
 	hash := func() string {
 		t.Helper()
 
-		sum, err := contentHash([]hashRoot{{dir: dir, prefix: ""}}, "")
+		sum, err := contentHash([]hashRoot{{dir: dir, prefix: ""}}, dir, "")
 		require.NoError(t, err)
 
 		return sum
@@ -123,7 +125,7 @@ func TestContentHashOfSeveralRoots(t *testing.T) {
 		{dir: core, prefix: ""},
 		{dir: sdk, prefix: "sdk"},
 		{dir: other, prefix: "external/example.com/other"},
-	}, "")
+	}, core, "")
 	require.NoError(t, err)
 
 	assert.Equal(t, listingHash([][2]string{
