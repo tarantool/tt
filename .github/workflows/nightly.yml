@@ -1,0 +1,134 @@
+name: Nightly analysis
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: true
+      branch:
+        type: string
+        default: v3
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-analysis-${{ inputs.branch || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  GO_VERSION: '1.27.3'
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  race:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/prepare-ce-test-env # zizmor: ignore[self-repository] -- Test the selected repository revision.
+        with:
+          tarantool-version: '3.9'
+          build-tt: 'false'
+      - name: Unit tests with race detection in every module
+        env:
+          # Watchdog tests measure process exit; the race runtime's default
+          # one-second exit sleep would exceed their scaled stop deadlines.
+          GORACE: atexit_sleep_ms=0
+        run: |
+          set -o pipefail
+          mkdir -p reports
+          mage unit:race 2>&1 | tee reports/race.log
+      - name: Upload race report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: race
+          path: reports/
+          retention-days: 7
+
+  coverage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/prepare-ce-test-env # zizmor: ignore[self-repository] -- Test the selected repository revision.
+        id: prepare
+        with:
+          tarantool-version: '3.9'
+          build-tt: 'false'
+      - name: Unit coverage in every module
+        run: |
+          set -o pipefail
+          mkdir -p reports
+          mage unit:coverage 2>&1 | tee reports/unit-coverage.log
+      - name: Build tt with coverage
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        id: build
+        run: mage build:coverage
+      - name: Integration coverage
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        env:
+          GOCOVERDIR: ${{ github.workspace }}/coverage/integration
+        run: |
+          mkdir -p "$GOCOVERDIR"
+          python3 test/ci.py run --shard all \
+            --marker 'not slow and not slow_ee and not notarantool and not tarantool_master' \
+            --tt-cmd "$PWD/tt" --report-dir reports/integration
+      - name: Coverage summary
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        run: |
+          set -o pipefail
+          inputs=()
+          for directory in coverage/unit coverage/integration; do
+            if compgen -G "$directory/covmeta.*" > /dev/null; then
+              inputs+=("$directory")
+            fi
+          done
+          if [ "${#inputs[@]}" -eq 0 ]; then
+            echo 'No coverage data was produced.' >&2
+            exit 1
+          fi
+          directories=$(IFS=,; echo "${inputs[*]}")
+          go tool covdata percent -i="$directories" | tee coverage/summary.txt
+          {
+            echo '### Go coverage'
+            echo '```text'
+            cat coverage/summary.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload coverage data and test reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage
+          path: |
+            coverage/
+            reports/
+          retention-days: 7
+
+  govulncheck:
+    uses: ./.github/workflows/_govulncheck.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
+    with:
+      ref: ${{ inputs.ref || github.sha }}
+
+  report:
+    if: ${{ always() && !cancelled() && contains(needs.*.result, 'failure') }}
+    needs: [race, coverage, govulncheck]
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/_report_failure.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
+    with:
+      ref: ${{ inputs.ref || github.sha }}
+      branch: ${{ inputs.branch || github.ref_name }}
+      suite: nightly
+      results: ${{ toJSON(needs) }}

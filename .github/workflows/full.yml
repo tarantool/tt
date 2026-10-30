@@ -2,6 +2,18 @@ name: Full CI
 
 # full-ok joins the required checks on one source SHA; forks run CE only.
 on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: Exact v3 source commit selected by the nightly scheduler
+        type: string
+        required: true
+    secrets:
+      TT_EE_USERNAME:
+        required: false
+      TT_EE_PASSWORD:
+        required: false
   push:
     branches: [v3, master]
   pull_request:
@@ -16,8 +28,8 @@ permissions:
 
 concurrency:
   # An unrelated label must not cancel a requested full run.
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event.action == 'labeled' && github.event.label.name != 'full-ci' && 'ignored' || 'tests' }}
-  cancel-in-progress: ${{ github.event_name != 'push' || (github.ref != 'refs/heads/v3' && github.ref != 'refs/heads/master') }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || inputs.ref || github.ref }}-${{ github.event.action == 'labeled' && github.event.label.name != 'full-ci' && 'ignored' || 'tests' }}
+  cancel-in-progress: ${{ inputs.ref == '' && github.event_name != 'workflow_dispatch' && github.event_name != 'schedule' && (github.event_name != 'push' || (github.ref != 'refs/heads/v3' && github.ref != 'refs/heads/master')) }}
 
 env:
   GO_VERSION: '1.27.3'
@@ -26,18 +38,18 @@ env:
 jobs:
   snapshot:
     if: >-
-      ${{ github.event_name == 'push' ||
+      ${{ inputs.ref != '' || github.event_name == 'workflow_dispatch' || github.event_name == 'push' ||
       (github.event_name == 'pull_request' &&
       contains(github.event.pull_request.labels.*.name, 'full-ci') &&
       (github.event.action != 'labeled' ||
       github.event.label.name == 'full-ci')) }}
     uses: ./.github/workflows/_packages.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
     with:
-      ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      ref: ${{ inputs.ref || github.event.pull_request.head.sha || github.sha }}
 
   full-start:
     if: >-
-      ${{ github.event_name == 'push' ||
+      ${{ inputs.ref != '' || github.event_name == 'workflow_dispatch' || github.event_name == 'push' ||
       ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository ||
       github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository) &&
       contains(github.event.pull_request.labels.*.name, 'full-ci') &&
@@ -49,20 +61,20 @@ jobs:
       actions: read
       statuses: write
     concurrency:
-      group: ${{ github.workflow }}-status-${{ github.event.pull_request.head.sha || github.sha }}
+      group: ${{ github.workflow }}-status-${{ inputs.ref || github.event.pull_request.head.sha || github.sha }}
       cancel-in-progress: false
     steps:
       # Load only the status helper from the trusted workflow revision.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.workflow_sha }}
+          ref: ${{ inputs.ref || github.workflow_sha }}
           persist-credentials: false
           sparse-checkout: ci/status.py
           sparse-checkout-cone-mode: false
       - name: Publish the aggregate status
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_SHA: ${{ inputs.ref || github.event.pull_request.head.sha || github.sha }}
           STATUS_CONTEXT: full-ok
         run: python3 ci/status.py
 
@@ -73,7 +85,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ inputs.ref || github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -103,11 +115,11 @@ jobs:
     with:
       tt-source: snapshot
       tt-artifact: tt-snapshot-default-linux-amd64
-      ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      ref: ${{ inputs.ref || github.event.pull_request.head.sha || github.sha }}
       edition: ce
       tarantool-version: ${{ matrix.tarantool-version }}
       shard: ${{ matrix.shard }}
-      marker: not slow_ee and not notarantool
+      marker: not slow_ee and not notarantool and not tarantool_master
       full: true
 
   arm64:
@@ -117,10 +129,10 @@ jobs:
       runner: ubuntu-24.04-arm
       tt-source: snapshot
       tt-artifact: tt-snapshot-default-linux-arm64
-      ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      ref: ${{ inputs.ref || github.event.pull_request.head.sha || github.sha }}
       edition: ce
       tarantool-version: '3.9'
-      marker: not slow and not slow_ee and not notarantool
+      marker: not slow and not slow_ee and not notarantool and not tarantool_master
 
   macos:
     needs: snapshot
@@ -129,10 +141,10 @@ jobs:
       runner: macos-15
       tt-source: snapshot
       tt-artifact: tt-snapshot-default-darwin-arm64
-      ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      ref: ${{ inputs.ref || github.event.pull_request.head.sha || github.sha }}
       edition: ce
       tarantool-version: '3.9'
-      marker: not slow and not slow_ee and not notarantool and not docker
+      marker: not slow and not slow_ee and not notarantool and not tarantool_master and not docker
       # Allow time for tt binary install to build Tarantool from source.
       timeout-minutes: 90
       continue-on-error: true
@@ -141,7 +153,7 @@ jobs:
     needs: snapshot
     if: >-
       ${{ github.repository == 'tarantool/tt' &&
-      (github.event_name == 'push' ||
+      (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) }}
     strategy:
       fail-fast: false
@@ -152,11 +164,11 @@ jobs:
     with:
       tt-source: snapshot
       tt-artifact: tt-snapshot-default-linux-amd64
-      ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      ref: ${{ inputs.ref || github.event.pull_request.head.sha || github.sha }}
       edition: ee
       tarantool-version: ${{ matrix.tarantool-version }}
       shard: ${{ matrix.shard }}
-      marker: not slow_ee and not notarantool
+      marker: not slow_ee and not notarantool and not tarantool_master
       full: true
     secrets:
       TT_EE_USERNAME: ${{ secrets.TT_EE_USERNAME }}
@@ -166,13 +178,13 @@ jobs:
     needs: snapshot
     if: >-
       ${{ github.repository == 'tarantool/tt' &&
-      (github.event_name == 'push' ||
+      (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) }}
     uses: ./.github/workflows/_integration.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
     with:
       tt-source: snapshot
       tt-artifact: tt-snapshot-default-linux-amd64
-      ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      ref: ${{ inputs.ref || github.event.pull_request.head.sha || github.sha }}
       edition: ee
       tarantool-version: '3'
       marker: ''
@@ -186,13 +198,13 @@ jobs:
     needs: snapshot
     if: >-
       ${{ github.repository == 'tarantool/tt' &&
-      (github.event_name == 'push' ||
+      (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)) }}
     uses: ./.github/workflows/_integration.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
     with:
       tt-source: snapshot
       tt-artifact: tt-snapshot-openssl_static-linux-amd64
-      ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      ref: ${{ inputs.ref || github.event.pull_request.head.sha || github.sha }}
       edition: ee
       tarantool-version: '3'
       marker: tls
@@ -206,7 +218,7 @@ jobs:
     with:
       tt-source: snapshot
       tt-artifact: tt-snapshot-default-linux-amd64
-      ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      ref: ${{ inputs.ref || github.event.pull_request.head.sha || github.sha }}
       edition: none
       tarantool-version: ''
       marker: notarantool
@@ -253,7 +265,7 @@ jobs:
       # Load only the status helper from the trusted workflow revision.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.workflow_sha }}
+          ref: ${{ inputs.ref || github.workflow_sha }}
           persist-credentials: false
           sparse-checkout: ci/status.py
           sparse-checkout-cone-mode: false
@@ -265,7 +277,7 @@ jobs:
 
   full-result:
     if: >-
-      ${{ always() && (github.event_name == 'push' ||
+      ${{ always() && (inputs.ref != '' || github.event_name == 'workflow_dispatch' || github.event_name == 'push' ||
       ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository ||
       github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository) &&
       contains(github.event.pull_request.labels.*.name, 'full-ci') &&
@@ -279,20 +291,20 @@ jobs:
       actions: read
       statuses: write
     concurrency:
-      group: ${{ github.workflow }}-status-${{ github.event.pull_request.head.sha || github.sha }}
+      group: ${{ github.workflow }}-status-${{ inputs.ref || github.event.pull_request.head.sha || github.sha }}
       cancel-in-progress: false
     steps:
       # Load only the status helper from the trusted workflow revision.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.workflow_sha }}
+          ref: ${{ inputs.ref || github.workflow_sha }}
           persist-credentials: false
           sparse-checkout: ci/status.py
           sparse-checkout-cone-mode: false
       - name: Publish the aggregate status
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_SHA: ${{ inputs.ref || github.event.pull_request.head.sha || github.sha }}
           STATUS_CONTEXT: full-ok
           RESULTS: ${{ toJSON(needs) }}
           REQUIRED: >-

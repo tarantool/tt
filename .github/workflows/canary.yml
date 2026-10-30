@@ -1,0 +1,70 @@
+name: Tarantool master canary
+
+on:
+  workflow_dispatch:
+    inputs:
+      test-failure:
+        description: Skip tests and exercise failure issue reporting
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: true
+      branch:
+        type: string
+        default: v3
+      test-failure:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# No ci-ok/full-ok status is published by the canary.
+concurrency:
+  group: canary-${{ inputs.branch || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: ${{ !inputs.test-failure }}
+    uses: ./.github/workflows/_build.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
+    with:
+      ref: ${{ inputs.ref || github.sha }}
+      artifact-name: tt-canary
+
+  integration:
+    needs: build
+    uses: ./.github/workflows/_integration.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
+    with:
+      ref: ${{ inputs.ref || github.sha }}
+      tt-artifact: tt-canary
+      edition: ce
+      tarantool-version: master
+      marker: (not slow and not slow_ee and not notarantool) or tarantool_master
+      timeout-minutes: 120
+
+  failure-probe:
+    if: inputs.test-failure
+    runs-on: ubuntu-24.04
+    timeout-minutes: 1
+    steps:
+      - name: Exercise the issue reporter
+        run: |
+          echo 'Intentional failure requested through workflow_dispatch.'
+          exit 1
+
+  report:
+    if: ${{ always() && !cancelled() && contains(needs.*.result, 'failure') }}
+    needs: [build, integration, failure-probe]
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/_report_failure.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
+    with:
+      ref: ${{ inputs.ref || github.sha }}
+      branch: ${{ inputs.branch || github.ref_name }}
+      suite: canary
+      results: ${{ toJSON(needs) }}

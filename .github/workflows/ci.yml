@@ -161,6 +161,18 @@ jobs:
           actionlint -shellcheck "$shellcheck_path"
           zizmor --offline .github
 
+  govulncheck:
+    # Pushes scan all dependencies so a later code-only commit cannot hide
+    # an earlier vulnerability. Fork PRs scan only when module files changed.
+    if: >-
+      ${{ github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository &&
+      github.event.action != 'labeled' && github.event.action != 'unlabeled') }}
+    uses: ./.github/workflows/_govulncheck.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
+    with:
+      ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      base: ${{ github.event.pull_request.base.sha || '' }}
+
   build-variants:
     if: >-
       ${{ github.event_name == 'push' ||
@@ -214,7 +226,7 @@ jobs:
       edition: ce
       tarantool-version: ${{ matrix.tarantool-version }}
       shard: all
-      marker: not slow and not slow_ee and not notarantool
+      marker: not slow and not slow_ee and not notarantool and not tarantool_master
 
   it-ee:
     needs: build-variants
@@ -229,7 +241,7 @@ jobs:
       edition: ee
       tarantool-version: '3'
       shard: ${{ matrix.shard }}
-      marker: not slow and not slow_ee and not notarantool
+      marker: not slow and not slow_ee and not notarantool and not tarantool_master
     secrets:
       TT_EE_USERNAME: ${{ secrets.TT_EE_USERNAME }}
       TT_EE_PASSWORD: ${{ secrets.TT_EE_PASSWORD }}
@@ -293,7 +305,7 @@ jobs:
     if: >-
       ${{ always() && (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository &&
       github.event.action != 'labeled' && github.event.action != 'unlabeled') }}
-    needs: [lint, build-variants, go, it-ce]
+    needs: [lint, govulncheck, build-variants, go, it-ce]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -342,7 +354,7 @@ jobs:
     if: >-
       ${{ always() && (github.event_name == 'push' ||
       (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository)) }}
-    needs: [ci-start, lint, build-variants, go, it-ce, it-ee, wait-ce]
+    needs: [ci-start, lint, govulncheck, build-variants, go, it-ce, it-ee, wait-ce]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -370,6 +382,6 @@ jobs:
             ${{ github.event_name == 'pull_request_target' &&
             '["ci-start","wait-ce"]' ||
             github.repository == 'tarantool/tt' &&
-            '["ci-start","lint","build-variants","go","it-ce","it-ee"]' ||
-            '["ci-start","lint","build-variants","go","it-ce"]' }}
+            '["ci-start","lint","govulncheck","build-variants","go","it-ce","it-ee"]' ||
+            '["ci-start","lint","govulncheck","build-variants","go","it-ce"]' }}
         run: python3 ci/status.py
