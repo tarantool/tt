@@ -133,9 +133,10 @@ jobs:
 
       - name: Check workflows and scripts
         run: |
-          actionlint
+          shellcheck_path=$(command -v shellcheck)
+          actionlint -shellcheck "$shellcheck_path"
           zizmor --offline .github
-          shellcheck ci/*.sh
+          shellcheck ci/*.sh package/*.sh package/scripts/*.sh
 
   # Tests need only the default binary, so they do not wait for the variants.
   build:
