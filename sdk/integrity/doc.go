@@ -3,8 +3,10 @@
 // verifiers used by storage-backed readers and writers.
 //
 // A Provider implements the interface. The disabled provider, returned by
-// NewDisabledProvider, performs no checks; it is what tt uses, and the
-// package-level functions delegate to it.
+// NewDisabledProvider, performs no checks, and the package-level functions
+// delegate to it. tt runs with the provider its distribution chooses
+// (core.WithIntegrity in github.com/tarantool/tt/v3/core) and with the
+// disabled one when it chooses none; a module does not choose.
 //
 // The RSA provider, returned by NewRSAProvider, signs with an RSA private
 // key and checks with its public key. Its Signer writes hashes files that

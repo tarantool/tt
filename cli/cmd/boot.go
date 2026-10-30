@@ -10,6 +10,7 @@ import (
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/configure"
 	"github.com/tarantool/tt/v3/cli/version"
+	"github.com/tarantool/tt/v3/internal/integrityprovider"
 )
 
 // The phases below initialise tt in the order it runs them: Boot, then the
@@ -31,17 +32,26 @@ type BootOptions struct {
 	// Flavour is how the distribution of tt presents itself. The zero
 	// Flavour is tt's own.
 	Flavour version.Flavour
+	// Integrity is the integrity provider tt runs with: it registers the
+	// integrity flags, checks the files and signs and verifies the data of
+	// a configuration storage. Nil is the disabled provider, which checks
+	// nothing and registers no flag.
+	Integrity integrity.Provider
 }
 
 // Boot creates the root command - the global flags, no subcommands - and
 // makes it the process's root. It parses the global flags in opts.Args and
 // installs the process logger they ask for. The root and the commands built
-// after Boot present tt as opts.Flavour.
+// after Boot present tt as opts.Flavour and have the integrity flags of
+// opts.Integrity, the provider of the process from then on.
 //
 // A flag error is not returned: Run reports it, once the logger is set up.
 // An invalid --log-format leaves the default format in place until then.
 func Boot(opts BootOptions) (*cobra.Command, error) {
 	flavour = opts.Flavour
+
+	integrityprovider.Set(opts.Integrity)
+
 	rootCmd = newRootCmd()
 	rootCmd.SetErr(errorLogWriter{})
 
@@ -154,7 +164,7 @@ func Configure() error {
 
 	// The files of the project are what is checked: the project replaces the
 	// tt environment tt.yaml rooted.
-	cmdCtx.Integrity, err = integrity.InitializeIntegrityCheck(
+	cmdCtx.Integrity, err = integrityprovider.Get().InitializeIntegrityCheck(
 		cmdCtx.Cli.IntegrityCheck,
 		cmdCtx.Cli.ProjectDir,
 	)

@@ -19,6 +19,7 @@ import (
 	goconfig "github.com/tarantool/go-config/v2"
 
 	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/sdk/output"
 	"github.com/tarantool/tt/v3/cli/cmd"
 	"github.com/tarantool/tt/v3/cli/printing"
@@ -81,6 +82,10 @@ var mainCases = map[string]func() int{
 		cmd.InjectedCmds = append(cmd.InjectedCmds, newInjectedCmd())
 
 		return core.Main(core.Modules{"builtin": core.Builtin, "demo": demoModule})
+	},
+	"integrity": func() int {
+		return core.Main(core.Modules{"builtin": core.Builtin},
+			core.WithIntegrity(integrity.NewRSAProvider()))
 	},
 	"no-extmod": func() int {
 		return core.Main(core.Modules{"builtin": core.Builtin, "demo": demoModule},
@@ -599,6 +604,69 @@ func TestMainWithFlavour(t *testing.T) {
 		got := runTT(t, ttRun{program: "flavour-panic", args: []string{"version"}})
 		assert.Equal(t, 1, got.code, got.stderr)
 		assert.Contains(t, got.stderr, "Version: Tarantool CLI EE version 2.15.0, "+platform)
+	})
+}
+
+// TestMainWithIntegrity checks that the integrity provider a distribution
+// chooses is the one tt runs with: its flags are where tt registers them and
+// a public key is checked, while tt without the option has the disabled
+// provider, with no integrity flags at all.
+func TestMainWithIntegrity(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		args []string
+		flag string
+	}{
+		{args: []string{"--help"}, flag: "--integrity-check "},
+		{args: []string{"--help"}, flag: "--integrity-check-period"},
+		{args: []string{"instance", "start", "--help"}, flag: "--integrity-check-period"},
+		{args: []string{"cluster", "publish", "--help"}, flag: "--with-integrity-check"},
+		{
+			args: []string{"cluster", "replicaset", "promote", "--help"},
+			flag: "--with-integrity-check",
+		},
+		{
+			args: []string{"cluster", "replicaset", "roles", "add", "--help"},
+			flag: "--with-integrity-check",
+		},
+		{args: []string{"replicaset", "promote", "--help"}, flag: "--with-integrity-check"},
+		{args: []string{"replicaset", "expel", "--help"}, flag: "--with-integrity-check"},
+		{
+			args: []string{"replicaset", "vshard", "bootstrap", "--help"},
+			flag: "--with-integrity-check",
+		},
+	} {
+		t.Run(strings.Join(testCase.args, " ")+" "+testCase.flag, func(t *testing.T) {
+			t.Parallel()
+
+			got := runTT(t, ttRun{program: "integrity", args: testCase.args})
+			require.Equal(t, 0, got.code, got.stderr)
+			assert.Contains(t, got.stdout, testCase.flag)
+
+			got = runTT(t, ttRun{program: "builtin", args: testCase.args})
+			require.Equal(t, 0, got.code, got.stderr)
+			assert.NotContains(t, got.stdout, "integrity")
+		})
+	}
+
+	t.Run("public key", func(t *testing.T) {
+		t.Parallel()
+
+		key := filepath.Join(t.TempDir(), "missing.pem")
+
+		got := runTT(t, ttRun{
+			program: "integrity", args: []string{"--integrity-check", key, "version"},
+		})
+		assert.NotEqual(t, 0, got.code)
+		assert.Contains(t, got.stderr, "integrity check failed")
+		assert.Contains(t, got.stderr, key)
+
+		got = runTT(t, ttRun{
+			program: "builtin", args: []string{"--integrity-check", key, "version"},
+		})
+		assert.NotEqual(t, 0, got.code)
+		assert.Contains(t, got.stderr, "unknown flag: --integrity-check")
 	})
 }
 

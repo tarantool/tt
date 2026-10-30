@@ -8,12 +8,12 @@ import (
 	"strconv"
 
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/running"
 	"github.com/tarantool/tt/v3/cli/util"
+	"github.com/tarantool/tt/v3/internal/integrityprovider"
 )
 
 // errPinWithoutWatchdog reports a pin of the application directory given to
@@ -79,7 +79,8 @@ func NewStartCmd() *cobra.Command {
 		_ = startCmd.Flags().MarkHidden(name)
 	}
 
-	integrity.RegisterIntegrityCheckPeriodFlag(startCmd.Flags(), &cmdCtx.Cli.IntegrityCheckPeriod)
+	integrityprovider.Get().RegisterIntegrityCheckPeriodFlag(startCmd.Flags(),
+		&cmdCtx.Cli.IntegrityCheckPeriod)
 
 	return startCmd
 }

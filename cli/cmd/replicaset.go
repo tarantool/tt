@@ -10,7 +10,6 @@ import (
 
 	sdkconnect "github.com/tarantool/tt/sdk/connect"
 	"github.com/tarantool/tt/sdk/formatter"
-	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
@@ -19,6 +18,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/replicaset"
 	replicasetcmd "github.com/tarantool/tt/v3/cli/replicaset/cmd"
 	"github.com/tarantool/tt/v3/cli/running"
+	"github.com/tarantool/tt/v3/internal/integrityprovider"
 )
 
 var (
@@ -218,7 +218,7 @@ func newPromoteCmd() *cobra.Command {
 			"  * config: skip instances not found locally")
 	cmd.Flags().IntVarP(&replicasetTimeout, "timeout", "",
 		replicasetcmd.DefaultTimeout, "promoting timeout")
-	integrity.RegisterWithIntegrityFlag(cmd.Flags(), &replicasetIntegrityPrivateKey)
+	integrityprovider.Get().RegisterWithIntegrityFlag(cmd.Flags(), &replicasetIntegrityPrivateKey)
 
 	return cmd
 }
@@ -239,7 +239,7 @@ func newDemoteCmd() *cobra.Command {
 	cmd.Flags().BoolVarP(&replicasetForce, "force", "f", false,
 		"skip instances not found locally")
 	cmd.Flags().IntVarP(&replicasetTimeout, "timeout", "", replicasetcmd.DefaultTimeout, "timeout")
-	integrity.RegisterWithIntegrityFlag(cmd.Flags(), &replicasetIntegrityPrivateKey)
+	integrityprovider.Get().RegisterWithIntegrityFlag(cmd.Flags(), &replicasetIntegrityPrivateKey)
 
 	return cmd
 }
@@ -260,7 +260,7 @@ func newExpelCmd() *cobra.Command {
 	cmd.Flags().BoolVarP(&replicasetForce, "force", "f", false,
 		"skip instances not found locally")
 	cmd.Flags().IntVarP(&replicasetTimeout, "timeout", "", replicasetcmd.DefaultTimeout, "timeout")
-	integrity.RegisterWithIntegrityFlag(cmd.Flags(), &replicasetIntegrityPrivateKey)
+	integrityprovider.Get().RegisterWithIntegrityFlag(cmd.Flags(), &replicasetIntegrityPrivateKey)
 
 	return cmd
 }
@@ -304,7 +304,7 @@ func newBootstrapVShardCmd() *cobra.Command {
 	addOrchestratorFlags(cmd)
 	addInstanceFlags(cmd)
 	addTarantoolConnectFlags(cmd)
-	integrity.RegisterWithIntegrityFlag(cmd.Flags(), &replicasetIntegrityPrivateKey)
+	integrityprovider.Get().RegisterWithIntegrityFlag(cmd.Flags(), &replicasetIntegrityPrivateKey)
 	cmd.Flags().IntVarP(&replicasetBootstrapTimeout, "timeout", "",
 		replicasetcmd.VShardBootstrapDefaultTimeout, "timeout")
 
@@ -383,7 +383,7 @@ func newRolesAddCmd() *cobra.Command {
 			"  * config: skip instances not found locally")
 	cmd.Flags().IntVarP(&replicasetTimeout, "timeout", "",
 		replicasetcmd.DefaultTimeout, "adding timeout")
-	integrity.RegisterWithIntegrityFlag(cmd.Flags(), &replicasetIntegrityPrivateKey)
+	integrityprovider.Get().RegisterWithIntegrityFlag(cmd.Flags(), &replicasetIntegrityPrivateKey)
 
 	return cmd
 }
@@ -418,7 +418,7 @@ func newRolesRemoveCmd() *cobra.Command {
 			"  * config: skip instances not found locally")
 	cmd.Flags().IntVarP(&replicasetTimeout, "timeout", "",
 		replicasetcmd.DefaultTimeout, "adding timeout")
-	integrity.RegisterWithIntegrityFlag(cmd.Flags(), &replicasetIntegrityPrivateKey)
+	integrityprovider.Get().RegisterWithIntegrityFlag(cmd.Flags(), &replicasetIntegrityPrivateKey)
 
 	return cmd
 }

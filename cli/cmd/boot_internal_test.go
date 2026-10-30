@@ -10,7 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/internal/integrityprovider"
 )
 
 // restoreProcessState puts back the package state and the process logger a
@@ -20,11 +22,14 @@ func restoreProcessState(t *testing.T) {
 
 	previousRoot, previousCtx, previousInjected := rootCmd, cmdCtx, InjectedCmds
 	previousFlavour := flavour
+	previousProvider := integrityprovider.Get()
 	previousLogger := slog.Default()
 
 	t.Cleanup(func() {
 		rootCmd, cmdCtx, InjectedCmds = previousRoot, previousCtx, previousInjected
 		flavour = previousFlavour
+
+		integrityprovider.Set(previousProvider)
 
 		slog.SetDefault(previousLogger)
 	})
@@ -46,6 +51,53 @@ func TestBootParsesGlobalFlags(t *testing.T) {
 	assert.True(t, cmdCtx.Cli.NoPrompt)
 	assert.False(t, cmdCtx.Cli.ForceInternal, "flags after the command are not the root's")
 	assert.True(t, slog.Default().Enabled(t.Context(), slog.LevelDebug))
+}
+
+// TestBootSetsTheIntegrityProvider checks that Boot makes the provider it
+// is given the provider of the process - the root and the commands built
+// after it have its flags, and Configure checks with it - and that booting
+// without one goes back to the disabled provider.
+//
+//nolint:paralleltest // Replaces the package root and the integrity provider.
+func TestBootSetsTheIntegrityProvider(t *testing.T) {
+	restoreProcessState(t)
+
+	key := filepath.Join(t.TempDir(), "missing.pem")
+
+	root, err := Boot(BootOptions{
+		Args:      []string{"--integrity-check", key, "--integrity-check-period", "5"},
+		Integrity: integrity.NewRSAProvider(),
+	})
+	require.NoError(t, err)
+
+	assert.NotNil(t, root.Flags().Lookup("integrity-check"))
+	assert.Equal(t, key, cmdCtx.Cli.IntegrityCheck)
+	assert.Equal(t, 5, cmdCtx.Cli.IntegrityCheckPeriod)
+	assert.True(t, instanceStartHasFlag(t, "integrity-check-period"),
+		"the commands are built with the provider in effect")
+
+	err = Configure()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "integrity check failed")
+
+	root, err = Boot(BootOptions{Args: nil})
+	require.NoError(t, err)
+
+	assert.Nil(t, root.Flags().Lookup("integrity-check"))
+	assert.Nil(t, root.Flags().Lookup("integrity-check-period"))
+	assert.False(t, instanceStartHasFlag(t, "integrity-check-period"))
+}
+
+// instanceStartHasFlag reports whether a new tt instance start has the flag
+// name.
+func instanceStartHasFlag(t *testing.T, name string) bool {
+	t.Helper()
+
+	start, _, err := NewInstanceCmd().Find([]string{"start"})
+	require.NoError(t, err)
+	require.Equal(t, "start", start.Name())
+
+	return start.Flags().Lookup(name) != nil
 }
 
 // TestBuiltinCommandsAfterBoot checks that building the commands after the

@@ -452,6 +452,9 @@ linters:
             - "github.com/tarantool/tt/v3/cli/cluster"
             - "github.com/tarantool/tt/v3/cli/replicaset"
             - "github.com/tarantool/tt/v3/cli/templates"
+            # The signers and verifiers of a configuration storage come from
+            # the integrity provider the distribution chose.
+            - "github.com/tarantool/tt/v3/internal/integrityprovider"
             - "go.etcd.io/etcd/client/pkg/v3"
             - "go.etcd.io/etcd/client/v3"
             - "gopkg.in/yaml.v2"
@@ -496,6 +499,9 @@ linters:
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/tarantool/tt/v3/cli/version"
             - "github.com/tarantool/tt/v3/internal/binary"
+            # Boot sets the integrity provider the distribution chose, and the
+            # commands register their integrity flags through it.
+            - "github.com/tarantool/tt/v3/internal/integrityprovider"
             # tt service systemd writes the units and the mark of an
             # application; the instance commands read whom the mark names.
             - "github.com/tarantool/tt/v3/internal/systemd"
@@ -708,6 +714,9 @@ linters:
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/tarantool/tt/v3/internal/binary"
             - "github.com/tarantool/tt/v3/internal/instances"
+            # An instance checks its files against the hashes file the
+            # integrity provider names.
+            - "github.com/tarantool/tt/v3/internal/integrityprovider"
             - "github.com/tarantool/tt/v3/internal/pidfile"
             - "github.com/tarantool/tt/v3/internal/scope"
             - "github.com/tarantool/tt/v3/internal/supervisor"
