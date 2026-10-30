@@ -259,6 +259,24 @@ func TestIntegrityRefusesTheHost(t *testing.T) {
 	})
 }
 
+func TestIntegrityRefusesThePairOfTheHost(t *testing.T) {
+	signing := newSigningFixture(t)
+	fixture := newAppFixture(t, app.ScopeUser, appFiles("{}", ""))
+
+	signing.signApp(t, fixture.dir)
+
+	// The pair of the host is not part of the package: its files are not
+	// signed, and an application that runs from it is refused.
+	writeFiles(t, app.HostDir(fixture.root, fixtureApp), map[string]string{
+		"instances.yaml": fixtureInst + ":\n",
+		"config.yaml":    clusterConfig(""),
+	})
+
+	_, err := signing.collect(t, app.ScopeUser, t.TempDir())
+	require.ErrorContains(t, err, "file is not in repository")
+	require.ErrorContains(t, err, app.HostDir(fixture.root, fixtureApp))
+}
+
 func TestIntegrityOffChangesNothing(t *testing.T) {
 	fixture := newAppFixture(t, app.ScopeUser, appFiles("{}", ""))
 	fixture.installTarantool(t, fixtureTarantool)
