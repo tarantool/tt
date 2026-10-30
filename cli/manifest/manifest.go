@@ -29,6 +29,7 @@ const ManifestVersion = "0.1"
 // formatting) changes the hash.
 type Manifest struct {
 	ManifestVersion string                `toml:"manifest_version"`
+	Kind            string                `toml:"manifest_kind,omitempty"` // "" or ManifestKindApp.
 	Package         Package               `toml:"package"`
 	Platform        Platform              `toml:"platform"`
 	Dependencies    map[string]Dependency `toml:"dependencies,omitempty"`
@@ -84,6 +85,9 @@ func (p Package) GenerateVersionLuaValue() bool {
 // version is refused outright. Unknown values of known enum fields are not
 // handled here - they are caught by Validate regardless of format version.
 //
+// A manifest of another kind (manifest_kind) is refused with an error that
+// names the command it is for.
+//
 // The returned warnings are non-fatal diagnostics for the caller to surface.
 func ParseManifest(data []byte) (*Manifest, []string, error) {
 	declared, err := peekManifestVersion(data)
@@ -91,11 +95,21 @@ func ParseManifest(data []byte) (*Manifest, []string, error) {
 		return nil, nil, err
 	}
 
+	kind, err := peekKind(data)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if kind != ManifestKindApp {
+		return nil, nil, invalid("manifest_kind",
+			"%q is a manifest of a tt distribution, not of an application: "+
+				"build it with tt binary build tt", kind)
+	}
+
 	// A different major in either direction is refused: a newer major may have
 	// changed the format, and no older major exists for 0.x to fall back to.
 	if declared.major != ourManifestVersion.major {
-		return nil, nil, fmt.Errorf("manifest version %q %w (supports %d.x)",
-			declared, ErrUnsupportedVersion, ourManifestVersion.major)
+		return nil, nil, invalidVersion(declared)
 	}
 
 	out := new(Manifest)
@@ -191,6 +205,13 @@ func HashBytes(data []byte) string {
 	sum := sha256.Sum256(data)
 
 	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+// invalidVersion reports a manifest_version of a major this tt does not
+// read.
+func invalidVersion(declared formatVersion) error {
+	return fmt.Errorf("manifest version %q %w (supports %d.x)",
+		declared, ErrUnsupportedVersion, ourManifestVersion.major)
 }
 
 // peekManifestVersion reads only the manifest_version field, leniently.
