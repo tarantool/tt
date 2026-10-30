@@ -13,7 +13,8 @@ case "$requested" in
         exit 0
         ;;
 esac
-key="${edition^^}_${requested^^}"
+# macOS ships bash 3.2, which has no ${var^^}.
+key=$(echo "${edition}_${requested}" | tr '[:lower:]' '[:upper:]')
 version=$(sed -n "s/^$key=//p" "$(dirname "$0")/tarantool-versions.env")
 if [ -z "$version" ]; then
     echo "$key is not set in tarantool-versions.env" >&2
