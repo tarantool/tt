@@ -11,6 +11,9 @@
 //		os.Exit(core.Main(core.Modules{"builtin": core.Builtin}))
 //	}
 //
+// Options give the distribution its own name and version (WithFlavour) and
+// its integrity provider (WithIntegrity).
+//
 // Nothing under cli/ but tt's main package may import this package: the core
 // is built on top of the commands, never the other way round.
 package core
@@ -27,6 +30,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/sdk/output"
 	"github.com/tarantool/tt/v3/cli/cmd"
@@ -51,6 +55,9 @@ type options struct {
 	// withoutExternalModules leaves the external modules out: tt neither
 	// looks for them nor has tt modules.
 	withoutExternalModules bool
+	// integrity is the integrity provider tt runs with; nil is the disabled
+	// one.
+	integrity integrity.Provider
 }
 
 // Flavour is how a distribution of tt presents itself: its name and its
@@ -112,11 +119,27 @@ func WithoutExternalModules() Option {
 	}
 }
 
+// WithIntegrity makes tt check integrity with provider: register the
+// integrity flags it has (--integrity-check, --integrity-check-period,
+// --with-integrity-check), check the files of the project and the binaries
+// it runs, and sign and verify what it publishes to and reads from a
+// configuration storage. Without it tt has the disabled provider of
+// [integrity.NewDisabledProvider]: no integrity flags, no checks. A nil
+// provider is the disabled one.
+//
+// The provider is the distribution's choice, made once, before any command
+// is built; a module cannot change it.
+func WithIntegrity(provider integrity.Provider) Option {
+	return func(o *options) {
+		o.integrity = provider
+	}
+}
+
 // Main builds tt from modules, runs the command line in os.Args and returns
 // the process exit code, having reported the error tt failed with. It may be
 // called once per process.
 //
-// It boots tt - global flags, logging - and calls the constructors in the
+// It boots tt - the integrity provider, global flags, logging - and calls the constructors in the
 // order of their names, then hangs their commands, adds the commands
 // injected through cmd.InjectedCmds, configures tt, hangs the external
 // modules and runs the command. An external module named like a top-level
@@ -165,7 +188,9 @@ func Main(modules Modules, opts ...Option) (code int) {
 func build(
 	args []string, modules Modules, ready *atomic.Bool, config options,
 ) (*cobra.Command, error) {
-	root, err := cmd.Boot(cmd.BootOptions{Args: args, Flavour: config.flavour})
+	root, err := cmd.Boot(cmd.BootOptions{
+		Args: args, Flavour: config.flavour, Integrity: config.integrity,
+	})
 	if err != nil {
 		return nil, err
 	}

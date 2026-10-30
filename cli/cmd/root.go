@@ -11,10 +11,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/logging"
+	"github.com/tarantool/tt/v3/internal/integrityprovider"
 )
 
 var (
@@ -99,8 +99,9 @@ func newRootCmd() *cobra.Command {
 	rootCmd.Flags().BoolVarP(&cmdCtx.Cli.NoPrompt, "no-prompt", "",
 		false, "Skip cli interaction using default behavior")
 
-	integrity.RegisterIntegrityCheckFlag(rootCmd.Flags(), &cmdCtx.Cli.IntegrityCheck)
-	integrity.RegisterIntegrityCheckPeriodFlag(rootCmd.Flags(), &cmdCtx.Cli.IntegrityCheckPeriod)
+	integrityprovider.Get().RegisterIntegrityCheckFlag(rootCmd.Flags(), &cmdCtx.Cli.IntegrityCheck)
+	integrityprovider.Get().RegisterIntegrityCheckPeriodFlag(rootCmd.Flags(),
+		&cmdCtx.Cli.IntegrityCheckPeriod)
 
 	rootCmd.Flags().SetInterspersed(false)
 

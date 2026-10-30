@@ -22,6 +22,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/replicaset"
 	"github.com/tarantool/tt/v3/cli/running"
 	"github.com/tarantool/tt/v3/cli/util"
+	"github.com/tarantool/tt/v3/internal/integrityprovider"
 )
 
 const (
@@ -220,7 +221,8 @@ func newClusterReplicasetCmd() *cobra.Command {
 		"password (used as etcd/tarantool config storage credentials)")
 	promoteCmd.Flags().BoolVarP(&promoteCtx.Force, "force", "f", false,
 		"skip selecting a key for patching")
-	integrity.RegisterWithIntegrityFlag(promoteCmd.Flags(), &clusterIntegrityPrivateKey)
+	integrityprovider.Get().RegisterWithIntegrityFlag(promoteCmd.Flags(),
+		&clusterIntegrityPrivateKey)
 
 	demoteCmd := &cobra.Command{
 		Use:                   "demote [-f] [flags] <URI> <INSTANCE_NAME>",
@@ -237,7 +239,8 @@ func newClusterReplicasetCmd() *cobra.Command {
 		"password (used as etcd/tarantool config storage credentials)")
 	demoteCmd.Flags().BoolVarP(&demoteCtx.Force, "force", "f", false,
 		"skip selecting a key for patching")
-	integrity.RegisterWithIntegrityFlag(demoteCmd.Flags(), &clusterIntegrityPrivateKey)
+	integrityprovider.Get().RegisterWithIntegrityFlag(demoteCmd.Flags(),
+		&clusterIntegrityPrivateKey)
 
 	expelCmd := &cobra.Command{
 		Use:                   "expel [-f] [flags] <URI> <INSTANCE_NAME>",
@@ -254,7 +257,7 @@ func newClusterReplicasetCmd() *cobra.Command {
 		"password (used as etcd/tarantool config storage credentials)")
 	expelCmd.Flags().BoolVarP(&expelCtx.Force, "force", "f", false,
 		"skip selecting a key for patching")
-	integrity.RegisterWithIntegrityFlag(expelCmd.Flags(), &clusterIntegrityPrivateKey)
+	integrityprovider.Get().RegisterWithIntegrityFlag(expelCmd.Flags(), &clusterIntegrityPrivateKey)
 
 	rolesCmd := &cobra.Command{
 		Use:   "roles",
@@ -286,7 +289,8 @@ func newClusterReplicasetCmd() *cobra.Command {
 		"password (used as etcd/tarantool config storage credentials)")
 	addRolesCmd.Flags().BoolVarP(&rolesChangeCtx.Force, "force", "f", false,
 		"skip selecting a key for patching")
-	integrity.RegisterWithIntegrityFlag(addRolesCmd.Flags(), &clusterIntegrityPrivateKey)
+	integrityprovider.Get().RegisterWithIntegrityFlag(addRolesCmd.Flags(),
+		&clusterIntegrityPrivateKey)
 
 	removeRolesCmd := &cobra.Command{
 		Use:   "remove <URI> <ROLE_NAME> [flags]",
@@ -313,7 +317,8 @@ func newClusterReplicasetCmd() *cobra.Command {
 		"password (used as etcd/tarantool config storage credentials)")
 	removeRolesCmd.Flags().BoolVarP(&rolesChangeCtx.Force, "force", "f", false,
 		"skip selecting a key for patching")
-	integrity.RegisterWithIntegrityFlag(removeRolesCmd.Flags(), &clusterIntegrityPrivateKey)
+	integrityprovider.Get().RegisterWithIntegrityFlag(removeRolesCmd.Flags(),
+		&clusterIntegrityPrivateKey)
 
 	rolesCmd.AddCommand(addRolesCmd)
 	rolesCmd.AddCommand(removeRolesCmd)
@@ -520,7 +525,7 @@ func NewClusterCmd() *cobra.Command {
 		"force publish and skip validation")
 	addInstanceFlags(publish)
 	// Integrity flags.
-	integrity.RegisterWithIntegrityFlag(publish.Flags(), &clusterIntegrityPrivateKey)
+	integrityprovider.Get().RegisterWithIntegrityFlag(publish.Flags(), &clusterIntegrityPrivateKey)
 
 	clusterCmd.AddCommand(publish)
 	clusterCmd.AddCommand(NewClusterTopologyCmd())

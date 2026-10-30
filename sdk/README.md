@@ -20,9 +20,10 @@ Each directory is a separate Go module:
 - `cluster` collects and publishes cluster configuration from files, etcd and
   Tarantool config storage.
 - `integrity` defines the integrity-checking interface. Its disabled
-  provider, the one tt uses, checks nothing; its RSA provider signs the
-  files of an environment and published data with an RSA private key and
-  checks them with the public key.
+  provider, the one tt uses unless its distribution chooses another with
+  `core.WithIntegrity`, checks nothing; its RSA provider signs the files of
+  an environment and published data with an RSA private key and checks them
+  with the public key.
 
 ## Contract module
 

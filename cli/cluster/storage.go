@@ -16,6 +16,7 @@ import (
 	sdkcluster "github.com/tarantool/tt/sdk/cluster"
 	"github.com/tarantool/tt/sdk/connect"
 	"github.com/tarantool/tt/sdk/integrity"
+	"github.com/tarantool/tt/v3/internal/integrityprovider"
 )
 
 var (
@@ -106,7 +107,7 @@ func cfgGetBool(cfg goconfig.Config, path string, defaultValue bool) (bool, erro
 // data — integrity-aware (with verifiers) when integ has integrity configured.
 // Returns a plain factory and nil error when integrity is not configured.
 func NewCollectorFactory(integ integrity.IntegrityCtx) (sdkcluster.Factory, error) {
-	hashers, verifiers, err := integrity.GetStorageVerifiers(integ)
+	hashers, verifiers, err := integrityprovider.Get().GetStorageVerifiers(integ)
 	if errors.Is(err, integrity.ErrNotConfigured) {
 		return sdkcluster.NewFactory(), nil
 	}
@@ -136,7 +137,7 @@ func NewPublisherFactory(privateKey string) (sdkcluster.Factory, error) {
 		return sdkcluster.NewFactory(), nil
 	}
 
-	hashers, signerVerifiers, err := integrity.GetStorageSigners(privateKey)
+	hashers, signerVerifiers, err := integrityprovider.Get().GetStorageSigners(privateKey)
 	if err != nil {
 		return sdkcluster.Factory{},
 			fmt.Errorf("failed to create publishers with integrity: %w", err)

@@ -18,6 +18,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/cli/running/internal/layout"
 	"github.com/tarantool/tt/v3/cli/util"
+	"github.com/tarantool/tt/v3/internal/integrityprovider"
 	"github.com/tarantool/tt/v3/internal/supervisor"
 )
 
@@ -186,7 +187,7 @@ func scriptSpec(tarantoolPath string, inst *InstanceCtx, opts specOptions) (
 	args := []string{}
 	if opts.integrity != nil {
 		args = append(args, "--integrity-check",
-			filepath.Join(inst.AppDir, integrity.HashesFileName))
+			filepath.Join(inst.AppDir, integrityprovider.Get().HashesFileName()))
 	}
 
 	args = append(args, "-")
@@ -312,7 +313,7 @@ func appClusterSpec(inst *InstanceCtx, opts specOptions) (supervisor.Spec, error
 	args := []string{"-n", inst.InstName, "-c", inst.ClusterConfigPath}
 	if opts.integrity != nil {
 		args = append(args, "--integrity-check",
-			filepath.Join(inst.AppDir, integrity.HashesFileName))
+			filepath.Join(inst.AppDir, integrityprovider.Get().HashesFileName()))
 	}
 
 	env := os.Environ()
