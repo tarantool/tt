@@ -238,8 +238,13 @@ func verifyTree(publicKey *rsa.PublicKey, dir string) error {
 		return err
 	}
 
+	// A link that leads nowhere holds no file to list; a listed file that
+	// was replaced by one fails loadRepository, which checks every listed
+	// file. An installed version links the layout of its instances, which
+	// exists only once they have started.
 	walker := treeWalker{
-		skipDir: func(string) bool { return false },
+		skipDir:      func(string) bool { return false },
+		skipDangling: true,
 		visit: func(_, path string, _ fs.FileInfo) error {
 			if isSignerOutput(path) {
 				return nil

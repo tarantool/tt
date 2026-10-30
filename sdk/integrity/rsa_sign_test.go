@@ -374,6 +374,26 @@ func TestRSAVerifyTree(t *testing.T) {
 		require.ErrorContains(t, err, added)
 	})
 
+	// A link that leads nowhere holds no file: an installed version links
+	// the layout of its instances before they have created it.
+	t.Run("dangling link added", func(t *testing.T) {
+		base := signed(t)
+		require.NoError(t, os.MkdirAll(filepath.Join(base, "var"), 0o755))
+		symlink(t, filepath.Join("..", "missing"), filepath.Join(base, "var", "lib"))
+
+		require.NoError(t, provider.VerifyTree(publicKey, base))
+	})
+
+	// A listed file replaced by a link that leads nowhere is still missing.
+	t.Run("listed file dangling", func(t *testing.T) {
+		base := signed(t)
+		gw := filepath.Join(base, ".rocks", "bin", "gw")
+		require.NoError(t, os.Remove(gw))
+		symlink(t, filepath.Join(base, "missing"), gw)
+
+		require.Error(t, provider.VerifyTree(publicKey, base))
+	})
+
 	t.Run("foreign key", func(t *testing.T) {
 		base := t.TempDir()
 		writePackage(t, base)
