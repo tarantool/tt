@@ -581,6 +581,8 @@ func TestMainWithIntegrity(t *testing.T) {
 			args: []string{"cluster", "replicaset", "roles", "add", "--help"},
 			flag: "--with-integrity-check",
 		},
+		{args: []string{"package", "pack", "--help"}, flag: "--with-integrity-check"},
+		{args: []string{"package", "pack", "--help"}, flag: "archive is signed for the integrity checks"},
 		{args: []string{"replicaset", "promote", "--help"}, flag: "--with-integrity-check"},
 		{args: []string{"replicaset", "expel", "--help"}, flag: "--with-integrity-check"},
 		{

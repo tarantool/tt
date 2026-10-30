@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build"
 	"github.com/tarantool/tt/v3/cli/manifest/native"
@@ -60,6 +61,10 @@ type Options struct {
 	// Runtime describes where the runtime components come from. Ignored when
 	// WithoutDeps is set.
 	Runtime RuntimeOptions
+	// Signer, when set, signs the archive for the integrity checks: the
+	// package and each runtime component it bundles get their hashes files
+	// (signStage). A package packed WithoutDeps cannot be signed.
+	Signer integrity.Signer
 	// Warn receives non-fatal diagnostics; nil drops them.
 	Warn func(string)
 }
@@ -81,6 +86,10 @@ type Result struct {
 // *sdk.ExitError for failures carrying a dedicated exit code; cli/exitcode
 // maps any error to a process exit code.
 func Run(ctx context.Context, opts Options) (*Result, error) {
+	if opts.Signer != nil && opts.WithoutDeps {
+		return nil, stateErrorf("%w", errSignedWithoutDeps)
+	}
+
 	built, err := runBuild(ctx, opts)
 	if err != nil {
 		return nil, err
@@ -134,6 +143,13 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 	err = checkNativeFiles(natives, native.Host())
 	if err != nil {
 		return nil, err
+	}
+
+	if opts.Signer != nil {
+		err = signStage(stageDir, opts.ProjectDir, opts.Signer)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	token := platformToken(!opts.WithoutDeps, len(natives) > 0)
