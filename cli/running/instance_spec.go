@@ -1,6 +1,7 @@
 package running
 
 import (
+	"context"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/cli/running/internal/layout"
+	"github.com/tarantool/tt/v3/cli/tarantool"
 	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/internal/integrityprovider"
 	"github.com/tarantool/tt/v3/internal/supervisor"
@@ -333,7 +335,26 @@ func appClusterSpec(inst *InstanceCtx, opts specOptions) (supervisor.Spec, error
 		"TT_CONSOLE_SOCKET_DEFAULT="+console,
 		"TT_IPROTO_LISTEN_DEFAULT="+listen)
 
+	env = append(env, editionDefaults(context.Background(), exe, inst)...)
+
 	return tarantoolSpec(exe.Path, args, env, inst.AppDir, opts), nil
+}
+
+// editionDefaults returns the TT_*_DEFAULT variables of the options only the
+// edition of exe has. Tarantool Enterprise keeps the files of its quiver
+// engine in quiver.dir, which, like the other data directories, defaults to
+// var/lib/<instance> under the working directory - the application, a
+// version directory when it is installed - and is created at the start even
+// when the engine is not used; it goes to the data directory of the instance
+// with the others. Tarantool Community refuses the option, even as a
+// default, so it gets none. What the executable accepts is what it is, so
+// its version banner decides, not the product it was installed as.
+func editionDefaults(ctx context.Context, exe tarantool.Executable, inst *InstanceCtx) []string {
+	if tarantool.DetectFlavor(ctx, exe.Path) != tarantool.FlavorEE {
+		return nil
+	}
+
+	return []string{"TT_QUIVER_DIR_DEFAULT=" + inst.VinylDir}
 }
 
 // socketPathLimit is the size of sun_path, the room for the path in a unix
