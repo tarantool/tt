@@ -157,7 +157,8 @@ jobs:
 
       - name: Check workflows
         run: |
-          actionlint
+          shellcheck_path=$(command -v shellcheck)
+          actionlint -shellcheck "$shellcheck_path"
           zizmor --offline .github
 
   build-variants:

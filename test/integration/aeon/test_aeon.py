@@ -74,6 +74,7 @@ def test_cli_plain_arguments_success(tt_cmd, aeon_plain, certificates, args):
     assert tt.returncode == 0
 
 
+@pytest.mark.tls
 def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
     cmd = [str(tt_cmd), *AeonConnectCommand, f"--sslcafile={certificates['ca']}"]
     print(f"Aeon ssl mode: {aeon_ssl}")
@@ -244,6 +245,7 @@ def test_cli_plain_config_file_success(tt_cmd, tmp_path, aeon_plain_file):
     assert tt.returncode == 0
 
 
+@pytest.mark.tls
 def test_cli_ssl_config_file_success(tt_cmd, tmp_path, aeon_ssl, certificates):
     print(f"Aeon ssl mode: {aeon_ssl}")
     for v in certificates.values():
@@ -299,6 +301,7 @@ def test_cli_plain_not_config_fail(tt_cmd, tmp_path, aeon_plain_file):
     assert tt.returncode != 0
 
 
+@pytest.mark.tls
 def test_cli_invalid_ssl_config_file(
     tt_cmd,
     tmp_path,
@@ -332,6 +335,7 @@ def test_cli_invalid_ssl_config_file(
 # For the test to work correctly, SSL keys are provided using specific flags.
 # This allows simulating a scenario with missing or invalid keys
 # to ensure that the system handles such cases properly.
+@pytest.mark.tls
 def test_cli_ssl_config_flag_success(tt_cmd, tmp_path, aeon_ssl, certificates):
     print(f"Aeon ssl mode: {aeon_ssl}")
 
@@ -452,6 +456,7 @@ def test_cli_plain_etcd_success(tt_cmd, tmpdir_with_cfg, request, aeon_plain_fil
 
 
 @pytest.mark.parametrize("app_name", ["app_ssl"])
+@pytest.mark.tls
 def test_cli_ssl_app_flag_success(tt_cmd, app_name, tmpdir_with_cfg, aeon_ssl, certificates):
     print(f"Aeon ssl at: {aeon_ssl}")
 
@@ -486,6 +491,7 @@ def test_cli_ssl_app_flag_success(tt_cmd, app_name, tmpdir_with_cfg, aeon_ssl, c
 
 
 @pytest.mark.parametrize("app_name", ["app_ssl"])
+@pytest.mark.tls
 def test_cli_ssl_app_success(tt_cmd, app_name, tmpdir_with_cfg, aeon_ssl, certificates):
     print(f"Aeon ssl at: {aeon_ssl}")
 
