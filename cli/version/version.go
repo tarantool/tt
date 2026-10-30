@@ -115,6 +115,27 @@ func GetVersion(showShort, needCommit bool) string {
 	return coreRelease().format(DefaultTitle, "", showShort, needCommit)
 }
 
+// Stamp returns the version of the tt core the files tt writes record as
+// their author, as in generated_by = "tt <Stamp>" of a lock: the short
+// version of the core; or, for a build no tag the build knows precedes - a
+// development build from a checkout, say - the exact module version Go
+// recorded, a pseudo-version that names the commit; or the commit alone. It
+// is <unknown> only when the build tells none of them.
+func Stamp() string {
+	core := coreRelease()
+
+	switch {
+	case core.version != unknownVersion:
+		return core.version
+	case core.exact != "":
+		return core.exact
+	case core.commit != "" && core.commit != unknownVersion:
+		return core.commit
+	}
+
+	return unknownVersion
+}
+
 // release is a version as it is printed.
 type release struct {
 	// version is the numeric version with its label, or unknownVersion.
