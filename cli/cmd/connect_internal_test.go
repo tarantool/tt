@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/sdk/dial"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/connect"
 	"github.com/tarantool/tt/v3/cli/connector"
@@ -92,7 +93,7 @@ func TestResolveConnectOptsURIQuery(t *testing.T) {
 			network: connector.TCPNetwork,
 			address: "localhost:3301",
 			title:   "localhost:3301",
-			ssl:     connector.SslOpts{CaFile: "/x"},
+			ssl:     connector.SslOpts{CaFile: "/x", Transport: dial.TransportSsl},
 		},
 		{
 			name:    "credentials",
@@ -102,7 +103,17 @@ func TestResolveConnectOptsURIQuery(t *testing.T) {
 			user:    "user",
 			pass:    "secretpw",
 			title:   "127.0.0.1:3311",
-			ssl:     connector.SslOpts{CaFile: "/x"},
+			ssl:     connector.SslOpts{CaFile: "/x", Transport: dial.TransportSsl},
+		},
+		{
+			name:    "ssl with no setting",
+			target:  "user:secretpw@127.0.0.1:3311?transport=ssl",
+			network: connector.TCPNetwork,
+			address: "127.0.0.1:3311",
+			user:    "user",
+			pass:    "secretpw",
+			title:   "127.0.0.1:3311",
+			ssl:     connector.SslOpts{Transport: dial.TransportSsl},
 		},
 		{
 			name: "scheme and every setting",
@@ -122,6 +133,7 @@ func TestResolveConnectOptsURIQuery(t *testing.T) {
 			network: connector.UnixNetwork,
 			address: "/tmp/s.sock",
 			title:   "unix/:/tmp/s.sock",
+			ssl:     connector.SslOpts{Transport: dial.TransportPlain},
 		},
 		{
 			name:    "no query",
@@ -167,6 +179,17 @@ func TestResolveConnectOptsURIQueryInvalid(t *testing.T) {
 			msg:    "unknown transport",
 		},
 		{
+			name:   "plain and a setting of the query",
+			target: "user:secretpw@localhost:3301?transport=plain&ssl_ca_file=/x",
+			msg:    `"ssl_ca_file": is a TLS setting, which conflicts with transport=plain`,
+		},
+		{
+			name:   "plain and a setting of a flag",
+			target: "user:secretpw@localhost:3301?transport=plain",
+			ctx:    connect.ConnectCtx{SslCaFile: "/y"},
+			msg:    `"--sslcafile": is a TLS setting, which conflicts with transport=plain`,
+		},
+		{
 			name:   "malformed query",
 			target: "user:secretpw@localhost:3301?ssl_password=secretpw%zz",
 			msg:    "malformed URI query",
@@ -183,6 +206,110 @@ func TestResolveConnectOptsURIQueryInvalid(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			_, err := resolveConnectOpts(&cmdcontext.CmdCtx{}, &testCase.ctx, testCase.target)
 			require.ErrorContains(t, err, testCase.msg)
+			assert.NotContains(t, err.Error(), "secretpw")
+		})
+	}
+}
+
+func TestApplyURIQueryTransport(t *testing.T) {
+	cases := []struct {
+		name      string
+		uri       string
+		ctx       connect.ConnectCtx
+		transport dial.Transport
+		want      connect.ConnectCtx
+	}{
+		{
+			name:      "ssl with no setting",
+			uri:       "localhost:3301?transport=ssl",
+			transport: dial.TransportSsl,
+		},
+		{
+			name:      "ssl and a setting of a flag",
+			uri:       "localhost:3301?transport=ssl",
+			ctx:       connect.ConnectCtx{SslCiphers: "AES256-SHA"},
+			transport: dial.TransportSsl,
+			want:      connect.ConnectCtx{SslCiphers: "AES256-SHA"},
+		},
+		{
+			name:      "plain with no setting",
+			uri:       "localhost:3301?transport=plain",
+			transport: dial.TransportPlain,
+		},
+		{
+			name: "no transport and a setting",
+			uri:  "localhost:3301?ssl_ca_file=/x",
+			want: connect.ConnectCtx{SslCaFile: "/x"},
+		},
+		{
+			name: "no query",
+			uri:  "localhost:3301",
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			connectCtx := testCase.ctx
+
+			base, err := applyURIQuery(&connectCtx, testCase.uri)
+			require.NoError(t, err)
+			assert.Equal(t, "localhost:3301", base)
+			assert.Equal(t, testCase.transport, connectCtx.Transport)
+
+			// Nothing but the transport and the TLS settings is applied.
+			connectCtx.Transport = dial.TransportDefault
+			assert.Equal(t, testCase.want, connectCtx)
+		})
+	}
+}
+
+func TestApplyURIQueryTransportInvalid(t *testing.T) {
+	cases := []struct {
+		name    string
+		uri     string
+		ctx     connect.ConnectCtx
+		wantErr error
+		msg     string
+	}{
+		{
+			name:    "plain and a setting of the query",
+			uri:     "localhost:3301?ssl_password=secretpw&transport=plain",
+			wantErr: errPlainTransportWithTLS,
+			msg:     `"ssl_password": `,
+		},
+		{
+			name:    "plain and a setting of a flag",
+			uri:     "localhost:3301?transport=plain",
+			ctx:     connect.ConnectCtx{SslPassword: "secretpw"},
+			wantErr: errPlainTransportWithTLS,
+			msg:     `"--sslpassword": `,
+		},
+		{
+			name:    "plain, a setting of a flag and one of the query",
+			uri:     "localhost:3301?transport=plain&ssl_key_file=/k",
+			ctx:     connect.ConnectCtx{SslCaFile: "/x"},
+			wantErr: errPlainTransportWithTLS,
+			msg:     `"--sslcafile": `,
+		},
+		{
+			name:    "unknown transport",
+			uri:     "localhost:3301?transport=tls",
+			wantErr: errUnknownTransport,
+			msg:     `"transport": `,
+		},
+		{
+			name:    "empty transport",
+			uri:     "localhost:3301?transport=",
+			wantErr: errUnknownTransport,
+			msg:     `"transport": `,
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, err := applyURIQuery(&testCase.ctx, testCase.uri)
+			require.ErrorIs(t, err, testCase.wantErr)
+			assert.Contains(t, err.Error(), testCase.msg)
 			assert.NotContains(t, err.Error(), "secretpw")
 		})
 	}

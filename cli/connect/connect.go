@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/tarantool/tt/sdk/dial"
 	"github.com/tarantool/tt/sdk/formatter"
 	"github.com/tarantool/tt/v3/cli/connect/internal/luabody"
 	"github.com/tarantool/tt/v3/cli/connector"
@@ -50,6 +51,9 @@ type ConnectCtx struct {
 	SslPassword string
 	// SslPasswordFile contains candidate passwords for the private SSL key file.
 	SslPasswordFile string
+	// Transport is the transport the query of a URI names: TLS, plain or,
+	// by default, TLS when any of the SSL settings is set.
+	Transport dial.Transport
 	// ConnectTarget contains connection target string: URI or instance name.
 	ConnectTarget string
 	// Binary port is used.

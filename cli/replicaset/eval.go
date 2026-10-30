@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/tarantool/tt/sdk/dial"
 	"github.com/tarantool/tt/sdk/log"
 
 	"github.com/tarantool/tt/v3/cli/connector"
@@ -72,6 +73,7 @@ func evalForeach(instances []running.InstanceCtx,
 			Password: "",
 			Ssl: connector.SslOpts{
 				KeyFile: "", CertFile: "", CaFile: "", Ciphers: "", Password: "", PasswordFile: "",
+				Transport: dial.TransportDefault,
 			},
 			ConnectTimeout: 0,
 		})

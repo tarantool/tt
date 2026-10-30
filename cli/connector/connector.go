@@ -18,7 +18,9 @@ var (
 	errEncryptionRequired = errors.New(
 		"unencrypted connection established, but encryption required",
 	)
-	errUnsupportedProtocol = errors.New("unsupported protocol: ")
+	errUnsupportedProtocol   = errors.New("unsupported protocol: ")
+	errPlainTransportWithSsl = errors.New("SSL options are set for the plain transport")
+	errUnknownTransport      = errors.New("unknown transport: ")
 )
 
 const (
@@ -104,6 +106,11 @@ func Connect(opts ConnectOpts) (Connector, error) {
 // ConnectContext connects according to options. ctx bounds connection setup,
 // including protocol detection, authentication and binary protocol negotiation.
 func ConnectContext(ctx context.Context, opts ConnectOpts) (Connector, error) {
+	ssl, err := opts.Ssl.encrypted()
+	if err != nil {
+		return nil, err
+	}
+
 	if opts.Network == UnixNetwork {
 		address, cleanup, err := prepareUnixAddress(opts.Address)
 		if err != nil {
@@ -141,11 +148,9 @@ func ConnectContext(ctx context.Context, opts ConnectOpts) (Connector, error) {
 	// Set a deadline for the greeting.
 	_ = greetingConn.SetReadDeadline(time.Now().Add(greetingOperationTimeout))
 
-	// Detect transport and protocol.
-	ssl := opts.Ssl.KeyFile != "" || opts.Ssl.CertFile != "" ||
-		opts.Ssl.CaFile != "" || opts.Ssl.Ciphers != "" || opts.Ssl.Password != "" ||
-		opts.Ssl.PasswordFile != ""
-
+	// Detect the protocol. A TLS server sends no greeting before the TLS
+	// handshake: with TLS chosen, a silent server is a binary one, and one
+	// that greets is not a TLS one.
 	protocol, err := GetProtocol(greetingConn)
 	if ctx.Err() != nil {
 		_ = greetingConn.Close()
@@ -177,6 +182,11 @@ func ConnectContext(ctx context.Context, opts ConnectOpts) (Connector, error) {
 
 		addr := fmt.Sprintf("%s://%s", opts.Network, opts.Address)
 
+		transport := dial.TransportPlain
+		if ssl {
+			transport = dial.TransportSsl
+		}
+
 		dialer, err := dial.New(dial.Opts{
 			Address:         addr,
 			Auth:            tarantool.AutoAuth,
@@ -188,7 +198,7 @@ func ConnectContext(ctx context.Context, opts ConnectOpts) (Connector, error) {
 			SslCiphers:      opts.Ssl.Ciphers,
 			SslPassword:     opts.Ssl.Password,
 			SslPasswordFile: opts.Ssl.PasswordFile,
-			Transport:       "",
+			Transport:       transport.String(),
 		})
 		if err != nil {
 			return nil, err

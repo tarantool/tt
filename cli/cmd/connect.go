@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/sdk"
 	sdkconnect "github.com/tarantool/tt/sdk/connect"
+	"github.com/tarantool/tt/sdk/dial"
 	"github.com/tarantool/tt/sdk/formatter"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
@@ -38,6 +39,9 @@ var (
 	errUnsupportedURIParam = errors.New("unsupported parameter in the query of a URI")
 	errUnknownTransport    = errors.New(`unknown transport in the query of a URI, ` +
 		`use "ssl" or "plain"`)
+	errPlainTransportWithTLS = errors.New(
+		"is a TLS setting, which conflicts with transport=plain in the query of a URI",
+	)
 	errNotATarget = errors.New("neither an instance of an application nor a connection URI")
 )
 
@@ -53,6 +57,17 @@ const (
 	uriSslPasswordParam     = "ssl_password"
 	uriSslPasswordFileParam = "ssl_password_file"
 )
+
+// uriParamFlags names the flag that sets each TLS setting of the query of a
+// URI.
+var uriParamFlags = map[string]string{
+	uriSslKeyFileParam:      "sslkeyfile",
+	uriSslCertFileParam:     "sslcertfile",
+	uriSslCaFileParam:       "sslcafile",
+	uriSslCiphersParam:      "sslciphers",
+	uriSslPasswordParam:     "sslpassword",
+	uriSslPasswordFileParam: "sslpasswordfile",
+}
 
 var (
 	connectUser            string
@@ -179,6 +194,7 @@ func makeConnOpts(network, address string, connCtx connect.ConnectCtx) connector
 		Ciphers:      connCtx.SslCiphers,
 		Password:     connCtx.SslPassword,
 		PasswordFile: connCtx.SslPasswordFile,
+		Transport:    connCtx.Transport,
 	}
 
 	return connector.ConnectOpts{
@@ -299,9 +315,12 @@ func unresolvedTargetErr(target string, resolveErr error) error {
 
 // applyURIQuery cuts the query off a URI, applies its parameters to
 // connectCtx and returns the URI without it. The parameters are the TLS
-// settings of the flags; a setting that a flag has set already is an error,
-// as are credentials in both places. An error names the parameter, not its
-// value: it may be a password.
+// settings of the flags, a setting that a flag has set already being an
+// error, as are credentials in both places, and the transport. Transport
+// "ssl" takes TLS with no setting at all, "plain" refuses every setting, of
+// the query or of a flag, and with no transport TLS is taken if a setting
+// is set. An error names the parameter or the flag, not its value: it may
+// be a password.
 func applyURIQuery(connectCtx *connect.ConnectCtx, uri string) (string, error) {
 	base, params, err := sdkconnect.SplitURIQuery(uri)
 	if err != nil {
@@ -324,10 +343,12 @@ func applyURIQuery(connectCtx *connect.ConnectCtx, uri string) (string, error) {
 		value := params.Get(key)
 
 		if key == uriTransportParam {
-			// TLS is chosen by the settings, as it is for flags.
-			if value != "ssl" && value != "plain" {
+			transport, parseErr := dial.Parse(value)
+			if parseErr != nil || transport == dial.TransportDefault {
 				return "", fmt.Errorf("%q: %w", key, errUnknownTransport)
 			}
+
+			connectCtx.Transport = transport
 
 			continue
 		}
@@ -345,6 +366,21 @@ func applyURIQuery(connectCtx *connect.ConnectCtx, uri string) (string, error) {
 
 		if key == uriSslPasswordParam {
 			log.RegisterSecret(value)
+		}
+	}
+
+	if connectCtx.Transport == dial.TransportPlain {
+		for _, key := range slices.Sorted(maps.Keys(settings)) {
+			if *settings[key] == "" {
+				continue
+			}
+
+			name := key
+			if !params.Has(key) {
+				name = "--" + uriParamFlags[key]
+			}
+
+			return "", fmt.Errorf("%q: %w", name, errPlainTransportWithTLS)
 		}
 	}
 
@@ -376,6 +412,7 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		SslCiphers:      connectSslCiphers,
 		SslPassword:     connectSslPassword,
 		SslPasswordFile: connectSslPasswordFile,
+		Transport:       dial.TransportDefault,
 		ConnectTarget:   "",
 		Binary:          connectBinary,
 		Evaler:          connectEvaler,

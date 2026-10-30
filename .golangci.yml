@@ -746,6 +746,8 @@ linters:
             - "github.com/jedib0t/go-pretty/v6"
             - "github.com/mitchellh/mapstructure"
             - "github.com/stretchr/testify"
+            # The TLS options of the connector name their transport.
+            - "github.com/tarantool/tt/sdk/dial"
             - "github.com/tarantool/tt/v3/cli/connector"
             - "github.com/tarantool/tt/v3/cli/process_utils"
             - "github.com/tarantool/tt/v3/cli/running"

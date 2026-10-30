@@ -15,6 +15,7 @@ import (
 
 	"github.com/spf13/cobra"
 	goconfig "github.com/tarantool/go-config/v2"
+	"github.com/tarantool/tt/sdk/dial"
 	"github.com/tarantool/tt/sdk/formatter"
 	"github.com/tarantool/tt/sdk/log"
 
@@ -745,6 +746,7 @@ func topologyConnectContext() connect.ConnectCtx {
 		SslKeyFile:     replicasetSslKeyFile, SslCertFile: replicasetSslCertFile,
 		SslCaFile: replicasetSslCaFile, SslCiphers: replicasetSslCiphers,
 		SslPassword: replicasetSslPassword, SslPasswordFile: replicasetSslPasswordFile,
+		Transport: dial.TransportDefault,
 	}
 }
 
