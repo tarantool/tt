@@ -337,11 +337,6 @@ func TestDistributionLockRoundTrip(t *testing.T) {
 				"github.com/tarantool/tt/modules/aeon": "v0.0.0-20261028190206-9031d7ad96d9",
 			},
 		},
-		Build: manifest.LockedBuild{
-			Toolchain: "go1.27.3",
-			SSL:       "default",
-			Tags:      []string{"netgo", "osusergo"},
-		},
 		Modules: map[string]manifest.LockedModule{
 			"aeon":       {Module: "github.com/tarantool/tt/modules/aeon"},
 			"migrations": {Module: "example.com/migrations", Path: "./plugins/migrations"},

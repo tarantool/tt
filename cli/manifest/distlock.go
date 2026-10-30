@@ -11,16 +11,16 @@ import (
 // distribution of tt was last built from. Its envelope is the one of the
 // application lock (lock_version, manifest_version, generated_by,
 // manifest_hash); its body pins the core, the modules of the core's
-// repository and every tt module to exact versions, and records how the
-// binary was compiled. The checksums of every Go module are in
-// tt.manifest.sum next to it.
+// repository and every tt module to exact versions. How the binary is
+// compiled - the TLS implementation, the tags, the Go toolchain - is the
+// choice of each build and is not recorded. The checksums of every Go module
+// are in tt.manifest.sum next to it.
 type DistributionLock struct {
 	LockVersion     string                  `toml:"lock_version"`
 	ManifestVersion string                  `toml:"manifest_version"`
 	GeneratedBy     string                  `toml:"generated_by"`  // Like "tt 3.x.y".
 	ManifestHash    string                  `toml:"manifest_hash"` // Like "sha256:...".
 	Core            LockedCore              `toml:"core"`
-	Build           LockedBuild             `toml:"build"`
 	Modules         map[string]LockedModule `toml:"modules,omitempty"`
 	// Replace pins the entries of [replace], by their keys.
 	Replace map[string]LockedReplace `toml:"replace,omitempty"`
@@ -44,18 +44,6 @@ type LockedCore struct {
 	// exact version at Revision; empty for a local core, whose modules are
 	// taken from its directory.
 	Repository map[string]string `toml:"repository,omitempty"`
-}
-
-// LockedBuild is how the binary was compiled ([build]). It records the
-// last build and does not gate the next one: the same pinned modules are
-// compiled with whatever TLS implementation is asked for.
-type LockedBuild struct {
-	// Toolchain is the Go toolchain, as go env GOVERSION reports it.
-	Toolchain string `toml:"toolchain"`
-	// SSL is the TLS implementation.
-	SSL string `toml:"ssl"`
-	// Tags are the build tags.
-	Tags []string `toml:"tags,omitempty"`
 }
 
 // LockedModule is one tt module of a distribution ([modules.<name>]).

@@ -131,6 +131,8 @@ of every local module, local core and replaced directory. While the manifest
 does not change, the next build takes the versions from the lock; --update
 resolves them again. --locked builds strictly from the lock and fails when it,
 the Go modules or the files of a local module or a replaced directory differ.
+The lock does not record how the binary is compiled - the TLS implementation,
+the tags, the toolchain - and is not rewritten when it would pin the same.
 
 --vendor DIR makes an offline bundle instead of the binary: the generated main
 module with every module it is built from in vendor/, the local modules and the
