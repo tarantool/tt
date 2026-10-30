@@ -35,6 +35,7 @@ Tarantool-based applications.
 - [Migrating from instances.enabled](#migrating-from-instancesenabled)
 - [External modules](#external-modules)
 - [Building a distribution of tt](#building-a-distribution-of-tt)
+  + [Building on another core](#building-on-another-core)
   + [Offline build](#offline-build)
 - [CLI Args](#cli-args)
   + [Autocompletion](#autocompletion)
@@ -556,6 +557,26 @@ is built with, runs `tt version` of the result and writes `tt.manifest.lock`
 and `tt.manifest.sum` next to the manifest. Commit both: while the manifest
 stays the same, the next build takes its versions from the lock, and
 `--locked` fails when the lock or the Go modules differ.
+
+### Building on another core
+
+`--core VALUE`, or the `TT_DIST_CORE` environment variable (the flag wins),
+builds a distribution on another core than `[core]` names, without editing
+the manifest: a local checkout - an existing directory, or a path that starts
+with `./`, `../` or `/`, taken from the project directory - or else a version
+query, as `[core].tt` takes. It is for building a distribution against
+changes of the core not yet released, and for the CI of tt itself, which
+builds the distributions from its working tree:
+
+``` sh
+tt binary build tt --core ../tt
+TT_DIST_CORE=. tt binary build tt --manifest dist/tt.manifest.toml
+```
+
+Such a build is a development one. Its core and the modules of the core's
+repository are not taken from the lock, and the lock and the sum are not
+written; the other modules still come from the lock while the manifest
+matches it. `--locked` refuses it.
 
 ### Offline build
 

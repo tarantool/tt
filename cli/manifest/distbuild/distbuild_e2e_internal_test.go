@@ -267,3 +267,40 @@ hello = "./plugins/hello"
 	out, err = exec.CommandContext(t.Context(), binary, "version").CombinedOutput()
 	require.NoError(t, err, string(out))
 }
+
+// TestBuildCoreOverride builds a distribution on the core of this checkout
+// while its manifest asks for a version of the core: nothing is fetched and
+// the lock is left alone.
+func TestBuildCoreOverride(t *testing.T) {
+	_, err := exec.LookPath(goTool)
+	if err != nil {
+		t.Skip("go is not in PATH")
+	}
+
+	coreDir, err := filepath.Abs(filepath.Join("..", "..", ".."))
+	require.NoError(t, err)
+
+	dir := t.TempDir()
+	manifestPath := filepath.Join(dir, "tt.manifest.toml")
+	writeFile(t, manifestPath, `manifest_version = "0.1"
+manifest_kind = "tt-distribution"
+
+[core]
+tt = "v3.99.0"
+
+[dependencies]
+aeon = "github.com/tarantool/tt/modules/aeon"
+`)
+
+	_, err = Run(t.Context(), Options{Manifest: manifestPath, Core: coreDir, Locked: true})
+	require.ErrorIs(t, err, errCoreLocked)
+
+	result, err := Run(t.Context(), Options{
+		Manifest: manifestPath, Core: coreDir, CoreDir: dir,
+		Environ: append(os.Environ(), "GOPROXY=off"),
+	})
+	require.NoError(t, err)
+	assert.FileExists(t, result.Output)
+	assert.NoFileExists(t, filepath.Join(dir, "tt.manifest.lock"))
+	assert.NoFileExists(t, filepath.Join(dir, "tt.manifest.sum"))
+}

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -309,4 +311,58 @@ func TestGoError(t *testing.T) {
 		"go: example.com/x@v9: no matching versions for query \"v9\"")
 	assert.Equal(t, sdk.ExitFailure, sdk.ExitCode(err))
 	assert.Contains(t, err.Error(), "no matching versions")
+}
+
+func TestOverrideCore(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "v3"), 0o755))
+
+	base := manifest.DistributionCore{Tt: "v3.1.0", Module: "github.com/acme/tt/v3"}
+
+	for value, want := range map[string]manifest.DistributionCore{
+		"master":   {Tt: "master", Module: "github.com/acme/tt/v3"},
+		"9031d7ad": {Tt: "9031d7ad", Module: "github.com/acme/tt/v3"},
+		// An existing directory is a checkout, whatever it is named.
+		"v3":      {Path: filepath.Join(dir, "v3"), Module: "github.com/acme/tt/v3"},
+		"../tt":   {Path: filepath.Join(filepath.Dir(dir), "tt"), Module: "github.com/acme/tt/v3"},
+		"./none":  {Path: filepath.Join(dir, "none"), Module: "github.com/acme/tt/v3"},
+		"/src/tt": {Path: "/src/tt", Module: "github.com/acme/tt/v3"},
+	} {
+		assert.Equal(t, want, overrideCore(base, value, dir), value)
+	}
+}
+
+func TestResolveOverriddenCore(t *testing.T) {
+	t.Parallel()
+
+	gocmd := newFakeGo()
+	res := resolver{
+		gocmd: gocmd, dir: "/src/ee", unpinnedCore: true,
+		pinned: &manifest.DistributionLock{
+			Core: manifest.LockedCore{
+				Module: coreModule, Version: "v3.0.0-20200101000000-000000000000",
+				Repository: map[string]string{"github.com/tarantool/tt/sdk": "v0.0.0-old"},
+			},
+			Modules: map[string]manifest.LockedModule{
+				"foo": {Module: "github.com/acme/tt-foo", Version: "v1.2.0"},
+			},
+		},
+	}
+
+	dist := parse(t, "[dependencies]\nfoo = \"github.com/acme/tt-foo@v1.2\"\n")
+
+	dist.Core = overrideCore(dist.Core, "v3", "/nonexistent")
+
+	resolved, err := res.resolveCore(t.Context(), dist)
+	require.NoError(t, err)
+	// The core and its repository are resolved again...
+	assert.Equal(t, corePseudo, resolved.Version)
+	assert.Equal(t, testRevision, resolved.Repository[1].Version)
+
+	// ...and the modules still come from the lock.
+	modules, err := res.resolveModules(t.Context(), dist, resolved)
+	require.NoError(t, err)
+	assert.Equal(t, "v1.2.0", modules[0].Version)
 }
