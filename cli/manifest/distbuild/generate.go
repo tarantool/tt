@@ -2,6 +2,7 @@ package distbuild
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
 	"go/format"
 	"regexp"
@@ -44,12 +45,18 @@ type requirement struct {
 	// Replace is what the module is replaced with: a directory, or a
 	// module path and version. Empty: not replaced.
 	Replace string
+	// Old is the version a replace directive is limited to; empty for
+	// every version. It is set on replacements only.
+	Old string
 }
 
 // requirements lists what the main module requires and replaces: the core,
-// the modules of its repository and the tt modules. A local tt module that
-// is a module of the core's repository takes the place of the pinned one.
-func requirements(base core, modules []module) ([]requirement, []requirement, error) {
+// the modules of its repository and the tt modules, and the replacements
+// of the manifest. A local tt module that is a module of the core's
+// repository takes the place of the pinned one.
+func requirements(
+	base core, modules []module, replaces []replacement,
+) ([]requirement, []requirement, error) {
 	required := map[string]requirement{}
 	replaced := map[string]requirement{}
 
@@ -95,12 +102,30 @@ func requirements(base core, modules []module) ([]requirement, []requirement, er
 		required[mod.Module] = req
 	}
 
+	for _, rep := range replaces {
+		target := dirReplace(rep.Dir)
+		if rep.Dir == "" {
+			target = rep.Target + " " + rep.TargetVersion
+		}
+
+		// The key of a replacement of a module without a version is the
+		// module, as the replacements of the build have it.
+		if _, taken := replaced[rep.Key]; taken {
+			return nil, nil, sdk.Errorf(sdk.ExitFailure,
+				"replace.%q: module %s is replaced by the build already", rep.Key, rep.Module)
+		}
+
+		replaced[rep.Key] = requirement{
+			Module: rep.Module, Version: "", Replace: target, Old: rep.Version,
+		}
+	}
+
 	return sortedReqs(required), sortedReqs(replaced), nil
 }
 
 // generateGoMod writes the go.mod of the main module.
-func generateGoMod(base core, modules []module) ([]byte, error) {
-	required, replaced, err := requirements(base, modules)
+func generateGoMod(base core, modules []module, replaces []replacement) ([]byte, error) {
+	required, replaced, err := requirements(base, modules, replaces)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +151,12 @@ func generateGoMod(base core, modules []module) ([]byte, error) {
 		buf.WriteString("\nreplace (\n")
 
 		for _, rep := range replaced {
-			fmt.Fprintf(&buf, "\t%s => %s\n", rep.Module, rep.Replace)
+			old := rep.Module
+			if rep.Old != "" {
+				old += " " + rep.Old
+			}
+
+			fmt.Fprintf(&buf, "\t%s => %s\n", old, rep.Replace)
 		}
 
 		buf.WriteString(")\n")
@@ -334,7 +364,9 @@ func sortedReqs(reqs map[string]requirement) []requirement {
 		out = append(out, req)
 	}
 
-	slices.SortFunc(out, func(a, b requirement) int { return strings.Compare(a.Module, b.Module) })
+	slices.SortFunc(out, func(a, b requirement) int {
+		return cmp.Or(strings.Compare(a.Module, b.Module), strings.Compare(a.Old, b.Old))
+	})
 
 	return out
 }

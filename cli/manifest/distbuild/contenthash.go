@@ -121,15 +121,20 @@ type contentHashes struct {
 	core string
 	// modules are the hashes of the local tt modules, by name.
 	modules map[string]string
+	// replaces are the hashes of the directories [replace] names, by key.
+	replaces map[string]string
 }
 
-// hashLocal returns the content hashes of the local core and the local tt
-// modules. A local core is hashed with every module of its repository its
-// go.mod replaces with a directory: they are built from those directories
-// as much as the core is. A module of the repository outside the core's
-// directory is listed under external/<module path>.
-func (b builder) hashLocal(resolved core, modules []module) (contentHashes, error) {
-	hashes := contentHashes{core: "", modules: map[string]string{}}
+// hashLocal returns the content hashes of the local core, the local tt
+// modules and the directories [replace] names. A local core is hashed with
+// every module of its repository its go.mod replaces with a directory: they
+// are built from those directories as much as the core is. A module of the
+// repository outside the core's directory is listed under
+// external/<module path>.
+func (b builder) hashLocal(
+	resolved core, modules []module, replaces []replacement,
+) (contentHashes, error) {
+	hashes := contentHashes{core: "", modules: map[string]string{}, replaces: map[string]string{}}
 
 	if resolved.Dir != "" {
 		roots := []hashRoot{{dir: resolved.Dir, prefix: ""}}
@@ -170,12 +175,28 @@ func (b builder) hashLocal(resolved core, modules []module) (contentHashes, erro
 		hashes.modules[mod.Name] = sum
 	}
 
+	for _, rep := range replaces {
+		if rep.Dir == "" {
+			continue
+		}
+
+		sum, err := contentHash([]hashRoot{{dir: rep.Dir, prefix: ""}}, b.work)
+		if err != nil {
+			return contentHashes{}, err
+		}
+
+		hashes.replaces[rep.Key] = sum
+	}
+
 	return hashes, nil
 }
 
-// checkContentHashes checks, for a build from the lock, that the local core
-// and the local modules hold what they held when the lock was written.
-func (b builder) checkContentHashes(resolved core, modules []module, hashes contentHashes) error {
+// checkContentHashes checks, for a build from the lock, that the local core,
+// the local modules and the directories [replace] names hold what they held
+// when the lock was written.
+func (b builder) checkContentHashes(
+	resolved core, modules []module, replaces []replacement, hashes contentHashes,
+) error {
 	var changed []string
 
 	if resolved.Dir != "" && hashes.core != b.lock.Core.ContentHash {
@@ -189,6 +210,16 @@ func (b builder) checkContentHashes(resolved core, modules []module, hashes cont
 
 		if hashes.modules[mod.Name] != b.lock.Modules[mod.Name].ContentHash {
 			changed = append(changed, mod.Path)
+		}
+	}
+
+	for _, rep := range replaces {
+		if rep.Dir == "" {
+			continue
+		}
+
+		if hashes.replaces[rep.Key] != b.lock.Replace[rep.Key].ContentHash {
+			changed = append(changed, rep.Path+" (replace "+rep.Key+")")
 		}
 	}
 

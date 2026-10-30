@@ -70,7 +70,7 @@ func golden(t *testing.T, name string, got []byte) {
 func TestGenerateGoModVersionedCore(t *testing.T) {
 	t.Parallel()
 
-	got, err := generateGoMod(versionedCore(), testModules())
+	got, err := generateGoMod(versionedCore(), testModules(), nil)
 	require.NoError(t, err)
 	golden(t, "versioned.go.mod.golden", got)
 }
@@ -96,7 +96,7 @@ func TestGenerateGoModLocalCore(t *testing.T) {
 		Package: "github.com/tarantool/tt/modules/aeon", Symbol: "New",
 	}}
 
-	got, err := generateGoMod(local, modules)
+	got, err := generateGoMod(local, modules, nil)
 	require.NoError(t, err)
 	golden(t, "local.go.mod.golden", got)
 }
@@ -109,13 +109,13 @@ func TestGenerateGoModConflict(t *testing.T) {
 		{Name: "b", Module: "github.com/acme/tt-foo", Version: "v1.3.0"},
 	}
 
-	_, err := generateGoMod(versionedCore(), modules)
+	_, err := generateGoMod(versionedCore(), modules, nil)
 	require.ErrorContains(t, err, "listed twice")
 	assert.Equal(t, sdk.ExitFailure, sdk.ExitCode(err))
 
 	// Two packages of one module at one version are fine.
 	modules[1].Version = "v1.2.0"
-	_, err = generateGoMod(versionedCore(), modules)
+	_, err = generateGoMod(versionedCore(), modules, nil)
 	require.NoError(t, err)
 }
 

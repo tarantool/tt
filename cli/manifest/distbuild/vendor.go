@@ -87,42 +87,24 @@ func prepareBundle(dir string) (string, error) {
 }
 
 // localize copies the local modules - a local core with its repository's
-// modules, the local tt modules - into the bundle and returns the core and
+// modules, the local tt modules, the directories [replace] names - into the
+// bundle and returns the core and
 // the modules with their directories relative to it, so that neither the
 // go.mod of the bundle nor its vendor/modules.txt names a directory of the
 // machine that made it. The copies are the modules as the go command would
 // zip them: no VCS directories, no nested modules, no vendor directories,
 // regular files only.
-func (b builder) localize(resolved core, modules []module) (core, []module, error) {
+func (b builder) localize(
+	resolved core, modules []module, replaces []replacement,
+) (core, []module, []replacement, error) {
 	local := filepath.Join(b.work, bundleLocal)
 
+	var err error
+
 	if resolved.Dir != "" {
-		coreDir := resolved.Dir
-
-		dst := filepath.Join(local, "core")
-
-		err := b.copyModule(coreDir, dst)
+		resolved, err = b.localizeCore(local, resolved)
 		if err != nil {
-			return core{}, nil, err
-		}
-
-		resolved.Dir = bundlePath(b.work, dst)
-		resolved.Repository = slices.Clone(resolved.Repository)
-
-		for idx, repo := range resolved.Repository {
-			dst := filepath.Join(local, "core-external", filepath.FromSlash(repo.Module))
-
-			rel, relErr := filepath.Rel(coreDir, repo.Dir)
-			if relErr == nil && filepath.IsLocal(rel) {
-				dst = filepath.Join(local, "core", rel)
-			}
-
-			err = b.copyModule(repo.Dir, dst)
-			if err != nil {
-				return core{}, nil, err
-			}
-
-			resolved.Repository[idx].Dir = bundlePath(b.work, dst)
+			return core{}, nil, nil, err
 		}
 	}
 
@@ -135,15 +117,68 @@ func (b builder) localize(resolved core, modules []module) (core, []module, erro
 
 		dst := filepath.Join(local, "modules", mod.Name)
 
-		err := b.copyModule(mod.Dir, dst)
+		err = b.copyModule(mod.Dir, dst)
 		if err != nil {
-			return core{}, nil, err
+			return core{}, nil, nil, err
 		}
 
 		modules[idx].Dir = bundlePath(b.work, dst)
 	}
 
-	return resolved, modules, nil
+	replaces = slices.Clone(replaces)
+
+	for idx, rep := range replaces {
+		if rep.Dir == "" {
+			continue
+		}
+
+		// The key names the module, and its version when it has one.
+		name := strings.ReplaceAll(rep.Key, "@", "_")
+		dst := filepath.Join(local, "replace", filepath.FromSlash(name))
+
+		err = b.copyModule(rep.Dir, dst)
+		if err != nil {
+			return core{}, nil, nil, err
+		}
+
+		replaces[idx].Dir = bundlePath(b.work, dst)
+	}
+
+	return resolved, modules, replaces, nil
+}
+
+// localizeCore copies the local core and the modules of its repository
+// into local, and returns the core with their directories in the bundle.
+func (b builder) localizeCore(local string, resolved core) (core, error) {
+	coreDir := resolved.Dir
+
+	dst := filepath.Join(local, "core")
+
+	err := b.copyModule(coreDir, dst)
+	if err != nil {
+		return core{}, err
+	}
+
+	resolved.Dir = bundlePath(b.work, dst)
+	resolved.Repository = slices.Clone(resolved.Repository)
+
+	for idx, repo := range resolved.Repository {
+		dst := filepath.Join(local, "core-external", filepath.FromSlash(repo.Module))
+
+		rel, relErr := filepath.Rel(coreDir, repo.Dir)
+		if relErr == nil && filepath.IsLocal(rel) {
+			dst = filepath.Join(local, "core", rel)
+		}
+
+		err = b.copyModule(repo.Dir, dst)
+		if err != nil {
+			return core{}, err
+		}
+
+		resolved.Repository[idx].Dir = bundlePath(b.work, dst)
+	}
+
+	return resolved, nil
 }
 
 // copyModule copies the module in src to dst.
