@@ -140,9 +140,8 @@ func WithIntegrity(provider integrity.Provider) Option {
 // called once per process.
 //
 // It boots tt - the integrity provider, global flags, logging - and calls the constructors in the
-// order of their names, then hangs their commands, adds the commands
-// injected through cmd.InjectedCmds, configures tt, hangs the external
-// modules and runs the command. An external module named like a top-level
+// order of their names, then hangs their commands, configures tt, hangs the
+// external modules and runs the command. An external module named like a top-level
 // command takes its place, whoever built it, unless -I is given. Services
 // other than Log are usable from the moment tt is configured. A constructor
 // that panics, a mount the tree cannot hold, a failure to configure tt are
@@ -205,11 +204,6 @@ func build(
 		return nil, err
 	}
 
-	err = cmd.InjectCommands(root)
-	if err != nil {
-		return nil, err
-	}
-
 	err = cmd.Configure()
 	if err != nil {
 		return nil, err
@@ -219,8 +213,7 @@ func build(
 
 	if !config.withoutExternalModules {
 		// After Configure: the files of the modules are read through the
-		// integrity checks it sets up, and the commands injected into the tree
-		// are there for the modules to replace.
+		// integrity checks it sets up.
 		external, err = mountExternalModules(root, registry)
 		if err != nil {
 			return nil, err

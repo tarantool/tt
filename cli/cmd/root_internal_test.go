@@ -22,16 +22,10 @@ func TestRootFlags(t *testing.T) {
 	assert.Equal(t, logging.FormatJSON, logFormat)
 }
 
-// NewCmdRoot creates a new root command with every builtin and injected
-// command.
+// NewCmdRoot creates a new root command with every builtin command.
 func NewCmdRoot() *cobra.Command {
 	root := newRootCmd()
 	root.AddCommand(BuiltinCommands()...)
-
-	err := InjectCommands(root)
-	if err != nil {
-		panic(err.Error())
-	}
 
 	root.SetErr(errorLogWriter{})
 
