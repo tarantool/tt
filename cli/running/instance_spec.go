@@ -243,6 +243,11 @@ func appScriptSpec(inst *InstanceCtx, opts specOptions) (supervisor.Spec, error)
 		return supervisor.Spec{}, err
 	}
 
+	err = linkIntegrityLayout(inst)
+	if err != nil {
+		return supervisor.Spec{}, err
+	}
+
 	if !util.IsDir(inst.AppDir) {
 		return supervisor.Spec{}, fmt.Errorf("%w%q is not a directory",
 			errApplicationIsNotADirectory, inst.AppDir)
@@ -285,6 +290,11 @@ func appScriptSpec(inst *InstanceCtx, opts specOptions) (supervisor.Spec, error)
 // files and NewInstanceCtx reads, not by moving the layout under tt.
 func appClusterSpec(inst *InstanceCtx, opts specOptions) (supervisor.Spec, error) {
 	err := checkStart(inst)
+	if err != nil {
+		return supervisor.Spec{}, err
+	}
+
+	err = linkIntegrityLayout(inst)
 	if err != nil {
 		return supervisor.Spec{}, err
 	}
