@@ -136,12 +136,15 @@ func TestRSAProviderRefusesPrivateKeys(t *testing.T) {
 	writeFile(t, garbage, string(pem.EncodeToMemory(
 		&pem.Block{Type: "RSA PRIVATE KEY", Bytes: []byte("garbage")})), 0o600)
 
-	pkcs8Der, err := x509.MarshalPKCS8PrivateKey(key)
+	_, edPrivate, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 
-	pkcs8 := filepath.Join(dir, "pkcs8.pem")
-	writeFile(t, pkcs8, string(pem.EncodeToMemory(
-		&pem.Block{Type: "PRIVATE KEY", Bytes: pkcs8Der})), 0o600)
+	edDer, err := x509.MarshalPKCS8PrivateKey(edPrivate)
+	require.NoError(t, err)
+
+	notRSA := filepath.Join(dir, "ed25519.pem")
+	writeFile(t, notRSA, string(pem.EncodeToMemory(
+		&pem.Block{Type: "PRIVATE KEY", Bytes: edDer})), 0o600)
 
 	cases := []struct {
 		name string
@@ -151,7 +154,7 @@ func TestRSAProviderRefusesPrivateKeys(t *testing.T) {
 		{name: "missing", path: missing, text: "stat " + missing + ": no such file or directory"},
 		{name: "not PEM", path: notPEM, text: "no pem block found"},
 		{name: "not a key", path: garbage, text: garbage},
-		{name: "not PKCS #1", path: pkcs8, text: pkcs8},
+		{name: "not RSA", path: notRSA, text: "not an RSA key"},
 	}
 
 	for _, testCase := range cases {
@@ -190,11 +193,36 @@ func TestRSAProviderAcceptsPrivateKeys(t *testing.T) {
 
 		requirePrivateKeyAccepted(t, path)
 	})
+
+	// openssl genrsa of OpenSSL 3 writes PKCS #8 unless told -traditional.
+	t.Run("PKCS #8", func(t *testing.T) {
+		der, err := x509.MarshalPKCS8PrivateKey(key)
+		require.NoError(t, err)
+
+		requireSignsWith(t, writePEMFile(t, 0o600, &pem.Block{Type: "PRIVATE KEY", Bytes: der}),
+			key)
+	})
+}
+
+func TestRSAProviderAcceptsPublicKeys(t *testing.T) {
+	key := signingKey(t)
+	other := foreignKey(t)
+
+	t.Run("PKIX", func(t *testing.T) {
+		requireChecksWith(t, writePEMFile(t, 0o644, publicKeyBlock(t, key, "PUBLIC KEY")),
+			key, other)
+	})
+
+	// openssl rsa -RSAPublicKey_out writes PKCS #1.
+	t.Run("PKCS #1", func(t *testing.T) {
+		requireChecksWith(t, writePEMFile(t, 0o644, &pem.Block{
+			Type: "RSA PUBLIC KEY", Bytes: x509.MarshalPKCS1PublicKey(&key.PublicKey),
+		}), key, other)
+	})
 }
 
 func TestRSAProviderRefusesPublicKeys(t *testing.T) {
 	dir := t.TempDir()
-	key := signingKey(t)
 
 	edPublic, _, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
@@ -212,13 +240,6 @@ func TestRSAProviderRefusesPublicKeys(t *testing.T) {
 			name: "not a key",
 			content: string(pem.EncodeToMemory(
 				&pem.Block{Type: "PUBLIC KEY", Bytes: []byte("garbage")})),
-			text: "failed to parse public key",
-		},
-		{
-			name: "PKCS #1",
-			content: string(pem.EncodeToMemory(&pem.Block{
-				Type: "RSA PUBLIC KEY", Bytes: x509.MarshalPKCS1PublicKey(&key.PublicKey),
-			})),
 			text: "failed to parse public key",
 		},
 		{

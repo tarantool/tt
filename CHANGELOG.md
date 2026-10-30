@@ -949,6 +949,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- The RSA integrity provider takes a private key in PKCS #8, what `openssl
+  genrsa` of OpenSSL 3 writes unless told `-traditional`, as well as in
+  PKCS #1, and a public key in PKCS #1 as well as in PKIX. A key of another
+  algorithm is refused as not an RSA key.
 - Signed configurations in etcd and Tarantool config storage keep the keys tt
   2 and Tarantool Enterprise Edition use: `<prefix>/hashes/sha256/<key>` and
   `<prefix>/sig/<key>` next to `<prefix>/config/<key>`. tt 3 wrote and looked
