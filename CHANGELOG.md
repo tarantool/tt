@@ -927,6 +927,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- Builds with `TT_CLI_BUILD_SSL=openssl` or `openssl_static` reach a Tarantool
+  config storage over TLS: they set `go_storage_ssl`, without which
+  go-storage refuses TLS to it. The default pure-Go build still has no TLS to
+  a config storage.
 - `tt binary install`: recognize boolean flags such as `-f` and `--reinstall`
   before the product name when `--no-prompt` is set, instead of mistaking the
   product for a flag value and rejecting its options.
