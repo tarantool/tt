@@ -264,7 +264,8 @@ func loadTopologyConfig(
 	cfg, err := clustercli.GetClusterConfig(context.Background(), source, cmdCtx.Integrity)
 	if err != nil {
 		return goconfig.Config{}, "",
-			fmt.Errorf("failed to load cluster config %q: %w", source, err)
+			fmt.Errorf("failed to load cluster config %q: %w",
+				log.RedactTarget(source), err)
 	}
 
 	return cfg.Snapshot(), filepath.Dir(source), nil

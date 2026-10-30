@@ -16,6 +16,7 @@ import (
 	sdkcluster "github.com/tarantool/tt/sdk/cluster"
 	"github.com/tarantool/tt/sdk/connect"
 	"github.com/tarantool/tt/sdk/integrity"
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/internal/integrityprovider"
 )
 
@@ -568,7 +569,8 @@ func tcsEndpoint(idx int, rawEp any, timeout time.Duration) (storageEndpoint, er
 	case strings.HasPrefix(uri, "http://"), strings.HasPrefix(uri, "https://"):
 		uriOpts, err := connect.CreateURIOpts(uri)
 		if err != nil {
-			return storageEndpoint{}, fmt.Errorf("endpoint[%d] %q: invalid URI: %w", idx, uri, err)
+			return storageEndpoint{}, fmt.Errorf("endpoint[%d] %q: invalid URI: %w", idx,
+				log.RedactTarget(uri), err)
 		}
 
 		network, address = connect.TCPNetwork, uriOpts.Host

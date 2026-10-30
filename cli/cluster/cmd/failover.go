@@ -99,7 +99,7 @@ func connectFailoverStorage(uriOpts connect.URIOpts,
 func Switch(url string, switchCtx SwitchCtx) error {
 	uriOpts, err := connect.CreateURIOpts(url)
 	if err != nil {
-		return fmt.Errorf("invalid URL %q: %w", url, err)
+		return fmt.Errorf("invalid URL %q: %w", log.RedactTarget(url), err)
 	}
 
 	connOpts := sdkcluster.ConnectOpts{
@@ -201,7 +201,7 @@ func waitForSwitch(conn *sdkcluster.RawStorage, key string, yamlCmd []byte, time
 func SwitchStatus(url string, switchCtx SwitchStatusCtx) error {
 	uriOpts, err := connect.CreateURIOpts(url)
 	if err != nil {
-		return fmt.Errorf("invalid URL %q: %w", url, err)
+		return fmt.Errorf("invalid URL %q: %w", log.RedactTarget(url), err)
 	}
 
 	var connOpts sdkcluster.ConnectOpts

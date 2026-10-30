@@ -7,6 +7,7 @@ import (
 
 	goconfig "github.com/tarantool/go-config/v2"
 	"github.com/tarantool/tt/sdk/connect"
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cluster"
 	"github.com/tarantool/tt/v3/cli/restore"
 )
@@ -223,7 +224,7 @@ func loadRestoreClusterConfig(configPath string) (goconfig.Config, error) {
 		if uriErr != nil {
 			return goconfig.Config{}, fmt.Errorf(
 				"%w: failed to load the cluster config %q: %w",
-				restore.ErrValidation, configPath, err)
+				restore.ErrValidation, log.RedactTarget(configPath), err)
 		}
 
 		return goconfig.Config{}, fmt.Errorf(

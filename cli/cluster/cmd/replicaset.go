@@ -124,7 +124,7 @@ func createDataCollectorAndKeyPublisher(
 func Promote(url string, ctx PromoteCtx) error {
 	opts, err := connect.CreateURIOpts(url)
 	if err != nil {
-		return fmt.Errorf("invalid URL %q: %w", url, err)
+		return fmt.Errorf("invalid URL %q: %w", log.RedactTarget(url), err)
 	}
 
 	connOpts := sdkcluster.ConnectOpts{
@@ -175,7 +175,7 @@ type DemoteCtx struct {
 func Demote(url string, ctx DemoteCtx) error {
 	opts, err := connect.CreateURIOpts(url)
 	if err != nil {
-		return fmt.Errorf("invalid URL %q: %w", url, err)
+		return fmt.Errorf("invalid URL %q: %w", log.RedactTarget(url), err)
 	}
 
 	connOpts := sdkcluster.ConnectOpts{
@@ -226,7 +226,7 @@ type ExpelCtx struct {
 func Expel(url string, ctx ExpelCtx) error {
 	opts, err := connect.CreateURIOpts(url)
 	if err != nil {
-		return fmt.Errorf("invalid URL %q: %w", url, err)
+		return fmt.Errorf("invalid URL %q: %w", log.RedactTarget(url), err)
 	}
 
 	connOpts := sdkcluster.ConnectOpts{
@@ -285,7 +285,7 @@ type RolesChangeCtx struct {
 func ChangeRole(url string, ctx RolesChangeCtx, action replicaset.RolesChangerAction) error {
 	opts, err := connect.CreateURIOpts(url)
 	if err != nil {
-		return fmt.Errorf("invalid URL %q: %w", url, err)
+		return fmt.Errorf("invalid URL %q: %w", log.RedactTarget(url), err)
 	}
 
 	connOpts := sdkcluster.ConnectOpts{

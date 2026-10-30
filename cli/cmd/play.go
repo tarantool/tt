@@ -153,7 +153,8 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		}
 	default:
 		return util.InternalError("could not resolve URI or application: %q (%s)",
-			flavour.GetVersion, args[0], err)
+			flavour.GetVersion, log.RedactTarget(args[0]),
+			unresolvedTargetErr(args[0], err))
 	}
 
 	walFiles, err := util.CollectWalFiles(args[1:], playFlags.Recursive)
