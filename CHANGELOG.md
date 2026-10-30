@@ -47,6 +47,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt.manifest.lock` records `content_hash` of every local module and local
   core - the hash of the files a bundle would copy - and `tt binary build tt
   --locked` fails when they changed since the lock was written.
+- `content_hash` and the bundle of `--vendor` leave out what `.gitignore`
+  ignores, so a binary built in a checkout of the core or of a module is no
+  change for `--locked`. The `.gitignore` files are the module's own and
+  those above it up to the root of its repository, read without git, so a
+  tarball of the checkout hashes the same; the excludes of the machine are
+  not read. The Go and cgo sources, `go.mod`, `go.sum` and the files
+  `//go:embed` embeds count even when ignored, and the bundle carries
+  exactly the files the hash covers.
 - `[replace]` in `tt.manifest.toml`: replace a Go module of the build with a
   local directory or with another module version, as a `replace` directive of
   a `go.mod` does. Go applies those of the main module only, so a tt module
