@@ -969,9 +969,17 @@ not change, the next build takes the versions from the lock; --update
 resolves them again. --locked builds strictly from the lock and fails when it
 or the Go modules differ.
 
+--vendor DIR makes an offline bundle instead of the binary: the generated main
+module with every module it is built from in vendor/, the local modules copied
+into local/, the build parameters of each TLS implementation in build.env and
+build.sh, which builds the binary with nothing but the Go toolchain: no
+network, no module cache, no tt. The bundle names no directory of the machine
+that made it and is built once offline to check it.
+
 TT_CLI_BUILD_SSL, when set, overrides [build].ssl. VERSION_LABEL follows the
 version of the distribution, which is taken from git describe in the
-manifest's directory. The path to the binary is printed to stdout.
+manifest's directory. The path to the binary, or to the bundle, is printed to
+stdout.
 
 [0;1;39mUSAGE[0m
   tt binary build tt [flags]
@@ -990,6 +998,8 @@ FLAGS[0m
                            manifest's directory)
       --update             resolve the core and the modules again, ignoring the
                            lock
+      --vendor string      make a bundle in DIR that go build turns into the
+                           binary offline, instead of the binary
       --work string        generate the main module in DIR and keep it there
 [0;1;39m
 GLOBAL FLAGS[0m
@@ -1005,6 +1015,10 @@ EXAMPLES[0m
 
   # Build exactly what the lock says, as CI does.
   $ tt binary build tt --locked -o dist/tt
+
+  # Make an offline bundle, then build it where there is no network.
+  $ tt binary build tt --locked --vendor dist/bundle
+  $ sh dist/bundle/build.sh default ./tt
 
 === tt binary install --help
 Install tt, Tarantool, Enterprise, and TCM.

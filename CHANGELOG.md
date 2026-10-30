@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `tt.manifest.lock` and `tt.manifest.sum` pin the build; `--update`
   re-resolves it and `--locked` reproduces it. An application manifest and a
   distribution manifest refuse each other's command by name.
+- `tt binary build tt --vendor DIR`: make an offline bundle of a distribution
+  instead of the binary - the main module with every module vendored, the
+  local modules copied in, and `build.env` and `build.sh` with the tags and
+  linker flags of each TLS implementation - which builds with the Go
+  toolchain alone, with no network, no module cache and no tt.
 
 - `tt cluster topology -c <CLUSTER_CONFIG|URI>`: show a Tarantool 3 cluster's
   configured membership and current instance state. Read the configuration

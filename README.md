@@ -35,6 +35,7 @@ Tarantool-based applications.
 - [Migrating from instances.enabled](#migrating-from-instancesenabled)
 - [External modules](#external-modules)
 - [Building a distribution of tt](#building-a-distribution-of-tt)
+  + [Offline build](#offline-build)
 - [CLI Args](#cli-args)
   + [Autocompletion](#autocompletion)
 - [TT usage](#tt-usage)
@@ -555,6 +556,49 @@ is built with, runs `tt version` of the result and writes `tt.manifest.lock`
 and `tt.manifest.sum` next to the manifest. Commit both: while the manifest
 stays the same, the next build takes its versions from the lock, and
 `--locked` fails when the lock or the Go modules differ.
+
+### Offline build
+
+`--vendor DIR` makes a bundle instead of a binary: everything a distribution
+is built from, which the Go toolchain alone turns into the binary on a
+machine with no network, no module cache and no tt.
+
+``` sh
+tt binary build tt --locked --vendor dist/bundle
+```
+
+The bundle holds the generated `go.mod`, `go.sum` and `main.go`, `vendor/`
+with every package the binary is built from (the core, the modules of its
+repository, the tt modules, third-party modules, and the files they embed),
+`local/` with a copy of each local module - a local core and the path
+dependencies - which `go.mod` replaces them with by a relative path, and the
+build parameters: `build.env` sets the tags, the linker flags and cgo of each
+TLS implementation, the implementation the bundle was made with, the
+toolchain and the version, and `build.sh` builds with them. The bundle names
+no directory of the machine that made it, so it can be moved anywhere; it is
+built once offline when it is made.
+
+On the offline machine, with the Go toolchain `build.env` names
+(`TT_DIST_TOOLCHAIN`) or a newer one in `PATH`:
+
+``` sh
+sh bundle/build.sh                         # the TLS the bundle was made with
+sh bundle/build.sh openssl_static ./tt     # or default, openssl; and the output
+```
+
+`build.sh` is no more than:
+
+``` sh
+cd bundle
+. ./build.env
+GOFLAGS=-mod=vendor GOPROXY=off GOWORK=off GOTOOLCHAIN=local \
+CGO_ENABLED=$TT_DIST_CGO_DEFAULT \
+    go build -trimpath -tags "$TT_DIST_TAGS_DEFAULT" \
+        -ldflags "$TT_DIST_LDFLAGS_DEFAULT" -o tt .
+```
+
+The OpenSSL implementations need a C compiler and the OpenSSL headers on the
+offline machine; on macOS `build.sh` takes `TT_DIST_LDFLAGS_DARWIN_*`.
 
 ## CLI Args
 

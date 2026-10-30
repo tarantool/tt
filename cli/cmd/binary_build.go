@@ -28,6 +28,8 @@ type buildTtCtx struct {
 	output string
 	// work keeps the generated main module there.
 	work string
+	// vendor makes an offline bundle there instead of a binary.
+	vendor string
 	// locked builds strictly from the lock.
 	locked bool
 	// update resolves every version again.
@@ -105,9 +107,17 @@ not change, the next build takes the versions from the lock; --update
 resolves them again. --locked builds strictly from the lock and fails when it
 or the Go modules differ.
 
+--vendor DIR makes an offline bundle instead of the binary: the generated main
+module with every module it is built from in vendor/, the local modules copied
+into local/, the build parameters of each TLS implementation in build.env and
+build.sh, which builds the binary with nothing but the Go toolchain: no
+network, no module cache, no tt. The bundle names no directory of the machine
+that made it and is built once offline to check it.
+
 TT_CLI_BUILD_SSL, when set, overrides [build].ssl. VERSION_LABEL follows the
 version of the distribution, which is taken from git describe in the
-manifest's directory. The path to the binary is printed to stdout.`,
+manifest's directory. The path to the binary, or to the bundle, is printed to
+stdout.`,
 		Example: `# Build the distribution in the current directory into ./<package.name>.
   $ tt binary build tt
 
@@ -115,7 +125,11 @@ manifest's directory. The path to the binary is printed to stdout.`,
   $ tt binary build tt --update
 
   # Build exactly what the lock says, as CI does.
-  $ tt binary build tt --locked -o dist/tt`,
+  $ tt binary build tt --locked -o dist/tt
+
+  # Make an offline bundle, then build it where there is no network.
+  $ tt binary build tt --locked --vendor dist/bundle
+  $ sh dist/bundle/build.sh default ./tt`,
 		Args: cobra.NoArgs,
 		RunE: binaryRunE(base, &buildCtx, internalBuildTtModule),
 	}
@@ -131,7 +145,11 @@ manifest's directory. The path to the binary is printed to stdout.`,
 		"build strictly from "+manifest.DistributionLockFile+" and write nothing but the binary")
 	flags.BoolVar(&buildCtx.update, "update", false,
 		"resolve the core and the modules again, ignoring the lock")
+	flags.StringVar(&buildCtx.vendor, "vendor", "",
+		"make a bundle in DIR that go build turns into the binary offline, instead of the binary")
 	ttCmd.MarkFlagsMutuallyExclusive("locked", "update")
+	ttCmd.MarkFlagsMutuallyExclusive("vendor", "output")
+	ttCmd.MarkFlagsMutuallyExclusive("vendor", "work")
 	addProjectDirFlag(ttCmd)
 
 	return ttCmd
@@ -160,6 +178,7 @@ func internalBuildTtModule(base binary.BinaryContext, buildCtx buildTtCtx,
 		Locked:      buildCtx.locked,
 		Update:      buildCtx.update,
 		WorkDir:     inDir(dir, buildCtx.work),
+		Vendor:      inDir(dir, buildCtx.vendor),
 		SSL:         os.Getenv(buildflags.Env),
 		Label:       os.Getenv(versionLabelEnv),
 		GeneratedBy: "tt " + coreVersion(),
