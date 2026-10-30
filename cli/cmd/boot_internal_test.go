@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -20,13 +19,13 @@ import (
 func restoreProcessState(t *testing.T) {
 	t.Helper()
 
-	previousRoot, previousCtx, previousInjected := rootCmd, cmdCtx, InjectedCmds
+	previousRoot, previousCtx := rootCmd, cmdCtx
 	previousFlavour := flavour
 	previousProvider := integrityprovider.Get()
 	previousLogger := slog.Default()
 
 	t.Cleanup(func() {
-		rootCmd, cmdCtx, InjectedCmds = previousRoot, previousCtx, previousInjected
+		rootCmd, cmdCtx = previousRoot, previousCtx
 		flavour = previousFlavour
 
 		integrityprovider.Set(previousProvider)
@@ -179,31 +178,4 @@ func TestBuiltinCommandsAreLegacy(t *testing.T) {
 	for _, command := range commands {
 		assert.True(t, isLegacy(command), command.Name())
 	}
-}
-
-// TestInjectCommandsReplaces checks that an injected command replaces the
-// top-level command of its name and is marked legacy.
-//
-//nolint:paralleltest // Replaces InjectedCmds.
-func TestInjectCommandsReplaces(t *testing.T) {
-	restoreProcessState(t)
-
-	injected := &cobra.Command{Use: "version", Short: "injected"}
-	extra := &cobra.Command{Use: "extra"}
-
-	InjectedCmds = []*cobra.Command{injected, extra}
-
-	root := &cobra.Command{Use: "tt"}
-	root.AddCommand(BuiltinCommands()...)
-
-	require.NoError(t, InjectCommands(root))
-
-	found, _, err := root.Find([]string{"version"})
-	require.NoError(t, err)
-	assert.Same(t, injected, found)
-	assert.True(t, isLegacy(injected))
-	assert.True(t, isLegacy(extra))
-	assert.Len(t, root.Commands(), 25)
-
-	require.ErrorIs(t, InjectCommands(nil), errNilCommandRoot)
 }

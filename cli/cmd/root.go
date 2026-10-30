@@ -17,24 +17,17 @@ import (
 	"github.com/tarantool/tt/v3/internal/integrityprovider"
 )
 
-var (
-	errNilCommandRoot = errors.New("can't inject commands. The root is nil")
-	errUnknownCommand = errors.New("unknown command ")
-)
+var errUnknownCommand = errors.New("unknown command ")
 
 var (
 	cmdCtx  cmdcontext.CmdCtx
 	rootCmd *cobra.Command
 	// logFormat is the value of the --log-format flag.
 	logFormat = logging.FormatText
-
-	// InjectedCmds is populated with the command to be injected into root.
-	// TT-EE.
-	InjectedCmds []*cobra.Command
 )
 
-// GetCmdCtxPtr returns a pointer to cmdCtx, which can be used to create injected commands.
-// TT-EE.
+// GetCmdCtxPtr returns a pointer to the context of the process, for the core
+// to offer its services from.
 func GetCmdCtxPtr() *cmdcontext.CmdCtx {
 	return &cmdCtx
 }

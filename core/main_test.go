@@ -21,7 +21,6 @@ import (
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/sdk/output"
-	"github.com/tarantool/tt/v3/cli/cmd"
 	"github.com/tarantool/tt/v3/cli/printing"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/core"
@@ -72,16 +71,6 @@ var mainCases = map[string]func() int{
 	"flavour-panic": func() int {
 		return core.Main(core.Modules{"builtin": core.Builtin, "broken": brokenModule},
 			core.WithFlavour(eeFlavour))
-	},
-	"ee-main": func() int {
-		cmd.InjectedCmds = append(cmd.InjectedCmds, newEEVersionCmd())
-
-		return core.Main(core.Modules{"builtin": core.Builtin})
-	},
-	"injected": func() int {
-		cmd.InjectedCmds = append(cmd.InjectedCmds, newInjectedCmd())
-
-		return core.Main(core.Modules{"builtin": core.Builtin, "demo": demoModule})
 	},
 	"integrity": func() int {
 		return core.Main(core.Modules{"builtin": core.Builtin},
@@ -301,38 +290,6 @@ func newDemoClusterCmd(services sdk.Services) *cobra.Command {
 	return cluster
 }
 
-// newEEVersionCmd returns a command shaped like tt-ee's version: injected,
-// reading the process's CmdCtx when it runs.
-func newEEVersionCmd() *cobra.Command {
-	ctx := cmd.GetCmdCtxPtr()
-
-	return &cobra.Command{
-		Use:   "version",
-		Short: "Show the EE version",
-		RunE: func(command *cobra.Command, _ []string) error {
-			_, err := fmt.Fprintf(os.Stdout, "EE version, command %s, verbose=%v\n",
-				command.Name(), ctx.Cli.Verbose)
-
-			return err
-		},
-	}
-}
-
-// newInjectedCmd returns a command injected through cmd.InjectedCmds that
-// prints its arguments.
-func newInjectedCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "injected",
-		Short: "Print the arguments",
-		RunE: func(_ *cobra.Command, args []string) error {
-			_, err := fmt.Fprintln(os.Stdout, strings.Join(append([]string{"internal"}, args...),
-				" "))
-
-			return err
-		},
-	}
-}
-
 // result is how a tt process ended.
 type result struct {
 	code   int
@@ -536,20 +493,6 @@ func TestMainServices(t *testing.T) {
 	})
 }
 
-// TestMainEEShape checks that a command injected the way tt-ee injects its
-// version works through Main.
-func TestMainEEShape(t *testing.T) {
-	t.Parallel()
-
-	got := runTT(t, ttRun{program: "ee-main", args: []string{"-V", "version"}})
-	require.Equal(t, 0, got.code, got.stderr)
-	assert.Equal(t, "EE version, command version, verbose=true\n", got.stdout)
-
-	got = runTT(t, ttRun{program: "ee-main", args: []string{"version", "--help"}})
-	require.Equal(t, 0, got.code, got.stderr)
-	assert.Contains(t, got.stdout, "Show the EE version")
-}
-
 // TestMainWithFlavour checks that tt built with a flavour presents itself as
 // the distribution: in tt version, in the help and in an internal error.
 func TestMainWithFlavour(t *testing.T) {
@@ -735,15 +678,6 @@ func TestMainExternalModules(t *testing.T) {
 			name: "builtin group replaced as a whole", program: "demo",
 			modules: []string{"cluster"}, args: []string{"cluster", "show", "x", "--y"}, code: 7,
 			stdout: "external cluster show x --y\n",
-		},
-		{
-			name: "injected command replaced", program: "injected", modules: []string{"injected"},
-			args: []string{"injected", "a", "-b"}, code: 7, stdout: "external injected a -b\n",
-		},
-		{
-			name: "injected command kept with -I", program: "injected",
-			modules: []string{"injected"}, args: []string{"-I", "injected", "a"}, code: 0,
-			stdout: "internal a\n",
 		},
 		{
 			name: "alias of a replaced command", program: "demo",

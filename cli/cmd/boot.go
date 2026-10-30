@@ -7,7 +7,6 @@ import (
 
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/integrity"
-	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/configure"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/integrityprovider"
@@ -15,14 +14,13 @@ import (
 
 // The phases below initialise tt in the order it runs them: Boot, then the
 // commands (BuiltinCommands and whatever else is added to the root), then
-// InjectCommands, Configure, ConfigureHelp and Run. The core runs them, with
+// Configure, ConfigureHelp and Run. The core runs them, with
 // its own steps in between. They are the core's interface to this package
 // and are not stable.
 
 // LegacyAnnotation is the key of the command annotation that marks a
-// top-level command built by this package - a builtin, or one injected
-// through InjectedCmds - rather than contributed by a module. Its value is
-// "true".
+// top-level command built by this package - a builtin - rather than
+// contributed by a module. Its value is "true".
 const LegacyAnnotation = "tt.core/legacy"
 
 // BootOptions configure Boot.
@@ -114,37 +112,6 @@ func markLegacy(command *cobra.Command) {
 // isLegacy reports whether command carries LegacyAnnotation.
 func isLegacy(command *cobra.Command) bool {
 	return command.Annotations[LegacyAnnotation] == "true"
-}
-
-// InjectCommands adds InjectedCmds to root, annotated with LegacyAnnotation.
-// An injected command replaces the top-level command of the same name.
-// TT-EE.
-func InjectCommands(root *cobra.Command) error {
-	if root == nil {
-		return errNilCommandRoot
-	}
-
-	for _, injected := range InjectedCmds {
-		for _, existing := range root.Commands() {
-			if existing.Name() != injected.Name() {
-				continue
-			}
-
-			if !isLegacy(existing) {
-				log.Debugf("Injected command %q replaces the command a module mounted there",
-					existing.CommandPath())
-			}
-
-			root.RemoveCommand(existing)
-
-			break
-		}
-
-		markLegacy(injected)
-		root.AddCommand(injected)
-	}
-
-	return nil
 }
 
 // Configure configures tt for the command line Boot parsed: it finds the
