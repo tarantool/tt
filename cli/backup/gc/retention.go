@@ -226,8 +226,8 @@ func isStale(current group, opts Options) bool {
 // backupsOf turns chain entries into deletions, newest backup first.
 func backupsOf(entries []*chain.Entry) []Backup {
 	backups := make([]Backup, 0, len(entries))
-	for _, entrie := range slices.Backward(entries) {
-		backups = append(backups, backupOf(entrie.Manifest))
+	for _, entry := range slices.Backward(entries) {
+		backups = append(backups, backupOf(entry.Manifest))
 	}
 
 	return backups

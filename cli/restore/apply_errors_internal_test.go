@@ -117,7 +117,8 @@ func TestApply_CorruptMarkerIsReplacedOnRerun(t *testing.T) {
 	_, err := Apply(opts)
 	require.NoError(t, err)
 
-	require.NoError(t, os.WriteFile(StatePath(workDir), []byte(`{"work_dir": tru`), 0o644))
+	corruptState := []byte(`{"work_dir": tru`) // codespell:ignore tru
+	require.NoError(t, os.WriteFile(StatePath(workDir), corruptState, 0o644))
 
 	_, err = ReadState(workDir)
 	require.ErrorContains(t, err, "failed to decode restore state")

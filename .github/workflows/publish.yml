@@ -6,289 +6,114 @@ on:
     tags: ['*']
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/v3' && github.ref != 'refs/heads/master' }}
+
 env:
-  # Note: Use exactly match version of tool, to avoid unexpected issues with test on CI.
   GO_VERSION: '1.27.3'
 
 jobs:
   validate-tag:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: 'master'
+          persist-credentials: false
           fetch-depth: 0
-        if: startsWith(github.ref, 'refs/tags')
 
-      - name: Validation
-        run: git branch -r --contains ${{ github.ref }} | grep "origin/master"
-        if: startsWith(github.ref, 'refs/tags')
+      - name: Require a tag from a release branch
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          commit=$(git rev-parse "$GITHUB_REF^{commit}")
+          for branch in v3 master; do
+            if git merge-base --is-ancestor "$commit" "refs/remotes/origin/$branch"; then
+              exit 0
+            fi
+          done
+          echo 'The release tag must belong to origin/v3 or origin/master' >&2
+          exit 1
 
-  create-packages-linux:
+  packages:
     needs: validate-tag
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Setup Mage
-        run: |
-          git clone https://github.com/magefile/mage
-          cd mage
-          go run bootstrap.go
-
-      - name: Setup GoReleaser
-        run: |
-          curl -O -L https://github.com/goreleaser/goreleaser/releases/download/v1.12.3/goreleaser_1.12.3_amd64.deb
-          sudo dpkg -i goreleaser_1.12.3_amd64.deb
-          rm goreleaser_1.12.3_amd64.deb
-
-      - name: Set GoReleaser flags
-        id: set-goreleaser-flags
-        run: |
-          if ${{ startsWith(github.ref, 'refs/tags') }} ; then
-            echo "::set-output name=GORELEASER_FLAGS::--rm-dist --skip-validate"
-          else
-            echo "::set-output name=GORELEASER_FLAGS::--rm-dist --snapshot"
-          fi
-
-      # These scripts will be picked up while building packages with goreleaser.
-      - name: Generate ZSH, Bash and Fish completion scripts
-        run: |
-          mage build
-          ./tt completion bash > tt-completion.bash
-          ./tt completion zsh > tt-completion.zsh
-          ./tt completion fish > tt-completion.fish
-
-      - name: Build packages
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          goreleaser release ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }} --skip-publish --config ./goreleaser/.goreleaser_linux.yml
-
-      - name: Upload packages artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: packages-linux
-          path: dist
-
-  create-packages-linux-arm64:
-    needs: validate-tag
-    runs-on: ubuntu-24.04-arm
-    strategy:
-      fail-fast: false
-    container:
-      image: tarantool/testing:tt-build
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install etcd
-        uses: ./.github/actions/setup-etcd
-
-      - name: Set GoReleaser flags
-        id: set-goreleaser-flags
-        run: |
-          if ${{ startsWith(github.ref, 'refs/tags') }} ; then
-            echo "::set-output name=GORELEASER_FLAGS::--rm-dist --skip-validate"
-          else
-            echo "::set-output name=GORELEASER_FLAGS::--rm-dist --snapshot"
-          fi
-
-      # These scripts will be picked up while building packages with goreleaser.
-      - name: Trust the workspace for git
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      - name: Generate ZSH, Bash and Fish completion scripts
-        run: |
-          mage build
-          ./tt completion bash > tt-completion.bash
-          ./tt completion zsh > tt-completion.zsh
-          ./tt completion fish > tt-completion.fish
-
-      - name: Build packages
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          goreleaser release ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }} \
-            --skip-publish --config ./goreleaser/.goreleaser_linux_arm64.yml
-
-      - name: Upload packages artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: packages-linux-arm64
-          path: dist
-
-  create-packages-macos:
-    needs: validate-tag
-    runs-on: macos-15-intel
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Setup Mage
-        run: |
-          git clone https://github.com/magefile/mage
-          cd mage
-          go run bootstrap.go
-
-      - name: Set GoReleaser flags
-        id: set-goreleaser-flags
-        run: |
-          if ${{ startsWith(github.ref, 'refs/tags') }} ; then
-            echo "::set-output name=GORELEASER_FLAGS::--rm-dist --skip-validate"
-          else
-            echo "::set-output name=GORELEASER_FLAGS::--rm-dist --snapshot"
-          fi
-
-      - name: Build packages
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        uses: goreleaser/goreleaser-action@v2
-        with:
-          version: v1.26.2
-          args: release ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }} --skip-publish --config ./goreleaser/.goreleaser_macOS.yml
-
-      - name: Upload packages artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: packages-macos
-          path: dist
+    uses: ./.github/workflows/_packages.yml # zizmor: ignore[self-repository] -- Build packages from the workflow revision being released.
+    with:
+      ref: ${{ github.sha }}
+      snapshot: ${{ !startsWith(github.ref, 'refs/tags/') }}
+      cache: false
 
   draft-release:
-    needs: [create-packages-linux, create-packages-linux-arm64, create-packages-macos]
-    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: packages
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
-      - uses: actions/setup-go@v4
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: false
 
-      - name: Make directories
-        run: |
-          mkdir -p ./dist-prebuilt/packages-linux
-          mkdir -p ./dist-prebuilt/packages-macos
-          mkdir -p ./dist-prebuilt/packages-linux-arm64
-
-      - name: Download linux binaries
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: packages-linux
-          path: ./dist-prebuilt/packages-linux
+          pattern: packages-*
+          merge-multiple: true
+          path: dist/release
 
-      - name: Download linux arm64 binaries
-        uses: actions/download-artifact@v4
+      - name: Add source and dependency archives
+        run: |
+          ./.gen_tarballs.sh -t "$GITHUB_REF_NAME"
+          mv /tmp/gentoo_tarballs/tt*.tar.* dist/release/
+
+      - name: Create release checksums
+        run: |
+          cd dist/release
+          rm -- *checksums.txt
+          sha256sum -- *.deb *.rpm *.tar.gz *.tar.xz > checksums.txt
+
+      - name: Create or update the draft release
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
-          name: packages-linux-arm64
-          path: ./dist-prebuilt/packages-linux-arm64
-
-      - name: Download macos binaries
-        uses: actions/download-artifact@v4
-        with:
-          name: packages-macos
-          path: ./dist-prebuilt/packages-macos
-
-      - name: Remove not-needed files
-        run: |
-          rm ./dist-prebuilt/packages-linux/artifacts.json
-          rm ./dist-prebuilt/packages-linux/config.yaml
-          rm ./dist-prebuilt/packages-linux/metadata.json
-          rm ./dist-prebuilt/packages-linux-arm64/artifacts.json
-          rm ./dist-prebuilt/packages-linux-arm64/config.yaml
-          rm ./dist-prebuilt/packages-linux-arm64/metadata.json
-          rm ./dist-prebuilt/packages-macos/artifacts.json
-          rm ./dist-prebuilt/packages-macos/config.yaml
-          rm ./dist-prebuilt/packages-macos/metadata.json
-          rm ./dist-prebuilt/packages-macos/tt_darwin_amd64_v1/tt
-          rm ./dist-prebuilt/packages-linux/tt_linux_amd64_v1/tt
-          rm ./dist-prebuilt/packages-linux-arm64/tt_linux_arm64/tt
-
-      - name: Pack additional archives
-        run: |
-          ./.gen_tarballs.sh -t ${{ github.ref_name }}
-          mv /tmp/gentoo_tarballs/tt*.tar.* ./dist-prebuilt/packages-linux/
-
-      - name: merge checksum file
-        run: |
-          cd ./dist-prebuilt
-          cat ./packages-linux/tt*checksums.txt >> checksums.txt
-          cat ./packages-linux-arm64/tt*checksums.txt >> checksums.txt
-          cat ./packages-macos/tt*checksums.txt >> checksums.txt
-          rm ./packages-linux/tt*checksums.txt
-          rm ./packages-linux-arm64/tt*checksums.txt
-          rm ./packages-macos/tt*checksums.txt
-          mv checksums.txt ./packages-macos/
-
-      - name: Set GoReleaser flags
-        id: set-goreleaser-flags
-        run: |
-          if ${{ startsWith(github.ref, 'refs/tags') }} ; then
-            echo "GORELEASER_FLAGS=--skip-validate" >> $GITHUB_OUTPUT
-          else
-            echo "GORELEASER_FLAGS=--snapshot" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Release
-        uses: goreleaser/goreleaser-action@v2
-        with:
-          version: v1.26.2
-          args: release ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }} --config ./goreleaser/.goreleaser_publish.yml
+          version: v2.19.0
+          args: release --clean --config goreleaser/.goreleaser_publish.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish-s3:
-    needs: [validate-tag, create-packages-linux, create-packages-linux-arm64]
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags')
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: packages
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - name: Setup Go
-        uses: actions/setup-go@v4
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: false
 
       - name: Setup Mage
-        run: |
-          git clone https://github.com/magefile/mage
-          cd mage
-          go run bootstrap.go
+        run: go install github.com/magefile/mage@v1.15.0
 
-      - name: Download x86_64 packages artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: packages-linux
+          pattern: packages-*
+          merge-multiple: true
           path: dist
 
-      - name: Publish x86_64 packages to RWS
-        env:
-          RWS_URL_PART: https://rws.tarantool.org/release/modules
-          RWS_AUTH: ${{ secrets.RWS_AUTH }}
-        run: mage publishRWS && rm -rf dist
-
-      - name: Download arm64 packages artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: packages-linux-arm64
-          path: dist
-
-      - name: Publish arm64 packages to RWS
+      - name: Publish tt and tt-openssl packages to RWS
         env:
           RWS_URL_PART: https://rws.tarantool.org/release/modules
           RWS_AUTH: ${{ secrets.RWS_AUTH }}

@@ -1,105 +1,88 @@
 name: "Prepare test environment with Tarantool EE"
-description: "Prepares test environment with Tarantool EE"
+description: "Prepares test environment with a stable Tarantool 3 EE SDK"
 
 inputs:
-  sdk-version:
+  build-tt:
+    description: Build tt when no binary artifact has been supplied
+    default: 'true'
+  cache:
+    description: Enable Go caching (disabled for privileged fork runs)
+    default: 'true'
+  tarantool-version:
+    description: Stable SDK series (3 for latest, or a minor such as 3.3)
+    default: '3'
+  ee-username:
+    description: Customer-zone username
     required: true
-    type: string
-  sdk-build:
-    required: false
-    type: string
-    default: release
-  sdk-gc:
-    required: false
-    type: string
-    default: gc64
-  sdk-download-token:
+  ee-password:
+    description: Customer-zone password
     required: true
-    type: string
   skip-etcd-install:
     description: Whether to skip etcd installation
-    type: boolean
     required: false
-    default: false
-
-env:
-  # Note: Use exactly match version of tool, to avoid unexpected issues with test on CI.
-  GO_VERSION: '1.27.3'
+    default: 'false'
 
 runs:
   using: "composite"
   steps:
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '${{ env.GO_VERSION }}'
+    - name: Setup Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version: '${{ env.GO_VERSION }}'
+        cache: ${{ inputs.cache == 'true' }}
+        cache-dependency-path: '**/go.sum'
 
-      - name: Setup python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '${{ env.PYTHON_VERSION }}'
+    - name: Setup Python
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version: '${{ env.PYTHON_VERSION }}'
 
-      - name: Setup Mage
-        run: |
-          git clone https://github.com/magefile/mage
-          cd mage
-          go run bootstrap.go
-        shell: bash
+    - name: Setup Mage
+      run: go install github.com/magefile/mage@v1.15.0
+      shell: bash
 
-      - name: Install build requirements
-        run: |
-          sudo apt -y update
-          sudo apt -y install git gcc make cmake unzip zip fish zsh
-        shell: bash
+    - name: Install build requirements
+      run: |
+        sudo apt -y update
+        sudo apt -y install git gcc make cmake unzip zip fish zsh
+      shell: bash
 
-      - name: Cache Tarantool SDK
-        id: cache-sdk
-        uses: actions/cache@v3
-        with:
-          path: tarantool-enterprise
-          key: ${{ matrix.sdk-version }}
+    - name: Enable network isolation for rocks tests
+      run: |
+        # Ubuntu 24.04 restricts the user namespace used by unshare -r -n.
+        sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+        unshare -r -n true
+      shell: bash
 
-      - name: Download Tarantool SDK
-        # Only download on a cache miss: the SDK is already restored from cache
-        # otherwise, and an unconditional re-download fails the whole job when
-        # download.tarantool.io is unavailable even though a good cache exists.
-        if: steps.cache-sdk.outputs.cache-hit != 'true'
-        run: |
-          ARCHIVE_NAME=tarantool-enterprise-sdk-${{ inputs.sdk-gc }}-${{ inputs.sdk-version }}.tar.gz
-          ARCHIVE_PATH=$(echo ${{ inputs.sdk-version }} | sed -rn \
-            's/^([0-9]+)\.([0-9]+)\.([0-9]+-){2}([a-z0-9]+-)?r[0-9]+\.([a-z]+)\.([a-z0-9_]+)$/${{ inputs.sdk-build }}\/\5\/\6\/\1\.\2/p')
-          curl -O -L \
-            https://tarantool:${{ inputs.sdk-download-token }}@download.tarantool.io/enterprise/${ARCHIVE_PATH}/${ARCHIVE_NAME}
-          tar -xzf ${ARCHIVE_NAME}
-          rm -f ${ARCHIVE_NAME}
-          source tarantool-enterprise/env.sh
-        shell: bash
+    - name: Build tt
+      if: inputs.build-tt == 'true'
+      run: mage build
+      shell: bash
 
-      - name: Install tarantool headers
-        run: |
-          INCLUDE_DIR=$(./tarantool-enterprise/tarantool --version | gawk \
-            '/DCMAKE_INSTALL_PREFIX/ {dir=gensub(/.*-DCMAKE_INSTALL_PREFIX=(\/.*) .*/, "\\1", "g", $0);  print dir}')
-          sudo mkdir -p ${INCLUDE_DIR}/include
-          sudo cp -r tarantool-enterprise/include/tarantool ${INCLUDE_DIR}/include
-        shell: bash
+    - name: Install a stable Tarantool 3 EE SDK
+      env:
+        TARANTOOL_VERSION: ${{ inputs.tarantool-version }}
+        EE_USERNAME: ${{ inputs.ee-username }}
+        EE_PASSWORD: ${{ inputs.ee-password }}
+        TT_USER_ROOT: ${{ runner.temp }}/tt-ee-sdk
+      # Only the runner-owned installation directory is exported.
+      run: | # zizmor: ignore[github-env]
+        umask 077
+        credentials=$(mktemp)
+        trap 'rm -f "$credentials"' EXIT
+        printf '%s\n%s\n' "$EE_USERNAME" "$EE_PASSWORD" > "$credentials"
+        ./tt binary install tarantool-sdk "$TARANTOOL_VERSION" --scope user --credentials-file "$credentials"
+        "$TT_USER_ROOT/bin/tarantool" --version
+        echo "$TT_USER_ROOT/bin" >> "$GITHUB_PATH"
+        echo "TT_CLI_TARANTOOL_PREFIX=$TT_USER_ROOT" >> "$GITHUB_ENV"
+      shell: bash
 
-      - name: Add SDK to PATH and set TARANTOOL_SDK_PATH variable
-        run: |
-          SDK_PATH="$(realpath tarantool-enterprise)"
-          echo "${SDK_PATH}" >> ${GITHUB_PATH}
-          echo "TARANTOOL_SDK_PATH=${SDK_PATH}" >> ${GITHUB_ENV}
-        shell: bash
+    - name: Install etcd
+      uses: ./.github/actions/setup-etcd # zizmor: ignore[self-repository] -- Test the checked-out revision.
+      if: ${{ inputs.skip-etcd-install == 'false' }}
 
-      - name: Install etcd
-        uses: ./.github/actions/setup-etcd
-        if: ${{ inputs.skip-etcd-install == 'false' }}
-
-      - name: Build tt
-        run: mage build
-        shell: bash
-
-      - name: Install test requirements
-        run: |
-          sudo apt -y install gdb
-          pip3 install -r test/requirements.txt
-        shell: bash
+    - name: Install test requirements
+      run: |
+        sudo apt -y install gdb
+        pip3 install -r test/requirements.txt
+      shell: bash

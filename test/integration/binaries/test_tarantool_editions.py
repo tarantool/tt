@@ -90,12 +90,15 @@ def test_switch_and_uninstall_edition(tt_cmd, tmp_path, requested, program, stor
 @pytest.mark.parametrize("enterprise", [False, True])
 @pytest.mark.parametrize("choose_program", [False, True])
 def test_switch_selects_edition_then_version(
-    tt_cmd, tmp_path, family, enterprise, choose_program,
+    tt_cmd,
+    tmp_path,
+    family,
+    enterprise,
+    choose_program,
 ):
     root = tmp_path / ".tarantool"
     installed = {
-        edition: install_version(root, edition, "3.8.0")
-        for edition in [family, family + "-ee"]
+        edition: install_version(root, edition, "3.8.0") for edition in [family, family + "-ee"]
     }
     program = family + "-ee" if enterprise else family
     selected = installed[program]
@@ -161,9 +164,7 @@ def test_switch_sdk_only_in_enterprise_menu(tt_cmd, tmp_path, enterprise):
 )
 def test_switch_and_uninstall_tt_edition(tt_cmd, tmp_path, requested, program, stored):
     root = tmp_path / ".tarantool"
-    installed = {
-        edition: install_version(root, edition, "2.15.0") for edition in ["tt", "tt-ee"]
-    }
+    installed = {edition: install_version(root, edition, "2.15.0") for edition in ["tt", "tt-ee"]}
     selected = installed[program]
     if stored != "2.15.0":
         selected = install_version(root, program, stored)

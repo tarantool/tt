@@ -1,6 +1,6 @@
 module github.com/tarantool/tt/sdk
 
-go 1.26.10
+go 1.27.0
 
 require (
 	github.com/jedib0t/go-pretty/v6 v6.7.8

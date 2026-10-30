@@ -479,6 +479,7 @@ def test_connect_to_localhost_app(tt_cmd, tmpdir_with_cfg):
         stop_app(tt_cmd, tmpdir, "test_app")
 
 
+@pytest.mark.tls
 def test_connect_to_ssl_app(tt_cmd, tmpdir_with_cfg):
     skip_if_tarantool_ce()
 

@@ -29,7 +29,7 @@ TT_BACKUP_SSL_APP = dict(
     # which must fit into sun_path.
     app_name="ssl",
     instances=[STORAGE_1_A],
-    running_targets=["ssl"],
+    running_targets=["ssl:*"],
     post_start=post_start_backup_app,
 )
 
@@ -42,6 +42,7 @@ skip_reason = f"backup requires Tarantool 3.8.0+ (running {tarantool_major}.{tar
 # the test body: the tt_app fixture starts the application before the body runs,
 # and a Community instance refuses a listener with transport 'ssl'.
 pytestmark = [
+    pytest.mark.tls,
     pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason),
     pytest.mark.skipif(not is_tarantool_ee(), reason="iproto TLS requires Tarantool Enterprise"),
 ]

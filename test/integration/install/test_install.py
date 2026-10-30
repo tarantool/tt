@@ -416,6 +416,7 @@ def test_install_tt_fail_exit_code_dependency_check(tt_cmd, tmp_path, package_to
 
 
 @pytest.mark.slow
+@pytest.mark.tarantool_master
 @pytest.mark.parametrize(
     "old_tarantool_version, expected_install_msg, is_interactive",
     [
@@ -494,6 +495,7 @@ def test_install_tarantool_fetch_latest_version(
 
 
 @pytest.mark.slow
+@pytest.mark.tarantool_master
 @pytest.mark.parametrize(
     "active_symlink, expected_install_msg, is_interactive",
     [
@@ -749,7 +751,10 @@ def test_install_tarantool_force_missing_dependencies(
 @pytest.fixture(scope="module")
 def scope_install_image():
     if platform.system() != "Linux" or platform.machine().lower() not in (
-        "x86_64", "amd64", "aarch64", "arm64",
+        "x86_64",
+        "amd64",
+        "aarch64",
+        "arm64",
     ):
         pytest.skip("Container scope installation requires a Linux amd64/arm64 tt binary")
     if shutil.which("docker") is None:
@@ -861,11 +866,27 @@ assert_scope_isolated
     try:
         result = subprocess.run(
             [
-                "docker", "run", "--rm", "--name", container,
-                "--user", f"{uid}:{uid}",
-                "--mount", f"type=bind,source={tt_cmd},target=/tt,readonly",
-                "--env", "NO_COLOR=1", "--env", "XDG_DATA_HOME=",
-                scope_install_image, "bash", "-euxc", script, "scope-test", scope, root, uid,
+                "docker",
+                "run",
+                "--rm",
+                "--name",
+                container,
+                "--user",
+                f"{uid}:{uid}",
+                "--mount",
+                f"type=bind,source={tt_cmd},target=/tt,readonly",
+                "--env",
+                "NO_COLOR=1",
+                "--env",
+                "XDG_DATA_HOME=",
+                scope_install_image,
+                "bash",
+                "-euxc",
+                script,
+                "scope-test",
+                scope,
+                root,
+                uid,
             ],
             capture_output=True,
             text=True,

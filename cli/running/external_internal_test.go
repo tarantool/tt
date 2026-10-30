@@ -190,7 +190,7 @@ func TestExternalSpec(t *testing.T) {
 
 	for _, name := range []string{
 		"TT_LOG_FILE_DEFAULT", "TT_WAL_DIR_DEFAULT", "TT_CONSOLE_SOCKET_DEFAULT",
-		"TT_IPROTO_LISTEN_DEFAULT", "TT_PROCESS_PID_FILE_DEFAULT",
+		"TT_IPROTO_LISTEN_DEFAULT", "TT_PROCESS_PID_FILE_DEFAULT", "TT_QUIVER_DIR_DEFAULT",
 	} {
 		_, found := envOf(spec.Env, name)
 		assert.False(t, found, name)

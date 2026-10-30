@@ -788,9 +788,11 @@ def test_install_tarantool_docker_artifacts(
     paths = [tmp_path / path.strip() for path in printed]
     if keep_temp:
         # Installation itself must succeed before the known retention bug is expected.
-        request.node.add_marker(pytest.mark.xfail(
-            strict=True, reason="Docker installer discards source and build artifacts",
-        ))
+        retention_bug = pytest.mark.xfail(
+            strict=True,
+            reason="Docker installer discards source and build artifacts",
+        )
+        request.node.add_marker(retention_bug)
         assert paths, output
         assert all(path.is_dir() for path in paths), output
         checkouts = [git.parent for path in paths for git in path.rglob(".git") if git.is_dir()]

@@ -57,12 +57,16 @@ def invalid_install(tt_cmd, tmp_path, args, error):
 
 @pytest.mark.parametrize("program", ["tt", "tarantool"])
 @pytest.mark.parametrize(
-    "flag,value", [("local-dir", "local bundles"), ("credentials-file", "credentials")],
+    "flag,value",
+    [("local-dir", "local bundles"), ("credentials-file", "credentials")],
 )
 @pytest.mark.parametrize("selector", ["3.4.0", "3.4.0ce"])
 def test_community_rejects_enterprise_flags(tt_cmd, tmp_path, program, flag, value, selector):
     invalid_install(
-        tt_cmd, tmp_path, [program, selector, f"--{flag}", value], f"--{flag} is not supported",
+        tt_cmd,
+        tmp_path,
+        [program, selector, f"--{flag}", value],
+        f"--{flag} is not supported",
     )
 
 
@@ -141,7 +145,10 @@ def test_bundle_products_reject_unknown_source_flags(tt_cmd, tmp_path, program, 
 )
 def test_install_rejects_extra_arguments(tt_cmd, tmp_path, program, selector):
     invalid_install(
-        tt_cmd, tmp_path, [program, selector, "extra"], "accepts at most 1 arg(s), received 2",
+        tt_cmd,
+        tmp_path,
+        [program, selector, "extra"],
+        "accepts at most 1 arg(s), received 2",
     )
 
 
@@ -177,16 +184,17 @@ def test_invalid_credentials_file_changes_nothing(
     mode,
     error,
 ):
-    if program == "tt" and (
-        platform.system() != "Linux" or platform.machine() != "x86_64"
-    ):
+    if program == "tt" and (platform.system() != "Linux" or platform.machine() != "x86_64"):
         pytest.skip("Standalone tt-ee archives are available only on Linux amd64")
     credentials = tmp_path / f"dummy {failure} credentials"
     if content is not None:
         credentials.write_text(content)
         credentials.chmod(mode)
     invalid_install(
-        tt_cmd, tmp_path, [program, selector, "--credentials-file", str(credentials)], error,
+        tt_cmd,
+        tmp_path,
+        [program, selector, "--credentials-file", str(credentials)],
+        error,
     )
 
 
@@ -209,7 +217,13 @@ def local_archive(tmp_path, program, version):
 @pytest.mark.parametrize("program,version,command,selector", PRODUCTS)
 @pytest.mark.parametrize("absolute", [False, True])
 def test_local_archive_needs_no_credentials(
-    tt_cmd, tmp_path, program, version, command, selector, absolute,
+    tt_cmd,
+    tmp_path,
+    program,
+    version,
+    command,
+    selector,
+    absolute,
 ):
     local_archive(tmp_path, program, version)
     repository = tmp_path / "local bundles" if absolute else "local bundles"
@@ -242,7 +256,15 @@ def test_local_archive_needs_no_credentials(
 @pytest.mark.parametrize("keep", [False, True])
 @pytest.mark.parametrize("failure", [False, True])
 def test_local_bundle_temporary_artifacts(
-    tt_cmd, tmp_path, monkeypatch, program, version, command, selector, keep, failure,
+    tt_cmd,
+    tmp_path,
+    monkeypatch,
+    program,
+    version,
+    command,
+    selector,
+    keep,
+    failure,
 ):
     archive = local_archive(tmp_path, program, version)
     if failure:

@@ -1,0 +1,86 @@
+name: Release packages
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: true
+      snapshot:
+        type: boolean
+        default: true
+      environment:
+        type: string
+        default: ''
+      cache:
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  default:
+    uses: ./.github/workflows/_build.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
+    with:
+      ref: ${{ inputs.ref }}
+      mode: ${{ inputs.snapshot && 'snapshot' || 'release' }}
+      artifact-name: packages-default
+      environment: ${{ inputs.environment }}
+      cache: ${{ inputs.cache }}
+
+  openssl:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    uses: ./.github/workflows/_build.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
+    with:
+      ref: ${{ inputs.ref }}
+      mode: ${{ inputs.snapshot && 'snapshot' || 'release' }}
+      build-ssl: openssl_static
+      runner: ${{ matrix.runner }}
+      artifact-name: packages-openssl-${{ matrix.arch }}
+      environment: ${{ inputs.environment }}
+      cache: ${{ inputs.cache }}
+
+  smoke:
+    needs: [default, openssl]
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: ubuntu:24.04
+            format: deb
+          - image: rockylinux:9
+            format: rpm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+          # Privileged fork runs are gated by the caller's ee-fork environment.
+          allow-unsafe-pr-checkout: ${{ github.event_name == 'pull_request_target' }}
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: packages-*
+          merge-multiple: true
+          path: dist/packages
+
+      - name: Install and test both package variants
+        env:
+          IMAGE: ${{ matrix.image }}
+          FORMAT: ${{ matrix.format }}
+        run: |
+          docker run --rm \
+            --mount "type=bind,source=$PWD/dist/packages,target=/packages,readonly" \
+            --mount "type=bind,source=$PWD/package/smoke.sh,target=/smoke.sh,readonly" \
+            "$IMAGE" bash /smoke.sh "$FORMAT"

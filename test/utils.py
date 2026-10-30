@@ -696,11 +696,6 @@ def skip_if_tarantool_ce():
         pytest.skip("Tarantool Enterprise required")
 
 
-def skip_if_tcm_not_supported():
-    if not is_tarantool_ee():
-        pytest.skip("Tarantool Enterprise required")
-
-
 def is_tuple_format_supported():
     return not is_tarantool_less(3, 2)
 

@@ -414,6 +414,74 @@ func TestAppClusterSpecLayoutWinsOverRecordEnv(t *testing.T) {
 	assert.Equal(t, fixture.dir, pwd)
 }
 
+// TestAppClusterSpecQuiverDefault keeps Enterprise's Quiver data in the scope
+// layout, independently of other engine paths and defaults supplied by records.
+func TestAppClusterSpecQuiverDefault(t *testing.T) {
+	for _, testCase := range []struct {
+		name       string
+		scope      app.Scope
+		enterprise bool
+		eeDir      bool
+	}{
+		{"path-ce", app.ScopeProject, false, false},
+		{"path-ee", app.ScopeProject, true, false},
+		{"installed-ce", app.ScopeUser, false, false},
+		{"installed-ee", app.ScopeUser, true, true},
+		{"bundled-ee-in-ce-directory", app.ScopeUser, true, false},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			record := ""
+			if testCase.enterprise {
+				record = "{env: {TT_QUIVER_DIR_DEFAULT: /record-default}}"
+			}
+
+			fixture := newAppFixture(t, testCase.scope, appFiles(record, ""))
+
+			var path string
+
+			if testCase.scope == app.ScopeProject {
+				path = filepath.Join(t.TempDir(), "tarantool")
+				t.Setenv("PATH", filepath.Dir(path))
+			} else {
+				path = fixture.installTarantool(t, fixtureTarantool)
+				if testCase.eeDir {
+					eePath := filepath.Join(fixture.root, "versions", "tarantool-ee",
+						"tarantool-ee_"+fixtureTarantool, "tarantool")
+					require.NoError(t, os.MkdirAll(filepath.Dir(eePath), 0o755))
+					require.NoError(t, os.Rename(path, eePath))
+
+					path = eePath
+				}
+			}
+
+			banner := "Tarantool 3.8.1"
+			if testCase.enterprise {
+				banner = "Tarantool Enterprise 3.8.1"
+			}
+
+			require.NoError(t, os.WriteFile(path,
+				[]byte("#!/bin/sh\necho '"+banner+"'\n"), 0o755))
+
+			inst := fixture.instanceCtx(t)
+
+			inst.WalDir = filepath.Join(fixture.dir, "custom-wal")
+			inst.MemtxDir = filepath.Join(fixture.dir, "custom-snapshot")
+			inst.VinylDir = filepath.Join(fixture.dir, "custom-vinyl")
+
+			spec, err := appClusterSpec(&inst, specOptions{})
+			require.NoError(t, err)
+
+			value, found := envOf(spec.Env, "TT_QUIVER_DIR_DEFAULT")
+			assert.Equal(t, testCase.enterprise, found)
+
+			if testCase.enterprise {
+				assert.Equal(t,
+					filepath.Join(fixture.root, "var", "lib", fixtureApp, fixtureInst), value)
+			}
+		})
+	}
+}
+
 // TestAppClusterSpecStopSettings pins that the stop settings of the record
 // reach the Spec.
 func TestAppClusterSpecStopSettings(t *testing.T) {

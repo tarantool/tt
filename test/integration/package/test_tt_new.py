@@ -6,11 +6,7 @@ one that is already there.
 """
 
 import json
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # Python < 3.11, which is what CI runs.
-    import tomli as tomllib
+import tomllib
 
 
 def read_manifest(root):
