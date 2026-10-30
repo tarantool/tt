@@ -39,7 +39,8 @@ runs:
       run: go install github.com/magefile/mage@v1.15.0
       shell: bash
 
-    - name: Install build requirements
+    - name: Install Linux requirements
+      if: runner.os == 'Linux'
       run: |
         sudo apt -y update
         sudo apt -y install git gcc make cmake unzip zip
@@ -47,20 +48,35 @@ runs:
         sudo apt-get -y -f install \
         build-essential ninja-build \
         liblz4-dev autoconf \
-        automake libtool zsh fish
+        automake libtool zsh fish gdb
+      shell: bash
+
+    - name: Install macOS requirements
+      if: runner.os == 'macOS'
+      run: brew install autoconf automake libtool ninja pkgconf lz4 openssl@3 readline zsh fish
+      shell: bash
+
+    - name: Install test requirements
+      # Install the pinned CMake before building Tarantool on macOS.
+      run: pip3 install -r test/requirements.txt
       shell: bash
 
     - name: Enable network isolation for rocks tests
+      if: runner.os == 'Linux'
       run: |
         # Ubuntu 24.04 restricts the user namespace used by unshare -r -n.
         sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
         unshare -r -n true
       shell: bash
 
-    - name: Install Tarantool
+    - name: Install Tarantool on Linux
       if: |
-        inputs.skip-tarantool-install == 'false'
+        runner.os == 'Linux' && inputs.skip-tarantool-install == 'false'
       uses: tarantool/setup-tarantool@8b72738988f4b0ce0aac18ffd060756871197ec0 # v3
+      env:
+        # The action's default cache key omits the architecture. CE 3.9 has
+        # both amd64 and arm64 packages in its linux-deb/static repository.
+        TARANTOOL_CACHE_KEY_SUFFIX: -${{ runner.arch }}
       with:
         tarantool-version: '${{ inputs.tarantool-version }}'
 
@@ -73,8 +89,14 @@ runs:
       run: mage build
       shell: bash
 
-    - name: Install test requirements
-      run: |
-        sudo apt -y install gdb
-        pip3 install -r test/requirements.txt
+    - name: Install Tarantool on macOS
+      if: runner.os == 'macOS' && inputs.skip-tarantool-install == 'false'
+      env:
+        TARANTOOL_VERSION: ${{ inputs.tarantool-version }}
+      # The prefix is fixed by this action, not PR metadata.
+      run: | # zizmor: ignore[github-env]
+        ./tt binary install tarantool --scope project "$TARANTOOL_VERSION"
+        ./.tarantool/bin/tarantool --version
+        echo "$GITHUB_WORKSPACE/.tarantool/bin" >> "$GITHUB_PATH"
+        echo "TT_CLI_TARANTOOL_PREFIX=$GITHUB_WORKSPACE/.tarantool" >> "$GITHUB_ENV"
       shell: bash

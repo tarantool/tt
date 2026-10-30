@@ -3,7 +3,8 @@ tarantool==0.7.1
 requests==2.32.2
 ruff==0.11.11
 pre-commit==4.2.0
-psutil==5.7.0
+# Includes Apple Silicon support and Python 3.12 wheels on macOS.
+psutil==5.9.8
 pyyaml==6.0.1
 codespell==2.4.1
 netifaces==0.11.0
@@ -17,5 +18,7 @@ pytest-rerunfailures==15.1
 # A .tt package archive is tar.zst, and tarfile grew zstd support only in
 # 3.14; without a reader no test can look inside what tt package pack built.
 zstandard==0.23.0
-# Tarantool 3.9 requires CMake 3.18. Keep this version for older build fixtures too.
-cmake==3.18.4.post1
+# Tarantool 3.9 requires CMake >=3.18. Keep the Linux build fixtures unchanged.
+# macOS arm64 needs a universal wheel; stay below 4 for older CMake projects.
+cmake==3.18.4.post1; sys_platform != 'darwin'
+cmake==3.31.10; sys_platform == 'darwin'
