@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -191,7 +192,15 @@ func writeModule(t *testing.T, dir, name, script, manifest string) string {
 	require.NoError(t, os.MkdirAll(moduleDir, 0o755))
 
 	main := filepath.Join(moduleDir, "main")
-	require.NoError(t, os.WriteFile(main, []byte("#!/bin/sh\n"+script+"\n"), 0o755))
+
+	// A concurrent fork can inherit the writable descriptor until exec and
+	// make this script fail to start with ETXTBSY (go.dev/issue/22315).
+	syscall.ForkLock.RLock()
+
+	err := os.WriteFile(main, []byte("#!/bin/sh\n"+script+"\n"), 0o755)
+
+	syscall.ForkLock.RUnlock()
+	require.NoError(t, err)
 
 	if manifest != "" {
 		require.NoError(t, os.WriteFile(filepath.Join(moduleDir, "manifest.yaml"),
