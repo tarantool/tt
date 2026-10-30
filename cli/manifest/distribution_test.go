@@ -1,6 +1,7 @@
 package manifest_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -184,6 +185,40 @@ func TestDistributionErrors(t *testing.T) {
 				"package = \"github.com/a/bc\"\n",
 			field: "dependencies.a.package",
 		},
+		"replace bad key": {
+			src:   head + "[replace]\n\"/abs\" = \"./x\"\n",
+			field: `replace."/abs"`,
+		},
+		"replace empty version": {
+			src:   head + "[replace]\n\"example.com/x@\" = \"./x\"\n",
+			field: `replace."example.com/x@"`,
+		},
+		"replace bare module": {
+			src:   head + "[replace]\n\"example.com/x\" = \"example.com/y\"\n",
+			field: `replace."example.com/x"`,
+		},
+		"replace empty target version": {
+			src:   head + "[replace]\n\"example.com/x\" = \"example.com/y@\"\n",
+			field: `replace."example.com/x"`,
+		},
+		"replace bad target": {
+			src:   head + "[replace]\n\"example.com/x\" = \"example.com//y@v1\"\n",
+			field: `replace."example.com/x"`,
+		},
+		"replace the core": {
+			src:   head + "[replace]\n\"github.com/tarantool/tt/v3\" = \"../tt\"\n",
+			field: `replace."github.com/tarantool/tt/v3"`,
+		},
+		"replace the core module of the manifest": {
+			src: head + "[core]\nmodule = \"github.com/acme/tt/v3\"\n" +
+				"[replace]\n\"github.com/acme/tt/v3\" = \"../tt\"\n",
+			field: `replace."github.com/acme/tt/v3"`,
+		},
+		"replace a dependency": {
+			src: head + "[dependencies]\nfoo = \"github.com/acme/tt-foo@v1.0.0\"\n" +
+				"[replace]\n\"github.com/acme/tt-foo\" = \"../foo\"\n",
+			field: `replace."github.com/acme/tt-foo"`,
+		},
 		"unexported symbol": {
 			src:   head + "[dependencies.a]\nmodule = \"github.com/a/b\"\nsymbol = \"new\"\n",
 			field: "dependencies.a.symbol",
@@ -312,6 +347,14 @@ func TestDistributionLockRoundTrip(t *testing.T) {
 			"migrations": {Module: "example.com/migrations", Path: "./plugins/migrations"},
 			"foo":        {Module: "github.com/acme/tt-foo", Version: "v1.2.0"},
 		},
+		Replace: map[string]manifest.LockedReplace{
+			"gitlab.corp.mail.ru/tarantool/go-migration": {
+				Path: "../go-migration", ContentHash: "sha256:" + strings.Repeat("ab", 32),
+			},
+			"github.com/tarantool/go-storage/v2@v2.0.0": {
+				Module: "github.com/tarantool/go-storage/v2", Version: "v2.1.0-rc1",
+			},
+		},
 	}
 
 	data, err := lock.Marshal()
@@ -334,4 +377,93 @@ func TestDistributionLockVersion(t *testing.T) {
 
 	_, err = manifest.ParseDistributionLock([]byte("lock_version = \"9.0\"\n"))
 	require.ErrorIs(t, err, manifest.ErrUnsupportedVersion)
+}
+
+func TestDistributionReplace(t *testing.T) {
+	t.Parallel()
+
+	dist := parseDistribution(t, minimalDistribution+`
+[dependencies]
+foo = "github.com/acme/tt-foo@v1.0.0"
+local = "./plugins/local"
+
+[replace]
+"gitlab.corp.mail.ru/tarantool/go-migration" = "../go-migration"
+"github.com/tarantool/go-storage/v2" = "github.com/tarantool/go-storage/v2@v2.1.0-rc1"
+"example.com/old@v1.2.3" = "/abs/old"
+"example.com/fork" = "example.com/fork2@main"
+`)
+
+	assert.Equal(t, []manifest.Replacement{
+		{
+			Key: "example.com/fork", Module: "example.com/fork",
+			Target: "example.com/fork2", TargetVersion: "main",
+		},
+		{
+			Key: "example.com/old@v1.2.3", Module: "example.com/old", Version: "v1.2.3",
+			Path: "/abs/old",
+		},
+		{
+			Key:    "github.com/tarantool/go-storage/v2",
+			Module: "github.com/tarantool/go-storage/v2",
+			Target: "github.com/tarantool/go-storage/v2", TargetVersion: "v2.1.0-rc1",
+		},
+		{
+			Key:    "gitlab.corp.mail.ru/tarantool/go-migration",
+			Module: "gitlab.corp.mail.ru/tarantool/go-migration",
+			Path:   "../go-migration",
+		},
+	}, dist.Replacements())
+
+	assert.True(t, dist.Replacements()[1].IsPath())
+	assert.False(t, dist.Replacements()[0].IsPath())
+}
+
+func TestDistributionReplaceAbsent(t *testing.T) {
+	t.Parallel()
+
+	assert.Empty(t, parseDistribution(t, minimalDistribution).Replacements())
+}
+
+func TestDistributionReplaceMessages(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		replace string
+		want    string
+	}{
+		"core": {
+			`"github.com/tarantool/tt/v3" = "../tt"`,
+			"is the core: replace it with [core].path, or build with --core",
+		},
+		"dependency": {
+			`"github.com/acme/tt-foo" = "../foo"`,
+			`is the tt module "foo" of [dependencies]: give that module a path or a version`,
+		},
+		"not a replacement": {
+			`"example.com/x" = "y"`,
+			`"y" is neither a directory (it starts with ./, ../ or /) nor <module>@<version>`,
+		},
+	}
+
+	for name, testCase := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			dist, _, err := manifest.ParseDistribution([]byte(minimalDistribution +
+				"[dependencies]\nfoo = \"github.com/acme/tt-foo@v1.0.0\"\n[replace]\n" +
+				testCase.replace + "\n"))
+			require.NoError(t, err)
+
+			require.ErrorContains(t, dist.Validate(), testCase.want)
+		})
+	}
+}
+
+func TestDistributionReplaceNotATable(t *testing.T) {
+	t.Parallel()
+
+	_, _, err := manifest.ParseDistribution([]byte(minimalDistribution +
+		"[replace]\n\"example.com/x\" = { path = \"./x\" }\n"))
+	require.Error(t, err)
 }
