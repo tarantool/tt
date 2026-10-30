@@ -1,0 +1,80 @@
+name: Nightly CI
+
+# GitHub runs schedules only from the default branch, so the nightly runs
+# start once v3 becomes the default branch. Manual runs test the head of the
+# selected branch.
+on:
+  schedule:
+    - cron: '0 22 * * *' # 01:00 Europe/Moscow
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Suite to run on the head of the selected branch
+        type: choice
+        options: [all, full, canary, analysis]
+        default: all
+      test-failure:
+        description: Exercise canary issue reporting instead of its tests
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  full:
+    if: >-
+      ${{ github.repository == 'tarantool/tt' &&
+      (github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'full') }}
+    permissions:
+      contents: read
+      actions: read
+      statuses: write
+    uses: ./.github/workflows/full.yml # zizmor: ignore[self-repository] -- Test the revision this workflow runs from.
+    with:
+      ref: ${{ github.sha }}
+    secrets:
+      TT_EE_USERNAME: ${{ secrets.TT_EE_USERNAME }}
+      TT_EE_PASSWORD: ${{ secrets.TT_EE_PASSWORD }}
+
+  canary:
+    if: >-
+      ${{ github.repository == 'tarantool/tt' &&
+      (github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'canary') }}
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/canary.yml # zizmor: ignore[self-repository] -- Test the revision this workflow runs from.
+    with:
+      ref: ${{ github.sha }}
+      branch: ${{ github.ref_name }}
+      test-failure: ${{ inputs.test-failure || false }}
+
+  analysis:
+    if: >-
+      ${{ github.repository == 'tarantool/tt' &&
+      (github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'analysis') }}
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/nightly.yml # zizmor: ignore[self-repository] -- Test the revision this workflow runs from.
+    with:
+      ref: ${{ github.sha }}
+      branch: ${{ github.ref_name }}
+
+  report-full:
+    if: ${{ always() && !cancelled() && needs.full.result == 'failure' }}
+    needs: full
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/_report_failure.yml # zizmor: ignore[self-repository] -- Report from the revision this workflow runs from.
+    with:
+      ref: ${{ github.sha }}
+      branch: ${{ github.ref_name }}
+      suite: full
+      results: ${{ toJSON(needs) }}

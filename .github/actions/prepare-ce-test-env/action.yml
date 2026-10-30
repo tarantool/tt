@@ -85,7 +85,8 @@ runs:
     - name: Install Tarantool on Linux
       id: tarantool
       if: |
-        runner.os == 'Linux' && inputs.skip-tarantool-install == 'false'
+        runner.os == 'Linux' && inputs.skip-tarantool-install == 'false' &&
+        inputs.tarantool-version != 'master'
       continue-on-error: true
       uses: tarantool/setup-tarantool@8b72738988f4b0ce0aac18ffd060756871197ec0 # v3
       env:
@@ -112,8 +113,10 @@ runs:
       run: mage build
       shell: bash
 
-    - name: Install Tarantool on macOS
-      if: runner.os == 'macOS' && inputs.skip-tarantool-install == 'false'
+    - name: Install Tarantool through tt
+      if: |
+        (runner.os == 'macOS' || inputs.tarantool-version == 'master') &&
+        inputs.skip-tarantool-install == 'false'
       env:
         TARANTOOL_VERSION: ${{ steps.version.outputs.version }}
       # The prefix is fixed by this action, not PR metadata.

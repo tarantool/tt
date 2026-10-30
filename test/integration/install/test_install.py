@@ -416,6 +416,7 @@ def test_install_tt_fail_exit_code_dependency_check(tt_cmd, tmp_path, package_to
 
 
 @pytest.mark.slow
+@pytest.mark.tarantool_master
 @pytest.mark.parametrize(
     "old_tarantool_version, expected_install_msg, is_interactive",
     [
@@ -494,6 +495,7 @@ def test_install_tarantool_fetch_latest_version(
 
 
 @pytest.mark.slow
+@pytest.mark.tarantool_master
 @pytest.mark.parametrize(
     "active_symlink, expected_install_msg, is_interactive",
     [
