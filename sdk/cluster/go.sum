@@ -102,8 +102,8 @@ github.com/tarantool/go-openssl v1.4.1 h1:SqYKZj7rSjTCyMHo1g6+1HNw1T/afmhWFEVwF5
 github.com/tarantool/go-openssl v1.4.1/go.mod h1:EwX1pKIGypLxkY49vKIIR4LTT+94DhKiunCqU2gEzLQ=
 github.com/tarantool/go-option v1.1.0 h1:ShoOhNsdL41sRpm4hXCRDjV8H0WzPkd4UnKhLKbW//w=
 github.com/tarantool/go-option v1.1.0/go.mod h1:hMr9z2JXOWlgdCBpCPSL2nwp8718GKYvNBJ+ZuzJbCo=
-github.com/tarantool/go-storage/v2 v2.0.0 h1:tMoiLrv9EH99L+6zfCFHhc4rsjSsDWJ9ngszu0n/mBo=
-github.com/tarantool/go-storage/v2 v2.0.0/go.mod h1:bIQfWJ15JU6TYp/RDj7CkmklZ0pdjbXufMwPtT1T9R4=
+github.com/tarantool/go-storage/v2 v2.0.1-0.20261030080914-3d28af2e7c8c h1:usYsqlXWcBq3PUfW24hyRcSN7egVl2+Uk9t/DUurlm8=
+github.com/tarantool/go-storage/v2 v2.0.1-0.20261030080914-3d28af2e7c8c/go.mod h1:pPWYB3D/+AkvKNaVDM/FVMMLszIlf2vX1u2iUMNqWtk=
 github.com/tarantool/go-tarantool/v3 v3.0.2 h1:9ZtHllun80QX7KS9tqd3dXa+QAu2BfqFtX1ZWcNnaW8=
 github.com/tarantool/go-tarantool/v3 v3.0.2/go.mod h1:TXxLWhUCgdxXFfelnTSkq+goKRTRj660zxq4/WXPe8k=
 github.com/tarantool/go-tlsdialer/v2 v2.0.1 h1:mlerqjP6KClXuvc+5kxRm7vZLhU84JrZtLlT0Y0c5Bk=

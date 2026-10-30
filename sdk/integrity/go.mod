@@ -5,7 +5,7 @@ go 1.26.10
 require (
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
-	github.com/tarantool/go-storage/v2 v2.0.0
+	github.com/tarantool/go-storage/v2 v2.0.1-0.20261030080914-3d28af2e7c8c
 )
 
 require (

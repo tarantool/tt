@@ -47,7 +47,7 @@ func signerOptions(key *rsa.PrivateKey) *IntegrityOptions {
 }
 
 // verifierOptions are the integrity options tt collects with: the hasher and
-// the verifier alone, the shape go-storage's WithSingleSigCompact refuses.
+// the verifier alone, the shape WithSingleSigCompact of go-storage v2.0.0 refused.
 func verifierOptions(key *rsa.PrivateKey) *IntegrityOptions {
 	return &IntegrityOptions{
 		Hashers:   []hasher.Hasher{hasher.NewSHA256Hasher()},
