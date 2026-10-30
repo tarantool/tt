@@ -206,7 +206,7 @@ func TestIntegrityEnterpriseLayout(t *testing.T) {
 	assert.NotEmpty(t, snaps, "no snapshot in %s", data)
 	assert.FileExists(t, filepath.Join(run, "tarantool.pid"))
 	assert.FileExists(t, filepath.Join(run, "tarantool.sock"))
-	assert.NoDirExists(t, filepath.Join(versionDir, "var"), "the instance wrote into its version")
+	requireVarLinks(t, root, versionDir)
 
 	got = tt("", "instance", "status", target)
 	require.Equal(t, 0, got.code, got.stderr)
