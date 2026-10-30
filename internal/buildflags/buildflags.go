@@ -33,6 +33,11 @@ var ErrUnsupported = errors.New("unsupported build type")
 // modules of glibc.
 var baseTags = []string{"netgo", "osusergo"}
 
+// openSSLTags build TLS on OpenSSL: tt's own and go-storage's, whose
+// connections to a Tarantool config storage are TLS only with
+// go_storage_ssl. go-storage has no pure-Go TLS, so Default goes without.
+var openSSLTags = []string{"openssl", "go_storage_ssl"}
+
 // staticLdflags link a cgo binary statically through the external linker.
 var staticLdflags = []string{"-linkmode=external", "-extldflags", "-static"}
 
@@ -57,9 +62,10 @@ func (s SSL) Tags() []string {
 	switch s {
 	case Default:
 	case OpenSSL:
-		tags = append(tags, "openssl")
+		tags = append(tags, openSSLTags...)
 	case OpenSSLStatic:
-		tags = append(tags, "openssl", "openssl_static")
+		tags = append(tags, openSSLTags...)
+		tags = append(tags, "openssl_static")
 	}
 
 	return tags
