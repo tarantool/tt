@@ -227,6 +227,10 @@ func TestPackSignedRefusals(t *testing.T) {
 			description: "worker: {script: missing.lua}\n",
 			message:     `"missing.lua" is not a file of the tree`,
 		},
+		"env of a Tarantool instance": {
+			description: "worker: {script: scripts/run, env: {TT_LISTEN: '3301'}}\n",
+			message:     "sets env, which does not reach Tarantool Enterprise",
+		},
 	}
 
 	for name, testCase := range cases {
@@ -250,6 +254,35 @@ func TestSignStageReservedNames(t *testing.T) {
 		require.ErrorIs(t, err, errReservedName)
 		require.ErrorContains(t, err, name)
 	}
+}
+
+// An installed signed version links the layout of its instances at var/, so
+// a signed package cannot have its own var/, while a package that is not
+// signed may.
+func TestSignStageVarDir(t *testing.T) {
+	signer, _ := testSigner(t)
+	stage := t.TempDir()
+	writeTree(t, stage, map[string]string{"var/lib/data": "data\n"})
+
+	err := signStage(stage, t.TempDir(), signer)
+	require.ErrorIs(t, err, errReservedName)
+	require.ErrorContains(t, err, "var")
+
+	link := t.TempDir()
+	require.NoError(t, os.Symlink(t.TempDir(), filepath.Join(link, "var")))
+	require.ErrorIs(t, signStage(link, t.TempDir(), signer), errReservedName)
+}
+
+// The env of an external process reaches it: tt runs it, not Tarantool.
+func TestPackSignedExternalEnv(t *testing.T) {
+	signer, _ := testSigner(t)
+
+	_, err := packSigned(t, signer, map[string]string{
+		".rocks/bin/gw": "#!/bin/sh\n",
+		".templates/default/instances.yaml": "worker: {script: scripts/run}\n" +
+			"gw: {binary: gw, env: {GW_PORT: '8080'}}\n",
+	})
+	require.NoError(t, err)
 }
 
 func TestSignRuntimeAmbiguous(t *testing.T) {
