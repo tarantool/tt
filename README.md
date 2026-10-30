@@ -565,12 +565,21 @@ builds every one of them, and a build that pins nothing new - by another tt,
 say - leaves both files as they are.
 
 A local module, a local core or a directory of `[replace]` has no version to
-pin, so the lock records `content_hash`, a hash of its files: the files the bundle of `--vendor` would
-copy - every regular file of its directory but those in VCS and `vendor`
-directories and in nested modules - by path and content, as Go hashes a
-module for `go.sum`. `--locked` fails when they changed; an ordinary build
-records them again. Files the build leaves in a local module, a binary say,
-count as a change.
+pin, so the lock records `content_hash`, a hash of its files by path and
+content, as Go hashes a module for `go.sum`. They are the files the bundle of
+`--vendor` copies: every regular file of its directory but those in VCS and
+`vendor` directories and in nested modules, and those `.gitignore` ignores.
+The `.gitignore` files are the module's own and those of the directories
+above it up to the root of its git repository - outside a repository, up to
+the manifest's directory when the module is in it. They are read as git reads
+them, but without git, so a tarball of a checkout hashes as the checkout
+does; `.git/info/exclude` and `core.excludesFile`, which differ from machine
+to machine, are not read, and a file git tracks that `.gitignore` ignores
+does not count. The files Go may build the module from count even when
+ignored: the Go and cgo sources, `go.mod`, `go.sum` and the files
+`//go:embed` embeds. `--locked` fails when the files changed; an ordinary
+build records them again. A binary built in a checkout of the core, `./tt`
+say, is no change: the `.gitignore` of tt ignores it.
 
 `tt version` of the result shows the version of the distribution and of the
 tt core it is built on; `tt version --modules` lists its modules with the
