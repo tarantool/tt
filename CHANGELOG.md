@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt binary build tt`: build a distribution of tt - the tt core and the tt
+  modules compiled into one binary - from `tt.manifest.toml`. Every field but
+  `manifest_version` and `manifest_kind = "tt-distribution"` is optional: the
+  core defaults to the one of the running tt and takes any Go version query
+  or a local checkout; modules are local directories, module paths or
+  `module@version`, and the modules of the core's repository follow its
+  commit. `[distribution]` sets the title, the edition, the integrity
+  provider and whether tt's own commands and external modules are in;
+  `[build]` sets the TLS implementation and extra tags and linker flags.
+  `tt.manifest.lock` and `tt.manifest.sum` pin the build; `--update`
+  re-resolves it and `--locked` reproduces it. An application manifest and a
+  distribution manifest refuse each other's command by name.
+
 - `tt cluster topology -c <CLUSTER_CONFIG|URI>`: show a Tarantool 3 cluster's
   configured membership and current instance state. Read the configuration
   from a file, etcd or Tarantool Config Storage and query instances in parallel.

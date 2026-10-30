@@ -34,6 +34,7 @@ Tarantool-based applications.
   + [Rock servers](#rock-servers)
 - [Migrating from instances.enabled](#migrating-from-instancesenabled)
 - [External modules](#external-modules)
+- [Building a distribution of tt](#building-a-distribution-of-tt)
 - [CLI Args](#cli-args)
   + [Autocompletion](#autocompletion)
 - [TT usage](#tt-usage)
@@ -496,6 +497,64 @@ implementation. For example, you have module named `example-module`.
 Just type `tt example-module` to run it.
 
 To see list of available modules, type `tt -h`.
+
+## Building a distribution of tt
+
+A tt module is a Go module that is compiled into tt rather than run next to
+it: its package exports a constructor, `func New(sdk.Services) []sdk.Mount`,
+that returns the commands it adds (see [the SDK](sdk/README.md)). A
+distribution of tt is the tt core and a set of such modules built into one
+binary, described by `tt.manifest.toml`:
+
+``` toml
+manifest_version = "0.1"
+manifest_kind = "tt-distribution"
+
+[package]
+name = "tt"
+
+[core]
+tt = "v3"
+
+[distribution]
+title = "Tarantool CLI EE"
+edition = "ee"
+integrity = "rsa"
+
+[dependencies]
+aeon = "github.com/tarantool/tt/modules/aeon"
+migrations = "./plugins/migrations"
+foo = "github.com/acme/tt-foo@v1.2.0"
+```
+
+Only `manifest_version` and `manifest_kind` are required. Without `[core]`
+the distribution is built on the core of the tt that builds it; `tt` takes
+any Go version query (`latest`, a branch, a commit, a version) and `path` a
+local checkout of the core instead. `[distribution]` sets how the binary
+presents itself (`title`, `edition`), the integrity provider (`none` or
+`rsa`), and whether it has tt's own commands (`builtin`) and external modules
+(`external_modules`), both on by default. `[build]` sets the TLS
+implementation (`ssl`: `default`, `openssl` or `openssl_static`, overridden
+by `TT_CLI_BUILD_SSL`), extra build `tags` and `ldflags`.
+
+A dependency is a local directory (`./...`, `../...` or an absolute path), a
+module path, or a module path with a version after `@`; the long form is a
+table with `module`, `version`, `path`, `package` and `symbol`. A module of
+the core's repository, such as `aeon`, is built at the commit of the core;
+any other module without a version at its latest.
+
+``` sh
+tt binary build tt                  # build ./tt from ./tt.manifest.toml
+tt binary build tt --update         # take the newest core and modules
+tt binary build tt --locked -o tt   # build exactly what the lock pins
+```
+
+The Go toolchain must be in `PATH`. The build generates a main module that
+requires the core and the modules, compiles it with the build tags tt itself
+is built with, runs `tt version` of the result and writes `tt.manifest.lock`
+and `tt.manifest.sum` next to the manifest. Commit both: while the manifest
+stays the same, the next build takes its versions from the lock, and
+`--locked` fails when the lock or the Go modules differ.
 
 ## CLI Args
 

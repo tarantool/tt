@@ -887,6 +887,7 @@ together.
   tt binary [flags] <command> [command flags]
 [0;1;39m
 COMMANDS[0m
+  build       Build a program from its sources
   install     Install a program
   list        List installed binaries and versions
   search      Search available program versions
@@ -899,6 +900,111 @@ FLAGS[0m
   -V, --verbose        Show diagnostic output and build commands
 
 Use "tt binary <command> --help" for more information about a command.
+
+=== tt binary build --help
+Build a program from its sources.
+
+tt binary build tt builds a distribution of tt: a tt binary made of the tt
+core and the compiled-in tt modules tt.manifest.toml lists.
+
+[0;1;39mUSAGE[0m
+  tt binary build [flags]
+
+  tt binary build [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  tt          Build a distribution of tt from tt.manifest.toml
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for build
+[0;1;39m
+GLOBAL FLAGS[0m
+      --scope string   Scope: project, user or system (default "project")
+  -V, --verbose        Show diagnostic output and build commands
+
+Use "tt binary build <command> --help" for more information about a command.
+
+=== tt binary build tt --help
+Build a distribution of tt from tt.manifest.toml: the tt core and the tt
+modules - Go modules that export a constructor of tt commands - compiled into
+one binary. The Go toolchain must be in PATH.
+
+The smallest manifest builds tt itself on the core of the tt that runs the
+build; every other field is optional:
+
+  manifest_version = "0.1"
+  manifest_kind = "tt-distribution"
+
+  [package]
+  name = "tt"                   # the binary
+
+  [core]
+  tt = "v3"                     # latest, a branch, a commit or a version
+  # path = "../tt"              # or a local checkout of the core
+
+  [distribution]
+  title = "Tarantool CLI EE"    # how the binary presents itself
+  edition = "ee"
+  integrity = "rsa"             # none (default) or rsa
+  builtin = true                # tt's own commands
+  external_modules = true       # TT_CLI_MODULES_PATH
+
+  [build]
+  ssl = "default"               # default, openssl or openssl_static
+  tags = []
+  ldflags = []
+
+  [dependencies]
+  aeon = "github.com/tarantool/tt/modules/aeon"   # follows the core
+  foo = "github.com/acme/tt-foo@v1.2.0"            # a module and a version
+  migrations = "./plugins/migrations"              # a local module
+
+A module of the core's repository is built at the commit of the core; any
+other module without a version at its latest. A module's constructor is New
+in its root package unless package and symbol say otherwise.
+
+The build writes tt.manifest.lock and tt.manifest.sum next to the manifest:
+the exact versions and the go.sum it was built from. While the manifest does
+not change, the next build takes the versions from the lock; --update
+resolves them again. --locked builds strictly from the lock and fails when it
+or the Go modules differ.
+
+TT_CLI_BUILD_SSL, when set, overrides [build].ssl. VERSION_LABEL follows the
+version of the distribution, which is taken from git describe in the
+manifest's directory. The path to the binary is printed to stdout.
+
+[0;1;39mUSAGE[0m
+  tt binary build tt [flags]
+
+  tt binary build tt [flags]
+[0;1;39m
+FLAGS[0m
+  -C, --directory string   work on the project in DIR, as if it were the current
+                           directory
+  -h, --help               help for tt
+      --locked             build strictly from tt.manifest.lock and write
+                           nothing but the binary
+      --manifest string    path to the manifest (default: tt.manifest.toml in
+                           the project directory)
+  -o, --output string      path to the binary (default: the package name in the
+                           manifest's directory)
+      --update             resolve the core and the modules again, ignoring the
+                           lock
+      --work string        generate the main module in DIR and keep it there
+[0;1;39m
+GLOBAL FLAGS[0m
+      --scope string   Scope: project, user or system (default "project")
+  -V, --verbose        Show diagnostic output and build commands
+[0;1;39m
+EXAMPLES[0m
+  # Build the distribution in the current directory into ./<package.name>.
+  $ tt binary build tt
+
+  # Take the newest core and modules the manifest allows.
+  $ tt binary build tt --update
+
+  # Build exactly what the lock says, as CI does.
+  $ tt binary build tt --locked -o dist/tt
 
 === tt binary install --help
 Install tt, Tarantool, Enterprise, and TCM.
