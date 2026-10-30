@@ -959,23 +959,41 @@ build; every other field is optional:
   foo = "github.com/acme/tt-foo@v1.2.0"            # a module and a version
   migrations = "./plugins/migrations"              # a local module
 
+  [replace]                     # Go modules the build takes from elsewhere
+  # a local directory
+  "example.com/lib" = "./libs/lib"
+  # a module version, or a query
+  "github.com/acme/lib/v2" = "github.com/acme/lib/v2@main"
+
 A module of the core's repository is built at the commit of the core; any
 other module without a version at its latest. A module's constructor is New
 in its root package unless package and symbol say otherwise.
 
+[replace] does what replace directives of the generated go.mod do, which a tt
+module cannot do itself: Go applies the replace directives of the main module
+only, so a module that needs an unpublished library, or another version of
+one, cannot carry the replacement in its own go.mod. A key is a Go module path,
+optionally with @version to replace that version only; a value is a directory
+(it starts with ./, ../ or /; relative to the manifest, and it must hold that
+module) or <module>@<version>, where the version may be a query - a branch, a
+commit - that the build resolves to an exact version and the lock pins. The
+core, the modules of its repository and the tt modules of [dependencies] are
+not replaced here: use [core].path or --core for the core, and path or version
+of the dependency for a tt module.
+
 The build writes tt.manifest.lock and tt.manifest.sum next to the manifest:
 the exact versions and the go.sum it was built from, and a hash of the files
-of every local module and local core. While the manifest does not change, the
-next build takes the versions from the lock; --update resolves them again.
---locked builds strictly from the lock and fails when it, the Go modules or
-the files of a local module differ.
+of every local module, local core and replaced directory. While the manifest
+does not change, the next build takes the versions from the lock; --update
+resolves them again. --locked builds strictly from the lock and fails when it,
+the Go modules or the files of a local module or a replaced directory differ.
 
 --vendor DIR makes an offline bundle instead of the binary: the generated main
-module with every module it is built from in vendor/, the local modules copied
-into local/, the build parameters of each TLS implementation in build.env and
-build.sh, which builds the binary with nothing but the Go toolchain: no
-network, no module cache, no tt. The bundle names no directory of the machine
-that made it and is built once offline to check it.
+module with every module it is built from in vendor/, the local modules and the
+replaced directories copied into local/, the build parameters of each TLS
+implementation in build.env and build.sh, which builds the binary with nothing
+but the Go toolchain: no network, no module cache, no tt. The bundle names no
+directory of the machine that made it and is built once offline to check it.
 
 --core VALUE, or TT_DIST_CORE, builds on another core than [core] says, without
 editing the manifest: a local checkout (an existing directory or a path that
