@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt package pack --with-integrity-check KEY`, in a distribution with the
+  RSA integrity provider: sign the archive. The package gets `hashes.json`,
+  listing what Tarantool loads, and `env_hashes.json`, listing every other
+  file, each with its signature, and each bundled runtime an
+  `env_hashes.json` of its own; a template record that runs a file outside
+  the package fails the pack. A package packed `--without-deps` is not
+  signed.
+- `tt package install` with `--integrity-check`: install only a signed
+  archive, into the user or the system scope, the version and each bundled
+  runtime checked before they are put in place; a changed or an added file
+  is refused, and so is a runtime installed already that is not the signed
+  one.
 - `tt binary build tt`: build a distribution of tt - the tt core and the tt
   modules compiled into one binary - from `tt.manifest.toml`. Every field but
   `manifest_version` and `manifest_kind = "tt-distribution"` is optional: the
@@ -492,6 +504,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `CGO_ENABLED=0`: the default TLS is pure Go, so the binary is static and
   needs no C library; the OpenSSL builds still use cgo. `tt binary build tt`
   decides the same way.
+- Integrity checks: an instance command checks each application at its own
+  directory - the project, or the installed version - and at the
+  directories of the runtimes it runs on, rather than at the working
+  directory, and runs only what they sign: its tarantool (not one from
+  `PATH`), the script of a record, the binary of an external process (looked
+  up in `.rocks/bin/` only, not in `PATH`) and the tt of its watchdog. The
+  pair of the host in `<root>/etc/<app>/` is not signed and is refused with
+  the checks on.
+- `github.com/tarantool/tt/sdk/integrity`: `Signer.Sign` signs the tree of a
+  package (`SignOptions`) rather than a tt 2 environment, and no longer needs
+  `tt.yaml`; `Signer.SignFiles` signs a runtime by the paths it is installed
+  at; `Provider.VerifyTree` checks a whole tree before it is installed; and
+  `InitializeIntegrityCheck` takes several roots.
 - The instance commands read the cluster config of an application, a
   centralized one included, once per command rather than once per instance.
 - `tt instance status`: collect instance statuses in parallel.
