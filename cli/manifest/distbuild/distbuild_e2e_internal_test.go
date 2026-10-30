@@ -175,3 +175,95 @@ func writeFile(t *testing.T, path, data string) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 	require.NoError(t, os.WriteFile(path, []byte(data), 0o644))
 }
+
+// TestBundleOffline makes a bundle of the core of this checkout and a local
+// module, copies it away from everything it was made of and builds it with
+// an empty module cache and no network, as build.sh does.
+func TestBundleOffline(t *testing.T) {
+	_, err := exec.LookPath(goTool)
+	if err != nil {
+		t.Skip("go is not in PATH")
+	}
+
+	coreDir, err := filepath.Abs(filepath.Join("..", "..", ".."))
+	require.NoError(t, err)
+
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "plugins", "hello", "go.mod"), helloGoMod)
+	writeFile(t, filepath.Join(dir, "plugins", "hello", "hello.go"),
+		strings.Replace(helloModule, `"hello from a module"`, "greeting", 1))
+	writeFile(t, filepath.Join(dir, "plugins", "hello", "greeting.go"),
+		"package hello\n\nimport _ \"embed\"\n\n//go:embed greeting.txt\nvar greeting string\n")
+	writeFile(t, filepath.Join(dir, "plugins", "hello", "greeting.txt"), "hello, offline")
+	// Neither a VCS directory nor a nested module is carried into the bundle.
+	writeFile(t, filepath.Join(dir, "plugins", "hello", ".git", "HEAD"), "ref: refs/heads/x\n")
+	writeFile(t, filepath.Join(dir, "plugins", "hello", "nested", "go.mod"),
+		"module example.com/nested\n")
+
+	manifestPath := filepath.Join(dir, "tt.manifest.toml")
+	writeFile(t, manifestPath, `manifest_version = "0.1"
+manifest_kind = "tt-distribution"
+
+[package]
+name = "tt-hello"
+
+[core]
+path = "`+coreDir+`"
+
+[dependencies]
+aeon = "github.com/tarantool/tt/modules/aeon"
+hello = "./plugins/hello"
+`)
+
+	bundle := filepath.Join(dir, "bundle")
+
+	result, err := Run(t.Context(), Options{Manifest: manifestPath, Vendor: bundle})
+	require.NoError(t, err)
+	assert.Equal(t, bundle, result.Output)
+	assert.FileExists(t, filepath.Join(dir, "tt.manifest.lock"))
+	assert.NoDirExists(t, filepath.Join(bundle, "local", "modules", "hello", ".git"))
+	assert.NoDirExists(t, filepath.Join(bundle, "local", "modules", "hello", "nested"))
+
+	// The embedded files of the core and of the module are vendored.
+	assert.FileExists(t, filepath.Join(bundle, "vendor", "example.com", "hello", "greeting.txt"))
+	assert.DirExists(t, filepath.Join(bundle, "vendor", "github.com", "tarantool", "tt", "v3",
+		"cli", "create", "builtin_templates", "templates", "cluster", ".templates"))
+	assert.FileExists(t, filepath.Join(bundle, "vendor", "github.com", "tarantool", "tt", "v3",
+		"cli", "running", "lua", "launcher.lua"))
+
+	// The bundle names no directory of the machine that made it.
+	for _, name := range []string{"go.mod", "build.env", filepath.Join("vendor", "modules.txt")} {
+		data, err := os.ReadFile(filepath.Join(bundle, name))
+		require.NoError(t, err)
+		assert.NotContains(t, string(data), dir, name)
+		assert.NotContains(t, string(data), coreDir, name)
+	}
+
+	// A second bundle replaces the first.
+	_, err = Run(t.Context(), Options{Manifest: manifestPath, Vendor: bundle, Locked: true})
+	require.NoError(t, err)
+
+	moved := filepath.Join(t.TempDir(), "elsewhere")
+	require.NoError(t, os.Rename(bundle, moved))
+
+	goroot, err := exec.CommandContext(t.Context(), goTool, "-C", moved, "env", "GOROOT").Output()
+	require.NoError(t, err)
+
+	binary := filepath.Join(t.TempDir(), "tt")
+	build := exec.CommandContext(t.Context(), "sh", filepath.Join(moved, "build.sh"),
+		"default", binary)
+
+	build.Env = append(os.Environ(),
+		"PATH="+filepath.Join(strings.TrimSpace(string(goroot)), "bin")+":/usr/bin:/bin",
+		"GOMODCACHE="+t.TempDir(), "GOPROXY=off", "GOFLAGS=-mod=vendor", "GOTOOLCHAIN=local")
+
+	out, err := build.CombinedOutput()
+	require.NoError(t, err, string(out))
+
+	out, err = exec.CommandContext(t.Context(), binary, "hello").CombinedOutput()
+	require.NoError(t, err, string(out))
+	assert.Equal(t, "hello, offline\n", string(out))
+
+	out, err = exec.CommandContext(t.Context(), binary, "version").CombinedOutput()
+	require.NoError(t, err, string(out))
+}

@@ -49,6 +49,10 @@ var (
 	errSumMismatch = errors.New("the Go modules of the build differ from tt.manifest.sum")
 	// errLockedUpdate reports --locked and --update together.
 	errLockedUpdate = errors.New("--locked and --update exclude each other")
+	// errVendorAndOutput reports a bundle asked for with a binary or a work
+	// directory of its own.
+	errVendorAndOutput = errors.New("--vendor excludes --output and --work: " +
+		"the bundle is the work directory and builds no binary")
 )
 
 // Options configure Run.
@@ -67,6 +71,11 @@ type Options struct {
 	// WorkDir is where the main module is generated and kept. Empty: a
 	// temporary directory, removed after the build.
 	WorkDir string
+	// Vendor makes a bundle in this directory instead of a binary: the main
+	// module with every module it is built from vendored, and the build
+	// parameters, which go build turns into the binary without a network,
+	// a module cache or tt. It excludes Output and WorkDir.
+	Vendor string
 	// SSL is the TLS implementation, overriding [build].ssl: the value of
 	// TT_CLI_BUILD_SSL. Empty: the manifest's.
 	SSL string
@@ -90,7 +99,7 @@ type Options struct {
 
 // Result is what Run built.
 type Result struct {
-	// Output is the path to the binary.
+	// Output is the path to the binary, or to the bundle.
 	Output string
 	// Lock is what the binary was built from.
 	Lock *manifest.DistributionLock
@@ -100,6 +109,10 @@ type Result struct {
 func Run(ctx context.Context, opts Options) (*Result, error) {
 	if opts.Locked && opts.Update {
 		return nil, sdk.WithCode(sdk.ExitFailure, errLockedUpdate)
+	}
+
+	if opts.Vendor != "" && (opts.Output != "" || opts.WorkDir != "") {
+		return nil, sdk.WithCode(sdk.ExitFailure, errVendorAndOutput)
 	}
 
 	if opts.gocmd == nil {
@@ -127,10 +140,21 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 		return nil, err
 	}
 
-	work, cleanup, err := workDir(opts.WorkDir)
+	var (
+		work    string
+		cleanup = func() {}
+	)
+
+	if opts.Vendor != "" {
+		work, err = prepareBundle(opts.Vendor)
+	} else {
+		work, cleanup, err = workDir(opts.WorkDir)
+	}
+
 	if err != nil {
 		return nil, err
 	}
+
 	defer cleanup()
 
 	b := builder{opts: opts, dist: dist, dir: dir, work: work, ssl: ssl, lock: lock, sum: sum}
@@ -155,9 +179,9 @@ type builder struct {
 }
 
 // build resolves, generates, compiles and checks the distribution, then
-// writes the binary, the lock and the sum.
+// writes the binary or the bundle, the lock and the sum.
 func (b builder) build(ctx context.Context) (*Result, error) {
-	env := b.goEnv()
+	env := b.goEnv(b.ssl)
 	res := resolver{
 		gocmd: b.opts.gocmd, dir: b.dir, work: b.work, env: env,
 		pinned: b.lock, runningCore: b.opts.RunningCore,
@@ -179,33 +203,39 @@ func (b builder) build(ctx context.Context) (*Result, error) {
 
 	logModules(modules)
 
-	err = b.generate(ctx, resolved, modules)
+	generated, generatedModules := resolved, modules
+	if b.opts.Vendor != "" {
+		generated, generatedModules, err = b.localize(resolved, modules)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	version := describe(ctx, b.dir, b.opts.Label)
+
+	err = b.generate(generated, generatedModules, version)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Infof("Building %s", b.dist.Name())
-
-	err = b.compile(ctx, env)
+	err = b.tidy(ctx, env)
 	if err != nil {
 		return nil, err
 	}
 
-	built := filepath.Join(b.work, b.dist.Name())
+	var output string
 
-	err = smoke(ctx, built, b.work, env)
+	if b.opts.Vendor != "" {
+		output, err = b.bundle(ctx, env, version)
+	} else {
+		output, err = b.binary(ctx, env)
+	}
+
 	if err != nil {
 		return nil, err
 	}
 
 	lock, err := b.lockOf(ctx, resolved, modules, env)
-	if err != nil {
-		return nil, err
-	}
-
-	output := b.output()
-
-	err = install(built, output)
 	if err != nil {
 		return nil, err
 	}
@@ -222,8 +252,39 @@ func (b builder) build(ctx context.Context) (*Result, error) {
 	return &Result{Output: output, Lock: lock}, nil
 }
 
+// binary builds the binary, checks that it starts and installs it.
+func (b builder) binary(ctx context.Context, env []string) (string, error) {
+	log.Infof("Building %s", b.dist.Name())
+
+	args, err := b.buildArgs(b.ssl, runtime.GOOS, b.dist.Name())
+	if err != nil {
+		return "", err
+	}
+
+	err = b.opts.gocmd.Run(ctx, b.work, env, args...)
+	if err != nil {
+		return "", err
+	}
+
+	built := filepath.Join(b.work, b.dist.Name())
+
+	err = smoke(ctx, built, b.work, env)
+	if err != nil {
+		return "", err
+	}
+
+	output := b.output()
+
+	err = install(built, output)
+	if err != nil {
+		return "", err
+	}
+
+	return output, nil
+}
+
 // generate writes the main module into the work directory.
-func (b builder) generate(ctx context.Context, resolved core, modules []module) error {
+func (b builder) generate(resolved core, modules []module, version versionInfo) error {
 	gomod, err := generateGoMod(resolved, modules)
 	if err != nil {
 		return err
@@ -233,7 +294,7 @@ func (b builder) generate(ctx context.Context, resolved core, modules []module) 
 		CoreModule: resolved.Module,
 		Modules:    modules,
 		Options:    b.dist.Distribution,
-		Version:    describe(ctx, b.dir, b.opts.Label),
+		Version:    version,
 	})
 	if err != nil {
 		return err
@@ -258,61 +319,63 @@ func (b builder) generate(ctx context.Context, resolved core, modules []module) 
 	return nil
 }
 
-// compile tidies the main module and builds the binary into the work
-// directory.
-func (b builder) compile(ctx context.Context, env []string) error {
+// tidy tidies the main module and, for a locked build, checks its go.sum.
+func (b builder) tidy(ctx context.Context, env []string) error {
 	err := b.opts.gocmd.Run(ctx, b.work, env, "mod", "tidy")
 	if err != nil {
 		return err
 	}
 
 	if b.opts.Locked {
-		err = b.checkSum()
-		if err != nil {
-			return err
-		}
+		return b.checkSum()
 	}
 
-	args, err := b.buildArgs()
-	if err != nil {
-		return err
-	}
-
-	return b.opts.gocmd.Run(ctx, b.work, env, args...)
+	return nil
 }
 
-// buildArgs are the arguments of go build: the canonical tags and linker
-// flags of the TLS implementation, the manifest's after them.
-func (b builder) buildArgs() ([]string, error) {
-	tags := slices.Concat(b.ssl.Tags(), b.dist.Build.Tags)
-	ldflags := slices.Concat([]string{"-s", "-w"}, b.ssl.Ldflags(runtime.GOOS),
-		b.dist.Build.Ldflags)
-
-	quoted, err := backend.QuoteFlags(ldflags)
+// buildArgs are the arguments of go build that builds output for goos with
+// ssl.
+func (b builder) buildArgs(ssl buildflags.SSL, goos, output string) ([]string, error) {
+	tags, ldflags, err := b.flags(ssl, goos)
 	if err != nil {
-		return nil, sdk.WithCode(sdk.ExitFailure, fmt.Errorf("build.ldflags: %w", err))
+		return nil, err
 	}
 
 	return []string{
-		"build", "-trimpath",
-		"-tags", strings.Join(tags, ","),
-		"-ldflags", quoted,
-		"-o", b.dist.Name(),
-		".",
+		"build", "-trimpath", "-tags", tags, "-ldflags", ldflags, "-o", output, ".",
 	}, nil
+}
+
+// flags returns the -tags and the -ldflags of a build for goos with ssl: the
+// canonical ones of the TLS implementation, the manifest's after them.
+func (b builder) flags(ssl buildflags.SSL, goos string) (string, string, error) {
+	tags := slices.Concat(ssl.Tags(), b.dist.Build.Tags)
+	ldflags := slices.Concat([]string{"-s", "-w"}, ssl.Ldflags(goos), b.dist.Build.Ldflags)
+
+	quoted, err := backend.QuoteFlags(ldflags)
+	if err != nil {
+		return "", "", sdk.WithCode(sdk.ExitFailure, fmt.Errorf("build.ldflags: %w", err))
+	}
+
+	return strings.Join(tags, ","), quoted, nil
+}
+
+// cgo reports whether a build with ssl uses cgo: as the TLS implementation
+// needs, unless the manifest says.
+func (b builder) cgo(ssl buildflags.SSL) bool {
+	if b.dist.Build.Cgo != nil {
+		return *b.dist.Build.Cgo
+	}
+
+	return ssl.Cgo()
 }
 
 // goEnv is the environment of the go command: the process's, without a
 // workspace, resolving modules as the generated go.mod says, with cgo as
-// the TLS implementation and the manifest ask for.
-func (b builder) goEnv() []string {
-	cgo := b.ssl.Cgo()
-	if b.dist.Build.Cgo != nil {
-		cgo = *b.dist.Build.Cgo
-	}
-
+// ssl and the manifest ask for.
+func (b builder) goEnv(ssl buildflags.SSL) []string {
 	cgoEnabled := "CGO_ENABLED=0"
-	if cgo {
+	if b.cgo(ssl) {
 		cgoEnabled = "CGO_ENABLED=1"
 	}
 
