@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	sdkconnect "github.com/tarantool/tt/sdk/connect"
+	"github.com/tarantool/tt/sdk/dial"
 	"github.com/tarantool/tt/sdk/formatter"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cluster"
@@ -507,6 +508,7 @@ func newReplicasetConnectCtx() connect.ConnectCtx {
 		SslCiphers:      replicasetSslCiphers,
 		SslPassword:     replicasetSslPassword,
 		SslPasswordFile: replicasetSslPasswordFile,
+		Transport:       dial.TransportDefault,
 		ConnectTarget:   "",
 		Binary:          false,
 		Evaler:          "",

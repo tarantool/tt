@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/mitchellh/mapstructure"
+	"github.com/tarantool/tt/sdk/dial"
 	"github.com/tarantool/tt/v3/cli/connector"
 	"github.com/tarantool/tt/v3/cli/replicaset"
 	"github.com/tarantool/tt/v3/cli/running"
@@ -142,6 +143,7 @@ func getInstanceConnector(instance replicaset.Instance,
 		Password: "",
 		Ssl: connector.SslOpts{
 			KeyFile: "", CertFile: "", CaFile: "", Ciphers: "", Password: "", PasswordFile: "",
+			Transport: dial.TransportDefault,
 		},
 		ConnectTimeout: connOpts.ConnectTimeout,
 	})

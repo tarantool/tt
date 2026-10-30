@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/backup/storage"
+	"github.com/tarantool/tt/sdk/dial"
 	"github.com/tarantool/tt/sdk/formatter"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/backup"
@@ -1440,6 +1441,7 @@ func backupConnectCtx() connect.ConnectCtx {
 		SslCiphers:      backupSslCiphers,
 		SslPassword:     backupSslPassword,
 		SslPasswordFile: backupSslPasswordFile,
+		Transport:       dial.TransportDefault,
 	}
 }
 
@@ -1621,6 +1623,7 @@ func discoverLiveTopology(configPath, workDir string) (backup.LiveTopology, erro
 		SslCiphers:      replicasetSslCiphers,
 		SslPassword:     replicasetSslPassword,
 		SslPasswordFile: replicasetSslPasswordFile,
+		Transport:       dial.TransportDefault,
 	}
 
 	merged, hostnames, reachable, err := discoverClusterTopology(&cmdCtx, configPath, workDir,

@@ -11,12 +11,14 @@ import (
 	"io"
 	"net"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/sdk/dial"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
@@ -124,6 +126,45 @@ func writeTestResponse(conn net.Conn, header map[uint64]uint64) error {
 	return err
 }
 
+// startTLSTestServer starts a binary server that, as a TLS port of
+// Tarantool, greets nobody before the TLS handshake. The first connection,
+// the probe of the protocol, is closed at once, so that the probe does not
+// wait for a greeting that never comes.
+func startTLSTestServer(t *testing.T, config *tls.Config) string {
+	t.Helper()
+
+	return startConnectorTestServer(t, func(index int, raw net.Conn) {
+		if index == 0 {
+			// End the plaintext probe so the connector can start TLS.
+			return
+		}
+
+		conn := tls.Server(raw, config)
+
+		err := conn.HandshakeContext(t.Context())
+		if err != nil {
+			return
+		}
+
+		_, err = io.WriteString(conn, binaryGreeting())
+		if err != nil {
+			return
+		}
+
+		for {
+			header, err := readTestPacket(conn)
+			if err != nil {
+				return
+			}
+
+			err = writeTestResponse(conn, header)
+			if err != nil {
+				return
+			}
+		}
+	})
+}
+
 func TestConnectEncryptedSSLKey(t *testing.T) {
 	cert, err := tls.LoadX509KeyPair("testdata/localhost.crt", "testdata/localhost.key")
 	require.NoError(t, err)
@@ -150,40 +191,11 @@ func TestConnectEncryptedSSLKey(t *testing.T) {
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			endpoint := startConnectorTestServer(t, func(index int, raw net.Conn) {
-				if index == 0 {
-					// End the plaintext probe so the connector can start TLS.
-					return
-				}
-
-				conn := tls.Server(raw, &tls.Config{
-					Certificates: []tls.Certificate{cert},
-					ClientAuth:   tls.RequireAndVerifyClientCert,
-					ClientCAs:    roots,
-					MinVersion:   tls.VersionTLS12,
-				})
-
-				err := conn.HandshakeContext(t.Context())
-				if err != nil {
-					return
-				}
-
-				_, err = io.WriteString(conn, binaryGreeting())
-				if err != nil {
-					return
-				}
-
-				for {
-					header, err := readTestPacket(conn)
-					if err != nil {
-						return
-					}
-
-					err = writeTestResponse(conn, header)
-					if err != nil {
-						return
-					}
-				}
+			endpoint := startTLSTestServer(t, &tls.Config{
+				Certificates: []tls.Certificate{cert},
+				ClientAuth:   tls.RequireAndVerifyClientCert,
+				ClientCAs:    roots,
+				MinVersion:   tls.VersionTLS12,
 			})
 
 			conn, err := Connect(ConnectOpts{
@@ -288,4 +300,161 @@ func TestSSLPasswordOptionsRequireEncryption(t *testing.T) {
 		require.ErrorIs(t, err, errEncryptionRequired)
 		assert.Nil(t, conn)
 	}
+}
+
+func TestSslOptsEncrypted(t *testing.T) {
+	cases := []struct {
+		name    string
+		opts    SslOpts
+		want    bool
+		wantErr error
+	}{
+		{name: "no transport, no setting"},
+		{name: "no transport, a setting", opts: SslOpts{CaFile: "ca.crt"}, want: true},
+		{name: "ssl, no setting", opts: SslOpts{Transport: dial.TransportSsl}, want: true},
+		{
+			name: "ssl, a setting", want: true,
+			opts: SslOpts{Ciphers: "AES256-SHA", Transport: dial.TransportSsl},
+		},
+		{name: "plain, no setting", opts: SslOpts{Transport: dial.TransportPlain}},
+		{
+			name:    "plain, a setting",
+			opts:    SslOpts{PasswordFile: "passwords", Transport: dial.TransportPlain},
+			wantErr: errPlainTransportWithSsl,
+		},
+		{
+			name:    "unknown transport",
+			opts:    SslOpts{Transport: dial.Transport(15)},
+			wantErr: errUnknownTransport,
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			encrypted, err := testCase.opts.encrypted()
+			require.ErrorIs(t, err, testCase.wantErr)
+			assert.Equal(t, testCase.want, encrypted)
+		})
+	}
+}
+
+// The ssl transport with no other option set takes the way the TLS settings
+// take: a server silent before the handshake is a binary one, dialed over
+// TLS.
+func TestConnectSslTransportWithoutOptions(t *testing.T) {
+	cert, err := tls.LoadX509KeyPair("testdata/localhost.crt", "testdata/localhost.key")
+	require.NoError(t, err)
+
+	// No CA is given: a backend that checks the chain of the server against
+	// the system roots finds the CA of the test there.
+	ca, err := filepath.Abs("testdata/ca.crt")
+	require.NoError(t, err)
+	t.Setenv("SSL_CERT_FILE", ca)
+
+	hellos := make(chan struct{}, 1)
+	config := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
+	}
+
+	config.GetConfigForClient = func(*tls.ClientHelloInfo) (*tls.Config, error) {
+		select {
+		case hellos <- struct{}{}:
+		default:
+		}
+
+		return config, nil
+	}
+
+	endpoint := startTLSTestServer(t, config)
+
+	conn, err := Connect(ConnectOpts{
+		Network: TCPNetwork, Address: endpoint, Username: "test", Password: "password",
+		Ssl: SslOpts{Transport: dial.TransportSsl},
+	})
+
+	require.NotEmpty(t, hellos, "the connection must start a TLS handshake")
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, conn.Close()) })
+
+	result, err := conn.Eval("return 'hello', 'world'", []any{}, RequestOpts{})
+	require.NoError(t, err)
+	assert.Equal(t, []any{"hello", "world"}, result)
+}
+
+// The ssl transport refuses a server that greets before a TLS handshake, as
+// the TLS settings do; the plain transport refuses the TLS settings before
+// it dials.
+func TestConnectTransportRefusals(t *testing.T) {
+	cases := []struct {
+		name    string
+		ssl     SslOpts
+		wantErr error
+		dialed  bool
+	}{
+		{
+			name:    "ssl to a plain server",
+			ssl:     SslOpts{Transport: dial.TransportSsl},
+			wantErr: errEncryptionRequired,
+			dialed:  true,
+		},
+		{
+			name:    "plain with a setting",
+			ssl:     SslOpts{CaFile: "testdata/ca.crt", Transport: dial.TransportPlain},
+			wantErr: errPlainTransportWithSsl,
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			dials := make(chan struct{}, 2)
+			endpoint := startConnectorTestServer(t, func(_ int, conn net.Conn) {
+				dials <- struct{}{}
+
+				_, _ = io.WriteString(conn, binaryGreeting())
+				_, _ = io.Copy(io.Discard, conn)
+			})
+
+			conn, err := Connect(ConnectOpts{
+				Network: TCPNetwork, Address: endpoint, Ssl: testCase.ssl,
+			})
+			require.ErrorIs(t, err, testCase.wantErr)
+			assert.Nil(t, conn)
+			assert.Equal(t, testCase.dialed, len(dials) != 0)
+		})
+	}
+}
+
+// The plain transport with no other option set connects as no transport
+// does.
+func TestConnectPlainTransport(t *testing.T) {
+	endpoint := startConnectorTestServer(t, func(_ int, conn net.Conn) {
+		_, err := io.WriteString(conn, binaryGreeting())
+		if err != nil {
+			return
+		}
+
+		for {
+			header, err := readTestPacket(conn)
+			if err != nil {
+				return
+			}
+
+			err = writeTestResponse(conn, header)
+			if err != nil {
+				return
+			}
+		}
+	})
+
+	conn, err := Connect(ConnectOpts{
+		Network: TCPNetwork, Address: endpoint, Username: "test", Password: "password",
+		Ssl: SslOpts{Transport: dial.TransportPlain},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, conn.Close()) })
+
+	result, err := conn.Eval("return 'hello', 'world'", []any{}, RequestOpts{})
+	require.NoError(t, err)
+	assert.Equal(t, []any{"hello", "world"}, result)
 }
