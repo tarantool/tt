@@ -37,6 +37,8 @@ Tarantool-based applications.
 - [Building a distribution of tt](#building-a-distribution-of-tt)
   + [Building on another core](#building-on-another-core)
   + [Offline build](#offline-build)
+- [Signed packages](#signed-packages)
+  + [The layout on Tarantool Enterprise](#the-layout-on-tarantool-enterprise)
 - [CLI Args](#cli-args)
   + [Autocompletion](#autocompletion)
 - [TT usage](#tt-usage)
@@ -696,6 +698,63 @@ project scope, whose install root the project shares with its guest
 packages, and the signing of a project as it is developed are not supported
 yet. The signatures have a random salt, so a signed archive is not reproduced
 bit for bit, unlike an unsigned one.
+
+### The layout on Tarantool Enterprise
+
+tt gives an instance the paths of the layout - its data, its pid file, its
+sockets and its log - through the `TT_*_DEFAULT` variables of its
+environment. Tarantool Enterprise starts with an empty environment when it
+checks integrity, so under `--integrity-check` they do not reach it, and it
+falls back to the defaults of Tarantool, relative to its working directory,
+the installed version: `var/lib/<instance>`, `var/run/<instance>/tarantool.pid`
+and `var/run/<instance>/tarantool.control` inside the version, which is never
+to be written to, and no iproto socket at all. The cluster config of a package
+meant to run checked therefore names the layout itself. In the system scope,
+whose root is `/opt/tarantool` on Linux, for the package `<app>`:
+
+``` yaml
+snapshot:
+  dir: /opt/tarantool/var/lib/<app>/{{ instance_name }}
+wal:
+  dir: /opt/tarantool/var/lib/<app>/{{ instance_name }}
+vinyl:
+  dir: /opt/tarantool/var/lib/<app>/{{ instance_name }}
+quiver:
+  dir: /opt/tarantool/var/lib/<app>/{{ instance_name }}
+process:
+  pid_file: /opt/tarantool/var/run/<app>/{{ instance_name }}/tarantool.pid
+console:
+  socket: /opt/tarantool/var/run/<app>/{{ instance_name }}/tarantool.control
+iproto:
+  listen:
+  - uri: unix/:/opt/tarantool/var/run/<app>/{{ instance_name }}/tarantool.sock
+```
+
+`quiver.dir` is an option of Tarantool Enterprise, which Tarantool Community
+refuses. The TCP addresses the instance listens on go into `iproto.listen`
+next to the socket.
+
+Paths relative to the version work in either scope, whatever its root: the
+version, `<root>/versions/<app>/<app>_<version>`, is always three levels under
+the root, so `../../../var/lib/<app>/{{ instance_name }}` is the data
+directory, and
+`unix/:./../../../var/run/<app>/{{ instance_name }}/tarantool.sock` the
+socket, which Tarantool takes relative only behind `./`. A project
+resolves them against the project directory, though, so a config with them is
+for installed versions only. `process.work_dir` is no way out: Tarantool
+looks for the modules of the application, `app.file` among them, in its
+working directory, and finds none once it moves there.
+
+tt reads the data directories, the console socket and the first unix socket
+of `iproto.listen` from the config of an instance, with `{{ instance_name }}`,
+`{{ replicaset_name }}` and `{{ group_name }}` substituted, so
+`tt instance status`, `tt connect` (`--binary` too), `tt instance logrotate`
+and `tt instance stop` find what they need where the config puts it. The log
+goes to the standard error of the instance by default, which tt writes into
+`tt.log` of the layout, where `tt instance logs` reads it; `log.to: file` with
+`log.file` under `var/log/<app>/{{ instance_name }}/` keeps it apart. The
+`env` of an instance record does not reach Tarantool Enterprise under the
+checks either: what the application needs from it belongs in the config.
 
 ## CLI Args
 

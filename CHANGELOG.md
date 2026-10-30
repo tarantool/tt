@@ -508,6 +508,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   relative path in its config that leads out of its version directory, such
   as `../../../var/lib/<app>/{{ instance_name }}` to the layout of the scope
   root; only one that leads into the version is refused.
+- The README tells the cluster config of a package that runs on Tarantool
+  Enterprise with the integrity checks to name the layout of its instances:
+  Tarantool Enterprise starts with an empty environment then, and the
+  `TT_*_DEFAULT` variables tt passes the layout through do not reach it.
 - `mage build` without `TT_CLI_BUILD_SSL`, or with `default`, builds with
   `CGO_ENABLED=0`: the default TLS is pure Go, so the binary is static and
   needs no C library; the OpenSSL builds still use cgo. `tt binary build tt`
