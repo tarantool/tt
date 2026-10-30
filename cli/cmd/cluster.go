@@ -958,6 +958,7 @@ func loadApp(cmdCtx *cmdcontext.CmdCtx, appName string, bestEffort bool) (*app.A
 // lookup says, as --scope and --template of an instance command, and the
 // files are read through the integrity checks.
 func LoadApp(ctx context.Context, appName string, lookup sdk.AppLookup) (*app.App, error) {
+	//nolint:contextcheck // The scope roots ask uname and take no context.
 	opts, err := lookupOptions(&cmdCtx, lookup)
 	if err != nil {
 		return nil, err

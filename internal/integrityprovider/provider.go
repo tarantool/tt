@@ -11,6 +11,8 @@
 package integrityprovider
 
 import (
+	"path/filepath"
+	"slices"
 	"sync/atomic"
 
 	"github.com/tarantool/tt/sdk/integrity"
@@ -44,4 +46,33 @@ func Get() integrity.Provider {
 	}
 
 	return current.provider
+}
+
+// ExecutableRoots returns the directories of executables, the runtimes tt
+// runs - tarantool, tt itself, tcm - as roots of the integrity checks: the
+// directory each resolves to, with its links followed, in the order given and
+// once each. A runtime a signed package bundles is installed there with its
+// hashes files, next to the executable; a directory without them adds nothing
+// to the checks, and an executable from it is refused as unknown. An empty
+// path or one that does not resolve gives no root.
+func ExecutableRoots(executables ...string) []string {
+	roots := make([]string, 0, len(executables))
+
+	for _, executable := range executables {
+		if executable == "" {
+			continue
+		}
+
+		resolved, err := filepath.EvalSymlinks(executable)
+		if err != nil {
+			continue
+		}
+
+		root := filepath.Dir(resolved)
+		if !slices.Contains(roots, root) {
+			roots = append(roots, root)
+		}
+	}
+
+	return roots
 }

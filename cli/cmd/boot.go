@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -133,12 +134,21 @@ func Configure() error {
 		return fmt.Errorf("Failed to configure Tarantool CLI: %w", err)
 	}
 
-	// The files of the project are what is checked: the project replaces the
-	// tt environment tt.yaml rooted.
+	// The files of the project are what is checked, the project replacing
+	// the tt environment tt.yaml rooted, with the runtimes tt runs from it:
+	// a signed runtime is installed with its hashes files next to its
+	// executable. An instance command checks each application it acts on
+	// with checks of its own (running.AppIntegrity).
+	ttExecutable, err := os.Executable()
+	if err != nil {
+		ttExecutable = ""
+	}
+
+	roots := append([]string{cmdCtx.Cli.ProjectDir}, integrityprovider.ExecutableRoots(
+		cmdCtx.Cli.TarantoolCli.Executable, ttExecutable, cmdCtx.Cli.TcmCli.Executable)...)
+
 	cmdCtx.Integrity, err = integrityprovider.Get().InitializeIntegrityCheck(
-		cmdCtx.Cli.IntegrityCheck,
-		cmdCtx.Cli.ProjectDir,
-	)
+		cmdCtx.Cli.IntegrityCheck, roots...)
 	if err != nil {
 		return fmt.Errorf("integrity check failed: %w", err)
 	}
