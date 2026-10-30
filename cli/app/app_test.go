@@ -582,6 +582,12 @@ func TestScopeSelectionErrors(t *testing.T) {
 		_, err := load(t, "../myapp", app.Options{Start: tree})
 		requireFailure(t, err, app.ErrInvalidTarget)
 	})
+
+	t.Run("invalid name with credentials", func(t *testing.T) {
+		_, err := load(t, "user:secretpw@host/x", app.Options{Start: tree})
+		requireFailure(t, err, app.ErrInvalidTarget)
+		require.NotContains(t, err.Error(), "secretpw")
+	})
 }
 
 func TestTT2Environment(t *testing.T) {

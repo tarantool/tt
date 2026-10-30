@@ -99,6 +99,31 @@ func TestParseTargetsInvalid(t *testing.T) {
 	}
 }
 
+// A connection URI that falls through to the target grammar must not give
+// its password to the message, on whichever side of the colon it is cut.
+func TestParseTargetsDoNotLeakPassword(t *testing.T) {
+	const password = "secretpw"
+
+	for _, arg := range []string{
+		"user:" + password + "@127.0.0.1:3311?transport=ssl&ssl_ca_file=/x",
+		"user:" + password + "@127.0.0.1:3311/path",
+		"tcp://user:" + password + "@127.0.0.1:3311",
+		"user:pa/ss" + password + "@host:3301",
+		"unix://user:" + password + "@/run/tarantool/s.sock",
+		"user:" + password + "@[::1]:3301?transport=ssl",
+		"user:" + password + "@bad\tname:3301",
+		":" + password + "@host:3301",
+		password + "@host:3301/x",
+		"user:" + password + "@host:3301,other:" + password + "@host:3302/x",
+	} {
+		t.Run(arg, func(t *testing.T) {
+			_, err := app.ParseTargets([]string{arg})
+			require.ErrorIs(t, err, app.ErrInvalidTarget)
+			assert.NotContains(t, err.Error(), password)
+		})
+	}
+}
+
 func TestParseScope(t *testing.T) {
 	for _, value := range []string{"", "project", "user", "system"} {
 		got, err := app.ParseScope(value)

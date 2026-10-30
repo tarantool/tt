@@ -1018,6 +1018,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   that has no place for keys of the replicaset. They are accepted on the
   replicaset, as Tarantool accepts them, and still refused globally, in a
   group and in an instance, where Tarantool refuses them too.
+- `tt connect` and the commands that take a URI like it (`tt play`,
+  `tt replicaset`) recognise a tcp address with a query, `host:port?k=v`,
+  `tcp://host:port?k=v` and `user:password@host:port?k=v`, and the
+  `unix/:path` form of a socket. Before, such a string was read as
+  `<APP>:<INSTANCE>` and refused with `"..." cannot be an instance name`,
+  quoting the password. `tt connect` takes `transport`, `ssl_key_file`,
+  `ssl_cert_file`, `ssl_ca_file`, `ssl_ciphers`, `ssl_password` and
+  `ssl_password_file` from the query, as it takes them from the flags of the
+  same names, and refuses any other parameter. No error of a target or a URI
+  quotes its password any more: those of `tt connect`, `tt play`,
+  `tt instance` and the other commands that take targets, `tt replicaset`,
+  `tt cluster` and the TCS endpoints of a cluster config hide the credentials
+  of what the user typed.
 - A path the cluster config of an instance sets with `{{ replicaset_name }}`
   or `{{ group_name }}` in it failed the instance commands with "missing
   vars": tt substitutes them as Tarantool does, as it did

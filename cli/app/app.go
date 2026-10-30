@@ -7,6 +7,7 @@ import (
 
 	goconfig "github.com/tarantool/go-config/v2"
 	"github.com/tarantool/tt/sdk/integrity"
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/internal/instances"
 )
 
@@ -140,7 +141,8 @@ func (app *App) HasClusterInstances() bool {
 // (Options.BestEffortConfig), which do not check the topology.
 func Load(ctx context.Context, name string, opts Options) (*App, error) {
 	if name != "" && !validName(name) {
-		return nil, failf("%w: %q cannot be an application name", ErrInvalidTarget, name)
+		return nil, failf("%w: %q cannot be an application name", ErrInvalidTarget,
+			log.RedactTarget(name))
 	}
 
 	start := opts.Start

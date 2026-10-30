@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 
+	sdkconnect "github.com/tarantool/tt/sdk/connect"
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/running"
@@ -160,8 +162,10 @@ func resolveAppTarget(cmdCtx *cmdcontext.CmdCtx, target string, config pairConfi
 	*app.App, []running.InstanceCtx, string, error,
 ) {
 	appName, instName, found := strings.Cut(target, string(running.InstanceDelimiter))
-	if appName == "" || (found && instName == "") {
-		return nil, nil, "", fmt.Errorf("%q: %w", target, errNotAnAppTarget)
+	// A URI with credentials cuts into an application and an instance as
+	// well as anything, and the errors of the lookup name both.
+	if appName == "" || (found && instName == "") || sdkconnect.IsCredentialsURI(target) {
+		return nil, nil, "", fmt.Errorf("%q: %w", log.RedactTarget(target), errNotAnAppTarget)
 	}
 
 	opts, err := instanceTargetOptions(cmdCtx)

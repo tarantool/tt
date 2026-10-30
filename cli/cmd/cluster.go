@@ -14,6 +14,7 @@ import (
 	sdkcluster "github.com/tarantool/tt/sdk/cluster"
 	sdkconnect "github.com/tarantool/tt/sdk/connect"
 	"github.com/tarantool/tt/sdk/integrity"
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cluster"
 	clustercmd "github.com/tarantool/tt/v3/cli/cluster/cmd"
@@ -707,7 +708,7 @@ func internalClusterFailoverSwitchStatusModule(cmdCtx *cmdcontext.CmdCtx, args [
 func internalClusterWorkerPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	opts, err := sdkconnect.CreateURIOpts(args[0])
 	if err != nil {
-		return fmt.Errorf("invalid URL %q: %w", args[0], err)
+		return fmt.Errorf("invalid URL %q: %w", log.RedactTarget(args[0]), err)
 	}
 
 	data, err := os.ReadFile(args[1])
@@ -745,7 +746,7 @@ func internalClusterWorkerPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string
 func internalClusterWorkerShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	opts, err := sdkconnect.CreateURIOpts(args[0])
 	if err != nil {
-		return fmt.Errorf("invalid URL %q: %w", args[0], err)
+		return fmt.Errorf("invalid URL %q: %w", log.RedactTarget(args[0]), err)
 	}
 
 	prefix, hostName, workerName, err := clustercmd.ParseWorkerPath(opts.Prefix)
@@ -777,7 +778,7 @@ func internalClusterWorkerShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) e
 func internalClusterWorkerDeleteModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	opts, err := sdkconnect.CreateURIOpts(args[0])
 	if err != nil {
-		return fmt.Errorf("invalid URL %q: %w", args[0], err)
+		return fmt.Errorf("invalid URL %q: %w", log.RedactTarget(args[0]), err)
 	}
 
 	prefix, hostName, workerName, err := clustercmd.ParseWorkerPath(opts.Prefix)

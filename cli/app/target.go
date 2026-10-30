@@ -3,6 +3,9 @@ package app
 import (
 	"strings"
 	"unicode"
+
+	sdkconnect "github.com/tarantool/tt/sdk/connect"
+	"github.com/tarantool/tt/sdk/log"
 )
 
 const (
@@ -59,35 +62,52 @@ func ParseTargets(args []string) ([]Target, error) {
 }
 
 // parseTarget parses one item of a target list.
+//
+// An item may be a connection URI that fell through to here, such as
+// user:password@host:3301, which a command may try as something else once
+// this fails. Every message quotes the item, and the application and the
+// instance cut from it, through log.RedactTarget: the password must not end
+// in the message on the instance side of the colon any more than on the
+// whole.
 func parseTarget(item string) (Target, error) {
+	shown := log.RedactTarget(item)
+
 	if item == "" {
 		return Target{}, failf("%w: empty target in a list", ErrInvalidTarget)
+	}
+
+	// user:password@host:port cuts into an application and an instance as
+	// well as anything, and the instance would then be named in the error of
+	// the lookup that follows. It is a connection URI, no instance target.
+	if sdkconnect.IsCredentialsURI(item) {
+		return Target{}, failf("%w %q: a connection URI is not an instance target",
+			ErrInvalidTarget, shown)
 	}
 
 	app, inst, found := strings.Cut(item, instanceDelimiter)
 	if !found {
 		return Target{}, failf("%w %q: an instance-level command needs an instance target; "+
-			"use %s:<INSTANCE> or %s:*", ErrInvalidTarget, item, item, item)
+			"use %s:<INSTANCE> or %s:*", ErrInvalidTarget, shown, shown, shown)
 	}
 
 	if app == "" {
 		return Target{}, failf("%w %q: the application name is missing; "+
-			"use <APP>:%s", ErrInvalidTarget, item, inst)
+			"use <APP>:%s", ErrInvalidTarget, shown, log.RedactTarget(inst))
 	}
 
 	if !validName(app) {
 		return Target{}, failf("%w %q: %q cannot be an application name",
-			ErrInvalidTarget, item, app)
+			ErrInvalidTarget, shown, log.RedactTarget(app))
 	}
 
 	if inst == "" {
 		return Target{}, failf("%w %q: the instance name is missing; "+
-			"use %s:<INSTANCE> or %s:*", ErrInvalidTarget, item, app, app)
+			"use %s:<INSTANCE> or %s:*", ErrInvalidTarget, shown, app, app)
 	}
 
 	if inst != AllInstances && !validName(inst) {
 		return Target{}, failf("%w %q: %q cannot be an instance name",
-			ErrInvalidTarget, item, inst)
+			ErrInvalidTarget, shown, log.RedactTarget(inst))
 	}
 
 	return Target{App: app, Instance: inst}, nil

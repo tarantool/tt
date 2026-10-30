@@ -3,10 +3,14 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
+	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
+	"github.com/tarantool/tt/sdk"
 	sdkconnect "github.com/tarantool/tt/sdk/connect"
 	"github.com/tarantool/tt/sdk/formatter"
 	"github.com/tarantool/tt/sdk/log"
@@ -28,6 +32,26 @@ var (
 	)
 	errConnectionStringRequired = errors.New("should be specified one connection string")
 	errSpecifyInstanceName      = errors.New("specify instance name")
+	errURIParamSpecifiedByFlag  = errors.New(
+		"is specified with a flag and in the query of a URI",
+	)
+	errUnsupportedURIParam = errors.New("unsupported parameter in the query of a URI")
+	errUnknownTransport    = errors.New(`unknown transport in the query of a URI, ` +
+		`use "ssl" or "plain"`)
+	errNotATarget = errors.New("neither an instance of an application nor a connection URI")
+)
+
+// URI parameters tt connect takes from the query of a URI, as it takes the
+// same settings from flags. The password of the credentials is not among
+// them: it has the place before the "@".
+const (
+	uriTransportParam       = "transport"
+	uriSslKeyFileParam      = "ssl_key_file"
+	uriSslCertFileParam     = "ssl_cert_file"
+	uriSslCaFileParam       = "ssl_ca_file"
+	uriSslCiphersParam      = "ssl_ciphers"
+	uriSslPasswordParam     = "ssl_password"
+	uriSslPasswordFileParam = "ssl_password_file"
 )
 
 var (
@@ -216,6 +240,12 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx,
 		}
 
 		newURI, user, pass := sdkconnect.ParseCredentialsURI(target)
+
+		newURI, err = applyURIQuery(connectCtx, newURI)
+		if err != nil {
+			return connOpts, err
+		}
+
 		network, address := sdkconnect.ParseBaseURI(newURI)
 
 		connectCtx.Username = user
@@ -232,12 +262,19 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx,
 			connectCtx.Password = os.Getenv(sdkconnect.TarantoolPasswordEnv)
 		}
 
-		network, address := sdkconnect.ParseBaseURI(target)
+		var base string
+
+		base, err = applyURIQuery(connectCtx, target)
+		if err != nil {
+			return connOpts, err
+		}
+
+		network, address := sdkconnect.ParseBaseURI(base)
 
 		connOpts = makeConnOpts(network, address, *connectCtx)
+		connectCtx.ConnectTarget = base
 	default:
-		err = resolveErr
-		return connOpts, err
+		return connOpts, unresolvedTargetErr(target, resolveErr)
 	}
 
 	if connectCtx.ConnectTarget == "" {
@@ -245,6 +282,73 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx,
 	}
 
 	return connOpts, err
+}
+
+// unresolvedTargetErr returns the error of a target that is no instance and
+// no URI. A target with an "@" may be a URI that was typed wrong, and the
+// error of the lookup names the pieces it cut the target into, which hold
+// the password, so the lookup error is replaced by one that quotes the
+// target redacted.
+func unresolvedTargetErr(target string, resolveErr error) error {
+	if !strings.Contains(target, "@") {
+		return resolveErr
+	}
+
+	return sdk.Errorf(sdk.ExitFailure, "%w: %q", errNotATarget, log.RedactTarget(target))
+}
+
+// applyURIQuery cuts the query off a URI, applies its parameters to
+// connectCtx and returns the URI without it. The parameters are the TLS
+// settings of the flags; a setting that a flag has set already is an error,
+// as are credentials in both places. An error names the parameter, not its
+// value: it may be a password.
+func applyURIQuery(connectCtx *connect.ConnectCtx, uri string) (string, error) {
+	base, params, err := sdkconnect.SplitURIQuery(uri)
+	if err != nil {
+		// Only what is before the query: it may hold a password.
+		head, _, _ := strings.Cut(uri, "?")
+
+		return "", fmt.Errorf("%q: %w", log.RedactTarget(head), err)
+	}
+
+	settings := map[string]*string{
+		uriSslKeyFileParam:      &connectCtx.SslKeyFile,
+		uriSslCertFileParam:     &connectCtx.SslCertFile,
+		uriSslCaFileParam:       &connectCtx.SslCaFile,
+		uriSslCiphersParam:      &connectCtx.SslCiphers,
+		uriSslPasswordParam:     &connectCtx.SslPassword,
+		uriSslPasswordFileParam: &connectCtx.SslPasswordFile,
+	}
+
+	for _, key := range slices.Sorted(maps.Keys(params)) {
+		value := params.Get(key)
+
+		if key == uriTransportParam {
+			// TLS is chosen by the settings, as it is for flags.
+			if value != "ssl" && value != "plain" {
+				return "", fmt.Errorf("%q: %w", key, errUnknownTransport)
+			}
+
+			continue
+		}
+
+		setting, ok := settings[key]
+		if !ok {
+			return "", fmt.Errorf("%q: %w", key, errUnsupportedURIParam)
+		}
+
+		if *setting != "" {
+			return "", fmt.Errorf("%q: %w", key, errURIParamSpecifiedByFlag)
+		}
+
+		*setting = value
+
+		if key == uriSslPasswordParam {
+			log.RegisterSecret(value)
+		}
+	}
+
+	return base, nil
 }
 
 // internalConnectModule is a default connect module.
