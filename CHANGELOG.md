@@ -949,6 +949,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- Signed configurations in etcd and Tarantool config storage keep the keys tt
+  2 and Tarantool Enterprise Edition use: `<prefix>/hashes/sha256/<key>` and
+  `<prefix>/sig/<key>` next to `<prefix>/config/<key>`. tt 3 wrote and looked
+  for `<prefix>/hashes/sha256/config/<key>` and `<prefix>/sig/rsapss/config/<key>`
+  instead, so it could not read a configuration tt 2 had published with
+  `--with-integrity-check`, and what it published itself was not where the
+  instances look for it.
 - Builds with `TT_CLI_BUILD_SSL=openssl` or `openssl_static` reach a Tarantool
   config storage over TLS: they set `go_storage_ssl`, without which
   go-storage refuses TLS to it. The default pure-Go build still has no TLS to

@@ -19,6 +19,7 @@ import (
 	"github.com/tarantool/go-storage/v2/driver/etcd"
 	"github.com/tarantool/go-storage/v2/integrity"
 	"github.com/tarantool/go-storage/v2/marshaller"
+	"github.com/tarantool/go-storage/v2/namer"
 	sdkconnect "github.com/tarantool/tt/sdk/connect"
 	"go.etcd.io/etcd/client/pkg/v3/transport"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -85,7 +86,8 @@ func NewStorage(
 	prefix = strings.TrimRight(prefix, "/")
 
 	codec := integrity.NewCodecBuilder[StorageDataType]().
-		WithMarshaller(marshaller.NewBytesMarshaller())
+		WithMarshaller(marshaller.NewBytesMarshaller()).
+		WithNamer(newLegacyNamer)
 	if objectLocation != "" {
 		codec = codec.WithObjectLocation(objectLocation)
 	}
@@ -128,6 +130,45 @@ func NewStorage(
 		prefix:         prefix,
 		objectLocation: objectLocation,
 	}, nil
+}
+
+// newLegacyNamer lays the keys of a configuration out as tt 2 and Tarantool
+// Enterprise Edition do:
+//
+//	<prefix>/<objectLocation>/<name>      the value
+//	<prefix>/hashes/<hasher>/<name>       a hash, one per hasher
+//	<prefix>/sig/<name>                   the signature
+//
+// that is, <prefix>/config/all with <prefix>/hashes/sha256/all and
+// <prefix>/sig/all for a configuration published whole. The hash and the
+// signature keys do not repeat the object location (namer.LegacyHashSigLayout),
+// and the signature key names no algorithm when there is one signature
+// (namer.CompactSingleSig).
+//
+// The codec builder has WithSingleSigCompact for the latter, but go-storage
+// v2.0.0 refuses it for a codec that only verifies: Build demands exactly one
+// signature location from the generator, the validator and the namer that
+// parses keys alike, and the generator of a verifying codec has none. The
+// option is therefore given here, to every namer that has exactly one
+// signature location: the generator of a verifying codec emits no signature
+// keys, so its layout does not matter.
+func newLegacyNamer(
+	objectLocation string,
+	hashLocations []namer.HashLocation,
+	sigLocations []namer.SigLocation,
+	opts ...namer.Option,
+) (namer.Namer, error) {
+	opts = append(opts, namer.LegacyHashSigLayout())
+	if len(sigLocations) == 1 {
+		opts = append(opts, namer.CompactSingleSig())
+	}
+
+	layout, err := namer.New(objectLocation, hashLocations, sigLocations, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to lay the keys out: %w", err)
+	}
+
+	return layout, nil
 }
 
 // SetCleanup attaches a cleanup callback that Close will invoke. Used when the
