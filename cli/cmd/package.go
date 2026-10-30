@@ -647,6 +647,7 @@ func runPackageInstall(archives []string) error {
 
 			return askErr == nil && ok
 		},
+		Integrity: installIntegrity(cmdCtx.Cli.IntegrityCheck),
 	})
 	if err != nil {
 		return err

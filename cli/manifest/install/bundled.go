@@ -151,6 +151,11 @@ func placeRuntimes(opts Options, archive *Archive, header *Header, root string) 
 		case !exists:
 			missing = append(missing, component)
 		case complete:
+			err = checkPresentRuntime(opts, archive, root, component)
+			if err != nil {
+				return nil, err
+			}
+
 			present = append(present, component)
 		default:
 			// An installation tt binary did not finish is left for tt binary
@@ -185,6 +190,14 @@ func placeRuntimes(opts Options, archive *Archive, header *Header, root string) 
 	}
 
 	for _, component := range missing {
+		if opts.Integrity != nil {
+			err = opts.Integrity.VerifyTree(filepath.Join(stage, component.dir))
+			if err != nil {
+				return nil, stateErrorf("the bundled %s of %s: integrity check failed: %w",
+					component, archive.Path(), err)
+			}
+		}
+
 		placed, err := moveRuntime(opts, stage, root, component)
 		if err != nil {
 			return nil, err
@@ -259,6 +272,10 @@ func runtimeMapper(components []bundledRuntime) func(string) (string, bool) {
 			switch {
 			case inside == runtimeBinDir+"/"+exec || inside == exec:
 				return dir + "/" + exec, true
+			case isRuntimeHashes(inside):
+				// The signature of a component lists what is laid out here,
+				// and goes with it (pack's signRuntime).
+				return dir + "/" + inside, true
 			case component.program.IsTarantool() &&
 				strings.HasPrefix(inside, binary.IncDirName+"/"+exec+"/"):
 				return dir + "/" + inside, true
@@ -390,4 +407,131 @@ func selectTarantool(root string, bundled bundledRuntime) error {
 	}
 
 	return nil
+}
+
+// Names of the signature of a bundled component: its hashes file and the
+// signature of it, in the component's directory of _runtime/.
+const (
+	runtimeHashesFile     = "env_hashes.json"
+	runtimeHashesSigFile  = runtimeHashesFile + ".sig"
+	runtimeHashesFileMode = 0o644
+)
+
+// isRuntimeHashes reports whether inside, a path inside a component of
+// _runtime/, is its hashes file or the signature of it.
+func isRuntimeHashes(inside string) bool {
+	return inside == runtimeHashesFile || inside == runtimeHashesSigFile
+}
+
+// checkPresentRuntime checks, for a signed install, the installation the
+// bundled component is to run on, laid by tt binary or by an earlier install
+// before this one. Its executable must be the signed one: an installation
+// without hashes files of its own gets those of the archive, and is checked
+// with them; one that has them is checked with what it has. An installation
+// the signature does not fit is an error, rather than a runtime the
+// application would be refused at its first start.
+func checkPresentRuntime(opts Options, archive *Archive, root string,
+	component bundledRuntime,
+) error {
+	if opts.Integrity == nil {
+		return nil
+	}
+
+	dir := component.installPath(root)
+	executable := component.executable(root)
+
+	hashes := filepath.Join(dir, runtimeHashesFile)
+
+	_, err := os.Lstat(hashes)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("checking %s: %w", hashes, err)
+	}
+
+	laid := false
+
+	if errors.Is(err, fs.ErrNotExist) {
+		laid, err = layRuntimeHashes(archive, component, dir)
+		if err != nil {
+			if laid {
+				removeRuntimeHashes(dir)
+			}
+
+			return err
+		}
+	}
+
+	err = opts.Integrity.VerifyFile(dir, executable)
+	if err == nil {
+		return nil
+	}
+
+	if laid {
+		removeRuntimeHashes(dir)
+	}
+
+	return stateErrorf("%s installed at %s %w of %s: %w; remove it, or install the "+
+		"archive without --integrity-check", component, dir, errRuntimeNotSigned,
+		archive.Path(), err)
+}
+
+// layRuntimeHashes copies the hashes file of the bundled component and its
+// signature from the archive into dir, the installation it is to run on, and
+// reports whether the archive had them.
+func layRuntimeHashes(archive *Archive, component bundledRuntime, dir string) (bool, error) {
+	stage, err := os.MkdirTemp(filepath.Dir(dir), ".runtime-hashes-*")
+	if err != nil {
+		return false, fmt.Errorf("creating a staging directory next to %s: %w", dir, err)
+	}
+
+	defer func() { _ = os.RemoveAll(stage) }()
+
+	prefix := runtimeDirName + "/" + component.dir + "/"
+
+	err = archive.Extract(stage, func(name string) (string, bool) {
+		inside, ok := strings.CutPrefix(name, prefix)
+		if !ok || !isRuntimeHashes(inside) {
+			return "", false
+		}
+
+		return inside, true
+	})
+	if err != nil {
+		return false, fmt.Errorf("extracting the signature of the bundled %s of %s: %w",
+			component, archive.Path(), err)
+	}
+
+	names := []string{runtimeHashesFile, runtimeHashesSigFile}
+	contents := make([][]byte, 0, len(names))
+
+	for _, name := range names {
+		data, err := os.ReadFile(filepath.Join(stage, name))
+		if errors.Is(err, fs.ErrNotExist) {
+			return false, nil
+		}
+
+		if err != nil {
+			return false, fmt.Errorf("reading the signature of the bundled %s: %w",
+				component, err)
+		}
+
+		contents = append(contents, data)
+	}
+
+	for index, name := range names {
+		//nolint:gosec // dir is the installation of the component, name a constant.
+		err = os.WriteFile(filepath.Join(dir, name), contents[index], runtimeHashesFileMode)
+		if err != nil {
+			return true, fmt.Errorf("laying the signature of the bundled %s into %s: %w",
+				component, dir, err)
+		}
+	}
+
+	return true, nil
+}
+
+// removeRuntimeHashes removes the hashes file and its signature laid into
+// the installation dir, best effort: they are what a failed check leaves.
+func removeRuntimeHashes(dir string) {
+	_ = os.Remove(filepath.Join(dir, runtimeHashesSigFile))
+	_ = os.Remove(filepath.Join(dir, runtimeHashesFile))
 }
