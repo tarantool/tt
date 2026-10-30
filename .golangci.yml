@@ -339,6 +339,8 @@ linters:
           allow:
             - $gostd
             - "github.com/magefile/mage"
+            # The build tags and linker flags of a tt binary, kept in one place.
+            - "github.com/tarantool/tt/v3/internal/buildflags"
         dir-cli:
           files:
             - "**/cli/*.go"
