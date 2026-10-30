@@ -131,3 +131,46 @@ func TestClusterPublishMendsBrokenFile(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, topologyOf("s-1"), string(data))
 }
+
+// TestClusterPublishLeaderIntoStorage pins that a cluster config whose
+// replicaset sets leader and bootstrap_leader, which Tarantool takes, is
+// published into the etcd the pair points to, and that the same keys of the
+// config of an instance, or on another level than the replicaset, are
+// refused, with nothing written.
+//
+//nolint:paralleltest // Sets the environment, the working directory and the flags.
+func TestClusterPublishLeaderIntoStorage(t *testing.T) {
+	inst := etcdtest.NewLazyCluster(etcdtest.ClusterConfig{Size: 1})
+	defer inst.Terminate()
+
+	config := publishProject(t, "s-1:\ns-2:\n",
+		etcdReference(inst.EndpointsGRPC()[0], "/p"))
+	cmdCtx := &cmdcontext.CmdCtx{}
+
+	wrong := publishSource(t, leaderConfig("instance", "leader: s-1"))
+	err := internalClusterPublishModule(cmdCtx, []string{"myapp", wrong})
+	require.ErrorContains(t, err, "leader [schema]")
+
+	wrong = publishSource(t, leaderConfig("global", "bootstrap_leader: s-1"))
+	err = internalClusterPublishModule(cmdCtx, []string{"myapp", wrong})
+	require.ErrorContains(t, err, "bootstrap_leader [schema]")
+
+	source := publishSource(t, leaderConfig("replicaset", "leader: s-1\nbootstrap_leader: s-1"))
+	require.NoError(t, internalClusterPublishModule(cmdCtx, []string{"myapp", source}))
+	assert.Equal(t, []string{"s-1", "s-2"}, storedTopology(t, config))
+
+	cfg, err := cluster.GetClusterConfig(t.Context(), config, integrity.IntegrityCtx{})
+	require.NoError(t, err)
+
+	snapshot := cfg.Snapshot()
+
+	stored, err := snapshot.MarshalYAML()
+	require.NoError(t, err)
+	assert.Contains(t, string(stored), "leader: s-1")
+	assert.Contains(t, string(stored), "bootstrap_leader: s-1")
+
+	instance := publishSource(t, "leader: s-2\n")
+
+	err = internalClusterPublishModule(cmdCtx, []string{"myapp:s-2", instance})
+	require.ErrorContains(t, err, "leader [schema]")
+}

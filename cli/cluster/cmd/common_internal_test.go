@@ -66,6 +66,139 @@ groups:
 			Err:  nil,
 		},
 		{
+			Name: "replicaset keys on the replicaset",
+			Data: `replication:
+  failover: manual
+  bootstrap_strategy: config
+groups:
+  a:
+    replicasets:
+      b:
+        leader: c1
+        bootstrap_leader: c1
+        instances:
+          c1:
+          c2:
+`,
+			Full: []bool{false, true},
+			Err:  nil,
+		},
+		{
+			Name: "leader on the top",
+			Data: `leader: c
+groups:
+  a:
+    replicasets:
+      b:
+        instances:
+          c:
+`,
+			Full: []bool{false, true},
+			Err: []string{"an invalid cluster configuration: ",
+				"leader [schema] No values are allowed because the schema is set to 'false'"},
+		},
+		{
+			Name: "bootstrap leader on the top",
+			Data: `bootstrap_leader: c
+groups:
+  a:
+    replicasets:
+      b:
+        instances:
+          c:
+`,
+			Full: []bool{false, true},
+			Err: []string{"an invalid cluster configuration: ",
+				"bootstrap_leader [schema] No values are allowed"},
+		},
+		{
+			Name: "leader on the group",
+			Data: `groups:
+  a:
+    leader: c
+    replicasets:
+      b:
+        instances:
+          c:
+`,
+			Full: []bool{false, true},
+			Err: []string{"an invalid cluster configuration: ",
+				"leader [schema] No values are allowed because the schema is set to 'false'"},
+		},
+		{
+			Name: "leader on the instance",
+			Data: `groups:
+  a:
+    replicasets:
+      b:
+        instances:
+          c:
+            leader: c
+`,
+			Full: []bool{false, true},
+			Err: []string{"an invalid cluster configuration: ",
+				"leader [schema] No values are allowed because the schema is set to 'false'"},
+		},
+		{
+			Name: "bootstrap leader on the instance",
+			Data: `groups:
+  a:
+    replicasets:
+      b:
+        instances:
+          c:
+            bootstrap_leader: c
+`,
+			Full: []bool{false, true},
+			Err: []string{"an invalid cluster configuration: ",
+				"bootstrap_leader [schema] No values are allowed"},
+		},
+		{
+			Name: "leader in a section",
+			Data: `replication:
+  leader: c
+groups:
+  a:
+    replicasets:
+      b:
+        instances:
+          c:
+`,
+			Full: []bool{false, true},
+			Err: []string{"an invalid cluster configuration: ",
+				"replication/leader [schema] No values are allowed"},
+		},
+		{
+			Name: "leader of a wrong type",
+			Data: `groups:
+  a:
+    replicasets:
+      b:
+        leader: 123
+        instances:
+          c:
+`,
+			Full: []bool{false, true},
+			Err: []string{"an invalid cluster configuration: ",
+				"leader [type] invalid type"},
+		},
+		{
+			Name: "unknown field next to the leader",
+			Data: `groups:
+  a:
+    replicasets:
+      b:
+        leader: c
+        foo: bar
+        instances:
+          c:
+`,
+			Full: []bool{false, true},
+			Err: []string{"an invalid cluster configuration: ",
+				"foo [schema] No values are allowed because the schema is set to 'false'",
+				"an invalid instance \"c\" configuration: "},
+		},
+		{
 			Name: "invalid base",
 			Data: `audit_log:
   nonblock: 123
