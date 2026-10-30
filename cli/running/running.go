@@ -640,6 +640,11 @@ func IsAbleToStartInstances(instances []InstanceCtx) (bool, error) {
 			return false, err
 		}
 
+		err = checkSignedTarantool(inst, exe)
+		if err != nil {
+			return false, err
+		}
+
 		if !warned[inst.AppDir] {
 			for _, warning := range exe.Warnings {
 				log.Warnf("%s: %s", inst.AppName, warning)

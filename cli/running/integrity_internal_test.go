@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"maps"
 	"os"
 	"path/filepath"
 	"testing"
@@ -109,6 +110,10 @@ func TestIntegrityChecksTheInstalledApplication(t *testing.T) {
 	require.Len(t, insts, 1)
 	require.NotNil(t, insts[0].Integrity)
 
+	ok, err := IsAbleToStartInstances(insts)
+	require.NoError(t, err)
+	assert.True(t, ok)
+
 	spec, err := instanceSpec(&insts[0], specOptions{integrity: insts[0].Integrity})
 	require.NoError(t, err)
 	assert.Contains(t, spec.Args, filepath.Join(fixture.dir, "hashes.json"))
@@ -123,6 +128,18 @@ func TestIntegrityChecksTheInstalledApplication(t *testing.T) {
 		&insts[0], nil, false)
 	require.ErrorIs(t, err, errNotSigned)
 
+	t.Run("tarantool not signed", func(t *testing.T) {
+		require.NoError(t, os.Remove(filepath.Join(filepath.Dir(tarantoolPath),
+			"env_hashes.json")))
+
+		insts, err := signing.collect(t, app.ScopeUser, t.TempDir())
+		require.NoError(t, err)
+
+		_, err = IsAbleToStartInstances(insts)
+		require.ErrorIs(t, err, errNotSigned)
+		require.ErrorContains(t, err, tarantoolPath)
+	})
+
 	t.Run("tampered", func(t *testing.T) {
 		writeFiles(t, fixture.dir, map[string]string{
 			".templates/default/config.yaml": clusterConfig("credentials: {}\n"),
@@ -131,6 +148,114 @@ func TestIntegrityChecksTheInstalledApplication(t *testing.T) {
 		_, err := signing.collect(t, app.ScopeUser, t.TempDir())
 		require.ErrorContains(t, err, "integrity check failed")
 		require.ErrorContains(t, err, "hash mismatch")
+	})
+}
+
+func TestIntegrityRefusesTheHost(t *testing.T) {
+	signing := newSigningFixture(t)
+
+	t.Run("tarantool from PATH", func(t *testing.T) {
+		fixture := newAppFixture(t, app.ScopeProject, appFiles("{}", ""))
+
+		bin := t.TempDir()
+		fakeTarantool(t, filepath.Join(bin, "tarantool"))
+		t.Setenv("PATH", bin)
+
+		signing.signApp(t, fixture.dir)
+
+		insts, err := signing.collect(t, app.ScopeProject, fixture.dir)
+		require.NoError(t, err)
+
+		_, err = IsAbleToStartInstances(insts)
+		require.ErrorIs(t, err, errNotSigned)
+		require.ErrorContains(t, err, "from PATH")
+	})
+
+	external := func(t *testing.T, record string, files map[string]string) appFixture {
+		t.Helper()
+
+		all := map[string]string{
+			"app.manifest.toml":                 fixtureManifest,
+			"app.manifest.lock":                 fixtureLock,
+			".templates/default/instances.yaml": "gw: " + record + "\n",
+		}
+
+		maps.Copy(all, files)
+
+		fixture := newAppFixture(t, app.ScopeUser, all)
+		signing.signApp(t, fixture.dir)
+
+		return fixture
+	}
+
+	t.Run("program from PATH", func(t *testing.T) {
+		external(t, "{binary: gw}", nil)
+
+		bin := t.TempDir()
+		writeExecutable(t, filepath.Join(bin, "gw"))
+		t.Setenv("PATH", bin)
+
+		insts, err := signing.collect(t, app.ScopeUser, t.TempDir())
+		require.NoError(t, err)
+
+		require.ErrorContains(t, checkStart(&insts[0]), "not looked up in PATH")
+	})
+
+	t.Run("program of the package", func(t *testing.T) {
+		all := map[string]string{
+			"app.manifest.toml":                 fixtureManifest,
+			"app.manifest.lock":                 fixtureLock,
+			".templates/default/instances.yaml": "gw: {binary: gw}\n",
+		}
+		fixture := newAppFixture(t, app.ScopeUser, all)
+		program := filepath.Join(fixture.dir, ".rocks", "bin", "gw")
+		writeExecutable(t, program)
+		signing.signApp(t, fixture.dir)
+
+		insts, err := signing.collect(t, app.ScopeUser, t.TempDir())
+		require.NoError(t, err)
+		require.Len(t, insts, 1)
+
+		path, err := ResolveBinary(&insts[0])
+		require.NoError(t, err)
+		assert.Equal(t, program, path)
+
+		require.NoError(t, os.WriteFile(program, []byte("#!/bin/sh\nexit 1\n"), 0o755))
+
+		_, err = ResolveBinary(&insts[0])
+		require.ErrorIs(t, err, errNotSigned)
+		require.ErrorContains(t, err, "hash mismatch")
+	})
+
+	t.Run("binary of the host", func(t *testing.T) {
+		host := filepath.Join(t.TempDir(), "gw")
+		writeExecutable(t, host)
+
+		external(t, "{binary: "+host+"}", nil)
+
+		insts, err := signing.collect(t, app.ScopeUser, t.TempDir())
+		require.NoError(t, err)
+
+		err = checkStart(&insts[0])
+		require.ErrorIs(t, err, errNotSigned)
+		require.ErrorContains(t, err, host)
+	})
+
+	t.Run("script of the host", func(t *testing.T) {
+		script := filepath.Join(t.TempDir(), "init.lua")
+		writeFiles(t, filepath.Dir(script), map[string]string{"init.lua": "return\n"})
+
+		fixture := newAppFixture(t, app.ScopeUser, map[string]string{
+			"app.manifest.toml":                 fixtureManifest,
+			"app.manifest.lock":                 fixtureLock,
+			".templates/default/instances.yaml": "worker: {script: " + script + "}\n",
+		})
+		signing.signApp(t, fixture.dir)
+
+		insts, err := signing.collect(t, app.ScopeUser, t.TempDir())
+		require.NoError(t, err)
+
+		require.ErrorIs(t, checkStart(&insts[0]), errNotSigned)
 	})
 }
 
