@@ -62,6 +62,15 @@ func (fixture signingFixture) signApp(t *testing.T, dir string) {
 	require.NoError(t, fixture.signer.Sign(dir, integrity.SignOptions{}))
 }
 
+// signRuntime signs the runtime installed with its executable at path.
+func (fixture signingFixture) signRuntime(t *testing.T, path string) {
+	t.Helper()
+
+	require.NoError(t, fixture.signer.SignFiles(filepath.Dir(path), []integrity.SignedFile{
+		{Path: filepath.Base(path), Source: path},
+	}))
+}
+
 // collect resolves app:* with the integrity checks of the fixture on, as
 // the instance commands do.
 func (fixture signingFixture) collect(t *testing.T, appScope app.Scope, start string) (
@@ -89,9 +98,10 @@ func (fixture signingFixture) collect(t *testing.T, appScope app.Scope, start st
 func TestIntegrityChecksTheInstalledApplication(t *testing.T) {
 	signing := newSigningFixture(t)
 	fixture := newAppFixture(t, app.ScopeUser, appFiles("{}", ""))
-	fixture.installTarantool(t, fixtureTarantool)
+	tarantoolPath := fixture.installTarantool(t, fixtureTarantool)
 
 	signing.signApp(t, fixture.dir)
+	signing.signRuntime(t, tarantoolPath)
 
 	// The checks are rooted at the version, wherever tt runs.
 	insts, err := signing.collect(t, app.ScopeUser, t.TempDir())
@@ -102,6 +112,16 @@ func TestIntegrityChecksTheInstalledApplication(t *testing.T) {
 	spec, err := instanceSpec(&insts[0], specOptions{integrity: insts[0].Integrity})
 	require.NoError(t, err)
 	assert.Contains(t, spec.Args, filepath.Join(fixture.dir, "hashes.json"))
+
+	// The runtime the application runs on is a root of its checks.
+	reader, err := insts[0].Integrity.Repository.Read(tarantoolPath)
+	require.NoError(t, err)
+	require.NoError(t, reader.Close())
+
+	// The watchdog is run by a tt the checks know only when it is signed.
+	_, err = watchdogCommandLine(&cmdcontext.CmdCtx{}, filepath.Join(t.TempDir(), "tt"),
+		&insts[0], nil, false)
+	require.ErrorIs(t, err, errNotSigned)
 
 	t.Run("tampered", func(t *testing.T) {
 		writeFiles(t, fixture.dir, map[string]string{

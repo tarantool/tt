@@ -706,12 +706,23 @@ func watchdogCommandLine(cmdCtx *cmdcontext.CmdCtx, ttExecutable string,
 	cmdArgs = append(cmdArgs, args...)
 	cmdArgs = append(cmdArgs, watchdogArgs(instance, foreground)...)
 
-	f, err := cmdCtx.Integrity.Repository.Read(ttExecutable)
+	repository := cmdCtx.Integrity.Repository
+	if instance.Integrity != nil {
+		repository = instance.Integrity.Repository
+	}
+
+	reader, err := repository.Read(ttExecutable)
 	if err != nil {
+		if instance.Integrity != nil {
+			return nil, fmt.Errorf("the watchdog of %s: tt %s %w by the package or the "+
+				"runtimes it runs on: %w", GetAppInstanceName(*instance), ttExecutable,
+				errNotSigned, err)
+		}
+
 		return nil, err
 	}
 
-	_ = f.Close()
+	_ = reader.Close()
 
 	return cmdArgs, nil
 }
