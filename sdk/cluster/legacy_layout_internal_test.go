@@ -267,7 +267,12 @@ func TestCollectRefusesTamperedData(t *testing.T) {
 			putRaw(t, stor, test.kvs)
 
 			_, err := newTestStorage(t, stor, "", test.opts).Collect()
-			require.Error(t, err)
+			require.ErrorIs(t, err, ErrIntegrityCheckFailed)
+			require.NotErrorIs(t, err, ErrNoConfiguration)
+			require.ErrorContains(t, err, `key "/tt/config/all"`)
+
+			_, err = newTestStorage(t, stor, "all", test.opts).Collect()
+			require.ErrorIs(t, err, ErrIntegrityCheckFailed)
 		})
 	}
 }
