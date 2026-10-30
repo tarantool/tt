@@ -11,6 +11,7 @@ import (
 
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/internal/instances"
+	ttscope "github.com/tarantool/tt/v3/internal/scope"
 )
 
 // Names the signature of a package adds to it: the hashes files, each with
@@ -29,6 +30,9 @@ const (
 	// runtimeBinDir is the bin/ level most bundled components have; the
 	// Enterprise SDK is flat and has none.
 	runtimeBinDir = "bin"
+	// varDirName is where an installed signed version links the layout of
+	// its instances (ttscope.VarDirName).
+	varDirName = ttscope.VarDirName
 )
 
 var (
@@ -41,6 +45,12 @@ var (
 	// errOutsidePackage is wrapped by the error for an instance record of a
 	// signed package that runs a file the package does not hold.
 	errOutsidePackage = errors.New("runs a file outside the package")
+	// errSignedEnv is wrapped by the error for a record of a Tarantool
+	// instance of a signed package that sets env: Tarantool Enterprise
+	// starts with an empty environment when it checks integrity, so the
+	// variables would not reach the instance.
+	errSignedEnv = errors.New("sets env, which does not reach Tarantool Enterprise " +
+		"when it checks integrity; put the values into the config")
 	// errAmbiguousRuntime is wrapped by the error for a bundled component
 	// holding its executable both at its top and in bin/: the install would
 	// take one of them, and the signature cannot say which.
@@ -50,7 +60,9 @@ var (
 // signStage signs the staged tree: every runtime component in _runtime/ as
 // it is to be installed (signRuntime), then the package itself, without
 // _runtime/, each file Tarantool loads listed for it, the scripts the
-// instance records of its templates run among them.
+// instance records of its templates run among them. A package with var/ at
+// its top is refused: an installed signed version links the layout of its
+// instances there.
 func signStage(stageDir, projectDir string, signer integrity.Signer) error {
 	for _, name := range []string{appHashesFileName, envHashesFileName} {
 		for _, file := range []string{name, name + signatureSuffix} {
@@ -59,6 +71,14 @@ func signStage(stageDir, projectDir string, signer integrity.Signer) error {
 				return stateErrorf("%s: %w: signing writes it", file, errReservedName)
 			}
 		}
+	}
+
+	// An installed signed version links the layout of its instances at var/
+	// (install's LinkVar), so the package must not have its own.
+	_, err := os.Lstat(filepath.Join(stageDir, varDirName))
+	if err == nil {
+		return stateErrorf("%s: %w: a signed version links the directories of its "+
+			"instances there when it is installed", varDirName, errReservedName)
 	}
 
 	for _, name := range []string{runtimeTarantool, runtimeTt, runtimeTcm} {
@@ -192,8 +212,10 @@ func runtimeHeaders(dir, name string) ([]integrity.SignedFile, error) {
 // templateRuns checks the instance records of every template the stage
 // holds: a signed package runs only its own files, so a record may name a
 // script or a binary by a path only inside the package, and a program only
-// when the package builds it into .rocks/bin/. It returns the scripts, as
-// paths relative to the package, for Tarantool to check: it runs them.
+// when the package builds it into .rocks/bin/; and the record of a Tarantool
+// instance sets no env, which Tarantool Enterprise drops when it checks
+// integrity. It returns the scripts, as paths relative to the package, for
+// Tarantool to check: it runs them.
 //
 // The descriptions are parsed against the project, as pack checked them
 // (checkTemplate), and the paths they resolve to are mapped back into the
@@ -236,6 +258,13 @@ func templateRuns(stageDir, projectDir string) ([]string, error) {
 			if problem != nil {
 				problems = append(problems, fmt.Errorf("%s: instance %q %w", label,
 					record.Name, problem))
+			}
+
+			// An external process gets its env from tt, which runs it; a
+			// Tarantool instance gets it from nobody.
+			if record.Binary == "" && len(record.Env) > 0 {
+				problems = append(problems, fmt.Errorf("%s: instance %q %w", label,
+					record.Name, errSignedEnv))
 			}
 
 			if script != "" {
