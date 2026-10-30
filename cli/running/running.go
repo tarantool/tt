@@ -15,6 +15,7 @@ import (
 
 	goconfig "github.com/tarantool/go-config/v2"
 	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
@@ -176,6 +177,15 @@ type InstanceCtx struct {
 	// units tt service systemd install wrote says, or empty. AttachUnits sets
 	// it; NewInstanceCtx leaves it empty.
 	Unit string
+	// Integrity are the integrity checks of the application of the instance
+	// and of the runtimes it runs on (AppIntegrity), nil when they are off.
+	// What the instance runs is checked with them before it is run: its
+	// tarantool, its script, its binary, the tt of its watchdog.
+	Integrity *integrity.IntegrityCtx
+
+	// integrityFor finds the checks again where the watchdog reloads the
+	// instance (PinnedOptions): app.Options.IntegrityFor it was found with.
+	integrityFor func(app.Scope, string) (integrity.IntegrityCtx, error)
 }
 
 // removeSockets removes the console socket and the binary port socket of an

@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/tarantool/tt/sdk/integrity"
-	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/cli/running/internal/layout"
 	"github.com/tarantool/tt/v3/cli/util"
@@ -57,14 +56,6 @@ func (opts *specOptions) warnf(format string, args ...any) {
 	if opts.warn != nil {
 		opts.warn(fmt.Sprintf(format, args...))
 	}
-}
-
-func integrityOf(cmdCtx *cmdcontext.CmdCtx) *integrity.IntegrityCtx {
-	if cmdCtx.Cli.IntegrityCheck == "" {
-		return nil
-	}
-
-	return &cmdCtx.Integrity
 }
 
 // instanceSpec is the Spec of the process of an instance: a Tarantool

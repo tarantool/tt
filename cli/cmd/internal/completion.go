@@ -90,6 +90,7 @@ func completeTarget(
 		Start:            "",
 		Dir:              "",
 		Integrity:        cmdCtx.Integrity,
+		IntegrityFor:     nil,
 		BestEffortConfig: true,
 	}
 

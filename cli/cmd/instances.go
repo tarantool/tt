@@ -39,7 +39,8 @@ const (
 // applications of its targets with: the project search starts in the -C
 // directory, where the command has the flag, or else in the working
 // directory, and the files the resolver reads go through the integrity
-// checks. tt.yaml plays no part.
+// checks - those of each application, rooted at it and at the runtimes it
+// runs on, once it is found. tt.yaml plays no part.
 func instanceOptions(cmdCtx *cmdcontext.CmdCtx) (app.Options, error) {
 	start, err := absoluteWorkingDir()
 	if err != nil {
@@ -52,6 +53,7 @@ func instanceOptions(cmdCtx *cmdcontext.CmdCtx) (app.Options, error) {
 		Start:            start,
 		Dir:              "",
 		Integrity:        cmdCtx.Integrity,
+		IntegrityFor:     running.AppIntegrity(cmdCtx),
 		BestEffortConfig: false,
 	}, nil
 }

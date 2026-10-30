@@ -256,6 +256,7 @@ func completeSystemdApp(
 		Start:            "",
 		Dir:              "",
 		Integrity:        cmdCtx.Integrity,
+		IntegrityFor:     nil,
 		BestEffortConfig: true,
 	}), cobra.ShellCompDirectiveNoFileComp
 }
