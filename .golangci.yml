@@ -513,6 +513,8 @@ linters:
             # Boot sets the integrity provider the distribution chose, and the
             # commands register their integrity flags through it.
             - "github.com/tarantool/tt/v3/internal/integrityprovider"
+            # tt binary build tt takes TT_CLI_BUILD_SSL as the magefile does.
+            - "github.com/tarantool/tt/v3/internal/buildflags"
             # tt service systemd writes the units and the mark of an
             # application; the instance commands read whom the mark names.
             - "github.com/tarantool/tt/v3/internal/systemd"
