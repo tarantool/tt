@@ -1,0 +1,88 @@
+name: Nightly v3 CI
+
+# GitHub reads schedules only from the default branch (currently master).
+on:
+  schedule:
+    - cron: '0 22 * * *' # 01:00 Europe/Moscow
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Suite to run on the current v3 head
+        type: choice
+        options: [all, full, canary, analysis]
+        default: all
+      test-failure:
+        description: Exercise canary issue reporting instead of its tests
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-v3
+  cancel-in-progress: false
+
+jobs:
+  source:
+    if: github.repository == 'tarantool/tt'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: v3
+          persist-credentials: false
+      - id: source
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  full:
+    if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'full'
+    needs: source
+    permissions:
+      contents: read
+      actions: read
+      statuses: write
+    # Deliberately follow v3 so the default-branch launcher needs no version bumps.
+    uses: tarantool/tt/.github/workflows/full.yml@v3 # zizmor: ignore[unpinned-uses]
+    with:
+      ref: ${{ needs.source.outputs.sha }}
+    secrets:
+      TT_EE_USERNAME: ${{ secrets.TT_EE_USERNAME }}
+      TT_EE_PASSWORD: ${{ secrets.TT_EE_PASSWORD }}
+
+  canary:
+    if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'canary'
+    needs: source
+    permissions:
+      contents: read
+      issues: write
+    uses: tarantool/tt/.github/workflows/canary.yml@v3 # zizmor: ignore[unpinned-uses] -- Follow v3 test definitions.
+    with:
+      ref: ${{ needs.source.outputs.sha }}
+      test-failure: ${{ inputs.test-failure || false }}
+
+  analysis:
+    if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'analysis'
+    needs: source
+    permissions:
+      contents: read
+      issues: write
+    uses: tarantool/tt/.github/workflows/nightly.yml@v3 # zizmor: ignore[unpinned-uses] -- Follow v3 test definitions.
+    with:
+      ref: ${{ needs.source.outputs.sha }}
+
+  report-full:
+    if: ${{ always() && !cancelled() && needs.full.result == 'failure' }}
+    needs: [source, full]
+    permissions:
+      contents: read
+      issues: write
+    uses: tarantool/tt/.github/workflows/_report_failure.yml@v3 # zizmor: ignore[unpinned-uses] -- Follow v3 reporting code.
+    with:
+      ref: ${{ needs.source.outputs.sha }}
+      branch: v3
+      suite: full
+      results: ${{ toJSON(needs) }}

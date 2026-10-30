@@ -71,7 +71,8 @@ runs:
 
     - name: Install Tarantool on Linux
       if: |
-        runner.os == 'Linux' && inputs.skip-tarantool-install == 'false'
+        runner.os == 'Linux' && inputs.skip-tarantool-install == 'false' &&
+        inputs.tarantool-version != 'master'
       uses: tarantool/setup-tarantool@8b72738988f4b0ce0aac18ffd060756871197ec0 # v3
       env:
         # The action's default cache key omits the architecture. CE 3.9 has
@@ -89,8 +90,17 @@ runs:
       run: mage build
       shell: bash
 
-    - name: Install Tarantool on macOS
-      if: runner.os == 'macOS' && inputs.skip-tarantool-install == 'false'
+    - name: Install Tarantool master build dependencies
+      if: runner.os == 'Linux' && inputs.tarantool-version == 'master'
+      run: |
+        sudo apt-get install -y pkg-config libreadline-dev libssl-dev libunwind-dev \
+          libicu-dev libncurses-dev zlib1g-dev libcurl4-openssl-dev libyaml-dev
+      shell: bash
+
+    - name: Install Tarantool through tt
+      if: |
+        (runner.os == 'macOS' || inputs.tarantool-version == 'master') &&
+        inputs.skip-tarantool-install == 'false'
       env:
         TARANTOOL_VERSION: ${{ inputs.tarantool-version }}
       # The prefix is fixed by this action, not PR metadata.
