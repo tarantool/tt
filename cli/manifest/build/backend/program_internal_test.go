@@ -84,11 +84,11 @@ func TestGoArgs(t *testing.T) {
 func TestQuoteFlags(t *testing.T) {
 	t.Parallel()
 
-	quoted, err := quoteFlags([]string{"-s", "-X", "main.v=a b", `it's`, `say "hi" now`})
+	quoted, err := QuoteFlags([]string{"-s", "-X", "main.v=a b", `it's`, `say "hi" now`})
 	require.NoError(t, err)
 	assert.Equal(t, `-s -X 'main.v=a b' "it's" 'say "hi" now'`, quoted)
 
-	_, err = quoteFlags([]string{`both ' and "`})
+	_, err = QuoteFlags([]string{`both ' and "`})
 	require.ErrorIs(t, err, errUnquotableFlag)
 }
 

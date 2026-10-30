@@ -109,7 +109,7 @@ func goArgs(build manifest.Build, env Env) ([]string, error) {
 	}
 
 	if len(ldflags) > 0 {
-		quoted, err := quoteFlags(ldflags)
+		quoted, err := QuoteFlags(ldflags)
 		if err != nil {
 			return nil, err
 		}
@@ -125,10 +125,10 @@ func goArgs(build manifest.Build, env Env) ([]string, error) {
 	return append(args, pkg), nil
 }
 
-// quoteFlags joins flags into the string go build splits back into them: on
+// QuoteFlags joins flags into the string go build splits back into them: on
 // spaces, with single or double quotes around a field that has a space, and
 // no escapes. A flag with a space and both kinds of quotes cannot be passed.
-func quoteFlags(flags []string) (string, error) {
+func QuoteFlags(flags []string) (string, error) {
 	quoted := make([]string, 0, len(flags))
 
 	for _, flag := range flags {
