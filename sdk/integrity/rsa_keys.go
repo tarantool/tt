@@ -23,9 +23,10 @@ var (
 	errNotRSAKey      = errors.New("not an RSA key")
 )
 
-// loadPrivateKey reads the PKCS #1 RSA private key from the PEM file at
-// path. The file is refused when its permissions give access to anyone but
-// its owner.
+// loadPrivateKey reads the RSA private key from the PEM file at path, in
+// PKCS #1 (openssl genrsa -traditional) or PKCS #8 (openssl genrsa of
+// OpenSSL 3). The file is refused when its permissions give access to anyone
+// but its owner.
 func loadPrivateKey(path string) (*rsa.PrivateKey, error) {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -43,7 +44,7 @@ func loadPrivateKey(path string) (*rsa.PrivateKey, error) {
 		return nil, fmt.Errorf("failed to load private key: %w", err)
 	}
 
-	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	privateKey, err := parsePrivateKey(block.Bytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse private key %q: %w", path, err)
 	}
@@ -51,22 +52,59 @@ func loadPrivateKey(path string) (*rsa.PrivateKey, error) {
 	return privateKey, nil
 }
 
-// loadPublicKey reads the RSA public key, PKIX-encoded, from the PEM file
-// at path.
+// parsePrivateKey parses der as an RSA private key in PKCS #1 or PKCS #8. A
+// PKCS #8 key of another algorithm is refused with errNotRSAKey.
+func parsePrivateKey(der []byte) (*rsa.PrivateKey, error) {
+	privateKey, pkcs1Err := x509.ParsePKCS1PrivateKey(der)
+	if pkcs1Err == nil {
+		return privateKey, nil
+	}
+
+	parsed, err := x509.ParsePKCS8PrivateKey(der)
+	if err != nil {
+		return nil, fmt.Errorf("neither PKCS #1 (%w) nor PKCS #8 (%w)", pkcs1Err, err)
+	}
+
+	privateKey, ok := parsed.(*rsa.PrivateKey)
+	if !ok {
+		return nil, fmt.Errorf("%w: %T", errNotRSAKey, parsed)
+	}
+
+	return privateKey, nil
+}
+
+// loadPublicKey reads the RSA public key from the PEM file at path, in PKIX
+// (openssl rsa -pubout) or PKCS #1 (openssl rsa -RSAPublicKey_out).
 func loadPublicKey(path string) (*rsa.PublicKey, error) {
 	block, err := readPEMBlock(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load public key: %w", err)
 	}
 
-	parsed, err := x509.ParsePKIXPublicKey(block.Bytes)
+	publicKey, err := parsePublicKey(block.Bytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse public key %q: %w", path, err)
 	}
 
+	return publicKey, nil
+}
+
+// parsePublicKey parses der as an RSA public key in PKIX or PKCS #1. A PKIX
+// key of another algorithm is refused with errNotRSAKey.
+func parsePublicKey(der []byte) (*rsa.PublicKey, error) {
+	parsed, pkixErr := x509.ParsePKIXPublicKey(der)
+	if pkixErr != nil {
+		publicKey, err := x509.ParsePKCS1PublicKey(der)
+		if err != nil {
+			return nil, fmt.Errorf("neither PKIX (%w) nor PKCS #1 (%w)", pkixErr, err)
+		}
+
+		return publicKey, nil
+	}
+
 	publicKey, ok := parsed.(*rsa.PublicKey)
 	if !ok {
-		return nil, fmt.Errorf("public key %q: %w: %T", path, errNotRSAKey, parsed)
+		return nil, fmt.Errorf("%w: %T", errNotRSAKey, parsed)
 	}
 
 	return publicKey, nil
