@@ -32,6 +32,12 @@ import (
 // the prefix.
 var ErrNoConfiguration = errors.New("a configuration data not found in ")
 
+// ErrIntegrityCheckFailed reports data in a storage that fails the integrity
+// checks: its hash or signature is missing, does not match the data or was
+// made with another key. The error that wraps it names the storage, the key
+// and the reason.
+var ErrIntegrityCheckFailed = errors.New("integrity check failed")
+
 var (
 	errFailedToConnectToTarantoolAtLeastOneEndpointIsRequired = errors.New(
 		"failed to connect to tarantool: at least one endpoint is required",
@@ -186,9 +192,18 @@ func (r *RawStorage) Collect() ([]Data, error) {
 		return r.Get(ctx, r.key)
 	}
 
-	kvs, err := r.storage.Range(ctx, "")
+	// Range drops a value that fails the checks unless told otherwise, which
+	// would report tampered data as no data at all. Every value is taken and
+	// a failed check is reported for its key instead.
+	kvs, err := r.storage.Range(ctx, "", integrity.IgnoreVerificationError())
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch data from %s: %w", r.storageType, err)
+	}
+
+	for _, keyValue := range kvs {
+		if keyValue.Error != nil {
+			return nil, r.integrityError(keyValue.Name, keyValue.Error)
+		}
 	}
 
 	if len(kvs) == 0 {
@@ -259,9 +274,13 @@ func (r *RawStorage) Close() error {
 
 // Get retrieves the value for key.
 func (r *RawStorage) Get(ctx context.Context, key string) ([]Data, error) {
-	resp, err := r.storage.Get(ctx, r.normalizeName(key))
+	resp, err := r.storage.Get(ctx, r.normalizeName(key), integrity.IgnoreVerificationError())
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch data from %s: %w", r.storageType, err)
+	}
+
+	if resp.Error != nil {
+		return nil, r.integrityError(resp.Name, resp.Error)
 	}
 
 	value, _ := resp.Value.Get()
@@ -291,7 +310,13 @@ func (r *RawStorage) Watch(ctx context.Context, key string) (<-chan WatchEvent, 
 		defer close(events)
 
 		for resp := range innerCh {
-			value, _ := r.Get(ctx, string(resp.Key))
+			// A value that cannot be read, or fails the integrity checks, is
+			// no event: the watcher waits for the next change.
+			value, err := r.Get(ctx, string(resp.Key))
+			if err != nil || len(value) == 0 {
+				continue
+			}
+
 			events <- WatchEvent{
 				Key:   key,
 				Value: value[0].Value,
@@ -300,6 +325,13 @@ func (r *RawStorage) Watch(ctx context.Context, key string) (<-chan WatchEvent, 
 	}()
 
 	return events, nil
+}
+
+// integrityError reports the value under name that failed the integrity
+// checks with err.
+func (r *RawStorage) integrityError(name string, err error) error {
+	return fmt.Errorf("%w for the data of %s key %q: %w",
+		ErrIntegrityCheckFailed, r.storageType, r.sourceName(name), err)
 }
 
 // normalizeName normalizes a name by removing the prefix and object location from it.

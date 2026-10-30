@@ -1126,7 +1126,8 @@ func TestIntegrityDataPublisher_CollectorAll_check_error(t *testing.T) {
 			defer closeConn()
 
 			result, err := collector.Collect()
-			require.ErrorContains(t, err, "a configuration data not found")
+			require.ErrorIs(t, err, cluster.ErrIntegrityCheckFailed)
+			require.ErrorIs(t, err, errAnyError)
 			require.Nil(t, result)
 		})
 	}
