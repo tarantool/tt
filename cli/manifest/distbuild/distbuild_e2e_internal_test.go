@@ -108,6 +108,13 @@ hello = "./plugins/hello"
 		CombinedOutput()
 	require.NoError(t, err, string(out))
 	assert.Contains(t, string(out), "Tarantool CLI core version")
+
+	// The version of a core from a directory is the one git tells of it.
+	if commit := checkoutCommit(t, coreDir); commit != "" {
+		assert.Regexp(t, `(?m)^Tarantool CLI core version \S+\. commit: `+commit,
+			string(out))
+	}
+
 	assert.Regexp(t, `(?m)^  aeon +\(devel\) +github\.com/tarantool/tt/modules/aeon$`, string(out))
 	assert.Regexp(t, `(?m)^  builtin +\(devel\) +github\.com/tarantool/tt/v3$`, string(out))
 	assert.Regexp(t, `(?m)^  hello +\(devel\) +example\.com/hello$`, string(out))
@@ -299,6 +306,26 @@ hello = "./plugins/hello"
 
 	out, err = exec.CommandContext(t.Context(), binary, "version").CombinedOutput()
 	require.NoError(t, err, string(out))
+
+	// The bundle carries no git directory: the version of the core is the
+	// one stamped when it was made.
+	if commit := checkoutCommit(t, coreDir); commit != "" {
+		assert.Contains(t, string(out), "commit: "+commit)
+	}
+}
+
+// checkoutCommit returns the abbreviated commit of the git checkout dir is,
+// or nothing when it is not one.
+func checkoutCommit(t *testing.T, dir string) string {
+	t.Helper()
+
+	out, err := exec.CommandContext(t.Context(), "git", "-C", dir, "rev-parse", "--short",
+		"HEAD").Output()
+	if err != nil {
+		return ""
+	}
+
+	return strings.TrimSpace(string(out))
 }
 
 // TestBuildCoreOverride builds a distribution on the core of this checkout

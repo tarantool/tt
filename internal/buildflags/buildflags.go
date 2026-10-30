@@ -85,3 +85,32 @@ func (s SSL) Ldflags(goos string) []string {
 func (s SSL) Cgo() bool {
 	return s == OpenSSL || s == OpenSSLStatic
 }
+
+// versionPackage is the package of tt whose variables hold the version a tt
+// binary is stamped with.
+const versionPackage = "github.com/tarantool/tt/v3/cli/version"
+
+// Version is the version a tt binary is stamped with, as git describe tells
+// it of the checkout of tt the binary is built from.
+type Version struct {
+	// Tag is the tag the commit is at, or past it as git describe --tags
+	// prints the commit.
+	Tag string
+	// Commit is the abbreviated hash of the commit.
+	Commit string
+	// CommitsSinceTag is the number of commits since the tag, in decimal.
+	CommitsSinceTag string
+	// Label is the label of the build.
+	Label string
+}
+
+// Ldflags returns the linker flags that stamp v into the binary. A core of
+// tt without the variables they set is built as if they were not given.
+func (v Version) Ldflags() []string {
+	return []string{
+		"-X", versionPackage + ".gitTag=" + v.Tag,
+		"-X", versionPackage + ".gitCommit=" + v.Commit,
+		"-X", versionPackage + ".gitCommitSinceTag=" + v.CommitsSinceTag,
+		"-X", versionPackage + ".versionLabel=" + v.Label,
+	}
+}

@@ -58,7 +58,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt version` of a distribution with a version of its own also shows the
   version of the tt core it is built on, and `tt version --modules` lists the
   modules the binary is built from with the versions Go recorded for their
-  Go modules.
+  Go modules. For a core built from a directory, `[core].path` or `--core`,
+  for which Go records no version, the build stamps the one `git describe`
+  tells of its checkout, as the magefile does for tt itself; an offline
+  bundle carries it.
 
 - `tt cluster topology -c <CLUSTER_CONFIG|URI>`: show a Tarantool 3 cluster's
   configured membership and current instance state. Read the configuration

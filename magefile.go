@@ -28,8 +28,6 @@ var (
 // spell-checker:ignore trimpath extldflags asmflags covdata GOEXE TTEXE GOCOVERDIR
 
 const (
-	goPackageName = "github.com/tarantool/tt/v3/cli"
-
 	asmflags = "all=-trimpath=${PWD}"
 	gcflags  = "all=-trimpath=${PWD}"
 
@@ -44,12 +42,14 @@ const (
 )
 
 var (
-	ldflags = []string{
-		"-X ${PACKAGE}/version.gitTag=${GIT_TAG}",
-		"-X ${PACKAGE}/version.gitCommit=${GIT_COMMIT}",
-		"-X ${PACKAGE}/version.gitCommitSinceTag=${GIT_COMMIT_SINCE_TAG}",
-		"-X ${PACKAGE}/version.versionLabel=${VERSION_LABEL}",
-	}
+	// ldflags stamp the version of the checkout, which the environment of
+	// getBuildEnvironment expands, into the binary.
+	ldflags = buildflags.Version{
+		Tag:             "${GIT_TAG}",
+		Commit:          "${GIT_COMMIT}",
+		CommitsSinceTag: "${GIT_COMMIT_SINCE_TAG}",
+		Label:           "${VERSION_LABEL}",
+	}.Ldflags()
 	goExecutableName     = "go"
 	pythonExecutableName = "python3"
 	ttExecutableName     = "tt"
@@ -564,7 +564,6 @@ func getBuildEnvironment() map[string]string {
 	}
 
 	return map[string]string{
-		"PACKAGE":              goPackageName,
 		"GIT_TAG":              gitTag,
 		"GIT_COMMIT":           gitCommit,
 		"GIT_COMMIT_SINCE_TAG": gitCommitSinceTag,
