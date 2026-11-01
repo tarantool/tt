@@ -1053,6 +1053,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt binary install tarantool --use-docker` on Linux arm64 failed with
+  `cannot start cmake: exec format error`: the build image downloaded CMake
+  for x86_64 whatever the host. It takes the archive for the architecture of
+  the image.
 - `tt cluster publish` and `tt cluster show --validate` refused a valid cluster
   config of Tarantool 3 whose replicaset sets `leader`, or `bootstrap_leader`,
   with "Additional properties 'leader' do not match the schema": the config of
