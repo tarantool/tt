@@ -1,4 +1,5 @@
 import os
+import platform
 from pathlib import Path
 from signal import SIGQUIT
 from subprocess import PIPE, STDOUT, Popen, run
@@ -43,6 +44,10 @@ def aeon_plain(mock_aeon, tmp_path, request):
     if isinstance(param, int):
         cmd.append(f"-port={param}")
     elif isinstance(param, str):
+        if param[0] == "@" and platform.system() != "Linux":
+            # A name in the abstract namespace of unix sockets exists only on
+            # Linux; elsewhere "@" starts an ordinary file name.
+            pytest.skip("abstract unix sockets are Linux-only")
         if param[0] != "@":
             param = tmp_path / param
         cmd.append(f"-unix={param}")
