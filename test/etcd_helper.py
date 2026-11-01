@@ -1,6 +1,12 @@
 import os
 import subprocess
 
+# gRPC, which etcd3 runs on, handles fork in this process and logs about its
+# descriptors into the stderr of the children on macOS, and so into the
+# output of the tt commands the tests check. Turn the handling off before
+# gRPC is loaded.
+os.environ.setdefault("GRPC_ENABLE_FORK_SUPPORT", "false")
+
 import etcd3
 
 DEFAULT_ETCD_USERNAME = "root"

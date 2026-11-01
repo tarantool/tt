@@ -56,7 +56,10 @@ runs:
 
     - name: Install macOS requirements
       if: runner.os == 'macOS'
-      run: brew install autoconf automake libtool ninja pkgconf lz4 openssl@3 readline zsh fish
+      # The completion tests need bash 4 or later with bash-completion.
+      run: |
+        brew install autoconf automake libtool ninja pkgconf lz4 openssl@3 readline zsh fish \
+          bash bash-completion@2
       shell: bash
 
     - name: Install test requirements
