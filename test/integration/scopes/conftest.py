@@ -1,3 +1,4 @@
+import platform
 import shutil
 import tempfile
 from pathlib import Path
@@ -12,8 +13,10 @@ def roots():
     sockets of the instances: an installed instance binds its console socket
     by the full path, <root>/var/run/<app>/<inst>/tarantool.control, and a
     root under tmp_path, deep in the base directory of pytest, leaves too
-    little of a unix socket address for it."""
-    path = Path(tempfile.mkdtemp(prefix="tt-scopes-"))
+    little of a unix socket address for it. On macOS the default temporary
+    directory, under /var/folders, is too deep as well."""
+    base = "/tmp" if platform.system() == "Darwin" else None
+    path = Path(tempfile.mkdtemp(prefix="tt-scopes-", dir=base))
     (path / "cwd").mkdir()
     yield path
     shutil.rmtree(path, ignore_errors=True)

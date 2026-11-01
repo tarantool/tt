@@ -1195,9 +1195,13 @@ def test_create_name_not_a_package_name(tt_cmd, tmp_path):
     assert rc == 0
     check_file_contains(tmp_path / "my_app" / "app.manifest.toml", "name = 'my-app'")
 
+    # Beside my_app on a file system that ignores case, as macOS has by
+    # default, My_App would be the existing application.
+    other = tmp_path / "other"
+    other.mkdir()
     rc, _ = run_command_and_get_output(
         [tt_cmd, "create", "cluster", "--name", "My_App", "-s"],
-        cwd=tmp_path,
+        cwd=other,
     )
     assert rc == 0
-    check_project_files(tmp_path / "My_App", [cluster_config_file, instances_file, "app.lua"])
+    check_project_files(other / "My_App", [cluster_config_file, instances_file, "app.lua"])

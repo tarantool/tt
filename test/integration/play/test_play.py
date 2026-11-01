@@ -408,14 +408,16 @@ def test_play_to_single_instance_without_binary_port(tt_cmd, test_instance):
 
 def test_play_to_cluster_app(tt_cmd):
     # The binary port of the instance, under .tarantool/var/run/<app>/<inst>/ of
-    # the project, is given to tarantool by its full path: keep it short.
+    # the project, is given to tarantool by its full path: keep it short. The
+    # application is named after its directory, which the path holds twice, and
+    # /tmp is /private/tmp on macOS.
     tmpdir = tempfile.mkdtemp(dir="/tmp")
 
     empty_file = "empty.lua"
-    app_name = "test_simple_cluster_app"
+    app_name = "play_app"
     test_xlog_name = "test.snap"
     # Copy the test application to the "run" directory.
-    test_app_path = os.path.join(os.path.dirname(__file__), app_name)
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_simple_cluster_app")
     tmp_app_path = os.path.join(tmpdir, app_name)
     shutil.copytree(test_app_path, tmp_app_path)
     # The test file.
@@ -447,9 +449,7 @@ def test_play_to_cluster_app(tt_cmd):
         cmd = [tt_cmd, "play", app_name + ":master123", test_xlog_name]
         rc, cmd_output = run_command_and_get_output(cmd, cwd=tmp_app_path)
         assert rc == 1
-        assert (
-            "could not resolve URI or application: " + '"test_simple_cluster_app:master123"'
-        ) in cmd_output
+        assert ("could not resolve URI or application: " + f'"{app_name}:master123"') in cmd_output
 
     finally:
         # Stop the Instance.

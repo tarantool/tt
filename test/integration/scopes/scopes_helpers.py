@@ -5,6 +5,7 @@ scope roots they install into and the tarantool installations under them."""
 import contextlib
 import json
 import os
+import platform
 import re
 import shlex
 import shutil
@@ -122,11 +123,17 @@ def runtime_cache(path: Path) -> dict:
     bundled as the active one, while the tt under test reports no version
     a constraint could accept, so the cache supplies one. It is a stub: no
     test runs the tt an archive bundles."""
-    stub = path / "tt" / "runtimes" / "tt" / "ce" / "3.1.0" / "bin" / "tt"
+    # The user cache directory is $XDG_CACHE_HOME on Linux and
+    # ~/Library/Caches on macOS, which ignores XDG_CACHE_HOME.
+    if platform.system() == "Darwin":
+        cache, env = path / "Library" / "Caches", dict(os.environ, HOME=str(path))
+    else:
+        cache, env = path, dict(os.environ, XDG_CACHE_HOME=str(path))
+    stub = cache / "tt" / "runtimes" / "tt" / "ce" / "3.1.0" / "bin" / "tt"
     stub.parent.mkdir(parents=True)
     stub.write_text("#!/bin/sh\necho 'the tt bundled into myapp is not to be run' >&2\nexit 1\n")
     stub.chmod(0o755)
-    return dict(os.environ, XDG_CACHE_HOME=str(path))
+    return env
 
 
 def pack(tt_cmd, project: Path, with_deps=False, env=None) -> Path:

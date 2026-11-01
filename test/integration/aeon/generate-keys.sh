@@ -15,13 +15,15 @@ DNS = localhost
 IP = 127.0.0.1
 EOF
 
+# -nodes rather than -noenc: LibreSSL, the openssl of macOS, has no -noenc.
+
 ### Server .key, .crt and ca.crt required for Server-Side TLS mode.
 
 # 1. Generate CA's private key and self-signed certificate
-openssl req -new -x509 -days 1 -noenc -keyout ca.key -out ca.crt -subj "${CA_SUBJ}"
+openssl req -new -x509 -days 1 -nodes -keyout ca.key -out ca.crt -subj "${CA_SUBJ}"
 
 # 2. Generate web server's private key and certificate signing request (CSR)
-openssl req -new -noenc -keyout server.key -out server.csr -subj "${CA_SUBJ}"
+openssl req -new -nodes -keyout server.key -out server.csr -subj "${CA_SUBJ}"
 
 # 3. Use CA's private key to sign web server's CSR and get back the signed certificate
 openssl x509 -req -in server.csr -days 1 -CA ca.crt -CAkey ca.key -CAcreateserial \
@@ -30,7 +32,7 @@ openssl x509 -req -in server.csr -days 1 -CA ca.crt -CAkey ca.key -CAcreateseria
 ### Client .key & .crt required for Mutual TSL mode.
 
 # 4. Generate client's private key and certificate signing request (CSR)
-openssl req -new -noenc -keyout client.key -out client.csr -subj "$CA_SUBJ"
+openssl req -new -nodes -keyout client.key -out client.csr -subj "$CA_SUBJ"
 
 # 5. Use CA's private key to sign client's CSR and get back the signed certificate
 openssl x509 -req -in client.csr -days 1 -CA ca.crt -CAkey ca.key -CAcreateserial \

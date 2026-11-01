@@ -9,8 +9,15 @@ TT_COMPLETION_SCRIPT_PATH="$1"
 # Placeholder for the command line to get completions for.
 LINE_TO_COMPLETE="$2"
 
-if [ -r /usr/share/bash-completion/bash_completion ]; then
-    source /usr/share/bash-completion/bash_completion
+# Linux packages install bash-completion under /usr/share, Homebrew under its
+# own prefix.
+BASH_COMPLETION=/usr/share/bash-completion/bash_completion
+if [ ! -r "$BASH_COMPLETION" ] && command -v brew > /dev/null; then
+    BASH_COMPLETION="$(brew --prefix)/share/bash-completion/bash_completion"
+fi
+if [ -r "$BASH_COMPLETION" ]; then
+    # shellcheck source=/dev/null
+    source "$BASH_COMPLETION"
 else
     echo "HELPER_ERROR: Bash completion system not found." >&2
     exit 1
@@ -31,7 +38,7 @@ TT_MAIN_COMP_FUNC=$(complete -p tt 2>/dev/null | sed 's/.*-F \([^ ]*\) .*/\1/')
 if [[ -z "$TT_MAIN_COMP_FUNC" ]]; then
     TT_MAIN_COMP_FUNC="_tt_main" # Default fallback.
     if ! declare -F "$TT_MAIN_COMP_FUNC" > /dev/null; then
-        FOUND_FUNC=$(declare -F | grep -oP '_tt[[:alnum:]_]*' | head -n 1)
+        FOUND_FUNC=$(declare -F | grep -oE '_tt[[:alnum:]_]*' | head -n 1)
         if [[ -n "$FOUND_FUNC" ]]; then
             TT_MAIN_COMP_FUNC=$FOUND_FUNC
         else
