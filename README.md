@@ -29,12 +29,14 @@ Tarantool-based applications.
     * [Build](#build)
     * [Dependencies](#dependencies)
     * [Run tests](#run-tests)
+  + [Commit changes](#commit-changes)
 - [Configuration](#configuration)
   + [Binaries](#binaries)
   + [Rock servers](#rock-servers)
 - [Migrating from instances.enabled](#migrating-from-instancesenabled)
 - [External modules](#external-modules)
 - [Building a distribution of tt](#building-a-distribution-of-tt)
+  + [Replacing Go modules](#replacing-go-modules)
   + [Building on another core](#building-on-another-core)
   + [Offline build](#offline-build)
 - [Signed packages](#signed-packages)
@@ -42,6 +44,7 @@ Tarantool-based applications.
 - [CLI Args](#cli-args)
   + [Autocompletion](#autocompletion)
 - [TT usage](#tt-usage)
+  + [Working with packages](#working-with-packages)
   + [Working with a set of instances](#working-with-a-set-of-instances)
   + [Running instances under systemd](#running-instances-under-systemd)
   + [Working with application templates](#working-with-application-templates)
@@ -58,11 +61,11 @@ develop, deploy, run and operate an application.
 
 One of the basic concepts that `tt` works with is the "project": the
 directory of a tarantool application, with its `app.manifest.toml` or its
-instance templates, `.templates/<name>/instances.yaml`. `tt` finds the project
-from the current directory upward. The binaries the project runs on and the
-runtime artifacts of its instances are in its `.tarantool` directory, apart
-from other applications. There is no configuration file of the environment:
-`tt.yaml` of `tt` 2.x is not read.
+instance templates, `.templates/<name>/` with `instances.yaml`, `config.yaml`
+or both. `tt` finds the project from the current directory upward. The
+binaries the project runs on and the runtime artifacts of its instances are in
+its `.tarantool` directory, apart from other applications. There is no
+configuration file of the environment: `tt.yaml` of `tt` 2.x is not read.
 
 The example of a typical project:
 
@@ -73,13 +76,17 @@ graph LR
 
     subgraph dot[Project]
       manifest(app.manifest.toml):::lime
+      lock(app.manifest.lock):::lime
       init(init.lua):::lime
+      rocks[.rocks]
       templates[.templates] --> template_default[default]
       template_default --> instances(instances.yaml):::lime
       template_default --> cluster_config(config.yaml):::lime
       root[.tarantool]
     end
     root --> bin
+    root --> include
+    root --> versions
     root --> var
     var --> run[run] --> app1[app] --> inst11[instance]
     inst11 --> pid1(tt.pid):::lime
@@ -89,12 +96,16 @@ graph LR
     var --> log1[log] --> app2[app] --> inst12[instance] --> logfile1(tt.log):::lime
     var --> lib1[lib] --> app3[app] --> inst13[instance] --> xlogs1(*.xlog,*.snap):::lime
 
-    bin --> binaries(tarantool<br/>tarantool-ee<br/>tt-ee<br/>tt<br/>tcm):::lime
+    bin --> binaries(tarantool<br/>tt<br/>tcm):::lime
 ```
 
 ## Getting started
 
 ### Installation
+
+> [!NOTE]
+> The packages and the release archives below are of `tt` 2.x: `tt` 3 is not
+> released yet. To run it, [build it from source](#build-from-source).
 
 TT can be installed from the deb / rpm repository "tarantool/modules".
 
@@ -151,20 +162,20 @@ steps:
 
 #### Prerequisites
 
-- [Go (version 1.18+)](https://golang.org/doc/install)
+- [Go (version 1.27.3+)](https://golang.org/doc/install)
 - [Mage](https://magefile.org/)
 - [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
 
 To run tests:
 
-- [Python3](https://www.python.org/downloads/)
-- [pytest](https://docs.pytest.org/en/7.2.x/getting-started.html#get-started)
-- [ruff](https://pypi.org/project/ruff/)
-- [golangci-lint](https://golangci-lint.run/usage/install/#local-installation)
-- [lichen](https://github.com/uw-labs/lichen#install)
+- [Python3](https://www.python.org/downloads/), with the packages of
+    `test/requirements.txt` (see [Run tests](#run-tests))
+- [Tarantool 3.3+](https://www.tarantool.io/en/download/os-installation/)
+- [golangci-lint 2.14.0](https://golangci-lint.run/usage/install/#local-installation):
+    `mage lint:golang` refuses another version; `GOLANGCI_LINT` names the
+    executable when it is not `golangci-lint` in `PATH`
+- [lichen](https://github.com/uw-labs/lichen#install), in `~/go/bin`
 - [docker](https://docs.docker.com/engine/install/)
-- [NodeJS](https://nodejs.org/en/download)
-- [CMake](https://cmake.org/install/)
 - [etcd 3+](https://etcd.io/docs/v3.5/install/)
 
 #### Build
@@ -287,11 +298,11 @@ elsewhere:
 header links in `include/`. Each command uses only the selected scope, without
 falling back to user/system installations. The project scope is `.tarantool` in
 the project directory: the current directory or its nearest parent with
-`app.manifest.toml` or `.templates/<name>/instances.yaml`, and the current
-directory outside a project. `TT_USER_ROOT` and `TT_SYSTEM_ROOT` replace the
-default user and system roots and must be absolute paths. For `search`, the
-scope only selects the installed/active labels; it does not change the source
-of available versions.
+`app.manifest.toml`, or with `instances.yaml` or `config.yaml` in
+`.templates/<name>/`, and the current directory outside a project.
+`TT_USER_ROOT` and `TT_SYSTEM_ROOT` replace the default user and system roots
+and must be absolute paths. For `search`, the scope only selects the
+installed/active labels; it does not change the source of available versions.
 
 `tt binary install tarantool` supports Community Edition releases starting
 with Tarantool 3.0.
@@ -817,7 +828,13 @@ Arguments of Tarantool CLI:
 
 - `--internal | -I` - use internal module.
 - `--verbose | -V` - verbose output.
+- `--log-format text|json` - the format of the log written to stderr.
+- `--no-prompt` - skip CLI interaction, using the default behavior.
 - `--help | -h` - help.
+
+A distribution with an integrity provider adds `--integrity-check` and
+`--integrity-check-period` (see [Signed packages](#signed-packages)). The exit
+codes of the commands are described by `tt help errors`.
 
 ### Autocompletion
 
@@ -827,7 +844,7 @@ You can generate autocompletion for `bash`, `zsh` and `fish` shell:
 . <(tt completion bash)
 ```
 
-Enter `tt`, press tab and you will see a list of available modules with
+Enter `tt`, press tab and you will see a list of available commands with
 descriptions. Also, autocomplete supports external modules.
 
 For the target of the `tt instance` commands, autocompletion offers the
@@ -840,6 +857,58 @@ For `tt create` command it will show a list of built-in templates; a
 template given by its path is completed as a file name.
 
 ## TT usage
+
+### Working with packages
+
+A package is a project described by `app.manifest.toml`: its name, the
+versions of Tarantool and tt it runs on, its dependencies and the components
+it is built from. `tt new` writes a skeleton of the manifest, and the
+`tt package` commands do the rest:
+
+```text
+tt new                                # app.manifest.toml in the current directory
+tt package add checks '>=3.0.0'       # declare a dependency, update the lock
+tt package add luatest --dev          # a dependency of the tests only
+tt package build                      # .rocks/: the dependencies and the components
+tt run                                # the tarantool of the project
+tt test                               # build, then luatest over test/
+tt package pack                       # _build/pack/<name>-<version>-<os>-<arch>.tt
+tt package install <archive> --scope user
+```
+
+The versions the dependencies resolved to are in `app.manifest.lock` next to
+the manifest; commit it. `tt package add`, `remove` and `resolve` keep the
+versions the lock holds, and only `tt package update` takes newer ones from the
+rock servers (see [Rock servers](#rock-servers)). `--locked` makes `build` and
+`pack` fail on a lock that is out of date instead of resolving it again.
+`tt package deps` shows what the manifest declares and what it resolved to.
+
+A component is the code of the package:
+
+```toml
+[components.app]
+path = "."
+include = ["init.lua", "kv/*.lua"]
+```
+
+`tt package build` puts its files into `.rocks/share/tarantool/<name>/`,
+together with `version.lua`, so the code is `require('<name>')` and its version
+`require('<name>.version').version`. The version is the one of `VERSION` next
+to the manifest, else of the nearest `v*` tag of git. An installed version has
+the files of the components and not the other files of the project, so the
+cluster config of a package loads its code with `app.module: <name>` rather
+than `app.file`, unless `[package].include` lists the file.
+
+`tt package pack` builds the package and packs it into an archive. By default
+the archive carries the dependencies and, in `_runtime/`, the tarantool and
+the tt the package runs on, so its install needs no network;
+`--without-deps` packs the package alone. `tt package install` installs an
+archive into a project, where its packages share `.rocks/`, or into the user
+or the system scope, where it becomes a version of an application,
+`<root>/versions/<name>/<name>_<version>/`, that `<root>/apps/<name>` points
+to: `tt instance start <name>:<instance> --scope user` runs it.
+`tt package list` and `tt package uninstall` show and remove what is
+installed.
 
 ### Working with a set of instances
 
@@ -856,9 +925,9 @@ tt instance connect
 flags; `tt play` takes the same targets. The top-level `tt start`, `tt stop`
 and the rest of tt2 are gone, and `tt log` is `tt instance logs`.
 
-A project is a directory with `app.manifest.toml` or
-`.templates/<name>/instances.yaml`; `tt` finds it from the current directory
-or any directory inside it. The project runs from a pair of files in
+A project is a directory with `app.manifest.toml`, or with `instances.yaml` or
+`config.yaml` in `.templates/<name>/`; `tt` finds it from the current
+directory or any directory inside it. The project runs from a pair of files in
 `.templates/default/`: `instances.yaml`, what runs on this host, and
 `config.yaml`, the cluster config `tarantool -c` gets:
 
@@ -883,6 +952,13 @@ storage-001:
 storage-002:
   restart: on-failure
 ```
+
+The record `"*"`, quoted, stands for every instance of the topology of
+`config.yaml` that no other record names, each with the fields of `"*"`; a
+record of its own replaces `"*"` for its instance whole. A template of
+`config.yaml` alone runs every instance of its topology, as `"*": {}` would.
+The pair of the host, `<root>/etc/<app>/`, needs its `instances.yaml`: it says
+what runs on that host.
 
 The application is named by `[package].name` of the manifest, or after the
 project directory without one. A target is `<app>:<instance>`, `<app>:*`, or
@@ -1199,6 +1275,7 @@ include:
 - init.lua
 - .templates/default/instances.yaml
 - .templates/default/config.yaml
+follow-up-message: Run "tt instance start" in {{.name}}.
 ```
 
 Where:
@@ -1215,15 +1292,18 @@ Where:
     instantiation.
 - `include` (list) - list of files to keep in application directory
     after create.
+- `follow-up-message` (string) - message printed after the application
+    is created, with the variables instantiated in it.
 
 There are pre-defined variables that can be used in template text:
 `name` - application name. It is set to `--name` CLI argument value.
 
 Don't include the .rocks directory in your application template. To
-specify application dependencies, use the .rockspec.
+specify application dependencies, declare them in `[dependencies]` of
+`app.manifest.toml` (see [Working with packages](#working-with-packages)).
 
 [Custom template
-example](https://github.com/tarantool/tt/blob/master/doc/examples.md#working-with-application-templates)
+example](doc/examples.md#working-with-application-templates)
 
 ### Working with tt daemon (experimental)
 
@@ -1261,16 +1341,19 @@ Where:
     Default: `tt_daemon.pid`.
 
 [TT daemon
-example](https://github.com/tarantool/tt/blob/master/doc/examples.md#working-with-tt-daemon-experimental)
+example](doc/examples.md#working-with-tt-daemon-experimental)
 
 ### Setting Tarantool configuration parameters via environment variables
 
-Using `tt`, you can specify configuration parameters via special
-environment variables even on Tarantool versions that does not natively
-support it. The name of a variable should have the following pattern:
-`TT_<NAME>`, where `<NAME>` is the uppercase name of the corresponding
+Tarantool reads its configuration from environment variables itself, and tt
+adds nothing to it: an option of the cluster config from `TT_<PATH>`, the
+path of the option in uppercase with `_` for `.`, such as `TT_IPROTO_LISTEN`,
+and a
 [box.cfg](https://www.tarantool.io/en/doc/latest/reference/configuration/#box-cfg-params-ref)
-parameter.
+parameter of an instance with `script` from `TT_<NAME>`, such as
+`TT_MEMTX_MEMORY`. Set them for an instance in `env` of its record in
+`instances.yaml` (see
+[Working with a set of instances](#working-with-a-set-of-instances)).
 
 ## Commands
 
@@ -1279,33 +1362,36 @@ Common description. For a detailed description, use `tt help command` .
 - `instance` - manage the instances of applications: `start`, `stop`,
     `restart`, `kill`, `status`, `logs`, `logrotate`, `check`, `clean` and
     `connect`.
+- `connect` - connect to the tarantool instance, as `tt instance connect`.
 - `service systemd` - generate, install and uninstall the systemd units of an
     application of the system scope.
-- `version` - show Tarantool CLI version information.
-- `completion` - generate autocomplete for a specified shell.
-- `help` - display help for any command.
-- `connect` - connect to the tarantool instance, as `tt instance connect`.
+- `new` - write a skeleton `app.manifest.toml` in the current directory.
+- `create` - create an application from a template.
+- `package` - build, pack, install, and manage manifest-based application
+    packages.
+- `run` - run the current package under its Tarantool.
+- `test` - build the current package and run its tests with luatest.
+- `registry list` - show the rock servers the packages are resolved against.
 - `rocks` - LuaRocks package manager.
+- `binary` - install, search, list, switch and uninstall tt, Tarantool, TCM
+    and SDK bundles; `binary build tt` builds a distribution of tt.
+- `cluster` - manage cluster configuration.
+- `replicaset` (`rs`) - manage replicasets.
+- `backup` - back up a Tarantool cluster for point-in-time recovery;
+    `backup-id` prints an identifier for a new backup.
+- `restore` - restore a Tarantool cluster from a backup.
 - `cat` - print into stdout the contents of .snap/.xlog files.
 - `play` - play the contents of .snap/.xlog files to another Tarantool
     instance.
 - `coredump` - pack/unpack/inspect tarantool coredump.
-- `run` - start a tarantool instance.
-- `search` - show available tt/tarantool versions.
-- `create` - create an application from a template.
-- `install` - install tarantool/tt.
-- `uninstall` - uninstall tarantool/tt.
-- `daemon (experimental)` - manage tt daemon.
-- `package` - build, pack, install, and manage manifest-based application
-    packages.
-- `binaries list` - show a list of installed binaries and their versions.
-- `binaries switch` - switch to installed binary.
-- `cluster` - manage cluster configuration.
-- `replicaset` - manage replicasets.
-- `download` - download Tarantool SDK.
 - `aeon` - connect to an Aeon instance.
 - `tcm` - manage Tarantool Cluster Manager.
+- `daemon (experimental)` - manage tt daemon.
 - `modules` - list external modules.
+- `version` - show Tarantool CLI version information.
+- `completion` - generate autocomplete for a specified shell.
+- `help` - display help for any command; `tt help errors` describes the exit
+    codes.
 
 [godoc-badge]: https://pkg.go.dev/badge/github.com/tarantool/tt.svg
 [godoc-url]: https://pkg.go.dev/github.com/tarantool/tt
