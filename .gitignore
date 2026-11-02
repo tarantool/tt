@@ -6,3 +6,7 @@ __pycache__
 .venv
 coverage
 dist
+
+# The documentation site: generated command reference and the build.
+/doc/reference/commands/
+/site/

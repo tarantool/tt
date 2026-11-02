@@ -646,6 +646,48 @@ func Generate() error {
 	return nil
 }
 
+// commandReferenceDir is where the documentation keeps the generated command
+// reference.
+const commandReferenceDir = "doc/reference/commands"
+
+type Docs mg.Namespace
+
+// Reference generates the command reference of the documentation from the
+// help of tt.
+func (Docs) Reference() error {
+	_, _ = fmt.Fprintln(os.Stdout, "Generating the command reference...")
+
+	dir, err := filepath.Abs(commandReferenceDir)
+	if err != nil {
+		return fmt.Errorf("cannot resolve the reference directory: %w", err)
+	}
+
+	// Pages of commands tt no longer has must not linger.
+	err = os.RemoveAll(dir)
+	if err != nil {
+		return fmt.Errorf("cannot clean the reference directory: %w", err)
+	}
+
+	return sh.RunV(goExecutableName, "test", "./core", "-run", "^TestCLIReference$",
+		"-count=1", "-args", "-clidoc", dir)
+}
+
+// Build builds the documentation site into site/, failing on a broken link
+// or a page the nav omits. MkDocs comes from doc/requirements.txt.
+func (Docs) Build() error {
+	mg.Deps(Docs.Reference)
+
+	return sh.RunV(pythonExecutableName, "-m", "mkdocs", "build", "--strict")
+}
+
+// Serve serves the documentation site with live reload on
+// http://127.0.0.1:8000/tt/.
+func (Docs) Serve() error {
+	mg.Deps(Docs.Reference)
+
+	return sh.RunV(pythonExecutableName, "-m", "mkdocs", "serve")
+}
+
 // getBuildEnvironment return map with build environment variables.
 func getBuildEnvironment() map[string]string {
 	var err error
