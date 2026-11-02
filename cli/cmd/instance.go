@@ -48,7 +48,7 @@ var stdinIsTerminal = func() bool {
 var instanceFlags sdk.AppLookup
 
 // instanceYes is --yes of the commands of tt instance that ask for a
-// confirmation.
+// confirmation, and of tt cluster publish.
 var instanceYes bool
 
 // NewInstanceCmd creates the tt instance group: the commands that act on the

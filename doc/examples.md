@@ -195,6 +195,16 @@ The `SOURCE` could be:
 The simplest logic in case of the etcd `SOURCE`. `tt cluster` just shows or
 publishes a cluster from etcd configuration within a specified prefix.
 
+`tt cluster publish` replaces a configuration, so it asks for a confirmation
+first, naming the file or the config storage it writes into, and says what it
+wrote where once it has. The confirmation is asked on a terminal only: in a
+script, without a terminal on the standard input, the command fails with code
+1 unless it is given `--yes` (`-y`):
+
+```sh
+tt cluster publish --yes "http://localhost:2379/tt" cluster.yaml
+```
+
 As an example, let's assume we are running etcd on `localhost:2379` (the
 default host and port). We also has two files with a cluster and an instance
 configuration:
@@ -230,6 +240,8 @@ Let's publish and show the configurations with a prefix `/tt`:
 
 ```text
 $ tt cluster publish "http://localhost:2379/tt" cluster.yaml
+Confirm publish of cluster.yaml, which replaces the cluster config in etcd http://localhost:2379, prefix "/tt" [y/n]: y
+   • Published cluster.yaml as the cluster config in etcd http://localhost:2379, prefix "/tt".
 $ tt cluster show "http://localhost:2379/tt"
 groups:
   group_name:
@@ -254,6 +266,8 @@ At now we could update an instance configuration and show the result:
 
 ```text
 $ tt cluster publish "http://localhost:2379/tt?name=instance2" instance.yaml
+Confirm publish of instance.yaml, which sets the config of the instance "instance2" in etcd http://localhost:2379, prefix "/tt" [y/n]: y
+   • Published instance.yaml as the config of the instance "instance2" in etcd http://localhost:2379, prefix "/tt".
 $ tt cluster show "http://localhost:2379/tt"
 groups:
   group_name:
@@ -286,8 +300,10 @@ The same works for an application configuration. The following commands are
 run from the `test_app` project directory:
 
 ```text
-$ tt cluster publish test_app cluster.yaml
-$ tt cluster publish test_app:instance2 instance.yaml
+$ tt cluster publish --yes test_app cluster.yaml
+   • Published cluster.yaml as the cluster config in /home/user/test_app/.templates/default/config.yaml.
+$ tt cluster publish --yes test_app:instance2 instance.yaml
+   • Published instance.yaml as the config of the instance "instance2" in /home/user/test_app/.templates/default/config.yaml.
 $ tt cluster show test_app
 groups:
   group_name:

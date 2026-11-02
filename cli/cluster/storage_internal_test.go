@@ -116,3 +116,55 @@ func TestReadEtcdEndpointsHTTPS(t *testing.T) {
 		})
 	}
 }
+
+// TestDescribeStorage pins how a config storage is named in a message: its
+// type, the endpoints, the prefix and the key there are, and no credentials.
+func TestDescribeStorage(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name        string
+		storageType string
+		endpoints   []string
+		prefix, key string
+		want        string
+	}{
+		{
+			name:        "etcd",
+			storageType: storageEtcd,
+			endpoints:   []string{"http://127.0.0.1:2379", "http://127.0.0.1:2380"},
+			prefix:      "/tt",
+			want:        `etcd http://127.0.0.1:2379,http://127.0.0.1:2380, prefix "/tt"`,
+		},
+		{
+			name:        "a Tarantool config storage with a key",
+			storageType: storageTarantool,
+			endpoints:   []string{"tcp://127.0.0.1:3301"},
+			prefix:      "/tt",
+			key:         "k",
+			want:        `Tarantool config storage tcp://127.0.0.1:3301, prefix "/tt", key "k"`,
+		},
+		{
+			name:        "no prefix",
+			storageType: storageEtcd,
+			endpoints:   []string{"http://127.0.0.1:2379"},
+			want:        "etcd http://127.0.0.1:2379",
+		},
+		{
+			name:        "credentials",
+			storageType: storageEtcd,
+			endpoints:   []string{"http://user:secret@127.0.0.1:2379"},
+			prefix:      "/tt",
+			want:        `etcd http://[REDACTED]@127.0.0.1:2379, prefix "/tt"`,
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, test.want,
+				DescribeStorage(test.storageType, test.endpoints, test.prefix, test.key))
+		})
+	}
+}

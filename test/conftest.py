@@ -391,7 +391,7 @@ def cluster_supervised(request, tt, cluster, config_storage):
     # Provide more information in case of test failure.
     print(f"cluster.config:\n{yaml.dump(cluster.config)}")
 
-    p = tt.run("cluster", "publish", uri, cluster.config_path)
+    p = tt.run("cluster", "publish", "--yes", uri, cluster.config_path)
     assert p.returncode == 0
 
     cluster.config = {"config": config_storage.cconfig}

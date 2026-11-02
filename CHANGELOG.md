@@ -657,6 +657,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   messages that suggest a command name the new one, as the follow-up message
   of `tt create` does.
 
+- `tt cluster publish` asks for a confirmation before it writes a
+  configuration, as `tt instance stop`, `restart`, `kill` and `clean` do, for
+  an application, an instance and a URI alike: it used to replace a config
+  without a word. The question names what is replaced where, the config file
+  of the pair or the etcd or Tarantool config storage with its endpoint and
+  prefix, and comes after the validation and the topology check, so a config
+  that would be refused is refused without one; once written, the command
+  says what it wrote where, without the credentials of a URI. `--force`
+  skips the validation, not the confirmation. The confirmation is asked on a
+  terminal only: without a terminal on the standard input the command fails
+  with code 1, pointing at `--yes` (`-y`), and writes nothing, so a script
+  that publishes has to pass `--yes`.
+
 - `tt instance start`, `stop`, `status`, `restart`, `kill`, `logs`,
   `logrotate`, `check`, `clean` and `connect`, `tt connect`, `tt play`, the
   application targets of `tt replicaset` and `tt cluster`: the instance

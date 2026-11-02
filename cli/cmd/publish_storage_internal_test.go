@@ -174,3 +174,44 @@ func TestClusterPublishLeaderIntoStorage(t *testing.T) {
 	err = internalClusterPublishModule(cmdCtx, []string{"myapp:s-2", instance})
 	require.ErrorContains(t, err, "leader [schema]")
 }
+
+// TestClusterPublishConfirmsStorage pins that tt cluster publish into the
+// pair of an application whose config.yaml points to etcd names the etcd,
+// its prefix and the reference of the file in its question and in what it
+// tells, and that nothing goes into the storage without a terminal and
+// --yes, or with a no on the terminal.
+//
+//nolint:paralleltest // Sets the environment, the working directory and the flags.
+func TestClusterPublishConfirmsStorage(t *testing.T) {
+	inst := etcdtest.NewLazyCluster(etcdtest.ClusterConfig{Size: 1})
+	defer inst.Terminate()
+
+	endpoint := inst.EndpointsGRPC()[0]
+	config := publishProject(t, "\"*\":\n", etcdReference(endpoint, "/myapp"))
+	where := fmt.Sprintf(`etcd %s, prefix "/myapp" (config.etcd of %s)`, endpoint, config)
+	cmdCtx := &cmdcontext.CmdCtx{}
+	messages := recordLog(t)
+
+	source := publishSource(t, topologyOf("s-1", "s-2"))
+	require.NoError(t, internalClusterPublishModule(cmdCtx, []string{"myapp", source}))
+	assert.Equal(t, []string{"Published " + source + " as the cluster config in " + where + "."},
+		messages.Messages())
+	assert.Equal(t, []string{"s-1", "s-2"}, storedTopology(t, config))
+
+	source = publishSource(t, topologyOf("s-1"))
+	withConfirmation(t, "y\n", false, false)
+
+	err := internalClusterPublishModule(cmdCtx, []string{"myapp", source})
+	require.ErrorIs(t, err, errNotTerminal)
+	assert.Equal(t, []string{"s-1", "s-2"}, storedTopology(t, config), "nothing is written")
+
+	withConfirmation(t, "n\n", true, false)
+
+	question, err := captureStdout(t, func() error {
+		return internalClusterPublishModule(cmdCtx, []string{"myapp", source})
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Confirm publish of "+source+", which replaces the cluster config in "+
+		where+" [y/n]: ", question)
+	assert.Equal(t, []string{"s-1", "s-2"}, storedTopology(t, config), "nothing is written")
+}

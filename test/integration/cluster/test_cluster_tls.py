@@ -13,7 +13,7 @@ def test_cluster_publish_and_show_tls(tt_cmd, tls_cluster):
     source = tls_cluster.directory / "published.yaml"
     source.write_text(yaml.safe_dump(config))
     rc, out = run_command_and_get_output(
-        [tt_cmd, "cluster", "publish", tls_cluster.storage_url, str(source), "--force"],
+        [tt_cmd, "cluster", "publish", "--yes", tls_cluster.storage_url, str(source), "--force"],
         cwd=tls_cluster.directory,
     )
     assert rc == 0, out

@@ -56,6 +56,13 @@ type PublishCtx struct {
 	// its description. nil checks nothing, as for a config storage given by
 	// its URI.
 	CheckTopology func(topology []string) error
+	// Source names the file Src is read from, for the messages.
+	Source string
+	// Confirm, when set, is asked whether to publish, with a question that
+	// says what is published where, once what is to be published has been
+	// checked and before anything is written: false cancels the publication
+	// with nothing written. nil publishes without asking.
+	Confirm func(question string) (bool, error)
 }
 
 // PublishURI publishes a configuration to URI.
@@ -72,7 +79,7 @@ func PublishURI(publishCtx PublishCtx, opts connect.URIOpts) error {
 		Password: publishCtx.Password,
 	}
 
-	collector, publisher, cancel, err := openCollectorAndPublisher(
+	collector, publisher, storageType, cancel, err := openCollectorAndPublisher(
 		publishCtx.Collectors,
 		publishCtx.Publishers,
 		connOpts, opts)
@@ -81,7 +88,10 @@ func PublishURI(publishCtx PublishCtx, opts connect.URIOpts) error {
 	}
 	defer cancel()
 
-	return publish(publishCtx, collector, publisher, instance)
+	where := cluster.DescribeStorage(storageType, []string{opts.Endpoint}, opts.Prefix,
+		opts.Params["key"])
+
+	return publish(publishCtx, collector, publisher, instance, where)
 }
 
 // publishFile publishes publishCtx.Src into the file at path, as publish
@@ -92,7 +102,8 @@ func publishFile(publishCtx PublishCtx, path, instance string) error {
 		return fmt.Errorf("failed to create a file publisher: %w", err)
 	}
 
-	return publish(publishCtx, publishCtx.Collectors.NewFileCollector(path), publisher, instance)
+	return publish(publishCtx, publishCtx.Collectors.NewFileCollector(path), publisher,
+		instance, path)
 }
 
 // PublishApp publishes a configuration into the cluster config of the pair
@@ -142,15 +153,18 @@ func PublishApp(publishCtx PublishCtx, path, instance string) error {
 		}
 	}
 
-	return publish(publishCtx, stor.Collector, stor.Publisher, instance)
+	return publish(publishCtx, stor.Collector, stor.Publisher, instance, stor.Where)
 }
 
-// publish publishes publishCtx.Src through publisher: whole, or, for an
+// publish publishes publishCtx.Src through publisher into where, which
+// names the file or the config storage for the messages: whole, or, for an
 // instance, as the config of the instance within the cluster config
 // collector collects. What is published is checked first
-// (PublishCtx.CheckTopology).
+// (PublishCtx.CheckTopology), and confirmed then (PublishCtx.Confirm), so
+// that a publication that would be refused is not asked about. What was
+// written where is told.
 func publish(publishCtx PublishCtx, collector sdkcluster.DataCollector,
-	publisher sdkcluster.DataPublisher, instance string,
+	publisher sdkcluster.DataPublisher, instance, where string,
 ) error {
 	data := publishCtx.Src
 
@@ -185,7 +199,56 @@ func publish(publishCtx PublishCtx, collector sdkcluster.DataCollector,
 		return err
 	}
 
-	return publisher.Publish(0, data)
+	target, verb := "the cluster config in "+where, "replaces"
+	if instance != "" {
+		target = fmt.Sprintf("the config of the instance %q in %s", instance, where)
+		verb = "sets"
+	}
+
+	confirmed, err := confirmPublish(publishCtx, verb, target)
+	if err != nil || !confirmed {
+		return err
+	}
+
+	err = publisher.Publish(0, data)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("Published %s as %s.", publishSource(publishCtx), target)
+
+	return nil
+}
+
+// publishSource names what publishCtx publishes for a message: the file
+// it is read from, or "the config" when it is not named.
+func publishSource(publishCtx PublishCtx) string {
+	if publishCtx.Source == "" {
+		return "the config"
+	}
+
+	return publishCtx.Source
+}
+
+// confirmPublish asks publishCtx.Confirm whether to publish, saying that
+// what is published verb target, such as "replaces" "the cluster config in
+// /path/config.yaml". A publication the answer cancels is told.
+func confirmPublish(publishCtx PublishCtx, verb, target string) (bool, error) {
+	if publishCtx.Confirm == nil {
+		return true, nil
+	}
+
+	confirmed, err := publishCtx.Confirm(fmt.Sprintf("Confirm publish of %s, which %s %s",
+		publishSource(publishCtx), verb, target))
+	if err != nil {
+		return false, err
+	}
+
+	if !confirmed {
+		log.Info("Publish is cancelled.")
+	}
+
+	return confirmed, nil
 }
 
 // checkTopology passes the names of the instances of data, a cluster config
