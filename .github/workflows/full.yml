@@ -120,6 +120,12 @@ jobs:
 
   arm64:
     needs: snapshot
+    strategy:
+      fail-fast: false
+      matrix:
+        # Without the slow tests the cluster group takes under a minute, so
+        # it goes with replicaset.
+        shard: ['cluster, replicaset', instances, tooling]
     uses: ./.github/workflows/_integration.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
     with:
       runner: ubuntu-24.04-arm
@@ -128,10 +134,15 @@ jobs:
       ref: ${{ inputs.ref || github.event.pull_request.head.sha || github.sha }}
       edition: ce
       tarantool-version: latest
+      shard: ${{ matrix.shard }}
       marker: not slow and not slow_ee and not notarantool and not tarantool_master
 
   macos:
     needs: snapshot
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ['cluster, replicaset', instances, tooling]
     uses: ./.github/workflows/_integration.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
     with:
       runner: macos-15
@@ -140,6 +151,7 @@ jobs:
       ref: ${{ inputs.ref || github.event.pull_request.head.sha || github.sha }}
       edition: ce
       tarantool-version: latest
+      shard: ${{ matrix.shard }}
       marker: not slow and not slow_ee and not notarantool and not tarantool_master and not docker
       # Allow time for tt binary install to build Tarantool from source.
       timeout-minutes: 90
