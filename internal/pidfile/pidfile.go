@@ -1,13 +1,15 @@
 // Package pidfile implements the ownership of the pid files tt writes.
 //
 // A pid file holds the decimal pid without a newline, the format
-// tt instance stop and tt instance status read; reading one takes no lock.
-// Owning one means holding an exclusive flock on it, taken without waiting
-// and kept for as long as the pid in it is current. The lock descriptor is
-// close-on-exec, so no child inherits it, and the kernel drops it when the
-// owner dies, however it dies.
+// tt instance stop and tt instance status read; reading one never waits for
+// its lock, and Owner tells a reader whether it is owned. Owning one means
+// holding an exclusive flock on it, taken without blocking and kept for as
+// long as the pid in it is current. The lock descriptor is close-on-exec, so
+// no child inherits it, and the kernel drops it when the owner dies, however
+// it dies.
 //
-// A file whose lock is held is refused. A file nobody holds is stale and is
+// A file whose lock stays held is refused; a lock held for a moment, by
+// Owner probing the file, is waited out. A file nobody holds is stale and is
 // taken over in place, under the lock, unless it names a live process: that
 // is either a writer that has exited and left the file to name the process
 // it started (see File.Keep), or a tt that does not lock pid files. Of any
@@ -41,8 +43,12 @@ var (
 	// ErrBusy is wrapped by the error for a pid file that another running
 	// process owns.
 	ErrBusy = errors.New("the pid file belongs to a running process")
-	// errUnstable reports a pid file replaced on every attempt to own it.
+	// errUnstable reports a pid file replaced on every attempt to own it or
+	// to tell its owner.
 	errUnstable = errors.New("the pid file keeps being replaced")
+	// errReplaced reports a pid file that the path no longer names once it
+	// has been locked, so the attempt is repeated on what is there now.
+	errReplaced = errors.New("the pid file has been replaced")
 )
 
 const (
@@ -53,8 +59,16 @@ const (
 	attempts = 16
 	// maxSize is as much of a pid file as is read; a pid is shorter.
 	maxSize = 64
-	// retryInterval is the pause between attempts to lock in RemoveFor.
-	retryInterval = 10 * time.Millisecond
+	// busyWait is how long Acquire and RemoveFor retry a busy lock before
+	// they take the file for owned. Owner holds the lock for a few
+	// microseconds to probe it, an owner for its whole life: an Acquire that
+	// meets a probe, such as tt instance status polled while an instance
+	// starts, gets the lock on a retry, and an owned file is refused busyWait
+	// late.
+	busyWait = 200 * time.Millisecond
+	// retryInterval is the pause between attempts to lock a busy file: long
+	// next to a probe, short next to busyWait.
+	retryInterval = 2 * time.Millisecond
 )
 
 // File is a pid file this process owns.
@@ -65,15 +79,23 @@ type File struct {
 
 // Acquire takes ownership of the pid file at path and writes pid into it,
 // creating the directory if needed. A file another process owns is refused
-// with an error wrapping ErrBusy.
+// with an error wrapping ErrBusy, once its lock has stayed busy for busyWait:
+// a lock held for a moment, by Owner probing the file, is no owner.
 func Acquire(path string, pid int) (*File, error) {
+	return acquire(path, pid, busyWait)
+}
+
+// acquire is Acquire that retries a busy lock for up to wait.
+func acquire(path string, pid int, wait time.Duration) (*File, error) {
 	err := os.MkdirAll(filepath.Dir(path), dirMode)
 	if err != nil {
 		return nil, fmt.Errorf("creating the pid file directory: %w", err)
 	}
 
+	deadline := time.Now().Add(wait)
+
 	for range attempts {
-		owned, err := tryAcquire(path, pid)
+		owned, err := tryAcquire(path, pid, deadline)
 		if owned != nil || err != nil {
 			return owned, err
 		}
@@ -85,13 +107,13 @@ func Acquire(path string, pid int) (*File, error) {
 // tryAcquire makes one attempt. It returns neither a file nor an error when
 // the path was replaced after it was opened, so the attempt has to be
 // repeated on the new file.
-func tryAcquire(path string, pid int) (*File, error) {
+func tryAcquire(path string, pid int, deadline time.Time) (*File, error) {
 	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, fileMode)
 	if err != nil {
 		return nil, fmt.Errorf("opening the pid file: %w", err)
 	}
 
-	owned, err := lockAndWrite(file, path, pid)
+	owned, err := lockAndWrite(file, path, pid, deadline)
 	if owned == nil {
 		// Closing releases the lock, if it was taken.
 		err = errors.Join(err, closeFile(file))
@@ -100,8 +122,8 @@ func tryAcquire(path string, pid int) (*File, error) {
 	return owned, err
 }
 
-func lockAndWrite(file *os.File, path string, pid int) (*File, error) {
-	err := lock(file, path)
+func lockAndWrite(file *os.File, path string, pid int, deadline time.Time) (*File, error) {
+	err := lock(file, path, deadline)
 	if err != nil {
 		return nil, err
 	}
@@ -135,17 +157,23 @@ func lockAndWrite(file *os.File, path string, pid int) (*File, error) {
 	return &File{path: path, file: file}, nil
 }
 
-func lock(file *os.File, path string) error {
-	err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+// lock takes the exclusive lock of file, retrying a busy lock every
+// retryInterval until deadline.
+func lock(file *os.File, path string, deadline time.Time) error {
+	for {
+		err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
 
-	switch {
-	case errors.Is(err, syscall.EWOULDBLOCK):
-		return fmt.Errorf("%w: %s", ErrBusy, path)
-	case err != nil:
-		return fmt.Errorf("locking the pid file: %w", err)
+		switch {
+		case err == nil:
+			return nil
+		case !errors.Is(err, syscall.EWOULDBLOCK):
+			return fmt.Errorf("locking the pid file: %w", err)
+		case !time.Now().Before(deadline):
+			return fmt.Errorf("%w: %s", ErrBusy, path)
+		}
+
+		time.Sleep(retryInterval)
 	}
-
-	return nil
 }
 
 // stillAt reports whether path names the open file. A missing path does not.
@@ -199,10 +227,13 @@ func alive(pid int) bool {
 // this one may not signal is alive too. A missing file, or one that names no
 // pid, names no live process.
 //
-// The file is read without the lock, the way tt instance status reads it, so
-// the answer can be out of date by the time the caller acts on it. It is for
-// a command that refuses to act while a process runs, such as tt package
-// uninstall, not for deciding who owns the file.
+// The file is read without the lock, so the answer can be out of date by the
+// time the caller acts on it, and it is not for deciding who owns the file.
+// It is for a file whose lock does not follow the process it names: one left
+// by File.Keep, or the pid file of a child its owner wrote, which the child
+// may outlive, such as process.pid of an external process. Whether the
+// process that owns a file runs, such as the watchdog of an instance, Owner
+// tells: the pid in a file its owner left may name another process by now.
 func Alive(path string) (int, bool, error) {
 	file, err := os.Open(path)
 
@@ -216,6 +247,88 @@ func Alive(path string) (int, bool, error) {
 	pid, err := readPid(file)
 
 	return pid, alive(pid), errors.Join(err, closeFile(file))
+}
+
+// Owner returns the pid the file at path names and whether a process owns
+// the file, holding its lock. A missing file names no pid and is owned by
+// nobody; so does a file that holds no pid, unless its lock is held.
+//
+// A file nobody holds is stale whatever process the pid in it names now:
+// the kernel drops the lock of an owner however it dies, while the file
+// stays, and its pid may have been taken since by an unrelated process,
+// after a reboot above all. For a pid file every writer of which owns it for
+// as long as the pid in it is current, such as the pid file of the watchdog
+// of an instance, a file nobody holds means that its process is gone, which
+// Alive cannot tell. That does not hold for a file left by File.Keep: it is
+// unlocked while the process it names runs.
+//
+// The lock is probed without waiting: a shared lock taken on a descriptor
+// opened for reading and dropped at once. The pid of a file nobody holds is
+// read under that lock, which no owner writes past, and only once the path
+// is checked to still name the file locked: a file its owner has just
+// released counts as missing rather than stale. The pid of an owned file is
+// read without the lock, as Alive reads it.
+//
+// The probe holds the lock for a moment, which Acquire and RemoveFor wait
+// out rather than take the file for owned (busyWait), so probing a file
+// does not keep a process from owning it. The answer can be out of date by
+// the time the caller acts on it: an owner may come or go right after. A
+// caller that removes a stale file does it with RemoveFor, which checks the
+// file again under the lock.
+func Owner(path string) (int, bool, error) {
+	for range attempts {
+		pid, owned, err := probeOwner(path)
+		if !errors.Is(err, errReplaced) {
+			return pid, owned, err
+		}
+	}
+
+	return 0, false, fmt.Errorf("%w: %s", errUnstable, path)
+}
+
+// probeOwner makes one attempt. It returns an error wrapping errReplaced when
+// the path was replaced or removed after it was opened, so the attempt has
+// to be repeated on what is at the path now.
+func probeOwner(path string) (int, bool, error) {
+	file, err := os.Open(path)
+
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return 0, false, nil
+	case err != nil:
+		return 0, false, fmt.Errorf("opening the pid file: %w", err)
+	}
+
+	pid, owned, err := probeLock(file, path)
+
+	// Closing releases the shared lock, if it was taken.
+	return pid, owned, errors.Join(err, closeFile(file))
+}
+
+func probeLock(file *os.File, path string) (int, bool, error) {
+	err := syscall.Flock(int(file.Fd()), syscall.LOCK_SH|syscall.LOCK_NB)
+
+	switch {
+	case errors.Is(err, syscall.EWOULDBLOCK):
+		pid, err := readPid(file)
+
+		return pid, true, err
+	case err != nil:
+		return 0, false, fmt.Errorf("probing the pid file lock: %w", err)
+	}
+
+	same, err := stillAt(file, path)
+
+	switch {
+	case err != nil:
+		return 0, false, err
+	case !same:
+		return 0, false, errReplaced
+	}
+
+	pid, err := readPid(file)
+
+	return pid, false, err
 }
 
 // Release removes the pid file, if the path still names it, and gives up the
@@ -246,9 +359,9 @@ func (owned *File) Keep() error {
 // RemoveFor removes the pid file at path if it still names pid, taking the
 // lock first. It is for the pid file of a process that is gone, killed or
 // not, whose lock the kernel drops once the process has exited: it retries
-// the lock for up to wait. It returns whether it removed the file. A missing
-// file, or one that names another process, is left as it is: that is a file
-// a newer owner wrote.
+// the lock for up to wait, and for busyWait at least, as Acquire does. It
+// returns whether it removed the file. A missing file, or one that names
+// another process, is left as it is: that is a file a newer owner wrote.
 //
 // Before it removes the file, still holding the lock, RemoveFor runs a non-nil
 // cleanup to remove what else the gone process left behind: no newer owner
@@ -272,19 +385,9 @@ func RemoveFor(path string, pid int, wait time.Duration, cleanup func()) (bool, 
 func removeLocked(file *os.File, path string, pid int, wait time.Duration,
 	cleanup func(),
 ) (bool, error) {
-	deadline := time.Now().Add(wait)
-
-	for {
-		err := lock(file, path)
-		if err == nil {
-			break
-		}
-
-		if !errors.Is(err, ErrBusy) || time.Now().After(deadline) {
-			return false, err
-		}
-
-		time.Sleep(retryInterval)
+	err := lock(file, path, time.Now().Add(max(wait, busyWait)))
+	if err != nil {
+		return false, err
 	}
 
 	same, err := stillAt(file, path)

@@ -60,7 +60,9 @@ type acquired struct {
 }
 
 // TestStaleTakeover has many acquirers race for one stale pid file, round
-// after round: exactly one of them may own it.
+// after round: exactly one of them may own it. They do not retry a busy
+// lock, which would only have every loser wait busyWait for a winner that
+// keeps the file until the round is over.
 func TestStaleTakeover(t *testing.T) {
 	const (
 		rounds    = 300
@@ -86,7 +88,7 @@ func TestStaleTakeover(t *testing.T) {
 			racers.Go(func() {
 				start.Wait()
 
-				owned, err := Acquire(path, os.Getpid())
+				owned, err := acquire(path, os.Getpid(), 0)
 				results <- acquired{owned: owned, err: err}
 			})
 		}
@@ -116,7 +118,9 @@ func TestStaleTakeover(t *testing.T) {
 
 // TestExclusive has acquirers take, hold and release one pid file in a loop:
 // however acquiring and releasing interleave, no two of them may own it at
-// once.
+// once. They do not retry a busy lock: one that waits for the file sees it
+// replaced by every owner that comes and goes meanwhile, until it gives up
+// on a file that keeps being replaced.
 func TestExclusive(t *testing.T) {
 	const (
 		acquirers = 8
@@ -137,7 +141,7 @@ func TestExclusive(t *testing.T) {
 	for range acquirers {
 		racers.Go(func() {
 			for range attempts {
-				file, err := Acquire(path, os.Getpid())
+				file, err := acquire(path, os.Getpid(), 0)
 				if err != nil {
 					if !errors.Is(err, ErrBusy) {
 						unexpected <- err
@@ -361,10 +365,21 @@ func TestRemoveFor(t *testing.T) {
 }
 
 // lockInChild has a child process own the pid file at path, then kills the
-// child with SIGKILL, as tt instance kill does, and returns its pid. The
-// child holds the lock through an inherited descriptor, since the test cannot
-// run this package in a child of its own.
+// child with SIGKILL, as tt instance kill does, and returns its pid.
 func lockInChild(t *testing.T, path string) int {
+	t.Helper()
+
+	cmd, _ := holdInChild(t, path)
+	require.NoError(t, cmd.Process.Signal(syscall.SIGKILL))
+
+	return cmd.Process.Pid
+}
+
+// holdInChild has a child process own the pid file at path and returns it,
+// with a channel closed once it has exited and been reaped. The child runs
+// until the test kills it or ends. It holds the lock through an inherited
+// descriptor, since the test cannot run this package in a child of its own.
+func holdInChild(t *testing.T, path string) (*exec.Cmd, <-chan struct{}) {
 	t.Helper()
 
 	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, fileMode)
@@ -374,6 +389,20 @@ func lockInChild(t *testing.T, path string) int {
 
 	cmd.ExtraFiles = []*os.File{file}
 	require.NoError(t, cmd.Start())
+
+	done := make(chan struct{})
+
+	go func() {
+		_ = cmd.Wait()
+
+		close(done)
+	}()
+
+	t.Cleanup(func() {
+		_ = cmd.Process.Kill()
+
+		<-done
+	})
 
 	// The lock belongs to the open file description, which the child
 	// shares; once the test closes its descriptor, the child alone holds it.
@@ -386,11 +415,7 @@ func lockInChild(t *testing.T, path string) int {
 	_, err = Acquire(path, os.Getpid())
 	require.ErrorIs(t, err, ErrBusy, "the child does not hold the lock")
 
-	require.NoError(t, cmd.Process.Signal(syscall.SIGKILL))
-
-	go func() { _ = cmd.Wait() }()
-
-	return cmd.Process.Pid
+	return cmd, done
 }
 
 // TestAlive pins how a pid file is judged without owning it: it names a live
@@ -429,4 +454,311 @@ func TestAlive(t *testing.T) {
 	_, live, err = Alive(path)
 	require.NoError(t, err)
 	assert.False(t, live, "the process the file names is gone")
+}
+
+// TestOwner pins how a reader tells an owned pid file from a stale one: by
+// the lock alone, whatever process the pid in the file names.
+func TestOwner(t *testing.T) {
+	dir := t.TempDir()
+
+	t.Run("missing", func(t *testing.T) {
+		pid, owned, err := Owner(filepath.Join(dir, "missing.pid"))
+		require.NoError(t, err)
+		assert.False(t, owned)
+		assert.Zero(t, pid)
+	})
+
+	t.Run("no pid", func(t *testing.T) {
+		path := filepath.Join(dir, "garbage.pid")
+		require.NoError(t, os.WriteFile(path, []byte("not a pid"), 0o600))
+
+		pid, owned, err := Owner(path)
+		require.NoError(t, err)
+		assert.False(t, owned)
+		assert.Zero(t, pid)
+	})
+
+	t.Run("owned by this process", func(t *testing.T) {
+		path := filepath.Join(dir, "own.pid")
+
+		file, err := Acquire(path, os.Getpid())
+		require.NoError(t, err)
+
+		pid, owned, err := Owner(path)
+		require.NoError(t, err)
+		assert.True(t, owned)
+		assert.Equal(t, os.Getpid(), pid)
+
+		require.NoError(t, file.Release())
+
+		pid, owned, err = Owner(path)
+		require.NoError(t, err)
+		assert.False(t, owned)
+		assert.Zero(t, pid, "a released file is gone")
+	})
+
+	t.Run("held through another descriptor", func(t *testing.T) {
+		path := filepath.Join(dir, "descriptor.pid")
+		require.NoError(t, os.WriteFile(path, []byte("42"), 0o600))
+
+		file, err := os.Open(path)
+		require.NoError(t, err)
+
+		defer func() { require.NoError(t, file.Close()) }()
+
+		require.NoError(t, syscall.Flock(int(file.Fd()), syscall.LOCK_EX))
+
+		pid, owned, err := Owner(path)
+		require.NoError(t, err)
+		assert.True(t, owned)
+		assert.Equal(t, 42, pid)
+	})
+
+	t.Run("held by another process until it dies", func(t *testing.T) {
+		path := filepath.Join(dir, "child.pid")
+		cmd, done := holdInChild(t, path)
+
+		pid, owned, err := Owner(path)
+		require.NoError(t, err)
+		assert.True(t, owned)
+		assert.Equal(t, cmd.Process.Pid, pid)
+
+		require.NoError(t, cmd.Process.Signal(syscall.SIGKILL))
+		<-done
+
+		pid, owned, err = Owner(path)
+		require.NoError(t, err)
+		assert.False(t, owned, "the kernel drops the lock of a dead owner")
+		assert.Equal(t, cmd.Process.Pid, pid)
+	})
+
+	t.Run("stale, naming a process that is gone", func(t *testing.T) {
+		path := filepath.Join(dir, "gone.pid")
+		gone := deadPid(t)
+		require.NoError(t, os.WriteFile(path, []byte(strconv.Itoa(gone)), 0o600))
+
+		pid, owned, err := Owner(path)
+		require.NoError(t, err)
+		assert.False(t, owned)
+		assert.Equal(t, gone, pid)
+	})
+
+	t.Run("stale, naming a live process", func(t *testing.T) {
+		// The pid of a dead owner reused by an unrelated process.
+		path := filepath.Join(dir, "reused.pid")
+		other := sleeper(t).Process.Pid
+		require.NoError(t, os.WriteFile(path, []byte(strconv.Itoa(other)), 0o600))
+
+		pid, owned, err := Owner(path)
+		require.NoError(t, err)
+		assert.False(t, owned, "a live process the file names does not own it")
+		assert.Equal(t, other, pid)
+		assert.Equal(t, other, pidIn(t, path), "the probe changed the file")
+
+		// The probe leaves no lock behind; RemoveFor removes what Owner
+		// finds stale, while Acquire still refuses a file naming a live
+		// process.
+		_, err = Acquire(path, os.Getpid())
+		require.ErrorIs(t, err, ErrBusy)
+
+		removed, err := RemoveFor(path, pid, 0, nil)
+		require.NoError(t, err)
+		assert.True(t, removed)
+
+		file, err := Acquire(path, os.Getpid())
+		require.NoError(t, err)
+		require.NoError(t, file.Release())
+	})
+
+	t.Run("an error", func(t *testing.T) {
+		path := filepath.Join(dir, "directory.pid")
+		require.NoError(t, os.Mkdir(path, 0o700))
+
+		_, _, err := Owner(path)
+		require.ErrorContains(t, err, "reading the pid file")
+	})
+}
+
+// TestOwnerRacesAcquire has readers probe a pid file while acquirers take
+// and release it: a reader never sees a file that an acquirer holds as
+// stale, and an acquirer is refused only with ErrBusy. The acquirers do not
+// retry a busy lock, as in TestExclusive.
+func TestOwnerRacesAcquire(t *testing.T) {
+	const (
+		readers   = 4
+		acquirers = 4
+		attempts  = 300
+	)
+
+	path := filepath.Join(t.TempDir(), "x.pid")
+
+	var (
+		racers     sync.WaitGroup
+		holding    atomic.Int32
+		staleSeen  atomic.Int32
+		unexpected = make(chan error, (readers+acquirers)*attempts)
+	)
+
+	for range acquirers {
+		racers.Go(func() {
+			for range attempts {
+				file, err := acquire(path, os.Getpid(), 0)
+				if err != nil {
+					if !errors.Is(err, ErrBusy) {
+						unexpected <- err
+					}
+
+					continue
+				}
+
+				holding.Add(1)
+				time.Sleep(20 * time.Microsecond)
+				holding.Add(-1)
+
+				err = file.Release()
+				if err != nil {
+					unexpected <- err
+				}
+			}
+		})
+	}
+
+	for range readers {
+		racers.Go(func() {
+			for range attempts {
+				pid, owned, err := Owner(path)
+				if err != nil {
+					unexpected <- err
+
+					continue
+				}
+
+				// A file this process wrote and nobody holds would be one
+				// an owner left without removing it.
+				if !owned && pid == os.Getpid() {
+					staleSeen.Add(1)
+				}
+			}
+		})
+	}
+
+	racers.Wait()
+	close(unexpected)
+
+	for err := range unexpected {
+		require.NoError(t, err)
+	}
+
+	assert.Zero(t, staleSeen.Load(), "a file being released was seen as stale")
+}
+
+// TestBusyWait pins that Acquire and RemoveFor wait out a lock held for a
+// moment, as Owner holds it to probe a file, and still refuse a file whose
+// lock stays held, once busyWait is over.
+func TestBusyWait(t *testing.T) {
+	dir := t.TempDir()
+	gone := deadPid(t)
+
+	// holdLock holds the lock of the file at path through a descriptor of
+	// its own, shared as Owner takes it or exclusive as an owner does, until
+	// the returned function is called.
+	holdLock := func(t *testing.T, path string, how int) func() {
+		t.Helper()
+
+		file, err := os.Open(path)
+		require.NoError(t, err)
+		require.NoError(t, syscall.Flock(int(file.Fd()), how))
+
+		return func() { require.NoError(t, file.Close()) }
+	}
+
+	t.Run("a probe is waited out", func(t *testing.T) {
+		path := filepath.Join(dir, "probed.pid")
+		require.NoError(t, os.WriteFile(path, []byte(strconv.Itoa(gone)), 0o600))
+
+		release := holdLock(t, path, syscall.LOCK_SH)
+		time.AfterFunc(busyWait/4, release)
+
+		file, err := Acquire(path, os.Getpid())
+		require.NoError(t, err)
+		require.NoError(t, file.Keep())
+
+		// The file names this process now, which is not gone.
+		release = holdLock(t, path, syscall.LOCK_SH)
+		time.AfterFunc(busyWait/4, release)
+
+		removed, err := RemoveFor(path, os.Getpid(), 0, nil)
+		require.NoError(t, err)
+		assert.True(t, removed)
+	})
+
+	t.Run("an owner is refused after busyWait", func(t *testing.T) {
+		path := filepath.Join(dir, "owned.pid")
+		require.NoError(t, os.WriteFile(path, []byte(strconv.Itoa(gone)), 0o600))
+
+		release := holdLock(t, path, syscall.LOCK_EX)
+		defer release()
+
+		started := time.Now()
+		_, err := Acquire(path, os.Getpid())
+		require.ErrorIs(t, err, ErrBusy)
+		assert.GreaterOrEqual(t, time.Since(started), busyWait)
+
+		started = time.Now()
+
+		removed, err := RemoveFor(path, gone, 0, nil)
+		require.ErrorIs(t, err, ErrBusy)
+		assert.False(t, removed)
+		assert.GreaterOrEqual(t, time.Since(started), busyWait)
+	})
+}
+
+// TestAcquireUnderProbes has a reader probe a pid file in a tight loop, as a
+// tt instance status polled in a loop does, while the file is taken over and
+// removed again and again: neither Acquire nor RemoveFor may take a probe
+// for an owner.
+func TestAcquireUnderProbes(t *testing.T) {
+	const rounds = 300
+
+	path := filepath.Join(t.TempDir(), "x.pid")
+	gone := strconv.Itoa(deadPid(t))
+
+	var (
+		probing  sync.WaitGroup
+		probes   atomic.Int64
+		failures atomic.Int64
+		stop     atomic.Bool
+	)
+
+	probing.Go(func() {
+		for !stop.Load() {
+			_, _, err := Owner(path)
+			if err != nil {
+				failures.Add(1)
+			}
+
+			probes.Add(1)
+		}
+	})
+
+	defer func() {
+		stop.Store(true)
+		probing.Wait()
+		assert.Zero(t, failures.Load(), "probes failed")
+		t.Logf("%d probes", probes.Load())
+	}()
+
+	for round := range rounds {
+		require.NoError(t, os.WriteFile(path, []byte(gone), 0o600))
+
+		file, err := Acquire(path, os.Getpid())
+		require.NoError(t, err, "round %d", round)
+
+		// Left in place, the file names this process, unlocked.
+		require.NoError(t, file.Keep())
+
+		removed, err := RemoveFor(path, os.Getpid(), 0, nil)
+		require.NoError(t, err, "round %d", round)
+		assert.True(t, removed)
+	}
 }
