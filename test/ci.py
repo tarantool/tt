@@ -16,6 +16,7 @@ INTEGRATION_DIR = TEST_DIR / "integration"
 ROCKS_MIRROR_LIST = TEST_DIR / "rocks-mirror.txt"
 _outcomes = {}
 _rerun = set()
+_rerun_reports = []
 _collection_errors = set()
 
 
@@ -23,9 +24,28 @@ def pytest_runtest_logreport(report):
     phases = _outcomes.setdefault(report.nodeid, {})
     if report.outcome == "rerun":
         _rerun.add(report.nodeid)
+        _rerun_reports.append(report)
         phases.clear()
     else:
         phases[report.when] = report.outcome
+
+
+def pytest_terminal_summary(terminalreporter):
+    """Show why each rerun attempt failed.
+
+    A test that passes when rerun is reported by its last attempt only, and
+    pytest-rerunfailures names it with -rR but drops the failure itself, so
+    the reason of a flaky test would be lost with the attempt.
+    """
+    if not _rerun_reports:
+        return
+    terminalreporter.section("failed attempts that were rerun")
+    for report in _rerun_reports:
+        terminalreporter.write_sep("_", f"{report.nodeid} ({report.when})")
+        terminalreporter.line(report.longreprtext)
+        for title, content in report.sections:
+            terminalreporter.write_sep("-", title)
+            terminalreporter.line(content)
 
 
 def pytest_collectreport(report):
