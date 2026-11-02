@@ -10,6 +10,9 @@ checksum:
 release:
   draft: true
   mode: append
+  # A tag with a pre-release suffix (v3.0.0-alpha.1, -rc1) marks the release
+  # as not ready for production.
+  prerelease: auto
   extra_files:
     - glob: dist/release/*
   header: |
