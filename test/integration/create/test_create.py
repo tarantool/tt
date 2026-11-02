@@ -17,6 +17,7 @@ from utils import (
     is_tarantool_ee,
     log_file,
     pid_file,
+    rocks_mirror_env,
     run_command_and_get_output,
     wait_event,
     wait_file,
@@ -747,6 +748,7 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
     tt_process = subprocess.Popen(
         build_cmd,
         cwd=app_path,
+        env=rocks_mirror_env(),
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,

@@ -14,6 +14,7 @@ from utils import (
     inst_log_dir,
     inst_run_dir,
     instances_file,
+    rocks_mirror_env,
     run_command_and_get_output,
     wait_event,
     wait_files,
@@ -190,6 +191,7 @@ def test_running_base_functionality_crud_app(tt_cmd, tmpdir_with_cfg):
     instance_process = subprocess.Popen(
         build_cmd,
         cwd=app_path,
+        env=rocks_mirror_env(),
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,

@@ -1,4 +1,5 @@
-"""Validate integration shards and run pytest with CI reports."""
+"""Validate integration shards, run pytest with CI reports, and build the rock
+mirror the tests read in CI."""
 
 import argparse
 import json
@@ -12,6 +13,7 @@ import yaml
 
 TEST_DIR = Path(__file__).resolve().parent
 INTEGRATION_DIR = TEST_DIR / "integration"
+ROCKS_MIRROR_LIST = TEST_DIR / "rocks-mirror.txt"
 _outcomes = {}
 _rerun = set()
 _collection_errors = set()
@@ -200,6 +202,27 @@ def run(args, groups):
     return exit_code
 
 
+def rocks_mirror(args):
+    """Build the rock server the tests that fetch rocks read in CI.
+
+    tt package download writes each rock rocks-mirror.txt lists in the form the
+    registry holds it. A rock the registry has only as a rockspec would still
+    be cloned from its repository on install, so it is packed into a source
+    rock, which carries the sources, before the directory is indexed.
+    """
+    lines = ROCKS_MIRROR_LIST.read_text().splitlines()
+    refs = [ref for line in lines if (ref := line.split("#", 1)[0].strip())]
+    mirror = args.dir.resolve()
+    mirror.mkdir(parents=True, exist_ok=True)
+    tt = str(args.tt_cmd.resolve())
+    subprocess.run([tt, "package", "download", "--dir", str(mirror), *refs], check=True)
+    for rockspec in sorted(mirror.glob("*.rockspec")):
+        subprocess.run([tt, "rocks", "pack", rockspec.name], cwd=mirror, check=True)
+        rockspec.unlink()
+    subprocess.run([tt, "rocks", "admin", "make_manifest", str(mirror)], cwd=mirror, check=True)
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -210,7 +233,12 @@ def main():
     runner.add_argument("--tt-cmd", required=True, type=Path)
     runner.add_argument("--report-dir", required=True, type=Path)
     runner.add_argument("--test-dir")
+    mirror = commands.add_parser("rocks-mirror")
+    mirror.add_argument("--dir", required=True, type=Path)
+    mirror.add_argument("--tt-cmd", required=True, type=Path)
     args = parser.parse_args()
+    if args.command == "rocks-mirror":
+        return rocks_mirror(args)
     try:
         groups = load_shards()
         if args.command == "check-shards":

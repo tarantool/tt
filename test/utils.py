@@ -38,6 +38,21 @@ initial_xlog = "00000000000000000000.xlog"
 BINARY_PORT_NAME = "tarantool.sock"
 
 
+def rocks_mirror_env(env=None):
+    """Return env, os.environ by default, with the rock mirror of CI as the
+    rock server when TT_TEST_ROCKS_MIRROR names one.
+
+    The tests that fetch rocks run tt with it, so in CI they install from a
+    directory restored from the cache (see test/rocks-mirror.txt) rather than
+    from the registries; without the variable they reach the registries as
+    before."""
+    env = dict(os.environ if env is None else env)
+    mirror = os.environ.get("TT_TEST_ROCKS_MIRROR")
+    if mirror:
+        env["TT_REGISTRIES"] = mirror
+    return env
+
+
 def run_command_and_get_output(
     cmd,
     stdout=subprocess.PIPE,

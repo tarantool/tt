@@ -121,6 +121,20 @@ jobs:
           build-tt: 'false'
           cache: ${{ inputs.cache }}
 
+      # The tests that fetch rocks install them from this directory rather
+      # than from the registries; see test/rocks-mirror.txt.
+      - name: Restore the rock mirror
+        id: rocks-mirror
+        if: inputs.cache && inputs.edition != 'none'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/rocks-mirror
+          key: rocks-mirror-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('test/rocks-mirror.txt') }}
+
+      - name: Build the rock mirror
+        if: inputs.edition != 'none' && steps.rocks-mirror.outputs.cache-hit != 'true'
+        run: ci/retry-network.sh python3 test/ci.py rocks-mirror --dir "$RUNNER_TEMP/rocks-mirror" --tt-cmd "$PWD/tt"
+
       - name: Run integration tests
         env:
           SHARD: ${{ inputs.shard }}
@@ -137,6 +151,9 @@ jobs:
           fi
           if [ "$EE_CREDENTIALS" != true ]; then
             unset TT_CLI_EE_USERNAME TT_CLI_EE_PASSWORD
+          fi
+          if [ -d "$RUNNER_TEMP/rocks-mirror" ]; then
+            export TT_TEST_ROCKS_MIRROR="$RUNNER_TEMP/rocks-mirror"
           fi
           extra=()
           if [ -n "$TEST_DIR" ]; then
