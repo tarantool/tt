@@ -478,13 +478,22 @@ func TestOrphan(t *testing.T) {
 	assert.Equal(t, leader, Orphan(run))
 
 	// A live watchdog supervises the process.
-	watchdog := sleeper(t, true)
-	require.NoError(t, os.WriteFile(run.PIDFile,
-		[]byte(strconv.Itoa(watchdog.Process.Pid)), 0o600))
+	watchdog := fakeWatchdog(t, run)
 	assert.Zero(t, Orphan(run))
 
+	// A pid file nobody holds names no watchdog, even one that names a live
+	// process: the watchdog is gone, and its pid reused.
+	require.NoError(t, watchdog.Process.Kill())
+
+	_, err = watchdog.Process.Wait()
+	require.NoError(t, err)
+
+	other := sleeper(t, true)
+	require.NoError(t, os.WriteFile(run.PIDFile, []byte(strconv.Itoa(other.Process.Pid)), 0o600))
+	assert.Equal(t, leader, Orphan(run))
+
 	// A pid that leads no group is not the process.
-	other := sleeper(t, false)
+	other = sleeper(t, false)
 
 	run = orphanRun(t, other.Process.Pid)
 	assert.Zero(t, Orphan(run))
@@ -557,4 +566,53 @@ func TestStopOrphan(t *testing.T) {
 		<-done
 		assert.NoFileExists(t, run.ProcessPIDFile)
 	})
+}
+
+// TestStaleExternal pins what tt instance stop, kill and clean do with an
+// external process whose watchdog died together with its process: tt.pid
+// and process.pid are both stale, the latter naming a live process that
+// leads no group, which is not the process (Orphan). Both files go, and the
+// process they name gets no signal.
+func TestStaleExternal(t *testing.T) {
+	for name, act := range map[string]func(run *InstanceCtx) error{
+		"stop": Stop,
+		"kill": func(run *InstanceCtx) error { return Kill(*run) },
+		"clean": func(run *InstanceCtx) error {
+			stopped, err := SettleStopped(run)
+			assert.True(t, stopped)
+
+			return err
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			other := sleeper(t, false)
+			run := orphanRun(t, other.Process.Pid)
+			require.Zero(t, Orphan(run))
+			assert.True(t, IsStopped(run))
+
+			require.NoError(t, act(run))
+			assert.NoFileExists(t, run.PIDFile)
+			assert.NoFileExists(t, run.ProcessPIDFile)
+			assert.True(t, stillRuns(other.Process.Pid), "the process got a signal")
+		})
+	}
+}
+
+// TestCleanRefusesOrphan pins that an external process whose process runs
+// without its watchdog is not stopped, whether its tt.pid is stale or
+// missing: its files stay.
+func TestCleanRefusesOrphan(t *testing.T) {
+	leader, _ := orphanProcess(t, "sleep", "60")
+	run := orphanRun(t, leader)
+
+	for range 2 {
+		assert.False(t, IsStopped(run))
+
+		stopped, err := SettleStopped(run)
+		require.NoError(t, err)
+		assert.False(t, stopped)
+		assert.FileExists(t, run.ProcessPIDFile)
+
+		_ = os.Remove(run.PIDFile)
+	}
 }

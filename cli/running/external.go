@@ -365,9 +365,10 @@ func leadsGroup(pid int) bool {
 }
 
 // Orphan returns the pid of the process of the external process inst that
-// runs without its watchdog, or zero: tt.pid names no live watchdog, while
-// process.pid, which the watchdog wrote, names a live process that leads its
-// process group, as the process does.
+// runs without its watchdog, or zero: no watchdog holds tt.pid, which is
+// missing or stale (pidfile.Owner), while process.pid, which the watchdog
+// wrote, names a live process that leads its process group, as the process
+// does.
 //
 // A watchdog killed by anything but tt instance kill leaves its process
 // running in its group, which killing the group of the watchdog does not
@@ -384,7 +385,8 @@ func Orphan(inst *InstanceCtx) int {
 		return 0
 	}
 
-	if process_utils.ProcessStatus(inst.PIDFile).Code == process_utils.ProcessRunningCode {
+	_, owned, err := pidfile.Owner(inst.PIDFile)
+	if err != nil || owned {
 		return 0
 	}
 
@@ -489,21 +491,21 @@ func waitGone(pid int, timeout time.Duration) bool {
 }
 
 // removeLeftPidFiles removes the pid files a dead watchdog left: process.pid
-// while it names pid, the process just stopped, and tt.pid while it names a
-// process that is gone. A file that names something else is a newer one,
-// and stays.
+// while it names pid, the process just stopped, and tt.pid while nobody
+// holds it, whatever the pid in it names now. A file that names something
+// else, or that a watchdog holds, is a newer one, and stays.
 func removeLeftPidFiles(run *InstanceCtx, pid int) {
 	_, err := pidfile.RemoveFor(run.ProcessPIDFile, pid, killCleanupTimeout, nil)
 	if err != nil {
 		log.Warnf("cannot remove the pid file %q: %s", run.ProcessPIDFile, err)
 	}
 
-	watchdog, alive, err := pidfile.Alive(run.PIDFile)
-	if err != nil || watchdog == 0 || alive {
+	watchdog, owned, err := pidfile.Owner(run.PIDFile)
+	if err != nil || owned {
 		return
 	}
 
-	_, err = pidfile.RemoveFor(run.PIDFile, watchdog, killCleanupTimeout, nil)
+	_, err = pidfile.RemoveFor(run.PIDFile, watchdog, 0, nil)
 	if err != nil {
 		log.Warnf("cannot remove the pid file %q: %s", run.PIDFile, err)
 	}

@@ -346,7 +346,7 @@ func (printer *recordingPrinter) Print(instances map[string]*instanceStatus) err
 }
 
 // runningInstance returns the context of the instance inst of myapp of kind,
-// whose pid file names the test process, so that it counts as running, and
+// whose pid file the test process holds, so that it counts as running, and
 // whose console socket does not exist.
 func runningInstance(t *testing.T, inst string, kind instances.Kind) running.InstanceCtx {
 	t.Helper()
@@ -354,7 +354,9 @@ func runningInstance(t *testing.T, inst string, kind instances.Kind) running.Ins
 	dir := t.TempDir()
 	pidFile := filepath.Join(dir, "tt.pid")
 
-	require.NoError(t, os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0o600))
+	owned, err := process_utils.CreatePIDFile(pidFile, os.Getpid())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, owned.Release()) })
 
 	ctx := running.InstanceCtx{
 		AppName:  "myapp",

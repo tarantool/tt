@@ -12,6 +12,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/v3/cli/process_utils"
+	"github.com/tarantool/tt/v3/internal/pidfile"
 )
 
 // Each helper keeps running until every helper has received SIGINT. Waiting
@@ -25,10 +27,11 @@ func TestStopAllInterruptsBeforeWaiting(t *testing.T) {
 			runs := []InstanceCtx{first.inst, second.inst}
 
 			if withErrors {
+				// A pid file that cannot be read.
 				invalid := InstanceCtx{
 					AppName: "invalid", PIDFile: filepath.Join(dir, "invalid.pid"),
 				}
-				require.NoError(t, os.WriteFile(invalid.PIDFile, []byte("not a pid"), 0o600))
+				require.NoError(t, os.Mkdir(invalid.PIDFile, 0o700))
 
 				other := invalid
 
@@ -100,15 +103,157 @@ func TestStopSingle(t *testing.T) {
 		require.NoError(t, Stop(&inst))
 	})
 
-	t.Run("invalid pid", func(t *testing.T) {
+	t.Run("unreadable pid file", func(t *testing.T) {
 		inst := InstanceCtx{AppName: "invalid", PIDFile: filepath.Join(t.TempDir(), "invalid.pid")}
-		require.NoError(t, os.WriteFile(inst.PIDFile, []byte("not a pid"), 0o600))
+		require.NoError(t, os.Mkdir(inst.PIDFile, 0o700))
 		require.ErrorContains(t, Stop(&inst), "failed to stop instance invalid:")
 	})
 
 	t.Run("empty batch", func(t *testing.T) {
 		require.NoError(t, StopAll(nil))
 	})
+}
+
+// TestStopStale pins that tt instance stop takes an instance whose pid file
+// nobody holds for stopped, whatever the pid in it names, signals nothing,
+// and removes the file and the sockets the dead watchdog left.
+func TestStopStale(t *testing.T) {
+	cases := map[string]func(t *testing.T) string{
+		"no pid":         func(*testing.T) string { return "not a pid" },
+		"a process gone": func(*testing.T) string { return strconv.Itoa(1<<31 - 2) },
+		"a live process": func(t *testing.T) string {
+			t.Helper()
+
+			return strconv.Itoa(stopVictim(t))
+		},
+		"this test itself": func(*testing.T) string { return strconv.Itoa(os.Getpid()) },
+	}
+
+	for name, content := range cases {
+		t.Run(name, func(t *testing.T) {
+			run := killRun(t)
+
+			run.AppName, run.InstName = "app", "inst"
+			require.NoError(t, os.WriteFile(run.PIDFile, []byte(content(t)), 0o600))
+
+			// SIGINT would end the test process.
+			interrupt := make(chan os.Signal, 1)
+			signal.Notify(interrupt, syscall.SIGINT)
+
+			defer signal.Stop(interrupt)
+
+			require.NoError(t, Stop(run))
+			assert.NoFileExists(t, run.PIDFile)
+			assert.NoFileExists(t, run.ConsoleSocket)
+			assert.NoFileExists(t, run.BinaryPort)
+			assert.Equal(t, process_utils.ProcessStoppedCode, Status(run).Code)
+
+			select {
+			case <-interrupt:
+				t.Error("the test process got SIGINT")
+			default:
+			}
+		})
+	}
+}
+
+// stopVictim starts a process that stands for an unrelated process that has
+// taken the pid of a dead watchdog, and returns its pid. The test fails if
+// the process exits before the test ends: it got a signal meant for the
+// watchdog.
+func stopVictim(t *testing.T) int {
+	t.Helper()
+
+	cmd := sleeper(t, false)
+
+	t.Cleanup(func() {
+		assert.True(t, stillRuns(cmd.Process.Pid), "the unrelated process got a signal")
+	})
+
+	return cmd.Process.Pid
+}
+
+// TestStatusByOwner pins how the state of an instance is told from its pid
+// file: by whether a watchdog holds it, not by whether the pid in it names a
+// live process.
+func TestStatusByOwner(t *testing.T) {
+	run := killRun(t)
+
+	assert.Equal(t, process_utils.ProcessStoppedCode, Status(run).Code)
+
+	require.NoError(t, os.WriteFile(run.PIDFile, []byte("not a pid"), 0o600))
+	assert.Equal(t, process_utils.ProcessStoppedCode, Status(run).Code)
+
+	other := sleeper(t, false).Process.Pid
+	require.NoError(t, os.WriteFile(run.PIDFile, []byte(strconv.Itoa(other)), 0o600))
+
+	state := Status(run)
+	assert.Equal(t, process_utils.ProcessDeadCode, state.Code, "a stale file names a live process")
+	assert.Equal(t, other, state.PID)
+	assert.False(t, IsInstanceActive(run))
+	assert.True(t, IsStopped(run))
+
+	require.NoError(t, os.Remove(run.PIDFile))
+
+	watchdog := fakeWatchdog(t, run)
+
+	state = Status(run)
+	assert.Equal(t, process_utils.ProcessRunningCode, state.Code)
+	assert.Equal(t, watchdog.Process.Pid, state.PID)
+	assert.False(t, IsStopped(run))
+
+	stopped, err := SettleStopped(run)
+	require.NoError(t, err)
+	assert.False(t, stopped)
+	assert.FileExists(t, run.PIDFile)
+	assert.FileExists(t, run.ConsoleSocket)
+
+	require.NoError(t, watchdog.Process.Kill())
+
+	_, err = watchdog.Process.Wait()
+	require.NoError(t, err)
+
+	state = Status(run)
+	assert.Equal(t, process_utils.ProcessDeadCode, state.Code)
+	assert.Equal(t, watchdog.Process.Pid, state.PID)
+
+	stopped, err = SettleStopped(run)
+	require.NoError(t, err)
+	assert.True(t, stopped)
+	assert.NoFileExists(t, run.PIDFile)
+	assert.NoFileExists(t, run.ConsoleSocket)
+	assert.NoFileExists(t, run.BinaryPort)
+	assert.Equal(t, process_utils.ProcessStoppedCode, Status(run).Code)
+}
+
+// TestClearForWatchdog pins what tt instance start makes of the pid file of
+// an instance before it starts a watchdog: one that a watchdog holds means
+// the instance runs already, while one nobody holds goes, also when the pid
+// in it names a live process, which the new watchdog would refuse.
+func TestClearForWatchdog(t *testing.T) {
+	run := killRun(t)
+
+	pid, err := clearForWatchdog(run)
+	require.NoError(t, err)
+	assert.Zero(t, pid)
+
+	other := sleeper(t, false).Process.Pid
+	require.NoError(t, os.WriteFile(run.PIDFile, []byte(strconv.Itoa(other)), 0o600))
+
+	pid, err = clearForWatchdog(run)
+	require.NoError(t, err)
+	assert.Zero(t, pid)
+	assert.NoFileExists(t, run.PIDFile)
+	assert.NoFileExists(t, run.ConsoleSocket)
+	assert.True(t, stillRuns(other))
+
+	owned, err := pidfile.Acquire(run.PIDFile, os.Getpid())
+	require.NoError(t, err, "the watchdog cannot take the pid file")
+
+	pid, err = clearForWatchdog(run)
+	require.NoError(t, err)
+	assert.Equal(t, os.Getpid(), pid, "a watchdog holds the pid file")
+	require.NoError(t, owned.Release())
 }
 
 type stopTestProcess struct {
@@ -156,12 +301,10 @@ func startStopTestProcess(t *testing.T, dir string, index, count int) *stopTestP
 		<-proc.done
 	})
 
+	// The helper holds its pid file, as a watchdog does, before it is ready.
 	require.Eventually(t, func() bool {
 		return stopTestFileExists(filepath.Join(dir, name+".ready"))
 	}, stopTimeout, 10*time.Millisecond)
-
-	pid := []byte(strconv.Itoa(cmd.Process.Pid))
-	require.NoError(t, os.WriteFile(proc.inst.PIDFile, pid, 0o600))
 
 	return proc
 }
@@ -186,6 +329,11 @@ func TestStopProcessHelper(t *testing.T) {
 	signal.Notify(interrupt, syscall.SIGINT)
 
 	defer signal.Stop(interrupt)
+
+	owned, err := pidfile.Acquire(filepath.Join(dir, name+".pid"), os.Getpid())
+	require.NoError(t, err)
+
+	defer func() { require.NoError(t, owned.Release()) }()
 
 	require.NoError(t, os.WriteFile(filepath.Join(dir, name+".ready"), nil, 0o600))
 	<-interrupt

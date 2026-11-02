@@ -61,14 +61,22 @@ func configlessProject(t *testing.T, config string) {
 }
 
 // fakeWatchdog runs a process that stands for the watchdog of inst, in a
-// process group of its own, and writes its pid file. The process is reaped
-// as soon as it exits, so that a stop sees it gone.
+// process group of its own, and holds its pid file as a watchdog does: the
+// file names it and stays locked, through a descriptor the process
+// inherits, for as long as it runs. The process is reaped as soon as it
+// exits, so that a stop sees it gone.
 func fakeWatchdog(t *testing.T, inst *running.InstanceCtx) int {
 	t.Helper()
+
+	require.NoError(t, os.MkdirAll(filepath.Dir(inst.PIDFile), 0o755))
+
+	file, err := os.OpenFile(inst.PIDFile, os.O_RDWR|os.O_CREATE, 0o644)
+	require.NoError(t, err)
 
 	cmd := exec.CommandContext(t.Context(), "sleep", "60")
 
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.ExtraFiles = []*os.File{file}
 	require.NoError(t, cmd.Start())
 
 	done := make(chan struct{})
@@ -85,9 +93,13 @@ func fakeWatchdog(t *testing.T, inst *running.InstanceCtx) int {
 		<-done
 	})
 
-	require.NoError(t, os.MkdirAll(filepath.Dir(inst.PIDFile), 0o755))
-	require.NoError(t, os.WriteFile(inst.PIDFile, []byte(strconv.Itoa(cmd.Process.Pid)),
-		0o644))
+	// The lock belongs to the open file description, which the process
+	// shares; once the test closes its descriptor, the process alone holds it.
+	require.NoError(t, syscall.Flock(int(file.Fd()), syscall.LOCK_EX))
+
+	_, err = file.WriteAt([]byte(strconv.Itoa(cmd.Process.Pid)), 0)
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
 
 	return cmd.Process.Pid
 }

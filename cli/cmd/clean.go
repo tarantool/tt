@@ -13,7 +13,6 @@ import (
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/exitcode"
-	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/cli/running"
 )
 
@@ -162,13 +161,14 @@ func printCleanFiles(group cleanGroup) {
 // previewClean prints what clean is going to remove from the stopped
 // instances, by instance and directory, every file with --verbose, and the
 // total, and returns the total. A running instance is left alone, so it has
-// nothing in the preview.
+// nothing in the preview; one whose watchdog died without cleaning up is
+// stopped (running.IsStopped).
 func previewClean(instances []running.InstanceCtx) (int, error) {
 	total := 0
 
 	for i := range instances {
 		run := &instances[i]
-		if running.Status(run).Code != process_utils.ProcessStoppedCode {
+		if !running.IsStopped(run) {
 			continue
 		}
 
@@ -249,7 +249,9 @@ func confirmClean(instances []running.InstanceCtx, args []string) (bool, error) 
 // internalCleanModule is a default clean module. It asks once whether to
 // clean what the targets select. A running instance is left alone and
 // counts as failed: what the targets asked for is not done for it
-// (actOnInstances).
+// (actOnInstances). An instance whose watchdog died without cleaning up is
+// not running: the pid file it left, which nobody holds, is removed along
+// with the files (running.SettleStopped).
 func internalCleanModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	instances, err := resolveInstances(cmdCtx, args)
 	if err != nil {
@@ -268,15 +270,19 @@ func internalCleanModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	return actOnInstances("clean", instances, func(run *running.InstanceCtx) error {
-		status := running.Status(run)
-		if status.Code != process_utils.ProcessStoppedCode {
+		stopped, err := running.SettleStopped(run)
+
+		switch {
+		case err != nil:
+		case !stopped:
 			log.Infof("instance `%s` must be stopped", run.InstName)
 
 			return exitcode.Silent(fmt.Errorf("instance %s %w",
 				running.GetAppInstanceName(*run), errInstanceRunning))
+		default:
+			err = clean(run)
 		}
 
-		err := clean(run)
 		if err != nil {
 			log.Infof("%s%c%s...\t[ERR] %s", run.AppName, running.InstanceDelimiter,
 				run.InstName, err)

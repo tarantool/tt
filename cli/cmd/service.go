@@ -657,7 +657,7 @@ func internalSystemdUninstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) er
 			return err
 		}
 
-		if process_utils.ProcessStatus(pidFile).Code == process_utils.ProcessRunningCode {
+		if running.PIDFileStatus(pidFile).Code == process_utils.ProcessRunningCode {
 			runningUnits = append(runningUnits, unit)
 		}
 	}

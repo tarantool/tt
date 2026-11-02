@@ -246,12 +246,22 @@ func (echo *asyncEcho) close(timeout time.Duration) {
 // go to stdout and stderr. args go before the arguments that run the
 // watchdog. The caller waits for the watchdog and passes the stop signals on
 // to it.
+//
+// The caller has made sure that the instance does not run; a pid file
+// nobody holds is removed first, as StartWatchdog removes it
+// (clearForWatchdog).
 func StartForegroundWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string,
 	instance InstanceCtx, args []string, stdout, stderr io.Writer,
 ) (*exec.Cmd, error) {
 	cmdArgs, err := watchdogCommandLine(cmdCtx, ttExecutable, &instance, args, true)
 	if err != nil {
 		return nil, err
+	}
+
+	_, err = clearForWatchdog(&instance)
+	if err != nil {
+		return nil, fmt.Errorf("cannot start the watchdog for %s: %w",
+			GetAppInstanceName(instance), err)
 	}
 
 	cmd := exec.CommandContext(context.Background(), ttExecutable, cmdArgs...)

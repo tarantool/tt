@@ -1068,6 +1068,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt instance` commands judge the pid file of an instance by whether its
+  watchdog holds it, as it does for its whole life, rather than by whether
+  the pid in it names a live process. A pid file left by a watchdog killed
+  with SIGKILL, crashed or gone with a reboot failed `tt instance stop` and
+  `tt instance kill` with "probing with signal 0: no such process" and kept
+  `tt instance clean` from the instance; once its pid was reused by an
+  unrelated process, `tt instance status` showed the instance running,
+  `tt instance start` said it ran already, and stop, kill and logrotate
+  signalled that process, kill its whole process group. Such an instance is
+  not running now: status shows `ERROR. The process is dead`, stop, kill,
+  clean and start remove the stale pid file and the sockets left with it,
+  and nothing is signalled. `tt instance kill` of an instance that does not
+  run succeeds, as stop does, and `kill --dump` refuses it as not running.
+  `tt package uninstall` and `tt package install --force` no longer refuse
+  an application whose stale pid file names a live process.
 - `tt binary install tarantool --use-docker` on Linux arm64 failed with
   `cannot start cmake: exec format error`: the build image downloaded CMake
   for x86_64 whatever the host. It takes the archive for the architecture of

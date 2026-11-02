@@ -50,14 +50,54 @@ func sleeper(t *testing.T, grouped bool) *exec.Cmd {
 	return cmd
 }
 
+// fakeWatchdog starts a process that stands for the watchdog of run, in a
+// process group of its own, and holds its pid file as a watchdog does: the
+// file names it and is locked for as long as it runs. It holds the lock
+// through an inherited descriptor, so the lock goes when it dies. The test
+// reaps it.
+func fakeWatchdog(t *testing.T, run *InstanceCtx) *exec.Cmd {
+	t.Helper()
+
+	file, err := os.OpenFile(run.PIDFile, os.O_RDWR|os.O_CREATE, 0o644)
+	require.NoError(t, err)
+
+	cmd := exec.CommandContext(t.Context(), "sleep", "60")
+
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.ExtraFiles = []*os.File{file}
+	require.NoError(t, cmd.Start())
+	t.Cleanup(func() {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+	})
+
+	// The lock belongs to the open file description, which the child
+	// shares; once the test closes its descriptor, the child alone holds it.
+	require.NoError(t, syscall.Flock(int(file.Fd()), syscall.LOCK_EX))
+
+	_, err = file.WriteAt([]byte(strconv.Itoa(cmd.Process.Pid)), 0)
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
+
+	return cmd
+}
+
+// stillRuns reports whether the child pid of the test runs, rather than being
+// gone or a zombie, which a probe with signal 0 still finds.
+func stillRuns(pid int) bool {
+	var status syscall.WaitStatus
+
+	reaped, err := syscall.Wait4(pid, &status, syscall.WNOHANG, nil)
+
+	return err == nil && reaped == 0
+}
+
 // TestKillRemovesWhatWasItsOwn pins that tt instance kill removes the pid
 // file and the sockets of the watchdog it killed.
 func TestKillRemovesWhatWasItsOwn(t *testing.T) {
 	run := killRun(t)
-	watchdog := sleeper(t, true)
-	pid := watchdog.Process.Pid
+	watchdog := fakeWatchdog(t, run)
 
-	require.NoError(t, os.WriteFile(run.PIDFile, []byte(strconv.Itoa(pid)), 0o600))
 	require.NoError(t, Kill(*run))
 
 	_, err := watchdog.Process.Wait()
@@ -152,4 +192,69 @@ func TestKillCleanupHoldsThePidFile(t *testing.T) {
 			assert.NoFileExists(t, run.BinaryPort)
 		})
 	}
+}
+
+// TestKillStale pins that tt instance kill signals nothing for an instance
+// whose pid file nobody holds, whatever the pid in it names: the instance is
+// not running, which is no failure, and the file and the sockets the dead
+// watchdog left go. A missing pid file is not running either.
+func TestKillStale(t *testing.T) {
+	gone := 1<<31 - 2
+
+	t.Run("names a process that is gone", func(t *testing.T) {
+		run := killRun(t)
+		require.NoError(t, os.WriteFile(run.PIDFile, []byte(strconv.Itoa(gone)), 0o600))
+
+		require.NoError(t, Kill(*run))
+		assert.NoFileExists(t, run.PIDFile)
+		assert.NoFileExists(t, run.ConsoleSocket)
+		assert.NoFileExists(t, run.BinaryPort)
+	})
+
+	t.Run("names a live process", func(t *testing.T) {
+		// The pid of the dead watchdog reused by an unrelated process that
+		// leads its group, as a watchdog does.
+		run := killRun(t)
+		other := sleeper(t, true)
+		require.NoError(t, os.WriteFile(run.PIDFile,
+			[]byte(strconv.Itoa(other.Process.Pid)), 0o600))
+
+		require.NoError(t, Kill(*run))
+		assert.True(t, stillRuns(other.Process.Pid), "the process got killed")
+		assert.NoFileExists(t, run.PIDFile)
+		assert.NoFileExists(t, run.ConsoleSocket)
+	})
+
+	t.Run("missing", func(t *testing.T) {
+		run := killRun(t)
+
+		require.NoError(t, Kill(*run))
+		assert.NoFileExists(t, run.PIDFile)
+	})
+
+	t.Run("the pid file cannot be read", func(t *testing.T) {
+		run := killRun(t)
+		require.NoError(t, os.Mkdir(run.PIDFile, 0o700))
+
+		require.ErrorContains(t, Kill(*run), "failed to kill the processes")
+	})
+}
+
+// TestQuitStale pins that tt instance kill --dump refuses an instance whose
+// pid file nobody holds, signalling nothing: it is not running.
+func TestQuitStale(t *testing.T) {
+	run := killRun(t)
+
+	run.AppName, run.InstName = "app", "inst"
+
+	other := sleeper(t, true)
+	require.NoError(t, os.WriteFile(run.PIDFile, []byte(strconv.Itoa(other.Process.Pid)), 0o600))
+
+	err := Quit(*run)
+	require.ErrorIs(t, err, errTheInstanceIsNotRunningItMustBeStarted)
+	require.ErrorContains(t, err, "app:inst")
+	assert.True(t, stillRuns(other.Process.Pid), "the process got a signal")
+
+	require.NoError(t, os.Remove(run.PIDFile))
+	require.ErrorIs(t, Quit(*run), errTheInstanceIsNotRunningItMustBeStarted)
 }
