@@ -65,10 +65,24 @@ def test_install_tt_noexist_commit(tt_cmd, tmp_path):
     assert re.search(r"2df3077: unable to get hash info", output)
 
 
+# A tt release published with its prebuilt archives. The latest version is the
+# newest tag, which may have no release yet; install then quietly builds it
+# from source, and the prebuilt path this test is about goes unexercised.
+# Resolving the latest version is test_install_tt_latest_release's.
+PREBUILT_TT_VERSION = "v2.15.0"
+
+
 @pytest.mark.slow
 def test_install_tt(tt_cmd, tmp_path):
-    # Install latest tt.
-    install_cmd = [tt_cmd, "binary", "--scope", "project", "install", "tt"]
+    prebuilt = (platform.system(), platform.machine().lower()) in [
+        ("Linux", "x86_64"),
+        ("Linux", "aarch64"),
+        ("Darwin", "x86_64"),
+    ]
+    if not prebuilt:
+        pytest.skip("tt is released prebuilt for Linux amd64/arm64 and macOS amd64 only")
+
+    install_cmd = [tt_cmd, "binary", "--scope", "project", "install", "tt", PREBUILT_TT_VERSION]
     instance_process = subprocess.Popen(
         install_cmd,
         cwd=tmp_path,
@@ -80,6 +94,8 @@ def test_install_tt(tt_cmd, tmp_path):
     # Check that the process shutdown correctly.
     output, _ = instance_process.communicate()
     assert instance_process.returncode == 0, output
+    assert f"Installing prebuilt tt={PREBUILT_TT_VERSION}" in output
+    assert "building from source" not in output
 
     installed_cmd = [tmp_path / ".tarantool" / "bin" / "tt", "version"]
     installed_program_process = subprocess.run(
@@ -91,6 +107,7 @@ def test_install_tt(tt_cmd, tmp_path):
         timeout=30,
     )
     assert installed_program_process.returncode == 0, installed_program_process.stdout
+    assert PREBUILT_TT_VERSION.removeprefix("v") in installed_program_process.stdout
 
 
 @pytest.mark.slow
@@ -227,7 +244,11 @@ def test_install_tarantool_commit(tt_cmd, tmp_path):
     project_dir.mkdir()
     root = project_dir / ".tarantool"
 
-    # Install specific tarantool's commit.
+    # Install specific tarantool's commit. --dynamic links the system libraries
+    # instead of building OpenSSL, ICU, readline and the rest from source, which
+    # is most of the time a static build takes; the static build is
+    # test_install_tarantool_in_docker's, and resolving a commit is covered
+    # offline by test_install_tarantool_remote_revision.
     install_cmd = [
         tt_cmd,
         "binary",
@@ -237,6 +258,7 @@ def test_install_tarantool_commit(tt_cmd, tmp_path):
         "-f",
         "tarantool",
         "--source-build",
+        "--dynamic",
         "00a9e59",
     ]
     instance_process = subprocess.Popen(
