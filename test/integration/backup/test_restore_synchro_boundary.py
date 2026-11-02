@@ -68,9 +68,10 @@ POINT_ROWS = 40  # 31..40 precede the hung write.
 HUNG_ROW = 41  # the synchronous row that cannot gather its quorum
 AFTER_ROWS = 50  # 42..50 land past the hung write
 
-# membership_app pins synchro_timeout = 10: a hung write is rolled back ten
-# seconds after it was written.
-SYNCHRO_TIMEOUT = 10
+# A hung write is rolled back this many seconds after it was written, and both
+# tests wait that out, the second one twice. membership_app pins 10, and this
+# file runs its copy on a shorter one (see tt_path below).
+SYNCHRO_TIMEOUT = 3
 
 tarantool_major, tarantool_minor = get_tarantool_version()
 BACKUP_SUPPORTED = not is_tarantool_less(3, 8)
@@ -92,6 +93,23 @@ TT_SYNCHRO_BOUNDARY_APP = dict(
     running_targets=["app:*"],
     post_start=post_start_all,
 )
+
+
+@pytest.fixture
+def tt_path(tt_path):
+    """The copy of membership_app, set to SYNCHRO_TIMEOUT.
+
+    The app writes synchronously only once a follower is there to acknowledge
+    it, so the healthy phases commit long before even a short timeout, and the
+    ones that stall on purpose are what the timeout is waited out for.
+    test_restore_membership runs the app as it is.
+    """
+    config = Path(tt_path) / ".templates" / "default" / "config.yaml"
+    pinned = "synchro_timeout: 10\n"
+    text = config.read_text()
+    assert pinned in text, "membership_app no longer pins synchro_timeout: 10"
+    config.write_text(text.replace(pinned, f"synchro_timeout: {SYNCHRO_TIMEOUT}\n"))
+    return tt_path
 
 
 def data_dir(tt_app, instance):
@@ -282,25 +300,26 @@ def test_no_point_can_be_created_inside_a_hung_sync_write(tt, tt_app, tmp_path):
         f"box.space.restore_test:replace({{i, 'row-' .. i}}) end return true",
     )
 
-    fire_hung_sync_write(tt, tt_app)
-
     # The point creation does not refuse -- it disappears into the same wait
     # the hung write is stuck in, and comes back with the rollback's error
-    # a full synchro_timeout later.
-    started = time.monotonic()
+    # a full synchro_timeout after the hung write. That is counted from the
+    # write: the polls that see it land eat into a short timeout, and a
+    # creation that did not queue would come back right after them.
+    fired = time.monotonic()
+    fire_hung_sync_write(tt, tt_app)
     created = eval_on(
         tt,
         tt_app,
         STORAGE_A,
         "return box.backup.recovery_point.create({label = 'sbnd-inside'})",
     )
-    took = time.monotonic() - started
+    took = time.monotonic() - fired
 
     assert "error" in created, created
     assert "A rollback for a synchronous transaction is received" in str(created), created
     assert took >= SYNCHRO_TIMEOUT * 0.9, (
-        f"the point creation was held for {took:.1f}s, less than the "
-        f"{SYNCHRO_TIMEOUT}s synchro timeout -- it did not queue behind the limbo"
+        f"the point creation came back {took:.1f}s after the hung write, before "
+        f"the {SYNCHRO_TIMEOUT}s synchro timeout -- it did not queue behind the limbo"
     )
 
     # The hung write was rolled back: the leader ends up without the row and

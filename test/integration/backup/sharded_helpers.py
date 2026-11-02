@@ -5,7 +5,7 @@ from pathlib import Path
 
 from backup_helpers import parse_yaml
 
-from utils import inst_dir, lib_path, run_command_and_get_output
+from utils import inst_dir, lib_path, rocks_mirror_env, run_command_and_get_output
 
 SHARDED_APP_NAME = "sharded_app"
 SHARDED_APP_SRC = Path(__file__).parent / SHARDED_APP_NAME
@@ -159,15 +159,30 @@ def _wait_buckets_discovered(app, timeout=60):
     _wait(timeout, check, "vshard router did not discover all buckets")
 
 
-def start_sharded_app(tt_cmd, env_dir: Path) -> ShardedApp:
-    """Copy the sharded_app project, build it (this installs the pinned vshard
-    rock), start it and bootstrap vshard."""
-    app_dir = env_dir / SHARDED_APP_NAME
-    app = ShardedApp(tt_cmd, app_dir)
+def build_sharded_app(tt_cmd, build_dir: Path) -> Path:
+    """Copy the sharded_app project into build_dir and build it, which
+    installs the pinned vshard rock (from the rock mirror of CI when there is
+    one), and return the built project."""
+    app_dir = build_dir / SHARDED_APP_NAME
     shutil.copytree(SHARDED_APP_SRC, app_dir)
 
-    rc, out = app.exec("package", "build", cwd=app_dir)
+    rc, out = run_command_and_get_output(
+        [tt_cmd, "package", "build"],
+        cwd=app_dir,
+        env=rocks_mirror_env(),
+    )
     assert rc == 0, out
+    return app_dir
+
+
+def start_sharded_app(tt_cmd, env_dir: Path, built: Path) -> ShardedApp:
+    """Copy the project build_sharded_app built, start it and bootstrap
+    vshard. The copy is what the cluster writes its data into, so each run
+    starts from a clean one."""
+    app_dir = env_dir / SHARDED_APP_NAME
+    app = ShardedApp(tt_cmd, app_dir)
+    shutil.copytree(built, app_dir, symlinks=True)
+
     app.tt("instance", "start", f"{SHARDED_APP}:*")
     _wait_ready(app)
     app.tt("replicaset", "vshard", "bootstrap", SHARDED_APP)

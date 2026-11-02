@@ -2,12 +2,13 @@ import glob
 import os
 import re
 import resource
+import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
 
-from utils import get_tarantool_version, run_command_and_get_output
+from utils import run_command_and_get_output
 
 # spell-checker:ignore getrlimit setrlimit rlimit rlim coredumps coredumpctl apport
 
@@ -50,6 +51,11 @@ def generate_coredump(tmp_path_factory, tarantool_bin="tarantool") -> Path:
         core_wildcard = core_pattern.replace("%%", "%")
         # spell-checker:disable-next-line
         core_wildcard = re.sub("%[cdeEghiIpPstu]", "*", core_wildcard)
+        # A pattern without %p gets ".PID" appended when core_uses_pid is set
+        # (see core(5)).
+        with open("/proc/sys/kernel/core_uses_pid", "r") as f:
+            if f.read().strip() != "0" and "%p" not in core_pattern:
+                core_wildcard += ".*"
         if not os.path.isabs(core_wildcard):
             core_wildcard = str(coredump_dir / core_wildcard)
     elif re.search(r"apport", core_pattern):
@@ -88,8 +94,29 @@ def coredump(tmp_path_factory) -> Path:
 
 
 @pytest.fixture(scope="session")
-def coredump_alt(tmp_path_factory, tarantool_prefix) -> Path:
-    return generate_coredump(tmp_path_factory, tarantool_prefix / "bin" / "tarantool")
+def alt_tarantool(tmp_path_factory) -> Path:
+    """A tarantool other than the one on PATH, for the tests of which executable
+    gets packed.
+
+    A copy of the system one with a marker appended, so the two are different
+    files and the archive shows which of them was packed; the loader, gdb and
+    the pack script all ignore what follows the ELF image. It used to be a
+    Tarantool built from source, which took minutes, and the archive was
+    checked by version alone.
+    """
+    system = shutil.which("tarantool")
+    assert system is not None, "no tarantool on PATH"
+    alt = tmp_path_factory.mktemp("alt_tarantool") / "bin" / "tarantool"
+    alt.parent.mkdir()
+    shutil.copy(system, alt)
+    with alt.open("ab") as f:
+        f.write(b"\ntt coredump tests: the alternative tarantool\n")
+    return alt
+
+
+@pytest.fixture(scope="session")
+def coredump_alt(tmp_path_factory, alt_tarantool) -> Path:
+    return generate_coredump(tmp_path_factory, alt_tarantool)
 
 
 @pytest.fixture(scope="session")
@@ -139,7 +166,7 @@ def check_tarantool_in_archive(tmp_path, expected_tarantool):
     archives = list(tmp_path.glob("*.tar.gz"))
     assert len(archives) == 1
 
-    # Extract Tarantool executable and check its version.
+    # Extract the Tarantool executable: it is the expected one, byte for byte.
     rc = subprocess.run(
         ["tar", "xzf", archives[0], "--wildcards", "tarantool-core-*/tarantool"],
         cwd=tmp_path,
@@ -147,38 +174,31 @@ def check_tarantool_in_archive(tmp_path, expected_tarantool):
     assert rc == 0
     unpacked_tarantools = list(tmp_path.glob("tarantool-core-*/tarantool"))
     assert len(unpacked_tarantools) == 1
-    version = get_tarantool_version(unpacked_tarantools[0])
-    assert version == get_tarantool_version(expected_tarantool)
+    assert unpacked_tarantools[0].read_bytes() == Path(expected_tarantool).read_bytes()
 
 
 @pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
-@pytest.mark.slow
-def test_coredump_pack_executable(tt_cmd, tmp_path, coredump_alt, tarantool_prefix):
-    tarantool_bin = tarantool_prefix / "bin" / "tarantool"
-
-    cmd = [tt_cmd, "coredump", "pack", "-e", tarantool_bin, coredump_alt]
+def test_coredump_pack_executable(tt_cmd, tmp_path, coredump_alt, alt_tarantool):
+    cmd = [tt_cmd, "coredump", "pack", "-e", alt_tarantool, coredump_alt]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
     assert re.search(r"Core was successfully packed.", output)
 
-    check_tarantool_in_archive(tmp_path, tarantool_bin)
+    check_tarantool_in_archive(tmp_path, alt_tarantool)
 
 
 @pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
-@pytest.mark.slow
-def test_coredump_pack_executable_project(tt_cmd, tmp_path, coredump_alt, tarantool_prefix):
-    tarantool_bin = tarantool_prefix / "bin" / "tarantool"
-
+def test_coredump_pack_executable_project(tt_cmd, tmp_path, coredump_alt, alt_tarantool):
     # The tarantool of the project scope, as tt binary install selects it.
     (tmp_path / ".tarantool" / "bin").mkdir(parents=True)
-    os.symlink(tarantool_bin, tmp_path / ".tarantool" / "bin" / "tarantool")
+    os.symlink(alt_tarantool, tmp_path / ".tarantool" / "bin" / "tarantool")
 
     cmd = [tt_cmd, "coredump", "pack", coredump_alt]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
     assert re.search(r"Core was successfully packed.", output)
 
-    check_tarantool_in_archive(tmp_path, tarantool_bin)
+    check_tarantool_in_archive(tmp_path, alt_tarantool)
 
 
 def test_coredump_unpack_no_arg(tt_cmd, tmp_path):
