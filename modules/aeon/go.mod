@@ -6,7 +6,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
-	github.com/tarantool/go-config/v2 v2.0.1
+	github.com/tarantool/go-config/v2 v2.0.2-0.20261102222747-4c7c90ea0ec7
 	github.com/tarantool/go-prompt v1.0.1
 	github.com/tarantool/go-tarantool/v3 v3.0.2
 	github.com/tarantool/tt/sdk v0.0.0

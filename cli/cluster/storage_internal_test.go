@@ -16,6 +16,7 @@ import (
 	goconfig "github.com/tarantool/go-config/v2"
 	etcdtest "github.com/tarantool/go-storage/v2/test_helpers/etcd"
 	sdkcluster "github.com/tarantool/tt/sdk/cluster"
+	"github.com/tarantool/tt/sdk/integrity"
 	"go.etcd.io/etcd/client/pkg/v3/transport"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
@@ -165,6 +166,50 @@ func TestDescribeStorage(t *testing.T) {
 
 			assert.Equal(t, test.want,
 				DescribeStorage(test.storageType, test.endpoints, test.prefix, test.key))
+		})
+	}
+}
+
+// TestGetClusterConfigEtcdFromEnv checks that the etcd the environment names
+// is read the way Tarantool reads it: TT_CONFIG_ETCD_ENDPOINTS holds a list,
+// as one URI, comma-separated or in JSON, so a config file that names no
+// storage gets the cluster config kept in that etcd.
+func TestGetClusterConfigEtcdFromEnv(t *testing.T) {
+	server := etcdtest.New(t, etcdtest.ClusterConfig{})
+	endpoint := server.EndpointsGRPC()[0]
+
+	client, err := clientv3.New(clientv3.Config{Endpoints: server.EndpointsGRPC()})
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, client.Close()) })
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	_, err = client.Put(ctx, "/env/config/all", "app:\n  file: from_etcd.lua\n")
+	require.NoError(t, err)
+
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path,
+		[]byte("groups:\n  g:\n    replicasets:\n      r:\n        instances:\n          i: {}\n"),
+		0o600))
+
+	cases := map[string]string{
+		"one URI":         endpoint,
+		"comma-separated": endpoint + "," + endpoint,
+		"JSON":            fmt.Sprintf("[%q]", endpoint),
+	}
+
+	for name, endpoints := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("TT_CONFIG_ETCD_ENDPOINTS", endpoints)
+			t.Setenv("TT_CONFIG_ETCD_PREFIX", "/env")
+
+			cfg, err := GetClusterConfig(t.Context(), path, integrity.IntegrityCtx{})
+			require.NoError(t, err)
+
+			file, err := cfgGetString(cfg.Snapshot(), "app/file")
+			require.NoError(t, err)
+			assert.Equal(t, "from_etcd.lua", file)
 		})
 	}
 }
