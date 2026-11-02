@@ -948,6 +948,19 @@ def check_running_config_storage(tt_cmd, workdir, app_name):
         else:
             replica = instance
 
+    # The config.storage role checks once per status_check_interval (5 s in
+    # the template) that it reaches a quorum and refuses requests until then,
+    # so an instance that checked before the leader was elected stays
+    # disconnected for a while.
+    def storage_connected(inst):
+        p = exec_on_inst(tt_cmd, workdir, inst, "config.storage.info().status")
+        return p.returncode == 0 and "- connected" in p.stdout
+
+    for instance in status_info:
+        assert wait_event(30, storage_connected, 0.5, instance), (
+            f"config.storage of the instance '{instance}' did not connect"
+        )
+
     def write_data(inst):
         cmd = "config.storage.put('/a', 'some value')"
         p = exec_on_inst(tt_cmd, workdir, inst, cmd)
