@@ -1,0 +1,3 @@
+# The documentation site: mage docs:build.
+mkdocs==1.6.1
+mkdocs-material==9.8.0

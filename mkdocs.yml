@@ -1,0 +1,135 @@
+# The documentation of tt, published as a preview at
+# https://tarantool.github.io/tt/. The pages are drafts for the technical
+# writers: plain Markdown with few extensions, so that they can move to
+# another toolchain. Build with mage docs:build, preview with mage docs:serve.
+#
+# The pages of reference/commands/ are generated from the help of tt
+# (mage docs:reference) and are not in git. A command added to tt needs its
+# page added to the nav below: the build fails on a page the nav omits.
+
+site_name: Tarantool CLI
+site_description: tt, the command-line utility for Tarantool applications
+site_url: https://tarantool.github.io/tt/
+repo_url: https://github.com/tarantool/tt
+repo_name: tarantool/tt
+edit_uri: edit/v3/doc/
+
+docs_dir: doc
+exclude_docs: |
+  overrides/
+  examples.md
+  requirements.txt
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+nav:
+  - Home: index.md
+  - Get started:
+      - get-started/install.md
+      - get-started/first-cluster.md
+      - get-started/first-package.md
+  - Concepts:
+      - concepts/projects-and-scopes.md
+      - concepts/packages.md
+      - concepts/instances.md
+      - concepts/rock-servers.md
+      - concepts/distributions.md
+  - How-to:
+      - how-to/binaries.md
+      - how-to/user-scope.md
+      - how-to/systemd.md
+      - how-to/script-instances.md
+      - how-to/external-processes.md
+      - how-to/sign-packages.md
+      - how-to/external-modules.md
+      - how-to/build-distribution.md
+      - Migrate from tt 2.x: migration_from_older_versions.md
+  - Reference:
+      - Commands:
+          - reference/commands/index.md
+          - tt aeon: reference/commands/aeon.md
+          - tt backup: reference/commands/backup.md
+          - tt backup-id: reference/commands/backup-id.md
+          - tt binary: reference/commands/binary.md
+          - tt cat: reference/commands/cat.md
+          - tt cluster: reference/commands/cluster.md
+          - tt completion: reference/commands/completion.md
+          - tt connect: reference/commands/connect.md
+          - tt coredump: reference/commands/coredump.md
+          - tt create: reference/commands/create.md
+          - tt daemon: reference/commands/daemon.md
+          - tt instance: reference/commands/instance.md
+          - tt modules: reference/commands/modules.md
+          - tt new: reference/commands/new.md
+          - tt package: reference/commands/package.md
+          - tt play: reference/commands/play.md
+          - tt registry: reference/commands/registry.md
+          - tt replicaset: reference/commands/replicaset.md
+          - tt restore: reference/commands/restore.md
+          - tt rocks: reference/commands/rocks.md
+          - tt run: reference/commands/run.md
+          - tt service: reference/commands/service.md
+          - tt tcm: reference/commands/tcm.md
+          - tt test: reference/commands/test.md
+          - tt version: reference/commands/version.md
+          - Exit codes: reference/commands/errors.md
+      - reference/app-manifest.md
+      - reference/instances-yaml.md
+      - reference/templates.md
+      - reference/environment.md
+      - reference/layout.md
+  - Project:
+      - known_issues.md
+      - contributing.md
+
+theme:
+  name: material
+  custom_dir: doc/overrides
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+  features:
+    - content.action.edit
+    - content.code.copy
+    - navigation.footer
+    - navigation.indexes
+    - navigation.sections
+    - search.highlight
+    - toc.follow
+
+extra:
+  generator: false
+
+markdown_extensions:
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+      # GitHub's anchors, so that a link works both on GitHub and on the site.
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.highlight
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format

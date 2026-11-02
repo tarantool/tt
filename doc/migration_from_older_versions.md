@@ -114,7 +114,7 @@ template unit `<app>@.service`, which runs one instance with
 `tt instance start --foreground`, and a drop-in for every instance with the
 `restart` and `stop_timeout` of its record; `systemctl` starts and stops the
 instances then, and `tt instance start`, `stop`, `restart` and `kill` refuse
-them. See [Running instances under systemd](../README.md#running-instances-under-systemd).
+them. See [Running instances under systemd](how-to/systemd.md).
 
 ## 1.3.1 -> 2.0.0
 

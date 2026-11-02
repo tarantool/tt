@@ -1,0 +1,13 @@
+{#- The pages are a preview of an unreleased tt: kept out of search engines,
+    with a banner that sends tt 2.x users to its documentation. -#}
+{% extends "base.html" %}
+
+{% block extrahead %}
+  <meta name="robots" content="noindex, nofollow">
+{% endblock %}
+
+{% block announce %}
+  A preview of the documentation of tt 3, which is not released yet. For
+  tt 2.x, see the
+  <a href="https://www.tarantool.io/en/doc/latest/tooling/tt_cli/">Tarantool documentation</a>.
+{% endblock %}
