@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -208,8 +209,27 @@ func TestInstalledApps(t *testing.T) {
 	assert.Empty(t, none)
 }
 
-// TestRunningInstances tells running instances by their pid files: one naming
-// a live process counts, one naming a process that is gone does not.
+// holdPidFile writes the pid file of the watchdog of an instance at path and
+// holds its lock, as a running watchdog holds it, until the test ends.
+func holdPidFile(t *testing.T, path string, pid int) {
+	t.Helper()
+
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
+
+	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = file.Close() })
+
+	require.NoError(t, syscall.Flock(int(file.Fd()), syscall.LOCK_EX))
+
+	_, err = file.WriteAt([]byte(strconv.Itoa(pid)), 0)
+	require.NoError(t, err)
+}
+
+// TestRunningInstances tells running instances by their pid files: one its
+// watchdog holds counts; one nobody holds does not, whether it names a
+// process that is gone or a live one, which has taken the pid of the dead
+// watchdog.
 func TestRunningInstances(t *testing.T) {
 	t.Parallel()
 
@@ -223,11 +243,12 @@ func TestRunningInstances(t *testing.T) {
 	require.NoError(t, gone.Run())
 
 	runDir := filepath.Join(root, "var", "run", "my-app")
-	writeFile(t, filepath.Join(runDir, "router-1", "tt.pid"),
-		[]byte(strconv.Itoa(os.Getpid())))
+	holdPidFile(t, filepath.Join(runDir, "router-1", "tt.pid"), os.Getpid())
 	writeFile(t, filepath.Join(runDir, "storage-1", "tt.pid"),
 		[]byte(strconv.Itoa(gone.Process.Pid)))
 	require.NoError(t, os.MkdirAll(filepath.Join(runDir, "storage-2"), 0o750))
+	writeFile(t, filepath.Join(runDir, "storage-3", "tt.pid"),
+		[]byte(strconv.Itoa(os.Getpid())))
 
 	running, err = state.RunningInstances(root, "my-app")
 	require.NoError(t, err)
@@ -241,6 +262,7 @@ func TestRunningInstances(t *testing.T) {
 	require.ErrorIs(t, err, state.ErrInstancesRunning)
 	assert.Contains(t, err.Error(), "router-1 (pid "+strconv.Itoa(os.Getpid())+")")
 	assert.NotContains(t, err.Error(), "storage-1")
+	assert.NotContains(t, err.Error(), "storage-3")
 
 	require.NoError(t, state.CheckNotRunning(root, "other"))
 }

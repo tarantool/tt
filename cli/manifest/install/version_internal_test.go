@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -189,6 +190,23 @@ func TestInstallVersionCollision(t *testing.T) {
 		activeTarget(t, root))
 }
 
+// holdPidFile writes the pid file of the watchdog of an instance at path and
+// holds its lock, as a running watchdog holds it, until the test ends.
+func holdPidFile(t *testing.T, path string, pid int) {
+	t.Helper()
+
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
+
+	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = file.Close() })
+
+	require.NoError(t, syscall.Flock(int(file.Fd()), syscall.LOCK_EX))
+
+	_, err = file.WriteAt([]byte(strconv.Itoa(pid)), 0)
+	require.NoError(t, err)
+}
+
 // TestInstallVersionForceRefusedWhileRunning: --force does not replace a
 // version while an instance of the application runs, as its pid file under
 // var/run/<app>/ says.
@@ -200,9 +218,8 @@ func TestInstallVersionForceRefusedWhileRunning(t *testing.T) {
 	_, err := installInto(t, t.TempDir(), Options{Scope: ScopeUser}, old.build(t))
 	require.NoError(t, err)
 
-	pidFile := filepath.Join(root, "var", "run", "my-app", "router-1", "tt.pid")
-	require.NoError(t, os.MkdirAll(filepath.Dir(pidFile), dirPerm))
-	require.NoError(t, os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), filePerm))
+	holdPidFile(t, filepath.Join(root, "var", "run", "my-app", "router-1", "tt.pid"),
+		os.Getpid())
 
 	_, err = installInto(t, t.TempDir(), Options{Scope: ScopeUser, Force: true},
 		appSpec("my-app", "1.0.0").build(t))

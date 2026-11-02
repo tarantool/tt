@@ -211,6 +211,31 @@ func removeSockets(run *InstanceCtx) {
 	}
 }
 
+// removeLeftovers removes what a watchdog that died without cleaning up left
+// besides its pid file, while the caller holds the lock of that file, so
+// that no newer watchdog owns any of it (pidfile.RemoveFor): the sockets of
+// a Tarantool instance, and the pid file of the process of an external
+// process. That file stays while it names a live process that leads its
+// group, the process running without its watchdog (Orphan), which
+// tt instance stop and kill stop.
+func removeLeftovers(run *InstanceCtx) {
+	removeSockets(run)
+
+	if run.ProcessPIDFile == "" {
+		return
+	}
+
+	pid, alive, err := pidfile.Alive(run.ProcessPIDFile)
+	if err != nil || alive && leadsGroup(pid) {
+		return
+	}
+
+	_, err = pidfile.RemoveFor(run.ProcessPIDFile, pid, 0, nil)
+	if err != nil {
+		log.Warnf("cannot remove the pid file %q: %s", run.ProcessPIDFile, err)
+	}
+}
+
 // createLogger prepares a logger for the watchdog and instance.
 func createLogger(run *InstanceCtx) (ttlog.Logger, error) {
 	opts := ttlog.LoggerOpts{
@@ -367,7 +392,9 @@ func StopAll(runs []InstanceCtx) error {
 
 // StopAllResults stops the batch and returns one error per input instance, in
 // order. The process of an external process whose watchdog is gone is stopped
-// as the watchdog would have stopped it (stopOrphan).
+// as the watchdog would have stopped it (stopOrphan). An instance whose pid
+// file nobody holds is not running: the file is stale, and goes
+// (interruptWatchdog).
 func StopAllResults(runs []InstanceCtx) []error {
 	type instanceProcess struct {
 		index int
@@ -397,13 +424,13 @@ func StopAllResults(runs []InstanceCtx) []error {
 
 		name := GetAppInstanceName(run)
 
-		pid, err := process_utils.InterruptProcess(run.PIDFile)
+		pid, err := interruptWatchdog(&run)
 
 		switch {
-		case errors.Is(err, fs.ErrNotExist):
-			log.Debugf("The instance %s is already stopped", name)
 		case err != nil:
 			stopErrors[index] = fmt.Errorf("failed to stop instance %s: %w", name, err)
+		case pid == 0:
+			log.Debugf("The instance %s is already stopped", name)
 		default:
 			processes = append(processes, instanceProcess{
 				index: index, name: name, pid: pid, wait: stopWait(&run),
@@ -433,16 +460,118 @@ func StopAllResults(runs []InstanceCtx) []error {
 	return stopErrors
 }
 
+// interruptWatchdog sends SIGINT to the watchdog of run, the process that
+// holds its pid file, and returns its pid; zero when no watchdog holds the
+// file. A file nobody holds is removed (removeStale): the pid in it names a
+// watchdog that is gone, or an unrelated process by now, and gets no signal.
+func interruptWatchdog(run *InstanceCtx) (int, error) {
+	pid, owned, err := pidfile.Owner(run.PIDFile)
+	if err != nil {
+		return 0, fmt.Errorf("can't get pid of running process: %w", err)
+	}
+
+	if !owned {
+		_, err = removeStale(run, pid)
+
+		return 0, err
+	}
+
+	err = process_utils.Interrupt(pid)
+	if err != nil {
+		return 0, err
+	}
+
+	return pid, nil
+}
+
+// removeStale removes the pid file of run that nobody holds, while it still
+// names pid, and with it what else the watchdog that died without cleaning
+// up left (removeLeftovers), under the lock of the file (pidfile.RemoveFor).
+// It returns whether it removed the file, and logs that it did: a missing
+// one is nothing to remove. A file a watchdog that has come up since holds
+// is left, with an error wrapping pidfile.ErrBusy.
+func removeStale(run *InstanceCtx, pid int) (bool, error) {
+	removed, err := pidfile.RemoveFor(run.PIDFile, pid, 0, func() { removeLeftovers(run) })
+	if err != nil {
+		return false, fmt.Errorf("cannot remove the stale pid file %q: %w", run.PIDFile, err)
+	}
+
+	if removed {
+		log.Infof("The instance %s is not running: removed the stale pid file %q.",
+			GetAppInstanceName(*run), run.PIDFile)
+	}
+
+	return removed, nil
+}
+
+// IsStopped reports whether nothing of run runs: no watchdog holds its pid
+// file, which is missing or stale (Status), and no process of an external
+// process runs without its watchdog (Orphan). A pid file that cannot be
+// read is not taken for stopped.
+func IsStopped(run *InstanceCtx) bool {
+	_, owned, err := pidfile.Owner(run.PIDFile)
+
+	return err == nil && !owned && Orphan(run) == 0
+}
+
+// SettleStopped reports whether nothing of run runs, as IsStopped does, and
+// if so removes a stale pid file and what else the watchdog that died
+// without cleaning up left (removeStale). It is for a command that acts on
+// the files of a stopped instance, such as tt instance clean.
+func SettleStopped(run *InstanceCtx) (bool, error) {
+	pid, owned, err := pidfile.Owner(run.PIDFile)
+	if err != nil {
+		return false, fmt.Errorf("cannot check the pid file: %w", err)
+	}
+
+	if owned || Orphan(run) != 0 {
+		return false, nil
+	}
+
+	_, err = removeStale(run, pid)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
 // Kill kills instance process: the process group of its watchdog, and the
 // process group of an external process, which is a group of its own, also
 // when its watchdog is gone (killOrphan).
+//
+// Only the watchdog that holds the pid file is killed. An instance whose pid
+// file is missing or nobody holds is not running, which is no failure:
+// there is nothing to kill, and a stale file goes with what the watchdog
+// that died left (removeStale). The pid in a stale file may name an
+// unrelated process by now, whose group must not be killed.
 func Kill(run InstanceCtx) error {
 	orphan := Orphan(&run)
 	if orphan != 0 {
 		return killOrphan(&run, orphan)
 	}
 
-	pid, err := process_utils.KillProcessGroup(run.PIDFile)
+	fullInstanceName := GetAppInstanceName(run)
+
+	pid, owned, err := pidfile.Owner(run.PIDFile)
+	if err != nil {
+		return fmt.Errorf("failed to kill the processes: %w", err)
+	}
+
+	if !owned {
+		removed, err := removeStale(&run, pid)
+		if err != nil {
+			return fmt.Errorf("failed to kill the processes: %w", err)
+		}
+
+		if !removed {
+			log.Infof("The instance %s is not running.", fullInstanceName)
+		}
+
+		return nil
+	}
+
+	err = process_utils.KillProcessGroup(pid)
 	if err != nil {
 		return fmt.Errorf("failed to kill the processes: %w", err)
 	}
@@ -450,7 +579,6 @@ func Kill(run InstanceCtx) error {
 	killProcess(&run, killCleanupTimeout)
 	cleanupAfterKill(&run, pid, killCleanupTimeout, removeSockets)
 
-	fullInstanceName := GetAppInstanceName(run)
 	log.Infof("The instance %s (PID = %v) has been killed.", fullInstanceName, pid)
 
 	return nil
@@ -505,14 +633,26 @@ func cleanupAfterKill(run *InstanceCtx, pid int, wait time.Duration,
 //
 // An external process is refused: the watchdog stops it with its stop signal
 // whatever stopped the watchdog, so it would stop without a dump while the
-// command reported one.
+// command reported one. So is an instance whose pid file no watchdog holds:
+// it is not running, and there is nothing to take a dump of.
 func Quit(run InstanceCtx) error {
 	err := RequireTarantool(&run)
 	if err != nil {
 		return fmt.Errorf("cannot quit with a dump: %w", err)
 	}
 
-	pid, err := process_utils.QuitProcess(run.PIDFile)
+	pid, owned, err := pidfile.Owner(run.PIDFile)
+	if err != nil {
+		return fmt.Errorf("failed to quit the process: %w", err)
+	}
+
+	// The pid in a file nobody holds may name an unrelated process by now.
+	if !owned {
+		return fmt.Errorf("cannot quit with a dump: %s%w", GetAppInstanceName(run),
+			errTheInstanceIsNotRunningItMustBeStarted)
+	}
+
+	err = process_utils.QuitProcess(pid)
 	if err != nil {
 		return fmt.Errorf("failed to quit the process: %w", err)
 	}
@@ -531,24 +671,53 @@ func Quit(run InstanceCtx) error {
 	return nil
 }
 
+// Status returns the state of the watchdog of run, judged by its pid file
+// (PIDFileStatus).
 func Status(run *InstanceCtx) process_utils.ProcessState {
-	return process_utils.ProcessStatus(run.PIDFile)
+	return PIDFileStatus(run.PIDFile)
+}
+
+// PIDFileStatus returns the state of the watchdog whose pid file is path:
+// RUNNING while a watchdog holds the file, which it does for its whole life
+// (pidfile.Owner); NOT RUNNING without a file, or with one that holds no
+// pid; and the dead state, with the pid in it, for a file nobody holds: the
+// watchdog died without removing it, killed, crashed or gone with a reboot.
+// The pid in such a file is not asked about, since it may name an unrelated
+// process by now. A file that cannot be read counts as none.
+func PIDFileStatus(path string) process_utils.ProcessState {
+	pid, owned, err := pidfile.Owner(path)
+
+	switch {
+	case err != nil, !owned && pid == 0:
+		return process_utils.ProcStateStopped
+	case !owned:
+		state := process_utils.ProcStateDead
+
+		state.PID = pid
+
+		return state
+	}
+
+	return process_utils.ProcessStatus(path)
 }
 
 // Logrotate rotates logs of a started instance: its watchdog reopens tt.log
 // on SIGHUP and passes SIGHUP on to tarantool, which reopens its own log, or
-// sends an external process its logrotate_signal, if it has one.
+// sends an external process its logrotate_signal, if it has one. Only the
+// watchdog that holds the pid file gets the signal: the pid in a file nobody
+// holds may name an unrelated process by now.
 func Logrotate(run *InstanceCtx) error {
 	fullInstanceName := GetAppInstanceName(*run)
 
-	pid, err := process_utils.GetPIDFromFile(run.PIDFile)
-	if err != nil {
-		return fmt.Errorf("%s%w", fullInstanceName, errTheInstanceIsNotRunningItMustBeStarted)
-	}
+	pid, owned, err := pidfile.Owner(run.PIDFile)
 
-	alive, _ := process_utils.IsProcessAlive(pid)
-	if !alive {
+	switch {
+	case err != nil:
+		return fmt.Errorf("can't rotate logs: %w", err)
+	case !owned && pid != 0:
 		return errInstanceDead
+	case !owned || pid == 0:
+		return fmt.Errorf("%s%w", fullInstanceName, errTheInstanceIsNotRunningItMustBeStarted)
 	}
 
 	err = syscall.Kill(pid, syscall.SIGHUP)
@@ -752,9 +921,30 @@ func watchdogCommandLine(cmdCtx *cmdcontext.CmdCtx, ttExecutable string,
 	return cmdArgs, nil
 }
 
+// clearForWatchdog readies the pid file of instance for a watchdog about to
+// start: it returns the pid of the watchdog that holds the file, the
+// instance running already, or removes a file nobody holds (removeStale),
+// which Acquire in the new watchdog would refuse while the pid in it names
+// an unrelated live process, and returns zero.
+func clearForWatchdog(instance *InstanceCtx) (int, error) {
+	pid, owned, err := pidfile.Owner(instance.PIDFile)
+	if err != nil {
+		return 0, fmt.Errorf("cannot check the pid file: %w", err)
+	}
+
+	if owned {
+		return pid, nil
+	}
+
+	_, err = removeStale(instance, pid)
+
+	return 0, err
+}
+
 // StartWatchdog starts the watchdog of instance in the background, a
 // tt instance start --watchdog detached from the command, unless the instance
-// is already running. args go before the arguments that run the watchdog.
+// is already running: unless a watchdog holds its pid file. args go before
+// the arguments that run the watchdog.
 //
 // The watchdog gets no tt.yaml: it finds the application from what it is
 // given (watchdogArgs).
@@ -764,9 +954,13 @@ func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance Inst
 	appName := GetAppInstanceName(instance)
 	// If an instance is already running don't try to start it again.
 	// To restart an instance use tt instance restart command.
-	procStatus := process_utils.ProcessStatus(instance.PIDFile)
-	if procStatus.Code == process_utils.ProcStateRunning.Code {
-		log.Infof("The instance %s (PID = %d) is already running.", appName, procStatus.PID)
+	pid, err := clearForWatchdog(&instance)
+	if err != nil {
+		return fmt.Errorf("cannot start the watchdog for %s: %w", appName, err)
+	}
+
+	if pid != 0 {
+		log.Infof("The instance %s (PID = %d) is already running.", appName, pid)
 
 		return nil
 	}

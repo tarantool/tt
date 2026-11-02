@@ -1,5 +1,4 @@
 import os
-import re
 import shutil
 import signal
 
@@ -23,19 +22,15 @@ def check_kill(tt, tt_app, target, input, is_confirm, *args):
     # Store original state.
     orig_status = tt_helper.status(tt)
 
-    # Do kill. An instance that does not run cannot be killed, which fails
-    # it; the others are killed all the same.
+    # Do kill. An instance that does not run has nothing to kill, which is no
+    # failure.
     # The answers go to a terminal: without one, a confirmation is not asked.
     if input is None:
         rc, out = tt.exec("instance", "kill", target, *args)
     else:
         rc, out = tt.exec_tty("instance", "kill", target, *args, tty_input=input)
     target_instances = tt_app.instances_of(target)
-    if is_confirm:
-        not_running = [i for i in target_instances if i not in tt_app.running_instances]
-        assert rc == tt_helper.instances_rc(len(target_instances), len(not_running))
-    else:
-        assert rc == 0
+    assert rc == 0
 
     # Check the confirmation prompt.
     if input is not None:
@@ -60,9 +55,7 @@ def check_kill(tt, tt_app, target, input, is_confirm, *args):
                 assert not os.path.exists(tt_app.run_path(inst, utils.control_socket))
                 assert not os.path.exists(tt_app.run_path(inst, utils.pid_file))
             else:
-                pid_path = tt_app.run_path(inst, utils.pid_file)
-                msg = r"failed to kill the processes:.*{}".format(pid_path)
-                assert re.search(msg, out)
+                assert f"The instance {inst} is not running." in out
         else:
             assert status[inst]["STATUS"] == orig_status[inst]["STATUS"]
             if was_running:

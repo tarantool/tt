@@ -285,12 +285,12 @@ func InstalledApps(root string) ([]App, error) {
 	return apps, nil
 }
 
-// RunningInstance is an instance of an application whose pid file names a
-// live process.
+// RunningInstance is an instance of an application whose watchdog holds its
+// pid file.
 type RunningInstance struct {
 	// Name is the instance name, the name of its run directory.
 	Name string
-	// Pid is the process the pid file names.
+	// Pid is the watchdog, the process the pid file names.
 	Pid int
 }
 
@@ -302,6 +302,11 @@ type RunningInstance struct {
 // outlive a version switch. Which version a running instance was started
 // from is not recorded there, so a running instance counts against every
 // version of its application.
+//
+// An instance runs while its watchdog holds the pid file, which it does for
+// its whole life (pidfile.Owner). A file nobody holds is stale, left by a
+// watchdog that died without removing it, and does not count, also when the
+// pid in it names a live process: after a reboot that is an unrelated one.
 func RunningInstances(root, name string) ([]RunningInstance, error) {
 	runDir := filepath.Join(root, ttscope.RunDirName, name)
 
@@ -321,12 +326,12 @@ func RunningInstances(root, name string) ([]RunningInstance, error) {
 			continue
 		}
 
-		pid, live, err := pidfile.Alive(filepath.Join(runDir, entry.Name(), PidFileName))
+		pid, owned, err := pidfile.Owner(filepath.Join(runDir, entry.Name(), PidFileName))
 		if err != nil {
 			return nil, fmt.Errorf("checking instance %s of %s: %w", entry.Name(), name, err)
 		}
 
-		if live {
+		if owned {
 			running = append(running, RunningInstance{Name: entry.Name(), Pid: pid})
 		}
 	}

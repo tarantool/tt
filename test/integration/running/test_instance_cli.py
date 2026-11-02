@@ -56,7 +56,10 @@ def test_partial_success_exit_code(tt_cmd, tmp_path):
         rc, out = utils.run_command_and_get_output(cmd, cwd=app_path)
         assert rc == 0, out
 
-        # The failure of master does not keep worker from being killed.
+        # A kill of an instance that does not run has nothing to do, which is
+        # no failure; one whose pid file cannot be read fails. The failure of
+        # master does not keep worker from being killed.
+        write_unreadable_pid_file(app_path, "master")
         cmd = [tt_cmd, "instance", "kill", "-y", "app:master", "app:worker"]
         rc, out = utils.run_command_and_get_output(cmd, cwd=app_path)
         assert rc == 3, out
@@ -70,6 +73,7 @@ def test_partial_success_exit_code(tt_cmd, tmp_path):
         assert rc == 0
         assert utils.extract_status(out)[worker]["STATUS"] == "NOT RUNNING"
 
+        write_unreadable_pid_file(app_path, "worker")
         cmd = [tt_cmd, "instance", "kill", "-y", "app:*"]
         rc, out = utils.run_command_and_get_output(cmd, cwd=app_path)
         assert rc == 1, out
@@ -78,16 +82,20 @@ def test_partial_success_exit_code(tt_cmd, tmp_path):
         utils.run_command_and_get_output([tt_cmd, "instance", "stop", "-y", worker], cwd=app_path)
 
 
-def write_stale_pid_file(app_path, inst):
-    """Leave the pid file of the instance inst of app naming a process that
-    is gone, as a watchdog killed with SIGKILL does: tt finds no running
-    process to stop by it."""
-    gone = subprocess.Popen(["true"])
-    gone.wait()
+def write_pid_file(app_path, inst, pid):
+    """Leave the pid file of the instance inst of app naming pid, unlocked,
+    as a watchdog killed with SIGKILL leaves it: no watchdog holds it."""
     run_dir = utils.inst_run_dir(app_path, "app", inst)
-    os.makedirs(run_dir)
+    os.makedirs(run_dir, exist_ok=True)
     with open(os.path.join(run_dir, utils.pid_file), "w") as f:
-        f.write(f"{gone.pid}\n")
+        f.write(f"{pid}")
+
+
+def write_unreadable_pid_file(app_path, inst):
+    """Leave a pid file of the instance inst of app that cannot be read: a
+    directory in its place, which tt cannot tell is running or not."""
+    run_dir = utils.inst_run_dir(app_path, "app", inst)
+    os.makedirs(os.path.join(run_dir, utils.pid_file))
 
 
 def worker_pid(app_path):
@@ -102,11 +110,11 @@ def worker_pid(app_path):
 
 def test_stop_and_restart_partial_success(tt_cmd, tmp_path):
     # stop and restart go on after a target they fail for, and exit 3 when
-    # they failed for some of the targets only. master fails: the pid file a
-    # killed watchdog left behind names no running process.
+    # they failed for some of the targets only. master fails: its pid file
+    # cannot be read.
     app_path = tmp_path / "app"
     shutil.copytree(EXTERNAL_APP, app_path)
-    write_stale_pid_file(app_path, "master")
+    write_unreadable_pid_file(app_path, "master")
 
     targets = ["app:master", "app:worker"]
     try:
@@ -158,6 +166,147 @@ def test_stop_and_restart_partial_success(tt_cmd, tmp_path):
             [tt_cmd, "instance", "stop", "-y", "app:worker"],
             cwd=app_path,
         )
+
+
+def dead_pid():
+    """Return the pid of a process that has exited and been reaped."""
+    gone = subprocess.Popen(["true"])
+    gone.wait()
+    return gone.pid
+
+
+def json_status(tt_cmd, app_path, target):
+    rc, out = utils.run_command_and_get_output(
+        [tt_cmd, "instance", "status", target, "--format=json"],
+        cwd=app_path,
+    )
+    assert rc == 0, out
+    return utils.extract_status_from_json(out)[target]
+
+
+def test_stale_pid_file_dead_watchdog(tt_cmd, tmp_path):
+    # A watchdog killed with SIGKILL, or gone with a crash or a reboot,
+    # leaves its pid file and sockets behind, unlocked. The instance is not
+    # running: status says the process is dead, stop, kill and clean succeed
+    # and remove what it left, and start starts it.
+    app_path = tmp_path / "app"
+    shutil.copytree(EXTERNAL_APP, app_path)
+    master = "app:master"
+    run_dir = utils.inst_run_dir(app_path, "app", "master")
+    pid_file = os.path.join(run_dir, utils.pid_file)
+    control_socket = os.path.join(run_dir, utils.control_socket)
+
+    def leave_stale():
+        write_pid_file(app_path, "master", dead_pid())
+        open(control_socket, "w").close()
+
+    try:
+        leave_stale()
+        assert json_status(tt_cmd, app_path, master)["status"] == "ERROR. The process is dead"
+
+        for command in [["stop", "-y"], ["kill", "-y"], ["clean", "-y"]]:
+            leave_stale()
+            rc, out = utils.run_command_and_get_output(
+                [tt_cmd, "instance", *command, master],
+                cwd=app_path,
+            )
+            assert rc == 0, out
+            assert f"The instance {master} is not running: removed the stale pid file" in out
+            assert not os.path.exists(pid_file)
+            assert not os.path.exists(control_socket)
+            assert json_status(tt_cmd, app_path, master)["status"] == "NOT RUNNING"
+
+        # Nothing left to kill is no failure either.
+        rc, out = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "kill", "-y", master],
+            cwd=app_path,
+        )
+        assert rc == 0, out
+        assert f"The instance {master} is not running." in out
+
+        leave_stale()
+        rc, out = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "start", master],
+            cwd=app_path,
+        )
+        assert rc == 0, out
+        assert f"Starting an instance [{master}]..." in out
+        assert utils.wait_event(
+            10,
+            lambda: json_status(tt_cmd, app_path, master)["status"] == "RUNNING",
+        )
+    finally:
+        utils.run_command_and_get_output([tt_cmd, "instance", "stop", "-y", master], cwd=app_path)
+
+
+def test_stale_pid_file_reused_pid(tt_cmd, tmp_path):
+    # After a reboot the pid in a stale pid file may name an unrelated
+    # process, here one that leads its process group as a watchdog does. Only
+    # a pid file a watchdog holds names a running instance: status does not
+    # say it runs, stop, kill, kill --dump and logrotate signal nothing, and
+    # start starts the instance.
+    app_path = tmp_path / "app"
+    shutil.copytree(EXTERNAL_APP, app_path)
+    master = "app:master"
+    pid_file = os.path.join(utils.inst_run_dir(app_path, "app", "master"), utils.pid_file)
+
+    stranger = subprocess.Popen(["sleep", "300"], start_new_session=True)
+    try:
+        write_pid_file(app_path, "master", stranger.pid)
+        status = json_status(tt_cmd, app_path, master)
+        assert status["status"] == "ERROR. The process is dead"
+        assert status["pid"] is None
+
+        for command in [["stop", "-y"], ["kill", "-y"]]:
+            write_pid_file(app_path, "master", stranger.pid)
+            rc, out = utils.run_command_and_get_output(
+                [tt_cmd, "instance", *command, master],
+                cwd=app_path,
+            )
+            assert rc == 0, out
+            assert f"The instance {master} is not running: removed the stale pid file" in out
+            assert not os.path.exists(pid_file)
+            assert stranger.poll() is None, f"tt instance {command[0]} signalled the stranger"
+
+        write_pid_file(app_path, "master", stranger.pid)
+        rc, out = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "kill", "--dump", "-y", master],
+            cwd=app_path,
+        )
+        assert rc == 1, out
+        assert f"{master}: the instance is not running" in out
+
+        rc, out = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "logrotate", master],
+            cwd=app_path,
+        )
+        assert rc == 1, out
+        assert "The process is dead" in out
+        assert stranger.poll() is None, "the stranger got a signal"
+
+        rc, out = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "start", master],
+            cwd=app_path,
+        )
+        assert rc == 0, out
+        assert "already running" not in out
+        assert utils.wait_event(
+            10,
+            lambda: json_status(tt_cmd, app_path, master)["status"] == "RUNNING",
+        )
+        assert json_status(tt_cmd, app_path, master)["pid"] != stranger.pid
+
+        rc, out = utils.run_command_and_get_output(
+            [tt_cmd, "instance", "stop", "-y", master],
+            cwd=app_path,
+        )
+        assert rc == 0, out
+        assert f"The Instance {master} (PID = " in out
+        assert stranger.poll() is None, "the stranger got a signal"
+    finally:
+        utils.run_command_and_get_output([tt_cmd, "instance", "stop", "-y", master], cwd=app_path)
+        stranger.kill()
+        stranger.wait()
 
 
 def test_check_partial_success(tt_cmd, tmp_path):

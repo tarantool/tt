@@ -4,7 +4,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -14,6 +13,7 @@ import (
 
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/process_utils"
 	"github.com/tarantool/tt/v3/cli/running"
 	"github.com/tarantool/tt/v3/internal/systemd"
 )
@@ -300,8 +300,9 @@ func TestSystemdInstallUninstall(t *testing.T) {
 	// under its unit.
 	pidFile, err := running.PIDFile(root, "myapp", "router-1")
 	require.NoError(t, err)
-	require.NoError(t, os.MkdirAll(filepath.Dir(pidFile), 0o755))
-	require.NoError(t, os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0o644))
+
+	owned, err := process_utils.CreatePIDFile(pidFile, os.Getpid())
+	require.NoError(t, err)
 
 	_, err = captureStdout(t, func() error {
 		return internalSystemdInstallModule(cmdCtx, []string{"myapp"})
@@ -314,7 +315,7 @@ func TestSystemdInstallUninstall(t *testing.T) {
 	require.ErrorContains(t, err, "systemctl disable --now myapp@router-1.service")
 	assert.FileExists(t, systemd.MarkPath(hostDir))
 
-	require.NoError(t, os.Remove(pidFile))
+	require.NoError(t, owned.Release())
 
 	out, err = captureStdout(t, func() error {
 		return internalSystemdUninstallModule(cmdCtx, []string{"myapp"})
@@ -429,8 +430,9 @@ func TestSystemdInstallRefusesRunning(t *testing.T) {
 
 	pidFile, err := running.PIDFile(root, "myapp", "gateway")
 	require.NoError(t, err)
-	require.NoError(t, os.MkdirAll(filepath.Dir(pidFile), 0o755))
-	require.NoError(t, os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0o644))
+
+	owned, err := process_utils.CreatePIDFile(pidFile, os.Getpid())
+	require.NoError(t, err)
 
 	err = internalSystemdInstallModule(&cmdcontext.CmdCtx{}, []string{"myapp"})
 	require.ErrorIs(t, err, errInstancesRunning)
@@ -442,7 +444,7 @@ func TestSystemdInstallRefusesRunning(t *testing.T) {
 	assert.NoFileExists(t, systemd.MarkPath(filepath.Join(root, "etc", "myapp")))
 
 	// The units are installed elsewhere.
-	require.NoError(t, os.Remove(pidFile))
+	require.NoError(t, owned.Release())
 
 	_, err = captureStdout(t, func() error {
 		return internalSystemdInstallModule(&cmdcontext.CmdCtx{}, []string{"myapp"})

@@ -19,6 +19,9 @@ var (
 	errProcessSIGQUIT             = errors.New("can't terminate the process with SIGQUIT")
 	errTheProcessAlreadyExistsPID = errors.New("the process already exists. PID: ")
 	errTheProcessIsNotRunning     = errors.New("the process ")
+	// errNoPid is wrapped by the error for a pid that names no single
+	// process: 0 and -1 would signal a whole group or every process.
+	errNoPid = errors.New("not the pid of a process")
 )
 
 // TerminationTimeout is how long StopProcess and QuitProcess wait for the
@@ -186,12 +189,38 @@ func InterruptProcess(pidFile string) (int, error) {
 		return 0, fmt.Errorf("can't get pid of running process: %w", err)
 	}
 
-	err = syscall.Kill(pid, syscall.SIGINT)
+	err = Interrupt(pid)
 	if err != nil {
-		return 0, fmt.Errorf(`can't terminate the process. Error: "%w"`, err)
+		return 0, err
 	}
 
 	return pid, nil
+}
+
+// Interrupt sends SIGINT to the process pid without waiting for it to exit.
+// The caller tells that pid is the process it means: a pid read from a pid
+// file may name another process by now.
+func Interrupt(pid int) error {
+	err := checkPid(pid)
+	if err != nil {
+		return err
+	}
+
+	err = syscall.Kill(pid, syscall.SIGINT)
+	if err != nil {
+		return fmt.Errorf(`can't terminate the process. Error: "%w"`, err)
+	}
+
+	return nil
+}
+
+// checkPid refuses a pid that names no single process.
+func checkPid(pid int) error {
+	if pid <= 0 {
+		return fmt.Errorf("%w: %d", errNoPid, pid)
+	}
+
+	return nil
 }
 
 // WaitProcessTermination waits up to timeout for the process to exit.
@@ -225,43 +254,46 @@ func StopProcessWithin(pidFile string, timeout time.Duration) (int, error) {
 	return pid, nil
 }
 
-// QuitProcess quits the process by pidFile.
-func QuitProcess(pidFile string) (int, error) {
-	pid, err := getRunningPid(pidFile)
+// QuitProcess sends SIGQUIT to the process pid and waits TerminationTimeout
+// for it to exit. The caller tells that pid is the process it means, as for
+// Interrupt.
+func QuitProcess(pid int) error {
+	err := checkPid(pid)
 	if err != nil {
-		return 0, fmt.Errorf("can't get pid of running process: %w", err)
+		return err
 	}
 
 	err = syscall.Kill(pid, syscall.SIGQUIT)
 	if err != nil {
-		return 0, fmt.Errorf("can't terminate the process with SIGQUIT: %w", err)
+		return fmt.Errorf("can't terminate the process with SIGQUIT: %w", err)
 	}
 
 	if res := waitProcessTermination(pid, TerminationTimeout, processPollInterval); !res {
-		return 0, errProcessSIGQUIT
+		return errProcessSIGQUIT
 	}
 
-	return pid, nil
+	return nil
 }
 
-// KillProcessGroup kills a process group using a PID from the pid file as a process group id.
-func KillProcessGroup(pidFile string) (int, error) {
-	pid, err := getRunningPid(pidFile)
+// KillProcessGroup kills the process group of the process pid with SIGKILL.
+// The caller tells that pid is the process it means, as for Interrupt.
+func KillProcessGroup(pid int) error {
+	err := checkPid(pid)
 	if err != nil {
-		return 0, fmt.Errorf("can't get pid of running process: %w", err)
+		return err
 	}
 
 	pgid, err := syscall.Getpgid(pid)
 	if err != nil {
-		return 0, fmt.Errorf("can't get a process group of the %d process: %w", pid, err)
+		return fmt.Errorf("can't get a process group of the %d process: %w", pid, err)
 	}
 
 	err = syscall.Kill(-pgid, syscall.SIGKILL)
 	if err != nil {
-		return 0, fmt.Errorf("can't kill the process: %w", err)
+		return fmt.Errorf("can't kill the process: %w", err)
 	}
 
-	return pid, nil
+	return nil
 }
 
 // ProcessStatus returns the status of the process.

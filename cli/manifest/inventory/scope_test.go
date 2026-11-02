@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -52,6 +53,23 @@ func writeAt(t *testing.T, path, content string) {
 
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
 	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+}
+
+// holdPidFile writes the pid file of the watchdog of an instance at path and
+// holds its lock, as a running watchdog holds it, until the test ends.
+func holdPidFile(t *testing.T, path string, pid int) {
+	t.Helper()
+
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
+
+	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = file.Close() })
+
+	require.NoError(t, syscall.Flock(int(file.Fd()), syscall.LOCK_EX))
+
+	_, err = file.WriteAt([]byte(strconv.Itoa(pid)), 0)
+	require.NoError(t, err)
 }
 
 // TestListUserScope lists applications from versions/ and apps/: one entry per
@@ -152,8 +170,10 @@ func TestUninstallUserScope(t *testing.T) {
 		writeAt(t, path, "kept\n")
 	}
 
-	// A pid file naming a process that is gone does not block the removal.
-	writeAt(t, filepath.Join(root, "var", "run", "my-app", "router-1", "tt.pid"), "0")
+	// A pid file nobody holds, which a watchdog that died left, does not
+	// block the removal, also when its pid has been taken by a live process.
+	writeAt(t, filepath.Join(root, "var", "run", "my-app", "router-1", "tt.pid"),
+		strconv.Itoa(os.Getpid()))
 
 	var prompts []string
 
@@ -190,8 +210,8 @@ func TestUninstallUserScopeRefusesRunning(t *testing.T) {
 	dir := installVersion(t, root, pkg{name: "my-app", version: "1.0.0"})
 	require.NoError(t, state.Activate(root, "my-app", "1.0.0"))
 
-	writeAt(t, filepath.Join(root, "var", "run", "my-app", "router-1", "tt.pid"),
-		strconv.Itoa(os.Getpid()))
+	holdPidFile(t, filepath.Join(root, "var", "run", "my-app", "router-1", "tt.pid"),
+		os.Getpid())
 
 	_, err := inventory.Uninstall(inventory.UninstallOptions{
 		Scope: state.ScopeUser, Package: "my-app", Yes: true,

@@ -764,7 +764,7 @@ func TestKillExternalProcess(t *testing.T) {
 	run.Kind = instances.KindExternal
 	run.ProcessPIDFile = filepath.Join(filepath.Dir(run.PIDFile), "process.pid")
 
-	watchdog := sleeper(t, true)
+	watchdog := fakeWatchdog(t, run)
 
 	grandchildFile := filepath.Join(t.TempDir(), "grandchild")
 	process := exec.CommandContext(t.Context(), "sh", "-c",
@@ -777,8 +777,6 @@ func TestKillExternalProcess(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = syscall.Kill(grandchild, syscall.SIGKILL) })
 
-	require.NoError(t, os.WriteFile(run.PIDFile,
-		[]byte(strconv.Itoa(watchdog.Process.Pid)), 0o600))
 	require.NoError(t, os.WriteFile(run.ProcessPIDFile,
 		[]byte(strconv.Itoa(process.Process.Pid)), 0o600))
 
