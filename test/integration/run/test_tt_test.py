@@ -195,6 +195,9 @@ def test_test_runs_under_the_project_tarantool(
 
 
 @pytest.mark.slow
+# The rocks come from the network, so give a failed fetch time to pass
+# before the case runs again.
+@pytest.mark.flaky(reruns=2, reruns_delay=30)
 def test_test_installs_luatest_it_was_never_told_about(run_tt, project: Path):
     """The implicit requirement, end to end, against the real registry.
 
@@ -207,7 +210,9 @@ def test_test_installs_luatest_it_was_never_told_about(run_tt, project: Path):
 
     manifest_before = (project / "app.manifest.toml").read_bytes()
 
-    result = run_tt("test")
+    # Without -V a failed install says only that luarocks exited with code 1;
+    # with it the output of luarocks reaches stderr.
+    result = run_tt("-V", "test")
 
     assert result.returncode == 0, result.stderr
     assert "1 succeeded" in result.stdout
