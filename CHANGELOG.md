@@ -1123,6 +1123,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `tt play`, `tt instance` and the other commands that take targets,
   `tt replicaset`, `tt cluster` and the TCS endpoints of a cluster config
   hide the credentials of what the user typed.
+- `tt rocks` ran Lua files of the directory it was run in: a
+  `luarocks/fs/linux.lua`, `lfs.lua` or `luarocks/cmd/external/<name>.lua`
+  in the current directory, in a directory `LUA_PATH` names or in the
+  committed `.rocks` of a project was executed by a plain `tt rocks list`,
+  and a LuaRocks installed under `/usr/local` broke `tt rocks install`
+  (#847). The modules LuaRocks looks for on its own are no longer searched
+  on disk, and an external command loads only when it is run by name;
+  `tt rocks path` prints the same paths as before.
 - A `TT_*` environment variable whose config option is not a string was
   read as a string, while Tarantool reads it as the type of the option:
   with `TT_CONFIG_ETCD_ENDPOINTS=http://127.0.0.1:2379` tt found no etcd and

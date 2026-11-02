@@ -428,3 +428,52 @@ def test_rocks_with_hardcoded(tt_cmd, tmp_path):
     assert rc == 0
     assert re.search('lua_interpreter = "tarantool"', output)
     assert re.search("IS_LUA_CONFIG_USED = true", output)
+
+
+# The modules LuaRocks looks for on its own, under the names a repository
+# could plant them: optional platform and library modules, probed by every
+# command, and an external command, which the parser of every command used
+# to load.
+PLANTED_MODULES = [
+    "luarocks/fs/linux.lua",
+    "lfs.lua",
+    "socket/http.lua",
+    "luarocks/cmd/external/planted.lua",
+]
+
+
+def plant_modules(directory, marker):
+    for module in PLANTED_MODULES:
+        path = directory / module
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            f'local f = io.open("{marker}", "a") f:write("{module}\\n") f:close()\n'
+            + "return {}\n",
+        )
+
+
+@pytest.mark.parametrize("place", ["cwd", "lua_path", "rocks_tree"])
+def test_rocks_runs_no_lua_of_the_directory(tt_cmd, tmp_path, place):
+    project = tmp_path / "project"
+    project.mkdir()
+    marker = tmp_path / "loaded.txt"
+    env = dict(os.environ, PWD=str(project))
+    env.pop("LUA_PATH", None)
+
+    if place == "cwd":
+        plant_modules(project, marker)
+    elif place == "lua_path":
+        plant_modules(tmp_path / "lua_path", marker)
+        env["LUA_PATH"] = f"{tmp_path / 'lua_path'}/?.lua"
+    else:
+        plant_modules(project / ".rocks" / "share" / "tarantool", marker)
+
+    for args in (["list"], ["path"], ["help"]):
+        rc, output = run_command_and_get_output(
+            [tt_cmd, "rocks", *args],
+            cwd=project,
+            env=env,
+        )
+        assert rc == 0, output
+
+    assert not marker.exists(), marker.read_text()
