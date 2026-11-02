@@ -238,6 +238,34 @@ type storageRef struct {
 	errs []error
 }
 
+// DescribeStorage names a config storage for a message: its type, as
+// sdkcluster names it, the endpoints, and the prefix and the key of the
+// cluster config, when there are, such as `etcd http://127.0.0.1:2379,
+// prefix "/tt"`. The credentials an endpoint may carry are hidden.
+func DescribeStorage(storageType string, endpoints []string, prefix, key string) string {
+	name := storageType
+	if storageType == storageTarantool {
+		name = "Tarantool config storage"
+	}
+
+	shown := make([]string, 0, len(endpoints))
+	for _, endpoint := range endpoints {
+		shown = append(shown, log.RedactTarget(endpoint))
+	}
+
+	description := name + " " + strings.Join(shown, ",")
+
+	if prefix != "" {
+		description += fmt.Sprintf(", prefix %q", prefix)
+	}
+
+	if key != "" {
+		description += fmt.Sprintf(", key %q", key)
+	}
+
+	return description
+}
+
 // storageEndpoint is one connection of a storageRef.
 type storageEndpoint struct {
 	// name names the endpoint of a Tarantool config storage for a message;
@@ -694,6 +722,11 @@ type ConfigStorage struct {
 	// reference to the storage: they are in the topology whatever the
 	// storage holds, as the file wins over the storage.
 	FileInstances []string
+	// Where names the storage for a message (DescribeStorage), with the
+	// endpoint connected to and the reference of the file it comes from,
+	// such as `etcd http://127.0.0.1:2379, prefix "/tt" (config.etcd of
+	// /path/config.yaml)`.
+	Where string
 
 	cleanup gsconnect.CleanupFunc
 }
@@ -778,7 +811,9 @@ func OpenConfigStorage(ctx context.Context, path string,
 			Collector:     collector,
 			Publisher:     publisher,
 			FileInstances: fileInstances,
-			cleanup:       cleanup,
+			Where: fmt.Sprintf("%s (%s of %s)", DescribeStorage(ref.kind,
+				endpoint.config.Endpoints, ref.prefix, ""), key, path),
+			cleanup: cleanup,
 		}, true, nil
 	}
 

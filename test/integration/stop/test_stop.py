@@ -454,14 +454,14 @@ def test_stop_wildcard_dropped_instance(tt, tt_app, tmp_path):
 
     src = tmp_path / "publish.yaml"
     src.write_text(original.replace(rs_replica, ""))
-    rc, out = tt.exec("cluster", "publish", "app", str(src))
+    rc, out = tt.exec("cluster", "publish", "--yes", "app", str(src))
     assert rc == 1
     assert '"replica" from ' in out
     with open(config) as f:
         assert f.read() == original
 
     src.write_text(original.replace(rs_b, ""))
-    rc, out = tt.exec("cluster", "publish", "app", str(src))
+    rc, out = tt.exec("cluster", "publish", "--yes", "app", str(src))
     assert rc == 0, out
     with open(config) as f:
         assert f.read() == original.replace(rs_b, "")

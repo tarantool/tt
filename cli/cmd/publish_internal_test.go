@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,8 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/log/logtest"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/exitcode"
 )
 
 // topologyOf returns a cluster config declaring the instances names, one
@@ -46,8 +50,11 @@ func publishProject(t *testing.T, description, config string) string {
 	withProjectDir(t, project)
 	t.Chdir(project)
 
-	// The constructor binds --scope and --template anew, to their defaults.
+	// The constructor binds --scope, --template and --yes anew, to their
+	// defaults. The tests publish with --yes, as a script does, unless they
+	// confirm otherwise.
 	findCommand(t, NewClusterCmd(), []string{"publish"})
+	withConfirmation(t, "", false, true)
 
 	return filepath.Join(project, ".templates", "default", "config.yaml")
 }
@@ -328,4 +335,139 @@ func TestClusterPublishLeaderLevel(t *testing.T) {
 			assert.Equal(t, original, string(data), "the config is not written")
 		})
 	}
+}
+
+// recordLog makes the process logger record into a logtest.Recorder for the
+// test.
+func recordLog(t *testing.T) *logtest.Recorder {
+	t.Helper()
+
+	logger, recorder := logtest.New(t)
+	previous := slog.Default()
+
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	slog.SetDefault(logger)
+
+	return recorder
+}
+
+// TestClusterPublishConfirms pins that tt cluster publish asks before it
+// writes a config, as the commands of tt instance that destroy something
+// do, naming where the config goes: without a terminal and without --yes it
+// fails with code 1, pointing at --yes, writes nothing and reads no answer;
+// a no on the terminal writes nothing and is no failure; a yes, or --yes,
+// writes the config, and what was written where is told. A config the
+// checks refuse is refused before the question.
+//
+//nolint:paralleltest // Sets the environment, the working directory and the flags.
+func TestClusterPublishConfirms(t *testing.T) {
+	original, published := topologyOf("s-1", "s-2"), topologyOf("s-1", "s-3")
+
+	assertConfig := func(t *testing.T, config, want string) {
+		t.Helper()
+
+		data, err := os.ReadFile(config)
+		require.NoError(t, err)
+		assert.Equal(t, want, string(data))
+	}
+
+	t.Run("no terminal", func(t *testing.T) {
+		config := publishProject(t, "s-1:\n", original)
+		source := publishSource(t, published)
+		stdin := withConfirmation(t, "y\n", false, false)
+
+		err := internalClusterPublishModule(&cmdcontext.CmdCtx{}, []string{"myapp", source})
+		require.ErrorIs(t, err, errNotTerminal)
+		require.ErrorContains(t, err, "pass --yes")
+		assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
+		assertConfig(t, config, original)
+
+		left, err := io.ReadAll(stdin)
+		require.NoError(t, err)
+		assert.Equal(t, "y\n", string(left), "the standard input was read")
+	})
+
+	t.Run("refused before the question", func(t *testing.T) {
+		for refused, msg := range map[string]string{
+			topologyOf("s-2"): `"s-1" from `,
+			leaderConfig("global", "bootstrap_leader: s-1"): "bootstrap_leader [schema]",
+		} {
+			config := publishProject(t, "s-1:\n", original)
+			source := publishSource(t, refused)
+			withConfirmation(t, "y\n", false, false)
+
+			err := internalClusterPublishModule(&cmdcontext.CmdCtx{}, []string{"myapp", source})
+			require.ErrorContains(t, err, msg)
+			require.NotErrorIs(t, err, errNotTerminal)
+			assertConfig(t, config, original)
+		}
+	})
+
+	for answer, want := range map[string]string{"n\n": original, "y\n": published} {
+		t.Run("the terminal answers "+strings.TrimSpace(answer), func(t *testing.T) {
+			config := publishProject(t, "s-1:\n", original)
+			source := publishSource(t, published)
+			withConfirmation(t, answer, true, false)
+
+			messages := recordLog(t)
+
+			question, err := captureStdout(t, func() error {
+				return internalClusterPublishModule(&cmdcontext.CmdCtx{},
+					[]string{"myapp", source})
+			})
+			require.NoError(t, err)
+			assert.Equal(t, "Confirm publish of "+source+", which replaces the cluster "+
+				"config in "+config+" [y/n]: ", question)
+			assertConfig(t, config, want)
+
+			told := "Publish is cancelled."
+			if want == published {
+				told = "Published " + source + " as the cluster config in " + config + "."
+			}
+
+			assert.Equal(t, []string{told}, messages.Messages())
+		})
+	}
+
+	t.Run("--yes", func(t *testing.T) {
+		config := publishProject(t, "s-1:\n", original)
+		source := publishSource(t, published)
+		withConfirmation(t, "", false, false)
+		findCommand(t, NewClusterCmd(), []string{"publish"}, "--yes")
+
+		messages := recordLog(t)
+
+		question, err := captureStdout(t, func() error {
+			return internalClusterPublishModule(&cmdcontext.CmdCtx{}, []string{"myapp", source})
+		})
+		require.NoError(t, err)
+		assert.Empty(t, question, "--yes asks nothing")
+		assertConfig(t, config, published)
+		assert.Equal(t, []string{
+			"Published " + source + " as the cluster config in " + config + ".",
+		}, messages.Messages())
+	})
+
+	t.Run("the config of an instance", func(t *testing.T) {
+		config := publishProject(t, "s-1:\n", original)
+		source := publishSource(t, "iproto:\n  listen:\n    - uri: 127.0.0.1:3399\n")
+		withConfirmation(t, "y\n", true, false)
+
+		messages := recordLog(t)
+
+		question, err := captureStdout(t, func() error {
+			return internalClusterPublishModule(&cmdcontext.CmdCtx{},
+				[]string{"myapp:s-1", source})
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "Confirm publish of "+source+`, which sets the config of the `+
+			`instance "s-1" in `+config+" [y/n]: ", question)
+		assert.Equal(t, []string{
+			"Published " + source + ` as the config of the instance "s-1" in ` + config + ".",
+		}, messages.Messages())
+
+		data, err := os.ReadFile(config)
+		require.NoError(t, err)
+		assert.Contains(t, string(data), "127.0.0.1:3399")
+	})
 }

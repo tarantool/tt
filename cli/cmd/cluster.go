@@ -54,6 +54,8 @@ var publishCtx = clustercmd.PublishCtx{
 	Group:         "",
 	Replicaset:    "",
 	CheckTopology: nil,
+	Source:        "",
+	Confirm:       nil,
 }
 
 var promoteCtx = clustercmd.PromoteCtx{
@@ -491,6 +493,12 @@ func NewClusterCmd() *cobra.Command {
 			"config.storage. A configuration that drops an instance of the cluster " +
 			"instances.yaml of the application names is refused; the instances its " +
 			"\"*\" stands for may be dropped.\n\n" +
+			"The configuration is checked before anything is written; then the " +
+			"command asks for a confirmation that names the file or the config storage " +
+			"it writes into, and says what it wrote where once it has. The confirmation " +
+			"is asked on a terminal only: without a terminal on the standard input the " +
+			"command fails unless it is given --yes. --force skips the validation, not " +
+			"the confirmation.\n\n" +
 			clusterURIHelp + "\n" +
 			"By default, the command removes all keys in etcd with prefix " +
 			"'/prefix/config/' and writes the result to '/prefix/config/all'. " +
@@ -525,6 +533,7 @@ func NewClusterCmd() *cobra.Command {
 	publish.Flags().BoolVar(&publishCtx.Force, "force", publishCtx.Force,
 		"force publish and skip validation")
 	addInstanceFlags(publish)
+	addYesFlag(publish)
 	// Integrity flags.
 	integrityprovider.Get().RegisterWithIntegrityFlag(publish.Flags(), &clusterIntegrityPrivateKey)
 
@@ -580,6 +589,11 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 
 	publishCtx.Src = data
 	publishCtx.Config = config
+	publishCtx.Source = args[1]
+	// A config written over is not to be had back: the publication is
+	// confirmed as the commands of tt instance that destroy something are,
+	// with --yes and on a terminal only.
+	publishCtx.Confirm = confirm
 	// A config storage given by its URI belongs to no pair, and nothing
 	// checks what goes into it.
 	publishCtx.CheckTopology = nil

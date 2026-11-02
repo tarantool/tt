@@ -1883,6 +1883,12 @@ config storage its config.yaml points to with config.etcd or config.storage. A
 configuration that drops an instance of the cluster instances.yaml of the
 application names is refused; the instances its "*" stands for may be dropped.
 
+The configuration is checked before anything is written; then the command asks
+for a confirmation that names the file or the config storage it writes into, and
+says what it wrote where once it has. The confirmation is asked on a terminal
+only: without a terminal on the standard input the command fails unless it is
+given --yes. --force skips the validation, not the confirmation.
+
 The URL specifies a etcd or tarantool config storage connection settings in the
 following format:
 http(s)://[username:password@]host:port/prefix[?arguments]
@@ -1942,6 +1948,8 @@ FLAGS[0m
       --template string     template of the application the instances are
                             described in (default "default")
   -u, --username string     username (used as etcd credentials only)
+  -y, --yes                 confirm without a prompt, as is needed when the
+                            standard input is not a terminal
 [0;1;39m
 EXAMPLES[0m
   tt cluster publish application_name cluster.yaml

@@ -181,24 +181,25 @@ func openRemoteCollector(factory sdkcluster.Factory,
 // openCollectorAndPublisher dials the remote storage described by opts and
 // binds two *RawStorage instances on the same connection — one for collecting
 // (using collectors' integrity verifiers) and one for publishing (using
-// publishers' integrity signer/verifiers).
+// publishers' integrity signer/verifiers). It returns the type of the
+// storage as well, as sdkcluster names it.
 func openCollectorAndPublisher(
 	collectors, publishers sdkcluster.Factory,
 	connOpts sdkcluster.ConnectOpts,
 	opts sdkconnect.URIOpts,
-) (sdkcluster.DataCollector, sdkcluster.DataPublisher, func(), error) {
+) (sdkcluster.DataCollector, sdkcluster.DataPublisher, string, func(), error) {
 	prefix, key, timeout := opts.Prefix, opts.Params["key"], opts.Timeout
 
 	stor, cleanup, storageType, err := sdkcluster.NewStorageConnection(connOpts, opts)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, "", nil, err
 	}
 
 	publisher, err := publishers.NewRemoteStorage(stor, prefix, key, timeout, storageType)
 	if err != nil {
 		cleanup()
 
-		return nil, nil, nil,
+		return nil, nil, "", nil,
 			fmt.Errorf("failed to create %s publisher: %w", storageType, err)
 	}
 
@@ -206,9 +207,9 @@ func openCollectorAndPublisher(
 	if err != nil {
 		cleanup()
 
-		return nil, nil, nil,
+		return nil, nil, "", nil,
 			fmt.Errorf("failed to create %s collector: %w", storageType, err)
 	}
 
-	return collector, publisher, func() { cleanup() }, nil
+	return collector, publisher, storageType, func() { cleanup() }, nil
 }

@@ -231,6 +231,7 @@ func TestClusterPublishInstalled(t *testing.T) {
 	source := writeSource(t)
 
 	findCommand(t, NewClusterCmd(), []string{"publish"}, "--scope", "user")
+	withConfirmation(t, "", false, true)
 
 	err := internalClusterPublishModule(cmdCtx, []string{"myapp", source})
 	require.ErrorIs(t, err, errPublishToVersion)
