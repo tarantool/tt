@@ -301,8 +301,8 @@ github.com/tarantool/go-gostls v0.1.1 h1:BSXmhPBVS2IeahMVjDsuo6fL2R8OSiZudSb1HtF
 github.com/tarantool/go-gostls v0.1.1/go.mod h1:KDZGrcItICcy0lx+hfgRm3uIy5HOekT9OyjnG79Axvc=
 github.com/tarantool/go-iproto v1.1.0 h1:HULVOIHsiehI+FnHfM7wMDntuzUddO09DKqu2WnFQ5A=
 github.com/tarantool/go-iproto v1.1.0/go.mod h1:LNCtdyZxojUed8SbOiYHoc3v9NvaZTB7p96hUySMlIo=
-github.com/tarantool/go-luarocks v0.0.0-20260917094730-272b95159b11 h1:TbASNyo5kW6z8VicPvwiv2yEGrjMRg/AyvduUjcJl0s=
-github.com/tarantool/go-luarocks v0.0.0-20260917094730-272b95159b11/go.mod h1:kn7imBkHWp7rnfMI6EtuJ7zVCSIr4mlr3i6WtnxIkUI=
+github.com/tarantool/go-luarocks v0.0.0-20261102151136-e4750d32d1b7 h1:AdlTVYK6Xti6pS/icbOJjorSukSZn+hGcOUWqAxtzpA=
+github.com/tarantool/go-luarocks v0.0.0-20261102151136-e4750d32d1b7/go.mod h1:kn7imBkHWp7rnfMI6EtuJ7zVCSIr4mlr3i6WtnxIkUI=
 github.com/tarantool/go-openssl v1.4.1 h1:SqYKZj7rSjTCyMHo1g6+1HNw1T/afmhWFEVwF57kPVo=
 github.com/tarantool/go-openssl v1.4.1/go.mod h1:EwX1pKIGypLxkY49vKIIR4LTT+94DhKiunCqU2gEzLQ=
 github.com/tarantool/go-option v1.1.0 h1:ShoOhNsdL41sRpm4hXCRDjV8H0WzPkd4UnKhLKbW//w=

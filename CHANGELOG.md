@@ -889,6 +889,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   password file are trimmed; and a server that refuses the client is
   reported by its alert, `remote error: tls: handshake failure`, rather than
   `expected ChangeCipherSpec, got content type 21`.
+- A rock installs from the file the rock server holds for it (`go-luarocks`
+  e4750d3): a `.all.rock` or a `.rock` built for the host is deployed as
+  built, a `.src.rock` is built from the sources it carries, and only a bare
+  rockspec sends the build to its source. `tt package build`, `fetch` and
+  `install` no longer clone every dependency from its repository, and a
+  directory `tt package download` wrote builds a project with no network for
+  every rock it holds as a `.rock` or `.src.rock`. A command fetches the
+  manifest of a rock server once rather than once per rock, keeps its
+  connections alive, honours `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY`, and
+  a failed LuaRocks command reports the error LuaRocks printed rather than
+  only its exit code.
 - The multi-application layout of a tt environment, `env.instances_enabled`
   of `tt.yaml`, is no longer supported.
 - `tt create` needs no `tt.yaml`: it creates the application directory in
