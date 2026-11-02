@@ -1123,6 +1123,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `tt play`, `tt instance` and the other commands that take targets,
   `tt replicaset`, `tt cluster` and the TCS endpoints of a cluster config
   hide the credentials of what the user typed.
+- A `TT_*` environment variable whose config option is not a string was
+  read as a string, while Tarantool reads it as the type of the option:
+  with `TT_CONFIG_ETCD_ENDPOINTS=http://127.0.0.1:2379` tt found no etcd and
+  silently read only the config file, though the instances took their
+  config from etcd, and `tt cluster show --validate` refused
+  `TT_IPROTO_LISTEN='[{"uri": "127.0.0.1:3301"}]'` as a string where an
+  array is expected (#731, #657). tt reads such a variable as Tarantool
+  does: a list as JSON or comma-separated, a map as JSON or `k=v,k2=v2`, a
+  number, a boolean; a value that cannot be read so stays a string, and
+  validation reports it.
 - A path the cluster config of an instance sets with `{{ replicaset_name }}`
   or `{{ group_name }}` in it failed the instance commands with "missing
   vars": tt substitutes them as Tarantool does, as it did

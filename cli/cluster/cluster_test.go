@@ -292,9 +292,8 @@ groups:
 // credentials set only via TT_CONFIG_ETCD_* environment variables (no file
 // override) are visible in the cluster config snapshot.
 //
-// Note: setting endpoints via env (TT_CONFIG_ETCD_ENDPOINTS_0) is NOT supported
-// by the schema-aware env transform because the JSON Schema envpath resolver
-// does not walk array "items". Credentials (scalar fields) work fine.
+// Endpoints set through TT_CONFIG_ETCD_ENDPOINTS are covered by
+// TestGetClusterConfigEtcdFromEnv.
 func TestGetClusterConfig_EnvOnlyEtcdCreds(t *testing.T) {
 	clearAmbientTTEnv(t)
 	t.Setenv("TT_CONFIG_ETCD_USERNAME", "envuser")

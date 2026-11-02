@@ -7,7 +7,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
-	github.com/tarantool/go-config/v2 v2.0.1
+	github.com/tarantool/go-config/v2 v2.0.2-0.20261102222747-4c7c90ea0ec7
 	github.com/tarantool/go-prompt v1.0.1
 	github.com/tarantool/tt/sdk/connect v0.0.0-0
 	golang.org/x/term v0.46.0
