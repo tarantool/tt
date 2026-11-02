@@ -6,10 +6,11 @@ install the archive somewhere else. That is what this file does, in one chain,
 with each step asserting on what the previous one put on disk.
 
 It stays offline by resolving against the fixture rock repository as a local
-directory registry: `--registry` for the commands that take it, and
-`TT_REGISTRIES` for `tt package install`, which has no flag of its own. The
-archive is `--without-deps` throughout: a with-deps archive bundles `_runtime/`
-and would need a Tarantool runtime in the cache, which a test cannot assume.
+directory registry: `--registry` for the commands that build, and
+`TT_REGISTRIES` for `tt package install`, so the environment layer is driven as
+well. The archive is `--without-deps` throughout: a with-deps archive bundles
+`_runtime/` and would need a Tarantool runtime in the cache, which a test
+cannot assume.
 """
 
 import os
@@ -18,6 +19,8 @@ import shutil
 import subprocess
 import tarfile
 from pathlib import Path
+
+import pytest
 
 try:
     import zstandard
@@ -65,10 +68,10 @@ def run(tt_cmd, cwd: Path, *args: str, env: dict | None = None) -> subprocess.Co
 def registry_env(registry: Path) -> dict:
     """The environment plus TT_REGISTRIES.
 
-    `tt package install` takes no --registry, so this is the only way to point
-    it at the fixture repository. The rest of the environment is inherited
-    because resolving a rock runs its build, and that reaches for cmake on
-    PATH.
+    The install tests point `tt package install` at the fixture repository
+    this way rather than with --registry, so the environment layer is covered
+    too. The rest of the environment is inherited because resolving a rock runs
+    its build, and that reaches for cmake on PATH.
     """
     return {**os.environ, "TT_REGISTRIES": str(registry)}
 
@@ -91,12 +94,19 @@ def archive_names(archive: Path) -> list[str]:
                 return tar.getnames()
 
 
-def make_project(root: Path) -> Path:
-    """Write the smallest project the whole cycle can run on."""
+def make_project(root: Path, dependency: bool = True) -> Path:
+    """Write the smallest project the whole cycle can run on.
+
+    Without the dependency there is nothing to fetch: the install of its
+    archive is an extraction, for the tests that are about the install itself.
+    """
     (root / "src").mkdir(parents=True)
     (root / "src" / "init.lua").write_text("return {}\n")
     (root / "README.md").write_text("# my-app\n")
-    (root / "app.manifest.toml").write_text(MANIFEST)
+    manifest = MANIFEST
+    if not dependency:
+        manifest = manifest.replace("[dependencies]\nstat = '>=0.3.0'\n", "")
+    (root / "app.manifest.toml").write_text(manifest)
     return root
 
 
@@ -296,6 +306,9 @@ def test_install_refetches_the_closure(tt_cmd, tmp_path):
     share = target / ".rocks" / "share" / "tarantool"
     assert (share / "my-app" / "init.lua").exists()
     assert (share / DEPENDENCY).is_dir(), "the lock's pins must be refetched"
+    # The fixture's stat is a stub, where the public one is the real module: the
+    # stub is what tells the rock came from the registry install was given.
+    assert (share / DEPENDENCY / "init.lua").read_text() == 'return "Hello, world!"\n'
 
     # The metadata install records is what list and uninstall then read.
     meta = target / ".rocks" / "manifests" / "my-app"
@@ -309,23 +322,53 @@ def test_install_refetches_the_closure(tt_cmd, tmp_path):
     assert DEPENDENCY_VERSION in listed.stdout
 
 
-def test_install_refuses_a_collision_without_a_flag(tt_cmd, tmp_path):
-    """A second install of the same package stops instead of overwriting."""
+@pytest.mark.parametrize("given_by", ["flag", "environment"])
+def test_install_refetches_from_the_given_registry(tt_cmd, tmp_path, given_by):
+    """The pins are refetched from the registry the install is given, not from
+    the defaults: one that serves no stat fails the install.
+
+    Install used to drop both --registry and TT_REGISTRIES and refetch from the
+    public servers, where stat is found, so every test above passed that way.
+    """
     project = make_project(tmp_path / "project")
+    archive = pack(tt_cmd, project)
+
+    empty = tmp_path / "empty-registry"
+    empty.mkdir()
+    (empty / "manifest").write_text("commands = {}\nmodules = {}\nrepository = {}\n")
+
+    target = tmp_path / "target"
+    target.mkdir()
+
+    if given_by == "flag":
+        result = run(tt_cmd, target, "package", "install", str(archive), "--registry", str(empty))
+    else:
+        result = run(tt_cmd, target, "package", "install", str(archive), env=registry_env(empty))
+
+    assert result.returncode == 1
+    assert f'no version of "{DEPENDENCY}"' in result.stderr
+
+
+def test_install_refuses_a_collision_without_a_flag(tt_cmd, tmp_path):
+    """A second install of the same package stops instead of overwriting.
+
+    The package has no dependency, so each install is an extraction: what is
+    tested is the collision, not three refetches of the same closure.
+    """
+    project = make_project(tmp_path / "project", dependency=False)
     archive = pack(tt_cmd, project)
 
     target = tmp_path / "target"
     target.mkdir()
-    env = registry_env(ROCKS_REPO)
 
-    first = run(tt_cmd, target, "package", "install", str(archive), env=env)
+    first = run(tt_cmd, target, "package", "install", str(archive))
     assert first.returncode == 0, first.stderr
 
-    again = run(tt_cmd, target, "package", "install", str(archive), env=env)
+    again = run(tt_cmd, target, "package", "install", str(archive))
     assert again.returncode == 1
     assert "my-app" in again.stderr
 
-    forced = run(tt_cmd, target, "package", "install", str(archive), "--force", env=env)
+    forced = run(tt_cmd, target, "package", "install", str(archive), "--force")
     assert forced.returncode == 0, forced.stderr
 
 

@@ -576,7 +576,9 @@ func newPackageInstallCmd() *cobra.Command {
 		Long: "Unpack a package archive into the chosen scope and bring the tree " +
 			"to a runnable state. A with-deps archive is a plain offline " +
 			"extraction; a --without-deps one is unpacked and its dependencies are " +
-			"refetched from the registry using the lock's pins. The runtime a " +
+			"refetched from the registry using the lock's pins: from the servers " +
+			"--registry or " + manifestrocks.EnvRegistries + " names, otherwise " +
+			"from the default ones. The runtime a " +
 			"with-deps archive bundles (_runtime/) is installed the way tt binary " +
 			"installs it, into versions/ of the scope root — <root>/versions/ in " +
 			"the user and system scopes, .tarantool/versions/ in the project — " +
@@ -612,6 +614,7 @@ func newPackageInstallCmd() *cobra.Command {
 		"reinstall over an existing package or version (destructive)")
 	installCmd.Flags().BoolVarP(&packageYes, "yes", "y", false,
 		"skip the confirmation prompt when reconciling shared dependencies")
+	addRegistryFlag(installCmd)
 
 	return installCmd
 }
@@ -630,6 +633,18 @@ func runPackageInstall(archives []string) error {
 	// if the install actually reaches the registry.
 	tntInfo, _ := tarantoolInfo()
 
+	// The archive's [platform].registries is not a layer here: its relative
+	// entries were written against a project directory that is not this one.
+	sources, err := registrySources()
+	if err != nil {
+		return err
+	}
+
+	registries, err := manifestrocks.EffectiveRegistries(sources)
+	if err != nil {
+		return err
+	}
+
 	result, err := install.Run(context.Background(), install.Options{
 		ProjectDir: projectDir,
 		Scope:      install.Scope(packageScope),
@@ -639,7 +654,7 @@ func runPackageInstall(archives []string) error {
 		Force:      packageForce,
 		Yes:        packageYes,
 		Tarantool:  tntInfo,
-		Servers:    nil,
+		Servers:    manifestrocks.URLs(registries),
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
 		Confirm: func(prompt string) bool {

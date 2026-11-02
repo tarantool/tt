@@ -3359,8 +3359,9 @@ GLOBAL FLAGS[0m
 Unpack a package archive into the chosen scope and bring the tree to a runnable
 state. A with-deps archive is a plain offline extraction; a --without-deps one
 is unpacked and its dependencies are refetched from the registry using the
-lock's pins. The runtime a with-deps archive bundles (_runtime/) is installed
-the way tt binary installs it, into versions/ of the scope root —
+lock's pins: from the servers --registry or TT_REGISTRIES names, otherwise from
+the default ones. The runtime a with-deps archive bundles (_runtime/) is
+installed the way tt binary installs it, into versions/ of the scope root —
 <root>/versions/ in the user and system scopes, .tarantool/versions/ in the
 project — unless that version is there already. Several packages installed into
 one project share a .rocks/ tree, so a dependency they lock at different
@@ -3380,18 +3381,23 @@ selects. Versions live side by side; installing one that is already there needs
   tt package install ARCHIVE... [flags]
 [0;1;39m
 FLAGS[0m
-      --force          reinstall over an existing package or version
-                       (destructive)
-  -h, --help           help for install
-      --locked         fail if the archive lock does not match its manifest
-      --scope string   install scope: project (the working directory), user or
-                       system (an application version under the root tt binary
-                       uses) (default "project")
-      --upgrade        install only when the archive version is higher than the
-                       installed one (in user and system, than every installed
-                       version)
-  -y, --yes            skip the confirmation prompt when reconciling shared
-                       dependencies
+      --force                  reinstall over an existing package or version
+                               (destructive)
+  -h, --help                   help for install
+      --locked                 fail if the archive lock does not match its
+                               manifest
+      --registry stringArray   rock server to use instead of the configured
+                               ones: an http(s) URL or a local directory; repeat
+                               to give an ordered list (overrides TT_REGISTRIES
+                               and [platform].registries)
+      --scope string           install scope: project (the working directory),
+                               user or system (an application version under the
+                               root tt binary uses) (default "project")
+      --upgrade                install only when the archive version is higher
+                               than the installed one (in user and system, than
+                               every installed version)
+  -y, --yes                    skip the confirmation prompt when reconciling
+                               shared dependencies
 [0;1;39m
 GLOBAL FLAGS[0m
   -C, --directory string   work on the project in DIR, as if it were the current
