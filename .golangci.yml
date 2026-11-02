@@ -478,6 +478,8 @@ linters:
             - "github.com/fatih/color"
             - "github.com/jedib0t/go-pretty/v6"
             - "github.com/spf13/cobra"
+            # The flags of the commands, which clidoc renders.
+            - "github.com/spf13/pflag"
             - "github.com/stretchr/testify"
             - "github.com/tarantool/go-config/v2"
             - "github.com/tarantool/tt/sdk"
