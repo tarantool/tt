@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [3.0.0-alpha.1] - 2026-11-03
+
+The first release of tt 3: one binary that supervises Tarantool instances,
+drives replicasets and packages applications, with a Go API for distributions
+and modules that a build can pin. This alpha is the command surface of v3 —
+`tt instance`, `tt package`, `tt binary` — the integrity-checked packages and
+distributions, `TT_*` variables read as the types their schema gives them, and
+a documentation site in `doc/` whose command reference is generated from the
+help of tt. This is a prerelease: the API may change before 3.0.0, and the
+documentation is a preview that is still being written.
+
+### Added
+
 - The Go API for distributions and tt modules: `core.WithIntegrity` lets a
   distribution choose the integrity provider of tt;
   `github.com/tarantool/tt/sdk/connect.RedactCredentials` and
@@ -531,6 +548,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   manage, pointing at `systemctl`, but for the start the unit runs, which it
   names in `TT_SYSTEMD_UNIT`; `tt instance status` shows their units in a
   `UNIT` column and a `unit` field.
+- A documentation site in `doc/`: get started, concepts, how-to and
+  reference pages for tt 3, built with MkDocs, with the command reference
+  rendered from the help of tt by `cli/cmd/clidoc` and `mage docs:build`
+  failing on a broken link or a page the nav omits. The pages are drafts,
+  `TODO(writers)` marks what is not written yet, and the site carries a
+  preview banner and `noindex`. The preview is published to GitHub Pages.
 
 ### Changed
 
