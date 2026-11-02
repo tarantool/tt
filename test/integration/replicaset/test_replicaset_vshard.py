@@ -11,6 +11,7 @@ from utils import (
     inst_log_dir,
     inst_run_dir,
     log_file,
+    rocks_mirror_env,
     run_command_and_get_output,
     wait_event,
     wait_file,
@@ -121,9 +122,10 @@ def test_vshard_bootstrap_cconfig_vshard_not_installed(tt_cmd, tmpdir_with_cfg):
 def vshard_tt_env_session(tt_cmd, tmp_path_factory):
     tmpdir = tmp_path_factory.mktemp("vshard_tt_env_session")
 
-    # Install vshard.
+    # Install vshard: the newest release in the rock mirror of CI, else what
+    # the registry gives, which is vshard scm-1, the head of its repository.
     cmd = [tt_cmd, "rocks", "install", "vshard"]
-    rc, out = run_command_and_get_output(cmd, cwd=tmpdir)
+    rc, out = run_command_and_get_output(cmd, cwd=tmpdir, env=rocks_mirror_env())
     assert rc == 0
     assert re.search(r"vshard .* is now installed", out)
     return tmpdir

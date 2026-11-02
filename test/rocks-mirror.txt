@@ -1,0 +1,18 @@
+# The rocks the integration tests fetch from a rock server, as NAME@VERSION.
+#
+# CI downloads them once into a directory rock server (test/ci.py
+# rocks-mirror), keeps it in the Actions cache under a key derived from this
+# file, and the tests that fetch rocks read it through utils.rocks_mirror_env
+# instead of the registries. A test needing a rock missing here fails in CI
+# finding no server that has it: add the rock at the version the test
+# resolves, with its dependencies.
+
+# running/cluster_crud_app (crud ==1.2.0-1) and its dependencies.
+crud@1.2.0-1
+checks@3.4.1-1
+errors@2.2.1-1
+# The vshard_cluster template (==1.0.0), and the newest vshard for tt rocks
+# install vshard in the replicaset tests.
+vshard@1.0.0-1
+# backup/sharded_app (==0.1.42).
+vshard@0.1.42-1

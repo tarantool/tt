@@ -9,6 +9,7 @@ from utils import (
     inst_log_dir,
     instances_file,
     log_file,
+    rocks_mirror_env,
     run_command_and_get_output,
     wait_string_in_file,
 )
@@ -56,12 +57,14 @@ class VshardCluster:
         print(f"Wrapping application {self.app_name} in {self.app_dir}.")
 
     def build(self, attempts=3):
-        # The build downloads vshard from rocks.tarantool.org, which drops a
-        # download now and then; rerunning it is safe.
+        # Without the rock mirror of CI the build downloads vshard from
+        # rocks.tarantool.org, which drops a download now and then; rerunning
+        # it is safe.
         for attempt in range(1, attempts + 1):
             rc, out = run_command_and_get_output(
                 [self.tt_cmd, "package", "build"],
                 cwd=self.app_dir,
+                env=rocks_mirror_env(),
             )
             if rc == 0:
                 return
