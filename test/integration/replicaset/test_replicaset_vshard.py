@@ -7,11 +7,14 @@ import pytest
 from replicaset_helpers import copy_application, eval_on_instance, parse_status, stop_application
 
 from utils import (
+    control_socket,
     inst_log_dir,
+    inst_run_dir,
     log_file,
     run_command_and_get_output,
     wait_event,
     wait_file,
+    wait_files,
     wait_string_in_file,
 )
 
@@ -234,6 +237,16 @@ def vshard_cconfig_app_timeout_tt_env(tt_cmd, tmp_path, vshard_tt_env_session):
     instances = ["storage-001-a", "storage-001-b", "storage-002-a", "storage-002-b", "router-001-a"]
 
     try:
+        # tt instance start returns before the instances listen, and with
+        # --timeout 1 the discovery makes a single attempt. Wait for every
+        # console, so that tt reaches instances whose config is not applied
+        # yet rather than finds none of them.
+        app_name = vshard_cconfig_app_name_timeout
+        sockets = [
+            os.path.join(inst_run_dir(app_path, app_name, inst), control_socket)
+            for inst in instances
+        ]
+        assert wait_files(30, sockets), "the instances did not open their consoles"
         yield app_path
     finally:
         stop_application(
@@ -247,10 +260,6 @@ def vshard_cconfig_app_timeout_tt_env(tt_cmd, tmp_path, vshard_tt_env_session):
 
 def test_vshard_bootstrap_enough_timeout(tt_cmd, vshard_cconfig_app_timeout_tt_env):
     tmpdir = vshard_cconfig_app_timeout_tt_env
-
-    cmd_sleep = ["sleep", "0.5"]
-    rc, out = run_command_and_get_output(cmd_sleep, cwd=tmpdir)
-    assert rc == 0
 
     cmd = [tt_cmd, "rs", "vs", "bootstrap", "--timeout", "10"]
     cmd.append("--config")
@@ -266,10 +275,6 @@ def test_vshard_bootstrap_enough_timeout(tt_cmd, vshard_cconfig_app_timeout_tt_e
 
 def test_vshard_bootstrap_not_enough_timeout(tt_cmd, vshard_cconfig_app_timeout_tt_env):
     tmpdir = vshard_cconfig_app_timeout_tt_env
-
-    cmd_sleep = ["sleep", "0.5"]
-    rc, out = run_command_and_get_output(cmd_sleep, cwd=tmpdir)
-    assert rc == 0
 
     cmd = [tt_cmd, "rs", "vs", "bootstrap", "--timeout", "1"]
     cmd.append("--config")
