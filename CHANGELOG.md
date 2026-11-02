@@ -386,10 +386,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `app.manifest.toml` declares the ordered server list a project resolves
   against, the `TT_REGISTRIES` environment variable (comma-separated)
   overrides it, and `--registry <url|dir>` on `tt package build`, `fetch`,
-  `pack`, `resolve`, `add`, `remove`, `update`, `search` and `download`
-  overrides both. The layers replace one another rather than merging: the
-  list is ordered and resolution takes the first server that has a rock, so
-  an appended server would change the answer instead of adding a fallback.
+  `pack`, `install`, `resolve`, `add`, `remove`, `update`, `search` and
+  `download` overrides both. `tt package install` refetches the dependencies
+  of a `--without-deps` archive from the flag or the environment list; the
+  archive's own `[platform].registries` is not a layer there, its relative
+  entries being written against another directory. The layers replace one
+  another rather than merging: the list is ordered and resolution takes the
+  first server that has a rock, so an appended server would change the
+  answer instead of adding a fallback.
   With nothing configured the built-in defaults are used, and a dependency's
   own `registry` key still wins for that dependency. An entry is an HTTP(S)
   URL or a local directory; a relative path is taken relative to the manifest
