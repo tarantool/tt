@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 from minio import Minio
-from sharded_helpers import start_sharded_app
+from sharded_helpers import build_sharded_app, start_sharded_app
 from storage_helpers import FileStorage, S3Storage
 
 GARAGE_IMAGE = "dxflrs/garage:v2.3.0"
@@ -149,17 +149,28 @@ def storage(request, tmp_path):
             s3.delete(key)
 
 
+@pytest.fixture(scope="session")
+def sharded_app_built(tt_cmd, tmp_path_factory):
+    """The sharded_app project, built once for the session.
+
+    Building it downloads and installs the pinned vshard rock, which is the
+    slow part of bringing the cluster up: every module that runs the cluster
+    starts a copy of this tree rather than building its own.
+    """
+    return build_sharded_app(tt_cmd, tmp_path_factory.mktemp("shard-built"))
+
+
 @pytest.fixture(scope="module")
-def sharded_app(tt_cmd, tmp_path_factory):
+def sharded_app(tt_cmd, tmp_path_factory, sharded_app_built):
     """A running two-shard vshard cluster with the recovery point manager role.
 
-    Module-scoped: building the app downloads and installs the pinned vshard
-    rock, which is too slow to repeat per test.
+    Module-scoped: starting and bootstrapping the cluster is too slow to
+    repeat per test.
     """
     # Short name on purpose: it is a prefix of every instance's console socket
     # path, which must fit into sun_path (see start_sharded_app).
     env_dir = tmp_path_factory.mktemp("shard")
-    app = start_sharded_app(tt_cmd, env_dir)
+    app = start_sharded_app(tt_cmd, env_dir, sharded_app_built)
     try:
         yield app
     finally:
