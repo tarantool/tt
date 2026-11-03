@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [3.0.0-alpha.2] - 2026-11-05
+
+Components in more languages, and builds that find what they need.
+`backend = "cargo"` builds a module component in Rust, `tt wasm`
+(experimental) prepares a project for WebAssembly components that
+tarantool-wasm runs, and `incremental = true` skips a `make` or `shell`
+component whose inputs did not change. The builds find the programs of the
+project's `.tarantool/bin` ahead of `PATH`, a dependency declared with
+`registry` is taken from that server, and `tt binary install tt` installs the
+latest published release and checks it against the checksums of the release.
+tt 3 itself installs with one line: `install.sh` takes its newest release from
+GitHub, checks it the same way and puts `tt` into `~/.local/bin`, or builds it
+from a commit with `--commit`. On macOS a native module is named `.dylib`, and
+`tt package build` accepts a program as `static` when the only libraries it
+needs are the ones macOS links into every program. A build of a pre-release
+tag now says what it is: `tt version`, its `--short` and `--commit` forms and
+the stamps tt writes into manifests kept only the numeric part of the tag, so
+a build of `v3.0.0-alpha.1` called itself `3.0.0` and the parser that reads
+that output refused it. The Go tests of the whole module now run on macOS in
+CI, the end-to-end tests of the edition with the separate license run in the
+full pipeline only, and the packages of a release are no longer uploaded to
+the Tarantool repository: they are the assets of the release.
+
+### Added
+
 - `backend = "cargo"` builds a module component too: the library of the
   package as a `cdylib`, the native module `<module>.so` - `.dylib` on macOS,
   linked with `-undefined dynamic_lookup` - which Tarantool loads with
@@ -64,6 +93,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt package build` accepts a macOS executable as `static` when it needs
+  only the platform's base libraries, libSystem and libresolv: a Go program
+  without cgo that uses no TLS. Every Mach-O program was refused before. A
+  program that asks for the CoreFoundation or Security frameworks, which Go
+  links in for `crypto/x509`, is still refused.
+- `tt version --commit` of a build of a pre-release tag reads as a version
+  again: `tt binary install tt` of a master build parsed `3.0.0-alpha.1.abc1234`
+  as a version and failed.
+- Builds of pre-release tags keep the pre-release in `tt version` and
+  `tt version --short`: a build of `v3.0.0-alpha.1` reported `3.0.0` instead
+  of `3.0.0-alpha.1`.
 - On macOS the `c` and `lua-c` backends name a module `<module>.dylib`, the
   name Tarantool looks for there, and a `.dylib` a component lays out goes to
   `.rocks/lib/tarantool/`: a module was `<module>.so`, which `require` did
@@ -1169,17 +1209,6 @@ documentation is a preview that is still being written.
 
 ### Fixed
 
-- `tt package build` accepts a macOS executable as `static` when it needs
-  only the platform's base libraries, libSystem and libresolv: a Go program
-  without cgo that uses no TLS. Every Mach-O program was refused before. A
-  program that asks for the CoreFoundation or Security frameworks, which Go
-  links in for `crypto/x509`, is still refused.
-- `tt version --commit` of a build of a pre-release tag reads as a version
-  again: `tt binary install tt` of a master build parsed `3.0.0-alpha.1.abc1234`
-  as a version and failed.
-- Builds of pre-release tags keep the pre-release in `tt version` and
-  `tt version --short`: a build of `v3.0.0-alpha.1` reported `3.0.0` instead
-  of `3.0.0-alpha.1`.
 - `tt instance` commands judge the pid file of an instance by whether its
   watchdog holds it, as it does for its whole life, rather than by whether
   the pid in it names a live process. A pid file left by a watchdog killed
