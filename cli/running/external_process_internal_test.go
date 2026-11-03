@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -223,19 +224,55 @@ func wrapProcess(dir string) int {
 	done := make(chan struct{})
 
 	go func() {
-		_ = child.Wait()
+		// The child's exit says how it died, and the test fails on anything
+		// but an exit of its own.
+		writeWhole(filepath.Join(dir, "child.result"), describeWait(child.Wait()))
 
 		close(done)
 	}()
+
+	// The wrapper and the child get the stop signal together, and either may
+	// come first: once the child is reaped, a signal the wrapper has not
+	// recorded yet is waited for rather than left unwritten by an exit.
+	recorded := false
 
 	for {
 		select {
 		case sig := <-sigs:
 			recordSignal(dir, sig)
+
+			recorded = true
 		case <-done:
+			if recorded {
+				return 0
+			}
+
+			select {
+			case sig := <-sigs:
+				recordSignal(dir, sig)
+			case <-time.After(10 * time.Second):
+			}
+
 			return 0
 		}
 	}
+}
+
+// describeWait tells how a process the wrapper ran ended: an exit of its own
+// with its code, or the signal that killed it.
+func describeWait(err error) string {
+	if err == nil {
+		return "ok"
+	}
+
+	exitErr, ok := errors.AsType[*exec.ExitError](err)
+	if ok {
+		if status, isStatus := exitErr.Sys().(syscall.WaitStatus); isStatus && status.Signaled() {
+			return "signal: " + status.Signal().String()
+		}
+	}
+
+	return "error: " + err.Error()
 }
 
 // processEnv returns the entries of the env of a record, a YAML flow mapping
@@ -309,9 +346,13 @@ func processRuns(t *testing.T, files string) []string {
 }
 
 // signalsOf returns the signals the process pid has recorded in files.
-func signalsOf(files string, pid int) []string {
+func signalsOf(t *testing.T, files string, pid int) []string {
+	t.Helper()
+
 	data, err := os.ReadFile(filepath.Join(files, "signals."+strconv.Itoa(pid)))
 	if err != nil {
+		require.ErrorIs(t, err, fs.ErrNotExist, "read the signals of %d", pid)
+
 		return nil
 	}
 
@@ -424,7 +465,7 @@ func TestExternalProcessStartStop(t *testing.T) {
 
 			watchdog.stop()
 
-			assert.Equal(t, signalNames(test.want), signalsOf(files, run.Pid))
+			assert.Equal(t, signalNames(test.want), signalsOf(t, files, run.Pid))
 			assert.True(t, gone(run.Pid))
 			assert.NoFileExists(t, inst.PIDFile)
 			assert.NoFileExists(t, inst.ProcessPIDFile)
@@ -524,7 +565,7 @@ func TestExternalProcessStopTimeout(t *testing.T) {
 	elapsed := time.Since(stopped)
 	assert.GreaterOrEqual(t, elapsed, time.Second)
 	assert.Less(t, elapsed, instanceStopTimeout)
-	assert.Equal(t, signalNames(syscall.SIGTERM), signalsOf(files, run.Pid))
+	assert.Equal(t, signalNames(syscall.SIGTERM), signalsOf(t, files, run.Pid))
 	assert.True(t, gone(run.Pid))
 	assert.Contains(t, watchdog.log(), "the instance was killed")
 	assert.NoFileExists(t, inst.ProcessPIDFile)
@@ -626,12 +667,16 @@ func TestExternalProcessWrapper(t *testing.T) {
 
 	pgid, err := syscall.Getpgid(child)
 	require.NoError(t, err)
-	assert.Equal(t, run.Pid, pgid, "the child is in the group of the wrapper")
+	require.Equal(t, run.Pid, pgid, "the child is in the group of the wrapper")
 
 	watchdog.stop()
 
-	assert.Equal(t, signalNames(syscall.SIGTERM), signalsOf(files, child))
-	assert.Equal(t, signalNames(syscall.SIGTERM), signalsOf(files, run.Pid))
+	assert.Equal(t, "ok", waitFileContent(t, filepath.Join(files, "child.result")),
+		"the child of the wrapper did not exit on its own")
+	assert.Equal(t, signalNames(syscall.SIGTERM), signalsOf(t, files, child),
+		"the stop signal did not reach the child of the wrapper")
+	assert.Equal(t, signalNames(syscall.SIGTERM), signalsOf(t, files, run.Pid),
+		"the stop signal did not reach the wrapper")
 	assert.True(t, gone(child))
 	assert.True(t, gone(run.Pid))
 	assert.NotContains(t, watchdog.log(), "killed")
@@ -739,7 +784,7 @@ func TestExternalProcessLogrotate(t *testing.T) {
 
 			if test.want != nil {
 				require.Eventually(t, func() bool {
-					return slices.Equal(test.want, signalsOf(files, run.Pid))
+					return slices.Equal(test.want, signalsOf(t, files, run.Pid))
 				}, 20*time.Second, 10*time.Millisecond, "the process got no signal")
 				require.Eventually(t, func() bool {
 					return strings.Contains(watchdog.log(), fmt.Sprintf("process %d got", run.Pid))
@@ -748,7 +793,7 @@ func TestExternalProcessLogrotate(t *testing.T) {
 				// The watchdog signals the process right after it has
 				// reopened the log, if it does at all.
 				time.Sleep(300 * time.Millisecond)
-				assert.Empty(t, signalsOf(files, run.Pid))
+				assert.Empty(t, signalsOf(t, files, run.Pid))
 			}
 
 			assert.False(t, gone(run.Pid), "the process stopped on the log rotation")

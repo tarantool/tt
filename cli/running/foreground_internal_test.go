@@ -310,7 +310,7 @@ func TestForegroundExternalStop(t *testing.T) {
 			result := stopForeground(t, done)
 			require.NoError(t, result.err)
 			assert.Equal(t, test.want, result.code)
-			assert.Equal(t, signalNames(syscall.SIGTERM), signalsOf(files, run.Pid))
+			assert.Equal(t, signalNames(syscall.SIGTERM), signalsOf(t, files, run.Pid))
 			assert.True(t, gone(run.Pid))
 			assert.Contains(t, echo.String(), "got terminated", "the output of the process")
 		})
