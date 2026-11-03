@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 
+	goVersion "github.com/hashicorp/go-version"
+
 	"github.com/tarantool/tt/v3/cli/util"
 )
 
@@ -181,13 +183,20 @@ func Parse(verStr string) (Version, error) {
 }
 
 // ParseTt parses a tt version string with format '<major>.<minor>.<patch>.<hash>'
-// and return the version value it represents.
+// and return the version value it represents. A build of a pre-release tag
+// names it as '<major>.<minor>.<patch>-<pre-release>.<hash>', and the numbers
+// come from the version without the pre-release.
 func ParseTt(verStr string) (Version, error) {
 	verToParse := strings.Trim(verStr, "\n")
 	numStr, hashStr, found := strings.CutLast(verToParse, ".")
 
 	if !found {
 		return Version{}, newInvalidVersionError(verStr)
+	}
+
+	semver, semverErr := goVersion.NewVersion(numStr)
+	if semverErr == nil && semver.Prerelease() != "" {
+		numStr = semver.Core().String()
 	}
 
 	numVersions := strings.Split(numStr, ".")

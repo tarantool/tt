@@ -246,6 +246,32 @@ func TestParseTt(t *testing.T) {
 			expectedErrMsg: "",
 		},
 		{
+			name:     "pre-release",
+			inputVer: "3.0.0-alpha.1.abc1234\n",
+			expectedVer: Version{
+				Major: 3,
+				Minor: 0,
+				Patch: 0,
+				Hash:  "abc1234",
+				Str:   "3.0.0-alpha.1.abc1234",
+			},
+			isErr:          false,
+			expectedErrMsg: "",
+		},
+		{
+			name:     "release candidate",
+			inputVer: "3.2.0-rc1.abc1234",
+			expectedVer: Version{
+				Major: 3,
+				Minor: 2,
+				Patch: 0,
+				Hash:  "abc1234",
+				Str:   "3.2.0-rc1.abc1234",
+			},
+			isErr:          false,
+			expectedErrMsg: "",
+		},
+		{
 			name:           "parse error",
 			inputVer:       "2.w.1.f7cc1de",
 			expectedVer:    Version{},

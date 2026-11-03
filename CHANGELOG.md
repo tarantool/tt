@@ -1104,6 +1104,9 @@ documentation is a preview that is still being written.
 
 ### Fixed
 
+- Builds of pre-release tags keep the pre-release in `tt version` and
+  `tt version --short`: a build of `v3.0.0-alpha.1` reported `3.0.0` instead
+  of `3.0.0-alpha.1`.
 - `tt instance` commands judge the pid file of an instance by whether its
   watchdog holds it, as it does for its whole life, rather than by whether
   the pid in it names a live process. A pid file left by a watchdog killed
