@@ -10,6 +10,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -45,14 +46,48 @@ type Program struct {
 	Needed []string
 }
 
-// Static reports whether the program needs nothing from the system it runs
-// on to be loaded: no loader and no shared library.
+// The libraries macOS links into every program of its own.
+const (
+	libSystem = "/usr/lib/libSystem.B.dylib"
+	libResolv = "/usr/lib/libresolv.9.dylib"
+)
+
+// baseLibraries are the libraries the platform supplies: macOS links
+// libSystem into every program, and Go's system resolver requires libresolv
+// even without cgo. A static build on macOS cannot leave them out.
+var baseLibraries = map[Platform][]string{
+	{OS: darwinOS, Arch: archArm64}: {libSystem, libResolv},
+	{OS: darwinOS, Arch: archAmd64}: {libSystem, libResolv},
+}
+
+// Static reports whether the program needs no loader or shared libraries
+// beyond the base libraries of every platform it runs on.
 //
 // A static-pie program, which Rust builds for a musl target, has a dynamic
 // segment of its own - it relocates itself - so the dynamic segment is not
 // what tells a dynamic program; the loader and the libraries are.
 func (p Program) Static() bool {
-	return p.Interpreter == "" && len(p.Needed) == 0
+	if p.Interpreter != "" {
+		return false
+	}
+
+	if len(p.Needed) == 0 {
+		return true
+	}
+
+	if len(p.Platforms) == 0 {
+		return false
+	}
+
+	for _, platform := range p.Platforms {
+		for _, library := range p.Needed {
+			if !slices.Contains(baseLibraries[platform], library) {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 // InspectProgram reads what the native file at path is as a program. A file
@@ -305,9 +340,20 @@ func inspectMachO(src io.ReaderAt, prog *Program) error {
 			prog.Executable = prog.Executable && arch.Type == macho.TypeExec
 		}
 
-		if len(fat.Arches) > 0 {
-			prog.Needed, _ = fat.Arches[0].ImportedLibraries()
+		// Every slice is a program of its own: the libraries one of them
+		// asks for make the file dynamic, whatever the order of the slices.
+		for _, arch := range fat.Arches {
+			needed, err := arch.ImportedLibraries()
+			if err != nil {
+				return fmt.Errorf("reading the libraries of a Mach-O slice: %w", err)
+			}
+
+			prog.Needed = append(prog.Needed, needed...)
 		}
+
+		slices.Sort(prog.Needed)
+
+		prog.Needed = slices.Compact(prog.Needed)
 
 		return nil
 	}

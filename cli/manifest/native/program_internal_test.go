@@ -252,6 +252,51 @@ func TestProgramStatic(t *testing.T) {
 	assert.False(t, Program{Needed: []string{"libc.so.6"}}.Static())
 }
 
+func TestProgramStaticPlatforms(t *testing.T) {
+	t.Parallel()
+
+	const (
+		libSystem      = "/usr/lib/libSystem.B.dylib"
+		libResolv      = "/usr/lib/libresolv.9.dylib"
+		security       = "/System/Library/Frameworks/Security.framework/Versions/A/Security"
+		coreFoundation = "/System/Library/Frameworks/" +
+			"CoreFoundation.framework/Versions/A/CoreFoundation"
+	)
+
+	tests := []struct {
+		name        string
+		os          string
+		needed      []string
+		interpreter string
+		static      bool
+	}{
+		{name: "darwin no libraries", os: "darwin", static: true},
+		{name: "darwin libc", os: "darwin", needed: []string{libSystem}, static: true},
+		{name: "darwin base", os: "darwin", needed: []string{libSystem, libResolv}, static: true},
+		{name: "darwin security", os: "darwin", needed: []string{libSystem, libResolv, security}},
+		{name: "darwin framework", os: "darwin", needed: []string{coreFoundation}},
+		{name: "darwin loader", os: "darwin", interpreter: "/usr/lib/dyld"},
+		{name: "linux no libraries", os: "linux", static: true},
+		{name: "linux libc", os: "linux", needed: []string{"libc.so.6"}},
+		{name: "linux darwin library", os: "linux", needed: []string{libSystem}},
+	}
+
+	for _, tt := range tests {
+		for _, arch := range []string{"arm64", "amd64"} {
+			t.Run(tt.name+"/"+arch, func(t *testing.T) {
+				t.Parallel()
+
+				prog := Program{
+					Platforms: []Platform{{OS: tt.os, Arch: arch}},
+					Needed:    tt.needed, Interpreter: tt.interpreter,
+				}
+				assert.Equal(t, tt.static, prog.Static())
+				assert.Equal(t, tt.needed, prog.Needed)
+			})
+		}
+	}
+}
+
 func TestInspectProgramMachO(t *testing.T) {
 	t.Parallel()
 
@@ -277,6 +322,101 @@ func TestInspectProgramMachO(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.executable, prog.Executable)
 			assert.NotEmpty(t, prog.Platforms)
+		})
+	}
+}
+
+// machoWithDylib returns a thin 64-bit Mach-O executable for cpu that loads
+// the dylibs named, and checks that debug/macho reads them back.
+func machoWithDylib(t *testing.T, cpu macho.Cpu, libs ...string) []byte {
+	t.Helper()
+
+	var cmds bytes.Buffer
+
+	for _, lib := range libs {
+		// The name is an offset from the command, past the command itself.
+		const (
+			loadDylib  = 0xc
+			nameOffset = 24
+		)
+
+		name := append([]byte(lib), 0)
+
+		size := nameOffset + len(name)
+
+		size += (4 - size%4) % 4
+
+		command := []uint32{loadDylib, uint32(size), nameOffset, 0, 0, 0} //nolint:gosec
+
+		for _, word := range command {
+			require.NoError(t, binary.Write(&cmds, binary.LittleEndian, word))
+		}
+
+		cmds.Write(name)
+		cmds.Write(make([]byte, size-nameOffset-len(name)))
+	}
+
+	hdr := macho.FileHeader{
+		Magic: macho.Magic64, Cpu: cpu, Type: macho.TypeExec,
+		Ncmd:  uint32(len(libs)),  //nolint:gosec // A few dylibs.
+		Cmdsz: uint32(cmds.Len()), //nolint:gosec // A small test command list.
+	}
+
+	var buf bytes.Buffer
+
+	require.NoError(t, binary.Write(&buf, binary.LittleEndian, &hdr))
+	require.NoError(t, binary.Write(&buf, binary.LittleEndian, uint32(0)))
+	buf.Write(cmds.Bytes())
+
+	parsed, err := macho.NewFile(bytes.NewReader(buf.Bytes()))
+	require.NoError(t, err)
+
+	got, err := parsed.ImportedLibraries()
+	require.NoError(t, err)
+	require.Equal(t, libs, got)
+
+	return buf.Bytes()
+}
+
+// TestInspectProgramUniversalNeeded pins that a universal Mach-O asks for the
+// libraries of every slice it holds: one dynamic slice makes the file
+// dynamic, whatever the order of the slices.
+func TestInspectProgramUniversalNeeded(t *testing.T) {
+	t.Parallel()
+
+	const (
+		libSystem = "/usr/lib/libSystem.B.dylib"
+		security  = "/System/Library/Frameworks/Security.framework/Versions/A/Security"
+	)
+
+	fat := func(t *testing.T, cpus ...macho.Cpu) []byte {
+		t.Helper()
+
+		slices := make([][]byte, 0, len(cpus))
+		for _, cpu := range cpus {
+			libs := []string{libSystem}
+			if cpu == macho.CpuAmd64 {
+				libs = append(libs, security)
+			}
+
+			slices = append(slices, machoWithDylib(t, cpu, libs...))
+		}
+
+		return universalMacho(t, cpus, slices)
+	}
+
+	for name, data := range map[string][]byte{
+		"static slice first":  fat(t, macho.CpuArm64, macho.CpuAmd64),
+		"dynamic slice first": fat(t, macho.CpuAmd64, macho.CpuArm64),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			prog, err := inspect(t, data)
+			require.NoError(t, err)
+			// The libraries of every slice, sorted and without duplicates.
+			assert.Equal(t, []string{security, libSystem}, prog.Needed)
+			assert.False(t, prog.Static(), "a slice that needs Security makes the file dynamic")
 		})
 	}
 }
