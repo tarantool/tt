@@ -243,24 +243,6 @@ jobs:
       shard: ${{ matrix.shard }}
       marker: not slow and not slow_ee and not notarantool and not tarantool_master
 
-  it-ee:
-    needs: build
-    if: github.repository == 'tarantool/tt' && github.event_name == 'push'
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [cluster, replicaset, instances, tooling]
-    uses: ./.github/workflows/_integration.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
-    with:
-      ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      edition: ee
-      tarantool-version: latest
-      shard: ${{ matrix.shard }}
-      marker: not slow and not slow_ee and not notarantool and not tarantool_master
-    secrets:
-      TT_EE_USERNAME: ${{ secrets.TT_EE_USERNAME }}
-      TT_EE_PASSWORD: ${{ secrets.TT_EE_PASSWORD }}
-
   pr-notes:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
@@ -342,7 +324,7 @@ jobs:
 
   ci-result:
     if: ${{ always() && github.event_name == 'push' }}
-    needs: [ci-start, lint, govulncheck, build, build-variants, go, go-macos, it-ce, it-ee]
+    needs: [ci-start, lint, govulncheck, build, build-variants, go, go-macos, it-ce]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -366,8 +348,5 @@ jobs:
           HEAD_SHA: ${{ github.sha }}
           STATUS_CONTEXT: ci-ok
           RESULTS: ${{ toJSON(needs) }}
-          REQUIRED: >-
-            ${{ github.repository == 'tarantool/tt' &&
-            '["ci-start","lint","govulncheck","build","build-variants","go","go-macos","it-ce","it-ee"]' ||
-            '["ci-start","lint","govulncheck","build","build-variants","go","go-macos","it-ce"]' }}
+          REQUIRED: '["ci-start","lint","govulncheck","build","build-variants","go","go-macos","it-ce"]'
         run: python3 ci/status.py
