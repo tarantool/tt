@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -23,13 +24,25 @@ import (
 
 var errTampered = errors.New("a checked file changed")
 
-// tamperedRepository is an integrity repository whose files have changed.
+// tamperedRepository is an integrity repository whose files change when the
+// test tampers with them: the checks pass until then.
 type tamperedRepository struct {
 	mockRepository
+
+	tampered atomic.Bool
 }
 
-func (*tamperedRepository) ValidateAll() error {
-	return errTampered
+func (repo *tamperedRepository) ValidateAll() error {
+	if repo.tampered.Load() {
+		return errTampered
+	}
+
+	return nil
+}
+
+// tamper changes the checked files: every check from now on fails.
+func (repo *tamperedRepository) tamper() {
+	repo.tampered.Store(true)
 }
 
 // watchdogApp is the code of the instance of a watchdog test: it marks its
@@ -141,19 +154,40 @@ func newWatchdogTest(t *testing.T, restart instances.RestartPolicy, cmdCtx *cmdc
 
 // run runs the watchdog, logging its end as Start does, and returns the
 // channel Run's result comes on.
+//
+// A test that fails before the watchdog ends leaves it to the cleanup, which
+// stops it: killed, its tarantool would be started again, with the
+// environment of the tests that follow. The log of the watchdog, the output
+// of tarantool in it, goes into the output of a failed test.
 func (test *watchdogTest) run() <-chan error {
+	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
+	ended := make(chan struct{})
 
 	go func() {
-		err := test.engine.Run(context.Background())
+		defer close(ended)
+
+		err := test.engine.Run(ctx)
 		test.src.log.onEnd(err)
 
 		done <- err
 	}()
 
 	test.t.Cleanup(func() {
+		cancel()
+
 		for _, pid := range test.children() {
 			_ = syscall.Kill(pid, syscall.SIGKILL)
+		}
+
+		select {
+		case <-ended:
+		case <-time.After(40 * time.Second):
+			test.t.Error("the watchdog did not end")
+		}
+
+		if test.t.Failed() {
+			test.t.Logf("the log of the watchdog:\n%s", test.log.String())
 		}
 	})
 
