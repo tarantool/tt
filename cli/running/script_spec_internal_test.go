@@ -179,6 +179,12 @@ func TestInstanceStopByContext(t *testing.T) {
 	inst := startTestInstance(t, ctx, "dumb_test_app", consoleSock, binaryPort, logger)
 	t.Cleanup(func() { cleanupTestInstance(t, inst, consoleSock) })
 
+	// The context stops an instance that runs: the script writes the started
+	// flag before box.cfg, so wait for the sockets box.cfg opens, or the
+	// signal reaches a Tarantool that has not started and it exits with 1.
+	require.NotZero(t, waitForFile(consoleSock), "No console socket")
+	require.NotZero(t, waitForFile(binaryPort), "No binary port socket")
+
 	cancel()
 	require.ErrorIs(t, inst.wait(), context.Canceled)
 	assert.True(t, inst.cmd.ProcessState.Success())
