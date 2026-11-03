@@ -56,7 +56,10 @@ func assertLink(t *testing.T, path, target string) {
 
 	actual, err := filepath.EvalSymlinks(path)
 	require.NoError(t, err)
-	assert.Equal(t, target, actual)
+
+	expected, err := filepath.EvalSymlinks(target)
+	require.NoError(t, err)
+	assert.Equal(t, expected, actual)
 }
 
 func TestSwitchProducts(t *testing.T) {

@@ -406,9 +406,12 @@ func TestExternalProcessStartStop(t *testing.T) {
 			run := waitProcess(t, &inst, files)
 
 			assert.Equal(t, []string{"-v", "x y"}, run.Args)
-			assert.Equal(t, physicalPath(filepath.Join(fixture.dir, "work")), run.Cwd)
+			assert.Equal(t, resolvedTestPath(t, filepath.Join(fixture.dir, "work")),
+				resolvedTestPath(t, run.Cwd))
+
+			run.Env["PWD"] = resolvedTestPath(t, run.Env["PWD"])
 			assert.Equal(t, map[string]string{
-				"PWD": filepath.Join(fixture.dir, "work"), inheritedEnv: "yes",
+				"PWD": resolvedTestPath(t, filepath.Join(fixture.dir, "work")), inheritedEnv: "yes",
 			}, run.Env)
 			assert.Equal(t, run.Pid, run.Pgid, "the process leads a group of its own")
 			assert.Equal(t, os.Getpid(), readPidFile(t, inst.PIDFile),
@@ -592,7 +595,8 @@ func TestExternalProcessHostFiles(t *testing.T) {
 	watchdog := superviseExternal(t, &inst)
 	run := waitProcess(t, &inst, files)
 
-	assert.Equal(t, physicalPath(filepath.Join(fixture.dir, "work")), run.Cwd)
+	assert.Equal(t, resolvedTestPath(t, filepath.Join(fixture.dir, "work")),
+		resolvedTestPath(t, run.Cwd))
 	assert.Equal(t, filepath.Join(fixture.root, "var", "run", fixtureApp, externalInst,
 		"process.pid"), inst.ProcessPIDFile)
 
@@ -677,8 +681,8 @@ func TestExternalProcessFromPath(t *testing.T) {
 	// creates.
 	data := filepath.Join(fixture.dir, ".tarantool", "var", "lib", fixtureApp, externalInst)
 	assert.Equal(t, data, inst.Workdir)
-	assert.Equal(t, physicalPath(data), run.Cwd)
-	assert.Equal(t, data, run.Env["PWD"])
+	assert.Equal(t, resolvedTestPath(t, data), resolvedTestPath(t, run.Cwd))
+	assert.Equal(t, resolvedTestPath(t, data), resolvedTestPath(t, run.Env["PWD"]))
 
 	watchdog.stop()
 

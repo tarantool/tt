@@ -633,7 +633,10 @@ func TestBinaryScopedCommandsWithoutConfig(t *testing.T) {
 
 			active, err := filepath.EvalSymlinks(filepath.Join(root, "bin", "tcm"))
 			require.NoError(t, err)
-			assert.Equal(t, installed, active)
+
+			expected, err := filepath.EvalSymlinks(installed)
+			require.NoError(t, err)
+			assert.Equal(t, expected, active)
 
 			command := NewBinaryCmd()
 			command.SetArgs([]string{"--scope", scope.String(), "uninstall", "tcm", "1.3.0"})
@@ -677,13 +680,20 @@ func TestBinarySwitchPreservesGitRefs(t *testing.T) {
 
 				active, err := filepath.EvalSymlinks(filepath.Join(root, "bin", parsed.Exec()))
 				require.NoError(t, err)
-				assert.Equal(t, installed, active)
+
+				expected, err := filepath.EvalSymlinks(installed)
+				require.NoError(t, err)
+				assert.Equal(t, expected, active)
 
 				if parsed.IsTarantool() {
 					headers, err := filepath.EvalSymlinks(
 						filepath.Join(root, "include", parsed.Exec()))
 					require.NoError(t, err)
-					assert.Equal(t, filepath.Join(installation, "include", parsed.Exec()), headers)
+
+					expected, err := filepath.EvalSymlinks(
+						filepath.Join(installation, "include", parsed.Exec()))
+					require.NoError(t, err)
+					assert.Equal(t, expected, headers)
 				}
 			})
 		}
@@ -739,7 +749,10 @@ func TestBinaryScopedAdaptersFindProject(t *testing.T) {
 
 	active, err := filepath.EvalSymlinks(filepath.Join(project, ".tarantool", "bin", "tt"))
 	require.NoError(t, err)
-	assert.Equal(t, installed, active)
+
+	expected, err := filepath.EvalSymlinks(installed)
+	require.NoError(t, err)
+	assert.Equal(t, expected, active)
 	require.NoError(t, internalListModule(base, list.ListCtx{}, ctx, nil))
 
 	ctx.CommandName = "tt"
