@@ -67,6 +67,49 @@ func TestGetVersion(t *testing.T) {
 			},
 		},
 		{
+			name: "alpha tag", tag: "v3.0.0-alpha.1", commit: "abc1234", sinceTag: "0",
+			want: versionForms{
+				full:   "Tarantool CLI version 3.0.0-alpha.1, " + platform + ". commit: abc1234",
+				short:  "3.0.0-alpha.1",
+				commit: "3.0.0-alpha.1.abc1234",
+			},
+		},
+		{
+			name: "past a release", tag: "v2.15.0-3-gabc1234", commit: "abc1234", sinceTag: "3",
+			want: versionForms{
+				full: "Tarantool CLI version 2.15.0, " + platform +
+					". commit: abc1234 (v2.15.0-3-gabc1234)",
+				short:  "2.15.0",
+				commit: "2.15.0.abc1234",
+			},
+		},
+		{
+			name: "release candidate tag", tag: "v3.2.0-rc1", commit: "abc1234", sinceTag: "0",
+			want: versionForms{
+				full:   "Tarantool CLI version 3.2.0-rc1, " + platform + ". commit: abc1234",
+				short:  "3.2.0-rc1",
+				commit: "3.2.0-rc1.abc1234",
+			},
+		},
+		{
+			name: "past a pre-release", tag: "v3.0.0-alpha.1-3-gabc1234",
+			commit: "abc1234", sinceTag: "3",
+			want: versionForms{
+				full: "Tarantool CLI version 3.0.0-alpha.1, " + platform +
+					". commit: abc1234 (v3.0.0-alpha.1-3-gabc1234)",
+				short:  "3.0.0-alpha.1",
+				commit: "3.0.0-alpha.1.abc1234",
+			},
+		},
+		{
+			name: "non-version tag", tag: "nightly", commit: "abc1234", sinceTag: "0",
+			want: versionForms{
+				full:   "Tarantool CLI version nightly, " + platform + ". commit: abc1234",
+				short:  "nightly",
+				commit: "nightly.abc1234",
+			},
+		},
+		{
 			name: "label", tag: "v2.11.5", commit: "abc1234", label: "foo",
 			want: versionForms{
 				full:   "Tarantool CLI version 2.11.5/foo, " + platform + ". commit: abc1234",
@@ -79,6 +122,7 @@ func TestGetVersion(t *testing.T) {
 			setCoreBuild(t, testCase.tag, testCase.commit, testCase.sinceTag, testCase.label)
 
 			assertForms(t, testCase.want, GetVersion)
+			assert.Equal(t, testCase.want.short, Stamp())
 			assertForms(t, testCase.want, Flavour{}.GetVersion)
 		})
 	}
@@ -219,10 +263,10 @@ func TestGetVersionFromBuildInfo(t *testing.T) {
 		{
 			name: "past a pre-release", module: "v3.2.0-rc1.0.20260925120000-abcdef123456",
 			want: versionForms{
-				full: "Tarantool CLI version 3.2.0, " + platform +
+				full: "Tarantool CLI version 3.2.0-rc1, " + platform +
 					". commit: abcdef123456 (v3.2.0-rc1.0.20260925120000-abcdef123456)",
-				short:  "3.2.0",
-				commit: "3.2.0.abcdef123456",
+				short:  "3.2.0-rc1",
+				commit: "3.2.0-rc1.abcdef123456",
 			},
 		},
 		{

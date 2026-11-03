@@ -31,9 +31,9 @@ var (
 // Info describes what a build was made from.
 type Info struct {
 	// Tag is the tag the build is at or descends from, as git describe
-	// prints it: v2.15.0, or v2.15.0-3-gabc1234 for a commit past it. Only
-	// its numeric part makes the version. Empty means the version is
-	// unknown.
+	// prints it: v2.15.0, or v2.15.0-3-gabc1234 for a commit past it. The
+	// version keeps the tag's pre-release but not the commit count and hash.
+	// Empty means the version is unknown.
 	Tag string
 	// Commit is the abbreviated hash of the commit built.
 	Commit string
@@ -138,7 +138,7 @@ func Stamp() string {
 
 // release is a version as it is printed.
 type release struct {
-	// version is the numeric version with its label, or unknownVersion.
+	// version is the tag's version with its label, or unknownVersion.
 	version string
 	// commit is the abbreviated hash of the commit built.
 	commit string
@@ -182,7 +182,7 @@ var pseudoVersion = regexp.MustCompile(
 //	v3.1.0                                    3.1.0      <unknown>     no
 //	v3.1.0+dirty                              3.1.0      <unknown>     yes
 //	v3.1.1-0.20260925120000-abcdef123456      3.1.0      abcdef123456  yes
-//	v3.1.0-rc1.0.20260925120000-abcdef123456  3.1.0      abcdef123456  yes
+//	v3.1.0-rc1.0.20260925120000-abcdef123456  3.1.0-rc1  abcdef123456  yes
 //	v3.0.0-20260925120000-abcdef123456        <unknown>  abcdef123456  yes
 //
 // The last is a commit no tag precedes. A tag records no commit; the commit
@@ -255,10 +255,13 @@ func tagRelease(tag, commit, label string, pastTag bool) release {
 	return release{version: version, commit: commit, exact: exact}
 }
 
-// numericVersion returns the numeric part of tag - 2.15.0 for v2.15.0-3-g1 -
-// or tag itself when it is not a version.
+// describeSuffix matches the commit count and hash git describe appends to a tag.
+var describeSuffix = regexp.MustCompile(`-[0-9]+-g[0-9a-f]+$`)
+
+// numericVersion returns the version of tag, including its pre-release but
+// without a git describe suffix, or tag itself when it is not a version.
 func numericVersion(tag string) string {
-	parsed, err := goVersion.NewVersion(tag)
+	parsed, err := goVersion.NewVersion(describeSuffix.ReplaceAllString(tag, ""))
 	if err != nil {
 		return tag
 	}
@@ -270,7 +273,12 @@ func numericVersion(tag string) string {
 		numbers = append(numbers, strconv.Itoa(num))
 	}
 
-	return strings.Join(numbers, ".")
+	version := strings.Join(numbers, ".")
+	if pre := parsed.Prerelease(); pre != "" {
+		version += "-" + pre
+	}
+
+	return version
 }
 
 // format renders r for the distribution title with edition, in the form
