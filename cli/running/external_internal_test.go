@@ -551,12 +551,15 @@ func TestStopOrphan(t *testing.T) {
 	})
 
 	t.Run("killed after its stop timeout", func(t *testing.T) {
-		leader, done := orphanProcess(t, "sh", "-c", `trap "" TERM; while :; do sleep 1; done`)
+		trapped := filepath.Join(t.TempDir(), "trapped")
+		leader, done := orphanProcess(t, "sh", "-c",
+			`trap "" TERM; : > "$0"; while :; do sleep 1; done`, trapped)
 		run := orphanRun(t, leader)
 
 		run.StopTimeout = 300 * time.Millisecond
-		// Let the shell set its trap.
-		time.Sleep(200 * time.Millisecond)
+		// The shell makes the file once it ignores SIGTERM: a SIGTERM that
+		// came sooner would kill it at once.
+		waitFileContent(t, trapped)
 
 		stopped := time.Now()
 
