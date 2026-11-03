@@ -62,16 +62,22 @@ func TestWatchdogNotRestartable(t *testing.T) {
 // instance for good, although its record says restart: always, and
 // that the watchdog removes the sockets tarantool leaves when it is killed.
 func TestWatchdogIntegrityHardStop(t *testing.T) {
+	repo := &tamperedRepository{}
 	cmdCtx := &cmdcontext.CmdCtx{}
 
 	cmdCtx.Cli.IntegrityCheckPeriod = 1
-	cmdCtx.Integrity = integrity.IntegrityCtx{Repository: &tamperedRepository{}}
+	cmdCtx.Integrity = integrity.IntegrityCtx{Repository: repo}
 
 	test := newWatchdogTest(t, instances.RestartAlways, cmdCtx)
 	done := test.run()
 
+	// The files change once tarantool runs with its sockets open. A check
+	// failing sooner kills a tarantool that has not started yet, as the
+	// first one does on a slow machine, where the start outlasts the
+	// period.
 	test.waitStarted(1)
 	waitSockets(t, &test.inst)
+	repo.tamper()
 
 	err := waitDone(t, done)
 	require.ErrorIs(t, err, errTampered)
