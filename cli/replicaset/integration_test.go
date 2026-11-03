@@ -21,11 +21,9 @@ import (
 	"github.com/tarantool/tt/v3/cli/running"
 )
 
-const (
-	workDir = "work_dir"
-	server  = "127.0.0.1:3015"
-	console = workDir + "/" + "console.control"
-)
+const server = "127.0.0.1:3015"
+
+var console string
 
 var dialer = tarantool.NetDialer{
 	Address:  server,
@@ -435,11 +433,16 @@ func TestEvalAny_error(t *testing.T) {
 }
 
 func runTestMain(m *testing.M) int {
-	absWorkDir, err := filepath.Abs(workDir)
+	// The console socket needs a short path, outside the source tree.
+	absWorkDir, err := os.MkdirTemp("/tmp", "tt-integration-")
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stdout, "Failed to prepare test work dir:", err)
 		return 1
 	}
+
+	defer func() { _ = os.RemoveAll(absWorkDir) }()
+
+	console = filepath.Join(absWorkDir, "console.control")
 
 	inst, err := test_helpers.StartTarantool(test_helpers.StartOpts{
 		Dialer:       dialer,

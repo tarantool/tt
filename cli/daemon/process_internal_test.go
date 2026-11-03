@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -17,10 +18,14 @@ import (
 )
 
 func TestProcessBase(t *testing.T) {
-	t.Cleanup(func() { cleanupDaemonFiles(TestProcessLogPath, TestProcessPidFile) })
+	binary := filepath.Join(t.TempDir(), "test-process")
+	build := exec.CommandContext(t.Context(), "go", "build", "-o", binary,
+		"test_process/test_process.go")
+	require.NoError(t, build.Run())
+	t.Chdir(t.TempDir())
 
 	// Start daemon.
-	cmd := exec.CommandContext(t.Context(), "go", "run", "test_process/test_process.go")
+	cmd := exec.CommandContext(t.Context(), binary)
 	err := cmd.Run()
 	require.NoErrorf(t, err, `Can't start daemon. Error: "%v".`, err)
 
@@ -95,19 +100,6 @@ func waitProcessChanges() {
 	// We need to wait for the new process (tarantool instance) to set handlers.
 	// It is necessary to update for more correct synchronization.
 	time.Sleep(processStartDelay)
-}
-
-// cleanupDaemonFiles cleans up daemon artifacts.
-func cleanupDaemonFiles(logFilename, pidFilename string) {
-	_, err := os.Stat(logFilename)
-	if !os.IsNotExist(err) {
-		_ = os.Remove(logFilename)
-	}
-
-	_, err = os.Stat(pidFilename)
-	if !os.IsNotExist(err) {
-		_ = os.Remove(pidFilename)
-	}
 }
 
 // readPID reads pid from filePath.

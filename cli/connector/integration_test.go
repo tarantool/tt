@@ -21,13 +21,12 @@ import (
 )
 
 const (
-	workDir   = "work_dir"
 	server    = "127.0.0.1:3013"
 	serverTLS = "127.0.0.1:3014"
-	console   = workDir + "/" + "console.control"
 )
 
 var (
+	console     string
 	tarantoolEe bool
 	opts        = tarantool.Opts{
 		Timeout:    500 * time.Millisecond,
@@ -289,11 +288,16 @@ func TestConnect_textTls(t *testing.T) {
 }
 
 func runTestMain(m *testing.M) int {
-	absWorkDir, err := filepath.Abs(workDir)
+	// The console socket needs a short path, outside the source tree.
+	absWorkDir, err := os.MkdirTemp("/tmp", "tt-integration-")
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stdout, "Failed to prepare test work dir:", err)
 		return 1
 	}
+
+	defer func() { _ = os.RemoveAll(absWorkDir) }()
+
+	console = filepath.Join(absWorkDir, "console.control")
 
 	inst, err := test_helpers.StartTarantool(test_helpers.StartOpts{
 		InitScript:   "testdata/config.lua",
@@ -338,11 +342,13 @@ func runTestMain(m *testing.M) int {
 	}
 
 	if tarantoolEe {
-		absTLSWorkDir, err := filepath.Abs(workDir + "_tls")
+		absTLSWorkDir, err := os.MkdirTemp("/tmp", "tt-integration-tls-")
 		if err != nil {
 			_, _ = fmt.Fprintln(os.Stdout, "Failed to prepare TLS test work dir:", err)
 			return 1
 		}
+
+		defer func() { _ = os.RemoveAll(absTLSWorkDir) }()
 
 		// Try to start Tarantool instance with TLS.
 		listen := serverTLS + "?transport=ssl&" +
