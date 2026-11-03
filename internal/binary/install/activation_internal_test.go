@@ -98,7 +98,8 @@ func TestInstallProjectFromSubdirectory(t *testing.T) {
 	active, err := filepath.EvalSymlinks(filepath.Join(project, ".tarantool", "bin", "tcm"))
 	require.NoError(t, err)
 	require.Equal(t,
-		filepath.Join(project, ".tarantool", "versions", "tcm", "tcm_3.7.1", "tcm"), active)
+		resolvedTestPath(t, filepath.Join(project, ".tarantool", "versions", "tcm",
+			"tcm_3.7.1", "tcm")), active)
 	require.FileExists(t, filepath.Join(project, ".env", "activate.sh"))
 	require.FileExists(t, filepath.Join(project, ".env", "deactivate.sh"))
 	require.NoDirExists(t, filepath.Join(currentDir, ".tarantool"))

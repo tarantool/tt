@@ -73,6 +73,15 @@ func sdkTestContext(scope binary.Scope, directory, requested string) InstallCtx 
 	return ctx
 }
 
+func resolvedTestPath(t *testing.T, path string) string {
+	t.Helper()
+
+	resolved, err := filepath.EvalSymlinks(path)
+	require.NoError(t, err)
+
+	return resolved
+}
+
 func assertSDKLinks(t *testing.T, root, selected string) {
 	t.Helper()
 
@@ -85,7 +94,7 @@ func assertSDKLinks(t *testing.T, root, selected string) {
 	} {
 		actual, err := filepath.EvalSymlinks(filepath.Join(root, link))
 		require.NoError(t, err)
-		require.Equal(t, filepath.Join(root, target), actual)
+		require.Equal(t, resolvedTestPath(t, filepath.Join(root, target)), actual)
 	}
 }
 
@@ -187,11 +196,11 @@ func TestSDKLifecycle(t *testing.T) {
 
 			activeTCM, err := filepath.EvalSymlinks(filepath.Join(root, "bin/tcm"))
 			require.NoError(t, err)
-			require.Equal(t, standaloneTCM, activeTCM)
+			require.Equal(t, resolvedTestPath(t, standaloneTCM), activeTCM)
 
 			activeTT, err := filepath.EvalSymlinks(filepath.Join(root, "bin/tt"))
 			require.NoError(t, err)
-			require.Equal(t, filepath.Join(ttDirectory, "tt"), activeTT)
+			require.Equal(t, resolvedTestPath(t, filepath.Join(ttDirectory, "tt")), activeTT)
 		})
 	}
 }
@@ -351,7 +360,7 @@ func TestSDKComponentFallbackUsesProductVersion(t *testing.T) {
 
 			expectedPath := filepath.Join(
 				binary.InstallationPath(root, binary.ProgramTcm, expected), "tcm")
-			require.Equal(t, expectedPath, active)
+			require.Equal(t, resolvedTestPath(t, expectedPath), active)
 		})
 	}
 }
@@ -389,7 +398,7 @@ func TestSDKUninstallSkipsIncompleteCandidates(t *testing.T) {
 
 			active, err := filepath.EvalSymlinks(filepath.Join(root, "bin/tcm"))
 			require.NoError(t, err)
-			require.Equal(t, filepath.Join(fallback, "tcm"), active)
+			require.Equal(t, resolvedTestPath(t, filepath.Join(fallback, "tcm")), active)
 			require.NoFileExists(t, filepath.Join(root, "bin/tarantool"))
 			require.NoDirExists(t, binary.InstallationPath(root, binary.ProgramSDK, selected))
 		})
@@ -431,8 +440,8 @@ func TestSDKUninstallIgnoresReplacementActivationFailure(t *testing.T) {
 
 	active, err := filepath.EvalSymlinks(filepath.Join(root, "bin/tcm"))
 	require.NoError(t, err)
-	require.Equal(t, filepath.Join(binary.InstallationPath(root, binary.ProgramTcm,
-		binary.SDKVersionPrefix+second), "tcm"), active)
+	require.Equal(t, resolvedTestPath(t, filepath.Join(binary.InstallationPath(root,
+		binary.ProgramTcm, binary.SDKVersionPrefix+second), "tcm")), active)
 
 	data, err := os.ReadFile(headers)
 	require.NoError(t, err)
@@ -463,7 +472,7 @@ func TestSDKUninstallIgnoresUnusableFallbackDirectory(t *testing.T) {
 
 	active, err := filepath.EvalSymlinks(filepath.Join(root, "bin/tcm"))
 	require.NoError(t, err)
-	require.Equal(t, filepath.Join(fallback, "tcm"), active)
+	require.Equal(t, resolvedTestPath(t, filepath.Join(fallback, "tcm")), active)
 }
 
 func TestSDKIgnoresArchiveExtras(t *testing.T) {

@@ -144,7 +144,17 @@ func installVersion(t *testing.T, root, version string, files map[string]string)
 	require.NoError(t, os.Symlink(filepath.Join("..", rel), tmpLink))
 	require.NoError(t, os.Rename(tmpLink, link))
 
-	return dir, link
+	return resolvedTestPath(t, dir), link
+}
+
+// resolvedTestPath makes expected paths independent of symlinked temp roots.
+func resolvedTestPath(t *testing.T, path string) string {
+	t.Helper()
+
+	resolved, err := filepath.EvalSymlinks(path)
+	require.NoError(t, err)
+
+	return resolved
 }
 
 // load loads the application of the fixture as the instance commands will.

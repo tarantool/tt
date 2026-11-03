@@ -84,8 +84,9 @@ func TestRelativePathsOutOfVersion(t *testing.T) {
 			inst := fixture.instanceCtx(t)
 			require.NoError(t, checkStart(&inst))
 
-			data := filepath.Join(fixture.root, "var", "lib", fixtureApp, fixtureInst)
-			run := filepath.Join(fixture.root, "var", "run", fixtureApp, fixtureInst)
+			root := resolvedTestPath(t, fixture.root)
+			data := filepath.Join(root, "var", "lib", fixtureApp, fixtureInst)
+			run := filepath.Join(root, "var", "run", fixtureApp, fixtureInst)
 
 			assert.Equal(t, data, inst.WalDir)
 			assert.Equal(t, data, inst.MemtxDir)
