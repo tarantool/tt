@@ -15,13 +15,18 @@ import (
 
 // markerApp is the code of a version of the application that writes the
 // version and app.cfg.marker of its config into the data directory, so that
-// the test sees which version runs and which config it read.
+// the test sees which version runs and which config it read. Each file is
+// renamed into place whole: the test reads the version once it has seen the
+// marker of a restart, while the restarted instance may be writing the
+// version again.
 const markerApp = `local fio = require('fio')
 local function put(name, value)
     local path = fio.pathjoin(box.cfg.wal_dir, name)
-    local file = fio.open(path, {'O_CREAT', 'O_WRONLY', 'O_TRUNC'}, tonumber('644', 8))
+    local file = fio.open(path .. '.new', {'O_CREAT', 'O_WRONLY', 'O_TRUNC'},
+        tonumber('644', 8))
     file:write(value)
     file:close()
+    assert(fio.rename(path .. '.new', path))
 end
 put('marker', tostring(require('config'):get('app.cfg.marker')))
 put('version', '%s')
