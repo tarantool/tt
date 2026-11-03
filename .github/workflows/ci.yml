@@ -202,6 +202,31 @@ jobs:
       - name: Go tests with integration
         run: mage unit:fullSkipDocker
 
+  # Build a native tt: the default build artifact runs only on Linux.
+  # Unlike build, the job takes fork pull requests too: ce-result requires
+  # every job it names to succeed.
+  go-macos:
+    if: >-
+      ${{ github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && github.event.action != 'labeled' &&
+      github.event.action != 'unlabeled') }}
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Prepare CE environment
+        uses: ./.github/actions/prepare-ce-test-env # zizmor: ignore[self-repository] -- Test the checked-out revision.
+        with:
+          tarantool-version: latest
+
+      # Hosted macOS runners have no Docker daemon.
+      - name: Go tests with integration, excluding Docker
+        run: mage unit:fullSkipDocker
+
   it-ce:
     needs: build
     strategy:
@@ -296,7 +321,7 @@ jobs:
     if: >-
       ${{ always() && (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository &&
       github.event.action != 'labeled' && github.event.action != 'unlabeled') }}
-    needs: [lint, govulncheck, build, build-variants, go, it-ce]
+    needs: [lint, govulncheck, build, build-variants, go, go-macos, it-ce]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -317,7 +342,7 @@ jobs:
 
   ci-result:
     if: ${{ always() && github.event_name == 'push' }}
-    needs: [ci-start, lint, govulncheck, build, build-variants, go, it-ce, it-ee]
+    needs: [ci-start, lint, govulncheck, build, build-variants, go, go-macos, it-ce, it-ee]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -343,6 +368,6 @@ jobs:
           RESULTS: ${{ toJSON(needs) }}
           REQUIRED: >-
             ${{ github.repository == 'tarantool/tt' &&
-            '["ci-start","lint","govulncheck","build","build-variants","go","it-ce","it-ee"]' ||
-            '["ci-start","lint","govulncheck","build","build-variants","go","it-ce"]' }}
+            '["ci-start","lint","govulncheck","build","build-variants","go","go-macos","it-ce","it-ee"]' ||
+            '["ci-start","lint","govulncheck","build","build-variants","go","go-macos","it-ce"]' }}
         run: python3 ci/status.py

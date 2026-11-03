@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -55,13 +56,19 @@ func opensslKeys(t *testing.T) (string, string) {
 	private := filepath.Join(dir, "private.pem")
 	public := filepath.Join(dir, "public.pem")
 
+	// genrsa writes PKCS #1 on LibreSSL and PKCS #8 on OpenSSL 3 and newer;
+	// the provider reads both, and LibreSSL has no -traditional.
 	for _, args := range [][]string{
-		{"genrsa", "-traditional", "-out", private, "2048"},
+		{"genrsa", "-out", private, "2048"},
 		{"rsa", "-in", private, "-pubout", "-out", public},
 	} {
 		out, err := exec.CommandContext(t.Context(), openssl, args...).CombinedOutput()
 		require.NoError(t, err, string(out))
 	}
+
+	// openssl writes the key with the mode its umask gives; the provider
+	// refuses a private key any other user may read.
+	require.NoError(t, os.Chmod(private, 0o600))
 
 	return private, public
 }
@@ -93,7 +100,14 @@ func TestIntegritySignedPackage(t *testing.T) {
 
 	// The runtime the package bundles comes from the runtime cache: the
 	// tarantool of PATH as 3.8.1, and this binary as tt 3.1.0.
-	cache := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+
+	if runtime.GOOS == "darwin" {
+		t.Setenv("HOME", t.TempDir())
+	}
+
+	cache, err := os.UserCacheDir()
+	require.NoError(t, err)
 	copyExecutable(t, tarantool,
 		filepath.Join(cache, "tt", "runtimes", "tarantool", "ce", "3.8.1", "bin", "tarantool"))
 	copyExecutable(t, os.Args[0],
@@ -108,9 +122,12 @@ func TestIntegritySignedPackage(t *testing.T) {
 		".templates/default/config.yaml":    signedConfig,
 	})
 
-	root := filepath.Join(t.TempDir(), "user")
+	//nolint:usetesting // t.TempDir is too deep for a socket path on macOS.
+	root, err := os.MkdirTemp("/tmp", "tti")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, os.RemoveAll(root)) })
+
 	env := []string{
-		"XDG_CACHE_HOME=" + cache,
 		"TT_USER_ROOT=" + root,
 		"PATH=" + filepath.Dir(tarantool) + string(os.PathListSeparator) + os.Getenv("PATH"),
 	}
