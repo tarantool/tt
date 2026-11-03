@@ -49,6 +49,12 @@ const (
 // darwinOS is the OS of every Mach-O file.
 const darwinOS = "darwin"
 
+// The GOARCH names of the two architectures the archive platforms use.
+const (
+	archAmd64 = "amd64"
+	archArm64 = "arm64"
+)
+
 // File is a native file of a tree: an ELF or Mach-O file, whatever its name.
 type File struct {
 	// Name is the file's path relative to the tree, slash-separated.
@@ -204,9 +210,9 @@ func elfOS(abi elf.OSABI) string {
 func elfArch(machine elf.Machine) string {
 	switch machine {
 	case elf.EM_X86_64:
-		return "amd64"
+		return archAmd64
 	case elf.EM_AARCH64:
-		return "arm64"
+		return archArm64
 	default:
 		return shortName(machine.String(), "EM_")
 	}

@@ -1104,6 +1104,14 @@ documentation is a preview that is still being written.
 
 ### Fixed
 
+- `tt package build` accepts a macOS executable as `static` when it needs
+  only the platform's base libraries, libSystem and libresolv: a Go program
+  without cgo that uses no TLS. Every Mach-O program was refused before. A
+  program that asks for the CoreFoundation or Security frameworks, which Go
+  links in for `crypto/x509`, is still refused.
+- `tt version --commit` of a build of a pre-release tag reads as a version
+  again: `tt binary install tt` of a master build parsed `3.0.0-alpha.1.abc1234`
+  as a version and failed.
 - Builds of pre-release tags keep the pre-release in `tt version` and
   `tt version --short`: a build of `v3.0.0-alpha.1` reported `3.0.0` instead
   of `3.0.0-alpha.1`.
