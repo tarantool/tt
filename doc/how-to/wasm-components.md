@@ -12,7 +12,8 @@ x86-64 or macOS arm64, Tarantool 3.6 or newer, and Python 3.10 or newer for
 tarawasm.
 
 This page builds a component in Python, `add(a, b)`, into a package named
-`myapp`.
+`myapp`. [An HTTP API in a WebAssembly component](../write-your-app/http-api-in-wasm.md)
+is a whole application: an HTTP server in a component, writing to a space.
 
 ## Prepare the project
 
@@ -150,8 +151,9 @@ against the WIT of its SDK, and the module serves the WIT of its own.
 ## Write it
 
 `--template` starts a component in Python from an example: `call` is the one
-below, `http` an HTTP server; `tt wasm new` then prints the Lua module that
-uses the component.
+below, `http` the server of
+[An HTTP API in a WebAssembly component](../write-your-app/http-api-in-wasm.md);
+`tt wasm new` then prints the Lua module that uses the component.
 
 ```console
 $ tt wasm new calc --lang python --template call
