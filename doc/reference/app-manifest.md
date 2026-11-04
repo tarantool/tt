@@ -114,6 +114,10 @@ and are not packed. A component may declare dependencies of its own in
 | `dependencies` | the dependencies of the component |
 | `build` | its build, see below; required for an executable component |
 
+A `.wasm` file a module component lays out has to be a WebAssembly binary: a
+file of another kind fails the build, and a core module, which tarantool-wasm
+does not load, is laid out with a warning.
+
 ### `[components.NAME.build]`
 
 | Field | Backends | |

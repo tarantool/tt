@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `require` and as the module of C functions, such as those of the
   `tarantool` crate. `module` names it; the name of the library is the
   default. `target/` of the component is not laid out.
+- `tt package build` checks the `.wasm` files a component lays out: a file
+  that is no WebAssembly binary fails the build, and a core module, which
+  tarantool-wasm does not load, is laid out with a warning.
 
 ### Changed
 
