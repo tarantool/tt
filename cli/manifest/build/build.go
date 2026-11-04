@@ -76,6 +76,10 @@ type Options struct {
 	Registries rocks.Sources
 	// ShowOutput streams child (backend / hook) output when true.
 	ShowOutput bool
+	// Rebuild builds every incremental component, whatever its last build
+	// recorded: for a change the inputs do not cover, such as a new version
+	// of a compiler. The build is recorded as ever.
+	Rebuild bool
 	// Now stamps version.lua's built_at; the zero value uses the wall clock.
 	Now time.Time
 	// Logger receives the adapter's structured operation logs; nil disables it.
@@ -443,8 +447,8 @@ func runBackends(
 		cwd := backendCwd(opts.ProjectDir, component)
 
 		if component.IsExecutable() {
-			programs[name], err = buildExecutable(ctx, executor, component, name, cwd, env,
-				programs[name])
+			programs[name], err = runExecutableBackend(ctx, opts, executor, name, component,
+				cwd, env, programs[name])
 			if err != nil {
 				return nil, err
 			}
@@ -454,9 +458,9 @@ func runBackends(
 			continue
 		}
 
-		runErr := executor.Run(ctx, *component.Build, cwd, env)
-		if runErr != nil {
-			return nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, runErr)
+		err = runModuleBackend(ctx, opts, executor, name, component, cwd, env)
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -494,6 +498,157 @@ func layoutComponents(
 	}
 
 	return laidOut, nil
+}
+
+// runModuleBackend runs the build of a module component. An incremental one
+// is skipped when its inputs are those of its last build and what that build
+// left is still there (see skipUnchanged); its build records what it wrote
+// into TT_OUTPUT_DIR and the files of the component the layout takes.
+func runModuleBackend(
+	ctx context.Context, opts Options, executor backend.Backend, name string,
+	component manifest.Component, cwd string, env backend.Env,
+) error {
+	if !component.Build.IncrementalValue() {
+		return runComponentBackend(ctx, executor, name, component, cwd, env)
+	}
+
+	compAbsPath := resolveDir(opts.ProjectDir, component.Path)
+
+	state, skipped, err := skipUnchanged(opts, name, component, compAbsPath, cwd, env)
+	if err != nil || skipped {
+		return err
+	}
+
+	before, err := stampTree(env.OutputDir)
+	if err != nil {
+		return sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
+	}
+
+	err = runComponentBackend(ctx, executor, name, component, cwd, env)
+	if err != nil {
+		return err
+	}
+
+	after, err := stampTree(env.OutputDir)
+	if err == nil {
+		var laidOut []string
+
+		laidOut, err = laidOutFiles(component, compAbsPath)
+		if err == nil {
+			err = writeIncremental(opts.ProjectDir, name, incrementalRecord{
+				Inputs:  state.inputs,
+				Written: writtenFiles(before, after, state.last.Written),
+				LaidOut: laidOut,
+			})
+		}
+	}
+
+	if err != nil {
+		return sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
+	}
+
+	return nil
+}
+
+// runExecutableBackend builds an executable component (see buildExecutable)
+// and returns its programs. An incremental one is skipped as a module
+// component is, its programs being what it wrote into TT_OUTPUT_DIR, and
+// keeps the programs its last build recorded.
+func runExecutableBackend(
+	ctx context.Context, opts Options, executor backend.Backend, name string,
+	component manifest.Component, cwd string, env backend.Env, recorded []string,
+) ([]string, error) {
+	if !component.Build.IncrementalValue() {
+		return buildExecutable(ctx, executor, component, name, cwd, env, recorded)
+	}
+
+	compAbsPath := resolveDir(opts.ProjectDir, component.Path)
+
+	state, skipped, err := skipUnchanged(opts, name, component, compAbsPath, cwd, env)
+	if err != nil {
+		return nil, err
+	}
+
+	if skipped {
+		return state.last.Written, nil
+	}
+
+	programs, err := buildExecutable(ctx, executor, component, name, cwd, env, recorded)
+	if err != nil {
+		return nil, err
+	}
+
+	err = writeIncremental(opts.ProjectDir, name, incrementalRecord{
+		Inputs:  state.inputs,
+		Written: programs,
+		LaidOut: nil,
+	})
+	if err != nil {
+		return nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
+	}
+
+	return programs, nil
+}
+
+// runComponentBackend runs the backend of the component name.
+func runComponentBackend(
+	ctx context.Context, executor backend.Backend, name string, component manifest.Component,
+	cwd string, env backend.Env,
+) error {
+	err := executor.Run(ctx, *component.Build, cwd, env)
+	if err != nil {
+		return sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
+	}
+
+	return nil
+}
+
+// skipUnchanged hashes the inputs of an incremental component and reports
+// whether its build can be skipped: they are those of its last build, and
+// what that build left is still there - the files its output lists, the
+// files of the component the layout took and the files it wrote into
+// TT_OUTPUT_DIR. The files output lists are copied into TT_OUTPUT_DIR before
+// the last are looked for, as the build itself copies them: the tree may have
+// been cleared since.
+func skipUnchanged(
+	opts Options, name string, component manifest.Component, compAbsPath, cwd string,
+	env backend.Env,
+) (incrementalState, bool, error) {
+	var state incrementalState
+
+	inputs, err := componentInputs(opts.ProjectDir, compAbsPath, *component.Build)
+	if err != nil {
+		return state, false, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
+	}
+
+	state.inputs = inputs
+
+	last, found := readIncremental(opts.ProjectDir, name)
+	if found {
+		state.last = last
+	}
+
+	if opts.Rebuild || !found || last.Inputs != inputs ||
+		!allPresent(cwd, component.Build.Output) || !allPresent(compAbsPath, last.LaidOut) {
+		return state, false, nil
+	}
+
+	if len(component.Build.Output) > 0 {
+		err = backend.CopyOutputs(env.OutputDir, cwd, component.Build.Output)
+		if err != nil {
+			return state, false, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
+		}
+	}
+
+	if !allPresent(env.OutputDir, last.Written) {
+		return state, false, nil
+	}
+
+	if opts.Logger != nil {
+		opts.Logger.Info("component is up to date", "component", name)
+	}
+
+	return state, true, nil
 }
 
 // runPostBuild runs the post_build hook after all components are built.

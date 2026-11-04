@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `require` and as the module of C functions, such as those of the
   `tarantool` crate. `module` names it; the name of the library is the
   default. `target/` of the component is not laid out.
+- `incremental = true` in the build of a `make` or `shell` component, a
+  module or an executable one, skips the build when its inputs - the build
+  block and the files of the component but those its `.gitignore` files
+  ignore - are those of the last one, and what it left - its outputs, the
+  files it wrote into `TT_OUTPUT_DIR` - is still there. `tt package build
+  --rebuild` and `tt package pack --rebuild` build such a component anyway.
 - `tt package build` checks the `.wasm` files a component lays out: a file
   that is no WebAssembly binary fails the build, and a core module, which
   tarantool-wasm does not load, is laid out with a warning.

@@ -124,6 +124,7 @@ does not load, is laid out with a warning.
 | --- | --- | --- |
 | `backend` | | `c`, `lua-c` (module components); `go` (executable components); `cargo`, `make`, `shell` (either) |
 | `cwd`, `env`, `output` | all | the directory the build runs in, its environment, the files it makes |
+| `incremental` | `make`, `shell` | `true` skips the build when its inputs are those of the last one and what it left is still there |
 | `make_target`, `entrypoint`, `flags` | `make` | `make_target` is required |
 | `command`, `args` | `shell` | `command` is required |
 | `module`, `sources`, `include_dirs`, `libraries`, `library_dirs`, `defines` | `c`, `lua-c` | `module` and `sources` are required |
@@ -143,6 +144,14 @@ cannot override them.
 of the package of a module component: a `cdylib`, which is the native
 module `<module>.so`, `<module>.dylib` on macOS. `target/` of a component
 cargo builds is not laid out. See [Build a module in Rust](../how-to/rust-modules.md).
+
+The inputs of an `incremental` build are its build block and the files of
+the component but the hidden ones, `_build/`, `_runtime/` and what the
+`.gitignore` files of the project and of the component ignore: what a build
+generates and git does not keep is not one. The hash of the inputs of its
+last build is in `_build/cache/<component>.json`, and `--rebuild` of
+`tt package build` and `tt package pack` builds anyway; see
+[Incremental builds](../concepts/packages.md#incremental-builds).
 
 `.tarantool/bin` of the project, where `tt binary` puts the
 programs of the project, comes first on the `PATH` of a build and of
