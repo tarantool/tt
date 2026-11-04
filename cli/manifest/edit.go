@@ -175,6 +175,58 @@ func (e *Editor) SetDependency(table DepTable, name, constraint string) (Change,
 	return change, nil
 }
 
+// AddRegistryDependency declares name in table in the long form, with the
+// version constraint and the registry the rock is to come from:
+//
+//	name = { version = "<constraint>", registry = "<registry>" }
+//
+// placed where SetDependency would place a new short-form entry. A name the
+// table already declares is left exactly as it is, and the Change reports it:
+// whether to repoint a declaration someone wrote at another server is theirs
+// to decide, not this editor's.
+func (e *Editor) AddRegistryDependency(
+	table DepTable, name, constraint, registry string,
+) (Change, error) {
+	var change Change
+
+	err := checkEditTarget(table, name)
+	if err != nil {
+		return change, err
+	}
+
+	if constraint == "" {
+		return change, invalid(string(table)+"."+name, "version constraint is empty")
+	}
+
+	if registry == "" {
+		return change, invalid(string(table)+"."+name, "registry is empty")
+	}
+
+	doc, err := indexSource(e.src)
+	if err != nil {
+		return change, err
+	}
+
+	decl, err := doc.find(table, name)
+
+	switch {
+	case errors.Is(err, ErrNoSuchDependency):
+		entry := quoteTOMLKey(name) + " = { version = " + quoteTOMLString(constraint) +
+			", registry = " + quoteTOMLString(registry) + " }"
+
+		e.src = doc.insertEntry(table, entry)
+
+		return change, nil
+	case err != nil:
+		return change, err
+	}
+
+	change.Existed = true
+	change.Previous = decl.versionData
+
+	return change, nil
+}
+
 // RemoveDependency drops name's declaration from table.
 //
 // The whole declaration goes: for a sub-table that is the [dependencies.name]
