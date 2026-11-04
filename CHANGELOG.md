@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- On macOS the `c` and `lua-c` backends name a module `<module>.dylib`, the
+  name Tarantool looks for there, and a `.dylib` a component lays out goes to
+  `.rocks/lib/tarantool/`: a module was `<module>.so`, which `require` did
+  not find, and a `.dylib` went to `.rocks/share/tarantool/`.
+
 ## [3.0.0-alpha.1] - 2026-11-03
 
 The first release of tt 3: one binary that supervises Tarantool instances,

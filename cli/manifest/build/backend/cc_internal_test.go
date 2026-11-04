@@ -211,6 +211,14 @@ func TestArtifactName(t *testing.T) {
 	assert.Equal(t, "a.b.so", artifactName("a.b", ".so"))
 }
 
+func TestModuleExt(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, ".so", moduleExt("linux", ".so"))
+	// Tarantool looks for ?.dylib on macOS, whatever the toolchain says.
+	assert.Equal(t, ".dylib", moduleExt("darwin", ".so"))
+}
+
 func TestCcMissingHeadersPreflight(t *testing.T) {
 	t.Parallel()
 
