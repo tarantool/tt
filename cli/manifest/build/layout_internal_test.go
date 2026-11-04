@@ -81,6 +81,23 @@ func TestLayoutComponent_defaultNamespaceSplitsByExt(t *testing.T) {
 	assert.Len(t, written, 3)
 }
 
+func TestLayoutComponent_dylibGoesToLib(t *testing.T) {
+	t.Parallel()
+
+	project := t.TempDir()
+	tree := filepath.Join(project, ".rocks")
+	writeFile(t, filepath.Join(project, "native", "fast_hash.dylib"), "dylib")
+
+	component := manifest.Component{Path: "native/", Include: []string{"*.dylib"}}
+	_, err := layoutComponent(tree, "my-app", component, filepath.Join(project, "native"))
+	require.NoError(t, err)
+
+	// A module of macOS is a module all the same: Tarantool loads it from lib.
+	assert.ElementsMatch(t, []string{
+		"lib/tarantool/my-app/fast_hash.dylib",
+	}, relSet(t, tree))
+}
+
 func TestLayoutComponent_emptyNamespaceIsFlat(t *testing.T) {
 	t.Parallel()
 

@@ -20,8 +20,13 @@ const (
 	libTarantool   = "lib/tarantool"
 )
 
-// sharedObjectExt selects the lib subtree; every other kept file goes to share.
-const sharedObjectExt = ".so"
+// isSharedObject reports whether a file is a native module, of Linux or of
+// macOS, which goes to the lib subtree; every other kept file goes to share.
+func isSharedObject(name string) bool {
+	ext := filepath.Ext(name)
+
+	return ext == ".so" || ext == ".dylib"
+}
 
 // filePerm / dirPerm are the modes for laid-out files and their parents. Source
 // permissions are preserved when readable; these are the fallbacks.
@@ -114,7 +119,7 @@ func relComponents(root, path string) ([]string, error) {
 // file's path relative to the component root.
 func destPath(tree, namespace string, rel []string) string {
 	sub := shareTarantool
-	if strings.HasSuffix(rel[len(rel)-1], sharedObjectExt) {
+	if isSharedObject(rel[len(rel)-1]) {
 		sub = libTarantool
 	}
 

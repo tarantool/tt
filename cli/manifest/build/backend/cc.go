@@ -89,6 +89,22 @@ func concat(base, extra []string) []string {
 	return append(out, extra...)
 }
 
+// darwinModuleExt is the extension of a native module on macOS: Tarantool
+// looks for .rocks/lib/tarantool/?.dylib there, and for no .so.
+const darwinModuleExt = ".dylib"
+
+// moduleExt is the extension of a native module Tarantool loads on goos:
+// .dylib on macOS, and the extension of the toolchain, .so, elsewhere. The
+// toolchain says .so on macOS too, as LuaRocks does, which Tarantool would
+// not find.
+func moduleExt(goos, ext string) string {
+	if goos == darwinOS {
+		return darwinModuleExt
+	}
+
+	return ext
+}
+
 // artifactName builds the compiled artifact's flat leaf filename from the
 // module name and the toolchain extension. module is used verbatim (a dotted
 // module yields a literal a.b<ext>, not slashed into subdirectories) and the
@@ -99,7 +115,8 @@ func artifactName(module, ext string) string {
 
 // Run compiles the c / lua-c component. It asserts the absolute-path contract,
 // fails fast when the Tarantool headers are unconfigured, creates OutputDir,
-// then runs one cc invocation producing <module><Ext> directly in OutputDir.
+// then runs one cc invocation producing <module><ext> directly in OutputDir,
+// the extension being the one Tarantool loads on the target (see moduleExt).
 // module is a flat leaf name, so a dotted module yields a literal a.b.so — it
 // is not slashed into subdirectories. c / lua-c ignore build.Output (the artifact
 // is the compiled library, not a copy list).
@@ -118,7 +135,8 @@ func (c ccBackend) Run(ctx context.Context, build manifest.Build, cwd string, en
 		return fmt.Errorf("create output directory %q: %w", env.OutputDir, err)
 	}
 
-	out := filepath.Join(env.OutputDir, artifactName(build.Module, c.flags.Ext))
+	ext := moduleExt(env.platformOS(), c.flags.Ext)
+	out := filepath.Join(env.OutputDir, artifactName(build.Module, ext))
 	args := ccArgs(build, c.flags, out, env.platformOS())
 
 	return run(ctx, cwd, env, c.showOutput, c.flags.CC, args...)

@@ -71,6 +71,11 @@ optional build.
   [external process](../how-to/external-processes.md) of the application
   runs it.
 
+A native module is `<module>.so` in `.rocks/lib/tarantool/<namespace>/`, and
+`<module>.dylib` on macOS, where Tarantool looks for no other name: the `c`
+and `lua-c` backends name it so, and a `.dylib` a component lays out goes
+there as a `.so` does.
+
 A product is a set of components built and packed together. A manifest
 without `[products]` has one implicit product, `default`, made of every
 component.

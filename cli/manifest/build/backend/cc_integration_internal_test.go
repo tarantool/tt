@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -48,7 +49,7 @@ func TestCcCompilesSingleSource(t *testing.T) {
 
 	err := ccBackend{flags: flags}.Run(context.Background(), b, cwd, Env{OutputDir: out})
 	require.NoError(t, err)
-	assert.FileExists(t, filepath.Join(out, "answer"+flags.Ext))
+	assert.FileExists(t, filepath.Join(out, "answer"+moduleExt(runtime.GOOS, flags.Ext)))
 }
 
 func TestCcCompilesMultiSource(t *testing.T) {
@@ -71,7 +72,7 @@ func TestCcCompilesMultiSource(t *testing.T) {
 
 	err := ccBackend{flags: flags}.Run(context.Background(), build, cwd, Env{OutputDir: out})
 	require.NoError(t, err)
-	assert.FileExists(t, filepath.Join(out, "parts"+flags.Ext))
+	assert.FileExists(t, filepath.Join(out, "parts"+moduleExt(runtime.GOOS, flags.Ext)))
 }
 
 // TestCcCompilesAgainstTarantoolHeaders proves the include-dir wiring works
@@ -98,5 +99,5 @@ func TestCcCompilesAgainstTarantoolHeaders(t *testing.T) {
 
 	err := ccBackend{flags: flags}.Run(context.Background(), build, cwd, Env{OutputDir: out})
 	require.NoError(t, err)
-	assert.FileExists(t, filepath.Join(out, "headercheck"+flags.Ext))
+	assert.FileExists(t, filepath.Join(out, "headercheck"+moduleExt(runtime.GOOS, flags.Ext)))
 }
