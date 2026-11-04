@@ -89,9 +89,13 @@ func concat(base, extra []string) []string {
 	return append(out, extra...)
 }
 
-// darwinModuleExt is the extension of a native module on macOS: Tarantool
-// looks for .rocks/lib/tarantool/?.dylib there, and for no .so.
-const darwinModuleExt = ".dylib"
+const (
+	// linuxModuleExt is the extension of a native module on Linux.
+	linuxModuleExt = ".so"
+	// darwinModuleExt is the extension of a native module on macOS: Tarantool
+	// looks for .rocks/lib/tarantool/?.dylib there, and for no .so.
+	darwinModuleExt = ".dylib"
+)
 
 // moduleExt is the extension of a native module Tarantool loads on goos:
 // .dylib on macOS, and the extension of the toolchain, .so, elsewhere. The

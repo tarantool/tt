@@ -332,8 +332,8 @@ func validateKind(field string, comp Component) error {
 }
 
 // validateKindBackend checks that the backend of a component's build makes
-// what the kind of the component is: go and cargo make programs only, c and
-// lua-c make modules only, make and shell make either.
+// what the kind of the component is: go makes programs only, c and lua-c
+// make modules only, cargo, make and shell make either.
 func validateKindBackend(field string, comp Component) error {
 	backend := comp.Build.Backend
 
@@ -341,17 +341,49 @@ func validateKindBackend(field string, comp Component) error {
 	case comp.IsExecutable() && (backend == backendC || backend == backendLuaC):
 		return invalid(field, "backend %q builds a module, not a program (kind %q wants "+
 			"go, cargo, make or shell)", backend, KindExecutable)
-	case !comp.IsExecutable() && isProgramBackend(backend):
+	case !comp.IsExecutable() && backend == backendGo:
 		return invalid(field, "backend %q builds a program: set kind = %q on the component",
 			backend, KindExecutable)
+	case backend == backendCargo:
+		return validateCargoKind(field, comp)
 	}
 
 	return nil
 }
 
-// isProgramBackend reports whether backend builds programs only.
+// validateCargoKind checks the fields of a cargo build that belong to one
+// kind: bin and static to the binary of an executable component, module to
+// the library of a module component.
+func validateCargoKind(field string, comp Component) error {
+	build := comp.Build
+
+	switch {
+	case comp.IsExecutable() && build.Module != "":
+		return invalid(field+".module", "names the library of a module component; "+
+			"kind %q builds the binary bin", KindExecutable)
+	case comp.IsExecutable():
+		return nil
+	case build.Bin != "":
+		return invalid(field+".bin", "names the binary of an executable component; "+
+			"a module component builds the library of the package, named by module")
+	case build.Static != nil:
+		return invalid(field+".static", "is for an executable component: a module "+
+			"takes the symbols of Tarantool when it is loaded")
+	}
+
+	return nil
+}
+
+// isProgramBackend reports whether backend is one of those that came with
+// executable components, go and cargo, whose fields are checked strictly.
 func isProgramBackend(backend string) bool {
 	return backend == backendGo || backend == backendCargo
+}
+
+// isLegacyBackend reports whether backend is one of the four that were there
+// before go and cargo: make, shell, c and lua-c.
+func isLegacyBackend(backend string) bool {
+	return !isProgramBackend(backend)
 }
 
 // programNameRe is the shape of a program name a go or cargo build is given:
@@ -361,6 +393,11 @@ var programNameRe = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._+-]*$`)
 
 // cargoProfileRe is the shape cargo allows a profile name.
 var cargoProfileRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
+// cargoModuleRe is the shape of the module a cargo build makes: the file is
+// <module>.so in the namespace of the component, and the module is a name of
+// require and of the C functions of box.schema.func.create, so no dot.
+var cargoModuleRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 func validateBuild(field string, build Build) error {
 	switch build.Backend {
@@ -425,6 +462,11 @@ func validateCargoBuild(field string, build Build) error {
 		return invalid(field+".bin", "%q is not a file name", build.Bin)
 	}
 
+	if build.Module != "" && !cargoModuleRe.MatchString(build.Module) {
+		return invalid(field+".module", "%q is not a module name: a letter or _, "+
+			"then letters, digits and _", build.Module)
+	}
+
 	for _, feature := range build.Features {
 		if feature == "" || strings.ContainsAny(feature, ", \t\n") {
 			return invalid(field+".features", "%q is not a feature name", feature)
@@ -456,7 +498,7 @@ func backendFields(build Build) []backendField {
 		{"flags", build.Flags != nil, []string{backendMake}},
 		{"command", build.Command != "", []string{backendShell}},
 		{"args", build.Args != nil, []string{backendShell}},
-		{"module", build.Module != "", ccDriver},
+		{"module", build.Module != "", []string{backendC, backendLuaC, backendCargo}},
 		{"sources", build.Sources != nil, ccDriver},
 		{"include_dirs", build.IncludeDirs != nil, ccDriver},
 		{"libraries", build.Libraries != nil, ccDriver},
@@ -492,7 +534,9 @@ func validateBackendFields(field string, build Build) error {
 			continue
 		}
 
-		legacyField := !slices.ContainsFunc(key.owners, isProgramBackend)
+		// A field a backend of the four owns is one of theirs, module
+		// included, which cargo shares.
+		legacyField := slices.ContainsFunc(key.owners, isLegacyBackend)
 		if legacyField && !isProgramBackend(build.Backend) {
 			continue
 		}

@@ -93,6 +93,9 @@ type Env struct {
 	Arch string
 	// Extra carries the [build].env pairs supplied by the manifest.
 	Extra map[string]string
+	// Module is set for the build of a module component: the cargo backend
+	// builds the library of the package then, and the binary otherwise.
+	Module bool
 }
 
 // platformOS returns env.OS, defaulting to the host runtime.GOOS when empty so

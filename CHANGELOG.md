@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `backend = "cargo"` builds a module component too: the library of the
+  package as a `cdylib`, the native module `<module>.so` - `.dylib` on macOS,
+  linked with `-undefined dynamic_lookup` - which Tarantool loads with
+  `require` and as the module of C functions, such as those of the
+  `tarantool` crate. `module` names it; the name of the library is the
+  default. `target/` of the component is not laid out.
+
 ### Changed
 
 ### Fixed

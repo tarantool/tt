@@ -218,6 +218,53 @@ build script says hi
 	require.ErrorIs(t, err, errNoArtifact)
 }
 
+func TestCargoModuleArgs(t *testing.T) {
+	t.Parallel()
+
+	build := manifest.Build{Backend: BackendCargo, Package: "fast", Features: []string{"simd"}}
+
+	assert.Equal(t, []string{
+		"rustc", "--lib", "--crate-type", "cdylib", "--profile", "release",
+		"--message-format=json-render-diagnostics", "--package", "fast", "--features", "simd",
+	}, cargoModuleArgs(build, "", "linux"))
+
+	// On macOS the library leaves its symbols of Tarantool to the loader, and
+	// only the library: the arguments after -- go to its rustc alone.
+	assert.Equal(t, []string{
+		"rustc", "--lib", "--crate-type", "cdylib", "--profile", "dev",
+		"--message-format=json-render-diagnostics", "--target", "aarch64-apple-darwin",
+		"--", "-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup",
+	}, cargoModuleArgs(manifest.Build{Backend: BackendCargo, Profile: "dev"},
+		"aarch64-apple-darwin", darwinOS))
+}
+
+func TestCargoLibrary(t *testing.T) {
+	t.Parallel()
+
+	stdout := []byte(`{"reason":"compiler-artifact","target":{"kind":["lib"],"name":"tlua"},` +
+		`"filenames":["/p/target/release/deps/libtlua-1.rlib"]}
+{"reason":"compiler-artifact","target":{"kind":["cdylib"],"name":"helper"},` +
+		`"filenames":["/p/target/release/deps/libhelper.so"]}
+a build script says hi
+{"reason":"compiler-artifact","target":{"kind":["cdylib"],"name":"fast_rs"},` +
+		`"filenames":["/p/target/release/libfast_rs.d","/p/target/release/libfast_rs.so"]}
+{"reason":"build-finished","success":true}
+`)
+
+	library, name, err := cargoLibrary(stdout)
+	require.NoError(t, err)
+	assert.Equal(t, "/p/target/release/libfast_rs.so", library, "the package comes last")
+	assert.Equal(t, "fast_rs", name)
+
+	library, _, err = cargoLibrary([]byte(`{"reason":"compiler-artifact",` +
+		`"target":{"kind":["cdylib"],"name":"m"},"filenames":["/p/libm.dylib"]}`))
+	require.NoError(t, err)
+	assert.Equal(t, "/p/libm.dylib", library)
+
+	_, _, err = cargoLibrary([]byte(`{"reason":"build-finished","success":true}`))
+	require.ErrorIs(t, err, errNoArtifact)
+}
+
 func TestPreflight(t *testing.T) {
 	t.Parallel()
 

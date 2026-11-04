@@ -44,7 +44,7 @@ $ tt instance status
 - [Concepts](concepts/projects-and-scopes.md): projects and scopes, packages,
   instances - the model the commands share.
 - [How-to](how-to/binaries.md): deploy, run under systemd, sign packages,
-  extend tt.
+  extend tt, build a module in Rust.
 - [Reference](reference/commands/index.md): every command, the files tt
   reads, the environment variables.
 - [Migrate from tt 2.x](migration_from_older_versions.md).

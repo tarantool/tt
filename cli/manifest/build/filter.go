@@ -4,6 +4,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/build/backend"
 )
 
 // defaultInclude is the include set applied when a component declares none: the
@@ -13,6 +14,9 @@ import (
 func defaultInclude() []string {
 	return []string{"*.lua", "*.so"}
 }
+
+// cargoTargetDir is the directory a cargo build leaves in its component.
+const cargoTargetDir = "/target/"
 
 // defaultExclude is always applied, ahead of the component's own exclude list.
 // These entries are packaging hazards or tt-internal state that must never land
@@ -56,6 +60,13 @@ func newFileFilter(component manifest.Component) fileFilter {
 	// defaultExclude returns a fresh slice, so appending the component's own
 	// patterns onto it neither mutates the defaults nor drops them.
 	exclude := append(defaultExclude(), component.Exclude...)
+
+	// A cargo build leaves cargo's target/ in the component: the library and
+	// the proc-macros of the dependencies, which are no files of the package.
+	// The backend takes the library from there itself.
+	if component.Build != nil && component.Build.Backend == backend.BackendCargo {
+		exclude = append(exclude, cargoTargetDir)
+	}
 
 	return fileFilter{
 		include: gitignore.NewMatcher(parsePatterns(include)),

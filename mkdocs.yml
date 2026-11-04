@@ -46,6 +46,7 @@ nav:
       - how-to/external-processes.md
       - how-to/sign-packages.md
       - how-to/external-modules.md
+      - how-to/rust-modules.md
       - how-to/build-distribution.md
       - Migrate from tt 2.x: migration_from_older_versions.md
   - Reference:

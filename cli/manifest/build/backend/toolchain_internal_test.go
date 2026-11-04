@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -227,6 +228,83 @@ func TestCargoBackendBuildsTheBinary(t *testing.T) {
 
 	inspectOutput(t, out, "agent")
 	assert.Equal(t, "agent", runProgram(t, filepath.Join(out, "agent")))
+}
+
+// cargoLibraryCrate writes a crate whose library is a Lua module without
+// dependencies, which builds offline: require of it returns 42. Its symbol of
+// Lua is left for Tarantool to resolve when it loads the module.
+func cargoLibraryCrate(t *testing.T) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	writeFiles(t, dir, map[string]string{
+		"Cargo.toml": "[package]\nname = \"agent-lib\"\nversion = \"0.1.0\"\n" +
+			"edition = \"2021\"\n\n[dependencies]\n",
+		"src/lib.rs": "use std::os::raw::{c_int, c_void};\n\n" +
+			"extern \"C\" {\n    fn lua_pushinteger(l: *mut c_void, n: isize);\n}\n\n" +
+			"#[no_mangle]\n" +
+			"pub unsafe extern \"C\" fn luaopen_agent_lib(l: *mut c_void) -> c_int {\n" +
+			"    lua_pushinteger(l, 42);\n    1\n}\n\n" +
+			"#[no_mangle]\npub unsafe extern \"C\" fn luaopen_agent(l: *mut c_void) -> c_int {\n" +
+			"    lua_pushinteger(l, 43);\n    1\n}\n",
+	})
+
+	return dir
+}
+
+// requireModule runs Tarantool in a directory whose .rocks holds the module
+// file and returns what require of name gave; it skips the rest of the test
+// without a tarantool in PATH.
+func requireModule(t *testing.T, file, name string) string {
+	t.Helper()
+
+	tarantool, err := exec.LookPath("tarantool")
+	if err != nil {
+		t.Skip("tarantool is not in PATH: the module is not loaded")
+	}
+
+	app := t.TempDir()
+	lib := filepath.Join(app, ".rocks", "lib", "tarantool")
+	require.NoError(t, os.MkdirAll(lib, dirPerm))
+	require.NoError(t, copyFile(file, filepath.Join(lib, filepath.Base(file))))
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, tarantool, "-e",
+		"io.write(tostring(require('"+name+"'))) os.exit(0)")
+
+	cmd.Dir = app
+
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+
+	return string(out)
+}
+
+func TestCargoBackendBuildsAModule(t *testing.T) {
+	t.Parallel()
+	requireCargo(t, "")
+
+	cwd := cargoLibraryCrate(t)
+	out := t.TempDir()
+	ext := moduleExt(runtime.GOOS, linuxModuleExt)
+	env := Env{OutputDir: out, Component: "agent-component", Module: true}
+
+	// The module is named after the library cargo builds, agent_lib.
+	build := manifest.Build{Backend: BackendCargo, Profile: "dev"}
+	require.NoError(t, cargoBackend{}.Run(context.Background(), build, cwd, env))
+
+	module := filepath.Join(out, "agent_lib"+ext)
+	assert.FileExists(t, module)
+
+	// module renames it.
+	build.Module = "agent"
+	require.NoError(t, cargoBackend{}.Run(context.Background(), build, cwd, env))
+	assert.FileExists(t, filepath.Join(out, "agent"+ext))
+
+	assert.Equal(t, "42", requireModule(t, module, "agent_lib"))
+	assert.Equal(t, "43", requireModule(t, filepath.Join(out, "agent"+ext), "agent"))
 }
 
 func TestCargoBackendBuildsAStaticBinary(t *testing.T) {

@@ -115,21 +115,27 @@ and are not packed. A component may declare dependencies of its own in
 
 | Field | Backends | |
 | --- | --- | --- |
-| `backend` | | `c`, `lua-c` (module components); `go`, `cargo` (executable components); `make`, `shell` (either) |
+| `backend` | | `c`, `lua-c` (module components); `go` (executable components); `cargo`, `make`, `shell` (either) |
 | `cwd`, `env`, `output` | all | the directory the build runs in, its environment, the files it makes |
 | `make_target`, `entrypoint`, `flags` | `make` | `make_target` is required |
 | `command`, `args` | `shell` | `command` is required |
 | `module`, `sources`, `include_dirs`, `libraries`, `library_dirs`, `defines` | `c`, `lua-c` | `module` and `sources` are required |
+| `module` | `cargo` | the name of the module a module component builds: the name of the library by default |
 | `platforms.<os>` | `c`, `lua-c` | more `include_dirs`, `libraries`, `library_dirs`, `defines` for one OS |
 | `package` | `go`, `cargo` | the Go package, `.` by default, or the cargo package |
-| `static` | `go`, `cargo` | a program that needs no loader and no shared library |
+| `static` | `go`, `cargo` | a program that needs no loader and no shared library; for an executable component |
 | `name`, `tags`, `ldflags`, `cgo` | `go` | `name` is the component's name by default; cgo is off by default |
-| `bin`, `features`, `profile` | `cargo` | `bin` is the component's name by default; `profile` is `release` by default |
+| `bin`, `features`, `profile` | `cargo` | `bin`, of an executable component, is the component's name by default; `profile` is `release` by default |
 
 A build gets its contract in the environment: `TT_OUTPUT_DIR`, where it
 puts what it makes, `TT_PROJECT_ROOT`, `TT_PACKAGE`, `TT_COMPONENT_NAME`,
 `TT_VERSION`, `TT_PLATFORM_OS` and `TT_PLATFORM_ARCH`. `env` of the build
 cannot override them.
+
+`cargo` builds the binary `bin` of an executable component, and the library
+of the package of a module component: a `cdylib`, which is the native
+module `<module>.so`, `<module>.dylib` on macOS. `target/` of a component
+cargo builds is not laid out. See [Build a module in Rust](../how-to/rust-modules.md).
 
 ## `[products.NAME]`
 
