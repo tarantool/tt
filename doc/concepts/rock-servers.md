@@ -30,7 +30,10 @@ https://luarocks.org/         default
 ```
 
 A dependency may name a server of its own: `crud = { version = "1.5.2",
-registry = "https://my.mirror/" }`.
+registry = "https://my.mirror/" }`. The rock is then resolved from that
+server and installed from it, whatever the list is; the rocks it depends on
+come from the list. A directory there is taken from the manifest's directory,
+as in `[platform].registries`, whichever directory tt runs in.
 
 ## Searching
 

@@ -8,7 +8,72 @@ import (
 	"github.com/tarantool/go-luarocks/client"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
+
+// rockServers says where materialize installs each registry rock from: the
+// server a dependency's declaration names as its registry, or the effective
+// list otherwise. The lock does not record servers, so the override has to
+// come from the manifest again; without it a rock the resolver found only in
+// the declared registry would be looked for where it never was.
+type rockServers struct {
+	// defaults is the effective server list.
+	defaults []string
+	// overrides maps a rock name to the one server its declaration names.
+	overrides map[string]string
+}
+
+// of returns the servers to install the rock name from.
+func (s rockServers) of(name string) []string {
+	if server, ok := s.overrides[name]; ok {
+		return []string{server}
+	}
+
+	return s.defaults
+}
+
+// dependencyServers builds the rockServers of a run: defaults for every rock,
+// and the registry its declaration names for every dependency that names one
+// - in [dependencies], [dev_dependencies] or a component's own table. The
+// resolver has already refused declarations of one name that disagree on the
+// registry, so the first one found is the one.
+func dependencyServers(
+	man *manifest.Manifest, projectDir string, defaults []string,
+) (rockServers, error) {
+	servers := rockServers{defaults: defaults, overrides: map[string]string{}}
+
+	// The document-level tables, then one per component.
+	documentTables := []map[string]manifest.Dependency{man.Dependencies, man.DevDependencies}
+
+	tables := make([]map[string]manifest.Dependency, 0, len(documentTables)+len(man.Components))
+
+	tables = append(tables, documentTables...)
+
+	for _, component := range man.Components {
+		tables = append(tables, component.Dependencies)
+	}
+
+	for _, table := range tables {
+		for name, dependency := range table {
+			if dependency.Registry == "" {
+				continue
+			}
+
+			if _, seen := servers.overrides[name]; seen {
+				continue
+			}
+
+			server, err := rocks.DependencyRegistry(dependency.Registry, projectDir)
+			if err != nil {
+				return rockServers{}, fmt.Errorf("dependency %q: %w", name, err)
+			}
+
+			servers.overrides[name] = server
+		}
+	}
+
+	return servers, nil
+}
 
 // Lock dependency sources (mirrors the closed set the resolver writes).
 const (
@@ -53,7 +118,7 @@ type rockBuilder interface {
 func materialize(
 	ctx context.Context, registryClient rockInstaller, pathClient rockBuilder,
 	projectDir string, prod manifest.LockProduct, dev []manifest.LockDependency,
-	servers []string,
+	servers rockServers,
 ) error {
 	done := make(map[string]bool, len(prod.Dependencies))
 
@@ -86,13 +151,13 @@ func materialize(
 func materializeDep(
 	ctx context.Context, registryClient rockInstaller, pathClient rockBuilder,
 	projectDir string, dep manifest.LockDependency,
-	servers []string,
+	servers rockServers,
 ) error {
 	switch dep.Source {
 	case sourceRegistry:
 		opts := client.InstallOpts{
 			Version: dep.Version,
-			Servers: servers,
+			Servers: servers.of(dep.Name),
 			Deps:    client.DepsNone,
 		}
 

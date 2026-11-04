@@ -245,6 +245,17 @@ func (w *walker) resolveOne(ctx context.Context, req depReq) (*resolvedDep, []de
 // transport failure, an unparseable expression - is a real failure and
 // propagates, so the second query cannot paper over one.
 func (w *walker) resolveRegistry(ctx context.Context, req depReq) (rocks.ResolvedRock, error) {
+	if req.registry != "" {
+		// A directory is written relative to the manifest, not to wherever tt
+		// happens to run; materialize resolves it the same way.
+		registry, err := rocks.DependencyRegistry(req.registry, w.engine.projectDir)
+		if err != nil {
+			return rocks.ResolvedRock{}, fmt.Errorf("registry of %q: %w", req.name, err)
+		}
+
+		req.registry = registry
+	}
+
 	pinned, held := w.pins[req.name]
 	if !held {
 		return w.cache.resolveRock(
