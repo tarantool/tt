@@ -26,7 +26,8 @@ operating Tarantool applications.
   backups and point-in-time recovery.
 - **Runs WebAssembly components** in Tarantool (experimental): code in
   Python, Go, Rust, C, JavaScript or C# built into the package and called
-  from Lua; see [Run WebAssembly components](how-to/wasm-components.md).
+  from Lua; see [Run WebAssembly components](how-to/wasm-components.md) and
+  [An HTTP API in a WebAssembly component](write-your-app/http-api-in-wasm.md).
 
 ## Try it
 
@@ -46,6 +47,8 @@ $ tt instance status
   package.
 - [Concepts](concepts/projects-and-scopes.md): projects and scopes, packages,
   instances - the model the commands share.
+- [Write your application](write-your-app/http-api-in-wasm.md): a whole
+  application, step by step.
 - [How-to](how-to/binaries.md): deploy, run under systemd, sign packages,
   extend tt, build a module in Rust, run WebAssembly components.
 - [Reference](reference/commands/index.md): every command, the files tt

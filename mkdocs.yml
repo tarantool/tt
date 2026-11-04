@@ -32,6 +32,8 @@ nav:
       - get-started/install.md
       - get-started/first-cluster.md
       - get-started/first-package.md
+  - Write your application:
+      - write-your-app/http-api-in-wasm.md
   - Concepts:
       - concepts/projects-and-scopes.md
       - concepts/packages.md

@@ -165,6 +165,8 @@ it; the instances keep their data under `var/` of the scope. See
 
 ## Next
 
+- [An HTTP API in a WebAssembly component](../write-your-app/http-api-in-wasm.md):
+  an application with its HTTP server in Python, built into the package.
 - [Packages](../concepts/packages.md): the manifest, the lock and the
   archive.
 - [`app.manifest.toml`](../reference/app-manifest.md): every field.
