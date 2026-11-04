@@ -58,7 +58,7 @@ func Preflight(build manifest.Build, env Env) error {
 		}
 	}
 
-	_, err := exec.LookPath(tool)
+	_, err := exec.LookPath(lookPathIn(tool, env.environ()))
 	if err != nil {
 		return fmt.Errorf("%w: the %s backend runs %q, which is not in PATH",
 			ErrNoTool, build.Backend, tool)

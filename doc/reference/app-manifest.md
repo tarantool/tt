@@ -140,6 +140,10 @@ of the package of a module component: a `cdylib`, which is the native
 module `<module>.so`, `<module>.dylib` on macOS. `target/` of a component
 cargo builds is not laid out. See [Build a module in Rust](../how-to/rust-modules.md).
 
+`.tarantool/bin` of the project, where `tt binary` puts the
+programs of the project, comes first on the `PATH` of a build and of
+a hook: a `command` names such a program without `.env/activate.sh` sourced.
+
 ## `[products.NAME]`
 
 | Field | |

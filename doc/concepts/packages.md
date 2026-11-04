@@ -88,6 +88,10 @@ component.
 components out, with `version.lua` of the package. `tt package fetch` only
 installs `.rocks/` from the lock, with no build.
 
+- A build backend finds the programs of the project's `.tarantool/bin` -
+  what `tt binary` installed - ahead of `PATH`, with or without
+  `.env/activate.sh`.
+
 The version of a package is, in order:
 
 1. the line of a `VERSION` file next to the manifest;

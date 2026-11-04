@@ -137,7 +137,7 @@ func (e Env) baseEnviron() []string {
 		out = append(out, k+"="+e.Extra[k])
 	}
 
-	return out
+	return withProjectBin(out, e.ProjectRoot)
 }
 
 // environ is the full component-build contract: baseEnviron plus the seven TT_*
@@ -232,8 +232,9 @@ func runEnviron(
 	ctx context.Context, cwd string, environ []string,
 	showOutput bool, name string, args ...string,
 ) error {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := exec.CommandContext(ctx, lookPathIn(name, environ), args...)
 
+	cmd.Args[0] = name
 	cmd.Env = environ
 
 	return util.RunCommand(cmd, cwd, showOutput)

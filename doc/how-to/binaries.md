@@ -37,6 +37,8 @@ system scopes, and `source .env/activate.sh` in a project. The first
 `tt binary install` of a project writes `.env/activate.sh` and
 `.env/deactivate.sh`; existing scripts are kept. The instance commands of a
 project do not need them: they run the project's Tarantool by themselves.
+Nor do the builds of its components: a build backend and a hook find the
+programs of `.tarantool/bin` ahead of `PATH`.
 
 Community releases are installed from prebuilt binaries where there are
 some - Tarantool on Linux amd64 and arm64 with glibc, tt on Linux amd64 and
