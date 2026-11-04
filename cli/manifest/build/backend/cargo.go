@@ -327,8 +327,9 @@ func runCapture(
 	ctx context.Context, cwd string, environ []string,
 	showOutput bool, name string, args ...string,
 ) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := exec.CommandContext(ctx, lookPathIn(name, environ), args...)
 
+	cmd.Args[0] = name
 	cmd.Env = environ
 	cmd.Dir = cwd
 

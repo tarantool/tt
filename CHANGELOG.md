@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   release instead of the newest tag, so a tag pushed before its release no
   longer makes the install build from source. `--source-build` and
   `--local-repo` keep the newest tag.
+- The builds of the components and the hooks find the programs of the
+  project's `.tarantool/bin`, where `tt binary` installs them, ahead of
+  `PATH`, with or without `.env/activate.sh`.
 
 ### Fixed
 
