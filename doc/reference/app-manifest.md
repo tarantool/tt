@@ -116,7 +116,9 @@ and are not packed. A component may declare dependencies of its own in
 
 A `.wasm` file a module component lays out has to be a WebAssembly binary: a
 file of another kind fails the build, and a core module, which tarantool-wasm
-does not load, is laid out with a warning.
+does not load, is laid out with a warning. `tt wasm new` declares the
+components tarawasm builds; see
+[Run WebAssembly components](../how-to/wasm-components.md).
 
 ### `[components.NAME.build]`
 
@@ -153,8 +155,8 @@ last build is in `_build/cache/<component>.json`, and `--rebuild` of
 `tt package build` and `tt package pack` builds anyway; see
 [Incremental builds](../concepts/packages.md#incremental-builds).
 
-`.tarantool/bin` of the project, where `tt binary` puts the
-programs of the project, comes first on the `PATH` of a build and of
+`.tarantool/bin` of the project, where `tt binary` and `tt wasm prepare`
+put the programs of the project, comes first on the `PATH` of a build and of
 a hook: a `command` names such a program without `.env/activate.sh` sourced.
 
 ## `[products.NAME]`

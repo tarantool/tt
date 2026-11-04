@@ -798,6 +798,8 @@ func runPackagePack() error {
 		return err
 	}
 
+	warnWasmSDK(projectDir)
+
 	ctx := context.Background()
 
 	result, err := pack.Run(ctx, pack.Options{
@@ -911,6 +913,8 @@ func runPackage(args []string, fetchOnly bool) error {
 	if len(args) == 1 {
 		component = args[0]
 	}
+
+	warnWasmSDK(projectDir)
 
 	return build.Run(context.Background(), build.Options{
 		ProjectDir: projectDir,

@@ -48,6 +48,7 @@ nav:
       - how-to/external-modules.md
       - how-to/rust-modules.md
       - how-to/build-distribution.md
+      - how-to/wasm-components.md
       - Migrate from tt 2.x: migration_from_older_versions.md
   - Reference:
       - Commands:
@@ -77,6 +78,7 @@ nav:
           - tt tcm: reference/commands/tcm.md
           - tt test: reference/commands/test.md
           - tt version: reference/commands/version.md
+          - tt wasm: reference/commands/wasm.md
           - Exit codes: reference/commands/errors.md
       - reference/app-manifest.md
       - reference/instances-yaml.md

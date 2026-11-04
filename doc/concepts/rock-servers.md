@@ -57,6 +57,10 @@ Running it again extends the mirror in place. A dependency that does not
 come from a rock server, a `path` one, has no rock to mirror and is skipped
 with a warning.
 
+`tt wasm rock` packs a server of the same kind for the `wasm` rock of
+tarantool-wasm: the rock of every platform of a release, with its index; see
+[Run WebAssembly components](../how-to/wasm-components.md#share-the-rock).
+
 <!-- TODO(writers): verify the offline build end to end; a rockspec-only rock
 was reported to need its git source (see the v3 features notes). -->
 

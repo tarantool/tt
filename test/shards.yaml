@@ -52,3 +52,4 @@ tooling:
 - service
 - uninstall
 - version
+- wasm

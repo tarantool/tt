@@ -24,6 +24,9 @@ operating Tarantool applications.
   system-wide.
 - **Operates** a cluster: its configuration, replica sets and failover,
   backups and point-in-time recovery.
+- **Runs WebAssembly components** in Tarantool (experimental): code in
+  Python, Go, Rust, C, JavaScript or C# built into the package and called
+  from Lua; see [Run WebAssembly components](how-to/wasm-components.md).
 
 ## Try it
 
@@ -44,7 +47,7 @@ $ tt instance status
 - [Concepts](concepts/projects-and-scopes.md): projects and scopes, packages,
   instances - the model the commands share.
 - [How-to](how-to/binaries.md): deploy, run under systemd, sign packages,
-  extend tt, build a module in Rust.
+  extend tt, build a module in Rust, run WebAssembly components.
 - [Reference](reference/commands/index.md): every command, the files tt
   reads, the environment variables.
 - [Migrate from tt 2.x](migration_from_older_versions.md).

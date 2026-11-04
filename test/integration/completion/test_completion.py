@@ -37,6 +37,7 @@ tt_root_command: set[str] = set(
         "backup-id",
         "restore",
         "service",
+        "wasm",
     ),
 )
 
