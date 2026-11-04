@@ -27,7 +27,8 @@ var cargoArches = map[string]string{
 }
 
 // cargoBackend builds a Rust binary with cargo build and copies it into
-// TT_OUTPUT_DIR under its bin name.
+// TT_OUTPUT_DIR under its bin name; for a module component, the library of
+// the package, which Tarantool loads as a native module (see runModule).
 //
 // Where cargo puts the binary depends on the target, the profile and the
 // target directory the project or the environment configures, so the path is
@@ -39,7 +40,7 @@ type cargoBackend struct {
 
 // Run builds the binary of build in cwd as
 // cargo build --profile <profile> --bin <bin> and copies it to
-// $TT_OUTPUT_DIR/<bin>.
+// $TT_OUTPUT_DIR/<bin>; for a module component, the library (see runModule).
 func (c cargoBackend) Run(ctx context.Context, build manifest.Build, cwd string, env Env) error {
 	err := requireAbsPaths(cwd, env.OutputDir)
 	if err != nil {
@@ -49,6 +50,10 @@ func (c cargoBackend) Run(ctx context.Context, build manifest.Build, cwd string,
 	err = Preflight(build, env)
 	if err != nil {
 		return err
+	}
+
+	if env.Module {
+		return c.runModule(ctx, build, cwd, env)
 	}
 
 	bin := build.Executables(env.Component)[0]
@@ -82,18 +87,95 @@ func (c cargoBackend) Run(ctx context.Context, build manifest.Build, cwd string,
 	return nil
 }
 
+// runModule builds the library of the package in cwd as a cdylib, which
+// Tarantool loads as a native module - with require, and as the module of C
+// stored procedures - and copies it to $TT_OUTPUT_DIR/<module><ext>: module
+// is the name of the library unless the build names another, and the
+// extension .so, .dylib on macOS (see moduleExt).
+//
+// cargo rustc --crate-type cdylib builds a cdylib whatever crate-type the
+// package declares, and passes the link arguments of macOS to the library
+// alone: its symbols of Tarantool are left to the loader, -undefined
+// dynamic_lookup, as those of a C module are, and the dependencies are built
+// as cargo builds them anyway.
+func (c cargoBackend) runModule(
+	ctx context.Context, build manifest.Build, cwd string, env Env,
+) error {
+	target, err := cargoTarget(build, env)
+	if err != nil {
+		return err
+	}
+
+	goos := env.platformOS()
+
+	stdout, err := runCapture(ctx, cwd, env.environ(), c.showOutput, cargoTool,
+		cargoModuleArgs(build, target, goos)...)
+	if err != nil {
+		return err
+	}
+
+	library, name, err := cargoLibrary(stdout)
+	if err != nil {
+		return err
+	}
+
+	module := build.Module
+	if module == "" {
+		module = name
+	}
+
+	err = os.MkdirAll(env.OutputDir, dirPerm)
+	if err != nil {
+		return fmt.Errorf("create output directory %q: %w", env.OutputDir, err)
+	}
+
+	err = copyFile(library, filepath.Join(env.OutputDir, module+moduleExt(goos, linuxModuleExt)))
+	if err != nil {
+		return fmt.Errorf("copy the library %q: %w", library, err)
+	}
+
+	return nil
+}
+
 // cargoArgs builds the cargo build argv. Diagnostics are rendered by cargo
 // to stderr as usual, and only the JSON messages go to stdout.
 func cargoArgs(build manifest.Build, bin, target string) []string {
-	profile := build.Profile
-	if profile == "" {
-		profile = manifest.DefaultCargoProfile
-	}
+	return append([]string{
+		"build", "--profile", cargoProfile(build), "--bin", bin,
+		"--message-format=json-render-diagnostics",
+	}, cargoSelection(build, target)...)
+}
 
+// cargoModuleArgs builds the cargo rustc argv of the library of a module
+// component, for goos.
+func cargoModuleArgs(build manifest.Build, target, goos string) []string {
 	args := []string{
-		"build", "--profile", profile, "--bin", bin,
+		"rustc", "--lib", "--crate-type", "cdylib", "--profile", cargoProfile(build),
 		"--message-format=json-render-diagnostics",
 	}
+
+	args = append(args, cargoSelection(build, target)...)
+
+	if goos == darwinOS {
+		args = append(args, "--", "-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup")
+	}
+
+	return args
+}
+
+// cargoProfile is the profile of build, release unless it names another.
+func cargoProfile(build manifest.Build) string {
+	if build.Profile == "" {
+		return manifest.DefaultCargoProfile
+	}
+
+	return build.Profile
+}
+
+// cargoSelection is the part of a cargo argv that selects what to build: the
+// package, the features and the target.
+func cargoSelection(build manifest.Build, target string) []string {
+	var args []string
 
 	if build.Package != "" {
 		args = append(args, "--package", build.Package)
@@ -152,14 +234,55 @@ func cargoTarget(build manifest.Build, env Env) (string, error) {
 
 // cargoMessage is the part of a cargo JSON message the backend reads: a
 // compiler-artifact message names the target it built and, for a binary, the
-// executable it produced.
+// executable it produced, and the files it produced.
 type cargoMessage struct {
 	Reason string `json:"reason"`
 	Target struct {
 		Kind []string `json:"kind"`
 		Name string   `json:"name"`
 	} `json:"target"`
-	Executable string `json:"executable"`
+	Executable string   `json:"executable"`
+	Filenames  []string `json:"filenames"`
+}
+
+// cargoLibrary finds the cdylib cargo built among its JSON messages, and the
+// name of its library. cargo reports a package after its dependencies, so the
+// last cdylib is that of the package, should a dependency build one too.
+func cargoLibrary(stdout []byte) (string, string, error) {
+	library, name := "", ""
+
+	scanner := bufio.NewScanner(bytes.NewReader(stdout))
+	scanner.Buffer(nil, len(stdout)+1)
+
+	for scanner.Scan() {
+		var msg cargoMessage
+
+		if json.Unmarshal(scanner.Bytes(), &msg) != nil {
+			continue
+		}
+
+		if msg.Reason != "compiler-artifact" || !slices.Contains(msg.Target.Kind, "cdylib") {
+			continue
+		}
+
+		for _, file := range msg.Filenames {
+			ext := filepath.Ext(file)
+			if ext == linuxModuleExt || ext == darwinModuleExt {
+				library, name = file, msg.Target.Name
+			}
+		}
+	}
+
+	err := scanner.Err()
+	if err != nil {
+		return "", "", fmt.Errorf("reading the cargo messages: %w", err)
+	}
+
+	if library == "" {
+		return "", "", fmt.Errorf("%w for the library of the package", errNoArtifact)
+	}
+
+	return library, name, nil
 }
 
 // cargoExecutable finds the executable of the binary bin among the JSON

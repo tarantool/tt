@@ -420,6 +420,7 @@ func runBackends(
 			OS:          target.OS,
 			Arch:        target.Arch,
 			Extra:       component.Build.Env,
+			Module:      !component.IsExecutable(),
 		}
 
 		cwd := backendCwd(opts.ProjectDir, component)

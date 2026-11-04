@@ -3,7 +3,9 @@ package build
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -303,4 +305,54 @@ func TestRun_fetchWithoutLockFails(t *testing.T) {
 	err := Run(context.Background(), opts)
 	require.Error(t, err)
 	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
+}
+
+// TestRun_cargoModule builds a module component with cargo: its library is a
+// native module of the namespace of the package, and nothing of the target/
+// cargo leaves in the component is laid out.
+func TestRun_cargoModule(t *testing.T) {
+	t.Parallel()
+
+	_, err := exec.LookPath("cargo")
+	if err != nil {
+		t.Skip("cargo is not in PATH")
+	}
+
+	const cargoManifest = `manifest_version = '0.1'
+
+[package]
+name = 'my-app'
+
+[platform]
+tarantool = '>=3.0.0'
+tt = '>=3.0.0'
+
+[components.fast]
+path = 'fast'
+
+[components.fast.build]
+backend = 'cargo'
+profile = 'dev'
+`
+
+	dir := setupProject(t, cargoManifest, map[string]string{
+		"fast/Cargo.toml": "[package]\nname = \"fast\"\nversion = \"0.1.0\"\n" +
+			"edition = \"2021\"\n\n[dependencies]\n",
+		"fast/src/lib.rs": "#[no_mangle]\npub extern \"C\" fn fast_answer() -> i32 { 42 }\n",
+		"fast/init.lua":   "return require('my-app.fast')",
+	})
+
+	require.NoError(t, Run(context.Background(), dryOptions(dir)))
+
+	ext := ".so"
+	if runtime.GOOS == "darwin" {
+		ext = ".dylib"
+	}
+
+	tree := filepath.Join(dir, ".rocks")
+	assert.FileExists(t, filepath.Join(tree, "lib", "tarantool", "my-app", "fast"+ext))
+	assert.FileExists(t, filepath.Join(tree, "share", "tarantool", "my-app", "init.lua"))
+	assert.DirExists(t, filepath.Join(dir, "fast", "target"))
+	assert.NoDirExists(t, filepath.Join(tree, "lib", "tarantool", "my-app", "target"))
+	assert.NoDirExists(t, filepath.Join(tree, "share", "tarantool", "my-app", "target"))
 }

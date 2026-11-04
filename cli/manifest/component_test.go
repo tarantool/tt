@@ -203,10 +203,39 @@ func TestValidateExecutableComponents(t *testing.T) {
 			msg:   `set kind = "executable"`,
 		},
 		{
-			name:  "cargo for a module",
-			body:  "[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"cargo\"\n",
-			field: "components.a.build",
-			msg:   `set kind = "executable"`,
+			name: "bin on a cargo module",
+			body: "[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"cargo\"\n" +
+				"bin = \"a\"\n",
+			field: "components.a.build.bin",
+			msg:   "names the binary of an executable component",
+		},
+		{
+			name: "static on a cargo module",
+			body: "[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"cargo\"\n" +
+				"static = true\n",
+			field: "components.a.build.static",
+			msg:   "is for an executable component",
+		},
+		{
+			name: "module on a cargo program",
+			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
+				"[components.a.build]\nbackend = \"cargo\"\nmodule = \"a\"\n",
+			field: "components.a.build.module",
+			msg:   "names the library of a module component",
+		},
+		{
+			name: "a dotted cargo module",
+			body: "[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"cargo\"\n" +
+				"module = \"a.b\"\n",
+			field: "components.a.build.module",
+			msg:   "is not a module name",
+		},
+		{
+			name: "module on go",
+			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
+				"[components.a.build]\nbackend = \"go\"\nmodule = \"a\"\n",
+			field: "components.a.build.module",
+			msg:   `not of "go"`,
 		},
 		{
 			name: "a field of make on go",
@@ -358,6 +387,15 @@ func TestValidateExecutableComponentsAccepted(t *testing.T) {
 			"[components.gw.build]\nbackend = \"shell\"\ncommand = \"./build.sh\"\n" +
 			"output = [\"out/gw\"]\n",
 		"the module kind spelled out": "[components.lua]\npath = \"src\"\nkind = \"module\"\n",
+		"cargo for a module": "[components.fast]\npath = \"fast\"\n" +
+			"[components.fast.build]\nbackend = \"cargo\"\n",
+		"cargo for a module with its name": "[components.fast]\npath = \"fast\"\n" +
+			"[components.fast.build]\nbackend = \"cargo\"\nmodule = \"fast_rs\"\n" +
+			"package = \"fast\"\nfeatures = [\"simd\"]\nprofile = \"dev\"\n",
+		// module of c and lua-c on a make build was never checked either.
+		"a stray module on make": "[components.lua]\npath = \"src\"\n" +
+			"[components.lua.build]\nbackend = \"make\"\nmake_target = \"all\"\n" +
+			"module = \"x\"\n",
 		// A field of make on a shell build was never checked, and a manifest
 		// that has one keeps building.
 		"a stray make field on shell": "[components.lua]\npath = \"src\"\n" +
