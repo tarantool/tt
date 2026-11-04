@@ -253,8 +253,13 @@ func runFetch(
 		return nil, fmt.Errorf("rocks path client: %w", err)
 	}
 
+	servers, err := dependencyServers(man, projectDir, adapter.Config().Servers)
+	if err != nil {
+		return nil, sdk.Errorf(sdk.ExitFailure, "%w", err)
+	}
+
 	matErr := materialize(ctx, registryClient, pathClient, projectDir, prod,
-		lock.DevDependencies, adapter.Config().Servers)
+		lock.DevDependencies, servers)
 	if matErr != nil {
 		return nil, matErr
 	}
@@ -319,8 +324,13 @@ func runBuild(
 		return nil, fmt.Errorf("rocks path client: %w", err)
 	}
 
+	servers, err := dependencyServers(man, opts.ProjectDir, adapter.Config().Servers)
+	if err != nil {
+		return nil, sdk.Errorf(sdk.ExitFailure, "%w", err)
+	}
+
 	matErr := materialize(ctx, registryClient, pathClient, opts.ProjectDir, prod,
-		lock.DevDependencies, adapter.Config().Servers)
+		lock.DevDependencies, servers)
 	if matErr != nil {
 		return nil, matErr
 	}

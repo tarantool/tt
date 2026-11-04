@@ -47,7 +47,7 @@ func TestMaterialize_registryDepsPinnedNoDeps(t *testing.T) {
 
 	servers := []string{"https://rocks.example.test"}
 	require.NoError(t, materialize(context.Background(), registryClient, pathClient,
-		t.TempDir(), prod, nil, servers))
+		t.TempDir(), prod, nil, rockServers{defaults: servers, overrides: nil}))
 
 	require.Len(t, registryClient.installs, 2)
 	// Order is preserved (topological), each pinned to the exact version with
@@ -73,7 +73,7 @@ func TestMaterialize_pathDepBuildsRockspec(t *testing.T) {
 	}}
 
 	require.NoError(t, materialize(context.Background(), registryClient, pathClient,
-		project, prod, nil, nil))
+		project, prod, nil, rockServers{}))
 
 	require.Len(t, pathClient.builds, 1)
 	assert.Equal(t, filepath.Join(project, "vendor", "mylib", "mylib-scm-1.rockspec"),
@@ -92,7 +92,8 @@ func TestMaterialize_leafPathDepIsSkipped(t *testing.T) {
 		{Name: "leaf", Source: sourcePath, Path: "vendor/leaf"},
 	}}
 
-	require.NoError(t, materialize(context.Background(), fake, fake, project, prod, nil, nil))
+	require.NoError(t, materialize(context.Background(), fake, fake, project, prod, nil,
+		rockServers{}))
 	assert.Empty(t, fake.builds)
 	assert.Empty(t, fake.installs)
 }
@@ -112,7 +113,8 @@ func TestMaterialize_devDepsInstalledAfterProduct(t *testing.T) {
 		{Name: "luatest", Version: "1.0.1-1", Source: sourceRegistry},
 	}
 
-	require.NoError(t, materialize(context.Background(), fake, fake, t.TempDir(), prod, dev, nil))
+	require.NoError(t, materialize(context.Background(), fake, fake, t.TempDir(), prod, dev,
+		rockServers{}))
 
 	require.Len(t, fake.installs, 3)
 	assert.Equal(t, "metrics", fake.installs[0].name)
@@ -138,7 +140,8 @@ func TestMaterialize_devDepSharedWithProductInstalledOnce(t *testing.T) {
 		{Name: "luatest", Version: "1.0.1-1", Source: sourceRegistry},
 	}
 
-	require.NoError(t, materialize(context.Background(), fake, fake, t.TempDir(), prod, dev, nil))
+	require.NoError(t, materialize(context.Background(), fake, fake, t.TempDir(), prod, dev,
+		rockServers{}))
 
 	require.Len(t, fake.installs, 2)
 	assert.Equal(t, "checks", fake.installs[0].name)
@@ -159,7 +162,7 @@ func TestMaterialize_devPathDepBuilt(t *testing.T) {
 	}
 
 	require.NoError(t, materialize(
-		context.Background(), fake, fake, project, manifest.LockProduct{}, dev, nil))
+		context.Background(), fake, fake, project, manifest.LockProduct{}, dev, rockServers{}))
 
 	require.Len(t, fake.builds, 1)
 	assert.Equal(t,
@@ -174,7 +177,55 @@ func TestMaterialize_unknownSource(t *testing.T) {
 		{Name: "weird", Source: "http"},
 	}}
 
-	err := materialize(context.Background(), fake, fake, t.TempDir(), prod, nil, nil)
+	err := materialize(context.Background(), fake, fake, t.TempDir(), prod, nil, rockServers{})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errUnknownSource)
+}
+
+func TestMaterialize_registryOverrideInstallsFromDeclaredServer(t *testing.T) {
+	t.Parallel()
+
+	fake := &fakeRockClient{}
+	prod := manifest.LockProduct{Dependencies: []manifest.LockDependency{
+		{Name: "checks", Version: "3.1.0-1", Source: sourceRegistry},
+		{Name: "wasm", Version: "0.1.0-1", Source: sourceRegistry},
+	}}
+	servers := rockServers{
+		defaults:  []string{"https://rocks.example.test"},
+		overrides: map[string]string{"wasm": "/project/.tarantool/registry"},
+	}
+
+	require.NoError(t, materialize(context.Background(), fake, fake, t.TempDir(), prod, nil,
+		servers))
+
+	require.Len(t, fake.installs, 2)
+	assert.Equal(t, []string{"https://rocks.example.test"}, fake.installs[0].opts.Servers)
+	assert.Equal(t, []string{"/project/.tarantool/registry"}, fake.installs[1].opts.Servers)
+}
+
+func TestDependencyServers_resolvesDeclaredRegistries(t *testing.T) {
+	t.Parallel()
+
+	man := &manifest.Manifest{
+		Dependencies: map[string]manifest.Dependency{
+			"checks": {Source: sourceRegistry, Version: ">=3.0.0"},
+			"wasm": {
+				Source: sourceRegistry, Version: "0.1.0", Registry: ".tarantool/registry",
+			},
+		},
+		DevDependencies: map[string]manifest.Dependency{
+			"luatest": {
+				Source: sourceRegistry, Version: "*", Registry: "https://dev.example.test/",
+			},
+		},
+	}
+
+	servers, err := dependencyServers(man, "/project", []string{"https://rocks.example.test"})
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]string{
+		"wasm":    filepath.Join("/project", ".tarantool", "registry"),
+		"luatest": "https://dev.example.test/",
+	}, servers.overrides)
+	assert.Equal(t, []string{"https://rocks.example.test"}, servers.of("checks"))
 }

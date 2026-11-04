@@ -94,7 +94,10 @@ or in the long form:
 | `source` | `"registry"` (the default) or `"path"` |
 | `version` | the constraint; required for `registry` |
 | `path` | a directory with the rock, relative to the manifest; required for `path` |
-| `registry` | a rock server to take this rock from |
+| `registry` | a rock server to take this rock from: an http(s) URL, or a directory relative to the manifest |
+
+A rock with a `registry` is resolved and installed from that server only;
+the rocks it depends on come from the registries of the project.
 
 `[dev_dependencies]` are installed for the tests and tools of the project,
 and are not packed. A component may declare dependencies of its own in

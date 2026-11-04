@@ -33,6 +33,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `checksums.txt` of the release. A mismatch fails the install instead of
   falling back to a source build; releases before 1.1.0 publish no checksums
   and install unverified with a warning.
+- `tt package build` and `tt package fetch` install a dependency declared
+  with `registry` from that server: they looked for it in the configured
+  registries only, where it may not be. A directory in `registry` is
+  relative to the manifest, as one in `[platform].registries` is; it was
+  relative to the directory tt ran in.
 
 ## [3.0.0-alpha.1] - 2026-11-03
 

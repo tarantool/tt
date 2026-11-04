@@ -86,8 +86,13 @@ func EnsureDevRocks(
 		return fmt.Errorf("rocks path client: %w", err)
 	}
 
+	servers, err := dependencyServers(man, opts.ProjectDir, adapter.Config().Servers)
+	if err != nil {
+		return err
+	}
+
 	return materialize(ctx, registryClient, pathClient, opts.ProjectDir,
-		manifest.LockProduct{}, missing, adapter.Config().Servers)
+		manifest.LockProduct{}, missing, servers)
 }
 
 // notInstalled narrows a resolved closure to the rocks the project tree does

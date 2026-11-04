@@ -161,6 +161,16 @@ func resolveLayer(values []string, source Source, base string) ([]Registry, erro
 	return out, nil
 }
 
+// DependencyRegistry resolves the registry a dependency declaration names
+// (registry = "..." of its long form) the way a [platform].registries entry is
+// resolved: a local directory against projectDir, the directory the manifest
+// lives in, an HTTP(S) server as it is. The resolver and materialize both call
+// it, so a relative directory means the same server whichever directory tt
+// runs in.
+func DependencyRegistry(value, projectDir string) (string, error) {
+	return resolveServer(value, SourceManifest, projectDir)
+}
+
 // resolveServer makes one entry usable from anywhere: a local directory
 // becomes an absolute path, an HTTP(S) server is left alone.
 //
