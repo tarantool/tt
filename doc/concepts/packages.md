@@ -65,8 +65,10 @@ optional build.
   `.rocks/share/tarantool/<namespace>/`, `<namespace>` being the package name
   unless the component says otherwise. Its files are the `*.lua` and `*.so`
   of its `path` unless `include` lists others. A build backend - `c`,
-  `lua-c`, `cargo`, `make` or `shell` - makes a native module first; see
-  [Build a module in Rust](../how-to/rust-modules.md) for `cargo`.
+  `lua-c`, `cargo`, `make` or `shell` - makes a native module first, or a
+  WebAssembly component: see
+  [Run WebAssembly components](../how-to/wasm-components.md).
+  [Build a module in Rust](../how-to/rust-modules.md) describes `cargo`.
 - An **executable** component, `kind = "executable"`, builds a program into
   `.rocks/bin/`, with the `go`, `cargo`, `make` or `shell` backend. An
   [external process](../how-to/external-processes.md) of the application
@@ -89,8 +91,8 @@ components out, with `version.lua` of the package. `tt package fetch` only
 installs `.rocks/` from the lock, with no build.
 
 - A build backend finds the programs of the project's `.tarantool/bin` -
-  what `tt binary` installed - ahead of `PATH`, with or without
-  `.env/activate.sh`.
+  what `tt binary` and `tt wasm prepare` installed - ahead of `PATH`, with or
+  without `.env/activate.sh`.
 - A `make` or `shell` build with `incremental = true` is skipped while
   nothing it depends on changed; see [Incremental builds](#incremental-builds).
 - A `.wasm` file a component lays out has to be a WebAssembly binary: any
@@ -174,7 +176,8 @@ it; removing `_build/cache/` does the same.
 
 A component whose build writes files no `.gitignore` ignores gets another
 hash at every build, and is built every time, as if it were not
-incremental.
+incremental. `tt wasm new` writes the `.gitignore` of a WebAssembly
+component, and declares it incremental.
 
 ## Packing
 

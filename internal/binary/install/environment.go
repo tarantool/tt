@@ -120,3 +120,17 @@ func writeProjectScript(path, script string) error {
 
 	return nil
 }
+
+// PrepareProjectEnvironment writes the project's .env/activate.sh and
+// deactivate.sh when they are missing, as the first tt binary install in
+// project scope does: for a command that puts programs into the project's
+// .tarantool/bin by other means.
+func PrepareProjectEnvironment() error {
+	return prepareProjectEnvironment(binary.ScopeProject)
+}
+
+// ProjectActivateCommand returns the command that activates the project's
+// binaries, as typed in the working directory.
+func ProjectActivateCommand() string {
+	return projectActivateCommand()
+}

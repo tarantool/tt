@@ -24,6 +24,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt package build` checks the `.wasm` files a component lays out: a file
   that is no WebAssembly binary fails the build, and a core module, which
   tarantool-wasm does not load, is laid out with a warning.
+- `tt wasm prepare`, `tt wasm new` and `tt wasm status` (experimental): run
+  WebAssembly components with tarantool-wasm. `prepare` packs the native
+  module of a release as a rock in the project and declares it, installs into
+  `.tarantool` tarawasm, which builds the components for now, and the tools
+  of their languages it can, checks the others, and restores the SDK each
+  component pins; `new` adds a component, from a template when asked; `status`
+  reports what a build lacks, changing nothing; `rock` packs the rocks of
+  every build of a release for a rock server, which `prepare --rock-server`
+  declares the dependency from. `TT_WASM_RELEASES` names a table of releases
+  of one's own: a mirror. Nothing is installed into the system: a tool tt
+  cannot install into the project is named, with its version.
 
 ### Changed
 

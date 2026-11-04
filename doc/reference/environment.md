@@ -27,6 +27,54 @@ A component build and a hook get `TT_OUTPUT_DIR`, `TT_PROJECT_ROOT`,
 `TT_PLATFORM_ARCH`; see [app.manifest.toml](app-manifest.md#componentsnamebuild).
 `.tarantool/bin` of the project comes first on the `PATH` they get.
 
+## WebAssembly components
+
+| Variable | |
+| --- | --- |
+| `TT_WASM_RELEASES` | a JSON file of tarantool-wasm releases `tt wasm` uses instead of the ones it knows: the assets of a mirror, say |
+| `XDG_CACHE_HOME` | `tt wasm` caches what it downloads in `tt/wasm/` of it, `~/.cache/tt/wasm` by default; `~/Library/Caches/tt/wasm` on macOS |
+
+The file of `TT_WASM_RELEASES` maps a version to its release: the native
+module of each platform, checked against its sha256, and the SDK archive the
+rockspec of the `wasm` rock points at. An asset is downloaded from
+`<base_url>/v<version>/<asset>`; without `base_url`, from the releases of
+tarantool-wasm-rs on GitHub.
+
+```json
+{
+  "0.1.0": {
+    "version": "0.1.0",
+    "rock_revision": 1,
+    "base_url": "https://mirror.example.com/tarantool-wasm",
+    "sdk_asset": "tarantool-wasm-0.1.0-sdk.tar.gz",
+    "sdk_md5": "f986e42dd8d430110c06e9fb2963209b",
+    "platforms": [
+      {
+        "goos": "linux",
+        "goarch": "amd64",
+        "asset": "tarantool-wasm-0.1.0-linux-x86_64.so",
+        "sha256": "65866215ce6424389381644ef65adc3906f896d46a03843f213baf16df758585",
+        "rock_arch": "linux-x86_64",
+        "module": "wasm.so"
+      },
+      {
+        "goos": "darwin",
+        "goarch": "arm64",
+        "asset": "tarantool-wasm-0.1.0-macos-arm64.dylib",
+        "sha256": "bf2960db7dfe3535f7b6facecd2b33c4dbd9479f90b691e1b964a2499ef5a38d",
+        "rock_arch": "macosx-aarch64",
+        "module": "wasm.dylib"
+      }
+    ]
+  }
+}
+```
+
+`rock_arch` is the LuaRocks arch of the rock, which is what go-luarocks
+takes a binary rock for, and `module` the file the rock carries in `lib/`:
+`wasm.dylib` on macOS, where Tarantool loads C modules as `?.dylib` only.
+See [Run WebAssembly components](../how-to/wasm-components.md).
+
 ## Connections
 
 | Variable | |

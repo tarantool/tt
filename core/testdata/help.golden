@@ -37,6 +37,7 @@ COMMANDS[0m
   tcm         Manage tcm application
   test        Build the current package and run its tests
   version     Show Tarantool CLI version information
+  wasm        Prepare a project for WebAssembly components (experimental)
 [0;1;39m
 HELP TOPICS[0m
   errors      Exit codes of tt commands
@@ -4893,6 +4894,185 @@ FLAGS[0m
       --modules   Show the modules tt is built from and their versions
       --short     Show version in short format
 
+=== tt wasm --help
+Commands for tarantool-wasm, the Tarantool module that runs WebAssembly
+components (github.com/tarantool/tarantool-wasm-rs): prepare puts the runtime,
+tarawasm and the toolchains in place, new adds a component, status reports what
+a build lacks, and rock packs the rocks of a release for a rock server. They are
+a stopgap until tt builds the components itself: the components are built by
+tarawasm for now.
+
+[0;1;39mUSAGE[0m
+  tt wasm [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  new         Add a WebAssembly component to the package
+  prepare     Add the wasm runtime, tarawasm and the toolchains to the project
+  rock        Pack the rocks of a release for a rock server
+  status      Show how far the project is prepared, changing nothing
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for wasm
+
+Use "tt wasm <command> --help" for more information about a command.
+
+=== tt wasm new --help
+Add a WebAssembly component to the package of the project, which tt wasm prepare
+has prepared.
+
+tarawasm creates the component in the directory NAME (or --dir), on the SDK of
+the wasm release the package declares, and a .gitignore keeps what it generates
+out of git. The manifest declares the component, built by tarawasm all into the
+namespace of the package:
+
+  [components.NAME]
+  path = "NAME"
+  include = ["dist/NAME.wasm"]
+
+  [components.NAME.build]
+  backend = "shell"
+  command = "tarawasm"
+  args = ["all"]
+  incremental = true
+
+The WIT world of the component, and the file it builds, are named after it
+unless --world names them; the build is skipped while its sources have not
+changed.
+
+The toolchain of a language is put in place for the language of each component
+tarawasm builds, and for --lang. tt installs wasm-tools, wkg and, for Python,
+componentize-py into the project, each checked against the sha256 tt holds it
+to. The other tools - python3, Go and TinyGo, Rust and cargo-component, Node and
+jco, the wasi-sdk and wit-bindgen, .NET - are the user's to install: tt checks
+their versions, says which to install, and installs nothing into the system.
+
+[0;1;39mUSAGE[0m
+  tt wasm new NAME [flags]
+[0;1;39m
+FLAGS[0m
+      --dir string             the directory of the component (default NAME)
+  -h, --help                   help for new
+      --lang string            the language of the component: c, csharp, go, js,
+                               python, rust
+      --registry stringArray   rock server to use instead of the configured
+                               ones: an http(s) URL or a local directory; repeat
+                               to give an ordered list (overrides TT_REGISTRIES
+                               and [platform].registries)
+      --template string        start from a template: http (an HTTP API over a
+                               space) or call (an exported function); Python
+                               only
+      --world string           the name of its WIT world (default app)
+[0;1;39m
+EXAMPLES[0m
+  # A component in Python, in the directory router.
+  $ tt wasm new router --lang python
+
+  # An HTTP API over a space, served by the component itself.
+  $ tt wasm new router --lang python --template http
+
+  # Elsewhere, with a world of its own name.
+  $ tt wasm new api --lang rust --dir wasm/api --world api
+
+=== tt wasm prepare --help
+Prepare the project for tarantool-wasm.
+
+The native module of the release (Linux x86-64 or macOS arm64) is downloaded,
+checked against the sha256 tt holds the release to, and packed as a binary rock
+into .tarantool/registry. The manifest declares it as
+
+  wasm = { version = "<release>", registry = ".tarantool/registry" }
+
+and the lock is re-resolved, so the next tt package build installs it where
+require('wasm') finds it. A declaration already there is left as it is.
+
+tarawasm, which builds the components for now, is installed into a virtual
+environment under .tarantool (Python 3.10 or newer) and linked as
+.tarantool/bin/tarawasm. Component builds find programs there by name, and
+.env/activate.sh puts the directory on the shell's PATH.
+
+The toolchain of a language is put in place for the language of each component
+tarawasm builds, and for --lang. tt installs wasm-tools, wkg and, for Python,
+componentize-py into the project, each checked against the sha256 tt holds it
+to. The other tools - python3, Go and TinyGo, Rust and cargo-component, Node and
+jco, the wasi-sdk and wit-bindgen, .NET - are the user's to install: tt checks
+their versions, says which to install, and installs nothing into the system.
+
+The SDK of each component is restored as the component's lock pins it, and must
+be of the release prepared.
+
+The registry and .tarantool are for this host and are not meant to be committed:
+after a checkout, run tt wasm prepare again. Known releases: 0.1.0.
+
+[0;1;39mUSAGE[0m
+  tt wasm prepare [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help                   help for prepare
+      --lang string            put the toolchain of a language in place too: c,
+                               csharp, go, js, python, rust
+      --no-tarawasm            do not install tarawasm
+      --python string          Python to install tarawasm with (default
+                               "python3")
+      --registry stringArray   rock server to use instead of the configured
+                               ones: an http(s) URL or a local directory; repeat
+                               to give an ordered list (overrides TT_REGISTRIES
+                               and [platform].registries)
+      --reinstall              install tarawasm anew
+      --rock-server string     declare the rock from this rock server, which tt
+                               wasm rock packs for, instead of packing it into
+                               .tarantool/registry
+      --tarawasm string        what pip installs instead of the tarawasm tt pins
+                               (a version, a URL, a path)
+      --version string         tarantool-wasm release (default "0.1.0")
+[0;1;39m
+EXAMPLES[0m
+  # Prepare the package in the current directory for Python components.
+  $ tt wasm prepare --lang python
+  $ tt wasm new router --lang python
+
+  # After a checkout: the runtime, tarawasm, the toolchains and the SDKs
+  # of the components.
+  $ tt wasm prepare
+
+  # Add the runtime only: the components are built some other way.
+  $ tt wasm prepare --no-tarawasm
+
+=== tt wasm rock --help
+Pack the wasm rock of every platform of a tarantool-wasm release into --out,
+with the manifest that makes the directory a rock server. Serve it, or upload
+its files next to the assets of the release, and declare the dependency from it
+with tt wasm prepare --rock-server: then every machine gets the build of its
+own, and an archive packed --without-deps installs anywhere. The assets are
+checked against the sha256 tt holds the release to.
+
+[0;1;39mUSAGE[0m
+  tt wasm rock [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help             help for rock
+      --out string       the directory to pack the rocks into
+      --version string   tarantool-wasm release (default "0.1.0")
+[0;1;39m
+EXAMPLES[0m
+  # The rocks of 0.1.0, for the assets of the release on GitHub.
+  $ tt wasm rock --out dist/rocks
+  $ gh release upload v0.1.0 dist/rocks/*
+  $ tt wasm prepare --rock-server \
+      https://github.com/tarantool/tarantool-wasm-rs/releases/download/v0.1.0/
+
+=== tt wasm status --help
+Show what tt wasm prepare put in place and tt package build needs: the wasm rock
+the package declares and its build for this host, tarawasm, the components
+tarawasm builds with the SDK each pins, and the toolchain of their languages.
+Nothing is installed or changed. Anything missing is listed, and the command
+fails, as a check in CI does.
+
+[0;1;39mUSAGE[0m
+  tt wasm status [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for status
+
 === tt completion bash
 # bash completion V2 for tt                                   -*- shell-script -*-
 
@@ -5793,6 +5973,7 @@ service	Integrate with the service manager of the system
 tcm	Manage tcm application
 test	Build the current package and run its tests
 version	Show Tarantool CLI version information
+wasm	Prepare a project for WebAssembly components (experimental)
 :4
 --- stderr
 Completion ended with directive: ShellCompDirectiveNoFileComp

@@ -36,6 +36,7 @@ COMMANDS[0m
   tcm         Manage tcm application
   test        Build the current package and run its tests
   version     Show Tarantool CLI EE version information
+  wasm        Prepare a project for WebAssembly components (experimental)
 [0;1;39m
 HELP TOPICS[0m
   errors      Exit codes of tt commands

@@ -20,6 +20,7 @@ the system scope.
 │   ├── tcm/tcm_1.3.1/
 │   ├── tarantool-sdk/                    # which SDK components belong together
 │   └── kv-api/kv-api_1.1.0/              # an installed application (user, system)
+├── registry/                             # the rock server of tt wasm prepare (project)
 ├── apps/
 │   └── kv-api -> ../versions/kv-api/kv-api_1.1.0
 ├── etc/
@@ -42,6 +43,32 @@ the system scope.
 | `run/.../tarantool.sock` | the binary port, unless the cluster config or the script listens elsewhere |
 | `run/.../process.pid` | the pid of an external process |
 | `log/.../tt.log` | everything the instance writes and the messages of its watchdog |
+
+`tt wasm prepare` adds to the root of a project what WebAssembly components
+are built with: `registry/`, a rock server holding the `wasm` rock of this
+machine, and, under `versions/`, tarawasm and the tools tt installs, each
+linked into `bin/`:
+
+```text
+.tarantool/
+├── bin/
+│   ├── tarawasm -> <root>/versions/tarawasm/tarawasm_<commit>/bin/tarawasm
+│   ├── wasm-tools -> <root>/versions/wasm-tools/wasm-tools_1.261.0/wasm-tools
+│   ├── wkg
+│   ├── componentize-py                   # in the environment of tarawasm (Python)
+│   ├── tinygo, wasm-opt                  # Go
+│   └── wit-bindgen                       # C
+├── registry/
+│   ├── manifest
+│   └── wasm-0.1.0-1.linux-x86_64.rock
+└── versions/
+    ├── tarawasm/tarawasm_<commit>/       # a Python virtual environment
+    ├── wasm-tools/wasm-tools_1.261.0/
+    ├── wkg/wkg_0.16.1/
+    ├── tinygo/tinygo_0.43.0/             # with Binaryen laid over it
+    ├── wasi-sdk/wasi-sdk_34/             # not linked: see tarawasm.local.json below
+    └── wit-bindgen/wit-bindgen_0.62.0/
+```
 
 ## A project
 
@@ -71,6 +98,29 @@ _build/
 .env/
 .tarantool/
 ```
+
+## A WebAssembly component
+
+`tt wasm new router --lang python` makes a tarawasm project in `router/`:
+
+```text
+router/
+├── .gitignore                    # what tarawasm generates, written by tt wasm new
+├── main.py                       # the source
+├── wit/
+│   ├── app.wit                   # the world of the component, named after it
+│   └── deps/                     # the WIT of the SDK
+├── tarawasm.json                 # the language, the world, the output
+├── tarawasm.tarantool.lock.json  # the SDK release the component is built with
+├── tarawasm.local.json           # where the tools of this machine are (C; generated)
+├── .tarawasm/                    # the SDK, restored by tt wasm prepare (generated)
+├── wit_world/, poll_loop.py ...  # the bindings (generated)
+└── dist/router.wasm              # the component (generated)
+```
+
+Commit the source, `wit/` with its `deps/`, `tarawasm.json`,
+`tarawasm.tarantool.lock.json` and `.gitignore`; the rest is generated, and
+`.gitignore` keeps it out.
 
 ## An archive
 

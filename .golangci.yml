@@ -512,6 +512,8 @@ linters:
             - "github.com/tarantool/tt/v3/cli/tcm"
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/tarantool/tt/v3/cli/version"
+            # tt wasm prepare, a stopgap until tt builds WebAssembly components.
+            - "github.com/tarantool/tt/v3/cli/wasm"
             - "github.com/tarantool/tt/v3/internal/binary"
             # Boot sets the integrity provider the distribution chose, and the
             # commands register their integrity flags through it.

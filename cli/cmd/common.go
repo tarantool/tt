@@ -15,6 +15,9 @@ const (
 	// listCmdName is the name of the subcommands that list what their parent
 	// command manages.
 	listCmdName = "list"
+	// statusCmdName is the name of the subcommands that report the state of
+	// what their parent command manages.
+	statusCmdName = "status"
 	// jsonNull is how encoding/json renders a nil slice.
 	jsonNull = "null"
 )
