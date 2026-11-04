@@ -91,6 +91,9 @@ installs `.rocks/` from the lock, with no build.
 - A build backend finds the programs of the project's `.tarantool/bin` -
   what `tt binary` installed - ahead of `PATH`, with or without
   `.env/activate.sh`.
+- A `.wasm` file a component lays out has to be a WebAssembly binary: any
+  other fails the build, and a core module, which tarantool-wasm does not
+  load, is laid out with a warning.
 
 The version of a package is, in order:
 

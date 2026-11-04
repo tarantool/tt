@@ -345,6 +345,13 @@ func runBuild(
 		return nil, err
 	}
 
+	wasmWarnings, err := checkWasmFiles(laidOut)
+	if err != nil {
+		return nil, sdk.Errorf(sdk.ExitFailure, "%w", err)
+	}
+
+	opts.emit(wasmWarnings)
+
 	vluaErr := writeVersionLua(tree, man.Package.Name,
 		man.Package.GenerateVersionLuaValue(), ver, opts.builtAt(), laidOut)
 	if vluaErr != nil {
