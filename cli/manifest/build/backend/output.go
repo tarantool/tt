@@ -7,6 +7,13 @@ import (
 	"path/filepath"
 )
 
+// CopyOutputs copies the declared outputs of a build from cwd into
+// outputDir, as a build that ran does: for a build skipped because nothing
+// changed, whose outputs the tree may no longer hold.
+func CopyOutputs(outputDir, cwd string, outputs []string) error {
+	return copyOutputs(outputDir, cwd, outputs)
+}
+
 // copyOutputs copies each declared output from cwd into outputDir, flattened to
 // its basename (matching how the loader looks up <namespace>/<name>). It
 // creates outputDir first. A listed file that does not exist after the build is

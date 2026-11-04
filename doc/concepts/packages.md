@@ -91,6 +91,8 @@ installs `.rocks/` from the lock, with no build.
 - A build backend finds the programs of the project's `.tarantool/bin` -
   what `tt binary` installed - ahead of `PATH`, with or without
   `.env/activate.sh`.
+- A `make` or `shell` build with `incremental = true` is skipped while
+  nothing it depends on changed; see [Incremental builds](#incremental-builds).
 - A `.wasm` file a component lays out has to be a WebAssembly binary: any
   other fails the build, and a core module, which tarantool-wasm does not
   load, is laid out with a warning.
@@ -105,6 +107,74 @@ The version of a package is, in order:
 Changes not committed add `dirty` to the build metadata: `1.2.0+dirty`.
 The code reads its version as `require('<name>.version').version`; set
 `generate_version_lua = false` in `[package]` to leave `version.lua` out.
+
+### Incremental builds
+
+A `make` or `shell` build of a component, a module or an executable one,
+can be skipped when nothing it depends on changed since its last build:
+
+```toml
+[components.calc.build]
+backend = "shell"
+command = "tarawasm"
+args = ["all"]
+incremental = true
+```
+
+Before it builds such a component, `tt package build` hashes its inputs:
+
+- its build block, with `env`, `cwd`, `output` and the rest;
+- the files under its `path`: each regular file with its mode and content,
+  and each symbolic link by where it points.
+
+Some files are not inputs:
+
+- the hidden ones, at any depth: `.git`, `.tarawasm`, the `.gitignore` files
+  themselves;
+- those of a `_build/` or a `_runtime/` directory;
+- those the `.gitignore` files ignore - those of the project and of the
+  directories down to the component, and those of the component, each for
+  its subtree, as git reads them, but without the excludes of the git
+  configuration (`core.excludesFile`, `.git/info/exclude`).
+
+What a build writes and git does not keep - its output, its bindings - is
+so not an input, and the hash stays the same from one build to the next.
+
+The build is skipped when the hash is the one its last successful build
+recorded, in `_build/cache/<component>.json`, and what that build left is
+still there:
+
+- the files `output` lists;
+- the files of the component the layout took;
+- the files it wrote into `TT_OUTPUT_DIR`, at any depth: those it created or
+  changed, and those an earlier build wrote and it left alone, as a `make`
+  target that is up to date does. Of an executable component, these are its
+  programs.
+
+A build that wrote into `.rocks/`, cleared since, so runs again. A skipped
+build copies the files `output` lists into `.rocks/` again, and the
+component is laid out as after any build. `tt -V package build` logs every
+component it skips.
+
+A skipped build does not run its backend at all. A `make` target with rules
+of its own is cheap when nothing changed, and may not need `incremental`:
+without it, tt runs make every time, and make decides what to rebuild.
+
+The hash does not cover everything a build depends on:
+
+- the compilers and their versions;
+- the environment tt runs in, but the `env` of the build block;
+- the files outside the `path` of the component, those of a `cwd` elsewhere
+  included;
+- the dependencies in `.rocks/`.
+
+After a change of these, `tt package build --rebuild`, and
+`tt package pack --rebuild`, build every incremental component and record
+it; removing `_build/cache/` does the same.
+
+A component whose build writes files no `.gitignore` ignores gets another
+hash at every build, and is built every time, as if it were not
+incremental.
 
 ## Packing
 

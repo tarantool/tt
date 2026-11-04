@@ -507,6 +507,7 @@ func backendFields(build Build) []backendField {
 		{"platforms", build.Platforms != nil, ccDriver},
 		// go and cargo name their program themselves.
 		{"output", build.Output != nil, []string{backendMake, backendShell, backendC, backendLuaC}},
+		{"incremental", build.Incremental != nil, []string{backendMake, backendShell}},
 		{"package", build.Package != "", []string{backendGo, backendCargo}},
 		{"static", build.Static != nil, []string{backendGo, backendCargo}},
 		{"name", build.Name != "", []string{backendGo}},

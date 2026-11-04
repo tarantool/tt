@@ -38,8 +38,10 @@ var errNoTarantool = errors.New("tarantool executable not found in PATH")
 
 // Shared flags for the package subcommands.
 var (
-	packageProduct     string
-	packageLocked      bool
+	packageProduct string
+	packageLocked  bool
+	// packageRebuild builds the incremental components whatever they recorded.
+	packageRebuild     bool
 	packageWithoutDeps bool
 	// packageIntegrityKey is --with-integrity-check of tt package pack: the
 	// private key that signs the archive. The flag exists only when the
@@ -687,7 +689,12 @@ func newPackageBuildCmd() *cobra.Command {
 		Short: "Build a manifest package into .rocks/",
 		Long: "Resolve dependencies, materialize .rocks/, run component build " +
 			"backends and generate version.lua. With no argument every component " +
-			"of the product is built; a component name narrows the build to one.",
+			"of the product is built; a component name narrows the build to one.\n\n" +
+			"A make or shell component with incremental = true is built only when its " +
+			"inputs changed since its last build - its build block and its files, but " +
+			"those its .gitignore files ignore - or its outputs are gone; -V logs a " +
+			"skipped one. --rebuild builds them all, for a change the inputs do not " +
+			"cover, such as a new version of a compiler.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return commandError(cmd, runPackage(args, false))
@@ -698,6 +705,8 @@ func newPackageBuildCmd() *cobra.Command {
 		"product to build (default: the product marked default)")
 	buildCmd.Flags().BoolVar(&packageLocked, "locked", false,
 		"fail if the lock is out of date instead of re-resolving it")
+	buildCmd.Flags().BoolVar(&packageRebuild, "rebuild", false,
+		"build the incremental components even when nothing changed")
 	addRegistryFlag(buildCmd)
 
 	return buildCmd
@@ -748,6 +757,8 @@ func newPackagePackCmd() *cobra.Command {
 		"product to pack (default: the product marked default)")
 	packCmd.Flags().BoolVar(&packageLocked, "locked", false,
 		"fail if the lock is out of date instead of re-resolving it")
+	packCmd.Flags().BoolVar(&packageRebuild, "rebuild", false,
+		"build the incremental components even when nothing changed")
 	packCmd.Flags().BoolVar(&packageWithoutDeps, "without-deps", false,
 		"pack without _runtime/ and without foreign dependencies in .rocks/")
 	addRegistryFlag(packCmd)
@@ -808,6 +819,7 @@ func runPackagePack() error {
 			Tarantool:  tntInfo,
 			Registries: sources,
 			ShowOutput: cmdCtx.Cli.Verbose,
+			Rebuild:    packageRebuild,
 			Now:        time.Time{},
 			Logger:     luarocksLogger(),
 			Warn:       nil,
@@ -910,6 +922,7 @@ func runPackage(args []string, fetchOnly bool) error {
 		Tarantool:  tntInfo,
 		Registries: sources,
 		ShowOutput: cmdCtx.Cli.Verbose,
+		Rebuild:    packageRebuild,
 		Now:        time.Time{},
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },

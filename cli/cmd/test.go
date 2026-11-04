@@ -132,6 +132,7 @@ func runTest(subPath string, luatestArgs []string) error {
 		Tarantool:  tntInfo,
 		Registries: sources,
 		ShowOutput: cmdCtx.Cli.Verbose,
+		Rebuild:    false,
 		Now:        time.Time{},
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },

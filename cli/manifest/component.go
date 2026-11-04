@@ -50,6 +50,11 @@ type Build struct {
 	Cwd     string            `toml:"cwd,omitempty"`
 	Env     map[string]string `toml:"env,omitempty"`
 	Output  []string          `toml:"output,omitempty"`
+	// Incremental skips the build of a make or shell component when its
+	// inputs - the build block and the files of the component, but those its
+	// .gitignore files ignore - are the ones of its last build, and its
+	// outputs are there.
+	Incremental *bool `toml:"incremental,omitempty"`
 
 	// make backend.
 	MakeTarget string   `toml:"make_target,omitempty"`
@@ -91,6 +96,12 @@ type Build struct {
 // DefaultCargoProfile is the cargo profile an executable is built with when
 // the build names none.
 const DefaultCargoProfile = "release"
+
+// IncrementalValue reports whether the build is skipped when its inputs did
+// not change.
+func (b Build) IncrementalValue() bool {
+	return b.Incremental != nil && *b.Incremental
+}
 
 // StaticValue reports whether the build asks for a static program.
 func (b Build) StaticValue() bool {

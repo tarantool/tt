@@ -224,13 +224,7 @@ func buildExecutable(
 			return nil, err
 		}
 
-		programs = append(programs, changedFiles(before, after)...)
-
-		for _, program := range recorded {
-			if _, ok := after[program]; ok {
-				programs = append(programs, program)
-			}
-		}
+		programs = append(programs, writtenFiles(before, after, recorded)...)
 	}
 
 	slices.Sort(programs)

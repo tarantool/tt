@@ -3271,6 +3271,12 @@ Resolve dependencies, materialize .rocks/, run component build backends and
 generate version.lua. With no argument every component of the product is built;
 a component name narrows the build to one.
 
+A make or shell component with incremental = true is built only when its inputs
+changed since its last build - its build block and its files, but those its
+.gitignore files ignore - or its outputs are gone; -V logs a skipped one.
+--rebuild builds them all, for a change the inputs do not cover, such as a new
+version of a compiler.
+
 [0;1;39mUSAGE[0m
   tt package build [COMPONENT] [flags]
 
@@ -3282,6 +3288,8 @@ FLAGS[0m
                                re-resolving it
       --product string         product to build (default: the product marked
                                default)
+      --rebuild                build the incremental components even when
+                               nothing changed
       --registry stringArray   rock server to use instead of the configured
                                ones: an http(s) URL or a local directory; repeat
                                to give an ordered list (overrides TT_REGISTRIES
@@ -3463,6 +3471,8 @@ FLAGS[0m
                                re-resolving it
       --product string         product to pack (default: the product marked
                                default)
+      --rebuild                build the incremental components even when
+                               nothing changed
       --registry stringArray   rock server to use instead of the configured
                                ones: an http(s) URL or a local directory; repeat
                                to give an ordered list (overrides TT_REGISTRIES
