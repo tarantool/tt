@@ -759,3 +759,56 @@ func TestEditorQuotesWhatItWrites(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, `>=1.0.0"\ `, mfst.Dependencies["odd"].Version)
 }
+
+func TestAddRegistryDependency_appendsLongForm(t *testing.T) {
+	t.Parallel()
+
+	src := editHeader + `
+[dependencies]
+checks = ">=3.0.0" # pinned by hand
+`
+	editor := edit(t, src)
+
+	change, err := editor.AddRegistryDependency(manifest.TableDependencies, "wasm", "0.1.0",
+		".tarantool/registry")
+	require.NoError(t, err)
+	assert.False(t, change.Existed)
+
+	out := editor.Bytes()
+	assert.Equal(t, src+`wasm = { version = "0.1.0", registry = ".tarantool/registry" }
+`, string(out))
+
+	mfst := reparse(t, out)
+	assert.Equal(t, manifest.Dependency{
+		Source: "registry", Version: "0.1.0", Registry: ".tarantool/registry",
+	}, mfst.Dependencies["wasm"])
+}
+
+func TestAddRegistryDependency_newSection(t *testing.T) {
+	t.Parallel()
+
+	editor := edit(t, editHeader)
+
+	_, err := editor.AddRegistryDependency(manifest.TableDependencies, "wasm", "0.1.0",
+		".tarantool/registry")
+	require.NoError(t, err)
+
+	mfst := reparse(t, editor.Bytes())
+	assert.Equal(t, ".tarantool/registry", mfst.Dependencies["wasm"].Registry)
+}
+
+func TestAddRegistryDependency_keepsExistingDeclaration(t *testing.T) {
+	t.Parallel()
+
+	src := editHeader + `
+[dependencies]
+wasm = ">=0.1.0"
+`
+	editor := edit(t, src)
+
+	change, err := editor.AddRegistryDependency(manifest.TableDependencies, "wasm", "0.1.0",
+		".tarantool/registry")
+	require.NoError(t, err)
+	assert.Equal(t, manifest.Change{Existed: true, Previous: ">=0.1.0"}, change)
+	assert.Equal(t, src, string(editor.Bytes()))
+}

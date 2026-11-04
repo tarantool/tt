@@ -49,8 +49,12 @@ func (d *document) cut(spans []span) []byte {
 //     would not parse;
 //  3. neither - a fresh section at the end of the file.
 func (d *document) insert(table DepTable, name, constraint string) []byte {
-	entry := formatEntry(name, constraint)
+	return d.insertEntry(table, formatEntry(name, constraint))
+}
 
+// insertEntry is insert for an entry already rendered as one TOML line,
+// name = value.
+func (d *document) insertEntry(table DepTable, entry string) []byte {
 	header := d.sectionHeader(table)
 	if header >= 0 {
 		anchor := d.lastSectionKey(table, header)

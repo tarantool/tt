@@ -72,6 +72,46 @@ func addWith(
 	return apply(ctx, opts, res, proj, editor.Bytes(), resolve.PinsFromLock(proj.lock), change)
 }
 
+// AddFromRegistry declares name in [dependencies] in the long form, at the
+// constraint and with the registry the rock is to come from, then re-resolves
+// the lock as Add does. A declaration already there is left as it is - its
+// constraint and registry are someone's choice - and the lock is resolved
+// against it; Result.Change reports that it existed.
+func AddFromRegistry(
+	ctx context.Context, opts Options, name, constraint, registry string,
+) (*Result, error) {
+	engine, err := engineFor(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	proj, err := load(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	editor, err := manifest.NewEditor(proj.source)
+	if err != nil {
+		return nil, stateErrorf("reading %s for editing: %w", manifestFileName, err)
+	}
+
+	table := manifest.TableDependencies
+	warnOtherTable(opts, editor, table, name)
+
+	change, err := editor.AddRegistryDependency(table, name, constraint, registry)
+	if err != nil {
+		return nil, stateErrorf("%w", err)
+	}
+
+	var edited []byte
+
+	if !change.Existed {
+		edited = editor.Bytes()
+	}
+
+	return apply(ctx, opts, engine, proj, edited, resolve.PinsFromLock(proj.lock), change)
+}
+
 // warnOtherTable reports a name that is also declared in the table the add is
 // not targeting. Declaring a rock as both a runtime and a dev dependency is
 // legal TOML and parses, but it is almost always a mistake, and the add would
