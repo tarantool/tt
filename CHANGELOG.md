@@ -18,12 +18,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- `tt binary install tt` without a version installs the latest published
+  release instead of the newest tag, so a tag pushed before its release no
+  longer makes the install build from source. `--source-build` and
+  `--local-repo` keep the newest tag.
+
 ### Fixed
 
 - On macOS the `c` and `lua-c` backends name a module `<module>.dylib`, the
   name Tarantool looks for there, and a `.dylib` a component lays out goes to
   `.rocks/lib/tarantool/`: a module was `<module>.so`, which `require` did
   not find, and a `.dylib` went to `.rocks/share/tarantool/`.
+- `tt binary install tt`: verify the downloaded release archive against
+  `checksums.txt` of the release. A mismatch fails the install instead of
+  falling back to a source build; releases before 1.1.0 publish no checksums
+  and install unverified with a warning.
 
 ## [3.0.0-alpha.1] - 2026-11-03
 

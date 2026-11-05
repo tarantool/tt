@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
 	"fmt"
 	"net/http"
 	"os"
@@ -57,7 +58,14 @@ func ttPackageTestDownloader(client *http.Client) ttPackageDownloader {
 		client:    client,
 		fileLimit: maxPackageSize, keepTemp: false,
 		releasesURL: packageTestURL + "/releases/download/",
+		latestURL:   packageTestURL + "/releases/latest",
 	}
+}
+
+// ttPackageTestChecksums lists the archive among other release files, as goreleaser does.
+func ttPackageTestChecksums(name string, archive []byte) string {
+	return fmt.Sprintf("%x  tt_2.15.0_amd64.deb\n%x  %s\n", sha256.Sum256(nil),
+		sha256.Sum256(archive), name)
 }
 
 func TestPreparePrebuiltTt(t *testing.T) {
@@ -79,6 +87,7 @@ func TestPreparePrebuiltTt(t *testing.T) {
 				name := fmt.Sprintf("tt-%s-%s-%s.tar.gz", strings.TrimPrefix(version, "v"),
 					platform.os, platform.arch)
 				downloadPath := "/releases/download/" + version + "/" + name
+				checksumsPath := "/releases/download/" + version + "/checksums.txt"
 				client := packageTestClient(t, func(writer http.ResponseWriter,
 					request *http.Request,
 				) {
@@ -88,6 +97,8 @@ func TestPreparePrebuiltTt(t *testing.T) {
 						http.Redirect(writer, request, "/asset", http.StatusFound)
 					case "/asset":
 						_, _ = writer.Write(archive)
+					case checksumsPath:
+						_, _ = writer.Write([]byte(ttPackageTestChecksums(name, archive)))
 					default:
 						t.Errorf("unexpected download request: %s", request.URL.Path)
 						writer.WriteHeader(http.StatusNotFound)
@@ -102,7 +113,7 @@ func TestPreparePrebuiltTt(t *testing.T) {
 				assert.Equal(t, binary.ProgramTt, artifacts.program)
 				assert.True(t, filepath.IsAbs(artifacts.executable))
 				assert.Empty(t, artifacts.headers)
-				assert.Equal(t, []string{downloadPath, "/asset"}, requests)
+				assert.Equal(t, []string{downloadPath, "/asset", checksumsPath}, requests)
 
 				contents, err := os.ReadFile(artifacts.executable)
 				require.NoError(t, err)
@@ -165,6 +176,13 @@ func TestPreparePrebuiltTtErrors(t *testing.T) {
 			client := packageTestClient(t, func(writer http.ResponseWriter,
 				request *http.Request,
 			) {
+				if request.URL.Path == "/releases/download/v2.15.0/checksums.txt" {
+					_, _ = writer.Write([]byte(
+						ttPackageTestChecksums("tt-2.15.0-linux-amd64.tar.gz", archive)))
+
+					return
+				}
+
 				assert.Equal(t,
 					"/releases/download/v2.15.0/tt-2.15.0-linux-amd64.tar.gz", request.URL.Path)
 
@@ -198,6 +216,120 @@ func TestPreparePrebuiltTtErrors(t *testing.T) {
 			files, err := os.ReadDir(destination)
 			require.NoError(t, err)
 			assert.Empty(t, files, "failed delivery should clean its temporary artifacts")
+		})
+	}
+}
+
+func TestPreparePrebuiltTtChecksums(t *testing.T) {
+	const name = "tt-2.15.0-linux-amd64.tar.gz"
+
+	archive := ttPackageTestArchive(t,
+		ttArchiveEntry{name: "tt", kind: tar.TypeReg, mode: 0o755, content: "executable"})
+
+	for _, test := range []struct {
+		name      string
+		status    int
+		checksums string
+		want      error
+	}{
+		{name: "binary mode", checksums: fmt.Sprintf("%x *%s\n", sha256.Sum256(archive), name)},
+		{name: "unpublished", status: http.StatusNotFound},
+		{name: "mismatch", checksums: ttPackageTestChecksums(name, []byte("other")),
+			want: errPackageChecksum},
+		{name: "missing entry", checksums: ttPackageTestChecksums("tt-2.15.0-darwin-amd64.tar.gz",
+			archive), want: errPackageContents},
+		{name: "malformed entry", checksums: "not-a-checksum  " + name + "\n",
+			want: errPackageContents},
+		{name: "server error", status: http.StatusInternalServerError, want: errPackageHTTPStatus},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			client := packageTestClient(t, func(writer http.ResponseWriter,
+				request *http.Request,
+			) {
+				switch request.URL.Path {
+				case "/releases/download/v2.15.0/" + name:
+					_, _ = writer.Write(archive)
+				case "/releases/download/v2.15.0/checksums.txt":
+					if test.status != 0 {
+						writer.WriteHeader(test.status)
+
+						return
+					}
+
+					_, _ = writer.Write([]byte(test.checksums))
+				default:
+					t.Errorf("unexpected download request: %s", request.URL.Path)
+					writer.WriteHeader(http.StatusNotFound)
+				}
+			})
+
+			destination := t.TempDir()
+			artifacts, err := ttPackageTestDownloader(client).prepare("v2.15.0", destination,
+				osLinux, archAMD64)
+
+			if test.want == nil {
+				require.NoError(t, err)
+				assert.FileExists(t, artifacts.executable)
+
+				return
+			}
+
+			require.ErrorIs(t, err, test.want)
+			require.NotErrorIs(t, err, errPrebuiltPackageUnavailable,
+				"a failed verification must not fall back to a source build")
+
+			files, err := os.ReadDir(destination)
+			require.NoError(t, err)
+			assert.Empty(t, files, "failed verification should clean its temporary artifacts")
+		})
+	}
+}
+
+func TestLatestTtRelease(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		location string
+		status   int
+		want     string
+	}{
+		{name: "release", location: packageTestURL + "/releases/tag/v2.15.0", want: "v2.15.0"},
+		{name: "relative redirect", location: "/tarantool/tt/releases/tag/v2.15.2",
+			want: "v2.15.2"},
+		{name: "no releases", location: packageTestURL + "/releases"},
+		{name: "unexpected tag", location: packageTestURL + "/releases/tag/nightly"},
+		{name: "no redirect", status: http.StatusOK},
+		{name: "rate limit", status: http.StatusTooManyRequests},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var requests []string
+
+			client := packageTestClient(t, func(writer http.ResponseWriter,
+				request *http.Request,
+			) {
+				requests = append(requests, request.URL.Path)
+
+				if test.location != "" {
+					http.Redirect(writer, request, test.location, http.StatusFound)
+
+					return
+				}
+
+				writer.WriteHeader(test.status)
+			})
+
+			tag, err := ttPackageTestDownloader(client).latest()
+
+			assert.Equal(t, []string{"/releases/latest"}, requests,
+				"the redirect target must not be requested")
+
+			if test.want == "" {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, test.want, tag)
 		})
 	}
 }

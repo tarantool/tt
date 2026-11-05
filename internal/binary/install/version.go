@@ -89,6 +89,17 @@ func masterInstallVersion() resolvedInstallVersion {
 func resolveLatestVersion(installCtx InstallCtx) (resolvedInstallVersion, error) {
 	log.Infof("Getting latest %s version...", installCtx.Program.String())
 
+	// The newest tt tag may have no release yet, and then no prebuilt archive.
+	if installCtx.Program == binary.ProgramTt && !installCtx.SourceBuild &&
+		installCtx.LocalRepo == "" {
+		tag, err := latestPrebuiltTt()
+		if err == nil {
+			return resolvedInstallVersion{kind: versionKindTag, ref: tag, name: tag}, nil
+		}
+
+		log.Debugf("Latest tt release is unavailable, using the newest tag: %v", err)
+	}
+
 	versions, err := getVersionsFromRepo(installCtx)
 	if err != nil {
 		return resolvedInstallVersion{}, err

@@ -2,7 +2,10 @@ package install
 
 import (
 	"archive/tar"
+	"bufio"
 	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -21,28 +24,81 @@ import (
 
 const (
 	ttReleasesURL       = "https://github.com/tarantool/tt/releases/download/"
+	ttLatestReleaseURL  = "https://github.com/tarantool/tt/releases/latest"
+	ttChecksumsName     = "checksums.txt"
 	maxTtPayloadSize    = 1 << 30
 	maxTtArchiveEntries = 100_000
 )
 
-var ttPackageVersionPattern = regexp.MustCompile(
-	`^v?[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?$`)
+var (
+	ttPackageVersionPattern = regexp.MustCompile(
+		`^v?[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?$`)
+
+	errPackageChecksum = errors.New("package checksum mismatch")
+)
 
 // ttPackageDownloader downloads release archives directly, without the GitHub API.
 type ttPackageDownloader struct {
 	packageDownloader
 
 	releasesURL string
+	latestURL   string
 }
 
-func preparePrebuiltTt(version, destination string, keepTemp bool) (programArtifact, error) {
-	downloader := ttPackageDownloader{
+// latestPrebuiltTt returns the tag of the latest published tt release. A pushed tag
+// may still have no release, so the newest tag is not a reliable choice for prebuilt delivery.
+func latestPrebuiltTt() (string, error) {
+	return newTtPackageDownloader(false).latest()
+}
+
+func newTtPackageDownloader(keepTemp bool) ttPackageDownloader {
+	return ttPackageDownloader{
 		client:    &http.Client{Timeout: packageDownloadTimeout},
 		fileLimit: maxPackageSize, keepTemp: keepTemp,
 		releasesURL: ttReleasesURL,
+		latestURL:   ttLatestReleaseURL,
+	}
+}
+
+// latest reads the tag from the redirect of the latest release page, without the GitHub API.
+// GitHub skips drafts and pre-releases there.
+func (d ttPackageDownloader) latest() (string, error) {
+	client := *d.client
+
+	client.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
 	}
 
-	return downloader.prepare(version, destination, runtime.GOOS, runtime.GOARCH)
+	downloader := d.packageDownloader
+
+	downloader.client = &client
+
+	response, err := downloader.get(d.latestURL)
+	if err != nil {
+		return "", fmt.Errorf("get latest tt release: %w", err)
+	}
+
+	_ = response.Body.Close()
+
+	location, err := response.Location()
+	if err != nil {
+		return "", fmt.Errorf("%w: latest tt release %s: HTTP %d without a redirect",
+			errPackageHTTPStatus, d.latestURL, response.StatusCode)
+	}
+
+	directory, tag := path.Split(location.Path)
+	if !strings.HasSuffix(directory, "/releases/tag/") ||
+		!ttPackageVersionPattern.MatchString(tag) {
+		return "", fmt.Errorf("%w: latest tt release %s redirects to %s",
+			errPackageContents, d.latestURL, location)
+	}
+
+	return tag, nil
+}
+
+func preparePrebuiltTt(version, destination string, keepTemp bool) (programArtifact, error) {
+	return newTtPackageDownloader(keepTemp).prepare(version, destination,
+		runtime.GOOS, runtime.GOARCH)
 }
 
 func (d ttPackageDownloader) prepare(version, destination, goos, goarch string) (
@@ -109,6 +165,11 @@ func (d ttPackageDownloader) prepare(version, destination, goos, goarch string) 
 		defer func() { _ = os.Remove(archive) }()
 	}
 
+	err = d.verifyChecksum(version, name, archive)
+	if err != nil {
+		return programArtifact{}, err
+	}
+
 	executable, err := extractTtPackage(archive, extractDir)
 	if err != nil {
 		return programArtifact{}, fmt.Errorf("extract tt package %s: %w; "+
@@ -118,6 +179,85 @@ func (d ttPackageDownloader) prepare(version, destination, goos, goarch string) 
 	succeeded = true
 
 	return programArtifact{program: binary.ProgramTt, executable: executable, headers: ""}, nil
+}
+
+// verifyChecksum checks the archive against checksums.txt of the same release.
+// Releases before 1.1.0 publish no checksums, so their archives are installed unverified.
+// A mismatch is a delivery error and must not trigger a source build.
+func (d ttPackageDownloader) verifyChecksum(version, name, archivePath string) error {
+	address := strings.TrimRight(d.releasesURL, "/") + "/" +
+		url.PathEscape(version) + "/" + ttChecksumsName
+
+	response, err := d.get(address)
+	if err != nil {
+		return fmt.Errorf("download tt checksums %s: %w", address, err)
+	}
+
+	defer func() { _ = response.Body.Close() }()
+
+	if response.StatusCode == http.StatusNotFound {
+		log.Warnf("tt %s publishes no %s; the archive is not verified", version, ttChecksumsName)
+
+		return nil
+	}
+
+	if response.StatusCode != http.StatusOK {
+		return &packageHTTPError{status: response.StatusCode, address: address, program: "tt"}
+	}
+
+	expected, err := findChecksum(io.LimitReader(response.Body, maxPackageIndexSize), name)
+	if err != nil {
+		return fmt.Errorf("tt checksums %s: %w", address, err)
+	}
+
+	archive, err := os.Open(archivePath)
+	if err != nil {
+		return fmt.Errorf("open tt archive: %w", err)
+	}
+
+	defer func() { _ = archive.Close() }()
+
+	hash := sha256.New()
+
+	_, err = io.Copy(hash, archive)
+	if err != nil {
+		return fmt.Errorf("read tt archive: %w", err)
+	}
+
+	actual := hex.EncodeToString(hash.Sum(nil))
+	if actual != expected {
+		return fmt.Errorf("%w: %s has sha256 %s, %s expects %s",
+			errPackageChecksum, name, actual, address, expected)
+	}
+
+	return nil
+}
+
+// findChecksum returns the sha256 of the file from the "<sha256>  <name>" lines of goreleaser.
+func findChecksum(checksums io.Reader, name string) (string, error) {
+	scanner := bufio.NewScanner(checksums)
+
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) != 2 || strings.TrimPrefix(fields[1], "*") != name {
+			continue
+		}
+
+		sum, err := hex.DecodeString(fields[0])
+		if err != nil || len(sum) != sha256.Size {
+			return "", fmt.Errorf("%w: malformed checksum %q for %s",
+				errPackageContents, fields[0], name)
+		}
+
+		return hex.EncodeToString(sum), nil
+	}
+
+	err := scanner.Err()
+	if err != nil {
+		return "", fmt.Errorf("read checksums: %w", err)
+	}
+
+	return "", fmt.Errorf("%w: no checksum for %s", errPackageContents, name)
 }
 
 // extractTtPackage extracts only the root executable. Other regular release files are skipped.
