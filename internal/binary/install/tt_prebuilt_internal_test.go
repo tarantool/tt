@@ -3,14 +3,17 @@ package install
 import (
 	"archive/tar"
 	"bytes"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,6 +27,22 @@ type ttPrebuiltTestRepository struct {
 	archive       []byte
 	fileStatus    int
 	downloadError error
+	// latest is the tag of the latest release, or empty if the lookup fails.
+	latest   string
+	checksum string
+}
+
+// downloads returns the archive requests, without the release lookups and checksums.
+func (repository *ttPrebuiltTestRepository) downloads() []string {
+	var downloads []string
+
+	for _, request := range repository.requests {
+		if strings.HasSuffix(request, ".tar.gz") {
+			downloads = append(downloads, request)
+		}
+	}
+
+	return downloads
 }
 
 func mockTtPrebuiltRepository(t *testing.T) *ttPrebuiltTestRepository {
@@ -43,6 +62,7 @@ printf 'abcdef0\trefs/tags/v2.14.0\nabcdef0\trefs/tags/v2.15.0\n'
 	repository := &ttPrebuiltTestRepository{
 		archive: ttPackageTestArchive(t,
 			ttArchiveEntry{name: "tt", kind: tar.TypeReg, mode: 0o755, content: "executable"}),
+		latest: "v2.15.0",
 	}
 	previousTransport := http.DefaultTransport
 
@@ -62,15 +82,35 @@ printf 'abcdef0\trefs/tags/v2.14.0\nabcdef0\trefs/tags/v2.15.0\n'
 		}
 
 		status := http.StatusOK
-		if repository.fileStatus != 0 {
+		header := make(http.Header)
+		content := repository.archive
+
+		switch {
+		case request.URL.Path == "/tarantool/tt/releases/latest":
+			status, content = http.StatusNotFound, nil
+			if repository.latest != "" {
+				status = http.StatusFound
+
+				header.Set("Location",
+					"https://github.com/tarantool/tt/releases/tag/"+repository.latest)
+			}
+		case strings.HasSuffix(request.URL.Path, "/checksums.txt"):
+			checksum := repository.checksum
+			if checksum == "" {
+				checksum = fmt.Sprintf("%x", sha256.Sum256(repository.archive))
+			}
+
+			release := strings.TrimPrefix(path.Base(path.Dir(request.URL.Path)), "v")
+
+			content = fmt.Appendf(nil, "%s  tt-%s-%s-%s.tar.gz\n", checksum, release,
+				runtime.GOOS, runtime.GOARCH)
+		case repository.fileStatus != 0:
 			status = repository.fileStatus
 		}
 
-		content := repository.archive
-
 		return &http.Response{
 			StatusCode: status, Status: fmt.Sprintf("%d %s", status, http.StatusText(status)),
-			Header: make(http.Header), Body: io.NopCloser(bytes.NewReader(content)),
+			Header: header, Body: io.NopCloser(bytes.NewReader(content)),
 			ContentLength: int64(len(content)), Request: request,
 		}, nil
 	})
@@ -96,10 +136,18 @@ func TestInstallTtDefaultDelivery(t *testing.T) {
 					requestedVersion: requested, KeepTemp: keepTemp,
 				}
 				require.NoError(t, Install(ctx))
-				require.Equal(t, []string{
+
+				var requests []string
+
+				if requested == "" {
+					requests = append(requests, "/tarantool/tt/releases/latest")
+				}
+
+				require.Equal(t, append(requests,
 					fmt.Sprintf("/tarantool/tt/releases/download/v2.15.0/tt-2.15.0-%s-%s.tar.gz",
 						runtime.GOOS, runtime.GOARCH),
-				}, repository.requests)
+					"/tarantool/tt/releases/download/v2.15.0/checksums.txt",
+				), repository.requests)
 
 				root, err := ctx.Scope.ArtifactPath()
 				require.NoError(t, err)
@@ -120,7 +168,7 @@ func TestInstallTtDefaultDelivery(t *testing.T) {
 				// Reactivate an existing version without downloads or build dependencies.
 				require.NoError(t, os.Remove(active))
 				require.NoError(t, Install(ctx))
-				require.Len(t, repository.requests, 1)
+				require.Len(t, repository.downloads(), 1)
 				assert.FileExists(t, active)
 
 				stale := filepath.Join(versionDir, "stale")
@@ -131,7 +179,7 @@ func TestInstallTtDefaultDelivery(t *testing.T) {
 
 				ctx.Reinstall = true
 				require.NoError(t, Install(ctx))
-				require.Len(t, repository.requests, 2)
+				require.Len(t, repository.downloads(), 2)
 				assert.NoFileExists(t, stale)
 				assert.DirExists(t, otherVersion)
 
@@ -152,6 +200,59 @@ func TestInstallTtDefaultDelivery(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestInstallTtLatestRelease(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		latest      string
+		sourceBuild bool
+		want        string
+	}{
+		{name: "release behind the newest tag", latest: "v2.15.0", want: "v2.15.0"},
+		{name: "lookup failure", want: "v2.16.0"},
+		{name: "source build", latest: "v2.15.0", sourceBuild: true, want: "v2.16.0"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			repository := mockTtPrebuiltRepository(t)
+
+			repository.latest = test.latest
+
+			t.Chdir(t.TempDir())
+
+			commands := t.TempDir()
+			for command, script := range map[string]string{
+				"git": `#!/bin/sh
+case "$1" in
+ls-remote) printf 'abcdef0\trefs/tags/v2.15.0\nabcdef0\trefs/tags/v2.16.0\n' ;;
+--version) printf 'git version 2.7.0\n' ;;
+clone) exit 0 ;;
+*) exit 1 ;;
+esac
+`,
+				"mage": "#!/bin/sh\nprintf 'source executable' > tt\n",
+			} {
+				require.NoError(t,
+					os.WriteFile(filepath.Join(commands, command), []byte(script), 0o755))
+			}
+
+			t.Setenv("PATH", commands)
+
+			ctx := InstallCtx{
+				Program: binary.ProgramTt, Scope: binary.ScopeProject,
+				SourceBuild: test.sourceBuild,
+			}
+			require.NoError(t, Install(ctx))
+
+			root, err := ctx.Scope.ArtifactPath()
+			require.NoError(t, err)
+			assert.DirExists(t, filepath.Join(root, "versions", "tt", "tt_"+test.want))
+
+			if test.sourceBuild {
+				assert.NotContains(t, repository.requests, "/tarantool/tt/releases/latest")
+			}
+		})
 	}
 }
 
@@ -197,7 +298,7 @@ esac
 				requestedVersion: "2.15.0", SourceBuild: test.sourceBuild, KeepTemp: test.keepTemp,
 			}
 			require.NoError(t, Install(ctx))
-			assert.Len(t, repository.requests, test.requests)
+			assert.Len(t, repository.downloads(), test.requests)
 
 			root, err := ctx.Scope.ArtifactPath()
 			require.NoError(t, err)
@@ -210,7 +311,9 @@ esac
 }
 
 func TestInstallTtPrebuiltFailurePreservesInstallation(t *testing.T) {
-	for _, failure := range []string{"download", "forbidden", "server error", "archive"} {
+	for _, failure := range []string{
+		"download", "forbidden", "server error", "archive", "checksum",
+	} {
 		for _, keepTemp := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/keep=%t", failure, keepTemp), func(t *testing.T) {
 				repository := mockTtPrebuiltRepository(t)
@@ -234,6 +337,8 @@ func TestInstallTtPrebuiltFailurePreservesInstallation(t *testing.T) {
 					repository.fileStatus = http.StatusInternalServerError
 				case "archive":
 					repository.archive = []byte("invalid gzip archive")
+				case "checksum":
+					repository.checksum = fmt.Sprintf("%x", sha256.Sum256(nil))
 				}
 
 				ctx.Reinstall, ctx.KeepTemp = true, keepTemp
