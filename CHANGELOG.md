@@ -35,6 +35,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   declares the dependency from. `TT_WASM_RELEASES` names a table of releases
   of one's own: a mirror. Nothing is installed into the system: a tool tt
   cannot install into the project is named, with its version.
+- `install.sh` installs `tt` 3 from a GitHub release with one line:
+
+  ``` console
+  curl -fsSL https://raw.githubusercontent.com/tarantool/tt/v3/install.sh | sh
+  ```
+
+  It takes the newest stable `tt` 3 release, or the newest pre-release while
+  there is none, verifies the archive against `checksums.txt` and puts `tt`
+  into `~/.local/bin`, `/usr/local/bin` for root. `--version`, `--dir` and
+  `--openssl` select the version, the directory and the `tt-openssl` build.
 
 ### Changed
 

@@ -103,9 +103,29 @@ graph LR
 
 ### Installation
 
+Install `tt` 3 from its GitHub release with one line, on Linux (x86_64 and
+arm64) or on macOS with Apple silicon:
+
+``` console
+curl -fsSL https://raw.githubusercontent.com/tarantool/tt/v3/install.sh | sh
+```
+
+The script takes the newest stable `tt` 3 release, or the newest pre-release
+while there is none, checks the archive against `checksums.txt` of the
+release and puts `tt` into `~/.local/bin`, or into `/usr/local/bin` when run
+by root. `wget -qO- <url> | sh` works as well. Options go after `sh -s --`:
+
+``` console
+curl -fsSL https://raw.githubusercontent.com/tarantool/tt/v3/install.sh | sh -s -- --version 3.0.0-alpha.1 --dir /usr/local/bin
+```
+
+`--openssl` installs the `tt-openssl` build, whose TLS uses OpenSSL instead of
+Go; `--help` lists the options. A binary installed this way needs none of the
+macOS steps below: `curl` does not mark the file as downloaded.
+
 > [!NOTE]
-> The packages and the release archives below are of `tt` 2.x: `tt` 3 is not
-> released yet. To run it, [build it from source](#build-from-source).
+> The packages and the release archives below are of `tt` 2.x. To run a
+> `tt` 3 that is not released yet, [build it from source](#build-from-source).
 
 TT can be installed from the deb / rpm repository "tarantool/modules".
 
