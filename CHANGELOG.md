@@ -45,6 +45,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   there is none, verifies the archive against `checksums.txt` and puts `tt`
   into `~/.local/bin`, `/usr/local/bin` for root. `--version`, `--dir` and
   `--openssl` select the version, the directory and the `tt-openssl` build.
+- `install.sh --commit <commit>` builds `tt` 3 from a commit of the
+  repository with `go build` instead of installing a release: a hash, full
+  or short, a branch or a tag, and the commit of a pull request by its full
+  hash. The binary reports the version `git describe` gives the commit, as
+  a binary of `mage build` does, and the build runs on Intel macOS too. It
+  needs `git` and Go.
 
 ### Changed
 

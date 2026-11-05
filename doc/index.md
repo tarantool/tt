@@ -43,7 +43,7 @@ $ tt instance status
 
 ## Where to go
 
-- [Get started](get-started/install.md): build tt, run a cluster, make a
+- [Get started](get-started/install.md): install tt, run a cluster, make a
   package.
 - [Concepts](concepts/projects-and-scopes.md): projects and scopes, packages,
   instances - the model the commands share.

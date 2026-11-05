@@ -119,34 +119,22 @@ by root. `wget -qO- <url> | sh` works as well. Options go after `sh -s --`:
 curl -fsSL https://raw.githubusercontent.com/tarantool/tt/v3/install.sh | sh -s -- --version 3.0.0-alpha.1 --dir /usr/local/bin
 ```
 
-`--openssl` installs the `tt-openssl` build, whose TLS uses OpenSSL instead of
-Go; `--help` lists the options. A binary installed this way needs none of the
-macOS steps below: `curl` does not mark the file as downloaded.
+On Linux `--openssl` installs the `tt-openssl` build, whose TLS uses OpenSSL
+instead of Go; `--help` lists the options. A binary installed this way needs
+none of the macOS steps below: `curl` does not mark the file as downloaded.
+
+`--commit` builds `tt` from a commit of the repository instead, with `git`
+and Go: a hash, full or short, a branch or a tag. Such a build reports the
+version `git describe` gives the commit, as `mage build` does, and runs on
+Intel macOS too, which has no release build:
+
+``` console
+curl -fsSL https://raw.githubusercontent.com/tarantool/tt/v3/install.sh | sh -s -- --commit 1508ce93
+```
 
 > [!NOTE]
-> The packages and the release archives below are of `tt` 2.x. To run a
-> `tt` 3 that is not released yet, [build it from source](#build-from-source).
-
-TT can be installed from the deb / rpm repository "tarantool/modules".
-
-Install the tarantool repositories:
-
-<https://www.tarantool.io/en/download/os-installation/>
-
-Install TT:
-
-- Deb based distributions:
-
-``` console
-apt-get install tt
-```
-
-- Rpm based distributions:
-
-``` console
-yum install tt
-dnf install tt
-```
+> The Gentoo and Homebrew packages below are of `tt` 2.x. To run a `tt` 3
+> that is not released yet, [build it from source](#build-from-source).
 
 On Gentoo Linux, the TT can be installed from the [Tarantool Gentoo
 Overlay](https://github.com/tarantool/gentoo-overlay):
