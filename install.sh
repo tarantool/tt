@@ -1,5 +1,5 @@
 #!/bin/sh
-# Install tt 3 from a GitHub release.
+# Install tt 3 from a GitHub release, or build it from a commit.
 #
 #   curl -fsSL https://raw.githubusercontent.com/tarantool/tt/v3/install.sh | sh
 #
@@ -8,9 +8,12 @@
 #   curl -fsSL https://raw.githubusercontent.com/tarantool/tt/v3/install.sh | \
 #       sh -s -- --version 3.0.0-alpha.1 --dir /usr/local/bin
 #
-# The version and the directory can also be set with the TT_VERSION and
-# TT_INSTALL_DIR environment variables. GITHUB_TOKEN, when set, is sent to
-# the GitHub API that lists the releases.
+#   curl -fsSL https://raw.githubusercontent.com/tarantool/tt/v3/install.sh | \
+#       sh -s -- --commit 1508ce93
+#
+# The version, the commit and the directory can also be set with the
+# TT_VERSION, TT_COMMIT and TT_INSTALL_DIR environment variables.
+# GITHUB_TOKEN, when set, is sent to the GitHub API that lists the releases.
 #
 # The binary is written next to its target and renamed into place, so a
 # running tt is replaced rather than overwritten in place.
@@ -23,20 +26,27 @@ API="https://api.github.com"
 
 usage() {
     cat <<EOF
-Install tt 3 from a GitHub release of ${REPO}.
+Install tt 3 from a GitHub release of ${REPO}, or build it from a commit.
 
-Usage: install.sh [--version <version>] [--dir <dir>] [--openssl]
+Usage: install.sh [--version <version> | --commit <commit>] [--dir <dir>]
+                  [--openssl]
 
 Options:
   -v, --version <version>  tt version to install, e.g. 3.0.0-alpha.1
                            (default: \$TT_VERSION or the newest tt 3 release:
                            the newest stable one, or the newest pre-release
                            while there is no stable one).
+  -c, --commit <commit>    build tt from a commit of ${REPO} with go build
+                           instead of installing a release (default:
+                           \$TT_COMMIT): a hash, full or short, a branch or a
+                           tag. Needs git and Go.
   -d, --dir <dir>          directory to put the tt binary into
                            (default: \$TT_INSTALL_DIR, or /usr/local/bin for
                            root and ~/.local/bin otherwise).
       --openssl            install the tt-openssl build, with the OpenSSL TLS
-                           backend instead of the pure-Go one (Linux only).
+                           backend instead of the pure-Go one: Linux only for
+                           a release; a build needs a C compiler and the
+                           OpenSSL headers.
   -h, --help               show this help.
 EOF
 }
@@ -124,7 +134,83 @@ sha256() {
     fi
 }
 
+# Builds tt of $commit into ${tmp}/tt as `mage build` does: with the build
+# tags of the TLS backend and the version git describe gives the commit,
+# stamped with -ldflags. The clone has the history and the tags describe
+# needs, but not the files of other commits. A commit no branch has, such as
+# one of a pull request, is fetched by its full hash.
+build_commit() {
+    src="${tmp}/src"
+    say "cloning ${GITHUB}/${REPO}"
+    git clone --quiet --filter=blob:none --no-checkout \
+        "${GITHUB}/${REPO}.git" "$src" ||
+        die "cannot clone ${GITHUB}/${REPO}"
+    if ! git -C "$src" checkout --quiet --detach "$commit" 2>/dev/null; then
+        git -C "$src" fetch --quiet --filter=blob:none origin "$commit" ||
+            die "${REPO} has no commit ${commit}; a commit no branch has" \
+                "needs its full hash"
+        git -C "$src" checkout --quiet --detach FETCH_HEAD ||
+            die "cannot check out ${commit}"
+    fi
+    # tt 2 builds with submodules and generated code, which mage makes.
+    grep -q '^module github.com/tarantool/tt/v3$' "${src}/go.mod" ||
+        die "${commit} is not a commit of tt 3, the only one this script builds"
+
+    git_commit=$(git -C "$src" rev-parse --short HEAD)
+    git_tag=$(git -C "$src" describe --tags 2>/dev/null) || git_tag=
+    git_since=
+    if [ -n "$git_tag" ]; then
+        git_since=$(git -C "$src" rev-list --count \
+            "$(git -C "$src" describe --tags --abbrev=0)..HEAD")
+    fi
+
+    tags=netgo,osusergo
+    cgo=0
+    if [ "$project" = tt-openssl ]; then
+        tags="${tags},openssl"
+        cgo=1
+    fi
+    pkg=github.com/tarantool/tt/v3/cli/version
+    ldflags="-s -w -X ${pkg}.gitTag=${git_tag} -X ${pkg}.gitCommit=${git_commit}"
+    ldflags="${ldflags} -X ${pkg}.gitCommitSinceTag=${git_since}"
+
+    say "building ${project} at ${git_commit}${git_tag:+ (${git_tag})}"
+    (cd "$src" && CGO_ENABLED=$cgo go build -trimpath -tags "$tags" \
+        -ldflags "$ldflags" -o "${tmp}/tt" ./cli) ||
+        die "cannot build tt at ${git_commit}"
+    version=$("${tmp}/tt" version --commit 2>/dev/null) || version=$git_commit
+}
+
+# Downloads the archive of the release into ${tmp} and unpacks tt from it,
+# checked against checksums.txt of the release.
+install_release() {
+    if [ -z "$version" ]; then
+        tag=$(latest_tag)
+    else
+        tag=v${version#v}
+    fi
+    version=${tag#v}
+
+    archive="${project}-${version}-${os}-${arch}.tar.gz"
+    base="${GITHUB}/${REPO}/releases/download/${tag}"
+
+    say "downloading ${base}/${archive}"
+    download "${base}/${archive}" "${tmp}/${archive}" ||
+        die "cannot download ${archive}; is ${tag} a release of ${REPO}?"
+    download "${base}/checksums.txt" "${tmp}/checksums.txt" ||
+        die "cannot download checksums.txt of ${tag}"
+
+    expected=$(awk -v f="$archive" '$2 == f { print $1 }' "${tmp}/checksums.txt")
+    [ -n "$expected" ] || die "${archive} is not listed in checksums.txt"
+    actual=$(sha256 "${tmp}/${archive}")
+    [ "$actual" = "$expected" ] ||
+        die "checksum mismatch for ${archive}: expected ${expected}, got ${actual}"
+
+    tar -xzf "${tmp}/${archive}" -C "$tmp" tt
+}
+
 version=${TT_VERSION:-}
+commit=${TT_COMMIT:-}
 dir=${TT_INSTALL_DIR:-}
 project=tt
 
@@ -137,6 +223,15 @@ while [ $# -gt 0 ]; do
         ;;
     --version=*)
         version=${1#*=}
+        shift
+        ;;
+    -c | --commit)
+        [ $# -ge 2 ] || die "$1 requires a value"
+        commit=$2
+        shift 2
+        ;;
+    --commit=*)
+        commit=${1#*=}
         shift
         ;;
     -d | --dir)
@@ -163,8 +258,17 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-has curl || has wget || die "neither curl nor wget is found"
-has tar || die "tar is not found"
+[ -z "$version" ] || [ -z "$commit" ] ||
+    die "--version and --commit exclude each other"
+
+if [ -n "$commit" ]; then
+    has git || die "git is not found; --commit builds tt from source"
+    has go || die "go is not found; --commit builds tt with Go:" \
+        "https://go.dev/doc/install"
+else
+    has curl || has wget || die "neither curl nor wget is found"
+    has tar || die "tar is not found"
+fi
 
 case "$(uname -s)" in
 Linux) os=linux ;;
@@ -185,11 +289,14 @@ if [ "$os" = darwin ] && [ "$arch" = amd64 ] &&
     arch=arm64
 fi
 
-[ "$os" != darwin ] || [ "$arch" = arm64 ] ||
-    die "tt 3 has no build for Intel macOS; build it from source:" \
-        "${GITHUB}/${REPO}/tree/v3#build-from-source"
-[ "$project" = tt ] || [ "$os" = linux ] ||
-    die "--openssl is supported on Linux only"
+# A release has builds for these only; a commit builds wherever Go does.
+if [ -z "$commit" ]; then
+    [ "$os" != darwin ] || [ "$arch" = arm64 ] ||
+        die "tt 3 has no build for Intel macOS; build it from a commit" \
+            "with --commit v3"
+    [ "$project" = tt ] || [ "$os" = linux ] ||
+        die "--openssl is supported on Linux only"
+fi
 
 if [ -z "$dir" ]; then
     if [ "$(id -u)" -eq 0 ]; then
@@ -204,29 +311,11 @@ stage=
 trap 'rm -rf "$tmp"; [ -z "$stage" ] || rm -rf "$stage"' EXIT
 trap 'exit 1' HUP INT TERM
 
-if [ -z "$version" ]; then
-    tag=$(latest_tag)
+if [ -n "$commit" ]; then
+    build_commit
 else
-    tag=v${version#v}
+    install_release
 fi
-version=${tag#v}
-
-archive="${project}-${version}-${os}-${arch}.tar.gz"
-base="${GITHUB}/${REPO}/releases/download/${tag}"
-
-say "downloading ${base}/${archive}"
-download "${base}/${archive}" "${tmp}/${archive}" ||
-    die "cannot download ${archive}; is ${tag} a release of ${REPO}?"
-download "${base}/checksums.txt" "${tmp}/checksums.txt" ||
-    die "cannot download checksums.txt of ${tag}"
-
-expected=$(awk -v f="$archive" '$2 == f { print $1 }' "${tmp}/checksums.txt")
-[ -n "$expected" ] || die "${archive} is not listed in checksums.txt"
-actual=$(sha256 "${tmp}/${archive}")
-[ "$actual" = "$expected" ] ||
-    die "checksum mismatch for ${archive}: expected ${expected}, got ${actual}"
-
-tar -xzf "${tmp}/${archive}" -C "$tmp" tt
 
 mkdir -p "$dir" || die "cannot create ${dir}"
 # A mv onto a directory puts the file into it instead of replacing it; the
