@@ -89,32 +89,34 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  publish-s3:
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: packages
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: false
-
-      - name: Setup Mage
-        run: go install github.com/magefile/mage@v1.15.0
-
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: packages-*
-          merge-multiple: true
-          path: dist
-
-      - name: Publish tt and tt-openssl packages to RWS
-        env:
-          RWS_URL_PART: https://rws.tarantool.org/release/modules
-          RWS_AUTH: ${{ secrets.RWS_AUTH }}
-        run: mage publishRWS
+  # The release keeps the packages as assets of the draft release, which is
+  # where they are taken from now, so nothing is pushed to RWS on a tag.
+  # publish-s3:
+  #   if: startsWith(github.ref, 'refs/tags/')
+  #   needs: packages
+  #   runs-on: ubuntu-24.04
+  #   timeout-minutes: 30
+  #   steps:
+  #     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+  #       with:
+  #         persist-credentials: false
+  #
+  #     - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+  #       with:
+  #         go-version: ${{ env.GO_VERSION }}
+  #         cache: false
+  #
+  #     - name: Setup Mage
+  #       run: go install github.com/magefile/mage@v1.15.0
+  #
+  #     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+  #       with:
+  #         pattern: packages-*
+  #         merge-multiple: true
+  #         path: dist
+  #
+  #     - name: Publish tt and tt-openssl packages to RWS
+  #       env:
+  #         RWS_URL_PART: https://rws.tarantool.org/release/modules
+  #         RWS_AUTH: ${{ secrets.RWS_AUTH }}
+  #       run: mage publishRWS
