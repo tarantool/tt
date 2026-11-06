@@ -479,7 +479,8 @@ func GetYamlFileName(fileName string, mustExist bool) (string, error) {
 }
 
 // StringToTimestamp transforms string with number or RFC339Nano time
-// to <sec.nanosecond> timestamp string.
+// to <sec.nanosecond> timestamp string. The fraction of a time always has
+// nine digits: 12.0270 seconds past a minute is ".027000000", not ".27".
 func StringToTimestamp(input string) (string, error) {
 	if input == "" {
 		// Default value.
@@ -499,10 +500,21 @@ func StringToTimestamp(input string) (string, error) {
 		return "", err //nolint:wrapcheck // The error names the input already.
 	}
 
-	tsSec := rfc3339NanoTs.Unix()
-	tsNanoSec := rfc3339NanoTs.Nanosecond()
-	ts := fmt.Sprintf("%s.%s", strconv.FormatInt(tsSec, 10),
-		strconv.FormatInt(int64(tsNanoSec), 10))
+	return formatUnixNano(rfc3339NanoTs.UnixNano()), nil
+}
 
-	return ts, nil
+// formatUnixNano writes nanoseconds since the Unix epoch as seconds with a
+// nine-digit fraction. A time before the epoch is negative as a whole:
+// Unix() and Nanosecond() of half a second before it are -1 and 500000000,
+// and the time is -0.500000000, not -1.500000000.
+func formatUnixNano(nanos int64) string {
+	const nanosPerSecond = int64(time.Second)
+
+	sign := ""
+	if nanos < 0 {
+		sign = "-"
+		nanos = -nanos
+	}
+
+	return fmt.Sprintf("%s%d.%09d", sign, nanos/nanosPerSecond, nanos%nanosPerSecond)
 }
