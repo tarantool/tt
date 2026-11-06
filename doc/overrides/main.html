@@ -7,7 +7,13 @@
 {% endblock %}
 
 {% block announce %}
+  {% if config.theme.language == "ru" %}
+  Предварительная версия документации tt 3, который ещё не вышел.
+  Документация tt 2.x — в
+  <a href="https://www.tarantool.io/ru/doc/latest/tooling/tt_cli/">документации Tarantool</a>.
+  {% else %}
   A preview of the documentation of tt 3, which is not released yet. For
   tt 2.x, see the
   <a href="https://www.tarantool.io/en/doc/latest/tooling/tt_cli/">Tarantool documentation</a>.
+  {% endif %}
 {% endblock %}

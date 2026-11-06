@@ -13,6 +13,7 @@ on:
       - 'mkdocs.yml'
       - 'core/testdata/help.golden'
       - 'cli/cmd/clidoc/**'
+      - 'ci/doc_translations.py'
       - '.github/workflows/docs.yml'
   pull_request:
     paths:
@@ -20,6 +21,7 @@ on:
       - 'mkdocs.yml'
       - 'core/testdata/help.golden'
       - 'cli/cmd/clidoc/**'
+      - 'ci/doc_translations.py'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 
@@ -38,6 +40,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # The whole history: the check of the translations compares when
+          # a page and its translation last changed.
+          fetch-depth: 0
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -57,6 +62,11 @@ jobs:
       # as the reference of a new command.
       - name: Build the site
         run: mage docs:build
+
+      # Warns about a translation whose English page changed after it or is
+      # gone; does not fail the build.
+      - name: Check the translations
+        run: mage docs:stale
 
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
