@@ -12,7 +12,7 @@ import (
 )
 
 // migrationGuide is the guide that explains moving from tt2.
-const migrationGuide = "doc/migration_from_older_versions.md"
+const migrationGuide = "https://tarantool.github.io/tt/migration_from_older_versions/"
 
 // tt2Files are the files a tt2 environment is recognised by: its config, in
 // either spelling tt2 accepted, and the instances file of its application
