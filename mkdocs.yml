@@ -28,6 +28,7 @@ validation:
 
 nav:
   - Home: index.md
+  - What's new in tt 3: whats-new.md
   - Get started:
       - get-started/install.md
       - get-started/first-cluster.md
