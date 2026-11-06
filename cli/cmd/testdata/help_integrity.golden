@@ -11,7 +11,6 @@ applications
 [0;1;39m
 COMMANDS[0m
   backup      Manage Tarantool backups (PITR)
-  backup-id   Print an identifier for a new backup
   binary      Manage binaries and SDK bundles
   cluster     Manage cluster configuration
   completion  Generate autocomplete for a specified shell. Supported shell type:

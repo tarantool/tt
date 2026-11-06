@@ -57,7 +57,6 @@ nav:
           - reference/commands/index.md
           - tt aeon: reference/commands/aeon.md
           - tt backup: reference/commands/backup.md
-          - tt backup-id: reference/commands/backup-id.md
           - tt binary: reference/commands/binary.md
           - tt cluster: reference/commands/cluster.md
           - tt completion: reference/commands/completion.md

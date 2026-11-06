@@ -134,7 +134,7 @@ func TestBackupSubcommandsSilenceUsage(t *testing.T) {
 // TestBackupIDPrintsOneID pins the stdout contract orchestrators capture:
 // exactly one id and a newline.
 func TestBackupIDPrintsOneID(t *testing.T) {
-	cmd := NewBackupIDCmd()
+	cmd := newBackupIDCmd()
 	out := &strings.Builder{}
 
 	cmd.SetArgs(nil)
@@ -154,7 +154,7 @@ func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("write re
 // TestBackupIDFailsWhenOutputFails pins that an id which could not be
 // printed fails the command instead of exiting 0 with an empty stdout.
 func TestBackupIDFailsWhenOutputFails(t *testing.T) {
-	cmd := NewBackupIDCmd()
+	cmd := newBackupIDCmd()
 	cmd.SetArgs(nil)
 	cmd.SetOut(failingWriter{})
 	cmd.SetErr(&strings.Builder{})
@@ -163,7 +163,7 @@ func TestBackupIDFailsWhenOutputFails(t *testing.T) {
 }
 
 func TestBackupIDRejectsArgs(t *testing.T) {
-	cmd := NewBackupIDCmd()
+	cmd := newBackupIDCmd()
 	cmd.SetArgs([]string{"extra"})
 	cmd.SetOut(&strings.Builder{})
 	cmd.SetErr(&strings.Builder{})

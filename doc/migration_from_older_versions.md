@@ -105,6 +105,12 @@ exits with 0 when the instances were stopped, and with the exit code of an
 instance that failed. A command over several instances goes on after an
 instance it fails for and exits with 3 when some of them failed.
 
+### tt backup-id is tt backup id
+
+The command that prints an identifier for a new backup is a subcommand of
+`tt backup` now: a backup script that ran `id=$(tt backup-id)` runs
+`id=$(tt backup id)`. It prints the same identifier.
+
 ### systemd units come from tt service systemd
 
 The units `tt pack` of `tt` 2.x put into packages ran `tt -L <environment>

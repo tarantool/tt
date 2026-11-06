@@ -11,7 +11,6 @@ Utility for managing Tarantool packages and Tarantool-based applications
 COMMANDS[0m
   aeon        Manage aeon application
   backup      Manage Tarantool backups (PITR)
-  backup-id   Print an identifier for a new backup
   binary      Manage binaries and SDK bundles
   cluster     Manage cluster configuration
   completion  Generate autocomplete for a specified shell. Supported shell type:
@@ -124,6 +123,7 @@ Manage Tarantool backups (PITR)
 COMMANDS[0m
   finalize    Close the backup on the instance and remove the local archive
   gc          Delete old backup chains and dangling archives from the storage
+  id          Print an identifier for a new backup
   last        Show the last backup manifest from the storage
   plan        Plan the next backup: mode, master source, from_vclock
   start       Open a backup on the instance and build a local archive
@@ -291,6 +291,25 @@ EXAMPLES[0m
   $ tt backup gc --backup-storage=file:///var/backups --keep-days 30
   $ tt backup gc --backup-storage=file:///var/backups --keep-full 2 --keep-days
   7
+
+=== tt backup id --help
+Print an identifier for a new backup: the current UTC time as
+20060102T150405Z, followed by a newline. Pass it as is to --backup-id of
+'tt backup start', 'tt backup upload' and 'tt backup finalize'.
+
+Identifiers sort as text in the order they are generated, which is the order
+'tt backup upload' requires. The command exits once the second it printed is
+over, so the next call prints a later one.
+
+That holds for calls made one after another on one host. Calls running at the
+same time, calls on different hosts, or a clock stepped back can print the same
+identifier; generate one per backup run and hand it to every step.
+
+[0;1;39mUSAGE[0m
+  tt backup id [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for id
 
 === tt backup last --help
 Find the latest manifest in the storage and print it to stdout.
@@ -589,7 +608,7 @@ whose iproto listener has TLS enabled.
   tt backup start (<APP:INSTANCE>|<URI>) [flags]
 [0;1;39m
 FLAGS[0m
-      --backup-id string           backup identifier (required); 'tt backup-id'
+      --backup-id string           backup identifier (required); 'tt backup id'
                                    prints a new one
       --connect-timeout duration   timeout for establishing a binary connection
                                    (default 1s)
@@ -829,25 +848,6 @@ FLAGS[0m
 EXAMPLES[0m
   $ tt backup verify --backup-storage=file:///var/backups
   $ tt backup verify --backup-storage=file:///var/backups --format json
-
-=== tt backup-id --help
-Print an identifier for a new backup: the current UTC time as
-20060102T150405Z, followed by a newline. Pass it as is to --backup-id of
-'tt backup start', 'tt backup upload' and 'tt backup finalize'.
-
-Identifiers sort as text in the order they are generated, which is the order
-'tt backup upload' requires. The command exits once the second it printed is
-over, so the next call prints a later one.
-
-That holds for calls made one after another on one host. Calls running at the
-same time, calls on different hosts, or a clock stepped back can print the same
-identifier; generate one per backup run and hand it to every step.
-
-[0;1;39mUSAGE[0m
-  tt backup-id [flags]
-[0;1;39m
-FLAGS[0m
-  -h, --help   help for backup-id
 
 === tt binary --help
 Manage tt and tt Enterprise, Tarantool Community and Enterprise, TCM,
@@ -6135,7 +6135,6 @@ _luarocks-admin() {
 === tt __complete ""
 aeon	Manage aeon application
 backup	Manage Tarantool backups (PITR)
-backup-id	Print an identifier for a new backup
 binary	Manage binaries and SDK bundles
 cluster	Manage cluster configuration
 completion	Generate autocomplete for a specified shell. Supported shell type: bash | zsh | fish

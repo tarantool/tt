@@ -93,7 +93,6 @@ func BuiltinCommands() []*cobra.Command {
 		NewBinaryCmd(),
 		NewTcmCmd(),
 		NewBackupCmd(),
-		NewBackupIDCmd(),
 		NewRestoreCmd(),
 		NewWasmCmd(),
 	}
