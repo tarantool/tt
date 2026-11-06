@@ -50,6 +50,7 @@ nav:
       - how-to/sign-packages.md
       - how-to/external-modules.md
       - how-to/rust-modules.md
+      - how-to/write-a-module.md
       - how-to/build-distribution.md
       - how-to/wasm-components.md
       - Migrate from tt 2.x: migration_from_older_versions.md
@@ -82,6 +83,7 @@ nav:
           - tt wasm: reference/commands/wasm.md
           - Exit codes: reference/commands/errors.md
       - reference/app-manifest.md
+      - reference/tt-manifest.md
       - reference/instances-yaml.md
       - reference/templates.md
       - reference/environment.md

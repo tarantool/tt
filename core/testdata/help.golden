@@ -938,7 +938,7 @@ build; every other field is optional:
   name = "tt"                   # the binary
 
   [core]
-  tt = "v3"                     # latest, a branch, a commit or a version
+  tt = "v3.0.0-alpha.2"         # a version, a commit, latest: a Go query
   # path = "../tt"              # or a local checkout of the core
 
   [distribution]
@@ -964,9 +964,14 @@ build; every other field is optional:
   # a module version, or a query
   "github.com/acme/lib/v2" = "github.com/acme/lib/v2@main"
 
+[core].tt is a Go version query for the core module. Pin a version or a
+commit: Go reads "v3" as the newest v3.x.y release, never as the branch v3,
+and it matches no pre-release.
+
 A module of the core's repository is built at the commit of the core; any
 other module without a version at its latest. A module's constructor is New
-in its root package unless package and symbol say otherwise.
+in its root package unless package and symbol say otherwise. Every module is
+built on the SDK of the core, whatever its go.mod requires.
 
 [replace] does what replace directives of the generated go.mod do, which a tt
 module cannot do itself: Go applies the replace directives of the main module

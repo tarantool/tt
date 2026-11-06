@@ -14,6 +14,7 @@ Each directory is a separate Go module:
 | `sdk/dial`       | `github.com/tarantool/tt/sdk/dial`       |
 | `sdk/cluster`    | `github.com/tarantool/tt/sdk/cluster`    |
 | `sdk/integrity`  | `github.com/tarantool/tt/sdk/integrity`  |
+| `sdk/backup`     | `github.com/tarantool/tt/sdk/backup`     |
 | `sdk/tuple`      | `github.com/tarantool/tt/sdk/tuple`      |
 
 - `connect` parses connection strings and URIs and resolves credentials.
@@ -26,6 +27,10 @@ Each directory is a separate Go module:
   package, the runtimes it bundles and published data with an RSA private
   key and checks them with the public key, an application together with the
   runtimes it runs on.
+- `backup` holds what tt backup and tt restore share: `archive` packs snap
+  and xlog files with a manifest fragment into a `.tar.zst` archive and
+  unpacks it, and `storage` is the object storage of backups, with a
+  filesystem (`storage/fs`) and an S3 (`storage/s3`) backend.
 - `tuple` decodes the MessagePack values Tarantool stores - tuples, keys,
   update operations, the bodies of journal rows - keeping MP_STR apart from
   MP_BIN, MP_UINT from MP_INT and the order of a map, with the extensions
@@ -38,10 +43,11 @@ Each directory is a separate Go module:
 
 `github.com/tarantool/tt/sdk`, rooted at `sdk/` itself, is the contract
 between tt and its modules. The nested `connect`, `dial`, `cluster`,
-`integrity` and `tuple` are not part of it: each has its own `go.mod`. It depends on the
-standard library, `github.com/spf13/cobra`, `github.com/spf13/pflag`, the
-core package of `github.com/tarantool/go-config/v2` (not its Tarantool
-builder) and `github.com/tarantool/tt/sdk/connect` (testify for its tests);
+`integrity`, `backup` and `tuple` are not part of it: each has its own
+`go.mod`. It depends on the standard library, `github.com/spf13/cobra`,
+`github.com/spf13/pflag`, the core package of
+`github.com/tarantool/go-config/v2` (not its Tarantool builder) and
+`github.com/tarantool/tt/sdk/connect` (testify for its tests);
 `sdk/formatter` adds `github.com/jedib0t/go-pretty` and `gopkg.in/yaml.v2`,
 `sdk/console` adds `github.com/tarantool/go-prompt` and `golang.org/x/term`.
 Cobra, pflag and go-config types are part of the contract, so the module
@@ -79,9 +85,12 @@ core uses, and the core never requires older ones.
   `Credentials` (`StorageSource`); `ParseClusterSource` classifies a
   command-line argument the way `tt cluster show` does - a storage URI, else
   an existing regular file, else an application. Sources are comparable.
-  `SplitInstance` splits `app:instance`. `Instances` lists the instances of a
-  cluster configuration (a go-config `Config` with the Tarantool hierarchy)
-  and `InstanceConfig` returns one instance's configuration resolved through
+  `AddAppFlags` declares `--scope` and `--template` on a command, bound to an
+  `AppLookup`, with the help and the completion of tt's instance commands,
+  and `ClusterSource.WithLookup` makes an `AppSource` find its application as
+  they say. `SplitInstance` splits `app:instance`. `Instances` lists the
+  instances of a cluster configuration (a go-config `Config` with the
+  Tarantool hierarchy) and `InstanceConfig` returns one instance's configuration resolved through
   global, group, replicaset and instance; an unknown instance wraps
   `ErrNotFound`.
 - `sdk/console` is the interactive console `tt aeon connect` runs: a
@@ -140,17 +149,39 @@ core uses, and the core never requires older ones.
   creating the groups on their paths, starts the services and executes a
   command line. `Exit` ends the command, not the test binary: `Run` reports
   it with `Result.Exited` and the error given. Its printers encode the human
-  format and JSON; YAML is the core's.
+  format and JSON; YAML is the core's. Its root does not traverse the groups,
+  as the root of tt does: a non-persistent flag of a group, which tt parses
+  between the group and the subcommand, is unknown there, so a flag the
+  subcommands of a group share belongs in its persistent flags.
 
 stdout carries only a command's result. Diagnostics, progress and prompts go
 to stderr.
+
+A first module, from `go mod init` to a distribution, is in
+[Write a tt module](https://tarantool.github.io/tt/how-to/write-a-module/).
 
 ## Versioning
 
 Each module is versioned on its own with tags prefixed by its directory, for
 example `sdk/connect/v0.1.0`; the contract module's tags are `sdk/v0.x.y`.
 No such tags exist yet: inside this repository the modules resolve through
-`replace` directives in the `go.mod` files that use them.
+`replace` directives in the `go.mod` files that use them, and their own
+`go.mod` files require each other at placeholder versions (`v0.0.0-0`) that
+exist nowhere else.
+
+A module outside this repository therefore requires the SDK modules at a
+commit of tt, every one it uses at the same commit, and `sdk/connect`
+whenever it uses `sdk` (`sdk/connect` and `sdk/dial` for `sdk/cluster`), so
+that the pseudo-version takes the place of the placeholder:
+
+```sh
+go get github.com/tarantool/tt/sdk@<commit> github.com/tarantool/tt/sdk/connect@<commit>
+```
+
+The distribution build builds every module on the SDK at the commit of its
+core, whatever the module requires, so keep the commit the one of the core
+the module is built on. To work against a local checkout of tt, list its SDK
+modules in a `go.work` of the module.
 
 ## Stability
 
