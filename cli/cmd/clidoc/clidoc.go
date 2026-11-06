@@ -179,10 +179,31 @@ func writeCommand(page *strings.Builder, cmd *cobra.Command) {
 	writeFlags(page, "Flags", cmd.LocalFlags())
 	writeFlags(page, "Global flags", cmd.InheritedFlags())
 
-	if example := strings.Trim(cmd.Example, "\n"); example != "" {
+	if lines := exampleLines(cmd.Example); len(lines) > 0 {
 		page.WriteString("**Examples**\n\n")
-		writeBlock(page, "console", dedent(strings.Split(example, "\n")))
+		writeBlock(page, "console", dedent(lines))
 	}
+}
+
+// exampleIndent is what the help template puts before the examples of a
+// command. It indents their first line only: the lines after it carry their
+// own indent.
+const exampleIndent = "  "
+
+// exampleLines returns the lines of the examples as the help prints them,
+// without the blank lines around them.
+func exampleLines(example string) []string {
+	lines := strings.Split(exampleIndent+example, "\n")
+
+	for len(lines) > 0 && strings.TrimSpace(lines[0]) == "" {
+		lines = lines[1:]
+	}
+
+	for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
+		lines = lines[:len(lines)-1]
+	}
+
+	return lines
 }
 
 // writeDescription writes the long description of cmd, or the short one
