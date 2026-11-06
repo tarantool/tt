@@ -2,7 +2,8 @@
 
 A tt module is a Go module that is compiled into tt rather than run next to
 it: its package exports a constructor, `func New(sdk.Services) []sdk.Mount`,
-that returns the commands it adds (see [the SDK](https://github.com/tarantool/tt/blob/v3/sdk/README.md)). A
+that returns the commands it adds (see [Write a tt module](write-a-module.md)
+and [the SDK](https://github.com/tarantool/tt/blob/v3/sdk/README.md)). A
 distribution of tt is the tt core and a set of such modules built into one
 binary, described by `tt.manifest.toml`:
 
@@ -14,7 +15,7 @@ manifest_kind = "tt-distribution"
 name = "tt"
 
 [core]
-tt = "v3"
+tt = "v3.0.0-alpha.2"
 
 [distribution]
 title = "Tarantool CLI EE"
@@ -27,21 +28,27 @@ migrations = "./plugins/migrations"
 foo = "github.com/acme/tt-foo@v1.2.0"
 ```
 
-Only `manifest_version` and `manifest_kind` are required. Without `[core]`
-the distribution is built on the core of the tt that builds it; `tt` takes
-any Go version query (`latest`, a branch, a commit, a version) and `path` a
-local checkout of the core instead. `[distribution]` sets how the binary
+Only `manifest_version` and `manifest_kind` are required; every field is
+in [tt.manifest.toml](../reference/tt-manifest.md). Without `[core]` the
+distribution is built on the core of the tt that builds it; `tt` takes a Go
+version query for the core module - a version, a commit, `latest` - and
+`path` a local checkout of the core instead. Pin a version or a commit: Go
+reads `v3` as "the newest v3.x.y release", not as the branch `v3`, and while
+tt 3 has pre-releases only it matches nothing. `[distribution]` sets how the binary
 presents itself (`title`, `edition`), the integrity provider (`none` or
 `rsa`), and whether it has tt's own commands (`builtin`) and external modules
 (`external_modules`), both on by default. `[build]` sets the TLS
 implementation (`ssl`: `default`, `openssl` or `openssl_static`, overridden
-by `TT_CLI_BUILD_SSL`), extra build `tags` and `ldflags`.
+by `TT_CLI_BUILD_SSL`), whether to build with `cgo` (by default only for
+the OpenSSL ones), extra build `tags` and `ldflags`.
 
 A dependency is a local directory (`./...`, `../...` or an absolute path), a
 module path, or a module path with a version after `@`; the long form is a
-table with `module`, `version`, `path`, `package` and `symbol`. A module of
-the core's repository, such as `aeon`, is built at the commit of the core;
-any other module without a version at its latest.
+table with `module`, `version`, `path`, `package` and `symbol`: the
+constructor is `New` in the root package of the module unless `package` and
+`symbol` say otherwise. A module of the core's repository, such as `aeon`,
+is built at the commit of the core; any other module without a version at
+its latest.
 
 ```sh
 tt binary build tt                  # build ./tt from ./tt.manifest.toml
