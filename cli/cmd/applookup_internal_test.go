@@ -87,14 +87,16 @@ func findCommand(t *testing.T, root *cobra.Command, path []string, args ...strin
 // TestAppCommandsTakeLookupFlags pins that every command that takes an
 // application, beside those of tt instance, takes --scope and --template as
 // they do: the subcommands of tt replicaset, tt cluster show and publish,
-// and tt play.
+// and tt data play.
 //
 //nolint:paralleltest // The constructors bind flags to package state.
 func TestAppCommandsTakeLookupFlags(t *testing.T) {
 	replicaset := NewReplicasetCmd()
 	cluster := NewClusterCmd()
 
-	commands := map[string]*cobra.Command{"play": NewPlayCmd()}
+	commands := map[string]*cobra.Command{
+		"data play": findCommand(t, NewDataCmd(), []string{"play"}),
+	}
 
 	for _, path := range [][]string{
 		{"upgrade"}, {"downgrade"}, {"status"}, {"promote"}, {"demote"}, {"expel"},
@@ -264,7 +266,7 @@ func TestClusterPublishInstalled(t *testing.T) {
 	assert.Equal(t, lookupTopology, string(data))
 }
 
-// TestPlayLookup pins that tt play finds the instance of its target as
+// TestPlayLookup pins that tt data play finds the instance of its target as
 // --scope and --template say.
 //
 //nolint:paralleltest // Sets the environment, the working directory and the flags.
@@ -273,14 +275,16 @@ func TestPlayLookup(t *testing.T) {
 
 	cmdCtx := &cmdcontext.CmdCtx{}
 
-	require.NoError(t, NewPlayCmd().ParseFlags([]string{"--scope", "user"}))
+	play := findCommand(t, NewDataCmd(), []string{"play"})
+	require.NoError(t, play.ParseFlags([]string{"--scope", "user"}))
 
 	insts, err := resolveInstances(cmdCtx, []string{"myapp:storage-2"})
 	require.NoError(t, err)
 	require.Len(t, insts, 1)
 	assert.Equal(t, version, insts[0].AppDir)
 
-	require.NoError(t, NewPlayCmd().ParseFlags([]string{"--template", "other"}))
+	play = findCommand(t, NewDataCmd(), []string{"play"})
+	require.NoError(t, play.ParseFlags([]string{"--template", "other"}))
 
 	insts, err = resolveInstances(cmdCtx, []string{"myapp:router-1"})
 	require.NoError(t, err)

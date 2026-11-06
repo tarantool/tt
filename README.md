@@ -499,8 +499,8 @@ export TT_CLI_MODULES_PATH=/path/to/modules:/path/to/other/modules
 A relative directory is taken from the working directory tt runs in, so list
 absolute paths.
 
-For example, you have an external `cat` module. When you type `tt cat`, the
-external `cat` module will be launched, and every argument after `cat` goes
+For example, you have an external `connect` module. When you type `tt connect`, the
+external `connect` module will be launched, and every argument after `connect` goes
 to it; with `-V`, tt logs that the module replaces the command. A module
 named like a group of commands, such as `cluster`, takes over the whole
 group, and a module answers to the aliases of the command it replaces. To
@@ -930,7 +930,7 @@ tt instance connect
 ```
 
 `tt connect` is the same command as `tt instance connect`, with the same
-flags; `tt play` takes the same targets. The top-level `tt start`, `tt stop`
+flags; `tt data play` takes the same targets. The top-level `tt start`, `tt stop`
 and the rest of tt2 are gone, and `tt log` is `tt instance logs`.
 
 A project is a directory with `app.manifest.toml`, or with `instances.yaml` or
@@ -1055,7 +1055,7 @@ the pid of the process, `process.pid`, in the run directory.
 `tt instance status` shows whether the process runs and nothing more;
 `tt instance logrotate` reopens `tt.log` and sends the process
 `logrotate_signal`, if the record has one; `tt instance clean` removes the log
-and the data directory. `tt connect`, `tt play`, `tt instance kill --dump` and
+and the data directory. `tt connect`, `tt data play`, `tt instance kill --dump` and
 the cluster commands refuse an external process: it is not a Tarantool
 instance. The instances start in the order of `instances.yaml`, and none waits
 for another to be ready.
@@ -1085,7 +1085,7 @@ variables; in the user and system scopes a relative path there is refused. A
 relative path the script passes to `box.cfg` itself `tt` cannot check: in the
 user and system scopes it is resolved against the installed version, and the
 instance writes into the version, which an upgrade replaces. `tt connect`,
-`tt play`, `tt instance status` and `tt instance logrotate` work as with any
+`tt data play`, `tt instance status` and `tt instance logrotate` work as with any
 Tarantool instance, `tt instance check` checks the syntax of the script, and
 `tt instance clean` removes its data and log. `tt cluster show` and `publish`
 refuse it: no cluster config configures it. The application targets of
@@ -1388,9 +1388,9 @@ Common description. For a detailed description, use `tt help command` .
 - `backup` - back up a Tarantool cluster for point-in-time recovery;
     `backup-id` prints an identifier for a new backup.
 - `restore` - restore a Tarantool cluster from a backup.
-- `cat` - print into stdout the contents of .snap/.xlog files.
-- `play` - play the contents of .snap/.xlog files to another Tarantool
-    instance.
+- `data` - read snapshots and write-ahead logs without Tarantool: `cat`
+    prints their rows as YAML, JSON Lines or Lua, `play` applies their data
+    changes to an instance, transaction by transaction.
 - `coredump` - pack/unpack/inspect tarantool coredump.
 - `aeon` - connect to an Aeon instance.
 - `tcm` - manage Tarantool Cluster Manager.

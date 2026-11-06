@@ -18,8 +18,6 @@ const (
 	// statusCmdName is the name of the subcommands that report the state of
 	// what their parent command manages.
 	statusCmdName = "status"
-	// jsonNull is how encoding/json renders a nil slice.
-	jsonNull = "null"
 )
 
 // internalFunc is the implementation of a command: it works on the

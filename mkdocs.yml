@@ -59,18 +59,17 @@ nav:
           - tt backup: reference/commands/backup.md
           - tt backup-id: reference/commands/backup-id.md
           - tt binary: reference/commands/binary.md
-          - tt cat: reference/commands/cat.md
           - tt cluster: reference/commands/cluster.md
           - tt completion: reference/commands/completion.md
           - tt connect: reference/commands/connect.md
           - tt coredump: reference/commands/coredump.md
           - tt create: reference/commands/create.md
           - tt daemon: reference/commands/daemon.md
+          - tt data: reference/commands/data.md
           - tt instance: reference/commands/instance.md
           - tt modules: reference/commands/modules.md
           - tt new: reference/commands/new.md
           - tt package: reference/commands/package.md
-          - tt play: reference/commands/play.md
           - tt registry: reference/commands/registry.md
           - tt replicaset: reference/commands/replicaset.md
           - tt restore: reference/commands/restore.md

@@ -109,6 +109,12 @@ linters:
         text: Duplicate words \(true\) found
         linters:
           - dupword
+      # The help of tt data play describes its row mode as "row     row by
+      # row": the name of the mode, then what it does.
+      - path: ^cli/cmd/data\.go$
+        text: Duplicate words \(row\) found
+        linters:
+          - dupword
       # This key is part of the public module manifest format.
       - path: ^core/internal/extmod/modules\.go$
         text: 'yaml\(snake\): got ''tt-version'''
@@ -498,6 +504,7 @@ linters:
             - "github.com/tarantool/tt/v3/cli/coredump"
             - "github.com/tarantool/tt/v3/cli/create"
             - "github.com/tarantool/tt/v3/cli/daemon"
+            - "github.com/tarantool/tt/v3/cli/data"
             - "github.com/tarantool/tt/v3/cli/exitcode"
             - "github.com/tarantool/tt/v3/cli/logging"
             - "github.com/tarantool/tt/v3/cli/manifest"
@@ -631,6 +638,23 @@ linters:
             - "github.com/tarantool/tt/v3/cli/process_utils"
             - "github.com/tarantool/tt/v3/cli/ttlog"
             - "github.com/tarantool/tt/v3/internal/pidfile"
+        # tt data reads journals and vinyl runs with go-xlog, prints them
+        # through the core's printer and applies them over IPROTO.
+        dir-cli-data:
+          files:
+            - "**/cli/data/**"
+          allow:
+            - $gostd
+            - "github.com/google/uuid"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/go-iproto"
+            - "github.com/tarantool/go-tarantool/v3"
+            - "github.com/tarantool/go-xlog"
+            - "github.com/tarantool/tt/sdk"
+            - "github.com/tarantool/tt/v3/cli/connector"
+            - "github.com/tarantool/tt/v3/cli/printing"
+            - "github.com/vmihailenco/msgpack/v5"
+            - "gopkg.in/yaml.v3"
         dir-cli-docker:
           files:
             - "**/cli/docker/**"
