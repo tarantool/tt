@@ -317,8 +317,8 @@ github.com/tarantool/go-tarantool/v3 v3.0.2 h1:9ZtHllun80QX7KS9tqd3dXa+QAu2BfqFt
 github.com/tarantool/go-tarantool/v3 v3.0.2/go.mod h1:TXxLWhUCgdxXFfelnTSkq+goKRTRj660zxq4/WXPe8k=
 github.com/tarantool/go-tlsdialer/v2 v2.1.0 h1:PGVjS26nl7WtMncIXQ0zpoKtSVpflHOVOQOFhJVfLf0=
 github.com/tarantool/go-tlsdialer/v2 v2.1.0/go.mod h1:eUb+2n0Yi3HBUguhPh9heRFv7D+wvsFdpdPfqDTn6N4=
-github.com/tarantool/go-xlog v0.0.0-20260707203858-fed522934686 h1:2SjjYqDhtjen/3pHeSwpXDBM9dNZoXhuYb/s6vhKnU4=
-github.com/tarantool/go-xlog v0.0.0-20260707203858-fed522934686/go.mod h1:ZDu6simTStt+JG8BlHStzS2JAs/8k9HeynblSoR8+bo=
+github.com/tarantool/go-xlog v0.2.0 h1:fUTCR3RYQlGSOSvOT/Lcs2DkfnNbOJgD8FwnKgwjYO4=
+github.com/tarantool/go-xlog v0.2.0/go.mod h1:ZDu6simTStt+JG8BlHStzS2JAs/8k9HeynblSoR8+bo=
 github.com/testcontainers/testcontainers-go v0.43.0 h1:oEQx5MW2DGd9z3AeEQfB2lPM0eLs7ztyaGRu75bFo5A=
 github.com/testcontainers/testcontainers-go v0.43.0/go.mod h1:+VxkT2NQnKOZPKi6praMuMKYHYyOGXr0XSBSlSMCzFo=
 github.com/tinylib/msgp v1.3.0 h1:ULuf7GPooDaIlbyvgAxBV/FI7ynli6LZ1/nVUNu+0ww=
