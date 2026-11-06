@@ -33,7 +33,6 @@ tt_root_command: set[str] = set(
         "daemon",
         "tcm",
         "backup",
-        "backup-id",
         "restore",
         "service",
         "wasm",

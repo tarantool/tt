@@ -305,6 +305,7 @@ func NewBackupCmd() *cobra.Command {
 		newBackupGcCmd(),
 		newBackupPlanCmd(),
 		newBackupUploadCmd(),
+		newBackupIDCmd(),
 	)
 
 	// A failed run has already said what it managed to do; burying that under
@@ -316,10 +317,10 @@ func NewBackupCmd() *cobra.Command {
 	return backupCmd
 }
 
-// NewBackupIDCmd creates `tt backup-id`.
-func NewBackupIDCmd() *cobra.Command {
+// newBackupIDCmd creates `tt backup id`.
+func newBackupIDCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "backup-id",
+		Use:   "id",
 		Short: "Print an identifier for a new backup",
 		Long: `Print an identifier for a new backup: the current UTC time as
 20060102T150405Z, followed by a newline. Pass it as is to --backup-id of
@@ -385,7 +386,7 @@ whose iproto listener has TLS enabled.`,
 		RunE: backupRunE(runBackupStart),
 	}
 	cmd.Flags().StringVar(&backupStartID, "backup-id", "",
-		"backup identifier (required); 'tt backup-id' prints a new one")
+		"backup identifier (required); 'tt backup id' prints a new one")
 	cmd.Flags().StringVar(&backupStartFromVclock, "from-vclock", "",
 		"vclock of the last manifest (JSON object, e.g. '{\"1\":1500}'); "+
 			"incremental only")

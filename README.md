@@ -1386,7 +1386,7 @@ Common description. For a detailed description, use `tt help command` .
 - `cluster` - manage cluster configuration.
 - `replicaset` (`rs`) - manage replicasets.
 - `backup` - back up a Tarantool cluster for point-in-time recovery;
-    `backup-id` prints an identifier for a new backup.
+    `backup id` prints an identifier for a new backup.
 - `restore` - restore a Tarantool cluster from a backup.
 - `data` - read snapshots and write-ahead logs without Tarantool: `cat`
     prints their rows as YAML, JSON Lines or Lua, `play` applies their data

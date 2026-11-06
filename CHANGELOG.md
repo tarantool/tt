@@ -58,6 +58,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - The Lua `cat` and `play` scripts tt ran in a local Tarantool and the
   `TT_CLI_CAT_*` and `TT_CLI_PLAY_*` variables that passed them their options
   are gone.
+- `tt backup-id` is `tt backup id`, next to the other steps of a backup. It
+  prints the same identifier; `tt backup-id` is gone.
 
 ### Fixed
 

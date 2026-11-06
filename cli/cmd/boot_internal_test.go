@@ -173,7 +173,7 @@ func TestConfigureFindsTheProject(t *testing.T) {
 //nolint:paralleltest // The constructors bind flags to package state.
 func TestBuiltinCommandsAreLegacy(t *testing.T) {
 	commands := BuiltinCommands()
-	require.Len(t, commands, 24)
+	require.Len(t, commands, 23)
 
 	for _, command := range commands {
 		assert.True(t, isLegacy(command), command.Name())
