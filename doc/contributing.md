@@ -59,3 +59,21 @@ The [command reference](reference/commands/index.md) is generated from the
 help of tt by `mage docs:reference`: edit the help of a command, not its
 page. A new top-level command needs its page added to the nav of
 `mkdocs.yml`; the build fails until it is.
+
+### Translations
+
+The site has an English and a Russian version, the English one at the root
+and the Russian one under `/ru/`. A translation of a page lives next to it,
+with the locale before the extension: `get-started/install.ru.md`
+translates `get-started/install.md`. The Russian site shows the English page
+wherever there is no translation, so a page can be translated at any time
+and the nav of `mkdocs.yml` lists the English pages only; the titles the nav
+sets explicitly are translated in `nav_translations` of the `i18n` plugin.
+A translation keeps the headings of the English page and pins their anchors
+to the English ones, `## Сборка из исходников {#build-from-source}`, so that
+the links to a section work in both languages. The command reference stays
+in English.
+
+`mage docs:stale` lists the translations whose English page changed in git
+after the translation last did, with the commits to catch up on, and the
+translations whose English page is gone. CI runs it as a warning.

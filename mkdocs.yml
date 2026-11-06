@@ -124,6 +124,40 @@ theme:
 extra:
   generator: false
 
+plugins:
+  - search
+  # Russian next to English: page.ru.md translates page.md and is served
+  # under /ru/; a page with no translation falls back to the English one,
+  # as the generated command reference always does. Material gets the
+  # language switcher and search gets both languages. Translations that lag
+  # behind their English pages: mage docs:stale.
+  - i18n:
+      docs_structure: suffix
+      fallback_to_default: true
+      reconfigure_material: true
+      reconfigure_search: true
+      languages:
+        - locale: en
+          name: English
+          default: true
+        - locale: ru
+          name: Русский
+          site_description: tt, утилита командной строки для приложений Tarantool
+          # The titles the nav sets explicitly; the others come from the
+          # first heading of a page.
+          nav_translations:
+            Home: Главная
+            What's new in tt 3: Что нового в tt 3
+            Get started: Начало работы
+            Concepts: Концепции
+            Write your application: Пишем приложение
+            How-to: Руководства
+            Migrate from tt 2.x: Переход с tt 2.x
+            Reference: Справочник
+            Commands: Команды
+            Exit codes: Коды завершения
+            Project: О проекте
+
 markdown_extensions:
   - attr_list
   - tables
