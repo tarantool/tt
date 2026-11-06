@@ -43,6 +43,7 @@ $ tt instance status
 
 ## Where to go
 
+- [What's new in tt 3](whats-new.md): what tt 3 does that tt 2.x did not.
 - [Get started](get-started/install.md): install tt, run a cluster, make a
   package.
 - [Concepts](concepts/projects-and-scopes.md): projects and scopes, packages,
