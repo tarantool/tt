@@ -684,8 +684,8 @@ func TestMainExternalModules(t *testing.T) {
 			args: []string{"-I", "demo", "print"}, code: 0, stdout: "demo: 2\n",
 		},
 		{
-			name: "builtin command replaced", program: "demo", modules: []string{"cat"},
-			args: []string{"cat", "--x"}, code: 7, stdout: "external cat --x\n",
+			name: "builtin command replaced", program: "demo", modules: []string{"connect"},
+			args: []string{"connect", "--x"}, code: 7, stdout: "external connect --x\n",
 		},
 		{
 			name: "builtin group replaced as a whole", program: "demo",
@@ -814,16 +814,17 @@ func TestMainModuleHelpOnStdout(t *testing.T) {
 func TestMainReplacedCommandLogged(t *testing.T) {
 	t.Parallel()
 
-	dir := writeExternalModules(t, "cat")
+	dir := writeExternalModules(t, "connect")
 
 	got := runTT(t, ttRun{
-		program: "demo", args: []string{"-V", "cat", "--x"},
+		program: "demo", args: []string{"-V", "connect", "--x"},
 		env: []string{"TT_CLI_MODULES_PATH=" + dir},
 	})
 	require.Equal(t, 7, got.code, got.stderr)
-	assert.Equal(t, "external cat --x\n", got.stdout)
-	assert.Contains(t, got.stderr, `   · External module "cat" (`+dir+`/cat/main) replaces `+
-		`the command "cat" of module "builtin"; run tt with -I to keep it`+"\n")
+	assert.Equal(t, "external connect --x\n", got.stdout)
+	assert.Contains(t, got.stderr, `   · External module "connect" (`+dir+
+		`/connect/main) replaces the command "connect" of module "builtin"; `+
+		`run tt with -I to keep it`+"\n")
 }
 
 // TestMainExternalModulesListed checks where the external modules are
@@ -833,22 +834,22 @@ func TestMainReplacedCommandLogged(t *testing.T) {
 func TestMainExternalModulesListed(t *testing.T) {
 	t.Parallel()
 
-	dir := writeExternalModules(t, "cat", "hello", "version")
+	dir := writeExternalModules(t, "connect", "hello", "version")
 	env := []string{"TT_CLI_MODULES_PATH=" + dir}
 
 	got := runTT(t, ttRun{program: "demo", args: []string{"--help"}, env: env})
 	require.Equal(t, 0, got.code, got.stderr)
-	assert.Contains(t, got.stdout, "\n  cat         External cat\n")
+	assert.Contains(t, got.stdout, "\n  connect     External connect\n")
 	assert.Contains(t, got.stdout, "\n  hello       External hello\n")
-	assert.Contains(t, got.stdout, "EXTERNAL COMMANDS\n\x1b[0m  cat\tExternal cat\n"+
+	assert.Contains(t, got.stdout, "EXTERNAL COMMANDS\n\x1b[0m  connect\tExternal connect\n"+
 		"  hello\tExternal hello\n\x1b[0;1;39m\nFLAGS")
 	assert.Contains(t, got.stdout, "\n  modules     Manage tt cli modules\n")
 
 	got = runTT(t, ttRun{program: "demo", args: []string{"__complete", ""}, env: env})
 	require.Equal(t, 0, got.code, got.stderr)
-	assert.Contains(t, got.stdout, "\ncat\tExternal cat\n")
+	assert.Contains(t, got.stdout, "\nconnect\tExternal connect\n")
 	assert.Contains(t, got.stdout, "\nhello\tExternal hello\n")
-	assert.NotContains(t, got.stdout, "tt cat")
+	assert.NotContains(t, got.stdout, "tt connect")
 	assert.NotContains(t, got.stdout, "tt hello")
 	assert.True(t, strings.HasSuffix(got.stdout, "\n:4\n"), "no file names: %q", got.stdout)
 
@@ -858,7 +859,7 @@ func TestMainExternalModulesListed(t *testing.T) {
 
 	got = runTT(t, ttRun{program: "demo", args: []string{"-I", "modules", "list"}, env: env})
 	require.Equal(t, 0, got.code, got.stderr)
-	assert.Equal(t, "cat - External cat\nhello - External hello\n", got.stdout)
+	assert.Equal(t, "connect - External connect\nhello - External hello\n", got.stdout)
 
 	got = runTT(t, ttRun{program: "no-extmod", args: []string{"--help"}, env: env})
 	require.Equal(t, 0, got.code, got.stderr)

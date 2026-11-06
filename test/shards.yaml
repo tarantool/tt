@@ -28,8 +28,7 @@ instances:
 - logrotate
 - daemon
 - clean
-- play
-- cat
+- data
 - coredump
 - run
 tooling:

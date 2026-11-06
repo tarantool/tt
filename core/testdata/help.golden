@@ -13,7 +13,6 @@ COMMANDS[0m
   backup      Manage Tarantool backups (PITR)
   backup-id   Print an identifier for a new backup
   binary      Manage binaries and SDK bundles
-  cat         Print into stdout the contents of .snap/.xlog FILE(s)
   cluster     Manage cluster configuration
   completion  Generate autocomplete for a specified shell. Supported shell type:
               bash | zsh | fish
@@ -21,13 +20,12 @@ COMMANDS[0m
   coredump    Perform manipulations with the tarantool coredumps
   create      Create an application from a template
   daemon      Perform manipulations with the tt daemon (experimental)
+  data        Read and replay snapshots and write-ahead logs
   help        Help about any command
   instance    Manage the instances of applications
   modules     Manage tt cli modules
   new         Create a skeleton app.manifest.toml in the current directory
   package     Manage tt manifest packages
-  play        Play the contents of .snap/.xlog FILE(s) to another Tarantool
-              instance
   registry    Inspect the rock servers packages are resolved against
   replicaset  Manage replicasets
   restore     Restore a Tarantool cluster from a backup (PITR)
@@ -1728,33 +1726,6 @@ GLOBAL FLAGS[0m
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
 
-=== tt cat --help
-Print into stdout the contents of .snap/.xlog FILE(s)
-
-[0;1;39mUSAGE[0m
-  tt cat <FILE|DIR>... [flags]
-[0;1;39m
-FLAGS[0m
-      --format string      Output format yaml, json or lua (default "yaml")
-      --from uint          Show operations starting from the given lsn
-  -h, --help               help for cat
-  -r, --recursive          Process WAL files in directories recursively
-      --replica ints       Filter the output by replica id. May be passed more
-                           than once
-      --show-system        Show the contents of system spaces
-      --space ints         Filter the output by space number. May be passed more
-                           than once
-      --timestamp string   Show operations ending with the given timestamp
-      --to uint            Show operations ending with the given lsn (default
-                           18446744073709551615)
-[0;1;39m
-EXAMPLES[0m
-  tt cat /path/to/file.snap /path/to/file.xlog /path/to/dir/ --timestamp
-  2024-11-13T14:02:36.818700000+00:00
-  tt cat /path/to/file.snap /path/to/file.xlog /path/to/dir/
-  --timestamp=1731592956.818
-  tt cat --recursive /path/to/dir1 /path/to/dir2
-
 === tt cluster --help
 Manage cluster configuration
 
@@ -2834,6 +2805,248 @@ stop tt daemon
 FLAGS[0m
   -h, --help   help for stop
 
+=== tt data --help
+Read and replay Tarantool journals - snapshots (.snap), write-ahead logs
+(.xlog) and vinyl logs (.vylog) - without Tarantool.
+
+  cat   prints the rows of the files as YAML, JSON Lines or Lua.
+  play  applies the data changes of the files to an instance.
+
+[0;1;39mUSAGE[0m
+  tt data [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  cat         Print the rows of snapshots and write-ahead logs
+  play        Apply the data changes of snapshots and write-ahead logs to an
+              instance
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for data
+
+Use "tt data <command> --help" for more information about a command.
+
+=== tt data cat --help
+Print the rows of snapshots, write-ahead logs and vinyl logs to stdout. No
+Tarantool is needed.
+
+The files are read the way Tarantool recovers: the newest snapshot, then the
+write-ahead logs in the order of their vclocks, without the transactions of
+its instance the snapshot already contains. A snapshot holds no data of vinyl
+spaces: it is in .run files, which are not read. A directory gives its .snap
+and .xlog files (-r: of its subdirectories too); a .vylog file is read when it
+is named. A write-ahead log an instance is still writing is read as far as it
+goes.
+
+Bounds select whole transactions: a transaction is taken when any of its rows
+is within them, so a bound inside a transaction takes all of it. They apply to
+write-ahead logs; a snapshot is taken whole - the newest one within the upper
+bounds - and none is taken with a lower bound, which asks for changes, not for
+a state.
+  --from N, --to N         the LSNs of one replica, both ends included: the
+                           replica --replica names, or the only one the files
+                           have rows of. A transaction with no row of it is
+                           not taken.
+  --from-vclock V          the transactions past V: with a row whose LSN is
+                           above that of its replica in V.
+  --to-vclock V            the transactions within V: with a row whose LSN is
+                           at most that of its replica in V. A replica V does
+                           not name, 0 (local spaces) included, has LSN 0.
+  --timestamp T            the transactions written before T: Unix seconds or
+                           RFC 3339, such as 2024-11-14T14:02:36.818+00:00.
+V is {1: 100, 2: 50}, as box.info.vclock prints it, or {"1": 100, "2": 50}.
+
+Of the transactions taken, only the changes of user spaces are kept: the rows
+of system spaces and those that change no space - RAFT, synchronous
+replication, NOP - only with --show-system. --space keeps the rows of the
+spaces it names, system ones included: by id, or by name when the snapshot
+read defines it. --replica keeps the rows of write-ahead logs the replicas it
+names wrote.
+
+-o yaml, the default, prints a YAML document per row; -o json a JSON object per
+line (JSON Lines). Both have the fields of the xlog module of Tarantool:
+  HEADER  type (INSERT, REPLACE, UPDATE, DELETE, UPSERT, RAFT, RAFT_PROMOTE,
+          RAFT_CONFIRM, NOP, ...), lsn (a row number in a snapshot) and
+          replica_id; group_id and timestamp when they are set; tsn, the LSN
+          of the first row, on the rows of a transaction of several, and
+          commit: true on its last row.
+  BODY    the body of the row by key: space_id, index_id, key, tuple,
+          operations, ... for a data change; replica_id, lsn, term, vclock for
+          synchronous replication; term, vote, state, vclock, leader_id for
+          RAFT; type and the keys of the record for a vinyl log. None for NOP.
+In JSON a value with no JSON type is a string: a decimal, a UUID, a datetime in
+RFC 3339, an interval, a binary value in base64. -o lua prints each data change
+as a statement of the box API, such as box.space[512]:replace({1, 'a'}), that
+makes it in Tarantool.
+
+[0;1;39mUSAGE[0m
+  tt data cat <FILE|DIR>... [flags]
+[0;1;39m
+FLAGS[0m
+  -o, --format string        output format: yaml, json or lua (default "yaml")
+      --from uint            take the transactions from this LSN of the replica
+                             on, inclusive
+      --from-vclock string   take the transactions past this vclock
+  -h, --help                 help for cat
+  -r, --recursive            read the files of the subdirectories of a directory
+                             too
+      --replica uints        keep the rows a replica wrote, by id; may be
+                             repeated (default [])
+      --show-system          keep the rows of system spaces and those that
+                             change no space
+      --skip-corrupt         skip a block of transactions whose checksum does
+                             not match instead of failing
+      --space strings        keep the rows of a space, by id or by name; may be
+                             repeated
+      --timestamp string     take the transactions written before this time
+      --to uint              take the transactions up to this LSN of the
+                             replica, inclusive
+      --to-vclock string     take the transactions within this vclock
+[0;1;39m
+EXAMPLES[0m
+  # Print a snapshot and the write-ahead logs after it.
+  $ tt data cat var/lib/myapp/instance-001
+
+  # Print the changes of space 512 from LSN 100 to 200 as JSON Lines.
+  $ tt data cat 00000000000000000000.xlog --space 512 --from 100 --to 200 -o
+  json
+
+  # Print the changes of two replicas up to a vclock as Lua.
+  $ tt data cat ./wal --to-vclock '{1: 1500, 2: 300}' -o lua
+
+  # Print the changes made before a time, the rows of system spaces too.
+  $ tt data cat -r ./backups --timestamp 2024-11-14T14:02:36Z --show-system
+
+=== tt data play --help
+Apply the data changes of snapshots and write-ahead logs to an instance, over
+its binary port, transaction by transaction, in their order. No local
+Tarantool is needed. The target is an instance of an application, reached at
+its binary port, or a URI: [tcp://][username:password@]host:port or
+[unix://][username:password@]socketpath, with the TLS settings in the flags or
+in the query: ?ssl_key_file=...&ssl_cert_file=...&ssl_ca_file=...
+
+The files are read the way Tarantool recovers: the newest snapshot, then the
+write-ahead logs in the order of their vclocks, without the transactions of
+its instance the snapshot already contains. A snapshot holds no data of vinyl
+spaces: it is in .run files, which are not read. A directory gives its .snap
+and .xlog files (-r: of its subdirectories too); a .vylog file is read when it
+is named. A write-ahead log an instance is still writing is read as far as it
+goes.
+
+Bounds select whole transactions: a transaction is taken when any of its rows
+is within them, so a bound inside a transaction takes all of it. They apply to
+write-ahead logs; a snapshot is taken whole - the newest one within the upper
+bounds - and none is taken with a lower bound, which asks for changes, not for
+a state.
+  --from N, --to N         the LSNs of one replica, both ends included: the
+                           replica --replica names, or the only one the files
+                           have rows of. A transaction with no row of it is
+                           not taken.
+  --from-vclock V          the transactions past V: with a row whose LSN is
+                           above that of its replica in V.
+  --to-vclock V            the transactions within V: with a row whose LSN is
+                           at most that of its replica in V. A replica V does
+                           not name, 0 (local spaces) included, has LSN 0.
+  --timestamp T            the transactions written before T: Unix seconds or
+                           RFC 3339, such as 2024-11-14T14:02:36.818+00:00.
+V is {1: 100, 2: 50}, as box.info.vclock prints it, or {"1": 100, "2": 50}.
+
+Of the transactions taken, only the changes of user spaces are kept: the rows
+of system spaces and those that change no space - RAFT, synchronous
+replication, NOP - only with --show-system. --space keeps the rows of the
+spaces it names, system ones included: by id, or by name when the snapshot
+read defines it. --replica keeps the rows of write-ahead logs the replicas it
+names wrote.
+
+Only data changes are applied: INSERT, REPLACE, UPDATE, DELETE and UPSERT, of
+system spaces too with --show-system. The requests go in one IPROTO stream,
+which the instance processes in the order they were sent, --batch of them in
+flight at a time. --txn-mode says how a transaction of several rows is applied:
+  auto    in a transaction of the stream, and row by row from the first
+          transaction the target cannot take so: a transaction that spans
+          requests cannot change a memtx space unless memtx_use_mvcc_engine
+          is enabled. The default.
+  stream  in a transaction of the stream; a target that cannot take it is an
+          error.
+  row     row by row. A reader of the target may see a transaction half
+          applied, and a refused row leaves the others of its transaction
+          applied.
+A transaction of one row is a request of its own in every mode.
+
+--on-error says what to do when the target refuses a row, with the server's
+error, the LSN and the replica of the row:
+  stop    stop, the default. The requests already in flight - up to --batch -
+          are still applied.
+  skip    report the transaction and go on.
+--dry-run reads and filters the files, checks that the target has the spaces
+the rows change and applies nothing. A summary of what was applied ends the
+run. Exit codes: 0 - every transaction was applied; 3 - some were, and the
+target refused others; 1 - the target refused the first one it was given, or
+the request is invalid; 2 - the connection failed.
+
+The command supports the TT_CLI_USERNAME and TT_CLI_PASSWORD environment
+variables for a URI without credentials.
+
+[0;1;39mUSAGE[0m
+  tt data play (<APP>:<INSTANCE> | <URI>) <FILE|DIR>... [flags]
+[0;1;39m
+FLAGS[0m
+      --batch int                  how many requests are in flight at most; 1
+                                   waits for each (default 128)
+      --connect-timeout duration   timeout for establishing the connection
+                                   (default 1s)
+      --dry-run                    check the files and the spaces of the target,
+                                   and apply nothing
+      --from uint                  take the transactions from this LSN of the
+                                   replica on, inclusive
+      --from-vclock string         take the transactions past this vclock
+  -h, --help                       help for play
+      --on-error string            what to do when the target refuses a row:
+                                   stop, skip (default "stop")
+  -p, --password string            password
+  -r, --recursive                  read the files of the subdirectories of a
+                                   directory too
+      --replica uints              keep the rows a replica wrote, by id; may be
+                                   repeated (default [])
+      --scope string               scope the application is looked for in:
+                                   project, user or system
+      --show-system                keep the rows of system spaces and those that
+                                   change no space
+      --skip-corrupt               skip a block of transactions whose checksum
+                                   does not match instead of failing
+      --space strings              keep the rows of a space, by id or by name;
+                                   may be repeated
+      --sslcafile string           path to a trusted certificate authorities
+                                   (CA) file
+      --sslcertfile string         path to an SSL certificate file
+      --sslciphers string          colon-separated (:) list of SSL cipher suites
+                                   the connection can use
+      --sslkeyfile string          path to a private SSL key file
+      --sslpassword string         password for decrypting the private SSL key
+                                   file
+      --sslpasswordfile string     path to a file containing the password for
+                                   decrypting the private SSL key file
+      --template string            template of the application the instances are
+                                   described in (default "default")
+      --timestamp string           take the transactions written before this
+                                   time
+      --to uint                    take the transactions up to this LSN of the
+                                   replica, inclusive
+      --to-vclock string           take the transactions within this vclock
+      --txn-mode string            how a transaction of several rows is applied:
+                                   auto, stream, row (default "auto")
+  -u, --username string            username
+[0;1;39m
+EXAMPLES[0m
+  # Replay a snapshot and the write-ahead logs after it into an instance.
+  $ tt data play myapp:instance-001 ./backup
+
+  # Replay the changes of a space past a vclock, skipping the refused ones.
+  $ tt data play admin:secret@localhost:3301 ./wal --from-vclock '{1: 1500}' \
+      --space 512 --on-error skip
+
+  # Check what a replay up to a time would change, applying nothing.
+  $ tt data play localhost:3301 ./wal --timestamp 2024-11-14T14:02:36Z --dry-run
+
 === tt errors --help
 Exit codes of tt commands.
 
@@ -3611,43 +3824,6 @@ FLAGS[0m
 GLOBAL FLAGS[0m
   -C, --directory string   work on the project in DIR, as if it were the current
                            directory
-
-=== tt play --help
-Play the contents of .snap/.xlog FILE(s) to another Tarantool instance
-
-[0;1;39mUSAGE[0m
-  tt play (<URI> | <APP>:<INSTANCE>) <FILE|DIR>... [flags]
-[0;1;39m
-FLAGS[0m
-      --from uint            Show operations starting from the given lsn
-  -h, --help                 help for play
-  -p, --password string      password
-  -r, --recursive            Process WAL files in directories recursively
-      --replica ints         Filter the output by replica id. May be passed more
-                             than once
-      --scope string         scope the application is looked for in: project,
-                             user or system
-      --show-system          Show the contents of system spaces
-      --space ints           Filter the output by space number. May be passed
-                             more than once
-      --sslcafile string     path to a trusted certificate authorities (CA) file
-      --sslcertfile string   path to an SSL certificate file
-      --sslciphers string    colon-separated (:) list of SSL cipher suites the
-                             connection
-      --sslkeyfile string    path to a private SSL key file
-      --template string      template of the application the instances are
-                             described in (default "default")
-      --timestamp string     Show operations ending with the given timestamp
-      --to uint              Show operations ending with the given lsn (default
-                             18446744073709551615)
-  -u, --username string      username
-[0;1;39m
-EXAMPLES[0m
-  tt play localhost:3013 /path/to/file.snap /path/to/file.xlog /path/to/dir/
-  --timestamp 2024-11-13T14:02:36.818700000+00:00
-  tt play app:instance001 /path/to/file.snap /path/to/file.xlog /path/to/dir/
-  --timestamp=1731592956.818
-  tt play --recursive app:instance001 /path/to/dir1 /path/to/dir2
 
 === tt registry --help
 Report the rock servers tt package commands query. The list comes from
@@ -5951,19 +6127,18 @@ aeon	Manage aeon application
 backup	Manage Tarantool backups (PITR)
 backup-id	Print an identifier for a new backup
 binary	Manage binaries and SDK bundles
-cat	Print into stdout the contents of .snap/.xlog FILE(s)
 cluster	Manage cluster configuration
 completion	Generate autocomplete for a specified shell. Supported shell type: bash | zsh | fish
 connect	Connect to the tarantool instance (tt instance connect)
 coredump	Perform manipulations with the tarantool coredumps
 create	Create an application from a template
 daemon	Perform manipulations with the tt daemon (experimental)
+data	Read and replay snapshots and write-ahead logs
 help	Help about any command
 instance	Manage the instances of applications
 modules	Manage tt cli modules
 new	Create a skeleton app.manifest.toml in the current directory
 package	Manage tt manifest packages
-play	Play the contents of .snap/.xlog FILE(s) to another Tarantool instance
 registry	Inspect the rock servers packages are resolved against
 replicaset	Manage replicasets
 restore	Restore a Tarantool cluster from a backup (PITR)

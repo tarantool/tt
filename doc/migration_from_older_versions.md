@@ -116,6 +116,30 @@ template unit `<app>@.service`, which runs one instance with
 instances then, and `tt instance start`, `stop`, `restart` and `kill` refuse
 them. See [Running instances under systemd](how-to/systemd.md).
 
+### tt cat and tt play are tt data cat and tt data play
+
+`tt cat` and `tt play` are removed without aliases: they are `tt data cat` and
+`tt data play`, which read the files in Go and need no local Tarantool. The
+flags keep their names, and these differ:
+
+| `tt` 2.x | `tt` 3.0 |
+|---|---|
+| `--format yaml\|json\|lua` | `-o`/`--format`; `json` is JSON Lines, one object a row |
+| `--to N` excludes N | `--to N` includes N, as `--from N` does |
+| `--from`/`--to` compare one LSN with every replica's | they bound the LSNs of one replica: `--replica`, or the only one in the files; `--from-vclock`/`--to-vclock` bound several |
+| a bound may cut a transaction | a transaction inside a bound is taken whole |
+| every `.snap` and `.xlog` of a directory, snapshots first | the newest snapshot within the bounds, then the logs by vclock, without what the snapshot contains |
+| `--show-system` filters data changes only | it hides RAFT, synchronous replication and NOP rows too |
+| `play`: one request a row, no transactions | one IPROTO stream, `--batch` in flight, `--txn-mode`, `--on-error`, `--dry-run` |
+
+A snapshot is not read when `--from` or `--from-vclock` is given, and its row
+numbers are not LSNs: the bounds apply to write-ahead logs only. The output
+of `cat` keeps the `HEADER` and `BODY` of each row, and the rows of RAFT and
+synchronous replication have decoded bodies now. A snapshot holds no data of
+vinyl spaces: it is in `.run` files, which neither command reads. `tt data
+play` exits with 3 when the target refused some of the transactions, and with
+2 when the connection failed. `tt coredump` stays where it is.
+
 ## 1.3.1 -> 2.0.0
 
 ### New format of tt config file
