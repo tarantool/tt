@@ -2581,10 +2581,8 @@ FLAGS[0m
   -h, --help   help for completion
 [0;1;39m
 EXAMPLES[0m
-  
-# Enable auto-completion in current bash shell.
-
-    $ . <(tt completion bash)
+  # Enable auto-completion in current bash shell.
+  $ . <(tt completion bash)
 
 === tt connect --help
 Connect to the tarantool instance.
@@ -2730,27 +2728,21 @@ FLAGS[0m
       --vars-file string   Variables definition file path
 [0;1;39m
 EXAMPLES[0m
-  
-# Create an application app1 from a template.
+  # Create an application app1 from a template.
+  $ tt create <template name> --name app1
 
-    $ tt create <template name> --name app1
+  # Create an application app1 from the template in the templates/basic
+  # directory.
+  $ tt create ./templates/basic --name app1
 
-# Create an application app1 from the template in the templates/basic
-# directory.
+  # Create a Tarantool 3 application with a single instance configuration.
+  $ tt create single_instance --name new_app
 
-    $ tt create ./templates/basic --name app1
+  # Create Tarantool 3 vshard cluster.
+  $ tt create vshard_cluster --name cluster_app
 
-# Create a Tarantool 3 application with a single instance configuration.
-
-    $ tt create single_instance --name new_app
-
-# Create Tarantool 3 vshard cluster.
-
-    $ tt create vshard_cluster --name cluster_app
-
-# Create Tarantool 3 cluster configuration storage.
-
-    $ tt create config_storage --name cs_app
+  # Create Tarantool 3 cluster configuration storage.
+  $ tt create config_storage --name cs_app
 
 === tt daemon --help
 Perform manipulations with the tt daemon (experimental)
@@ -3443,14 +3435,11 @@ FLAGS[0m
                            name
 [0;1;39m
 EXAMPLES[0m
-  
-# Create a manifest for the project in the current directory.
+  # Create a manifest for the project in the current directory.
+  $ tt new
 
-    $ tt new
-
-# Name the package explicitly, when the directory is not named for it.
-
-    $ tt new -n my-app
+  # Name the package explicitly, when the directory is not named for it.
+  $ tt new -n my-app
 
 === tt package --help
 Build, fetch, pack and install Tarantool packages described by
@@ -4849,31 +4838,24 @@ with the interpreter, so signals and the exit code are Tarantool's own.
   tt run [ARGS...]
 [0;1;39m
 EXAMPLES[0m
-  
-# Start an interactive console in the project.
+  # Start an interactive console in the project.
+  $ tt run
 
-    $ tt run
+  # Print the version of the Tarantool the project runs under:
+  $ tt run --version
+  Tarantool 3.0.0-entrypoint-724-gd2d7f4de3
+  . . .
 
-# Print the version of the Tarantool the project runs under:
+  # Run a script with arguments. Everything after the script name is the
+  # script's, '--' included, because Tarantool itself is what reads them:
+  $ tt run script.lua a b c
+  a	b	c
 
-    $ tt run --version
-    Tarantool 3.0.0-entrypoint-724-gd2d7f4de3
-    . . .
+  # Execute stdin:
+  $ echo 'print(42)' | tt run -
 
-# Run a script with arguments. Everything after the script name is the
-# script's, '--' included, because Tarantool itself is what reads them:
-
-    $ tt run script.lua a b c
-    a	b	c
-
-# Execute stdin:
-
-    $ echo 'print(42)' | tt run -
-
-# Ignore the project's tarantool and use the one on PATH:
-
-    $ TT_USE_SYSTEM_TARANTOOL=1 tt run script.lua
-
+  # Ignore the project's tarantool and use the one on PATH:
+  $ TT_USE_SYSTEM_TARANTOOL=1 tt run script.lua
 
 === tt service --help
 Integrate with the service manager of the system
@@ -5076,20 +5058,15 @@ FLAGS[0m
   -h, --help               help for test
 [0;1;39m
 EXAMPLES[0m
-  
-# Build and run everything under test/ (or tests/).
+  # Build and run everything under test/ (or tests/).
+  $ tt test
 
-    $ tt test
+  # Run one directory, then one file.
+  $ tt test test/integration
+  $ tt test test/unit/config_test.lua
 
-# Run one directory, then one file.
-
-    $ tt test test/integration
-    $ tt test test/unit/config_test.lua
-
-# Pass luatest's own options through.
-
-    $ tt test -- --verbose --shuffle group
-
+  # Pass luatest's own options through.
+  $ tt test -- --verbose --shuffle group
 
 === tt version --help
 Show Tarantool CLI version information

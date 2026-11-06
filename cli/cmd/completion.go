@@ -43,10 +43,8 @@ func NewCompletionCmd() *cobra.Command {
 		ValidArgs: shellSupported,
 		RunE:      internalRunE(internalCompletionCmd),
 		Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
-		Example: `
-# Enable auto-completion in current bash shell.
-
-    $ . <(tt completion bash)`,
+		Example: `# Enable auto-completion in current bash shell.
+  $ . <(tt completion bash)`,
 	}
 
 	return cmd
