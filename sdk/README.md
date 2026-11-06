@@ -14,6 +14,7 @@ Each directory is a separate Go module:
 | `sdk/dial`       | `github.com/tarantool/tt/sdk/dial`       |
 | `sdk/cluster`    | `github.com/tarantool/tt/sdk/cluster`    |
 | `sdk/integrity`  | `github.com/tarantool/tt/sdk/integrity`  |
+| `sdk/tuple`      | `github.com/tarantool/tt/sdk/tuple`      |
 
 - `connect` parses connection strings and URIs and resolves credentials.
 - `dial` builds Tarantool dialers for the plain and SSL transports.
@@ -25,12 +26,19 @@ Each directory is a separate Go module:
   package, the runtimes it bundles and published data with an RSA private
   key and checks them with the public key, an application together with the
   runtimes it runs on.
+- `tuple` decodes the MessagePack values Tarantool stores - tuples, keys,
+  update operations, the bodies of journal rows - keeping MP_STR apart from
+  MP_BIN, MP_UINT from MP_INT and the order of a map, with the extensions
+  as the types of go-tarantool, and renders them, or what go-tarantool
+  decodes, as text: `Text` for a scalar, `AppendJSON`, `YAMLNode` and
+  `AppendLua`, a Lua expression that builds the value in Tarantool. `tt data
+  cat` prints journal rows with it.
 
 ## Contract module
 
 `github.com/tarantool/tt/sdk`, rooted at `sdk/` itself, is the contract
-between tt and its modules. The nested `connect`, `dial`, `cluster` and
-`integrity` are not part of it: each has its own `go.mod`. It depends on the
+between tt and its modules. The nested `connect`, `dial`, `cluster`,
+`integrity` and `tuple` are not part of it: each has its own `go.mod`. It depends on the
 standard library, `github.com/spf13/cobra`, `github.com/spf13/pflag`, the
 core package of `github.com/tarantool/go-config/v2` (not its Tarantool
 builder) and `github.com/tarantool/tt/sdk/connect` (testify for its tests);
