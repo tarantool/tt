@@ -96,7 +96,8 @@ func (s *services) Integrity() sdk.Integrity {
 	return integrityChecks{}
 }
 
-// Project returns the project the command line names with -C, or the
+// Project returns the project of the command: the -C directory of a group
+// of tt the command is under, which a module cannot declare itself, or the
 // working directory.
 func (s *services) Project() sdk.Project {
 	s.mustBeReady("Project")

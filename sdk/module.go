@@ -109,9 +109,10 @@ type Integrity interface {
 
 // Project is the directory a command works on.
 type Project interface {
-	// Dir returns the project directory as an absolute path: the directory
-	// the user named on the command line, or the working directory. No
-	// manifest is searched for.
+	// Dir returns the project directory as an absolute path: the working
+	// directory tt runs in. A module cannot declare -C; a command mounted
+	// under a group of tt that declares -C for its subcommands, as tt package
+	// does, gets the directory it names. No manifest is searched for.
 	Dir() (string, error)
 }
 
