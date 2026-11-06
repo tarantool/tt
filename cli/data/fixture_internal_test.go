@@ -95,7 +95,7 @@ func tx(rows ...format.XRow) []format.XRow { return rows }
 func plan(t *testing.T, filter *Filter, paths ...string) *Plan {
 	t.Helper()
 
-	files, err := Collect(paths, false)
+	files, err := Collect(paths, CollectOptions{Recursive: false, Runs: true})
 	require.NoError(t, err)
 
 	p, err := Select(files, filter)

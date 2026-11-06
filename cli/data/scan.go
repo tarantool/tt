@@ -17,13 +17,15 @@ import (
 type Row struct {
 	format.XRow
 	// DML is the body of a data change of a space - INSERT, REPLACE,
-	// UPDATE, DELETE, UPSERT, INSERT_ARROW - and nil for any other row. The rows of a
-	// vinyl log are INSERTs of no space and have none.
+	// UPDATE, DELETE, UPSERT, INSERT_ARROW - and nil for any other row. The
+	// rows of a vinyl log are INSERTs of no space and have none. A statement
+	// of a vinyl run has one without a space id: the path of the run names it.
 	DML *format.DMLBody
 }
 
 // Txn is a transaction a filter selects, with the rows of it the filter
-// keeps. A row of a snapshot or of a vinyl log is a transaction of its own.
+// keeps. A row of a snapshot, of a vinyl log or of a vinyl run is a
+// transaction of its own.
 type Txn struct {
 	// File is the file the transaction is in.
 	File *File
@@ -144,7 +146,7 @@ func selectTxn(plan *Plan, file *File, filter *Filter, rows []format.XRow) (*Txn
 	for _, xrow := range rows {
 		row := Row{XRow: xrow, DML: nil}
 
-		if isDML(xrow.Type) && file.Kind != KindVylog {
+		if isDML(xrow.Type) && file.Kind != KindVylog && file.Kind != KindIndex {
 			body, err := format.DecodeDMLBody(xrow.BodyRaw)
 			if err != nil {
 				log.Warnf("%s: the body of the %s at LSN %d does not decode: %s",
@@ -154,7 +156,7 @@ func selectTxn(plan *Plan, file *File, filter *Filter, rows []format.XRow) (*Txn
 			}
 		}
 
-		if filter.keepRow(file.Kind, &row) {
+		if filter.keepRow(file, &row) {
 			txn.Rows = append(txn.Rows, row)
 		}
 	}

@@ -115,7 +115,7 @@ func TestScanLSNBounds(t *testing.T) {
 	// So are headers that name two replicas.
 	second := writeJournal(t, t.TempDir(), format.FiletypeXLOG, format.VClock{1: 4, 2: 2},
 		format.VClock{}, tx(insert(t, 1, 5, 512, 5)))
-	files, err := Collect([]string{second}, false)
+	files, err := Collect([]string{second}, CollectOptions{})
 	require.NoError(t, err)
 
 	_, err = Select(files, &Filter{To: 5, HasTo: true})
@@ -255,13 +255,13 @@ func TestCollect(t *testing.T) {
 	dir := t.TempDir()
 	snapshotChain(t, dir)
 
-	_, err := Collect([]string{dir + "/missing"}, false)
+	_, err := Collect([]string{dir + "/missing"}, CollectOptions{})
 	require.Error(t, err)
 
-	_, err = Collect([]string{t.TempDir()}, false)
+	_, err = Collect([]string{t.TempDir()}, CollectOptions{})
 	require.ErrorIs(t, err, ErrNoJournals)
 
-	files, err := Collect([]string{dir, dir + "/00000000000000000005.xlog"}, false)
+	files, err := Collect([]string{dir, dir + "/00000000000000000005.xlog"}, CollectOptions{})
 	require.NoError(t, err)
 
 	var names []string

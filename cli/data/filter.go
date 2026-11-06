@@ -34,8 +34,17 @@ var (
 //
 // The bounds select whole transactions: a transaction is in the range when
 // any of its rows is, so a bound that falls inside a transaction takes all
-// of it. They apply to write-ahead logs only: the rows of a snapshot have
-// row numbers, not LSNs, and a snapshot is chosen whole (see [Select]).
+// of it. They apply to write-ahead logs: the rows of a snapshot have row
+// numbers, not LSNs, and a snapshot is chosen whole (see [Select]).
+//
+// They apply to the statements of a vinyl run too, by their LSN, which is
+// the vclock signature - the sum of the LSNs - of the transaction that wrote
+// them: --from-vclock and --to-vclock by the signature of the vclock, which
+// for a vclock of the instance that wrote the run is exact, and --from and
+// --to by the number itself, which is the LSN of a replica only on an
+// instance of one replica that changed no local space. Replicas do not apply
+// to a run, which holds no replica ids; Spaces does, by the space its path
+// names.
 type Filter struct {
 	// From and To, when HasFrom and HasTo are set, bound the LSN of one
 	// replica, both ends included: a transaction is in the range when it
@@ -155,13 +164,34 @@ func isDML(t iproto.Type) bool {
 	return false
 }
 
-// keepRow reports whether the row filters keep row, a row of a file of
-// kind: the replica, the space and the system filters. The rows of a vinyl
-// log are all kept: they are metadata, not data changes. A replica does not
-// write the rows of a snapshot, so Replicas does not apply to them.
-func (f *Filter) keepRow(kind Kind, row *Row) bool {
+// inRunRange reports whether a statement of a vinyl run at lsn, the vclock
+// signature of its transaction, is within the bounds.
+func (f *Filter) inRunRange(lsn int64) bool {
+	switch {
+	case f.HasFrom && lsn < f.From, f.HasTo && lsn > f.To:
+		return false
+	case f.FromVClock != nil && lsn <= f.FromVClock.Signature():
+		return false
+	case f.ToVClock != nil && lsn > f.ToVClock.Signature():
+		return false
+	}
+
+	return true
+}
+
+// keepRow reports whether the row filters keep row, a row of file: the
+// replica, the space and the system filters. The rows of a vinyl log are all
+// kept: they are metadata, not data changes. A replica does not write the
+// rows of a snapshot, so Replicas does not apply to them.
+func (f *Filter) keepRow(file *File, row *Row) bool {
+	kind := file.Kind
+
 	if kind == KindVylog {
 		return true
+	}
+
+	if isVinylRun(kind) {
+		return f.keepVinylRow(file, row)
 	}
 
 	if kind != KindSnap && len(f.Replicas) > 0 && !slices.Contains(f.Replicas, row.ReplicaID) {
@@ -177,6 +207,37 @@ func (f *Filter) keepRow(kind Kind, row *Row) bool {
 	}
 
 	return f.ShowSystem || row.DML.SpaceID >= firstUserSpaceID
+}
+
+// keepVinylRow reports whether the filters keep row of a vinyl run file:
+// with --space, only the rows of a run of a space it names. Of a run, the
+// statements within the bounds, and the row index of a page, which changes
+// no space, with --show-system and no --space; of the index of a run, every
+// row, the metadata of the run.
+func (f *Filter) keepVinylRow(file *File, row *Row) bool {
+	if len(f.Spaces) > 0 && (file.LSM == nil || !slices.Contains(f.Spaces, file.LSM.SpaceID)) {
+		return false
+	}
+
+	switch {
+	case file.Kind == KindIndex:
+		return true
+	case isStatement(row.Type):
+		return f.inRunRange(row.LSN)
+	}
+
+	return f.ShowSystem && len(f.Spaces) == 0
+}
+
+// isStatement reports whether t is the type of a statement of a vinyl run.
+func isStatement(t iproto.Type) bool {
+	switch t {
+	case iproto.IPROTO_INSERT, iproto.IPROTO_REPLACE, iproto.IPROTO_DELETE,
+		iproto.IPROTO_UPSERT:
+		return true
+	default:
+		return false
+	}
 }
 
 // ParseVClock parses a vclock given on the command line: the form Tarantool

@@ -532,3 +532,25 @@ def test_play_to_cluster_app_by_uri(tt, tt_app, with_scheme, uri):
 
     p = tt.run("data", "play", uri, file_to_play)
     assert p.returncode == 0
+
+
+@pytest.mark.parametrize("name", ["00000000000000000004.run", "00000000000000000004.index"])
+def test_play_refuses_vinyl_runs(tt_cmd, tmp_path, name):
+    lsm = tmp_path / "512" / "0"
+    lsm.mkdir(parents=True)
+    shutil.copy(TEST_FILES / ".." / "cat_file" / "test.xlog", lsm / name)
+
+    # The file is refused before the target is reached, and a directory gives
+    # no runs.
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "data", "play", "127.0.0.1:1", str(lsm / name)],
+    )
+    assert rc == 1
+    assert "a vinyl run is not a journal" in output
+    assert "read it with tt data cat" in output
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "data", "play", "127.0.0.1:1", "-r", str(tmp_path)],
+    )
+    assert rc == 1
+    assert "no journal files found" in output

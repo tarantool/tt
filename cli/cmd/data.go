@@ -26,7 +26,8 @@ import (
 )
 
 var (
-	errDataNoFiles  = errors.New("specify at least one .snap, .xlog or .vylog file or directory")
+	errDataNoFiles = errors.New(
+		"specify at least one .snap, .xlog, .vylog, .run or .index file or directory")
 	errDataNoTarget = errors.New(
 		"specify a target and at least one .snap or .xlog file or directory")
 	errDataAllRefused = errors.New("the target refused every transaction")
@@ -37,10 +38,9 @@ var (
 // what of the files they read.
 const dataFilterHelp = `The files are read the way Tarantool recovers: the newest snapshot, then the
 write-ahead logs in the order of their vclocks, without the transactions of
-its instance the snapshot already contains. A snapshot holds no data of vinyl
-spaces: it is in .run files, which are not read. A directory gives its .snap
-and .xlog files (-r: of its subdirectories too); a .vylog file is read when it
-is named. A write-ahead log an instance is still writing is read as far as it
+its instance the snapshot already contains. A directory gives its .snap and
+.xlog files (-r: of its subdirectories too); a .vylog file is read when it is
+named. A write-ahead log an instance is still writing is read as far as it
 goes.
 
 Bounds select whole transactions: a transaction is taken when any of its rows
@@ -87,10 +87,11 @@ func NewDataCmd() *cobra.Command {
 		Use:   "data",
 		Short: "Read and replay snapshots and write-ahead logs",
 		Long: `Read and replay Tarantool journals - snapshots (.snap), write-ahead logs
-(.xlog) and vinyl logs (.vylog) - without Tarantool.
+(.xlog) and vinyl logs (.vylog) - and vinyl runs (.run, .index) without
+Tarantool.
 
   cat   prints the rows of the files as YAML, JSON Lines or Lua.
-  play  applies the data changes of the files to an instance.`,
+  play  applies the data changes of the journals to an instance.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
@@ -128,7 +129,7 @@ func addDataFilterFlags(cmd *cobra.Command, flags *dataFilterFlags) {
 
 // dataFilter returns the filter the flags of cmd ask for, its spaces still
 // given by name, and the files of paths it reads.
-func dataFilter(cmd *cobra.Command, flags *dataFilterFlags, paths []string) (
+func dataFilter(cmd *cobra.Command, flags *dataFilterFlags, paths []string, runs bool) (
 	*data.Filter, *data.Plan, error,
 ) {
 	filter := &data.Filter{
@@ -175,7 +176,7 @@ func dataFilter(cmd *cobra.Command, flags *dataFilterFlags, paths []string) (
 		return nil, nil, util.NewArgError(err.Error())
 	}
 
-	files, err := data.Collect(paths, flags.recursive)
+	files, err := data.Collect(paths, data.CollectOptions{Recursive: flags.recursive, Runs: runs})
 	if err != nil {
 		return nil, nil, err //nolint:wrapcheck // It names the file.
 	}
@@ -254,10 +255,26 @@ func newDataCatCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "cat <FILE|DIR>... [flags]",
 		Short: "Print the rows of snapshots and write-ahead logs",
-		Long: `Print the rows of snapshots, write-ahead logs and vinyl logs to stdout. No
-Tarantool is needed.
+		Long: `Print the rows of snapshots, write-ahead logs, vinyl logs and vinyl runs to
+stdout. No Tarantool is needed.
 
 ` + dataFilterHelp + `
+
+A snapshot holds no data of vinyl spaces: it is in their runs, the .run files
+of <vinyl_dir>/<space_id>/<index_id>/, each with a .index file. The runs named
+are read, and those of a directory (-r: of its subdirectories, as of a vinyl
+directory), after the journals, by space, index and run. A run holds the
+statements of one index - INSERT, REPLACE, DELETE, UPSERT - in the order of
+their keys, the newest first for a key, and its path names the space and the
+index. The LSN of a statement is the vclock signature - the sum of the LSNs -
+of its transaction: --from-vclock and --to-vclock bound it by the signature
+of their vclock, exact for a vclock of the instance that wrote the run;
+--from and --to by their number, which is the LSN of a replica only on an
+instance of one replica that changed no local space. --space keeps the runs
+of a space, --replica does not apply, and --timestamp leaves the runs out:
+their statements have no time. The row index that ends each page of a run
+is shown with --show-system; a .index file - the info of the run and of its
+pages - is shown whole.
 
 -o yaml, the default, prints a YAML document per row; -o json a JSON object per
 line (JSON Lines). Both have the fields of the xlog module of Tarantool:
@@ -265,17 +282,29 @@ line (JSON Lines). Both have the fields of the xlog module of Tarantool:
           RAFT_CONFIRM, NOP, ...), lsn (a row number in a snapshot) and
           replica_id; group_id and timestamp when they are set; tsn, the LSN
           of the first row, on the rows of a transaction of several, and
-          commit: true on its last row.
+          commit: true on its last row. Of a vinyl run, the type (a
+          statement, ROWINDEX, RUNINFO, PAGEINFO) and the lsn of a statement.
   BODY    the body of the row by key: space_id, index_id, key, tuple,
           operations, ... for a data change; replica_id, lsn, term, vclock for
           synchronous replication; term, vote, state, vclock, leader_id for
           RAFT; type and the keys of the record for a vinyl log. None for NOP.
+          A statement of a run has the space_id and index_id of its path,
+          its tuple (a key, of a secondary index) or key, the operations of
+          an UPSERT - a list for each UPSERT squashed into it, the fields
+          counted from 0 - and its flags: deferred_delete, skip_read.
 In JSON a value with no JSON type is a string: a decimal, a UUID, a datetime in
 RFC 3339, an interval, a binary value in base64. -o lua prints each data change
 as a statement of the box API, such as box.space[512]:replace({1, 'a'}), that
-makes it in Tarantool.`,
+makes it in Tarantool. Of a run of a primary index it prints the statement
+that makes what a statement holds - an UPSERT of n lists as n upserts - and of
+a secondary index nothing: its tuples are keys. Unlike the Lua of a journal,
+that of runs remakes no space when run: a run is in key order, the newest
+statement of a key first, and the runs of an index overlap.`,
 		Example: `# Print a snapshot and the write-ahead logs after it.
   $ tt data cat var/lib/myapp/instance-001
+
+  # Print the runs of the vinyl space 512, the info of each run and its pages.
+  $ tt data cat -r var/lib/myapp/instance-001/512
 
   # Print the changes of space 512 from LSN 100 to 200 as JSON Lines.
   $ tt data cat 00000000000000000000.xlog --space 512 --from 100 --to 200 -o json
@@ -316,7 +345,7 @@ type dataCatRun struct {
 }
 
 func runDataCat(run dataCatRun, args []string) error {
-	filter, plan, err := dataFilter(run.cmd, run.flags, args)
+	filter, plan, err := dataFilter(run.cmd, run.flags, args, true)
 	if err != nil {
 		return err
 	}
@@ -387,6 +416,12 @@ its binary port, or a URI: [tcp://][username:password@]host:port or
 in the query: ?ssl_key_file=...&ssl_cert_file=...&ssl_ca_file=...
 
 ` + dataFilterHelp + `
+
+Vinyl runs are not applied, and a .run or .index file named is an error: a
+run holds the statements of one index of a space in the order of their keys,
+not the transactions that made them, and the runs of an index overlap. A
+directory gives no runs. To replay a vinyl space, replay the write-ahead logs
+that changed it; tt data cat prints a run.
 
 Only data changes are applied: INSERT, REPLACE, UPDATE, DELETE and UPSERT, of
 system spaces too with --show-system. The requests go in one IPROTO stream,
@@ -500,7 +535,7 @@ func runDataPlay(cmd *cobra.Command, flags *dataFilterFlags, play *dataPlayFlags
 		return util.NewArgError("--batch must be at least 1")
 	}
 
-	filter, plan, err := dataFilter(cmd, flags, args[1:])
+	filter, plan, err := dataFilter(cmd, flags, args[1:], false)
 	if err != nil {
 		return err
 	}

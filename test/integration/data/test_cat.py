@@ -69,7 +69,7 @@ def cat_json(tt_cmd, *args, cwd=None):
 @pytest.mark.parametrize(
     "args, expected_error",
     [
-        ([], "specify at least one .snap, .xlog or .vylog file or directory"),
+        ([], "specify at least one .snap, .xlog, .vylog, .run or .index file or directory"),
         (["path-to-non-existent-file"], "no such file or directory"),
         (["test.xlog", "--timestamp=abcdef"], 'failed to parse a timestamp: parsing time "abcdef"'),
         (
@@ -272,3 +272,113 @@ def test_cat_vylog(tt_cmd, tmp_path):
     types = [record["BODY"]["type"] for record in records]
     assert "create_lsm" in types
     assert any(record["BODY"].get("space_id") == 512 for record in records)
+
+
+# A script that writes the vinyl runs of a space of a primary index only: a
+# dump of its REPLACEs, then one of a DELETE and two UPSERTs of a key, which
+# squash into one, above it.
+VINYL_SCRIPT = """
+local fiber = require('fiber')
+box.cfg{log_level = 2, checkpoint_count = 10}
+local s = box.schema.space.create('kv', {id = 512, engine = 'vinyl'})
+s:create_index('pk')
+s:replace{1, 'a'}
+s:replace{2, 'b', 0}
+box.snapshot()
+s:delete{1}
+s:upsert({2, 'b', 0}, {{'+', 3, 1}})
+s:upsert({2, 'b', 0}, {{'+', 3, 10}})
+box.snapshot()
+-- Let the compaction the dump schedules end before the exit.
+while box.stat.vinyl().scheduler.tasks_inprogress > 0 do fiber.sleep(0.01) end
+os.exit(0)
+"""
+
+
+@pytest.fixture(scope="module")
+def vinyl(tmp_path_factory) -> Path:
+    """The working directory VINYL_SCRIPT writes."""
+    if shutil.which("tarantool") is None:
+        pytest.skip("tarantool is not found in PATH")
+
+    work = tmp_path_factory.mktemp("vinyl")
+    (work / "vinyl.lua").write_text(VINYL_SCRIPT)
+    subprocess.run(["tarantool", "vinyl.lua"], cwd=work, check=True)
+    (work / "vinyl.lua").unlink()
+
+    return work
+
+
+def test_cat_vinyl_runs(tt_cmd, vinyl):
+    runs = sorted((vinyl / "512" / "0").glob("*.run"), key=lambda p: int(p.stem))
+    assert len(runs) >= 2
+
+    # A directory gives its runs with -r, after the journals.
+    records = cat_json(tt_cmd, "-r", vinyl)
+    statements = [r for r in records if r["HEADER"]["type"] in ("REPLACE", "DELETE", "UPSERT")]
+    assert any(r["HEADER"]["type"] == "RUNINFO" for r in records)
+    assert statements and all(r["BODY"]["space_id"] == 512 for r in statements)
+
+    # The first dump: the REPLACEs.
+    first = cat_json(tt_cmd, runs[0])
+    assert [(r["HEADER"]["type"], r["BODY"]["tuple"]) for r in first] == [
+        ("REPLACE", [1, "a"]),
+        ("REPLACE", [2, "b", 0]),
+    ]
+    assert all(r["BODY"]["index_id"] == 0 for r in first)
+
+    # The second: a DELETE, and the two UPSERTs as one of two operation
+    # lists, the fields counted from 0.
+    second = cat_json(tt_cmd, runs[1])
+    assert second[0]["HEADER"]["type"] == "DELETE"
+    assert second[0]["BODY"]["key"] == [1]
+    assert second[1]["HEADER"]["type"] == "UPSERT"
+    assert second[1]["BODY"]["operations"] == [[["+", 2, 1]], [["+", 2, 10]]]
+    assert second[1]["HEADER"]["lsn"] > second[0]["HEADER"]["lsn"]
+
+    # Its index: the info of the run and of its page.
+    index = cat_json(tt_cmd, runs[1].with_suffix(".index"))
+    assert [r["HEADER"]["type"] for r in index] == ["RUNINFO", "PAGEINFO"]
+    assert index[0]["BODY"]["stmt_stat"] == {"insert": 0, "replace": 0, "delete": 1, "upsert": 1}
+
+    # The bounds take the statements by LSN, --space by the path.
+    upsert_lsn = second[1]["HEADER"]["lsn"]
+    records = cat_json(tt_cmd, runs[1], f"--from={upsert_lsn}")
+    assert [r["HEADER"]["type"] for r in records] == ["UPSERT"]
+    assert cat_json(tt_cmd, runs[1], "--space=513") == []
+
+
+def test_cat_vinyl_runs_lua(tt_cmd, vinyl, tmp_path):
+    runs = sorted((vinyl / "512" / "0").glob("*.run"), key=lambda p: int(p.stem))
+
+    rc, stdout, stderr = run_command_and_get_streams(
+        [tt_cmd, "data", "cat", str(runs[0]), str(runs[1]), "-o", "lua"],
+    )
+    assert rc == 0, stderr
+    assert stdout.splitlines() == [
+        "box.space[512]:replace({1, 'a'})",
+        "box.space[512]:replace({2, 'b', 0})",
+        "box.space[512]:delete({1})",
+        "box.space[512]:upsert({2, 'b', 0}, {{'+', 3, 1}})",
+        "box.space[512]:upsert({2, 'b', 0}, {{'+', 3, 10}})",
+    ]
+
+    # Here, one statement a key a run and the runs from the oldest, the
+    # statements remake the space.
+    script = tmp_path / "replay.lua"
+    script.write_text(
+        "box.cfg{log_level = 2}\n"
+        "box.schema.space.create('kv', {id = 512}):create_index('pk')\n"
+        + stdout
+        + "local yaml = require('yaml')\n"
+        + "io.write(yaml.encode(box.space.kv:select()))\n"
+        + "os.exit(0)\n",
+    )
+    replay = subprocess.run(
+        ["tarantool", script.name],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert yaml.safe_load(replay.stdout) == [[2, "b", 11]]
