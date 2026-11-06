@@ -23,6 +23,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `RAFT_ROLLBACK`) and vinyl log rows are decoded, and `-o lua` writes
   statements that remake binary values, 64-bit integers, decimals, UUIDs,
   datetimes and intervals as they were.
+- `tt data cat` reads vinyl runs: the `.run` and `.index` files named, and
+  those of a directory with `-r`, after the journals. A statement has the
+  `space_id` and `index_id` of its path, its flags (`deferred_delete`,
+  `skip_read`) and, for an UPSERT, a list of operations for each UPSERT
+  squashed into it; the `RUNINFO`, `PAGEINFO` and `ROWINDEX` rows are
+  decoded. The bounds take the statements by their LSN, the vclock signature
+  of their transaction, `--space` by the path, and `--timestamp` leaves the
+  runs out. `-o lua` writes the statements of a run of a primary index, which
+  are in key order and remake no space; `tt data play` refuses a `.run` or
+  `.index` file.
 - `tt data play` applies the changes in one IPROTO stream, in order and
   `--batch` requests in flight, a transaction of several rows in a stream
   transaction (`--txn-mode auto|stream|row`; `auto`, the default, goes on row
@@ -58,7 +68,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   not "no space #512" (#705) - and no longer takes a warning on stderr for a
   failure.
 - `tt data cat` decodes the bodies of RAFT and synchronous replication rows
-  (#406) and reads `.vylog` files (#1316).
+  (#406) and reads `.vylog`, `.run` and `.index` files (#1316).
 - `--timestamp` keeps the leading zeros of the fraction of an RFC 3339 time:
   `2024-11-14T14:02:36.0270Z` was read as 270 milliseconds past the second,
   not 27.

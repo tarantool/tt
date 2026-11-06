@@ -92,9 +92,14 @@ type Record struct {
 
 // NewRecord returns the record of a row of file.
 func NewRecord(file *File, row *Row) *Record {
-	fields := tuple.Map{{Key: fieldHeader, Value: header(row)}}
+	h := header(row)
+	if isVinylRun(file.Kind) {
+		h = vinylHeader(row)
+	}
 
-	if body := Body(file.Kind, row); body != nil {
+	fields := tuple.Map{{Key: fieldHeader, Value: h}}
+
+	if body := Body(file, row); body != nil {
 		fields = append(fields, tuple.MapItem{Key: fieldBody, Value: body})
 	}
 
@@ -130,12 +135,18 @@ func header(row *Row) tuple.Map {
 	return h
 }
 
-// Body returns the BODY of a row of a file of kind, nil for a row that has
-// none. A key Tarantool has no name for is its number. A body that does not
-// decode is its raw bytes, with the error.
-func Body(kind Kind, row *Row) tuple.Map {
+// Body returns the BODY of a row of file, nil for a row that has none. A key
+// Tarantool has no name for is its number. A body that does not decode is
+// its raw bytes, with the error.
+func Body(file *File, row *Row) tuple.Map {
+	kind := file.Kind
+
 	if len(row.BodyRaw) == 0 || row.Type == iproto.IPROTO_NOP {
 		return nil
+	}
+
+	if isVinylRun(kind) {
+		return vinylBody(file, row)
 	}
 
 	value, err := tuple.Decode(row.BodyRaw)

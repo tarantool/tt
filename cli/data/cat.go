@@ -122,7 +122,7 @@ func (e luaEncoder) Encode(item any) error {
 		return fmt.Errorf("lua: %T is not a journal record", item) //nolint:err113 // A programming error.
 	}
 
-	statement := LuaStatement(record.File.Kind, record.Row)
+	statement := LuaStatement(record.File, record.Row)
 	if statement == nil {
 		return nil
 	}
@@ -141,15 +141,32 @@ func (luaEncoder) Close() error {
 }
 
 // LuaStatement returns the box API statement that makes the data change of
-// row: box.space[512]:insert({...}), with .index[1] for an index other than
-// the primary one. It returns nil for a row that is not a data change, and
-// for the rows of a vinyl log, which change no space.
+// row, a row of file: box.space[512]:insert({...}), with .index[1] for an
+// index other than the primary one. It returns nil for a row that is not a
+// data change, and for the rows of a vinyl log and of the index of a vinyl
+// run, which change no space.
+//
+// For a statement of a vinyl run it returns what the statement holds (see
+// luaRunStatement). The statements of a run are not a journal: they are in
+// the order of their keys, a key from its newest statement to its oldest,
+// so their statements in that order do not remake the space.
 //
 // The field numbers of the update operations of a row written through
 // IPROTO, which counts fields from 0, are counted from 1, as Lua counts
 // them.
-func LuaStatement(kind Kind, row *Row) []byte {
-	if row.DML == nil || kind == KindVylog {
+func LuaStatement(file *File, row *Row) []byte {
+	kind := file.Kind
+
+	if kind == KindRun {
+		statement := luaRunStatement(file, row)
+		if statement == nil {
+			return nil
+		}
+
+		return append(statement, ')')
+	}
+
+	if row.DML == nil || kind == KindVylog || kind == KindIndex {
 		return nil
 	}
 
@@ -224,8 +241,13 @@ func appendLuaOps(dst, raw []byte, fromZero bool) []byte {
 		return appendLuaValue(dst, raw)
 	}
 
+	return appendOps(dst, value, fromZero)
+}
+
+// appendOps appends decoded update operations as appendLuaOps does.
+func appendOps(dst []byte, value any, fromZero bool) []byte {
 	ops, ok := value.([]any)
-	if !ok {
+	if !ok || !fromZero {
 		return tuple.AppendLua(dst, value)
 	}
 

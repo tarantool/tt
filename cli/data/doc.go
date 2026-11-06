@@ -1,6 +1,7 @@
 // Package data reads Tarantool journals - snapshots (.snap), write-ahead logs
-// (.xlog) and vinyl metadata logs (.vylog) - without Tarantool, and is the
-// implementation of tt data cat and tt data play.
+// (.xlog) and vinyl metadata logs (.vylog) - and vinyl runs (.run, .index)
+// without Tarantool, and is the implementation of tt data cat and tt data
+// play.
 //
 // [Collect] turns the files and directories of the command line into the
 // journal files to read, in the order of their vclocks, and [Select] picks

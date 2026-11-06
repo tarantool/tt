@@ -37,6 +37,9 @@ type Plan struct {
 //     the instance that made it, is not read, and neither is a write-ahead
 //     log that holds only such transactions or only transactions outside
 //     the bounds.
+//   - A vinyl run is read after the journals, whole but for the statements
+//     outside the bounds (see [Filter]), and not at all with --timestamp:
+//     its statements have no time.
 //
 // Select also settles whose LSN --from and --to bound: the replica Replicas
 // names when it names one, or the one replica the headers of the files
@@ -66,6 +69,11 @@ func Select(files []*File, filter *Filter) (*Plan, error) {
 	for i, file := range files {
 		switch {
 		case file.Kind == KindSnap:
+			continue
+		case isVinylRun(file.Kind) && filter.Before != 0:
+			log.Infof("Skipping %s: --timestamp takes the changes before a time, "+
+				"and the statements of a vinyl run have no time", file.Path)
+
 			continue
 		case file.Kind == KindXlog:
 			next := nextXlog(files, i)
@@ -97,7 +105,7 @@ func settleReplica(files []*File, filter *Filter) error {
 	named := map[uint32]bool{}
 
 	for _, file := range files {
-		if file.Kind == KindVylog {
+		if file.Kind == KindVylog || isVinylRun(file.Kind) {
 			continue
 		}
 

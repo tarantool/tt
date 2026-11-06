@@ -136,9 +136,10 @@ A snapshot is not read when `--from` or `--from-vclock` is given, and its row
 numbers are not LSNs: the bounds apply to write-ahead logs only. The output
 of `cat` keeps the `HEADER` and `BODY` of each row, and the rows of RAFT and
 synchronous replication have decoded bodies now. A snapshot holds no data of
-vinyl spaces: it is in `.run` files, which neither command reads. `tt data
-play` exits with 3 when the target refused some of the transactions, and with
-2 when the connection failed. `tt coredump` stays where it is.
+vinyl spaces: it is in `.run` files, which `tt data cat` reads when they are
+named or found with `-r`, and `tt data play` refuses. `tt data play` exits with
+3 when the target refused some of the transactions, and with 2 when the
+connection failed. `tt coredump` stays where it is.
 
 ## 1.3.1 -> 2.0.0
 
