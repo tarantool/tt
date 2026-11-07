@@ -78,6 +78,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `--timestamp` keeps the leading zeros of the fraction of an RFC 3339 time:
   `2024-11-14T14:02:36.0270Z` was read as 270 milliseconds past the second,
   not 27.
+- `tt instance stop` no longer leaves the `tarantool.pid` of an instance
+  behind when Tarantool exits without removing it: the watchdog removes it
+  once Tarantool has exited, if it still names the process. Tarantool 3.3
+  stopped during its first `box.cfg` exits with a fatal error and left it.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 
