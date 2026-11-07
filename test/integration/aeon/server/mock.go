@@ -22,7 +22,11 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-const defaultServerPort = 50051
+// defaultServerPort is the port of the server without -port. The ports the
+// tests serve on, this one and 30052, are below the ephemeral ranges of Linux
+// (32768-60999) and macOS (49152-65535): the kernel never hands either out to
+// a socket another test left open, which once took 50052.
+const defaultServerPort = 30051
 
 var args = struct {
 	isSsl      *bool

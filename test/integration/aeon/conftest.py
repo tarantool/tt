@@ -37,7 +37,7 @@ def mock_aeon(tmp_path_factory) -> Path:
     return exec
 
 
-@pytest.fixture(params=[50052, "@aeon_unix_socket", "AEON"])
+@pytest.fixture(params=[30052, "@aeon_unix_socket", "AEON"])
 def aeon_plain(mock_aeon, tmp_path, request):
     cmd = [mock_aeon]
     param = request.param
@@ -65,7 +65,7 @@ def aeon_plain(mock_aeon, tmp_path, request):
     assert aeon.wait(5) == 0, "Mock aeon server didn't stopped properly"
 
 
-@pytest.fixture(params=[50052])
+@pytest.fixture(params=[30052])
 def aeon_plain_file(mock_aeon, request):
     cmd = [mock_aeon, f"-port={request.param}"]
 

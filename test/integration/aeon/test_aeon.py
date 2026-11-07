@@ -86,7 +86,7 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
     elif aeon_ssl == "server-side":
         cmd += ("--transport", "ssl")
 
-    cmd.append("http://localhost:50051")
+    cmd.append("http://localhost:30051")
 
     print(f"Run: {' '.join(cmd)}")
     tt = run(
@@ -107,7 +107,7 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
             (
                 "--transport",
                 "mode",
-                "http://localhost:50051",
+                "http://localhost:30051",
             ),
             'Error: invalid argument "mode" for "--transport" flag',
         ),
@@ -117,7 +117,7 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
                 "--sslkeyfile=not-exits.key",
                 "--sslcertfile={c_public}",
                 "--sslcafile={ca}",
-                "http://localhost:50051",
+                "http://localhost:30051",
             ),
             'not valid path to a private SSL key file="not-exits.key"',
         ),
@@ -127,7 +127,7 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
                 "--sslkeyfile={c_private}",
                 "--sslcertfile=not-exits.key",
                 "--sslcafile={ca}",
-                "http://localhost:50051",
+                "http://localhost:30051",
             ),
             'not valid path to an SSL certificate file="not-exits.key"',
         ),
@@ -137,14 +137,14 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
                 "--sslkeyfile={c_private}",
                 "--sslcertfile={c_public}",
                 "--sslcafile=not-exits.key",
-                "http://localhost:50051",
+                "http://localhost:30051",
             ),
             'not valid path to trusted certificate authorities (CA) file="not-exits.key"',
         ),
         (
             (
                 "--sslcafile=not-exits.key",
-                "http://localhost:50051",
+                "http://localhost:30051",
             ),
             'not valid path to trusted certificate authorities (CA) file="not-exits.key"',
         ),
@@ -153,7 +153,7 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
                 "--transport=ssl",
                 "--sslcertfile={c_public}",
                 "--sslcafile={ca}",
-                "http://localhost:50051",
+                "http://localhost:30051",
             ),
             "files Key and Cert must be specified both",
         ),
@@ -162,13 +162,13 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
                 "--transport=ssl",
                 "--sslkeyfile={c_private}",
                 "--sslcafile={ca}",
-                "http://localhost:50051",
+                "http://localhost:30051",
             ),
             "files Key and Cert must be specified both",
         ),
         (
             (
-                "http://localhost:50051",
+                "http://localhost:30051",
                 "--transport=ssl",
                 "--sslcertfile={c_public}",
                 "--sslcafile={ca}",
@@ -178,7 +178,7 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
         ),
         (
             (
-                "http://localhost:50051",
+                "http://localhost:30051",
                 "--transport=ssl",
                 "--sslkeyfile={c_private}",
                 "--sslcafile={ca}",
@@ -188,7 +188,7 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
         ),
         (
             (
-                "http://localhost:50051",
+                "http://localhost:30051",
                 "--transport=ssl",
                 "--sslkeyfile={c_private}",
                 "--sslcertfile={c_public}",
