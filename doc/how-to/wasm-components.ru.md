@@ -2,7 +2,7 @@
 
 [tarantool-wasm](https://github.com/tarantool/tarantool-wasm-rs) - модуль Tarantool, который запускает компоненты WebAssembly рядом с данными: код приложения на Python, JavaScript, Go, Rust, C или C#, вызываемый из Lua через `require('wasm')`. Компоненты собираются с помощью [tarawasm](https://github.com/mandesero/tarawasm).
 
-`tt wasm prepare` подготавливает проект для работы обоих инструментов, пока tt не научится собирать компоненты самостоятельно, а `tt wasm new` добавляет компонент в пакет. Нужны Linux x86-64 или macOS arm64, Tarantool 3.6 или новее и Python 3.10 или новее для tarawasm.
+`tt wasm prepare` подготавливает проект для работы обоих инструментов, пока tt не научится собирать компоненты самостоятельно, а `tt wasm new` добавляет компонент в пакет. Нужны Linux x86-64 или macOS arm64, Tarantool 3.6 или новее и Python 3.10 или новее для tarawasm. Linux arm64 не поддерживается: сборки tarantool-wasm для него нет, и `tt wasm prepare` завершается там ошибкой `unsupported platform`.
 
 На этой странице компонент Python `add(a, b)` собирается в пакет `myapp`. [HTTP API в компоненте WebAssembly](../write-your-app/http-api-in-wasm.md) - целое приложение: HTTP-сервер в компоненте, который записывает данные в space.
 

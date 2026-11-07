@@ -25,7 +25,7 @@ notes/
     └── config.yaml             # инстанс
 ```
 
-Нужны Linux x86-64 или macOS arm64, Tarantool 3.6 или новее и Python 3.10 или новее; компиляторы Python-компонентов tt устанавливает в проект. Описание команды `tt wasm` см. в разделе [Запуск компонентов WebAssembly](../how-to/wasm-components.md).
+Нужны Linux x86-64 или macOS arm64 (Linux arm64 не поддерживается), Tarantool 3.6 или новее и Python 3.10 или новее; компиляторы Python-компонентов tt устанавливает в проект. Описание команды `tt wasm` см. в разделе [Запуск компонентов WebAssembly](../how-to/wasm-components.md).
 
 ## Создание проекта {#create-the-project}
 
