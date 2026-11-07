@@ -1,6 +1,7 @@
 package data
 
 import (
+	"errors"
 	"fmt"
 	"io"
 
@@ -15,6 +16,10 @@ import (
 // FormatLua is the format of tt data cat that writes the data changes as Lua
 // statements of the box API.
 const FormatLua output.Format = "lua"
+
+// errNotRecord is a value given to the Lua encoder that is not a Record: a
+// programming error.
+var errNotRecord = errors.New("not a journal record")
 
 // yamlIndent is tt's usual YAML indent.
 const yamlIndent = 2
@@ -119,7 +124,7 @@ func EncodeLua(w io.Writer, value any) error {
 func (e luaEncoder) Encode(item any) error {
 	record, ok := item.(*Record)
 	if !ok {
-		return fmt.Errorf("lua: %T is not a journal record", item) //nolint:err113 // A programming error.
+		return fmt.Errorf("lua: %T is %w", item, errNotRecord)
 	}
 
 	statement := LuaStatement(record.File, record.Row)
@@ -175,7 +180,8 @@ func LuaStatement(file *File, row *Row) []byte {
 	// A batch of Arrow has no Lua form: say so in its place rather than
 	// leave it out without a word.
 	if row.Type == iproto.IPROTO_INSERT_ARROW {
-		return fmt.Appendf(nil, "-- INSERT_ARROW into space %d at LSN %d of replica %d has no Lua form",
+		return fmt.Appendf(nil,
+			"-- INSERT_ARROW into space %d at LSN %d of replica %d has no Lua form",
 			body.SpaceID, row.LSN, row.ReplicaID)
 	}
 
@@ -253,7 +259,7 @@ func appendOps(dst []byte, value any, fromZero bool) []byte {
 
 	for _, op := range ops {
 		fields, ok := op.([]any)
-		if !ok || len(fields) < 2 { //nolint:mnd // An operation and a field.
+		if !ok || len(fields) < 2 {
 			continue
 		}
 
@@ -262,7 +268,7 @@ func appendOps(dst []byte, value any, fromZero bool) []byte {
 		// A splice names the position in the string it cuts at the same
 		// base as the field.
 		if name, ok := fields[0].(string); ok && name == ":" &&
-			len(fields) > 2 { //nolint:mnd // An operation, a field and a position.
+			len(fields) > 2 {
 			fields[2] = countedFromOne(fields[2])
 		}
 	}

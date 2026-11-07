@@ -16,11 +16,14 @@ import (
 // Row is a row of a journal file, with the body of a data change decoded.
 type Row struct {
 	format.XRow
+
 	// DML is the body of a data change of a space - INSERT, REPLACE,
-	// UPDATE, DELETE, UPSERT, INSERT_ARROW - and nil for any other row. The
-	// rows of a vinyl log are INSERTs of no space and have none. A statement
-	// of a vinyl run has one without a space id: the path of the run names it.
+	// UPDATE, DELETE, UPSERT, INSERT_ARROW - and nil for any other row. The rows of a
+	// vinyl log are INSERTs of no space and have none.
 	DML *format.DMLBody
+	// Stmt is the body of a statement of a vinyl run - INSERT, REPLACE,
+	// DELETE, UPSERT - and nil for any other row.
+	Stmt *format.VyStmtBody
 }
 
 // Txn is a transaction a filter selects, with the rows of it the filter
@@ -61,7 +64,7 @@ func Scan(plan *Plan, filter *Filter, opts ScanOptions, fn func(*Txn) error) err
 }
 
 func scanFile(plan *Plan, file *File, filter *Filter, opts ScanOptions,
-	fn func(*Txn) error,
+	visit func(*Txn) error,
 ) error {
 	options := []reader.Option{reader.AcceptV012(), reader.IgnoreMissingEOF()}
 	if opts.SkipCorrupt {
@@ -76,7 +79,7 @@ func scanFile(plan *Plan, file *File, filter *Filter, opts ScanOptions,
 	defer func() { _ = journal.Close() }()
 
 	for {
-		tx, err := journal.NextTx()
+		journalTx, err := journal.NextTx()
 
 		switch {
 		case errors.Is(err, io.EOF):
@@ -95,7 +98,7 @@ func scanFile(plan *Plan, file *File, filter *Filter, opts ScanOptions,
 			return fmt.Errorf("reading %s: %w", file.Path, err)
 		}
 
-		txn, err := selectTxn(plan, file, filter, tx.Rows)
+		txn, err := selectTxn(plan, file, filter, journalTx.Rows)
 		if err != nil {
 			return err
 		}
@@ -104,7 +107,7 @@ func scanFile(plan *Plan, file *File, filter *Filter, opts ScanOptions,
 			continue
 		}
 
-		err = fn(txn)
+		err = visit(txn)
 		if err != nil {
 			return err
 		}
@@ -115,28 +118,12 @@ func scanFile(plan *Plan, file *File, filter *Filter, opts ScanOptions,
 // rows it keeps, or nil when it selects none of them.
 func selectTxn(plan *Plan, file *File, filter *Filter, rows []format.XRow) (*Txn, error) {
 	if file.Kind == KindXlog {
-		if covers(plan.Base, file) && contained(rows, plan.Base.Meta.VClock) {
-			return nil, nil //nolint:nilnil // No transaction is selected.
+		selected, err := selectsXlogTxn(plan, file, filter, rows)
+		if err != nil {
+			return nil, err
 		}
 
-		inRange := !filter.bounded()
-
-		for _, row := range rows {
-			err := filter.bindReplica(row, file.Path)
-			if err != nil {
-				return nil, err
-			}
-
-			if !inRange && filter.inRange(row) {
-				inRange = true
-			}
-		}
-
-		if !inRange {
-			return nil, nil //nolint:nilnil // No transaction is selected.
-		}
-
-		if filter.Before != 0 && rows[0].Timestamp >= filter.Before {
+		if !selected {
 			return nil, nil //nolint:nilnil // No transaction is selected.
 		}
 	}
@@ -144,9 +131,18 @@ func selectTxn(plan *Plan, file *File, filter *Filter, rows []format.XRow) (*Txn
 	txn := &Txn{File: file, Rows: make([]Row, 0, len(rows))}
 
 	for _, xrow := range rows {
-		row := Row{XRow: xrow, DML: nil}
+		row := Row{XRow: xrow, DML: nil, Stmt: nil}
 
-		if isDML(xrow.Type) && file.Kind != KindVylog && file.Kind != KindIndex {
+		switch {
+		case file.Kind == KindRun && isStatement(xrow.Type):
+			stmt, err := format.DecodeVyStmtBody(xrow.BodyRaw)
+			if err != nil {
+				log.Warnf("%s: the body of the %s at LSN %d does not decode: %s",
+					file.Path, format.TypeName(xrow.Type), xrow.LSN, err)
+			} else {
+				row.Stmt = stmt
+			}
+		case isDML(xrow.Type) && (file.Kind == KindSnap || file.Kind == KindXlog):
 			body, err := format.DecodeDMLBody(xrow.BodyRaw)
 			if err != nil {
 				log.Warnf("%s: the body of the %s at LSN %d does not decode: %s",
@@ -166,6 +162,34 @@ func selectTxn(plan *Plan, file *File, filter *Filter, rows []format.XRow) (*Txn
 	}
 
 	return txn, nil
+}
+
+// selectsXlogTxn reports whether filter selects the transaction of rows of a
+// write-ahead log: one the snapshot of plan does not contain, within the
+// bounds.
+func selectsXlogTxn(plan *Plan, file *File, filter *Filter, rows []format.XRow) (bool, error) {
+	if covers(plan.Base, file) && contained(rows, plan.Base.Meta.VClock) {
+		return false, nil
+	}
+
+	inRange := !filter.bounded()
+
+	for _, row := range rows {
+		err := filter.bindReplica(row, file.Path)
+		if err != nil {
+			return false, err
+		}
+
+		if !inRange && filter.inRange(row) {
+			inRange = true
+		}
+	}
+
+	if !inRange {
+		return false, nil
+	}
+
+	return filter.Before == 0 || rows[0].Timestamp < filter.Before, nil
 }
 
 // contained reports whether a snapshot at vclock holds the changes of the

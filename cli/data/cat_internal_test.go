@@ -42,7 +42,7 @@ func dmlXlog(t *testing.T, dir string) string {
 			tup, []any{1, "u"}, ops, []any{[]any{"=", 2, "z"}, []any{":", 3, 2, 0, "Q"}}))),
 		tx(row(iproto.IPROTO_RAFT_PROMOTE, 1, 7, 1731592958, body(t,
 			uint64(iproto.IPROTO_REPLICA_ID), 1, uint64(iproto.IPROTO_LSN), 6,
-			uint64(iproto.IPROTO_TERM), 2, uint64(iproto.IPROTO_VCLOCK), map[uint64]int64{1: 6}))),
+			uint64(iproto.IPROTO_TERM), 2, uint64(iproto.IPROTO_VCLOCK), map[uint64]uint64{1: 6}))),
 		tx(row(iproto.IPROTO_RAFT_CONFIRM, 1, 8, 1731592958, body(t,
 			uint64(iproto.IPROTO_REPLICA_ID), 1, uint64(iproto.IPROTO_LSN), 6))),
 		tx(row(iproto.IPROTO_RAFT, 0, 1, 1731592958, body(t,
@@ -131,11 +131,13 @@ func TestCatJSONLines(t *testing.T) {
 
 	// One object per line, the binary value as base64, the keys of a map
 	// in their order.
-	assert.Equal(t, `{"HEADER":{"type":"INSERT","lsn":2,"replica_id":1,"tsn":2,`+
-		`"timestamp":1731592956.5},"BODY":{"space_id":512,"tuple":[2,"AAE="]}}`, lines[1])
+	assert.Equal(t, //nolint:testifylint // The order of the keys is checked too.
+		`{"HEADER":{"type":"INSERT","lsn":2,"replica_id":1,"tsn":2,`+
+			`"timestamp":1731592956.5},"BODY":{"space_id":512,"tuple":[2,"AAE="]}}`, lines[1])
 
 	for _, line := range lines {
 		var record map[string]map[string]any
+
 		require.NoError(t, json.Unmarshal([]byte(line), &record))
 		assert.Contains(t, record["HEADER"], "type")
 		assert.Contains(t, record["HEADER"], "lsn")
@@ -179,7 +181,7 @@ func TestCatVylog(t *testing.T) {
 	require.Len(t, lines, 2)
 
 	var record struct {
-		Body map[string]any `json:"BODY"`
+		Body map[string]any `json:"BODY"` //nolint:tagliatelle // The xlog module's name.
 	}
 
 	require.NoError(t, json.Unmarshal([]byte(lines[0]), &record))
@@ -191,6 +193,67 @@ func TestCatVylog(t *testing.T) {
 
 	// A vinyl log changes no space: it has no Lua.
 	assert.Empty(t, cat(t, plan(t, &filter, path), &filter, FormatLua))
+}
+
+func TestCatRealSynchro(t *testing.T) {
+	t.Parallel()
+
+	// Written by Tarantool 3.8: an xlog of PROMOTE, CONFIRM, ROLLBACK and
+	// CONFIRM rows, and a snapshot whose limbo checkpoint is a PROMOTE with
+	// the confirmed vclock. The snapshot contains the xlog: they are read
+	// apart.
+	synchro := func(path string) []string {
+		t.Helper()
+
+		filter := Filter{ShowSystem: true}
+		got := cat(t, plan(t, &filter, path), &filter, output.FormatJSON)
+
+		var bodies []string
+
+		for line := range strings.SplitSeq(strings.TrimSpace(got), "\n") {
+			var record map[string]json.RawMessage
+
+			require.NoError(t, json.Unmarshal([]byte(line), &record))
+
+			var header map[string]any
+
+			require.NoError(t, json.Unmarshal(record[fieldHeader], &header))
+
+			if typ, _ := header[fieldType].(string); strings.HasPrefix(typ, "RAFT_") {
+				bodies = append(bodies, typ+" "+string(record[fieldBody]))
+			}
+		}
+
+		return bodies
+	}
+
+	assert.Equal(t, []string{
+		`RAFT_PROMOTE {"replica_id":0,"lsn":0,"term":2}`,
+		`RAFT_CONFIRM {"replica_id":1,"lsn":4}`,
+		`RAFT_ROLLBACK {"replica_id":1,"lsn":6}`,
+		`RAFT_CONFIRM {"replica_id":1,"lsn":8}`,
+	}, synchro("testdata/synchro/00000000000000000000.xlog"))
+	assert.Equal(t, []string{
+		`RAFT_PROMOTE {"replica_id":1,"lsn":8,"term":2,"vclock":{"1":8}}`,
+	}, synchro("testdata/synchro/00000000000000000010.snap"))
+}
+
+func TestCatRealVylog(t *testing.T) {
+	t.Parallel()
+
+	// The vinyl log of the runs of testdata/vinyl.
+	filter := Filter{}
+	got := cat(t, plan(t, &filter, "testdata/vinyl/00000000000000000021.vylog"), &filter,
+		output.FormatJSON)
+	lines := strings.Split(strings.TrimSpace(got), "\n")
+
+	// The keys of a record are in the order Tarantool writes them.
+	assert.JSONEq(t, `{"HEADER":{"type":"INSERT","lsn":0,"replica_id":0},"BODY":{`+
+		`"type":"create_lsm","space_id":700,"key_def":[{"field":0,"type":"unsigned",`+
+		`"sort_order":"asc"}],"create_lsn":2,"modify_lsn":2,"dump_lsn":19}}`, lines[0])
+	assert.Contains(t, lines[0], `"BODY":{"type":"create_lsm","space_id":700,"key_def":`)
+	assert.Contains(t, got, `"BODY":{"type":"insert_slice","range_id":1,"run_id":21,"slice_id":23}`)
+	assert.Contains(t, got, `"BODY":{"type":"drop_run","run_id":17,"gc_lsn":16}`)
 }
 
 // TestCatInsertArrow pins that a batch of Arrow is a data change of its

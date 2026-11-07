@@ -17,12 +17,12 @@ func multiReplicaXlog(t *testing.T, dir string) string {
 	t.Helper()
 
 	return writeJournal(t, dir, format.FiletypeXLOG, format.VClock{}, nil,
-		tx(insert(t, 1, 1, 512, 1)),                          // A
-		tx(insert(t, 2, 1, 512, 100)),                        // B
-		tx(insert(t, 1, 2, 512, 2), insert(t, 1, 3, 512, 3)), // C
-		tx(insert(t, 2, 2, 512, 101)),                        // D
-		tx(insert(t, 1, 4, 512, 4)),                          // E
-		tx(insert(t, 0, 1, 513, 5)),                          // F, a local space
+		tx(insert(t, 1, 1, 512, 1)),                          // A.
+		tx(insert(t, 2, 1, 512, 100)),                        // B.
+		tx(insert(t, 1, 2, 512, 2), insert(t, 1, 3, 512, 3)), // C.
+		tx(insert(t, 2, 2, 512, 101)),                        // D.
+		tx(insert(t, 1, 4, 512, 4)),                          // E.
+		tx(insert(t, 0, 1, 513, 5)),                          // F, a local space.
 	)
 }
 
@@ -70,13 +70,13 @@ func TestScanVClockBounds(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			filter := tc.filter
+			filter := testCase.filter
 			// The local space is not a system one, and no row is.
-			assert.Equal(t, tc.want, lsns(scan(t, plan(t, &filter, path), &filter)))
+			assert.Equal(t, testCase.want, lsns(scan(t, plan(t, &filter, path), &filter)))
 		})
 	}
 }
@@ -104,11 +104,13 @@ func TestScanLSNBounds(t *testing.T) {
 	// the transactions it selects are whole, and those with no row of it
 	// are not selected.
 	multi := multiReplicaXlog(t, t.TempDir())
+
 	filter = Filter{From: 2, To: 2, HasFrom: true, HasTo: true, Replicas: []uint32{1}}
 	assert.Equal(t, []string{"1:2,1:3"}, lsns(scan(t, plan(t, &filter, multi), &filter)))
 
 	// Without it, the rows of a second replica are an error.
 	filter = Filter{From: 2, HasFrom: true}
+
 	err := Scan(plan(t, &filter, multi), &filter, ScanOptions{}, func(*Txn) error { return nil })
 	require.ErrorIs(t, err, ErrAmbiguousReplica)
 
@@ -134,7 +136,7 @@ func TestScanLSNBounds(t *testing.T) {
 func snapshotChain(t *testing.T, dir string) {
 	t.Helper()
 
-	snapRows := func(n int) [][]format.XRow {
+	snapRows := func(count int) [][]format.XRow {
 		txs := [][]format.XRow{
 			tx(row(iproto.IPROTO_INSERT, 0, 1, 2000, dml(t, 280, 512, 1, "test", "memtx", 0,
 				map[string]any{}, []any{}))),
@@ -142,7 +144,7 @@ func snapshotChain(t *testing.T, dir string) {
 				uint64(2), 3))),
 		}
 
-		for i := 1; i <= n; i++ {
+		for i := 1; i <= count; i++ {
 			txs = append(txs, tx(row(iproto.IPROTO_INSERT, 0, int64(2+i), 2000,
 				dml(t, 512, i))))
 		}
@@ -187,9 +189,10 @@ func TestScanSnapshotChain(t *testing.T) {
 	assert.Equal(t, []string{"1:5", "1:6", "1:7"}, lsns(scan(t, plan(t, &filter, dir), &filter)))
 
 	filter = Filter{}
-	p := plan(t, &filter, dir)
-	require.Len(t, p.Files, 3)
-	assert.Equal(t, p.Base, p.Files[0])
+
+	chain := plan(t, &filter, dir)
+	require.Len(t, chain.Files, 3)
+	assert.Equal(t, chain.Base, chain.Files[0])
 
 	// A log a snapshot contains whole is not even read.
 	covered := t.TempDir()
@@ -205,7 +208,7 @@ func TestScanSnapshotChain(t *testing.T) {
 	assert.Equal(t, "00000000000000000002.xlog", filepath.Base(coveredPlan.Files[1].Path))
 	assert.Equal(t, []string{"0:1", "1:3"}, lsns(scan(t, coveredPlan, &filter)))
 
-	ids, err := SpaceIDs(p)
+	ids, err := SpaceIDs(chain)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]uint32{"test": 512}, ids)
 }
@@ -264,7 +267,7 @@ func TestCollect(t *testing.T) {
 	files, err := Collect([]string{dir, dir + "/00000000000000000005.xlog"}, CollectOptions{})
 	require.NoError(t, err)
 
-	var names []string
+	names := make([]string, 0, len(files))
 	for _, file := range files {
 		names = append(names, file.Path[len(dir)+1:])
 	}

@@ -66,7 +66,7 @@ func Select(files []*File, filter *Filter) (*Plan, error) {
 		plan.Files = append(plan.Files, base)
 	}
 
-	for i, file := range files {
+	for index, file := range files {
 		switch {
 		case file.Kind == KindSnap:
 			continue
@@ -76,7 +76,7 @@ func Select(files []*File, filter *Filter) (*Plan, error) {
 
 			continue
 		case file.Kind == KindXlog:
-			next := nextXlog(files, i)
+			next := nextXlog(files, index)
 			if reason := skipXlog(file, next, base, filter); reason != "" {
 				log.Debugf("Skipping %s: %s", file.Path, reason)
 
@@ -139,8 +139,7 @@ func settleReplica(files []*File, filter *Filter) error {
 func chooseSnapshot(files []*File, filter *Filter) (*File, error) {
 	var base *File
 
-	for i := len(files) - 1; i >= 0; i-- {
-		file := files[i]
+	for _, file := range slices.Backward(files) {
 		if file.Kind != KindSnap {
 			continue
 		}
@@ -245,11 +244,11 @@ func skipXlog(file, next, base *File, filter *Filter) string {
 	if next != nil {
 		end := next.Meta.VClock
 
-		if covers(base, file) && atMost(end, base.Meta.VClock) {
+		if covers(base, file) && vclockWithin(end, base.Meta.VClock) {
 			return "the snapshot " + base.Path + " contains its transactions"
 		}
 
-		if filter.FromVClock != nil && atMost(end, filter.FromVClock) {
+		if filter.FromVClock != nil && vclockWithin(end, filter.FromVClock) {
 			return "its transactions are not past --from-vclock"
 		}
 
@@ -262,7 +261,7 @@ func skipXlog(file, next, base *File, filter *Filter) string {
 		return "its transactions are past --to"
 	}
 
-	if filter.ToVClock != nil && len(filter.ToVClock) > 0 {
+	if len(filter.ToVClock) > 0 {
 		past := true
 
 		for id, lsn := range filter.ToVClock {
@@ -288,8 +287,8 @@ func covers(base, file *File) bool {
 		base.Meta.InstanceUUID == file.Meta.InstanceUUID
 }
 
-// atMost reports whether every component of a is at most that of b.
-func atMost(a, b format.VClock) bool {
+// vclockWithin reports whether every component of a is at most that of b.
+func vclockWithin(a, b format.VClock) bool {
 	for id, lsn := range a {
 		if lsn > b[id] {
 			return false
