@@ -48,20 +48,15 @@ Everything after '--' is handed to luatest, and the exit code is luatest's own.
 
 			return commandError(cmd, err)
 		},
-		Example: `
-# Build and run everything under test/ (or tests/).
+		Example: `# Build and run everything under test/ (or tests/).
+  $ tt test
 
-    $ tt test
+  # Run one directory, then one file.
+  $ tt test test/integration
+  $ tt test test/unit/config_test.lua
 
-# Run one directory, then one file.
-
-    $ tt test test/integration
-    $ tt test test/unit/config_test.lua
-
-# Pass luatest's own options through.
-
-    $ tt test -- --verbose --shuffle group
-`,
+  # Pass luatest's own options through.
+  $ tt test -- --verbose --shuffle group`,
 	}
 
 	addProjectDirFlag(testCmd)

@@ -20,9 +20,12 @@ import pytest
 
 MODULE = b"\x7fELF not a module: tt packs and installs it, and nothing loads it\n"
 
-# The two builds tt knows a release by, as goos, goarch, rock arch and module.
+# The builds of the release, as goos, goarch, rock arch and module: the two
+# tt knows and linux/arm64, which tarantool-wasm has no build for, so that the
+# tests run on an arm64 runner too.
 PLATFORMS = [
     ("linux", "amd64", "linux-x86_64", "wasm.so"),
+    ("linux", "arm64", "linux-aarch64", "wasm.so"),
     ("darwin", "arm64", "macosx-aarch64", "wasm.dylib"),
 ]
 
@@ -32,8 +35,10 @@ def host_platform() -> tuple[str, str, str, str]:
     system, machine = platform.system(), platform.machine().lower()
     if system == "Linux" and machine in ("x86_64", "amd64"):
         return PLATFORMS[0]
-    if system == "Darwin" and machine in ("arm64", "aarch64"):
+    if system == "Linux" and machine in ("aarch64", "arm64"):
         return PLATFORMS[1]
+    if system == "Darwin" and machine in ("arm64", "aarch64"):
+        return PLATFORMS[2]
     pytest.skip(f"tarantool-wasm has no build for {system} {machine}")
 
 
@@ -212,6 +217,7 @@ def test_rocks_of_a_release_serve_every_machine(tt_cmd, tmp_path, project, env):
     assert packed.returncode == 0, packed.stderr
     assert sorted(path.name for path in rocks.iterdir()) == [
         "manifest",
+        "wasm-0.1.0-1.linux-aarch64.rock",
         "wasm-0.1.0-1.linux-x86_64.rock",
         "wasm-0.1.0-1.macosx-aarch64.rock",
     ]

@@ -60,27 +60,21 @@ A template of your own is given by its path: a directory, or a .tgz or
 .tar.gz archive, which may be named without its extension. A path is told
 from the name of a built-in template by a slash in it, so a template in the
 current directory is given as ./<name>.`,
-		Example: `
-# Create an application app1 from a template.
+		Example: `# Create an application app1 from a template.
+  $ tt create <template name> --name app1
 
-    $ tt create <template name> --name app1
+  # Create an application app1 from the template in the templates/basic
+  # directory.
+  $ tt create ./templates/basic --name app1
 
-# Create an application app1 from the template in the templates/basic
-# directory.
+  # Create a Tarantool 3 application with a single instance configuration.
+  $ tt create single_instance --name new_app
 
-    $ tt create ./templates/basic --name app1
+  # Create Tarantool 3 vshard cluster.
+  $ tt create vshard_cluster --name cluster_app
 
-# Create a Tarantool 3 application with a single instance configuration.
-
-    $ tt create single_instance --name new_app
-
-# Create Tarantool 3 vshard cluster.
-
-    $ tt create vshard_cluster --name cluster_app
-
-# Create Tarantool 3 cluster configuration storage.
-
-    $ tt create config_storage --name cs_app`,
+  # Create Tarantool 3 cluster configuration storage.
+  $ tt create config_storage --name cs_app`,
 	}
 
 	createCmd.Flags().StringVarP(&appName, "name", "n", "", "Application name")

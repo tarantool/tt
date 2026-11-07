@@ -78,7 +78,7 @@ func TestWrite(t *testing.T) {
 		Use:     "start [APP]",
 		Short:   "Start an app",
 		Long:    "Start the app.",
-		Example: "  $ tt app start",
+		Example: "$ tt app start\n  $ tt app start web",
 		Run:     func(*cobra.Command, []string) {},
 	}
 	start.Flags().String("scope", "project", "Scope of the app")
@@ -112,7 +112,7 @@ func TestWrite(t *testing.T) {
 	assert.Contains(t, string(page), "## tt app start\n\nStart the app.\n")
 	assert.Contains(t, string(page), "```text\ntt app start [APP] [flags]\n```\n")
 	assert.Contains(t, string(page), "- `--scope string` - Scope of the app (default `project`)\n")
-	assert.Contains(t, string(page), "```console\n$ tt app start\n```\n")
+	assert.Contains(t, string(page), "```console\n$ tt app start\n$ tt app start web\n```\n")
 	assert.NotContains(t, string(page), "secret")
 
 	_, err = clidoc.Write(app, dir)

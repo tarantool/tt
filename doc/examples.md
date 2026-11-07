@@ -426,7 +426,7 @@ directory.
 curl --header "Content-Type: application/json" --request POST \
 --data '{"command_name":"instance", "params":["start", "test_app:*"]}' \
 http://127.0.0.1:1024/tarantool
-{"res":"   • Starting an instance [test_app:test_app]...\n"}
+{"res":"   • Starting an instance [test_app:instance001]...\n"}
 ```
 
 Below is an example of running a command with flags.
@@ -435,20 +435,22 @@ Flag with argument:
 
 ``` sh
 curl --header "Content-Type: application/json" --request POST \
---data '{"command_name":"version", "params":["-L", "/path/to/local/dir"]}' \
+--data '{"command_name":"instance", "params":["status", "-o", "yaml", "test_app:*"]}' \
 http://127.0.0.1:1024/tarantool
-{"res":"Tarantool CLI version 0.1.0, darwin/amd64. commit: bf83f33\n"}
+{"res":"test_app:instance001:\n    status: RUNNING\n    pid: 568979\n    mode: RW\n    config: ready\n    box: running\n    upstream: --\n    alerts: []\n\n"}
 ```
 
 Flag without argument:
 
 ``` sh
 curl --header "Content-Type: application/json" --request POST \
---data '{"command_name":"version", "params":["-V"]}' \
+--data '{"command_name":"instance", "params":["stop", "--yes", "test_app:*"]}' \
 http://127.0.0.1:1024/tarantool
-{"res":"Tarantool CLI version 0.1.0, darwin/amd64. commit: bf83f33\n
- • Tarantool executable found: '/usr/local/bin/tarantool'\n"}
+{"res":"   • The Instance test_app:instance001 (PID = 568979) has been terminated.\n"}
 ```
+
+The daemon runs the command without a terminal, so a command that asks for a
+confirmation, such as `tt instance stop`, needs `--yes`.
 
 ## Transition from tarantoolctl to tt
 

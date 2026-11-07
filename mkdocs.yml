@@ -28,6 +28,7 @@ validation:
 
 nav:
   - Home: index.md
+  - What's new in tt 3: whats-new.md
   - Get started:
       - get-started/install.md
       - get-started/first-cluster.md
@@ -49,6 +50,7 @@ nav:
       - how-to/sign-packages.md
       - how-to/external-modules.md
       - how-to/rust-modules.md
+      - how-to/write-a-module.md
       - how-to/build-distribution.md
       - how-to/wasm-components.md
       - Migrate from tt 2.x: migration_from_older_versions.md
@@ -57,20 +59,18 @@ nav:
           - reference/commands/index.md
           - tt aeon: reference/commands/aeon.md
           - tt backup: reference/commands/backup.md
-          - tt backup-id: reference/commands/backup-id.md
           - tt binary: reference/commands/binary.md
-          - tt cat: reference/commands/cat.md
           - tt cluster: reference/commands/cluster.md
           - tt completion: reference/commands/completion.md
           - tt connect: reference/commands/connect.md
           - tt coredump: reference/commands/coredump.md
           - tt create: reference/commands/create.md
           - tt daemon: reference/commands/daemon.md
+          - tt data: reference/commands/data.md
           - tt instance: reference/commands/instance.md
           - tt modules: reference/commands/modules.md
           - tt new: reference/commands/new.md
           - tt package: reference/commands/package.md
-          - tt play: reference/commands/play.md
           - tt registry: reference/commands/registry.md
           - tt replicaset: reference/commands/replicaset.md
           - tt restore: reference/commands/restore.md
@@ -83,6 +83,7 @@ nav:
           - tt wasm: reference/commands/wasm.md
           - Exit codes: reference/commands/errors.md
       - reference/app-manifest.md
+      - reference/tt-manifest.md
       - reference/instances-yaml.md
       - reference/templates.md
       - reference/environment.md
@@ -122,6 +123,40 @@ theme:
 
 extra:
   generator: false
+
+plugins:
+  - search
+  # Russian next to English: page.ru.md translates page.md and is served
+  # under /ru/; a page with no translation falls back to the English one,
+  # as the generated command reference always does. Material gets the
+  # language switcher and search gets both languages. Translations that lag
+  # behind their English pages: mage docs:stale.
+  - i18n:
+      docs_structure: suffix
+      fallback_to_default: true
+      reconfigure_material: true
+      reconfigure_search: true
+      languages:
+        - locale: en
+          name: English
+          default: true
+        - locale: ru
+          name: Русский
+          site_description: tt, утилита командной строки для приложений Tarantool
+          # The titles the nav sets explicitly; the others come from the
+          # first heading of a page.
+          nav_translations:
+            Home: Главная
+            What's new in tt 3: Что нового в tt 3
+            Get started: Начало работы
+            Concepts: Концепции
+            Write your application: Пишем приложение
+            How-to: Руководства
+            Migrate from tt 2.x: Переход с tt 2.x
+            Reference: Справочник
+            Commands: Команды
+            Exit codes: Коды завершения
+            Project: О проекте
 
 markdown_extensions:
   - attr_list

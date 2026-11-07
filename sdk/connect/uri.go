@@ -115,7 +115,7 @@ type URIOpts struct {
 	// SkipHostVerify controls whether a client verifies the server's
 	// host name. This is dangerous option so by default it is false.
 	SkipHostVerify bool
-	// SkipHostVerify controls whether a client verifies the server's
+	// SkipPeerVerify controls whether a client verifies the server's
 	// certificate chain. This is dangerous option so by default it is false.
 	SkipPeerVerify bool
 	// Timeout is a timeout for actions.

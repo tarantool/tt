@@ -78,8 +78,7 @@ func BuiltinCommands() []*cobra.Command {
 		NewServiceCmd(),
 		NewConnectCmd(),
 		NewRocksCmd(),
-		NewCatCmd(),
-		NewPlayCmd(),
+		NewDataCmd(),
 		NewClusterCmd(),
 		NewCoredumpCmd(),
 		NewReplicasetCmd(),
@@ -94,7 +93,6 @@ func BuiltinCommands() []*cobra.Command {
 		NewBinaryCmd(),
 		NewTcmCmd(),
 		NewBackupCmd(),
-		NewBackupIDCmd(),
 		NewRestoreCmd(),
 		NewWasmCmd(),
 	}

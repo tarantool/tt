@@ -688,6 +688,12 @@ func (Docs) Serve() error {
 	return sh.RunV(pythonExecutableName, "-m", "mkdocs", "serve")
 }
 
+// Stale lists the translated pages of the documentation whose English page
+// changed after them or no longer exists. It only reports.
+func (Docs) Stale() error {
+	return sh.RunV(pythonExecutableName, "ci/doc_translations.py")
+}
+
 // getBuildEnvironment return map with build environment variables.
 func getBuildEnvironment() map[string]string {
 	var err error

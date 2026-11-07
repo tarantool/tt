@@ -34,14 +34,11 @@ func NewNewCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return commandError(cmd, runNew())
 		},
-		Example: `
-# Create a manifest for the project in the current directory.
+		Example: `# Create a manifest for the project in the current directory.
+  $ tt new
 
-    $ tt new
-
-# Name the package explicitly, when the directory is not named for it.
-
-    $ tt new -n my-app`,
+  # Name the package explicitly, when the directory is not named for it.
+  $ tt new -n my-app`,
 	}
 
 	newCmd.Flags().StringVarP(&newPackageName, "name", "n", "",

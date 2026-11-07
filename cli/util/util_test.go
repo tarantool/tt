@@ -417,7 +417,35 @@ func TestStringToTimestamp(t *testing.T) {
 		{
 			"RFC339",
 			"2022-04-28T07:22:12+00:00",
-			"1651130532.0",
+			"1651130532.000000000",
+			false,
+		},
+		{
+			// The leading zero of the fraction is kept: .0270 is 27
+			// milliseconds, not 270.
+			"RFC339Nano_leading_zero",
+			"2024-11-14T14:02:36.0270+00:00",
+			"1731592956.027000000",
+			false,
+		},
+		{
+			"RFC339Nano_nanosecond",
+			"2024-11-14T14:02:36.000000001Z",
+			"1731592956.000000001",
+			false,
+		},
+		{
+			"RFC339Nano_offset",
+			"2024-11-14T17:02:36.5+03:00",
+			"1731592956.500000000",
+			false,
+		},
+		{
+			// Half a second before the epoch is -0.5, whereas its
+			// Unix() is -1 and its Nanosecond() 500000000.
+			"RFC339Nano_before_epoch",
+			"1969-12-31T23:59:59.5Z",
+			"-0.500000000",
 			false,
 		},
 		{

@@ -9,9 +9,75 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt data cat` and `tt data play`: read snapshots, write-ahead logs and
+  vinyl logs in Go, without a local Tarantool. The files are read the way
+  Tarantool recovers: the newest snapshot within the bounds, then the logs in
+  the order of their vclocks without the transactions the snapshot already
+  contains. `--from-vclock` and `--to-vclock` bound the range by vclock,
+  `--from` and `--to` the LSNs of one replica, both ends included, and a
+  bound inside a transaction takes the whole of it. `--space` takes a name
+  the snapshot defines, `--skip-corrupt` skips a damaged block.
+- `tt data cat -o yaml|json|lua`: JSON is JSON Lines, an object a row with
+  the `HEADER` and `BODY` of the xlog module; the bodies of RAFT, synchronous
+  replication (`RAFT_PROMOTE`, `RAFT_DEMOTE`, `RAFT_CONFIRM`,
+  `RAFT_ROLLBACK`) and vinyl log rows are decoded, and `-o lua` writes
+  statements that remake binary values, 64-bit integers, decimals, UUIDs,
+  datetimes and intervals as they were.
+- `tt data cat` reads vinyl runs: the `.run` and `.index` files named, and
+  those of a directory with `-r`, after the journals. A statement has the
+  `space_id` and `index_id` of its path, its flags (`deferred_delete`,
+  `skip_read`) and, for an UPSERT, a list of operations for each UPSERT
+  squashed into it; the `RUNINFO`, `PAGEINFO` and `ROWINDEX` rows are
+  decoded. The bounds take the statements by their LSN, the vclock signature
+  of their transaction, `--space` by the path, and `--timestamp` leaves the
+  runs out. `-o lua` writes the statements of a run of a primary index, which
+  are in key order and remake no space; `tt data play` refuses a `.run` or
+  `.index` file.
+- `tt data play` applies the changes in one IPROTO stream, in order and
+  `--batch` requests in flight, a transaction of several rows in a stream
+  transaction (`--txn-mode auto|stream|row`; `auto`, the default, goes on row
+  by row from the first transaction a target without
+  `memtx_use_mvcc_engine` cannot take whole). `--on-error stop|skip`,
+  `--dry-run`, which checks the spaces of the target, a summary of what was
+  applied, exit code 3 when only some transactions were, and
+  `--sslpassword`/`--sslpasswordfile`. A request keeps the index and the
+  index base of its row, so an UPDATE or DELETE of a secondary index and
+  the operations of an UPDATE or UPSERT from Lua apply as they did; an
+  `INSERT_ARROW` of Tarantool Enterprise is applied as one too, and
+  `-o lua` names it in a comment, having no Lua form for it.
+- `sdk/tuple`: a module that decodes the MessagePack values of Tarantool and
+  renders them as text, JSON, YAML and Lua, for `tt data` and the modules
+  that print tuples.
+
 ### Changed
 
+- `tt cat` and `tt play` are `tt data cat` and `tt data play`; the old names
+  are removed without aliases. `tt data cat` reads no `.vylog` file of a
+  directory unless it is named, prints `Reading <file>` on stderr for the
+  files it prints rows of, and `--to` now includes its LSN.
+- The Lua `cat` and `play` scripts tt ran in a local Tarantool and the
+  `TT_CLI_CAT_*` and `TT_CLI_PLAY_*` variables that passed them their options
+  are gone.
+- `tt backup-id` is `tt backup id`, next to the other steps of a backup. It
+  prints the same identifier; `tt backup-id` is gone.
+
 ### Fixed
+
+- `tt data cat` and `tt data play`: `--to` includes the row at its LSN, as
+  the help says, and neither bound cuts a transaction in half; a bound is no
+  longer one LSN compared across all replicas; `--show-system` hides the RAFT
+  and `RAFT_PROMOTE` rows of a snapshot too; the row numbers of a snapshot are
+  not taken for LSNs; a directory with a snapshot and older write-ahead logs
+  is not replayed twice.
+- `tt data play` reports the error of the server for the row it refused,
+  with its LSN and replica - a wrong password is a failed authentication,
+  not "no space #512" (#705) - and no longer takes a warning on stderr for a
+  failure.
+- `tt data cat` decodes the bodies of RAFT and synchronous replication rows
+  (#406) and reads `.vylog`, `.run` and `.index` files (#1316).
+- `--timestamp` keeps the leading zeros of the fraction of an RFC 3339 time:
+  `2024-11-14T14:02:36.0270Z` was read as 270 milliseconds past the second,
+  not 27.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

@@ -40,31 +40,24 @@ with the interpreter, so signals and the exit code are Tarantool's own.
 
 			return internalRunE(internalRunModule)(cmd, args)
 		},
-		Example: `
-# Start an interactive console in the project.
+		Example: `# Start an interactive console in the project.
+  $ tt run
 
-    $ tt run
+  # Print the version of the Tarantool the project runs under:
+  $ tt run --version
+  Tarantool 3.0.0-entrypoint-724-gd2d7f4de3
+  . . .
 
-# Print the version of the Tarantool the project runs under:
+  # Run a script with arguments. Everything after the script name is the
+  # script's, '--' included, because Tarantool itself is what reads them:
+  $ tt run script.lua a b c
+  a	b	c
 
-    $ tt run --version
-    Tarantool 3.0.0-entrypoint-724-gd2d7f4de3
-    . . .
+  # Execute stdin:
+  $ echo 'print(42)' | tt run -
 
-# Run a script with arguments. Everything after the script name is the
-# script's, '--' included, because Tarantool itself is what reads them:
-
-    $ tt run script.lua a b c
-    a	b	c
-
-# Execute stdin:
-
-    $ echo 'print(42)' | tt run -
-
-# Ignore the project's tarantool and use the one on PATH:
-
-    $ TT_USE_SYSTEM_TARANTOOL=1 tt run script.lua
-`,
+  # Ignore the project's tarantool and use the one on PATH:
+  $ TT_USE_SYSTEM_TARANTOOL=1 tt run script.lua`,
 		DisableFlagsInUseLine: true,
 	}
 

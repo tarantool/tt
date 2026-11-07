@@ -487,8 +487,13 @@ module prints its full help to stdout.
 stays one line in these lists; a longer text belongs in the module's own
 `--help`, which `tt help <module>` and `tt <module> --help` print.
 
-Tarantool CLI already contains a basic set of modules. You can overload
-these with external ones, or extend functionality with your own module.
+An external module adds a command to tt, or replaces one of tt's own, with no
+rebuild of tt; commands compiled into tt come from tt modules instead (see
+[Building a distribution of tt](#building-a-distribution-of-tt)). The
+documentation site describes
+[external modules](https://tarantool.github.io/tt/how-to/external-modules/)
+in full and how to
+[write a tt module](https://tarantool.github.io/tt/how-to/write-a-module/).
 Modules are looked for in the directories listed in the
 `TT_CLI_MODULES_PATH` environment variable, separated by colons:
 
@@ -499,27 +504,21 @@ export TT_CLI_MODULES_PATH=/path/to/modules:/path/to/other/modules
 A relative directory is taken from the working directory tt runs in, so list
 absolute paths.
 
-For example, you have an external `cat` module. When you type `tt cat`, the
-external `cat` module will be launched, and every argument after `cat` goes
-to it; with `-V`, tt logs that the module replaces the command. A module
-named like a group of commands, such as `cluster`, takes over the whole
-group, and a module answers to the aliases of the command it replaces. To
-run the internal implementation, use the `--internal (-I)` flag. If there is
-no executable file with the same name, the internal implementation will be
-started. The `modules`, `help`, `completion` and `version` commands cannot be
-replaced: a module named so is ignored with a warning.
-
-You can use any external module that doesn't have any internal
-implementation. For example, you have module named `example-module`.
-Just type `tt example-module` to run it.
-
-To see list of available modules, type `tt -h`.
+`tt <name>` runs the module `<name>` with every argument after the name.
+A module named like a command of tt replaces it: with an external
+`connect` module, `tt connect` runs the module, and `-V` logs that it does.
+A module named like a group of commands, such as `cluster`, takes over the
+whole group, and answers to the aliases of the command it replaces.
+`tt -I connect` runs tt's own command. The `modules`, `help`, `completion` and `version` commands cannot be
+replaced: a module named so is ignored with a warning. `tt modules list` and
+`tt --help` list the modules.
 
 ## Building a distribution of tt
 
 A tt module is a Go module that is compiled into tt rather than run next to
 it: its package exports a constructor, `func New(sdk.Services) []sdk.Mount`,
-that returns the commands it adds (see [the SDK](sdk/README.md)). A
+that returns the commands it adds (see [the SDK](sdk/README.md) and
+[Write a tt module](https://tarantool.github.io/tt/how-to/write-a-module/)). A
 distribution of tt is the tt core and a set of such modules built into one
 binary, described by `tt.manifest.toml`:
 
@@ -531,7 +530,7 @@ manifest_kind = "tt-distribution"
 name = "tt"
 
 [core]
-tt = "v3"
+tt = "v3.0.0-alpha.2"
 
 [distribution]
 title = "Tarantool CLI EE"
@@ -545,9 +544,11 @@ foo = "github.com/acme/tt-foo@v1.2.0"
 ```
 
 Only `manifest_version` and `manifest_kind` are required. Without `[core]`
-the distribution is built on the core of the tt that builds it; `tt` takes
-any Go version query (`latest`, a branch, a commit, a version) and `path` a
-local checkout of the core instead. `[distribution]` sets how the binary
+the distribution is built on the core of the tt that builds it; `tt` takes a
+Go version query for the core module - a version, a commit, `latest` - and
+`path` a local checkout of the core instead. Pin a version or a commit: Go
+reads `v3` as "the newest v3.x.y release", not as the branch `v3`, and while
+tt 3 has pre-releases only it matches nothing. `[distribution]` sets how the binary
 presents itself (`title`, `edition`), the integrity provider (`none` or
 `rsa`), and whether it has tt's own commands (`builtin`) and external modules
 (`external_modules`), both on by default. `[build]` sets the TLS
@@ -930,7 +931,7 @@ tt instance connect
 ```
 
 `tt connect` is the same command as `tt instance connect`, with the same
-flags; `tt play` takes the same targets. The top-level `tt start`, `tt stop`
+flags; `tt data play` takes the same targets. The top-level `tt start`, `tt stop`
 and the rest of tt2 are gone, and `tt log` is `tt instance logs`.
 
 A project is a directory with `app.manifest.toml`, or with `instances.yaml` or
@@ -1055,7 +1056,7 @@ the pid of the process, `process.pid`, in the run directory.
 `tt instance status` shows whether the process runs and nothing more;
 `tt instance logrotate` reopens `tt.log` and sends the process
 `logrotate_signal`, if the record has one; `tt instance clean` removes the log
-and the data directory. `tt connect`, `tt play`, `tt instance kill --dump` and
+and the data directory. `tt connect`, `tt data play`, `tt instance kill --dump` and
 the cluster commands refuse an external process: it is not a Tarantool
 instance. The instances start in the order of `instances.yaml`, and none waits
 for another to be ready.
@@ -1085,7 +1086,7 @@ variables; in the user and system scopes a relative path there is refused. A
 relative path the script passes to `box.cfg` itself `tt` cannot check: in the
 user and system scopes it is resolved against the installed version, and the
 instance writes into the version, which an upgrade replaces. `tt connect`,
-`tt play`, `tt instance status` and `tt instance logrotate` work as with any
+`tt data play`, `tt instance status` and `tt instance logrotate` work as with any
 Tarantool instance, `tt instance check` checks the syntax of the script, and
 `tt instance clean` removes its data and log. `tt cluster show` and `publish`
 refuse it: no cluster config configures it. The application targets of
@@ -1386,11 +1387,11 @@ Common description. For a detailed description, use `tt help command` .
 - `cluster` - manage cluster configuration.
 - `replicaset` (`rs`) - manage replicasets.
 - `backup` - back up a Tarantool cluster for point-in-time recovery;
-    `backup-id` prints an identifier for a new backup.
+    `backup id` prints an identifier for a new backup.
 - `restore` - restore a Tarantool cluster from a backup.
-- `cat` - print into stdout the contents of .snap/.xlog files.
-- `play` - play the contents of .snap/.xlog files to another Tarantool
-    instance.
+- `data` - read snapshots and write-ahead logs without Tarantool: `cat`
+    prints their rows as YAML, JSON Lines or Lua, `play` applies their data
+    changes to an instance, transaction by transaction.
 - `coredump` - pack/unpack/inspect tarantool coredump.
 - `aeon` - connect to an Aeon instance.
 - `tcm` - manage Tarantool Cluster Manager.

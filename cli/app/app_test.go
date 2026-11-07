@@ -611,7 +611,8 @@ func TestTT2Environment(t *testing.T) {
 				requireFailure(t, err, app.ErrNoProject)
 				require.ErrorIs(t, err, app.ErrTT2Environment)
 				require.ErrorContains(t, err, filepath.Join(tree, "env", file))
-				require.ErrorContains(t, err, "doc/migration_from_older_versions.md")
+				require.ErrorContains(t, err,
+					"https://tarantool.github.io/tt/migration_from_older_versions/")
 
 				_, err = load(t, "myapp", app.Options{Start: filepath.Join(tree, start)})
 				requireFailure(t, err, app.ErrAppNotFound)

@@ -67,6 +67,12 @@ packages, and the signing of a project as it is developed are not supported
 yet. The signatures have a random salt, so a signed archive is not reproduced
 bit for bit, unlike an unsigned one.
 
+Under `--integrity-check` tt reads the manifests and the executables of the
+[external modules](external-modules.md#with-integrity-checks) through the
+checks as well, and a file no signed hashes file lists is refused: a module
+outside the signed tree is skipped with a warning, and one whose executable
+is not signed fails to run.
+
 ## The layout on Tarantool Enterprise
 
 tt gives an instance the paths of the layout - its data, its pid file, its

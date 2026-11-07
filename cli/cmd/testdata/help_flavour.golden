@@ -11,9 +11,7 @@ applications
 [0;1;39m
 COMMANDS[0m
   backup      Manage Tarantool backups (PITR)
-  backup-id   Print an identifier for a new backup
   binary      Manage binaries and SDK bundles
-  cat         Print into stdout the contents of .snap/.xlog FILE(s)
   cluster     Manage cluster configuration
   completion  Generate autocomplete for a specified shell. Supported shell type:
               bash | zsh | fish
@@ -21,12 +19,11 @@ COMMANDS[0m
   coredump    Perform manipulations with the tarantool coredumps
   create      Create an application from a template
   daemon      Perform manipulations with the tt daemon (experimental)
+  data        Read and replay snapshots and write-ahead logs
   help        Help about any command
   instance    Manage the instances of applications
   new         Create a skeleton app.manifest.toml in the current directory
   package     Manage tt manifest packages
-  play        Play the contents of .snap/.xlog FILE(s) to another Tarantool
-              instance
   registry    Inspect the rock servers packages are resolved against
   replicaset  Manage replicasets
   restore     Restore a Tarantool cluster from a backup (PITR)

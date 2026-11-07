@@ -96,7 +96,7 @@ func TestTarantoolCommandsRefuseExternal(t *testing.T) {
 	_, err = resolveConnectOpts(cmdCtx, &connect.ConnectCtx{}, "myapp:worker-1")
 	require.ErrorIs(t, err, running.ErrNotTarantool)
 
-	err = internalPlayModule(cmdCtx, []string{"myapp:worker-1", "00000000000000000000.xlog"})
+	_, err = dataPlayTarget(&dataPlayFlags{}, "myapp:worker-1")
 	require.ErrorIs(t, err, running.ErrNotTarantool)
 
 	err = internalReplicasetRebootstrapModule(cmdCtx, []string{"myapp:worker-1"})
