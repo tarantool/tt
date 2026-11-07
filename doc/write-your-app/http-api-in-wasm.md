@@ -30,8 +30,8 @@ notes/
     └── config.yaml             # the instance
 ```
 
-It needs Linux x86-64 or macOS arm64, Tarantool 3.6 or newer and Python
-3.10 or newer; tt installs the compilers of Python components into the
+It needs Linux x86-64 or macOS arm64 (Linux arm64 is not supported),
+Tarantool 3.6 or newer and Python 3.10 or newer; tt installs the compilers of Python components into the
 project. See [Run WebAssembly components](../how-to/wasm-components.md) for
 what `tt wasm` does.
 

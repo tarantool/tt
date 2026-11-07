@@ -9,7 +9,8 @@ from Lua with `require('wasm')`. The components are built by
 `tt wasm prepare` sets a project up for both until tt builds the components
 itself, and `tt wasm new` adds a component to the package. They need Linux
 x86-64 or macOS arm64, Tarantool 3.6 or newer, and Python 3.10 or newer for
-tarawasm.
+tarawasm. Linux arm64 is not supported: tarantool-wasm has no build for it, and
+`tt wasm prepare` fails there with `unsupported platform`.
 
 This page builds a component in Python, `add(a, b)`, into a package named
 `myapp`. [An HTTP API in a WebAssembly component](../write-your-app/http-api-in-wasm.md)
