@@ -217,16 +217,16 @@ def test_play_directories(tt_cmd, test_instance):
 
 
 @pytest.mark.parametrize(
-    "opts, error",
+    "opts",
     [
-        pytest.param({"flags": ["--username=test_user", "--password=4"]}, "credentials"),
-        pytest.param({"flags": ["--username=fry"]}, "credentials"),
-        pytest.param({"env": {"TT_CLI_USERNAME": "test_user", "TT_CLI_PASSWORD": "4"}}, "cred"),
-        pytest.param({"env": {"TT_CLI_USERNAME": "fry"}}, "credentials"),
-        pytest.param({"uri": "test_user:4"}, "credentials"),
+        pytest.param({"flags": ["--username=test_user", "--password=4"]}),
+        pytest.param({"flags": ["--username=fry"]}),
+        pytest.param({"env": {"TT_CLI_USERNAME": "test_user", "TT_CLI_PASSWORD": "4"}}),
+        pytest.param({"env": {"TT_CLI_USERNAME": "fry"}}),
+        pytest.param({"uri": "test_user:4"}),
     ],
 )
-def test_play_wrong_creds(tt_cmd, tmp_path, opts, error, test_instance):
+def test_play_wrong_creds(tt_cmd, tmp_path, opts, test_instance):
     uri = "127.0.0.1:" + test_instance.port
     if "uri" in opts:
         uri = opts["uri"] + "@" + uri

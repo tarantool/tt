@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/tarantool/go-tarantool/v3"
 
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/dial"
@@ -136,6 +135,11 @@ func dataFilter(cmd *cobra.Command, flags *dataFilterFlags, paths []string, runs
 		From: int64(flags.from), To: int64(flags.to), //nolint:gosec // An LSN fits int64.
 		HasFrom:    cmd.Flags().Changed("from"),
 		HasTo:      cmd.Flags().Changed("to"),
+		FromVClock: nil,
+		ToVClock:   nil,
+		Before:     0,
+		Replicas:   nil,
+		Spaces:     nil,
 		ShowSystem: flags.showSystem,
 	}
 
@@ -178,12 +182,12 @@ func dataFilter(cmd *cobra.Command, flags *dataFilterFlags, paths []string, runs
 
 	files, err := data.Collect(paths, data.CollectOptions{Recursive: flags.recursive, Runs: runs})
 	if err != nil {
-		return nil, nil, err //nolint:wrapcheck // It names the file.
+		return nil, nil, err
 	}
 
 	plan, err := data.Select(files, filter)
 	if err != nil {
-		return nil, nil, err //nolint:wrapcheck // It says what is wrong.
+		return nil, nil, err
 	}
 
 	return filter, plan, nil
@@ -212,7 +216,7 @@ func resolveDataSpaces(filter *data.Filter, plan *data.Plan, spaces []string,
 		if defined == nil {
 			defined, err = data.SpaceIDs(plan)
 			if err != nil {
-				return err //nolint:wrapcheck // It names the file.
+				return err
 			}
 		}
 
@@ -369,9 +373,8 @@ func runDataCat(run dataCatRun, args []string) error {
 		return fmt.Errorf("output: %w", err)
 	}
 
-	printed, err := data.Cat(plan, filter, data.CatOptions{
-		ScanOptions: data.ScanOptions{SkipCorrupt: run.flags.skipCorrupt},
-	}, stream)
+	printed, err := data.Cat(plan, filter, data.CatOptions{SkipCorrupt: run.flags.skipCorrupt},
+		stream)
 
 	closeErr := stream.Close()
 	if err == nil {
@@ -379,7 +382,7 @@ func runDataCat(run dataCatRun, args []string) error {
 	}
 
 	if err != nil {
-		return err //nolint:wrapcheck // It names the file and the row.
+		return err
 	}
 
 	if printed == 0 {
@@ -540,17 +543,22 @@ func runDataPlay(cmd *cobra.Command, flags *dataFilterFlags, play *dataPlayFlags
 		return err
 	}
 
-	conn, err := dataPlayConnect(cmd.Context(), play, args[0])
+	opts, err := dataPlayTarget(play, args[0])
 	if err != nil {
 		return err
 	}
 
-	defer func() { _ = conn.Close() }()
-
-	target, err := data.NewTarget(conn)
-	if err != nil {
-		return sdk.WithCode(sdk.ExitSystem, err)
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
 	}
+
+	target, err := data.Connect(ctx, opts, log.RedactTarget(args[0]))
+	if err != nil {
+		return err
+	}
+
+	defer func() { _ = target.Close() }()
 
 	var spaces map[uint32]string
 
@@ -574,13 +582,8 @@ func runDataPlay(cmd *cobra.Command, flags *dataFilterFlags, play *dataPlayFlags
 		return err
 	}
 
-	ctx := cmd.Context()
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
 	summary, err := data.Play(ctx, target, plan, filter, data.PlayOptions{
-		ScanOptions: data.ScanOptions{SkipCorrupt: flags.skipCorrupt},
+		SkipCorrupt: flags.skipCorrupt,
 		TxnMode:     txnMode, OnError: onError, Batch: play.batch,
 		DryRun: play.dryRun, Spaces: spaces,
 	})
@@ -592,12 +595,11 @@ func runDataPlay(cmd *cobra.Command, flags *dataFilterFlags, play *dataPlayFlags
 	return dataPlayError(summary, err)
 }
 
-// dataPlayConnect connects to the target of tt data play: the binary port of
-// an instance of an application, or a URI.
-func dataPlayConnect(ctx context.Context, play *dataPlayFlags, target string) (
-	*tarantool.Connection, error,
-) {
+// dataPlayTarget returns how to connect to the target of tt data play: the
+// binary port of an instance of an application, or a URI.
+func dataPlayTarget(play *dataPlayFlags, target string) (connector.ConnectOpts, error) {
 	connectCtx := play.connectCtx
+
 	connectCtx.Username = play.username
 	connectCtx.Password = play.password
 	connectCtx.Binary = true
@@ -609,30 +611,17 @@ func dataPlayConnect(ctx context.Context, play *dataPlayFlags, target string) (
 	if resolveErr == nil && len(instances) == 1 {
 		err := running.RequireTarantool(&instances[0])
 		if err != nil {
-			return nil, err //nolint:wrapcheck // It names the instance.
+			return connector.ConnectOpts{}, err
 		}
 
 		_, err = os.Stat(instances[0].BinaryPort)
 		if err != nil {
-			return nil, fmt.Errorf("the binary port of %s does not exist: %w", target, err)
+			return connector.ConnectOpts{}, fmt.Errorf("the binary port of %s does not exist: %w",
+				target, err)
 		}
 	}
 
-	opts, err := resolveConnectOpts(&cmdCtx, &connectCtx, target)
-	if err != nil {
-		return nil, err
-	}
-
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	conn, err := connector.ConnectIproto(ctx, opts, data.TargetOpts())
-	if err != nil {
-		return nil, fmt.Errorf("connecting to %s: %w", log.RedactTarget(target), err)
-	}
-
-	return conn, nil
+	return resolveConnectOpts(&cmdCtx, &connectCtx, target)
 }
 
 // reportDataPlay logs the summary of a play.
@@ -667,15 +656,11 @@ func dataPlayError(summary *data.Summary, err error) error {
 	case errors.Is(err, data.ErrRefused) && applied:
 		return sdk.WithCode(sdk.ExitPartial, err)
 	case errors.Is(err, data.ErrRefused), errors.Is(err, data.ErrMissingSpaces):
-		return err //nolint:wrapcheck // It says what was refused.
+		return err
 	case err != nil:
-		var serverErr tarantool.ServerError
-		if errors.As(err, &serverErr) {
-			return err //nolint:wrapcheck // It names the row.
-		}
-
-		if errors.Is(err, data.ErrAmbiguousReplica) || errors.Is(err, data.ErrNoTransactions) {
-			return err //nolint:wrapcheck // The request is to fix.
+		if data.IsServerError(err) || errors.Is(err, data.ErrAmbiguousReplica) ||
+			errors.Is(err, data.ErrNoTransactions) {
+			return err
 		}
 
 		return sdk.WithCode(sdk.ExitSystem, err)

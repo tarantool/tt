@@ -14,8 +14,11 @@ import (
 	"github.com/tarantool/go-tarantool/v3"
 	"github.com/tarantool/go-xlog/format"
 	"github.com/vmihailenco/msgpack/v5"
+	"github.com/vmihailenco/msgpack/v5/msgpcode"
 
+	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/v3/cli/connector"
 )
 
 // TxnMode is how Play applies a transaction of several rows.
@@ -114,6 +117,35 @@ func NewTarget(conn *tarantool.Connection) (*Target, error) {
 	return target, nil
 }
 
+// Connect connects to the target at opts and makes its Target, which the
+// caller closes. name is the target as an error names it. A target the
+// connection cannot make a Target of is a failure of the system.
+func Connect(ctx context.Context, opts connector.ConnectOpts, name string) (*Target, error) {
+	conn, err := connector.ConnectIproto(ctx, opts, TargetOpts())
+	if err != nil {
+		return nil, fmt.Errorf("connecting to %s: %w", name, err)
+	}
+
+	target, err := NewTarget(conn)
+	if err != nil {
+		_ = conn.Close()
+
+		return nil, sdk.WithCode(sdk.ExitSystem, err)
+	}
+
+	return target, nil
+}
+
+// Close closes the connection of the target.
+func (t *Target) Close() error {
+	err := t.conn.Close()
+	if err != nil {
+		return fmt.Errorf("closing the connection: %w", err)
+	}
+
+	return nil
+}
+
 // vspaceID is the id of _vspace, the view of the spaces a user may access.
 const vspaceID = 281
 
@@ -150,15 +182,15 @@ func (t *Target) Spaces() (map[uint32]string, error) {
 
 // asUint32 returns an integer of any width that fits 32 bits unsigned.
 func asUint32(value any) (uint32, bool) {
-	v := reflect.ValueOf(value)
+	reflected := reflect.ValueOf(value)
 
-	switch v.Kind() {
+	switch reflected.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		n := v.Int()
+		n := reflected.Int()
 
 		return uint32(n), n >= 0 && n <= math.MaxUint32 //nolint:gosec // Checked.
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		n := v.Uint()
+		n := reflected.Uint()
 
 		return uint32(n), n <= math.MaxUint32 //nolint:gosec // Checked.
 	default:
@@ -169,6 +201,7 @@ func asUint32(value any) (uint32, bool) {
 // PlayOptions are how Play reads and applies.
 type PlayOptions struct {
 	ScanOptions
+
 	// TxnMode is how a transaction of several rows is applied.
 	TxnMode TxnMode
 	// OnError is what to do when the target refuses a transaction.
@@ -182,8 +215,9 @@ type PlayOptions struct {
 	Spaces map[uint32]string
 }
 
-// Failure is a transaction the target refused: the row it refused and why.
-type Failure struct {
+// RefusalError is a transaction the target refused: the row it refused and
+// why.
+type RefusalError struct {
 	// File is the file of the transaction.
 	File *File
 	// Replica and LSN are those of the first row of the transaction.
@@ -196,7 +230,7 @@ type Failure struct {
 }
 
 // Error describes the failure.
-func (f *Failure) Error() string {
+func (f *RefusalError) Error() string {
 	if f.Row == nil {
 		return fmt.Sprintf("the transaction at LSN %d of replica %d of %s: %s",
 			f.LSN, f.Replica, f.File.Path, f.Err)
@@ -214,7 +248,7 @@ func (f *Failure) Error() string {
 }
 
 // Unwrap returns the error of the target.
-func (f *Failure) Unwrap() error {
+func (f *RefusalError) Unwrap() error {
 	return f.Err
 }
 
@@ -232,7 +266,7 @@ type Summary struct {
 	// transaction it refused: the transaction was rolled back.
 	RowsSkipped int
 	// Failures are the transactions the target refused.
-	Failures []*Failure
+	Failures []*RefusalError
 	// Missing are the spaces the target does not have, by id, with the
 	// number of rows of each; a dry run finds them.
 	Missing map[uint32]int
@@ -275,7 +309,7 @@ var errStopped = errors.New("stopped")
 
 // Play applies the data changes of the transactions filter selects in plan
 // to target, transaction by transaction, in their order, and returns what
-// it did. It returns ErrRefused, wrapping the Failure, when it stopped at a
+// it did. It returns ErrRefused, wrapping the RefusalError, when it stopped at a
 // transaction the target refused, and ErrMissingSpaces for a dry run that
 // found rows of spaces the target does not have.
 //
@@ -292,38 +326,42 @@ func Play(ctx context.Context, target *Target, plan *Plan, filter *Filter,
 		return nil, ErrNoTransactions
 	}
 
-	p := &player{
-		ctx: ctx, target: target, opts: opts, summary: Summary{Missing: map[uint32]int{}},
+	play := &player{
+		ctx: ctx, target: target, opts: opts,
+		summary: Summary{
+			Txns: 0, Rows: 0, TxnsApplied: 0, RowsApplied: 0, TxnsFailed: 0, RowsFailed: 0,
+			RowsSkipped: 0, Failures: nil, Missing: map[uint32]int{}, RowByRow: false,
+		},
 		pending: nil, rowByRow: opts.TxnMode == TxnRow || !target.transactions,
 		stopped: false,
 	}
 
-	err := Scan(plan, filter, opts.ScanOptions, p.apply)
+	err := Scan(plan, filter, opts.ScanOptions, play.apply)
 	if errors.Is(err, errStopped) {
 		err = nil
 	}
 
-	drainErr := p.drain()
+	drainErr := play.drain()
 
-	p.summary.RowByRow = p.rowByRow
+	play.summary.RowByRow = play.rowByRow
 
 	if err == nil {
 		err = drainErr
 	}
 
 	if err != nil {
-		return &p.summary, err
+		return &play.summary, err
 	}
 
-	if p.stopped {
-		return &p.summary, fmt.Errorf("%w: %w", ErrRefused, p.summary.Failures[0])
+	if play.stopped {
+		return &play.summary, fmt.Errorf("%w: %w", ErrRefused, play.summary.Failures[0])
 	}
 
-	if len(p.summary.Missing) > 0 {
-		return &p.summary, ErrMissingSpaces
+	if len(play.summary.Missing) > 0 {
+		return &play.summary, ErrMissingSpaces
 	}
 
-	return &p.summary, nil
+	return &play.summary, nil
 }
 
 // apply applies one transaction.
@@ -334,9 +372,9 @@ func (p *player) apply(txn *Txn) error {
 
 	rows := make([]*Row, 0, len(txn.Rows))
 
-	for i := range txn.Rows {
-		if txn.Rows[i].DML != nil && txn.File.Kind != KindVylog {
-			rows = append(rows, &txn.Rows[i])
+	for index := range txn.Rows {
+		if txn.Rows[index].DML != nil && txn.File.Kind != KindVylog {
+			rows = append(rows, &txn.Rows[index])
 		}
 	}
 
@@ -345,6 +383,7 @@ func (p *player) apply(txn *Txn) error {
 	}
 
 	p.summary.Txns++
+
 	p.summary.Rows += len(rows)
 
 	if p.opts.DryRun {
@@ -373,7 +412,7 @@ func (p *player) apply(txn *Txn) error {
 func (p *player) applyRowByRow(txn *Txn, rows []*Row) error {
 	state := &txnState{txn: txn, left: len(rows), applied: 0, failed: false}
 
-	for i, row := range rows {
+	for index, row := range rows {
 		for len(p.pending) >= p.opts.Batch {
 			err := p.complete()
 			if err != nil {
@@ -381,16 +420,18 @@ func (p *player) applyRowByRow(txn *Txn, rows []*Row) error {
 			}
 		}
 
-		if i == 0 && p.stopped {
+		if index == 0 && p.stopped {
 			// A refusal stopped the play before the transaction began: it
 			// is not gone through.
 			p.summary.Txns--
+
 			p.summary.Rows -= len(rows)
 
 			return errStopped
 		}
 
 		future := p.target.doer.Do(newRowRequest(p.ctx, row))
+
 		p.pending = append(p.pending, pendingRow{future: future, txn: state, row: row})
 	}
 
@@ -400,6 +441,7 @@ func (p *player) applyRowByRow(txn *Txn, rows []*Row) error {
 // complete waits for the oldest request in flight and accounts for it.
 func (p *player) complete() error {
 	head := p.pending[0]
+
 	p.pending = p.pending[1:]
 
 	_, err := head.future.Get()
@@ -411,13 +453,14 @@ func (p *player) complete() error {
 	switch {
 	case err == nil:
 		state.applied++
+
 		p.summary.RowsApplied++
-	case isServerError(err):
+	case IsServerError(err):
 		p.summary.RowsFailed++
 
 		if !state.failed {
 			state.failed = true
-			p.fail(&Failure{
+			p.fail(&RefusalError{
 				File: state.txn.File, Replica: state.txn.Rows[0].ReplicaID,
 				LSN: state.txn.Rows[0].LSN, Row: head.row, Err: err,
 			})
@@ -457,7 +500,7 @@ func (p *player) drain() error {
 }
 
 // fail records a transaction the target refused.
-func (p *player) fail(failure *Failure) {
+func (p *player) fail(failure *RefusalError) {
 	p.summary.Failures = append(p.summary.Failures, failure)
 
 	if p.opts.OnError == OnErrorStop {
@@ -488,7 +531,7 @@ func (p *player) applyInTransaction(txn *Txn, rows []*Row) (bool, error) {
 	// target refused they would be applied on their own.
 	err = p.finish(tarantool.NewBeginRequest().Context(p.ctx))
 	if err != nil {
-		if !isServerError(err) {
+		if !IsServerError(err) {
 			return false, err
 		}
 
@@ -506,14 +549,14 @@ func (p *player) applyInTransaction(txn *Txn, rows []*Row) (bool, error) {
 		other      error
 	)
 
-	for i, future := range futures {
+	for index, future := range futures {
 		_, err := future.Get()
 		future.Release()
 
 		switch {
 		case err == nil, refused != nil || other != nil:
-		case isServerError(err):
-			refused, refusedErr = rows[i], err
+		case IsServerError(err):
+			refused, refusedErr = rows[index], err
 		default:
 			other = err
 		}
@@ -526,7 +569,7 @@ func (p *player) applyInTransaction(txn *Txn, rows []*Row) (bool, error) {
 
 	if refused != nil {
 		err := p.finish(tarantool.NewRollbackRequest().Context(p.ctx))
-		if err != nil && !isServerError(err) {
+		if err != nil && !IsServerError(err) {
 			return false, err
 		}
 
@@ -535,9 +578,10 @@ func (p *player) applyInTransaction(txn *Txn, rows []*Row) (bool, error) {
 		}
 
 		p.summary.RowsFailed++
+
 		p.summary.RowsSkipped += len(rows) - 1
 		p.summary.TxnsFailed++
-		p.fail(&Failure{
+		p.fail(&RefusalError{
 			File: txn.File, Replica: txn.Rows[0].ReplicaID, LSN: txn.Rows[0].LSN,
 			Row: refused, Err: refusedErr,
 		})
@@ -550,13 +594,14 @@ func (p *player) applyInTransaction(txn *Txn, rows []*Row) (bool, error) {
 	switch {
 	case err == nil:
 		p.summary.TxnsApplied++
+
 		p.summary.RowsApplied += len(rows)
 	case isYield(err):
 		return p.notTaken(txn, rows, err, "the commit was refused")
-	case isServerError(err):
+	case IsServerError(err):
 		p.summary.RowsSkipped += len(rows)
 		p.summary.TxnsFailed++
-		p.fail(&Failure{
+		p.fail(&RefusalError{
 			File: txn.File, Replica: txn.Rows[0].ReplicaID, LSN: txn.Rows[0].LSN,
 			Row: nil, Err: err,
 		})
@@ -594,7 +639,7 @@ func (p *player) notTaken(txn *Txn, rows []*Row, cause error, what string) (bool
 
 	p.summary.RowsSkipped += len(rows)
 	p.summary.TxnsFailed++
-	p.fail(&Failure{
+	p.fail(&RefusalError{
 		File: txn.File, Replica: txn.Rows[0].ReplicaID, LSN: txn.Rows[0].LSN, Row: nil,
 		Err: fmt.Errorf("%w; a transaction of several rows that changes a memtx space needs "+
 			"memtx_use_mvcc_engine on the target", cause),
@@ -603,9 +648,9 @@ func (p *player) notTaken(txn *Txn, rows []*Row, cause error, what string) (bool
 	return true, nil
 }
 
-// isServerError reports whether err is an error of the server, which
+// IsServerError reports whether err is an error of the server, which
 // refused a request, rather than one of the connection.
-func isServerError(err error) bool {
+func IsServerError(err error) bool {
 	var serverErr tarantool.ServerError
 
 	return errors.As(err, &serverErr)
@@ -670,7 +715,7 @@ func newRowRequest(ctx context.Context, row *Row) rowRequest {
 
 	for _, key := range requestKeys[1:] {
 		if values[key] != nil {
-			out = appendUint(out, uint64(key))
+			out = appendUint(out, uint64(key)) //nolint:gosec // An IPROTO key is not negative.
 			out = append(out, values[key]...)
 		}
 	}
@@ -678,24 +723,25 @@ func newRowRequest(ctx context.Context, row *Row) rowRequest {
 	return rowRequest{ctx: ctx, typ: row.Type, body: out}
 }
 
-// appendMapLen appends the MessagePack header of a map of n entries, n < 16.
-func appendMapLen(dst []byte, n int) []byte {
-	return append(dst, 0x80|byte(n)) //nolint:gosec // A request body has a few keys.
+// appendMapLen appends the MessagePack header of a map of size entries,
+// size < 16.
+func appendMapLen(dst []byte, size int) []byte {
+	return append(dst, msgpcode.FixedMapLow|byte(size)) //nolint:gosec // A body has a few keys.
 }
 
-// appendUint appends n as a MessagePack unsigned integer.
-func appendUint(dst []byte, n uint64) []byte {
+// appendUint appends value as a MessagePack unsigned integer.
+func appendUint(dst []byte, value uint64) []byte {
 	switch {
-	case n <= 0x7f:
-		return append(dst, byte(n))
-	case n <= math.MaxUint8:
-		return append(dst, 0xcc, byte(n))
-	case n <= math.MaxUint16:
-		return binary.BigEndian.AppendUint16(append(dst, 0xcd), uint16(n))
-	case n <= math.MaxUint32:
-		return binary.BigEndian.AppendUint32(append(dst, 0xce), uint32(n))
+	case value <= math.MaxInt8: // A positive fixint, up to msgpcode.PosFixedNumHigh.
+		return append(dst, byte(value))
+	case value <= math.MaxUint8:
+		return append(dst, msgpcode.Uint8, byte(value))
+	case value <= math.MaxUint16:
+		return binary.BigEndian.AppendUint16(append(dst, msgpcode.Uint16), uint16(value))
+	case value <= math.MaxUint32:
+		return binary.BigEndian.AppendUint32(append(dst, msgpcode.Uint32), uint32(value))
 	default:
-		return binary.BigEndian.AppendUint64(append(dst, 0xcf), n)
+		return binary.BigEndian.AppendUint64(append(dst, msgpcode.Uint64), value)
 	}
 }
 

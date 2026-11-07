@@ -40,10 +40,12 @@ func startTarget(t *testing.T, mvcc bool) *tarantool.Connection {
 
 	dir := t.TempDir()
 	script := filepath.Join(dir, "target.lua")
-	socket := filepath.Join(dir, "target.sock")
+	socket := filepath.Join(shortTempDir(t), "target.sock")
+
 	require.NoError(t, os.WriteFile(script, []byte(targetScript), 0o600))
 
 	cmd := exec.CommandContext(t.Context(), binary, script)
+
 	cmd.Dir = dir
 
 	cmd.Env = append(os.Environ(), "LISTEN="+socket, fmt.Sprintf("MVCC=%d", map[bool]int{
@@ -68,6 +70,19 @@ func startTarget(t *testing.T, mvcc bool) *tarantool.Connection {
 	t.Cleanup(func() { _ = conn.Close() })
 
 	return conn
+}
+
+// shortTempDir returns a directory under /tmp, whose path leaves room for a
+// unix socket in it.
+func shortTempDir(t *testing.T) string {
+	t.Helper()
+
+	//nolint:usetesting // t.TempDir is too deep for a socket path on macOS.
+	dir, err := os.MkdirTemp("/tmp", "ttd")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+
+	return dir
 }
 
 // tuples returns the tuples of a space of the target.

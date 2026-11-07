@@ -40,7 +40,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `memtx_use_mvcc_engine` cannot take whole). `--on-error stop|skip`,
   `--dry-run`, which checks the spaces of the target, a summary of what was
   applied, exit code 3 when only some transactions were, and
-  `--sslpassword`/`--sslpasswordfile`.
+  `--sslpassword`/`--sslpasswordfile`. A request keeps the index and the
+  index base of its row, so an UPDATE or DELETE of a secondary index and
+  the operations of an UPDATE or UPSERT from Lua apply as they did; an
+  `INSERT_ARROW` of Tarantool Enterprise is applied as one too, and
+  `-o lua` names it in a comment, having no Lua form for it.
 - `sdk/tuple`: a module that decodes the MessagePack values of Tarantool and
   renders them as text, JSON, YAML and Lua, for `tt data` and the modules
   that print tuples.

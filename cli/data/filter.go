@@ -159,9 +159,9 @@ func isDML(t iproto.Type) bool {
 	case iproto.IPROTO_INSERT, iproto.IPROTO_REPLACE, iproto.IPROTO_UPDATE,
 		iproto.IPROTO_DELETE, iproto.IPROTO_UPSERT, iproto.IPROTO_INSERT_ARROW:
 		return true
+	default:
+		return false
 	}
-
-	return false
 }
 
 // inRunRange reports whether a statement of a vinyl run at lsn, the vclock
@@ -266,7 +266,7 @@ func ParseVClock(value string) (format.VClock, error) {
 	vclock := make(format.VClock, len(object))
 
 	for key, lsn := range object {
-		id, err := strconv.ParseUint(strings.TrimSpace(key), 10, 32)
+		replica, err := strconv.ParseUint(strings.TrimSpace(key), 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("%w %q: replica id %q is not a number", ErrInvalidVClock,
 				value, key)
@@ -274,10 +274,10 @@ func ParseVClock(value string) (format.VClock, error) {
 
 		if lsn < 0 {
 			return nil, fmt.Errorf("%w %q: LSN %d of replica %d is negative", ErrInvalidVClock,
-				value, lsn, id)
+				value, lsn, replica)
 		}
 
-		vclock[uint32(id)] = lsn
+		vclock[uint32(replica)] = lsn
 	}
 
 	return vclock, nil

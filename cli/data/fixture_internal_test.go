@@ -31,7 +31,7 @@ func body(t *testing.T, pairs ...any) []byte {
 	enc := msgpack.NewEncoder(&buf)
 	require.NoError(t, enc.EncodeMapLen(len(pairs)/2))
 
-	for i := 0; i < len(pairs); i += 2 {
+	for i := 0; i+1 < len(pairs); i += 2 {
 		require.NoError(t, enc.Encode(pairs[i]))
 		require.NoError(t, enc.Encode(pairs[i+1]))
 	}
@@ -71,7 +71,7 @@ func writeJournal(t *testing.T, dir string, filetype format.Filetype, vclock,
 
 	path := filepath.Join(dir, fmt.Sprintf("%020d%s", vclock.Signature(), ext))
 
-	w, err := writer.Create(path, &format.Meta{
+	journal, err := writer.Create(path, &format.Meta{
 		Filetype:     filetype,
 		InstanceUUID: fixtureUUID,
 		VClock:       vclock,
@@ -80,10 +80,10 @@ func writeJournal(t *testing.T, dir string, filetype format.Filetype, vclock,
 	require.NoError(t, err)
 
 	for _, tx := range txs {
-		require.NoError(t, w.WriteTx(tx))
+		require.NoError(t, journal.WriteTx(tx))
 	}
 
-	require.NoError(t, w.Close())
+	require.NoError(t, journal.Close())
 
 	return path
 }
@@ -143,7 +143,7 @@ func lsns(txns []scanned) []string {
 }
 
 // cat runs Cat into a buffer in format.
-func cat(t *testing.T, p *Plan, filter *Filter, format output.Format) string {
+func cat(t *testing.T, selected *Plan, filter *Filter, format output.Format) string {
 	t.Helper()
 
 	var out bytes.Buffer
@@ -158,7 +158,7 @@ func cat(t *testing.T, p *Plan, filter *Filter, format output.Format) string {
 	stream, err := printer.Stream()
 	require.NoError(t, err)
 
-	_, err = Cat(p, filter, CatOptions{ScanOptions: ScanOptions{}}, stream)
+	_, err = Cat(selected, filter, CatOptions{}, stream)
 	require.NoError(t, err)
 	require.NoError(t, stream.Close())
 
