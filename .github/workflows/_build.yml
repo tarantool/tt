@@ -26,6 +26,13 @@ on:
         description: Enable Go caching for builds
         type: boolean
         default: true
+      upload:
+        description: >-
+          Upload the binary of a build as an artifact. Only a caller whose
+          jobs take the binary needs it; a build that only has to succeed
+          passes false. Packages are uploaded whatever it says.
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -35,6 +42,9 @@ env:
 
 jobs:
   build:
+    # The name says whether the job uploads what it builds, which the list of
+    # jobs of a run shows next to the name of the caller.
+    name: ${{ (inputs.mode != 'build' || inputs.upload) && 'build and upload' || 'build' }}
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 30
     steps:
@@ -81,7 +91,7 @@ jobs:
         run: go -C sdk/dial test -tags openssl ./...
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: inputs.mode == 'build'
+        if: inputs.mode == 'build' && inputs.upload
         with:
           name: ${{ inputs.artifact-name }}
           path: tt
