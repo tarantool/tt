@@ -85,9 +85,9 @@ groups:
             roles_cfg:
               aeon.grpc:
                 listen:
-                  uri: 'http://localhost:50051'
+                  uri: 'http://localhost:30051'
                 advertise:
-                  uri: 'http://localhost:50051'
+                  uri: 'http://localhost:30051'
                   params:
                     transport: 'ssl'
                     ssl_ca_file: './ca.crt'
@@ -102,9 +102,9 @@ groups:
             roles_cfg:
               aeon.grpc:
                 listen:
-                  uri: 'http://localhost:50052'
+                  uri: 'http://localhost:30052'
                 advertise:
-                  uri: 'http://localhost:50052'
+                  uri: 'http://localhost:30052'
                   params:
                     transport: 'ssl'
             iproto:
