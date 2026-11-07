@@ -4,14 +4,17 @@ import (
 	"context"
 	"errors"
 	"io"
+	"path/filepath"
 	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
+	"github.com/tarantool/tt/v3/cli/running/internal/layout"
 	"github.com/tarantool/tt/v3/cli/ttlog"
 	"github.com/tarantool/tt/v3/internal/instances"
+	"github.com/tarantool/tt/v3/internal/pidfile"
 	"github.com/tarantool/tt/v3/internal/supervisor"
 )
 
@@ -213,6 +216,21 @@ func (src *instanceSource) started() {
 	src.ran = src.next
 }
 
+// exited removes the pid file tarantool pid wrote where tt tells it to,
+// TT_PROCESS_PID_FILE_DEFAULT, once it has exited, if the file still names
+// it. Tarantool removes the file on a clean exit only: one that dies leaves
+// it, and so does Tarantool 3.3 that a stop signal reaches during its first
+// box.cfg, which ends with a fatal error. A pid file the config of the
+// instance puts elsewhere is not looked at.
+func (src *instanceSource) exited(pid int) {
+	path := filepath.Join(src.ran.RunDir, layout.TarantoolPidFileName)
+
+	_, err := pidfile.RemoveFor(path, pid, 0, nil)
+	if err != nil {
+		src.log.logger.Printf("(WARN): cannot remove the pid file %q: %v.", path, err)
+	}
+}
+
 // isLoggerChanged reports whether instanceCtx names another log file than
 // the one logger writes; no logger at all counts as a change.
 func isLoggerChanged(logger ttlog.Logger, instanceCtx *InstanceCtx) (bool, error) {
@@ -280,9 +298,11 @@ func watchdogOptions(cmdCtx *cmdcontext.CmdCtx, src *instanceSource) supervisor.
 			removeSockets(&src.ran)
 		},
 		OnEvent: func(event supervisor.Event) {
-			_, started := event.(supervisor.Started)
-			if started {
+			switch event := event.(type) {
+			case supervisor.Started:
 				src.started()
+			case supervisor.Exit:
+				src.exited(event.Pid)
 			}
 
 			src.log.onEvent(event)

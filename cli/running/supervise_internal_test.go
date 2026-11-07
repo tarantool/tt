@@ -4,14 +4,19 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/process_utils"
+	"github.com/tarantool/tt/v3/cli/running/internal/layout"
 	"github.com/tarantool/tt/v3/internal/instances"
 	"github.com/tarantool/tt/v3/internal/supervisor"
 )
@@ -132,6 +137,35 @@ func TestWatchdogCleanupAfterRunDirChange(t *testing.T) {
 			assertNoSockets(t, &moved)
 		})
 	}
+}
+
+// TestWatchdogRemovesThePidFileOfADeadTarantool pins that the pid file
+// tarantool writes where tt tells it to goes once tarantool has exited
+// without removing it, killed here: with it, tt instance stop would leave
+// it behind. A file that names another process by then is left alone.
+func TestWatchdogRemovesThePidFileOfADeadTarantool(t *testing.T) {
+	test := newWatchdogTest(t, instances.RestartAlways, &cmdcontext.CmdCtx{})
+	pidFile := filepath.Join(test.inst.RunDir, layout.TarantoolPidFileName)
+	done := test.run()
+
+	first := test.waitStarted(1)
+
+	require.Eventually(t, func() bool {
+		data, err := os.ReadFile(pidFile)
+
+		return err == nil && strings.TrimSpace(string(data)) == strconv.Itoa(first)
+	}, 20*time.Second, 10*time.Millisecond, "tarantool did not write its pid file")
+
+	test.setRestart(instances.RestartNo)
+	require.NoError(t, syscall.Kill(first, syscall.SIGKILL))
+	require.NoError(t, waitDone(t, done))
+	assert.NoFileExists(t, pidFile)
+
+	// The file of a newer process at the same path stays.
+	other := os.Getpid()
+	require.NoError(t, os.WriteFile(pidFile, []byte(strconv.Itoa(other)), 0o600))
+	test.src.exited(first)
+	assert.Equal(t, other, readPidFile(t, pidFile))
 }
 
 // TestWatchdogCleanupAfterFailedStart pins that the sockets removed at the
