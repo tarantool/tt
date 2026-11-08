@@ -119,6 +119,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   the next install took the rocks for present.
 - `tt package build`, `fetch` and `install` rebuild, once and with a warning,
   the manifest of a `.rocks/` an older tt left out of step with its rocks.
+- `tt package build` and `fetch` remove from `.rocks/` the versions of a rock
+  other than the one the lock pins: after a lock moved a rock to an older
+  version, `require` loaded the newer one.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

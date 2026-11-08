@@ -179,7 +179,7 @@ func RunResult(ctx context.Context, opts Options) (*Result, error) {
 	}
 
 	if opts.FetchOnly {
-		return runFetch(ctx, adapter, opts.ProjectDir, man, tree, productName)
+		return runFetch(ctx, adapter, opts.ProjectDir, man, tree, productName, opts.Logger)
 	}
 
 	return runBuild(ctx, opts, man, adapter, tree, productName, product)
@@ -237,7 +237,7 @@ func readManifest(projectDir string, opts Options) (*manifest.Manifest, error) {
 // resolving or running backends — tt package fetch.
 func runFetch(
 	ctx context.Context, adapter *rocks.Adapter, projectDir string,
-	man *manifest.Manifest, tree, productName string,
+	man *manifest.Manifest, tree, productName string, logger *slog.Logger,
 ) (*Result, error) {
 	lock, err := loadLock(projectDir)
 	if err != nil {
@@ -271,6 +271,11 @@ func runFetch(
 		lock.DevDependencies, servers)
 	if matErr != nil {
 		return nil, matErr
+	}
+
+	err = pruneTree(ctx, adapter.Config(), projectDir, lock, nil, logInfo(logger))
+	if err != nil {
+		return nil, err
 	}
 
 	return &Result{Manifest: man, Lock: lock, Product: productName, Tree: tree}, nil
@@ -342,6 +347,11 @@ func runBuild(
 		lock.DevDependencies, servers)
 	if matErr != nil {
 		return nil, matErr
+	}
+
+	err = pruneTree(ctx, adapter.Config(), opts.ProjectDir, lock, nil, logInfo(opts.Logger))
+	if err != nil {
+		return nil, err
 	}
 
 	programs, err := runBackends(ctx, opts, man, adapter, tree, components, ver)

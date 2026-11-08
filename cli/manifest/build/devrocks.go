@@ -97,8 +97,13 @@ func EnsureDevRocks(
 		return err
 	}
 
-	return materialize(ctx, registryClient, pathClient, opts.ProjectDir,
+	err = materialize(ctx, registryClient, pathClient, opts.ProjectDir,
 		manifest.LockProduct{}, missing, servers)
+	if err != nil {
+		return err
+	}
+
+	return pruneTree(ctx, adapter.Config(), opts.ProjectDir, lock, closure, logInfo(opts.Logger))
 }
 
 // notInstalled narrows a resolved closure to the rocks the project tree does
