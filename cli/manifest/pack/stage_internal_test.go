@@ -5,14 +5,19 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	luarocks "github.com/tarantool/go-luarocks"
+	lrtree "github.com/tarantool/go-luarocks/tree"
+
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/internal/treetest"
 )
 
 // stagedNames lists every file staged under dir, slash-separated and sorted.
@@ -82,18 +87,27 @@ default = true
 	return dir, man
 }
 
-// testTree writes a .rocks tree with the package's own files plus a dependency.
+// testTree installs into the project's .rocks tree the package's rock -
+// its components, version.lua and the programs of its executable components -
+// and two dependencies, one with a console script.
 func testTree(t *testing.T, projectDir string) string {
 	t.Helper()
 
 	tree := filepath.Join(projectDir, ".rocks")
-	writeTree(t, tree, map[string]string{
-		"share/tarantool/my-app/init.lua":    "return 1",
-		"share/tarantool/my-app/version.lua": "return {}",
-		"share/tarantool/inspect/init.lua":   "dependency",
-		"lib/tarantool/my-app/fast.so":       "native",
-		"lib/tarantool/cjson/cjson.so":       "dependency native",
-	})
+	treetest.Install(t, tree,
+		treetest.Rock{Name: "my-app", Version: "1.0.0", Files: map[string]string{
+			"lua/my-app/init.lua":    "return 1",
+			"lua/my-app/version.lua": "return {}",
+			"lib/my-app/fast.so":     "native",
+			"bin/gw":                 "own program",
+		}},
+		treetest.Rock{Name: "inspect", Version: "3.1.3", Files: map[string]string{
+			"lua/inspect/init.lua": "dependency",
+		}},
+		treetest.Rock{Name: "cjson", Version: "2.1.0", Files: map[string]string{
+			"lib/cjson/cjson.so": "dependency native",
+			"bin/json2lua":       "#!/usr/bin/env tarantool\nprint(1)\n",
+		}})
 
 	return tree
 }
@@ -106,8 +120,37 @@ func baseRequest(projectDir string, man *manifest.Manifest, tree string) stageRe
 		Version:    "1.0.0",
 		Tree:       tree,
 		WithDeps:   true,
-		Namespaces: []string{"my-app"},
+		DevOnly:    nil,
+		Warn:       nil,
 	}
+}
+
+// deployed lists the staged files of .rocks/ outside its rocks dir: what the
+// rocks deployed.
+func deployed(names []string) []string {
+	var out []string
+
+	for _, name := range names {
+		rest, ok := strings.CutPrefix(name, ".rocks/")
+		if ok && !strings.HasPrefix(rest, rocksInstallDir+"/") {
+			out = append(out, name)
+		}
+	}
+
+	return out
+}
+
+// checkArchiveTree checks that the staged .rocks of stageDir is a tree whose
+// manifest lists every rock it holds and every file they deployed.
+func checkArchiveTree(t *testing.T, stageDir string) {
+	t.Helper()
+
+	archiveTree, err := lrtree.Open(luarocks.Config{Tree: filepath.Join(stageDir, rocksDirName)})
+	require.NoError(t, err)
+
+	report, err := archiveTree.Check(t.Context(), lrtree.CheckOpts{})
+	require.NoError(t, err)
+	assert.True(t, report.OK(), "%v", report.Issues)
 }
 
 func TestStageWithDeps(t *testing.T) {
@@ -117,18 +160,35 @@ func TestStageWithDeps(t *testing.T) {
 
 	require.NoError(t, stage(t.Context(), stageDir, baseRequest(projectDir, man, tree)))
 
+	names := stagedNames(t, stageDir)
+
 	assert.Equal(t, []string{
+		".rocks/bin/gw",
+		".rocks/bin/json2lua",
 		".rocks/lib/tarantool/cjson/cjson.so",
 		".rocks/lib/tarantool/my-app/fast.so",
 		".rocks/share/tarantool/inspect/init.lua",
 		".rocks/share/tarantool/my-app/init.lua",
 		".rocks/share/tarantool/my-app/version.lua",
-		"LICENSE",
-		"README.md",
-		"VERSION",
-		"app.manifest.lock",
-		"app.manifest.toml",
-	}, stagedNames(t, stageDir))
+	}, deployed(names))
+
+	for _, name := range []string{
+		"LICENSE", "README.md", "VERSION", "app.manifest.lock", "app.manifest.toml",
+		".rocks/share/tarantool/rocks/manifest",
+		".rocks/share/tarantool/rocks/my-app/1.0.0-1/rock_manifest",
+		".rocks/share/tarantool/rocks/cjson/2.1.0-1/rock_manifest",
+	} {
+		assert.Contains(t, names, name)
+	}
+
+	assert.NotContains(t, names, ".rocks/share/tarantool/rocks/.lock")
+	checkArchiveTree(t, stageDir)
+
+	// A command is its script in the archive, not a wrapper naming the paths
+	// of this machine: the install writes the one its tree needs.
+	script, err := os.ReadFile(filepath.Join(stageDir, ".rocks", "bin", "json2lua"))
+	require.NoError(t, err)
+	assert.Equal(t, "#!/usr/bin/env tarantool\nprint(1)\n", string(script))
 
 	version, err := os.ReadFile(filepath.Join(stageDir, versionFileName))
 	require.NoError(t, err)
@@ -140,8 +200,9 @@ func TestStageWithDeps(t *testing.T) {
 	assert.Equal(t, string(man.Raw()), string(staged))
 }
 
-// TestStageWithoutDeps is the core of --without-deps: the package's own
-// namespace survives in .rocks/, every foreign dependency is dropped.
+// TestStageWithoutDeps is the core of --without-deps: the package's own rock
+// survives in .rocks/, its programs included, every foreign dependency is
+// dropped.
 func TestStageWithoutDeps(t *testing.T) {
 	projectDir, man := testProject(t, nil)
 	tree := testTree(t, projectDir)
@@ -155,10 +216,14 @@ func TestStageWithoutDeps(t *testing.T) {
 
 	names := stagedNames(t, stageDir)
 
-	assert.Contains(t, names, ".rocks/share/tarantool/my-app/init.lua")
-	assert.Contains(t, names, ".rocks/lib/tarantool/my-app/fast.so")
-	assert.NotContains(t, names, ".rocks/share/tarantool/inspect/init.lua")
-	assert.NotContains(t, names, ".rocks/lib/tarantool/cjson/cjson.so")
+	assert.Equal(t, []string{
+		".rocks/bin/gw",
+		".rocks/lib/tarantool/my-app/fast.so",
+		".rocks/share/tarantool/my-app/init.lua",
+		".rocks/share/tarantool/my-app/version.lua",
+	}, deployed(names))
+	assert.NotContains(t, names, ".rocks/share/tarantool/rocks/inspect/3.1.3-1/rock_manifest")
+	checkArchiveTree(t, stageDir)
 
 	// Metadata and license are unaffected by the mode.
 	assert.Contains(t, names, "app.manifest.toml")
@@ -167,56 +232,59 @@ func TestStageWithoutDeps(t *testing.T) {
 	assert.Contains(t, names, "LICENSE")
 }
 
-// TestStagePrograms: the package's own programs in .rocks/bin travel in both
-// modes, the console scripts of rocks with the dependencies only, and the
-// programs of another product's components in neither.
-func TestStagePrograms(t *testing.T) {
+// TestStageLeavesOutWhatNoRockOwns: a file of the project's tree no rock
+// lists - laid there by hand, or by an older tt - does not reach the archive,
+// and the pack says so.
+func TestStageLeavesOutWhatNoRockOwns(t *testing.T) {
 	projectDir, man := testProject(t, nil)
 	tree := testTree(t, projectDir)
 	writeTree(t, tree, map[string]string{
-		"bin/gw":      "own program",
-		"bin/gw-cli":  "program of another product",
-		"bin/luatest": "console script of a rock",
+		"bin/gw-cli":                       "program of another product",
+		"share/tarantool/my-app/stale.lua": "left by an older build",
 	})
 
-	for _, withDeps := range []bool{true, false} {
-		stageDir := t.TempDir()
+	var warned []string
 
-		req := baseRequest(projectDir, man, tree)
+	req := baseRequest(projectDir, man, tree)
 
-		req.WithDeps = withDeps
-		req.Programs = []string{"gw"}
-		req.OtherPrograms = []string{"gw-cli"}
+	req.Warn = func(msg string) { warned = append(warned, msg) }
 
-		require.NoError(t, stage(t.Context(), stageDir, req))
+	stageDir := t.TempDir()
+	require.NoError(t, stage(t.Context(), stageDir, req))
 
-		names := stagedNames(t, stageDir)
-		assert.Contains(t, names, ".rocks/bin/gw", "with deps: %v", withDeps)
-		assert.NotContains(t, names, ".rocks/bin/gw-cli", "with deps: %v", withDeps)
+	names := stagedNames(t, stageDir)
+	assert.NotContains(t, names, ".rocks/bin/gw-cli")
+	assert.NotContains(t, names, ".rocks/share/tarantool/my-app/stale.lua")
 
-		if withDeps {
-			assert.Contains(t, names, ".rocks/bin/luatest")
-		} else {
-			assert.NotContains(t, names, ".rocks/bin/luatest")
-		}
-	}
+	require.Len(t, warned, 1)
+	assert.Contains(t, warned[0], "2 files")
+	assert.Contains(t, warned[0], "bin/gw-cli")
 }
 
-// TestStageWithoutDepsMissingProgram: a program the build recorded and that
-// is gone fails the pack rather than leaving the archive without it.
-func TestStageWithoutDepsMissingProgram(t *testing.T) {
+// TestStageWithoutDepsKeepsAFlatNamespace: a component with namespace = ""
+// lays its files at the top of the rocks tree, which the package's rock owns
+// as it owns any other, so --without-deps packs them.
+func TestStageWithoutDepsKeepsAFlatNamespace(t *testing.T) {
 	projectDir, man := testProject(t, nil)
-	tree := testTree(t, projectDir)
+
+	tree := filepath.Join(projectDir, ".rocks")
+	treetest.Install(t, tree,
+		treetest.Rock{Name: "my-app", Version: "1.0.0", Files: map[string]string{
+			"lua/flat.lua": "return 1",
+		}},
+		treetest.Rock{Name: "inspect", Version: "3.1.3", Files: map[string]string{
+			"lua/inspect.lua": "dependency",
+		}})
 
 	req := baseRequest(projectDir, man, tree)
 
 	req.WithDeps = false
-	req.Programs = []string{"gone"}
 
-	err := stage(t.Context(), t.TempDir(), req)
-	require.Error(t, err)
-	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
-	assert.Contains(t, err.Error(), filepath.Join(tree, "bin", "gone"))
+	stageDir := t.TempDir()
+	require.NoError(t, stage(t.Context(), stageDir, req))
+
+	assert.Equal(t, []string{".rocks/share/tarantool/flat.lua"},
+		deployed(stagedNames(t, stageDir)))
 }
 
 func TestStageMissingTreeIsNotFatal(t *testing.T) {
@@ -347,38 +415,6 @@ func TestStageReservedNameIsCaseInsensitive(t *testing.T) {
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errReservedName)
-}
-
-// TestStageWithoutDepsRejectsFlatNamespace is a regression test. A component
-// with namespace = "" lays its files at the rocks-tree root, where they cannot
-// be told apart from a dependency's; the filter used to skip it silently,
-// dropping the package's own code from an archive that promises to keep it.
-func TestStageWithoutDepsRejectsFlatNamespace(t *testing.T) {
-	projectDir, man := testProject(t, nil)
-	tree := testTree(t, projectDir)
-
-	req := baseRequest(projectDir, man, tree)
-
-	req.WithDeps = false
-	req.HasFlatNamespace = true
-
-	err := stage(t.Context(), t.TempDir(), req)
-
-	require.Error(t, err)
-	require.ErrorIs(t, err, errFlatNamespace)
-	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
-}
-
-// A flat namespace is fine with deps bundled: the whole tree is copied anyway.
-func TestStageWithDepsAllowsFlatNamespace(t *testing.T) {
-	projectDir, man := testProject(t, nil)
-	tree := testTree(t, projectDir)
-
-	req := baseRequest(projectDir, man, tree)
-
-	req.HasFlatNamespace = true
-
-	require.NoError(t, stage(t.Context(), t.TempDir(), req))
 }
 
 func TestStageEntryCopiesDirectory(t *testing.T) {

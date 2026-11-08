@@ -43,10 +43,6 @@ var (
 	errNoRuntime = errors.New("no runtime available to bundle")
 	// errBadConstraint reports a [platform] constraint tt cannot parse.
 	errBadConstraint = errors.New("unparseable version constraint")
-	// errFlatNamespace reports a --without-deps pack of a package that lays
-	// files flat in the rocks tree, where its own files cannot be separated
-	// from its dependencies'.
-	errFlatNamespace = errors.New("cannot pack a flat namespace without deps")
 	// errMissingInclude reports an include or license_files entry that matched
 	// nothing on disk.
 	errMissingInclude = errors.New("no such file")

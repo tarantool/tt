@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/manifest"
@@ -112,21 +111,16 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 	}
 
 	man := built.Manifest
-	namespaces, hasFlat := packageNamespaces(man, built.Product)
-	programs, otherPrograms := packagePrograms(man, built.Product, built.Executables)
 
 	err = stage(ctx, stageDir, stageRequest{
-		ProjectDir:       opts.ProjectDir,
-		Manifest:         man,
-		LockBytes:        lockBytes,
-		Version:          built.Version.SemVer,
-		Tree:             built.Tree,
-		WithDeps:         !opts.WithoutDeps,
-		Namespaces:       namespaces,
-		HasFlatNamespace: hasFlat,
-		Programs:         programs,
-		OtherPrograms:    otherPrograms,
-		DevOnly:          devOnlyRocks(built.Lock),
+		ProjectDir: opts.ProjectDir,
+		Manifest:   man,
+		LockBytes:  lockBytes,
+		Version:    built.Version.SemVer,
+		Tree:       built.Tree,
+		WithDeps:   !opts.WithoutDeps,
+		DevOnly:    devOnlyRocks(built.Lock),
+		Warn:       opts.Warn,
 	})
 	if err != nil {
 		return nil, err
@@ -268,86 +262,9 @@ func outputDir(opts Options) string {
 	return filepath.Join(opts.ProjectDir, buildDirName, packSubDir)
 }
 
-// packageNamespaces lists the rocks-tree namespaces the package itself owns,
-// which is what --without-deps keeps. Every component of the product
-// contributes its effective namespace.
-func packageNamespaces(man *manifest.Manifest, productName string) ([]string, bool) {
-	seen := map[string]bool{}
-
-	var namespaces []string
-
-	add := func(namespace string) {
-		if seen[namespace] {
-			return
-		}
-
-		seen[namespace] = true
-		namespaces = append(namespaces, namespace)
-	}
-
-	// The package name is always owned: version.lua is generated under it even
-	// when no component lays anything there.
-	add(man.Package.Name)
-
-	product, ok := man.EffectiveProducts()[productName]
-	if !ok {
-		return namespaces, false
-	}
-
-	flat := false
-
-	for _, name := range product.Components {
-		component, ok := man.Components[name]
-		if !ok || component.IsExecutable() {
-			// An executable component owns programs in bin/, not a namespace.
-			continue
-		}
-
-		ns := component.EffectiveNamespace(man.Package.Name)
-		if ns == "" {
-			flat = true
-		}
-
-		add(ns)
-	}
-
-	return namespaces, flat
-}
-
-// packagePrograms splits the programs the executable components put into the
-// tree's bin/ (build.Result.Executables) into those of the packed product's
-// components, which the archive carries in both packing modes, and those of
-// the other components, which it carries in neither: a program of another
-// product left in bin/ by an earlier build is no more the packed product's
-// than its rocks are. Both lists are sorted.
-//
-// The build records which files of bin/ it made, and that record rather than
-// the names is what tells them from the console scripts the dependencies
-// install there.
-func packagePrograms(
-	man *manifest.Manifest, productName string, executables map[string][]string,
-) ([]string, []string) {
-	product := man.EffectiveProducts()[productName]
-
-	var own, other []string
-
-	for component, names := range executables {
-		if slices.Contains(product.Components, component) {
-			own = append(own, names...)
-		} else {
-			other = append(other, names...)
-		}
-	}
-
-	slices.Sort(own)
-	slices.Sort(other)
-
-	return slices.Compact(own), slices.Compact(other)
-}
-
 // devOnlyRocks lists the dev closure's rocks that no product closure holds -
 // the ones the archive must not carry. A nil lock, or one with no dev closure,
-// yields nothing and the staging tree is copied exactly as before.
+// yields nothing and every rock of the tree is grafted into the archive.
 //
 // Not installing dev dependencies during a pack-driven build would not do this
 // job: .rocks/ is the developer's standing tree, so a tt package build run an
@@ -355,8 +272,8 @@ func packagePrograms(
 // exclusion therefore belongs where the archive content is selected.
 //
 // "No product closure holds it" is deliberately checked against every product,
-// not just the one being packed. A with-deps archive copies the whole tree,
-// which may incidentally carry another product's rocks; a rock that is dev in
+// not just the one being packed. A with-deps archive grafts every rock of the
+// tree, which may incidentally carry another product's rocks; a rock that is dev in
 // this reading and runtime in another product's is not a dev-only rock, and
 // stripping it would under-pack a tree the archive promises to reproduce.
 func devOnlyRocks(lock *manifest.Lock) []manifest.LockDependency {
