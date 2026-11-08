@@ -177,7 +177,7 @@ func prepareRock(ctx context.Context, opts Options, report *Report) error {
 			return err
 		}
 
-		err = IndexRegistry(registry)
+		err = IndexRegistry(ctx, registry)
 		if err != nil {
 			return err
 		}

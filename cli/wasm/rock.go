@@ -1,19 +1,17 @@
 package wasm
 
 import (
-	"archive/zip"
-	"bytes"
 	"context"
-	"crypto/md5" //nolint:gosec // LuaRocks checksums rock files with md5.
-	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
-	"strings"
-	"time"
+
+	luarocks "github.com/tarantool/go-luarocks"
+	"github.com/tarantool/go-luarocks/client"
+	"github.com/tarantool/go-luarocks/remote"
+	"github.com/tarantool/go-luarocks/rockspec"
 )
 
 const (
@@ -21,24 +19,16 @@ const (
 	// which go-luarocks reads as well (manifest-5.1.zip, manifest-5.1,
 	// manifest, manifest-5.1.json, in that order).
 	registryManifestName = "manifest"
+	// rockLibDir is the directory of a binary rock its native module is in.
+	rockLibDir = "lib"
 	// rockSuffix ends the file name of a rock.
 	rockSuffix = ".rock"
 	// dirPerm and filePerm are the modes the registry is written with.
 	dirPerm  os.FileMode = 0o755
 	filePerm os.FileMode = 0o644
-	// modulePerm is the mode of the native module inside the rock.
+	// modulePerm is the mode of the native module in the stage of the rock.
 	modulePerm os.FileMode = 0o755
 )
-
-// rockEpoch stamps the entries of a rock, so that one built twice from the
-// same module is the same file: the zip format cannot go earlier than 1980.
-//
-//nolint:gochecknoglobals // A constant time: Go has no constant time.Time.
-var rockEpoch = time.Date(1980, time.January, 1, 0, 0, 0, 0, time.UTC)
-
-// rockFileRe splits the file name of a binary rock into its name, its
-// version-revision and its arch: wasm-0.1.0-1.linux-x86_64.rock.
-var rockFileRe = regexp.MustCompile(`^(.+)-([^-]+-[0-9]+)\.([a-z0-9_-]+)\.rock$`)
 
 // RockFileName is the file name of the binary rock of platform.
 func (r Release) RockFileName(platform Platform) string {
@@ -70,61 +60,36 @@ build = {
 }
 
 // BuildRock packs module, the native build of platform, as the binary rock
-// of the release in dir, and returns the rock's path. The rock holds the
-// rockspec, lib/<module> and the rock_manifest upstream LuaRocks writes for a
-// binary rock. It is written to a temporary file and renamed into place, so
-// the registry never serves half a rock.
+// of the release in dir, and returns the rock's path. The rock is the one
+// go-luarocks packs of the release's rock installed from a stage holding
+// lib/<module> (client.PackStaged): the rockspec, lib/<module> and the
+// rock_manifest upstream LuaRocks writes for it, with no modification times
+// and no permissions, so the same module is the same rock. It is written to a
+// temporary file and renamed into place, so the registry never serves half a
+// rock.
 func BuildRock(dir string, release Release, platform Platform, module []byte) (string, error) {
 	specName := RockName + "-" + release.RockVersion() + ".rockspec"
-	spec := []byte(release.rockspec())
-	modulePath := "lib/" + platform.Module
 
-	manifest := fmt.Sprintf(`rock_manifest = {
-   lib = {
-      [%q] = %q,
-   },
-   [%q] = %q,
-}
-`, platform.Module, md5Hex(module), specName, md5Hex(spec))
-
-	var archive bytes.Buffer
-
-	writer := zip.NewWriter(&archive)
-
-	entries := []struct {
-		name string
-		mode os.FileMode
-		data []byte
-	}{
-		{name: specName, mode: filePerm, data: spec},
-		{name: "rock_manifest", mode: filePerm, data: []byte(manifest)},
-		{name: modulePath, mode: modulePerm, data: module},
-	}
-
-	for _, entry := range entries {
-		// Set field by field: a literal would have to name the deprecated
-		// fields of the header too.
-		var header zip.FileHeader
-
-		header.Name = entry.name
-		header.Method = zip.Deflate
-		header.Modified = rockEpoch
-		header.SetMode(entry.mode)
-
-		file, err := writer.CreateHeader(&header)
-		if err != nil {
-			return "", fmt.Errorf("packing %s: %w", entry.name, err)
-		}
-
-		_, err = file.Write(entry.data)
-		if err != nil {
-			return "", fmt.Errorf("packing %s: %w", entry.name, err)
-		}
-	}
-
-	err := writer.Close()
+	spec, err := rockspec.EvalSource(specName, []byte(release.rockspec()),
+		luarocks.RockspecConfig{})
 	if err != nil {
-		return "", fmt.Errorf("packing the rock: %w", err)
+		return "", fmt.Errorf("the rockspec of the rock: %w", err)
+	}
+
+	stage, err := os.MkdirTemp("", "tt-wasm-rock-*")
+	if err != nil {
+		return "", fmt.Errorf("staging the rock: %w", err)
+	}
+
+	defer func() { _ = os.RemoveAll(stage) }()
+
+	err = os.MkdirAll(filepath.Join(stage, rockLibDir), dirPerm)
+	if err == nil {
+		err = os.WriteFile(filepath.Join(stage, rockLibDir, platform.Module), module, modulePerm)
+	}
+
+	if err != nil {
+		return "", fmt.Errorf("staging the rock: %w", err)
 	}
 
 	err = os.MkdirAll(dir, dirPerm)
@@ -134,70 +99,27 @@ func BuildRock(dir string, release Release, platform Platform, module []byte) (s
 
 	path := filepath.Join(dir, release.RockFileName(platform))
 
-	err = writeFileAtomic(path, archive.Bytes())
+	err = client.PackStaged(spec, stage, path, client.PackStagedOpts{})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("packing the rock: %w", err)
 	}
 
 	return path, nil
 }
 
-// IndexRegistry writes the manifest of the rock server dir from the binary
-// rocks it holds, so that a dependency declaring dir as its registry resolves
-// and installs from it. Files that are not binary rocks are left out.
-func IndexRegistry(dir string) error {
-	entries, err := os.ReadDir(dir)
+// IndexRegistry writes the manifests of the rock server dir from the rocks
+// it holds, as `luarocks-admin make_manifest` writes them (remote.MakeManifest),
+// so that a dependency declaring dir as its registry resolves and installs
+// from it. Files that are neither rocks nor rockspecs are left out.
+func IndexRegistry(ctx context.Context, dir string) error {
+	err := remote.MakeManifest(ctx, dir, remote.MakeManifestOpts{
+		LuaVersions: nil, Index: false, Zip: false, Warn: nil,
+	})
 	if err != nil {
-		return fmt.Errorf("reading the registry: %w", err)
+		return fmt.Errorf("indexing the registry: %w", err)
 	}
 
-	// The rocks by name, then by version: the arches each is built for.
-	repository := map[string]map[string][]string{}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-
-		match := rockFileRe.FindStringSubmatch(entry.Name())
-		if match == nil {
-			continue
-		}
-
-		name, version, arch := match[1], match[2], match[3]
-		if repository[name] == nil {
-			repository[name] = map[string][]string{}
-		}
-
-		repository[name][version] = append(repository[name][version], arch)
-	}
-
-	var out strings.Builder
-
-	out.WriteString("commands = {}\nmodules = {}\nrepository = {\n")
-
-	for _, name := range sortedKeys(repository) {
-		fmt.Fprintf(&out, "   [%q] = {\n", name)
-
-		for _, version := range sortedKeys(repository[name]) {
-			fmt.Fprintf(&out, "      [%q] = {\n", version)
-
-			arches := repository[name][version]
-			slices.Sort(arches)
-
-			for _, arch := range arches {
-				fmt.Fprintf(&out, "         {\n            arch = %q,\n         },\n", arch)
-			}
-
-			out.WriteString("      },\n")
-		}
-
-		out.WriteString("   },\n")
-	}
-
-	out.WriteString("}\n")
-
-	return writeFileAtomic(filepath.Join(dir, registryManifestName), []byte(out.String()))
+	return nil
 }
 
 // writeFileAtomic writes data to path through a temporary file in the same
@@ -230,13 +152,6 @@ func writeFileAtomic(path string, data []byte) error {
 	}
 
 	return nil
-}
-
-// md5Hex returns the md5 of data in hex, as rock_manifest records it.
-func md5Hex(data []byte) string {
-	sum := md5.Sum(data) //nolint:gosec // LuaRocks checksums rock files with md5.
-
-	return hex.EncodeToString(sum[:])
 }
 
 // sortedKeys returns the keys of m in order.
@@ -299,7 +214,7 @@ func PackRocks(ctx context.Context, opts PackOptions) ([]string, error) {
 		rocks = append(rocks, rock)
 	}
 
-	err = IndexRegistry(opts.Dir)
+	err = IndexRegistry(ctx, opts.Dir)
 	if err != nil {
 		return nil, err
 	}

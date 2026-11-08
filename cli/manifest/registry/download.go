@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/tarantool/go-luarocks/client"
+	"github.com/tarantool/go-luarocks/remote"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
@@ -24,9 +25,6 @@ const (
 	// sourceRegistry is the lock's source value for a dependency that comes
 	// from a rock server, the only kind a mirror can hold.
 	sourceRegistry = "registry"
-	// makeManifest is the LuaRocks admin command that indexes a directory of
-	// rock files into the `manifest` that makes it a server.
-	makeManifest = "make_manifest"
 	// dirPerm is the mode a created download directory gets.
 	dirPerm fs.FileMode = 0o755
 )
@@ -131,7 +129,7 @@ func Download(ctx context.Context, opts DownloadOptions) ([]string, error) {
 		written = append(written, path)
 	}
 
-	err = index(ctx, adapter, opts.Dir)
+	err = index(ctx, opts.Dir, opts.Warn)
 	if err != nil {
 		return nil, err
 	}
@@ -150,22 +148,18 @@ func (r Ref) String() string {
 	return r.Name + "@" + r.Version
 }
 
-// index writes the LuaRocks `manifest` that turns the directory into a rock
-// server.
-//
-// It runs on the Lua backend because the native engine implements no admin
-// command. That is the one place this pipeline still needs the interpreter,
-// and it is a local operation over a directory: nothing is fetched, so it
-// costs a VM start and no network.
-func index(ctx context.Context, adapter *rocks.Adapter, dir string) error {
-	rocksClient, err := adapter.Client(client.BackendLua)
-	if err != nil {
-		return stateErrorf("%w", err)
-	}
-
-	err = rocksClient.Admin(ctx, makeManifest, []string{dir}, client.AdminOpts{
-		Server: "",
-		Force:  false,
+// index writes the LuaRocks manifests that turn the directory into a rock
+// server: manifest, manifest-5.1 ... manifest-5.4 and index.html, byte-equal
+// to what `luarocks-admin make_manifest <dir>` writes, each through a
+// temporary file and a rename, and without a Lua VM. A manifest-<version>.zip
+// already there is rewritten too, since clients read it first. warn is told
+// of a rockspec the per-Lua-version filter cannot load.
+func index(ctx context.Context, dir string, warn func(string)) error {
+	err := remote.MakeManifest(ctx, dir, remote.MakeManifestOpts{
+		LuaVersions: nil,
+		Index:       true,
+		Zip:         false,
+		Warn:        warn,
 	})
 	if err != nil {
 		return stateErrorf("indexing %s: %w", dir, err)

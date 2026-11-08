@@ -97,6 +97,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   the command wrappers of an installed version of the user or system scope
   for its tree and the bundled tarantool. The files of a package an older tt
   packed are installed as its rock.
+- `tt package download` indexes its directory without a Lua VM, byte for
+  byte as before; `tt wasm prepare` and `tt wasm rock` write `manifest-5.1`
+  to `manifest-5.4` next to `manifest`, and pack the rock as go-luarocks packs
+  one, its files without modes.
 
 ### Fixed
 
