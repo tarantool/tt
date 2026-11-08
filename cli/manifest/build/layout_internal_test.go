@@ -62,22 +62,22 @@ func TestLayoutComponent_defaultNamespaceSplitsByExt(t *testing.T) {
 	t.Parallel()
 
 	project := t.TempDir()
-	tree := filepath.Join(project, ".rocks")
+	stage := filepath.Join(project, "_build", "rock", "default")
 	seedComponentTree(t, project)
 
-	written, err := layoutComponent(tree, "my-app", manifest.Component{Path: "."}, project)
+	written, err := layoutComponent(stage, "my-app", manifest.Component{Path: "."}, project)
 	require.NoError(t, err)
 
-	// .lua goes to share, .so to lib, both under the my-app namespace; the
+	// .lua goes to lua, .so to lib, both under the my-app namespace; the
 	// README, C source, test/, hidden and manifest files are all filtered out.
 	assert.ElementsMatch(t, []string{
-		"lib/tarantool/my-app/prebuilt.so",
-		"share/tarantool/my-app/init.lua",
-		"share/tarantool/my-app/lib/foo.lua",
-	}, relSet(t, tree))
+		"lib/my-app/prebuilt.so",
+		"lua/my-app/init.lua",
+		"lua/my-app/lib/foo.lua",
+	}, relSet(t, stage))
 
 	// Returned destinations are the absolute paths written.
-	assert.Contains(t, written, filepath.Join(tree, "share/tarantool/my-app/init.lua"))
+	assert.Contains(t, written, filepath.Join(stage, "lua/my-app/init.lua"))
 	assert.Len(t, written, 3)
 }
 
@@ -85,53 +85,53 @@ func TestLayoutComponent_dylibGoesToLib(t *testing.T) {
 	t.Parallel()
 
 	project := t.TempDir()
-	tree := filepath.Join(project, ".rocks")
+	stage := filepath.Join(project, "_build", "rock", "default")
 	writeFile(t, filepath.Join(project, "native", "fast_hash.dylib"), "dylib")
 
 	component := manifest.Component{Path: "native/", Include: []string{"*.dylib"}}
-	_, err := layoutComponent(tree, "my-app", component, filepath.Join(project, "native"))
+	_, err := layoutComponent(stage, "my-app", component, filepath.Join(project, "native"))
 	require.NoError(t, err)
 
 	// A module of macOS is a module all the same: Tarantool loads it from lib.
 	assert.ElementsMatch(t, []string{
-		"lib/tarantool/my-app/fast_hash.dylib",
-	}, relSet(t, tree))
+		"lib/my-app/fast_hash.dylib",
+	}, relSet(t, stage))
 }
 
 func TestLayoutComponent_emptyNamespaceIsFlat(t *testing.T) {
 	t.Parallel()
 
 	project := t.TempDir()
-	tree := filepath.Join(project, ".rocks")
+	stage := filepath.Join(project, "_build", "rock", "default")
 	seedComponentTree(t, project)
 
 	empty := ""
 	component := manifest.Component{Path: ".", Namespace: &empty}
-	_, err := layoutComponent(tree, "my-app", component, project)
+	_, err := layoutComponent(stage, "my-app", component, project)
 	require.NoError(t, err)
 
-	// No namespace segment: artifacts land directly under lib/ and share/.
+	// No namespace segment: artifacts land directly under lib/ and lua/.
 	assert.ElementsMatch(t, []string{
-		"lib/tarantool/prebuilt.so",
-		"share/tarantool/init.lua",
-		"share/tarantool/lib/foo.lua",
-	}, relSet(t, tree))
+		"lib/prebuilt.so",
+		"lua/init.lua",
+		"lua/lib/foo.lua",
+	}, relSet(t, stage))
 }
 
 func TestLayoutComponent_subdirComponentPath(t *testing.T) {
 	t.Parallel()
 
 	project := t.TempDir()
-	tree := filepath.Join(project, ".rocks")
+	stage := filepath.Join(project, "_build", "rock", "default")
 	writeFile(t, filepath.Join(project, "native", "fast_hash.so"), "so")
 	writeFile(t, filepath.Join(project, "native", "fast_hash.c"), "int main(){}")
 
 	compPath := filepath.Join(project, "native")
-	_, err := layoutComponent(tree, "my-app", manifest.Component{Path: "native/"}, compPath)
+	_, err := layoutComponent(stage, "my-app", manifest.Component{Path: "native/"}, compPath)
 	require.NoError(t, err)
 
 	// Paths are relative to the component root, not the project root.
 	assert.ElementsMatch(t, []string{
-		"lib/tarantool/my-app/fast_hash.so",
-	}, relSet(t, tree))
+		"lib/my-app/fast_hash.so",
+	}, relSet(t, stage))
 }

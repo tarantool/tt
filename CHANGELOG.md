@@ -81,6 +81,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   downloads the archive, and builds from source a release whose
   `checksums.txt` does not list the archive of the platform, where it
   failed.
+- `tt package build` lays the components out in `_build/rock/<product>/`,
+  where `TT_OUTPUT_DIR` now points, and installs them into `.rocks/` as a
+  rock of the package's name and version, which the manifest of `.rocks/`
+  lists. A file of the package a dependency also installs fails the build,
+  where it was overwritten. An incremental build is skipped while what it
+  wrote is in `_build/rock/`, whether or not `.rocks/` was cleared.
 
 ### Fixed
 

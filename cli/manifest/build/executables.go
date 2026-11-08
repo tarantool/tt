@@ -18,19 +18,17 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest/native"
 )
 
-// An executable component builds programs into <tree>/bin/, its
-// TT_OUTPUT_DIR. That directory is shared: the rocks of the dependency
-// closure install their console scripts there, luatest's among them. So the
-// build records which programs there are the package's own, and that record,
-// not a guess from the names, is what tt package pack takes into a
-// --without-deps archive.
+// An executable component builds programs into the bin directory of the
+// package's stage, its TT_OUTPUT_DIR, which the package's rock deploys to
+// <tree>/bin/ as they are. That directory of the tree is shared: the rocks of
+// the dependency closure install their console scripts there, luatest's among
+// them. The build records which programs each component built, by the
+// component, so that a build of one component knows the programs of the
+// others.
 //
 // The record lives in _build/, the build's own state, rather than in the
-// tree: it never travels into an archive and is never installed, and tt dev
-// clears it together with .rocks/bin/.
+// tree: it never travels into an archive and is never installed.
 const (
-	// binDirName is the tree directory executable components build into.
-	binDirName = "bin"
 	// buildDirName is the project directory of the build's own state.
 	buildDirName = "_build"
 	// executablesFileName is the record of the programs in bin/ the

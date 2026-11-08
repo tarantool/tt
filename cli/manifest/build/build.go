@@ -7,9 +7,17 @@
 // The cycle, in order: derive the version, run pre_build, gate the
 // lock (resolve and rewrite unless --locked), materialize the pinned closure
 // into .rocks/, run each component's build backend, lay the component files out
-// under their install namespace, generate version.lua, then run post_build. An
-// executable component builds programs into .rocks/bin/ instead, and lays
-// nothing out; what it built is checked and recorded (see executables.go).
+// under their install namespace, generate version.lua, install the package as
+// a rock of .rocks/, then run post_build. An executable component builds
+// programs into the bin directory of the package instead, and lays nothing
+// out; what it built is checked and recorded (see executables.go).
+//
+// The components are laid out in the package's stage, _build/rock/<product>/,
+// as an unpacked binary rock - lua/, lib/ and bin/ - which is then installed
+// into .rocks/ as the rock of the package, its other version replaced (see
+// stage.go). The tree manifest so owns every file the build puts into the
+// tree, and the stage keeps what the backends wrote for the next incremental
+// build.
 // tt package fetch is the same materialization step in isolation: strictly from
 // the lock, without resolving or running backends.
 //
@@ -41,6 +49,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest/native"
 	"github.com/tarantool/tt/v3/cli/manifest/resolve"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
+	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
 	"github.com/tarantool/tt/v3/cli/manifest/version"
 )
 
@@ -354,12 +363,14 @@ func runBuild(
 		return nil, err
 	}
 
-	programs, err := runBackends(ctx, opts, man, adapter, tree, components, ver)
+	stage := packageStage(opts.ProjectDir, productName)
+
+	programs, err := runBackends(ctx, opts, man, adapter, stage, components, ver)
 	if err != nil {
 		return nil, err
 	}
 
-	laidOut, err := layoutComponents(opts.ProjectDir, tree, man, components)
+	laidOut, err := layoutComponents(opts.ProjectDir, stage, man, components)
 	if err != nil {
 		return nil, err
 	}
@@ -371,10 +382,15 @@ func runBuild(
 
 	opts.emit(wasmWarnings)
 
-	vluaErr := writeVersionLua(tree, man.Package.Name,
+	vluaErr := writeVersionLua(stage, man.Package.Name,
 		man.Package.GenerateVersionLuaValue(), ver, opts.builtAt(), laidOut)
 	if vluaErr != nil {
 		return nil, vluaErr
+	}
+
+	err = installPackageRock(ctx, adapter.Config(), man, product, prod, ver, stage)
+	if err != nil {
+		return nil, err
 	}
 
 	postErr := runPostBuild(ctx, opts, man, ver)
@@ -416,15 +432,15 @@ func preflightBackends(man *manifest.Manifest, components []string) error {
 
 // runBackends runs the build backend of every selected component that declares
 // one, in the product's component order, placing artifacts in the component's
-// lib namespace directory, or, for an executable component, in the bin
-// directory of the tree. A backend failure is exit code 2.
+// lib namespace directory of the package's stage, or, for an executable
+// component, in its bin directory. A backend failure is exit code 2.
 //
 // It returns the record of the programs in the bin directory each executable
 // component built, those of the components not built this time as an
 // earlier build recorded them.
 func runBackends(
 	ctx context.Context, opts Options, man *manifest.Manifest,
-	adapter *rocks.Adapter, tree string, components []string, ver version.Version,
+	adapter *rocks.Adapter, stage string, components []string, ver version.Version,
 ) (map[string][]string, error) {
 	flags := adapter.Flags()
 	target := native.Host()
@@ -442,9 +458,9 @@ func runBackends(
 			return nil, fmt.Errorf("component %q: %w", name, err)
 		}
 
-		outputDir := componentOutputDir(tree, component.EffectiveNamespace(man.Package.Name))
+		outputDir := componentOutputDir(stage, component.EffectiveNamespace(man.Package.Name))
 		if component.IsExecutable() {
-			outputDir = filepath.Join(tree, binDirName)
+			outputDir = filepath.Join(stage, rocktree.StageBin)
 		}
 
 		env := backend.Env{
@@ -486,13 +502,14 @@ func runBackends(
 	return writeExecutables(opts.ProjectDir, man, programs)
 }
 
-// layoutComponents lays every selected component out under its namespace and
-// returns the union of destination paths written, for the version.lua collision
-// check. An executable component has nothing to lay out: its build placed its
-// programs already, and the default include would otherwise copy the Lua of,
-// say, a test fixture of its sources into the package's namespace.
+// layoutComponents lays every selected component out under its namespace in
+// the package's stage and returns the union of destination paths written, for
+// the version.lua collision check. An executable component has nothing to lay
+// out: its build placed its programs already, and the default include would
+// otherwise copy the Lua of, say, a test fixture of its sources into the
+// package's namespace.
 func layoutComponents(
-	projectDir, tree string, man *manifest.Manifest, components []string,
+	projectDir, stage string, man *manifest.Manifest, components []string,
 ) ([]string, error) {
 	var laidOut []string
 
@@ -504,7 +521,7 @@ func layoutComponents(
 
 		compAbsPath := resolveDir(projectDir, component.Path)
 
-		written, err := layoutComponent(tree, man.Package.Name, component, compAbsPath)
+		written, err := layoutComponent(stage, man.Package.Name, component, compAbsPath)
 		if err != nil {
 			return nil, err
 		}
@@ -678,15 +695,17 @@ func runPostBuild(
 	return nil
 }
 
-// componentOutputDir is a component's native artifact directory:
-// <tree>/lib/tarantool/<namespace>/, flat when the namespace is empty. It
-// matches TT_OUTPUT_DIR in the backend contract.
-func componentOutputDir(tree, namespace string) string {
+// componentOutputDir is a component's native artifact directory in the
+// package's stage: <stage>/lib/<namespace>/, flat when the namespace is
+// empty, which the install of the package's rock deploys to
+// .rocks/lib/tarantool/<namespace>/. It matches TT_OUTPUT_DIR in the backend
+// contract.
+func componentOutputDir(stage, namespace string) string {
 	if namespace == "" {
-		return filepath.Join(tree, libTarantool)
+		return filepath.Join(stage, rocktree.StageLib)
 	}
 
-	return filepath.Join(tree, libTarantool, namespace)
+	return filepath.Join(stage, rocktree.StageLib, namespace)
 }
 
 // backendCwd is the working directory for a component's build: the build block's

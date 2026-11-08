@@ -90,6 +90,15 @@ component.
 components out, with `version.lua` of the package. `tt package fetch` only
 installs `.rocks/` from the lock, with no build.
 
+The components are laid out in `_build/rock/<product>/` and installed into
+`.rocks/` as a rock of the package's name, at its version: the manifest of
+`.rocks/` lists their files as it lists those of the dependencies, and a
+build at another version replaces the rock. A file of the package that a
+dependency also installs fails the build. A build also removes from
+`.rocks/` the versions of the dependencies the lock pins other than the one
+it pins, and repairs a `.rocks/` an older tt left out of step with its
+manifest.
+
 - A build backend finds the programs of the project's `.tarantool/bin` -
   what `tt binary` and `tt wasm prepare` installed - ahead of `PATH`, with or
   without `.env/activate.sh`.
@@ -153,8 +162,9 @@ still there:
   target that is up to date does. Of an executable component, these are its
   programs.
 
-A build that wrote into `.rocks/`, cleared since, so runs again. A skipped
-build copies the files `output` lists into `.rocks/` again, and the
+A build whose files in `_build/rock/` were cleared since runs again; a
+cleared `.rocks/` gets the package's rock again from there. A skipped
+build copies the files `output` lists into `_build/rock/` again, and the
 component is laid out as after any build. `tt -V package build` logs every
 component it skips.
 
