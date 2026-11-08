@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/internal/treetest"
 	"github.com/tarantool/tt/v3/cli/manifest/run"
 )
 
@@ -172,18 +173,27 @@ func TestTarantoolReportsNoneFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "PATH")
 }
 
+// luatestRock installs luatest at version into the tree of root, with its
+// command, as LuaRocks records it.
+func luatestRock(t *testing.T, root, version string) {
+	t.Helper()
+
+	treetest.Install(t, filepath.Join(root, ".rocks"), treetest.Rock{
+		Name: "luatest", Version: version,
+		Files:        map[string]string{"bin/luatest": "#!/usr/bin/env tarantool\nprint(1)\n"},
+		Dependencies: nil,
+	})
+}
+
 func TestLuatestScriptPrefersThePerRockCopy(t *testing.T) {
 	root := t.TempDir()
 
+	luatestRock(t, root, "1.0.1-1")
+
 	perRock := filepath.Join(root, ".rocks", "share", "tarantool", "rocks",
 		"luatest", "1.0.1-1", "bin", "luatest")
-	writeExecutable(t, perRock)
 
-	// The deployed entry may be a /bin/sh launcher carrying an interpreter path
-	// baked in at install time, which is exactly what must not be run.
-	writeExecutable(t, filepath.Join(root, ".rocks", "bin", "luatest"))
-
-	script, err := run.LuatestScript(root)
+	script, err := run.LuatestScript(t.Context(), root)
 	require.NoError(t, err)
 	assert.Equal(t, perRock, script)
 }
@@ -192,10 +202,10 @@ func TestLuatestScriptTakesTheHighestInstalledVersion(t *testing.T) {
 	root := t.TempDir()
 	rocks := filepath.Join(root, ".rocks", "share", "tarantool", "rocks", "luatest")
 
-	writeExecutable(t, filepath.Join(rocks, "0.5.7-1", "bin", "luatest"))
-	writeExecutable(t, filepath.Join(rocks, "1.0.1-1", "bin", "luatest"))
+	luatestRock(t, root, "0.5.7-1")
+	luatestRock(t, root, "1.0.1-1")
 
-	script, err := run.LuatestScript(root)
+	script, err := run.LuatestScript(t.Context(), root)
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(rocks, "1.0.1-1", "bin", "luatest"), script)
 }
@@ -205,7 +215,7 @@ func TestLuatestScriptFallsBackToTheDeployedEntry(t *testing.T) {
 	deployed := filepath.Join(root, ".rocks", "bin", "luatest")
 	writeExecutable(t, deployed)
 
-	script, err := run.LuatestScript(root)
+	script, err := run.LuatestScript(t.Context(), root)
 	require.NoError(t, err)
 	assert.Equal(t, deployed, script)
 }
@@ -213,16 +223,16 @@ func TestLuatestScriptFallsBackToTheDeployedEntry(t *testing.T) {
 func TestLuatestScriptReportsAnEmptyTree(t *testing.T) {
 	root := t.TempDir()
 
-	_, err := run.LuatestScript(root)
+	_, err := run.LuatestScript(t.Context(), root)
 	require.ErrorIs(t, err, run.ErrNoLuatest)
-	assert.False(t, run.LuatestInstalled(root))
+	assert.False(t, run.LuatestInstalled(t.Context(), root))
 }
 
 func TestLuatestInstalledSeesAnInstalledRock(t *testing.T) {
 	root := t.TempDir()
 	writeExecutable(t, filepath.Join(root, ".rocks", "bin", "luatest"))
 
-	assert.True(t, run.LuatestInstalled(root))
+	assert.True(t, run.LuatestInstalled(t.Context(), root))
 }
 
 // The trailing separator is load-bearing: luatest reads a bare "test" as a

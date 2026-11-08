@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/internal/treetest"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
 
@@ -132,59 +133,34 @@ func (tr tree) installFiles(t *testing.T, spec pkg) {
 	}
 }
 
-// installRock writes the three places one rock version occupies: a module under
-// share/, a shared object under lib/, and a rock-manifest directory.
-func (tr tree) installRock(t *testing.T, name, version string) {
+// installRock installs one rock version the way an install leaves it: a module
+// under share/, a shared object under lib/, its rock dir and its entry in the
+// tree manifest.
+func (tr tree) installRock(t *testing.T, name, version string, deps ...string) {
 	t.Helper()
 
-	tr.write(t, filepath.Join(tr.lay.Share, name, "init.lua"), "-- "+name+"\n")
-	tr.write(t, filepath.Join(tr.lay.Lib, name, name+".so"), "binary\n")
-	tr.write(t,
-		filepath.Join(tr.lay.Share, "rocks", name, version, "rock_manifest"),
-		name+" "+version+"\n")
+	treetest.Install(t, tr.lay.Tree, treetest.Rock{
+		Name: name, Version: version, Files: nil, Dependencies: deps,
+	})
 }
 
-// writeTreeManifest lays the LuaRocks tree manifest that records which rock
-// requires which, at <share>/rocks/manifest.
-//
-// It is written by hand in LuaRocks' own Lua-table format rather than through a
-// serializer, so the reader under test is exercised against the real on-disk
-// shape and not against a round trip of its own assumptions.
+// writeTreeManifest records which rock requires which in the tree manifest:
+// each rock of edges is installed again at its version in versions
+// (0.0.0 when none) declaring the rocks it requires, as a LuaRocks install of
+// it would record them.
 func (tr tree) writeTreeManifest(
 	t *testing.T, edges map[string][]string, versions map[string]string,
 ) {
 	t.Helper()
 
-	var builder strings.Builder
-
-	// LuaRocks manifests are bare assignments loaded into an environment, not a
-	// returned table — the parser rejects a "return {...}" wrapper.
-	builder.WriteString("commands = {}\nmodules = {}\nrepository = {}\ndependencies = {\n")
-
 	for _, rock := range sortedKeys(edges) {
 		version := versions[rock]
 		if version == "" {
-			version = "0.0.0-1"
+			version = "0.0.0"
 		}
 
-		// Bracket-quote every key: a rock name with a hyphen is not a valid Lua
-		// bare key, and LuaRocks quotes such names too.
-		builder.WriteString("   [\"" + rock + "\"] = {\n")
-		builder.WriteString("      [\"" + version + "\"] = {\n")
-
-		for _, dep := range edges[rock] {
-			builder.WriteString("         {\n")
-			builder.WriteString("            name = \"" + dep + "\",\n")
-			builder.WriteString("            constraints = {}\n")
-			builder.WriteString("         },\n")
-		}
-
-		builder.WriteString("      }\n   },\n")
+		tr.installRock(t, rock, version, edges[rock]...)
 	}
-
-	builder.WriteString("}\n")
-
-	tr.write(t, filepath.Join(tr.lay.Share, "rocks", "manifest"), builder.String())
 }
 
 // write creates a file and its parents.
@@ -211,17 +187,6 @@ func (tr tree) rockExists(name string) bool {
 	}
 
 	return false
-}
-
-// rockManifestPath is where one version of a rock records itself in the tree.
-func (tr tree) rockManifestPath(name, version string) string {
-	return filepath.Join(tr.lay.Share, "rocks", name, version)
-}
-
-// removeAll deletes a path, for fixtures that simulate a tree diverging from
-// what a lock recorded.
-func removeAll(path string) error {
-	return os.RemoveAll(path)
 }
 
 // metadataExists reports whether a package still has metadata under manifests/.

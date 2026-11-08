@@ -6,6 +6,7 @@ so it needs the same project and the same fake interpreter to be driven
 offline.
 """
 
+import hashlib
 import os
 import stat
 import subprocess
@@ -98,35 +99,61 @@ def fake_luatest(project: Path):
     without a registry. The script is real Lua, run by the real Tarantool the
     command selected, so the invocation being asserted is the actual one.
 
+    The rock is laid out as LuaRocks installs one - the script in its install
+    dir and in bin/, its rockspec, its rock_manifest and its entry in the tree
+    manifest - since tt reads the tree by its manifest: a rock dir the manifest
+    does not know is no rock, and a build removes it.
+
     It exits 1 when handed the sentinel argument, which is how the exit-code
     assertion gets a failure without a failing test.
     """
 
     def install(version: str = "1.0.0-1") -> Path:
-        path = (
-            project
-            / ".rocks"
-            / "share"
-            / "tarantool"
-            / "rocks"
-            / "luatest"
-            / version
-            / "bin"
-            / "luatest"
-        )
-        write_executable(
-            path,
+        rocks = project / ".rocks"
+        rocks_dir = rocks / "share" / "tarantool" / "rocks"
+        install_dir = rocks_dir / "luatest" / version
+        script = (
             "#!/usr/bin/env tarantool\n"
             "print('FAKE-LUATEST')\n"
             "for _, value in ipairs(arg) do print('arg:' .. value) end\n"
             "for _, value in ipairs(arg) do\n"
             "    if value == '--fail' then os.exit(3) end\n"
             "end\n"
-            "os.exit(0)\n",
+            "os.exit(0)\n"
+        )
+        rockspec_name = f"luatest-{version}.rockspec"
+        rockspec = (
+            f'package = "luatest"\nversion = "{version}"\n'
+            'source = { url = "file://." }\nbuild = { type = "none" }\n'
+        )
+        path = install_dir / "bin" / "luatest"
+        write_executable(path, script)
+        write_executable(rocks / "bin" / "luatest", script)
+        (install_dir / rockspec_name).write_text(rockspec)
+        (install_dir / "rock_manifest").write_text(
+            "rock_manifest = {\n"
+            f'   bin = {{\n      luatest = "{_md5(script)}"\n   }},\n'
+            f'   ["{rockspec_name}"] = "{_md5(rockspec)}"\n'
+            "}\n",
+        )
+        (rocks_dir / "manifest").write_text(
+            f'commands = {{\n   luatest = {{\n      "luatest/{version}"\n   }}\n}}\n'
+            f'dependencies = {{\n   luatest = {{\n      ["{version}"] = {{}}\n   }}\n}}\n'
+            "modules = {}\n"
+            f'repository = {{\n   luatest = {{\n      ["{version}"] = {{\n'
+            '         {\n            arch = "installed",\n'
+            '            commands = {\n               luatest = "luatest"\n            },\n'
+            "            dependencies = {},\n            modules = {}\n         }\n"
+            "      }\n   }\n}\n",
         )
         return path
 
     return install
+
+
+def _md5(text: str) -> str:
+    """The digest a rock_manifest records for a file holding text."""
+    return hashlib.md5(text.encode()).hexdigest()
 
 
 @pytest.fixture()

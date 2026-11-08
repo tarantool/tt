@@ -1,12 +1,14 @@
 package inventory_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/v3/cli/exitcode"
+	"github.com/tarantool/tt/v3/cli/manifest/internal/treetest"
 	"github.com/tarantool/tt/v3/cli/manifest/inventory"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
@@ -41,7 +43,7 @@ func TestUninstallGuestDropsSoleDependencyKeepsShared(t *testing.T) {
 
 	fixture := sharedTree(t)
 
-	result, err := inventory.Uninstall(inventory.UninstallOptions{
+	result, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		ProjectDir: fixture.dir, Package: "monitoring", Yes: true,
 	})
 	require.NoError(t, err)
@@ -76,12 +78,12 @@ func TestUninstallLeavesListingConsistent(t *testing.T) {
 
 	fixture := sharedTree(t)
 
-	_, err := inventory.Uninstall(inventory.UninstallOptions{
+	_, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		ProjectDir: fixture.dir, Package: "monitoring", Yes: true,
 	})
 	require.NoError(t, err)
 
-	listing, err := inventory.List(inventory.ListOptions{ProjectDir: fixture.dir})
+	listing, err := inventory.List(t.Context(), inventory.ListOptions{ProjectDir: fixture.dir})
 	require.NoError(t, err)
 
 	require.Len(t, listing.Packages, 1)
@@ -105,7 +107,7 @@ func TestUninstallKeepsDependencyHeldByPrimary(t *testing.T) {
 		pins: map[string]string{"metrics": "1.0.0"},
 	})
 
-	result, err := inventory.Uninstall(inventory.UninstallOptions{
+	result, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		ProjectDir: fixture.dir, Package: "monitoring", Yes: true,
 	})
 	require.NoError(t, err)
@@ -126,7 +128,7 @@ func TestUninstallRefusesPrimaryPackage(t *testing.T) {
 
 	fixture.installPrimary(t, pkg{name: "my-app", version: "1.0.0"})
 
-	_, err := inventory.Uninstall(inventory.UninstallOptions{
+	_, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		ProjectDir: fixture.dir, Package: "my-app", Yes: true,
 	})
 	require.Error(t, err)
@@ -150,7 +152,7 @@ func TestUninstallRefusesPrimaryEvenWithSameNameGuestAbsent(t *testing.T) {
 		pins: map[string]string{"metrics": "1.0.0"},
 	})
 
-	_, err := inventory.Uninstall(inventory.UninstallOptions{
+	_, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		ProjectDir: fixture.dir, Package: "my-app", Yes: true,
 	})
 	require.ErrorIs(t, err, inventory.ErrPrimaryPackage)
@@ -165,7 +167,7 @@ func TestUninstallNotInstalled(t *testing.T) {
 
 	fixture := sharedTree(t)
 
-	_, err := inventory.Uninstall(inventory.UninstallOptions{
+	_, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		ProjectDir: fixture.dir, Package: "absent", Yes: true,
 	})
 	require.Error(t, err)
@@ -198,7 +200,7 @@ func TestUninstallRejectsBadPackageName(t *testing.T) {
 	} {
 		fixture := sharedTree(t)
 
-		_, err := inventory.Uninstall(inventory.UninstallOptions{
+		_, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 			ProjectDir: fixture.dir, Package: name, Yes: true,
 		})
 		require.Error(t, err, name)
@@ -218,7 +220,7 @@ func TestUninstallConfirmationDeclinedRemovesNothing(t *testing.T) {
 
 	fixture := sharedTree(t)
 
-	_, err := inventory.Uninstall(inventory.UninstallOptions{
+	_, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		ProjectDir: fixture.dir, Package: "monitoring",
 		Confirm: func(string) bool { return false },
 	})
@@ -239,7 +241,7 @@ func TestUninstallConfirmationAccepted(t *testing.T) {
 
 	var prompt string
 
-	_, err := inventory.Uninstall(inventory.UninstallOptions{
+	_, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		ProjectDir: fixture.dir, Package: "monitoring",
 		Confirm: func(p string) bool { prompt = p; return true },
 	})
@@ -260,7 +262,7 @@ func TestUninstallYesSkipsConfirmation(t *testing.T) {
 
 	asked := false
 
-	_, err := inventory.Uninstall(inventory.UninstallOptions{
+	_, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		ProjectDir: fixture.dir, Package: "monitoring", Yes: true,
 		Confirm: func(string) bool { asked = true; return false },
 	})
@@ -277,7 +279,7 @@ func TestUninstallNilConfirmProceeds(t *testing.T) {
 
 	fixture := sharedTree(t)
 
-	_, err := inventory.Uninstall(inventory.UninstallOptions{
+	_, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		ProjectDir: fixture.dir, Package: "monitoring",
 	})
 	require.NoError(t, err)
@@ -298,7 +300,7 @@ func TestUninstallGuestWithoutLock(t *testing.T) {
 		pins: map[string]string{"metrics": "1.0.0"},
 	})
 
-	result, err := inventory.Uninstall(inventory.UninstallOptions{
+	result, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		ProjectDir: fixture.dir, Package: "legacy", Yes: true,
 	})
 	require.NoError(t, err)
@@ -324,7 +326,7 @@ func TestUninstallDependencyThatIsAlsoAPackage(t *testing.T) {
 	})
 	fixture.installGuest(t, pkg{name: "shared-lib", version: "1.0.0"})
 
-	result, err := inventory.Uninstall(inventory.UninstallOptions{
+	result, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		ProjectDir: fixture.dir, Package: "monitoring", Yes: true,
 	})
 	require.NoError(t, err)
@@ -358,7 +360,7 @@ func TestUninstallWarnsWhenOthersStillDependOnIt(t *testing.T) {
 
 	var warnings []string
 
-	_, err := inventory.Uninstall(inventory.UninstallOptions{
+	_, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		ProjectDir: fixture.dir, Package: "shared-lib", Yes: true,
 		Warn: func(msg string) { warnings = append(warnings, msg) },
 	})
@@ -379,12 +381,12 @@ func TestUninstallIsRepeatable(t *testing.T) {
 
 	opts := inventory.UninstallOptions{ProjectDir: fixture.dir, Package: "monitoring", Yes: true}
 
-	_, err := inventory.Uninstall(opts)
+	_, err := inventory.Uninstall(t.Context(), opts)
 	require.NoError(t, err)
 
 	// The second run finds nothing left to remove, which is a clean "not
 	// installed" rather than a crash.
-	_, err = inventory.Uninstall(opts)
+	_, err = inventory.Uninstall(t.Context(), opts)
 	require.ErrorIs(t, err, inventory.ErrNotInstalled)
 
 	assert.True(t, fixture.rockExists("checks"), "the shared dependency is still not collateral")
@@ -398,20 +400,26 @@ func TestUninstallPrunesEmptyRockRoot(t *testing.T) {
 
 	fixture := sharedTree(t)
 
-	_, err := inventory.Uninstall(inventory.UninstallOptions{
+	_, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		ProjectDir: fixture.dir, Package: "monitoring", Yes: true,
 	})
 	require.NoError(t, err)
 
-	_, found := state.InstalledVersion(fixture.lay, "metrics")
+	view, err := state.InspectTree(t.Context(), fixture.lay)
+	require.NoError(t, err)
+
+	_, found := state.InstalledVersion(view, "metrics")
 	assert.False(t, found, "the removed dependency must not read as installed")
 
-	_, found = state.InstalledVersion(fixture.lay, "monitoring")
+	_, found = state.InstalledVersion(view, "monitoring")
 	assert.False(t, found, "the removed package must not read as installed")
 
-	version, found := state.InstalledVersion(fixture.lay, "checks")
+	version, found := state.InstalledVersion(view, "checks")
 	require.True(t, found, "the surviving dependency must still read as installed")
-	assert.Equal(t, "3.1.0", version)
+	assert.Equal(t, "3.1.0-1", version)
+
+	assert.NoDirExists(t, filepath.Join(fixture.lay.Share, "rocks", "metrics"),
+		"no husk under rocks/<name>/ is left")
 }
 
 // TestUninstallRemovesVersionFoundOnDisk pins that the tree wins over the lock
@@ -430,10 +438,10 @@ func TestUninstallRemovesVersionFoundOnDisk(t *testing.T) {
 
 	// Simulate a reconciliation: the tree now carries 1.4.0 while the lock still
 	// records 1.0.0.
-	require.NoError(t, removeAll(fixture.rockManifestPath("metrics", "1.0.0")))
+	treetest.Remove(t, fixture.lay.Tree, "metrics", "1.0.0")
 	fixture.installRock(t, "metrics", "1.4.0")
 
-	result, err := inventory.Uninstall(inventory.UninstallOptions{
+	result, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		ProjectDir: fixture.dir, Package: "monitoring", Yes: true,
 	})
 	require.NoError(t, err)
@@ -449,7 +457,7 @@ func TestUninstallRejectsUnknownScope(t *testing.T) {
 
 	fixture := sharedTree(t)
 
-	_, err := inventory.Uninstall(inventory.UninstallOptions{
+	_, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		ProjectDir: fixture.dir, Scope: state.Scope("global"), Package: "monitoring", Yes: true,
 	})
 	require.Error(t, err)

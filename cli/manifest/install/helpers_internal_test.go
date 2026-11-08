@@ -2,6 +2,7 @@ package install
 
 import (
 	"archive/tar"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/internal/treetest"
 )
 
 // LockDep is a test-local shorthand for a resolved lock dependency.
@@ -130,7 +132,32 @@ func (s archiveSpec) build(t *testing.T) string {
 		maps.Copy(entries, runtime)
 	}
 
-	maps.Copy(entries, s.files)
+	var rocks []treetest.Rock
+
+	for name, content := range s.files {
+		if rock, ok := strings.CutPrefix(name, rockMarker); ok {
+			rockName, rockVersion, _ := strings.Cut(rock, "/")
+			if rockVersion == "" || strings.Contains(rockVersion, "/") {
+				// No rock can carry the version: the files are laid out by
+				// hand, as a tt that did not install a package as a rock did.
+				entries[".rocks/share/tarantool/"+rockName+"/init.lua"] = "-- " + rockName + "\n"
+
+				continue
+			}
+
+			rocks = append(rocks, treetest.Rock{
+				Name: rockName, Version: rockVersion, Files: nil, Dependencies: nil,
+			})
+
+			continue
+		}
+
+		entries[name] = content
+	}
+
+	if len(rocks) > 0 {
+		maps.Copy(entries, treeEntries(t, rocks))
+	}
 
 	dst := filepath.Join(t.TempDir(), s.name+".tt")
 	writeTarZst(t, dst, entries)
@@ -201,13 +228,46 @@ func writeTarZst(t *testing.T, dst string, entries map[string]string) {
 // rockFiles returns the archive entries for a rock's own subtree under .rocks/:
 // a share module and its rock-manifest directory at the given version.
 func rockFiles(name, version string) map[string]string {
-	module := ".rocks/share/tarantool/" + name + "/init.lua"
-	rockManifest := ".rocks/share/tarantool/rocks/" + name + "/" + version + "/rock"
+	return map[string]string{rockMarker + name + "/" + version: ""}
+}
 
-	return map[string]string{
-		module:       "-- " + name + "\n",
-		rockManifest: name + " " + version + "\n",
-	}
+// rockMarker starts the name of a files entry that stands for a whole rock,
+// <name>/<version>: build installs every such rock into one tree, as a pack
+// grafts them, and archives the tree under .rocks/.
+const rockMarker = "\x00rock:"
+
+// treeEntries installs rocks into a fresh tree and returns its files as
+// archive entries under .rocks/, the tree's lock aside.
+func treeEntries(t *testing.T, rocks []treetest.Rock) map[string]string {
+	t.Helper()
+
+	root := t.TempDir()
+	treetest.Install(t, root, rocks...)
+
+	entries := map[string]string{}
+
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() || entry.Name() == ".lock" {
+			return err
+		}
+
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+
+		data, err := os.ReadFile(path) //nolint:gosec // The test's own temp dir.
+		if err != nil {
+			return err
+		}
+
+		entries[".rocks/"+filepath.ToSlash(rel)] = string(data)
+
+		return nil
+	})
+	require.NoError(t, err)
+
+	return entries
 }
 
 // mergeFiles unions several archive-entry maps.

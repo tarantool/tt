@@ -113,6 +113,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   search fails when tarantool.io does not answer for a minute. The session
   of the customer zone is sent to tarantool.io over HTTPS only: a redirect
   to another host, the storage of an archive, went with it.
+- `tt package uninstall`, and an install that reconciles a shared dependency
+  to another version, drop the rocks they remove from the manifest of
+  `.rocks/` as they remove their files: the manifest kept their entries, and
+  the next install took the rocks for present.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

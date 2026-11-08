@@ -10,6 +10,7 @@ import (
 
 	"github.com/tarantool/tt/sdk/output"
 
+	"github.com/tarantool/tt/v3/cli/manifest/internal/treetest"
 	"github.com/tarantool/tt/v3/cli/manifest/inventory"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
@@ -63,7 +64,7 @@ func treeFixture(t *testing.T) tree {
 func listTree(t *testing.T, fixture tree) *inventory.Listing {
 	t.Helper()
 
-	listing, err := inventory.List(inventory.ListOptions{
+	listing, err := inventory.List(t.Context(), inventory.ListOptions{
 		ProjectDir: fixture.dir, Rocks: true,
 	})
 	require.NoError(t, err)
@@ -98,7 +99,7 @@ func TestRockIndexOwners(t *testing.T) {
 
 	assert.Equal(t, []string{"monitoring"}, byName["metrics"].Owners)
 	assert.False(t, byName["metrics"].Shared)
-	assert.Equal(t, "1.0.0", byName["metrics"].Version)
+	assert.Equal(t, "1.0.0-1", byName["metrics"].Version, "the version the tree spells")
 
 	// A purely transitive rock is owned exactly like a declared one.
 	assert.Equal(t, []string{"monitoring"}, byName["luasocket"].Owners)
@@ -130,7 +131,7 @@ func TestRockIndexAbsentByDefault(t *testing.T) {
 
 	fixture := treeFixture(t)
 
-	listing, err := inventory.List(inventory.ListOptions{ProjectDir: fixture.dir})
+	listing, err := inventory.List(t.Context(), inventory.ListOptions{ProjectDir: fixture.dir})
 	require.NoError(t, err)
 
 	assert.Nil(t, listing.Rocks)
@@ -163,14 +164,14 @@ func TestRockIndexPrefersOnDiskVersion(t *testing.T) {
 		"metrics": "1.0.0",
 	}})
 
-	require.NoError(t, removeAll(fixture.rockManifestPath("metrics", "1.0.0")))
+	treetest.Remove(t, fixture.lay.Tree, "metrics", "1.0.0")
 	fixture.installRock(t, "metrics", "1.4.0")
 
 	listing := listTree(t, fixture)
 
 	require.Len(t, listing.Rocks, 1)
 	assert.Equal(t, "metrics", listing.Rocks[0].Name)
-	assert.Equal(t, "1.4.0", listing.Rocks[0].Version)
+	assert.Equal(t, "1.4.0-1", listing.Rocks[0].Version)
 }
 
 // TestRockIndexFallsBackToPin pins the other side of that rule: a
@@ -184,7 +185,7 @@ func TestRockIndexFallsBackToPin(t *testing.T) {
 	fixture.installGuest(t, pkg{name: "monitoring", version: "2.0.0", pins: map[string]string{
 		"metrics": "1.0.0",
 	}})
-	require.NoError(t, removeAll(fixture.rockManifestPath("metrics", "1.0.0")))
+	treetest.Remove(t, fixture.lay.Tree, "metrics", "1.0.0")
 
 	listing := listTree(t, fixture)
 
@@ -286,7 +287,7 @@ func TestTransitiveOnlyDependencyIsRefcounted(t *testing.T) {
 	assert.True(t, byName["luasocket"].Shared,
 		"a rock nobody declared is still owned by everyone whose lock pins it")
 
-	result, err := inventory.Uninstall(inventory.UninstallOptions{
+	result, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		ProjectDir: fixture.dir, Package: "monitoring", Yes: true,
 	})
 	require.NoError(t, err)
@@ -314,7 +315,7 @@ func TestTransitiveOnlyDependencyIsRemovedWithItsLastOwner(t *testing.T) {
 		pins: map[string]string{"metrics": "1.0.0", "luasocket": "3.0.4"},
 	})
 
-	result, err := inventory.Uninstall(inventory.UninstallOptions{
+	result, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		ProjectDir: fixture.dir, Package: "monitoring", Yes: true,
 	})
 	require.NoError(t, err)
@@ -659,7 +660,7 @@ func TestTreeMatchesUninstallOutcome(t *testing.T) {
 	require.Contains(t, before, "luasocket 3.0.4 (only here)")
 	require.Contains(t, before, "checks 3.1.0 (shared with alerting, my-app)")
 
-	result, err := inventory.Uninstall(inventory.UninstallOptions{
+	result, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		ProjectDir: fixture.dir, Package: "monitoring", Yes: true,
 	})
 	require.NoError(t, err)

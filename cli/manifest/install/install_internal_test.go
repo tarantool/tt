@@ -2,7 +2,6 @@ package install
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -11,6 +10,7 @@ import (
 
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/internal/treetest"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
 
@@ -131,23 +131,12 @@ func TestInstallUpgrade(t *testing.T) {
 		readFile(t, filepath.Join(dir, ".rocks", "manifests", "my-app", "VERSION")))
 }
 
-// installedRockVersions lists the version directories present for a rock.
+// installedRockVersions lists the versions of a rock the tree manifest of the
+// project at dir lists, newest first.
 func installedRockVersions(t *testing.T, dir, rock string) []string {
 	t.Helper()
 
-	entries, err := os.ReadDir(
-		filepath.Join(dir, ".rocks", "share", "tarantool", "rocks", rock))
-	require.NoError(t, err)
-
-	var versions []string
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			versions = append(versions, entry.Name())
-		}
-	}
-
-	return versions
+	return treetest.Versions(t, filepath.Join(dir, ".rocks"), rock)
 }
 
 // TestInstallMultiSharedSameVersion covers two packages that lock the shared
@@ -166,7 +155,7 @@ func TestInstallMultiSharedSameVersion(t *testing.T) {
 	_, err = installInto(t, dir, Options{Scope: ScopeProject}, storage)
 	require.NoError(t, err)
 
-	assert.Equal(t, []string{"3.0.4"}, installedRockVersions(t, dir, "luasocket"))
+	assert.Equal(t, []string{"3.0.4-1"}, installedRockVersions(t, dir, "luasocket"))
 }
 
 // TestInstallMultiSharedReconciled covers two packages whose compatible
@@ -186,7 +175,7 @@ func TestInstallMultiSharedReconciled(t *testing.T) {
 	_, err = installInto(t, dir, Options{Scope: ScopeProject}, storage)
 	require.NoError(t, err)
 
-	assert.Equal(t, []string{"3.1.0"}, installedRockVersions(t, dir, "luasocket"),
+	assert.Equal(t, []string{"3.1.0-1"}, installedRockVersions(t, dir, "luasocket"),
 		"reconciled to the higher version, old one removed")
 }
 

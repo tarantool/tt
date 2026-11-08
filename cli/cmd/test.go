@@ -145,7 +145,7 @@ func runTest(subPath string, luatestArgs []string) error {
 		return err
 	}
 
-	script, err := run.LuatestScript(root)
+	script, err := run.LuatestScript(ctx, root)
 	if err != nil {
 		return err
 	}
@@ -161,7 +161,7 @@ func runTest(subPath string, luatestArgs []string) error {
 // implicit requirement is "*", so any installed version satisfies it, and
 // re-resolving would reach a registry on every single test run.
 func ensureLuatest(ctx context.Context, root string, opts build.Options) error {
-	if run.LuatestInstalled(root) {
+	if run.LuatestInstalled(ctx, root) {
 		return nil
 	}
 

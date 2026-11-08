@@ -41,7 +41,7 @@ func TestRenderYAMLIsValid(t *testing.T) {
 	fixture.installGuest(t, pkg{name: "monitoring", version: "2.0.0",
 		pins: map[string]string{"metrics": "1.0.0"}})
 
-	listing, err := inventory.List(inventory.ListOptions{ProjectDir: fixture.dir})
+	listing, err := inventory.List(t.Context(), inventory.ListOptions{ProjectDir: fixture.dir})
 	require.NoError(t, err)
 
 	var decoded inventory.Listing
@@ -65,7 +65,7 @@ func TestRenderTable(t *testing.T) {
 	fixture.installPrimary(t, pkg{name: "my-app", version: "1.2.3", description: "The application"})
 	fixture.installGuest(t, pkg{name: "monitoring", version: "2.0.0"})
 
-	listing, err := inventory.List(inventory.ListOptions{ProjectDir: fixture.dir})
+	listing, err := inventory.List(t.Context(), inventory.ListOptions{ProjectDir: fixture.dir})
 	require.NoError(t, err)
 
 	out := render(t, listing, output.FormatHuman)
@@ -92,7 +92,7 @@ func TestRenderTableEmpty(t *testing.T) {
 
 	fixture := newTree(t)
 
-	listing, err := inventory.List(inventory.ListOptions{ProjectDir: fixture.dir})
+	listing, err := inventory.List(t.Context(), inventory.ListOptions{ProjectDir: fixture.dir})
 	require.NoError(t, err)
 
 	out := render(t, listing, output.FormatHuman)
@@ -111,7 +111,7 @@ func TestRenderTableMissingVersion(t *testing.T) {
 	// A project with a manifest but no VERSION pin next to it.
 	fixture.installPrimary(t, pkg{name: "my-app", version: ""})
 
-	listing, err := inventory.List(inventory.ListOptions{ProjectDir: fixture.dir})
+	listing, err := inventory.List(t.Context(), inventory.ListOptions{ProjectDir: fixture.dir})
 	require.NoError(t, err)
 
 	out := render(t, listing, output.FormatHuman)

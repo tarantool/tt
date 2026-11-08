@@ -468,7 +468,7 @@ func runPackageList(format *output.FormatFlag) error {
 		return err
 	}
 
-	listing, err := inventory.List(inventory.ListOptions{
+	listing, err := inventory.List(context.Background(), inventory.ListOptions{
 		ProjectDir: projectDir,
 		Scope:      state.Scope(packageScope),
 		Rocks:      packageTree,
@@ -520,7 +520,7 @@ func runPackageUninstall(name string) error {
 		return err
 	}
 
-	result, err := inventory.Uninstall(inventory.UninstallOptions{
+	result, err := inventory.Uninstall(context.Background(), inventory.UninstallOptions{
 		ProjectDir: projectDir,
 		Scope:      state.Scope(packageScope),
 		Package:    name,

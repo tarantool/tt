@@ -1,8 +1,12 @@
 package install
 
 import (
+	"context"
+	"errors"
 	"fmt"
-	"os"
+
+	luarocks "github.com/tarantool/go-luarocks"
+	"github.com/tarantool/go-luarocks/tree"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
@@ -49,9 +53,10 @@ type installPlan struct {
 // is already installed and decides, per dependency, whether to extract it from
 // the archive, refetch it from the registry, or leave the installed copy in
 // place. withDeps selects the archive vs registry source for a dependency the
-// installed tree does not already satisfy.
+// installed tree does not already satisfy. view is the tree installed into, as
+// it stands; nil is an empty one.
 func planDeps(
-	header *Header, productName string, installed []state.Package, lay state.Layout, withDeps bool,
+	header *Header, productName string, installed []state.Package, view *tree.View, withDeps bool,
 ) (installPlan, error) {
 	prod, ok := header.Lock.Products[productName]
 	if !ok {
@@ -75,7 +80,7 @@ func planDeps(
 			continue
 		}
 
-		decision, err := planRegistryDep(dep, header, installed, lay, withDeps)
+		decision, err := planRegistryDep(dep, header, installed, view, withDeps)
 		if err != nil {
 			var zero installPlan
 
@@ -95,7 +100,7 @@ func planDeps(
 // planRegistryDep reconciles one registry dependency and decides its source.
 func planRegistryDep(
 	dep manifest.LockDependency, header *Header,
-	installed []state.Package, lay state.Layout, withDeps bool,
+	installed []state.Package, view *tree.View, withDeps bool,
 ) (depDecision, error) {
 	contributions := collectContributions(dep.Name, dep.Version, header.Manifest, installed)
 
@@ -106,7 +111,7 @@ func planRegistryDep(
 		return zero, err
 	}
 
-	onDisk, hasOnDisk := state.InstalledVersion(lay, dep.Name)
+	onDisk, hasOnDisk := state.InstalledVersion(view, dep.Name)
 
 	switch {
 	case winner == dep.Version:
@@ -227,21 +232,54 @@ func joinConstraints(parts []string) string {
 	return out
 }
 
-// removeStaleVersions deletes the on-disk files of any dependency version the
-// plan is replacing, so a reconciled upgrade does not leave two versions of a
-// rock side by side.
-func removeStaleVersions(lay state.Layout, plan installPlan) error {
+// removeStaleVersions removes from the tree every dependency version the plan
+// is replacing, so a reconciled upgrade does not leave two versions of a rock
+// side by side. Each goes in one transaction of the tree, which drops it from
+// the tree manifest as it deletes its files; a version the manifest no longer
+// lists is gone already.
+func removeStaleVersions(ctx context.Context, lay state.Layout, plan installPlan) error {
+	stale := false
+
+	for _, decision := range plan.decisions {
+		stale = stale || decision.removeVersion != ""
+	}
+
+	if !stale {
+		return nil
+	}
+
+	rocksTree, err := tree.Open(luarocks.Config{Tree: lay.Tree})
+	if err != nil {
+		return fmt.Errorf("opening the rocks tree %s: %w", lay.Tree, err)
+	}
+
+	err = rocksTree.Update(ctx, func(change *tree.Tx) error {
+		return removeStale(change, lay, plan)
+	})
+	if err != nil {
+		return fmt.Errorf("updating the rocks tree %s: %w", lay.Tree, err)
+	}
+
+	return nil
+}
+
+// removeStale is removeStaleVersions in the transaction tx. A version the tree
+// manifest does not list is what a tt that extracted the rocks of an archive
+// without recording them left; its files are removed as that tt removed them.
+func removeStale(change *tree.Tx, lay state.Layout, plan installPlan) error {
 	for _, decision := range plan.decisions {
 		if decision.removeVersion == "" {
 			continue
 		}
 
-		for _, stalePath := range state.RockPaths(lay, decision.name, decision.removeVersion) {
-			err := os.RemoveAll(stalePath)
-			if err != nil {
-				return fmt.Errorf("removing stale %s %s: %w",
-					decision.name, decision.removeVersion, err)
-			}
+		err := change.Remove(tree.RockRef{Name: decision.name, Version: decision.removeVersion})
+		if errors.Is(err, tree.ErrNotInstalled) {
+			err = state.RemoveUntracked(lay, decision.name, decision.removeVersion)
+		}
+
+		if err != nil {
+			return fmt.Errorf("removing stale %s %s: %w",
+				decision.name, decision.removeVersion, err)
 		}
 	}
 

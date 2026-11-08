@@ -33,7 +33,7 @@ func TestListPrimaryAndGuests(t *testing.T) {
 	})
 	fixture.installGuest(t, pkg{name: "alerting", version: "0.5.0"})
 
-	listing, err := inventory.List(inventory.ListOptions{ProjectDir: fixture.dir})
+	listing, err := inventory.List(t.Context(), inventory.ListOptions{ProjectDir: fixture.dir})
 	require.NoError(t, err)
 
 	require.Len(t, listing.Packages, 3)
@@ -64,7 +64,7 @@ func TestListJSONIsValid(t *testing.T) {
 		pins: map[string]string{"metrics": "1.0.0"}})
 	fixture.installGuest(t, pkg{name: "alerting", version: "0.5.0"})
 
-	listing, err := inventory.List(inventory.ListOptions{ProjectDir: fixture.dir})
+	listing, err := inventory.List(t.Context(), inventory.ListOptions{ProjectDir: fixture.dir})
 	require.NoError(t, err)
 
 	rendered := render(t, listing, output.FormatJSON)
@@ -98,7 +98,7 @@ func TestListEmptyScope(t *testing.T) {
 
 	fixture := newTree(t)
 
-	listing, err := inventory.List(inventory.ListOptions{ProjectDir: fixture.dir})
+	listing, err := inventory.List(t.Context(), inventory.ListOptions{ProjectDir: fixture.dir})
 	require.NoError(t, err)
 
 	assert.Empty(t, listing.Packages)
@@ -114,7 +114,7 @@ func TestListGuestsOnly(t *testing.T) {
 
 	fixture.installGuest(t, pkg{name: "monitoring", version: "2.0.0"})
 
-	listing, err := inventory.List(inventory.ListOptions{ProjectDir: fixture.dir})
+	listing, err := inventory.List(t.Context(), inventory.ListOptions{ProjectDir: fixture.dir})
 	require.NoError(t, err)
 
 	require.Len(t, listing.Packages, 1)
@@ -130,7 +130,7 @@ func TestListOmitsEmptyDependencies(t *testing.T) {
 
 	fixture.installGuest(t, pkg{name: "alerting", version: "0.5.0"})
 
-	listing, err := inventory.List(inventory.ListOptions{ProjectDir: fixture.dir})
+	listing, err := inventory.List(t.Context(), inventory.ListOptions{ProjectDir: fixture.dir})
 	require.NoError(t, err)
 
 	require.Len(t, listing.Packages, 1)
@@ -152,7 +152,7 @@ func TestListTolerantOfBrokenGuest(t *testing.T) {
 		filepath.Join(fixture.lay.Manifests, "broken", state.MetaManifestFile),
 		"not = valid toml [")
 
-	listing, err := inventory.List(inventory.ListOptions{ProjectDir: fixture.dir})
+	listing, err := inventory.List(t.Context(), inventory.ListOptions{ProjectDir: fixture.dir})
 	require.NoError(t, err)
 
 	require.Len(t, listing.Packages, 1)
@@ -168,7 +168,7 @@ func TestListGuestWithoutLock(t *testing.T) {
 
 	fixture.installGuest(t, pkg{name: "legacy", version: "1.0.0", noLock: true})
 
-	listing, err := inventory.List(inventory.ListOptions{ProjectDir: fixture.dir})
+	listing, err := inventory.List(t.Context(), inventory.ListOptions{ProjectDir: fixture.dir})
 	require.NoError(t, err)
 
 	require.Len(t, listing.Packages, 1)
@@ -181,7 +181,7 @@ func TestListGuestWithoutLock(t *testing.T) {
 func TestListRejectsUnknownScope(t *testing.T) {
 	t.Parallel()
 
-	_, err := inventory.List(inventory.ListOptions{
+	_, err := inventory.List(t.Context(), inventory.ListOptions{
 		ProjectDir: t.TempDir(), Scope: state.Scope("global"),
 	})
 	require.Error(t, err)
@@ -198,7 +198,8 @@ func TestListDefaultsToProjectScope(t *testing.T) {
 
 	fixture.installGuest(t, pkg{name: "monitoring", version: "2.0.0"})
 
-	listing, err := inventory.List(inventory.ListOptions{ProjectDir: fixture.dir, Scope: ""})
+	listing, err := inventory.List(t.Context(),
+		inventory.ListOptions{ProjectDir: fixture.dir, Scope: ""})
 	require.NoError(t, err)
 
 	assert.Equal(t, state.ScopeProject, listing.Scope)

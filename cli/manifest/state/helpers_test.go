@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/internal/treetest"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
 
@@ -111,17 +112,15 @@ func writePrimary(t *testing.T, lay state.Layout, name, version string,
 	}
 }
 
-// writeRock materializes a rock's files in the tree the way an install leaves
-// them: a module under share/, a shared object under lib/, and a rock-manifest
-// directory at the pinned version.
-func writeRock(t *testing.T, lay state.Layout, name, version string) {
+// writeRock installs a rock into the tree the way an install leaves it: a
+// module under share/, a shared object under lib/, its rock dir and its entry
+// in the tree manifest, at the pinned version.
+func writeRock(t *testing.T, lay state.Layout, name, version string, deps ...string) {
 	t.Helper()
 
-	writeFile(t, filepath.Join(lay.Share, name, "init.lua"), []byte("-- "+name+"\n"))
-	writeFile(t, filepath.Join(lay.Lib, name, name+".so"), []byte("binary\n"))
-	writeFile(t,
-		filepath.Join(lay.Share, "rocks", name, version, "rock_manifest"),
-		[]byte(name+" "+version+"\n"))
+	treetest.Install(t, lay.Tree, treetest.Rock{
+		Name: name, Version: version, Files: nil, Dependencies: deps,
+	})
 }
 
 // writeFile writes content at path, creating parent directories.

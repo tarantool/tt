@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/tarantool/go-luarocks/client"
+	"github.com/tarantool/go-luarocks/tree"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/resolve"
@@ -71,7 +72,12 @@ func EnsureDevRocks(
 
 	opts.emit(warnings)
 
-	missing := notInstalled(opts.ProjectDir, closure)
+	view, err := state.InspectTree(ctx, state.ProjectLayout(opts.ProjectDir))
+	if err != nil {
+		return err
+	}
+
+	missing := notInstalled(view, closure)
 	if len(missing) == 0 {
 		return nil
 	}
@@ -103,15 +109,13 @@ func EnsureDevRocks(
 // unlike the lock's own, which a build materializes once per lock change. A
 // path dependency is always rebuilt: its version says nothing about its
 // contents, which is why the lock pins it by content hash instead.
-func notInstalled(projectDir string, closure []manifest.LockDependency) []manifest.LockDependency {
-	layout := state.ProjectLayout(projectDir)
-
+func notInstalled(view *tree.View, closure []manifest.LockDependency) []manifest.LockDependency {
 	missing := make([]manifest.LockDependency, 0, len(closure))
 
 	for _, dependency := range closure {
 		if dependency.Source == sourceRegistry {
-			installed, found := state.InstalledVersion(layout, dependency.Name)
-			if found && state.SameVersion(installed, dependency.Version) {
+			_, found := view.Installed(dependency.Name, dependency.Version)
+			if found {
 				continue
 			}
 		}

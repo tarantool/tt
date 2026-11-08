@@ -92,7 +92,7 @@ func TestListUserScope(t *testing.T) {
 	writeAt(t, filepath.Join(root, "versions", "tarantool", "tarantool_3.8.1", "tarantool"),
 		"#!/bin/sh\n")
 
-	listing, err := inventory.List(inventory.ListOptions{
+	listing, err := inventory.List(t.Context(), inventory.ListOptions{
 		Scope: state.ScopeUser, ProjectDir: t.TempDir(),
 	})
 	require.NoError(t, err)
@@ -127,7 +127,7 @@ func TestListUserScope(t *testing.T) {
 func TestListSystemScopeEmpty(t *testing.T) {
 	appRoots(t)
 
-	listing, err := inventory.List(inventory.ListOptions{Scope: state.ScopeSystem})
+	listing, err := inventory.List(t.Context(), inventory.ListOptions{Scope: state.ScopeSystem})
 	require.NoError(t, err)
 	assert.Empty(t, listing.Packages)
 
@@ -142,7 +142,8 @@ func TestListSystemScopeEmpty(t *testing.T) {
 func TestListUserScopeRefusesTree(t *testing.T) {
 	appRoots(t)
 
-	_, err := inventory.List(inventory.ListOptions{Scope: state.ScopeUser, Rocks: true})
+	_, err := inventory.List(t.Context(),
+		inventory.ListOptions{Scope: state.ScopeUser, Rocks: true})
 	require.ErrorIs(t, err, inventory.ErrTreeScope)
 	assert.Equal(t, 1, exitcode.Code(err))
 }
@@ -177,7 +178,7 @@ func TestUninstallUserScope(t *testing.T) {
 
 	var prompts []string
 
-	result, err := inventory.Uninstall(inventory.UninstallOptions{
+	result, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		Scope: state.ScopeUser, Package: "my-app",
 		Confirm: func(prompt string) bool {
 			prompts = append(prompts, prompt)
@@ -213,7 +214,7 @@ func TestUninstallUserScopeRefusesRunning(t *testing.T) {
 	holdPidFile(t, filepath.Join(root, "var", "run", "my-app", "router-1", "tt.pid"),
 		os.Getpid())
 
-	_, err := inventory.Uninstall(inventory.UninstallOptions{
+	_, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		Scope: state.ScopeUser, Package: "my-app", Yes: true,
 	})
 	require.ErrorIs(t, err, state.ErrInstancesRunning)
@@ -231,7 +232,7 @@ func TestUninstallUserScopeAbortKeepsEverything(t *testing.T) {
 
 	dir := installVersion(t, root, pkg{name: "my-app", version: "1.0.0"})
 
-	_, err := inventory.Uninstall(inventory.UninstallOptions{
+	_, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		Scope: state.ScopeUser, Package: "my-app",
 		Confirm: func(string) bool { return false },
 	})
@@ -245,7 +246,7 @@ func TestUninstallUserScopeAbortKeepsEverything(t *testing.T) {
 func TestUninstallUserScopeRefusesWhatIsNoApplication(t *testing.T) {
 	root := appRoots(t)
 
-	_, err := inventory.Uninstall(inventory.UninstallOptions{
+	_, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		Scope: state.ScopeUser, Package: "my-app", Yes: true,
 	})
 	require.ErrorIs(t, err, inventory.ErrNotInstalled)
@@ -253,13 +254,13 @@ func TestUninstallUserScopeRefusesWhatIsNoApplication(t *testing.T) {
 	installation := filepath.Join(root, "versions", "tarantool", "tarantool_3.8.1", "tarantool")
 	writeAt(t, installation, "#!/bin/sh\n")
 
-	_, err = inventory.Uninstall(inventory.UninstallOptions{
+	_, err = inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		Scope: state.ScopeSystem, Package: "tarantool", Yes: true,
 	})
 	require.ErrorIs(t, err, state.ErrProductName)
 	assert.Contains(t, err.Error(), "tt binary uninstall")
 
-	_, err = inventory.Uninstall(inventory.UninstallOptions{
+	_, err = inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		Scope: state.ScopeUser, Package: "tarantool", Yes: true,
 	})
 	require.ErrorIs(t, err, state.ErrProductName)
@@ -274,7 +275,7 @@ func TestUninstallUserScopeFinishesInterruptedRemoval(t *testing.T) {
 
 	require.NoError(t, os.MkdirAll(state.VersionDir(root, "my-app", "1.0.0"), 0o750))
 
-	result, err := inventory.Uninstall(inventory.UninstallOptions{
+	result, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		Scope: state.ScopeUser, Package: "my-app", Yes: true,
 	})
 	require.NoError(t, err)
@@ -283,7 +284,7 @@ func TestUninstallUserScopeFinishesInterruptedRemoval(t *testing.T) {
 
 	require.NoError(t, state.Activate(root, "my-app", "1.0.0"))
 
-	_, err = inventory.Uninstall(inventory.UninstallOptions{
+	_, err = inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		Scope: state.ScopeUser, Package: "my-app", Yes: true,
 	})
 	require.NoError(t, err)
@@ -302,7 +303,7 @@ func TestUninstallUserScopeIgnoresProjectDir(t *testing.T) {
 	project := newTree(t)
 	project.installGuest(t, pkg{name: "some-lib", version: "2.0.0"})
 
-	_, err := inventory.Uninstall(inventory.UninstallOptions{
+	_, err := inventory.Uninstall(t.Context(), inventory.UninstallOptions{
 		ProjectDir: project.dir, Scope: state.ScopeUser, Package: "some-lib", Yes: true,
 	})
 	require.NoError(t, err)

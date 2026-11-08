@@ -21,13 +21,15 @@
 package run
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"syscall"
+
+	"github.com/tarantool/go-luarocks/tree"
 
 	"github.com/tarantool/tt/v3/cli/tarantool"
 	"github.com/tarantool/tt/v3/internal/binary"
@@ -44,9 +46,6 @@ const (
 	rocksDirName = ".rocks"
 	// binDirName holds the console scripts rocks install.
 	binDirName = "bin"
-	// rocksInstallDir is where LuaRocks keeps per-rock metadata and the
-	// unwrapped copy of every console script it deployed.
-	rocksInstallDir = "share/tarantool/rocks"
 	// luatestName is the rock tt test drives.
 	luatestName = "luatest"
 )
@@ -249,28 +248,25 @@ func checkedSubPath(root, subPath string) (string, error) {
 // LuatestScript locates the luatest entry script in root's rocks tree, so it
 // can be fed to the interpreter Tarantool chose.
 //
-// The per-rock copy under share/tarantool/rocks/ is preferred over .rocks/bin/
-// because LuaRocks may deploy a console script either way: verbatim, or as a
-// generated /bin/sh launcher that execs an interpreter path baked in at install
-// time. Running the launcher would silently ignore the interpreter this package
-// just chose, so the script LuaRocks kept beside the rock is what tt runs.
-func LuatestScript(root string) (string, error) {
+// The script is the one the tree manifest names for the luatest command: the
+// real script in the install dir of the rock that holds the command's plain
+// path, rather than .rocks/bin/luatest, because LuaRocks may deploy a console
+// script either way: verbatim, or as a generated /bin/sh launcher that execs
+// an interpreter path baked in at install time. Running the launcher would
+// silently ignore the interpreter this package just chose, so the script
+// LuaRocks kept beside the rock is what tt runs. A tree whose manifest does
+// not know the command still runs an executable .rocks/bin/luatest.
+func LuatestScript(ctx context.Context, root string) (string, error) {
 	rocks := filepath.Join(root, rocksDirName)
 
-	pattern := filepath.Join(rocks, filepath.FromSlash(rocksInstallDir),
-		luatestName, "*", binDirName, luatestName)
-
-	matches, err := filepath.Glob(pattern)
+	view, err := tree.Inspect(ctx, rocks)
 	if err != nil {
 		return "", fmt.Errorf("looking for %s: %w", luatestName, err)
 	}
 
-	if len(matches) > 0 {
-		// Several installed versions are legal in a tree LuaRocks manages; the
-		// highest directory name is the one .rocks/bin/ points at.
-		sort.Sort(sort.Reverse(sort.StringSlice(matches)))
-
-		return matches[0], nil
+	script, _, ok := view.Command(luatestName)
+	if ok {
+		return script, nil
 	}
 
 	deployed := filepath.Join(rocks, binDirName, luatestName)
@@ -283,8 +279,8 @@ func LuatestScript(root string) (string, error) {
 
 // LuatestInstalled reports whether root's rocks tree already holds luatest, so
 // a caller can skip resolving and fetching one it does not need.
-func LuatestInstalled(root string) bool {
-	_, err := LuatestScript(root)
+func LuatestInstalled(ctx context.Context, root string) bool {
+	_, err := LuatestScript(ctx, root)
 
 	return err == nil
 }

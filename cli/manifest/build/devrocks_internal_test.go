@@ -9,19 +9,32 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/go-luarocks/tree"
+
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/internal/treetest"
+	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
 
-// installRock lays a rock down the way LuaRocks records one: a version
-// directory under the tree's rocks/ metadata root. That directory is what marks
-// a rock installed, so it is what the skip has to read.
+// installRock installs a rock into the project's tree as LuaRocks records one:
+// its rock dir and its entry in the tree manifest, which is what marks a rock
+// installed, so it is what the skip has to read.
 func installRock(t *testing.T, projectDir, name, version string) {
 	t.Helper()
 
-	dir := filepath.Join(projectDir, rocksDirName, "share", "tarantool", "rocks", name, version)
-	require.NoError(t, os.MkdirAll(dir, 0o750))
-	require.NoError(t, os.WriteFile(
-		filepath.Join(dir, "rock_manifest"), []byte("rock_manifest = {}\n"), 0o600))
+	treetest.Install(t, filepath.Join(projectDir, rocksDirName), treetest.Rock{
+		Name: name, Version: version, Files: nil, Dependencies: nil,
+	})
+}
+
+// projectView reads the tree of the project at projectDir.
+func projectView(t *testing.T, projectDir string) *tree.View {
+	t.Helper()
+
+	view, err := state.InspectTree(t.Context(), state.ProjectLayout(projectDir))
+	require.NoError(t, err)
+
+	return view
 }
 
 // registryDep is one resolved registry entry of a closure.
@@ -37,7 +50,7 @@ func TestNotInstalledKeepsRocksTheTreeDoesNotHold(t *testing.T) {
 		registryDep("luatest", "1.0.1-1"),
 	}
 
-	missing := notInstalled(projectDir, closure)
+	missing := notInstalled(projectView(t, projectDir), closure)
 	assert.Equal(t, closure, missing)
 }
 
@@ -48,7 +61,7 @@ func TestNotInstalledSkipsAnInstalledVersion(t *testing.T) {
 	projectDir := t.TempDir()
 	installRock(t, projectDir, "checks", "3.1.0-1")
 
-	missing := notInstalled(projectDir, []manifest.LockDependency{
+	missing := notInstalled(projectView(t, projectDir), []manifest.LockDependency{
 		registryDep("checks", "3.1.0-1"),
 		registryDep("luatest", "1.0.1-1"),
 	})
@@ -62,7 +75,7 @@ func TestNotInstalledKeepsADifferentInstalledVersion(t *testing.T) {
 	projectDir := t.TempDir()
 	installRock(t, projectDir, "luatest", "0.5.7-1")
 
-	missing := notInstalled(projectDir, []manifest.LockDependency{
+	missing := notInstalled(projectView(t, projectDir), []manifest.LockDependency{
 		registryDep("luatest", "1.0.1-1"),
 	})
 	require.Len(t, missing, 1)
@@ -75,7 +88,7 @@ func TestNotInstalledAlwaysRebuildsAPathDependency(t *testing.T) {
 	projectDir := t.TempDir()
 	installRock(t, projectDir, "helper", "0.1.0-1")
 
-	missing := notInstalled(projectDir, []manifest.LockDependency{
+	missing := notInstalled(projectView(t, projectDir), []manifest.LockDependency{
 		{Name: "helper", Version: "0.1.0-1", Source: sourcePath, Path: "helper"},
 	})
 	assert.Len(t, missing, 1)
