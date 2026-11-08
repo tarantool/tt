@@ -66,7 +66,7 @@ func TestExtractMapperTemplates(t *testing.T) {
 
 	entry := ".templates/default/instances.yaml"
 
-	dst, ok := extractMapper(nil)(entry)
+	dst, ok := extractMapper()(entry)
 	assert.True(t, ok)
 	assert.Equal(t, entry, dst)
 

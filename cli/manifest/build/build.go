@@ -388,7 +388,7 @@ func runBuild(
 		return nil, vluaErr
 	}
 
-	err = installPackageRock(ctx, adapter.Config(), man, product, prod, ver, stage)
+	err = installPackageRock(ctx, adapter.Config(), man, productName, prod, ver, stage)
 	if err != nil {
 		return nil, err
 	}

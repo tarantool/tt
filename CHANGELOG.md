@@ -92,6 +92,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   a file of `.rocks/` no rock owns is left out, with a warning, and a command
   is packed as its script rather than as a wrapper. `--without-deps` packs a
   component of `namespace = ""`, which it refused.
+- `tt package install` grafts the rocks of an archive into the project's
+  `.rocks/` and its manifest, where it extracted them over both, and writes
+  the command wrappers of an installed version of the user or system scope
+  for its tree and the bundled tarantool. The files of a package an older tt
+  packed are installed as its rock.
 
 ### Fixed
 

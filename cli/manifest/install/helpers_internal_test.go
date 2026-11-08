@@ -6,6 +6,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -45,6 +46,9 @@ type archiveSpec struct {
 	// files are extra archive entries: archive-relative slash path -> content.
 	// Used to place package and dependency subtrees under .rocks/.
 	files map[string]string
+	// rocks are more rocks of the archive's .rocks/, installed into its tree
+	// with the rocks of files.
+	rocks []treetest.Rock
 }
 
 // manifestTOML renders the spec's manifest.
@@ -132,7 +136,7 @@ func (s archiveSpec) build(t *testing.T) string {
 		maps.Copy(entries, runtime)
 	}
 
-	var rocks []treetest.Rock
+	rocks := slices.Clone(s.rocks)
 
 	for name, content := range s.files {
 		if rock, ok := strings.CutPrefix(name, rockMarker); ok {

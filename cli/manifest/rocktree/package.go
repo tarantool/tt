@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -15,6 +16,8 @@ import (
 	"github.com/tarantool/go-luarocks/deps"
 	"github.com/tarantool/go-luarocks/rockspec"
 	"github.com/tarantool/go-luarocks/tree"
+
+	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // The directories of a stage laid out as an unpacked binary rock, and where
@@ -196,7 +199,12 @@ func luaQuote(text string) string {
 // by hand, before the package was a rock; it is removed rather than backed up
 // by the deploy, as a build of that tt overwrote it.
 func InstallPackage(change *tree.Tx, root string, spec *luarocks.Rockspec, stage string) error {
-	err := removeUnowned(change.View(), root, spec.Package, stage)
+	targets, err := stageTargets(stage)
+	if err != nil {
+		return err
+	}
+
+	err = makeRoom(change.View(), root, spec.Package, targets)
 	if err != nil {
 		return err
 	}
@@ -212,6 +220,36 @@ func InstallPackage(change *tree.Tx, root string, spec *luarocks.Rockspec, stage
 	return nil
 }
 
+// PreparePackage makes room in the tree rooted at root, in the transaction
+// change, for the rock ref of the tree src views - a package's rock, about to
+// be grafted from an archive (tree.Tx.Graft) - as InstallPackage does for a
+// stage: a file at a path the rock is deployed to that no rock owns is
+// removed, and one another rock than the package's owns fails it with an error
+// wrapping tree.ErrNotPlain.
+func PreparePackage(change *tree.Tx, root string, src *tree.View, ref tree.RockRef) error {
+	files, err := src.Files(ref)
+	if err != nil {
+		return fmt.Errorf("reading the rock %s: %w", ref, err)
+	}
+
+	sections := map[tree.Section]string{
+		tree.SectionLua: shareTarantool,
+		tree.SectionLib: libTarantool,
+		tree.SectionBin: binDir,
+	}
+
+	var targets []string
+
+	for _, file := range files {
+		if deployed, ok := sections[file.Section]; ok {
+			targets = append(targets, filepath.Join(filepath.FromSlash(deployed),
+				filepath.FromSlash(file.Entry)))
+		}
+	}
+
+	return makeRoom(change.View(), root, ref.Name, targets)
+}
+
 // deployDirs maps each deployed directory of a stage to the one of the tree
 // its files go to.
 func deployDirs() map[string]string {
@@ -222,13 +260,10 @@ func deployDirs() map[string]string {
 	}
 }
 
-// removeUnowned removes the files of the tree at root that a file of stage
-// would be deployed to and that no rock of view owns, and fails with an error
-// wrapping tree.ErrNotPlain, before anything is removed, when another rock than
-// name owns one: the tree's conflict rules would give the plain path to one of
-// the two by their names, and the other's require would load the wrong file.
-func removeUnowned(view *tree.View, root, name, stage string) error {
-	var unowned, taken []string
+// stageTargets lists the paths in a tree, relative to its root, the files of
+// stage are deployed to.
+func stageTargets(stage string) ([]string, error) {
+	var targets []string
 
 	for sub, deployed := range deployDirs() {
 		base := filepath.Join(stage, sub)
@@ -247,21 +282,34 @@ func removeUnowned(view *tree.View, root, name, stage string) error {
 				return fmt.Errorf("staging %s: %w", path, err)
 			}
 
-			target := filepath.Join(filepath.FromSlash(deployed), rel)
-
-			owner, _, owned := view.Owner(target)
-
-			switch {
-			case !owned:
-				unowned = append(unowned, target)
-			case owner.Name != name:
-				taken = append(taken, target+" ("+owner.String()+")")
-			}
+			targets = append(targets, filepath.Join(filepath.FromSlash(deployed), rel))
 
 			return nil
 		})
 		if err != nil {
-			return fmt.Errorf("installing the package rock: %w", err)
+			return nil, fmt.Errorf("installing the package rock: %w", err)
+		}
+	}
+
+	return targets, nil
+}
+
+// makeRoom removes the files of the tree at root at targets, paths relative to
+// it, that no rock of view owns, and fails with an error wrapping
+// tree.ErrNotPlain, before anything is removed, when another rock than name
+// owns one: the tree's conflict rules would give the plain path to one of the
+// two by their names, and the other's require would load the wrong file.
+func makeRoom(view *tree.View, root, name string, targets []string) error {
+	var unowned, taken []string
+
+	for _, target := range targets {
+		owner, _, owned := view.Owner(target)
+
+		switch {
+		case !owned:
+			unowned = append(unowned, target)
+		case owner.Name != name:
+			taken = append(taken, target+" ("+owner.String()+")")
 		}
 	}
 
@@ -280,6 +328,33 @@ func removeUnowned(view *tree.View, root, name, stage string) error {
 	}
 
 	return nil
+}
+
+// PackageDependencies maps the dependencies the manifest man declares,
+// globally and in the components of the product named product, to the
+// versions the lock product prod pins: the Dependencies of the package's rock.
+// A declaration the product does not pin is not its.
+func PackageDependencies(
+	man *manifest.Manifest, product string, prod manifest.LockProduct,
+) map[string]string {
+	declared := maps.Clone(man.Dependencies)
+	if declared == nil {
+		declared = map[string]manifest.Dependency{}
+	}
+
+	for _, name := range man.EffectiveProducts()[product].Components {
+		maps.Copy(declared, man.Components[name].Dependencies)
+	}
+
+	pinned := map[string]string{}
+
+	for _, dep := range prod.Dependencies {
+		if _, ok := declared[dep.Name]; ok {
+			pinned[dep.Name] = dep.Version
+		}
+	}
+
+	return pinned
 }
 
 // StageUntracked lays out the files of untracked, the files of the tree at

@@ -63,38 +63,17 @@ func TestExtractProjectKeepsRocksPrefix(t *testing.T) {
 	require.NoError(t, err)
 
 	root := t.TempDir()
-	mapper := extractMapper(nil)
+	mapper := extractMapper()
 	require.NoError(t, ar.Extract(root, mapper))
 
-	assert.FileExists(t, filepath.Join(root, ".rocks", "share", "tarantool", "my-app", "init.lua"))
+	assert.NoDirExists(t, filepath.Join(root, ".rocks"),
+		"the rocks are grafted into the tree, not extracted over it")
 	assert.NoDirExists(t, filepath.Join(root, "_runtime"),
 		"the bundled runtime is installed into .tarantool/versions/, not into the tree")
 
 	// Root metadata must not be laid into the tree.
 	assert.NoFileExists(t, filepath.Join(root, "app.manifest.toml"))
 	assert.NoFileExists(t, filepath.Join(root, "VERSION"))
-}
-
-// TestExtractSkipsDependency verifies a dependency in the skip set is not
-// written from the archive.
-func TestExtractSkipsDependency(t *testing.T) {
-	t.Parallel()
-
-	path := archiveSpec{
-		name: "my-app", version: "1.0.0", withRuntime: "3.0.5",
-		files: mergeFiles(rockFiles("my-app", "1.0.0"), rockFiles("luasocket", "3.0.4")),
-	}.build(t)
-
-	ar, err := OpenArchive(path)
-	require.NoError(t, err)
-
-	root := t.TempDir()
-	skip := map[string]struct{}{"luasocket": {}}
-	require.NoError(t, ar.Extract(root, extractMapper(skip)))
-
-	assert.FileExists(t, filepath.Join(root, ".rocks", "share", "tarantool", "my-app", "init.lua"))
-	assert.NoFileExists(t,
-		filepath.Join(root, ".rocks", "share", "tarantool", "luasocket", "init.lua"))
 }
 
 // TestExtractRejectsTraversal guards the tar-slip defense: an entry climbing out

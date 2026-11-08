@@ -282,9 +282,10 @@ func checkCollision(opts Options, header *Header, installed []state.Package) (bo
 	}
 }
 
-// apply resolves the dependency plan and realizes it: remove stale versions,
-// install the bundled runtime into the project's .tarantool/, extract the
-// archive, and refetch any registry-sourced dependency.
+// apply resolves the dependency plan and realizes it: install the bundled
+// runtime into the project's .tarantool/, lay the templates out, remove the
+// stale versions and graft the archive's rocks into the project's tree, and
+// refetch any registry-sourced dependency.
 func apply(
 	ctx context.Context, opts Options, archive *Archive,
 	header *Header, lay state.Layout, installed []state.Package,
@@ -314,11 +315,6 @@ func apply(
 		return err
 	}
 
-	err = removeStaleVersions(ctx, lay, plan)
-	if err != nil {
-		return err
-	}
-
 	//nolint:contextcheck // The scope roots ask uname and take no context.
 	root, err := state.ScopeRoot(ScopeProject, lay.Root)
 	if err != nil {
@@ -335,9 +331,15 @@ func apply(
 		return err
 	}
 
-	err = archive.Extract(lay.Root, extractMapper(plan.skipNames))
+	err = archive.Extract(lay.Root, extractMapper())
 	if err != nil {
 		return fmt.Errorf("extracting %s: %w", archive.Path(), err)
+	}
+
+	err = graftArchive(ctx, opts, archive, header, lay, installed, plan,
+		wrapperExecutable(opts, root, runtimes))
+	if err != nil {
+		return err
 	}
 
 	err = refetch(ctx, opts, lay, plan)
