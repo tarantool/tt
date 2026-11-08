@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/internal/treetest"
 )
 
 // devTreeLock is the lock the tree below was materialized from: one runtime
@@ -35,54 +36,45 @@ func devTreeLock() *manifest.Lock {
 	}
 }
 
-// devRocksTree lays a .rocks/ tree in the shape a build leaves behind, with the
-// dev closure already materialized into it - which is the situation the pack
-// exclusion exists for: .rocks/ is the developer's standing tree, so the dev
-// rocks are there whether or not this particular pack installed them.
+// devRocksTree installs a .rocks/ tree in the shape a build leaves behind,
+// with the dev closure already materialized into it - which is the situation
+// the pack exclusion exists for: .rocks/ is the developer's standing tree, so
+// the dev rocks are there whether or not this particular pack installed them.
 //
 // luatest carries the awkward shapes on purpose: a console script in bin/ and a
-// bare share/tarantool/<name>.lua rather than a directory. Both are outside the
-// name-keyed directories, and both are what a rock_manifest is read for.
+// bare share/tarantool/<name>.lua rather than a directory, which a rock's
+// files, not its name, place.
 func devRocksTree(t *testing.T, projectDir string) string {
 	t.Helper()
 
 	tree := filepath.Join(projectDir, ".rocks")
 
-	writeTree(t, tree, map[string]string{
-		// The package's own laid-out component files.
-		"share/tarantool/my-app/init.lua":    "-- app",
-		"share/tarantool/my-app/version.lua": "-- version",
-		"lib/tarantool/my-app/fast.so":       "ELF",
-
+	treetest.Install(t, tree,
+		// The package's own rock.
+		treetest.Rock{Name: "my-app", Version: "1.0.0", Files: map[string]string{
+			"lua/my-app/init.lua":    "-- app",
+			"lua/my-app/version.lua": "-- version",
+			"lib/my-app/fast.so":     "ELF",
+		}},
 		// Runtime closure.
-		"share/tarantool/inspect/init.lua": "-- inspect",
-		"share/tarantool/rocks/inspect/3.1.3-1/rock_manifest": rockManifest(
-			`lua = { ["inspect/init.lua"] = "d0" }`),
-		"share/tarantool/checks.lua": "-- checks",
-		"share/tarantool/rocks/checks/3.1.0-1/rock_manifest": rockManifest(
-			`lua = { ["checks.lua"] = "d1" }`),
-
+		treetest.Rock{Name: "inspect", Version: "3.1.3-1", Files: map[string]string{
+			"lua/inspect/init.lua": "-- inspect",
+		}},
+		treetest.Rock{Name: "checks", Version: "3.1.0-1", Files: map[string]string{
+			"lua/checks.lua": "-- checks",
+		}},
 		// Dev closure.
-		"share/tarantool/luatest.lua":        "-- luatest",
-		"share/tarantool/luatest/runner.lua": "-- runner",
-		"lib/tarantool/luatest/helper.so":    "ELF",
-		"bin/luatest":                        "#!/usr/bin/env tarantool",
-		"share/tarantool/luacov/init.lua":    "-- luacov",
-		"share/tarantool/rocks/luacov/0.15.0-1/rock_manifest": rockManifest(
-			`lua = { ["luacov/init.lua"] = "d3" }`),
-		"share/tarantool/rocks/luatest/1.0.1-1/rock_manifest": rockManifest(
-			`lua = { ["luatest.lua"] = "d4", ["luatest/runner.lua"] = "d5" },` + "\n" +
-				`lib = { ["luatest/helper.so"] = "d6" },` + "\n" +
-				`bin = { ["luatest"] = "d7" }`),
-	})
+		treetest.Rock{Name: "luatest", Version: "1.0.1-1", Files: map[string]string{
+			"lua/luatest.lua":        "-- luatest",
+			"lua/luatest/runner.lua": "-- runner",
+			"lib/luatest/helper.so":  "ELF",
+			"bin/luatest":            "#!/usr/bin/env tarantool\n",
+		}},
+		treetest.Rock{Name: "luacov", Version: "0.15.0-1", Files: map[string]string{
+			"lua/luacov/init.lua": "-- luacov",
+		}})
 
 	return tree
-}
-
-// rockManifest wraps a rock_manifest body in the assignments-mode envelope
-// LuaRocks writes on disk.
-func rockManifest(body string) string {
-	return "rock_manifest = {\n" + body + "\n}\n"
 }
 
 // packArchive stages a tree and writes the archive, returning its entry names.
@@ -173,11 +165,9 @@ func TestPackWithoutDevDependenciesIsUnchanged(t *testing.T) {
 	assert.Contains(t, names, ".rocks/bin/luatest")
 }
 
-// TestPackWithoutDepsAlsoDropsDevRocks pins that the two filters compose. A
-// dev-only rock would not normally survive --without-deps anyway, since only
-// the package's own namespaces are copied - so the case that matters is a dev
-// rock sharing a name with one of them, where the namespace filter alone lets
-// it through.
+// TestPackWithoutDepsAlsoDropsDevRocks pins that a dev rock installing into
+// the package's own namespace directory is not taken for the package's: the
+// package's rock is what --without-deps packs, not a directory.
 func TestPackWithoutDepsAlsoDropsDevRocks(t *testing.T) {
 	t.Parallel()
 
@@ -185,11 +175,8 @@ func TestPackWithoutDepsAlsoDropsDevRocks(t *testing.T) {
 	tree := devRocksTree(t, projectDir)
 
 	// A dev-only rock installing into the package's own namespace directory.
-	writeTree(t, tree, map[string]string{
-		"share/tarantool/my-app/devtool.lua": "-- devtool",
-		"share/tarantool/rocks/devtool/1.0.0-1/rock_manifest": rockManifest(
-			`lua = { ["my-app/devtool.lua"] = "d8" }`),
-	})
+	treetest.Install(t, tree, treetest.Rock{Name: "devtool", Version: "1.0.0-1",
+		Files: map[string]string{"lua/my-app/devtool.lua": "-- devtool"}})
 
 	lock := devTreeLock()
 
@@ -204,7 +191,7 @@ func TestPackWithoutDepsAlsoDropsDevRocks(t *testing.T) {
 	names := packArchive(t, req)
 
 	assert.Contains(t, names, ".rocks/share/tarantool/my-app/init.lua",
-		"--without-deps must still keep the package's own namespace")
+		"--without-deps must still keep the package's own rock")
 	assert.NotContains(t, names, ".rocks/share/tarantool/my-app/devtool.lua",
 		"a dev rock inside the package namespace must still be excluded")
 	assert.NotContains(t, names, ".rocks/share/tarantool/inspect/init.lua",
@@ -241,33 +228,6 @@ func TestDevOnlyRocksExcludesSharedNames(t *testing.T) {
 
 	assert.Nil(t, devOnlyRocks(nil))
 	assert.Nil(t, devOnlyRocks(&manifest.Lock{Products: lock.Products}))
-}
-
-// TestDevRockFilterFallsBackWithoutRockManifest pins the degraded path: a rock
-// whose rock_manifest is missing is excluded by the name-keyed directories
-// instead, the same ones cli/manifest/state.RockPaths uses.
-func TestDevRockFilterFallsBackWithoutRockManifest(t *testing.T) {
-	t.Parallel()
-
-	tree := t.TempDir()
-
-	skip := devRockFilter(tree, []manifest.LockDependency{
-		{Name: "luatest", Version: "1.0.1-1", Source: "registry"},
-	})
-	require.NotNil(t, skip)
-
-	assert.True(t, skip("share/tarantool/luatest"))
-	assert.True(t, skip("share/tarantool/luatest/runner.lua"))
-	assert.True(t, skip("lib/tarantool/luatest/helper.so"))
-	assert.True(t, skip("share/tarantool/rocks/luatest"))
-
-	// Under-excluding is the safe direction: without a rock_manifest the flat
-	// module and the console script are unknown and are kept.
-	assert.False(t, skip("share/tarantool/luatest.lua"))
-	assert.False(t, skip("bin/luatest"))
-	assert.False(t, skip("share/tarantool/inspect/init.lua"))
-
-	assert.Nil(t, devRockFilter(tree, nil))
 }
 
 // TestStageRocksMissingTreeWithDevOnly guards the interaction of the filter

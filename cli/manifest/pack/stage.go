@@ -9,7 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/tarantool/go-luarocks/manif"
+	luarocks "github.com/tarantool/go-luarocks"
+	"github.com/tarantool/go-luarocks/tree"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
 )
@@ -49,7 +50,7 @@ func stage(ctx context.Context, stageDir string, req stageRequest) error {
 		return err
 	}
 
-	return stageRocks(stageDir, req)
+	return stageRocks(ctx, stageDir, req)
 }
 
 // stageRequest carries everything stage needs to lay out the archive tree.
@@ -64,28 +65,16 @@ type stageRequest struct {
 	Version string
 	// Tree is the project's materialized .rocks/ directory.
 	Tree string
-	// WithDeps keeps foreign dependencies in .rocks/; false strips everything
-	// but the package's own namespace subtrees.
+	// WithDeps keeps foreign dependencies in .rocks/; false keeps the rock of
+	// the package alone.
 	WithDeps bool
-	// Namespaces lists the rocks-tree namespaces the package itself owns. In
-	// --without-deps mode only these survive under share/ and lib/.
-	Namespaces []string
-	// HasFlatNamespace records that some component declares namespace = "",
-	// which --without-deps cannot express (see stageRocks).
-	HasFlatNamespace bool
-	// Programs lists the file names in the tree's bin/ the executable
-	// components of the packed product built. They are the package's own
-	// and travel in both packing modes.
-	Programs []string
-	// OtherPrograms lists the file names in bin/ the build recorded for the
-	// executable components outside the packed product. They travel in
-	// neither mode.
-	OtherPrograms []string
-	// DevOnly lists the locked rocks that only the dev closure brings. Their
-	// files are dropped from .rocks/ in both packing modes: they are the
+	// DevOnly lists the locked rocks that only the dev closure brings. They
+	// are left out of .rocks/ in both packing modes: they are the
 	// developer's tools, and the spec is explicit that they never reach the
 	// archive. See devOnlyRocks.
 	DevOnly []manifest.LockDependency
+	// Warn receives non-fatal diagnostics; nil drops them.
+	Warn func(string)
 }
 
 // stageMetadata writes the three tt-owned metadata files.
@@ -168,20 +157,25 @@ func stageEntry(stageDir, projectDir, entry, field string) error {
 	return copyFile(src, dst)
 }
 
-// stageRocks copies the project's .rocks/ tree into the archive. In --with-deps
-// mode the tree is copied whole; in --without-deps mode only the package's own
-// namespace subtrees under share/tarantool/ and lib/tarantool/ survive, with
-// the programs its executable components built into bin/, which is what
-// leaves the dependency closure to be refetched from the lock at install time.
+// stageRocks grafts the rocks of the project's .rocks/ tree into the .rocks/
+// of the archive: each is staged from the files its rock_manifest lists, and
+// checked against it, and installed into the archive's tree as its binary
+// rock would be, which records it in the archive's tree manifest (tree.Graft).
+// The project tree's manifest is not copied, and neither is a file no rock
+// lists there: one is reported, as a file the archive leaves out.
 //
-// Dev-only rocks are dropped in both modes, and so are the programs of
-// executable components outside the packed product. The filters compose
-// rather than override: --without-deps decides which subtrees are copied at
-// all, the skip filter decides which files inside a copied subtree are
-// skipped, and the skip predicate is evaluated against the tree-relative path
-// either way, so a namespace that happens to share a dev rock's name is not a
-// hole in it.
-func stageRocks(stageDir string, req stageRequest) error {
+// In --with-deps mode every rock goes but those only the dev closure brings;
+// in --without-deps mode the rock of the package alone, which holds the
+// components, version.lua and the programs of the executable components the
+// build installed, and which leaves the dependency closure to be refetched
+// from the lock at install time.
+//
+// The archive's tree has no command wrappers: a command of a rock is its
+// script, as the rock packs it, and the install writes the wrapper the tree it
+// installs into needs. A wrapper names the tree's root and the interpreter by
+// their paths, which would be the build machine's, and would make the archive
+// depend on where it was staged.
+func stageRocks(ctx context.Context, stageDir string, req stageRequest) error {
 	_, err := os.Stat(req.Tree)
 	if os.IsNotExist(err) {
 		// A pure-metadata package need not have produced a tree.
@@ -189,185 +183,92 @@ func stageRocks(stageDir string, req stageRequest) error {
 	}
 
 	dstRocks := filepath.Join(stageDir, rocksDirName)
-	skip := skipPrograms(devRockFilter(req.Tree, req.DevOnly), req.OtherPrograms)
 
-	if req.WithDeps {
-		return copyTreeFiltered(req.Tree, dstRocks, "", skip)
-	}
-
-	err = stagePrograms(dstRocks, req)
+	archiveTree, err := tree.Open(luarocks.Config{Tree: dstRocks})
 	if err != nil {
-		return err
+		return fmt.Errorf("staging %s: %w", rocksDirName, err)
 	}
 
-	if req.HasFlatNamespace {
-		// A flat namespace (namespace = "") owns no subtree: its files sit
-		// directly among the tree roots, indistinguishable by path from a
-		// dependency's. Dropping them silently would lose the package's own code
-		// from an archive whose whole promise is to keep exactly that, so this is
-		// refused rather than quietly under-packing.
-		return stateErrorf(
-			"%w: a component with namespace = \"\" lays its files flat in the "+
-				"rocks tree, where they cannot be told apart from dependencies; "+
-				"pack it with the default --with-deps instead",
-			errFlatNamespace)
+	devOnly := make(map[string]bool, len(req.DevOnly))
+	for _, rock := range req.DevOnly {
+		devOnly[rock.Name] = true
 	}
 
-	for _, sub := range []string{shareTarantool, libTarantool} {
-		for _, namespace := range req.Namespaces {
-			if namespace == "" {
-				continue
-			}
+	pkg := req.Manifest.Package.Name
 
-			src := filepath.Join(req.Tree, filepath.FromSlash(sub), namespace)
-
-			_, err = os.Stat(src)
-			if os.IsNotExist(err) {
-				continue
-			}
-
-			dst := filepath.Join(dstRocks, filepath.FromSlash(sub), namespace)
-
-			copyErr := copyTreeFiltered(src, dst, sub+"/"+namespace, skip)
-			if copyErr != nil {
-				return copyErr
-			}
+	selectRock := func(ref tree.RockRef) bool {
+		if !req.WithDeps {
+			return ref.Name == pkg
 		}
+
+		return !devOnly[ref.Name]
 	}
+
+	var report *tree.GraftReport
+
+	err = archiveTree.Update(ctx, func(change *tree.Tx) error {
+		var err error
+
+		report, err = change.Graft(req.Tree, tree.GraftOpts{
+			Select: selectRock, Replace: false, RemoveOtherVersions: false,
+		})
+
+		return err //nolint:wrapcheck // Wrapped with the Update's error below.
+	})
+	if err != nil {
+		return stateErrorf("staging the rocks of %s: %w", req.Tree, err)
+	}
+
+	// The lock the Update took is the archive's no more than the project's
+	// manifest is.
+	err = os.Remove(filepath.Join(dstRocks, filepath.FromSlash(rocksInstallDir), treeLockFile))
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("staging %s: %w", rocksDirName, err)
+	}
+
+	warnUntracked(req, report.Untracked)
 
 	return nil
 }
 
-// stagePrograms copies the package's own programs from the tree's bin/ into
-// the staged tree of a --without-deps archive. The build has just made each
-// of them, so one that is gone is an error rather than a program the archive
-// silently lacks.
-func stagePrograms(dstRocks string, req stageRequest) error {
-	for _, program := range req.Programs {
-		src := filepath.Join(req.Tree, binDir, program)
+// warnUntracked reports the files of the project's tree no rock lists, which
+// the archive leaves out: laid there by hand or by another tool, or left by
+// an older tt.
+func warnUntracked(req stageRequest, untracked []string) {
+	if req.Warn == nil || len(untracked) == 0 {
+		return
+	}
 
-		_, err := os.Stat(src)
+	const shown = 5
+
+	names := make([]string, 0, min(len(untracked), shown))
+
+	for _, path := range untracked[:min(len(untracked), shown)] {
+		rel, err := filepath.Rel(req.Tree, path)
 		if err != nil {
-			return stateErrorf("program %s of an executable component: %w", src, err)
+			rel = path
 		}
 
-		err = copyFile(src, filepath.Join(dstRocks, binDir, program))
-		if err != nil {
-			return err
-		}
+		names = append(names, filepath.ToSlash(rel))
 	}
 
-	return nil
+	more := ""
+	if len(untracked) > shown {
+		more = fmt.Sprintf(" and %d more", len(untracked)-shown)
+	}
+
+	req.Warn(fmt.Sprintf("%d files of %s belong to no rock and are left out of the archive: %s%s",
+		len(untracked), req.Tree, strings.Join(names, ", "), more))
 }
 
-// skipPrograms extends the skip predicate skip of stageRocks to the programs
-// in bin/ named by programs.
-func skipPrograms(skip func(string) bool, programs []string) func(string) bool {
-	if len(programs) == 0 {
-		return skip
-	}
-
-	excluded := make(map[string]bool, len(programs))
-	for _, program := range programs {
-		excluded[binDir+"/"+program] = true
-	}
-
-	return func(rel string) bool {
-		return excluded[rel] || (skip != nil && skip(rel))
-	}
-}
-
-// Rocks-tree layout roots, mirroring cli/manifest/build.
+// Rocks-tree layout names, mirroring cli/manifest/build and go-luarocks.
 const (
-	shareTarantool = "share/tarantool"
-	libTarantool   = "lib/tarantool"
 	// rocksInstallDir is where LuaRocks keeps per-rock metadata:
 	// <tree>/share/tarantool/rocks/<name>/<version>/.
-	rocksInstallDir = shareTarantool + "/rocks"
-	// binDir holds the console scripts a rock installs. luatest - the canonical
-	// dev dependency - ships one, which is why the filter has to reach here and
-	// not only into the two module trees.
-	binDir = "bin"
-	// rockManifestFile enumerates, per rock, every file it deployed.
-	rockManifestFile = "rock_manifest"
+	rocksInstallDir = "share/tarantool/rocks"
+	// treeLockFile is the lock of a tree, in its rocks dir.
+	treeLockFile = ".lock"
 )
-
-// devRockFilter builds the predicate stageRocks skips paths by: it reports
-// whether a tree-relative slash path belongs to one of the dev-only rocks. A
-// nil DevOnly yields nil, which copyTreeFiltered reads as "copy everything".
-//
-// A rock's footprint is taken from its own rock_manifest, which lists every
-// file it deployed - the authoritative answer, and the only one that catches a
-// rock installing a bare share/tarantool/<name>.lua rather than a directory, or
-// a console script in bin/. Its per-rock metadata directory is excluded whole
-// and separately, since that is where the rock_manifest itself, the rockspec,
-// doc/ and conf/ live.
-//
-// A rock whose rock_manifest is missing or unreadable falls back to the
-// name-keyed directories cli/manifest/state.RockPaths uses. That under-excludes
-// a rock laying files outside them, which is the safe direction to be wrong in:
-// the archive keeps a file it did not need rather than losing one it did.
-func devRockFilter(tree string, devOnly []manifest.LockDependency) func(string) bool {
-	if len(devOnly) == 0 {
-		return nil
-	}
-
-	excluded := map[string]bool{}
-
-	for _, rock := range devOnly {
-		excluded[rocksInstallDir+"/"+rock.Name] = true
-
-		deployed, ok := deployedPaths(tree, rock)
-		if !ok {
-			excluded[shareTarantool+"/"+rock.Name] = true
-			excluded[libTarantool+"/"+rock.Name] = true
-
-			continue
-		}
-
-		for _, path := range deployed {
-			excluded[path] = true
-		}
-	}
-
-	return func(rel string) bool {
-		for path := range excluded {
-			if rel == path || strings.HasPrefix(rel, path+"/") {
-				return true
-			}
-		}
-
-		return false
-	}
-}
-
-// deployedPaths reads one rock's rock_manifest and returns the tree-relative
-// paths it deployed outside its own metadata directory. The second result is
-// false when the rock_manifest cannot be read, which is the caller's signal to
-// fall back to the name-keyed directories.
-func deployedPaths(tree string, rock manifest.LockDependency) ([]string, bool) {
-	specPath := filepath.Join(tree, filepath.FromSlash(rocksInstallDir),
-		rock.Name, rock.Version, rockManifestFile)
-
-	rockManifest, err := manif.FileStore{}.ReadRock(specPath)
-	if err != nil || rockManifest == nil {
-		return nil, false
-	}
-
-	var paths []string
-
-	for root, files := range map[string]map[string]string{
-		shareTarantool: rockManifest.Lua,
-		libTarantool:   rockManifest.Lib,
-		binDir:         rockManifest.Bin,
-	} {
-		for file := range files {
-			paths = append(paths, root+"/"+filepath.ToSlash(file))
-		}
-	}
-
-	return paths, true
-}
 
 // copyTree recursively copies src to dst, creating parents as needed. The
 // archive carries no link structure, so symlinks are dereferenced: a link to a

@@ -16,6 +16,7 @@ import (
 
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/manifest/build"
+	"github.com/tarantool/tt/v3/cli/manifest/internal/treetest"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
@@ -81,9 +82,9 @@ include = ['*.lua']
 
 // packSigned packs a project made of signedManifest and files with deps and
 // a runtime from a fake cache, signed by signer.
-func packSigned(t *testing.T, signer integrity.Signer, files map[string]string) (
-	*Result, error,
-) {
+func packSigned(t *testing.T, signer integrity.Signer, files map[string]string,
+	installed ...treetest.Rock,
+) (*Result, error) {
 	t.Helper()
 
 	cache := fakeCache(t, map[string][]string{
@@ -103,6 +104,10 @@ func packSigned(t *testing.T, signer integrity.Signer, files map[string]string) 
 		".templates/default/instances.yaml": "worker: {script: scripts/run}\n",
 	})
 	writeTree(t, src, files)
+
+	if len(installed) > 0 {
+		treetest.Install(t, filepath.Join(src, rocksDirName), installed...)
+	}
 
 	return Run(context.Background(), Options{
 		ProjectDir: src,
@@ -278,10 +283,11 @@ func TestPackSignedExternalEnv(t *testing.T) {
 	signer, _ := testSigner(t)
 
 	_, err := packSigned(t, signer, map[string]string{
-		".rocks/bin/gw": "#!/bin/sh\n",
 		".templates/default/instances.yaml": "worker: {script: scripts/run}\n" +
 			"gw: {binary: gw, env: {GW_PORT: '8080'}}\n",
-	})
+	}, treetest.Rock{Name: "gateway", Version: "1.0.0", Files: map[string]string{
+		"bin/gw": "#!/bin/sh\n",
+	}})
 	require.NoError(t, err)
 }
 

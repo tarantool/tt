@@ -87,6 +87,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   lists. A file of the package a dependency also installs fails the build,
   where it was overwritten. An incremental build is skipped while what it
   wrote is in `_build/rock/`, whether or not `.rocks/` was cleared.
+- `tt package pack` grafts the rocks of `.rocks/` into the archive, each
+  checked against its `rock_manifest`, under a manifest of the archive's own;
+  a file of `.rocks/` no rock owns is left out, with a warning, and a command
+  is packed as its script rather than as a wrapper. `--without-deps` packs a
+  component of `namespace = ""`, which it refused.
 
 ### Fixed
 

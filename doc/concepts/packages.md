@@ -197,7 +197,9 @@ its path. The archive is reproducible: packing the same commit twice gives
 the same bytes. It holds:
 
 - the manifest, the lock and `VERSION`;
-- `.rocks/`: the components and the dependencies, dev dependencies excepted;
+- `.rocks/`: the rock of the package and those of the dependencies, dev
+  dependencies excepted, with the manifest of the tree; a file of `.rocks/`
+  no rock owns is left out, with a warning;
 - `.templates/`: the instance templates of the project, each checked;
 - `_runtime/`: the Tarantool and the tt the package runs on, and TCM when
   `[platform].tcm` asks for it;
@@ -211,7 +213,8 @@ The runtimes come from `~/.cache/tt/runtimes/<tarantool|tt|tcm>/<ce|ee>/<version
 when a build there matches `[platform]`, and otherwise from the active
 `tarantool` and `tt`, with a warning. `--without-deps` packs the package
 alone: no `_runtime/` and no dependencies, which `tt package install`
-fetches by the lock. Such an archive is named `...-any.tt` when it holds no
+fetches by the lock; `.rocks/` holds the rock of the package only, a
+component of `namespace = ""` included. Such an archive is named `...-any.tt` when it holds no
 native file.
 
 ## Installing
