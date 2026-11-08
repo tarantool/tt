@@ -48,6 +48,12 @@ type ConfigOptions struct {
 // BuildConfig maps the tt environment to a luarocks.Config. Servers default to
 // DefaultServers(); rocks.tarantool.org is marked insecure whenever it is in
 // the list (upstream luarocks distrusts its certificate).
+//
+// The native backend runs every build tool in a process group of its own and
+// kills the group when the build's context is cancelled (IsolateBuilds), so
+// the compilers a make started do not run on after tt: the commands that
+// build cancel their context on SIGINT and SIGTERM, which no longer reach the
+// tools from the terminal.
 func BuildConfig(info TarantoolInfo, opts ConfigOptions) luarocks.Config {
 	servers := opts.Servers
 	if servers == nil {
@@ -60,6 +66,7 @@ func BuildConfig(info TarantoolInfo, opts ConfigOptions) luarocks.Config {
 		Servers:         servers,
 		InsecureServers: insecureHosts(servers),
 		Logger:          opts.Logger,
+		IsolateBuilds:   true,
 		Rockspec:        luarocks.RockspecConfig{},
 		Tarantool: luarocks.TarantoolConfig{
 			Executable: info.Executable,
