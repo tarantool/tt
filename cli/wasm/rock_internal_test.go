@@ -5,12 +5,14 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	luarocks "github.com/tarantool/go-luarocks"
+	"github.com/tarantool/go-luarocks/client"
 	"github.com/tarantool/go-luarocks/remote"
 	"github.com/tarantool/go-luarocks/rockspec"
 )
@@ -43,16 +45,37 @@ func TestBuildRockLayout(t *testing.T) {
 
 	t.Cleanup(func() { _ = reader.Close() })
 
-	modes := map[string]os.FileMode{}
+	names := make([]string, 0, len(reader.File))
 	for _, file := range reader.File {
-		modes[file.Name] = file.Mode().Perm()
+		names = append(names, file.Name)
 	}
 
-	assert.Equal(t, map[string]os.FileMode{
-		"wasm-0.1.0-1.rockspec": filePerm,
-		"rock_manifest":         filePerm,
-		"lib/wasm.so":           modulePerm,
-	}, modes)
+	assert.ElementsMatch(t, []string{
+		"wasm-0.1.0-1.rockspec", "rock_manifest", "lib/wasm.so",
+	}, names)
+
+	// The rock installs from the registry: the native backend deploys the
+	// module where tarantool loads it from. A server offers a host the rocks
+	// of its arch only.
+	if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" {
+		return
+	}
+
+	require.NoError(t, IndexRegistry(t.Context(), dir))
+
+	tree := t.TempDir()
+	rocks, err := client.New(luarocks.Config{
+		Tree: tree, WorkingDir: t.TempDir(), Servers: []string{dir},
+		Tarantool: luarocks.TarantoolConfig{Version: "3.3.0"},
+	})
+	require.NoError(t, err)
+	require.NoError(t, rocks.Install(t.Context(), RockName, client.InstallOpts{
+		Version: "0.1.0-1", Servers: nil, Deps: client.DepsNone,
+	}))
+
+	module, err := os.ReadFile(filepath.Join(tree, "lib", "tarantool", "wasm.so"))
+	require.NoError(t, err)
+	assert.Equal(t, "\x7fELF module", string(module))
 }
 
 func TestBuildRockIsReproducible(t *testing.T) {
@@ -118,7 +141,7 @@ func TestIndexedRegistryServesHostRock(t *testing.T) {
 	}
 
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "README"), []byte("not a rock"), filePerm))
-	require.NoError(t, IndexRegistry(dir))
+	require.NoError(t, IndexRegistry(t.Context(), dir))
 
 	index := remote.NewIndex(dir, remote.IndexOptions{
 		InsecureServers: nil,

@@ -215,8 +215,14 @@ def test_rocks_of_a_release_serve_every_machine(tt_cmd, tmp_path, project, env):
     packed = tt(tt_cmd, tmp_path, "wasm", "rock", "--out", str(rocks), env=env)
 
     assert packed.returncode == 0, packed.stderr
+    # The manifests luarocks-admin make_manifest writes, one per Lua version
+    # and one for all.
     assert sorted(path.name for path in rocks.iterdir()) == [
         "manifest",
+        "manifest-5.1",
+        "manifest-5.2",
+        "manifest-5.3",
+        "manifest-5.4",
         "wasm-0.1.0-1.linux-aarch64.rock",
         "wasm-0.1.0-1.linux-x86_64.rock",
         "wasm-0.1.0-1.macosx-aarch64.rock",
