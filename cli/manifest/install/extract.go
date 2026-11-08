@@ -6,17 +6,10 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
 
-// Path-segment counts for a rock's location under the .rocks/ tree:
-// share|lib / tarantool / <dep> is three deep, and the rock-manifest path
-// share/tarantool/rocks/<dep> is four.
-const (
-	rockPathDepth     = 3
-	rockManifestDepth = 4
-)
-
 // extractMapper builds the per-entry mapper Extract uses for one install into
-// the project scope. It decides, for each archive entry, where it lands under
-// the install-root and whether it is written at all:
+// the project scope, for what is not a rock. It decides, for each archive
+// entry, where it lands under the install-root and whether it is written at
+// all:
 //
 //   - the tt-owned root metadata (manifest, lock, VERSION) and payload files
 //     are never laid into the tree — a guest's manifest must not overwrite the
@@ -26,20 +19,16 @@ const (
 //   - .templates/ is written as is, the install-root being the application
 //     directory; checkTemplates has already refused an install that would lay
 //     it over an existing one;
-//   - a dependency whose reconciled version stays what is already installed is
-//     skipped (skipNames).
-func extractMapper(skipNames map[string]struct{}) func(string) (string, bool) {
+//   - .rocks/ is grafted into the project's tree rock by rock (graftArchive),
+//     not extracted over it.
+func extractMapper() func(string) (string, bool) {
 	return func(name string) (string, bool) {
-		top, rest, _ := strings.Cut(name, "/")
-
-		switch top {
-		case templatesDirName:
+		top, _, _ := strings.Cut(name, "/")
+		if top == templatesDirName {
 			return name, true
-		case state.RocksDirName:
-			return mapRocksEntry(rest, skipNames)
-		default:
-			return "", false
 		}
+
+		return "", false
 	}
 }
 
@@ -73,51 +62,4 @@ func versionMapper() func(string) (string, bool) {
 			return name, true
 		}
 	}
-}
-
-// mapRocksEntry maps one entry under the archive's .rocks/ tree into the
-// project's. rest is the path with the .rocks/ prefix already stripped.
-func mapRocksEntry(rest string, skipNames map[string]struct{}) (string, bool) {
-	if rest == "" {
-		return "", false
-	}
-
-	// tt's own install state never travels inside an archive; ignore it if it
-	// somehow appears.
-	if top, _, _ := strings.Cut(rest, "/"); top == state.ManifestsDirName {
-		return "", false
-	}
-
-	if dep, ok := rocksDepName(rest); ok {
-		if _, skip := skipNames[dep]; skip {
-			return "", false
-		}
-	}
-
-	return state.RocksDirName + "/" + rest, true
-}
-
-// rocksDepName extracts the rock name owning a path under the .rocks/ tree:
-// share/tarantool/<dep>/…, lib/tarantool/<dep>/…, or the rock-manifest path
-// share/tarantool/rocks/<dep>/<version>/…. It returns false for anything that
-// is not inside a named rock's subtree.
-func rocksDepName(rest string) (string, bool) {
-	parts := strings.Split(rest, "/")
-	if len(parts) < rockPathDepth {
-		return "", false
-	}
-
-	if parts[1] != "tarantool" || (parts[0] != "share" && parts[0] != "lib") {
-		return "", false
-	}
-
-	if parts[2] == "rocks" {
-		if len(parts) < rockManifestDepth {
-			return "", false
-		}
-
-		return parts[3], true
-	}
-
-	return parts[2], true
 }

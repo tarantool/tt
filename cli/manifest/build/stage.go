@@ -3,7 +3,6 @@ package build
 import (
 	"context"
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 
@@ -43,7 +42,7 @@ func packageStage(projectDir, productName string) string {
 // pins. A file of the package another rock holds the plain path of is an
 // error (exit code 1): require would load that rock's.
 func installPackageRock(
-	ctx context.Context, cfg luarocks.Config, man *manifest.Manifest, product manifest.Product,
+	ctx context.Context, cfg luarocks.Config, man *manifest.Manifest, productName string,
 	prod manifest.LockProduct, ver version.Version, stage string,
 ) error {
 	name := man.Package.Name
@@ -60,7 +59,7 @@ func installPackageRock(
 		Name:         name,
 		Version:      ver.SemVer,
 		Summary:      man.Package.Description,
-		Dependencies: packageDependencies(man, product, prod),
+		Dependencies: rocktree.PackageDependencies(man, productName, prod),
 	})
 	if err != nil {
 		return sdk.Errorf(sdk.ExitFailure, "%w", err)
@@ -85,30 +84,4 @@ func installPackageRock(
 	}
 
 	return nil
-}
-
-// packageDependencies maps the dependencies the manifest declares, globally
-// and in the components of product, to the versions the lock product prod
-// pins; a declaration the product does not pin is not its.
-func packageDependencies(
-	man *manifest.Manifest, product manifest.Product, prod manifest.LockProduct,
-) map[string]string {
-	declared := maps.Clone(man.Dependencies)
-	if declared == nil {
-		declared = map[string]manifest.Dependency{}
-	}
-
-	for _, name := range product.Components {
-		maps.Copy(declared, man.Components[name].Dependencies)
-	}
-
-	pinned := map[string]string{}
-
-	for _, dep := range prod.Dependencies {
-		if _, ok := declared[dep.Name]; ok {
-			pinned[dep.Name] = dep.Version
-		}
-	}
-
-	return pinned
 }

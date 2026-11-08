@@ -223,15 +223,18 @@ native file.
 [scopes](projects-and-scopes.md#scopes):
 
 - **A project** (the default): the package becomes a guest of the project.
-  Its rocks join the project's `.rocks/`; when two packages lock a
-  dependency at different versions, the install takes one version both
-  accept or fails, explaining why. A project that has no Tarantool of its own
-  gets the bundled one.
+  Its rocks join the project's `.rocks/` and its manifest, each checked
+  against what it says it holds, with command wrappers for the project; when
+  two packages lock a dependency at different versions, the install takes
+  one version both accept or fails, explaining why. A project that has no
+  Tarantool of its own gets the bundled one.
 - **The user or the system scope**: the archive becomes a version of an
   application, `<root>/versions/<name>/<name>_<version>/`, and
   `<root>/apps/<name>` points to it. Its runtime goes into
   `<root>/versions/`, shared like a binary `tt binary` installs, and the
-  application runs on it whatever `<root>/bin/` selects. Versions live side
+  application runs on it whatever `<root>/bin/` selects; so do the command
+  wrappers of its rocks, written for the version where it is, but those of a
+  signed version, which is installed as it was signed. Versions live side
   by side; `--upgrade` installs only a newer one, and `--force` reinstalls
   one that is there, which is refused while an instance of the application
   runs.

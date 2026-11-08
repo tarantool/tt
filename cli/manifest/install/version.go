@@ -100,12 +100,13 @@ func installVersion(
 
 	// The runtime is shared, so it goes first and stays even if the version
 	// then fails to install: it is an installation like any tt binary makes.
-	_, err = placeRuntimes(opts, archive, header, root)
+	runtimes, err := placeRuntimes(opts, archive, header, root)
 	if err != nil {
 		return nil, err
 	}
 
-	err = placeVersion(ctx, opts, archive, header, root, replace)
+	err = placeVersion(ctx, opts, archive, header, root, replace,
+		versionExecutable(opts, root, runtimes))
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +171,9 @@ func checkVersionCollision(
 
 // placeVersion writes the version directory: the archive is extracted into a
 // staging directory next to it, renamed into place complete, and then any
-// dependency the archive does not carry is fetched from the registry into it.
+// dependency the archive does not carry is fetched from the registry into it,
+// and the command wrappers of its rocks are written for where it is and the
+// tarantool executable it runs on (rewrapVersion).
 //
 // The rename is what makes an interrupted install harmless: until it happens
 // there is no <app>_<ver> directory, so no half-written version is ever seen
@@ -180,7 +183,7 @@ func checkVersionCollision(
 // back.
 func placeVersion(
 	ctx context.Context, opts Options, archive *Archive, header *Header,
-	root string, replace bool,
+	root string, replace bool, executable string,
 ) error {
 	appDir := state.AppDir(root, header.Manifest.Package.Name)
 
@@ -189,7 +192,7 @@ func placeVersion(
 		return err
 	}
 
-	err = swapVersion(ctx, opts, archive, header, root, replace)
+	err = swapVersion(ctx, opts, archive, header, root, replace, executable)
 	if err != nil {
 		// A first install that fails leaves no empty versions/<app>/ behind;
 		// Remove fails, harmlessly, while anything else is in it.
@@ -204,7 +207,7 @@ func placeVersion(
 // swapVersion does the work of placeVersion once versions/<app>/ exists.
 func swapVersion(
 	ctx context.Context, opts Options, archive *Archive, header *Header,
-	root string, replace bool,
+	root string, replace bool, executable string,
 ) error {
 	name := header.Manifest.Package.Name
 	appDir := state.AppDir(root, name)
@@ -271,6 +274,20 @@ func swapVersion(
 	}
 
 	err = refetch(ctx, opts, state.ProjectLayout(final), plan)
+	if err != nil {
+		return errors.Join(err, removeAll(final), putBack(replaced, final))
+	}
+
+	// A signed version is installed as it was signed: Tarantool Enterprise
+	// checks its files when it starts.
+	if opts.Integrity == nil {
+		err = rewrapVersion(ctx, opts, state.ProjectLayout(final), executable)
+		if err != nil {
+			return errors.Join(err, removeAll(final), putBack(replaced, final))
+		}
+	}
+
+	err = alignDirModes(state.ProjectLayout(final).Tree, appDir)
 	if err != nil {
 		return errors.Join(err, removeAll(final), putBack(replaced, final))
 	}

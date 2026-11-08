@@ -1,11 +1,9 @@
 package install
 
 import (
-	"context"
 	"errors"
 	"fmt"
 
-	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/go-luarocks/tree"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
@@ -232,39 +230,11 @@ func joinConstraints(parts []string) string {
 	return out
 }
 
-// removeStaleVersions removes from the tree every dependency version the plan
-// is replacing, so a reconciled upgrade does not leave two versions of a rock
-// side by side. Each goes in one transaction of the tree, which drops it from
-// the tree manifest as it deletes its files; a version the manifest no longer
-// lists is gone already.
-func removeStaleVersions(ctx context.Context, lay state.Layout, plan installPlan) error {
-	stale := false
-
-	for _, decision := range plan.decisions {
-		stale = stale || decision.removeVersion != ""
-	}
-
-	if !stale {
-		return nil
-	}
-
-	rocksTree, err := tree.Open(luarocks.Config{Tree: lay.Tree})
-	if err != nil {
-		return fmt.Errorf("opening the rocks tree %s: %w", lay.Tree, err)
-	}
-
-	err = rocksTree.Update(ctx, func(change *tree.Tx) error {
-		return removeStale(change, lay, plan)
-	})
-	if err != nil {
-		return fmt.Errorf("updating the rocks tree %s: %w", lay.Tree, err)
-	}
-
-	return nil
-}
-
-// removeStale is removeStaleVersions in the transaction tx. A version the tree
-// manifest does not list is what a tt that extracted the rocks of an archive
+// removeStale removes from the tree, in the transaction change, every
+// dependency version the plan is replacing, so a reconciled upgrade does not
+// leave two versions of a rock side by side; the transaction drops each from
+// the tree manifest as it deletes its files. A version the tree manifest does
+// not list is what a tt that extracted the rocks of an archive
 // without recording them left; its files are removed as that tt removed them.
 func removeStale(change *tree.Tx, lay state.Layout, plan installPlan) error {
 	for _, decision := range plan.decisions {
