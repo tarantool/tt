@@ -7,8 +7,10 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -147,12 +149,15 @@ func newPackageAddCmd() *cobra.Command {
 
 // runPackageAdd declares one dependency and reports what moved.
 func runPackageAdd(name, constraint string) error {
+	ctx, stop := packageContext()
+	defer stop()
+
 	opts, err := dependencyOptions()
 	if err != nil {
 		return err
 	}
 
-	result, err := deps.Add(context.Background(), opts, name, constraint, packageDev)
+	result, err := deps.Add(ctx, opts, name, constraint, packageDev)
 	if err != nil {
 		return err
 	}
@@ -205,12 +210,15 @@ func newPackageRemoveCmd() *cobra.Command {
 
 // runPackageRemove drops one dependency and reports what left the closure.
 func runPackageRemove(name string) error {
+	ctx, stop := packageContext()
+	defer stop()
+
 	opts, err := dependencyOptions()
 	if err != nil {
 		return err
 	}
 
-	result, err := deps.Remove(context.Background(), opts, name)
+	result, err := deps.Remove(ctx, opts, name)
 	if err != nil {
 		return err
 	}
@@ -252,12 +260,15 @@ func newPackageUpdateCmd() *cobra.Command {
 
 // runPackageUpdate re-resolves the lock and reports what moved.
 func runPackageUpdate(name string) error {
+	ctx, stop := packageContext()
+	defer stop()
+
 	opts, err := dependencyOptions()
 	if err != nil {
 		return err
 	}
 
-	result, err := deps.Update(context.Background(), opts, name)
+	result, err := deps.Update(ctx, opts, name)
 	if err != nil {
 		return err
 	}
@@ -297,12 +308,15 @@ func newPackageResolveCmd() *cobra.Command {
 
 // runPackageResolve rewrites the lock and reports what moved.
 func runPackageResolve() error {
+	ctx, stop := packageContext()
+	defer stop()
+
 	opts, err := dependencyOptions()
 	if err != nil {
 		return err
 	}
 
-	result, err := deps.Resolve(context.Background(), opts)
+	result, err := deps.Resolve(ctx, opts)
 	if err != nil {
 		return err
 	}
@@ -463,12 +477,15 @@ func newPackageListCmd() *cobra.Command {
 // runPackageList reads the inventory and renders it to stdout in the chosen
 // format.
 func runPackageList(format *output.FormatFlag) error {
+	ctx, stop := packageContext()
+	defer stop()
+
 	projectDir, err := absoluteWorkingDir()
 	if err != nil {
 		return err
 	}
 
-	listing, err := inventory.List(context.Background(), inventory.ListOptions{
+	listing, err := inventory.List(ctx, inventory.ListOptions{
 		ProjectDir: projectDir,
 		Scope:      state.Scope(packageScope),
 		Rocks:      packageTree,
@@ -515,12 +532,15 @@ func newPackageUninstallCmd() *cobra.Command {
 
 // runPackageUninstall removes one package and reports what went with it.
 func runPackageUninstall(name string) error {
+	ctx, stop := packageContext()
+	defer stop()
+
 	projectDir, err := absoluteWorkingDir()
 	if err != nil {
 		return err
 	}
 
-	result, err := inventory.Uninstall(context.Background(), inventory.UninstallOptions{
+	result, err := inventory.Uninstall(ctx, inventory.UninstallOptions{
 		ProjectDir: projectDir,
 		Scope:      state.Scope(packageScope),
 		Package:    name,
@@ -626,6 +646,9 @@ func newPackageInstallCmd() *cobra.Command {
 // install needs none, so a missing tarantool is only fatal when a dependency
 // must actually be refetched.
 func runPackageInstall(archives []string) error {
+	ctx, stop := packageContext()
+	defer stop()
+
 	projectDir, err := absoluteWorkingDir()
 	if err != nil {
 		return err
@@ -647,7 +670,7 @@ func runPackageInstall(archives []string) error {
 		return err
 	}
 
-	result, err := install.Run(context.Background(), install.Options{
+	result, err := install.Run(ctx, install.Options{
 		ProjectDir: projectDir,
 		Scope:      install.Scope(packageScope),
 		Archives:   archives,
@@ -778,6 +801,9 @@ func newPackagePackCmd() *cobra.Command {
 // runPackagePack assembles pack.Options from the environment, packs, and prints
 // the resulting archive path to stdout so it can be piped.
 func runPackagePack() error {
+	ctx, stop := packageContext()
+	defer stop()
+
 	projectDir, err := absoluteWorkingDir()
 	if err != nil {
 		return err
@@ -799,8 +825,6 @@ func runPackagePack() error {
 	}
 
 	warnWasmSDK(projectDir)
-
-	ctx := context.Background()
 
 	result, err := pack.Run(ctx, pack.Options{
 		Signer:      signer,
@@ -894,6 +918,9 @@ func runtimeCacheDir() string {
 
 // runPackage assembles build.Options from the environment and drives the build.
 func runPackage(args []string, fetchOnly bool) error {
+	ctx, stop := packageContext()
+	defer stop()
+
 	projectDir, err := absoluteWorkingDir()
 	if err != nil {
 		return err
@@ -916,7 +943,7 @@ func runPackage(args []string, fetchOnly bool) error {
 
 	warnWasmSDK(projectDir)
 
-	return build.Run(context.Background(), build.Options{
+	return build.Run(ctx, build.Options{
 		ProjectDir: projectDir,
 		Product:    packageProduct,
 		Component:  component,
@@ -988,6 +1015,9 @@ func newPackageSearchCmd() *cobra.Command {
 
 // runPackageSearch queries the effective servers and renders the matches.
 func runPackageSearch(format *output.FormatFlag, term string) error {
+	ctx, stop := packageContext()
+	defer stop()
+
 	registries, err := effectiveRegistries()
 	if err != nil {
 		return err
@@ -1003,7 +1033,7 @@ func runPackageSearch(format *output.FormatFlag, term string) error {
 		return err
 	}
 
-	matches, err := registry.Search(context.Background(), registry.SearchOptions{
+	matches, err := registry.Search(ctx, registry.SearchOptions{
 		Term:       term,
 		Registries: registries,
 		Tarantool:  tntInfo,
@@ -1048,6 +1078,9 @@ func newPackageDownloadCmd() *cobra.Command {
 
 // runPackageDownload builds or extends a mirror and prints what it wrote.
 func runPackageDownload(args []string) error {
+	ctx, stop := packageContext()
+	defer stop()
+
 	refs := make([]registry.Ref, 0, len(args))
 
 	for _, arg := range args {
@@ -1082,7 +1115,7 @@ func runPackageDownload(args []string) error {
 		}
 	}
 
-	written, err := registry.Download(context.Background(), registry.DownloadOptions{
+	written, err := registry.Download(ctx, registry.DownloadOptions{
 		Refs:       refs,
 		Dir:        dir,
 		ProjectDir: workingDir,
@@ -1152,6 +1185,24 @@ func manifestRegistries(dir string) ([]string, error) {
 	}
 
 	return man.Platform.Registries, nil
+}
+
+// packageContext returns the context of a tt package command, cancelled when
+// tt gets SIGINT or SIGTERM. The build tools go-luarocks runs are in a process
+// group of their own (rocks.Config.IsolateBuilds), which the terminal's Ctrl-C
+// does not reach: cancelling the context is what kills them, the compilers a
+// make started included, rather than leaving them to run on and write into
+// the tree once tt is gone. After the first signal the default handling is
+// back, so a second one ends tt at once. stop releases the context.
+func packageContext() (context.Context, context.CancelFunc) {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-ctx.Done()
+		stop()
+	}()
+
+	return ctx, stop
 }
 
 // luarocksLogger is the logger handed to go-luarocks through the manifest

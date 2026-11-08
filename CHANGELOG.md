@@ -142,6 +142,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt package build` and `fetch` remove from `.rocks/` the versions of a rock
   other than the one the lock pins: after a lock moved a rock to an older
   version, `require` loaded the newer one.
+- Ctrl-C during `tt package build`, `fetch`, `pack` and `install` and
+  `tt test` stops the build tools of the rocks, the compilers a `make` started
+  included, which ran on after tt.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

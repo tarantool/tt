@@ -133,7 +133,10 @@ func runTest(subPath string, luatestArgs []string) error {
 		Warn:       func(msg string) { log.Warn(msg) },
 	}
 
-	ctx := context.Background()
+	// The build of tt test runs build tools as tt package build does, and
+	// they are killed as its are.
+	ctx, stop := packageContext()
+	defer stop()
 
 	err = build.Run(ctx, opts)
 	if err != nil {
@@ -151,6 +154,9 @@ func runTest(subPath string, luatestArgs []string) error {
 	}
 
 	argv := append([]string{script, testDir}, luatestArgs...)
+
+	// luatest gets the signals: tt is replaced by it.
+	stop()
 
 	return run.Exec(root, tarantool, argv)
 }
