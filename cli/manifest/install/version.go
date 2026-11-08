@@ -72,6 +72,7 @@ func installVersion(
 		return nil, stateErrorf("%w (from %s of %s)", err, versionFileName, archive.Path())
 	}
 
+	//nolint:contextcheck // The scope roots ask uname and take no context.
 	root, err := state.ScopeRoot(opts.Scope, opts.ProjectDir)
 	if err != nil {
 		return nil, stateErrorf("%w", err)
@@ -235,7 +236,7 @@ func swapVersion(
 	// The tree belongs to this version alone and starts empty, so the plan
 	// reconciles against nothing: it only says which rocks the archive
 	// carries and which the registry has to supply.
-	plan, err := planDeps(header, productName, nil, state.ProjectLayout(stage), header.WithDeps)
+	plan, err := planDeps(header, productName, nil, nil, header.WithDeps)
 	if err != nil {
 		return err
 	}

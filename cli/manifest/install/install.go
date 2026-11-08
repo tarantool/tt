@@ -294,7 +294,12 @@ func apply(
 		return err
 	}
 
-	plan, err := planDeps(header, productName, installed, lay, header.WithDeps)
+	view, err := state.InspectTree(ctx, lay)
+	if err != nil {
+		return stateErrorf("%w", err)
+	}
+
+	plan, err := planDeps(header, productName, installed, view, header.WithDeps)
 	if err != nil {
 		return err
 	}
@@ -304,11 +309,12 @@ func apply(
 		return err
 	}
 
-	err = removeStaleVersions(lay, plan)
+	err = removeStaleVersions(ctx, lay, plan)
 	if err != nil {
 		return err
 	}
 
+	//nolint:contextcheck // The scope roots ask uname and take no context.
 	root, err := state.ScopeRoot(ScopeProject, lay.Root)
 	if err != nil {
 		return stateErrorf("%w", err)

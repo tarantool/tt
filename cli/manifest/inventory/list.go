@@ -15,7 +15,10 @@
 package inventory
 
 import (
+	"context"
 	"sort"
+
+	"github.com/tarantool/go-luarocks/tree"
 
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
@@ -115,13 +118,14 @@ type Listing struct {
 // List reports the packages installed in the selected scope. A scope with
 // nothing installed is an empty listing, not an error: a project that has never
 // been installed into is a normal state, not a broken one.
-func List(opts ListOptions) (*Listing, error) {
+func List(ctx context.Context, opts ListOptions) (*Listing, error) {
 	scope, err := parseScope(opts.Scope)
 	if err != nil {
 		return nil, err
 	}
 
 	if scope != state.ScopeProject {
+		//nolint:contextcheck // The scope roots ask uname and take no context.
 		return listApps(scope, opts)
 	}
 
@@ -148,7 +152,15 @@ func List(opts ListOptions) (*Listing, error) {
 	}
 
 	if opts.Rocks {
-		listing.Rocks = rockIndex(lay, packages)
+		// A tree that cannot be read lists the rocks by the locks' pins alone,
+		// without the edges between them: the view is an enrichment of what
+		// the metadata says.
+		view, err := state.InspectTree(ctx, lay)
+		if err != nil {
+			view = nil
+		}
+
+		listing.Rocks = rockIndex(view, packages)
 	}
 
 	return listing, nil
@@ -161,10 +173,10 @@ func List(opts ListOptions) (*Listing, error) {
 // packages sharing a rock hold one copy between them, and a later install can
 // reconcile it to a version an earlier package's lock never named. What is on
 // disk is what an uninstall would remove, so that is what the view shows.
-func rockIndex(lay state.Layout, packages []state.Package) []RockEntry {
+func rockIndex(view *tree.View, packages []state.Package) []RockEntry {
 	owners := map[string][]string{}
 	pins := map[string]string{}
-	edges := state.DependencyEdges(lay)
+	edges := state.DependencyEdges(view)
 
 	for _, pkg := range packages {
 		for name, version := range state.LockedDependencies(pkg.Lock) {
@@ -182,7 +194,7 @@ func rockIndex(lay state.Layout, packages []state.Package) []RockEntry {
 		holders := owners[name]
 		sort.Strings(holders)
 
-		version, onDisk := state.InstalledVersion(lay, name)
+		version, onDisk := state.InstalledVersion(view, name)
 		if !onDisk {
 			version = pins[name]
 		}

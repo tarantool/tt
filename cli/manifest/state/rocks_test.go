@@ -1,15 +1,26 @@
 package state_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/go-luarocks/tree"
+
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
+
+// inspect reads the tree of lay.
+func inspect(t *testing.T, lay state.Layout) *tree.View {
+	t.Helper()
+
+	view, err := state.InspectTree(t.Context(), lay)
+	require.NoError(t, err)
+
+	return view
+}
 
 // TestInstalledVersion reads a rock's version back out of the tree, and reports
 // a miss for a rock that was never installed.
@@ -20,58 +31,66 @@ func TestInstalledVersion(t *testing.T) {
 
 	writeRock(t, lay, "metrics", "1.0.0")
 
-	version, ok := state.InstalledVersion(lay, "metrics")
+	version, ok := state.InstalledVersion(inspect(t, lay), "metrics")
 	require.True(t, ok)
-	assert.Equal(t, "1.0.0", version)
+	assert.Equal(t, "1.0.0-1", version)
 
-	_, ok = state.InstalledVersion(lay, "absent")
+	_, ok = state.InstalledVersion(inspect(t, lay), "absent")
 	assert.False(t, ok)
+
+	_, ok = state.InstalledVersion(nil, "metrics")
+	assert.False(t, ok, "a tree that could not be read holds nothing")
 }
 
-// TestInstalledVersionIgnoresStrayFiles pins that only a directory counts as a
-// version: a stray file under rocks/<name>/ must not be read as one.
+// TestInstalledVersionIgnoresStrayFiles pins that only a rock the tree
+// manifest lists counts as installed: a directory under rocks/<name>/ that no
+// install recorded must not be read as one.
 func TestInstalledVersionIgnoresStrayFiles(t *testing.T) {
 	t.Parallel()
 
 	lay := projectLayout(t)
 
 	writeFile(t, filepath.Join(lay.Share, "rocks", "metrics", "README"), []byte("junk\n"))
+	writeFile(t, filepath.Join(lay.Share, "rocks", "metrics", "1.0.0-1", "rock_manifest"),
+		[]byte("rock_manifest = {}\n"))
 
-	_, ok := state.InstalledVersion(lay, "metrics")
+	_, ok := state.InstalledVersion(inspect(t, lay), "metrics")
 	assert.False(t, ok)
 }
 
-// TestRockPathsCoverEveryTree pins that removing a rock's paths clears it from
-// share/, lib/ and the rock-manifest tree at once — the invariant uninstall's
-// dependency removal depends on.
-func TestRockPathsCoverEveryTree(t *testing.T) {
+// TestInstalledVersionPrefersTheNewest pins which version answers for a rock
+// the tree holds twice.
+func TestInstalledVersionPrefersTheNewest(t *testing.T) {
 	t.Parallel()
 
 	lay := projectLayout(t)
 
 	writeRock(t, lay, "metrics", "1.0.0")
+	writeRock(t, lay, "metrics", "2.0.0")
 
-	for _, path := range state.RockPaths(lay, "metrics", "1.0.0") {
-		require.NoError(t, os.RemoveAll(path))
-	}
-
-	assert.NoDirExists(t, filepath.Join(lay.Share, "metrics"))
-	assert.NoDirExists(t, filepath.Join(lay.Lib, "metrics"))
-	assert.NoDirExists(t, filepath.Join(lay.Share, "rocks", "metrics", "1.0.0"))
-
-	_, ok := state.InstalledVersion(lay, "metrics")
-	assert.False(t, ok)
+	version, ok := state.InstalledVersion(inspect(t, lay), "metrics")
+	require.True(t, ok)
+	assert.Equal(t, "2.0.0-1", version)
 }
 
-// TestRockRoot points at the per-rock manifest directory across versions.
-func TestRockRoot(t *testing.T) {
+// TestRemoveUntrackedCoversEveryTree pins that removing a rock the tree
+// manifest does not list clears it from share/, lib/ and the rocks dir at once,
+// and prunes the rock's directory there once it is empty.
+func TestRemoveUntrackedCoversEveryTree(t *testing.T) {
 	t.Parallel()
 
 	lay := projectLayout(t)
 
-	assert.Equal(t,
-		filepath.Join(lay.Share, "rocks", "metrics"),
-		state.RockRoot(lay, "metrics"))
+	writeFile(t, filepath.Join(lay.Share, "metrics", "init.lua"), []byte("-- metrics\n"))
+	writeFile(t, filepath.Join(lay.Lib, "metrics", "metrics.so"), []byte("binary\n"))
+	writeFile(t, filepath.Join(lay.Share, "rocks", "metrics", "1.0.0-1", "rock_manifest"),
+		[]byte("rock_manifest = {}\n"))
+
+	require.NoError(t, state.RemoveUntracked(lay, "metrics", "1.0.0-1"))
+
+	assert.NoDirExists(t, filepath.Join(lay.Share, "metrics"))
+	assert.NoDirExists(t, filepath.Join(lay.Lib, "metrics"))
+	assert.NoDirExists(t, state.RockRoot(lay, "metrics"))
 }
 
 // TestSameVersion covers the tolerance the reconciler and uninstall both need:
@@ -88,8 +107,7 @@ func TestSameVersion(t *testing.T) {
 }
 
 // writeTreeManifestFixture lays a LuaRocks tree manifest by hand, in the bare
-// assignment format LuaRocks actually writes — not a "return {...}" table, and
-// with every key bracket-quoted so a hyphenated rock name stays valid Lua.
+// assignment format LuaRocks actually writes.
 func writeTreeManifestFixture(t *testing.T, lay state.Layout, body string) {
 	t.Helper()
 
@@ -104,25 +122,11 @@ func TestDependencyEdges(t *testing.T) {
 
 	lay := projectLayout(t)
 
-	writeTreeManifestFixture(t, lay, `commands = {}
-modules = {}
-repository = {}
-dependencies = {
-   ["metrics"] = {
-      ["1.0.0"] = {
-         { name = "checks", constraints = {} },
-         { name = "luasocket", constraints = {} },
-      }
-   },
-   ["shared-lib"] = {
-      ["1.0.0"] = {
-         { name = "luasocket", constraints = {} },
-      }
-   },
-}
-`)
+	writeRock(t, lay, "metrics", "1.0.0", "luasocket", "checks >= 3.0")
+	writeRock(t, lay, "shared-lib", "1.0.0", "luasocket")
+	writeRock(t, lay, "checks", "3.1.0")
 
-	edges := state.DependencyEdges(lay)
+	edges := state.DependencyEdges(inspect(t, lay))
 
 	assert.Equal(t, []string{"checks", "luasocket"}, edges["metrics"],
 		"a rock's requirements are deduplicated and in name order")
@@ -137,19 +141,11 @@ func TestDependencyEdgesMergesVersions(t *testing.T) {
 
 	lay := projectLayout(t)
 
-	writeTreeManifestFixture(t, lay, `dependencies = {
-   ["metrics"] = {
-      ["1.0.0"] = {
-         { name = "checks", constraints = {} },
-      },
-      ["2.0.0"] = {
-         { name = "luasocket", constraints = {} },
-      }
-   },
-}
-`)
+	writeRock(t, lay, "metrics", "1.0.0", "checks")
+	writeRock(t, lay, "metrics", "2.0.0", "luasocket")
 
-	assert.Equal(t, []string{"checks", "luasocket"}, state.DependencyEdges(lay)["metrics"])
+	assert.Equal(t, []string{"checks", "luasocket"},
+		state.DependencyEdges(inspect(t, lay))["metrics"])
 }
 
 // TestDependencyEdgesDropsSelfReference pins the guard that keeps a graph walk
@@ -159,34 +155,24 @@ func TestDependencyEdgesDropsSelfReference(t *testing.T) {
 
 	lay := projectLayout(t)
 
-	writeTreeManifestFixture(t, lay, `dependencies = {
-   ["metrics"] = {
-      ["1.0.0"] = {
-         { name = "metrics", constraints = {} },
-         { name = "checks", constraints = {} },
-      }
-   },
-}
-`)
+	writeRock(t, lay, "metrics", "1.0.0", "metrics", "checks")
 
-	assert.Equal(t, []string{"checks"}, state.DependencyEdges(lay)["metrics"])
+	assert.Equal(t, []string{"checks"}, state.DependencyEdges(inspect(t, lay))["metrics"])
 }
 
 // TestDependencyEdgesAbsentTree pins the graceful path: the edges are an
-// enrichment, so a tree with no manifest — or an unparseable one — yields
-// nothing rather than failing the whole listing.
+// enrichment, so a tree with no manifest yields nothing, and one whose
+// manifest does not parse fails to be read rather than being half-read.
 func TestDependencyEdgesAbsentTree(t *testing.T) {
 	t.Parallel()
 
 	lay := projectLayout(t)
 
-	assert.Nil(t, state.DependencyEdges(lay), "no manifest at all")
+	assert.Empty(t, state.DependencyEdges(inspect(t, lay)), "no manifest at all")
+	assert.Nil(t, state.DependencyEdges(nil), "no tree read")
 
 	writeTreeManifestFixture(t, lay, "this is not a lua table")
-	assert.Nil(t, state.DependencyEdges(lay), "an unparseable manifest")
 
-	// A "return {...}" wrapper is not the format LuaRocks writes, and must not be
-	// silently half-read.
-	writeTreeManifestFixture(t, lay, "return { dependencies = {} }")
-	assert.Nil(t, state.DependencyEdges(lay))
+	_, err := state.InspectTree(t.Context(), lay)
+	require.ErrorIs(t, err, tree.ErrCorrupt)
 }

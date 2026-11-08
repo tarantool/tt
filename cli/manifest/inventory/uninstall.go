@@ -1,10 +1,14 @@
 package inventory
 
 import (
+	"context"
+	"errors"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
+
+	luarocks "github.com/tarantool/go-luarocks"
+	"github.com/tarantool/go-luarocks/tree"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
@@ -93,7 +97,7 @@ type UninstallResult struct {
 // In the user and system scopes there is no shared tree and no ledger: the
 // package is an application, and uninstall removes it with all its installed
 // versions (see uninstallApp).
-func Uninstall(opts UninstallOptions) (*UninstallResult, error) {
+func Uninstall(ctx context.Context, opts UninstallOptions) (*UninstallResult, error) {
 	scope, err := parseScope(opts.Scope)
 	if err != nil {
 		return nil, err
@@ -106,6 +110,7 @@ func Uninstall(opts UninstallOptions) (*UninstallResult, error) {
 	}
 
 	if scope != state.ScopeProject {
+		//nolint:contextcheck // The scope roots ask uname and take no context.
 		return uninstallApp(opts, scope)
 	}
 
@@ -126,7 +131,12 @@ func Uninstall(opts UninstallOptions) (*UninstallResult, error) {
 			ErrPrimaryPackage, target.Name, state.PrimaryManifestFile, lay.Root)
 	}
 
-	plan := planUninstall(lay, packages, target)
+	view, err := state.InspectTree(ctx, lay)
+	if err != nil {
+		return nil, stateErrorf("%w", err)
+	}
+
+	plan := planUninstall(view, packages, target)
 
 	// Removing a package another one locks is the user's call — the argument was
 	// explicit — but it leaves that package's dependency unsatisfied, so say so
@@ -141,7 +151,7 @@ func Uninstall(opts UninstallOptions) (*UninstallResult, error) {
 		return nil, err
 	}
 
-	err = apply(opts, lay, plan)
+	err = apply(ctx, opts, lay, plan)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +183,7 @@ type uninstallPlan struct {
 // planUninstall decides what the uninstall removes. It reads only; the decision
 // is fully made before apply touches the tree.
 func planUninstall(
-	lay state.Layout, packages []state.Package, target state.Package,
+	view *tree.View, packages []state.Package, target state.Package,
 ) uninstallPlan {
 	survivors := make([]state.Package, 0, len(packages))
 
@@ -184,9 +194,12 @@ func planUninstall(
 	}
 
 	plan := uninstallPlan{
+		// The package's own version is the one it recorded: its rock, if
+		// it is one, carries the LuaRocks form of it, and every version of
+		// the rock goes (removeFiles).
 		target: removal{
 			name:    target.Name,
-			version: onDiskVersion(lay, target.Name, target.Version),
+			version: packageVersion(view, target),
 		},
 		dead: nil,
 		kept: nil,
@@ -207,7 +220,7 @@ func planUninstall(
 		if len(holders) > 0 || installed {
 			plan.kept = append(plan.kept, KeptDependency{
 				Name:      dep,
-				Version:   onDiskVersion(lay, dep, brought[dep]),
+				Version:   onDiskVersion(view, dep, brought[dep]),
 				HeldBy:    holders,
 				Installed: installed,
 			})
@@ -216,7 +229,7 @@ func planUninstall(
 		}
 
 		plan.dead = append(plan.dead, removal{
-			name: dep, version: onDiskVersion(lay, dep, brought[dep]),
+			name: dep, version: onDiskVersion(view, dep, brought[dep]),
 		})
 	}
 
@@ -238,12 +251,22 @@ func pinnedBy(survivors []state.Package, dep string) []string {
 	return owners
 }
 
+// packageVersion is the version an uninstall reports for the package pkg: the
+// one it recorded, else the version of its rock in the tree.
+func packageVersion(view *tree.View, pkg state.Package) string {
+	if pkg.Version != "" {
+		return pkg.Version
+	}
+
+	return onDiskVersion(view, pkg.Name, "")
+}
+
 // onDiskVersion prefers the version actually present in the rocks tree over the
 // one the lock recorded. They normally agree; when they do not — a dependency
 // reconciled to another version by a later install — the tree is what has to be
 // removed.
-func onDiskVersion(lay state.Layout, name, recorded string) string {
-	if installed, ok := state.InstalledVersion(lay, name); ok {
+func onDiskVersion(view *tree.View, name, recorded string) string {
+	if installed, ok := state.InstalledVersion(view, name); ok {
 		return installed
 	}
 
@@ -278,19 +301,21 @@ func confirm(opts UninstallOptions, plan uninstallPlan) error {
 // apply realizes the plan: the package's files, then the dead dependencies'
 // files, then the metadata. Metadata goes last so an interrupted run can be
 // repeated — the package still reads as installed until its files are gone.
-func apply(opts UninstallOptions, lay state.Layout, plan uninstallPlan) error {
-	err := removeFiles(lay, plan.target)
+//
+// The rocks are removed in one transaction of the tree, which drops them from
+// the tree manifest as it deletes their files: a removed rock leaves no entry
+// behind for the next plan, or for tarantool's loaders, to trip over.
+func apply(ctx context.Context, opts UninstallOptions, lay state.Layout, plan uninstallPlan) error {
+	rocksTree, err := tree.Open(luarocks.Config{Tree: lay.Tree})
 	if err != nil {
-		return err
+		return stateErrorf("opening the rocks tree %s: %w", lay.Tree, err)
 	}
 
-	for _, dep := range plan.dead {
-		opts.warn(fmt.Sprintf("removing unused dependency %s %s", dep.name, dep.version))
-
-		err = removeFiles(lay, dep)
-		if err != nil {
-			return err
-		}
+	err = rocksTree.Update(ctx, func(change *tree.Tx) error {
+		return removeRocks(opts, change, lay, plan)
+	})
+	if err != nil {
+		return stateErrorf("updating the rocks tree %s: %w", lay.Tree, err)
 	}
 
 	err = state.RemoveMetadata(lay, plan.target.name)
@@ -301,23 +326,51 @@ func apply(opts UninstallOptions, lay state.Layout, plan uninstallPlan) error {
 	return nil
 }
 
-// removeFiles deletes one name's module trees and its rock-manifest directory.
-// The rock root is pruned too, so no empty husk under rocks/<name>/ is left to
-// make the rock look installed to the next plan.
-func removeFiles(lay state.Layout, target removal) error {
-	for _, path := range state.RockPaths(lay, target.name, target.version) {
-		err := os.RemoveAll(path)
+// removeRocks removes the package's rock and its dead dependencies in the
+// transaction change.
+func removeRocks(
+	opts UninstallOptions, change *tree.Tx, lay state.Layout, plan uninstallPlan,
+) error {
+	err := removeFiles(change, lay, plan.target)
+	if err != nil {
+		return err
+	}
+
+	for _, dep := range plan.dead {
+		opts.warn(fmt.Sprintf("removing unused dependency %s %s", dep.name, dep.version))
+
+		err = removeFiles(change, lay, dep)
 		if err != nil {
-			return stateErrorf("removing %s %s: %w", target.name, target.version, err)
+			return err
 		}
 	}
 
-	// Prune the now-empty rock root so nothing under rocks/<name>/ makes the rock
-	// look installed to the next plan. Remove() rather than RemoveAll(): a root
-	// still holding another version directory must survive, and the ENOTEMPTY
-	// that produces is the signal to leave it alone. Either way the failure is
-	// cosmetic — an empty directory, not a broken tree — so it is not returned.
-	_ = os.Remove(state.RockRoot(lay, target.name))
+	return nil
+}
+
+// removeFiles removes every installed version of one rock from the tree: the
+// version the plan names and any other the tree holds, as tt keeps one
+// version of a rock in a project. A package installed by a tt that laid its
+// files out by hand, or a rock it extracted from an archive, is no rock of the
+// tree manifest; its files are removed as that tt removed them.
+func removeFiles(change *tree.Tx, lay state.Layout, target removal) error {
+	versions := change.View().Versions(target.name)
+
+	for _, version := range versions {
+		err := change.Remove(tree.RockRef{Name: target.name, Version: version})
+		if err != nil && !errors.Is(err, tree.ErrNotInstalled) {
+			return stateErrorf("removing %s %s: %w", target.name, version, err)
+		}
+	}
+
+	if len(versions) > 0 {
+		return nil
+	}
+
+	err := state.RemoveUntracked(lay, target.name, target.version)
+	if err != nil {
+		return stateErrorf("%w", err)
+	}
 
 	return nil
 }

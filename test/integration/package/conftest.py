@@ -1,4 +1,5 @@
 import functools
+import hashlib
 import http.server
 import subprocess
 import threading
@@ -114,10 +115,19 @@ class Tree:
             self.install_rock(rock, rock_version)
 
     def install_rock(self, name: str, version: str) -> None:
-        """Write the three places one rock version occupies in the tree."""
-        _write(self.share / name / "init.lua", f"-- {name}\n")
-        _write(self.lib / name / f"{name}.so", "binary\n")
-        _write(self.share / "rocks" / name / version / "rock_manifest", f"{name} {version}\n")
+        """Write the three places one rock version occupies in the tree: a
+        module under share/, a shared object under lib/, and its rock dir with
+        the rock_manifest that lists them."""
+        module, library = f"-- {name}\n", "binary\n"
+        _write(self.share / name / "init.lua", module)
+        _write(self.lib / name / f"{name}.so", library)
+        _write(
+            self.share / "rocks" / name / version / "rock_manifest",
+            "rock_manifest = {\n"
+            f'   lib = {{ ["{name}/{name}.so"] = "{_md5(library)}" }},\n'
+            f'   lua = {{ ["{name}/init.lua"] = "{_md5(module)}" }},\n'
+            "}\n",
+        )
 
     def write_tree_manifest(
         self,
@@ -126,20 +136,32 @@ class Tree:
     ) -> None:
         """Write the LuaRocks tree manifest recording which rock requires which.
 
-        LuaRocks manifests are bare assignments loaded into an environment, not a
-        returned table, and every key is bracket-quoted because a rock name may
-        contain a hyphen. Writing it by hand keeps the test honest about the real
-        on-disk format.
+        Each rock of edges is listed as installed, at its version in versions,
+        with the dependencies its rockspec declares: tt reads them for the
+        rocks the manifest lists. LuaRocks manifests are bare assignments
+        loaded into an environment, not a returned table, and every key is
+        bracket-quoted because a rock name may contain a hyphen. Writing it by
+        hand keeps the test honest about the real on-disk format.
         """
         versions = versions or {}
-        body = "commands = {}\nmodules = {}\nrepository = {}\ndependencies = {\n"
+        repository = ""
+        dependencies = ""
         for rock in sorted(edges):
             version = versions.get(rock, "0.0.0-1")
-            body += f'   ["{rock}"] = {{\n      ["{version}"] = {{\n'
+            repository += (
+                f'   ["{rock}"] = {{\n      ["{version}"] = {{\n'
+                '         { arch = "installed", commands = {}, dependencies = {}, modules = {} },\n'
+                "      }\n   },\n"
+            )
+            dependencies += f'   ["{rock}"] = {{\n      ["{version}"] = {{\n'
             for dep in edges[rock]:
-                body += f'         {{ name = "{dep}", constraints = {{}} }},\n'
-            body += "      }\n   },\n"
-        body += "}\n"
+                dependencies += f'         {{ name = "{dep}", constraints = {{}} }},\n'
+            dependencies += "      }\n   },\n"
+        body = (
+            "commands = {}\nmodules = {}\n"
+            f"repository = {{\n{repository}}}\n"
+            f"dependencies = {{\n{dependencies}}}\n"
+        )
         _write(self.share / "rocks" / "manifest", body)
 
     def rock_exists(self, name: str) -> bool:
@@ -164,6 +186,11 @@ def _manifest(name: str, deps: dict[str, str] | None = None) -> str:
             f"{dep} = '{constraint}'\n" for dep, constraint in sorted(deps.items())
         )
     return body
+
+
+def _md5(text: str) -> str:
+    """The digest a rock_manifest records for a file holding text."""
+    return hashlib.md5(text.encode()).hexdigest()
 
 
 def _write(path: Path, content: str) -> None:
