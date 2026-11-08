@@ -85,6 +85,7 @@ myapp/
 │   ├── share/tarantool/<name>/
 │   └── bin/                   # programs of executable components
 ├── _build/pack/               # archives tt package pack makes (generated)
+├── _build/rock/<product>/     # the components laid out, installed into .rocks/ (generated)
 ├── _build/cache/              # what the last incremental builds hashed and left (generated)
 ├── .env/                      # activate.sh, deactivate.sh (generated)
 └── .tarantool/                # the root of the project scope (generated)

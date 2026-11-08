@@ -206,7 +206,8 @@ func countRuns(t *testing.T, dir string) int {
 
 // TestIncrementalWritesIntoOutputDir builds a component that writes into
 // TT_OUTPUT_DIR, as a make target does, and has a source the layout takes:
-// a build is skipped only while what it wrote is still in the tree.
+// a build is skipped only while what it wrote is still in the package's
+// stage, which a cleared .rocks/ does not clear.
 func TestIncrementalWritesIntoOutputDir(t *testing.T) {
 	t.Parallel()
 
@@ -219,6 +220,7 @@ func TestIncrementalWritesIntoOutputDir(t *testing.T) {
 		"comp/init.lua": "return {}",
 	})
 	lib := filepath.Join(dir, ".rocks", "lib", "tarantool", "my-app")
+	staged := filepath.Join(packageStage(dir, "default"), "lib", "my-app")
 	build := func(opts Options) {
 		t.Helper()
 		require.NoError(t, Run(context.Background(), opts))
@@ -234,6 +236,11 @@ func TestIncrementalWritesIntoOutputDir(t *testing.T) {
 
 	require.NoError(t, os.RemoveAll(filepath.Join(dir, ".rocks")))
 	build(dryOptions(dir))
+	assert.Equal(t, 1, countRuns(t, dir),
+		"what the build wrote is in the stage: the build is skipped, the rock installed again")
+
+	require.NoError(t, os.RemoveAll(staged))
+	build(dryOptions(dir))
 	assert.Equal(t, 2, countRuns(t, dir), "what the build wrote is gone: it builds again")
 
 	// A rebuild that leaves native.so alone keeps it the build's.
@@ -244,7 +251,7 @@ func TestIncrementalWritesIntoOutputDir(t *testing.T) {
 	build(rebuild)
 	assert.Equal(t, 3, countRuns(t, dir))
 
-	require.NoError(t, os.Remove(filepath.Join(lib, "native.so")))
+	require.NoError(t, os.Remove(filepath.Join(staged, "native.so")))
 	build(dryOptions(dir))
 	assert.Equal(t, 4, countRuns(t, dir))
 }
@@ -306,6 +313,11 @@ incremental = true
 	assert.Equal(t, map[string][]string{"tools": {"prog"}}, readRecord(t, dir))
 
 	require.NoError(t, os.Remove(program))
+	require.NoError(t, Run(context.Background(), dryOptions(dir)))
+	assert.Equal(t, 1, countRuns(t, dir), "the program is in the stage: installed again")
+	assert.FileExists(t, program)
+
+	require.NoError(t, os.Remove(filepath.Join(packageStage(dir, "default"), "bin", "prog")))
 	require.NoError(t, Run(context.Background(), dryOptions(dir)))
 	assert.Equal(t, 2, countRuns(t, dir), "the program is gone: it builds again")
 	assert.FileExists(t, program)

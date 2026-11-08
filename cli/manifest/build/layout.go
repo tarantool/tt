@@ -9,15 +9,7 @@ import (
 	"strings"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
-)
-
-// Rocks-tree layout roots. Component .lua files land under the share subtree and
-// compiled .so modules under the lib subtree, mirroring where Tarantool's
-// require and box.schema.func look. The namespace segment is appended to these
-// (empty namespace => flat, no segment).
-const (
-	shareTarantool = "share/tarantool"
-	libTarantool   = "lib/tarantool"
+	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
 )
 
 // isSharedObject reports whether a file is a native module, of Linux or of
@@ -35,19 +27,21 @@ const (
 	dirPerm  os.FileMode = 0o750
 )
 
-// layoutComponent copies one component's files into the rocks tree under its
-// namespace. Files are taken from the component's path, filtered by
+// layoutComponent copies one component's files into the package's stage under
+// its namespace. Files are taken from the component's path, filtered by
 // include/exclude (see fileFilter), and split by extension: .so into
-// <tree>/lib/tarantool/<namespace>/, everything else into
-// <tree>/share/tarantool/<namespace>/, each keeping its path relative to the
-// component root. An empty namespace yields a flat layout with no namespace
-// segment.
+// <stage>/lib/<namespace>/, everything else into <stage>/lua/<namespace>/,
+// each keeping its path relative to the component root; the install of the
+// package's rock deploys them to .rocks/lib/tarantool/<namespace>/ and
+// .rocks/share/tarantool/<namespace>/, where Tarantool's require and
+// box.schema.func look. An empty namespace yields a flat layout with no
+// namespace segment.
 //
 // It returns the absolute destination paths it wrote, in deterministic walk
 // order, so the caller can detect a component that laid down a file colliding
 // with the generated version.lua.
 func layoutComponent(
-	tree, pkgName string, component manifest.Component, compAbsPath string,
+	stage, pkgName string, component manifest.Component, compAbsPath string,
 ) ([]string, error) {
 	filter := newFileFilter(component)
 	namespace := component.EffectiveNamespace(pkgName)
@@ -81,7 +75,7 @@ func layoutComponent(
 			return nil
 		}
 
-		dst := destPath(tree, namespace, rel)
+		dst := destPath(stage, namespace, rel)
 
 		copyErr := copyFile(path, dst)
 		if copyErr != nil {
@@ -114,16 +108,16 @@ func relComponents(root, path string) ([]string, error) {
 	return strings.Split(filepath.ToSlash(rel), "/"), nil
 }
 
-// destPath builds the absolute destination for a kept file: the share or lib
-// subtree (by .so extension), the namespace segment when non-empty, then the
-// file's path relative to the component root.
-func destPath(tree, namespace string, rel []string) string {
-	sub := shareTarantool
+// destPath builds the absolute destination for a kept file: the lua or lib
+// directory of the stage (by .so extension), the namespace segment when
+// non-empty, then the file's path relative to the component root.
+func destPath(stage, namespace string, rel []string) string {
+	sub := rocktree.StageLua
 	if isSharedObject(rel[len(rel)-1]) {
-		sub = libTarantool
+		sub = rocktree.StageLib
 	}
 
-	parts := []string{tree, sub}
+	parts := []string{stage, sub}
 	if namespace != "" {
 		parts = append(parts, namespace)
 	}

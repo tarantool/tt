@@ -11,8 +11,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	luarocks "github.com/tarantool/go-luarocks"
+	lrtree "github.com/tarantool/go-luarocks/tree"
+
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/exitcode"
+	"github.com/tarantool/tt/v3/cli/manifest/internal/treetest"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
@@ -110,6 +114,109 @@ func TestRun_fullBuild(t *testing.T) {
 	data, err := os.ReadFile(vluaPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(data), `version  = "1.2.3"`)
+
+	// The files are the package's rock, which the tree manifest lists.
+	view, err := lrtree.Inspect(t.Context(), tree)
+	require.NoError(t, err)
+
+	ref, ok := view.Installed("my-app", "1.2.3-1")
+	require.True(t, ok)
+
+	owner, _, ok := view.Owner("lib/tarantool/my-app/fast_hash.so")
+	require.True(t, ok)
+	assert.Equal(t, ref, owner)
+}
+
+// TestRun_packageRockFollowsTheVersion pins that a build at another version
+// replaces the package's rock, and that a build after an older tt, which laid
+// the files out without a rock, takes them over.
+func TestRun_packageRockFollowsTheVersion(t *testing.T) {
+	t.Parallel()
+
+	dir := setupProject(t, baseManifest, map[string]string{
+		"init.lua":                                  "-- init",
+		"native/x.txt":                              "x",
+		".rocks/share/tarantool/my-app/init.lua":    "-- laid out by an older tt",
+		".rocks/share/tarantool/my-app/version.lua": "-- laid out by an older tt",
+	})
+
+	require.NoError(t, Run(context.Background(), dryOptions(dir)))
+
+	writeFile(t, filepath.Join(dir, "VERSION"), "1.3.0-rc.1\n")
+	require.NoError(t, Run(context.Background(), dryOptions(dir)))
+
+	tree := filepath.Join(dir, ".rocks")
+
+	view, err := lrtree.Inspect(t.Context(), tree)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"1.3.0.rc.1-1"}, view.Versions("my-app"))
+	assert.False(t, exists(t, filepath.Join(tree, "share/tarantool/my-app/init.lua~")))
+
+	report, err := openTreeForTest(t, tree).Check(t.Context(), lrtree.CheckOpts{})
+	require.NoError(t, err)
+	assert.True(t, report.OK(), "%v", report.Issues)
+}
+
+// TestRun_packageFileADependencyHolds pins that the package cannot lay a file
+// out where a rock of the tree has its own: require would load one of the two.
+func TestRun_packageFileADependencyHolds(t *testing.T) {
+	t.Parallel()
+
+	dir := setupProject(t, baseManifest, map[string]string{
+		"init.lua": "-- init", "native/x.txt": "x",
+	})
+
+	treetest.Install(t, filepath.Join(dir, ".rocks"), treetest.Rock{
+		Name: "squatter", Version: "1.0.0",
+		Files: map[string]string{"lua/my-app/init.lua": "return 0\n"},
+	})
+
+	err := Run(context.Background(), dryOptions(dir))
+	require.ErrorIs(t, err, lrtree.ErrNotPlain)
+	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
+}
+
+// TestRun_productLayingNothingOut pins that a product with nothing to lay
+// out is still the package's rock, of its rockspec alone.
+func TestRun_productLayingNothingOut(t *testing.T) {
+	t.Parallel()
+
+	const manifest = `manifest_version = '0.1'
+
+[package]
+name = 'my-app'
+generate_version_lua = false
+
+[platform]
+tarantool = '>=3.0.0,<4.0.0'
+tt = '>=3.1.0'
+
+[components.lua]
+path = 'none'
+include = ['*.lua']
+
+[products.default]
+components = ['lua']
+default = true
+`
+
+	dir := setupProject(t, manifest, map[string]string{"none/README": "nothing"})
+
+	require.NoError(t, Run(context.Background(), dryOptions(dir)))
+
+	view, err := lrtree.Inspect(t.Context(), filepath.Join(dir, ".rocks"))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"1.2.3-1"}, view.Versions("my-app"))
+}
+
+// openTreeForTest opens the tree at root.
+func openTreeForTest(t *testing.T, root string) *lrtree.Tree {
+	t.Helper()
+
+	rocksTree, err := lrtree.Open(luarocks.Config{Tree: root})
+	require.NoError(t, err)
+
+	return rocksTree
 }
 
 func TestRun_productSelectsComponentSet(t *testing.T) {
