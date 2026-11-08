@@ -173,6 +173,11 @@ func RunResult(ctx context.Context, opts Options) (*Result, error) {
 		Logger:     opts.Logger,
 	}))
 
+	err = repairTree(ctx, adapter.Config(), opts.Warn)
+	if err != nil {
+		return nil, err
+	}
+
 	if opts.FetchOnly {
 		return runFetch(ctx, adapter, opts.ProjectDir, man, tree, productName)
 	}
