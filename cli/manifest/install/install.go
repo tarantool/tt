@@ -294,6 +294,11 @@ func apply(
 		return err
 	}
 
+	err = repairTree(ctx, opts, lay)
+	if err != nil {
+		return err
+	}
+
 	view, err := state.InspectTree(ctx, lay)
 	if err != nil {
 		return stateErrorf("%w", err)

@@ -117,6 +117,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   to another version, drop the rocks they remove from the manifest of
   `.rocks/` as they remove their files: the manifest kept their entries, and
   the next install took the rocks for present.
+- `tt package build`, `fetch` and `install` rebuild, once and with a warning,
+  the manifest of a `.rocks/` an older tt left out of step with its rocks.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 
