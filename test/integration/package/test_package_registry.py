@@ -198,9 +198,22 @@ def test_search_go_luarocks_detail_is_debug(tree, run_tt, rock_server):
     """What go-luarocks logs during a search is shown with -V, hidden without.
 
     A search logs only when it cannot ask the interpreter for its LuaJIT
-    version, so the prefix points at an empty directory to make it log.
+    version, so the tarantool tt finds on PATH is one that tells its version
+    and fails to run anything else.
     """
-    env = dict(os.environ, TT_CLI_TARANTOOL_PREFIX=str(tree.root))
+    fake = tree.root / "fakebin" / "tarantool"
+    fake.parent.mkdir()
+    fake.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = "--version" ]; then echo "Tarantool 3.9.0-0-g8b9a0f59a95b"; exit 0; fi\n'
+        "exit 1\n",
+    )
+    fake.chmod(0o755)
+    env = dict(
+        os.environ,
+        PATH=f"{fake.parent}{os.pathsep}{os.environ['PATH']}",
+        TT_CLI_TARANTOOL_PREFIX=str(tree.root),
+    )
     args = ("package", "search", "stat", "--registry", rock_server, "-o", "json")
 
     quiet = run_tt(*args, env=env)
