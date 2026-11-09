@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/tarantool/tt/v3/internal/binary"
@@ -49,12 +50,23 @@ var tarantoolPackagePlatforms = map[string]struct {
 }
 
 // checkTtPackagePlatform recognizes the platforms published in GitHub Releases.
-func checkTtPackagePlatform(goos, goarch string) error {
+// tt 2 publishes macOS archives for amd64, tt 3 for arm64.
+func checkTtPackagePlatform(version, goos, goarch string) error {
+	darwinArch := archARM64
+
+	majorVersion, _, _ := strings.Cut(strings.TrimPrefix(version, "v"), ".")
+
+	major, err := strconv.Atoi(majorVersion)
+	if err == nil && major < 3 {
+		darwinArch = archAMD64
+	}
+
 	supported := goos == osLinux && (goarch == archAMD64 || goarch == archARM64) ||
-		goos == osDarwin && goarch == archAMD64
+		goos == osDarwin && goarch == darwinArch
 	if !supported {
-		return fmt.Errorf("%w: unsupported platform %s/%s; "+
-			"use --source-build to build from source", errPrebuiltPackageUnavailable, goos, goarch)
+		return fmt.Errorf("%w: no prebuilt tt %s for %s/%s; "+
+			"use --source-build to build from source",
+			errPrebuiltPackageUnavailable, version, goos, goarch)
 	}
 
 	return nil
