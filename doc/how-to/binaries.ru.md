@@ -43,9 +43,13 @@ tt Enterprise - ссылку `tt`.
 чем в `PATH`.
 
 Релизы Community ставятся из готовых бинарных файлов там, где они есть, -
-Tarantool на Linux amd64 и arm64 с glibc, tt на Linux amd64 и arm64, tt 3
-на macOS arm64 и tt 2 на macOS amd64, - а на остальных платформах
-собираются из исходников. Коммит,
+Tarantool на Linux amd64 и arm64 с glibc, из статических RPM-пакетов
+rws.tarantool.org, tt на Linux amd64 и arm64, tt 3 на macOS arm64 и tt 2 на
+macOS amd64, из релизов tt на GitHub, - а на остальных платформах
+собираются из исходников. У дистрибутива tt могут быть другие источники или
+ни одного (`bundle_sources` в [tt.manifest.toml](../reference/tt-manifest.md)):
+без источника Tarantool или tt каждая его версия собирается из исходников.
+Коммит,
 `master`, pull request (`pr/<number>`) и `--local-repo` собираются из
 исходников всегда; `--source-build` тоже собирает релиз из исходников.
 Поиск и установка Enterprise-сборок tt доступны только на Linux amd64.

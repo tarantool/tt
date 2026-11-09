@@ -143,6 +143,19 @@ func TestDistributionNoBundleSources(t *testing.T) {
 	assert.Empty(t, sources)
 }
 
+func TestDistributionAllBundleSources(t *testing.T) {
+	t.Parallel()
+
+	dist := parseDistribution(t, minimalDistribution+
+		"[distribution]\nbundle_sources = [\"github\", \"rws\", \"customer-zone\"]\n")
+
+	sources, chosen := dist.Distribution.BundleSourcesValue()
+	assert.True(t, chosen)
+	assert.Equal(t, []string{
+		manifest.BundleSourceGitHub, manifest.BundleSourceRWS, manifest.BundleSourceCustomerZone,
+	}, sources, "the sources keep the order of the manifest")
+}
+
 func TestDistributionErrors(t *testing.T) {
 	t.Parallel()
 
@@ -172,7 +185,16 @@ func TestDistributionErrors(t *testing.T) {
 			field: "distribution.bundle_sources",
 		},
 		"bundle source twice": {
-			src:   head + "[distribution]\nbundle_sources = [\"customer-zone\", \"customer-zone\"]\n",
+			src: head +
+				"[distribution]\nbundle_sources = [\"customer-zone\", \"customer-zone\"]\n",
+			field: "distribution.bundle_sources",
+		},
+		"community bundle source twice": {
+			src:   head + "[distribution]\nbundle_sources = [\"rws\", \"github\", \"rws\"]\n",
+			field: "distribution.bundle_sources",
+		},
+		"bundle source in another case": {
+			src:   head + "[distribution]\nbundle_sources = [\"GitHub\"]\n",
 			field: "distribution.bundle_sources",
 		},
 		"unknown ssl": {

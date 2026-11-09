@@ -38,8 +38,11 @@ tt 3 has pre-releases only it matches nothing. `[distribution]` sets how the bin
 presents itself (`title`, `edition`), the integrity provider (`none` or
 `rsa`), whether it has tt's own commands (`builtin`) and external modules
 (`external_modules`), both on by default, and where `tt binary install`
-finds Tarantool Enterprise, the SDK, TCM and tt-ee (`bundle_sources`: the
-customer zone of tarantool.io by default, `[]` for none). `[build]` sets the TLS
+finds prebuilt products (`bundle_sources`: by default `customer-zone`, the
+customer zone of tarantool.io, for Tarantool Enterprise, the SDK, TCM and
+tt-ee, `rws`, the RPMs of rws.tarantool.org, for Tarantool Community, and
+`github`, the releases of tt on GitHub, for tt; `[]` for none, and then
+Tarantool Community and tt are built from source). `[build]` sets the TLS
 implementation (`ssl`: `default`, `openssl` or `openssl_static`, overridden
 by `TT_CLI_BUILD_SSL`), whether to build with `cgo` (by default only for
 the OpenSSL ones), extra build `tags` and `ldflags`.

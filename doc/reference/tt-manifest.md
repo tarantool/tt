@@ -21,7 +21,7 @@ edition = "ee"
 integrity = "rsa"
 builtin = true
 external_modules = true
-bundle_sources = ["customer-zone"]
+bundle_sources = ["customer-zone", "rws", "github"]
 
 [build]
 ssl = "openssl_static"
@@ -100,7 +100,7 @@ How the binary presents itself and what it has besides its modules.
 | `integrity` | `none` | the integrity provider: `none` or `rsa` (see [Sign packages](../how-to/sign-packages.md)) |
 | `builtin` | `true` | tt's own commands, the module `builtin` |
 | `external_modules` | `true` | [external modules](../how-to/external-modules.md) and `tt modules` |
-| `bundle_sources` | `["customer-zone"]` | where `tt binary install` and `tt binary search` find Tarantool Enterprise, the SDK, TCM and tt-ee, in order: `customer-zone` is the customer zone of tarantool.io, with `--credentials-file`; `[]` is no source, and these products are installed from `--local-dir` only |
+| `bundle_sources` | `["customer-zone", "rws", "github"]` | where `tt binary install` and `tt binary search` find prebuilt products, in order; the first source with a product is the one asked for it: `customer-zone` is the customer zone of tarantool.io, with `--credentials-file`, for Tarantool Enterprise, the SDK, TCM and tt-ee; `rws` is the static RPMs of rws.tarantool.org, for Tarantool Community 3 on Linux with glibc; `github` is the releases of tt on GitHub, for tt and its latest release. Without the customer zone these products are installed from `--local-dir` only; without `rws` or `github` every version of Tarantool Community or tt is built from source. `[]` is no source |
 
 The version of the distribution is taken from `git describe` in the
 manifest's directory; `VERSION_LABEL` follows it.

@@ -163,6 +163,19 @@ func TestGenerateMainBundleSources(t *testing.T) {
 			sources: &[]string{manifest.BundleSourceCustomerZone},
 			want:    "core.WithBundleSources(core.CustomerZone()),",
 		},
+		{
+			name: "all, in the order of the manifest",
+			sources: &[]string{
+				manifest.BundleSourceGitHub, manifest.BundleSourceCustomerZone,
+				manifest.BundleSourceRWS,
+			},
+			want: "core.WithBundleSources(core.GitHubReleases(), core.CustomerZone(), core.RWS()),",
+		},
+		{
+			name:    "the Community ones only",
+			sources: &[]string{manifest.BundleSourceRWS, manifest.BundleSourceGitHub},
+			want:    "core.WithBundleSources(core.RWS(), core.GitHubReleases()),",
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()

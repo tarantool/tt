@@ -41,9 +41,13 @@ Nor do the builds of its components: a build backend and a hook find the
 programs of `.tarantool/bin` ahead of `PATH`.
 
 Community releases are installed from prebuilt binaries where there are
-some - Tarantool on Linux amd64 and arm64 with glibc, tt on Linux amd64 and
-arm64, tt 3 on macOS arm64 and tt 2 on macOS amd64 - and built from source
-elsewhere. A commit,
+some - Tarantool on Linux amd64 and arm64 with glibc, from the static RPMs
+of rws.tarantool.org, tt on Linux amd64 and arm64, tt 3 on macOS arm64 and
+tt 2 on macOS amd64, from the releases of tt on GitHub - and built from
+source elsewhere. A distribution of tt may have other sources, or none
+(`bundle_sources` in [tt.manifest.toml](../reference/tt-manifest.md)):
+without a source of Tarantool or tt every version of it is built from
+source. A commit,
 `master`, a pull request (`pr/<number>`) and `--local-repo` are always built
 from source, and `--source-build` builds a release from source too.
 Enterprise search and installation of tt is available on Linux amd64 only.

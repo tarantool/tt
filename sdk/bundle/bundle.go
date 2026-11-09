@@ -9,8 +9,10 @@
 // it, unpacks it and installs it the same way whatever the source.
 //
 // The sources of tt are the choice of its distribution, made once, before
-// any command is built: tt itself has the customer zone of tarantool.io, and
-// a distribution may replace it or have none (see core.WithBundleSources).
+// any command is built: tt itself has the customer zone of tarantool.io, the
+// RPMs of Tarantool on rws.tarantool.org and the releases of tt on GitHub,
+// and a distribution may replace them or have none (see
+// core.WithBundleSources).
 // --local-dir, a directory of archives, is not a source a distribution
 // chooses: tt always has it.
 //
