@@ -13,14 +13,42 @@
 // a distribution may replace it or have none (see core.WithBundleSources).
 // --local-dir, a directory of archives, is not a source a distribution
 // chooses: tt always has it.
+//
+// # Archives
+//
+// The archives of Tarantool Enterprise, the SDK, TCM and tt-ee are those of
+// the customer zone of tarantool.io. The archives of the Community products
+// are defined by tt, whatever a source stores: a source of one delivers
+// them so.
+//
+//   - tarantool: a gzip-compressed tar with the executable tarantool at its
+//     root and the headers modules are built with in include/tarantool/,
+//     module.h among them. tt ignores the other files.
+//   - tt: a gzip-compressed tar with the executable tt at its root, the
+//     archives of the releases of tt on GitHub. tt ignores the other files.
+//
+// Both hold regular files and directories only, with relative names that
+// stay inside the archive.
+//
+// tt installs a Community product from a source only for a release tag, and
+// builds it from source when the source has no build of it for the
+// platform: when List returns none, or when Fetch reports [ErrNotFound].
 package bundle
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"github.com/spf13/pflag"
 )
+
+// ErrNotFound reports an archive a source does not have. List may name an
+// artifact it cannot confirm without downloading it, such as the archive of
+// a release a page of downloads would have if it was published; Fetch of an
+// artifact the source does not have wraps ErrNotFound, and tt takes it for
+// no build for the platform, as an empty List.
+var ErrNotFound = errors.New("archive not found")
 
 // Channel is how mature a build is.
 type Channel string
@@ -35,8 +63,9 @@ const (
 // Query asks a source for the builds of one product for one platform.
 type Query struct {
 	// Product is the product as tt binary names it: "tarantool-ee",
-	// "tarantool-sdk", "tcm", "tt-ee". The archives of tarantool-ee are the
-	// SDK ones; a source that has them answers both.
+	// "tarantool-sdk", "tcm", "tt-ee", and the Community "tarantool" and
+	// "tt". The archives of tarantool-ee are the SDK ones; a source that has
+	// them answers both.
 	Product string
 	// OS and Arch are the platform the build must run on, as runtime.GOOS
 	// and runtime.GOARCH name it: "linux", "darwin"; "amd64", "arm64".
@@ -46,6 +75,11 @@ type Query struct {
 	// Version narrows the query to a release line: "3", "3.4", or a whole
 	// version, as tt binary search --version names it. Empty asks for every
 	// version. A source that cannot narrow a query answers it whole.
+	//
+	// The versions of the Community products are the tags of their Git
+	// repositories, and tt asks for the tag it installs as it is spelled
+	// there: "3.4.1" for tarantool, "v2.15.0" for tt. The Version of the
+	// artifact is the same, with or without the leading v.
 	Version string
 }
 
@@ -86,11 +120,14 @@ type Source interface {
 	// List returns the builds of q, in no particular order. A product with
 	// no build for the platform or the channel is an empty result, not an
 	// error. An error means the source could not answer: tt reports it and
-	// tries no other source.
+	// tries no other source. List may return an artifact it cannot confirm
+	// without downloading it; Fetch then reports whether it is there.
 	List(ctx context.Context, q Query) ([]Artifact, error)
 	// Fetch writes the bytes of an artifact List returned to dst. A failure
 	// may leave a part of them written. A source with a digest of the
-	// archive of its own checks it.
+	// archive of its own checks it. The error of an archive the source does
+	// not have wraps [ErrNotFound]; any other error is a failed delivery,
+	// which tt reports, whatever the product.
 	Fetch(ctx context.Context, artifact Artifact, dst io.Writer) error
 }
 
