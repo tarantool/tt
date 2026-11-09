@@ -2,6 +2,7 @@ package core_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -14,11 +15,13 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	goconfig "github.com/tarantool/go-config/v2"
 
 	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/bundle"
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/sdk/output"
 	"github.com/tarantool/tt/v3/cli/printing"
@@ -80,6 +83,35 @@ var mainCases = map[string]func() int{
 		return core.Main(core.Modules{"builtin": core.Builtin, "demo": demoModule},
 			core.WithoutExternalModules())
 	},
+	"no-bundle-sources": func() int {
+		return core.Main(core.Modules{"builtin": core.Builtin}, core.WithBundleSources())
+	},
+	"bundle-sources": func() int {
+		return core.Main(core.Modules{"builtin": core.Builtin},
+			core.WithBundleSources(tcmSource{}, core.CustomerZone()))
+	},
+}
+
+// tcmSource is a source of a distribution with two builds of TCM and a flag.
+type tcmSource struct{}
+
+func (tcmSource) Name() string { return "tcm-mirror" }
+
+func (tcmSource) Products() []string { return []string{"tcm"} }
+
+func (tcmSource) RegisterFlags(_ string, flags *pflag.FlagSet) {
+	flags.String("mirror", "", "TCM mirror to search")
+}
+
+func (tcmSource) List(context.Context, bundle.Query) ([]bundle.Artifact, error) {
+	return []bundle.Artifact{
+		{Version: "1.3.1-0-g074b5ffa", Name: "tcm-1.3.1-0-g074b5ffa.linux.amd64.tar.gz"},
+		{Version: "1.3.0-0-g3857712a", Name: "tcm-1.3.0-0-g3857712a.linux.amd64.tar.gz"},
+	}, nil
+}
+
+func (tcmSource) Fetch(context.Context, bundle.Artifact, io.Writer) error {
+	return nil
 }
 
 // eeFlavour is a distribution with a name, a version and an edition of its
@@ -624,6 +656,44 @@ func TestMainWithIntegrity(t *testing.T) {
 		assert.NotEqual(t, 0, got.code)
 		assert.Contains(t, got.stderr, "unknown flag: --integrity-check")
 	})
+}
+
+// TestMainWithBundleSources checks that the sources of archives a
+// distribution chooses are the ones tt searches, with their flags, while tt
+// without the option has the customer zone and with no sources has none.
+func TestMainWithBundleSources(t *testing.T) {
+	t.Parallel()
+
+	help := []string{"binary", "search", "tcm", "--help"}
+
+	got := runTT(t, ttRun{program: "builtin", args: help})
+	require.Equal(t, 0, got.code, got.stderr)
+	assert.Contains(t, got.stdout, "--credentials-file")
+
+	got = runTT(t, ttRun{program: "no-bundle-sources", args: help})
+	require.Equal(t, 0, got.code, got.stderr)
+	assert.NotContains(t, got.stdout, "--credentials-file")
+
+	got = runTT(t, ttRun{program: "no-bundle-sources", args: []string{"binary", "search", "tcm"}})
+	assert.NotEqual(t, 0, got.code)
+	assert.Contains(t, got.stderr, "no source of archives of tcm in this build of tt")
+
+	got = runTT(t, ttRun{program: "bundle-sources", args: help})
+	require.Equal(t, 0, got.code, got.stderr)
+	assert.Contains(t, got.stdout, "--mirror")
+	assert.NotContains(t, got.stdout, "--credentials-file",
+		"the first source with a product is the only one asked for it")
+
+	got = runTT(t, ttRun{
+		program: "bundle-sources", args: []string{"binary", "search", "tarantool-ee", "--help"},
+	})
+	require.Equal(t, 0, got.code, got.stderr)
+	assert.Contains(t, got.stdout, "--credentials-file")
+	assert.NotContains(t, got.stdout, "--mirror")
+
+	got = runTT(t, ttRun{program: "bundle-sources", args: []string{"binary", "search", "tcm"}})
+	require.Equal(t, 0, got.code, got.stderr)
+	assert.Equal(t, "1.3.0-0-g3857712a\n1.3.1-0-g074b5ffa\n", got.stdout)
 }
 
 // writeExternalModules creates, in a modules directory of their own, the

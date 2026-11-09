@@ -30,32 +30,21 @@ type SearchCtx struct {
 	// LocalRepo is the source directory: --local-repo for Git repositories,
 	// or --local-dir for SDK or standalone archives.
 	LocalRepo string
-	// CredentialsFile contains customer-zone credentials for remote EE and TCM searches.
-	CredentialsFile string
 	// Debug includes debug builds instead of release builds.
 	Debug bool
 	// Filter out which builds of tarantool-ee must be included in the result of search.
 	Filter SearchFlags
-	// What package to look for.
-	// FIXME: It looks like this is not needed here, as it is then auto filled via [GetApiPackage].
-	Package string
 	// Release version to look for.
 	ReleaseVersion string
 	// Search for development builds.
 	DevBuilds bool
-	// TntIoDoer tarantool.io API handler with interface of TntIoDoer.
-	TntIoDoer binary.TntIoDoer
-
-	platformInformer PlatformInformer
 }
 
 // NewSearchCtx creates a new SearchCtx with default production values.
-func NewSearchCtx(informer PlatformInformer, doer binary.TntIoDoer) SearchCtx {
+func NewSearchCtx() SearchCtx {
 	var searchCtx SearchCtx
 
 	searchCtx.Filter = SearchRelease
-	searchCtx.TntIoDoer = doer
-	searchCtx.platformInformer = informer
 
 	return searchCtx
 }
@@ -140,7 +129,7 @@ func SearchVersions(searchCtx SearchCtx) error {
 	case prg.GitRepo() != "":
 		vers, err = searchVersionsGit(prg.GitRepo())
 	case prg.BundleSource() != binary.ProgramUnknown:
-		vers, err = searchVersionsTntIo(&searchCtx)
+		vers, err = searchVersionsBundles(&searchCtx)
 	default:
 		return fmt.Errorf("%w%s' is not implemented",
 			errRemoteSearchForProgramIsNotImplemented, prg)

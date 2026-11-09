@@ -3,13 +3,16 @@ package install
 import (
 	"archive/tar"
 	"compress/gzip"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/sdk/bundle"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
+	"github.com/tarantool/tt/v3/internal/binary/customerzone"
 )
 
 func bundleTestParams(t *testing.T, program binary.Program) *bundleParams {
@@ -220,6 +223,11 @@ func TestBundleTemporaryResourceRetention(t *testing.T) {
 			params.inst.Force = true
 			params.inst.LocalRepo = t.TempDir()
 			params.bundleInfo.Version.Tarball = "tcm.tar.gz"
+			params.bundleInfo.Source = customerzone.NewDir(params.inst.LocalRepo)
+			params.bundleInfo.Artifact = bundle.Artifact{
+				Version: "3.0.0", Name: "tcm.tar.gz",
+				Locator: filepath.Join(params.inst.LocalRepo, "tcm.tar.gz"),
+			}
 
 			if !testCase.fail {
 				writeTestTcmBundle(t, filepath.Join(params.inst.LocalRepo, "tcm.tar.gz"))
@@ -227,7 +235,7 @@ func TestBundleTemporaryResourceRetention(t *testing.T) {
 
 			logPath, installErr := executeBundleInstallation(params)
 			if testCase.fail {
-				require.ErrorIs(t, installErr, errLocalBundleFileNotFound)
+				require.ErrorIs(t, installErr, fs.ErrNotExist)
 			} else {
 				require.NoError(t, installErr)
 			}

@@ -1,35 +1,19 @@
 package install
 
 import (
-	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
-	"github.com/tarantool/tt/v3/internal/binary/search"
 )
 
-func tcmVersionBundles(t *testing.T, names ...string) search.BundleInfoSlice {
+func tcmVersionBundles(t *testing.T, names ...string) binary.Bundles {
 	t.Helper()
 
-	bundles := make(search.BundleInfoSlice, 0, len(names))
-	for _, name := range names {
-		ver, err := version.Parse(name)
-		require.NoError(t, err)
-
-		ver.Tarball = "tcm-" + name + ".linux.amd64.tar.gz"
-		bundles = append(bundles, search.BundleInfo{
-			Version: ver,
-			Package: "tcm",
-			Release: "release-" + name,
-			Token:   "token-" + name,
-		})
-	}
-
-	sort.Sort(bundles)
-
-	return bundles
+	return testBundles(t, func(ver string) string {
+		return "tcm-" + ver + ".linux.amd64.tar.gz"
+	}, names...)
 }
 
 func TestSelectTcmBundleVersion(t *testing.T) {
@@ -64,7 +48,7 @@ func TestSelectTcmBundleVersion(t *testing.T) {
 			got, err := selectBundleVersion(bundles, tc.requested, binary.ProgramTcm)
 			require.NoError(t, err)
 
-			want, err := search.SelectVersion(bundles, tc.want)
+			want, err := selectBundle(bundles, tc.want)
 			require.NoError(t, err)
 			require.Equal(t, want, got)
 		})

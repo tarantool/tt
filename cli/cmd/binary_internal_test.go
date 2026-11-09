@@ -5,14 +5,17 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/sdk/bundle"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/internal/binary"
+	"github.com/tarantool/tt/v3/internal/binary/customerzone"
 	"github.com/tarantool/tt/v3/internal/binary/install"
 	"github.com/tarantool/tt/v3/internal/binary/list"
 	switcher "github.com/tarantool/tt/v3/internal/binary/switch"
@@ -777,6 +780,7 @@ func TestBinaryCredentialsFile(t *testing.T) {
 	for _, args := range cases {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			restoreProcessState(t)
+			useBundleSources(t, customerzone.New())
 			t.Chdir(t.TempDir())
 			t.Setenv("TT_CLI_EE_USERNAME", "")
 			t.Setenv("TT_CLI_EE_PASSWORD", "")
@@ -789,6 +793,63 @@ func TestBinaryCredentialsFile(t *testing.T) {
 			command.SetArgs(append(args, "--credentials-file", credentials))
 			require.ErrorContains(t, command.Execute(),
 				"opening the credentials file: open "+credentials)
+		})
+	}
+}
+
+// useBundleSources makes sources those of the process for the test.
+func useBundleSources(t *testing.T, sources ...bundle.Source) {
+	t.Helper()
+
+	previous := binary.BundleSources()
+
+	binary.SetBundleSources(sources)
+	t.Cleanup(func() { binary.SetBundleSources(previous) })
+}
+
+func TestBinaryBundleSourceFlagsAreEnterpriseOnly(t *testing.T) {
+	for _, args := range [][]string{
+		{"install", "tarantool", "3.4.0"},
+		{"install", "tt", "2.15.0"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			restoreProcessState(t)
+			useBundleSources(t, customerzone.New())
+			t.Chdir(t.TempDir())
+
+			command := NewBinaryCmd()
+			command.SetOut(io.Discard)
+			command.SetErr(io.Discard)
+			command.SetArgs(append(slices.Clone(args), "--credentials-file", "credentials"))
+			require.ErrorContains(t, command.Execute(),
+				"--credentials-file is not supported for "+args[1])
+		})
+	}
+}
+
+func TestBinaryWithoutBundleSources(t *testing.T) {
+	for _, args := range [][]string{
+		{"search", "tarantool-ee"},
+		{"install", "tcm"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			restoreProcessState(t)
+			useBundleSources(t)
+			t.Chdir(t.TempDir())
+
+			command := NewBinaryCmd()
+			command.SetOut(io.Discard)
+			command.SetErr(io.Discard)
+			command.SetArgs(append(slices.Clone(args), "--credentials-file", "credentials"))
+			require.ErrorContains(t, command.Execute(),
+				"unknown flag: --credentials-file",
+				"the flag of the customer zone goes with the customer zone")
+
+			command = NewBinaryCmd()
+			command.SetOut(io.Discard)
+			command.SetErr(io.Discard)
+			command.SetArgs(args)
+			require.ErrorIs(t, command.Execute(), binary.ErrNoBundleSource)
 		})
 	}
 }
