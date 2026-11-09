@@ -152,6 +152,14 @@ func (m *mockDoer) Do(req *http.Request) ([]byte, error) {
 	return json.Marshal(m.content)
 }
 
+// Download is not a part of a search.
+func (m *mockDoer) Download(req *http.Request, _ io.Writer) error {
+	m.t.Helper()
+	m.t.Errorf("search must not download %s", req.URL)
+
+	return errInvalidRequestPath
+}
+
 func (m *mockDoer) Token() string {
 	return "mock-token"
 }

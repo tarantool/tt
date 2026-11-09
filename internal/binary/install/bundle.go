@@ -155,7 +155,7 @@ func downloadBundle(params *bundleParams) error {
 
 	searchCtx := search.NewSearchCtx(
 		search.NewPlatformInformer(),
-		NewTntIoDownloader(params.bundleInfo.Token),
+		binary.NewTntIoClient(params.bundleInfo.Token),
 	)
 
 	searchCtx.Program = params.inst.Program.BundleSource()
@@ -502,7 +502,7 @@ func fetchInstallBundles(params *bundleParams) (search.BundleInfoSlice, error) {
 		return bundles, err
 	}
 
-	searchCtx := search.NewSearchCtx(search.NewPlatformInformer(), search.NewTntIoDoer())
+	searchCtx := search.NewSearchCtx(search.NewPlatformInformer(), binary.NewTntIoClient(""))
 
 	searchCtx.BinaryContext = params.inst.BinaryContext
 	searchCtx.Program = source

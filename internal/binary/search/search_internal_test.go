@@ -1,70 +1,13 @@
 package search
 
 import (
-	"io"
-	"net/http"
-	"strings"
 	"testing"
-	"testing/iotest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
 )
-
-type apiTestTransport func(*http.Request) (*http.Response, error)
-
-func (transport apiTestTransport) RoundTrip(request *http.Request) (*http.Response, error) {
-	return transport(request)
-}
-
-func TestHTTPDoerAPIError(t *testing.T) {
-	for _, truncated := range []bool{false, true} {
-		name := "complete body"
-		if truncated {
-			name = "truncated body"
-		}
-
-		t.Run(name, func(t *testing.T) {
-			doer := NewTntIoDoer()
-
-			doer.client = &http.Client{Transport: apiTestTransport(func(request *http.Request) (
-				*http.Response, error,
-			) {
-				require.Equal(t, "api.test", request.URL.Host)
-				require.Equal(t, http.MethodPost, request.Method)
-
-				var body io.Reader = strings.NewReader("Invalid request data, usage:\n" +
-					`{"username": username, "password": password, "query": query}.`)
-
-				if truncated {
-					body = io.MultiReader(body, iotest.ErrReader(io.ErrUnexpectedEOF))
-				}
-
-				return &http.Response{
-					StatusCode: http.StatusBadRequest,
-					Status:     "400 Bad Request",
-					Body:       io.NopCloser(body),
-					Request:    request,
-				}, nil
-			})}
-
-			request, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
-				"https://api.test", nil)
-			require.NoError(t, err)
-
-			_, err = doer.Do(request)
-			require.ErrorContains(t, err, "API request failed with status 400 Bad Request")
-			require.ErrorContains(t, err, "Invalid request data, usage:")
-			require.NotContains(t, err.Error(), "%!w")
-
-			if truncated {
-				require.ErrorIs(t, err, io.ErrUnexpectedEOF)
-			}
-		})
-	}
-}
 
 func Test_getBundles(t *testing.T) {
 	pkgRelease := "tarantool-enterprise-sdk-nogc64-3.4.1-0-r63.linux.x86_64.tar.gz"
@@ -243,7 +186,7 @@ func TestIsMasked(t *testing.T) {
 
 func TestNewSearchCtx(t *testing.T) {
 	t.Run("Valid context", func(t *testing.T) {
-		got := NewSearchCtx(NewPlatformInformer(), NewTntIoDoer())
+		got := NewSearchCtx(NewPlatformInformer(), binary.NewTntIoClient(""))
 		require.NotNil(t, got)
 		assert.Equal(t, SearchRelease, got.Filter)
 		assert.Equal(t, binary.ProgramUnknown, got.Program)
