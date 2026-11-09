@@ -374,6 +374,7 @@ linters:
             - "github.com/manifoldco/promptui"
             - "github.com/mgutz/ansi"
             - "github.com/otiai10/copy"
+            - "github.com/spf13/pflag"
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/sdk"
             - "github.com/tarantool/tt/v3/cli/cmdcontext"
@@ -882,6 +883,8 @@ linters:
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/tarantool/tt/v3/cli/version"
             - "github.com/tarantool/tt/v3/core"
+            # The customer zone is the default source of archives.
+            - "github.com/tarantool/tt/v3/internal/binary/customerzone"
             - "gopkg.in/yaml.v3"
         # The pid-file protocol every writer and remover of a tt pid file
         # follows: a leaf, below the supervisor and the commands.

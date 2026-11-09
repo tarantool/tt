@@ -23,16 +23,10 @@ var (
 	errUnexpectedDataFrom = errors.New("unexpected Data from ")
 )
 
-const minSupportedMajorVersion = 3
-
 // isMasked reports whether a version of program is no longer offered for
-// installation: Tarantool 1.x and 2.x, Community or Enterprise, are not
-// supported. SDK archives carry the version of their Tarantool; tt, tt-ee and
-// TCM have versions of their own.
+// installation, as binary.IsMasked does for archives.
 func isMasked(program binary.Program, ver version.Version) bool {
-	isTarantool := program == binary.ProgramCe || program.BundleSource() == binary.ProgramSDK
-
-	return isTarantool && ver.Major < minSupportedMajorVersion
+	return binary.IsMasked(program, ver)
 }
 
 // GetVersionsFromGitRemote returns sorted versions list from specified remote git repo.

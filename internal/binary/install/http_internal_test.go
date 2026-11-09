@@ -1,26 +1,26 @@
 package install
 
 import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/sdk/bundle"
 )
 
-var (
-	errSimulatedNetworkError = errors.New("simulated network error")
-)
+var errSimulatedNetworkError = errors.New("simulated network error")
 
-const (
-	// testToken is a session token of tarantool.io.
-	testToken      = "test-token"
-	packageTestURL = "https://packages.test"
-)
+const packageTestURL = "https://packages.test"
 
 type prebuiltTestTransport func(*http.Request) (*http.Response, error)
 
@@ -53,231 +53,113 @@ func packageTestClient(t *testing.T, handler http.HandlerFunc) *http.Client {
 	})}
 }
 
-// mockBundleDoer is a mock implementation of TntIoDoer for DownloadBundle tests.
-type mockBundleDoer struct {
-	t           *testing.T
-	token       string
-	resBody     []byte
-	resErr      error
-	expectedURL string
-	// foreign is a source off tarantool.io, which the token is not sent to.
-	foreign bool
+// fetchTestSource serves one archive: its body, then its error.
+type fetchTestSource struct {
+	body []byte
+	err  error
+	// fetched is the artifact Fetch was given.
+	fetched bundle.Artifact
 }
 
-// Do is not a part of a download.
-func (m *mockBundleDoer) Do(req *http.Request) ([]byte, error) {
-	m.t.Helper()
-	m.t.Errorf("a download must stream %s", req.URL)
+func (*fetchTestSource) Name() string { return "test-source" }
 
-	return nil, errSimulatedNetworkError
+func (*fetchTestSource) Products() []string { return []string{"tcm"} }
+
+func (*fetchTestSource) List(context.Context, bundle.Query) ([]bundle.Artifact, error) {
+	return nil, nil
 }
 
-// Download mocks the Download method of TntIoDoer.
-// It verifies the request's URL, method, User-Agent header, and sessionid cookie.
-func (m *mockBundleDoer) Download(req *http.Request, dst io.Writer) error {
-	m.t.Helper()
+func (s *fetchTestSource) Fetch(_ context.Context, artifact bundle.Artifact,
+	dst io.Writer,
+) error {
+	s.fetched = artifact
 
-	require.Equal(m.t, m.expectedURL, req.URL.String(), "Request URL mismatch")
-	require.Equal(m.t, http.MethodGet, req.Method, "Request method mismatch")
-	require.Equal(m.t, "tt", req.Header.Get("User-Agent"), "User-Agent header mismatch")
-
-	if m.token != "" && !m.foreign {
-		cookie, err := req.Cookie("sessionid")
-		require.NoError(m.t, err, "sessionid cookie not found when token is non-empty")
-		require.NotNil(m.t, cookie, "sessionid cookie is nil when token is non-empty")
-		require.Equal(m.t, m.token, cookie.Value, "sessionid cookie value mismatch")
-	} else {
-		_, err := req.Cookie("sessionid")
-		require.ErrorIs(m.t, err, http.ErrNoCookie,
-			"sessionid cookie should be present only for tarantool.io with a token")
+	_, err := dst.Write(s.body)
+	if err != nil {
+		return err
 	}
 
-	_, err := dst.Write(m.resBody)
-	require.NoError(m.t, err)
-
-	return m.resErr
+	return s.err
 }
 
-// Token mocks the Token method of TntIoDoer.
-func (m *mockBundleDoer) Token() string {
-	return m.token
-}
-
-func TestDownloadBundle(t *testing.T) {
-	defaultDstSetup := func(t *testing.T, dir string) string {
-		t.Helper()
-
-		return dir
-	}
+func TestFetchArtifact(t *testing.T) {
+	body := []byte("bundle content")
+	digest := sha256.Sum256(body)
 
 	tests := map[string]struct {
-		bundleName   string
-		bundleSource string
-		dstSetup     func(t *testing.T, dir string) string
-		doer         *mockBundleDoer
-		errMsg       string
+		source   *fetchTestSource
+		sha256   string
+		name     string
+		conflict bool
+		errIs    error
+		errMsg   string
 	}{
-		"successful download with token": {
-			bundleName:   "bundle_with_token.tar.gz",
-			bundleSource: "https://www.tarantool.io/bundle_with_token.tar.gz",
-			dstSetup:     defaultDstSetup,
-			doer: &mockBundleDoer{
-				token:   testToken,
-				resBody: []byte("bundle content with token"),
-			},
+		"without a digest": {
+			source: &fetchTestSource{body: body},
 		},
-
-		"successful download no token": {
-			bundleName:   "bundle_no_token.tar.gz",
-			bundleSource: "https://www.tarantool.io/bundle_no_token.tar.gz",
-			dstSetup:     defaultDstSetup,
-			doer: &mockBundleDoer{
-				token:   "",
-				resBody: []byte("bundle content no token"),
-			},
+		"with its digest": {
+			source: &fetchTestSource{body: body},
+			sha256: hex.EncodeToString(digest[:]),
 		},
-
-		"token is not sent off tarantool.io": {
-			bundleName:   "bundle_foreign.tar.gz",
-			bundleSource: "https://storage.test/bundle_foreign.tar.gz",
-			dstSetup:     defaultDstSetup,
-			doer: &mockBundleDoer{
-				token:   testToken,
-				resBody: []byte("bundle content off tarantool.io"),
-				foreign: true,
-			},
+		"with its digest in upper case": {
+			source: &fetchTestSource{body: body},
+			sha256: strings.ToUpper(hex.EncodeToString(digest[:])),
 		},
-
-		"token is not sent over plain HTTP": {
-			bundleName:   "bundle_http.tar.gz",
-			bundleSource: "http://www.tarantool.io/bundle_http.tar.gz",
-			dstSetup:     defaultDstSetup,
-			doer: &mockBundleDoer{
-				token:   testToken,
-				resBody: []byte("bundle content over HTTP"),
-				foreign: true,
-			},
+		"with another digest": {
+			source: &fetchTestSource{body: body},
+			sha256: strings.Repeat("0", sha256.Size*2),
+			errIs:  errArtifactChecksum,
+			errMsg: "test-source lists " + strings.Repeat("0", sha256.Size*2),
 		},
-
-		"error from TntIoDoer": {
-			bundleName:   "bundle.tar.gz",
-			bundleSource: "https://www.tarantool.io/bundle.tar.gz",
-			dstSetup:     defaultDstSetup,
-			doer: &mockBundleDoer{
-				token:   testToken,
-				resBody: []byte("partial bundle"),
-				resErr:  errSimulatedNetworkError,
-			},
-			errMsg: "simulated network error",
+		"a failed fetch": {
+			source: &fetchTestSource{body: []byte("partial bundle"), err: errSimulatedNetworkError},
+			errIs:  errSimulatedNetworkError,
 		},
-
-		"nil TntIoDoer in searchCtx": {
-			bundleName:   "bundle.tar.gz",
-			bundleSource: "https://www.tarantool.io/bundle.tar.gz",
-			dstSetup:     defaultDstSetup,
-			doer:         nil,
-			errMsg:       "no tarantool.io doer was applied",
-		},
-
-		"destination directory does not exist": {
-			bundleName:   "bundle.tar.gz",
-			bundleSource: "https://www.tarantool.io/bundle.tar.gz",
-			dstSetup: func(t *testing.T, baseDir string) string {
-				t.Helper()
-
-				nonExistentDir := filepath.Join(baseDir, "non_existent_subdir_for_sure")
-
-				return nonExistentDir
-			},
-			doer: &mockBundleDoer{
-				token: testToken,
-			},
-			errMsg: "destination directory doesn't exist",
-		},
-
-		"destination is not a directory": {
-			bundleName:   "bundle.tar.gz",
-			bundleSource: "https://www.tarantool.io/bundle.tar.gz",
-			dstSetup: func(t *testing.T, baseDir string) string {
-				t.Helper()
-
-				file, err := os.CreateTemp(baseDir, "destination_as_file_*")
-				require.NoError(t, err)
-
-				filePath := file.Name()
-
-				_ = file.Close()
-
-				return filePath
-			},
-			doer: &mockBundleDoer{
-				token: testToken,
-			},
-			errMsg: "destination path is not a directory",
-		},
-
-		"invalid bundleSource URL format": {
-			bundleName:   "bundle.tar.gz",
-			bundleSource: "::invalid_url_format",
-			dstSetup:     defaultDstSetup,
-			doer: &mockBundleDoer{
-				token: testToken,
-			},
-			errMsg: "failed to create HTTP request: " +
-				`parse "::invalid_url_format": missing protocol scheme`,
-		},
-
-		"fails create file due to path conflict": {
-			bundleName:   "conflict_dir/bundle.tar.gz",
-			bundleSource: "https://www.tarantool.io/bundle.tar.gz",
-			dstSetup: func(t *testing.T, baseDir string) string {
-				t.Helper()
-
-				conflictingFile := filepath.Join(baseDir, "conflict_dir")
-				f, err := os.Create(conflictingFile)
-				require.NoError(t, err)
-
-				_ = f.Close()
-
-				return baseDir
-			},
-			doer: &mockBundleDoer{
-				token:   testToken,
-				resBody: []byte("bundle content"),
-			},
-			errMsg: "failed to create destination file",
+		"a destination taken by a file": {
+			source:   &fetchTestSource{body: body},
+			name:     "conflict_dir/bundle.tar.gz",
+			conflict: true,
+			errMsg:   "failed to create destination file",
 		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			tmpDir := t.TempDir()
-			dst := test.dstSetup(t, tmpDir)
+			dir := t.TempDir()
 
-			if test.doer != nil {
-				test.doer.t = t
-				test.doer.expectedURL = test.bundleSource
+			fileName := test.name
+			if fileName == "" {
+				fileName = "bundle.tar.gz"
 			}
 
-			err := DownloadBundle(test.doer, test.bundleName, test.bundleSource, dst)
-
-			if test.errMsg != "" {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), test.errMsg, "Error message mismatch")
-				require.NoFileExists(t, filepath.Join(dst, test.bundleName),
-					"a failed download must leave no file")
-			} else {
-				require.NoError(t, err, "DownloadBundle failed unexpectedly")
-
-				require.FileExists(t, filepath.Join(dst, test.bundleName))
-
-				destFilePath := filepath.Join(dst, test.bundleName)
-				content, readErr := os.ReadFile(destFilePath)
-				require.NoError(t, readErr, "Failed to read downloaded file")
-
-				require.NotNil(t, test.doer, "tc.doer is nil in checkDownloadedFile block")
-				require.Equal(t, test.doer.resBody, content, "Downloaded file content mismatch")
+			if test.conflict {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "conflict_dir"), nil, 0o644))
 			}
+
+			artifact := bundle.Artifact{
+				Version: "1.3.1-0-g074b5ffa", Name: "bundle.tar.gz", SHA256: test.sha256,
+				Locator: "test:bundle",
+			}
+			destination := filepath.Join(dir, fileName)
+
+			err := fetchArtifact(t.Context(), test.source, artifact, destination)
+			if test.errIs == nil && test.errMsg == "" {
+				require.NoError(t, err)
+				assert.Equal(t, artifact, test.source.fetched)
+
+				content, err := os.ReadFile(destination)
+				require.NoError(t, err)
+				assert.Equal(t, body, content)
+
+				return
+			}
+
+			if test.errIs != nil {
+				require.ErrorIs(t, err, test.errIs)
+			}
+
+			require.ErrorContains(t, err, test.errMsg)
+			require.NoFileExists(t, destination, "a failed fetch must leave no file")
 		})
 	}
 }

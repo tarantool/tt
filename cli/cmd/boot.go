@@ -7,9 +7,11 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/bundle"
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/v3/cli/configure"
 	"github.com/tarantool/tt/v3/cli/version"
+	"github.com/tarantool/tt/v3/internal/binary"
 	"github.com/tarantool/tt/v3/internal/integrityprovider"
 )
 
@@ -36,6 +38,10 @@ type BootOptions struct {
 	// a configuration storage. Nil is the disabled provider, which checks
 	// nothing and registers no flag.
 	Integrity integrity.Provider
+	// BundleSources are the sources of prebuilt archives tt binary install
+	// and tt binary search ask, in order. None is no source: only
+	// --local-dir has archives then.
+	BundleSources []bundle.Source
 	// Modules are the modules the distribution is built from, as the table
 	// of the core names them, for tt version --modules.
 	Modules []version.Module
@@ -45,7 +51,8 @@ type BootOptions struct {
 // makes it the process's root. It parses the global flags in opts.Args and
 // installs the process logger they ask for. The root and the commands built
 // after Boot present tt as opts.Flavour and have the integrity flags of
-// opts.Integrity, the provider of the process from then on.
+// opts.Integrity, the provider of the process from then on, and the flags of
+// opts.BundleSources, the sources of the process.
 //
 // A flag error is not returned: Run reports it, once the logger is set up.
 // An invalid --log-format leaves the default format in place until then.
@@ -54,6 +61,7 @@ func Boot(opts BootOptions) (*cobra.Command, error) {
 	modules = opts.Modules
 
 	integrityprovider.Set(opts.Integrity)
+	binary.SetBundleSources(opts.BundleSources)
 
 	rootCmd = newRootCmd()
 	rootCmd.SetErr(errorLogWriter{})

@@ -1,6 +1,7 @@
 package install
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -12,7 +13,7 @@ import (
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
-	"github.com/tarantool/tt/v3/internal/binary/search"
+	"github.com/tarantool/tt/v3/internal/binary/customerzone"
 )
 
 var (
@@ -28,14 +29,16 @@ var (
 	errInstallationFailedDuringFinaleUpdateSymlinks = errors.New(
 		"installation failed during finale update symlinks",
 	)
-	errLocalBundleFileNotFound = errors.New("local bundle file not found: ")
+	errNoBundles           = errors.New("no packages found for this OS or release version")
+	errNoAvailableVersions = errors.New("no available versions")
+	errVersionNotFound     = errors.New(" version doesn't found")
 )
 
 // bundleParams holds the parameters required for the bundle installation process.
 type bundleParams struct {
-	// bundleInfo contains the archive version, filename, and download credentials.
+	// bundleInfo is the build to install and the source of its archive.
 	// Its full SDK version is preserved when the installed product uses a shorter version.
-	bundleInfo search.BundleInfo
+	bundleInfo binary.Bundle
 
 	// inst is the install context for the installation process.
 	inst *InstallCtx
@@ -127,64 +130,22 @@ func checkDependencies(program binary.Program, force bool) error {
 	return programDependenciesInstalled(program)
 }
 
-// copyBundle copies the bundle from a local cache.
-func copyBundle(params *bundleParams) error {
-	log.Infof("Checking local files...")
-
-	bundleName := params.bundleInfo.Version.Tarball
-	localBundlePath := filepath.Join(params.inst.LocalRepo, bundleName)
-
-	if !binary.IsRegularFile(localBundlePath) {
-		return fmt.Errorf("%w%s", errLocalBundleFileNotFound, localBundlePath)
-	}
-
-	log.Infof("Local files found, installing from %s...", bundleName)
-
-	err := binary.CopyFilePreserve(localBundlePath, filepath.Join(params.tmpDir, bundleName))
-	if err != nil {
-		_, _ = fmt.Fprintf(params.logFile, "Error copying local bundle: %v\n", err)
-		return fmt.Errorf("failed to copy local bundle: %w", err)
-	}
-
-	return nil
-}
-
-// downloadBundle downloads the bundle from a remote source.
-func downloadBundle(params *bundleParams) error {
-	bundleName := params.bundleInfo.Version.Tarball
-
-	searchCtx := search.NewSearchCtx(
-		search.NewPlatformInformer(),
-		binary.NewTntIoClient(params.bundleInfo.Token),
-	)
-
-	searchCtx.Program = params.inst.Program.BundleSource()
-	searchCtx.DevBuilds = params.inst.DevBuild
-	searchCtx.ReleaseVersion = params.bundleInfo.Release
-
-	bundleSource, err := search.TntIoMakePkgURI(&searchCtx, bundleName)
-	if err != nil {
-		return fmt.Errorf("failed to construct bundle download URI: %w", err)
-	}
-
-	log.Infof("Downloading %s... (%s)", params.inst.Program, bundleSource)
-
-	err = DownloadBundle(searchCtx.TntIoDoer, bundleName, bundleSource, params.tmpDir)
-	if err != nil {
-		_, _ = fmt.Fprintf(params.logFile, "Error downloading bundle: %v\n", err)
-		return fmt.Errorf("failed to download bundle: %w", err)
-	}
-
-	return nil
-}
-
-// obtainBundle downloads the bundle from a remote source or copies it from the local cache.
+// obtainBundle writes the archive of the build into the temporary directory,
+// from the source that listed it: the customer zone, a local directory.
 func obtainBundle(params *bundleParams) error {
-	if params.inst.LocalRepo != "" {
-		return copyBundle(params)
+	found := params.bundleInfo
+
+	log.Infof("Obtaining %s from %s...", found.Artifact.Name, found.Source.Name())
+
+	err := fetchArtifact(context.Background(), found.Source, found.Artifact,
+		filepath.Join(params.tmpDir, found.Version.Tarball))
+	if err != nil {
+		_, _ = fmt.Fprintf(params.logFile, "Error obtaining bundle: %v\n", err)
+
+		return fmt.Errorf("failed to obtain bundle from %s: %w", found.Source.Name(), err)
 	}
 
-	return downloadBundle(params)
+	return nil
 }
 
 // unpackBundle extracts the contents of the bundle archive.
@@ -447,8 +408,8 @@ func acquireBundleInfoToInstall(params *bundleParams) error {
 // SDK archives default to gc64. Standalone EE also accepts its installed identities.
 // Other requests match complete archive identifiers exactly.
 // Bundles must be sorted in ascending version order.
-func selectBundleVersion(bundles search.BundleInfoSlice, requested string, program binary.Program) (
-	search.BundleInfo, error,
+func selectBundleVersion(bundles binary.Bundles, requested string, program binary.Program) (
+	binary.Bundle, error,
 ) {
 	if program == binary.ProgramSDK {
 		requested = strings.TrimPrefix(requested, binary.SDKVersionPrefix)
@@ -473,7 +434,7 @@ func selectBundleVersion(bundles search.BundleInfoSlice, requested string, progr
 
 		matched, err := version.MatchVersion(requested, versions)
 		if err != nil {
-			return search.BundleInfo{}, err
+			return binary.Bundle{}, err
 		}
 
 		requested = matched
@@ -487,32 +448,58 @@ func selectBundleVersion(bundles search.BundleInfoSlice, requested string, progr
 		}
 	}
 
-	selected, err := search.SelectVersion(bundles, requested)
-
-	return selected, err
+	return selectBundle(bundles, requested)
 }
 
-// fetchInstallBundles obtains candidates without selecting the requested version.
-func fetchInstallBundles(params *bundleParams) (search.BundleInfoSlice, error) {
-	source := params.inst.Program.BundleSource()
+// selectBundle selects the build named ver exactly, or the latest one for an
+// empty ver.
+func selectBundle(bundles binary.Bundles, ver string) (binary.Bundle, error) {
+	if len(bundles) == 0 {
+		return binary.Bundle{}, errNoAvailableVersions
+	}
+
+	if ver == "" {
+		return bundles[len(bundles)-1], nil
+	}
+
+	for _, found := range bundles {
+		if found.Version.Str == ver {
+			return found, nil
+		}
+	}
+
+	return binary.Bundle{}, fmt.Errorf("%q%w", ver, errVersionNotFound)
+}
+
+// fetchInstallBundles obtains candidates without selecting the requested version:
+// from the directory of --local-dir, or from the source of this build of tt
+// with the archives of the product.
+func fetchInstallBundles(params *bundleParams) (binary.Bundles, error) {
+	program := params.inst.Program
+	query := binary.NewBundleQuery(program, params.inst.DevBuild, "")
+
 	if params.inst.LocalRepo != "" {
-		bundles, err := search.FindLocalBundles(source,
-			os.DirFS(params.inst.LocalRepo))
+		bundles, err := binary.ListBundles(context.Background(),
+			customerzone.NewDir(params.inst.LocalRepo), program, query)
 
 		return bundles, err
 	}
 
-	searchCtx := search.NewSearchCtx(search.NewPlatformInformer(), binary.NewTntIoClient(""))
+	source, err := binary.BundleSource(program)
+	if err != nil {
+		return nil, err
+	}
 
-	searchCtx.BinaryContext = params.inst.BinaryContext
-	searchCtx.Program = source
-	searchCtx.CredentialsFile = params.inst.CredentialsFile
-	searchCtx.Filter = search.SearchAll
-	searchCtx.DevBuilds = params.inst.DevBuild
+	bundles, err := binary.ListBundles(context.Background(), source, program, query)
+	if err != nil {
+		return nil, err
+	}
 
-	bundles, err := search.FetchBundlesInfo(&searchCtx)
+	if len(bundles) == 0 {
+		return nil, errNoBundles
+	}
 
-	return bundles, err
+	return bundles, nil
 }
 
 // executeBundleInstallation performs the core installation steps:

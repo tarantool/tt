@@ -6,7 +6,9 @@ import (
 	"slices"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
+	"github.com/tarantool/tt/sdk/bundle"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/internal/binary"
@@ -54,7 +56,7 @@ func NewBinaryCmd() *cobra.Command {
 		scopeName    string
 		installCtx   install.InstallCtx
 		uninstallCtx uninstall.UninstallCtx
-		searchCtx    = search.NewSearchCtx(search.NewPlatformInformer(), binary.NewTntIoClient(""))
+		searchCtx    = search.NewSearchCtx()
 		listCtx      list.ListCtx
 		switchCtx    switcher.SwitchCtx
 	)
@@ -313,14 +315,19 @@ select the headers directory. --from-build accepts no version argument.`,
 		"Link Tarantool from an existing build directory")
 	tntCmd.Flags().StringVar(&installCtx.IncDir, "include-dir", "",
 		"Path to the Tarantool headers directory (requires --from-build)")
-	addEnterpriseInstallFlags(tntCmd, installCtx)
+
+	sourceFlags := addEnterpriseInstallFlags(tntCmd, installCtx, binary.ProgramEe)
 
 	tntCmd.Flags().Lookup("dev").Usage = "Install a development build (Enterprise Edition only)"
 
 	tntCmd.MarkFlagsMutuallyExclusive("local-repo", "local-dir")
 	tntCmd.MarkFlagsMutuallyExclusive("from-build", "local-dir")
 	tntCmd.MarkFlagsMutuallyExclusive("from-build", "dev")
-	tntCmd.MarkFlagsMutuallyExclusive("from-build", "credentials-file")
+
+	for _, flag := range sourceFlags {
+		tntCmd.MarkFlagsMutuallyExclusive("from-build", flag)
+	}
+
 	tntCmd.MarkFlagsMutuallyExclusive("from-build", "use-docker")
 	tntCmd.MarkFlagsMutuallyExclusive("from-build", "dynamic")
 	tntCmd.MarkFlagsMutuallyExclusive("from-build", "source-build")
@@ -340,9 +347,15 @@ func validateEditionInstallFlags(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	incompatible := []string{"local-dir", "dev", "credentials-file"}
+	incompatible := []string{"local-dir", "dev"}
 	if request.Program.BundleSource() != binary.ProgramUnknown {
 		incompatible = []string{"local-repo", "use-docker", "dynamic", "source-build"}
+	} else {
+		cmd.Flags().Visit(func(flag *pflag.Flag) {
+			if _, ok := flag.Annotations[bundleSourceAnnotation]; ok {
+				incompatible = append(incompatible, flag.Name)
+			}
+		})
 	}
 
 	for _, flag := range incompatible {
@@ -355,13 +368,55 @@ func validateEditionInstallFlags(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// addEnterpriseInstallFlags registers the options shared by SDK archive products.
-func addEnterpriseInstallFlags(cmd *cobra.Command, installCtx *install.InstallCtx) {
+// bundleSourceAnnotation marks a flag of a source of archives with the name
+// of the source.
+const bundleSourceAnnotation = "tt.core/bundle-source"
+
+// addEnterpriseInstallFlags registers the options shared by SDK archive
+// products. It returns the names of the flags of the sources of program.
+func addEnterpriseInstallFlags(cmd *cobra.Command, installCtx *install.InstallCtx,
+	program binary.Program,
+) []string {
 	cmd.Flags().StringVar(&installCtx.LocalRepo, "local-dir", "",
 		"Directory with Tarantool Enterprise SDK archives (tarantool-enterprise-sdk-*.tar.gz)")
 	cmd.Flags().BoolVar(&installCtx.DevBuild, "dev", false, "Install a development build")
-	cmd.Flags().StringVar(&installCtx.CredentialsFile, "credentials-file", "",
-		"File containing customer-zone login and password on separate lines")
+
+	return addBundleSourceFlags(cmd, program)
+}
+
+// addBundleSourceFlags adds the flags of the source of program in this build
+// of tt, such as --credentials-file of the customer zone, to cmd, and returns
+// their names. The source is the one asked for program: the first with it.
+func addBundleSourceFlags(cmd *cobra.Command, program binary.Program) []string {
+	source, err := binary.BundleSource(program)
+	if err != nil {
+		return nil
+	}
+
+	flagSource, ok := source.(bundle.FlagSource)
+	if !ok {
+		return nil
+	}
+
+	var names []string
+
+	flags := pflag.NewFlagSet(source.Name(), pflag.ContinueOnError)
+	flagSource.RegisterFlags(program.String(), flags)
+	flags.VisitAll(func(flag *pflag.Flag) {
+		if cmd.Flags().Lookup(flag.Name) != nil {
+			return
+		}
+
+		if flag.Annotations == nil {
+			flag.Annotations = map[string][]string{}
+		}
+
+		flag.Annotations[bundleSourceAnnotation] = []string{source.Name()}
+		names = append(names, flag.Name)
+	})
+	cmd.Flags().AddFlagSet(flags)
+
+	return names
 }
 
 // newInstallTcmCmd creates a command to install a standalone TCM archive.
@@ -400,8 +455,7 @@ func addStandaloneInstallFlags(cmd *cobra.Command, installCtx *install.InstallCt
 ) {
 	cmd.Flags().StringVar(&installCtx.LocalRepo, "local-dir", "",
 		"Directory containing "+program.String()+" standalone archives")
-	cmd.Flags().StringVar(&installCtx.CredentialsFile, "credentials-file", "",
-		"File containing customer-zone login and password on separate lines")
+	addBundleSourceFlags(cmd, program)
 
 	if program == binary.ProgramTcm {
 		cmd.Flags().BoolVar(&installCtx.DevBuild, "dev", false, "Install a development build")
@@ -437,7 +491,7 @@ directory to activate the installed binaries.`,
 		RunE: binaryRunE(base, installCtx, internalInstallModule),
 		Args: cobra.MaximumNArgs(1),
 	}
-	addEnterpriseInstallFlags(cmd, installCtx)
+	addEnterpriseInstallFlags(cmd, installCtx, binary.ProgramSDK)
 
 	return cmd
 }
@@ -718,8 +772,7 @@ from that directory.`, program),
 		"Filter by release version")
 	tntCmd.Flags().BoolVar(&searchCtx.DevBuilds, "dev", false,
 		"Search development builds")
-	tntCmd.Flags().StringVar(&searchCtx.CredentialsFile, "credentials-file", "",
-		"File containing customer-zone login and password on separate lines")
+	addBundleSourceFlags(tntCmd, program)
 
 	return tntCmd
 }
@@ -763,8 +816,7 @@ Archives are read directly from that directory.`, program, program),
 		"Directory containing "+program.String()+" standalone archives")
 	tcmCmd.Flags().StringVar(&searchCtx.ReleaseVersion, "version", "",
 		"Filter by release version")
-	tcmCmd.Flags().StringVar(&searchCtx.CredentialsFile, "credentials-file", "",
-		"File containing customer-zone login and password on separate lines")
+	addBundleSourceFlags(tcmCmd, program)
 
 	if program == binary.ProgramTtEe {
 		tcmCmd.Long += "\n\ntt-ee search and installation are available only on Linux amd64."

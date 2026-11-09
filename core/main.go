@@ -11,8 +11,9 @@
 //		os.Exit(core.Main(core.Modules{"builtin": core.Builtin}))
 //	}
 //
-// Options give the distribution its own name and version (WithFlavour) and
-// its integrity provider (WithIntegrity).
+// Options give the distribution its own name and version (WithFlavour), its
+// integrity provider (WithIntegrity) and the sources of the prebuilt archives
+// tt binary installs (WithBundleSources).
 //
 // Nothing under cli/ but tt's main package may import this package: the core
 // is built on top of the commands, never the other way round.
@@ -33,6 +34,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/bundle"
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/sdk/output"
@@ -42,6 +44,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/core/internal/extmod"
 	"github.com/tarantool/tt/v3/core/internal/mount"
+	"github.com/tarantool/tt/v3/internal/binary/customerzone"
 )
 
 // Modules are the modules tt is built from, by name. The name is the one
@@ -61,6 +64,10 @@ type options struct {
 	// integrity is the integrity provider tt runs with; nil is the disabled
 	// one.
 	integrity integrity.Provider
+	// bundleSources are the sources of prebuilt archives tt runs with, if
+	// bundleSourcesSet; the customer zone otherwise.
+	bundleSources    []bundle.Source
+	bundleSourcesSet bool
 }
 
 // Flavour is how a distribution of tt presents itself: its name and its
@@ -138,6 +145,38 @@ func WithIntegrity(provider integrity.Provider) Option {
 	}
 }
 
+// WithBundleSources makes sources the sources of prebuilt archives tt binary
+// install and tt binary search ask for the products they have, in order:
+// the first source with a product is the one asked for it, and no other.
+// Without it tt has the customer zone of tarantool.io ([CustomerZone]); with
+// no sources tt installs Tarantool Enterprise, the SDK, TCM and tt-ee from
+// --local-dir only. --local-dir is not a source: tt always has it.
+//
+// The sources are the distribution's choice, made once, before any command
+// is built; a module cannot change them.
+func WithBundleSources(sources ...bundle.Source) Option {
+	return func(o *options) {
+		o.bundleSources = slices.Clone(sources)
+		o.bundleSourcesSet = true
+	}
+}
+
+// CustomerZone returns the customer zone of tarantool.io: the source of the
+// archives of Tarantool Enterprise, the SDK, TCM and tt-ee, which logs in
+// with --credentials-file or TT_CLI_EE_USERNAME and TT_CLI_EE_PASSWORD.
+func CustomerZone() bundle.Source {
+	return customerzone.New()
+}
+
+// sources returns the sources of prebuilt archives config sets.
+func (o options) sources() []bundle.Source {
+	if !o.bundleSourcesSet {
+		return []bundle.Source{CustomerZone()}
+	}
+
+	return o.bundleSources
+}
+
 // Main builds tt from modules, runs the command line in os.Args and returns
 // the process exit code, having reported the error tt failed with. It may be
 // called once per process.
@@ -192,7 +231,7 @@ func build(
 ) (*cobra.Command, error) {
 	root, err := cmd.Boot(cmd.BootOptions{
 		Args: args, Flavour: config.flavour, Integrity: config.integrity,
-		Modules: moduleTable(modules),
+		BundleSources: config.sources(), Modules: moduleTable(modules),
 	})
 	if err != nil {
 		return nil, err

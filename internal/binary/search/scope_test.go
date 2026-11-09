@@ -1,13 +1,16 @@
 package search_test
 
 import (
+	"context"
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/sdk/bundle"
 	"github.com/tarantool/tt/v3/internal/binary"
 	"github.com/tarantool/tt/v3/internal/binary/search"
 )
@@ -176,10 +179,42 @@ func TestSearchVersionsInvalidScope(t *testing.T) {
 	require.ErrorIs(t, search.SearchVersionsLocal(ctx), binary.ErrUnknownScope)
 }
 
+// scopeTestSource lists the archives it holds and records the queries.
+type scopeTestSource struct {
+	artifacts []bundle.Artifact
+	queries   []bundle.Query
+}
+
+func (*scopeTestSource) Name() string { return "test-source" }
+
+func (*scopeTestSource) Products() []string {
+	return []string{
+		binary.ProgramEe.String(), binary.ProgramSDK.String(), binary.ProgramTcm.String(),
+	}
+}
+
+func (s *scopeTestSource) List(_ context.Context, query bundle.Query) ([]bundle.Artifact, error) {
+	s.queries = append(s.queries, query)
+
+	return s.artifacts, nil
+}
+
+func (*scopeTestSource) Fetch(context.Context, bundle.Artifact, io.Writer) error {
+	return nil
+}
+
+// useBundleSources makes sources those of the process for the test.
+func useBundleSources(t *testing.T, sources ...bundle.Source) {
+	t.Helper()
+
+	previous := binary.BundleSources()
+
+	binary.SetBundleSources(sources)
+	t.Cleanup(func() { binary.SetBundleSources(previous) })
+}
+
 func TestSearchVersionsRemoteScopeLabels(t *testing.T) {
 	t.Chdir(t.TempDir())
-	t.Setenv("TT_CLI_EE_USERNAME", testingUsername)
-	t.Setenv("TT_CLI_EE_PASSWORD", testingPassword)
 
 	root, err := binary.ScopeProject.ArtifactPath()
 	require.NoError(t, err)
@@ -188,67 +223,87 @@ func TestSearchVersionsRemoteScopeLabels(t *testing.T) {
 	activateSearchVersion(t, root, binary.ProgramTcm, active)
 	addSearchVersion(t, root, binary.ProgramTcm, "1.3.1-0-g074b5ffa")
 
-	platform := platformInfo{arch: "x86_64", os: binary.OsLinux}
-	doer := mockDoer{
-		t: t,
-		content: map[string][]string{
-			"1.3": {
-				"tcm-1.3.0-0-g3857712a.linux.amd64.tar.gz",
-				"tcm-1.3.1-0-g074b5ffa.linux.amd64.tar.gz",
-			},
-		},
-		query: "tarantool-cluster-manager/release/linux/amd64",
-	}
-	ctx := search.NewSearchCtx(&platform, &doer)
+	source := &scopeTestSource{artifacts: []bundle.Artifact{
+		{Version: "1.3.1-0-g074b5ffa", Name: "tcm-1.3.1-0-g074b5ffa.linux.amd64.tar.gz"},
+		{Version: "1.3.0-0-g3857712a", Name: "tcm-1.3.0-0-g3857712a.linux.amd64.tar.gz"},
+	}}
+	useBundleSources(t, source)
+
+	ctx := search.NewSearchCtx()
 
 	ctx.Program = binary.ProgramTcm
 	ctx.Scope = binary.ScopeProject
+	ctx.ReleaseVersion = "1.3"
+	ctx.DevBuilds = true
 
 	output, err := captureSearch(t, func() error { return search.SearchVersions(ctx) })
+	require.NoError(t, err)
+	require.Equal(t, "dev_1.3.0-0-g3857712a\ndev_1.3.1-0-g074b5ffa\n", output,
+		"a development build is not the installed release")
+	require.Equal(t, []bundle.Query{{
+		Product: "tcm", OS: runtime.GOOS, Arch: runtime.GOARCH,
+		Channel: bundle.ChannelDev, Version: "1.3",
+	}}, source.queries)
+
+	ctx.DevBuilds = false
+
+	output, err = captureSearch(t, func() error { return search.SearchVersions(ctx) })
 	require.NoError(t, err)
 	require.Equal(t, "1.3.0-0-g3857712a [active]\n1.3.1-0-g074b5ffa [installed]\n", output)
 }
 
-func TestSearchVersionsCredentialsFile(t *testing.T) {
-	for _, program := range []binary.Program{binary.ProgramEe, binary.ProgramTcm} {
-		t.Run(program.String(), func(t *testing.T) {
-			t.Chdir(t.TempDir())
-			t.Setenv("TT_CLI_EE_USERNAME", "ignored-user")
-			t.Setenv("TT_CLI_EE_PASSWORD", "ignored-password")
+func TestSearchVersionsRemoteFlavors(t *testing.T) {
+	t.Chdir(t.TempDir())
 
-			credentials := "credentials"
-			require.NoError(t, os.WriteFile(credentials,
-				[]byte(testingUsername+"\n"+testingPassword+"\n"), 0o600))
+	useBundleSources(t, &scopeTestSource{artifacts: []bundle.Artifact{
+		{Version: "3.4.0-0-r60", Flavor: []string{"gc64"}},
+		{Version: "3.4.0-0-r60", Flavor: []string{"debug", "gc64"}},
+		{Version: "2.11.1-0-r563", Flavor: []string{"gc64"}},
+		{Version: "not-a-version"},
+	}})
 
-			tarball := "tcm-1.3.1-0-g074b5ffa.linux.amd64.tar.gz"
-			release := "1.3"
-			expected := "1.3.1-0-g074b5ffa\n"
-			query := "tarantool-cluster-manager/release/linux/amd64"
+	ctx := search.NewSearchCtx()
 
-			if program == binary.ProgramEe {
-				tarball = "tarantool-enterprise-sdk-gc64-3.4.0-0-r60.linux.x86_64.tar.gz"
-				release = "3.4"
-				expected = "gc64-3.4.0-0-r60\n"
-				query = "enterprise/release/linux/x86_64"
-			}
+	ctx.Program = binary.ProgramEe
+	ctx.Scope = binary.ScopeProject
 
-			platform := platformInfo{arch: "x86_64", os: binary.OsLinux}
-			doer := mockDoer{
-				t:       t,
-				content: map[string][]string{release: {tarball}},
-				query:   query,
-			}
-			ctx := search.NewSearchCtx(&platform, &doer)
+	output, err := captureSearch(t, func() error { return search.SearchVersions(ctx) })
+	require.NoError(t, err)
+	require.Equal(t, "gc64-3.4.0-0-r60\n", output,
+		"release builds of Tarantool 3 only, named with their flavours")
 
-			ctx.Program = program
-			ctx.Scope = binary.ScopeProject
-			ctx.CredentialsFile = credentials
+	ctx.Filter = search.SearchDebug
 
-			output, err := captureSearch(t, func() error { return search.SearchVersions(ctx) })
-			require.NoError(t, err)
-			require.Equal(t, expected, output)
-		})
-	}
+	output, err = captureSearch(t, func() error { return search.SearchVersions(ctx) })
+	require.NoError(t, err)
+	require.Equal(t, "debug-gc64-3.4.0-0-r60\n", output)
+}
+
+func TestSearchVersionsRemoteNothingFound(t *testing.T) {
+	t.Chdir(t.TempDir())
+	useBundleSources(t, &scopeTestSource{artifacts: nil})
+
+	ctx := search.NewSearchCtx()
+
+	ctx.Program = binary.ProgramTcm
+	ctx.Scope = binary.ScopeProject
+
+	require.ErrorContains(t, search.SearchVersions(ctx),
+		"failed to fetch bundle info for tcm: no packages found for this OS or release version")
+}
+
+func TestSearchVersionsWithoutSource(t *testing.T) {
+	t.Chdir(t.TempDir())
+	useBundleSources(t)
+
+	ctx := search.NewSearchCtx()
+
+	ctx.Program = binary.ProgramEe
+	ctx.Scope = binary.ScopeProject
+
+	err := search.SearchVersions(ctx)
+	require.ErrorIs(t, err, binary.ErrNoBundleSource)
+	require.ErrorContains(t, err, "use --local-dir")
 }
 
 func TestSearchVersionsLocalActiveIdentity(t *testing.T) {

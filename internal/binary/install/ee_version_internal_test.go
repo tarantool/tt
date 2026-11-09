@@ -1,36 +1,54 @@
 package install
 
 import (
-	"sort"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/sdk/bundle"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
-	"github.com/tarantool/tt/v3/internal/binary/search"
 )
 
-func eeTestBundles(t *testing.T, names ...string) search.BundleInfoSlice {
+// testBundles returns the builds of versions in the order ListBundles sorts
+// them, with archives named by name.
+func testBundles(t *testing.T, name func(string) string, versions ...string) binary.Bundles {
 	t.Helper()
 
-	bundles := make(search.BundleInfoSlice, 0, len(names))
+	bundles := make(binary.Bundles, 0, len(versions))
 
-	for _, name := range names {
-		ver, err := version.Parse(name)
+	for _, ver := range versions {
+		parsed, err := version.Parse(ver)
 		require.NoError(t, err)
 
-		ver.Tarball = "tarantool-enterprise-sdk-" + name + ".linux.x86_64.tar.gz"
-		bundles = append(bundles, search.BundleInfo{
-			Version: ver,
-			Package: "enterprise",
-			Release: "release-" + name,
-			Token:   "token-" + name,
+		parsed.Tarball = name(ver)
+		bundles = append(bundles, binary.Bundle{
+			Source:   nil,
+			Artifact: bundle.Artifact{Version: ver, Name: parsed.Tarball, Locator: "test:" + ver},
+			Version:  parsed,
 		})
 	}
 
-	sort.Sort(bundles)
+	slices.SortStableFunc(bundles, func(left, right binary.Bundle) int {
+		switch {
+		case binary.LessVersion(left.Version, right.Version):
+			return -1
+		case binary.LessVersion(right.Version, left.Version):
+			return 1
+		default:
+			return 0
+		}
+	})
 
 	return bundles
+}
+
+func eeTestBundles(t *testing.T, names ...string) binary.Bundles {
+	t.Helper()
+
+	return testBundles(t, func(ver string) string {
+		return "tarantool-enterprise-sdk-" + ver + ".linux.x86_64.tar.gz"
+	}, names...)
 }
 
 func TestSelectEeBundleVersion(t *testing.T) {
@@ -71,12 +89,12 @@ func TestSelectEeBundleVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bundle, err := selectBundleVersion(bundles, tt.requested, binary.ProgramEe)
+			selected, err := selectBundleVersion(bundles, tt.requested, binary.ProgramEe)
 			require.NoError(t, err)
 
-			expected, err := search.SelectVersion(bundles, tt.expected)
+			expected, err := selectBundle(bundles, tt.expected)
 			require.NoError(t, err)
-			require.Equal(t, expected, bundle)
+			require.Equal(t, expected, selected)
 		})
 	}
 }
