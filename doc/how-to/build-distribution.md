@@ -36,8 +36,10 @@ version query for the core module - a version, a commit, `latest` - and
 reads `v3` as "the newest v3.x.y release", not as the branch `v3`, and while
 tt 3 has pre-releases only it matches nothing. `[distribution]` sets how the binary
 presents itself (`title`, `edition`), the integrity provider (`none` or
-`rsa`), and whether it has tt's own commands (`builtin`) and external modules
-(`external_modules`), both on by default. `[build]` sets the TLS
+`rsa`), whether it has tt's own commands (`builtin`) and external modules
+(`external_modules`), both on by default, and where `tt binary install`
+finds Tarantool Enterprise, the SDK, TCM and tt-ee (`bundle_sources`: the
+customer zone of tarantool.io by default, `[]` for none). `[build]` sets the TLS
 implementation (`ssl`: `default`, `openssl` or `openssl_static`, overridden
 by `TT_CLI_BUILD_SSL`), whether to build with `cgo` (by default only for
 the OpenSSL ones), extra build `tags` and `ldflags`.

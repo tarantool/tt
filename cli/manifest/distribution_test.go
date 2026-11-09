@@ -39,6 +39,10 @@ func TestDistributionDefaults(t *testing.T) {
 	assert.Equal(t, manifest.IntegrityNone, dist.Distribution.IntegrityValue())
 	assert.True(t, dist.Distribution.BuiltinValue())
 	assert.True(t, dist.Distribution.ExternalModulesValue())
+
+	sources, chosen := dist.Distribution.BundleSourcesValue()
+	assert.False(t, chosen, "without bundle_sources the core chooses")
+	assert.Empty(t, sources)
 	assert.Empty(t, dist.Dependencies)
 	assert.Equal(t, manifest.HashBytes([]byte(minimalDistribution)), dist.Hash())
 }
@@ -62,6 +66,7 @@ edition = "ee"
 integrity = "rsa"
 builtin = false
 external_modules = false
+bundle_sources = ["customer-zone"]
 
 [build]
 ssl = "openssl_static"
@@ -92,6 +97,10 @@ path = "../tt-local"
 	assert.Equal(t, manifest.IntegrityRSA, dist.Distribution.IntegrityValue())
 	assert.False(t, dist.Distribution.BuiltinValue())
 	assert.False(t, dist.Distribution.ExternalModulesValue())
+
+	sources, chosen := dist.Distribution.BundleSourcesValue()
+	assert.True(t, chosen)
+	assert.Equal(t, []string{manifest.BundleSourceCustomerZone}, sources)
 	assert.Equal(t, manifest.DistributionBuild{
 		SSL:     "openssl_static",
 		Cgo:     new(true),
@@ -124,6 +133,16 @@ path = "../tt-local"
 	assert.Equal(t, "Make", inline.SymbolValue())
 }
 
+func TestDistributionNoBundleSources(t *testing.T) {
+	t.Parallel()
+
+	dist := parseDistribution(t, minimalDistribution+"[distribution]\nbundle_sources = []\n")
+
+	sources, chosen := dist.Distribution.BundleSourcesValue()
+	assert.True(t, chosen, "an empty list is a choice: no source")
+	assert.Empty(t, sources)
+}
+
 func TestDistributionErrors(t *testing.T) {
 	t.Parallel()
 
@@ -147,6 +166,14 @@ func TestDistributionErrors(t *testing.T) {
 		},
 		"bad edition": {
 			src: head + "[distribution]\nedition = \"e e\"\n", field: "distribution.edition",
+		},
+		"unknown bundle source": {
+			src:   head + "[distribution]\nbundle_sources = [\"mirror\"]\n",
+			field: "distribution.bundle_sources",
+		},
+		"bundle source twice": {
+			src:   head + "[distribution]\nbundle_sources = [\"customer-zone\", \"customer-zone\"]\n",
+			field: "distribution.bundle_sources",
 		},
 		"unknown ssl": {
 			src: head + "[build]\nssl = \"static\"\n", field: "build.ssl",

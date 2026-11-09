@@ -48,6 +48,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `sdk/tuple`: a module that decodes the MessagePack values of Tarantool and
   renders them as text, JSON, YAML and Lua, for `tt data` and the modules
   that print tuples.
+- `sdk/bundle`: the contract of a source of prebuilt archives - list the
+  builds of a product for a platform, fetch one - and
+  `core.WithBundleSources`, with `[distribution] bundle_sources` in
+  `tt.manifest.toml`: a distribution of tt chooses where `tt binary install`
+  and `tt binary search` find Tarantool Enterprise, the SDK, TCM and tt-ee.
+  tt has the customer zone of tarantool.io, as before; with
+  `bundle_sources = []` it has none, and no `--credentials-file`, and
+  installs these products from `--local-dir` only. A source that lists the
+  SHA-256 of an archive has it checked.
 
 ### Changed
 

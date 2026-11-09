@@ -33,5 +33,6 @@ func main() {
 		}),
 		core.WithIntegrity(integrity.NewRSAProvider()),
 		core.WithoutExternalModules(),
+		core.WithBundleSources(core.CustomerZone()),
 	))
 }

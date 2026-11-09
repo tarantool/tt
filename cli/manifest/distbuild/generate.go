@@ -3,6 +3,7 @@ package distbuild
 import (
 	"bytes"
 	"cmp"
+	"errors"
 	"fmt"
 	"go/format"
 	"regexp"
@@ -213,6 +214,10 @@ type mainData struct {
 	Version    versionInfo
 	Integrity  bool
 	NoExternal bool
+	// BundleSources is set when the manifest chooses the sources, none
+	// included; BundleSourceArgs are the expressions that build them.
+	BundleSources    bool
+	BundleSourceArgs string
 }
 
 // mainTemplate is the main package of a distribution.
@@ -251,9 +256,21 @@ func main() {
 {{- if .NoExternal}}
 		core.WithoutExternalModules(),
 {{- end}}
+{{- if .BundleSources}}
+		core.WithBundleSources({{.BundleSourceArgs}}),
+{{- end}}
 	))
 }
 `))
+
+// bundleSourceCtors are the expressions of the core that build the sources
+// [distribution].bundle_sources names.
+var bundleSourceCtors = map[string]string{
+	manifest.BundleSourceCustomerZone: "core.CustomerZone()",
+}
+
+// errUnknownBundleSource reports a source the manifest validation let through.
+var errUnknownBundleSource = errors.New("unknown bundle source")
 
 // generateMain writes the main package of a distribution: the table of its
 // modules, by name, handed to core.Main with the options the manifest sets.
@@ -272,6 +289,23 @@ func generateMain(spec mainSpec) ([]byte, error) {
 		Integrity:  spec.Options.IntegrityValue() == manifest.IntegrityRSA,
 		NoExternal: !spec.Options.ExternalModulesValue(),
 	}
+
+	var (
+		sources []string
+		ctors   []string
+	)
+
+	sources, data.BundleSources = spec.Options.BundleSourcesValue()
+	for _, source := range sources {
+		ctor, ok := bundleSourceCtors[source]
+		if !ok {
+			return nil, fmt.Errorf("generating main.go: %w %q", errUnknownBundleSource, source)
+		}
+
+		ctors = append(ctors, ctor)
+	}
+
+	data.BundleSourceArgs = strings.Join(ctors, ", ")
 
 	if data.Integrity {
 		data.Imports = append(data.Imports, mainImport{Alias: "", Path: integrityPackage})
