@@ -21,6 +21,7 @@ edition = "ee"
 integrity = "rsa"
 builtin = true
 external_modules = true
+bundle_sources = ["customer-zone"]
 
 [build]
 ssl = "openssl_static"
@@ -99,6 +100,7 @@ How the binary presents itself and what it has besides its modules.
 | `integrity` | `none` | the integrity provider: `none` or `rsa` (see [Sign packages](../how-to/sign-packages.md)) |
 | `builtin` | `true` | tt's own commands, the module `builtin` |
 | `external_modules` | `true` | [external modules](../how-to/external-modules.md) and `tt modules` |
+| `bundle_sources` | `["customer-zone"]` | where `tt binary install` and `tt binary search` find Tarantool Enterprise, the SDK, TCM and tt-ee, in order: `customer-zone` is the customer zone of tarantool.io, with `--credentials-file`; `[]` is no source, and these products are installed from `--local-dir` only |
 
 The version of the distribution is taken from `git describe` in the
 manifest's directory; `VERSION_LABEL` follows it.

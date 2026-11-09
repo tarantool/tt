@@ -99,6 +99,18 @@ func (d *Distribution) validateOptions() error {
 			opts.Edition)
 	}
 
+	sources, _ := opts.BundleSourcesValue()
+	for index, source := range sources {
+		if source != BundleSourceCustomerZone {
+			return invalid("distribution.bundle_sources", "unknown source %q: want %q",
+				source, BundleSourceCustomerZone)
+		}
+
+		if slices.Contains(sources[:index], source) {
+			return invalid("distribution.bundle_sources", "%q is listed twice", source)
+		}
+	}
+
 	return nil
 }
 

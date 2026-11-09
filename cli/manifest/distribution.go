@@ -41,6 +41,11 @@ const (
 	IntegrityRSA = "rsa"
 )
 
+// BundleSourceCustomerZone is the customer zone of tarantool.io among the
+// sources of prebuilt archives ([distribution].bundle_sources): the source
+// of Tarantool Enterprise, the SDK, TCM and tt-ee.
+const BundleSourceCustomerZone = "customer-zone"
+
 // TLS implementations ([build].ssl); the same names TT_CLI_BUILD_SSL takes.
 const (
 	SSLDefault       = "default"
@@ -110,6 +115,12 @@ type DistributionOptions struct {
 	// ExternalModules lets tt run the external modules TT_CLI_MODULES_PATH
 	// lists. Default: true.
 	ExternalModules *bool `toml:"external_modules,omitempty"`
+	// BundleSources are the sources of the prebuilt archives tt binary
+	// installs, in the order they are asked in: BundleSourceCustomerZone.
+	// An empty list is no source: tt then installs Tarantool Enterprise, the
+	// SDK, TCM and tt-ee from --local-dir only. Default: the core's, the
+	// customer zone.
+	BundleSources *[]string `toml:"bundle_sources,omitempty"`
 }
 
 // DistributionBuild is [build]: how the binary is compiled.
@@ -247,6 +258,17 @@ func (o DistributionOptions) IntegrityValue() string {
 // BuiltinValue reports whether tt's own commands are included.
 func (o DistributionOptions) BuiltinValue() bool {
 	return o.Builtin == nil || *o.Builtin
+}
+
+// BundleSourcesValue returns the sources of prebuilt archives the manifest
+// chooses, and whether it chooses them at all: without bundle_sources the
+// distribution has the core's.
+func (o DistributionOptions) BundleSourcesValue() ([]string, bool) {
+	if o.BundleSources == nil {
+		return nil, false
+	}
+
+	return *o.BundleSources, true
 }
 
 // ExternalModulesValue reports whether tt runs external modules.

@@ -130,6 +130,7 @@ func TestGenerateMainFull(t *testing.T) {
 			Edition:         "ee",
 			Integrity:       manifest.IntegrityRSA,
 			ExternalModules: new(false),
+			BundleSources:   &[]string{manifest.BundleSourceCustomerZone},
 		},
 		Version: versionInfo{
 			Tag: "v2.15.2-3-g9ce7070", Commit: "9ce7070", CommitsSinceTag: 3, Label: "nightly",
@@ -145,6 +146,46 @@ func TestGenerateMainMinimal(t *testing.T) {
 	got, err := generateMain(mainSpec{CoreModule: "github.com/tarantool/tt/v3"})
 	require.NoError(t, err)
 	golden(t, "minimal.main.go.golden", got)
+}
+
+func TestGenerateMainBundleSources(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name    string
+		sources *[]string
+		want    string
+	}{
+		{name: "the core's", sources: nil, want: ""},
+		{name: "none", sources: &[]string{}, want: "core.WithBundleSources(),"},
+		{
+			name:    "customer zone",
+			sources: &[]string{manifest.BundleSourceCustomerZone},
+			want:    "core.WithBundleSources(core.CustomerZone()),",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := generateMain(mainSpec{
+				CoreModule: "github.com/tarantool/tt/v3",
+				Options:    manifest.DistributionOptions{BundleSources: test.sources},
+			})
+			require.NoError(t, err)
+
+			if test.want == "" {
+				assert.NotContains(t, string(got), "WithBundleSources")
+			} else {
+				assert.Contains(t, string(got), test.want)
+			}
+		})
+	}
+
+	_, err := generateMain(mainSpec{
+		CoreModule: "github.com/tarantool/tt/v3",
+		Options:    manifest.DistributionOptions{BundleSources: &[]string{"mirror"}},
+	})
+	require.ErrorIs(t, err, errUnknownBundleSource)
 }
 
 func TestGenerateMainWithoutBuiltin(t *testing.T) {

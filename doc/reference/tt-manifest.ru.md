@@ -20,6 +20,7 @@ edition = "ee"
 integrity = "rsa"
 builtin = true
 external_modules = true
+bundle_sources = ["customer-zone"]
 
 [build]
 ssl = "openssl_static"
@@ -99,6 +100,7 @@ Lock-файл фиксирует то, во что разрешился запр
 | `integrity` | `none` | провайдер целостности: `none` или `rsa` (см. [Подпись пакетов](../how-to/sign-packages.md)) |
 | `builtin` | `true` | собственные команды tt, модуль `builtin` |
 | `external_modules` | `true` | [внешние модули](../how-to/external-modules.md) и `tt modules` |
+| `bundle_sources` | `["customer-zone"]` | откуда `tt binary install` и `tt binary search` берут Tarantool Enterprise, SDK, TCM и tt-ee, по порядку: `customer-zone` - личный кабинет tarantool.io, с флагом `--credentials-file`; `[]` - ни одного источника, и эти продукты ставятся только из `--local-dir` |
 
 Версия дистрибутива берётся из `git describe` в каталоге манифеста; за ней
 следует `VERSION_LABEL`.
