@@ -22,7 +22,6 @@ import (
 var (
 	errNoAPIDoerWasApplied          = errors.New("no API doer was applied")
 	errNoPlatformInformerWasApplied = errors.New("no platform informer was applied")
-	errAPIRequestFailed             = errors.New("API request failed")
 
 	errUnsupportedArchitecture = errors.New("unsupported architecture: ")
 	errUnsupportedOS           = errors.New("unsupported OS: ")
@@ -65,60 +64,6 @@ func (*realInfo) GetOs() (binary.OsType, error) {
 // GetArch implement PlatformInformer interface.
 func (*realInfo) GetArch() (string, error) {
 	return binary.GetArch()
-}
-
-// httpDoer is a struct that implements the TntIoDoer interface using the http package.
-type httpDoer struct {
-	client *http.Client
-	token  string
-}
-
-func NewTntIoDoer() *httpDoer {
-	return &httpDoer{
-		client: http.DefaultClient,
-		token:  "",
-	}
-}
-
-// Do implement TntIoDoer interface.
-// It sends an HTTP request and returns Body data from HTTP response.
-// It also saves the session token from the response cookies.
-func (d *httpDoer) Do(req *http.Request) ([]byte, error) {
-	resp, err := d.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send API request: %w", err)
-	}
-
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, err := io.ReadAll(resp.Body)
-		apiErr := fmt.Errorf("%w with status %s: %q", errAPIRequestFailed,
-			resp.Status, string(bodyBytes))
-
-		if err != nil {
-			return nil, fmt.Errorf("%w; reading response body: %w", apiErr, err)
-		}
-
-		return nil, apiErr
-	}
-
-	if token := getSessionToken(resp.Cookies()); token != "" {
-		d.token = token
-	}
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read API response body: %w", err)
-	}
-
-	return respBody, nil
-}
-
-func (d *httpDoer) Token() string {
-	return d.token
 }
 
 // getOsForApi determines the OS type string required by the tarantool.io API.
@@ -290,17 +235,6 @@ func sendAPIRequest(request apiRequest, doer binary.TntIoDoer) ([]byte, error) {
 	return nil, errNoAPIDoerWasApplied
 }
 
-// getSessionToken parse cookies to get session token.
-func getSessionToken(cookies []*http.Cookie) string {
-	for _, cookie := range cookies {
-		if cookie.Name == "sessionid" {
-			return cookie.Value
-		}
-	}
-
-	return ""
-}
-
 // filterChecksums removes checksum files from the API response.
 func filterChecksums(apiReply map[string][]string) {
 	for release, pkgs := range apiReply {
@@ -413,9 +347,7 @@ func ttEEDirectoryEntries(address string, doer binary.TntIoDoer) ([]string, erro
 	}
 
 	request.Header.Set("User-Agent", "tt")
-	request.AddCookie(&http.Cookie{ //nolint:gosec // Request cookie carries only name/value.
-		Name: "sessionid", Value: doer.Token(),
-	})
+	binary.AddSessionCookie(request, doer.Token())
 
 	body, err := doer.Do(request)
 	if err != nil {

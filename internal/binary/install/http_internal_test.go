@@ -2,7 +2,7 @@ package install
 
 import (
 	"errors"
-	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/v3/internal/binary"
 )
 
 var (
@@ -18,7 +17,7 @@ var (
 )
 
 const (
-	// testToken is a token for the TntIoDownloader.
+	// testToken is a session token of tarantool.io.
 	testToken      = "test-token"
 	packageTestURL = "https://packages.test"
 )
@@ -61,18 +60,28 @@ type mockBundleDoer struct {
 	resBody     []byte
 	resErr      error
 	expectedURL string
+	// foreign is a source off tarantool.io, which the token is not sent to.
+	foreign bool
 }
 
-// Do mocks the Do method of TntIoDoer.
-// It verifies the request's URL, method, User-Agent header, and sessionid cookie.
+// Do is not a part of a download.
 func (m *mockBundleDoer) Do(req *http.Request) ([]byte, error) {
+	m.t.Helper()
+	m.t.Errorf("a download must stream %s", req.URL)
+
+	return nil, errSimulatedNetworkError
+}
+
+// Download mocks the Download method of TntIoDoer.
+// It verifies the request's URL, method, User-Agent header, and sessionid cookie.
+func (m *mockBundleDoer) Download(req *http.Request, dst io.Writer) error {
 	m.t.Helper()
 
 	require.Equal(m.t, m.expectedURL, req.URL.String(), "Request URL mismatch")
 	require.Equal(m.t, http.MethodGet, req.Method, "Request method mismatch")
 	require.Equal(m.t, "tt", req.Header.Get("User-Agent"), "User-Agent header mismatch")
 
-	if m.token != "" {
+	if m.token != "" && !m.foreign {
 		cookie, err := req.Cookie("sessionid")
 		require.NoError(m.t, err, "sessionid cookie not found when token is non-empty")
 		require.NotNil(m.t, cookie, "sessionid cookie is nil when token is non-empty")
@@ -80,14 +89,13 @@ func (m *mockBundleDoer) Do(req *http.Request) ([]byte, error) {
 	} else {
 		_, err := req.Cookie("sessionid")
 		require.ErrorIs(m.t, err, http.ErrNoCookie,
-			"sessionid cookie should not be present when token is empty")
+			"sessionid cookie should be present only for tarantool.io with a token")
 	}
 
-	if m.resErr != nil {
-		return nil, m.resErr
-	}
+	_, err := dst.Write(m.resBody)
+	require.NoError(m.t, err)
 
-	return m.resBody, nil
+	return m.resErr
 }
 
 // Token mocks the Token method of TntIoDoer.
@@ -111,7 +119,7 @@ func TestDownloadBundle(t *testing.T) {
 	}{
 		"successful download with token": {
 			bundleName:   "bundle_with_token.tar.gz",
-			bundleSource: "http://tarantool.io/bundle_with_token.tar.gz",
+			bundleSource: "https://www.tarantool.io/bundle_with_token.tar.gz",
 			dstSetup:     defaultDstSetup,
 			doer: &mockBundleDoer{
 				token:   testToken,
@@ -121,7 +129,7 @@ func TestDownloadBundle(t *testing.T) {
 
 		"successful download no token": {
 			bundleName:   "bundle_no_token.tar.gz",
-			bundleSource: "http://tarantool.io/bundle_no_token.tar.gz",
+			bundleSource: "https://www.tarantool.io/bundle_no_token.tar.gz",
 			dstSetup:     defaultDstSetup,
 			doer: &mockBundleDoer{
 				token:   "",
@@ -129,20 +137,43 @@ func TestDownloadBundle(t *testing.T) {
 			},
 		},
 
-		"error from TntIoDoer": {
-			bundleName:   "bundle.tar.gz",
-			bundleSource: "http://tarantool.io/bundle.tar.gz",
+		"token is not sent off tarantool.io": {
+			bundleName:   "bundle_foreign.tar.gz",
+			bundleSource: "https://storage.test/bundle_foreign.tar.gz",
 			dstSetup:     defaultDstSetup,
 			doer: &mockBundleDoer{
-				token:  testToken,
-				resErr: errSimulatedNetworkError,
+				token:   testToken,
+				resBody: []byte("bundle content off tarantool.io"),
+				foreign: true,
+			},
+		},
+
+		"token is not sent over plain HTTP": {
+			bundleName:   "bundle_http.tar.gz",
+			bundleSource: "http://www.tarantool.io/bundle_http.tar.gz",
+			dstSetup:     defaultDstSetup,
+			doer: &mockBundleDoer{
+				token:   testToken,
+				resBody: []byte("bundle content over HTTP"),
+				foreign: true,
+			},
+		},
+
+		"error from TntIoDoer": {
+			bundleName:   "bundle.tar.gz",
+			bundleSource: "https://www.tarantool.io/bundle.tar.gz",
+			dstSetup:     defaultDstSetup,
+			doer: &mockBundleDoer{
+				token:   testToken,
+				resBody: []byte("partial bundle"),
+				resErr:  errSimulatedNetworkError,
 			},
 			errMsg: "simulated network error",
 		},
 
 		"nil TntIoDoer in searchCtx": {
 			bundleName:   "bundle.tar.gz",
-			bundleSource: "http://tarantool.io/bundle.tar.gz",
+			bundleSource: "https://www.tarantool.io/bundle.tar.gz",
 			dstSetup:     defaultDstSetup,
 			doer:         nil,
 			errMsg:       "no tarantool.io doer was applied",
@@ -150,7 +181,7 @@ func TestDownloadBundle(t *testing.T) {
 
 		"destination directory does not exist": {
 			bundleName:   "bundle.tar.gz",
-			bundleSource: "http://tarantool.io/bundle.tar.gz",
+			bundleSource: "https://www.tarantool.io/bundle.tar.gz",
 			dstSetup: func(t *testing.T, baseDir string) string {
 				t.Helper()
 
@@ -166,7 +197,7 @@ func TestDownloadBundle(t *testing.T) {
 
 		"destination is not a directory": {
 			bundleName:   "bundle.tar.gz",
-			bundleSource: "http://tarantool.io/bundle.tar.gz",
+			bundleSource: "https://www.tarantool.io/bundle.tar.gz",
 			dstSetup: func(t *testing.T, baseDir string) string {
 				t.Helper()
 
@@ -198,7 +229,7 @@ func TestDownloadBundle(t *testing.T) {
 
 		"fails create file due to path conflict": {
 			bundleName:   "conflict_dir/bundle.tar.gz",
-			bundleSource: "http://tarantool.io/bundle.tar.gz",
+			bundleSource: "https://www.tarantool.io/bundle.tar.gz",
 			dstSetup: func(t *testing.T, baseDir string) string {
 				t.Helper()
 
@@ -233,6 +264,8 @@ func TestDownloadBundle(t *testing.T) {
 			if test.errMsg != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), test.errMsg, "Error message mismatch")
+				require.NoFileExists(t, filepath.Join(dst, test.bundleName),
+					"a failed download must leave no file")
 			} else {
 				require.NoError(t, err, "DownloadBundle failed unexpectedly")
 
@@ -244,70 +277,6 @@ func TestDownloadBundle(t *testing.T) {
 
 				require.NotNil(t, test.doer, "tc.doer is nil in checkDownloadedFile block")
 				require.Equal(t, test.doer.resBody, content, "Downloaded file content mismatch")
-			}
-		})
-	}
-}
-
-func TestNewTntIoDownloader(t *testing.T) {
-	tests := map[string]struct {
-		token       string
-		expectToken string
-		requestHost string
-	}{
-		"empty token": {
-			token:       "",
-			expectToken: "",
-			requestHost: "tarantool.io",
-		},
-
-		"non-empty token": {
-			token:       testToken,
-			expectToken: testToken,
-			requestHost: "tarantool.io",
-		},
-	}
-
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			downloader := NewTntIoDownloader(test.token)
-			require.NotNil(t, downloader, "NewTntIoDownloader should return a non-nil object")
-			require.Implements(t, (*binary.TntIoDoer)(nil), downloader,
-				"NewTntIoDownloader should return an object implementing TntIoDoer")
-
-			require.Equal(t, test.expectToken, downloader.token, "Internal token field mismatch")
-			require.Equal(t, test.expectToken, downloader.Token(),
-				"interface Token() method should return the correct token")
-
-			client := downloader.client
-			require.NotNil(t, client, "downloader.client should not be nil")
-
-			require.NotNil(t, client.CheckRedirect, "CheckRedirect function is nil")
-
-			// Using a dummy request to test the CheckRedirect behavior.
-			requestURL := fmt.Sprintf("http://%s/testpath", test.requestHost)
-			dummyReq, err := http.NewRequestWithContext(
-				t.Context(), http.MethodGet, requestURL, nil)
-			require.NoError(t, err, "Failed to create dummy HTTP request")
-
-			// Call the CheckRedirect to add cookies to dummyReq and set Host.
-			err = client.CheckRedirect(dummyReq, nil)
-			require.NoError(t, err, "CheckRedirect function returned an error")
-
-			// Verify the Host field was set correctly.
-			require.Equal(t, test.requestHost, dummyReq.Host,
-				"request Host mismatch after CheckRedirect")
-
-			// Verify the sessionid cookie based on the token.
-			if test.token != "" {
-				cookie, err := dummyReq.Cookie("sessionid")
-				require.NoError(t, err, "sessionid cookie not found when token is non-empty")
-				require.NotNil(t, cookie, "sessionid cookie is nil when token is non-empty")
-				require.Equal(t, test.expectToken, cookie.Value, "sessionid cookie value mismatch")
-			} else {
-				_, err := dummyReq.Cookie("sessionid")
-				require.ErrorIs(t, err, http.ErrNoCookie,
-					"sessionid cookie should not be present when token is empty")
 			}
 		})
 	}

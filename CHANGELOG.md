@@ -86,6 +86,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   is released, and no longer looks for a tt 3 on macOS amd64, where it is
   not; it built tt 3 from source on a Mac. tt 2 on macOS is still the amd64
   archive.
+- `tt binary install` of Tarantool Enterprise, the SDK, TCM and tt-ee writes
+  the archive to disk as it arrives instead of holding all of it in memory,
+  and fails when no data comes for a minute instead of waiting forever; a
+  search fails when tarantool.io does not answer for a minute. The session
+  of the customer zone is sent to tarantool.io over HTTPS only: a redirect
+  to another host, the storage of an archive, went with it.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

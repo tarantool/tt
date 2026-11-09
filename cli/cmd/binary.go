@@ -54,7 +54,7 @@ func NewBinaryCmd() *cobra.Command {
 		scopeName    string
 		installCtx   install.InstallCtx
 		uninstallCtx uninstall.UninstallCtx
-		searchCtx    = search.NewSearchCtx(search.NewPlatformInformer(), search.NewTntIoDoer())
+		searchCtx    = search.NewSearchCtx(search.NewPlatformInformer(), binary.NewTntIoClient(""))
 		listCtx      list.ListCtx
 		switchCtx    switcher.SwitchCtx
 	)

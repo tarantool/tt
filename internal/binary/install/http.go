@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -16,58 +15,7 @@ import (
 var (
 	errDestinationDirectoryMissing    = errors.New("destination directory doesn't exist: ")
 	errDestinationPathIsNotADirectory = errors.New("destination path is not a directory: ")
-	errHTTPRequestError               = errors.New("HTTP request error: ")
 )
-
-// httpDownloader is a struct that implements the TntIoDoer interface using the http package.
-type httpDownloader struct {
-	client *http.Client
-	token  string
-}
-
-// NewTntIoDownloader configures and returns an HTTP client suitable for downloading bundles.
-func NewTntIoDownloader(token string) *httpDownloader {
-	return &httpDownloader{
-		client: &http.Client{
-			Timeout: 0,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				req.Host = req.URL.Hostname()
-				addSessionIDCookie(req, token)
-
-				return nil
-			},
-		},
-		token: token,
-	}
-}
-
-// Do implement TntIoDoer interface.
-// It sends an HTTP request and returns Body data from HTTP response.
-func (d *httpDownloader) Do(req *http.Request) ([]byte, error) {
-	res, err := d.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("HTTP request failed: %w", err)
-	}
-
-	defer func() {
-		_ = res.Body.Close()
-	}()
-
-	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%w%s", errHTTPRequestError, http.StatusText(res.StatusCode))
-	}
-
-	respBody, err := io.ReadAll(res.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read API response body: %w", err)
-	}
-
-	return respBody, nil
-}
-
-func (d *httpDownloader) Token() string {
-	return d.token
-}
 
 // validateDestination checks if the destination path exists and is a directory.
 func validateDestination(dst string) error {
@@ -83,17 +31,6 @@ func validateDestination(dst string) error {
 	return nil
 }
 
-// addSessionIdCookie adds a session ID cookie to the request if the token is not empty.
-func addSessionIDCookie(req *http.Request, token string) {
-	if token != "" {
-		cookie := &http.Cookie{ //nolint:gosec // request cookie: only name and value are sent
-			Name:  "sessionid",
-			Value: token,
-		}
-		req.AddCookie(cookie)
-	}
-}
-
 // createHttpRequest creates a new GET HTTP request with the necessary headers and cookies.
 func createHTTPRequest(bundleSource, token string) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(
@@ -102,33 +39,31 @@ func createHTTPRequest(bundleSource, token string) (*http.Request, error) {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
-	addSessionIDCookie(req, token)
+	binary.AddSessionCookie(req, token)
 	req.Header.Set("User-Agent", "tt")
 
 	return req, nil
 }
 
-// saveResponseBodyToFile creates the destination file and copies the response body content into it.
-func saveResponseBodyToFile(body []byte, destFilePath string) (errRet error) {
+// downloadToFile streams the response to the request into the destination file.
+// A failed download leaves no file behind.
+func downloadToFile(doer binary.TntIoDoer, req *http.Request, destFilePath string) error {
 	file, err := os.Create(destFilePath)
 	if err != nil {
 		return fmt.Errorf("failed to create destination file %s: %w", destFilePath, err)
 	}
 
-	defer func() {
-		// Report close error only if no other error occurred during copy.
-		closeErr := file.Close()
-		if closeErr != nil && errRet == nil {
-			errRet = fmt.Errorf("failed to close destination file %s: %w", destFilePath, closeErr)
-		}
-	}()
+	err = doer.Download(req, file)
 
-	_, err = file.Write(body)
+	closeErr := file.Close()
+	if err == nil && closeErr != nil {
+		err = fmt.Errorf("failed to close destination file %s: %w", destFilePath, closeErr)
+	}
+
 	if err != nil {
-		_ = file.Close()
 		_ = os.Remove(destFilePath)
 
-		return fmt.Errorf("failed to write downloaded content to %s: %w", destFilePath, err)
+		return err
 	}
 
 	return nil
@@ -151,17 +86,5 @@ func DownloadBundle(doer binary.TntIoDoer, bundleName, bundleSource, dst string)
 		return err
 	}
 
-	responseBody, err := doer.Do(req)
-	if err != nil {
-		return err
-	}
-
-	destFilePath := filepath.Join(dst, bundleName)
-
-	err = saveResponseBodyToFile(responseBody, destFilePath)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return downloadToFile(doer, req, filepath.Join(dst, bundleName))
 }
