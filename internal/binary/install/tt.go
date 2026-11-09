@@ -1,6 +1,7 @@
 package install
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -71,7 +72,8 @@ func prepareTtArtifact(installCtx InstallCtx, temporary string,
 	resolved resolvedInstallVersion,
 ) (programArtifact, error) {
 	if resolved.kind == versionKindTag && !installCtx.SourceBuild && installCtx.LocalRepo == "" {
-		artifact, err := preparePrebuiltTt(resolved.ref, temporary, installCtx.KeepTemp)
+		artifact, err := preparePrebuilt(context.Background(), binary.ProgramTt, resolved.ref,
+			temporary, installCtx.KeepTemp)
 		if !errors.Is(err, errPrebuiltPackageUnavailable) {
 			return artifact, err
 		}

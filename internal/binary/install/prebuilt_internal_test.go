@@ -2,6 +2,8 @@ package install
 
 import (
 	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -21,6 +23,42 @@ import (
 )
 
 var errTestDelivery = errors.New("connection reset")
+
+type ttArchiveEntry struct {
+	name    string
+	mode    int64
+	kind    byte
+	content string
+}
+
+func ttPackageTestArchive(t *testing.T, entries ...ttArchiveEntry) []byte {
+	t.Helper()
+
+	var contents bytes.Buffer
+
+	compressed := gzip.NewWriter(&contents)
+	archive := tar.NewWriter(compressed)
+
+	for _, entry := range entries {
+		header := &tar.Header{
+			Name: entry.name, Mode: entry.mode, Typeflag: entry.kind,
+			Size: int64(len(entry.content)),
+		}
+		if entry.kind == tar.TypeSymlink || entry.kind == tar.TypeLink {
+			header.Linkname = "../outside"
+		}
+
+		require.NoError(t, archive.WriteHeader(header))
+
+		_, err := archive.Write([]byte(entry.content))
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, archive.Close())
+	require.NoError(t, compressed.Close())
+
+	return contents.Bytes()
+}
 
 // prebuiltTestSource is a source of one product: it lists artifacts and
 // serves one archive for all of them.
@@ -347,6 +385,87 @@ func TestExtractPrebuiltTarantoolRejectsInvalidArchives(t *testing.T) {
 			assert.NoFileExists(t, filepath.Join(root, "outside"))
 		})
 	}
+}
+
+func TestExtractPrebuiltTtRejectsInvalidArchives(t *testing.T) {
+	valid := ttPackageTestArchive(t,
+		ttArchiveEntry{name: "tt", kind: tar.TypeReg, mode: 0o755, content: "executable"})
+	badChecksum := bytes.Clone(valid)
+
+	badChecksum[len(badChecksum)-8] ^= 1
+
+	for _, test := range []struct {
+		name    string
+		archive []byte
+	}{
+		{"invalid gzip", []byte("broken")},
+		{"truncated gzip", valid[:len(valid)-4]},
+		{"bad gzip checksum", badChecksum},
+		{"missing executable", ttPackageTestArchive(t,
+			ttArchiveEntry{name: "README", kind: tar.TypeReg, mode: 0o644, content: "readme"})},
+		{"not executable", ttPackageTestArchive(t,
+			ttArchiveEntry{name: "tt", kind: tar.TypeReg, mode: 0o644, content: "executable"})},
+		{"directory", ttPackageTestArchive(t,
+			ttArchiveEntry{name: "tt", kind: tar.TypeDir, mode: 0o755})},
+		{"duplicate binary", ttPackageTestArchive(t,
+			ttArchiveEntry{name: "tt", kind: tar.TypeReg, mode: 0o755, content: "one"},
+			ttArchiveEntry{name: "./tt", kind: tar.TypeReg, mode: 0o755, content: "two"})},
+		{"symlink", ttPackageTestArchive(t,
+			ttArchiveEntry{name: "tt", kind: tar.TypeSymlink, mode: 0o755})},
+		{"hardlink", ttPackageTestArchive(t,
+			ttArchiveEntry{name: "tt", kind: tar.TypeLink, mode: 0o755})},
+		{"parent traversal", ttPackageTestArchive(t,
+			ttArchiveEntry{name: "../outside", kind: tar.TypeReg, mode: 0o755, content: "bad"})},
+		{"absolute path", ttPackageTestArchive(t,
+			ttArchiveEntry{name: "/outside", kind: tar.TypeReg, mode: 0o755, content: "bad"})},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			archivePath := filepath.Join(root, "package.tar.gz")
+			require.NoError(t, os.WriteFile(archivePath, test.archive, 0o600))
+
+			destination := filepath.Join(root, "extract")
+			require.NoError(t, os.Mkdir(destination, 0o755))
+
+			_, err := extractPrebuilt(binary.ProgramTt, archivePath, destination)
+			require.ErrorIs(t, err, errPackageContents)
+			require.NotErrorIs(t, err, errPrebuiltPackageUnavailable)
+			assert.NoFileExists(t, filepath.Join(root, "outside"))
+		})
+	}
+}
+
+func TestExtractPrebuiltTt(t *testing.T) {
+	root := t.TempDir()
+	archivePath := filepath.Join(root, "package.tar.gz")
+	require.NoError(t, os.WriteFile(archivePath, ttPackageTestArchive(t,
+		ttArchiveEntry{name: "README.md", kind: tar.TypeReg, mode: 0o644, content: "readme"},
+		ttArchiveEntry{name: "include/", kind: tar.TypeDir, mode: 0o755},
+		ttArchiveEntry{name: "include/tt.h", kind: tar.TypeReg, mode: 0o644, content: "header"},
+		ttArchiveEntry{name: "./tt", kind: tar.TypeReg, mode: 0o755, content: "executable"},
+	), 0o600))
+
+	destination := filepath.Join(root, "extract")
+	require.NoError(t, os.Mkdir(destination, 0o755))
+
+	prepared, err := extractPrebuilt(binary.ProgramTt, archivePath, destination)
+	require.NoError(t, err)
+	assert.Equal(t, programArtifact{
+		program: binary.ProgramTt, executable: filepath.Join(destination, "tt"), headers: "",
+	}, prepared)
+
+	contents, err := os.ReadFile(prepared.executable)
+	require.NoError(t, err)
+	assert.Equal(t, "executable", string(contents))
+
+	info, err := os.Stat(prepared.executable)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o755), info.Mode().Perm())
+
+	files, err := os.ReadDir(destination)
+	require.NoError(t, err)
+	require.Len(t, files, 1, "tt has no headers: only the executable is extracted")
+	assert.Equal(t, "tt", files[0].Name())
 }
 
 // fakeTarantoolBuild puts git, cmake and make of a source build of

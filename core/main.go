@@ -45,6 +45,7 @@ import (
 	"github.com/tarantool/tt/v3/core/internal/extmod"
 	"github.com/tarantool/tt/v3/core/internal/mount"
 	"github.com/tarantool/tt/v3/internal/binary/customerzone"
+	"github.com/tarantool/tt/v3/internal/binary/ghrelease"
 	"github.com/tarantool/tt/v3/internal/binary/rws"
 )
 
@@ -149,11 +150,12 @@ func WithIntegrity(provider integrity.Provider) Option {
 // WithBundleSources makes sources the sources of prebuilt archives tt binary
 // install and tt binary search ask for the products they have, in order:
 // the first source with a product is the one asked for it, and no other.
-// Without it tt has the customer zone of tarantool.io ([CustomerZone]) and
-// the RPMs of Tarantool on rws.tarantool.org ([RWS]); with no sources tt
-// installs Tarantool Enterprise, the SDK, TCM and tt-ee from --local-dir
-// only and builds Tarantool Community from source. --local-dir is not a
-// source: tt always has it.
+// Without it tt has the customer zone of tarantool.io ([CustomerZone]), the
+// RPMs of Tarantool on rws.tarantool.org ([RWS]) and the releases of tt on
+// GitHub ([GitHubReleases]); with no sources tt installs Tarantool
+// Enterprise, the SDK, TCM and tt-ee from --local-dir only and builds
+// Tarantool Community and tt from source. --local-dir is not a source: tt
+// always has it.
 //
 // The sources are the distribution's choice, made once, before any command
 // is built; a module cannot change them.
@@ -179,10 +181,19 @@ func RWS() bundle.Source {
 	return rws.New()
 }
 
+// GitHubReleases returns the releases of tt on GitHub: the source of the
+// prebuilt tt that tt binary install takes for a release tag, and of the
+// latest release it installs by default. Without a source of tt, tt builds
+// every version of it from source, and the default version is the newest
+// tag.
+func GitHubReleases() bundle.Source {
+	return ghrelease.New()
+}
+
 // sources returns the sources of prebuilt archives config sets.
 func (o options) sources() []bundle.Source {
 	if !o.bundleSourcesSet {
-		return []bundle.Source{CustomerZone(), RWS()}
+		return []bundle.Source{CustomerZone(), RWS(), GitHubReleases()}
 	}
 
 	return o.bundleSources
