@@ -69,10 +69,16 @@ func ttPackageTestChecksums(name string, archive []byte) string {
 }
 
 func TestPreparePrebuiltTt(t *testing.T) {
-	for _, platform := range []struct{ os, arch string }{
-		{osLinux, archAMD64}, {osLinux, archARM64}, {osDarwin, archAMD64},
+	for _, platform := range []struct {
+		os, arch string
+		versions []string
+	}{
+		{osLinux, archAMD64, []string{"v2.15.0", "2.15.0", "v3.0.0-rc1"}},
+		{osLinux, archARM64, []string{"v2.15.0", "2.15.0", "v3.0.0-rc1"}},
+		{osDarwin, archAMD64, []string{"v2.15.0", "2.15.0"}},
+		{osDarwin, archARM64, []string{"v3.0.0-rc1", "3.0.0", "v3.1.0"}},
 	} {
-		for _, version := range []string{"v2.15.0", "2.15.0", "v3.0.0-rc1"} {
+		for _, version := range platform.versions {
 			t.Run(platform.os+"/"+platform.arch+"/"+version, func(t *testing.T) {
 				var requests []string
 
@@ -134,7 +140,8 @@ func TestPreparePrebuiltTt(t *testing.T) {
 
 func TestPreparePrebuiltTtUnsupportedPlatform(t *testing.T) {
 	for _, test := range []struct{ os, arch, version string }{
-		{osDarwin, archARM64, "v2.15.0"}, {osLinux, "386", "v2.15.0"},
+		{osDarwin, archARM64, "v2.15.0"}, {osDarwin, archAMD64, "v3.0.0"},
+		{osLinux, "386", "v2.15.0"},
 		{"freebsd", archAMD64, "v2.15.0"}, {osLinux, archAMD64, "master"},
 	} {
 		t.Run(test.os+"/"+test.arch+"/"+test.version, func(t *testing.T) {

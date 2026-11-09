@@ -48,7 +48,8 @@ func (repository *ttPrebuiltTestRepository) downloads() []string {
 func mockTtPrebuiltRepository(t *testing.T) *ttPrebuiltTestRepository {
 	t.Helper()
 
-	if checkTtPackagePlatform(runtime.GOOS, runtime.GOARCH) != nil {
+	// The repository below publishes tt 2 releases only.
+	if checkTtPackagePlatform("v2.15.0", runtime.GOOS, runtime.GOARCH) != nil {
 		t.Skip("requires a platform with tt release archives")
 	}
 

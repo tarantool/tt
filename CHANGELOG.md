@@ -82,6 +82,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   behind when Tarantool exits without removing it: the watchdog removes it
   once Tarantool has exited, if it still names the process. Tarantool 3.3
   stopped during its first `box.cfg` exits with a fatal error and left it.
+- `tt binary install tt` takes the prebuilt tt 3 on macOS arm64, where tt 3
+  is released, and no longer looks for a tt 3 on macOS amd64, where it is
+  not; it built tt 3 from source on a Mac. tt 2 on macOS is still the amd64
+  archive.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

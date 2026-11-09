@@ -42,7 +42,8 @@ programs of `.tarantool/bin` ahead of `PATH`.
 
 Community releases are installed from prebuilt binaries where there are
 some - Tarantool on Linux amd64 and arm64 with glibc, tt on Linux amd64 and
-arm64 and macOS amd64 - and built from source elsewhere. A commit,
+arm64, tt 3 on macOS arm64 and tt 2 on macOS amd64 - and built from source
+elsewhere. A commit,
 `master`, a pull request (`pr/<number>`) and `--local-repo` are always built
 from source, and `--source-build` builds a release from source too.
 Enterprise search and installation of tt is available on Linux amd64 only.

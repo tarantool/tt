@@ -104,15 +104,15 @@ func preparePrebuiltTt(version, destination string, keepTemp bool) (programArtif
 func (d ttPackageDownloader) prepare(version, destination, goos, goarch string) (
 	programArtifact, error,
 ) {
-	err := checkTtPackagePlatform(goos, goarch)
-	if err != nil {
-		return programArtifact{}, err
-	}
-
 	if !ttPackageVersionPattern.MatchString(version) {
 		return programArtifact{}, fmt.Errorf("%w: no prebuilt tt package for %q on %s/%s; "+
 			"use --source-build to build from source",
 			errPrebuiltPackageUnavailable, version, goos, goarch)
+	}
+
+	err := checkTtPackagePlatform(version, goos, goarch)
+	if err != nil {
+		return programArtifact{}, err
 	}
 
 	log.Infof("Installing prebuilt tt=%s", version)
