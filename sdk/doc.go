@@ -31,6 +31,9 @@
 //
 // The subpackages hold the rest:
 //
+//   - [github.com/tarantool/tt/sdk/bundle] is the contract of a source of
+//     the prebuilt archives tt binary installs, which a distribution
+//     chooses;
 //   - [github.com/tarantool/tt/sdk/console] runs an interactive console
 //     with line editing and history over a command processor;
 //   - [github.com/tarantool/tt/sdk/formatter] renders the YAML a Tarantool

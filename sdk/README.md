@@ -93,6 +93,17 @@ core uses, and the core never requires older ones.
   Tarantool hierarchy) and `InstanceConfig` returns one instance's configuration resolved through
   global, group, replicaset and instance; an unknown instance wraps
   `ErrNotFound`.
+- `sdk/bundle` is the contract of a source of prebuilt archives, where
+  `tt binary install` and `tt binary search` find the builds of a product:
+  a `Source` lists the `Artifact`s of a `Query` - a product, a platform as
+  `runtime.GOOS` and `runtime.GOARCH` name it, a `Channel` and an optional
+  release line - and fetches the bytes of one of them; an artifact carries
+  its version, its flavours (`gc64`, `debug`), its name and, when the source
+  knows them, its size and SHA-256, which tt checks, and a `Locator` only
+  the source reads. A `FlagSource` adds flags of its own, such as the
+  credentials it logs in with, to the commands of its products. The sources
+  are the distribution's choice (`core.WithBundleSources`); tt has the
+  customer zone of tarantool.io by default.
 - `sdk/console` is the interactive console `tt aeon connect` runs: a
   `Console` built by `NewConsole` from `ConsoleOpts` reads statements with
   line editing, completion and history on a terminal (line by line from a
