@@ -23,11 +23,48 @@ const (
 	headerFilePermissions     = 0o644
 )
 
+var (
+	// errPrebuiltPackageUnavailable reports no prebuilt build of a release:
+	// tt builds it from source instead.
+	errPrebuiltPackageUnavailable = errors.New("prebuilt package unavailable")
+	errPackageTooLarge            = errors.New("package response exceeds size limit")
+	errPackageContents            = errors.New("invalid package contents")
+	errNoLatestRelease            = errors.New("no latest release")
+)
+
 // prebuiltDownloadMessages are what tt says when it downloads the archive
 // of a Community product.
 var prebuiltDownloadMessages = map[binary.Program]string{
 	binary.ProgramCe: "Downloading Tarantool binary and headers...",
 	binary.ProgramTt: "Downloading tt binary...",
+}
+
+// latestReleaseSource is a source that knows the latest release of its
+// product, as the releases of tt on GitHub do.
+type latestReleaseSource interface {
+	Latest(ctx context.Context) (string, error)
+}
+
+// latestPrebuiltTt returns the tag of the latest release of tt the source
+// of tt has. A pushed tag may still have no release, so the newest tag is
+// not a reliable choice for prebuilt delivery.
+func latestPrebuiltTt(ctx context.Context) (string, error) {
+	source, err := binary.BundleSource(binary.ProgramTt)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", errNoLatestRelease, err)
+	}
+
+	latest, ok := source.(latestReleaseSource)
+	if !ok {
+		return "", fmt.Errorf("%w of tt in %s", errNoLatestRelease, source.Name())
+	}
+
+	tag, err := latest.Latest(ctx)
+	if err != nil {
+		return "", fmt.Errorf("%w of tt in %s: %w", errNoLatestRelease, source.Name(), err)
+	}
+
+	return tag, nil
 }
 
 // preparePrebuilt downloads the build of the release tag of program from the

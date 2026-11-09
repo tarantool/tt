@@ -1,6 +1,7 @@
 package install
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -92,7 +93,7 @@ func resolveLatestVersion(installCtx InstallCtx) (resolvedInstallVersion, error)
 	// The newest tt tag may have no release yet, and then no prebuilt archive.
 	if installCtx.Program == binary.ProgramTt && !installCtx.SourceBuild &&
 		installCtx.LocalRepo == "" {
-		tag, err := latestPrebuiltTt()
+		tag, err := latestPrebuiltTt(context.Background())
 		if err == nil {
 			return resolvedInstallVersion{kind: versionKindTag, ref: tag, name: tag}, nil
 		}

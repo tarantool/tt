@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/sdk/log/logtest"
 	"github.com/tarantool/tt/v3/internal/binary"
+	"github.com/tarantool/tt/v3/internal/binary/ghrelease"
 )
 
 type ttPrebuiltTestRepository struct {
@@ -48,10 +49,14 @@ func (repository *ttPrebuiltTestRepository) downloads() []string {
 func mockTtPrebuiltRepository(t *testing.T) *ttPrebuiltTestRepository {
 	t.Helper()
 
-	// The repository below publishes tt 2 releases only.
-	if checkTtPackagePlatform("v2.15.0", runtime.GOOS, runtime.GOARCH) != nil {
+	// The repository below publishes tt 2 releases only: macOS archives are amd64.
+	if runtime.GOOS != osLinux && runtime.GOOS != osDarwin ||
+		runtime.GOOS == osLinux && runtime.GOARCH != archAMD64 && runtime.GOARCH != archARM64 ||
+		runtime.GOOS == osDarwin && runtime.GOARCH != archAMD64 {
 		t.Skip("requires a platform with tt release archives")
 	}
+
+	setTestBundleSources(t, ghrelease.New())
 
 	commands := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(commands, "git"), []byte(`#!/bin/sh
@@ -144,10 +149,11 @@ func TestInstallTtDefaultDelivery(t *testing.T) {
 					requests = append(requests, "/tarantool/tt/releases/latest")
 				}
 
+				// The source lists the archive with its checksum, then the install fetches it.
 				require.Equal(t, append(requests,
+					"/tarantool/tt/releases/download/v2.15.0/checksums.txt",
 					fmt.Sprintf("/tarantool/tt/releases/download/v2.15.0/tt-2.15.0-%s-%s.tar.gz",
 						runtime.GOOS, runtime.GOARCH),
-					"/tarantool/tt/releases/download/v2.15.0/checksums.txt",
 				), repository.requests)
 
 				root, err := ctx.Scope.ArtifactPath()
@@ -209,16 +215,23 @@ func TestInstallTtLatestRelease(t *testing.T) {
 		name        string
 		latest      string
 		sourceBuild bool
-		want        string
+		// noSource is a distribution without a source of tt.
+		noSource bool
+		want     string
 	}{
 		{name: "release behind the newest tag", latest: "v2.15.0", want: "v2.15.0"},
 		{name: "lookup failure", want: "v2.16.0"},
 		{name: "source build", latest: "v2.15.0", sourceBuild: true, want: "v2.16.0"},
+		{name: "no source of tt", latest: "v2.15.0", noSource: true, want: "v2.16.0"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			repository := mockTtPrebuiltRepository(t)
 
 			repository.latest = test.latest
+
+			if test.noSource {
+				setTestBundleSources(t)
+			}
 
 			t.Chdir(t.TempDir())
 
@@ -253,6 +266,10 @@ esac
 			if test.sourceBuild {
 				assert.NotContains(t, repository.requests, "/tarantool/tt/releases/latest")
 			}
+
+			if test.noSource {
+				assert.Empty(t, repository.requests, "without a source tt asks no releases")
+			}
 		})
 	}
 }
@@ -263,16 +280,23 @@ func TestInstallTtFallsBackToSource(t *testing.T) {
 		fileStatus  int
 		keepTemp    bool
 		sourceBuild bool
-		requests    int
+		// noSource is a distribution without a source of tt.
+		noSource bool
+		requests int
 	}{
 		{name: "missing archive", fileStatus: 404, requests: 1},
 		{name: "missing archive with no-clean", fileStatus: 404, keepTemp: true, requests: 1},
 		{name: "explicit source build", sourceBuild: true, requests: 0},
+		{name: "no source of tt", noSource: true, requests: 0},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			repository := mockTtPrebuiltRepository(t)
 
 			repository.fileStatus = test.fileStatus
+
+			if test.noSource {
+				setTestBundleSources(t)
+			}
 
 			t.Chdir(t.TempDir())
 
