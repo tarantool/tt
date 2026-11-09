@@ -1,4 +1,4 @@
-package install
+package rws
 
 import (
 	"net/http"
@@ -7,9 +7,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/sdk/bundle"
 )
 
-func TestCheckTarantoolPackagePlatform(t *testing.T) {
+func TestCheckPlatform(t *testing.T) {
 	for _, test := range []struct {
 		name   string
 		goarch string
@@ -136,23 +137,23 @@ func TestCheckTarantoolPackagePlatform(t *testing.T) {
 				test.setup(t, systemRoot)
 			}
 
-			err := checkTarantoolPackagePlatform(test.goarch, systemRoot)
+			err := checkPlatform(test.goarch, systemRoot)
 			if test.wantOK {
 				require.NoError(t, err)
 			} else {
-				require.ErrorIs(t, err, errPrebuiltPackageUnavailable)
-				require.ErrorContains(t, err, "--source-build")
+				require.ErrorIs(t, err, errUnsupportedPlatform)
 			}
 		})
 	}
 }
 
-func TestPreparePrebuiltTarantoolChecksPlatformBeforeHTTP(t *testing.T) {
+func TestListChecksPlatformBeforeHTTP(t *testing.T) {
 	for goarch, libraryPath := range map[string]string{
 		"amd64": "lib64/libgcc_s.so.1",
 		"arm64": "lib/libgcc_s.so.1",
 	} {
 		t.Run(goarch, func(t *testing.T) {
+			recorder := recordLogs(t)
 			requests := 0
 			client := packageTestClient(t, func(
 				writer http.ResponseWriter, _ *http.Request,
@@ -162,25 +163,49 @@ func TestPreparePrebuiltTarantoolChecksPlatformBeforeHTTP(t *testing.T) {
 				writer.WriteHeader(http.StatusInternalServerError)
 			})
 
-			downloader := packageTestDownloader(t, client)
+			source := packageTestSource(t, client)
+			require.NoError(t, os.Remove(filepath.Join(source.systemRoot, libraryPath)))
 
-			downloader.systemRoot = packagePlatformFixture(t)
-			require.NoError(t, os.Remove(filepath.Join(downloader.systemRoot, libraryPath)))
-
-			destination := t.TempDir()
-
-			_, err := downloader.prepare("3.7.1", destination, goarch)
-			require.ErrorIs(t, err, errPrebuiltPackageUnavailable)
-			require.ErrorContains(t, err, "glibc loader")
-			require.ErrorContains(t, err, "libgcc_s.so.1")
-			require.ErrorContains(t, err, "--source-build")
+			artifacts, err := source.List(t.Context(), packageTestQuery(goarch, "3.7.1"))
+			require.NoError(t, err, "an unsupported host has no builds, it is no failure")
+			require.Empty(t, artifacts)
 			require.Zero(t, requests, "unsupported hosts must not access the package repository")
-
-			entries, err := os.ReadDir(destination)
-			require.NoError(t, err)
-			require.Empty(t, entries)
+			requireLogged(t, recorder, "glibc loader")
+			requireLogged(t, recorder, "libgcc_s.so.1")
 		})
 	}
+}
+
+func TestListWithoutBuilds(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		query bundle.Query
+	}{
+		{"macOS", bundle.Query{
+			Product: product, OS: "darwin", Arch: goarchARM64, Channel: bundle.ChannelRelease,
+		}},
+		{"unsupported architecture", packageTestQuery("386", "3.7.1")},
+		{"unsupported release series", packageTestQuery(goarchAMD64, "2.11.8")},
+		{"unresolved version", packageTestQuery(goarchAMD64, "master")},
+		{"development builds", bundle.Query{
+			Product: product, OS: goosLinux, Arch: goarchAMD64, Channel: bundle.ChannelDev,
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			client := packageTestClient(t, func(http.ResponseWriter, *http.Request) {
+				t.Error("a query the repository has no builds for must not make HTTP requests")
+			})
+
+			artifacts, err := packageTestSource(t, client).List(t.Context(), test.query)
+			require.NoError(t, err)
+			require.Empty(t, artifacts)
+		})
+	}
+
+	_, err := New().List(t.Context(), bundle.Query{
+		Product: "tt", OS: goosLinux, Arch: goarchAMD64, Channel: bundle.ChannelRelease,
+	})
+	require.ErrorIs(t, err, errUnknownProduct)
 }
 
 // packagePlatformFixture needs only file metadata: empty files must suffice.
