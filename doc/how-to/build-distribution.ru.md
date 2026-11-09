@@ -40,9 +40,12 @@ foo = "github.com/acme/tt-foo@v1.2.0"
 файла (`title`, `edition`), провайдер контроля целостности (`none` или
 `rsa`), наличие собственных команд tt (`builtin`) и внешних модулей
 (`external_modules`), по умолчанию включены и те, и другие, а также откуда
-`tt binary install` берёт Tarantool Enterprise, SDK, TCM и tt-ee
-(`bundle_sources`: по умолчанию личный кабинет tarantool.io, `[]` - ни
-одного источника). Секция `[build]`
+`tt binary install` берёт готовые сборки продуктов (`bundle_sources`: по
+умолчанию `customer-zone`, личный кабинет tarantool.io, для Tarantool
+Enterprise, SDK, TCM и tt-ee, `rws`, RPM-пакеты rws.tarantool.org, для
+Tarantool Community и `github`, релизы tt на GitHub, для tt; `[]` - ни
+одного источника, и тогда Tarantool Community и tt собираются из
+исходников). Секция `[build]`
 задаёт реализацию TLS (`ssl`: `default`, `openssl` или `openssl_static`,
 переопределяется переменной `TT_CLI_BUILD_SSL`), сборку с `cgo` (по
 умолчанию только для сборок с OpenSSL), дополнительные теги сборки `tags` и

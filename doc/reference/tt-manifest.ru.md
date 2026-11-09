@@ -20,7 +20,7 @@ edition = "ee"
 integrity = "rsa"
 builtin = true
 external_modules = true
-bundle_sources = ["customer-zone"]
+bundle_sources = ["customer-zone", "rws", "github"]
 
 [build]
 ssl = "openssl_static"
@@ -100,7 +100,7 @@ Lock-файл фиксирует то, во что разрешился запр
 | `integrity` | `none` | провайдер целостности: `none` или `rsa` (см. [Подпись пакетов](../how-to/sign-packages.md)) |
 | `builtin` | `true` | собственные команды tt, модуль `builtin` |
 | `external_modules` | `true` | [внешние модули](../how-to/external-modules.md) и `tt modules` |
-| `bundle_sources` | `["customer-zone"]` | откуда `tt binary install` и `tt binary search` берут Tarantool Enterprise, SDK, TCM и tt-ee, по порядку: `customer-zone` - личный кабинет tarantool.io, с флагом `--credentials-file`; `[]` - ни одного источника, и эти продукты ставятся только из `--local-dir` |
+| `bundle_sources` | `["customer-zone", "rws", "github"]` | откуда `tt binary install` и `tt binary search` берут готовые сборки продуктов, по порядку; продукт спрашивают у первого источника, у которого он есть: `customer-zone` - личный кабинет tarantool.io, с флагом `--credentials-file`, для Tarantool Enterprise, SDK, TCM и tt-ee; `rws` - статические RPM-пакеты rws.tarantool.org, для Tarantool Community 3 на Linux с glibc; `github` - релизы tt на GitHub, для tt и его последнего релиза. Без личного кабинета эти продукты ставятся только из `--local-dir`; без `rws` или `github` каждая версия Tarantool Community или tt собирается из исходников. `[]` - ни одного источника |
 
 Версия дистрибутива берётся из `git describe` в каталоге манифеста; за ней
 следует `VERSION_LABEL`.

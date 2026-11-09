@@ -41,10 +41,22 @@ const (
 	IntegrityRSA = "rsa"
 )
 
-// BundleSourceCustomerZone is the customer zone of tarantool.io among the
-// sources of prebuilt archives ([distribution].bundle_sources): the source
-// of Tarantool Enterprise, the SDK, TCM and tt-ee.
-const BundleSourceCustomerZone = "customer-zone"
+// The sources of prebuilt archives ([distribution].bundle_sources).
+const (
+	// BundleSourceCustomerZone is the customer zone of tarantool.io: the
+	// source of Tarantool Enterprise, the SDK, TCM and tt-ee.
+	BundleSourceCustomerZone = "customer-zone"
+	// BundleSourceRWS is the repository of the static RPMs of Tarantool 3
+	// on rws.tarantool.org: the source of the prebuilt Tarantool Community.
+	BundleSourceRWS = "rws"
+	// BundleSourceGitHub is the releases of tt on GitHub: the source of the
+	// prebuilt tt.
+	BundleSourceGitHub = "github"
+)
+
+// BundleSourceNames are the names [distribution].bundle_sources takes, in
+// the order the core has the sources by default.
+var BundleSourceNames = []string{BundleSourceCustomerZone, BundleSourceRWS, BundleSourceGitHub}
 
 // TLS implementations ([build].ssl); the same names TT_CLI_BUILD_SSL takes.
 const (
@@ -116,10 +128,11 @@ type DistributionOptions struct {
 	// lists. Default: true.
 	ExternalModules *bool `toml:"external_modules,omitempty"`
 	// BundleSources are the sources of the prebuilt archives tt binary
-	// installs, in the order they are asked in: BundleSourceCustomerZone.
-	// An empty list is no source: tt then installs Tarantool Enterprise, the
-	// SDK, TCM and tt-ee from --local-dir only. Default: the core's, the
-	// customer zone.
+	// installs, in the order they are asked in: BundleSourceCustomerZone,
+	// BundleSourceRWS, BundleSourceGitHub. An empty list is no source: tt
+	// then installs Tarantool Enterprise, the SDK, TCM and tt-ee from
+	// --local-dir only and builds Tarantool Community and tt from source.
+	// Default: the core's, all three.
 	BundleSources *[]string `toml:"bundle_sources,omitempty"`
 }
 

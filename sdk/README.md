@@ -109,7 +109,9 @@ core uses, and the core never requires older ones.
   executable at the root. tt installs these from a source for a release tag
   and builds them from source when the source has no build for the
   platform. The sources are the distribution's choice
-  (`core.WithBundleSources`).
+  (`core.WithBundleSources`); tt has the customer zone of tarantool.io, the
+  RPMs of Tarantool on rws.tarantool.org and the releases of tt on GitHub by
+  default.
 - `sdk/console` is the interactive console `tt aeon connect` runs: a
   `Console` built by `NewConsole` from `ConsoleOpts` reads statements with
   line editing, completion and history on a terminal (line by line from a

@@ -101,9 +101,9 @@ func (d *Distribution) validateOptions() error {
 
 	sources, _ := opts.BundleSourcesValue()
 	for index, source := range sources {
-		if source != BundleSourceCustomerZone {
-			return invalid("distribution.bundle_sources", "unknown source %q: want %q",
-				source, BundleSourceCustomerZone)
+		if !slices.Contains(BundleSourceNames, source) {
+			return invalid("distribution.bundle_sources", "unknown source %q: want %q, %q or %q",
+				source, BundleSourceCustomerZone, BundleSourceRWS, BundleSourceGitHub)
 		}
 
 		if slices.Contains(sources[:index], source) {

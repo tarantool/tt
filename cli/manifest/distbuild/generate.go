@@ -267,6 +267,8 @@ func main() {
 // [distribution].bundle_sources names.
 var bundleSourceCtors = map[string]string{
 	manifest.BundleSourceCustomerZone: "core.CustomerZone()",
+	manifest.BundleSourceRWS:          "core.RWS()",
+	manifest.BundleSourceGitHub:       "core.GitHubReleases()",
 }
 
 // errUnknownBundleSource reports a source the manifest validation let through.

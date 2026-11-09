@@ -52,11 +52,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   builds of a product for a platform, fetch one - and
   `core.WithBundleSources`, with `[distribution] bundle_sources` in
   `tt.manifest.toml`: a distribution of tt chooses where `tt binary install`
-  and `tt binary search` find Tarantool Enterprise, the SDK, TCM and tt-ee.
-  tt has the customer zone of tarantool.io, as before; with
-  `bundle_sources = []` it has none, and no `--credentials-file`, and
-  installs these products from `--local-dir` only. A source that lists the
-  SHA-256 of an archive has it checked.
+  and `tt binary search` find Tarantool Enterprise, the SDK, TCM and tt-ee,
+  and where `tt binary install` takes the prebuilt Tarantool Community and
+  tt of a release. tt has, as before, the customer zone of tarantool.io
+  (`customer-zone`, `core.CustomerZone`), the static RPMs of
+  rws.tarantool.org (`rws`, `core.RWS`) and the releases of tt on GitHub
+  (`github`, `core.GitHubReleases`); with `bundle_sources = []` it has none,
+  and no `--credentials-file`, installs the Enterprise products from
+  `--local-dir` only and builds Tarantool Community and tt from source. A
+  source that lists the SHA-256 of an archive has it checked; one that has
+  no build of a Community release, or reports `bundle.ErrNotFound` for its
+  archive, makes tt build it from source.
 
 ### Changed
 
@@ -69,6 +75,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   are gone.
 - `tt backup-id` is `tt backup id`, next to the other steps of a backup. It
   prints the same identifier; `tt backup-id` is gone.
+- `tt binary install tarantool --no-clean` keeps the archive the RPMs of
+  rws.tarantool.org are unpacked into and the files of it, not the RPMs.
+  `tt binary install tt` reads `checksums.txt` of a release before it
+  downloads the archive, and builds from source a release whose
+  `checksums.txt` does not list the archive of the platform, where it
+  failed.
 
 ### Fixed
 
