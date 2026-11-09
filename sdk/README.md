@@ -101,9 +101,15 @@ core uses, and the core never requires older ones.
   its version, its flavours (`gc64`, `debug`), its name and, when the source
   knows them, its size and SHA-256, which tt checks, and a `Locator` only
   the source reads. A `FlagSource` adds flags of its own, such as the
-  credentials it logs in with, to the commands of its products. The sources
-  are the distribution's choice (`core.WithBundleSources`); tt has the
-  customer zone of tarantool.io by default.
+  credentials it logs in with, to the commands of its products. A source may
+  list an archive it cannot confirm without downloading it; `Fetch` of one
+  it does not have wraps `ErrNotFound`. The package defines the archives of
+  the Community products a source delivers: `tarantool` with the executable
+  at the root and the headers in `include/tarantool/`, `tt` with the
+  executable at the root. tt installs these from a source for a release tag
+  and builds them from source when the source has no build for the
+  platform. The sources are the distribution's choice
+  (`core.WithBundleSources`).
 - `sdk/console` is the interactive console `tt aeon connect` runs: a
   `Console` built by `NewConsole` from `ConsoleOpts` reads statements with
   line editing, completion and history on a terminal (line by line from a
