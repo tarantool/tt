@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -26,28 +25,7 @@ const (
 
 	archAMD64 = "amd64"
 	archARM64 = "arm64"
-
-	rpmArchAMD64 = "x86_64"
-	rpmArchARM64 = "aarch64"
-
-	muslLibraryMarker        = "musl"
-	gcompatLibraryMarker     = "gcompat"
-	executablePermissionMask = 0o111
 )
-
-var tarantoolPackagePlatforms = map[string]struct {
-	loaderPath string   // Relative to the system root.
-	libraries  []string // Relative to the resolved loader's directory.
-}{
-	archAMD64: {
-		loaderPath: "lib64/ld-linux-x86-64.so.2",
-		libraries:  []string{"libc.so.6", "libgcc_s.so.1"},
-	},
-	archARM64: {
-		loaderPath: "lib/ld-linux-aarch64.so.1",
-		libraries:  []string{"libc.so.6", "libgcc_s.so.1"},
-	},
-}
 
 // checkTtPackagePlatform recognizes the platforms published in GitHub Releases.
 // tt 2 publishes macOS archives for amd64, tt 3 for arm64.
@@ -67,54 +45,6 @@ func checkTtPackagePlatform(version, goos, goarch string) error {
 		return fmt.Errorf("%w: no prebuilt tt %s for %s/%s; "+
 			"use --source-build to build from source",
 			errPrebuiltPackageUnavailable, version, goos, goarch)
-	}
-
-	return nil
-}
-
-// checkTarantoolPackagePlatform checks for the loader, libc and libgcc used by the prebuilt RPMs.
-// It only inspects file metadata and symlinks. systemRoot is "/" on the host.
-func checkTarantoolPackagePlatform(goarch, systemRoot string) error {
-	platform, supported := tarantoolPackagePlatforms[goarch]
-	if !supported {
-		return fmt.Errorf("%w: unsupported architecture linux/%s; "+
-			"use --source-build to build from source", errPrebuiltPackageUnavailable, goarch)
-	}
-
-	unavailable := fmt.Errorf("%w: prebuilt Tarantool requires the glibc loader /%s "+
-		"and libraries %s; use --source-build to build from source",
-		errPrebuiltPackageUnavailable, platform.loaderPath, strings.Join(platform.libraries, ", "))
-
-	loaderFile, err := filepath.EvalSymlinks(filepath.Join(systemRoot, platform.loaderPath))
-	if err != nil {
-		return unavailable
-	}
-
-	files := []string{loaderFile}
-	for _, library := range platform.libraries {
-		files = append(files, filepath.Join(filepath.Dir(loaderFile), library))
-	}
-
-	for _, filename := range files {
-		resolved, err := filepath.EvalSymlinks(filename)
-		if err != nil {
-			return unavailable
-		}
-
-		info, err := os.Stat(resolved)
-		if err != nil || !info.Mode().IsRegular() ||
-			filename == loaderFile && info.Mode().Perm()&executablePermissionMask == 0 {
-			return unavailable
-		}
-
-		name := filepath.Base(resolved)
-		if strings.Contains(name, muslLibraryMarker) ||
-			strings.Contains(name, gcompatLibraryMarker) {
-			return fmt.Errorf("%w: /%s uses %s or %s; "+
-				"use --source-build to build from source",
-				errPrebuiltPackageUnavailable, platform.loaderPath,
-				muslLibraryMarker, gcompatLibraryMarker)
-		}
 	}
 
 	return nil

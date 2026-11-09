@@ -381,7 +381,7 @@ func TestExtractTtPackageRejectsInvalidArchives(t *testing.T) {
 			destination := filepath.Join(root, "extract")
 			require.NoError(t, os.Mkdir(destination, 0o755))
 
-			_, err := extractTtPackage(archivePath, destination)
+			_, err := extractPrebuilt(binary.ProgramTt, archivePath, destination)
 			require.ErrorIs(t, err, errPackageContents)
 			require.NotErrorIs(t, err, errPrebuiltPackageUnavailable)
 			assert.NoFileExists(t, filepath.Join(root, "outside"))

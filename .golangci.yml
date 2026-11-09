@@ -883,8 +883,10 @@ linters:
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/tarantool/tt/v3/cli/version"
             - "github.com/tarantool/tt/v3/core"
-            # The customer zone is the default source of archives.
+            # The default sources of archives: the customer zone and the
+            # RPMs of rws.tarantool.org.
             - "github.com/tarantool/tt/v3/internal/binary/customerzone"
+            - "github.com/tarantool/tt/v3/internal/binary/rws"
             - "gopkg.in/yaml.v3"
         # The pid-file protocol every writer and remover of a tt pid file
         # follows: a leaf, below the supervisor and the commands.

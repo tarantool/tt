@@ -637,12 +637,16 @@ def test_install_community_prebuilt_release(
             with tarfile.open(archives[0]) as archive:
                 assert archive.extractfile("tt").read() == executable.read_bytes()
         else:
-            archives = list(paths[0].glob("tarantool-package-*/*/package-*.rpm"))
-            assert len(archives) == 2
-            assert all(archive.read_bytes().startswith(b"\xed\xab\xee\xdb") for archive in archives)
-            extracted = list(paths[0].glob("tarantool-package-*/runtime/usr/bin/tarantool"))
+            # The RPMs are unpacked by the source into the archive of tarantool.
+            archives = list(paths[0].glob("tarantool-package-*/package-*.tar.gz"))
+            assert len(archives) == 1
+            with tarfile.open(archives[0]) as archive:
+                assert archive.extractfile("tarantool").read() == executable.read_bytes()
+                assert archive.getmember("include/tarantool/module.h").isfile()
+            extracted = list(paths[0].glob("tarantool-package-*/tarantool"))
             assert len(extracted) == 1
             assert extracted[0].read_bytes() == executable.read_bytes()
+            assert list(paths[0].glob("tarantool-package-*/include/tarantool/module.h"))
     else:
         assert paths == []
         assert not list(tmp_path.glob(f"{product}_install*"))

@@ -1,9 +1,7 @@
 package install
 
 import (
-	"archive/tar"
 	"bufio"
-	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -23,11 +21,9 @@ import (
 )
 
 const (
-	ttReleasesURL       = "https://github.com/tarantool/tt/releases/download/"
-	ttLatestReleaseURL  = "https://github.com/tarantool/tt/releases/latest"
-	ttChecksumsName     = "checksums.txt"
-	maxTtPayloadSize    = 1 << 30
-	maxTtArchiveEntries = 100_000
+	ttReleasesURL      = "https://github.com/tarantool/tt/releases/download/"
+	ttLatestReleaseURL = "https://github.com/tarantool/tt/releases/latest"
+	ttChecksumsName    = "checksums.txt"
 )
 
 var (
@@ -170,7 +166,7 @@ func (d ttPackageDownloader) prepare(version, destination, goos, goarch string) 
 		return programArtifact{}, err
 	}
 
-	executable, err := extractTtPackage(archive, extractDir)
+	prepared, err := extractPrebuilt(binary.ProgramTt, archive, extractDir)
 	if err != nil {
 		return programArtifact{}, fmt.Errorf("extract tt package %s: %w; "+
 			"use --source-build to build from source", address, err)
@@ -178,7 +174,7 @@ func (d ttPackageDownloader) prepare(version, destination, goos, goarch string) 
 
 	succeeded = true
 
-	return programArtifact{program: binary.ProgramTt, executable: executable, headers: ""}, nil
+	return prepared, nil
 }
 
 // verifyChecksum checks the archive against checksums.txt of the same release.
@@ -258,100 +254,4 @@ func findChecksum(checksums io.Reader, name string) (string, error) {
 	}
 
 	return "", fmt.Errorf("%w: no checksum for %s", errPackageContents, name)
-}
-
-// extractTtPackage extracts only the root executable. Other regular release files are skipped.
-// Bounded reads include the gzip footer, detecting truncation and checksum failures.
-func extractTtPackage(archivePath, destination string) (string, error) {
-	archive, err := os.Open(archivePath)
-	if err != nil {
-		return "", fmt.Errorf("open tt archive: %w", err)
-	}
-
-	defer func() { _ = archive.Close() }()
-
-	compressed, err := gzip.NewReader(archive)
-	if err != nil {
-		return "", fmt.Errorf("%w: open tt gzip archive: %w", errPackageContents, err)
-	}
-
-	defer func() { _ = compressed.Close() }()
-
-	payload := &io.LimitedReader{R: compressed, N: maxTtPayloadSize + 1}
-	reader := tar.NewReader(payload)
-	executable := ""
-
-	for entries := 0; ; entries++ {
-		header, readErr := reader.Next()
-		if errors.Is(readErr, io.EOF) {
-			break
-		}
-
-		if payload.N == 0 {
-			return "", fmt.Errorf("%w: tt archive payload exceeds %d bytes",
-				errPackageTooLarge, maxTtPayloadSize)
-		}
-
-		if readErr != nil {
-			return "", fmt.Errorf("%w: read tt archive: %w", errPackageContents, readErr)
-		}
-
-		if entries >= maxTtArchiveEntries {
-			return "", fmt.Errorf("%w: too many tt archive entries", errPackageContents)
-		}
-
-		if header.Size > maxTtPayloadSize {
-			return "", fmt.Errorf("%w: tt archive entry exceeds %d bytes",
-				errPackageTooLarge, maxTtPayloadSize)
-		}
-
-		name := path.Clean(header.Name)
-		if !filepath.IsLocal(name) ||
-			header.Typeflag != tar.TypeReg && header.Typeflag != tar.TypeDir {
-			return "", fmt.Errorf("%w: unsafe tt archive entry %q", errPackageContents, header.Name)
-		}
-
-		if name != "tt" {
-			continue
-		}
-
-		if executable != "" || header.Typeflag != tar.TypeReg || header.Mode&0o100 == 0 {
-			return "", fmt.Errorf("%w: tt must be a single regular executable", errPackageContents)
-		}
-
-		executable = filepath.Join(destination, "tt")
-
-		output, openErr := os.OpenFile(executable, os.O_WRONLY|os.O_CREATE|os.O_EXCL,
-			defaultDirPermissions)
-		if openErr != nil {
-			return "", fmt.Errorf("create tt executable: %w", openErr)
-		}
-
-		_, copyErr := io.CopyN(output, reader, header.Size)
-		closeErr := output.Close()
-
-		if copyErr != nil {
-			return "", fmt.Errorf("%w: extract tt executable: %w", errPackageContents, copyErr)
-		}
-
-		if closeErr != nil {
-			return "", fmt.Errorf("close tt executable: %w", closeErr)
-		}
-	}
-
-	_, readErr := io.Copy(io.Discard, payload)
-	if payload.N == 0 {
-		return "", fmt.Errorf("%w: tt archive payload exceeds %d bytes",
-			errPackageTooLarge, maxTtPayloadSize)
-	}
-
-	if readErr != nil {
-		return "", fmt.Errorf("%w: read tt archive footer: %w", errPackageContents, readErr)
-	}
-
-	if executable == "" {
-		return "", fmt.Errorf("%w: prebuilt tt package has no executable tt", errPackageContents)
-	}
-
-	return executable, nil
 }
