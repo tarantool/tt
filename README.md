@@ -259,6 +259,17 @@ To run full set of tests:
 mage testfull
 ```
 
+`TT_TEST_TARANTOOL` picks the Tarantool to test against, and `mage docker`
+runs the tests in a container, with Docker, Go and mage on the machine
+only:
+
+``` console
+TT_TEST_TARANTOOL=min mage integration
+mage docker integration
+```
+
+See [Contributing](doc/contributing.md#another-tarantool) for both.
+
 ### Commit changes
 
 CI runs the same checks as these targets; run them before committing:
