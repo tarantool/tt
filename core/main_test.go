@@ -27,6 +27,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/printing"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/core"
+	"github.com/tarantool/tt/v3/internal/execfile"
 )
 
 // mainCaseEnv selects, in a process the tests start, the program TestMain
@@ -699,7 +700,8 @@ func TestMainWithBundleSources(t *testing.T) {
 // writeExternalModules creates, in a modules directory of their own, the
 // external modules names, each with an executable that prints its name and
 // its arguments and exits 7. It returns the directory, for
-// TT_CLI_MODULES_PATH.
+// TT_CLI_MODULES_PATH. tt runs the modules while parallel tests fork, so they
+// are written by execfile, as the modules of the other tests are.
 func writeExternalModules(t *testing.T, names ...string) string {
 	t.Helper()
 
@@ -710,7 +712,7 @@ func writeExternalModules(t *testing.T, names ...string) string {
 		require.NoError(t, os.Mkdir(moduleDir, 0o755))
 
 		script := "#!/bin/sh\necho \"external " + name + " $*\"\nexit 7\n"
-		require.NoError(t, os.WriteFile(filepath.Join(moduleDir, "main"), []byte(script),
+		require.NoError(t, execfile.WriteFile(filepath.Join(moduleDir, "main"), []byte(script),
 			0o755))
 
 		manifest := "version: 1.0.0\nhelp: External " + name + "\nmain: main\n"
@@ -838,7 +840,7 @@ func TestMainModuleHelpFirstLine(t *testing.T) {
 	dir := t.TempDir()
 	moduleDir := filepath.Join(dir, "multi")
 	require.NoError(t, os.Mkdir(moduleDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(moduleDir, "main"),
+	require.NoError(t, execfile.WriteFile(filepath.Join(moduleDir, "main"),
 		[]byte("#!/bin/sh\necho \"multi $*\"\n"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(moduleDir, "manifest.yaml"),
 		[]byte("version: 1.0.0\nmain: main\nhelp: |\n  First line.\n  Second line.\n"), 0o644))
@@ -865,7 +867,7 @@ func TestMainModuleHelpOnStdout(t *testing.T) {
 	dir := t.TempDir()
 	moduleDir := filepath.Join(dir, "hello")
 	require.NoError(t, os.Mkdir(moduleDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(moduleDir, "main"),
+	require.NoError(t, execfile.WriteFile(filepath.Join(moduleDir, "main"),
 		[]byte("#!/bin/sh\necho \"help of hello: $*\"\n"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(moduleDir, "manifest.yaml"),
 		[]byte("version: 1.0.0\nhelp: Say hello\nmain: main\n"), 0o644))

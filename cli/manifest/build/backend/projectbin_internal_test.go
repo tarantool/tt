@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/internal/execfile"
 )
 
 // writeProjectProgram puts an executable shell script named name into the
@@ -21,7 +22,9 @@ func writeProjectProgram(t *testing.T, name, script string) string {
 	project := t.TempDir()
 	dir := ProjectBinDir(project)
 	require.NoError(t, os.MkdirAll(dir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(script), 0o755))
+	// The tests run the script while parallel tests fork: execfile keeps the
+	// forks off the descriptor it writes it through.
+	require.NoError(t, execfile.WriteFile(filepath.Join(dir, name), []byte(script), 0o755))
 
 	return project
 }
