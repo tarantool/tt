@@ -134,10 +134,16 @@ linters:
       # Mage takes a target's exit status from its error by a type assertion,
       # not errors.As, so wrapping a failed command's error turns every exit
       # status into 1; the error already names the command it ran.
-      - path: ^magefile(\.publish)?\.go$
+      - path: ^magefile(\.\w+)?\.go$
         text: 'sig: func github\.com/magefile/mage/sh\.'
         linters:
           - wrapcheck
+      # The magefile works on the checkout and on the paths its user sets in
+      # the environment: there is no untrusted input to taint (G703).
+      - path: ^magefile(\.\w+)?\.go$
+        text: "^G703:"
+        linters:
+          - gosec
       # Protobuf null is represented by an untyped nil value.
       - path: ^modules/aeon/internal/client/decode\.go$
         source: ^\s*return nil, nil$

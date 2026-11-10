@@ -33,6 +33,30 @@ $ mage test          # линтеры, модульные и интеграци�
 $ mage testfull      # все тесты
 ```
 
+### Другая версия Tarantool {#another-tarantool}
+
+Тесты работают с `tarantool` из `PATH`. `TT_TEST_TARANTOOL` выбирает другой
+для целей, которые запускают Tarantool CE: `unit:full`,
+`unit:fullSkipDocker`, `unit:coverage` и целей `integration`, кроме
+`integrationEE` и `integrationNoTarantool`, а с ними и для `test` и
+`testfull`:
+
+```console
+$ TT_TEST_TARANTOOL=3.6 mage integration       # последняя 3.6
+$ TT_TEST_TARANTOOL=min mage unit:full         # самая старая версия из CI
+$ TT_TEST_TARANTOOL=latest mage integration    # самая новая версия из CI
+$ TT_TEST_TARANTOOL=master mage integration    # сборка из исходников
+$ TT_TEST_TARANTOOL=~/src/tarantool/build/src/tarantool mage integration
+```
+
+`min` и `latest` — версии из `ci/tarantool-versions.env`. При первом запуске
+tt устанавливает версию в отдельный каталог в `tarantool/` тестового кэша,
+ставит её первой в `PATH` и указывает `TT_CLI_TARANTOOL_PREFIX` на её
+заголовки. Тестовый кэш — это `tt-test` в каталоге кэша пользователя
+(`~/.cache` в Linux и `~/Library/Caches` в macOS) или `TT_TEST_CACHE`.
+Установленная версия остаётся в кэше, `master` тоже: чтобы установить её
+заново, удалите её каталог.
+
 ## Перед коммитом {#before-committing}
 
 CI запускает те же проверки:

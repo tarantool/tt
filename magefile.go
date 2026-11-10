@@ -566,8 +566,11 @@ func fuzzTests(module string) ([]fuzzTest, error) {
 	return tests, nil
 }
 
-// Full runs unit tests with Tarantool instance integration.
+// Full runs unit tests with Tarantool instance integration. TT_TEST_TARANTOOL
+// picks the Tarantool, see magefile.tarantool.go.
 func (Unit) Full() error {
+	mg.Deps(useTestTarantool)
+
 	_, _ = fmt.Fprintln(os.Stdout, "Running full unit tests...")
 
 	return runUnitTests([]string{tagsFlag, "integration,integration_docker"})
@@ -575,6 +578,8 @@ func (Unit) Full() error {
 
 // FullSkipDocker runs unit tests with Tarantool instance integration, excluding docker tests.
 func (Unit) FullSkipDocker() error {
+	mg.Deps(useTestTarantool)
+
 	_, _ = fmt.Fprintln(os.Stdout, "Running full unit tests, excluding docker...")
 
 	return runUnitTests([]string{tagsFlag, "integration"})
@@ -582,6 +587,8 @@ func (Unit) FullSkipDocker() error {
 
 // Coverage runs the full unit test set with code coverage.
 func (Unit) Coverage() error {
+	mg.Deps(useTestTarantool)
+
 	_, _ = fmt.Fprintln(os.Stdout, "Running full unit tests with code coverage...")
 
 	cwd, err := os.Getwd()
@@ -642,8 +649,11 @@ func ensureCoverageDir(coverDir string) error {
 	return nil
 }
 
-// Integration runs integration tests, excluding slow tests.
+// Integration runs integration tests, excluding slow tests. TT_TEST_TARANTOOL
+// picks the Tarantool, see magefile.tarantool.go.
 func Integration() error {
+	mg.Deps(useTestTarantool)
+
 	_, _ = fmt.Fprintln(os.Stdout, "Running integration tests...")
 
 	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m", "not slow and not slow_ee "+
@@ -652,6 +662,8 @@ func Integration() error {
 
 // IntegrationFull runs the full set of integration tests.
 func IntegrationFull() error {
+	mg.Deps(useTestTarantool)
+
 	_, _ = fmt.Fprintln(os.Stdout, "Running all integration tests...")
 
 	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m",
@@ -661,6 +673,8 @@ func IntegrationFull() error {
 
 // IntegrationFullSkipDocker runs the full set of integration tests, excluding docker tests.
 func IntegrationFullSkipDocker() error {
+	mg.Deps(useTestTarantool)
+
 	_, _ = fmt.Fprintln(os.Stdout, "Running all integration tests, excluding docker...")
 
 	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m",
@@ -670,6 +684,8 @@ func IntegrationFullSkipDocker() error {
 
 // IntegrationFullDocker runs only docker tests from the full set.
 func IntegrationFullDocker() error {
+	mg.Deps(useTestTarantool)
+
 	_, _ = fmt.Fprintln(os.Stdout, "Running docker integration tests...")
 
 	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m",
