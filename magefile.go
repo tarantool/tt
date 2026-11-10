@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -70,6 +71,12 @@ var (
 		"integrationfulldocker":     Integration.FullDocker,
 		"integrationee":             Integration.EE,
 		"integrationnotarantool":    Integration.NoTarantool,
+
+		"test":     Test.Default,
+		"testfull": Test.Full,
+		// The names of the lint targets before they were grouped.
+		"codespell":     Lint.Spell,
+		"checklicenses": Lint.Licenses,
 	}
 
 	// lintVersionRe pulls the version out of `golangci-lint version`, which
@@ -247,8 +254,9 @@ func (Build) Coverage() error {
 	return nil
 }
 
-// CheckLicenses runs the license checker.
-func CheckLicenses() error {
+// Licenses checks the licenses of the dependencies of the built tt with
+// lichen.
+func (Lint) Licenses() error {
 	_, _ = fmt.Fprintln(os.Stdout, "Running license checker...")
 
 	home, err := os.UserHomeDir()
@@ -292,9 +300,10 @@ func fixFlag() bool {
 
 type Lint mg.Namespace
 
-// Full runs golang and python linters.
+// Full runs the golang, python, spell and module linters. The license and
+// vulnerability checkers query the network, so they run on their own.
 func (Lint) Full() error {
-	mg.Deps(Lint.Golang, Lint.Python)
+	mg.Deps(Lint.Golang, Lint.Python, Lint.Spell, Lint.Modules)
 
 	return nil
 }
@@ -318,22 +327,20 @@ func (Lint) Golang() error {
 		return err
 	}
 
+	// The linter runs in each module directory as a child's working directory:
+	// lint:full runs the other linters in parallel with relative paths, so the
+	// one of this process stays.
 	for _, dir := range modules {
-		err := os.Chdir(filepath.Join(root, dir))
-		if err != nil {
-			return fmt.Errorf("failed to enter lint directory %q: %w", dir, err)
-		}
-
-		err = sh.RunV(linter, "run",
+		cmd := exec.CommandContext(context.Background(), linter, "run",
 			fmt.Sprintf("--config=%s/%s", root, lintConfig))
-		if err != nil {
-			_ = os.Chdir(root)
-			return err
-		}
 
-		err = os.Chdir(root)
+		cmd.Dir = filepath.Join(root, dir)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		err = cmd.Run()
 		if err != nil {
-			return fmt.Errorf("failed to restore working directory: %w", err)
+			return fmt.Errorf("%s run in %s: %w", linter, dir, err)
 		}
 	}
 
@@ -540,8 +547,9 @@ type fuzzTest struct {
 	module, pkg, name string
 }
 
-// Fuzz fuzzes every fuzz test of every project module for FUZZTIME, a minute
-// by default, one after another, as go test fuzzes one test at a time. The
+// Fuzz fuzzes every fuzz test for FUZZTIME each, a minute by default.
+//
+// The tests run one after another, as go test fuzzes one test at a time. The
 // inputs that find new code are kept in the fuzz cache under GOCACHE, so a
 // next run goes on from them; an input that fails a test is written to
 // testdata/fuzz of its package. The tests that fail are reported at the end.
@@ -763,21 +771,25 @@ func (Integration) NoTarantool() error {
 		"test/integration")
 }
 
-// CodeSpell runs code spell checks.
-func CodeSpell() error {
+// Spell checks the spelling of the repository with codespell.
+func (Lint) Spell() error {
 	_, _ = fmt.Fprintln(os.Stdout, "Running code spell tests...")
 
 	return sh.RunV("codespell", ".") // spell-checker:disable-line
 }
 
-// Test runs all tests together, excluding slow and unit integration tests.
-func Test() {
-	mg.SerialDeps(Lint.Full, CheckLicenses, Unit.Default, Integration.Default)
+type Test mg.Namespace
+
+// Default runs the linters, the license checker, the unit tests and the
+// integration tests, slow ones excepted.
+func (Test) Default() {
+	mg.SerialDeps(Lint.Full, Lint.Licenses, Unit.Default, Integration.Default)
 }
 
-// TestFull runs all tests together.
-func TestFull() {
-	mg.SerialDeps(Lint.Full, CheckLicenses, Unit.Full, Integration.Full)
+// Full runs the linters, the license checker and every unit and integration
+// test.
+func (Test) Full() {
+	mg.SerialDeps(Lint.Full, Lint.Licenses, Unit.Full, Integration.Full)
 }
 
 // Clean cleans up the directory.

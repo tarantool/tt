@@ -272,15 +272,14 @@ See [Contributing](doc/contributing.md#another-tarantool) for both.
 
 ### Commit changes
 
-CI runs the same checks as these targets; run them before committing:
+CI runs the same checks as this target; run it before committing:
 
 ``` console
-mage lint:golang
-mage lint:python
-mage codespell
+mage lint:full
 ```
 
-`mage lint:python` runs `ruff check` and `ruff format --check` over `test`.
+`mage lint:full` runs `lint:golang`, `lint:python`, `lint:spell` and
+`lint:modules`; each runs on its own as well. `mage lint:python` runs `ruff check` and `ruff format --check` over `test`.
 Add `--fix` to let Ruff fix and reformat the files: `mage lint:python --fix`.
 
 ## Configuration

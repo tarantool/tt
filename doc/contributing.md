@@ -97,9 +97,11 @@ macOS, Docker Desktop needs host networking turned on in its settings.
 CI runs the same checks:
 
 ```console
+$ mage lint:full     # all of the below
 $ mage lint:golang
 $ mage lint:python   # ruff check and ruff format --check over test/; --fix fixes
-$ mage codespell
+$ mage lint:spell
+$ mage lint:modules  # go.mod and go.sum are tidy and verified
 ```
 
 ## The documentation

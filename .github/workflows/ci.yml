@@ -115,7 +115,7 @@ jobs:
           python3 -m ruff format --check ci
 
       - name: Spelling
-        run: mage codespell
+        run: mage lint:spell
 
       - name: Check generated sources
         run: |
@@ -132,7 +132,7 @@ jobs:
         run: go install github.com/uw-labs/lichen@v0.1.7
 
       - name: License checker
-        run: ci/retry-network.sh mage checklicenses
+        run: ci/retry-network.sh mage lint:licenses
 
       - name: Check status aggregation
         run: python3 -m unittest discover -s ci -p 'test_*.py'

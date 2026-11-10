@@ -99,9 +99,11 @@ docker запускают контейнеры, которые монтирую�
 CI запускает те же проверки:
 
 ```console
+$ mage lint:full     # всё, что ниже
 $ mage lint:golang
 $ mage lint:python   # ruff check и ruff format --check для test/; --fix исправляет ошибки
-$ mage codespell
+$ mage lint:spell
+$ mage lint:modules  # go.mod и go.sum приведены в порядок и проверены
 ```
 
 ## Документация {#the-documentation}
