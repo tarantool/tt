@@ -36,8 +36,12 @@ Each directory is a separate Go module:
   MP_BIN, MP_UINT from MP_INT and the order of a map, with the extensions
   as the types of go-tarantool, and renders them, or what go-tarantool
   decodes, as text: `Text` for a scalar, `AppendJSON`, `YAMLNode` and
-  `AppendLua`, a Lua expression that builds the value in Tarantool. `tt data
-  cat` prints journal rows with it.
+  `AppendLua`, a Lua expression that builds the value in Tarantool. It
+  writes them with no loss as well: `AppendTaggedJSON` and `ParseTaggedJSON`
+  for JSON that tags the values JSON has no type for, `AppendField` and
+  `ParseField` for the text of a field of a space by its type, as a cell of
+  CSV holds it. `tt data cat` prints journal rows with it; the export and
+  import of tt-ee can read and write their data with it.
 
 ## Contract module
 

@@ -1,8 +1,9 @@
 [tool.codespell]
-skip = 'go.sum, **/go.sum, **/third_party, tarantool-*, mage'
+skip = 'go.sum, **/go.sum, **/third_party, tarantool-*, mage, **/zones_gen.go'
 # Keep API names, GOST, WIT (the WebAssembly interface language), the crash-test
-# fixture and the accepted spelling "unparseable".
-ignore-words-list = ["atleast", "crasher", "fo", "gost", "unparseable", "wit"]
+# fixture, the accepted spelling "unparseable" and the time zone abbreviations
+# ECT and IST. zones_gen.go is the list of abbreviations of Tarantool.
+ignore-words-list = ["atleast", "crasher", "ect", "fo", "gost", "ist", "unparseable", "wit"]
 count = false
 quiet-level = 3
 

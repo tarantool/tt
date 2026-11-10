@@ -2,9 +2,8 @@ package tuple
 
 import (
 	"math"
+	"slices"
 	"strconv"
-	"strings"
-	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -22,25 +21,37 @@ const maxExactInt = 1 << 53
 //     array or vanish from a map.
 //   - An integer beyond 2^53 is a LuaJIT 64-bit literal, such as
 //     18446744073709551615ULL, as a Lua number would lose its low digits.
-//   - A float is the shortest decimal that reads back as it, NaN is 0/0 and
-//     an infinity math.huge or -math.huge.
+//   - A float is the shortest decimal that reads back as it, and an infinity
+//     math.huge or -math.huge. An integral float64, -0 included, is cast to a
+//     C double by the ffi module and a float32 to a C float, which Tarantool
+//     encodes as MP_DOUBLE and MP_FLOAT, where it would encode a Lua number
+//     of an integral value as an integer. A NaN is made from its MessagePack,
+//     which keeps its sign and payload: 0/0 is a NaN of the sign the CPU
+//     gives it.
 //   - A string is a quoted Lua string, a [Binary] or a []byte a
 //     require('varbinary').new() of one.
 //   - An array is a Lua table of its items, a map a table of [key] = value
-//     pairs; an empty one is marked with __serialize, so that it stays an
-//     array or a map.
+//     pairs; an empty array, an empty map and a map of keys 1, 2... are
+//     marked with __serialize, so that each stays what it is. Keys Lua takes
+//     for one, such as an MP_INT 1 and an MP_UINT 1, are one key in the
+//     table.
 //   - A decimal, a UUID, a datetime and an interval are made by the decimal,
 //     uuid and datetime modules; an [Ext] is made from its MessagePack by
 //     the msgpack module, as a MessagePack object Tarantool stores as it is.
 //
 // A value of a type the package does not cover is written as a string of its
-// text, or as nil when it has none.
+// text, or as nil when it has none. Lua cannot build what Tarantool may
+// store: a map with a NaN key, a value nested deeper than LuaJIT parses -
+// some 200 levels - or an interval of an adjust mode Tarantool has no name
+// for, which is written with none.
 //
 //nolint:cyclop,funlen // One case per type is the clearest form.
 func AppendLua(dst []byte, value any) []byte {
-	switch typed := value.(type) {
-	case nil:
+	if isNil(value) {
 		return append(dst, "box.NULL"...)
+	}
+
+	switch typed := value.(type) {
 	case bool:
 		return strconv.AppendBool(dst, typed)
 	case string:
@@ -50,9 +61,9 @@ func AppendLua(dst []byte, value any) []byte {
 	case []byte:
 		return appendLuaBinary(dst, typed)
 	case float32:
-		return appendLuaFloat(dst, float64(typed), float32Bits)
+		return appendLuaFloat32(dst, typed)
 	case float64:
-		return appendLuaFloat(dst, typed, float64Bits)
+		return appendLuaFloat64(dst, typed)
 	case []any:
 		if len(typed) == 0 {
 			return append(dst, "setmetatable({}, {__serialize = 'seq'})"...)
@@ -82,12 +93,18 @@ func AppendLua(dst []byte, value any) []byte {
 		return appendLuaMap(dst, sortItems(items))
 	case decimal.Decimal:
 		return appendLuaCall(dst, "require('decimal').new(", decimalText(typed))
+	case *decimal.Decimal:
+		return appendLuaCall(dst, "require('decimal').new(", decimalText(*typed))
 	case uuid.UUID:
 		return appendLuaCall(dst, "require('uuid').fromstr(", typed.String())
 	case datetime.Datetime:
 		return appendLuaDatetime(dst, typed)
+	case *datetime.Datetime:
+		return appendLuaDatetime(dst, *typed)
 	case datetime.Interval:
 		return appendLuaInterval(dst, typed)
+	case *datetime.Interval:
+		return appendLuaInterval(dst, *typed)
 	case Ext:
 		return appendLuaCall(dst, "require('msgpack').object_from_raw(",
 			string(AppendExtMsgpack(nil, typed.Type, typed.Data)))
@@ -118,10 +135,36 @@ func AppendLua(dst []byte, value any) []byte {
 	return append(dst, "nil"...)
 }
 
-func appendLuaFloat(dst []byte, number float64, bitSize int) []byte {
+// appendLuaFloat32 appends a float32 cast to a C float, or a NaN as its
+// MessagePack.
+func appendLuaFloat32(dst []byte, number float32) []byte {
+	if math.IsNaN(float64(number)) {
+		return appendLuaRaw(dst, number)
+	}
+
+	dst = append(dst, "require('ffi').cast('float', "...)
+
+	return append(appendLuaFloat(dst, float64(number), float32Bits), ')')
+}
+
+// appendLuaFloat64 appends a float64 as a Lua number, an integral one cast to
+// a C double, or a NaN as its MessagePack.
+func appendLuaFloat64(dst []byte, number float64) []byte {
 	switch {
 	case math.IsNaN(number):
-		return append(dst, "0/0"...)
+		return appendLuaRaw(dst, number)
+	case number == math.Trunc(number) && !math.IsInf(number, 0):
+		dst = append(dst, "require('ffi').cast('double', "...)
+
+		return append(appendLuaFloat(dst, number, float64Bits), ')')
+	}
+
+	return appendLuaFloat(dst, number, float64Bits)
+}
+
+// appendLuaFloat appends a float that is not a NaN as a Lua number.
+func appendLuaFloat(dst []byte, number float64, bitSize int) []byte {
+	switch {
 	case math.IsInf(number, 1):
 		return append(dst, "math.huge"...)
 	case math.IsInf(number, -1):
@@ -129,6 +172,17 @@ func appendLuaFloat(dst []byte, number float64, bitSize int) []byte {
 	}
 
 	return append(dst, floatLiteral(number, bitSize)...)
+}
+
+// appendLuaRaw appends a float as a MessagePack object of its bytes, which
+// Tarantool stores as they are.
+func appendLuaRaw(dst []byte, value any) []byte {
+	raw, err := AppendMsgpack(nil, value)
+	if err != nil {
+		return append(dst, "nil"...)
+	}
+
+	return appendLuaCall(dst, "require('msgpack').object_from_raw(", string(raw))
 }
 
 func appendLuaBinary(dst []byte, b []byte) []byte {
@@ -143,9 +197,18 @@ func appendLuaCall(dst []byte, call, arg string) []byte {
 	return append(dst, ')')
 }
 
+// appendLuaMap appends a map as a table of its entries, marked with
+// __serialize where Tarantool would take it for an array otherwise: when it
+// is empty, or all its keys are Lua numbers that are positive integers. A
+// mark on every map would make deep values too complex an expression for
+// LuaJIT sooner.
 func appendLuaMap(dst []byte, items Map) []byte {
-	if len(items) == 0 {
-		return append(dst, "setmetatable({}, {__serialize = 'map'})"...)
+	mark := !slices.ContainsFunc(items, func(item MapItem) bool {
+		return !isLuaIndex(item.Key)
+	})
+
+	if mark {
+		dst = append(dst, "setmetatable("...)
 	}
 
 	dst = append(dst, '{')
@@ -161,37 +224,58 @@ func appendLuaMap(dst []byte, items Map) []byte {
 		dst = AppendLua(dst, item.Value)
 	}
 
+	if mark {
+		return append(dst, "}, {__serialize = 'map'})"...)
+	}
+
 	return append(dst, '}')
 }
 
-// localLayout is RFC 3339 with nanoseconds and without the offset, which a
-// time zone name follows instead.
-const localLayout = "2006-01-02T15:04:05.999999999"
+// isLuaIndex reports whether AppendLua writes a key as a Lua number that is a
+// positive integer, which Tarantool takes for an index of an array: an
+// integer up to 2^53, math.huge. An integral float64 is a C double, which is
+// not one.
+func isLuaIndex(key any) bool {
+	if unsigned, ok := asUint(key); ok {
+		return unsigned > 0 && unsigned <= maxExactInt
+	}
+
+	if signed, ok := asInt(key); ok {
+		return signed > 0 && signed <= maxExactInt
+	}
+
+	number, ok := key.(float64)
+
+	return ok && math.IsInf(number, 1)
+}
 
 // appendLuaDatetime builds the datetime by datetime.parse, which reads back
-// the instant to the nanosecond, with the time zone named when the datetime
-// has one and its offset otherwise. datetime.new would not do: it takes a
-// timestamp given with a time zone for the local time in it. The parentheses
-// keep the length parse returns too out of a table constructor.
-func appendLuaDatetime(dst []byte, d datetime.Datetime) []byte {
-	t := d.ToTime()
+// its Text: the instant to the nanosecond and its time zone. datetime.new
+// would not do: it takes a timestamp given with a time zone for the local
+// time in it. parse takes a Z after the time for the zone Z, which a military
+// one-letter zone is written as after a space, so a datetime of no zone is
+// written with its offset, +0000 where Text has the Z.
+// Like Tarantool, parse does not tell the two instants of an hour a zone
+// repeats apart, and it does not take an ambiguous abbreviation, such as PST,
+// which is written as its offset alone. The parentheses keep the length parse
+// returns too out of a table constructor.
+func appendLuaDatetime(dst []byte, value datetime.Datetime) []byte {
+	moment := value.ToTime()
+	text := datetimeText(value)
 
-	text := t.Format(time.RFC3339Nano)
-	if zone := t.Location().String(); strings.Contains(zone, "/") {
-		text = t.Format(localLayout) + " " + zone
+	switch zone := moment.Location().String(); {
+	case len(zone) == 1:
+		text = text[:len(text)-1] + " " + zone
+	case zone == datetime.NoTimezone, ambiguousZoneAbbrevs[zone]:
+		_, offset := moment.Zone()
+
+		text = string(appendOffset(appendClock(nil, moment), offset))
 	}
 
 	dst = append(dst, "(require('datetime').parse("...)
 	dst = AppendLuaString(dst, text)
 
 	return append(dst, "))"...)
-}
-
-// luaAdjust names the adjust modes of an interval as Tarantool does.
-var luaAdjust = map[datetime.Adjust]string{
-	datetime.NoneAdjust:   "none",
-	datetime.ExcessAdjust: "excess",
-	datetime.LastAdjust:   "last",
 }
 
 func appendLuaInterval(dst []byte, ival datetime.Interval) []byte {
@@ -217,9 +301,9 @@ func appendLuaInterval(dst []byte, ival datetime.Interval) []byte {
 		dst = append(dst, ", "...)
 	}
 
-	adjust, ok := luaAdjust[ival.Adjust]
+	adjust, ok := adjustNames[ival.Adjust]
 	if !ok {
-		adjust = luaAdjust[datetime.NoneAdjust]
+		adjust = adjustNames[datetime.NoneAdjust]
 	}
 
 	dst = append(dst, "adjust = "...)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/tarantool/go-tarantool/v3/datetime"
@@ -334,12 +335,18 @@ func (d *decoder) str(n int) (any, error) {
 	return string(b), nil
 }
 
+// maxPrealloc bounds the items an array or a map is allocated for before
+// they are read: each takes at least a byte, but the 16 or 32 bytes of an
+// item for each byte left at every level of a deep value would let a small
+// malformed input take gigabytes.
+const maxPrealloc = 1024
+
 func (d *decoder) arrayOf(count int, depth int) (any, error) {
 	if count > len(d.buf)-d.pos {
 		return nil, ErrTruncated
 	}
 
-	out := make([]any, 0, count)
+	out := make([]any, 0, min(count, maxPrealloc))
 
 	for range count {
 		item, err := d.value(depth + 1)
@@ -358,7 +365,7 @@ func (d *decoder) mapOf(count int, depth int) (any, error) {
 		return nil, ErrTruncated
 	}
 
-	out := make(Map, 0, count)
+	out := make(Map, 0, min(count, maxPrealloc))
 
 	for range count {
 		key, err := d.value(depth + 1)
@@ -414,7 +421,7 @@ func decodeKnownExt(typ int8, data []byte) (any, bool) {
 	case ExtDecimal:
 		var dec decimal.Decimal
 
-		if len(data) > 0 && dec.UnmarshalMsgpack(data) == nil {
+		if len(data) > 0 && dec.UnmarshalMsgpack(data) == nil && validDecimal(dec) {
 			return dec, true
 		}
 	case ExtUUID:
@@ -429,7 +436,7 @@ func decodeKnownExt(typ int8, data []byte) (any, bool) {
 
 		if (len(data) == datetimeShortSize || len(data) == datetimeFullSize) &&
 			dt.UnmarshalMsgpack(data) == nil {
-			return dt, true
+			return datetimeInPayloadOffset(dt, data)
 		}
 	case ExtInterval:
 		var ival datetime.Interval
@@ -440,6 +447,69 @@ func decodeKnownExt(typ int8, data []byte) (any, bool) {
 	}
 
 	return nil, false
+}
+
+// The limits Tarantool puts on a decimal (decimal_unpack in
+// src/lib/core/decimal.c): its digits, and its adjusted exponent, the
+// exponent of its first digit, which may go lower by the digits it has
+// fewer than the most, as a subnormal number.
+const (
+	decimalMaxDigits   = 76
+	decimalMaxExponent = 999_999
+)
+
+// validDecimal reports whether Tarantool holds d: a decimal of other digits
+// or exponent is not one Tarantool stores, and the text of one with an
+// exponent of millions would take megabytes.
+func validDecimal(d decimal.Decimal) bool {
+	digits := int64(len(decimalDigits(d)))
+	adjusted := int64(d.Exponent()) + digits - 1
+
+	const (
+		emin    = -decimalMaxExponent
+		eminSub = emin - decimalMaxDigits + 1
+	)
+
+	return digits <= decimalMaxDigits && adjusted <= decimalMaxExponent &&
+		(adjusted >= emin || (adjusted >= eminSub && digits <= adjusted-eminSub+1))
+}
+
+// decimalDigits are the digits of the coefficient of d, with no sign.
+func decimalDigits(d decimal.Decimal) string {
+	coefficient := d.Coefficient()
+
+	return coefficient.Abs(coefficient).String()
+}
+
+// datetimeInPayloadOffset is dt with the offset its payload holds. A
+// datetime carries the offset Tarantool found for its time zone, which
+// go-tarantool drops when the time zone database has the zone: it takes the
+// offset of the database, which for an abbreviation such as CET, a fixed
+// offset in Tarantool, may be a summer one, and for a named zone may differ
+// where the databases do. Its text then would not be the one Tarantool
+// prints, and its offset not the one it holds.
+func datetimeInPayloadOffset(value datetime.Datetime, data []byte) (any, bool) {
+	if len(data) != datetimeFullSize {
+		return value, true
+	}
+
+	const offsetPos = 12
+
+	minutes := int16(binary.LittleEndian.Uint16(data[offsetPos:])) //nolint:gosec // Signed.
+	offset := int(minutes) * secondsPerMin
+	moment := value.ToTime()
+
+	zone := moment.Location().String()
+	if _, current := moment.Zone(); current == offset || zone == datetime.NoTimezone {
+		return value, true
+	}
+
+	fixed, err := datetime.NewDatetime(moment.In(time.FixedZone(zone, offset)))
+	if err != nil {
+		return nil, false
+	}
+
+	return fixed, true
 }
 
 func clone(b []byte) []byte {

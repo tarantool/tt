@@ -2,6 +2,7 @@ package tuple_test
 
 import (
 	"encoding/hex"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,10 +24,10 @@ end)))
 os.exit(0)
 `
 
-// TestAppendLuaReadsBackInTarantool evaluates the Lua of the sample tuple in
-// Tarantool and checks that it builds the values decoded from it. A Lua
-// number has no integral double, and a Lua table no order, so 3.0 comes back
-// as 3 and the map is compared by its entries.
+// TestAppendLuaReadsBackInTarantool evaluates the Lua of the sample tuple and
+// of values Lua has no literal for in Tarantool and checks that it builds the
+// MessagePack they were decoded from. A Lua table has no order, so a map is
+// compared by its entries.
 func TestAppendLuaReadsBackInTarantool(t *testing.T) {
 	t.Parallel()
 
@@ -35,11 +36,48 @@ func TestAppendLuaReadsBackInTarantool(t *testing.T) {
 		t.Skip("tarantool is not found in PATH")
 	}
 
+	items := decodeSample(t)
+
+	// A datetime of no time zone in UTC, which Text writes with a Z, an
+	// integral double and -0, a NaN float of a sign 0/0 does not give, and a
+	// map of an integral double key.
+	for _, raw := range []string{"d7048000926500000000", "cb3ff0000000000000",
+		"cb8000000000000000", "ca7fc00000", "81cb4000000000000000a178"} {
+		items = append(items, decodeHex(t, raw))
+	}
+
+	items = append(items, math.Copysign(0, -1))
+
+	back := readBackLua(t, tarantool, items)
+	require.Len(t, back, len(items))
+
+	for index, item := range items {
+		if want, ok := item.(tuple.Map); ok {
+			assert.ElementsMatch(t, want, back[index], "item %d", index)
+
+			continue
+		}
+
+		want, err := tuple.AppendMsgpack(nil, item)
+		require.NoError(t, err)
+
+		got, err := tuple.AppendMsgpack(nil, back[index])
+		require.NoError(t, err)
+
+		assert.Equal(t, hex.EncodeToString(want), hex.EncodeToString(got), "item %d: %s",
+			index, tuple.AppendLua(nil, item))
+	}
+}
+
+// readBackLua evaluates the Lua of items in tarantool and decodes the
+// MessagePack of what it builds.
+func readBackLua(t *testing.T, tarantool string, items []any) []any {
+	t.Helper()
+
 	dir := t.TempDir()
 	expr := filepath.Join(dir, "expr.lua")
 	script := filepath.Join(dir, "read_back.lua")
 
-	items := decodeSample(t)
 	require.NoError(t, os.WriteFile(expr,
 		append([]byte("return "), tuple.AppendLua(nil, items)...), 0o600))
 	require.NoError(t, os.WriteFile(script, []byte(luaReadBack), 0o600))
@@ -47,26 +85,22 @@ func TestAppendLuaReadsBackInTarantool(t *testing.T) {
 	out, err := exec.CommandContext(t.Context(), tarantool, script, expr).Output()
 	require.NoError(t, err)
 
-	raw, err := hex.DecodeString(strings.TrimSpace(string(out)))
+	value := decodeHex(t, strings.TrimSpace(string(out)))
+
+	back, ok := value.([]any)
+	require.True(t, ok)
+
+	return back
+}
+
+func decodeHex(t *testing.T, text string) any {
+	t.Helper()
+
+	raw, err := hex.DecodeString(text)
 	require.NoError(t, err)
 
 	value, err := tuple.Decode(raw)
 	require.NoError(t, err)
 
-	back, ok := value.([]any)
-	require.True(t, ok)
-	require.Len(t, back, len(items))
-
-	for index, item := range items {
-		switch want := item.(type) {
-		case tuple.Map:
-			assert.ElementsMatch(t, want, back[index], "item %d", index)
-		case nil, []any:
-			assert.Equal(t, want, back[index], "item %d", index)
-		default:
-			wantText, _ := tuple.Text(want)
-			gotText, _ := tuple.Text(back[index])
-			assert.Equal(t, wantText, gotText, "item %d", index)
-		}
-	}
+	return value
 }

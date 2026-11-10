@@ -140,8 +140,8 @@ func TestText(t *testing.T) {
 		0: "1", 1: "-2", 2: "18446744073709551615", 3: "-9223372036854775808",
 		4: "1.5", 5: "2.25", 6: "3", 7: "NaN", 8: "-Infinity",
 		9: "it's\n", 10: "AAH/", 12: "true",
-		15: "-12.340", 16: sampleUUID, 17: "2024-11-14T14:02:36.027+03:00",
-		18: "+1 year, -2 seconds", 19: "ext:66:Bw==",
+		15: "-12.340", 16: sampleUUID, 17: "2024-11-14T14:02:36.027 Europe/Moscow",
+		18: "+1 years, -2 seconds, adjust last", 19: "ext:66:Bw==",
 	}
 
 	for i, text := range want {
@@ -161,7 +161,7 @@ func TestText(t *testing.T) {
 
 	// A float has an exponent only where encoding/json would write one.
 	for f, text := range map[float64]string{
-		1731592956.818: "1731592956.818", 1e-7: "1e-07", 1e21: "1e+21", 0: "0",
+		1731592956.818: "1731592956.818", 1e-7: "1e-7", 1e21: "1e+21", 0: "0",
 	} {
 		got, _ := tuple.Text(f)
 		assert.Equal(t, text, got)
@@ -175,7 +175,8 @@ func TestAppendJSON(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, `[1,-2,18446744073709551615,-9223372036854775808,1.5,2.25,3,"NaN",`+
 		`"-Infinity","it's\n","AAH/",null,true,[],{"b":1,"2":"a"},"-12.340",`+
-		`"`+sampleUUID+`","2024-11-14T14:02:36.027+03:00","+1 year, -2 seconds",`+
+		`"`+sampleUUID+`","2024-11-14T14:02:36.027 Europe/Moscow",`+
+		`"+1 years, -2 seconds, adjust last",`+
 		`"ext:66:Bw=="]`, string(got))
 	// The order of a map is kept.
 	assert.Contains(t, string(got), `{"b":1,"2":"a"}`)
@@ -196,7 +197,8 @@ func TestYAMLNode(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, `[1, -2, 18446744073709551615, -9223372036854775808, 1.5, 2.25, 3.0, .nan, `+
 		`-.inf, "it's\n", !!binary AAH/, null, true, [], {b: 1, 2: a}, "-12.340", `+
-		sampleUUID+`, "2024-11-14T14:02:36.027+03:00", '+1 year, -2 seconds', 'ext:66:Bw==']`+
+		sampleUUID+`, '2024-11-14T14:02:36.027 Europe/Moscow', `+
+		`'+1 years, -2 seconds, adjust last', 'ext:66:Bw==']`+
 		"\n", string(got))
 
 	// A string that YAML would read as another type is quoted.
@@ -209,8 +211,10 @@ func TestAppendLua(t *testing.T) {
 	t.Parallel()
 
 	got := string(tuple.AppendLua(nil, decodeSample(t)))
-	assert.Equal(t, `{1, -2, 18446744073709551615ULL, -9223372036854775808LL, 1.5, 2.25, 3.0, `+
-		`0/0, -math.huge, 'it\'s\n', require('varbinary').new('\x00\x01\xff'), box.NULL, `+
+	assert.Equal(t, `{1, -2, 18446744073709551615ULL, -9223372036854775808LL, `+
+		`require('ffi').cast('float', 1.5), 2.25, require('ffi').cast('double', 3.0), `+
+		`require('msgpack').object_from_raw('\xcb\x7f\xf8\x00\x00\x00\x00\x00\x01'), `+
+		`-math.huge, 'it\'s\n', require('varbinary').new('\x00\x01\xff'), box.NULL, `+
 		`true, setmetatable({}, {__serialize = 'seq'}), {['b'] = 1, [2] = 'a'}, `+
 		`require('decimal').new('-12.340'), require('uuid').fromstr('`+sampleUUID+`'), `+
 		`(require('datetime').parse('2024-11-14T14:02:36.027 Europe/Moscow')), `+
