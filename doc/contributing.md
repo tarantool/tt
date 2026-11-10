@@ -37,9 +37,10 @@ $ mage testfull      # every test
 
 The tests run against the `tarantool` on `PATH`. `TT_TEST_TARANTOOL` picks
 another one for the targets that run Tarantool CE: `unit:full`,
-`unit:fullSkipDocker`, `unit:coverage` and the `integration` ones but
-`integrationEE` and `integrationNoTarantool`, `test` and `testfull` with
-them:
+`unit:fullSkipDocker`, `unit:coverage` and the `integration:` ones but
+`integration:ee` and `integration:noTarantool`, `test` and `testfull` with
+them. `mage integration` is `integration:default`, as `mage unit` is
+`unit:default`:
 
 ```console
 $ TT_TEST_TARANTOOL=3.6 mage integration       # the newest 3.6
@@ -69,15 +70,15 @@ a change to any of them builds a new one.
 
 ```console
 $ mage docker integration
-$ TT_TEST_TARANTOOL=min mage docker integrationFull
+$ TT_TEST_TARANTOOL=min mage docker integration:full
 $ mage docker "lint:full unit:full"
 $ PYTEST_ADDOPTS="-k test_status -x" mage docker integration
-$ mage docker integrationNoTarantool
+$ mage docker integration:noTarantool
 ```
 
 The image has no Tarantool: `TT_TEST_TARANTOOL`, `latest` unless set, picks
 it as above, and a path names an executable in the container.
-`integrationNoTarantool` installs none, so it runs with no Tarantool at all.
+`integration:noTarantool` installs none, so it runs with no Tarantool at all.
 
 The container works in the checkout, mounted at its own path, as your user,
 so what the tests write stays yours. It has the network of the host and its
