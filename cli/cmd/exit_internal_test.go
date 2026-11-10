@@ -192,6 +192,29 @@ func TestReportError(t *testing.T) {
 		assert.Empty(t, got.cobra)
 	})
 
+	t.Run("an error a module marked reported keeps its code and prints nothing",
+		func(t *testing.T) {
+			got := runExit(t, func(cmd *cobra.Command, _ []string) error {
+				return commandError(cmd, fmt.Errorf("checking: %w", sdk.Reported(
+					sdk.WithCode(sdk.ExitPartial, errors.New("emmylua_check failed")))))
+			}, "sub")
+
+			assert.Equal(t, 3, got.code)
+			assert.Empty(t, got.logged)
+			assert.Empty(t, got.cobra)
+			assert.Empty(t, got.out)
+		})
+
+	t.Run("a reported usage error prints no usage", func(t *testing.T) {
+		got := runExit(t, func(cmd *cobra.Command, _ []string) error {
+			return commandError(cmd, sdk.Reported(sdk.Usagef("bad value %d", 7)))
+		}, "sub")
+
+		assert.Equal(t, 1, got.code)
+		assert.Empty(t, got.logged)
+		assert.Empty(t, got.out, "the user has seen the error, and the usage is not asked for")
+	})
+
 	t.Run("aborted by the user exits 1 silently", func(t *testing.T) {
 		got := runExit(t, func(cmd *cobra.Command, _ []string) error {
 			return commandError(cmd, fmt.Errorf("installing: %w", binary.ErrCmdAbort))

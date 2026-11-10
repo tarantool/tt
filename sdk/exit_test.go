@@ -115,6 +115,38 @@ func TestExitError(t *testing.T) {
 	assert.Equal(t, sdk.ExitSystem, coder.ExitStatus())
 }
 
+// TestReported checks that the mark of an error the user has seen keeps the
+// error, its message and its exit code, and survives wrapping either way.
+func TestReported(t *testing.T) {
+	t.Parallel()
+
+	require.NoError(t, sdk.Reported(nil))
+	assert.False(t, sdk.IsReported(nil))
+	assert.False(t, sdk.IsReported(errBase))
+
+	reported := sdk.Reported(errBase)
+	assert.True(t, sdk.IsReported(reported))
+	assert.True(t, sdk.IsReported(fmt.Errorf("checking: %w", reported)))
+	require.ErrorIs(t, reported, errBase)
+	assert.Equal(t, errBase.Error(), reported.Error())
+	assert.Equal(t, sdk.ExitFailure, sdk.ExitCode(reported))
+
+	for name, err := range map[string]error{
+		"mark over a code": sdk.Reported(sdk.WithCode(sdk.ExitPartial, errBase)),
+		"code over a mark": sdk.WithCode(sdk.ExitPartial, sdk.Reported(errBase)),
+	} {
+		assert.True(t, sdk.IsReported(err), name)
+		assert.Equal(t, sdk.ExitPartial, sdk.ExitCode(err), name)
+		require.ErrorIs(t, err, errBase, name)
+	}
+
+	usage := sdk.Reported(sdk.WithUsage(errBase))
+
+	var usageErr *sdk.UsageError
+
+	require.ErrorAs(t, usage, &usageErr, "the mark hides nothing from errors.As")
+}
+
 func TestWithCodeNilPanics(t *testing.T) {
 	t.Parallel()
 

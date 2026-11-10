@@ -204,6 +204,15 @@ func demoModule(services sdk.Services) []sdk.Mount {
 		}))},
 		&cobra.Command{Use: "plain", RunE: fail(errPlain)},
 		&cobra.Command{Use: "usage", RunE: fail(sdk.WithUsage(errors.New("bad argument")))},
+		// The failure of a child program that printed it itself.
+		&cobra.Command{Use: "reported", RunE: fail(sdk.Reported(sdk.WithCode(sdk.ExitPartial,
+			errors.New("printed by the child"))))},
+		&cobra.Command{Use: "exit-reported", RunE: func(*cobra.Command, []string) error {
+			services.Exit(sdk.Reported(sdk.WithCode(sdk.ExitPartial,
+				errors.New("printed by the child"))))
+
+			return errors.New("Exit returned")
+		}},
 		&cobra.Command{Use: "project", RunE: func(*cobra.Command, []string) error {
 			dir, err := services.Project().Dir()
 			if err != nil {
@@ -397,6 +406,8 @@ func TestMainExitCodes(t *testing.T) {
 		stdout  string
 		stderr  []string
 		usage   bool
+		// quiet is a run that prints nothing to stderr.
+		quiet bool
 	}{
 		{name: "success", program: "demo", args: []string{"demo", "ok"}, code: 0, stdout: "ok\n"},
 		{
@@ -414,6 +425,15 @@ func TestMainExitCodes(t *testing.T) {
 		{
 			name: "usage error", program: "demo", args: []string{"demo", "usage"}, code: 1,
 			stderr: []string{"bad argument"}, usage: true,
+		},
+		// An error the user has seen keeps its code and is not reported again.
+		{
+			name: "reported error", program: "demo", args: []string{"demo", "reported"},
+			code: 3, quiet: true,
+		},
+		{
+			name: "exit with a reported error", program: "demo",
+			args: []string{"demo", "exit-reported"}, code: 3, quiet: true,
 		},
 		// cobra reports what it detects itself, with the usage.
 		{
@@ -466,6 +486,10 @@ func TestMainExitCodes(t *testing.T) {
 			}
 
 			assert.Equal(t, testCase.usage, strings.Contains(got.stderr, "USAGE"), got.stderr)
+
+			if testCase.quiet {
+				assert.Empty(t, got.stderr)
+			}
 		})
 	}
 }

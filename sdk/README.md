@@ -91,7 +91,9 @@ core uses, and the core never requires older ones.
   hides a deeper code. Classifying dial and filesystem errors as 2 is the
   core's job, not the SDK's. `UsageError` (`WithUsage`, `Usagef`) is an
   error in how a command was invoked: tt logs it and prints the command's
-  usage.
+  usage. `Reported` marks an error the user has seen already, such as the
+  failure a child program printed itself: tt prints nothing for it and
+  exits with its code (`IsReported` tells one).
 - `sdk` also names cluster configurations. A `ClusterSource` is an
   application of the tt environment (`AppSource`), a cluster config file
   (`FileSource`) or an etcd or Tarantool config storage URI with its

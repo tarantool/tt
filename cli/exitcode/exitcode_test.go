@@ -110,6 +110,14 @@ func TestSilent(t *testing.T) {
 	coded := sdk.WithCode(7, exitcode.Silent(errors.New("module exited with status 7")))
 	assert.True(t, exitcode.IsSilent(coded))
 	assert.Equal(t, 7, sdk.ExitCode(coded))
+
+	// Silent is the mark a module sets with the SDK: one mechanism.
+	assert.True(t, sdk.IsReported(silent))
+	assert.True(t, exitcode.IsSilent(sdk.Reported(plain)))
+
+	reported := sdk.Reported(sdk.WithCode(sdk.ExitPartial, errors.New("checked, 2 problems")))
+	assert.True(t, exitcode.IsSilent(reported))
+	assert.Equal(t, sdk.ExitPartial, exitcode.Code(reported))
 }
 
 // TestReport pins that an error is logged as one error record and that a
@@ -127,6 +135,7 @@ func TestReport(t *testing.T) {
 
 	exitcode.Report(nil)
 	exitcode.Report(exitcode.Silent(errors.New("already said")))
+	exitcode.Report(sdk.Reported(sdk.WithCode(sdk.ExitPartial, errors.New("printed by a child"))))
 	require.Empty(t, buf.String())
 
 	exitcode.Report(state(errors.New("lock is out of date")))
