@@ -34,6 +34,7 @@ require (
 	github.com/tarantool/go-tarantool/v3 v3.0.2
 	github.com/tarantool/go-xlog v0.2.0
 	github.com/tarantool/tt/modules/aeon v0.0.0
+	github.com/tarantool/tt/modules/emmylua v0.0.0
 	github.com/tarantool/tt/sdk v0.0.0
 	github.com/tarantool/tt/sdk/backup v0.0.0
 	github.com/tarantool/tt/sdk/cluster v0.0.0
@@ -181,6 +182,7 @@ require (
 
 replace (
 	github.com/tarantool/tt/modules/aeon => ./modules/aeon
+	github.com/tarantool/tt/modules/emmylua => ./modules/emmylua
 	github.com/tarantool/tt/sdk => ./sdk
 	github.com/tarantool/tt/sdk/backup => ./sdk/backup
 	github.com/tarantool/tt/sdk/cluster => ./sdk/cluster

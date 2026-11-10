@@ -36,6 +36,7 @@ tt_root_command: set[str] = set(
         "restore",
         "service",
         "wasm",
+        "emmylua",
     ),
 )
 

@@ -67,6 +67,7 @@ nav:
           - tt create: reference/commands/create.md
           - tt daemon: reference/commands/daemon.md
           - tt data: reference/commands/data.md
+          - tt emmylua: reference/commands/emmylua.md
           - tt instance: reference/commands/instance.md
           - tt modules: reference/commands/modules.md
           - tt new: reference/commands/new.md

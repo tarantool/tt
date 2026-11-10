@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/modules/aeon"
+	"github.com/tarantool/tt/modules/emmylua"
 	"github.com/tarantool/tt/v3/cli/cmd/clidoc"
 )
 
@@ -46,7 +47,8 @@ func TestCLIReference(t *testing.T) {
 	t.Setenv("TT_CLI_CFG", "")
 	require.NoError(t, os.Unsetenv("TT_CLI_CFG"))
 
-	root, err := build(nil, Modules{"builtin": Builtin, "aeon": aeon.New},
+	root, err := build(nil,
+		Modules{"builtin": Builtin, "aeon": aeon.New, "emmylua": emmylua.New},
 		&atomic.Bool{}, options{})
 	require.NoError(t, err)
 
