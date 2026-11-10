@@ -374,6 +374,7 @@ linters:
           allow:
             - $gostd
             - "github.com/tarantool/tt/modules/aeon"
+            - "github.com/tarantool/tt/modules/emmylua"
             - "github.com/tarantool/tt/v3/core"
         dir-internal-binary:
           files:
@@ -891,6 +892,7 @@ linters:
             - "github.com/tarantool/go-config/v2"
             - "github.com/tarantool/go-storage/v2"
             - "github.com/tarantool/tt/modules/aeon"
+            - "github.com/tarantool/tt/modules/emmylua"
             - "github.com/tarantool/tt/sdk"
             # The cluster config of an application comes from its pair.
             - "github.com/tarantool/tt/v3/cli/app"

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/modules/aeon"
+	"github.com/tarantool/tt/modules/emmylua"
 	"github.com/tarantool/tt/v3/cli/cmd/helpgolden"
 )
 
@@ -44,7 +45,7 @@ func TestHelpGoldenThroughModules(t *testing.T) {
 	t.Setenv("TT_CLI_CFG", "")
 	require.NoError(t, os.Unsetenv("TT_CLI_CFG"))
 
-	modules := Modules{"builtin": Builtin, "aeon": aeon.New}
+	modules := Modules{"builtin": Builtin, "aeon": aeon.New, "emmylua": emmylua.New}
 
 	newRoot := func(t *testing.T) *cobra.Command {
 		t.Helper()

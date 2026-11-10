@@ -20,6 +20,7 @@ COMMANDS[0m
   create      Create an application from a template
   daemon      Perform manipulations with the tt daemon (experimental)
   data        Read and replay snapshots and write-ahead logs
+  emmylua     Check, document and format Lua code with EmmyLua (experimental)
   help        Help about any command
   instance    Manage the instances of applications
   modules     Manage tt cli modules
@@ -3076,6 +3077,200 @@ EXAMPLES[0m
 
   # Check what a replay up to a time would change, applying nothing.
   $ tt data play localhost:3301 ./wal --timestamp 2024-11-14T14:02:36Z --dry-run
+
+=== tt emmylua --help
+Commands for EmmyLua (github.com/EmmyLuaLs/emmylua-analyzer-rust), the analyzer
+of annotated Lua: prepare puts its programs into the project as the dev
+dependency emmylua, check, doc, fmt and ls run them, config writes the
+configuration they run with, and rock packs the rocks of a release for a rock
+server.
+
+The programs run with what tt knows of the project: LuaJIT, the globals of
+Tarantool, the EmmyLua stubs of the Tarantool the project runs on
+(share/tarantool/emmylua, Tarantool 3.9 and newer) and the modules its rocks
+install. The project's own .emmyrc.json is read after that and adds to it. The
+module is a stopgap until a rock server serves the emmylua rock: until then it
+knows the releases and packs the rock itself.
+
+[0;1;39mUSAGE[0m
+  tt emmylua [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  check       Check the Lua code of the project
+  config      Write the configuration EmmyLua runs with, and print its path
+  doc         Generate the documentation of the Lua code of the project
+  fmt         Format the Lua code of the project
+  ls          Run the language server, for an editor
+  prepare     Add the programs of EmmyLua to the project
+  rock        Pack the rocks of a release for a rock server
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for emmylua
+
+Use "tt emmylua <command> --help" for more information about a command.
+
+=== tt emmylua check --help
+Run emmylua_check on PATH (default the project) with the configuration tt
+writes, then the project's .luarc.json and .emmyrc.json. The command fails as
+emmylua_check does: when it reports an error, or with --warnings-as-errors a
+warning. Arguments after -- go to the program as they are.
+
+[0;1;39mUSAGE[0m
+  tt emmylua check [PATH...] [-- EMMYLUA_CHECK_ARGS...] [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for check
+[0;1;39m
+EXAMPLES[0m
+    $ tt emmylua check
+  $ tt emmylua check app -- --warnings-as-errors --output-format json
+
+=== tt emmylua config --help
+Write the configuration tt gives EmmyLua - LuaJIT, the globals of Tarantool, the
+stubs of the Tarantool the project runs on and the modules its rocks install -
+to .tarantool/emmylua/emmyrc.json and print its path: for an editor that runs
+emmylua_ls itself, through EMMYLUALS_CONFIG. The other commands write it anew on
+every run.
+
+[0;1;39mUSAGE[0m
+  tt emmylua config [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for config
+[0;1;39m
+EXAMPLES[0m
+    $ EMMYLUALS_CONFIG=$(tt emmylua config) code .
+
+=== tt emmylua doc --help
+Run emmylua_doc_cli on PATH (default the project) with the configuration tt
+writes, then the project's .luarc.json and .emmyrc.json: it writes the
+documentation of the annotated code, by default as an HTML site in ./output
+(--output-format markdown or json for the others). Arguments after -- go to the
+program as they are.
+
+[0;1;39mUSAGE[0m
+  tt emmylua doc [PATH...] [-- EMMYLUA_DOC_CLI_ARGS...] [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for doc
+[0;1;39m
+EXAMPLES[0m
+    $ tt emmylua doc -- --output doc/api --site-name "My application"
+  $ tt emmylua doc -- --output-format json --output api.json
+
+=== tt emmylua fmt --help
+Run luafmt, the formatter of EmmyLua, on PATH (default the project). It reads
+.luafmt.toml or luafmt.toml and .luafmtignore, not the configuration of the
+analyzer. Arguments after -- go to the program as they are.
+
+[0;1;39mUSAGE[0m
+  tt emmylua fmt [PATH...] [-- LUAFMT_ARGS...] [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for fmt
+[0;1;39m
+EXAMPLES[0m
+    $ tt emmylua fmt -- --check
+  $ tt emmylua fmt app -- --write
+
+=== tt emmylua ls --help
+Run emmylua_ls, the language server of EmmyLua, on the standard streams, in
+place of tt: make it the command of the Lua server of the editor. It reads the
+configuration tt writes (through EMMYLUALS_CONFIG), then the project's
+.luarc.json, .emmyrc.json and .emmyrc.lua. Arguments after -- go to the program
+as they are.
+
+[0;1;39mUSAGE[0m
+  tt emmylua ls [-- EMMYLUA_LS_ARGS...] [flags]
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for ls
+[0;1;39m
+EXAMPLES[0m
+    # Neovim (nvim-lspconfig):
+  #   vim.lsp.config('emmylua_ls', { cmd = { 'tt', 'emmylua', 'ls' } })
+  $ tt emmylua ls -- --log-level debug --log-path /tmp/emmylua_ls.log
+
+=== tt emmylua prepare --help
+Put EmmyLua into the project.
+
+The programs of the release for this host - downloaded and checked against the
+sha256 tt holds them to, or those of a local build (--from) - are packed as a
+binary rock into .tarantool/registry. The manifest declares it as
+
+  [dev_dependencies]
+  emmylua = { version = "<release>", registry = ".tarantool/registry" }
+
+the lock is re-resolved and the rocks are installed, so the programs are in
+.rocks/bin. A declaration already there is left as it is.
+
+With --rock-server nothing is packed: the dependency names the server, which tt
+emmylua rock packs the rocks of every platform for.
+
+The registry is for this host and is not meant to be committed: after a
+checkout, run tt emmylua prepare again. Known releases: 0.25.1, 0.30.0pre1;
+TT_EMMYLUA_RELEASES names a JSON file of others.
+
+[0;1;39mUSAGE[0m
+  tt emmylua prepare [flags]
+[0;1;39m
+FLAGS[0m
+      --from string            pack the programs of a local build of the release
+                               in this directory (a cargo target/release)
+                               instead of downloading them
+  -h, --help                   help for prepare
+      --no-install             do not install the rocks: leave that to tt
+                               package build
+      --registry stringArray   rock server to use instead of the configured
+                               ones: an http(s) URL or a local directory; repeat
+                               to give an ordered list (overrides TT_REGISTRIES
+                               and [platform].registries)
+      --rock-server string     declare the rock from this rock server, which tt
+                               emmylua rock packs for, instead of packing it
+                               into .tarantool/registry
+      --version string         EmmyLua release (default "0.30.0pre1")
+[0;1;39m
+EXAMPLES[0m
+  # A local build of EmmyLua, from its checkout.
+  $ cargo build --release -p emmylua_check -p emmylua_ls -p emmylua_doc_cli -p
+  emmylua_formatter
+  $ tt emmylua prepare --from ~/src/emmylua-analyzer-rust/target/release
+
+  # The release Tarantool checks its own code with, downloaded.
+  $ tt emmylua prepare --version 0.25.1
+
+  # The rocks of a shared rock server.
+  $ tt emmylua prepare --rock-server https://example.org/rocks/
+
+=== tt emmylua rock --help
+Pack the emmylua rock of every platform of an EmmyLua release into --out, with
+the manifest that makes the directory a rock server, the assets checked against
+the sha256 tt holds the release to. With --from, pack the one local build as the
+rock of --arch (default this host's) and keep the rocks already in --out: run it
+once for the build of each platform. Serve the directory, or upload its files,
+and declare the dependency from it with tt emmylua prepare --rock-server.
+
+[0;1;39mUSAGE[0m
+  tt emmylua rock [flags]
+[0;1;39m
+FLAGS[0m
+      --arch string      the LuaRocks arch of the build --from names
+                         (linux-x86_64, macosx-aarch64; default this host's)
+      --from string      pack the programs of a local build in this directory
+                         instead of downloading them
+  -h, --help             help for rock
+      --out string       the directory to pack the rocks into
+      --version string   EmmyLua release (default "0.30.0pre1")
+[0;1;39m
+EXAMPLES[0m
+  # The rocks of a release on GitHub.
+  $ tt emmylua rock --version 0.25.1 --out dist/rocks
+
+  # Local builds, one per platform.
+  $ tt emmylua rock --from target/release --out dist/rocks
+  $ tt emmylua rock --from target/aarch64-apple-darwin/release --arch
+  macosx-aarch64 \
+      --out dist/rocks
 
 === tt errors --help
 Exit codes of tt commands.
@@ -6148,6 +6343,7 @@ coredump	Perform manipulations with the tarantool coredumps
 create	Create an application from a template
 daemon	Perform manipulations with the tt daemon (experimental)
 data	Read and replay snapshots and write-ahead logs
+emmylua	Check, document and format Lua code with EmmyLua (experimental)
 help	Help about any command
 instance	Manage the instances of applications
 modules	Manage tt cli modules
