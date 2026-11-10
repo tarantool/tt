@@ -24,6 +24,7 @@ var (
 	errCannotParseAVersionOutOf                  = errors.New("cannot parse a version out of ")
 	errIsGolangciLintWantTheProjectPinnedVersion = errors.New(" is golangci-lint ")
 	errIsNotADirectory                           = errors.New(" is not a directory")
+	errFuzzTestsFailed                           = errors.New("fuzz tests failed")
 )
 
 // spell-checker:ignore trimpath extldflags asmflags covdata GOEXE TTEXE GOCOVERDIR
@@ -477,6 +478,92 @@ func (Unit) Default() error {
 // Race runs unit tests in every project module with the race detector.
 func (Unit) Race() error {
 	return runUnitTests([]string{"-race"})
+}
+
+// The variable that sets the time mage unit:fuzz fuzzes each test for, a
+// duration as go test -fuzztime takes it, and the time when it is not set.
+const (
+	fuzzTimeEnv     = "FUZZTIME"
+	defaultFuzzTime = "1m"
+)
+
+// fuzzTest is a fuzz test of a package of a module.
+type fuzzTest struct {
+	module, pkg, name string
+}
+
+// Fuzz fuzzes every fuzz test of every project module for FUZZTIME, a minute
+// by default, one after another, as go test fuzzes one test at a time. The
+// inputs that find new code are kept in the fuzz cache under GOCACHE, so a
+// next run goes on from them; an input that fails a test is written to
+// testdata/fuzz of its package. The tests that fail are reported at the end.
+func (Unit) Fuzz() error {
+	fuzzTime := os.Getenv(fuzzTimeEnv)
+	if fuzzTime == "" {
+		fuzzTime = defaultFuzzTime
+	}
+
+	modules, err := findModules()
+	if err != nil {
+		return err
+	}
+
+	var failed []string
+
+	for _, module := range modules {
+		tests, err := fuzzTests(module)
+		if err != nil {
+			return err
+		}
+
+		for _, test := range tests {
+			_, _ = fmt.Fprintf(os.Stdout, "Fuzzing %s %s for %s...\n",
+				test.pkg, test.name, fuzzTime)
+
+			err := sh.RunV(goExecutableName, "test", "-C", test.module, "-run", "^$",
+				"-fuzz", "^"+test.name+"$", "-fuzztime", fuzzTime, test.pkg)
+			if err != nil {
+				failed = append(failed, test.pkg+" "+test.name)
+			}
+		}
+	}
+
+	if len(failed) > 0 {
+		return fmt.Errorf("%w:\n%s", errFuzzTestsFailed, strings.Join(failed, "\n"))
+	}
+
+	return nil
+}
+
+// fuzzTests lists the fuzz tests of the packages of module: go test -list
+// prints the names of a package, then its ok line.
+func fuzzTests(module string) ([]fuzzTest, error) {
+	out, err := sh.Output(goExecutableName, "test", "-C", module, "-list", "^Fuzz", "./...")
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the fuzz tests of %s: %w", module, err)
+	}
+
+	var (
+		tests []fuzzTest
+		names []string
+	)
+
+	for line := range strings.Lines(out) {
+		fields := strings.Fields(line)
+
+		switch {
+		case len(fields) == 1 && strings.HasPrefix(fields[0], "Fuzz"):
+			names = append(names, fields[0])
+		case len(fields) >= 2 && fields[0] == "ok":
+			for _, name := range names {
+				tests = append(tests, fuzzTest{module: module, pkg: fields[1], name: name})
+			}
+
+			names = nil
+		}
+	}
+
+	return tests, nil
 }
 
 // Full runs unit tests with Tarantool instance integration.
