@@ -11,6 +11,7 @@ SUITES = {
     "canary": ("Tarantool master canary", "ci-canary"),
     "nightly": ("Nightly analysis", "ci-nightly"),
     "full": ("Nightly full CI", "ci-nightly"),
+    "docker": ("Nightly mage docker", "ci-nightly"),
 }
 
 

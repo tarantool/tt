@@ -1,0 +1,134 @@
+name: mage docker
+
+# mage docker runs the tests in the image of ci/Dockerfile, which installs
+# what .github/actions/prepare-ce-test-env does, from URLs and packages that
+# change with no commit here. A change to the image or to mage docker runs a
+# test of each thing the image is for. The nightly scheduler runs the suites
+# besides, which find what the image lacks that CI installs, and keeps one
+# issue of its failures.
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: Exact source commit selected by the nightly scheduler
+        type: string
+        required: true
+      branch:
+        description: Branch the source commit belongs to; the calling branch when empty
+        type: string
+        default: ''
+  push:
+    branches: [v3]
+    paths:
+      - ci/Dockerfile
+      - ci/tarantool-versions.env
+      - ci/tarantool-version.sh
+      - magefile*.go
+      - test/requirements.txt
+      - go.mod
+      - .github/workflows/docker.yml
+  pull_request:
+    paths:
+      - ci/Dockerfile
+      - ci/tarantool-versions.env
+      - ci/tarantool-version.sh
+      - magefile*.go
+      - test/requirements.txt
+      - go.mod
+      - .github/workflows/docker.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || inputs.ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GO_VERSION: '1.27.3'
+  # A test of each thing the image is for: unshare -r -n in the rocks tests,
+  # a docker test mounting its temporary directory, MinIO on localhost, zstd
+  # for the backup archives, etcd, the shells of the completion tests and a
+  # cluster of instances.
+  SMOKE: >-
+    test_rocks_install_local or test_rocks_with_hardcoded or
+    test_last_json_single_manifest or
+    test_start_full_artifact_and_open_backup_lifecycle or
+    test_cluster_publish_uri_confirmation or test_completion_loaded or
+    test_t3_instance_names_with_config or test_start_cluster
+
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '${{ env.GO_VERSION }}'
+          cache: false
+
+      - name: Setup Mage
+        run: go install github.com/magefile/mage@v1.15.0
+
+      - name: Build the test image
+        run: mage docker build
+
+      - name: Smoke tests against the latest Tarantool
+        run: PYTEST_ADDOPTS="-k '$SMOKE'" mage docker integrationFull
+
+      - name: Smoke tests against the oldest Tarantool CI tests
+        if: success() || failure()
+        run: TT_TEST_TARANTOOL=min PYTEST_ADDOPTS="-k '$SMOKE'" mage docker integrationFull
+
+  suites:
+    # The scheduler or a manual run.
+    if: github.event_name != 'push' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '${{ env.GO_VERSION }}'
+          cache: false
+
+      - name: Setup Mage
+        run: go install github.com/magefile/mage@v1.15.0
+
+      - name: Integration tests
+        run: mage docker integration
+
+      - name: Integration tests without Tarantool
+        if: success() || failure()
+        run: mage docker integrationNoTarantool
+
+      - name: Full unit tests
+        if: success() || failure()
+        run: mage docker unit:full
+
+  report:
+    if: ${{ always() && !cancelled() && inputs.ref != '' && contains(needs.*.result, 'failure') }}
+    needs: [smoke, suites]
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/_report_failure.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
+    with:
+      ref: ${{ inputs.ref }}
+      branch: ${{ inputs.branch || github.ref_name }}
+      suite: docker
+      results: ${{ toJSON(needs) }}
