@@ -1,0 +1,174 @@
+name: Trivy dependency scan
+
+# Trivy reports every vulnerable module or package a manifest names, unlike
+# govulncheck, which reports only the code tt calls; this is what a scanner of
+# a user of tt reports. The tt binary is scanned too: it holds the modules and
+# the Go toolchain that went into the build.
+#
+# Trivy runs in a container that sees only what it scans. In March 2026 the
+# trivy-action tags and a Trivy release were replaced with a stealer that read
+# the secrets of a job from the memory of the runner process (CVE-2026-33634),
+# so here:
+# - the image is pinned by digest, no action of Aqua runs, and the job passes
+#   no secret;
+# - the container gets neither the environment of the runner nor its tokens
+#   (ACTIONS_RUNTIME_TOKEN would let it poison caches), nor its processes, nor
+#   the Docker socket, and it runs as the runner user with no capabilities;
+# - the database is fetched by a container that sees nothing but the cache,
+#   and the scan runs with no network and read-only sources.
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: true
+      base:
+        description: >-
+          Commit to compare dependency files with; the merge base with the
+          default branch when empty. The scan is skipped when none changed.
+        type: string
+        default: ''
+      scan-all:
+        description: Scan even when no dependency file changed (nightly)
+        type: boolean
+        default: false
+      binary-artifact:
+        description: Artifact of this run holding the tt binary to scan; none when empty
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+env:
+  # Trivy 0.76.1, the same index in ghcr.io, docker.io and public.ecr.aws.
+  # Its /usr/local/bin/trivy is byte for byte the binary of
+  # trivy_0.76.1_Linux-64bit.tar.gz, whose sigstore bundle verifies against
+  # reusable-release.yaml@refs/tags/v0.76.1 of aquasecurity/trivy. Check a
+  # new digest the same way before updating it: the images are not signed.
+  TRIVY_IMAGE: ghcr.io/aquasecurity/trivy@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
+
+jobs:
+  trivy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # A branch is compared with the default branch rather than with its
+      # previous push, so a later commit cannot hide an earlier change.
+      - name: Check dependency changes
+        id: changes
+        env:
+          BASE: ${{ inputs.base }}
+          SCAN_ALL: ${{ inputs.scan-all }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ -z "$BASE" ]; then
+            BASE=$(git merge-base HEAD "origin/$DEFAULT_BRANCH")
+          fi
+          changed=true
+          if [ "$SCAN_ALL" != true ] &&
+            git diff --quiet "$BASE...HEAD" -- ':(glob)**/go.mod' ':(glob)**/go.sum' \
+              ':(glob)**/requirements*.txt' .trivyignore.yaml; then
+            changed=false
+          fi
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          echo "Dependency scan requested: $changed" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Prepare scan directories
+        if: steps.changes.outputs.changed == 'true'
+        run: mkdir -p "$RUNNER_TEMP/trivy/cache" "$RUNNER_TEMP/trivy/bin" "$RUNNER_TEMP/trivy/out"
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: steps.changes.outputs.changed == 'true' && inputs.binary-artifact != ''
+        with:
+          name: ${{ inputs.binary-artifact }}
+          path: ${{ runner.temp }}/trivy/bin
+
+      - name: Pull Trivy
+        if: steps.changes.outputs.changed == 'true'
+        run: ci/retry-network.sh docker pull --quiet "$TRIVY_IMAGE"
+
+      - name: Download the vulnerability database
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          ci/retry-network.sh docker run --rm \
+            --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
+            --user "$(id -u):$(id -g)" --env HOME=/tmp \
+            --volume "$RUNNER_TEMP/trivy/cache:/cache" \
+            "$TRIVY_IMAGE" fs --download-db-only --cache-dir /cache \
+            --no-progress --skip-version-check --disable-telemetry
+
+      # Fails on a HIGH or CRITICAL vulnerability that .trivyignore.yaml does
+      # not list, whether or not a fixed version exists.
+      - name: Scan dependencies
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          SCAN_BINARY: ${{ inputs.binary-artifact != '' }}
+          BINARY_ARTIFACT: ${{ inputs.binary-artifact }}
+        run: |
+          trivy() {
+            docker run --rm --network none \
+              --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
+              --user "$(id -u):$(id -g)" --env HOME=/tmp \
+              --volume "$RUNNER_TEMP/trivy/cache:/cache:ro" \
+              --volume "$PWD:/src:ro" \
+              --volume "$RUNNER_TEMP/trivy/bin:/scan-bin:ro" \
+              --volume "$RUNNER_TEMP/trivy/out:/out" \
+              "$TRIVY_IMAGE" "$@"
+          }
+
+          # name, scan command and target
+          scan() {
+            local status=0
+            trivy "$2" "$3" --cache-dir /cache --skip-db-update --offline-scan \
+              --no-progress --skip-version-check --disable-telemetry \
+              --scanners vuln --severity HIGH,CRITICAL \
+              --ignorefile /src/.trivyignore.yaml \
+              --exit-code 1 --format json --output "/out/$1.json" || status=$?
+            trivy convert --format table --output "/out/$1.txt" "/out/$1.json"
+            cat "$RUNNER_TEMP/trivy/out/$1.txt"
+            {
+              echo "### Trivy: $1"
+              if [ -s "$RUNNER_TEMP/trivy/out/$1.txt" ]; then
+                echo '```'
+                cat "$RUNNER_TEMP/trivy/out/$1.txt"
+                echo '```'
+              else
+                echo 'No HIGH or CRITICAL vulnerabilities.'
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
+            return "$status"
+          }
+
+          failed=0
+          scan sources fs /src || failed=1
+          if [ "$SCAN_BINARY" = true ]; then
+            # Artifacts lose the executable bit, and Trivy reads only an
+            # executable as a Go binary; a file it skips passes silently.
+            find "$RUNNER_TEMP/trivy/bin" -type f -exec chmod +x {} +
+            scan binary rootfs /scan-bin || failed=1
+            if ! jq -e 'any(.Results[]?; .Type == "gobinary")' \
+              "$RUNNER_TEMP/trivy/out/binary.json" > /dev/null; then
+              echo "::error::Trivy found no Go binary in ${BINARY_ARTIFACT}"
+              failed=1
+            fi
+          fi
+          exit "$failed"
+
+      - name: Upload the Trivy report
+        if: always() && steps.changes.outputs.changed == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: trivy
+          path: ${{ runner.temp }}/trivy/out/
+          if-no-files-found: ignore
+          retention-days: 7

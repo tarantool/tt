@@ -161,6 +161,16 @@ jobs:
       ref: ${{ github.event.pull_request.head.sha || github.sha }}
       base: ${{ github.event.pull_request.base.sha || '' }}
 
+  # Like govulncheck, blocks only changes to dependency files; the nightly
+  # analysis scans the sources of the default branch.
+  trivy:
+    needs: build
+    uses: ./.github/workflows/_trivy.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
+    with:
+      ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      base: ${{ github.event.pull_request.base.sha || '' }}
+      binary-artifact: tt-default
+
   build-variants:
     if: >-
       ${{ github.event_name == 'push' ||
@@ -305,7 +315,7 @@ jobs:
     if: >-
       ${{ always() && (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository &&
       github.event.action != 'labeled' && github.event.action != 'unlabeled') }}
-    needs: [lint, govulncheck, build, build-variants, go, go-macos, it-ce]
+    needs: [lint, govulncheck, trivy, build, build-variants, go, go-macos, it-ce]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -326,7 +336,7 @@ jobs:
 
   ci-result:
     if: ${{ always() && github.event_name == 'push' }}
-    needs: [ci-start, lint, govulncheck, build, build-variants, go, go-macos, it-ce]
+    needs: [ci-start, lint, govulncheck, trivy, build, build-variants, go, go-macos, it-ce]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -350,5 +360,5 @@ jobs:
           HEAD_SHA: ${{ github.sha }}
           STATUS_CONTEXT: ci-ok
           RESULTS: ${{ toJSON(needs) }}
-          REQUIRED: '["ci-start","lint","govulncheck","build","build-variants","go","go-macos","it-ce"]'
+          REQUIRED: '["ci-start","lint","govulncheck","trivy","build","build-variants","go","go-macos","it-ce"]'
         run: python3 ci/status.py

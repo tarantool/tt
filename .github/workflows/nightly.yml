@@ -177,9 +177,16 @@ jobs:
       ref: ${{ inputs.ref || github.sha }}
       scan-all: true
 
+  # New advisories come without a change here, so scan what the branch declares.
+  trivy:
+    uses: ./.github/workflows/_trivy.yml # zizmor: ignore[self-repository] -- Use the workflow revision selected by GitHub.
+    with:
+      ref: ${{ inputs.ref || github.sha }}
+      scan-all: true
+
   report:
     if: ${{ always() && !cancelled() && contains(needs.*.result, 'failure') }}
-    needs: [race, coverage, fuzz, govulncheck]
+    needs: [race, coverage, fuzz, govulncheck, trivy]
     permissions:
       contents: read
       issues: write
