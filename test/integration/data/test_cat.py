@@ -10,6 +10,10 @@ import yaml
 from utils import run_command_and_get_output, run_command_and_get_streams
 
 CAT_FILES = Path(__file__).parent / "cat_file"
+# The journals JOURNALS_SCRIPT and VINYL_SCRIPT write, made by Tarantool CE.
+# --update-testdata makes them again by the Tarantool in PATH.
+JOURNALS = Path(__file__).parent / "journals"
+VINYL = Path(__file__).parent / "vinyl"
 
 # A script that writes the journals of an instance into its working directory:
 # a write-ahead log with a transaction of two rows, a snapshot, and a
@@ -43,18 +47,44 @@ os.exit(0)
 """
 
 
-@pytest.fixture(scope="module")
-def journals(tmp_path_factory) -> Path:
-    """The journals JOURNALS_SCRIPT writes, made by the Tarantool in PATH."""
+def need_tarantool():
     if shutil.which("tarantool") is None:
         pytest.skip("tarantool is not found in PATH")
 
-    work = tmp_path_factory.mktemp("journals")
-    (work / "journals.lua").write_text(JOURNALS_SCRIPT)
-    subprocess.run(["tarantool", "journals.lua"], cwd=work, check=True)
-    (work / "journals.lua").unlink()
+
+def write_journals(script, work):
+    """Runs script in work by the Tarantool in PATH, which writes its journals
+    there."""
+    work.mkdir(parents=True, exist_ok=True)
+    (work / "script.lua").write_text(script)
+    subprocess.run(["tarantool", "script.lua"], cwd=work, check=True)
+    (work / "script.lua").unlink()
+
+
+def made_journals(request, tmp_path_factory, update_testdata, script, testdata):
+    """The journals script writes: those of testdata for the param "testdata",
+    which need no Tarantool, and those the Tarantool in PATH writes now for the
+    param "tarantool", so that the journals of every version CI runs are read.
+    """
+    if update_testdata and request.param == "testdata":
+        need_tarantool()
+        shutil.rmtree(testdata)
+        write_journals(script, testdata)
+
+    if request.param == "testdata":
+        return testdata
+
+    need_tarantool()
+    work = tmp_path_factory.mktemp(testdata.name)
+    write_journals(script, work)
 
     return work
+
+
+@pytest.fixture(scope="module", params=["testdata", "tarantool"])
+def journals(request, tmp_path_factory, update_testdata) -> Path:
+    """The journals JOURNALS_SCRIPT writes."""
+    return made_journals(request, tmp_path_factory, update_testdata, JOURNALS_SCRIPT, JOURNALS)
 
 
 def cat_json(tt_cmd, *args, cwd=None):
@@ -223,6 +253,8 @@ def test_cat_lsn_bounds(tt_cmd, journals):
 
 
 def test_cat_lua_replays(tt_cmd, journals, tmp_path):
+    need_tarantool()
+
     rc, stdout, stderr = run_command_and_get_streams(
         [tt_cmd, "data", "cat", str(journals), "-o", "lua"],
     )
@@ -253,20 +285,8 @@ def test_cat_lua_replays(tt_cmd, journals, tmp_path):
     assert data[5] == [7, "u"]
 
 
-def test_cat_vylog(tt_cmd, tmp_path):
-    if shutil.which("tarantool") is None:
-        pytest.skip("tarantool is not found in PATH")
-
-    (tmp_path / "vinyl.lua").write_text(
-        "box.cfg{log_level = 2}\n"
-        "local s = box.schema.space.create('kv', {engine = 'vinyl'})\n"
-        "s:create_index('pk')\n"
-        "s:replace{1}\n"
-        "box.snapshot()\n"
-        "os.exit(0)\n",
-    )
-    subprocess.run(["tarantool", "vinyl.lua"], cwd=tmp_path, check=True)
-    vylog = sorted(tmp_path.glob("*.vylog"))[-1]
+def test_cat_vylog(tt_cmd, vinyl):
+    vylog = sorted(vinyl.glob("*.vylog"))[-1]
 
     records = cat_json(tt_cmd, vylog)
     types = [record["BODY"]["type"] for record in records]
@@ -295,18 +315,10 @@ os.exit(0)
 """
 
 
-@pytest.fixture(scope="module")
-def vinyl(tmp_path_factory) -> Path:
+@pytest.fixture(scope="module", params=["testdata", "tarantool"])
+def vinyl(request, tmp_path_factory, update_testdata) -> Path:
     """The working directory VINYL_SCRIPT writes."""
-    if shutil.which("tarantool") is None:
-        pytest.skip("tarantool is not found in PATH")
-
-    work = tmp_path_factory.mktemp("vinyl")
-    (work / "vinyl.lua").write_text(VINYL_SCRIPT)
-    subprocess.run(["tarantool", "vinyl.lua"], cwd=work, check=True)
-    (work / "vinyl.lua").unlink()
-
-    return work
+    return made_journals(request, tmp_path_factory, update_testdata, VINYL_SCRIPT, VINYL)
 
 
 def test_cat_vinyl_runs(tt_cmd, vinyl):
@@ -349,6 +361,8 @@ def test_cat_vinyl_runs(tt_cmd, vinyl):
 
 
 def test_cat_vinyl_runs_lua(tt_cmd, vinyl, tmp_path):
+    need_tarantool()
+
     runs = sorted((vinyl / "512" / "0").glob("*.run"), key=lambda p: int(p.stem))
 
     rc, stdout, stderr = run_command_and_get_streams(

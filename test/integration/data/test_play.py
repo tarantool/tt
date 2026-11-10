@@ -1,14 +1,13 @@
 import os
 import re
 import shutil
-import subprocess
 import tempfile
 from pathlib import Path
 
 import pytest
 import yaml
 from integration.connect.test_connect import start_app, stop_app, try_execute_on_instance
-from integration.data.test_cat import JOURNALS_SCRIPT
+from integration.data.test_cat import JOURNALS
 
 from utils import (
     BINARY_PORT_NAME,
@@ -48,14 +47,10 @@ def test_instance(request, tmp_path) -> TarantoolTestInstance:
 
 
 @pytest.fixture(scope="module")
-def source(tmp_path_factory) -> Path:
+def source() -> Path:
     """The journals of an instance JOURNALS_SCRIPT writes: a snapshot, and
     every kind of data change after it."""
-    work = tmp_path_factory.mktemp("source")
-    (work / "journals.lua").write_text(JOURNALS_SCRIPT)
-    subprocess.run(["tarantool", "journals.lua"], cwd=work, check=True)
-    (work / "journals.lua").unlink()
-    return work
+    return JOURNALS
 
 
 def select(tt_cmd, inst, space="test"):
