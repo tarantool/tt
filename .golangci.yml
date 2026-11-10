@@ -443,6 +443,15 @@ linters:
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/sdk/backup"
             - "github.com/testcontainers/testcontainers-go"
+        # The downloads of tt and its modules depend on the standard library
+        # only, so that any module can take them in; testify is for the tests.
+        dir-sdk-fetch:
+          files:
+            - "**/sdk/fetch/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/sdk/fetch"
         # The resolver of the application an instance command acts on: it
         # reads the manifest and loads the cluster config the way the rest
         # of tt does, and knows nothing of how instances are run.
