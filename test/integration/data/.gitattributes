@@ -1,0 +1,7 @@
+# The journals of Tarantool: a log of no rows has no NUL byte and would be
+# taken for text, its line ends converted.
+*.snap binary
+*.xlog binary
+*.vylog binary
+*.run binary
+*.index binary
