@@ -62,6 +62,14 @@ var (
 		"build":    Build.Release,
 		"unit":     Unit.Default,
 		"unitfull": Unit.Full,
+
+		"integration": Integration.Default,
+		// The names of the integration targets before they were grouped.
+		"integrationfull":           Integration.Full,
+		"integrationfullskipdocker": Integration.FullSkipDocker,
+		"integrationfulldocker":     Integration.FullDocker,
+		"integrationee":             Integration.EE,
+		"integrationnotarantool":    Integration.NoTarantool,
 	}
 
 	// lintVersionRe pulls the version out of `golangci-lint version`, which
@@ -695,9 +703,11 @@ func ensureCoverageDir(coverDir string) error {
 	return nil
 }
 
-// Integration runs integration tests, excluding slow tests. TT_TEST_TARANTOOL
+type Integration mg.Namespace
+
+// Default runs integration tests, excluding slow tests. TT_TEST_TARANTOOL
 // picks the Tarantool, see magefile.tarantool.go.
-func Integration() error {
+func (Integration) Default() error {
 	mg.Deps(useTestTarantool)
 
 	_, _ = fmt.Fprintln(os.Stdout, "Running integration tests...")
@@ -706,8 +716,8 @@ func Integration() error {
 		"and not notarantool and not tarantool_master", "test/integration")
 }
 
-// IntegrationFull runs the full set of integration tests.
-func IntegrationFull() error {
+// Full runs the full set of integration tests.
+func (Integration) Full() error {
 	mg.Deps(useTestTarantool)
 
 	_, _ = fmt.Fprintln(os.Stdout, "Running all integration tests...")
@@ -717,8 +727,8 @@ func IntegrationFull() error {
 		"test/integration")
 }
 
-// IntegrationFullSkipDocker runs the full set of integration tests, excluding docker tests.
-func IntegrationFullSkipDocker() error {
+// FullSkipDocker runs the full set of integration tests, excluding docker tests.
+func (Integration) FullSkipDocker() error {
 	mg.Deps(useTestTarantool)
 
 	_, _ = fmt.Fprintln(os.Stdout, "Running all integration tests, excluding docker...")
@@ -728,8 +738,8 @@ func IntegrationFullSkipDocker() error {
 		"test/integration")
 }
 
-// IntegrationFullDocker runs only docker tests from the full set.
-func IntegrationFullDocker() error {
+// FullDocker runs only docker tests from the full set.
+func (Integration) FullDocker() error {
 	mg.Deps(useTestTarantool)
 
 	_, _ = fmt.Fprintln(os.Stdout, "Running docker integration tests...")
@@ -738,15 +748,15 @@ func IntegrationFullDocker() error {
 		"not slow_ee and not notarantool and docker and not tarantool_master", "test/integration")
 }
 
-// IntegrationEE runs the set of EE integration tests.
-func IntegrationEE() error {
+// EE runs the set of EE integration tests.
+func (Integration) EE() error {
 	_, _ = fmt.Fprintln(os.Stdout, "Running all EE integration tests...")
 
 	return runTests(pythonExecutableName, "-m", "pytest", "test/integration/ee")
 }
 
-// IntegrationNoTarantool runs integration tests without a system-wide Tarantool installation.
-func IntegrationNoTarantool() error {
+// NoTarantool runs integration tests without a system-wide Tarantool installation.
+func (Integration) NoTarantool() error {
 	_, _ = fmt.Fprintln(os.Stdout, "Running integration tests without Tarantool...")
 
 	return runTests(pythonExecutableName, "-m", "pytest", "-m", "notarantool",
@@ -762,12 +772,12 @@ func CodeSpell() error {
 
 // Test runs all tests together, excluding slow and unit integration tests.
 func Test() {
-	mg.SerialDeps(Lint.Full, CheckLicenses, Unit.Default, Integration)
+	mg.SerialDeps(Lint.Full, CheckLicenses, Unit.Default, Integration.Default)
 }
 
 // TestFull runs all tests together.
 func TestFull() {
-	mg.SerialDeps(Lint.Full, CheckLicenses, Unit.Full, IntegrationFull)
+	mg.SerialDeps(Lint.Full, CheckLicenses, Unit.Full, Integration.Full)
 }
 
 // Clean cleans up the directory.

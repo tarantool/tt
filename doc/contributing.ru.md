@@ -37,9 +37,10 @@ $ mage testfull      # все тесты
 
 Тесты работают с `tarantool` из `PATH`. `TT_TEST_TARANTOOL` выбирает другой
 для целей, которые запускают Tarantool CE: `unit:full`,
-`unit:fullSkipDocker`, `unit:coverage` и целей `integration`, кроме
-`integrationEE` и `integrationNoTarantool`, а с ними и для `test` и
-`testfull`:
+`unit:fullSkipDocker`, `unit:coverage` и целей `integration:`, кроме
+`integration:ee` и `integration:noTarantool`, а с ними и для `test` и
+`testfull`. `mage integration` — это `integration:default`, так же как
+`mage unit` — это `unit:default`:
 
 ```console
 $ TT_TEST_TARANTOOL=3.6 mage integration       # последняя 3.6
@@ -69,15 +70,15 @@ Python с пакетами из `test/requirements.txt`, etcd, golangci-lint, о
 
 ```console
 $ mage docker integration
-$ TT_TEST_TARANTOOL=min mage docker integrationFull
+$ TT_TEST_TARANTOOL=min mage docker integration:full
 $ mage docker "lint:full unit:full"
 $ PYTEST_ADDOPTS="-k test_status -x" mage docker integration
-$ mage docker integrationNoTarantool
+$ mage docker integration:noTarantool
 ```
 
 В образе нет Tarantool: его выбирает `TT_TEST_TARANTOOL`, как описано выше,
 по умолчанию `latest`, а путь указывает на исполняемый файл внутри
-контейнера. `integrationNoTarantool` Tarantool не устанавливает и работает
+контейнера. `integration:noTarantool` Tarantool не устанавливает и работает
 совсем без него.
 
 Контейнер работает прямо в рабочей копии, смонтированной по тому же пути, от
