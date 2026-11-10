@@ -4,7 +4,7 @@ import (
 	"encoding/base64"
 	"math"
 	"strconv"
-	"time"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/tarantool/go-tarantool/v3/datetime"
@@ -34,14 +34,26 @@ const (
 //     shortest decimal that reads back as the same float, or NaN, Infinity
 //     or -Infinity.
 //   - A string is itself, a [Binary] or a []byte its standard base64.
-//   - A decimal is its decimal text, a UUID its canonical form, a datetime
-//     RFC 3339 with nanoseconds and the offset of its time zone, an interval
-//     the text Tarantool prints, such as "+1 years, -2 seconds".
+//   - A decimal is the text Tarantool prints, which keeps its digits and its
+//     scale: 12.340, 1E+2, 1E-7. A UUID is its canonical form.
+//   - A datetime is the text Tarantool prints, such as
+//     "2024-11-14T14:02:36.027 Europe/Moscow" or "2024-11-14T11:02:36Z",
+//     which [ParseDatetime] and datetime.parse read back. Like the text of
+//     Tarantool, it does not tell apart a time zone named Z from none, nor the
+//     two instants of the hour a named zone repeats when its clocks go back;
+//     [AppendTaggedJSON] does.
+//   - An interval is the text Tarantool prints with its adjust mode when it
+//     is not none, such as "+1 years, -2 seconds, adjust last", which
+//     [ParseInterval] reads back.
 //   - An [Ext] is "ext:" followed by its type, a colon and the base64 of its
 //     payload.
 //
 //nolint:cyclop // One case per type is the clearest form.
 func Text(value any) (string, bool) {
+	if isNil(value) {
+		return "", false
+	}
+
 	switch typed := value.(type) {
 	case bool:
 		return strconv.FormatBool(typed), true
@@ -66,9 +78,9 @@ func Text(value any) (string, bool) {
 	case *datetime.Datetime:
 		return datetimeText(*typed), true
 	case datetime.Interval:
-		return typed.String(), true
+		return intervalText(typed), true
 	case *datetime.Interval:
-		return typed.String(), true
+		return intervalText(*typed), true
 	case Ext:
 		return "ext:" + strconv.Itoa(int(typed.Type)) + ":" +
 			base64.StdEncoding.EncodeToString(typed.Data), true
@@ -85,19 +97,49 @@ func Text(value any) (string, bool) {
 	return "", false
 }
 
-// decimalText is d with as many digits after the point as its scale: 12.340
-// stays 12.340, where go-tarantool would print 12.34.
-func decimalText(d decimal.Decimal) string {
-	if exponent := d.Exponent(); exponent < 0 {
-		return d.StringFixed(-exponent)
+// decimalText is number as Tarantool prints it, the to-scientific-string of
+// the General Decimal Arithmetic: its digits with a point at its scale, 12.340
+// where go-tarantool would print 12.34, unless its exponent is positive or
+// its first digit is more than six places after the point, as in 1E+2,
+// 1.0E+3 or 1E-7. The text keeps the digits and the exponent of number, so a
+// decimal of an exponent of millions takes a few bytes.
+func decimalText(number decimal.Decimal) string {
+	const minPlainExponent = -6
+
+	digits := decimalDigits(number)
+	exponent := int64(number.Exponent())
+	adjusted := exponent + int64(len(digits)) - 1
+
+	var out []byte
+
+	if number.Sign() < 0 {
+		out = append(out, '-')
 	}
 
-	return d.String()
-}
+	switch point := int64(len(digits)) + exponent; {
+	case exponent == 0:
+		out = append(out, digits...)
+	case exponent < 0 && adjusted >= minPlainExponent && point > 0:
+		out = append(append(append(out, digits[:point]...), '.'), digits[point:]...)
+	case exponent < 0 && adjusted >= minPlainExponent:
+		out = append(out, "0."...)
+		out = append(out, strings.Repeat("0", int(-point))...)
+		out = append(out, digits...)
+	default:
+		out = append(out, digits[0])
+		if len(digits) > 1 {
+			out = append(append(out, '.'), digits[1:]...)
+		}
 
-// datetimeText is d in RFC 3339 with nanoseconds.
-func datetimeText(d datetime.Datetime) string {
-	return d.ToTime().Format(time.RFC3339Nano)
+		out = append(out, 'E')
+		if adjusted >= 0 {
+			out = append(out, '+')
+		}
+
+		out = strconv.AppendInt(out, adjusted, decimalBase)
+	}
+
+	return string(out)
 }
 
 // floatText is number as the shortest decimal that reads back as the same float
@@ -123,16 +165,31 @@ const (
 )
 
 // formatFloat is a finite number as the shortest decimal that reads back as the
-// same float of bitSize bits, with no exponent unless its magnitude is below
-// 1e-6 or from 1e21 up, as encoding/json writes it: a timestamp is
-// 1731592956.818, not 1.731592956818e+09.
+// same float of bitSize bits, as encoding/json writes it: with no exponent
+// unless its magnitude, as a float of that size, is below 1e-6 or from 1e21
+// up, and with no leading zero in a negative exponent. A timestamp is
+// 1731592956.818, not 1.731592956818e+09, and 1e-7 is not 1e-07.
 func formatFloat(number float64, bitSize int) string {
-	format := byte('f')
-	if abs := math.Abs(number); abs != 0 && (abs < minPlainFloat || abs >= maxPlainFloat) {
-		format = 'e'
+	abs := math.Abs(number)
+
+	plain := abs == 0 || (abs >= minPlainFloat && abs < maxPlainFloat)
+	if bitSize == float32Bits {
+		small := float32(abs)
+
+		plain = abs == 0 || (small >= minPlainFloat && small < maxPlainFloat)
 	}
 
-	return strconv.FormatFloat(number, format, -1, bitSize)
+	if plain {
+		return strconv.FormatFloat(number, 'f', -1, bitSize)
+	}
+
+	text := strconv.FormatFloat(number, 'e', -1, bitSize)
+
+	if n := len(text); n >= 4 && text[n-4] == 'e' && text[n-3] == '-' && text[n-2] == '0' {
+		text = text[:n-2] + text[n-1:]
+	}
+
+	return text
 }
 
 // asInt returns a signed integer of any width as an int64.

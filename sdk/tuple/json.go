@@ -7,6 +7,7 @@ import (
 	"math"
 	"slices"
 	"strconv"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -15,10 +16,19 @@ import (
 // encoding/json.
 //
 // A string that is not valid UTF-8 has each invalid byte replaced by U+FFFD,
-// as encoding/json does: JSON text is Unicode.
-//
-//nolint:cyclop // One case per type is the clearest form.
+// as encoding/json does: JSON text is Unicode. On an error dst is returned as
+// it is.
 func AppendJSON(dst []byte, value any) ([]byte, error) {
+	out, err := appendJSON(dst, value)
+	if err != nil {
+		return dst, err
+	}
+
+	return out, nil
+}
+
+//nolint:cyclop // One case per type is the clearest form.
+func appendJSON(dst []byte, value any) ([]byte, error) {
 	switch typed := value.(type) {
 	case nil:
 		return append(dst, "null"...), nil
@@ -83,7 +93,7 @@ func appendJSONArray(dst []byte, items []any) ([]byte, error) {
 
 		var err error
 
-		dst, err = AppendJSON(dst, item)
+		dst, err = appendJSON(dst, item)
 		if err != nil {
 			return dst, err
 		}
@@ -105,7 +115,7 @@ func appendJSONMap(dst []byte, items Map) ([]byte, error) {
 
 		var err error
 
-		dst, err = AppendJSON(dst, item.Value)
+		dst, err = appendJSON(dst, item.Value)
 		if err != nil {
 			return dst, err
 		}
@@ -139,21 +149,34 @@ func sortedMap(m map[any]any) Map {
 	return sortItems(items)
 }
 
+// sortItems orders the entries of a Go map, which has no order, by the text
+// of their keys, then, for keys of the same text, such as 1 and "1", by the
+// Go types of the keys and by the tagged JSON of the entries, so that a map
+// is always written the same.
 func sortItems(items Map) Map {
-	slices.SortStableFunc(items, func(a, b MapItem) int {
-		ka, kb := keyText(a.Key), keyText(b.Key)
-
-		switch {
-		case ka < kb:
-			return -1
-		case ka > kb:
-			return 1
+	slices.SortFunc(items, func(left, right MapItem) int {
+		order := strings.Compare(keyText(left.Key), keyText(right.Key))
+		if order != 0 {
+			return order
 		}
 
-		return 0
+		order = strings.Compare(fmt.Sprintf("%T", left.Key), fmt.Sprintf("%T", right.Key))
+		if order != 0 {
+			return order
+		}
+
+		return strings.Compare(entryText(left), entryText(right))
 	})
 
 	return items
+}
+
+// entryText is the tagged JSON of an entry of a map, which tells entries
+// apart where their keys alone do not.
+func entryText(item MapItem) string {
+	text, _ := appendTaggedJSON(nil, []any{item.Key, item.Value})
+
+	return string(text)
 }
 
 const hexDigits = "0123456789abcdef"

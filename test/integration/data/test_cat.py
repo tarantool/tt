@@ -222,7 +222,7 @@ def test_cat_chain(tt_cmd, journals):
 
     # Values with no JSON type are strings.
     assert records[3]["BODY"]["tuple"] == [4, "12.340", "b54147fd-538b-4d39-b3ad-17ba72762f48"]
-    assert records[4]["BODY"]["tuple"] == [5, "2024-11-14T14:02:36.027+03:00"]
+    assert records[4]["BODY"]["tuple"] == [5, "2024-11-14T14:02:36.027 Europe/Moscow"]
     assert records[5]["BODY"]["tuple"] == [6, "AAE=", 18446744073709551615, -1.5, {"x": [1, None]}]
 
     # The rows of a transaction of several carry its first LSN.

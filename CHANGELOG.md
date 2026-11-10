@@ -47,7 +47,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `-o lua` names it in a comment, having no Lua form for it.
 - `sdk/tuple`: a module that decodes the MessagePack values of Tarantool and
   renders them as text, JSON, YAML and Lua, for `tt data` and the modules
-  that print tuples.
+  that print tuples. It writes them with no loss as well: JSON that tags the
+  values JSON has no type for (`AppendTaggedJSON`, `ParseTaggedJSON`), the
+  text of a field of a space by its type, as a cell of CSV holds it
+  (`AppendField`, `ParseField`), and the MessagePack Tarantool writes
+  (`AppendMsgpack`). Decimals, datetimes and intervals are printed as
+  Tarantool prints them: a datetime keeps the name of its time zone.
 - `sdk/bundle`: the contract of a source of prebuilt archives - list the
   builds of a product for a platform, fetch one - and
   `core.WithBundleSources`, with `[distribution] bundle_sources` in
