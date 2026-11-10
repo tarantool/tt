@@ -11,7 +11,7 @@ on:
       suite:
         description: Suite to run on the head of the selected branch
         type: choice
-        options: [all, full, canary, analysis]
+        options: [all, full, canary, analysis, docker]
         default: all
       test-failure:
         description: Exercise canary issue reporting instead of its tests
@@ -62,6 +62,18 @@ jobs:
       contents: read
       issues: write
     uses: ./.github/workflows/nightly.yml # zizmor: ignore[self-repository] -- Test the revision this workflow runs from.
+    with:
+      ref: ${{ github.sha }}
+      branch: ${{ github.ref_name }}
+
+  docker:
+    if: >-
+      ${{ github.repository == 'tarantool/tt' &&
+      (github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'docker') }}
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/docker.yml # zizmor: ignore[self-repository] -- Test the revision this workflow runs from.
     with:
       ref: ${{ github.sha }}
       branch: ${{ github.ref_name }}

@@ -58,6 +58,29 @@ class FailureReportTest(unittest.TestCase):
             self.assertEqual(api.call_args.kwargs, {"method": "PATCH"})
             self.assertNotIn("title", api.call_args.args[1])
 
+    def test_docker_failure_keeps_to_one_issue_of_its_own(self):
+        issues = [
+            {"number": 5, "body": "<!-- tt-ci:full:v3 -->"},
+            {"number": 6, "body": "<!-- tt-ci:docker:v3 -->"},
+        ]
+        with (
+            patch.dict(os.environ, {"SUITE": "docker"}),
+            patch.object(report_failure, "api") as api,
+        ):
+            api.side_effect = [{}, [], {"html_url": "https://github.com/tarantool/tt/issues/6"}]
+            report_failure.main()
+            path, body = api.call_args.args
+            self.assertEqual(path, "issues")
+            self.assertEqual(body["title"], "Nightly mage docker failed (v3)")
+            self.assertEqual(body["labels"], ["ci-nightly"])
+            self.assertIn("<!-- tt-ci:docker:v3 -->", body["body"])
+
+            api.reset_mock()
+            api.side_effect = [{}, issues, {"html_url": "https://github.com/tarantool/tt/issues/6"}]
+            report_failure.main()
+            self.assertEqual(api.call_args.args[0], "issues/6")
+            self.assertEqual(api.call_args.kwargs, {"method": "PATCH"})
+
     def test_success_or_cancellation_does_not_open_issue(self):
         for result in ["success", "skipped", "cancelled"]:
             with (
