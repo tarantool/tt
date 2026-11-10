@@ -1,6 +1,6 @@
 module github.com/tarantool/tt/lib/cluster
 
-go 1.25.7
+go 1.26.10
 
 require (
 	github.com/mitchellh/mapstructure v1.5.0
