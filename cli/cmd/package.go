@@ -33,10 +33,10 @@ import (
 	"github.com/tarantool/tt/v3/internal/integrityprovider"
 )
 
-// errNoTarantool reports that no tarantool executable was found; the manifest
+// ErrNoTarantool reports that no tarantool executable was found; the manifest
 // build needs it to configure the rocks adapter (and to compile c/lua-c
-// components).
-var errNoTarantool = errors.New("tarantool executable not found in PATH")
+// components), and resolution to evaluate rockspecs.
+var ErrNoTarantool = errors.New("tarantool executable not found in PATH")
 
 // Shared flags for the package subcommands.
 var (
@@ -390,12 +390,19 @@ func runPackageDeps(format *output.FormatFlag) error {
 }
 
 // dependencyOptions assembles the options the re-resolving dependency commands
-// share.
-//
-// All three re-resolve, and resolution evaluates rockspecs — which are Lua and
-// may branch on the Tarantool version — so a missing tarantool is a real error
-// here rather than something to work around.
+// share, with the servers of their --registry.
 func dependencyOptions() (deps.Options, error) {
+	return dependencyOptionsFor(packageRegistries)
+}
+
+// dependencyOptionsFor assembles the options the re-resolving dependency
+// commands share, with registries as the --registry layer of the rock
+// servers.
+//
+// All of them re-resolve, and resolution evaluates rockspecs — which are Lua
+// and may branch on the Tarantool version — so a missing tarantool is a real
+// error here rather than something to work around.
+func dependencyOptionsFor(registries []string) (deps.Options, error) {
 	projectDir, err := absoluteWorkingDir()
 	if err != nil {
 		return deps.Options{}, err
@@ -406,7 +413,7 @@ func dependencyOptions() (deps.Options, error) {
 		return deps.Options{}, err
 	}
 
-	sources, err := registrySources()
+	sources, err := registrySources(registries)
 	if err != nil {
 		return deps.Options{}, err
 	}
@@ -660,7 +667,7 @@ func runPackageInstall(archives []string) error {
 
 	// The archive's [platform].registries is not a layer here: its relative
 	// entries were written against a project directory that is not this one.
-	sources, err := registrySources()
+	sources, err := registrySources(packageRegistries)
 	if err != nil {
 		return err
 	}
@@ -814,7 +821,7 @@ func runPackagePack() error {
 		return err
 	}
 
-	sources, err := registrySources()
+	sources, err := registrySources(packageRegistries)
 	if err != nil {
 		return err
 	}
@@ -916,44 +923,77 @@ func runtimeCacheDir() string {
 	return filepath.Join(base, "tt", "runtimes")
 }
 
-// runPackage assembles build.Options from the environment and drives the build.
+// runPackage drives the build, or with fetchOnly the fetch, of the product,
+// the component in args and the lock the flags of tt package build and
+// tt package fetch select.
 func runPackage(args []string, fetchOnly bool) error {
 	ctx, stop := packageContext()
 	defer stop()
-
-	projectDir, err := absoluteWorkingDir()
-	if err != nil {
-		return err
-	}
-
-	tntInfo, err := tarantoolInfo()
-	if err != nil {
-		return err
-	}
-
-	sources, err := registrySources()
-	if err != nil {
-		return err
-	}
 
 	component := ""
 	if len(args) == 1 {
 		component = args[0]
 	}
 
+	return buildPackage(ctx, packageRun{
+		product:    packageProduct,
+		component:  component,
+		locked:     packageLocked,
+		fetchOnly:  fetchOnly,
+		rebuild:    packageRebuild,
+		registries: packageRegistries,
+	})
+}
+
+// packageRun is what one run of the build pipeline is asked to do: the
+// choices the flags of tt package build and tt package fetch make.
+type packageRun struct {
+	// product is the product to build; "" is the default one.
+	product string
+	// component narrows the build to one component; "" builds them all.
+	component string
+	// locked fails on a stale lock instead of re-resolving it.
+	locked bool
+	// fetchOnly materializes .rocks/ from the lock and builds nothing.
+	fetchOnly bool
+	// rebuild builds the incremental components whatever they recorded.
+	rebuild bool
+	// registries are the rock servers of --registry.
+	registries []string
+}
+
+// buildPackage assembles build.Options for run from the environment and
+// drives the build of the project.
+func buildPackage(ctx context.Context, run packageRun) error {
+	projectDir, err := absoluteWorkingDir()
+	if err != nil {
+		return err
+	}
+
+	//nolint:contextcheck // tarantool --version is asked once, and takes no context.
+	tntInfo, err := tarantoolInfo()
+	if err != nil {
+		return err
+	}
+
+	sources, err := registrySources(run.registries)
+	if err != nil {
+		return err
+	}
+
 	warnWasmSDK(projectDir)
 
 	return build.Run(ctx, build.Options{
 		ProjectDir: projectDir,
-		Product:    packageProduct,
-		Component:  component,
-		Locked:     packageLocked,
-		FetchOnly:  fetchOnly,
+		Product:    run.product,
+		Component:  run.component,
+		Locked:     run.locked,
+		FetchOnly:  run.fetchOnly,
 		TtVersion:  lockStamp(),
 		Tarantool:  tntInfo,
 		Registries: sources,
 		ShowOutput: cmdCtx.Cli.Verbose,
-		Rebuild:    packageRebuild,
+		Rebuild:    run.rebuild,
 		Now:        time.Time{},
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
@@ -972,17 +1012,18 @@ func addRegistryFlag(cmd *cobra.Command) {
 }
 
 // registrySources collects the rock-server lists the process itself carries:
-// the --registry flag and the TT_REGISTRIES environment variable, with the
-// working directory a relative entry in either is written against. The
-// manifest's own list is filled in by whichever pipeline reads the manifest.
-func registrySources() (manifestrocks.Sources, error) {
+// flag, the servers of the --registry flag, and the TT_REGISTRIES environment
+// variable, with the working directory a relative entry in either is written
+// against. The manifest's own list is filled in by whichever pipeline reads
+// the manifest.
+func registrySources(flag []string) (manifestrocks.Sources, error) {
 	workingDir, err := absoluteWorkingDir()
 	if err != nil {
 		return manifestrocks.Sources{}, err
 	}
 
 	return manifestrocks.Sources{
-		Flag:       packageRegistries,
+		Flag:       flag,
 		Env:        manifestrocks.ParseRegistryList(os.Getenv(manifestrocks.EnvRegistries)),
 		Manifest:   nil,
 		WorkingDir: workingDir,
@@ -1141,7 +1182,7 @@ func runPackageDownload(args []string) error {
 // no build pipeline to settle it for them: the flag and the environment over
 // the manifest in the working directory, over the built-in defaults.
 func effectiveRegistries() ([]manifestrocks.Registry, error) {
-	sources, err := registrySources()
+	sources, err := registrySources(packageRegistries)
 	if err != nil {
 		return nil, err
 	}
@@ -1195,7 +1236,13 @@ func manifestRegistries(dir string) ([]string, error) {
 // the tree once tt is gone. After the first signal the default handling is
 // back, so a second one ends tt at once. stop releases the context.
 func packageContext() (context.Context, context.CancelFunc) {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	return packageContextOf(context.Background())
+}
+
+// packageContextOf is packageContext derived from parent: cancelled as well
+// when parent is.
+func packageContextOf(parent context.Context) (context.Context, context.CancelFunc) {
+	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
 		<-ctx.Done()
@@ -1219,7 +1266,7 @@ func luarocksLogger() *slog.Logger {
 // prefix.
 func tarantoolInfo() (manifestrocks.TarantoolInfo, error) {
 	if cmdCtx.Cli.TarantoolCli.Executable == "" {
-		return manifestrocks.TarantoolInfo{}, errNoTarantool
+		return manifestrocks.TarantoolInfo{}, ErrNoTarantool
 	}
 
 	ver, err := cmdCtx.Cli.TarantoolCli.GetVersion()

@@ -329,7 +329,7 @@ func runWasmPrepare() error {
 		Language:     wasmLanguage,
 		RockServer:   wasmRockServer,
 		Declare: func(ctx context.Context, name, constraint, registry string) (bool, error) {
-			result, err := deps.AddFromRegistry(ctx, opts, name, constraint, registry)
+			result, err := deps.AddFromRegistry(ctx, opts, name, constraint, registry, false)
 			if err != nil {
 				return false, err
 			}

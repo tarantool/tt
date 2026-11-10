@@ -272,6 +272,46 @@ func (project) Dir() (string, error) {
 	return cmd.ProjectDir()
 }
 
+// AddDependency declares dep in the manifest of the project and re-resolves
+// the lock, as tt package add does: cmd.AddDependency, its result told in
+// the SDK's terms.
+func (project) AddDependency(
+	ctx context.Context, dep sdk.Dependency,
+) (sdk.DependencyChange, error) {
+	result, err := cmd.AddDependency(ctx, dep)
+	if err != nil {
+		return sdk.DependencyChange{}, packageError(err)
+	}
+
+	moves := make([]sdk.DependencyMove, 0, len(result.Moves))
+	for _, move := range result.Moves {
+		moves = append(moves, sdk.DependencyMove{Name: move.Name, From: move.From, To: move.To})
+	}
+
+	return sdk.DependencyChange{
+		Existed:  result.Change.Existed,
+		Previous: result.Change.Previous,
+		Moves:    moves,
+	}, nil
+}
+
+// Install materializes .rocks/ of the project from its lock, as tt package
+// fetch does: cmd.FetchRocks.
+func (project) Install(ctx context.Context, opts sdk.InstallOptions) error {
+	return packageError(cmd.FetchRocks(ctx, opts.Registries))
+}
+
+// packageError returns err, the error of a tt package operation, as the
+// SDK has it: the error tt package gives for a tt with no Tarantool,
+// cmd.ErrNoTarantool, is sdk.ErrNotFound as well.
+func packageError(err error) error {
+	if errors.Is(err, cmd.ErrNoTarantool) {
+		return notFoundError{err: err}
+	}
+
+	return err
+}
+
 // streams are the process's standard streams.
 type streams struct {
 	io output.Streams
