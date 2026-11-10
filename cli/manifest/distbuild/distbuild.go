@@ -14,7 +14,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -29,6 +28,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build/backend"
 	"github.com/tarantool/tt/v3/internal/buildflags"
+	"github.com/tarantool/tt/v3/internal/execfile"
 )
 
 const (
@@ -800,14 +800,7 @@ func install(built, output string) error {
 
 	tmp := output + ".tmp"
 
-	dst, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, binaryPerm)
-	if err != nil {
-		return sdk.Errorf(sdk.ExitSystem, "installing %s: %w", output, err)
-	}
-
-	_, err = io.Copy(dst, src)
-
-	err = errors.Join(err, dst.Close())
+	err = execfile.Write(tmp, src, binaryPerm)
 	if err == nil {
 		err = os.Rename(tmp, output)
 	}

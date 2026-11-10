@@ -3,7 +3,6 @@ package pack
 import (
 	"context"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -13,6 +12,7 @@ import (
 	"github.com/tarantool/go-luarocks/tree"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/internal/execfile"
 )
 
 // Staging tree modes.
@@ -436,19 +436,7 @@ func copyFile(src, dst string) error {
 
 	defer func() { _ = srcFile.Close() }()
 
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
-	if err != nil {
-		return fmt.Errorf("copying %s: %w", src, err)
-	}
-
-	_, err = io.Copy(out, srcFile)
-	if err != nil {
-		_ = out.Close()
-
-		return fmt.Errorf("copying %s: %w", src, err)
-	}
-
-	err = out.Close()
+	err = execfile.Write(dst, srcFile, perm)
 	if err != nil {
 		return fmt.Errorf("copying %s: %w", src, err)
 	}

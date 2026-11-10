@@ -2,7 +2,6 @@ package build
 
 import (
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
+	"github.com/tarantool/tt/v3/internal/execfile"
 )
 
 // isSharedObject reports whether a file is a native module, of Linux or of
@@ -149,21 +149,9 @@ func copyFile(src, dst string) error {
 		return fmt.Errorf("create destination dir: %w", mkErr)
 	}
 
-	dstFile, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+	err = execfile.Write(dst, srcFile, mode)
 	if err != nil {
-		return fmt.Errorf("create destination: %w", err)
-	}
-
-	_, copyErr := io.Copy(dstFile, srcFile)
-	if copyErr != nil {
-		_ = dstFile.Close()
-
-		return fmt.Errorf("copy contents: %w", copyErr)
-	}
-
-	closeErr := dstFile.Close()
-	if closeErr != nil {
-		return fmt.Errorf("close destination: %w", closeErr)
+		return fmt.Errorf("copy to destination: %w", err)
 	}
 
 	return nil

@@ -11,6 +11,8 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/tarantool/tt/v3/internal/execfile"
 )
 
 const (
@@ -144,19 +146,12 @@ func mkdir(dir string) error {
 // writeEntry writes the content of reader to target with mode.
 func writeEntry(reader io.Reader, target string, mode os.FileMode) error {
 	return replaceWith(target, func() error {
-		file, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode|ownerWrite)
+		err := execfile.Write(target, reader, mode|ownerWrite)
 		if err != nil {
 			return fmt.Errorf("creating %s: %w", target, err)
 		}
 
-		_, err = io.Copy(file, reader)
-
-		closeErr := file.Close()
-		if err == nil {
-			err = closeErr
-		}
-
-		return err
+		return nil
 	})
 }
 

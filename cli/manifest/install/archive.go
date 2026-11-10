@@ -13,6 +13,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/internal/execfile"
 )
 
 // File modes install writes with. Directories and executables get 0755, plain
@@ -274,21 +275,9 @@ func writeFile(dst string, reader io.Reader, perm os.FileMode) error {
 	}
 
 	// Path is validated by safeJoin; the archive is the user's own package.
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	err = execfile.Write(dst, reader, perm)
 	if err != nil {
-		return fmt.Errorf("creating %s: %w", dst, err)
-	}
-
-	_, err = io.Copy(out, reader)
-	if err != nil {
-		_ = out.Close()
-
 		return fmt.Errorf("writing %s: %w", dst, err)
-	}
-
-	err = out.Close()
-	if err != nil {
-		return fmt.Errorf("closing %s: %w", dst, err)
 	}
 
 	return nil
