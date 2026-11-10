@@ -112,7 +112,7 @@ func runTest(subPath string, luatestArgs []string) error {
 		return err
 	}
 
-	sources, err := registrySources()
+	sources, err := registrySources(packageRegistries)
 	if err != nil {
 		return err
 	}

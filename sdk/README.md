@@ -70,14 +70,21 @@ core uses, and the core never requires older ones.
 - `sdk` (the root package) defines the module contract. A module is a
   `Constructor`: a function that takes the core's `Services` and returns
   `Mount`s - a fresh cobra command and the path of the group it goes under,
-  groups nobody provides being created. `Services` is implemented by the core
-  and by `sdk/sdktest` only: `Log` (the module's logger, valid at any time),
+  groups nobody provides being created. `Services`, and the `Project` it
+  returns, are implemented by the core and by `sdk/sdktest` only, so methods
+  may be added to them: `Log` (the module's logger, valid at any time),
   and, once tt is configured, `Tarantool` (the `Tarantool` to run, with its
   `Path` and structured `TarantoolVersion`), `Integrity` (`Open` a file
-  through the integrity checks), `Project` (the project `Dir`), `Confirm` (a
-  yes/no prompt on stderr that answers the given fallback under
-  `--no-prompt`), `Streams` (the standard streams and a `Printer` with the
-  core's formats), `ClusterConfig` (the cluster configuration of a
+  through the integrity checks), `Project` (the project `Dir`;
+  `AddDependency`, which declares a `Dependency` in its manifest - in the
+  long form with a `Registry`, in `[dev_dependencies]` with `Dev` - and
+  re-resolves its lock as `tt package add` does, reporting in a
+  `DependencyChange` whether the name was declared already and how the
+  locked versions moved; and `Install`, which fills `.rocks/` from the lock
+  as `tt package fetch` does; both take the rock servers `--registry` would
+  give), `Confirm` (a yes/no prompt on stderr that answers the given fallback
+  under `--no-prompt`), `Streams` (the standard streams and a `Printer` with
+  the core's formats), `ClusterConfig` (the cluster configuration of a
   `ClusterSource` as Tarantool 3 sees it, an immutable go-config snapshot,
   with the directory of the file it was read from)
   and `Exit` (reports an error and ends the process with tt's code for it,
@@ -178,7 +185,12 @@ core uses, and the core never requires older ones.
   (`WithIntegrity`) and the cluster configuration a source returns, from
   YAML built with the Tarantool hierarchy (`WithClusterConfig`, with the
   directory it reports set by `WithClusterConfigDir`; any other source is not
-  found). `Stdout`, `Stderr` and `Records` return what the
+  found). The project edits no manifest and installs nothing: what it is
+  asked is recorded (`AddedDependencies`, `Installs`), a name can be declared
+  already (`WithDeclared`), `AddDependency` reports the moves `WithMoves`
+  gives or fails with `WithAddDependencyError`, and `Install` runs the
+  function `WithInstall` gives in the project directory, to write what the
+  rocks would. `Stdout`, `Stderr` and `Records` return what the
   module wrote and logged. `Run` hangs a constructor's mounts on a root,
   creating the groups on their paths, starts the services and executes a
   command line. `Exit` ends the command, not the test binary: `Run` reports

@@ -107,13 +107,48 @@ type Integrity interface {
 	Open(path string) (io.ReadCloser, error)
 }
 
-// Project is the directory a command works on.
+// Project is the directory a command works on, and the package the
+// app.manifest.toml in it describes, managed as tt package manages it.
+//
+// Only the core and [github.com/tarantool/tt/sdk/sdktest] implement Project,
+// as they implement Services.
 type Project interface {
 	// Dir returns the project directory as an absolute path: the working
 	// directory tt runs in. A module cannot declare -C; a command mounted
 	// under a group of tt that declares -C for its subcommands, as tt package
 	// does, gets the directory it names. No manifest is searched for.
 	Dir() (string, error)
+	// AddDependency declares dep in the app.manifest.toml of the project
+	// directory and re-resolves app.manifest.lock, as tt package add does,
+	// holding every version the lock already chose: only dep and what it
+	// requires can move. Nothing is installed; [Project.Install] does that.
+	//
+	// When the table dep goes to declares the name already, the change
+	// reports Existed and the constraint the declaration had. For a dep with
+	// a Registry the declaration is left exactly as it is, constraint and
+	// registry included, since they are someone's choice, and the lock is
+	// resolved against it. For a dep without one its constraint is rewritten
+	// to dep's, "*" for none, and the rest of it - a registry, a source - is
+	// kept. A name declared in the other table as well stays there, with a
+	// warning. The manifest is rewritten in place, every other line and
+	// comment kept, and before the resolution: when the resolution fails the
+	// declaration stays and the error says so.
+	//
+	// The warnings of the manifest and of the resolution are logged. A
+	// project without a manifest, an invalid manifest or constraint, and a
+	// closure no server can satisfy are errors; so is a tt with no Tarantool,
+	// whose version the rockspecs are evaluated for, and that error wraps
+	// ErrNotFound.
+	AddDependency(ctx context.Context, dep Dependency) (DependencyChange, error)
+	// Install materializes .rocks/ of the project strictly from its lock, as
+	// tt package fetch does for the default product: the locked closure of
+	// the product and the development closure are installed at the versions
+	// the lock pins, other versions of those rocks are removed, and nothing
+	// is resolved and no component of the project is built. A project
+	// without a manifest or a lock, and a lock with no closure for the
+	// product, are errors; a missing Tarantool is one wrapping ErrNotFound.
+	// The warnings are logged.
+	Install(ctx context.Context, opts InstallOptions) error
 }
 
 // Streams are the process's standard streams.

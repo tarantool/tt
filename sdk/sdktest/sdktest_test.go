@@ -233,6 +233,139 @@ func TestServicesProject(t *testing.T) {
 	assert.Equal(t, filepath.Join(wd, "some", "project"), dir)
 }
 
+// TestServicesProjectAddDependency checks that AddDependency records its
+// calls and reports a declaration already there as the core does.
+func TestServicesProjectAddDependency(t *testing.T) {
+	t.Parallel()
+
+	moves := []sdk.DependencyMove{{Name: "checks", From: "", To: "3.3.0-1"}}
+
+	services := sdktest.New(t,
+		sdktest.WithDeclared(sdk.Dependency{Name: "luatest", Constraint: "1.0.1", Dev: true}),
+		sdktest.WithMoves(moves...))
+	services.Start()
+
+	project := services.Project()
+
+	// A dev declaration is not one in [dependencies].
+	change, err := project.AddDependency(t.Context(), sdk.Dependency{Name: "luatest"})
+	require.NoError(t, err)
+	assert.Equal(t, sdk.DependencyChange{Existed: false, Previous: "", Moves: moves}, change)
+
+	// Without a registry the constraint is rewritten.
+	change, err = project.AddDependency(t.Context(),
+		sdk.Dependency{Name: "luatest", Constraint: ">=1.1", Dev: true})
+	require.NoError(t, err)
+	assert.True(t, change.Existed)
+	assert.Equal(t, "1.0.1", change.Previous)
+
+	// With one the declaration is left as it is.
+	registry := sdk.Dependency{
+		Name: "emmylua", Constraint: "0.30.1", Registry: "https://rocks.example/",
+		Dev: true, Registries: []string{"mirror"},
+	}
+
+	change, err = project.AddDependency(t.Context(), registry)
+	require.NoError(t, err)
+	assert.False(t, change.Existed)
+
+	registry.Constraint = "0.31.0"
+
+	change, err = project.AddDependency(t.Context(), registry)
+	require.NoError(t, err)
+	assert.True(t, change.Existed)
+	assert.Equal(t, "0.30.1", change.Previous)
+
+	change, err = project.AddDependency(t.Context(),
+		sdk.Dependency{Name: "luatest", Dev: true})
+	require.NoError(t, err)
+	assert.Equal(t, ">=1.1", change.Previous)
+
+	change, err = project.AddDependency(t.Context(),
+		sdk.Dependency{Name: "luatest", Dev: true})
+	require.NoError(t, err)
+	assert.Equal(t, "*", change.Previous, "no constraint declares any version")
+
+	added := services.AddedDependencies()
+	require.Len(t, added, 6)
+	assert.Equal(t, sdk.Dependency{Name: "luatest"}, added[0])
+	assert.Equal(t, registry, added[3])
+
+	added[3].Registries[0] = "changed"
+	assert.Equal(t, []string{"mirror"}, services.AddedDependencies()[3].Registries,
+		"the record is a copy")
+}
+
+// TestServicesProjectAddDependencyError checks that WithAddDependencyError
+// fails every call, which is recorded and declares nothing.
+func TestServicesProjectAddDependencyError(t *testing.T) {
+	t.Parallel()
+
+	failure := errors.New("no rock server answers")
+
+	services := sdktest.New(t, sdktest.WithAddDependencyError(failure))
+	services.Start()
+
+	dep := sdk.Dependency{Name: "checks"}
+
+	for range 2 {
+		change, err := services.Project().AddDependency(t.Context(), dep)
+		require.ErrorIs(t, err, failure)
+		assert.Equal(t, sdk.DependencyChange{}, change)
+	}
+
+	assert.Equal(t, []sdk.Dependency{dep, dep}, services.AddedDependencies())
+}
+
+// TestServicesProjectInstall checks that Install records its calls and runs
+// what WithInstall gives in the project directory.
+func TestServicesProjectInstall(t *testing.T) {
+	t.Parallel()
+
+	plain := sdktest.New(t)
+	plain.Start()
+
+	require.NoError(t, plain.Project().Install(t.Context(), sdk.InstallOptions{}))
+	assert.Equal(t, []sdk.InstallOptions{{}}, plain.Installs())
+	assert.Empty(t, plain.AddedDependencies())
+
+	failure := errors.New("rock server is down")
+	calls := 0
+
+	services := sdktest.New(t,
+		sdktest.WithInstall(func(dir string, opts sdk.InstallOptions) error {
+			calls++
+
+			if len(opts.Registries) != 0 {
+				return failure
+			}
+
+			bin := filepath.Join(dir, ".rocks", "bin")
+
+			err := os.MkdirAll(bin, 0o755)
+			if err != nil {
+				return err
+			}
+
+			return os.WriteFile(filepath.Join(bin, "tool"), []byte("#!/bin/sh\n"), 0o755)
+		}))
+	services.Start()
+
+	dir, err := services.Project().Dir()
+	require.NoError(t, err)
+
+	require.NoError(t, services.Project().Install(t.Context(), sdk.InstallOptions{}))
+	assert.FileExists(t, filepath.Join(dir, ".rocks", "bin", "tool"))
+
+	mirror := sdk.InstallOptions{Registries: []string{"mirror"}}
+
+	err = services.Project().Install(t.Context(), mirror)
+	require.ErrorIs(t, err, failure)
+
+	assert.Equal(t, 2, calls)
+	assert.Equal(t, []sdk.InstallOptions{{}, mirror}, services.Installs())
+}
+
 func TestServicesStreams(t *testing.T) {
 	t.Parallel()
 

@@ -10,7 +10,10 @@
 //     under;
 //   - [Services] give a module's commands a logger, the [Tarantool] to run
 //     and its [TarantoolVersion], files read through the [Integrity] checks,
-//     the [Project] directory, prompts ([Services.Confirm]), the standard
+//     the [Project] - its directory, a [Dependency] declared in its manifest
+//     as tt package add declares one ([Project.AddDependency]) and its rocks
+//     installed from the lock as tt package fetch installs them
+//     ([Project.Install]) - prompts ([Services.Confirm]), the standard
 //     [Streams] with their printers, the cluster configuration of a
 //     [ClusterSource] ([Services.ClusterConfig]) and the core's way to end
 //     the process for code that cannot return an error ([Services.Exit]);

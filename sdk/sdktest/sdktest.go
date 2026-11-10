@@ -12,8 +12,12 @@
 // without the core's encoders.
 //
 // Cluster configurations come from [WithClusterConfig] rather than from
-// files or storages. [Services.Exit] does not end the test binary: under
-// [Services.Run] it ends the command, and the [Result] says so.
+// files or storages. The project's AddDependency and Install edit no
+// manifest and install no rock: they record their calls
+// ([Services.AddedDependencies], [Services.Installs]) and answer as
+// [WithDeclared], [WithMoves], [WithAddDependencyError] and [WithInstall]
+// say. [Services.Exit] does not end the test binary: under [Services.Run] it
+// ends the command, and the [Result] says so.
 package sdktest
 
 import (
@@ -24,6 +28,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -39,6 +44,10 @@ import (
 // otherwise.
 const defaultName = "test"
 
+// anyVersion is the constraint of a dependency declared with none, as the
+// core declares one.
+const anyVersion = "*"
+
 // options are what the Options given to New set.
 type options struct {
 	name      string
@@ -51,6 +60,10 @@ type options struct {
 	open      func(path string) (io.ReadCloser, error)
 	clusters  map[sdk.ClusterSource]string
 	dirs      map[sdk.ClusterSource]string
+	declared  []sdk.Dependency
+	moves     []sdk.DependencyMove
+	addErr    error
+	install   func(dir string, opts sdk.InstallOptions) error
 }
 
 // Option configures the Services New returns.
@@ -126,6 +139,36 @@ func WithClusterConfigDir(src sdk.ClusterSource, dir string) Option {
 	return func(o *options) { o.dirs[src] = dir }
 }
 
+// WithDeclared makes the manifest of the project declare deps already, each
+// in the table its Dev names, at its Constraint ("*" for none) and with its
+// Registry: Project.AddDependency of one of them to that table reports
+// Existed and the constraint as Previous. Registries of deps are ignored.
+func WithDeclared(deps ...sdk.Dependency) Option {
+	return func(o *options) { o.declared = append(o.declared, deps...) }
+}
+
+// WithMoves sets the moves of the lock every successful
+// Project.AddDependency reports; none by default, since the fake resolves
+// nothing.
+func WithMoves(moves ...sdk.DependencyMove) Option {
+	return func(o *options) { o.moves = append(o.moves, moves...) }
+}
+
+// WithAddDependencyError makes every Project.AddDependency fail with err,
+// declaring nothing; the call is recorded all the same.
+func WithAddDependencyError(err error) Option {
+	return func(o *options) { o.addErr = err }
+}
+
+// WithInstall makes Project.Install call install with the project
+// directory and the options it was given, and return what install returns:
+// a module's test writes there what tt package fetch would install, such as
+// a program in .rocks/bin, or fails the install. Without it Install does
+// nothing and succeeds; it records the call either way.
+func WithInstall(install func(dir string, opts sdk.InstallOptions) error) Option {
+	return func(o *options) { o.install = install }
+}
+
 // Services is a fake of the Services the tt core gives a module. It is safe
 // for concurrent use.
 type Services struct {
@@ -137,9 +180,22 @@ type Services struct {
 	stdout   lockedBuffer
 	stderr   lockedBuffer
 
-	// mu guards answers.
+	// mu guards answers, declared, added and installs.
 	mu      sync.Mutex
 	answers []bool
+	// declared are what the manifest of the project declares, by table.
+	declared map[declaration]sdk.Dependency
+	// added are the calls of Project.AddDependency, in order.
+	added []sdk.Dependency
+	// installs are the calls of Project.Install, in order.
+	installs []sdk.InstallOptions
+}
+
+// declaration names a declaration in the manifest of a project: a name in
+// [dependencies] or, with dev, in [dev_dependencies].
+type declaration struct {
+	name string
+	dev  bool
 }
 
 var _ sdk.Services = (*Services)(nil)
@@ -159,10 +215,19 @@ func New(tb testing.TB, opts ...Option) *Services {
 		open:      openFile,
 		clusters:  map[sdk.ClusterSource]string{},
 		dirs:      map[sdk.ClusterSource]string{},
+		declared:  nil,
+		moves:     nil,
+		addErr:    nil,
+		install:   nil,
 	}
 
 	for _, opt := range opts {
 		opt(&config)
+	}
+
+	declared := map[declaration]sdk.Dependency{}
+	for _, dep := range config.declared {
+		declared[declaration{name: dep.Name, dev: dep.Dev}] = declare(dep)
 	}
 
 	if config.answered && config.noPrompt {
@@ -199,7 +264,22 @@ func New(tb testing.TB, opts ...Option) *Services {
 		stderr:   lockedBuffer{mu: sync.Mutex{}, buf: bytes.Buffer{}},
 		mu:       sync.Mutex{},
 		answers:  config.answers,
+		declared: declared,
+		added:    nil,
+		installs: nil,
 	}
+}
+
+// declare returns dep as the manifest declares it: at "*" when it names no
+// constraint, with no registries to resolve with.
+func declare(dep sdk.Dependency) sdk.Dependency {
+	if dep.Constraint == "" {
+		dep.Constraint = anyVersion
+	}
+
+	dep.Registries = nil
+
+	return dep
 }
 
 // openFile opens path with os.Open.
@@ -238,11 +318,14 @@ func (s *Services) Integrity() sdk.Integrity {
 	return fakeIntegrity{open: s.opts.open}
 }
 
-// Project returns the project WithProject set.
+// Project returns the project WithProject set. Its AddDependency and Install
+// touch no file: they record the calls, which AddedDependencies and Installs
+// return, and do what WithDeclared, WithMoves, WithAddDependencyError and
+// WithInstall say.
 func (s *Services) Project() sdk.Project {
 	s.ready("Project")
 
-	return fakeProject{dir: s.opts.project}
+	return fakeProject{services: s}
 }
 
 // Confirm writes question to stderr the way tt prompts and returns the next
@@ -349,6 +432,92 @@ func (s *Services) Records() []logtest.Record {
 	return s.recorder.Records()
 }
 
+// AddedDependencies returns the dependencies Project.AddDependency was given
+// so far, in order, the failed calls included.
+func (s *Services) AddedDependencies() []sdk.Dependency {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	added := make([]sdk.Dependency, 0, len(s.added))
+	for _, dep := range s.added {
+		dep.Registries = slices.Clone(dep.Registries)
+		added = append(added, dep)
+	}
+
+	return added
+}
+
+// Installs returns the options Project.Install was given so far, in order,
+// the failed calls included.
+func (s *Services) Installs() []sdk.InstallOptions {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	installs := make([]sdk.InstallOptions, 0, len(s.installs))
+	for _, opts := range s.installs {
+		opts.Registries = slices.Clone(opts.Registries)
+		installs = append(installs, opts)
+	}
+
+	return installs
+}
+
+// addDependency records dep and declares it as the core would: a name the
+// table declares already keeps its declaration when dep has a registry and
+// takes dep's constraint when it has none.
+func (s *Services) addDependency(dep sdk.Dependency) (sdk.DependencyChange, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	dep.Registries = slices.Clone(dep.Registries)
+	s.added = append(s.added, dep)
+
+	if s.opts.addErr != nil {
+		return sdk.DependencyChange{}, s.opts.addErr
+	}
+
+	change := sdk.DependencyChange{
+		Existed:  false,
+		Previous: "",
+		Moves:    slices.Clone(s.opts.moves),
+	}
+
+	key := declaration{name: dep.Name, dev: dep.Dev}
+
+	existing, ok := s.declared[key]
+	if !ok {
+		s.declared[key] = declare(dep)
+
+		return change, nil
+	}
+
+	change.Existed = true
+	change.Previous = existing.Constraint
+
+	if dep.Registry == "" {
+		existing.Constraint = declare(dep).Constraint
+		s.declared[key] = existing
+	}
+
+	return change, nil
+}
+
+// install records opts and runs what WithInstall gave.
+func (s *Services) install(opts sdk.InstallOptions) error {
+	s.mu.Lock()
+
+	opts.Registries = slices.Clone(opts.Registries)
+	s.installs = append(s.installs, opts)
+
+	s.mu.Unlock()
+
+	if s.opts.install == nil {
+		return nil
+	}
+
+	return s.opts.install(s.opts.project, opts)
+}
+
 // clusterDir returns the Dir to report for src: the one WithClusterConfigDir
 // set, else the absolute directory of a file source's file, else "".
 func (s *Services) clusterDir(src sdk.ClusterSource) (string, error) {
@@ -406,11 +575,24 @@ func (f fakeIntegrity) Open(path string) (io.ReadCloser, error) {
 
 // fakeProject is the project WithProject set.
 type fakeProject struct {
-	dir string
+	services *Services
 }
 
 // Dir returns the project directory.
-func (f fakeProject) Dir() (string, error) { return f.dir, nil }
+func (f fakeProject) Dir() (string, error) { return f.services.opts.project, nil }
+
+// AddDependency records dep and reports what WithDeclared and WithMoves
+// make of it, or the error WithAddDependencyError gave.
+func (f fakeProject) AddDependency(
+	_ context.Context, dep sdk.Dependency,
+) (sdk.DependencyChange, error) {
+	return f.services.addDependency(dep)
+}
+
+// Install records opts and runs what WithInstall gave.
+func (f fakeProject) Install(_ context.Context, opts sdk.InstallOptions) error {
+	return f.services.install(opts)
+}
 
 // fakeStreams are a Services' streams.
 type fakeStreams struct {

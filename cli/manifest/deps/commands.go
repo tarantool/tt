@@ -72,13 +72,14 @@ func addWith(
 	return apply(ctx, opts, res, proj, editor.Bytes(), resolve.PinsFromLock(proj.lock), change)
 }
 
-// AddFromRegistry declares name in [dependencies] in the long form, at the
-// constraint and with the registry the rock is to come from, then re-resolves
-// the lock as Add does. A declaration already there is left as it is - its
-// constraint and registry are someone's choice - and the lock is resolved
-// against it; Result.Change reports that it existed.
+// AddFromRegistry declares name in [dependencies] - or, with dev, in
+// [dev_dependencies] - in the long form, at the constraint and with the
+// registry the rock is to come from, then re-resolves the lock as Add does. A
+// declaration already there is left as it is - its constraint and registry
+// are someone's choice - and the lock is resolved against it; Result.Change
+// reports that it existed.
 func AddFromRegistry(
-	ctx context.Context, opts Options, name, constraint, registry string,
+	ctx context.Context, opts Options, name, constraint, registry string, dev bool,
 ) (*Result, error) {
 	engine, err := engineFor(opts)
 	if err != nil {
@@ -96,6 +97,10 @@ func AddFromRegistry(
 	}
 
 	table := manifest.TableDependencies
+	if dev {
+		table = manifest.TableDevDependencies
+	}
+
 	warnOtherTable(opts, editor, table, name)
 
 	change, err := editor.AddRegistryDependency(table, name, constraint, registry)
