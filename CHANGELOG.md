@@ -114,6 +114,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt test` installs the rocks it needs and the project lacks, luatest among
   them, with the installer of `tt package build` instead of LuaRocks, so the
   two install a rock the same way and fail with the same errors.
+- `tt wasm` keeps a download in its cache directory under the SHA-256 of
+  it, so an asset of two releases or tools is kept once. What an older tt
+  cached is downloaded again; its `<version>/` and `tools/` directories in
+  `~/.cache/tt/wasm` can be removed.
 
 ### Fixed
 

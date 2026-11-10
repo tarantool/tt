@@ -11,6 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/tarantool/tt/sdk/fetch"
 )
 
 // tarEntry is one entry of a test archive.
@@ -117,11 +119,11 @@ func TestInstallTreeTool(t *testing.T) {
 		Release: &ToolRelease{
 			Version: "34",
 			Assets: map[string]ToolAsset{
-				hostKey(): {URL: fake.URL + "/tree.tar.gz", SHA256: sha256Hex(tree)},
+				hostKey(): {URL: fake.URL + "/tree.tar.gz", SHA256: fetch.SHA256(tree)},
 			},
 			Wheel: false, Tree: "bin/clang",
 			Overlays: map[string][]ToolAsset{
-				hostKey(): {{URL: fake.URL + "/overlay.tar.gz", SHA256: sha256Hex(overlay)}},
+				hostKey(): {{URL: fake.URL + "/overlay.tar.gz", SHA256: fetch.SHA256(overlay)}},
 			},
 			Links: []string{"bin/wasm-ld"}, Unlinked: true, Dir: "wasi-sdk",
 		},

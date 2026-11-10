@@ -49,7 +49,8 @@ Each directory is a separate Go module:
   SHA-256, which checks it and keeps it in a cache directory named by its
   SHA-256, trusting a cached copy only when its own SHA-256 matches; and
   `UnpackFile`, which takes one file out of a `.tar.gz` release archive in
-  memory.
+  memory. `tt binary install` downloads the prebuilt Tarantool and tt
+  through it, `tt wasm` its release assets.
 
 ## Contract module
 
