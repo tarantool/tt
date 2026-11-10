@@ -33,6 +33,30 @@ $ mage test          # the linters, the unit tests and the integration tests, sl
 $ mage testfull      # every test
 ```
 
+### Another Tarantool
+
+The tests run against the `tarantool` on `PATH`. `TT_TEST_TARANTOOL` picks
+another one for the targets that run Tarantool CE: `unit:full`,
+`unit:fullSkipDocker`, `unit:coverage` and the `integration` ones but
+`integrationEE` and `integrationNoTarantool`, `test` and `testfull` with
+them:
+
+```console
+$ TT_TEST_TARANTOOL=3.6 mage integration       # the newest 3.6
+$ TT_TEST_TARANTOOL=min mage unit:full         # the oldest version CI tests
+$ TT_TEST_TARANTOOL=latest mage integration    # the newest version CI tests
+$ TT_TEST_TARANTOOL=master mage integration    # built from the sources
+$ TT_TEST_TARANTOOL=~/src/tarantool/build/src/tarantool mage integration
+```
+
+`min` and `latest` are the versions of `ci/tarantool-versions.env`. tt
+installs a version the first time into a directory of its own in
+`tarantool/` of the test cache, and puts it first on `PATH` with
+`TT_CLI_TARANTOOL_PREFIX` at its headers. The test cache is `tt-test` in the
+cache directory of the user, `~/.cache` on Linux and `~/Library/Caches` on
+macOS, or `TT_TEST_CACHE`. A version stays there, `master` too: delete its
+directory to install it again.
+
 ## Before committing
 
 CI runs the same checks:
