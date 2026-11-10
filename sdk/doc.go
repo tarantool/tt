@@ -15,8 +15,9 @@
 //     [ClusterSource] ([Services.ClusterConfig]) and the core's way to end
 //     the process for code that cannot return an error ([Services.Exit]);
 //   - [ExitError] and [ExitCode] carry the exit code a command's error should
-//     end tt with, and [UsageError] marks an error in how a command was
-//     invoked, which tt follows with the command's usage;
+//     end tt with, [UsageError] marks an error in how a command was invoked,
+//     which tt follows with the command's usage, and [Reported] one the user
+//     has seen already, which tt does not print again;
 //   - [CoreVersion] reports the version of the tt core the binary was built
 //     with;
 //   - [ClusterSource] names where a cluster configuration comes from - an

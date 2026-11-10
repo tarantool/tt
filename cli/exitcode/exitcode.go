@@ -73,33 +73,21 @@ func systemFailure(err error) bool {
 	}
 }
 
-// silentError marks an error the user has already been told about.
-type silentError struct {
-	err error
-}
-
-// Error renders the wrapped error.
-func (e *silentError) Error() string { return e.err.Error() }
-
-// Unwrap exposes the wrapped error to errors.Is, errors.As and sdk.ExitCode.
-func (e *silentError) Unwrap() error { return e.err }
-
 // Silent marks err as already reported, so Report does not log it: an
 // external module that printed its own failure, a prompt the user declined.
 // Its exit code is still err's. Silent(nil) is nil.
+//
+// It is sdk.Reported, the mark a compiled-in module sets: tt's own commands
+// and its modules share one mechanism, and IsSilent recognises either
+// spelling.
 func Silent(err error) error {
-	if err == nil {
-		return nil
-	}
-
-	return &silentError{err: err}
+	return sdk.Reported(err)
 }
 
-// IsSilent reports whether err, or an error it wraps, was marked by Silent.
+// IsSilent reports whether err, or an error it wraps, was marked by Silent
+// or sdk.Reported.
 func IsSilent(err error) bool {
-	var silent *silentError
-
-	return errors.As(err, &silent)
+	return sdk.IsReported(err)
 }
 
 // Report logs err as one error record, unless it is nil or silent.

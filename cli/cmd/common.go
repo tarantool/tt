@@ -57,7 +57,9 @@ func commandError(cmd *cobra.Command, err error) error {
 // arguments - has already been printed by cobra, with the usage, so it is
 // not printed again. An error from the command's own code is logged once;
 // an ArgError or an sdk.UsageError is logged by its own message and followed
-// by cmd's usage.
+// by cmd's usage. An error marked as reported (sdk.Reported, exitcode.Silent)
+// prints nothing, not even the usage of a usage error it wraps: the user has
+// seen it already.
 func reportError(cmd *cobra.Command, err error) int {
 	var (
 		argError   *util.ArgError
@@ -66,6 +68,7 @@ func reportError(cmd *cobra.Command, err error) int {
 
 	switch {
 	case !cmd.SilenceErrors:
+	case sdk.IsReported(err):
 	case errors.As(err, &argError):
 		log.Error(argError.Error())
 

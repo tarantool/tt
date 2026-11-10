@@ -72,6 +72,41 @@ func (e *ExitError) Unwrap() error { return e.Err }
 // ExitStatus returns Code.
 func (e *ExitError) ExitStatus() int { return e.Code }
 
+// reportedError is an error the user has already been told about.
+type reportedError struct {
+	err error
+}
+
+// Error renders the wrapped error.
+func (e *reportedError) Error() string { return e.err.Error() }
+
+// Unwrap exposes the wrapped error to errors.Is, errors.As and ExitCode.
+func (e *reportedError) Unwrap() error { return e.err }
+
+// Reported marks err as one the user has already seen, so that tt does not
+// report it again: the failure a child program printed itself, a prompt the
+// user declined. tt logs nothing for it, and prints no usage even when it is
+// a [UsageError]; the process still exits with err's code ([ExitCode]), and
+// errors.Is and errors.As see through the mark. Wrapping the mark keeps it,
+// and so does wrapping it in a code: Reported(WithCode(3, err)) and
+// WithCode(3, Reported(err)) both exit 3 and print nothing. Reported(nil) is
+// nil.
+func Reported(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	return &reportedError{err: err}
+}
+
+// IsReported reports whether err, or an error it wraps, was marked by
+// [Reported].
+func IsReported(err error) bool {
+	var reported *reportedError
+
+	return errors.As(err, &reported)
+}
+
 // ExitCode returns the process exit code for err: ExitOK for nil, otherwise
 // the first code other than ExitFailure that an ExitCoder in the chain
 // carries, and ExitFailure when there is none.
