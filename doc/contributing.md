@@ -57,6 +57,40 @@ cache directory of the user, `~/.cache` on Linux and `~/Library/Caches` on
 macOS, or `TT_TEST_CACHE`. A version stays there, `master` too: delete its
 directory to install it again.
 
+### In a container
+
+`mage docker` runs targets in a container that has what CI installs: Go,
+Python with the packages of `test/requirements.txt`, etcd, golangci-lint,
+the shells of the completion tests and what a source build of Tarantool
+needs. The machine needs Docker and what runs the magefile, Go and mage,
+only. The image is built from `ci/Dockerfile` the first time; its tag
+follows the Dockerfile, the requirements and the Go version of `go.mod`, so
+a change to any of them builds a new one.
+
+```console
+$ mage docker integration
+$ TT_TEST_TARANTOOL=min mage docker integrationFull
+$ mage docker "lint:full unit:full"
+$ PYTEST_ADDOPTS="-k test_status -x" mage docker integration
+$ mage docker integrationNoTarantool
+```
+
+The image has no Tarantool: `TT_TEST_TARANTOOL`, `latest` unless set, picks
+it as above, and a path names an executable in the container.
+`integrationNoTarantool` installs none, so it runs with no Tarantool at all.
+
+The container works in the checkout, mounted at its own path, as your user,
+so what the tests write stays yours. It has the network of the host and its
+Docker daemon, whose socket is mounted: the docker tests start containers
+that mount the temporary directories of the tests, which are in
+`/tmp/tt-test-<uid>` on the host for that, and listen on `localhost`. The
+socket gives the tests what it gives you. `TT_TEST_TMPDIR` moves the
+temporary directories, as when `/tmp` is a small `tmpfs`: a source build of
+Tarantool takes gigabytes. Keep the path short, the unix sockets of the
+instances are made under it. Go, mage and the versions of Tarantool stay in
+`docker/` of the test cache between runs; delete it to start over. On
+macOS, Docker Desktop needs host networking turned on in its settings.
+
 ## Before committing
 
 CI runs the same checks:
