@@ -3,7 +3,6 @@ package rocktree
 import (
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"maps"
 	"os"
@@ -18,6 +17,7 @@ import (
 	"github.com/tarantool/go-luarocks/tree"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/internal/execfile"
 )
 
 // The directories of a stage laid out as an unpacked binary rock, and where
@@ -434,19 +434,7 @@ func copyFile(src, dst string) error {
 
 	defer func() { _ = source.Close() }()
 
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
-	if err != nil {
-		return fmt.Errorf("staging %s: %w", src, err)
-	}
-
-	_, err = io.Copy(out, source)
-	if err != nil {
-		_ = out.Close()
-
-		return fmt.Errorf("staging %s: %w", src, err)
-	}
-
-	err = out.Close()
+	err = execfile.Write(dst, source, mode)
 	if err != nil {
 		return fmt.Errorf("staging %s: %w", src, err)
 	}

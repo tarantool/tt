@@ -2,9 +2,10 @@ package backend
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/tarantool/tt/v3/internal/execfile"
 )
 
 // CopyOutputs copies the declared outputs of a build from cwd into
@@ -63,19 +64,7 @@ func copyFile(src, dst string) error {
 		return fmt.Errorf("creating the destination directory: %w", err)
 	}
 
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
-	if err != nil {
-		return fmt.Errorf("creating the destination: %w", err)
-	}
-
-	_, err = io.Copy(out, srcFile)
-	if err != nil {
-		_ = out.Close()
-
-		return fmt.Errorf("write %s: %w", dst, err)
-	}
-
-	err = out.Close()
+	err = execfile.Write(dst, srcFile, mode)
 	if err != nil {
 		return fmt.Errorf("write %s: %w", dst, err)
 	}

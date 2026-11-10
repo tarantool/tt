@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/v3/internal/execfile"
 )
 
 var (
@@ -80,7 +81,7 @@ func CopyFileChangePerms(src, dst string, perms int) error {
 
 	// Write data to dst.
 	//nolint:gosec // perms is a file mode chosen by the caller, not external input.
-	err = os.WriteFile(dst, data, fs.FileMode(perms))
+	err = execfile.WriteFile(dst, data, fs.FileMode(perms))
 	if err != nil {
 		return fmt.Errorf("cannot write the destination file: %w", err)
 	}
@@ -102,7 +103,7 @@ func CopyFilePreserve(src, dst string) error {
 	}
 
 	// Write data to dst.
-	err = os.WriteFile(dst, data, info.Mode().Perm()) //nolint:gosec // dst is chosen by the caller.
+	err = execfile.WriteFile(dst, data, info.Mode().Perm())
 	if err != nil {
 		return fmt.Errorf("cannot write the destination file: %w", err)
 	}

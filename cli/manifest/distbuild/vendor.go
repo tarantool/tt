@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -16,6 +15,7 @@ import (
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/internal/buildflags"
+	"github.com/tarantool/tt/v3/internal/execfile"
 )
 
 // The files of a bundle besides the main module.
@@ -216,14 +216,7 @@ func copyFile(src, dst string) error {
 
 	defer func() { _ = source.Close() }()
 
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode().Perm())
-	if err != nil {
-		return fmt.Errorf("copying %s: %w", src, err)
-	}
-
-	_, copyErr := io.Copy(out, source)
-
-	err = errors.Join(copyErr, out.Close())
+	err = execfile.Write(dst, source, info.Mode().Perm())
 	if err != nil {
 		return fmt.Errorf("copying %s: %w", src, err)
 	}
