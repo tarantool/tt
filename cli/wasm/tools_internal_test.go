@@ -2,8 +2,6 @@ package wasm
 
 import (
 	"archive/tar"
-	"bytes"
-	"compress/gzip"
 	"context"
 	"os"
 	"path/filepath"
@@ -11,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/tarantool/tt/sdk/fetch"
 )
 
 func TestCompareVersions(t *testing.T) {
@@ -72,35 +72,36 @@ func TestEnsureToolchainReportsUserTools(t *testing.T) {
 	assert.Contains(t, FormatToolchain("csharp", statuses), "dotnet")
 }
 
-func TestTarMember(t *testing.T) {
+func TestFetchToolFromArchive(t *testing.T) {
 	t.Parallel()
 
-	var buffer bytes.Buffer
+	archive := makeTarGz(t, []tarEntry{
+		{name: "wasm-tools-1.261.0-x86_64-linux/README.md", body: "readme",
+			kind: tar.TypeReg, mode: 0o644},
+		{name: "wasm-tools-1.261.0-x86_64-linux/wasm-tools", body: "program",
+			kind: tar.TypeReg, mode: 0o755},
+	})
+	server := newFileServer(t, map[string][]byte{"/wasm-tools.tar.gz": archive})
+	fetcher := Fetcher{CacheDir: "", Client: nil}
 
-	compressed := gzip.NewWriter(&buffer)
-	writer := tar.NewWriter(compressed)
-
-	for name, body := range map[string]string{
-		"wasm-tools-1.261.0-x86_64-linux/README.md":  "readme",
-		"wasm-tools-1.261.0-x86_64-linux/wasm-tools": "program",
-	} {
-		require.NoError(t, writer.WriteHeader(&tar.Header{
-			Name: name, Mode: 0o755, Size: int64(len(body)), Typeflag: tar.TypeReg,
-		}))
-
-		_, err := writer.Write([]byte(body))
-		require.NoError(t, err)
+	tool := func(name string) Tool {
+		return Tool{Name: name, Release: &ToolRelease{Version: "1.261.0",
+			Assets: map[string]ToolAsset{hostKey(): {
+				URL: server.URL + "/wasm-tools.tar.gz", SHA256: fetch.SHA256(archive),
+			}},
+		}}
 	}
 
-	require.NoError(t, writer.Close())
-	require.NoError(t, compressed.Close())
+	program := filepath.Join(t.TempDir(), "bin", "wasm-tools")
+	require.NoError(t, fetchTool(t.Context(), tool("wasm-tools"), fetcher, program))
 
-	got, err := tarMember(buffer.Bytes(), "wasm-tools")
+	got, err := os.ReadFile(program)
 	require.NoError(t, err)
 	assert.Equal(t, "program", string(got))
 
-	_, err = tarMember(buffer.Bytes(), "wkg")
-	require.ErrorIs(t, err, errNoMember)
+	err = fetchTool(t.Context(), tool("wkg"), fetcher, filepath.Join(t.TempDir(), "wkg"))
+	require.ErrorIs(t, err, fetch.ErrNotInArchive)
+	require.ErrorContains(t, err, "wasm-tools.tar.gz: ")
 }
 
 func TestToolchainsHaveHostBuilds(t *testing.T) {

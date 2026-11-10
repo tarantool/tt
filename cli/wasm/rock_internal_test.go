@@ -15,6 +15,8 @@ import (
 	"github.com/tarantool/go-luarocks/client"
 	"github.com/tarantool/go-luarocks/remote"
 	"github.com/tarantool/go-luarocks/rockspec"
+
+	"github.com/tarantool/tt/sdk/fetch"
 )
 
 // testRelease is the release table entry the tests build rocks of.
@@ -169,10 +171,10 @@ func writeReleaseTable(t *testing.T, url string, module []byte) string {
 		"sdk_asset": "sdk.tar.gz", "sdk_md5": "00000000000000000000000000000000",
 		"base_url": "` + url + `", "platforms": [
 		{"goos": "linux", "goarch": "amd64", "asset": "linux.so",
-		 "sha256": "` + sha256Hex(module) + `",
+		 "sha256": "` + fetch.SHA256(module) + `",
 		 "rock_arch": "linux-x86_64", "module": "wasm.so"},
 		{"goos": "darwin", "goarch": "arm64", "asset": "macos.dylib",
-		 "sha256": "` + sha256Hex(module) + `",
+		 "sha256": "` + fetch.SHA256(module) + `",
 		 "rock_arch": "macosx-aarch64", "module": "wasm.dylib"}
 	]}}`
 	path := filepath.Join(t.TempDir(), "releases.json")

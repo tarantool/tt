@@ -39,6 +39,7 @@ require (
 	github.com/tarantool/tt/sdk/cluster v0.0.0
 	github.com/tarantool/tt/sdk/connect v0.0.0-0
 	github.com/tarantool/tt/sdk/dial v0.0.0-00010101000000-000000000000
+	github.com/tarantool/tt/sdk/fetch v0.0.0
 	github.com/tarantool/tt/sdk/integrity v0.0.0
 	github.com/tarantool/tt/sdk/tuple v0.0.0
 	github.com/ulikunitz/xz v0.5.17
@@ -185,6 +186,7 @@ replace (
 	github.com/tarantool/tt/sdk/cluster => ./sdk/cluster
 	github.com/tarantool/tt/sdk/connect => ./sdk/connect
 	github.com/tarantool/tt/sdk/dial => ./sdk/dial
+	github.com/tarantool/tt/sdk/fetch => ./sdk/fetch
 	github.com/tarantool/tt/sdk/integrity => ./sdk/integrity
 	github.com/tarantool/tt/sdk/tuple => ./sdk/tuple
 )

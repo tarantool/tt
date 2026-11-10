@@ -12,6 +12,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/tarantool/tt/sdk/fetch"
 )
 
 // assetServer serves body for any path and counts the requests.
@@ -83,13 +85,13 @@ func TestFetchChecksAndCaches(t *testing.T) {
 	release := testRelease(t)
 
 	for range 2 {
-		got, err := fetcher.Fetch(context.Background(), release, "asset.so", sha256Hex(body))
+		got, err := fetcher.Fetch(context.Background(), release, "asset.so", fetch.SHA256(body))
 		require.NoError(t, err)
 		assert.Equal(t, body, got)
 	}
 
 	assert.Equal(t, int32(1), hits.Load(), "the second fetch must come from the cache")
-	assert.FileExists(t, filepath.Join(fetcher.CacheDir, release.Version, "asset.so"))
+	assert.FileExists(t, filepath.Join(fetcher.CacheDir, fetch.SHA256(body)))
 }
 
 func TestFetchRejectsWrongChecksum(t *testing.T) {
@@ -99,9 +101,11 @@ func TestFetchRejectsWrongChecksum(t *testing.T) {
 	fetcher := Fetcher{CacheDir: t.TempDir(), Client: redirectingClient(server)}
 	release := testRelease(t)
 
-	_, err := fetcher.Fetch(context.Background(), release, "asset.so", sha256Hex([]byte("module")))
+	want := fetch.SHA256([]byte("module"))
+
+	_, err := fetcher.Fetch(context.Background(), release, "asset.so", want)
 	require.ErrorIs(t, err, ErrChecksum)
-	assert.NoFileExists(t, filepath.Join(fetcher.CacheDir, release.Version, "asset.so"))
+	assert.NoFileExists(t, filepath.Join(fetcher.CacheDir, want))
 }
 
 func TestFetchIgnoresCorruptCache(t *testing.T) {
@@ -112,11 +116,10 @@ func TestFetchIgnoresCorruptCache(t *testing.T) {
 	fetcher := Fetcher{CacheDir: t.TempDir(), Client: redirectingClient(server)}
 	release := testRelease(t)
 
-	cached := filepath.Join(fetcher.CacheDir, release.Version, "asset.so")
-	require.NoError(t, os.MkdirAll(filepath.Dir(cached), dirPerm))
+	cached := filepath.Join(fetcher.CacheDir, fetch.SHA256(body))
 	require.NoError(t, os.WriteFile(cached, []byte("corrupt"), filePerm))
 
-	got, err := fetcher.Fetch(context.Background(), release, "asset.so", sha256Hex(body))
+	got, err := fetcher.Fetch(context.Background(), release, "asset.so", fetch.SHA256(body))
 	require.NoError(t, err)
 	assert.Equal(t, body, got)
 	assert.Equal(t, int32(1), hits.Load())
@@ -182,7 +185,7 @@ func TestPreparePacksAndDeclares(t *testing.T) {
 
 	// The table holds the real checksum; the fake module needs its own.
 	release.Platforms = []Platform{platform}
-	release.Platforms[0].SHA256 = sha256Hex(module)
+	release.Platforms[0].SHA256 = fetch.SHA256(module)
 
 	var declared []string
 

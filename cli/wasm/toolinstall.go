@@ -1,9 +1,6 @@
 package wasm
 
 import (
-	"archive/tar"
-	"bytes"
-	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
@@ -12,6 +9,8 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/tarantool/tt/sdk/fetch"
 )
 
 // toolPerm is the mode of a program tt installs.
@@ -247,9 +246,7 @@ func installTreeTool(ctx context.Context, tool Tool, opts ToolchainOptions) (str
 	defer func() { _ = os.RemoveAll(staging) }()
 
 	for _, archive := range append([]ToolAsset{asset}, tool.Release.Overlays[hostKey()]...) {
-		key := filepath.Join("tools", tool.Name, tool.Release.Version, path.Base(archive.URL))
-
-		data, err := opts.Fetcher.FetchURL(ctx, archive.URL, key, archive.SHA256)
+		data, err := opts.Fetcher.FetchURL(ctx, archive.URL, archive.SHA256)
 		if err != nil {
 			return "", err
 		}
@@ -298,9 +295,8 @@ func installWheelTool(ctx context.Context, tool Tool, opts ToolchainOptions) (st
 	}
 
 	name := path.Base(asset.URL)
-	key := filepath.Join("tools", tool.Name, tool.Release.Version, name)
 
-	data, err := opts.Fetcher.FetchURL(ctx, asset.URL, key, asset.SHA256)
+	data, err := opts.Fetcher.FetchURL(ctx, asset.URL, asset.SHA256)
 	if err != nil {
 		return "", err
 	}
@@ -352,17 +348,17 @@ func fetchTool(ctx context.Context, tool Tool, fetcher Fetcher, program string) 
 		return fmt.Errorf("%w: %s", errNoAsset, hostKey())
 	}
 
-	key := filepath.Join("tools", tool.Name, tool.Release.Version, path.Base(asset.URL))
-
-	data, err := fetcher.FetchURL(ctx, asset.URL, key, asset.SHA256)
+	data, err := fetcher.FetchURL(ctx, asset.URL, asset.SHA256)
 	if err != nil {
 		return err
 	}
 
 	if strings.HasSuffix(asset.URL, ".tar.gz") {
-		data, err = tarMember(data, tool.Name)
+		// The program is the file of its name, at the top of the archive or
+		// in the directory of the release.
+		data, err = fetch.UnpackFile(data, tool.Name, maxAssetSize)
 		if err != nil {
-			return err
+			return fmt.Errorf("%s: %w", path.Base(asset.URL), err)
 		}
 	}
 
@@ -382,38 +378,4 @@ func fetchTool(ctx context.Context, tool Tool, fetcher Fetcher, program string) 
 	}
 
 	return nil
-}
-
-// tarMember returns the content of the one regular file named name in the
-// .tar.gz archive. Nothing else of the archive is written anywhere, so its
-// paths need no sanitizing.
-func tarMember(archive []byte, name string) ([]byte, error) {
-	compressed, err := gzip.NewReader(bytes.NewReader(archive))
-	if err != nil {
-		return nil, fmt.Errorf("reading the archive: %w", err)
-	}
-
-	reader := tar.NewReader(compressed)
-
-	for {
-		header, err := reader.Next()
-		if errors.Is(err, io.EOF) {
-			return nil, fmt.Errorf("%w: %s", errNoMember, name)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("reading the archive: %w", err)
-		}
-
-		if header.Typeflag != tar.TypeReg || path.Base(header.Name) != name {
-			continue
-		}
-
-		data, err := io.ReadAll(io.LimitReader(reader, maxAssetSize))
-		if err != nil {
-			return nil, fmt.Errorf("reading %s from the archive: %w", header.Name, err)
-		}
-
-		return data, nil
-	}
 }

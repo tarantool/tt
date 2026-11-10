@@ -1,6 +1,10 @@
 package wasm
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/tarantool/tt/sdk/fetch"
+)
 
 var (
 	// ErrUnknownRelease reports a tarantool-wasm version tt has no table entry
@@ -10,8 +14,8 @@ var (
 	// for.
 	ErrUnsupportedPlatform = errors.New("unsupported platform")
 	// ErrChecksum reports a downloaded asset whose checksum differs from the
-	// one tt holds the release to.
-	ErrChecksum = errors.New("checksum mismatch")
+	// one tt holds the release to. It is fetch.ErrChecksum.
+	ErrChecksum = fetch.ErrChecksum
 	// ErrNoManifest reports a directory that is not a tt project.
 	ErrNoManifest = errors.New("not a tt project")
 	// ErrPython reports a Python that cannot host tarawasm.
