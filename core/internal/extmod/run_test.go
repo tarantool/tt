@@ -1,7 +1,6 @@
 package extmod_test
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,6 +8,7 @@ import (
 
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/exitcode"
+	"github.com/tarantool/tt/v3/internal/execfile"
 )
 
 // TestModuleExitStatus pins that an external module's exit status becomes
@@ -78,7 +78,7 @@ func TestModuleExitStatus(t *testing.T) {
 		main := writeModule(t, dir, "status", "", "version: 1.0.0\nhelp: x\nmain: main\n")
 
 		// The interpreter does not exist.
-		require.NoError(t, os.WriteFile(main, []byte("#!/nonexistent/sh\n"), 0o755))
+		require.NoError(t, execfile.WriteFile(main, []byte("#!/nonexistent/sh\n"), 0o755))
 
 		tree := newTree(t)
 

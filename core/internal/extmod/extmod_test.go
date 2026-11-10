@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -22,6 +21,7 @@ import (
 	"github.com/tarantool/tt/sdk/output"
 	"github.com/tarantool/tt/v3/core/internal/extmod"
 	"github.com/tarantool/tt/v3/core/internal/mount"
+	"github.com/tarantool/tt/v3/internal/execfile"
 )
 
 // errRefused is what the integrity checks of these tests refuse a file
@@ -191,16 +191,10 @@ func writeModule(t *testing.T, dir, name, script, manifest string) string {
 	moduleDir := filepath.Join(dir, name)
 	require.NoError(t, os.MkdirAll(moduleDir, 0o755))
 
+	// The module runs while parallel tests fork: execfile keeps the forks off
+	// the descriptor it writes it through.
 	main := filepath.Join(moduleDir, "main")
-
-	// A concurrent fork can inherit the writable descriptor until exec and
-	// make this script fail to start with ETXTBSY (go.dev/issue/22315).
-	syscall.ForkLock.RLock()
-
-	err := os.WriteFile(main, []byte("#!/bin/sh\n"+script+"\n"), 0o755)
-
-	syscall.ForkLock.RUnlock()
-	require.NoError(t, err)
+	require.NoError(t, execfile.WriteFile(main, []byte("#!/bin/sh\n"+script+"\n"), 0o755))
 
 	if manifest != "" {
 		require.NoError(t, os.WriteFile(filepath.Join(moduleDir, "manifest.yaml"),
