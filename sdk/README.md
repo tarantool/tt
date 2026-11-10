@@ -16,6 +16,7 @@ Each directory is a separate Go module:
 | `sdk/integrity`  | `github.com/tarantool/tt/sdk/integrity`  |
 | `sdk/backup`     | `github.com/tarantool/tt/sdk/backup`     |
 | `sdk/tuple`      | `github.com/tarantool/tt/sdk/tuple`      |
+| `sdk/fetch`      | `github.com/tarantool/tt/sdk/fetch`      |
 
 - `connect` parses connection strings and URIs and resolves credentials.
 - `dial` builds Tarantool dialers for the plain and SSL transports.
@@ -42,13 +43,20 @@ Each directory is a separate Go module:
   `ParseField` for the text of a field of a space by its type, as a cell of
   CSV holds it. `tt data cat` prints journal rows with it; the export and
   import of tt-ee can read and write their data with it.
+- `fetch` downloads files over HTTP, with the standard library only: a
+  `Client` with a timeout and a bound on the size of a body, whose replies
+  other than 200 OK are an `HTTPError`; a `Fetcher` for a file of a known
+  SHA-256, which checks it and keeps it in a cache directory named by its
+  SHA-256, trusting a cached copy only when its own SHA-256 matches; and
+  `UnpackFile`, which takes one file out of a `.tar.gz` release archive in
+  memory.
 
 ## Contract module
 
 `github.com/tarantool/tt/sdk`, rooted at `sdk/` itself, is the contract
 between tt and its modules. The nested `connect`, `dial`, `cluster`,
-`integrity`, `backup` and `tuple` are not part of it: each has its own
-`go.mod`. It depends on the standard library, `github.com/spf13/cobra`,
+`integrity`, `backup`, `tuple` and `fetch` are not part of it: each has its
+own `go.mod`. It depends on the standard library, `github.com/spf13/cobra`,
 `github.com/spf13/pflag`, the core package of
 `github.com/tarantool/go-config/v2` (not its Tarantool builder) and
 `github.com/tarantool/tt/sdk/connect` (testify for its tests);

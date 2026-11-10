@@ -53,6 +53,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   (`AppendField`, `ParseField`), and the MessagePack Tarantool writes
   (`AppendMsgpack`). Decimals, datetimes and intervals are printed as
   Tarantool prints them: a datetime keeps the name of its time zone.
+- `sdk/fetch`: a module that downloads files over HTTP with the standard
+  library only, for tt and the modules that download release assets: a
+  client with a timeout and a bound on the size of a body, a fetcher that
+  checks the SHA-256 of a file and keeps it in a cache directory named by
+  it, and the unpacking of one file of a `.tar.gz` archive (`UnpackFile`).
 - `sdk/bundle`: the contract of a source of prebuilt archives - list the
   builds of a product for a platform, fetch one - and
   `core.WithBundleSources`, with `[distribution] bundle_sources` in
