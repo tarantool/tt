@@ -1,0 +1,33 @@
+# Vulnerabilities Trivy reports that cannot be fixed in this repository yet.
+# Every entry names the file it applies to and expires, so the scan raises it
+# again for a new look instead of hiding it for good.
+vulnerabilities:
+  # Only the vendored cartridge-cli imports github.com/docker/docker; tt itself
+  # uses github.com/moby/moby/client. The fixes are in Docker 29, published as
+  # github.com/moby/moby/v2, which has no stable release to move to yet.
+  - id: CVE-2026-41567
+    paths:
+      - go.mod
+      - tt
+    statement: no fixed github.com/docker/docker; reached through cartridge-cli only
+    expired_at: 2027-02-10
+  - id: CVE-2026-42306
+    paths:
+      - go.mod
+      - tt
+    statement: no fixed github.com/docker/docker; reached through cartridge-cli only
+    expired_at: 2027-02-10
+
+  # The etcd3 client of the integration tests needs protobuf 3.x, and no 3.20
+  # release fixes these. The tests parse messages of a local etcd only and
+  # protobuf is not shipped with tt.
+  - id: CVE-2025-4565
+    paths:
+      - test/requirements.txt
+    statement: protobuf 3.20 is pinned for the etcd3 test client
+    expired_at: 2027-05-10
+  - id: CVE-2026-0994
+    paths:
+      - test/requirements.txt
+    statement: protobuf 3.20 is pinned for the etcd3 test client
+    expired_at: 2027-05-10
