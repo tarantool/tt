@@ -26,6 +26,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   resolves afresh (`tt package add`, `tt package update`, a first build),
   while a lock that pins it keeps resolving to it and installs it; a
   constraint only yanked versions satisfy fails saying so.
+- `tt emmylua prepare` declares the `emmylua` rock from the rock index of
+  tarantool-contrib/rocks-repo
+  (`https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/`,
+  the default of `--rock-server`), which serves the rock of every platform,
+  so the lock pins them all; `--from` packs a local build into
+  `.tarantool/registry` as before. A rock server takes any `--version`;
+  only `--from` and `tt emmylua rock` need a release tt knows.
 - `tt wasm rock --from <module> --arch <arch>`: pack a local build of the
   tarantool-wasm module as the rock of a platform, for a release with no
   build of it to download; the rocks already in `--out` stay, so a run for

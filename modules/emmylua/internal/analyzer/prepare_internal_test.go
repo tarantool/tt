@@ -185,6 +185,9 @@ func TestPrepareFrom(t *testing.T) {
 	assert.Equal(t, first, second)
 }
 
+// TestPrepareRockServer checks that the rock is declared from the rock server
+// without anything packed, from DefaultRockServer when none is named, and at
+// any version: the server, not the table of releases, knows which it serves.
 func TestPrepareRockServer(t *testing.T) {
 	t.Parallel()
 
@@ -198,7 +201,25 @@ func TestPrepareRockServer(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, report.Rock)
 	assert.False(t, report.Installed)
+	assert.Equal(t, "https://rocks.example/", report.Registry)
 	assert.Equal(t, []string{"emmylua 0.25.1 https://rocks.example/"}, decl.calls)
+
+	decl = &declared{}
+
+	report, err = Prepare(t.Context(), Options{ProjectDir: project, Declare: decl.declare})
+	require.NoError(t, err)
+	assert.Equal(t, DefaultRockServer, report.Registry)
+	assert.Equal(t, Release{Version: DefaultVersion}, report.Release)
+	assert.Equal(t, []string{"emmylua 0.30.0pre1 " + DefaultRockServer}, decl.calls)
+
+	decl = &declared{}
+
+	_, err = Prepare(t.Context(), Options{
+		ProjectDir: project, Version: "9.9.9", Declare: decl.declare,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"emmylua 9.9.9 " + DefaultRockServer}, decl.calls)
+
 	assert.NoDirExists(t, filepath.Join(project, ".tarantool"))
 }
 
@@ -208,29 +229,31 @@ func TestPrepareErrors(t *testing.T) {
 	_, err := Prepare(t.Context(), Options{ProjectDir: t.TempDir()})
 	require.ErrorIs(t, err, ErrNoManifest)
 
-	// 0.30.0pre1 has no builds to download.
-	_, err = Prepare(t.Context(), Options{ProjectDir: testProject(t)})
-	require.ErrorIs(t, err, ErrUnsupportedPlatform)
-
 	_, err = Prepare(t.Context(), Options{ProjectDir: testProject(t), From: t.TempDir()})
 	require.ErrorIs(t, err, ErrBuild)
+
+	// A local build is packed with the rockspec of a release tt knows.
+	_, err = Prepare(t.Context(), Options{
+		ProjectDir: testProject(t), Version: "9.9.9", From: t.TempDir(),
+	})
+	require.ErrorIs(t, err, ErrUnknownRelease)
 }
 
 //nolint:paralleltest // Sets the environment.
-func TestPrepareDownloads(t *testing.T) {
+func TestPackRocksDownloads(t *testing.T) {
 	releasesFile, requests := assetRelease(t)
 	t.Setenv(ReleasesEnv, releasesFile)
 
 	fetcher := fetch.Fetcher{CacheDir: t.TempDir()}
-	project := testProject(t)
 
-	report, err := Prepare(t.Context(), Options{ProjectDir: project, Fetcher: fetcher})
+	rocks, err := PackRocks(t.Context(), PackOptions{Dir: t.TempDir(), Fetcher: fetcher})
 	require.NoError(t, err)
-	assert.FileExists(t, report.Rock)
+	require.Len(t, rocks, 1)
+	assert.FileExists(t, rocks[0])
 	assert.EqualValues(t, len(Programs), requests.Load())
 
 	// The cache serves the second.
-	_, err = Prepare(t.Context(), Options{ProjectDir: testProject(t), Fetcher: fetcher})
+	_, err = PackRocks(t.Context(), PackOptions{Dir: t.TempDir(), Fetcher: fetcher})
 	require.NoError(t, err)
 	assert.EqualValues(t, len(Programs), requests.Load())
 

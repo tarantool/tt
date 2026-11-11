@@ -124,6 +124,39 @@ func TestPrepareRockServer(t *testing.T) {
 		got.Stdout)
 }
 
+// TestPrepareDefaultRockServer checks that tt emmylua prepare with neither
+// --from nor --rock-server packs nothing and declares the default release
+// from the index of tarantool-contrib/rocks-repo, and that a version tt does
+// not know is declared as it is.
+func TestPrepareDefaultRockServer(t *testing.T) {
+	t.Parallel()
+
+	const index = "https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/"
+
+	project := testProject(t)
+	services := sdktest.New(t, sdktest.WithProject(project))
+
+	got := services.Run(emmylua.New, "emmylua", "prepare")
+	require.NoError(t, got.Err)
+
+	assert.NoDirExists(t, filepath.Join(project, ".tarantool"))
+	assert.Equal(t, []sdk.Dependency{
+		{Name: "emmylua", Constraint: "0.30.0pre1", Registry: index, Dev: true},
+	}, services.AddedDependencies())
+	assert.Len(t, services.Installs(), 1)
+	assert.Equal(t, "EmmyLua 0.30.0pre1 from "+index+"\nnext: tt emmylua check\n", got.Stdout)
+
+	services = sdktest.New(t, sdktest.WithProject(project))
+
+	got = services.Run(emmylua.New, "emmylua", "prepare", "--version", "0.31.0", "--no-install")
+	require.NoError(t, got.Err)
+
+	assert.Equal(t, []sdk.Dependency{
+		{Name: "emmylua", Constraint: "0.31.0", Registry: index, Dev: true},
+	}, services.AddedDependencies())
+	assert.Empty(t, services.Installs())
+}
+
 // TestPrepareErrors checks the failures of tt emmylua prepare: flags that
 // exclude each other, a directory that is not a project, and a declaration
 // the project refuses, after which nothing is installed.

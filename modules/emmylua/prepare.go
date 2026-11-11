@@ -49,42 +49,51 @@ func newPrepareCmd(services sdk.Services) *cobra.Command {
 		Use:   "prepare",
 		Short: "Add the programs of EmmyLua to the project",
 		Long: "Put EmmyLua into the project.\n\n" +
-			"The programs of the release for this host - downloaded and checked " +
-			"against the sha256 tt holds them to, or those of a local build (--from) " +
-			"- are packed as a binary rock into " + analyzer.RegistryDir + ". The " +
-			"manifest declares it as\n\n" +
+			"The manifest declares the binary rock " + analyzer.RockName + " of the " +
+			"release from the rock server --rock-server names:\n\n" +
 			"  [dev_dependencies]\n" +
-			"  " + analyzer.RockName + " = { version = \"<release>\", registry = \"" +
-			analyzer.RegistryDir + "\" }\n\n" +
-			"the lock is re-resolved and the rocks are installed, so the programs " +
-			"are in .rocks/bin. A declaration already there is left as it is.\n\n" +
-			"With --rock-server nothing is packed: the dependency names the server, " +
-			"which tt emmylua rock packs the rocks of every platform for.\n\n" +
-			"The registry is for this host and is not meant to be committed: after a " +
-			"checkout, run tt emmylua prepare again. Known releases: " +
+			"  " + analyzer.RockName + " = { version = \"<release>\", registry = " +
+			"\"<rock server>\" }\n\n" +
+			"The lock is re-resolved and the rocks are installed, so the programs " +
+			"are in .rocks/bin. A declaration already there is left as it is. The " +
+			"default server is the rock index of tarantool-contrib/rocks-repo,\n\n" +
+			"  " + analyzer.DefaultRockServer + "\n\n" +
+			"which serves the rock of every platform with its sha256, so the lock " +
+			"pins them all; another may be one tt emmylua rock packs. Any version a " +
+			"server serves is taken.\n\n" +
+			"With --from, the programs of a local build are packed as the rock of " +
+			"this host into " + analyzer.RegistryDir + " instead, and the dependency " +
+			"names that directory. The registry is for this host and is not meant to " +
+			"be committed: after a checkout, run tt emmylua prepare --from again. " +
+			"--from packs the releases tt knows: " +
 			strings.Join(analyzer.Versions(), ", ") + "; " + analyzer.ReleasesEnv +
 			" names a JSON file of others.",
-		Example: `# A local build of EmmyLua, from its checkout.
+		Example: `# The rock of this host, from the index of tarantool-contrib/rocks-repo.
+  $ tt emmylua prepare
+
+  # The release Tarantool checks its own code with.
+  $ tt emmylua prepare --version 0.25.1
+
+  # A local build of EmmyLua, from its checkout.
   $ cargo build --release -p emmylua_check -p emmylua_ls -p emmylua_doc_cli -p emmylua_formatter
   $ tt emmylua prepare --from ~/src/emmylua-analyzer-rust/target/release
 
-  # The release Tarantool checks its own code with, downloaded.
-  $ tt emmylua prepare --version 0.25.1
-
-  # The rocks of a shared rock server.
+  # The rocks of another rock server.
   $ tt emmylua prepare --rock-server https://example.org/rocks/`,
 		Args: cobra.NoArgs,
 		RunE: prepare.run,
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&prepare.version, "version", analyzer.DefaultVersion, "EmmyLua release")
+	flags.StringVar(&prepare.version, "version", analyzer.DefaultVersion,
+		"EmmyLua release: any the rock server serves, or one tt knows with --from")
 	flags.StringVar(&prepare.from, "from", "",
 		"pack the programs of a local build of the release in this directory "+
-			"(a cargo target/release) instead of downloading them")
+			"(a cargo target/release) into "+analyzer.RegistryDir+" and declare the "+
+			"rock from there")
 	flags.StringVar(&prepare.rockServer, "rock-server", "",
-		"declare the rock from this rock server, which tt emmylua rock packs for, "+
-			"instead of packing it into "+analyzer.RegistryDir)
+		"the rock server to declare the rock from: a URL or a directory relative "+
+			"to the project (default the rock index of tarantool-contrib/rocks-repo)")
 	flags.BoolVar(&prepare.noInstall, "no-install", false,
 		"do not install the rocks: leave that to tt package build")
 	flags.StringArrayVar(&prepare.registries, "registry", nil, registryFlagUsage)
@@ -119,7 +128,6 @@ func (c *prepareCmd) run(cmd *cobra.Command, _ []string) error {
 		Version:    c.version,
 		From:       c.from,
 		RockServer: c.rockServer,
-		Fetcher:    newFetcher(),
 		Declare: func(ctx context.Context, name, constraint, registry string) (bool, error) {
 			change, err := project.AddDependency(ctx, sdk.Dependency{
 				Name:       name,

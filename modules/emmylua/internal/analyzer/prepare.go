@@ -10,8 +10,6 @@ import (
 	"path/filepath"
 
 	"github.com/tarantool/go-luarocks/remote"
-
-	"github.com/tarantool/tt/sdk/fetch"
 )
 
 // manifestFileName marks a tt project.
@@ -23,6 +21,13 @@ const manifestFileName = "app.manifest.toml"
 // this host.
 const RegistryDir = projectDirName + "/registry"
 
+// DefaultRockServer is the rock server prepare declares the rock from unless
+// it is told another or packs a local build: the tt-rocks-index.json of the
+// index branch of tarantool-contrib/rocks-repo, which names the rocks of every
+// platform on the release pages of the repository with their sha256, so the
+// lock pins them all. tt wasm prepare declares its rock from the same index.
+const DefaultRockServer = "https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/"
+
 // Options configure Prepare.
 type Options struct {
 	// ProjectDir is the project to prepare: the directory of its manifest.
@@ -30,14 +35,16 @@ type Options struct {
 	// Version is the release; empty is DefaultVersion.
 	Version string
 	// From, when set, is a local build of the release for this host - the
-	// directory of its programs - packed instead of the downloaded one.
+	// directory of its programs - packed into the project's registry, and
+	// the dependency is declared from there. The release must be one tt
+	// knows (LookupRelease): the rockspec is written from it.
 	From string
-	// RockServer, when set, is a rock server that serves the rocks of the
-	// release, which tt emmylua rock packs: the dependency is declared from
-	// it, and nothing is packed in the project.
+	// RockServer is the rock server the dependency is declared from when
+	// From is not set, which serves the rocks of the release: one with a
+	// tt-rocks-index.json or one tt emmylua rock packs. Nothing is packed in
+	// the project, and any version is taken: the server, not tt, knows
+	// which it serves. Empty is DefaultRockServer.
 	RockServer string
-	// Fetcher downloads the assets of the release.
-	Fetcher fetch.Fetcher
 	// Declare declares the dev dependency rock on the registry and
 	// re-resolves the lock. It reports whether the manifest already declared
 	// it, in which case the declaration was left alone.
@@ -51,7 +58,8 @@ type Options struct {
 
 // Report is what Prepare did.
 type Report struct {
-	// Release is what the project was prepared with.
+	// Release is what the project was prepared with: the one tt knows for
+	// a local build, and only its Version for a rock server.
 	Release Release
 	// Rock is the path of the rock in the project's registry; empty when the
 	// rock comes from a rock server.
@@ -66,14 +74,15 @@ type Report struct {
 
 // Prepare puts EmmyLua into the project:
 //
-//  1. packs the programs of the release for this host - downloaded and
-//     checked against the sha256 tt holds them to, or read from From - as a
-//     binary rock into the project's registry (RegistryDir), indexing it;
-//  2. declares emmylua = { version = <release>, registry = RegistryDir } in
-//     [dev_dependencies] and re-resolves the lock;
+//  1. with From, packs the programs of the local build as the binary rock of
+//     the release for this host into the project's registry (RegistryDir),
+//     indexing it;
+//  2. declares emmylua = { version = <release>, registry = <server> } in
+//     [dev_dependencies] and re-resolves the lock: the server is RegistryDir
+//     after step 1, and RockServer - DefaultRockServer, unless told
+//     otherwise - without From;
 //  3. installs the locked rocks, so the programs are in .rocks/bin.
 //
-// With RockServer, step 1 is skipped and the dependency names the server.
 // Every step can be run again: unchanged programs are the same rock byte for
 // byte, a declaration is kept.
 func Prepare(ctx context.Context, opts Options) (*Report, error) {
@@ -92,30 +101,34 @@ func Prepare(ctx context.Context, opts Options) (*Report, error) {
 		version = DefaultVersion
 	}
 
-	release, err := LookupRelease(version)
-	if err != nil {
-		return nil, err
-	}
-
 	report := &Report{
-		Release:   release,
+		Release: Release{
+			Version: version, RockRevision: 0, Ref: "", SourceMD5: "", Platforms: nil, BaseURL: "",
+		},
 		Rock:      "",
-		Registry:  RegistryDir,
+		Registry:  opts.RockServer,
 		Declared:  false,
 		Installed: false,
 	}
 
-	if opts.RockServer != "" {
-		report.Registry = opts.RockServer
-	} else {
-		report.Rock, err = packHostRock(ctx, opts, release)
+	if opts.From != "" {
+		report.Release, err = LookupRelease(version)
 		if err != nil {
 			return nil, err
 		}
+
+		report.Registry = RegistryDir
+
+		report.Rock, err = packHostRock(ctx, opts, report.Release)
+		if err != nil {
+			return nil, err
+		}
+	} else if report.Registry == "" {
+		report.Registry = DefaultRockServer
 	}
 
 	if opts.Declare != nil {
-		existed, err := opts.Declare(ctx, RockName, release.Version, report.Registry)
+		existed, err := opts.Declare(ctx, RockName, report.Release.Version, report.Registry)
 		if err != nil {
 			return nil, fmt.Errorf("declaring the %s dependency: %w", RockName, err)
 		}
@@ -127,7 +140,7 @@ func Prepare(ctx context.Context, opts Options) (*Report, error) {
 				RockName, manifestFileName)
 		} else {
 			progressf(opts.Progress, "declared %s %s from %s in [dev_dependencies]",
-				RockName, release.Version, report.Registry)
+				RockName, report.Release.Version, report.Registry)
 		}
 	}
 
@@ -147,28 +160,9 @@ func Prepare(ctx context.Context, opts Options) (*Report, error) {
 
 // packHostRock does step 1 of Prepare and returns the path of the rock.
 func packHostRock(ctx context.Context, opts Options, release Release) (string, error) {
-	var (
-		programs map[Program][]byte
-		err      error
-	)
+	progressf(opts.Progress, "reading the build in %s", opts.From)
 
-	if opts.From != "" {
-		progressf(opts.Progress, "reading the build in %s", opts.From)
-
-		programs, err = ReadBuild(opts.From)
-	} else {
-		var platform Platform
-
-		platform, err = release.HostPlatform()
-		if err != nil {
-			return "", err
-		}
-
-		progressf(opts.Progress, "fetching EmmyLua %s for %s", release.Version, platform.Suffix)
-
-		programs, err = fetchPrograms(ctx, opts.Fetcher, release, platform)
-	}
-
+	programs, err := ReadBuild(opts.From)
 	if err != nil {
 		return "", err
 	}
