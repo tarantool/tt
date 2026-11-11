@@ -274,6 +274,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   version at `0.0.0-dev`. Of the version tags on one commit the highest
   version counts, and of `v1.2.0` and `1.2.0` the tag is `v1.2.0`, where git
   chose by how the tags were made.
+- A package in a subdirectory of its git repository, one of a monorepo or a
+  path dependency inside the repository of its consumer, is versioned by its
+  directory alone: the version is that of the last commit that changed the
+  directory, and only a change under it marks it `dirty`. A commit or a
+  change elsewhere in the repository - the consumer committing its lock -
+  no longer moves the version, nor makes the lock of a project depending on
+  it by path out of date. A tag counts on that commit or before it, and the
+  tagless `0.0.0-dev.<N>` counts the commits of its history. A package at
+  the root of its repository is versioned as before.
 
 ### Fixed
 

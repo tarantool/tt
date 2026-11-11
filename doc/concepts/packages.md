@@ -126,7 +126,21 @@ it. Of the version tags on one commit the highest version counts, and of
 `v1.2.0` and `1.2.0` the tag is `v1.2.0`, whichever of them is annotated or
 newer.
 
-Changes not committed add `dirty` to the build metadata: `1.2.0+dirty`.
+Changes not committed, but for the lock, add `dirty` to the build
+metadata: `1.2.0+dirty`.
+
+A project in a subdirectory of its repository - one of a monorepo, or a
+path dependency inside the repository of the project that depends on it -
+is versioned by its directory alone. The version is that of the last commit
+that changed the directory, and only a change under it adds `dirty`: a
+commit or a change elsewhere in the repository does not move the version,
+nor make the lock of a project that depends on it by path out of date. A
+tag counts on that commit or before it, not on a later commit that left the
+directory alone: to release the project, tag a commit that changes it.
+`<N>` counts the commits in the history of that commit, the ones elsewhere
+too, as the commits after a tag do. A project at the root of its repository
+is versioned by `HEAD` and the whole tree.
+
 The code reads its version as `require('<name>.version').version`; set
 `generate_version_lua = false` in `[package]` to leave `version.lua` out.
 
@@ -252,11 +266,11 @@ dependencies are the ranges `[dependencies]` and the components of the
 product declare, not the versions the lock pins, and `[platform].tarantool`
 becomes its dependency on `tarantool`; the source is
 `[package].repository`, at the tag of the version, named as git has it,
-when `HEAD` is on a version tag of a clean tree; `[package]` gives the
+when the version is that of a tag and not `dirty`; `[package]` gives the
 description, the license and the maintainers, `[platform].platforms` the
-supported platforms. The build
-is done, so the build type is `none`, and the rockspec is the same for the
-rock of every platform. A path dependency fails the pack: the projects
+supported platforms. The build is done, so the build type is `none`, and
+the rockspec is the same for the rock of every platform. A path dependency
+fails the pack: the projects
 installing the rock have no such directory. A dependency from a registry of
 its own is declared with a warning, since a rockspec cannot name the server.
 

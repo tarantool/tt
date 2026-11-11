@@ -129,8 +129,12 @@ The lock pins a path dependency by a hash of its files. The hash of a
 dependency with a manifest leaves out `.git/`, `_build/`, `.rocks/`,
 `_runtime/`, its `app.manifest.lock` and what its `.gitignore` files ignore,
 so neither its own build nor the project's makes the lock out of date; a
-new version of it does, even one that only a commit or a tag makes. tt
-builds such a dependency in `_build/path/<name>/` of the project and leaves
+new version of it does, even one that only a commit or a tag makes. A
+dependency in a subdirectory of a repository, the project's own among them,
+is versioned by its directory alone (see
+[Building](../concepts/packages.md#building)): a commit or a change
+elsewhere in the repository moves no version of it. tt builds such a
+dependency in `_build/path/<name>/` of the project and leaves
 its directory as it is, but for what its build backends write there
 themselves.
 

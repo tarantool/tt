@@ -48,13 +48,15 @@ const porcelainPrefix = 3
 // Version is a derived package version.
 type Version struct {
 	SemVer string // Rendered SemVer, e.g. "1.4.1-dev.3+gabc1234.dirty".
-	Commit string // Short sha "abc1234", or empty when there is no commit.
-	Dirty  bool   // Working tree had uncommitted changes (lock excluded).
+	// Commit is the short sha "abc1234" of the commit the version is of (see
+	// Derive), or empty when there is no commit.
+	Commit string
+	Dirty  bool   // The project had uncommitted changes (lock excluded).
 	Flavor string // ce|ee - a build fact, set by the build, not by Derive.
-	// Tag is the git tag the version is that of: the version tag HEAD is on,
-	// with a clean tree, named as git has it - v1.2.0 or 1.2.0 - so that a
-	// rockspec can name it. Empty for a version after a tag, a dirty tree, a
-	// VERSION file and the tagless fallback.
+	// Tag is the git tag the version is that of: the version tag on the
+	// commit the version is of, with a clean project, named as git has it -
+	// v1.2.0 or 1.2.0 - so that a rockspec can name it. Empty for a version
+	// after a tag, a dirty project, a VERSION file and the tagless fallback.
 	Tag string
 }
 
@@ -65,17 +67,41 @@ type versionTag struct {
 	version *goversion.Version // The version the name is.
 }
 
-// Derive determines the package version from the git tree rooted at dir and a
+// subtree is the part of its git repository a project is: all of it for a
+// project at the root, the directory of the project for one below it.
+type subtree struct {
+	// commit is the commit the version is of: HEAD at the root, below it the
+	// last commit of the history of HEAD that changed the directory, or
+	// empty when no commit did.
+	commit string
+	// pathspec limits git to the directory below the root, and is empty at
+	// the root.
+	pathspec []string
+}
+
+// Derive determines the package version from the git tree at dir and a
 // VERSION file in dir, if present.
 //
 // Source precedence:
 //  1. a VERSION file next to the manifest (one line, SemVer 2.0.0);
-//  2. the most recent version tag reachable from HEAD (git describe): v1.2.0
-//     or 1.2.0 (tagVersion), a tag of another name passed over;
-//  3. a tagless fallback of 0.0.0-dev.<N>+g<sha>, N = commits in HEAD's history.
+//  2. the most recent version tag reachable from the commit the version is
+//     of (git describe): v1.2.0 or 1.2.0 (tagVersion), a tag of another name
+//     passed over;
+//  3. a tagless fallback of 0.0.0-dev.<N>+g<sha>, N = commits in the history
+//     of that commit.
 //
 // Of the version tags on one commit, the version is that of the highest
 // version, and of v1.2.0 and 1.2.0, that of v1.2.0 (pickTag).
+//
+// The commit the version is of is HEAD when dir is the root of its
+// repository, and every uncommitted change of the tree marks it dirty. A
+// project in a subdirectory - one of a monorepo, a path dependency inside the
+// repository of its consumer - is versioned by its own subtree: the commit is
+// the last one that changed the directory and only a change under it marks
+// the version dirty, so neither a commit nor a change elsewhere in the
+// repository moves the version. A tag counts for the project on that commit
+// or before it, not on a later commit that left the directory alone; to
+// release such a project, tag a commit that changes it.
 //
 // A missing git binary or .git directory is not fatal: derivation falls through
 // to the next source rather than panicking.
@@ -89,14 +115,37 @@ func Derive(dir string) (Version, error) {
 		return ver, nil
 	}
 
-	dirty := isDirty(dir)
+	tree := gitSubtree(dir)
+	dirty := isDirty(dir, tree.pathspec)
 
-	ver, ok = deriveFromGitDescribe(dir, dirty)
+	ver, ok = deriveFromGitDescribe(dir, tree.commit, dirty)
 	if ok {
 		return ver, nil
 	}
 
-	return deriveFallback(dir, dirty), nil
+	return deriveFallback(dir, tree.commit, dirty), nil
+}
+
+// gitSubtree finds the part of its repository the project at dir is. Out of a
+// repository, git fails on HEAD as it does at the root of one with no commit.
+func gitSubtree(dir string) subtree {
+	prefix, err := runGit(dir, "rev-parse", "--show-prefix")
+	if err != nil || prefix == "" {
+		return subtree{commit: "HEAD", pathspec: nil}
+	}
+
+	// The pathspec "." is dir, git running in it. rev-list rather than log:
+	// no log.* setting of the user reaches its output.
+	pathspec := []string{"--", "."}
+
+	commit, err := runGit(dir, append([]string{"rev-list", "--max-count=1", "HEAD"},
+		pathspec...)...)
+	if err != nil {
+		// No commit in the repository yet.
+		commit = ""
+	}
+
+	return subtree{commit: commit, pathspec: pathspec}
 }
 
 // deriveFromFile reads the VERSION file. The file is an explicit pin: the
@@ -127,11 +176,16 @@ func deriveFromFile(dir string) (Version, bool, error) {
 	return ver, true, nil
 }
 
-// deriveFromGitDescribe runs git describe and applies the pre-release / dev
-// cycle rules. ok is false when no version tag is reachable, in which case the
-// caller falls back to deriveFallback.
-func deriveFromGitDescribe(dir string, dirty bool) (Version, bool) {
+// deriveFromGitDescribe runs git describe on commit, the commit the version is
+// of, and applies the pre-release / dev cycle rules. ok is false when there is
+// no commit or no version tag is reachable from it, in which case the caller
+// falls back to deriveFallback.
+func deriveFromGitDescribe(dir, commit string, dirty bool) (Version, bool) {
 	var ver Version
+
+	if commit == "" {
+		return ver, false
+	}
 
 	tags, skipped := listTags(dir)
 	if len(tags) == 0 {
@@ -139,7 +193,7 @@ func deriveFromGitDescribe(dir string, dirty bool) (Version, bool) {
 	}
 
 	// The globs keep the tags that cannot be versions out of the walk, and the
-	// names of those they match but tagVersion refuses (v2-final, 2026-11) are
+	// names of those they match but tagVersion refuses (v1.x, 2026-11) are
 	// excluded one by one, so the walk goes on to the nearest version tag past
 	// them. No tag name holds a glob character. --long always prints the
 	// <tag>-<N>-g<sha> form.
@@ -153,7 +207,7 @@ func deriveFromGitDescribe(dir string, dirty bool) (Version, bool) {
 		args = append(args, "--exclude", name)
 	}
 
-	out, err := runGit(dir, append(args, "HEAD")...)
+	out, err := runGit(dir, append(args, commit)...)
 	if err != nil {
 		return ver, false
 	}
@@ -309,24 +363,29 @@ func precedes(tag, other versionTag) bool {
 	return tag.name < other.name
 }
 
-// deriveFallback builds the tagless 0.0.0-dev.<N>+g<sha> version. N is the total
-// commit count of HEAD; both N and the sha degrade to empty values when git is
-// unavailable, yielding a still-valid 0.0.0-dev.0.
-func deriveFallback(dir string, dirty bool) Version {
+// deriveFallback builds the tagless 0.0.0-dev.<N>+g<sha> version of commit,
+// the commit the version is of. N is the total commit count of its history,
+// as git describe counts the commits since a tag in it: below the root, the
+// commits elsewhere in the repository count as well, up to the last one that
+// changed the directory, and none after it. Both N and the sha degrade to
+// empty values when git is unavailable or there is no commit, yielding a
+// still-valid 0.0.0-dev.0.
+func deriveFallback(dir, commit string, dirty bool) Version {
 	var ver Version
 
 	count := "0"
-
-	out, err := runGit(dir, "rev-list", "--count", "HEAD")
-	if err == nil {
-		count = out
-	}
-
 	sha := ""
 
-	out, err = runGit(dir, "rev-parse", "--short", "HEAD")
-	if err == nil {
-		sha = out
+	if commit != "" {
+		out, err := runGit(dir, "rev-list", "--count", commit)
+		if err == nil {
+			count = out
+		}
+
+		out, err = runGit(dir, "rev-parse", "--short", commit)
+		if err == nil {
+			sha = out
+		}
 	}
 
 	ver.SemVer = "0.0.0-dev." + count + buildMetadata(gitSHA(sha), dirty)
@@ -441,12 +500,14 @@ func shortSHA(sha string) string {
 	return strings.TrimPrefix(sha, "g")
 }
 
-// isDirty reports whether the working tree has uncommitted changes, ignoring
-// the manifest lock so a regenerated lock alone does not mark a clean release.
-func isDirty(dir string) bool {
+// isDirty reports whether the working tree has uncommitted changes in
+// pathspec, the directory of the project below the root of the repository and
+// all of it at the root, ignoring the manifest lock so a regenerated lock
+// alone does not mark a clean release.
+func isDirty(dir string, pathspec []string) bool {
 	// -z: no path is quoted, and the leading blank of the status of a change
 	// not staged (" M app.manifest.lock") is not trimmed off with the output.
-	out, err := gitOutput(dir, "status", "--porcelain", "-z")
+	out, err := gitOutput(dir, append([]string{"status", "--porcelain", "-z"}, pathspec...)...)
 	if err != nil {
 		return false
 	}

@@ -313,6 +313,89 @@ func TestPathManifestVersionMoveIsStale(t *testing.T) {
 	assert.Contains(t, reason, "is at version 2.0.1.dev.1.g")
 }
 
+// TestPathManifestInTheConsumersRepository pins that a neighbour inside the
+// repository of its consumer is versioned by its own directory: a commit and
+// an uncommitted change elsewhere in the repository - of the consumer, its
+// lock among them - leave the lock fresh, and a commit to the neighbour makes
+// it stale.
+func TestPathManifestInTheConsumersRepository(t *testing.T) {
+	t.Parallel()
+
+	_, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("git not found in PATH")
+	}
+
+	app, neighbour := pathManifestLayout(t, contribManifest)
+	require.NoError(t, os.Remove(filepath.Join(neighbour, "VERSION")))
+
+	base := filepath.Dir(app)
+
+	git := func(args ...string) {
+		t.Helper()
+
+		cmd := exec.CommandContext(t.Context(), "git", append([]string{"-C", base}, args...)...)
+		out, err := cmd.CombinedOutput()
+		require.NoErrorf(t, err, "git %v: %s", args, out)
+	}
+
+	git("init", "-q")
+	git("config", "user.email", "test@example.com")
+	git("config", "user.name", "Test")
+	git("config", "commit.gpgsign", "false")
+	git("add", "-A")
+	git("commit", "-q", "-m", "init")
+	git("tag", "v2.0.0")
+
+	man := parseManifest(t, consumerManifest)
+	engine := resolve.NewEngine(contribAdapter(t, neighbour), app, "tt 3.4.0")
+
+	lock, _, err := engine.Resolve(context.Background(), man)
+	require.NoError(t, err)
+	assert.Equal(t, "2.0.0-1", findDep(t, lock.Products["default"].Dependencies, "contrib").Version)
+
+	assertFresh := func(msg string) {
+		t.Helper()
+
+		stale, reason, err := resolve.IsStale(app, man, lock)
+		require.NoError(t, err)
+		assert.False(t, stale, "%s: %s", msg, reason)
+	}
+
+	writeTree(t, app, map[string]string{
+		"app.manifest.lock": "lock_version = '0.1'\n",
+		"init.lua":          "return 1\n",
+	})
+	git("add", "-A")
+	git("commit", "-q", "-m", "app")
+	git("commit", "--allow-empty", "-q", "-m", "empty")
+	assertFresh("a commit elsewhere")
+
+	writeTree(t, app, map[string]string{"init.lua": "return 2\n"})
+	writeTree(t, base, map[string]string{"README.md": "# all\n"})
+	assertFresh("an uncommitted change elsewhere")
+
+	writeTree(t, neighbour, map[string]string{"contrib/init.lua": "return 2\n"})
+
+	stale, reason, err := resolve.IsStale(app, man, lock)
+	require.NoError(t, err)
+	assert.True(t, stale)
+	assert.Contains(t, reason, `"contrib" changed on disk`)
+
+	lock, _, err = engine.Resolve(context.Background(), man)
+	require.NoError(t, err)
+	assertFresh("resolved with the change")
+
+	// The commits since the tag elsewhere count, up to the neighbour's.
+	git("add", "-A")
+	git("commit", "-q", "-m", "contrib")
+
+	stale, reason, err = resolve.IsStale(app, man, lock)
+	require.NoError(t, err)
+	assert.True(t, stale)
+	assert.Contains(t, reason, `"contrib" is at version 2.0.1.dev.3.g`)
+}
+
 // TestPathManifestConsumerDeclarationWins pins that a dependency the consumer
 // declares itself keeps the consumer's identity when a neighbour declares it
 // by path: the consumer's tree holds one rock of that name.
