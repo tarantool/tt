@@ -96,6 +96,15 @@ func (w *walker) walk(ctx context.Context, parent string, reqs []depReq, chain [
 			req = w.authoritative(req)
 		}
 
+		if req.name == tarantoolRock {
+			err := w.checkTarantool(parent, req)
+			if err != nil {
+				return err
+			}
+
+			continue
+		}
+
 		if deps.IsProvided(req.name) {
 			continue
 		}

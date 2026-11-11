@@ -40,19 +40,36 @@ type resolveCache struct {
 	// warnedMoving records the rocks pinned to a branch rather than a release,
 	// so that warning too is emitted once per run.
 	warnedMoving map[string]bool
+	// warnedTarantool records the warnings of the dependencies on tarantool
+	// the [platform].tarantool lower bound does not meet, so that warning too
+	// is emitted once per run.
+	warnedTarantool map[string]bool
 }
 
 func newResolveCache() *resolveCache {
 	return &resolveCache{
-		resolved:     map[string]rocks.ResolvedRock{},
-		metadata:     map[string]*luarocks.Rockspec{},
-		content:      map[string]string{},
-		local:        map[string]*luarocks.Rockspec{},
-		manifests:    map[string]*pathManifestDep{},
-		warnedNoMD5:  map[string]bool{},
-		droppedPins:  map[string]bool{},
-		warnedMoving: map[string]bool{},
+		resolved:        map[string]rocks.ResolvedRock{},
+		metadata:        map[string]*luarocks.Rockspec{},
+		content:         map[string]string{},
+		local:           map[string]*luarocks.Rockspec{},
+		manifests:       map[string]*pathManifestDep{},
+		warnedNoMD5:     map[string]bool{},
+		droppedPins:     map[string]bool{},
+		warnedMoving:    map[string]bool{},
+		warnedTarantool: map[string]bool{},
 	}
+}
+
+// markTarantool records the warning of a dependency on tarantool and reports
+// whether this is the first time in the run.
+func (c *resolveCache) markTarantool(warning string) bool {
+	if c.warnedTarantool[warning] {
+		return false
+	}
+
+	c.warnedTarantool[warning] = true
+
+	return true
 }
 
 // markNoMD5 records that the rock at url published no md5 and reports whether
