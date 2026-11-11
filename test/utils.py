@@ -1,5 +1,7 @@
 import glob
+import hashlib
 import ipaddress
+import json
 import os
 import pty
 import re
@@ -7,6 +9,7 @@ import shutil
 import socket
 import subprocess
 import time
+import zipfile
 from pathlib import Path
 
 import netifaces
@@ -113,6 +116,62 @@ def run_command_and_get_streams(cmd, cwd=None, env=None) -> tuple[int, str, str]
     print(process.stderr)
 
     return process.returncode, process.stdout, process.stderr
+
+
+def sha256_of(path: Path) -> str:
+    """The sha256 of the file at path, in hex."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+# The file name of a rock: <name>-<version>-<revision>.<arch>.rock.
+ROCK_FILE = re.compile(r"(?P<name>.+?)-(?P<version>[^-]+-\d+)\.(?P<arch>[^.]+)\.rock")
+
+
+def write_rock_index(server: Path, packed: Path, yanked: tuple[str, ...] = ()) -> dict:
+    """Make server a rock server that publishes a tt-rocks-index.json and
+    nothing else of LuaRocks: the rocks in packed are laid out as release
+    pages hold them, a directory per version with the rockspec the rocks
+    bundle, and the index names them by URLs relative to it. A version whose
+    <name>-<version> yanked lists is yanked.
+
+    Returns the sha256 of every file by version and arch, the rockspec under
+    "rockspec", as a lock is to pin them."""
+    repository: dict = {}
+    digests: dict = {}
+    for rock in sorted(packed.glob("*.rock")):
+        match = ROCK_FILE.fullmatch(rock.name)
+        name, version, arch = match["name"], match["version"], match["arch"]
+        release = Path("releases") / f"{name}-{version}"
+        (server / release).mkdir(parents=True, exist_ok=True)
+        (server / release / rock.name).write_bytes(rock.read_bytes())
+
+        entry = repository.setdefault(name, {}).setdefault(version, {"artifacts": []})
+        entry["artifacts"].append(
+            {
+                "arch": arch,
+                "sha256": sha256_of(rock),
+                "size": rock.stat().st_size,
+                "url": f"{release.as_posix()}/{rock.name}",
+            },
+        )
+        digests.setdefault(version, {})[arch] = sha256_of(rock)
+
+        spec = f"{name}-{version}.rockspec"
+        if "rockspec" not in entry:
+            with zipfile.ZipFile(rock) as archive:
+                (server / release / spec).write_bytes(archive.read(spec))
+            entry["rockspec"] = {
+                "sha256": sha256_of(server / release / spec),
+                "url": f"{release.as_posix()}/{spec}",
+            }
+            digests[version]["rockspec"] = entry["rockspec"]["sha256"]
+        if f"{name}-{version}" in yanked:
+            entry["yanked"] = True
+
+    (server / "tt-rocks-index.json").write_text(
+        json.dumps({"format": 1, "repository": repository}, indent=2, sort_keys=True),
+    )
+    return digests
 
 
 def ignored_module_warning(module: str, directory: Path) -> str:

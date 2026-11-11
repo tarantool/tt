@@ -20,7 +20,7 @@ the system scope.
 │   ├── tcm/tcm_1.3.1/
 │   ├── tarantool-sdk/                    # which SDK components belong together
 │   └── kv-api/kv-api_1.1.0/              # an installed application (user, system)
-├── registry/                             # the rock server of tt wasm prepare (project)
+├── registry/                             # the rock server of tt wasm/emmylua prepare --from (project)
 ├── apps/
 │   └── kv-api -> ../versions/kv-api/kv-api_1.1.0
 ├── etc/
@@ -45,9 +45,9 @@ the system scope.
 | `log/.../tt.log` | everything the instance writes and the messages of its watchdog |
 
 `tt wasm prepare` adds to the root of a project what WebAssembly components
-are built with: `registry/`, a rock server holding the `wasm` rock of this
-machine, and, under `versions/`, tarawasm and the tools tt installs, each
-linked into `bin/`:
+are built with: under `versions/`, tarawasm and the tools tt installs, each
+linked into `bin/`, and, with `--from`, `registry/`, a rock server holding
+the `wasm` rock of a local build for this machine:
 
 ```text
 .tarantool/

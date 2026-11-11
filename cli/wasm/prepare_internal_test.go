@@ -125,114 +125,145 @@ func TestFetchIgnoresCorruptCache(t *testing.T) {
 	assert.Equal(t, int32(1), hits.Load())
 }
 
-func TestPrepareRequiresManifest(t *testing.T) {
-	t.Parallel()
-
-	_, err := Prepare(context.Background(), Options{
-		ProjectDir:   t.TempDir(),
+// prepareOptions are the options of a Prepare of project that installs no
+// tarawasm and records the declarations it makes in declared.
+func prepareOptions(project string, declared *[]string) Options {
+	return Options{
+		ProjectDir:   project,
 		Version:      "",
 		Fetcher:      Fetcher{CacheDir: "", Client: nil},
 		Tarawasm:     Tarawasm{Python: "", Source: "", Reinstall: false, Output: nil, binDir: ""},
 		SkipTarawasm: true,
 		Language:     "",
+		From:         "",
 		RockServer:   "",
-		Declare:      nil,
-		PrepareEnv:   nil,
-		Progress:     nil,
-	})
-	require.ErrorIs(t, err, ErrNoManifest)
+		Declare: func(_ context.Context, name, constraint, registry string) (bool, error) {
+			*declared = append(*declared, name+" "+constraint+" "+registry)
+
+			return false, nil
+		},
+		PrepareEnv: nil,
+		Progress:   nil,
+	}
 }
 
-func TestPrepareUnknownRelease(t *testing.T) {
-	t.Parallel()
+// testProject is a directory with a manifest.
+func testProject(t *testing.T) string {
+	t.Helper()
 
 	project := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(project, manifestFileName), nil, filePerm))
 
-	_, err := Prepare(context.Background(), Options{
-		ProjectDir:   project,
-		Version:      "9.9.9",
-		Fetcher:      Fetcher{CacheDir: "", Client: nil},
-		Tarawasm:     Tarawasm{Python: "", Source: "", Reinstall: false, Output: nil, binDir: ""},
-		SkipTarawasm: true,
-		Language:     "",
-		RockServer:   "",
-		Declare:      nil,
-		PrepareEnv:   nil,
-		Progress:     nil,
-	})
-	require.ErrorIs(t, err, ErrUnknownRelease)
+	return project
 }
 
-// TestPreparePacksAndDeclares runs Prepare with the network and the manifest
-// edit faked: the module the server sends is checked, packed into the
-// project's registry, and declared from there.
-func TestPreparePacksAndDeclares(t *testing.T) {
+func TestPrepareRequiresManifest(t *testing.T) {
 	t.Parallel()
 
-	release := testRelease(t)
+	var declared []string
 
-	platform, err := release.HostPlatform()
+	_, err := Prepare(context.Background(), prepareOptions(t.TempDir(), &declared))
+	require.ErrorIs(t, err, ErrNoManifest)
+	assert.Empty(t, declared)
+}
+
+// TestPrepareFromUnknownRelease checks that a local build is packed only for
+// a release tt knows: the rockspec is written from it.
+func TestPrepareFromUnknownRelease(t *testing.T) {
+	t.Parallel()
+
+	var declared []string
+
+	opts := prepareOptions(testProject(t), &declared)
+
+	opts.Version = "9.9.9"
+	opts.From = filepath.Join(t.TempDir(), "module.so")
+
+	_, err := Prepare(context.Background(), opts)
+	require.ErrorIs(t, err, ErrUnknownRelease)
+	assert.Empty(t, declared)
+}
+
+// TestPrepareDeclaresFromTheRockServer checks that, without a local build,
+// nothing is packed or downloaded and the rock is declared from the rock
+// server: DefaultRockServer when none is named, and at any version.
+func TestPrepareDeclaresFromTheRockServer(t *testing.T) {
+	t.Parallel()
+
+	project := testProject(t)
+
+	var declared []string
+
+	report, err := Prepare(context.Background(), prepareOptions(project, &declared))
+	require.NoError(t, err)
+	assert.Equal(t, DefaultRockServer, report.Registry)
+	assert.Empty(t, report.Rock)
+	assert.Equal(t, hostRockArch(), report.Platform.RockArch)
+	assert.True(t, report.Declared)
+
+	opts := prepareOptions(project, &declared)
+
+	opts.Version = "9.9.9"
+	opts.RockServer = "https://rocks.example/"
+
+	report, err = Prepare(context.Background(), opts)
+	require.NoError(t, err)
+	assert.Equal(t, "https://rocks.example/", report.Registry)
+	assert.Equal(t, "9.9.9", report.Release.Version)
+
+	assert.Equal(t, []string{
+		"wasm 0.1.0 " + DefaultRockServer,
+		"wasm 9.9.9 https://rocks.example/",
+	}, declared)
+	assert.NoDirExists(t, filepath.Join(project, ".tarantool"))
+}
+
+// TestPreparePacksTheLocalBuild checks that --from packs the module as the
+// rock of this host into the project's registry, indexes it and declares
+// the rock from there.
+func TestPreparePacksTheLocalBuild(t *testing.T) {
+	t.Parallel()
+
+	_, err := LocalPlatform("")
 	if err != nil {
-		t.Skipf("the release has no build for this host: %v", err)
+		t.Skipf("no rock for this host: %v", err)
 	}
 
-	project := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(project, manifestFileName), nil, filePerm))
-
-	module := []byte("module bytes")
-	server, _ := assetServer(t, module)
-
-	// The table holds the real checksum; the fake module needs its own.
-	release.Platforms = []Platform{platform}
-	release.Platforms[0].SHA256 = fetch.SHA256(module)
+	project := testProject(t)
+	module := filepath.Join(t.TempDir(), "module.so")
+	require.NoError(t, os.WriteFile(module, []byte("module bytes"), filePerm))
 
 	var declared []string
 
 	envWritten := false
 
-	opts := Options{
-		ProjectDir:   project,
-		Version:      "",
-		Fetcher:      Fetcher{CacheDir: "", Client: redirectingClient(server)},
-		Tarawasm:     Tarawasm{Python: "", Source: "", Reinstall: false, Output: nil, binDir: ""},
-		SkipTarawasm: true,
-		Language:     "",
-		RockServer:   "",
-		Declare: func(_ context.Context, name, constraint, registry string) (bool, error) {
-			declared = append(declared, name, constraint, registry)
+	opts := prepareOptions(project, &declared)
 
-			return false, nil
-		},
-		PrepareEnv: func() error {
-			envWritten = true
+	opts.From = module
+	opts.PrepareEnv = func() error {
+		envWritten = true
 
-			return nil
-		},
-		Progress: nil,
+		return nil
 	}
 
-	report := &Report{
-		Release:           release,
-		Platform:          release.Platforms[0],
-		Rock:              "",
-		Registry:          RegistryDir,
-		Declared:          false,
-		Tarawasm:          nil,
-		TarawasmInstalled: false,
-		Languages:         nil,
-		Components:        nil,
-	}
-
-	require.NoError(t, prepareRock(context.Background(), opts, report))
-	require.NoError(t, opts.PrepareEnv())
+	report, err := Prepare(context.Background(), opts)
+	require.NoError(t, err)
 
 	registry := filepath.Join(project, filepath.FromSlash(RegistryDir))
-	assert.Equal(t, filepath.Join(registry, release.RockFileName(platform)), report.Rock)
+
+	assert.Equal(t, filepath.Join(registry, report.Release.RockFileName(report.Platform)),
+		report.Rock)
+	assert.Equal(t, "wasm-0.1.0-1."+hostRockArch()+".rock", filepath.Base(report.Rock))
 	assert.FileExists(t, filepath.Join(registry, registryManifestName))
-	assert.Equal(t, []string{RockName, release.Version, RegistryDir}, declared)
+	assert.Equal(t, []string{"wasm 0.1.0 " + RegistryDir}, declared)
+	assert.Equal(t, RegistryDir, report.Registry)
 	assert.True(t, report.Declared)
 	assert.True(t, envWritten)
+
+	opts.From = filepath.Join(t.TempDir(), "none.so")
+
+	_, err = Prepare(context.Background(), opts)
+	require.ErrorContains(t, err, "reading the build")
 }
 
 func TestRelinkReplacesLinkAndRefusesFiles(t *testing.T) {

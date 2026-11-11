@@ -1,13 +1,15 @@
 // Package wasm prepares a project for tarantool-wasm
 // (github.com/tarantool/tarantool-wasm-rs) until tt builds WebAssembly
-// components itself: it turns a released native module into a binary rock in
-// a registry inside the project, declares the wasm dependency on it and puts
-// tarawasm, which builds the components for now, where the project's builds
-// find it.
+// components itself: it declares the wasm dependency - the binary rock of the
+// native module, from a rock server, or packed from a local build into a
+// registry inside the project - and puts tarawasm, which builds the
+// components for now, where the project's builds find it.
 //
-// It is a stopgap, not the shape of the feature: the rock belongs on a rock
-// server and the components to build backends of tt. Until then the releases
-// tt knows about, and the checksums it holds them to, are written down here.
+// It is a stopgap, not the shape of the feature: the components belong to
+// build backends of tt. The rock of every platform is served by a rock
+// server, DefaultRockServer unless the project is told another; the releases
+// tt knows about, and the checksums it holds their assets to, are written
+// down here for what packs the rock itself: prepare --from and tt wasm rock.
 package wasm
 
 import (

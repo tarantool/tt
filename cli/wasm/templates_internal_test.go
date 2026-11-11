@@ -103,25 +103,73 @@ func TestStatusOfAnUnpreparedProject(t *testing.T) {
 	assert.Contains(t, joined, "the python toolchain is not ready")
 }
 
-func TestStatusOfARockServer(t *testing.T) {
-	project := writeProject(t, "0.1.0")
+// declareFrom rewrites the wasm declaration of the project writeProject
+// writes to name registry and version.
+func declareFrom(t *testing.T, project, registry, version string) {
+	t.Helper()
+
 	path := filepath.Join(project, manifestFileName)
 
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(path, []byte(strings.Replace(string(data),
-		`registry = ".tarantool/registry"`, `registry = "https://rocks.example.test/v0.1.0/"`, 1)),
-		filePerm))
+
+	text := strings.Replace(string(data), `registry = ".tarantool/registry"`,
+		`registry = "`+registry+`"`, 1)
+
+	text = strings.Replace(text, `version = "0.1.0"`, `version = "`+version+`"`, 1)
+	require.NoError(t, os.WriteFile(path, []byte(text), filePerm))
+}
+
+// TestStatusOfARockServer checks that a rock server - a URL, or a directory
+// with a rock index - is not looked into, whatever version it is declared
+// at: a build fetches the rock from it.
+func TestStatusOfARockServer(t *testing.T) {
+	for _, version := range []string{"0.1.0", "9.9.9"} {
+		project := writeProject(t, version)
+		declareFrom(t, project, "https://rocks.example.test/v0.1.0/", version)
+
+		report, err := Status(context.Background(), project)
+		require.NoError(t, err)
+
+		assert.Equal(t, version, report.Declared)
+		assert.True(t, report.FromServer)
+		assert.Empty(t, report.Rock)
+
+		for _, problem := range report.Problems {
+			assert.NotContains(t, problem, "no wasm-", "a rock server is not looked into")
+			assert.NotContains(t, problem, "unknown release")
+		}
+	}
+
+	project := writeProject(t, "0.1.0")
+	index := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(index, "tt-rocks-index.json"),
+		[]byte(`{"format": 1, "repository": {}}`), filePerm))
+	declareFrom(t, project, index, "0.1.0")
 
 	report, err := Status(context.Background(), project)
 	require.NoError(t, err)
+	assert.True(t, report.FromServer)
+}
 
-	_, hostErr := testRelease(t).HostPlatform()
-	if hostErr == nil {
-		assert.Contains(t, report.Rock, "https://rocks.example.test/v0.1.0/wasm-0.1.0-1.")
-	}
+// TestStatusFindsTheRockOfTheRegistry checks that a directory with rocks of
+// its own must hold one of the declared version for this host.
+func TestStatusFindsTheRockOfTheRegistry(t *testing.T) {
+	project := writeProject(t, "0.1.0")
 
-	for _, problem := range report.Problems {
-		assert.NotContains(t, problem, "no wasm-0.1.0-1", "a rock server is not looked into")
-	}
+	report, err := Status(context.Background(), project)
+	require.NoError(t, err)
+	assert.Empty(t, report.Rock)
+	assert.Contains(t, strings.Join(report.Problems, "\n"),
+		"no wasm-0.1.0-*."+hostRockArch()+".rock in .tarantool/registry")
+
+	registry := filepath.Join(project, ".tarantool", "registry")
+	rock := filepath.Join(registry, "wasm-0.1.0-2."+hostRockArch()+".rock")
+	require.NoError(t, os.MkdirAll(registry, dirPerm))
+	require.NoError(t, os.WriteFile(rock, nil, filePerm))
+
+	report, err = Status(context.Background(), project)
+	require.NoError(t, err)
+	assert.Equal(t, rock, report.Rock)
+	assert.False(t, report.FromServer)
 }

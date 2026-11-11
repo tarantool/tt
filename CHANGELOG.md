@@ -104,6 +104,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- `tt wasm prepare` declares the `wasm` rock from the rock index of
+  tarantool-contrib/rocks-repo
+  (`https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/`,
+  the default of `--rock-server`) instead of downloading the native module
+  and packing it into `.tarantool/registry`: the lock pins the rock of every
+  platform, so an archive packed `--without-deps` installs anywhere. The new
+  `--from <module>` packs a local build into `.tarantool/registry` as the
+  rock of this host. A rock server takes any `--version`; `--from` and
+  `tt wasm rock` take a release tt knows, and `tt wasm status` no longer
+  needs one.
 - `tt rocks` leaves out, with a warning, a rock server of `TT_REGISTRIES`,
   `[platform].registries` or `TT_CLI_REPO_ROCKS` that publishes nothing but a
   `tt-rocks-index.json`, which LuaRocks does not read, and fails on one

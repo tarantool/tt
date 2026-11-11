@@ -19,7 +19,7 @@
 │   ├── tcm/tcm_1.3.1/
 │   ├── tarantool-sdk/                    # какие компоненты SDK используются вместе
 │   └── kv-api/kv-api_1.1.0/              # установленное приложение (user, system)
-├── registry/                             # rock-сервер для tt wasm prepare (project)
+├── registry/                             # rock-сервер для tt wasm/emmylua prepare --from (project)
 ├── apps/
 │   └── kv-api -> ../versions/kv-api/kv-api_1.1.0
 ├── etc/
@@ -44,9 +44,10 @@
 | `log/.../tt.log` | всё, что выводит инстанс, и сообщения его watchdog |
 
 `tt wasm prepare` добавляет в корень проекта всё необходимое для сборки
-компонентов WebAssembly: `registry/` - rock-сервер с rock-пакетом `wasm` для
-текущей машины, а также tarawasm и утилиты, которые устанавливает tt, под
-`versions/`, с символическими ссылками в `bin/`:
+компонентов WebAssembly: tarawasm и утилиты, которые устанавливает tt, под
+`versions/`, с символическими ссылками в `bin/`, а с `--from` - ещё и
+`registry/`, rock-сервер с rock-пакетом `wasm` локальной сборки для текущей
+машины:
 
 ```text
 .tarantool/
