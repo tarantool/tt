@@ -82,7 +82,7 @@ func EnsureDevRocks(
 		return nil
 	}
 
-	registryClient, err := adapter.Client(client.BackendLua)
+	registryClient, err := adapter.Client(client.BackendNative)
 	if err != nil {
 		return fmt.Errorf("rocks registry client: %w", err)
 	}
