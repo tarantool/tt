@@ -100,6 +100,10 @@ type Package struct {
 	Name string
 	// Version is the package's SemVer version; RockVersion gives the rock's.
 	Version string
+	// Revision is the LuaRocks revision of the rock; 0 is 1, the revision of
+	// the rock of a package tt installs from its own files. A rock built from
+	// the source rock of a release keeps the revision of the release.
+	Revision int
 	// Summary is the package's description, if any.
 	Summary string
 	// Dependencies are the rocks the package requires, each at the version
@@ -115,7 +119,7 @@ type Package struct {
 // none, and its programs are deployed as they are rather than behind the
 // command wrappers of Lua scripts.
 func Rockspec(pkg Package) (*luarocks.Rockspec, error) {
-	version, err := RockVersion(pkg.Version)
+	version, err := RockVersionAt(pkg.Version, max(pkg.Revision, 1))
 	if err != nil {
 		return nil, fmt.Errorf("the rock of %s %s: %w", pkg.Name, pkg.Version, err)
 	}

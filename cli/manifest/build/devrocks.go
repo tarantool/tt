@@ -106,8 +106,13 @@ func EnsureDevRocks(
 	// rocks missing from the tree.
 	manifests := newPathManifests(opts, adapter, closure)
 
-	err = materialize(ctx, registryClient, pathClient, manifests, opts.ProjectDir,
-		manifest.LockProduct{}, missing, servers)
+	srcs, err := newSrcRocks(opts, adapter, manifests)
+	if err != nil {
+		return err
+	}
+
+	err = materialize(ctx, srcInstaller{installer: registryClient, srcs: srcs}, pathClient,
+		manifests, opts.ProjectDir, manifest.LockProduct{}, missing, servers)
 	if err != nil {
 		return err
 	}

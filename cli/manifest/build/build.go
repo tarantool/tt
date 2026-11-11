@@ -306,8 +306,13 @@ func materializeLock(
 
 	manifests := newPathManifests(opts, adapter, prod.Dependencies, lock.DevDependencies)
 
-	err = materialize(ctx, registryClient, pathClient, manifests, opts.ProjectDir, prod,
-		lock.DevDependencies, servers)
+	srcs, err := newSrcRocks(opts, adapter, manifests)
+	if err != nil {
+		return err
+	}
+
+	err = materialize(ctx, srcInstaller{installer: registryClient, srcs: srcs}, pathClient,
+		manifests, opts.ProjectDir, prod, lock.DevDependencies, servers)
 	if err != nil {
 		return err
 	}
