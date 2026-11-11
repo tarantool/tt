@@ -55,12 +55,21 @@ func installPackageRock(
 		}
 	}
 
-	spec, err := rocktree.Rockspec(rocktree.Package{
+	return installStage(ctx, cfg, rocktree.Package{
 		Name:         name,
 		Version:      ver.SemVer,
 		Summary:      man.Package.Description,
 		Dependencies: rocktree.PackageDependencies(man, productName, prod),
-	})
+	}, stage)
+}
+
+// installStage installs stage into the rocks tree of cfg as the rock of pkg,
+// replacing its other versions (rocktree.InstallPackage): the rock of the
+// package itself, or that of a path dependency holding a manifest.
+func installStage(
+	ctx context.Context, cfg luarocks.Config, pkg rocktree.Package, stage string,
+) error {
+	spec, err := rocktree.Rockspec(pkg)
 	if err != nil {
 		return sdk.Errorf(sdk.ExitFailure, "%w", err)
 	}
@@ -80,7 +89,7 @@ func installPackageRock(
 		return rocktree.InstallPackage(change, rocksTree.Tree, spec, stage)
 	})
 	if err != nil {
-		return sdk.Errorf(sdk.ExitFailure, "installing the package into %s: %w", cfg.Tree, err)
+		return sdk.Errorf(sdk.ExitFailure, "installing %s into %s: %w", pkg.Name, cfg.Tree, err)
 	}
 
 	return nil

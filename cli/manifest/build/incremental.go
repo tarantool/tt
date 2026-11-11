@@ -151,18 +151,19 @@ func hashFile(digest io.Writer, path, rel string) error {
 	return nil
 }
 
-// incrementalPath is where the last build of component is recorded.
-func incrementalPath(projectDir, component string) string {
-	return filepath.Join(projectDir, buildDirName, cacheDirName, component+".json")
+// incrementalPath is where the last build of component is recorded, under
+// stateDir, the directory of the build's own state (project.stateDir).
+func incrementalPath(stateDir, component string) string {
+	return filepath.Join(stateDir, cacheDirName, component+".json")
 }
 
 // readIncremental reads the record of the last build of component; false
 // when there is none, or one that cannot be read: the next build writes it
 // again.
-func readIncremental(projectDir, component string) (incrementalRecord, bool) {
+func readIncremental(stateDir, component string) (incrementalRecord, bool) {
 	var record incrementalRecord
 
-	data, err := os.ReadFile(incrementalPath(projectDir, component))
+	data, err := os.ReadFile(incrementalPath(stateDir, component))
 	if err != nil {
 		return record, false
 	}
@@ -171,8 +172,8 @@ func readIncremental(projectDir, component string) (incrementalRecord, bool) {
 }
 
 // writeIncremental records the build of component.
-func writeIncremental(projectDir, component string, record incrementalRecord) error {
-	path := incrementalPath(projectDir, component)
+func writeIncremental(stateDir, component string, record incrementalRecord) error {
+	path := incrementalPath(stateDir, component)
 
 	data, err := json.Marshal(record)
 	if err != nil {

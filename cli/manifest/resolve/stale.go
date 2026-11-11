@@ -8,9 +8,10 @@ import (
 )
 
 // IsStale reports whether lock no longer reflects m, and why. A lock goes stale
-// from exactly four things: the manifest's raw bytes changed (manifest_hash
+// from exactly five things: the manifest's raw bytes changed (manifest_hash
 // diverged), a path dependency's local content changed (its content_hash
-// diverged), the manifest declares dev dependencies the lock holds no closure
+// diverged), the version of a path dependency holding a manifest moved (see
+// pathStale), the manifest declares dev dependencies the lock holds no closure
 // for, or one of the manifest's effective products has no closure in the lock.
 // New registry versions never make a lock stale - only an explicit tt package
 // update pulls them; a changed tt version or package VERSION does not either.
@@ -62,10 +63,6 @@ func IsStale(
 		}
 	}
 
-	// A path dependency shared by several products, or by a product and the dev
-	// closure, is hashed once rather than once per closure referencing it.
-	hashes := map[string]string{}
-
 	closures := make([][]manifest.LockDependency, 0, len(lock.Products)+1)
 	for _, product := range sortedKeys(lock.Products) {
 		closures = append(closures, lock.Products[product].Dependencies)
@@ -75,29 +72,66 @@ func IsStale(
 	// helper directory that changed has to re-resolve exactly like a runtime one.
 	closures = append(closures, lock.DevDependencies)
 
+	// A path dependency shared by several products, or by a product and the dev
+	// closure, is checked once rather than once per closure referencing it.
+	checked := map[string]bool{}
+
 	for _, closure := range closures {
 		for _, dependency := range closure {
-			if dependency.Source != manifestSourcePath {
+			key := dependency.Name + "\x00" + dependency.Path
+			if dependency.Source != manifestSourcePath || checked[key] {
 				continue
 			}
 
-			hash, cached := hashes[dependency.Path]
-			if !cached {
-				computed, err := contentHash(filepath.Join(projectDir, dependency.Path))
-				if err != nil {
-					return false, "", fmt.Errorf(
-						"checking path dependency %q: %w", dependency.Name, err)
-				}
+			checked[key] = true
 
-				hash = computed
-				hashes[dependency.Path] = computed
-			}
-
-			if hash != dependency.ContentHash {
-				return true, fmt.Sprintf("path dependency %q changed on disk", dependency.Name), nil
+			reason, err := pathStale(projectDir, dependency)
+			if err != nil || reason != "" {
+				return reason != "", reason, err
 			}
 		}
 	}
 
 	return false, "", nil
+}
+
+// pathStale reports why the lock entry dependency of a path dependency no
+// longer reflects its directory, or "" when it does: its content hash
+// diverged (pathContentHash), or, for one holding a manifest, its version
+// moved - a commit or a tag changes the version git derives without changing a
+// file the hash covers, and the lock has to name the version of the rock that
+// gets installed.
+func pathStale(projectDir string, dependency manifest.LockDependency) (string, error) {
+	dir := filepath.Join(projectDir, dependency.Path)
+
+	hash, err := pathContentHash(dir)
+	if err != nil {
+		return "", fmt.Errorf("checking path dependency %q: %w", dependency.Name, err)
+	}
+
+	if hash != dependency.ContentHash {
+		return fmt.Sprintf("path dependency %q changed on disk", dependency.Name), nil
+	}
+
+	isManifest, err := IsPathManifest(dir)
+	if err != nil || !isManifest {
+		return "", err
+	}
+
+	neighbour, err := LoadPathManifest(dependency.Name, dir)
+	if err != nil {
+		return "", err
+	}
+
+	_, rockVersion, err := neighbour.Version()
+	if err != nil {
+		return "", err
+	}
+
+	if rockVersion != dependency.Version {
+		return fmt.Sprintf("path dependency %q is at version %s now, the lock has %s",
+			dependency.Name, rockVersion, dependency.Version), nil
+	}
+
+	return "", nil
 }

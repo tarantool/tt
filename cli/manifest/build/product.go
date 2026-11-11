@@ -26,19 +26,12 @@ func selectProduct(man *manifest.Manifest, name string) (string, manifest.Produc
 		return name, product, nil
 	}
 
-	if len(products) == 1 {
-		for only, product := range products {
-			return only, product, nil
-		}
+	chosen, product, ok := man.DefaultProduct()
+	if !ok {
+		return "", manifest.Product{}, errNoDefaultProduct
 	}
 
-	for chosen, product := range products {
-		if product.Default {
-			return chosen, product, nil
-		}
-	}
-
-	return "", manifest.Product{}, errNoDefaultProduct
+	return chosen, product, nil
 }
 
 // selectComponents returns the component names the build processes for product:

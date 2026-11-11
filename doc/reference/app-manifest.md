@@ -93,7 +93,7 @@ or in the long form:
 | --- | --- |
 | `source` | `"registry"` (the default) or `"path"` |
 | `version` | the constraint; required for `registry` |
-| `path` | a directory with the rock, relative to the manifest; required for `path` |
+| `path` | a directory with the rock, relative to the manifest; required for `path`. See [Path dependencies](#path-dependencies) |
 | `registry` | a rock server to take this rock from: an http(s) URL, or a directory relative to the manifest |
 
 A rock with a `registry` is resolved and installed from that server only;
@@ -102,6 +102,36 @@ the rocks it depends on come from the registries of the project.
 `[dev_dependencies]` are installed for the tests and tools of the project,
 and are not packed. A component may declare dependencies of its own in
 `[components.<name>.dependencies]`.
+
+### Path dependencies
+
+A `path` dependency is built from its directory, by what the directory holds:
+
+- `app.manifest.toml`: the directory is a project of its own, and tt builds
+  it the way `tt package build` builds a package - the components of its
+  default product, their layout and `version.lua` - and installs it into
+  `.rocks/` as the rock of its package. The dependency is named after that
+  package. Its version is the one tt derives in its directory, and its
+  dependencies are those of its default product, resolved with the
+  project's own: a `path` one is relative to the dependency, a `registry`
+  one keeps its server. Its `[dev_dependencies]`, its lock and its hooks are
+  not used, and a rockspec beside the manifest is ignored, with a warning.
+- a `*.rockspec`: tt builds the rock it describes.
+- neither: there is nothing to build, and the lock only pins the directory.
+
+The lock pins a path dependency by a hash of its files. The hash of a
+dependency with a manifest leaves out `.git/`, `_build/`, `.rocks/`,
+`_runtime/`, its `app.manifest.lock` and what its `.gitignore` files ignore,
+so neither its own build nor the project's makes the lock out of date; a
+new version of it does, even one that only a commit or a tag makes. tt
+builds such a dependency in `_build/path/<name>/` of the project and leaves
+its directory as it is, but for what its build backends write there
+themselves.
+
+```toml
+[dependencies]
+memcached-contrib = { source = "path", path = "../memcached-contrib" }
+```
 
 ## `[components.NAME]`
 
