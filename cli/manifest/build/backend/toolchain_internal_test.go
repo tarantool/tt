@@ -336,6 +336,85 @@ func TestCargoBackendBuildsAStaticBinary(t *testing.T) {
 	assert.Equal(t, "agent", runProgram(t, filepath.Join(out, "agent")))
 }
 
+// unsetCargoTargetDir clears the target directory tt's own environment may
+// name, which a build inherits. A test calling it cannot run in parallel.
+func unsetCargoTargetDir(t *testing.T) {
+	t.Helper()
+
+	for _, key := range cargoTargetDirKeys {
+		t.Setenv(key, "")
+		require.NoError(t, os.Unsetenv(key))
+	}
+}
+
+// TestCargoEnviron: a cargo build gets CARGO_TARGET_DIR of the project,
+// unless the environment of the build names a target directory itself.
+func TestCargoEnviron(t *testing.T) {
+	unsetCargoTargetDir(t)
+
+	env := Env{CargoTargetDir: "/proj/_build/cargo"}
+	assert.Equal(t, "/proj/_build/cargo", lastEnvValue(cargoEnviron(env), "CARGO_TARGET_DIR"))
+
+	for _, key := range cargoTargetDirKeys {
+		env.Extra = map[string]string{key: "/mine"}
+
+		got := cargoEnviron(env)
+		assert.Equal(t, "/mine", lastEnvValue(got, key))
+		assert.Equal(t, -1, indexOfEnv(got, "CARGO_TARGET_DIR=/proj/_build/cargo"), key)
+	}
+
+	// An empty one names none: cargo refuses it.
+	env.Extra = map[string]string{"CARGO_TARGET_DIR": ""}
+	assert.Equal(t, "/proj/_build/cargo", lastEnvValue(cargoEnviron(env), "CARGO_TARGET_DIR"))
+
+	_, ok := lookupEnv(cargoEnviron(Env{}), "CARGO_TARGET_DIR")
+	assert.False(t, ok, "no target directory of the project: cargo's own")
+
+	t.Setenv("CARGO_TARGET_DIR", "/inherited")
+	assert.Equal(t, "/inherited", lastEnvValue(cargoEnviron(Env{CargoTargetDir: "/proj"}),
+		"CARGO_TARGET_DIR"))
+}
+
+// TestCargoBackendBuildsInTheTargetDir: cargo builds in the target directory
+// of the project, leaving no target/ in the sources, and the backend finds
+// what it built there, from scratch and when cargo has nothing to do.
+func TestCargoBackendBuildsInTheTargetDir(t *testing.T) {
+	requireCargo(t, "")
+	unsetCargoTargetDir(t)
+
+	targetDir := filepath.Join(t.TempDir(), "cargo")
+
+	for _, crate := range []struct {
+		dir   string
+		build manifest.Build
+		env   Env
+		file  string
+	}{
+		{
+			dir:   cargoCrate(t),
+			build: manifest.Build{Backend: BackendCargo, Bin: "agent", Profile: "dev"},
+			env:   Env{Component: "agent", CargoTargetDir: targetDir},
+			file:  "agent",
+		},
+		{
+			dir:   cargoLibraryCrate(t),
+			build: manifest.Build{Backend: BackendCargo, Profile: "dev"},
+			env:   Env{Component: "lib", Module: true, CargoTargetDir: targetDir},
+			file:  "agent_lib" + moduleExt(runtime.GOOS, linuxModuleExt),
+		},
+	} {
+		for range 2 {
+			crate.env.OutputDir = t.TempDir()
+
+			require.NoError(t, cargoBackend{}.Run(context.Background(), crate.build, crate.dir,
+				crate.env))
+			assert.FileExists(t, filepath.Join(crate.env.OutputDir, crate.file))
+			assert.NoDirExists(t, filepath.Join(crate.dir, "target"))
+			assert.DirExists(t, filepath.Join(targetDir, "debug"))
+		}
+	}
+}
+
 func TestCargoBackendUnknownBinIsAnError(t *testing.T) {
 	t.Parallel()
 	requireCargo(t, "")

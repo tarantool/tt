@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -476,16 +477,29 @@ func TestRun_fetchWithoutLockFails(t *testing.T) {
 	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
 }
 
-// TestRun_cargoModule builds a module component with cargo: its library is a
-// native module of the namespace of the package, and nothing of the target/
-// cargo leaves in the component is laid out.
-func TestRun_cargoModule(t *testing.T) {
-	t.Parallel()
+// requireCargo skips the test without cargo in PATH. It clears the target
+// directory the environment of tt may name, so that the test cannot run in
+// parallel.
+func requireCargo(t *testing.T) {
+	t.Helper()
 
 	_, err := exec.LookPath("cargo")
 	if err != nil {
 		t.Skip("cargo is not in PATH")
 	}
+
+	for _, key := range []string{"CARGO_TARGET_DIR", "CARGO_BUILD_TARGET_DIR"} {
+		t.Setenv(key, "")
+		require.NoError(t, os.Unsetenv(key))
+	}
+}
+
+// TestRun_cargoModule builds a module component with cargo: its library is a
+// native module of the namespace of the package, built in _build/cargo/ and
+// not in the component, and a target/ a cargo build of the developer leaves
+// in the component is not laid out.
+func TestRun_cargoModule(t *testing.T) {
+	requireCargo(t)
 
 	const cargoManifest = `manifest_version = '0.1'
 
@@ -509,9 +523,9 @@ profile = 'dev'
 			"edition = \"2021\"\n\n[dependencies]\n",
 		"fast/src/lib.rs": "#[no_mangle]\npub extern \"C\" fn fast_answer() -> i32 { 42 }\n",
 		"fast/init.lua":   "return require('my-app.fast')",
+		// What cargo run in the component by hand leaves.
+		"fast/target/debug/stray.lua": "return 'stray'",
 	})
-
-	require.NoError(t, Run(context.Background(), dryOptions(dir)))
 
 	ext := ".so"
 	if runtime.GOOS == "darwin" {
@@ -519,9 +533,111 @@ profile = 'dev'
 	}
 
 	tree := filepath.Join(dir, ".rocks")
-	assert.FileExists(t, filepath.Join(tree, "lib", "tarantool", "my-app", "fast"+ext))
+
+	// The second build finds what cargo, with nothing to do, reports again.
+	for range 2 {
+		require.NoError(t, Run(context.Background(), dryOptions(dir)))
+		assert.FileExists(t, filepath.Join(tree, "lib", "tarantool", "my-app", "fast"+ext))
+	}
+
 	assert.FileExists(t, filepath.Join(tree, "share", "tarantool", "my-app", "init.lua"))
-	assert.DirExists(t, filepath.Join(dir, "fast", "target"))
+	assert.DirExists(t, filepath.Join(dir, buildDirName, cargoDirName, "debug"))
+	assert.NoDirExists(t, filepath.Join(dir, "fast", "target", "debug", "deps"))
 	assert.NoDirExists(t, filepath.Join(tree, "lib", "tarantool", "my-app", "target"))
 	assert.NoDirExists(t, filepath.Join(tree, "share", "tarantool", "my-app", "target"))
+}
+
+// TestRun_cargoPathDependency builds a path dependency whose component cargo
+// builds: in the consumer's _build/path/<name>/cargo/, leaving no target/ in
+// the directory of the dependency, another checkout.
+func TestRun_cargoPathDependency(t *testing.T) {
+	requireCargo(t)
+
+	app, _ := setupNeighbours(t)
+	rsdep := filepath.Join(filepath.Dir(app), "rsdep")
+
+	writeFile(t, filepath.Join(rsdep, manifestFileName), `manifest_version = '0.1'
+
+[package]
+name = 'rsdep'
+
+[platform]
+tarantool = '>=3.0.0'
+tt = '>=3.0.0'
+
+[components.fast]
+path = 'fast'
+
+[components.fast.build]
+backend = 'cargo'
+profile = 'dev'
+`)
+	writeFile(t, filepath.Join(rsdep, "VERSION"), "0.1.0\n")
+	writeFile(t, filepath.Join(rsdep, "fast", "Cargo.toml"),
+		"[package]\nname = \"fast\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\n")
+	writeFile(t, filepath.Join(rsdep, "fast", "src", "lib.rs"),
+		"#[no_mangle]\npub extern \"C\" fn fast_answer() -> i32 { 42 }\n")
+	writeFile(t, filepath.Join(app, manifestFileName), strings.Replace(consumerManifest,
+		"[dependencies]\n", "[dependencies]\nrsdep = { source = 'path', path = '../rsdep' }\n", 1))
+
+	require.NoError(t, Run(context.Background(), dryOptions(app)))
+
+	ext := ".so"
+	if runtime.GOOS == "darwin" {
+		ext = ".dylib"
+	}
+
+	assert.FileExists(t, filepath.Join(app, rocksDirName, "lib", "tarantool", "rsdep", "fast"+ext))
+	assert.DirExists(t, filepath.Join(pathState(app, "rsdep"), cargoDirName, "debug"))
+	assert.NoDirExists(t, filepath.Join(rsdep, "fast", "target"))
+	assert.NoDirExists(t, filepath.Join(rsdep, buildDirName))
+}
+
+// TestRun_buildDirOfAShellBuild pins that a build gets TT_BUILD_DIR, the
+// directory of its intermediate files in _build/, there when it starts and
+// kept between builds, and emptied by --rebuild.
+func TestRun_buildDirOfAShellBuild(t *testing.T) {
+	t.Parallel()
+
+	const manifest = manifestHead + `
+[components.native]
+path = 'native'
+
+[components.native.build]
+backend = 'shell'
+command = 'sh'
+args = ['-c', '''
+if [ -f "$TT_BUILD_DIR/x.o" ]; then echo kept; else echo made; fi >> ../builds.log
+echo "$TT_BUILD_DIR" > "$TT_BUILD_DIR/x.o"
+mkdir -p "$TT_OUTPUT_DIR" && cp "$TT_BUILD_DIR/x.o" "$TT_OUTPUT_DIR/x.so"
+''']
+`
+
+	dir := setupProject(t, manifest, map[string]string{"init.lua": "-- init", "native/x.c": ""})
+	builds := func() string {
+		t.Helper()
+
+		data, err := os.ReadFile(filepath.Join(dir, "builds.log"))
+		require.NoError(t, err)
+
+		return strings.Join(strings.Fields(string(data)), " ")
+	}
+
+	require.NoError(t, Run(context.Background(), dryOptions(dir)))
+
+	told, err := os.ReadFile(filepath.Join(dir, rocksDirName, "lib/tarantool/my-app/x.so"))
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, buildDirName, componentDirName, "native")+"\n",
+		string(told))
+	assert.Equal(t, "made", builds())
+
+	require.NoError(t, Run(context.Background(), dryOptions(dir)))
+	assert.Equal(t, "made kept", builds())
+
+	rebuild := dryOptions(dir)
+
+	rebuild.Rebuild = true
+
+	require.NoError(t, Run(context.Background(), rebuild))
+	assert.Equal(t, "made kept made", builds())
 }

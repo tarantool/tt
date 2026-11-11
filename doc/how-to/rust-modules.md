@@ -69,8 +69,8 @@ $ find .rocks -name 'fastrs*'
 ```
 
 The build runs `cargo rustc --lib --crate-type cdylib --profile release`
-in the directory of the component and takes the library from what cargo
-reports, wherever its target directory is. The module is named after the
+in the directory of the component, with `_build/cargo/` of the project as
+its target directory, and takes the library from what cargo reports. The module is named after the
 library, `fastrs`; `module = "..."` names it otherwise. It is
 `<module>.so`, and `<module>.dylib` on macOS, where Tarantool looks for
 that name, and the library is linked with `-undefined dynamic_lookup`
@@ -78,8 +78,9 @@ there: its symbols of Tarantool are resolved when Tarantool loads it, as
 those of a C module are. `package` selects the package of a workspace,
 `features` its features, and `profile` another profile than `release`.
 
-`target/` of the component is not laid out: the library and the
-proc-macros cargo leaves there are no files of the package. A `*.lua` file
+A `target/` of the component, which cargo run there by hand leaves, is not
+laid out: the library and the proc-macros in it are no files of the
+package. A `*.lua` file
 of the component is laid out as in any module component.
 
 ## Call it

@@ -88,7 +88,8 @@ myapp/
 ├── _build/rock/<product>/     # the components laid out, installed into .rocks/ (generated)
 ├── _build/rock/<product>.json # which component put each file there (generated)
 ├── _build/cache/              # what the last incremental builds hashed and left (generated)
-├── _build/cmake/<component>/  # the build trees of the cmake components (generated)
+├── _build/component/<component>/ # TT_BUILD_DIR of each component: a cmake build tree (generated)
+├── _build/cargo/              # the target directory of the cargo components (generated)
 ├── .env/                      # activate.sh, deactivate.sh (generated)
 └── .tarantool/                # the root of the project scope (generated)
 ```

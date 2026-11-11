@@ -69,6 +69,21 @@ func TestEnvironContract(t *testing.T) {
 	assert.Equal(t, "qux", lastEnvValue(got, "BAZ"))
 }
 
+// TestEnvironBuildDir: a component build gets the directory of its
+// intermediate files, over one [build].env names, and a hook, which builds no
+// component, none.
+func TestEnvironBuildDir(t *testing.T) {
+	t.Parallel()
+
+	env := Env{BuildDir: "/proj/_build/component/comp",
+		Extra: map[string]string{"TT_BUILD_DIR": "/fake"}}
+
+	assert.Equal(t, "/proj/_build/component/comp", lastEnvValue(env.environ(), "TT_BUILD_DIR"))
+	assert.Less(t, indexOfEnv(env.environ(), "TT_BUILD_DIR=/fake"),
+		indexOfEnv(env.environ(), "TT_BUILD_DIR=/proj/_build/component/comp"))
+	assert.Equal(t, -1, indexOfEnv(env.hookEnviron(), "TT_BUILD_DIR=/proj/_build/component/comp"))
+}
+
 func TestEnvironContractVarWinsOverExtra(t *testing.T) {
 	t.Parallel()
 

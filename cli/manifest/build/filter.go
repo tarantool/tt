@@ -15,7 +15,9 @@ func defaultInclude() []string {
 	return []string{"*.lua", "*.so"}
 }
 
-// cargoTargetDir is the directory a cargo build leaves in its component.
+// cargoTargetDir is the target directory cargo makes in a component by
+// default: tt builds in _build/cargo/ (componentBuildDir), but cargo run by
+// hand, or a build whose env names target/ itself, leaves it there.
 const cargoTargetDir = "/target/"
 
 // defaultExclude is always applied, ahead of the component's own exclude list.
@@ -61,9 +63,9 @@ func newFileFilter(component manifest.Component) fileFilter {
 	// patterns onto it neither mutates the defaults nor drops them.
 	exclude := append(defaultExclude(), component.Exclude...)
 
-	// A cargo build leaves cargo's target/ in the component: the library and
-	// the proc-macros of the dependencies, which are no files of the package.
-	// The backend takes the library from there itself.
+	// A target/ of cargo in the component holds the library and the
+	// proc-macros of the dependencies, which are no files of the package.
+	// The backend takes the library from where cargo built it itself.
 	if component.Build != nil && component.Build.Backend == backend.BackendCargo {
 		exclude = append(exclude, cargoTargetDir)
 	}

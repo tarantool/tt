@@ -634,6 +634,12 @@ func runBackends(
 			TarantoolIncludeDir: tarantoolIncludeDir,
 			BuildDir:            componentBuildDir(proj.stateDir, name),
 			Fresh:               opts.Rebuild,
+			CargoTargetDir:      filepath.Join(proj.stateDir, cargoDirName),
+		}
+
+		err = prepareBuildDir(env.BuildDir, opts.Rebuild)
+		if err != nil {
+			return nil, nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
 		}
 
 		cwd := backendCwd(proj.dir, component)
@@ -929,19 +935,53 @@ func componentOutputDir(stage, namespace string) string {
 	return filepath.Join(stage, rocktree.StageLib, namespace)
 }
 
-// cmakeDirName is the directory of _build/ the build trees of the cmake
-// components are in, one per component.
-const cmakeDirName = "cmake"
+const (
+	// componentDirName is the directory of _build/ the intermediate files of
+	// the builds of the components are in, one directory per component.
+	componentDirName = "component"
+	// cargoDirName is the directory of _build/ the cargo builds of a project
+	// share as their target directory.
+	cargoDirName = "cargo"
+)
 
-// componentBuildDir is the directory the backend of the component name keeps
-// its state in between builds, _build/cmake/<name>/: the build tree of a
-// cmake build, out of the source and kept, as the stage is, for the next
-// build to rebuild only what changed. The other backends keep none. stateDir
-// is the state directory of the project (project.stateDir): _build/ of the
-// package, and the one of a path dependency in _build/path/ of the project
-// that builds it, so a dependency's build tree is not left in its directory.
+// componentBuildDir is the directory the build of the component name keeps
+// its intermediate files in between builds, TT_BUILD_DIR,
+// _build/component/<name>/: the build tree of a cmake build, what a make or
+// shell build makes on the way, out of the sources and kept, as the stage
+// is, for the next build to rebuild only what changed. stateDir is the state
+// directory of the project (project.stateDir): _build/ of the package, and
+// the one of a path dependency in _build/path/ of the project that builds
+// it, so a dependency's build tree is not left in its directory.
+//
+// The cargo builds of a project do not build there, but in one target
+// directory, _build/cargo/ of stateDir, as cargo builds the packages of a
+// workspace in one: a module and a program of one crate, or of one
+// workspace, share the dependencies compiled once. Cargo keeps what it
+// builds of each package and profile apart in it, and locks it while it
+// builds; a binary or a library of one name two workspaces put at one path
+// is taken from there right after its build, by the path cargo reports.
 func componentBuildDir(stateDir, name string) string {
-	return filepath.Join(stateDir, cmakeDirName, name)
+	return filepath.Join(stateDir, componentDirName, name)
+}
+
+// prepareBuildDir makes the directory of the intermediate files of a build,
+// TT_BUILD_DIR, ready for it to write into at once: emptied first when the
+// build is from scratch (fresh, tt package build --rebuild), so that what an
+// earlier build made, with another compiler say, is made again, and created.
+func prepareBuildDir(dir string, fresh bool) error {
+	if fresh {
+		err := os.RemoveAll(dir)
+		if err != nil {
+			return fmt.Errorf("emptying %s: %w", dir, err)
+		}
+	}
+
+	err := os.MkdirAll(dir, dirPerm)
+	if err != nil {
+		return fmt.Errorf("creating %s: %w", dir, err)
+	}
+
+	return nil
 }
 
 // tarantoolDirs is where the Tarantool the build is for is, as the build

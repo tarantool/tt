@@ -164,10 +164,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   no build of a Community release, or reports `bundle.ErrNotFound` for its
   archive, makes tt build it from source.
 - `backend = "cmake"` builds the CMake project of `cwd` for a module or an
-  executable component, out of the source in `_build/cmake/<component>/`,
-  which stays between builds: `cmake -S -B` with `-DCMAKE_BUILD_TYPE` of
-  `build_type` (`RelWithDebInfo` by default) and `-D<name>=<value>` of
-  `variables`, then `cmake --build --parallel` of `targets`, all by default.
+  executable component, out of the source in `TT_BUILD_DIR`,
+  `_build/component/<component>/`, which stays between builds: `cmake -S -B`
+  with `-DCMAKE_BUILD_TYPE` of `build_type` (`RelWithDebInfo` by default) and
+  `-D<name>=<value>` of `variables`, then `cmake --build --parallel` of
+  `targets`, all by default.
   The files `output` lists, relative to the build tree, are copied into
   `TT_OUTPUT_DIR`, and one the build did not make fails it; on macOS a `.so`
   of a module is copied as `.dylib`. The prefix of Tarantool is added to
@@ -191,6 +192,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   is built for builds with a warning. On an executable component of
   `cmake`, `make` or `shell`, `static = true` checks its programs as it
   does those of `go` and `cargo`.
+- A component build gets `TT_BUILD_DIR`, `_build/component/<component>/`, a
+  directory of its own for what it makes on the way - object files, a build
+  tree - which is there when the build starts, stays between builds and is
+  emptied by `--rebuild`: a `make` or `shell` build can build out of its
+  sources, and leave those of a path dependency, another checkout, alone.
 
 ### Changed
 
@@ -203,6 +209,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   archive with its runtime when the runtime cache has no Tarantool to
   bundle. A `make`, `shell` or `cmake` build gets no `TT_TARANTOOL_*` then.
   A module's `Project().Install()` goes without one as well.
+- A `cargo` build builds in `_build/cargo/` of the project, which its cargo
+  components share as their `CARGO_TARGET_DIR`, and that of a `path`
+  dependency in `_build/path/<name>/cargo/`: it left `target/` in the
+  directory of the component, another checkout for a path dependency, whose
+  hash then took it in unless its `.gitignore` ignored it. A
+  `CARGO_TARGET_DIR` or `CARGO_BUILD_TARGET_DIR` of `env` or of the
+  environment is kept.
 - `tt package` and its subcommands, `tt run`, `tt test` and `tt wasm` find
   the project from the current directory upward, as the instance commands
   do, where they took the current directory for it: run in `app/` of a

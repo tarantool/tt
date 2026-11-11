@@ -135,7 +135,8 @@ dependency in a subdirectory of a repository, the project's own among them,
 is versioned by its directory alone (see
 [Building](../concepts/packages.md#building)): a commit or a change
 elsewhere in the repository moves no version of it. tt builds such a
-dependency in `_build/path/<name>/` of the project and leaves
+dependency in `_build/path/<name>/` of the project - its stage, the
+`TT_BUILD_DIR` of its components and its `CARGO_TARGET_DIR` - and leaves
 its directory as it is, but for what its build backends write there
 themselves.
 
@@ -190,13 +191,21 @@ not know it. `env` of the build cannot override them. Where tt finds no
 Tarantool at all, a `c` or `lua-c` component fails the build before
 anything is built, for want of the headers.
 
+`TT_BUILD_DIR` is a directory of the build's own for what it makes on the
+way, out of the sources: object files, a build tree. It is
+`_build/component/<component>/`, there when the build starts, and it stays
+between builds, so that a `make` build rebuilds what changed only;
+`--rebuild` empties it first. A `make` or `shell` build that writes there
+rather than beside its sources leaves the directory of the component as it
+is, and that of a path dependency, another checkout, too.
+
 `cmake` builds the CMake project of `cwd`, where its `CMakeLists.txt` is,
-out of the source, in `_build/cmake/<component>/`:
+out of the source, in `TT_BUILD_DIR`:
 
 ```console
-cmake -S <cwd> -B _build/cmake/<component> -DCMAKE_BUILD_TYPE=<build_type> \
+cmake -S <cwd> -B _build/component/<component> -DCMAKE_BUILD_TYPE=<build_type> \
     -D<name>=<value>... -DCMAKE_PREFIX_PATH=<prefix of Tarantool>
-cmake --build _build/cmake/<component> --config <build_type> --parallel <CPUs> \
+cmake --build _build/component/<component> --config <build_type> --parallel <CPUs> \
     --target <targets>...
 ```
 
@@ -226,8 +235,16 @@ output = ["memcached/internal.so"]
 
 `cargo` builds the binary `bin` of an executable component, and the library
 of the package of a module component: a `cdylib`, which is the native
-module `<module>.so`, `<module>.dylib` on macOS. `target/` of a component
-cargo builds is not laid out. See [Build a module in Rust](../how-to/rust-modules.md).
+module `<module>.so`, `<module>.dylib` on macOS. The build gets
+`CARGO_TARGET_DIR`, `_build/cargo/`, which the cargo components of the
+project share, as the packages of a workspace share its `target/`: what
+they depend on is compiled once. A `target-dir` of the cargo configuration
+gives way to it, but a `CARGO_TARGET_DIR` or `CARGO_BUILD_TARGET_DIR` in
+`env`, or in the environment tt runs in, is kept. The library and the
+binary are taken from where cargo reports it built them. `--rebuild` runs
+cargo as every build does, and cargo rebuilds what changed, a new compiler
+included. A `target/` of a component cargo builds is not laid out. See
+[Build a module in Rust](../how-to/rust-modules.md).
 
 `static = true` asks what the build makes to need nothing of the machine
 the package is installed on, and the build checks that it does: a file that
@@ -288,7 +305,8 @@ the default one by the package name, another by its rock.
 
 A command run before or after the components are built, with the `shell`
 backend, the default, or `make` and the fields of a build. A hook gets the
-environment of a build without `TT_OUTPUT_DIR` and `TT_COMPONENT_NAME`.
+environment of a build without `TT_OUTPUT_DIR`, `TT_COMPONENT_NAME` and
+`TT_BUILD_DIR`.
 
 <!-- TODO(writers): app.manifest.lock - what it records, such as
 bundled_tarantool_version - is not described yet. -->

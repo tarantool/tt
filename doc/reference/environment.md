@@ -27,7 +27,11 @@ A component build and a hook get `TT_OUTPUT_DIR`, `TT_PROJECT_ROOT`,
 `TT_PLATFORM_ARCH`, and, when tt knows the Tarantool it builds for,
 `TT_TARANTOOL_PREFIX` and `TT_TARANTOOL_INCLUDE_DIR`, the directory of its
 `module.h` and `lua.h`; see [app.manifest.toml](app-manifest.md#componentsnamebuild).
-`.tarantool/bin` of the project comes first on the `PATH` they get.
+`.tarantool/bin` of the project comes first on the `PATH` they get. A
+component build also gets `TT_BUILD_DIR`, `_build/component/<component>/`,
+the directory of its own for what it makes on the way, out of the sources,
+and a `cargo` build `CARGO_TARGET_DIR`, `_build/cargo/`, unless
+`CARGO_TARGET_DIR` or `CARGO_BUILD_TARGET_DIR` is set.
 
 ## WebAssembly components
 

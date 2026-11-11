@@ -33,14 +33,16 @@ type manifestBuilder interface {
 // package, at the version the lock pins, into the consumer's tree.
 //
 // What the build writes goes into the consumer's _build/path/<name>/ - the
-// stage, rock/<product>/, and the records of the incremental and executable
-// components - and not into the dependency's directory, which may be another
-// checkout, shared by other consumers. The backends still run in the
-// dependency's directory, which is their TT_PROJECT_ROOT, so what a backend
-// leaves beside its sources (an output it copies, cargo's target/) is where
-// its own build would leave it. Nothing is resolved or installed into the
-// dependency's own .rocks/, and its hooks are not run: a hook is a step of
-// the dependency's own build, which may do anything to its tree.
+// stage, rock/<product>/, the records of the incremental and executable
+// components, the TT_BUILD_DIR of each component, the build tree of cmake in
+// it, and the target directory of cargo - and not into the dependency's
+// directory, which may be another checkout, shared by other consumers. The
+// backends still run in the dependency's directory, which is their
+// TT_PROJECT_ROOT, so what a backend leaves beside its sources (an output it
+// copies, the Cargo.lock cargo writes) is where its own build would leave
+// it. Nothing is resolved or installed into the dependency's own .rocks/,
+// and its hooks are not run: a hook is a step of the dependency's own build,
+// which may do anything to its tree.
 type pathManifests struct {
 	// opts are the options of the consumer's build: its ProjectDir, the sinks
 	// of its diagnostics and the switches of the component builds.

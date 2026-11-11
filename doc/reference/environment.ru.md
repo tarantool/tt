@@ -28,6 +28,11 @@
 то и `TT_TARANTOOL_PREFIX` и `TT_TARANTOOL_INCLUDE_DIR`, каталог его
 `module.h` и `lua.h`; см. [app.manifest.toml](app-manifest.md#componentsnamebuild).
 Каталог `.tarantool/bin` проекта ставится первым в передаваемом им `PATH`.
+Сборка компонента получает также `TT_BUILD_DIR` -
+`_build/component/<component>/`, собственный каталог для того, что она
+создаёт по пути, вне исходников, - а сборка `cargo` получает
+`CARGO_TARGET_DIR` - `_build/cargo/`, - если не заданы `CARGO_TARGET_DIR` или
+`CARGO_BUILD_TARGET_DIR`.
 
 ## Компоненты WebAssembly {#webassembly-components}
 

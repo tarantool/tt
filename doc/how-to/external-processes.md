@@ -64,13 +64,13 @@ The backends of executable components:
   named `name`, the component's name by default; `tags`, `ldflags`, and
   `cgo` (off by default).
 - `cargo`: `cargo build` of the binary `bin`, the component's name by
-  default, in the `release` profile unless `profile` says otherwise;
-  `package`, `features`.
+  default, in the `release` profile unless `profile` says otherwise, in
+  `_build/cargo/`; `package`, `features`.
 - `cmake`: the CMake project of `cwd`, built out of the source in
-  `_build/cmake/<component>/`, its programs listed in `output`, relative to
-  the build tree; `variables`, `targets`, `build_type`.
+  `_build/component/<component>/`, its programs listed in `output`,
+  relative to the build tree; `variables`, `targets`, `build_type`.
 - `make` and `shell`: a build of your own that writes the programs into
-  `TT_OUTPUT_DIR`.
+  `TT_OUTPUT_DIR`, and what it makes on the way into `TT_BUILD_DIR`.
 
 `static = true` asks `go` and `cargo` for a program that needs no loader and
 no shared library, and the build checks that it got one; the programs of
