@@ -220,6 +220,49 @@ fetches by the lock; `.rocks/` holds the rock of the package only, a
 component of `namespace = ""` included. Such an archive is named `...-any.tt` when it holds no
 native file.
 
+### Packing a rock
+
+A package other projects depend on, a Tarantool module say, is packed as a
+rock: `tt package pack --format rock`. The rock holds the files the build
+laid out, the rock of the package `tt package build` installs into
+`.rocks/`, and is written with its rockspec beside it:
+
+```console
+$ tt package pack --format rock --out dist
+dist/mylib-1.2.0-1.linux-x86_64.rock
+dist/mylib-1.2.0-1.rockspec
+```
+
+The rock is the binary rock of the platform tt runs on when the package has
+a native file, a module or a program, and `<name>-<version>.all.rock`
+otherwise; a native file built for another platform fails the pack. The
+version is that of the package, with the revision `--revision` gives, 1 by
+default: raise it to publish a new build of a version that is out.
+
+The project needs no rockspec: tt makes it from the manifest. Its
+dependencies are the ranges `[dependencies]` and the components of the
+product declare, not the versions the lock pins; the source is
+`[package].repository`, at the tag of the version when `HEAD` is on a `v*`
+tag of a clean tree; `[package]` gives the description, the license and
+the maintainers, `[platform].platforms` the supported platforms. The build
+is done, so the build type is `none`, and the rockspec is the same for the
+rock of every platform. A path dependency fails the pack: the projects
+installing the rock have no such directory. A dependency from a registry of
+its own is declared with a warning, since a rockspec cannot name the server.
+
+`--out`, `_build/pack/` by default, is indexed as a rock server once the
+rock is written, keeping the rocks already there: a pack on each platform
+into the same directory fills one server. Another project then depends on
+the rock from it:
+
+```toml
+[dependencies]
+mylib = { version = ">=1.2.0", registry = "/path/to/dist" }
+```
+
+`--format tt,rock` packs the `.tt` archive and the rock from one build;
+`--without-deps` and signing apply to the archive only.
+
 ## Installing
 
 `tt package install ARCHIVE` installs into one of the

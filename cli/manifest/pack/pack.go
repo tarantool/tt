@@ -46,8 +46,14 @@ type Options struct {
 	Locked bool
 	// WithoutDeps drops _runtime/ and foreign dependencies from the archive.
 	WithoutDeps bool
-	// OutputDir overrides where the archive is written; empty uses
-	// <ProjectDir>/_build/pack.
+	// Formats are what the pack makes of one build, FormatTt and FormatRock;
+	// none is the .tt archive alone.
+	Formats []string
+	// Revision is the LuaRocks revision of the rock, from 1; 0 is 1.
+	Revision int
+	// OutputDir overrides where the archive and the rock are written; empty
+	// uses <ProjectDir>/_build/pack. A directory a rock is written to is
+	// indexed as a rock server.
 	OutputDir string
 	// Build carries the remaining build knobs (Tarantool facts, servers, output
 	// streaming, logger) through to build.RunResult.
@@ -70,8 +76,13 @@ type Options struct {
 
 // Result reports what pack produced.
 type Result struct {
-	// Path is the absolute path of the archive.
+	// Path is the absolute path of the archive; empty when the pack made
+	// none.
 	Path string
+	// Rock and Rockspec are the absolute paths of the rock and of its
+	// rockspec; empty when the pack made none.
+	Rock     string
+	Rockspec string
 	// SHA256 is the archive's checksum, lowercase hex.
 	SHA256 string
 	// Token is the platform token in the archive name.
@@ -81,10 +92,16 @@ type Result struct {
 	Bundled BundledVersions
 }
 
-// Run builds the project and packs it into an archive. It returns an
+// Run builds the project and packs it into what opts.Formats ask for: the
+// .tt archive, the rock, or both, from the one build. It returns an
 // *sdk.ExitError for failures carrying a dedicated exit code; cli/exitcode
 // maps any error to a process exit code.
 func Run(ctx context.Context, opts Options) (*Result, error) {
+	err := checkFormats(opts)
+	if err != nil {
+		return nil, err
+	}
+
 	if opts.Signer != nil && opts.WithoutDeps {
 		return nil, stateErrorf("%w", errSignedWithoutDeps)
 	}
@@ -94,6 +111,30 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 		return nil, err
 	}
 
+	result := &Result{}
+
+	if opts.makes(FormatTt) {
+		result, err = packTt(ctx, opts, built)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if opts.makes(FormatRock) {
+		rock, err := packRock(ctx, opts, built)
+		if err != nil {
+			return nil, err
+		}
+
+		result.Rock = rock.Rock
+		result.Rockspec = rock.Rockspec
+	}
+
+	return result, nil
+}
+
+// packTt packs the build into the .tt archive.
+func packTt(ctx context.Context, opts Options, built *build.Result) (*Result, error) {
 	stageDir, cleanup, err := makeStageDir(opts)
 	if err != nil {
 		return nil, err
@@ -155,7 +196,9 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 		return nil, err
 	}
 
-	return &Result{Path: dest, SHA256: sum, Token: token, Bundled: bundled}, nil
+	return &Result{
+		Path: dest, Rock: "", Rockspec: "", SHA256: sum, Token: token, Bundled: bundled,
+	}, nil
 }
 
 // runBuild drives the full build cycle pack is defined to include, so a clean

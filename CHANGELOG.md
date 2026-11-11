@@ -47,6 +47,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   is named, with how to work offline: in a project, or with `--rock-server`
   naming a directory of rocks. `tt emmylua prepare` outside a project says
   that the other commands need none.
+- `tt package pack --format rock`: pack the package as a rock for other
+  projects to depend on, the binary rock of the platform or an `.all` rock
+  of a package with no native file, with its rockspec beside it. The
+  rockspec is made from the manifest, so a project needs none: the
+  dependencies are the ranges it declares and the source is
+  `[package].repository` at the tag of the version. `--out` is indexed as a
+  rock server, keeping the rocks already there, `--revision` sets the
+  revision of the rock, and `--format tt,rock` packs the archive and the
+  rock from one build.
 - `tt wasm rock --from <module> --arch <arch>`: pack a local build of the
   tarantool-wasm module as the rock of a platform, for a release with no
   build of it to download; the rocks already in `--out` stay, so a run for
