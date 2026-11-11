@@ -315,6 +315,116 @@ func TestPackRockOfAProduct(t *testing.T) {
 	}, sortedKeys(zipEntries(t, result.Rock)))
 }
 
+// unpackableManifest is a package whose build leaves a marker of its hook and
+// of its backend, the marker named by %[1]s. Its default product depends on a
+// path dependency, and its other one is no rock of its own: neither can be
+// packed as a rock.
+const unpackableManifest = `manifest_version = '0.1'
+
+[package]
+name = 'unpackable'
+
+[platform]
+tarantool = '>=3.0.0'
+tt = '>=3.1.0'
+
+[components.lib]
+path = 'lib'
+
+[components.lib.dependencies]
+contrib = { source = 'path', path = 'contrib' }
+
+[components.lib.build]
+backend = 'shell'
+command = 'sh'
+args = ['-c', 'echo backend >> "$MARKER"']
+env = { MARKER = '%[1]s' }
+
+[components.tools]
+path = 'tools'
+
+[components.tools.build]
+backend = 'shell'
+command = 'sh'
+args = ['-c', 'echo backend >> "$MARKER"']
+env = { MARKER = '%[1]s' }
+
+[hooks.pre_build]
+backend = 'shell'
+command = 'sh'
+args = ['-c', 'echo hook >> "$MARKER"']
+env = { MARKER = '%[1]s' }
+
+[products.default]
+components = ['lib']
+default = true
+
+[products.tools]
+components = ['tools']
+`
+
+// TestPackRockFailsBeforeTheBuild: a path dependency and a product with no
+// rock of its own fail a pack of a rock or a source rock before the build
+// runs anything, its hook and its backends included, and before the .tt
+// archive of the same pack is made.
+func TestPackRockFailsBeforeTheBuild(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		product string
+		formats []string
+		want    error
+		message string
+	}{
+		{
+			name: "path dependency", product: "", formats: []string{FormatRock},
+			want: errPathDependency, message: "contrib is one of unpackable",
+		},
+		{
+			name: "path dependency of a source rock", product: "",
+			formats: []string{FormatTt, FormatRockSrc},
+			want:    errPathDependency, message: "contrib is one of unpackable",
+		},
+		{
+			name: "no rock", product: "tools", formats: []string{FormatRock},
+			want: errNoRock, message: "[products.tools].rock",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			marker := filepath.Join(t.TempDir(), "marker")
+
+			src := t.TempDir()
+			writeTree(t, src, map[string]string{
+				manifestFileName: fmt.Sprintf(unpackableManifest, marker),
+				versionFileName:  "1.0.0\n",
+				"lib/init.lua":   "return {}\n",
+				"tools/init.lua": "return {}\n",
+			})
+
+			out := filepath.Join(src, "_out")
+
+			opts := packOptions(src, out, test.formats...)
+
+			opts.Product = test.product
+
+			_, err := Run(context.Background(), opts)
+			require.ErrorIs(t, err, test.want)
+			assert.Contains(t, err.Error(), test.message)
+			assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
+
+			assert.NoFileExists(t, marker, "neither the hook nor a backend ran")
+			assert.NoDirExists(t, filepath.Join(src, rocksDirName), "nothing was materialized")
+			assert.NoFileExists(t, filepath.Join(src, lockFileName), "nothing was resolved")
+			assert.NoDirExists(t, out, "nothing was packed")
+		})
+	}
+}
+
 // TestPackRockRefusesForeignNative: the rock of the host cannot carry a native
 // file of another platform.
 func TestPackRockRefusesForeignNative(t *testing.T) {

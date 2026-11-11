@@ -100,6 +100,66 @@ func (opts Options) makes(format string) bool {
 	return slices.Contains(opts.Formats, format)
 }
 
+// makesRock reports whether the pack makes the rock, the source rock or both.
+func (opts Options) makesRock() bool {
+	return opts.makes(FormatRock) || opts.makes(FormatRockSrc)
+}
+
+// rockDecl is the rock a product is released as, as the manifest declares
+// it: what the rockspec says of it but the version, which the build derives.
+type rockDecl struct {
+	// name is the name of the rock (manifest.ProductRock).
+	name string
+	// dependencies are the constraints of its dependencies by name, in
+	// LuaRocks syntax (releaseDependencies).
+	dependencies map[string]string
+}
+
+// declareRock declares the rock product of man is released as. A product
+// with no rock of its own and a path dependency fail it; it returns warnings
+// for what the rockspec cannot say.
+func declareRock(man *manifest.Manifest, product string) (rockDecl, []string, error) {
+	name := man.ProductRock(product)
+	if name == "" {
+		return rockDecl{}, nil, stateErrorf("%w: %s is not the default product; "+
+			"name its rock with [products.%s].rock", errNoRock, product, product)
+	}
+
+	dependencies, warnings, err := releaseDependencies(man, product)
+	if err != nil {
+		return rockDecl{}, nil, err
+	}
+
+	return rockDecl{name: name, dependencies: dependencies}, warnings, nil
+}
+
+// rockCheck is the check of the build (build.Options.Check) of a pack that
+// makes a rock: it declares the rock of the product into rock, so a product
+// no rock can be made of fails before anything is built. A pack that makes
+// no rock checks nothing.
+func rockCheck(opts Options, rock *rockDecl) func(*manifest.Manifest, string) error {
+	if !opts.makesRock() {
+		return nil
+	}
+
+	return func(man *manifest.Manifest, product string) error {
+		decl, warnings, err := declareRock(man, product)
+		if err != nil {
+			return err
+		}
+
+		if opts.Warn != nil {
+			for _, warning := range warnings {
+				opts.Warn(warning)
+			}
+		}
+
+		*rock = decl
+
+		return nil
+	}
+}
+
 // rockResult is what packRocks made.
 type rockResult struct {
 	// Rock, SrcRock and Rockspec are the absolute paths of the rock, of the
@@ -115,25 +175,19 @@ type rockResult struct {
 //
 // The rock is the stage of the product the build laid out, the rock the build
 // installed into .rocks/, but for other projects: its rockspec declares the
-// ranges of the manifest (releaseRock). It is the binary rock of the host
-// when the stage holds a native file or a file in lib/, and an .all rock
-// otherwise, so the arch of a rock is never a choice: a module built for the
-// host in an .all rock would install on any machine and fail there.
+// ranges of the manifest, as rock, which declareRock made before the build,
+// has them. It is the binary rock of the host when the stage holds a native
+// file or a file in lib/, and an .all rock otherwise, so the arch of a rock
+// is never a choice: a module built for the host in an .all rock would
+// install on any machine and fail there.
 //
 // The source rock holds the same rockspec and the files of the project
 // (writeSrcRock): the rockspec is one per version, whatever rocks of it a
 // server has.
-func packRocks(ctx context.Context, opts Options, built *build.Result) (rockResult, error) {
-	rel, warnings, err := releaseRock(built, opts.Revision)
-	if err != nil {
-		return rockResult{}, err
-	}
-
-	for _, warning := range warnings {
-		if opts.Warn != nil {
-			opts.Warn(warning)
-		}
-	}
+func packRocks(
+	ctx context.Context, opts Options, built *build.Result, rock rockDecl,
+) (rockResult, error) {
+	rel := releaseRock(built, rock, opts.Revision)
 
 	spec, err := rocktree.ReleaseRockspec(rel)
 	if err != nil {
@@ -290,25 +344,14 @@ func holdsFiles(dir string) (bool, error) {
 	return found, nil
 }
 
-// releaseRock describes the rock the build is released as. It returns
-// warnings for what the rockspec cannot say.
-func releaseRock(built *build.Result, revision int) (rocktree.Release, []string, error) {
+// releaseRock describes the rock the build is released as: rock, as the
+// manifest declared it before the build, at the version the build derived.
+func releaseRock(built *build.Result, rock rockDecl, revision int) rocktree.Release {
 	if revision == 0 {
 		revision = 1
 	}
 
 	man := built.Manifest
-
-	name := man.ProductRock(built.Product)
-	if name == "" {
-		return rocktree.Release{}, nil, stateErrorf("%w: %s is not the default product; "+
-			"name its rock with [products.%s].rock", errNoRock, built.Product, built.Product)
-	}
-
-	dependencies, warnings, err := releaseDependencies(man, built.Product)
-	if err != nil {
-		return rocktree.Release{}, nil, err
-	}
 
 	source := sourceURL(man.Package.Repository)
 	tag := ""
@@ -318,7 +361,7 @@ func releaseRock(built *build.Result, revision int) (rocktree.Release, []string,
 	}
 
 	return rocktree.Release{
-		Name:         name,
+		Name:         rock.name,
 		Version:      built.Version.SemVer,
 		Revision:     revision,
 		Summary:      man.Package.Description,
@@ -328,8 +371,8 @@ func releaseRock(built *build.Result, revision int) (rocktree.Release, []string,
 		SourceURL:    source,
 		SourceTag:    tag,
 		Platforms:    rockPlatforms(man.Platform.Platforms),
-		Dependencies: dependencies,
-	}, warnings, nil
+		Dependencies: rock.dependencies,
+	}
 }
 
 // releaseDependencies collects the dependencies of the rock of product: those

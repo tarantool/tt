@@ -97,6 +97,12 @@ type Options struct {
 	// warnings). The library never logs directly; the CLI sets this to route
 	// them through tt's logger. Nil drops them.
 	Warn func(string)
+	// Check, when set, is given the manifest and the name of the product
+	// selected, the default one for an empty Product, as soon as they are
+	// known: before a hook, the resolution or a backend runs. Its error fails
+	// the run as it is. tt package pack refuses there what it cannot pack,
+	// which the build would otherwise take its whole time to get to.
+	Check func(man *manifest.Manifest, product string) error
 }
 
 // emit surfaces non-fatal diagnostics through the Warn sink, if any.
@@ -172,6 +178,13 @@ func RunResult(ctx context.Context, opts Options) (*Result, error) {
 	productName, product, err := selectProduct(man, opts.Product)
 	if err != nil {
 		return nil, err
+	}
+
+	if opts.Check != nil {
+		err = opts.Check(man, productName)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	registries, err := effectiveRegistries(opts, man)

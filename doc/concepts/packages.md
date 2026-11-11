@@ -270,9 +270,10 @@ when the version is that of a tag and not `dirty`; `[package]` gives the
 description, the license and the maintainers, `[platform].platforms` the
 supported platforms. The build is done, so the build type is `none`, and
 the rockspec is the same for the rock of every platform. A path dependency
-fails the pack: the projects
-installing the rock have no such directory. A dependency from a registry of
-its own is declared with a warning, since a rockspec cannot name the server.
+fails the pack: the projects installing the rock have no such directory.
+So does a product with no rock of its own, and both fail it before the
+build, not after minutes of it. A dependency from a registry of its own is
+declared with a warning, since a rockspec cannot name the server.
 
 `--out`, `_build/pack/` by default, is indexed as a rock server once the
 rock is written, keeping the rocks already there: a pack on each platform
