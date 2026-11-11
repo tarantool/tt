@@ -37,6 +37,7 @@ func initRepo(t *testing.T) string {
 	git(t, dir, "config", "user.email", "test@example.com")
 	git(t, dir, "config", "user.name", "Test")
 	git(t, dir, "config", "commit.gpgsign", "false")
+	git(t, dir, "config", "tag.gpgsign", "false")
 
 	return dir
 }
@@ -133,6 +134,121 @@ func TestDerive(t *testing.T) {
 			wantTag:   "",
 		},
 		{
+			name: "clean bare release tag",
+			setup: func(t *testing.T, dir string) {
+				t.Helper()
+				commit(t, dir, "init")
+				git(t, dir, "tag", "1.1.2")
+			},
+			wantMatch: `^1\.1\.2$`,
+			wantDirty: false,
+			wantTag:   "1.1.2",
+		},
+		{
+			name: "commits after bare release tag",
+			setup: func(t *testing.T, dir string) {
+				t.Helper()
+				commit(t, dir, "init")
+				git(t, dir, "tag", "1.1.2")
+				commit(t, dir, "next")
+			},
+			wantMatch: `^1\.1\.3-dev\.1\+g[0-9a-f]+$`,
+			wantDirty: false,
+			wantTag:   "",
+		},
+		{
+			name: "clean bare pre-release tag",
+			setup: func(t *testing.T, dir string) {
+				t.Helper()
+				commit(t, dir, "init")
+				git(t, dir, "tag", "1.2.0-rc.1")
+			},
+			wantMatch: `^1\.2\.0-rc\.1$`,
+			wantDirty: false,
+			wantTag:   "1.2.0-rc.1",
+		},
+		{
+			name: "a bare tag past a v tag",
+			setup: func(t *testing.T, dir string) {
+				t.Helper()
+				commit(t, dir, "init")
+				git(t, dir, "tag", "v1.0.0")
+				commit(t, dir, "next")
+				git(t, dir, "tag", "1.1.0")
+				commit(t, dir, "more")
+			},
+			wantMatch: `^1\.1\.1-dev\.1\+g[0-9a-f]+$`,
+			wantDirty: false,
+			wantTag:   "",
+		},
+		{
+			// git describe names the first by refname of two lightweight tags.
+			name: "the v tag of a version over the bare one",
+			setup: func(t *testing.T, dir string) {
+				t.Helper()
+				commit(t, dir, "init")
+				git(t, dir, "tag", "1.2.0")
+				git(t, dir, "tag", "v1.2.0")
+			},
+			wantMatch: `^1\.2\.0$`,
+			wantDirty: false,
+			wantTag:   "v1.2.0",
+		},
+		{
+			// git describe names an annotated tag over a lightweight one.
+			name: "the v tag of a version over an annotated bare one",
+			setup: func(t *testing.T, dir string) {
+				t.Helper()
+				commit(t, dir, "init")
+				git(t, dir, "tag", "v1.2.0")
+				git(t, dir, "tag", "-a", "1.2.0", "-m", "1.2.0")
+			},
+			wantMatch: `^1\.2\.0$`,
+			wantDirty: false,
+			wantTag:   "v1.2.0",
+		},
+		{
+			name: "the highest version of a commit",
+			setup: func(t *testing.T, dir string) {
+				t.Helper()
+				commit(t, dir, "init")
+				git(t, dir, "tag", "v1.2.0")
+				git(t, dir, "tag", "-a", "v1.2.0-rc.1", "-m", "rc")
+				git(t, dir, "tag", "1.1.9")
+			},
+			wantMatch: `^1\.2\.0$`,
+			wantDirty: false,
+			wantTag:   "v1.2.0",
+		},
+		{
+			name: "a dev version of the highest version of a commit",
+			setup: func(t *testing.T, dir string) {
+				t.Helper()
+				commit(t, dir, "init")
+				git(t, dir, "tag", "-a", "1.2.0-rc.1", "-m", "rc")
+				git(t, dir, "tag", "v1.2.0")
+				commit(t, dir, "next")
+			},
+			wantMatch: `^1\.2\.1-dev\.1\+g[0-9a-f]+$`,
+			wantDirty: false,
+			wantTag:   "",
+		},
+		{
+			name: "tags that are no versions are passed over",
+			setup: func(t *testing.T, dir string) {
+				t.Helper()
+				commit(t, dir, "init")
+				git(t, dir, "tag", "v1.0.0")
+				commit(t, dir, "next")
+				git(t, dir, "tag", "v1.x")
+				git(t, dir, "tag", "2026-11-12")
+				git(t, dir, "tag", "-a", "1.2", "-m", "1.2")
+			},
+			wantMatch: `^1\.0\.1-dev\.1\+g[0-9a-f]+$`,
+			wantDirty: false,
+			wantTag:   "",
+		},
+		{
 			name: "non-semver tag is skipped",
 			setup: func(t *testing.T, dir string) {
 				t.Helper()
@@ -217,6 +333,56 @@ func TestDerive(t *testing.T) {
 			// Whatever we render must round-trip as SemVer 2.0.0.
 			_, err = goversion.NewSemver(ver.SemVer)
 			assert.NoError(t, err, "rendered %q is not valid SemVer", ver.SemVer)
+		})
+	}
+}
+
+// TestDeriveTagNames pins which tag names are versions: with a v, SemVer as
+// tt read it before tags without a v counted, without one SemVer 2.0.0 in
+// full. A tag that is no version leaves the tagless fallback.
+func TestDeriveTagNames(t *testing.T) {
+	t.Parallel()
+
+	const fallback = `^0\.0\.0-dev\.1\+g[0-9a-f]+$`
+
+	tests := map[string]string{
+		"v1.1.2":            `^1\.1\.2$`,
+		"1.1.2":             `^1\.1\.2$`,
+		"0.1.0":             `^0\.1\.0$`,
+		"v1.2":              `^1\.2\.0$`,
+		"1.2.0-rc.1":        `^1\.2\.0-rc\.1$`,
+		"1.2.0+ee":          `^1\.2\.0$`,
+		"1.2":               fallback,
+		"1":                 fallback,
+		"20261112":          fallback,
+		"2026-11-12":        fallback,
+		"01.2.3":            fallback,
+		"1.2.3-rc.01":       fallback,
+		"1.2.3.4":           fallback,
+		"vfinal":            fallback,
+		"v1.x":              fallback,
+		"release-1.2.0":     fallback,
+		"memcached-1.1.2":   fallback,
+		"1.2.0-alpha.beta1": `^1\.2\.0-alpha\.beta1$`,
+	}
+
+	for name, want := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := initRepo(t)
+			commit(t, dir, "init")
+			git(t, dir, "tag", name)
+
+			ver, err := version.Derive(dir)
+			require.NoError(t, err)
+			assert.Regexp(t, want, ver.SemVer)
+
+			if want == fallback {
+				assert.Empty(t, ver.Tag)
+			} else {
+				assert.Equal(t, name, ver.Tag, "the tag as git has it")
+			}
 		})
 	}
 }

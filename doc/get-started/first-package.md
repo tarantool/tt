@@ -123,7 +123,8 @@ instance of its topology; `tt instance start` runs it in the project too.
 ## Pack
 
 Commit the project and tag the version: the version of a package is the one
-of its `VERSION` file, or else of the nearest `v*` tag.
+of its `VERSION` file, or else of the nearest version tag, `v1.0.0` or
+`1.0.0`.
 
 ```console
 $ printf '.rocks/\n.tarantool/\n.env/\n_build/\n' > .gitignore
