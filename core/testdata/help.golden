@@ -3810,6 +3810,9 @@ changed since its last build - its build block and its files, but those its
 --rebuild builds them all, for a change the inputs do not cover, such as a new
 version of a compiler.
 
+A cmake component keeps its build tree in _build/cmake/<component>/, where cmake
+rebuilds what changed; --rebuild configures it anew.
+
 [0;1;39mUSAGE[0m
   tt package build [COMPONENT] [flags]
 
@@ -3822,7 +3825,8 @@ FLAGS[0m
       --product string         product to build (default: the product marked
                                default)
       --rebuild                build the incremental components even when
-                               nothing changed
+                               nothing changed, and the cmake ones in a new
+                               build tree
       --registry stringArray   rock server to use instead of the configured
                                ones: an http(s) URL or a local directory; repeat
                                to give an ordered list (overrides TT_REGISTRIES
@@ -4024,7 +4028,8 @@ FLAGS[0m
       --product string         product to pack (default: the product marked
                                default)
       --rebuild                build the incremental components even when
-                               nothing changed
+                               nothing changed, and the cmake ones in a new
+                               build tree
       --registry stringArray   rock server to use instead of the configured
                                ones: an http(s) URL or a local directory; repeat
                                to give an ordered list (overrides TT_REGISTRIES

@@ -66,6 +66,9 @@ The backends of executable components:
 - `cargo`: `cargo build` of the binary `bin`, the component's name by
   default, in the `release` profile unless `profile` says otherwise;
   `package`, `features`.
+- `cmake`: the CMake project of `cwd`, built out of the source in
+  `_build/cmake/<component>/`, its programs listed in `output`, relative to
+  the build tree; `variables`, `targets`, `build_type`.
 - `make` and `shell`: a build of your own that writes the programs into
   `TT_OUTPUT_DIR`.
 

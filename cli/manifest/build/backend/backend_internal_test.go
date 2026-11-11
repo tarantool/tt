@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"os"
 	"runtime"
 	"strings"
 	"testing"
@@ -84,6 +85,41 @@ func TestEnvironContractVarWinsOverExtra(t *testing.T) {
 		"the contract TT_OUTPUT_DIR must be emitted after the [build].env override")
 }
 
+func TestEnvironTarantool(t *testing.T) {
+	t.Parallel()
+
+	env := Env{
+		TarantoolPrefix:     "/opt/tarantool",
+		TarantoolIncludeDir: "/opt/tarantool/include/tarantool",
+		Extra:               map[string]string{"TT_TARANTOOL_PREFIX": "/elsewhere"},
+	}
+
+	for name, got := range map[string][]string{"build": env.environ(), "hook": env.hookEnviron()} {
+		assert.Equal(t, "/opt/tarantool", lastEnvValue(got, "TT_TARANTOOL_PREFIX"), name)
+		assert.Equal(t, "/opt/tarantool/include/tarantool",
+			lastEnvValue(got, "TT_TARANTOOL_INCLUDE_DIR"), name)
+	}
+}
+
+// TestEnvironTarantoolUnknown cannot run in parallel: it sets the variables
+// in tt's own environment, which a build inherits.
+func TestEnvironTarantoolUnknown(t *testing.T) {
+	t.Setenv("TT_TARANTOOL_PREFIX", "")
+	require.NoError(t, os.Unsetenv("TT_TARANTOOL_PREFIX"))
+	t.Setenv("TT_TARANTOOL_INCLUDE_DIR", "")
+	require.NoError(t, os.Unsetenv("TT_TARANTOOL_INCLUDE_DIR"))
+
+	for name, got := range map[string][]string{
+		"build": Env{}.environ(),
+		"hook":  Env{}.hookEnviron(),
+	} {
+		for _, key := range []string{"TT_TARANTOOL_PREFIX", "TT_TARANTOOL_INCLUDE_DIR"} {
+			_, ok := lookupEnv(got, key)
+			assert.False(t, ok, "%s: %s is set for an unknown Tarantool", name, key)
+		}
+	}
+}
+
 func TestEnvironDefaultsPlatformToHost(t *testing.T) {
 	t.Parallel()
 
@@ -104,6 +140,7 @@ func TestNewDispatch(t *testing.T) {
 		{BackendMake, makeBackend{}},
 		{BackendC, ccBackend{}},
 		{BackendLuaC, ccBackend{}},
+		{BackendCMake, cmakeBackend{}},
 	}
 
 	for _, testCase := range tests {
@@ -120,7 +157,7 @@ func TestNewDispatch(t *testing.T) {
 func TestNewUnknownBackend(t *testing.T) {
 	t.Parallel()
 
-	be, err := New("cmake", lrbuild.Flags{}, false)
+	be, err := New("scons", lrbuild.Flags{}, false)
 	require.Error(t, err)
 	assert.Nil(t, be)
 }

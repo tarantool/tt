@@ -36,8 +36,8 @@ $ tt test
   `--locked` makes a stale lock an error, as CI wants.
 - `tt package build` installs the dependencies into `.rocks/` and builds the
   components: Lua modules, native modules with the `c`, `lua-c`, `cargo`,
-  `make` or `shell` backend, and programs for external processes with the
-  `go` or `cargo` backend. A native module can be
+  `cmake`, `make` or `shell` backend, and programs for external processes
+  with the `go`, `cargo` or `cmake` backend. A native module can be
   [written in Rust](how-to/rust-modules.md).
 - The version of a package comes from `VERSION` or from the nearest git tag,
   and the code reads it as `require('<name>.version').version`.

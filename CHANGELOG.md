@@ -134,6 +134,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   source that lists the SHA-256 of an archive has it checked; one that has
   no build of a Community release, or reports `bundle.ErrNotFound` for its
   archive, makes tt build it from source.
+- `backend = "cmake"` builds the CMake project of `cwd` for a module or an
+  executable component, out of the source in `_build/cmake/<component>/`,
+  which stays between builds: `cmake -S -B` with `-DCMAKE_BUILD_TYPE` of
+  `build_type` (`RelWithDebInfo` by default) and `-D<name>=<value>` of
+  `variables`, then `cmake --build --parallel` of `targets`, all by default.
+  The files `output` lists, relative to the build tree, are copied into
+  `TT_OUTPUT_DIR`, and one the build did not make fails it; on macOS a `.so`
+  of a module is copied as `.dylib`. The prefix of Tarantool is added to
+  `CMAKE_PREFIX_PATH`, so `FindTarantool.cmake` finds its headers.
+  `--rebuild` configures a new build tree, and so does a build of a moved
+  project. A missing `cmake` fails the build before anything is built.
+- A component build and a hook get `TT_TARANTOOL_PREFIX`, the install prefix
+  of the Tarantool tt builds for, and `TT_TARANTOOL_INCLUDE_DIR`, the
+  directory of its `module.h` and `lua.h`, when tt knows them: a `make` or
+  `shell` build of a C module compiles against the headers the `c` and
+  `lua-c` backends do.
 
 ### Changed
 

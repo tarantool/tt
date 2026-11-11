@@ -24,7 +24,9 @@
 
 Сборка компонента и хуки получают переменные `TT_OUTPUT_DIR`, `TT_PROJECT_ROOT`,
 `TT_PACKAGE`, `TT_COMPONENT_NAME`, `TT_VERSION`, `TT_PLATFORM_OS` и
-`TT_PLATFORM_ARCH`; см. [app.manifest.toml](app-manifest.md#componentsnamebuild).
+`TT_PLATFORM_ARCH`, а если tt знает Tarantool, для которого идёт сборка,
+то и `TT_TARANTOOL_PREFIX` и `TT_TARANTOOL_INCLUDE_DIR`, каталог его
+`module.h` и `lua.h`; см. [app.manifest.toml](app-manifest.md#componentsnamebuild).
 Каталог `.tarantool/bin` проекта ставится первым в передаваемом им `PATH`.
 
 ## Компоненты WebAssembly {#webassembly-components}

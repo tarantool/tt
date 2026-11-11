@@ -20,7 +20,8 @@ const (
 // reduced hook contract (TT_PACKAGE, TT_VERSION and friends, but no per-
 // component TT_OUTPUT_DIR / TT_COMPONENT_NAME). An absent hook is a no-op. The
 // hook runs in its own cwd (default: the project root), so pre_build can
-// generate files anywhere in the tree before components are gathered.
+// generate files anywhere in the tree before components are gathered. A hook
+// is told where Tarantool is as a build is (see tarantoolDirs).
 //
 // pre_build runs before the dependency closure is materialized, so .rocks/ may
 // not exist yet and PATH is not extended to reach it. That ordering is what
@@ -29,28 +30,34 @@ const (
 // artifact belongs in a component's build backend instead, which runs after
 // materialization and is handed TT_OUTPUT_DIR.
 func runHook(
-	ctx context.Context, man *manifest.Manifest, ver version.Version,
-	name, projectDir string, showOutput bool,
+	ctx context.Context, opts Options, man *manifest.Manifest, ver version.Version, name string,
 ) error {
 	hook, ok := man.Hooks[name]
 	if !ok {
 		return nil
 	}
 
+	tarantoolPrefix, tarantoolIncludeDir := tarantoolDirs(opts.Tarantool)
+
 	env := backend.Env{
-		OutputDir:   "",
-		ProjectRoot: projectDir,
-		Package:     man.Package.Name,
-		Component:   "",
-		Version:     ver.SemVer,
-		OS:          "",
-		Arch:        "",
-		Extra:       hook.Env,
+		OutputDir:           "",
+		ProjectRoot:         opts.ProjectDir,
+		Package:             man.Package.Name,
+		Component:           "",
+		Version:             ver.SemVer,
+		OS:                  "",
+		Arch:                "",
+		Extra:               hook.Env,
+		Module:              false,
+		TarantoolPrefix:     tarantoolPrefix,
+		TarantoolIncludeDir: tarantoolIncludeDir,
+		BuildDir:            "",
+		Fresh:               false,
 	}
 
-	cwd := resolveDir(projectDir, hook.Cwd)
+	cwd := resolveDir(opts.ProjectDir, hook.Cwd)
 
-	err := backend.RunHook(ctx, hook, cwd, env, showOutput)
+	err := backend.RunHook(ctx, hook, cwd, env, opts.ShowOutput)
 	if err != nil {
 		return fmt.Errorf("%s hook: %w", name, err)
 	}

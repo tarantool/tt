@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	// ErrNoTool reports that the program a backend runs, go or cargo, is not
-	// in PATH.
+	// ErrNoTool reports that the program a backend runs, go, cargo or cmake,
+	// is not in PATH.
 	ErrNoTool = errors.New("build tool not found")
 	// ErrStaticDarwin reports a static build for darwin: macOS has no static
 	// libSystem to link against, so a static program cannot be made there.
@@ -29,12 +29,12 @@ var (
 // darwinOS is the GOOS spelling of macOS.
 const darwinOS = "darwin"
 
-// Preflight checks what a go or cargo build needs before it runs: a static
-// program is not asked for darwin, the tool is in PATH and, for cargo, the
-// platform has a target. The build orchestration calls it for every
-// component it is about to build before it builds any, so that a missing
-// tool fails the build before the first long compile rather than after it;
-// the backends call it again. Any other backend passes.
+// Preflight checks what a go, cargo or cmake build needs before it runs: a
+// static program is not asked for darwin, the tool is in PATH and, for
+// cargo, the platform has a target. The build orchestration calls it for
+// every component it is about to build before it builds any, so that a
+// missing tool fails the build before the first long compile rather than
+// after it; the backends call it again. Any other backend passes.
 func Preflight(build manifest.Build, env Env) error {
 	var tool string
 
@@ -43,6 +43,8 @@ func Preflight(build manifest.Build, env Env) error {
 		tool = goTool
 	case BackendCargo:
 		tool = cargoTool
+	case BackendCMake:
+		tool = cmakeTool
 	default:
 		return nil
 	}

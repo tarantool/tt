@@ -320,7 +320,7 @@ func runBuild(
 
 	ver.Flavor = man.Platform.Tarantool.EffectiveFlavor()
 
-	preErr := runHook(ctx, man, ver, hookPreBuild, opts.ProjectDir, opts.ShowOutput)
+	preErr := runHook(ctx, opts, man, ver, hookPreBuild)
 	if preErr != nil {
 		return nil, sdk.Errorf(sdk.ExitSystem, "pre_build hook: %w", preErr)
 	}
@@ -414,7 +414,7 @@ func runBuild(
 	}, nil
 }
 
-// preflightBackends checks what the go and cargo builds of the selected
+// preflightBackends checks what the go, cargo and cmake builds of the selected
 // components need before any of them runs (backend.Preflight): a missing
 // toolchain then fails the build before it has resolved the closure and
 // compiled the components ahead of it.
@@ -450,6 +450,7 @@ func runBackends(
 ) (map[string][]string, error) {
 	flags := adapter.Flags()
 	target := native.Host()
+	tarantoolPrefix, tarantoolIncludeDir := tarantoolDirs(opts.Tarantool)
 	programs := readExecutables(opts.ProjectDir, opts.Warn)
 	built := false
 
@@ -470,15 +471,19 @@ func runBackends(
 		}
 
 		env := backend.Env{
-			OutputDir:   outputDir,
-			ProjectRoot: opts.ProjectDir,
-			Package:     man.Package.Name,
-			Component:   name,
-			Version:     ver.SemVer,
-			OS:          target.OS,
-			Arch:        target.Arch,
-			Extra:       component.Build.Env,
-			Module:      !component.IsExecutable(),
+			OutputDir:           outputDir,
+			ProjectRoot:         opts.ProjectDir,
+			Package:             man.Package.Name,
+			Component:           name,
+			Version:             ver.SemVer,
+			OS:                  target.OS,
+			Arch:                target.Arch,
+			Extra:               component.Build.Env,
+			Module:              !component.IsExecutable(),
+			TarantoolPrefix:     tarantoolPrefix,
+			TarantoolIncludeDir: tarantoolIncludeDir,
+			BuildDir:            componentBuildDir(opts.ProjectDir, name),
+			Fresh:               opts.Rebuild,
 		}
 
 		cwd := backendCwd(opts.ProjectDir, component)
@@ -693,7 +698,7 @@ func skipUnchanged(
 func runPostBuild(
 	ctx context.Context, opts Options, man *manifest.Manifest, ver version.Version,
 ) error {
-	err := runHook(ctx, man, ver, hookPostBuild, opts.ProjectDir, opts.ShowOutput)
+	err := runHook(ctx, opts, man, ver, hookPostBuild)
 	if err != nil {
 		return sdk.Errorf(sdk.ExitSystem, "post_build hook: %w", err)
 	}
@@ -712,6 +717,37 @@ func componentOutputDir(stage, namespace string) string {
 	}
 
 	return filepath.Join(stage, rocktree.StageLib, namespace)
+}
+
+// cmakeDirName is the directory of _build/ the build trees of the cmake
+// components are in, one per component.
+const cmakeDirName = "cmake"
+
+// componentBuildDir is the directory the backend of the component name keeps
+// its state in between builds, _build/cmake/<name>/: the build tree of a
+// cmake build, out of the source and kept, as the stage is, for the next
+// build to rebuild only what changed. The other backends keep none.
+func componentBuildDir(projectDir, name string) string {
+	return filepath.Join(projectDir, buildDirName, cmakeDirName, name)
+}
+
+// tarantoolDirs is where the Tarantool the build is for is, as the build
+// tells a backend: its install prefix, when tt knows it, and the directory
+// of its C headers under the prefix, the include directory of the c and
+// lua-c backends, when module.h is there. Either is empty otherwise.
+func tarantoolDirs(info rocks.TarantoolInfo) (string, string) {
+	if info.Prefix == "" {
+		return "", ""
+	}
+
+	includeDir := info.IncludeDir()
+
+	_, err := os.Stat(filepath.Join(includeDir, "module.h"))
+	if err != nil {
+		return info.Prefix, ""
+	}
+
+	return info.Prefix, includeDir
 }
 
 // backendCwd is the working directory for a component's build: the build block's

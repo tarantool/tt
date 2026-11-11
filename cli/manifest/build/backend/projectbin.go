@@ -51,8 +51,13 @@ func withProjectBin(environ []string, projectRoot string) []string {
 
 // lookupPath returns the last PATH of environ, the one exec.Cmd uses.
 func lookupPath(environ []string) (string, bool) {
+	return lookupEnv(environ, pathKey)
+}
+
+// lookupEnv returns the last value of key in environ, the one exec.Cmd uses.
+func lookupEnv(environ []string, key string) (string, bool) {
 	for _, entry := range slices.Backward(environ) {
-		if value, ok := strings.CutPrefix(entry, pathKey+"="); ok {
+		if value, ok := strings.CutPrefix(entry, key+"="); ok {
 			return value, true
 		}
 	}

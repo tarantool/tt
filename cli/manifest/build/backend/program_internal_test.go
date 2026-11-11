@@ -298,7 +298,9 @@ func TestPreflight(t *testing.T) {
 func TestPreflightNamesTheMissingTool(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 
-	for backend, tool := range map[string]string{BackendGo: "go", BackendCargo: "cargo"} {
+	for backend, tool := range map[string]string{
+		BackendGo: "go", BackendCargo: "cargo", BackendCMake: "cmake",
+	} {
 		err := Preflight(manifest.Build{Backend: backend}, Env{})
 		require.ErrorIs(t, err, ErrNoTool, backend)
 		assert.Contains(t, err.Error(), `runs "`+tool+`", which is not in PATH`)

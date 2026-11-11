@@ -414,3 +414,175 @@ func TestValidateExecutableComponentsAccepted(t *testing.T) {
 		})
 	}
 }
+
+// TestCMakeComponentFields checks that every field of the cmake backend
+// decodes into the build, of a module and of an executable component.
+func TestCMakeComponentFields(t *testing.T) {
+	t.Parallel()
+
+	mfst := parseBody(t, `
+[components.mc]
+path = "."
+include = ["memcached/init.lua"]
+[components.mc.build]
+backend = "cmake"
+cwd = "."
+variables = { ENABLE_BUNDLED_SMALL = "ON", "WITH_SASL:BOOL" = "OFF", CMAKE_PREFIX_PATH = "/deps" }
+targets = ["internalso"]
+build_type = "Release"
+output = ["memcached/internal.so"]
+env = { CMAKE_GENERATOR = "Ninja" }
+
+[components.tools]
+path = "tools"
+kind = "executable"
+[components.tools.build]
+backend = "cmake"
+output = ["bin/mc-bench", "mc-cli"]
+`)
+
+	_, err := mfst.Validate()
+	require.NoError(t, err)
+
+	memcached := mfst.Components["mc"].Build
+	assert.Equal(t, map[string]string{
+		"ENABLE_BUNDLED_SMALL": "ON", "WITH_SASL:BOOL": "OFF", "CMAKE_PREFIX_PATH": "/deps",
+	}, memcached.Variables)
+	assert.Equal(t, []string{"internalso"}, memcached.Targets)
+	assert.Equal(t, "Release", memcached.BuildType)
+	assert.Equal(t, []string{"memcached/internal.so"}, memcached.Output)
+
+	tools := mfst.Components["tools"]
+	assert.True(t, tools.IsExecutable())
+	assert.Equal(t, []string{"mc-bench", "mc-cli"}, tools.Build.Executables("tools"))
+
+	component, found := mfst.ExecutableComponent("mc-bench")
+	assert.True(t, found)
+	assert.Equal(t, "tools", component)
+}
+
+// TestValidateCMakeBuild covers what the cmake backend rules out, and the
+// fields of cmake on the builds of other backends.
+func TestValidateCMakeBuild(t *testing.T) {
+	t.Parallel()
+
+	module := "[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"cmake\"\n"
+	cmake := module + "output = [\"a.so\"]\n"
+
+	tests := []struct {
+		name  string
+		body  string
+		field string
+		msg   string
+	}{
+		{"no output", module, "components.a.build", `output is required for backend "cmake"`},
+		{
+			"an empty output", module + "output = [\"a.so\", \"\"]\n",
+			"components.a.build.output", "must not contain an empty entry",
+		},
+		{
+			"an absolute output", module + "output = [\"/usr/lib/a.so\"]\n",
+			"components.a.build.output", `"/usr/lib/a.so" is not relative to the build tree`,
+		},
+		{
+			"a variable with =", cmake + "variables = { \"A=B\" = \"1\" }\n",
+			"components.a.build.variables", `"A=B" is not a variable name`,
+		},
+		{
+			"a variable with a space", cmake + "variables = { \"A B\" = \"1\" }\n",
+			"components.a.build.variables", `"A B" is not a variable name`,
+		},
+		{
+			"a variable with a lowercase type", cmake + "variables = { \"A:bool\" = \"1\" }\n",
+			"components.a.build.variables", `"A:bool" is not a variable name`,
+		},
+		{
+			"the build type as a variable",
+			cmake + "variables = { CMAKE_BUILD_TYPE = \"Debug\" }\n",
+			"components.a.build.variables", "CMAKE_BUILD_TYPE is set by build_type",
+		},
+		{
+			"the build type as a typed variable",
+			cmake + "variables = { \"CMAKE_BUILD_TYPE:STRING\" = \"Debug\" }\n",
+			"components.a.build.variables", "CMAKE_BUILD_TYPE is set by build_type",
+		},
+		{
+			"a target with a space", cmake + "targets = [\"a b\"]\n",
+			"components.a.build.targets", `"a b" is not a target name`,
+		},
+		{
+			"a target like an option", cmake + "targets = [\"--clean-first\"]\n",
+			"components.a.build.targets", `"--clean-first" is not a target name`,
+		},
+		{
+			"an empty target", cmake + "targets = [\"\"]\n",
+			"components.a.build.targets", `"" is not a target name`,
+		},
+		{
+			"a build type with a space", cmake + "build_type = \"Rel With\"\n",
+			"components.a.build.build_type", `"Rel With" is not a build type`,
+		},
+		{
+			"a field of make on cmake", cmake + "make_target = \"all\"\n",
+			"components.a.build.make_target", `is a field of backend make, not of "cmake"`,
+		},
+		{
+			"incremental on cmake", cmake + "incremental = true\n",
+			"components.a.build.incremental",
+			`is a field of backend make or shell, not of "cmake"`,
+		},
+		{
+			"module on cmake", cmake + "module = \"a\"\n",
+			"components.a.build.module", `not of "cmake"`,
+		},
+		{
+			"defines on cmake", cmake + "defines = [\"A=1\"]\n",
+			"components.a.build.defines", `is a field of backend c or lua-c, not of "cmake"`,
+		},
+		{
+			"variables on make",
+			"[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"make\"\n" +
+				"make_target = \"all\"\nvariables = { A = \"1\" }\n",
+			"components.a.build.variables", `is a field of backend cmake, not of "make"`,
+		},
+		{
+			"targets on lua-c",
+			"[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"lua-c\"\n" +
+				"module = \"m\"\nsources = [\"m.c\"]\ntargets = [\"m\"]\n",
+			"components.a.build.targets", `is a field of backend cmake, not of "lua-c"`,
+		},
+		{
+			"build_type on cargo",
+			"[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"cargo\"\n" +
+				"build_type = \"Release\"\n",
+			"components.a.build.build_type", `is a field of backend cmake, not of "cargo"`,
+		},
+		{
+			"a cmake program clashes with a go program",
+			"[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
+				"[components.a.build]\nbackend = \"cmake\"\noutput = [\"bin/b\"]\n" +
+				"[components.b]\npath = \"b\"\nkind = \"executable\"\n" +
+				"[components.b.build]\nbackend = \"go\"\n",
+			"components.b.build", `program "b" is built by component "a" too`,
+		},
+		{
+			"cmake for a hook", "[hooks.pre_build]\nbackend = \"cmake\"\noutput = [\"a\"]\n",
+			"hooks.pre_build", `backend "cmake" is not supported`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := parseBody(t, tt.body).Validate()
+			require.Error(t, err)
+
+			var verr *manifest.ValidationError
+
+			require.ErrorAs(t, err, &verr)
+			assert.Equal(t, tt.field, verr.Field, err.Error())
+			assert.Contains(t, verr.Msg, tt.msg)
+		})
+	}
+}

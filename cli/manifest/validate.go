@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"sort"
@@ -333,14 +334,14 @@ func validateKind(field string, comp Component) error {
 
 // validateKindBackend checks that the backend of a component's build makes
 // what the kind of the component is: go makes programs only, c and lua-c
-// make modules only, cargo, make and shell make either.
+// make modules only, cargo, cmake, make and shell make either.
 func validateKindBackend(field string, comp Component) error {
 	backend := comp.Build.Backend
 
 	switch {
 	case comp.IsExecutable() && (backend == backendC || backend == backendLuaC):
 		return invalid(field, "backend %q builds a module, not a program (kind %q wants "+
-			"go, cargo, make or shell)", backend, KindExecutable)
+			"go, cargo, cmake, make or shell)", backend, KindExecutable)
 	case !comp.IsExecutable() && backend == backendGo:
 		return invalid(field, "backend %q builds a program: set kind = %q on the component",
 			backend, KindExecutable)
@@ -374,16 +375,17 @@ func validateCargoKind(field string, comp Component) error {
 	return nil
 }
 
-// isProgramBackend reports whether backend is one of those that came with
-// executable components, go and cargo, whose fields are checked strictly.
-func isProgramBackend(backend string) bool {
-	return backend == backendGo || backend == backendCargo
+// isStrictBackend reports whether backend is one of those that came after
+// the first four - go and cargo with executable components, then cmake -
+// whose fields are checked strictly.
+func isStrictBackend(backend string) bool {
+	return backend == backendGo || backend == backendCargo || backend == backendCMake
 }
 
 // isLegacyBackend reports whether backend is one of the four that were there
-// before go and cargo: make, shell, c and lua-c.
+// before go, cargo and cmake: make, shell, c and lua-c.
 func isLegacyBackend(backend string) bool {
-	return !isProgramBackend(backend)
+	return !isStrictBackend(backend)
 }
 
 // programNameRe is the shape of a program name a go or cargo build is given:
@@ -398,6 +400,20 @@ var cargoProfileRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 // <module>.so in the namespace of the component, and the module is a name of
 // require and of the C functions of box.schema.func.create, so no dot.
 var cargoModuleRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// cmakeVariableRe is the shape of a key of variables of a cmake build: the
+// name of a cache variable, with its type after a colon if it is given one,
+// as -D<name>[:<type>]=<value> takes it. An = would end the name early; a
+// space and a leading dash are kept out of it as out of a target.
+var cmakeVariableRe = regexp.MustCompile(`^[A-Za-z0-9_.+][A-Za-z0-9_.+-]*(:[A-Z]+)?$`)
+
+// cmakeNameRe is the shape of a target and of a build type of a cmake build:
+// no space, and no leading dash, which cmake --build would take for an
+// option.
+var cmakeNameRe = regexp.MustCompile(`^[A-Za-z0-9_.+][A-Za-z0-9_.+-]*$`)
+
+// cmakeBuildTypeVariable is the variable build_type of a cmake build sets.
+const cmakeBuildTypeVariable = "CMAKE_BUILD_TYPE"
 
 func validateBuild(field string, build Build) error {
 	switch build.Backend {
@@ -427,16 +443,64 @@ func validateBuild(field string, build Build) error {
 		if err != nil {
 			return err
 		}
+	case backendCMake:
+		err := validateCMakeBuild(field, build)
+		if err != nil {
+			return err
+		}
 	case "":
 		return invalid(field, "backend is required")
 	default:
 		return invalid(field,
 			"backend %q is not supported in manifest_version %q "+
-				"(want make, shell, c, lua-c, go or cargo)",
+				"(want make, shell, c, lua-c, go, cargo or cmake)",
 			build.Backend, ManifestVersion)
 	}
 
 	return validateBackendFields(field, build)
+}
+
+// validateCMakeBuild checks the fields of a cmake build. output is required:
+// the build tree of cmake holds the objects, the caches and the generated
+// files of the build as well, so the build takes from it the files output
+// names and nothing else.
+func validateCMakeBuild(field string, build Build) error {
+	if len(build.Output) == 0 {
+		return invalid(field, "output is required for backend %q: the files of its "+
+			"build tree the build takes", backendCMake)
+	}
+
+	for _, output := range build.Output {
+		switch {
+		case output == "":
+			return invalid(field+".output", "must not contain an empty entry")
+		case filepath.IsAbs(output):
+			return invalid(field+".output", "%q is not relative to the build tree", output)
+		}
+	}
+
+	for _, name := range sortedKeys(build.Variables) {
+		if !cmakeVariableRe.MatchString(name) {
+			return invalid(field+".variables", "%q is not a variable name: letters, "+
+				"digits and _.+-, not - first, then :<TYPE> if it has one", name)
+		}
+
+		if variable, _, _ := strings.Cut(name, ":"); variable == cmakeBuildTypeVariable {
+			return invalid(field+".variables", "%s is set by build_type", cmakeBuildTypeVariable)
+		}
+	}
+
+	for _, target := range build.Targets {
+		if !cmakeNameRe.MatchString(target) {
+			return invalid(field+".targets", "%q is not a target name", target)
+		}
+	}
+
+	if build.BuildType != "" && !cmakeNameRe.MatchString(build.BuildType) {
+		return invalid(field+".build_type", "%q is not a build type", build.BuildType)
+	}
+
+	return nil
 }
 
 func validateGoBuild(field string, build Build) error {
@@ -506,7 +570,9 @@ func backendFields(build Build) []backendField {
 		{"defines", build.Defines != nil, ccDriver},
 		{"platforms", build.Platforms != nil, ccDriver},
 		// go and cargo name their program themselves.
-		{"output", build.Output != nil, []string{backendMake, backendShell, backendC, backendLuaC}},
+		{"output", build.Output != nil, []string{
+			backendMake, backendShell, backendC, backendLuaC, backendCMake,
+		}},
 		{"incremental", build.Incremental != nil, []string{backendMake, backendShell}},
 		{"package", build.Package != "", []string{backendGo, backendCargo}},
 		{"static", build.Static != nil, []string{backendGo, backendCargo}},
@@ -517,6 +583,9 @@ func backendFields(build Build) []backendField {
 		{"bin", build.Bin != "", []string{backendCargo}},
 		{"features", build.Features != nil, []string{backendCargo}},
 		{"profile", build.Profile != "", []string{backendCargo}},
+		{"variables", build.Variables != nil, []string{backendCMake}},
+		{"targets", build.Targets != nil, []string{backendCMake}},
+		{"build_type", build.BuildType != "", []string{backendCMake}},
 	}
 }
 
@@ -525,10 +594,10 @@ func backendFields(build Build) []backendField {
 // user who wrote static = true on a make build expects a static program he
 // would not get.
 //
-// The fields the go and cargo backends brought, and every field on a go or
-// cargo build, are checked. A field of make, shell, c or lua-c on a build of
-// another of those four is still let through, as it always was: a manifest
-// that carries one would stop building.
+// The fields the go, cargo and cmake backends brought, and every field on a
+// go, cargo or cmake build, are checked. A field of make, shell, c or lua-c
+// on a build of another of those four is still let through, as it always
+// was: a manifest that carries one would stop building.
 func validateBackendFields(field string, build Build) error {
 	for _, key := range backendFields(build) {
 		if !key.set || slices.Contains(key.owners, build.Backend) {
@@ -538,7 +607,7 @@ func validateBackendFields(field string, build Build) error {
 		// A field a backend of the four owns is one of theirs, module
 		// included, which cargo shares.
 		legacyField := slices.ContainsFunc(key.owners, isLegacyBackend)
-		if legacyField && !isProgramBackend(build.Backend) {
+		if legacyField && !isStrictBackend(build.Backend) {
 			continue
 		}
 

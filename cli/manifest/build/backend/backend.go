@@ -4,15 +4,16 @@
 // A component with a native part (or a generation step) is built by one of
 // the isolated executors selected by the [components.<name>.build] backend
 // field: shell (argv-style execve), make (make -C -f target), a shared cc
-// driver serving both c and lua-c, and, for an executable component, go
-// (go build) and cargo (cargo build). Each executor receives the parsed
-// manifest.Build block, an absolute working directory, and the Env contract.
-// None of them order components, lay out install namespaces, resolve the lock,
-// or run lifecycle hooks — that orchestration is the caller's job; a backend
-// only runs one tool and writes into TT_OUTPUT_DIR.
+// driver serving both c and lua-c, cmake (configure and build out of the
+// source), and, for an executable component, go (go build) and cargo (cargo
+// build). Each executor receives the parsed manifest.Build block, an absolute
+// working directory, and the Env contract. None of them order components, lay
+// out install namespaces, resolve the lock, or run lifecycle hooks — that
+// orchestration is the caller's job; a backend only runs one tool and writes
+// into TT_OUTPUT_DIR.
 //
 // The process environment is assembled on the exec.Cmd, never via os.Chdir or
-// os.Setenv: the seven TT_* contract variables are applied last so a stray
+// os.Setenv: the TT_* contract variables are applied last so a stray
 // [build].env pair cannot redirect e.g. TT_OUTPUT_DIR. The cc driver reuses
 // go-luarocks' per-OS flag derivation through the rocks adapter's Flags seam,
 // so -fPIC / -I<include> / -shared-vs-bundle / .so are not duplicated here.
@@ -50,6 +51,8 @@ const (
 	BackendGo = "go"
 	// BackendCargo builds a Rust binary with cargo build.
 	BackendCargo = "cargo"
+	// BackendCMake configures and builds a CMake project out of its source.
+	BackendCMake = "cmake"
 )
 
 // dirPerm is the mode used when creating output directories.
@@ -96,6 +99,21 @@ type Env struct {
 	// Module is set for the build of a module component: the cargo backend
 	// builds the library of the package then, and the binary otherwise.
 	Module bool
+	// TarantoolPrefix is the install prefix of the Tarantool the build is
+	// for (TT_TARANTOOL_PREFIX); empty when tt does not know it. The cmake
+	// backend puts it into CMAKE_PREFIX_PATH.
+	TarantoolPrefix string
+	// TarantoolIncludeDir is the directory of the C headers of that
+	// Tarantool, module.h and lua.h, as #include <module.h> finds them
+	// (TT_TARANTOOL_INCLUDE_DIR); empty when there are none.
+	TarantoolIncludeDir string
+	// BuildDir is the directory of the project's _build/ the backend keeps
+	// its own state in between builds: the build tree of a cmake build. It
+	// must be absolute for a backend that uses it.
+	BuildDir string
+	// Fresh asks the backend to drop what it keeps in BuildDir and to build
+	// from scratch, as tt package build --rebuild does.
+	Fresh bool
 }
 
 // platformOS returns env.OS, defaulting to the host runtime.GOOS when empty so
@@ -141,9 +159,10 @@ func (e Env) baseEnviron() []string {
 }
 
 // environ is the full component-build contract: baseEnviron plus the seven TT_*
-// variables, TT_OUTPUT_DIR / TT_COMPONENT_NAME included.
+// variables, TT_OUTPUT_DIR / TT_COMPONENT_NAME included, and those of
+// Tarantool (see tarantoolEnviron).
 func (e Env) environ() []string {
-	return append(e.baseEnviron(),
+	return e.tarantoolEnviron(append(e.baseEnviron(),
 		"TT_OUTPUT_DIR="+e.OutputDir,
 		"TT_PROJECT_ROOT="+e.ProjectRoot,
 		"TT_PACKAGE="+e.Package,
@@ -151,22 +170,40 @@ func (e Env) environ() []string {
 		"TT_VERSION="+e.Version,
 		"TT_PLATFORM_OS="+e.platformOS(),
 		"TT_PLATFORM_ARCH="+e.platformArch(),
-	)
+	))
 }
 
 // hookEnviron is the reduced lifecycle-hook contract: baseEnviron plus the five
-// TT_* variables that exist before any component is built. TT_OUTPUT_DIR and
-// TT_COMPONENT_NAME are deliberately omitted — a pre_build / post_build hook
-// runs around all components and has no single output directory or component
-// name.
+// TT_* variables that exist before any component is built, and those of
+// Tarantool. TT_OUTPUT_DIR and TT_COMPONENT_NAME are deliberately omitted — a
+// pre_build / post_build hook runs around all components and has no single
+// output directory or component name.
 func (e Env) hookEnviron() []string {
-	return append(e.baseEnviron(),
+	return e.tarantoolEnviron(append(e.baseEnviron(),
 		"TT_PROJECT_ROOT="+e.ProjectRoot,
 		"TT_PACKAGE="+e.Package,
 		"TT_VERSION="+e.Version,
 		"TT_PLATFORM_OS="+e.platformOS(),
 		"TT_PLATFORM_ARCH="+e.platformArch(),
-	)
+	))
+}
+
+// tarantoolEnviron appends to environ where the Tarantool the build is for
+// is: TT_TARANTOOL_PREFIX, its install prefix, and TT_TARANTOOL_INCLUDE_DIR,
+// the directory of its module.h and lua.h, which a make, shell or cmake build
+// of a C module compiles against as the c and lua-c backends do. Each is set
+// only when tt knows it: a guessed path would send the build to look for the
+// headers where they are not, rather than let it fail or find them itself.
+func (e Env) tarantoolEnviron(environ []string) []string {
+	if e.TarantoolPrefix != "" {
+		environ = append(environ, "TT_TARANTOOL_PREFIX="+e.TarantoolPrefix)
+	}
+
+	if e.TarantoolIncludeDir != "" {
+		environ = append(environ, "TT_TARANTOOL_INCLUDE_DIR="+e.TarantoolIncludeDir)
+	}
+
+	return environ
 }
 
 // Backend builds one component into env.OutputDir.
@@ -194,6 +231,8 @@ func New(name string, flags lrbuild.Flags, showOutput bool) (Backend, error) {
 		return goBackend{showOutput: showOutput}, nil
 	case BackendCargo:
 		return cargoBackend{showOutput: showOutput}, nil
+	case BackendCMake:
+		return cmakeBackend{showOutput: showOutput}, nil
 	default:
 		return nil, fmt.Errorf("%w %q", errUnknownBackend, name)
 	}
