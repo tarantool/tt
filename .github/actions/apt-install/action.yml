@@ -1,0 +1,39 @@
+name: Install apt packages
+description: >-
+  Install the packages the runner lacks: nothing is fetched when all of them
+  are there, as the GitHub images have most, and otherwise apt reads the
+  archive through mirrors outside ubuntu.com as well (ci/apt-mirrors.sh), so
+  an outage of the Ubuntu archive does not fail the job.
+
+inputs:
+  packages:
+    description: The packages, separated by spaces.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install the missing packages
+      shell: bash
+      env:
+        PACKAGES: ${{ inputs.packages }}
+        MIRRORS: ${{ github.action_path }}/../../../ci/apt-mirrors.sh
+      run: |
+        missing=()
+        for package in $PACKAGES; do
+          if ! dpkg-query -W -f='${db:Status-Status}' "$package" 2>/dev/null |
+            grep -qx installed; then
+            missing+=("$package")
+          fi
+        done
+
+        if [ ${#missing[@]} -eq 0 ]; then
+          echo "Installed already: $PACKAGES"
+          exit 0
+        fi
+
+        echo "Installing: ${missing[*]}"
+        sudo sh "$MIRRORS"
+        # The third-party sources of the image may move to another suite.
+        sudo apt-get update --allow-releaseinfo-change
+        sudo apt-get install -y "${missing[@]}"

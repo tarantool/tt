@@ -24,6 +24,7 @@ import (
 const (
 	testImageDockerfile = "ci/Dockerfile"
 	testRequirements    = "test/requirements.txt"
+	testAptMirrors      = "ci/apt-mirrors.sh"
 	testImageName       = "tt-test"
 
 	// containerCache is where the container has the test cache of its own,
@@ -107,13 +108,18 @@ func testImage() (string, error) {
 		return "", fmt.Errorf("cannot read the test requirements: %w", err)
 	}
 
+	aptMirrors, err := os.ReadFile(testAptMirrors)
+	if err != nil {
+		return "", fmt.Errorf("cannot read the apt mirrors: %w", err)
+	}
+
 	goVersion, err := goModVersion()
 	if err != nil {
 		return "", err
 	}
 
 	hash := sha256.New()
-	for _, part := range [][]byte{dockerfile, requirements, []byte(goVersion)} {
+	for _, part := range [][]byte{dockerfile, requirements, aptMirrors, []byte(goVersion)} {
 		_, _ = fmt.Fprintf(hash, "%d\n", len(part))
 		_, _ = hash.Write(part)
 	}
@@ -134,12 +140,16 @@ func testImage() (string, error) {
 
 	defer func() { _ = os.RemoveAll(buildContext) }()
 
-	const requirementsMode = 0o644
+	const contextMode = 0o644
 
-	err = os.WriteFile(filepath.Join(buildContext, "requirements.txt"), requirements,
-		requirementsMode)
-	if err != nil {
-		return "", fmt.Errorf("cannot write the build context: %w", err)
+	for name, data := range map[string][]byte{
+		"requirements.txt": requirements,
+		"apt-mirrors.sh":   aptMirrors,
+	} {
+		err = os.WriteFile(filepath.Join(buildContext, name), data, contextMode)
+		if err != nil {
+			return "", fmt.Errorf("cannot write the build context: %w", err)
+		}
 	}
 
 	err = sh.RunV("docker", "build", "--build-arg", "GO_VERSION="+goVersion,
