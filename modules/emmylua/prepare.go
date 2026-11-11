@@ -106,12 +106,13 @@ func newPrepareCmd(services sdk.Services) *cobra.Command {
 
 // run prepares the project: it packs the rock, declares the dependency
 // through the project of the SDK, printing how the lock moved, and installs
-// the rocks unless --no-install says otherwise.
+// the rocks unless --no-install says otherwise. It runs in the root of the
+// project, where the project of the SDK edits the manifest.
 func (c *prepareCmd) run(cmd *cobra.Command, _ []string) error {
 	project := c.services.Project()
 	streams := c.services.Streams().IO()
 
-	projectDir, err := project.Dir()
+	projectDir, err := projectRoot(c.services)
 	if err != nil {
 		return err
 	}

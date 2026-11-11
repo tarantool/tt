@@ -101,6 +101,23 @@ func TestCheck(t *testing.T) {
 		got.Stdout)
 }
 
+// TestCheckInSubdirectory checks that tt emmylua check run in a subdirectory
+// of a project works on the project, as the project commands of tt do: the
+// program of its rocks, its configuration, the project when no path is
+// given. It runs programs, so it is not parallel, as TestCheck.
+func TestCheckInSubdirectory(t *testing.T) {
+	project := testProject(t)
+	writeProgram(t, project, "emmylua_check", "echo \"$@\"\n")
+
+	sub := filepath.Join(project, "app", "lib")
+	require.NoError(t, os.MkdirAll(sub, 0o755))
+
+	got := sdktest.New(t, sdktest.WithProject(sub)).Run(emmylua.New, "emmylua", "check")
+	require.NoError(t, got.Err)
+	assert.Equal(t, "--config "+configPath(project)+" "+project+"\n", got.Stdout)
+	assert.NoDirExists(t, filepath.Join(sub, ".tarantool"))
+}
+
 // TestDoc checks that tt emmylua doc passes its flags to emmylua_doc_cli
 // with the configuration, the arguments after -- and the paths. It runs
 // programs, so it is not parallel, as TestCheck.

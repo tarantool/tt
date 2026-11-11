@@ -133,6 +133,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   Tarantool without EmmyLua stubs names its version, the path where they
   were looked for only with `-V`; and `tt emmylua ls` started in a terminal
   says on stderr that it waits for an editor, and how to make one run it.
+- `tt emmylua check`, `doc`, `fmt`, `ls` and `config` run in a
+  subdirectory of a project work on the project, found as the other project
+  commands find it: the programs of its `.rocks/bin`, its configuration, the
+  project when no path is given. They said EmmyLua was not installed in the
+  project. `tt emmylua prepare` there fails naming the root of the project to
+  run it in, since it edits the manifest there.
 - `tt wasm prepare` declares the `wasm` rock from the rock index of
   tarantool-contrib/rocks-repo
   (`https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/`,
