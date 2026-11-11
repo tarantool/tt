@@ -128,6 +128,7 @@ func ParseManifest(data []byte) (*Manifest, []string, error) {
 	}
 
 	out.applyDependencyDefaults()
+	out.applyHookDefaults()
 
 	out.raw = append([]byte(nil), data...)
 
@@ -197,6 +198,19 @@ func (m *Manifest) applyDependencyDefaults() {
 
 	for _, component := range m.Components {
 		defaults(component.Dependencies)
+	}
+}
+
+// applyHookDefaults gives a hook that names no backend the shell one. Validate
+// checks the hook with it and the build runs the hook with it: a default
+// Validate alone assumed let a manifest through that the build then refused
+// to run.
+func (m *Manifest) applyHookDefaults() {
+	for name, hook := range m.Hooks {
+		if hook.Backend == "" {
+			hook.Backend = backendShell
+			m.Hooks[name] = hook
+		}
 	}
 }
 

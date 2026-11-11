@@ -285,9 +285,9 @@ the default one by the package name, another by its rock.
 
 ## `[hooks.pre_build]` and `[hooks.post_build]`
 
-A command run before or after the components are built, with the `make` or
-`shell` backend and the fields of a build. A hook gets the environment of a
-build without `TT_OUTPUT_DIR` and `TT_COMPONENT_NAME`.
+A command run before or after the components are built, with the `shell`
+backend, the default, or `make` and the fields of a build. A hook gets the
+environment of a build without `TT_OUTPUT_DIR` and `TT_COMPONENT_NAME`.
 
 <!-- TODO(writers): app.manifest.lock - what it records, such as
 bundled_tarantool_version - is not described yet. -->

@@ -702,19 +702,13 @@ func (m *Manifest) validateHooks() ([]string, error) {
 			continue
 		}
 
+		// A hook naming no backend was given shell when it was parsed
+		// (applyHookDefaults), the backend the build runs it with.
 		hook := m.Hooks[name]
-
-		backend := hook.Backend
-		if backend == "" {
-			backend = backendShell // Hooks default to shell.
-		}
-
-		if !isHookBackend(backend) {
+		if !isHookBackend(hook.Backend) {
 			return warnings, invalid("hooks."+name,
-				"backend %q is not supported (want make or shell)", backend)
+				"backend %q is not supported (want make or shell)", hook.Backend)
 		}
-
-		hook.Backend = backend
 
 		err := validateBuild("hooks."+name, hook)
 		if err != nil {

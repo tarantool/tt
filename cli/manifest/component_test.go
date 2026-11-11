@@ -448,6 +448,21 @@ func TestValidateStaticModules(t *testing.T) {
 	}
 }
 
+// TestHookBackendDefaultsToShell checks that a hook naming no backend is a
+// shell one once parsed, as the build runs it, and that one naming make keeps
+// it.
+func TestHookBackendDefaultsToShell(t *testing.T) {
+	t.Parallel()
+
+	mfst := parseBody(t, "[hooks.pre_build]\ncommand = \"./gen.sh\"\n"+
+		"[hooks.post_build]\nbackend = \"make\"\nmake_target = \"post\"\n")
+
+	_, err := mfst.Validate()
+	require.NoError(t, err)
+	assert.Equal(t, "shell", mfst.Hooks["pre_build"].Backend)
+	assert.Equal(t, "make", mfst.Hooks["post_build"].Backend)
+}
+
 // TestCMakeComponentFields checks that every field of the cmake backend
 // decodes into the build, of a module and of an executable component.
 func TestCMakeComponentFields(t *testing.T) {

@@ -289,9 +289,9 @@ output = ["memcached/internal.so"]
 
 ## `[hooks.pre_build]` и `[hooks.post_build]` {#hookspre_build-and-hookspost_build}
 
-Команда, запускаемая до или после сборки компонентов, с backend'ом `make` или
-`shell` и полями сборки. Hook получает окружение сборки без `TT_OUTPUT_DIR` и
-`TT_COMPONENT_NAME`.
+Команда, запускаемая до или после сборки компонентов, с backend'ом `shell`
+(по умолчанию) или `make` и полями сборки. Hook получает окружение сборки без
+`TT_OUTPUT_DIR` и `TT_COMPONENT_NAME`.
 
 <!-- TODO(writers): app.manifest.lock - what it records, such as
 bundled_tarantool_version - is not described yet. -->

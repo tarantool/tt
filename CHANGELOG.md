@@ -352,6 +352,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Ctrl-C during `tt package build`, `fetch`, `pack` and `install` and
   `tt test` stops the build tools of the rocks, the compilers a `make` started
   included, which ran on after tt.
+- A `[hooks.pre_build]` or `[hooks.post_build]` that names no `backend` runs
+  with `shell`, as the manifest was checked with; the build failed with
+  `hook backend is not runnable (only shell and make): ""`.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 
