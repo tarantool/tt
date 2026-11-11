@@ -2,7 +2,9 @@ package manifest
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -57,6 +59,70 @@ type LockDependency struct {
 	Checksum    string `toml:"checksum,omitempty"`     // Registry: "md5:..." or "sha256:...".
 	Path        string `toml:"path,omitempty"`         // Path source.
 	ContentHash string `toml:"content_hash,omitempty"` // Path: sha256 of contents.
+
+	// Artifacts pins every file of a registry rock version by its arch, as a
+	// rock server that publishes a tt-rocks-index.json lists them: the rock
+	// of each platform ("linux-x86_64", "macosx-aarch64", "all", "src") and
+	// the bare rockspec under "rockspec", each "sha256:<hex>". The install
+	// checks the file it picks for its host against it, so a lock resolved
+	// on one platform installs verified on every other; a host whose file is
+	// not pinned has the lock resolved again. Empty, and absent from the
+	// file, for a rock from a server that publishes no digests, which
+	// installs unpinned as before.
+	//
+	// On disk it is an inline table, one line per dependency:
+	// artifacts = { linux-x86_64 = 'sha256:...', rockspec = 'sha256:...' }.
+	Artifacts map[string]string `toml:"artifacts,inline,omitempty"`
+}
+
+// artifactDigestPrefix starts every digest of LockDependency.Artifacts: the
+// algorithm, so another one can be recorded without a new lock format.
+const artifactDigestPrefix = "sha256:"
+
+// ArtifactDigest renders a sha256 in hex as a digest of
+// LockDependency.Artifacts.
+func ArtifactDigest(sha256 string) string {
+	return artifactDigestPrefix + strings.ToLower(sha256)
+}
+
+// ArtifactPins returns the digests of Artifacts as the sha256 hex by arch
+// the rock installer takes (client.InstallOpts.Artifacts), or nil when the
+// dependency pins no file: nil installs without pins, while an empty map
+// would pin nothing and refuse every file. A digest that is not
+// "sha256:<hex>" is an error naming the dependency, since installing past
+// it would install unverified what the lock means to verify.
+func (d LockDependency) ArtifactPins() (map[string]string, error) {
+	if len(d.Artifacts) == 0 {
+		return nil, nil //nolint:nilnil // Nil pins are the installer's "no pins".
+	}
+
+	pins := make(map[string]string, len(d.Artifacts))
+
+	for arch, digest := range d.Artifacts {
+		sum, ok := strings.CutPrefix(digest, artifactDigestPrefix)
+		if !ok || !isSHA256Hex(sum) {
+			return nil, fmt.Errorf("lock entry %s %s: %w", d.Name, d.Version,
+				invalid("artifacts."+arch, "%q is not sha256:<64 hex digits>", digest))
+		}
+
+		pins[arch] = strings.ToLower(sum)
+	}
+
+	return pins, nil
+}
+
+// sha256HexLen is the length of a sha256 in hex.
+const sha256HexLen = 64
+
+// isSHA256Hex reports whether s is a sha256 in hex.
+func isSHA256Hex(s string) bool {
+	if len(s) != sha256HexLen {
+		return false
+	}
+
+	_, err := hex.DecodeString(s)
+
+	return err == nil
 }
 
 // lockWire is the on-disk shape of the lock. It nests Products and the dev

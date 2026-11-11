@@ -82,8 +82,8 @@ const (
 )
 
 // rockInstaller is the registry-install slice of go-luarocks' *client.Rocks.
-// Registry dependencies use the Lua backend for full LuaRocks artifact and
-// deployment compatibility.
+// Registry dependencies use the native backend, which checks the digests a
+// rock server lists and a lock pins.
 type rockInstaller interface {
 	Install(ctx context.Context, name string, opts client.InstallOpts) error
 }
@@ -148,6 +148,12 @@ func materialize(
 }
 
 // materializeDep materializes one locked dependency.
+//
+// A registry rock whose lock entry pins its files (LockDependency.Artifacts)
+// is installed with those pins, so the file chosen for this host must be the
+// one the lock was resolved with, from whichever server serves it; one whose
+// entry pins none installs unpinned, as a rock of a classic server always
+// has.
 func materializeDep(
 	ctx context.Context, registryClient rockInstaller, pathClient rockBuilder,
 	projectDir string, dep manifest.LockDependency,
@@ -155,14 +161,25 @@ func materializeDep(
 ) error {
 	switch dep.Source {
 	case sourceRegistry:
+		pins, err := dep.ArtifactPins()
+		if err != nil {
+			return err
+		}
+
 		opts := client.InstallOpts{
-			Version: dep.Version,
-			Servers: servers.of(dep.Name),
-			Deps:    client.DepsNone,
+			Version:   dep.Version,
+			Servers:   servers.of(dep.Name),
+			Deps:      client.DepsNone,
+			Artifacts: pins,
 		}
 
 		installErr := registryClient.Install(ctx, dep.Name, opts)
 		if installErr != nil {
+			if advice := rocks.PinAdvice(installErr); advice != "" {
+				return fmt.Errorf("installing %s %s: %w; %s",
+					dep.Name, dep.Version, installErr, advice)
+			}
+
 			return fmt.Errorf("installing %s %s: %w", dep.Name, dep.Version, installErr)
 		}
 

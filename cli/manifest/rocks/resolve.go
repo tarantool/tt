@@ -18,6 +18,19 @@ type ResolvedRock struct {
 	Version luarocks.Version
 	// URL is the .rock / .rockspec resource on the originating server.
 	URL string
+	// SHA256 is the sha256 in hex the server publishes for the resource at
+	// URL; empty for a server that publishes none (a classic manifest).
+	SHA256 string
+	// SpecURL and SpecSHA256 are the rockspec the server publishes apart
+	// from its rocks, and its sha256 in hex, as a tt-rocks-index.json lists
+	// it: Metadata reads it instead of downloading the rock. Empty
+	// otherwise.
+	SpecURL    string
+	SpecSHA256 string
+	// Artifacts are every file the server offers for the version, each
+	// with its sha256 - the rock of each platform and the rockspec - which
+	// the lock records; nil for a server that publishes no digests.
+	Artifacts []luarocks.Artifact
 }
 
 // serverIndex builds the ordered first-found-wins index over servers. Each
@@ -72,7 +85,15 @@ func resolveWith(
 		return ResolvedRock{}, fmt.Errorf("%q %q: %w", name, constraintExpr, ErrNoMatch)
 	}
 
-	return ResolvedRock{Name: best.Name, Version: best.Version, URL: best.URL}, nil
+	return ResolvedRock{
+		Name:       best.Name,
+		Version:    best.Version,
+		URL:        best.URL,
+		SHA256:     best.SHA256,
+		SpecURL:    best.SpecURL,
+		SpecSHA256: best.SpecSHA256,
+		Artifacts:  best.Artifacts,
+	}, nil
 }
 
 // pickNewest returns the highest-versioned candidate satisfying every

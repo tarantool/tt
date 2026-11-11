@@ -202,8 +202,12 @@ func (w *walker) resolveOne(ctx context.Context, req depReq) (*resolvedDep, []de
 			resolved.Name, resolved.Version.Raw))
 	}
 
+	artifacts := lockArtifacts(resolved.Artifacts)
+
+	// A rock whose files the lock pins by digest is reproducible without an
+	// md5 of its source, so only a rock with neither is warned about.
 	checksum, ok := rocks.Checksum(spec)
-	if !ok && w.cache.markNoMD5(resolved.URL) {
+	if !ok && artifacts == nil && w.cache.markNoMD5(resolved.URL) {
 		// Emit once per run: resolveOne re-runs per product (the walker is
 		// per-product), but the shared cache dedups the warning across them.
 		w.warnings = append(w.warnings, fmt.Sprintf(
@@ -219,6 +223,7 @@ func (w *walker) resolveOne(ctx context.Context, req depReq) (*resolvedDep, []de
 			Checksum:    checksum,
 			Path:        "",
 			ContentHash: "",
+			Artifacts:   artifacts,
 		},
 		version: resolved.Version,
 	}
@@ -285,6 +290,32 @@ func (w *walker) resolveRegistry(ctx context.Context, req depReq) (rocks.Resolve
 
 	return w.cache.resolveRock(
 		ctx, w.engine.adapter, req.name, req.constraintExpr, req.registry)
+}
+
+// lockArtifacts renders the files a server lists for a rock version, each
+// with its sha256, as the lock records them: "sha256:<hex>" by arch. It is
+// nil for a server that lists none, so the lock entry carries no artifacts
+// key and installs without pins.
+func lockArtifacts(artifacts []luarocks.Artifact) map[string]string {
+	if len(artifacts) == 0 {
+		return nil
+	}
+
+	out := make(map[string]string, len(artifacts))
+
+	for _, artifact := range artifacts {
+		if artifact.SHA256 == "" {
+			continue
+		}
+
+		out[artifact.Arch] = manifest.ArtifactDigest(artifact.SHA256)
+	}
+
+	if len(out) == 0 {
+		return nil
+	}
+
+	return out
 }
 
 // transitiveReqs turns a rockspec's dependency list into requirements. They

@@ -3,12 +3,17 @@ package install
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
+	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/go-luarocks/client"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // fakeInstaller records the Install calls the refetch loop makes, standing in
@@ -67,6 +72,58 @@ func TestInstallDepsPropagatesError(t *testing.T) {
 	err := installDeps(context.Background(), fake, decisions, nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "luasocket 3.0.4")
+}
+
+// TestInstallDepsPinsArtifacts covers a refetch of a rock whose lock pins its
+// files: the pins reach the installer, a decision without them installs with
+// nil pins, and a refusal for them says what to do.
+func TestInstallDepsPinsArtifacts(t *testing.T) {
+	t.Parallel()
+
+	pins := map[string]string{"linux-x86_64": strings.Repeat("a", 64)}
+	fake := &fakeInstaller{calls: nil, names: nil, err: nil}
+
+	decisions := []depDecision{
+		{name: "luasocket", version: "3.0.4", source: fromRegistry, removeVersion: ""},
+		{
+			name: "emmylua", version: "0.30.0pre1-1", source: fromRegistry, removeVersion: "",
+			artifacts: pins,
+		},
+	}
+
+	require.NoError(t, installDeps(context.Background(), fake, decisions, nil, nil))
+	assert.Nil(t, fake.calls[0].Artifacts)
+	assert.Equal(t, pins, fake.calls[1].Artifacts)
+
+	fake.err = fmt.Errorf("rocks.Install: %w", luarocks.ErrArtifactNotPinned)
+
+	err := installDeps(context.Background(), fake, decisions[1:], nil, nil)
+	require.ErrorIs(t, err, luarocks.ErrArtifactNotPinned)
+	assert.Contains(t, err.Error(), "pack the package again after tt package resolve")
+}
+
+// TestPlanDepsCarriesArtifactPins checks that a registry decision takes the
+// pins of the lock entry its version comes from: the archive's, for the
+// version it carries.
+func TestPlanDepsCarriesArtifactPins(t *testing.T) {
+	t.Parallel()
+
+	sum := strings.Repeat("b", 64)
+	header := &Header{
+		Manifest: &manifest.Manifest{},
+		Lock: &manifest.Lock{Products: map[string]manifest.LockProduct{
+			"default": {Dependencies: []manifest.LockDependency{{
+				Name: "emmylua", Version: "0.30.0pre1-1", Source: sourceRegistry,
+				Artifacts: map[string]string{"macosx-aarch64": "sha256:" + sum},
+			}}},
+		}},
+	}
+
+	plan, err := planDeps(header, "default", nil, nil, false)
+	require.NoError(t, err)
+	require.Len(t, plan.decisions, 1)
+	assert.Equal(t, fromRegistry, plan.decisions[0].source)
+	assert.Equal(t, map[string]string{"macosx-aarch64": sum}, plan.decisions[0].artifacts)
 }
 
 // TestRegistryDecisionsSelectsOnlyRegistry checks that only registry-sourced

@@ -2,12 +2,15 @@ package build
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/go-luarocks/client"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
@@ -201,6 +204,76 @@ func TestMaterialize_registryOverrideInstallsFromDeclaredServer(t *testing.T) {
 	require.Len(t, fake.installs, 2)
 	assert.Equal(t, []string{"https://rocks.example.test"}, fake.installs[0].opts.Servers)
 	assert.Equal(t, []string{"/project/.tarantool/registry"}, fake.installs[1].opts.Servers)
+}
+
+// TestMaterialize_artifactsPinTheInstall checks that the digests a lock entry
+// pins reach the installer as sha256 hex by arch, and that an entry without
+// them installs with nil pins - not an empty set, which would refuse every
+// file.
+func TestMaterialize_artifactsPinTheInstall(t *testing.T) {
+	t.Parallel()
+
+	x86, spec := strings.Repeat("a", 64), strings.Repeat("c", 64)
+
+	fake := &fakeRockClient{}
+	prod := manifest.LockProduct{Dependencies: []manifest.LockDependency{
+		{Name: "checks", Version: "3.1.0-1", Source: sourceRegistry},
+		{
+			Name: "emmylua", Version: "0.30.0pre1-1", Source: sourceRegistry,
+			Artifacts: map[string]string{
+				"linux-x86_64": "sha256:" + x86, "rockspec": "sha256:" + spec,
+			},
+		},
+	}}
+
+	require.NoError(t, materialize(context.Background(), fake, fake, t.TempDir(), prod, nil,
+		rockServers{}))
+
+	require.Len(t, fake.installs, 2)
+	assert.Nil(t, fake.installs[0].opts.Artifacts)
+	assert.Equal(t, map[string]string{"linux-x86_64": x86, "rockspec": spec},
+		fake.installs[1].opts.Artifacts)
+}
+
+// TestMaterialize_pinFailuresAdvise checks that an install refused for the
+// lock's pins says how to get past it, and keeps the cause for errors.Is.
+func TestMaterialize_pinFailuresAdvise(t *testing.T) {
+	t.Parallel()
+
+	for _, cause := range []error{luarocks.ErrArtifactNotPinned, luarocks.ErrChecksumMismatch} {
+		fake := &fakeRockClient{err: fmt.Errorf("rocks.Install: %w", cause)}
+		prod := manifest.LockProduct{Dependencies: []manifest.LockDependency{{
+			Name: "emmylua", Version: "0.30.0pre1-1", Source: sourceRegistry,
+			Artifacts: map[string]string{"rockspec": "sha256:" + strings.Repeat("c", 64)},
+		}}}
+
+		err := materialize(context.Background(), fake, fake, t.TempDir(), prod, nil,
+			rockServers{})
+
+		require.ErrorIs(t, err, cause)
+		assert.Contains(t, err.Error(), "installing emmylua 0.30.0pre1-1: ")
+		assert.Contains(t, err.Error(), "run tt package resolve")
+	}
+}
+
+// TestMaterialize_malformedArtifactFails checks that a digest the lock holds
+// in a form tt does not read stops the install rather than installing the
+// rock unverified.
+func TestMaterialize_malformedArtifactFails(t *testing.T) {
+	t.Parallel()
+
+	fake := &fakeRockClient{}
+	prod := manifest.LockProduct{Dependencies: []manifest.LockDependency{{
+		Name: "emmylua", Version: "0.30.0pre1-1", Source: sourceRegistry,
+		Artifacts: map[string]string{"linux-x86_64": "md5:00"},
+	}}}
+
+	err := materialize(context.Background(), fake, fake, t.TempDir(), prod, nil, rockServers{})
+
+	var invalid *manifest.ValidationError
+
+	require.ErrorAs(t, err, &invalid)
+	assert.Empty(t, fake.installs)
 }
 
 func TestDependencyServers_resolvesDeclaredRegistries(t *testing.T) {

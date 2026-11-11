@@ -36,6 +36,11 @@ type depDecision struct {
 	// removeVersion is a stale on-disk version directory to delete first, empty
 	// when nothing is being replaced.
 	removeVersion string
+	// artifacts are the sha256 digests by arch that the lock pinning version
+	// records for the rock's files (manifest.LockDependency.ArtifactPins), which
+	// a refetch from the registry is checked against; nil when that lock pins
+	// none.
+	artifacts map[string]string
 }
 
 // installPlan is the resolved decision for every registry dependency of the
@@ -125,7 +130,14 @@ func planRegistryDep(
 			src = fromArchive
 		}
 
-		return depDecision{name: dep.Name, version: winner, source: src, removeVersion: remove}, nil
+		pins, err := dep.ArtifactPins()
+		if err != nil {
+			return depDecision{}, stateErrorf("archive lock: %w", err)
+		}
+
+		return depDecision{
+			name: dep.Name, version: winner, source: src, removeVersion: remove, artifacts: pins,
+		}, nil
 	case hasOnDisk && state.SameVersion(onDisk, winner):
 		// The reconciled version is already installed; leave it in place.
 		return depDecision{
@@ -147,10 +159,45 @@ func planRegistryDep(
 			remove = onDisk
 		}
 
+		pins, err := installedPins(installed, dep.Name, winner)
+		if err != nil {
+			return depDecision{}, err
+		}
+
 		return depDecision{
 			name: dep.Name, version: winner, source: fromRegistry, removeVersion: remove,
+			artifacts: pins,
 		}, nil
 	}
+}
+
+// installedPins returns the artifact pins of name at version that the lock of
+// an installed package records: the reconciled version came from such a lock,
+// and so do the digests its files were resolved with. Nil when no lock that
+// pins the version records any.
+func installedPins(installed []state.Package, name, version string) (map[string]string, error) {
+	for _, pkg := range installed {
+		if pkg.Lock == nil {
+			continue
+		}
+
+		for _, prod := range pkg.Lock.Products {
+			for _, dep := range prod.Dependencies {
+				if dep.Name != name || dep.Version != version || len(dep.Artifacts) == 0 {
+					continue
+				}
+
+				pins, err := dep.ArtifactPins()
+				if err != nil {
+					return nil, stateErrorf("lock of %s: %w", pkg.Name, err)
+				}
+
+				return pins, nil
+			}
+		}
+	}
+
+	return nil, nil //nolint:nilnil // Nil pins are the installer's "no pins".
 }
 
 // collectContributions gathers the pin and declared constraint every relevant

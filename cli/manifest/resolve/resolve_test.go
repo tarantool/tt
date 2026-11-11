@@ -3,6 +3,7 @@ package resolve_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,6 +25,7 @@ type fakeAdapter struct {
 	servers   map[string][]*luarocks.Rockspec            // Default server candidates.
 	scoped    map[string]map[string][]*luarocks.Rockspec // Registry -> name -> candidates.
 	specs     map[string]*luarocks.Rockspec              // Artifact URL -> rockspec.
+	artifacts map[string][]luarocks.Artifact             // Artifact URL -> files an index lists.
 	local     map[string]*luarocks.Rockspec              // Path-dep dir -> rockspec.
 	resolves  map[string]int                             // adapter.Resolve calls by name.
 	metadatas map[string]int                             // adapter.Metadata calls by name.
@@ -34,6 +36,7 @@ func newFakeAdapter() *fakeAdapter {
 		servers:   map[string][]*luarocks.Rockspec{},
 		scoped:    map[string]map[string][]*luarocks.Rockspec{},
 		specs:     map[string]*luarocks.Rockspec{},
+		artifacts: map[string][]luarocks.Artifact{},
 		local:     map[string]*luarocks.Rockspec{},
 		resolves:  map[string]int{},
 		metadatas: map[string]int{},
@@ -107,7 +110,9 @@ func (fake *fakeAdapter) Resolve(
 
 	url := urlFor(registry, name, best.Version)
 
-	return rocks.ResolvedRock{Name: name, Version: bestVer, URL: url}, nil
+	return rocks.ResolvedRock{
+		Name: name, Version: bestVer, URL: url, Artifacts: fake.artifacts[url],
+	}, nil
 }
 
 func (fake *fakeAdapter) Metadata(
@@ -158,6 +163,21 @@ func (fake *fakeAdapter) addScoped(
 
 	fake.scoped[registry][name] = append(fake.scoped[registry][name], spec)
 	fake.specs[urlFor(registry, name, version)] = spec
+
+	return fake
+}
+
+// withArtifacts makes the default servers list the files of a rock version
+// with their digests, as a server with a tt-rocks-index.json does: arch and
+// sha256 in turn.
+func (fake *fakeAdapter) withArtifacts(name, version string, archSHA ...string) *fakeAdapter {
+	url := urlFor("", name, version)
+
+	for i := 0; i+1 < len(archSHA); i += 2 {
+		fake.artifacts[url] = append(fake.artifacts[url], luarocks.Artifact{
+			Arch: archSHA[i], URL: url + "." + archSHA[i], SHA256: archSHA[i+1], Size: 0,
+		})
+	}
 
 	return fake
 }
@@ -443,4 +463,64 @@ metrics = '>=1.0.0'
 	require.Len(t, warnings, 1)
 	assert.Contains(t, warnings[0], "no md5")
 	assert.Empty(t, findDep(t, lock.Products["default"].Dependencies, "metrics").Checksum)
+}
+
+// TestArtifactsAreLocked checks that the digests a server lists for every
+// file of a version land in its lock entry, by arch, beside the md5 of its
+// source, and that a rock from a server that lists none has no artifacts.
+func TestArtifactsAreLocked(t *testing.T) {
+	t.Parallel()
+
+	x86, arm, spec := strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64)
+
+	fake := newFakeAdapter().
+		add("emmylua", "0.30.0pre1-1", "e0").
+		withArtifacts("emmylua", "0.30.0pre1-1",
+			"linux-x86_64", x86, "macosx-aarch64", arm, "rockspec", spec).
+		add("metrics", "1.0.0-1", "m0")
+
+	man := parseManifest(t, oneProduct+`[dependencies]
+emmylua = '0.30.0pre1'
+metrics = '>=1.0.0'
+`)
+
+	engine := resolve.NewEngine(fake, "", "tt 3.4.0")
+
+	lock, warnings, err := engine.Resolve(context.Background(), man)
+	require.NoError(t, err)
+	assert.Empty(t, warnings)
+
+	emmylua := findDep(t, lock.Products["default"].Dependencies, "emmylua")
+	assert.Equal(t, "md5:e0", emmylua.Checksum)
+	assert.Equal(t, map[string]string{
+		"linux-x86_64":   "sha256:" + x86,
+		"macosx-aarch64": "sha256:" + arm,
+		"rockspec":       "sha256:" + spec,
+	}, emmylua.Artifacts)
+
+	assert.Nil(t, findDep(t, lock.Products["default"].Dependencies, "metrics").Artifacts)
+}
+
+// TestArtifactsStandInForMD5 checks that a rock without an md5 whose files
+// the lock pins by digest is not warned about: the lock reproduces it.
+func TestArtifactsStandInForMD5(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeAdapter().
+		add("emmylua", "0.30.0pre1-1", "").
+		withArtifacts("emmylua", "0.30.0pre1-1", "linux-x86_64", strings.Repeat("a", 64))
+
+	man := parseManifest(t, oneProduct+`[dependencies]
+emmylua = '0.30.0pre1'
+`)
+
+	engine := resolve.NewEngine(fake, "", "tt 3.4.0")
+
+	lock, warnings, err := engine.Resolve(context.Background(), man)
+	require.NoError(t, err)
+	assert.Empty(t, warnings)
+
+	emmylua := findDep(t, lock.Products["default"].Dependencies, "emmylua")
+	assert.Empty(t, emmylua.Checksum)
+	assert.Len(t, emmylua.Artifacts, 1)
 }
