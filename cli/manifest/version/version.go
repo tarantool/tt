@@ -271,23 +271,36 @@ func shortSHA(sha string) string {
 // isDirty reports whether the working tree has uncommitted changes, ignoring
 // the manifest lock so a regenerated lock alone does not mark a clean release.
 func isDirty(dir string) bool {
-	out, err := runGit(dir, "status", "--porcelain")
+	// -z: no path is quoted, and the leading blank of the status of a change
+	// not staged (" M app.manifest.lock") is not trimmed off with the output.
+	out, err := gitOutput(dir, "status", "--porcelain", "-z")
 	if err != nil {
 		return false
 	}
 
-	for line := range strings.SplitSeq(out, "\n") {
-		if strings.TrimSpace(line) == "" {
+	entries := strings.Split(out, "\x00")
+
+	for idx := 0; idx < len(entries); idx++ {
+		entry := entries[idx]
+		if len(entry) <= porcelainPrefix {
 			continue
 		}
 
-		// Porcelain lines are "XY <path>"; drop the two status columns.
-		path := strings.TrimSpace(line[min(porcelainPrefix, len(line)):])
-		if filepath.Base(path) == lockFileName {
-			continue
+		// An entry is "XY <path>", a path relative to the root of the
+		// repository; a rename or a copy is followed by the path it was of.
+		paths := []string{entry[porcelainPrefix:]}
+
+		if (entry[0] == 'R' || entry[0] == 'C') && idx+1 < len(entries) {
+			idx++
+
+			paths = append(paths, entries[idx])
 		}
 
-		return true
+		for _, path := range paths {
+			if filepath.Base(path) != lockFileName {
+				return true
+			}
+		}
 	}
 
 	return false
@@ -295,6 +308,13 @@ func isDirty(dir string) bool {
 
 // runGit runs git in dir and returns its trimmed stdout.
 func runGit(dir string, args ...string) (string, error) {
+	out, err := gitOutput(dir, args...)
+
+	return strings.TrimSpace(out), err
+}
+
+// gitOutput runs git in dir and returns its stdout as it is.
+func gitOutput(dir string, args ...string) (string, error) {
 	cmd := exec.CommandContext(context.Background(), "git", append([]string{"-C", dir}, args...)...)
 
 	out, err := cmd.Output()
@@ -302,5 +322,5 @@ func runGit(dir string, args ...string) (string, error) {
 		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 	}
 
-	return strings.TrimSpace(string(out)), nil
+	return string(out), nil
 }
