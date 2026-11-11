@@ -39,6 +39,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/tarantool/go-luarocks/client"
@@ -516,13 +517,19 @@ func (proj project) versionLuaNamespace() string {
 
 // buildComponents runs the component steps of a build of proj into stage:
 // the backends of components (runBackends), their layout (layoutComponents),
-// the check of the laid-out wasm files and version.lua. It returns the record
+// the check of the laid-out wasm files and version.lua. Then it removes from
+// the stage what no component put there (settleStage). It returns the record
 // of the programs of the executable components, as runBackends does.
 func buildComponents(
 	ctx context.Context, opts Options, proj project, adapter *rocks.Adapter,
 	stage string, components []string, ver version.Version,
 ) (map[string][]string, error) {
-	programs, err := runBackends(ctx, opts, proj, adapter, stage, components, ver)
+	last, settle, err := openStage(opts, proj, stage, components)
+	if err != nil {
+		return nil, err
+	}
+
+	programs, written, err := runBackends(ctx, opts, proj, adapter, stage, components, ver, last)
 	if err != nil {
 		return nil, err
 	}
@@ -532,15 +539,40 @@ func buildComponents(
 		return nil, err
 	}
 
-	wasmWarnings, err := checkWasmFiles(laidOut)
+	var allLaidOut []string
+
+	for _, name := range components {
+		allLaidOut = append(allLaidOut, laidOut[name]...)
+	}
+
+	wasmWarnings, err := checkWasmFiles(allLaidOut)
 	if err != nil {
 		return nil, sdk.Errorf(sdk.ExitFailure, "%w", err)
 	}
 
 	opts.emit(wasmWarnings)
 
-	err = writeVersionLua(stage, proj.versionLuaNamespace(),
-		proj.man.Package.GenerateVersionLuaValue(), ver, opts.builtAt(), laidOut)
+	generate := proj.man.Package.GenerateVersionLuaValue()
+
+	err = writeVersionLua(stage, proj.versionLuaNamespace(), generate, ver, opts.builtAt(),
+		allLaidOut)
+	if err != nil {
+		return nil, err
+	}
+
+	if !settle {
+		return programs, nil
+	}
+
+	var generated []string
+
+	if generate {
+		generated = append(generated, versionLuaPath(stage, proj.versionLuaNamespace()))
+	}
+
+	err = settleStage(stage, proj, last, stageBuild{
+		components: components, written: written, laidOut: laidOut, generated: generated,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -555,15 +587,21 @@ func buildComponents(
 //
 // It returns the record of the programs in the bin directory each executable
 // component built, those of the components not built this time as an
-// earlier build recorded them.
+// earlier build recorded them, and, for each component it built or skipped,
+// the absolute paths of the files of the stage the backend left there: what
+// a module component wrote into TT_OUTPUT_DIR (runModuleBackend), with what
+// last, the record of the stage, says it wrote there before and is still
+// there, and the programs of an executable one.
 func runBackends(
 	ctx context.Context, opts Options, proj project,
 	adapter *rocks.Adapter, stage string, components []string, ver version.Version,
-) (map[string][]string, error) {
+	last stageRecord,
+) (map[string][]string, map[string][]string, error) {
 	flags := adapter.Flags()
 	target := native.Host()
 	tarantoolPrefix, tarantoolIncludeDir := tarantoolDirs(opts.Tarantool)
 	programs := readExecutables(proj.stateDir, opts.Warn)
+	written := map[string][]string{}
 	built := false
 
 	for _, name := range components {
@@ -574,7 +612,7 @@ func runBackends(
 
 		executor, err := backend.New(component.Build.Backend, flags, opts.ShowOutput)
 		if err != nil {
-			return nil, fmt.Errorf("component %q: %w", name, err)
+			return nil, nil, fmt.Errorf("component %q: %w", name, err)
 		}
 
 		outputDir := componentOutputDir(stage, component.EffectiveNamespace(proj.man.Package.Name))
@@ -604,37 +642,48 @@ func runBackends(
 			programs[name], err = runExecutableBackend(ctx, opts, proj, executor, name, component,
 				cwd, env, programs[name])
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 
+			written[name] = joinDir(outputDir, programs[name])
 			built = true
 
 			continue
 		}
 
-		err = runModuleBackend(ctx, opts, proj, executor, name, component, cwd, env)
+		recorded := inDir(outputDir, joinDir(stage, last.Components[name].Written))
+
+		files, err := runModuleBackend(ctx, opts, proj, executor, name, component, cwd, env,
+			recorded)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
+
+		written[name] = joinDir(outputDir, files)
 	}
 
 	if !built {
-		return keepExecutable(proj.man, programs), nil
+		return keepExecutable(proj.man, programs), written, nil
 	}
 
-	return writeExecutables(proj.stateDir, proj.man, programs)
+	programs, err := writeExecutables(proj.stateDir, proj.man, programs)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return programs, written, nil
 }
 
 // layoutComponents lays every selected component out under its namespace in
-// the package's stage and returns the union of destination paths written, for
-// the version.lua collision check. An executable component has nothing to lay
-// out: its build placed its programs already, and the default include would
-// otherwise copy the Lua of, say, a test fixture of its sources into the
-// package's namespace.
+// the package's stage and returns the destination paths each one wrote, for
+// the version.lua collision check and the record of the stage. An executable
+// component has nothing to lay out: its build placed its programs already,
+// and the default include would otherwise copy the Lua of, say, a test
+// fixture of its sources into the package's namespace.
 func layoutComponents(
 	projectDir, stage string, man *manifest.Manifest, components []string,
-) ([]string, error) {
-	var laidOut []string
+) (map[string][]string, error) {
+	laidOut := map[string][]string{}
 
 	for _, name := range components {
 		component := man.Components[name]
@@ -649,25 +698,30 @@ func layoutComponents(
 			return nil, err
 		}
 
-		laidOut = append(laidOut, written...)
+		laidOut[name] = written
 	}
 
 	return laidOut, nil
 }
 
-// runModuleBackend runs the build of a module component. An incremental one
-// is skipped when its inputs are those of its last build and what that build
-// left is still there (see skipUnchanged); its build records what it wrote
-// into TT_OUTPUT_DIR and the files of the component the layout takes. Those
-// are the files of a static one the build checks (checkStaticModule), before
-// the record is written: a module that fails the check is built again.
+// runModuleBackend runs the build of a module component and returns what it
+// wrote into TT_OUTPUT_DIR, relative to it (runWritingBackend); recorded is
+// what an earlier build of it wrote there. An incremental one is skipped when
+// its inputs are those of its last build and what that build left is still
+// there (see skipUnchanged), and then wrote what that build did; its build
+// records what it wrote and the files of the component the layout takes.
+// Those are the files of a static one the build checks (checkStaticModule),
+// before the record is written: a module that fails the check is built
+// again.
 func runModuleBackend(
 	ctx context.Context, opts Options, proj project, executor backend.Backend, name string,
-	component manifest.Component, cwd string, env backend.Env,
-) error {
+	component manifest.Component, cwd string, env backend.Env, recorded []string,
+) ([]string, error) {
 	incremental := component.Build.IncrementalValue()
-	if !incremental && !component.Build.StaticValue() {
-		return runComponentBackend(ctx, executor, name, component, cwd, env)
+	static := component.Build.StaticValue()
+
+	if !incremental && !static {
+		return runWritingBackend(ctx, executor, name, component, cwd, env, recorded)
 	}
 
 	compAbsPath := resolveDir(proj.dir, component.Path)
@@ -681,69 +735,72 @@ func runModuleBackend(
 		)
 
 		state, skipped, err = skipUnchanged(opts, proj, name, component, compAbsPath, cwd, env)
-		if err != nil || skipped {
-			return err
-		}
-	}
-
-	written, laidOut, err := runTrackedBackend(ctx, executor, name, component, compAbsPath,
-		cwd, env, state.last.Written)
-	if err != nil {
-		return err
-	}
-
-	if component.Build.StaticValue() {
-		err = checkStaticModule(opts, name, moduleFiles(env.OutputDir, written,
-			compAbsPath, laidOut))
 		if err != nil {
-			return err
+			return nil, err
+		}
+
+		if skipped {
+			return state.last.Written, nil
 		}
 	}
 
-	if !incremental {
-		return nil
-	}
-
-	err = writeIncremental(proj.stateDir, name, incrementalRecord{
-		Inputs: state.inputs, Written: written, LaidOut: laidOut,
-	})
+	written, err := runWritingBackend(ctx, executor, name, component, cwd, env,
+		append(slices.Clone(recorded), state.last.Written...))
 	if err != nil {
-		return sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
-	}
-
-	return nil
-}
-
-// runTrackedBackend runs the backend of the module component name and
-// returns what it made: the files it wrote into TT_OUTPUT_DIR, those it
-// created or changed and those of recorded, which an earlier build wrote,
-// that are still there (writtenFiles), and the files of the component at
-// compAbsPath the layout takes.
-func runTrackedBackend(
-	ctx context.Context, executor backend.Backend, name string, component manifest.Component,
-	compAbsPath, cwd string, env backend.Env, recorded []string,
-) ([]string, []string, error) {
-	before, err := stampTree(env.OutputDir)
-	if err != nil {
-		return nil, nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
-	}
-
-	err = runComponentBackend(ctx, executor, name, component, cwd, env)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	after, err := stampTree(env.OutputDir)
-	if err != nil {
-		return nil, nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
+		return nil, err
 	}
 
 	laidOut, err := laidOutFiles(component, compAbsPath)
 	if err != nil {
-		return nil, nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
+		return nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
 	}
 
-	return writtenFiles(before, after, recorded), laidOut, nil
+	if static {
+		err = checkStaticModule(opts, name, moduleFiles(env.OutputDir, written,
+			compAbsPath, laidOut))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if incremental {
+		err = writeIncremental(proj.stateDir, name, incrementalRecord{
+			Inputs:  state.inputs,
+			Written: written,
+			LaidOut: laidOut,
+		})
+		if err != nil {
+			return nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
+		}
+	}
+
+	return written, nil
+}
+
+// runWritingBackend runs the backend of the component name and returns what
+// it wrote into TT_OUTPUT_DIR, relative to it (writtenFiles): the files it
+// created or changed, and those of recorded, which an earlier build wrote,
+// that are still there - a make target that is up to date writes nothing.
+func runWritingBackend(
+	ctx context.Context, executor backend.Backend, name string, component manifest.Component,
+	cwd string, env backend.Env, recorded []string,
+) ([]string, error) {
+	before, err := stampTree(env.OutputDir)
+	if err != nil {
+		return nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
+	}
+
+	err = runComponentBackend(ctx, executor, name, component, cwd, env)
+	if err != nil {
+		return nil, err
+	}
+
+	after, err := stampTree(env.OutputDir)
+	if err != nil {
+		return nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
+	}
+
+	return writtenFiles(before, after, recorded), nil
 }
 
 // runExecutableBackend builds an executable component (see buildExecutable)

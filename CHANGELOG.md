@@ -359,6 +359,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   of the project, or in the `PATH` of its `env`, builds: the check that runs
   before the build looked for the tool in the `PATH` of tt alone and failed
   it, though the build would have found the tool.
+- A file deleted from the sources of a component, and the files of a
+  component no longer in the product, leave `.rocks/` with the next
+  `tt package build`, of the package and of a `path` dependency alike: they
+  stayed in `_build/rock/<product>/` and were installed again. What a
+  skipped incremental build wrote stays, and so do the other components in
+  a build of one (`--component`); `_build/rock/<product>.json` records whose
+  each file is. `--rebuild` starts from an empty `_build/rock/<product>/`.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

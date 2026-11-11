@@ -34,7 +34,7 @@ func writeVersionLua(
 		return nil
 	}
 
-	dst := filepath.Join(stage, rocktree.StageLua, pkgName, versionLuaName)
+	dst := versionLuaPath(stage, pkgName)
 
 	if slices.Contains(laidOut, dst) {
 		return sdk.Errorf(sdk.ExitFailure,
@@ -55,4 +55,10 @@ func writeVersionLua(
 	}
 
 	return nil
+}
+
+// versionLuaPath is where writeVersionLua writes version.lua of the namespace
+// pkgName in stage.
+func versionLuaPath(stage, pkgName string) string {
+	return filepath.Join(stage, rocktree.StageLua, pkgName, versionLuaName)
 }
