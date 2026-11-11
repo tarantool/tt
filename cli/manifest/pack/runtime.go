@@ -286,6 +286,17 @@ func resolveRuntime(
 			filepath.Join(req.CacheDir, name, flavor, "<version>"), name)
 	}
 
+	// No binary at all, a tt with no tarantool say: there is no version to
+	// fall short of, and saying that one does not satisfy it reads as if one
+	// had been looked at.
+	if active.path == "" {
+		return runtimeSource{}, stateErrorf(
+			"%w: no %s satisfying %s found in the runtime cache %s, and tt found no %s "+
+				"to bundle instead; place a matching build under %s",
+			errNoRuntime, name, constraint.String(), req.CacheDir, name,
+			filepath.Join(req.CacheDir, name, flavor, "<version>"))
+	}
+
 	return runtimeSource{}, stateErrorf(
 		"%w: no %s satisfying %s found in the runtime cache %s, and the active "+
 			"%s (%s) does not satisfy it; place a matching build under %s",

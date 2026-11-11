@@ -343,7 +343,7 @@ func runBuild(
 		return nil, err
 	}
 
-	err = preflightBackends(man, components)
+	err = preflightBackends(man, components, opts.Tarantool)
 	if err != nil {
 		return nil, err
 	}
@@ -415,10 +415,13 @@ func runBuild(
 }
 
 // preflightBackends checks what the go, cargo and cmake builds of the selected
-// components need before any of them runs (backend.Preflight): a missing
-// toolchain then fails the build before it has resolved the closure and
-// compiled the components ahead of it.
-func preflightBackends(man *manifest.Manifest, components []string) error {
+// components need before any of them runs (backend.Preflight), and that the
+// c and lua-c ones have the headers of a Tarantool, info, to compile against:
+// a missing toolchain then fails the build before it has resolved the closure
+// and compiled the components ahead of it.
+func preflightBackends(
+	man *manifest.Manifest, components []string, info rocks.TarantoolInfo,
+) error {
 	target := native.Host()
 
 	for _, name := range components {
@@ -428,6 +431,10 @@ func preflightBackends(man *manifest.Manifest, components []string) error {
 		}
 
 		err := backend.Preflight(*component.Build, backend.Env{OS: target.OS, Arch: target.Arch})
+		if err == nil {
+			err = preflightHeaders(*component.Build, info)
+		}
+
 		if err != nil {
 			return sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
 		}
@@ -435,6 +442,30 @@ func preflightBackends(man *manifest.Manifest, components []string) error {
 
 	return nil
 }
+
+// preflightHeaders checks that a c or lua-c build has a Tarantool to take
+// the headers from: a tt with no Tarantool builds what needs none, and the
+// cc driver would otherwise refuse it only once its turn came, saying
+// nothing of why. A make, shell or cmake build is not told where the headers
+// are then (TT_TARANTOOL_*), and fails on its own if it needs them.
+func preflightHeaders(build manifest.Build, info rocks.TarantoolInfo) error {
+	switch build.Backend {
+	case backend.BackendC, backend.BackendLuaC:
+	default:
+		return nil
+	}
+
+	if info.IncludeDir() != "" {
+		return nil
+	}
+
+	return fmt.Errorf("%w: %s", backend.ErrMissingHeaders, noTarantoolHint)
+}
+
+// noTarantoolHint says why a build has no headers of Tarantool, and how to
+// give it some.
+const noTarantoolHint = "no tarantool to take them from, neither in .tarantool/bin " +
+	"of the project nor in PATH; tt binary install tarantool installs one"
 
 // project is what the component steps of a build work on (buildComponents):
 // the manifest of a project, its directory and the directory the build keeps

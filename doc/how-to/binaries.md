@@ -164,4 +164,7 @@ shown as active when all of its components are.
 `tt rocks` and `tt package build` build a rock with a C part against the
 headers of the Tarantool they run: `.tarantool/include/tarantool` for the
 Tarantool of the project, `TT_CLI_TARANTOOL_PREFIX` for another one, and
-otherwise the prefix that Tarantool was installed into.
+otherwise the prefix that Tarantool was installed into. With no Tarantool
+found, `tt package build`, `fetch` and `pack` build what has no C part, and
+a rock or a `c` or `lua-c` component with one fails for want of the
+headers.

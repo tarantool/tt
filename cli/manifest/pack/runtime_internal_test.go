@@ -277,9 +277,15 @@ func TestBundleRuntimeRejectsUnsatisfiedActive(t *testing.T) {
 	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
 }
 
+// TestBundleRuntimeNoSourceAtAll: with no match in the runtime cache and no
+// active binary, a tt with no tarantool say, the pack fails saying that none
+// was found, not that one does not satisfy the constraint. With the cache
+// holding one, no active binary is needed (TestBundleRuntimeFromCache).
 func TestBundleRuntimeNoSourceAtAll(t *testing.T) {
+	cache := filepath.Join(t.TempDir(), "empty")
+
 	_, err := bundleRuntime(t.TempDir(), RuntimeOptions{
-		CacheDir: filepath.Join(t.TempDir(), "empty"),
+		CacheDir: cache,
 		Platform: manifest.Platform{
 			Tarantool: constraint(">=3.0.0,<4.0.0"),
 			Tt:        constraint(">=2.0.0,<3.0.0"),
@@ -288,6 +294,9 @@ func TestBundleRuntimeNoSourceAtAll(t *testing.T) {
 
 	require.Error(t, err)
 	require.ErrorIs(t, err, errNoRuntime)
+	assert.Contains(t, err.Error(), "no tarantool satisfying >=3.0.0,<4.0.0 found in the "+
+		"runtime cache "+cache+", and tt found no tarantool to bundle instead")
+	assert.NotContains(t, err.Error(), "does not satisfy")
 }
 
 // TestBundleRuntimeWarnsWithoutTarantoolLicense pins that a cache entry with

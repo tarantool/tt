@@ -342,6 +342,18 @@ func TestProjectInstall(t *testing.T) {
 	// Again, from the lock as it is.
 	require.NoError(t, project.Install(t.Context(), mirror))
 	assert.FileExists(t, program)
+
+	// Into a tree cleared, by a tt with no Tarantool, which rocks that build
+	// nothing do not need.
+	require.NoError(t, os.RemoveAll(filepath.Join(dir, ".rocks")))
+
+	cmd.GetCmdCtxPtr().Cli.TarantoolCli = cmdcontext.TarantoolCli{Executable: ""}
+
+	require.NoError(t, project.Install(t.Context(), mirror))
+
+	content, err = os.ReadFile(program)
+	require.NoError(t, err)
+	assert.Equal(t, "#!/bin/sh\necho 1.0.0-1\n", string(content))
 }
 
 // TestProjectErrors checks the failures of a project with no manifest and of
@@ -373,9 +385,12 @@ func TestProjectErrors(t *testing.T) {
 	require.ErrorIs(t, err, sdk.ErrNotFound)
 	require.EqualError(t, err, cmd.ErrNoTarantool.Error())
 
+	// Install, as tt package fetch, goes without a Tarantool: it fails on
+	// the lock that is not there.
 	err = project.Install(t.Context(), sdk.InstallOptions{Registries: nil})
-	require.ErrorIs(t, err, cmd.ErrNoTarantool)
-	require.ErrorIs(t, err, sdk.ErrNotFound)
+	require.NotErrorIs(t, err, cmd.ErrNoTarantool)
+	require.NotErrorIs(t, err, sdk.ErrNotFound)
+	require.ErrorContains(t, err, "app.manifest.lock")
 
 	source, err := os.ReadFile(filepath.Join(dir, "app.manifest.toml"))
 	require.NoError(t, err)

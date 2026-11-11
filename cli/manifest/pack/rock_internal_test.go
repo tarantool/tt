@@ -19,6 +19,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build"
+	"github.com/tarantool/tt/v3/cli/manifest/build/backend"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
@@ -423,6 +424,51 @@ func TestPackRockFailsBeforeTheBuild(t *testing.T) {
 			assert.NoDirExists(t, out, "nothing was packed")
 		})
 	}
+}
+
+// TestPackRockWithoutTarantool: a package of Lua is packed as a rock by a tt
+// with no Tarantool, the zero TarantoolInfo, while a lua-c component of it
+// fails before anything is built, naming the headers it has none of.
+func TestPackRockWithoutTarantool(t *testing.T) {
+	t.Parallel()
+
+	src := writeLibrary(t)
+	out := filepath.Join(src, "_out")
+
+	opts := packOptions(src, out, FormatRock)
+
+	opts.Build.Tarantool = rocks.TarantoolInfo{Executable: "", Prefix: "", Version: ""}
+
+	result, err := Run(context.Background(), opts)
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(out, "mylib-1.0.0-1.all.rock"), result.Rock)
+
+	marker := filepath.Join(t.TempDir(), "marker")
+
+	writeTree(t, src, map[string]string{
+		manifestFileName: libraryManifest + fmt.Sprintf(`
+[components.native]
+path = 'native'
+
+[components.native.build]
+backend = 'lua-c'
+module = 'fast'
+sources = ['fast.c']
+
+[hooks.pre_build]
+backend = 'shell'
+command = 'sh'
+args = ['-c', 'echo hook >> "$MARKER"']
+env = { MARKER = '%s' }
+`, marker),
+		"native/fast.c": "#include <lua.h>\n",
+	})
+
+	_, err = Run(context.Background(), opts)
+	require.ErrorIs(t, err, backend.ErrMissingHeaders)
+	assert.Contains(t, err.Error(), `building component "native": tarantool development `+
+		"headers not found: cannot compile c/lua-c component: no tarantool to take them from")
+	assert.NoFileExists(t, marker, "nothing was built")
 }
 
 // TestPackRockRefusesForeignNative: the rock of the host cannot carry a native

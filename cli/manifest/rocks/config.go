@@ -15,6 +15,11 @@ import (
 // path and cached version) and the install prefix (tt's GetTarantoolPrefix);
 // tests fill it directly. The library never parses `tarantool --version`
 // itself, so these come from one source of truth on the tt side.
+//
+// The zero value is a tt with no Tarantool, which builds what needs none:
+// the config then names no interpreter, no prefix and no headers, the
+// tarantool rock is not provided, and a build of a C module fails for want
+// of the headers.
 type TarantoolInfo struct {
 	// Executable is the path to the tarantool binary.
 	Executable string
@@ -25,8 +30,14 @@ type TarantoolInfo struct {
 }
 
 // IncludeDir returns the Tarantool C-header directory under the prefix
-// (<prefix>/include/tarantool), where the builtin/c backends find the headers.
+// (<prefix>/include/tarantool), where the builtin/c backends find the headers,
+// or "" when the prefix is unknown: include/tarantool of the working
+// directory is no Tarantool's.
 func (info TarantoolInfo) IncludeDir() string {
+	if info.Prefix == "" {
+		return ""
+	}
+
 	return filepath.Join(info.Prefix, "include", "tarantool")
 }
 

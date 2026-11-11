@@ -152,8 +152,9 @@ type Project interface {
 	// the lock pins, other versions of those rocks are removed, and nothing
 	// is resolved and no component of the project is built. A project
 	// without a manifest or a lock, and a lock with no closure for the
-	// product, are errors; a missing Tarantool is one wrapping ErrNotFound.
-	// The warnings are logged.
+	// product, are errors. A tt with no Tarantool installs the rocks that
+	// need none, and fails on one compiled against the headers of
+	// Tarantool. The warnings are logged.
 	Install(ctx context.Context, opts InstallOptions) error
 }
 

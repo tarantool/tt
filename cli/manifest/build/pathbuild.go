@@ -147,7 +147,7 @@ func (p pathManifests) buildManifest(ctx context.Context, build manifestBuild) e
 			"are not run", build.what, dep.Name, strings.Join(hooks, ", "), build.what)})
 	}
 
-	err = preflightBackends(man, components)
+	err = preflightBackends(man, components, p.opts.Tarantool)
 	if err != nil {
 		return fmt.Errorf("%s %q: %w", build.what, dep.Name, err)
 	}
