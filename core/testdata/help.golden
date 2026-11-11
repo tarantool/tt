@@ -3146,7 +3146,7 @@ FLAGS[0m
   -h, --help   help for config
 [0;1;39m
 EXAMPLES[0m
-    $ EMMYLUALS_CONFIG=$(tt emmylua config) code .
+  $ EMMYLUALS_CONFIG=$(tt emmylua config) code .
 
 === tt emmylua doc --help
 Run emmylua_doc_cli on PATH (default the project) with the configuration tt
@@ -3204,7 +3204,7 @@ FLAGS[0m
   -h, --help   help for ls
 [0;1;39m
 EXAMPLES[0m
-    # Neovim (nvim-lspconfig):
+  # Neovim (nvim-lspconfig):
   #   vim.lsp.config('emmylua_ls', { cmd = { 'tt', 'emmylua', 'ls' } })
   $ tt emmylua ls -- --log-level debug --log-path /tmp/emmylua_ls.log
 
@@ -3262,8 +3262,8 @@ EXAMPLES[0m
   $ tt emmylua prepare --version 0.25.1
 
   # A local build of EmmyLua, from its checkout.
-  $ cargo build --release -p emmylua_check -p emmylua_ls -p emmylua_doc_cli -p
-  emmylua_formatter
+  $ cargo build --release -p emmylua_check -p emmylua_ls -p emmylua_doc_cli \
+    -p emmylua_formatter
   $ tt emmylua prepare --from ~/src/emmylua-analyzer-rust/target/release
 
   # The rocks of another rock server.
@@ -3295,9 +3295,8 @@ EXAMPLES[0m
 
   # Local builds, one per platform.
   $ tt emmylua rock --from target/release --out dist/rocks
-  $ tt emmylua rock --from target/aarch64-apple-darwin/release --arch
-  macosx-aarch64 \
-      --out dist/rocks
+  $ tt emmylua rock --from target/aarch64-apple-darwin/release \
+    --arch macosx-aarch64 --out dist/rocks
 
 === tt errors --help
 Exit codes of tt commands.

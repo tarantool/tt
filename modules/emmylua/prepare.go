@@ -75,7 +75,8 @@ func newPrepareCmd(services sdk.Services) *cobra.Command {
   $ tt emmylua prepare --version 0.25.1
 
   # A local build of EmmyLua, from its checkout.
-  $ cargo build --release -p emmylua_check -p emmylua_ls -p emmylua_doc_cli -p emmylua_formatter
+  $ cargo build --release -p emmylua_check -p emmylua_ls -p emmylua_doc_cli \
+    -p emmylua_formatter
   $ tt emmylua prepare --from ~/src/emmylua-analyzer-rust/target/release
 
   # The rocks of another rock server.
@@ -228,8 +229,8 @@ func newRockCmd(services sdk.Services) *cobra.Command {
 
   # Local builds, one per platform.
   $ tt emmylua rock --from target/release --out dist/rocks
-  $ tt emmylua rock --from target/aarch64-apple-darwin/release --arch macosx-aarch64 \
-      --out dist/rocks`,
+  $ tt emmylua rock --from target/aarch64-apple-darwin/release \
+    --arch macosx-aarch64 --out dist/rocks`,
 		Args: cobra.NoArgs,
 		RunE: rock.run,
 	}
