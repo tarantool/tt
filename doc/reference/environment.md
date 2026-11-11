@@ -24,7 +24,9 @@ See [Projects and scopes](../concepts/projects-and-scopes.md) and
 
 A component build and a hook get `TT_OUTPUT_DIR`, `TT_PROJECT_ROOT`,
 `TT_PACKAGE`, `TT_COMPONENT_NAME`, `TT_VERSION`, `TT_PLATFORM_OS` and
-`TT_PLATFORM_ARCH`; see [app.manifest.toml](app-manifest.md#componentsnamebuild).
+`TT_PLATFORM_ARCH`, and, when tt knows the Tarantool it builds for,
+`TT_TARANTOOL_PREFIX` and `TT_TARANTOOL_INCLUDE_DIR`, the directory of its
+`module.h` and `lua.h`; see [app.manifest.toml](app-manifest.md#componentsnamebuild).
 `.tarantool/bin` of the project comes first on the `PATH` they get.
 
 ## WebAssembly components

@@ -68,19 +68,20 @@ optional build.
   `.rocks/share/tarantool/<namespace>/`, `<namespace>` being the package name
   unless the component says otherwise. Its files are the `*.lua` and `*.so`
   of its `path` unless `include` lists others. A build backend - `c`,
-  `lua-c`, `cargo`, `make` or `shell` - makes a native module first, or a
-  WebAssembly component: see
+  `lua-c`, `cargo`, `cmake`, `make` or `shell` - makes a native module
+  first, or a WebAssembly component: see
   [Run WebAssembly components](../how-to/wasm-components.md).
   [Build a module in Rust](../how-to/rust-modules.md) describes `cargo`.
 - An **executable** component, `kind = "executable"`, builds a program into
-  `.rocks/bin/`, with the `go`, `cargo`, `make` or `shell` backend. An
-  [external process](../how-to/external-processes.md) of the application
+  `.rocks/bin/`, with the `go`, `cargo`, `cmake`, `make` or `shell` backend.
+  An [external process](../how-to/external-processes.md) of the application
   runs it.
 
 A native module is `<module>.so` in `.rocks/lib/tarantool/<namespace>/`, and
 `<module>.dylib` on macOS, where Tarantool looks for no other name: the `c`,
-`lua-c` and `cargo` backends name it so, and a `.dylib` a component lays out
-goes there as a `.so` does.
+`lua-c` and `cargo` backends name it so, `cmake` copies a `.so` it built as
+`.dylib` there, and a `.dylib` a component lays out goes there as a `.so`
+does.
 
 A product is a set of components built and packed together. A manifest
 without `[products]` has one implicit product, `default`, made of every

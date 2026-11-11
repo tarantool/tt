@@ -124,7 +124,7 @@ new` объявляет компоненты, собираемые tarawasm; с�
 
 | Поле | Backend'ы | |
 | --- | --- | --- |
-| `backend` | | `c`, `lua-c` (компоненты-модули); `go` (исполняемые компоненты); `cargo`, `make`, `shell` (и те, и другие) |
+| `backend` | | `c`, `lua-c` (компоненты-модули); `go` (исполняемые компоненты); `cargo`, `cmake`, `make`, `shell` (и те, и другие) |
 | `cwd`, `env`, `output` | все | каталог запуска сборки, её окружение, создаваемые файлы |
 | `incremental` | `make`, `shell` | `true` пропускает сборку, если входные данные те же, что при прошлой сборке, и её результаты ещё на месте |
 | `make_target`, `entrypoint`, `flags` | `make` | `make_target` обязателен |
@@ -136,11 +136,51 @@ new` объявляет компоненты, собираемые tarawasm; с�
 | `static` | `go`, `cargo` | программа, которой не нужны загрузчик и разделяемая библиотека; для исполняемого компонента |
 | `name`, `tags`, `ldflags`, `cgo` | `go` | по умолчанию `name`  -  имя компонента; cgo по умолчанию выключен |
 | `bin`, `features`, `profile` | `cargo` | для исполняемого компонента `bin` по умолчанию  -  имя компонента; `profile` по умолчанию `release` |
+| `variables`, `targets`, `build_type` | `cmake` | `-D<name>=<value>` конфигурации, собираемые цели (по умолчанию все) и `CMAKE_BUILD_TYPE` (по умолчанию `RelWithDebInfo`); `output` обязателен |
 
 Сборка получает свой контракт через окружение: `TT_OUTPUT_DIR`, куда
 помещаются результаты сборки, `TT_PROJECT_ROOT`, `TT_PACKAGE`,
 `TT_COMPONENT_NAME`, `TT_VERSION`, `TT_PLATFORM_OS` и `TT_PLATFORM_ARCH`.
-`env` сборки не может переопределить их.
+Если tt знает Tarantool, для которого идёт сборка, она получает также
+`TT_TARANTOOL_PREFIX`  -  префикс установки этого Tarantool  -  и
+`TT_TARANTOOL_INCLUDE_DIR`  -  каталог его `module.h` и `lua.h`,
+`<prefix>/include/tarantool`, с которым компилируют backend'ы `c` и `lua-c`;
+то, чего tt не знает, не задаётся. `env` сборки не может переопределить их.
+
+`cmake` собирает CMake-проект из `cwd`, где лежит его `CMakeLists.txt`, вне
+исходников, в `_build/cmake/<component>/`:
+
+```console
+cmake -S <cwd> -B _build/cmake/<component> -DCMAKE_BUILD_TYPE=<build_type> \
+    -D<name>=<value>... -DCMAKE_PREFIX_PATH=<префикс Tarantool>
+cmake --build _build/cmake/<component> --config <build_type> --parallel <CPU> \
+    --target <targets>...
+```
+
+и копирует файлы из `output`, пути которых указываются относительно дерева
+сборки, в `TT_OUTPUT_DIR`; если сборка не создала какой-то из них, она
+завершается ошибкой. Префикс Tarantool добавляется в `CMAKE_PREFIX_PATH` после
+префиксов, заданных в `variables`, поэтому `find_path(... tarantool/module.h)`
+обычного `FindTarantool.cmake` находит его заголовки. Дерево сборки
+сохраняется между сборками, и cmake пересобирает в нём только изменившееся;
+`--rebuild` конфигурирует новое дерево, как и сборка перемещённого проекта.
+`CMAKE_BUILD_PARALLEL_LEVEL`, если задана, определяет число заданий, а
+`CMAKE_GENERATOR` в `env` выбирает другой генератор. На macOS `.so`
+компонента-модуля копируется как `.dylib`: там Tarantool загружает такие
+файлы. Исполняемый компонент перечисляет свои программы в `output`. В `PATH`
+должен быть CMake 3.15 или новее.
+
+```toml
+[components.memcached]
+path = "memcached"
+include = ["init.lua"]
+[components.memcached.build]
+backend = "cmake"
+cwd = "."
+variables = { ENABLE_BUNDLED_SMALL = "ON" }
+targets = ["internalso"]
+output = ["memcached/internal.so"]
+```
 
 `cargo` собирает бинарный файл `bin` исполняемого компонента и библиотеку
 пакета для компонента-модуля: `cdylib`, то есть нативный модуль `<module>.so`

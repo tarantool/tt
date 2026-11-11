@@ -71,19 +71,20 @@ path = "kv"
   `.rocks/share/tarantool/<namespace>/`, где `<namespace>`  -  имя пакета,
   если в компоненте не указано иное. Его файлами считаются `*.lua` и `*.so`
   из его каталога `path`, если только в `include` не перечислены другие.
-  Бэкенд сборки  -  `c`, `lua-c`, `cargo`, `make` или `shell`  -  сначала
-  собирает нативный модуль или WebAssembly-компонент: см.
+  Бэкенд сборки  -  `c`, `lua-c`, `cargo`, `cmake`, `make` или `shell`  -
+  сначала собирает нативный модуль или WebAssembly-компонент: см.
   [Run WebAssembly components](../how-to/wasm-components.md). Бэкенд
   `cargo` описан в [Build a module in Rust](../how-to/rust-modules.md).
 - **Исполняемый** компонент, `kind = "executable"`, собирает программу в
-  `.rocks/bin/` с помощью бэкенда `go`, `cargo`, `make` или `shell`. Её
-  запускает [внешний процесс](../how-to/external-processes.md) приложения.
+  `.rocks/bin/` с помощью бэкенда `go`, `cargo`, `cmake`, `make` или
+  `shell`. Её запускает [внешний процесс](../how-to/external-processes.md)
+  приложения.
 
 Нативный модуль кладётся как `<module>.so` в
 `.rocks/lib/tarantool/<namespace>/`, а на macOS  -  как `<module>.dylib`, где
 Tarantool не ищет файл с другим именем: бэкенды `c`, `lua-c` и `cargo` так его
-и называют, а файл `.dylib`, разложенный компонентом, попадает туда так же,
-как и `.so`.
+и называют, `cmake` копирует туда собранный `.so` как `.dylib`, а файл
+`.dylib`, разложенный компонентом, попадает туда так же, как и `.so`.
 
 Продукт  -  это набор компонентов, собираемых и упаковываемых вместе.
 Манифест без `[products]` содержит один неявный продукт, `default`,

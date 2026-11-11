@@ -68,6 +68,9 @@ myapp:gateway: gateway started, port [--port 8080]
 - `cargo`: `cargo build` бинарного файла `bin` (по умолчанию имя
   компонента) в профиле `release`, если в `profile` не указано иное;
   `package`, `features`.
+- `cmake`: сборка CMake-проекта из `cwd` вне исходников, в
+  `_build/cmake/<component>/`; программы перечисляются в `output`
+  относительно дерева сборки, `variables`, `targets`, `build_type`.
 - `make` и `shell`: собственная сборка, записывающая программы в
   `TT_OUTPUT_DIR`.
 

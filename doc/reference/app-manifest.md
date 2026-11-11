@@ -124,7 +124,7 @@ components tarawasm builds; see
 
 | Field | Backends | |
 | --- | --- | --- |
-| `backend` | | `c`, `lua-c` (module components); `go` (executable components); `cargo`, `make`, `shell` (either) |
+| `backend` | | `c`, `lua-c` (module components); `go` (executable components); `cargo`, `cmake`, `make`, `shell` (either) |
 | `cwd`, `env`, `output` | all | the directory the build runs in, its environment, the files it makes |
 | `incremental` | `make`, `shell` | `true` skips the build when its inputs are those of the last one and what it left is still there |
 | `make_target`, `entrypoint`, `flags` | `make` | `make_target` is required |
@@ -136,11 +136,50 @@ components tarawasm builds; see
 | `static` | `go`, `cargo` | a program that needs no loader and no shared library; for an executable component |
 | `name`, `tags`, `ldflags`, `cgo` | `go` | `name` is the component's name by default; cgo is off by default |
 | `bin`, `features`, `profile` | `cargo` | `bin`, of an executable component, is the component's name by default; `profile` is `release` by default |
+| `variables`, `targets`, `build_type` | `cmake` | `-D<name>=<value>` of the configuration, the targets to build, all by default, and `CMAKE_BUILD_TYPE`, `RelWithDebInfo` by default; `output` is required |
 
 A build gets its contract in the environment: `TT_OUTPUT_DIR`, where it
 puts what it makes, `TT_PROJECT_ROOT`, `TT_PACKAGE`, `TT_COMPONENT_NAME`,
-`TT_VERSION`, `TT_PLATFORM_OS` and `TT_PLATFORM_ARCH`. `env` of the build
-cannot override them.
+`TT_VERSION`, `TT_PLATFORM_OS` and `TT_PLATFORM_ARCH`. When tt knows the
+Tarantool it builds for, a build also gets `TT_TARANTOOL_PREFIX`, the
+install prefix of that Tarantool, and `TT_TARANTOOL_INCLUDE_DIR`, the
+directory of its `module.h` and `lua.h`, `<prefix>/include/tarantool`, which
+the `c` and `lua-c` backends compile against; either is unset when tt does
+not know it. `env` of the build cannot override them.
+
+`cmake` builds the CMake project of `cwd`, where its `CMakeLists.txt` is,
+out of the source, in `_build/cmake/<component>/`:
+
+```console
+cmake -S <cwd> -B _build/cmake/<component> -DCMAKE_BUILD_TYPE=<build_type> \
+    -D<name>=<value>... -DCMAKE_PREFIX_PATH=<prefix of Tarantool>
+cmake --build _build/cmake/<component> --config <build_type> --parallel <CPUs> \
+    --target <targets>...
+```
+
+and copies the files `output` lists, relative to the build tree, into
+`TT_OUTPUT_DIR`; a file the build did not make fails it. The prefix of
+Tarantool comes after the prefixes `variables` gives `CMAKE_PREFIX_PATH`, so
+`find_path(... tarantool/module.h)` of the usual `FindTarantool.cmake` finds
+its headers. The build tree stays between builds, and cmake rebuilds what
+changed in it; `--rebuild` configures a new one, and so does a build of a
+project that was moved. `CMAKE_BUILD_PARALLEL_LEVEL`, if set, is the number
+of jobs, and `CMAKE_GENERATOR` in `env` picks another generator. On macOS a
+`.so` of a module component is copied as `.dylib`, which Tarantool loads
+there. An executable component lists its programs in `output`. CMake 3.15
+or newer must be on `PATH`.
+
+```toml
+[components.memcached]
+path = "memcached"
+include = ["init.lua"]
+[components.memcached.build]
+backend = "cmake"
+cwd = "."
+variables = { ENABLE_BUNDLED_SMALL = "ON" }
+targets = ["internalso"]
+output = ["memcached/internal.so"]
+```
 
 `cargo` builds the binary `bin` of an executable component, and the library
 of the package of a module component: a `cdylib`, which is the native

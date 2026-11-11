@@ -13,6 +13,7 @@ const (
 	backendLuaC  = "lua-c"
 	backendGo    = "go"
 	backendCargo = "cargo"
+	backendCMake = "cmake"
 )
 
 // Component kinds ([components.<name>].kind).
@@ -46,7 +47,7 @@ func (c Component) IsExecutable() bool {
 // The Hook type is an alias of Build; hooks reuse the same shape but allow only
 // the make/shell backends.
 type Build struct {
-	Backend string            `toml:"backend"` // make|shell|c|lua-c|go|cargo - closed enum.
+	Backend string            `toml:"backend"` // make|shell|c|lua-c|go|cargo|cmake - closed enum.
 	Cwd     string            `toml:"cwd,omitempty"`
 	Env     map[string]string `toml:"env,omitempty"`
 	Output  []string          `toml:"output,omitempty"`
@@ -91,11 +92,22 @@ type Build struct {
 	Bin      string   `toml:"bin,omitempty"` // Default: the component name.
 	Features []string `toml:"features,omitempty"`
 	Profile  string   `toml:"profile,omitempty"` // Default: release.
+
+	// cmake backend. The build tree is out of the source, in _build/ of the
+	// project, and output names files relative to it.
+	Variables map[string]string `toml:"variables,omitempty"`  // -D<name>=<value>.
+	Targets   []string          `toml:"targets,omitempty"`    // Default: all, as cmake --build.
+	BuildType string            `toml:"build_type,omitempty"` // Default: RelWithDebInfo.
 }
 
 // DefaultCargoProfile is the cargo profile an executable is built with when
 // the build names none.
 const DefaultCargoProfile = "release"
+
+// DefaultCMakeBuildType is the CMAKE_BUILD_TYPE a cmake build is configured
+// with when it names none: optimized, as a release is, with the debug
+// information a crash of Tarantool in the module is read with.
+const DefaultCMakeBuildType = "RelWithDebInfo"
 
 // IncrementalValue reports whether the build is skipped when its inputs did
 // not change.
@@ -116,7 +128,7 @@ func (b Build) CgoValue() bool {
 // Executables lists the names of the programs the build of the executable
 // component named component puts into .rocks/bin/, as far as the manifest
 // tells them: the one a go or cargo build makes, named by name or bin or
-// else after the component, and, for make and shell, the files output
+// else after the component, and, for make, shell and cmake, the files output
 // lists. A make or shell build that writes into TT_OUTPUT_DIR itself names
 // none here: what it made is only known once it has run.
 func (b Build) Executables(component string) []string {
