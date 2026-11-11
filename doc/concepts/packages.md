@@ -263,6 +263,19 @@ mylib = { version = ">=1.2.0", registry = "/path/to/dist" }
 `--format tt,rock` packs the `.tt` archive and the rock from one build;
 `--without-deps` and signing apply to the archive only.
 
+`--format rock-src` packs the source rock, `<name>-<version>.src.rock`,
+for a platform no binary rock is published for: the same rockspec, and the
+files of the project git tracks, those of its submodules included, with a
+`VERSION` file of the version, since the unpacked rock has no git history
+to derive it from. The manifest is packed whether git tracks it or not; a
+file of a component git neither tracks nor ignores is left out, with a
+warning, since the binary rock has it and a build of the source rock would
+not. Out of a git repository, every file of the project is
+packed, but `_build/`, `.rocks/` and `_runtime/`. The rock is reproducible:
+its entries carry no time and no mode but the executable bit. A pack on
+each platform with `--format rock` and one anywhere with `--format rock-src`
+fill a server with every rock of a version.
+
 ## Installing
 
 `tt package install ARCHIVE` installs into one of the
