@@ -99,6 +99,54 @@ func TestAbsoluteWorkingDirRejects(t *testing.T) {
 	})
 }
 
+// TestProjectRootDir checks that a project command works on the project the
+// working directory is in, found above it as sdk/scope finds it, on the
+// working directory outside every project, and on -C as it is.
+//
+//nolint:paralleltest // Changes the working directory and -C.
+func TestProjectRootDir(t *testing.T) {
+	withProjectDir(t, "")
+
+	// The temporary directory is resolved, as the working directory is: on
+	// macOS it is under /var, a link to /private/var.
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+
+	sub := filepath.Join(root, "app", "lib")
+	require.NoError(t, os.MkdirAll(sub, 0o755))
+
+	// Outside every project, the working directory.
+	t.Chdir(sub)
+
+	dir, err := projectRootDir()
+	require.NoError(t, err)
+	assert.Equal(t, sub, dir)
+
+	require.NoError(t, os.WriteFile(filepath.Join(root, "app.manifest.toml"),
+		[]byte("manifest_version = \"0.1\"\n"), 0o644))
+
+	for _, find := range []func() (string, error){projectRootDir, ProjectRoot} {
+		dir, err = find()
+		require.NoError(t, err)
+		assert.Equal(t, root, dir, "the project above the working directory")
+	}
+
+	working, err := absoluteWorkingDir()
+	require.NoError(t, err)
+	assert.Equal(t, sub, working, "the working directory stays where it is")
+
+	moduleDir, err := ProjectDir()
+	require.NoError(t, err)
+	assert.Equal(t, sub, moduleDir, "a module's Dir is not searched for")
+
+	// -C names the project itself, with nothing above it looked into.
+	withProjectDir(t, filepath.Join(root, "app"))
+
+	dir, err = projectRootDir()
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(root, "app"), dir)
+}
+
 // TestProjectDirFlagIsWired checks that the commands which act on a project
 // accept -C. tt run is deliberately not among them: it parses no flags of its
 // own, every argument being Tarantool's.

@@ -60,6 +60,28 @@ def test_deps_reads_the_c_directory(tt_cmd, tmp_path):
     assert "stat" in flagged.stdout
 
 
+def test_the_project_is_found_above_the_working_directory(tt_cmd, tmp_path):
+    """Without -C a package command works on the project the cwd is in.
+
+    It finds the project as the instance commands do and says which it is.
+    -C names the project itself: the subdirectory, which has no manifest, is
+    taken as it is and the error names it.
+    """
+    project = tmp_path / "project"
+    sub = project / "app" / "lib"
+    sub.mkdir(parents=True)
+    (project / "app.manifest.toml").write_text(MANIFEST)
+
+    found = run(tt_cmd, sub, "package", "deps", "-o", "yaml")
+    assert found.returncode == 0, found.stderr
+    assert "my-app" in found.stdout
+    assert f"working on the project in {project}" in found.stderr
+
+    exact = run(tt_cmd, tmp_path, "package", "deps", "-C", str(sub))
+    assert exact.returncode == 1
+    assert str(sub / "app.manifest.toml") in exact.stderr
+
+
 def test_c_accepts_a_relative_path(tt_cmd, tmp_path):
     """-C resolves against the working directory, like any other path."""
     project = tmp_path / "project"

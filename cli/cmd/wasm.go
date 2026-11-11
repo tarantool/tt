@@ -215,9 +215,10 @@ func newWasmStatusCmd() *cobra.Command {
 	}
 }
 
-// runWasmStatus reports the status of the project in the working directory.
+// runWasmStatus reports the status of the project the working directory is
+// in.
 func runWasmStatus() error {
-	projectDir, err := absoluteWorkingDir()
+	projectDir, err := projectRootDir()
 	if err != nil {
 		return err
 	}
@@ -355,7 +356,7 @@ func wasmTarawasmRunner() wasm.Tarawasm {
 	}
 }
 
-// runWasmPrepare prepares the project in the working directory.
+// runWasmPrepare prepares the project the working directory is in.
 func runWasmPrepare() error {
 	opts, err := dependencyOptions()
 	if err != nil {
@@ -393,7 +394,7 @@ func runWasmPrepare() error {
 	return nil
 }
 
-// runWasmNew adds a component to the package in the working directory.
+// runWasmNew adds a component to the package the working directory is in.
 func runWasmNew(name string) error {
 	opts, err := dependencyOptions()
 	if err != nil {

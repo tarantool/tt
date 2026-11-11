@@ -69,10 +69,10 @@ var (
 
 // ProjectRoot reports dir as a project root, failing when it holds no manifest.
 //
-// The root is the caller's working directory and is never searched for upwards:
-// which directory a command acts on is then exactly the one the shell is in,
-// with no rule to remember and no way for a stray manifest in an ancestor to
-// capture a run.
+// dir is the project the caller found - the one the working directory is in,
+// as sdk/scope finds it, or the working directory outside every project - and
+// is not searched for here: a directory with no manifest is an error naming
+// it.
 func ProjectRoot(dir string) (string, error) {
 	root, err := filepath.Abs(dir)
 	if err != nil {
@@ -93,9 +93,8 @@ func ProjectRoot(dir string) (string, error) {
 // root/.tarantool/bin/tarantool selects, else the first on PATH, with
 // TT_USE_SYSTEM_TARANTOOL forcing PATH.
 //
-// The root is a project directory found as ProjectRoot finds it, not by the
-// upward search the resolver's own callers do; the link is looked up in that
-// very directory. A with-deps tt package install into a project with no
+// The root is the project directory the caller found; the link is looked up
+// in that very directory. A with-deps tt package install into a project with no
 // tarantool of its own selects the bundled one there, so a package installed
 // that way runs on the runtime it was packed with.
 //

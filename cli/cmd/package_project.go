@@ -12,10 +12,11 @@ import (
 const anyVersion = "*"
 
 // AddDependency declares dep in the manifest of the project tt works on
-// (ProjectDir) and re-resolves the lock, holding every version it already
-// chose: deps.Add, what tt package add does, for a dependency without a
-// registry, and deps.AddFromRegistry, the long form, for one with a
-// registry. It is sdk.Project.AddDependency of the core, which says what
+// (ProjectDir, the directory itself: no project is searched for above it, as
+// sdk.Project.Dir promises) and re-resolves the lock, holding every version
+// it already chose: deps.Add, what tt package add does, for a dependency
+// without a registry, and deps.AddFromRegistry, the long form, for one with
+// a registry. It is sdk.Project.AddDependency of the core, which says what
 // becomes of a declaration already there; dep.Registries is the --registry
 // layer of the rock servers.
 //
@@ -27,8 +28,13 @@ func AddDependency(ctx context.Context, dep sdk.Dependency) (*deps.Result, error
 	ctx, stop := packageContextOf(ctx)
 	defer stop()
 
+	projectDir, err := ProjectDir()
+	if err != nil {
+		return nil, err
+	}
+
 	//nolint:contextcheck // tarantool --version is asked once, and takes no context.
-	opts, err := dependencyOptionsFor(dep.Registries)
+	opts, err := dependencyOptionsIn(projectDir, dep.Registries)
 	if err != nil {
 		return nil, err
 	}
@@ -45,10 +51,11 @@ func AddDependency(ctx context.Context, dep sdk.Dependency) (*deps.Result, error
 	return deps.AddFromRegistry(ctx, opts, dep.Name, constraint, dep.Registry, dep.Dev)
 }
 
-// FetchRocks materializes .rocks/ of the project tt works on (ProjectDir)
-// strictly from its lock, as tt package fetch does for the default product:
-// no resolution, no component builds. registries is the --registry layer of
-// the rock servers. It is sdk.Project.Install of the core.
+// FetchRocks materializes .rocks/ of the project tt works on (ProjectDir,
+// as for AddDependency) strictly from its lock, as tt package fetch does for
+// the default product: no resolution, no component builds. registries is the
+// --registry layer of the rock servers. It is sdk.Project.Install of the
+// core.
 //
 // The warnings go to the process logger. The fetch stops on SIGINT and
 // SIGTERM, killing the build tools a rock runs, as tt package fetch does, and
@@ -57,7 +64,12 @@ func FetchRocks(ctx context.Context, registries []string) error {
 	ctx, stop := packageContextOf(ctx)
 	defer stop()
 
-	return buildPackage(ctx, packageRun{
+	projectDir, err := ProjectDir()
+	if err != nil {
+		return err
+	}
+
+	return buildPackageIn(ctx, projectDir, packageRun{
 		product:    "",
 		component:  "",
 		locked:     false,

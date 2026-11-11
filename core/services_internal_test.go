@@ -193,6 +193,17 @@ func TestServicesTarantool(t *testing.T) {
 
 	check(bundled, bundledVersion)
 
+	// From a subdirectory of the project, the project's tarantool still, as
+	// tt run takes it.
+	require.NoError(t, os.WriteFile(filepath.Join(project, "app.manifest.toml"),
+		[]byte("manifest_version = '0.1'\n"), 0o644))
+
+	sub := filepath.Join(project, "app")
+	require.NoError(t, os.MkdirAll(sub, 0o755))
+	t.Chdir(sub)
+	check(bundled, bundledVersion)
+	t.Chdir(project)
+
 	t.Setenv(useSystemEnv, "1")
 	check(environment, environmentVersion)
 	t.Setenv(useSystemEnv, "")

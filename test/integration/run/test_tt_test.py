@@ -28,9 +28,9 @@ end
 """
 
 
-def test_test_needs_a_manifest(run_tt, tmp_path: Path):
-    elsewhere = tmp_path / "elsewhere"
-    elsewhere.mkdir()
+def test_test_needs_a_manifest(run_tt, tmp_path_factory: pytest.TempPathFactory):
+    # Outside the project of the fixture, which a subdirectory would find.
+    elsewhere = tmp_path_factory.mktemp("elsewhere")
 
     result = run_tt("test", cwd=elsewhere)
 

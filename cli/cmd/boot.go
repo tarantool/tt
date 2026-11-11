@@ -182,9 +182,10 @@ func Run() int {
 	return reportError(cmd, err)
 }
 
-// ProjectDir returns the directory project commands work on, as an absolute
-// path: the -C directory when one was given, and the working directory
-// otherwise.
+// ProjectDir returns the directory a module's command works in, as an
+// absolute path: the -C directory when one was given, and the working
+// directory otherwise, with no project searched for (sdk.Project.Dir). The
+// project commands of tt work on the project above it (ProjectRoot).
 func ProjectDir() (string, error) {
 	return absoluteWorkingDir()
 }

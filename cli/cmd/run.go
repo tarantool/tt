@@ -75,7 +75,9 @@ func internalRunModule(_ *cmdcontext.CmdCtx, args []string) error {
 }
 
 // selectProjectTarantool resolves the project root and the interpreter it runs
-// under, shared by tt run and tt test.
+// under, shared by tt run and tt test. The root is the project the working
+// directory is in (projectRootDir), so both run the package from any of its
+// subdirectories, in its root.
 //
 // The interpreter is chosen by the rule the instance commands follow for a
 // project (cli/tarantool), so a package runs on the same tarantool under
@@ -83,12 +85,12 @@ func internalRunModule(_ *cmdcontext.CmdCtx, args []string) error {
 // What the choice warns about, a project tarantool other than the one the
 // lock bundles say, goes to the log.
 func selectProjectTarantool() (string, string, error) {
-	workingDir, err := absoluteWorkingDir()
+	projectDir, err := projectRootDir()
 	if err != nil {
 		return "", "", err
 	}
 
-	root, err := run.ProjectRoot(workingDir)
+	root, err := run.ProjectRoot(projectDir)
 	if err != nil {
 		return "", "", err
 	}

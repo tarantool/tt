@@ -49,8 +49,11 @@ type Services interface {
 	// process's --verbose; test it with Logger.Enabled.
 	Log() *slog.Logger
 	// Tarantool returns the Tarantool the command should run: the one the
-	// project bundles, when it has one, and the environment's otherwise.
-	// When there is none the error wraps ErrNotFound.
+	// project bundles, when it has one, and the environment's otherwise. The
+	// project is the one [Project.Dir] is in, as
+	// [github.com/tarantool/tt/sdk/scope.FindProject] finds it, so a command
+	// run in a subdirectory of a project runs the project's Tarantool, as
+	// tt run does. When there is none the error wraps ErrNotFound.
 	Tarantool() (Tarantool, error)
 	// Integrity returns the integrity checks files are read through.
 	Integrity() Integrity
@@ -116,7 +119,10 @@ type Project interface {
 	// Dir returns the project directory as an absolute path: the working
 	// directory tt runs in. A module cannot declare -C; a command mounted
 	// under a group of tt that declares -C for its subcommands, as tt package
-	// does, gets the directory it names. No manifest is searched for.
+	// does, gets the directory it names. No manifest is searched for: a
+	// command that works on the project from any of its subdirectories, as
+	// the project commands of tt do, finds it with
+	// [github.com/tarantool/tt/sdk/scope.FindProject] from Dir.
 	Dir() (string, error)
 	// AddDependency declares dep in the app.manifest.toml of the project
 	// directory and re-resolves app.manifest.lock, as tt package add does,
