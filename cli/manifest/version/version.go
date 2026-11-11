@@ -37,6 +37,10 @@ type Version struct {
 	Commit string // Short sha "abc1234", or empty when there is no commit.
 	Dirty  bool   // Working tree had uncommitted changes (lock excluded).
 	Flavor string // ce|ee - a build fact, set by the build, not by Derive.
+	// Tag is the git tag the version is that of: the v* tag HEAD is on, with
+	// a clean tree. Empty for a version after a tag, a dirty tree, a VERSION
+	// file and the tagless fallback.
+	Tag string
 }
 
 // Derive determines the package version from the git tree rooted at dir and a
@@ -124,6 +128,10 @@ func deriveFromGitDescribe(dir string, dirty bool) (Version, bool) {
 	ver.SemVer = renderDescribed(parsed, count, sha, dirty)
 	ver.Commit = shortSHA(sha)
 	ver.Dirty = dirty
+
+	if count == 0 && !dirty {
+		ver.Tag = tag
+	}
 
 	return ver, true
 }

@@ -55,6 +55,7 @@ func TestDerive(t *testing.T) {
 		setup     func(t *testing.T, dir string)
 		wantMatch string
 		wantDirty bool
+		wantTag   string
 	}{
 		{
 			name: "clean release tag",
@@ -65,6 +66,7 @@ func TestDerive(t *testing.T) {
 			},
 			wantMatch: `^1\.4\.0$`,
 			wantDirty: false,
+			wantTag:   "v1.4.0",
 		},
 		{
 			name: "commits after release tag",
@@ -76,6 +78,7 @@ func TestDerive(t *testing.T) {
 			},
 			wantMatch: `^1\.4\.1-dev\.1\+g[0-9a-f]+$`,
 			wantDirty: false,
+			wantTag:   "",
 		},
 		{
 			name: "clean pre-release tag",
@@ -86,6 +89,7 @@ func TestDerive(t *testing.T) {
 			},
 			wantMatch: `^1\.4\.0-rc\.1$`,
 			wantDirty: false,
+			wantTag:   "v1.4.0-rc.1",
 		},
 		{
 			name: "commits after pre-release tag",
@@ -98,6 +102,7 @@ func TestDerive(t *testing.T) {
 			},
 			wantMatch: `^1\.4\.0-rc\.1\.dev\.2\+g[0-9a-f]+$`,
 			wantDirty: false,
+			wantTag:   "",
 		},
 		{
 			name: "no tags",
@@ -109,6 +114,7 @@ func TestDerive(t *testing.T) {
 			},
 			wantMatch: `^0\.0\.0-dev\.3\+g[0-9a-f]+$`,
 			wantDirty: false,
+			wantTag:   "",
 		},
 		{
 			name: "non-semver tag is skipped",
@@ -120,6 +126,7 @@ func TestDerive(t *testing.T) {
 			},
 			wantMatch: `^0\.0\.0-dev\.2\+g[0-9a-f]+$`,
 			wantDirty: false,
+			wantTag:   "",
 		},
 		{
 			name: "uncommitted changes mark dirty",
@@ -133,6 +140,20 @@ func TestDerive(t *testing.T) {
 			},
 			wantMatch: `^1\.4\.1-dev\.1\+g[0-9a-f]+\.dirty$`,
 			wantDirty: true,
+			wantTag:   "",
+		},
+		{
+			name: "a dirty tree on a tag is not the tag",
+			setup: func(t *testing.T, dir string) {
+				t.Helper()
+				commit(t, dir, "init")
+				git(t, dir, "tag", "v1.4.0")
+				require.NoError(t, os.WriteFile(
+					filepath.Join(dir, "stray.txt"), []byte("x"), 0o600))
+			},
+			wantMatch: `^1\.4\.0\+dirty$`,
+			wantDirty: true,
+			wantTag:   "",
 		},
 		{
 			name: "lock change alone is not dirty",
@@ -145,6 +166,7 @@ func TestDerive(t *testing.T) {
 			},
 			wantMatch: `^1\.4\.0$`,
 			wantDirty: false,
+			wantTag:   "v1.4.0",
 		},
 	}
 
@@ -159,6 +181,7 @@ func TestDerive(t *testing.T) {
 			require.NoError(t, err)
 			assert.Regexp(t, tt.wantMatch, ver.SemVer)
 			assert.Equal(t, tt.wantDirty, ver.Dirty)
+			assert.Equal(t, tt.wantTag, ver.Tag)
 
 			// Whatever we render must round-trip as SemVer 2.0.0.
 			_, err = goversion.NewSemver(ver.SemVer)
