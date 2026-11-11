@@ -16,6 +16,7 @@ bytes, laid out as on release pages and named by relative URLs.
 
 import hashlib
 import json
+import os
 import platform
 import re
 import subprocess
@@ -402,20 +403,41 @@ def sha256_of(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def pack_wasm_rocks(tt_cmd, work: Path) -> Path:
-    """Pack the wasm rock of 0.1.0 for every platform of the index, as
-    `tt wasm rock --from` packs a local build, and return their directory."""
+def pack_wasm_rocks(tt_cmd, work: Path, versions: tuple[str, ...] = ("0.1.0",)) -> Path:
+    """Pack the wasm rock of each version for every platform of the index, as
+    `tt wasm rock --from` packs a local build, and return their directory.
+
+    A table of releases (TT_WASM_RELEASES) gives tt the versions it does not
+    know; 0.1.0 is described as tt describes it."""
     module = work / "module"
     module.write_bytes(INDEX_MODULE)
+    releases = work / "releases.json"
+    releases.write_text(
+        json.dumps(
+            {
+                version: {
+                    "version": version,
+                    "rock_revision": 1,
+                    "sdk_asset": f"tarantool-wasm-{version}-sdk.tar.gz",
+                    "sdk_md5": WASM_SOURCE_MD5.removeprefix("md5:"),
+                    "platforms": [],
+                }
+                for version in versions
+            },
+        ),
+    )
     packed = work / "packed"
-    for arch in INDEX_ARCHES:
-        result = subprocess.run(
-            [str(tt_cmd), "wasm", "rock", "--from", str(module), "--arch", arch, "--out", packed],
-            cwd=work,
-            capture_output=True,
-            text=True,
-        )
-        assert result.returncode == 0, result.stderr
+    for version in versions:
+        for arch in INDEX_ARCHES:
+            pack = [str(tt_cmd), "wasm", "rock", "--from", str(module), "--arch", arch]
+            result = subprocess.run(
+                [*pack, "--version", version, "--out", str(packed)],
+                cwd=work,
+                capture_output=True,
+                text=True,
+                env={**os.environ, "TT_WASM_RELEASES": str(releases)},
+            )
+            assert result.returncode == 0, result.stderr
     return packed
 
 
@@ -582,3 +604,45 @@ def test_fetch_refuses_a_platform_the_lock_does_not_pin(tree, run_tt, rock_index
     fetch = run_tt("package", "fetch")
     assert fetch.returncode == 0, fetch.stderr
     assert installed_wasm(root).read_bytes() == INDEX_MODULE
+
+
+def test_a_yanked_version_installs_from_the_lock_only(tt_cmd, tree, run_tt, tmp_path_factory):
+    """A version the server yanks after a lock recorded it still installs from
+    that lock, and resolving the lock again keeps it; a fresh resolution - an
+    update - passes it over for the newest version not yanked."""
+    host_arch()
+    work = tmp_path_factory.mktemp("rock-index")
+    server = work / "server"
+    packed = pack_wasm_rocks(tt_cmd, work, ("0.1.0", "0.2.0"))
+    write_rock_index(server, packed)
+    root = tree.root
+    write_manifest(root, index_dependency(server, ">=0.1.0"))
+
+    assert run_tt("package", "resolve").returncode == 0
+    assert locked_entry(root, "wasm")["version"] == "0.2.0-1"
+
+    digests = write_rock_index(server, packed, yanked=("wasm-0.2.0-1",))
+    index = json.loads((server / "tt-rocks-index.json").read_text())
+    assert index["repository"]["wasm"]["0.2.0-1"]["yanked"]
+
+    fetch = run_tt("package", "fetch")
+    assert fetch.returncode == 0, fetch.stderr
+    assert installed_wasm(root).read_bytes() == INDEX_MODULE
+    assert (root / ".rocks" / "share" / "tarantool" / "rocks" / "wasm" / "0.2.0-1").is_dir()
+
+    resolve = run_tt("package", "resolve")
+    assert resolve.returncode == 0, resolve.stderr
+    assert locked_entry(root, "wasm")["version"] == "0.2.0-1"
+
+    update = run_tt("package", "update")
+    assert update.returncode == 0, update.stderr
+    assert "wasm 0.2.0-1 -> 0.1.0-1" in update.stdout
+    entry = locked_entry(root, "wasm")
+    assert entry["version"] == "0.1.0-1"
+    assert entry["artifacts"]["rockspec"] == f"sha256:{digests['0.1.0-1']['rockspec']}"
+
+    # Nothing but the yanked version allows it: the error says why.
+    write_manifest(root, index_dependency(server, ">=0.2.0"))
+    update = run_tt("package", "update")
+    assert update.returncode == 1, update.stderr
+    assert "yanked; pin one with ==" in update.stderr

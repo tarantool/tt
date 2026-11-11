@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   file that differs or a platform the lock pins none for, telling how to pin
   them anew (`tt package resolve`). The lock format stays `0.1`: a lock
   without `artifacts` installs as before.
+- A version a rock index marks `"yanked": true` is passed over when tt
+  resolves afresh (`tt package add`, `tt package update`, a first build),
+  while a lock that pins it keeps resolving to it and installs it; a
+  constraint only yanked versions satisfy fails saying so.
 - `tt wasm rock --from <module> --arch <arch>`: pack a local build of the
   tarantool-wasm module as the rock of a platform, for a release with no
   build of it to download; the rocks already in `--out` stay, so a run for
