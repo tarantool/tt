@@ -49,6 +49,12 @@ var (
 	// private key that signs the archive. The flag exists only when the
 	// integrity provider of the distribution signs.
 	packageIntegrityKey string
+	// packageFormats, packageOut and packageRevision are --format, --out and
+	// --revision of tt package pack: what it makes, where, and the revision
+	// of the rock.
+	packageFormats  []string
+	packageOut      string
+	packageRevision int
 )
 
 // Flags shared by the scope-addressed subcommands: install, list and uninstall.
@@ -783,7 +789,16 @@ func newPackagePackCmd() *cobra.Command {
 			"templates in .templates/ travel at the archive root in either mode; " +
 			"each .templates/<name>/ must hold config.yaml, instances.yaml or " +
 			"both, and a broken template fails the pack. A separate tt package build " +
-			"beforehand is not needed. The archive path is printed to stdout.",
+			"beforehand is not needed.\n\n" +
+			"--format rock packs the package as a rock for other projects to " +
+			"depend on: the binary rock of this platform, or an .all rock when " +
+			"the package has no native file, with its rockspec beside it. The " +
+			"rockspec is made from the manifest: the dependencies are the ranges " +
+			"it declares, and the source is [package].repository at the tag of " +
+			"the version. The rock is written into --out, which is then indexed " +
+			"as a rock server, keeping the rocks already there. --format tt,rock " +
+			"makes both from one build.\n\n" +
+			"The paths of what the pack made are printed to stdout, one per line.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return commandError(cmd, runPackagePack())
@@ -798,6 +813,13 @@ func newPackagePackCmd() *cobra.Command {
 		"build the incremental components even when nothing changed")
 	packCmd.Flags().BoolVar(&packageWithoutDeps, "without-deps", false,
 		"pack without _runtime/ and without foreign dependencies in .rocks/")
+	packCmd.Flags().StringSliceVar(&packageFormats, "format", []string{pack.FormatTt},
+		"what to make: tt (the .tt archive), rock (the rock and its rockspec), "+
+			"or both, comma-separated")
+	packCmd.Flags().StringVar(&packageOut, "out", "",
+		"directory to write into (default _build/pack of the project)")
+	packCmd.Flags().IntVar(&packageRevision, "revision", 1,
+		"LuaRocks revision of the rock: raise it to publish a new build of a version")
 	addRegistryFlag(packCmd)
 
 	// The flag exists when the integrity provider of the distribution signs,
@@ -840,13 +862,23 @@ func runPackagePack() error {
 
 	warnWasmSDK(projectDir)
 
+	out := ""
+	if packageOut != "" {
+		out, err = filepath.Abs(packageOut)
+		if err != nil {
+			return fmt.Errorf("--out: %w", err)
+		}
+	}
+
 	result, err := pack.Run(ctx, pack.Options{
 		Signer:      signer,
 		ProjectDir:  projectDir,
 		Product:     packageProduct,
 		Locked:      packageLocked,
 		WithoutDeps: packageWithoutDeps,
-		OutputDir:   "",
+		Formats:     packageFormats,
+		Revision:    packageRevision,
+		OutputDir:   out,
 		// Pack sets the project, product, lock mode and component of the
 		// build itself, pins its timestamp and routes its warnings to Warn.
 		Build: build.Options{
@@ -871,7 +903,11 @@ func runPackagePack() error {
 		return err
 	}
 
-	_, _ = fmt.Fprintln(os.Stdout, result.Path)
+	for _, path := range []string{result.Path, result.Rock, result.Rockspec} {
+		if path != "" {
+			_, _ = fmt.Fprintln(os.Stdout, path)
+		}
+	}
 
 	return nil
 }

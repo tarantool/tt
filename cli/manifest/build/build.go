@@ -137,6 +137,11 @@ type Result struct {
 	Product string
 	// Tree is the absolute path of the materialized .rocks/ tree.
 	Tree string
+	// Stage is the absolute path of the stage of the product: its components
+	// laid out as an unpacked binary rock (lua/, lib/, bin/), the rock of the
+	// package was installed from. A fetch run lays out nothing and reports
+	// none.
+	Stage string
 	// Executables maps every executable component of the manifest to the
 	// programs its build put into the bin directory of Tree, by file name:
 	// the package's own files there, as against the console scripts of its
@@ -404,6 +409,7 @@ func runBuild(
 		Version:     ver,
 		Product:     productName,
 		Tree:        tree,
+		Stage:       stage,
 		Executables: programs,
 	}, nil
 }
