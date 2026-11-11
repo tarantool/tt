@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/tarantool/tt/sdk/integrity"
+	"github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/cli/manifest"
-	"github.com/tarantool/tt/v3/internal/scope"
 )
 
 // appsDirName is the directory under a user or system root holding a link

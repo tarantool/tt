@@ -2,6 +2,11 @@
 // that installs into a scope or runs from one: tt binary, tt package and
 // tt instance.
 //
+// It is in the SDK so that the core and the modules share one rule of what a
+// project is and where it is looked for: a module that works on the project
+// finds it with FindProject from the directory its command works in, as the
+// core does. It depends on the standard library only.
+//
 // A root is the directory a scope keeps its artifacts under: the installed
 // versions of tarantool, tt, tcm and applications, the links selecting the
 // active ones, and the runtime data of the instances started from them. The

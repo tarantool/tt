@@ -20,7 +20,7 @@
 // half-written install cannot corrupt a counter that does not exist.
 //
 // The user and system scopes hold applications, laid out the way tt binary
-// lays out its products and under the same root (internal/scope), so an
+// lays out its products and under the same root (sdk/scope), so an
 // application finds the tarantool installed next to it and tt instance finds
 // both (decision 8):
 //

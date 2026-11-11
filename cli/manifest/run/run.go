@@ -31,9 +31,9 @@ import (
 
 	"github.com/tarantool/go-luarocks/tree"
 
+	"github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/cli/tarantool"
 	"github.com/tarantool/tt/v3/internal/binary"
-	"github.com/tarantool/tt/v3/internal/scope"
 )
 
 // Names the project layout fixes.

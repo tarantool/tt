@@ -8,8 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
+	ttscope "github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
-	ttscope "github.com/tarantool/tt/v3/internal/scope"
 )
 
 // Names of the temporary directories a version install leaves in

@@ -38,8 +38,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/internal/binary"
-	"github.com/tarantool/tt/v3/internal/scope"
 )
 
 // UseSystemEnv names the environment variable that makes a project run on the

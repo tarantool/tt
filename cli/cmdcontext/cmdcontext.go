@@ -145,7 +145,7 @@ type CliCtx struct {
 	// Use internal module even if an external one is found.
 	ForceInternal bool
 	// ProjectDir is the project directory the working directory is in, as
-	// internal/scope finds it, or the working directory outside a project.
+	// sdk/scope finds it, or the working directory outside a project.
 	ProjectDir string
 	// Path to tt daemon (tt_daemon.yaml) config.
 	DaemonCfgPath string

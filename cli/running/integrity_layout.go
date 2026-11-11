@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/cli/app"
-	"github.com/tarantool/tt/v3/internal/scope"
 )
 
 // versionVarPerm is the mode of var/ in a version, the mode of the version

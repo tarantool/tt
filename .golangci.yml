@@ -301,7 +301,6 @@ linters:
             # build tags and linker flags the magefile builds tt with.
             - "github.com/tarantool/tt/v3/internal/buildflags"
             - "github.com/tarantool/tt/v3/internal/pidfile"
-            - "github.com/tarantool/tt/v3/internal/scope"
             - "github.com/tarantool/tt/v3/cli/version"
             # cli/manifest/run starts the tarantool the instance commands
             # start, chosen by the one resolver.
@@ -396,7 +395,6 @@ linters:
             - "github.com/tarantool/tt/v3/cli/version"
             - "github.com/tarantool/tt/v3/internal/binary"
             - "github.com/tarantool/tt/v3/internal/execfile"
-            - "github.com/tarantool/tt/v3/internal/scope"
             - "github.com/ulikunitz/xz"
             - "golang.org/x/net/html"
             - "golang.org/x/sys"
@@ -470,7 +468,6 @@ linters:
             - "github.com/tarantool/tt/v3/cli/cluster"
             - "github.com/tarantool/tt/v3/cli/manifest"
             - "github.com/tarantool/tt/v3/internal/instances"
-            - "github.com/tarantool/tt/v3/internal/scope"
             - "go.etcd.io/etcd/client/v3"
         dir-cli-checkpoint:
           files:
@@ -593,7 +590,6 @@ linters:
             - "github.com/tarantool/tt/v3/cli/tarantool"
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/tarantool/tt/v3/internal/binary"
-            - "github.com/tarantool/tt/v3/internal/scope"
         dir-cli-connect:
           files:
             - "**/cli/connect/**"
@@ -783,7 +779,6 @@ linters:
             # integrity provider names.
             - "github.com/tarantool/tt/v3/internal/integrityprovider"
             - "github.com/tarantool/tt/v3/internal/pidfile"
-            - "github.com/tarantool/tt/v3/internal/scope"
             - "github.com/tarantool/tt/v3/internal/supervisor"
             # The context of an instance names the systemd unit that manages
             # it, as the mark of the units says.
@@ -826,11 +821,11 @@ linters:
             - $gostd
             - "github.com/hashicorp/go-version"
             - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/sdk/scope"
             - "github.com/tarantool/tt/v3/cli/manifest"
             - "github.com/tarantool/tt/v3/cli/tarantool"
             - "github.com/tarantool/tt/v3/cli/version"
             - "github.com/tarantool/tt/v3/internal/binary"
-            - "github.com/tarantool/tt/v3/internal/scope"
         dir-cli-tcm:
           files:
             - "**/cli/tcm/**"
@@ -933,15 +928,16 @@ linters:
             - $gostd
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/v3/internal/pidfile"
-        # The scope roots tt binary, tt package and tt instance share: a leaf,
+        # The scope roots and the project rule tt binary, tt package,
+        # tt instance and the modules share: a leaf on the standard library,
         # so that none of them has to import another to agree on a path.
-        dir-internal-scope:
+        dir-sdk-scope:
           files:
-            - "**/internal/scope/**"
+            - "**/sdk/scope/**"
           allow:
             - $gostd
             - "github.com/stretchr/testify"
-            - "github.com/tarantool/tt/v3/internal/scope"
+            - "github.com/tarantool/tt/sdk/scope"
         # The parser of instance descriptions takes bytes and reads nothing
         # itself: a leaf under the commands, the supervisor's peer.
         dir-internal-instances:

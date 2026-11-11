@@ -17,12 +17,12 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/config"
 	"github.com/tarantool/tt/v3/cli/tarantool"
 	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/internal/binary"
-	"github.com/tarantool/tt/v3/internal/scope"
 )
 
 var (
@@ -159,7 +159,7 @@ func Cli(cmdCtx *cmdcontext.CmdCtx) error {
 }
 
 // projectDir returns the project directory the working directory is in, as
-// internal/scope finds it, or the working directory itself outside a project.
+// sdk/scope finds it, or the working directory itself outside a project.
 //
 // A failure to look for the project, such as a relative TT_USER_ROOT, leaves
 // the working directory in its place rather than failing the command: the

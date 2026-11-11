@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/cli/app"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/process_utils"
@@ -21,7 +22,6 @@ import (
 	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/internal/instances"
 	"github.com/tarantool/tt/v3/internal/pidfile"
-	"github.com/tarantool/tt/v3/internal/scope"
 	"github.com/tarantool/tt/v3/internal/supervisor"
 )
 
