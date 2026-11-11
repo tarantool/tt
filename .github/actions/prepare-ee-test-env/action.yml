@@ -41,14 +41,16 @@ runs:
       run: go install github.com/magefile/mage@v1.15.0
       shell: bash
 
+    # The last line is what the tests that run tt binary install
+    # --source-build need to build Tarantool; gdb is for the test
+    # requirements.
     - name: Install build requirements
-      run: |
-        sudo apt -y update
-        sudo apt -y install git gcc make cmake unzip zip fish zsh
-        # Tests that run tt binary install --source-build build Tarantool.
-        sudo apt -y install pkg-config libreadline-dev libssl-dev libunwind-dev \
-          libicu-dev libncurses-dev zlib1g-dev libcurl4-openssl-dev libyaml-dev
-      shell: bash
+      uses: ./.github/actions/apt-install # zizmor: ignore[self-repository] -- Test the checked-out revision.
+      with:
+        packages: >-
+          git gcc make cmake unzip zip fish zsh gdb
+          pkg-config libreadline-dev libssl-dev libunwind-dev libicu-dev libncurses-dev
+          zlib1g-dev libcurl4-openssl-dev libyaml-dev
 
     - name: Enable network isolation for rocks tests
       run: |
@@ -130,6 +132,5 @@ runs:
 
     - name: Install test requirements
       run: |
-        sudo apt -y install gdb
         pip3 install -r test/requirements.txt
       shell: bash

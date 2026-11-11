@@ -39,20 +39,17 @@ runs:
       run: go install github.com/magefile/mage@v1.15.0
       shell: bash
 
+    # The last line is what the tests that run tt binary install
+    # --source-build need to build Tarantool.
     - name: Install Linux requirements
       if: runner.os == 'Linux'
-      run: |
-        sudo apt -y update
-        sudo apt -y install git gcc make cmake unzip zip
-        sudo apt-get --allow-releaseinfo-change update
-        sudo apt-get -y -f install \
-        build-essential ninja-build \
-        liblz4-dev autoconf \
-        automake libtool zsh fish gdb
-        # Tests that run tt binary install --source-build build Tarantool.
-        sudo apt-get -y install pkg-config libreadline-dev libssl-dev libunwind-dev \
-          libicu-dev libncurses-dev zlib1g-dev libcurl4-openssl-dev libyaml-dev
-      shell: bash
+      uses: ./.github/actions/apt-install # zizmor: ignore[self-repository] -- Test the checked-out revision.
+      with:
+        packages: >-
+          git gcc make cmake unzip zip
+          build-essential ninja-build liblz4-dev autoconf automake libtool zsh fish gdb
+          pkg-config libreadline-dev libssl-dev libunwind-dev libicu-dev libncurses-dev
+          zlib1g-dev libcurl4-openssl-dev libyaml-dev
 
     - name: Install macOS requirements
       if: runner.os == 'macOS'

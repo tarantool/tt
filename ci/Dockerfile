@@ -2,7 +2,8 @@
 # .github/actions/prepare-ce-test-env install, for amd64 and arm64. It has no
 # Tarantool: TT_TEST_TARANTOOL picks the one the tests run against, and tt
 # installs it into the test cache. mage docker builds the image with the Go
-# version of go.mod and test/requirements.txt as its context.
+# version of go.mod, and test/requirements.txt and ci/apt-mirrors.sh as its
+# context.
 ARG GO_VERSION=1.27.4
 
 FROM golang:${GO_VERSION} AS go-toolchain
@@ -14,6 +15,11 @@ ENV PATH="/opt/venv/bin:/usr/local/go/bin:${PATH}"
 
 ARG DEBIAN_FRONTEND=noninteractive
 ENV TZ=Etc/UTC
+
+# apt reads the archive through mirrors outside ubuntu.com as well, so an
+# outage of the Ubuntu archive does not fail the build: see apt-mirrors.sh.
+COPY apt-mirrors.sh /usr/local/sbin/apt-mirrors.sh
+RUN sh /usr/local/sbin/apt-mirrors.sh
 
 # The tools tt and its tests run, the shells of the completion tests and what
 # tt binary install --source-build needs to build Tarantool. The GitHub
