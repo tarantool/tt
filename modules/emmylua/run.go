@@ -256,7 +256,7 @@ func newConfigCmd(services sdk.Services) *cobra.Command {
 
 // paths are the paths a program of EmmyLua runs on.
 type paths struct {
-	// project is the project directory.
+	// project is the project directory: the root of the workspace.
 	project string
 	// list are the paths given, or the project.
 	list []string
@@ -265,7 +265,7 @@ type paths struct {
 // args splits args at -- into the paths, the project when there are none,
 // and the arguments of the program.
 func (r runner) args(cmd *cobra.Command, args []string) (paths, []string, error) {
-	projectDir, err := r.services.Project().Dir()
+	found, err := findWorkspace(r.services)
 	if err != nil {
 		return paths{}, nil, err
 	}
@@ -276,10 +276,10 @@ func (r runner) args(cmd *cobra.Command, args []string) (paths, []string, error)
 	}
 
 	if len(list) == 0 {
-		list = []string{projectDir}
+		list = []string{found.dir}
 	}
 
-	return paths{project: projectDir, list: list}, pass, nil
+	return paths{project: found.dir, list: list}, pass, nil
 }
 
 // withoutTypes ends the warnings of a project whose Tarantool gives EmmyLua
@@ -291,10 +291,12 @@ const withoutTypes = "checking without the types of the Tarantool API"
 // are not errors: the code is checked without the types of the Tarantool
 // API.
 func (r runner) layout() (analyzer.Layout, error) {
-	projectDir, err := r.services.Project().Dir()
+	found, err := findWorkspace(r.services)
 	if err != nil {
 		return analyzer.Layout{}, err
 	}
+
+	projectDir := found.dir
 
 	logger := r.services.Log()
 	stubs := ""

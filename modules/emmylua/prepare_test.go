@@ -170,6 +170,19 @@ func TestPrepareErrors(t *testing.T) {
 	got = sdktest.Run(t, emmylua.New, "emmylua", "prepare", "--from", testBuild(t))
 	require.ErrorContains(t, got.Err, "not a tt project")
 
+	// Below the root the manifest the SDK edits is not there: the error
+	// names the root to run it in, and nothing is declared.
+	project := testProject(t)
+	sub := filepath.Join(project, "app")
+	require.NoError(t, os.Mkdir(sub, 0o755))
+
+	inSub := sdktest.New(t, sdktest.WithProject(sub))
+
+	got = inSub.Run(emmylua.New, "emmylua", "prepare")
+	require.EqualError(t, got.Err, "not the root of the project: "+sub+
+		" is inside the project "+project+"; run tt emmylua prepare there")
+	assert.Empty(t, inSub.AddedDependencies())
+
 	refused := errors.New("the manifest is read-only")
 	services := sdktest.New(t, sdktest.WithProject(testProject(t)),
 		sdktest.WithAddDependencyError(refused))
