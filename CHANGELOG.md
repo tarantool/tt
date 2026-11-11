@@ -67,7 +67,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `[package].repository` at the tag of the version. `--out` is indexed as a
   rock server, keeping the rocks already there, `--revision` sets the
   revision of the rock, and `--format tt,rock` packs the archive and the
-  rock from one build.
+  rock from one build. A path dependency and a product with no rock of its
+  own fail a pack of a rock or a source rock before the build.
 - `tt package pack --format rock-src`: pack the source rock of the package,
   the same rockspec with the files git tracks, submodules included, and a
   `VERSION` file of the version, reproducibly.

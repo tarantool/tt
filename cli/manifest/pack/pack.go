@@ -59,9 +59,9 @@ type Options struct {
 	// streaming, logger) through to build.RunResult.
 	//
 	// Pack owns some of these and overwrites whatever is set here: ProjectDir,
-	// Product, Locked, Component and FetchOnly come from the fields above, and
-	// Now is pinned by buildTime unless already set. Warn is taken over only
-	// when Options.Warn is non-nil.
+	// Product, Locked, Component and FetchOnly come from the fields above,
+	// Check is pack's own, and Now is pinned by buildTime unless already set.
+	// Warn is taken over only when Options.Warn is non-nil.
 	Build build.Options
 	// Runtime describes where the runtime components come from. Ignored when
 	// WithoutDeps is set.
@@ -107,7 +107,12 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 		return nil, stateErrorf("%w", errSignedWithoutDeps)
 	}
 
-	built, err := runBuild(ctx, opts)
+	// The rock is declared by the manifest alone, so a product no rock can be
+	// made of fails as soon as the build has read it, not once the build,
+	// minutes of compiling for a C module, is done.
+	var rock rockDecl
+
+	built, err := runBuild(ctx, opts, rockCheck(opts, &rock))
 	if err != nil {
 		return nil, err
 	}
@@ -121,8 +126,8 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 		}
 	}
 
-	if opts.makes(FormatRock) || opts.makes(FormatRockSrc) {
-		rocks, err := packRocks(ctx, opts, built)
+	if opts.makesRock() {
+		rocks, err := packRocks(ctx, opts, built, rock)
 		if err != nil {
 			return nil, err
 		}
@@ -205,8 +210,11 @@ func packTt(ctx context.Context, opts Options, built *build.Result) (*Result, er
 }
 
 // runBuild drives the full build cycle pack is defined to include, so a clean
-// tree needs no separate tt package build.
-func runBuild(ctx context.Context, opts Options) (*build.Result, error) {
+// tree needs no separate tt package build. check is the build's check of the
+// manifest (build.Options.Check); nil checks nothing.
+func runBuild(
+	ctx context.Context, opts Options, check func(*manifest.Manifest, string) error,
+) (*build.Result, error) {
 	buildOpts := opts.Build
 
 	buildOpts.ProjectDir = opts.ProjectDir
@@ -214,6 +222,7 @@ func runBuild(ctx context.Context, opts Options) (*build.Result, error) {
 	buildOpts.Locked = opts.Locked
 	buildOpts.FetchOnly = false
 	buildOpts.Component = ""
+	buildOpts.Check = check
 
 	// Only take over the build's warning sink when pack has one of its own;
 	// otherwise a caller who configured Build.Warn and left Options.Warn nil

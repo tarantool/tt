@@ -131,6 +131,7 @@ func runTest(subPath string, luatestArgs []string) error {
 		Now:        time.Time{},
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
+		Check:      nil,
 	}
 
 	// The build of tt test runs build tools as tt package build does, and

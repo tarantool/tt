@@ -2,6 +2,7 @@ package build
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/exitcode"
+	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/internal/treetest"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
@@ -125,6 +127,39 @@ func TestRun_fullBuild(t *testing.T) {
 	owner, _, ok := view.Owner("lib/tarantool/my-app/fast_hash.so")
 	require.True(t, ok)
 	assert.Equal(t, ref, owner)
+}
+
+// TestRun_checkRunsFirst pins that Check is given the manifest and the
+// product the build selected, the default one for none, and that its error
+// fails the build before anything of it runs.
+func TestRun_checkRunsFirst(t *testing.T) {
+	t.Parallel()
+
+	dir := setupProject(t, baseManifest, map[string]string{
+		"init.lua":     "-- init",
+		"native/x.txt": "keep native dir",
+	})
+
+	errRefused := errors.New("refused")
+
+	var checked string
+
+	opts := dryOptions(dir)
+
+	opts.Check = func(man *manifest.Manifest, product string) error {
+		assert.Equal(t, "my-app", man.Package.Name)
+
+		checked = product
+
+		return errRefused
+	}
+
+	err := Run(context.Background(), opts)
+	require.ErrorIs(t, err, errRefused)
+	assert.Equal(t, "default", checked)
+	assert.False(t, exists(t, filepath.Join(dir, lockFileName)), "nothing was resolved")
+	assert.False(t, exists(t, filepath.Join(dir, ".rocks")), "nothing was materialized")
+	assert.False(t, exists(t, filepath.Join(dir, "native", "fast_hash.so")), "no backend ran")
 }
 
 // TestRun_packageRockFollowsTheVersion pins that a build at another version

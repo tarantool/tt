@@ -888,8 +888,9 @@ func runPackagePack() error {
 		Formats:     packageFormats,
 		Revision:    packageRevision,
 		OutputDir:   out,
-		// Pack sets the project, product, lock mode and component of the
-		// build itself, pins its timestamp and routes its warnings to Warn.
+		// Pack sets the project, product, lock mode, component and check of
+		// the build itself, pins its timestamp and routes its warnings to
+		// Warn.
 		Build: build.Options{
 			ProjectDir: "",
 			Product:    "",
@@ -904,6 +905,7 @@ func runPackagePack() error {
 			Now:        time.Time{},
 			Logger:     luarocksLogger(),
 			Warn:       nil,
+			Check:      nil,
 		},
 		Runtime: runtimeRequest(ctx, tntInfo),
 		Warn:    func(msg string) { log.Warn(msg) },
@@ -1056,6 +1058,7 @@ func buildPackageIn(ctx context.Context, projectDir string, run packageRun) erro
 		Now:        time.Time{},
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
+		Check:      nil,
 	})
 }
 
