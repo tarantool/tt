@@ -13,17 +13,17 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/pelletier/go-toml/v2"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/internal/srctree"
 )
 
 const (
 	// cacheDirName holds, under it, what an incremental build recorded.
 	cacheDirName = "cache"
-	// ignoreFileName holds ignore rules for its directory and below.
-	ignoreFileName = ".gitignore"
+	// runtimeDirName is the directory of the runtime bundle of a project.
+	runtimeDirName = "_runtime"
 	// cacheFilePerm is the mode of a record.
 	cacheFilePerm os.FileMode = 0o644
 )
@@ -72,7 +72,7 @@ func componentInputs(projectDir, dir string, build manifest.Build) (string, erro
 		domain = strings.Split(filepath.ToSlash(rel), "/")
 	}
 
-	patterns, err := ancestorIgnores(projectDir, domain)
+	patterns, err := srctree.Ancestors(projectDir, domain)
 	if err != nil {
 		return "", err
 	}
@@ -81,7 +81,11 @@ func componentInputs(projectDir, dir string, build manifest.Build) (string, erro
 
 	_, _ = digest.Write(block)
 
-	err = hashDir(digest, dir, domain, patterns)
+	err = srctree.Walk(dir, domain, patterns, skipInput, func(
+		full string, path []string, entry fs.DirEntry,
+	) error {
+		return hashInput(digest, full, strings.Join(path, "/"), entry)
+	})
 	if err != nil {
 		return "", err
 	}
@@ -89,95 +93,33 @@ func componentInputs(projectDir, dir string, build manifest.Build) (string, erro
 	return hex.EncodeToString(digest.Sum(nil)), nil
 }
 
-// ancestorIgnores reads the ignore rules of projectDir and of the directories
-// down to the one at domain, the last excluded: its own are read by hashDir.
-func ancestorIgnores(projectDir string, domain []string) ([]gitignore.Pattern, error) {
-	var patterns []gitignore.Pattern
+// skipInput leaves out of the inputs of a component the hidden files (.git,
+// .tarawasm, the .gitignore files themselves) and what is in _build and
+// _runtime.
+func skipInput(path []string, _ fs.DirEntry) bool {
+	name := path[len(path)-1]
 
-	dir := projectDir
-
-	for idx := range domain {
-		own, err := readIgnores(dir, domain[:idx])
-		if err != nil {
-			return nil, err
-		}
-
-		patterns = append(patterns, own...)
-		dir = filepath.Join(dir, domain[idx])
-	}
-
-	return patterns, nil
+	return strings.HasPrefix(name, ".") || name == buildDirName || name == runtimeDirName
 }
 
-// readIgnores reads the .gitignore of dir, the directory at domain.
-func readIgnores(dir string, domain []string) ([]gitignore.Pattern, error) {
-	data, err := os.ReadFile(filepath.Join(dir, ignoreFileName))
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
+// hashInput writes one input, the file at full whose path from the project is
+// rel, to digest: a symbolic link by its target, a regular file by its mode
+// and content. Anything else is no input.
+func hashInput(digest io.Writer, full, rel string, entry fs.DirEntry) error {
+	var err error
+
+	switch {
+	case entry.Type()&fs.ModeSymlink != 0:
+		var target string
+
+		target, err = os.Readlink(full)
+		_, _ = fmt.Fprintf(digest, "link %s %s\n", rel, target)
+	case entry.Type().IsRegular():
+		err = hashFile(digest, full, rel)
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("reading the ignore rules of %s: %w", dir, err)
-	}
-
-	var patterns []gitignore.Pattern
-
-	for line := range strings.SplitSeq(string(data), "\n") {
-		line = strings.TrimSuffix(line, "\r")
-		if strings.HasPrefix(line, "#") || strings.TrimSpace(line) == "" {
-			continue
-		}
-
-		patterns = append(patterns, gitignore.ParsePattern(line, domain))
-	}
-
-	return patterns, nil
-}
-
-// hashDir writes the inputs under dir, the directory at domain, to digest, in
-// the order of their names.
-func hashDir(digest io.Writer, dir string, domain []string, inherited []gitignore.Pattern) error {
-	own, err := readIgnores(dir, domain)
-	if err != nil {
-		return err
-	}
-
-	patterns := slices.Concat(inherited, own)
-	matcher := gitignore.NewMatcher(patterns)
-
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return fmt.Errorf("hashing %s: %w", dir, err)
-	}
-
-	for _, entry := range entries {
-		name := entry.Name()
-		if strings.HasPrefix(name, ".") || name == buildDirName || name == "_runtime" {
-			continue
-		}
-
-		path := slices.Concat(domain, []string{name})
-		if matcher.Match(path, entry.IsDir()) {
-			continue
-		}
-
-		full := filepath.Join(dir, name)
-
-		switch {
-		case entry.IsDir():
-			err = hashDir(digest, full, path, patterns)
-		case entry.Type()&fs.ModeSymlink != 0:
-			var target string
-
-			target, err = os.Readlink(full)
-			_, _ = fmt.Fprintf(digest, "link %s %s\n", strings.Join(path, "/"), target)
-		case entry.Type().IsRegular():
-			err = hashFile(digest, full, strings.Join(path, "/"))
-		}
-
-		if err != nil {
-			return fmt.Errorf("hashing %s: %w", full, err)
-		}
+		return fmt.Errorf("hashing %s: %w", full, err)
 	}
 
 	return nil
