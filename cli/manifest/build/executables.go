@@ -57,11 +57,12 @@ type executablesRecord struct {
 	Components map[string][]string `json:"components"`
 }
 
-// readExecutables reads the record of projectDir. A missing record is an
-// empty one, and so is one that cannot be read: it is tt's own state, and
-// the next build of each component writes its entry again.
-func readExecutables(projectDir string, warn func(string)) map[string][]string {
-	path := filepath.Join(projectDir, buildDirName, executablesFileName)
+// readExecutables reads the record under stateDir, the directory of the
+// build's own state (project.stateDir). A missing record is an empty one,
+// and so is one that cannot be read: it is tt's own state, and the next
+// build of each component writes its entry again.
+func readExecutables(stateDir string, warn func(string)) map[string][]string {
+	path := filepath.Join(stateDir, executablesFileName)
 
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -101,9 +102,9 @@ func keepExecutable(man *manifest.Manifest, programs map[string][]string) map[st
 	return kept
 }
 
-// writeExecutables writes the record of projectDir, kept by keepExecutable,
+// writeExecutables writes the record under stateDir, kept by keepExecutable,
 // and returns what it wrote.
-func writeExecutables(projectDir string, man *manifest.Manifest, programs map[string][]string) (
+func writeExecutables(stateDir string, man *manifest.Manifest, programs map[string][]string) (
 	map[string][]string, error,
 ) {
 	kept := keepExecutable(man, programs)
@@ -113,14 +114,12 @@ func writeExecutables(projectDir string, man *manifest.Manifest, programs map[st
 		return nil, fmt.Errorf("encoding the record of programs: %w", err)
 	}
 
-	dir := filepath.Join(projectDir, buildDirName)
-
-	err = os.MkdirAll(dir, dirPerm)
+	err = os.MkdirAll(stateDir, dirPerm)
 	if err != nil {
-		return nil, fmt.Errorf("creating %s: %w", dir, err)
+		return nil, fmt.Errorf("creating %s: %w", stateDir, err)
 	}
 
-	path := filepath.Join(dir, executablesFileName)
+	path := filepath.Join(stateDir, executablesFileName)
 
 	err = os.WriteFile(path, append(data, '\n'), executablesFilePerm)
 	if err != nil {

@@ -112,6 +112,55 @@ func TestContentHashFollowsSymlinkedRoot(t *testing.T) {
 	assert.NotEqual(t, empty, linkHash)
 }
 
+// TestPathContentHashKeepsOldLocksFresh pins that a path dependency holding no
+// manifest is hashed as it always was, over every file, so a lock written
+// before manifest dependencies existed stays fresh; and that one holding a
+// manifest leaves out what a build writes - only its own lock at the top, a
+// lock deeper down being a file like any other.
+func TestPathContentHashKeepsOldLocksFresh(t *testing.T) {
+	t.Parallel()
+
+	write := func(dir, rel, content string) {
+		path := filepath.Join(dir, filepath.FromSlash(rel))
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+	}
+
+	dir := t.TempDir()
+	write(dir, "mylib-scm-1.rockspec", "package = 'mylib'\n")
+	write(dir, "init.lua", "return {}\n")
+	write(dir, "_build/out.so", "built")
+	write(dir, ".git/HEAD", "ref\n")
+
+	old, err := contentHash(dir)
+	require.NoError(t, err)
+
+	got, err := pathContentHash(dir)
+	require.NoError(t, err)
+	assert.Equal(t, old, got)
+
+	write(dir, manifestFileName, "manifest_version = '0.1'\n")
+
+	withManifest, err := pathContentHash(dir)
+	require.NoError(t, err)
+
+	twin := t.TempDir()
+	write(twin, "mylib-scm-1.rockspec", "package = 'mylib'\n")
+	write(twin, "init.lua", "return {}\n")
+	write(twin, manifestFileName, "manifest_version = '0.1'\n")
+	write(twin, lockFileName, "lock_version = '0.1'\n")
+
+	twinHash, err := pathContentHash(twin)
+	require.NoError(t, err)
+	assert.Equal(t, withManifest, twinHash, "_build/, .git/ and the lock are no content")
+
+	write(twin, "sub/"+lockFileName, "lock_version = '0.1'\n")
+
+	nested, err := pathContentHash(twin)
+	require.NoError(t, err)
+	assert.NotEqual(t, twinHash, nested, "a lock below the top is content")
+}
+
 // TestContentHashTracksExecutableBit checks that flipping a file's executable
 // bit changes the hash, so a path dependency's build script going +x is not
 // invisible to the lock and staleness.

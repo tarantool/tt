@@ -221,6 +221,27 @@ func (m *Manifest) EffectiveProducts() map[string]Product {
 	}
 }
 
+// DefaultProduct returns the product a command acts on when it is not named
+// one, among the effective products: the only one, or the one marked default.
+// It reports false when there are several and none is marked, which Validate
+// rejects.
+func (m *Manifest) DefaultProduct() (string, Product, bool) {
+	products := m.EffectiveProducts()
+
+	names := sortedKeys(products)
+	if len(names) == 1 {
+		return names[0], products[names[0]], true
+	}
+
+	for _, name := range names {
+		if products[name].Default {
+			return name, products[name], true
+		}
+	}
+
+	return "", Product{}, false
+}
+
 // Hook is a lifecycle hook ([hooks.pre_build]/[hooks.post_build]). It shares
 // the Build shape, but only the make/shell backends are valid and there is no
 // module/sources.

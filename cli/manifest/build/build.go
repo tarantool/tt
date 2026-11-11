@@ -193,7 +193,7 @@ func RunResult(ctx context.Context, opts Options) (*Result, error) {
 	}
 
 	if opts.FetchOnly {
-		return runFetch(ctx, adapter, opts.ProjectDir, man, tree, productName, opts.Logger)
+		return runFetch(ctx, opts, adapter, man, tree, productName)
 	}
 
 	return runBuild(ctx, opts, man, adapter, tree, productName, product)
@@ -248,12 +248,14 @@ func readManifest(projectDir string, opts Options) (*manifest.Manifest, error) {
 }
 
 // runFetch materializes the product's locked closure into the tree without
-// resolving or running backends — tt package fetch.
+// resolving or running backends — tt package fetch. The backends of a path
+// dependency holding a manifest do run: such a dependency is built, as one
+// shipping a rockspec is.
 func runFetch(
-	ctx context.Context, adapter *rocks.Adapter, projectDir string,
-	man *manifest.Manifest, tree, productName string, logger *slog.Logger,
+	ctx context.Context, opts Options, adapter *rocks.Adapter,
+	man *manifest.Manifest, tree, productName string,
 ) (*Result, error) {
-	lock, err := loadLock(projectDir)
+	lock, err := loadLock(opts.ProjectDir)
 	if err != nil {
 		return nil, err
 	}
@@ -264,35 +266,53 @@ func runFetch(
 			"lock has no closure for product %q; run tt package build", productName)
 	}
 
+	err = materializeLock(ctx, opts, man, adapter, lock, prod)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Result{Manifest: man, Lock: lock, Product: productName, Tree: tree}, nil
+}
+
+// materializeLock materializes the closure of the product prod of lock and the
+// lock's dev closure into the tree of adapter (materialize), then removes from
+// the tree what the lock does not pin (pruneTree). The rock of a path
+// dependency holding a manifest declares its dependencies at the versions the
+// lock pins.
+func materializeLock(
+	ctx context.Context, opts Options, man *manifest.Manifest, adapter *rocks.Adapter,
+	lock *manifest.Lock, prod manifest.LockProduct,
+) error {
 	registryClient, err := adapter.Client(client.BackendNative)
 	if err != nil {
-		return nil, fmt.Errorf("rocks registry client: %w", err)
+		return fmt.Errorf("rocks registry client: %w", err)
 	}
 
 	// Path rocks are built by the native backend, whose typed Build operation
 	// never resolves dependencies again; the lock remains the only closure.
 	pathClient, err := adapter.Client(client.BackendNative)
 	if err != nil {
-		return nil, fmt.Errorf("rocks path client: %w", err)
+		return fmt.Errorf("rocks path client: %w", err)
 	}
 
-	servers, err := dependencyServers(man, projectDir, adapter.Config().Servers)
+	servers, err := dependencyServers(man, opts.ProjectDir, adapter.Config().Servers)
+	if err == nil {
+		err = servers.addPathManifests(opts.ProjectDir, prod.Dependencies, lock.DevDependencies)
+	}
+
 	if err != nil {
-		return nil, sdk.Errorf(sdk.ExitFailure, "%w", err)
+		return sdk.Errorf(sdk.ExitFailure, "%w", err)
 	}
 
-	matErr := materialize(ctx, registryClient, pathClient, projectDir, prod,
+	manifests := newPathManifests(opts, adapter, prod.Dependencies, lock.DevDependencies)
+
+	err = materialize(ctx, registryClient, pathClient, manifests, opts.ProjectDir, prod,
 		lock.DevDependencies, servers)
-	if matErr != nil {
-		return nil, matErr
-	}
-
-	err = pruneTree(ctx, adapter.Config(), projectDir, lock, nil, logInfo(logger))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return &Result{Manifest: man, Lock: lock, Product: productName, Tree: tree}, nil
+	return pruneTree(ctx, adapter.Config(), opts.ProjectDir, lock, nil, logInfo(opts.Logger))
 }
 
 // runBuild runs the full build cycle.
@@ -342,55 +362,17 @@ func runBuild(
 			"lock has no closure for product %q", productName)
 	}
 
-	registryClient, err := adapter.Client(client.BackendNative)
-	if err != nil {
-		return nil, fmt.Errorf("rocks registry client: %w", err)
-	}
-
-	pathClient, err := adapter.Client(client.BackendNative)
-	if err != nil {
-		return nil, fmt.Errorf("rocks path client: %w", err)
-	}
-
-	servers, err := dependencyServers(man, opts.ProjectDir, adapter.Config().Servers)
-	if err != nil {
-		return nil, sdk.Errorf(sdk.ExitFailure, "%w", err)
-	}
-
-	matErr := materialize(ctx, registryClient, pathClient, opts.ProjectDir, prod,
-		lock.DevDependencies, servers)
-	if matErr != nil {
-		return nil, matErr
-	}
-
-	err = pruneTree(ctx, adapter.Config(), opts.ProjectDir, lock, nil, logInfo(opts.Logger))
+	err = materializeLock(ctx, opts, man, adapter, lock, prod)
 	if err != nil {
 		return nil, err
 	}
 
 	stage := packageStage(opts.ProjectDir, productName)
 
-	programs, err := runBackends(ctx, opts, man, adapter, stage, components, ver)
+	programs, err := buildComponents(ctx, opts, packageProject(opts.ProjectDir, man), adapter,
+		stage, components, ver)
 	if err != nil {
 		return nil, err
-	}
-
-	laidOut, err := layoutComponents(opts.ProjectDir, stage, man, components)
-	if err != nil {
-		return nil, err
-	}
-
-	wasmWarnings, err := checkWasmFiles(laidOut)
-	if err != nil {
-		return nil, sdk.Errorf(sdk.ExitFailure, "%w", err)
-	}
-
-	opts.emit(wasmWarnings)
-
-	vluaErr := writeVersionLua(stage, man.Package.Name,
-		man.Package.GenerateVersionLuaValue(), ver, opts.builtAt(), laidOut)
-	if vluaErr != nil {
-		return nil, vluaErr
 	}
 
 	err = installPackageRock(ctx, adapter.Config(), man, productName, prod, ver, stage)
@@ -436,6 +418,64 @@ func preflightBackends(man *manifest.Manifest, components []string) error {
 	return nil
 }
 
+// project is what the component steps of a build work on (buildComponents):
+// the manifest of a project, its directory and the directory the build keeps
+// its own state in. tt package build works on the package itself and its
+// _build/; a path dependency holding a manifest is built by the same steps
+// from its own directory, its state kept in the consumer's _build/ instead
+// (pathbuild.go).
+type project struct {
+	// dir is the root of the project: its components, the working directory
+	// of their builds, TT_PROJECT_ROOT and the root of the ignore rules of
+	// their inputs.
+	dir string
+	// stateDir is the directory of the build's own state: the records of the
+	// incremental components and of the programs of the executable ones.
+	stateDir string
+	// man is the manifest of the project.
+	man *manifest.Manifest
+}
+
+// packageProject is the project of the package itself, its state in its own
+// _build/.
+func packageProject(projectDir string, man *manifest.Manifest) project {
+	return project{dir: projectDir, stateDir: filepath.Join(projectDir, buildDirName), man: man}
+}
+
+// buildComponents runs the component steps of a build of proj into stage:
+// the backends of components (runBackends), their layout (layoutComponents),
+// the check of the laid-out wasm files and version.lua. It returns the record
+// of the programs of the executable components, as runBackends does.
+func buildComponents(
+	ctx context.Context, opts Options, proj project, adapter *rocks.Adapter,
+	stage string, components []string, ver version.Version,
+) (map[string][]string, error) {
+	programs, err := runBackends(ctx, opts, proj, adapter, stage, components, ver)
+	if err != nil {
+		return nil, err
+	}
+
+	laidOut, err := layoutComponents(proj.dir, stage, proj.man, components)
+	if err != nil {
+		return nil, err
+	}
+
+	wasmWarnings, err := checkWasmFiles(laidOut)
+	if err != nil {
+		return nil, sdk.Errorf(sdk.ExitFailure, "%w", err)
+	}
+
+	opts.emit(wasmWarnings)
+
+	err = writeVersionLua(stage, proj.man.Package.Name,
+		proj.man.Package.GenerateVersionLuaValue(), ver, opts.builtAt(), laidOut)
+	if err != nil {
+		return nil, err
+	}
+
+	return programs, nil
+}
+
 // runBackends runs the build backend of every selected component that declares
 // one, in the product's component order, placing artifacts in the component's
 // lib namespace directory of the package's stage, or, for an executable
@@ -445,17 +485,17 @@ func preflightBackends(man *manifest.Manifest, components []string) error {
 // component built, those of the components not built this time as an
 // earlier build recorded them.
 func runBackends(
-	ctx context.Context, opts Options, man *manifest.Manifest,
+	ctx context.Context, opts Options, proj project,
 	adapter *rocks.Adapter, stage string, components []string, ver version.Version,
 ) (map[string][]string, error) {
 	flags := adapter.Flags()
 	target := native.Host()
 	tarantoolPrefix, tarantoolIncludeDir := tarantoolDirs(opts.Tarantool)
-	programs := readExecutables(opts.ProjectDir, opts.Warn)
+	programs := readExecutables(proj.stateDir, opts.Warn)
 	built := false
 
 	for _, name := range components {
-		component := man.Components[name]
+		component := proj.man.Components[name]
 		if component.Build == nil {
 			continue
 		}
@@ -465,15 +505,15 @@ func runBackends(
 			return nil, fmt.Errorf("component %q: %w", name, err)
 		}
 
-		outputDir := componentOutputDir(stage, component.EffectiveNamespace(man.Package.Name))
+		outputDir := componentOutputDir(stage, component.EffectiveNamespace(proj.man.Package.Name))
 		if component.IsExecutable() {
 			outputDir = filepath.Join(stage, rocktree.StageBin)
 		}
 
 		env := backend.Env{
 			OutputDir:           outputDir,
-			ProjectRoot:         opts.ProjectDir,
-			Package:             man.Package.Name,
+			ProjectRoot:         proj.dir,
+			Package:             proj.man.Package.Name,
 			Component:           name,
 			Version:             ver.SemVer,
 			OS:                  target.OS,
@@ -482,14 +522,14 @@ func runBackends(
 			Module:              !component.IsExecutable(),
 			TarantoolPrefix:     tarantoolPrefix,
 			TarantoolIncludeDir: tarantoolIncludeDir,
-			BuildDir:            componentBuildDir(opts.ProjectDir, name),
+			BuildDir:            componentBuildDir(proj.stateDir, name),
 			Fresh:               opts.Rebuild,
 		}
 
-		cwd := backendCwd(opts.ProjectDir, component)
+		cwd := backendCwd(proj.dir, component)
 
 		if component.IsExecutable() {
-			programs[name], err = runExecutableBackend(ctx, opts, executor, name, component,
+			programs[name], err = runExecutableBackend(ctx, opts, proj, executor, name, component,
 				cwd, env, programs[name])
 			if err != nil {
 				return nil, err
@@ -500,17 +540,17 @@ func runBackends(
 			continue
 		}
 
-		err = runModuleBackend(ctx, opts, executor, name, component, cwd, env)
+		err = runModuleBackend(ctx, opts, proj, executor, name, component, cwd, env)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	if !built {
-		return keepExecutable(man, programs), nil
+		return keepExecutable(proj.man, programs), nil
 	}
 
-	return writeExecutables(opts.ProjectDir, man, programs)
+	return writeExecutables(proj.stateDir, proj.man, programs)
 }
 
 // layoutComponents lays every selected component out under its namespace in
@@ -548,16 +588,16 @@ func layoutComponents(
 // left is still there (see skipUnchanged); its build records what it wrote
 // into TT_OUTPUT_DIR and the files of the component the layout takes.
 func runModuleBackend(
-	ctx context.Context, opts Options, executor backend.Backend, name string,
+	ctx context.Context, opts Options, proj project, executor backend.Backend, name string,
 	component manifest.Component, cwd string, env backend.Env,
 ) error {
 	if !component.Build.IncrementalValue() {
 		return runComponentBackend(ctx, executor, name, component, cwd, env)
 	}
 
-	compAbsPath := resolveDir(opts.ProjectDir, component.Path)
+	compAbsPath := resolveDir(proj.dir, component.Path)
 
-	state, skipped, err := skipUnchanged(opts, name, component, compAbsPath, cwd, env)
+	state, skipped, err := skipUnchanged(opts, proj, name, component, compAbsPath, cwd, env)
 	if err != nil || skipped {
 		return err
 	}
@@ -578,7 +618,7 @@ func runModuleBackend(
 
 		laidOut, err = laidOutFiles(component, compAbsPath)
 		if err == nil {
-			err = writeIncremental(opts.ProjectDir, name, incrementalRecord{
+			err = writeIncremental(proj.stateDir, name, incrementalRecord{
 				Inputs:  state.inputs,
 				Written: writtenFiles(before, after, state.last.Written),
 				LaidOut: laidOut,
@@ -598,16 +638,16 @@ func runModuleBackend(
 // component is, its programs being what it wrote into TT_OUTPUT_DIR, and
 // keeps the programs its last build recorded.
 func runExecutableBackend(
-	ctx context.Context, opts Options, executor backend.Backend, name string,
+	ctx context.Context, opts Options, proj project, executor backend.Backend, name string,
 	component manifest.Component, cwd string, env backend.Env, recorded []string,
 ) ([]string, error) {
 	if !component.Build.IncrementalValue() {
 		return buildExecutable(ctx, executor, component, name, cwd, env, recorded)
 	}
 
-	compAbsPath := resolveDir(opts.ProjectDir, component.Path)
+	compAbsPath := resolveDir(proj.dir, component.Path)
 
-	state, skipped, err := skipUnchanged(opts, name, component, compAbsPath, cwd, env)
+	state, skipped, err := skipUnchanged(opts, proj, name, component, compAbsPath, cwd, env)
 	if err != nil {
 		return nil, err
 	}
@@ -621,7 +661,7 @@ func runExecutableBackend(
 		return nil, err
 	}
 
-	err = writeIncremental(opts.ProjectDir, name, incrementalRecord{
+	err = writeIncremental(proj.stateDir, name, incrementalRecord{
 		Inputs:  state.inputs,
 		Written: programs,
 		LaidOut: nil,
@@ -654,19 +694,19 @@ func runComponentBackend(
 // the last are looked for, as the build itself copies them: the tree may have
 // been cleared since.
 func skipUnchanged(
-	opts Options, name string, component manifest.Component, compAbsPath, cwd string,
-	env backend.Env,
+	opts Options, proj project, name string, component manifest.Component,
+	compAbsPath, cwd string, env backend.Env,
 ) (incrementalState, bool, error) {
 	var state incrementalState
 
-	inputs, err := componentInputs(opts.ProjectDir, compAbsPath, *component.Build)
+	inputs, err := componentInputs(proj.dir, compAbsPath, *component.Build)
 	if err != nil {
 		return state, false, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
 	}
 
 	state.inputs = inputs
 
-	last, found := readIncremental(opts.ProjectDir, name)
+	last, found := readIncremental(proj.stateDir, name)
 	if found {
 		state.last = last
 	}
@@ -726,9 +766,12 @@ const cmakeDirName = "cmake"
 // componentBuildDir is the directory the backend of the component name keeps
 // its state in between builds, _build/cmake/<name>/: the build tree of a
 // cmake build, out of the source and kept, as the stage is, for the next
-// build to rebuild only what changed. The other backends keep none.
-func componentBuildDir(projectDir, name string) string {
-	return filepath.Join(projectDir, buildDirName, cmakeDirName, name)
+// build to rebuild only what changed. The other backends keep none. stateDir
+// is the state directory of the project (project.stateDir): _build/ of the
+// package, and the one of a path dependency in _build/path/ of the project
+// that builds it, so a dependency's build tree is not left in its directory.
+func componentBuildDir(stateDir, name string) string {
+	return filepath.Join(stateDir, cmakeDirName, name)
 }
 
 // tarantoolDirs is where the Tarantool the build is for is, as the build

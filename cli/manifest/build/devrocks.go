@@ -93,11 +93,20 @@ func EnsureDevRocks(
 	}
 
 	servers, err := dependencyServers(man, opts.ProjectDir, adapter.Config().Servers)
+	if err == nil {
+		err = servers.addPathManifests(opts.ProjectDir, missing)
+	}
+
 	if err != nil {
 		return err
 	}
 
-	err = materialize(ctx, registryClient, pathClient, opts.ProjectDir,
+	// The rock of a path dependency holding a manifest declares its
+	// dependencies at the versions of the whole closure, not only of the
+	// rocks missing from the tree.
+	manifests := newPathManifests(opts, adapter, closure)
+
+	err = materialize(ctx, registryClient, pathClient, manifests, opts.ProjectDir,
 		manifest.LockProduct{}, missing, servers)
 	if err != nil {
 		return err

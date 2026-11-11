@@ -9,22 +9,33 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/go-luarocks/deps"
 	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
-// resolvePath resolves a path dependency: it hashes the local directory and,
-// if the directory ships a rockspec, reads the version and transitive
-// dependencies from it. A path dependency is pinned by path and content hash
-// rather than by registry version and checksum.
+// resolvePath resolves a path dependency: it hashes the local directory and
+// reads the version and transitive dependencies from the manifest the
+// directory holds (resolvePathManifest) or, failing that, from the rockspec it
+// ships. A path dependency is pinned by path and content hash rather than by
+// registry version and checksum.
 func (w *walker) resolvePath(req depReq) (*resolvedDep, []depReq, error) {
 	dir := filepath.Join(w.engine.projectDir, req.path)
 
 	hash, hashErr := w.cache.dirContentHash(dir)
 	if hashErr != nil {
 		return nil, nil, fmt.Errorf("hashing path dependency %q: %w", req.name, hashErr)
+	}
+
+	neighbour, err := w.pathManifest(req.name, dir)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if neighbour != nil {
+		return w.resolvePathManifest(req, hash, neighbour)
 	}
 
 	spec, metaErr := w.cache.localMetadata(w.engine.adapter, dir)
@@ -69,6 +80,57 @@ func (w *walker) resolvePath(req depReq) (*resolvedDep, []depReq, error) {
 	return resolved, children, nil
 }
 
+// pathManifest reads the manifest of the path dependency name at dir through
+// the cache, nil when the directory holds none. The first read of a run owes
+// the caller the warnings of the manifest and, when a rockspec lies beside it,
+// the warning that the rockspec is ignored; later reads - another product
+// reaching the same dependency - owe nothing.
+func (w *walker) pathManifest(name, dir string) (*pathManifestDep, error) {
+	neighbour, first, err := w.cache.pathManifest(name, dir)
+	if err != nil || neighbour == nil || !first {
+		return neighbour, err
+	}
+
+	w.warnings = append(w.warnings, neighbour.manifest.Warnings...)
+
+	if len(neighbour.rockspecs) > 0 {
+		w.warnings = append(w.warnings, fmt.Sprintf(
+			"path dependency %q holds %s, so tt builds it from the manifest and ignores %s",
+			name, manifestFileName, strings.Join(neighbour.rockspecs, ", ")))
+	}
+
+	return neighbour, nil
+}
+
+// resolvePathManifest resolves a path dependency whose directory holds a
+// manifest (PathManifest). Its version is the one tt package build would
+// derive in its directory, in the LuaRocks form its rock is installed at, and
+// its transitive requirements are the dependencies of its default product -
+// a path one rebased onto the consumer, a registry override kept. Its
+// [dev_dependencies] and its own lock are not the consumer's.
+func (w *walker) resolvePathManifest(
+	req depReq, hash string, neighbour *pathManifestDep,
+) (*resolvedDep, []depReq, error) {
+	children, err := neighbour.manifest.requirements(w.engine.projectDir)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	resolved := &resolvedDep{
+		lockDep: manifest.LockDependency{
+			Name:        req.name,
+			Version:     neighbour.rockVersion,
+			Source:      manifestSourcePath,
+			Checksum:    "",
+			Path:        req.path,
+			ContentHash: hash,
+		},
+		version: neighbour.version,
+	}
+
+	return resolved, children, nil
+}
+
 // fileEntry is one regular file discovered under a path dependency: its
 // slash-normalized path relative to the root and whether it is executable.
 type fileEntry struct {
@@ -97,6 +159,13 @@ func contentHash(dir string) (string, error) {
 		return "", walkErr
 	}
 
+	return hashEntries(root, files)
+}
+
+// hashEntries is the content hash of files, the regular files of root: their
+// framings (hashFile) in the order of their slash-separated paths, tagged
+// "sha256:".
+func hashEntries(root string, files []fileEntry) (string, error) {
 	sort.Slice(files, func(i, j int) bool { return files[i].rel < files[j].rel })
 
 	hasher := sha256.New()

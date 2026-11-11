@@ -3,8 +3,10 @@ package resolve
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	luarocks "github.com/tarantool/go-luarocks"
+	"github.com/tarantool/go-luarocks/deps"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
@@ -25,6 +27,9 @@ type resolveCache struct {
 	// no rockspec) stores a nil rockspec; the comma-ok on the read distinguishes
 	// it (present, nil) from a not-yet-cached directory (absent).
 	local map[string]*luarocks.Rockspec
+	// manifests caches the manifests of path dependencies by name and
+	// directory, a directory holding none as nil, as local does.
+	manifests map[string]*pathManifestDep
 	// warnedNoMD5 records the artifact URLs whose rock published no md5 so the
 	// reproducibility warning is emitted once per run, not once per product that
 	// shares the rock (the walker is per-product, but this cache is run-wide).
@@ -43,6 +48,7 @@ func newResolveCache() *resolveCache {
 		metadata:     map[string]*luarocks.Rockspec{},
 		content:      map[string]string{},
 		local:        map[string]*luarocks.Rockspec{},
+		manifests:    map[string]*pathManifestDep{},
 		warnedNoMD5:  map[string]bool{},
 		droppedPins:  map[string]bool{},
 		warnedMoving: map[string]bool{},
@@ -136,14 +142,14 @@ func (c *resolveCache) rockMetadata(
 	return got, nil
 }
 
-// dirContentHash memoizes contentHash by directory.
+// dirContentHash memoizes pathContentHash by directory.
 func (c *resolveCache) dirContentHash(dir string) (string, error) {
 	hit, ok := c.content[dir]
 	if ok {
 		return hit, nil
 	}
 
-	got, err := contentHash(dir)
+	got, err := pathContentHash(dir)
 	if err != nil {
 		return "", err
 	}
@@ -151,6 +157,70 @@ func (c *resolveCache) dirContentHash(dir string) (string, error) {
 	c.content[dir] = got
 
 	return got, nil
+}
+
+// pathManifestDep is what the resolver reads of a path dependency holding a
+// manifest: the manifest, the version of its rock, in both string and parsed
+// form, and the rockspecs beside the manifest it ignores.
+type pathManifestDep struct {
+	manifest    *PathManifest
+	rockVersion string
+	version     luarocks.Version
+	rockspecs   []string
+}
+
+// pathManifest memoizes reading the manifest of the path dependency name at
+// dir and deriving its version: nil when the directory holds no manifest.
+// first reports the read that filled the cache, so its warnings are emitted
+// once per run. Errors are not cached.
+func (c *resolveCache) pathManifest(name, dir string) (*pathManifestDep, bool, error) {
+	key := name + "\x00" + dir
+
+	hit, ok := c.manifests[key]
+	if ok {
+		return hit, false, nil
+	}
+
+	isManifest, err := IsPathManifest(dir)
+	if err != nil {
+		return nil, false, fmt.Errorf("path dependency %q: %w", name, err)
+	}
+
+	if !isManifest {
+		c.manifests[key] = nil
+
+		return nil, false, nil
+	}
+
+	loaded, err := LoadPathManifest(name, dir)
+	if err != nil {
+		return nil, false, err
+	}
+
+	_, rockVersion, err := loaded.Version()
+	if err != nil {
+		return nil, false, err
+	}
+
+	parsed, err := deps.ParseVersion(rockVersion)
+	if err != nil {
+		return nil, false, fmt.Errorf("path dependency %q: version %s: %w", name, rockVersion, err)
+	}
+
+	rockspecs, err := rockspecsBeside(dir)
+	if err != nil {
+		return nil, false, fmt.Errorf("path dependency %q: %w", name, err)
+	}
+
+	hit = &pathManifestDep{
+		manifest:    loaded,
+		rockVersion: rockVersion,
+		version:     parsed,
+		rockspecs:   rockspecs,
+	}
+	c.manifests[key] = hit
+
+	return hit, true, nil
 }
 
 // localMetadata memoizes adapter.LocalMetadata by directory. A directory with

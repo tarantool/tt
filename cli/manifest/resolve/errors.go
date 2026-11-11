@@ -17,6 +17,15 @@ var ErrConflict = errors.New("dependency conflict")
 // carries the chain that closed the loop.
 var ErrCycle = errors.New("dependency cycle")
 
+// ErrPathPackageName reports a path dependency whose directory holds the
+// manifest of a package of another name: the dependency is installed as the
+// rock of that package, so it has to be named after it.
+var ErrPathPackageName = errors.New("path dependency is named after another package")
+
+// errNoDefaultProduct guards against a path dependency whose manifest has
+// several products and none marked default. Validation already rejects it.
+var errNoDefaultProduct = errors.New("several products and none is the default")
+
 // conflictError renders "<detail> (via a -> b -> c): dependency conflict".
 type conflictError struct {
 	detail string

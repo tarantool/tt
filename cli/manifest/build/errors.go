@@ -43,4 +43,7 @@ var (
 	// errAmbiguousRockspec reports a path dependency directory that ships more
 	// than one rockspec, so which one to build is ambiguous.
 	errAmbiguousRockspec = errors.New("multiple rockspecs in path dependency")
+	// errNoManifestBuilder guards against materializing a path dependency that
+	// holds a manifest without the means to build one.
+	errNoManifestBuilder = errors.New("nothing to build a path dependency holding a manifest with")
 )

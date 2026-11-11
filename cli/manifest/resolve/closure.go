@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -105,6 +106,18 @@ func (w *walker) walk(ctx context.Context, parent string, reqs []depReq, chain [
 
 		existing, chosen := w.chosen[req.name]
 		if chosen {
+			// Two path dependencies holding manifests may each declare a third
+			// by path; when the paths are two directories, which one is the
+			// dependency is anybody's guess.
+			if existing.lockDep.Source == manifestSourcePath && req.source == manifestSourcePath &&
+				filepath.Clean(existing.lockDep.Path) != filepath.Clean(req.path) {
+				return &conflictError{
+					detail: fmt.Sprintf("%s is the path dependency %s, but %s requires it from %s",
+						req.name, existing.lockDep.Path, parentLabel(parent), req.path),
+					chain: appendChain(chain, req.name),
+				}
+			}
+
 			// A path-sourced pick is an explicit local override (like a Go
 			// replace or a Cargo path dependency): it satisfies any transitive
 			// version constraint by fiat, so it is never a version conflict - and
@@ -157,13 +170,15 @@ func (w *walker) walk(ctx context.Context, parent string, reqs []depReq, chain [
 // authoritative rewrites a transitive requirement so a directly-declared
 // dependency keeps its declared identity. A direct declaration that carries a
 // path source or a registry override wins over the default-registry identity a
-// transitive edge would otherwise impose; the transitive version constraint is
-// AND'd onto the direct declaration's so the pick still satisfies the requiring
-// rock. Transitive names the manifest does not declare directly, and direct
-// declarations with no override, are returned unchanged.
+// transitive edge would otherwise impose, and a plain direct declaration wins
+// over the path source or registry override of the edge of a path dependency
+// holding a manifest; the transitive version constraint is AND'd onto the
+// direct declaration's so the pick still satisfies the requiring rock.
+// Transitive names the manifest does not declare directly, and direct and
+// transitive declarations with no override, are returned unchanged.
 func (w *walker) authoritative(req depReq) depReq {
 	direct, declared := w.directs[req.name]
-	if !declared || (direct.source != manifestSourcePath && direct.registry == "") {
+	if !declared || (!hasOverride(direct) && !hasOverride(req)) {
 		return req
 	}
 
@@ -177,11 +192,17 @@ func (w *walker) authoritative(req depReq) depReq {
 	return req
 }
 
+// hasOverride reports whether req names where its rock comes from: a path, or
+// a registry of its own.
+func hasOverride(req depReq) bool {
+	return req.source == manifestSourcePath || req.registry != ""
+}
+
 // resolveOne resolves a single requirement into its lock entry and the
 // transitive requirements it introduces.
 func (w *walker) resolveOne(ctx context.Context, req depReq) (*resolvedDep, []depReq, error) {
 	if req.source == manifestSourcePath {
-		return w.resolvePath(req)
+		return w.resolvePath(req) //nolint:contextcheck // version.Derive runs git, takes no ctx.
 	}
 
 	resolved, err := w.resolveRegistry(ctx, req)

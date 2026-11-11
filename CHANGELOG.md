@@ -59,6 +59,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt package pack --format rock-src`: pack the source rock of the package,
   the same rockspec with the files git tracks, submodules included, and a
   `VERSION` file of the version, reproducibly.
+- A `path` dependency on a directory holding `app.manifest.toml` is built
+  from its manifest: the components of its default product, their layout and
+  `version.lua`, in `_build/path/<name>/` of the project, and installed into
+  `.rocks/` as the rock of its package, which the dependency is named after.
+  Its version is the one tt derives in its directory, and its dependencies,
+  those of its default product, are resolved with the project's; its
+  `[dev_dependencies]`, its lock and its hooks are not used, and a rockspec
+  beside the manifest is ignored, with a warning. Its content hash leaves out
+  `.git/`, `_build/`, `.rocks/`, `_runtime/`, its lock and what its
+  `.gitignore` files ignore, so building it does not make the lock out of
+  date; a new version of it does.
 - `tt wasm rock --from <module> --arch <arch>`: pack a local build of the
   tarantool-wasm module as the rock of a platform, for a release with no
   build of it to download; the rocks already in `--out` stay, so a run for

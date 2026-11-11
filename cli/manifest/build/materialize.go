@@ -8,6 +8,7 @@ import (
 	"github.com/tarantool/go-luarocks/client"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/resolve"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
@@ -102,9 +103,10 @@ type rockBuilder interface {
 //
 // Registry rocks are installed at their exact locked version with dependency
 // resolution off (DepsNone): the closure is already complete and ordered, so no
-// rock re-resolves its own deps. Path dependencies are built from the single
-// rockspec in their directory; a leaf path dependency that ships no rockspec is
-// nothing to build and is skipped.
+// rock re-resolves its own deps. A path dependency whose directory holds
+// app.manifest.toml is built from the manifest by manifests; any other is built
+// from the single rockspec in its directory, and a leaf path dependency that
+// ships neither is nothing to build and is skipped.
 //
 // Dev dependencies go into the same tree because they are meant to be
 // requirable from the project exactly like runtime ones - that is what makes
@@ -117,13 +119,14 @@ type rockBuilder interface {
 // and holds whatever the last build put there.
 func materialize(
 	ctx context.Context, registryClient rockInstaller, pathClient rockBuilder,
-	projectDir string, prod manifest.LockProduct, dev []manifest.LockDependency,
-	servers rockServers,
+	manifests manifestBuilder, projectDir string, prod manifest.LockProduct,
+	dev []manifest.LockDependency, servers rockServers,
 ) error {
 	done := make(map[string]bool, len(prod.Dependencies))
 
 	for _, dep := range prod.Dependencies {
-		depErr := materializeDep(ctx, registryClient, pathClient, projectDir, dep, servers)
+		depErr := materializeDep(ctx, registryClient, pathClient, manifests, projectDir, dep,
+			servers)
 		if depErr != nil {
 			return depErr
 		}
@@ -136,7 +139,8 @@ func materialize(
 			continue
 		}
 
-		depErr := materializeDep(ctx, registryClient, pathClient, projectDir, dep, servers)
+		depErr := materializeDep(ctx, registryClient, pathClient, manifests, projectDir, dep,
+			servers)
 		if depErr != nil {
 			return fmt.Errorf("dev dependency: %w", depErr)
 		}
@@ -156,7 +160,7 @@ func materialize(
 // has.
 func materializeDep(
 	ctx context.Context, registryClient rockInstaller, pathClient rockBuilder,
-	projectDir string, dep manifest.LockDependency,
+	manifests manifestBuilder, projectDir string, dep manifest.LockDependency,
 	servers rockServers,
 ) error {
 	switch dep.Source {
@@ -185,19 +189,35 @@ func materializeDep(
 
 		return nil
 	case sourcePath:
-		return materializePathDep(ctx, pathClient, projectDir, dep)
+		return materializePathDep(ctx, pathClient, manifests, projectDir, dep)
 	default:
 		return fmt.Errorf("dependency %q: %w %q", dep.Name, errUnknownSource, dep.Source)
 	}
 }
 
-// materializePathDep builds a path dependency from the rockspec in its
-// directory. A directory with no rockspec is a leaf pinned by content hash with
-// nothing to build; more than one rockspec is ambiguous and is an error.
+// materializePathDep builds a path dependency: from its manifest, when its
+// directory holds app.manifest.toml, which wins over a rockspec beside it, or
+// from the rockspec in its directory. A directory with neither is a leaf
+// pinned by content hash with nothing to build; more than one rockspec is
+// ambiguous and is an error.
 func materializePathDep(
-	ctx context.Context, rockClient rockBuilder, projectDir string, dep manifest.LockDependency,
+	ctx context.Context, rockClient rockBuilder, manifests manifestBuilder, projectDir string,
+	dep manifest.LockDependency,
 ) error {
 	dir := filepath.Join(projectDir, dep.Path)
+
+	isManifest, err := resolve.IsPathManifest(dir)
+	if err != nil {
+		return fmt.Errorf("path dependency %q: %w", dep.Name, err)
+	}
+
+	if isManifest {
+		if manifests == nil {
+			return fmt.Errorf("path dependency %q: %w", dep.Name, errNoManifestBuilder)
+		}
+
+		return manifests.buildPathManifest(ctx, dep)
+	}
 
 	specs, err := filepath.Glob(filepath.Join(dir, "*.rockspec"))
 	if err != nil {

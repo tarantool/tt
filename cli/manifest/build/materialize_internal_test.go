@@ -16,11 +16,13 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
-// fakeRockClient records the Install/Build calls the materializer makes.
+// fakeRockClient records the Install/Build calls the materializer makes, and
+// the path dependencies holding a manifest it builds.
 type fakeRockClient struct {
-	installs []installCall
-	builds   []string
-	err      error
+	installs  []installCall
+	builds    []string
+	manifests []string
+	err       error
 }
 
 type installCall struct {
@@ -38,6 +40,11 @@ func (f *fakeRockClient) Build(_ context.Context, specPath string, _ client.Buil
 	return f.err
 }
 
+func (f *fakeRockClient) buildPathManifest(_ context.Context, dep manifest.LockDependency) error {
+	f.manifests = append(f.manifests, dep.Name)
+	return f.err
+}
+
 func TestMaterialize_registryDepsPinnedNoDeps(t *testing.T) {
 	t.Parallel()
 
@@ -49,7 +56,7 @@ func TestMaterialize_registryDepsPinnedNoDeps(t *testing.T) {
 	}}
 
 	servers := []string{"https://rocks.example.test"}
-	require.NoError(t, materialize(context.Background(), registryClient, pathClient,
+	require.NoError(t, materialize(context.Background(), registryClient, pathClient, pathClient,
 		t.TempDir(), prod, nil, rockServers{defaults: servers, overrides: nil}))
 
 	require.Len(t, registryClient.installs, 2)
@@ -75,7 +82,7 @@ func TestMaterialize_pathDepBuildsRockspec(t *testing.T) {
 		{Name: "mylib", Source: sourcePath, Path: "vendor/mylib"},
 	}}
 
-	require.NoError(t, materialize(context.Background(), registryClient, pathClient,
+	require.NoError(t, materialize(context.Background(), registryClient, pathClient, pathClient,
 		project, prod, nil, rockServers{}))
 
 	require.Len(t, pathClient.builds, 1)
@@ -95,7 +102,7 @@ func TestMaterialize_leafPathDepIsSkipped(t *testing.T) {
 		{Name: "leaf", Source: sourcePath, Path: "vendor/leaf"},
 	}}
 
-	require.NoError(t, materialize(context.Background(), fake, fake, project, prod, nil,
+	require.NoError(t, materialize(context.Background(), fake, fake, fake, project, prod, nil,
 		rockServers{}))
 	assert.Empty(t, fake.builds)
 	assert.Empty(t, fake.installs)
@@ -116,7 +123,7 @@ func TestMaterialize_devDepsInstalledAfterProduct(t *testing.T) {
 		{Name: "luatest", Version: "1.0.1-1", Source: sourceRegistry},
 	}
 
-	require.NoError(t, materialize(context.Background(), fake, fake, t.TempDir(), prod, dev,
+	require.NoError(t, materialize(context.Background(), fake, fake, fake, t.TempDir(), prod, dev,
 		rockServers{}))
 
 	require.Len(t, fake.installs, 3)
@@ -143,7 +150,7 @@ func TestMaterialize_devDepSharedWithProductInstalledOnce(t *testing.T) {
 		{Name: "luatest", Version: "1.0.1-1", Source: sourceRegistry},
 	}
 
-	require.NoError(t, materialize(context.Background(), fake, fake, t.TempDir(), prod, dev,
+	require.NoError(t, materialize(context.Background(), fake, fake, fake, t.TempDir(), prod, dev,
 		rockServers{}))
 
 	require.Len(t, fake.installs, 2)
@@ -165,7 +172,8 @@ func TestMaterialize_devPathDepBuilt(t *testing.T) {
 	}
 
 	require.NoError(t, materialize(
-		context.Background(), fake, fake, project, manifest.LockProduct{}, dev, rockServers{}))
+		context.Background(), fake, fake, fake, project, manifest.LockProduct{}, dev,
+		rockServers{}))
 
 	require.Len(t, fake.builds, 1)
 	assert.Equal(t,
@@ -180,7 +188,8 @@ func TestMaterialize_unknownSource(t *testing.T) {
 		{Name: "weird", Source: "http"},
 	}}
 
-	err := materialize(context.Background(), fake, fake, t.TempDir(), prod, nil, rockServers{})
+	err := materialize(context.Background(), fake, fake, fake, t.TempDir(), prod, nil,
+		rockServers{})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errUnknownSource)
 }
@@ -198,7 +207,7 @@ func TestMaterialize_registryOverrideInstallsFromDeclaredServer(t *testing.T) {
 		overrides: map[string]string{"wasm": "/project/.tarantool/registry"},
 	}
 
-	require.NoError(t, materialize(context.Background(), fake, fake, t.TempDir(), prod, nil,
+	require.NoError(t, materialize(context.Background(), fake, fake, fake, t.TempDir(), prod, nil,
 		servers))
 
 	require.Len(t, fake.installs, 2)
@@ -226,7 +235,7 @@ func TestMaterialize_artifactsPinTheInstall(t *testing.T) {
 		},
 	}}
 
-	require.NoError(t, materialize(context.Background(), fake, fake, t.TempDir(), prod, nil,
+	require.NoError(t, materialize(context.Background(), fake, fake, fake, t.TempDir(), prod, nil,
 		rockServers{}))
 
 	require.Len(t, fake.installs, 2)
@@ -247,7 +256,7 @@ func TestMaterialize_pinFailuresAdvise(t *testing.T) {
 			Artifacts: map[string]string{"rockspec": "sha256:" + strings.Repeat("c", 64)},
 		}}}
 
-		err := materialize(context.Background(), fake, fake, t.TempDir(), prod, nil,
+		err := materialize(context.Background(), fake, fake, fake, t.TempDir(), prod, nil,
 			rockServers{})
 
 		require.ErrorIs(t, err, cause)
@@ -268,7 +277,8 @@ func TestMaterialize_malformedArtifactFails(t *testing.T) {
 		Artifacts: map[string]string{"linux-x86_64": "md5:00"},
 	}}}
 
-	err := materialize(context.Background(), fake, fake, t.TempDir(), prod, nil, rockServers{})
+	err := materialize(context.Background(), fake, fake, fake, t.TempDir(), prod, nil,
+		rockServers{})
 
 	var invalid *manifest.ValidationError
 
