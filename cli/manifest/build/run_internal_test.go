@@ -406,6 +406,33 @@ args = ['-c', 'echo generated > generated.lua']
 	assert.True(t, exists(t, filepath.Join(tree, "share/tarantool/my-app/generated.lua")))
 }
 
+// TestRun_hooksWithoutBackendRunWithShell pins that a hook naming no backend
+// runs with shell, the backend validation takes it for.
+func TestRun_hooksWithoutBackendRunWithShell(t *testing.T) {
+	t.Parallel()
+
+	const manifest = baseManifest + `
+[hooks.pre_build]
+command = 'sh'
+args = ['-c', 'echo generated > generated.lua']
+
+[hooks.post_build]
+command = 'sh'
+args = ['-c', 'touch post-build-ran']
+`
+
+	dir := setupProject(t, manifest, map[string]string{
+		"init.lua":           "-- init",
+		"native/fast_hash.c": "int x;",
+	})
+
+	require.NoError(t, Run(context.Background(), dryOptions(dir)))
+
+	tree := filepath.Join(dir, ".rocks")
+	assert.True(t, exists(t, filepath.Join(tree, "share/tarantool/my-app/generated.lua")))
+	assert.True(t, exists(t, filepath.Join(dir, "post-build-ran")))
+}
+
 func TestRun_fetchMaterializesWithoutBackends(t *testing.T) {
 	t.Parallel()
 
