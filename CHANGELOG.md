@@ -355,6 +355,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - A `[hooks.pre_build]` or `[hooks.post_build]` that names no `backend` runs
   with `shell`, as the manifest was checked with; the build failed with
   `hook backend is not runnable (only shell and make): ""`.
+- A `go`, `cargo` or `cmake` component whose tool is only in `.tarantool/bin`
+  of the project, or in the `PATH` of its `env`, builds: the check that runs
+  before the build looked for the tool in the `PATH` of tt alone and failed
+  it, though the build would have found the tool.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

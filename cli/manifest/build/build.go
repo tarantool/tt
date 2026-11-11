@@ -343,7 +343,9 @@ func runBuild(
 		return nil, err
 	}
 
-	err = preflightBackends(man, components, opts.Tarantool)
+	proj := packageProject(opts.ProjectDir, man, productName)
+
+	err = preflightBackends(proj, components, opts.Tarantool)
 	if err != nil {
 		return nil, err
 	}
@@ -387,8 +389,7 @@ func runBuild(
 
 	stage := packageStage(opts.ProjectDir, productName)
 
-	programs, err := buildComponents(ctx, opts,
-		packageProject(opts.ProjectDir, man, productName), adapter, stage, components, ver)
+	programs, err := buildComponents(ctx, opts, proj, adapter, stage, components, ver)
 	if err != nil {
 		return nil, err
 	}
@@ -414,24 +415,28 @@ func runBuild(
 	}, nil
 }
 
-// preflightBackends checks what the go, cargo and cmake builds of the selected
-// components need before any of them runs (backend.Preflight), and that the
-// c and lua-c ones have the headers of a Tarantool, info, to compile against:
-// a missing toolchain then fails the build before it has resolved the closure
-// and compiled the components ahead of it.
-func preflightBackends(
-	man *manifest.Manifest, components []string, info rocks.TarantoolInfo,
-) error {
+// preflightBackends checks what the go, cargo and cmake builds of the
+// selected components of proj need before any of them runs
+// (backend.Preflight), and that the c and lua-c ones have the headers of a
+// Tarantool, info, to compile against: a missing toolchain then fails the
+// build before it has resolved the closure and compiled the components ahead
+// of it.
+//
+// A toolchain is looked for where the build looks for it: in the PATH of the
+// component's [build].env, after .tarantool/bin of proj, the project being
+// built - the package, or a path dependency in its own directory.
+func preflightBackends(proj project, components []string, info rocks.TarantoolInfo) error {
 	target := native.Host()
 
 	for _, name := range components {
-		component := man.Components[name]
+		component := proj.man.Components[name]
 		if component.Build == nil {
 			continue
 		}
 
 		err := backend.Preflight(*component.Build, backend.Env{
-			OS: target.OS, Arch: target.Arch, Module: !component.IsExecutable(),
+			ProjectRoot: proj.dir, OS: target.OS, Arch: target.Arch, Extra: component.Build.Env,
+			Module: !component.IsExecutable(),
 		})
 		if err == nil {
 			err = preflightHeaders(*component.Build, info)
