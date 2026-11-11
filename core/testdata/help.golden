@@ -4001,6 +4001,9 @@ at the tag of the version. The rock is written into --out, which is then indexed
 as a rock server, keeping the rocks already there. --format tt,rock makes both
 from one build.
 
+--format rock-src packs the source rock: the same rockspec and the files of the
+project git tracks, submodules included, with a VERSION file of the version.
+
 The paths of what the pack made are printed to stdout, one per line.
 
 [0;1;39mUSAGE[0m
@@ -4009,8 +4012,9 @@ The paths of what the pack made are printed to stdout, one per line.
   tt package pack [flags]
 [0;1;39m
 FLAGS[0m
-      --format strings         what to make: tt (the .tt archive), rock (the
-                               rock and its rockspec), or both, comma-separated
+      --format strings         what to make, comma-separated: tt (the .tt
+                               archive), rock (the rock and its rockspec),
+                               rock-src (the source rock and its rockspec)
                                (default [tt])
   -h, --help                   help for pack
       --locked                 fail if the lock is out of date instead of

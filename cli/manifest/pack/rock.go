@@ -29,7 +29,14 @@ const (
 	// on: the binary rock of the host, or the .all rock of a package with no
 	// native file, and its rockspec beside it.
 	FormatRock = "rock"
+	// FormatRockSrc is the source rock of the package, for a platform with
+	// no binary rock: the rockspec of the rock and the files of the project,
+	// which tt builds with its manifest.
+	FormatRockSrc = "rock-src"
 )
+
+// formats are the values of --format.
+var formats = []string{FormatTt, FormatRock, FormatRockSrc}
 
 const (
 	// rockExt and rockspecExt end the names of a rock and of a rockspec.
@@ -60,8 +67,8 @@ var (
 // archive.
 func checkFormats(opts Options) error {
 	for _, format := range opts.Formats {
-		if format != FormatTt && format != FormatRock {
-			return stateErrorf("%w %q: want %s or %s", errFormat, format, FormatTt, FormatRock)
+		if !slices.Contains(formats, format) {
+			return stateErrorf("%w %q: want %s", errFormat, format, strings.Join(formats, ", "))
 		}
 	}
 
@@ -88,24 +95,30 @@ func (opts Options) makes(format string) bool {
 	return slices.Contains(opts.Formats, format)
 }
 
-// rockResult is what packRock made.
+// rockResult is what packRocks made.
 type rockResult struct {
-	// Rock and Rockspec are the absolute paths of the rock and its rockspec.
+	// Rock, SrcRock and Rockspec are the absolute paths of the rock, of the
+	// source rock and of their rockspec; a rock not asked for is empty.
 	Rock     string
+	SrcRock  string
 	Rockspec string
 }
 
-// packRock packs the stage of the product the build laid out as the rock of
-// the package into the output directory, writes its rockspec beside it and
-// indexes the directory as a rock server, the rocks already in it staying.
+// packRocks packs the rock of the package, its source rock or both into the
+// output directory, writes their rockspec beside them and indexes the
+// directory as a rock server, the rocks already in it staying.
 //
-// The rock is the one the build installed into .rocks/, but for other
-// projects: its rockspec declares the ranges of the manifest (releaseRock).
-// It is the binary rock of the host when the stage holds a native file or a
-// file in lib/, and an .all rock otherwise, so the arch of a rock is never
-// a choice: a module built for the host in an .all rock would install on
-// any machine and fail there.
-func packRock(ctx context.Context, opts Options, built *build.Result) (rockResult, error) {
+// The rock is the stage of the product the build laid out, the rock the build
+// installed into .rocks/, but for other projects: its rockspec declares the
+// ranges of the manifest (releaseRock). It is the binary rock of the host
+// when the stage holds a native file or a file in lib/, and an .all rock
+// otherwise, so the arch of a rock is never a choice: a module built for the
+// host in an .all rock would install on any machine and fail there.
+//
+// The source rock holds the same rockspec and the files of the project
+// (writeSrcRock): the rockspec is one per version, whatever rocks of it a
+// server has.
+func packRocks(ctx context.Context, opts Options, built *build.Result) (rockResult, error) {
 	rel, warnings, err := releaseRock(built, opts.Revision)
 	if err != nil {
 		return rockResult{}, err
@@ -122,11 +135,6 @@ func packRock(ctx context.Context, opts Options, built *build.Result) (rockResul
 		return rockResult{}, stateErrorf("%w", err)
 	}
 
-	arch, err := rockArch(built.Stage)
-	if err != nil {
-		return rockResult{}, err
-	}
-
 	dir := outputDir(opts)
 
 	err = os.MkdirAll(dir, dirPerm)
@@ -134,26 +142,34 @@ func packRock(ctx context.Context, opts Options, built *build.Result) (rockResul
 		return rockResult{}, fmt.Errorf("creating %s: %w", dir, err)
 	}
 
-	// The temporary tree of PackStaged goes under _build/, as the stage of the
-	// archive does, rather than into the system's temporary directory.
-	temp := filepath.Join(opts.ProjectDir, buildDirName, packSubDir)
-
-	err = os.MkdirAll(temp, dirPerm)
-	if err != nil {
-		return rockResult{}, fmt.Errorf("creating %s: %w", temp, err)
-	}
-
 	base := spec.Package + "-" + spec.Version
-	rock := filepath.Join(dir, base+"."+arch+rockExt)
+	result := rockResult{Rock: "", SrcRock: "", Rockspec: filepath.Join(dir, base+rockspecExt)}
 
-	err = client.PackStaged(spec, built.Stage, rock, client.PackStagedOpts{TempDir: temp})
-	if err != nil {
-		return rockResult{}, fmt.Errorf("packing the rock: %w", err)
+	if opts.makes(FormatRock) {
+		result.Rock, err = packBinaryRock(opts, built.Stage, dir, spec)
+		if err != nil {
+			return rockResult{}, err
+		}
 	}
 
-	rockspec := filepath.Join(dir, base+rockspecExt)
+	if opts.makes(FormatRockSrc) {
+		result.SrcRock = filepath.Join(dir, base+"."+srcRockArch+rockExt)
 
-	err = os.WriteFile(rockspec, spec.RawSource, filePerm)
+		warning := untrackedWarning(untrackedSources(ctx, opts.ProjectDir,
+			componentPaths(built.Manifest, built.Product)))
+		if warning != "" && opts.Warn != nil {
+			opts.Warn(warning)
+		}
+
+		err = writeSrcRock(ctx, result.SrcRock, opts.ProjectDir,
+			srcDirName(rel.SourceURL, rel.Name), base+rockspecExt, spec.RawSource,
+			built.Version.SemVer)
+		if err != nil {
+			return rockResult{}, err
+		}
+	}
+
+	err = os.WriteFile(result.Rockspec, spec.RawSource, filePerm)
 	if err != nil {
 		return rockResult{}, fmt.Errorf("writing the rockspec: %w", err)
 	}
@@ -165,7 +181,49 @@ func packRock(ctx context.Context, opts Options, built *build.Result) (rockResul
 		return rockResult{}, fmt.Errorf("indexing %s: %w", dir, err)
 	}
 
-	return rockResult{Rock: rock, Rockspec: rockspec}, nil
+	return result, nil
+}
+
+// componentPaths lists the paths of the components of product, in order and
+// without repeats.
+func componentPaths(man *manifest.Manifest, product string) []string {
+	var paths []string
+
+	for _, name := range man.EffectiveProducts()[product].Components {
+		path := man.Components[name].Path
+		if !slices.Contains(paths, path) {
+			paths = append(paths, path)
+		}
+	}
+
+	return paths
+}
+
+// packBinaryRock packs stage as the rock of spec into dir and returns its
+// path: the binary rock of the host, or the .all rock (rockArch).
+func packBinaryRock(opts Options, stage, dir string, spec *luarocks.Rockspec) (string, error) {
+	arch, err := rockArch(stage)
+	if err != nil {
+		return "", err
+	}
+
+	// The temporary tree of PackStaged goes under _build/, as the stage of the
+	// archive does, rather than into the system's temporary directory.
+	temp := filepath.Join(opts.ProjectDir, buildDirName, packSubDir)
+
+	err = os.MkdirAll(temp, dirPerm)
+	if err != nil {
+		return "", fmt.Errorf("creating %s: %w", temp, err)
+	}
+
+	rock := filepath.Join(dir, spec.Package+"-"+spec.Version+"."+arch+rockExt)
+
+	err = client.PackStaged(spec, stage, rock, client.PackStagedOpts{TempDir: temp})
+	if err != nil {
+		return "", fmt.Errorf("packing the rock: %w", err)
+	}
+
+	return rock, nil
 }
 
 // rockArch is the LuaRocks arch of the rock of stage: the host's when it holds

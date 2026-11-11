@@ -798,6 +798,9 @@ func newPackagePackCmd() *cobra.Command {
 			"the version. The rock is written into --out, which is then indexed " +
 			"as a rock server, keeping the rocks already there. --format tt,rock " +
 			"makes both from one build.\n\n" +
+			"--format rock-src packs the source rock: the same rockspec and the " +
+			"files of the project git tracks, submodules included, with a VERSION " +
+			"file of the version.\n\n" +
 			"The paths of what the pack made are printed to stdout, one per line.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -814,8 +817,8 @@ func newPackagePackCmd() *cobra.Command {
 	packCmd.Flags().BoolVar(&packageWithoutDeps, "without-deps", false,
 		"pack without _runtime/ and without foreign dependencies in .rocks/")
 	packCmd.Flags().StringSliceVar(&packageFormats, "format", []string{pack.FormatTt},
-		"what to make: tt (the .tt archive), rock (the rock and its rockspec), "+
-			"or both, comma-separated")
+		"what to make, comma-separated: tt (the .tt archive), rock (the rock and its "+
+			"rockspec), rock-src (the source rock and its rockspec)")
 	packCmd.Flags().StringVar(&packageOut, "out", "",
 		"directory to write into (default _build/pack of the project)")
 	packCmd.Flags().IntVar(&packageRevision, "revision", 1,
@@ -903,7 +906,7 @@ func runPackagePack() error {
 		return err
 	}
 
-	for _, path := range []string{result.Path, result.Rock, result.Rockspec} {
+	for _, path := range []string{result.Path, result.Rock, result.SrcRock, result.Rockspec} {
 		if path != "" {
 			_, _ = fmt.Fprintln(os.Stdout, path)
 		}

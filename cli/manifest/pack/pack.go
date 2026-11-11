@@ -46,8 +46,8 @@ type Options struct {
 	Locked bool
 	// WithoutDeps drops _runtime/ and foreign dependencies from the archive.
 	WithoutDeps bool
-	// Formats are what the pack makes of one build, FormatTt and FormatRock;
-	// none is the .tt archive alone.
+	// Formats are what the pack makes of one build, FormatTt, FormatRock and
+	// FormatRockSrc; none is the .tt archive alone.
 	Formats []string
 	// Revision is the LuaRocks revision of the rock, from 1; 0 is 1.
 	Revision int
@@ -79,9 +79,10 @@ type Result struct {
 	// Path is the absolute path of the archive; empty when the pack made
 	// none.
 	Path string
-	// Rock and Rockspec are the absolute paths of the rock and of its
-	// rockspec; empty when the pack made none.
+	// Rock, SrcRock and Rockspec are the absolute paths of the rock, of the
+	// source rock and of their rockspec; empty when the pack made none.
 	Rock     string
+	SrcRock  string
 	Rockspec string
 	// SHA256 is the archive's checksum, lowercase hex.
 	SHA256 string
@@ -120,14 +121,15 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 		}
 	}
 
-	if opts.makes(FormatRock) {
-		rock, err := packRock(ctx, opts, built)
+	if opts.makes(FormatRock) || opts.makes(FormatRockSrc) {
+		rocks, err := packRocks(ctx, opts, built)
 		if err != nil {
 			return nil, err
 		}
 
-		result.Rock = rock.Rock
-		result.Rockspec = rock.Rockspec
+		result.Rock = rocks.Rock
+		result.SrcRock = rocks.SrcRock
+		result.Rockspec = rocks.Rockspec
 	}
 
 	return result, nil
@@ -197,7 +199,8 @@ func packTt(ctx context.Context, opts Options, built *build.Result) (*Result, er
 	}
 
 	return &Result{
-		Path: dest, Rock: "", Rockspec: "", SHA256: sum, Token: token, Bundled: bundled,
+		Path: dest, Rock: "", SrcRock: "", Rockspec: "", SHA256: sum, Token: token,
+		Bundled: bundled,
 	}, nil
 }
 
