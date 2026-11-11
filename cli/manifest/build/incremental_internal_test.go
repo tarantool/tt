@@ -243,7 +243,8 @@ func TestIncrementalWritesIntoOutputDir(t *testing.T) {
 	build(dryOptions(dir))
 	assert.Equal(t, 2, countRuns(t, dir), "what the build wrote is gone: it builds again")
 
-	// A rebuild that leaves native.so alone keeps it the build's.
+	// A rebuild starts from an empty stage: native.so is written again, and
+	// is the build's.
 	rebuild := dryOptions(dir)
 
 	rebuild.Rebuild = true

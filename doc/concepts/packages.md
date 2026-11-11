@@ -98,7 +98,18 @@ The components are laid out in `_build/rock/<product>/` and installed into
 `.rocks/` as a rock of the package's name, at its version: the manifest of
 `.rocks/` lists their files as it lists those of the dependencies, and a
 build at another version replaces the rock. A file of the package that a
-dependency also installs fails the build. A build also removes from
+dependency also installs fails the build.
+
+`_build/rock/<product>/` stays between builds, and
+`_build/rock/<product>.json` records which component put each of its files
+there. A build removes from it, and so from `.rocks/`, what no component
+owns any more: a file deleted from the sources, the files of a component
+no longer in the product. What a skipped incremental build wrote stays, and
+so does what the other components put there when `--component` builds one.
+A file a backend wrote into `TT_OUTPUT_DIR` once and leaves alone since
+stays its own, as an up-to-date `make` target does; `--rebuild` starts from
+an empty `_build/rock/<product>/`, so only what the build writes again
+stays. A build also removes from
 `.rocks/` the versions of the dependencies the lock pins other than the one
 it pins, and repairs a `.rocks/` an older tt left out of step with its
 manifest.
