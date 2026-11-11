@@ -56,14 +56,15 @@ func (s *services) Log() *slog.Logger {
 	return log.Logger().With(moduleKey, s.module)
 }
 
-// Tarantool returns the tarantool tt run would start in the project: the one
-// .tarantool/bin/tarantool of the project selects, and otherwise the first on
-// PATH. TT_USE_SYSTEM_TARANTOOL forces PATH. What the choice warns about is
-// logged.
+// Tarantool returns the tarantool tt run would start in the project the
+// command is in (cmd.ProjectRoot, found above the directory of the command as
+// tt run finds it): the one .tarantool/bin/tarantool of the project selects,
+// and otherwise the first on PATH. TT_USE_SYSTEM_TARANTOOL forces PATH. What
+// the choice warns about is logged.
 func (s *services) Tarantool() (sdk.Tarantool, error) {
 	s.mustBeReady("Tarantool")
 
-	dir, err := cmd.ProjectDir()
+	dir, err := cmd.ProjectRoot()
 	if err != nil {
 		return nil, err
 	}

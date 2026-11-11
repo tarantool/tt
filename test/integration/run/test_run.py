@@ -6,14 +6,14 @@ from pathlib import Path
 import pytest
 
 
-def test_run_needs_a_manifest(run_tt, tmp_path: Path):
+def test_run_needs_a_manifest(run_tt, tmp_path_factory: pytest.TempPathFactory):
     """A directory with no package is an error, not an empty success.
 
     The manifest is the only thing the command requires, so this is also the
-    assertion that it requires nothing else.
+    assertion that it requires nothing else. The directory is outside the
+    project of the fixture: inside it, the run would find that project.
     """
-    elsewhere = tmp_path / "elsewhere"
-    elsewhere.mkdir()
+    elsewhere = tmp_path_factory.mktemp("elsewhere")
 
     result = run_tt("run", "-e", "print(1)", cwd=elsewhere)
 
@@ -109,19 +109,23 @@ def test_run_works_in_the_project_root(run_tt, project: Path):
     assert Path(result.stdout.strip()).resolve() == project.resolve()
 
 
-def test_run_does_not_search_upwards_for_a_project(run_tt, project: Path):
-    """The root is the working directory and nothing else.
+def test_run_finds_the_project_above_the_working_directory(run_tt, project: Path):
+    """A run started in a subdirectory runs the project, in its root.
 
-    Without this a manifest in an ancestor would capture a run started in a
-    subdirectory, and which package ran would depend on where the shell was.
+    The project is found as the instance commands find theirs, and the command
+    says which one it is, since the package that runs is not the directory the
+    shell is in.
     """
     subdirectory = project / "sub"
     subdirectory.mkdir()
 
-    result = run_tt("run", "-e", "print(1)", cwd=subdirectory)
+    result = run_tt("run", "-e", "print(require('fio').cwd())", cwd=subdirectory)
 
-    assert result.returncode == 1
-    assert "app.manifest.toml" in result.stderr
+    assert result.returncode == 0, result.stderr
+    assert Path(result.stdout.strip()).resolve() == project.resolve()
+    _, said, named = result.stderr.partition("working on the project in ")
+    assert said, result.stderr
+    assert Path(named.splitlines()[0].strip()).resolve() == project.resolve()
 
 
 @pytest.mark.notarantool

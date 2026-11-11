@@ -111,6 +111,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- `tt package` and its subcommands, `tt run`, `tt test` and `tt wasm` find
+  the project from the current directory upward, as the instance commands
+  do, where they took the current directory for it: run in `app/` of a
+  project, they work on the project, `tt run` and `tt test` in its root, and
+  say on stderr which project it is. `-C DIR` names the project itself and
+  is not searched from. `tt new` creates the project in the current
+  directory, `tt binary build` works in it, and `tt package download` puts
+  the rocks there, as before; outside every project the commands fail on
+  the manifest missing in the current directory, as before. A module's
+  `Project().Dir()` is the current directory as before, and
+  `Services.Tarantool` takes the Tarantool of the project found above it.
 - `tt wasm prepare` declares the `wasm` rock from the rock index of
   tarantool-contrib/rocks-repo
   (`https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/`,

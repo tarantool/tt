@@ -14,11 +14,17 @@ is a project when it holds:
   `.templates/<name>/` (see [Instances](instances.md)).
 
 tt looks for the project from the current directory upward, so the commands
-work from any directory inside it; `-C DIR` of the `tt package` commands,
-`tt new` and `tt test` starts the search from DIR instead. The nearest
-project wins, so a project nested in another is found from its own
-subdirectories. Other files - `.rocks/`, `.git/`, Lua files, a `config.yaml`
-elsewhere - do not make a project. Neither does `.tarantool/`:
+work from any directory inside it: the instance commands, `tt package`,
+`tt run` and `tt test`, which run the package in its root, `tt wasm` and the
+modules, such as `tt emmylua`. A command that finds the project above the
+current directory says so on stderr (`working on the project in DIR`).
+`-C DIR` of the `tt package` commands and `tt test` names the project
+itself: DIR is taken as it is, and nothing above it is looked into.
+`tt new` creates a project in the current directory, or in DIR with `-C`,
+and `tt binary build` works on the distribution in the directory it runs
+in. The nearest project wins, so a project nested in another is found from
+its own subdirectories. Other files - `.rocks/`, `.git/`, Lua files, a
+`config.yaml` elsewhere - do not make a project. Neither does `.tarantool/`:
 `tt binary install` creates it in a directory that is not a project yet.
 
 The application of a project is named by `[package].name` of its manifest,

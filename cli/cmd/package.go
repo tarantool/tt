@@ -362,7 +362,7 @@ func newPackageDepsCmd() *cobra.Command {
 // evaluates a rockspec here, so a project's dependencies can be listed on a
 // machine that has no tarantool installed at all.
 func runPackageDeps(format *output.FormatFlag) error {
-	projectDir, err := absoluteWorkingDir()
+	projectDir, err := projectRootDir()
 	if err != nil {
 		return err
 	}
@@ -403,11 +403,18 @@ func dependencyOptions() (deps.Options, error) {
 // and may branch on the Tarantool version — so a missing tarantool is a real
 // error here rather than something to work around.
 func dependencyOptionsFor(registries []string) (deps.Options, error) {
-	projectDir, err := absoluteWorkingDir()
+	projectDir, err := projectRootDir()
 	if err != nil {
 		return deps.Options{}, err
 	}
 
+	return dependencyOptionsIn(projectDir, registries)
+}
+
+// dependencyOptionsIn is dependencyOptionsFor for the project in projectDir,
+// as a module's project gives it: the directory it works in, with nothing
+// searched for.
+func dependencyOptionsIn(projectDir string, registries []string) (deps.Options, error) {
 	tntInfo, err := tarantoolInfo()
 	if err != nil {
 		return deps.Options{}, err
@@ -487,7 +494,7 @@ func runPackageList(format *output.FormatFlag) error {
 	ctx, stop := packageContext()
 	defer stop()
 
-	projectDir, err := absoluteWorkingDir()
+	projectDir, err := projectRootDir()
 	if err != nil {
 		return err
 	}
@@ -542,7 +549,7 @@ func runPackageUninstall(name string) error {
 	ctx, stop := packageContext()
 	defer stop()
 
-	projectDir, err := absoluteWorkingDir()
+	projectDir, err := projectRootDir()
 	if err != nil {
 		return err
 	}
@@ -656,7 +663,7 @@ func runPackageInstall(archives []string) error {
 	ctx, stop := packageContext()
 	defer stop()
 
-	projectDir, err := absoluteWorkingDir()
+	projectDir, err := projectRootDir()
 	if err != nil {
 		return err
 	}
@@ -811,7 +818,7 @@ func runPackagePack() error {
 	ctx, stop := packageContext()
 	defer stop()
 
-	projectDir, err := absoluteWorkingDir()
+	projectDir, err := projectRootDir()
 	if err != nil {
 		return err
 	}
@@ -965,11 +972,18 @@ type packageRun struct {
 // buildPackage assembles build.Options for run from the environment and
 // drives the build of the project.
 func buildPackage(ctx context.Context, run packageRun) error {
-	projectDir, err := absoluteWorkingDir()
+	projectDir, err := projectRootDir()
 	if err != nil {
 		return err
 	}
 
+	return buildPackageIn(ctx, projectDir, run)
+}
+
+// buildPackageIn is buildPackage for the project in projectDir, as a
+// module's project gives it: the directory it works in, with nothing searched
+// for.
+func buildPackageIn(ctx context.Context, projectDir string, run packageRun) error {
 	//nolint:contextcheck // tarantool --version is asked once, and takes no context.
 	tntInfo, err := tarantoolInfo()
 	if err != nil {
@@ -1148,6 +1162,12 @@ func runPackageDownload(args []string) error {
 		return err
 	}
 
+	// The lock comes from the project; the rocks go where the command runs.
+	projectDir, err := projectRootDir()
+	if err != nil {
+		return err
+	}
+
 	dir := workingDir
 	if packageDownloadDir != "" {
 		dir, err = filepath.Abs(packageDownloadDir)
@@ -1159,7 +1179,7 @@ func runPackageDownload(args []string) error {
 	written, err := registry.Download(ctx, registry.DownloadOptions{
 		Refs:       refs,
 		Dir:        dir,
-		ProjectDir: workingDir,
+		ProjectDir: projectDir,
 		Registries: registries,
 		Tarantool:  tntInfo,
 		Logger:     luarocksLogger(),
@@ -1180,18 +1200,22 @@ func runPackageDownload(args []string) error {
 
 // effectiveRegistries settles the rock-server list for the commands that have
 // no build pipeline to settle it for them: the flag and the environment over
-// the manifest in the working directory, over the built-in defaults.
+// the manifest of the project the working directory is in, if there is one,
+// over the built-in defaults.
 func effectiveRegistries() ([]manifestrocks.Registry, error) {
 	sources, err := registrySources(packageRegistries)
 	if err != nil {
 		return nil, err
 	}
 
-	// These commands are directory-scoped rather than project-scoped, so the
-	// manifest they read is the one where they were run.
-	sources.ProjectDir = sources.WorkingDir
+	// These commands work outside a project too, where the working directory
+	// stands for it and has no manifest to read.
+	sources.ProjectDir, err = projectRootDir()
+	if err != nil {
+		return nil, err
+	}
 
-	sources.Manifest, err = manifestRegistries(sources.WorkingDir)
+	sources.Manifest, err = manifestRegistries(sources.ProjectDir)
 	if err != nil {
 		return nil, err
 	}

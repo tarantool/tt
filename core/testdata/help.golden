@@ -1025,8 +1025,8 @@ FLAGS[0m
       --core string        build on this core instead of [core]: a local
                            checkout or a version query (env TT_DIST_CORE); the
                            lock is left as it is
-  -C, --directory string   work on the project in DIR, as if it were the current
-                           directory
+  -C, --directory string   work on the project in DIR itself, not on the one the
+                           current directory is in
   -h, --help               help for tt
       --locked             build strictly from tt.manifest.lock and write
                            nothing but the binary
@@ -3639,8 +3639,8 @@ new adds one file to a directory that may already hold a project.
   tt new [flags]
 [0;1;39m
 FLAGS[0m
-  -C, --directory string   work on the project in DIR, as if it were the current
-                           directory
+  -C, --directory string   work on the project in DIR itself, not on the one the
+                           current directory is in
   -h, --help               help for new
   -n, --name string        package name to declare; defaults to the directory
                            name
@@ -3677,8 +3677,8 @@ COMMANDS[0m
   update      Re-resolve the lock against newer registry versions
 [0;1;39m
 FLAGS[0m
-  -C, --directory string   work on the project in DIR, as if it were the current
-                           directory
+  -C, --directory string   work on the project in DIR itself, not on the one the
+                           current directory is in
   -h, --help               help for package
 
 Use "tt package <command> --help" for more information about a command.
@@ -3710,8 +3710,8 @@ FLAGS[0m
                                and [platform].registries)
 [0;1;39m
 GLOBAL FLAGS[0m
-  -C, --directory string   work on the project in DIR, as if it were the current
-                           directory
+  -C, --directory string   work on the project in DIR itself, not on the one the
+                           current directory is in
 
 === tt package build --help
 Resolve dependencies, materialize .rocks/, run component build backends and
@@ -3743,8 +3743,8 @@ FLAGS[0m
                                and [platform].registries)
 [0;1;39m
 GLOBAL FLAGS[0m
-  -C, --directory string   work on the project in DIR, as if it were the current
-                           directory
+  -C, --directory string   work on the project in DIR itself, not on the one the
+                           current directory is in
 
 === tt package deps --help
 Print the runtime dependencies of every product and the dev dependencies, each
@@ -3764,8 +3764,8 @@ FLAGS[0m
   -h, --help            help for deps
 [0;1;39m
 GLOBAL FLAGS[0m
-  -C, --directory string   work on the project in DIR, as if it were the current
-                           directory
+  -C, --directory string   work on the project in DIR itself, not on the one the
+                           current directory is in
 
 === tt package download --help
 Fetch rock files from the configured servers into --dir and write the LuaRocks
@@ -3793,8 +3793,8 @@ FLAGS[0m
                                and [platform].registries)
 [0;1;39m
 GLOBAL FLAGS[0m
-  -C, --directory string   work on the project in DIR, as if it were the current
-                           directory
+  -C, --directory string   work on the project in DIR itself, not on the one the
+                           current directory is in
 
 === tt package fetch --help
 Fetch and build the pinned dependency closure into .rocks/ strictly from the
@@ -3815,8 +3815,8 @@ FLAGS[0m
                                and [platform].registries)
 [0;1;39m
 GLOBAL FLAGS[0m
-  -C, --directory string   work on the project in DIR, as if it were the current
-                           directory
+  -C, --directory string   work on the project in DIR itself, not on the one the
+                           current directory is in
 
 === tt package install --help
 Unpack a package archive into the chosen scope and bring the tree to a runnable
@@ -3863,8 +3863,8 @@ FLAGS[0m
                                shared dependencies
 [0;1;39m
 GLOBAL FLAGS[0m
-  -C, --directory string   work on the project in DIR, as if it were the current
-                           directory
+  -C, --directory string   work on the project in DIR itself, not on the one the
+                           current directory is in
 
 === tt package list --help
 Show the packages present in the chosen scope: in the project scope the
@@ -3894,8 +3894,8 @@ FLAGS[0m
                         shared
 [0;1;39m
 GLOBAL FLAGS[0m
-  -C, --directory string   work on the project in DIR, as if it were the current
-                           directory
+  -C, --directory string   work on the project in DIR itself, not on the one the
+                           current directory is in
 
 === tt package pack --help
 Run the full build and assemble its result into a reproducible .tt archive. By
@@ -3928,8 +3928,8 @@ FLAGS[0m
                                dependencies in .rocks/
 [0;1;39m
 GLOBAL FLAGS[0m
-  -C, --directory string   work on the project in DIR, as if it were the current
-                           directory
+  -C, --directory string   work on the project in DIR itself, not on the one the
+                           current directory is in
 
 === tt package remove --help
 Remove NAME from [dependencies] and [dev_dependencies], then re-resolve
@@ -3953,8 +3953,8 @@ FLAGS[0m
                                and [platform].registries)
 [0;1;39m
 GLOBAL FLAGS[0m
-  -C, --directory string   work on the project in DIR, as if it were the current
-                           directory
+  -C, --directory string   work on the project in DIR itself, not on the one the
+                           current directory is in
 
 === tt package resolve --help
 Re-resolve app.manifest.lock from app.manifest.toml, so a manifest edited by
@@ -3976,8 +3976,8 @@ FLAGS[0m
                                and [platform].registries)
 [0;1;39m
 GLOBAL FLAGS[0m
-  -C, --directory string   work on the project in DIR, as if it were the current
-                           directory
+  -C, --directory string   work on the project in DIR itself, not on the one the
+                           current directory is in
 
 === tt package search --help
 Search the rock servers for rocks whose name contains TERM, reporting every
@@ -4001,8 +4001,8 @@ FLAGS[0m
                                and [platform].registries)
 [0;1;39m
 GLOBAL FLAGS[0m
-  -C, --directory string   work on the project in DIR, as if it were the current
-                           directory
+  -C, --directory string   work on the project in DIR itself, not on the one the
+                           current directory is in
 
 === tt package uninstall --help
 Remove a guest package: its files and its metadata, plus every shared dependency
@@ -4030,8 +4030,8 @@ FLAGS[0m
   -y, --yes            skip the confirmation prompt
 [0;1;39m
 GLOBAL FLAGS[0m
-  -C, --directory string   work on the project in DIR, as if it were the current
-                           directory
+  -C, --directory string   work on the project in DIR itself, not on the one the
+                           current directory is in
 
 === tt package update --help
 Re-resolve app.manifest.lock, taking the newest version every constraint allows.
@@ -4055,8 +4055,8 @@ FLAGS[0m
                                and [platform].registries)
 [0;1;39m
 GLOBAL FLAGS[0m
-  -C, --directory string   work on the project in DIR, as if it were the current
-                           directory
+  -C, --directory string   work on the project in DIR itself, not on the one the
+                           current directory is in
 
 === tt registry --help
 Report the rock servers tt package commands query. The list comes from
@@ -5271,8 +5271,8 @@ Everything after '--' is handed to luatest, and the exit code is luatest's own.
   tt test [SUB-PATH] [-- LUATEST-ARGS...] [flags]
 [0;1;39m
 FLAGS[0m
-  -C, --directory string   work on the project in DIR, as if it were the current
-                           directory
+  -C, --directory string   work on the project in DIR itself, not on the one the
+                           current directory is in
   -h, --help               help for test
 [0;1;39m
 EXAMPLES[0m
