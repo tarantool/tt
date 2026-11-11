@@ -44,22 +44,30 @@ var tarantoolGlobals = []string{"box", "misc", "package", "tonumber64", "utf8", 
 
 // Layout is what tt knows of the project that EmmyLua needs.
 type Layout struct {
-	// ProjectDir is the project: the root of the workspace.
+	// ProjectDir is the root of the workspace: the project, or outside every
+	// project the directory the command works in.
 	ProjectDir string
 	// Stubs is the directory of the EmmyLua stubs of the Tarantool the
 	// project runs on; empty when that Tarantool has none.
 	Stubs string
+	// Extra are more directories of modules to read as libraries, after the
+	// others: those --library names.
+	Extra []string
+	// Path is where WriteConfig writes the configuration; empty is the
+	// project's, under ConfigDir. Outside every project it is in the cache
+	// (GlobalConfigPath), so that nothing is written into the directory.
+	Path string
 }
 
 // Libraries are the directories EmmyLua reads as libraries: the stubs of
-// Tarantool and the modules the rocks of the project install, those that
-// exist, in that order.
+// Tarantool, the modules the rocks of the project install and Extra, those
+// that exist, in that order.
 func (l Layout) Libraries() []string {
-	candidates := []string{
+	candidates := append([]string{
 		l.Stubs,
 		filepath.Join(l.ProjectDir, rocksDirName, "share", "tarantool"),
 		filepath.Join(l.ProjectDir, rocksDirName, "share", "lua", "5.1"),
-	}
+	}, l.Extra...)
 
 	libraries := make([]string, 0, len(candidates))
 
@@ -82,9 +90,15 @@ func (l Layout) Libraries() []string {
 // code. The project's own configuration is read after it, so it can add to
 // any of these: EmmyLua merges the objects and joins the lists.
 func (l Layout) Config() map[string]any {
+	comment := "Written by tt emmylua for this machine, anew on every run: " +
+		"put the settings of the project into .emmyrc.json."
+	if l.Path != "" {
+		comment = "Written by tt emmylua for " + l.ProjectDir + ", outside every project, " +
+			"anew on every run: put the settings of the directory into .emmyrc.json there."
+	}
+
 	return map[string]any{
-		"$comment": "Written by tt emmylua for this machine, anew on every run: " +
-			"put the settings of the project into .emmyrc.json.",
+		"$comment": comment,
 		"runtime": map[string]any{
 			"version": "LuaJIT",
 		},
@@ -101,8 +115,13 @@ func (l Layout) Config() map[string]any {
 	}
 }
 
-// ConfigPath is the path of the configuration tt writes for the project.
+// ConfigPath is the path of the configuration tt writes: Path, or that of
+// the project.
 func (l Layout) ConfigPath() string {
+	if l.Path != "" {
+		return l.Path
+	}
+
 	return filepath.Join(l.ProjectDir, filepath.FromSlash(ConfigDir), ConfigFileName)
 }
 

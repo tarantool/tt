@@ -32,7 +32,7 @@
 | Переменная | |
 | --- | --- |
 | `TT_WASM_RELEASES` | JSON-файл с релизами tarantool-wasm, которые `tt wasm` использует вместо встроенных: например, файлы с зеркала |
-| `XDG_CACHE_HOME` | `tt wasm` кэширует скачанные файлы в подкаталоге `tt/wasm/`, по умолчанию `~/.cache/tt/wasm`; на macOS - в `~/Library/Caches/tt/wasm` |
+| `XDG_CACHE_HOME` | `tt wasm` кэширует скачанные файлы в подкаталоге `tt/wasm/`, по умолчанию `~/.cache/tt/wasm`; на macOS - в `~/Library/Caches/tt/wasm`. `tt emmylua` хранит программы, которые запускает вне проекта, и их конфигурацию в подкаталоге `tt/emmylua/` (см. [Раскладку](layout.md#the-user-cache)) |
 
 Файл из `TT_WASM_RELEASES` сопоставляет версию с её релизом: нативный модуль
 для каждой платформы со своей контрольной суммой sha256 и архив SDK, на

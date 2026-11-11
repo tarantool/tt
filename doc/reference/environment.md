@@ -32,7 +32,7 @@ A component build and a hook get `TT_OUTPUT_DIR`, `TT_PROJECT_ROOT`,
 | Variable | |
 | --- | --- |
 | `TT_WASM_RELEASES` | a JSON file of tarantool-wasm releases `tt wasm` uses instead of the ones it knows: the assets of a mirror, say |
-| `XDG_CACHE_HOME` | `tt wasm` caches what it downloads in `tt/wasm/` of it, `~/.cache/tt/wasm` by default; `~/Library/Caches/tt/wasm` on macOS |
+| `XDG_CACHE_HOME` | `tt wasm` caches what it downloads in `tt/wasm/` of it, `~/.cache/tt/wasm` by default; `~/Library/Caches/tt/wasm` on macOS. `tt emmylua` keeps the programs it runs outside a project, and their configuration, in `tt/emmylua/` of it (see [Layout](layout.md#the-user-cache)) |
 
 The file of `TT_WASM_RELEASES` maps a version to its release: the native
 module of each platform, checked against its sha256, and the SDK archive the

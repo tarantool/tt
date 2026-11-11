@@ -22,10 +22,33 @@ modules come from their directories through `replace`.
   `check`, `doc`, `fmt` and `ls` run the programs with the configuration
   `config` writes to `.tarantool/emmylua/emmyrc.json`: LuaJIT, the globals of
   Tarantool, the EmmyLua stubs of the Tarantool the project runs on
-  (`Services.Tarantool`) and the modules its rocks install.
+  (`Services.Tarantool`), the modules its rocks install and those of
+  `--library`.
+- `workspace.go` - where a command runs: the project `scope.FindProject` of
+  `sdk/scope` finds from `Project().Dir()`, as the project commands of tt
+  find theirs, when it holds the manifest, and the directory of the command
+  outside every project.
 - `internal/analyzer` - the releases the module knows, the download of
-  their assets through `sdk/fetch`, the binary rock, the configuration and
-  where the programs are.
+  their assets through `sdk/fetch`, the binary rock, the configuration,
+  where the programs are, and the programs outside a project (`Tools`).
+
+## Outside a project
+
+`check`, `doc`, `fmt` and `ls` work outside every project too, with no
+`prepare`: `analyzer.Tools` asks the rock server (`--rock-server`,
+`DefaultRockServer` by default) for the `emmylua` rock of `--version` for
+the host through go-luarocks (`remote.NewIndex`, which reads the
+`tt-rocks-index.json`), downloads it checked against the sha256 the index
+gives (`fetch.Fetcher`) and unpacks its `bin/` into
+`<user cache>/tt/emmylua/programs/<sha256>/`, staged and renamed into
+place. What the query resolved to is recorded in `resolved/`, so a later
+run asks no server and works offline; a server that is a directory, such as
+`tt emmylua rock` packs, is asked every time. The configuration goes to
+`config/<key of the directory>/emmyrc.json` of the same cache, so nothing
+is written into the directory. `prepare` outside a project fails and says
+so. Inside a project nothing of this applies: the programs are those of
+`.rocks/bin`, pinned by the lock, and `--version` and `--rock-server` are
+refused.
 
 ## Where the rock comes from
 
