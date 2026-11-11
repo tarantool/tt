@@ -27,7 +27,7 @@ concurrency:
 
 env:
   # Note: Use exactly match version of tool, to avoid unexpected issues with test on CI.
-  GO_VERSION: '1.27.3'
+  GO_VERSION: '1.27.4'
 
 jobs:
   # Regenerate modules/aeon/pb and fail when it differs from the committed files.

@@ -170,7 +170,7 @@ steps:
 
 #### Prerequisites
 
-- [Go (version 1.27.3+)](https://golang.org/doc/install)
+- [Go (version 1.27.4+)](https://golang.org/doc/install)
 - [Mage](https://magefile.org/)
 - [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
 

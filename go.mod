@@ -1,6 +1,6 @@
 module github.com/tarantool/tt/v3
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/avast/retry-go v3.0.0+incompatible

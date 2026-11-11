@@ -46,7 +46,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  GO_VERSION: '1.27.3'
+  GO_VERSION: '1.27.4'
   # A test of each thing the image is for: unshare -r -n in the rocks tests,
   # a docker test mounting its temporary directory, MinIO on localhost, zstd
   # for the backup archives, etcd, the shells of the completion tests and a
