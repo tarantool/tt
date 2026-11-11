@@ -122,6 +122,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   the manifest missing in the current directory, as before. A module's
   `Project().Dir()` is the current directory as before, and
   `Services.Tarantool` takes the Tarantool of the project found above it.
+- `tt emmylua fmt` checks the formatting (`luafmt --check`) unless told to
+  `--write` it, where it failed on more than one file for want of a mode.
+  `tt emmylua check` takes `--warnings-as-errors`, `-f/--output-format` and
+  `--severity`, `tt emmylua doc` `-o/--output` and `-f/--output-format`, and
+  `tt emmylua fmt` `--check` and `--write` before `--`, where they were
+  unknown flags; the other flags of the programs still go after `--`.
 - `tt wasm prepare` declares the `wasm` rock from the rock index of
   tarantool-contrib/rocks-repo
   (`https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/`,
