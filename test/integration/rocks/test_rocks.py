@@ -269,6 +269,54 @@ def test_rocks_install_local_specific_version(tt_cmd, tmp_path):
     assert f"Installing {tmp_path}/repo/stat-0.3.1-1.all.rock" in output
 
 
+def write_index_only_server(path):
+    """A directory rock server with nothing but a tt-rocks-index.json, which
+    tt package reads and LuaRocks does not."""
+    os.mkdir(path)
+    with open(os.path.join(path, "tt-rocks-index.json"), "w") as f:
+        f.write('{"format": 1, "repository": {}}\n')
+
+
+def test_rocks_leaves_out_an_index_only_server(tt_cmd, tmp_path):
+    """A configured server that serves only a rock index is left out with a
+    warning, as is one TT_CLI_REPO_ROCKS names, and the rest are queried."""
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "repo"), os.path.join(tmp_path, "repo"))
+    write_index_only_server(tmp_path / "index")
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "rocks", "install", "stat", "0.3.1-1"],
+        cwd=tmp_path,
+        env=dict(
+            os.environ,
+            PWD=tmp_path,
+            TT_REGISTRIES="index,repo",
+            TT_CLI_REPO_ROCKS=f"{tmp_path}/index",
+        ),
+    )
+    assert rc == 0, output
+    assert output.count("serves only a rock index (tt-rocks-index.json)") == 2
+    assert f"tt rocks leaves out {tmp_path}/index:" in output
+    assert "install from it with tt package" in output
+    assert f"Installing {tmp_path}/repo/stat-0.3.1-1.all.rock" in output
+
+
+@pytest.mark.parametrize("option", ["--server", "--only-server"])
+def test_rocks_refuses_an_index_only_server_named_on_the_command_line(tt_cmd, tmp_path, option):
+    """A server the user names for LuaRocks is not left out but refused: what
+    it would install would come from elsewhere."""
+    write_index_only_server(tmp_path / "index")
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "rocks", "install", "stat", f"{option}={tmp_path}/index"],
+        cwd=tmp_path,
+        env=dict(os.environ, PWD=tmp_path),
+    )
+    assert rc == 1, output
+    assert "the rock server serves only a rock index" in output
+    assert f"{tmp_path}/index has nothing but tt-rocks-index.json" in output
+    assert not (tmp_path / ".rocks").exists()
+
+
 @pytest.mark.notarantool
 @pytest.mark.skipif(shutil.which("tarantool") is not None, reason="tarantool found in PATH")
 def test_rock_install_without_system_tarantool(tt_cmd, tmpdir_with_tarantool):

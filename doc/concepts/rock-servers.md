@@ -143,3 +143,11 @@ instead of its own defaults when either is set. A rock with a C part is
 built against the headers of the Tarantool that runs it: those of the
 project's `.tarantool/include/tarantool`, of `TT_CLI_TARANTOOL_PREFIX`, or
 the install prefix of that Tarantool.
+
+LuaRocks reads manifests only, not a [rock index](#a-rock-index). A server
+that publishes nothing but the index is left out of those servers, and of
+`TT_CLI_REPO_ROCKS`, with a warning; one named with `--server` or
+`--only-server` is an error. A directory is such a server when it holds
+`tt-rocks-index.json` and no manifest; an HTTP(S) server when a `HEAD` of
+`tt-rocks-index.json` succeeds and one of each manifest answers 403, 404 or
+410. A server that does not answer is kept, for LuaRocks to report on.
