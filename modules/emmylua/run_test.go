@@ -112,10 +112,31 @@ func TestCheckInSubdirectory(t *testing.T) {
 	sub := filepath.Join(project, "app", "lib")
 	require.NoError(t, os.MkdirAll(sub, 0o755))
 
-	got := sdktest.New(t, sdktest.WithProject(sub)).Run(emmylua.New, "emmylua", "check")
+	services := sdktest.New(t, sdktest.WithProject(sub))
+	got := services.Run(emmylua.New, "emmylua", "check")
 	require.NoError(t, got.Err)
 	assert.Equal(t, "--config "+configPath(project)+" "+project+"\n", got.Stdout)
+	assert.Contains(t, infoMessages(services), "working on the project in "+project)
 	assert.NoDirExists(t, filepath.Join(sub, ".tarantool"))
+
+	// In the root of the project, there is nothing to say.
+	services = sdktest.New(t, sdktest.WithProject(project))
+	got = services.Run(emmylua.New, "emmylua", "check")
+	require.NoError(t, got.Err)
+	assert.Empty(t, infoMessages(services))
+}
+
+// infoMessages returns the messages services logged at the info level.
+func infoMessages(services *sdktest.Services) []string {
+	var messages []string
+
+	for _, record := range services.Records() {
+		if record.Level == slog.LevelInfo {
+			messages = append(messages, record.Message)
+		}
+	}
+
+	return messages
 }
 
 // TestDoc checks that tt emmylua doc passes its flags to emmylua_doc_cli

@@ -317,7 +317,8 @@ func newConfigCmd(services sdk.Services) *cobra.Command {
 
 // workspace returns where cmd runs, as findWorkspace finds it, and refuses
 // the flags that choose the programs outside a project in one: a project
-// runs the programs its lock pins.
+// runs the programs its lock pins. Run below the root of a project, it says
+// which project it works on, as the project commands of tt do.
 func (r *runner) workspace(cmd *cobra.Command) (workspace, error) {
 	found, err := findWorkspace(r.services)
 	if err != nil {
@@ -334,6 +335,10 @@ func (r *runner) workspace(cmd *cobra.Command) (workspace, error) {
 				"the project %s runs the one its lock pins (tt emmylua prepare sets it)",
 				errUsage, name, found.dir)
 		}
+	}
+
+	if found.dir != found.workDir {
+		r.services.Log().Info("working on the project in " + found.dir)
 	}
 
 	return found, nil
