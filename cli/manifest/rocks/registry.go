@@ -17,6 +17,12 @@ import (
 // Rockspec, with the runtime platforms merged in. The result carries
 // source.md5, which Checksum turns into the lock checksum. A temporary working
 // directory is used and removed; the spec is fully materialized before return.
+//
+// A server that publishes the rockspec apart from its rocks (SpecURL, from a
+// tt-rocks-index.json) has that file read, so resolving downloads no rock;
+// otherwise the resource at URL is. Either is checked against the sha256 the
+// server lists for it, when it lists one, before it is read
+// (luarocks.ErrChecksumMismatch).
 func (a *Adapter) Metadata(ctx context.Context, rock ResolvedRock) (*luarocks.Rockspec, error) {
 	dir, err := os.MkdirTemp("", "tt-rocks-meta-")
 	if err != nil {
@@ -25,18 +31,24 @@ func (a *Adapter) Metadata(ctx context.Context, rock ResolvedRock) (*luarocks.Ro
 
 	defer func() { _ = os.RemoveAll(dir) }()
 
-	unpacked, err := fetch.FetchWith(ctx, rock.URL, dir, fetch.Options{
+	location, sha256 := rock.URL, rock.SHA256
+	if rock.SpecURL != "" {
+		location, sha256 = rock.SpecURL, rock.SpecSHA256
+	}
+
+	unpacked, err := fetch.FetchWith(ctx, location, dir, fetch.Options{
 		InsecureServers: a.cfg.InsecureServers,
 		UserAgent:       "",
 		Tag:             "",
 		Branch:          "",
 		File:            "",
 		MD5:             "",
+		SHA256:          sha256,
 		Version:         "",
 		IdentifierOut:   nil,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("rocks: fetch %s: %w", rock.URL, err)
+		return nil, fmt.Errorf("rocks: fetch %s: %w", location, err)
 	}
 
 	specPath, err := findRockspec(unpacked)
@@ -68,6 +80,7 @@ func (a *Adapter) FetchSource(
 		Branch:          spec.Source.Branch,
 		File:            spec.Source.File,
 		MD5:             spec.Source.MD5,
+		SHA256:          "",
 		Version:         spec.Version,
 		IdentifierOut:   nil,
 	})

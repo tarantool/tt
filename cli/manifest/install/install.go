@@ -20,9 +20,11 @@ package install
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
+	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/go-luarocks/client"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
@@ -421,7 +423,9 @@ func registryDecisions(plan installPlan) []depDecision {
 // installDeps refetches each decision's pinned rock into the tree with
 // dependency resolution off: the closure is already complete and ordered, so no
 // rock re-resolves its own dependencies — the same discipline tt package fetch
-// uses, here against the archive's lock.
+// uses, here against the archive's lock. The digests that lock pins for the
+// rock's files go along, so the file of this host must be the one the package
+// was resolved with.
 func installDeps(
 	ctx context.Context, installer rockInstaller,
 	decisions []depDecision, servers []string, warn func(string),
@@ -433,12 +437,34 @@ func installDeps(
 
 		installErr := installer.Install(ctx, decision.name, client.InstallOpts{
 			Version: decision.version, Servers: servers, Deps: client.DepsNone,
+			Artifacts: decision.artifacts,
 		})
 		if installErr != nil {
+			if advice := archivePinAdvice(installErr); advice != "" {
+				return fmt.Errorf("installing %s %s: %w; %s",
+					decision.name, decision.version, installErr, advice)
+			}
+
 			return fmt.Errorf("installing %s %s: %w",
 				decision.name, decision.version, installErr)
 		}
 	}
 
 	return nil
+}
+
+// archivePinAdvice is rocks.PinAdvice for the lock of an archive, which the
+// user does not resolve again where it is installed but where it was packed;
+// "" for an error that is not about the pins.
+func archivePinAdvice(err error) string {
+	switch {
+	case errors.Is(err, luarocks.ErrArtifactNotPinned):
+		return "the lock of the archive pins no file of the rock for this platform: " +
+			"pack the package again after tt package resolve, or with its dependencies"
+	case errors.Is(err, luarocks.ErrChecksumMismatch):
+		return "the file does not have the sha256 the lock of the archive or the rock " +
+			"server gives for it, so it was not installed"
+	default:
+		return ""
+	}
 }

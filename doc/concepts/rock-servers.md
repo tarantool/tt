@@ -1,7 +1,8 @@
 # Rock servers
 
 The dependencies of a package are rocks, which come from rock servers: an
-HTTP(S) LuaRocks server, or a local directory with a LuaRocks manifest.
+HTTP(S) LuaRocks server, or a local directory with a LuaRocks manifest. Either
+may publish a [rock index](#a-rock-index) instead of the manifest.
 
 ## Which servers
 
@@ -34,6 +35,70 @@ registry = "https://my.mirror/" }`. The rock is then resolved from that
 server and installed from it, whatever the list is; the rocks it depends on
 come from the list. A directory there is taken from the manifest's directory,
 as in `[platform].registries`, whichever directory tt runs in.
+
+## A rock index
+
+A server may publish a `tt-rocks-index.json` where its LuaRocks manifest
+would be. The index names every file of a rock version by its URL, with its
+sha256: the rock of each platform, and the rockspec apart from them. The files
+may be elsewhere, on release pages for instance, while the index is a file
+in git:
+
+```json
+{
+  "format": 1,
+  "repository": {
+    "emmylua": {
+      "0.30.0pre1-1": {
+        "artifacts": [
+          {
+            "arch": "linux-x86_64",
+            "sha256": "…",
+            "size": 19777374,
+            "url": "https://github.com/tarantool-contrib/rocks-repo/releases/download/emmylua-0.30.0pre1-1/emmylua-0.30.0pre1-1.linux-x86_64.rock"
+          }
+        ],
+        "rockspec": {
+          "sha256": "…",
+          "url": "emmylua-0.30.0pre1-1.rockspec"
+        }
+      }
+    }
+  }
+}
+```
+
+A `url` is absolute `https`, or relative to the directory of the index, and
+its last segment is the name of the file: `<name>-<version>.<arch>.rock` or
+`<name>-<version>.rockspec`. A field tt does not know is ignored; an index of
+a newer `format` is an error that asks to upgrade tt.
+
+tt reads the index before any manifest, from an HTTP server and from a
+directory alike. When it is there, it is the whole catalogue of the server;
+when it is there and does not read, the server is in error rather than read
+through its manifests. From such a server:
+
+- resolving reads the rockspec of a version, checked against its sha256,
+  and downloads no rock;
+- the lock pins the sha256 of every file of the version, under `artifacts`,
+  next to the `checksum` of its source:
+
+  ```toml
+  [[lock.products.default.dependencies]]
+  name = 'emmylua'
+  version = '0.30.0pre1-1'
+  source = 'registry'
+  checksum = 'md5:…'
+  artifacts = {linux-x86_64 = 'sha256:…', macosx-aarch64 = 'sha256:…', rockspec = 'sha256:…'}
+  ```
+
+- every install of the rock - by `tt package build`, `tt package fetch` and
+  `tt test`, and by `tt package install` of an archive packed
+  `--without-deps`, from the lock of the archive - checks the file of its
+  platform against those digests before it unpacks it, whichever server
+  serves it. A file that does not match is not installed. A platform the
+  lock pins no file for is an error too: `tt package resolve` pins the files
+  the server serves now.
 
 ## Searching
 

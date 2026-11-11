@@ -38,7 +38,10 @@ error, so a typo does not go unnoticed. Every field is in the
 
 `app.manifest.lock`, next to the manifest, pins the exact version of every
 dependency, direct and transitive. Commit it: a build of the same commit
-installs the same versions anywhere.
+installs the same versions anywhere. For a rock from a server with a
+[rock index](rock-servers.md#a-rock-index), it pins the sha256 of the files
+of the version as well, and an install checks the file of its platform
+against it.
 
 The lock changes only when asked to:
 

@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Rock servers that publish a `tt-rocks-index.json`, an index that names
+  every file of a rock version by URL with its sha256, so the rocks may live
+  on release pages and the index in git. Resolving reads the rockspec the
+  index lists, checked against its sha256, without downloading a rock, and
+  `app.manifest.lock` pins the sha256 of every file of the version, the rock
+  of each platform and the rockspec, as
+  `artifacts = {linux-x86_64 = 'sha256:…', rockspec = 'sha256:…'}`. Every
+  install of such a rock - `tt package build`, `tt package fetch`, `tt test`,
+  `tt package install` of an archive packed `--without-deps` - checks the
+  file of its platform against the lock before unpacking it, and fails on a
+  file that differs or a platform the lock pins none for, telling how to pin
+  them anew (`tt package resolve`). The lock format stays `0.1`: a lock
+  without `artifacts` installs as before.
 - `tt wasm rock --from <module> --arch <arch>`: pack a local build of the
   tarantool-wasm module as the rock of a platform, for a release with no
   build of it to download; the rocks already in `--out` stay, so a run for

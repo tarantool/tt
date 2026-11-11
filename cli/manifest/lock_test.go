@@ -169,6 +169,85 @@ func TestLockKeepsAnEmptyProduct(t *testing.T) {
 	assert.Empty(t, back.Products[manifest.ImplicitProduct].Dependencies)
 }
 
+// TestLockArtifactsInline pins the on-disk shape of the digests a rock index
+// gives: one inline table per dependency, keys sorted, and no key at all for
+// a dependency without them, so a lock of a classic server marshals as it
+// always has.
+func TestLockArtifactsInline(t *testing.T) {
+	t.Parallel()
+
+	x86, arm, spec := strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64)
+
+	lock := &manifest.Lock{
+		LockVersion:     manifest.LockVersion,
+		ManifestVersion: manifest.ManifestVersion,
+		GeneratedBy:     "tt 3.1.0",
+		ManifestHash:    "sha256:abc123",
+		Products: map[string]manifest.LockProduct{
+			"default": {Dependencies: []manifest.LockDependency{
+				{
+					Name: "emmylua", Version: "0.30.0pre1-1", Source: "registry",
+					Checksum: "md5:00",
+					Artifacts: map[string]string{
+						"rockspec":       manifest.ArtifactDigest(spec),
+						"macosx-aarch64": manifest.ArtifactDigest(arm),
+						"linux-x86_64":   manifest.ArtifactDigest(strings.ToUpper(x86)),
+					},
+				},
+				{Name: "metrics", Version: "1.5.0-1", Source: "registry"},
+			}},
+		},
+	}
+
+	out, err := lock.Marshal()
+	require.NoError(t, err)
+
+	text := string(out)
+	assert.Contains(t, text, "artifacts = {linux-x86_64 = 'sha256:"+x86+"', "+
+		"macosx-aarch64 = 'sha256:"+arm+"', rockspec = 'sha256:"+spec+"'}\n")
+	assert.Equal(t, 1, strings.Count(text, "artifacts"), text)
+
+	back, err := manifest.ParseLock(out)
+	require.NoError(t, err)
+	assert.Equal(t, lock.Products, back.Products)
+
+	pins, err := back.Products["default"].Dependencies[0].ArtifactPins()
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		"linux-x86_64": x86, "macosx-aarch64": arm, "rockspec": spec,
+	}, pins)
+
+	pins, err = back.Products["default"].Dependencies[1].ArtifactPins()
+	require.NoError(t, err)
+	assert.Nil(t, pins, "no artifacts must be no pins, not an empty set")
+}
+
+// TestLockArtifactPinsRefuseAMalformedDigest pins that a digest which is not
+// sha256:<hex> fails rather than installing the rock unverified.
+func TestLockArtifactPinsRefuseAMalformedDigest(t *testing.T) {
+	t.Parallel()
+
+	for _, digest := range []string{
+		strings.Repeat("a", 64),             // No algorithm.
+		"md5:" + strings.Repeat("a", 32),    // Another algorithm.
+		"sha256:" + strings.Repeat("a", 63), // Short.
+		"sha256:" + strings.Repeat("z", 64), // Not hex.
+	} {
+		dep := manifest.LockDependency{
+			Name: "emmylua", Version: "0.30.0pre1-1", Source: "registry",
+			Artifacts: map[string]string{"linux-x86_64": digest},
+		}
+
+		_, err := dep.ArtifactPins()
+
+		var invalid *manifest.ValidationError
+
+		require.ErrorAs(t, err, &invalid, digest)
+		assert.Equal(t, "artifacts.linux-x86_64", invalid.Field)
+		assert.Contains(t, err.Error(), "lock entry emmylua 0.30.0pre1-1")
+	}
+}
+
 func TestLockNewerMajorRefused(t *testing.T) {
 	t.Parallel()
 
