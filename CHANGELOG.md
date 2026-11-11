@@ -97,6 +97,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- `tt rocks` leaves out, with a warning, a rock server of `TT_REGISTRIES`,
+  `[platform].registries` or `TT_CLI_REPO_ROCKS` that publishes nothing but a
+  `tt-rocks-index.json`, which LuaRocks does not read, and fails on one
+  named with `--server` or `--only-server`: such a rock is installed with
+  `tt package`. A server is probed with a `HEAD` of the index and, when it
+  has one, of its manifests; a directory is looked into.
 - `tt cat` and `tt play` are `tt data cat` and `tt data play`; the old names
   are removed without aliases. `tt data cat` reads no `.vylog` file of a
   directory unless it is named, prints `Reading <file>` on stderr for the

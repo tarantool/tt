@@ -15,7 +15,13 @@ func NewRocksCmd() *cobra.Command {
 		Long: "Run LuaRocks on the .rocks tree of the current directory. The " +
 			"rock servers are the ones tt registry list shows when they come " +
 			"from " + manifestrocks.EnvRegistries + " or [platform].registries " +
-			"of app.manifest.toml; without either LuaRocks queries its own.",
+			"of app.manifest.toml; without either LuaRocks queries its own.\n\n" +
+			"LuaRocks reads manifests only. A server that publishes nothing but a " +
+			"rock index (tt-rocks-index.json), which tt package reads, is left out " +
+			"with a warning, and one named with --server or --only-server is an " +
+			"error: install its rocks with tt package. A directory is such a server " +
+			"when it holds the index and no manifest; an HTTP(S) server when a HEAD " +
+			"of the index succeeds and one of each manifest answers 403, 404 or 410.",
 		// Disabled all flags parsing on this commands leaf.
 		// LuaRocks will handle it self.
 		DisableFlagParsing: true,

@@ -125,8 +125,34 @@ func GetTarantoolPrefix(cli *cmdcontext.CliCtx) (string, error) {
 // list of tt registry replaces its defaults; an empty one leaves the defaults
 // of LuaRocks in place. The repository TT_CLI_REPO_ROCKS names is added on top
 // of them with --server, which LuaRocks queries first.
+//
+// LuaRocks reads manifests only, so a server that publishes nothing but a
+// tt-rocks-index.json is of no use to it (see indexProbe): one of servers or
+// TT_CLI_REPO_ROCKS is left out with a warning, and one args name with
+// --server or --only-server fails the command with ErrIndexOnlyServer.
 func Exec(cmdCtx *cmdcontext.CmdCtx, servers, args []string) error {
-	args = addLuarocksRepoOpts(os.Getenv(repoRocksPathEnvVarName), args)
+	ctx := context.Background()
+	probe := newIndexProbe()
+
+	err := checkNamedServers(ctx, probe, args)
+	if err != nil {
+		return err
+	}
+
+	kept := keepManifestServers(ctx, probe, servers)
+	if len(servers) > 0 && len(kept) == 0 {
+		// An empty list is no list to LuaRocks: say what it falls back to.
+		log.Warn("no configured rock server is left for tt rocks: LuaRocks queries its own")
+	}
+
+	servers = kept
+
+	repo := os.Getenv(repoRocksPathEnvVarName)
+	if repo != "" && len(keepManifestServers(ctx, probe, []string{repo})) == 0 {
+		repo = ""
+	}
+
+	args = addLuarocksRepoOpts(repo, args)
 
 	version, err := cmdCtx.Cli.TarantoolCli.GetVersion()
 	if err != nil {
