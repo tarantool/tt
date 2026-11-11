@@ -53,6 +53,7 @@ func runHook(
 		TarantoolIncludeDir: tarantoolIncludeDir,
 		BuildDir:            "",
 		Fresh:               false,
+		CargoTargetDir:      "",
 	}
 
 	cwd := resolveDir(opts.ProjectDir, hook.Cwd)

@@ -739,8 +739,10 @@ func newPackageBuildCmd() *cobra.Command {
 			"those its .gitignore files ignore - or its outputs are gone; -V logs a " +
 			"skipped one. --rebuild builds them all, for a change the inputs do not " +
 			"cover, such as a new version of a compiler.\n\n" +
-			"A cmake component keeps its build tree in _build/cmake/<component>/, " +
-			"where cmake rebuilds what changed; --rebuild configures it anew.",
+			"A component build keeps what it makes on the way in TT_BUILD_DIR, " +
+			"_build/component/<component>/ - the build tree of a cmake one, where " +
+			"cmake rebuilds what changed - and --rebuild empties it first. A cargo " +
+			"build builds in _build/cargo/, its CARGO_TARGET_DIR.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return commandError(cmd, runPackage(args, false))
@@ -752,8 +754,8 @@ func newPackageBuildCmd() *cobra.Command {
 	buildCmd.Flags().BoolVar(&packageLocked, "locked", false,
 		"fail if the lock is out of date instead of re-resolving it")
 	buildCmd.Flags().BoolVar(&packageRebuild, "rebuild", false,
-		"build the incremental components even when nothing changed, and the "+
-			"cmake ones in a new build tree")
+		"build the incremental components even when nothing changed, and every "+
+			"component in an empty TT_BUILD_DIR")
 	addRegistryFlag(buildCmd)
 
 	return buildCmd
@@ -819,8 +821,8 @@ func newPackagePackCmd() *cobra.Command {
 	packCmd.Flags().BoolVar(&packageLocked, "locked", false,
 		"fail if the lock is out of date instead of re-resolving it")
 	packCmd.Flags().BoolVar(&packageRebuild, "rebuild", false,
-		"build the incremental components even when nothing changed, and the "+
-			"cmake ones in a new build tree")
+		"build the incremental components even when nothing changed, and every "+
+			"component in an empty TT_BUILD_DIR")
 	packCmd.Flags().BoolVar(&packageWithoutDeps, "without-deps", false,
 		"pack without _runtime/ and without foreign dependencies in .rocks/")
 	packCmd.Flags().StringSliceVar(&packageFormats, "format", []string{pack.FormatTt},

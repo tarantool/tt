@@ -88,7 +88,8 @@ myapp/
 ├── _build/rock/<product>/     # разложенные компоненты, устанавливаемые в .rocks/ (генерируется)
 ├── _build/rock/<product>.json # какой компонент положил туда каждый файл (генерируется)
 ├── _build/cache/              # хеши и артефакты предыдущих инкрементальных сборок (генерируется)
-├── _build/cmake/<component>/  # деревья сборки cmake-компонентов (генерируется)
+├── _build/component/<component>/ # TT_BUILD_DIR каждого компонента: дерево сборки cmake (генерируется)
+├── _build/cargo/              # каталог target cargo-компонентов (генерируется)
 ├── .env/                      # activate.sh, deactivate.sh (генерируется)
 └── .tarantool/                # корень project scope (генерируется)
 ```

@@ -63,7 +63,7 @@ func (c cargoBackend) Run(ctx context.Context, build manifest.Build, cwd string,
 		return err
 	}
 
-	stdout, err := runCapture(ctx, cwd, env.environ(), c.showOutput, cargoTool,
+	stdout, err := runCapture(ctx, cwd, cargoEnviron(env), c.showOutput, cargoTool,
 		cargoArgs(build, bin, target)...)
 	if err != nil {
 		if build.StaticValue() {
@@ -108,7 +108,7 @@ func (c cargoBackend) runModule(
 
 	goos := env.platformOS()
 
-	stdout, err := runCapture(ctx, cwd, env.environ(), c.showOutput, cargoTool,
+	stdout, err := runCapture(ctx, cwd, cargoEnviron(env), c.showOutput, cargoTool,
 		cargoModuleArgs(build, target, goos)...)
 	if err != nil {
 		return err
@@ -135,6 +135,35 @@ func (c cargoBackend) runModule(
 	}
 
 	return nil
+}
+
+// cargoTargetDirKeys are the environment variables that name the target
+// directory of cargo: CARGO_TARGET_DIR, and the build.target-dir setting of
+// the cargo configuration as an environment variable.
+var cargoTargetDirKeys = []string{"CARGO_TARGET_DIR", "CARGO_BUILD_TARGET_DIR"}
+
+// cargoEnviron is the environment of a cargo build: the contract of env, and
+// CARGO_TARGET_DIR, env.CargoTargetDir, in the project's _build/, so that the
+// build leaves no target/ in the sources - another checkout's, for a path
+// dependency. A target directory the environment of the build names, in
+// [build].env or the environment tt runs in, is the user's choice and is
+// kept; build.target-dir of the cargo configuration of the sources gives way,
+// CARGO_TARGET_DIR winning over it. Where the target directory is makes no
+// difference to the backend: it takes the artifacts from the paths cargo
+// reports.
+func cargoEnviron(env Env) []string {
+	environ := env.environ()
+	if env.CargoTargetDir == "" {
+		return environ
+	}
+
+	for _, key := range cargoTargetDirKeys {
+		if value, ok := lookupEnv(environ, key); ok && value != "" {
+			return environ
+		}
+	}
+
+	return append(environ, "CARGO_TARGET_DIR="+env.CargoTargetDir)
 }
 
 // cargoArgs builds the cargo build argv. Diagnostics are rendered by cargo

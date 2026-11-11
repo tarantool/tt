@@ -150,7 +150,8 @@ func TestRun_cmakeComponents(t *testing.T) {
 	assert.Equal(t, []string{"hello"}, result.Executables["hello"])
 
 	for _, component := range []string{"native", "hello"} {
-		assert.FileExists(t, filepath.Join(dir, "_build", "cmake", component, "CMakeCache.txt"))
+		assert.FileExists(t, filepath.Join(dir, "_build", "component", component,
+			"CMakeCache.txt"))
 	}
 
 	assert.NoDirExists(t, filepath.Join(dir, "native", "CMakeFiles"),

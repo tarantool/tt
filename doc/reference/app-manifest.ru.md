@@ -137,8 +137,9 @@ Rock с указанным `registry` разрешается и устанавл
 числе репозитория самого проекта, получает версию только по своему каталогу
 (см. [Сборка](../concepts/packages.md#building)): коммит или изменение в
 другом месте репозитория её версию не сдвигает. tt собирает такую
-зависимость в `_build/path/<name>/` проекта и не трогает её каталог  -
-кроме того, что туда сами пишут её бэкенды сборки.
+зависимость в `_build/path/<name>/` проекта - там её stage, `TT_BUILD_DIR`
+её компонентов и её `CARGO_TARGET_DIR` - и не трогает её каталог  -  кроме
+того, что туда сами пишут её бэкенды сборки.
 
 ```toml
 [dependencies]
@@ -191,13 +192,21 @@ new` объявляет компоненты, собираемые tarawasm; с�
 Если tt не находит Tarantool вовсе, компонент `c` или `lua-c` приводит к
 ошибке сборки ещё до её начала: заголовочных файлов нет.
 
+`TT_BUILD_DIR` - собственный каталог сборки для того, что она создаёт по
+пути, вне исходников: объектных файлов, дерева сборки. Это
+`_build/component/<component>/`; он существует к началу сборки и
+сохраняется между сборками, так что сборка `make` пересобирает только
+изменившееся; `--rebuild` сначала очищает его. Сборка `make` или `shell`,
+которая пишет туда, а не рядом с исходниками, не трогает каталог
+компонента, в том числе каталог path-зависимости - другой рабочей копии.
+
 `cmake` собирает CMake-проект из `cwd`, где лежит его `CMakeLists.txt`, вне
-исходников, в `_build/cmake/<component>/`:
+исходников, в `TT_BUILD_DIR`:
 
 ```console
-cmake -S <cwd> -B _build/cmake/<component> -DCMAKE_BUILD_TYPE=<build_type> \
+cmake -S <cwd> -B _build/component/<component> -DCMAKE_BUILD_TYPE=<build_type> \
     -D<name>=<value>... -DCMAKE_PREFIX_PATH=<префикс Tarantool>
-cmake --build _build/cmake/<component> --config <build_type> --parallel <CPU> \
+cmake --build _build/component/<component> --config <build_type> --parallel <CPU> \
     --target <targets>...
 ```
 
@@ -228,8 +237,16 @@ output = ["memcached/internal.so"]
 
 `cargo` собирает бинарный файл `bin` исполняемого компонента и библиотеку
 пакета для компонента-модуля: `cdylib`, то есть нативный модуль `<module>.so`
-(`<module>.dylib` на macOS). Каталог `target/` компонента, собираемого cargo,
-не раскладывается. См. [Сборка модуля на Rust](../how-to/rust-modules.md).
+(`<module>.dylib` на macOS). Сборка получает `CARGO_TARGET_DIR` -
+`_build/cargo/`, общий для cargo-компонентов проекта, как `target/` общий для
+пакетов workspace: то, от чего они зависят, компилируется один раз.
+`target-dir` из конфигурации cargo ему уступает, а `CARGO_TARGET_DIR` или
+`CARGO_BUILD_TARGET_DIR` из `env` или из окружения, в котором работает tt,
+сохраняются. Библиотека и бинарный файл берутся оттуда, где, по сообщениям
+cargo, он их собрал. `--rebuild` запускает cargo, как и любая сборка, и cargo
+пересобирает изменившееся, в том числе после смены компилятора. Каталог
+`target/` компонента, собираемого cargo, не раскладывается. См.
+[Сборка модуля на Rust](../how-to/rust-modules.md).
 
 `static = true` требует, чтобы результату сборки ничего не было нужно от
 машины, на которую устанавливается пакет, и сборка это проверяет: файл,
@@ -292,7 +309,7 @@ output = ["memcached/internal.so"]
 
 Команда, запускаемая до или после сборки компонентов, с backend'ом `shell`
 (по умолчанию) или `make` и полями сборки. Hook получает окружение сборки без
-`TT_OUTPUT_DIR` и `TT_COMPONENT_NAME`.
+`TT_OUTPUT_DIR`, `TT_COMPONENT_NAME` и `TT_BUILD_DIR`.
 
 <!-- TODO(writers): app.manifest.lock - what it records, such as
 bundled_tarantool_version - is not described yet. -->

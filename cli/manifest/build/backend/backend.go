@@ -107,13 +107,19 @@ type Env struct {
 	// Tarantool, module.h and lua.h, as #include <module.h> finds them
 	// (TT_TARANTOOL_INCLUDE_DIR); empty when there are none.
 	TarantoolIncludeDir string
-	// BuildDir is the directory of the project's _build/ the backend keeps
-	// its own state in between builds: the build tree of a cmake build. It
-	// must be absolute for a backend that uses it.
+	// BuildDir is the directory of the project's _build/ the build of the
+	// component keeps its intermediate files in, between builds too
+	// (TT_BUILD_DIR): the build tree of a cmake build, what a make or shell
+	// build makes on the way, out of its sources. It must be absolute for a
+	// backend that uses it; empty sets no TT_BUILD_DIR.
 	BuildDir string
 	// Fresh asks the backend to drop what it keeps in BuildDir and to build
 	// from scratch, as tt package build --rebuild does.
 	Fresh bool
+	// CargoTargetDir is the target directory of a cargo build
+	// (CARGO_TARGET_DIR), in the project's _build/, unless the environment
+	// of the build names one; empty leaves cargo its own.
+	CargoTargetDir string
 }
 
 // platformOS returns env.OS, defaulting to the host runtime.GOOS when empty so
@@ -159,10 +165,10 @@ func (e Env) baseEnviron() []string {
 }
 
 // environ is the full component-build contract: baseEnviron plus the seven TT_*
-// variables, TT_OUTPUT_DIR / TT_COMPONENT_NAME included, and those of
-// Tarantool (see tarantoolEnviron).
+// variables, TT_OUTPUT_DIR / TT_COMPONENT_NAME included, TT_BUILD_DIR, and
+// those of Tarantool (see tarantoolEnviron).
 func (e Env) environ() []string {
-	return e.tarantoolEnviron(append(e.baseEnviron(),
+	environ := append(e.baseEnviron(),
 		"TT_OUTPUT_DIR="+e.OutputDir,
 		"TT_PROJECT_ROOT="+e.ProjectRoot,
 		"TT_PACKAGE="+e.Package,
@@ -170,14 +176,21 @@ func (e Env) environ() []string {
 		"TT_VERSION="+e.Version,
 		"TT_PLATFORM_OS="+e.platformOS(),
 		"TT_PLATFORM_ARCH="+e.platformArch(),
-	))
+	)
+
+	if e.BuildDir != "" {
+		environ = append(environ, "TT_BUILD_DIR="+e.BuildDir)
+	}
+
+	return e.tarantoolEnviron(environ)
 }
 
 // hookEnviron is the reduced lifecycle-hook contract: baseEnviron plus the five
 // TT_* variables that exist before any component is built, and those of
-// Tarantool. TT_OUTPUT_DIR and TT_COMPONENT_NAME are deliberately omitted — a
-// pre_build / post_build hook runs around all components and has no single
-// output directory or component name.
+// Tarantool. TT_OUTPUT_DIR, TT_COMPONENT_NAME and TT_BUILD_DIR are
+// deliberately omitted — a pre_build / post_build hook runs around all
+// components and has no single output directory, component name or
+// directory of intermediate files.
 func (e Env) hookEnviron() []string {
 	return e.tarantoolEnviron(append(e.baseEnviron(),
 		"TT_PROJECT_ROOT="+e.ProjectRoot,

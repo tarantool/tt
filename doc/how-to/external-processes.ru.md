@@ -66,13 +66,13 @@ myapp:gateway: gateway started, port [--port 8080]
   с именем `name` (по умолчанию имя компонента); `tags`, `ldflags` и
   `cgo` (по умолчанию выключен).
 - `cargo`: `cargo build` бинарного файла `bin` (по умолчанию имя
-  компонента) в профиле `release`, если в `profile` не указано иное;
-  `package`, `features`.
+  компонента) в профиле `release`, если в `profile` не указано иное, в
+  `_build/cargo/`; `package`, `features`.
 - `cmake`: сборка CMake-проекта из `cwd` вне исходников, в
-  `_build/cmake/<component>/`; программы перечисляются в `output`
+  `_build/component/<component>/`; программы перечисляются в `output`
   относительно дерева сборки, `variables`, `targets`, `build_type`.
 - `make` и `shell`: собственная сборка, записывающая программы в
-  `TT_OUTPUT_DIR`.
+  `TT_OUTPUT_DIR`, а то, что она создаёт по пути, - в `TT_BUILD_DIR`.
 
 `static = true` предписывает `go` и `cargo` собрать программу, которой не
 требуются загрузчик и разделяемые библиотеки, а сборка проверяет, что получен
