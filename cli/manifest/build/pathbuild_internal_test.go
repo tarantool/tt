@@ -158,9 +158,12 @@ func TestRun_pathManifestDependency(t *testing.T) {
 		assert.False(t, exists(t, filepath.Join(contrib, name)), name)
 	}
 
+	// The resolver, which read the neighbour's manifest, warned once that its
+	// hooks are not run.
 	joined := strings.Join(warnings, "\n")
 	assert.Contains(t, joined, "contrib-scm-1.rockspec")
-	assert.Contains(t, joined, "pre_build")
+	assert.Equal(t, 1, strings.Count(joined, `path dependency "contrib" declares the hooks `+
+		`pre_build; the hooks of a path dependency are not run`), joined)
 
 	// The lock names the rock that was installed.
 	lock, err := loadLock(app)
@@ -174,12 +177,53 @@ func TestRun_pathManifestDependency(t *testing.T) {
 	assert.Equal(t, "0.3.0.rc.1-1", pinned["contrib"].Version)
 	assert.Equal(t, "../contrib", pinned["contrib"].Path)
 
-	// A second build, from the fresh lock, installs the same rock again.
-	require.NoError(t, Run(context.Background(), dryOptions(app)))
+	// A second build, from the fresh lock, installs the same rock again, and
+	// resolves nothing to warn of.
+	warnings = nil
+
+	require.NoError(t, Run(context.Background(), opts))
 
 	view, err = lrtree.Inspect(t.Context(), tree)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"0.3.0.rc.1-1"}, view.Versions("contrib"))
+	assert.Empty(t, warnings)
+}
+
+// TestPathManifests_hookWarning pins that the build of a path dependency does
+// not warn that its hooks are not run - the resolver did, reading its
+// manifest - and that the build of a source rock, which is not resolved from
+// its manifest, does.
+func TestPathManifests_hookWarning(t *testing.T) {
+	t.Parallel()
+
+	app, contrib := setupNeighbours(t)
+
+	var warnings []string
+
+	opts := dryOptions(app)
+
+	opts.Warn = func(msg string) { warnings = append(warnings, msg) }
+
+	adapter := rocks.New(rocks.BuildConfig(opts.Tarantool, rocks.ConfigOptions{
+		Tree:       filepath.Join(app, rocksDirName),
+		WorkingDir: app,
+		Servers:    nil,
+		Logger:     nil,
+	}))
+	builder := newPathManifests(opts, adapter)
+	dep := manifest.LockDependency{
+		Name: "contrib", Version: "0.3.0.rc.1-1", Source: sourcePath, Path: "../contrib",
+	}
+
+	require.NoError(t, builder.buildPathManifest(t.Context(), dep))
+	assert.Empty(t, warnings)
+
+	require.NoError(t, builder.buildManifest(t.Context(), manifestBuild{
+		dep: dep, dir: contrib, state: filepath.Join(app, buildDirName, srcDirName, "contrib"),
+		revision: 1, what: "source rock", stale: "", warnHooks: true,
+	}))
+	assert.Equal(t, []string{`source rock "contrib" declares the hooks pre_build; ` +
+		`the hooks of a source rock are not run`}, warnings)
 }
 
 // TestRun_pathManifestHashSurvivesItsOwnBuild pins that the neighbour building

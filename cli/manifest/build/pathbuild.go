@@ -3,6 +3,7 @@ package build
 import (
 	"context"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -95,12 +96,13 @@ func pathState(projectDir, name string) string {
 // fetch is told to install as it is.
 func (p pathManifests) buildPathManifest(ctx context.Context, dep manifest.LockDependency) error {
 	return p.buildManifest(ctx, manifestBuild{
-		dep:      dep,
-		dir:      filepath.Join(p.opts.ProjectDir, dep.Path),
-		state:    pathState(p.opts.ProjectDir, dep.Name),
-		revision: 1,
-		what:     "path dependency",
-		stale:    "run tt package resolve to bring the lock back in step",
+		dep:       dep,
+		dir:       filepath.Join(p.opts.ProjectDir, dep.Path),
+		state:     pathState(p.opts.ProjectDir, dep.Name),
+		revision:  1,
+		what:      "path dependency",
+		stale:     "run tt package resolve to bring the lock back in step",
+		warnHooks: false,
 	})
 }
 
@@ -119,6 +121,11 @@ type manifestBuild struct {
 	// version is not the one the lock pins.
 	what  string
 	stale string
+	// warnHooks has the build warn that the hooks the package declares are
+	// not run. Those of a path dependency the resolver warns of, when it
+	// reads its manifest (resolve.PathManifest.Warnings), rather than every
+	// build; a source rock is not resolved from its manifest.
+	warnHooks bool
 }
 
 // buildManifest builds the package of build and installs it into the
@@ -135,16 +142,10 @@ func (p pathManifests) buildManifest(ctx context.Context, build manifestBuild) e
 	man := neighbour.Manifest
 	components := neighbour.Components()
 
-	if len(man.Hooks) > 0 {
-		hooks := make([]string, 0, len(man.Hooks))
-		for hook := range man.Hooks {
-			hooks = append(hooks, hook)
-		}
-
-		slices.Sort(hooks)
-
+	if build.warnHooks && len(man.Hooks) > 0 {
 		p.opts.emit([]string{fmt.Sprintf("%s %q declares the hooks %s; the hooks of a %s "+
-			"are not run", build.what, dep.Name, strings.Join(hooks, ", "), build.what)})
+			"are not run", build.what, dep.Name,
+			strings.Join(slices.Sorted(maps.Keys(man.Hooks)), ", "), build.what)})
 	}
 
 	proj := project{dir: build.dir, stateDir: build.state, man: man, product: neighbour.Product}

@@ -226,6 +226,26 @@ components = ['app']
 	assert.Contains(t, warnings[0], "ignores")
 }
 
+// TestPathManifestHooksAreNotRun pins that the resolution says the hooks of a
+// neighbour are not run, with the warnings of its manifest.
+func TestPathManifestHooksAreNotRun(t *testing.T) {
+	t.Parallel()
+
+	app, neighbour := pathManifestLayout(t, contribManifest+`[hooks.pre_build]
+command = 'true'
+[hooks.post_build]
+backend = 'make'
+make_target = 'post'
+`)
+	man := parseManifest(t, consumerManifest)
+	engine := resolve.NewEngine(contribAdapter(t, neighbour), app, "tt 3.4.0")
+
+	_, warnings, err := engine.Resolve(context.Background(), man)
+	require.NoError(t, err)
+	assert.Equal(t, []string{`path dependency "contrib" declares the hooks post_build, ` +
+		`pre_build; the hooks of a path dependency are not run`}, warnings)
+}
+
 // TestPathManifestHashIgnoresWhatABuildWrites pins that what a build of the
 // neighbour, or of its consumer, leaves in the neighbour's directory does not
 // make the consumer's lock stale, while a source does.
