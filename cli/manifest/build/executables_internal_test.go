@@ -6,10 +6,12 @@ import (
 	"debug/elf"
 	"encoding/binary"
 	"encoding/json"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,6 +21,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest/build/backend"
 	"github.com/tarantool/tt/v3/cli/manifest/native"
+	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
 // manifestHead is the part of a manifest every test here shares.
@@ -219,6 +222,48 @@ func TestRun_missingToolFailsFirst(t *testing.T) {
 	assert.Equal(t, sdk.ExitSystem, exitcode.Code(err))
 	assert.Contains(t, err.Error(), `"go"`)
 	assert.False(t, exists(t, filepath.Join(dir, lockFileName)))
+}
+
+// TestPreflightFindsTheProjectBin: a toolchain in .tarantool/bin of the
+// project being built, and nowhere else, passes the preflight, as the build
+// finds it there; and so does one in the PATH of [build].env, the project's
+// bin directory still first. A path dependency is checked as the project it
+// is, its own directory the root.
+func TestPreflightFindsTheProjectBin(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+
+	const cmakeManifest = manifestHead + `
+[components.fast]
+path = 'fast'
+
+[components.fast.build]
+backend = 'cmake'
+output = ['fast.so']
+env = { PATH = '/nonexistent' }
+`
+
+	// The package and a neighbour it is built as a path dependency of.
+	for _, dir := range []string{
+		setupProject(t, goManifest, goFiles),
+		setupProject(t, cmakeManifest, map[string]string{"fast/CMakeLists.txt": ""}),
+	} {
+		man, err := readManifest(dir, Options{})
+		require.NoError(t, err)
+
+		proj := project{dir: dir, stateDir: t.TempDir(), man: man, product: "default"}
+		components := slices.Sorted(maps.Keys(man.Components))
+
+		require.ErrorIs(t, preflightBackends(proj, components, rocks.TarantoolInfo{}),
+			backend.ErrNoTool)
+
+		bin := backend.ProjectBinDir(dir)
+		for _, tool := range []string{"go", "cmake"} {
+			writeFile(t, filepath.Join(bin, tool), "#!/bin/sh\n")
+			require.NoError(t, os.Chmod(filepath.Join(bin, tool), 0o755))
+		}
+
+		require.NoError(t, preflightBackends(proj, components, rocks.TarantoolInfo{}))
+	}
 }
 
 // elfExecutable returns the header of a little-endian 64-bit Linux ELF

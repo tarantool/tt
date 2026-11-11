@@ -147,7 +147,9 @@ func (p pathManifests) buildManifest(ctx context.Context, build manifestBuild) e
 			"are not run", build.what, dep.Name, strings.Join(hooks, ", "), build.what)})
 	}
 
-	err = preflightBackends(man, components, p.opts.Tarantool)
+	proj := project{dir: build.dir, stateDir: build.state, man: man, product: neighbour.Product}
+
+	err = preflightBackends(proj, components, p.opts.Tarantool)
 	if err != nil {
 		return fmt.Errorf("%s %q: %w", build.what, dep.Name, err)
 	}
@@ -169,7 +171,6 @@ func (p pathManifests) buildManifest(ctx context.Context, build manifestBuild) e
 	}
 
 	stage := filepath.Join(build.state, stageDirName, neighbour.Product)
-	proj := project{dir: build.dir, stateDir: build.state, man: man, product: neighbour.Product}
 
 	_, err = buildComponents(ctx, p.opts, proj, p.adapter, stage, components, ver)
 	if err != nil {
