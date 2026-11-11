@@ -266,6 +266,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   it, so an asset of two releases or tools is kept once. What an older tt
   cached is downloaded again; its `<version>/` and `tools/` directories in
   `~/.cache/tt/wasm` can be removed.
+- The version of a package is that of a git tag without a `v` too, in full
+  SemVer - `1.1.2`, as tarantool/memcached tags its releases - and not only
+  of a `v*` tag, and a rockspec `tt package pack --format rock` writes names
+  the tag as git has it. A tag that is no version, `v1.x` or `2026-11-12`,
+  is passed over for the version tag before it, where a `v` one left the
+  version at `0.0.0-dev`. Of the version tags on one commit the highest
+  version counts, and of `v1.2.0` and `1.2.0` the tag is `v1.2.0`, where git
+  chose by how the tags were made.
 
 ### Fixed
 

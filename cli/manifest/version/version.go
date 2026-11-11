@@ -10,14 +10,28 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
 	goversion "github.com/hashicorp/go-version"
 )
+
+// tagGlobs are the --match patterns of git describe: the names of the tags
+// that may be versions, a v and a digit or a digit first. tagVersion decides
+// whether one is.
+var tagGlobs = []string{"v[0-9]*", "[0-9]*"}
+
+// semVerRe is SemVer 2.0.0 in full, as semver.org gives it: the form a tag
+// without a v has to take to be a version.
+var semVerRe = regexp.MustCompile(`^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)` +
+	`(-(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?` +
+	`(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?$`)
 
 // versionFileName is the optional one-line SemVer override that sits next to
 // the manifest and takes precedence over git.
@@ -37,10 +51,18 @@ type Version struct {
 	Commit string // Short sha "abc1234", or empty when there is no commit.
 	Dirty  bool   // Working tree had uncommitted changes (lock excluded).
 	Flavor string // ce|ee - a build fact, set by the build, not by Derive.
-	// Tag is the git tag the version is that of: the v* tag HEAD is on, with
-	// a clean tree. Empty for a version after a tag, a dirty tree, a VERSION
-	// file and the tagless fallback.
+	// Tag is the git tag the version is that of: the version tag HEAD is on,
+	// with a clean tree, named as git has it - v1.2.0 or 1.2.0 - so that a
+	// rockspec can name it. Empty for a version after a tag, a dirty tree, a
+	// VERSION file and the tagless fallback.
 	Tag string
+}
+
+// versionTag is a tag of the repository whose name is a version (tagVersion).
+type versionTag struct {
+	name    string             // As git has it: v1.2.0 or 1.2.0.
+	commit  string             // The commit it points to, an annotated tag peeled.
+	version *goversion.Version // The version the name is.
 }
 
 // Derive determines the package version from the git tree rooted at dir and a
@@ -48,8 +70,12 @@ type Version struct {
 //
 // Source precedence:
 //  1. a VERSION file next to the manifest (one line, SemVer 2.0.0);
-//  2. the most recent v* tag reachable from HEAD (git describe);
+//  2. the most recent version tag reachable from HEAD (git describe): v1.2.0
+//     or 1.2.0 (tagVersion), a tag of another name passed over;
 //  3. a tagless fallback of 0.0.0-dev.<N>+g<sha>, N = commits in HEAD's history.
+//
+// Of the version tags on one commit, the version is that of the highest
+// version, and of v1.2.0 and 1.2.0, that of v1.2.0 (pickTag).
 //
 // A missing git binary or .git directory is not fatal: derivation falls through
 // to the next source rather than panicking.
@@ -102,38 +128,185 @@ func deriveFromFile(dir string) (Version, bool, error) {
 }
 
 // deriveFromGitDescribe runs git describe and applies the pre-release / dev
-// cycle rules. ok is false when there is no usable SemVer v* tag, in which case
-// the caller falls back to deriveFallback.
+// cycle rules. ok is false when no version tag is reachable, in which case the
+// caller falls back to deriveFallback.
 func deriveFromGitDescribe(dir string, dirty bool) (Version, bool) {
 	var ver Version
 
-	// The --match 'v[0-9]*' pattern requires a digit after the v, so vfinal and
-	// friends never reach the parser; --long always prints the <tag>-<N>-g<sha> form.
-	out, err := runGit(dir, "describe", "--tags", "--long", "--match", "v[0-9]*", "HEAD")
+	tags, skipped := listTags(dir)
+	if len(tags) == 0 {
+		return ver, false
+	}
+
+	// The globs keep the tags that cannot be versions out of the walk, and the
+	// names of those they match but tagVersion refuses (v2-final, 2026-11) are
+	// excluded one by one, so the walk goes on to the nearest version tag past
+	// them. No tag name holds a glob character. --long always prints the
+	// <tag>-<N>-g<sha> form.
+	args := []string{"describe", "--tags", "--long"}
+
+	for _, glob := range tagGlobs {
+		args = append(args, "--match", glob)
+	}
+
+	for _, name := range skipped {
+		args = append(args, "--exclude", name)
+	}
+
+	out, err := runGit(dir, append(args, "HEAD")...)
 	if err != nil {
 		return ver, false
 	}
 
-	tag, count, sha, ok := splitDescribe(out)
+	described, count, sha, ok := splitDescribe(out)
 	if !ok {
 		return ver, false
 	}
 
-	parsed, err := goversion.NewSemver(strings.TrimPrefix(tag, "v"))
-	if err != nil {
-		// A v* tag that is not SemVer (e.g. vfinal) is not a version: skip it.
+	tag, ok := pickTag(tags, described)
+	if !ok {
 		return ver, false
 	}
 
-	ver.SemVer = renderDescribed(parsed, count, sha, dirty)
+	ver.SemVer = renderDescribed(tag.version, count, sha, dirty)
 	ver.Commit = shortSHA(sha)
 	ver.Dirty = dirty
 
 	if count == 0 && !dirty {
-		ver.Tag = tag
+		ver.Tag = tag.name
 	}
 
 	return ver, true
+}
+
+// listTags reads the tags of the repository at dir: those whose names are
+// versions (tagVersion), by name, and the names of the others tagGlobs match,
+// which git describe is to pass over. Both are empty when the repository has
+// no tag or there is no repository.
+func listTags(dir string) ([]versionTag, []string) {
+	// --dereference follows an annotated tag with a "<name>^{}" line giving
+	// the commit it points to, peeled however deep.
+	out, err := runGit(dir, "show-ref", "--tags", "--dereference")
+	if err != nil {
+		return nil, nil
+	}
+
+	objects := map[string]string{}
+	peeled := map[string]string{}
+
+	for line := range strings.SplitSeq(out, "\n") {
+		oid, ref, found := strings.Cut(line, " ")
+		name, isTag := strings.CutPrefix(ref, "refs/tags/")
+
+		if !found || !isTag {
+			continue
+		}
+
+		if tagged, isPeeled := strings.CutSuffix(name, "^{}"); isPeeled {
+			peeled[tagged] = oid
+		} else {
+			objects[name] = oid
+		}
+	}
+
+	var (
+		tags    []versionTag
+		skipped []string
+	)
+
+	for _, name := range slices.Sorted(maps.Keys(objects)) {
+		if !matchesTagGlobs(name) {
+			continue
+		}
+
+		parsed, ok := tagVersion(name)
+		if !ok {
+			skipped = append(skipped, name)
+			continue
+		}
+
+		commit, ok := peeled[name]
+		if !ok {
+			commit = objects[name]
+		}
+
+		tags = append(tags, versionTag{name: name, commit: commit, version: parsed})
+	}
+
+	return tags, skipped
+}
+
+// matchesTagGlobs reports whether one of tagGlobs matches name: whether it
+// starts with a digit, or with a v and a digit.
+func matchesTagGlobs(name string) bool {
+	rest := strings.TrimPrefix(name, "v")
+
+	return rest != "" && rest[0] >= '0' && rest[0] <= '9'
+}
+
+// tagVersion parses the name of a tag as a version. A name with a v is one
+// when the rest is SemVer as go-version reads it, as it always was: v1.2.0,
+// v1.2.0-rc.1, and v1.2 as 1.2.0. A name without a v has to be SemVer 2.0.0
+// in full - 1.2.0, not 1.2 or 20261112 - since a bare number names a date or
+// a build as often as a version. ok is false for any other name.
+func tagVersion(name string) (*goversion.Version, bool) {
+	if !matchesTagGlobs(name) {
+		return nil, false
+	}
+
+	text, prefixed := strings.CutPrefix(name, "v")
+	if !prefixed && !semVerRe.MatchString(text) {
+		return nil, false
+	}
+
+	parsed, err := goversion.NewSemver(text)
+	if err != nil {
+		return nil, false
+	}
+
+	return parsed, true
+}
+
+// pickTag returns the tag the version is that of, given described, the tag
+// git describe named: of the version tags on its commit, the one of the
+// highest version, of the tags of one version the one with a v - v1.2.0 over
+// 1.2.0 - and then the first by name. Which of the tags of a commit git
+// describe names depends on how they were made, an annotated one over a
+// lightweight one and the newest annotated one first, and the version must
+// not. ok is false when tags has no described.
+func pickTag(tags []versionTag, described string) (versionTag, bool) {
+	idx := slices.IndexFunc(tags, func(tag versionTag) bool {
+		return tag.name == described
+	})
+	if idx < 0 {
+		return versionTag{name: "", commit: "", version: nil}, false
+	}
+
+	best := tags[idx]
+
+	for _, tag := range tags {
+		if tag.commit == best.commit && precedes(tag, best) {
+			best = tag
+		}
+	}
+
+	return best, true
+}
+
+// precedes reports whether tag takes precedence over other, a tag of the
+// same commit (pickTag).
+func precedes(tag, other versionTag) bool {
+	cmp := tag.version.Compare(other.version)
+	if cmp != 0 {
+		return cmp > 0
+	}
+
+	prefixed, otherPrefixed := strings.HasPrefix(tag.name, "v"), strings.HasPrefix(other.name, "v")
+	if prefixed != otherPrefixed {
+		return prefixed
+	}
+
+	return tag.name < other.name
 }
 
 // deriveFallback builds the tagless 0.0.0-dev.<N>+g<sha> version. N is the total

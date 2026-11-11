@@ -115,9 +115,16 @@ manifest.
 The version of a package is, in order:
 
 1. the line of a `VERSION` file next to the manifest;
-2. the nearest `v*` tag of git: `1.2.0` on the tag, `1.2.1-dev.3+gabc1234`
-   three commits after it;
+2. the nearest version tag of git, `v1.2.0` or `1.2.0`: `1.2.0` on the tag,
+   `1.2.1-dev.3+gabc1234` three commits after it;
 3. `0.0.0-dev.<N>+g<sha>` without a tag.
+
+A tag with a `v` is a version as before, `v1.2` too; a tag without one only
+in full SemVer, `1.2.0` or `1.2.0-rc.1`, since a bare number as often names
+a date or a build. Any other tag is passed over for the version tag before
+it. Of the version tags on one commit the highest version counts, and of
+`v1.2.0` and `1.2.0` the tag is `v1.2.0`, whichever of them is annotated or
+newer.
 
 Changes not committed add `dirty` to the build metadata: `1.2.0+dirty`.
 The code reads its version as `require('<name>.version').version`; set
@@ -244,9 +251,10 @@ The project needs no rockspec: tt makes it from the manifest. Its
 dependencies are the ranges `[dependencies]` and the components of the
 product declare, not the versions the lock pins, and `[platform].tarantool`
 becomes its dependency on `tarantool`; the source is
-`[package].repository`, at the tag of the version when `HEAD` is on a `v*`
-tag of a clean tree; `[package]` gives the description, the license and
-the maintainers, `[platform].platforms` the supported platforms. The build
+`[package].repository`, at the tag of the version, named as git has it,
+when `HEAD` is on a version tag of a clean tree; `[package]` gives the
+description, the license and the maintainers, `[platform].platforms` the
+supported platforms. The build
 is done, so the build type is `none`, and the rockspec is the same for the
 rock of every platform. A path dependency fails the pack: the projects
 installing the rock have no such directory. A dependency from a registry of

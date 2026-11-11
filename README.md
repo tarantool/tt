@@ -914,7 +914,8 @@ include = ["init.lua", "kv/*.lua"]
 `tt package build` puts its files into `.rocks/share/tarantool/<name>/`,
 together with `version.lua`, so the code is `require('<name>')` and its version
 `require('<name>.version').version`. The version is the one of `VERSION` next
-to the manifest, else of the nearest `v*` tag of git. An installed version has
+to the manifest, else of the nearest version tag of git, `v1.2.0` or `1.2.0`.
+An installed version has
 the files of the components and not the other files of the project, so the
 cluster config of a package loads its code with `app.module: <name>` rather
 than `app.file`, unless `[package].include` lists the file.
