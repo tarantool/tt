@@ -6,7 +6,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
+	"strings"
 
 	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/go-luarocks/client"
@@ -28,6 +30,10 @@ const (
 	filePerm os.FileMode = 0o644
 	// modulePerm is the mode of the native module in the stage of the rock.
 	modulePerm os.FileMode = 0o755
+	// moduleSO and moduleDylib are the names of the module in the rock: on
+	// Linux, and on macOS, where Tarantool looks for C modules as ?.dylib.
+	moduleSO    = "wasm.so"
+	moduleDylib = "wasm.dylib"
 )
 
 // RockFileName is the file name of the binary rock of platform.
@@ -48,7 +54,7 @@ source = {
 }
 description = {
    summary = "Run WebAssembly components in Tarantool",
-   detailed = "The tarantool-wasm runtime: require('wasm'). Packed by tt from the release assets.",
+   detailed = "The tarantool-wasm runtime: require('wasm'). Packed by tt.",
    homepage = "https://github.com/tarantool/tarantool-wasm-rs",
    license = "BSD-2-Clause",
 }
@@ -68,6 +74,20 @@ build = {
 // temporary file and renamed into place, so the registry never serves half a
 // rock.
 func BuildRock(dir string, release Release, platform Platform, module []byte) (string, error) {
+	// The name comes from a table a file may give: only the two names
+	// Tarantool loads the module by are taken.
+	var moduleName string
+
+	switch platform.Module {
+	case moduleSO:
+		moduleName = moduleSO
+	case moduleDylib:
+		moduleName = moduleDylib
+	default:
+		return "", fmt.Errorf("%w: the module of %s is %q; it is %s or %s", ErrModuleName,
+			platform.RockArch, platform.Module, moduleSO, moduleDylib)
+	}
+
 	specName := RockName + "-" + release.RockVersion() + ".rockspec"
 
 	spec, err := rockspec.EvalSource(specName, []byte(release.rockspec()),
@@ -85,7 +105,8 @@ func BuildRock(dir string, release Release, platform Platform, module []byte) (s
 
 	err = os.MkdirAll(filepath.Join(stage, rockLibDir), dirPerm)
 	if err == nil {
-		err = os.WriteFile(filepath.Join(stage, rockLibDir, platform.Module), module, modulePerm)
+		//nolint:gosec // A fresh temporary directory and one of two constant names.
+		err = os.WriteFile(filepath.Join(stage, rockLibDir, moduleName), module, modulePerm)
 	}
 
 	if err != nil {
@@ -176,6 +197,73 @@ type PackOptions struct {
 	Fetcher Fetcher
 	// Progress receives one line per rock.
 	Progress io.Writer
+	// From is a local build of the module, packed as the rock of Arch instead
+	// of the assets of the release, which are not downloaded. The rocks
+	// already in Dir stay, so a run for each build fills a rock server.
+	From string
+	// Arch is the LuaRocks arch of From (linux-x86_64, macosx-aarch64);
+	// empty is this host's.
+	Arch string
+}
+
+// LocalPlatform is the platform of the rock of a local build for the LuaRocks
+// arch: the module goes into the rock as wasm.so on Linux and as wasm.dylib
+// on macOS, where Tarantool looks for C modules as ?.dylib only.
+func LocalPlatform(arch string) (Platform, error) {
+	if arch == "" {
+		arch = hostRockArch()
+	}
+
+	var module string
+
+	switch {
+	case strings.HasPrefix(arch, "linux-"):
+		module = moduleSO
+	case strings.HasPrefix(arch, "macosx-"):
+		module = moduleDylib
+	default:
+		return Platform{}, fmt.Errorf("%w: %s is not a linux-* or macosx-* arch",
+			ErrUnsupportedPlatform, arch)
+	}
+
+	return Platform{
+		GOOS: "", GOARCH: "", Asset: "", SHA256: "", RockArch: arch, Module: module,
+	}, nil
+}
+
+// hostRockArch is the LuaRocks arch of the host tt runs on.
+func hostRockArch() string {
+	goos := map[string]string{"darwin": "macosx"}[runtime.GOOS]
+	if goos == "" {
+		goos = runtime.GOOS
+	}
+
+	goarch := map[string]string{"amd64": "x86_64", "arm64": "aarch64"}[runtime.GOARCH]
+	if goarch == "" {
+		goarch = runtime.GOARCH
+	}
+
+	return goos + "-" + goarch
+}
+
+// packLocal packs the module opts.From names as the rock of opts.Arch.
+func packLocal(opts PackOptions, release Release) (string, error) {
+	platform, err := LocalPlatform(opts.Arch)
+	if err != nil {
+		return "", err
+	}
+
+	module, err := os.ReadFile(opts.From)
+	if err != nil {
+		return "", fmt.Errorf("reading the build: %w", err)
+	}
+
+	if opts.Progress != nil {
+		_, _ = fmt.Fprintf(opts.Progress, "packing %s as the rock of %s\n",
+			opts.From, platform.RockArch)
+	}
+
+	return BuildRock(opts.Dir, release, platform, module)
 }
 
 // PackRocks packs the rock of every platform of a release into a directory
@@ -192,6 +280,25 @@ func PackRocks(ctx context.Context, opts PackOptions) ([]string, error) {
 	release, err := LookupRelease(version)
 	if err != nil {
 		return nil, err
+	}
+
+	if opts.From != "" {
+		rock, err := packLocal(opts, release)
+		if err != nil {
+			return nil, err
+		}
+
+		err = IndexRegistry(ctx, opts.Dir)
+		if err != nil {
+			return nil, err
+		}
+
+		return []string{rock}, nil
+	}
+
+	if len(release.Platforms) == 0 {
+		return nil, fmt.Errorf("%w: tarantool-wasm %s has no builds to download; "+
+			"pack a local build of it (--from)", ErrUnsupportedPlatform, release.Version)
 	}
 
 	rocks := make([]string, 0, len(release.Platforms))

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt wasm rock --from <module> --arch <arch>`: pack a local build of the
+  tarantool-wasm module as the rock of a platform, for a release with no
+  build of it to download; the rocks already in `--out` stay, so a run for
+  each build fills one rock server.
 - `tt data cat` and `tt data play`: read snapshots, write-ahead logs and
   vinyl logs in Go, without a local Tarantool. The files are read the way
   Tarantool recovers: the newest snapshot within the bounds, then the logs in

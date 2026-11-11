@@ -215,6 +215,102 @@ func TestPackRocks(t *testing.T) {
 	assert.Contains(t, string(index), `arch = "macosx-aarch64"`)
 }
 
+// zipNames returns the names of the files of the rock at path.
+func zipNames(t *testing.T, path string) []string {
+	t.Helper()
+
+	reader, err := zip.OpenReader(path)
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = reader.Close() })
+
+	names := make([]string, 0, len(reader.File))
+	for _, file := range reader.File {
+		names = append(names, file.Name)
+	}
+
+	return names
+}
+
+// TestPackRocksFrom packs local builds of a release that has none to
+// download, one platform a run, into one rock server.
+func TestPackRocksFrom(t *testing.T) {
+	table := `{"0.2.0": {"version": "0.2.0", "rock_revision": 1, "ref": "v0.2.0",
+		"sdk_asset": "sdk.tar.gz", "sdk_md5": "00000000000000000000000000000000"}}`
+	path := filepath.Join(t.TempDir(), "releases.json")
+	require.NoError(t, os.WriteFile(path, []byte(table), filePerm))
+	t.Setenv(ReleasesEnv, path)
+
+	dir := t.TempDir()
+	build := filepath.Join(t.TempDir(), "libtarantool_wasm_rs.so")
+	require.NoError(t, os.WriteFile(build, []byte("\x7fELF module"), filePerm))
+
+	_, err := PackRocks(t.Context(), PackOptions{
+		Dir: dir, Version: "0.2.0", Fetcher: Fetcher{CacheDir: "", Client: nil},
+		Progress: nil, From: "", Arch: "",
+	})
+	require.ErrorIs(t, err, ErrUnsupportedPlatform)
+	assert.Contains(t, err.Error(), "--from")
+
+	for _, arch := range []string{"linux-aarch64", "macosx-aarch64"} {
+		rocks, err := PackRocks(t.Context(), PackOptions{
+			Dir: dir, Version: "0.2.0", Fetcher: Fetcher{CacheDir: "", Client: nil},
+			Progress: nil, From: build, Arch: arch,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, []string{filepath.Join(dir, "wasm-0.2.0-1."+arch+".rock")}, rocks)
+	}
+
+	assert.ElementsMatch(t, []string{"wasm-0.2.0-1.rockspec", "rock_manifest", "lib/wasm.so"},
+		zipNames(t, filepath.Join(dir, "wasm-0.2.0-1.linux-aarch64.rock")))
+	assert.ElementsMatch(t, []string{"wasm-0.2.0-1.rockspec", "rock_manifest", "lib/wasm.dylib"},
+		zipNames(t, filepath.Join(dir, "wasm-0.2.0-1.macosx-aarch64.rock")))
+
+	// The second run kept the rock of the first.
+	index, err := os.ReadFile(filepath.Join(dir, registryManifestName))
+	require.NoError(t, err)
+	assert.Contains(t, string(index), `arch = "linux-aarch64"`)
+	assert.Contains(t, string(index), `arch = "macosx-aarch64"`)
+
+	_, err = PackRocks(t.Context(), PackOptions{
+		Dir: dir, Version: "0.2.0", Fetcher: Fetcher{CacheDir: "", Client: nil},
+		Progress: nil, From: build, Arch: "windows-x86_64",
+	})
+	require.ErrorIs(t, err, ErrUnsupportedPlatform)
+}
+
+func TestBuildRockRefusesAnotherModuleName(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	_, err := BuildRock(dir, testRelease(t), Platform{
+		GOOS: "linux", GOARCH: "amd64", Asset: "", SHA256: "",
+		RockArch: "linux-x86_64", Module: "../wasm.so",
+	}, []byte("module"))
+	require.ErrorIs(t, err, ErrModuleName)
+	assert.Contains(t, err.Error(), `"../wasm.so"`)
+
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	assert.Empty(t, entries)
+}
+
+func TestLocalPlatformOfTheHost(t *testing.T) {
+	t.Parallel()
+
+	platform, err := LocalPlatform("")
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+		require.ErrorIs(t, err, ErrUnsupportedPlatform)
+
+		return
+	}
+
+	require.NoError(t, err)
+	assert.Equal(t, hostRockArch(), platform.RockArch)
+	assert.True(t, strings.HasPrefix(platform.Module, "wasm."))
+}
+
 func TestReleasesFileErrors(t *testing.T) {
 	t.Setenv(ReleasesEnv, filepath.Join(t.TempDir(), "missing.json"))
 
