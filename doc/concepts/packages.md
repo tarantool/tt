@@ -277,6 +277,15 @@ its entries carry no time and no mode but the executable bit. A pack on
 each platform with `--format rock` and one anywhere with `--format rock-src`
 fill a server with every rock of a version.
 
+A project that depends on such a rock builds it from its source rock when
+the servers it installs the rock from have no rock of its platform, neither
+a binary one nor an `.all` one: tt downloads the source rock into
+`_build/src/`, builds the package in it with its manifest, as it builds a
+path dependency, and installs it into `.rocks/` at the version the lock
+pins, revision included. The hooks of the package are not run. A rock built
+so is not built again while the tree holds it at that version. A source
+rock of no tt package, one without `app.manifest.toml`, fails the build.
+
 ## Installing
 
 `tt package install ARCHIVE` installs into one of the

@@ -3,6 +3,7 @@ package pack
 import (
 	"archive/zip"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/tarantool/tt/v3/cli/manifest/build"
+	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
 // writeGitLibrary writes the project of libraryManifest as a git repository
@@ -159,6 +163,77 @@ func TestPackSrcRockOutsideGit(t *testing.T) {
 		"mylib/roles/mylib.lua",
 	}, sortedKeys(entries))
 	assert.Equal(t, "1.0.0\n", entries["mylib/VERSION"])
+}
+
+// TestSrcRockBuildsInAProject: a project depending on a rock its server has
+// only the source rock of builds it from the manifest in it, at the revision
+// of the release, and does not build it again the next time.
+func TestSrcRockBuildsInAProject(t *testing.T) {
+	t.Parallel()
+
+	src := writeGitLibrary(t)
+	out := filepath.Join(t.TempDir(), "server")
+
+	opts := packOptions(src, out, FormatRockSrc)
+
+	opts.Revision = 2
+
+	_, err := Run(context.Background(), opts)
+	require.NoError(t, err)
+
+	consumer := t.TempDir()
+	writeTree(t, consumer, map[string]string{
+		manifestFileName: fmt.Sprintf(`manifest_version = '0.1'
+
+[package]
+name = 'consumer'
+
+[platform]
+tarantool = '>=3.0.0'
+tt = '>=3.1.0'
+
+[dependencies]
+mylib = { version = '>=1.2.0', registry = '%s' }
+
+[components.app]
+path = '.'
+include = ['init.lua']
+`, out),
+		versionFileName: "0.1.0\n",
+		"init.lua":      "return require('mylib')\n",
+	})
+
+	buildConsumer := func() {
+		t.Helper()
+
+		require.NoError(t, build.Run(context.Background(), build.Options{
+			ProjectDir: consumer,
+			TtVersion:  "tt test",
+			Tarantool:  rocks.TarantoolInfo{Prefix: "/nonexistent", Version: "3.0.0"},
+		}))
+	}
+
+	buildConsumer()
+
+	share := filepath.Join(consumer, rocksDirName, "share", "tarantool")
+	assert.FileExists(t, filepath.Join(share, "mylib", "init.lua"))
+	assert.FileExists(t, filepath.Join(share, "mylib", "version.lua"))
+	assert.FileExists(t, filepath.Join(share, "roles", "mylib.lua"))
+	assert.DirExists(t, filepath.Join(share, "rocks", "mylib", "1.2.0-2"))
+
+	lock, err := os.ReadFile(filepath.Join(consumer, lockFileName))
+	require.NoError(t, err)
+	assert.Contains(t, string(lock), "version = '1.2.0-2'")
+
+	// The next build takes the rock it built: the source rock is not
+	// unpacked again.
+	unpacked := filepath.Join(consumer, buildDirName, "src", "mylib-1.2.0-2")
+	require.NoError(t, os.RemoveAll(unpacked))
+
+	buildConsumer()
+
+	assert.NoDirExists(t, unpacked)
+	assert.FileExists(t, filepath.Join(share, "mylib", "init.lua"))
 }
 
 // zipModes reads the modes of the entries of the zip archive at path.

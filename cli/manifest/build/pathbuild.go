@@ -94,9 +94,40 @@ func pathState(projectDir, name string) string {
 // dependency moved (resolve.IsStale), so a mismatch is a lock tt package
 // fetch is told to install as it is.
 func (p pathManifests) buildPathManifest(ctx context.Context, dep manifest.LockDependency) error {
-	dir := filepath.Join(p.opts.ProjectDir, dep.Path)
+	return p.buildManifest(ctx, manifestBuild{
+		dep:      dep,
+		dir:      filepath.Join(p.opts.ProjectDir, dep.Path),
+		state:    pathState(p.opts.ProjectDir, dep.Name),
+		revision: 1,
+		what:     "path dependency",
+		stale:    "run tt package resolve to bring the lock back in step",
+	})
+}
 
-	neighbour, err := resolve.LoadPathManifest(dep.Name, dir)
+// manifestBuild is one build of a tt package another project depends on: a
+// path dependency, or the unpacked source rock of a registry one.
+type manifestBuild struct {
+	// dep is the locked dependency the package is.
+	dep manifest.LockDependency
+	// dir is the directory of the package; state the one of its build's
+	// state, in the consumer's _build/.
+	dir   string
+	state string
+	// revision is the LuaRocks revision of the rock it is installed as.
+	revision int
+	// what names the dependency in messages; stale says what to do when its
+	// version is not the one the lock pins.
+	what  string
+	stale string
+}
+
+// buildManifest builds the package of build and installs it into the
+// consumer's tree as the rock of the dependency, at the version the lock
+// pins, which the package has to be at.
+func (p pathManifests) buildManifest(ctx context.Context, build manifestBuild) error {
+	dep := build.dep
+
+	neighbour, err := resolve.LoadPathManifest(dep.Name, build.dir)
 	if err != nil {
 		return sdk.Errorf(sdk.ExitFailure, "%w", err)
 	}
@@ -112,41 +143,43 @@ func (p pathManifests) buildPathManifest(ctx context.Context, dep manifest.LockD
 
 		slices.Sort(hooks)
 
-		p.opts.emit([]string{fmt.Sprintf(
-			"path dependency %q declares the hooks %s; the hooks of a path dependency are not run",
-			dep.Name, strings.Join(hooks, ", "))})
+		p.opts.emit([]string{fmt.Sprintf("%s %q declares the hooks %s; the hooks of a %s "+
+			"are not run", build.what, dep.Name, strings.Join(hooks, ", "), build.what)})
 	}
 
 	err = preflightBackends(man, components)
 	if err != nil {
-		return fmt.Errorf("path dependency %q: %w", dep.Name, err)
+		return fmt.Errorf("%s %q: %w", build.what, dep.Name, err)
 	}
 
 	//nolint:contextcheck // version.Derive spawns git and takes no context.
-	ver, rockVersion, err := neighbour.Version()
+	ver, _, err := neighbour.Version()
 	if err != nil {
 		return sdk.Errorf(sdk.ExitFailure, "%w", err)
 	}
 
-	if rockVersion != dep.Version {
-		return sdk.Errorf(sdk.ExitFailure,
-			"path dependency %q is at version %s, but the lock pins %s; "+
-				"run tt package resolve to bring the lock back in step",
-			dep.Name, rockVersion, dep.Version)
+	rockVersion, err := rocktree.RockVersionAt(ver.SemVer, build.revision)
+	if err != nil {
+		return sdk.Errorf(sdk.ExitFailure, "%s %q: %w", build.what, dep.Name, err)
 	}
 
-	state := pathState(p.opts.ProjectDir, dep.Name)
-	stage := filepath.Join(state, stageDirName, neighbour.Product)
-	proj := project{dir: dir, stateDir: state, man: man}
+	if rockVersion != dep.Version {
+		return sdk.Errorf(sdk.ExitFailure, "%s %q is at version %s, but the lock pins %s; %s",
+			build.what, dep.Name, rockVersion, dep.Version, build.stale)
+	}
+
+	stage := filepath.Join(build.state, stageDirName, neighbour.Product)
+	proj := project{dir: build.dir, stateDir: build.state, man: man}
 
 	_, err = buildComponents(ctx, p.opts, proj, p.adapter, stage, components, ver)
 	if err != nil {
-		return fmt.Errorf("path dependency %q: %w", dep.Name, err)
+		return fmt.Errorf("%s %q: %w", build.what, dep.Name, err)
 	}
 
 	return installStage(ctx, p.adapter.Config(), rocktree.Package{
 		Name:         dep.Name,
 		Version:      ver.SemVer,
+		Revision:     build.revision,
 		Summary:      man.Package.Description,
 		Dependencies: rocktree.PackageDependencies(man, neighbour.Product, p.pinned),
 	}, stage)

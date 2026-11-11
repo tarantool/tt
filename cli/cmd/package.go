@@ -803,7 +803,9 @@ func newPackagePackCmd() *cobra.Command {
 			"makes both from one build.\n\n" +
 			"--format rock-src packs the source rock: the same rockspec and the " +
 			"files of the project git tracks, submodules included, with a VERSION " +
-			"file of the version.\n\n" +
+			"file of the version. A project that depends on the rock builds it " +
+			"from the source rock, with its manifest, where the server has no " +
+			"rock of the platform.\n\n" +
 			"The paths of what the pack made are printed to stdout, one per line.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {

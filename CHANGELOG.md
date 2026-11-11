@@ -59,6 +59,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt package pack --format rock-src`: pack the source rock of the package,
   the same rockspec with the files git tracks, submodules included, and a
   `VERSION` file of the version, reproducibly.
+- A registry dependency whose servers have no rock of the platform, but the
+  source rock of a tt package, is built from it with its manifest, in
+  `_build/src/` of the project, and installed at the version and revision
+  the lock pins.
 - A `path` dependency on a directory holding `app.manifest.toml` is built
   from its manifest: the components of its default product, their layout and
   `version.lua`, in `_build/path/<name>/` of the project, and installed into
