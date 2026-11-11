@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/tarantool/go-luarocks/remote"
+
 	"github.com/tarantool/tt/v3/internal/scope"
 )
 
@@ -30,8 +32,12 @@ type StatusReport struct {
 	Declared string
 	Registry string
 	// Rock is the rock of this host in the registry; empty when it is not
-	// there.
+	// there, or when the registry is a rock server (FromServer).
 	Rock string
+	// FromServer is true when the registry is a rock server, which status
+	// does not look into: a URL, or a directory with a rock index. A build
+	// fetches the rock from it.
+	FromServer bool
 	// Tarawasm is the tarawasm of the project; empty when it is not there.
 	Tarawasm string
 	// Components are the components tarawasm builds.
@@ -55,8 +61,8 @@ func Status(ctx context.Context, projectDir string) (*StatusReport, error) {
 	root := filepath.Join(projectDir, scope.ProjectDirName)
 	layout := tarawasmLayout(root, "")
 	report := &StatusReport{
-		Declared: "", Registry: "", Rock: "", Tarawasm: "", Components: nil, Languages: nil,
-		Toolchains: map[string][]ToolStatus{}, Problems: nil,
+		Declared: "", Registry: "", Rock: "", FromServer: false, Tarawasm: "",
+		Components: nil, Languages: nil, Toolchains: map[string][]ToolStatus{}, Problems: nil,
 	}
 
 	report.Declared, err = DeclaredVersion(projectDir)
@@ -109,6 +115,13 @@ func Status(ctx context.Context, projectDir string) (*StatusReport, error) {
 }
 
 // statusRock finds the rock of this host for the declared release.
+//
+// A rock server is not looked into - a URL, or a directory with a rock
+// index, which may name rocks anywhere: a build fetches the rock from it and
+// checks it against the lock. A directory with rocks of its own, such as the
+// registry tt wasm prepare --from packs, must hold one of the declared
+// version, of any revision, for this host. Neither needs the release to be
+// one tt knows.
 func (r *StatusReport) statusRock(projectDir string) {
 	if r.Declared == "" {
 		r.problemf("the package declares no exact %s version: run tt wasm prepare", RockName)
@@ -116,23 +129,8 @@ func (r *StatusReport) statusRock(projectDir string) {
 		return
 	}
 
-	release, err := LookupRelease(r.Declared)
-	if err != nil {
-		r.problemf("%v", err)
-
-		return
-	}
-
-	platform, err := release.HostPlatform()
-	if err != nil {
-		r.problemf("%v", err)
-
-		return
-	}
-
 	if strings.Contains(r.Registry, "://") {
-		// A rock server: its rock is not looked for here, a build fetches it.
-		r.Rock = strings.TrimSuffix(r.Registry, "/") + "/" + release.RockFileName(platform)
+		r.FromServer = true
 
 		return
 	}
@@ -142,16 +140,24 @@ func (r *StatusReport) statusRock(projectDir string) {
 		registry = filepath.Join(projectDir, filepath.FromSlash(registry))
 	}
 
-	rock := filepath.Join(registry, release.RockFileName(platform))
-
-	_, err = os.Stat(rock)
-	if err != nil {
-		r.problemf("no %s in %s: run tt wasm prepare", release.RockFileName(platform), r.Registry)
+	_, err := os.Stat(filepath.Join(registry, remote.RocksIndexFile))
+	if err == nil {
+		r.FromServer = true
 
 		return
 	}
 
-	r.Rock = rock
+	pattern := RockName + "-" + r.Declared + "-*." + hostRockArch() + rockSuffix
+
+	rocks, err := filepath.Glob(filepath.Join(registry, pattern))
+	if err != nil || len(rocks) == 0 {
+		r.problemf("no %s in %s: run tt wasm prepare", pattern, r.Registry)
+
+		return
+	}
+
+	// Any revision shows the rock is there; the lock says which one installs.
+	r.Rock = rocks[len(rocks)-1]
 }
 
 // statusComponents checks the SDK of every component.

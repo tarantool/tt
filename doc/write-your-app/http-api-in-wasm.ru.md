@@ -35,16 +35,15 @@ $ git init
 $ tt new
 created /home/me/notes/app.manifest.toml for package notes
 $ tt wasm prepare --lang python
-...
-declared wasm 0.1.0 from .tarantool/registry
+declared wasm 0.1.0 from https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/
 ...
 prepared for tarantool-wasm 0.1.0 (linux-x86_64)
-  rock:       .tarantool/registry/wasm-0.1.0-1.linux-x86_64.rock
+  rock:       from https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/
   tarawasm:   .tarantool/bin/tarawasm
   toolchains: python
 ```
 
-`tt wasm prepare` объявляет модуль `wasm` зависимостью и устанавливает в `.tarantool/` tarawasm, который собирает компонент, а также компиляторы компонентов Python. В `app.manifest.toml` нужно повысить минимальную версию Tarantool, необходимую пакету:
+`tt wasm prepare` объявляет модуль `wasm` зависимостью с rock-сервера, который раздаёт его rock для каждой платформы, и устанавливает в `.tarantool/` tarawasm, который собирает компонент, а также компиляторы компонентов Python. В `app.manifest.toml` нужно повысить минимальную версию Tarantool, необходимую пакету:
 
 ```toml
 [platform]
@@ -277,7 +276,7 @@ return {}
 
 ```toml
 [dependencies]
-wasm = { version = "0.1.0", registry = ".tarantool/registry" }
+wasm = { version = "0.1.0", registry = "https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/" }
 
 # A WebAssembly component, made by tt wasm new and built by tarawasm.
 [components.router]
@@ -365,4 +364,4 @@ $ tt instance stop --yes
 - Сервер обрабатывает по одному подключению за раз в потоке компонента: если клиент ничего не отправляет, остальные ждут 5 секунд - таймаут подключения.
 - Доступ компонента к сети проверяется и для принимаемых подключений: `allowed_ips` должен включать адреса клиентов, а `allowed_ports` запретил бы всех клиентов, поскольку каждый подключается со своего порта. Сервер можно запустить на `127.0.0.1` и поставить перед ним proxy либо указать адреса клиентов.
 - В проект не нужно включать `.rocks/`, `.tarantool/`, `.env/` и `_build/`; `router/.gitignore` исключает файлы, создаваемые tarawasm. После checkout команда `tt wasm prepare` устанавливает tarawasm, компиляторы и SDK компонента, а `tt package build` собирает его; `tt wasm status` показывает, чего не хватает, не меняя файлы.
-- Реестр, созданный командой `tt wasm prepare`, предназначен для этой машины. Чтобы установить пакет в другом месте, нужно упаковать его вместе с зависимостями, как описано в руководстве [Первый пакет](../get-started/first-package.md#pack), либо раздавать rock всем машинам с помощью `tt wasm rock` и `tt wasm prepare --rock-server`, как описано в разделе [Запуск компонентов WebAssembly](../how-to/wasm-components.md#share-the-rock).
+- Rock-сервер раздаёт rock `wasm` всем машинам, поэтому пакет устанавливается в другом месте и упакованный вместе с зависимостями, как описано в руководстве [Первый пакет](../get-started/first-package.md#pack), и без них. Локальная сборка модуля (`tt wasm prepare --from`) упаковывается только для этой машины; см. [Запуск компонентов WebAssembly](../how-to/wasm-components.md#share-the-rock).

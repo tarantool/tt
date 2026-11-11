@@ -21,11 +21,12 @@ import platform
 import re
 import subprocess
 import tomllib
-import zipfile
 from pathlib import Path
 
 import pytest
 import yaml
+
+from utils import sha256_of, write_rock_index
 
 MANIFEST_HEAD = """manifest_version = '0.1'
 
@@ -380,9 +381,6 @@ INDEX_ARCHES = ("linux-aarch64", "linux-x86_64", "macosx-aarch64")
 # checksum the lock records next to the artifacts.
 WASM_SOURCE_MD5 = "md5:f986e42dd8d430110c06e9fb2963209b"
 
-# The file name of a rock: <name>-<version>-<revision>.<arch>.rock.
-ROCK_FILE = re.compile(r"(?P<name>.+?)-(?P<version>[^-]+-\d+)\.(?P<arch>[^.]+)\.rock")
-
 
 def host_arch() -> str:
     """The LuaRocks arch of the host, or a skip on one the index has no rock for."""
@@ -397,10 +395,6 @@ def host_arch() -> str:
     if arch is None:
         pytest.skip(f"the index has no rock for {system} {machine}")
     return arch
-
-
-def sha256_of(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def pack_wasm_rocks(tt_cmd, work: Path, versions: tuple[str, ...] = ("0.1.0",)) -> Path:
@@ -439,49 +433,6 @@ def pack_wasm_rocks(tt_cmd, work: Path, versions: tuple[str, ...] = ("0.1.0",)) 
             )
             assert result.returncode == 0, result.stderr
     return packed
-
-
-def write_rock_index(server: Path, packed: Path, yanked: tuple[str, ...] = ()) -> dict:
-    """Lay the rocks in packed out as release pages do, one directory per
-    version with its rockspec, and write the tt-rocks-index.json that names
-    them by relative URLs. Returns the sha256 of every file by version and arch,
-    the rockspec under "rockspec", as the lock is to pin them."""
-    repository: dict = {}
-    digests: dict = {}
-    for rock in sorted(packed.glob("*.rock")):
-        match = ROCK_FILE.fullmatch(rock.name)
-        name, version, arch = match["name"], match["version"], match["arch"]
-        release = Path("releases") / f"{name}-{version}"
-        (server / release).mkdir(parents=True, exist_ok=True)
-        (server / release / rock.name).write_bytes(rock.read_bytes())
-
-        entry = repository.setdefault(name, {}).setdefault(version, {"artifacts": []})
-        entry["artifacts"].append(
-            {
-                "arch": arch,
-                "sha256": sha256_of(rock),
-                "size": rock.stat().st_size,
-                "url": f"{release.as_posix()}/{rock.name}",
-            },
-        )
-        digests.setdefault(version, {})[arch] = sha256_of(rock)
-
-        spec = f"{name}-{version}.rockspec"
-        if "rockspec" not in entry:
-            with zipfile.ZipFile(rock) as archive:
-                (server / release / spec).write_bytes(archive.read(spec))
-            entry["rockspec"] = {
-                "sha256": sha256_of(server / release / spec),
-                "url": f"{release.as_posix()}/{spec}",
-            }
-            digests[version]["rockspec"] = entry["rockspec"]["sha256"]
-        if f"{name}-{version}" in yanked:
-            entry["yanked"] = True
-
-    (server / "tt-rocks-index.json").write_text(
-        json.dumps({"format": 1, "repository": repository}, indent=2, sort_keys=True),
-    )
-    return digests
 
 
 @pytest.fixture()

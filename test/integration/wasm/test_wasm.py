@@ -12,11 +12,15 @@ import http.server
 import json
 import os
 import platform
+import shutil
 import subprocess
 import threading
+import tomllib
 from pathlib import Path
 
 import pytest
+
+from utils import write_rock_index
 
 MODULE = b"\x7fELF not a module: tt packs and installs it, and nothing loads it\n"
 
@@ -140,13 +144,15 @@ def installed_module(project: Path) -> bytes:
     return (project / ".rocks" / "lib" / "tarantool" / module).read_bytes()
 
 
-def test_prepare_packs_the_rock_and_a_build_installs_it(tt_cmd, project, env):
+def test_prepare_packs_a_local_build_and_a_build_installs_it(tt_cmd, tmp_path, project, env):
     arch = host_platform()[2]
+    module = tmp_path / "libtarantool_wasm_rs.so"
+    module.write_bytes(MODULE)
 
-    result = tt(tt_cmd, project, "wasm", "prepare", "--no-tarawasm", env=env)
+    result = tt(tt_cmd, project, "wasm", "prepare", "--no-tarawasm", "--from", module, env=env)
 
     assert result.returncode == 0, result.stderr
-    assert "prepared for tarantool-wasm 0.1.0" in result.stdout
+    assert f"prepared for tarantool-wasm 0.1.0 ({arch})" in result.stdout
     assert (project / ".tarantool" / "registry" / f"wasm-0.1.0-1.{arch}.rock").is_file()
     assert (
         'wasm = { version = "0.1.0", registry = ".tarantool/registry" }'
@@ -163,27 +169,62 @@ def test_prepare_packs_the_rock_and_a_build_installs_it(tt_cmd, project, env):
 
     status = tt(tt_cmd, project, "wasm", "status", env=env)
     assert status.returncode == 0, status.stdout + status.stderr
+    assert f"rock:       .tarantool/registry/wasm-0.1.0-1.{arch}.rock" in status.stdout
     assert "ready" in status.stdout
 
 
-def test_prepare_refuses_a_tampered_asset(tt_cmd, project, env, assets):
+def test_rock_refuses_a_tampered_asset(tt_cmd, tmp_path, env, assets):
     root, url = assets
     write_release(Path(env["TT_WASM_RELEASES"]), url, root, sha256="0" * 64)
-    before = (project / "app.manifest.toml").read_text()
+    out = tmp_path / "rocks"
 
-    result = tt(tt_cmd, project, "wasm", "prepare", "--no-tarawasm", env=env)
+    result = tt(tt_cmd, tmp_path, "wasm", "rock", "--out", str(out), env=env)
 
     assert result.returncode != 0
     assert "checksum mismatch" in result.stderr
-    assert (project / "app.manifest.toml").read_text() == before
-    assert not (project / ".tarantool" / "registry").exists()
+    assert not list(out.glob("*.rock"))
 
 
-def test_prepare_refuses_an_unknown_release(tt_cmd, project, env):
-    result = tt(tt_cmd, project, "wasm", "prepare", "--no-tarawasm", "--version", "9.9.9", env=env)
+def test_prepare_from_refuses_an_unknown_release(tt_cmd, tmp_path, project, env):
+    """A local build is packed with the rockspec of a release tt knows; a rock
+    server is asked for any version (see test_prepare_declares_the_rock_of_a_rock_index)."""
+    module = tmp_path / "libtarantool_wasm_rs.so"
+    module.write_bytes(MODULE)
+    before = (project / "app.manifest.toml").read_text()
+
+    result = tt(
+        tt_cmd,
+        project,
+        "wasm",
+        "prepare",
+        "--no-tarawasm",
+        "--from",
+        module,
+        "--version",
+        "9.9.9",
+        env=env,
+    )
 
     assert result.returncode != 0
     assert "unknown release: tarantool-wasm 9.9.9; known: 0.1.0" in result.stderr
+    assert (project / "app.manifest.toml").read_text() == before
+
+
+def test_prepare_refuses_a_local_build_and_a_rock_server(tt_cmd, tmp_path, project, env):
+    result = tt(
+        tt_cmd,
+        project,
+        "wasm",
+        "prepare",
+        "--from",
+        tmp_path / "module.so",
+        "--rock-server",
+        "https://rocks.example.test/",
+        env=env,
+    )
+
+    assert result.returncode != 0
+    assert "[from rock-server] were all set" in result.stderr
 
 
 def test_status_of_an_unprepared_project_fails(tt_cmd, project, env):
@@ -252,4 +293,70 @@ def test_rocks_of_a_release_serve_every_machine(tt_cmd, tmp_path, project, env):
         assert installed_module(project) == MODULE
     finally:
         front.shutdown()
+        server.shutdown()
+
+
+def test_prepare_declares_the_rock_of_a_rock_index(tt_cmd, tmp_path, project, env):
+    """tt wasm prepare --rock-server takes a server that publishes nothing but
+    a tt-rocks-index.json, as rocks-repo does by default: nothing is packed in
+    the project, the lock pins the rock of every platform and the rockspec,
+    and a build installs the rock of the host, checked against the lock."""
+    arch = host_platform()[2]
+    packed = tmp_path / "packed"
+
+    result = tt(tt_cmd, tmp_path, "wasm", "rock", "--out", str(packed), env=env)
+    assert result.returncode == 0, result.stderr
+
+    root = tmp_path / "index"
+    digests = write_rock_index(root, packed)
+    server, url = serve(functools.partial(QuietHandler, directory=str(root)))
+    try:
+        registry = f"{url}/"
+        result = tt(
+            tt_cmd,
+            project,
+            "wasm",
+            "prepare",
+            "--no-tarawasm",
+            "--rock-server",
+            registry,
+            env=env,
+        )
+        assert result.returncode == 0, result.stderr
+        assert f"rock:       from {registry}" in result.stdout
+        assert not (project / ".tarantool" / "registry").exists()
+
+        with (project / "app.manifest.lock").open("rb") as handle:
+            lock = tomllib.load(handle)
+        entry = lock["lock"]["products"]["default"]["dependencies"][0]
+        assert entry["name"] == "wasm"
+        assert entry["version"] == "0.1.0-1"
+        assert entry["artifacts"] == {
+            rock_arch: f"sha256:{digest}" for rock_arch, digest in digests["0.1.0-1"].items()
+        }
+        assert sorted(entry["artifacts"]) == [
+            "linux-aarch64",
+            "linux-x86_64",
+            "macosx-aarch64",
+            "rockspec",
+        ]
+
+        build = tt(tt_cmd, project, "package", "build", env=env)
+        assert build.returncode == 0, build.stderr
+        assert installed_module(project) == MODULE
+
+        status = tt(tt_cmd, project, "wasm", "status", env=env)
+        assert f"rock:       from {registry}" in status.stdout
+        assert "no wasm-" not in status.stderr
+
+        # A rock the server swaps for another is not installed.
+        rock = root / "releases" / "wasm-0.1.0-1" / f"wasm-0.1.0-1.{arch}.rock"
+        rock.write_bytes(rock.read_bytes() + b"tampered")
+        shutil.rmtree(project / ".rocks")
+
+        build = tt(tt_cmd, project, "package", "build", env=env)
+        assert build.returncode != 0
+        assert "checksum mismatch" in build.stderr
+        assert f"wasm-0.1.0-1.{arch}.rock" in build.stderr
+    finally:
         server.shutdown()

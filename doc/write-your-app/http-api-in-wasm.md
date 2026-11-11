@@ -43,18 +43,18 @@ $ git init
 $ tt new
 created /home/me/notes/app.manifest.toml for package notes
 $ tt wasm prepare --lang python
-...
-declared wasm 0.1.0 from .tarantool/registry
+declared wasm 0.1.0 from https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/
 ...
 prepared for tarantool-wasm 0.1.0 (linux-x86_64)
-  rock:       .tarantool/registry/wasm-0.1.0-1.linux-x86_64.rock
+  rock:       from https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/
   tarawasm:   .tarantool/bin/tarawasm
   toolchains: python
 ```
 
-`tt wasm prepare` declares the `wasm` module as a dependency and installs
-into `.tarantool/` tarawasm, which builds the component, and the compilers
-of Python components. Raise the Tarantool the package needs in
+`tt wasm prepare` declares the `wasm` module as a dependency, from the rock
+server that serves its rock for every platform, and installs into
+`.tarantool/` tarawasm, which builds the component, and the compilers of
+Python components. Raise the Tarantool the package needs in
 `app.manifest.toml`:
 
 ```toml
@@ -305,7 +305,7 @@ component `tt wasm new` declared; add the Lua module as a component:
 
 ```toml
 [dependencies]
-wasm = { version = "0.1.0", registry = ".tarantool/registry" }
+wasm = { version = "0.1.0", registry = "https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/" }
 
 # A WebAssembly component, made by tt wasm new and built by tarawasm.
 [components.router]
@@ -410,9 +410,9 @@ the component is `tt package build` and a restart of the instance.
   checkout, `tt wasm prepare` puts back tarawasm, the compilers and the SDK
   of the component, and `tt package build` builds it; `tt wasm status` says
   what is missing, changing nothing.
-- The registry `tt wasm prepare` writes is for this machine: pack the
-  package with its dependencies, as [Your first package](../get-started/first-package.md#pack)
-  does, to install it elsewhere, or serve the rock to every machine with
-  `tt wasm rock` and `tt wasm prepare --rock-server`, as
-  [Run WebAssembly components](../how-to/wasm-components.md#share-the-rock)
-  shows.
+- The rock server serves the `wasm` rock to every machine, so the package
+  installs elsewhere packed with its dependencies, as
+  [Your first package](../get-started/first-package.md#pack) does, or
+  without them. A local build of the module (`tt wasm prepare --from`) is
+  packed for this machine alone; see
+  [Run WebAssembly components](../how-to/wasm-components.md#share-the-rock).

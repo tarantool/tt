@@ -5380,14 +5380,24 @@ EXAMPLES[0m
 === tt wasm prepare --help
 Prepare the project for tarantool-wasm.
 
-The native module of the release (Linux x86-64 or macOS arm64) is downloaded,
-checked against the sha256 tt holds the release to, and packed as a binary rock
-into .tarantool/registry. The manifest declares it as
+The manifest declares the binary rock wasm of the release, its native module,
+from the rock server --rock-server names:
 
-  wasm = { version = "<release>", registry = ".tarantool/registry" }
+  wasm = { version = "<release>", registry = "<rock server>" }
 
 and the lock is re-resolved, so the next tt package build installs it where
-require('wasm') finds it. A declaration already there is left as it is.
+require('wasm') finds it. A declaration already there is left as it is. The
+default server is the rock index of tarantool-contrib/rocks-repo,
+
+  https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/
+
+which serves the rock of every platform with its sha256, so the lock pins them
+all; another may be one tt wasm rock packs. Any version a server serves is
+taken.
+
+With --from, a local build of the module is packed as the rock of this host into
+.tarantool/registry instead, and the dependency names that directory; --from
+packs the releases tt knows: 0.1.0.
 
 tarawasm, which builds the components for now, is installed into a virtual
 environment under .tarantool (Python 3.10 or newer) and linked as
@@ -5405,12 +5415,15 @@ The SDK of each component is restored as the component's lock pins it, and must
 be of the release prepared.
 
 The registry and .tarantool are for this host and are not meant to be committed:
-after a checkout, run tt wasm prepare again. Known releases: 0.1.0.
+after a checkout, run tt wasm prepare again.
 
 [0;1;39mUSAGE[0m
   tt wasm prepare [flags]
 [0;1;39m
 FLAGS[0m
+      --from string            pack this local build of the module into
+                               .tarantool/registry and declare the rock from
+                               there
   -h, --help                   help for prepare
       --lang string            put the toolchain of a language in place too: c,
                                csharp, go, js, python, rust
@@ -5422,12 +5435,14 @@ FLAGS[0m
                                to give an ordered list (overrides TT_REGISTRIES
                                and [platform].registries)
       --reinstall              install tarawasm anew
-      --rock-server string     declare the rock from this rock server, which tt
-                               wasm rock packs for, instead of packing it into
-                               .tarantool/registry
+      --rock-server string     the rock server to declare the rock from: a URL
+                               or a directory relative to the project (default
+                               the rock index of tarantool-contrib/rocks-repo)
       --tarawasm string        what pip installs instead of the tarawasm tt pins
                                (a version, a URL, a path)
-      --version string         tarantool-wasm release (default "0.1.0")
+      --version string         tarantool-wasm release: any the rock server
+                               serves, or one tt knows with --from (default
+                               "0.1.0")
 [0;1;39m
 EXAMPLES[0m
   # Prepare the package in the current directory for Python components.
@@ -5440,6 +5455,9 @@ EXAMPLES[0m
 
   # Add the runtime only: the components are built some other way.
   $ tt wasm prepare --no-tarawasm
+
+  # A local build of the module.
+  $ tt wasm prepare --from target/release/libtarantool_wasm_rs.so
 
 === tt wasm rock --help
 Pack the wasm rock of every platform of a tarantool-wasm release into --out,

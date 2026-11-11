@@ -2,7 +2,7 @@
 
 [tarantool-wasm](https://github.com/tarantool/tarantool-wasm-rs) - модуль Tarantool, который запускает компоненты WebAssembly рядом с данными: код приложения на Python, JavaScript, Go, Rust, C или C#, вызываемый из Lua через `require('wasm')`. Компоненты собираются с помощью [tarawasm](https://github.com/mandesero/tarawasm).
 
-`tt wasm prepare` подготавливает проект для работы обоих инструментов, пока tt не научится собирать компоненты самостоятельно, а `tt wasm new` добавляет компонент в пакет. Нужны Linux x86-64 или macOS arm64, Tarantool 3.6 или новее и Python 3.10 или новее для tarawasm. Linux arm64 не поддерживается: сборки tarantool-wasm для него нет, и `tt wasm prepare` завершается там ошибкой `unsupported platform`.
+`tt wasm prepare` подготавливает проект для работы обоих инструментов, пока tt не научится собирать компоненты самостоятельно, а `tt wasm new` добавляет компонент в пакет. Нужны Linux x86-64 или macOS arm64, Tarantool 3.6 или новее и Python 3.10 или новее для tarawasm. Linux arm64 не поддерживается: сборки tarantool-wasm для него нет, поэтому ни на одном rock-сервере нет rock `wasm` для установки там, если не упаковать локальную сборку (`tt wasm rock --from`).
 
 На этой странице компонент Python `add(a, b)` собирается в пакет `myapp`. [HTTP API в компоненте WebAssembly](../write-your-app/http-api-in-wasm.md) - целое приложение: HTTP-сервер в компоненте, который записывает данные в space.
 
@@ -12,9 +12,7 @@
 
 ```console
 $ tt wasm prepare --lang python
-fetching tarantool-wasm-0.1.0-linux-x86_64.so
-packed wasm-0.1.0-1.linux-x86_64.rock into .tarantool/registry
-declared wasm 0.1.0 from .tarantool/registry
+declared wasm 0.1.0 from https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/
 installing tarawasm
 ...
 checking the python toolchain
@@ -25,26 +23,27 @@ python toolchain:
   componentize-py  0.25.1             0.25.1     ok         .../.tarantool/bin/componentize-py (installed by tt)
 ...
 prepared for tarantool-wasm 0.1.0 (linux-x86_64)
-  rock:       .tarantool/registry/wasm-0.1.0-1.linux-x86_64.rock
+  rock:       from https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/
   tarawasm:   .tarantool/bin/tarawasm
   toolchains: python
 ```
 
 Вывод pip и tarawasm появляется между этими строками, вместо `...`. Команда:
 
-- скачала нативный модуль релиза для этого хоста, проверила его по известному tt sha256 и упаковала в rock в `.tarantool/registry` - rock-сервер внутри проекта;
-- объявила rock в манифесте и пересобрала lock:
+- объявила в манифесте rock `wasm` - нативный модуль релиза - и пересобрала lock:
 
     ```toml
     [dependencies]
-    wasm = { version = "0.1.0", registry = ".tarantool/registry" }
+    wasm = { version = "0.1.0", registry = "https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/" }
     ```
+
+  Сервер - [индекс rock-модулей](../concepts/rock-servers.md#a-rock-index) tarantool-contrib/rocks-repo, где лежит rock для каждой платформы с его sha256, поэтому lock фиксирует их все, а следующий `tt package build` устанавливает rock этой машины, проверив его по lock;
 
 - установила tarawasm в виртуальное окружение в `.tarantool/versions/` и создала ссылку `.tarantool/bin/tarawasm`;
 - установила инструменты Python, см. ниже;
 - записала `.env/activate.sh`, который добавляет `.tarantool/bin` в `PATH` оболочки.
 
-`.tarantool` относится к этой машине и не попадает в коммит. После checkout, на другой машине или в CI команда `tt wasm prepare` восстанавливает всё: rock, tarawasm, набор инструментов каждого компонента и SDK, зафиксированный каждым компонентом.
+`.tarantool` относится к этой машине и не попадает в коммит. После checkout, на другой машине или в CI команда `tt wasm prepare` восстанавливает всё: tarawasm, набор инструментов каждого компонента и SDK, зафиксированный каждым компонентом.
 
 ## Наборы инструментов {#the-toolchains}
 
@@ -187,8 +186,8 @@ $ tt run -e "local wasm = require('wasm') \
 
 ```console
 $ tt wasm status
-wasm:       0.1.0 from .tarantool/registry
-rock:       .tarantool/registry/wasm-0.1.0-1.linux-x86_64.rock
+wasm:       0.1.0 from https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/
+rock:       from https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/
 tarawasm:   .tarantool/bin/tarawasm
 component:  calc (python, SDK 0.1.0) in calc
 python toolchain:
@@ -207,11 +206,11 @@ $ tt package install _build/pack/myapp-1.0.0-linux-amd64.tt --scope user --yes
 installed myapp 1.0.0 into user scope
 ```
 
-Архив без зависимостей, созданный с `--without-deps`, получает имя `-any.tt`, если у пакета нет собственных нативных файлов. Однако при установке он загружает rock `wasm` из `.tarantool/registry`, доступного только на машине, где архив был собран; rock-сервер ниже делает его доступным везде.
+Архив без зависимостей, созданный с `--without-deps`, получает имя `-any.tt`, если у пакета нет собственных нативных файлов: при установке он загружает с rock-сервера rock `wasm` той машины, на которую устанавливается, проверяя его по lock архива.
 
 ## Публикация rock {#share-the-rock}
 
-В `.tarantool/registry` хранится rock для одной машины. `tt wasm rock` упаковывает rocks всех сборок релиза вместе с индексом, который превращает каталог в rock-сервер:
+Индекс tarantool-contrib/rocks-repo раздаёт rock для каждой платформы. Так же может и собственный rock-сервер: `tt wasm rock` упаковывает rocks всех сборок релиза вместе с индексом, который превращает каталог в rock-сервер:
 
 ```console
 $ tt wasm rock --out dist/rocks
@@ -228,7 +227,17 @@ $ tt wasm prepare --rock-server https://github.com/tarantool/tarantool-wasm-rs/r
   rock:       from https://github.com/tarantool/tarantool-wasm-rs/releases/download/v0.1.0/
 ```
 
-Каждая машина получает с сервера свой rock, архив с `--without-deps` устанавливается где угодно, а в проект ничего не упаковывается.
+Объявляется любая версия, которую раздаёт сервер, известен tt этот релиз или нет. Локальная сборка модуля упаковывается только для этой машины - в `.tarantool/registry`, rock-сервер внутри проекта, - и объявляется оттуда:
+
+```console
+$ tt wasm prepare --from target/release/libtarantool_wasm_rs.so
+reading the build in target/release/libtarantool_wasm_rs.so
+packed wasm-0.1.0-1.linux-x86_64.rock into .tarantool/registry
+declared wasm 0.1.0 from .tarantool/registry
+...
+```
+
+Этот реестр есть только на этой машине: после checkout нужно снова запустить `tt wasm prepare --from`, а для установки в другом месте - упаковать пакет вместе с зависимостями.
 
 ## Команды и параметры {#commands-and-options}
 
@@ -239,8 +248,9 @@ $ tt wasm prepare --rock-server https://github.com/tarantool/tarantool-wasm-rs/r
 | `tt wasm status` | недостающие для сборки элементы, без изменений; ошибка при отсутствии любого из них |
 | `tt wasm rock --out DIR` | rocks всех платформ релиза для rock-сервера |
 
-- `--version` команд `prepare` и `rock` выбирает релиз tarantool-wasm; список известных tt релизов выводит `tt wasm prepare --help`.
-- `--rock-server URL` команды `prepare` объявляет rock с rock-сервера вместо его упаковки в `.tarantool/registry`.
+- `--version` команд `prepare` и `rock` выбирает релиз tarantool-wasm: для `prepare` - любой, который раздаёт rock-сервер, для `prepare --from` и `rock` - известный tt; их список выводит `tt wasm prepare --help`.
+- `--rock-server URL` команды `prepare` объявляет rock с этого rock-сервера, по умолчанию - с индекса tarantool-contrib/rocks-repo.
+- `--from FILE` команды `prepare` упаковывает локальную сборку модуля в `.tarantool/registry` и объявляет rock оттуда; команды `rock` - упаковывает её в `--out` как rock для `--arch`.
 - `--python` команды `prepare` задаёт Python для установки tarawasm, `--tarawasm` - версию tarawasm для установки через pip вместо закреплённой tt, `--no-tarawasm` исключает его установку, `--reinstall` устанавливает заново.
 - `--lang` команды `prepare` также устанавливает набор инструментов `python`, `go`, `js`, `rust`, `c` или `csharp`; для `new` параметр обязателен.
 - `--dir` команды `new` задаёт каталог компонента, `--world` - имя его WIT world (по умолчанию имя компонента), а `--template` - `http` или `call` для Python.

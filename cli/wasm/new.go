@@ -121,7 +121,7 @@ func NewComponent(ctx context.Context, opts NewOptions) (*NewReport, error) {
 
 	prepare := Options{
 		ProjectDir: opts.ProjectDir, Version: version, Fetcher: opts.Fetcher,
-		Tarawasm: opts.Tarawasm, SkipTarawasm: false, Language: opts.Language,
+		Tarawasm: opts.Tarawasm, SkipTarawasm: false, Language: opts.Language, From: "",
 		RockServer: "", Declare: nil, PrepareEnv: nil, Progress: opts.Progress,
 	}
 

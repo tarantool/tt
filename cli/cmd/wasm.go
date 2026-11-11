@@ -16,7 +16,8 @@ import (
 )
 
 var (
-	// wasmVersion is the tarantool-wasm release tt wasm prepare packs.
+	// wasmVersion is the tarantool-wasm release tt wasm prepare declares and
+	// tt wasm rock packs.
 	wasmVersion string
 	// wasmPython is the interpreter tarawasm is installed with.
 	wasmPython string
@@ -37,8 +38,8 @@ var (
 	// from; wasmOut is the directory tt wasm rock packs into.
 	wasmRockServer string
 	wasmOut        string
-	// wasmFrom is a local build of the module tt wasm rock packs, as the rock
-	// of wasmArch.
+	// wasmFrom is a local build of the module tt wasm prepare packs as the
+	// rock of this host, and tt wasm rock as the rock of wasmArch.
 	wasmFrom string
 	wasmArch string
 )
@@ -77,14 +78,21 @@ func newWasmPrepareCmd() *cobra.Command {
 		Use:   "prepare",
 		Short: "Add the wasm runtime, tarawasm and the toolchains to the project",
 		Long: "Prepare the project for tarantool-wasm.\n\n" +
-			"The native module of the release (Linux x86-64 or macOS arm64) is " +
-			"downloaded, checked against the sha256 tt holds the release to, and " +
-			"packed as a binary rock into " + wasm.RegistryDir + ". The manifest " +
-			"declares it as\n\n" +
-			"  wasm = { version = \"<release>\", registry = \"" + wasm.RegistryDir + "\" }\n\n" +
+			"The manifest declares the binary rock wasm of the release, its native " +
+			"module, from the rock server --rock-server names:\n\n" +
+			"  wasm = { version = \"<release>\", registry = \"<rock server>\" }\n\n" +
 			"and the lock is re-resolved, so the next tt package build installs it " +
 			"where require('wasm') finds it. A declaration already there is left as " +
-			"it is.\n\n" +
+			"it is. The default server is the rock index of " +
+			"tarantool-contrib/rocks-repo,\n\n" +
+			"  " + wasm.DefaultRockServer + "\n\n" +
+			"which serves the rock of every platform with its sha256, so the lock " +
+			"pins them all; another may be one tt wasm rock packs. Any version a " +
+			"server serves is taken.\n\n" +
+			"With --from, a local build of the module is packed as the rock of this " +
+			"host into " + wasm.RegistryDir + " instead, and the dependency names " +
+			"that directory; --from packs the releases tt knows: " +
+			strings.Join(wasm.Versions(), ", ") + ".\n\n" +
 			"tarawasm, which builds the components for now, is installed into a " +
 			"virtual environment under .tarantool (Python 3.10 or newer) and linked " +
 			"as .tarantool/bin/tarawasm. Component builds find programs there by " +
@@ -93,8 +101,7 @@ func newWasmPrepareCmd() *cobra.Command {
 			"The SDK of each component is restored as the component's lock pins it, " +
 			"and must be of the release prepared.\n\n" +
 			"The registry and .tarantool are for this host and are not meant to be " +
-			"committed: after a checkout, run tt wasm prepare again. Known releases: " +
-			strings.Join(wasm.Versions(), ", ") + ".",
+			"committed: after a checkout, run tt wasm prepare again.",
 		Example: `# Prepare the package in the current directory for Python components.
   $ tt wasm prepare --lang python
   $ tt wasm new router --lang python
@@ -104,7 +111,10 @@ func newWasmPrepareCmd() *cobra.Command {
   $ tt wasm prepare
 
   # Add the runtime only: the components are built some other way.
-  $ tt wasm prepare --no-tarawasm`,
+  $ tt wasm prepare --no-tarawasm
+
+  # A local build of the module.
+  $ tt wasm prepare --from target/release/libtarantool_wasm_rs.so`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return commandError(cmd, runWasmPrepare())
@@ -112,7 +122,8 @@ func newWasmPrepareCmd() *cobra.Command {
 	}
 
 	flags := prepareCmd.Flags()
-	flags.StringVar(&wasmVersion, "version", wasm.DefaultVersion, "tarantool-wasm release")
+	flags.StringVar(&wasmVersion, "version", wasm.DefaultVersion,
+		"tarantool-wasm release: any the rock server serves, or one tt knows with --from")
 	flags.StringVar(&wasmPython, "python", "python3", "Python to install tarawasm with")
 	flags.StringVar(&wasmTarawasm, "tarawasm", "",
 		"what pip installs instead of the tarawasm tt pins (a version, a URL, a path)")
@@ -120,9 +131,14 @@ func newWasmPrepareCmd() *cobra.Command {
 	flags.BoolVar(&wasmReinstall, "reinstall", false, "install tarawasm anew")
 	flags.StringVar(&wasmLanguage, "lang", "",
 		"put the toolchain of a language in place too: "+strings.Join(wasm.Languages(), ", "))
+	flags.StringVar(&wasmFrom, "from", "",
+		"pack this local build of the module into "+wasm.RegistryDir+
+			" and declare the rock from there")
 	flags.StringVar(&wasmRockServer, "rock-server", "",
-		"declare the rock from this rock server, which tt wasm rock packs for, "+
-			"instead of packing it into "+wasm.RegistryDir)
+		"the rock server to declare the rock from: a URL or a directory relative "+
+			"to the project (default the rock index of tarantool-contrib/rocks-repo)")
+
+	prepareCmd.MarkFlagsMutuallyExclusive("from", "rock-server")
 
 	addRegistryFlag(prepareCmd)
 
@@ -229,7 +245,13 @@ func runWasmStatus() error {
 
 	_, _ = fmt.Fprintf(os.Stdout, "wasm:       %s from %s\n", orMissing(report.Declared),
 		orMissing(report.Registry))
-	_, _ = fmt.Fprintf(os.Stdout, "rock:       %s\n", orMissing(rel(report.Rock)))
+
+	if report.FromServer {
+		_, _ = fmt.Fprintf(os.Stdout, "rock:       from %s\n", report.Registry)
+	} else {
+		_, _ = fmt.Fprintf(os.Stdout, "rock:       %s\n", orMissing(rel(report.Rock)))
+	}
+
 	_, _ = fmt.Fprintf(os.Stdout, "tarawasm:   %s\n", orMissing(rel(report.Tarawasm)))
 
 	for _, component := range report.Components {
@@ -347,6 +369,7 @@ func runWasmPrepare() error {
 		Tarawasm:     wasmTarawasmRunner(),
 		SkipTarawasm: wasmNoTarawasm,
 		Language:     wasmLanguage,
+		From:         wasmFrom,
 		RockServer:   wasmRockServer,
 		Declare: func(ctx context.Context, name, constraint, registry string) (bool, error) {
 			result, err := deps.AddFromRegistry(ctx, opts, name, constraint, registry, false)

@@ -16,11 +16,19 @@ import (
 const (
 	// manifestFileName marks a tt project.
 	manifestFileName = "app.manifest.toml"
-	// RegistryDir is the rock server prepare writes the wasm rock to, relative
-	// to the project: under .tarantool, which belongs to the machine rather
-	// than the repository, since the rock is the build for this host. The
-	// dependency names it so, and tt resolves it against the project.
+	// RegistryDir is the rock server prepare writes the wasm rock of a local
+	// build to, relative to the project: under .tarantool, which belongs to
+	// the machine rather than the repository, since the rock is the build for
+	// this host. The dependency names it so, and tt resolves it against the
+	// project.
 	RegistryDir = scope.ProjectDirName + "/registry"
+	// DefaultRockServer is the rock server prepare declares the wasm rock
+	// from unless it is told another or packs a local build: the
+	// tt-rocks-index.json of the index branch of tarantool-contrib/rocks-repo,
+	// which names the rocks of every platform on the release pages of the
+	// repository with their sha256, so the lock pins them all. tt emmylua
+	// prepare declares its rock from the same index.
+	DefaultRockServer = "https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/"
 )
 
 // Options configure Prepare.
@@ -29,16 +37,23 @@ type Options struct {
 	ProjectDir string
 	// Version is the tarantool-wasm release; empty is DefaultVersion.
 	Version string
-	// Fetcher downloads the release assets.
+	// Fetcher downloads the tools of the toolchains.
 	Fetcher Fetcher
 	// Tarawasm installs tarawasm; SkipTarawasm leaves it out.
 	Tarawasm     Tarawasm
 	SkipTarawasm bool
 	// Language, when set, has tarawasm set up the toolchain of that language.
 	Language string
-	// RockServer, when set, is a rock server that serves the rocks of the
-	// release, which tt wasm rock packs: the dependency is declared from it,
-	// and nothing is packed in the project.
+	// From, when set, is a local build of the native module of the release
+	// for this host, packed into the project's registry (RegistryDir), and
+	// the dependency is declared from there. The release must be one tt
+	// knows (LookupRelease): the rockspec is written from it.
+	From string
+	// RockServer is the rock server the dependency is declared from when
+	// From is not set, which serves the rocks of the release: one with a
+	// tt-rocks-index.json or one tt wasm rock packs. Nothing is packed in the
+	// project, and any version is taken: the server, not tt, knows which it
+	// serves. Empty is DefaultRockServer.
 	RockServer string
 	// Declare declares the dependency rock on the registry and re-resolves the
 	// lock. It reports whether the manifest already declared it, in which case
@@ -52,7 +67,10 @@ type Options struct {
 
 // Report is what Prepare did.
 type Report struct {
-	// Release and Platform are what the project was prepared with.
+	// Release and Platform are what the project was prepared with: for a
+	// local build, the release tt knows and the platform it was packed as;
+	// for a rock server, only the version of the release and the LuaRocks
+	// arch of this host.
 	Release  Release
 	Platform Platform
 	// Rock is the path of the rock in the project's registry; empty when the
@@ -74,12 +92,14 @@ type Report struct {
 
 // Prepare prepares the project for tarantool-wasm:
 //
-//  1. downloads the host's native module of the release, checked against
-//     the sha256 tt holds it to, and packs it as a binary rock into the
-//     project's registry (RegistryDir), indexing the registry;
-//  2. declares wasm = { version = <release>, registry = RegistryDir } and
+//  1. with From, packs the local build of the native module as the binary
+//     rock of the release for this host into the project's registry
+//     (RegistryDir), indexing the registry;
+//  2. declares wasm = { version = <release>, registry = <server> } and
 //     re-resolves the lock, so the next tt package build installs it into
-//     .rocks/lib/tarantool, where require('wasm') finds it;
+//     .rocks/lib/tarantool, where require('wasm') finds it: the server is
+//     RegistryDir after step 1, and RockServer - DefaultRockServer, unless
+//     told otherwise - without From;
 //  3. installs tarawasm into .tarantool and links it as .tarantool/bin/tarawasm,
 //     which component builds find by name;
 //  4. checks that the components tarawasm builds use the SDK of the release;
@@ -102,17 +122,7 @@ func Prepare(ctx context.Context, opts Options) (*Report, error) {
 		return nil, fmt.Errorf("reading the project: %w", err)
 	}
 
-	version := opts.Version
-	if version == "" {
-		version = DefaultVersion
-	}
-
-	release, err := LookupRelease(version)
-	if err != nil {
-		return nil, err
-	}
-
-	platform, err := release.HostPlatform()
+	release, platform, err := preparedRelease(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +131,7 @@ func Prepare(ctx context.Context, opts Options) (*Report, error) {
 		Release:           release,
 		Platform:          platform,
 		Rock:              "",
-		Registry:          RegistryDir,
+		Registry:          opts.RockServer,
 		Declared:          false,
 		Tarawasm:          nil,
 		TarawasmInstalled: false,
@@ -156,42 +166,58 @@ func Prepare(ctx context.Context, opts Options) (*Report, error) {
 	return report, nil
 }
 
+// preparedRelease returns the release and the platform Prepare prepares the
+// project for. A local build is packed from the release tt knows, as the rock
+// of this host; a rock server knows its own releases, so any version is
+// taken, and the arch of this host is all there is to say of the platform.
+func preparedRelease(opts Options) (Release, Platform, error) {
+	version := opts.Version
+	if version == "" {
+		version = DefaultVersion
+	}
+
+	if opts.From == "" {
+		release := Release{
+			Version: version, RockRevision: 0, SDKAsset: "", SDKMD5: "", Platforms: nil,
+			BaseURL: "",
+		}
+		platform := Platform{
+			GOOS: "", GOARCH: "", Asset: "", SHA256: "", RockArch: hostRockArch(), Module: "",
+		}
+
+		return release, platform, nil
+	}
+
+	release, err := LookupRelease(version)
+	if err != nil {
+		return Release{}, Platform{}, err
+	}
+
+	platform, err := LocalPlatform("")
+	if err != nil {
+		return Release{}, Platform{}, err
+	}
+
+	return release, platform, nil
+}
+
 // prepareRock does steps 1 and 2 of Prepare.
 func prepareRock(ctx context.Context, opts Options, report *Report) error {
-	release, platform := report.Release, report.Platform
-
-	if opts.RockServer != "" {
-		report.Registry = opts.RockServer
-	} else {
-		progressf(opts, "fetching %s", platform.Asset)
-
-		module, err := opts.Fetcher.Fetch(ctx, release, platform.Asset, platform.SHA256)
+	switch {
+	case opts.From != "":
+		err := packLocalBuild(ctx, opts, report)
 		if err != nil {
 			return err
 		}
-
-		registry := filepath.Join(opts.ProjectDir, filepath.FromSlash(RegistryDir))
-
-		rock, err := BuildRock(registry, release, platform, module)
-		if err != nil {
-			return err
-		}
-
-		err = IndexRegistry(ctx, registry)
-		if err != nil {
-			return err
-		}
-
-		report.Rock = rock
-
-		progressf(opts, "packed %s into %s", filepath.Base(rock), RegistryDir)
+	case report.Registry == "":
+		report.Registry = DefaultRockServer
 	}
 
 	if opts.Declare == nil {
 		return nil
 	}
 
-	existed, err := opts.Declare(ctx, RockName, release.Version, report.Registry)
+	existed, err := opts.Declare(ctx, RockName, report.Release.Version, report.Registry)
 	if err != nil {
 		return fmt.Errorf("declaring the %s dependency: %w", RockName, err)
 	}
@@ -201,8 +227,40 @@ func prepareRock(ctx context.Context, opts Options, report *Report) error {
 	if existed {
 		progressf(opts, "%s is already declared in %s; left as it is", RockName, manifestFileName)
 	} else {
-		progressf(opts, "declared %s %s from %s", RockName, release.Version, report.Registry)
+		progressf(opts, "declared %s %s from %s", RockName, report.Release.Version,
+			report.Registry)
 	}
+
+	return nil
+}
+
+// packLocalBuild does step 1 of Prepare: it packs the module opts.From names
+// as the rock of the release and the platform of report into the project's
+// registry, indexes it, and has report declare the rock from there.
+func packLocalBuild(ctx context.Context, opts Options, report *Report) error {
+	progressf(opts, "reading the build in %s", opts.From)
+
+	module, err := os.ReadFile(opts.From)
+	if err != nil {
+		return fmt.Errorf("reading the build: %w", err)
+	}
+
+	registry := filepath.Join(opts.ProjectDir, filepath.FromSlash(RegistryDir))
+
+	rock, err := BuildRock(registry, report.Release, report.Platform, module)
+	if err != nil {
+		return err
+	}
+
+	err = IndexRegistry(ctx, registry)
+	if err != nil {
+		return err
+	}
+
+	report.Rock = rock
+	report.Registry = RegistryDir
+
+	progressf(opts, "packed %s into %s", filepath.Base(rock), RegistryDir)
 
 	return nil
 }
