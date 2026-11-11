@@ -128,6 +128,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `--severity`, `tt emmylua doc` `-o/--output` and `-f/--output-format`, and
   `tt emmylua fmt` `--check` and `--write` before `--`, where they were
   unknown flags; the other flags of the programs still go after `--`.
+- `tt emmylua` says less, and in order: `prepare` prints how the lock moved
+  under its line on the declaration, not above it; the warning on a
+  Tarantool without EmmyLua stubs names its version, the path where they
+  were looked for only with `-V`; and `tt emmylua ls` started in a terminal
+  says on stderr that it waits for an editor, and how to make one run it.
 - `tt wasm prepare` declares the `wasm` rock from the rock index of
   tarantool-contrib/rocks-repo
   (`https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/`,
