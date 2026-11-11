@@ -133,6 +133,32 @@ func TestRunE2E_compilesNativeComponent(t *testing.T) {
 	assert.FileExists(t, filepath.Join(tree, "share/tarantool/my-app/version.lua"))
 }
 
+// TestRunE2E_staticLuaCModule builds fast_hash with static = true: the cc
+// driver links it against nothing but the C library, so the check passes,
+// and the Tarantool it is built for loads it.
+func TestRunE2E_staticLuaCModule(t *testing.T) {
+	info := tarantoolInfoForTest(t)
+
+	dir := setupProject(t, strings.Replace(e2eManifest, "sources = ['fast_hash.c']",
+		"sources = ['fast_hash.c']\nstatic = true", 1), map[string]string{
+		"init.lua":           "-- init",
+		"native/fast_hash.c": fastHashC,
+		"check.lua": "package.cpath = arg[1] .. '/?.so;' .. arg[1] .. '/?.dylib;' .. " +
+			"package.cpath\nprint(require('fast_hash')())\nos.exit(0)\n",
+	})
+
+	opts := dryOptions(dir)
+
+	opts.Tarantool = info
+	require.NoError(t, Run(context.Background(), opts))
+
+	lib := filepath.Join(dir, ".rocks", "lib", "tarantool", "my-app")
+	printed, err := exec.CommandContext(t.Context(), info.Executable,
+		filepath.Join(dir, "check.lua"), lib).CombinedOutput()
+	require.NoError(t, err, string(printed))
+	assert.Equal(t, "42", strings.TrimSpace(string(printed)))
+}
+
 // e2eCMakeManifest is my-app with fast_hash built by cmake.
 const e2eCMakeManifest = `manifest_version = '0.1'
 

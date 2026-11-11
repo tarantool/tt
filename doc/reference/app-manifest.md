@@ -173,7 +173,7 @@ components tarawasm builds; see
 | `module` | `cargo` | the name of the module a module component builds: the name of the library by default |
 | `platforms.<os>` | `c`, `lua-c` | more `include_dirs`, `libraries`, `library_dirs`, `defines` for one OS |
 | `package` | `go`, `cargo` | the Go package, `.` by default, or the cargo package |
-| `static` | `go`, `cargo` | a program that needs no loader and no shared library; for an executable component |
+| `static` | all | `true`: what the build makes needs nothing of the machine it is installed on, and the build checks it; see below |
 | `name`, `tags`, `ldflags`, `cgo` | `go` | `name` is the component's name by default; cgo is off by default |
 | `bin`, `features`, `profile` | `cargo` | `bin`, of an executable component, is the component's name by default; `profile` is `release` by default |
 | `variables`, `targets`, `build_type` | `cmake` | `-D<name>=<value>` of the configuration, the targets to build, all by default, and `CMAKE_BUILD_TYPE`, `RelWithDebInfo` by default; `output` is required |
@@ -227,6 +227,29 @@ output = ["memcached/internal.so"]
 of the package of a module component: a `cdylib`, which is the native
 module `<module>.so`, `<module>.dylib` on macOS. `target/` of a component
 cargo builds is not laid out. See [Build a module in Rust](../how-to/rust-modules.md).
+
+`static = true` asks what the build makes to need nothing of the machine
+the package is installed on, and the build checks that it does: a file that
+needs more fails the build, with exit code 2, naming the file and what it
+needs.
+
+- A program of an executable component needs no loader and no shared
+  library. `go` and `cargo` are asked to build one so, for Linux only;
+  what `cmake`, `make` and `shell` build is only checked.
+- A module needs no shared library but those of the C library, which
+  Tarantool, loading it, has loaded itself: on Linux `libc.so.6`,
+  `libm.so.6`, `libdl.so.2`, `libpthread.so.0`, `librt.so.1`, the loader,
+  `ld-linux-*` or, of musl, `ld-musl-*` and `libc.musl-*`, and
+  `libgcc_s.so.1`, the GCC runtime every build of Tarantool needs; on macOS
+  `/usr/lib/libSystem.B.dylib`, and every slice of a universal file. Its
+  native files are those the build writes into `TT_OUTPUT_DIR` and those of
+  the component the layout takes. The backend is asked for nothing: a
+  library a module needs, such as `libsasl2.so.2`, is linked in statically,
+  from its `.a`, or loaded at run time with `dlopen`. A C++ module links
+  `libstdc++` in with `-static-libstdc++`; on macOS it needs `libc++`,
+  which is not one of them. A module that needs a newer glibc than the
+  Tarantool it is built for builds with a warning: it does not load where
+  that Tarantool runs on an older glibc.
 
 The inputs of an `incremental` build are its build block and the files of
 the component but the hidden ones, `_build/`, `_runtime/` and what the

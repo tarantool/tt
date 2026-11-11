@@ -12,8 +12,9 @@ var (
 	// ErrNoTool reports that the program a backend runs, go, cargo or cmake,
 	// is not in PATH.
 	ErrNoTool = errors.New("build tool not found")
-	// ErrStaticDarwin reports a static build for darwin: macOS has no static
-	// libSystem to link against, so a static program cannot be made there.
+	// ErrStaticDarwin reports a static go or cargo program for darwin: macOS
+	// has no static libSystem to link against, so a static program cannot be
+	// made there.
 	ErrStaticDarwin = errors.New("a static program cannot be built for darwin")
 	// errUnquotableFlag reports a linker flag go build cannot be given.
 	errUnquotableFlag = errors.New(
@@ -30,11 +31,15 @@ var (
 const darwinOS = "darwin"
 
 // Preflight checks what a go, cargo or cmake build needs before it runs: a
-// static program is not asked for darwin, the tool is in PATH and, for
-// cargo, the platform has a target. The build orchestration calls it for
-// every component it is about to build before it builds any, so that a
-// missing tool fails the build before the first long compile rather than
+// static go or cargo program is not asked for darwin, the tool is in PATH
+// and, for cargo, the platform has a target. The build orchestration calls
+// it for every component it is about to build before it builds any, so that
+// a missing tool fails the build before the first long compile rather than
 // after it; the backends call it again. Any other backend passes.
+//
+// A static program of cmake, as one of make or shell, and a static module
+// are built as their build has it, and checked afterwards: on macOS one that
+// needs libSystem alone passes.
 func Preflight(build manifest.Build, env Env) error {
 	var tool string
 
@@ -49,7 +54,8 @@ func Preflight(build manifest.Build, env Env) error {
 		return nil
 	}
 
-	if build.StaticValue() && env.platformOS() == darwinOS {
+	staticProgram := build.StaticValue() && !env.Module && build.Backend != BackendCMake
+	if staticProgram && env.platformOS() == darwinOS {
 		return fmt.Errorf("%w: static = true needs a linux build", ErrStaticDarwin)
 	}
 

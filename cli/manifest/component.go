@@ -78,8 +78,13 @@ type Build struct {
 	// go and cargo backends. Package is the Go package to build (default
 	// ".") or the cargo package that holds the binary.
 	Package string `toml:"package,omitempty"`
-	// Static asks for a program that needs no loader and no shared library
-	// of the machine it runs on; the build checks that it got one.
+	// Static, of the build of any component, asks for what the build makes
+	// to need nothing of the machine it is installed on, and the build checks
+	// that it does. A program, of an executable component, needs no loader
+	// and no shared library: go and cargo are asked to build one so, and what
+	// cmake, make or shell built is only checked. A module needs no shared
+	// library but those of the C library and the loader, which Tarantool,
+	// which loads it, has loaded itself; its backend is asked for nothing.
 	Static *bool `toml:"static,omitempty"`
 
 	// go backend.
@@ -115,7 +120,8 @@ func (b Build) IncrementalValue() bool {
 	return b.Incremental != nil && *b.Incremental
 }
 
-// StaticValue reports whether the build asks for a static program.
+// StaticValue reports whether the build asks for a static program or module
+// (Static).
 func (b Build) StaticValue() bool {
 	return b.Static != nil && *b.Static
 }

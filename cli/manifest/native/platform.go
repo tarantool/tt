@@ -5,8 +5,9 @@
 // tt package pack labels an archive with the platform its native files pin it
 // to, and tt package build checks that what a component built into
 // .rocks/bin/ is a program of the platform it built for, static when the
-// manifest asks for that. Both read a file the same way, so the detector
-// lives here rather than in either of them.
+// manifest asks for that, and that a module asked to be static needs no
+// library Tarantool may not have. They read a file the same way, so the
+// detector lives here rather than in any of them.
 package native
 
 import (
