@@ -16,6 +16,8 @@ import (
 
 	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/go-luarocks/remote"
+
+	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
 // indexRockspec is the rockspec of stat-<version> an index server publishes
@@ -158,6 +160,29 @@ func TestResolveFromARocksIndex(t *testing.T) {
 	assert.Equal(t, 1, server.hitsOf("/releases/stat-0.3.2-1/stat-0.3.2-1.rockspec"))
 	assert.Zero(t, server.hitsOf("/releases/stat-0.3.2-1/stat-0.3.2-1.all.rock"),
 		"resolving must not download the rock")
+}
+
+// TestResolvePassesOverAYankedVersion checks that a fresh resolve does not
+// choose a version the index yanked, that one pinned with == still resolves,
+// and that a resolve only yanked versions would answer says so.
+func TestResolvePassesOverAYankedVersion(t *testing.T) {
+	t.Parallel()
+
+	server := newIndexServer(t, []string{"0.3.1-1", "0.3.2-1"}, []string{"0.3.2-1"}, "")
+	adapter := newAdapter(server.URL + "/")
+
+	resolved, err := adapter.Resolve(context.Background(), "stat", ">=0.3.1", "")
+	require.NoError(t, err)
+	assert.Equal(t, "0.3.1-1", resolved.Version.Raw)
+
+	// A lock's pin: the walker adds ==<version> to the declared constraint.
+	resolved, err = adapter.Resolve(context.Background(), "stat", ">=0.3.1,==0.3.2-1", "")
+	require.NoError(t, err)
+	assert.Equal(t, "0.3.2-1", resolved.Version.Raw)
+
+	_, err = adapter.Resolve(context.Background(), "stat", ">=0.3.2", "")
+	require.ErrorIs(t, err, rocks.ErrNoMatch)
+	assert.Contains(t, err.Error(), "yanked; pin one with ==")
 }
 
 // TestMetadataRefusesATamperedRockspec checks that a rockspec which is not the

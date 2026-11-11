@@ -73,6 +73,12 @@ its last segment is the name of the file: `<name>-<version>.<arch>.rock` or
 `<name>-<version>.rockspec`. A field tt does not know is ignored; an index of
 a newer `format` is an error that asks to upgrade tt.
 
+A version may be withdrawn with `"yanked": true`. Resolving afresh passes it
+over - `tt package add`, `tt package update`, a first build - while a lock
+that pins it keeps resolving to it and installs it: holding the versions a
+lock has is what every command but `tt package update` does. A constraint
+only a yanked version satisfies fails with a note to pin it with `==`.
+
 tt reads the index before any manifest, from an HTTP server and from a
 directory alike. When it is there, it is the whole catalogue of the server;
 when it is there and does not read, the server is in error rather than read

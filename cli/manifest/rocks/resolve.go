@@ -82,7 +82,8 @@ func resolveWith(
 
 	best, ok := pickNewest(candidates, constraints)
 	if !ok {
-		return ResolvedRock{}, fmt.Errorf("%q %q: %w", name, constraintExpr, ErrNoMatch)
+		return ResolvedRock{}, fmt.Errorf("%q %q: %w%s", name, constraintExpr, ErrNoMatch,
+			yankedNote(candidates, constraints))
 	}
 
 	return ResolvedRock{
@@ -150,6 +151,12 @@ func wantsMoving(constraints []luarocks.VersionConstraint) bool {
 
 // pickNewestAmong is pickNewest over one class of candidates: stableOnly skips
 // the moving versions, otherwise every candidate is considered.
+//
+// A version the server yanked is passed over unless an == constraint pins it
+// (deps.MatchRock), as a lock's pin does: a fresh resolve does not choose a
+// withdrawn version, while a lock that recorded it keeps resolving to it and
+// installs it. A yanked release still counts as one for hasRelease, so a rock
+// whose only release is yanked is not answered with its development branch.
 func pickNewestAmong(
 	candidates []luarocks.VersionedRock, constraints []luarocks.VersionConstraint,
 	stableOnly bool,
@@ -163,7 +170,7 @@ func pickNewestAmong(
 			continue
 		}
 
-		if !deps.Match(candidate.Version, constraints) {
+		if !deps.MatchRock(candidate, constraints) {
 			continue
 		}
 
@@ -174,6 +181,20 @@ func pickNewestAmong(
 	}
 
 	return best, found
+}
+
+// yankedNote is what a resolve that found no version adds to ErrNoMatch when
+// versions the constraints allow were there but yanked, and "" otherwise.
+func yankedNote(
+	candidates []luarocks.VersionedRock, constraints []luarocks.VersionConstraint,
+) string {
+	for _, candidate := range candidates {
+		if candidate.Yanked && deps.Match(candidate.Version, constraints) {
+			return " (the versions that match are yanked; pin one with == to use it)"
+		}
+	}
+
+	return ""
 }
 
 // Checksum renders the source checksum for a resolved rock's rockspec as
