@@ -80,20 +80,65 @@ func TestCheck(t *testing.T) {
 	assert.True(t, sdk.IsReported(got.Err))
 	assert.Equal(t, "--config "+configPath(project)+" --config "+projectConfig+
 		" --warnings-as-errors app spec\n", got.Stdout)
+
+	// The frequent flags need no --, and go before what follows it.
+	got = sdktest.New(t, sdktest.WithProject(project)).Run(emmylua.New,
+		"emmylua", "check", "app", "--warnings-as-errors", "-f", "json", "--severity", "warn",
+		"--", "--output", "report.json")
+	assert.True(t, sdk.IsReported(got.Err))
+	assert.Equal(t, "--config "+configPath(project)+" --config "+projectConfig+
+		" --warnings-as-errors --output-format json --severity warn --output report.json app\n",
+		got.Stdout)
 }
 
-// TestFmt checks that tt emmylua fmt runs luafmt with the arguments after --
-// and the paths, without the configuration of the analyzer, and succeeds as
-// the program does. It runs programs, so it is not parallel, as TestCheck.
+// TestDoc checks that tt emmylua doc passes its flags to emmylua_doc_cli
+// with the configuration, the arguments after -- and the paths. It runs
+// programs, so it is not parallel, as TestCheck.
+func TestDoc(t *testing.T) {
+	project := t.TempDir()
+	writeProgram(t, project, "emmylua_doc_cli", "echo \"$@\"\n")
+
+	got := sdktest.New(t, sdktest.WithProject(project)).Run(emmylua.New,
+		"emmylua", "doc", "-o", "doc/api", "--output-format", "markdown",
+		"--", "--site-name", "App")
+	require.NoError(t, got.Err)
+	assert.Equal(t, "--config "+configPath(project)+
+		" --output doc/api --output-format markdown --site-name App "+project+"\n", got.Stdout)
+}
+
+// TestFmt checks that tt emmylua fmt runs luafmt with its mode - --check
+// unless --write or a flag after -- chooses another - the arguments after
+// -- and the paths, without the configuration of the analyzer, and succeeds
+// as the program does. It runs programs, so it is not parallel, as
+// TestCheck.
 func TestFmt(t *testing.T) {
 	project := t.TempDir()
 	writeProgram(t, project, "luafmt", "echo \"$@\"\n")
 
-	got := sdktest.New(t, sdktest.WithProject(project)).Run(emmylua.New,
-		"emmylua", "fmt", "app", "--", "--check")
-	require.NoError(t, got.Err)
-	assert.Equal(t, "--check app\n", got.Stdout)
+	for _, testCase := range []struct {
+		args []string
+		want string
+	}{
+		{args: nil, want: "--check " + project},
+		{args: []string{"app"}, want: "--check app"},
+		{args: []string{"app", "--check"}, want: "--check app"},
+		{args: []string{"app", "--write"}, want: "--write app"},
+		{args: []string{"app", "--", "--check"}, want: "--check app"},
+		{args: []string{"--", "--list-different"}, want: "--list-different " + project},
+		{args: []string{"--", "--init=luafmt.toml"}, want: "--init=luafmt.toml " + project},
+		{args: []string{"--", "--tab"}, want: "--check --tab " + project},
+	} {
+		got := sdktest.New(t, sdktest.WithProject(project)).Run(emmylua.New,
+			append([]string{"emmylua", "fmt"}, testCase.args...)...)
+		require.NoError(t, got.Err, testCase.args)
+		assert.Equal(t, testCase.want+"\n", got.Stdout, testCase.args)
+	}
+
 	assert.NoFileExists(t, configPath(project))
+
+	got := sdktest.New(t, sdktest.WithProject(project)).Run(emmylua.New,
+		"emmylua", "fmt", "--check", "--write")
+	require.ErrorContains(t, got.Err, "none of the others can be")
 }
 
 // TestConfig checks that tt emmylua config writes the configuration, valid

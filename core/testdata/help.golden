@@ -3114,17 +3114,23 @@ Use "tt emmylua <command> --help" for more information about a command.
 Run emmylua_check on PATH (default the project) with the configuration tt
 writes, then the project's .luarc.json and .emmyrc.json. The command fails as
 emmylua_check does: when it reports an error, or with --warnings-as-errors a
-warning. Arguments after -- go to the program as they are.
+warning. The flags below go to emmylua_check; its others, such as --ignore and
+--output, after --. Arguments after -- go to the program as they are.
 
 [0;1;39mUSAGE[0m
-  tt emmylua check [PATH...] [-- EMMYLUA_CHECK_ARGS...] [flags]
+  tt emmylua check [PATH...] [flags] [-- EMMYLUA_CHECK_ARGS...]
 [0;1;39m
 FLAGS[0m
-  -h, --help   help for check
+  -h, --help                   help for check
+  -f, --output-format string   the format of the report: text, json, sarif,
+                               github or gitlab (gitlab from EmmyLua 0.30)
+      --severity string        report the diagnostics of this severity and
+                               above: error, warn, info or hint
+      --warnings-as-errors     fail on a warning as on an error
 [0;1;39m
 EXAMPLES[0m
-    $ tt emmylua check
-  $ tt emmylua check app -- --warnings-as-errors --output-format json
+  $ tt emmylua check
+  $ tt emmylua check app --warnings-as-errors -f json -- --output report.json
 
 === tt emmylua config --help
 Write the configuration tt gives EmmyLua - LuaJIT, the globals of Tarantool, the
@@ -3145,34 +3151,44 @@ EXAMPLES[0m
 === tt emmylua doc --help
 Run emmylua_doc_cli on PATH (default the project) with the configuration tt
 writes, then the project's .luarc.json and .emmyrc.json: it writes the
-documentation of the annotated code, by default as an HTML site in ./output
-(--output-format markdown or json for the others). Arguments after -- go to the
-program as they are.
+documentation of the annotated code, by default as an HTML site in ./output. The
+flags below go to emmylua_doc_cli; its others, such as --site-name, after --.
+Arguments after -- go to the program as they are.
 
 [0;1;39mUSAGE[0m
-  tt emmylua doc [PATH...] [-- EMMYLUA_DOC_CLI_ARGS...] [flags]
+  tt emmylua doc [PATH...] [flags] [-- EMMYLUA_DOC_CLI_ARGS...]
 [0;1;39m
 FLAGS[0m
-  -h, --help   help for doc
+  -h, --help                   help for doc
+  -o, --output string          the directory to write the documentation to, or a
+                               file for json (default ./output)
+  -f, --output-format string   the format of the documentation: html, markdown
+                               or json (default html)
 [0;1;39m
 EXAMPLES[0m
-    $ tt emmylua doc -- --output doc/api --site-name "My application"
-  $ tt emmylua doc -- --output-format json --output api.json
+  $ tt emmylua doc -o doc/api -- --site-name "My application"
+  $ tt emmylua doc -f json -o api.json
 
 === tt emmylua fmt --help
-Run luafmt, the formatter of EmmyLua, on PATH (default the project). It reads
-.luafmt.toml or luafmt.toml and .luafmtignore, not the configuration of the
-analyzer. Arguments after -- go to the program as they are.
+Run luafmt, the formatter of EmmyLua, on PATH (default the project): with
+--check, the default, it prints how the files would change and fails if any
+would; with --write it rewrites them. It reads .luafmt.toml or luafmt.toml and
+.luafmtignore, not the configuration of the analyzer. The other flags of luafmt,
+such as --list-different, go after --, and one that chooses what luafmt does
+takes the place of --check. Arguments after -- go to the program as they are.
 
 [0;1;39mUSAGE[0m
-  tt emmylua fmt [PATH...] [-- LUAFMT_ARGS...] [flags]
+  tt emmylua fmt [PATH...] [flags] [-- LUAFMT_ARGS...]
 [0;1;39m
 FLAGS[0m
-  -h, --help   help for fmt
+      --check   print how the files would change and fail if any would (the
+                default)
+  -h, --help    help for fmt
+      --write   write the formatted files back
 [0;1;39m
 EXAMPLES[0m
-    $ tt emmylua fmt -- --check
-  $ tt emmylua fmt app -- --write
+  $ tt emmylua fmt
+  $ tt emmylua fmt app --write
 
 === tt emmylua ls --help
 Run emmylua_ls, the language server of EmmyLua, on the standard streams, in
