@@ -116,7 +116,8 @@ A `path` dependency is built from its directory, by what the directory holds:
   it the way `tt package build` builds a package - the components of its
   default product, their layout and `version.lua` - and installs it into
   `.rocks/` as the rock of its package. The dependency is named after that
-  package. Its version is the one tt derives in its directory, and its
+  package, or after the `rock` of another product of it, which is then the
+  product built. Its version is the one tt derives in its directory, and its
   dependencies are those of its default product, resolved with the
   project's own: a `path` one is relative to the dependency, a `registry`
   one keeps its server. Its `[dev_dependencies]`, its lock and its hooks are
@@ -239,9 +240,19 @@ a hook: a `command` names such a program without `.env/activate.sh` sourced.
 | --- | --- |
 | `components` | the components of the product; required |
 | `default` | `true` for the product `build` and `pack` take without `--product`; exactly one product is the default |
+| `rock` | the name of the rock the product is released as, `[a-z][a-z0-9-]*`; the package name by default for the default product, none for another |
 
 A manifest without `[products]` has one product, `default`, made of every
 component.
+
+A package of several rocks, a module and its tools say, gives each product
+other projects depend on a `rock` of its own. Two products released as two
+rocks share no component, since a tree installing both would hold their
+files twice, and a product's `version.lua` goes under the name of its rock,
+`<rock>/version.lua`, rather than of the package. `tt package pack --format
+rock --product NAME` packs a product as its rock; a product with no rock
+cannot be. A path dependency is a product of the package in its directory:
+the default one by the package name, another by its rock.
 
 ## `[hooks.pre_build]` and `[hooks.post_build]`
 

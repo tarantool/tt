@@ -197,6 +197,43 @@ type BuildOverlay struct {
 type Product struct {
 	Components []string `toml:"components"` // Required; names must exist in [components].
 	Default    bool     `toml:"default,omitempty"`
+	// Rock is the name of the rock the product is released as (ProductRock);
+	// empty is the package name for the default product, and no rock of its
+	// own for another.
+	Rock string `toml:"rock,omitempty"`
+}
+
+// ProductRock returns the name of the rock the product name is released as
+// and other projects depend on: the rock it names, or the package name for
+// the default product. A product that is not the default and names none has
+// no rock of its own, and the name is "".
+func (m *Manifest) ProductRock(name string) string {
+	product, ok := m.EffectiveProducts()[name]
+	if !ok {
+		return ""
+	}
+
+	if product.Rock != "" {
+		return product.Rock
+	}
+
+	if defaultName, _, ok := m.DefaultProduct(); ok && defaultName == name {
+		return m.Package.Name
+	}
+
+	return ""
+}
+
+// RockProduct returns the product released as the rock named rock
+// (ProductRock), and whether there is one.
+func (m *Manifest) RockProduct(rock string) (string, bool) {
+	for _, name := range sortedKeys(m.EffectiveProducts()) {
+		if m.ProductRock(name) == rock {
+			return name, true
+		}
+	}
+
+	return "", false
 }
 
 // ImplicitProduct names the product a manifest without [products] gets.

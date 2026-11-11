@@ -47,6 +47,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   is named, with how to work offline: in a project, or with `--rock-server`
   naming a directory of rocks. `tt emmylua prepare` outside a project says
   that the other commands need none.
+- `[products.NAME].rock`: release a product as a rock of its own name, so a
+  package is several rocks, a module and its tools say. The default product
+  is the rock of the package; products of two rocks share no component, and
+  the `version.lua` of a product with a rock of its own goes under its name.
+  `tt package pack --format rock` packs a product as its rock, and a `path`
+  dependency named after the rock of a product builds that product.
 - A rock's dependency on `tarantool` is checked against `[platform].tarantool`
   instead of looked for as a rock no server has, which failed the resolution:
   a rock no version of it meets fails it, and one its lowest version does not

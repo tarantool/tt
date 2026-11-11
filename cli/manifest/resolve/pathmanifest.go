@@ -4,8 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
@@ -33,7 +36,9 @@ type PathManifest struct {
 	Dir string
 	// Manifest is its manifest, parsed and validated.
 	Manifest *manifest.Manifest
-	// Product names its default product, the one a consumer builds.
+	// Product names the product a consumer builds: the one released as the
+	// rock the dependency is named after (manifest.ProductRock), the default
+	// one for the package name.
 	Product string
 	// Warnings are the warnings of parsing and validating the manifest, each
 	// naming the dependency.
@@ -77,16 +82,18 @@ func LoadPathManifest(name, dir string) (*PathManifest, error) {
 		return nil, fmt.Errorf("path dependency %q: invalid manifest %s: %w", name, path, err)
 	}
 
-	if man.Package.Name != name {
-		return nil, fmt.Errorf("%w: %q is the package %q (%s); name the dependency %q",
-			ErrPathPackageName, name, man.Package.Name, path, man.Package.Name)
-	}
-
-	product, _, ok := man.DefaultProduct()
-	if !ok {
+	if _, _, ok := man.DefaultProduct(); !ok {
 		// Validate refuses such a manifest; this keeps an unvalidated one from
 		// building nothing in silence.
 		return nil, fmt.Errorf("path dependency %q: %s: %w", name, path, errNoDefaultProduct)
+	}
+
+	// The dependency is the rock of one product of the package: the default
+	// one by the package name, another by the rock it names.
+	product, ok := man.RockProduct(name)
+	if !ok {
+		return nil, fmt.Errorf("%w: %q is the package %q (%s); name the dependency %s",
+			ErrPathPackageName, name, man.Package.Name, path, rockNames(man))
 	}
 
 	loaded := &PathManifest{Dir: dir, Manifest: man, Product: product, Warnings: nil}
@@ -99,7 +106,25 @@ func LoadPathManifest(name, dir string) (*PathManifest, error) {
 	return loaded, nil
 }
 
-// Components returns the components of the default product.
+// rockNames lists the rocks the products of man are released as, quoted, for
+// a message: "a", "a" or "b".
+func rockNames(man *manifest.Manifest) string {
+	var names []string
+
+	for _, product := range slices.Sorted(maps.Keys(man.EffectiveProducts())) {
+		if rock := man.ProductRock(product); rock != "" {
+			names = append(names, strconv.Quote(rock))
+		}
+	}
+
+	if len(names) <= 1 {
+		return strings.Join(names, "")
+	}
+
+	return strings.Join(names[:len(names)-1], ", ") + " or " + names[len(names)-1]
+}
+
+// Components returns the components of the product of the dependency.
 func (p *PathManifest) Components() []string {
 	return p.Manifest.EffectiveProducts()[p.Product].Components
 }
@@ -126,7 +151,7 @@ func (p *PathManifest) Version() (version.Version, string, error) {
 	return ver, rockVersion, nil
 }
 
-// Registries maps the dependencies of the default product that name a
+// Registries maps the dependencies of the product (Product) that name a
 // registry - globally or in a component - to that registry, a directory
 // resolved against the dependency's own directory, as its own build resolves
 // it. A consumer installs those rocks from there, exactly as the neighbour
@@ -167,7 +192,7 @@ func (p *PathManifest) Registries() (map[string]string, error) {
 }
 
 // requirements are the direct requirements of the dependency, as its consumer
-// resolves them: the effective dependencies of its default product, a path
+// resolves them: the effective dependencies of its product (Product), a path
 // one rebased from the dependency's directory onto projectDir, the
 // consumer's, and a registry one resolved against the dependency's directory.
 // [dev_dependencies] are the neighbour's own business and are left out.

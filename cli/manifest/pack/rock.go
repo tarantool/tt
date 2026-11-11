@@ -62,6 +62,9 @@ var (
 	// errPathDependency reports a path dependency of a package packed as a
 	// rock: the projects installing the rock have no such directory.
 	errPathDependency = errors.New("a rock cannot depend on a path dependency")
+	// errNoRock reports a product packed as a rock that has no rock of its
+	// own (manifest.ProductRock).
+	errNoRock = errors.New("the product has no rock of its own")
 )
 
 // checkFormats reports a format pack does not make, or options of the .tt
@@ -296,6 +299,12 @@ func releaseRock(built *build.Result, revision int) (rocktree.Release, []string,
 
 	man := built.Manifest
 
+	name := man.ProductRock(built.Product)
+	if name == "" {
+		return rocktree.Release{}, nil, stateErrorf("%w: %s is not the default product; "+
+			"name its rock with [products.%s].rock", errNoRock, built.Product, built.Product)
+	}
+
 	dependencies, warnings, err := releaseDependencies(man, built.Product)
 	if err != nil {
 		return rocktree.Release{}, nil, err
@@ -309,7 +318,7 @@ func releaseRock(built *build.Result, revision int) (rocktree.Release, []string,
 	}
 
 	return rocktree.Release{
-		Name:         man.Package.Name,
+		Name:         name,
 		Version:      built.Version.SemVer,
 		Revision:     revision,
 		Summary:      man.Package.Description,
