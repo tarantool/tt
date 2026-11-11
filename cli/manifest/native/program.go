@@ -44,6 +44,10 @@ type Program struct {
 	// Needed lists the shared libraries the program asks the loader for
 	// (DT_NEEDED of an ELF program, the dylibs of a Mach-O one).
 	Needed []string
+	// Glibc is the newest version of the GNU C library an ELF file needs
+	// symbols of, 2.34 for GLIBC_2.34, as its version needs list them; empty
+	// when it needs none or has no table of them (see glibcVersion).
+	Glibc string
 }
 
 // The libraries macOS links into every program of its own.
@@ -167,6 +171,8 @@ func inspectELF(src io.ReaderAt, prog *Program) error {
 		if err != nil {
 			return err
 		}
+
+		prog.Glibc = glibcVersion(file)
 	}
 
 	// A position-independent executable is ET_DYN, as a shared library is.

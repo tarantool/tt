@@ -210,13 +210,6 @@ func TestValidateExecutableComponents(t *testing.T) {
 			msg:   "names the binary of an executable component",
 		},
 		{
-			name: "static on a cargo module",
-			body: "[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"cargo\"\n" +
-				"static = true\n",
-			field: "components.a.build.static",
-			msg:   "is for an executable component",
-		},
-		{
 			name: "module on a cargo program",
 			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
 				"[components.a.build]\nbackend = \"cargo\"\nmodule = \"a\"\n",
@@ -266,18 +259,11 @@ func TestValidateExecutableComponents(t *testing.T) {
 			msg:   `is a field of backend go, not of "cargo"`,
 		},
 		{
-			name: "static on make",
+			name: "a field of go on make",
 			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
-				"[components.a.build]\nbackend = \"make\"\nmake_target = \"all\"\nstatic = true\n",
-			field: "components.a.build.static",
-			msg:   `is a field of backend go or cargo, not of "make"`,
-		},
-		{
-			name: "static on shell",
-			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
-				"[components.a.build]\nbackend = \"shell\"\ncommand = \"./b.sh\"\nstatic = false\n",
-			field: "components.a.build.static",
-			msg:   `not of "shell"`,
+				"[components.a.build]\nbackend = \"make\"\nmake_target = \"all\"\ncgo = true\n",
+			field: "components.a.build.cgo",
+			msg:   `is a field of backend go, not of "make"`,
 		},
 		{
 			name: "a field of go on a module build",
@@ -343,9 +329,22 @@ func TestValidateExecutableComponents(t *testing.T) {
 		},
 		{
 			name:  "a go field on a hook",
+			body:  "[hooks.pre_build]\ncommand = \"./gen.sh\"\ncgo = true\n",
+			field: "hooks.pre_build.cgo",
+			msg:   `not of "shell"`,
+		},
+		{
+			name:  "static on a hook",
 			body:  "[hooks.pre_build]\ncommand = \"./gen.sh\"\nstatic = true\n",
 			field: "hooks.pre_build.static",
-			msg:   `not of "shell"`,
+			msg:   "a hook makes nothing the build checks",
+		},
+		{
+			name: "static = false on a make hook",
+			body: "[hooks.post_build]\nbackend = \"make\"\nmake_target = \"all\"\n" +
+				"static = false\n",
+			field: "hooks.post_build.static",
+			msg:   "is for the build of a component",
 		},
 		{
 			name:  "go for a hook",
@@ -405,12 +404,46 @@ func TestValidateExecutableComponentsAccepted(t *testing.T) {
 			"kind = \"executable\"\n[components.gw.build]\nbackend = \"go\"\n" +
 			"[components.lua]\npath = \"src\"\n[components.lua.build]\nbackend = \"make\"\n" +
 			"make_target = \"all\"\noutput = [\"gw\"]\n",
+		// The program of a build of one's own is checked as one of go is.
+		"static on make": "[components.gw]\npath = \"gw\"\nkind = \"executable\"\n" +
+			"[components.gw.build]\nbackend = \"make\"\nmake_target = \"gw\"\nstatic = true\n",
+		"static on shell": "[components.gw]\npath = \"gw\"\nkind = \"executable\"\n" +
+			"[components.gw.build]\nbackend = \"shell\"\ncommand = \"./b.sh\"\nstatic = false\n",
+		"static on cmake": "[components.gw]\npath = \"gw\"\nkind = \"executable\"\n" +
+			"[components.gw.build]\nbackend = \"cmake\"\noutput = [\"gw\"]\nstatic = true\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
 			_, err := parseBody(t, body).Validate()
 			require.NoError(t, err)
+		})
+	}
+}
+
+// TestValidateStaticModules covers static on the build of a module
+// component, of every backend that builds one: the build checks the native
+// files it made.
+func TestValidateStaticModules(t *testing.T) {
+	t.Parallel()
+
+	for backend, fields := range map[string]string{
+		"c":     "module = \"m\"\nsources = [\"m.c\"]\n",
+		"lua-c": "module = \"m\"\nsources = [\"m.c\"]\n",
+		"cmake": "output = [\"m.so\"]\n",
+		"make":  "make_target = \"all\"\n",
+		"shell": "command = \"./build.sh\"\n",
+		"cargo": "module = \"m\"\n",
+	} {
+		t.Run(backend, func(t *testing.T) {
+			t.Parallel()
+
+			mfst := parseBody(t, "[components.m]\npath = \"m\"\n[components.m.build]\n"+
+				"backend = \""+backend+"\"\n"+fields+"static = true\n")
+
+			_, err := mfst.Validate()
+			require.NoError(t, err)
+			assert.True(t, mfst.Components["m"].Build.StaticValue())
 		})
 	}
 }

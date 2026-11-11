@@ -73,8 +73,9 @@ The backends of executable components:
   `TT_OUTPUT_DIR`.
 
 `static = true` asks `go` and `cargo` for a program that needs no loader and
-no shared library, and the build checks that it got one. The toolchain must
-be on `PATH`. See the [manifest reference](../reference/app-manifest.md#componentsname).
+no shared library, and the build checks that it got one; the programs of
+`cmake`, `make` and `shell` are only checked. The toolchain must be on
+`PATH`. See the [manifest reference](../reference/app-manifest.md#componentsname).
 
 ## How it runs
 

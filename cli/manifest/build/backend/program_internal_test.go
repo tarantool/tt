@@ -166,6 +166,15 @@ func TestCargoTarget(t *testing.T) {
 			Env{OS: "linux", Arch: "arm64"},
 			"aarch64-unknown-linux-musl",
 		},
+		// Tarantool, which loads a module, has the C library; the build only
+		// checks the module needs no other.
+		{"a static module of the host", static, Env{Module: true}, ""},
+		{
+			"a static module of another linux architecture",
+			static,
+			Env{OS: "linux", Arch: foreignArch, Module: true},
+			cargoArches[foreignArch] + "-unknown-linux-gnu",
+		},
 		{
 			"another linux architecture",
 			plain,
@@ -276,6 +285,24 @@ func TestPreflight(t *testing.T) {
 				Env{OS: darwinOS, Arch: "arm64"})
 			require.ErrorIs(t, err, ErrStaticDarwin, backend)
 		}
+	})
+
+	// A static module and a static program of cmake are only checked after
+	// the build, and on macOS one that needs libSystem alone passes.
+	t.Run("static for darwin, only checked", func(t *testing.T) {
+		t.Parallel()
+
+		darwin := Env{OS: darwinOS, Arch: "arm64", Module: true}
+
+		for _, backend := range []string{BackendCargo, BackendCMake} {
+			err := Preflight(manifest.Build{Backend: backend, Static: on()}, darwin)
+			require.NotErrorIs(t, err, ErrStaticDarwin, backend)
+		}
+
+		darwin.Module = false
+
+		err := Preflight(manifest.Build{Backend: BackendCMake, Static: on()}, darwin)
+		require.NotErrorIs(t, err, ErrStaticDarwin)
 	})
 
 	t.Run("a platform cargo has no target for", func(t *testing.T) {

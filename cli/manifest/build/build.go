@@ -430,7 +430,9 @@ func preflightBackends(
 			continue
 		}
 
-		err := backend.Preflight(*component.Build, backend.Env{OS: target.OS, Arch: target.Arch})
+		err := backend.Preflight(*component.Build, backend.Env{
+			OS: target.OS, Arch: target.Arch, Module: !component.IsExecutable(),
+		})
 		if err == nil {
 			err = preflightHeaders(*component.Build, info)
 		}
@@ -651,51 +653,92 @@ func layoutComponents(
 // runModuleBackend runs the build of a module component. An incremental one
 // is skipped when its inputs are those of its last build and what that build
 // left is still there (see skipUnchanged); its build records what it wrote
-// into TT_OUTPUT_DIR and the files of the component the layout takes.
+// into TT_OUTPUT_DIR and the files of the component the layout takes. Those
+// are the files of a static one the build checks (checkStaticModule), before
+// the record is written: a module that fails the check is built again.
 func runModuleBackend(
 	ctx context.Context, opts Options, proj project, executor backend.Backend, name string,
 	component manifest.Component, cwd string, env backend.Env,
 ) error {
-	if !component.Build.IncrementalValue() {
+	incremental := component.Build.IncrementalValue()
+	if !incremental && !component.Build.StaticValue() {
 		return runComponentBackend(ctx, executor, name, component, cwd, env)
 	}
 
 	compAbsPath := resolveDir(proj.dir, component.Path)
 
-	state, skipped, err := skipUnchanged(opts, proj, name, component, compAbsPath, cwd, env)
-	if err != nil || skipped {
-		return err
-	}
+	var state incrementalState
 
-	before, err := stampTree(env.OutputDir)
-	if err != nil {
-		return sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
-	}
+	if incremental {
+		var (
+			skipped bool
+			err     error
+		)
 
-	err = runComponentBackend(ctx, executor, name, component, cwd, env)
-	if err != nil {
-		return err
-	}
-
-	after, err := stampTree(env.OutputDir)
-	if err == nil {
-		var laidOut []string
-
-		laidOut, err = laidOutFiles(component, compAbsPath)
-		if err == nil {
-			err = writeIncremental(proj.stateDir, name, incrementalRecord{
-				Inputs:  state.inputs,
-				Written: writtenFiles(before, after, state.last.Written),
-				LaidOut: laidOut,
-			})
+		state, skipped, err = skipUnchanged(opts, proj, name, component, compAbsPath, cwd, env)
+		if err != nil || skipped {
+			return err
 		}
 	}
 
+	written, laidOut, err := runTrackedBackend(ctx, executor, name, component, compAbsPath,
+		cwd, env, state.last.Written)
+	if err != nil {
+		return err
+	}
+
+	if component.Build.StaticValue() {
+		err = checkStaticModule(opts, name, moduleFiles(env.OutputDir, written,
+			compAbsPath, laidOut))
+		if err != nil {
+			return err
+		}
+	}
+
+	if !incremental {
+		return nil
+	}
+
+	err = writeIncremental(proj.stateDir, name, incrementalRecord{
+		Inputs: state.inputs, Written: written, LaidOut: laidOut,
+	})
 	if err != nil {
 		return sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
 	}
 
 	return nil
+}
+
+// runTrackedBackend runs the backend of the module component name and
+// returns what it made: the files it wrote into TT_OUTPUT_DIR, those it
+// created or changed and those of recorded, which an earlier build wrote,
+// that are still there (writtenFiles), and the files of the component at
+// compAbsPath the layout takes.
+func runTrackedBackend(
+	ctx context.Context, executor backend.Backend, name string, component manifest.Component,
+	compAbsPath, cwd string, env backend.Env, recorded []string,
+) ([]string, []string, error) {
+	before, err := stampTree(env.OutputDir)
+	if err != nil {
+		return nil, nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
+	}
+
+	err = runComponentBackend(ctx, executor, name, component, cwd, env)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	after, err := stampTree(env.OutputDir)
+	if err != nil {
+		return nil, nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
+	}
+
+	laidOut, err := laidOutFiles(component, compAbsPath)
+	if err != nil {
+		return nil, nil, sdk.Errorf(sdk.ExitSystem, "building component %q: %w", name, err)
+	}
+
+	return writtenFiles(before, after, recorded), laidOut, nil
 }
 
 // runExecutableBackend builds an executable component (see buildExecutable)

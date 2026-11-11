@@ -353,8 +353,8 @@ func validateKindBackend(field string, comp Component) error {
 }
 
 // validateCargoKind checks the fields of a cargo build that belong to one
-// kind: bin and static to the binary of an executable component, module to
-// the library of a module component.
+// kind: bin to the binary of an executable component, module to the library
+// of a module component.
 func validateCargoKind(field string, comp Component) error {
 	build := comp.Build
 
@@ -367,9 +367,6 @@ func validateCargoKind(field string, comp Component) error {
 	case build.Bin != "":
 		return invalid(field+".bin", "names the binary of an executable component; "+
 			"a module component builds the library of the package, named by module")
-	case build.Static != nil:
-		return invalid(field+".static", "is for an executable component: a module "+
-			"takes the symbols of Tarantool when it is loaded")
 	}
 
 	return nil
@@ -552,7 +549,9 @@ type backendField struct {
 }
 
 // backendFields lists the fields of build that belong to some backends only,
-// with whether each is set.
+// with whether each is set. static is not one: the build of any component
+// checks what it made (Build.Static), and a hook, which makes nothing it
+// checks, is refused one by validateHooks.
 func backendFields(build Build) []backendField {
 	ccDriver := []string{backendC, backendLuaC}
 
@@ -575,7 +574,6 @@ func backendFields(build Build) []backendField {
 		}},
 		{"incremental", build.Incremental != nil, []string{backendMake, backendShell}},
 		{"package", build.Package != "", []string{backendGo, backendCargo}},
-		{"static", build.Static != nil, []string{backendGo, backendCargo}},
 		{"name", build.Name != "", []string{backendGo}},
 		{"tags", build.Tags != nil, []string{backendGo}},
 		{"ldflags", build.Ldflags != nil, []string{backendGo}},
@@ -590,9 +588,9 @@ func backendFields(build Build) []backendField {
 }
 
 // validateBackendFields rejects a field of another backend: a go build with
-// make_target, a make build with static. Such a field does nothing, and a
-// user who wrote static = true on a make build expects a static program he
-// would not get.
+// make_target, a make build with cgo. Such a field does nothing, and a user
+// who wrote cgo = true on a make build expects a build with cgo he would not
+// get.
 //
 // The fields the go, cargo and cmake backends brought, and every field on a
 // go, cargo or cmake build, are checked. A field of make, shell, c or lua-c
@@ -721,6 +719,13 @@ func (m *Manifest) validateHooks() ([]string, error) {
 		err := validateBuild("hooks."+name, hook)
 		if err != nil {
 			return warnings, err
+		}
+
+		// A hook has no TT_OUTPUT_DIR, so the build knows nothing it made to
+		// check, and static = true would promise what nothing checks.
+		if hook.Static != nil {
+			return warnings, invalid("hooks."+name+".static",
+				"is for the build of a component: a hook makes nothing the build checks")
 		}
 	}
 

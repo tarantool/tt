@@ -196,10 +196,12 @@ func cargoSelection(build manifest.Build, target string) []string {
 // when cargo's own host target does.
 //
 // A static linux program is built for <arch>-unknown-linux-musl, which links
-// the C library in: the gnu targets link glibc dynamically. A build for the
-// host takes no --target otherwise, so that the project's own configuration
-// of its host builds applies; a build for another platform names the gnu or
-// apple target of that platform.
+// the C library in: the gnu targets link glibc dynamically. A static module
+// is not: Tarantool, which loads it, has its C library, and the build only
+// checks that the module needs no other library. A build for the host takes
+// no --target otherwise, so that the project's own configuration of its host
+// builds applies; a build for another platform names the gnu or apple target
+// of that platform.
 func cargoTarget(build manifest.Build, env Env) (string, error) {
 	goos, goarch := env.platformOS(), env.platformArch()
 
@@ -212,7 +214,7 @@ func cargoTarget(build manifest.Build, env Env) (string, error) {
 
 	switch goos {
 	case "linux":
-		if build.StaticValue() {
+		if build.StaticValue() && !env.Module {
 			return arch + "-unknown-linux-musl", nil
 		}
 

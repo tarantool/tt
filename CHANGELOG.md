@@ -178,6 +178,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   directory of its `module.h` and `lua.h`, when tt knows them: a `make` or
   `shell` build of a C module compiles against the headers the `c` and
   `lua-c` backends do.
+- `static = true` on the build of a module component, of every backend:
+  each native file the build writes into `TT_OUTPUT_DIR`, or the layout
+  takes from the component, needs no shared library but those of the C
+  library - `libc`, `libm`, `libdl`, `libpthread`, `librt`, the loader and
+  `libgcc_s` on Linux, `libSystem` on macOS - which Tarantool has loaded
+  itself, so the binary rock of the module loads wherever Tarantool runs. A
+  file that needs another, `libsasl2.so.2` say, fails the build with exit
+  code 2, naming the file and the library, to be linked in statically or
+  loaded with `dlopen`; one that needs a newer glibc than the Tarantool it
+  is built for builds with a warning. On an executable component of
+  `cmake`, `make` or `shell`, `static = true` checks its programs as it
+  does those of `go` and `cargo`.
 
 ### Changed
 
