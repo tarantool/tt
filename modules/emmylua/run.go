@@ -228,7 +228,7 @@ func newLsCmd(services sdk.Services) *cobra.Command {
 			"in place of tt: make it the command of the Lua server of the editor. It " +
 			"reads the configuration tt writes (through " + analyzer.ConfigEnv + "), then " +
 			"the project's .luarc.json, .emmyrc.json and .emmyrc.lua. " + passHelp,
-		Example: `  # Neovim (nvim-lspconfig):
+		Example: `# Neovim (nvim-lspconfig):
   #   vim.lsp.config('emmylua_ls', { cmd = { 'tt', 'emmylua', 'ls' } })
   $ tt emmylua ls -- --log-level debug --log-path /tmp/emmylua_ls.log`,
 		Args: cobra.ArbitraryArgs,
@@ -248,7 +248,7 @@ func newConfigCmd(services sdk.Services) *cobra.Command {
 			"its rocks install - to " + analyzer.ConfigDir + "/" + analyzer.ConfigFileName +
 			" and print its path: for an editor that runs emmylua_ls itself, through " +
 			analyzer.ConfigEnv + ". The other commands write it anew on every run.",
-		Example: `  $ EMMYLUALS_CONFIG=$(tt emmylua config) code .`,
+		Example: `$ EMMYLUALS_CONFIG=$(tt emmylua config) code .`,
 		Args:    cobra.NoArgs,
 		RunE:    run.config,
 	}
