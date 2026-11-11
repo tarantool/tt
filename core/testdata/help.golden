@@ -3093,6 +3093,12 @@ emmylua rock of every platform comes from the index of
 tarantool-contrib/rocks-repo; prepare --from and rock pack it themselves, from a
 local build or from the releases the module knows.
 
+The project is the one the current directory is in, found as the other project
+commands of tt find it. Outside every project check, doc, fmt and ls need no
+prepare: they run the programs of the rock, fetched once into the user cache
+(tt/emmylua there), with the configuration kept there too; --rock-server names
+another server, a directory of rocks to work offline.
+
 [0;1;39mUSAGE[0m
   tt emmylua [flags] <command> [command flags]
 [0;1;39m
@@ -3114,36 +3120,59 @@ Use "tt emmylua <command> --help" for more information about a command.
 Run emmylua_check on PATH (default the project) with the configuration tt
 writes, then the project's .luarc.json and .emmyrc.json. The command fails as
 emmylua_check does: when it reports an error, or with --warnings-as-errors a
-warning. The flags below go to emmylua_check; its others, such as --ignore and
---output, after --. Arguments after -- go to the program as they are.
+warning. --warnings-as-errors, -f/--output-format and --severity go to
+emmylua_check as they are, its other flags, such as --ignore and --output, after
+--. Arguments after -- go to the program as they are.
+
+Outside every project the programs come from the user cache, fetched there once
+from the rock server (--rock-server, --version), and the configuration tt writes
+is kept there too, not in the directory.
 
 [0;1;39mUSAGE[0m
   tt emmylua check [PATH...] [flags] [-- EMMYLUA_CHECK_ARGS...]
 [0;1;39m
 FLAGS[0m
   -h, --help                   help for check
+      --library stringArray    read the Lua modules of this directory as a
+                               library too; repeat for more
   -f, --output-format string   the format of the report: text, json, sarif,
                                github or gitlab (gitlab from EmmyLua 0.30)
+      --rock-server string     outside a project, the rock server to fetch
+                               EmmyLua from: a URL, or a directory of rocks such
+                               as tt emmylua rock packs (default the rock index
+                               of tarantool-contrib/rocks-repo)
       --severity string        report the diagnostics of this severity and
                                above: error, warn, info or hint
+      --version string         outside a project, the EmmyLua release to run; a
+                               project runs the one its lock pins (default
+                               "0.30.0pre1")
       --warnings-as-errors     fail on a warning as on an error
 [0;1;39m
 EXAMPLES[0m
   $ tt emmylua check
   $ tt emmylua check app --warnings-as-errors -f json -- --output report.json
 
+  # Outside a project, with the modules of a checkout of a rock.
+  $ tt emmylua check --library ~/src/checks
+
 === tt emmylua config --help
 Write the configuration tt gives EmmyLua - LuaJIT, the globals of Tarantool, the
 stubs of the Tarantool the project runs on and the modules its rocks install -
-to .tarantool/emmylua/emmyrc.json and print its path: for an editor that runs
-emmylua_ls itself, through EMMYLUALS_CONFIG. The other commands write it anew on
-every run.
+to .tarantool/emmylua/emmyrc.json of the project and print its path: for an
+editor that runs emmylua_ls itself, through EMMYLUALS_CONFIG. The other commands
+write it anew on every run.
+
+Outside every project it is written into the user cache, one file for each
+directory, with the modules of .rocks/ of the directory, and the directory is
+left as it is.
 
 [0;1;39mUSAGE[0m
   tt emmylua config [flags]
 [0;1;39m
 FLAGS[0m
-  -h, --help   help for config
+  -h, --help                  help for config
+      --library stringArray   read the Lua modules of this directory as a
+                              library too; repeat for more
 [0;1;39m
 EXAMPLES[0m
   $ EMMYLUALS_CONFIG=$(tt emmylua config) code .
@@ -3151,19 +3180,33 @@ EXAMPLES[0m
 === tt emmylua doc --help
 Run emmylua_doc_cli on PATH (default the project) with the configuration tt
 writes, then the project's .luarc.json and .emmyrc.json: it writes the
-documentation of the annotated code, by default as an HTML site in ./output. The
-flags below go to emmylua_doc_cli; its others, such as --site-name, after --.
-Arguments after -- go to the program as they are.
+documentation of the annotated code, by default as an HTML site in ./output.
+-o/--output and -f/--output-format go to emmylua_doc_cli as they are, its other
+flags, such as --site-name, after --. Arguments after -- go to the program as
+they are.
+
+Outside every project the programs come from the user cache, fetched there once
+from the rock server (--rock-server, --version), and the configuration tt writes
+is kept there too, not in the directory.
 
 [0;1;39mUSAGE[0m
   tt emmylua doc [PATH...] [flags] [-- EMMYLUA_DOC_CLI_ARGS...]
 [0;1;39m
 FLAGS[0m
   -h, --help                   help for doc
+      --library stringArray    read the Lua modules of this directory as a
+                               library too; repeat for more
   -o, --output string          the directory to write the documentation to, or a
                                file for json (default ./output)
   -f, --output-format string   the format of the documentation: html, markdown
                                or json (default html)
+      --rock-server string     outside a project, the rock server to fetch
+                               EmmyLua from: a URL, or a directory of rocks such
+                               as tt emmylua rock packs (default the rock index
+                               of tarantool-contrib/rocks-repo)
+      --version string         outside a project, the EmmyLua release to run; a
+                               project runs the one its lock pins (default
+                               "0.30.0pre1")
 [0;1;39m
 EXAMPLES[0m
   $ tt emmylua doc -o doc/api -- --site-name "My application"
@@ -3177,14 +3220,24 @@ would; with --write it rewrites them. It reads .luafmt.toml or luafmt.toml and
 such as --list-different, go after --, and one that chooses what luafmt does
 takes the place of --check. Arguments after -- go to the program as they are.
 
+Outside every project luafmt comes from the user cache, fetched there once from
+the rock server (--rock-server, --version).
+
 [0;1;39mUSAGE[0m
   tt emmylua fmt [PATH...] [flags] [-- LUAFMT_ARGS...]
 [0;1;39m
 FLAGS[0m
-      --check   print how the files would change and fail if any would (the
-                default)
-  -h, --help    help for fmt
-      --write   write the formatted files back
+      --check                print how the files would change and fail if any
+                             would (the default)
+  -h, --help                 help for fmt
+      --rock-server string   outside a project, the rock server to fetch EmmyLua
+                             from: a URL, or a directory of rocks such as tt
+                             emmylua rock packs (default the rock index of
+                             tarantool-contrib/rocks-repo)
+      --version string       outside a project, the EmmyLua release to run; a
+                             project runs the one its lock pins (default
+                             "0.30.0pre1")
+      --write                write the formatted files back
 [0;1;39m
 EXAMPLES[0m
   $ tt emmylua fmt
@@ -3197,11 +3250,25 @@ configuration tt writes (through EMMYLUALS_CONFIG), then the project's
 .luarc.json, .emmyrc.json and .emmyrc.lua. Arguments after -- go to the program
 as they are.
 
+Outside every project the programs come from the user cache, fetched there once
+from the rock server (--rock-server, --version), and the configuration tt writes
+is kept there too, not in the directory. So an editor can run tt emmylua ls in
+any folder.
+
 [0;1;39mUSAGE[0m
-  tt emmylua ls [-- EMMYLUA_LS_ARGS...] [flags]
+  tt emmylua ls [flags] [-- EMMYLUA_LS_ARGS...]
 [0;1;39m
 FLAGS[0m
-  -h, --help   help for ls
+  -h, --help                  help for ls
+      --library stringArray   read the Lua modules of this directory as a
+                              library too; repeat for more
+      --rock-server string    outside a project, the rock server to fetch
+                              EmmyLua from: a URL, or a directory of rocks such
+                              as tt emmylua rock packs (default the rock index
+                              of tarantool-contrib/rocks-repo)
+      --version string        outside a project, the EmmyLua release to run; a
+                              project runs the one its lock pins (default
+                              "0.30.0pre1")
 [0;1;39m
 EXAMPLES[0m
   # Neovim (nvim-lspconfig):
@@ -3232,6 +3299,10 @@ into .tarantool/registry instead, and the dependency names that directory. The
 registry is for this host and is not meant to be committed: after a checkout,
 run tt emmylua prepare --from again. --from packs the releases tt knows: 0.25.1,
 0.30.0pre1; TT_EMMYLUA_RELEASES names a JSON file of others.
+
+prepare runs in the root of the project, whose manifest it edits. Outside every
+project there is nothing to prepare: check, doc, fmt and ls fetch EmmyLua into
+the user cache themselves.
 
 [0;1;39mUSAGE[0m
   tt emmylua prepare [flags]

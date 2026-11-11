@@ -67,7 +67,10 @@ func newPrepareCmd(services sdk.Services) *cobra.Command {
 			"be committed: after a checkout, run tt emmylua prepare --from again. " +
 			"--from packs the releases tt knows: " +
 			strings.Join(analyzer.Versions(), ", ") + "; " + analyzer.ReleasesEnv +
-			" names a JSON file of others.",
+			" names a JSON file of others.\n\n" +
+			"prepare runs in the root of the project, whose manifest it edits. Outside " +
+			"every project there is nothing to prepare: check, doc, fmt and ls fetch " +
+			"EmmyLua into the user cache themselves.",
 		Example: `# The rock of this host, from the index of tarantool-contrib/rocks-repo.
   $ tt emmylua prepare
 

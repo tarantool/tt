@@ -17,11 +17,47 @@ import (
 
 	"github.com/tarantool/tt/modules/emmylua/internal/analyzer"
 	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/fetch"
 )
 
-// runner runs the programs of EmmyLua in the project of the command.
+// runner runs the programs of EmmyLua in the project of the command, or
+// outside every project from the user cache: the values of the flags the
+// commands share.
 type runner struct {
 	services sdk.Services
+	// version and rockServer choose the programs outside a project.
+	version, rockServer string
+	// libraries are the directories --library adds to the libraries.
+	libraries []string
+}
+
+// outsideHelp says how the commands run outside a project.
+const outsideHelp = "Outside every project the programs come from the user cache, " +
+	"fetched there once from the rock server (--rock-server, --version), and the " +
+	"configuration tt writes is kept there too, not in the directory."
+
+// Flags of the runner.
+const (
+	versionFlag    = "version"
+	rockServerFlag = "rock-server"
+	libraryFlag    = "library"
+)
+
+// addToolFlags declares --version and --rock-server on cmd: where the
+// programs come from outside a project.
+func (r *runner) addToolFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&r.version, versionFlag, analyzer.DefaultVersion,
+		"outside a project, the EmmyLua release to run; a project runs the one its lock pins")
+	cmd.Flags().StringVar(&r.rockServer, rockServerFlag, "",
+		"outside a project, the rock server to fetch EmmyLua from: a URL, or a directory "+
+			"of rocks such as tt emmylua rock packs (default the rock index of "+
+			"tarantool-contrib/rocks-repo)")
+}
+
+// addLibraryFlag declares --library on cmd.
+func (r *runner) addLibraryFlag(cmd *cobra.Command) {
+	cmd.Flags().StringArrayVar(&r.libraries, libraryFlag, nil,
+		"read the Lua modules of this directory as a library too; repeat for more")
 }
 
 // programFlag is a flag of a command that is a flag of the program it runs:
@@ -147,7 +183,7 @@ func programArgs(cmd *cobra.Command, flags []programFlag) []string {
 
 // newCheckCmd builds tt emmylua check.
 func newCheckCmd(services sdk.Services) *cobra.Command {
-	run := runner{services: services}
+	run := &runner{services: services, version: "", rockServer: "", libraries: nil}
 
 	cmd := &cobra.Command{
 		Use:   "check [PATH...] [flags] [-- EMMYLUA_CHECK_ARGS...]",
@@ -155,23 +191,30 @@ func newCheckCmd(services sdk.Services) *cobra.Command {
 		Long: "Run emmylua_check on PATH (default the project) with the configuration " +
 			"tt writes, then the project's .luarc.json and .emmyrc.json. The command " +
 			"fails as emmylua_check does: when it reports an error, or with " +
-			"--warnings-as-errors a warning. The flags below go to emmylua_check; " +
-			"its others, such as --ignore and --output, after --. " + passHelp,
+			"--warnings-as-errors a warning. --warnings-as-errors, -f/--output-format and " +
+			"--severity go to emmylua_check as they are, its other flags, such as --ignore " +
+			"and --output, after --. " + passHelp + "\n\n" +
+			outsideHelp,
 		Example: `$ tt emmylua check
-  $ tt emmylua check app --warnings-as-errors -f json -- --output report.json`,
+  $ tt emmylua check app --warnings-as-errors -f json -- --output report.json
+
+  # Outside a project, with the modules of a checkout of a rock.
+  $ tt emmylua check --library ~/src/checks`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return run.withConfig(cmd, args, analyzer.Check, checkFlags)
 		},
 	}
 
 	addProgramFlags(cmd, checkFlags)
+	run.addLibraryFlag(cmd)
+	run.addToolFlags(cmd)
 
 	return cmd
 }
 
 // newDocCmd builds tt emmylua doc.
 func newDocCmd(services sdk.Services) *cobra.Command {
-	run := runner{services: services}
+	run := &runner{services: services, version: "", rockServer: "", libraries: nil}
 
 	cmd := &cobra.Command{
 		Use:   "doc [PATH...] [flags] [-- EMMYLUA_DOC_CLI_ARGS...]",
@@ -179,8 +222,8 @@ func newDocCmd(services sdk.Services) *cobra.Command {
 		Long: "Run emmylua_doc_cli on PATH (default the project) with the configuration " +
 			"tt writes, then the project's .luarc.json and .emmyrc.json: it writes the " +
 			"documentation of the annotated code, by default as an HTML site in ./output. " +
-			"The flags below go to emmylua_doc_cli; its others, such as --site-name, " +
-			"after --. " + passHelp,
+			"-o/--output and -f/--output-format go to emmylua_doc_cli as they are, its " +
+			"other flags, such as --site-name, after --. " + passHelp + "\n\n" + outsideHelp,
 		Example: `$ tt emmylua doc -o doc/api -- --site-name "My application"
   $ tt emmylua doc -f json -o api.json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -189,13 +232,15 @@ func newDocCmd(services sdk.Services) *cobra.Command {
 	}
 
 	addProgramFlags(cmd, docFlags)
+	run.addLibraryFlag(cmd)
+	run.addToolFlags(cmd)
 
 	return cmd
 }
 
 // newFmtCmd builds tt emmylua fmt.
 func newFmtCmd(services sdk.Services) *cobra.Command {
-	run := runner{services: services}
+	run := &runner{services: services, version: "", rockServer: "", libraries: nil}
 
 	cmd := &cobra.Command{
 		Use:   "fmt [PATH...] [flags] [-- LUAFMT_ARGS...]",
@@ -205,7 +250,9 @@ func newFmtCmd(services sdk.Services) *cobra.Command {
 			"if any would; with --write it rewrites them. It reads .luafmt.toml or " +
 			"luafmt.toml and .luafmtignore, not the configuration of the analyzer. The " +
 			"other flags of luafmt, such as --list-different, go after --, and one that " +
-			"chooses what luafmt does takes the place of --check. " + passHelp,
+			"chooses what luafmt does takes the place of --check. " + passHelp + "\n\n" +
+			"Outside every project luafmt comes from the user cache, fetched there once " +
+			"from the rock server (--rock-server, --version).",
 		Example: `$ tt emmylua fmt
   $ tt emmylua fmt app --write`,
 		RunE: run.format,
@@ -213,63 +260,88 @@ func newFmtCmd(services sdk.Services) *cobra.Command {
 
 	addProgramFlags(cmd, fmtFlags)
 	cmd.MarkFlagsMutuallyExclusive(fmtCheck, "write")
+	run.addToolFlags(cmd)
 
 	return cmd
 }
 
 // newLsCmd builds tt emmylua ls.
 func newLsCmd(services sdk.Services) *cobra.Command {
-	run := runner{services: services}
+	run := &runner{services: services, version: "", rockServer: "", libraries: nil}
 
-	return &cobra.Command{
-		Use:   "ls [-- EMMYLUA_LS_ARGS...]",
+	cmd := &cobra.Command{
+		Use:   "ls [flags] [-- EMMYLUA_LS_ARGS...]",
 		Short: "Run the language server, for an editor",
 		Long: "Run emmylua_ls, the language server of EmmyLua, on the standard streams, " +
 			"in place of tt: make it the command of the Lua server of the editor. It " +
 			"reads the configuration tt writes (through " + analyzer.ConfigEnv + "), then " +
-			"the project's .luarc.json, .emmyrc.json and .emmyrc.lua. " + passHelp,
+			"the project's .luarc.json, .emmyrc.json and .emmyrc.lua. " + passHelp + "\n\n" +
+			outsideHelp + " So an editor can run tt emmylua ls in any folder.",
 		Example: `# Neovim (nvim-lspconfig):
   #   vim.lsp.config('emmylua_ls', { cmd = { 'tt', 'emmylua', 'ls' } })
   $ tt emmylua ls -- --log-level debug --log-path /tmp/emmylua_ls.log`,
 		Args: cobra.ArbitraryArgs,
 		RunE: run.languageServer,
 	}
+
+	run.addLibraryFlag(cmd)
+	run.addToolFlags(cmd)
+
+	return cmd
 }
 
 // newConfigCmd builds tt emmylua config.
 func newConfigCmd(services sdk.Services) *cobra.Command {
-	run := runner{services: services}
+	run := &runner{services: services, version: "", rockServer: "", libraries: nil}
 
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Write the configuration EmmyLua runs with, and print its path",
 		Long: "Write the configuration tt gives EmmyLua - LuaJIT, the globals of " +
 			"Tarantool, the stubs of the Tarantool the project runs on and the modules " +
 			"its rocks install - to " + analyzer.ConfigDir + "/" + analyzer.ConfigFileName +
-			" and print its path: for an editor that runs emmylua_ls itself, through " +
-			analyzer.ConfigEnv + ". The other commands write it anew on every run.",
+			" of the project and print its path: for an editor that runs emmylua_ls " +
+			"itself, through " + analyzer.ConfigEnv + ". The other commands write it anew " +
+			"on every run.\n\nOutside every project it is written into the user cache, " +
+			"one file for each directory, with the modules of .rocks/ of the directory, " +
+			"and the directory is left as it is.",
 		Example: `$ EMMYLUALS_CONFIG=$(tt emmylua config) code .`,
 		Args:    cobra.NoArgs,
 		RunE:    run.config,
 	}
+
+	run.addLibraryFlag(cmd)
+
+	return cmd
 }
 
-// paths are the paths a program of EmmyLua runs on.
-type paths struct {
-	// project is the project directory: the root of the workspace.
-	project string
-	// list are the paths given, or the project.
-	list []string
-}
-
-// args splits args at -- into the paths, the project when there are none,
-// and the arguments of the program.
-func (r runner) args(cmd *cobra.Command, args []string) (paths, []string, error) {
+// workspace returns where cmd runs, as findWorkspace finds it, and refuses
+// the flags that choose the programs outside a project in one: a project
+// runs the programs its lock pins.
+func (r *runner) workspace(cmd *cobra.Command) (workspace, error) {
 	found, err := findWorkspace(r.services)
 	if err != nil {
-		return paths{}, nil, err
+		return workspace{}, err
 	}
 
+	if !found.project {
+		return found, nil
+	}
+
+	for _, name := range []string{versionFlag, rockServerFlag} {
+		if flag := cmd.Flags().Lookup(name); flag != nil && flag.Changed {
+			return workspace{}, fmt.Errorf("%w: --%s chooses EmmyLua outside a project; "+
+				"the project %s runs the one its lock pins (tt emmylua prepare sets it)",
+				errUsage, name, found.dir)
+		}
+	}
+
+	return found, nil
+}
+
+// split splits args at -- into the paths, the root of the workspace when
+// there are none, and the arguments of the program.
+func split(cmd *cobra.Command, args []string, found workspace) ([]string, []string) {
 	list, pass := args, []string(nil)
 	if dash := cmd.ArgsLenAtDash(); dash >= 0 {
 		list, pass = args[:dash], args[dash:]
@@ -279,24 +351,88 @@ func (r runner) args(cmd *cobra.Command, args []string) (paths, []string, error)
 		list = []string{found.dir}
 	}
 
-	return paths{project: found.dir, list: list}, pass, nil
+	return list, pass
+}
+
+// programPath returns the path of program: in the rocks of a project, and
+// outside every project in the user cache, which the first run fetches it
+// into from the rock server of --rock-server at --version.
+func (r *runner) programPath(
+	ctx context.Context, found workspace, program analyzer.Program,
+) (string, error) {
+	if found.project {
+		return analyzer.ProgramPath(found.dir, program)
+	}
+
+	dir, err := analyzer.Tools(ctx, analyzer.ToolsOptions{
+		CacheDir:   analyzer.DefaultCacheDir(),
+		RockServer: r.rockServer,
+		WorkingDir: found.workDir,
+		Version:    r.version,
+		Arch:       "",
+		Client:     fetch.Client{HTTP: nil, Limit: 0},
+		Progress:   r.services.Streams().IO().Err,
+		Log:        r.services.Log(),
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(dir, string(program)), nil
+}
+
+// libraryDirs returns the directories of --library, absolute: a relative one
+// is taken from the directory of the command. Each must be a directory.
+func (r *runner) libraryDirs(found workspace) ([]string, error) {
+	dirs := make([]string, 0, len(r.libraries))
+
+	for _, library := range r.libraries {
+		dir := library
+		if !filepath.IsAbs(dir) {
+			dir = filepath.Join(found.workDir, dir)
+		}
+
+		info, err := os.Stat(dir)
+		if err != nil {
+			return nil, fmt.Errorf("--%s %s: %w", libraryFlag, library, err)
+		}
+
+		if !info.IsDir() {
+			return nil, fmt.Errorf("--%s %s: %w", libraryFlag, library, errNotADirectory)
+		}
+
+		dirs = append(dirs, filepath.Clean(dir))
+	}
+
+	return dirs, nil
 }
 
 // withoutTypes ends the warnings of a project whose Tarantool gives EmmyLua
 // no stubs.
 const withoutTypes = "checking without the types of the Tarantool API"
 
-// layout is what tt knows of the project of the command for EmmyLua. No
-// Tarantool, one tt cannot choose and one without stubs are reported, and
-// are not errors: the code is checked without the types of the Tarantool
-// API.
-func (r runner) layout() (analyzer.Layout, error) {
-	found, err := findWorkspace(r.services)
+// layout is what tt knows of the workspace of the command for EmmyLua, with
+// the libraries of --library, and where the configuration goes: into the
+// project, or outside every project into the user cache. No Tarantool, one tt
+// cannot choose and one without stubs are reported, and are not errors: the
+// code is checked without the types of the Tarantool API.
+func (r *runner) layout(found workspace) (analyzer.Layout, error) {
+	extra, err := r.libraryDirs(found)
 	if err != nil {
 		return analyzer.Layout{}, err
 	}
 
-	projectDir := found.dir
+	path := ""
+
+	if !found.project {
+		cache := analyzer.DefaultCacheDir()
+		if cache == "" {
+			return analyzer.Layout{}, fmt.Errorf("%w for the configuration of %s: run "+
+				"tt emmylua in a project", analyzer.ErrNoCache, found.dir)
+		}
+
+		path = analyzer.GlobalConfigPath(cache, found.dir)
+	}
 
 	logger := r.services.Log()
 	stubs := ""
@@ -317,7 +453,7 @@ func (r runner) layout() (analyzer.Layout, error) {
 		}
 	}
 
-	return analyzer.Layout{ProjectDir: projectDir, Stubs: stubs}, nil
+	return analyzer.Layout{ProjectDir: found.dir, Stubs: stubs, Extra: extra, Path: path}, nil
 }
 
 // tarantoolName names tarantool by its version, Tarantool 3.8.1, or by its
@@ -334,20 +470,22 @@ func tarantoolName(tarantool sdk.Tarantool) string {
 // withConfig runs program, emmylua_check or emmylua_doc_cli, on the paths in
 // args with the configuration tt writes and those of the project, and the
 // flags of flags given to cmd.
-func (r runner) withConfig(
+func (r *runner) withConfig(
 	cmd *cobra.Command, args []string, program analyzer.Program, flags []programFlag,
 ) error {
-	paths, pass, err := r.args(cmd, args)
+	found, err := r.workspace(cmd)
 	if err != nil {
 		return err
 	}
 
-	path, err := analyzer.ProgramPath(paths.project, program)
+	list, pass := split(cmd, args, found)
+
+	layout, err := r.layout(found)
 	if err != nil {
 		return err
 	}
 
-	layout, err := r.layout()
+	path, err := r.programPath(cmd.Context(), found, program)
 	if err != nil {
 		return err
 	}
@@ -365,20 +503,22 @@ func (r runner) withConfig(
 
 	argv = append(argv, programArgs(cmd, flags)...)
 	argv = append(argv, pass...)
-	argv = append(argv, paths.list...)
+	argv = append(argv, list...)
 
 	return r.runProgram(cmd.Context(), path, argv)
 }
 
 // format runs luafmt on the paths in args, without the configuration of the
 // analyzer, in the mode its flags give: --check unless told another.
-func (r runner) format(cmd *cobra.Command, args []string) error {
-	paths, pass, err := r.args(cmd, args)
+func (r *runner) format(cmd *cobra.Command, args []string) error {
+	found, err := r.workspace(cmd)
 	if err != nil {
 		return err
 	}
 
-	program, err := analyzer.ProgramPath(paths.project, analyzer.Format)
+	list, pass := split(cmd, args, found)
+
+	program, err := r.programPath(cmd.Context(), found, analyzer.Format)
 	if err != nil {
 		return err
 	}
@@ -389,7 +529,7 @@ func (r runner) format(cmd *cobra.Command, args []string) error {
 	}
 
 	argv = append(argv, pass...)
-	argv = append(argv, paths.list...)
+	argv = append(argv, list...)
 
 	return r.runProgram(cmd.Context(), program, argv)
 }
@@ -407,9 +547,15 @@ func choosesAction(args []string) bool {
 	return false
 }
 
-// config writes the configuration tt gives EmmyLua and prints its path.
-func (r runner) config(_ *cobra.Command, _ []string) error {
-	layout, err := r.layout()
+// config writes the configuration tt gives EmmyLua and prints its path. It
+// needs no program, so nothing is fetched outside a project.
+func (r *runner) config(cmd *cobra.Command, _ []string) error {
+	found, err := r.workspace(cmd)
+	if err != nil {
+		return err
+	}
+
+	layout, err := r.layout(found)
 	if err != nil {
 		return err
 	}
@@ -426,18 +572,23 @@ func (r runner) config(_ *cobra.Command, _ []string) error {
 
 // languageServer replaces tt with emmylua_ls, so that the editor talks to
 // the server itself and stops it as it stops tt.
-func (r runner) languageServer(cmd *cobra.Command, args []string) error {
+func (r *runner) languageServer(cmd *cobra.Command, args []string) error {
 	dash := cmd.ArgsLenAtDash()
 	if (dash < 0 && len(args) > 0) || dash > 0 {
 		return fmt.Errorf("%w: give the arguments of emmylua_ls after --", errUsage)
 	}
 
-	layout, err := r.layout()
+	found, err := r.workspace(cmd)
 	if err != nil {
 		return err
 	}
 
-	program, err := analyzer.ProgramPath(layout.ProjectDir, analyzer.LanguageServer)
+	layout, err := r.layout(found)
+	if err != nil {
+		return err
+	}
+
+	program, err := r.programPath(cmd.Context(), found, analyzer.LanguageServer)
 	if err != nil {
 		return err
 	}
@@ -476,7 +627,7 @@ func isTerminal(in io.Reader) bool {
 
 // runProgram runs program with args on the standard streams and fails with
 // its exit status, which it has reported itself.
-func (r runner) runProgram(ctx context.Context, program string, args []string) error {
+func (r *runner) runProgram(ctx context.Context, program string, args []string) error {
 	streams := r.services.Streams().IO()
 	child := exec.CommandContext(ctx, program, args...)
 

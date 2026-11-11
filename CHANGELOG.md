@@ -33,6 +33,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   so the lock pins them all; `--from` packs a local build into
   `.tarantool/registry` as before. A rock server takes any `--version`;
   only `--from` and `tt emmylua rock` need a release tt knows.
+- `tt emmylua check`, `doc`, `fmt`, `ls` and `config` work outside every
+  project, with no `prepare`: the programs are those of the `emmylua` rock
+  of the rock index (`--rock-server`, `--version`), fetched on the first run
+  into `<user cache>/tt/emmylua/programs/<sha256>/`, checked against the
+  sha256 of the index and said so on stderr, and taken from there offline
+  after. The configuration is written into the cache too, one file for each
+  directory, with the stubs of the Tarantool tt finds and the modules of
+  `.rocks/` of the directory: an editor can run `tt emmylua ls` in any
+  folder, and `config` no longer writes `.tarantool/emmylua/` into a
+  directory that is not a project. `--library DIR` adds a directory of
+  modules to the libraries, in a project as well. A rock server out of reach
+  is named, with how to work offline: in a project, or with `--rock-server`
+  naming a directory of rocks. `tt emmylua prepare` outside a project says
+  that the other commands need none.
 - `tt wasm rock --from <module> --arch <arch>`: pack a local build of the
   tarantool-wasm module as the rock of a platform, for a release with no
   build of it to download; the rocks already in `--out` stay, so a run for

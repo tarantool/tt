@@ -140,3 +140,27 @@ _runtime/tt/bin/tt
 
 A signed archive also has `hashes.json`, `env_hashes.json` and their `.sig`
 files; see [Sign packages](../how-to/sign-packages.md).
+
+## The user cache
+
+`tt wasm` and `tt emmylua` keep what they download under `tt/` of the user
+cache: `$XDG_CACHE_HOME`, `~/.cache` by default, `~/Library/Caches` on
+macOS. Outside every project, `tt emmylua check`, `doc`, `fmt` and `ls` run
+the programs of the `emmylua` rock from there, and write their
+configuration there rather than into the directory:
+
+```text
+<user cache>/tt/emmylua/
+├── <sha256>                          # an asset tt emmylua rock downloaded
+├── programs/<sha256>/                # the bin/ of the rock of that sha256
+│   ├── emmylua_check
+│   ├── emmylua_doc_cli
+│   ├── emmylua_ls
+│   └── luafmt
+├── resolved/<key>.json               # the rock a server, a version and a platform resolved to
+└── config/<key>/emmyrc.json          # the configuration of a directory, by its path
+```
+
+The first run fetches the rock and says so; the later ones find it from
+`resolved/` and ask no server. A rock server that is a directory is asked
+every time. Remove the directory to fetch the rocks anew.

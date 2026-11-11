@@ -43,7 +43,12 @@ func New(services sdk.Services) []sdk.Mount {
 			"adds to it. The " + analyzer.RockName + " rock of every platform comes " +
 			"from the index of tarantool-contrib/rocks-repo; prepare --from and rock " +
 			"pack it themselves, from a local build or from the releases the module " +
-			"knows.",
+			"knows.\n\n" +
+			"The project is the one the current directory is in, found as the other " +
+			"project commands of tt find it. Outside every project check, doc, fmt and " +
+			"ls need no prepare: they run the programs of the rock, fetched once into " +
+			"the user cache (tt/emmylua there), with the configuration kept there too; " +
+			"--rock-server names another server, a directory of rocks to work offline.",
 	}
 
 	group.AddCommand(newPrepareCmd(services), newRockCmd(services),

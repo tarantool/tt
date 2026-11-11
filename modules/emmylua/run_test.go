@@ -71,7 +71,7 @@ func configPath(project string) string {
 // It runs programs, so it is not parallel: a fork elsewhere could hold the
 // script it has just written open.
 func TestCheck(t *testing.T) {
-	project := t.TempDir()
+	project := testProject(t)
 	writeProgram(t, project, "emmylua_check", echoArgs)
 
 	got := sdktest.New(t, sdktest.WithProject(project)).Run(emmylua.New, "emmylua", "check")
@@ -122,7 +122,7 @@ func TestCheckInSubdirectory(t *testing.T) {
 // with the configuration, the arguments after -- and the paths. It runs
 // programs, so it is not parallel, as TestCheck.
 func TestDoc(t *testing.T) {
-	project := t.TempDir()
+	project := testProject(t)
 	writeProgram(t, project, "emmylua_doc_cli", "echo \"$@\"\n")
 
 	got := sdktest.New(t, sdktest.WithProject(project)).Run(emmylua.New,
@@ -139,7 +139,7 @@ func TestDoc(t *testing.T) {
 // as the program does. It runs programs, so it is not parallel, as
 // TestCheck.
 func TestFmt(t *testing.T) {
-	project := t.TempDir()
+	project := testProject(t)
 	writeProgram(t, project, "luafmt", "echo \"$@\"\n")
 
 	for _, testCase := range []struct {
@@ -178,7 +178,7 @@ func TestConfig(t *testing.T) {
 	stubs := filepath.Join(root, "share", "tarantool", "emmylua")
 	require.NoError(t, os.MkdirAll(stubs, 0o755))
 
-	project := t.TempDir()
+	project := testProject(t)
 	services := sdktest.New(t, sdktest.WithProject(project),
 		sdktest.WithTarantool(filepath.Join(root, "bin", "tarantool"),
 			sdk.TarantoolVersion{Major: 3, Minor: 9}))
@@ -206,7 +206,8 @@ func TestConfig(t *testing.T) {
 
 	old := filepath.Join(t.TempDir(), "bin", "tarantool")
 
-	got = sdktest.New(t, sdktest.WithTarantool(old, sdk.TarantoolVersion{Major: 3})).Run(
+	got = sdktest.New(t, sdktest.WithProject(project),
+		sdktest.WithTarantool(old, sdk.TarantoolVersion{Major: 3})).Run(
 		emmylua.New, "emmylua", "config")
 	require.NoError(t, got.Err)
 	assert.Equal(t, []string{"Tarantool 3.0.0 has no EmmyLua stubs: " +
@@ -215,7 +216,7 @@ func TestConfig(t *testing.T) {
 		" or the file it links to: Tarantool 3.9 and newer install the stubs there",
 		"the path is told with -V")
 
-	got = sdktest.Run(t, emmylua.New, "emmylua", "config")
+	got = sdktest.New(t, sdktest.WithProject(project)).Run(emmylua.New, "emmylua", "config")
 	require.NoError(t, got.Err)
 	assert.Equal(t, []string{noTarantool}, warnings(got.Records))
 }
@@ -226,7 +227,8 @@ func TestNotPrepared(t *testing.T) {
 	t.Parallel()
 
 	for _, command := range []string{"check", "doc", "fmt", "ls"} {
-		got := sdktest.Run(t, emmylua.New, "emmylua", command)
+		got := sdktest.New(t, sdktest.WithProject(testProject(t))).Run(emmylua.New,
+			"emmylua", command)
 		require.ErrorIs(t, got.Err, analyzer.ErrNotPrepared, command)
 		require.ErrorContains(t, got.Err, "run tt emmylua prepare", command)
 		assert.False(t, sdk.IsReported(got.Err), command)
