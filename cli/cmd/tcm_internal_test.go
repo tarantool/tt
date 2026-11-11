@@ -228,9 +228,16 @@ func TestHelperTcmWatchdog(t *testing.T) {
 
 // TestTcmStopOutwaitsEscalation pins that tt tcm stop waits for the watchdog
 // to kill TCM that ignores SIGTERM, reap it and remove the pid files, rather
-// than giving up first. Both timeouts are the real ones scaled down alike.
+// than giving up first. The escalation is the real one scaled down; the stop
+// waits as much longer than it as the real stop does. That margin is not
+// scaled: the kill, the reaping and the exit of the watchdog it covers take
+// as long on a busy runner whatever the timeouts are, and a tenth of it was
+// too little there.
 func TestTcmStopOutwaitsEscalation(t *testing.T) {
 	const scale = 10
+
+	margin := process_utils.TerminationTimeout - watchdogStopTimeout
+	require.Positive(t, margin, "tt tcm stop gives up before the watchdog escalates")
 
 	dir := t.TempDir()
 	t.Chdir(dir)
@@ -286,7 +293,7 @@ func TestTcmStopOutwaitsEscalation(t *testing.T) {
 
 	started := time.Now()
 
-	require.NoError(t, stopTcm(process_utils.TerminationTimeout/scale))
+	require.NoError(t, stopTcm(watchdogStopTimeout/scale+margin))
 	assert.GreaterOrEqual(t, time.Since(started), watchdogStopTimeout/scale,
 		"TCM stopped before the escalation")
 
