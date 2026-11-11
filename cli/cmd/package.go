@@ -33,9 +33,10 @@ import (
 	"github.com/tarantool/tt/v3/internal/integrityprovider"
 )
 
-// ErrNoTarantool reports that no tarantool executable was found; the manifest
-// build needs it to configure the rocks adapter (and to compile c/lua-c
-// components), and resolution to evaluate rockspecs.
+// ErrNoTarantool reports that no tarantool executable was found, to the
+// commands that cannot go without one: the re-resolving dependency commands,
+// tt package search and download, and tt test. tt package build, fetch and
+// pack go without (buildTarantoolInfo).
 var ErrNoTarantool = errors.New("tarantool executable not found in PATH")
 
 // Shared flags for the package subcommands.
@@ -854,7 +855,7 @@ func runPackagePack() error {
 		return err
 	}
 
-	tntInfo, err := tarantoolInfo()
+	tntInfo, err := buildTarantoolInfo()
 	if err != nil {
 		return err
 	}
@@ -924,7 +925,8 @@ func runPackagePack() error {
 }
 
 // runtimeRequest describes where pack may take the _runtime/ components from:
-// the runtime cache first, the active tt environment as a fallback.
+// the runtime cache first, the active tt environment as a fallback. With no
+// tarantool, tntInfo empty, the cache is the only source of Tarantool.
 //
 // TcmCli carries no version and nothing probes the binary, so the active TCM is
 // deliberately not offered as a fallback: passing the path without a version
@@ -1032,7 +1034,7 @@ func buildPackage(ctx context.Context, run packageRun) error {
 // for.
 func buildPackageIn(ctx context.Context, projectDir string, run packageRun) error {
 	//nolint:contextcheck // tarantool --version is asked once, and takes no context.
-	tntInfo, err := tarantoolInfo()
+	tntInfo, err := buildTarantoolInfo()
 	if err != nil {
 		return err
 	}
@@ -1356,6 +1358,26 @@ func tarantoolInfo() (manifestrocks.TarantoolInfo, error) {
 		Prefix:     prefix,
 		Version:    ver.Str,
 	}, nil
+}
+
+// buildTarantoolInfo is tarantoolInfo for tt package build, fetch and pack,
+// which go without a tarantool: with none found they build with no Tarantool
+// facts, the zero TarantoolInfo, since a package of Lua needs none, and what
+// does need one fails saying so - a c or lua-c component, or a rock of the
+// registry, compiled against the headers of Tarantool, and a .tt archive
+// with its runtime when the runtime cache has no Tarantool to bundle. A make,
+// shell or cmake build is then not told where Tarantool is (TT_TARANTOOL_*).
+// A tarantool that is there but cannot tell its version or prefix is still an
+// error.
+func buildTarantoolInfo() (manifestrocks.TarantoolInfo, error) {
+	info, err := tarantoolInfo()
+	if errors.Is(err, ErrNoTarantool) {
+		log.Debugf("Building without a Tarantool: %s", err)
+
+		return manifestrocks.TarantoolInfo{Executable: "", Prefix: "", Version: ""}, nil
+	}
+
+	return info, err
 }
 
 // packageSigner returns the signer of tt package pack --with-integrity-check,

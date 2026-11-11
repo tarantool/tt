@@ -53,6 +53,37 @@ func TestBuildConfigDefaults(t *testing.T) {
 	assert.Equal(t, "/opt/tt/include/tarantool", cfg.Tarantool.IncludeDir)
 }
 
+// TestBuildConfigWithoutTarantool pins the config of a tt with no Tarantool:
+// it names no Tarantool at all, the headers included, rather than
+// include/tarantool of the working directory, so the flags carry no -I and a
+// build of a C module fails for want of the headers instead of compiling
+// against whatever is there.
+func TestBuildConfigWithoutTarantool(t *testing.T) {
+	t.Parallel()
+
+	info := rocks.TarantoolInfo{Executable: "", Prefix: "", Version: ""}
+
+	assert.Empty(t, info.IncludeDir())
+
+	cfg := rocks.BuildConfig(info, rocks.ConfigOptions{
+		Tree:       "/app/.rocks",
+		WorkingDir: "/app",
+		Servers:    nil,
+		Logger:     nil,
+	})
+
+	assert.Equal(t, luarocks.TarantoolConfig{
+		Executable: "", Prefix: "", IncludeDir: "", Version: "",
+	}, cfg.Tarantool)
+
+	flags := rocks.New(cfg).Flags()
+	assert.Empty(t, flags.LuaIncDir)
+
+	for _, flag := range flags.CFLAGS {
+		assert.NotContains(t, flag, "-I")
+	}
+}
+
 func TestBuildConfigCustomServersNoInsecure(t *testing.T) {
 	t.Parallel()
 

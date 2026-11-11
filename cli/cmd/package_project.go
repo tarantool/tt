@@ -59,7 +59,8 @@ func AddDependency(ctx context.Context, dep sdk.Dependency) (*deps.Result, error
 //
 // The warnings go to the process logger. The fetch stops on SIGINT and
 // SIGTERM, killing the build tools a rock runs, as tt package fetch does, and
-// when ctx is done. A tt with no Tarantool fails with ErrNoTarantool.
+// when ctx is done. A tt with no Tarantool installs the rocks that need none,
+// as tt package fetch does (buildTarantoolInfo).
 func FetchRocks(ctx context.Context, registries []string) error {
 	ctx, stop := packageContextOf(ctx)
 	defer stop()

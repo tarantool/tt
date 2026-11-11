@@ -181,6 +181,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- `tt package build`, `tt package fetch` and `tt package pack` need no
+  Tarantool, where they failed with "tarantool executable not found in
+  PATH" on a machine with none: a package of Lua builds, fetches its locked
+  closure and packs as a rock or a `--without-deps` archive. What needs one
+  fails saying so: a `c` or `lua-c` component, before anything is built,
+  for want of the headers; a rock of a server with a C part; a `.tt`
+  archive with its runtime when the runtime cache has no Tarantool to
+  bundle. A `make`, `shell` or `cmake` build gets no `TT_TARANTOOL_*` then.
+  A module's `Project().Install()` goes without one as well.
 - `tt package` and its subcommands, `tt run`, `tt test` and `tt wasm` find
   the project from the current directory upward, as the instance commands
   do, where they took the current directory for it: run in `app/` of a

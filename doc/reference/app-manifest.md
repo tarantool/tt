@@ -185,7 +185,9 @@ Tarantool it builds for, a build also gets `TT_TARANTOOL_PREFIX`, the
 install prefix of that Tarantool, and `TT_TARANTOOL_INCLUDE_DIR`, the
 directory of its `module.h` and `lua.h`, `<prefix>/include/tarantool`, which
 the `c` and `lua-c` backends compile against; either is unset when tt does
-not know it. `env` of the build cannot override them.
+not know it. `env` of the build cannot override them. Where tt finds no
+Tarantool at all, a `c` or `lua-c` component fails the build before
+anything is built, for want of the headers.
 
 `cmake` builds the CMake project of `cwd`, where its `CMakeLists.txt` is,
 out of the source, in `_build/cmake/<component>/`:

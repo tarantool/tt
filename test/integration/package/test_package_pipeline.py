@@ -205,6 +205,65 @@ def test_fetch_materializes_from_the_lock(tt_cmd, tmp_path):
     assert (rocks / "share" / "tarantool" / DEPENDENCY).is_dir()
 
 
+LUA_C_COMPONENT = """
+[components.native]
+path = 'native'
+
+[components.native.build]
+backend = 'lua-c'
+module = 'fast'
+sources = ['fast.c']
+"""
+
+
+def test_build_fetch_and_pack_need_no_tarantool(tt_cmd, tmp_path):
+    """A package of Lua builds, fetches and packs with no tarantool around.
+
+    `PATH` is emptied, which is what a machine that never installed Tarantool
+    looks like to tt. What needs one fails saying so: a with-deps archive with
+    no Tarantool in the runtime cache to bundle, and a lua-c component, before
+    anything is built, for want of the headers.
+    """
+    project = make_project(tmp_path / "project", dependency=False)
+    (project / "VERSION").write_text("1.0.0\n")
+    env = {"PATH": "/nonexistent", "HOME": str(tmp_path / "home")}
+    registry = ("--registry", str(ROCKS_REPO))
+    out = tmp_path / "dist"
+    rock = ("--format", "rock", "--out", str(out))
+
+    result = run(tt_cmd, project, "package", "pack", *rock, *registry, env=env)
+    assert result.returncode == 0, result.stderr
+    assert (out / "my-app-1.0.0-1.all.rock").is_file()
+
+    result = run(tt_cmd, project, "package", "build", *registry, env=env)
+    assert result.returncode == 0, result.stderr
+    assert (project / ".rocks" / "share" / "tarantool" / "my-app" / "init.lua").is_file()
+
+    result = run(tt_cmd, project, "package", "fetch", *registry, env=env)
+    assert result.returncode == 0, result.stderr
+
+    result = run(tt_cmd, project, "package", "pack", "--without-deps", *registry, env=env)
+    assert result.returncode == 0, result.stderr
+
+    result = run(tt_cmd, project, "package", "pack", *registry, env=env)
+    assert result.returncode == 1
+    assert "tt found no tarantool to bundle instead" in result.stderr
+
+    (project / "native").mkdir()
+    (project / "native" / "fast.c").write_text("#include <lua.h>\n")
+    manifest = project / "app.manifest.toml"
+    manifest.write_text(
+        manifest.read_text().replace("components = ['lua']", "components = ['lua', 'native']")
+        + LUA_C_COMPONENT,
+    )
+
+    result = run(tt_cmd, project, "package", "build", *registry, env=env)
+    assert result.returncode == 2
+    assert "tarantool development headers not found" in result.stderr
+    assert "no tarantool to take them from" in result.stderr
+    assert not (project / ".rocks" / "lib").exists()
+
+
 def pack(tt_cmd, project: Path) -> Path:
     """Pack the project without dependencies and return the archive path."""
     result = run(

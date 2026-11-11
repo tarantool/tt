@@ -187,6 +187,8 @@ new` объявляет компоненты, собираемые tarawasm; с�
 `TT_TARANTOOL_INCLUDE_DIR`  -  каталог его `module.h` и `lua.h`,
 `<prefix>/include/tarantool`, с которым компилируют backend'ы `c` и `lua-c`;
 то, чего tt не знает, не задаётся. `env` сборки не может переопределить их.
+Если tt не находит Tarantool вовсе, компонент `c` или `lua-c` приводит к
+ошибке сборки ещё до её начала: заголовочных файлов нет.
 
 `cmake` собирает CMake-проект из `cwd`, где лежит его `CMakeLists.txt`, вне
 исходников, в `_build/cmake/<component>/`:

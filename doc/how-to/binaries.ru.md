@@ -172,4 +172,7 @@ $ tt binary search sdk
 заголовочными файлами того Tarantool, под которым они запущены:
 `.tarantool/include/tarantool` для Tarantool проекта,
 `TT_CLI_TARANTOOL_PREFIX` для внешнего Tarantool, а в остальных случаях - по
-префиксу каталога, куда был установлен Tarantool.
+префиксу каталога, куда был установлен Tarantool. Если Tarantool не найден,
+`tt package build`, `fetch` и `pack` собирают то, в чём нет части на C, а
+rock-модуль или компонент `c` или `lua-c` с такой частью завершается с
+ошибкой: заголовочных файлов нет.

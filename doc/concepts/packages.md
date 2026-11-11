@@ -111,6 +111,14 @@ manifest.
 - A `.wasm` file a component lays out has to be a WebAssembly binary: any
   other fails the build, and a core module, which tarantool-wasm does not
   load, is laid out with a warning.
+- `tt package build`, `fetch` and `pack` need no Tarantool: where tt finds
+  none, neither in `.tarantool/bin` nor in `PATH`, a package of Lua builds
+  and packs all the same. What is compiled against the headers of Tarantool
+  fails then, saying so: a `c` or `lua-c` component, before anything is
+  built, and a rock of a server with a C part. A `make`, `shell` or `cmake`
+  build is not told where Tarantool is, `TT_TARANTOOL_PREFIX` and
+  `TT_TARANTOOL_INCLUDE_DIR` unset, and fails on its own if it needs the
+  headers.
 
 The version of a package is, in order:
 
@@ -236,8 +244,10 @@ package loads its code as `app.module: <name>`, from `.rocks/`.
 
 The runtimes come from `~/.cache/tt/runtimes/<tarantool|tt|tcm>/<ce|ee>/<version>/`
 when a build there matches `[platform]`, and otherwise from the active
-`tarantool` and `tt`, with a warning. `--without-deps` packs the package
-alone: no `_runtime/` and no dependencies, which `tt package install`
+`tarantool` and `tt`, with a warning; with no `tarantool` found, the cache
+is the only source of one, and a cache with no match fails the pack.
+`--without-deps` packs the package alone: no `_runtime/` and no
+dependencies, which `tt package install`
 fetches by the lock; `.rocks/` holds the rock of the package only, a
 component of `namespace = ""` included. Such an archive is named `...-any.tt` when it holds no
 native file.
