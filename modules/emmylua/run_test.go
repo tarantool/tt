@@ -38,10 +38,20 @@ func writeProgram(t *testing.T, project, program, script string) {
 
 // warnings returns the messages of the warnings in records.
 func warnings(records []logtest.Record) []string {
+	return messagesAt(records, slog.LevelWarn)
+}
+
+// debugs returns the messages of the debug records in records.
+func debugs(records []logtest.Record) []string {
+	return messagesAt(records, slog.LevelDebug)
+}
+
+// messagesAt returns the messages of the records of level in records.
+func messagesAt(records []logtest.Record, level slog.Level) []string {
 	var messages []string
 
 	for _, record := range records {
-		if record.Level == slog.LevelWarn {
+		if record.Level == level {
 			messages = append(messages, record.Message)
 		}
 	}
@@ -182,9 +192,11 @@ func TestConfig(t *testing.T) {
 	got = sdktest.New(t, sdktest.WithTarantool(old, sdk.TarantoolVersion{Major: 3})).Run(
 		emmylua.New, "emmylua", "config")
 	require.NoError(t, got.Err)
-	assert.Equal(t, []string{old + " has no EmmyLua stubs (share/tarantool/emmylua, " +
-		"Tarantool 3.9 and newer): checking without the types of the Tarantool API"},
-		warnings(got.Records))
+	assert.Equal(t, []string{"Tarantool 3.0.0 has no EmmyLua stubs: " +
+		"checking without the types of the Tarantool API"}, warnings(got.Records))
+	assert.Contains(t, debugs(got.Records), "no share/tarantool/emmylua next to "+old+
+		" or the file it links to: Tarantool 3.9 and newer install the stubs there",
+		"the path is told with -V")
 
 	got = sdktest.Run(t, emmylua.New, "emmylua", "config")
 	require.NoError(t, got.Err)

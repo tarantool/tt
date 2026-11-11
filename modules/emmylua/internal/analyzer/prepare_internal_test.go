@@ -156,12 +156,17 @@ func TestPrepareFrom(t *testing.T) {
 
 	opts := Options{
 		ProjectDir: project, From: build, Declare: decl.declare,
+		// What follows the declaration comes under its line, before the
+		// install.
+		Declared: func() { progress.WriteString("  (moves)\n") },
 		Install:  func(context.Context) error { installs++; return nil },
 		Progress: &progress,
 	}
 
 	report, err := Prepare(t.Context(), opts)
 	require.NoError(t, err)
+	assert.Contains(t, progress.String(),
+		"in [dev_dependencies]\n  (moves)\ninstalling the rocks\n")
 	assert.True(t, report.Declared)
 	assert.True(t, report.Installed)
 	assert.Equal(t, RegistryDir, report.Registry)

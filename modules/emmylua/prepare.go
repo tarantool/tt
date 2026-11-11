@@ -115,7 +115,10 @@ func (c *prepareCmd) run(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	var install func(ctx context.Context) error
+	var (
+		install func(ctx context.Context) error
+		moves   []sdk.DependencyMove
+	)
 
 	if !c.noInstall {
 		install = func(ctx context.Context) error {
@@ -140,10 +143,13 @@ func (c *prepareCmd) run(cmd *cobra.Command, _ []string) error {
 				return false, err
 			}
 
-			printMoves(streams.Out, change.Moves)
+			moves = change.Moves
 
 			return change.Existed, nil
 		},
+		// The moves go under the line on the declaration, which Prepare
+		// writes once Declare returns.
+		Declared: func() { printMoves(streams.Out, moves) },
 		Install:  install,
 		Progress: streams.Err,
 	})

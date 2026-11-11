@@ -8,6 +8,7 @@ require (
 	github.com/tarantool/go-luarocks v0.1.1-0.20261111110720-119a9e469552
 	github.com/tarantool/tt/sdk v0.0.0
 	github.com/tarantool/tt/sdk/fetch v0.0.0
+	golang.org/x/term v0.47.0
 )
 
 require (
@@ -47,7 +48,6 @@ require (
 	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
-	golang.org/x/term v0.47.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

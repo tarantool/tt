@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/tarantool/tt/modules/emmylua/internal/analyzer"
 	"github.com/tarantool/tt/sdk"
@@ -307,12 +309,24 @@ func (r runner) layout() (analyzer.Layout, error) {
 	default:
 		stubs = analyzer.FindStubs(tarantool.Path())
 		if stubs == "" {
-			logger.Warn(tarantool.Path() + " has no EmmyLua stubs (share/tarantool/emmylua, " +
-				"Tarantool 3.9 and newer): " + withoutTypes)
+			logger.Warn(tarantoolName(tarantool) + " has no EmmyLua stubs: " + withoutTypes)
+			logger.Debug("no " + analyzer.StubsDir + " next to " + tarantool.Path() +
+				" or the file it links to: Tarantool 3.9 and newer install the stubs there")
 		}
 	}
 
 	return analyzer.Layout{ProjectDir: projectDir, Stubs: stubs}, nil
+}
+
+// tarantoolName names tarantool by its version, Tarantool 3.8.1, or by its
+// path when the version cannot be told.
+func tarantoolName(tarantool sdk.Tarantool) string {
+	version, err := tarantool.Version()
+	if err != nil {
+		return tarantool.Path()
+	}
+
+	return fmt.Sprintf("Tarantool %d.%d.%d", version.Major, version.Minor, version.Patch)
 }
 
 // withConfig runs program, emmylua_check or emmylua_doc_cli, on the paths in
@@ -434,9 +448,28 @@ func (r runner) languageServer(cmd *cobra.Command, args []string) error {
 	env := append(os.Environ(), analyzer.ConfigEnv+"="+config)
 	argv := append([]string{program}, args...)
 
+	// Started in a terminal, the server would wait in silence for an editor
+	// that never comes.
+	streams := r.services.Streams().IO()
+	if isTerminal(streams.In) {
+		_, _ = fmt.Fprintln(streams.Err, lsHint)
+	}
+
 	err = syscall.Exec(program, argv, env)
 
 	return fmt.Errorf("running %s: %w", program, err)
+}
+
+// lsHint is what tt emmylua ls says before the server starts in a terminal.
+const lsHint = "emmylua_ls is a language server and waits for an editor on stdin: " +
+	"make tt emmylua ls the command of the editor's Lua server (see tt emmylua ls --help). " +
+	"Ctrl+C stops it."
+
+// isTerminal reports whether in is a terminal.
+func isTerminal(in io.Reader) bool {
+	file, ok := in.(*os.File)
+
+	return ok && term.IsTerminal(int(file.Fd()))
 }
 
 // runProgram runs program with args on the standard streams and fails with

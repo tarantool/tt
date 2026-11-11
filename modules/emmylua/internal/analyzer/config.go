@@ -25,9 +25,9 @@ const (
 	ConfigEnv = "EMMYLUALS_CONFIG"
 	// rocksDirName is the rock tree of the project.
 	rocksDirName = ".rocks"
-	// stubsDir is where Tarantool installs its EmmyLua stubs, relative to its
+	// StubsDir is where Tarantool installs its EmmyLua stubs, relative to its
 	// prefix (gh-13022, Tarantool 3.9 and newer).
-	stubsDir = "share/tarantool/emmylua"
+	StubsDir = "share/tarantool/emmylua"
 )
 
 // projectConfigNames are the configurations of a project, in the order
@@ -163,7 +163,7 @@ func FindStubs(executable string) string {
 	}
 
 	for _, exe := range []string{executable, resolved} {
-		dir := filepath.Join(filepath.Dir(filepath.Dir(exe)), filepath.FromSlash(stubsDir))
+		dir := filepath.Join(filepath.Dir(filepath.Dir(exe)), filepath.FromSlash(StubsDir))
 
 		info, err := os.Stat(dir)
 		if err == nil && info.IsDir() {

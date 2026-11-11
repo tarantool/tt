@@ -49,6 +49,10 @@ type Options struct {
 	// re-resolves the lock. It reports whether the manifest already declared
 	// it, in which case the declaration was left alone.
 	Declare func(ctx context.Context, name, constraint, registry string) (bool, error)
+	// Declared, when set, is called once Progress has the line on the
+	// declaration and before the install: what follows the declaration,
+	// such as how the lock moved, is told there, under that line.
+	Declared func()
 	// Install installs the locked rocks into .rocks; nil leaves that to the
 	// next tt package build.
 	Install func(ctx context.Context) error
@@ -141,6 +145,10 @@ func Prepare(ctx context.Context, opts Options) (*Report, error) {
 		} else {
 			progressf(opts.Progress, "declared %s %s from %s in [dev_dependencies]",
 				RockName, report.Release.Version, report.Registry)
+		}
+
+		if opts.Declared != nil {
+			opts.Declared()
 		}
 	}
 
