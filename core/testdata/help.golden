@@ -5429,12 +5429,18 @@ with the manifest that makes the directory a rock server. Serve it, or upload
 its files next to the assets of the release, and declare the dependency from it
 with tt wasm prepare --rock-server: then every machine gets the build of its
 own, and an archive packed --without-deps installs anywhere. The assets are
-checked against the sha256 tt holds the release to.
+checked against the sha256 tt holds the release to. With --from, pack the one
+local build of the module as the rock of --arch (default this host's) and keep
+the rocks already in --out: run it once for the build of each platform.
 
 [0;1;39mUSAGE[0m
   tt wasm rock [flags]
 [0;1;39m
 FLAGS[0m
+      --arch string      the LuaRocks arch of the build --from names
+                         (linux-x86_64, macosx-aarch64; default this host's)
+      --from string      pack this local build of the module instead of
+                         downloading the assets
   -h, --help             help for rock
       --out string       the directory to pack the rocks into
       --version string   tarantool-wasm release (default "0.1.0")
@@ -5445,6 +5451,12 @@ EXAMPLES[0m
   $ gh release upload v0.1.0 dist/rocks/*
   $ tt wasm prepare --rock-server \
       https://github.com/tarantool/tarantool-wasm-rs/releases/download/v0.1.0/
+
+  # Local builds, one per platform.
+  $ tt wasm rock --from target/release/libtarantool_wasm_rs.so \
+      --out dist/rocks
+  $ tt wasm rock --arch macosx-aarch64 --out dist/rocks \
+      --from target/release/libtarantool_wasm_rs.dylib
 
 === tt wasm status --help
 Show what tt wasm prepare put in place and tt package build needs: the wasm rock

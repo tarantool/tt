@@ -37,6 +37,10 @@ var (
 	// from; wasmOut is the directory tt wasm rock packs into.
 	wasmRockServer string
 	wasmOut        string
+	// wasmFrom is a local build of the module tt wasm rock packs, as the rock
+	// of wasmArch.
+	wasmFrom string
+	wasmArch string
 )
 
 // wasmToolchainHelp says what tt does about the toolchain of a language.
@@ -261,12 +265,21 @@ func newWasmRockCmd() *cobra.Command {
 			"or upload its files next to the assets of the release, and declare the " +
 			"dependency from it with tt wasm prepare --rock-server: then every machine " +
 			"gets the build of its own, and an archive packed --without-deps installs " +
-			"anywhere. The assets are checked against the sha256 tt holds the release to.",
+			"anywhere. The assets are checked against the sha256 tt holds the release to. " +
+			"With --from, pack the one local build of the module as the rock of --arch " +
+			"(default this host's) and keep the rocks already in --out: run it once for " +
+			"the build of each platform.",
 		Example: `# The rocks of 0.1.0, for the assets of the release on GitHub.
   $ tt wasm rock --out dist/rocks
   $ gh release upload v0.1.0 dist/rocks/*
   $ tt wasm prepare --rock-server \
-      https://github.com/tarantool/tarantool-wasm-rs/releases/download/v0.1.0/`,
+      https://github.com/tarantool/tarantool-wasm-rs/releases/download/v0.1.0/
+
+  # Local builds, one per platform.
+  $ tt wasm rock --from target/release/libtarantool_wasm_rs.so \
+      --out dist/rocks
+  $ tt wasm rock --arch macosx-aarch64 --out dist/rocks \
+      --from target/release/libtarantool_wasm_rs.dylib`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return commandError(cmd, runWasmRock())
@@ -276,6 +289,11 @@ func newWasmRockCmd() *cobra.Command {
 	flags := rockCmd.Flags()
 	flags.StringVar(&wasmVersion, "version", wasm.DefaultVersion, "tarantool-wasm release")
 	flags.StringVar(&wasmOut, "out", "", "the directory to pack the rocks into")
+	flags.StringVar(&wasmFrom, "from", "",
+		"pack this local build of the module instead of downloading the assets")
+	flags.StringVar(&wasmArch, "arch", "",
+		"the LuaRocks arch of the build --from names (linux-x86_64, macosx-aarch64; "+
+			"default this host's)")
 
 	_ = rockCmd.MarkFlagRequired("out")
 
@@ -289,6 +307,8 @@ func runWasmRock() error {
 		Version:  wasmVersion,
 		Fetcher:  wasm.Fetcher{CacheDir: wasm.DefaultCacheDir(), Client: nil},
 		Progress: os.Stderr,
+		From:     wasmFrom,
+		Arch:     wasmArch,
 	})
 	if err != nil {
 		return err

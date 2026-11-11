@@ -20,6 +20,9 @@ var (
 	ErrNoManifest = errors.New("not a tt project")
 	// ErrPython reports a Python that cannot host tarawasm.
 	ErrPython = errors.New("no suitable python")
+	// ErrModuleName reports a platform whose module is named other than
+	// Tarantool loads it by.
+	ErrModuleName = errors.New("bad module name")
 )
 
 var (
