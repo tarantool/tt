@@ -13,26 +13,37 @@ never tt's root module, so the compiler refuses any import of tt's
 internals: the SDK is all the module sees. Inside the tt repository the SDK
 modules come from their directories through `replace`.
 
-- `emmylua.go`, `prepare.go`, `run.go` - the commands. `prepare` packs the
-  programs of EmmyLua - `emmylua_check`, `emmylua_doc_cli`, `emmylua_ls` and
-  `luafmt` - as the binary rock `emmylua` into `.tarantool/registry`,
-  declares it in `[dev_dependencies]` and installs the rocks, all through the
-  project of the SDK (`Project.AddDependency`, `Project.Install`), so the
-  programs are in `.rocks/bin`. `rock` packs the rocks of a release for a
-  rock server. `check`, `doc`, `fmt` and `ls` run the programs with the
-  configuration `config` writes to `.tarantool/emmylua/emmyrc.json`: LuaJIT,
-  the globals of Tarantool, the EmmyLua stubs of the Tarantool the project
-  runs on (`Services.Tarantool`) and the modules its rocks install.
+- `emmylua.go`, `prepare.go`, `run.go` - the commands. `prepare` declares
+  the binary rock `emmylua`, which carries the programs of EmmyLua -
+  `emmylua_check`, `emmylua_doc_cli`, `emmylua_ls` and `luafmt` - in
+  `[dev_dependencies]` and installs the rocks, all through the project of the
+  SDK (`Project.AddDependency`, `Project.Install`), so the programs are in
+  `.rocks/bin`. `rock` packs the rocks of a release for a rock server.
+  `check`, `doc`, `fmt` and `ls` run the programs with the configuration
+  `config` writes to `.tarantool/emmylua/emmyrc.json`: LuaJIT, the globals of
+  Tarantool, the EmmyLua stubs of the Tarantool the project runs on
+  (`Services.Tarantool`) and the modules its rocks install.
 - `internal/analyzer` - the releases the module knows, the download of
   their assets through `sdk/fetch`, the binary rock, the configuration and
   where the programs are.
 
-## A stopgap
+## Where the rock comes from
 
-The module packs the rock itself because no rock server serves it yet: the
-releases it knows - their git refs, the md5 of their sources and the sha256
-of the assets of every platform - are a table in
-`internal/analyzer/releases.go`, and `TT_EMMYLUA_RELEASES` names a JSON file
-of others. Both belong on a rock server: once one serves the `emmylua` rock
-of every platform, `tt emmylua prepare --rock-server` declares the rock from
-it, and the table, the downloads and the packing can go.
+`tt emmylua prepare` declares the rock from a rock server:
+`analyzer.DefaultRockServer`, the `tt-rocks-index.json` of the `index`
+branch of
+[tarantool-contrib/rocks-repo](https://github.com/tarantool-contrib/rocks-repo),
+served by `raw.githubusercontent.com`, unless `--rock-server` names another.
+The index names the rock of every platform on the release pages of that
+repository with its sha256, so the lock of the project pins them all and an
+install checks the rock of its host. Any version the server serves is
+declared: tt does not need to know it.
+
+The module still packs the rock itself in two cases: `prepare --from`, which
+packs a local build as the rock of the host into `.tarantool/registry` and
+declares it from there, and `rock`, which packs the rocks a server serves -
+what the CI of rocks-repo publishes. Both write the rockspec from the
+releases the module knows - their git refs, the md5 of their sources and the
+sha256 of the assets of every platform - a table in
+`internal/analyzer/releases.go`; `TT_EMMYLUA_RELEASES` names a JSON file of
+others.

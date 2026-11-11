@@ -3089,8 +3089,9 @@ The programs run with what tt knows of the project: LuaJIT, the globals of
 Tarantool, the EmmyLua stubs of the Tarantool the project runs on
 (share/tarantool/emmylua, Tarantool 3.9 and newer) and the modules its rocks
 install. The project's own .emmyrc.json is read after that and adds to it. The
-module is a stopgap until a rock server serves the emmylua rock: until then it
-knows the releases and packs the rock itself.
+emmylua rock of every platform comes from the index of
+tarantool-contrib/rocks-repo; prepare --from and rock pack it themselves, from a
+local build or from the releases the module knows.
 
 [0;1;39mUSAGE[0m
   tt emmylua [flags] <command> [command flags]
@@ -3194,30 +3195,36 @@ EXAMPLES[0m
 === tt emmylua prepare --help
 Put EmmyLua into the project.
 
-The programs of the release for this host - downloaded and checked against the
-sha256 tt holds them to, or those of a local build (--from) - are packed as a
-binary rock into .tarantool/registry. The manifest declares it as
+The manifest declares the binary rock emmylua of the release from the rock
+server --rock-server names:
 
   [dev_dependencies]
-  emmylua = { version = "<release>", registry = ".tarantool/registry" }
+  emmylua = { version = "<release>", registry = "<rock server>" }
 
-the lock is re-resolved and the rocks are installed, so the programs are in
-.rocks/bin. A declaration already there is left as it is.
+The lock is re-resolved and the rocks are installed, so the programs are in
+.rocks/bin. A declaration already there is left as it is. The default server is
+the rock index of tarantool-contrib/rocks-repo,
 
-With --rock-server nothing is packed: the dependency names the server, which tt
-emmylua rock packs the rocks of every platform for.
+  https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/
 
-The registry is for this host and is not meant to be committed: after a
-checkout, run tt emmylua prepare again. Known releases: 0.25.1, 0.30.0pre1;
-TT_EMMYLUA_RELEASES names a JSON file of others.
+which serves the rock of every platform with its sha256, so the lock pins them
+all; another may be one tt emmylua rock packs. Any version a server serves is
+taken.
+
+With --from, the programs of a local build are packed as the rock of this host
+into .tarantool/registry instead, and the dependency names that directory. The
+registry is for this host and is not meant to be committed: after a checkout,
+run tt emmylua prepare --from again. --from packs the releases tt knows: 0.25.1,
+0.30.0pre1; TT_EMMYLUA_RELEASES names a JSON file of others.
 
 [0;1;39mUSAGE[0m
   tt emmylua prepare [flags]
 [0;1;39m
 FLAGS[0m
       --from string            pack the programs of a local build of the release
-                               in this directory (a cargo target/release)
-                               instead of downloading them
+                               in this directory (a cargo target/release) into
+                               .tarantool/registry and declare the rock from
+                               there
   -h, --help                   help for prepare
       --no-install             do not install the rocks: leave that to tt
                                package build
@@ -3225,21 +3232,25 @@ FLAGS[0m
                                ones: an http(s) URL or a local directory; repeat
                                to give an ordered list (overrides TT_REGISTRIES
                                and [platform].registries)
-      --rock-server string     declare the rock from this rock server, which tt
-                               emmylua rock packs for, instead of packing it
-                               into .tarantool/registry
-      --version string         EmmyLua release (default "0.30.0pre1")
+      --rock-server string     the rock server to declare the rock from: a URL
+                               or a directory relative to the project (default
+                               the rock index of tarantool-contrib/rocks-repo)
+      --version string         EmmyLua release: any the rock server serves, or
+                               one tt knows with --from (default "0.30.0pre1")
 [0;1;39m
 EXAMPLES[0m
+  # The rock of this host, from the index of tarantool-contrib/rocks-repo.
+  $ tt emmylua prepare
+
+  # The release Tarantool checks its own code with.
+  $ tt emmylua prepare --version 0.25.1
+
   # A local build of EmmyLua, from its checkout.
   $ cargo build --release -p emmylua_check -p emmylua_ls -p emmylua_doc_cli -p
   emmylua_formatter
   $ tt emmylua prepare --from ~/src/emmylua-analyzer-rust/target/release
 
-  # The release Tarantool checks its own code with, downloaded.
-  $ tt emmylua prepare --version 0.25.1
-
-  # The rocks of a shared rock server.
+  # The rocks of another rock server.
   $ tt emmylua prepare --rock-server https://example.org/rocks/
 
 === tt emmylua rock --help

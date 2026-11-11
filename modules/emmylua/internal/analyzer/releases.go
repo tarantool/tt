@@ -8,9 +8,12 @@
 // in [dev_dependencies] and tt package installs into .rocks/bin like any
 // other rock.
 //
-// It is a stopgap: the rock and the table of its releases belong on a rock
-// server. Until one serves them, the builds the module knows about, and the
-// checksums it holds them to, are written down here.
+// The rock of every platform is served by a rock server, DefaultRockServer
+// unless the project is told another, which prepare declares it from. The
+// builds the module knows about, and the checksums it holds their assets to,
+// are written down here for what packs the rock itself: prepare --from,
+// which packs a local build into the project, and tt emmylua rock, which
+// packs the rocks a server serves.
 package analyzer
 
 import (
@@ -107,7 +110,9 @@ func sums(check, doc, languageServer, format string) map[Program]string {
 	}
 }
 
-// Release is an EmmyLua build tt can put into a project.
+// Release is an EmmyLua build tt can pack a rock of: tt emmylua prepare
+// --from and tt emmylua rock take the releases tt knows (LookupRelease), and
+// a rock server serves any.
 type Release struct {
 	// Version is the version of the rock, without its revision.
 	Version string `json:"version"`
@@ -119,9 +124,8 @@ type Release struct {
 	// rockspec points at. It is the same for every platform, so the lock
 	// records the same checksum on every host.
 	SourceMD5 string `json:"source_md5"`
-	// Platforms are the builds tt downloads. A release without them is
-	// packed from a local build (tt emmylua prepare --from) or declared from
-	// a rock server (--rock-server).
+	// Platforms are the builds tt emmylua rock downloads. A release without
+	// them is packed from a local build (--from).
 	Platforms []Platform `json:"platforms,omitempty"`
 	// BaseURL is where the assets are: <base>/<asset>. Empty is the GitHub
 	// release of Ref.
@@ -132,8 +136,8 @@ type Release struct {
 // table, by version: a build of one's own, the assets of a mirror.
 const ReleasesEnv = "TT_EMMYLUA_RELEASES"
 
-// DefaultVersion is the release a project is prepared with when none is
-// named.
+// DefaultVersion is the release a project is prepared with, and tt emmylua
+// rock packs, when none is named.
 const DefaultVersion = "0.30.0pre1"
 
 // releases are the releases tt knows, by version.
@@ -297,8 +301,7 @@ func (r Release) platform(goos, goarch string) (Platform, error) {
 
 	if len(r.Platforms) == 0 {
 		return Platform{}, fmt.Errorf("%w: EmmyLua %s has no builds to download; "+
-			"pack it from a build of %s (--from) or declare it from a rock server "+
-			"(--rock-server)", ErrUnsupportedPlatform, r.Version, r.Ref)
+			"pack it from a build of %s (--from)", ErrUnsupportedPlatform, r.Version, r.Ref)
 	}
 
 	supported := make([]string, 0, len(r.Platforms))

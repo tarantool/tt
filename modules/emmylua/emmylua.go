@@ -40,9 +40,10 @@ func New(services sdk.Services) []sdk.Mount {
 			"of Tarantool, the EmmyLua stubs of the Tarantool the project runs on " +
 			"(share/tarantool/emmylua, Tarantool 3.9 and newer) and the modules its " +
 			"rocks install. The project's own .emmyrc.json is read after that and " +
-			"adds to it. The module is a stopgap until a rock server serves the " +
-			analyzer.RockName + " rock: until then it knows the releases and packs the " +
-			"rock itself.",
+			"adds to it. The " + analyzer.RockName + " rock of every platform comes " +
+			"from the index of tarantool-contrib/rocks-repo; prepare --from and rock " +
+			"pack it themselves, from a local build or from the releases the module " +
+			"knows.",
 	}
 
 	group.AddCommand(newPrepareCmd(services), newRockCmd(services),
