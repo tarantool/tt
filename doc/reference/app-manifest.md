@@ -120,8 +120,9 @@ A `path` dependency is built from its directory, by what the directory holds:
   product built. Its version is the one tt derives in its directory, and its
   dependencies are those of its default product, resolved with the
   project's own: a `path` one is relative to the dependency, a `registry`
-  one keeps its server. Its `[dev_dependencies]`, its lock and its hooks are
-  not used, and a rockspec beside the manifest is ignored, with a warning.
+  one keeps its server. Its `[dev_dependencies]` and its lock are not used;
+  its hooks are not run and a rockspec beside the manifest is ignored, each
+  with a warning when the lock of the project is resolved.
 - a `*.rockspec`: tt builds the rock it describes.
 - neither: there is nothing to build, and the lock only pins the directory.
 

@@ -82,8 +82,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `.rocks/` as the rock of its package, which the dependency is named after.
   Its version is the one tt derives in its directory, and its dependencies,
   those of its default product, are resolved with the project's; its
-  `[dev_dependencies]`, its lock and its hooks are not used, and a rockspec
-  beside the manifest is ignored, with a warning. Its content hash leaves out
+  `[dev_dependencies]` and its lock are not used, and its hooks are not run
+  and a rockspec beside the manifest is ignored, each with a warning when the
+  lock is resolved. Its content hash leaves out
   `.git/`, `_build/`, `.rocks/`, `_runtime/`, its lock and what its
   `.gitignore` files ignore, so building it does not make the lock out of
   date; a new version of it does.

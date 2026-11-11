@@ -40,8 +40,9 @@ type PathManifest struct {
 	// rock the dependency is named after (manifest.ProductRock), the default
 	// one for the package name.
 	Product string
-	// Warnings are the warnings of parsing and validating the manifest, each
-	// naming the dependency.
+	// Warnings are the warnings of parsing and validating the manifest, and
+	// the one that its hooks are not run, each naming the dependency. The
+	// resolver emits them when it reads the manifest first in a run.
 	Warnings []string
 }
 
@@ -101,6 +102,12 @@ func LoadPathManifest(name, dir string) (*PathManifest, error) {
 	for _, warning := range append(warnings, validationWarnings...) {
 		loaded.Warnings = append(loaded.Warnings,
 			fmt.Sprintf("path dependency %q: %s", name, warning))
+	}
+
+	if len(man.Hooks) > 0 {
+		loaded.Warnings = append(loaded.Warnings, fmt.Sprintf("path dependency %q declares "+
+			"the hooks %s; the hooks of a path dependency are not run", name,
+			strings.Join(slices.Sorted(maps.Keys(man.Hooks)), ", ")))
 	}
 
 	return loaded, nil

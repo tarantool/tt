@@ -116,12 +116,13 @@ func (s *srcRocks) install(
 	}
 
 	err = s.builder.buildManifest(ctx, manifestBuild{
-		dep:      dep,
-		dir:      dir,
-		state:    filepath.Join(s.dir, dep.Name),
-		revision: rev,
-		what:     "source rock",
-		stale:    "the source rock is of another version than its name says",
+		dep:       dep,
+		dir:       dir,
+		state:     filepath.Join(s.dir, dep.Name),
+		revision:  rev,
+		what:      "source rock",
+		stale:     "the source rock is of another version than its name says",
+		warnHooks: true,
 	})
 	if err != nil {
 		return false, err
