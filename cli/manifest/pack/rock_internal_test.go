@@ -235,13 +235,84 @@ func TestPackRockAndArchiveOfAProgram(t *testing.T) {
 	assert.Equal(t, filepath.Join(out, "exec-app-1.0.0-3."+remote.HostArch()+".rock"), result.Rock)
 	assert.Contains(t, zipEntries(t, result.Rock), "bin/helper")
 
+	// Another product names no rock of its own: it is no rock to pack.
 	opts = packOptions(src, out, FormatRock)
 	opts.Product = "lua-only"
 
-	result, err = Run(context.Background(), opts)
+	_, err = Run(context.Background(), opts)
+	require.ErrorIs(t, err, errNoRock)
+	assert.Contains(t, err.Error(), "[products.lua-only].rock")
+}
+
+// productsManifest is a package of two products released as two rocks: the
+// module under the package name and its tools under a rock of their own.
+const productsManifest = `manifest_version = '0.1'
+
+[package]
+name = 'multi'
+
+[platform]
+tarantool = '>=3.0.0'
+tt = '>=3.1.0'
+
+[components.lib]
+path = 'lib'
+namespace = 'multi'
+
+[components.tools]
+path = 'tools'
+namespace = 'multi_tools'
+
+[products.default]
+components = ['lib']
+default = true
+
+[products.tools]
+components = ['tools']
+rock = 'multi-tools'
+`
+
+// TestPackRockOfAProduct: a product is packed as the rock it names, with its
+// own components alone; the default one as the rock of the package.
+func TestPackRockOfAProduct(t *testing.T) {
+	t.Parallel()
+
+	src := t.TempDir()
+	writeTree(t, src, map[string]string{
+		manifestFileName:   productsManifest,
+		versionFileName:    "2.0.0\n",
+		"lib/init.lua":     "return {}\n",
+		"tools/init.lua":   "return {}\n",
+		"tools/report.lua": "return {}\n",
+	})
+
+	out := filepath.Join(src, "_out")
+
+	opts := packOptions(src, out, FormatRock)
+
+	opts.Product = "tools"
+
+	result, err := Run(context.Background(), opts)
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(out, "exec-app-1.0.0-1.all.rock"), result.Rock)
-	assert.NotContains(t, zipEntries(t, result.Rock), "bin/helper")
+	assert.Equal(t, filepath.Join(out, "multi-tools-2.0.0-1.all.rock"), result.Rock)
+	// version.lua is the tools rock's own, so the two rocks share no file.
+	assert.Equal(t, []string{
+		"lua/multi-tools/version.lua",
+		"lua/multi_tools/init.lua",
+		"lua/multi_tools/report.lua",
+		"multi-tools-2.0.0-1.rockspec",
+		"rock_manifest",
+	}, sortedKeys(zipEntries(t, result.Rock)))
+
+	result, err = Run(context.Background(), packOptions(src, out, FormatRock))
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(out, "multi-2.0.0-1.all.rock"), result.Rock)
+	assert.Equal(t, []string{
+		"lua/multi/init.lua",
+		"lua/multi/version.lua",
+		"multi-2.0.0-1.rockspec",
+		"rock_manifest",
+	}, sortedKeys(zipEntries(t, result.Rock)))
 }
 
 // TestPackRockRefusesForeignNative: the rock of the host cannot carry a native

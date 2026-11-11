@@ -145,6 +145,42 @@ func TestPathManifestNameMustMatchThePackage(t *testing.T) {
 	assert.Contains(t, err.Error(), `"other"`)
 }
 
+// TestPathManifestOfAProduct: a path dependency named after the rock of
+// another product of the package is that product, with its dependencies; one
+// named after no rock of the package says which names there are.
+func TestPathManifestOfAProduct(t *testing.T) {
+	t.Parallel()
+
+	contrib := contribManifest + `[components.tools]
+path = 'tools'
+[components.tools.dependencies]
+luasocket = '>=3.0.0'
+[products.tools]
+components = ['tools']
+rock = 'contrib-tools'
+`
+
+	app, neighbour := pathManifestLayout(t, contrib)
+
+	engine := resolve.NewEngine(contribAdapter(t, neighbour).add("luasocket", "3.1.0-1", "l"),
+		app, "tt 3.4.0")
+
+	lock, _, err := engine.Resolve(context.Background(), parseManifest(t, oneProduct+
+		"[dependencies]\ncontrib-tools = { source = 'path', path = '../libs/contrib' }\n"))
+	require.NoError(t, err)
+
+	closure := lock.Products["default"].Dependencies
+	assert.Equal(t, "1.4.0.rc.1-1", findDep(t, closure, "contrib-tools").Version)
+	// The dependency of the tools component; [dependencies] are of both.
+	assert.Equal(t, "3.1.0-1", findDep(t, closure, "luasocket").Version)
+	assert.Equal(t, "1.5.0-1", findDep(t, closure, "metrics").Version)
+
+	_, _, err = engine.Resolve(context.Background(), parseManifest(t, oneProduct+
+		"[dependencies]\ncontrib-cli = { source = 'path', path = '../libs/contrib' }\n"))
+	require.ErrorIs(t, err, resolve.ErrPathPackageName)
+	assert.Contains(t, err.Error(), `name the dependency "contrib" or "contrib-tools"`)
+}
+
 // TestPathManifestWinsOverRockspec pins that a manifest beside a rockspec is
 // the source of truth, and that the rockspec being ignored is said once per
 // run, however many products reach the dependency.

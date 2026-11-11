@@ -374,8 +374,8 @@ func runBuild(
 
 	stage := packageStage(opts.ProjectDir, productName)
 
-	programs, err := buildComponents(ctx, opts, packageProject(opts.ProjectDir, man), adapter,
-		stage, components, ver)
+	programs, err := buildComponents(ctx, opts,
+		packageProject(opts.ProjectDir, man, productName), adapter, stage, components, ver)
 	if err != nil {
 		return nil, err
 	}
@@ -439,12 +439,28 @@ type project struct {
 	stateDir string
 	// man is the manifest of the project.
 	man *manifest.Manifest
+	// product is the product built.
+	product string
 }
 
 // packageProject is the project of the package itself, its state in its own
 // _build/.
-func packageProject(projectDir string, man *manifest.Manifest) project {
-	return project{dir: projectDir, stateDir: filepath.Join(projectDir, buildDirName), man: man}
+func packageProject(projectDir string, man *manifest.Manifest, product string) project {
+	return project{
+		dir: projectDir, stateDir: filepath.Join(projectDir, buildDirName), man: man,
+		product: product,
+	}
+}
+
+// versionLuaNamespace is the namespace version.lua of a build of proj goes
+// under: the package name, but for a product released as a rock of another
+// name, whose rock is to own no file of the rock of the package.
+func (proj project) versionLuaNamespace() string {
+	if rock := proj.man.ProductRock(proj.product); rock != "" {
+		return rock
+	}
+
+	return proj.man.Package.Name
 }
 
 // buildComponents runs the component steps of a build of proj into stage:
@@ -472,7 +488,7 @@ func buildComponents(
 
 	opts.emit(wasmWarnings)
 
-	err = writeVersionLua(stage, proj.man.Package.Name,
+	err = writeVersionLua(stage, proj.versionLuaNamespace(),
 		proj.man.Package.GenerateVersionLuaValue(), ver, opts.builtAt(), laidOut)
 	if err != nil {
 		return nil, err

@@ -652,6 +652,44 @@ func (m *Manifest) validateProducts() error {
 			"exactly one product must have default = true (found %d)", defaults)
 	}
 
+	return m.validateProductRocks()
+}
+
+// validateProductRocks checks the rocks the products are released as: a
+// name of a rock, one rock per product, and no component in two of them,
+// since the rocks would own the same files in a tree that installs both.
+func (m *Manifest) validateProductRocks() error {
+	owners := map[string]string{} // Rock name -> product.
+	parts := map[string]string{}  // Component -> rock.
+
+	for _, name := range sortedKeys(m.Products) {
+		field := "products." + name + ".rock"
+
+		if rock := m.Products[name].Rock; rock != "" && !nameRe.MatchString(rock) {
+			return invalid(field, "name must match [a-z][a-z0-9-]*")
+		}
+
+		rock := m.ProductRock(name)
+		if rock == "" {
+			continue
+		}
+
+		if other, ok := owners[rock]; ok {
+			return invalid(field, "the product %s is released as the rock %q too", other, rock)
+		}
+
+		owners[rock] = name
+
+		for _, component := range m.Products[name].Components {
+			if other, ok := parts[component]; ok {
+				return invalid(field, "the component %q is in the rock %q too: a tree "+
+					"installing both rocks would have its files twice", component, other)
+			}
+
+			parts[component] = rock
+		}
+	}
+
 	return nil
 }
 

@@ -169,7 +169,7 @@ func (p pathManifests) buildManifest(ctx context.Context, build manifestBuild) e
 	}
 
 	stage := filepath.Join(build.state, stageDirName, neighbour.Product)
-	proj := project{dir: build.dir, stateDir: build.state, man: man}
+	proj := project{dir: build.dir, stateDir: build.state, man: man, product: neighbour.Product}
 
 	_, err = buildComponents(ctx, p.opts, proj, p.adapter, stage, components, ver)
 	if err != nil {
