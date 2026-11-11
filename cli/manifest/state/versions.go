@@ -11,11 +11,11 @@ import (
 
 	goversion "github.com/hashicorp/go-version"
 
+	ttscope "github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/internal/binary"
 	"github.com/tarantool/tt/v3/internal/pidfile"
-	ttscope "github.com/tarantool/tt/v3/internal/scope"
 )
 
 // Directories of the versions layout. versions/ and the naming of the
@@ -48,7 +48,7 @@ var (
 // the applications as well.
 //
 // The roots are the ones tt binary and tt instance use, taken from
-// internal/scope, so an application installed here runs on a tarantool
+// sdk/scope, so an application installed here runs on a tarantool
 // tt binary installed and is found by tt instance. The project root is
 // <projectDir>/.tarantool, counted from the install root itself: tt package
 // install acts on the directory it is given and does not search upwards, and

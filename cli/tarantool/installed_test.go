@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/cli/tarantool"
 	"github.com/tarantool/tt/v3/internal/binary"
-	"github.com/tarantool/tt/v3/internal/scope"
 )
 
 // installedScopes are the scopes whose applications run on the version their

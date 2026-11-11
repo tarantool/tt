@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/internal/binary"
-	"github.com/tarantool/tt/v3/internal/scope"
 )
 
 // pathKey is the environment variable programs are looked up in.

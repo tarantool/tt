@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/tarantool/tt/v3/internal/scope"
+	"github.com/tarantool/tt/sdk/scope"
 )
 
 // The names of the files an instance keeps in its run and log directories.

@@ -86,6 +86,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   client with a timeout and a bound on the size of a body, a fetcher that
   checks the SHA-256 of a file and keeps it in a cache directory named by
   it, and the unpacking of one file of a `.tar.gz` archive (`UnpackFile`).
+- `sdk/scope`: the rule of what a project is and where it is looked for -
+  `FindProject`, which climbs to the nearest directory with an
+  `app.manifest.toml` or an instance template and finds none inside an
+  installed version - and the roots of the project, user and system scopes,
+  which tt binary, tt package and tt instance share. It was internal to tt;
+  in the SDK, a module finds its project by the rule the core follows. It
+  depends on the standard library only.
 - `sdk/bundle`: the contract of a source of prebuilt archives - list the
   builds of a product for a platform, fetch one - and
   `core.WithBundleSources`, with `[distribution] bundle_sources` in

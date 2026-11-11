@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/tarantool/tt/sdk/integrity"
+	ttscope "github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/internal/instances"
-	ttscope "github.com/tarantool/tt/v3/internal/scope"
 )
 
 // Names the signature of a package adds to it: the hashes files, each with

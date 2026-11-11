@@ -175,6 +175,19 @@ core uses, and the core never requires older ones.
   decoded from MessagePack encodable - maps keyed by interfaces, integers or
   bools get string keys, colliding keys are an error - and the JSON encoder
   applies it to everything it writes.
+- `sdk/scope` is the one rule of what a project is and where its scopes
+  are, which the core and the modules share: `FindProject` climbs from a
+  directory to the nearest one with a project marker - an
+  `app.manifest.toml`, or an `instances.yaml` or a `config.yaml` of a
+  template under `.templates/` - and finds none inside a version installed
+  into the user or system scope (`InstalledTree`, `FindInstallation`);
+  `ProjectRoot`, `UserRoot` and `SystemRoot` are the roots of the scopes,
+  the last two moved by `TT_USER_ROOT` and `TT_SYSTEM_ROOT`, with the names
+  of the directories under them, and `VarLinks`, `LinkVar` and
+  `CheckVarLinks` the links of an installed version to the runtime data of
+  its instances. A module that works on the project finds it with
+  `FindProject` from `Project().Dir()`. It depends on the standard library
+  only.
 
 - `sdk/sdktest` fakes the core for a module's tests. `New` returns
   `Services` that, like the core's, panic on everything but `Log` until

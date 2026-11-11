@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/cli/manifest"
-	"github.com/tarantool/tt/v3/internal/scope"
 )
 
 var (

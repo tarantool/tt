@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/internal/binary"
-	"github.com/tarantool/tt/v3/internal/scope"
 )
 
 func TestScopeArtifactPathProject(t *testing.T) {
@@ -165,7 +165,7 @@ func TestScopeArtifactPath(t *testing.T) {
 			t.Setenv("PATH", toolDir)
 			t.Setenv("HOME", testCase.homeDir)
 			t.Setenv("XDG_DATA_HOME", testCase.dataHome)
-			// The defaults are checked here; the overrides in internal/scope.
+			// The defaults are checked here; the overrides in sdk/scope.
 			t.Setenv("TT_USER_ROOT", "")
 			t.Setenv("TT_SYSTEM_ROOT", "")
 

@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/cli/app"
-	"github.com/tarantool/tt/v3/internal/scope"
 )
 
 // resolveFixture lays down a project called myapp with router-1, storage-1

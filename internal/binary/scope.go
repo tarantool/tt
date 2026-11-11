@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/tarantool/tt/sdk/scope"
 	"github.com/tarantool/tt/v3/cli/version"
-	"github.com/tarantool/tt/v3/internal/scope"
 )
 
 // Scope selects the installation scope.
@@ -66,7 +66,7 @@ func ParseScope(value string) (Scope, error) {
 
 // ArtifactPath returns the absolute artifact root for the scope without
 // creating it. The roots are shared with the other command groups that work
-// in a scope, so internal/scope resolves them.
+// in a scope, so sdk/scope resolves them.
 func (s Scope) ArtifactPath() (string, error) {
 	switch s {
 	case ScopeProject:
