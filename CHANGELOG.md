@@ -106,6 +106,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   byte as before; `tt wasm prepare` and `tt wasm rock` write `manifest-5.1`
   to `manifest-5.4` next to `manifest`, and pack the rock as go-luarocks packs
   one, its files without modes.
+- `tt test` installs the rocks it needs and the project lacks, luatest among
+  them, with the installer of `tt package build` instead of LuaRocks, so the
+  two install a rock the same way and fail with the same errors.
 
 ### Fixed
 

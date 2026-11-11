@@ -210,8 +210,8 @@ def test_test_installs_luatest_it_was_never_told_about(run_tt, project: Path):
 
     manifest_before = (project / "app.manifest.toml").read_bytes()
 
-    # Without -V a failed install says only that luarocks exited with code 1;
-    # with it the output of luarocks reaches stderr.
+    # With -V the steps of the install reach stderr, so a failure shows
+    # where it happened.
     result = run_tt("-V", "test")
 
     assert result.returncode == 0, result.stderr
