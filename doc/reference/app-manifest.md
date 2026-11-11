@@ -79,6 +79,11 @@ major version is refused.
 A version constraint is a comma-separated list of comparisons, such as
 `">=3.0.0,<4.0.0"`.
 
+A rock that depends on `tarantool` is checked against `tarantool`, since no
+server has such a rock: one no version of it meets fails the resolution,
+and one its lowest version does not meet is a warning to raise the lower
+bound. Nothing is locked for it.
+
 ## `[dependencies]` and `[dev_dependencies]`
 
 A dependency is a rock, in the short form:

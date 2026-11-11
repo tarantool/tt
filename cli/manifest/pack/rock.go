@@ -49,6 +49,8 @@ const (
 	stageLib = "lib"
 	// sourcePath is the source of a path dependency (manifest.Dependency).
 	sourcePath = "path"
+	// tarantoolRock is the name a rockspec depends on Tarantool by.
+	tarantoolRock = "tarantool"
 )
 
 var (
@@ -342,6 +344,16 @@ func releaseDependencies(
 
 	for _, component := range man.EffectiveProducts()[product].Components {
 		add(man.Components[component].Dependencies)
+	}
+
+	// The versions of Tarantool the package runs on are those a project
+	// installing its rock has to run on: tt checks a dependency on tarantool
+	// against [platform].tarantool of that project.
+	if manifest.ConstraintExpr(man.Platform.Tarantool.Version) != "" {
+		declared[tarantoolRock] = append(declared[tarantoolRock], manifest.Dependency{
+			Source: "registry", Version: man.Platform.Tarantool.Version,
+			Path: "", Registry: "", Kind: "",
+		})
 	}
 
 	names := make([]string, 0, len(declared))

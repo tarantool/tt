@@ -64,6 +64,13 @@ type Engine struct {
 	// injected rather than read from the build so the lock is reproducible in
 	// tests; the CLI passes the real tt version.
 	generatedBy string
+
+	// tarantool is [platform].tarantool of the manifest being resolved, as
+	// written and parsed: the versions of Tarantool the project runs on,
+	// which a rock's dependency on tarantool is checked against
+	// (walker.checkTarantool).
+	tarantool       string
+	tarantoolBounds []luarocks.VersionConstraint
 }
 
 // NewEngine builds an Engine. projectDir anchors path dependencies; generatedBy
@@ -118,6 +125,11 @@ func (e *Engine) Resolve(
 func (e *Engine) ResolvePinned(
 	ctx context.Context, man *manifest.Manifest, pins Pins,
 ) (*manifest.Lock, []string, error) {
+	tarantoolErr := e.setTarantool(man.Platform.Tarantool.Version)
+	if tarantoolErr != nil {
+		return nil, nil, tarantoolErr
+	}
+
 	attempt := pins
 
 	var dropped []string

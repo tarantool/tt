@@ -47,6 +47,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   is named, with how to work offline: in a project, or with `--rock-server`
   naming a directory of rocks. `tt emmylua prepare` outside a project says
   that the other commands need none.
+- A rock's dependency on `tarantool` is checked against `[platform].tarantool`
+  instead of looked for as a rock no server has, which failed the resolution:
+  a rock no version of it meets fails it, and one its lowest version does not
+  meet is a warning to raise the lower bound. The rock `tt package pack
+  --format rock` packs declares `[platform].tarantool` as its dependency on
+  `tarantool`.
 - `tt package pack --format rock`: pack the package as a rock for other
   projects to depend on, the binary rock of the platform or an `.all` rock
   of a package with no native file, with its rockspec beside it. The

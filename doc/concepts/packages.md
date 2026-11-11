@@ -242,7 +242,8 @@ default: raise it to publish a new build of a version that is out.
 
 The project needs no rockspec: tt makes it from the manifest. Its
 dependencies are the ranges `[dependencies]` and the components of the
-product declare, not the versions the lock pins; the source is
+product declare, not the versions the lock pins, and `[platform].tarantool`
+becomes its dependency on `tarantool`; the source is
 `[package].repository`, at the tag of the version when `HEAD` is on a `v*`
 tag of a clean tree; `[package]` gives the description, the license and
 the maintainers, `[platform].platforms` the supported platforms. The build
