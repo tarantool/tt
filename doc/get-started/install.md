@@ -66,7 +66,7 @@ contain. -->
 
 ## Build from source
 
-You need [Go](https://go.dev/doc/install) 1.27.3 or newer,
+You need [Go](https://go.dev/doc/install) 1.27.4 or newer,
 [Mage](https://magefile.org/) and Git.
 
 ```console

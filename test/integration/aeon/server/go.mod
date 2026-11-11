@@ -1,6 +1,6 @@
 module mock/server/aeon
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/tarantool/tt/modules/aeon v0.0.0

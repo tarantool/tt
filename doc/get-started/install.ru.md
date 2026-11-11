@@ -64,7 +64,7 @@ Tarantool CLI version 3.0.0-alpha.1, linux/amd64. commit: 1508ce9 (v3.0.0-alpha.
 
 ## Сборка из исходников {#build-from-source}
 
-Понадобятся [Go](https://go.dev/doc/install) 1.27.3 или новее,
+Понадобятся [Go](https://go.dev/doc/install) 1.27.4 или новее,
 [Mage](https://magefile.org/) и Git.
 
 ```console

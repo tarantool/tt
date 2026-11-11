@@ -3,7 +3,7 @@
 # Tarantool: TT_TEST_TARANTOOL picks the one the tests run against, and tt
 # installs it into the test cache. mage docker builds the image with the Go
 # version of go.mod and test/requirements.txt as its context.
-ARG GO_VERSION=1.27.3
+ARG GO_VERSION=1.27.4
 
 FROM golang:${GO_VERSION} AS go-toolchain
 
