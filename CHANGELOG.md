@@ -269,6 +269,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- A committed `app.manifest.lock` regenerated, and the change not staged, no
+  longer marks the version of a package `dirty` when it is the only change:
+  the first line of `git status` lost its leading blank and was misread.
 - `tt data cat` and `tt data play`: `--to` includes the row at its LSN, as
   the help says, and neither bound cuts a transaction in half; a bound is no
   longer one LSN compared across all replicas; `--show-system` hides the RAFT

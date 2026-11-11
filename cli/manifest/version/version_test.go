@@ -47,6 +47,22 @@ func commit(t *testing.T, dir, msg string) {
 	git(t, dir, "commit", "--allow-empty", "-q", "-m", msg)
 }
 
+// writeFile writes content to rel, a slash path under dir.
+func writeFile(t *testing.T, dir, rel, content string) {
+	t.Helper()
+
+	path := filepath.Join(dir, filepath.FromSlash(rel))
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+}
+
+// commitAll commits every change of the repository at dir.
+func commitAll(t *testing.T, dir, msg string) {
+	t.Helper()
+	git(t, dir, "add", "-A")
+	git(t, dir, "commit", "-q", "-m", msg)
+}
+
 func TestDerive(t *testing.T) {
 	t.Parallel()
 
@@ -163,6 +179,21 @@ func TestDerive(t *testing.T) {
 				git(t, dir, "tag", "v1.4.0")
 				require.NoError(t, os.WriteFile(
 					filepath.Join(dir, lockFile), []byte("x"), 0o600))
+			},
+			wantMatch: `^1\.4\.0$`,
+			wantDirty: false,
+			wantTag:   "v1.4.0",
+		},
+		{
+			// git status prints " M app.manifest.lock" for it: the status
+			// starts with a blank.
+			name: "a regenerated lock of a commit alone is not dirty",
+			setup: func(t *testing.T, dir string) {
+				t.Helper()
+				writeFile(t, dir, lockFile, "a\n")
+				commitAll(t, dir, "init")
+				git(t, dir, "tag", "v1.4.0")
+				writeFile(t, dir, lockFile, "b\n")
 			},
 			wantMatch: `^1\.4\.0$`,
 			wantDirty: false,
