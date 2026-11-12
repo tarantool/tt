@@ -170,7 +170,8 @@ components tarawasm builds; see
 | Field | Backends | |
 | --- | --- | --- |
 | `backend` | | `c`, `lua-c` (module components); `go` (executable components); `cargo`, `cmake`, `make`, `shell` (either) |
-| `cwd`, `env`, `output` | all | the directory the build runs in, its environment, the files it makes |
+| `cwd`, `env` | all | the directory the build runs in, its environment |
+| `output` | `make`, `shell`, `cmake` | the files the build makes, which tt copies into `TT_OUTPUT_DIR`; required for `cmake` |
 | `incremental` | `make`, `shell` | `true` skips the build when its inputs are those of the last one and what it left is still there |
 | `make_target`, `entrypoint`, `flags` | `make` | `make_target` is required |
 | `command`, `args` | `shell` | `command` is required |
@@ -184,6 +185,10 @@ components tarawasm builds; see
 | `name`, `tags`, `cgo` | `go` | `name` is the component's name by default; cgo is off by default |
 | `bin`, `features`, `profile` | `cargo` | `bin`, of an executable component, is the component's name by default; `profile` is `release` by default |
 | `variables`, `targets`, `build_type` | `cmake` | `-D<name>=<value>` of the configuration, the targets to build, all by default, and `CMAKE_BUILD_TYPE`, `RelWithDebInfo` by default; `output` is required |
+
+A field of a backend other than the one of the build is an error, since it
+would do nothing: `cflags` on a `make` build, `make_target` on a `shell`
+build or hook, `output` on a `c` one.
 
 A build gets its contract in the environment: `TT_OUTPUT_DIR`, where it
 puts what it makes, `TT_PROJECT_ROOT`, `TT_PACKAGE`, `TT_COMPONENT_NAME`,
@@ -225,8 +230,10 @@ $(LDLIBS)` has them, so that `-Wl,--as-needed` acts on the `-l` that follow;
 `LDFLAGS` of the environment ends the line. A list of `platforms.<os>` goes
 after the one of the build. On macOS `-shared` is `-bundle -undefined
 dynamic_lookup -all_load`, and no `-Wl,-rpath` is given. `CC`, `CFLAGS` and
-`LDFLAGS` are those of the environment tt runs in. `tt -V package build`
-shows the line.
+`LDFLAGS` are those of the environment tt runs in, and the compiler reads
+none of them: in `env` of the build each is an error, as it would reach
+nothing, and the flags of the project go into `cflags` and `ldflags`.
+`tt -V package build` shows the line.
 
 ```toml
 [components.memcached.build]
