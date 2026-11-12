@@ -16,7 +16,8 @@
 // os.Setenv: the TT_* contract variables are applied last so a stray
 // [build].env pair cannot redirect e.g. TT_OUTPUT_DIR. The cc driver reuses
 // go-luarocks' per-OS flag derivation through the rocks adapter's Flags seam,
-// so -fPIC / -I<include> / -shared-vs-bundle / .so are not duplicated here.
+// so the compiler, -shared-vs-bundle, rpath and .so are not duplicated here;
+// it orders tt's flags, the component's and the environment's itself (ccArgs).
 package backend
 
 import (

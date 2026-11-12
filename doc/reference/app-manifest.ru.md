@@ -177,11 +177,13 @@ new` объявляет компоненты, собираемые tarawasm; с�
 | `make_target`, `entrypoint`, `flags` | `make` | `make_target` обязателен |
 | `command`, `args` | `shell` | `command` обязателен |
 | `module`, `sources`, `include_dirs`, `libraries`, `library_dirs`, `defines` | `c`, `lua-c` | `module` и `sources` обязательны |
+| `cflags` | `c`, `lua-c` | флаги компилятора, по одному в элементе, после флагов tt и перед `CFLAGS` окружения; см. ниже |
 | `module` | `cargo` | имя модуля, собираемого компонентом-модулем: по умолчанию имя библиотеки |
-| `platforms.<os>` | `c`, `lua-c` | дополнительные `include_dirs`, `libraries`, `library_dirs`, `defines` для одной ОС |
+| `platforms.<os>` | `c`, `lua-c` | дополнительные `include_dirs`, `libraries`, `library_dirs`, `defines`, `cflags`, `ldflags` для одной ОС, после списков сборки |
 | `package` | `go`, `cargo` | пакет Go (по умолчанию `.`) или пакет cargo |
 | `static` | все | `true`: результату сборки ничего не нужно от машины, на которую он устанавливается, и сборка это проверяет; см. ниже |
-| `name`, `tags`, `ldflags`, `cgo` | `go` | по умолчанию `name`  -  имя компонента; cgo по умолчанию выключен |
+| `ldflags` | `go`, `c`, `lua-c` | флаги компоновщика, по одному в элементе: для `go build -ldflags`  -  после флагов tt; для компоновки `c` и `lua-c`  -  перед исходниками; см. ниже |
+| `name`, `tags`, `cgo` | `go` | по умолчанию `name`  -  имя компонента; cgo по умолчанию выключен |
 | `bin`, `features`, `profile` | `cargo` | для исполняемого компонента `bin` по умолчанию  -  имя компонента; `profile` по умолчанию `release` |
 | `variables`, `targets`, `build_type` | `cmake` | `-D<name>=<value>` конфигурации, собираемые цели (по умолчанию все) и `CMAKE_BUILD_TYPE` (по умолчанию `RelWithDebInfo`); `output` обязателен |
 
@@ -203,6 +205,45 @@ new` объявляет компоненты, собираемые tarawasm; с�
 изменившееся; `--rebuild` сначала очищает его. Сборка `make` или `shell`,
 которая пишет туда, а не рядом с исходниками, не трогает каталог
 компонента, в том числе каталог path-зависимости - другой рабочей копии.
+
+`c` и `lua-c` компилируют `sources`, пути которых указываются относительно
+`cwd`, в один модуль `<module>.so` (`<module>.dylib` на macOS) в
+`TT_OUTPUT_DIR` одним запуском компилятора C - `$CC`, по умолчанию `cc`:
+
+```console
+$CC -O2 -fPIC <cflags> <$CFLAGS> -I<каталог заголовков Tarantool> -D<defines> -I<include_dirs> \
+    -shared <ldflags> -o <module>.so <sources> \
+    -L<library_dirs> -Wl,-rpath,<library_dirs> -l<libraries> <$LDFLAGS>
+```
+
+Флаги компилятора идут в порядке: флаги tt, флаги проекта, флаги
+пользователя. Сначала `-O2`, который опускается, если `CFLAGS` задана, хотя
+бы и пустой, и `-fPIC`; затем `cflags`; затем `CFLAGS` окружения,
+разделённая по пробелам: она идёт последней и потому побеждает в конфликте,
+как `CFLAGS` после `AM_CFLAGS` в autotools. `CFLAGS="-O0 -g"` собирает для
+отладчика, а `CFLAGS=-Wno-error` собирает проект с `-Werror` в `cflags`
+компилятором, который предупреждает о большем. `ldflags` идут перед
+исходниками, как в `$(CC) $(LDFLAGS) -o out objs $(LDLIBS)` у make, чтобы
+`-Wl,--as-needed` действовал на следующие за ними `-l`; `LDFLAGS`
+окружения завершает строку. Список из `platforms.<os>` идёт после списка
+сборки. На macOS вместо `-shared` передаётся `-bundle -undefined
+dynamic_lookup -all_load`, а `-Wl,-rpath` не передаётся. `CC`, `CFLAGS` и
+`LDFLAGS` берутся из окружения, в котором работает tt. `tt -V package build`
+показывает эту строку.
+
+```toml
+[components.memcached.build]
+backend = "lua-c"
+module = "datapath"
+sources = ["datapath.c"]
+cflags = ["-std=gnu99", "-Wall", "-Wextra", "-Werror"]
+
+[components.memcached.build.platforms.linux]
+ldflags = ["-Wl,--as-needed"]
+
+[components.memcached.build.platforms.darwin]
+cflags = ["-Wno-deprecated-declarations"]
+```
 
 `cmake` собирает CMake-проект из `cwd`, где лежит его `CMakeLists.txt`, вне
 исходников, в `TT_BUILD_DIR`:

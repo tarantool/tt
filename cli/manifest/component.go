@@ -66,14 +66,22 @@ type Build struct {
 	Command string   `toml:"command,omitempty"`
 	Args    []string `toml:"args,omitempty"`
 
-	// c / lua-c backends.
+	// c / lua-c backends. Cflags are flags of the compiler, after tt's own
+	// and before those of CFLAGS of the environment, which win a conflict.
 	Module      string                  `toml:"module,omitempty"`
 	Sources     []string                `toml:"sources,omitempty"`
 	IncludeDirs []string                `toml:"include_dirs,omitempty"`
 	Libraries   []string                `toml:"libraries,omitempty"`
 	LibraryDirs []string                `toml:"library_dirs,omitempty"`
 	Defines     []string                `toml:"defines,omitempty"`
+	Cflags      []string                `toml:"cflags,omitempty"`
 	Platforms   map[string]BuildOverlay `toml:"platforms,omitempty"`
+
+	// go, c and lua-c backends. Ldflags are flags of the linker of the
+	// backend, one per entry: of go build's -ldflags, after tt's own; of the
+	// link of cc, before the sources, so that an option acts on the
+	// libraries that follow them, and before LDFLAGS of the environment.
+	Ldflags []string `toml:"ldflags,omitempty"`
 
 	// go and cargo backends. Package is the Go package to build (default
 	// ".") or the cargo package that holds the binary.
@@ -88,10 +96,9 @@ type Build struct {
 	Static *bool `toml:"static,omitempty"`
 
 	// go backend.
-	Name    string   `toml:"name,omitempty"` // Default: the component name.
-	Tags    []string `toml:"tags,omitempty"`
-	Ldflags []string `toml:"ldflags,omitempty"`
-	Cgo     *bool    `toml:"cgo,omitempty"` // Nil or false: CGO_ENABLED=0.
+	Name string   `toml:"name,omitempty"` // Default: the component name.
+	Tags []string `toml:"tags,omitempty"`
+	Cgo  *bool    `toml:"cgo,omitempty"` // Nil or false: CGO_ENABLED=0.
 
 	// cargo backend.
 	Bin      string   `toml:"bin,omitempty"` // Default: the component name.
@@ -190,12 +197,14 @@ func (m *Manifest) ExecutableComponent(name string) (string, bool) {
 
 // BuildOverlay is the per-OS addition to a c/lua-c build
 // ([components.<name>.build.platforms.<os>]). It only adds to the base lists
-// for the current OS.
+// for the current OS: each list goes after the one of the build.
 type BuildOverlay struct {
 	IncludeDirs []string `toml:"include_dirs,omitempty"`
 	Libraries   []string `toml:"libraries,omitempty"`
 	LibraryDirs []string `toml:"library_dirs,omitempty"`
 	Defines     []string `toml:"defines,omitempty"`
+	Cflags      []string `toml:"cflags,omitempty"`
+	Ldflags     []string `toml:"ldflags,omitempty"`
 }
 
 // Product is a named set of components built and packed as a unit

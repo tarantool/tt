@@ -269,9 +269,16 @@ func TestValidateExecutableComponents(t *testing.T) {
 			name: "a field of go on a module build",
 			body: "[components.a]\npath = \"a\"\n" +
 				"[components.a.build]\nbackend = \"lua-c\"\nmodule = \"m\"\nsources = [\"m.c\"]\n" +
-				"ldflags = [\"-s\"]\n",
-			field: "components.a.build.ldflags",
+				"tags = [\"netgo\"]\n",
+			field: "components.a.build.tags",
 			msg:   `not of "lua-c"`,
+		},
+		{
+			name: "ldflags on cargo",
+			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
+				"[components.a.build]\nbackend = \"cargo\"\nldflags = [\"-s\"]\n",
+			field: "components.a.build.ldflags",
+			msg:   `is a field of backend go, c or lua-c, not of "cargo"`,
 		},
 		{
 			name: "go name with a slash",
@@ -616,6 +623,98 @@ func TestValidateCMakeBuild(t *testing.T) {
 		{
 			"cmake for a hook", "[hooks.pre_build]\nbackend = \"cmake\"\noutput = [\"a\"]\n",
 			"hooks.pre_build", `backend "cmake" is not supported`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := parseBody(t, tt.body).Validate()
+			require.Error(t, err)
+
+			var verr *manifest.ValidationError
+
+			require.ErrorAs(t, err, &verr)
+			assert.Equal(t, tt.field, verr.Field, err.Error())
+			assert.Contains(t, verr.Msg, tt.msg)
+		})
+	}
+}
+
+// TestCcComponentFields checks that the flags of the compiler and of the
+// linker of a c or lua-c build decode into the build and into its overlays
+// of platforms.
+func TestCcComponentFields(t *testing.T) {
+	t.Parallel()
+
+	mfst := parseBody(t, `
+[components.memcached]
+path = "memcached"
+[components.memcached.build]
+backend = "lua-c"
+module = "datapath"
+sources = ["datapath.c"]
+cflags = ["-std=gnu99", "-Wall", "-Wextra", "-Werror"]
+ldflags = ["-Wl,--as-needed"]
+[components.memcached.build.platforms.darwin]
+cflags = ["-Wno-deprecated-declarations"]
+ldflags = ["-Wl,-dead_strip"]
+`)
+
+	_, err := mfst.Validate()
+	require.NoError(t, err)
+
+	build := mfst.Components["memcached"].Build
+	assert.Equal(t, []string{"-std=gnu99", "-Wall", "-Wextra", "-Werror"}, build.Cflags)
+	assert.Equal(t, []string{"-Wl,--as-needed"}, build.Ldflags)
+	assert.Equal(t, []string{"-Wno-deprecated-declarations"}, build.Platforms["darwin"].Cflags)
+	assert.Equal(t, []string{"-Wl,-dead_strip"}, build.Platforms["darwin"].Ldflags)
+}
+
+// TestValidateCcFlags covers what validation rules out of the flags of a c
+// or lua-c build, and cflags on the build of another backend.
+func TestValidateCcFlags(t *testing.T) {
+	t.Parallel()
+
+	module := "[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"c\"\n" +
+		"module = \"m\"\nsources = [\"m.c\"]\n"
+
+	tests := []struct {
+		name  string
+		body  string
+		field string
+		msg   string
+	}{
+		{
+			"an empty cflag", module + "cflags = [\"-Wall\", \"\"]\n",
+			"components.a.build.cflags", "must not contain an empty entry",
+		},
+		{
+			"an empty ldflag", module + "ldflags = [\"\"]\n",
+			"components.a.build.ldflags", "must not contain an empty entry",
+		},
+		{
+			"an empty cflag of an overlay",
+			module + "[components.a.build.platforms.linux]\ncflags = [\"\"]\n",
+			"components.a.build.platforms.linux.cflags", "must not contain an empty entry",
+		},
+		{
+			"an empty ldflag of an overlay",
+			module + "[components.a.build.platforms.darwin]\nldflags = [\"-Wl,-x\", \"\"]\n",
+			"components.a.build.platforms.darwin.ldflags", "must not contain an empty entry",
+		},
+		{
+			"cflags on cmake",
+			"[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"cmake\"\n" +
+				"output = [\"a.so\"]\ncflags = [\"-O3\"]\n",
+			"components.a.build.cflags", `is a field of backend c or lua-c, not of "cmake"`,
+		},
+		{
+			"cflags on go",
+			"[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
+				"[components.a.build]\nbackend = \"go\"\ncflags = [\"-O3\"]\n",
+			"components.a.build.cflags", `is a field of backend c or lua-c, not of "go"`,
 		},
 	}
 
