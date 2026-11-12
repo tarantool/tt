@@ -58,7 +58,8 @@ instance templates, and the Tarantool, tt and TCM it runs on - so
 
 ```console
 $ tt package pack
-$ tt package install --scope system kv-api-1.1.0-linux-amd64.tt
+.../kv-api/_build/pack/kv-api-1.1.0-linux-amd64.tt
+$ tt package install --scope system _build/pack/kv-api-1.1.0-linux-amd64.tt
 ```
 
 Installed into the user or the system scope, an archive becomes a version of

@@ -68,7 +68,8 @@ tt и TCM нужных версий. Поэтому для `tt package install` 
 
 ```console
 $ tt package pack
-$ tt package install --scope system kv-api-1.1.0-linux-amd64.tt
+.../kv-api/_build/pack/kv-api-1.1.0-linux-amd64.tt
+$ tt package install --scope system _build/pack/kv-api-1.1.0-linux-amd64.tt
 ```
 
 Что происходит при установке в область установки пользователя или системы:
