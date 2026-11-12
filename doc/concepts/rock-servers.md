@@ -206,7 +206,11 @@ fails to unpack the rock instead. `tt rocks` fails a command that installed such
 rock, `install` and `build` say, and removes the rock from the tree again,
 so that it satisfies no dependency on it; install the binary rock of the
 platform instead, or depend on the rock in `app.manifest.toml` and run
-`tt package build`, which builds the source rock with its manifest. The
-check covers the tree of the working directory or the one `--tree` names.
+`tt package build`, which builds the source rock with its manifest. LuaRocks
+has printed that the rock is installed by then, and the error of tt, which
+follows, says it is not. A tree the command made, which holds no rock once
+the source rock is gone, is removed whole, its manifest and lock file with
+it. The check covers the tree of the working directory or the one `--tree`
+names.
 Plain `luarocks` does the same install with no such check: it says the rock
 is installed, and `require` of its module fails.

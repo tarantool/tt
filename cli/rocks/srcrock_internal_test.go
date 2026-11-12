@@ -93,7 +93,8 @@ func TestCheckSrcRocks(t *testing.T) {
 	// A rock installed before the command is not the command's.
 	installRock(t, root, "old", docOnly, nil)
 
-	before := installedRocks(ctx, root)
+	before := inspectBefore(ctx, root)
+	assert.False(t, before.absent)
 
 	// A binary rock of a tt package holds its modules.
 	installRock(t, root, "binary", map[string]string{
@@ -108,7 +109,8 @@ func TestCheckSrcRocks(t *testing.T) {
 
 	err := checkSrcRocks(ctx, root, before)
 	require.ErrorIs(t, err, ErrEmptySrcRock)
-	assert.Contains(t, err.Error(), "hashkit 1.0.0-1;")
+	assert.Contains(t, err.Error(), "hashkit 1.0.0-1 is not installed, "+
+		"whatever LuaRocks printed above; tt removed it from the tree again.")
 	assert.NotContains(t, err.Error(), "old")
 
 	assert.Empty(t, versions(t, root, "hashkit"))
@@ -117,13 +119,42 @@ func TestCheckSrcRocks(t *testing.T) {
 	assert.Equal(t, []string{"1.0.0-1"}, versions(t, root, "meta"))
 
 	// Nothing new: nothing to refuse.
-	require.NoError(t, checkSrcRocks(ctx, root, installedRocks(ctx, root)))
+	require.NoError(t, checkSrcRocks(ctx, root, inspectBefore(ctx, root)))
+}
+
+// TestCheckSrcRocksRemovesTheTreeItMade: a tree the command made holds
+// nothing once the source rocks are removed, and goes, its manifest and lock
+// file with it; one that held a rock stays.
+func TestCheckSrcRocksRemovesTheTreeItMade(t *testing.T) {
+	ctx := context.Background()
+	root := filepath.Join(t.TempDir(), ".rocks")
+	docOnly := map[string]string{"doc/LICENSE": "license\n"}
+
+	before := inspectBefore(ctx, root)
+	assert.True(t, before.absent)
+
+	installRock(t, root, "hashkit", docOnly, nil)
+	installRock(t, root, "keyring", docOnly, nil)
+
+	err := checkSrcRocks(ctx, root, before)
+	require.ErrorIs(t, err, ErrEmptySrcRock)
+	assert.Contains(t, err.Error(), "hashkit 1.0.0-1, keyring 1.0.0-1 are not installed, "+
+		"whatever LuaRocks printed above; tt removed them from the tree again.")
+	assert.NoDirExists(t, root)
+
+	// A rock the command installed beside the source rock keeps the tree.
+	installRock(t, root, "binary", map[string]string{"lua/binary/init.lua": "return {}\n"}, nil)
+	installRock(t, root, "hashkit", docOnly, nil)
+
+	require.ErrorIs(t, checkSrcRocks(ctx, root, before), ErrEmptySrcRock)
+	assert.Empty(t, versions(t, root, "hashkit"))
+	assert.Equal(t, []string{"1.0.0-1"}, versions(t, root, "binary"))
 }
 
 func TestCheckSrcRocksNoTree(t *testing.T) {
 	ctx := context.Background()
 	root := filepath.Join(t.TempDir(), ".rocks")
 
-	require.NoError(t, checkSrcRocks(ctx, root, installedRocks(ctx, root)))
+	require.NoError(t, checkSrcRocks(ctx, root, inspectBefore(ctx, root)))
 	assert.NoDirExists(t, root)
 }
