@@ -124,7 +124,8 @@ A `path` dependency is built from its directory, by what the directory holds:
   are not used; its hooks are not run and a rockspec beside the manifest is
   ignored, each with a warning when the lock of the project is resolved.
 - a `*.rockspec`: tt builds the rock it describes.
-- neither: there is nothing to build, and the lock only pins the directory.
+- neither: there is nothing to build or install, and the lock only pins the
+  directory, at no version; the rock of the project does not depend on it.
 
 The lock pins a path dependency by its path, relative to the project or
 absolute as the manifest has it, and by a hash of its files. An absolute

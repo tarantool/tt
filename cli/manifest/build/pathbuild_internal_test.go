@@ -217,6 +217,34 @@ func TestRun_pathDependencyByAbsolutePath(t *testing.T) {
 	require.NoError(t, Run(context.Background(), opts))
 }
 
+// TestRun_leafPathDependency pins that a path dependency with nothing to
+// build, neither a manifest nor a rockspec, installs nothing and is no
+// dependency of the rock of the package: the lock pins it at no version, and
+// the rockspec of the rock was made with leaf == and failed to parse.
+func TestRun_leafPathDependency(t *testing.T) {
+	t.Parallel()
+
+	app, _ := setupNeighbours(t)
+	writeFile(t, filepath.Join(filepath.Dir(app), "leaf", "leaf.lua"), "return 1\n")
+	writeFile(t, filepath.Join(app, manifestFileName), strings.Replace(consumerManifest,
+		"contrib = { source = 'path', path = '../contrib' }",
+		"leaf = { source = 'path', path = '../leaf' }", 1))
+
+	require.NoError(t, Run(context.Background(), dryOptions(app)))
+
+	lock, err := loadLock(app)
+	require.NoError(t, err)
+	assert.Equal(t, []manifest.LockDependency{{
+		Name: "leaf", Source: sourcePath, Path: "../leaf",
+		ContentHash: lock.Products[manifest.ImplicitProduct].Dependencies[0].ContentHash,
+	}}, lock.Products[manifest.ImplicitProduct].Dependencies)
+
+	view, err := lrtree.Inspect(t.Context(), filepath.Join(app, rocksDirName))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"1.2.3-1"}, view.Versions("my-app"))
+	assert.Empty(t, view.Versions("leaf"))
+}
+
 // TestPathManifests_hookWarning pins that the build of a path dependency does
 // not warn that its hooks are not run - the resolver did, reading its
 // manifest - and that the build of a source rock, which is not resolved from
