@@ -385,6 +385,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   skipped incremental build wrote stays, and so do the other components in
   a build of one (`--component`); `_build/rock/<product>.json` records whose
   each file is. `--rebuild` starts from an empty `_build/rock/<product>/`.
+- The rock `tt package pack --format rock` packs carries the license files
+  of the package, `[package].license_files`, in `doc/`, as the `.tt`
+  archive and the source rock do: a binary distribution of a BSD or MIT
+  package has to. A project installing the rock has them in the install
+  dir of the rock, `.rocks/share/tarantool/rocks/<name>/<version>/doc/`,
+  where LuaRocks puts the documents of a rock; nothing else it installs
+  changes. A license file that is not there fails the pack, as it fails the
+  archive.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

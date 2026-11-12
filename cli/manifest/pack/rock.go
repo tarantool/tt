@@ -47,6 +47,10 @@ const (
 	// stageLib is the directory of the stage of the product its native
 	// modules are in (rocktree.StageLib).
 	stageLib = "lib"
+	// rockDocDir is the directory of a binary rock the license files of the
+	// package go to, unpacked into the install dir of the rock with the rest
+	// of its documents.
+	rockDocDir = "doc"
 	// sourcePath is the source of a path dependency (manifest.Dependency).
 	sourcePath = "path"
 	// tarantoolRock is the name a rockspec depends on Tarantool by.
@@ -205,7 +209,7 @@ func packRocks(
 	result := rockResult{Rock: "", SrcRock: "", Rockspec: filepath.Join(dir, base+rockspecExt)}
 
 	if opts.makes(FormatRock) {
-		result.Rock, err = packBinaryRock(opts, built.Stage, dir, spec)
+		result.Rock, err = packBinaryRock(opts, built.Manifest, built.Stage, dir, spec)
 		if err != nil {
 			return rockResult{}, err
 		}
@@ -259,8 +263,11 @@ func componentPaths(man *manifest.Manifest, product string) []string {
 }
 
 // packBinaryRock packs stage as the rock of spec into dir and returns its
-// path: the binary rock of the host, or the .all rock (rockArch).
-func packBinaryRock(opts Options, stage, dir string, spec *luarocks.Rockspec) (string, error) {
+// path: the binary rock of the host, or the .all rock (rockArch), with the
+// license files of the package in its doc/ (rockFiles).
+func packBinaryRock(
+	opts Options, man *manifest.Manifest, stage, dir string, spec *luarocks.Rockspec,
+) (string, error) {
 	arch, err := rockArch(stage)
 	if err != nil {
 		return "", err
@@ -275,14 +282,113 @@ func packBinaryRock(opts Options, stage, dir string, spec *luarocks.Rockspec) (s
 		return "", fmt.Errorf("creating %s: %w", temp, err)
 	}
 
+	files, cleanup, err := rockFiles(temp, stage, opts.ProjectDir, man.Package.LicenseFiles)
+	if err != nil {
+		return "", err
+	}
+
+	defer cleanup()
+
 	rock := filepath.Join(dir, spec.Package+"-"+spec.Version+"."+arch+rockExt)
 
-	err = client.PackStaged(spec, stage, rock, client.PackStagedOpts{TempDir: temp})
+	err = client.PackStaged(spec, files, rock, client.PackStagedOpts{TempDir: temp})
 	if err != nil {
 		return "", fmt.Errorf("packing the rock: %w", err)
 	}
 
 	return rock, nil
+}
+
+// rockFiles lays out the files of the binary rock in a directory and returns
+// it, with the cleanup that removes it: the stage of the product, and the
+// license files of the package in doc/, each at its path in the project, where
+// LuaRocks keeps the documents of a rock - a project installing the rock has
+// them in the install dir of the rock, as it has those of the rocks LuaRocks
+// builds. doc/ is no directory of the stage, which holds lua/, lib/ and bin/
+// alone, so it changes nothing of what the rock deploys, nor its arch.
+//
+// The license files are not the build's, so they do not go into the stage: the
+// build removes from it what no component owns, and a later build or install
+// of the stage would carry what it does not remove. The stage is copied
+// instead into a directory of its own under temp, the license files beside it.
+// A package with no license files is packed from its stage as it is.
+func rockFiles(temp, stage, projectDir string, licenseFiles []string) (string, func(), error) {
+	if len(licenseFiles) == 0 {
+		return stage, func() {}, nil
+	}
+
+	dir, err := os.MkdirTemp(temp, "rock-")
+	if err != nil {
+		return "", nil, fmt.Errorf("creating the tree of the rock: %w", err)
+	}
+
+	cleanup := func() { _ = os.RemoveAll(dir) }
+
+	err = mirrorTree(stage, dir)
+	if err != nil {
+		cleanup()
+
+		return "", nil, fmt.Errorf("copying the stage of the rock: %w", err)
+	}
+
+	for _, entry := range licenseFiles {
+		err = stageEntry(filepath.Join(dir, rockDocDir), projectDir, entry, "license_files")
+		if err != nil {
+			cleanup()
+
+			return "", nil, err
+		}
+	}
+
+	return dir, cleanup, nil
+}
+
+// mirrorTree copies the tree src into the directory dst as PackStaged reads
+// it: a file with the permission bits it has, which the rock records for a
+// program, and a symlink as the link it is, which PackStaged refuses when it
+// leads out of the tree. A missing src is an empty tree, and what is neither
+// a file, a directory nor a symlink is left out.
+func mirrorTree(src, dst string) error {
+	_, err := os.Lstat(src)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+
+	//nolint:wrapcheck // Every error the walk yields already names the entry it failed on.
+	return filepath.WalkDir(src, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return fmt.Errorf("copying %s: %w", path, err)
+		}
+
+		target := filepath.Join(dst, rel)
+
+		switch {
+		case entry.IsDir():
+			return os.MkdirAll(target, dirPerm)
+		case entry.Type()&fs.ModeSymlink != 0:
+			link, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+
+			//nolint:gosec // dst is a fresh directory of the pack, src the stage of the build.
+			return os.Symlink(link, target)
+		case entry.Type().IsRegular():
+			info, err := entry.Info()
+			if err != nil {
+				return fmt.Errorf("copying %s: %w", path, err)
+			}
+
+			return copyFileAs(path, target, info.Mode().Perm())
+		default:
+			return nil
+		}
+	})
 }
 
 // rockArch is the LuaRocks arch of the rock of stage: the host's when it holds

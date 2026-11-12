@@ -429,6 +429,28 @@ func copyFile(src, dst string) error {
 		perm = 0o755
 	}
 
+	return writeCopy(src, dst, perm)
+}
+
+// copyFileAs copies the file src to dst, whose parent exists, with the
+// permission bits perm, the umask not applied to them.
+func copyFileAs(src, dst string, perm os.FileMode) error {
+	err := writeCopy(src, dst, perm)
+	if err != nil {
+		return err
+	}
+
+	err = os.Chmod(dst, perm)
+	if err != nil {
+		return fmt.Errorf("copying %s: %w", src, err)
+	}
+
+	return nil
+}
+
+// writeCopy writes what the file src holds to dst, created with perm less the
+// umask.
+func writeCopy(src, dst string, perm os.FileMode) error {
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return fmt.Errorf("copying %s: %w", src, err)
