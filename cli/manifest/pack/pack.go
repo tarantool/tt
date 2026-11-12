@@ -95,7 +95,8 @@ type Result struct {
 }
 
 // Run builds the project and packs it into what opts.Formats ask for: the
-// .tt archive, the rock, or both, from the one build. It returns an
+// .tt archive, the rock, or both, from the one build; the source rock alone
+// is packed with nothing built (runBuild). It returns an
 // *sdk.ExitError for failures carrying a dedicated exit code; cli/exitcode
 // maps any error to a process exit code.
 func Run(ctx context.Context, opts Options) (*Result, error) {
@@ -213,6 +214,11 @@ func packTt(ctx context.Context, opts Options, built *build.Result) (*Result, er
 // runBuild drives the full build cycle pack is defined to include, so a clean
 // tree needs no separate tt package build. check is the build's check of the
 // manifest (build.Options.Check); nil checks nothing.
+//
+// A pack of the source rock alone builds nothing (build.Prepare): the rock
+// holds the files of the project and no build output, so it needs no compiler
+// and no headers of Tarantool. Its manifest, its lock and its version are
+// checked as a build checks them.
 func runBuild(
 	ctx context.Context, opts Options, check func(*manifest.Manifest, string) error,
 ) (*build.Result, error) {
@@ -238,7 +244,12 @@ func runBuild(
 		buildOpts.Now = buildTime(ctx, opts.ProjectDir)
 	}
 
-	built, err := build.RunResult(ctx, buildOpts)
+	run := build.RunResult
+	if opts.srcRockOnly() {
+		run = build.Prepare
+	}
+
+	built, err := run(ctx, buildOpts)
 	if err != nil {
 		// Build failures already carry their exit code (2 for a backend
 		// failure); pass them through untouched.

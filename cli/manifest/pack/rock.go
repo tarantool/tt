@@ -101,6 +101,11 @@ func (opts Options) makes(format string) bool {
 	return slices.Contains(opts.Formats, format)
 }
 
+// srcRockOnly reports whether the source rock is all the pack makes.
+func (opts Options) srcRockOnly() bool {
+	return opts.makes(FormatRockSrc) && !opts.makes(FormatRock) && !opts.makes(FormatTt)
+}
+
 // makesRock reports whether the pack makes the rock, the source rock or both.
 func (opts Options) makesRock() bool {
 	return opts.makes(FormatRock) || opts.makes(FormatRockSrc)
