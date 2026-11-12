@@ -1,6 +1,7 @@
 package rocktree
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"slices"
@@ -13,6 +14,16 @@ import (
 
 // errRevision reports a rock revision below 1.
 var errRevision = errors.New("the rock revision is a number from 1")
+
+// releaseHeader begins the rockspec of every rock tt packs (ReleaseRockspec).
+const releaseHeader = "-- The rock of the tt package "
+
+// IsReleaseRockspec reports whether src, the text of a rockspec, is that of a
+// rock tt packed (ReleaseRockspec), whose build is done: LuaRocks building
+// its source rock builds nothing, since only tt builds the package in it.
+func IsReleaseRockspec(src []byte) bool {
+	return bytes.HasPrefix(src, []byte(releaseHeader))
+}
 
 // RockVersionAt is RockVersion with the revision given: the LuaRocks
 // version of the rock a package is released as, whose revision is raised to
@@ -76,7 +87,7 @@ func ReleaseRockspec(rel Release) (*luarocks.Rockspec, error) {
 
 	var src strings.Builder
 
-	fmt.Fprintf(&src, "-- The rock of the tt package %s %s, which tt packs from the\n"+
+	fmt.Fprintf(&src, releaseHeader+"%s %s, which tt packs from the\n"+
 		"-- files it lays out: its build is done.\n", rel.Name, rel.Version)
 	src.WriteString("rockspec_format = \"3.0\"\n")
 	fmt.Fprintf(&src, "package = %s\n", luaQuote(rel.Name))

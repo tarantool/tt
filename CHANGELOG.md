@@ -403,6 +403,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The help of a command under `tt package` and `tt binary` prints its usage
   line once, not twice.
+- `tt rocks install` of the source rock of a tt package, `--format
+  rock-src`, said the rock was installed and installed only its rockspec
+  and `doc/`: LuaRocks builds nothing of a rockspec of build type `none`, so
+  a platform with no binary rock got a rock with no module, which satisfied
+  the dependencies on it. A `tt rocks` command that installs such a rock now
+  removes it again and fails, saying to install the binary rock of the
+  platform or to depend on the rock with `tt package build`, which builds
+  the source rock with its manifest.
 - `tt package resolve` and `tt package update` that move no version but
   rewrite the lock say what they rewrote - the manifest hash refreshed, a
   `path` dependency re-pinned for files that changed, the digests of the

@@ -104,3 +104,17 @@ func TestReleaseRockspecOfABarePackage(t *testing.T) {
 	assert.NotContains(t, source, "dependencies")
 	assert.NotContains(t, source, "tag =")
 }
+
+// TestIsReleaseRockspec: the rockspec tt packs is told from any other.
+func TestIsReleaseRockspec(t *testing.T) {
+	t.Parallel()
+
+	spec, err := rocktree.ReleaseRockspec(rocktree.Release{
+		Name: "a", Version: "1.0.0", Revision: 1,
+	})
+	require.NoError(t, err)
+
+	assert.True(t, rocktree.IsReleaseRockspec(spec.RawSource))
+	assert.False(t, rocktree.IsReleaseRockspec([]byte("package = \"a\"\nversion = \"1.0.0-1\"\n")))
+	assert.False(t, rocktree.IsReleaseRockspec(nil))
+}

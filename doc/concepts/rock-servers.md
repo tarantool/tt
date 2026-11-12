@@ -197,3 +197,16 @@ that publishes nothing but the index is left out of those servers, and of
 `tt-rocks-index.json` and no manifest; an HTTP(S) server when a `HEAD` of
 `tt-rocks-index.json` succeeds and one of each manifest answers 403, 404 or
 410. A server that does not answer is kept, for LuaRocks to report on.
+
+LuaRocks builds nothing of the source rock of a tt package, `--format
+rock-src`: its rockspec is that of the binary rocks, of build type `none`,
+so LuaRocks installs it with no module in it, only the rockspec and the
+license files in `doc/`; of a package with no `[package].repository`, it
+fails to unpack the rock instead. `tt rocks` fails a command that installed such a
+rock, `install` and `build` say, and removes the rock from the tree again,
+so that it satisfies no dependency on it; install the binary rock of the
+platform instead, or depend on the rock in `app.manifest.toml` and run
+`tt package build`, which builds the source rock with its manifest. The
+check covers the tree of the working directory or the one `--tree` names.
+Plain `luarocks` does the same install with no such check: it says the rock
+is installed, and `require` of its module fails.
