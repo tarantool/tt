@@ -398,6 +398,8 @@ did not track where it was packed, is a warning. The hooks of the package
 are not run. A rock built
 so is not built again while the tree holds it at that version. A source
 rock of no tt package, one without `app.manifest.toml`, fails the build.
+Only tt builds a source rock: LuaRocks, `tt rocks` included, finds nothing
+to build in it (see [tt rocks](rock-servers.md#tt-rocks)).
 
 ## Installing
 

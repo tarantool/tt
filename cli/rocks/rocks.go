@@ -130,6 +130,10 @@ func GetTarantoolPrefix(cli *cmdcontext.CliCtx) (string, error) {
 // tt-rocks-index.json is of no use to it (see indexProbe): one of servers or
 // TT_CLI_REPO_ROCKS is left out with a warning, and one args name with
 // --server or --only-server fails the command with ErrIndexOnlyServer.
+//
+// LuaRocks builds nothing of the source rock of a tt package: a rock the
+// command installed so is removed again, and the command fails with
+// ErrEmptySrcRock (checkSrcRocks).
 func Exec(cmdCtx *cmdcontext.CmdCtx, servers, args []string) error {
 	ctx := context.Background()
 	probe := newIndexProbe()
@@ -201,13 +205,16 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, servers, args []string) error {
 		return fmt.Errorf("failed to create the luarocks client: %w", err)
 	}
 
+	root := rockTree(workingDir, args)
+	before := installedRocks(ctx, root)
+
 	// Match the historical progname: LuaRocks prints "<argv0> rocks" (and
 	// "<argv0> rocks admin") in its usage, the wrapper appending " admin" for
 	// the admin sub-CLI.
-	err = rocksClient.Exec(context.Background(), os.Args[0]+" rocks", args)
+	err = rocksClient.Exec(ctx, os.Args[0]+" rocks", args)
 	if err != nil {
 		return fmt.Errorf("failed to run luarocks: %w", err)
 	}
 
-	return nil
+	return checkSrcRocks(ctx, root, before)
 }

@@ -525,3 +525,66 @@ def test_rocks_runs_no_lua_of_the_directory(tt_cmd, tmp_path, place):
         assert rc == 0, output
 
     assert not marker.exists(), marker.read_text()
+
+
+# The manifest of a tt package of one Lua module, which tt packs as rocks.
+LUA_PACKAGE_MANIFEST = """manifest_version = '0.1'
+
+[package]
+name = 'lualib'
+license_files = ['LICENSE']
+repository = 'https://github.com/example/lualib'
+
+[platform]
+tarantool = '>=2.0.0'
+tt = '>=3.0.0-alpha'
+
+[components.lualib]
+path = 'lualib'
+"""
+
+
+def test_rocks_refuses_the_source_rock_of_a_tt_package(tt_cmd, tmp_path):
+    """LuaRocks builds nothing of the source rock of a tt package, whose
+    rockspec has build type none: tt rocks removes what it installed and
+    fails, rather than say a rock with no module is installed. The binary rock
+    of the same version installs."""
+    package = tmp_path / "lualib"
+    (package / "lualib").mkdir(parents=True)
+    (package / "app.manifest.toml").write_text(LUA_PACKAGE_MANIFEST)
+    (package / "lualib" / "init.lua").write_text("return {answer = 42}\n")
+    (package / "LICENSE").write_text("license\n")
+    (package / "VERSION").write_text("1.0.0\n")
+
+    env = dict(os.environ, PWD=str(package))
+    for fmt, out in (("rock-src", "src"), ("rock", "bin")):
+        rc, output = run_command_and_get_output(
+            [tt_cmd, "package", "pack", "--format", fmt, "--out", str(tmp_path / out)],
+            cwd=package,
+            env=env,
+        )
+        assert rc == 0, output
+
+    consumer = tmp_path / "consumer"
+    consumer.mkdir()
+    env = dict(os.environ, PWD=str(consumer))
+    installed = consumer / ".rocks" / "share" / "tarantool" / "rocks" / "lualib"
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "rocks", "install", "lualib", "--only-server", str(tmp_path / "src")],
+        cwd=consumer,
+        env=env,
+    )
+    assert rc == 1, output
+    assert "installed the source rock of a tt package with nothing built" in output
+    assert "lualib 1.0.0-1; tt removed it from the tree again" in output
+    assert "tt package build" in output
+    assert not installed.exists()
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "rocks", "install", "lualib", "--only-server", str(tmp_path / "bin")],
+        cwd=consumer,
+        env=env,
+    )
+    assert rc == 0, output
+    assert (consumer / ".rocks" / "share" / "tarantool" / "lualib" / "init.lua").is_file()
