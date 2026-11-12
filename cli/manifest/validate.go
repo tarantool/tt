@@ -7,6 +7,8 @@ import (
 	"slices"
 	"sort"
 	"strings"
+
+	"github.com/tarantool/tt/v3/cli/manifest/native"
 )
 
 // nameRe is the identifier shape shared by package, component and product
@@ -22,13 +24,13 @@ func isReservedPackageName(name string) bool {
 	}
 }
 
+// isPlatformToken reports whether token names a platform of
+// [platform].platforms: "any", or one of those tt builds for
+// (native.Supported).
 func isPlatformToken(token string) bool {
-	switch token {
-	case "linux-amd64", "linux-arm64", "darwin-amd64", "darwin-arm64", "any":
-		return true
-	default:
-		return false
-	}
+	return token == "any" || slices.ContainsFunc(native.Supported(), func(p native.Platform) bool {
+		return p.String() == token
+	})
 }
 
 func isHookBackend(backend string) bool {
@@ -442,10 +444,10 @@ func validateBuild(field string, build Build) error {
 }
 
 // validateCcBuild checks the fields of a c or lua-c build: module and
-// sources are required, env sets none of the variables cc is run with
-// (ccEnvVars), and no flag of the compiler or of the linker, of the build or
-// of an overlay of platforms, is empty, which cc would take for the name of
-// a file.
+// sources are required, env sets none of the variables that reach nothing
+// there (ccEnvVars), each overlay of platforms is for an OS tt builds for,
+// and no flag of the compiler or of the linker, of the build or of an
+// overlay, is empty, which cc would take for the name of a file.
 func validateCcBuild(field string, build Build) error {
 	if build.Module == "" {
 		return invalid(field, "module is required for backend %q", build.Backend)
@@ -463,8 +465,16 @@ func validateCcBuild(field string, build Build) error {
 	}
 
 	flags := []flagList{{"cflags", build.Cflags}, {"ldflags", build.Ldflags}}
+	oses := native.SupportedOS()
 
 	for _, goos := range sortedKeys(build.Platforms) {
+		// A part for an OS tt builds for none of the platforms of would never
+		// be added: platforms.macos for darwin, say.
+		if !slices.Contains(oses, goos) {
+			return invalid(field+".platforms."+goos, "%q is not an OS tt builds for (want %s)",
+				goos, orList(oses))
+		}
+
 		overlay := build.Platforms[goos]
 		prefix := "platforms." + goos + "."
 
@@ -488,10 +498,12 @@ type flagList struct {
 	flags []string
 }
 
-// ccEnvVars are the variables of the environment the cc line of a c or
-// lua-c build is made of, with what to write instead of setting one in env
-// of the build. tt reads them from the environment it runs in, and the
-// compiler reads none of them, so one of env reaches nothing.
+// ccEnvVars are the variables of make and autotools a user would set in env
+// of a c or lua-c build to compile it with, with what to write instead. The
+// compiler reads none of them, so one of env reaches nothing: CC, CFLAGS and
+// LDFLAGS tt reads from the environment it runs in to put the cc line
+// together, CPPFLAGS, LIBS and LDLIBS from nowhere, since the build has
+// fields of its own for what they carry.
 var ccEnvVars = []struct {
 	name    string
 	instead string
@@ -499,8 +511,12 @@ var ccEnvVars = []struct {
 	{"CC", "the compiler is CC of the environment tt runs in, cc by default"},
 	{"CFLAGS", "put the flags of the compiler into cflags; " +
 		"CFLAGS of the environment tt runs in comes after them"},
+	{"CPPFLAGS", "put the macros into defines, the directories of headers into " +
+		"include_dirs and other flags of the preprocessor into cflags"},
 	{"LDFLAGS", "put the flags of the link into ldflags; " +
 		"LDFLAGS of the environment tt runs in comes after them"},
+	{"LIBS", "put the libraries into libraries and their directories into library_dirs"},
+	{"LDLIBS", "put the libraries into libraries and their directories into library_dirs"},
 }
 
 // validateCMakeBuild checks the fields of a cmake build. output is required:

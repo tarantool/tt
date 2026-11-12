@@ -355,7 +355,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   one too. So is `CC`, `CFLAGS` or `LDFLAGS` in `env` of a `c` or `lua-c`
   build: tt takes them from the environment it runs in and the compiler
   reads none of them, so the error names `cflags` and `ldflags`, where the
-  flags of the project go.
+  flags of the project go. `CPPFLAGS`, `LIBS` and `LDLIBS` there, which
+  nothing reads, are errors naming `defines`, `include_dirs`, `libraries`
+  and `library_dirs`.
+- `platforms.<os>` of a `c` or `lua-c` build is for `linux` or `darwin`, the
+  OSes tt builds for: another key, `macos` say, was never added to the
+  build, and is a validation error naming those two.
 
 ### Fixed
 

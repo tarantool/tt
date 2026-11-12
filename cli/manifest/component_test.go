@@ -457,7 +457,8 @@ func TestValidateExecutableComponentsAccepted(t *testing.T) {
 		// make reads CFLAGS of its environment, unlike the cc of c and lua-c.
 		"CFLAGS in env of make": "[components.lua]\npath = \"src\"\n" +
 			"[components.lua.build]\nbackend = \"make\"\nmake_target = \"all\"\n" +
-			"env = { CC = \"clang\", CFLAGS = \"-O3\", LDFLAGS = \"-s\" }\n",
+			"env = { CC = \"clang\", CFLAGS = \"-O3\", CPPFLAGS = \"-DX\", LDFLAGS = \"-s\", " +
+			"LIBS = \"-lm\", LDLIBS = \"-lz\" }\n",
 		"a go program and a module of one name": "[components.gw]\npath = \"gw\"\n" +
 			"kind = \"executable\"\n[components.gw.build]\nbackend = \"go\"\n" +
 			"[components.lua]\npath = \"src\"\n[components.lua.build]\nbackend = \"make\"\n" +
@@ -707,6 +708,9 @@ backend = "lua-c"
 module = "datapath"
 sources = ["datapath.c"]
 cflags = ["-std=gnu99", "-Wall", "-Wextra", "-Werror"]
+ldflags = ["-Wl,-z,defs"]
+env = { CPATH = "/opt/include" }
+[components.memcached.build.platforms.linux]
 ldflags = ["-Wl,--as-needed"]
 [components.memcached.build.platforms.darwin]
 cflags = ["-Wno-deprecated-declarations"]
@@ -718,7 +722,8 @@ ldflags = ["-Wl,-dead_strip"]
 
 	build := mfst.Components["memcached"].Build
 	assert.Equal(t, []string{"-std=gnu99", "-Wall", "-Wextra", "-Werror"}, build.Cflags)
-	assert.Equal(t, []string{"-Wl,--as-needed"}, build.Ldflags)
+	assert.Equal(t, []string{"-Wl,-z,defs"}, build.Ldflags)
+	assert.Equal(t, []string{"-Wl,--as-needed"}, build.Platforms["linux"].Ldflags)
 	assert.Equal(t, []string{"-Wno-deprecated-declarations"}, build.Platforms["darwin"].Cflags)
 	assert.Equal(t, []string{"-Wl,-dead_strip"}, build.Platforms["darwin"].Ldflags)
 }
@@ -793,6 +798,29 @@ func TestValidateCcFlags(t *testing.T) {
 				"module = \"m\"\nsources = [\"m.c\"]\n" +
 				"env = { LDFLAGS = \"-s\", PATH = \"/bin\" }\n",
 			"components.a.build.env.LDFLAGS", "put the flags of the link into ldflags",
+		},
+		{
+			"CPPFLAGS in env", module + "env = { CPPFLAGS = \"-DNDEBUG -I/opt/inc\" }\n",
+			"components.a.build.env.CPPFLAGS", "put the macros into defines",
+		},
+		{
+			"LIBS in env", module + "env = { LIBS = \"-lsasl2\" }\n",
+			"components.a.build.env.LIBS", "put the libraries into libraries",
+		},
+		{
+			"LDLIBS in env", module + "env = { LDLIBS = \"-lm\" }\n",
+			"components.a.build.env.LDLIBS", "put the libraries into libraries",
+		},
+		{
+			"an overlay of an OS tt does not build for",
+			module + "[components.a.build.platforms.macos]\ncflags = [\"-O3\"]\n",
+			"components.a.build.platforms.macos",
+			`"macos" is not an OS tt builds for (want linux or darwin)`,
+		},
+		{
+			"an overlay of a platform, not an OS",
+			module + "[components.a.build.platforms.linux-amd64]\ndefines = [\"X\"]\n",
+			"components.a.build.platforms.linux-amd64", "is not an OS tt builds for",
 		},
 	}
 

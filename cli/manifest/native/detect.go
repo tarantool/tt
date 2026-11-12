@@ -49,6 +49,9 @@ const (
 // darwinOS is the OS of every Mach-O file.
 const darwinOS = "darwin"
 
+// linuxOS is the OS of an ELF file that marks no other.
+const linuxOS = "linux"
+
 // The GOARCH names of the two architectures the archive platforms use.
 const (
 	archAmd64 = "amd64"
@@ -198,7 +201,7 @@ func elfPlatforms(head []byte) []Platform {
 func elfOS(abi elf.OSABI) string {
 	switch abi {
 	case elf.ELFOSABI_NONE, elf.ELFOSABI_LINUX:
-		return "linux"
+		return linuxOS
 	default:
 		return shortName(abi.String(), "ELFOSABI_")
 	}
