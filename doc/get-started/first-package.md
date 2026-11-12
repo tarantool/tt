@@ -140,8 +140,10 @@ Tarantool and the tt it runs on, so it installs with no network. Changes
 not committed, untracked files among them, give the version a `+dirty`
 suffix.
 
-> **Preview note.** `tt package pack` bundles the tt that runs it, which must
-> match `[platform].tt` of the manifest. See the note in
+> **Preview note.** `tt package pack` bundles a tt that matches
+> `[platform].tt` of the manifest: the one `tt binary install tt` put into
+> the project, or else the tt that runs it ([Packing](../concepts/packages.md#packing)
+> has the whole order). See the note in
 > [Install](install.md#build-from-source) for a tt built from source.
 
 ## Install for the user

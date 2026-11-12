@@ -18,6 +18,7 @@ import (
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/sdk/output"
+	"github.com/tarantool/tt/sdk/scope"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build"
@@ -921,7 +922,7 @@ func runPackagePack() error {
 			Warn:       nil,
 			Check:      nil,
 		},
-		Runtime: runtimeRequest(ctx, tntInfo),
+		Runtime: runtimeRequest(ctx, projectDir, tntInfo),
 		Warn:    func(msg string) { log.Warn(msg) },
 	})
 	if err != nil {
@@ -938,14 +939,18 @@ func runPackagePack() error {
 }
 
 // runtimeRequest describes where pack may take the _runtime/ components from:
-// the runtime cache first, the active tt environment as a fallback. With no
-// tarantool, tntInfo empty, the cache is the only source of Tarantool.
+// the runtime cache first, the tt binary installations of the project in
+// projectDir second, the active tt environment as a fallback. With no
+// tarantool, tntInfo empty, the first two are the only sources of Tarantool.
 //
 // TcmCli carries no version and nothing probes the binary, so the active TCM is
 // deliberately not offered as a fallback: passing the path without a version
 // would make pack report "the active tcm does not satisfy it" having never
-// looked at its version. With [platform].tcm set, the cache is the only source.
-func runtimeRequest(ctx context.Context, tntInfo manifestrocks.TarantoolInfo) pack.RuntimeOptions {
+// looked at its version. With [platform].tcm set, the cache and the
+// installations of the project are the only sources.
+func runtimeRequest(
+	ctx context.Context, projectDir string, tntInfo manifestrocks.TarantoolInfo,
+) pack.RuntimeOptions {
 	selfPath, err := os.Executable()
 	if err != nil {
 		// Without a path to ourselves the tt component can still come from the
@@ -954,7 +959,8 @@ func runtimeRequest(ctx context.Context, tntInfo manifestrocks.TarantoolInfo) pa
 	}
 
 	return pack.RuntimeOptions{
-		CacheDir: runtimeCacheDir(),
+		CacheDir:    runtimeCacheDir(),
+		ProjectRoot: scope.ProjectRoot(projectDir),
 		// Pack fills the platform from the built manifest.
 		Platform: manifest.Platform{
 			Tarantool:  manifest.Constraint{Version: "", Flavor: ""},
@@ -981,8 +987,8 @@ func runtimeRequest(ctx context.Context, tntInfo manifestrocks.TarantoolInfo) pa
 }
 
 // runtimeCacheDir returns the runtime cache root, <user cache>/tt/runtimes.
-// The exact path is not yet finalized and nothing populates it automatically
-// yet; until then this is the directory a user populates by hand.
+// Nothing populates it: it holds the builds a user places there to bundle
+// instead of the tt binary installations of the project.
 func runtimeCacheDir() string {
 	base, err := os.UserCacheDir()
 	if err != nil {

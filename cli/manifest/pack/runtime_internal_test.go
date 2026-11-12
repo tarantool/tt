@@ -11,6 +11,7 @@ import (
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/internal/binary"
 )
 
 func constraint(spec string) manifest.Constraint {
@@ -295,8 +296,109 @@ func TestBundleRuntimeNoSourceAtAll(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorIs(t, err, errNoRuntime)
 	assert.Contains(t, err.Error(), "no tarantool satisfying >=3.0.0,<4.0.0 found in the "+
-		"runtime cache "+cache+", and tt found no tarantool to bundle instead")
+		"runtime cache "+cache+" or the project, and tt found no tarantool to bundle instead")
+	assert.Contains(t, err.Error(), "install one with tt binary install tarantool")
 	assert.NotContains(t, err.Error(), "does not satisfy")
+}
+
+// fakeInstallation lays out a tt binary installation of program at version
+// in the project scope rooted at root: the executable at the top and, for
+// tarantool, its headers.
+func fakeInstallation(t *testing.T, root string, program binary.Program, ver string) {
+	t.Helper()
+
+	files := map[string]string{program.Exec(): "#!/bin/sh\n"}
+
+	if program.IsTarantool() {
+		files["include/tarantool/module.h"] = "/* " + ver + " */\n"
+	}
+
+	writeTree(t, binary.InstallationPath(root, program, ver), files)
+}
+
+// activate points the active link of the scope at the installation, as
+// tt binary install and tt binary switch do.
+func activate(t *testing.T, root string, program binary.Program, ver string) {
+	t.Helper()
+
+	link := filepath.Join(root, binary.BinDirName, program.Exec())
+	require.NoError(t, os.MkdirAll(filepath.Dir(link), 0o755))
+	require.NoError(t, os.Symlink(
+		filepath.Join(binary.InstallationPath(root, program, ver), program.Exec()), link))
+}
+
+// TestBundleRuntimeFromProjectInstallations: with nothing in the cache, the
+// runtimes tt binary installed into the project are bundled, without the
+// warning of the fallback, and the active one wins over a higher one. The
+// headers of the tarantool come along, and the lock records the name of the
+// installation.
+func TestBundleRuntimeFromProjectInstallations(t *testing.T) {
+	root := t.TempDir()
+	fakeInstallation(t, root, binary.ProgramCe, "3.8.1")
+	fakeInstallation(t, root, binary.ProgramCe, "3.9.0")
+	activate(t, root, binary.ProgramCe, "3.8.1")
+	fakeInstallation(t, root, binary.ProgramTt, "3.0.0")
+	fakeInstallation(t, root, binary.ProgramTt, "3.1.0")
+
+	prefix := t.TempDir()
+	writeTree(t, prefix, map[string]string{"bin/tarantool": "#!/bin/sh\n", "bin/tt": "#!/bin/sh\n"})
+
+	stageDir := t.TempDir()
+
+	var warnings []string
+
+	bundled, err := bundleRuntime(stageDir, RuntimeOptions{
+		CacheDir:    filepath.Join(t.TempDir(), "empty"),
+		ProjectRoot: root,
+		Platform: manifest.Platform{
+			Tarantool: constraint(">=3.0.0,<4.0.0"),
+			Tt:        constraint(">=3.0.0,<4.0.0"),
+		},
+		ActiveTarantool:        filepath.Join(prefix, "bin", "tarantool"),
+		ActiveTarantoolVersion: "3.9.0",
+		ActiveTt:               filepath.Join(prefix, "bin", "tt"),
+		ActiveTtVersion:        "3.1.0",
+		Warn:                   func(msg string) { warnings = append(warnings, msg) },
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "3.8.1", bundled.Tarantool, "the active installation wins")
+	assert.Equal(t, "3.1.0", bundled.Tt, "else the highest that satisfies")
+
+	for _, msg := range warnings {
+		assert.NotContains(t, msg, "bundling the active")
+	}
+
+	assert.FileExists(t, filepath.Join(stageDir, "_runtime", "tarantool", "bin", "tarantool"))
+	assert.FileExists(t, filepath.Join(stageDir, "_runtime", "tarantool", "include",
+		"tarantool", "module.h"))
+	assert.FileExists(t, filepath.Join(stageDir, "_runtime", "tt", "bin", "tt"))
+}
+
+// TestBundleRuntimeProjectInstallationsKeepFlavorAndCache: an [ee]
+// requirement takes the Enterprise installation and never the Community one,
+// an SDK component is not taken, and the cache still comes first.
+func TestBundleRuntimeProjectInstallationsKeepFlavorAndCache(t *testing.T) {
+	root := t.TempDir()
+	fakeInstallation(t, root, binary.ProgramCe, "3.9.0")
+	fakeInstallation(t, root, binary.ProgramEe, "3.5.0")
+	fakeInstallation(t, root, binary.ProgramEe, "sdk-gc64-3.6.0-0-r70")
+	fakeInstallation(t, root, binary.ProgramTt, "3.1.0")
+
+	cache := fakeCache(t, map[string][]string{runtimeTt: {"3.0.5"}})
+
+	bundled, err := bundleRuntime(t.TempDir(), RuntimeOptions{
+		CacheDir:    cache,
+		ProjectRoot: root,
+		Platform: manifest.Platform{
+			Tarantool: manifest.Constraint{Version: ">=3.0.0", Flavor: flavorEE},
+			Tt:        constraint(">=3.0.0"),
+		},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "3.5.0", bundled.Tarantool)
+	assert.Equal(t, "3.0.5", bundled.Tt, "the cache comes before the installations")
 }
 
 // TestBundleRuntimeWarnsWithoutTarantoolLicense pins that a cache entry with
