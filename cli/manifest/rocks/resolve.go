@@ -101,11 +101,12 @@ func resolveWith(
 // constraint. An empty constraint list matches all. ok is false when nothing
 // matches.
 //
-// Released versions win over moving ones. LuaRocks orders scm and dev above
-// every number, so an ordinary lower bound like ">=3.0.0" would otherwise
+// Released versions win over moving ones (Moving). LuaRocks orders scm and dev
+// above every number, so an ordinary lower bound like ">=3.0.0" would otherwise
 // select the development branch and pin a lock to something that changes
 // underneath it. A moving version is chosen only when the constraints name one
-// outright, or when the rock has no released version at all.
+// outright, or when the rock has no released version at all. A version tt
+// made from a commit is a release here: it names the commit.
 //
 // The fallback deliberately turns on the rock's publication history rather than
 // on whether the stable pass matched: were it the latter, a constraint no
@@ -123,7 +124,7 @@ func pickNewest(
 // rock being published only as a branch.
 func hasRelease(candidates []luarocks.VersionedRock) bool {
 	for _, candidate := range candidates {
-		if !moving(candidate.Version) {
+		if !Moving(candidate.Version) {
 			return true
 		}
 	}
@@ -131,17 +132,11 @@ func hasRelease(candidates []luarocks.VersionedRock) bool {
 	return false
 }
 
-// moving reports whether a version tracks a branch rather than naming a
-// release, and so may resolve to different code on a later day.
-func moving(version luarocks.Version) bool {
-	return version.IsSCM || version.IsDev
-}
-
 // wantsMoving reports whether the constraints name a moving version outright,
 // which is how a project asks for the development branch on purpose.
 func wantsMoving(constraints []luarocks.VersionConstraint) bool {
 	for _, constraint := range constraints {
-		if moving(constraint.Version) {
+		if Moving(constraint.Version) {
 			return true
 		}
 	}
@@ -166,7 +161,7 @@ func pickNewestAmong(
 	found := false
 
 	for _, candidate := range candidates {
-		if stableOnly && moving(candidate.Version) {
+		if stableOnly && Moving(candidate.Version) {
 			continue
 		}
 

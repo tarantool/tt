@@ -406,6 +406,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   luafmt `--level lua-jit` unless `--level` follows `--` or the
   configuration luafmt reads for the paths, its own or that of `--config`,
   sets `[syntax] level`, which `--level` would override.
+- A rock tt packed from a commit past a tag or with no tag,
+  `1.2.1.dev.3.gabc1234-1` or `0.0.0.dev.36.g7170ebf-1`, counts as a
+  release for a project that depends on it: resolving to it no longer warns
+  that it tracks a branch, and it is taken over an `scm-1` of the rock. A
+  rock packed from uncommitted changes, `1.2.0.dirty-1` or
+  `0.0.0.dev.36.g7170ebf.dirty-1`, is no release: resolving to it warns
+  that it was built from uncommitted changes, and a release of the rock is
+  taken over it.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

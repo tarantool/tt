@@ -37,8 +37,8 @@ type resolveCache struct {
 	// droppedPins records the rocks whose preferred version was dropped for no
 	// longer fitting, so that warning too is emitted once per run.
 	droppedPins map[string]bool
-	// warnedMoving records the rocks pinned to a branch rather than a release,
-	// so that warning too is emitted once per run.
+	// warnedMoving records the rocks pinned to a moving version rather than a
+	// release (rocks.Moving), so that warning too is emitted once per run.
 	warnedMoving map[string]bool
 	// warnedTarantool records the warnings of the dependencies on tarantool
 	// the [platform].tarantool lower bound does not meet, so that warning too
@@ -85,9 +85,9 @@ func (c *resolveCache) markNoMD5(url string) bool {
 	return true
 }
 
-// markMoving records that name resolved to a branch rather than a release and
-// reports whether this is the first time in the run - so a rock several
-// products depend on warns once, not once per product.
+// markMoving records that name resolved to a moving version rather than a
+// release and reports whether this is the first time in the run - so a rock
+// several products depend on warns once, not once per product.
 func (c *resolveCache) markMoving(name string) bool {
 	if c.warnedMoving[name] {
 		return false

@@ -350,6 +350,49 @@ metrics = '*'
 	assert.Contains(t, warnings[0], "tracks a branch")
 }
 
+// TestCommitVersionIsNotReported: the version tt makes from a commit has a dev
+// in it, as a branch has, but the lock that pins it pins that commit.
+func TestCommitVersionIsNotReported(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeAdapter().add("memcached", "0.0.0.dev.36.g7170ebf-1", "aaa")
+
+	man := parseManifest(t, oneProduct+`[dependencies]
+memcached = '*'
+`)
+
+	engine := resolve.NewEngine(fake, "", "tt 3.4.0")
+
+	lock, warnings, err := engine.Resolve(context.Background(), man)
+	require.NoError(t, err)
+
+	got := findDep(t, lock.Products["default"].Dependencies, "memcached")
+	assert.Equal(t, "0.0.0.dev.36.g7170ebf-1", got.Version)
+	assert.Empty(t, warnings)
+}
+
+// TestUncommittedVersionIsReported: a version tt makes from uncommitted changes
+// is the same for every such build of the commit, so the lock pins no fixed
+// code, and the warning says why.
+func TestUncommittedVersionIsReported(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeAdapter().add("memcached", "0.0.0.dev.36.g7170ebf.dirty-1", "aaa")
+
+	man := parseManifest(t, oneProduct+`[dependencies]
+memcached = '*'
+`)
+
+	engine := resolve.NewEngine(fake, "", "tt 3.4.0")
+
+	_, warnings, err := engine.Resolve(context.Background(), man)
+	require.NoError(t, err)
+
+	require.Len(t, warnings, 1)
+	assert.Equal(t, "memcached resolved to 0.0.0.dev.36.g7170ebf.dirty-1, which was built "+
+		"from uncommitted changes; the lock will not pin fixed code", warnings[0])
+}
+
 // TestReleasedVersionIsNotReported is the other half: the warning has to be
 // about the branch, not about every resolve.
 func TestReleasedVersionIsNotReported(t *testing.T) {
