@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -117,9 +116,12 @@ func (w *walker) walk(ctx context.Context, parent string, reqs []depReq, chain [
 		if chosen {
 			// Two path dependencies holding manifests may each declare a third
 			// by path; when the paths are two directories, which one is the
-			// dependency is anybody's guess.
+			// dependency is anybody's guess. One of them absolute and the other
+			// relative may still name one directory.
+			projectDir := w.engine.projectDir
 			if existing.lockDep.Source == manifestSourcePath && req.source == manifestSourcePath &&
-				filepath.Clean(existing.lockDep.Path) != filepath.Clean(req.path) {
+				manifest.PathFrom(projectDir, existing.lockDep.Path) !=
+					manifest.PathFrom(projectDir, req.path) {
 				return &conflictError{
 					detail: fmt.Sprintf("%s is the path dependency %s, but %s requires it from %s",
 						req.name, existing.lockDep.Path, parentLabel(parent), req.path),

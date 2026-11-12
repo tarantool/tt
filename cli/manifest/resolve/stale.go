@@ -2,7 +2,6 @@ package resolve
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
 )
@@ -102,7 +101,7 @@ func IsStale(
 // file the hash covers, and the lock has to name the version of the rock that
 // gets installed.
 func pathStale(projectDir string, dependency manifest.LockDependency) (string, error) {
-	dir := filepath.Join(projectDir, dependency.Path)
+	dir := manifest.PathFrom(projectDir, dependency.Path)
 
 	hash, err := pathContentHash(dir)
 	if err != nil {

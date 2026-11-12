@@ -204,7 +204,7 @@ func materializePathDep(
 	ctx context.Context, rockClient rockBuilder, manifests manifestBuilder, projectDir string,
 	dep manifest.LockDependency,
 ) error {
-	dir := filepath.Join(projectDir, dep.Path)
+	dir := manifest.PathFrom(projectDir, dep.Path)
 
 	isManifest, err := resolve.IsPathManifest(dir)
 	if err != nil {

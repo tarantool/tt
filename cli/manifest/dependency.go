@@ -1,12 +1,27 @@
 package manifest
 
-import "github.com/pelletier/go-toml/v2/unstable"
+import (
+	"path/filepath"
+
+	"github.com/pelletier/go-toml/v2/unstable"
+)
 
 // Source values for a dependency.
 const (
 	sourceRegistry = "registry"
 	sourcePath     = "path"
 )
+
+// PathFrom is the directory named by path, which a manifest in dir gives for a
+// path dependency or a registry, or a lock in dir pins: path itself when it is
+// absolute, and path taken from dir when it is relative.
+func PathFrom(dir, path string) string {
+	if filepath.IsAbs(path) {
+		return filepath.Clean(path)
+	}
+
+	return filepath.Join(dir, path)
+}
 
 // Dependency is one entry of a [dependencies]/[dev_dependencies] map or a
 // component's [components.<name>.dependencies] map.

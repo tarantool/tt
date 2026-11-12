@@ -189,6 +189,34 @@ func TestRun_pathManifestDependency(t *testing.T) {
 	assert.Empty(t, warnings)
 }
 
+// TestRun_pathDependencyByAbsolutePath pins that a path dependency given by an
+// absolute path is built from that directory, not from one under the project,
+// and that the lock keeps the path as it is written.
+func TestRun_pathDependencyByAbsolutePath(t *testing.T) {
+	t.Parallel()
+
+	app, contrib := setupNeighbours(t)
+	writeFile(t, filepath.Join(app, manifestFileName), strings.Replace(consumerManifest,
+		"path = '../contrib'", "path = '"+filepath.ToSlash(contrib)+"'", 1))
+
+	opts := dryOptions(app)
+	require.NoError(t, Run(context.Background(), opts))
+
+	share := filepath.Join(app, rocksDirName, "share/tarantool/contrib")
+	assert.True(t, exists(t, filepath.Join(share, "init.lua")))
+
+	lock, err := loadLock(app)
+	require.NoError(t, err)
+
+	deps := lock.Products[manifest.ImplicitProduct].Dependencies
+	require.Len(t, deps, 1)
+	assert.Equal(t, filepath.ToSlash(contrib), deps[0].Path)
+
+	// The lock is in step with the directory the path names.
+	opts.Locked = true
+	require.NoError(t, Run(context.Background(), opts))
+}
+
 // TestPathManifests_hookWarning pins that the build of a path dependency does
 // not warn that its hooks are not run - the resolver did, reading its
 // manifest - and that the build of a source rock, which is not resolved from

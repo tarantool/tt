@@ -91,6 +91,26 @@ func TestMaterialize_pathDepBuildsRockspec(t *testing.T) {
 	assert.Empty(t, registryClient.installs)
 }
 
+// TestMaterialize_pathDepByAbsolutePath pins that the absolute path a lock pins
+// is the directory, not one under the project.
+func TestMaterialize_pathDepByAbsolutePath(t *testing.T) {
+	t.Parallel()
+
+	lib := filepath.Join(t.TempDir(), "mylib")
+	writeFile(t, filepath.Join(lib, "mylib-scm-1.rockspec"), "-- spec")
+
+	fake := &fakeRockClient{}
+	prod := manifest.LockProduct{Dependencies: []manifest.LockDependency{
+		{Name: "mylib", Source: sourcePath, Path: filepath.ToSlash(lib)},
+	}}
+
+	require.NoError(t, materialize(context.Background(), fake, fake, fake, t.TempDir(), prod,
+		nil, rockServers{}))
+
+	require.Len(t, fake.builds, 1)
+	assert.Equal(t, filepath.Join(lib, "mylib-scm-1.rockspec"), fake.builds[0])
+}
+
 func TestMaterialize_leafPathDepIsSkipped(t *testing.T) {
 	t.Parallel()
 

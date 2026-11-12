@@ -223,7 +223,7 @@ func (p *PathManifest) requirements(projectDir string) ([]depReq, error) {
 		}
 
 		if req.source == manifestSourcePath {
-			req.path, err = rebasePath(projectDir, filepath.Join(p.Dir, req.path))
+			req.path, err = rebasePath(projectDir, p.Dir, req.path)
 			if err != nil {
 				return nil, fmt.Errorf("path dependency %q: path of %q: %w",
 					name, req.name, err)
@@ -234,18 +234,24 @@ func (p *PathManifest) requirements(projectDir string) ([]depReq, error) {
 	return reqs, nil
 }
 
-// rebasePath writes dir, a directory, relative to projectDir, slash-separated
-// as the lock is: a path dependency of a path dependency is written relative
-// to that dependency, and the consumer finds it relative to itself.
-func rebasePath(projectDir, dir string) (string, error) {
+// rebasePath writes path, the path of a path dependency of the path dependency
+// at dir, relative to projectDir, slash-separated as the lock is: a relative
+// one is written relative to that dependency, and the consumer finds it
+// relative to itself. An absolute one names the same directory from anywhere
+// and is kept as it is written.
+func rebasePath(projectDir, dir, path string) (string, error) {
+	if filepath.IsAbs(path) {
+		return path, nil
+	}
+
 	base, err := filepath.Abs(projectDir)
 	if err != nil {
 		return "", fmt.Errorf("resolving %s: %w", projectDir, err)
 	}
 
-	target, err := filepath.Abs(dir)
+	target, err := filepath.Abs(manifest.PathFrom(dir, path))
 	if err != nil {
-		return "", fmt.Errorf("resolving %s: %w", dir, err)
+		return "", fmt.Errorf("resolving %s: %w", path, err)
 	}
 
 	rel, err := filepath.Rel(base, target)

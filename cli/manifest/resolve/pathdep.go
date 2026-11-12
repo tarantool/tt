@@ -22,7 +22,7 @@ import (
 // ships. A path dependency is pinned by path and content hash rather than by
 // registry version and checksum.
 func (w *walker) resolvePath(req depReq) (*resolvedDep, []depReq, error) {
-	dir := filepath.Join(w.engine.projectDir, req.path)
+	dir := manifest.PathFrom(w.engine.projectDir, req.path)
 
 	hash, hashErr := w.cache.dirContentHash(dir)
 	if hashErr != nil {

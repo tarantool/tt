@@ -98,7 +98,7 @@ or in the long form:
 | --- | --- |
 | `source` | `"registry"` (the default) or `"path"` |
 | `version` | the constraint; required for `registry` |
-| `path` | a directory with the rock, relative to the manifest; required for `path`. See [Path dependencies](#path-dependencies) |
+| `path` | a directory with the rock, relative to the manifest or absolute; required for `path`. See [Path dependencies](#path-dependencies) |
 | `registry` | a rock server to take this rock from: an http(s) URL, or a directory relative to the manifest |
 
 A rock with a `registry` is resolved and installed from that server only;
@@ -119,20 +119,22 @@ A `path` dependency is built from its directory, by what the directory holds:
   package, or after the `rock` of another product of it, which is then the
   product built. Its version is the one tt derives in its directory, and its
   dependencies are those of its default product, resolved with the
-  project's own: a `path` one is relative to the dependency, a `registry`
-  one keeps its server. Its `[dev_dependencies]` and its lock are not used;
-  its hooks are not run and a rockspec beside the manifest is ignored, each
-  with a warning when the lock of the project is resolved.
+  project's own: a relative `path` one is relative to the dependency, a
+  `registry` one keeps its server. Its `[dev_dependencies]` and its lock
+  are not used; its hooks are not run and a rockspec beside the manifest is
+  ignored, each with a warning when the lock of the project is resolved.
 - a `*.rockspec`: tt builds the rock it describes.
 - neither: there is nothing to build, and the lock only pins the directory.
 
-The lock pins a path dependency by a hash of its files. The hash of a
-dependency with a manifest leaves out `.git/`, `_build/`, `.rocks/`,
-`_runtime/`, its `app.manifest.lock` and what its `.gitignore` files ignore,
-so neither its own build nor the project's makes the lock out of date; a
-new version of it does, even one that only a commit or a tag makes. A
-dependency in a subdirectory of a repository, the project's own among them,
-is versioned by its directory alone (see
+The lock pins a path dependency by its path, relative to the project or
+absolute as the manifest has it, and by a hash of its files. An absolute
+path ties the lock to the machine: it holds only where the directory is at
+that path. The hash of a dependency with a manifest leaves out `.git/`,
+`_build/`, `.rocks/`, `_runtime/`, its `app.manifest.lock` and what its
+`.gitignore` files ignore, so neither its own build nor the project's makes
+the lock out of date; a new version of it does, even one that only a commit
+or a tag makes. A dependency in a subdirectory of a repository, the
+project's own among them, is versioned by its directory alone (see
 [Building](../concepts/packages.md#building)): a commit or a change
 elsewhere in the repository moves no version of it. tt builds such a
 dependency in `_build/path/<name>/` of the project - its stage, the
