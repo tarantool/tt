@@ -68,7 +68,8 @@ the quoting of a string and the form of a table (inline, dotted keys) do not
 count, so such an edit leaves the lock current. A changed key or value
 makes the lock out of date, one that pins nothing, such as `description`,
 included; so does a lock of a tt that hashed the manifest another way.
-`tt package resolve` then writes the hash anew.
+`tt package resolve` then writes the hash anew and, when no version moved,
+says what it rewrote in the lock instead of finding it up to date.
 
 `tt package deps` shows what the manifest declares and what the lock
 resolved it to, with no network.

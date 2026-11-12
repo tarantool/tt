@@ -159,7 +159,15 @@ def test_resolve_holds_the_versions_the_lock_already_has(tree, run_tt, rock_serv
     assert result.returncode == 0, result.stderr
 
     assert locked_versions(root) == {"stat": "0.3.1-1"}
-    assert "the lock is up to date" in result.stdout
+    # The lock by hand is not the one tt writes - its generated_by names
+    # another tt, for one - so the run says what it rewrote, not that the
+    # lock is up to date; a second run finds it so.
+    assert "no version moved, but the lock changed:" in result.stdout
+    assert "up to date" not in result.stdout
+
+    again = run_tt("package", "resolve")
+    assert again.returncode == 0, again.stderr
+    assert again.stdout.strip() == "the lock is up to date"
 
 
 def test_a_comment_keeps_the_lock_current(tree, run_tt, rock_server):
@@ -197,7 +205,46 @@ def test_a_comment_keeps_the_lock_current(tree, run_tt, rock_server):
 
     refreshed = run_tt("package", "resolve")
     assert refreshed.returncode == 0, refreshed.stderr
+    assert refreshed.stdout.splitlines() == [
+        "no version moved, but the lock changed:",
+        "  manifest hash refreshed",
+    ]
     assert read_lock(root)["manifest_hash"] == manifest_hash(root)
+
+
+def test_resolve_names_a_path_dependency_it_repins(tree, run_tt):
+    """A path dependency of files only has no version to move: the first lock
+    names it, and a resolve after its files changed says it pinned it anew,
+    rather than that the lock is up to date."""
+    root = tree.root
+    write_manifest(
+        root,
+        "\n[dependencies]\nhelper = { source = 'path', path = 'vendor/helper' }\n",
+    )
+    helper = root / "vendor" / "helper" / "init.lua"
+    helper.parent.mkdir(parents=True)
+    helper.write_text("return {}\n")
+
+    first = run_tt("package", "resolve")
+    assert first.returncode == 0, first.stderr
+    assert first.stdout.splitlines() == [
+        "no version moved, but the lock changed:",
+        "  lock written; there was none",
+        '  "helper" joined product "default"',
+    ]
+
+    again = run_tt("package", "resolve")
+    assert again.returncode == 0, again.stderr
+    assert again.stdout.strip() == "the lock is up to date"
+
+    helper.write_text("return { changed = true }\n")
+
+    repinned = run_tt("package", "resolve")
+    assert repinned.returncode == 0, repinned.stderr
+    assert repinned.stdout.splitlines() == [
+        "no version moved, but the lock changed:",
+        '  path dependency "helper" re-pinned: its files changed',
+    ]
 
 
 def test_a_lock_of_an_older_hash_scheme_is_stale(tree, run_tt, rock_server):
@@ -221,6 +268,7 @@ def test_a_lock_of_an_older_hash_scheme_is_stale(tree, run_tt, rock_server):
 
     refreshed = run_tt("package", "resolve")
     assert refreshed.returncode == 0, refreshed.stderr
+    assert "  manifest hash refreshed" in refreshed.stdout.splitlines()
     assert read_lock(root)["manifest_hash"] == manifest_hash(root)
 
 

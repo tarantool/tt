@@ -378,6 +378,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt package resolve` and `tt package update` that move no version but
+  rewrite the lock say what they rewrote - the manifest hash refreshed, a
+  `path` dependency re-pinned for files that changed, the digests of the
+  files of a rock pinned anew, a rock that joined or left a product, a
+  field of the lock - instead of `the lock is up to date`, which they print
+  only when the lock is left byte for byte as it was. A first lock that
+  pins only `path` dependencies without a version is reported as written.
 - A committed `app.manifest.lock` regenerated, and the change not staged, no
   longer marks the version of a package `dirty` when it is the only change:
   the first line of `git status` lost its leading blank and was misread.

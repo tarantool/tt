@@ -137,6 +137,15 @@ type Result struct {
 	Lock *manifest.Lock
 	// Moves are the closure changes, in name order.
 	Moves []Move
+	// Rewrites says what else the run changed in the lock, one note each, in
+	// the words the CLI prints them in: a manifest_hash refreshed, a path
+	// dependency re-pinned for files that changed, the digests of a rock
+	// pinned anew, a rock that joined or left one closure while its
+	// version held, and the fields of the lock. With no Moves it is empty
+	// only when the lock written is byte for byte the one that was on disk,
+	// so that a run that rewrote the lock never reads as one that found it up
+	// to date.
+	Rewrites []string
 	// Change reports what happened to the declaration itself: whether one was
 	// already there and, if so, the constraint it carried. It is what lets the
 	// CLI say "checks >=3.0.0 -> >=3.1.0" rather than just "checks added", a
@@ -222,6 +231,9 @@ type project struct {
 	// lock is the lock next to it, or nil when there is none. A project that has
 	// never been built has no lock, which is a normal state.
 	lock *manifest.Lock
+	// lockSource is the exact bytes of lock, nil with it: what a run that
+	// rewrites the lock compares the new one with.
+	lockSource []byte
 }
 
 // load reads the manifest and the lock from the project directory.
@@ -253,39 +265,40 @@ func load(opts Options) (*project, error) {
 
 	opts.emit(validationWarnings)
 
-	lock, err := loadLock(opts.ProjectDir)
+	lock, lockSource, err := loadLock(opts.ProjectDir)
 	if err != nil {
 		return nil, err
 	}
 
 	return &project{
-		manifest: man,
-		source:   data,
-		perm:     manifestPerm(path),
-		lock:     lock,
+		manifest:   man,
+		source:     data,
+		perm:       manifestPerm(path),
+		lock:       lock,
+		lockSource: lockSource,
 	}, nil
 }
 
-// loadLock parses the lock next to the manifest, reporting (nil, nil) when
-// there is none.
-func loadLock(projectDir string) (*manifest.Lock, error) {
+// loadLock parses the lock next to the manifest and returns it with its
+// bytes, reporting nils when there is none.
+func loadLock(projectDir string) (*manifest.Lock, []byte, error) {
 	path := filepath.Join(projectDir, lockFileName)
 
 	data, err := os.ReadFile(path) //nolint:gosec // Reads the caller's own lock.
 	if os.IsNotExist(err) {
-		return nil, nil //nolint:nilnil // A missing lock is a state, not a failure.
+		return nil, nil, nil // A missing lock is a state, not a failure.
 	}
 
 	if err != nil {
-		return nil, stateErrorf("reading %s: %w", lockFileName, err)
+		return nil, nil, stateErrorf("reading %s: %w", lockFileName, err)
 	}
 
 	lock, err := manifest.ParseLock(data)
 	if err != nil {
-		return nil, stateErrorf("parsing %s: %w", lockFileName, err)
+		return nil, nil, stateErrorf("parsing %s: %w", lockFileName, err)
 	}
 
-	return lock, nil
+	return lock, data, nil
 }
 
 // manifestPerm reports the manifest's current mode, falling back to
@@ -339,15 +352,18 @@ func apply(
 
 	opts.emit(warnings)
 
-	err = writeLock(opts.ProjectDir, lock)
+	written, err := writeLock(opts.ProjectDir, lock)
 	if err != nil {
 		return nil, err
 	}
 
+	moves := movesBetween(proj.lock, lock)
+
 	return &Result{
 		Manifest: man,
 		Lock:     lock,
-		Moves:    movesBetween(proj.lock, lock),
+		Moves:    moves,
+		Rewrites: lockRewrites(proj.lock, proj.lockSource, lock, written, moves),
 		Change:   change,
 	}, nil
 }
@@ -386,19 +402,20 @@ func writeAndReparse(opts Options, proj *project, edited []byte) (*manifest.Mani
 	return man, nil
 }
 
-// writeLock marshals lock and writes it next to the manifest.
-func writeLock(projectDir string, lock *manifest.Lock) error {
+// writeLock marshals lock and writes it next to the manifest, returning the
+// bytes it wrote.
+func writeLock(projectDir string, lock *manifest.Lock) ([]byte, error) {
 	data, err := lock.Marshal()
 	if err != nil {
-		return stateErrorf("marshaling %s: %w", lockFileName, err)
+		return nil, stateErrorf("marshaling %s: %w", lockFileName, err)
 	}
 
 	err = os.WriteFile(filepath.Join(projectDir, lockFileName), data, defaultFilePerm)
 	if err != nil {
-		return stateErrorf("writing %s: %w", lockFileName, err)
+		return nil, stateErrorf("writing %s: %w", lockFileName, err)
 	}
 
-	return nil
+	return data, nil
 }
 
 // movesBetween diffs two locked closures into the moves the CLI reports.
