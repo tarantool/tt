@@ -312,7 +312,8 @@ func newConfigCmd(services sdk.Services) *cobra.Command {
 		Long: "Write the configuration tt gives EmmyLua - LuaJIT, the globals of " +
 			"Tarantool, the stubs of the Tarantool the project runs on and the modules " +
 			"its rocks install, with .rocks/, .tarantool/ and the build tree _build/ " +
-			"left out of the code of the project - to " +
+			"left out of the code of the project, and the project's own package, which " +
+			"tt package build installs into .rocks/, out of the libraries - to " +
 			analyzer.ConfigDir + "/" + analyzer.ConfigFileName +
 			" of the project and print its path: for an editor that runs emmylua_ls " +
 			"itself, through " + analyzer.ConfigEnv + ". The other commands write it anew " +
@@ -434,16 +435,26 @@ const withoutTypes = "checking without the types of the Tarantool API"
 // the libraries of --library, and where the configuration goes: into the
 // project, or outside every project into the user cache. No Tarantool, one tt
 // cannot choose and one without stubs are reported, and are not errors: the
-// code is checked without the types of the Tarantool API.
-func (r *runner) layout(found workspace) (analyzer.Layout, error) {
+// code is checked without the types of the Tarantool API. Neither is a rock
+// tree tt cannot read for the project's own package (analyzer.OwnModules):
+// the package is then left in the libraries.
+func (r *runner) layout(ctx context.Context, found workspace) (analyzer.Layout, error) {
 	extra, err := r.libraryDirs(found)
 	if err != nil {
 		return analyzer.Layout{}, err
 	}
 
+	logger := r.services.Log()
 	path := ""
 
-	if !found.project {
+	var own []string
+
+	if found.project {
+		own, err = analyzer.OwnModules(ctx, found.dir)
+		if err != nil {
+			logger.Warn(err.Error() + ": the project's own package is read as a library too")
+		}
+	} else {
 		cache := analyzer.DefaultCacheDir()
 		if cache == "" {
 			return analyzer.Layout{}, fmt.Errorf("%w for the configuration of %s: run "+
@@ -453,7 +464,6 @@ func (r *runner) layout(found workspace) (analyzer.Layout, error) {
 		path = analyzer.GlobalConfigPath(cache, found.dir)
 	}
 
-	logger := r.services.Log()
 	stubs := ""
 
 	tarantool, err := r.services.Tarantool()
@@ -472,7 +482,9 @@ func (r *runner) layout(found workspace) (analyzer.Layout, error) {
 		}
 	}
 
-	return analyzer.Layout{ProjectDir: found.dir, Stubs: stubs, Extra: extra, Path: path}, nil
+	return analyzer.Layout{
+		ProjectDir: found.dir, Stubs: stubs, Extra: extra, Path: path, Own: own,
+	}, nil
 }
 
 // tarantoolName names tarantool by its version, Tarantool 3.8.1, or by its
@@ -499,7 +511,7 @@ func (r *runner) withConfig(
 
 	list, pass := split(cmd, args, found)
 
-	layout, err := r.layout(found)
+	layout, err := r.layout(cmd.Context(), found)
 	if err != nil {
 		return err
 	}
@@ -805,7 +817,7 @@ func (r *runner) config(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	layout, err := r.layout(found)
+	layout, err := r.layout(cmd.Context(), found)
 	if err != nil {
 		return err
 	}
@@ -833,7 +845,7 @@ func (r *runner) languageServer(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	layout, err := r.layout(found)
+	layout, err := r.layout(cmd.Context(), found)
 	if err != nil {
 		return err
 	}
