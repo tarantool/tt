@@ -280,13 +280,7 @@ func runPackageUpdate(name string) error {
 		return err
 	}
 
-	if len(result.Moves) == 0 {
-		_, _ = fmt.Fprintln(os.Stdout, "everything is already up to date")
-
-		return nil
-	}
-
-	printMoves(result.Moves)
+	printResolution(result, "everything is already up to date")
 
 	return nil
 }
@@ -328,13 +322,7 @@ func runPackageResolve() error {
 		return err
 	}
 
-	if len(result.Moves) == 0 {
-		_, _ = fmt.Fprintln(os.Stdout, "the lock is up to date")
-
-		return nil
-	}
-
-	printMoves(result.Moves)
+	printResolution(result, "the lock is up to date")
 
 	return nil
 }
@@ -440,6 +428,29 @@ func dependencyOptionsIn(projectDir string, registries []string) (deps.Options, 
 		Logger:     luarocksLogger(),
 		Warn:       func(msg string) { log.Warn(msg) },
 	}, nil
+}
+
+// printResolution reports a run that resolved the lock again without editing
+// a declaration: the moves, then what else the run rewrote in the lock, one
+// line each. unchanged is printed only for a lock the run left byte for byte
+// as it was; a run that moved no version and still rewrote the lock - a
+// manifest hash refreshed, a path dependency re-pinned - says so.
+func printResolution(result *deps.Result, unchanged string) {
+	if len(result.Moves) == 0 && len(result.Rewrites) == 0 {
+		_, _ = fmt.Fprintln(os.Stdout, unchanged)
+
+		return
+	}
+
+	if len(result.Moves) == 0 {
+		_, _ = fmt.Fprintln(os.Stdout, "no version moved, but the lock changed:")
+	}
+
+	printMoves(result.Moves)
+
+	for _, note := range result.Rewrites {
+		_, _ = fmt.Fprintf(os.Stdout, "  %s\n", note)
+	}
 }
 
 // printMoves reports the closure changes one per line: a rock that arrived
