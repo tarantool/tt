@@ -224,12 +224,21 @@ func newRockCmd(services sdk.Services) *cobra.Command {
 		Long: "Pack the " + analyzer.RockName + " rock of every platform of an EmmyLua " +
 			"release into --out, with the manifest that makes the directory a rock " +
 			"server, the assets checked against the sha256 tt holds the release to. " +
-			"With --from, pack the one local build as the rock of --arch (default this " +
-			"host's) and keep the rocks already in --out: run it once for the build of " +
-			"each platform. Serve the directory, or upload its files, and declare the " +
-			"dependency from it with tt emmylua prepare --rock-server.",
-		Example: `# The rocks of a release on GitHub.
-  $ tt emmylua rock --version 0.25.1 --out dist/rocks
+			"The release is one with builds on GitHub to download, by default " +
+			downloadableVersion() + ", the newest of them tt knows. With --from, pack " +
+			"the one " +
+			"local build as the rock of --arch (default this host's), of the release " +
+			analyzer.DefaultVersion + " by default, and keep the rocks already in " +
+			"--out: run it once for the build of each platform. Serve the directory, or " +
+			"upload its files, and declare the dependency from it with tt emmylua " +
+			"prepare --rock-server.\n\n" +
+			analyzer.DefaultVersion + ", the release tt prepares a project with, is a " +
+			"commit of EmmyLua with no builds to download: its rocks are on the rock " +
+			"index of tarantool-contrib/rocks-repo, and tt package download " +
+			analyzer.RockName + " --registry " + analyzer.DefaultRockServer + " --dir DIR " +
+			"takes the one of this host into a directory that serves as a rock server.",
+		Example: `# The rocks of the newest release on GitHub.
+  $ tt emmylua rock --out dist/rocks
 
   # Local builds, one per platform.
   $ tt emmylua rock --from target/release --out dist/rocks
@@ -240,7 +249,8 @@ func newRockCmd(services sdk.Services) *cobra.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&rock.version, "version", analyzer.DefaultVersion, "EmmyLua release")
+	flags.StringVar(&rock.version, "version", "", "EmmyLua release (default "+
+		downloadableVersion()+", or "+analyzer.DefaultVersion+" with --from)")
 	flags.StringVar(&rock.out, "out", "", "the directory to pack the rocks into")
 	flags.StringVar(&rock.from, "from", "",
 		"pack the programs of a local build in this directory instead of downloading them")
@@ -251,6 +261,17 @@ func newRockCmd(services sdk.Services) *cobra.Command {
 	_ = cmd.MarkFlagRequired("out")
 
 	return cmd
+}
+
+// downloadableVersion names analyzer.DownloadableVersion for the help, or
+// says there is none.
+func downloadableVersion() string {
+	version, err := analyzer.DownloadableVersion()
+	if err != nil {
+		return "none"
+	}
+
+	return version
 }
 
 // run packs the rocks of a release and prints their paths and the path of

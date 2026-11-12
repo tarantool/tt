@@ -292,6 +292,19 @@ func TestFetchProgramsNotInAsset(t *testing.T) {
 	assert.Contains(t, err.Error(), platform.Asset(Check))
 }
 
+// TestPackRocksWithoutBuilds checks that a release with no builds to
+// download fails, naming what packs or takes its rocks instead.
+func TestPackRocksWithoutBuilds(t *testing.T) {
+	t.Parallel()
+
+	_, err := PackRocks(t.Context(), PackOptions{Dir: t.TempDir(), Version: DefaultVersion})
+	require.ErrorIs(t, err, ErrUnsupportedPlatform)
+	require.ErrorContains(t, err, "EmmyLua 0.30.0pre1 has no builds to download: pack it "+
+		"from a build of 599c33862491c5ca0f325e0ef549ad34c510ca97 (--from), or pack 0.25.1, "+
+		"which has (--version 0.25.1); tt package download emmylua@0.30.0pre1 --registry "+
+		DefaultRockServer+" --dir DIR takes the rock of this host the rock index serves")
+}
+
 //nolint:paralleltest // Sets the environment.
 func TestPackRocks(t *testing.T) {
 	releasesFile, _ := assetRelease(t)

@@ -253,7 +253,9 @@ func TestToolsErrors(t *testing.T) {
 	require.ErrorIs(t, err, ErrRockServer)
 	require.ErrorContains(t, err, "cannot reach the rock server http://127.0.0.1:1/rocks/")
 	require.ErrorContains(t, err, "to work offline, run it in a project prepared with "+
-		"tt emmylua prepare, or give --rock-server a directory of rocks")
+		"tt emmylua prepare, or give --rock-server a directory of rocks, which "+
+		"tt package download emmylua --registry "+DefaultRockServer+" --dir DIR fills "+
+		"where the network is")
 
 	opts.CacheDir = ""
 

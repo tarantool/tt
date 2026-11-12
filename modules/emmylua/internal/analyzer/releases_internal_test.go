@@ -56,6 +56,39 @@ func TestReleasePlatform(t *testing.T) {
 	assert.Contains(t, err.Error(), "--from")
 }
 
+func TestDownloadableVersion(t *testing.T) {
+	t.Parallel()
+
+	// DefaultVersion is a commit, with no builds: 0.25.1 has them.
+	version, err := DownloadableVersion()
+	require.NoError(t, err)
+	assert.Equal(t, "0.25.1", version)
+}
+
+//nolint:paralleltest // Sets the environment.
+func TestDownloadableVersionReleases(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "releases.json")
+
+	t.Setenv(ReleasesEnv, path)
+
+	// Versions compare as versions, not as strings.
+	require.NoError(t, os.WriteFile(path, []byte(`{
+		"0.9.0": {"version": "0.9.0", "platforms": [{"goos": "linux"}]},
+		"0.10.0": {"version": "0.10.0", "platforms": [{"goos": "linux"}]},
+		"0.11.0pre1": {"version": "0.11.0pre1"}
+	}`), 0o644))
+
+	version, err := DownloadableVersion()
+	require.NoError(t, err)
+	assert.Equal(t, "0.10.0", version)
+
+	require.NoError(t, os.WriteFile(path,
+		[]byte(`{"0.11.0pre1": {"version": "0.11.0pre1"}}`), 0o644))
+
+	_, err = DownloadableVersion()
+	require.ErrorIs(t, err, ErrUnsupportedPlatform)
+}
+
 func TestRockArch(t *testing.T) {
 	t.Parallel()
 

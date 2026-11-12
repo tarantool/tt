@@ -63,7 +63,8 @@ func (r *runner) addToolFlags(cmd *cobra.Command) {
 		"outside a project, the EmmyLua release to run; a project runs the one its lock pins")
 	cmd.Flags().StringVar(&r.rockServer, rockServerFlag, "",
 		"outside a project, the rock server to fetch EmmyLua from: a URL, or a directory "+
-			"of rocks such as tt emmylua rock packs (default the rock index of "+
+			"of rocks such as tt package download "+analyzer.RockName+" --registry URL "+
+			"--dir DIR fills, to work offline (default the rock index of "+
 			"tarantool-contrib/rocks-repo)")
 }
 

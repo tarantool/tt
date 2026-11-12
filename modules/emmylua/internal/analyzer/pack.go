@@ -14,7 +14,9 @@ import (
 type PackOptions struct {
 	// Dir is the directory the rocks and their index go to: a rock server.
 	Dir string
-	// Version is the release; empty is DefaultVersion.
+	// Version is the release; empty is DefaultVersion with From, and
+	// without it the newest release with builds to download
+	// (DownloadableVersion).
 	Version string
 	// From, when set, is a local build - the directory of its programs -
 	// packed as the rock of Arch instead of the downloaded builds.
@@ -39,8 +41,18 @@ type PackOptions struct {
 // with builds made elsewhere.
 func PackRocks(ctx context.Context, opts PackOptions) ([]string, error) {
 	version := opts.Version
-	if version == "" {
+
+	switch {
+	case version != "":
+	case opts.From != "":
 		version = DefaultVersion
+	default:
+		var err error
+
+		version, err = DownloadableVersion()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	release, err := LookupRelease(version)
@@ -89,11 +101,22 @@ func packLocalRock(opts PackOptions, release Release) ([]string, error) {
 }
 
 // packReleaseRocks packs the downloaded build of every platform of release.
+// A release without builds, one tt knows from a commit, is packed from a
+// local build; the rocks a rock server serves of it are taken by tt package
+// download, which the error names.
 func packReleaseRocks(ctx context.Context, opts PackOptions, release Release) ([]string, error) {
 	if len(release.Platforms) == 0 {
-		_, err := release.HostPlatform()
+		downloadable, err := DownloadableVersion()
+		if err == nil {
+			downloadable = ", or pack " + downloadable + ", which has (--version " +
+				downloadable + ")"
+		}
 
-		return nil, err
+		return nil, fmt.Errorf("%w: EmmyLua %s has no builds to download: pack it from a "+
+			"build of %s (--from)%s; tt package download %s@%s --registry %s --dir DIR "+
+			"takes the rock of this host the rock index serves", ErrUnsupportedPlatform,
+			release.Version, release.Ref, downloadable, RockName, release.Version,
+			DefaultRockServer)
 	}
 
 	rocks := make([]string, 0, len(release.Platforms))

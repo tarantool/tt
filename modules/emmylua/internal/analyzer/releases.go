@@ -23,6 +23,9 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+
+	rocks "github.com/tarantool/go-luarocks"
+	"github.com/tarantool/go-luarocks/deps"
 )
 
 // RockName is the name of the rock the programs are packed as, and what the
@@ -246,6 +249,41 @@ func LookupRelease(version string) (Release, error) {
 	}
 
 	return release, nil
+}
+
+// DownloadableVersion returns the newest release tt knows that has builds to
+// download, which tt emmylua rock packs unless told another: DefaultVersion
+// is a commit with none. It fails with an error wrapping
+// ErrUnsupportedPlatform when no release has them.
+func DownloadableVersion() (string, error) {
+	known, err := knownReleases()
+	if err != nil {
+		return "", err
+	}
+
+	newest, newestVersion := "", rocks.Version{}
+
+	for name, release := range known {
+		if len(release.Platforms) == 0 {
+			continue
+		}
+
+		version, err := deps.ParseVersion(name)
+		if err != nil {
+			continue
+		}
+
+		if newest == "" || deps.Compare(version, newestVersion) > 0 {
+			newest, newestVersion = name, version
+		}
+	}
+
+	if newest == "" {
+		return "", fmt.Errorf("%w: no release tt knows has builds to download; pack a "+
+			"local build (--from)", ErrUnsupportedPlatform)
+	}
+
+	return newest, nil
 }
 
 // Versions returns the releases tt knows, oldest first.

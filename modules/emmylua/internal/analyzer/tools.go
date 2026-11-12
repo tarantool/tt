@@ -56,10 +56,15 @@ var (
 	ErrNoRock = errors.New("no such rock")
 )
 
-// offlineHint says what works without a rock server.
+// offlineHint says what works without a rock server. The directory of rocks
+// is one tt package download fills from the rock index: tt emmylua rock packs
+// the releases with builds to download and local builds alone, and not
+// DefaultVersion, which has none.
 const offlineHint = "outside a project tt emmylua fetches EmmyLua from a rock server once " +
 	"and keeps it in the user cache; to work offline, run it in a project prepared with " +
-	"tt emmylua prepare, or give --rock-server a directory of rocks (tt emmylua rock packs one)"
+	"tt emmylua prepare, or give --rock-server a directory of rocks, which " +
+	"tt package download " + RockName + " --registry " + DefaultRockServer + " --dir DIR " +
+	"fills where the network is"
 
 // ToolsOptions configure Tools.
 type ToolsOptions struct {

@@ -3109,8 +3109,9 @@ FLAGS[0m
                                github or gitlab (gitlab from EmmyLua 0.30)
       --rock-server string     outside a project, the rock server to fetch
                                EmmyLua from: a URL, or a directory of rocks such
-                               as tt emmylua rock packs (default the rock index
-                               of tarantool-contrib/rocks-repo)
+                               as tt package download emmylua --registry URL
+                               --dir DIR fills, to work offline (default the
+                               rock index of tarantool-contrib/rocks-repo)
       --severity string        report the diagnostics of this severity and
                                above: error, warn, info or hint
       --version string         outside a project, the EmmyLua release to run; a
@@ -3181,8 +3182,9 @@ FLAGS[0m
                                or json (default html)
       --rock-server string     outside a project, the rock server to fetch
                                EmmyLua from: a URL, or a directory of rocks such
-                               as tt emmylua rock packs (default the rock index
-                               of tarantool-contrib/rocks-repo)
+                               as tt package download emmylua --registry URL
+                               --dir DIR fills, to work offline (default the
+                               rock index of tarantool-contrib/rocks-repo)
       --version string         outside a project, the EmmyLua release to run; a
                                project runs the one its lock pins (default
                                "0.30.0pre1")
@@ -3227,7 +3229,8 @@ FLAGS[0m
   -h, --help                 help for fmt
       --rock-server string   outside a project, the rock server to fetch EmmyLua
                              from: a URL, or a directory of rocks such as tt
-                             emmylua rock packs (default the rock index of
+                             package download emmylua --registry URL --dir DIR
+                             fills, to work offline (default the rock index of
                              tarantool-contrib/rocks-repo)
       --version string       outside a project, the EmmyLua release to run; a
                              project runs the one its lock pins (default
@@ -3262,8 +3265,9 @@ FLAGS[0m
                               library too; repeat for more
       --rock-server string    outside a project, the rock server to fetch
                               EmmyLua from: a URL, or a directory of rocks such
-                              as tt emmylua rock packs (default the rock index
-                              of tarantool-contrib/rocks-repo)
+                              as tt package download emmylua --registry URL
+                              --dir DIR fills, to work offline (default the rock
+                              index of tarantool-contrib/rocks-repo)
       --version string        outside a project, the EmmyLua release to run; a
                               project runs the one its lock pins (default
                               "0.30.0pre1")
@@ -3341,10 +3345,18 @@ EXAMPLES[0m
 === tt emmylua rock --help
 Pack the emmylua rock of every platform of an EmmyLua release into --out, with
 the manifest that makes the directory a rock server, the assets checked against
-the sha256 tt holds the release to. With --from, pack the one local build as the
-rock of --arch (default this host's) and keep the rocks already in --out: run it
-once for the build of each platform. Serve the directory, or upload its files,
-and declare the dependency from it with tt emmylua prepare --rock-server.
+the sha256 tt holds the release to. The release is one with builds on GitHub to
+download, by default 0.25.1, the newest of them tt knows. With --from, pack the
+one local build as the rock of --arch (default this host's), of the release
+0.30.0pre1 by default, and keep the rocks already in --out: run it once for the
+build of each platform. Serve the directory, or upload its files, and declare
+the dependency from it with tt emmylua prepare --rock-server.
+
+0.30.0pre1, the release tt prepares a project with, is a commit of EmmyLua with
+no builds to download: its rocks are on the rock index of
+tarantool-contrib/rocks-repo, and tt package download emmylua --registry
+https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/ --dir DIR
+takes the one of this host into a directory that serves as a rock server.
 
 [0;1;39mUSAGE[0m
   tt emmylua rock [flags]
@@ -3356,11 +3368,12 @@ FLAGS[0m
                          instead of downloading them
   -h, --help             help for rock
       --out string       the directory to pack the rocks into
-      --version string   EmmyLua release (default "0.30.0pre1")
+      --version string   EmmyLua release (default 0.25.1, or 0.30.0pre1 with
+                         --from)
 [0;1;39m
 EXAMPLES[0m
-  # The rocks of a release on GitHub.
-  $ tt emmylua rock --version 0.25.1 --out dist/rocks
+  # The rocks of the newest release on GitHub.
+  $ tt emmylua rock --out dist/rocks
 
   # Local builds, one per platform.
   $ tt emmylua rock --from target/release --out dist/rocks

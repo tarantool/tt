@@ -439,6 +439,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   LuaRocks packs the rock with `zip`, and drops the error that says it is
   missing. tt now adds that LuaRocks packs a rock with `zip`, which is not
   found in `PATH`.
+- `tt emmylua rock` with no `--version` packs the newest release tt knows
+  with builds to download, `0.25.1`, and with `--from` the build of
+  `0.30.0pre1`. It took `0.30.0pre1` for both, a commit of EmmyLua with no
+  builds on GitHub, and failed with `unsupported platform` unless given
+  `--from`; that error now also names `--version 0.25.1` and
+  `tt package download emmylua@0.30.0pre1 --registry <index> --dir DIR`,
+  which takes the rock the rock index of tarantool-contrib/rocks-repo serves.
+  The way to work offline that the error of an unreachable rock server and
+  the help of `--rock-server` give is that `tt package download`, where they
+  named `tt emmylua rock`, which cannot pack the release tt runs by default.
 - `tt emmylua check`, `doc`, `fmt` and `ls` in a project whose lock pins the
   `emmylua` rock and whose `.rocks/` lacks it, a fresh clone say, say to run
   `tt package fetch`, which installs the rocks the lock pins, where they
