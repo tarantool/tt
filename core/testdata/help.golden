@@ -3209,8 +3209,11 @@ a git work tree, in a directory git ignores, or without git, it walks the whole
 project but _build/, as check, doc and ls do. A PATH is formatted as given.
 
 The other flags of luafmt, such as --list-different, go after --, and one that
-chooses what luafmt does takes the place of --check. Arguments after -- go to
-the program as they are.
+chooses what luafmt does takes the place of --check; one that formats no files,
+such as --init, --explain-config or --stdin, gets no list of them. --init with
+no file writes luafmt.toml into the root of the project, and the configuration
+it writes gets the [syntax] level of LuaJIT, where luafmt writes Lua55, unless
+--level follows --. Arguments after -- go to the program as they are.
 
 Outside every project luafmt comes from the user cache, fetched there once from
 the rock server (--rock-server, --version).
@@ -3234,6 +3237,9 @@ FLAGS[0m
 EXAMPLES[0m
   $ tt emmylua fmt
   $ tt emmylua fmt app --write
+
+  # A configuration of luafmt for the project, with every setting.
+  $ tt emmylua fmt -- --init
 
 === tt emmylua ls --help
 Run emmylua_ls, the language server of EmmyLua, on the standard streams, in

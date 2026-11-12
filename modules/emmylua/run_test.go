@@ -302,10 +302,19 @@ func TestFmt(t *testing.T) {
 			args: []string{"--", "--list-different"},
 			want: level + noBuild + "--list-different " + project,
 		},
+		// A flag that formats no files takes no list of them, and --init
+		// with no file writes the one of the root.
+		{args: []string{"--", "--init=luafmt.toml"}, want: level + "--init=luafmt.toml"},
 		{
-			args: []string{"--", "--init=luafmt.toml"},
-			want: level + noBuild + "--init=luafmt.toml " + project,
+			args: []string{"--", "--init", "--tab"},
+			want: level + "--init " + filepath.Join(project, "luafmt.toml") + " --tab",
 		},
+		{args: []string{"--", "--dump-default-config"}, want: level + "--dump-default-config"},
+		{
+			args: []string{"--", "--explain-config", "app/init.lua"},
+			want: level + "--explain-config app/init.lua",
+		},
+		{args: []string{"app", "--", "--stdin"}, want: level + "--stdin app"},
 		{args: []string{"--", "--tab"}, want: "--check " + level + noBuild + "--tab " + project},
 		// A path given is the user's: _build/ too.
 		{args: []string{"_build/rock"}, want: "--check " + level + "_build/rock"},
@@ -348,6 +357,46 @@ func TestFmt(t *testing.T) {
 	got := sdktest.New(t, sdktest.WithProject(project)).Run(emmylua.New,
 		"emmylua", "fmt", "--check", "--write")
 	require.ErrorContains(t, got.Err, "none of the others can be")
+}
+
+// TestFmtInit checks that tt emmylua fmt -- --init sets the level of LuaJIT
+// in the configuration luafmt writes, which names that of Lua 5.5, and says
+// so, unless a level follows --. It runs programs, so it is not parallel,
+// as TestCheck.
+func TestFmtInit(t *testing.T) {
+	project := testProject(t)
+	isolateGit(t, filepath.Dir(project))
+	// luafmt --init FILE, as it writes the level.
+	writeProgram(t, project, "luafmt", "while [ $# -gt 0 ]; do\n"+
+		"  if [ \"$1\" = --init ]; then printf '[syntax]\\nlevel = \"Lua55\"\\n' > \"$2\"; fi\n"+
+		"  shift\ndone\n")
+
+	config := filepath.Join(project, "luafmt.toml")
+
+	services := sdktest.New(t, sdktest.WithProject(project))
+	got := services.Run(emmylua.New, "emmylua", "fmt", "--", "--init")
+	require.NoError(t, got.Err)
+
+	data, err := os.ReadFile(config)
+	require.NoError(t, err)
+	assert.Equal(t, "[syntax]\nlevel = \"LuaJIT\"\n", string(data))
+	assert.Contains(t, infoMessages(services), "set [syntax] level = \"LuaJIT\" in "+config+
+		", the Lua of Tarantool, for \"Lua55\" luafmt writes")
+
+	sub := filepath.Join(project, "app")
+	require.NoError(t, os.MkdirAll(sub, 0o755))
+
+	// The test runs luafmt in its own directory, not in sub: the file is
+	// named whole.
+	style := filepath.Join(sub, "style.toml")
+
+	got = sdktest.New(t, sdktest.WithProject(sub)).Run(emmylua.New,
+		"emmylua", "fmt", "--", "--init", style, "--level", "lua54")
+	require.NoError(t, got.Err)
+
+	data, err = os.ReadFile(style)
+	require.NoError(t, err)
+	assert.Equal(t, "[syntax]\nlevel = \"Lua55\"\n", string(data))
 }
 
 // TestConfig checks that tt emmylua config writes the configuration, valid

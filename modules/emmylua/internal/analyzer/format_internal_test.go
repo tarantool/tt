@@ -113,3 +113,49 @@ func TestFormatLevelConfiguredExplicit(t *testing.T) {
 
 	assert.True(t, FormatLevelConfigured(dir, []string{dir}, "missing.toml"))
 }
+
+func TestSetInitLevel(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	// As luafmt --init writes it: the [syntax] table first, every setting.
+	const written = "[syntax]\nlevel = \"Lua55\"  # the level\n\n[indent]\nkind = \"Space\"\n" +
+		"level = 4\n"
+
+	path := writeFormatConfig(t, dir, "luafmt.toml", written)
+
+	from, err := SetInitLevel(path)
+	require.NoError(t, err)
+	assert.Equal(t, "Lua55", from)
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "[syntax]\nlevel = \"LuaJIT\"  # the level\n\n[indent]\nkind = \"Space\"\n"+
+		"level = 4\n", string(data))
+
+	// LuaJIT already, no [syntax] level, not TOML, no file: nothing to do.
+	for name, content := range map[string]string{
+		"luajit.toml":   "[syntax]\nlevel = \"LuaJIT\"\n",
+		"indent.toml":   "[indent]\nlevel = 4\n",
+		"dotted.toml":   "syntax.level = \"Lua55\"\n",
+		"luafmt.json":   `{"syntax": {"level": "Lua55"}}`,
+		"broken.toml":   "[syntax]\nlevel = \"Lua55\"\n[syntax\n",
+		"inline.toml":   "syntax = {level = \"Lua55\"}\n",
+		"multiple.toml": "[syntax]\nlevel = \"Lua55\"\nlevel = \"Lua54\"\n",
+	} {
+		path := writeFormatConfig(t, dir, name, content)
+
+		from, err := SetInitLevel(path)
+		require.NoError(t, err, name)
+		assert.Empty(t, from, name)
+
+		data, err := os.ReadFile(path)
+		require.NoError(t, err)
+		assert.Equal(t, content, string(data), name)
+	}
+
+	from, err = SetInitLevel(filepath.Join(dir, "missing.toml"))
+	require.NoError(t, err)
+	assert.Empty(t, from)
+}

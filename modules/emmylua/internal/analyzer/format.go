@@ -2,8 +2,12 @@ package analyzer
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
@@ -14,6 +18,98 @@ import (
 // gives EmmyLua, as luafmt's --level names it. luafmt parses Lua 5.5 by
 // default, and fails on the literals of LuaJIT, such as 0ULL.
 const FormatLevel = "lua-jit"
+
+// InitLevel is FormatLevel as the configuration of luafmt spells it, which
+// SetInitLevel writes.
+const InitLevel = runtimeVersion
+
+// InitConfigName is the configuration luafmt --init writes when it is given
+// no file: luafmt.toml of its directory.
+const InitConfigName = "luafmt.toml"
+
+// initLevelLine is the level of the [syntax] table of a TOML configuration,
+// with the spaces and the comment around its value.
+var initLevelLine = regexp.MustCompile(`^(\s*level\s*=\s*)"([^"]*)"(.*)$`)
+
+// SetInitLevel sets [syntax] level of the TOML configuration at path, as
+// luafmt --init writes it, to InitLevel, and returns the level it replaced:
+// luafmt writes every setting, the level of Lua 5.5 among them. The line is
+// rewritten, every other byte kept, and the file replaced. It returns "" and
+// changes
+// nothing for a file that is not TOML, holds no such line or has InitLevel
+// already, and for a line it cannot rewrite to a file that reads as
+// InitLevel.
+func SetInitLevel(path string) (string, error) {
+	if strings.ToLower(filepath.Ext(path)) != ".toml" {
+		return "", nil
+	}
+
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		// luafmt wrote nothing: --help or --version came first, say.
+		return "", nil
+	}
+
+	if err != nil {
+		return "", fmt.Errorf("reading %s: %w", path, err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+
+	index, match := syntaxLevel(lines)
+	if match == nil || match[2] == InitLevel {
+		return "", nil
+	}
+
+	lines[index] = match[1] + `"` + InitLevel + `"` + match[3]
+
+	updated := []byte(strings.Join(lines, "\n"))
+
+	if !readsLevel(updated, InitLevel) {
+		return "", nil
+	}
+
+	err = writeFileAtomic(path, updated)
+	if err != nil {
+		return "", err
+	}
+
+	return match[2], nil
+}
+
+// syntaxLevel returns the index of the first line among lines, a TOML
+// configuration, that sets level in the [syntax] table, and its match of
+// initLevelLine; nil when there is none.
+func syntaxLevel(lines []string) (int, []string) {
+	inSyntax := false
+
+	for index, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "[") {
+			inSyntax = trimmed == "[syntax]"
+
+			continue
+		}
+
+		if match := initLevelLine.FindStringSubmatch(line); inSyntax && match != nil {
+			return index, match
+		}
+	}
+
+	return 0, nil
+}
+
+// readsLevel reports whether data, a TOML configuration of luafmt, sets
+// [syntax] level to level.
+func readsLevel(data []byte, level string) bool {
+	var config struct {
+		Syntax struct {
+			Level string `toml:"level"`
+		} `toml:"syntax"`
+	}
+
+	return toml.Unmarshal(data, &config) == nil && config.Syntax.Level == level
+}
 
 // formatConfigNames are the configurations of luafmt, in the order it looks
 // for them in a directory.
