@@ -292,8 +292,8 @@ written with its rockspec beside it:
 
 ```console
 $ tt package pack --format rock --out dist
-dist/mylib-1.2.0-1.linux-x86_64.rock
-dist/mylib-1.2.0-1.rockspec
+.../mylib/dist/mylib-1.2.0-1.linux-x86_64.rock
+.../mylib/dist/mylib-1.2.0-1.rockspec
 ```
 
 The rock is the binary rock of the platform tt runs on when the package has

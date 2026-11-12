@@ -381,7 +381,7 @@ Run the command from the application root:
 
 ```console
 $ tt package pack
-_build/pack/my-app-1.0.0-linux-amd64.tt
+.../my-app/_build/pack/my-app-1.0.0-linux-amd64.tt
 ```
 
 The command performs the same dependency resolution and component build as

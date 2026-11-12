@@ -295,8 +295,8 @@ WebAssembly-компонента и объявляет его инкремент
 
 ```console
 $ tt package pack --format rock --out dist
-dist/mylib-1.2.0-1.linux-x86_64.rock
-dist/mylib-1.2.0-1.rockspec
+.../mylib/dist/mylib-1.2.0-1.linux-x86_64.rock
+.../mylib/dist/mylib-1.2.0-1.rockspec
 ```
 
 Если в пакете есть нативный файл (модуль или программа), получается
