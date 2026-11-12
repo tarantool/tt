@@ -1,7 +1,9 @@
 package rocks
 
 import (
+	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -165,5 +167,52 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 		}
 
 		_ = os.Remove(tntBinPath)
+	}
+}
+
+func TestLuarocksCommand(t *testing.T) {
+	tests := []struct {
+		args []string
+		want string
+	}{
+		{[]string{"pack", "queue"}, "pack"},
+		{[]string{"--tree", "pack", "list"}, "list"},
+		{[]string{"--tree=pack", "--verbose", "pack", "queue"}, "pack"},
+		{[]string{"--server", "a b", "ZIP=/bin/zip", "install", "pack"}, "install"},
+		{[]string{"--verbose"}, ""},
+		{[]string{"--only-server"}, ""},
+	}
+
+	for _, tt := range tests {
+		require.Equal(t, tt.want, luarocksCommand(tt.args), tt.args)
+	}
+}
+
+func TestExplainPackFailure(t *testing.T) {
+	failure := errors.New("failed to run luarocks")
+	withZip := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(withZip, zipTool), []byte("#!/bin/sh\n"), 0o755))
+
+	tests := []struct {
+		name  string
+		path  string
+		args  []string
+		noZip bool
+	}{
+		{"pack, no zip", t.TempDir(), []string{"pack", "queue"}, true},
+		{"--pack-binary-rock, no zip", t.TempDir(), []string{"make", "--pack-binary-rock"}, true},
+		{"pack, zip in PATH", withZip, []string{"pack", "queue"}, false},
+		{"pack, ZIP assigned", t.TempDir(), []string{"ZIP=/opt/zip", "pack", "queue"}, false},
+		{"no pack", t.TempDir(), []string{"install", "pack"}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("PATH", tt.path)
+
+			err := explainPackFailure(failure, tt.args)
+			require.ErrorIs(t, err, failure)
+			require.Equal(t, tt.noZip, errors.Is(err, ErrNoZip))
+		})
 	}
 }

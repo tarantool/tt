@@ -423,6 +423,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt rocks pack <rock>` and `--pack-binary-rock` on a system with no `zip`
+  in `PATH` failed with LuaRocks' `Failed packing <rock>` and no reason:
+  LuaRocks packs the rock with `zip`, and drops the error that says it is
+  missing. tt now adds that LuaRocks packs a rock with `zip`, which is not
+  found in `PATH`.
 - The help of a command under `tt package` and `tt binary` prints its usage
   line once, not twice.
 - Every entry of the rocks `tt package pack --format rock` and `rock-src`
