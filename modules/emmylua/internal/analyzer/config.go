@@ -220,14 +220,22 @@ func FindStubs(executable string) string {
 
 // ProgramPath returns the path of program in the rocks of the project:
 // .rocks/bin/<program>. When it is not there, the error wraps
-// ErrNotPrepared.
+// ErrNotPrepared and says what installs it: tt package fetch when the lock
+// pins the rock already - a fresh clone, say - and tt emmylua prepare,
+// which declares it, otherwise.
 func ProgramPath(projectDir string, program Program) (string, error) {
 	path := filepath.Join(projectDir, rocksDirName, rockBinDir, string(program))
 
 	info, err := os.Stat(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return "", fmt.Errorf("%w: no %s in %s; run tt emmylua prepare",
-			ErrNotPrepared, program, filepath.Join(rocksDirName, rockBinDir))
+		fix := "run tt emmylua prepare"
+		if LockPins(projectDir) {
+			fix = "the lock pins " + RockName + ": run tt package fetch to install the " +
+				"rocks it pins"
+		}
+
+		return "", fmt.Errorf("%w: no %s in %s; %s",
+			ErrNotPrepared, program, filepath.Join(rocksDirName, rockBinDir), fix)
 	}
 
 	if err != nil {

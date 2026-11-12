@@ -464,6 +464,18 @@ func TestNotPrepared(t *testing.T) {
 		require.ErrorContains(t, got.Err, "run tt emmylua prepare", command)
 		assert.False(t, sdk.IsReported(got.Err), command)
 	}
+
+	// A fresh clone: the lock pins the rock, and .rocks/ is empty.
+	project := testProject(t)
+	writeFile(t, filepath.Join(project, "app.manifest.lock"), "lock_version = '0.1'\n\n"+
+		"[lock]\n[lock.products]\n[lock.products.default]\ndependencies = []\n\n"+
+		"[[lock.dev_dependencies]]\nname = 'emmylua'\nversion = '0.30.0pre1-1'\n"+
+		"source = 'registry'\n")
+
+	got := sdktest.New(t, sdktest.WithProject(project)).Run(emmylua.New, "emmylua", "check")
+	require.ErrorIs(t, got.Err, analyzer.ErrNotPrepared)
+	require.ErrorContains(t, got.Err, "no emmylua_check in .rocks/bin; the lock pins "+
+		"emmylua: run tt package fetch to install the rocks it pins")
 }
 
 // TestLsArgs checks that tt emmylua ls takes the arguments of emmylua_ls

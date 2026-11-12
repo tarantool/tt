@@ -79,6 +79,10 @@ modules come from their directories through `replace`.
   `luafmt.toml` of the root, and after luafmt wrote the configuration
   `analyzer.SetInitLevel` rewrites its `[syntax] level`, `"Lua55"`, to
   `"LuaJIT"`, the one line, unless `--level` follows `--`.
+- A project whose `.rocks/bin` lacks a program fails with
+  `analyzer.ErrNotPrepared`, saying what installs it: `tt package fetch`
+  when `app.manifest.lock` pins the `emmylua` rock (`analyzer.LockPins`), a
+  fresh clone, and `tt emmylua prepare`, which declares it, otherwise.
 - `workspace.go` - where a command runs: the project `scope.FindProject` of
   `sdk/scope` finds from `Project().Dir()`, as the project commands of tt
   find theirs, when it holds the manifest, and the directory of the command

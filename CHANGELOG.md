@@ -439,6 +439,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   LuaRocks packs the rock with `zip`, and drops the error that says it is
   missing. tt now adds that LuaRocks packs a rock with `zip`, which is not
   found in `PATH`.
+- `tt emmylua check`, `doc`, `fmt` and `ls` in a project whose lock pins the
+  `emmylua` rock and whose `.rocks/` lacks it, a fresh clone say, say to run
+  `tt package fetch`, which installs the rocks the lock pins, where they
+  said to run `tt emmylua prepare`; a project that does not declare the rock
+  is still told to prepare it.
 - `tt emmylua fmt -- --init` writes `luafmt.toml` into the root of the
   project, where it failed with `<root> already exists`: tt gave luafmt the
   root to format after the arguments, and `--init [PATH]` took it for the
