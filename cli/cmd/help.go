@@ -189,20 +189,17 @@ func textWidth(text string) int {
 
 // spell-checker:ignore rpad
 
+// The usage line of a runnable command is printed once. A command with
+// subcommands adds the form that runs one, and shows its own usage line beside
+// it only when it inherits flags: the root shows the subcommand form alone.
 var usageTemplate = util.Bold("USAGE") + `
-{{- if (and .Runnable .HasAvailableInheritedFlags)}}
+{{- if (and .Runnable (or .HasAvailableInheritedFlags (not .HasAvailableSubCommands)))}}
   {{.UseLine}}
 {{end -}}
 
 {{- if .HasAvailableSubCommands}}
   {{.CommandPath}} [flags] <command> [command flags]
 {{end -}}
-
-{{if not .HasAvailableSubCommands}}
-{{- if .Runnable}}
-  {{.UseLine}}
-{{end -}}
-{{end}}
 
 {{- if gt (len .Aliases) 0}}` + util.Bold("\nALIASES") + `
   {{.NameAndAliases}}

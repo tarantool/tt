@@ -378,6 +378,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- The help of a command under `tt package` and `tt binary` prints its usage
+  line once, not twice.
 - `tt package resolve` and `tt package update` that move no version but
   rewrite the lock say what they rewrote - the manifest hash refreshed, a
   `path` dependency re-pinned for files that changed, the digests of the
