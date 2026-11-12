@@ -23,6 +23,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest/build"
 	"github.com/tarantool/tt/v3/cli/manifest/build/backend"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
+	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
 )
 
 // libraryManifest is a pure Lua library: a module under its own name and a
@@ -254,7 +255,7 @@ func TestPackRockCarriesTheLicenseFiles(t *testing.T) {
 
 	// The license files were laid out apart from the stage, which is left as
 	// the build laid it out, and that directory is gone.
-	assert.NoDirExists(t, filepath.Join(src, buildDirName, "rock", "default", rockDocDir))
+	assert.NoDirExists(t, filepath.Join(src, buildDirName, "rock", "default", rocktree.StageDoc))
 
 	leftovers, err := filepath.Glob(filepath.Join(src, buildDirName, packSubDir, "rock-*"))
 	require.NoError(t, err)
@@ -264,10 +265,10 @@ func TestPackRockCarriesTheLicenseFiles(t *testing.T) {
 	tree := filepath.Join(consumer, rocksDirName)
 	installDir := filepath.Join(tree, "share", "tarantool", "rocks", "mylib", "1.0.0-1")
 
-	license, err := os.ReadFile(filepath.Join(installDir, rockDocDir, "LICENSE"))
+	license, err := os.ReadFile(filepath.Join(installDir, rocktree.StageDoc, "LICENSE"))
 	require.NoError(t, err)
 	assert.Equal(t, "BSD-2-Clause text\n", string(license))
-	assert.FileExists(t, filepath.Join(installDir, rockDocDir, "licenses", "vendored.md"))
+	assert.FileExists(t, filepath.Join(installDir, rocktree.StageDoc, "licenses", "vendored.md"))
 	assert.FileExists(t, filepath.Join(tree, "share", "tarantool", "mylib", "init.lua"))
 
 	err = filepath.WalkDir(tree, func(path string, entry fs.DirEntry, err error) error {
@@ -287,44 +288,6 @@ func TestPackRockCarriesTheLicenseFiles(t *testing.T) {
 	_, err = Run(context.Background(), packOptions(src, out, FormatRock))
 	require.ErrorIs(t, err, errMissingInclude)
 	assert.Contains(t, err.Error(), `license_files entry "LICENSE"`)
-}
-
-// TestMirrorTree: the copy of a stage keeps the permission bits of each file,
-// the umask not applied, and a symlink as the link it is; a missing stage is
-// an empty one.
-func TestMirrorTree(t *testing.T) {
-	t.Parallel()
-
-	src := t.TempDir()
-	writeTree(t, src, map[string]string{
-		"bin/tool":        "#!/bin/sh\n",
-		"lua/mylib/a.lua": "return {}\n",
-	})
-	require.NoError(t, os.Chmod(filepath.Join(src, "bin", "tool"), 0o775))
-	require.NoError(t, os.Chmod(filepath.Join(src, "lua", "mylib", "a.lua"), 0o600))
-	require.NoError(t, os.Symlink("a.lua", filepath.Join(src, "lua", "mylib", "b.lua")))
-
-	dst := t.TempDir()
-	require.NoError(t, mirrorTree(src, dst))
-
-	info, err := os.Stat(filepath.Join(dst, "bin", "tool"))
-	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0o775), info.Mode().Perm())
-
-	info, err = os.Stat(filepath.Join(dst, "lua", "mylib", "a.lua"))
-	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
-
-	link, err := os.Readlink(filepath.Join(dst, "lua", "mylib", "b.lua"))
-	require.NoError(t, err)
-	assert.Equal(t, "a.lua", link)
-
-	empty := t.TempDir()
-	require.NoError(t, mirrorTree(filepath.Join(src, "missing"), empty))
-
-	names, err := os.ReadDir(empty)
-	require.NoError(t, err)
-	assert.Empty(t, names)
 }
 
 // TestPackRockAndArchiveOfAProgram: a program an executable component built

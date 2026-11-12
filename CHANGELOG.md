@@ -393,6 +393,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   where LuaRocks puts the documents of a rock; nothing else it installs
   changes. A license file that is not there fails the pack, as it fails the
   archive.
+- A rock a project builds from its source rock has the license files of the
+  package in `doc/` of its install dir, as its binary rock has them: the
+  build installed the files it laid out alone, so a `.tt` archive of the
+  project shipped the native module of the rock without its license. A
+  license file the source rock does not hold is a warning.
 - `tt emmylua check`, `doc` and `ls` leave out `_build/`, where
   `tt package build` copies the Lua files of the project and of its `path`
   dependencies: the configuration tt writes ignores `_build/**` with

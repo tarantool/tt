@@ -20,6 +20,7 @@ import (
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
+	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
 )
 
 const (
@@ -40,6 +41,9 @@ var (
 	errSrcRockEntry = errors.New("entry escapes the directory of the source rock")
 	// errSrcRockPackage reports a source rock that holds no tt package.
 	errSrcRockPackage = errors.New("the source rock holds no app.manifest.toml")
+	// errSrcRockLicense reports a license_files entry of the package of a
+	// source rock that names no file of it.
+	errSrcRockLicense = errors.New("the entry leads out of the package")
 )
 
 // srcRockFetcher finds and downloads source rocks: the slice of go-luarocks'
@@ -123,6 +127,7 @@ func (s *srcRocks) install(
 		what:      "source rock",
 		stale:     "the source rock is of another version than its name says",
 		warnHooks: true,
+		docs:      true,
 	})
 	if err != nil {
 		return false, err
@@ -134,6 +139,45 @@ func (s *srcRocks) install(
 	}
 
 	return true, nil
+}
+
+// srcRockDocs copies the license files of the package of build, the entries
+// of its license_files, into doc, each at its path in the package, as
+// tt package pack puts them into doc/ of the binary rock of the release. An
+// entry leading out of the package fails it. One the source rock does not
+// hold is a warning, and the rock is installed without it: the source rock
+// has the files git tracked where it was packed, while the binary rock has
+// what the project had.
+func (p pathManifests) srcRockDocs(build manifestBuild, entries []string, doc string) error {
+	for _, entry := range entries {
+		clean := filepath.Clean(entry)
+		if clean == "." || !filepath.IsLocal(clean) {
+			return sdk.Errorf(sdk.ExitFailure, "license_files entry %q: %w",
+				entry, errSrcRockLicense)
+		}
+
+		src := filepath.Join(build.dir, clean)
+
+		_, err := os.Lstat(src)
+		if errors.Is(err, fs.ErrNotExist) {
+			p.opts.emit([]string{fmt.Sprintf("the source rock of %s %s has no %s, a license "+
+				"file of its manifest; the rock is installed without it",
+				build.dep.Name, build.dep.Version, entry)})
+
+			continue
+		}
+
+		if err != nil {
+			return fmt.Errorf("license_files entry %q: %w", entry, err)
+		}
+
+		err = rocktree.MirrorTree(src, filepath.Join(doc, clean))
+		if err != nil {
+			return fmt.Errorf("license_files entry %q: %w", entry, err)
+		}
+	}
+
+	return nil
 }
 
 // srcInstaller installs registry rocks as installer does, but those srcs

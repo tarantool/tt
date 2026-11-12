@@ -337,7 +337,10 @@ the servers it installs the rock from have no rock of its platform, neither
 a binary one nor an `.all` one: tt downloads the source rock into
 `_build/src/`, builds the package in it with its manifest, as it builds a
 path dependency, and installs it into `.rocks/` at the version the lock
-pins, revision included. The hooks of the package are not run. A rock built
+pins, revision included, with the license files of the package in `doc/`,
+as its binary rock has them; one the source rock does not hold, a file git
+did not track where it was packed, is a warning. The hooks of the package
+are not run. A rock built
 so is not built again while the tree holds it at that version. A source
 rock of no tt package, one without `app.manifest.toml`, fails the build.
 
