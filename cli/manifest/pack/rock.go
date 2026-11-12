@@ -292,11 +292,37 @@ func packBinaryRock(
 
 	defer cleanup()
 
-	rock := filepath.Join(dir, spec.Package+"-"+spec.Version+"."+arch+rockExt)
+	// PackStaged packs into a directory of its own: _build/pack is also the
+	// default output directory, where the rock written from the packed one
+	// lands under the same name, and the removal of the packed one would
+	// remove it.
+	packDir, err := os.MkdirTemp(temp, "rock-")
+	if err != nil {
+		return "", fmt.Errorf("creating a directory under %s: %w", temp, err)
+	}
 
-	err = client.PackStaged(spec, files, rock, client.PackStagedOpts{TempDir: temp})
+	defer func() { _ = os.RemoveAll(packDir) }()
+
+	name := spec.Package + "-" + spec.Version + "." + arch + rockExt
+	packed := filepath.Join(packDir, name)
+
+	err = client.PackStaged(spec, files, packed, client.PackStagedOpts{TempDir: temp})
 	if err != nil {
 		return "", fmt.Errorf("packing the rock: %w", err)
+	}
+
+	// The entries go-luarocks writes carry no time; they get the one of the
+	// entries of the source rock.
+	data, err := restampZip(packed)
+	if err != nil {
+		return "", err
+	}
+
+	rock := filepath.Join(dir, name)
+
+	err = writeAtomically(rock, data)
+	if err != nil {
+		return "", err
 	}
 
 	return rock, nil

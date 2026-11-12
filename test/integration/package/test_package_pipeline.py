@@ -18,6 +18,7 @@ import re
 import shutil
 import subprocess
 import tarfile
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -269,6 +270,35 @@ def test_build_fetch_and_pack_need_no_tarantool(tt_cmd, tmp_path):
     assert "tarantool development headers not found" in result.stderr
     assert "no tarantool to take them from" in result.stderr
     assert not (project / ".rocks" / "lib").exists()
+
+
+@pytest.mark.parametrize("formats", [("rock",), ("tt,rock", "--without-deps")], ids=["rock", "tt"])
+def test_pack_rock_into_the_default_output_dir(tt_cmd, tmp_path, formats):
+    """With no --out the rock lands in _build/pack, and stays there.
+
+    _build/pack is where the rock is packed before it is redated, too; the
+    packed one used to be written over the rock and removed with it, leaving
+    the rockspec alone beside the path pack printed.
+    """
+    project = make_project(tmp_path / "project", dependency=False)
+    (project / "VERSION").write_text("1.0.0\n")
+
+    registry = ("--registry", str(ROCKS_REPO))
+    result = run(tt_cmd, project, "package", "pack", "--format", *formats, *registry)
+    assert result.returncode == 0, result.stderr
+
+    out = project / "_build" / "pack"
+    rock = out / "my-app-1.0.0-1.all.rock"
+    assert str(Path("_build") / "pack" / rock.name) in result.stdout + result.stderr
+    assert rock.is_file()
+    assert (out / "my-app-1.0.0-1.rockspec").is_file()
+
+    with zipfile.ZipFile(rock) as archive:
+        infos = archive.infolist()
+    assert infos
+    assert {info.date_time for info in infos} == {(1980, 1, 1, 0, 0, 0)}
+
+    assert not [entry.name for entry in out.iterdir() if entry.is_dir()]
 
 
 def pack(tt_cmd, project: Path) -> Path:

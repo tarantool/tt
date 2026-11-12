@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
 )
@@ -32,11 +31,6 @@ const (
 	srcFileMode fs.FileMode = 0o644
 	srcExecMode fs.FileMode = 0o755
 )
-
-// zipEpoch is the modification time of every entry of a source rock, the
-// earliest a zip can say: an entry carries no time of its own, so the same
-// files are the same bytes.
-var zipEpoch = time.Date(1980, time.January, 1, 0, 0, 0, 0, time.UTC)
 
 // srcExcluded are the top-level directories of a project that are no source
 // of it: what tt and git keep there.
@@ -126,10 +120,12 @@ func addSourceFile(archive *zip.Writer, projectDir, srcDir, rel string) error {
 	return addZipEntry(archive, path.Join(srcDir, rel), mode, file)
 }
 
-// addZipEntry adds a file entry of name and mode with the content of content.
+// addZipEntry adds a file entry of name and mode with the content of content,
+// dated the zip epoch (stampZipEpoch).
 func addZipEntry(archive *zip.Writer, name string, mode fs.FileMode, content io.Reader) error {
-	header := &zip.FileHeader{Name: name, Method: zip.Deflate, Modified: zipEpoch}
+	header := &zip.FileHeader{Name: name, Method: zip.Deflate}
 	header.SetMode(mode)
+	stampZipEpoch(header)
 
 	writer, err := archive.CreateHeader(header)
 	if err != nil {

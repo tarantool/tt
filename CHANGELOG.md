@@ -410,6 +410,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The help of a command under `tt package` and `tt binary` prints its usage
   line once, not twice.
+- Every entry of the rocks `tt package pack --format rock` and `rock-src`
+  pack is dated 1980-01-01 00:00 in its MS-DOS date and time, and carries
+  no extended timestamp. The binary rock had a DOS date of 0, which says
+  month 0 and `unzip -l` shows as `1980-00-00 00:00`; the source rock had
+  the right DOS date and an extended timestamp of that time in UTC, which
+  `unzip -l` shows in its local time zone, `1980-01-01 07:30` in Singapore.
+  Both rocks stay reproducible; the bytes, and so the sha256, of a rock
+  differ from those an older tt packed of the same files.
 - The rockspec `tt package pack --format rock` and `rock-src` write for a
   version of a commit no tag names, `1.1.1.dev.1.g59173d4-1` say, names that
   commit: `source.tag` is its full sha. The source named the repository
