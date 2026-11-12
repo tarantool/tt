@@ -150,6 +150,9 @@ lists with files elsewhere is an error: a published version does not
 change, so a new build of it is a new revision (`tt package pack
 --revision`). The same index is written as the same bytes, its keys sorted,
 so a commit of it shows what changed; a field tt does not know is not kept.
+[A rock index for release pages](../how-to/rocks.md#a-rock-index-for-release-pages)
+walks through both, an index beside the rocks and one apart from them, for
+a module and the project that depends on it.
 
 ## Searching
 
@@ -213,4 +216,6 @@ the source rock is gone, is removed whole, its manifest and lock file with
 it. The check covers the tree of the working directory or the one `--tree`
 names.
 Plain `luarocks` does the same install with no such check: it says the rock
-is installed, and `require` of its module fails.
+is installed, and `require` of its module fails. What LuaRocks installs of
+each rock `tt package pack` makes is in
+[For LuaRocks users](../how-to/rocks.md#for-luarocks-users).
