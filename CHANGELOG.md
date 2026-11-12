@@ -441,6 +441,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   it. A license file that is a symlink, to the license of a monorepo say,
   is copied as the file it leads to, as `tt package pack` copies it; one
   the package does not hold is a warning.
+- The source rock `tt package pack --format rock-src` packs carries the
+  license files of the package whether git tracks them or not, as it
+  carries the manifest: it took the files git tracks alone, so a `LICENSE`
+  never committed reached the binary rock and not the source rock, nor the
+  rock a project builds from it. A license file that is not there, or that
+  leads out of the project, fails the pack, as it fails the binary rock.
 - `tt emmylua check`, `doc` and `ls` leave out `_build/`, where
   `tt package build` copies the Lua files of the project and of its `path`
   dependencies: the configuration tt writes ignores `_build/**` with

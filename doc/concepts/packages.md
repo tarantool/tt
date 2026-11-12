@@ -323,7 +323,9 @@ mylib = { version = ">=1.2.0", registry = "/path/to/dist" }
 for a platform no binary rock is published for: the same rockspec, and the
 files of the project git tracks, those of its submodules included, with a
 `VERSION` file of the version, since the unpacked rock has no git history
-to derive it from. The manifest is packed whether git tracks it or not; a
+to derive it from. The manifest and the license files are packed whether
+git tracks them or not, a license file that is not there failing the pack
+as it fails the binary rock; a
 file of a component git neither tracks nor ignores is left out, with a
 warning, since the binary rock has it and a build of the source rock would
 not. Out of a git repository, every file of the project is

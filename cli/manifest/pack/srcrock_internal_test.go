@@ -256,16 +256,18 @@ include = ['init.lua']
 // TestSrcRockInstallsTheLicenseFiles: a rock built from its source rock has
 // the license files of the package in doc/ of its install dir, as the binary
 // rock of the release has them: the same files, and the same doc section of
-// the rock_manifest. They are laid out apart from the stage of the build.
+// the rock_manifest. The source rock carries a license file git does not
+// track, as it carries the manifest. They are laid out apart from the stage
+// of the build.
 func TestSrcRockInstallsTheLicenseFiles(t *testing.T) {
 	t.Parallel()
 
 	src := writeGitPackage(t, map[string]string{
 		manifestFileName: strings.Replace(libraryManifest, "license = 'BSD-2-Clause'\n",
 			"license = 'BSD-2-Clause'\nlicense_files = ['LICENSE', 'licenses']\n", 1),
-		"LICENSE":              "BSD-2-Clause text\n",
 		"licenses/vendored.md": "the license of a vendored file\n",
 	})
+	writeTree(t, src, map[string]string{"LICENSE": "BSD-2-Clause text\n"})
 
 	binary := filepath.Join(t.TempDir(), "binary")
 	source := filepath.Join(t.TempDir(), "source")
@@ -273,15 +275,20 @@ func TestSrcRockInstallsTheLicenseFiles(t *testing.T) {
 	_, err := Run(context.Background(), packOptions(src, binary, FormatRock))
 	require.NoError(t, err)
 
-	_, err = Run(context.Background(), packOptions(src, source, FormatRockSrc))
+	result, err := Run(context.Background(), packOptions(src, source, FormatRockSrc))
 	require.NoError(t, err)
+	assert.Equal(t, "BSD-2-Clause text\n", zipEntries(t, result.SrcRock)["mylib/LICENSE"])
+
+	// The untracked file makes the version dirty, that of both rocks alike.
+	version := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(result.Rockspec), "mylib-"),
+		rockspecExt)
 
 	fromBinary := buildConsumer(t, binary)
 	fromSource := buildConsumer(t, source)
 
 	// The consumer of the source server built the rock from the source rock.
 	built := filepath.Join(fromSource, buildDirName, "src", "mylib")
-	assert.DirExists(t, filepath.Join(fromSource, buildDirName, "src", "mylib-1.2.0-1"))
+	assert.DirExists(t, filepath.Join(fromSource, buildDirName, "src", "mylib-"+version))
 	assert.NoDirExists(t, filepath.Join(built, "rock", "default", rocktree.StageDoc))
 
 	leftovers, err := filepath.Glob(filepath.Join(built, "rock-*"))
@@ -291,7 +298,32 @@ func TestSrcRockInstallsTheLicenseFiles(t *testing.T) {
 	assert.Equal(t, map[string]string{
 		"LICENSE":              "BSD-2-Clause text\n",
 		"licenses/vendored.md": "the license of a vendored file\n",
-	}, assertInstalledAlike(t, fromBinary, fromSource, "1.2.0-1"))
+	}, assertInstalledAlike(t, fromBinary, fromSource, version))
+}
+
+// TestSrcRockChecksTheLicenseFiles: a license file that is not there, or that
+// leads out of the project, fails the pack of the source rock as it fails the
+// binary rock and the archive.
+func TestSrcRockChecksTheLicenseFiles(t *testing.T) {
+	t.Parallel()
+
+	for entry, want := range map[string]error{
+		"NOTICE":       errMissingInclude,
+		"../LICENSE":   errEscapingPath,
+		"/etc/passwd":  errEscapingPath,
+		"VERSION":      errReservedName,
+		"_build/notes": errReservedName,
+	} {
+		src := writeGitPackage(t, map[string]string{
+			manifestFileName: strings.Replace(libraryManifest, "license = 'BSD-2-Clause'\n",
+				fmt.Sprintf("license = 'BSD-2-Clause'\nlicense_files = [%q]\n", entry), 1),
+		})
+
+		_, err := Run(context.Background(),
+			packOptions(src, filepath.Join(t.TempDir(), "out"), FormatRockSrc))
+		require.ErrorIs(t, err, want, entry)
+		assert.Contains(t, err.Error(), fmt.Sprintf("license_files entry %q", entry))
+	}
 }
 
 // assertInstalledAlike asserts that the consumers want and got hold mylib at
