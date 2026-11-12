@@ -62,11 +62,18 @@ func TestLayoutConfigFiles(t *testing.T) {
 
 	assert.Equal(t, []string{"gen"}, layout.ConfigFiles("gen"))
 
+	require.NoError(t, os.WriteFile(filepath.Join(project, ".emmyrc.lua"),
+		[]byte("return {}\n"), 0o644))
+	assert.Equal(t, []string{"gen", filepath.Join(project, ".emmyrc.lua")},
+		layout.ConfigFiles("gen"))
+
 	require.NoError(t, os.WriteFile(filepath.Join(project, ".emmyrc.json"), []byte("{}"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(project, ".luarc.json"), []byte("{}"), 0o644))
 
+	// In the order of emmylua_ls.
 	assert.Equal(t, []string{
 		"gen", filepath.Join(project, ".luarc.json"), filepath.Join(project, ".emmyrc.json"),
+		filepath.Join(project, ".emmyrc.lua"),
 	}, layout.ConfigFiles("gen"))
 }
 

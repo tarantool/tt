@@ -20,7 +20,11 @@ modules come from their directories through `replace`.
   SDK (`Project.AddDependency`, `Project.Install`), so the programs are in
   `.rocks/bin`. `rock` packs the rocks of a release for a rock server.
   `check`, `doc`, `fmt` and `ls` run the programs with the configuration
-  `config` writes to `.tarantool/emmylua/emmyrc.json`: LuaJIT, the globals of
+  `config` writes, then the project's `.luarc.json`, `.emmyrc.json` and
+  `.emmyrc.lua`, which `emmylua_ls` reads itself and `check` and `doc` name
+  with `--config` (`Layout.ConfigFiles`), since given one a program reads no
+  other. The configuration goes to `.tarantool/emmylua/emmyrc.json`: LuaJIT,
+  the globals of
   Tarantool, the EmmyLua stubs of the Tarantool the project runs on
   (`Services.Tarantool`), the modules its rocks install and those of
   `--library`, and `.rocks/`, `.tarantool/` and `_build/`, where tt builds

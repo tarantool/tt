@@ -203,7 +203,8 @@ func newCheckCmd(services sdk.Services) *cobra.Command {
 		Use:   "check [PATH...] [flags] [-- EMMYLUA_CHECK_ARGS...]",
 		Short: "Check the Lua code of the project",
 		Long: "Run emmylua_check on the project with the configuration tt writes, then " +
-			"the project's .luarc.json and .emmyrc.json. The command fails as " +
+			"the project's .luarc.json, .emmyrc.json and .emmyrc.lua, as ls reads them. " +
+			"The command fails as " +
 			"emmylua_check does: when it reports an error, or with --warnings-as-errors " +
 			"a warning. --warnings-as-errors, -f/--output-format and --severity go to " +
 			"emmylua_check as they are, its other flags, such as --ignore and --output, " +
@@ -234,7 +235,8 @@ func newDocCmd(services sdk.Services) *cobra.Command {
 		Use:   "doc [PATH...] [flags] [-- EMMYLUA_DOC_CLI_ARGS...]",
 		Short: "Generate the documentation of the Lua code of the project",
 		Long: "Run emmylua_doc_cli on the project with the configuration tt writes, then " +
-			"the project's .luarc.json and .emmyrc.json: it writes the documentation of " +
+			"the project's .luarc.json, .emmyrc.json and .emmyrc.lua, as ls reads them: " +
+			"it writes the documentation of " +
 			"the annotated code, by default as an HTML site in ./output. -o/--output and " +
 			"-f/--output-format go to emmylua_doc_cli as they are, its other flags, such " +
 			"as --site-name, after --. " + passHelp + "\n\n" +
