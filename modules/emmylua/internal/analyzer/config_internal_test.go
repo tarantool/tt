@@ -46,7 +46,7 @@ func TestLayoutConfig(t *testing.T) {
 	require.NoError(t, json.Unmarshal(data, &config))
 	assert.Equal(t, "LuaJIT", config.Runtime.Version)
 	assert.Equal(t, []string{stubs, rockModules}, config.Workspace.Library)
-	assert.Equal(t, []string{".rocks/**/*.lua", ".tarantool/**/*.lua"},
+	assert.Equal(t, []string{".rocks/**/*.lua", ".tarantool/**/*.lua", "_build/**"},
 		config.Workspace.IgnoreGlobs)
 	assert.Contains(t, config.Diagnostics.Globals, "box")
 

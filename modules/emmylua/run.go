@@ -248,7 +248,9 @@ func newFmtCmd(services sdk.Services) *cobra.Command {
 		Long: "Run luafmt, the formatter of EmmyLua, on PATH (default the project): " +
 			"with --check, the default, it prints how the files would change and fails " +
 			"if any would; with --write it rewrites them. It reads .luafmt.toml or " +
-			"luafmt.toml and .luafmtignore, not the configuration of the analyzer. The " +
+			"luafmt.toml and .luafmtignore, not the configuration of the analyzer. On " +
+			"the whole project, with no PATH, it leaves out _build/, where tt builds " +
+			"the project out of its sources, as check, doc and ls do. The " +
 			"other flags of luafmt, such as --list-different, go after --, and one that " +
 			"chooses what luafmt does takes the place of --check. " + passHelp + "\n\n" +
 			"Outside every project luafmt comes from the user cache, fetched there once " +
@@ -299,7 +301,9 @@ func newConfigCmd(services sdk.Services) *cobra.Command {
 		Short: "Write the configuration EmmyLua runs with, and print its path",
 		Long: "Write the configuration tt gives EmmyLua - LuaJIT, the globals of " +
 			"Tarantool, the stubs of the Tarantool the project runs on and the modules " +
-			"its rocks install - to " + analyzer.ConfigDir + "/" + analyzer.ConfigFileName +
+			"its rocks install, with .rocks/, .tarantool/ and the build tree _build/ " +
+			"left out of the code of the project - to " +
+			analyzer.ConfigDir + "/" + analyzer.ConfigFileName +
 			" of the project and print its path: for an editor that runs emmylua_ls " +
 			"itself, through " + analyzer.ConfigEnv + ". The other commands write it anew " +
 			"on every run.\n\nOutside every project it is written into the user cache, " +
@@ -514,7 +518,10 @@ func (r *runner) withConfig(
 }
 
 // format runs luafmt on the paths in args, without the configuration of the
-// analyzer, in the mode its flags give: --check unless told another.
+// analyzer, in the mode its flags give: --check unless told another. On the
+// whole workspace, the paths tt picks when args name none, it leaves out the
+// build tree, as the configuration of the analyzer does: luafmt walks every
+// directory that is not hidden, _build/ too.
 func (r *runner) format(cmd *cobra.Command, args []string) error {
 	found, err := r.workspace(cmd)
 	if err != nil {
@@ -522,6 +529,8 @@ func (r *runner) format(cmd *cobra.Command, args []string) error {
 	}
 
 	list, pass := split(cmd, args, found)
+	// No path precedes --: split took the workspace for them.
+	whole := len(args) == len(pass)
 
 	program, err := r.programPath(cmd.Context(), found, analyzer.Format)
 	if err != nil {
@@ -531,6 +540,12 @@ func (r *runner) format(cmd *cobra.Command, args []string) error {
 	argv := programArgs(cmd, fmtFlags)
 	if len(argv) == 0 && !choosesAction(pass) {
 		argv = []string{"--" + fmtCheck}
+	}
+
+	// luafmt matches the pattern against the path of a file relative to the
+	// path it was given, the root of the workspace here.
+	if whole {
+		argv = append(argv, "--exclude", analyzer.BuildDirGlob)
 	}
 
 	argv = append(argv, pass...)

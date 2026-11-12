@@ -25,6 +25,16 @@ const (
 	ConfigEnv = "EMMYLUALS_CONFIG"
 	// rocksDirName is the rock tree of the project.
 	rocksDirName = ".rocks"
+	// buildDirName is the directory tt package build builds the project in,
+	// out of its sources: it holds copies of the Lua files of the project
+	// (_build/rock/<product>/) and of its path dependencies, which are not
+	// the code of the project. The constant of the build is in tt's root
+	// module, which the module cannot import.
+	buildDirName = "_build"
+	// BuildDirGlob matches every file under buildDirName, relative to the
+	// root of the project, for EmmyLua's ignoreGlobs and luafmt's --exclude
+	// alike. luafmt matches no file with "_build/": the glob needs the **.
+	BuildDirGlob = buildDirName + "/**"
 	// StubsDir is where Tarantool installs its EmmyLua stubs, relative to its
 	// prefix (gh-13022, Tarantool 3.9 and newer).
 	StubsDir = "share/tarantool/emmylua"
@@ -107,6 +117,7 @@ func (l Layout) Config() map[string]any {
 			"ignoreGlobs": []string{
 				rocksDirName + "/**/*.lua",
 				projectDirName + "/**/*.lua",
+				BuildDirGlob,
 			},
 		},
 		"diagnostics": map[string]any{

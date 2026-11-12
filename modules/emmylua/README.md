@@ -23,7 +23,10 @@ modules come from their directories through `replace`.
   `config` writes to `.tarantool/emmylua/emmyrc.json`: LuaJIT, the globals of
   Tarantool, the EmmyLua stubs of the Tarantool the project runs on
   (`Services.Tarantool`), the modules its rocks install and those of
-  `--library`.
+  `--library`, and `.rocks/`, `.tarantool/` and `_build/`, where tt builds
+  the project, in `ignoreGlobs`. `fmt` runs `luafmt` without it, and on the
+  whole project passes `--exclude _build/**` (`analyzer.BuildDirGlob`) for
+  the same reason: luafmt skips hidden directories only.
 - `workspace.go` - where a command runs: the project `scope.FindProject` of
   `sdk/scope` finds from `Project().Dir()`, as the project commands of tt
   find theirs, when it holds the manifest, and the directory of the command
