@@ -218,6 +218,8 @@ def test_rocks_admin_module(tt_cmd, tmp_path):
 
 
 def test_rocks_install_remote(tt_cmd, tmp_path):
+    # The CMakeLists.txt of stat asks for a CMake older than 3.5, with which
+    # CMake 4 has dropped compatibility unless told the policy version.
     rc, output = run_command_and_get_output(
         [tt_cmd, "rocks", "install", "stat"],
         cwd=tmp_path,
@@ -257,7 +259,7 @@ def test_rocks_install_local_if_network_is_up(tt_cmd, tmp_path):
     rc, output = run_command_and_get_output(
         [tt_cmd, "rocks", "--only-server=repo", "install", "stat"],
         cwd=tmp_path,
-        env=dict(os.environ, PWD=tmp_path),
+        env=dict(os.environ, PWD=tmp_path, CMAKE_POLICY_VERSION_MINIMUM="3.5"),
     )
     assert rc == 0
     assert "Installing repo/stat-0.3.2-1.all.rock" in output
