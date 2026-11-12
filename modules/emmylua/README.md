@@ -102,7 +102,8 @@ gives (`fetch.Fetcher`) and unpacks its `bin/` into
 `<user cache>/tt/emmylua/programs/<sha256>/`, staged and renamed into
 place. What the query resolved to is recorded in `resolved/`, so a later
 run asks no server and works offline; a server that is a directory, such as
-`tt emmylua rock` packs, is asked every time. The configuration goes to
+`tt package download emmylua --registry <index> --dir DIR` fills, is asked
+every time. The configuration goes to
 `config/<key of the directory>/emmyrc.json` of the same cache, so nothing
 is written into the directory. `prepare` outside a project fails and says
 so. Inside a project nothing of this applies: the programs are those of
@@ -128,4 +129,9 @@ what the CI of rocks-repo publishes. Both write the rockspec from the
 releases the module knows - their git refs, the md5 of their sources and the
 sha256 of the assets of every platform - a table in
 `internal/analyzer/releases.go`; `TT_EMMYLUA_RELEASES` names a JSON file of
-others.
+others. A release built from a commit, `DefaultVersion` among them, has no
+assets to download and is packed from a local build alone, so `rock` packs
+the newest release with assets unless `--version` names another
+(`analyzer.DownloadableVersion`), and `--from` the build of
+`DefaultVersion`; the rocks of `DefaultVersion` are those rocks-repo
+publishes, which `tt package download` takes from its index.
