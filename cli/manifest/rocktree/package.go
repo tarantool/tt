@@ -337,7 +337,10 @@ func makeRoom(view *tree.View, root, name string, targets []string) error {
 // PackageDependencies maps the dependencies the manifest man declares,
 // globally and in the components of the product named product, to the
 // versions the lock product prod pins: the Dependencies of the package's rock.
-// A declaration the product does not pin is not its.
+// A declaration the product does not pin is not its, and neither is one the
+// lock pins no version for: a path dependency with nothing to build, neither
+// a manifest nor a rockspec, which the lock pins by its directory alone and
+// which installs no rock to depend on.
 func PackageDependencies(
 	man *manifest.Manifest, product string, prod manifest.LockProduct,
 ) map[string]string {
@@ -353,7 +356,7 @@ func PackageDependencies(
 	pinned := map[string]string{}
 
 	for _, dep := range prod.Dependencies {
-		if _, ok := declared[dep.Name]; ok {
+		if _, ok := declared[dep.Name]; ok && dep.Version != "" {
 			pinned[dep.Name] = dep.Version
 		}
 	}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/tarantool/go-luarocks/tree"
 
+	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/internal/treetest"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
 )
@@ -55,6 +56,49 @@ func TestRockspec(t *testing.T) {
 	require.NotNil(t, spec.Deploy.WrapBinScripts)
 	assert.False(t, *spec.Deploy.WrapBinScripts, "a program is deployed as it is")
 	assert.NotEmpty(t, spec.RawSource)
+}
+
+// TestPackageDependencies: the rock of a package depends on what its product
+// declares at the versions the lock pins, and not on a path dependency with
+// nothing to build, which the lock pins at no version and installs no rock.
+func TestPackageDependencies(t *testing.T) {
+	t.Parallel()
+
+	man, _, err := manifest.ParseManifest([]byte(`manifest_version = '0.1'
+[package]
+name = 'my-app'
+[platform]
+tarantool = '>=3.0.0'
+tt = '>=3.0.0'
+[dependencies]
+metrics = '>=1.0.0'
+leaf = { source = 'path', path = '../leaf' }
+contrib = { source = 'path', path = '../contrib' }
+[components.lua]
+path = '.'
+[components.lua.dependencies]
+checks = '>=3.0.0'
+`))
+	require.NoError(t, err)
+
+	prod := manifest.LockProduct{Dependencies: []manifest.LockDependency{
+		{Name: "metrics", Version: "1.0.0-1", Source: "registry"},
+		{Name: "checks", Version: "3.1.0-1", Source: "registry"},
+		{Name: "leaf", Version: "", Source: "path", Path: "../leaf"},
+		{Name: "contrib", Version: "0.3.0-1", Source: "path", Path: "../contrib"},
+		{Name: "transitive", Version: "2.0.0-1", Source: "registry"},
+	}}
+
+	deps := rocktree.PackageDependencies(man, manifest.ImplicitProduct, prod)
+	assert.Equal(t, map[string]string{
+		"metrics": "1.0.0-1", "checks": "3.1.0-1", "contrib": "0.3.0-1",
+	}, deps)
+
+	spec, err := rocktree.Rockspec(rocktree.Package{
+		Name: "my-app", Version: "1.0.0", Dependencies: deps,
+	})
+	require.NoError(t, err)
+	assert.Len(t, spec.Dependencies, 3)
 }
 
 // stageFiles lays files out under a fresh stage.

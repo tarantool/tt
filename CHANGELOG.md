@@ -422,6 +422,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   absolute path ties it to the machine. Two path dependencies that declare a
   third, one by an absolute path and one by a relative path to the same
   directory, are no longer a conflict.
+- `tt package build` of a project with a `path` dependency that holds
+  neither a manifest nor a rockspec no longer fails with `Parse error
+  processing dependency 'leaf == '`: the rock of the project declared the
+  dependency at the version the lock pins, and the lock pins such a
+  dependency at none. The dependency installs no rock, and the rock of the
+  project no longer declares it.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 
