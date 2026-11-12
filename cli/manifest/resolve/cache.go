@@ -30,12 +30,10 @@ type resolveCache struct {
 	// manifests caches the manifests of path dependencies by name and
 	// directory, a directory holding none as nil, as local does.
 	manifests map[string]*pathManifestDep
-	// warnedNoMD5 records the artifact URLs whose rock published no md5 so the
-	// reproducibility warning is emitted once per run, not once per product that
-	// shares the rock (the walker is per-product, but this cache is run-wide).
-	warnedNoMD5 map[string]bool
 	// droppedPins records the rocks whose preferred version was dropped for no
-	// longer fitting, so that warning too is emitted once per run.
+	// longer fitting, so that warning is emitted once per run, not once per
+	// product that shares the rock (the walker is per-product, but this cache
+	// is run-wide).
 	droppedPins map[string]bool
 	// warnedMoving records the rocks pinned to a moving version rather than a
 	// release (rocks.Moving), so that warning too is emitted once per run.
@@ -53,7 +51,6 @@ func newResolveCache() *resolveCache {
 		content:         map[string]string{},
 		local:           map[string]*luarocks.Rockspec{},
 		manifests:       map[string]*pathManifestDep{},
-		warnedNoMD5:     map[string]bool{},
 		droppedPins:     map[string]bool{},
 		warnedMoving:    map[string]bool{},
 		warnedTarantool: map[string]bool{},
@@ -68,19 +65,6 @@ func (c *resolveCache) markTarantool(warning string) bool {
 	}
 
 	c.warnedTarantool[warning] = true
-
-	return true
-}
-
-// markNoMD5 records that the rock at url published no md5 and reports whether
-// this is the first time in the run - so a checksum-less rock shared by several
-// products warns once, not once per product.
-func (c *resolveCache) markNoMD5(url string) bool {
-	if c.warnedNoMD5[url] {
-		return false
-	}
-
-	c.warnedNoMD5[url] = true
 
 	return true
 }
@@ -136,9 +120,9 @@ func (c *resolveCache) resolveRock(
 // rockMetadata memoizes adapter.Metadata by the resolved artifact URL. The URL,
 // not (name, version), is the identity of the fetched rockspec: the same name
 // and version can come from different servers (a per-dependency registry
-// override, or the default multi-server order) with different source.md5 and
-// different transitive dependencies, so keying by version alone would share the
-// wrong rockspec across products.
+// override, or the default multi-server order) with different transitive
+// dependencies, so keying by version alone would share the wrong rockspec
+// across products.
 func (c *resolveCache) rockMetadata(
 	ctx context.Context, adapter Adapter, rock rocks.ResolvedRock,
 ) (*luarocks.Rockspec, error) {

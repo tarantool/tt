@@ -191,16 +191,3 @@ func yankedNote(
 
 	return ""
 }
-
-// Checksum renders the source checksum for a resolved rock's rockspec as
-// "md5:<hex>", taken from source.md5 (what LuaRocks publishes). ok is false
-// when the rock publishes no md5; the caller decides the fallback (a
-// content-hash of the materialized tree, or an empty checksum). The adapter
-// only reports what the rock carried.
-func Checksum(spec *luarocks.Rockspec) (string, bool) {
-	if spec == nil || spec.Source.MD5 == "" {
-		return "", false
-	}
-
-	return "md5:" + spec.Source.MD5, true
-}

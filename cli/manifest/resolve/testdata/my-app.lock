@@ -10,11 +10,9 @@ manifest_hash = 'sha256:f475efcd87290984dc1342324726c12222eb8cf352f19febde08bc5c
 name = 'checks'
 version = '3.1.0-1'
 source = 'registry'
-checksum = 'md5:0cc175b9c0f1b6a831c399e269772661'
 
 [[lock.products.default.dependencies]]
 name = 'metrics'
 version = '1.5.0-1'
 source = 'registry'
-checksum = 'md5:d41d8cd98f00b204e9800998ecf8427e'
 artifacts = {linux-x86_64 = 'sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', macosx-aarch64 = 'sha256:2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae', rockspec = 'sha256:fcde2b2edba56bf408601fb721fe9b5c338d10ee429ea04fae5511b68fbf8fb9'}

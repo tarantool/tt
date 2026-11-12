@@ -191,8 +191,7 @@ type srcInstaller struct {
 // lock pins it.
 func (i srcInstaller) Install(ctx context.Context, name string, opts client.InstallOpts) error {
 	dep := manifest.LockDependency{
-		Name: name, Version: opts.Version, Source: sourceRegistry, Checksum: "",
-		Path: "", ContentHash: "",
+		Name: name, Version: opts.Version, Source: sourceRegistry, Path: "", ContentHash: "",
 	}
 
 	done, err := i.srcs.install(ctx, dep, opts.Servers)

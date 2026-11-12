@@ -239,28 +239,14 @@ func (w *walker) resolveOne(ctx context.Context, req depReq) (*resolvedDep, []de
 			resolved.Name, resolved.Version.Raw, what))
 	}
 
-	artifacts := lockArtifacts(resolved.Artifacts)
-
-	// A rock whose files the lock pins by digest is reproducible without an
-	// md5 of its source, so only a rock with neither is warned about.
-	checksum, ok := rocks.Checksum(spec)
-	if !ok && artifacts == nil && w.cache.markNoMD5(resolved.URL) {
-		// Emit once per run: resolveOne re-runs per product (the walker is
-		// per-product), but the shared cache dedups the warning across them.
-		w.warnings = append(w.warnings, fmt.Sprintf(
-			"registry gave no md5 for %s %s; reproducibility is not guaranteed",
-			resolved.Name, resolved.Version.Raw))
-	}
-
 	resolvedDependency := &resolvedDep{
 		lockDep: manifest.LockDependency{
 			Name:        resolved.Name,
 			Version:     resolved.Version.Raw,
 			Source:      manifestSourceRegistry,
-			Checksum:    checksum,
 			Path:        "",
 			ContentHash: "",
-			Artifacts:   artifacts,
+			Artifacts:   lockArtifacts(resolved.Artifacts),
 		},
 		version: resolved.Version,
 	}

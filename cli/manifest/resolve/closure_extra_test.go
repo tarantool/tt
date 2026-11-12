@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/resolve"
 )
 
@@ -53,7 +54,6 @@ registry = 'https://custom'
 	// default server's 1.0.0-1.
 	got := findDep(t, lock.Products["default"].Dependencies, "metrics")
 	assert.Equal(t, "2.0.0-1", got.Version)
-	assert.Equal(t, "md5:custom-md5", got.Checksum)
 }
 
 // TestPathDepSurvivesEarlierTransitive guards that a direct path dependency is
@@ -146,12 +146,14 @@ aa = '>=1.0.0'
 	assert.Contains(t, err.Error(), "->")
 }
 
-// TestSharedMissingMD5WarnsOnce guards that a checksum-less rock shared by several
-// products yields a single reproducibility warning, not one per product.
-func TestSharedMissingMD5WarnsOnce(t *testing.T) {
+// TestRockOfAClassicServerResolvesQuietly guards that a rock shared by several
+// products, from a server that lists no digests and with no md5 of its
+// source, resolves with no warning: the lock pins no digest of it, as of any
+// rock of such a server, and records nothing of its source.
+func TestRockOfAClassicServerResolvesQuietly(t *testing.T) {
 	t.Parallel()
 
-	fake := newFakeAdapter().add("metrics", "1.0.0-1", "") // No md5.
+	fake := newFakeAdapter().add("metrics", "1.0.0-1", "")
 
 	man := parseManifest(t, `manifest_version = '0.1'
 [package]
@@ -176,9 +178,11 @@ components = ['c2']
 
 	engine := resolve.NewEngine(fake, "", "tt 3.4.0")
 
-	_, warnings, err := engine.Resolve(context.Background(), man)
+	lock, warnings, err := engine.Resolve(context.Background(), man)
 	require.NoError(t, err)
 
-	require.Len(t, warnings, 1)
-	assert.Contains(t, warnings[0], "no md5")
+	assert.Empty(t, warnings)
+	assert.Equal(t, manifest.LockDependency{
+		Name: "metrics", Version: "1.0.0-1", Source: "registry",
+	}, findDep(t, lock.Products["p2"].Dependencies, "metrics"))
 }

@@ -436,7 +436,7 @@ func TestPathManifestConsumerDeclarationWins(t *testing.T) {
 
 	helper := findDep(t, lock.Products["default"].Dependencies, "helper")
 	assert.Equal(t, manifest.LockDependency{
-		Name: "helper", Version: "0.2.0-1", Source: "registry", Checksum: "md5:h",
+		Name: "helper", Version: "0.2.0-1", Source: "registry",
 	}, helper)
 }
 

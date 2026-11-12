@@ -54,7 +54,7 @@ luatest = '>=1.0.0'
 	// The dev closure is transitive, in the same deepest-first order.
 	assert.Equal(t, []string{"checks", "luatest"}, depNames(lock.DevDependencies))
 	assert.Equal(t, "1.0.1-1", findDep(t, lock.DevDependencies, "luatest").Version)
-	assert.Equal(t, "md5:ccc", findDep(t, lock.DevDependencies, "checks").Checksum)
+	assert.Equal(t, "3.1.0-1", findDep(t, lock.DevDependencies, "checks").Version)
 }
 
 // TestResolveNoDevDependenciesLeavesClosureEmpty pins that a manifest without

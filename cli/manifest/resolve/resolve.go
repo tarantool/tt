@@ -11,9 +11,9 @@
 // Pins) so the lock's own picks are preferred over the
 // newest ones. The engine takes an already parsed manifest plus an adapter over
 // go-luarocks; it never touches the network itself. The adapter
-// (cli/manifest/rocks) queries registries, fetches rockspecs and reports source
-// checksums; the policy - which versions, by which product, what lands in the
-// lock - lives here.
+// (cli/manifest/rocks) queries registries, fetches rockspecs and reports the
+// digests a rock index lists; the policy - which versions, by which product,
+// what lands in the lock - lives here.
 //
 // Materializing .rocks/ from a lock, editing the manifest on add/remove and
 // bundling runtimes into the lock are other packages' work. The tt package
@@ -42,8 +42,8 @@ type Adapter interface {
 	Resolve(ctx context.Context, name, constraintExpr, registry string) (rocks.ResolvedRock, error)
 
 	// Metadata fetches and evaluates a resolved rock's rockspec, with the
-	// runtime platforms merged in, so its transitive dependencies and
-	// source.md5 are visible.
+	// runtime platforms merged in, so its transitive dependencies are
+	// visible.
 	Metadata(ctx context.Context, rock rocks.ResolvedRock) (*luarocks.Rockspec, error)
 
 	// LocalMetadata evaluates the rockspec of a path dependency's directory, or
@@ -88,8 +88,8 @@ func NewEngine(adapter Adapter, projectDir, generatedBy string) *Engine {
 // transitive closure of its effective direct dependencies (see effectiveDeps),
 // pinned to exact versions in topological order.
 //
-// The returned warnings are non-fatal diagnostics - notably rocks whose
-// registry publishes no md5, whose lock entry then carries no checksum.
+// The returned warnings are non-fatal diagnostics - notably rocks resolved to
+// a branch, and locked versions that no longer fit and were resolved afresh.
 //
 // The lock's manifest_hash is man.Hash(); bundled_*_version are left empty for
 // the packaging phase to fill. generated_by carries the engine's tt version.
@@ -197,7 +197,7 @@ func (e *Engine) ResolveDevExtra(
 //
 // It builds a fresh cache each time it is called, which matters because
 // ResolvePinned throws a whole pass away on a pin conflict: the cache carries
-// the run-wide warning dedup (resolveCache.markNoMD5, markPinDropped), so
+// the run-wide warning dedup (resolveCache.markPinDropped, markMoving), so
 // reusing it across attempts would let a discarded pass mark warnings that the
 // surviving pass then owes the caller and never emits.
 func (e *Engine) resolveOnce(

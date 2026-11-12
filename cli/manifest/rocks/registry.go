@@ -14,8 +14,7 @@ import (
 )
 
 // Metadata fetches a resolved rock's rockspec and evaluates it into a typed
-// Rockspec, with the runtime platforms merged in. The result carries
-// source.md5, which Checksum turns into the lock checksum. A temporary working
+// Rockspec, with the runtime platforms merged in. A temporary working
 // directory is used and removed; the spec is fully materialized before return.
 //
 // A server that publishes the rockspec apart from its rocks (SpecURL, from a

@@ -137,8 +137,9 @@ func (fake *fakeAdapter) LocalMetadata(dir string) (*luarocks.Rockspec, error) {
 	return spec, nil
 }
 
-// add registers one rock version on the default servers with an md5 and zero or
-// more dependencies.
+// add registers one rock version on the default servers, its rockspec giving
+// md5 as the md5 of its source, as a real one may, which the lock does not
+// record, and zero or more dependencies.
 func (fake *fakeAdapter) add(
 	name, version, md5 string, rockDeps ...luarocks.Dep,
 ) *fakeAdapter {
@@ -275,7 +276,6 @@ metrics = '>=1.0.0,<2.0.0'
 	got := findDep(t, lock.Products["default"].Dependencies, "metrics")
 	assert.Equal(t, "1.5.0-1", got.Version)
 	assert.Equal(t, "registry", got.Source)
-	assert.Equal(t, "md5:bbb", got.Checksum)
 }
 
 func TestAnyConstraintTakesTheHighestVersion(t *testing.T) {
@@ -489,28 +489,36 @@ beta = '>=1.0.0'
 	assert.Contains(t, err.Error(), "common")
 }
 
-func TestMissingMD5Warns(t *testing.T) {
+// TestSourceMD5IsNotLocked checks that the lock records nothing of the md5 a
+// rockspec gives for its source, which no install checks, and that a rock
+// whose rockspec gives none resolves with no warning either.
+func TestSourceMD5IsNotLocked(t *testing.T) {
 	t.Parallel()
 
-	fake := newFakeAdapter().add("metrics", "1.0.0-1", "")
+	fake := newFakeAdapter().
+		add("metrics", "1.0.0-1", "d41d8cd98f00b204e9800998ecf8427e").
+		add("checks", "3.1.0-1", "")
 
 	man := parseManifest(t, oneProduct+`[dependencies]
 metrics = '>=1.0.0'
+checks = '>=3.0.0'
 `)
 
 	engine := resolve.NewEngine(fake, "", "tt 3.4.0")
 
 	lock, warnings, err := engine.Resolve(context.Background(), man)
 	require.NoError(t, err)
+	assert.Empty(t, warnings)
 
-	require.Len(t, warnings, 1)
-	assert.Contains(t, warnings[0], "no md5")
-	assert.Empty(t, findDep(t, lock.Products["default"].Dependencies, "metrics").Checksum)
+	assert.Equal(t, []manifest.LockDependency{
+		{Name: "checks", Version: "3.1.0-1", Source: "registry"},
+		{Name: "metrics", Version: "1.0.0-1", Source: "registry"},
+	}, lock.Products["default"].Dependencies)
 }
 
 // TestArtifactsAreLocked checks that the digests a server lists for every
-// file of a version land in its lock entry, by arch, beside the md5 of its
-// source, and that a rock from a server that lists none has no artifacts.
+// file of a version land in its lock entry, by arch, and that a rock from a
+// server that lists none has no artifacts.
 func TestArtifactsAreLocked(t *testing.T) {
 	t.Parallel()
 
@@ -534,7 +542,6 @@ metrics = '>=1.0.0'
 	assert.Empty(t, warnings)
 
 	emmylua := findDep(t, lock.Products["default"].Dependencies, "emmylua")
-	assert.Equal(t, "md5:e0", emmylua.Checksum)
 	assert.Equal(t, map[string]string{
 		"linux-x86_64":   "sha256:" + x86,
 		"macosx-aarch64": "sha256:" + arm,
@@ -542,28 +549,4 @@ metrics = '>=1.0.0'
 	}, emmylua.Artifacts)
 
 	assert.Nil(t, findDep(t, lock.Products["default"].Dependencies, "metrics").Artifacts)
-}
-
-// TestArtifactsStandInForMD5 checks that a rock without an md5 whose files
-// the lock pins by digest is not warned about: the lock reproduces it.
-func TestArtifactsStandInForMD5(t *testing.T) {
-	t.Parallel()
-
-	fake := newFakeAdapter().
-		add("emmylua", "0.30.0pre1-1", "").
-		withArtifacts("emmylua", "0.30.0pre1-1", "linux-x86_64", strings.Repeat("a", 64))
-
-	man := parseManifest(t, oneProduct+`[dependencies]
-emmylua = '0.30.0pre1'
-`)
-
-	engine := resolve.NewEngine(fake, "", "tt 3.4.0")
-
-	lock, warnings, err := engine.Resolve(context.Background(), man)
-	require.NoError(t, err)
-	assert.Empty(t, warnings)
-
-	emmylua := findDep(t, lock.Products["default"].Dependencies, "emmylua")
-	assert.Empty(t, emmylua.Checksum)
-	assert.Len(t, emmylua.Artifacts, 1)
 }
