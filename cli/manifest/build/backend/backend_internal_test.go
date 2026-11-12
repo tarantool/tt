@@ -1,6 +1,8 @@
 package backend
 
 import (
+	"context"
+	"log/slog"
 	"os"
 	"runtime"
 	"strings"
@@ -10,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	lrbuild "github.com/tarantool/go-luarocks/build"
+
+	"github.com/tarantool/tt/sdk/log/logtest"
 )
 
 // lastEnvValue returns the value of the last KEY=VALUE entry for key, matching
@@ -197,4 +201,35 @@ func TestRequireAbsPaths(t *testing.T) {
 	require.NoError(t, requireAbsPaths("/abs/cwd", "/abs/out"))
 	require.Error(t, requireAbsPaths("rel/cwd", "/abs/out"))
 	assert.Error(t, requireAbsPaths("/abs/cwd", "rel/out"))
+}
+
+// TestRunLogsTheCommand pins that a build logs the command it runs, as it
+// is given, and the directory it runs in, at the debug level tt -V shows:
+// with -V the output of the command is streamed, and the command line comes
+// before it, not only when the command fails. The test swaps the process
+// logger, so it does not run in parallel.
+func TestRunLogsTheCommand(t *testing.T) {
+	logger, recorder := logtest.New(t)
+	previous := slog.Default()
+
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	slog.SetDefault(logger)
+
+	dir := t.TempDir()
+
+	err := runEnviron(context.Background(), dir, os.Environ(), false, "sh", "-c", "exit 0")
+	require.NoError(t, err)
+
+	var found []logtest.Record
+
+	for _, record := range recorder.Records() {
+		if strings.HasPrefix(record.Message, "running ") {
+			found = append(found, record)
+		}
+	}
+
+	require.Len(t, found, 1)
+	assert.Equal(t, slog.LevelDebug, found[0].Level)
+	assert.Equal(t, "running sh -c exit 0", found[0].Message)
+	assert.Equal(t, dir, found[0].Map()["dir"])
 }

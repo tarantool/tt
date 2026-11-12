@@ -364,6 +364,8 @@ func runCapture(
 	cmd.Env = environ
 	cmd.Dir = cwd
 
+	logCommand(cmd, cwd)
+
 	var stdout, stderr bytes.Buffer
 
 	cmd.Stdout = &stdout

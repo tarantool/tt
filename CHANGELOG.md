@@ -197,6 +197,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   tree - which is there when the build starts, stays between builds and is
   emptied by `--rebuild`: a `make` or `shell` build can build out of its
   sources, and leave those of a path dependency, another checkout, alone.
+- `tt -V package build` logs the command line of every build and hook it
+  runs, and the directory it runs in, before what the command prints: the
+  `cc` line of a `c` or `lua-c` component, the `make`, `cmake`, `go` and
+  `cargo` lines, the command of a `shell` build. Only a failure showed it.
 
 ### Changed
 

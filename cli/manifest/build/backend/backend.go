@@ -28,9 +28,11 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 
 	lrbuild "github.com/tarantool/go-luarocks/build"
 
+	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/util"
 )
@@ -289,5 +291,15 @@ func runEnviron(
 	cmd.Args[0] = name
 	cmd.Env = environ
 
+	logCommand(cmd, cwd)
+
 	return util.RunCommand(cmd, cwd, showOutput)
+}
+
+// logCommand logs the command a build or a hook is about to run and the
+// directory it runs in, at the debug level tt -V shows. With -V the build
+// streams what the command prints, and the command line, which only a
+// failure showed, comes before it.
+func logCommand(cmd *exec.Cmd, dir string) {
+	log.Debug("running "+strings.Join(cmd.Args, " "), "dir", dir)
 }
