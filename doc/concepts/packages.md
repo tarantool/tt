@@ -390,7 +390,9 @@ file of a component git neither tracks nor ignores is left out, with a
 warning, since the binary rock has it and a build of the source rock would
 not. Out of a git repository, every file of the project is
 packed, but `_build/`, `.rocks/` and `_runtime/`. The rock is reproducible:
-its entries carry no time and no mode but the executable bit. A pack of the
+its entries carry no mode but the executable bit, and no time of their own:
+every entry of either rock is dated 1980-01-01 00:00, the earliest time a
+zip says, which `unzip -l` shows as it is in any time zone. A pack of the
 source rock alone builds nothing - no hook, no backend, nothing installed
 into `.rocks/` - so it needs no compiler and no headers of Tarantool; the
 manifest is checked and the lock resolved, or refused under `--locked`, as a
