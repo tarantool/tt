@@ -59,6 +59,14 @@ func messagesAt(records []logtest.Record, level slog.Level) []string {
 	return messages
 }
 
+// writeFile writes content to path, making its directory.
+func writeFile(t *testing.T, path, content string) {
+	t.Helper()
+
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+}
+
 // configPath is the configuration tt writes for EmmyLua in project.
 func configPath(project string) string {
 	return filepath.Join(project, ".tarantool", "emmylua", "emmyrc.json")
@@ -154,41 +162,91 @@ func TestDoc(t *testing.T) {
 		" --output doc/api --output-format markdown --site-name App "+project+"\n", got.Stdout)
 }
 
+// fmtCase is a run of tt emmylua fmt with args, and the arguments of luafmt
+// it wants.
+type fmtCase struct {
+	args []string
+	want string
+}
+
 // TestFmt checks that tt emmylua fmt runs luafmt with its mode - --check
-// unless --write or a flag after -- chooses another - the arguments after
-// -- and the paths, without the configuration of the analyzer, and succeeds
-// as the program does. On the project, with no path given, it leaves out
-// _build/. It runs programs, so it is not parallel, as TestCheck.
+// unless --write or a flag after -- chooses another - LuaJIT unless the
+// arguments after -- or the configuration of luafmt choose the level, the
+// arguments after -- and the paths, without the configuration of the
+// analyzer, and succeeds as the program does. On the project, with no path
+// given, it leaves out _build/. It runs programs, so it is not parallel, as
+// TestCheck.
 func TestFmt(t *testing.T) {
 	project := testProject(t)
 	writeProgram(t, project, "luafmt", "echo \"$@\"\n")
 
-	const noBuild = "--exclude _build/** "
+	const (
+		level   = "--level lua-jit "
+		noBuild = "--exclude _build/** "
+	)
 
-	for _, testCase := range []struct {
-		args []string
-		want string
-	}{
-		{args: nil, want: "--check " + noBuild + project},
-		{args: []string{"app"}, want: "--check app"},
-		{args: []string{"app", "--check"}, want: "--check app"},
-		{args: []string{"app", "--write"}, want: "--write app"},
-		{args: []string{"app", "--", "--check"}, want: "--check app"},
-		{args: []string{"--write"}, want: "--write " + noBuild + project},
-		{args: []string{"--", "--list-different"}, want: noBuild + "--list-different " + project},
+	run := func(cases []fmtCase) {
+		t.Helper()
+
+		for _, testCase := range cases {
+			got := sdktest.New(t, sdktest.WithProject(project)).Run(emmylua.New,
+				append([]string{"emmylua", "fmt"}, testCase.args...)...)
+			require.NoError(t, got.Err, testCase.args)
+			assert.Equal(t, testCase.want+"\n", got.Stdout, testCase.args)
+		}
+	}
+
+	run([]fmtCase{
+		{args: nil, want: "--check " + level + noBuild + project},
+		{args: []string{"app"}, want: "--check " + level + "app"},
+		{args: []string{"app", "--check"}, want: "--check " + level + "app"},
+		{args: []string{"app", "--write"}, want: "--write " + level + "app"},
+		{args: []string{"app", "--", "--check"}, want: level + "--check app"},
+		{args: []string{"--write"}, want: "--write " + level + noBuild + project},
+		{
+			args: []string{"--", "--list-different"},
+			want: level + noBuild + "--list-different " + project,
+		},
 		{
 			args: []string{"--", "--init=luafmt.toml"},
-			want: noBuild + "--init=luafmt.toml " + project,
+			want: level + noBuild + "--init=luafmt.toml " + project,
 		},
-		{args: []string{"--", "--tab"}, want: "--check " + noBuild + "--tab " + project},
+		{args: []string{"--", "--tab"}, want: "--check " + level + noBuild + "--tab " + project},
 		// A path given is the user's: _build/ too.
-		{args: []string{"_build/rock"}, want: "--check _build/rock"},
-	} {
-		got := sdktest.New(t, sdktest.WithProject(project)).Run(emmylua.New,
-			append([]string{"emmylua", "fmt"}, testCase.args...)...)
-		require.NoError(t, got.Err, testCase.args)
-		assert.Equal(t, testCase.want+"\n", got.Stdout, testCase.args)
-	}
+		{args: []string{"_build/rock"}, want: "--check " + level + "_build/rock"},
+		// A level after -- is the user's.
+		{
+			args: []string{"--", "--level", "lua51"},
+			want: "--check " + noBuild + "--level lua51 " + project,
+		},
+		{args: []string{"app", "--", "--level=lua54"}, want: "--check --level=lua54 app"},
+	})
+
+	// A configuration that sets no level leaves it to tt; one that sets it,
+	// the one luafmt reads for the path, wins over tt.
+	writeFile(t, filepath.Join(project, ".luafmt.toml"), "[indent]\nwidth = 2\n")
+	writeFile(t, filepath.Join(project, "app", "luafmt.toml"), "[syntax]\nlevel = \"Lua51\"\n")
+	run([]fmtCase{
+		{args: nil, want: "--check " + level + noBuild + project},
+		{args: []string{"app"}, want: "--check app"},
+		{args: []string{"app/init.lua", "lib"}, want: "--check app/init.lua lib"},
+		{args: []string{"lib"}, want: "--check " + level + "lib"},
+	})
+
+	writeFile(t, filepath.Join(project, ".luafmt.toml"), "syntax.level = \"LuaJIT\"\n")
+	writeFile(t, filepath.Join(project, "style.json"), `{"indent": {"width": 2}}`)
+	run([]fmtCase{
+		{args: nil, want: "--check " + noBuild + project},
+		// --config is the configuration of every file.
+		{
+			args: []string{"--", "--config", "style.json"},
+			want: "--check " + level + noBuild + "--config style.json " + project,
+		},
+		{
+			args: []string{"app", "--", "--config=.luafmt.toml"},
+			want: "--check --config=.luafmt.toml app",
+		},
+	})
 
 	assert.NoFileExists(t, configPath(project))
 

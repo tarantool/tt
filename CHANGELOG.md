@@ -400,6 +400,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   diagnostics too. `tt emmylua fmt` with no path passes luafmt
   `--exclude _build/**`, since luafmt walks every directory that is not
   hidden; a path given, `_build/` included, is formatted as before.
+- `tt emmylua fmt` parses LuaJIT, as `tt emmylua check` does: a project
+  whose `.luafmt.toml` set no `[syntax] level` failed on the literals of
+  LuaJIT, such as `0ULL`, since luafmt parses Lua 5.5 by default. tt passes
+  luafmt `--level lua-jit` unless `--level` follows `--` or the
+  configuration luafmt reads for the paths, its own or that of `--config`,
+  sets `[syntax] level`, which `--level` would override.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 
