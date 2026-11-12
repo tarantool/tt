@@ -222,7 +222,7 @@ func packRocks(
 
 		err = writeSrcRock(ctx, result.SrcRock, opts.ProjectDir,
 			srcDirName(rel.SourceURL, rel.Name), base+rockspecExt, spec.RawSource,
-			built.Version.SemVer)
+			built.Version.SemVer, built.Manifest.Package.LicenseFiles)
 		if err != nil {
 			return rockResult{}, err
 		}

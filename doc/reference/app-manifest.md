@@ -60,7 +60,7 @@ major version is refused.
 | `name` | yes | lowercase letters, digits and dashes, starting with a letter; not `bin` or `manifests` |
 | `description` | no | one line, shown by `tt package list` |
 | `license` | no | |
-| `license_files` | no | files packed with the package: at the root of the archive, and in `doc/` of the rock `--format rock` packs, at their paths in the project |
+| `license_files` | no | files packed with the package: at the root of the archive, in `doc/` of the rock `--format rock` packs, at their paths in the project, and into the source rock whether git tracks them or not |
 | `authors` | no | |
 | `repository` | no | |
 | `include` | no | files of the project put at the root of the archive |

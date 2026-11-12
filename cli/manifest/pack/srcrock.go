@@ -15,6 +15,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
 )
 
 const (
@@ -48,13 +50,14 @@ var srcExcluded = []string{gitDirName, buildDirName, rocksDirName, runtimeDirNam
 // The files are those git tracks in the project, those of its submodules
 // included, as they are in the working tree, or, out of a git repository,
 // every file of the project; the directories tt and git keep (srcExcluded)
-// are left out either way. The rock is written through a temporary file
-// renamed into place.
+// are left out either way. The license files, licenseFiles, are packed
+// whether git tracks them or not (sourceFiles). The rock is written through
+// a temporary file renamed into place.
 func writeSrcRock(
 	ctx context.Context, dest, projectDir, srcDir, rockspecName string, rockspec []byte,
-	semver string,
+	semver string, licenseFiles []string,
 ) error {
-	files, err := sourceFiles(ctx, projectDir)
+	files, err := sourceFiles(ctx, projectDir, licenseFiles)
 	if err != nil {
 		return err
 	}
@@ -145,8 +148,12 @@ func addZipEntry(archive *zip.Writer, name string, mode fs.FileMode, content io.
 // sorted, without the version file the source rock writes itself: those git
 // tracks, submodules included, or, when the project is no git work tree,
 // every file under it. The manifest is one whether git tracks it or not: a
-// source rock without it is of no package.
-func sourceFiles(ctx context.Context, projectDir string) ([]string, error) {
+// source rock without it is of no package. So are the files of the entries
+// of licenseFiles, checked as the binary rock and the archive check them
+// (checkEntry) and listed as the binary rock copies them, through symlinks
+// (rocktree.EntryFiles): a build of the source rock installs them as the
+// binary rock has them, and an untracked LICENSE is still the license.
+func sourceFiles(ctx context.Context, projectDir string, licenseFiles []string) ([]string, error) {
 	files, err := gitFiles(ctx, projectDir)
 	if err != nil {
 		files, err = walkFiles(projectDir)
@@ -156,6 +163,20 @@ func sourceFiles(ctx context.Context, projectDir string) ([]string, error) {
 	}
 
 	files = append(files, manifestFileName)
+
+	for _, entry := range licenseFiles {
+		clean, _, err := checkEntry(projectDir, entry, "license_files")
+		if err != nil {
+			return nil, err
+		}
+
+		licensed, err := rocktree.EntryFiles(projectDir, clean)
+		if err != nil {
+			return nil, fmt.Errorf("license_files entry %q: %w", entry, err)
+		}
+
+		files = append(files, licensed...)
+	}
 
 	out := make([]string, 0, len(files))
 

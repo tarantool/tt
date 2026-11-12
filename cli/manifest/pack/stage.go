@@ -122,32 +122,15 @@ func stagePayload(stageDir string, req stageRequest) error {
 	return nil
 }
 
-// stageEntry copies one manifest-declared path into the staging tree. The entry
-// is rejected if it escapes the project, collides with a reserved archive name
-// or matches nothing — a silently dropped LICENSE is worse than a failed pack.
+// stageEntry copies one manifest-declared path into the staging tree, once
+// checkEntry accepts it.
 func stageEntry(stageDir, projectDir, entry, field string) error {
-	clean := filepath.Clean(entry)
-	upward := clean == ".." || strings.HasPrefix(clean, ".."+string(os.PathSeparator))
-
-	if filepath.IsAbs(clean) || upward {
-		return stateErrorf("%s entry %q: %w", field, entry, errEscapingPath)
-	}
-
-	if isReservedName(clean) {
-		return stateErrorf("%s entry %q: %w", field, entry, errReservedName)
+	clean, info, err := checkEntry(projectDir, entry, field)
+	if err != nil {
+		return err
 	}
 
 	src := filepath.Join(projectDir, clean)
-
-	info, err := os.Stat(src)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return stateErrorf("%s entry %q: %w", field, entry, errMissingInclude)
-		}
-
-		return fmt.Errorf("%s entry %q: %w", field, entry, err)
-	}
-
 	dst := filepath.Join(stageDir, clean)
 
 	if info.IsDir() {
@@ -155,6 +138,34 @@ func stageEntry(stageDir, projectDir, entry, field string) error {
 	}
 
 	return copyFile(src, dst)
+}
+
+// checkEntry checks one manifest-declared path of field and returns it
+// cleaned, with what it is in the project. The entry is rejected if it escapes
+// the project, collides with a reserved archive name or matches nothing — a
+// silently dropped LICENSE is worse than a failed pack.
+func checkEntry(projectDir, entry, field string) (string, os.FileInfo, error) {
+	clean := filepath.Clean(entry)
+	upward := clean == ".." || strings.HasPrefix(clean, ".."+string(os.PathSeparator))
+
+	if filepath.IsAbs(clean) || upward {
+		return "", nil, stateErrorf("%s entry %q: %w", field, entry, errEscapingPath)
+	}
+
+	if isReservedName(clean) {
+		return "", nil, stateErrorf("%s entry %q: %w", field, entry, errReservedName)
+	}
+
+	info, err := os.Stat(filepath.Join(projectDir, clean))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil, stateErrorf("%s entry %q: %w", field, entry, errMissingInclude)
+		}
+
+		return "", nil, fmt.Errorf("%s entry %q: %w", field, entry, err)
+	}
+
+	return clean, info, nil
 }
 
 // stageRocks grafts the rocks of the project's .rocks/ tree into the .rocks/
