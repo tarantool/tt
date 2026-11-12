@@ -439,6 +439,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   LuaRocks packs the rock with `zip`, and drops the error that says it is
   missing. tt now adds that LuaRocks packs a rock with `zip`, which is not
   found in `PATH`.
+- The headings of the help of tt - `USAGE`, `COMMANDS`, `FLAGS` and the
+  others - are bold only when the help goes to a terminal: piped, written to
+  a file or read by a script, it carried the ANSI escape sequences of the
+  bold. `NO_COLOR` set to a value and `TERM=dumb` turn the bold off on a
+  terminal too, as they turn off the colours of the log.
 - `tt emmylua check` and `doc` read the project's `.emmyrc.lua`, after
   `.luarc.json` and `.emmyrc.json`, as `tt emmylua ls` does: they named the
   two JSON files alone with `--config`, and a program given configurations

@@ -3,12 +3,16 @@ package cmd
 import (
 	"cmp"
 	"fmt"
+	"io"
+	"os"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/util"
+	"golang.org/x/term"
 )
 
 // helpWidth is the column help output is wrapped at.
@@ -18,7 +22,24 @@ const helpWidth = 80
 // the usage wrapped at helpWidth.
 const helpTemplate = `{{with (or .Long .Short)}}{{. | trimTrailingWhitespaces | wrapHelp}}
 
-{{end}}{{if or .Runnable .HasSubCommands}}{{.UsageString | wrapHelp}}{{end}}`
+{{end}}{{if or .Runnable .HasSubCommands}}{{usage . | wrapHelp}}{{end}}`
+
+// helpColors holds, for a command whose help is being written, whether its
+// headings are bold (colorsHelp of the writer of the help). The usage goes
+// through UsageString (usageOf), which points the writers of the command at
+// a buffer while it renders, so helpHeading cannot tell the writer itself.
+//
+//nolint:gochecknoglobals // The state of a help being written, by command.
+var helpColors sync.Map
+
+// usageOf returns the usage of cmd, its headings bold when the help of cmd
+// goes to a terminal that takes colour.
+func usageOf(cmd *cobra.Command) string {
+	helpColors.Store(cmd, colorsHelp(isTerminal(cmd.OutOrStdout()), os.LookupEnv))
+	defer helpColors.Delete(cmd)
+
+	return cmd.UsageString()
+}
 
 // ExternalCommand is a top-level command that runs an external module, as
 // the root help lists it under EXTERNAL COMMANDS.
@@ -35,6 +56,8 @@ func configureHelpCommand(rootCmd *cobra.Command, external []ExternalCommand) {
 	cobra.AddTemplateFunc("wrapHelp", func(s string) string {
 		return wrapHelp(s, helpWidth)
 	})
+	cobra.AddTemplateFunc("heading", helpHeading)
+	cobra.AddTemplateFunc("usage", usageOf)
 	rootCmd.SetHelpTemplate(helpTemplate)
 	// Add information about external modules into help template.
 	rootCmd.SetUsageTemplate(fmt.Sprintf(usageTemplate, getExternalCommandsString(external)))
@@ -78,7 +101,9 @@ func getExternalCommandsString(external []ExternalCommand) string {
 	}
 
 	if output.Len() != 0 {
-		return strings.Trim(util.Bold("\nEXTERNAL COMMANDS\n")+output.String(), "\n")
+		// A part of the usage template, after the space that precedes it.
+		return "\n{{heading . \"EXTERNAL COMMANDS\"}}\n" +
+			strings.TrimSuffix(output.String(), "\n")
 	}
 
 	return ""
@@ -192,7 +217,10 @@ func textWidth(text string) int {
 // The usage line of a runnable command is printed once. A command with
 // subcommands adds the form that runs one, and shows its own usage line beside
 // it only when it inherits flags: the root shows the subcommand form alone.
-var usageTemplate = util.Bold("USAGE") + `
+//
+// The headings go through heading (helpHeading), which makes them bold only
+// on a terminal.
+const usageTemplate = `{{heading . "USAGE"}}
 {{- if (and .Runnable (or .HasAvailableInheritedFlags (not .HasAvailableSubCommands)))}}
   {{.UseLine}}
 {{end -}}
@@ -201,11 +229,13 @@ var usageTemplate = util.Bold("USAGE") + `
   {{.CommandPath}} [flags] <command> [command flags]
 {{end -}}
 
-{{- if gt (len .Aliases) 0}}` + util.Bold("\nALIASES") + `
+{{- if gt (len .Aliases) 0}}
+{{heading . "ALIASES"}}
   {{.NameAndAliases}}
 {{end -}}
 
-{{if .HasAvailableSubCommands}}` + util.Bold("\nCOMMANDS") + `
+{{if .HasAvailableSubCommands}}
+{{heading . "COMMANDS"}}
 {{- range .Commands}}
 
 {{- if (or .IsAvailableCommand (eq .Name "help"))}}
@@ -215,7 +245,8 @@ var usageTemplate = util.Bold("USAGE") + `
 {{end}}
 {{end -}}
 
-{{if .HasHelpSubCommands}}` + util.Bold("\nHELP TOPICS") + `
+{{if .HasHelpSubCommands}}
+{{heading . "HELP TOPICS"}}
 {{- range .Commands}}
 
 {{- if .IsAdditionalHelpTopicCommand}}
@@ -228,15 +259,18 @@ var usageTemplate = util.Bold("USAGE") + `
 {{- if not .HasParent}} %s
 {{end -}}
 
-{{- if .HasAvailableLocalFlags}}` + util.Bold("\nFLAGS") + `
+{{- if .HasAvailableLocalFlags}}
+{{heading . "FLAGS"}}
 {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
 {{end -}}
 
-{{- if .HasAvailableInheritedFlags}}` + util.Bold("\nGLOBAL FLAGS") + `
+{{- if .HasAvailableInheritedFlags}}
+{{heading . "GLOBAL FLAGS"}}
 {{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}
 {{end -}}
 
-{{- if .HasExample}}` + util.Bold("\nEXAMPLES") + `
+{{- if .HasExample}}
+{{heading . "EXAMPLES"}}
   {{.Example}}
 {{end -}}
 
@@ -244,3 +278,46 @@ var usageTemplate = util.Bold("USAGE") + `
 Use "{{.CommandPath}} <command> --help" for more information about a command.
 {{end -}}
 `
+
+// helpHeading returns title, the heading of a part of the help of cmd: bold
+// when cmd writes its help to a terminal that takes colour, as it is when
+// the help is piped or written to a file. NO_COLOR set to a value
+// (https://no-color.org) and TERM=dumb turn the colour off, as they do for
+// the log. The usage alone, which cobra writes to the error stream, is told
+// by that stream.
+func helpHeading(cmd *cobra.Command, title string) string {
+	color, ok := helpColors.Load(cmd)
+	if !ok {
+		color = colorsHelp(isTerminal(cmd.OutOrStderr()), os.LookupEnv)
+	}
+
+	if bold, _ := color.(bool); !bold {
+		return title
+	}
+
+	return util.Bold(title)
+}
+
+// colorsHelp reports whether help written to a terminal, or not, is
+// coloured: on a terminal, unless NO_COLOR is set to a value or TERM is
+// dumb, as lookupEnv reads them.
+func colorsHelp(terminal bool, lookupEnv func(string) (string, bool)) bool {
+	if !terminal {
+		return false
+	}
+
+	if value, set := lookupEnv("NO_COLOR"); set && value != "" {
+		return false
+	}
+
+	terminalType, set := lookupEnv("TERM")
+
+	return !set || terminalType != "dumb"
+}
+
+// isTerminal reports whether out is an *os.File open on a terminal.
+func isTerminal(out io.Writer) bool {
+	file, ok := out.(*os.File)
+
+	return ok && term.IsTerminal(int(file.Fd()))
+}
