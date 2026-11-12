@@ -414,6 +414,10 @@ rock of no tt package, one without `app.manifest.toml`, fails the build.
 Only tt builds a source rock: LuaRocks, `tt rocks` included, finds nothing
 to build in it (see [tt rocks](rock-servers.md#tt-rocks)).
 
+[Publish a module as a rock](../how-to/rocks.md) walks one module through
+all of it: its manifest, its versions, its rocks, a server and an index for
+them, and a project that depends on it.
+
 ## Installing
 
 `tt package install ARCHIVE` installs into one of the
