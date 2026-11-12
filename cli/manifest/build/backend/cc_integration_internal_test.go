@@ -75,6 +75,41 @@ func TestCcCompilesMultiSource(t *testing.T) {
 	assert.FileExists(t, filepath.Join(out, "parts"+moduleExt(runtime.GOOS, flags.Ext)))
 }
 
+// TestCcTakesTheProjectFlagsThenTheUsers proves the order of the flags with
+// a real compiler: the project's -Werror fails a source with a warning, and
+// -Wno-error of CFLAGS of the environment, which comes after it, builds it.
+// t.Setenv keeps the test out of parallel runs.
+func TestCcTakesTheProjectFlagsThenTheUsers(t *testing.T) {
+	toolchain := requireHostToolchain(t)
+
+	cwd := t.TempDir()
+
+	writeSource(t, cwd, "warn.c", "int warn(void) { int unused; return 0; }\n")
+
+	flags := integrationFlags(toolchain.IncludeDir)
+	build := manifest.Build{
+		Backend: BackendC,
+		Module:  "warn",
+		Sources: []string{"warn.c"},
+		Cflags:  []string{"-Wall", "-Werror"},
+	}
+
+	t.Setenv("CFLAGS", "")
+
+	failed := Env{OutputDir: t.TempDir()}
+
+	err := ccBackend{flags: flags}.Run(context.Background(), build, cwd, failed)
+	require.Error(t, err, "-Werror of cflags fails the build")
+
+	t.Setenv("CFLAGS", "-O0 -Wno-error")
+
+	out := t.TempDir()
+
+	err = ccBackend{flags: flags}.Run(context.Background(), build, cwd, Env{OutputDir: out})
+	require.NoError(t, err)
+	assert.FileExists(t, filepath.Join(out, "warn"+moduleExt(runtime.GOOS, flags.Ext)))
+}
+
 // TestCcCompilesAgainstTarantoolHeaders proves the include-dir wiring works
 // against the real Tarantool C module API: the source includes <module.h> and
 // exports a luaopen_ entry point, so it compiles only when -I<IncludeDir>

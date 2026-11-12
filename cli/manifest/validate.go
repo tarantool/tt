@@ -423,12 +423,9 @@ func validateBuild(field string, build Build) error {
 			return invalid(field, "command is required for backend %q", backendShell)
 		}
 	case backendC, backendLuaC:
-		if build.Module == "" {
-			return invalid(field, "module is required for backend %q", build.Backend)
-		}
-
-		if len(build.Sources) == 0 {
-			return invalid(field, "sources is required for backend %q", build.Backend)
+		err := validateCcBuild(field, build)
+		if err != nil {
+			return err
 		}
 	case backendGo:
 		err := validateGoBuild(field, build)
@@ -455,6 +452,45 @@ func validateBuild(field string, build Build) error {
 	}
 
 	return validateBackendFields(field, build)
+}
+
+// validateCcBuild checks the fields of a c or lua-c build: module and
+// sources are required, and no flag of the compiler or of the linker, of
+// the build or of an overlay of platforms, is empty, which cc would take
+// for the name of a file.
+func validateCcBuild(field string, build Build) error {
+	if build.Module == "" {
+		return invalid(field, "module is required for backend %q", build.Backend)
+	}
+
+	if len(build.Sources) == 0 {
+		return invalid(field, "sources is required for backend %q", build.Backend)
+	}
+
+	flags := []flagList{{"cflags", build.Cflags}, {"ldflags", build.Ldflags}}
+
+	for _, goos := range sortedKeys(build.Platforms) {
+		overlay := build.Platforms[goos]
+		prefix := "platforms." + goos + "."
+
+		flags = append(flags,
+			flagList{prefix + "cflags", overlay.Cflags},
+			flagList{prefix + "ldflags", overlay.Ldflags})
+	}
+
+	for _, key := range flags {
+		if slices.Contains(key.flags, "") {
+			return invalid(field+"."+key.name, "must not contain an empty entry")
+		}
+	}
+
+	return nil
+}
+
+// flagList is a list of flags of a build, with the name of its field.
+type flagList struct {
+	name  string
+	flags []string
 }
 
 // validateCMakeBuild checks the fields of a cmake build. output is required:
@@ -554,6 +590,7 @@ type backendField struct {
 // checks, is refused one by validateHooks.
 func backendFields(build Build) []backendField {
 	ccDriver := []string{backendC, backendLuaC}
+	linkers := []string{backendGo, backendC, backendLuaC}
 
 	return []backendField{
 		{"make_target", build.MakeTarget != "", []string{backendMake}},
@@ -567,7 +604,10 @@ func backendFields(build Build) []backendField {
 		{"libraries", build.Libraries != nil, ccDriver},
 		{"library_dirs", build.LibraryDirs != nil, ccDriver},
 		{"defines", build.Defines != nil, ccDriver},
+		{"cflags", build.Cflags != nil, ccDriver},
 		{"platforms", build.Platforms != nil, ccDriver},
+		// Flags of the linker of each: go build's -ldflags, the link of cc.
+		{"ldflags", build.Ldflags != nil, linkers},
 		// go and cargo name their program themselves.
 		{"output", build.Output != nil, []string{
 			backendMake, backendShell, backendC, backendLuaC, backendCMake,
@@ -576,7 +616,6 @@ func backendFields(build Build) []backendField {
 		{"package", build.Package != "", []string{backendGo, backendCargo}},
 		{"name", build.Name != "", []string{backendGo}},
 		{"tags", build.Tags != nil, []string{backendGo}},
-		{"ldflags", build.Ldflags != nil, []string{backendGo}},
 		{"cgo", build.Cgo != nil, []string{backendGo}},
 		{"bin", build.Bin != "", []string{backendCargo}},
 		{"features", build.Features != nil, []string{backendCargo}},
@@ -610,10 +649,20 @@ func validateBackendFields(field string, build Build) error {
 		}
 
 		return invalid(field+"."+key.name, "is a field of backend %s, not of %q",
-			strings.Join(key.owners, " or "), build.Backend)
+			orList(key.owners), build.Backend)
 	}
 
 	return nil
+}
+
+// orList joins names as a sentence lists them: "a", "a or b", "a, b or c".
+func orList(names []string) string {
+	last := len(names) - 1
+	if last <= 0 {
+		return strings.Join(names, "")
+	}
+
+	return strings.Join(names[:last], ", ") + " or " + names[last]
 }
 
 func (m *Manifest) validateProducts() error {

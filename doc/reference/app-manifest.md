@@ -175,11 +175,13 @@ components tarawasm builds; see
 | `make_target`, `entrypoint`, `flags` | `make` | `make_target` is required |
 | `command`, `args` | `shell` | `command` is required |
 | `module`, `sources`, `include_dirs`, `libraries`, `library_dirs`, `defines` | `c`, `lua-c` | `module` and `sources` are required |
+| `cflags` | `c`, `lua-c` | flags of the compiler, one per entry, after tt's own and before `CFLAGS` of the environment; see below |
 | `module` | `cargo` | the name of the module a module component builds: the name of the library by default |
-| `platforms.<os>` | `c`, `lua-c` | more `include_dirs`, `libraries`, `library_dirs`, `defines` for one OS |
+| `platforms.<os>` | `c`, `lua-c` | more `include_dirs`, `libraries`, `library_dirs`, `defines`, `cflags`, `ldflags` for one OS, after those of the build |
 | `package` | `go`, `cargo` | the Go package, `.` by default, or the cargo package |
 | `static` | all | `true`: what the build makes needs nothing of the machine it is installed on, and the build checks it; see below |
-| `name`, `tags`, `ldflags`, `cgo` | `go` | `name` is the component's name by default; cgo is off by default |
+| `ldflags` | `go`, `c`, `lua-c` | flags of the linker, one per entry: of `go build -ldflags`, after tt's own; of the link of `c` and `lua-c`, before the sources; see below |
+| `name`, `tags`, `cgo` | `go` | `name` is the component's name by default; cgo is off by default |
 | `bin`, `features`, `profile` | `cargo` | `bin`, of an executable component, is the component's name by default; `profile` is `release` by default |
 | `variables`, `targets`, `build_type` | `cmake` | `-D<name>=<value>` of the configuration, the targets to build, all by default, and `CMAKE_BUILD_TYPE`, `RelWithDebInfo` by default; `output` is required |
 
@@ -201,6 +203,44 @@ between builds, so that a `make` build rebuilds what changed only;
 `--rebuild` empties it first. A `make` or `shell` build that writes there
 rather than beside its sources leaves the directory of the component as it
 is, and that of a path dependency, another checkout, too.
+
+`c` and `lua-c` compile `sources`, relative to `cwd`, into one module,
+`<module>.so`, `<module>.dylib` on macOS, in `TT_OUTPUT_DIR`, with one run
+of the C compiler, `$CC`, `cc` by default:
+
+```console
+$CC -O2 -fPIC <cflags> <$CFLAGS> -I<include dir of Tarantool> -D<defines> -I<include_dirs> \
+    -shared <ldflags> -o <module>.so <sources> \
+    -L<library_dirs> -Wl,-rpath,<library_dirs> -l<libraries> <$LDFLAGS>
+```
+
+The flags of the compiler are tt's, then the project's, then the user's:
+`-O2`, left out when `CFLAGS` is set, even to nothing, and `-fPIC`; then
+`cflags`; then `CFLAGS` of the environment, split on blanks, which come last
+and so win a conflict, as `CFLAGS` comes after `AM_CFLAGS` in autotools:
+`CFLAGS="-O0 -g"` builds for a debugger, and `CFLAGS=-Wno-error` builds a
+project whose `cflags` have `-Werror` with a compiler that warns of more.
+`ldflags` go before the sources, as make's `$(CC) $(LDFLAGS) -o out objs
+$(LDLIBS)` has them, so that `-Wl,--as-needed` acts on the `-l` that follow;
+`LDFLAGS` of the environment ends the line. A list of `platforms.<os>` goes
+after the one of the build. On macOS `-shared` is `-bundle -undefined
+dynamic_lookup -all_load`, and no `-Wl,-rpath` is given. `CC`, `CFLAGS` and
+`LDFLAGS` are those of the environment tt runs in. `tt -V package build`
+shows the line.
+
+```toml
+[components.memcached.build]
+backend = "lua-c"
+module = "datapath"
+sources = ["datapath.c"]
+cflags = ["-std=gnu99", "-Wall", "-Wextra", "-Werror"]
+
+[components.memcached.build.platforms.linux]
+ldflags = ["-Wl,--as-needed"]
+
+[components.memcached.build.platforms.darwin]
+cflags = ["-Wno-deprecated-declarations"]
+```
 
 `cmake` builds the CMake project of `cwd`, where its `CMakeLists.txt` is,
 out of the source, in `TT_BUILD_DIR`:

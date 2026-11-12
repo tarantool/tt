@@ -201,6 +201,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   runs, and the directory it runs in, before what the command prints: the
   `cc` line of a `c` or `lua-c` component, the `make`, `cmake`, `go` and
   `cargo` lines, the command of a `shell` build. Only a failure showed it.
+- `cflags` and `ldflags` of a `c` or `lua-c` build, and of its
+  `platforms.<os>`, appended to those of the build: flags of the compiler and
+  of the link, one per entry, where a project could only pass them through
+  `CFLAGS` of the environment. The `cc` line is
+  `$CC [-O2] -fPIC <cflags> <$CFLAGS> -I<headers of Tarantool> -D… -I… -shared
+  <ldflags> -o <module>.so <sources> -L… -l… <$LDFLAGS>`: tt's flags, then
+  the project's, then the user's, so `CFLAGS="-O0 -g"` or `-Wno-error` of
+  the environment wins over the project's flags, and `-O2` is left out when
+  `CFLAGS` is set, even to nothing. `ldflags` is the field of `go` it was,
+  shared by the three backends.
 
 ### Changed
 
