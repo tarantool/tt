@@ -270,10 +270,28 @@ Other files of the project, `init.lua` at its root say, are not in the
 archive unless `[package].include` lists them. So the cluster config of a
 package loads its code as `app.module: <name>`, from `.rocks/`.
 
-The runtimes come from `~/.cache/tt/runtimes/<tarantool|tt|tcm>/<ce|ee>/<version>/`
-when a build there matches `[platform]`, and otherwise from the active
-`tarantool` and `tt`, with a warning; with no `tarantool` found, the cache
-is the only source of one, and a cache with no match fails the pack.
+Each runtime is the first of these that matches `[platform]`:
+
+1. the highest version in the runtime cache,
+   `~/.cache/tt/runtimes/<tarantool|tt|tcm>/<ce|ee>/<version>/`
+   (`$XDG_CACHE_HOME/tt/runtimes/` when that is set,
+   `~/Library/Caches/tt/runtimes/` on macOS). No command fills it: it
+   holds the builds placed there by hand, a directory with `bin/<name>` and,
+   for Tarantool, its `LICENSE` and `include/tarantool/`;
+2. a tt binary installation of the project, in `.tarantool/versions/`: the
+   active one, which `tt binary install` and `tt binary switch` select, and
+   otherwise the highest version. So `tt binary install tarantool 3.8.1` in
+   the project, or `tt binary install tt`, chooses what pack bundles. An
+   `[ee]` requirement takes `tarantool-ee` and `tt-ee`; an SDK, or a build
+   named by a commit, is not taken. The headers of the tarantool come along,
+   and the lock records the name of the installation;
+3. the active `tarantool` and `tt`, with a warning.
+
+With no `tarantool` found, the first two are the only sources of one, and
+the pack fails when neither has a match. tt binary installs a tarantool
+without its license file, so pack warns that it bundles one from an
+installation without a license.
+
 `--without-deps` packs the package alone: no `_runtime/` and no
 dependencies, which `tt package install`
 fetches by the lock; `.rocks/` holds the rock of the package only, a

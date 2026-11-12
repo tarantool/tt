@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/go-version"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/internal/binary"
 )
 
 // Runtime component directory names inside _runtime/.
@@ -49,6 +50,9 @@ type runtimeSource struct {
 	// Fallback marks a component resolved from the active tt environment
 	// rather than the runtime cache, which is worth warning about.
 	Fallback bool
+	// Installation marks a Binary that is a tt binary installation of the
+	// project: its headers, beside it under include/, come along.
+	Installation bool
 	// Flavor is the build's flavor, "ce" or "ee": the cache tree it was found
 	// in, or what the active binary reported. Empty when undetermined.
 	Flavor string
@@ -57,8 +61,12 @@ type runtimeSource struct {
 // RuntimeOptions carries what bundleRuntime needs to find and place runtimes.
 type RuntimeOptions struct {
 	// CacheDir is the runtime cache root; entries live at
-	// <CacheDir>/<component>/<version>/.
+	// <CacheDir>/<component>/<flavor>/<version>/.
 	CacheDir string
+	// ProjectRoot is the root of the project scope, <project>/.tarantool,
+	// whose tt binary installations are searched when the cache has no
+	// match; empty skips them.
+	ProjectRoot string
 	// Platform is the manifest's [platform] block, whose constraints select the
 	// versions to bundle. Run fills this from the built manifest; callers leave
 	// it zero.
@@ -96,10 +104,12 @@ type BundledVersions struct {
 // versions bundled. TCM is bundled only when [platform].tcm is set.
 //
 // Each component is resolved cache-first: the highest version in the runtime
-// cache satisfying the constraint wins. Failing that, the active tt
-// environment's own binary is accepted if it satisfies the constraint, with a
-// warning — the cache is the reproducible source, the active binary is a
-// convenience for v0 where no `tt runtime install` exists yet.
+// cache satisfying the constraint wins. Failing that, a tt binary installation
+// of the project is taken: the active one when it satisfies the constraint,
+// else the highest that does. Failing that, the active tt environment's own
+// binary is accepted if it satisfies the constraint, with a warning: the cache
+// and the installations are builds named by their version, the active binary
+// is whatever the shell finds.
 func bundleRuntime(stageDir string, req RuntimeOptions) (BundledVersions, error) {
 	// [platform].tarantool and .tt are required by manifest validation, so an
 	// empty constraint here means the platform block never reached this call.
@@ -150,8 +160,10 @@ func bundleRuntime(stageDir string, req RuntimeOptions) (BundledVersions, error)
 
 		if src.Fallback && req.Warn != nil {
 			req.Warn(fmt.Sprintf(
-				"no %s %s in the runtime cache (%s); bundling the active %s %s instead",
-				want.name, want.constraint.Version, req.CacheDir, want.name, src.Version))
+				"no %s %s in the runtime cache (%s) or the project; bundling the active "+
+					"%s %s instead (tt binary install %s puts one into the project)",
+				want.name, want.constraint.Version, req.CacheDir, want.name, src.Version,
+				productName(want.name, want.constraint.EffectiveFlavor())))
 		}
 
 		// A prerelease satisfies the constraint here on its core version alone
@@ -257,6 +269,11 @@ func resolveRuntime(
 		}
 	}
 
+	src, ok, err := findInstalled(req.ProjectRoot, name, constraint, accepted)
+	if err != nil || ok {
+		return src, err
+	}
+
 	versionOK, err := activeVersionOK(active, constraint)
 	if err != nil {
 		return runtimeSource{}, err
@@ -278,12 +295,12 @@ func resolveRuntime(
 	// different one - the manifest's [flavor], not the cache.
 	if versionOK {
 		return runtimeSource{}, stateErrorf(
-			"%w: no %s satisfying %s found in the runtime cache %s, and the active "+
-				"%s (%s) matches the version but not the flavor: %s requires %s; "+
-				"place a matching build under %s or change [platform].%s",
+			"%w: no %s satisfying %s found in the runtime cache %s or the project, "+
+				"and the active %s (%s) matches the version but not the flavor: %s "+
+				"requires %s; %s, or change [platform].%s",
 			errNoRuntime, name, constraint.String(), req.CacheDir, name,
 			describeActive(active), "["+flavor+"]", describeFlavors(accepted),
-			filepath.Join(req.CacheDir, name, flavor, "<version>"), name)
+			runtimeRemedy(req.CacheDir, name, flavor), name)
 	}
 
 	// No binary at all, a tt with no tarantool say: there is no version to
@@ -291,18 +308,198 @@ func resolveRuntime(
 	// had been looked at.
 	if active.path == "" {
 		return runtimeSource{}, stateErrorf(
-			"%w: no %s satisfying %s found in the runtime cache %s, and tt found no %s "+
-				"to bundle instead; place a matching build under %s",
+			"%w: no %s satisfying %s found in the runtime cache %s or the project, "+
+				"and tt found no %s to bundle instead; %s",
 			errNoRuntime, name, constraint.String(), req.CacheDir, name,
-			filepath.Join(req.CacheDir, name, flavor, "<version>"))
+			runtimeRemedy(req.CacheDir, name, flavor))
 	}
 
 	return runtimeSource{}, stateErrorf(
-		"%w: no %s satisfying %s found in the runtime cache %s, and the active "+
-			"%s (%s) does not satisfy it; place a matching build under %s",
+		"%w: no %s satisfying %s found in the runtime cache %s or the project, "+
+			"and the active %s (%s) does not satisfy it; %s",
 		errNoRuntime, name, constraint.String(), req.CacheDir, name,
-		describeActive(active),
-		filepath.Join(req.CacheDir, name, flavor, "<version>"))
+		describeActive(active), runtimeRemedy(req.CacheDir, name, flavor))
+}
+
+// runtimeRemedy says how to give pack a runtime it found none of: install one
+// into the project with tt binary install, or place a build in the cache.
+func runtimeRemedy(cacheDir, name, flavor string) string {
+	return fmt.Sprintf("install one with tt binary install %s, or place a matching build "+
+		"under %s", productName(name, flavor), filepath.Join(cacheDir, name, flavor, "<version>"))
+}
+
+// productName is the tt binary product a component of the flavor is installed
+// as: tarantool-ee for an [ee] tarantool, say.
+func productName(name, flavor string) string {
+	programs := installedPrograms(name, []string{flavor})
+	if len(programs) == 0 {
+		return name
+	}
+
+	return programs[0].String()
+}
+
+// installedPrograms lists the tt binary products a component of the given
+// accepted flavors is installed as, in the order of the flavors. TCM has a
+// single product whatever the flavor.
+func installedPrograms(name string, flavors []string) []binary.Program {
+	byFlavor := map[string]map[string]binary.Program{
+		runtimeTarantool: {flavorCE: binary.ProgramCe, flavorEE: binary.ProgramEe},
+		runtimeTt:        {flavorCE: binary.ProgramTt, flavorEE: binary.ProgramTtEe},
+		runtimeTcm:       {flavorCE: binary.ProgramTcm, flavorEE: binary.ProgramTcm},
+	}
+
+	var programs []binary.Program
+
+	for _, flavor := range flavors {
+		program, ok := byFlavor[name][flavor]
+		if ok && !slices.Contains(programs, program) {
+			programs = append(programs, program)
+		}
+	}
+
+	return programs
+}
+
+// installedFlavor is the flavor of a component installed as program: the
+// Enterprise products are ee, the others ce, and TCM, which has none, is
+// left undetermined.
+func installedFlavor(program binary.Program) string {
+	switch program {
+	case binary.ProgramEe, binary.ProgramTtEe:
+		return flavorEE
+	case binary.ProgramCe, binary.ProgramTt:
+		return flavorCE
+	default:
+		return ""
+	}
+}
+
+// findInstalled looks for the component among the tt binary installations of
+// the project scope rooted at root, <root>/versions/<product>/: the one the
+// active link <root>/bin/<executable> points to when it satisfies the
+// constraint, else the highest that does. Only standalone installations named
+// by a version are considered: an SDK component, or a build named by a commit,
+// has no version to check without running it, and the name the lock would
+// record for it is not one tt package install can lay a runtime under.
+func findInstalled(
+	root, name string, constraint manifest.Constraint, flavors []string,
+) (runtimeSource, bool, error) {
+	if root == "" {
+		return runtimeSource{}, false, nil
+	}
+
+	programs := installedPrograms(name, flavors)
+
+	program, active, ok := activeInstallation(root, programs)
+	if ok {
+		matched, err := installationSatisfies(root, program, active, constraint)
+		if err != nil {
+			return runtimeSource{}, false, err
+		}
+
+		if matched {
+			return installedSource(root, name, program, active), true, nil
+		}
+	}
+
+	for _, program := range programs {
+		installed, err := binary.InstalledVersions(root, program)
+		if err != nil {
+			return runtimeSource{}, false, err
+		}
+
+		var matches []string
+
+		for _, selected := range installed {
+			matched, err := installationSatisfies(root, program, selected, constraint)
+			if err != nil {
+				return runtimeSource{}, false, err
+			}
+
+			if matched {
+				matches = append(matches, selected)
+			}
+		}
+
+		if len(matches) > 0 {
+			sortVersionsDesc(matches)
+
+			return installedSource(root, name, program, matches[0]), true, nil
+		}
+	}
+
+	return runtimeSource{}, false, nil
+}
+
+// activeInstallation decodes the active link of the scope rooted at root for
+// the executable the programs share into the installation it points to, when
+// that is an installation of one of them in the scope.
+func activeInstallation(root string, programs []binary.Program) (binary.Program, string, bool) {
+	if len(programs) == 0 {
+		return binary.ProgramUnknown, "", false
+	}
+
+	target, err := filepath.EvalSymlinks(filepath.Join(root, binary.BinDirName,
+		programs[0].Exec()))
+	if err != nil {
+		return binary.ProgramUnknown, "", false
+	}
+
+	realRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return binary.ProgramUnknown, "", false
+	}
+
+	for _, program := range programs {
+		productDir := filepath.Join(realRoot, binary.VersionsDirName, program.String())
+		installation := filepath.Dir(target)
+
+		if filepath.Dir(installation) != productDir || filepath.Base(target) != program.Exec() {
+			continue
+		}
+
+		selected, found := binary.InstallationVersion(program, filepath.Base(installation))
+		if found {
+			return program, selected, true
+		}
+	}
+
+	return binary.ProgramUnknown, "", false
+}
+
+// installationSatisfies reports whether the installation selected of program
+// in root is a standalone one, holds its executable and is of a version that
+// satisfies the constraint.
+func installationSatisfies(
+	root string, program binary.Program, selected string, constraint manifest.Constraint,
+) (bool, error) {
+	if strings.HasPrefix(selected, binary.SDKVersionPrefix) {
+		return false, nil
+	}
+
+	exe := filepath.Join(binary.InstallationPath(root, program, selected), program.Exec())
+	if !binary.IsRegularFile(exe) {
+		return false, nil
+	}
+
+	return satisfies(selected, constraint)
+}
+
+// installedSource describes the installation selected of program in root as
+// the source of the component. Its version is the name of the installation,
+// which tt package install lays the bundled runtime under, so the two agree.
+func installedSource(root, name string, program binary.Program, selected string) runtimeSource {
+	dir := binary.InstallationPath(root, program, selected)
+
+	return runtimeSource{
+		Name:         name,
+		Version:      selected,
+		Binary:       filepath.Join(dir, program.Exec()),
+		Prefix:       dir,
+		Installation: true,
+		Flavor:       installedFlavor(program),
+	}
 }
 
 // activeVersionOK reports whether the active binary exists and its version
@@ -524,7 +721,10 @@ func placeRuntime(stageDir string, src runtimeSource, warn func(string)) error {
 // placeBinaryRuntime bundles a component resolved to a single executable, the
 // fallback shape. For Tarantool the interpreter alone is not enough: its Lua
 // modules live in <prefix>/share/tarantool, and a bundle missing them fails at
-// require time rather than at pack time, so they come along when present.
+// require time rather than at pack time, so they come along when present. A
+// tt binary installation keeps the headers of its Tarantool beside it, under
+// include/tarantool/, and they come along too, for tt package install to lay
+// them out as tt binary does.
 func placeBinaryRuntime(dst string, src runtimeSource) error {
 	target := filepath.Join(dst, "bin", src.Name)
 
@@ -535,6 +735,18 @@ func placeBinaryRuntime(dst string, src runtimeSource) error {
 
 	if src.Name != runtimeTarantool {
 		return nil
+	}
+
+	if src.Installation {
+		headers := filepath.Join(binary.IncDirName, runtimeTarantool)
+
+		_, err = os.Stat(filepath.Join(src.Prefix, headers))
+		if err == nil {
+			err = copyTree(filepath.Join(src.Prefix, headers), filepath.Join(dst, headers))
+			if err != nil {
+				return fmt.Errorf("bundling Tarantool headers: %w", err)
+			}
+		}
 	}
 
 	for _, prefix := range binaryPrefixes(src) {

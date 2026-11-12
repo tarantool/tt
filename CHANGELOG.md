@@ -214,6 +214,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- `tt package pack` bundles the Tarantool, tt and TCM that `tt binary
+  install` put into the project, `.tarantool/versions/`, when the runtime
+  cache has none that matches `[platform]`: the active installation, else
+  the highest that matches, with the headers of the tarantool, and without
+  the warning about bundling the active binary, which is now taken only
+  when neither has one. Nothing filled the runtime cache, so every pack fell
+  back to the active `tarantool` and `tt` and warned. An `[ee]` requirement
+  takes `tarantool-ee` and `tt-ee`; SDK components and builds named by a
+  commit are not taken. The lock records the name of the installation.
 - `manifest_hash`, which ties `app.manifest.lock` and `tt.manifest.lock` to
   their manifest, is taken over what the manifest says - its tables, keys
   and values as TOML decodes them - and not over the bytes of the file. A
