@@ -182,22 +182,53 @@ func Exec(root, executable string, argv []string) error {
 	return nil
 }
 
-// TestDir resolves what a test run is pointed at, as a path relative to root.
+// TestPaths resolves what a test run is pointed at, as paths relative to root.
 //
-// subPath narrows the run and is itself relative to the project root; it may
-// name a directory or a single test file, and it must exist — a typo that
-// silently ran the whole suite, or nothing at all, is worse than an error. With
-// no subPath the conventional directories are tried in order.
+// subPaths narrow the run and are themselves relative to the project root; each
+// may name a directory or a single test file, and each must exist — a typo that
+// silently ran the whole suite, or nothing at all, is worse than an error. They
+// come back in the order given, for luatest to load in that order. An empty
+// sub-path names nothing and is passed over, so a script running
+// `tt test "$SUITE"` with SUITE unset gets the default run. With no subPaths
+// left the conventional directories are tried in order, and the first one found
+// is the whole run.
 //
-// The result stays relative so it reads in the runner's own output the way the
-// developer typed it, and because the run happens in root anyway. A directory
-// comes back with a trailing separator, which luatest requires: without one it
-// reads the argument as a test group name and refuses it as invalid.
-func TestDir(root, subPath string) (string, error) {
-	if subPath != "" {
-		return checkedSubPath(root, subPath)
+// The results stay relative so they read in the runner's own output the way the
+// developer typed them, and because the run happens in root anyway: root is the
+// working directory of every path at once, and nothing else of the run depends
+// on which paths it was given. A directory comes back with a trailing
+// separator, which luatest requires: without one it reads the argument as a
+// test group name and refuses it as invalid.
+func TestPaths(root string, subPaths []string) ([]string, error) {
+	paths := make([]string, 0, len(subPaths))
+
+	for _, subPath := range subPaths {
+		if subPath == "" {
+			continue
+		}
+
+		path, err := checkedSubPath(root, subPath)
+		if err != nil {
+			return nil, err
+		}
+
+		paths = append(paths, path)
 	}
 
+	if len(paths) > 0 {
+		return paths, nil
+	}
+
+	dir, err := defaultTestDir(root)
+	if err != nil {
+		return nil, err
+	}
+
+	return []string{dir}, nil
+}
+
+// defaultTestDir finds the conventional test directory of the project at root.
+func defaultTestDir(root string) (string, error) {
 	for _, name := range TestDirNames {
 		info, err := os.Stat(filepath.Join(root, name))
 		if err == nil && info.IsDir() {

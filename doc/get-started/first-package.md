@@ -93,8 +93,10 @@ $ tt test
 Ran 1 tests in 0.001 seconds, 1 succeeded, 0 failed
 ```
 
-`tt test` builds the package and runs luatest over `test/`. Arguments after
-`--` go to luatest: `tt test test/hello_test.lua -- --verbose`.
+`tt test` builds the package and runs luatest over `test/`. Paths relative to
+the project narrow the run, as many as you name:
+`tt test test/unit test/integration`. Arguments after `--` go to luatest:
+`tt test test/hello_test.lua -- --verbose`.
 
 ## Describe the instances
 

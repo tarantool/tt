@@ -94,8 +94,9 @@ Ran 1 tests in 0.001 seconds, 1 succeeded, 0 failed
 ```
 
 Команда `tt test` собирает пакет и запускает luatest для каталога `test/`.
-Аргументы после `--` передаются в luatest:
-`tt test test/hello_test.lua -- --verbose`.
+Пути относительно проекта сужают запуск, и их можно указать сколько угодно:
+`tt test test/unit test/integration`. Аргументы после `--` передаются в
+luatest: `tt test test/hello_test.lua -- --verbose`.
 
 ## Описание инстансов {#describe-the-instances}
 

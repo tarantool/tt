@@ -237,94 +237,141 @@ func TestLuatestInstalledSeesAnInstalledRock(t *testing.T) {
 
 // The trailing separator is load-bearing: luatest reads a bare "test" as a
 // group name and refuses it, so the directory has to arrive as "test/".
-func TestTestDirPrefersTestOverTests(t *testing.T) {
+func TestTestPathsPreferTestOverTests(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.Mkdir(filepath.Join(root, "test"), dirMode))
 	require.NoError(t, os.Mkdir(filepath.Join(root, "tests"), dirMode))
 
-	dir, err := run.TestDir(root, "")
+	paths, err := run.TestPaths(root, nil)
 	require.NoError(t, err)
-	assert.Equal(t, "test"+string(filepath.Separator), dir)
+	assert.Equal(t, []string{"test" + string(filepath.Separator)}, paths)
 }
 
-func TestTestDirFallsBackToTests(t *testing.T) {
+func TestTestPathsFallBackToTests(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.Mkdir(filepath.Join(root, "tests"), dirMode))
 
-	dir, err := run.TestDir(root, "")
+	paths, err := run.TestPaths(root, nil)
 	require.NoError(t, err)
-	assert.Equal(t, "tests"+string(filepath.Separator), dir)
+	assert.Equal(t, []string{"tests" + string(filepath.Separator)}, paths)
+}
+
+// An empty sub-path is what `tt test "$SUITE"` passes with SUITE unset, and it
+// has always meant the default run.
+func TestTestPathsPassOverAnEmptySubPath(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "test", "unit"), dirMode))
+
+	paths, err := run.TestPaths(root, []string{""})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"test" + string(filepath.Separator)}, paths)
+
+	paths, err = run.TestPaths(root, []string{"", "test/unit"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{filepath.Join("test", "unit") + string(filepath.Separator)}, paths)
 }
 
 // A file named test/ is not a test directory, and running it would fail deep
 // inside the runner rather than here.
-func TestTestDirIgnoresAFileNamedTest(t *testing.T) {
+func TestTestPathsIgnoreAFileNamedTest(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "test"), []byte("x"), fileMode))
 
-	_, err := run.TestDir(root, "")
+	_, err := run.TestPaths(root, nil)
 	require.ErrorIs(t, err, run.ErrNoTestDir)
 }
 
-func TestTestDirReportsAProjectWithNoTests(t *testing.T) {
-	_, err := run.TestDir(t.TempDir(), "")
+func TestTestPathsReportAProjectWithNoTests(t *testing.T) {
+	_, err := run.TestPaths(t.TempDir(), nil)
 
 	require.ErrorIs(t, err, run.ErrNoTestDir)
 	assert.Contains(t, err.Error(), "test")
 }
 
-func TestTestDirNarrowsToASubPath(t *testing.T) {
+func TestTestPathsNarrowToASubPath(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "test", "integration"), dirMode))
 
-	dir, err := run.TestDir(root, "test/integration")
+	paths, err := run.TestPaths(root, []string{"test/integration"})
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join("test", "integration")+string(filepath.Separator), dir)
+	assert.Equal(t,
+		[]string{filepath.Join("test", "integration") + string(filepath.Separator)}, paths)
 }
 
 // luatest takes a single file as readily as a directory, and narrowing to one
 // test file is the common case while writing it.
-func TestTestDirAcceptsASingleFile(t *testing.T) {
+func TestTestPathsAcceptASingleFile(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.Mkdir(filepath.Join(root, "test"), dirMode))
 	require.NoError(t, os.WriteFile(
 		filepath.Join(root, "test", "unit_test.lua"), []byte("return {}\n"), fileMode))
 
-	dir, err := run.TestDir(root, "test/unit_test.lua")
+	paths, err := run.TestPaths(root, []string{"test/unit_test.lua"})
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join("test", "unit_test.lua"), dir)
+	assert.Equal(t, []string{filepath.Join("test", "unit_test.lua")}, paths)
+}
+
+// luatest takes any number of paths, so several sub-paths come back each
+// checked, and in the order typed.
+func TestTestPathsKeepSeveralSubPathsInOrder(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "test", "unit"), dirMode))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "test", "integration"), dirMode))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(root, "test", "smoke_test.lua"), []byte("return {}\n"), fileMode))
+
+	paths, err := run.TestPaths(root, []string{
+		"test/integration", "test/smoke_test.lua", filepath.Join(root, "test", "unit"),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		filepath.Join("test", "integration") + string(filepath.Separator),
+		filepath.Join("test", "smoke_test.lua"),
+		filepath.Join("test", "unit") + string(filepath.Separator),
+	}, paths)
 }
 
 // A sub-path that does not exist is an error rather than a run of nothing,
 // which the runner would report as a pass.
-func TestTestDirRefusesAMissingSubPath(t *testing.T) {
+func TestTestPathsRefuseAMissingSubPath(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.Mkdir(filepath.Join(root, "test"), dirMode))
 
-	_, err := run.TestDir(root, "test/nowhere")
+	_, err := run.TestPaths(root, []string{"test/nowhere"})
 	require.ErrorIs(t, err, run.ErrNoTestDir)
+}
+
+// One bad sub-path among good ones fails the whole run rather than shrinking
+// it: the paths that remain would pass for the suite that was asked for.
+func TestTestPathsRefuseAMissingSubPathAmongOthers(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "test", "unit"), dirMode))
+
+	_, err := run.TestPaths(root, []string{"test/unit", "test/nowhere"})
+	require.ErrorIs(t, err, run.ErrNoTestDir)
+	assert.Contains(t, err.Error(), "test/nowhere")
 }
 
 // A path climbing out of the project would run tests the project's own .rocks/
 // tree does not describe.
-func TestTestDirRefusesAnEscapingSubPath(t *testing.T) {
+func TestTestPathsRefuseAnEscapingSubPath(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "project")
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "test"), dirMode))
 	require.NoError(t, os.Mkdir(filepath.Join(filepath.Dir(root), "elsewhere"), dirMode))
 
-	_, err := run.TestDir(root, "../elsewhere")
+	_, err := run.TestPaths(root, []string{"test", "../elsewhere"})
 	require.ErrorIs(t, err, run.ErrNoTestDir)
 }
 
 // An absolute path inside the project is relativized rather than refused: it is
 // what shell completion produces.
-func TestTestDirAcceptsAnAbsolutePathInsideTheProject(t *testing.T) {
+func TestTestPathsAcceptAnAbsolutePathInsideTheProject(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "test", "unit"), dirMode))
 
-	dir, err := run.TestDir(root, filepath.Join(root, "test", "unit"))
+	paths, err := run.TestPaths(root, []string{filepath.Join(root, "test", "unit")})
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join("test", "unit")+string(filepath.Separator), dir)
+	assert.Equal(t, []string{filepath.Join("test", "unit") + string(filepath.Separator)}, paths)
 }
 
 // writeInstalledApp lays out an installed version of an application at dir:

@@ -128,14 +128,31 @@ def test_test_returns_the_runners_exit_code(run_tt, project: Path, fake_luatest)
     assert result.returncode == 3
 
 
-def test_test_refuses_more_than_one_path(run_tt, project: Path, fake_luatest):
+def test_test_runs_several_sub_paths(run_tt, project: Path, fake_luatest):
+    """Every sub-path reaches luatest, in the order given, ahead of its own arguments."""
+    fake_luatest()
+    (project / "test" / "unit").mkdir(parents=True)
+    (project / "test" / "integration").mkdir()
+
+    result = run_tt("test", "test/unit", "test/integration", "--", "--verbose")
+
+    assert result.returncode == 0, result.stderr
+    # Naming paths replaces the default directory rather than adding to it, so
+    # test/ is not among them.
+    args = [line for line in result.stdout.splitlines() if line.startswith("arg:")]
+    assert args == ["arg:test/unit/", "arg:test/integration/", "arg:--verbose"]
+
+
+def test_test_refuses_a_missing_path_among_several(run_tt, project: Path, fake_luatest):
+    """A group name put before '--' is a path that does not exist, not a filter."""
     fake_luatest()
     (project / "test").mkdir()
 
-    result = run_tt("test", "test", "tests")
+    result = run_tt("test", "test", "sample")
 
     assert result.returncode == 1
-    assert "--" in result.stderr
+    assert "sample" in result.stderr
+    assert "FAKE-LUATEST" not in result.stdout
 
 
 def test_test_leaves_the_manifest_and_the_lock_alone(run_tt, project: Path, fake_luatest):

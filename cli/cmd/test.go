@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"context"
-	"errors"
+	"slices"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -21,14 +21,14 @@ const luatestName = "luatest"
 // under the same Tarantool tt run would choose.
 func NewTestCmd() *cobra.Command {
 	testCmd := &cobra.Command{
-		Use:   "test [SUB-PATH] [-- LUATEST-ARGS...]",
+		Use:   "test [SUB-PATH...] [-- LUATEST-ARGS...]",
 		Short: "Build the current package and run its tests",
 		Long: `Build the package in the current directory and run its tests with luatest.
 
 The directory must hold app.manifest.toml; no tt environment and no tt.yaml are
-involved. Tests are taken from test/, or from tests/ when there is no test/. A
-SUB-PATH relative to the project narrows the run to one directory or one file,
-and must exist.
+involved. Tests are taken from test/, or from tests/ when there is no test/.
+SUB-PATHs relative to the project narrow the run to those directories and files,
+in the order given, and each must exist.
 
 The build runs first, so components are compiled and .rocks/ holds the declared
 dependencies before any test does. luatest itself need not be declared: when
@@ -41,19 +41,17 @@ Everything after '--' is handed to luatest, and the exit code is luatest's own.
 `,
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			subPath, luatestArgs, err := splitTestArgs(cmd, args)
-			if err == nil {
-				err = runTest(subPath, luatestArgs)
-			}
+			subPaths, luatestArgs := splitTestArgs(cmd, args)
 
-			return commandError(cmd, err)
+			return commandError(cmd, runTest(subPaths, luatestArgs))
 		},
 		Example: `# Build and run everything under test/ (or tests/).
   $ tt test
 
-  # Run one directory, then one file.
+  # Run one directory, then one file, then two directories in one run.
   $ tt test test/integration
   $ tt test test/unit/config_test.lua
+  $ tt test test/unit test/integration
 
   # Pass luatest's own options through.
   $ tt test -- --verbose --shuffle group`,
@@ -64,45 +62,32 @@ Everything after '--' is handed to luatest, and the exit code is luatest's own.
 	return testCmd
 }
 
-// errTooManyTestPaths reports more than one path before '--'.
-var errTooManyTestPaths = errors.New(
-	"tt test takes at most one sub-path; put luatest's own options after '--'")
-
-// splitTestArgs separates the optional sub-path from luatest's own arguments.
+// splitTestArgs separates the sub-paths from luatest's own arguments.
 //
 // Cobra records where '--' appeared rather than dropping the information, so
-// the split needs no manual scan: everything before it belongs to tt, and
-// everything after it to luatest — including flags tt itself defines, which is
-// the point of requiring the separator.
-func splitTestArgs(cmd *cobra.Command, args []string) (string, []string, error) {
-	own := args
-	passed := []string(nil)
-
+// the split needs no manual scan: everything before it is a sub-path of tt's,
+// and everything after it goes to luatest — including flags tt itself defines,
+// which is the point of requiring the separator. Put before it, a luatest
+// option is a flag tt does not know, and a group name is a sub-path that does
+// not exist: both fail before the build.
+func splitTestArgs(cmd *cobra.Command, args []string) ([]string, []string) {
 	if dash := cmd.ArgsLenAtDash(); dash >= 0 {
-		own = args[:dash]
-		passed = args[dash:]
+		return args[:dash], args[dash:]
 	}
 
-	switch len(own) {
-	case 0:
-		return "", passed, nil
-	case 1:
-		return own[0], passed, nil
-	default:
-		return "", nil, errTooManyTestPaths
-	}
+	return args, nil
 }
 
 // runTest builds the package and hands the suite to luatest.
-func runTest(subPath string, luatestArgs []string) error {
+func runTest(subPaths, luatestArgs []string) error {
 	root, tarantool, err := selectProjectTarantool()
 	if err != nil {
 		return err
 	}
 
-	// Resolved before the build so a typo in the path costs nothing: a build is
+	// Resolved before the build so a typo in a path costs nothing: a build is
 	// the expensive step, and its result is the same either way.
-	testDir, err := run.TestDir(root, subPath)
+	testPaths, err := run.TestPaths(root, subPaths)
 	if err != nil {
 		return err
 	}
@@ -154,7 +139,9 @@ func runTest(subPath string, luatestArgs []string) error {
 		return err
 	}
 
-	argv := append([]string{script, testDir}, luatestArgs...)
+	// luatest takes its options and its paths in any order, so the paths of tt
+	// lead and what follows '--' is appended as it was typed.
+	argv := slices.Concat([]string{script}, testPaths, luatestArgs)
 
 	// luatest gets the signals: tt is replaced by it.
 	stop()
