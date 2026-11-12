@@ -24,14 +24,36 @@ modules come from their directories through `replace`.
   Tarantool, the EmmyLua stubs of the Tarantool the project runs on
   (`Services.Tarantool`), the modules its rocks install and those of
   `--library`, and `.rocks/`, `.tarantool/` and `_build/`, where tt builds
-  the project, in `ignoreGlobs`. `fmt` runs `luafmt` without it, and on the
-  whole project passes `--exclude _build/**` (`analyzer.BuildDirGlob`) for
-  the same reason: luafmt skips hidden directories only. It passes
-  `--level lua-jit` too, the LuaJIT the configuration gives the analyzer,
-  unless the arguments after `--` hold `--level` or the configuration of
-  luafmt sets `[syntax] level` (`analyzer.FormatLevelConfigured`): luafmt
-  defaults to Lua 5.5 and takes `--level` over its configuration, and
-  merges no configurations, so tt reads the one luafmt would.
+  the project, in `ignoreGlobs`; `check`, `doc` and `ls` read every other
+  Lua file of the project, those git ignores too. `fmt` runs `luafmt`
+  without it. It passes `--level lua-jit`, the LuaJIT the configuration
+  gives the analyzer, unless the arguments after `--` hold `--level` or the
+  configuration of luafmt sets `[syntax] level`
+  (`analyzer.FormatLevelConfigured`): luafmt defaults to Lua 5.5 and takes
+  `--level` over its configuration, and merges no configurations, so tt
+  reads the one luafmt would.
+- `gitfiles.go` - the files of `fmt` with no path. In a git work tree
+  (`git rev-parse --is-inside-work-tree`) that does not ignore the project
+  (`git check-ignore .`), they are the Lua files `git ls-files -z --cached
+  --others --exclude-standard` lists under the root: tracked, and untracked
+  but not ignored. `luaFiles` keeps those luafmt's walk would take - `.lua`
+  and `.luau`, no hidden name, nothing under `.git`, `node_modules` or
+  `target`, no link, unless `--include-hidden` or `--follow-symlinks` follow
+  `--` - and drops `_build/`, `.rocks/` and `.tarantool/` even tracked, the
+  files gone from the work tree and the directories git lists: submodules
+  and repositories inside the work tree, which are not the project's code.
+  luafmt runs in the root (`runProgram` with a directory) on the paths
+  relative to it, so that `.luafmtignore` and `--exclude` match as they do
+  on a walk of the root; a relative `--config` is made absolute. The level
+  is chosen per file (`analyzer.SplitFormatLevel`), so the files whose
+  configuration sets it run apart, without `--level`, and the list goes in
+  runs of `fmtArgBudget` bytes; every run is made, and the one with the
+  highest exit code is the result. With no Lua file git sees, luafmt, which
+  would read stdin, does not run. Out of git, with no git, in a directory
+  git ignores, or with a flag after `--` that formats no files (`--init`,
+  `--stdin`, ...), `fmt` gives luafmt the root and
+  `--exclude _build/**` (`analyzer.BuildDirGlob`): luafmt skips hidden
+  directories only.
 - `workspace.go` - where a command runs: the project `scope.FindProject` of
   `sdk/scope` finds from `Project().Dir()`, as the project commands of tt
   find theirs, when it holds the manifest, and the directory of the command

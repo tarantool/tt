@@ -174,10 +174,12 @@ type fmtCase struct {
 // arguments after -- or the configuration of luafmt choose the level, the
 // arguments after -- and the paths, without the configuration of the
 // analyzer, and succeeds as the program does. On the project, with no path
-// given, it leaves out _build/. It runs programs, so it is not parallel, as
-// TestCheck.
+// given, out of a git work tree (TestFmtGit), it walks the project but
+// _build/. It runs programs, so it is not parallel, as TestCheck.
 func TestFmt(t *testing.T) {
 	project := testProject(t)
+	// Out of every work tree, wherever the tests run.
+	isolateGit(t, filepath.Dir(project))
 	writeProgram(t, project, "luafmt", "echo \"$@\"\n")
 
 	const (

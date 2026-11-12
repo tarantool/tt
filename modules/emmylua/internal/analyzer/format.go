@@ -54,6 +54,38 @@ func FormatLevelConfigured(dir string, paths []string, explicit string) bool {
 	return false
 }
 
+// SplitFormatLevel splits files, relative to dir, the directory luafmt runs
+// in, by whether the configuration luafmt finds for each sets the language
+// level, as FormatLevelConfigured tells it for a file: set holds the files
+// whose configuration does, unset the others, each in the order of files. A
+// file list follows the configuration of every file, which one --level for
+// a directory luafmt walks cannot: the files of set run without FormatLevel,
+// those of unset with it. The configuration of a directory is looked for
+// once.
+func SplitFormatLevel(dir string, files []string) ([]string, []string) {
+	var set, unset []string
+
+	known := make(map[string]bool)
+
+	for _, file := range files {
+		parent := filepath.Dir(absFrom(dir, file))
+
+		configured, seen := known[parent]
+		if !seen {
+			configured = FormatLevelConfigured(dir, []string{file}, "")
+			known[parent] = configured
+		}
+
+		if configured {
+			set = append(set, file)
+		} else {
+			unset = append(unset, file)
+		}
+	}
+
+	return set, unset
+}
+
 // absFrom returns path, absolute: a relative one is taken from dir.
 func absFrom(dir, path string) string {
 	if filepath.IsAbs(path) {

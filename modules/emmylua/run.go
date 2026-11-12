@@ -250,9 +250,17 @@ func newFmtCmd(services sdk.Services) *cobra.Command {
 			"if any would; with --write it rewrites them. It reads .luafmt.toml or " +
 			"luafmt.toml and .luafmtignore, not the configuration of the analyzer. It " +
 			"parses LuaJIT, as check does, unless [syntax] level of that configuration " +
-			"or --level after -- names another: luafmt alone parses Lua 5.5. On " +
-			"the whole project, with no PATH, it leaves out _build/, where tt builds " +
-			"the project out of its sources, as check, doc and ls do. The " +
+			"or --level after -- names another: luafmt alone parses Lua 5.5.\n\n" +
+			"With no PATH, in a git work tree, it formats the Lua files git sees " +
+			"under the project: tracked, and untracked but not ignored by .gitignore, " +
+			".git/info/exclude or core.excludesFile; luafmt runs in the root of the " +
+			"project, given the list, and still skips the hidden files, those of " +
+			".luafmtignore and --exclude. A submodule is left out, and so are _build/, " +
+			"where tt builds the project out of its sources, .rocks/ and .tarantool/, " +
+			"even when the project tracks them. Out of a git work tree, in a directory git " +
+			"ignores, or without git, it walks the whole project but _build/, as check, " +
+			"doc and ls do. A PATH is " +
+			"formatted as given.\n\nThe " +
 			"other flags of luafmt, such as --list-different, go after --, and one that " +
 			"chooses what luafmt does takes the place of --check. " + passHelp + "\n\n" +
 			"Outside every project luafmt comes from the user cache, fetched there once " +
@@ -516,16 +524,17 @@ func (r *runner) withConfig(
 	argv = append(argv, pass...)
 	argv = append(argv, list...)
 
-	return r.runProgram(cmd.Context(), path, argv)
+	return r.runProgram(cmd.Context(), "", path, argv)
 }
 
 // format runs luafmt on the paths in args, without the configuration of the
 // analyzer, in the mode its flags give: --check unless told another. It
 // parses the Lua the analyzer is told of, LuaJIT, unless the arguments of
-// luafmt or its configuration choose another (givesLevel). On the whole
-// workspace, the paths tt picks when args name none, it leaves out the build
-// tree, as the configuration of the analyzer does: luafmt walks every
-// directory that is not hidden, _build/ too.
+// luafmt or its configuration choose another (givesLevel). With no path, in
+// a work tree of git, it formats the Lua files git sees (formatFiles); out
+// of one, it walks the whole workspace and leaves out the build tree, as the
+// configuration of the analyzer does: luafmt walks every directory that is
+// not hidden, _build/ too.
 func (r *runner) format(cmd *cobra.Command, args []string) error {
 	found, err := r.workspace(cmd)
 	if err != nil {
@@ -541,10 +550,23 @@ func (r *runner) format(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	argv := programArgs(cmd, fmtFlags)
-	if len(argv) == 0 && !choosesAction(pass) {
-		argv = []string{"--" + fmtCheck}
+	mode := programArgs(cmd, fmtFlags)
+	if len(mode) == 0 && !choosesAction(pass) {
+		mode = []string{"--" + fmtCheck}
 	}
+
+	if whole && formatsFiles(pass) {
+		files, ok, err := r.gitLuaFiles(cmd.Context(), found.dir, walkOf(pass))
+		if err != nil {
+			return err
+		}
+
+		if ok {
+			return r.formatFiles(cmd.Context(), program, found, mode, pass, files)
+		}
+	}
+
+	argv := mode
 
 	if givesLevel(found, list, pass) {
 		argv = append(argv, "--level", analyzer.FormatLevel)
@@ -559,7 +581,171 @@ func (r *runner) format(cmd *cobra.Command, args []string) error {
 	argv = append(argv, pass...)
 	argv = append(argv, list...)
 
-	return r.runProgram(cmd.Context(), program, argv)
+	return r.runProgram(cmd.Context(), "", program, argv)
+}
+
+// fmtFileActions are the flags of fmtActions that format files, the modes of
+// luafmt: the others print, read stdin or write a configuration, and take
+// no list of files.
+//
+//nolint:gochecknoglobals // A constant list: Go has no constant slices.
+var fmtFileActions = []string{"--check", "--write", "--list-different"}
+
+// formatsFiles reports whether luafmt with pass, the arguments after --,
+// formats files: pass chooses no action of fmtActions but its modes.
+func formatsFiles(pass []string) bool {
+	for _, arg := range pass {
+		flag, _, _ := strings.Cut(arg, "=")
+		if slices.Contains(fmtActions, flag) && !slices.Contains(fmtFileActions, flag) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// fmtArgBudget is how many bytes of paths one run of luafmt is given at
+// most: a project with more Lua files is formatted in more runs, so that the
+// arguments stay well under the limit of the system on them (ARG_MAX, 1 MiB
+// on macOS, with the environment). A variable, so that the tests can make
+// it small.
+//
+//nolint:gochecknoglobals // A constant the tests change.
+var fmtArgBudget = 256 << 10
+
+// formatFiles runs luafmt in mode, with pass, on files, the Lua files git
+// sees, relative to the root of the workspace. luafmt runs in the root, so
+// that it matches the patterns of .luafmtignore and --exclude against the
+// path of a file relative to it, as when it walks the root; a relative
+// --config among pass is made absolute from the directory of the command,
+// which it was taken from. A file whose configuration sets the level runs
+// without --level, the others with it (analyzer.SplitFormatLevel), unless
+// pass gives the level or the configuration, which decides for all. The
+// files go in runs of fmtArgBudget at most, every run is made, and the
+// failure that exits with the highest code, luafmt's 2 for an error over 1
+// for a file it would change, is the result. git seeing no Lua file is no
+// failure: there is nothing to format.
+func (r *runner) formatFiles(
+	ctx context.Context, program string, found workspace, mode, pass, files []string,
+) error {
+	if len(files) == 0 {
+		r.services.Log().Info("git sees no Lua files in " + found.dir + ": nothing to format")
+
+		return nil
+	}
+
+	pass = absoluteConfig(pass, found.workDir)
+
+	var worst error
+
+	for _, group := range levelGroups(found, pass, files) {
+		for _, chunk := range chunks(group.files, fmtArgBudget) {
+			argv := slices.Concat(mode, group.level, pass, chunk)
+
+			err := r.runProgram(ctx, found.dir, program, argv)
+			if err == nil {
+				continue
+			}
+
+			if !sdk.IsReported(err) {
+				return err
+			}
+
+			if worst == nil || sdk.ExitCode(err) > sdk.ExitCode(worst) {
+				worst = err
+			}
+		}
+	}
+
+	return worst
+}
+
+// levelGroup is files luafmt runs on with the arguments level: --level
+// analyzer.FormatLevel, or none.
+type levelGroup struct {
+	level, files []string
+}
+
+// levelGroups splits files into the runs of formatFiles: with --level
+// analyzer.FormatLevel, and without, those whose configuration sets the
+// level. --level among pass leaves it to the user, and --config, the
+// configuration of every file, decides for all.
+func levelGroups(found workspace, pass, files []string) []levelGroup {
+	level := []string{"--level", analyzer.FormatLevel}
+
+	if _, given := flagValue(pass, "--level"); given {
+		return []levelGroup{{level: nil, files: files}}
+	}
+
+	if config, given := flagValue(pass, "--config"); given {
+		if analyzer.FormatLevelConfigured(found.workDir, nil, config) {
+			return []levelGroup{{level: nil, files: files}}
+		}
+
+		return []levelGroup{{level: level, files: files}}
+	}
+
+	set, unset := analyzer.SplitFormatLevel(found.dir, files)
+
+	var groups []levelGroup
+
+	if len(unset) > 0 {
+		groups = append(groups, levelGroup{level: level, files: unset})
+	}
+
+	if len(set) > 0 {
+		groups = append(groups, levelGroup{level: nil, files: set})
+	}
+
+	return groups
+}
+
+// absoluteConfig returns pass, the arguments of luafmt, with the file of a
+// relative --config taken from dir.
+func absoluteConfig(pass []string, dir string) []string {
+	pass = slices.Clone(pass)
+
+	for i, arg := range pass {
+		switch {
+		case arg == "--config" && i+1 < len(pass):
+			pass[i+1] = absFrom(dir, pass[i+1])
+		case strings.HasPrefix(arg, "--config="):
+			pass[i] = "--config=" + absFrom(dir, strings.TrimPrefix(arg, "--config="))
+		}
+	}
+
+	return pass
+}
+
+// absFrom returns path, absolute: a relative one is taken from dir.
+func absFrom(dir, path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+
+	return filepath.Join(dir, path)
+}
+
+// chunks splits files into runs whose paths take budget bytes at most, a
+// path and its terminating NUL, each run with one file at least.
+func chunks(files []string, budget int) [][]string {
+	var (
+		runs [][]string
+		size int
+	)
+
+	start := 0
+
+	for i, file := range files {
+		if i > start && size+len(file)+1 > budget {
+			runs = append(runs, files[start:i])
+			start, size = i, 0
+		}
+
+		size += len(file) + 1
+	}
+
+	return append(runs, files[start:])
 }
 
 // givesLevel reports whether tt emmylua fmt gives luafmt the Lua of
@@ -689,13 +875,19 @@ func isTerminal(in io.Reader) bool {
 	return ok && term.IsTerminal(int(file.Fd()))
 }
 
-// runProgram runs program with args on the standard streams and fails with
-// its exit status, which it has reported itself.
-func (r *runner) runProgram(ctx context.Context, program string, args []string) error {
+// runProgram runs program with args in dir, that of tt when it is empty, on
+// the standard streams and fails with its exit status, which it has
+// reported itself.
+func (r *runner) runProgram(ctx context.Context, dir, program string, args []string) error {
 	streams := r.services.Streams().IO()
 	child := exec.CommandContext(ctx, program, args...)
 
+	child.Dir = dir
 	child.Stdin, child.Stdout, child.Stderr = streams.In, streams.Out, streams.Err
+
+	if dir != "" {
+		r.services.Log().Debug("running in " + dir)
+	}
 
 	r.services.Log().Debug("running " + program + " " + strings.Join(args, " "))
 

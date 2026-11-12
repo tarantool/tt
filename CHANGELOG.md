@@ -405,6 +405,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `platforms.<os>` of a `c` or `lua-c` build is for `linux` or `darwin`, the
   OSes tt builds for: another key, `macos` say, was never added to the
   build, and is a validation error naming those two.
+- `tt emmylua fmt` with no path, in a git work tree, formats the Lua files
+  git sees - tracked, and untracked but not ignored by `.gitignore`,
+  `.git/info/exclude` or `core.excludesFile` - where luafmt walked the whole
+  project, so `--write` rewrote local drafts git ignores. luafmt is given the
+  list, in runs for a big project, and runs in the root of the project:
+  `.luafmtignore`, `--exclude`, hidden files and `--include-hidden` work as
+  before. Submodules, `_build/`, `.rocks/` and `.tarantool/` are left out
+  even when tracked. The level follows the configuration of each file: the
+  files whose `.luafmt.toml` sets `[syntax] level` run without
+  `--level lua-jit`, where one configuration decided for the whole project.
+  With no Lua file git sees, nothing is formatted and the command succeeds.
+  Out of git, in a directory git ignores, with no git installed, or with a
+  path given, `fmt` works as before. `check`, `doc` and `ls` still read the
+  files git ignores: EmmyLua takes a list of files only as workspaces of
+  their own, which changes how modules resolve.
 
 ### Fixed
 

@@ -3181,11 +3181,20 @@ Run luafmt, the formatter of EmmyLua, on PATH (default the project): with
 would; with --write it rewrites them. It reads .luafmt.toml or luafmt.toml and
 .luafmtignore, not the configuration of the analyzer. It parses LuaJIT, as check
 does, unless [syntax] level of that configuration or --level after -- names
-another: luafmt alone parses Lua 5.5. On the whole project, with no PATH, it
-leaves out _build/, where tt builds the project out of its sources, as check,
-doc and ls do. The other flags of luafmt, such as --list-different, go after --,
-and one that chooses what luafmt does takes the place of --check. Arguments
-after -- go to the program as they are.
+another: luafmt alone parses Lua 5.5.
+
+With no PATH, in a git work tree, it formats the Lua files git sees under the
+project: tracked, and untracked but not ignored by .gitignore, .git/info/exclude
+or core.excludesFile; luafmt runs in the root of the project, given the list,
+and still skips the hidden files, those of .luafmtignore and --exclude. A
+submodule is left out, and so are _build/, where tt builds the project out of
+its sources, .rocks/ and .tarantool/, even when the project tracks them. Out of
+a git work tree, in a directory git ignores, or without git, it walks the whole
+project but _build/, as check, doc and ls do. A PATH is formatted as given.
+
+The other flags of luafmt, such as --list-different, go after --, and one that
+chooses what luafmt does takes the place of --check. Arguments after -- go to
+the program as they are.
 
 Outside every project luafmt comes from the user cache, fetched there once from
 the rock server (--rock-server, --version).
