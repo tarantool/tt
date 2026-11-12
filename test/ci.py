@@ -229,6 +229,11 @@ def rocks_mirror(args):
     registry holds it. A rock the registry has only as a rockspec would still
     be cloned from its repository on install, so it is packed into a source
     rock, which carries the sources, before the directory is indexed.
+
+    tt package index lists the directory anew in tt-rocks-index.json, which
+    tt package download wrote with the rockspecs, and writes the manifests: an
+    index left naming a removed rockspec is read before the manifests, and an
+    install fetches the rockspec that is gone.
     """
     lines = ROCKS_MIRROR_LIST.read_text().splitlines()
     refs = [ref for line in lines if (ref := line.split("#", 1)[0].strip())]
@@ -239,7 +244,7 @@ def rocks_mirror(args):
     for rockspec in sorted(mirror.glob("*.rockspec")):
         subprocess.run([tt, "rocks", "pack", rockspec.name], cwd=mirror, check=True)
         rockspec.unlink()
-    subprocess.run([tt, "rocks", "admin", "make_manifest", str(mirror)], cwd=mirror, check=True)
+    subprocess.run([tt, "package", "index", str(mirror)], check=True)
     return 0
 
 

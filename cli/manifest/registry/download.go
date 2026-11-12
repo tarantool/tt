@@ -13,9 +13,9 @@ import (
 	"strings"
 
 	"github.com/tarantool/go-luarocks/client"
-	"github.com/tarantool/go-luarocks/remote"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/rockindex"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
@@ -151,18 +151,17 @@ func (r Ref) String() string {
 // index writes the LuaRocks manifests that turn the directory into a rock
 // server: manifest, manifest-5.1 ... manifest-5.4 and index.html, byte-equal
 // to what `luarocks-admin make_manifest <dir>` writes, each through a
-// temporary file and a rename, and without a Lua VM. A manifest-<version>.zip
-// already there is rewritten too, since clients read it first. warn is told
-// of a rockspec the per-Lua-version filter cannot load.
+// temporary file and a rename, and without a Lua VM, and the
+// tt-rocks-index.json beside them, which tt reads first
+// (rockindex.MakeServer). A manifest-<version>.zip already there is
+// rewritten too, since clients read it first. warn is told of a rockspec the
+// per-Lua-version filter cannot load.
 func index(ctx context.Context, dir string, warn func(string)) error {
-	err := remote.MakeManifest(ctx, dir, remote.MakeManifestOpts{
-		LuaVersions: nil,
-		Index:       true,
-		Zip:         false,
-		Warn:        warn,
+	_, err := rockindex.MakeServer(ctx, dir, rockindex.ServerOptions{
+		HTML: true, IfIndexed: false, Warn: warn,
 	})
 	if err != nil {
-		return stateErrorf("indexing %s: %w", dir, err)
+		return stateErrorf("%w", err)
 	}
 
 	return nil

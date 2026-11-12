@@ -3,6 +3,8 @@ package pack
 import (
 	"archive/zip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/fs"
@@ -15,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/go-luarocks/remote"
 
 	"github.com/tarantool/tt/sdk"
@@ -158,15 +161,21 @@ func TestPackRockOfALuaLibrary(t *testing.T) {
 }
 
 // TestPackRockInstallsIntoAProject: the rock is what another project
-// depends on, from the output directory as its rock server.
+// depends on, from the output directory as its rock server. The directory
+// has the rock index beside its manifests, so the lock pins the sha256 of
+// the rock and of the rockspec, and an install of a rock that is not the
+// pinned one fails.
 func TestPackRockInstallsIntoAProject(t *testing.T) {
 	t.Parallel()
 
 	src := writeLibrary(t)
 	out := filepath.Join(t.TempDir(), "server")
 
-	_, err := Run(context.Background(), packOptions(src, out, FormatRock))
+	result, err := Run(context.Background(), packOptions(src, out, FormatRock))
 	require.NoError(t, err)
+
+	assert.FileExists(t, filepath.Join(out, "manifest"))
+	assert.FileExists(t, filepath.Join(out, remote.RocksIndexFile))
 
 	consumer := buildConsumer(t, out)
 
@@ -175,9 +184,49 @@ func TestPackRockInstallsIntoAProject(t *testing.T) {
 	assert.FileExists(t, filepath.Join(share, "mylib", "util.lua"))
 	assert.FileExists(t, filepath.Join(share, "roles", "mylib.lua"))
 
-	lock, err := os.ReadFile(filepath.Join(consumer, lockFileName))
+	data, err := os.ReadFile(filepath.Join(consumer, lockFileName))
 	require.NoError(t, err)
-	assert.Contains(t, string(lock), "version = '1.0.0-1'")
+
+	lock, err := manifest.ParseLock(data)
+	require.NoError(t, err)
+
+	deps := lock.Products[manifest.ImplicitProduct].Dependencies
+	require.Len(t, deps, 1)
+	assert.Equal(t, "1.0.0-1", deps[0].Version)
+	assert.Equal(t, map[string]string{
+		"all":      manifest.ArtifactDigest(fileSHA256(t, result.Rock)),
+		"rockspec": manifest.ArtifactDigest(fileSHA256(t, result.Rockspec)),
+	}, deps[0].Artifacts)
+
+	rock, err := os.ReadFile(result.Rock)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(result.Rock, append(rock, "tampered"...), 0o644))
+	require.NoError(t, os.RemoveAll(filepath.Join(consumer, rocksDirName)))
+
+	err = build.Run(context.Background(), consumerOptions(consumer))
+	require.ErrorIs(t, err, luarocks.ErrChecksumMismatch)
+	assert.NoFileExists(t, filepath.Join(share, "mylib", "init.lua"))
+}
+
+// fileSHA256 is the sha256 of the file at path in hex.
+func fileSHA256(t *testing.T, path string) string {
+	t.Helper()
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	sum := sha256.Sum256(data)
+
+	return hex.EncodeToString(sum[:])
+}
+
+// consumerOptions are the options of a build of the consumer project.
+func consumerOptions(consumer string) build.Options {
+	return build.Options{
+		ProjectDir: consumer,
+		TtVersion:  "tt test",
+		Tarantool:  rocks.TarantoolInfo{Prefix: "/nonexistent", Version: "3.0.0"},
+	}
 }
 
 // buildConsumer builds a project depending on mylib from the rock server out
@@ -207,11 +256,7 @@ include = ['init.lua']
 		"init.lua":      "return require('mylib')\n",
 	})
 
-	err := build.Run(context.Background(), build.Options{
-		ProjectDir: consumer,
-		TtVersion:  "tt test",
-		Tarantool:  rocks.TarantoolInfo{Prefix: "/nonexistent", Version: "3.0.0"},
-	})
+	err := build.Run(context.Background(), consumerOptions(consumer))
 	require.NoError(t, err)
 
 	return consumer

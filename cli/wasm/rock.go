@@ -12,8 +12,9 @@ import (
 
 	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/go-luarocks/client"
-	"github.com/tarantool/go-luarocks/remote"
 	"github.com/tarantool/go-luarocks/rockspec"
+
+	"github.com/tarantool/tt/v3/cli/manifest/rockindex"
 )
 
 const (
@@ -130,11 +131,19 @@ func BuildRock(dir string, release Release, platform Platform, module []byte) (s
 
 // IndexRegistry writes the manifests of the rock server dir from the rocks
 // it holds, as `luarocks-admin make_manifest` writes them (remote.MakeManifest),
-// so that a dependency declaring dir as its registry resolves and installs
-// from it. Files that are neither rocks nor rockspecs are left out.
+// and the tt-rocks-index.json beside them, so that a dependency declaring dir
+// as its registry resolves and installs from it, and the lock pins the
+// sha256 of the rock of every platform. Files that are neither rocks nor
+// rockspecs are left out.
 func IndexRegistry(ctx context.Context, dir string) error {
-	err := remote.MakeManifest(ctx, dir, remote.MakeManifestOpts{
-		LuaVersions: nil, Index: false, Zip: false, Warn: nil,
+	return indexRegistry(ctx, dir, false)
+}
+
+// indexRegistry is IndexRegistry; ifIndexed writes the index only into a
+// directory that has one already (rockindex.ServerOptions.IfIndexed).
+func indexRegistry(ctx context.Context, dir string, ifIndexed bool) error {
+	_, err := rockindex.MakeServer(ctx, dir, rockindex.ServerOptions{
+		HTML: false, IfIndexed: ifIndexed, Warn: nil,
 	})
 	if err != nil {
 		return fmt.Errorf("indexing the registry: %w", err)

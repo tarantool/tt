@@ -53,7 +53,8 @@ type Options struct {
 	Revision int
 	// OutputDir overrides where the archive and the rock are written; empty
 	// uses <ProjectDir>/_build/pack. A directory a rock is written to is
-	// indexed as a rock server.
+	// indexed as a rock server, with the LuaRocks manifests and the
+	// tt-rocks-index.json.
 	OutputDir string
 	// Build carries the remaining build knobs (Tarantool facts, servers, output
 	// streaming, logger) through to build.RunResult.

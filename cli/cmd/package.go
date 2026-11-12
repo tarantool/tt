@@ -27,6 +27,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest/inventory"
 	"github.com/tarantool/tt/v3/cli/manifest/pack"
 	"github.com/tarantool/tt/v3/cli/manifest/registry"
+	"github.com/tarantool/tt/v3/cli/manifest/rockindex"
 	manifestrocks "github.com/tarantool/tt/v3/cli/manifest/rocks"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 	oldrocks "github.com/tarantool/tt/v3/cli/rocks"
@@ -80,6 +81,14 @@ var packageRegistries []string
 // packageDownloadDir is --dir of `tt package download`.
 var packageDownloadDir string
 
+// packageIndexFile and packageIndexBaseURL are --index and --base-url of
+// `tt package index`: the index to write and where the files it lists are
+// downloaded from.
+var (
+	packageIndexFile    string
+	packageIndexBaseURL string
+)
+
 const packageAddMaxArgs = 2
 
 // manifestFileName is the package manifest the directory-scoped registry
@@ -113,6 +122,7 @@ func NewPackageCmd() *cobra.Command {
 		newPackageUninstallCmd(),
 		newPackageSearchCmd(),
 		newPackageDownloadCmd(),
+		newPackageIndexCmd(),
 	)
 
 	addPersistentProjectDirFlag(packageCmd)
@@ -814,7 +824,10 @@ func newPackagePackCmd() *cobra.Command {
 			"rockspec is made from the manifest: the dependencies are the ranges " +
 			"it declares, and the source is [package].repository at the tag of " +
 			"the version. The rock is written into --out, which is then indexed " +
-			"as a rock server, keeping the rocks already there. --format tt,rock " +
+			"as a rock server, keeping the rocks already there: the LuaRocks " +
+			"manifests and the rock index, " + rockindex.File + ", which has a " +
+			"project that depends on the rock pin the sha256 of its files in the " +
+			"lock (see tt package index). --format tt,rock " +
 			"makes both from one build.\n\n" +
 			"--format rock-src packs the source rock: the same rockspec and the " +
 			"files of the project git tracks, submodules included, with a VERSION " +
@@ -1177,7 +1190,8 @@ func newPackageDownloadCmd() *cobra.Command {
 		Use:   "download [NAME[@VERSION]...]",
 		Short: "Download rock files into a directory and index it as a server",
 		Long: "Fetch rock files from the configured servers into --dir and " +
-			"write the LuaRocks manifest that indexes them, so the directory is " +
+			"write the LuaRocks manifest and the rock index (" + rockindex.File +
+			") that index them, so the directory is " +
 			"itself a rock server: point --registry or " +
 			manifestrocks.EnvRegistries + " at it and the project builds with " +
 			"no network at all. With no arguments the project's locked closure " +
@@ -1263,6 +1277,105 @@ func runPackageDownload(args []string) error {
 	}
 
 	_, _ = fmt.Fprintf(os.Stderr, "indexed %d rock(s) in %s\n", len(written), dir)
+
+	return nil
+}
+
+// newPackageIndexCmd wires `tt package index DIR`.
+func newPackageIndexCmd() *cobra.Command {
+	indexCmd := &cobra.Command{
+		Use:   "index DIR",
+		Short: "Write the rock index of a directory of rocks",
+		Long: "Write " + rockindex.File + ", the rock index tt package reads before " +
+			"any LuaRocks manifest, from the rocks and rockspecs in DIR: every file " +
+			"of every version by its URL, with its sha256 and size. A project that " +
+			"depends on a rock of the index pins the sha256 of its files in the lock, " +
+			"and every install checks the file of its platform against it. tt package " +
+			"pack, tt package download and tt wasm rock write the index of the " +
+			"directory they write into; this is for one filled otherwise, with the " +
+			"rocks the jobs of a CI matrix packed, say.\n\n" +
+			"By default the index goes into DIR, the LuaRocks manifests beside it, and " +
+			"names the files relative to itself: DIR is a rock server for tt and " +
+			"LuaRocks alike. --index names an index kept apart, a file of a git branch " +
+			"say, and --base-url the URL the files of DIR are downloaded from, the " +
+			"release page of a tag say; without --base-url the files are named " +
+			"relative to the index, which DIR must be below. With either, no " +
+			"manifest is written.\n\n" +
+			"An index that is there is updated, not replaced: the versions of DIR are " +
+			"listed anew, a version marked \"yanked\": true staying so; a version it " +
+			"lists with files of DIR that are gone is dropped; a version it lists " +
+			"with files elsewhere is kept. A version in DIR that the index lists with " +
+			"files elsewhere fails the command, since a published version does not " +
+			"change: pack the new build as a new revision. The path of the index is " +
+			"printed to stdout.",
+		Example: `# A directory of rocks as a rock server.
+  $ tt package index dist
+
+  # The rocks of a tag on its release page, the index in a branch of its own.
+  $ gh release upload v1.0.0 dist/*.rock dist/*.rockspec
+  $ tt package index dist --index index/tt-rocks-index.json \
+      --base-url https://github.com/example/mylib/releases/download/v1.0.0`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return commandError(cmd, runPackageIndex(args[0]))
+		},
+	}
+
+	indexCmd.Flags().StringVar(&packageIndexFile, "index", "",
+		"the index to write (default DIR/"+rockindex.File+")")
+	indexCmd.Flags().StringVar(&packageIndexBaseURL, "base-url", "",
+		"the URL the files of DIR are downloaded from (default: relative to the index)")
+
+	return indexCmd
+}
+
+// runPackageIndex writes the index of dir, and its manifests when the index
+// is that of dir as a rock server, and reports what it listed.
+func runPackageIndex(dir string) error {
+	ctx, stop := packageContext()
+	defer stop()
+
+	dir, err := filepath.Abs(dir)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path of %q: %w", dir, err)
+	}
+
+	index := filepath.Join(dir, rockindex.File)
+	if packageIndexFile != "" {
+		index, err = filepath.Abs(packageIndexFile)
+		if err != nil {
+			return fmt.Errorf("--index: %w", err)
+		}
+	}
+
+	var result rockindex.Result
+
+	if index == filepath.Join(dir, rockindex.File) && packageIndexBaseURL == "" {
+		result, err = rockindex.MakeServer(ctx, dir, rockindex.ServerOptions{
+			HTML: false, IfIndexed: false, Warn: func(msg string) { log.Warn(msg) },
+		})
+	} else {
+		result, err = rockindex.Write(ctx, rockindex.Options{
+			Dir: dir, Index: index, BaseURL: packageIndexBaseURL,
+		})
+	}
+
+	if err != nil {
+		return err
+	}
+
+	_, _ = fmt.Fprintln(os.Stdout, result.Index)
+
+	kept := ""
+	if result.Kept > 0 {
+		kept = fmt.Sprintf(", and kept %d listed with files elsewhere", result.Kept)
+	}
+
+	_, _ = fmt.Fprintf(os.Stderr, "indexed %d version(s) of %s%s\n", result.Listed, dir, kept)
+
+	for _, dropped := range result.Dropped {
+		_, _ = fmt.Fprintf(os.Stderr, "dropped %s: its files are no longer in %s\n", dropped, dir)
+	}
 
 	return nil
 }

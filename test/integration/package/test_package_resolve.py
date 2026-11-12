@@ -19,6 +19,7 @@ import json
 import os
 import platform
 import re
+import shutil
 import subprocess
 import tomllib
 from pathlib import Path
@@ -745,8 +746,10 @@ def test_resolve_names_the_digests_it_drops_and_pins(tt_cmd, tree, run_tt, tmp_p
     index server it says it pinned them where the lock had none."""
     work = tmp_path_factory.mktemp("rock-servers")
     packed = pack_wasm_rocks(tt_cmd, work)
-    # tt wasm rock writes the manifests of a plain server beside the rocks.
+    # tt wasm rock writes the manifests and the index of a server beside the
+    # rocks; without its index the directory is a plain server.
     assert (packed / "manifest").exists()
+    (packed / "tt-rocks-index.json").unlink(missing_ok=True)
     index = work / "index"
     write_rock_index(index, packed)
     root = tree.root
@@ -774,3 +777,66 @@ def test_resolve_names_the_digests_it_drops_and_pins(tt_cmd, tree, run_tt, tmp_p
         '  file digests of "wasm" pinned; the lock had none',
     ]
     assert "artifacts" in locked_entry(root, "wasm")
+
+
+def test_an_index_tt_writes_pins_and_installs(tt_cmd, tree, run_tt, tmp_path_factory):
+    """tt package index lists the rocks of each release in an index kept
+    apart from them, by URLs relative to it: a project resolves from it with
+    the digest of every file pinned, and installs the rock checked against
+    them. A version yanked in the index stays yanked when the index is
+    written again."""
+    host_arch()
+    work = tmp_path_factory.mktemp("rock-index")
+    packed = pack_wasm_rocks(tt_cmd, work, ("0.1.0", "0.2.0"))
+    server = work / "server"
+    index_path = server / "tt-rocks-index.json"
+
+    def index(version: str) -> None:
+        result = run_tt("package", "index", str(server / f"v{version}"), "--index", str(index_path))
+        assert result.returncode == 0, result.stderr
+        assert result.stdout == f"{index_path}\n"
+
+    for version in ("0.1.0", "0.2.0"):
+        release = server / f"v{version}"
+        release.mkdir(parents=True)
+        for rock in packed.glob(f"wasm-{version}-1.*.rock"):
+            shutil.copy(rock, release)
+        index(version)
+
+    # The index is all the server publishes: no manifest is written for it.
+    assert sorted(path.name for path in server.iterdir()) == [
+        "tt-rocks-index.json",
+        "v0.1.0",
+        "v0.2.0",
+    ]
+    listed = json.loads(index_path.read_text())["repository"]["wasm"]
+    assert sorted(listed) == ["0.1.0-1", "0.2.0-1"]
+    assert [artifact["url"] for artifact in listed["0.2.0-1"]["artifacts"]] == [
+        f"v0.2.0/wasm-0.2.0-1.{arch}.rock" for arch in INDEX_ARCHES
+    ]
+
+    root = tree.root
+    write_manifest(root, index_dependency(server, ">=0.1.0"))
+    resolve = run_tt("package", "resolve")
+    assert resolve.returncode == 0, resolve.stderr
+
+    entry = locked_entry(root, "wasm")
+    assert entry["version"] == "0.2.0-1"
+    assert entry["artifacts"] == {
+        arch: "sha256:" + sha256_of(server / "v0.2.0" / f"wasm-0.2.0-1.{arch}.rock")
+        for arch in INDEX_ARCHES
+    }
+
+    fetch = run_tt("package", "fetch")
+    assert fetch.returncode == 0, fetch.stderr
+    assert installed_wasm(root).read_bytes() == INDEX_MODULE
+
+    whole = json.loads(index_path.read_text())
+    whole["repository"]["wasm"]["0.2.0-1"]["yanked"] = True
+    index_path.write_text(json.dumps(whole))
+    index("0.2.0")
+    assert json.loads(index_path.read_text())["repository"]["wasm"]["0.2.0-1"]["yanked"]
+
+    update = run_tt("package", "update")
+    assert update.returncode == 0, update.stderr
+    assert "wasm 0.2.0-1 -> 0.1.0-1" in update.stdout

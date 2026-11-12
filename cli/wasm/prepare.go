@@ -252,7 +252,11 @@ func packLocalBuild(ctx context.Context, opts Options, report *Report) error {
 		return err
 	}
 
-	err = IndexRegistry(ctx, registry)
+	// The registry of the project is a server of LuaRocks manifests: a rock
+	// index would have the lock pin the digest of a rock packed anew from
+	// every local build. One that is there is kept current, so it does not
+	// hide the rock.
+	err = indexRegistry(ctx, registry, true)
 	if err != nil {
 		return err
 	}

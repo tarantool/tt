@@ -11,7 +11,8 @@
 //
 // The download command is a mirror builder rather than a file fetcher. What
 // makes the downloaded files useful is the LuaRocks `manifest` written beside
-// them: a directory carrying one is a rock server, so the result can be handed
+// them, with the tt-rocks-index.json tt reads before it: a directory carrying
+// them is a rock server, so the result can be handed
 // straight back to any command that takes a registry, and the project builds
 // with no network at all.
 package registry
