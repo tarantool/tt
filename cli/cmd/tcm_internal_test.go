@@ -196,8 +196,11 @@ const (
 	tcmStopTimeoutEnv    = "TT_TCM_STOP_TEST_STOP_TIMEOUT"
 )
 
-// stubbornTcm stands in for TCM that does not stop on SIGTERM.
-const stubbornTcm = "#!/bin/sh\ntrap '' TERM\necho $$ > tcm-shim.pid\n" +
+// stubbornTcm stands in for TCM that does not stop on SIGTERM. It writes its
+// pid aside and renames the file into place: the test reads the file as soon
+// as it is there, and the redirection makes it before echo fills it.
+const stubbornTcm = "#!/bin/sh\ntrap '' TERM\n" +
+	"echo $$ > tcm-shim.pid.tmp\nmv tcm-shim.pid.tmp tcm-shim.pid\n" +
 	"while :; do sleep 0.05; done\n"
 
 // TestHelperTcmWatchdog runs the watchdog of tt tcm start --watchdog for
