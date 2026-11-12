@@ -206,7 +206,7 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, servers, args []string) error {
 	}
 
 	root := rockTree(workingDir, args)
-	before := installedRocks(ctx, root)
+	before := inspectBefore(ctx, root)
 
 	// Match the historical progname: LuaRocks prints "<argv0> rocks" (and
 	// "<argv0> rocks admin") in its usage, the wrapper appending " admin" for

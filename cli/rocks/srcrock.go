@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,8 +18,7 @@ import (
 
 // ErrEmptySrcRock reports a rock LuaRocks installed from the source rock of a
 // tt package: its rockspec has nothing to build, so the rock holds no module.
-var ErrEmptySrcRock = errors.New("LuaRocks installed the source rock of a tt package " +
-	"with nothing built")
+var ErrEmptySrcRock = errors.New("LuaRocks built nothing of the source rock of a tt package")
 
 // treeFlag is the LuaRocks option naming the tree a command works on.
 const treeFlag = "--tree"
@@ -49,22 +49,31 @@ func rockTree(workingDir string, args []string) string {
 	return root
 }
 
-// installedRocks lists the rock versions the tree at root holds. A tree that
-// cannot be read holds none, as far as checkSrcRocks is concerned.
-func installedRocks(ctx context.Context, root string) map[tree.RockRef]bool {
+// treeBefore is the tree at root before a LuaRocks command, as checkSrcRocks
+// compares the tree after it with.
+type treeBefore struct {
+	// rocks are the rock versions the tree held.
+	rocks map[tree.RockRef]bool
+	// absent says there was nothing at root: the command made the tree.
+	absent bool
+}
+
+// inspectBefore reads the tree at root before a LuaRocks command. A tree that
+// cannot be read holds no rock, as far as checkSrcRocks is concerned.
+func inspectBefore(ctx context.Context, root string) treeBefore {
+	_, err := os.Lstat(root)
+	before := treeBefore{rocks: map[tree.RockRef]bool{}, absent: errors.Is(err, fs.ErrNotExist)}
+
 	view, err := tree.Inspect(ctx, root)
 	if err != nil {
-		return map[tree.RockRef]bool{}
+		return before
 	}
 
-	refs := view.Rocks()
-
-	out := make(map[tree.RockRef]bool, len(refs))
-	for _, ref := range refs {
-		out[ref] = true
+	for _, ref := range view.Rocks() {
+		before.rocks[ref] = true
 	}
 
-	return out
+	return before
 }
 
 // checkSrcRocks finds the rocks a LuaRocks command installed into the tree at
@@ -75,7 +84,12 @@ func installedRocks(ctx context.Context, root string) map[tree.RockRef]bool {
 // rockspec is that of the binary rocks; only tt builds the package it holds.
 // Left in the tree, the rock would satisfy the dependencies on it with no
 // module to require.
-func checkSrcRocks(ctx context.Context, root string, before map[tree.RockRef]bool) error {
+//
+// A tree the command made, which holds no rock once they are removed, is
+// removed as a whole: its manifest and its lock file are all LuaRocks left of
+// the command there. LuaRocks has printed that the rock is installed by then,
+// on the terminal tt does not stand between it and; the error says it is not.
+func checkSrcRocks(ctx context.Context, root string, before treeBefore) error {
 	view, err := tree.Inspect(ctx, root)
 	if err != nil {
 		return nil //nolint:nilerr // LuaRocks itself reports a tree it broke.
@@ -84,7 +98,7 @@ func checkSrcRocks(ctx context.Context, root string, before map[tree.RockRef]boo
 	var empty []tree.RockRef
 
 	for _, ref := range view.Rocks() {
-		if !before[ref] && emptySrcRock(view, ref) {
+		if !before.rocks[ref] && emptySrcRock(view, ref) {
 			empty = append(empty, ref)
 		}
 	}
@@ -108,14 +122,36 @@ func checkSrcRocks(ctx context.Context, root string, before map[tree.RockRef]boo
 	}
 
 	if err != nil {
-		return fmt.Errorf("%w: %s, which tt could not remove: %w", ErrEmptySrcRock,
-			refList(empty), err)
+		return fmt.Errorf("%w: %s, which LuaRocks printed is installed with no module, "+
+			"tt could not remove from the tree: %w", ErrEmptySrcRock, refList(empty), err)
 	}
 
-	return fmt.Errorf("%w: %s; tt removed it from the tree again. Install the binary "+
-		"rock of %s from a server that has one, or depend on the rock in "+
-		"app.manifest.toml and run tt package build, which builds the source rock "+
-		"with its manifest", ErrEmptySrcRock, refList(empty), remote.HostArch())
+	if before.absent {
+		removeEmptyTree(ctx, root)
+	}
+
+	verb, pronoun := "is", "it"
+	if len(empty) > 1 {
+		verb, pronoun = "are", "them"
+	}
+
+	return fmt.Errorf("%w: %s %s not installed, whatever LuaRocks printed above; tt "+
+		"removed %s from the tree again. Install the binary rock of %s from a server "+
+		"that has one, or depend on the rock in app.manifest.toml and run tt package "+
+		"build, which builds the source rock with its manifest", ErrEmptySrcRock,
+		refList(empty), verb, pronoun, remote.HostArch())
+}
+
+// removeEmptyTree removes the tree at root when it holds no rock. A tree that
+// cannot be read or cannot be removed is left as it is: the error of the
+// command says what matters, that the rock is not installed.
+func removeEmptyTree(ctx context.Context, root string) {
+	view, err := tree.Inspect(ctx, root)
+	if err != nil || len(view.Rocks()) > 0 {
+		return
+	}
+
+	_ = os.RemoveAll(root)
 }
 
 // emptySrcRock reports whether the installed rock ref is the rock of a tt

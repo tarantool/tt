@@ -447,9 +447,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   and `doc/`: LuaRocks builds nothing of a rockspec of build type `none`, so
   a platform with no binary rock got a rock with no module, which satisfied
   the dependencies on it. A `tt rocks` command that installs such a rock now
-  removes it again and fails, saying to install the binary rock of the
+  removes it again and fails, saying that the rock is not installed,
+  whatever LuaRocks printed before, and to install the binary rock of the
   platform or to depend on the rock with `tt package build`, which builds
-  the source rock with its manifest.
+  the source rock with its manifest. A tree the command made, left with no
+  rock, is removed with its manifest and lock file.
 - `tt package resolve` and `tt package update` that move no version but
   rewrite the lock say what they rewrote - the manifest hash refreshed, a
   `path` dependency re-pinned for files that changed, the digests of the
