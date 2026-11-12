@@ -89,7 +89,6 @@ metrics = '>=1.0.0'
 
 	got := findDep(t, lock.Products["default"].Dependencies, "metrics")
 	assert.Equal(t, "1.0.0-1", got.Version)
-	assert.Equal(t, "md5:aaa", got.Checksum, "the checksum must follow the pinned version")
 }
 
 // TestPinViolatingConstraintsIsDropped covers the manifest moving out from

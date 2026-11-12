@@ -86,15 +86,13 @@ through its manifests. From such a server:
 
 - resolving reads the rockspec of a version, checked against its sha256,
   and downloads no rock;
-- the lock pins the sha256 of every file of the version, under `artifacts`,
-  next to the `checksum` of its source:
+- the lock pins the sha256 of every file of the version, under `artifacts`:
 
   ```toml
   [[lock.products.default.dependencies]]
   name = 'emmylua'
   version = '0.30.0pre1-1'
   source = 'registry'
-  checksum = 'md5:…'
   artifacts = {linux-x86_64 = 'sha256:…', macosx-aarch64 = 'sha256:…', rockspec = 'sha256:…'}
   ```
 

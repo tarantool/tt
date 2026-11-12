@@ -324,6 +324,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   it by path out of date. A tag counts on that commit or before it, and the
   tagless `0.0.0-dev.<N>` counts the commits of its history. A package at
   the root of its repository is versioned as before.
+- `app.manifest.lock` no longer records `checksum = 'md5:…'`, the md5 a
+  rockspec gives for its source, and resolving no longer warns
+  `registry gave no md5 for …; reproducibility is not guaranteed`. Nothing
+  ever checked the md5, a rock with a git source has none, as most rocks of
+  rocks.tarantool.org and every rock `tt package pack --format rock` writes,
+  and with one the lock pinned nothing an install checks either: the files
+  of a rock are pinned by the sha256 a rock index lists, under `artifacts`.
+  A lock an older tt wrote reads as before, its `checksum` keys ignored and
+  dropped when the lock is written again.
 
 ### Fixed
 

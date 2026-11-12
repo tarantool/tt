@@ -36,7 +36,8 @@ func TestGoldenLock(t *testing.T) {
 	t.Parallel()
 
 	// metrics comes from a server with a tt-rocks-index.json, which lists the
-	// digest of every file; checks from a classic one, which lists none.
+	// digest of every file; checks from a classic one, which lists none. Both
+	// rockspecs give the md5 of their source, which the lock does not record.
 	fake := newFakeAdapter().
 		add("metrics", "1.5.0-1", "d41d8cd98f00b204e9800998ecf8427e", dep(t, "checks", ">=3.0")).
 		withArtifacts("metrics", "1.5.0-1",

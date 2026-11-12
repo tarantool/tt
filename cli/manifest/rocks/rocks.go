@@ -2,8 +2,8 @@
 // engine (github.com/tarantool/go-luarocks). It builds a luarocks.Config
 // from the tt environment and the manifest platform, hands out a client
 // factory, and wraps the primitives the resolver, build and registry layers
-// compose: ordered multi-server resolve, rock metadata and source checksum,
-// source fetch, and registry search/download. It also re-exports the
+// compose: ordered multi-server resolve, rock metadata, source fetch, and
+// registry search/download. It also re-exports the
 // compile/link flag derivation so the manifest c / lua-c build backends share
 // one source of per-OS flags with the rock builtin backend.
 //

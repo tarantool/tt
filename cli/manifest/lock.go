@@ -56,7 +56,6 @@ type LockDependency struct {
 	Name        string `toml:"name"`
 	Version     string `toml:"version"`                // Exact version.
 	Source      string `toml:"source"`                 // Registry or path.
-	Checksum    string `toml:"checksum,omitempty"`     // Registry: "md5:..." or "sha256:...".
 	Path        string `toml:"path,omitempty"`         // Path source.
 	ContentHash string `toml:"content_hash,omitempty"` // Path: sha256 of contents.
 

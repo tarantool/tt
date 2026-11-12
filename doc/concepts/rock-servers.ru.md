@@ -90,15 +90,13 @@ tt читает индекс раньше любого манифеста, и с
 
 - разрешение зависимостей читает rockspec версии, проверив его sha256, и не
   скачивает ни одного rock-модуля;
-- локфайл фиксирует sha256 всех файлов версии в поле `artifacts`, рядом с
-  `checksum` её исходников:
+- локфайл фиксирует sha256 всех файлов версии в поле `artifacts`:
 
   ```toml
   [[lock.products.default.dependencies]]
   name = 'emmylua'
   version = '0.30.0pre1-1'
   source = 'registry'
-  checksum = 'md5:…'
   artifacts = {linux-x86_64 = 'sha256:…', macosx-aarch64 = 'sha256:…', rockspec = 'sha256:…'}
   ```
 

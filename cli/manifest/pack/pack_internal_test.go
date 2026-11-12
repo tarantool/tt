@@ -73,7 +73,7 @@ func TestLockWithBundledPreservesClosure(t *testing.T) {
 		ManifestVersion: manifest.ManifestVersion,
 		Products: map[string]manifest.LockProduct{
 			"default": {Dependencies: []manifest.LockDependency{
-				{Name: "inspect", Version: "3.1.3", Source: "registry", Checksum: "md5:abc"},
+				{Name: "inspect", Version: "3.1.3", Source: "registry"},
 			}},
 		},
 	}

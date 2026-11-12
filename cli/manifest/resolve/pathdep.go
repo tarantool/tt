@@ -20,7 +20,7 @@ import (
 // reads the version and transitive dependencies from the manifest the
 // directory holds (resolvePathManifest) or, failing that, from the rockspec it
 // ships. A path dependency is pinned by path and content hash rather than by
-// registry version and checksum.
+// registry version and the digests of its files.
 func (w *walker) resolvePath(req depReq) (*resolvedDep, []depReq, error) {
 	dir := manifest.PathFrom(w.engine.projectDir, req.path)
 
@@ -70,7 +70,6 @@ func (w *walker) resolvePath(req depReq) (*resolvedDep, []depReq, error) {
 			Name:        req.name,
 			Version:     version.Raw,
 			Source:      manifestSourcePath,
-			Checksum:    "",
 			Path:        req.path,
 			ContentHash: hash,
 		},
@@ -121,7 +120,6 @@ func (w *walker) resolvePathManifest(
 			Name:        req.name,
 			Version:     neighbour.rockVersion,
 			Source:      manifestSourcePath,
-			Checksum:    "",
 			Path:        req.path,
 			ContentHash: hash,
 		},

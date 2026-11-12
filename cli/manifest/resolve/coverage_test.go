@@ -37,7 +37,6 @@ registry = 'https://custom'
 	// custom registry's 2.0.0-1.
 	got := findDep(t, lock.Products["default"].Dependencies, "metrics")
 	assert.Equal(t, "2.0.0-1", got.Version)
-	assert.Equal(t, "md5:custom", got.Checksum)
 }
 
 // TestPathDependencyTransitiveResolves checks that a path dependency's local
@@ -139,13 +138,15 @@ components = ['c2']
 // TestMetadataCacheIsRegistryDistinct guards against sharing a rockspec across
 // products when the same name and version resolve from different servers: the
 // metadata cache is keyed by artifact URL, so a per-registry override gets its
-// own server's checksum, not another product's.
+// own server's dependencies, not another product's.
 func TestMetadataCacheIsRegistryDistinct(t *testing.T) {
 	t.Parallel()
 
 	fake := newFakeAdapter().
-		add("foo", "1.0.0-1", "default-md5").
-		addScoped("https://custom", "foo", "1.0.0-1", "custom-md5")
+		add("foo", "1.0.0-1", "", dep(t, "bar", ">=1.0")).
+		addScoped("https://custom", "foo", "1.0.0-1", "", dep(t, "baz", ">=1.0")).
+		add("bar", "1.0.0-1", "").
+		add("baz", "1.0.0-1", "")
 
 	man := parseManifest(t, `manifest_version = '0.1'
 [package]
@@ -175,10 +176,10 @@ components = ['c2']
 	lock, _, err := engine.Resolve(context.Background(), man)
 	require.NoError(t, err)
 
-	// Same name and version, but each product's checksum comes from its own
+	// Same name and version, but each product's dependencies come from its own
 	// server's rockspec - the cache must not share one across the two.
-	assert.Equal(t, "md5:default-md5", findDep(t, lock.Products["p1"].Dependencies, "foo").Checksum)
-	assert.Equal(t, "md5:custom-md5", findDep(t, lock.Products["p2"].Dependencies, "foo").Checksum)
+	assert.Equal(t, []string{"bar", "foo"}, depNames(lock.Products["p1"].Dependencies))
+	assert.Equal(t, []string{"baz", "foo"}, depNames(lock.Products["p2"].Dependencies))
 }
 
 // TestDeclarationConflictWithoutRegistry checks that a global-vs-component

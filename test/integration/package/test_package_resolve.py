@@ -377,8 +377,8 @@ INDEX_MODULE = b"\x7fELF not a module: tt packs and installs it, and nothing loa
 # The platforms the index serves the wasm rock for.
 INDEX_ARCHES = ("linux-aarch64", "linux-x86_64", "macosx-aarch64")
 
-# The md5 of the source the rockspec tt writes for wasm 0.1.0 names: the
-# checksum the lock records next to the artifacts.
+# The md5 of the source the rockspec tt writes for wasm 0.1.0 names, which the
+# lock does not record.
 WASM_SOURCE_MD5 = "md5:f986e42dd8d430110c06e9fb2963209b"
 
 
@@ -469,8 +469,8 @@ def installed_wasm(root: Path) -> Path:
 
 def test_resolve_pins_the_files_a_rock_index_lists(tree, run_tt, rock_index):
     """The lock of a rock from an index server pins the sha256 of the file of
-    every platform and of the rockspec, next to the md5 of the source, and a
-    fetch installs the rock it pins."""
+    every platform and of the rockspec, and nothing of the md5 of the source,
+    and a fetch installs the rock it pins."""
     host_arch()
     server, digests = rock_index
     root = tree.root
@@ -481,7 +481,7 @@ def test_resolve_pins_the_files_a_rock_index_lists(tree, run_tt, rock_index):
 
     entry = locked_entry(root, "wasm")
     assert entry["version"] == "0.1.0-1"
-    assert entry["checksum"] == WASM_SOURCE_MD5
+    assert "checksum" not in entry
     assert entry["artifacts"] == {
         arch: f"sha256:{digest}" for arch, digest in digests["0.1.0-1"].items()
     }

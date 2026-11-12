@@ -27,7 +27,6 @@ func TestLockRoundTrip(t *testing.T) {
 					Name:        "luasocket",
 					Version:     "3.0.4",
 					Source:      "registry",
-					Checksum:    "md5:deadbeef",
 					Path:        "",
 					ContentHash: "",
 				},
@@ -35,7 +34,6 @@ func TestLockRoundTrip(t *testing.T) {
 					Name:        "local-helper",
 					Version:     "0.1.0",
 					Source:      "path",
-					Checksum:    "",
 					Path:        "../helper",
 					ContentHash: "sha256:cafe",
 				},
@@ -45,7 +43,6 @@ func TestLockRoundTrip(t *testing.T) {
 					Name:        "luasocket",
 					Version:     "3.0.4",
 					Source:      "registry",
-					Checksum:    "md5:deadbeef",
 					Path:        "",
 					ContentHash: "",
 				},
@@ -87,10 +84,9 @@ func TestLockDevDependenciesRoundTrip(t *testing.T) {
 		},
 		DevDependencies: []manifest.LockDependency{
 			{
-				Name:     "luatest",
-				Version:  "1.0.1-1",
-				Source:   "registry",
-				Checksum: "md5:deadbeef",
+				Name:    "luatest",
+				Version: "1.0.1-1",
+				Source:  "registry",
 			},
 			{
 				Name:        "dev-helper",
@@ -187,7 +183,6 @@ func TestLockArtifactsInline(t *testing.T) {
 			"default": {Dependencies: []manifest.LockDependency{
 				{
 					Name: "emmylua", Version: "0.30.0pre1-1", Source: "registry",
-					Checksum: "md5:00",
 					Artifacts: map[string]string{
 						"rockspec":       manifest.ArtifactDigest(spec),
 						"macosx-aarch64": manifest.ArtifactDigest(arm),
@@ -246,6 +241,36 @@ func TestLockArtifactPinsRefuseAMalformedDigest(t *testing.T) {
 		assert.Equal(t, "artifacts.linux-x86_64", invalid.Field)
 		assert.Contains(t, err.Error(), "lock entry emmylua 0.30.0pre1-1")
 	}
+}
+
+// TestLockIgnoresTheChecksumOfAnOlderTt pins that a lock an older tt wrote,
+// with the md5 of the source of a rock under checksum, reads as before and
+// loses the key when it is written again: nothing ever checked it.
+func TestLockIgnoresTheChecksumOfAnOlderTt(t *testing.T) {
+	t.Parallel()
+
+	lock, err := manifest.ParseLock([]byte(`lock_version = '0.1'
+manifest_version = '0.1'
+generated_by = 'tt 3.0.0-alpha.2'
+manifest_hash = 'sha256:abc123'
+
+[lock]
+[lock.products]
+[lock.products.default]
+[[lock.products.default.dependencies]]
+name = 'checks'
+version = '3.4.1-1'
+source = 'registry'
+checksum = 'md5:0cc175b9c0f1b6a831c399e269772661'
+`))
+	require.NoError(t, err)
+	assert.Equal(t, []manifest.LockDependency{
+		{Name: "checks", Version: "3.4.1-1", Source: "registry"},
+	}, lock.Products["default"].Dependencies)
+
+	out, err := lock.Marshal()
+	require.NoError(t, err)
+	assert.NotContains(t, string(out), "checksum")
 }
 
 func TestLockNewerMajorRefused(t *testing.T) {

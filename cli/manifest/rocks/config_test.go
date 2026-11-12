@@ -1,7 +1,6 @@
 package rocks_test
 
 import (
-	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -12,7 +11,6 @@ import (
 	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/go-luarocks/build"
 	"github.com/tarantool/go-luarocks/client"
-	"github.com/tarantool/go-luarocks/rockspec"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
@@ -187,47 +185,4 @@ func TestFlagsLuaBinDirFallsBackToPrefix(t *testing.T) {
 	}))
 
 	assert.Equal(t, filepath.Join("/usr", "bin"), adapter.Flags().LuaBinDir)
-}
-
-func TestChecksum(t *testing.T) {
-	t.Parallel()
-
-	const md5 = "d41d8cd98f00b204e9800998ecf8427e"
-
-	withMD5 := evalRockspec(t, `package = "x"
-version = "1.0-1"
-source = { url = "https://example.com/x-1.0.tar.gz", md5 = "`+md5+`" }
-`)
-
-	got, ok := rocks.Checksum(withMD5)
-	assert.True(t, ok)
-	assert.Equal(t, "md5:"+md5, got)
-
-	withoutMD5 := evalRockspec(t, `package = "x"
-version = "1.0-1"
-source = { url = "https://example.com/x-1.0.tar.gz" }
-`)
-
-	got, ok = rocks.Checksum(withoutMD5)
-	assert.False(t, ok)
-	assert.Empty(t, got)
-
-	// A nil spec carries no checksum.
-	got, ok = rocks.Checksum(nil)
-	assert.False(t, ok)
-	assert.Empty(t, got)
-}
-
-// evalRockspec writes body to a temp .rockspec and evaluates it into a typed
-// rockspec, failing the test on error.
-func evalRockspec(t *testing.T, body string) *luarocks.Rockspec {
-	t.Helper()
-
-	path := filepath.Join(t.TempDir(), "x-1.0-1.rockspec")
-	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
-
-	spec, err := rockspec.Eval(path, luarocks.RockspecConfig{})
-	require.NoError(t, err)
-
-	return spec
 }
