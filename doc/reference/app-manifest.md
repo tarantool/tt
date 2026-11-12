@@ -284,6 +284,11 @@ last build is in `_build/cache/<component>.json`, and `--rebuild` of
 put the programs of the project, comes first on the `PATH` of a build and of
 a hook: a `command` names such a program without `.env/activate.sh` sourced.
 
+`tt -V package build` logs every command a build or a hook runs, and the
+directory it runs in, before running it, and shows what the command
+prints; without `-V` that is shown, with the command, when the command
+fails.
+
 ## `[products.NAME]`
 
 | Field | |
