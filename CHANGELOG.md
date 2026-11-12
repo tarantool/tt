@@ -434,6 +434,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt package build` and `tt package fetch` install a registry dependency
+  whose servers have no rock of the platform but a LuaRocks source rock, one
+  of no `app.manifest.toml`, as before tt built tt packages from their source
+  rocks: LuaRocks builds it by its rockspec. The build failed with `the
+  source rock holds no app.manifest.toml: tt builds the source rocks of tt
+  packages only`.
 - `tt rocks pack <rock>` and `--pack-binary-rock` on a system with no `zip`
   in `PATH` failed with LuaRocks' `Failed packing <rock>` and no reason:
   LuaRocks packs the rock with `zip`, and drops the error that says it is

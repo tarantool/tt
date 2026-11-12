@@ -79,6 +79,8 @@ type srcRocks struct {
 // servers, the ones the rock is installed from, if it is one to build so
 // (needsSrcRock), and reports whether it did. A rock it built and installed at
 // that version before is left as it is: a version of a release never changes.
+// A source rock of no tt package is left to install, which LuaRocks builds by
+// its rockspec.
 func (s *srcRocks) install(
 	ctx context.Context, dep manifest.LockDependency, servers []string,
 ) (bool, error) {
@@ -96,12 +98,24 @@ func (s *srcRocks) install(
 		return true, nil
 	}
 
+	// plain marks a version whose source rock holds no tt package.
+	plain := filepath.Join(s.dir, dep.Name+"-"+dep.Version+".luarocks")
+	if fileExists(plain) {
+		return false, nil
+	}
+
 	err = mkdir(s.dir)
 	if err != nil {
 		return false, err
 	}
 
 	dir, err := fetchSrcRock(ctx, s.fetcher, dep, s.dir, servers)
+	if errors.Is(err, errSrcRockPackage) {
+		// The source rock of a LuaRocks module: its rockspec builds it, as
+		// install builds it.
+		return false, s.leaveToLuaRocks(dep, plain)
+	}
+
 	if err != nil {
 		return false, sdk.Errorf(sdk.ExitFailure, "%w", err)
 	}
@@ -134,6 +148,25 @@ func (s *srcRocks) install(
 	}
 
 	return true, nil
+}
+
+// leaveToLuaRocks drops the unpacked source rock of dep, which holds no tt
+// package, and writes plain, so the builds to come download it no more: a
+// version of a release never changes.
+func (s *srcRocks) leaveToLuaRocks(dep manifest.LockDependency, plain string) error {
+	unpacked := filepath.Join(s.dir, dep.Name+"-"+dep.Version)
+
+	err := os.RemoveAll(unpacked)
+	if err != nil {
+		return fmt.Errorf("clearing %s: %w", unpacked, err)
+	}
+
+	err = os.WriteFile(plain, nil, srcRockFileMode)
+	if err != nil {
+		return fmt.Errorf("writing %s: %w", plain, err)
+	}
+
+	return nil
 }
 
 // srcInstaller installs registry rocks as installer does, but those srcs
@@ -299,8 +332,7 @@ func srcRockPackage(dir string, dep manifest.LockDependency) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("%s %s: %w: tt builds the source rocks of tt packages only",
-		dep.Name, dep.Version, errSrcRockPackage)
+	return "", fmt.Errorf("%s %s: %w", dep.Name, dep.Version, errSrcRockPackage)
 }
 
 // fileExists reports whether path is a regular file.
