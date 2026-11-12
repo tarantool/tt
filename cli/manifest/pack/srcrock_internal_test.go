@@ -288,22 +288,31 @@ func TestSrcRockInstallsTheLicenseFiles(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, leftovers)
 
-	installDir := func(consumer string) string {
-		return filepath.Join(consumer, rocksDirName, "share", "tarantool", "rocks", "mylib",
-			"1.2.0-1")
-	}
-
-	docs := dirFiles(t, filepath.Join(installDir(fromBinary), rocktree.StageDoc))
 	assert.Equal(t, map[string]string{
 		"LICENSE":              "BSD-2-Clause text\n",
 		"licenses/vendored.md": "the license of a vendored file\n",
-	}, docs)
-	assert.Equal(t, docs, dirFiles(t, filepath.Join(installDir(fromSource), rocktree.StageDoc)))
+	}, assertInstalledAlike(t, fromBinary, fromSource, "1.2.0-1"))
+}
+
+// assertInstalledAlike asserts that the consumers want and got hold mylib at
+// version with the same files in its install dir, the same doc/, and the
+// same doc, lib and bin sections of its rock_manifest, and returns the files
+// of its doc/ in want.
+func assertInstalledAlike(t *testing.T, want, got, version string) map[string]string {
+	t.Helper()
+
+	installDir := func(consumer string) string {
+		return filepath.Join(consumer, rocksDirName, "share", "tarantool", "rocks", "mylib",
+			version)
+	}
+
+	docs := dirFiles(t, filepath.Join(installDir(want), rocktree.StageDoc))
+	assert.Equal(t, docs, dirFiles(t, filepath.Join(installDir(got), rocktree.StageDoc)))
 
 	names := func(consumer string) []string {
 		return sortedKeys(dirFiles(t, installDir(consumer)))
 	}
-	assert.Equal(t, names(fromBinary), names(fromSource))
+	assert.Equal(t, names(want), names(got))
 
 	rockManifest := func(consumer string) *luarocks.RockManifest {
 		rm, err := manif.FileStore{}.ReadRock(filepath.Join(installDir(consumer), "rock_manifest"))
@@ -312,10 +321,85 @@ func TestSrcRockInstallsTheLicenseFiles(t *testing.T) {
 		return rm
 	}
 
-	assert.Len(t, rockManifest(fromBinary).Doc, 2)
-	assert.Equal(t, rockManifest(fromBinary).Doc, rockManifest(fromSource).Doc)
-	assert.Equal(t, rockManifest(fromBinary).Lib, rockManifest(fromSource).Lib)
-	assert.Equal(t, rockManifest(fromBinary).Bin, rockManifest(fromSource).Bin)
+	assert.Len(t, rockManifest(want).Doc, len(docs))
+	assert.Equal(t, rockManifest(want).Doc, rockManifest(got).Doc)
+	assert.Equal(t, rockManifest(want).Lib, rockManifest(got).Lib)
+	assert.Equal(t, rockManifest(want).Bin, rockManifest(got).Bin)
+
+	return docs
+}
+
+// TestPathDependencyInstallsTheLicenseFiles: a path dependency holding a
+// manifest has the license files of its package in doc/ of its install dir,
+// as the binary rock of the package has them, a license file that is a
+// symlink to that of its monorepo the file it leads to.
+func TestPathDependencyInstallsTheLicenseFiles(t *testing.T) {
+	t.Parallel()
+
+	base := t.TempDir()
+	repo := filepath.Join(base, "repo")
+	lib := filepath.Join(repo, "mylib")
+
+	writeTree(t, repo, map[string]string{"COPYING": "BSD-2-Clause text\n"})
+	writeTree(t, lib, map[string]string{
+		manifestFileName: strings.Replace(libraryManifest, "license = 'BSD-2-Clause'\n",
+			"license = 'BSD-2-Clause'\nlicense_files = ['LICENSE', 'licenses']\n", 1),
+		versionFileName:        "1.0.0\n",
+		"mylib/init.lua":       "return {}\n",
+		"roles/mylib.lua":      "return {}\n",
+		"licenses/vendored.md": "the license of a vendored file\n",
+	})
+	require.NoError(t, os.Symlink(filepath.Join("..", "COPYING"), filepath.Join(lib, "LICENSE")))
+
+	server := filepath.Join(base, "server")
+
+	_, err := Run(context.Background(), packOptions(lib, server, FormatRock))
+	require.NoError(t, err)
+
+	fromBinary := buildConsumer(t, server)
+
+	fromPath := filepath.Join(base, "consumer")
+	writeTree(t, fromPath, map[string]string{
+		manifestFileName: `manifest_version = '0.1'
+
+[package]
+name = 'consumer'
+
+[platform]
+tarantool = '>=3.0.0'
+tt = '>=3.1.0'
+
+[dependencies]
+mylib = { source = 'path', path = '../repo/mylib' }
+
+[components.app]
+path = '.'
+include = ['init.lua']
+`,
+		versionFileName: "0.1.0\n",
+		"init.lua":      "return require('mylib')\n",
+	})
+
+	require.NoError(t, build.Run(context.Background(), build.Options{
+		ProjectDir: fromPath,
+		TtVersion:  "tt test",
+		Tarantool:  rocks.TarantoolInfo{Prefix: "/nonexistent", Version: "3.0.0"},
+	}))
+
+	assert.Equal(t, map[string]string{
+		"LICENSE":              "BSD-2-Clause text\n",
+		"licenses/vendored.md": "the license of a vendored file\n",
+	}, assertInstalledAlike(t, fromBinary, fromPath, "1.0.0-1"))
+
+	// The neighbour's directory is left as it was: no doc/, no _build/.
+	assert.NoDirExists(t, filepath.Join(lib, rocktree.StageDoc))
+	assert.NoDirExists(t, filepath.Join(lib, buildDirName, "path"))
+
+	state := filepath.Join(fromPath, buildDirName, "path", "mylib")
+
+	leftovers, err := filepath.Glob(filepath.Join(state, "rock-*"))
+	require.NoError(t, err)
+	assert.Empty(t, leftovers)
 }
 
 // dirFiles reads the files of the tree at dir by slash path relative to it.

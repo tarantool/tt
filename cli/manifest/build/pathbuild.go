@@ -2,7 +2,9 @@ package build
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -18,6 +20,10 @@ import (
 // pathDirName is the directory of _build/ the path dependencies holding a
 // manifest are built in, one directory per dependency.
 const pathDirName = "path"
+
+// errLicenseEntry reports a license_files entry of the package another
+// project builds that names no file of the package.
+var errLicenseEntry = errors.New("the entry leads out of the package")
 
 // manifestBuilder builds a path dependency whose directory holds
 // app.manifest.toml (resolve.PathManifest) and installs it into the rocks
@@ -105,7 +111,6 @@ func (p pathManifests) buildPathManifest(ctx context.Context, dep manifest.LockD
 		what:      "path dependency",
 		stale:     "run tt package resolve to bring the lock back in step",
 		warnHooks: false,
-		docs:      false,
 	})
 }
 
@@ -129,16 +134,14 @@ type manifestBuild struct {
 	// reads its manifest (resolve.PathManifest.Warnings), rather than every
 	// build; a source rock is not resolved from its manifest.
 	warnHooks bool
-	// docs has the license files of the package installed in doc/ of its
-	// rock, as tt package pack puts them into the binary rock of a release
-	// (srcRockDocs): the rock built from the source rock of a release is to
-	// be the one its binary rock installs.
-	docs bool
 }
 
 // buildManifest builds the package of build and installs it into the
 // consumer's tree as the rock of the dependency, at the version the lock
-// pins, which the package has to be at.
+// pins, which the package has to be at, with its license files in doc/ of the
+// rock (licenseDocs), as tt package pack puts them into its binary rock: the
+// rock is the one its release installs, and a .tt archive of the consumer
+// carries the license of what it ships.
 func (p pathManifests) buildManifest(ctx context.Context, build manifestBuild) error {
 	dep := build.dep
 
@@ -188,11 +191,11 @@ func (p pathManifests) buildManifest(ctx context.Context, build manifestBuild) e
 
 	files := stage
 
-	if build.docs && len(man.Package.LicenseFiles) > 0 {
+	if len(man.Package.LicenseFiles) > 0 {
 		var cleanup func()
 
 		files, cleanup, err = rocktree.WithDocs(build.state, stage, func(doc string) error {
-			return p.srcRockDocs(build, man.Package.LicenseFiles, doc)
+			return p.licenseDocs(build, man.Package.LicenseFiles, doc)
 		})
 		if err != nil {
 			return fmt.Errorf("%s %q: %w", build.what, dep.Name, err)
@@ -208,6 +211,37 @@ func (p pathManifests) buildManifest(ctx context.Context, build manifestBuild) e
 		Summary:      man.Package.Description,
 		Dependencies: rocktree.PackageDependencies(man, neighbour.Product, p.pinned),
 	}, files)
+}
+
+// licenseDocs copies the license files of the package of build, the entries
+// of its license_files, into doc, each at its path in the package, as
+// tt package pack copies them into doc/ of its binary rock
+// (rocktree.CopyEntry). An entry leading out of the package fails it. One
+// the package does not hold is a warning, and the rock is installed without
+// it: the consumer cannot mend the package, a source rock from a server
+// least of all.
+func (p pathManifests) licenseDocs(build manifestBuild, entries []string, doc string) error {
+	for _, entry := range entries {
+		clean := filepath.Clean(entry)
+		if clean == "." || !filepath.IsLocal(clean) {
+			return sdk.Errorf(sdk.ExitFailure, "license_files entry %q: %w",
+				entry, errLicenseEntry)
+		}
+
+		err := rocktree.CopyEntry(build.dir, clean, doc)
+		if errors.Is(err, fs.ErrNotExist) {
+			p.opts.emit([]string{fmt.Sprintf("%s %q has no %s, a license file of its "+
+				"manifest; the rock is installed without it", build.what, build.dep.Name, entry)})
+
+			continue
+		}
+
+		if err != nil {
+			return fmt.Errorf("license_files entry %q: %w", entry, err)
+		}
+	}
+
+	return nil
 }
 
 // addPathManifests adds to servers the registries the path dependencies of
