@@ -47,10 +47,6 @@ const (
 	// stageLib is the directory of the stage of the product its native
 	// modules are in (rocktree.StageLib).
 	stageLib = "lib"
-	// rockDocDir is the directory of a binary rock the license files of the
-	// package go to, unpacked into the install dir of the rock with the rest
-	// of its documents.
-	rockDocDir = "doc"
 	// sourcePath is the source of a path dependency (manifest.Dependency).
 	sourcePath = "path"
 	// tarantoolRock is the name a rockspec depends on Tarantool by.
@@ -301,93 +297,26 @@ func packBinaryRock(
 
 // rockFiles lays out the files of the binary rock in a directory and returns
 // it, with the cleanup that removes it: the stage of the product, and the
-// license files of the package in doc/, each at its path in the project, where
-// LuaRocks keeps the documents of a rock - a project installing the rock has
-// them in the install dir of the rock, as it has those of the rocks LuaRocks
-// builds. doc/ is no directory of the stage, which holds lua/, lib/ and bin/
-// alone, so it changes nothing of what the rock deploys, nor its arch.
-//
-// The license files are not the build's, so they do not go into the stage: the
-// build removes from it what no component owns, and a later build or install
-// of the stage would carry what it does not remove. The stage is copied
-// instead into a directory of its own under temp, the license files beside it.
-// A package with no license files is packed from its stage as it is.
+// license files of the package in doc/ (rocktree.StageDoc), each at its path
+// in the project, where LuaRocks keeps the documents of a rock - a project
+// installing the rock has them in the install dir of the rock, as it has
+// those of the rocks LuaRocks builds. The stage is copied into a directory of
+// its own under temp for them (rocktree.WithDocs); a package with no license
+// files is packed from its stage as it is.
 func rockFiles(temp, stage, projectDir string, licenseFiles []string) (string, func(), error) {
 	if len(licenseFiles) == 0 {
 		return stage, func() {}, nil
 	}
 
-	dir, err := os.MkdirTemp(temp, "rock-")
-	if err != nil {
-		return "", nil, fmt.Errorf("creating the tree of the rock: %w", err)
-	}
-
-	cleanup := func() { _ = os.RemoveAll(dir) }
-
-	err = mirrorTree(stage, dir)
-	if err != nil {
-		cleanup()
-
-		return "", nil, fmt.Errorf("copying the stage of the rock: %w", err)
-	}
-
-	for _, entry := range licenseFiles {
-		err = stageEntry(filepath.Join(dir, rockDocDir), projectDir, entry, "license_files")
-		if err != nil {
-			cleanup()
-
-			return "", nil, err
-		}
-	}
-
-	return dir, cleanup, nil
-}
-
-// mirrorTree copies the tree src into the directory dst as PackStaged reads
-// it: a file with the permission bits it has, which the rock records for a
-// program, and a symlink as the link it is, which PackStaged refuses when it
-// leads out of the tree. A missing src is an empty tree, and what is neither
-// a file, a directory nor a symlink is left out.
-func mirrorTree(src, dst string) error {
-	_, err := os.Lstat(src)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil
-	}
-
-	//nolint:wrapcheck // Every error the walk yields already names the entry it failed on.
-	return filepath.WalkDir(src, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		rel, err := filepath.Rel(src, path)
-		if err != nil {
-			return fmt.Errorf("copying %s: %w", path, err)
-		}
-
-		target := filepath.Join(dst, rel)
-
-		switch {
-		case entry.IsDir():
-			return os.MkdirAll(target, dirPerm)
-		case entry.Type()&fs.ModeSymlink != 0:
-			link, err := os.Readlink(path)
+	return rocktree.WithDocs(temp, stage, func(doc string) error {
+		for _, entry := range licenseFiles {
+			err := stageEntry(doc, projectDir, entry, "license_files")
 			if err != nil {
 				return err
 			}
-
-			//nolint:gosec // dst is a fresh directory of the pack, src the stage of the build.
-			return os.Symlink(link, target)
-		case entry.Type().IsRegular():
-			info, err := entry.Info()
-			if err != nil {
-				return fmt.Errorf("copying %s: %w", path, err)
-			}
-
-			return copyFileAs(path, target, info.Mode().Perm())
-		default:
-			return nil
 		}
+
+		return nil
 	})
 }
 

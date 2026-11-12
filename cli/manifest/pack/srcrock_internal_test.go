@@ -4,6 +4,8 @@ import (
 	"archive/zip"
 	"context"
 	"fmt"
+	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,8 +14,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	luarocks "github.com/tarantool/go-luarocks"
+	"github.com/tarantool/go-luarocks/manif"
+
 	"github.com/tarantool/tt/v3/cli/manifest/build"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
+	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
 )
 
 // writeGitLibrary writes the project of libraryManifest as a git repository
@@ -22,14 +28,25 @@ import (
 func writeGitLibrary(t *testing.T) string {
 	t.Helper()
 
-	src := t.TempDir()
-	writeTree(t, src, map[string]string{
+	return writeGitPackage(t, nil)
+}
+
+// writeGitPackage is writeGitLibrary with files, by path, written over those
+// of the library before the commit.
+func writeGitPackage(t *testing.T, files map[string]string) string {
+	t.Helper()
+
+	project := map[string]string{
 		manifestFileName:  libraryManifest,
 		".gitignore":      "/_build/\n/.rocks/\n/_out/\n/app.manifest.lock\n*.o\n",
 		"mylib/init.lua":  "return {}\n",
 		"roles/mylib.lua": "return {}\n",
 		"tools/gen.sh":    "#!/bin/sh\n",
-	})
+	}
+	maps.Copy(project, files)
+
+	src := t.TempDir()
+	writeTree(t, src, project)
 	require.NoError(t, os.Chmod(filepath.Join(src, "tools", "gen.sh"), 0o755))
 
 	git(t, src, "init", "-q")
@@ -234,6 +251,97 @@ include = ['init.lua']
 
 	assert.NoDirExists(t, unpacked)
 	assert.FileExists(t, filepath.Join(share, "mylib", "init.lua"))
+}
+
+// TestSrcRockInstallsTheLicenseFiles: a rock built from its source rock has
+// the license files of the package in doc/ of its install dir, as the binary
+// rock of the release has them: the same files, and the same doc section of
+// the rock_manifest. They are laid out apart from the stage of the build.
+func TestSrcRockInstallsTheLicenseFiles(t *testing.T) {
+	t.Parallel()
+
+	src := writeGitPackage(t, map[string]string{
+		manifestFileName: strings.Replace(libraryManifest, "license = 'BSD-2-Clause'\n",
+			"license = 'BSD-2-Clause'\nlicense_files = ['LICENSE', 'licenses']\n", 1),
+		"LICENSE":              "BSD-2-Clause text\n",
+		"licenses/vendored.md": "the license of a vendored file\n",
+	})
+
+	binary := filepath.Join(t.TempDir(), "binary")
+	source := filepath.Join(t.TempDir(), "source")
+
+	_, err := Run(context.Background(), packOptions(src, binary, FormatRock))
+	require.NoError(t, err)
+
+	_, err = Run(context.Background(), packOptions(src, source, FormatRockSrc))
+	require.NoError(t, err)
+
+	fromBinary := buildConsumer(t, binary)
+	fromSource := buildConsumer(t, source)
+
+	// The consumer of the source server built the rock from the source rock.
+	built := filepath.Join(fromSource, buildDirName, "src", "mylib")
+	assert.DirExists(t, filepath.Join(fromSource, buildDirName, "src", "mylib-1.2.0-1"))
+	assert.NoDirExists(t, filepath.Join(built, "rock", "default", rocktree.StageDoc))
+
+	leftovers, err := filepath.Glob(filepath.Join(built, "rock-*"))
+	require.NoError(t, err)
+	assert.Empty(t, leftovers)
+
+	installDir := func(consumer string) string {
+		return filepath.Join(consumer, rocksDirName, "share", "tarantool", "rocks", "mylib",
+			"1.2.0-1")
+	}
+
+	docs := dirFiles(t, filepath.Join(installDir(fromBinary), rocktree.StageDoc))
+	assert.Equal(t, map[string]string{
+		"LICENSE":              "BSD-2-Clause text\n",
+		"licenses/vendored.md": "the license of a vendored file\n",
+	}, docs)
+	assert.Equal(t, docs, dirFiles(t, filepath.Join(installDir(fromSource), rocktree.StageDoc)))
+
+	names := func(consumer string) []string {
+		return sortedKeys(dirFiles(t, installDir(consumer)))
+	}
+	assert.Equal(t, names(fromBinary), names(fromSource))
+
+	rockManifest := func(consumer string) *luarocks.RockManifest {
+		rm, err := manif.FileStore{}.ReadRock(filepath.Join(installDir(consumer), "rock_manifest"))
+		require.NoError(t, err)
+
+		return rm
+	}
+
+	assert.Len(t, rockManifest(fromBinary).Doc, 2)
+	assert.Equal(t, rockManifest(fromBinary).Doc, rockManifest(fromSource).Doc)
+	assert.Equal(t, rockManifest(fromBinary).Lib, rockManifest(fromSource).Lib)
+	assert.Equal(t, rockManifest(fromBinary).Bin, rockManifest(fromSource).Bin)
+}
+
+// dirFiles reads the files of the tree at dir by slash path relative to it.
+func dirFiles(t *testing.T, dir string) map[string]string {
+	t.Helper()
+
+	files := map[string]string{}
+	tree := os.DirFS(dir)
+
+	err := fs.WalkDir(tree, ".", func(path string, entry fs.DirEntry, err error) error {
+		require.NoError(t, err)
+
+		if entry.IsDir() {
+			return nil
+		}
+
+		data, err := fs.ReadFile(tree, path)
+		require.NoError(t, err)
+
+		files[path] = string(data)
+
+		return nil
+	})
+	require.NoError(t, err)
+
+	return files
 }
 
 // zipModes reads the modes of the entries of the zip archive at path.

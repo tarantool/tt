@@ -105,6 +105,7 @@ func (p pathManifests) buildPathManifest(ctx context.Context, dep manifest.LockD
 		what:      "path dependency",
 		stale:     "run tt package resolve to bring the lock back in step",
 		warnHooks: false,
+		docs:      false,
 	})
 }
 
@@ -128,6 +129,11 @@ type manifestBuild struct {
 	// reads its manifest (resolve.PathManifest.Warnings), rather than every
 	// build; a source rock is not resolved from its manifest.
 	warnHooks bool
+	// docs has the license files of the package installed in doc/ of its
+	// rock, as tt package pack puts them into the binary rock of a release
+	// (srcRockDocs): the rock built from the source rock of a release is to
+	// be the one its binary rock installs.
+	docs bool
 }
 
 // buildManifest builds the package of build and installs it into the
@@ -180,13 +186,28 @@ func (p pathManifests) buildManifest(ctx context.Context, build manifestBuild) e
 		return fmt.Errorf("%s %q: %w", build.what, dep.Name, err)
 	}
 
+	files := stage
+
+	if build.docs && len(man.Package.LicenseFiles) > 0 {
+		var cleanup func()
+
+		files, cleanup, err = rocktree.WithDocs(build.state, stage, func(doc string) error {
+			return p.srcRockDocs(build, man.Package.LicenseFiles, doc)
+		})
+		if err != nil {
+			return fmt.Errorf("%s %q: %w", build.what, dep.Name, err)
+		}
+
+		defer cleanup()
+	}
+
 	return installStage(ctx, p.adapter.Config(), rocktree.Package{
 		Name:         dep.Name,
 		Version:      ver.SemVer,
 		Revision:     build.revision,
 		Summary:      man.Package.Description,
 		Dependencies: rocktree.PackageDependencies(man, neighbour.Product, p.pinned),
-	}, stage)
+	}, files)
 }
 
 // addPathManifests adds to servers the registries the path dependencies of

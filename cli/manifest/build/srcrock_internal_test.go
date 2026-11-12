@@ -142,6 +142,44 @@ func TestFetchSrcRock(t *testing.T) {
 	assert.Equal(t, srcRockExecMode, info.Mode().Perm())
 }
 
+// TestSrcRockDocs: the license files of the package of a source rock are
+// copied into doc at their paths in it, a directory whole; one the source
+// rock lacks is a warning, and an entry leading out of the package fails.
+func TestSrcRockDocs(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "licenses"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "LICENSE"), []byte("text\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "licenses", "a.md"), []byte("a\n"), 0o644))
+
+	var warnings []string
+
+	builder := pathManifests{
+		opts:    Options{Warn: func(warning string) { warnings = append(warnings, warning) }},
+		adapter: nil,
+		pinned:  manifest.LockProduct{},
+	}
+	build := manifestBuild{dep: srcDep, dir: dir}
+	doc := filepath.Join(t.TempDir(), "doc")
+
+	err := builder.srcRockDocs(build, []string{"LICENSE", "licenses", "NOTICE"}, doc)
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(filepath.Join(doc, "LICENSE"))
+	require.NoError(t, err)
+	assert.Equal(t, "text\n", string(data))
+	assert.FileExists(t, filepath.Join(doc, "licenses", "a.md"))
+	assert.NoFileExists(t, filepath.Join(doc, "NOTICE"))
+	assert.Equal(t, []string{"the source rock of mylib 1.2.0-1 has no NOTICE, a license file " +
+		"of its manifest; the rock is installed without it"}, warnings)
+
+	for _, entry := range []string{"../LICENSE", "/etc/passwd", "."} {
+		err = builder.srcRockDocs(build, []string{entry}, doc)
+		require.ErrorIs(t, err, errSrcRockLicense, entry)
+	}
+}
+
 // TestFetchSrcRockRefuses: an entry that escapes the directory, and a rock of
 // no tt package, fail.
 func TestFetchSrcRockRefuses(t *testing.T) {
