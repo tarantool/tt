@@ -32,7 +32,21 @@ modules come from their directories through `replace`.
   product released under another, lists, read through go-luarocks'
   `tree.Inspect`, a directory at the top of the library given whole when no
   other rock has a module in it. Read twice, every class of the project was
-  declared twice. `fmt` runs `luafmt`
+  declared twice.
+- `check` and `doc` always run the program on the root of the workspace:
+  EmmyLua takes a path for the workspace itself, and resolves the module
+  names, the relative paths of the configurations and the names in its
+  report from it. A `PATH` narrows the run instead (`analyzer.Narrow`): one
+  more configuration, written for the run into
+  `.tarantool/emmylua/narrow-*/` and removed after it, puts every entry of
+  the root that neither is a `PATH` nor leads to one into `ignoreDir`, as
+  absolute paths, and reads the same entries, but `.rocks/`, `.tarantool/`
+  and `_build/`, as a library: a directory of links to them laid out as in
+  the root, so their modules keep their names, resolve, and are not reported
+  or documented. EmmyLua applies `ignoreDir` to a library only outside it,
+  and the links are not under the ignored paths. `ignoreGlobs` of the
+  project match in the library as in the root; its `ignoreDir` does not
+  reach the links. `fmt` runs `luafmt`
   without it. It passes `--level lua-jit`, the LuaJIT the configuration
   gives the analyzer, unless the arguments after `--` hold `--level` or the
   configuration of luafmt sets `[syntax] level`

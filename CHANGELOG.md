@@ -228,6 +228,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- `tt emmylua check PATH` and `tt emmylua doc PATH` narrow the run to the
+  files under `PATH`, a directory or a file of the project, where `PATH`
+  became EmmyLua's workspace: its modules were named from it, the relative
+  paths of `.emmyrc.json` were taken from it while tt still passed the
+  root's, and a file was reported with no name, so `tt emmylua check kv`
+  reported requires the whole project resolves, and classes twice. EmmyLua
+  now always runs on the root of the project, so the module names, the paths
+  of the configuration and of the report are those of the whole project;
+  the rest of the project is read as a library, so its modules resolve and
+  are neither reported nor documented. Outside every project a `PATH` must
+  be in the current directory, the root there.
 - `tt package pack` bundles the Tarantool, tt and TCM that `tt binary
   install` put into the project, `.tarantool/versions/`, when the runtime
   cache has none that matches `[platform]`: the active installation, else

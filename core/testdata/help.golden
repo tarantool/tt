@@ -3079,12 +3079,20 @@ FLAGS[0m
 Use "tt emmylua <command> --help" for more information about a command.
 
 === tt emmylua check --help
-Run emmylua_check on PATH (default the project) with the configuration tt
-writes, then the project's .luarc.json and .emmyrc.json. The command fails as
-emmylua_check does: when it reports an error, or with --warnings-as-errors a
-warning. --warnings-as-errors, -f/--output-format and --severity go to
-emmylua_check as they are, its other flags, such as --ignore and --output, after
---. Arguments after -- go to the program as they are.
+Run emmylua_check on the project with the configuration tt writes, then the
+project's .luarc.json and .emmyrc.json. The command fails as emmylua_check does:
+when it reports an error, or with --warnings-as-errors a warning.
+--warnings-as-errors, -f/--output-format and --severity go to emmylua_check as
+they are, its other flags, such as --ignore and --output, after --. Arguments
+after -- go to the program as they are.
+
+With no PATH the command checks the whole project. A PATH, a directory or a file
+of the project, narrows what is checked to the files under it, and with more
+than one to the files under any: the rest of the project is read as a library,
+so its modules resolve and are not checked, and EmmyLua still runs on the root
+of the project, so the module names, the relative paths of the configuration and
+the paths it prints are those of the whole project. Outside every project a PATH
+must be in the current directory.
 
 Outside every project the programs come from the user cache, fetched there once
 from the rock server (--rock-server, --version), and the configuration tt writes
@@ -3142,12 +3150,19 @@ EXAMPLES[0m
   $ EMMYLUALS_CONFIG=$(tt emmylua config) code .
 
 === tt emmylua doc --help
-Run emmylua_doc_cli on PATH (default the project) with the configuration tt
-writes, then the project's .luarc.json and .emmyrc.json: it writes the
-documentation of the annotated code, by default as an HTML site in ./output.
--o/--output and -f/--output-format go to emmylua_doc_cli as they are, its other
-flags, such as --site-name, after --. Arguments after -- go to the program as
-they are.
+Run emmylua_doc_cli on the project with the configuration tt writes, then the
+project's .luarc.json and .emmyrc.json: it writes the documentation of the
+annotated code, by default as an HTML site in ./output. -o/--output and
+-f/--output-format go to emmylua_doc_cli as they are, its other flags, such as
+--site-name, after --. Arguments after -- go to the program as they are.
+
+With no PATH the command documents the whole project. A PATH, a directory or a
+file of the project, narrows what is documented to the files under it, and with
+more than one to the files under any: the rest of the project is read as a
+library, so its modules resolve and are not documented, and EmmyLua still runs
+on the root of the project, so the module names, the relative paths of the
+configuration and the paths it prints are those of the whole project. Outside
+every project a PATH must be in the current directory.
 
 Outside every project the programs come from the user cache, fetched there once
 from the rock server (--rock-server, --version), and the configuration tt writes

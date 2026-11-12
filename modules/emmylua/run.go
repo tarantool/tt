@@ -36,6 +36,19 @@ const outsideHelp = "Outside every project the programs come from the user cache
 	"fetched there once from the rock server (--rock-server, --version), and the " +
 	"configuration tt writes is kept there too, not in the directory."
 
+// pathHelp says what a PATH of check or doc means: the command does what,
+// and the code is done.
+func pathHelp(does, done string) string {
+	return "With no PATH the command " + does + " the whole project. A PATH, a " +
+		"directory or a file of the project, narrows what is " + done + " to the " +
+		"files under it, and with more than one to the files under any: the rest " +
+		"of the project is read as a library, so its modules resolve and are not " +
+		done + ", and EmmyLua still runs on the root of the project, so the module " +
+		"names, the relative paths of the configuration and the paths it prints are " +
+		"those of the whole project. Outside every project a PATH must be in the " +
+		"current directory."
+}
+
 // Flags of the runner.
 const (
 	versionFlag    = "version"
@@ -188,12 +201,12 @@ func newCheckCmd(services sdk.Services) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "check [PATH...] [flags] [-- EMMYLUA_CHECK_ARGS...]",
 		Short: "Check the Lua code of the project",
-		Long: "Run emmylua_check on PATH (default the project) with the configuration " +
-			"tt writes, then the project's .luarc.json and .emmyrc.json. The command " +
-			"fails as emmylua_check does: when it reports an error, or with " +
-			"--warnings-as-errors a warning. --warnings-as-errors, -f/--output-format and " +
-			"--severity go to emmylua_check as they are, its other flags, such as --ignore " +
-			"and --output, after --. " + passHelp + "\n\n" +
+		Long: "Run emmylua_check on the project with the configuration tt writes, then " +
+			"the project's .luarc.json and .emmyrc.json. The command fails as " +
+			"emmylua_check does: when it reports an error, or with --warnings-as-errors " +
+			"a warning. --warnings-as-errors, -f/--output-format and --severity go to " +
+			"emmylua_check as they are, its other flags, such as --ignore and --output, " +
+			"after --. " + passHelp + "\n\n" + pathHelp("checks", "checked") + "\n\n" +
 			outsideHelp,
 		Example: `$ tt emmylua check
   $ tt emmylua check app --warnings-as-errors -f json -- --output report.json
@@ -219,11 +232,12 @@ func newDocCmd(services sdk.Services) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "doc [PATH...] [flags] [-- EMMYLUA_DOC_CLI_ARGS...]",
 		Short: "Generate the documentation of the Lua code of the project",
-		Long: "Run emmylua_doc_cli on PATH (default the project) with the configuration " +
-			"tt writes, then the project's .luarc.json and .emmyrc.json: it writes the " +
-			"documentation of the annotated code, by default as an HTML site in ./output. " +
-			"-o/--output and -f/--output-format go to emmylua_doc_cli as they are, its " +
-			"other flags, such as --site-name, after --. " + passHelp + "\n\n" + outsideHelp,
+		Long: "Run emmylua_doc_cli on the project with the configuration tt writes, then " +
+			"the project's .luarc.json and .emmyrc.json: it writes the documentation of " +
+			"the annotated code, by default as an HTML site in ./output. -o/--output and " +
+			"-f/--output-format go to emmylua_doc_cli as they are, its other flags, such " +
+			"as --site-name, after --. " + passHelp + "\n\n" +
+			pathHelp("documents", "documented") + "\n\n" + outsideHelp,
 		Example: `$ tt emmylua doc -o doc/api -- --site-name "My application"
   $ tt emmylua doc -f json -o api.json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -498,9 +512,13 @@ func tarantoolName(tarantool sdk.Tarantool) string {
 	return fmt.Sprintf("Tarantool %d.%d.%d", version.Major, version.Minor, version.Patch)
 }
 
-// withConfig runs program, emmylua_check or emmylua_doc_cli, on the paths in
-// args with the configuration tt writes and those of the project, and the
-// flags of flags given to cmd.
+// withConfig runs program, emmylua_check or emmylua_doc_cli, on the root of
+// the workspace with the configuration tt writes and those of the project,
+// and the flags of flags given to cmd. The paths in args, relative to the
+// directory of the command, narrow the run to what is under them
+// (analyzer.Narrow): EmmyLua would take a path for the workspace, and resolve
+// the module names, the relative paths of the configurations and the names
+// of its report from it.
 func (r *runner) withConfig(
 	cmd *cobra.Command, args []string, program analyzer.Program, flags []programFlag,
 ) error {
@@ -509,7 +527,10 @@ func (r *runner) withConfig(
 		return err
 	}
 
-	list, pass := split(cmd, args, found)
+	paths, pass := args, []string(nil)
+	if dash := cmd.ArgsLenAtDash(); dash >= 0 {
+		paths, pass = args[:dash], args[dash:]
+	}
 
 	layout, err := r.layout(cmd.Context(), found)
 	if err != nil {
@@ -526,17 +547,43 @@ func (r *runner) withConfig(
 		return err
 	}
 
+	configs := layout.ConfigFiles(config)
+
+	if len(paths) > 0 {
+		narrowing, err := analyzer.Narrow(filepath.Dir(config), found.dir,
+			absPaths(found.workDir, paths))
+		if err != nil {
+			return err
+		}
+
+		defer func() { _ = narrowing.Remove() }()
+
+		if narrowing.Config != "" {
+			configs = slices.Insert(configs, 1, narrowing.Config)
+		}
+	}
+
 	var argv []string
 
-	for _, file := range layout.ConfigFiles(config) {
+	for _, file := range configs {
 		argv = append(argv, "--config", file)
 	}
 
 	argv = append(argv, programArgs(cmd, flags)...)
 	argv = append(argv, pass...)
-	argv = append(argv, list...)
+	argv = append(argv, found.dir)
 
 	return r.runProgram(cmd.Context(), "", path, argv)
+}
+
+// absPaths returns paths, absolute: a relative one is taken from dir.
+func absPaths(dir string, paths []string) []string {
+	abs := make([]string, 0, len(paths))
+	for _, path := range paths {
+		abs = append(abs, absFrom(dir, path))
+	}
+
+	return abs
 }
 
 // format runs luafmt on the paths in args, without the configuration of the
