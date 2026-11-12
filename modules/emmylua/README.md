@@ -70,11 +70,15 @@ modules come from their directories through `replace`.
   configuration sets it run apart, without `--level`, and the list goes in
   runs of `fmtArgBudget` bytes; every run is made, and the one with the
   highest exit code is the result. With no Lua file git sees, luafmt, which
-  would read stdin, does not run. Out of git, with no git, in a directory
-  git ignores, or with a flag after `--` that formats no files (`--init`,
-  `--stdin`, ...), `fmt` gives luafmt the root and
+  would read stdin, does not run. Out of git, with no git, or in a
+  directory git ignores, `fmt` gives luafmt the root and
   `--exclude _build/**` (`analyzer.BuildDirGlob`): luafmt skips hidden
-  directories only.
+  directories only. A flag after `--` that formats no files (`--init`,
+  `--explain-config`, `--stdin`, ...) gets no path: `--init [PATH]` took the
+  root for the file to write. An `--init` with no file is given
+  `luafmt.toml` of the root, and after luafmt wrote the configuration
+  `analyzer.SetInitLevel` rewrites its `[syntax] level`, `"Lua55"`, to
+  `"LuaJIT"`, the one line, unless `--level` follows `--`.
 - `workspace.go` - where a command runs: the project `scope.FindProject` of
   `sdk/scope` finds from `Project().Dir()`, as the project commands of tt
   find theirs, when it holds the manifest, and the directory of the command

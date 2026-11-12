@@ -145,11 +145,8 @@ func TestFmtGit(t *testing.T) {
 		// A path given is the user's, as out of git.
 		{args: []string{"."}, want: "--check " + level + "."},
 		{args: []string{"scratch"}, want: "--check " + level + "scratch"},
-		// A flag that formats no files takes the root, as out of git.
-		{
-			args: []string{"--", "--init=luafmt.toml"},
-			want: level + "--exclude _build/** --init=luafmt.toml " + project,
-		},
+		// A flag that formats no files takes no list of files, as out of git.
+		{args: []string{"--", "--init=luafmt.toml"}, want: level + "--init=luafmt.toml"},
 	})
 
 	// luafmt runs in the root, so a relative --config is made absolute.

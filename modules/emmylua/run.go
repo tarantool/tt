@@ -276,11 +276,19 @@ func newFmtCmd(services sdk.Services) *cobra.Command {
 			"doc and ls do. A PATH is " +
 			"formatted as given.\n\nThe " +
 			"other flags of luafmt, such as --list-different, go after --, and one that " +
-			"chooses what luafmt does takes the place of --check. " + passHelp + "\n\n" +
+			"chooses what luafmt does takes the place of --check; one that formats no " +
+			"files, such as --init, --explain-config or --stdin, gets no list of them. " +
+			"--init with no file writes " + analyzer.InitConfigName + " into the root " +
+			"of the project, and the configuration it writes gets the [syntax] level " +
+			"of LuaJIT, where luafmt writes Lua55, unless --level follows --. " +
+			passHelp + "\n\n" +
 			"Outside every project luafmt comes from the user cache, fetched there once " +
 			"from the rock server (--rock-server, --version).",
 		Example: `$ tt emmylua fmt
-  $ tt emmylua fmt app --write`,
+  $ tt emmylua fmt app --write
+
+  # A configuration of luafmt for the project, with every setting.
+  $ tt emmylua fmt -- --init`,
 		RunE: run.format,
 	}
 
@@ -603,6 +611,7 @@ func (r *runner) format(cmd *cobra.Command, args []string) error {
 	list, pass := split(cmd, args, found)
 	// No path precedes --: split took the workspace for them.
 	whole := len(args) == len(pass)
+	formats := formatsFiles(pass)
 
 	program, err := r.programPath(cmd.Context(), found, analyzer.Format)
 	if err != nil {
@@ -614,7 +623,7 @@ func (r *runner) format(cmd *cobra.Command, args []string) error {
 		mode = []string{"--" + fmtCheck}
 	}
 
-	if whole && formatsFiles(pass) {
+	if whole && formats {
 		files, ok, err := r.gitLuaFiles(cmd.Context(), found.dir, walkOf(pass))
 		if err != nil {
 			return err
@@ -625,22 +634,100 @@ func (r *runner) format(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// A flag that formats no files takes no list of them: luafmt --init
+	// would take the root for the file to write.
+	levelPaths := list
+	if whole && !formats {
+		list, levelPaths = nil, noFilePaths(pass, found.dir)
+	}
+
+	pass, initConfig := initFile(pass, found)
+
 	argv := mode
 
-	if givesLevel(found, list, pass) {
+	if givesLevel(found, levelPaths, pass) {
 		argv = append(argv, "--level", analyzer.FormatLevel)
 	}
 
 	// luafmt matches the pattern against the path of a file relative to the
 	// path it was given, the root of the workspace here.
-	if whole {
+	if whole && formats {
 		argv = append(argv, "--exclude", analyzer.BuildDirGlob)
 	}
 
 	argv = append(argv, pass...)
 	argv = append(argv, list...)
 
-	return r.runProgram(cmd.Context(), "", program, argv)
+	err = r.runProgram(cmd.Context(), "", program, argv)
+	if err != nil || initConfig == "" {
+		return err
+	}
+
+	return r.initLevel(initConfig, pass)
+}
+
+// noFilePaths returns the path whose configuration luafmt reads for pass,
+// the arguments after --, that formats no files: the file of
+// --explain-config or --stdin-filename, and root for the others.
+func noFilePaths(pass []string, root string) []string {
+	for _, name := range []string{"--explain-config", "--stdin-filename"} {
+		if path, given := flagValue(pass, name); given && path != "" {
+			return []string{path}
+		}
+	}
+
+	return []string{root}
+}
+
+// initFile returns pass, the arguments of luafmt, and the configuration
+// luafmt --init among them writes, absolute; "" when pass holds no --init.
+// An --init with no file is given <root>/luafmt.toml: luafmt would write
+// luafmt.toml into the directory of the command, which in a subdirectory of
+// the project governs only that.
+func initFile(pass []string, found workspace) ([]string, string) {
+	for index, arg := range pass {
+		if value, ok := strings.CutPrefix(arg, "--init="); ok {
+			return pass, absFrom(found.workDir, value)
+		}
+
+		if arg != "--init" {
+			continue
+		}
+
+		// luafmt takes the next argument for the file unless it is a flag.
+		if next := index + 1; next < len(pass) && !strings.HasPrefix(pass[next], "-") {
+			return pass, absFrom(found.workDir, pass[next])
+		}
+
+		path := filepath.Join(found.dir, analyzer.InitConfigName)
+
+		return slices.Insert(slices.Clone(pass), index+1, path), path
+	}
+
+	return pass, ""
+}
+
+// initLevel sets [syntax] level of path, the configuration luafmt --init
+// has just written, to that of LuaJIT, and says so: luafmt writes the level
+// of Lua 5.5, which fails on the literals of LuaJIT, and tt passes no
+// --level for a file whose configuration sets one. A level among pass is the
+// user's, and the file is left as luafmt wrote it.
+func (r *runner) initLevel(path string, pass []string) error {
+	if _, given := flagValue(pass, "--level"); given {
+		return nil
+	}
+
+	from, err := analyzer.SetInitLevel(path)
+	if err != nil {
+		return err
+	}
+
+	if from != "" {
+		r.services.Log().Info(fmt.Sprintf("set [syntax] level = %q in %s, the Lua of "+
+			"Tarantool, for %q luafmt writes", analyzer.InitLevel, path, from))
+	}
+
+	return nil
 }
 
 // fmtFileActions are the flags of fmtActions that format files, the modes of

@@ -439,6 +439,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   LuaRocks packs the rock with `zip`, and drops the error that says it is
   missing. tt now adds that LuaRocks packs a rock with `zip`, which is not
   found in `PATH`.
+- `tt emmylua fmt -- --init` writes `luafmt.toml` into the root of the
+  project, where it failed with `<root> already exists`: tt gave luafmt the
+  root to format after the arguments, and `--init [PATH]` took it for the
+  file to write. A flag after `--` that formats no files, `--init`,
+  `--explain-config`, `--stdin`, `--dump-default-config` and the others, now
+  gets no path and no `--exclude`. The configuration `luafmt --init` writes
+  sets `[syntax] level = "Lua55"`, which fails on the literals of LuaJIT and
+  stops tt from passing `--level lua-jit`; tt rewrites it to `"LuaJIT"` and
+  says so, unless `--level` follows `--`.
 - `tt emmylua check`, `doc` and `ls` of a built project no longer report
   every class of the project as `duplicate-type`. `tt package build` installs
   the project's own package into `.rocks/share/tarantool`, which tt gives
