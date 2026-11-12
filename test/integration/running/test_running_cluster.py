@@ -187,17 +187,12 @@ def test_running_base_functionality_crud_app(tt_cmd, tmpdir_with_cfg):
     app_path = prepare_app(tmpdir, "cluster_crud_app")
 
     # Build app.
+    # The CMakeLists.txt of crud asks for a CMake older than 3.5, with which
+    # CMake 4 has dropped compatibility unless told the policy version.
     build_cmd = [tt_cmd, "package", "build"]
-    instance_process = subprocess.Popen(
-        build_cmd,
-        cwd=app_path,
-        env=rocks_mirror_env(),
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    rc = instance_process.wait()
-    assert rc == 0
+    env = rocks_mirror_env(dict(os.environ, CMAKE_POLICY_VERSION_MINIMUM="3.5"))
+    rc, build_out = run_command_and_get_output(build_cmd, cwd=app_path, env=env)
+    assert rc == 0, build_out
 
     instances = ["router", "storage1", "storage2"]
     inst_conf = default_inst_conf
