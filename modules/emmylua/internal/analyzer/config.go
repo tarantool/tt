@@ -70,6 +70,9 @@ type Layout struct {
 	// project's, under ConfigDir. Outside every project it is in the cache
 	// (GlobalConfigPath), so that nothing is written into the directory.
 	Path string
+	// Own are the files and directories of the libraries that hold the
+	// project's own package (OwnModules), left out of them.
+	Own []string
 }
 
 // Libraries are the directories EmmyLua reads as libraries: the stubs of
@@ -100,8 +103,10 @@ func (l Layout) Libraries() []string {
 
 // Config is the configuration tt gives EmmyLua: LuaJIT, the globals of
 // Tarantool, the libraries of Layout, and what of the project is not its
-// code. The project's own configuration is read after it, so it can add to
-// any of these: EmmyLua merges the objects and joins the lists.
+// code: ignoreGlobs, relative to the root, for the code of the project, and
+// ignoreDir, absolute, for the project's own package in the libraries (Own).
+// The project's own configuration is read after it, so it can add to any of
+// these: EmmyLua merges the objects and joins the lists.
 func (l Layout) Config() map[string]any {
 	comment := "Written by tt emmylua for this machine, anew on every run: " +
 		"put the settings of the project into .emmyrc.json."
@@ -110,19 +115,25 @@ func (l Layout) Config() map[string]any {
 			"anew on every run: put the settings of the directory into .emmyrc.json there."
 	}
 
+	workspace := map[string]any{
+		"library": l.Libraries(),
+		"ignoreGlobs": []string{
+			rocksDirName + "/**/*.lua",
+			projectDirName + "/**/*.lua",
+			BuildDirGlob,
+		},
+	}
+
+	if len(l.Own) > 0 {
+		workspace["ignoreDir"] = l.Own
+	}
+
 	return map[string]any{
 		"$comment": comment,
 		"runtime": map[string]any{
 			"version": runtimeVersion,
 		},
-		"workspace": map[string]any{
-			"library": l.Libraries(),
-			"ignoreGlobs": []string{
-				rocksDirName + "/**/*.lua",
-				projectDirName + "/**/*.lua",
-				BuildDirGlob,
-			},
-		},
+		"workspace": workspace,
 		"diagnostics": map[string]any{
 			"globals": tarantoolGlobals,
 		},

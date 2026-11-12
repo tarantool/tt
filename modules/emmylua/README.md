@@ -25,7 +25,14 @@ modules come from their directories through `replace`.
   (`Services.Tarantool`), the modules its rocks install and those of
   `--library`, and `.rocks/`, `.tarantool/` and `_build/`, where tt builds
   the project, in `ignoreGlobs`; `check`, `doc` and `ls` read every other
-  Lua file of the project, those git ignores too. `fmt` runs `luafmt`
+  Lua file of the project, those git ignores too. The project's own package,
+  which `tt package build` installs into `.rocks/share/tarantool`, a library,
+  goes to `ignoreDir` as absolute paths (`analyzer.OwnModules`): the Lua
+  modules the `rock_manifest` of the rock of the package name, and of every
+  product released under another, lists, read through go-luarocks'
+  `tree.Inspect`, a directory at the top of the library given whole when no
+  other rock has a module in it. Read twice, every class of the project was
+  declared twice. `fmt` runs `luafmt`
   without it. It passes `--level lua-jit`, the LuaJIT the configuration
   gives the analyzer, unless the arguments after `--` hold `--level` or the
   configuration of luafmt sets `[syntax] level`

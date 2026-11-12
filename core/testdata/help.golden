@@ -3121,9 +3121,10 @@ EXAMPLES[0m
 Write the configuration tt gives EmmyLua - LuaJIT, the globals of Tarantool, the
 stubs of the Tarantool the project runs on and the modules its rocks install,
 with .rocks/, .tarantool/ and the build tree _build/ left out of the code of the
-project - to .tarantool/emmylua/emmyrc.json of the project and print its path:
-for an editor that runs emmylua_ls itself, through EMMYLUALS_CONFIG. The other
-commands write it anew on every run.
+project, and the project's own package, which tt package build installs into
+.rocks/, out of the libraries - to .tarantool/emmylua/emmyrc.json of the project
+and print its path: for an editor that runs emmylua_ls itself, through
+EMMYLUALS_CONFIG. The other commands write it anew on every run.
 
 Outside every project it is written into the user cache, one file for each
 directory, with the modules of .rocks/ of the directory, and the directory is

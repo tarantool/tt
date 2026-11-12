@@ -428,6 +428,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   LuaRocks packs the rock with `zip`, and drops the error that says it is
   missing. tt now adds that LuaRocks packs a rock with `zip`, which is not
   found in `PATH`.
+- `tt emmylua check`, `doc` and `ls` of a built project no longer report
+  every class of the project as `duplicate-type`. `tt package build` installs
+  the project's own package into `.rocks/share/tarantool`, which tt gives
+  EmmyLua as the library of the modules of the rocks, so the package was read
+  twice, from its sources and from there; a project needed an `ignoreDir` of
+  its own for it. The configuration tt writes now leaves it out of the
+  library in `workspace.ignoreDir`: the modules the rock of the package, and
+  of every product released as a rock of another name, installs, a
+  directory such as `.rocks/share/tarantool/kv` whole when no other rock has
+  a module in it.
 - The help of a command under `tt package` and `tt binary` prints its usage
   line once, not twice.
 - Every entry of the rocks `tt package pack --format rock` and `rock-src`
