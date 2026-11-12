@@ -393,6 +393,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   where LuaRocks puts the documents of a rock; nothing else it installs
   changes. A license file that is not there fails the pack, as it fails the
   archive.
+- `tt emmylua check`, `doc` and `ls` leave out `_build/`, where
+  `tt package build` copies the Lua files of the project and of its `path`
+  dependencies: the configuration tt writes ignores `_build/**` with
+  `.rocks/` and `.tarantool/`, and a project checked every module twice, its
+  diagnostics too. `tt emmylua fmt` with no path passes luafmt
+  `--exclude _build/**`, since luafmt walks every directory that is not
+  hidden; a path given, `_build/` included, is formatted as before.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

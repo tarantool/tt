@@ -157,24 +157,32 @@ func TestDoc(t *testing.T) {
 // TestFmt checks that tt emmylua fmt runs luafmt with its mode - --check
 // unless --write or a flag after -- chooses another - the arguments after
 // -- and the paths, without the configuration of the analyzer, and succeeds
-// as the program does. It runs programs, so it is not parallel, as
-// TestCheck.
+// as the program does. On the project, with no path given, it leaves out
+// _build/. It runs programs, so it is not parallel, as TestCheck.
 func TestFmt(t *testing.T) {
 	project := testProject(t)
 	writeProgram(t, project, "luafmt", "echo \"$@\"\n")
+
+	const noBuild = "--exclude _build/** "
 
 	for _, testCase := range []struct {
 		args []string
 		want string
 	}{
-		{args: nil, want: "--check " + project},
+		{args: nil, want: "--check " + noBuild + project},
 		{args: []string{"app"}, want: "--check app"},
 		{args: []string{"app", "--check"}, want: "--check app"},
 		{args: []string{"app", "--write"}, want: "--write app"},
 		{args: []string{"app", "--", "--check"}, want: "--check app"},
-		{args: []string{"--", "--list-different"}, want: "--list-different " + project},
-		{args: []string{"--", "--init=luafmt.toml"}, want: "--init=luafmt.toml " + project},
-		{args: []string{"--", "--tab"}, want: "--check --tab " + project},
+		{args: []string{"--write"}, want: "--write " + noBuild + project},
+		{args: []string{"--", "--list-different"}, want: noBuild + "--list-different " + project},
+		{
+			args: []string{"--", "--init=luafmt.toml"},
+			want: noBuild + "--init=luafmt.toml " + project,
+		},
+		{args: []string{"--", "--tab"}, want: "--check " + noBuild + "--tab " + project},
+		// A path given is the user's: _build/ too.
+		{args: []string{"_build/rock"}, want: "--check _build/rock"},
 	} {
 		got := sdktest.New(t, sdktest.WithProject(project)).Run(emmylua.New,
 			append([]string{"emmylua", "fmt"}, testCase.args...)...)

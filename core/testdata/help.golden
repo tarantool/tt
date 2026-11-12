@@ -3157,10 +3157,11 @@ EXAMPLES[0m
 
 === tt emmylua config --help
 Write the configuration tt gives EmmyLua - LuaJIT, the globals of Tarantool, the
-stubs of the Tarantool the project runs on and the modules its rocks install -
-to .tarantool/emmylua/emmyrc.json of the project and print its path: for an
-editor that runs emmylua_ls itself, through EMMYLUALS_CONFIG. The other commands
-write it anew on every run.
+stubs of the Tarantool the project runs on and the modules its rocks install,
+with .rocks/, .tarantool/ and the build tree _build/ left out of the code of the
+project - to .tarantool/emmylua/emmyrc.json of the project and print its path:
+for an editor that runs emmylua_ls itself, through EMMYLUALS_CONFIG. The other
+commands write it anew on every run.
 
 Outside every project it is written into the user cache, one file for each
 directory, with the modules of .rocks/ of the directory, and the directory is
@@ -3216,9 +3217,11 @@ EXAMPLES[0m
 Run luafmt, the formatter of EmmyLua, on PATH (default the project): with
 --check, the default, it prints how the files would change and fails if any
 would; with --write it rewrites them. It reads .luafmt.toml or luafmt.toml and
-.luafmtignore, not the configuration of the analyzer. The other flags of luafmt,
-such as --list-different, go after --, and one that chooses what luafmt does
-takes the place of --check. Arguments after -- go to the program as they are.
+.luafmtignore, not the configuration of the analyzer. On the whole project, with
+no PATH, it leaves out _build/, where tt builds the project out of its sources,
+as check, doc and ls do. The other flags of luafmt, such as --list-different, go
+after --, and one that chooses what luafmt does takes the place of --check.
+Arguments after -- go to the program as they are.
 
 Outside every project luafmt comes from the user cache, fetched there once from
 the rock server (--rock-server, --version).
