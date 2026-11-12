@@ -178,7 +178,7 @@ components tarawasm builds; see
 | `module`, `sources`, `include_dirs`, `libraries`, `library_dirs`, `defines` | `c`, `lua-c` | `module` and `sources` are required |
 | `cflags` | `c`, `lua-c` | flags of the compiler, one per entry, after tt's own and before `CFLAGS` of the environment; see below |
 | `module` | `cargo` | the name of the module a module component builds: the name of the library by default |
-| `platforms.<os>` | `c`, `lua-c` | more `include_dirs`, `libraries`, `library_dirs`, `defines`, `cflags`, `ldflags` for one OS, after those of the build |
+| `platforms.<os>` | `c`, `lua-c` | more `include_dirs`, `libraries`, `library_dirs`, `defines`, `cflags`, `ldflags` for one OS, `linux` or `darwin`, after those of the build |
 | `package` | `go`, `cargo` | the Go package, `.` by default, or the cargo package |
 | `static` | all | `true`: what the build makes needs nothing of the machine it is installed on, and the build checks it; see below |
 | `ldflags` | `go`, `c`, `lua-c` | flags of the linker, one per entry: of `go build -ldflags`, after tt's own; of the link of `c` and `lua-c`, before the sources; see below |
@@ -228,12 +228,16 @@ project whose `cflags` have `-Werror` with a compiler that warns of more.
 `ldflags` go before the sources, as make's `$(CC) $(LDFLAGS) -o out objs
 $(LDLIBS)` has them, so that `-Wl,--as-needed` acts on the `-l` that follow;
 `LDFLAGS` of the environment ends the line. A list of `platforms.<os>` goes
-after the one of the build. On macOS `-shared` is `-bundle -undefined
-dynamic_lookup -all_load`, and no `-Wl,-rpath` is given. `CC`, `CFLAGS` and
-`LDFLAGS` are those of the environment tt runs in, and the compiler reads
-none of them: in `env` of the build each is an error, as it would reach
-nothing, and the flags of the project go into `cflags` and `ldflags`.
-`tt -V package build` shows the line.
+after the one of the build; `<os>` is `linux` or `darwin`, the OSes tt
+builds for, and another, `macos` say, is an error. On macOS `-shared` is
+`-bundle -undefined dynamic_lookup -all_load`, and no `-Wl,-rpath` is
+given. `CC`, `CFLAGS` and `LDFLAGS` are those of the environment tt runs
+in, and the compiler reads none of them: in `env` of the build each is an
+error, as it would reach nothing, and the flags of the project go into
+`cflags` and `ldflags`. So are `CPPFLAGS`, `LIBS` and `LDLIBS`, which
+neither tt nor the compiler reads: `defines`, `include_dirs` and `cflags`
+take what `CPPFLAGS` would carry, `libraries` and `library_dirs` what
+`LIBS` would. `tt -V package build` shows the line.
 
 ```toml
 [components.memcached.build]

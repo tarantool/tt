@@ -180,7 +180,7 @@ new` объявляет компоненты, собираемые tarawasm; с�
 | `module`, `sources`, `include_dirs`, `libraries`, `library_dirs`, `defines` | `c`, `lua-c` | `module` и `sources` обязательны |
 | `cflags` | `c`, `lua-c` | флаги компилятора, по одному в элементе, после флагов tt и перед `CFLAGS` окружения; см. ниже |
 | `module` | `cargo` | имя модуля, собираемого компонентом-модулем: по умолчанию имя библиотеки |
-| `platforms.<os>` | `c`, `lua-c` | дополнительные `include_dirs`, `libraries`, `library_dirs`, `defines`, `cflags`, `ldflags` для одной ОС, после списков сборки |
+| `platforms.<os>` | `c`, `lua-c` | дополнительные `include_dirs`, `libraries`, `library_dirs`, `defines`, `cflags`, `ldflags` для одной ОС, `linux` или `darwin`, после списков сборки |
 | `package` | `go`, `cargo` | пакет Go (по умолчанию `.`) или пакет cargo |
 | `static` | все | `true`: результату сборки ничего не нужно от машины, на которую он устанавливается, и сборка это проверяет; см. ниже |
 | `ldflags` | `go`, `c`, `lua-c` | флаги компоновщика, по одному в элементе: для `go build -ldflags`  -  после флагов tt; для компоновки `c` и `lua-c`  -  перед исходниками; см. ниже |
@@ -231,12 +231,17 @@ $CC -O2 -fPIC <cflags> <$CFLAGS> -I<каталог заголовков Tarantoo
 исходниками, как в `$(CC) $(LDFLAGS) -o out objs $(LDLIBS)` у make, чтобы
 `-Wl,--as-needed` действовал на следующие за ними `-l`; `LDFLAGS`
 окружения завершает строку. Список из `platforms.<os>` идёт после списка
-сборки. На macOS вместо `-shared` передаётся `-bundle -undefined
-dynamic_lookup -all_load`, а `-Wl,-rpath` не передаётся. `CC`, `CFLAGS` и
-`LDFLAGS` берутся из окружения, в котором работает tt, а сам компилятор ни
-одну из них не читает: в `env` сборки каждая из них - ошибка, ведь она
-ничего бы не достигла, а флаги проекта указываются в `cflags` и `ldflags`.
-`tt -V package build` показывает эту строку.
+сборки; `<os>` - это `linux` или `darwin`, ОС, для которых собирает tt, а
+другое значение, например `macos`, - ошибка. На macOS вместо `-shared`
+передаётся `-bundle -undefined dynamic_lookup -all_load`, а `-Wl,-rpath`
+не передаётся. `CC`, `CFLAGS` и `LDFLAGS` берутся из окружения, в котором
+работает tt, а сам компилятор ни одну из них не читает: в `env` сборки
+каждая из них - ошибка, ведь она ничего бы не достигла, а флаги проекта
+указываются в `cflags` и `ldflags`. То же с `CPPFLAGS`, `LIBS` и `LDLIBS`,
+которые не читают ни tt, ни компилятор: то, что передавалось бы в
+`CPPFLAGS`, указывается в `defines`, `include_dirs` и `cflags`, а то, что
+в `LIBS`, - в `libraries` и `library_dirs`. `tt -V package build`
+показывает эту строку.
 
 ```toml
 [components.memcached.build]
