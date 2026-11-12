@@ -16,7 +16,7 @@ is a project when it holds:
 tt looks for the project from the current directory upward, so the commands
 work from any directory inside it: the instance commands, `tt package`,
 `tt run` and `tt test`, which run the package in its root, `tt wasm` and the
-modules, such as `tt emmylua`. A command that finds the project above the
+modules, such as [`tt emmylua`](../how-to/emmylua.md). A command that finds the project above the
 current directory says so on stderr (`working on the project in DIR`).
 `-C DIR` of the `tt package` commands and `tt test` names the project
 itself: DIR is taken as it is, and nothing above it is looked into.

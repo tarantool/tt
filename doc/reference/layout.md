@@ -150,7 +150,8 @@ files; see [Sign packages](../how-to/sign-packages.md).
 cache: `$XDG_CACHE_HOME`, `~/.cache` by default, `~/Library/Caches` on
 macOS. Outside every project, `tt emmylua check`, `doc`, `fmt` and `ls` run
 the programs of the `emmylua` rock from there, and write their
-configuration there rather than into the directory:
+configuration there rather than into the directory (see
+[Check and format Lua code with EmmyLua](../how-to/emmylua.md#outside-a-project)):
 
 ```text
 <user cache>/tt/emmylua/
