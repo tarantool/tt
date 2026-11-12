@@ -268,7 +268,10 @@ native file.
 A package other projects depend on, a Tarantool module say, is packed as a
 rock: `tt package pack --format rock`. The rock holds the files the build
 laid out, the rock of the package `tt package build` installs into
-`.rocks/`, and is written with its rockspec beside it:
+`.rocks/`, and the license files, `[package].license_files`, in `doc/`,
+where LuaRocks keeps the documents of a rock: a project installing the rock
+has them in `.rocks/share/tarantool/rocks/<name>/<version>/doc/`. It is
+written with its rockspec beside it:
 
 ```console
 $ tt package pack --format rock --out dist

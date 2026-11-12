@@ -5,9 +5,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -165,6 +167,23 @@ func TestPackRockInstallsIntoAProject(t *testing.T) {
 	_, err := Run(context.Background(), packOptions(src, out, FormatRock))
 	require.NoError(t, err)
 
+	consumer := buildConsumer(t, out)
+
+	share := filepath.Join(consumer, rocksDirName, "share", "tarantool")
+	assert.FileExists(t, filepath.Join(share, "mylib", "init.lua"))
+	assert.FileExists(t, filepath.Join(share, "mylib", "util.lua"))
+	assert.FileExists(t, filepath.Join(share, "roles", "mylib.lua"))
+
+	lock, err := os.ReadFile(filepath.Join(consumer, lockFileName))
+	require.NoError(t, err)
+	assert.Contains(t, string(lock), "version = '1.0.0-1'")
+}
+
+// buildConsumer builds a project depending on mylib from the rock server out
+// and returns its directory.
+func buildConsumer(t *testing.T, out string) string {
+	t.Helper()
+
 	consumer := t.TempDir()
 	writeTree(t, consumer, map[string]string{
 		manifestFileName: fmt.Sprintf(`manifest_version = '0.1'
@@ -187,21 +206,125 @@ include = ['init.lua']
 		"init.lua":      "return require('mylib')\n",
 	})
 
-	err = build.Run(context.Background(), build.Options{
+	err := build.Run(context.Background(), build.Options{
 		ProjectDir: consumer,
 		TtVersion:  "tt test",
 		Tarantool:  rocks.TarantoolInfo{Prefix: "/nonexistent", Version: "3.0.0"},
 	})
 	require.NoError(t, err)
 
-	share := filepath.Join(consumer, rocksDirName, "share", "tarantool")
-	assert.FileExists(t, filepath.Join(share, "mylib", "init.lua"))
-	assert.FileExists(t, filepath.Join(share, "mylib", "util.lua"))
-	assert.FileExists(t, filepath.Join(share, "roles", "mylib.lua"))
+	return consumer
+}
 
-	lock, err := os.ReadFile(filepath.Join(consumer, lockFileName))
+// TestPackRockCarriesTheLicenseFiles: the license files of the package are in
+// doc/ of the rock, at their paths in the project, and a project installing
+// the rock has them in the install dir of the rock alone, as LuaRocks has the
+// documents of a rock. They are never in the stage of the build, and a
+// license file that is not there fails the pack.
+func TestPackRockCarriesTheLicenseFiles(t *testing.T) {
+	t.Parallel()
+
+	src := writeLibrary(t)
+	writeTree(t, src, map[string]string{
+		manifestFileName: strings.Replace(libraryManifest, "license = 'BSD-2-Clause'\n",
+			"license = 'BSD-2-Clause'\nlicense_files = ['LICENSE', 'licenses']\n", 1),
+		"LICENSE":              "BSD-2-Clause text\n",
+		"licenses/vendored.md": "the license of a vendored file\n",
+	})
+
+	out := filepath.Join(t.TempDir(), "server")
+
+	result, err := Run(context.Background(), packOptions(src, out, FormatRock))
 	require.NoError(t, err)
-	assert.Contains(t, string(lock), "version = '1.0.0-1'")
+
+	entries := zipEntries(t, result.Rock)
+	assert.Equal(t, []string{
+		"doc/LICENSE",
+		"doc/licenses/vendored.md",
+		"lua/mylib/init.lua",
+		"lua/mylib/util.lua",
+		"lua/mylib/version.lua",
+		"lua/roles/mylib.lua",
+		"mylib-1.0.0-1.rockspec",
+		"rock_manifest",
+	}, sortedKeys(entries))
+	assert.Equal(t, "BSD-2-Clause text\n", entries["doc/LICENSE"])
+	assert.Contains(t, entries["rock_manifest"], "doc = {")
+	assert.Equal(t, filepath.Join(out, "mylib-1.0.0-1.all.rock"), result.Rock)
+
+	// The license files were laid out apart from the stage, which is left as
+	// the build laid it out, and that directory is gone.
+	assert.NoDirExists(t, filepath.Join(src, buildDirName, "rock", "default", rockDocDir))
+
+	leftovers, err := filepath.Glob(filepath.Join(src, buildDirName, packSubDir, "rock-*"))
+	require.NoError(t, err)
+	assert.Empty(t, leftovers)
+
+	consumer := buildConsumer(t, out)
+	tree := filepath.Join(consumer, rocksDirName)
+	installDir := filepath.Join(tree, "share", "tarantool", "rocks", "mylib", "1.0.0-1")
+
+	license, err := os.ReadFile(filepath.Join(installDir, rockDocDir, "LICENSE"))
+	require.NoError(t, err)
+	assert.Equal(t, "BSD-2-Clause text\n", string(license))
+	assert.FileExists(t, filepath.Join(installDir, rockDocDir, "licenses", "vendored.md"))
+	assert.FileExists(t, filepath.Join(tree, "share", "tarantool", "mylib", "init.lua"))
+
+	err = filepath.WalkDir(tree, func(path string, entry fs.DirEntry, err error) error {
+		require.NoError(t, err)
+
+		if entry.Name() == "LICENSE" || entry.Name() == "vendored.md" {
+			assert.True(t, strings.HasPrefix(path, installDir+string(filepath.Separator)),
+				"%s is out of the install dir of the rock", path)
+		}
+
+		return nil
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, os.Remove(filepath.Join(src, "LICENSE")))
+
+	_, err = Run(context.Background(), packOptions(src, out, FormatRock))
+	require.ErrorIs(t, err, errMissingInclude)
+	assert.Contains(t, err.Error(), `license_files entry "LICENSE"`)
+}
+
+// TestMirrorTree: the copy of a stage keeps the permission bits of each file,
+// the umask not applied, and a symlink as the link it is; a missing stage is
+// an empty one.
+func TestMirrorTree(t *testing.T) {
+	t.Parallel()
+
+	src := t.TempDir()
+	writeTree(t, src, map[string]string{
+		"bin/tool":        "#!/bin/sh\n",
+		"lua/mylib/a.lua": "return {}\n",
+	})
+	require.NoError(t, os.Chmod(filepath.Join(src, "bin", "tool"), 0o775))
+	require.NoError(t, os.Chmod(filepath.Join(src, "lua", "mylib", "a.lua"), 0o600))
+	require.NoError(t, os.Symlink("a.lua", filepath.Join(src, "lua", "mylib", "b.lua")))
+
+	dst := t.TempDir()
+	require.NoError(t, mirrorTree(src, dst))
+
+	info, err := os.Stat(filepath.Join(dst, "bin", "tool"))
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o775), info.Mode().Perm())
+
+	info, err = os.Stat(filepath.Join(dst, "lua", "mylib", "a.lua"))
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+
+	link, err := os.Readlink(filepath.Join(dst, "lua", "mylib", "b.lua"))
+	require.NoError(t, err)
+	assert.Equal(t, "a.lua", link)
+
+	empty := t.TempDir()
+	require.NoError(t, mirrorTree(filepath.Join(src, "missing"), empty))
+
+	names, err := os.ReadDir(empty)
+	require.NoError(t, err)
+	assert.Empty(t, names)
 }
 
 // TestPackRockAndArchiveOfAProgram: a program an executable component built

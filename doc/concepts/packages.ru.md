@@ -267,8 +267,11 @@ WebAssembly-компонента и объявляет его инкремент
 Пакет, от которого зависят другие проекты, например модуль Tarantool,
 упаковывается в рок: `tt package pack --format rock`. В роке лежат файлы,
 которые разложила сборка, - это тот же рок пакета, который
-`tt package build` ставит в `.rocks/`. Рядом с роком записывается его
-rockspec:
+`tt package build` ставит в `.rocks/`, - и файлы лицензии,
+`[package].license_files`, в `doc/`, где LuaRocks хранит документы рока:
+у проекта, который ставит рок, они оказываются в
+`.rocks/share/tarantool/rocks/<name>/<version>/doc/`. Рядом с роком
+записывается его rockspec:
 
 ```console
 $ tt package pack --format rock --out dist
