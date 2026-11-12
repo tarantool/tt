@@ -3720,6 +3720,7 @@ COMMANDS[0m
               versions
   download    Download rock files into a directory and index it as a server
   fetch       Materialize .rocks/ from the lock without building
+  index       Write the rock index of a directory of rocks
   install     Install a .tt package archive into a scope
   list        List the packages installed in a scope
   pack        Build a manifest package and pack it into a .tt archive
@@ -3822,14 +3823,14 @@ GLOBAL FLAGS[0m
 
 === tt package download --help
 Fetch rock files from the configured servers into --dir and write the LuaRocks
-manifest that indexes them, so the directory is itself a rock server: point
---registry or TT_REGISTRIES at it and the project builds with no network at all.
-With no arguments the project's locked closure is mirrored at its exact versions
-— every product's dependencies and the dev closure — which needs a lock, so run
-tt package resolve first. A dependency that does not come from a registry has no
-rock file to mirror and is skipped with a warning. Re-running overwrites and
-re-indexes, so a mirror can be extended in place. Each written path is printed
-to stdout.
+manifest and the rock index (tt-rocks-index.json) that index them, so the
+directory is itself a rock server: point --registry or TT_REGISTRIES at it and
+the project builds with no network at all. With no arguments the project's
+locked closure is mirrored at its exact versions — every product's dependencies
+and the dev closure — which needs a lock, so run tt package resolve first. A
+dependency that does not come from a registry has no rock file to mirror and is
+skipped with a warning. Re-running overwrites and re-indexes, so a mirror can be
+extended in place. Each written path is printed to stdout.
 
 [0;1;39mUSAGE[0m
   tt package download [NAME[@VERSION]...] [flags]
@@ -3866,6 +3867,51 @@ FLAGS[0m
 GLOBAL FLAGS[0m
   -C, --directory string   work on the project in DIR itself, not on the one the
                            current directory is in
+
+=== tt package index --help
+Write tt-rocks-index.json, the rock index tt package reads before any LuaRocks
+manifest, from the rocks and rockspecs in DIR: every file of every version by
+its URL, with its sha256 and size. A project that depends on a rock of the index
+pins the sha256 of its files in the lock, and every install checks the file of
+its platform against it. tt package pack, tt package download and tt wasm rock
+write the index of the directory they write into; this is for one filled
+otherwise, with the rocks the jobs of a CI matrix packed, say.
+
+By default the index goes into DIR, the LuaRocks manifests beside it, and names
+the files relative to itself: DIR is a rock server for tt and LuaRocks alike.
+--index names an index kept apart, a file of a git branch say, and --base-url
+the URL the files of DIR are downloaded from, the release page of a tag say;
+without --base-url the files are named relative to the index, which DIR must be
+below. With either, no manifest is written.
+
+An index that is there is updated, not replaced: the versions of DIR are listed
+anew, a version marked "yanked": true staying so; a version it lists with files
+of DIR that are gone is dropped; a version it lists with files elsewhere is
+kept. A version in DIR that the index lists with files elsewhere fails the
+command, since a published version does not change: pack the new build as a new
+revision. The path of the index is printed to stdout.
+
+[0;1;39mUSAGE[0m
+  tt package index DIR [flags]
+[0;1;39m
+FLAGS[0m
+      --base-url string   the URL the files of DIR are downloaded from (default:
+                          relative to the index)
+  -h, --help              help for index
+      --index string      the index to write (default DIR/tt-rocks-index.json)
+[0;1;39m
+GLOBAL FLAGS[0m
+  -C, --directory string   work on the project in DIR itself, not on the one the
+                           current directory is in
+[0;1;39m
+EXAMPLES[0m
+  # A directory of rocks as a rock server.
+  $ tt package index dist
+
+  # The rocks of a tag on its release page, the index in a branch of its own.
+  $ gh release upload v1.0.0 dist/*.rock dist/*.rockspec
+  $ tt package index dist --index index/tt-rocks-index.json \
+      --base-url https://github.com/example/mylib/releases/download/v1.0.0
 
 === tt package install --help
 Unpack a package archive into the chosen scope and bring the tree to a runnable
@@ -3957,8 +4003,10 @@ binary rock of this platform, or an .all rock when the package has no native
 file, with its rockspec beside it. The rockspec is made from the manifest: the
 dependencies are the ranges it declares, and the source is [package].repository
 at the tag of the version. The rock is written into --out, which is then indexed
-as a rock server, keeping the rocks already there. --format tt,rock makes both
-from one build.
+as a rock server, keeping the rocks already there: the LuaRocks manifests and
+the rock index, tt-rocks-index.json, which has a project that depends on the
+rock pin the sha256 of its files in the lock (see tt package index). --format
+tt,rock makes both from one build.
 
 --format rock-src packs the source rock: the same rockspec and the files of the
 project git tracks, submodules included, with a VERSION file of the version. A
@@ -5519,13 +5567,15 @@ EXAMPLES[0m
 
 === tt wasm rock --help
 Pack the wasm rock of every platform of a tarantool-wasm release into --out,
-with the manifest that makes the directory a rock server. Serve it, or upload
-its files next to the assets of the release, and declare the dependency from it
-with tt wasm prepare --rock-server: then every machine gets the build of its
-own, and an archive packed --without-deps installs anywhere. The assets are
-checked against the sha256 tt holds the release to. With --from, pack the one
-local build of the module as the rock of --arch (default this host's) and keep
-the rocks already in --out: run it once for the build of each platform.
+with the LuaRocks manifest and the rock index that make the directory a rock
+server, the index pinning the sha256 of every rock in the lock of a project that
+depends on it. Serve it, or upload its files next to the assets of the release,
+and declare the dependency from it with tt wasm prepare --rock-server: then
+every machine gets the build of its own, and an archive packed --without-deps
+installs anywhere. The assets are checked against the sha256 tt holds the
+release to. With --from, pack the one local build of the module as the rock of
+--arch (default this host's) and keep the rocks already in --out: run it once
+for the build of each platform.
 
 [0;1;39mUSAGE[0m
   tt wasm rock [flags]

@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/go-luarocks/remote"
+
 	"github.com/tarantool/tt/sdk/fetch"
 )
 
@@ -255,6 +257,9 @@ func TestPreparePacksTheLocalBuild(t *testing.T) {
 		report.Rock)
 	assert.Equal(t, "wasm-0.1.0-1."+hostRockArch()+".rock", filepath.Base(report.Rock))
 	assert.FileExists(t, filepath.Join(registry, registryManifestName))
+	// The registry of the project gets no rock index: the lock would pin the
+	// digest of a rock packed anew from every local build.
+	assert.NoFileExists(t, filepath.Join(registry, remote.RocksIndexFile))
 	assert.Equal(t, []string{"wasm 0.1.0 " + RegistryDir}, declared)
 	assert.Equal(t, RegistryDir, report.Registry)
 	assert.True(t, report.Declared)

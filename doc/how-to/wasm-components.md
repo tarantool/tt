@@ -282,6 +282,7 @@ $ tt wasm rock --out dist/rocks
 .../dist/rocks/wasm-0.1.0-1.linux-x86_64.rock
 .../dist/rocks/wasm-0.1.0-1.macosx-aarch64.rock
 .../dist/rocks/manifest
+.../dist/rocks/tt-rocks-index.json
 ```
 
 Serve the directory, or upload its files next to the assets of the release,

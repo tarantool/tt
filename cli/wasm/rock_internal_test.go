@@ -160,6 +160,24 @@ func TestIndexedRegistryServesHostRock(t *testing.T) {
 	assert.Equal(t, "0.1.0-1", found[0].Version.Raw)
 	assert.True(t, strings.HasSuffix(found[0].URL, release.RockFileName(platform)),
 		"got %s", found[0].URL)
+
+	// The registry publishes a rock index too: the version lists the rock
+	// of every platform with its digest, which a lock pins.
+	assert.FileExists(t, filepath.Join(dir, remote.RocksIndexFile))
+
+	arches := make([]string, 0, len(found[0].Artifacts))
+	for _, artifact := range found[0].Artifacts {
+		assert.Len(t, artifact.SHA256, 64)
+
+		arches = append(arches, artifact.Arch)
+	}
+
+	want := make([]string, 0, len(release.Platforms))
+	for _, each := range release.Platforms {
+		want = append(want, each.RockArch)
+	}
+
+	assert.ElementsMatch(t, want, arches)
 }
 
 // writeReleaseTable writes a release table of 0.1.0 whose two builds server

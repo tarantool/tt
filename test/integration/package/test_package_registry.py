@@ -115,6 +115,10 @@ def test_download_writes_a_rock_and_indexes_it(tree, run_tt, rock_server):
     # The index is what makes the directory a server rather than a pile of
     # files; without it nothing downstream can read the mirror.
     assert (mirror / "manifest").is_file()
+    # The rock index beside it, which tt reads first, lists the same rock.
+    index = json.loads((mirror / "tt-rocks-index.json").read_text())
+    artifacts = index["repository"]["stat"]["0.3.1-1"]["artifacts"]
+    assert [artifact["url"] for artifact in artifacts] == ["stat-0.3.1-1.all.rock"]
     # Every written path goes to stdout so the run can be piped.
     assert str(mirror / "stat-0.3.1-1.all.rock") in result.stdout
 

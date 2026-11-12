@@ -2,7 +2,8 @@
 
 The dependencies of a package are rocks, which come from rock servers: an
 HTTP(S) LuaRocks server, or a local directory with a LuaRocks manifest. Either
-may publish a [rock index](#a-rock-index) instead of the manifest.
+may publish a [rock index](#a-rock-index) beside the manifest or instead of
+it.
 
 ## Which servers
 
@@ -104,6 +105,52 @@ through its manifests. From such a server:
   lock pins no file for is an error too: `tt package resolve` pins the files
   the server serves now.
 
+### Writing an index
+
+tt writes the index of every directory it makes a rock server of, beside the
+LuaRocks manifests and listing the same rocks: `tt package pack --out`,
+`tt package download --dir` and `tt wasm rock --out`. A project that depends
+on a rock from such a directory pins the sha256 of its files in the lock.
+`tt package index DIR` writes it for a directory filled otherwise, with the
+rocks the jobs of a CI matrix packed, say:
+
+```console
+$ tt package index dist
+.../dist/tt-rocks-index.json
+indexed 2 version(s) of .../dist
+```
+
+It lists every `<name>-<version>.<arch>.rock` and `<name>-<version>.rockspec`
+of DIR at a URL relative to the index, its name, with its sha256 and size,
+and writes the LuaRocks manifests too, so DIR serves LuaRocks as well. Since
+tt reads the index alone when there is one, a rock copied into such a
+directory by hand is served once the index is written again.
+
+An index kept apart from the rocks, a file in a git branch of its own with
+the rocks on release pages, is named with `--index`, and the URL the files
+are downloaded from with `--base-url`:
+
+```console
+$ gh release upload v1.0.0 dist/*.rock dist/*.rockspec
+$ tt package index dist --index index/tt-rocks-index.json \
+    --base-url https://github.com/example/mylib/releases/download/v1.0.0
+```
+
+Without `--base-url` the URLs are relative to the index, which DIR is then
+below: `tt package index site/v1.0.0 --index site/tt-rocks-index.json`
+names the files `v1.0.0/<file>`. With either flag, only the index is
+written.
+
+An index that is there is updated, not replaced. The versions of DIR are
+listed anew from its files, and one marked `"yanked": true` stays so, which
+is how a version is yanked: by hand, in the index. A version the index lists
+with files of DIR that are gone is dropped; one it lists with files
+elsewhere, those of another release say, is kept. A version of DIR the index
+lists with files elsewhere is an error: a published version does not
+change, so a new build of it is a new revision (`tt package pack
+--revision`). The same index is written as the same bytes, its keys sorted,
+so a commit of it shows what changed; a field tt does not know is not kept.
+
 ## Searching
 
 `tt package search TERM` asks every server for rocks whose name contains
@@ -113,7 +160,8 @@ stop at the first server.
 ## A mirror for offline builds
 
 `tt package download --dir DIR` downloads rocks into DIR and indexes them,
-so that DIR is a rock server itself. Without arguments it mirrors the
+with the LuaRocks manifests and a [rock index](#writing-an-index), so that
+DIR is a rock server itself. Without arguments it mirrors the
 locked dependencies of the project at their exact versions, dev ones
 included; with names it downloads those.
 

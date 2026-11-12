@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from utils import write_rock_index
+from utils import sha256_of, write_rock_index
 
 MODULE = b"\x7fELF not a module: tt packs and installs it, and nothing loads it\n"
 
@@ -257,13 +257,14 @@ def test_rocks_of_a_release_serve_every_machine(tt_cmd, tmp_path, project, env):
 
     assert packed.returncode == 0, packed.stderr
     # The manifests luarocks-admin make_manifest writes, one per Lua version
-    # and one for all.
+    # and one for all, and the rock index, which tt reads first.
     assert sorted(path.name for path in rocks.iterdir()) == [
         "manifest",
         "manifest-5.1",
         "manifest-5.2",
         "manifest-5.3",
         "manifest-5.4",
+        "tt-rocks-index.json",
         "wasm-0.1.0-1.linux-aarch64.rock",
         "wasm-0.1.0-1.linux-x86_64.rock",
         "wasm-0.1.0-1.macosx-aarch64.rock",
@@ -291,6 +292,21 @@ def test_rocks_of_a_release_serve_every_machine(tt_cmd, tmp_path, project, env):
         build = tt(tt_cmd, project, "package", "build", env=env)
         assert build.returncode == 0, build.stderr
         assert installed_module(project) == MODULE
+
+        # The server publishes the index tt wasm rock wrote: the lock pins
+        # the rock of every platform.
+        with (project / "app.manifest.lock").open("rb") as handle:
+            lock = tomllib.load(handle)
+        entry = next(
+            dep
+            for dep in lock["lock"]["products"]["default"]["dependencies"]
+            if dep["name"] == "wasm"
+        )
+        assert entry["artifacts"] == {
+            rock.name.removeprefix("wasm-0.1.0-1.").removesuffix(".rock"): "sha256:"
+            + sha256_of(rock)
+            for rock in rocks.glob("*.rock")
+        }
     finally:
         front.shutdown()
         server.shutdown()

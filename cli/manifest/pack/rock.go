@@ -18,6 +18,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/build"
 	"github.com/tarantool/tt/v3/cli/manifest/native"
+	"github.com/tarantool/tt/v3/cli/manifest/rockindex"
 	"github.com/tarantool/tt/v3/cli/manifest/rocktree"
 )
 
@@ -171,7 +172,8 @@ type rockResult struct {
 
 // packRocks packs the rock of the package, its source rock or both into the
 // output directory, writes their rockspec beside them and indexes the
-// directory as a rock server, the rocks already in it staying.
+// directory as a rock server, the rocks already in it staying: the LuaRocks
+// manifests and the tt-rocks-index.json (rockindex.MakeServer).
 //
 // The rock is the stage of the product the build laid out, the rock the build
 // installed into .rocks/, but for other projects: its rockspec declares the
@@ -233,11 +235,11 @@ func packRocks(
 		return rockResult{}, fmt.Errorf("writing the rockspec: %w", err)
 	}
 
-	err = remote.MakeManifest(ctx, dir, remote.MakeManifestOpts{
-		LuaVersions: nil, Index: false, Zip: false, Warn: opts.Warn,
+	_, err = rockindex.MakeServer(ctx, dir, rockindex.ServerOptions{
+		HTML: false, IfIndexed: false, Warn: opts.Warn,
 	})
 	if err != nil {
-		return rockResult{}, fmt.Errorf("indexing %s: %w", dir, err)
+		return rockResult{}, err
 	}
 
 	return result, nil

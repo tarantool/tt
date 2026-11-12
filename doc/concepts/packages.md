@@ -336,13 +336,38 @@ declared with a warning, since a rockspec cannot name the server.
 
 `--out`, `_build/pack/` by default, is indexed as a rock server once the
 rock is written, keeping the rocks already there: a pack on each platform
-into the same directory fills one server. Another project then depends on
-the rock from it:
+into the same directory fills one server. The directory gets the LuaRocks
+manifests and a [rock index](rock-servers.md#a-rock-index),
+`tt-rocks-index.json`, both made from every rock and rockspec in it:
+
+```console
+$ ls dist
+manifest
+manifest-5.1
+manifest-5.2
+manifest-5.3
+manifest-5.4
+mylib-1.2.0-1.linux-x86_64.rock
+mylib-1.2.0-1.rockspec
+tt-rocks-index.json
+```
+
+Another project then depends on the rock from it, and its lock pins the
+sha256 of every file of the version the index lists, which every install of
+the rock checks:
 
 ```toml
 [dependencies]
 mylib = { version = ">=1.2.0", registry = "/path/to/dist" }
 ```
+
+A rock packed anew with the same version and other bytes no longer matches
+such a lock: `tt package resolve` pins it again, and a rock already
+published gets a new `--revision` instead. The rocks of several machines,
+collected into one directory - from the jobs of a CI matrix, say - are
+indexed with `tt package index DIR`, which also writes an index kept apart
+from the rocks, for rocks on release pages; see
+[Writing an index](rock-servers.md#writing-an-index).
 
 `--format tt,rock` packs the `.tt` archive and the rock from one build;
 `--without-deps` and signing apply to the archive only.

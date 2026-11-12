@@ -26,6 +26,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   resolves afresh (`tt package add`, `tt package update`, a first build),
   while a lock that pins it keeps resolving to it and installs it; a
   constraint only yanked versions satisfy fails saying so.
+- tt writes the rock index. `tt package pack --out`, `tt package download
+  --dir` and `tt wasm rock --out` write `tt-rocks-index.json` beside the
+  LuaRocks manifests, made from every rock and rockspec of the directory with
+  URLs relative to it, so a project that depends on a rock from such a
+  directory pins the sha256 of its files in the lock and every install checks
+  them. `tt package index DIR` writes it for a directory filled otherwise,
+  with the rocks of the jobs of a CI matrix say, and with `--index FILE` and
+  `--base-url URL` an index kept apart from the rocks, for rocks on release
+  pages and the index in a git branch. An index that is there is updated: the
+  versions of the directory are listed anew, keeping `"yanked": true`, those
+  whose files are gone are dropped, those listed with files elsewhere are
+  kept, and a version of the directory listed elsewhere fails the command.
+  The registry `tt wasm prepare --from` packs into gets no index, and one
+  that is there is kept current.
 - `tt emmylua prepare` declares the `emmylua` rock from the rock index of
   tarantool-contrib/rocks-repo
   (`https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/`,

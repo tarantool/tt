@@ -11,6 +11,7 @@ import (
 	"github.com/tarantool/tt/sdk/log"
 
 	"github.com/tarantool/tt/v3/cli/manifest/deps"
+	"github.com/tarantool/tt/v3/cli/manifest/rockindex"
 	"github.com/tarantool/tt/v3/cli/wasm"
 	"github.com/tarantool/tt/v3/internal/binary/install"
 )
@@ -284,7 +285,9 @@ func newWasmRockCmd() *cobra.Command {
 		Use:   "rock",
 		Short: "Pack the rocks of a release for a rock server",
 		Long: "Pack the wasm rock of every platform of a tarantool-wasm release into " +
-			"--out, with the manifest that makes the directory a rock server. Serve it, " +
+			"--out, with the LuaRocks manifest and the rock index that make the " +
+			"directory a rock server, the index pinning the sha256 of every rock " +
+			"in the lock of a project that depends on it. Serve it, " +
 			"or upload its files next to the assets of the release, and declare the " +
 			"dependency from it with tt wasm prepare --rock-server: then every machine " +
 			"gets the build of its own, and an archive packed --without-deps installs " +
@@ -342,6 +345,7 @@ func runWasmRock() error {
 	}
 
 	_, _ = fmt.Fprintln(os.Stdout, filepath.Join(wasmOut, "manifest"))
+	_, _ = fmt.Fprintln(os.Stdout, filepath.Join(wasmOut, rockindex.File))
 
 	return nil
 }
