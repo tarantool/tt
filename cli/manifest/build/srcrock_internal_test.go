@@ -209,3 +209,39 @@ func TestFetchSrcRockRefuses(t *testing.T) {
 	_, err = fetchSrcRock(t.Context(), fakeFetcher{results: nil, rock: plain}, srcDep, dir, nil)
 	require.ErrorIs(t, err, errSrcRockPackage)
 }
+
+// TestSrcRocksLeavesLuaRocksRock: the source rock of no tt package is left to
+// install, LuaRocks building it by its rockspec, and is not downloaded again.
+func TestSrcRocksLeavesLuaRocksRock(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	rock := filepath.Join(dir, "mylib-1.2.0-1.src.rock")
+	writeZip(t, rock, map[string]string{
+		"mylib-1.2.0-1.rockspec": "package = 'mylib'",
+		"mylib/init.lua":         "return {}",
+	})
+
+	results := []client.SearchResult{
+		{Name: "mylib", Version: "1.2.0-1", Arch: srcArch, Server: "/srv"},
+	}
+	srcs := &srcRocks{
+		fetcher: fakeFetcher{results: results, rock: rock},
+		dir:     filepath.Join(dir, "src"),
+		tree:    filepath.Join(dir, ".rocks"),
+		builder: pathManifests{},
+	}
+
+	done, err := srcs.install(t.Context(), srcDep, []string{"/srv"})
+	require.NoError(t, err)
+	assert.False(t, done)
+	assert.NoDirExists(t, filepath.Join(srcs.dir, "mylib-1.2.0-1"))
+	assert.FileExists(t, filepath.Join(srcs.dir, "mylib-1.2.0-1.luarocks"))
+
+	// The mark stands for the download: a rock that is gone is not fetched.
+	srcs.fetcher = fakeFetcher{results: results, rock: filepath.Join(dir, "gone.src.rock")}
+
+	done, err = srcs.install(t.Context(), srcDep, []string{"/srv"})
+	require.NoError(t, err)
+	assert.False(t, done)
+}
