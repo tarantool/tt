@@ -90,7 +90,13 @@ func (f *fakeResolver) ResolvePinned(
 	return &out, f.warnings, nil
 }
 
-// lockOf builds a lock whose default product pins the given rocks.
+// staleHash is a manifest_hash of the scheme tt writes that no manifest
+// hashes to: the lock it is in is stale for having been written for another
+// manifest.
+const staleHash = "toml1-sha256:0000000000000000000000000000000000000000000000000000000000000000"
+
+// lockOf builds a lock whose default product pins the given rocks, written
+// for another manifest (staleHash).
 func lockOf(pins map[string]string) *manifest.Lock {
 	deps := make([]manifest.LockDependency, 0, len(pins))
 
@@ -106,7 +112,7 @@ func lockOf(pins map[string]string) *manifest.Lock {
 		LockVersion:     manifest.LockVersion,
 		ManifestVersion: "0.1",
 		GeneratedBy:     "tt test",
-		ManifestHash:    "sha256:stale",
+		ManifestHash:    staleHash,
 		Products:        map[string]manifest.LockProduct{"default": {Dependencies: deps}},
 	}
 }

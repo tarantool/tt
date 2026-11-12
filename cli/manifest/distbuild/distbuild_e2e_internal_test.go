@@ -183,11 +183,12 @@ hello = "./plugins/hello"
 	})
 	require.NoError(t, err)
 
-	// A changed manifest makes the lock stale.
+	// A changed manifest makes the lock stale; a comment would not, see
+	// TestReadLockChecksTheManifestHash.
 	f, err := os.OpenFile(manifestPath, os.O_APPEND|os.O_WRONLY, 0)
 	require.NoError(t, err)
 
-	_, err = f.WriteString("# changed\n")
+	_, err = f.WriteString("\n[build]\ntags = ['changed']\n")
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 

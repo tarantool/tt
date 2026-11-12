@@ -330,11 +330,20 @@ func TestRun_lockedGate(t *testing.T) {
 	locked.Locked = true
 	require.NoError(t, Run(context.Background(), locked))
 
+	// A comment and another layout say the same: the lock stays current, and
+	// --locked builds.
+	writeFile(t, filepath.Join(dir, manifestFileName), "# My app.\n"+
+		strings.Replace(baseManifest, "name = 'my-app'", "name = \"my-app\" # the rock", 1)+
+		"\n# drift\n")
+	require.NoError(t, Run(context.Background(), locked))
+
 	// Change the manifest so the lock goes stale, then --locked must fail (1).
-	writeFile(t, filepath.Join(dir, manifestFileName), baseManifest+"\n# drift\n")
+	writeFile(t, filepath.Join(dir, manifestFileName),
+		strings.Replace(baseManifest, "tt = '>=3.1.0'", "tt = '>=3.2.0'", 1))
 
 	err := Run(context.Background(), locked)
-	require.Error(t, err)
+	require.ErrorIs(t, err, errLockStale)
+	assert.Contains(t, err.Error(), "manifest changed since the lock was written")
 	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
 }
 

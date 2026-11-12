@@ -175,7 +175,7 @@ func TestAdd_resolveFailureLeavesTheManifestEdited(t *testing.T) {
 
 	assert.Contains(t, manifestOnDisk(t, dir), "metrics")
 	// The lock is exactly the one that was there: nothing rewrote it.
-	assert.Equal(t, "sha256:stale", lockOnDisk(t, dir).ManifestHash)
+	assert.Equal(t, staleHash, lockOnDisk(t, dir).ManifestHash)
 }
 
 // TestAdd_reportsMoves checks the closure diff the CLI prints: a rock that

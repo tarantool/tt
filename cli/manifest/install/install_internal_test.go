@@ -2,6 +2,8 @@ package install
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"path/filepath"
 	"testing"
 
@@ -196,6 +198,65 @@ func TestInstallMultiSharedIncompatible(t *testing.T) {
 	require.ErrorIs(t, err, errIncompatibleDeps)
 	assert.Equal(t, 1, exitcode.Code(err))
 	assert.Contains(t, err.Error(), "router pinned 3.0.4")
+}
+
+// TestInstallLockedChecksTheManifestHash covers --locked: the lock of the
+// archive has to name the manifest of the archive by its data, so a comment
+// is no change, while a lock of an older tt, which hashed the bytes of the
+// file, is out of date even over the very bytes.
+func TestInstallLockedChecksTheManifestHash(t *testing.T) {
+	t.Parallel()
+
+	source := withRocks("my-app", "1.0.0", "3.0.4", ">=3.0.0").manifestTOML()
+	commented := "# a comment the archive does not carry\n" + source
+	other := withRocks("my-app", "1.0.0", "3.0.4", ">=3.0.1").manifestTOML()
+
+	treeHash := func(data string) string {
+		hash, err := manifest.HashTOML([]byte(data))
+		require.NoError(t, err)
+
+		return hash
+	}
+
+	bytesHash := func(data string) string {
+		sum := sha256.Sum256([]byte(data))
+
+		return "sha256:" + hex.EncodeToString(sum[:])
+	}
+
+	cases := []struct {
+		name string
+		hash string
+		want error // Nil installs.
+	}{
+		{"the manifest", treeHash(source), nil},
+		{"the manifest with a comment", treeHash(commented), nil},
+		{"another manifest", treeHash(other), manifest.ErrManifestChanged},
+		{"the bytes of the manifest, by an older tt", bytesHash(source), manifest.ErrHashOutdated},
+		{"a scheme tt does not know", "blake3:00", manifest.ErrHashScheme},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			spec := withRocks("my-app", "1.0.0", "3.0.4", ">=3.0.0")
+
+			spec.manifestHash = testCase.hash
+
+			_, err := installInto(t, t.TempDir(),
+				Options{Scope: ScopeProject, Locked: true}, spec.build(t))
+			if testCase.want == nil {
+				require.NoError(t, err)
+
+				return
+			}
+
+			require.ErrorIs(t, err, errLockStale)
+			require.ErrorIs(t, err, testCase.want)
+			assert.Equal(t, 1, exitcode.Code(err))
+		})
+	}
 }
 
 // TestInstallPartialMultiExit3 covers one invocation over several archives where

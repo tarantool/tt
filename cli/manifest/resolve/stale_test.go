@@ -2,6 +2,8 @@ package resolve_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"testing"
@@ -33,13 +35,66 @@ metrics = '>=1.0.0'
 	require.NoError(t, err)
 	assert.False(t, stale)
 
-	// Any byte change - even a comment - re-hashes the manifest and staleness fires.
-	edited := parseManifest(t, body+"# touched\n")
+	// Nor is one that says the same in other words: comments, another order of
+	// keys and tables, an inline table, another quoting.
+	reworded := parseManifest(t, "# The app.\n"+
+		"dependencies = { metrics = \">=1.0.0\" } # what it needs\n"+oneProduct)
 
-	stale, reason, err := engine.IsStale(edited, lock)
+	stale, reason, err := engine.IsStale(reworded, lock)
+	require.NoError(t, err)
+	assert.False(t, stale, reason)
+
+	// A changed declaration is a change.
+	edited := parseManifest(t, oneProduct+`[dependencies]
+metrics = '>=1.0.1'
+`)
+
+	stale, reason, err = engine.IsStale(edited, lock)
 	require.NoError(t, err)
 	assert.True(t, stale)
-	assert.Contains(t, reason, "manifest changed")
+	assert.Equal(t, "manifest changed since the lock was written", reason)
+}
+
+// TestStaleOnAnotherHashScheme covers a lock whose manifest_hash another tt
+// made: an older one, which hashed the bytes of the file, or one this tt does
+// not know. Neither is compared with the manifest, so the lock is stale even
+// when it was written for the very bytes on disk.
+func TestStaleOnAnotherHashScheme(t *testing.T) {
+	t.Parallel()
+
+	body := oneProduct + `[dependencies]
+metrics = '>=1.0.0'
+`
+	man := parseManifest(t, body)
+
+	engine := resolve.NewEngine(newFakeAdapter().add("metrics", "1.0.0-1", "a"), "", "tt 3.4.0")
+
+	lock, _, err := engine.Resolve(context.Background(), man)
+	require.NoError(t, err)
+
+	sum := sha256.Sum256([]byte(body))
+
+	digest := hex.EncodeToString(sum[:])
+
+	cases := []struct {
+		hash   string
+		reason string
+	}{
+		{"sha256:" + digest, "tt hashes the manifest differently now"},
+		{digest, "tt hashes the manifest differently now"},
+		{"toml9-sha256:" + digest, `scheme this tt does not know: "toml9-sha256"`},
+	}
+
+	for _, testCase := range cases {
+		other := *lock
+
+		other.ManifestHash = testCase.hash
+
+		stale, reason, err := engine.IsStale(man, &other)
+		require.NoError(t, err)
+		assert.True(t, stale, testCase.hash)
+		assert.Contains(t, reason, testCase.reason)
+	}
 }
 
 // noProducts is the manifest tt new writes, after tt package add: a global

@@ -13,7 +13,9 @@ import (
 )
 
 // goldenManifest is a fixed manifest whose resolution the golden lock pins
-// byte-for-byte. Its bytes also determine manifest_hash, so it must not drift.
+// byte-for-byte. What it says also determines manifest_hash, so it must not
+// drift, and the hash of the golden lock pins the canonical form the hash is
+// taken over: a change to the form fails here unless it is a new scheme.
 const goldenManifest = `manifest_version = '0.1'
 [package]
 name = 'my-app'

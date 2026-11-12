@@ -14,8 +14,8 @@ import (
 // no formatting in its AST, so Manifest.Marshal() returns a canonical document
 // that shares only the data with what the user wrote. app.manifest.toml is a
 // hand-authored file - people comment their pins and group their sections -
-// and manifest_hash is taken over the raw bytes, so a reformat is both rude
-// and semantically loud.
+// so a reformat is rude, though manifest_hash, taken over the data and not
+// over the bytes, would not notice it.
 //
 // So the approach is the one `go mod edit -require` uses: parse the source to
 // find the exact byte range of the entry being touched, splice the text, and

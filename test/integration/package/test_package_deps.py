@@ -7,10 +7,11 @@ two commands that need no server at all — removing the last dependency, and an
 run that is refused before it resolves — are exercised directly.
 """
 
-import hashlib
 import re
 import tomllib
 from pathlib import Path
+
+from utils import manifest_hash as manifest_hash_of
 
 MANIFEST_HEAD = """manifest_version = '0.1'
 
@@ -38,7 +39,7 @@ KEEP_COMMENT = "# keep me: the editor must not touch this line."
 LOCK_TEMPLATE = """lock_version = '0.1'
 manifest_version = '0.1'
 generated_by = 'tt 3.0.0'
-manifest_hash = 'sha256:{hash}'
+manifest_hash = 'toml1-sha256:{hash}'
 
 [[lock.products.default.dependencies]]
 name = 'stat'
@@ -78,9 +79,8 @@ def locked_versions(root: Path) -> dict[str, str]:
 
 
 def manifest_hash(root: Path) -> str:
-    """The hash the lock must carry: sha256 over the manifest's raw bytes."""
-    digest = hashlib.sha256((root / "app.manifest.toml").read_bytes()).hexdigest()
-    return f"sha256:{digest}"
+    """The hash the lock must carry: that of the canonical form of the manifest."""
+    return manifest_hash_of(root / "app.manifest.toml")
 
 
 def test_add_rewrites_the_manifest_and_the_lock(tree, run_tt, rock_server):

@@ -49,6 +49,9 @@ type archiveSpec struct {
 	// rocks are more rocks of the archive's .rocks/, installed into its tree
 	// with the rocks of files.
 	rocks []treetest.Rock
+	// manifestHash is the manifest_hash of the lock; empty is the hash of the
+	// manifest the archive carries.
+	manifestHash string
 }
 
 // manifestTOML renders the spec's manifest.
@@ -96,11 +99,19 @@ func (s archiveSpec) manifestTOML() string {
 func (s archiveSpec) lockBytes(t *testing.T) []byte {
 	t.Helper()
 
+	hash := s.manifestHash
+	if hash == "" {
+		var err error
+
+		hash, err = manifest.HashTOML([]byte(s.manifestTOML()))
+		require.NoError(t, err)
+	}
+
 	lock := manifest.Lock{
 		LockVersion:     manifest.LockVersion,
 		ManifestVersion: manifest.ManifestVersion,
 		GeneratedBy:     "tt 3.0.0",
-		ManifestHash:    manifest.HashBytes([]byte(s.manifestTOML())),
+		ManifestHash:    hash,
 		Products: map[string]manifest.LockProduct{
 			"default": {Dependencies: s.lockDeps},
 		},

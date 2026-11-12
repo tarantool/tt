@@ -61,6 +61,15 @@ uncommitted changes, `1.2.0.dirty-1`: every such build of a commit has it.
 The version tt makes from a commit, `1.2.1.dev.3.gabc1234-1` or
 `0.0.0.dev.36.g7170ebf-1`, names that commit and counts as a release.
 
+The lock matches the manifest by `manifest_hash`, a hash of what the
+manifest says - its tables, keys and values - and not of the bytes of the
+file. Comments, blank lines and indentation, the order of keys and tables,
+the quoting of a string and the form of a table (inline, dotted keys) do not
+count, so such an edit leaves the lock current. A changed key or value
+makes the lock out of date, one that pins nothing, such as `description`,
+included; so does a lock of a tt that hashed the manifest another way.
+`tt package resolve` then writes the hash anew.
+
 `tt package deps` shows what the manifest declares and what the lock
 resolved it to, with no network.
 

@@ -233,11 +233,14 @@ func lockTOML(t *testing.T, manifestSource string, pins map[string]string) []byt
 		})
 	}
 
+	hash, err := manifest.HashTOML([]byte(manifestSource))
+	require.NoError(t, err)
+
 	lock := manifest.Lock{
 		LockVersion:     manifest.LockVersion,
 		ManifestVersion: manifest.ManifestVersion,
 		GeneratedBy:     "tt 3.0.0",
-		ManifestHash:    manifest.HashBytes([]byte(manifestSource)),
+		ManifestHash:    hash,
 		Products: map[string]manifest.LockProduct{
 			"default": {Dependencies: depList},
 		},

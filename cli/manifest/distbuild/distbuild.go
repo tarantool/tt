@@ -683,11 +683,11 @@ func readLock(
 		return nil, nil, fmt.Errorf("%s: %w", manifest.DistributionLockFile, err)
 	}
 
-	if lock.ManifestHash != dist.Hash() {
+	hashErr := dist.CheckHash(lock.ManifestHash)
+	if hashErr != nil {
 		if opts.Locked {
 			return nil, nil, sdk.WithCode(sdk.ExitFailure, fmt.Errorf("%w: "+
-				"%s changed since; rebuild without --locked to update it",
-				errStaleLock, manifest.DistributionFile))
+				"%w; rebuild without --locked to update it", errStaleLock, hashErr))
 		}
 
 		return nil, nil, nil

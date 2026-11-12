@@ -88,7 +88,7 @@ type Distribution struct {
 	// directory or to module@version. See Replacement.
 	Replace map[string]string `toml:"replace,omitempty"`
 
-	raw []byte // Raw file bytes, source for manifest_hash.
+	hash string // manifest_hash of the file, see HashTOML.
 }
 
 // DistributionPackage is [package] of a distribution.
@@ -230,15 +230,24 @@ func ParseDistribution(data []byte) (*Distribution, []string, error) {
 		out.Dependencies[name] = dep
 	}
 
-	out.raw = append([]byte(nil), data...)
+	out.hash, err = HashTOML(data)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	return out, warnings, nil
 }
 
-// Hash returns the manifest_hash of the distribution manifest: the SHA-256
-// of the bytes ParseDistribution was given.
+// Hash returns the manifest_hash of the distribution manifest, computed over
+// the document ParseDistribution was given, as Manifest.Hash is.
 func (d *Distribution) Hash() string {
-	return HashBytes(d.raw)
+	return d.hash
+}
+
+// CheckHash reports whether recorded, the manifest_hash of a lock, names this
+// distribution manifest, as Manifest.CheckHash does.
+func (d *Distribution) CheckHash(recorded string) error {
+	return checkHash(recorded, d.hash)
 }
 
 // Name returns the name of the binary the distribution builds.

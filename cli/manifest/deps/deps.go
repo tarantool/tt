@@ -214,7 +214,7 @@ type project struct {
 	// manifest is the parsed and validated app.manifest.toml.
 	manifest *manifest.Manifest
 	// source is the exact bytes it was parsed from, which is what the editor
-	// splices and what manifest_hash is taken over.
+	// splices.
 	source []byte
 	// perm is the manifest file's current mode, carried so rewriting it does not
 	// silently re-permission a file the user chmod'ed.
@@ -306,10 +306,11 @@ func manifestPerm(path string) os.FileMode {
 // the manifest on disk is already the one to resolve.
 //
 // The re-parse in the middle is load-bearing and is the one thing in this
-// package that is easy to get wrong. manifest_hash is SHA-256 over the raw
-// source bytes a Manifest was parsed from, held in an unexported field, and it
-// is what the lock records. Resolving the pre-edit *Manifest would therefore
-// stamp the lock with the pre-edit hash, and resolve.IsStale would report the
+// package that is easy to get wrong. manifest_hash is computed from the
+// document a Manifest was parsed from, as it is parsed, and held in an
+// unexported field, and it is what the lock records. An edit changes a
+// declaration and so the hash: resolving the pre-edit *Manifest would stamp
+// the lock with the pre-edit hash, and resolve.IsStale would report the
 // freshly written lock as stale on the very next command. Re-parsing the edited
 // bytes is the only way to get a Manifest whose Hash is the one now on disk.
 func apply(

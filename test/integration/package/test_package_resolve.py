@@ -26,6 +26,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from utils import manifest_hash as manifest_hash_of
 from utils import sha256_of, write_rock_index
 
 MANIFEST_HEAD = """manifest_version = '0.1'
@@ -51,14 +52,15 @@ path = '.'
 # manifest has to come back byte for byte.
 KEEP_COMMENT = "# keep me: resolve must not rewrite the manifest."
 
-# The hash placeholder every lock fixture below carries; `current_lock` swaps it
-# for the real one when the lock is meant to look current.
-NO_HASH = "0" * 64
+# The hash placeholder every lock fixture below carries, of the scheme tt
+# writes, which no manifest hashes to; `write_lock` swaps it for the real one
+# when the lock is meant to look current.
+NO_HASH = "toml1-sha256:" + "0" * 64
 
 LOCK_HEAD = f"""lock_version = '0.1'
 manifest_version = '0.1'
 generated_by = 'tt 3.0.0'
-manifest_hash = 'sha256:{NO_HASH}'
+manifest_hash = '{NO_HASH}'
 """
 
 LOCK_ENTRY = """
@@ -103,8 +105,7 @@ def write_lock(root: Path, pins: dict[str, str], *, current: bool) -> None:
     """
     text = render_lock(pins)
     if current:
-        digest = hashlib.sha256((root / "app.manifest.toml").read_bytes()).hexdigest()
-        text = text.replace(NO_HASH, digest)
+        text = text.replace(NO_HASH, manifest_hash(root))
     (root / "app.manifest.lock").write_text(text)
 
 
@@ -120,8 +121,7 @@ def locked_versions(root: Path, product: str = "default") -> dict[str, str]:
 
 
 def manifest_hash(root: Path) -> str:
-    digest = hashlib.sha256((root / "app.manifest.toml").read_bytes()).hexdigest()
-    return f"sha256:{digest}"
+    return manifest_hash_of(root / "app.manifest.toml")
 
 
 def test_resolve_rewrites_the_lock_without_building(tree, run_tt, rock_server):
@@ -160,6 +160,68 @@ def test_resolve_holds_the_versions_the_lock_already_has(tree, run_tt, rock_serv
 
     assert locked_versions(root) == {"stat": "0.3.1-1"}
     assert "the lock is up to date" in result.stdout
+
+
+def test_a_comment_keeps_the_lock_current(tree, run_tt, rock_server):
+    """manifest_hash is taken over what the manifest says, not over its bytes.
+
+    A comment, another layout and another quoting change nothing a lock pins,
+    so a `--locked` build takes the lock as it is and a resolve rewrites
+    nothing; an edit of a value that pins nothing is a change all the same,
+    and the resolve that follows writes the hash anew.
+    """
+    root = tree.root
+    text = write_manifest(root, local_dependency(rock_server, ">=0.3.1"))
+
+    resolved = run_tt("package", "resolve")
+    assert resolved.returncode == 0, resolved.stderr
+    lock = (root / "app.manifest.lock").read_text()
+
+    reworded = "# My app.\n" + text.replace("name = 'my-app'", 'name = "my-app" # the rock')
+    (root / "app.manifest.toml").write_text(reworded + "\n# The end.\n")
+
+    build = run_tt("package", "build", "--locked")
+    assert build.returncode == 0, build.stderr
+
+    again = run_tt("package", "resolve")
+    assert again.returncode == 0, again.stderr
+    assert again.stdout.strip() == "the lock is up to date"
+    assert (root / "app.manifest.lock").read_text() == lock
+
+    described = reworded.replace("[package]\n", "[package]\ndescription = 'a memcached'\n")
+    (root / "app.manifest.toml").write_text(described)
+
+    stale = run_tt("package", "build", "--locked")
+    assert stale.returncode == 1
+    assert "manifest changed since the lock was written" in stale.stderr
+
+    refreshed = run_tt("package", "resolve")
+    assert refreshed.returncode == 0, refreshed.stderr
+    assert read_lock(root)["manifest_hash"] == manifest_hash(root)
+
+
+def test_a_lock_of_an_older_hash_scheme_is_stale(tree, run_tt, rock_server):
+    """A lock whose manifest_hash an older tt took over the bytes of the file
+    is out of date even for those very bytes: tt says it hashes the manifest
+    differently now, and a resolve writes the scheme it uses."""
+    root = tree.root
+    write_manifest(root, local_dependency(rock_server, ">=0.3.1"))
+
+    resolved = run_tt("package", "resolve")
+    assert resolved.returncode == 0, resolved.stderr
+
+    lock = root / "app.manifest.lock"
+    digest = hashlib.sha256((root / "app.manifest.toml").read_bytes()).hexdigest()
+    lock.write_text(lock.read_text().replace(manifest_hash(root), f"sha256:{digest}"))
+
+    stale = run_tt("package", "build", "--locked")
+    assert stale.returncode == 1
+    assert "tt hashes the manifest differently now" in stale.stderr
+    assert "run tt package resolve" in stale.stderr
+
+    refreshed = run_tt("package", "resolve")
+    assert refreshed.returncode == 0, refreshed.stderr
+    assert read_lock(root)["manifest_hash"] == manifest_hash(root)
 
 
 def test_resolve_holds_pins_from_a_stale_lock(tree, run_tt, rock_server):

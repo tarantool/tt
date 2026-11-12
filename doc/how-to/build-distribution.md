@@ -65,12 +65,14 @@ The Go toolchain must be in `PATH`. The build generates a main module that
 requires the core and the modules, compiles it with the build tags tt itself
 is built with, runs `tt version` of the result and writes `tt.manifest.lock`
 and `tt.manifest.sum` next to the manifest. Commit both: while the manifest
-stays the same, the next build takes its versions from the lock, and
-`--locked` fails when the lock or the Go modules differ. The lock pins what
-the binary is built from, not how it is compiled: the TLS implementation,
-the tags and the Go toolchain are the choice of each build, so one lock
-builds every one of them, and a build that pins nothing new - by another tt,
-say - leaves both files as they are.
+says the same, the next build takes its versions from the lock, and
+`--locked` fails when the lock or the Go modules differ. The lock names the
+manifest by a hash of its tables, keys and values, as the lock of a package
+does: a comment or a reformat of the manifest leaves it current. The lock
+pins what the binary is built from, not how it is compiled: the TLS
+implementation, the tags and the Go toolchain are the choice of each build,
+so one lock builds every one of them, and a build that pins nothing new - by
+another tt, say - leaves both files as they are.
 
 A local module, a local core or a directory of `[replace]` has no version to
 pin, so the lock records `content_hash`, a hash of its files by path and
