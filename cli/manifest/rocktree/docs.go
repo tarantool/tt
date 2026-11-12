@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/tarantool/tt/v3/internal/execfile"
 )
@@ -105,9 +106,138 @@ func MirrorTree(src, dst string) error {
 	})
 }
 
+// EntryFiles lists the files that entry, a path of the package in dir to a
+// file or a directory - an entry of its license_files - names: the slash
+// paths, relative to dir, of the regular files it is or holds, sorted. A
+// symlink is followed, to a file or a directory, as tt package pack follows it
+// when it copies the entry into the binary rock; below the entry, one that
+// leads nowhere or back to a directory being walked, and what is neither a
+// file nor a directory, are left out. A missing entry fails it with an error
+// wrapping fs.ErrNotExist.
+func EntryFiles(dir, entry string) ([]string, error) {
+	var files []string
+
+	err := entryFiles(filepath.Join(dir, entry), filepath.ToSlash(entry), true,
+		map[string]bool{}, &files)
+	if err != nil {
+		return nil, err
+	}
+
+	slices.Sort(files)
+
+	return files, nil
+}
+
+// entryFiles adds to files the slash path rel of path when it is a regular
+// file, and those of the files below it when it is a directory not among
+// walking, the real paths of the directories it is in. top marks the entry
+// itself, which has to be there.
+func entryFiles(path, rel string, top bool, walking map[string]bool, files *[]string) error {
+	info, err := os.Stat(path)
+	if errors.Is(err, fs.ErrNotExist) && !top {
+		return nil
+	}
+
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", path, err)
+	}
+
+	switch {
+	case info.Mode().IsRegular():
+		*files = append(*files, rel)
+
+		return nil
+	case !info.IsDir():
+		return nil
+	}
+
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", path, err)
+	}
+
+	if walking[resolved] {
+		return nil
+	}
+
+	walking[resolved] = true
+	defer delete(walking, resolved)
+
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", path, err)
+	}
+
+	for _, entry := range entries {
+		err = entryFiles(filepath.Join(path, entry.Name()), rel+"/"+entry.Name(), false,
+			walking, files)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// CopyEntry copies the files of entry of the package in dir (EntryFiles) into
+// doc, each at its path in the package, as tt package pack copies them into
+// the binary rock: what a symlink leads to, executable (0755) when its owner
+// may run it and 0644 otherwise, less the umask. A missing entry fails it
+// with an error wrapping fs.ErrNotExist, before anything is copied.
+func CopyEntry(dir, entry, doc string) error {
+	files, err := EntryFiles(dir, entry)
+	if err != nil {
+		return err
+	}
+
+	for _, rel := range files {
+		src := filepath.Join(dir, filepath.FromSlash(rel))
+
+		info, err := os.Stat(src)
+		if err != nil {
+			return fmt.Errorf("copying %s: %w", src, err)
+		}
+
+		perm := filePerm
+		if info.Mode().Perm()&0o100 != 0 {
+			perm = execPerm
+		}
+
+		dst := filepath.Join(doc, filepath.FromSlash(rel))
+
+		err = os.MkdirAll(filepath.Dir(dst), dirPerm)
+		if err != nil {
+			return fmt.Errorf("copying %s: %w", src, err)
+		}
+
+		err = writeFile(src, dst, perm)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // copyFileAs copies the file src to dst, whose parent exists, with the
 // permission bits perm, the umask not applied to them.
 func copyFileAs(src, dst string, perm os.FileMode) error {
+	err := writeFile(src, dst, perm)
+	if err != nil {
+		return err
+	}
+
+	err = os.Chmod(dst, perm)
+	if err != nil {
+		return fmt.Errorf("copying %s: %w", src, err)
+	}
+
+	return nil
+}
+
+// writeFile writes what the file src holds to dst, whose parent exists,
+// created with perm less the umask.
+func writeFile(src, dst string, perm os.FileMode) error {
 	source, err := os.Open(src)
 	if err != nil {
 		return fmt.Errorf("copying %s: %w", src, err)
@@ -116,10 +246,6 @@ func copyFileAs(src, dst string, perm os.FileMode) error {
 	defer func() { _ = source.Close() }()
 
 	err = execfile.Write(dst, source, perm)
-	if err == nil {
-		err = os.Chmod(dst, perm)
-	}
-
 	if err != nil {
 		return fmt.Errorf("copying %s: %w", src, err)
 	}

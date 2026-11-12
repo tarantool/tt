@@ -435,6 +435,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   build installed the files it laid out alone, so a `.tt` archive of the
   project shipped the native module of the rock without its license. A
   license file the source rock does not hold is a warning.
+- A `path` dependency holding a manifest has the license files of its
+  package in `doc/` of its install dir too, as its binary rock has them, so
+  a `.tt` archive of the project carries the license of what it ships of
+  it. A license file that is a symlink, to the license of a monorepo say,
+  is copied as the file it leads to, as `tt package pack` copies it; one
+  the package does not hold is a warning.
 - `tt emmylua check`, `doc` and `ls` leave out `_build/`, where
   `tt package build` copies the Lua files of the project and of its `path`
   dependencies: the configuration tt writes ignores `_build/**` with

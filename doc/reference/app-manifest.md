@@ -115,7 +115,9 @@ A `path` dependency is built from its directory, by what the directory holds:
 - `app.manifest.toml`: the directory is a project of its own, and tt builds
   it the way `tt package build` builds a package - the components of its
   default product, their layout and `version.lua` - and installs it into
-  `.rocks/` as the rock of its package. The dependency is named after that
+  `.rocks/` as the rock of its package, with its `license_files` in `doc/`
+  of the rock, as its binary rock has them; one that is not there is a
+  warning. The dependency is named after that
   package, or after the `rock` of another product of it, which is then the
   product built. Its version is the one tt derives in its directory, and its
   dependencies are those of its default product, resolved with the

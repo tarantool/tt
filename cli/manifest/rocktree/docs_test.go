@@ -2,6 +2,7 @@ package rocktree_test
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -66,6 +67,77 @@ func TestMirrorTree(t *testing.T) {
 	names, err := os.ReadDir(empty)
 	require.NoError(t, err)
 	assert.Empty(t, names)
+}
+
+// TestEntryFiles: an entry is the files it is or holds, through symlinks, a
+// link that leads nowhere or round to a directory being walked left out; a
+// missing entry is ErrNotExist. CopyEntry copies those files, modes
+// normalized as pack copies them.
+func TestEntryFiles(t *testing.T) {
+	t.Parallel()
+
+	repo := t.TempDir()
+	writeFiles(t, repo, map[string]string{
+		"COPYING":                  "repository license\n",
+		"shared/notice.md":         "shared notice\n",
+		"mylib/licenses/vendor.md": "vendor\n",
+	})
+
+	dir := filepath.Join(repo, "mylib")
+	links := map[string]string{
+		"LICENSE":         filepath.Join("..", "COPYING"),
+		"licenses/shared": filepath.Join("..", "..", "shared"),
+		"licenses/gone":   "nowhere",
+		"licenses/loop":   ".",
+	}
+
+	for link, target := range links {
+		require.NoError(t, os.Symlink(target, filepath.Join(dir, filepath.FromSlash(link))))
+	}
+
+	require.NoError(t, os.Chmod(filepath.Join(repo, "COPYING"), 0o700))
+
+	files, err := rocktree.EntryFiles(dir, "licenses")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"licenses/shared/notice.md", "licenses/vendor.md"}, files)
+
+	files, err = rocktree.EntryFiles(dir, "LICENSE")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"LICENSE"}, files)
+
+	_, err = rocktree.EntryFiles(dir, "NOTICE")
+	require.ErrorIs(t, err, fs.ErrNotExist)
+
+	doc := filepath.Join(t.TempDir(), "doc")
+	require.NoError(t, rocktree.CopyEntry(dir, "LICENSE", doc))
+	require.NoError(t, rocktree.CopyEntry(dir, "licenses", doc))
+
+	info, err := os.Lstat(filepath.Join(doc, "LICENSE"))
+	require.NoError(t, err)
+	assert.True(t, info.Mode().IsRegular())
+	assert.Equal(t, os.FileMode(0o755), info.Mode().Perm()&^umask(t))
+
+	data, err := os.ReadFile(filepath.Join(doc, "licenses", "shared", "notice.md"))
+	require.NoError(t, err)
+	assert.Equal(t, "shared notice\n", string(data))
+
+	require.ErrorIs(t, rocktree.CopyEntry(dir, "NOTICE", doc), fs.ErrNotExist)
+}
+
+// umask reads the umask of the process from the mode a fresh file gets.
+func umask(t *testing.T) os.FileMode {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "probe")
+
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0o777)
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+
+	return 0o777 &^ info.Mode().Perm()
 }
 
 // TestWithDocs: the files of the rock are the stage and, in doc/, what fill

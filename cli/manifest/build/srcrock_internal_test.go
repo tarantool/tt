@@ -142,15 +142,19 @@ func TestFetchSrcRock(t *testing.T) {
 	assert.Equal(t, srcRockExecMode, info.Mode().Perm())
 }
 
-// TestSrcRockDocs: the license files of the package of a source rock are
-// copied into doc at their paths in it, a directory whole; one the source
-// rock lacks is a warning, and an entry leading out of the package fails.
-func TestSrcRockDocs(t *testing.T) {
+// TestLicenseDocs: the license files of the package another project builds
+// are copied into doc at their paths in it, a directory whole, a symlink as
+// the file it leads to, as in a monorepo where the license of a package is
+// that of the repository; one the package lacks is a warning, and an entry
+// leading out of the package fails.
+func TestLicenseDocs(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	repo := t.TempDir()
+	dir := filepath.Join(repo, "mylib")
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "licenses"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "LICENSE"), []byte("text\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "LICENSE"), []byte("text\n"), 0o644))
+	require.NoError(t, os.Symlink(filepath.Join("..", "LICENSE"), filepath.Join(dir, "LICENSE")))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "licenses", "a.md"), []byte("a\n"), 0o644))
 
 	var warnings []string
@@ -160,23 +164,27 @@ func TestSrcRockDocs(t *testing.T) {
 		adapter: nil,
 		pinned:  manifest.LockProduct{},
 	}
-	build := manifestBuild{dep: srcDep, dir: dir}
+	build := manifestBuild{dep: srcDep, dir: dir, what: "path dependency"}
 	doc := filepath.Join(t.TempDir(), "doc")
 
-	err := builder.srcRockDocs(build, []string{"LICENSE", "licenses", "NOTICE"}, doc)
+	err := builder.licenseDocs(build, []string{"LICENSE", "licenses", "NOTICE"}, doc)
 	require.NoError(t, err)
+
+	info, err := os.Lstat(filepath.Join(doc, "LICENSE"))
+	require.NoError(t, err)
+	assert.True(t, info.Mode().IsRegular(), "a symlink is copied as its file")
 
 	data, err := os.ReadFile(filepath.Join(doc, "LICENSE"))
 	require.NoError(t, err)
 	assert.Equal(t, "text\n", string(data))
 	assert.FileExists(t, filepath.Join(doc, "licenses", "a.md"))
 	assert.NoFileExists(t, filepath.Join(doc, "NOTICE"))
-	assert.Equal(t, []string{"the source rock of mylib 1.2.0-1 has no NOTICE, a license file " +
+	assert.Equal(t, []string{`path dependency "mylib" has no NOTICE, a license file ` +
 		"of its manifest; the rock is installed without it"}, warnings)
 
 	for _, entry := range []string{"../LICENSE", "/etc/passwd", "."} {
-		err = builder.srcRockDocs(build, []string{entry}, doc)
-		require.ErrorIs(t, err, errSrcRockLicense, entry)
+		err = builder.licenseDocs(build, []string{entry}, doc)
+		require.ErrorIs(t, err, errLicenseEntry, entry)
 	}
 }
 
