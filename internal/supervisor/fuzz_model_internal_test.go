@@ -52,10 +52,15 @@ type fuzzRun struct {
 	sent          []syscall.Signal
 	handled       int
 	stopRequested bool
-	running       int
-	failed        map[int]bool
-	reported      map[int]bool
-	checkFailed   bool
+	// unsettled tells that the step being applied follows a batched one:
+	// the engine is still moving, not waiting in a select. stopInFlight
+	// tells that a stop came then; see requestStopLocked.
+	unsettled    bool
+	stopInFlight bool
+	running      int
+	failed       map[int]bool
+	reported     map[int]bool
+	checkFailed  bool
 	// checksRunning counts the calls of Check that have not returned, and
 	// checkCalls all the calls.
 	checksRunning int
@@ -127,10 +132,40 @@ func (run *fuzzRun) inject(sig syscall.Signal) {
 
 	run.sent = append(run.sent, sig)
 	if stopFor(sig) {
-		run.stopRequested = true
+		run.requestStopLocked()
 	}
 
 	run.signals <- sig
+}
+
+// requestStopLocked records a stop. A stop that comes while the engine is
+// still moving, right after a batched step, races with it: the engine may
+// have looked for a stop just before and be on its way to a Source call or a
+// start, which then comes after the stop. One such call is let through; the
+// look for a stop before the next one must see it. Under mu.
+func (run *fuzzRun) requestStopLocked() {
+	if !run.stopRequested && run.unsettled {
+		run.stopInFlight = true
+	}
+
+	run.stopRequested = true
+}
+
+// afterStopLocked tells whether a Source call or a start comes after a stop
+// the engine should have seen. The one call a racing stop lets through does
+// not. Under mu.
+func (run *fuzzRun) afterStopLocked() bool {
+	if !run.stopRequested {
+		return false
+	}
+
+	if run.stopInFlight {
+		run.stopInFlight = false
+
+		return false
+	}
+
+	return true
 }
 
 // spawn is the engine's spawn: a fake child, and the checks that no child
@@ -147,7 +182,7 @@ func (run *fuzzRun) spawn(context.Context, *Spec) (*child, error) {
 		return nil, errFuzzStart
 	}
 
-	if run.stopRequested {
+	if run.afterStopLocked() {
 		run.failf("a child started after a stop was received")
 	}
 
@@ -503,7 +538,7 @@ func (run *fuzzRun) onChecked(event Checked) {
 func (run *fuzzRun) next(context.Context) (Spec, error) {
 	run.mu.Lock()
 
-	if run.stopRequested {
+	if run.afterStopLocked() {
 		run.failf("the Source was asked for a Spec after a stop")
 	}
 
@@ -543,7 +578,7 @@ func (run *fuzzRun) next(context.Context) (Spec, error) {
 func (run *fuzzRun) restart(exit Exit) (bool, error) {
 	run.mu.Lock()
 
-	if run.stopRequested {
+	if run.afterStopLocked() {
 		run.failf("the Source was asked about a restart after a stop")
 	}
 
@@ -644,11 +679,15 @@ func (run *fuzzRun) apply(step fuzzStep) {
 		default:
 		}
 	case opCancel:
+		// Under mu with the record of the stop, so that no Source call or
+		// start comes between the two.
 		run.locked(func() {
-			run.stopRequested = true
+			run.requestStopLocked()
+
 			run.ctxCancelled = true
+
+			run.cancel()
 		})
-		run.cancel()
 	case opFailNext:
 		run.locked(func() { run.failNext++ })
 	case opFailStart:
@@ -745,6 +784,17 @@ func (run *fuzzRun) settle() {
 			time.Sleep(20 * time.Microsecond)
 		}
 	}
+}
+
+// settleSteps settles the engine after a step. Once it rests, whatever it was
+// on its way to has happened, so from here a stop it does not see is a
+// defect.
+func (run *fuzzRun) settleSteps() {
+	run.settle()
+	run.locked(func() {
+		run.unsettled = false
+		run.stopInFlight = false
+	})
 }
 
 // checkSettled checks the invariants that hold whenever the engine rests.
@@ -895,14 +945,16 @@ func (run *fuzzRun) drive() {
 		if batch {
 			batch = false
 
+			run.locked(func() { run.unsettled = true })
+
 			continue
 		}
 
-		run.settle()
+		run.settleSteps()
 		run.checkSettled()
 	}
 
-	run.settle()
+	run.settleSteps()
 	run.finish()
 	rival()
 	run.checkEnd()
