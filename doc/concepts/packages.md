@@ -54,6 +54,13 @@ The lock changes only when asked to:
   matches the manifest, keeping its versions. With `--locked` they fail
   instead, which is what CI wants.
 
+A version that tracks a branch, `scm-1` or `dev-1`, is taken only when the
+constraint names it or the rock has no other, and resolving to it warns
+that the lock will not pin fixed code. So is a version tt made from
+uncommitted changes, `1.2.0.dirty-1`: every such build of a commit has it.
+The version tt makes from a commit, `1.2.1.dev.3.gabc1234-1` or
+`0.0.0.dev.36.g7170ebf-1`, names that commit and counts as a release.
+
 `tt package deps` shows what the manifest declares and what the lock
 resolved it to, with no network.
 

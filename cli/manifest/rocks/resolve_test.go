@@ -208,6 +208,44 @@ func TestResolveSkipsMovingOutOfRange(t *testing.T) {
 	assert.ErrorIs(t, err, rocks.ErrNoMatch)
 }
 
+// TestResolveTakesACommitAsARelease: the version tt makes from a commit has a
+// dev in it, but names the commit, so it is taken over the branch as a
+// release would be.
+func TestResolveTakesACommitAsARelease(t *testing.T) {
+	t.Parallel()
+
+	var hits int32
+
+	server := manifestServer(t, repoJSON("memcached",
+		"0.0.0.dev.35.g1234567-1", "0.0.0.dev.36.g7170ebf-1", "scm-1"), &hits)
+
+	adapter := newAdapter(server.URL)
+
+	resolved, err := adapter.Resolve(context.Background(), "memcached", "", "")
+	require.NoError(t, err)
+
+	assert.Equal(t, "0.0.0.dev.36.g7170ebf-1", resolved.Version.Raw)
+}
+
+// TestResolveSkipsUncommittedVersions: a version tt makes from uncommitted
+// changes names no fixed code, and LuaRocks orders 1.0.0.dirty above 1.0.0,
+// so the release is taken over it.
+func TestResolveSkipsUncommittedVersions(t *testing.T) {
+	t.Parallel()
+
+	var hits int32
+
+	server := manifestServer(t, repoJSON("memcached",
+		"1.0.0-1", "1.0.0.dirty-1", "1.0.1.dev.2.gabc1234.dirty-1"), &hits)
+
+	adapter := newAdapter(server.URL)
+
+	resolved, err := adapter.Resolve(context.Background(), "memcached", ">=1.0.0", "")
+	require.NoError(t, err)
+
+	assert.Equal(t, "1.0.0-1", resolved.Version.Raw)
+}
+
 func TestResolveNotFound(t *testing.T) {
 	t.Parallel()
 
