@@ -347,6 +347,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   of a rock are pinned by the sha256 a rock index lists, under `artifacts`.
   A lock an older tt wrote reads as before, its `checksum` keys ignored and
   dropped when the lock is written again.
+- A field of another backend is a validation error on the build of every
+  backend and on a hook: one of `make`, `shell`, `c` or `lua-c` on the build
+  of another of the four was let through, doing nothing - `module` or
+  `sources` on a `make` build, `make_target` on a `shell` build or hook.
+  `output` on a `c` or `lua-c` build, which writes its module itself, is
+  one too. So is `CC`, `CFLAGS` or `LDFLAGS` in `env` of a `c` or `lua-c`
+  build: tt takes them from the environment it runs in and the compiler
+  reads none of them, so the error names `cflags` and `ldflags`, where the
+  flags of the project go.
 
 ### Fixed
 

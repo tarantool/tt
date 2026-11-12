@@ -172,7 +172,8 @@ new` объявляет компоненты, собираемые tarawasm; с�
 | Поле | Backend'ы | |
 | --- | --- | --- |
 | `backend` | | `c`, `lua-c` (компоненты-модули); `go` (исполняемые компоненты); `cargo`, `cmake`, `make`, `shell` (и те, и другие) |
-| `cwd`, `env`, `output` | все | каталог запуска сборки, её окружение, создаваемые файлы |
+| `cwd`, `env` | все | каталог запуска сборки, её окружение |
+| `output` | `make`, `shell`, `cmake` | создаваемые сборкой файлы, которые tt копирует в `TT_OUTPUT_DIR`; для `cmake` обязателен |
 | `incremental` | `make`, `shell` | `true` пропускает сборку, если входные данные те же, что при прошлой сборке, и её результаты ещё на месте |
 | `make_target`, `entrypoint`, `flags` | `make` | `make_target` обязателен |
 | `command`, `args` | `shell` | `command` обязателен |
@@ -186,6 +187,10 @@ new` объявляет компоненты, собираемые tarawasm; с�
 | `name`, `tags`, `cgo` | `go` | по умолчанию `name`  -  имя компонента; cgo по умолчанию выключен |
 | `bin`, `features`, `profile` | `cargo` | для исполняемого компонента `bin` по умолчанию  -  имя компонента; `profile` по умолчанию `release` |
 | `variables`, `targets`, `build_type` | `cmake` | `-D<name>=<value>` конфигурации, собираемые цели (по умолчанию все) и `CMAKE_BUILD_TYPE` (по умолчанию `RelWithDebInfo`); `output` обязателен |
+
+Поле другого backend'а, чем у сборки, - ошибка, ведь оно ничего бы не
+делало: `cflags` у сборки `make`, `make_target` у сборки или hook'а `shell`,
+`output` у сборки `c`.
 
 Сборка получает свой контракт через окружение: `TT_OUTPUT_DIR`, куда
 помещаются результаты сборки, `TT_PROJECT_ROOT`, `TT_PACKAGE`,
@@ -228,8 +233,10 @@ $CC -O2 -fPIC <cflags> <$CFLAGS> -I<каталог заголовков Tarantoo
 окружения завершает строку. Список из `platforms.<os>` идёт после списка
 сборки. На macOS вместо `-shared` передаётся `-bundle -undefined
 dynamic_lookup -all_load`, а `-Wl,-rpath` не передаётся. `CC`, `CFLAGS` и
-`LDFLAGS` берутся из окружения, в котором работает tt. `tt -V package build`
-показывает эту строку.
+`LDFLAGS` берутся из окружения, в котором работает tt, а сам компилятор ни
+одну из них не читает: в `env` сборки каждая из них - ошибка, ведь она
+ничего бы не достигла, а флаги проекта указываются в `cflags` и `ldflags`.
+`tt -V package build` показывает эту строку.
 
 ```toml
 [components.memcached.build]

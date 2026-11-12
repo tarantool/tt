@@ -265,6 +265,62 @@ func TestValidateExecutableComponents(t *testing.T) {
 			field: "components.a.build.cgo",
 			msg:   `is a field of backend go, not of "make"`,
 		},
+		// A field of make, shell, c or lua-c on a build of another of the four
+		// is refused as any other.
+		{
+			name: "module on make",
+			body: "[components.lua]\npath = \"src\"\n" +
+				"[components.lua.build]\nbackend = \"make\"\nmake_target = \"all\"\n" +
+				"module = \"x\"\n",
+			field: "components.lua.build.module",
+			msg:   `is a field of backend c, lua-c or cargo, not of "make"`,
+		},
+		{
+			name: "a field of make on shell",
+			body: "[components.lua]\npath = \"src\"\n" +
+				"[components.lua.build]\nbackend = \"shell\"\ncommand = \"./b.sh\"\n" +
+				"make_target = \"x\"\n",
+			field: "components.lua.build.make_target",
+			msg:   `is a field of backend make, not of "shell"`,
+		},
+		{
+			name: "a field of shell on make",
+			body: "[components.lua]\npath = \"src\"\n" +
+				"[components.lua.build]\nbackend = \"make\"\nmake_target = \"all\"\n" +
+				"args = [\"-j4\"]\n",
+			field: "components.lua.build.args",
+			msg:   `is a field of backend shell, not of "make"`,
+		},
+		{
+			name: "a field of c on shell",
+			body: "[components.lua]\npath = \"src\"\n" +
+				"[components.lua.build]\nbackend = \"shell\"\ncommand = \"./b.sh\"\n" +
+				"sources = [\"a.c\"]\n",
+			field: "components.lua.build.sources",
+			msg:   `is a field of backend c or lua-c, not of "shell"`,
+		},
+		{
+			name: "a field of make on lua-c",
+			body: "[components.lua]\npath = \"src\"\n" +
+				"[components.lua.build]\nbackend = \"lua-c\"\nmodule = \"m\"\n" +
+				"sources = [\"m.c\"]\nflags = [\"-j4\"]\n",
+			field: "components.lua.build.flags",
+			msg:   `is a field of backend make, not of "lua-c"`,
+		},
+		{
+			name: "output on c",
+			body: "[components.lua]\npath = \"src\"\n" +
+				"[components.lua.build]\nbackend = \"c\"\nmodule = \"m\"\n" +
+				"sources = [\"m.c\"]\noutput = [\"m.so\"]\n",
+			field: "components.lua.build.output",
+			msg:   `is a field of backend make, shell or cmake, not of "c"`,
+		},
+		{
+			name:  "a field of make on a shell hook",
+			body:  "[hooks.pre_build]\ncommand = \"./gen.sh\"\nentrypoint = \"Makefile\"\n",
+			field: "hooks.pre_build.entrypoint",
+			msg:   `is a field of backend make, not of "shell"`,
+		},
 		{
 			name: "a field of go on a module build",
 			body: "[components.a]\npath = \"a\"\n" +
@@ -398,15 +454,10 @@ func TestValidateExecutableComponentsAccepted(t *testing.T) {
 		"cargo for a module with its name": "[components.fast]\npath = \"fast\"\n" +
 			"[components.fast.build]\nbackend = \"cargo\"\nmodule = \"fast_rs\"\n" +
 			"package = \"fast\"\nfeatures = [\"simd\"]\nprofile = \"dev\"\n",
-		// module of c and lua-c on a make build was never checked either.
-		"a stray module on make": "[components.lua]\npath = \"src\"\n" +
+		// make reads CFLAGS of its environment, unlike the cc of c and lua-c.
+		"CFLAGS in env of make": "[components.lua]\npath = \"src\"\n" +
 			"[components.lua.build]\nbackend = \"make\"\nmake_target = \"all\"\n" +
-			"module = \"x\"\n",
-		// A field of make on a shell build was never checked, and a manifest
-		// that has one keeps building.
-		"a stray make field on shell": "[components.lua]\npath = \"src\"\n" +
-			"[components.lua.build]\nbackend = \"shell\"\ncommand = \"./b.sh\"\n" +
-			"make_target = \"x\"\n",
+			"env = { CC = \"clang\", CFLAGS = \"-O3\", LDFLAGS = \"-s\" }\n",
 		"a go program and a module of one name": "[components.gw]\npath = \"gw\"\n" +
 			"kind = \"executable\"\n[components.gw.build]\nbackend = \"go\"\n" +
 			"[components.lua]\npath = \"src\"\n[components.lua.build]\nbackend = \"make\"\n" +
@@ -715,6 +766,33 @@ func TestValidateCcFlags(t *testing.T) {
 			"[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
 				"[components.a.build]\nbackend = \"go\"\ncflags = [\"-O3\"]\n",
 			"components.a.build.cflags", `is a field of backend c or lua-c, not of "go"`,
+		},
+		{
+			"cflags on make",
+			"[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"make\"\n" +
+				"make_target = \"all\"\ncflags = [\"-O3\"]\n",
+			"components.a.build.cflags", `is a field of backend c or lua-c, not of "make"`,
+		},
+		{
+			"ldflags on shell",
+			"[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"shell\"\n" +
+				"command = \"./b.sh\"\nldflags = [\"-s\"]\n",
+			"components.a.build.ldflags", `is a field of backend go, c or lua-c, not of "shell"`,
+		},
+		{
+			"CC in env", module + "env = { CC = \"clang\" }\n",
+			"components.a.build.env.CC", "the compiler is CC of the environment tt runs in",
+		},
+		{
+			"CFLAGS in env", module + "env = { CFLAGS = \"-O0 -g\" }\n",
+			"components.a.build.env.CFLAGS", "put the flags of the compiler into cflags",
+		},
+		{
+			"LDFLAGS in env of lua-c",
+			"[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"lua-c\"\n" +
+				"module = \"m\"\nsources = [\"m.c\"]\n" +
+				"env = { LDFLAGS = \"-s\", PATH = \"/bin\" }\n",
+			"components.a.build.env.LDFLAGS", "put the flags of the link into ldflags",
 		},
 	}
 

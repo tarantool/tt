@@ -372,19 +372,6 @@ func validateCargoKind(field string, comp Component) error {
 	return nil
 }
 
-// isStrictBackend reports whether backend is one of those that came after
-// the first four - go and cargo with executable components, then cmake -
-// whose fields are checked strictly.
-func isStrictBackend(backend string) bool {
-	return backend == backendGo || backend == backendCargo || backend == backendCMake
-}
-
-// isLegacyBackend reports whether backend is one of the four that were there
-// before go, cargo and cmake: make, shell, c and lua-c.
-func isLegacyBackend(backend string) bool {
-	return !isStrictBackend(backend)
-}
-
 // programNameRe is the shape of a program name a go or cargo build is given:
 // a plain file name, which tt instance finds in .rocks/bin/ by the binary of
 // an instance description given without a slash.
@@ -455,9 +442,10 @@ func validateBuild(field string, build Build) error {
 }
 
 // validateCcBuild checks the fields of a c or lua-c build: module and
-// sources are required, and no flag of the compiler or of the linker, of
-// the build or of an overlay of platforms, is empty, which cc would take
-// for the name of a file.
+// sources are required, env sets none of the variables cc is run with
+// (ccEnvVars), and no flag of the compiler or of the linker, of the build or
+// of an overlay of platforms, is empty, which cc would take for the name of
+// a file.
 func validateCcBuild(field string, build Build) error {
 	if build.Module == "" {
 		return invalid(field, "module is required for backend %q", build.Backend)
@@ -465,6 +453,13 @@ func validateCcBuild(field string, build Build) error {
 
 	if len(build.Sources) == 0 {
 		return invalid(field, "sources is required for backend %q", build.Backend)
+	}
+
+	for _, variable := range ccEnvVars {
+		if _, set := build.Env[variable.name]; set {
+			return invalid(field+".env."+variable.name, "does nothing on backend %q: %s",
+				build.Backend, variable.instead)
+		}
 	}
 
 	flags := []flagList{{"cflags", build.Cflags}, {"ldflags", build.Ldflags}}
@@ -491,6 +486,21 @@ func validateCcBuild(field string, build Build) error {
 type flagList struct {
 	name  string
 	flags []string
+}
+
+// ccEnvVars are the variables of the environment the cc line of a c or
+// lua-c build is made of, with what to write instead of setting one in env
+// of the build. tt reads them from the environment it runs in, and the
+// compiler reads none of them, so one of env reaches nothing.
+var ccEnvVars = []struct {
+	name    string
+	instead string
+}{
+	{"CC", "the compiler is CC of the environment tt runs in, cc by default"},
+	{"CFLAGS", "put the flags of the compiler into cflags; " +
+		"CFLAGS of the environment tt runs in comes after them"},
+	{"LDFLAGS", "put the flags of the link into ldflags; " +
+		"LDFLAGS of the environment tt runs in comes after them"},
 }
 
 // validateCMakeBuild checks the fields of a cmake build. output is required:
@@ -608,10 +618,9 @@ func backendFields(build Build) []backendField {
 		{"platforms", build.Platforms != nil, ccDriver},
 		// Flags of the linker of each: go build's -ldflags, the link of cc.
 		{"ldflags", build.Ldflags != nil, linkers},
-		// go and cargo name their program themselves.
-		{"output", build.Output != nil, []string{
-			backendMake, backendShell, backendC, backendLuaC, backendCMake,
-		}},
+		// The backends that copy the files it lists: go and cargo name their
+		// program themselves, c and lua-c write their module.
+		{"output", build.Output != nil, []string{backendMake, backendShell, backendCMake}},
 		{"incremental", build.Incremental != nil, []string{backendMake, backendShell}},
 		{"package", build.Package != "", []string{backendGo, backendCargo}},
 		{"name", build.Name != "", []string{backendGo}},
@@ -626,25 +635,14 @@ func backendFields(build Build) []backendField {
 	}
 }
 
-// validateBackendFields rejects a field of another backend: a go build with
-// make_target, a make build with cgo. Such a field does nothing, and a user
-// who wrote cgo = true on a make build expects a build with cgo he would not
-// get.
-//
-// The fields the go, cargo and cmake backends brought, and every field on a
-// go, cargo or cmake build, are checked. A field of make, shell, c or lua-c
-// on a build of another of those four is still let through, as it always
-// was: a manifest that carries one would stop building.
+// validateBackendFields rejects a field of another backend, on the build of
+// every backend and of a hook: a go build with make_target, a make build
+// with cgo or cflags, a shell build with make_target. Such a field does
+// nothing, and a user who wrote cflags on a make build expects a build with
+// those flags he would not get.
 func validateBackendFields(field string, build Build) error {
 	for _, key := range backendFields(build) {
 		if !key.set || slices.Contains(key.owners, build.Backend) {
-			continue
-		}
-
-		// A field a backend of the four owns is one of theirs, module
-		// included, which cargo shares.
-		legacyField := slices.ContainsFunc(key.owners, isLegacyBackend)
-		if legacyField && !isStrictBackend(build.Backend) {
 			continue
 		}
 
