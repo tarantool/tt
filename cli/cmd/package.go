@@ -823,7 +823,8 @@ func newPackagePackCmd() *cobra.Command {
 			"the package has no native file, with its rockspec beside it. The " +
 			"rockspec is made from the manifest: the dependencies are the ranges " +
 			"it declares, and the source is [package].repository at the tag of " +
-			"the version. The rock is written into --out, which is then indexed " +
+			"the version, or at its commit, in full in source.tag, when no tag " +
+			"names it. The rock is written into --out, which is then indexed " +
 			"as a rock server, keeping the rocks already there: the LuaRocks " +
 			"manifests and the rock index, " + rockindex.File + ", which has a " +
 			"project that depends on the rock pin the sha256 of its files in the " +

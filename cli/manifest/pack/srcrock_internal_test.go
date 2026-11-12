@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -98,6 +99,46 @@ func TestPackSrcRock(t *testing.T) {
 	manifest, err := os.ReadFile(filepath.Join(out, "manifest"))
 	require.NoError(t, err)
 	assert.Contains(t, string(manifest), `arch = "src"`)
+}
+
+// TestPackRockspecOfACommit: the rockspec of a version of a commit no tag
+// names has the commit, in full, as its source.tag, and the source rock of it
+// keeps the directory LuaRocks unpacks it into; one of uncommitted changes
+// names no commit.
+func TestPackRockspecOfACommit(t *testing.T) {
+	t.Parallel()
+
+	src := writeGitLibrary(t)
+	writeTree(t, src, map[string]string{"mylib/next.lua": "return {}\n"})
+	git(t, src, "add", "-A")
+	git(t, src, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "next")
+
+	out, err := exec.CommandContext(t.Context(), "git", "-C", src, "rev-parse", "HEAD").Output()
+	require.NoError(t, err)
+
+	commit := strings.TrimSpace(string(out))
+
+	result, err := Run(context.Background(),
+		packOptions(src, filepath.Join(src, "_out", "commit"), FormatRockSrc))
+	require.NoError(t, err)
+
+	rockspec, err := os.ReadFile(result.Rockspec)
+	require.NoError(t, err)
+	assert.Contains(t, string(rockspec), "   tag = \""+commit+"\",\n")
+	assert.Contains(t, zipEntries(t, result.SrcRock), "mylib/mylib/next.lua")
+	assert.Equal(t, "mylib-1.2.1.dev.1.g"+commit[:7]+"-1.rockspec",
+		filepath.Base(result.Rockspec))
+
+	writeTree(t, src, map[string]string{"mylib/next.lua": "return 1\n"})
+
+	result, err = Run(context.Background(),
+		packOptions(src, filepath.Join(src, "_out", "dirty"), FormatRockSrc))
+	require.NoError(t, err)
+
+	rockspec, err = os.ReadFile(result.Rockspec)
+	require.NoError(t, err)
+	assert.NotContains(t, string(rockspec), "tag =")
+	assert.Contains(t, string(rockspec), "uncommitted changes")
 }
 
 // TestPackSrcRockOfAWorkInProgress: the manifest is in the source rock even

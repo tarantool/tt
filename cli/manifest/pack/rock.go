@@ -395,23 +395,20 @@ func releaseRock(built *build.Result, rock rockDecl, revision int) rocktree.Rele
 
 	man := built.Manifest
 
-	source := sourceURL(man.Package.Repository)
-	tag := ""
-
-	if source != "" {
-		tag = built.Version.Tag
-	}
+	ver := built.Version
 
 	return rocktree.Release{
 		Name:         rock.name,
-		Version:      built.Version.SemVer,
+		Version:      ver.SemVer,
 		Revision:     revision,
 		Summary:      man.Package.Description,
 		Homepage:     man.Package.Repository,
 		License:      man.Package.License,
 		Maintainer:   strings.Join(man.Package.Authors, ", "),
-		SourceURL:    source,
-		SourceTag:    tag,
+		SourceURL:    sourceURL(man.Package.Repository),
+		SourceTag:    ver.Tag,
+		SourceCommit: ver.CommitHash,
+		Uncommitted:  ver.Dirty,
 		Platforms:    rockPlatforms(man.Platform.Platforms),
 		Dependencies: rock.dependencies,
 	}

@@ -324,8 +324,15 @@ The project needs no rockspec: tt makes it from the manifest. Its
 dependencies are the ranges `[dependencies]` and the components of the
 product declare, not the versions the lock pins, and `[platform].tarantool`
 becomes its dependency on `tarantool`; the source is
-`[package].repository`, at the tag of the version, named as git has it,
-when the version is that of a tag and not `dirty`; `[package]` gives the
+`[package].repository`, at the commit of the version: `source.tag` is the
+tag of the version, named as git has it, and for a version of a commit no
+tag names, `1.2.1-dev.3+gabc1234` say, the full sha of the commit, LuaRocks
+having no field for a commit. LuaRocks fetches a git source with `git clone
+--branch`, which takes no commit, so it fails to fetch the source of such a
+rockspec rather than fetch another commit; tt fetches the source of no rock.
+A `dirty` version, of uncommitted changes, and one a `VERSION` file gives
+name the repository with no commit, a `dirty` one with a comment saying so;
+a package with no `repository` has the source `file://.`. `[package]` gives the
 description, the license and the maintainers, `[platform].platforms` the
 supported platforms. The build is done, so the build type is `none`, and
 the rockspec is the same for the rock of every platform. A path dependency

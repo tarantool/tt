@@ -4002,11 +4002,12 @@ needed.
 binary rock of this platform, or an .all rock when the package has no native
 file, with its rockspec beside it. The rockspec is made from the manifest: the
 dependencies are the ranges it declares, and the source is [package].repository
-at the tag of the version. The rock is written into --out, which is then indexed
-as a rock server, keeping the rocks already there: the LuaRocks manifests and
-the rock index, tt-rocks-index.json, which has a project that depends on the
-rock pin the sha256 of its files in the lock (see tt package index). --format
-tt,rock makes both from one build.
+at the tag of the version, or at its commit, in full in source.tag, when no tag
+names it. The rock is written into --out, which is then indexed as a rock
+server, keeping the rocks already there: the LuaRocks manifests and the rock
+index, tt-rocks-index.json, which has a project that depends on the rock pin the
+sha256 of its files in the lock (see tt package index). --format tt,rock makes
+both from one build.
 
 --format rock-src packs the source rock: the same rockspec and the files of the
 project git tracks, submodules included, with a VERSION file of the version. A
