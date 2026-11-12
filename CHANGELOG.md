@@ -233,6 +233,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `--severity`, `tt emmylua doc` `-o/--output` and `-f/--output-format`, and
   `tt emmylua fmt` `--check` and `--write` before `--`, where they were
   unknown flags; the other flags of the programs still go after `--`.
+- `tt test` takes any number of sub-paths,
+  `tt test test/unit test/integration`, where it failed on a second one
+  before the build. Each must exist in the project, and all of them go to
+  luatest in the order given, ahead of what follows `--`; with none the run
+  is `test/` or `tests/`, as before.
 - `tt emmylua` says less, and in order: `prepare` prints how the lock moved
   under its line on the declaration, not above it; the warning on a
   Tarantool without EmmyLua stubs names its version, the path where they

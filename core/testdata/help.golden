@@ -5370,9 +5370,9 @@ FLAGS[0m
 Build the package in the current directory and run its tests with luatest.
 
 The directory must hold app.manifest.toml; no tt environment and no tt.yaml are
-involved. Tests are taken from test/, or from tests/ when there is no test/. A
-SUB-PATH relative to the project narrows the run to one directory or one file,
-and must exist.
+involved. Tests are taken from test/, or from tests/ when there is no test/.
+SUB-PATHs relative to the project narrow the run to those directories and files,
+in the order given, and each must exist.
 
 The build runs first, so components are compiled and .rocks/ holds the declared
 dependencies before any test does. luatest itself need not be declared: when
@@ -5384,7 +5384,7 @@ as they were, so running the tests never makes the lock stale.
 Everything after '--' is handed to luatest, and the exit code is luatest's own.
 
 [0;1;39mUSAGE[0m
-  tt test [SUB-PATH] [-- LUATEST-ARGS...] [flags]
+  tt test [SUB-PATH...] [-- LUATEST-ARGS...] [flags]
 [0;1;39m
 FLAGS[0m
   -C, --directory string   work on the project in DIR itself, not on the one the
@@ -5395,9 +5395,10 @@ EXAMPLES[0m
   # Build and run everything under test/ (or tests/).
   $ tt test
 
-  # Run one directory, then one file.
+  # Run one directory, then one file, then two directories in one run.
   $ tt test test/integration
   $ tt test test/unit/config_test.lua
+  $ tt test test/unit test/integration
 
   # Pass luatest's own options through.
   $ tt test -- --verbose --shuffle group
