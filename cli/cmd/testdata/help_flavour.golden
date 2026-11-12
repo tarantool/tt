@@ -6,10 +6,10 @@
 Tarantool CLI EE — utility for managing Tarantool packages and Tarantool-based
 applications
 
-[0;1;39mUSAGE[0m
+USAGE
   tt [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   backup      Manage Tarantool backups (PITR)
   binary      Manage binaries and SDK bundles
   cluster     Manage cluster configuration
@@ -34,20 +34,20 @@ COMMANDS[0m
   test        Build the current package and run its tests
   version     Show Tarantool CLI EE version information
   wasm        Prepare a project for WebAssembly components (experimental)
-[0;1;39m
-HELP TOPICS[0m
+
+HELP TOPICS
   errors      Exit codes of tt commands
  
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help                   help for tt
   -I, --internal               Use internal module
       --log-format text|json   Format of the log written to stderr: text or json
                                (default text)
       --no-prompt              Skip cli interaction using default behavior
   -V, --verbose                Verbose output
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   $ tt -V version
   $ tt -I help
   $ tt completion
@@ -57,10 +57,10 @@ Use "tt <command> --help" for more information about a command.
 === tt version --help
 Show Tarantool CLI EE version information
 
-[0;1;39mUSAGE[0m
+USAGE
   tt version [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --commit    Show commit
   -h, --help      help for version
       --modules   Show the modules tt is built from and their versions

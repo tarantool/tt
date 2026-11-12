@@ -5,10 +5,10 @@
 === tt --help
 Utility for managing Tarantool packages and Tarantool-based applications
 
-[0;1;39mUSAGE[0m
+USAGE
   tt [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   aeon        Manage aeon application
   backup      Manage Tarantool backups (PITR)
   binary      Manage binaries and SDK bundles
@@ -36,20 +36,20 @@ COMMANDS[0m
   test        Build the current package and run its tests
   version     Show Tarantool CLI version information
   wasm        Prepare a project for WebAssembly components (experimental)
-[0;1;39m
-HELP TOPICS[0m
+
+HELP TOPICS
   errors      Exit codes of tt commands
  
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help                   help for tt
   -I, --internal               Use internal module
       --log-format text|json   Format of the log written to stderr: text or json
                                (default text)
       --no-prompt              Skip cli interaction using default behavior
   -V, --verbose                Verbose output
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   $ tt -V version
   $ tt -I help
   $ tt completion
@@ -59,13 +59,13 @@ Use "tt <command> --help" for more information about a command.
 === tt aeon --help
 Manage aeon application
 
-[0;1;39mUSAGE[0m
+USAGE
   tt aeon [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   connect     Connect to the aeon instance
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for aeon
 
 Use "tt aeon <command> --help" for more information about a command.
@@ -98,11 +98,11 @@ Possible arguments:
 * verify_peer - set off (default true) verification of the peer’s SSL
   certificate.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt aeon connect (<URI> | <URI INSTANCE> | <PATH INSTANCE> | <APP>:<INSTANCE>)
   [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help                 help for connect
   -p, --password string      password (used as etcd credentials only)
       --scope string         scope the application is looked for in: project,
@@ -118,10 +118,10 @@ FLAGS[0m
 === tt backup --help
 Manage Tarantool backups (PITR)
 
-[0;1;39mUSAGE[0m
+USAGE
   tt backup [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   finalize    Close the backup on the instance and remove the local archive
   gc          Delete old backup chains and dangling archives from the storage
   id          Print an identifier for a new backup
@@ -131,8 +131,8 @@ COMMANDS[0m
   upload      Build cluster manifest from per-shard fragments and upload to
               storage
   verify      Check backup manifests and archives in the storage
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for backup
 
 Use "tt backup <command> --help" for more information about a command.
@@ -152,10 +152,10 @@ only runs box.backup.stop(): no local archive or fragment is removed.
 --sslkeyfile, --sslcertfile, --sslcafile and --sslciphers reach an instance
 whose iproto listener has TLS enabled.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt backup finalize (<APP:INSTANCE>|<URI>) [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --backup-id string           backup identifier; local artifacts of the
                                    target replicaset are removed
       --connect-timeout duration   timeout for establishing a binary connection
@@ -262,10 +262,10 @@ without them, and those commands report an empty storage rather than an
 error. The exception is upload, which reads the pair out of the plan and
 needs the flags only to override it.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt backup gc [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --backup-storage string   storage URI or @path to a storage configuration
                                 file
       --cluster-name string     cluster name; used as a storage path component
@@ -286,8 +286,8 @@ FLAGS[0m
                                 default (default 24h0m0s)
       --timeout duration        timeout for connecting to and working with the
                                 storage; 0 means no limit (default 10m0s)
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   $ tt backup gc --backup-storage=file:///var/backups --keep-full 3 --dry-run
   $ tt backup gc --backup-storage=file:///var/backups --keep-days 30
   $ tt backup gc --backup-storage=file:///var/backups --keep-full 2 --keep-days
@@ -306,10 +306,10 @@ That holds for calls made one after another on one host. Calls running at the
 same time, calls on different hosts, or a clock stepped back can print the same
 identifier; generate one per backup run and hand it to every step.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt backup id [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for id
 
 === tt backup last --help
@@ -373,10 +373,10 @@ without them, and those commands report an empty storage rather than an
 error. The exception is upload, which reads the pair out of the plan and
 needs the flags only to override it.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt backup last --backup-storage=<uri> [--format <table|json>] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --backup-storage string   storage URI or @path to a storage configuration
                                 file
       --cluster-name string     cluster name; used as a storage path component
@@ -387,8 +387,8 @@ FLAGS[0m
   -h, --help                    help for last
       --timeout duration        timeout for connecting to and reading from the
                                 storage; 0 means no limit (default 1m0s)
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   $ tt backup last --backup-storage=file:///var/backups
   $ tt backup last --backup-storage=file:///var/backups?Prefix=mycluster
   $ tt backup last --backup-storage=s3://payments-backups/tarantool
@@ -523,11 +523,11 @@ HTTPS connection behavior:
 * Do not mix http:// and https:// addresses in an etcd endpoint list. If any
   endpoint uses https://, TLS is enabled for all endpoints.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt backup plan [<APP>] --target=(incremental|full) --backup-storage=<uri>
   [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --backup-storage string      storage URI or @path to a storage
                                    configuration file
       --cluster-name string        cluster name; used as a storage path
@@ -562,8 +562,8 @@ FLAGS[0m
       --timeout duration           timeout for storage operations; 0 means no
                                    limit (default 1m0s)
   -u, --username string            username for the URI case
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   $ tt backup plan myapp --target=full --backup-storage=file:///var/backups
   $ tt backup plan --target=incremental --backup-storage=file:///var/backups \
     -c cluster.yaml
@@ -605,10 +605,10 @@ if it does not exist. Without it they go to $TMPDIR/tt-backup/<backup-id>/.
 --sslkeyfile, --sslcertfile, --sslcafile and --sslciphers reach an instance
 whose iproto listener has TLS enabled.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt backup start (<APP:INSTANCE>|<URI>) [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --backup-id string           backup identifier (required); 'tt backup id'
                                    prints a new one
       --connect-timeout duration   timeout for establishing a binary connection
@@ -709,10 +709,10 @@ without them, and those commands report an empty storage rather than an
 error. The exception is upload, which reads the pair out of the plan and
 needs the flags only to override it.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt backup upload [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --archives string         comma-separated paths to .tar.zst archives
                                 (required)
       --backup-id string        backup identifier, e.g. 20260326T120000Z
@@ -735,8 +735,8 @@ FLAGS[0m
                                 belongs to
       --timeout duration        timeout for storage operations; 0 means no limit
                                 (default 30m0s)
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   $ tt backup upload \
     --archives
     /tmp/bkp/20260326T120000Z-A.tar.zst,/tmp/bkp/20260326T120000Z-B.tar.zst \
@@ -831,10 +831,10 @@ without them, and those commands report an empty storage rather than an
 error. The exception is upload, which reads the pair out of the plan and
 needs the flags only to override it.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt backup verify [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --backup-storage string   storage URI or @path to a storage configuration
                                 file
       --cluster-name string     cluster name; used as a storage path component
@@ -845,8 +845,8 @@ FLAGS[0m
   -h, --help                    help for verify
       --timeout duration        timeout for connecting to and reading from the
                                 storage; 0 means no limit (default 30m0s)
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   $ tt backup verify --backup-storage=file:///var/backups
   $ tt backup verify --backup-storage=file:///var/backups --format json
 
@@ -883,18 +883,18 @@ directory to activate the installed binaries.
 SDK installations select Tarantool Enterprise, tt Enterprise, TCM, and headers
 together.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt binary [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   build       Build a program from its sources
   install     Install a program
   list        List installed binaries and versions
   search      Search available program versions
   switch      Switch the active binary
   uninstall   Uninstall a program
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help           help for binary
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
@@ -907,18 +907,18 @@ Build a program from its sources.
 tt binary build tt builds a distribution of tt: a tt binary made of the tt
 core and the compiled-in tt modules tt.manifest.toml lists.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt binary build [flags]
 
   tt binary build [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   tt          Build a distribution of tt from tt.manifest.toml
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for build
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
 
@@ -1016,10 +1016,10 @@ version of the distribution, which is taken from git describe in the
 manifest's directory. The path to the binary, or to the bundle, is printed to
 stdout.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt binary build tt [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --core string        build on this core instead of [core]: a local
                            checkout or a version query (env TT_DIST_CORE); the
                            lock is left as it is
@@ -1037,12 +1037,12 @@ FLAGS[0m
       --vendor string      make a bundle in DIR that go build turns into the
                            binary offline, instead of the binary
       --work string        generate the main module in DIR and keep it there
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   # Build the distribution in the current directory into ./<package.name>.
   $ tt binary build tt
 
@@ -1070,28 +1070,28 @@ project directory once.
 Source them to use the project binaries and headers or restore your shell
 environment.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt binary install [flags]
 
   tt binary install [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   tarantool     Install Tarantool Community or Enterprise Edition
   tarantool-sdk Install Tarantool Enterprise SDK
   tcm           Install tcm from an archive
   tt            Install tt Community or Enterprise Edition
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -f, --force       Skip dependency checks
   -h, --help        help for install
       --no-clean    Keep temporary files
       --reinstall   Reinstall an existing version
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   # Install the latest Tarantool release for this project.
   $ tt binary install tarantool
 
@@ -1141,10 +1141,10 @@ Use --from-build <dir> to link an existing Community or Enterprise build into
 the selected scope without copying or rebuilding it. Use --include-dir to
 select the headers directory. --from-build accepts no version argument.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt binary install tarantool [version|commit|pull-request] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --credentials-file string   File containing customer-zone login and
                                   password on separate lines
       --dev                       Install a development build (Enterprise
@@ -1162,15 +1162,15 @@ FLAGS[0m
       --source-build              Always build Tarantool Community releases from
                                   source
       --use-docker                Build Tarantool in an Ubuntu Docker container
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
   -f, --force          Skip dependency checks
       --no-clean       Keep temporary files
       --reinstall      Reinstall an existing version
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   # Build and install Tarantool from the local repository.
   $ tt binary install tarantool --local-repo ./distfiles
 
@@ -1206,28 +1206,28 @@ including the full archive revision, separately from releases.
 For project installations, run "source .env/activate.sh" in the project
 directory to activate the installed binaries.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt binary install tarantool-sdk [version] [flags]
-[0;1;39m
-ALIASES[0m
+
+ALIASES
   tarantool-sdk, sdk, SDK
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --credentials-file string   File containing customer-zone login and
                                   password on separate lines
       --dev                       Install a development build
   -h, --help                      help for tarantool-sdk
       --local-dir string          Directory with Tarantool Enterprise SDK
                                   archives (tarantool-enterprise-sdk-*.tar.gz)
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
   -f, --force          Skip dependency checks
       --no-clean       Keep temporary files
       --reinstall      Reinstall an existing version
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   # Install the latest stable SDK for this project.
   $ tt binary install tarantool-sdk
 
@@ -1249,17 +1249,17 @@ dev_<full-archive-version>.
 With --local-dir <dir>, the directory must contain tcm-*.tar.gz archives.
 The archive contains the tcm executable directly at its root.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt binary install tcm [version] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --credentials-file string   File containing customer-zone login and
                                   password on separate lines
       --dev                       Install a development build
   -h, --help                      help for tcm
       --local-dir string          Directory containing tcm standalone archives
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
   -f, --force          Skip dependency checks
       --no-clean       Keep temporary files
       --reinstall      Reinstall an existing version
@@ -1290,10 +1290,10 @@ Linux amd64.
 Use "tt binary search tt" or "tt binary search tt-ee" to list available
 versions.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt binary install tt [version|commit|pull-request] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --credentials-file string   File containing customer-zone login and
                                   password on separate lines
   -h, --help                      help for tt
@@ -1301,15 +1301,15 @@ FLAGS[0m
       --local-repo string         Directory containing the tt Git source
                                   repository in tt/
       --source-build              Always build tt Community releases from source
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
   -f, --force          Skip dependency checks
       --no-clean       Keep temporary files
       --reinstall      Reinstall an existing version
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   # Install the latest tt release for the current user.
   $ tt binary install tt --scope user
 
@@ -1326,13 +1326,13 @@ EXAMPLES[0m
 List installed versions and active binaries in the selected scope.
 The project scope uses only .tarantool in the current directory.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt binary list [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for list
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
 
@@ -1345,25 +1345,25 @@ For tt and Tarantool, use --local-repo <dir> with Git source repositories in
 <dir>
 with SDK, tt-ee, or TCM .tar.gz archives directly in that directory.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt binary search [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   tarantool     Search available Tarantool Community Edition versions
   tarantool-ee  Search available tarantool-ee versions
   tarantool-sdk Search available Tarantool Enterprise SDK versions
   tcm           Search available tcm versions
   tt            Search available tt versions
   tt-ee         Search available tt-ee versions
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for search
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   # Search Tarantool Enterprise Edition releases.
   $ tt binary search tarantool-ee
 
@@ -1386,15 +1386,15 @@ Available Tarantool Community Edition releases start with version 3.0.
 With --local-repo <dir>, <dir>/tarantool must be a local Git clone of the
 Tarantool source repository. Versions are read from its Git tags.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt binary search tarantool [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help                help for tarantool
       --local-repo string   Directory containing the Tarantool Git source
                             repository in tarantool/
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
 
@@ -1407,10 +1407,10 @@ With --local-dir <dir>, the directory must contain Tarantool Enterprise SDK
 archives named tarantool-enterprise-sdk-*.tar.gz. Archives are read directly
 from that directory.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt binary search tarantool-ee [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --credentials-file string   File containing customer-zone login and
                                   password on separate lines
       --debug                     Search debug builds
@@ -1419,8 +1419,8 @@ FLAGS[0m
       --local-dir string          Directory with Tarantool Enterprise SDK
                                   archives (tarantool-enterprise-sdk-*.tar.gz)
       --version string            Filter by release version
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
 
@@ -1433,13 +1433,13 @@ With --local-dir <dir>, the directory must contain Tarantool Enterprise SDK
 archives named tarantool-enterprise-sdk-*.tar.gz. Archives are read directly
 from that directory.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt binary search tarantool-sdk [flags]
-[0;1;39m
-ALIASES[0m
+
+ALIASES
   tarantool-sdk, sdk, SDK
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --credentials-file string   File containing customer-zone login and
                                   password on separate lines
       --debug                     Search debug builds
@@ -1448,8 +1448,8 @@ FLAGS[0m
       --local-dir string          Directory with Tarantool Enterprise SDK
                                   archives (tarantool-enterprise-sdk-*.tar.gz)
       --version string            Filter by release version
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
 
@@ -1459,18 +1459,18 @@ Search available tcm versions from standalone archives.
 With --local-dir <dir>, the directory must contain tcm-*.tar.gz archives.
 Archives are read directly from that directory.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt binary search tcm [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --credentials-file string   File containing customer-zone login and
                                   password on separate lines
       --dev                       Search development builds
   -h, --help                      help for tcm
       --local-dir string          Directory containing tcm standalone archives
       --version string            Filter by release version
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
 
@@ -1480,15 +1480,15 @@ Search available tt versions.
 With --local-repo <dir>, <dir>/tt must be a local Git clone of the tt source
 repository. Versions are read from its Git tags.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt binary search tt [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help                help for tt
       --local-repo string   Directory containing the tt Git source repository in
                             tt/
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
 
@@ -1500,17 +1500,17 @@ Archives are read directly from that directory.
 
 tt-ee search and installation are available only on Linux amd64.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt binary search tt-ee [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --credentials-file string   File containing customer-zone login and
                                   password on separate lines
   -h, --help                      help for tt-ee
       --local-dir string          Directory containing tt-ee standalone archives
       --version string            Filter by release version
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
 
@@ -1536,17 +1536,17 @@ If multiple builds match, the command reports their full names and requires
 an unambiguous choice before changing the active version.
 Use a full installed version name to select a specific build.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt binary switch [program] [version] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for switch
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   # Choose a program and version interactively.
   $ tt binary switch --scope project
 
@@ -1564,23 +1564,23 @@ Tarantool, an active local build is unlinked without deleting its source.
 Removing an active version selects the latest eligible remaining version
 within the same scope. Parent directories and other scopes are not searched.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt binary uninstall [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   tarantool     Uninstall Tarantool Community or Enterprise Edition
   tarantool-sdk Uninstall an SDK and its components
   tcm           Uninstall tcm
   tt            Uninstall tt Community or Enterprise Edition
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for uninstall
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   # Uninstall a Tarantool version.
   $ tt binary uninstall tarantool 3.0.0 --scope project
 
@@ -1593,13 +1593,13 @@ explicitly, or use an Enterprise build name such as gc64-3.8.0-0-r94.
 Without a version, unlink the active local build or uninstall the only installed
 version.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt binary uninstall tarantool [version] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for tarantool
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
 
@@ -1612,13 +1612,13 @@ If multiple builds match, the command reports their full names and requires
 an unambiguous choice before removing anything.
 Without a version, remove the only installed version.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt binary uninstall tarantool-ee [version] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for tarantool-ee
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
 
@@ -1628,16 +1628,16 @@ X.Y.Z must match exactly one installed SDK; a full version selects an exact
 build.
 Without a version, uninstall the only installed SDK.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt binary uninstall tarantool-sdk [version] [flags]
-[0;1;39m
-ALIASES[0m
+
+ALIASES
   tarantool-sdk, sdk, SDK
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for tarantool-sdk
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
 
@@ -1650,13 +1650,13 @@ If multiple builds match, the command reports their full names and requires
 an unambiguous choice before removing anything.
 Without a version, remove the only installed version.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt binary uninstall tcm [version] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for tcm
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
 
@@ -1665,13 +1665,13 @@ Uninstall a tt version. Bare versions select Community Edition.
 Append ce or ee to select an edition explicitly, such as 2.15.0ce or 2.15.0ee.
 Without a version, uninstall the only installed Community version.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt binary uninstall tt [version] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for tt
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
 
@@ -1684,31 +1684,31 @@ If multiple builds match, the command reports their full names and requires
 an unambiguous choice before removing anything.
 Without a version, remove the only installed version.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt binary uninstall tt-ee [version] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for tt-ee
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
       --scope string   Scope: project, user or system (default "project")
   -V, --verbose        Show diagnostic output and build commands
 
 === tt cluster --help
 Manage cluster configuration
 
-[0;1;39mUSAGE[0m
+USAGE
   tt cluster [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   failover    Manage supervised failover
   publish     Publish a cluster configuration
   replicaset  manage replicaset via 3.0 cluster config source
   show        Show a cluster configuration
   topology    Show the current cluster topology
   worker      Manage worker configuration
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for cluster
 
 Use "tt cluster <command> --help" for more information about a command.
@@ -1716,17 +1716,17 @@ Use "tt cluster <command> --help" for more information about a command.
 === tt cluster failover --help
 Manage supervised failover
 
-[0;1;39mUSAGE[0m
+USAGE
   tt cluster failover [flags] <command> [command flags]
-[0;1;39m
-ALIASES[0m
+
+ALIASES
   failover, fo
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   switch        Switch master instance
   switch-status Show master switching status
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for failover
 
 Use "tt cluster failover <command> --help" for more information about a command.
@@ -1762,10 +1762,10 @@ The command supports the following environment variables:
 The priority of credentials:
 environment variables < command flags < URL credentials.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt cluster failover switch <URI> <INSTANCE_NAME> [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help              help for switch
   -p, --password string   password (used as etcd/tarantool config storage
                           credentials)
@@ -1773,8 +1773,8 @@ FLAGS[0m
   -u, --username string   username (used as etcd/tarantool config storage
                           credentials)
   -w, --wait              wait for the command to complete execution
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   tt cluster failover switch http://localhost:2379/app instance_name
 
 === tt cluster failover switch-status --help
@@ -1808,10 +1808,10 @@ The command supports the following environment variables:
 The priority of credentials:
 environment variables < command flags < URL credentials.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt cluster failover switch-status <URI> <TASK_ID>
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for switch-status
 
 === tt cluster publish --help
@@ -1874,10 +1874,10 @@ By default, the command removes all keys in etcd with prefix '/prefix/config/'
 and writes the result to '/prefix/config/all'. You could work and update a
 target key with the 'key' argument.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt cluster publish (<APP> | <APP>:<INSTANCE> | <URI>) file [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --force               force publish and skip validation
       --group string        group name
   -h, --help                help for publish
@@ -1890,8 +1890,8 @@ FLAGS[0m
   -u, --username string     username (used as etcd credentials only)
   -y, --yes                 confirm without a prompt, as is needed when the
                             standard input is not a terminal
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   tt cluster publish application_name cluster.yaml
   tt cluster publish application_name:instance_name instance.yaml
   tt cluster publish https://user:pass@localhost:2379/tt cluster.yaml
@@ -1903,19 +1903,19 @@ EXAMPLES[0m
 === tt cluster replicaset --help
 manage replicaset via 3.0 cluster config source
 
-[0;1;39mUSAGE[0m
+USAGE
   tt cluster replicaset [flags] <command> [command flags]
-[0;1;39m
-ALIASES[0m
+
+ALIASES
   replicaset, rs
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   demote      Demote an instance
   expel       Expel an instance
   promote     Promote an instance
   roles       Add or remove roles in cluster replicaset
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for replicaset
 
 Use "tt cluster replicaset <command> --help" for more information about a
@@ -1965,10 +1965,10 @@ HTTPS connection behavior:
 * Do not mix http:// and https:// addresses in an etcd endpoint list. If any
   endpoint uses https://, TLS is enabled for all endpoints.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt cluster replicaset demote [-f] [flags] <URI> <INSTANCE_NAME>
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -f, --force             skip selecting a key for patching
   -h, --help              help for demote
   -p, --password string   password (used as etcd/tarantool config storage
@@ -2020,10 +2020,10 @@ HTTPS connection behavior:
 * Do not mix http:// and https:// addresses in an etcd endpoint list. If any
   endpoint uses https://, TLS is enabled for all endpoints.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt cluster replicaset expel [-f] [flags] <URI> <INSTANCE_NAME>
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -f, --force             skip selecting a key for patching
   -h, --help              help for expel
   -p, --password string   password (used as etcd/tarantool config storage
@@ -2075,10 +2075,10 @@ HTTPS connection behavior:
 * Do not mix http:// and https:// addresses in an etcd endpoint list. If any
   endpoint uses https://, TLS is enabled for all endpoints.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt cluster replicaset promote [-f] [flags] <URI> <INSTANCE_NAME>
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -f, --force             skip selecting a key for patching
   -h, --help              help for promote
   -p, --password string   password (used as etcd/tarantool config storage
@@ -2089,14 +2089,14 @@ FLAGS[0m
 === tt cluster replicaset roles --help
 Add or remove roles in cluster replicaset
 
-[0;1;39mUSAGE[0m
+USAGE
   tt cluster replicaset roles [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   add         Add role to an instance, group or instance
   remove      Remove role from instance, group, instance or globally
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for roles
 
 Use "tt cluster replicaset roles <command> --help" for more information about a
@@ -2146,10 +2146,10 @@ HTTPS connection behavior:
 * Do not mix http:// and https:// addresses in an etcd endpoint list. If any
   endpoint uses https://, TLS is enabled for all endpoints.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt cluster replicaset roles add <URI> <ROLE_NAME> [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -f, --force               skip selecting a key for patching
   -G, --global              global config context
   -g, --group string        name of a target group
@@ -2160,8 +2160,8 @@ FLAGS[0m
   -r, --replicaset string   name of a target replicaset
   -u, --username string     username (used as etcd/tarantool config storage
                             credentials)
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   tt cluster replicaset roles add http://user:pass@localhost:3301
   roles.metrics-export --instance_name master
 
@@ -2209,10 +2209,10 @@ HTTPS connection behavior:
 * Do not mix http:// and https:// addresses in an etcd endpoint list. If any
   endpoint uses https://, TLS is enabled for all endpoints.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt cluster replicaset roles remove <URI> <ROLE_NAME> [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -f, --force               skip selecting a key for patching
   -G, --global              global config context
   -g, --group string        name of a target group
@@ -2223,8 +2223,8 @@ FLAGS[0m
   -r, --replicaset string   name of a target replicaset
   -u, --username string     username (used as etcd/tarantool config storage
                             credentials)
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   tt cluster replicaset roles remove http://user:pass@localhost:3301
   roles.metrics-export --instance_name master
 
@@ -2273,10 +2273,10 @@ HTTPS connection behavior:
 * Do not mix http:// and https:// addresses in an etcd endpoint list. If any
   endpoint uses https://, TLS is enabled for all endpoints.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt cluster show (<APP> | <APP>:<INSTANCE> | <URI>) [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help              help for show
   -p, --password string   password (used as etcd credentials only)
       --scope string      scope the application is looked for in: project, user
@@ -2285,8 +2285,8 @@ FLAGS[0m
                           described in (default "default")
   -u, --username string   username (used as etcd credentials only)
       --validate          validate the configuration
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   tt cluster show application_name
   tt cluster show application_name:instance_name
   tt cluster show https://user:pass@localhost:2379/tt
@@ -2352,10 +2352,10 @@ HTTPS connection behavior:
 * Do not mix http:// and https:// addresses in an etcd endpoint list. If any
   endpoint uses https://, TLS is enabled for all endpoints.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt cluster topology (<APP> | -c <CLUSTER_CONFIG|URI>) [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -c, --config string              path or URI of the cluster configuration
       --connect-timeout duration   timeout for establishing a binary connection
                                    (default 1s)
@@ -2384,15 +2384,15 @@ FLAGS[0m
 === tt cluster worker --help
 Manage worker configuration
 
-[0;1;39mUSAGE[0m
+USAGE
   tt cluster worker [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   delete      Delete a worker configuration
   publish     Publish a worker configuration
   show        Show a worker configuration
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for worker
 
 Use "tt cluster worker <command> --help" for more information about a command.
@@ -2429,18 +2429,18 @@ The command supports the following environment variables:
 The priority of credentials:
 environment variables < command flags < URL credentials.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt cluster worker delete <URI>
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --force             force delete and skip existence check
   -h, --help              help for delete
   -p, --password string   password (used as etcd/tarantool config storage
                           credentials)
   -u, --username string   username (used as etcd/tarantool config storage
                           credentials)
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   tt cluster worker delete
   https://user:pass@localhost:2379/tdb-workers/tdb-cluster/host1/http-server-1
 
@@ -2476,18 +2476,18 @@ The command supports the following environment variables:
 The priority of credentials:
 environment variables < command flags < URL credentials.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt cluster worker publish <URI> <FILE>
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --force             force publish and skip checking existence
   -h, --help              help for publish
   -p, --password string   password (used as etcd/tarantool config storage
                           credentials)
   -u, --username string   username (used as etcd/tarantool config storage
                           credentials)
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   tt cluster worker publish
   https://user:pass@localhost:2379/tdb-workers/tdb-cluster/host1/http-server-1
   worker.yaml
@@ -2524,17 +2524,17 @@ The command supports the following environment variables:
 The priority of credentials:
 environment variables < command flags < URL credentials.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt cluster worker show <URI>
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help              help for show
   -p, --password string   password (used as etcd/tarantool config storage
                           credentials)
   -u, --username string   username (used as etcd/tarantool config storage
                           credentials)
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   tt cluster worker show
   https://user:pass@localhost:2379/tdb-workers/tdb-cluster/host1/http-server-1
 
@@ -2542,13 +2542,13 @@ EXAMPLES[0m
 Generate autocomplete for a specified shell. Supported shell type: bash | zsh |
 fish
 
-[0;1;39mUSAGE[0m
+USAGE
   tt completion <SHELL_TYPE> [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for completion
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   # Enable auto-completion in current bash shell.
   $ . <(tt completion bash)
 
@@ -2564,7 +2564,7 @@ passed via -f flag:
 
 echo "print(...)" | tt connect user:pass@localhost:3013 -f- 1, 2, 3
 
-[0;1;39mUSAGE[0m
+USAGE
   tt connect (<APP>:<INSTANCE> | <URI>) [flags] [-f <FILE>] [-- ARGS]
   COMMAND | tt connect (<APP>:<INSTANCE> | <URI>) [flags]
   COMMAND | tt connect (<APP>:<INSTANCE> | <URI>) [flags] [-f-] [-- ARGS]
@@ -2581,8 +2581,8 @@ echo "print(...)" | tt connect user:pass@localhost:3013 -f- 1, 2, 3
   * \set delimiter <delimiter> - set expression delimiter
   * \help - show available backslash commands
   * \quit - quit interactive console
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --binary                     connect to instance using binary port
       --connect-timeout duration   timeout for establishing a binary connection
                                    (default 1s)
@@ -2613,15 +2613,15 @@ FLAGS[0m
 === tt coredump --help
 Perform manipulations with the tarantool coredumps
 
-[0;1;39mUSAGE[0m
+USAGE
   tt coredump [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   inspect     inspect tarantool coredump
   pack        pack tarantool coredump into tar.gz archive
   unpack      unpack tarantool coredump tar.gz archive
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for coredump
 
 Use "tt coredump <command> --help" for more information about a command.
@@ -2629,20 +2629,20 @@ Use "tt coredump <command> --help" for more information about a command.
 === tt coredump inspect --help
 inspect tarantool coredump
 
-[0;1;39mUSAGE[0m
+USAGE
   tt coredump inspect {ARCHIVE|DIRECTORY} [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help               help for inspect
   -s, --sourcedir string   Source directory
 
 === tt coredump pack --help
 pack tarantool coredump into tar.gz archive
 
-[0;1;39mUSAGE[0m
+USAGE
   tt coredump pack COREDUMP [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -d, --directory string    Directory the resulting archive is created in
   -e, --executable string   Tarantool executable path
   -h, --help                help for pack
@@ -2657,10 +2657,10 @@ FLAGS[0m
 === tt coredump unpack --help
 unpack tarantool coredump tar.gz archive
 
-[0;1;39mUSAGE[0m
+USAGE
   tt coredump unpack ARCHIVE [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for unpack
 
 === tt create --help
@@ -2682,10 +2682,10 @@ A template of your own is given by its path: a directory, or a .tgz or
 from the name of a built-in template by a slash in it, so a template in the
 current directory is given as ./<name>.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt create <TEMPLATE_NAME> [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -d, --dst string         Path to the directory where an application will be
                            created.
   -f, --force              Force rewrite application directory if already exists
@@ -2694,8 +2694,8 @@ FLAGS[0m
   -s, --non-interactive    Non-interactive mode
       --var stringArray    Variable definition. Usage: --var var_name=value
       --vars-file string   Variables definition file path
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   # Create an application app1 from a template.
   $ tt create <template name> --name app1
 
@@ -2715,16 +2715,16 @@ EXAMPLES[0m
 === tt daemon --help
 Perform manipulations with the tt daemon (experimental)
 
-[0;1;39mUSAGE[0m
+USAGE
   tt daemon [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   restart     restart tt daemon
   start       start tt daemon
   status      status of tt daemon
   stop        stop tt daemon
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for daemon
 
 Use "tt daemon <command> --help" for more information about a command.
@@ -2732,37 +2732,37 @@ Use "tt daemon <command> --help" for more information about a command.
 === tt daemon restart --help
 restart tt daemon
 
-[0;1;39mUSAGE[0m
+USAGE
   tt daemon restart [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for restart
 
 === tt daemon start --help
 start tt daemon
 
-[0;1;39mUSAGE[0m
+USAGE
   tt daemon start [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for start
 
 === tt daemon status --help
 status of tt daemon
 
-[0;1;39mUSAGE[0m
+USAGE
   tt daemon status [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for status
 
 === tt daemon stop --help
 stop tt daemon
 
-[0;1;39mUSAGE[0m
+USAGE
   tt daemon stop [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for stop
 
 === tt data --help
@@ -2773,15 +2773,15 @@ Tarantool.
   cat   prints the rows of the files as YAML, JSON Lines or Lua.
   play  applies the data changes of the journals to an instance.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt data [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   cat         Print the rows of snapshots and write-ahead logs
   play        Apply the data changes of snapshots and write-ahead logs to an
               instance
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for data
 
 Use "tt data <command> --help" for more information about a command.
@@ -2863,10 +2863,10 @@ a secondary index nothing: its tuples are keys. Unlike the Lua of a journal,
 that of runs remakes no space when run: a run is in key order, the newest
 statement of a key first, and the runs of an index overlap.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt data cat <FILE|DIR>... [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -o, --format string        output format: yaml, json or lua (default "yaml")
       --from uint            take the transactions from this LSN of the replica
                              on, inclusive
@@ -2886,8 +2886,8 @@ FLAGS[0m
       --to uint              take the transactions up to this LSN of the
                              replica, inclusive
       --to-vclock string     take the transactions within this vclock
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   # Print a snapshot and the write-ahead logs after it.
   $ tt data cat var/lib/myapp/instance-001
 
@@ -2979,10 +2979,10 @@ the request is invalid; 2 - the connection failed.
 The command supports the TT_CLI_USERNAME and TT_CLI_PASSWORD environment
 variables for a URI without credentials.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt data play (<APP>:<INSTANCE> | <URI>) <FILE|DIR>... [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --batch int                  how many requests are in flight at most; 1
                                    waits for each (default 128)
       --connect-timeout duration   timeout for establishing the connection
@@ -3028,8 +3028,8 @@ FLAGS[0m
       --txn-mode string            how a transaction of several rows is applied:
                                    auto, stream, row (default "auto")
   -u, --username string            username
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   # Replay a snapshot and the write-ahead logs after it into an instance.
   $ tt data play myapp:instance-001 ./backup
 
@@ -3061,10 +3061,10 @@ prepare: they run the programs of the rock, fetched once into the user cache
 (tt/emmylua there), with the configuration kept there too; --rock-server names
 another server, a directory of rocks to work offline.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt emmylua [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   check       Check the Lua code of the project
   config      Write the configuration EmmyLua runs with, and print its path
   doc         Generate the documentation of the Lua code of the project
@@ -3072,8 +3072,8 @@ COMMANDS[0m
   ls          Run the language server, for an editor
   prepare     Add the programs of EmmyLua to the project
   rock        Pack the rocks of a release for a rock server
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for emmylua
 
 Use "tt emmylua <command> --help" for more information about a command.
@@ -3098,10 +3098,10 @@ Outside every project the programs come from the user cache, fetched there once
 from the rock server (--rock-server, --version), and the configuration tt writes
 is kept there too, not in the directory.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt emmylua check [PATH...] [flags] [-- EMMYLUA_CHECK_ARGS...]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help                   help for check
       --library stringArray    read the Lua modules of this directory as a
                                library too; repeat for more
@@ -3118,8 +3118,8 @@ FLAGS[0m
                                project runs the one its lock pins (default
                                "0.30.0pre1")
       --warnings-as-errors     fail on a warning as on an error
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   $ tt emmylua check
   $ tt emmylua check app --warnings-as-errors -f json -- --output report.json
 
@@ -3139,15 +3139,15 @@ Outside every project it is written into the user cache, one file for each
 directory, with the modules of .rocks/ of the directory, and the directory is
 left as it is.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt emmylua config [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help                  help for config
       --library stringArray   read the Lua modules of this directory as a
                               library too; repeat for more
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   $ EMMYLUALS_CONFIG=$(tt emmylua config) code .
 
 === tt emmylua doc --help
@@ -3170,10 +3170,10 @@ Outside every project the programs come from the user cache, fetched there once
 from the rock server (--rock-server, --version), and the configuration tt writes
 is kept there too, not in the directory.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt emmylua doc [PATH...] [flags] [-- EMMYLUA_DOC_CLI_ARGS...]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help                   help for doc
       --library stringArray    read the Lua modules of this directory as a
                                library too; repeat for more
@@ -3189,8 +3189,8 @@ FLAGS[0m
       --version string         outside a project, the EmmyLua release to run; a
                                project runs the one its lock pins (default
                                "0.30.0pre1")
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   $ tt emmylua doc -o doc/api -- --site-name "My application"
   $ tt emmylua doc -f json -o api.json
 
@@ -3221,10 +3221,10 @@ it writes gets the [syntax] level of LuaJIT, where luafmt writes Lua55, unless
 Outside every project luafmt comes from the user cache, fetched there once from
 the rock server (--rock-server, --version).
 
-[0;1;39mUSAGE[0m
+USAGE
   tt emmylua fmt [PATH...] [flags] [-- LUAFMT_ARGS...]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --check                print how the files would change and fail if any
                              would (the default)
   -h, --help                 help for fmt
@@ -3237,8 +3237,8 @@ FLAGS[0m
                              project runs the one its lock pins (default
                              "0.30.0pre1")
       --write                write the formatted files back
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   $ tt emmylua fmt
   $ tt emmylua fmt app --write
 
@@ -3257,10 +3257,10 @@ from the rock server (--rock-server, --version), and the configuration tt writes
 is kept there too, not in the directory. So an editor can run tt emmylua ls in
 any folder.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt emmylua ls [flags] [-- EMMYLUA_LS_ARGS...]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help                  help for ls
       --library stringArray   read the Lua modules of this directory as a
                               library too; repeat for more
@@ -3272,8 +3272,8 @@ FLAGS[0m
       --version string        outside a project, the EmmyLua release to run; a
                               project runs the one its lock pins (default
                               "0.30.0pre1")
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   # Neovim (nvim-lspconfig):
   #   vim.lsp.config('emmylua_ls', { cmd = { 'tt', 'emmylua', 'ls' } })
   $ tt emmylua ls -- --log-level debug --log-path /tmp/emmylua_ls.log
@@ -3307,10 +3307,10 @@ prepare runs in the root of the project, whose manifest it edits. Outside every
 project there is nothing to prepare: check, doc, fmt and ls fetch EmmyLua into
 the user cache themselves.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt emmylua prepare [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --from string            pack the programs of a local build of the release
                                in this directory (a cargo target/release) into
                                .tarantool/registry and declare the rock from
@@ -3327,8 +3327,8 @@ FLAGS[0m
                                the rock index of tarantool-contrib/rocks-repo)
       --version string         EmmyLua release: any the rock server serves, or
                                one tt knows with --from (default "0.30.0pre1")
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   # The rock of this host, from the index of tarantool-contrib/rocks-repo.
   $ tt emmylua prepare
 
@@ -3359,10 +3359,10 @@ tarantool-contrib/rocks-repo, and tt package download emmylua --registry
 https://raw.githubusercontent.com/tarantool-contrib/rocks-repo/index/ --dir DIR
 takes the one of this host into a directory that serves as a rock server.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt emmylua rock [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --arch string      the LuaRocks arch of the build --from names
                          (linux-x86_64, macosx-aarch64; default this host's)
       --from string      pack the programs of a local build in this directory
@@ -3371,8 +3371,8 @@ FLAGS[0m
       --out string       the directory to pack the rocks into
       --version string   EmmyLua release (default 0.25.1, or 0.30.0pre1 with
                          --from)
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   # The rocks of the newest release on GitHub.
   $ tt emmylua rock --out dist/rocks
 
@@ -3415,10 +3415,10 @@ another code, with 137 when an instance did not stop in time and was killed.
 === tt help --help
 Help about any command
 
-[0;1;39mUSAGE[0m
+USAGE
   tt help [command] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for help
 
 === tt instance --help
@@ -3441,10 +3441,10 @@ An instance that tt service systemd install put under a systemd unit is started
 and stopped with systemctl: start, stop, restart and kill refuse it, and status
 shows its unit.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt instance [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   check       Check an application file for syntax errors
   clean       Clean instance(s) files
   connect     Connect to the tarantool instance
@@ -3455,8 +3455,8 @@ COMMANDS[0m
   start       Start instance(s)
   status      Status of instance(s)
   stop        Stop instance(s)
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for instance
 
 Use "tt instance <command> --help" for more information about a command.
@@ -3466,10 +3466,10 @@ Check the Lua file each instance runs, its script or app.file of its
 config, for syntax errors, with the tarantool the instance runs on, and
 that the binary of each external process is found.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt instance check [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help              help for check
       --scope string      scope the application is looked for in: project, user
                           or system
@@ -3482,10 +3482,10 @@ Remove the data and the logs of the instances: the files of
 the data directories their config moves elsewhere. A running instance is left
 alone, which counts as a failure for it.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt instance clean [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help              help for clean
       --scope string      scope the application is looked for in: project, user
                           or system
@@ -3507,7 +3507,7 @@ passed via -f flag:
 
 echo "print(...)" | tt instance connect user:pass@localhost:3013 -f- 1, 2, 3
 
-[0;1;39mUSAGE[0m
+USAGE
   tt instance connect (<APP>:<INSTANCE> | <URI>) [flags] [-f <FILE>] [-- ARGS]
   COMMAND | tt instance connect (<APP>:<INSTANCE> | <URI>) [flags]
   COMMAND | tt instance connect (<APP>:<INSTANCE> | <URI>) [flags] [-f-] [--
@@ -3525,8 +3525,8 @@ echo "print(...)" | tt instance connect user:pass@localhost:3013 -f- 1, 2, 3
   * \set delimiter <delimiter> - set expression delimiter
   * \help - show available backslash commands
   * \quit - quit interactive console
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --binary                     connect to instance using binary port
       --connect-timeout duration   timeout for establishing a binary connection
                                    (default 1s)
@@ -3557,10 +3557,10 @@ FLAGS[0m
 === tt instance kill --help
 Kill instance(s)
 
-[0;1;39mUSAGE[0m
+USAGE
   tt instance kill [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -d, --dump              quit with dump
   -h, --help              help for kill
       --scope string      scope the application is looked for in: project, user
@@ -3573,10 +3573,10 @@ FLAGS[0m
 === tt instance logrotate --help
 Rotate logs of started instance(s)
 
-[0;1;39mUSAGE[0m
+USAGE
   tt instance logrotate [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help              help for logrotate
       --scope string      scope the application is looked for in: project, user
                           or system
@@ -3587,10 +3587,10 @@ FLAGS[0m
 Print the last lines of tt.log of the instances, the log their output goes to,
 whether they run in the background or in the foreground.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt instance logs [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --follow            Output appended data as the log file grows
   -h, --help              help for logs
   -n, --lines int         Count of last lines to output (default 10)
@@ -3602,10 +3602,10 @@ FLAGS[0m
 === tt instance restart --help
 Restart instance(s)
 
-[0;1;39mUSAGE[0m
+USAGE
   tt instance restart [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help              help for restart
       --scope string      scope the application is looked for in: project, user
                           or system
@@ -3629,10 +3629,10 @@ others. tt exits once all of them have ended: with 0 when they were stopped in
 time, with the exit code of the first instance that failed otherwise, 137 for
 one killed as it did not stop in time.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt instance start [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --foreground        stay in the foreground while the instances run,
                           without restarting them
   -h, --help              help for start
@@ -3666,10 +3666,10 @@ over its console socket; an external process shows the state of its process
 alone. --details prints the alerts of the instances, and the tarantool each
 Tarantool instance starts on and where it comes from.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt instance status [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -d, --details                     print detailed alerts and the tarantool the
                                     instances start on
   -o, --format string               output format: json, yaml, table,
@@ -3685,10 +3685,10 @@ FLAGS[0m
 === tt instance stop --help
 Stop instance(s)
 
-[0;1;39mUSAGE[0m
+USAGE
   tt instance stop [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help              help for stop
       --scope string      scope the application is looked for in: project, user
                           or system
@@ -3700,13 +3700,13 @@ FLAGS[0m
 === tt modules --help
 Manage tt cli modules
 
-[0;1;39mUSAGE[0m
+USAGE
   tt modules [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   list        List available modules
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for modules
 
 Use "tt modules <command> --help" for more information about a command.
@@ -3714,10 +3714,10 @@ Use "tt modules <command> --help" for more information about a command.
 === tt modules list --help
 List available modules
 
-[0;1;39mUSAGE[0m
+USAGE
   tt modules list [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help      help for list
   -p, --path      Show modules path instead of description
   -v, --version   Show modules version
@@ -3733,17 +3733,17 @@ existing app.manifest.toml is never overwritten — the command fails instead.
 This is not tt create, which lays out a whole application from a template; tt
 new adds one file to a directory that may already hold a project.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt new [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -C, --directory string   work on the project in DIR itself, not on the one the
                            current directory is in
   -h, --help               help for new
   -n, --name string        package name to declare; defaults to the directory
                            name
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   # Create a manifest for the project in the current directory.
   $ tt new
 
@@ -3755,10 +3755,10 @@ Build, fetch, pack and install Tarantool packages described by
 app.manifest.toml, manage their dependencies, and manage what is installed. What
 the exit codes mean is in tt help errors.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt package [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   add         Declare a dependency and re-resolve the lock
   build       Build a manifest package into .rocks/
   deps        Show the dependencies the manifest declares, at their locked
@@ -3774,8 +3774,8 @@ COMMANDS[0m
   search      Find rocks whose name contains TERM on the configured servers
   uninstall   Remove an installed guest package from a scope
   update      Re-resolve the lock against newer registry versions
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -C, --directory string   work on the project in DIR itself, not on the one the
                            current directory is in
   -h, --help               help for package
@@ -3794,10 +3794,10 @@ is not a request to upgrade the others — that is what tt package update is for
 Nothing is fetched into .rocks/; the next tt package build picks the new lock
 up.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt package add NAME [CONSTRAINT] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --dev                    declare the dependency in [dev_dependencies]
                                instead of [dependencies]
   -h, --help                   help for add
@@ -3805,8 +3805,8 @@ FLAGS[0m
                                ones: an http(s) URL or a local directory; repeat
                                to give an ordered list (overrides TT_REGISTRIES
                                and [platform].registries)
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
   -C, --directory string   work on the project in DIR itself, not on the one the
                            current directory is in
 
@@ -3826,10 +3826,10 @@ _build/component/<component>/ - the build tree of a cmake one, where cmake
 rebuilds what changed - and --rebuild empties it first. A cargo build builds in
 _build/cargo/, its CARGO_TARGET_DIR.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt package build [COMPONENT] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help                   help for build
       --locked                 fail if the lock is out of date instead of
                                re-resolving it
@@ -3842,8 +3842,8 @@ FLAGS[0m
                                ones: an http(s) URL or a local directory; repeat
                                to give an ordered list (overrides TT_REGISTRIES
                                and [platform].registries)
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
   -C, --directory string   work on the project in DIR itself, not on the one the
                            current directory is in
 
@@ -3855,14 +3855,14 @@ reports. Nothing is resolved and no registry is contacted: the answer comes from
 the manifest and the lock, so a lock that no longer matches the manifest is
 reported as stale rather than silently re-resolved.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt package deps [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -o, --format string   output format: table, json or yaml (default "table")
   -h, --help            help for deps
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
   -C, --directory string   work on the project in DIR itself, not on the one the
                            current directory is in
 
@@ -3877,10 +3877,10 @@ dependency that does not come from a registry has no rock file to mirror and is
 skipped with a warning. Re-running overwrites and re-indexes, so a mirror can be
 extended in place. Each written path is printed to stdout.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt package download [NAME[@VERSION]...] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --dir string             directory to download into (default: the current
                                directory)
   -h, --help                   help for download
@@ -3888,8 +3888,8 @@ FLAGS[0m
                                ones: an http(s) URL or a local directory; repeat
                                to give an ordered list (overrides TT_REGISTRIES
                                and [platform].registries)
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
   -C, --directory string   work on the project in DIR itself, not on the one the
                            current directory is in
 
@@ -3897,10 +3897,10 @@ GLOBAL FLAGS[0m
 Fetch and build the pinned dependency closure into .rocks/ strictly from the
 lock, without re-resolving or running component build backends.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt package fetch [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help                   help for fetch
       --product string         product to fetch (default: the product marked
                                default)
@@ -3908,8 +3908,8 @@ FLAGS[0m
                                ones: an http(s) URL or a local directory; repeat
                                to give an ordered list (overrides TT_REGISTRIES
                                and [platform].registries)
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
   -C, --directory string   work on the project in DIR itself, not on the one the
                            current directory is in
 
@@ -3936,20 +3936,20 @@ kept. A version in DIR that the index lists with files elsewhere fails the
 command, since a published version does not change: pack the new build as a new
 revision. The path of the index is printed to stdout.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt package index DIR [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --base-url string   the URL the files of DIR are downloaded from (default:
                           relative to the index)
   -h, --help              help for index
       --index string      the index to write (default DIR/tt-rocks-index.json)
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
   -C, --directory string   work on the project in DIR itself, not on the one the
                            current directory is in
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   # A directory of rocks as a rock server.
   $ tt package index dist
 
@@ -3978,10 +3978,10 @@ It runs on the tarantool its lock bundles, whatever <root>/bin/tarantool
 selects. Versions live side by side; installing one that is already there needs
 --force, which is refused while instances of the application run.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt package install ARCHIVE... [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --force                  reinstall over an existing package or version
                                (destructive)
   -h, --help                   help for install
@@ -3999,8 +3999,8 @@ FLAGS[0m
                                every installed version)
   -y, --yes                    skip the confirmation prompt when reconciling
                                shared dependencies
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
   -C, --directory string   work on the project in DIR itself, not on the one the
                            current directory is in
 
@@ -4017,10 +4017,10 @@ it too — that is, whether it would be removed along with the package or stay; 
 applies to the project scope, the versions of the user and system scopes sharing
 no dependencies.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt package list [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -o, --format string   output format: table, json or yaml (default "table")
   -h, --help            help for list
       --scope string    scope to list: project (the working directory), user or
@@ -4028,8 +4028,8 @@ FLAGS[0m
                         (default "project")
       --tree            show each package's dependencies and which of them are
                         shared
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
   -C, --directory string   work on the project in DIR itself, not on the one the
                            current directory is in
 
@@ -4063,10 +4063,10 @@ manifest, where the server has no rock of the platform.
 
 The paths of what the pack made are printed to stdout, one per line.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt package pack [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --format strings         what to make, comma-separated: tt (the .tt
                                archive), rock (the rock and its rockspec),
                                rock-src (the source rock and its rockspec)
@@ -4089,8 +4089,8 @@ FLAGS[0m
                                publish a new build of a version (default 1)
       --without-deps           pack without _runtime/ and without foreign
                                dependencies in .rocks/
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
   -C, --directory string   work on the project in DIR itself, not on the one the
                            current directory is in
 
@@ -4103,17 +4103,17 @@ a typo — and so is a name only a component declares, since which component own
 a dependency is not this command's decision to unmake. Nothing is deleted from
 .rocks/; tt package uninstall is what removes files.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt package remove NAME [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help                   help for remove
       --registry stringArray   rock server to use instead of the configured
                                ones: an http(s) URL or a local directory; repeat
                                to give an ordered list (overrides TT_REGISTRIES
                                and [platform].registries)
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
   -C, --directory string   work on the project in DIR itself, not on the one the
                            current directory is in
 
@@ -4124,17 +4124,17 @@ into .rocks/ and no component build backend runs. Every version the lock already
 holds is kept: a hand edit to one dependency is not a request to upgrade the
 others, and pulling newer registry versions is what tt package update is for.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt package resolve [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help                   help for resolve
       --registry stringArray   rock server to use instead of the configured
                                ones: an http(s) URL or a local directory; repeat
                                to give an ordered list (overrides TT_REGISTRIES
                                and [platform].registries)
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
   -C, --directory string   work on the project in DIR itself, not on the one the
                            current directory is in
 
@@ -4145,10 +4145,10 @@ that has a rock, a search asks all of them: the point is to see what exists.
 Nothing is downloaded and nothing is written. A term nothing matches is not an
 error.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt package search TERM [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -o, --format string          output format: table, json or yaml (default
                                "table")
   -h, --help                   help for search
@@ -4156,8 +4156,8 @@ FLAGS[0m
                                ones: an http(s) URL or a local directory; repeat
                                to give an ordered list (overrides TT_REGISTRIES
                                and [platform].registries)
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
   -C, --directory string   work on the project in DIR itself, not on the one the
                            current directory is in
 
@@ -4174,17 +4174,17 @@ tells, and keeps the instance data under <root>/var/, the host files under
 <root>/etc/<name>/ and the runtimes in <root>/versions/ other applications may
 use.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt package uninstall NAME [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help           help for uninstall
       --scope string   scope to remove from: project (the working directory),
                        user or system (an application under the root tt binary
                        uses) (default "project")
   -y, --yes            skip the confirmation prompt
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
   -C, --directory string   work on the project in DIR itself, not on the one the
                            current directory is in
 
@@ -4197,17 +4197,17 @@ version is held, so the diff stays confined to it and whatever its new version
 requires. No declaration is changed — app.manifest.toml is not touched at all —
 and nothing is fetched into .rocks/.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt package update [NAME] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help                   help for update
       --registry stringArray   rock server to use instead of the configured
                                ones: an http(s) URL or a local directory; repeat
                                to give an ordered list (overrides TT_REGISTRIES
                                and [platform].registries)
-[0;1;39m
-GLOBAL FLAGS[0m
+
+GLOBAL FLAGS
   -C, --directory string   work on the project in DIR itself, not on the one the
                            current directory is in
 
@@ -4216,13 +4216,13 @@ Report the rock servers tt package commands query. The list comes from
 --registry, then TT_REGISTRIES, then [platform].registries in app.manifest.toml,
 and falls back to the built-in defaults.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt registry [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   list        Show the rock servers in the order they are queried
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for registry
 
 Use "tt registry <command> --help" for more information about a command.
@@ -4234,10 +4234,10 @@ the outermost one that names anything is the whole list, because resolution
 takes the first server that has a rock and an appended server would change which
 that is. Run in a project directory to see what its manifest configures.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt registry list [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -o, --format string          output format: table, json or yaml (default
                                "table")
   -h, --help                   help for list
@@ -4249,13 +4249,13 @@ FLAGS[0m
 === tt replicaset --help
 Manage replicasets
 
-[0;1;39mUSAGE[0m
+USAGE
   tt replicaset [flags] <command> [command flags]
-[0;1;39m
-ALIASES[0m
+
+ALIASES
   replicaset, rs
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   bootstrap   Bootstrap an application or instance
   demote      Demote an instance
   downgrade   Downgrade tarantool cluster
@@ -4266,8 +4266,8 @@ COMMANDS[0m
   status      Show a replicaset status
   upgrade     Upgrade tarantool cluster
   vshard      Manage vshard
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for replicaset
 
 Use "tt replicaset <command> --help" for more information about a command.
@@ -4275,10 +4275,10 @@ Use "tt replicaset <command> --help" for more information about a command.
 === tt replicaset bootstrap --help
 Bootstrap an application or instance.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt replicaset bootstrap [--timeout secs] [flags] (<APP> | <APP>:<INSTANCE>)
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --bootstrap-vshard    bootstrap vshard
       --config              to force the centralized config orchestrator
       --custom              to force a custom orchestrator
@@ -4293,10 +4293,10 @@ FLAGS[0m
 === tt replicaset demote --help
 Demote an instance.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt replicaset demote [-f] [--timeout secs] [flags] <APP>:<INSTANCE>
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --config            to force the centralized config orchestrator
       --custom            to force a custom orchestrator
   -f, --force             skip instances not found locally
@@ -4314,15 +4314,15 @@ The command supports the following Tarantool environment variables:
 * TT_CLI_USERNAME - specifies a Tarantool username
 * TT_CLI_PASSWORD - specifies a Tarantool password
 
-[0;1;39mUSAGE[0m
+USAGE
   tt replicaset downgrade (<APP> | <URI>) VERSION [flags]
 
   The URI can be specified in the following formats:
   * [tcp://][username:password@][host:port]
   * [unix://][username:password@]socketpath
   To specify relative path without `unix://` use `./`.
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --config                     to force the centralized config orchestrator
       --connect-timeout duration   timeout for establishing a binary connection
                                    (default 1s)
@@ -4353,11 +4353,11 @@ FLAGS[0m
 === tt replicaset expel --help
 Expel an instance from a replicaset.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt replicaset expel [-f] [--config|--custom] [--timeout secs] <APP>:<INSTANCE>
   [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --config            to force the centralized config orchestrator
       --custom            to force a custom orchestrator
   -f, --force             skip instances not found locally
@@ -4375,7 +4375,7 @@ The command supports the following Tarantool environment variables:
 * TT_CLI_USERNAME - specifies a Tarantool username
 * TT_CLI_PASSWORD - specifies a Tarantool password
 
-[0;1;39mUSAGE[0m
+USAGE
   tt replicaset promote [--config|--custom] [-f] [--timeout secs] [flags]
   (<APP>:<INSTANCE> | <URI>)
 
@@ -4383,8 +4383,8 @@ The command supports the following Tarantool environment variables:
   * [tcp://][username:password@][host:port]
   * [unix://][username:password@]socketpath
   To specify relative path without `unix://` use `./`.
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --config                     to force the centralized config orchestrator
       --connect-timeout duration   timeout for establishing a binary connection
                                    (default 1s)
@@ -4415,10 +4415,10 @@ FLAGS[0m
 === tt replicaset rebootstrap --help
 Re-bootstraps an instance
 
-[0;1;39mUSAGE[0m
+USAGE
   tt replicaset rebootstrap <APP>:<INSTANCE>
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help              help for rebootstrap
       --scope string      scope the application is looked for in: project, user
                           or system
@@ -4429,14 +4429,14 @@ FLAGS[0m
 === tt replicaset roles --help
 Adds or removes roles for Tarantool 3 orchestrator
 
-[0;1;39mUSAGE[0m
+USAGE
   tt replicaset roles [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   add         Adds a role for Tarantool 3 orchestrator
   remove      Removes a role for Tarantool 3 orchestrator
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for roles
 
 Use "tt replicaset roles <command> --help" for more information about a command.
@@ -4444,11 +4444,11 @@ Use "tt replicaset roles <command> --help" for more information about a command.
 === tt replicaset roles add --help
 Adds a role for Tarantool 3 orchestrator
 
-[0;1;39mUSAGE[0m
+USAGE
   tt replicaset roles add [--config|--custom] [-f] [--timeout secs]
   <APP>:<INSTANCE> <ROLE_NAME> [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --config                     to force the centralized config orchestrator
       --connect-timeout duration   timeout for establishing a binary connection
                                    (default 1s)
@@ -4483,11 +4483,11 @@ FLAGS[0m
 === tt replicaset roles remove --help
 Removes a role for Tarantool 3 orchestrator
 
-[0;1;39mUSAGE[0m
+USAGE
   tt replicaset roles remove [--config|--custom] [-f] [--timeout secs]
   <APP>:<INSTANCE> <ROLE_NAME> [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --config                     to force the centralized config orchestrator
       --connect-timeout duration   timeout for establishing a binary connection
                                    (default 1s)
@@ -4526,7 +4526,7 @@ The command supports the following Tarantool environment variables:
 * TT_CLI_USERNAME - specifies a Tarantool username
 * TT_CLI_PASSWORD - specifies a Tarantool password
 
-[0;1;39mUSAGE[0m
+USAGE
   tt replicaset status [--config|--custom] [flags] (<APP> | <APP>:<INSTANCE> |
   <URI>)
 
@@ -4534,8 +4534,8 @@ The command supports the following Tarantool environment variables:
   * [tcp://][username:password@][host:port]
   * [unix://][username:password@]socketpath
   To specify relative path without `unix://` use `./`.
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --config                     to force the centralized config orchestrator
       --connect-timeout duration   timeout for establishing a binary connection
                                    (default 1s)
@@ -4567,15 +4567,15 @@ The command supports the following Tarantool environment variables:
 * TT_CLI_USERNAME - specifies a Tarantool username
 * TT_CLI_PASSWORD - specifies a Tarantool password
 
-[0;1;39mUSAGE[0m
+USAGE
   tt replicaset upgrade (<APP> | <URI>) [flags]
 
   The URI can be specified in the following formats:
   * [tcp://][username:password@][host:port]
   * [unix://][username:password@]socketpath
   To specify relative path without `unix://` use `./`.
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --config                     to force the centralized config orchestrator
       --connect-timeout duration   timeout for establishing a binary connection
                                    (default 1s)
@@ -4606,16 +4606,16 @@ FLAGS[0m
 === tt replicaset vshard --help
 Manage vshard
 
-[0;1;39mUSAGE[0m
+USAGE
   tt replicaset vshard [flags] <command> [command flags]
-[0;1;39m
-ALIASES[0m
+
+ALIASES
   vshard, vs
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   bootstrap   Bootstrap vshard in the cluster
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for vshard
 
 Use "tt replicaset vshard <command> --help" for more information about a
@@ -4628,7 +4628,7 @@ The command supports the following Tarantool environment variables:
 * TT_CLI_USERNAME - specifies a Tarantool username
 * TT_CLI_PASSWORD - specifies a Tarantool password
 
-[0;1;39mUSAGE[0m
+USAGE
   tt replicaset vshard bootstrap [--config|--custom] [--timeout secs] [flags]
   (<APP> | <APP>:<INSTANCE> | <URI>)
 
@@ -4636,8 +4636,8 @@ The command supports the following Tarantool environment variables:
   * [tcp://][username:password@][host:port]
   * [unix://][username:password@]socketpath
   To specify relative path without `unix://` use `./`.
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --config                     to force the centralized config orchestrator
       --connect-timeout duration   timeout for establishing a binary connection
                                    (default 1s)
@@ -4666,14 +4666,14 @@ FLAGS[0m
 === tt restore --help
 Restore a Tarantool cluster from a backup (PITR)
 
-[0;1;39mUSAGE[0m
+USAGE
   tt restore [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   apply       Prepare an instance work directory from backup archives
   plan        Resolve a recovery time into a plan and download what it needs
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for restore
 
 Use "tt restore <command> --help" for more information about a command.
@@ -4919,10 +4919,10 @@ HTTPS connection behavior:
 * Do not mix http:// and https:// addresses in an etcd endpoint list. If any
   endpoint uses https://, TLS is enabled for all endpoints.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt restore apply [<APP>:<INSTANCE>] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --archives strings      ordered backup chain: the full backup first, then
                               each increment
       --checksums strings     sha256 of each archive, in the same order as
@@ -5149,10 +5149,10 @@ without them, and those commands report an empty storage rather than an
 error. The exception is upload, which reads the pair out of the plan and
 needs the flags only to override it.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt restore plan [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --backup-storage string   storage URI or @path to a storage configuration
                                 file
       --cluster-name string     cluster name; used as a storage path component
@@ -5187,7 +5187,7 @@ package. A directory is such a server when it holds the index and no manifest;
 an HTTP(S) server when a HEAD of the index succeeds and one of each manifest
 answers 403, 404 or 410.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt rocks
 
 === tt run (via tt help: flag parsing disabled)
@@ -5205,10 +5205,10 @@ environment is inherited unchanged: no LUA_PATH or LUA_CPATH is composed, since
 Tarantool finds .rocks/ from the project directory by itself. tt replaces itself
 with the interpreter, so signals and the exit code are Tarantool's own.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt run [ARGS...]
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   # Start an interactive console in the project.
   $ tt run
 
@@ -5231,13 +5231,13 @@ EXAMPLES[0m
 === tt service --help
 Integrate with the service manager of the system
 
-[0;1;39mUSAGE[0m
+USAGE
   tt service [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   systemd     Run the instances of an application under systemd units
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for service
 
 Use "tt service <command> --help" for more information about a command.
@@ -5263,15 +5263,15 @@ run systemctl itself.
 made for the system scope only: the user scope and projects are refused; inside
 a project of the same name, --scope system picks the installed application.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt service systemd [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   generate    Print the systemd units of an application
   install     Install the systemd units of an application
   uninstall   Remove the systemd units of an application
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for systemd
 
 Use "tt service systemd <command> --help" for more information about a command.
@@ -5283,10 +5283,10 @@ written into the directory instead, which is created if need be. Nothing is
 installed and nothing is recorded: tt instance commands do not leave the
 instances to the units.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt service systemd generate <APP> [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help                  help for generate
       --run-as user[:group]   the user and the group the units run the instances
                               as; the group is the user's name when left out
@@ -5310,10 +5310,10 @@ keeps the user and the group they run as.
 
 systemctl is not run: the command prints what to run.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt service systemd install <APP> [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help                  help for install
       --run-as user[:group]   the user and the group the units run the instances
                               as; the group is the user's name when left out
@@ -5331,10 +5331,10 @@ are not installed are no failure: there is nothing to remove. An instance that
 runs under its unit is an error: stop the units first, with systemctl disable
 --now. A file tt did not write is left in place.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt service systemd uninstall <APP> [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help           help for uninstall
       --scope string   scope the application is looked for in: only system is
                        supported
@@ -5342,16 +5342,16 @@ FLAGS[0m
 === tt tcm --help
 Manage tcm application
 
-[0;1;39mUSAGE[0m
+USAGE
   tt tcm [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   log         Show tcm application logs
   start       Start tcm application
   status      Status tcm application
   stop        Stop tcm application
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for tcm
 
 Use "tt tcm <command> --help" for more information about a command.
@@ -5359,10 +5359,10 @@ Use "tt tcm <command> --help" for more information about a command.
 === tt tcm log --help
 Show logs for the tcm. tt tcm log
 
-[0;1;39mUSAGE[0m
+USAGE
   tt tcm log [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --color       Force colored output in logs
   -f, --follow      Output appended data as the log file grows
   -h, --help        help for log
@@ -5375,10 +5375,10 @@ Start to the tcm.
 		tt tcm start --watchdog
 		tt tcm start --path
 
-[0;1;39mUSAGE[0m
+USAGE
   tt tcm start [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help               help for start
       --log-level string   log level for the tcm application (default "INFO")
       --path string        the path to the tcm binary file
@@ -5388,19 +5388,19 @@ FLAGS[0m
 Status to the tcm.
 		tt tcm status
 
-[0;1;39mUSAGE[0m
+USAGE
   tt tcm status [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for status
 
 === tt tcm stop --help
 Stop to the tcm. tt tcm stop
 
-[0;1;39mUSAGE[0m
+USAGE
   tt tcm stop [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for stop
 
 === tt test --help
@@ -5420,15 +5420,15 @@ as they were, so running the tests never makes the lock stale.
 
 Everything after '--' is handed to luatest, and the exit code is luatest's own.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt test [SUB-PATH...] [-- LUATEST-ARGS...] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -C, --directory string   work on the project in DIR itself, not on the one the
                            current directory is in
   -h, --help               help for test
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   # Build and run everything under test/ (or tests/).
   $ tt test
 
@@ -5443,10 +5443,10 @@ EXAMPLES[0m
 === tt version --help
 Show Tarantool CLI version information
 
-[0;1;39mUSAGE[0m
+USAGE
   tt version [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --commit    Show commit
   -h, --help      help for version
       --modules   Show the modules tt is built from and their versions
@@ -5460,16 +5460,16 @@ a build lacks, and rock packs the rocks of a release for a rock server. They are
 a stopgap until tt builds the components itself: the components are built by
 tarawasm for now.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt wasm [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   new         Add a WebAssembly component to the package
   prepare     Add the wasm runtime, tarawasm and the toolchains to the project
   rock        Pack the rocks of a release for a rock server
   status      Show how far the project is prepared, changing nothing
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for wasm
 
 Use "tt wasm <command> --help" for more information about a command.
@@ -5504,10 +5504,10 @@ to. The other tools - python3, Go and TinyGo, Rust and cargo-component, Node and
 jco, the wasi-sdk and wit-bindgen, .NET - are the user's to install: tt checks
 their versions, says which to install, and installs nothing into the system.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt wasm new NAME [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --dir string             the directory of the component (default NAME)
   -h, --help                   help for new
       --lang string            the language of the component: c, csharp, go, js,
@@ -5520,8 +5520,8 @@ FLAGS[0m
                                space) or call (an exported function); Python
                                only
       --world string           the name of its WIT world (default app)
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   # A component in Python, in the directory router.
   $ tt wasm new router --lang python
 
@@ -5571,10 +5571,10 @@ be of the release prepared.
 The registry and .tarantool are for this host and are not meant to be committed:
 after a checkout, run tt wasm prepare again.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt wasm prepare [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --from string            pack this local build of the module into
                                .tarantool/registry and declare the rock from
                                there
@@ -5597,8 +5597,8 @@ FLAGS[0m
       --version string         tarantool-wasm release: any the rock server
                                serves, or one tt knows with --from (default
                                "0.1.0")
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   # Prepare the package in the current directory for Python components.
   $ tt wasm prepare --lang python
   $ tt wasm new router --lang python
@@ -5625,10 +5625,10 @@ release to. With --from, pack the one local build of the module as the rock of
 --arch (default this host's) and keep the rocks already in --out: run it once
 for the build of each platform.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt wasm rock [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --arch string      the LuaRocks arch of the build --from names
                          (linux-x86_64, macosx-aarch64; default this host's)
       --from string      pack this local build of the module instead of
@@ -5636,8 +5636,8 @@ FLAGS[0m
   -h, --help             help for rock
       --out string       the directory to pack the rocks into
       --version string   tarantool-wasm release (default "0.1.0")
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   # The rocks of 0.1.0, for the assets of the release on GitHub.
   $ tt wasm rock --out dist/rocks
   $ gh release upload v0.1.0 dist/rocks/*
@@ -5657,10 +5657,10 @@ tarawasm builds with the SDK each pins, and the toolchain of their languages.
 Nothing is installed or changed. Anything missing is listed, and the command
 fails, as a check in CI does.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt wasm status [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help   help for status
 
 === tt completion bash

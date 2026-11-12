@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -98,6 +99,49 @@ func TestErrorsHelpTopic(t *testing.T) {
 	require.NotEqual(t, -1, topics, "the root help must list help topics")
 	assert.Contains(t, help[topics:], "errors")
 	assert.NotContains(t, help[:topics], "\n  errors ", "a topic is not a command")
+}
+
+// TestHelpColor checks that the help is coloured on a terminal only, and
+// there not with NO_COLOR set to a value or TERM=dumb.
+func TestHelpColor(t *testing.T) {
+	t.Parallel()
+
+	env := func(vars map[string]string) func(string) (string, bool) {
+		return func(key string) (string, bool) {
+			value, ok := vars[key]
+
+			return value, ok
+		}
+	}
+
+	assert.True(t, colorsHelp(true, env(nil)))
+	assert.True(t, colorsHelp(true, env(map[string]string{"TERM": "xterm", "NO_COLOR": ""})))
+	assert.False(t, colorsHelp(false, env(nil)))
+	assert.False(t, colorsHelp(true, env(map[string]string{"NO_COLOR": "1"})))
+	assert.False(t, colorsHelp(true, env(map[string]string{"TERM": "dumb"})))
+
+	// A buffer and a pipe are not terminals.
+	assert.False(t, isTerminal(&strings.Builder{}))
+
+	reader, writer, err := os.Pipe()
+	require.NoError(t, err)
+
+	defer func() { _ = reader.Close() }()
+	defer func() { _ = writer.Close() }()
+
+	assert.False(t, isTerminal(writer))
+
+	// So the help written to them has no escape sequences.
+	root := NewCmdRoot()
+	configureHelpCommand(root, []ExternalCommand{{Name: "ext", Help: "An external command"}})
+
+	var out strings.Builder
+
+	root.SetOut(&out)
+	require.NoError(t, root.Help())
+	assert.NotContains(t, out.String(), "\x1b")
+	assert.Contains(t, out.String(), "\nUSAGE\n")
+	assert.Contains(t, out.String(), "\nEXTERNAL COMMANDS\n  ext\tAn external command\n\nFLAGS\n")
 }
 
 func TestHelpFitsWidth(t *testing.T) {

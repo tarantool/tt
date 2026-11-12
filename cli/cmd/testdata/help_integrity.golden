@@ -6,10 +6,10 @@
 Tarantool CLI EE — utility for managing Tarantool packages and Tarantool-based
 applications
 
-[0;1;39mUSAGE[0m
+USAGE
   tt [flags] <command> [command flags]
-[0;1;39m
-COMMANDS[0m
+
+COMMANDS
   backup      Manage Tarantool backups (PITR)
   binary      Manage binaries and SDK bundles
   cluster     Manage cluster configuration
@@ -34,12 +34,12 @@ COMMANDS[0m
   test        Build the current package and run its tests
   version     Show Tarantool CLI EE version information
   wasm        Prepare a project for WebAssembly components (experimental)
-[0;1;39m
-HELP TOPICS[0m
+
+HELP TOPICS
   errors      Exit codes of tt commands
  
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -h, --help                         help for tt
       --integrity-check string       path to the public key that enables
                                      integrity checks
@@ -50,8 +50,8 @@ FLAGS[0m
                                      or json (default text)
       --no-prompt                    Skip cli interaction using default behavior
   -V, --verbose                      Verbose output
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   $ tt -V version
   $ tt -I help
   $ tt completion
@@ -73,10 +73,10 @@ others. tt exits once all of them have ended: with 0 when they were stopped in
 time, with the exit code of the first instance that failed otherwise, 137 for
 one killed as it did not stop in time.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt instance start [<APP>:<INSTANCE> | <APP>:*][,...] [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --foreground                   stay in the foreground while the instances
                                      run, without restarting them
   -h, --help                         help for start
@@ -147,10 +147,10 @@ By default, the command removes all keys in etcd with prefix '/prefix/config/'
 and writes the result to '/prefix/config/all'. You could work and update a
 target key with the 'key' argument.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt cluster publish (<APP> | <APP>:<INSTANCE> | <URI>) file [flags]
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --force                         force publish and skip validation
       --group string                  group name
   -h, --help                          help for publish
@@ -165,8 +165,8 @@ FLAGS[0m
                                       published data and packages
   -y, --yes                           confirm without a prompt, as is needed
                                       when the standard input is not a terminal
-[0;1;39m
-EXAMPLES[0m
+
+EXAMPLES
   tt cluster publish application_name cluster.yaml
   tt cluster publish application_name:instance_name instance.yaml
   tt cluster publish https://user:pass@localhost:2379/tt cluster.yaml
@@ -219,10 +219,10 @@ HTTPS connection behavior:
 * Do not mix http:// and https:// addresses in an etcd endpoint list. If any
   endpoint uses https://, TLS is enabled for all endpoints.
 
-[0;1;39mUSAGE[0m
+USAGE
   tt cluster replicaset promote [-f] [flags] <URI> <INSTANCE_NAME>
-[0;1;39m
-FLAGS[0m
+
+FLAGS
   -f, --force                         skip selecting a key for patching
   -h, --help                          help for promote
   -p, --password string               password (used as etcd/tarantool config
@@ -239,7 +239,7 @@ The command supports the following Tarantool environment variables:
 * TT_CLI_USERNAME - specifies a Tarantool username
 * TT_CLI_PASSWORD - specifies a Tarantool password
 
-[0;1;39mUSAGE[0m
+USAGE
   tt replicaset vshard bootstrap [--config|--custom] [--timeout secs] [flags]
   (<APP> | <APP>:<INSTANCE> | <URI>)
 
@@ -247,8 +247,8 @@ The command supports the following Tarantool environment variables:
   * [tcp://][username:password@][host:port]
   * [unix://][username:password@]socketpath
   To specify relative path without `unix://` use `./`.
-[0;1;39m
-FLAGS[0m
+
+FLAGS
       --config                        to force the centralized config
                                       orchestrator
       --connect-timeout duration      timeout for establishing a binary

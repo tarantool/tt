@@ -874,7 +874,7 @@ func TestMainModuleHelpFirstLine(t *testing.T) {
 	got := runTT(t, ttRun{program: "demo", args: []string{"--help"}, env: env})
 	require.Equal(t, 0, got.code, got.stderr)
 	assert.Contains(t, got.stdout, "\n  multi       First line.\n")
-	assert.Contains(t, got.stdout, "\n\x1b[0m  multi\tFirst line.\n")
+	assert.Contains(t, got.stdout, "\nEXTERNAL COMMANDS\n  multi\tFirst line.\n")
 	assert.NotContains(t, got.stdout, "Second line")
 
 	got = runTT(t, ttRun{program: "demo", args: []string{"__complete", "mu"}, env: env})
@@ -937,8 +937,10 @@ func TestMainExternalModulesListed(t *testing.T) {
 	require.Equal(t, 0, got.code, got.stderr)
 	assert.Contains(t, got.stdout, "\n  connect     External connect\n")
 	assert.Contains(t, got.stdout, "\n  hello       External hello\n")
-	assert.Contains(t, got.stdout, "EXTERNAL COMMANDS\n\x1b[0m  connect\tExternal connect\n"+
-		"  hello\tExternal hello\n\x1b[0;1;39m\nFLAGS")
+	// Not a terminal: the headings are not bold.
+	assert.Contains(t, got.stdout, "\n \nEXTERNAL COMMANDS\n  connect\tExternal connect\n"+
+		"  hello\tExternal hello\n\nFLAGS")
+	assert.NotContains(t, got.stdout, "\x1b[")
 	assert.Contains(t, got.stdout, "\n  modules     Manage tt cli modules\n")
 
 	got = runTT(t, ttRun{program: "demo", args: []string{"__complete", ""}, env: env})
