@@ -38,6 +38,9 @@ const (
 	// StubsDir is where Tarantool installs its EmmyLua stubs, relative to its
 	// prefix (gh-13022, Tarantool 3.9 and newer).
 	StubsDir = "share/tarantool/emmylua"
+	// runtimeVersion is the Lua of Tarantool, as EmmyLua's runtime.version
+	// names it; FormatLevel is the same for luafmt.
+	runtimeVersion = "LuaJIT"
 )
 
 // projectConfigNames are the configurations of a project, in the order
@@ -110,7 +113,7 @@ func (l Layout) Config() map[string]any {
 	return map[string]any{
 		"$comment": comment,
 		"runtime": map[string]any{
-			"version": "LuaJIT",
+			"version": runtimeVersion,
 		},
 		"workspace": map[string]any{
 			"library": l.Libraries(),

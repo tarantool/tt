@@ -3,6 +3,7 @@ module github.com/tarantool/tt/modules/emmylua
 go 1.27.0
 
 require (
+	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/tarantool/go-luarocks v0.1.1-0.20261111110720-119a9e469552

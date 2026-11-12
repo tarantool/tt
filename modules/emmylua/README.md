@@ -26,7 +26,12 @@ modules come from their directories through `replace`.
   `--library`, and `.rocks/`, `.tarantool/` and `_build/`, where tt builds
   the project, in `ignoreGlobs`. `fmt` runs `luafmt` without it, and on the
   whole project passes `--exclude _build/**` (`analyzer.BuildDirGlob`) for
-  the same reason: luafmt skips hidden directories only.
+  the same reason: luafmt skips hidden directories only. It passes
+  `--level lua-jit` too, the LuaJIT the configuration gives the analyzer,
+  unless the arguments after `--` hold `--level` or the configuration of
+  luafmt sets `[syntax] level` (`analyzer.FormatLevelConfigured`): luafmt
+  defaults to Lua 5.5 and takes `--level` over its configuration, and
+  merges no configurations, so tt reads the one luafmt would.
 - `workspace.go` - where a command runs: the project `scope.FindProject` of
   `sdk/scope` finds from `Project().Dir()`, as the project commands of tt
   find theirs, when it holds the manifest, and the directory of the command

@@ -3217,11 +3217,13 @@ EXAMPLES[0m
 Run luafmt, the formatter of EmmyLua, on PATH (default the project): with
 --check, the default, it prints how the files would change and fails if any
 would; with --write it rewrites them. It reads .luafmt.toml or luafmt.toml and
-.luafmtignore, not the configuration of the analyzer. On the whole project, with
-no PATH, it leaves out _build/, where tt builds the project out of its sources,
-as check, doc and ls do. The other flags of luafmt, such as --list-different, go
-after --, and one that chooses what luafmt does takes the place of --check.
-Arguments after -- go to the program as they are.
+.luafmtignore, not the configuration of the analyzer. It parses LuaJIT, as check
+does, unless [syntax] level of that configuration or --level after -- names
+another: luafmt alone parses Lua 5.5. On the whole project, with no PATH, it
+leaves out _build/, where tt builds the project out of its sources, as check,
+doc and ls do. The other flags of luafmt, such as --list-different, go after --,
+and one that chooses what luafmt does takes the place of --check. Arguments
+after -- go to the program as they are.
 
 Outside every project luafmt comes from the user cache, fetched there once from
 the rock server (--rock-server, --version).

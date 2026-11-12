@@ -102,7 +102,7 @@ func TestCheckOutsideProject(t *testing.T) {
 	got = sdktest.New(t, sdktest.WithProject(dir)).Run(emmylua.New,
 		"emmylua", "fmt", "app", "--rock-server", server)
 	require.NoError(t, got.Err)
-	assert.Equal(t, "luafmt --check app\n", got.Stdout)
+	assert.Equal(t, "luafmt --check --level lua-jit app\n", got.Stdout)
 	assert.NotContains(t, got.Stderr, "fetching")
 
 	project := testProject(t)

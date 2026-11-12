@@ -248,7 +248,9 @@ func newFmtCmd(services sdk.Services) *cobra.Command {
 		Long: "Run luafmt, the formatter of EmmyLua, on PATH (default the project): " +
 			"with --check, the default, it prints how the files would change and fails " +
 			"if any would; with --write it rewrites them. It reads .luafmt.toml or " +
-			"luafmt.toml and .luafmtignore, not the configuration of the analyzer. On " +
+			"luafmt.toml and .luafmtignore, not the configuration of the analyzer. It " +
+			"parses LuaJIT, as check does, unless [syntax] level of that configuration " +
+			"or --level after -- names another: luafmt alone parses Lua 5.5. On " +
 			"the whole project, with no PATH, it leaves out _build/, where tt builds " +
 			"the project out of its sources, as check, doc and ls do. The " +
 			"other flags of luafmt, such as --list-different, go after --, and one that " +
@@ -518,9 +520,11 @@ func (r *runner) withConfig(
 }
 
 // format runs luafmt on the paths in args, without the configuration of the
-// analyzer, in the mode its flags give: --check unless told another. On the
-// whole workspace, the paths tt picks when args name none, it leaves out the
-// build tree, as the configuration of the analyzer does: luafmt walks every
+// analyzer, in the mode its flags give: --check unless told another. It
+// parses the Lua the analyzer is told of, LuaJIT, unless the arguments of
+// luafmt or its configuration choose another (givesLevel). On the whole
+// workspace, the paths tt picks when args name none, it leaves out the build
+// tree, as the configuration of the analyzer does: luafmt walks every
 // directory that is not hidden, _build/ too.
 func (r *runner) format(cmd *cobra.Command, args []string) error {
 	found, err := r.workspace(cmd)
@@ -542,6 +546,10 @@ func (r *runner) format(cmd *cobra.Command, args []string) error {
 		argv = []string{"--" + fmtCheck}
 	}
 
+	if givesLevel(found, list, pass) {
+		argv = append(argv, "--level", analyzer.FormatLevel)
+	}
+
 	// luafmt matches the pattern against the path of a file relative to the
 	// path it was given, the root of the workspace here.
 	if whole {
@@ -552,6 +560,42 @@ func (r *runner) format(cmd *cobra.Command, args []string) error {
 	argv = append(argv, list...)
 
 	return r.runProgram(cmd.Context(), program, argv)
+}
+
+// givesLevel reports whether tt emmylua fmt gives luafmt the Lua of
+// Tarantool, analyzer.FormatLevel, to format list with pass, the arguments
+// after --: unless pass chooses the level itself, or the configuration
+// luafmt reads does, its own --config among pass or the one luafmt finds
+// for the paths. luafmt takes --level over [syntax] level of the
+// configuration, so passing it there would override the user's choice.
+func givesLevel(found workspace, list, pass []string) bool {
+	if _, given := flagValue(pass, "--level"); given {
+		return false
+	}
+
+	config, _ := flagValue(pass, "--config")
+
+	return !analyzer.FormatLevelConfigured(found.workDir, list, config)
+}
+
+// flagValue returns the value of the flag name in args, the arguments of
+// luafmt, given as name value or name=value, and whether args hold it.
+func flagValue(args []string, name string) (string, bool) {
+	for i, arg := range args {
+		if arg == name {
+			if i+1 < len(args) {
+				return args[i+1], true
+			}
+
+			return "", true
+		}
+
+		if value, ok := strings.CutPrefix(arg, name+"="); ok {
+			return value, true
+		}
+	}
+
+	return "", false
 }
 
 // choosesAction reports whether args, the arguments of luafmt, hold a flag
