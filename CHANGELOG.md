@@ -414,6 +414,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `0.0.0.dev.36.g7170ebf.dirty-1`, is no release: resolving to it warns
   that it was built from uncommitted changes, and a release of the rock is
   taken over it.
+- A `path` dependency may be given by an absolute path,
+  `{ source = "path", path = "/abs/dir" }`, in the manifest of the project
+  and in that of a path dependency: the path was joined to the directory of
+  the manifest, and resolving failed with `lstat <project>/abs/...: no such
+  file or directory`. The lock keeps the path as it is written, so an
+  absolute path ties it to the machine. Two path dependencies that declare a
+  third, one by an absolute path and one by a relative path to the same
+  directory, are no longer a conflict.
 
 ## [3.0.0-alpha.2] - 2026-11-05
 

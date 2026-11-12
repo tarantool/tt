@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/tarantool/go-luarocks/remote"
+
+	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // EnvRegistries is the environment variable naming the rock servers to use,
@@ -183,13 +185,9 @@ func resolveServer(value string, source Source, base string) (string, error) {
 		return value, nil
 	}
 
-	if filepath.IsAbs(path) {
-		return filepath.Clean(path), nil
-	}
-
-	if base == "" {
+	if !filepath.IsAbs(path) && base == "" {
 		return "", fmt.Errorf("%s registries: %w: %q", source, ErrNoBaseDir, value)
 	}
 
-	return filepath.Join(base, path), nil
+	return manifest.PathFrom(base, path), nil
 }

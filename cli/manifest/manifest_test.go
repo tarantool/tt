@@ -97,6 +97,33 @@ version = ">=4.0.0"
 	require.NoError(t, err)
 }
 
+// TestPathFrom: the path of a path dependency, relative to the manifest, may be
+// absolute too, and is then taken as it is, wherever the manifest is.
+func TestPathFrom(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		dir, path, want string
+	}{
+		{dir: "/work/app", path: "../helper", want: "/work/helper"},
+		{dir: "/work/app", path: "vendor/lib/", want: "/work/app/vendor/lib"},
+		{dir: "/work/app", path: ".", want: "/work/app"},
+		{dir: "/work/app", path: "/opt/libs/helper", want: "/opt/libs/helper"},
+		{dir: "/work/app", path: "/opt/libs/../helper/", want: "/opt/helper"},
+		{dir: "", path: "/opt/libs/helper", want: "/opt/libs/helper"},
+		{dir: "", path: "../helper", want: "../helper"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.dir+" "+test.path, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, filepath.FromSlash(test.want),
+				manifest.PathFrom(filepath.FromSlash(test.dir), filepath.FromSlash(test.path)))
+		})
+	}
+}
+
 // TestEffectiveProducts covers the two shapes a manifest's products come in:
 // declared ones are returned as written, and a manifest declaring none gets a
 // single implicit default product built from every component.

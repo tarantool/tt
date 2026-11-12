@@ -99,7 +99,7 @@ func pathState(projectDir, name string) string {
 func (p pathManifests) buildPathManifest(ctx context.Context, dep manifest.LockDependency) error {
 	return p.buildManifest(ctx, manifestBuild{
 		dep:       dep,
-		dir:       filepath.Join(p.opts.ProjectDir, dep.Path),
+		dir:       manifest.PathFrom(p.opts.ProjectDir, dep.Path),
 		state:     pathState(p.opts.ProjectDir, dep.Name),
 		revision:  1,
 		what:      "path dependency",
@@ -203,7 +203,7 @@ func (s rockServers) addPathManifests(
 				continue
 			}
 
-			dir := filepath.Join(projectDir, dep.Path)
+			dir := manifest.PathFrom(projectDir, dep.Path)
 
 			isManifest, err := resolve.IsPathManifest(dir)
 			if err != nil {

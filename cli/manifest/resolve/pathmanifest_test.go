@@ -2,6 +2,7 @@ package resolve_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -437,4 +438,124 @@ func TestPathManifestConsumerDeclarationWins(t *testing.T) {
 	assert.Equal(t, manifest.LockDependency{
 		Name: "helper", Version: "0.2.0-1", Source: "registry", Checksum: "md5:h",
 	}, helper)
+}
+
+// pathDeclaration is the declaration of the path dependency name at path.
+func pathDeclaration(name, path string) string {
+	return name + " = { source = 'path', path = '" + filepath.ToSlash(path) + "' }\n"
+}
+
+// TestPathManifestByAbsolutePath: the path of a path dependency may be
+// absolute, the consumer's and the one a path dependency declares alike. The
+// lock keeps it as it is written and finds the directory by it, not under the
+// project.
+func TestPathManifestByAbsolutePath(t *testing.T) {
+	t.Parallel()
+
+	app, neighbour := pathManifestLayout(t, contribManifest)
+	helper := filepath.Join(filepath.Dir(neighbour), "helper")
+
+	writeTree(t, neighbour, map[string]string{
+		"app.manifest.toml": strings.Replace(contribManifest,
+			pathDeclaration("helper", "../helper"), pathDeclaration("helper", helper), 1),
+	})
+
+	man := parseManifest(t, oneProduct+"[dependencies]\n"+pathDeclaration("contrib", neighbour))
+	engine := resolve.NewEngine(contribAdapter(t, neighbour), app, "tt 3.4.0")
+
+	lock, warnings, err := engine.Resolve(context.Background(), man)
+	require.NoError(t, err)
+	assert.Empty(t, warnings)
+
+	closure := lock.Products["default"].Dependencies
+
+	contrib := findDep(t, closure, "contrib")
+	assert.Equal(t, "1.4.0.rc.1-1", contrib.Version)
+	assert.Equal(t, filepath.ToSlash(neighbour), contrib.Path)
+	assert.Equal(t, filepath.ToSlash(helper), findDep(t, closure, "helper").Path)
+
+	stale, reason, err := engine.IsStale(man, lock)
+	require.NoError(t, err)
+	assert.False(t, stale, reason)
+
+	// The lock follows the directories the paths name.
+	writeTree(t, helper, map[string]string{"helper.lua": "return 2\n"})
+
+	stale, reason, err = engine.IsStale(man, lock)
+	require.NoError(t, err)
+	assert.True(t, stale)
+	assert.Contains(t, reason, `"helper"`)
+}
+
+// otherManifest is a second neighbour, which declares helper by the path %s.
+const otherManifest = `manifest_version = '0.1'
+[package]
+name = 'other'
+[platform]
+tarantool = '>=3.0.0'
+tt = '>=3.0.0'
+[dependencies]
+%s[components.lib]
+path = '.'
+[products.default]
+components = ['lib']
+default = true
+`
+
+// TestPathManifestsDeclareOneDependency: two path dependencies holding
+// manifests may each declare a third by path. One directory written as an
+// absolute path by one and a relative one by the other is one dependency; two
+// directories are a conflict.
+func TestPathManifestsDeclareOneDependency(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		path     func(libs string) string
+		conflict bool
+	}{
+		{
+			name: "one directory",
+			path: func(libs string) string { return filepath.Join(libs, "helper") },
+		},
+		{
+			name:     "two directories",
+			path:     func(libs string) string { return filepath.Join(libs, "other", "helper") },
+			conflict: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			app, neighbour := pathManifestLayout(t, contribManifest)
+			libs := filepath.Dir(neighbour)
+
+			writeTree(t, filepath.Join(libs, "other"), map[string]string{
+				"app.manifest.toml": fmt.Sprintf(otherManifest,
+					pathDeclaration("helper", test.path(libs))),
+				"VERSION":           "1.0.0\n",
+				"helper/helper.lua": "return 3\n",
+			})
+
+			man := parseManifest(t, consumerManifest+pathDeclaration("other", "../libs/other"))
+			engine := resolve.NewEngine(contribAdapter(t, neighbour), app, "tt 3.4.0")
+
+			lock, _, err := engine.Resolve(context.Background(), man)
+			if test.conflict {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "helper is the path dependency")
+
+				return
+			}
+
+			require.NoError(t, err)
+
+			closure := lock.Products["default"].Dependencies
+			assert.ElementsMatch(t,
+				[]string{"contrib", "other", "metrics", "checks", "helper", "scoped"},
+				depNames(closure))
+		})
+	}
 }

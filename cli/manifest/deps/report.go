@@ -43,7 +43,7 @@ type Entry struct {
 	// from the lock otherwise.
 	Source string `json:"source,omitempty" yaml:"source,omitempty"`
 	// Path is the directory a path dependency points at, relative to the
-	// manifest.
+	// manifest or absolute.
 	Path string `json:"path,omitempty" yaml:"path,omitempty"`
 	// Registry is the per-dependency server override, when one is declared.
 	Registry string `json:"registry,omitempty" yaml:"registry,omitempty"`
