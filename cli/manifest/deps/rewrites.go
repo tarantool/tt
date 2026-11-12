@@ -4,17 +4,22 @@ import (
 	"bytes"
 	"fmt"
 	"maps"
+	"strconv"
+	"strings"
+
+	"github.com/pelletier/go-toml/v2"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // lockRewrites says what the lock after changes against before, nil when
 // there was none, beyond moves: one note for each change, in a fixed order -
-// the fields of the lock, then the closures, products by name and the dev
-// closure last. written and source are the bytes of after and of before,
-// which settle the rest: a lock that differs in nothing the notes name but
-// not byte for byte - laid out by hand, or with a field this tt does not
-// write - is said to be rewritten.
+// the fields of the lock, the checksums of a lock of an older tt dropped,
+// then the closures, products by name and the dev closure last. written and
+// source are the bytes of after and of before, which settle the rest: a lock
+// that differs in nothing the notes name but not byte for byte - laid out by
+// hand, or with another field this tt does not write - is said to be
+// rewritten.
 //
 // It is what keeps a run that moved no rock from saying that the lock is up
 // to date when it rewrote it: a resolve rewrites manifest_hash after an edit
@@ -37,6 +42,7 @@ func lockRewrites(before *manifest.Lock, source []byte,
 		before = &manifest.Lock{}
 	} else {
 		notes = fieldRewrites(before, after)
+		notes = append(notes, checksumRewrites(source, after)...)
 	}
 
 	moved := make(map[string]bool, len(moves))
@@ -109,6 +115,75 @@ func fieldRewrites(before, after *manifest.Lock) []string {
 	return notes
 }
 
+// legacyLock is what of a lock an older tt wrote the parsed lock does not
+// keep: the md5 of the source of a rock under checksum, which tt locks no
+// more and drops when it writes the lock again.
+type legacyLock struct {
+	Lock struct {
+		Products map[string]struct {
+			Dependencies []legacyEntry `toml:"dependencies"`
+		} `toml:"products"`
+		DevDependencies []legacyEntry `toml:"dev_dependencies"`
+	} `toml:"lock"`
+}
+
+// legacyEntry is a lock entry as legacyLock reads it.
+type legacyEntry struct {
+	Name     string `toml:"name"`
+	Checksum string `toml:"checksum"`
+}
+
+// checksumRewrites notes the checksum keys of the lock on disk, source, that
+// the lock written, after, drops: one note naming every rock it still locks
+// whose entry had one, nil for none. A rock the lock no longer holds is
+// reported as gone, which says the rest.
+func checksumRewrites(source []byte, after *manifest.Lock) []string {
+	var legacy legacyLock
+
+	// The lock was parsed from source before, so it decodes; a lock that
+	// does not names no checksum to drop.
+	if toml.Unmarshal(source, &legacy) != nil {
+		return nil
+	}
+
+	entries := legacy.Lock.DevDependencies
+	for _, product := range legacy.Lock.Products {
+		entries = append(entries, product.Dependencies...)
+	}
+
+	locked := entriesByName(after.DevDependencies)
+	for _, product := range after.Products {
+		maps.Copy(locked, entriesByName(product.Dependencies))
+	}
+
+	dropped := map[string]bool{}
+
+	for _, entry := range entries {
+		if _, ok := locked[entry.Name]; ok && entry.Checksum != "" {
+			dropped[entry.Name] = true
+		}
+	}
+
+	if len(dropped) == 0 {
+		return nil
+	}
+
+	names := sortedKeys(dropped)
+
+	quoted := make([]string, len(names))
+	for i, name := range names {
+		quoted[i] = strconv.Quote(name)
+	}
+
+	what := "checksum of"
+	if len(names) > 1 {
+		what = "checksums of"
+	}
+
+	return []string{fmt.Sprintf("%s %s dropped: tt no longer locks the md5 of the source of a rock",
+		what, strings.Join(quoted, ", "))}
+}
+
 // closureRewrites notes what changed in one closure, where, for the rocks
 // whose version moves does not report: a rock that joined or left it, a
 // version that moved here and not in the closure moves were taken from, and
@@ -165,11 +240,33 @@ func entryRewrites(where string, earlier, later manifest.LockDependency) []strin
 		notes = append(notes, fmt.Sprintf("path dependency %q re-pinned: its files changed", name))
 	}
 
-	if !maps.Equal(earlier.Artifacts, later.Artifacts) {
-		notes = append(notes, fmt.Sprintf("file digests of %q re-pinned", name))
+	if note := digestRewrite(earlier, later); note != "" {
+		notes = append(notes, note)
 	}
 
 	return notes
+}
+
+// digestRewrite notes what happened to the file digests of one entry, empty
+// when they held: pinned when the lock had none, dropped - for a server that
+// lists none, a rock index server left for a plain one, or for a path
+// dependency, pinned by its files instead - or pinned anew.
+func digestRewrite(earlier, later manifest.LockDependency) string {
+	name := later.Name
+
+	switch {
+	case maps.Equal(earlier.Artifacts, later.Artifacts):
+		return ""
+	case len(earlier.Artifacts) == 0:
+		return fmt.Sprintf("file digests of %q pinned; the lock had none", name)
+	case len(later.Artifacts) == 0 && later.Path != "":
+		return fmt.Sprintf(
+			"file digests of %q dropped: a path dependency is pinned by content_hash", name)
+	case len(later.Artifacts) == 0:
+		return fmt.Sprintf("file digests of %q dropped: its server lists none", name)
+	default:
+		return fmt.Sprintf("file digests of %q pinned anew", name)
+	}
 }
 
 // sourceOf names where a locked rock comes from, for a note.

@@ -272,6 +272,35 @@ def test_a_lock_of_an_older_hash_scheme_is_stale(tree, run_tt, rock_server):
     assert read_lock(root)["manifest_hash"] == manifest_hash(root)
 
 
+def test_resolve_names_the_checksums_it_drops(tree, run_tt, rock_server):
+    """A lock an older tt wrote carries the md5 of the source of a rock under
+    checksum, which tt locks no more: a resolve drops the keys and names the
+    rocks they were of, rather than that the lock is up to date or only that
+    it was rewritten."""
+    root = tree.root
+    write_manifest(root, local_dependency(rock_server, ">=0.3.1"))
+
+    resolved = run_tt("package", "resolve")
+    assert resolved.returncode == 0, resolved.stderr
+
+    lock = root / "app.manifest.lock"
+    current = lock.read_text()
+    lock.write_text(current.replace("name = 'stat'\n", "name = 'stat'\nchecksum = 'md5:0123'\n"))
+    assert "checksum" in lock.read_text()
+
+    dropped = run_tt("package", "resolve")
+    assert dropped.returncode == 0, dropped.stderr
+    assert dropped.stdout.splitlines() == [
+        "no version moved, but the lock changed:",
+        '  checksum of "stat" dropped: tt no longer locks the md5 of the source of a rock',
+    ]
+    assert lock.read_text() == current
+
+    again = run_tt("package", "resolve")
+    assert again.returncode == 0, again.stderr
+    assert again.stdout.strip() == "the lock is up to date"
+
+
 def test_resolve_holds_pins_from_a_stale_lock(tree, run_tt, rock_server):
     """The pins hold even when the lock is the stale one that prompted the run.
 
@@ -707,3 +736,41 @@ def test_a_yanked_version_installs_from_the_lock_only(tt_cmd, tree, run_tt, tmp_
     update = run_tt("package", "update")
     assert update.returncode == 1, update.stderr
     assert "yanked; pin one with ==" in update.stderr
+
+
+def test_resolve_names_the_digests_it_drops_and_pins(tt_cmd, tree, run_tt, tmp_path_factory):
+    """A rock that leaves a rock index server for a plain one, which lists no
+    digests, keeps its version and loses the pins of its files: the resolve
+    says it dropped them and why, not that it pinned them anew; back on the
+    index server it says it pinned them where the lock had none."""
+    work = tmp_path_factory.mktemp("rock-servers")
+    packed = pack_wasm_rocks(tt_cmd, work)
+    # tt wasm rock writes the manifests of a plain server beside the rocks.
+    assert (packed / "manifest").exists()
+    index = work / "index"
+    write_rock_index(index, packed)
+    root = tree.root
+    write_manifest(root, index_dependency(index, "0.1.0"))
+
+    assert run_tt("package", "resolve").returncode == 0
+    assert "artifacts" in locked_entry(root, "wasm")
+
+    write_manifest(root, index_dependency(packed, "0.1.0"))
+    dropped = run_tt("package", "resolve")
+    assert dropped.returncode == 0, dropped.stderr
+    assert dropped.stdout.splitlines() == [
+        "no version moved, but the lock changed:",
+        "  manifest hash refreshed",
+        '  file digests of "wasm" dropped: its server lists none',
+    ]
+    assert "artifacts" not in locked_entry(root, "wasm")
+
+    write_manifest(root, index_dependency(index, "0.1.0"))
+    pinned = run_tt("package", "resolve")
+    assert pinned.returncode == 0, pinned.stderr
+    assert pinned.stdout.splitlines() == [
+        "no version moved, but the lock changed:",
+        "  manifest hash refreshed",
+        '  file digests of "wasm" pinned; the lock had none',
+    ]
+    assert "artifacts" in locked_entry(root, "wasm")
