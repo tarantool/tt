@@ -124,3 +124,32 @@ func TestProgramPath(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(bin, "emmylua_check"), path)
 }
+
+func TestLockPins(t *testing.T) {
+	t.Parallel()
+
+	project := t.TempDir()
+	lock := filepath.Join(project, "app.manifest.lock")
+
+	assert.False(t, LockPins(project))
+
+	for content, want := range map[string]bool{
+		"[[lock.dev_dependencies]]\nname = 'emmylua'\nversion = '0.30.0pre1-1'\n": true,
+		"[[lock.products.default.dependencies]]\nname = 'emmylua'\n":              true,
+		"[[lock.dev_dependencies]]\nname = 'luatest'\n":                           false,
+		"[lock]\n[lock.products]\n[lock.products.default]\ndependencies = []\n":   false,
+		"[lock\n": false,
+	} {
+		require.NoError(t, os.WriteFile(lock, []byte(content), 0o644))
+		assert.Equal(t, want, LockPins(project), content)
+	}
+
+	// The lock pins the rock, and .rocks/ is not installed: tt package fetch.
+	require.NoError(t, os.WriteFile(lock,
+		[]byte("[[lock.dev_dependencies]]\nname = 'emmylua'\n"), 0o644))
+
+	_, err := ProgramPath(project, Check)
+	require.ErrorIs(t, err, ErrNotPrepared)
+	require.ErrorContains(t, err, "run tt package fetch")
+	assert.NotContains(t, err.Error(), "tt emmylua prepare")
+}
