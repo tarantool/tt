@@ -237,6 +237,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   back to the active `tarantool` and `tt` and warned. An `[ee]` requirement
   takes `tarantool-ee` and `tt-ee`; SDK components and builds named by a
   commit are not taken. The lock records the name of the installation.
+- `tt package pack --format rock-src` builds nothing: the source rock holds
+  the files of the project and no build output, and the pack built the
+  package all the same, needing a compiler and the headers of Tarantool for
+  a C part and running the hooks. It checks the manifest and the product,
+  resolves the lock, or fails on a stale one under `--locked`, derives the
+  version and packs. `--format rock,rock-src` builds once, for the binary
+  rock, as before.
 - `manifest_hash`, which ties `app.manifest.lock` and `tt.manifest.lock` to
   their manifest, is taken over what the manifest says - its tables, keys
   and values as TOML decodes them - and not over the bytes of the file. A

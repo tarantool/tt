@@ -213,6 +213,66 @@ func RunResult(ctx context.Context, opts Options) (*Result, error) {
 	return runBuild(ctx, opts, man, adapter, tree, productName, product)
 }
 
+// Prepare is RunResult with nothing built: it reads and checks the manifest,
+// selects the product, runs opts.Check, gates the lock as a build does - a
+// stale or missing one is resolved and written, and fails under opts.Locked -
+// and derives the version. It installs nothing into the tree and runs no
+// hook and no backend, so it needs no compiler and no headers of Tarantool:
+// tt package pack --format rock-src, whose source rock holds the files of the
+// project and no build output, packs from it. The result has no Tree, Stage
+// or Executables.
+func Prepare(ctx context.Context, opts Options) (*Result, error) {
+	man, err := readManifest(opts.ProjectDir, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	productName, _, err := selectProduct(man, opts.Product)
+	if err != nil {
+		return nil, err
+	}
+
+	if opts.Check != nil {
+		err = opts.Check(man, productName)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	registries, err := effectiveRegistries(opts, man)
+	if err != nil {
+		return nil, err
+	}
+
+	adapter := rocks.New(rocks.BuildConfig(opts.Tarantool, rocks.ConfigOptions{
+		Tree:       filepath.Join(opts.ProjectDir, rocksDirName),
+		WorkingDir: opts.ProjectDir,
+		Servers:    rocks.URLs(registries),
+		Logger:     opts.Logger,
+	}))
+
+	ver, err := version.Derive(opts.ProjectDir) //nolint:contextcheck // Derive has no ctx.
+	if err != nil {
+		return nil, fmt.Errorf("deriving version: %w", err)
+	}
+
+	ver.Flavor = man.Platform.Tarantool.EffectiveFlavor()
+
+	engine := resolve.NewEngine(adapter, opts.ProjectDir, opts.TtVersion)
+
+	lock, warnings, err := gateLock(ctx, engine, man, opts.ProjectDir, opts.Locked)
+	if err != nil {
+		return nil, err
+	}
+
+	opts.emit(warnings)
+
+	return &Result{
+		Manifest: man, Lock: lock, Version: ver, Product: productName,
+		Tree: "", Stage: "", Executables: nil,
+	}, nil
+}
+
 // effectiveRegistries settles the rock-server list for this run: the caller's
 // command-line and environment lists over the manifest's own, over the
 // built-in defaults.

@@ -831,7 +831,10 @@ func newPackagePackCmd() *cobra.Command {
 			"makes both from one build.\n\n" +
 			"--format rock-src packs the source rock: the same rockspec and the " +
 			"files of the project git tracks, submodules included, with a VERSION " +
-			"file of the version. A project that depends on the rock builds it " +
+			"file of the version. A pack of the source rock alone builds nothing, " +
+			"so it needs no compiler and no Tarantool headers; the manifest and " +
+			"the lock are checked as a build checks them. A project that depends " +
+			"on the rock builds it " +
 			"from the source rock, with its manifest, where the server has no " +
 			"rock of the platform.\n\n" +
 			"The paths of what the pack made are printed to stdout, one per line.",

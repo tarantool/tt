@@ -602,6 +602,69 @@ env = { MARKER = '%s' }
 	assert.NoFileExists(t, marker, "nothing was built")
 }
 
+// TestPackSrcRockBuildsNothing: a pack of the source rock alone builds
+// nothing - no hook, no backend, nothing into .rocks/ - so a lua-c component
+// packs with no Tarantool to take the headers from, while the lock and the
+// manifest are checked as a build checks them. With the binary rock, the
+// same pack builds and fails for want of the headers.
+func TestPackSrcRockBuildsNothing(t *testing.T) {
+	t.Parallel()
+
+	src := writeLibrary(t)
+	marker := filepath.Join(t.TempDir(), "marker")
+
+	writeTree(t, src, map[string]string{
+		manifestFileName: libraryManifest + fmt.Sprintf(`
+[components.native]
+path = 'native'
+
+[components.native.build]
+backend = 'lua-c'
+module = 'fast'
+sources = ['fast.c']
+
+[hooks.pre_build]
+backend = 'shell'
+command = 'sh'
+args = ['-c', 'echo hook >> "$MARKER"']
+env = { MARKER = '%s' }
+`, marker),
+		"native/fast.c": "#include <lua.h>\n",
+	})
+
+	out := filepath.Join(t.TempDir(), "out")
+	opts := packOptions(src, out, FormatRockSrc)
+
+	opts.Build.Tarantool = rocks.TarantoolInfo{Executable: "", Prefix: "", Version: ""}
+	opts.Locked = true
+
+	_, err := Run(context.Background(), opts)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--locked forbids resolving")
+
+	opts.Locked = false
+
+	result, err := Run(context.Background(), opts)
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(out, "mylib-1.0.0-1.src.rock"), result.SrcRock)
+	assert.Empty(t, result.Rock)
+	assert.Contains(t, zipEntries(t, result.SrcRock), "mylib/native/fast.c")
+	assert.FileExists(t, filepath.Join(src, lockFileName), "the lock is resolved")
+	assert.NoFileExists(t, marker, "no hook ran")
+	assert.NoDirExists(t, filepath.Join(src, ".rocks"))
+	assert.NoDirExists(t, filepath.Join(src, buildDirName))
+
+	opts.Locked = true
+
+	_, err = Run(context.Background(), opts)
+	require.NoError(t, err, "the lock is current")
+
+	opts.Formats = []string{FormatRock, FormatRockSrc}
+
+	_, err = Run(context.Background(), opts)
+	require.ErrorIs(t, err, backend.ErrMissingHeaders)
+}
+
 // TestPackRockRefusesForeignNative: the rock of the host cannot carry a native
 // file of another platform.
 func TestPackRockRefusesForeignNative(t *testing.T) {
