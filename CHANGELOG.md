@@ -439,6 +439,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   LuaRocks packs the rock with `zip`, and drops the error that says it is
   missing. tt now adds that LuaRocks packs a rock with `zip`, which is not
   found in `PATH`.
+- `tt emmylua check` and `doc` read the project's `.emmyrc.lua`, after
+  `.luarc.json` and `.emmyrc.json`, as `tt emmylua ls` does: they named the
+  two JSON files alone with `--config`, and a program given configurations
+  reads no other, so the settings of an `.emmyrc.lua` reached the editor and
+  not the check.
 - `tt emmylua rock` with no `--version` packs the newest release tt knows
   with builds to download, `0.25.1`, and with `--from` the build of
   `0.30.0pre1`. It took `0.30.0pre1` for both, a commit of EmmyLua with no

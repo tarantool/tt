@@ -44,10 +44,12 @@ const (
 )
 
 // projectConfigNames are the configurations of a project, in the order
-// emmylua_check reads them from the root of the workspace.
+// emmylua_ls reads them from the root of the workspace: emmylua_check and
+// emmylua_doc_cli, given configurations, read those alone, and the Lua one
+// as well.
 //
 //nolint:gochecknoglobals // A constant list: Go has no constant slices.
-var projectConfigNames = []string{".luarc.json", ".emmyrc.json"}
+var projectConfigNames = []string{".luarc.json", ".emmyrc.json", ".emmyrc.lua"}
 
 // tarantoolGlobals are the globals Tarantool defines beyond those of LuaJIT,
 // as Tarantool's own .emmyrc.json lists them.
