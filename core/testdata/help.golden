@@ -1018,8 +1018,6 @@ stdout.
 
 [0;1;39mUSAGE[0m
   tt binary build tt [flags]
-
-  tt binary build tt [flags]
 [0;1;39m
 FLAGS[0m
       --core string        build on this core instead of [core]: a local
@@ -1145,8 +1143,6 @@ select the headers directory. --from-build accepts no version argument.
 
 [0;1;39mUSAGE[0m
   tt binary install tarantool [version|commit|pull-request] [flags]
-
-  tt binary install tarantool [version|commit|pull-request] [flags]
 [0;1;39m
 FLAGS[0m
       --credentials-file string   File containing customer-zone login and
@@ -1212,8 +1208,6 @@ directory to activate the installed binaries.
 
 [0;1;39mUSAGE[0m
   tt binary install tarantool-sdk [version] [flags]
-
-  tt binary install tarantool-sdk [version] [flags]
 [0;1;39m
 ALIASES[0m
   tarantool-sdk, sdk, SDK
@@ -1257,8 +1251,6 @@ The archive contains the tcm executable directly at its root.
 
 [0;1;39mUSAGE[0m
   tt binary install tcm [version] [flags]
-
-  tt binary install tcm [version] [flags]
 [0;1;39m
 FLAGS[0m
       --credentials-file string   File containing customer-zone login and
@@ -1300,8 +1292,6 @@ versions.
 
 [0;1;39mUSAGE[0m
   tt binary install tt [version|commit|pull-request] [flags]
-
-  tt binary install tt [version|commit|pull-request] [flags]
 [0;1;39m
 FLAGS[0m
       --credentials-file string   File containing customer-zone login and
@@ -1337,8 +1327,6 @@ List installed versions and active binaries in the selected scope.
 The project scope uses only .tarantool in the current directory.
 
 [0;1;39mUSAGE[0m
-  tt binary list [flags]
-
   tt binary list [flags]
 [0;1;39m
 FLAGS[0m
@@ -1400,8 +1388,6 @@ Tarantool source repository. Versions are read from its Git tags.
 
 [0;1;39mUSAGE[0m
   tt binary search tarantool [flags]
-
-  tt binary search tarantool [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help                help for tarantool
@@ -1422,8 +1408,6 @@ archives named tarantool-enterprise-sdk-*.tar.gz. Archives are read directly
 from that directory.
 
 [0;1;39mUSAGE[0m
-  tt binary search tarantool-ee [flags]
-
   tt binary search tarantool-ee [flags]
 [0;1;39m
 FLAGS[0m
@@ -1451,8 +1435,6 @@ from that directory.
 
 [0;1;39mUSAGE[0m
   tt binary search tarantool-sdk [flags]
-
-  tt binary search tarantool-sdk [flags]
 [0;1;39m
 ALIASES[0m
   tarantool-sdk, sdk, SDK
@@ -1479,8 +1461,6 @@ Archives are read directly from that directory.
 
 [0;1;39mUSAGE[0m
   tt binary search tcm [flags]
-
-  tt binary search tcm [flags]
 [0;1;39m
 FLAGS[0m
       --credentials-file string   File containing customer-zone login and
@@ -1502,8 +1482,6 @@ repository. Versions are read from its Git tags.
 
 [0;1;39mUSAGE[0m
   tt binary search tt [flags]
-
-  tt binary search tt [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help                help for tt
@@ -1523,8 +1501,6 @@ Archives are read directly from that directory.
 tt-ee search and installation are available only on Linux amd64.
 
 [0;1;39mUSAGE[0m
-  tt binary search tt-ee [flags]
-
   tt binary search tt-ee [flags]
 [0;1;39m
 FLAGS[0m
@@ -1561,8 +1537,6 @@ an unambiguous choice before changing the active version.
 Use a full installed version name to select a specific build.
 
 [0;1;39mUSAGE[0m
-  tt binary switch [program] [version] [flags]
-
   tt binary switch [program] [version] [flags]
 [0;1;39m
 FLAGS[0m
@@ -1621,8 +1595,6 @@ version.
 
 [0;1;39mUSAGE[0m
   tt binary uninstall tarantool [version] [flags]
-
-  tt binary uninstall tarantool [version] [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help   help for tarantool
@@ -1642,8 +1614,6 @@ Without a version, remove the only installed version.
 
 [0;1;39mUSAGE[0m
   tt binary uninstall tarantool-ee [version] [flags]
-
-  tt binary uninstall tarantool-ee [version] [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help   help for tarantool-ee
@@ -1659,8 +1629,6 @@ build.
 Without a version, uninstall the only installed SDK.
 
 [0;1;39mUSAGE[0m
-  tt binary uninstall tarantool-sdk [version] [flags]
-
   tt binary uninstall tarantool-sdk [version] [flags]
 [0;1;39m
 ALIASES[0m
@@ -1684,8 +1652,6 @@ Without a version, remove the only installed version.
 
 [0;1;39mUSAGE[0m
   tt binary uninstall tcm [version] [flags]
-
-  tt binary uninstall tcm [version] [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help   help for tcm
@@ -1700,8 +1666,6 @@ Append ce or ee to select an edition explicitly, such as 2.15.0ce or 2.15.0ee.
 Without a version, uninstall the only installed Community version.
 
 [0;1;39mUSAGE[0m
-  tt binary uninstall tt [version] [flags]
-
   tt binary uninstall tt [version] [flags]
 [0;1;39m
 FLAGS[0m
@@ -1721,8 +1685,6 @@ an unambiguous choice before removing anything.
 Without a version, remove the only installed version.
 
 [0;1;39mUSAGE[0m
-  tt binary uninstall tt-ee [version] [flags]
-
   tt binary uninstall tt-ee [version] [flags]
 [0;1;39m
 FLAGS[0m
@@ -3788,8 +3750,6 @@ up.
 
 [0;1;39mUSAGE[0m
   tt package add NAME [CONSTRAINT] [flags]
-
-  tt package add NAME [CONSTRAINT] [flags]
 [0;1;39m
 FLAGS[0m
       --dev                    declare the dependency in [dev_dependencies]
@@ -3822,8 +3782,6 @@ _build/cargo/, its CARGO_TARGET_DIR.
 
 [0;1;39mUSAGE[0m
   tt package build [COMPONENT] [flags]
-
-  tt package build [COMPONENT] [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help                   help for build
@@ -3853,8 +3811,6 @@ reported as stale rather than silently re-resolved.
 
 [0;1;39mUSAGE[0m
   tt package deps [flags]
-
-  tt package deps [flags]
 [0;1;39m
 FLAGS[0m
   -o, --format string   output format: table, json or yaml (default "table")
@@ -3877,8 +3833,6 @@ to stdout.
 
 [0;1;39mUSAGE[0m
   tt package download [NAME[@VERSION]...] [flags]
-
-  tt package download [NAME[@VERSION]...] [flags]
 [0;1;39m
 FLAGS[0m
       --dir string             directory to download into (default: the current
@@ -3898,8 +3852,6 @@ Fetch and build the pinned dependency closure into .rocks/ strictly from the
 lock, without re-resolving or running component build backends.
 
 [0;1;39mUSAGE[0m
-  tt package fetch [flags]
-
   tt package fetch [flags]
 [0;1;39m
 FLAGS[0m
@@ -3936,8 +3888,6 @@ selects. Versions live side by side; installing one that is already there needs
 --force, which is refused while instances of the application run.
 
 [0;1;39mUSAGE[0m
-  tt package install ARCHIVE... [flags]
-
   tt package install ARCHIVE... [flags]
 [0;1;39m
 FLAGS[0m
@@ -3977,8 +3927,6 @@ applies to the project scope, the versions of the user and system scopes sharing
 no dependencies.
 
 [0;1;39mUSAGE[0m
-  tt package list [flags]
-
   tt package list [flags]
 [0;1;39m
 FLAGS[0m
@@ -4021,8 +3969,6 @@ The paths of what the pack made are printed to stdout, one per line.
 
 [0;1;39mUSAGE[0m
   tt package pack [flags]
-
-  tt package pack [flags]
 [0;1;39m
 FLAGS[0m
       --format strings         what to make, comma-separated: tt (the .tt
@@ -4063,8 +4009,6 @@ a dependency is not this command's decision to unmake. Nothing is deleted from
 
 [0;1;39mUSAGE[0m
   tt package remove NAME [flags]
-
-  tt package remove NAME [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help                   help for remove
@@ -4086,8 +4030,6 @@ others, and pulling newer registry versions is what tt package update is for.
 
 [0;1;39mUSAGE[0m
   tt package resolve [flags]
-
-  tt package resolve [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help                   help for resolve
@@ -4108,8 +4050,6 @@ Nothing is downloaded and nothing is written. A term nothing matches is not an
 error.
 
 [0;1;39mUSAGE[0m
-  tt package search TERM [flags]
-
   tt package search TERM [flags]
 [0;1;39m
 FLAGS[0m
@@ -4140,8 +4080,6 @@ use.
 
 [0;1;39mUSAGE[0m
   tt package uninstall NAME [flags]
-
-  tt package uninstall NAME [flags]
 [0;1;39m
 FLAGS[0m
   -h, --help           help for uninstall
@@ -4164,8 +4102,6 @@ requires. No declaration is changed — app.manifest.toml is not touched at all 
 and nothing is fetched into .rocks/.
 
 [0;1;39mUSAGE[0m
-  tt package update [NAME] [flags]
-
   tt package update [NAME] [flags]
 [0;1;39m
 FLAGS[0m
