@@ -51,8 +51,11 @@ type Version struct {
 	// Commit is the short sha "abc1234" of the commit the version is of (see
 	// Derive), or empty when there is no commit.
 	Commit string
-	Dirty  bool   // The project had uncommitted changes (lock excluded).
-	Flavor string // ce|ee - a build fact, set by the build, not by Derive.
+	// CommitHash is the full sha of Commit, so that a rockspec can name the
+	// commit; empty when Commit is.
+	CommitHash string
+	Dirty      bool   // The project had uncommitted changes (lock excluded).
+	Flavor     string // ce|ee - a build fact, set by the build, not by Derive.
 	// Tag is the git tag the version is that of: the version tag on the
 	// commit the version is of, with a clean project, named as git has it -
 	// v1.2.0 or 1.2.0 - so that a rockspec can name it. Empty for a version
@@ -224,6 +227,7 @@ func deriveFromGitDescribe(dir, commit string, dirty bool) (Version, bool) {
 
 	ver.SemVer = renderDescribed(tag.version, count, sha, dirty)
 	ver.Commit = shortSHA(sha)
+	ver.CommitHash = fullSHA(dir, commit)
 	ver.Dirty = dirty
 
 	if count == 0 && !dirty {
@@ -392,7 +396,22 @@ func deriveFallback(dir, commit string, dirty bool) Version {
 	ver.Commit = sha
 	ver.Dirty = dirty
 
+	if sha != "" {
+		ver.CommitHash = fullSHA(dir, commit)
+	}
+
 	return ver
+}
+
+// fullSHA is the full sha of commit, HEAD or a sha, or empty when git cannot
+// tell it.
+func fullSHA(dir, commit string) string {
+	out, err := runGit(dir, "rev-parse", "--verify", "--quiet", commit+"^{commit}")
+	if err != nil {
+		return ""
+	}
+
+	return out
 }
 
 // renderDescribed applies rules 1-5 to a parsed tag, the number of commits since

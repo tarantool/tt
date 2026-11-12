@@ -65,6 +65,13 @@ type Release struct {
 	SourceURL string
 	// SourceTag is the git tag of the version, if it is the version of one.
 	SourceTag string
+	// SourceCommit is the full sha of the commit of the version, when the
+	// version is of a commit and of no tag: source.tag holds it, as LuaRocks
+	// has no field for a commit. Ignored with a SourceTag.
+	SourceCommit string
+	// Uncommitted reports a version of uncommitted changes, which no commit
+	// holds the source of: the source names the repository alone.
+	Uncommitted bool
 	// Platforms are the LuaRocks platforms the package supports (linux,
 	// macosx); none is every platform.
 	Platforms []string
@@ -93,19 +100,7 @@ func ReleaseRockspec(rel Release) (*luarocks.Rockspec, error) {
 	fmt.Fprintf(&src, "package = %s\n", luaQuote(rel.Name))
 	fmt.Fprintf(&src, "version = %s\n", luaQuote(version))
 
-	src.WriteString("source = {\n")
-
-	if rel.SourceURL == "" {
-		src.WriteString("   url = \"file://.\",\n")
-	} else {
-		fmt.Fprintf(&src, "   url = %s,\n", luaQuote(rel.SourceURL))
-
-		if rel.SourceTag != "" {
-			fmt.Fprintf(&src, "   tag = %s,\n", luaQuote(rel.SourceTag))
-		}
-	}
-
-	src.WriteString("}\n")
+	writeSource(&src, rel)
 
 	src.WriteString("description = {\n")
 	fmt.Fprintf(&src, "   summary = %s,\n", luaQuote(rel.Summary))
@@ -136,6 +131,38 @@ func ReleaseRockspec(rel Release) (*luarocks.Rockspec, error) {
 	}
 
 	return spec, nil
+}
+
+// writeSource writes the source table of the rockspec of rel: the package's
+// directory without a SourceURL, and otherwise the repository at the commit
+// of the version. A tag names it as the tag; a commit with no tag is named by
+// its full sha in source.tag, there being no field of a commit, which LuaRocks
+// cannot fetch - git clone --branch takes no commit - and so fails on rather
+// than fetch another commit. A version of uncommitted changes names the
+// repository with no commit, and a comment says why; one a VERSION file gives
+// names it with no commit too, the version not being derived from one.
+func writeSource(src *strings.Builder, rel Release) {
+	src.WriteString("source = {\n")
+
+	switch {
+	case rel.SourceURL == "":
+		src.WriteString("   url = \"file://.\",\n")
+	case rel.SourceTag != "":
+		fmt.Fprintf(src, "   url = %s,\n", luaQuote(rel.SourceURL))
+		fmt.Fprintf(src, "   tag = %s,\n", luaQuote(rel.SourceTag))
+	case rel.Uncommitted:
+		src.WriteString("   -- The version is of uncommitted changes, which no commit holds.\n")
+		fmt.Fprintf(src, "   url = %s,\n", luaQuote(rel.SourceURL))
+	case rel.SourceCommit != "":
+		fmt.Fprintf(src, "   url = %s,\n", luaQuote(rel.SourceURL))
+		src.WriteString("   -- The commit of the version, which no tag names. LuaRocks fetches\n" +
+			"   -- a tag with git clone --branch, which takes no commit.\n")
+		fmt.Fprintf(src, "   tag = %s,\n", luaQuote(rel.SourceCommit))
+	default:
+		fmt.Fprintf(src, "   url = %s,\n", luaQuote(rel.SourceURL))
+	}
+
+	src.WriteString("}\n")
 }
 
 // writeField writes one field of a table, unless its value is empty.

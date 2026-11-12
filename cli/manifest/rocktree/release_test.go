@@ -105,6 +105,78 @@ func TestReleaseRockspecOfABarePackage(t *testing.T) {
 	assert.NotContains(t, source, "tag =")
 }
 
+// TestReleaseRockspecSource: the source is the repository at the commit of
+// the version - its tag, or the commit itself in source.tag when no tag names
+// it - and at no commit for uncommitted changes or a version of no commit.
+func TestReleaseRockspecSource(t *testing.T) {
+	t.Parallel()
+
+	const (
+		url    = "git+https://github.com/example/mylib"
+		commit = "59173d4a1b2c3d4e5f60718293a4b5c6d7e8f901"
+	)
+
+	cases := []struct {
+		name string
+		rel  rocktree.Release
+		want string
+	}{
+		{
+			"a tag",
+			rocktree.Release{SourceURL: url, SourceTag: "v1.2.0", SourceCommit: commit},
+			"source = {\n   url = \"" + url + "\",\n   tag = \"v1.2.0\",\n}\n",
+		},
+		{
+			"a commit",
+			rocktree.Release{SourceURL: url, SourceCommit: commit},
+			"source = {\n   url = \"" + url + "\",\n" +
+				"   -- The commit of the version, which no tag names. LuaRocks fetches\n" +
+				"   -- a tag with git clone --branch, which takes no commit.\n" +
+				"   tag = \"" + commit + "\",\n}\n",
+		},
+		{
+			"uncommitted changes",
+			rocktree.Release{SourceURL: url, SourceCommit: commit, Uncommitted: true},
+			"source = {\n" +
+				"   -- The version is of uncommitted changes, which no commit holds.\n" +
+				"   url = \"" + url + "\",\n}\n",
+		},
+		{
+			"no commit",
+			rocktree.Release{SourceURL: url},
+			"source = {\n   url = \"" + url + "\",\n}\n",
+		},
+		{
+			"no repository",
+			rocktree.Release{SourceCommit: commit},
+			"source = {\n   url = \"file://.\",\n}\n",
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			rel := test.rel
+
+			rel.Name, rel.Version, rel.Revision = "mylib", "1.2.1-dev.1+g59173d4", 1
+
+			spec, err := rocktree.ReleaseRockspec(rel)
+			require.NoError(t, err)
+			assert.Contains(t, string(spec.RawSource), test.want)
+		})
+	}
+
+	spec, err := rocktree.ReleaseRockspec(rocktree.Release{
+		Name: "mylib", Version: "1.2.1-dev.1+g59173d4", Revision: 1,
+		SourceURL: url, SourceCommit: commit,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, url, spec.Source.URL)
+	assert.Equal(t, commit, spec.Source.Tag)
+	assert.Empty(t, spec.Source.Branch)
+}
+
 // TestIsReleaseRockspec: the rockspec tt packs is told from any other.
 func TestIsReleaseRockspec(t *testing.T) {
 	t.Parallel()

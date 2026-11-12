@@ -410,6 +410,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The help of a command under `tt package` and `tt binary` prints its usage
   line once, not twice.
+- The rockspec `tt package pack --format rock` and `rock-src` write for a
+  version of a commit no tag names, `1.1.1.dev.1.g59173d4-1` say, names that
+  commit: `source.tag` is its full sha. The source named the repository
+  alone, so its default branch, whatever commit it was at. LuaRocks has no
+  field for a commit and fetches with `git clone --branch`, which takes
+  none, so it fails to fetch such a source rather than fetch another
+  commit; tt reads the source of no rock, and the source rock is unpacked
+  as before. A `dirty` version names the repository with no commit, and a
+  comment in the rockspec says that no commit holds its source.
 - `tt rocks install` of the source rock of a tt package, `--format
   rock-src`, said the rock was installed and installed only its rockspec
   and `doc/`: LuaRocks builds nothing of a rockspec of build type `none`, so

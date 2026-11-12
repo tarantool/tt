@@ -76,6 +76,17 @@ func shortSHA(t *testing.T, dir, rev string) string {
 	return strings.TrimSpace(string(out))
 }
 
+// fullSHA returns the full sha of rev in dir.
+func fullSHA(t *testing.T, dir, rev string) string {
+	t.Helper()
+
+	cmd := exec.CommandContext(t.Context(), "git", "-C", dir, "rev-parse", rev)
+	out, err := cmd.Output()
+	require.NoError(t, err)
+
+	return strings.TrimSpace(string(out))
+}
+
 // monorepo creates a repository with a project in proj/, its lock among its
 // files, and others in other/, all of it in one commit, and returns the root
 // of the repository and the directory of the project.
@@ -519,6 +530,7 @@ func TestDeriveSubtreeTag(t *testing.T) {
 	assert.Equal(t, "1.2.0", ver.SemVer)
 	assert.Equal(t, "v1.2.0", ver.Tag)
 	assert.Equal(t, initCommit, ver.Commit)
+	assert.Equal(t, fullSHA(t, root, "HEAD~1"), ver.CommitHash, "the commit of the project")
 
 	// A tag on a commit that left the directory alone is not the project's.
 	git(t, root, "tag", "1.3.0")
@@ -566,6 +578,7 @@ func TestDeriveSubtreeFallback(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "0.0.0-dev.2+g"+projCommit, ver.SemVer)
 	assert.Equal(t, projCommit, ver.Commit)
+	assert.Equal(t, fullSHA(t, root, "HEAD~2"), ver.CommitHash, "the commit of the project")
 
 	whole, err := version.Derive(root)
 	require.NoError(t, err)
@@ -587,6 +600,7 @@ func TestDeriveSubtreeNoCommit(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "0.0.0-dev.0+dirty", ver.SemVer)
 	assert.Empty(t, ver.Commit)
+	assert.Empty(t, ver.CommitHash)
 	assert.True(t, ver.Dirty)
 	assert.Empty(t, ver.Tag)
 }
@@ -604,6 +618,7 @@ func TestDeriveVersionFileOverridesGit(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "2.0.0", ver.SemVer)
 	assert.Empty(t, ver.Commit)
+	assert.Empty(t, ver.CommitHash)
 	assert.False(t, ver.Dirty)
 }
 
@@ -632,6 +647,8 @@ func TestDeriveCommitShort(t *testing.T) {
 	assert.NotEmpty(t, ver.Commit)
 	assert.NotContains(t, ver.Commit, "g", "Commit must not keep the describe g prefix")
 	assert.Regexp(t, `^[0-9a-f]+$`, ver.Commit)
+	assert.Equal(t, fullSHA(t, dir, "HEAD"), ver.CommitHash)
+	assert.True(t, strings.HasPrefix(ver.CommitHash, ver.Commit))
 }
 
 // TestPreReleaseOrdering pins the lexical ordering the resolver relies on:
