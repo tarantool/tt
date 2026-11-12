@@ -1,8 +1,10 @@
+import http.server
 import os
 import platform
 import re
 import shutil
 import tempfile
+import threading
 
 import pytest
 
@@ -18,6 +20,47 @@ name = 'rocks-test'
 [platform]
 registries = ['repo']
 """
+
+
+class RemoteTrap(http.server.BaseHTTPRequestHandler):
+    """The proxy of every request a command makes over the network: it records
+    the request and answers 502, so no remote server is reached."""
+
+    def answer(self):
+        self.server.requests.append(f"{self.command} {self.path}")
+        self.send_error(502, "no network in this test")
+
+    do_GET = do_HEAD = do_POST = do_PUT = do_CONNECT = answer
+
+    def log_message(self, format, *args):
+        pass
+
+
+@pytest.fixture
+def offline(tmp_path):
+    """The environment of a command cut off from the network, and the
+    requests it made, which the proxy the environment names answered with
+    502. tt and the downloaders LuaRocks runs, wget and curl, send every
+    request to it; the LuaRocks cache is that of the test, so that no manifest
+    cached a moment ago stands in for one the command asks a remote for."""
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), RemoteTrap)
+    server.requests = []
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    proxy = f"http://127.0.0.1:{server.server_address[1]}"
+    env = dict(os.environ, XDG_CACHE_HOME=str(tmp_path / "cache"))
+    for var in ("http_proxy", "https_proxy", "all_proxy"):
+        env[var] = env[var.upper()] = proxy
+    env.pop("no_proxy", None)
+    env.pop("NO_PROXY", None)
+
+    yield env, server.requests
+
+    server.shutdown()
+    server.server_close()
+    thread.join()
+
 
 # ##### #
 # Tests #
@@ -223,13 +266,13 @@ def test_rocks_install_remote(tt_cmd, tmp_path):
     rc, output = run_command_and_get_output(
         [tt_cmd, "rocks", "install", "stat"],
         cwd=tmp_path,
-        env=dict(os.environ, PWD=tmp_path),
+        env=dict(os.environ, PWD=tmp_path, CMAKE_POLICY_VERSION_MINIMUM="3.5"),
     )
     assert rc == 0
     assert "Installing http://rocks.tarantool.org/stat" in output
 
 
-def test_rocks_install_local(tt_cmd, tmp_path):
+def test_rocks_install_local(tt_cmd, tmp_path, offline):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported")
 
@@ -240,14 +283,15 @@ def test_rocks_install_local(tt_cmd, tmp_path):
 
     shutil.copytree(os.path.join(os.path.dirname(__file__), "repo"), os.path.join(tmp_path, "repo"))
 
-    # Disable network with unshare.
+    env, requests = offline
     rc, output = run_command_and_get_output(
-        ["unshare", "-r", "-n", tt_cmd, "rocks", "install", "stat"],
+        [tt_cmd, "rocks", "install", "stat"],
         cwd=tmp_path,
-        env=dict(os.environ, PWD=tmp_path),
+        env=dict(env, PWD=tmp_path),
     )
-    assert rc == 0
+    assert rc == 0, output
     assert f"Installing {tmp_path}/repo/stat-0.3.2-1.all.rock" in output
+    assert requests == []
 
 
 def test_rocks_install_local_if_network_is_up(tt_cmd, tmp_path):
@@ -259,7 +303,7 @@ def test_rocks_install_local_if_network_is_up(tt_cmd, tmp_path):
     rc, output = run_command_and_get_output(
         [tt_cmd, "rocks", "--only-server=repo", "install", "stat"],
         cwd=tmp_path,
-        env=dict(os.environ, PWD=tmp_path, CMAKE_POLICY_VERSION_MINIMUM="3.5"),
+        env=dict(os.environ, PWD=tmp_path),
     )
     assert rc == 0
     assert "Installing repo/stat-0.3.2-1.all.rock" in output
@@ -340,7 +384,7 @@ def test_rock_install_without_system_tarantool(tt_cmd, tmpdir_with_tarantool):
     assert os.path.exists(os.path.join(tmpdir_with_tarantool, ".rocks", "lib", "tarantool", "pg"))
 
 
-def test_rocks_install_from_dir_with_no_repo(tt_cmd, tmp_path):
+def test_rocks_install_from_dir_with_no_repo(tt_cmd, tmp_path, offline):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported")
 
@@ -348,21 +392,21 @@ def test_rocks_install_from_dir_with_no_repo(tt_cmd, tmp_path):
 
     os.mkdir(os.path.join(tmp_path, "subdir"))
 
-    # Disable network with unshare. A relative registry is taken from the
-    # working directory.
+    # A relative registry is taken from the working directory.
+    env, requests = offline
     rc, output = run_command_and_get_output(
-        ["unshare", "-r", "-n", tt_cmd, "rocks", "install", "stat"],
+        [tt_cmd, "rocks", "install", "stat"],
         cwd=os.path.join(tmp_path, "subdir"),
-        env=dict(os.environ, PWD=os.path.join(tmp_path, "subdir"), TT_REGISTRIES="../repo"),
+        env=dict(env, PWD=os.path.join(tmp_path, "subdir"), TT_REGISTRIES="../repo"),
     )
-    assert rc == 0
-    print(output)
+    assert rc == 0, output
     assert f"Installing {tmp_path}/repo/stat-0.3.2-1.all.rock" in output
     assert f"stat 0.3.2-1 is now installed in {tmp_path / 'subdir' / '.rocks'}" in output
     assert os.path.exists(os.path.join(tmp_path, "subdir", ".rocks"))
+    assert requests == []
 
 
-def test_rocks_install_from_env_var_repo(tt_cmd, tmp_path):
+def test_rocks_install_from_env_var_repo(tt_cmd, tmp_path, offline):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported")
 
@@ -370,28 +414,31 @@ def test_rocks_install_from_env_var_repo(tt_cmd, tmp_path):
 
     os.mkdir(os.path.join(tmp_path, "subdir"))
 
-    # Without env and network. Must fail.
+    # Without the env var, LuaRocks asks its remote servers, which it cannot
+    # reach, and finds nothing.
+    env, requests = offline
     rc, output = run_command_and_get_output(
-        ["unshare", "-r", "-n", tt_cmd, "rocks", "install", "stat"],
+        [tt_cmd, "rocks", "install", "stat"],
         cwd=os.path.join(tmp_path, "subdir"),
-        env=dict(os.environ, PWD=os.path.join(tmp_path, "subdir")),
+        env=dict(env, PWD=os.path.join(tmp_path, "subdir")),
     )
 
     assert rc == 1
     assert "Error: No results matching query" in output
+    assert requests != []
 
-    # Tets with env set, no network.
+    # With the env var for the rock repo directory, the rock comes from it
+    # while the remote servers stay out of reach.
     rc, output = run_command_and_get_output(
-        ["unshare", "-r", "-n", tt_cmd, "rocks", "install", "stat"],
+        [tt_cmd, "rocks", "install", "stat"],
         cwd=tmp_path / "subdir",
         env=dict(
-            os.environ,
+            env,
             PWD=os.path.join(tmp_path, "subdir"),
             TT_CLI_REPO_ROCKS=f"{tmp_path}/repo",
         ),
-    )  # Env var for rock repo directory.
-    assert rc == 0
-    print(output)
+    )
+    assert rc == 0, output
     assert f"Installing {tmp_path}/repo/stat-0.3.2-1.all.rock" in output
     assert f"stat 0.3.2-1 is now installed in {tmp_path / 'subdir' / '.rocks'}" in output
     assert os.path.exists(os.path.join(tmp_path, "subdir", ".rocks"))
