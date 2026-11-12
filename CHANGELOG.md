@@ -214,6 +214,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- `manifest_hash`, which ties `app.manifest.lock` and `tt.manifest.lock` to
+  their manifest, is taken over what the manifest says - its tables, keys
+  and values as TOML decodes them - and not over the bytes of the file. A
+  comment, a blank line, the order of keys and tables, the quoting of a
+  string or the form of a table no longer makes the lock out of date, which
+  failed `tt package build --locked` with `lock is out of date: manifest
+  changed since the lock was written` and made `tt binary build tt` take its
+  versions anew. The value names its scheme, `toml1-sha256:<hex>`, and the
+  scheme is part of what is compared. A lock an older tt wrote, with
+  `sha256:<hex>`, is out of date once: `--locked` says that tt hashes the
+  manifest differently now, and `tt package resolve`, or a build without
+  `--locked`, writes it anew; a `.tt` archive an older tt packed fails
+  `tt package install --locked` until it is packed again. The lock format
+  stays `0.1`.
 - `tt package build`, `tt package fetch` and `tt package pack` need no
   Tarantool, where they failed with "tarantool executable not found in
   PATH" on a machine with none: a package of Lua builds, fetches its locked

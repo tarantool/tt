@@ -27,7 +27,6 @@ import (
 	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/go-luarocks/client"
 
-	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 	"github.com/tarantool/tt/v3/cli/manifest/state"
 )
@@ -186,8 +185,10 @@ func installOne(ctx context.Context, opts Options, archivePath string) (*OneResu
 	}
 
 	if opts.Locked {
-		if want := manifest.HashBytes(header.ManifestBytes); header.Lock.ManifestHash != want {
-			return nil, stateErrorf("%w: archive lock does not match its manifest", errLockStale)
+		err = header.Manifest.CheckHash(header.Lock.ManifestHash)
+		if err != nil {
+			return nil, stateErrorf("%w: archive lock does not match its manifest: %w",
+				errLockStale, err)
 		}
 	}
 

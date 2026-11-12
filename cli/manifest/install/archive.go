@@ -55,7 +55,7 @@ func (a *Archive) Path() string { return a.path }
 type Header struct {
 	// Manifest is the parsed app.manifest.toml.
 	Manifest *manifest.Manifest
-	// ManifestBytes is its raw bytes, kept for the --locked hash check.
+	// ManifestBytes is its raw bytes, which the install records as they are.
 	ManifestBytes []byte
 	// Lock is the parsed app.manifest.lock.
 	Lock *manifest.Lock

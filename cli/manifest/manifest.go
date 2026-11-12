@@ -9,8 +9,6 @@ package manifest
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -24,9 +22,10 @@ const ManifestVersion = "0.1"
 
 // Manifest is the parsed form of app.manifest.toml.
 //
-// The raw bytes of the source file are kept so manifest_hash can be computed
-// without re-reading the file; any change to the file (including comments and
-// formatting) changes the hash.
+// Its manifest_hash is computed when it is parsed, over the data of the file
+// and not over its bytes, so comments and formatting do not change it (see
+// HashTOML). The bytes are kept as well, for a package to carry them as they
+// are.
 type Manifest struct {
 	ManifestVersion string                `toml:"manifest_version"`
 	Kind            string                `toml:"manifest_kind,omitempty"` // "" or ManifestKindApp.
@@ -38,7 +37,8 @@ type Manifest struct {
 	Products        map[string]Product    `toml:"products,omitempty"`
 	Hooks           map[string]Hook       `toml:"hooks,omitempty"` // Keys: pre_build, post_build.
 
-	raw []byte // Raw file bytes, source for manifest_hash.
+	raw  []byte // Raw file bytes.
+	hash string // manifest_hash of raw, see HashTOML.
 }
 
 // Package holds the package identity and metadata ([package]).
@@ -130,6 +130,11 @@ func ParseManifest(data []byte) (*Manifest, []string, error) {
 	out.applyDependencyDefaults()
 	out.applyHookDefaults()
 
+	out.hash, err = HashTOML(data)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	out.raw = append([]byte(nil), data...)
 
 	return out, warnings, nil
@@ -169,10 +174,20 @@ func (m *Manifest) Marshal() ([]byte, error) {
 	return data, nil
 }
 
-// Hash returns the manifest_hash: SHA-256 of the raw source bytes, tagged
-// "sha256:". It is computed over the bytes ParseManifest was given.
+// Hash returns the manifest_hash a lock resolved from the manifest records,
+// computed over the document ParseManifest was given: see HashTOML. It is
+// empty for a Manifest that was not parsed.
 func (m *Manifest) Hash() string {
-	return HashBytes(m.raw)
+	return m.hash
+}
+
+// CheckHash reports whether recorded, the manifest_hash of a lock, names this
+// manifest: nil when it does; ErrManifestChanged when the manifest changed
+// since the lock was written; ErrHashOutdated when an older tt, which hashed
+// the manifest another way, wrote the lock; ErrHashScheme when the value is of
+// a scheme this tt does not know.
+func (m *Manifest) CheckHash(recorded string) error {
+	return checkHash(recorded, m.hash)
 }
 
 // Raw returns the raw source bytes the manifest was parsed from.
@@ -212,13 +227,6 @@ func (m *Manifest) applyHookDefaults() {
 			m.Hooks[name] = hook
 		}
 	}
-}
-
-// HashBytes returns the "sha256:<hex>" hash of arbitrary manifest bytes.
-func HashBytes(data []byte) string {
-	sum := sha256.Sum256(data)
-
-	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 // invalidVersion reports a manifest_version of a major this tt does not

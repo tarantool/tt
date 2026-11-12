@@ -1,14 +1,18 @@
+import datetime
 import glob
 import hashlib
 import ipaddress
 import json
+import math
 import os
 import pty
 import re
 import shutil
 import socket
+import struct
 import subprocess
 import time
+import tomllib
 import zipfile
 from pathlib import Path
 
@@ -121,6 +125,93 @@ def run_command_and_get_streams(cmd, cwd=None, env=None) -> tuple[int, str, str]
 def sha256_of(path: Path) -> str:
     """The sha256 of the file at path, in hex."""
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+# The bits every NaN is in the canonical form of a manifest, Go's math.NaN().
+CANONICAL_NAN = 0x7FF8000000000001
+
+
+def manifest_hash(path: Path) -> str:
+    """The manifest_hash a lock of the manifest at path records: "toml1-sha256:"
+    and the SHA-256 of the canonical form of its TOML tree.
+
+    It is the form cli/manifest/hash.go lays out, written again here so that a
+    test checks tt against it rather than against itself. Python keeps a
+    fraction of a second to the microsecond, Go to the nanosecond; the two
+    agree on every date-time of fewer than seven fractional digits.
+    """
+    with path.open("rb") as handle:
+        tree = tomllib.load(handle)
+
+    form = bytearray()
+    _canonical_form(tree, form)
+
+    return "toml1-sha256:" + hashlib.sha256(form).hexdigest()
+
+
+def _canonical_form(value, form: bytearray) -> None:
+    """Append the canonical form of a decoded TOML value to form."""
+
+    def size(n: int) -> None:
+        form.extend(struct.pack(">Q", n))
+
+    def text(tag: bytes, string: str) -> None:
+        data = string.encode()
+        form.extend(tag)
+        size(len(data))
+        form.extend(data)
+
+    def clock(hour: int, minute: int, second: int, microsecond: int) -> str:
+        out = f"{hour:02d}:{minute:02d}:{second:02d}"
+        if microsecond:
+            out += "." + f"{microsecond * 1000:09d}".rstrip("0")
+        return out
+
+    def date(value) -> str:
+        return f"{value.year:04d}-{value.month:02d}-{value.day:02d}"
+
+    # bool before int and datetime before date: each is a subclass of the other.
+    if isinstance(value, dict):
+        form.extend(b"t")
+        size(len(value))
+        for key in sorted(value, key=lambda key: key.encode()):
+            data = key.encode()
+            size(len(data))
+            form.extend(data)
+            _canonical_form(value[key], form)
+    elif isinstance(value, list):
+        form.extend(b"a")
+        size(len(value))
+        for element in value:
+            _canonical_form(element, form)
+    elif isinstance(value, str):
+        text(b"s", value)
+    elif isinstance(value, bool):
+        form.extend(b"b" + bytes([value]))
+    elif isinstance(value, int):
+        form.extend(b"i" + struct.pack(">q", value))
+    elif isinstance(value, float):
+        bits = struct.unpack(">Q", struct.pack(">d", value))[0]
+        if math.isnan(value):
+            bits = CANONICAL_NAN
+        form.extend(b"f" + struct.pack(">Q", bits))
+    elif isinstance(value, datetime.datetime):
+        stamp = date(value) + "T" + clock(value.hour, value.minute, value.second, value.microsecond)
+        if value.tzinfo is None:
+            text(b"l", stamp)
+            return
+        minutes = int(value.utcoffset().total_seconds()) // 60
+        zone = "Z"
+        if minutes:
+            sign = "-" if minutes < 0 else "+"
+            zone = f"{sign}{abs(minutes) // 60:02d}:{abs(minutes) % 60:02d}"
+        text(b"o", stamp + zone)
+    elif isinstance(value, datetime.date):
+        text(b"d", date(value))
+    elif isinstance(value, datetime.time):
+        text(b"c", clock(value.hour, value.minute, value.second, value.microsecond))
+    else:
+        raise TypeError(f"no canonical form for {type(value).__name__}")
 
 
 # The file name of a rock: <name>-<version>-<revision>.<arch>.rock.

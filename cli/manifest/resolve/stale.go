@@ -7,8 +7,10 @@ import (
 )
 
 // IsStale reports whether lock no longer reflects m, and why. A lock goes stale
-// from exactly five things: the manifest's raw bytes changed (manifest_hash
-// diverged), a path dependency's local content changed (its content_hash
+// from exactly five things: what the manifest says changed (manifest_hash
+// diverged; comments and formatting do not count, see manifest.HashTOML, and a
+// hash of another scheme - an older tt's, or one this tt does not know - is
+// one that diverged), a path dependency's local content changed (its content_hash
 // diverged), the version of a path dependency holding a manifest moved (see
 // pathStale), the manifest declares dev dependencies the lock holds no closure
 // for, or one of the manifest's effective products has no closure in the lock.
@@ -45,8 +47,11 @@ func (e *Engine) IsStale(man *manifest.Manifest, lock *manifest.Lock) (bool, str
 func IsStale(
 	projectDir string, man *manifest.Manifest, lock *manifest.Lock,
 ) (bool, string, error) {
-	if lock.ManifestHash != man.Hash() {
-		return true, "manifest changed since the lock was written", nil
+	hashErr := man.CheckHash(lock.ManifestHash)
+	if hashErr != nil {
+		// A hash that does not name the manifest is the answer, not a failure
+		// to find it.
+		return true, hashErr.Error(), nil //nolint:nilerr // See above.
 	}
 
 	if len(man.DevDependencies) > 0 && len(lock.DevDependencies) == 0 {

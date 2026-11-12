@@ -175,13 +175,20 @@ def test_build_locked_refuses_a_stale_lock(tt_cmd, tmp_path):
     project = make_project(tmp_path / "project")
     assert build(tt_cmd, project).returncode == 0
 
-    # Any edit changes the hash the lock recorded, a comment included.
+    # A comment changes nothing the lock recorded: the hash is of what the
+    # manifest says, not of its bytes.
     manifest = project / "app.manifest.toml"
     manifest.write_text(manifest.read_text() + "\n# an edit after the lock was written\n")
+    assert build(tt_cmd, project, "--locked").returncode == 0
+
+    # An edit of a value does, one that pins nothing included.
+    manifest.write_text(
+        manifest.read_text().replace("name = 'my-app'\n", "name = 'my-app'\ndescription = 'x'\n"),
+    )
 
     stale = build(tt_cmd, project, "--locked")
     assert stale.returncode == 1
-    assert "lock" in stale.stderr.lower()
+    assert "manifest changed since the lock was written" in stale.stderr
 
     # Without the flag the same build re-resolves and rewrites the lock, which
     # is what makes the refusal above a property of --locked and not of the

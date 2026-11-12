@@ -3,7 +3,6 @@ package manifest_test
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -458,28 +457,4 @@ components = ["a"]
 		_, err := mfst.Validate()
 		require.NoError(t, err)
 	})
-}
-
-// TestManifestHashStable checks the hash is stable byte-for-byte and changes on
-// any edit, including a comment.
-func TestManifestHashStable(t *testing.T) {
-	t.Parallel()
-
-	src := "manifest_version = \"0.1\"\n[package]\nname = \"demo\"\n" +
-		"[platform]\ntarantool = \">=3.0.0\"\ntt = \">=3.0.0\"\n"
-
-	first, _, err := manifest.ParseManifest([]byte(src))
-	require.NoError(t, err)
-
-	second, _, err := manifest.ParseManifest([]byte(src))
-	require.NoError(t, err)
-
-	assert.True(t, strings.HasPrefix(first.Hash(), "sha256:"))
-	assert.Equal(t, first.Hash(), second.Hash(), "identical bytes => identical hash")
-
-	// A comment-only edit changes the raw bytes and therefore the hash.
-	withComment := "# a comment\n" + src
-	edited, _, err := manifest.ParseManifest([]byte(withComment))
-	require.NoError(t, err)
-	assert.NotEqual(t, first.Hash(), edited.Hash(), "any edit changes the hash")
 }

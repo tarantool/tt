@@ -44,7 +44,18 @@ func TestDistributionDefaults(t *testing.T) {
 	assert.False(t, chosen, "without bundle_sources the core chooses")
 	assert.Empty(t, sources)
 	assert.Empty(t, dist.Dependencies)
-	assert.Equal(t, manifest.HashBytes([]byte(minimalDistribution)), dist.Hash())
+
+	hash, err := manifest.HashTOML([]byte(minimalDistribution))
+	require.NoError(t, err)
+	assert.Equal(t, hash, dist.Hash())
+	require.NoError(t, dist.CheckHash(hash))
+
+	// A comment is no change of a distribution manifest either.
+	commented := parseDistribution(t, "# the smallest distribution\n"+minimalDistribution)
+	require.NoError(t, commented.CheckHash(hash))
+
+	edited := parseDistribution(t, minimalDistribution+"[package]\nname = \"tt-ee\"\n")
+	require.ErrorIs(t, edited.CheckHash(hash), manifest.ErrManifestChanged)
 }
 
 func TestDistributionFull(t *testing.T) {
