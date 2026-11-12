@@ -74,7 +74,7 @@ major version is refused.
 | `tt` | yes | the versions of tt |
 | `tcm` | no | the versions of TCM to bundle into the archive; no edition |
 | `platforms` | no | the platforms the package is for: `linux-amd64`, `linux-arm64`, `darwin-amd64`, `darwin-arm64`, or `any` alone |
-| `registries` | no | the rock servers, in the order they are asked, instead of the defaults: HTTP(S) URLs or directories, relative to the manifest. See [Rock servers](../concepts/rock-servers.md) |
+| `registries` | no | the rock servers, in the order they are asked, instead of the defaults: HTTP(S) URLs or directories, relative to the manifest or absolute. See [Rock servers](../concepts/rock-servers.md) |
 
 A version constraint is a comma-separated list of comparisons, such as
 `">=3.0.0,<4.0.0"`.
@@ -99,7 +99,7 @@ or in the long form:
 | `source` | `"registry"` (the default) or `"path"` |
 | `version` | the constraint; required for `registry` |
 | `path` | a directory with the rock, relative to the manifest or absolute; required for `path`. See [Path dependencies](#path-dependencies) |
-| `registry` | a rock server to take this rock from: an http(s) URL, or a directory relative to the manifest |
+| `registry` | a rock server to take this rock from: an http(s) URL, or a directory, relative to the manifest or absolute |
 
 A rock with a `registry` is resolved and installed from that server only;
 the rocks it depends on come from the registries of the project.
