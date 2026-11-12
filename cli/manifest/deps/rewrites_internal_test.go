@@ -1,6 +1,8 @@
 package deps
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -113,7 +115,23 @@ func TestLockRewrites(t *testing.T) {
 					dep.Artifacts = map[string]string{"all": "sha256:b"}
 				})
 			},
-			want: []string{`file digests of "checks" re-pinned`},
+			want: []string{`file digests of "checks" pinned anew`},
+		},
+		{
+			name: "the digests of a rock of a server that lists none",
+			edit: func(lock *manifest.Lock) {
+				editDependency(lock, "api", "checks", func(dep *manifest.LockDependency) {
+					dep.Artifacts = nil
+				})
+			},
+			want: []string{`file digests of "checks" dropped: its server lists none`},
+		},
+		{
+			name: "the digests of a rock that had none",
+			edit: func(lock *manifest.Lock) {
+				lock.DevDependencies[0].Artifacts = map[string]string{"all": "sha256:b"}
+			},
+			want: []string{`file digests of "luatest" pinned; the lock had none`},
 		},
 		{
 			name: "a source",
@@ -125,7 +143,7 @@ func TestLockRewrites(t *testing.T) {
 			},
 			want: []string{
 				`"checks" is from path "vendor/checks", was from registry`,
-				`file digests of "checks" re-pinned`,
+				`file digests of "checks" dropped: a path dependency is pinned by content_hash`,
 			},
 		},
 		{
@@ -201,6 +219,73 @@ func TestLockRewritesOfBytes(t *testing.T) {
 	assert.Empty(t, lockRewrites(lock, written, lock, written, nil))
 	assert.Equal(t, []string{"lock rewritten in the form tt writes it"},
 		lockRewrites(lock, append([]byte("# by hand\n"), written...), lock, written, nil))
+}
+
+// withChecksums renders lock as an older tt wrote it: the entries of the
+// rocks named carry the md5 of their source under checksum.
+func withChecksums(t *testing.T, lock *manifest.Lock, names ...string) []byte {
+	t.Helper()
+
+	data, err := lock.Marshal()
+	require.NoError(t, err)
+
+	text := string(data)
+
+	for _, name := range names {
+		entry := fmt.Sprintf("name = '%s'\n", name)
+
+		require.Contains(t, text, entry)
+
+		text = strings.ReplaceAll(text, entry,
+			entry+"checksum = 'md5:0cc175b9c0f1b6a831c399e269772661'\n")
+	}
+
+	return []byte(text)
+}
+
+// TestLockRewritesOfChecksums pins what a resolve over a lock of an older tt
+// says of the checksum keys it drops: the rocks they were of, which the
+// parsed locks cannot tell, beside whatever else changed, and nothing of a
+// rock that left the lock.
+func TestLockRewritesOfChecksums(t *testing.T) {
+	t.Parallel()
+
+	const why = " dropped: tt no longer locks the md5 of the source of a rock"
+
+	before := rewriteBase()
+
+	written, err := before.Marshal()
+	require.NoError(t, err)
+
+	// The very lock but for the checksums: not a rewrite of the form alone.
+	assert.Equal(t, []string{`checksum of "checks"` + why},
+		lockRewrites(before, withChecksums(t, before, "checks"), before, written, nil))
+
+	stamped := cloneLock(before)
+
+	stamped.GeneratedBy = "tt 3.1.0"
+
+	stampedBytes, err := stamped.Marshal()
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{
+		`generated_by is "tt 3.1.0", was "tt 3.0.0"`,
+		`checksums of "checks", "luatest"` + why,
+	}, lockRewrites(before, withChecksums(t, before, "luatest", "checks"),
+		stamped, stampedBytes, nil))
+
+	// luatest left: the move says so, and its checksum goes unnamed.
+	gone := cloneLock(before)
+
+	gone.DevDependencies = nil
+
+	goneBytes, err := gone.Marshal()
+	require.NoError(t, err)
+
+	moves := []Move{{Name: "luatest", From: "1.0.0-1"}}
+	assert.Equal(t, []string{`checksum of "checks"` + why},
+		lockRewrites(before, withChecksums(t, before, "luatest", "checks"),
+			gone, goneBytes, moves))
 }
 
 // TestLockRewritesOfAFirstLock pins what the first lock of a project reports:

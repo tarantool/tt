@@ -140,7 +140,8 @@ type Result struct {
 	// Rewrites says what else the run changed in the lock, one note each, in
 	// the words the CLI prints them in: a manifest_hash refreshed, a path
 	// dependency re-pinned for files that changed, the digests of a rock
-	// pinned anew, a rock that joined or left one closure while its
+	// pinned, dropped or pinned anew, the checksums of a lock of an older tt
+	// dropped, a rock that joined or left one closure while its
 	// version held, and the fields of the lock. With no Moves it is empty
 	// only when the lock written is byte for byte the one that was on disk,
 	// so that a run that rewrote the lock never reads as one that found it up
