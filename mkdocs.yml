@@ -54,6 +54,7 @@ nav:
       - how-to/write-a-module.md
       - how-to/build-distribution.md
       - how-to/wasm-components.md
+      - how-to/emmylua.md
       - Migrate from tt 2.x: migration_from_older_versions.md
   - Reference:
       - Commands:
