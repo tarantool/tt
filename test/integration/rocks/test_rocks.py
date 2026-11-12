@@ -62,25 +62,32 @@ def test_rocks_module(tt_cmd, tmp_path):
         cwd=tmp_path,
         env=dict(os.environ, PWD=tmp_path),
     )
-    assert rc == 0
-    assert re.search("Packed: .*queue-.*[.]rock", output)
-    rock_file = output.split("Packed: ")[1].strip()
-    assert os.path.isfile(rock_file)
+    if shutil.which("zip") is None:
+        # LuaRocks packs a rock with zip and, without it, says only "Failed
+        # packing": tt says what is missing.
+        assert rc == 1
+        assert "Failed packing" in output
+        assert "LuaRocks packs a rock with the zip program, which is not found in PATH" in output
+    else:
+        assert rc == 0
+        assert re.search("Packed: .*queue-.*[.]rock", output)
+        rock_file = output.split("Packed: ")[1].strip()
+        assert os.path.isfile(rock_file)
 
-    rc, output = run_command_and_get_output(
-        [tt_cmd, "rocks", "unpack", rock_file],
-        cwd=tmp_path,
-        env=dict(os.environ, PWD=tmp_path),
-    )
-    assert rc == 0
+        rc, output = run_command_and_get_output(
+            [tt_cmd, "rocks", "unpack", rock_file],
+            cwd=tmp_path,
+            env=dict(os.environ, PWD=tmp_path),
+        )
+        assert rc == 0
 
-    rock_dir = ""
-    rock_dir_items = rock_file.split(".")
-    for i in range((len(rock_dir_items) - 2)):
-        rock_dir += rock_dir_items[i] + "."
-    rock_dir = rock_dir[:-1]
+        rock_dir = ""
+        rock_dir_items = rock_file.split(".")
+        for i in range((len(rock_dir_items) - 2)):
+            rock_dir += rock_dir_items[i] + "."
+        rock_dir = rock_dir[:-1]
 
-    assert os.path.isdir(rock_dir)
+        assert os.path.isdir(rock_dir)
 
     rc, output = run_command_and_get_output(
         [tt_cmd, "rocks", "remove", "queue"],

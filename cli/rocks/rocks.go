@@ -31,6 +31,8 @@ const (
 	tarantoolPrefixEnvVarName = "TT_CLI_TARANTOOL_PREFIX"
 	tarantoolDefaultPrefixDir = "/usr"
 	minVersionOutputLines     = 3
+	serverFlag                = "--server"
+	onlyServerFlag            = "--only-server"
 )
 
 // addLuarocksRepoOpts adds the rocks repository repo to the luarocks command
@@ -39,7 +41,7 @@ const (
 func addLuarocksRepoOpts(repo string, args []string) []string {
 	// Make sure there is no --only-server option is specified.
 	for _, opt := range args {
-		if opt == "--only-server" || strings.HasPrefix(opt, "--only-server=") {
+		if opt == onlyServerFlag || strings.HasPrefix(opt, onlyServerFlag+"=") {
 			return args // If --only-server is specified, no need to add --server option.
 		}
 	}
@@ -48,7 +50,7 @@ func addLuarocksRepoOpts(repo string, args []string) []string {
 		isServerSet := false
 
 		for argIdx, opt := range args {
-			if opt == "--server" {
+			if opt == serverFlag {
 				isServerSet = true
 				args[argIdx+1] = args[argIdx+1] + " " + repo
 			} else if strings.HasPrefix(opt, "--server=") {
@@ -213,8 +215,74 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, servers, args []string) error {
 	// the admin sub-CLI.
 	err = rocksClient.Exec(ctx, os.Args[0]+" rocks", args)
 	if err != nil {
-		return fmt.Errorf("failed to run luarocks: %w", err)
+		return explainPackFailure(fmt.Errorf("failed to run luarocks: %w", err), args)
 	}
 
 	return checkSrcRocks(ctx, root, before)
+}
+
+// ErrNoZip says why LuaRocks failed to pack a rock on a system with no zip.
+var ErrNoZip = errors.New("LuaRocks packs a rock with the zip program, " +
+	"which is not found in PATH: install zip")
+
+// zipTool is the program LuaRocks packs a rock with. luarocks.tools.zip, which
+// fs.zip would take first, needs lua-zlib, which the engine of go-luarocks
+// does not have, so fs.zip runs zip (fs/unix/tools.lua).
+const zipTool = "zip"
+
+// luarocksValueOptions are the global options of LuaRocks that take the
+// argument after them as their value (cmd.lua).
+var luarocksValueOptions = map[string]bool{
+	serverFlag: true, onlyServerFlag: true, "--only-sources": true,
+	"--namespace": true, "--lua-dir": true, "--lua-version": true,
+	treeFlag: true, "--timeout": true, "--project-tree": true,
+}
+
+// luarocksCommand returns the LuaRocks command args run: the first argument
+// that is neither an option, nor the value of one, nor a VAR=VALUE
+// assignment. It is empty when args name none.
+func luarocksCommand(args []string) string {
+	for idx := 0; idx < len(args); idx++ {
+		arg := args[idx]
+
+		switch {
+		case luarocksValueOptions[arg]:
+			idx++
+		case strings.HasPrefix(arg, "-"), strings.Contains(arg, "="):
+		default:
+			return arg
+		}
+	}
+
+	return ""
+}
+
+// explainPackFailure adds ErrNoZip to err, the failure of a LuaRocks run of
+// args, when args pack a rock, zip is not in PATH, and args assign no ZIP
+// variable. LuaRocks 3.9.2 then says "Failed packing <rock>" and no more:
+// pack_installed_rock, which pack <rock name> and --pack-binary-rock run,
+// drops the reason fs.zip gives.
+func explainPackFailure(err error, args []string) error {
+	packs := luarocksCommand(args) == "pack"
+
+	for _, arg := range args {
+		if arg == "--pack-binary-rock" {
+			packs = true
+		}
+
+		if strings.HasPrefix(arg, "ZIP=") {
+			return err
+		}
+	}
+
+	if !packs {
+		return err
+	}
+
+	_, lookErr := exec.LookPath(zipTool)
+	if lookErr == nil {
+		return err
+	}
+
+	return fmt.Errorf("%w: %w", err, ErrNoZip)
 }
