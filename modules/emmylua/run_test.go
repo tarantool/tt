@@ -94,19 +94,112 @@ func TestCheck(t *testing.T) {
 	require.NoError(t, os.WriteFile(projectConfig, []byte("{}"), 0o644))
 
 	got = sdktest.New(t, sdktest.WithProject(project)).Run(emmylua.New,
-		"emmylua", "check", "app", "spec", "--", "--warnings-as-errors")
+		"emmylua", "check", "--", "--warnings-as-errors")
 	assert.True(t, sdk.IsReported(got.Err))
 	assert.Equal(t, "--config "+configPath(project)+" --config "+projectConfig+
-		" --warnings-as-errors app spec\n", got.Stdout)
+		" --warnings-as-errors "+project+"\n", got.Stdout)
 
 	// The frequent flags need no --, and go before what follows it.
 	got = sdktest.New(t, sdktest.WithProject(project)).Run(emmylua.New,
-		"emmylua", "check", "app", "--warnings-as-errors", "-f", "json", "--severity", "warn",
+		"emmylua", "check", "--warnings-as-errors", "-f", "json", "--severity", "warn",
 		"--", "--output", "report.json")
 	assert.True(t, sdk.IsReported(got.Err))
 	assert.Equal(t, "--config "+configPath(project)+" --config "+projectConfig+
-		" --warnings-as-errors --output-format json --severity warn --output report.json app\n",
-		got.Stdout)
+		" --warnings-as-errors --output-format json --severity warn --output report.json "+
+		project+"\n", got.Stdout)
+}
+
+// TestCheckPaths checks that the paths given to tt emmylua check narrow the
+// run on the root of the project: a configuration after the one tt writes
+// leaves every other entry of the project out of the workspace and reads
+// them, but .rocks/, .tarantool/ and _build/, as a library of links laid
+// out as in the project, and is removed after the run. The root itself
+// narrows nothing, and a path out of the project is refused. It runs
+// programs, so it is not parallel, as TestCheck.
+func TestCheckPaths(t *testing.T) {
+	project := testProject(t)
+	// The program prints its arguments, then the narrowing, the second
+	// configuration, with the links of its library.
+	writeProgram(t, project, "emmylua_check", "echo \"$@\"\n"+
+		"cat \"$4\"\nlib=\"$(dirname \"$4\")/lib\"\n"+
+		"cd \"$lib\" && find . -type l -exec sh -c 'echo \"$1 -> $(readlink \"$1\")\"' _ {} \\; "+
+		"| sort\n")
+
+	for _, dir := range []string{"app/lib", "app/util", "spec", ".rocks", "_build"} {
+		require.NoError(t, os.MkdirAll(filepath.Join(project, dir), 0o755))
+	}
+
+	writeFile(t, filepath.Join(project, "init.lua"), "return {}\n")
+	writeFile(t, filepath.Join(project, "app", "lib", "store.lua"), "return {}\n")
+	writeFile(t, filepath.Join(project, "app", "init.lua"), "return {}\n")
+
+	sub := filepath.Join(project, "app")
+
+	got := sdktest.New(t, sdktest.WithProject(sub)).Run(emmylua.New,
+		"emmylua", "check", "lib/store.lua", "-f", "json")
+	require.NoError(t, got.Err)
+
+	lines := strings.SplitN(got.Stdout, "\n", 2)
+	require.Len(t, lines, 2)
+
+	argv := strings.Fields(lines[0])
+	require.Len(t, argv, 7)
+	assert.Equal(t, []string{"--config", configPath(project), "--config"}, argv[:3])
+	assert.Equal(t, []string{"--output-format", "json", project}, argv[4:])
+
+	narrowing := argv[3]
+	assert.Equal(t, filepath.Dir(configPath(project)), filepath.Dir(filepath.Dir(narrowing)))
+	assert.NoFileExists(t, narrowing)
+
+	// The configuration ends with the } that closes it, alone on its line.
+	config, links, found := strings.Cut(lines[1], "\n}\n")
+	require.True(t, found)
+
+	var workspace struct {
+		Workspace struct {
+			IgnoreDir []string `json:"ignoreDir"` //nolint:tagliatelle // EmmyLua's name.
+			Library   []string `json:"library"`
+		} `json:"workspace"`
+	}
+
+	require.NoError(t, json.Unmarshal([]byte(config+"\n}"), &workspace))
+
+	root, err := filepath.EvalSymlinks(project)
+	require.NoError(t, err)
+
+	inRoot := func(name string) string {
+		return filepath.Join(root, filepath.FromSlash(name))
+	}
+
+	ignored := make([]string, 0, 8)
+	for _, name := range []string{".rocks", ".tarantool", "_build", "app.manifest.toml",
+		"init.lua", "spec", "app/init.lua", "app/util"} {
+		ignored = append(ignored, inRoot(name))
+	}
+
+	assert.ElementsMatch(t, ignored, workspace.Workspace.IgnoreDir)
+	assert.Equal(t, []string{filepath.Join(filepath.Dir(narrowing), "lib")},
+		workspace.Workspace.Library)
+	assert.Equal(t, "./app.manifest.toml -> "+inRoot("app.manifest.toml")+"\n"+
+		"./app/init.lua -> "+inRoot("app/init.lua")+"\n"+
+		"./app/util -> "+inRoot("app/util")+"\n"+
+		"./init.lua -> "+inRoot("init.lua")+"\n"+
+		"./spec -> "+inRoot("spec")+"\n", links)
+
+	// The root narrows nothing.
+	writeProgram(t, project, "emmylua_check", "echo \"$@\"\n")
+
+	got = sdktest.New(t, sdktest.WithProject(sub)).Run(emmylua.New, "emmylua", "check", "..")
+	require.NoError(t, got.Err)
+	assert.Equal(t, "--config "+configPath(project)+" "+project+"\n", got.Stdout)
+
+	got = sdktest.New(t, sdktest.WithProject(sub)).Run(emmylua.New,
+		"emmylua", "check", t.TempDir())
+	require.ErrorIs(t, got.Err, analyzer.ErrOutside)
+
+	got = sdktest.New(t, sdktest.WithProject(sub)).Run(emmylua.New,
+		"emmylua", "check", "missing.lua")
+	require.ErrorContains(t, got.Err, "missing.lua")
 }
 
 // TestCheckInSubdirectory checks that tt emmylua check run in a subdirectory
