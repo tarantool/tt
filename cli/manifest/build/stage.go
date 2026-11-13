@@ -167,7 +167,7 @@ type stageBuild struct {
 	// blocks maps a component it ran the backend of to the digest of its
 	// build block (blockDigest).
 	blocks map[string]string
-	// generated is what the build generated itself: version.lua.
+	// generated is what the build generated itself: version.lua and rocks.lua.
 	generated []string
 }
 

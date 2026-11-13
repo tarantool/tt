@@ -165,6 +165,23 @@ func TestPackStripsDebugInfo(t *testing.T) {
 
 	kept := readArchive(t, pack("").Path)
 	assert.True(t, hasDebugInfoData(t, kept[".rocks/bin/helper"]), "kept by default")
+
+	// The rock is packed from the stripped copy of the stage, and rocks.lua
+	// is left out of it by its path in the stage, which keeps it.
+	opts := packOptions(src, filepath.Join(src, "_out", "rock"), FormatRock)
+
+	opts.DebugInfo = DebugInfoStrip
+
+	result, err := Run(context.Background(), opts)
+	require.NoError(t, err)
+
+	rock := zipEntries(t, result.Rock)
+	assert.False(t, hasDebugInfoData(t, rock["bin/helper"]), "stripped in the rock")
+	assert.Contains(t, rock, "lua/exec-app/version.lua")
+	assert.NotContains(t, rock, "lua/exec-app/rocks.lua")
+	assert.FileExists(t,
+		filepath.Join(src, buildDirName, "rock", "default", "lua", "exec-app", "rocks.lua"),
+		"the stage keeps it")
 }
 
 // TestStrippedStage checks that the stage of a rock is stripped in a copy,

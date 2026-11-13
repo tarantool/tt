@@ -66,6 +66,7 @@ func TestGenerateVersionLuaToggle(t *testing.T) {
 			Repository:         "",
 			Authors:            nil,
 			GenerateVersionLua: toggle,
+			GenerateRocksLua:   nil,
 		}
 	}
 

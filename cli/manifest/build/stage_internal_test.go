@@ -28,14 +28,15 @@ func TestRun_stageDropsWhatIsStale(t *testing.T) {
 	require.NoError(t, Run(context.Background(), dryOptions(dir)))
 	assert.Equal(t, []string{
 		"lib/my-app/fast_hash.so", "lua/my-app/init.lua", "lua/my-app/lib/foo.lua",
-		"lua/my-app/version.lua",
+		"lua/my-app/rocks.lua", "lua/my-app/version.lua",
 	}, relSet(t, stage))
 
 	require.NoError(t, os.Remove(filepath.Join(dir, "lib", "foo.lua")))
 	require.NoError(t, Run(context.Background(), dryOptions(dir)))
 
 	assert.Equal(t, []string{
-		"lib/my-app/fast_hash.so", "lua/my-app/init.lua", "lua/my-app/version.lua",
+		"lib/my-app/fast_hash.so", "lua/my-app/init.lua", "lua/my-app/rocks.lua",
+		"lua/my-app/version.lua",
 	}, relSet(t, stage))
 	assert.NoDirExists(t, filepath.Join(stage, "lua", "my-app", "lib"))
 	assert.NoFileExists(t, filepath.Join(tree, "share/tarantool/my-app/lib/foo.lua"))
@@ -47,8 +48,9 @@ func TestRun_stageDropsWhatIsStale(t *testing.T) {
 		"components = ['lua', 'native']", "components = ['lua']", 1))
 	require.NoError(t, Run(context.Background(), dryOptions(dir)))
 
-	assert.Equal(t, []string{"lua/my-app/init.lua", "lua/my-app/version.lua"},
-		relSet(t, stage))
+	assert.Equal(t, []string{
+		"lua/my-app/init.lua", "lua/my-app/rocks.lua", "lua/my-app/version.lua",
+	}, relSet(t, stage))
 	assert.NoFileExists(t, filepath.Join(tree, "lib/tarantool/my-app/fast_hash.so"))
 }
 
@@ -100,7 +102,8 @@ func TestRun_stageKeepsWhatASkippedBuildWrote(t *testing.T) {
 	assert.Equal(t, 1, countRuns(t, dir), "comp did not change: its build is skipped")
 
 	assert.Equal(t, []string{
-		"lib/my-app/native.so", "lua/my-app/init.lua", "lua/my-app/version.lua",
+		"lib/my-app/native.so", "lua/my-app/init.lua", "lua/my-app/rocks.lua",
+		"lua/my-app/version.lua",
 	}, relSet(t, stage))
 	assert.FileExists(t, native)
 	assert.NoFileExists(t, filepath.Join(dir, rocksDirName, "share/tarantool/my-app/old.lua"))
@@ -156,7 +159,8 @@ func TestRun_stageOfAComponentBuild(t *testing.T) {
 	// A build of every component starts the stage anew.
 	require.NoError(t, Run(context.Background(), dryOptions(dir)))
 	assert.Equal(t, []string{
-		"lib/my-app/fast_hash.so", "lua/my-app/init.lua", "lua/my-app/version.lua",
+		"lib/my-app/fast_hash.so", "lua/my-app/init.lua", "lua/my-app/rocks.lua",
+		"lua/my-app/version.lua",
 	}, relSet(t, stage))
 	assert.FileExists(t, stageRecordPath(stage))
 }

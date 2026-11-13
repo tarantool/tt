@@ -185,6 +185,16 @@ func TestPackRockInstallsIntoAProject(t *testing.T) {
 	assert.FileExists(t, filepath.Join(share, "mylib", "util.lua"))
 	assert.FileExists(t, filepath.Join(share, "roles", "mylib.lua"))
 
+	// The rock carries the version of mylib but not the rocks it was built
+	// with; the consumer lists its own closure, mylib from the registry.
+	assert.FileExists(t, filepath.Join(share, "mylib", "version.lua"))
+	assert.NoFileExists(t, filepath.Join(share, "mylib", "rocks.lua"))
+
+	consumerRocks, err := os.ReadFile(filepath.Join(share, "consumer", "rocks.lua"))
+	require.NoError(t, err)
+	assert.Contains(t, string(consumerRocks),
+		`mylib = { version = "1.0.0-1", source = "registry" },`)
+
 	data, err := os.ReadFile(filepath.Join(consumer, lockFileName))
 	require.NoError(t, err)
 
@@ -367,6 +377,16 @@ func TestPackRockAndArchiveOfAProgram(t *testing.T) {
 	assert.FileExists(t, result.Path)
 	assert.Equal(t, filepath.Join(out, "exec-app-1.0.0-3."+remote.HostArch()+".rock"), result.Rock)
 	assert.Contains(t, zipEntries(t, result.Rock), "bin/helper")
+
+	// The archive runs the application, so it has the rocks it was built
+	// with; the rock, which another project resolves rocks of its own for,
+	// does not - from the same build.
+	assert.Contains(t, readArchive(t, result.Path), ".rocks/share/tarantool/exec-app/rocks.lua")
+	assert.Contains(t, zipEntries(t, result.Rock), "lua/exec-app/version.lua")
+	assert.NotContains(t, zipEntries(t, result.Rock), "lua/exec-app/rocks.lua")
+	assert.FileExists(t,
+		filepath.Join(src, buildDirName, "rock", "default", "lua/exec-app/rocks.lua"),
+		"the stage keeps it")
 
 	// Another product names no rock of its own: it is no rock to pack.
 	opts = packOptions(src, out, FormatRock)

@@ -739,10 +739,11 @@ would remove _build/cache
 would remove _build/component
 would remove _build/results.json
 would remove _build/rock
-would remove myapp 0.0.0.dev.0-1 from .rocks (4 files)
+would remove myapp 0.0.0.dev.0-1 from .rocks (5 files)
   .rocks/share/tarantool/rocks/myapp/0.0.0.dev.0-1/myapp-0.0.0.dev.0-1.rockspec
   .rocks/share/tarantool/myapp/banner.txt
   .rocks/share/tarantool/myapp/defaults.lua
+  .rocks/share/tarantool/myapp/rocks.lua
   .rocks/share/tarantool/myapp/version.lua
 $ ../dist/tt package clean
 ran the clean of component banner
