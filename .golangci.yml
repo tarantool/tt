@@ -467,6 +467,7 @@ linters:
             - "github.com/tarantool/tt/v3/internal/binary"
             # A Tarantool built from source gets the CMake policy version.
             - "github.com/tarantool/tt/v3/internal/cmakepolicy"
+            - "github.com/tarantool/tt/v3/internal/untar"
             - "github.com/ulikunitz/xz"
             - "golang.org/x/net/html"
             - "golang.org/x/sys"
@@ -968,6 +969,7 @@ linters:
             - "github.com/tarantool/tt/sdk"
             - "github.com/tarantool/tt/v3/cli/exitcode"
             - "github.com/tarantool/tt/v3/cli/util"
+            - "github.com/tarantool/tt/v3/internal/untar"
         dir-cli-version:
           files:
             - "**/cli/version/**"
@@ -1011,6 +1013,15 @@ linters:
             # main package builds it, from the standard modules.
             - "github.com/tarantool/tt/v3/standard"
             - "go.yaml.in/yaml/v3"
+        # The extraction of a tar.gz archive that keeps its entries in the
+        # destination: a leaf, under the commands that unpack archives.
+        dir-internal-untar:
+          files:
+            - "**/internal/untar/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/v3/internal/untar"
         # The write of a file a process may run with no fork of the process in
         # between: a leaf, under everything that writes programs, the core
         # and the modules alike.
