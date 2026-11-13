@@ -264,6 +264,51 @@ func TestParseYaml(t *testing.T) {
 	}
 }
 
+// TestParseYamlScalars pins how ParseYAML reads the scalars of a file: the
+// YAML 1.1 booleans are booleans and a timestamp stays its text, which the
+// string fields of the structures decoded from the result take.
+func TestParseYamlScalars(t *testing.T) {
+	dir := t.TempDir()
+
+	write := func(name, content string) string {
+		path := filepath.Join(dir, name)
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+
+		return path
+	}
+
+	got, err := util.ParseYAML(write("scalars.yml", "description: 2024-01-02\nflag: on\n"+
+		"quoted: 'on'\nport: 0x10\nvars:\n  - name: x\n    default: yes\n    re: 2024-01-02\n"+
+		"1: one\nempty:\nnested: {1: a, n: off}\n"))
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{
+		"description": "2024-01-02",
+		"flag":        true,
+		"quoted":      "on",
+		"port":        16,
+		"vars":        []any{map[any]any{"name": "x", "default": true, "re": "2024-01-02"}},
+		"1":           "one",
+		"empty":       nil,
+		"nested":      map[any]any{1: "a", false: false},
+	}, got)
+
+	got, err = util.ParseYAML(write("empty.yml", ""))
+	require.NoError(t, err)
+	assert.Nil(t, got)
+
+	got, err = util.ParseYAML(write("null.yml", "---\n...\n"))
+	require.NoError(t, err)
+	assert.Nil(t, got)
+
+	_, err = util.ParseYAML(write("seq.yml", "- a\n- b\n"))
+	require.ErrorContains(t, err, "failed to parse YAML: yaml: unmarshal errors:\n"+
+		"  line 1: cannot unmarshal !!seq into map[string]interface {}")
+
+	_, err = util.ParseYAML(write("keys.yml", "[1]: a\nb: c\n"))
+	require.EqualError(t, err, "failed to parse YAML: yaml: unmarshal errors:\n"+
+		"  line 1: cannot unmarshal !!seq into string")
+}
+
 func TestJoinAbspath(t *testing.T) {
 	type args struct {
 		paths []string
