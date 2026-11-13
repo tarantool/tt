@@ -548,22 +548,3 @@ func TestPlanReplacesALocalFileThatDoesNotMatch(t *testing.T) {
 	require.Equal(t, StatusOK, result.Status)
 	fixture.requireLocalCopy(result.DownloadPlan[shardA][0], shardA)
 }
-
-func TestParseTargetTime(t *testing.T) {
-	moment, err := ParseTargetTime("2026-03-25T10:30:00Z")
-	require.NoError(t, err)
-	require.Equal(t, time.Date(2026, 3, 25, 10, 30, 0, 0, time.UTC), moment)
-
-	// A local-offset timestamp names the same instant, and is normalised to UTC
-	// so that the plan reads the same wherever it is printed.
-	moment, err = ParseTargetTime("2026-03-25T13:30:00+03:00")
-	require.NoError(t, err)
-	require.Equal(t, time.Date(2026, 3, 25, 10, 30, 0, 0, time.UTC), moment)
-
-	moment, err = ParseTargetTime("1774434600")
-	require.NoError(t, err)
-	require.Equal(t, time.Unix(1774434600, 0).UTC(), moment)
-
-	_, err = ParseTargetTime("yesterday")
-	require.ErrorContains(t, err, "--target-time")
-}

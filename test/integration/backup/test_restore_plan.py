@@ -517,6 +517,42 @@ def test_plan_stops_at_point(tt, tmp_path):
     )
 
 
+# Five hours west of UTC in January: 07:00 there is LATE, 07:00 UTC is before
+# EARLY, with no point to land on.
+LOCAL_ZONE = "America/New_York"
+
+
+@pytest.mark.skipif(
+    not (Path("/usr/share/zoneinfo") / LOCAL_ZONE).exists(),
+    reason=f"no {LOCAL_ZONE} in /usr/share/zoneinfo",
+)
+def test_plan_local_target_time(tt, tmp_path):
+    """A target time without a zone is local time, that of TZ, and tt -V logs
+    the moment in UTC it was read as."""
+    storage = file_storage(tmp_path)
+    store_chain(storage)
+    target = "2026-01-01 07:00"
+
+    rc, out, err = exec_split(
+        tt,
+        "-V",
+        "restore",
+        "plan",
+        "--target-time",
+        target,
+        "--backup-storage",
+        storage.uri,
+        "-d",
+        str(tmp_path / "restore"),
+        env=dict(os.environ, TZ=LOCAL_ZONE),
+    )
+
+    assert rc == PLAN_OK, out + err
+    assert json.loads(out)["recovery_point"]["label"] == LATE_LABEL
+    assert f'--target-time "{target}" names no zone' in err
+    assert f"that is {rfc3339(LATE)}" in err
+
+
 # -- One exit code per reason a restore cannot go ahead ---------------------
 
 

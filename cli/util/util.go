@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"math"
 	"os"
 	"os/exec"
 	"os/user"
@@ -15,7 +14,6 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/tarantool/tt/sdk/execfile"
 	"github.com/tarantool/tt/sdk/log"
@@ -477,45 +475,4 @@ func GetYamlFileName(fileName string, mustExist bool) (string, error) {
 	}
 
 	return "", os.ErrNotExist
-}
-
-// StringToTimestamp transforms string with number or RFC339Nano time
-// to <sec.nanosecond> timestamp string. The fraction of a time always has
-// nine digits: 12.0270 seconds past a minute is ".027000000", not ".27".
-func StringToTimestamp(input string) (string, error) {
-	if input == "" {
-		// Default value.
-		return strconv.FormatUint(math.MaxUint64, 10), nil
-	}
-
-	floatTimestamp, err := strconv.ParseFloat(input, 64)
-	if err == nil {
-		return strconv.FormatFloat(floatTimestamp, 'f', -1, 64), nil
-	}
-
-	// The RFC3339Nano layout also successfully parses the RFC3339 layout.
-	rfc3339NanoTs, err := time.Parse(time.RFC3339Nano, input)
-	if err != nil {
-		// Incorrect input, trigger an error. Callers and tests match the
-		// *time.ParseError text right after their own prefix.
-		return "", err //nolint:wrapcheck // The error names the input already.
-	}
-
-	return formatUnixNano(rfc3339NanoTs.UnixNano()), nil
-}
-
-// formatUnixNano writes nanoseconds since the Unix epoch as seconds with a
-// nine-digit fraction. A time before the epoch is negative as a whole:
-// Unix() and Nanosecond() of half a second before it are -1 and 500000000,
-// and the time is -0.500000000, not -1.500000000.
-func formatUnixNano(nanos int64) string {
-	const nanosPerSecond = int64(time.Second)
-
-	sign := ""
-	if nanos < 0 {
-		sign = "-"
-		nanos = -nanos
-	}
-
-	return fmt.Sprintf("%s%d.%09d", sign, nanos/nanosPerSecond, nanos%nanosPerSecond)
 }

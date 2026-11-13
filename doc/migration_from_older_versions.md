@@ -514,6 +514,7 @@ is needed. Flag names are retained, but their behavior has changed:
 | A bound may split a transaction | A transaction within the bounds is taken whole |
 | All `.snap` and `.xlog` files in a directory, snapshots first | The newest snapshot within the bounds, then logs in vclock order, excluding data already in the snapshot |
 | `--show-system` filters data changes only | Also hides RAFT, synchronous replication and NOP rows |
+| `--timestamp`: Unix seconds or RFC 3339 | Also `2024-11-14 17:02:36.8181`, `2024-11-14 17:02` or `2024-11-14`, in local time unless a zone follows |
 | `play`: one request per row, no transactions | One IPROTO stream, with `--batch` requests in flight; supports `--txn-mode`, `--on-error` and `--dry-run` |
 
 Additional changes:

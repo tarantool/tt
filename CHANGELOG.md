@@ -630,6 +630,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `>=V` for `--version V`, or the newest TCM installed without it. A project
   that has TCM is left as it is, and one of Tarantool Community Edition is
   refused.
+- `--timestamp` of `tt data cat` and `tt data play` and `--target-time` of
+  `tt restore plan` take a date and time as people write it, besides Unix
+  seconds and RFC 3339: `2024-11-14 17:02:36.8181`, with a `T` or a space,
+  a fraction of any length, and optionally a zone, `+03:00` or `Z`;
+  `2024-11-14 17:02`; and a bare date, `2024-11-14`, its midnight. A time
+  without a zone is local time, of `TZ` as for `date`, and `tt -V` logs the
+  moment in UTC it was read as. `--target-time` takes fractional Unix
+  seconds too. A value of none of these forms fails with the list of them.
 
 ### Changed
 

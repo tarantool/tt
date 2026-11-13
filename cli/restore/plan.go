@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -296,27 +295,6 @@ func Plan(ctx context.Context, opts PlanOpts) (*PlanResult, error) {
 	result.RestoreTargets = topology.targets
 
 	return result, nil
-}
-
-// ParseTargetTime decodes --target-time: an RFC 3339 timestamp, or a unix
-// timestamp in seconds.
-//
-//nolint:err113 // Preserve established restore error messages.
-func ParseTargetTime(raw string) (time.Time, error) {
-	t, err := time.Parse(time.RFC3339, raw)
-	if err == nil {
-		return t.UTC(), nil
-	}
-
-	seconds, err := strconv.ParseInt(raw, 10, 64)
-	if err == nil {
-		return time.Unix(seconds, 0).UTC(), nil
-	}
-
-	return time.Time{}, fmt.Errorf(
-		"--target-time %q is neither an RFC 3339 timestamp (2026-03-25T10:30:00Z) "+
-			"nor a unix timestamp", raw,
-	)
 }
 
 // reasonFor explains a status in the one line the caller shows a human.

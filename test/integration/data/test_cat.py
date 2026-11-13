@@ -1,5 +1,6 @@
 import datetime
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -101,10 +102,17 @@ def cat_json(tt_cmd, *args, cwd=None):
     [
         ([], "specify at least one .snap, .xlog, .vylog, .run or .index file or directory"),
         (["path-to-non-existent-file"], "no such file or directory"),
-        (["test.xlog", "--timestamp=abcdef"], 'failed to parse a timestamp: parsing time "abcdef"'),
+        (
+            ["test.xlog", "--timestamp=abcdef"],
+            'failed to parse a timestamp: "abcdef" is not a moment in time',
+        ),
         (
             ["test.xlog", "--timestamp=2024-11-14T14:02:36.abc"],
-            'failed to parse a timestamp: parsing time "2024-11-14T14:02:36.abc"',
+            'failed to parse a timestamp: "2024-11-14T14:02:36.abc" is not a moment in time',
+        ),
+        (
+            ["test.xlog", "--timestamp=2024-02-30"],
+            'failed to parse a timestamp: parsing time "2024-02-30": day out of range',
         ),
         (["test.xlog", "--from=5", "--to=4"], "the lower bound is past the upper one"),
         (["test.xlog", "--to-vclock=1:4"], "--to-vclock: invalid vclock"),
@@ -203,6 +211,42 @@ def test_cat_timestamp(tt_cmd, tmp_path, timestamp):
 
     assert all(record["HEADER"]["timestamp"] < before for record in records)
     assert len(records) == sum(1 for r in everything if r["HEADER"]["timestamp"] < before)
+
+
+# Three hours east of UTC: the rows of timestamp.xlog, written at 14:02:36 UTC,
+# are all before 17:02:36 read in UTC and only some before it read here.
+LOCAL_ZONE = "Europe/Moscow"
+
+
+@pytest.mark.skipif(
+    not (Path("/usr/share/zoneinfo") / LOCAL_ZONE).exists(),
+    reason=f"no {LOCAL_ZONE} in /usr/share/zoneinfo",
+)
+@pytest.mark.parametrize(
+    "local, utc",
+    [
+        ("2024-11-14 17:02:36.818", "2024-11-14T14:02:36.818Z"),
+        ("2024-11-14T17:02:36.8182", "2024-11-14T14:02:36.8182Z"),
+    ],
+)
+def test_cat_timestamp_local(tt_cmd, tmp_path, local, utc):
+    """A time without a zone is local time, that of TZ, and tt -V logs the
+    moment in UTC it was read as."""
+    shutil.copy(CAT_FILES / "timestamp.xlog", tmp_path)
+
+    rc, stdout, stderr = run_command_and_get_streams(
+        [tt_cmd, "-V", "data", "cat", "-o", "json", "timestamp.xlog", f"--timestamp={local}"],
+        cwd=tmp_path,
+        env=dict(os.environ, TZ=LOCAL_ZONE),
+    )
+    assert rc == 0, stderr
+    records = [json.loads(line) for line in stdout.splitlines()]
+
+    everything = cat_json(tt_cmd, "timestamp.xlog", cwd=tmp_path)
+    assert 0 < len(records) < len(everything)
+    assert records == cat_json(tt_cmd, "timestamp.xlog", f"--timestamp={utc}", cwd=tmp_path)
+    assert f'--timestamp "{local}" names no zone' in stderr
+    assert f"that is {utc}" in stderr
 
 
 def test_cat_chain(tt_cmd, journals):

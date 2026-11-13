@@ -3,12 +3,10 @@ package util_test
 import (
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"os/user"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -384,118 +382,6 @@ func TestJoinPaths(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := util.JoinPaths(tt.args.paths...)
 			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func TestStringToTimestamp(t *testing.T) {
-	tests := []struct {
-		name    string
-		input   string
-		output  string
-		wantErr bool
-	}{
-		// spell-checker:disable
-		{
-			"clean",
-			"",
-			strconv.FormatUint(math.MaxUint64, 10),
-			false,
-		},
-		{
-			"int_number",
-			"123456",
-			"123456",
-			false,
-		},
-		{
-			"float_number",
-			"123456.123",
-			"123456.123",
-			false,
-		},
-		{
-			"RFC339",
-			"2022-04-28T07:22:12+00:00",
-			"1651130532.000000000",
-			false,
-		},
-		{
-			// The leading zero of the fraction is kept: .0270 is 27
-			// milliseconds, not 270.
-			"RFC339Nano_leading_zero",
-			"2024-11-14T14:02:36.0270+00:00",
-			"1731592956.027000000",
-			false,
-		},
-		{
-			"RFC339Nano_nanosecond",
-			"2024-11-14T14:02:36.000000001Z",
-			"1731592956.000000001",
-			false,
-		},
-		{
-			"RFC339Nano_offset",
-			"2024-11-14T17:02:36.5+03:00",
-			"1731592956.500000000",
-			false,
-		},
-		{
-			// Half a second before the epoch is -0.5, whereas its
-			// Unix() is -1 and its Nanosecond() 500000000.
-			"RFC339Nano_before_epoch",
-			"1969-12-31T23:59:59.5Z",
-			"-0.500000000",
-			false,
-		},
-		{
-			"RFC339Nano",
-			"2022-04-28T07:22:12.1534+00:00",
-			"1651130532.153400000",
-			false,
-		},
-		{
-			"RFC339Nano_Zone",
-			"2022-04-28T07:22:12.1534Z",
-			"1651130532.153400000",
-			false,
-		},
-		{
-			"not_number",
-			"acbdef",
-			"",
-			true,
-		},
-		{
-			"RFC339Nano_random_string",
-			"2022-0_-28A07:22:12.1534abc",
-			"",
-			true,
-		},
-		{
-			"RFC339Nano_incorrect",
-			"2022-04-28T07:22:12.1534abc",
-			"",
-			true,
-		},
-		{
-			"RFC339_incorrect",
-			"2022-04-28T07:22abc",
-			"",
-			true,
-		},
-		// spell-checker:enable
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := util.StringToTimestamp(tt.input)
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				assert.Equal(t, tt.output, got)
-			}
 		})
 	}
 }
