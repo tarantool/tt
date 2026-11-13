@@ -229,6 +229,10 @@ host.
   + by the LSNs of one replica with `--from` and `--to`.
 
   Both bounds are inclusive. A transaction is never split.
+- `--timestamp` accepts a date and time as people write it, such as
+  `2024-11-14 17:02:36.8181`, besides Unix seconds and RFC 3339. A time
+  without a zone is local time. `--target-time` of `tt restore plan` accepts
+  the same forms.
 - `tt data cat -o json` prints each row as a JSON object on its own line, for
   use in scripts.
 - `tt data play` applies whole transactions where the target supports it. The

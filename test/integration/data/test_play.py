@@ -94,11 +94,11 @@ def test_play_non_existent_uri(tt_cmd, test_instance, tmp_path):
         (["path-to-non-existent-file"], "no such file or directory"),
         (
             ["test.xlog", "--timestamp=abcdef", "--space=999"],
-            'failed to parse a timestamp: parsing time "abcdef"',
+            'failed to parse a timestamp: "abcdef" is not a moment in time',
         ),
         (
             ["test.xlog", "--timestamp=2024-11-14T14:02:36.abc", "--space=999"],
-            'failed to parse a timestamp: parsing time "2024-11-14T14:02:36.abc"',
+            'failed to parse a timestamp: "2024-11-14T14:02:36.abc" is not a moment in time',
         ),
         (["test.xlog", "--txn-mode=nested"], '--txn-mode "nested": want auto, stream, row'),
         (["test.xlog", "--on-error=retry"], '--on-error "retry": want stop, skip'),

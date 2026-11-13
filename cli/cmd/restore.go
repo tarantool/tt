@@ -724,6 +724,10 @@ every backup back to the full it stands on, stitches the per-shard recovery
 points into cluster-wide ones, and resolves --target-time into the latest
 cluster point not later than it.
 
+--target-time is one of these, and a time without a zone is local time, of
+TZ; tt -V logs the moment in UTC it was read as:
+` + util.MomentForms + `
+
 A cluster point is one whose label is present on every replicaset, so that
 every shard comes back to the same moment. Points on either side of a
 topology change are never stitched into one: a cluster whose composition or
@@ -787,6 +791,8 @@ Examples:
       --backup-storage @s3-prod.yaml -d /tmp/restore/
   tt restore plan --target-time 1774435800 -c cluster.yaml \
       --backup-storage file:///var/backups -d /tmp/restore/ --format table
+  TZ=Europe/Moscow tt restore plan --target-time "2026-03-25 13:30" \
+      --backup-storage file:///var/backups -d /tmp/restore/
   tt restore plan --target-time 2026-03-25T10:30:00Z \
       --backup-storage file:///var/backups -d /tmp/restore/ \
       --cluster-name payments-cluster --environment production
@@ -808,7 +814,9 @@ func newRestorePlanCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&restorePlanTargetTime, "target-time", "",
-		"moment to recover to: RFC 3339 (2026-03-25T10:30:00Z) or a unix timestamp")
+		"moment to recover to: Unix seconds, RFC 3339 (2026-03-25T10:30:00Z), or a "+
+			`date, time and zone, such as "2026-03-25 13:30:00+03:00", down to a date; `+
+			"a time without a zone is local")
 	addBackupStorageFlags(cmd)
 	cmd.Flags().StringVarP(&restorePlanCfg, "config", "c", "",
 		"cluster configuration of the cluster being restored, to check the "+
@@ -870,10 +878,15 @@ func runRestorePlanInner() (*restore.PlanResult, error) {
 			restorePlanFormat, formatTable, formatJSON)
 	}
 
-	targetTime, err := restore.ParseTargetTime(restorePlanTargetTime)
+	target, err := util.ParseMoment(restorePlanTargetTime)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("--target-time: %w", err)
 	}
+
+	util.LogLocalMoment("--target-time", restorePlanTargetTime, target)
+
+	// The plan reads the same wherever it is printed.
+	targetTime := target.Time.UTC()
 
 	// Everything that can be rejected without touching the storage is rejected
 	// first: a mistyped cluster config or replicaset name would otherwise

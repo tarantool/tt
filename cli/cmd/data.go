@@ -56,9 +56,11 @@ a state.
   --to-vclock V            the transactions within V: with a row whose LSN is
                            at most that of its replica in V. A replica V does
                            not name, 0 (local spaces) included, has LSN 0.
-  --timestamp T            the transactions written before T: Unix seconds or
-                           RFC 3339, such as 2024-11-14T14:02:36.818+00:00.
+  --timestamp T            the transactions written before T.
 V is {1: 100, 2: 50}, as box.info.vclock prints it, or {"1": 100, "2": 50}.
+T is one of these, and a time without a zone is local time, of TZ; tt -V logs
+the moment in UTC it was read as:
+` + util.MomentForms + `
 
 Of the transactions taken, only the changes of user spaces are kept: the rows
 of system spaces and those that change no space - RAFT, synchronous
@@ -113,7 +115,9 @@ func addDataFilterFlags(cmd *cobra.Command, flags *dataFilterFlags) {
 	cmd.Flags().StringVar(&flags.toVClock, "to-vclock", "",
 		"take the transactions within this vclock")
 	cmd.Flags().StringVar(&flags.timestamp, "timestamp", "",
-		"take the transactions written before this time")
+		"take the transactions written before this time: Unix seconds, RFC 3339, or a "+
+			`date, time and zone, such as "2024-11-14 17:02:36.818+03:00", down to a date; `+
+			"a time without a zone is local")
 	cmd.Flags().BoolVar(&flags.showSystem, "show-system", false,
 		"keep the rows of system spaces and those that change no space")
 	cmd.Flags().BoolVarP(&flags.recursive, "recursive", "r", false,
@@ -160,15 +164,14 @@ func dataFilter(cmd *cobra.Command, flags *dataFilterFlags, paths []string, runs
 	}
 
 	if flags.timestamp != "" {
-		timestamp, err := util.StringToTimestamp(flags.timestamp)
+		moment, err := util.ParseMoment(flags.timestamp)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to parse a timestamp: %w", err)
 		}
 
-		filter.Before, err = strconv.ParseFloat(timestamp, 64)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to parse a timestamp: %w", err)
-		}
+		util.LogLocalMoment("--timestamp", flags.timestamp, moment)
+
+		filter.Before = moment.Unix
 	}
 
 	err = filter.Check()
