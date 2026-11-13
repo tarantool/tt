@@ -242,7 +242,7 @@ func (e Ext) MarshalJSON() ([]byte, error) {
 	return appendJSONString(nil, text), nil
 }
 
-// Value wraps a decoded value so that encoding/json and gopkg.in/yaml.v3
+// Value wraps a decoded value so that encoding/json and go.yaml.in/yaml/v3
 // render it as AppendJSON and YAMLNode do, wherever a struct holds it.
 type Value struct {
 	V any

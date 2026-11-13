@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/go-tarantool/v3/datetime"
 	"github.com/tarantool/go-tarantool/v3/decimal"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/tarantool/tt/sdk/tuple"
 )
