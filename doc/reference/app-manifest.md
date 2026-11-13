@@ -65,6 +65,7 @@ major version is refused.
 | `repository` | no | |
 | `include` | no | files of the project put at the root of the archive |
 | `generate_version_lua` | no | `false` leaves `version.lua` out of the build; `true` by default |
+| `generate_rocks_lua` | no | `false` leaves `rocks.lua`, the rocks the package was built with, out of the build; `true` by default, whatever `generate_version_lua` says |
 
 ## `[platform]`
 

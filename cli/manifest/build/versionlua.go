@@ -12,20 +12,22 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest/version"
 )
 
-// versionLuaName is the descriptor file dropped into the package's own share
-// namespace.
-const versionLuaName = "version.lua"
+const (
+	// versionLuaName is the descriptor of the version of the package dropped
+	// into its own share namespace.
+	versionLuaName = "version.lua"
+	// rocksLuaName is the descriptor of the rocks the package was built with,
+	// dropped beside version.lua.
+	rocksLuaName = "rocks.lua"
+)
 
 // writeVersionLua generates version.lua at <stage>/lua/<package>/, which the
 // package's rock deploys to .rocks/share/tarantool/<package>/, unless
 // package.generate_version_lua = false. It is written under the package
 // name, not a component namespace: it describes the package as a whole.
 //
-// A component that already laid a file at that exact path is a collision — two
-// sources claiming version.lua — and is a hard error (exit code 1 at the CLI).
-// laidOut is the set of destinations layoutComponent reported this run, so a
-// stale version.lua left by a previous build does not count as a collision: it
-// is simply overwritten.
+// A component that already laid a file at that exact path is a collision
+// (writeGenerated).
 func writeVersionLua(
 	stage, pkgName string, generate bool, ver version.Version, builtAt time.Time,
 	laidOut []string,
@@ -34,15 +36,36 @@ func writeVersionLua(
 		return nil
 	}
 
-	dst := versionLuaPath(stage, pkgName)
+	return writeGenerated(versionLuaPath(stage, pkgName), "generate_version_lua",
+		version.GenerateVersionLua(ver, builtAt), laidOut)
+}
+
+// writeRocksLua generates rocks.lua of desc at <stage>/lua/<namespace>/,
+// beside version.lua: the rocks of the closure of the product built, which a
+// running application reads as require('<namespace>.rocks'). Only the build of
+// the package itself writes it (project.rocksLua), and a component that laid a
+// file at that exact path is a collision (writeGenerated).
+func writeRocksLua(stage, namespace string, desc version.RocksLua, laidOut []string) error {
+	return writeGenerated(rocksLuaPath(stage, namespace), "generate_rocks_lua",
+		version.GenerateRocksLua(desc), laidOut)
+}
+
+// writeGenerated writes content, a file the build generates, at dst.
+//
+// A component that already laid a file at dst is a collision - two sources
+// claiming the file - and is a hard error (exit code 1 at the CLI), naming
+// key, the [package] key that leaves the generated file out. laidOut is the
+// set of destinations layoutComponent reported this run, so a stale file left
+// by a previous build does not count as a collision: it is simply overwritten.
+func writeGenerated(dst, key, content string, laidOut []string) error {
+	name := filepath.Base(dst)
 
 	if slices.Contains(laidOut, dst) {
 		return sdk.Errorf(sdk.ExitFailure,
-			"%w: component ships %s at %s, which the build also generates",
-			errVersionLuaCollision, versionLuaName, dst)
+			"%w: component ships %s at %s, which the build also generates; "+
+				"set %s = false in [package] to leave the generated one out",
+			errGeneratedCollision, name, dst, key)
 	}
-
-	content := version.GenerateVersionLua(ver, builtAt)
 
 	mkErr := os.MkdirAll(filepath.Dir(dst), dirPerm)
 	if mkErr != nil {
@@ -51,7 +74,7 @@ func writeVersionLua(
 
 	writeErr := os.WriteFile(dst, []byte(content), filePerm)
 	if writeErr != nil {
-		return fmt.Errorf("writing %s: %w", versionLuaName, writeErr)
+		return fmt.Errorf("writing %s: %w", name, writeErr)
 	}
 
 	return nil
@@ -61,4 +84,10 @@ func writeVersionLua(
 // pkgName in stage.
 func versionLuaPath(stage, pkgName string) string {
 	return filepath.Join(stage, rocktree.StageLua, pkgName, versionLuaName)
+}
+
+// rocksLuaPath is where writeRocksLua writes rocks.lua into stage, under the
+// given namespace.
+func rocksLuaPath(stage, namespace string) string {
+	return filepath.Join(stage, rocktree.StageLua, namespace, rocksLuaName)
 }

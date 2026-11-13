@@ -11,6 +11,7 @@ import (
 
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/exitcode"
+	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/version"
 )
 
@@ -51,8 +52,39 @@ func TestWriteVersionLua_collisionWithLaidOutFile(t *testing.T) {
 	// A component laid a version.lua at the exact generated path this run.
 	err := writeVersionLua(stage, "my-app", true, version.Version{}, time.Unix(0, 0), []string{dst})
 	require.Error(t, err)
-	require.ErrorIs(t, err, errVersionLuaCollision)
+	require.ErrorIs(t, err, errGeneratedCollision)
 	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
+	assert.Contains(t, err.Error(), "generate_version_lua = false")
+}
+
+func TestWriteRocksLua_generates(t *testing.T) {
+	t.Parallel()
+
+	stage := t.TempDir()
+
+	err := writeRocksLua(stage, "my-app", version.RocksLua{
+		Package: "my-app", Version: version.Version{SemVer: "1.2.3"}, Product: "default",
+		Rocks: []manifest.LockDependency{{Name: "crud", Version: "1.5.2-1", Source: "registry"}},
+	}, nil)
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(filepath.Join(stage, "lua/my-app/rocks.lua"))
+	require.NoError(t, err)
+	assert.Contains(t, string(data), `crud = { version = "1.5.2-1", source = "registry" },`)
+}
+
+func TestWriteRocksLua_collisionWithLaidOutFile(t *testing.T) {
+	t.Parallel()
+
+	stage := t.TempDir()
+	dst := filepath.Join(stage, "lua/my-app/rocks.lua")
+
+	err := writeRocksLua(stage, "my-app", version.RocksLua{}, []string{dst})
+	require.ErrorIs(t, err, errGeneratedCollision)
+	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
+	assert.Contains(t, err.Error(), "component ships rocks.lua at "+dst)
+	assert.Contains(t, err.Error(), "generate_rocks_lua = false")
+	assert.NoFileExists(t, dst)
 }
 
 func TestWriteVersionLua_staleFileOverwritten(t *testing.T) {

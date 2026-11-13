@@ -29,11 +29,30 @@ func GenerateVersionLua(ver Version, builtAt time.Time) string {
 	return buf.String()
 }
 
-// luaString renders s as a double-quoted Lua string literal, escaping the two
-// characters that would otherwise break out of it.
-func luaString(s string) string {
-	s = strings.ReplaceAll(s, `\`, `\\`)
-	s = strings.ReplaceAll(s, `"`, `\"`)
+// luaString renders s as a double-quoted Lua string literal: the backslash
+// and the quote, which would break out of it, are escaped, and so is every
+// control character, a newline included, which a literal cannot hold as it
+// is, as a decimal \ddd escape - the form Lua 5.1, LuaJIT, has.
+func luaString(text string) string {
+	var buf strings.Builder
 
-	return `"` + s + `"`
+	buf.WriteByte('"')
+
+	for i := range len(text) {
+		char := text[i]
+
+		switch {
+		case char == '\\' || char == '"':
+			buf.WriteByte('\\')
+			buf.WriteByte(char)
+		case char < ' ' || char == 0x7f:
+			fmt.Fprintf(&buf, `\%03d`, char)
+		default:
+			buf.WriteByte(char)
+		}
+	}
+
+	buf.WriteByte('"')
+
+	return buf.String()
 }

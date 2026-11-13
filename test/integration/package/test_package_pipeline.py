@@ -13,16 +13,21 @@ well. The archive is `--without-deps` throughout: a with-deps archive bundles
 cannot assume.
 """
 
+import json
 import os
 import platform
 import re
 import shutil
 import subprocess
 import tarfile
+import tomllib
 import zipfile
 from pathlib import Path
 
 import pytest
+import yaml
+
+from utils import find_port, wait_event
 
 try:
     import zstandard
@@ -146,6 +151,125 @@ def test_build_materializes_the_tree(tt_cmd, tmp_path):
     lock = project / "app.manifest.lock"
     assert lock.exists()
     assert DEPENDENCY in lock.read_text()
+
+
+HELPER_MANIFEST = """manifest_version = '0.1'
+
+[package]
+name = 'my-helper'
+
+[platform]
+tarantool = '>=3.0.0'
+tt = '>=3.1.0'
+
+[components.lua]
+path = '.'
+include = ['*.lua']
+"""
+
+
+def locked_rocks(project: Path) -> dict:
+    """The closure of the default product the lock pins, by rock name."""
+    with (project / "app.manifest.lock").open("rb") as handle:
+        lock = tomllib.load(handle)
+    return {
+        dep["name"]: {"version": dep["version"], "source": dep["source"]}
+        for dep in lock["lock"]["products"]["default"]["dependencies"]
+    }
+
+
+def test_build_writes_rocks_lua(tt_cmd, tmp_path):
+    """A running application reports the rocks it was built with.
+
+    The build writes rocks.lua of the package, the closure the lock pins: a
+    registry rock and a path dependency built by tt, whose own rock carries
+    no rocks.lua. An instance of the project reads it over iproto with
+    tt connect.
+    """
+    if shutil.which("tarantool") is None:
+        pytest.skip("tarantool is not found in PATH")
+
+    project = make_project(tmp_path / "project")
+    manifest = (project / "app.manifest.toml").read_text()
+    (project / "app.manifest.toml").write_text(
+        manifest.replace(
+            "stat = '>=0.3.0'\n",
+            "stat = '>=0.3.0'\nmy-helper = { source = 'path', path = '../my-helper' }\n",
+        ),
+    )
+    helper = tmp_path / "my-helper"
+    helper.mkdir()
+    (helper / "app.manifest.toml").write_text(HELPER_MANIFEST)
+    (helper / "VERSION").write_text("0.3.0\n")
+    (helper / "init.lua").write_text("return {}\n")
+
+    result = build(tt_cmd, project)
+    assert result.returncode == 0, result.stderr
+
+    share = project / ".rocks" / "share" / "tarantool"
+    assert (share / "my-app" / "rocks.lua").is_file()
+    assert (share / "my-helper" / "version.lua").is_file()
+    assert not (share / "my-helper" / "rocks.lua").exists()
+
+    expected = locked_rocks(project)
+    assert expected == {
+        DEPENDENCY: {"version": DEPENDENCY_VERSION, "source": "registry"},
+        "my-helper": {"version": "0.3.0-1", "source": "path"},
+    }
+
+    port = find_port(3401)
+    template = project / ".templates" / "default"
+    template.mkdir(parents=True)
+    (template / "instances.yaml").write_text('"*": {}\n')
+    (template / "config.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "groups": {
+                    "group001": {
+                        "replicasets": {
+                            "replicaset001": {
+                                "instances": {
+                                    "instance001": {
+                                        "iproto": {"listen": [{"uri": f"127.0.0.1:{port}"}]},
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        ),
+    )
+
+    started = run(tt_cmd, project, "instance", "start")
+    assert started.returncode == 0, started.stderr
+    try:
+        reported = {}
+
+        def read_rocks():
+            connected = subprocess.run(
+                [str(tt_cmd), "connect", "my-app:instance001", "-f-"],
+                cwd=project,
+                input="return require('json').encode(require('my-app.rocks'))\n",
+                capture_output=True,
+                text=True,
+            )
+            if connected.returncode != 0:
+                return False
+            answer = yaml.safe_load(connected.stdout)
+            if not answer or not isinstance(answer[0], str):
+                return False
+            reported.update(json.loads(answer[0]))
+            return True
+
+        assert wait_event(10, read_rocks, 0.2)
+    finally:
+        stopped = run(tt_cmd, project, "instance", "stop", "--yes")
+        assert stopped.returncode == 0, stopped.stderr
+
+    assert reported["package"]["name"] == "my-app"
+    assert reported["product"] == "default"
+    assert reported["rocks"] == expected
 
 
 def test_new_add_build_installs_the_dependency(tt_cmd, tmp_path):
@@ -401,6 +525,17 @@ def test_pack_rock_into_the_default_output_dir(tt_cmd, tmp_path, formats):
         infos = archive.infolist()
     assert infos
     assert {info.date_time for info in infos} == {(1980, 1, 1, 0, 0, 0)}
+
+    # The rock leaves out the rocks the application was built with: a project
+    # installing it resolves its own. The archive, which runs it, has them.
+    names = {info.filename for info in infos}
+    assert "lua/my-app/version.lua" in names
+    assert "lua/my-app/rocks.lua" not in names
+    if "tt,rock" in formats:
+        archives = list(out.glob("*.tt"))
+        assert len(archives) == 1, archives
+        packed = archive_names(archives[0])
+        assert any(name.endswith(".rocks/share/tarantool/my-app/rocks.lua") for name in packed)
 
     assert not [entry.name for entry in out.iterdir() if entry.is_dir()]
 

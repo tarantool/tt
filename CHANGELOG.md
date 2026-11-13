@@ -638,6 +638,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   without a zone is local time, of `TZ` as for `date`, and `tt -V` logs the
   moment in UTC it was read as. `--target-time` takes fractional Unix
   seconds too. A value of none of these forms fails with the list of them.
+- `tt package build` writes `rocks.lua` beside `version.lua` of the package,
+  the rocks it was built with: the closure of the product the lock pins,
+  every rock by name with its version and source, and the name, version
+  and commit of the package, with no time in it. A running application
+  reports them as `require('<name>.rocks')`, to `tt connect` too. It is
+  not written into the rock of a path dependency, and `tt package pack
+  --format rock` leaves it out of the rock, since a project installing the
+  rock resolves its own; the `.tt` archive has it. `[package]
+  generate_rocks_lua = false` leaves it out of the build, and a component
+  shipping a `rocks.lua` there fails the build as one shipping
+  `version.lua` does.
 
 ### Changed
 

@@ -185,6 +185,11 @@ type Result struct {
 	// package was installed from. A fetch run lays out nothing and reports
 	// none.
 	Stage string
+	// RocksLua is the absolute path of rocks.lua in Stage, the rocks the
+	// application was built with; empty when the build generated none. The
+	// rock tt package pack releases leaves it out: a project installing the
+	// rock resolves rocks of its own.
+	RocksLua string
 	// Programs maps every component of the manifest whose build made
 	// programs to those it put into the bin directory of Tree, by file name:
 	// the package's own files there, as against the console scripts of its
@@ -358,7 +363,7 @@ func Prepare(ctx context.Context, opts Options) (*Result, error) {
 
 	return &Result{
 		Manifest: man, Lock: lock, Version: ver, Product: productName,
-		Tree: "", Stage: "", Programs: nil,
+		Tree: "", Stage: "", RocksLua: "", Programs: nil,
 	}, nil
 }
 
@@ -566,10 +571,18 @@ func runBuild(
 	}
 
 	proj.pinned = pinnedClosure(prod.Dependencies, lock.DevDependencies)
+	// rocks.lua of the package lists the closure the lock pins for the
+	// product built, without the dev closure pinned holds too.
+	proj.closure = prod.Dependencies
 
 	built, err := buildComponents(ctx, opts, proj, stage, components, ver)
 	if err != nil {
 		return nil, err
+	}
+
+	rocksLua := ""
+	if proj.rocksLua() {
+		rocksLua = rocksLuaPath(stage, proj.versionLuaNamespace())
 	}
 
 	err = installPackageRock(ctx, adapter.Config(), man, productName, prod, ver, stage)
@@ -589,6 +602,7 @@ func runBuild(
 		Product:  productName,
 		Tree:     tree,
 		Stage:    stage,
+		RocksLua: rocksLua,
 		Programs: built.programs,
 		Built:    built.installed(proj, tree),
 	}, nil
@@ -618,6 +632,14 @@ type project struct {
 	// the lock on disk when that lock is fresh (freshPins), and empty
 	// otherwise.
 	pinned manifest.LockProduct
+	// topLevel marks the build of the package itself (packageProject), as
+	// against that of a path dependency or a source rock with a manifest:
+	// only it writes rocks.lua, the closure of a dependency being the
+	// consumer's to report.
+	topLevel bool
+	// closure is the closure of product as the lock pins it, which rocks.lua
+	// of a top-level build lists; runBuild sets it once the lock is gated.
+	closure []manifest.LockDependency
 }
 
 // packageProject is the project of the package itself, its state in its own
@@ -625,8 +647,14 @@ type project struct {
 func packageProject(projectDir string, man *manifest.Manifest, product string) project {
 	return project{
 		dir: projectDir, stateDir: filepath.Join(projectDir, buildDirName), man: man,
-		product: product,
+		product: product, topLevel: true, closure: nil,
 	}
+}
+
+// rocksLua reports whether a build of proj generates rocks.lua: a top-level
+// build of a package that does not set generate_rocks_lua = false.
+func (proj project) rocksLua() bool {
+	return proj.topLevel && proj.man.Package.GenerateRocksLuaValue()
 }
 
 // versionLuaNamespace is the namespace version.lua of a build of proj goes
@@ -642,10 +670,10 @@ func (proj project) versionLuaNamespace() string {
 
 // buildComponents runs the component steps of a build of proj into stage:
 // the backends of components (runBackends), their layout (layoutComponents),
-// the file checks of the modules (checkFiles) and version.lua. Then it
-// removes from the stage what no component put there (settleStage). It
-// returns what the components built (componentBuilds), from the record
-// runBackends returns.
+// the file checks of the modules (checkFiles), version.lua and, for a
+// top-level build, rocks.lua. Then it removes from the stage what no
+// component put there (settleStage). It returns what the components built
+// (componentBuilds), from the record runBackends returns.
 func buildComponents(
 	ctx context.Context, opts Options, proj project, stage string, components []string,
 	ver version.Version,
@@ -693,6 +721,16 @@ func buildComponents(
 		return componentBuilds{}, err
 	}
 
+	if proj.rocksLua() {
+		err = writeRocksLua(stage, proj.versionLuaNamespace(), version.RocksLua{
+			Package: proj.man.Package.Name, Version: ver, Product: proj.product,
+			Rocks: proj.closure,
+		}, allLaidOut)
+		if err != nil {
+			return componentBuilds{}, err
+		}
+	}
+
 	if !settle {
 		return builds, nil
 	}
@@ -701,6 +739,10 @@ func buildComponents(
 
 	if generate {
 		generated = append(generated, versionLuaPath(stage, proj.versionLuaNamespace()))
+	}
+
+	if proj.rocksLua() {
+		generated = append(generated, rocksLuaPath(stage, proj.versionLuaNamespace()))
 	}
 
 	err = settleStage(stage, proj, last, stageBuild{

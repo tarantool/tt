@@ -52,6 +52,7 @@ type Package struct {
 	Repository         string   `toml:"repository,omitempty"`
 	Authors            []string `toml:"authors,omitempty"`
 	GenerateVersionLua *bool    `toml:"generate_version_lua,omitempty"` // Nil means true.
+	GenerateRocksLua   *bool    `toml:"generate_rocks_lua,omitempty"`   // Nil means true.
 }
 
 // Platform describes the runtime requirements ([platform]).
@@ -76,6 +77,13 @@ type Platform struct {
 // package.generate_version_lua, defaulting to true when unset.
 func (p Package) GenerateVersionLuaValue() bool {
 	return p.GenerateVersionLua == nil || *p.GenerateVersionLua
+}
+
+// GenerateRocksLuaValue reports the effective value of
+// package.generate_rocks_lua, defaulting to true when unset. It is
+// independent of generate_version_lua.
+func (p Package) GenerateRocksLuaValue() bool {
+	return p.GenerateRocksLua == nil || *p.GenerateRocksLua
 }
 
 // ParseManifest parses app.manifest.toml bytes into a Manifest.

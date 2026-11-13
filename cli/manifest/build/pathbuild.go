@@ -164,9 +164,10 @@ func (p pathManifests) buildManifest(ctx context.Context, build manifestBuild) e
 			strings.Join(slices.Sorted(maps.Keys(man.Hooks)), ", "), build.what)})
 	}
 
+	// Not a top-level build: the rock of a dependency carries no rocks.lua.
 	proj := project{
 		dir: build.dir, stateDir: build.state, man: man, product: neighbour.Product,
-		pinned: p.pinned,
+		pinned: p.pinned, topLevel: false, closure: nil,
 	}
 
 	stage := filepath.Join(build.state, stageDirName, neighbour.Product)

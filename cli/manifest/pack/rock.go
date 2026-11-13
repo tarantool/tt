@@ -185,9 +185,10 @@ type rockResult struct {
 // manifests and the tt-rocks-index.json (rockindex.MakeServer).
 //
 // The rock is the stage of the product the build laid out, the rock the build
-// installed into .rocks/, but for other projects: its rockspec declares the
-// ranges of the manifest, as rock, which declareRock made before the build,
-// has them. It is the binary rock of the host when the stage holds a native
+// installed into .rocks/, but for other projects: it leaves rocks.lua out,
+// the rocks being theirs to resolve, and its rockspec declares the ranges of
+// the manifest, as rock, which declareRock made before the build, has them.
+// It is the binary rock of the host when the stage holds a native
 // file or a file in lib/, and an .all rock otherwise, so the arch of a rock
 // is never a choice: a module built for the host in an .all rock would
 // install on any machine and fail there.
@@ -216,7 +217,8 @@ func packRocks(
 	result := rockResult{Rock: "", SrcRock: "", Rockspec: filepath.Join(dir, base+rockspecExt)}
 
 	if opts.makes(FormatRock) {
-		result.Rock, err = packBinaryRock(ctx, opts, built.Manifest, built.Stage, dir, spec)
+		result.Rock, err = packBinaryRock(ctx, opts, built.Manifest, built.Stage,
+			built.RocksLua, dir, spec)
 		if err != nil {
 			return rockResult{}, err
 		}
@@ -271,14 +273,26 @@ func componentPaths(man *manifest.Manifest, product string) []string {
 
 // packBinaryRock packs stage as the rock of spec into dir and returns its
 // path: the binary rock of the host, or the .all rock (rockArch), with the
-// license files of the package in its doc/ (rockFiles), and its native files
-// without their debug information when the pack strips it (strippedStage).
+// license files of the package in its doc/ and without rocksLua, the
+// rocks.lua of the stage if the build generated one (rockFiles), and its
+// native files without their debug information when the pack strips it
+// (strippedStage).
 func packBinaryRock(ctx context.Context,
-	opts Options, man *manifest.Manifest, stage, dir string, spec *luarocks.Rockspec,
+	opts Options, man *manifest.Manifest, stage, rocksLua, dir string, spec *luarocks.Rockspec,
 ) (string, error) {
 	arch, err := rockArch(stage)
 	if err != nil {
 		return "", err
+	}
+
+	// rocks.lua is left out by its path in the stage, as strippedStage copies
+	// the stage elsewhere.
+	leaveOut := ""
+	if rocksLua != "" {
+		leaveOut, err = filepath.Rel(stage, rocksLua)
+		if err != nil {
+			return "", fmt.Errorf("leaving %s out of the rock: %w", rocksLua, err)
+		}
 	}
 
 	// The temporary tree of PackStaged goes under _build/, as the stage of the
@@ -301,7 +315,8 @@ func packBinaryRock(ctx context.Context,
 		stage = stripped
 	}
 
-	files, cleanup, err := rockFiles(temp, stage, opts.ProjectDir, man.Package.LicenseFiles)
+	files, cleanup, err := rockFiles(temp, stage, opts.ProjectDir, man.Package.LicenseFiles,
+		leaveOut)
 	if err != nil {
 		return "", err
 	}
@@ -349,15 +364,37 @@ func packBinaryRock(ctx context.Context,
 // license files of the package in doc/ (rocktree.StageDoc), each at its path
 // in the project, where LuaRocks keeps the documents of a rock - a project
 // installing the rock has them in the install dir of the rock, as it has
-// those of the rocks LuaRocks builds. The stage is copied into a directory of
-// its own under temp for them (rocktree.WithDocs); a package with no license
-// files is packed from its stage as it is.
-func rockFiles(temp, stage, projectDir string, licenseFiles []string) (string, func(), error) {
-	if len(licenseFiles) == 0 {
+// those of the rocks LuaRocks builds.
+//
+// The rock leaves out leaveOut, a file of the stage by its path relative to
+// the stage, if not empty: rocks.lua (build.Result.RocksLua), the rocks the
+// application was built with, which describe no project installing the rock -
+// such a project resolves its own.
+//
+// The stage is copied into a directory of its own under temp for either
+// (rocktree.WithDocs); a package with no license files and no file to leave
+// out is packed from its stage as it is.
+func rockFiles(
+	temp, stage, projectDir string, licenseFiles []string, leaveOut string,
+) (string, func(), error) {
+	if len(licenseFiles) == 0 && leaveOut == "" {
 		return stage, func() {}, nil
 	}
 
 	return rocktree.WithDocs(temp, stage, func(doc string) error {
+		if leaveOut != "" {
+			// WithDocs gives doc/ of the copy of the stage, at its root.
+			dst := filepath.Join(filepath.Dir(doc), leaveOut)
+
+			removeErr := os.Remove(dst)
+			if removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) {
+				return fmt.Errorf("leaving %s out of the rock: %w", leaveOut, removeErr)
+			}
+
+			// A namespace that held nothing else is left out with it.
+			_ = os.Remove(filepath.Dir(dst))
+		}
+
 		for _, entry := range licenseFiles {
 			err := stageEntry(doc, projectDir, entry, "license_files")
 			if err != nil {
