@@ -19,7 +19,7 @@
 
 | Переменная | |
 | --- | --- |
-| `TT_REGISTRIES` | серверы rock-модулей через запятую вместо `[platform].registries` и значений по умолчанию; флаг `--registry` имеет приоритет |
+| `TT_REGISTRIES` | rock-серверы через запятую вместо `[platform].registries` и значений по умолчанию; флаг `--registry` имеет приоритет |
 | `SOURCE_DATE_EPOCH` | время, фиксируемое в `version.lua` и в архиве; по умолчанию - время коммита HEAD |
 
 Сборка компонента и хуки получают переменные `TT_OUTPUT_DIR`, `TT_PROJECT_ROOT`,

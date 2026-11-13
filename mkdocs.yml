@@ -176,3 +176,8 @@ markdown_extensions:
         - name: mermaid
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
+
+# Written for the translators: the site holds it out of every nav, so it
+# is built for those who read the sources, not offered to readers.
+not_in_nav: |
+  /translations/

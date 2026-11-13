@@ -129,8 +129,11 @@ and the nav of `mkdocs.yml` lists the English pages only; the titles the nav
 sets explicitly are translated in `nav_translations` of the `i18n` plugin.
 A translation keeps the headings of the English page and pins their anchors
 to the English ones, `## Сборка из исходников {#build-from-source}`, so that
-the links to a section work in both languages. The command reference stays
-in English.
+the links to a section work in both languages; a first-level heading needs
+none. The command reference stays in English.
+
+A term is translated as [the glossary](translations/glossary.md) fixes it,
+which also holds the punctuation and the phrases the translations avoid.
 
 `mage docs:stale` lists the translations whose English page changed in git
 after the translation last did, with the commits to catch up on, and the
