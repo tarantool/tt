@@ -11,8 +11,9 @@ require (
 	github.com/tarantool/go-prompt v1.0.2-0.20261118001635-bc2cfa6de863
 	github.com/tarantool/tt/sdk/build v0.0.0-0
 	github.com/tarantool/tt/sdk/connect v0.0.0-0
+	go.yaml.in/yaml/v2 v2.4.3
+	go.yaml.in/yaml/v3 v3.0.4
 	golang.org/x/term v0.46.0
-	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
@@ -34,7 +35,6 @@ require (
 	github.com/tarantool/go-storage/v2 v2.0.1-0.20261030080914-3d28af2e7c8c // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
-	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

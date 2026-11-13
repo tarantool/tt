@@ -14,7 +14,6 @@ import (
 
 	"github.com/tarantool/tt/sdk/log"
 	terminal "golang.org/x/term"
-	"gopkg.in/yaml.v2"
 
 	"github.com/tarantool/go-prompt"
 	"github.com/tarantool/tt/sdk/formatter"
@@ -222,7 +221,7 @@ func (console *Console) Close() {
 
 // printPush prints a value pushed by box.session.push() as YAML.
 func printPush(out io.Writer, pushedData any) {
-	encodedData, err := yaml.Marshal(pushedData)
+	encodedData, err := formatter.EncodeYAML(pushedData)
 	if err != nil {
 		log.Warnf("Failed to encode pushed data: %s", err)
 

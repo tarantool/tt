@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"gopkg.in/yaml.v2"
-
+	"github.com/tarantool/tt/sdk/formatter"
 	"github.com/tarantool/tt/v3/cli/connect/internal/luabody"
 	"github.com/tarantool/tt/v3/cli/connector"
 )
@@ -99,7 +98,7 @@ func ChangeLanguage(evaler connector.Evaler, lang Language) error {
 
 	var decoded any
 
-	err = yaml.Unmarshal([]byte(ret), &decoded)
+	err = formatter.DecodeYAML([]byte(ret), &decoded)
 	if err != nil {
 		return fmt.Errorf("unable to decode response: %w", err)
 	}

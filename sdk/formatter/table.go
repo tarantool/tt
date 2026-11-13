@@ -12,7 +12,7 @@ import (
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v3"
 )
 
 var (
@@ -23,12 +23,31 @@ var (
 	)
 )
 
+// lazyMessage is an item of a sequence, kept as its node to be decoded
+// later.
+type lazyMessage struct {
+	node *yaml.Node
+}
+
 // lazyDecodeYaml decodes yaml string as []lazyMessage content.
 // Each array member needs to be decoded later.
 func lazyDecodeYaml(input string) ([]lazyMessage, error) {
 	var decoded []lazyMessage
 
-	err := yaml.Unmarshal([]byte(input), &decoded)
+	root, err := parseYAML([]byte(input))
+	if err == nil && !isYAMLNull(root) {
+		if root.Kind == yaml.SequenceNode {
+			decoded = make([]lazyMessage, len(root.Content))
+			for i, item := range root.Content {
+				decoded[i] = lazyMessage{node: item}
+			}
+		} else {
+			// The error names the type the sequence is decoded into, as it
+			// always has.
+			err = kindError(root, &decoded)
+		}
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("not yaml array, cannot render tables: %w", err)
 	}
@@ -510,8 +529,41 @@ type metadataField struct {
 }
 
 type metadataRows struct {
+	Metadata []metadataField
+	Rows     [][]any
+}
+
+// metadataRowsNodes is metadataRows as it is decoded: the values of the rows
+// are decoded as DecodeYAML decodes them.
+type metadataRowsNodes struct {
 	Metadata []metadataField `yaml:"metadata"`
-	Rows     [][]any         `yaml:"rows"`
+	Rows     [][]yaml.Node   `yaml:"rows"`
+}
+
+// decodeMetadataRows decodes an item as tuples with metadata, the SQL output
+// format. It reports false for an item that is not one.
+func decodeMetadataRows(item *yaml.Node, reader *yamlReader) (metadataRows, bool) {
+	var raw metadataRowsNodes
+
+	err := item.Decode(&raw)
+	if err != nil {
+		return metadataRows{Metadata: nil, Rows: nil}, false
+	}
+
+	meta := metadataRows{Metadata: raw.Metadata, Rows: make([][]any, len(raw.Rows))}
+
+	for i, row := range raw.Rows {
+		meta.Rows[i] = make([]any, len(row))
+
+		for j := range row {
+			meta.Rows[i][j], err = reader.value(&row[j])
+			if err != nil {
+				return metadataRows{Metadata: nil, Rows: nil}, false
+			}
+		}
+	}
+
+	return meta, true
 }
 
 // remapMetadataRows creates maps from rows with a meta information.
@@ -586,15 +638,15 @@ func makeTableOutput(input string, transpose bool, opts Opts) (string, error) {
 		return "", err
 	}
 
+	reader := newYAMLReader()
+
 	var metaFields metadataRows
 
 	for _, lazyNode := range lazyNodes {
-		var meta metadataRows
-
 		// First of all, try to read it as tuples with metadata
 		// (SQL output format).
-		err = lazyNode.Unmarshal(&meta)
-		if err == nil && len(meta.Rows) > 0 && len(meta.Metadata) > 0 {
+		meta, ok := decodeMetadataRows(lazyNode.node, reader)
+		if ok && len(meta.Rows) > 0 && len(meta.Metadata) > 0 {
 			if slices.Equal(meta.Metadata, metaFields.Metadata) {
 				metaFields.Rows = append(metaFields.Rows, meta.Rows...)
 			} else {
@@ -606,9 +658,7 @@ func makeTableOutput(input string, transpose bool, opts Opts) (string, error) {
 			metaFields = metadataRows{Metadata: nil, Rows: nil}
 
 			// Failed. Try to read it as an any.
-			var node any
-
-			err = lazyNode.Unmarshal(&node)
+			node, err := reader.value(lazyNode.node)
 			if err != nil {
 				return "", fmt.Errorf("not yaml any: %w", err)
 			}

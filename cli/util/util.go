@@ -16,8 +16,8 @@ import (
 	"strings"
 
 	"github.com/tarantool/tt/sdk/execfile"
+	"github.com/tarantool/tt/sdk/formatter"
 	"github.com/tarantool/tt/sdk/log"
-	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -128,7 +128,9 @@ func ParseYAML(path string) (map[string]any, error) {
 
 	var raw map[string]any
 
-	err = yaml.Unmarshal(fileContent, &raw)
+	// The manifests of templates and the daemon configuration have been read
+	// as YAML 1.1, as the console reads YAML.
+	err = formatter.DecodeYAML(fileContent, &raw)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}

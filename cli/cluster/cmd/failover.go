@@ -10,8 +10,9 @@ import (
 	"github.com/google/uuid"
 	sdkcluster "github.com/tarantool/tt/sdk/cluster"
 	"github.com/tarantool/tt/sdk/connect"
+	"github.com/tarantool/tt/sdk/formatter"
 	"github.com/tarantool/tt/sdk/log"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v3"
 )
 
 var (
@@ -122,7 +123,9 @@ func Switch(url string, switchCtx SwitchCtx) error {
 		Timeout:   switchCtx.Timeout,
 	}
 
-	yamlCmd, err := yaml.Marshal(&cmd)
+	// The command is written as tt has always written it, folded at 80
+	// columns as gopkg.in/yaml.v2 folded it.
+	yamlCmd, err := formatter.EncodeYAML(&cmd)
 	if err != nil {
 		return fmt.Errorf("failed to encode the switch command: %w", err)
 	}
