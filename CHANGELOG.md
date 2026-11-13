@@ -1650,6 +1650,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   that catches, ignores or blocks it, and logs that it did not otherwise; a
   tarantool sets up its handler before it opens its log, so it misses no
   rotation.
+- `tt create` from an application template archive, `tt coredump unpack`,
+  `tt coredump inspect` of an archive and `tt binary install` of a bundle -
+  Tarantool Enterprise, TCM, tt Enterprise - refuse an archive entry outside
+  the directory they extract to: a name that is absolute or goes up with
+  `..`, and a symbolic link whose target is absolute or leads out of the
+  directory. Such an entry was written where it pointed, and a file of the
+  archive could be written through such a link. A file the archive holds and
+  the directory already has is now overwritten whole: the template and
+  coredump extraction left the end of a longer file in place.
 - `tt package build` and `tt package fetch` install a registry dependency
   whose servers have no rock of the platform but a LuaRocks source rock, one
   of no `app.manifest.toml`, as before tt built tt packages from their source

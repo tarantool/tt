@@ -29,12 +29,9 @@ var (
 		"more than one YAML files are found",
 	)
 	errInvalidYAMLFileExtension = errors.New("provided file '")
-	errUnknownArchiveEntryType  = errors.New("unknown type: ")
 )
 
 const bufSize int64 = 10000
-
-const archiveDirectoryMode = 0o755
 
 // ArgError represents command line arguments error.
 type ArgError struct {
