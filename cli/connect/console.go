@@ -220,6 +220,18 @@ func (console *Console) Close() {
 	}
 }
 
+// printPush prints a value pushed by box.session.push() as YAML.
+func printPush(out io.Writer, pushedData any) {
+	encodedData, err := yaml.Marshal(pushedData)
+	if err != nil {
+		log.Warnf("Failed to encode pushed data: %s", err)
+
+		return
+	}
+
+	_, _ = fmt.Fprintf(out, "%s\n", encodedData)
+}
+
 // getExecutor returns command executor.
 func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) {
 	commandsExecutor := newCmdExecutor()
@@ -283,14 +295,7 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 		}
 		opts := connector.RequestOpts{
 			PushCallback: func(pushedData any) {
-				encodedData, err := yaml.Marshal(pushedData)
-				if err != nil {
-					log.Warnf("Failed to encode pushed data: %s", err)
-
-					return
-				}
-
-				_, _ = fmt.Fprintf(os.Stdout, "%s\n", encodedData)
+				printPush(os.Stdout, pushedData)
 			},
 			ReadTimeout: 0,
 			ResData:     &results,
