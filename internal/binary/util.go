@@ -1,8 +1,6 @@
 package binary
 
 import (
-	"archive/tar"
-	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
@@ -18,6 +16,7 @@ import (
 
 	"github.com/tarantool/tt/sdk/execfile"
 	"github.com/tarantool/tt/sdk/log"
+	"github.com/tarantool/tt/v3/internal/untar"
 )
 
 var (
@@ -25,10 +24,7 @@ var (
 		"already exists and is not a directory",
 	)
 	errSymbolicLinkCannotBeCreatedAlreadyExists = errors.New("symbolic link cannot be created: '")
-	errUnknownArchiveEntryType                  = errors.New("unknown type: ")
 )
-
-const archiveDirectoryMode = 0o755
 
 type OsType uint16
 
@@ -195,85 +191,18 @@ func ExecuteCommandEnv(program string, environ []string, isVerbose bool, writer 
 	return nil
 }
 
-// ExtractTar extracts tar archive.
+// ExtractTar extracts a tar.gz archive next to it: its directories and its
+// regular files, with 0666. Any other entry, or one outside the directory of
+// the archive, is an error.
 func ExtractTar(tarName string) error {
 	path, err := filepath.Abs(tarName)
 	if err != nil {
 		return fmt.Errorf("cannot get the absolute path of %q: %w", tarName, err)
 	}
 
-	dir := filepath.Dir(path) + "/"
-
-	archive, err := os.Open(path)
-	if err != nil {
-		return fmt.Errorf("cannot open the archive: %w", err)
-	}
-
-	defer func() {
-		_ = archive.Close()
-	}()
-
-	uncompressedStream, err := gzip.NewReader(archive)
-	if err != nil {
-		return fmt.Errorf("cannot decompress %q: %w", path, err)
-	}
-
-	tarReader := tar.NewReader(uncompressedStream)
-
-	for {
-		header, err := tarReader.Next()
-
-		if errors.Is(err, io.EOF) {
-			break
-		} else if err != nil {
-			return fmt.Errorf("cannot read %q: %w", path, err)
-		}
-
-		switch header.Typeflag {
-		case tar.TypeDir:
-			continue
-		case tar.TypeReg:
-			var pos int
-
-			// Some archives have strange order of objects,
-			// so we check that all folders exist before
-			// creating a file.
-			pos = strings.LastIndex(header.Name, "/")
-			if pos == -1 {
-				pos = 0
-			}
-
-			_, err := os.Stat(dir + header.Name[0:pos])
-			if os.IsNotExist(err) {
-				// 0755:
-				//    user:   read/write/execute
-				//    group:  read/execute
-				//    others: read/execute
-				_ = os.MkdirAll(dir+header.Name[0:pos], archiveDirectoryMode)
-			}
-
-			outFile, err := os.Create(dir + header.Name)
-			if err != nil {
-				_ = outFile.Close()
-				return fmt.Errorf("cannot create an extracted file: %w", err)
-			}
-
-			//nolint:gosec // The archive is a tt bundle; its size is not limited.
-			_, err = io.Copy(outFile, tarReader)
-			if err != nil {
-				_ = outFile.Close()
-				return fmt.Errorf("cannot extract %q: %w", header.Name, err)
-			}
-
-			_ = outFile.Close()
-
-		default:
-			return fmt.Errorf("%w%b in %s",
-				errUnknownArchiveEntryType, header.Typeflag, header.Name)
-		}
-	}
-
-	return nil
+	return untar.ExtractTarGz(path, filepath.Dir(path), untar.Options{
+		Symlinks: false, EntryModes: false,
+	})
 }
 
 // FindNamedMatches processes regexp with named capture groups
