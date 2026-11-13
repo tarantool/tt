@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -120,7 +121,14 @@ func NewCollectorFactory(integ integrity.IntegrityCtx) (sdkcluster.Factory, erro
 
 	return sdkcluster.NewFactory(
 		sdkcluster.WithFileReadFunc(func(path string) (io.ReadCloser, error) {
-			return integ.Repository.Read(path)
+			// The collector gets the bytes the repository checked, not
+			// the file, which could change after the check.
+			data, err := integ.Repository.ReadFile(path)
+			if err != nil {
+				return nil, err
+			}
+
+			return io.NopCloser(bytes.NewReader(data)), nil
 		}),
 		sdkcluster.WithIntegrity(sdkcluster.IntegrityOptions{
 			Hashers:         hashers,
