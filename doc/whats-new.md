@@ -1,60 +1,80 @@
 # What's new in tt 3
 
-tt 3 is a rework of tt 2.x around three ideas: an application is a
-**package** with a manifest and a lock, it is shipped as one **archive** that
-installs offline, and it runs on a host as a **pair** of files that says what
-runs there. tt 3 supports Tarantool 3 only. Coming from tt 2.x, read
-[Migrate from tt 2.x](migration_from_older_versions.md) for what to change.
+tt 3 is a rework of tt 2.x. The main changes are:
+
+- An application is a **package**: a manifest declares its dependencies, and a
+  lockfile pins their exact versions.
+- An application ships as a single **archive** that installs without network
+  access.
+- On a host, an application runs from a **pair of files** that describe which
+  instances run there and how they are configured.
+
+tt 3 supports Tarantool 3 only. If you are upgrading from tt 2.x, see
+[Migrate from tt 2.x](migration_from_older_versions.md).
 
 ## No configuration file
 
-tt has no `tt.yaml`. What a command acts on follows from where it runs: tt
-looks for a [project](concepts/projects-and-scopes.md) from the current
-directory upward, so every command works from any subdirectory of it. Outside
-a project, `--scope user` and `--scope system` select the applications and
-binaries of the current user or of the whole host, each scope with its own
-root directory and one layout for all of them.
+tt 3 has no `tt.yaml`. The directory where you run a command determines what it
+acts on:
+
+- Inside a [project](concepts/projects-and-scopes.md), tt searches upward from
+  the current directory for the project root. Commands therefore work from any
+  project subdirectory.
+- Outside a project, select the installation scope with a flag:
+  + `--scope user`: applications and binaries for the current user;
+  + `--scope system`: applications and binaries for the whole host.
+
+  Each scope has its own root directory, but all scopes use the same directory
+  layout.
 
 ## Applications are packages
 
-`app.manifest.toml` declares the package: its name, the Tarantool and tt it
-runs on, its dependencies and dev dependencies, the components it is built
-from and the products it is packed as. `app.manifest.lock` next to it pins
-every dependency, direct and transitive, so a build of the same commit
-installs the same versions anywhere.
+Two files in the project root describe a package:
 
-```console
-$ tt new
-$ tt package add checks '>=3.0.0'
-$ tt package build
-$ tt test
+- `app.manifest.toml` is the manifest. It declares the package name, compatible
+  Tarantool and tt versions, dependencies and dev dependencies, build
+  components, and the products to package.
+- `app.manifest.lock` is the lockfile. It pins the exact versions of all direct
+  and transitive dependencies, so builds of the same commit install the same
+  versions everywhere.
+
+For example:
+
+```sh
+tt new
+tt package add checks '>=3.0.0'
+tt package build
+tt test
 ```
 
-- `tt new` writes a skeleton manifest; `tt package add`, `remove`, `update`,
-  `resolve` and `deps` manage the dependencies, editing the manifest in
-  place with its comments kept. The lock moves only when asked to, and
-  `--locked` makes a stale lock an error, as CI wants.
-- `tt package build` installs the dependencies into `.rocks/` and builds the
-  components: Lua modules, native modules with the `c`, `lua-c`, `cargo`,
-  `cmake`, `make` or `shell` backend, and programs for external processes
-  with the `go`, `cargo` or `cmake` backend. A native module can be
-  [written in Rust](how-to/rust-modules.md).
-- The version of a package comes from `VERSION` or from the nearest git tag,
-  and the code reads it as `require('<name>.version').version`.
-- `tt run` runs Tarantool of the project with the arguments as they are;
-  `tt test` builds the package and runs luatest on its tests, installing
-  luatest when the manifest does not declare it.
+- `tt new` creates a skeleton manifest.
+- `tt package add`, `remove`, `update`, `resolve` and `deps` manage
+  dependencies. They edit the manifest in place and preserve its comments.
+- The lockfile changes only on an explicit request. With `--locked`, a stale
+  lockfile is an error, which is useful in CI.
+- `tt package build` installs dependencies into `.rocks/` and builds components:
+  + Lua modules;
+  + native modules with the `c`, `lua-c`, `cargo`, `cmake`, `make` or `shell`
+    backend. A native module can be [written in Rust](how-to/rust-modules.md);
+  + programs for external processes with the `go`, `cargo` or `cmake` backend.
+- The package version comes from `VERSION` or the nearest git tag. Read it in
+  code with `require('<name>.version').version`.
+- `tt run` runs the project's Tarantool and passes arguments through unchanged.
+- `tt test` builds the package and runs its tests with luatest. If the manifest
+  does not declare luatest, tt installs it automatically.
 
 See [Packages](concepts/packages.md) and
 [Your first package](get-started/first-package.md).
 
 ## Self-contained archives
 
-`tt package pack` makes `<name>-<version>-<os>-<arch>.tt`, a reproducible
-tar.zst archive: the same commit packs into the same bytes. By default the
-archive carries everything the application needs - the dependencies, the
-instance templates, and the Tarantool, tt and TCM it runs on - so
-`tt package install` needs no network.
+`tt package pack` creates a `<name>-<version>-<os>-<arch>.tt` archive in tar.zst
+format. The archive is reproducible: the same commit produces a byte-for-byte
+identical archive.
+
+By default, the archive includes everything the application needs: dependencies,
+instance templates, and the required versions of Tarantool, tt and TCM. This
+lets `tt package install` work without network access.
 
 ```console
 $ tt package pack
@@ -62,129 +82,175 @@ $ tt package pack
 $ tt package install --scope system _build/pack/kv-api-1.1.0-linux-amd64.tt
 ```
 
-Installed into the user or the system scope, an archive becomes a version of
-the application, and `<root>/apps/<name>` switches to it atomically. Every
-application runs on the Tarantool its own lock names, so applications on
-different Tarantool versions live side by side. `--upgrade` installs a newer
-version, a running instance keeps its version until `tt instance restart`,
-and the data and the configuration of the host stay apart from the versions,
-so they survive an upgrade and an uninstall. Installed into a project, an
-archive is a guest package whose rocks join the project.
+When you install an archive into the user or system scope:
 
-A distribution built with an integrity provider
+- The archive becomes a new application version, and `<root>/apps/<name>`
+  switches to it atomically.
+- Each application runs on the Tarantool version pinned in its own lockfile.
+  Applications using different Tarantool versions can run side by side on one
+  host.
+- `--upgrade` installs a newer version. Running instances keep their current
+  version until `tt instance restart`.
+- Data and host configuration are stored separately from application versions,
+  so they survive upgrades and uninstalls.
+
+When installed into a project, the archive becomes a guest package whose rocks
+join the project.
+
+A tt distribution built with an integrity provider
 [signs archives](how-to/sign-packages.md) and runs only signed ones.
 
 ## Rock servers you choose
 
-The rock servers come from `--registry`, `TT_REGISTRIES`,
-`[platform].registries` of the manifest or the built-in list, the first that
-is set; `tt registry list` shows which. A server is an HTTP(S) URL or a local
-directory. `tt package search` searches them all, and `tt package download`
-makes a directory of rocks that is a rock server itself: a mirror for offline
-builds. `tt rocks` runs on go-luarocks, a LuaRocks engine in Go.
+tt takes its list of rock servers from the first configured source in this
+order:
+
+1. The `--registry` flag.
+2. The `TT_REGISTRIES` environment variable.
+3. The manifest's `[platform].registries` setting.
+4. The built-in list.
+
+`tt registry list` shows which list is in use.
+
+- A rock server can be an HTTP(S) URL or a local directory.
+- `tt package search` searches all configured servers.
+- `tt package download` downloads rocks into a directory that can itself serve
+  as a rock server. Use it to prepare a mirror for offline builds.
+- `tt rocks` uses go-luarocks, a LuaRocks engine written in Go.
+
 See [Rock servers](concepts/rock-servers.md).
 
 ## Instances: one description, three kinds
 
-An application runs from a pair of files: `instances.yaml`, what runs on
-this host, and `config.yaml`, the cluster config of Tarantool 3. The pair
-lives in `.templates/<name>/` of the project or of the installed version, or
-in `<root>/etc/<app>/` for one host.
+An application runs from a pair of files:
+
+- `instances.yaml` describes which instances run on this host;
+- `config.yaml` contains the Tarantool 3 cluster configuration.
+
+These files live in `.templates/<name>/` in the project or installed application
+version. Host-specific copies go in `<root>/etc/<app>/`.
+
+For example, `instances.yaml` can contain:
 
 ```yaml
-"*":                       # every instance of the topology of config.yaml
+"*":                       # every instance in the config.yaml topology
   restart: on-failure
 legacy:
   script: init.lua         # a box.cfg application, as in tt 2.x
 gateway:
-  binary: ./bin/gateway    # a process that is not Tarantool
+  binary: ./bin/gateway    # an external process, not Tarantool
   args: [--port, "8080"]
 ```
 
-- Next to the Tarantool instances of the cluster config,
-  [box.cfg applications](how-to/script-instances.md) and
-  [external processes](how-to/external-processes.md) start, stop, show their
-  status and write their logs the same way.
-- Every instance runs under a watchdog of tt that restarts it after a crash
-  as `restart` asks. `tt instance start --foreground` keeps all the
-  instances in the foreground with their output on stdout, for containers.
-- The commands are under `tt instance` and take targets as `APP:INSTANCE`,
-  `APP:*` or a list. `tt instance status --details` shows which Tarantool an
-  instance runs on and where it comes from.
-- `stop`, `restart`, `kill` and `clean` ask for a confirmation on a terminal
-  only; a script passes `--yes`. `restart` checks that every target can
-  start before it stops anything.
+- tt starts, stops, reports status and collects logs the same way for three
+  kinds of instances:
+  + Tarantool instances from the cluster configuration;
+  + [box.cfg applications](how-to/script-instances.md);
+  + [external processes](how-to/external-processes.md).
+- Each instance runs under a tt watchdog. After a crash, tt restarts it
+  according to the `restart` policy.
+- `tt instance start --foreground` runs all instances in the foreground and
+  writes their output to stdout. This mode is intended for containers.
+- Instance commands are grouped under `tt instance`. Targets can be
+  `APP:INSTANCE`, `APP:*` or a list.
+- `tt instance status --details` shows which Tarantool version an instance uses
+  and where it comes from.
+- `stop`, `restart`, `kill` and `clean` prompt for confirmation only in a
+  terminal. Pass `--yes` in scripts.
+- `restart` checks that all targets can start before stopping any instances.
 
 See [Instances](concepts/instances.md) and
 [A cluster on your laptop](get-started/first-cluster.md).
 
 ## systemd units from tt
 
-`tt service systemd install <app>` writes a template unit for an
-application installed into the system scope and a drop-in for each of its
-instances; `generate` prints them and `uninstall` removes them. The
-instance commands know which instances run under a unit and point at
-`systemctl` for them. See [Run instances under systemd](how-to/systemd.md).
+For an application installed into the system scope, tt manages systemd units:
+
+- `tt service systemd install <app>` creates an application template unit and a
+  drop-in for each instance.
+- `tt service systemd generate` prints the units without installing them.
+- `tt service systemd uninstall` removes the units.
+
+The `tt instance` commands detect instances managed by systemd and direct you to
+`systemctl`.
+
+See [Run instances under systemd](how-to/systemd.md).
 
 ## Binaries per project, per user, per host
 
-`tt binary install`, `switch`, `list` and `uninstall` manage Tarantool
-Community and Enterprise, tt, TCM and the Enterprise SDK in the project,
-user or system scope.
+`tt binary install`, `switch`, `list` and `uninstall` manage versions of
+Tarantool Community Edition, Tarantool Enterprise Edition, tt, TCM and the
+Enterprise SDK. Binaries can be installed into the project, user or system
+scope.
 
-- Tarantool Community installs prebuilt on Linux with glibc, and tt from
-  its GitHub release, verified against the checksums of the release; other
+- Tarantool Community Edition installs as a prebuilt binary on Linux with glibc.
+  tt installs from its GitHub release, with release checksum verification. Other
   platforms build from source.
-- `--from-build` links a Tarantool built by hand without copying it.
-- The first install into a project writes `.env/activate.sh`, which puts the
-  binaries of the project on `PATH`.
+- `--from-build` links a manually built Tarantool without copying its files.
+- The first install into a project creates `.env/activate.sh`. This script adds
+  the project's binaries to `PATH`.
 
 See [Manage binaries](how-to/binaries.md).
 
 ## Your own tt
 
-tt is a core and a set of Go modules. `tt binary build tt` builds a
-[distribution](concepts/distributions.md) from `tt.manifest.toml`: the core
-with your modules compiled in, under its own name and edition, pinned by a
-lock and buildable offline from a vendored bundle. External modules are
-found in `TT_CLI_MODULES_PATH`, and one named like a command of tt replaces
-it. See [Build a distribution of tt](how-to/build-distribution.md) and
+tt consists of a core and a set of Go modules. `tt binary build tt` builds a
+custom [distribution](concepts/distributions.md) from `tt.manifest.toml`:
+
+- The distribution includes the core and your modules, compiled in at build
+  time.
+- It can have its own name and edition.
+- A lockfile pins its contents, and a vendored source bundle allows offline
+  builds.
+
+External modules are loaded from the directories in `TT_CLI_MODULES_PATH`. A
+module with the same name as a tt command replaces that command.
+
+See [Build a distribution of tt](how-to/build-distribution.md) and
 [External modules](how-to/external-modules.md).
 
 ## Journals without Tarantool
 
-`tt data cat` and `tt data play`, which replace `tt cat` and `tt play`, read
-`.xlog`, `.snap` and `.vylog` files, and the `.run` and `.index` files of
-vinyl, in Go: neither needs a Tarantool on the host.
+`tt data cat` and `tt data play` replace `tt cat` and `tt play`. They read
+`.xlog`, `.snap` and `.vylog` files, as well as vinyl `.run` and `.index` files.
+The readers are written in Go, so no Tarantool installation is needed on the
+host.
 
-- A directory is read as Tarantool recovers it: the newest snapshot, then
-  the xlogs in vclock order, without the transactions the snapshot holds.
-- `--from-vclock` and `--to-vclock` select changes by vclock, `--from` and
-  `--to` by the LSNs of one replica, both ends included; a transaction is
-  never cut in two.
-- `tt data cat -o json` prints one JSON object per row, for scripts.
-- `tt data play` applies transactions whole where the target allows it,
-  takes `APP:INSTANCE` as well as a URI, and has `--dry-run` and
+- A data directory is read in Tarantool recovery order: the newest snapshot
+  first, then `.xlog` files in vclock order. Transactions already included in
+  the snapshot are skipped.
+- Changes can be filtered:
+  + by vclock with `--from-vclock` and `--to-vclock`;
+  + by the LSNs of one replica with `--from` and `--to`.
+
+  Both bounds are inclusive. A transaction is never split.
+- `tt data cat -o json` prints one JSON object per row, one object per line, for
+  use in scripts.
+- `tt data play` applies whole transactions where the target supports it. The
+  target can be `APP:INSTANCE` or a URI. The command supports `--dry-run` and
   `--on-error`.
 
 See [`tt data`](reference/commands/data.md).
 
 ## Made for scripts
 
-- Exit codes mean the same for every command: 1 for what the user can fix,
-  2 for a failure of the system the command ran on, 3 for a partial
-  success. `tt help errors` describes them.
-- `--log-format json` writes the log as one JSON object per record; the
-  credentials in URIs are masked in every log record.
-- The log and the spinner go to stderr, so stdout holds only the result.
-  `tt instance status`, `tt registry list` and the `tt package` commands
-  that print tables take `-o json` and `-o yaml`.
+- Commands use consistent exit codes; see `tt help errors` for details:
+  + `1`: an error the user can fix;
+  + `2`: a failure of the system where the command ran;
+  + `3`: partial success.
+- `--log-format json` writes one JSON object per log record. Credentials in URIs
+  are masked in log records.
+- Logs and the progress indicator go to stderr, leaving stdout for command
+  results.
+- `tt instance status`, `tt registry list` and the `tt package` commands that
+  print tables support `-o json` and `-o yaml`.
 
 ## Install in one line
 
-```console
-$ curl -fsSL https://raw.githubusercontent.com/tarantool/tt/v3/install.sh | sh
+To install the latest tt 3 release on Linux or macOS with Apple silicon, run:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/tarantool/tt/v3/install.sh | sh
 ```
 
-installs the newest tt 3 release on Linux and on macOS with Apple silicon.
 See [Install](get-started/install.md).
