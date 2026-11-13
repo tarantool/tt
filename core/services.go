@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -260,9 +261,16 @@ func tarantoolVersion(path string) (sdk.TarantoolVersion, error) {
 // configured with.
 type integrityChecks struct{}
 
-// Open opens path through the integrity repository.
+// Open reads path through the integrity repository. The reader holds the
+// bytes the repository checked, not the file, which could change after the
+// check.
 func (integrityChecks) Open(path string) (io.ReadCloser, error) {
-	return cmd.GetCmdCtxPtr().Integrity.Repository.Read(path)
+	data, err := cmd.GetCmdCtxPtr().Integrity.Repository.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return io.NopCloser(bytes.NewReader(data)), nil
 }
 
 // project is the project of the command line.

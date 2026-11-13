@@ -291,23 +291,24 @@ func TestServicesStreams(t *testing.T) {
 	assert.Same(t, &out, svc.Streams().IO().Out)
 }
 
-// fakeRepository reads files by name from a map.
+// fakeRepository knows files by path, with the contents it checked them
+// with, as a repository does whose files were rewritten after the check.
 type fakeRepository map[string]string
 
 // errTampered is what fakeRepository refuses a file it does not have with.
 var errTampered = errors.New("tampered")
 
-// Read returns the contents of path.
+// Read opens the file at path as it is on disk now, as the RSA repository
+// returns the file it checked.
 func (r fakeRepository) Read(path string) (io.ReadCloser, error) {
-	content, ok := r[path]
-	if !ok {
+	if _, ok := r[path]; !ok {
 		return nil, errTampered
 	}
 
-	return io.NopCloser(strings.NewReader(content)), nil
+	return os.Open(path)
 }
 
-// ReadFile returns the contents of path.
+// ReadFile returns the contents path was checked with.
 func (r fakeRepository) ReadFile(path string) ([]byte, error) {
 	content, ok := r[path]
 	if !ok {
@@ -321,24 +322,30 @@ func (r fakeRepository) ReadFile(path string) ([]byte, error) {
 func (fakeRepository) ValidateAll() error { return nil }
 
 // TestServicesIntegrity checks that files are opened through the integrity
-// repository tt was configured with.
+// repository tt was configured with, and that the reader holds the bytes the
+// repository checked, not the file rewritten after the check.
 //
 //nolint:paralleltest // Changes the CmdCtx.
 func TestServicesIntegrity(t *testing.T) {
 	restoreProcess(t)
 
-	cmd.GetCmdCtxPtr().Integrity.Repository = fakeRepository{"good": "content"}
+	dir := t.TempDir()
+	good := filepath.Join(dir, "good")
+	require.NoError(t, os.WriteFile(good, []byte("rewritten"), 0o644))
+
+	cmd.GetCmdCtxPtr().Integrity.Repository = fakeRepository{good: "content"}
 
 	svc := readyServices(strings.NewReader(""), io.Discard, io.Discard)
 
-	file, err := svc.Integrity().Open("good")
+	file, err := svc.Integrity().Open(good)
 	require.NoError(t, err)
 
 	content, err := io.ReadAll(file)
 	require.NoError(t, err)
+	require.NoError(t, file.Close())
 	assert.Equal(t, "content", string(content))
 
-	_, err = svc.Integrity().Open("bad")
+	_, err = svc.Integrity().Open(filepath.Join(dir, "bad"))
 	require.ErrorIs(t, err, errTampered)
 }
 
