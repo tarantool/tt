@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"go/version"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -194,7 +195,7 @@ func workspaceModules(
 ) ([]module, error) {
 	var modules []module
 
-	for _, name := range sortedNames(dist.Dependencies) {
+	for _, name := range slices.Sorted(maps.Keys(dist.Dependencies)) {
 		dep := dist.Dependencies[name]
 		if !dep.IsPath() {
 			continue

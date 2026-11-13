@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -52,12 +53,7 @@ type Mark struct {
 // relative to UnitDir: the template and the drop-in of every instance, in
 // the order of the instances' names.
 func (mark *Mark) Files() []string {
-	names := make([]string, 0, len(mark.Instances))
-	for name := range mark.Instances {
-		names = append(names, name)
-	}
-
-	slices.Sort(names)
+	names := slices.Sorted(maps.Keys(mark.Instances))
 
 	files := make([]string, len(names)+1)
 

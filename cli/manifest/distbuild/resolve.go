@@ -3,6 +3,7 @@ package distbuild
 import (
 	"context"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -223,7 +224,7 @@ func (r *resolver) resolveModules(
 ) ([]module, error) {
 	modules := make([]module, 0, len(dist.Dependencies))
 
-	for _, name := range sortedNames(dist.Dependencies) {
+	for _, name := range slices.Sorted(maps.Keys(dist.Dependencies)) {
 		dep := dist.Dependencies[name]
 		field := "dependencies." + name
 
@@ -403,16 +404,4 @@ func packageOf(dep manifest.ModuleDependency, modulePath string) string {
 // sortRepository orders the modules of the core's repository by path.
 func sortRepository(repo []repoModule) {
 	slices.SortFunc(repo, func(a, b repoModule) int { return strings.Compare(a.Module, b.Module) })
-}
-
-// sortedNames returns the keys of deps in order.
-func sortedNames(deps map[string]manifest.ModuleDependency) []string {
-	names := make([]string, 0, len(deps))
-	for name := range deps {
-		names = append(names, name)
-	}
-
-	slices.Sort(names)
-
-	return names
 }

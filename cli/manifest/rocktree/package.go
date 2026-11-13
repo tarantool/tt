@@ -135,16 +135,9 @@ func Rockspec(pkg Package) (*luarocks.Rockspec, error) {
 	fmt.Fprintf(&src, "description = {\n   summary = %s,\n}\n", luaQuote(pkg.Summary))
 
 	if len(pkg.Dependencies) > 0 {
-		names := make([]string, 0, len(pkg.Dependencies))
-		for name := range pkg.Dependencies {
-			names = append(names, name)
-		}
-
-		slices.Sort(names)
-
 		src.WriteString("dependencies = {\n")
 
-		for _, name := range names {
+		for _, name := range slices.Sorted(maps.Keys(pkg.Dependencies)) {
 			fmt.Fprintf(&src, "   %s,\n", luaQuote(name+" == "+pkg.Dependencies[name]))
 		}
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net/url"
 	"regexp"
 	"slices"
@@ -106,12 +107,7 @@ func (r *Redactor) Register(value string) bool {
 
 	// Longest first: strings.Replacer tries the pairs in argument order, so a
 	// registered value that contains another shorter one is masked whole.
-	ordered := make([]string, 0, len(r.values))
-	for known := range r.values {
-		ordered = append(ordered, known)
-	}
-
-	slices.SortFunc(ordered, func(a, b string) int {
+	ordered := slices.SortedFunc(maps.Keys(r.values), func(a, b string) int {
 		return cmp.Or(cmp.Compare(len(b), len(a)), strings.Compare(a, b))
 	})
 

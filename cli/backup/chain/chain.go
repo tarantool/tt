@@ -2,6 +2,7 @@ package chain
 
 import (
 	"cmp"
+	"maps"
 	"slices"
 	"time"
 
@@ -238,13 +239,5 @@ func memberIdentities(instances []backup.TopologyInstance) map[string]string {
 
 // replicasetUUIDs returns the sorted replicaset UUIDs of a manifest.
 func replicasetUUIDs(m *backup.ClusterManifest) []string {
-	uuids := make([]string, 0, len(m.Topology.Replicasets))
-
-	for uuid := range m.Topology.Replicasets {
-		uuids = append(uuids, uuid)
-	}
-
-	slices.Sort(uuids)
-
-	return uuids
+	return slices.Sorted(maps.Keys(m.Topology.Replicasets))
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -535,18 +536,11 @@ func releaseDependencies(
 		})
 	}
 
-	names := make([]string, 0, len(declared))
-	for name := range declared {
-		names = append(names, name)
-	}
-
-	slices.Sort(names)
-
 	out := make(map[string]string, len(declared))
 
 	var warnings []string
 
-	for _, name := range names {
+	for _, name := range slices.Sorted(maps.Keys(declared)) {
 		var constraints []luarocks.VersionConstraint
 
 		registry := ""
