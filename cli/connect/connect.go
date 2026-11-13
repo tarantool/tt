@@ -14,7 +14,6 @@ import (
 	"github.com/tarantool/tt/v3/cli/connect/internal/luabody"
 	"github.com/tarantool/tt/v3/cli/connector"
 	terminal "golang.org/x/term"
-	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -166,8 +165,7 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 	}
 
 	// Check that the result is encoded in YAML and convert it to bytes,
-	// since the ""gopkg.in/yaml.v2" library handles YAML as an array
-	// of bytes.
+	// since the YAML library handles YAML as an array of bytes.
 	var resYAML string
 
 	if len(response) > 0 {
@@ -180,7 +178,7 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 
 	var checkMock any
 
-	err = yaml.Unmarshal([]byte(resYAML), &checkMock)
+	err = formatter.DecodeYAML([]byte(resYAML), &checkMock)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse the response: %w", err)
 	}

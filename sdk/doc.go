@@ -67,8 +67,9 @@
 // (github.com/tarantool/go-config/v2), whose types appear in it, and pins
 // their versions: a module builds against the versions the core uses. It
 // also depends on [github.com/tarantool/tt/sdk/connect], whose URI rules
-// [ParseClusterSource] applies. The formatter adds go-pretty and yaml.v2,
-// which render its output, and the console adds go-prompt and x/term.
+// [ParseClusterSource] applies. The formatter adds go-pretty,
+// go.yaml.in/yaml/v3 and go.yaml.in/yaml/v2, which read and render its
+// output, and the console adds go-prompt and x/term.
 //
 // The process itself - which handlers log where, at what level, in which
 // format - is configured by the tt core. Nothing in the SDK changes process

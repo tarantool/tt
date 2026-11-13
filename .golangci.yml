@@ -264,6 +264,20 @@ linters:
               desc: use errors and fmt.Errorf with %w from the standard library
             - pkg: "io/ioutil"
               desc: deprecated; use the io and os equivalents
+            - pkg: "gopkg.in/yaml.v2"
+              desc: use go.yaml.in/yaml/v3, or sdk/formatter for the YAML of a console
+            - pkg: "gopkg.in/yaml.v3"
+              desc: archived; use go.yaml.in/yaml/v3
+        # YAML is go.yaml.in/yaml/v3. The console prints with
+        # go.yaml.in/yaml/v2, which folds long lines as tt always did, through
+        # sdk/formatter.EncodeYAML alone.
+        yaml-v2:
+          files:
+            - "$all"
+            - "!**/sdk/formatter/yaml.go"
+          deny:
+            - pkg: "go.yaml.in/yaml/v2"
+              desc: encode the YAML of a console with sdk/formatter.EncodeYAML
         manifest:
           files:
             - "**/cli/manifest/**"
@@ -458,7 +472,6 @@ linters:
             - "golang.org/x/sys"
             # The menus of tt binary switch are shown on a terminal only.
             - "golang.org/x/term"
-            - "gopkg.in/yaml.v2"
         dir-cli-backup:
           files:
             - "**/cli/backup/**"
@@ -572,7 +585,7 @@ linters:
             - "github.com/tarantool/tt/v3/internal/integrityprovider"
             - "go.etcd.io/etcd/client/pkg/v3"
             - "go.etcd.io/etcd/client/v3"
-            - "gopkg.in/yaml.v2"
+            - "go.yaml.in/yaml/v3"
         dir-cli-cmd:
           files:
             - "**/cli/cmd/**"
@@ -684,7 +697,6 @@ linters:
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/yuin/gopher-lua"
             - "golang.org/x/term"
-            - "gopkg.in/yaml.v2"
         dir-cli-connector:
           files:
             - "**/cli/connector/**"
@@ -693,11 +705,13 @@ linters:
             - "github.com/stretchr/testify"
             - "github.com/tarantool/go-tarantool/v3"
             - "github.com/tarantool/tt/sdk/dial"
+            # The text protocol reads pushed values as the console reads YAML.
+            - "github.com/tarantool/tt/sdk/formatter"
             - "github.com/tarantool/tt/v3/cli/connector"
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/vmihailenco/msgpack/v5"
             - "github.com/yuin/gopher-lua"
-            - "gopkg.in/yaml.v2"
+            - "go.yaml.in/yaml/v3"
         dir-cli-coredump:
           files:
             - "**/cli/coredump/**"
@@ -954,7 +968,6 @@ linters:
             - "github.com/tarantool/tt/sdk"
             - "github.com/tarantool/tt/v3/cli/exitcode"
             - "github.com/tarantool/tt/v3/cli/util"
-            - "gopkg.in/yaml.v2"
         dir-cli-version:
           files:
             - "**/cli/version/**"

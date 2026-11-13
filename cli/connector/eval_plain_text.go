@@ -15,9 +15,10 @@ import (
 
 	"github.com/vmihailenco/msgpack/v5"
 	lua "github.com/yuin/gopher-lua"
+	"go.yaml.in/yaml/v3"
 
+	"github.com/tarantool/tt/sdk/formatter"
 	"github.com/tarantool/tt/v3/cli/util"
-	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -323,7 +324,7 @@ func getPushedData(pushedDataBytes []byte) (any, error) {
 
 	if strings.HasPrefix(pushedDataString, tagPushPrefixYAML) {
 		// YAML - just decode tag.
-		err := yaml.Unmarshal(pushedDataBytes, &pushedData)
+		err := formatter.DecodeYAML(pushedDataBytes, &pushedData)
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal pushed data: %w", err)
 		}
@@ -411,7 +412,7 @@ func processEvalTarantoolRes(resBytes []byte, result any) ([]any, error) {
 func getPlainTextEvalResYaml(resBytes []byte) (string, error) {
 	evalResults := []PlainTextEvalRes{}
 
-	err := yaml.UnmarshalStrict(resBytes, &evalResults)
+	err := unmarshalStrict(resBytes, &evalResults)
 	if err != nil {
 		return "", getPlainTextEvalError(resBytes, err)
 	}
@@ -425,10 +426,25 @@ func getPlainTextEvalResYaml(resBytes []byte) (string, error) {
 	return evalResult.DataEncBase64, nil
 }
 
+// unmarshalStrict decodes the first YAML document of data into out and fails
+// on a field out does not have and on a repeated key. No document leaves out
+// as it is.
+func unmarshalStrict(data []byte, out any) error {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+
+	err := decoder.Decode(out)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return fmt.Errorf("%w", err)
+	}
+
+	return nil
+}
+
 func getPlainTextEvalError(resBytes []byte, parseErr error) error {
 	errorStrings := make([]map[string]string, 0)
 
-	err := yaml.UnmarshalStrict(resBytes, &errorStrings)
+	err := unmarshalStrict(resBytes, &errorStrings)
 	if err != nil {
 		return fmt.Errorf("failed to parse eval result: %w", parseErr)
 	}

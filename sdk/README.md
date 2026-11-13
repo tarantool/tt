@@ -83,7 +83,8 @@ each has its own `go.mod`. It depends on the standard library,
 `github.com/tarantool/go-config/v2` (not its Tarantool builder),
 `github.com/tarantool/tt/sdk/connect` and `github.com/tarantool/tt/sdk/build`,
 whose types appear in it (testify for its tests);
-`sdk/formatter` adds `github.com/jedib0t/go-pretty` and `gopkg.in/yaml.v2`,
+`sdk/formatter` adds `github.com/jedib0t/go-pretty`, `go.yaml.in/yaml/v3` and
+`go.yaml.in/yaml/v2`,
 `sdk/console` adds `github.com/tarantool/go-prompt` and `golang.org/x/term`.
 Cobra, pflag and go-config types are part of the contract, so the module
 pins their versions: a module builds against the cobra and the go-config the

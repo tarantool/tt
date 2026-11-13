@@ -3,8 +3,6 @@ package formatter
 import (
 	"fmt"
 	"strings"
-
-	"gopkg.in/yaml.v2"
 )
 
 // luaEncodeElement encodes element to a Lua-compatible string.
@@ -71,7 +69,7 @@ func makeLuaOutput(input string) (string, error) {
 
 	var decoded []any
 
-	err := yaml.Unmarshal([]byte(input), &decoded)
+	err := DecodeYAML([]byte(input), &decoded)
 	if err != nil {
 		return "", fmt.Errorf("cannot render lua: %w", err)
 	}

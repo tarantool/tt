@@ -9,4 +9,9 @@
 // The output is what tt prints in its consoles, byte for byte, so a module
 // that renders console results through this package prints them the same
 // way tt's own commands do.
+//
+// [DecodeYAML] reads YAML the way the Lua and table formats read a console
+// answer: as YAML 1.1, with the booleans and timestamps of it, as
+// gopkg.in/yaml.v2 read it. [EncodeYAML] writes a value back as tt's
+// consoles print it, with the indent and the line folding of gopkg.in/yaml.v2.
 package formatter
