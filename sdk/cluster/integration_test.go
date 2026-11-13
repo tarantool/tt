@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/client/pkg/v3/transport"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	pkgstorage "github.com/tarantool/go-storage/v2"
 	gcrypto "github.com/tarantool/go-storage/v2/crypto"

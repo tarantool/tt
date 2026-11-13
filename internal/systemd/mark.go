@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // MarkFileName is the mark of the units of an application in the directory

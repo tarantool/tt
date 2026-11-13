@@ -341,7 +341,7 @@ linters:
             - "github.com/klauspost/compress/zstd"
             # deps, inventory and registry tests round-trip the YAML they
             # rendered.
-            - "gopkg.in/yaml.v3"
+            - "go.yaml.in/yaml/v3"
             # Tests render results through a Printer with the core's formats,
             # the way the commands do.
             - "github.com/tarantool/tt/v3/cli/printing"
@@ -476,7 +476,7 @@ linters:
             - "github.com/tarantool/tt/v3/cli/connector"
             - "github.com/tarantool/tt/v3/cli/util"
             - "github.com/vmihailenco/msgpack/v5"
-            - "gopkg.in/yaml.v3"
+            - "go.yaml.in/yaml/v3"
         dir-cli-restore:
           files:
             - "**/cli/restore/**"
@@ -628,8 +628,8 @@ linters:
             # tt service systemd writes the units and the mark of an
             # application; the instance commands read whom the mark names.
             - "github.com/tarantool/tt/v3/internal/systemd"
+            - "go.yaml.in/yaml/v3"
             - "golang.org/x/term"
-            - "gopkg.in/yaml.v3"
             # The integration tests of tt cluster publish run an etcd in the
             # process.
             - "github.com/tarantool/go-storage/v2/test_helpers/etcd"
@@ -650,7 +650,7 @@ linters:
             - $gostd
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/v3/cli/config"
-            - "gopkg.in/yaml.v3"
+            - "go.yaml.in/yaml/v3"
         # The process context: the project of the working directory and the
         # tarantool and tcm of its scope, as the instance commands and tt binary
         # find them.
@@ -753,7 +753,7 @@ linters:
             - "github.com/tarantool/tt/v3/cli/connector"
             - "github.com/tarantool/tt/v3/cli/printing"
             - "github.com/vmihailenco/msgpack/v5"
-            - "gopkg.in/yaml.v3"
+            - "go.yaml.in/yaml/v3"
         dir-cli-docker:
           files:
             - "**/cli/docker/**"
@@ -793,7 +793,7 @@ linters:
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/sdk"
             - "github.com/tarantool/tt/v3/cli/printing"
-            - "gopkg.in/yaml.v3"
+            - "go.yaml.in/yaml/v3"
         dir-cli-process_utils:
           files:
             - "**/cli/process_utils/**"
@@ -872,7 +872,7 @@ linters:
             # it, as the mark of the units says.
             - "github.com/tarantool/tt/v3/internal/systemd"
             # tt writes the config of TCM, and reads the one of the user.
-            - "gopkg.in/yaml.v3"
+            - "go.yaml.in/yaml/v3"
         dir-cli-status:
           files:
             - "**/cli/status/**"
@@ -890,7 +890,7 @@ linters:
             - "github.com/tarantool/tt/v3/cli/status"
             # The tests build the contexts of instances of every kind.
             - "github.com/tarantool/tt/v3/internal/instances"
-            - "gopkg.in/yaml.v3"
+            - "go.yaml.in/yaml/v3"
         dir-cli-tail:
           files:
             - "**/cli/tail/**"
@@ -997,7 +997,7 @@ linters:
             # The help golden and the command reference are of tt as its
             # main package builds it, from the standard modules.
             - "github.com/tarantool/tt/v3/standard"
-            - "gopkg.in/yaml.v3"
+            - "go.yaml.in/yaml/v3"
         # The write of a file a process may run with no fork of the process in
         # between: a leaf, under everything that writes programs, the core
         # and the modules alike.
@@ -1045,7 +1045,7 @@ linters:
             - $gostd
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/v3/internal/instances"
-            - "gopkg.in/yaml.v3"
+            - "go.yaml.in/yaml/v3"
         # The process supervisor sits under the commands that run it and
         # depends on none of them. x/sys/unix asks macOS how a child handles
         # a signal.
@@ -1069,4 +1069,4 @@ linters:
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/v3/internal/instances"
             - "github.com/tarantool/tt/v3/internal/systemd"
-            - "gopkg.in/yaml.v3"
+            - "go.yaml.in/yaml/v3"

@@ -15,7 +15,7 @@ import (
 	"time"
 	"unicode"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // The short tags of the YAML types the decoder tells apart.

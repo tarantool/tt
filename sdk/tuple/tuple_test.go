@@ -12,7 +12,7 @@ import (
 	"github.com/tarantool/go-tarantool/v3/decimal"
 	_ "github.com/tarantool/go-tarantool/v3/uuid"
 	"github.com/vmihailenco/msgpack/v5"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/tarantool/tt/sdk/tuple"
 )

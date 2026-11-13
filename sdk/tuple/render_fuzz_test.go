@@ -11,7 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/tarantool/tt/sdk/tuple"
 )

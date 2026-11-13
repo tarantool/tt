@@ -13,7 +13,7 @@ import (
 	"github.com/tarantool/tt/sdk/backup/storage"
 	"github.com/tarantool/tt/sdk/backup/storage/fs"
 	"github.com/tarantool/tt/sdk/backup/storage/s3"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 var (
