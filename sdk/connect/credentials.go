@@ -134,10 +134,10 @@ func getCredsFromFile(path string) (UserCredentials, error) {
 
 // getCredsFromFile gets credentials from environment variables.
 func getCredsFromEnvVars() (UserCredentials, error) {
-	res := UserCredentials{Username: "", Password: ""}
-
-	res.Username = os.Getenv(EnvSdkUsername)
-	res.Password = os.Getenv(EnvSdkPassword)
+	res := UserCredentials{
+		Username: os.Getenv(EnvSdkUsername),
+		Password: os.Getenv(EnvSdkPassword),
+	}
 
 	switch {
 	case res.Username == "" && res.Password == "":

@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -115,14 +116,7 @@ func createValidArgsFunction(
 		return nil, cobra.ShellCompDirectiveDefault
 	}
 
-	templates := make([]string, 0, len(builtin_templates.Names))
-
-	// Append built-in templates.
-	for _, template := range builtin_templates.Names {
-		templates = append(templates, template)
-	}
-
-	return templates, cobra.ShellCompDirectiveNoFileComp
+	return slices.Clone(builtin_templates.Names[:]), cobra.ShellCompDirectiveNoFileComp
 }
 
 // internalCreateModule is a default create module.

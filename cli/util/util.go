@@ -335,15 +335,6 @@ func FindNamedMatches(pattern *regexp.Regexp, str string) map[string]string {
 	return res
 }
 
-// Max returns the maximum value.
-func Max(x, y int) int {
-	if x < y {
-		return y
-	}
-
-	return x
-}
-
 // getMissedBinaries returns list of binaries not found in PATH.
 func getMissedBinaries(binaries ...string) []string {
 	var missedBinaries []string

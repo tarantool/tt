@@ -795,10 +795,9 @@ func (g *generator) interval() any {
 	value := datetime.Interval{
 		Year: intervalUnit(src), Month: intervalUnit(src), Week: intervalUnit(src),
 		Day: intervalUnit(src), Hour: intervalUnit(src), Min: intervalUnit(src),
-		Sec: intervalUnit(src), Nsec: intervalUnit(src), Adjust: datetime.NoneAdjust,
+		Sec: intervalUnit(src), Nsec: intervalUnit(src), Adjust: datetime.Adjust(src.intn(3)),
 	}
 
-	value.Adjust = datetime.Adjust(src.intn(3))
 	if src.intn(16) == 0 {
 		value.Adjust = datetime.Adjust(3 + src.intn(100))
 	}

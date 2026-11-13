@@ -15,6 +15,7 @@ package wasm
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"runtime"
 	"slices"
@@ -151,14 +152,7 @@ func Versions() []string {
 		known = releases
 	}
 
-	versions := make([]string, 0, len(known))
-	for version := range known {
-		versions = append(versions, version)
-	}
-
-	slices.Sort(versions)
-
-	return versions
+	return slices.Sorted(maps.Keys(known))
 }
 
 // HostPlatform returns the build of the release for the host tt runs on.

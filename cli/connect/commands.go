@@ -3,8 +3,9 @@ package connect
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -48,8 +49,9 @@ var (
 
 // find returns true if the string is found in the sorted slice.
 func find(sorted []string, str string) bool {
-	idx := sort.SearchStrings(sorted, str)
-	return idx != len(sorted) && str == sorted[idx]
+	_, found := slices.BinarySearch(sorted, str)
+
+	return found
 }
 
 // runFunc is an alias for the run function.
@@ -159,9 +161,8 @@ type argSetCmdDecorator struct {
 // newArgSetCmdDecorator creates a new argSetCmdDecorator object from a base
 // command and a set of allowed arguments.
 func newArgSetCmdDecorator(base cmd, allowed []string) argSetCmdDecorator {
-	sorted := make([]string, len(allowed))
-	copy(sorted, allowed)
-	sort.Strings(sorted)
+	sorted := slices.Clone(allowed)
+	slices.Sort(sorted)
 
 	return argSetCmdDecorator{
 		sorted: sorted,
@@ -675,16 +676,9 @@ func newCmdExecutor() cmdExecutor {
 		}
 	}
 
-	aliases := make([]string, 0, len(cmdsMap))
-	for alias := range cmdsMap {
-		aliases = append(aliases, alias)
-	}
-
-	sort.Strings(aliases)
-
 	return cmdExecutor{
 		cmds:         cmdsMap,
-		aliases:      aliases,
+		aliases:      slices.Sorted(maps.Keys(cmdsMap)),
 		descriptions: descriptions,
 	}
 }

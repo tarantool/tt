@@ -477,17 +477,9 @@ func propagateProblem(
 // vclockProblems flags an incremental shard whose vclock_begin does not continue
 // the vclock_end of the nearest ancestor carrying the same shard.
 func vclockProblems(entry *Entry, entries map[backup.BackupID]*Entry) []*Problem {
-	replicasets := make([]string, 0, len(entry.Manifest.Shards))
-
-	for replicasetUUID := range entry.Manifest.Shards {
-		replicasets = append(replicasets, replicasetUUID)
-	}
-
-	slices.Sort(replicasets)
-
 	var problems []*Problem
 
-	for _, replicasetUUID := range replicasets {
+	for _, replicasetUUID := range slices.Sorted(maps.Keys(entry.Manifest.Shards)) {
 		current := entry.Manifest.Shards[replicasetUUID].Instance
 		if current == nil || current.Artifact.Type != backup.BackupTypeIncremental {
 			continue

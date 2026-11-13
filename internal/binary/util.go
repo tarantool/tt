@@ -343,15 +343,6 @@ func IsRegularFile(filePath string) bool {
 	return fileInfo.Mode().IsRegular()
 }
 
-// Max returns the maximum value.
-func Max(x, y int) int {
-	if x < y {
-		return y
-	}
-
-	return x
-}
-
 // ResolveSymlink resolves symlink path.
 func ResolveSymlink(linkPath string) (string, error) {
 	resolvedLink, err := filepath.EvalSymlinks(linkPath)

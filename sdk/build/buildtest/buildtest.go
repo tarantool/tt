@@ -20,6 +20,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -701,17 +702,9 @@ func (s host) LockedVersion(rock string) (string, bool) {
 func (s host) environ() []string {
 	facts := s.h.Context
 	environ := os.Environ()
-
-	keys := make([]string, 0, len(facts.Env))
-	for key := range facts.Env {
-		keys = append(keys, key)
-	}
-
-	slices.Sort(keys)
-
 	path := os.Getenv("PATH")
 
-	for _, key := range keys {
+	for _, key := range slices.Sorted(maps.Keys(facts.Env)) {
 		environ = append(environ, key+"="+facts.Env[key])
 
 		if key == "PATH" {

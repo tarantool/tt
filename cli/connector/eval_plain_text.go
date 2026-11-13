@@ -68,7 +68,7 @@ type PlainTextEvalRes struct {
 }
 
 // evalPlainTextConnYAML calls function on Tarantool instance
-// Function should return `interface{}`, `string` (res, err)
+// Function should return `any`, `string` (res, err)
 // to be correctly processed.
 func evalPlainTextConn(conn net.Conn, funcBody string, args []any,
 	opts EvalPlainTextOpts,

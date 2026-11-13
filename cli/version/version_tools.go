@@ -267,7 +267,7 @@ func IsLess(verLeft, verRight Version) bool {
 		verRight.Release.Num, verRight.Additional, verRight.Revision,
 	}
 
-	largestLen := util.Max(len(left), len(right))
+	largestLen := max(len(left), len(right))
 
 	for idx := range largestLen {
 		var valLeft, valRight uint64 = 0, 0

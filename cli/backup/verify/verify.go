@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"slices"
 	"strings"
 
@@ -250,18 +251,11 @@ func verifyArchives(
 	manifest *backup.ClusterManifest,
 	referenced map[string]struct{},
 ) (int, []Issue, error) {
-	// Sort the shards so that the report of one manifest is stable across runs.
-	replicasetUUIDs := make([]string, 0, len(manifest.Shards))
-	for replicasetUUID := range manifest.Shards {
-		replicasetUUIDs = append(replicasetUUIDs, replicasetUUID)
-	}
-
-	slices.Sort(replicasetUUIDs)
-
 	archives := 0
 	issues := make([]Issue, 0)
 
-	for _, replicasetUUID := range replicasetUUIDs {
+	// Sort the shards so that the report of one manifest is stable across runs.
+	for _, replicasetUUID := range slices.Sorted(maps.Keys(manifest.Shards)) {
 		// A shard that failed to back up carries an error instead of an artifact;
 		// the manifest already records it, there is nothing to check in storage.
 		instance := manifest.Shards[replicasetUUID].Instance

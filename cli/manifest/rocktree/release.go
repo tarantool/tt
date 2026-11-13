@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -179,16 +180,9 @@ func writeDependencies(src *strings.Builder, dependencies map[string]string) {
 		return
 	}
 
-	names := make([]string, 0, len(dependencies))
-	for name := range dependencies {
-		names = append(names, name)
-	}
-
-	slices.Sort(names)
-
 	src.WriteString("dependencies = {\n")
 
-	for _, name := range names {
+	for _, name := range slices.Sorted(maps.Keys(dependencies)) {
 		dependency := name
 		if expr := dependencies[name]; expr != "" {
 			dependency += " " + expr

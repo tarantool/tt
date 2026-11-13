@@ -822,7 +822,7 @@ func isNull(node *yaml.Node) bool {
 // hasNUL reports whether a string holds a NUL byte, which no path, argument
 // or environment variable passed to a process can hold.
 func hasNUL(text string) bool {
-	return strings.IndexByte(text, 0) >= 0
+	return strings.ContainsRune(text, 0)
 }
 
 // describe names what a node holds, for a message that says what was
