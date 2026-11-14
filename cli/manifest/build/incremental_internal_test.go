@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 )
 
 func TestComponentInputs(t *testing.T) {
@@ -23,7 +24,9 @@ func TestComponentInputs(t *testing.T) {
 	writeFile(t, filepath.Join(comp, "main.py"), "print(1)\n")
 	writeFile(t, filepath.Join(comp, "wit", "app.wit"), "world app {}\n")
 
-	build := manifest.Build{Backend: "shell", Command: "tarawasm", Args: []string{"all"}}
+	build := manifest.Build{
+		Backend: "shell", Rest: map[string]any{"command": "tarawasm", "args": []any{"all"}},
+	}
 	hash := func() string {
 		t.Helper()
 
@@ -48,9 +51,14 @@ func TestComponentInputs(t *testing.T) {
 	second := hash()
 	assert.NotEqual(t, first, second, "a changed source is a changed input")
 
-	build.Args = []string{"build"}
+	build.Rest = map[string]any{"command": "tarawasm", "args": []any{"build"}}
 
-	assert.NotEqual(t, second, hash(), "a changed build block is a changed input")
+	third := hash()
+	assert.NotEqual(t, second, third, "a changed field of the backend is a changed input")
+
+	build.Cwd = "comp"
+
+	assert.NotEqual(t, third, hash(), "a changed field of the block is a changed input")
 }
 
 func TestIncrementalRecord(t *testing.T) {
@@ -348,7 +356,7 @@ incremental = true
 	man, _, err := manifest.ParseManifest([]byte(goManifest))
 	require.NoError(t, err)
 
-	_, err = man.Validate()
+	_, err = man.Validate(buildreg.Core())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "incremental")
 }

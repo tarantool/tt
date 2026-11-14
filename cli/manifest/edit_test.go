@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 )
 
 // editPrelude and editTables are the minimum a manifest needs to parse and
@@ -41,7 +42,7 @@ func reparse(t *testing.T, src []byte) *manifest.Manifest {
 	require.NoError(t, err, "edited manifest must still parse:\n%s", src)
 	require.Empty(t, warnings)
 
-	_, err = mfst.Validate()
+	_, err = mfst.Validate(buildreg.Core())
 	require.NoError(t, err, "edited manifest must still validate:\n%s", src)
 
 	return mfst

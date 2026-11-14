@@ -10,8 +10,6 @@ import (
 
 	luarocks "github.com/tarantool/go-luarocks"
 	lrbuild "github.com/tarantool/go-luarocks/build"
-
-	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // indexOf returns the index of the first occurrence of tok in args, or -1.
@@ -71,8 +69,8 @@ func userEnvFlags() envFlags {
 
 // sampleBuild carries base lists plus distinct linux/darwin overlays so the
 // overlay-selection and append-only-merge behavior is observable.
-func sampleBuild() manifest.Build {
-	return manifest.Build{
+func sampleBuild() Spec {
+	return Spec{
 		Backend:     BackendC,
 		Module:      "mymod",
 		Sources:     []string{"a.c", "b.c"},
@@ -82,7 +80,7 @@ func sampleBuild() manifest.Build {
 		Libraries:   []string{"m", "z"},
 		Cflags:      []string{"-std=gnu99", "-Werror"},
 		Ldflags:     []string{"-Wl,--as-needed"},
-		Platforms: map[string]manifest.BuildOverlay{
+		Platforms: map[string]BuildOverlay{
 			"linux": {
 				Defines:     []string{"LIN"},
 				IncludeDirs: []string{"/inc/lin"},
@@ -204,7 +202,7 @@ func TestCcArgsUserFlagsComeLast(t *testing.T) {
 func TestCcArgsEmptyCFLAGSDropsTheDefault(t *testing.T) {
 	t.Parallel()
 
-	b := manifest.Build{Backend: BackendC, Module: "m", Sources: []string{"m.c"}}
+	b := Spec{Backend: BackendC, Module: "m", Sources: []string{"m.c"}}
 	args := ccArgs(b, linuxFlags(), envFlags{cflagsSet: true}, "/out/m.so", "linux")
 
 	assert.Equal(t, []string{
@@ -247,7 +245,7 @@ func TestEnvironFlags(t *testing.T) {
 func TestCcArgsSingleSource(t *testing.T) {
 	t.Parallel()
 
-	b := manifest.Build{Backend: BackendC, Module: "solo", Sources: []string{"solo.c"}}
+	b := Spec{Backend: BackendC, Module: "solo", Sources: []string{"solo.c"}}
 	args := ccArgs(b, linuxFlags(), noEnvFlags(), "/out/solo.so", "linux")
 
 	// -o <out> immediately precedes the single source.
@@ -261,7 +259,7 @@ func TestCcArgsSingleSource(t *testing.T) {
 func TestCcArgsMultiSourceOrder(t *testing.T) {
 	t.Parallel()
 
-	b := manifest.Build{
+	b := Spec{
 		Backend: BackendC,
 		Module:  "multi",
 		Sources: []string{"one.c", "two.c", "three.c"},
@@ -284,7 +282,7 @@ func TestCcArgsHostParityWithDeriveFlags(t *testing.T) {
 
 	flags := lrbuild.DeriveFlags(cfg)
 
-	b := manifest.Build{Backend: BackendC, Module: "m", Sources: []string{"m.c"}}
+	b := Spec{Backend: BackendC, Module: "m", Sources: []string{"m.c"}}
 	args := ccArgs(b, flags, noEnvFlags(), "/out/m.so", runtime.GOOS)
 
 	// tt's defaults lead, then the headers of the include dir go-luarocks
@@ -327,7 +325,7 @@ func TestCcMissingHeadersPreflight(t *testing.T) {
 	// of a run failure from the bogus compiler.
 	be := ccBackend{flags: lrbuild.Flags{CC: "/nonexistent/cc", Ext: ".so"}}
 
-	b := manifest.Build{Backend: BackendC, Module: "m", Sources: []string{"m.c"}}
+	b := Spec{Backend: BackendC, Module: "m", Sources: []string{"m.c"}}
 	err := be.Run(context.Background(), b, t.TempDir(), Env{OutputDir: t.TempDir()})
 
 	require.Error(t, err)
@@ -338,7 +336,7 @@ func TestCcRejectsRelativePaths(t *testing.T) {
 	t.Parallel()
 
 	be := ccBackend{flags: linuxFlags()}
-	b := manifest.Build{Backend: BackendC, Module: "m", Sources: []string{"m.c"}}
+	b := Spec{Backend: BackendC, Module: "m", Sources: []string{"m.c"}}
 
 	err := be.Run(context.Background(), b, "rel/cwd", Env{OutputDir: t.TempDir()})
 	require.Error(t, err)

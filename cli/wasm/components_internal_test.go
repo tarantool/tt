@@ -110,8 +110,8 @@ func TestDeclareComponent(t *testing.T) {
 	assert.Equal(t, "wasm/api", api.Path)
 	assert.Equal(t, []string{"dist/api.wasm"}, api.Include)
 	require.NotNil(t, api.Build)
-	assert.Equal(t, "tarawasm", api.Build.Command)
-	assert.Equal(t, []string{"all"}, api.Build.Args)
+	assert.Equal(t, "shell", api.Build.Backend)
+	assert.Equal(t, map[string]any{"command": "tarawasm", "args": []any{"all"}}, api.Build.Rest)
 	assert.Contains(t, string(data), testManifest, "the manifest is appended to, not rewritten")
 }
 

@@ -62,10 +62,11 @@ func IsPathManifest(dir string) (bool, error) {
 }
 
 // LoadPathManifest reads the manifest of the path dependency name from dir,
-// its directory, which holds one (IsPathManifest). The manifest has to
-// describe the package name: the dependency is installed as the rock of that
-// package, so a dependency named otherwise is ErrPathPackageName.
-func LoadPathManifest(name, dir string) (*PathManifest, error) {
+// its directory, which holds one (IsPathManifest), and validates it with the
+// backends of checker. The manifest has to describe the package name: the
+// dependency is installed as the rock of that package, so a dependency named
+// otherwise is ErrPathPackageName.
+func LoadPathManifest(name, dir string, checker manifest.BuildChecker) (*PathManifest, error) {
 	path := filepath.Join(dir, manifestFileName)
 
 	data, err := os.ReadFile(path)
@@ -78,7 +79,7 @@ func LoadPathManifest(name, dir string) (*PathManifest, error) {
 		return nil, fmt.Errorf("path dependency %q: parsing %s: %w", name, path, err)
 	}
 
-	validationWarnings, err := man.Validate()
+	validationWarnings, err := man.Validate(checker)
 	if err != nil {
 		return nil, fmt.Errorf("path dependency %q: invalid manifest %s: %w", name, path, err)
 	}

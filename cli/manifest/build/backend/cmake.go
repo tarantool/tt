@@ -11,8 +11,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-
-	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // cmakeTool is the program the cmake backend runs.
@@ -60,7 +58,7 @@ type cmakeBackend struct {
 // builds it as cmake --build <tree> --config <type> --parallel <n>
 // [--target <target>...], and copies the files of output into
 // $TT_OUTPUT_DIR (see copyCMakeOutputs).
-func (c cmakeBackend) Run(ctx context.Context, build manifest.Build, cwd string, env Env) error {
+func (c cmakeBackend) Run(ctx context.Context, build Spec, cwd string, env Env) error {
 	err := requireAbsPaths(cwd, env.OutputDir)
 	if err != nil {
 		return err
@@ -106,7 +104,7 @@ func (c cmakeBackend) Run(ctx context.Context, build manifest.Build, cwd string,
 // CMAKE_PREFIX_PATH, after the prefixes the build lists there itself, if it
 // does: that is where find_path(... tarantool/module.h) of the usual
 // FindTarantool.cmake looks, as <prefix>/include.
-func cmakeConfigureArgs(build manifest.Build, source, buildDir, prefix string) []string {
+func cmakeConfigureArgs(build Spec, source, buildDir, prefix string) []string {
 	args := []string{"-S", source, "-B", buildDir, "-D" + cmakeBuildType + "=" + cmakeType(build)}
 	prefixed := prefix == ""
 
@@ -141,7 +139,7 @@ func cmakeList(list, item string) string {
 // buildDir, all of them unless it lists some, with jobs jobs; no --parallel
 // when jobs is 0. --config selects the build type of a multi-config
 // generator, and a single-config one ignores it.
-func cmakeBuildArgs(build manifest.Build, buildDir string, jobs int) []string {
+func cmakeBuildArgs(build Spec, buildDir string, jobs int) []string {
 	args := []string{"--build", buildDir, "--config", cmakeType(build)}
 
 	if jobs > 0 {
@@ -172,9 +170,9 @@ func cmakeJobs(environ []string) int {
 
 // cmakeType is the build type of build, RelWithDebInfo unless it names
 // another.
-func cmakeType(build manifest.Build) string {
+func cmakeType(build Spec) string {
 	if build.BuildType == "" {
-		return manifest.DefaultCMakeBuildType
+		return DefaultCMakeBuildType
 	}
 
 	return build.BuildType
@@ -189,7 +187,7 @@ func cmakeType(build manifest.Build) string {
 // MODULE library .so there too, and Tarantool loads no .so on macOS. The c,
 // lua-c and cargo backends name the module so as well, and output can name
 // the file of every platform alike.
-func copyCMakeOutputs(build manifest.Build, env Env) error {
+func copyCMakeOutputs(build Spec, env Env) error {
 	var missing []string
 
 	for _, output := range build.Output {

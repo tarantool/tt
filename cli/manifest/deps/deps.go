@@ -61,6 +61,7 @@ import (
 	"sort"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/manifest/resolve"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
@@ -100,6 +101,9 @@ type Options struct {
 	// the resolver's report of a pin it had to drop. The library never logs
 	// directly; the CLI routes these through tt's logger. Nil drops them.
 	Warn func(string)
+	// Backends are the build backends the manifest is validated with; nil is
+	// those of the process (buildreg.Process).
+	Backends *buildreg.Registry
 }
 
 // emit surfaces non-fatal diagnostics through the Warn sink, if any.
@@ -111,6 +115,15 @@ func (o Options) emit(warnings []string) {
 	for _, w := range warnings {
 		o.Warn(w)
 	}
+}
+
+// backends returns the build backends the manifest is validated with.
+func (o Options) backends() *buildreg.Registry {
+	if o.Backends == nil {
+		return buildreg.Process()
+	}
+
+	return o.Backends
 }
 
 // Move is one rock whose place in the locked closure changed.
@@ -259,7 +272,7 @@ func load(opts Options) (*project, error) {
 
 	opts.emit(warnings)
 
-	validationWarnings, err := man.Validate()
+	validationWarnings, err := man.Validate(opts.backends())
 	if err != nil {
 		return nil, stateErrorf("invalid manifest: %w", err)
 	}
@@ -393,7 +406,7 @@ func writeAndReparse(opts Options, proj *project, edited []byte) (*manifest.Mani
 
 	opts.emit(warnings)
 
-	validationWarnings, err := man.Validate()
+	validationWarnings, err := man.Validate(opts.backends())
 	if err != nil {
 		return nil, stateErrorf("the edited manifest is invalid: %w; %w", err, ErrManifestEdited)
 	}

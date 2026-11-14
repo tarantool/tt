@@ -2,8 +2,6 @@ package backend
 
 import (
 	"context"
-
-	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // defaultMakefile is the entrypoint used when build.Entrypoint is empty.
@@ -19,7 +17,7 @@ type makeBackend struct {
 
 // makeArgs builds the make argv: make -C <cwd> -f <entrypoint> <make_target>
 // followed by build.Flags (e.g. -j4). entrypoint defaults to Makefile in cwd.
-func makeArgs(build manifest.Build, cwd string) []string {
+func makeArgs(build Spec, cwd string) []string {
 	entrypoint := build.Entrypoint
 	if entrypoint == "" {
 		entrypoint = defaultMakefile
@@ -32,7 +30,7 @@ func makeArgs(build manifest.Build, cwd string) []string {
 // error. On success, if build.Output is set the listed files are copied into
 // env.OutputDir (a make target usually writes into TT_OUTPUT_DIR itself, but
 // the copy is honored uniformly).
-func (m makeBackend) Run(ctx context.Context, build manifest.Build, cwd string, env Env) error {
+func (m makeBackend) Run(ctx context.Context, build Spec, cwd string, env Env) error {
 	err := requireAbsPaths(cwd, env.OutputDir)
 	if err != nil {
 		return err

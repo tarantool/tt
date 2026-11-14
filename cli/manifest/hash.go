@@ -152,13 +152,30 @@ var (
 // the SHA-256 of the canonical form of its tree, in hex. See the top of this
 // file for the form.
 func HashTOML(data []byte) (string, error) {
+	tree, err := parseTree(data)
+	if err != nil {
+		return "", err
+	}
+
+	return hashTree(tree)
+}
+
+// parseTree decodes a TOML document into the generic tree go-toml decodes
+// into when it has no struct to fill.
+func parseTree(data []byte) (map[string]any, error) {
 	var tree map[string]any
 
 	err := toml.Unmarshal(data, &tree)
 	if err != nil {
-		return "", fmt.Errorf("parsing manifest: %w", err)
+		return nil, fmt.Errorf("parsing manifest: %w", err)
 	}
 
+	return tree, nil
+}
+
+// hashTree returns the manifest_hash of the document whose generic tree is
+// tree (HashTOML).
+func hashTree(tree map[string]any) (string, error) {
 	form, err := canonicalForm(tree)
 	if err != nil {
 		return "", fmt.Errorf("hashing manifest: %w", err)

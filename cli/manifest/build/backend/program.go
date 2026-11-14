@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
-
-	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 var (
@@ -40,7 +38,7 @@ const darwinOS = "darwin"
 // A static program of cmake, as one of make or shell, and a static module
 // are built as their build has it, and checked afterwards: on macOS one that
 // needs libSystem alone passes.
-func Preflight(build manifest.Build, env Env) error {
+func Preflight(build Spec, env Env) error {
 	var tool string
 
 	switch build.Backend {

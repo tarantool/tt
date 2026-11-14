@@ -14,8 +14,6 @@ import (
 
 	luarocks "github.com/tarantool/go-luarocks"
 	lrbuild "github.com/tarantool/go-luarocks/build"
-
-	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // integrationFlags derives real toolchain flags with includeDir wired in so the
@@ -45,7 +43,7 @@ func TestCcCompilesSingleSource(t *testing.T) {
 	writeSource(t, cwd, "answer.c", "int answer(void) { return 42; }\n")
 
 	flags := integrationFlags(toolchain.IncludeDir)
-	b := manifest.Build{Backend: BackendC, Module: "answer", Sources: []string{"answer.c"}}
+	b := Spec{Backend: BackendC, Module: "answer", Sources: []string{"answer.c"}}
 
 	err := ccBackend{flags: flags}.Run(context.Background(), b, cwd, Env{OutputDir: out})
 	require.NoError(t, err)
@@ -64,7 +62,7 @@ func TestCcCompilesMultiSource(t *testing.T) {
 	writeSource(t, cwd, "part_b.c", "int a(void);\nint b(void) { return a() + 1; }\n")
 
 	flags := integrationFlags(toolchain.IncludeDir)
-	build := manifest.Build{
+	build := Spec{
 		Backend: BackendLuaC,
 		Module:  "parts",
 		Sources: []string{"part_a.c", "part_b.c"},
@@ -87,7 +85,7 @@ func TestCcTakesTheProjectFlagsThenTheUsers(t *testing.T) {
 	writeSource(t, cwd, "warn.c", "int warn(void) { int unused; return 0; }\n")
 
 	flags := integrationFlags(toolchain.IncludeDir)
-	build := manifest.Build{
+	build := Spec{
 		Backend: BackendC,
 		Module:  "warn",
 		Sources: []string{"warn.c"},
@@ -126,7 +124,7 @@ func TestCcCompilesAgainstTarantoolHeaders(t *testing.T) {
 	writeSource(t, cwd, "headercheck.c", src)
 
 	flags := integrationFlags(toolchain.IncludeDir)
-	build := manifest.Build{
+	build := Spec{
 		Backend: BackendLuaC,
 		Module:  "headercheck",
 		Sources: []string{"headercheck.c"},

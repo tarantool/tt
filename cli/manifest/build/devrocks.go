@@ -94,7 +94,7 @@ func EnsureDevRocks(
 
 	servers, err := dependencyServers(man, opts.ProjectDir, adapter.Config().Servers)
 	if err == nil {
-		err = servers.addPathManifests(opts.ProjectDir, missing)
+		err = servers.addPathManifests(opts.ProjectDir, opts.backends(), missing)
 	}
 
 	if err != nil {

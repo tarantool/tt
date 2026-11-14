@@ -8,8 +8,6 @@ import (
 	"strings"
 
 	lrbuild "github.com/tarantool/go-luarocks/build"
-
-	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // initialArgsCap pre-sizes the cc argument slice to avoid early regrows.
@@ -83,7 +81,7 @@ func environFlags(lookup func(string) (string, bool)) envFlags {
 // sources are emitted verbatim and resolved against cwd by the child
 // (cmd.Dir=cwd). It is a pure function so the argv is testable without a
 // compiler or Tarantool headers.
-func ccArgs(build manifest.Build, flags lrbuild.Flags, env envFlags, out, goos string) []string {
+func ccArgs(build Spec, flags lrbuild.Flags, env envFlags, out, goos string) []string {
 	overlay := build.Platforms[goos]
 
 	defines := concat(build.Defines, overlay.Defines)
@@ -179,7 +177,7 @@ func artifactName(module, ext string) string {
 // module is a flat leaf name, so a dotted module yields a literal a.b.so — it
 // is not slashed into subdirectories. c / lua-c ignore build.Output (the artifact
 // is the compiled library, not a copy list).
-func (c ccBackend) Run(ctx context.Context, build manifest.Build, cwd string, env Env) error {
+func (c ccBackend) Run(ctx context.Context, build Spec, cwd string, env Env) error {
 	err := requireAbsPaths(cwd, env.OutputDir)
 	if err != nil {
 		return err

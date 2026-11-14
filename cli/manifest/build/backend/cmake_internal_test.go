@@ -11,8 +11,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 func TestCMakeConfigureArgs(t *testing.T) {
@@ -22,18 +20,18 @@ func TestCMakeConfigureArgs(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		build  manifest.Build
+		build  Spec
 		prefix string
 		want   []string
 	}{
 		{
 			name:  "defaults",
-			build: manifest.Build{Backend: BackendCMake},
+			build: Spec{Backend: BackendCMake},
 			want:  []string{"-DCMAKE_BUILD_TYPE=RelWithDebInfo"},
 		},
 		{
 			name:   "the prefix of Tarantool",
-			build:  manifest.Build{Backend: BackendCMake},
+			build:  Spec{Backend: BackendCMake},
 			prefix: "/opt/tarantool",
 			want: []string{
 				"-DCMAKE_BUILD_TYPE=RelWithDebInfo", "-DCMAKE_PREFIX_PATH=/opt/tarantool",
@@ -41,7 +39,7 @@ func TestCMakeConfigureArgs(t *testing.T) {
 		},
 		{
 			name: "variables by name, after the build type",
-			build: manifest.Build{
+			build: Spec{
 				Backend:   BackendCMake,
 				BuildType: "Debug",
 				Variables: map[string]string{
@@ -58,7 +56,7 @@ func TestCMakeConfigureArgs(t *testing.T) {
 		},
 		{
 			name: "the prefix after those of the build",
-			build: manifest.Build{
+			build: Spec{
 				Backend:   BackendCMake,
 				Variables: map[string]string{"CMAKE_PREFIX_PATH": "/deps;/more"},
 			},
@@ -70,7 +68,7 @@ func TestCMakeConfigureArgs(t *testing.T) {
 		},
 		{
 			name: "the prefix after those of a typed variable",
-			build: manifest.Build{
+			build: Spec{
 				Backend:   BackendCMake,
 				Variables: map[string]string{"CMAKE_PREFIX_PATH:PATH": "/deps"},
 			},
@@ -82,7 +80,7 @@ func TestCMakeConfigureArgs(t *testing.T) {
 		},
 		{
 			name: "the prefixes of the build alone",
-			build: manifest.Build{
+			build: Spec{
 				Backend:   BackendCMake,
 				Variables: map[string]string{"CMAKE_PREFIX_PATH": "/deps"},
 			},
@@ -90,7 +88,7 @@ func TestCMakeConfigureArgs(t *testing.T) {
 		},
 		{
 			name: "an empty prefix path",
-			build: manifest.Build{
+			build: Spec{
 				Backend:   BackendCMake,
 				Variables: map[string]string{"CMAKE_PREFIX_PATH": ""},
 			},
@@ -114,10 +112,10 @@ func TestCMakeConfigureArgs(t *testing.T) {
 func TestCMakeBuildArgs(t *testing.T) {
 	t.Parallel()
 
-	got := cmakeBuildArgs(manifest.Build{Backend: BackendCMake}, "/b", 4)
+	got := cmakeBuildArgs(Spec{Backend: BackendCMake}, "/b", 4)
 	assert.Equal(t, []string{"--build", "/b", "--config", "RelWithDebInfo", "--parallel", "4"}, got)
 
-	build := manifest.Build{
+	build := Spec{
 		Backend: BackendCMake, BuildType: "Release", Targets: []string{"a", "b"},
 	}
 
@@ -205,7 +203,7 @@ func TestCopyCMakeOutputs(t *testing.T) {
 		writeFiles(t, buildDir, map[string]string{"lib/m.so": "so"})
 		require.NoError(t, os.MkdirAll(filepath.Join(buildDir, "dir"), dirPerm))
 
-		build := manifest.Build{Output: []string{"lib/m.so", "m2.so", "dir"}}
+		build := Spec{Output: []string{"lib/m.so", "m2.so", "dir"}}
 		env := Env{OutputDir: t.TempDir(), BuildDir: buildDir}
 
 		err := copyCMakeOutputs(build, env)
@@ -236,7 +234,7 @@ func TestCopyCMakeOutputs(t *testing.T) {
 			out := filepath.Join(t.TempDir(), "lib", "ns")
 			env := Env{OutputDir: out, BuildDir: buildDir, OS: tt.goos, Module: tt.module}
 
-			require.NoError(t, copyCMakeOutputs(manifest.Build{Output: []string{"lib/m.so"}}, env))
+			require.NoError(t, copyCMakeOutputs(Spec{Output: []string{"lib/m.so"}}, env))
 
 			entries, err := os.ReadDir(out)
 			require.NoError(t, err)
@@ -249,7 +247,7 @@ func TestCopyCMakeOutputs(t *testing.T) {
 func TestCMakeRunNeedsAnAbsoluteBuildDir(t *testing.T) {
 	t.Parallel()
 
-	build := manifest.Build{Backend: BackendCMake, Output: []string{"m.so"}}
+	build := Spec{Backend: BackendCMake, Output: []string{"m.so"}}
 
 	err := cmakeBackend{}.Run(context.Background(), build, t.TempDir(),
 		Env{OutputDir: t.TempDir(), BuildDir: "_build/cmake/m"})
@@ -327,7 +325,7 @@ func TestCMakeBuildsAModule(t *testing.T) {
 	buildDir := filepath.Join(project, "_build", "cmake", "answer")
 	out := filepath.Join(t.TempDir(), "lib", "ns")
 
-	build := manifest.Build{
+	build := Spec{
 		Backend:   BackendCMake,
 		Variables: map[string]string{"WITH_ANSWER": "ON"},
 		Targets:   []string{"answer"},
@@ -381,7 +379,7 @@ func TestCMakeFailsOnAMissingOutput(t *testing.T) {
 		"answer.c":       answerC,
 	})
 
-	build := manifest.Build{
+	build := Spec{
 		Backend:   BackendCMake,
 		Variables: map[string]string{"WITH_ANSWER": "ON"},
 		Output:    []string{"answer.so"},
@@ -415,7 +413,7 @@ func TestCMakeConfiguresAMovedTreeAnew(t *testing.T) {
 	buildDir := filepath.Join(t.TempDir(), "answer")
 	writeCMakeCache(t, buildDir, "/gone/src", "/gone/_build/cmake/answer")
 
-	build := manifest.Build{
+	build := Spec{
 		Backend:   BackendCMake,
 		Variables: map[string]string{"WITH_ANSWER": "ON"},
 		Output:    []string{"lib/answer.so"},

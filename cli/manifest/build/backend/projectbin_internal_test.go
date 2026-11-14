@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/internal/execfile"
 )
 
@@ -36,7 +35,7 @@ func TestShellRunsProgramFromProjectBin(t *testing.T) {
 		"#!/bin/sh\nprintf '%s' \"$0 $*\" > \"$TT_OUTPUT_DIR/ran.txt\"\n")
 	out := t.TempDir()
 
-	build := manifest.Build{
+	build := Spec{
 		Backend: BackendShell,
 		Command: "tt-test-project-tool",
 		Args:    []string{"build"},

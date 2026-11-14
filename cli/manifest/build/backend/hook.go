@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-
-	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 var (
@@ -14,7 +12,7 @@ var (
 	// the same double-application reason as a component build).
 	errRelativeCwd = errors.New("cwd must be an absolute path")
 	// errUnrunnableHookBackend reports a hook whose backend is neither shell nor
-	// make; the closed enum is enforced at manifest parse time.
+	// make; the closed set is enforced when the manifest is validated.
 	errUnrunnableHookBackend = errors.New(
 		"hook backend is not runnable (only shell and make)")
 )
@@ -26,12 +24,12 @@ var (
 // hook runs around all components, not inside one) and hook.Output is ignored (a
 // hook has no single output directory to copy into).
 //
-// Only shell and make are valid hook backends; the closed enum is enforced at
-// manifest parse time (cli/manifest/validate.go), and any other backend here is
+// Only shell and make are valid hook backends; the closed set is enforced when
+// the manifest is validated (cli/manifest/validate.go), and any other backend here is
 // a programming error surfaced as a plain error rather than a panic. cwd must be
 // absolute for the same double-application reason as a component build.
 func RunHook(
-	ctx context.Context, hook manifest.Build, cwd string, env Env, showOutput bool,
+	ctx context.Context, hook Spec, cwd string, env Env, showOutput bool,
 ) error {
 	if !filepath.IsAbs(cwd) {
 		return fmt.Errorf("%w, got %q", errRelativeCwd, cwd)

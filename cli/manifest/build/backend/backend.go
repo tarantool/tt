@@ -6,7 +6,7 @@
 // field: shell (argv-style execve), make (make -C -f target), a shared cc
 // driver serving both c and lua-c, cmake (configure and build out of the
 // source), and, for an executable component, go (go build) and cargo (cargo
-// build). Each executor receives the parsed manifest.Build block, an absolute
+// build). Each executor receives the build block decoded (Spec), an absolute
 // working directory, and the Env contract. None of them order components, lay
 // out install namespaces, resolve the lock, or run lifecycle hooks — that
 // orchestration is the caller's job; a backend only runs one tool and writes
@@ -34,13 +34,11 @@ import (
 	lrbuild "github.com/tarantool/go-luarocks/build"
 
 	"github.com/tarantool/tt/sdk/log"
-	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/util"
 )
 
-// Backend build names. They mirror the closed enum validated at manifest parse
-// time (cli/manifest/validate.go); manifest keeps its own copies unexported, so
-// the dispatch vocabulary is redeclared here.
+// Backend build names: those of the backends of the core, which Core
+// registers and New dispatches by.
 const (
 	// BackendShell runs an arbitrary command argv-style (no shell parsing).
 	BackendShell = "shell"
@@ -149,7 +147,7 @@ func (e Env) platformArch() string {
 // variables are appended last by environ / hookEnviron so exec.Cmd's last-wins
 // resolution keeps them authoritative — a [build].env key cannot shadow
 // TT_OUTPUT_DIR. This is the only place the process environment is assembled; a
-// backend never re-reads manifest.Build.Env.
+// backend never re-reads Spec.Env.
 func (e Env) baseEnviron() []string {
 	out := os.Environ()
 
@@ -227,7 +225,7 @@ type Backend interface {
 	// Run builds build in cwd (an absolute path) with the env contract, placing
 	// artifacts in env.OutputDir. It returns a plain error on failure; mapping
 	// that to a process exit code is the caller's concern.
-	Run(ctx context.Context, build manifest.Build, cwd string, env Env) error
+	Run(ctx context.Context, build Spec, cwd string, env Env) error
 }
 
 // New returns the Backend for the named build backend. flags supplies the

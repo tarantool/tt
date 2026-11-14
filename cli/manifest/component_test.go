@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/build/backend"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 )
 
 // parseBody parses a manifest made of the required header and body.
@@ -20,6 +22,19 @@ func parseBody(t *testing.T, body string) *manifest.Manifest {
 	require.NoError(t, err)
 
 	return mfst
+}
+
+// specOf decodes the build block of the component name of mfst as the
+// backends of the core read it.
+func specOf(t *testing.T, mfst *manifest.Manifest, name string) backend.Spec {
+	t.Helper()
+
+	require.NotNil(t, mfst.Components[name].Build)
+
+	spec, err := backend.Decode(*mfst.Components[name].Build)
+	require.NoError(t, err)
+
+	return spec
 }
 
 // TestExecutableComponentFields checks that every field of the go and cargo
@@ -53,26 +68,31 @@ profile = "dist"
 static = true
 `)
 
-	_, err := mfst.Validate()
+	_, err := mfst.Validate(buildreg.Core())
 	require.NoError(t, err)
 
-	gateway := mfst.Components["gw"]
-	assert.True(t, gateway.IsExecutable())
-	assert.Equal(t, "./cmd/gw", gateway.Build.Package)
-	assert.Equal(t, "gateway", gateway.Build.Name)
-	assert.Equal(t, []string{"prod"}, gateway.Build.Tags)
-	assert.Equal(t, []string{"-s", "-X", "main.version=1.0"}, gateway.Build.Ldflags)
-	assert.True(t, gateway.Build.CgoValue())
-	assert.True(t, gateway.Build.StaticValue())
-	assert.Equal(t, []string{"gateway"}, gateway.Build.Executables("gw"))
+	assert.True(t, mfst.Components["gw"].IsExecutable())
+	assert.Equal(t, []string{"gateway"}, mfst.Components["gw"].Build.Executables("gw"))
 
-	agent := mfst.Components["agent"]
-	assert.Equal(t, "agent-bin", agent.Build.Bin)
-	assert.Equal(t, "agent-crate", agent.Build.Package)
-	assert.Equal(t, []string{"tls", "serde/derive"}, agent.Build.Features)
-	assert.Equal(t, "dist", agent.Build.Profile)
-	assert.True(t, agent.Build.StaticValue())
-	assert.Equal(t, []string{"agent-bin"}, agent.Build.Executables("agent"))
+	gateway := specOf(t, mfst, "gw")
+	assert.Equal(t, "./cmd/gw", gateway.Package)
+	assert.Equal(t, "gateway", gateway.Name)
+	assert.Equal(t, []string{"prod"}, gateway.Tags)
+	assert.Equal(t, []string{"-s", "-X", "main.version=1.0"}, gateway.Ldflags)
+	assert.True(t, gateway.CgoValue())
+	assert.True(t, gateway.StaticValue())
+	assert.Equal(t, map[string]string{"CC": "musl-gcc"}, gateway.Env)
+	assert.Equal(t, []string{"gateway"}, gateway.Executables("gw"))
+
+	assert.Equal(t, []string{"agent-bin"}, mfst.Components["agent"].Build.Executables("agent"))
+
+	agent := specOf(t, mfst, "agent")
+	assert.Equal(t, "agent-bin", agent.Bin)
+	assert.Equal(t, "agent-crate", agent.Package)
+	assert.Equal(t, []string{"tls", "serde/derive"}, agent.Features)
+	assert.Equal(t, "dist", agent.Profile)
+	assert.True(t, agent.StaticValue())
+	assert.Equal(t, []string{"agent-bin"}, agent.Executables("agent"))
 }
 
 func TestBuildExecutables(t *testing.T) {
@@ -84,9 +104,15 @@ func TestBuildExecutables(t *testing.T) {
 		want  []string
 	}{
 		{"go defaults to the component", manifest.Build{Backend: "go"}, []string{"gw"}},
-		{"go name", manifest.Build{Backend: "go", Name: "gateway"}, []string{"gateway"}},
+		{
+			"go name", manifest.Build{Backend: "go", Rest: map[string]any{"name": "gateway"}},
+			[]string{"gateway"},
+		},
 		{"cargo defaults to the component", manifest.Build{Backend: "cargo"}, []string{"gw"}},
-		{"cargo bin", manifest.Build{Backend: "cargo", Bin: "gwd"}, []string{"gwd"}},
+		{
+			"cargo bin", manifest.Build{Backend: "cargo", Rest: map[string]any{"bin": "gwd"}},
+			[]string{"gwd"},
+		},
 		{
 			"make lists its output by base name",
 			manifest.Build{Backend: "make", Output: []string{"out/gw", "out/gw-cli", "gw"}},
@@ -421,7 +447,7 @@ func TestValidateExecutableComponents(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := parseBody(t, tt.body).Validate()
+			_, err := parseBody(t, tt.body).Validate(buildreg.Core())
 			require.Error(t, err)
 
 			var verr *manifest.ValidationError
@@ -474,7 +500,7 @@ func TestValidateExecutableComponentsAccepted(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := parseBody(t, body).Validate()
+			_, err := parseBody(t, body).Validate(buildreg.Core())
 			require.NoError(t, err)
 		})
 	}
@@ -500,7 +526,7 @@ func TestValidateStaticModules(t *testing.T) {
 			mfst := parseBody(t, "[components.m]\npath = \"m\"\n[components.m.build]\n"+
 				"backend = \""+backend+"\"\n"+fields+"static = true\n")
 
-			_, err := mfst.Validate()
+			_, err := mfst.Validate(buildreg.Core())
 			require.NoError(t, err)
 			assert.True(t, mfst.Components["m"].Build.StaticValue())
 		})
@@ -516,7 +542,7 @@ func TestHookBackendDefaultsToShell(t *testing.T) {
 	mfst := parseBody(t, "[hooks.pre_build]\ncommand = \"./gen.sh\"\n"+
 		"[hooks.post_build]\nbackend = \"make\"\nmake_target = \"post\"\n")
 
-	_, err := mfst.Validate()
+	_, err := mfst.Validate(buildreg.Core())
 	require.NoError(t, err)
 	assert.Equal(t, "shell", mfst.Hooks["pre_build"].Backend)
 	assert.Equal(t, "make", mfst.Hooks["post_build"].Backend)
@@ -548,10 +574,10 @@ backend = "cmake"
 output = ["bin/mc-bench", "mc-cli"]
 `)
 
-	_, err := mfst.Validate()
+	_, err := mfst.Validate(buildreg.Core())
 	require.NoError(t, err)
 
-	memcached := mfst.Components["mc"].Build
+	memcached := specOf(t, mfst, "mc")
 	assert.Equal(t, map[string]string{
 		"ENABLE_BUNDLED_SMALL": "ON", "WITH_SASL:BOOL": "OFF", "CMAKE_PREFIX_PATH": "/deps",
 	}, memcached.Variables)
@@ -682,7 +708,7 @@ func TestValidateCMakeBuild(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := parseBody(t, tt.body).Validate()
+			_, err := parseBody(t, tt.body).Validate(buildreg.Core())
 			require.Error(t, err)
 
 			var verr *manifest.ValidationError
@@ -717,10 +743,10 @@ cflags = ["-Wno-deprecated-declarations"]
 ldflags = ["-Wl,-dead_strip"]
 `)
 
-	_, err := mfst.Validate()
+	_, err := mfst.Validate(buildreg.Core())
 	require.NoError(t, err)
 
-	build := mfst.Components["memcached"].Build
+	build := specOf(t, mfst, "memcached")
 	assert.Equal(t, []string{"-std=gnu99", "-Wall", "-Wextra", "-Werror"}, build.Cflags)
 	assert.Equal(t, []string{"-Wl,-z,defs"}, build.Ldflags)
 	assert.Equal(t, []string{"-Wl,--as-needed"}, build.Platforms["linux"].Ldflags)
@@ -828,7 +854,7 @@ func TestValidateCcFlags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := parseBody(t, tt.body).Validate()
+			_, err := parseBody(t, tt.body).Validate(buildreg.Core())
 			require.Error(t, err)
 
 			var verr *manifest.ValidationError

@@ -1,10 +1,11 @@
 // Package buildreg is the registry of the build backends a tt has and of
-// the checks of the files its builds lay out: those the modules tt is built
-// from contribute (sdk.Module), after the core's own.
+// the checks of the files its builds lay out: those of the core, and those
+// the modules tt is built from contribute (sdk.Module).
 //
 // The core fills the registry of the process once, before any command runs
 // (SetProcess); what checks a manifest or builds a component reads it
-// (Process).
+// (Process). A Registry checks the build blocks of a manifest for their
+// backends (manifest.BuildChecker).
 package buildreg
 
 import (
@@ -13,9 +14,12 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/tarantool/tt/sdk/build"
+	"github.com/tarantool/tt/v3/cli/manifest"
+	corebackend "github.com/tarantool/tt/v3/cli/manifest/build/backend"
 )
 
 // Registry holds the build backends and the file checks of a tt. It is
@@ -36,11 +40,38 @@ type entry struct {
 	module string
 	// fields are the keys of its configuration (build.Backend.Fields).
 	fields []string
+	// owns reports whether the backend has the field key, when its fields
+	// do not tell: the backends of the core share one configuration
+	// (corebackend.Owns). Nil for the others.
+	owns func(key string) bool
 }
 
 // New returns an empty registry.
 func New() *Registry {
 	return &Registry{entries: nil, checks: nil}
+}
+
+// Core returns a registry of the backends of the core (corebackend.Core),
+// in their order: make and shell, then the others by name.
+func Core() *Registry {
+	registry := New()
+
+	for _, provided := range corebackend.Core() {
+		added, err := registry.check("", provided)
+		if err != nil {
+			// The backends of the core are this package's to keep well
+			// formed: TestCore checks them.
+			panic(fmt.Sprintf("buildreg: %v", err))
+		}
+
+		name := provided.Name
+
+		added.owns = func(key string) bool { return corebackend.Owns(name, key) }
+
+		registry.entries = append(registry.entries, added)
+	}
+
+	return registry
 }
 
 var (
@@ -54,10 +85,6 @@ var (
 // manifest.
 var nameRe = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
-// commonFields are the fields of every build block, which the core reads
-// and no backend may have in its configuration.
-var commonFields = []string{"backend", "cwd", "env", "output", "incremental", "static"}
-
 // Add registers the backends and the file checks the module named module
 // provides. A backend is refused, and so is a file check, that is not well
 // formed - see the errors - and a backend named as another one of the
@@ -66,8 +93,8 @@ var commonFields = []string{"backend", "cwd", "env", "output", "incremental", "s
 func (r *Registry) Add(module string, backends []build.Backend, checks []build.FileCheck) error {
 	var errs []error
 
-	for _, backend := range backends {
-		added, err := r.check(module, backend)
+	for _, provided := range backends {
+		added, err := r.check(module, provided)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("module %q: %w", module, err))
 
@@ -160,19 +187,19 @@ func (r *Registry) Backend(name string) (build.Backend, string, bool) {
 // the core added them, then those of the modules by name. It is the order
 // the messages that list backends list them in.
 func (r *Registry) Names() []string {
-	var core, modules []string
+	var ofCore, ofModules []string
 
 	for _, e := range r.entries {
 		if e.module == "" {
-			core = append(core, e.backend.Name)
+			ofCore = append(ofCore, e.backend.Name)
 		} else {
-			modules = append(modules, e.backend.Name)
+			ofModules = append(ofModules, e.backend.Name)
 		}
 	}
 
-	slices.Sort(modules)
+	slices.Sort(ofModules)
 
-	return append(core, modules...)
+	return append(ofCore, ofModules...)
 }
 
 // FileChecks returns the file checks, in the order they were added: those
@@ -216,7 +243,7 @@ func (r *Registry) check(module string, backend build.Backend) (entry, error) {
 	}
 
 	for _, field := range fields {
-		if slices.Contains(commonFields, field) {
+		if slices.Contains(manifest.CommonBuildFields(), field) {
 			return entry{}, fmt.Errorf("%w %q: %s is a field of every build block, "+
 				"not one of a backend", ErrBackend, backend.Name, field)
 		}
@@ -236,17 +263,37 @@ func (r *Registry) lookup(name string) (entry, bool) {
 	return entry{}, false
 }
 
-// process is the registry of the process.
-var process atomic.Pointer[Registry]
+// ordered returns the entries in the order of Names.
+func (r *Registry) ordered() []entry {
+	names := r.Names()
+	entries := make([]entry, 0, len(names))
 
-// Process returns the registry of the process: the one SetProcess set, or
-// one with nothing in it.
+	for _, name := range names {
+		found, _ := r.lookup(name)
+
+		entries = append(entries, found)
+	}
+
+	return entries
+}
+
+var (
+	// process is the registry of the process.
+	process atomic.Pointer[Registry]
+	// core is the registry of the backends of the core, which a process
+	// whose registry nobody set has.
+	core = sync.OnceValue(Core)
+)
+
+// Process returns the registry of the process: the one SetProcess set, or,
+// in a process that set none, such as a test, that of the backends of the
+// core.
 func Process() *Registry {
 	if registry := process.Load(); registry != nil {
 		return registry
 	}
 
-	return New()
+	return core()
 }
 
 // SetProcess makes registry the registry of the process. The core calls it

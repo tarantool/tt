@@ -25,6 +25,7 @@ import (
 
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 )
 
 // manifestFileName is the file tt new creates, next to which every other
@@ -206,7 +207,7 @@ func validate(source string) error {
 		return fmt.Errorf("%w: %s", errUnexpectedWarning, strings.Join(warnings, "; "))
 	}
 
-	_, err = man.Validate()
+	_, err = man.Validate(buildreg.Process())
 
 	return err
 }

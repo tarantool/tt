@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 )
 
 // TestRoundTripMyApp parses the canonical my-app example, serializes it back
@@ -23,7 +24,7 @@ func TestRoundTripMyApp(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, warnings)
 
-	_, err = mfst.Validate()
+	_, err = mfst.Validate(buildreg.Core())
 	require.NoError(t, err)
 
 	out, err := mfst.Marshal()
@@ -92,7 +93,7 @@ version = ">=4.0.0"
 		Source: "registry", Version: ">=4.0.0", Path: "", Registry: "", Kind: "",
 	}, mfst.Components["lua"].Dependencies["component-sub-table"])
 
-	_, err = mfst.Validate()
+	_, err = mfst.Validate(buildreg.Core())
 	require.NoError(t, err)
 }
 
@@ -250,7 +251,7 @@ func TestPlatformFlavors(t *testing.T) {
 		mfst, err := parse(t, "tarantool = \">=3.0.0\"\ntt = \">=3.0.0\"\ntcm = \">=1.5.0[ee]\"\n")
 		require.NoError(t, err) // Parses; the flavor is generic at this layer.
 
-		_, err = mfst.Validate()
+		_, err = mfst.Validate(buildreg.Core())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "tcm")
 	})
@@ -262,7 +263,7 @@ func TestPlatformFlavors(t *testing.T) {
 		mfst, err := parse(t, platform)
 		require.NoError(t, err)
 
-		_, err = mfst.Validate()
+		_, err = mfst.Validate(buildreg.Core())
 		require.NoError(t, err)
 	})
 }
@@ -364,7 +365,7 @@ func TestFormatVersions(t *testing.T) {
 			mfst, _, err := manifest.ParseManifest([]byte(src))
 			require.NoError(t, err, "ver %s parses", ver)
 
-			_, err = mfst.Validate()
+			_, err = mfst.Validate(buildreg.Core())
 			require.Error(t, err, "ver %s: ftp source must fail validation", ver)
 			assert.Contains(t, err.Error(), "ftp")
 		}
@@ -399,7 +400,7 @@ default = true
 components = ["a"]
 default = true
 `)
-		_, err := mfst.Validate()
+		_, err := mfst.Validate(buildreg.Core())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "default")
 	})
@@ -413,7 +414,7 @@ path = "a/"
 [products.p]
 components = ["a", "ghost"]
 `)
-		_, err := mfst.Validate()
+		_, err := mfst.Validate(buildreg.Core())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "ghost")
 	})
@@ -427,7 +428,7 @@ path = "a/"
 [products."ns::p"]
 components = ["a"]
 `)
-		_, err := mfst.Validate()
+		_, err := mfst.Validate(buildreg.Core())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "::")
 	})
@@ -440,7 +441,7 @@ components = ["a"]
 		mfst, _, err := manifest.ParseManifest([]byte(src))
 		require.NoError(t, err)
 
-		_, err = mfst.Validate()
+		_, err = mfst.Validate(buildreg.Core())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "reserved")
 	})
@@ -454,7 +455,7 @@ path = "a/"
 [products.only]
 components = ["a"]
 `)
-		_, err := mfst.Validate()
+		_, err := mfst.Validate(buildreg.Core())
 		require.NoError(t, err)
 	})
 }

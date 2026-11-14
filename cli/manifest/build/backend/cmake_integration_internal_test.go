@@ -12,8 +12,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // luaModuleCMakeLists builds the Lua C module answer against the headers of
@@ -77,7 +75,7 @@ func TestCMakeCompilesAgainstTarantoolHeaders(t *testing.T) {
 	})
 
 	out := t.TempDir()
-	build := manifest.Build{Backend: BackendCMake, Output: []string{"answer.so"}}
+	build := Spec{Backend: BackendCMake, Output: []string{"answer.so"}}
 	env := Env{
 		OutputDir:           out,
 		Module:              true,

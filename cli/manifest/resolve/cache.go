@@ -7,6 +7,7 @@ import (
 
 	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/go-luarocks/deps"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
 
@@ -193,7 +194,7 @@ func (c *resolveCache) pathManifest(name, dir string) (*pathManifestDep, bool, e
 		return nil, false, nil
 	}
 
-	loaded, err := LoadPathManifest(name, dir)
+	loaded, err := LoadPathManifest(name, dir, buildreg.Process())
 	if err != nil {
 		return nil, false, err
 	}

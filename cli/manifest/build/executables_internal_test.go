@@ -20,6 +20,7 @@ import (
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest/build/backend"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/manifest/native"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
@@ -252,8 +253,9 @@ env = { PATH = '/nonexistent' }
 
 		proj := project{dir: dir, stateDir: t.TempDir(), man: man, product: "default"}
 		components := slices.Sorted(maps.Keys(man.Components))
+		core := buildreg.Core()
 
-		require.ErrorIs(t, preflightBackends(proj, components, rocks.TarantoolInfo{}),
+		require.ErrorIs(t, preflightBackends(core, proj, components, rocks.TarantoolInfo{}),
 			backend.ErrNoTool)
 
 		bin := backend.ProjectBinDir(dir)
@@ -262,7 +264,7 @@ env = { PATH = '/nonexistent' }
 			require.NoError(t, os.Chmod(filepath.Join(bin, tool), 0o755))
 		}
 
-		require.NoError(t, preflightBackends(proj, components, rocks.TarantoolInfo{}))
+		require.NoError(t, preflightBackends(core, proj, components, rocks.TarantoolInfo{}))
 	}
 }
 

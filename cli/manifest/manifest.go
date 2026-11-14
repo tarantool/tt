@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
@@ -85,6 +86,10 @@ func (p Package) GenerateVersionLuaValue() bool {
 // version is refused outright. Unknown values of known enum fields are not
 // handled here - they are caught by Validate regardless of format version.
 //
+// The fields of a build block but the common ones (Build) go to Build.Rest
+// unchecked: which of them a backend has, Validate tells, with the backends
+// of the tt it is given, by the same format-version rules.
+//
 // A manifest of another kind (manifest_kind) is refused with an error that
 // names the command it is for.
 //
@@ -130,10 +135,20 @@ func ParseManifest(data []byte) (*Manifest, []string, error) {
 	out.applyDependencyDefaults()
 	out.applyHookDefaults()
 
-	out.hash, err = HashTOML(data)
+	// The generic tree of the document is decoded once: manifest_hash is
+	// taken over it, and the fields of the backends of the build blocks are
+	// read from it, which the strict decode above left out.
+	tree, err := parseTree(data)
 	if err != nil {
 		return nil, nil, err
 	}
+
+	out.hash, err = hashTree(tree)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	out.fillRest(tree)
 
 	out.raw = append([]byte(nil), data...)
 
@@ -142,7 +157,8 @@ func ParseManifest(data []byte) (*Manifest, []string, error) {
 
 // handleDecodeError classifies a strict-decode failure. An unknown field is a
 // warning when the manifest is a newer minor version and a hard error
-// otherwise; any other decode failure is returned wrapped.
+// otherwise; any other decode failure is returned wrapped. A field of a build
+// block is not unknown here: it goes to Build.Rest (isBuildField).
 func handleDecodeError(decErr error, declared formatVersion) ([]string, error) {
 	var strict *toml.StrictMissingError
 	if !errors.As(decErr, &strict) {
@@ -150,6 +166,10 @@ func handleDecodeError(decErr error, declared formatVersion) ([]string, error) {
 	}
 
 	unknown := unknownKeys(strict)
+	if len(unknown) == 0 {
+		return nil, nil
+	}
+
 	if !declared.minorNewerThan(ourManifestVersion) {
 		return nil, invalid(unknown[0], "unknown field in manifest version %q", declared)
 	}
@@ -161,17 +181,6 @@ func handleDecodeError(decErr error, declared formatVersion) ([]string, error) {
 	}
 
 	return warnings, nil
-}
-
-// Marshal serializes the manifest back to TOML. Output is canonical go-toml
-// form; comments and original formatting are not preserved.
-func (m *Manifest) Marshal() ([]byte, error) {
-	data, err := toml.Marshal(m)
-	if err != nil {
-		return nil, fmt.Errorf("marshaling manifest: %w", err)
-	}
-
-	return data, nil
 }
 
 // Hash returns the manifest_hash a lock resolved from the manifest records,
@@ -193,6 +202,154 @@ func (m *Manifest) CheckHash(recorded string) error {
 // Raw returns the raw source bytes the manifest was parsed from.
 func (m *Manifest) Raw() []byte {
 	return m.raw
+}
+
+// Marshal serializes the manifest back to TOML. Output is canonical go-toml
+// form; comments and original formatting are not preserved.
+func (m *Manifest) Marshal() ([]byte, error) {
+	data, err := toml.Marshal(m.toWire())
+	if err != nil {
+		return nil, fmt.Errorf("marshaling manifest: %w", err)
+	}
+
+	return data, nil
+}
+
+// manifestWire is the form a Manifest is written in: a build block is a
+// table of its fields and those of its Rest, which the encoder cannot put
+// together from the Build struct.
+type manifestWire struct {
+	ManifestVersion string                    `toml:"manifest_version"`
+	Kind            string                    `toml:"manifest_kind,omitempty"`
+	Package         Package                   `toml:"package"`
+	Platform        Platform                  `toml:"platform"`
+	Dependencies    map[string]Dependency     `toml:"dependencies,omitempty"`
+	DevDependencies map[string]Dependency     `toml:"dev_dependencies,omitempty"`
+	Components      map[string]componentWire  `toml:"components,omitempty"`
+	Products        map[string]Product        `toml:"products,omitempty"`
+	Hooks           map[string]map[string]any `toml:"hooks,omitempty"`
+}
+
+// componentWire is the form a Component is written in.
+type componentWire struct {
+	Path         string                `toml:"path"`
+	Kind         string                `toml:"kind,omitempty"`
+	Include      []string              `toml:"include,omitempty"`
+	Exclude      []string              `toml:"exclude,omitempty"`
+	Namespace    *string               `toml:"namespace,omitempty"`
+	Dependencies map[string]Dependency `toml:"dependencies,omitempty"`
+	Build        map[string]any        `toml:"build,omitempty"`
+}
+
+// toWire returns the form m is written in.
+func (m *Manifest) toWire() manifestWire {
+	var components map[string]componentWire
+
+	if m.Components != nil {
+		components = make(map[string]componentWire, len(m.Components))
+	}
+
+	for name, component := range m.Components {
+		var build map[string]any
+
+		if component.Build != nil {
+			build = component.Build.tree()
+		}
+
+		components[name] = componentWire{
+			Path:         component.Path,
+			Kind:         component.Kind,
+			Include:      component.Include,
+			Exclude:      component.Exclude,
+			Namespace:    component.Namespace,
+			Dependencies: component.Dependencies,
+			Build:        build,
+		}
+	}
+
+	var hooks map[string]map[string]any
+
+	if m.Hooks != nil {
+		hooks = make(map[string]map[string]any, len(m.Hooks))
+	}
+
+	for name, hook := range m.Hooks {
+		hooks[name] = hook.tree()
+	}
+
+	return manifestWire{
+		ManifestVersion: m.ManifestVersion,
+		Kind:            m.Kind,
+		Package:         m.Package,
+		Platform:        m.Platform,
+		Dependencies:    m.Dependencies,
+		DevDependencies: m.DevDependencies,
+		Components:      components,
+		Products:        m.Products,
+		Hooks:           hooks,
+	}
+}
+
+// fillRest puts the fields of every build block of m but the common ones,
+// which the strict decode left out, into its Rest, from tree, the generic
+// tree of the document m was decoded from.
+func (m *Manifest) fillRest(tree map[string]any) {
+	components, _ := tree["components"].(map[string]any)
+
+	for name, component := range m.Components {
+		if component.Build == nil {
+			continue
+		}
+
+		table, _ := components[name].(map[string]any)
+		block, _ := table["build"].(map[string]any)
+
+		component.Build.Rest = restOf(block)
+	}
+
+	hooks, _ := tree["hooks"].(map[string]any)
+
+	for name, hook := range m.Hooks {
+		block, _ := hooks[name].(map[string]any)
+
+		hook.Rest = restOf(block)
+		m.Hooks[name] = hook
+	}
+}
+
+// restOf returns the fields of a build block but the common ones; nil when
+// there are none.
+func restOf(block map[string]any) map[string]any {
+	var rest map[string]any
+
+	for key, value := range block {
+		if slices.Contains(commonBuildFields, key) {
+			continue
+		}
+
+		if rest == nil {
+			rest = map[string]any{}
+		}
+
+		rest[key] = value
+	}
+
+	return rest
+}
+
+// isBuildField reports whether key, the path of a field the strict decode
+// did not know, is in a build block: [components.<name>.build] or
+// [hooks.<name>]. Such a field is one of the backend of the block, which
+// goes to Build.Rest.
+func isBuildField(key []string) bool {
+	switch {
+	case len(key) >= 4 && key[0] == "components" && key[2] == "build":
+		return true
+	case len(key) >= 3 && key[0] == "hooks":
+		return true
+	default:
+		return false
+	}
 }
 
 // applyDependencyDefaults defaults every declared dependency, in the global
@@ -254,10 +411,15 @@ func peekManifestVersion(data []byte) (formatVersion, error) {
 	return parseFormatVersion(head.ManifestVersion)
 }
 
-// unknownKeys flattens StrictMissingError into dotted key paths.
+// unknownKeys flattens StrictMissingError into dotted key paths, leaving out
+// the fields of build blocks (isBuildField).
 func unknownKeys(strict *toml.StrictMissingError) []string {
 	keys := make([]string, 0, len(strict.Errors))
 	for _, e := range strict.Errors {
+		if isBuildField(e.Key()) {
+			continue
+		}
+
 		keys = append(keys, strings.Join(e.Key(), "."))
 	}
 

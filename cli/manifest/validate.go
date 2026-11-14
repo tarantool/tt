@@ -2,7 +2,6 @@ package manifest
 
 import (
 	"fmt"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"sort"
@@ -59,14 +58,28 @@ func isHookName(name string) bool {
 // Validation here is structural - fields present and consistent with each
 // other. Whether a dependency actually resolves, the package version, and on-disk
 // component files are checked further down the pipeline.
-func (m *Manifest) Validate() ([]string, error) {
+//
+// The fields of the backend of a build block are checked by checker, in the
+// place of the block among the checks; a nil checker checks the structure
+// only, the fields of no backend. A block of a backend checker does not know
+// is a warning: the build refuses it, but a command that builds nothing can
+// work with the manifest still.
+func (m *Manifest) Validate(checker BuildChecker) ([]string, error) {
+	var warnings []string
+
 	checks := []func() error{
 		m.validateVersion,
 		m.validatePackage,
 		m.validatePlatform,
 		func() error { return validateDependencies("dependencies", m.Dependencies) },
 		func() error { return validateDependencies("dev_dependencies", m.DevDependencies) },
-		m.validateComponents,
+		func() error {
+			componentWarnings, err := m.validateComponents(checker)
+
+			warnings = append(warnings, componentWarnings...)
+
+			return err
+		},
 		m.validateProducts,
 	}
 
@@ -77,7 +90,9 @@ func (m *Manifest) Validate() ([]string, error) {
 		}
 	}
 
-	return m.validateHooks()
+	hookWarnings, err := m.validateHooks(checker)
+
+	return append(warnings, hookWarnings...), err
 }
 
 func (m *Manifest) validateVersion() error {
@@ -238,43 +253,43 @@ func validateDependency(field string, dep Dependency) error {
 	return nil
 }
 
-func (m *Manifest) validateComponents() error {
+func (m *Manifest) validateComponents(checker BuildChecker) ([]string, error) {
 	// programs maps a program an executable component builds to that
 	// component: two of them building one name would overwrite each other's
 	// file in .rocks/bin/.
 	programs := map[string]string{}
+
+	var warnings []string
 
 	for _, name := range sortedKeys(m.Components) {
 		comp := m.Components[name]
 
 		field := "components." + name
 		if !nameRe.MatchString(name) {
-			return invalid(field, "name must match [a-z][a-z0-9-]*")
+			return nil, invalid(field, "name must match [a-z][a-z0-9-]*")
 		}
 
 		if comp.Path == "" {
-			return invalid(field+".path", "is required")
+			return nil, invalid(field+".path", "is required")
 		}
 
 		err := validateDependencies(field+".dependencies", comp.Dependencies)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		err = validateKind(field, comp)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		if comp.Build != nil {
-			err := validateBuild(field+".build", *comp.Build)
-			if err != nil {
-				return err
-			}
+			buildWarnings, err := m.validateComponentBuild(checker, name, comp)
 
-			err = validateKindBackend(field+".build", comp)
+			warnings = append(warnings, buildWarnings...)
+
 			if err != nil {
-				return err
+				return nil, err
 			}
 		}
 
@@ -284,7 +299,7 @@ func (m *Manifest) validateComponents() error {
 
 		for _, program := range comp.Build.Executables(name) {
 			if other, taken := programs[program]; taken {
-				return invalid(field+".build",
+				return nil, invalid(field+".build",
 					"program %q is built by component %q too", program, other)
 			}
 
@@ -292,7 +307,77 @@ func (m *Manifest) validateComponents() error {
 		}
 	}
 
-	return nil
+	return warnings, nil
+}
+
+// validateComponentBuild checks the build block of the component name: it
+// names a backend, and checker, when there is one, checks the block for it.
+// A backend checker does not know is a warning.
+func (m *Manifest) validateComponentBuild(
+	checker BuildChecker, name string, comp Component,
+) ([]string, error) {
+	field := "components." + name + ".build"
+	if comp.Build.Backend == "" {
+		return nil, invalid(field, "backend is required")
+	}
+
+	if checker == nil {
+		return nil, nil
+	}
+
+	namespace := comp.EffectiveNamespace(m.Package.Name)
+	if comp.IsExecutable() {
+		namespace = ""
+	}
+
+	kind := comp.Kind
+	if kind == "" {
+		kind = KindModule
+	}
+
+	known, warnings, err := m.checkBuild(checker, field, BuildTarget{
+		Component: name, Kind: kind, Path: comp.Path, Namespace: namespace,
+		Package: m.Package.Name, Hook: false,
+	}, *comp.Build)
+	if err != nil || known {
+		return warnings, err
+	}
+
+	return []string{fmt.Sprintf("%s: no module of this tt provides backend %q; "+
+		"its fields are not checked", field, comp.Build.Backend)}, nil
+}
+
+// checkBuild has checker check build, the build block at field of target,
+// and reports whether checker knows its backend. The fields checker finds
+// no backend has are reported by the format-version rules of the fields of
+// the rest of the manifest: an error for a manifest of this minor version or
+// an older one, before any error of the backend, and a warning for one of a
+// newer minor version.
+func (m *Manifest) checkBuild(
+	checker BuildChecker, field string, target BuildTarget, build Build,
+) (bool, []string, error) {
+	check, err := checker.CheckBuild(field, target, build)
+	if len(check.Unknown) == 0 {
+		return check.Known, nil, err
+	}
+
+	declared, versionErr := parseFormatVersion(m.ManifestVersion)
+	if versionErr != nil {
+		return check.Known, nil, versionErr
+	}
+
+	if !declared.minorNewerThan(ourManifestVersion) {
+		return check.Known, nil, invalid(field+"."+check.Unknown[0],
+			"unknown field in manifest version %q", declared)
+	}
+
+	warnings := make([]string, 0, len(check.Unknown))
+	for _, key := range check.Unknown {
+		warnings = append(warnings, fmt.Sprintf(
+			"field %q appeared in a newer manifest version; trying to ignore it", field+"."+key))
+	}
+
+	return check.Known, warnings, err
 }
 
 // validateKind checks the kind of a component and what the kind rules out.
@@ -332,351 +417,6 @@ func validateKind(field string, comp Component) error {
 	}
 
 	return nil
-}
-
-// validateKindBackend checks that the backend of a component's build makes
-// what the kind of the component is: go makes programs only, c and lua-c
-// make modules only, cargo, cmake, make and shell make either.
-func validateKindBackend(field string, comp Component) error {
-	backend := comp.Build.Backend
-
-	switch {
-	case comp.IsExecutable() && (backend == backendC || backend == backendLuaC):
-		return invalid(field, "backend %q builds a module, not a program (kind %q wants "+
-			"go, cargo, cmake, make or shell)", backend, KindExecutable)
-	case !comp.IsExecutable() && backend == backendGo:
-		return invalid(field, "backend %q builds a program: set kind = %q on the component",
-			backend, KindExecutable)
-	case backend == backendCargo:
-		return validateCargoKind(field, comp)
-	}
-
-	return nil
-}
-
-// validateCargoKind checks the fields of a cargo build that belong to one
-// kind: bin to the binary of an executable component, module to the library
-// of a module component.
-func validateCargoKind(field string, comp Component) error {
-	build := comp.Build
-
-	switch {
-	case comp.IsExecutable() && build.Module != "":
-		return invalid(field+".module", "names the library of a module component; "+
-			"kind %q builds the binary bin", KindExecutable)
-	case comp.IsExecutable():
-		return nil
-	case build.Bin != "":
-		return invalid(field+".bin", "names the binary of an executable component; "+
-			"a module component builds the library of the package, named by module")
-	}
-
-	return nil
-}
-
-// programNameRe is the shape of a program name a go or cargo build is given:
-// a plain file name, which tt instance finds in .rocks/bin/ by the binary of
-// an instance description given without a slash.
-var programNameRe = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._+-]*$`)
-
-// cargoProfileRe is the shape cargo allows a profile name.
-var cargoProfileRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
-
-// cargoModuleRe is the shape of the module a cargo build makes: the file is
-// <module>.so in the namespace of the component, and the module is a name of
-// require and of the C functions of box.schema.func.create, so no dot.
-var cargoModuleRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
-
-// cmakeVariableRe is the shape of a key of variables of a cmake build: the
-// name of a cache variable, with its type after a colon if it is given one,
-// as -D<name>[:<type>]=<value> takes it. An = would end the name early; a
-// space and a leading dash are kept out of it as out of a target.
-var cmakeVariableRe = regexp.MustCompile(`^[A-Za-z0-9_.+][A-Za-z0-9_.+-]*(:[A-Z]+)?$`)
-
-// cmakeNameRe is the shape of a target and of a build type of a cmake build:
-// no space, and no leading dash, which cmake --build would take for an
-// option.
-var cmakeNameRe = regexp.MustCompile(`^[A-Za-z0-9_.+][A-Za-z0-9_.+-]*$`)
-
-// cmakeBuildTypeVariable is the variable build_type of a cmake build sets.
-const cmakeBuildTypeVariable = "CMAKE_BUILD_TYPE"
-
-func validateBuild(field string, build Build) error {
-	switch build.Backend {
-	case backendMake:
-		if build.MakeTarget == "" {
-			return invalid(field, "make_target is required for backend %q", backendMake)
-		}
-	case backendShell:
-		if build.Command == "" {
-			return invalid(field, "command is required for backend %q", backendShell)
-		}
-	case backendC, backendLuaC:
-		err := validateCcBuild(field, build)
-		if err != nil {
-			return err
-		}
-	case backendGo:
-		err := validateGoBuild(field, build)
-		if err != nil {
-			return err
-		}
-	case backendCargo:
-		err := validateCargoBuild(field, build)
-		if err != nil {
-			return err
-		}
-	case backendCMake:
-		err := validateCMakeBuild(field, build)
-		if err != nil {
-			return err
-		}
-	case "":
-		return invalid(field, "backend is required")
-	default:
-		return invalid(field,
-			"backend %q is not supported in manifest_version %q "+
-				"(want make, shell, c, lua-c, go, cargo or cmake)",
-			build.Backend, ManifestVersion)
-	}
-
-	return validateBackendFields(field, build)
-}
-
-// validateCcBuild checks the fields of a c or lua-c build: module and
-// sources are required, env sets none of the variables that reach nothing
-// there (ccEnvVars), each overlay of platforms is for an OS tt builds for,
-// and no flag of the compiler or of the linker, of the build or of an
-// overlay, is empty, which cc would take for the name of a file.
-func validateCcBuild(field string, build Build) error {
-	if build.Module == "" {
-		return invalid(field, "module is required for backend %q", build.Backend)
-	}
-
-	if len(build.Sources) == 0 {
-		return invalid(field, "sources is required for backend %q", build.Backend)
-	}
-
-	for _, variable := range ccEnvVars {
-		if _, set := build.Env[variable.name]; set {
-			return invalid(field+".env."+variable.name, "does nothing on backend %q: %s",
-				build.Backend, variable.instead)
-		}
-	}
-
-	flags := []flagList{{"cflags", build.Cflags}, {"ldflags", build.Ldflags}}
-	oses := native.SupportedOS()
-
-	for _, goos := range sortedKeys(build.Platforms) {
-		// A part for an OS tt builds for none of the platforms of would never
-		// be added: platforms.macos for darwin, say.
-		if !slices.Contains(oses, goos) {
-			return invalid(field+".platforms."+goos, "%q is not an OS tt builds for (want %s)",
-				goos, orList(oses))
-		}
-
-		overlay := build.Platforms[goos]
-		prefix := "platforms." + goos + "."
-
-		flags = append(flags,
-			flagList{prefix + "cflags", overlay.Cflags},
-			flagList{prefix + "ldflags", overlay.Ldflags})
-	}
-
-	for _, key := range flags {
-		if slices.Contains(key.flags, "") {
-			return invalid(field+"."+key.name, "must not contain an empty entry")
-		}
-	}
-
-	return nil
-}
-
-// flagList is a list of flags of a build, with the name of its field.
-type flagList struct {
-	name  string
-	flags []string
-}
-
-// ccEnvVars are the variables of make and autotools a user would set in env
-// of a c or lua-c build to compile it with, with what to write instead. The
-// compiler reads none of them, so one of env reaches nothing: CC, CFLAGS and
-// LDFLAGS tt reads from the environment it runs in to put the cc line
-// together, CPPFLAGS, LIBS and LDLIBS from nowhere, since the build has
-// fields of its own for what they carry.
-var ccEnvVars = []struct {
-	name    string
-	instead string
-}{
-	{"CC", "the compiler is CC of the environment tt runs in, cc by default"},
-	{"CFLAGS", "put the flags of the compiler into cflags; " +
-		"CFLAGS of the environment tt runs in comes after them"},
-	{"CPPFLAGS", "put the macros into defines, the directories of headers into " +
-		"include_dirs and other flags of the preprocessor into cflags"},
-	{"LDFLAGS", "put the flags of the link into ldflags; " +
-		"LDFLAGS of the environment tt runs in comes after them"},
-	{"LIBS", "put the libraries into libraries and their directories into library_dirs"},
-	{"LDLIBS", "put the libraries into libraries and their directories into library_dirs"},
-}
-
-// validateCMakeBuild checks the fields of a cmake build. output is required:
-// the build tree of cmake holds the objects, the caches and the generated
-// files of the build as well, so the build takes from it the files output
-// names and nothing else.
-func validateCMakeBuild(field string, build Build) error {
-	if len(build.Output) == 0 {
-		return invalid(field, "output is required for backend %q: the files of its "+
-			"build tree the build takes", backendCMake)
-	}
-
-	for _, output := range build.Output {
-		switch {
-		case output == "":
-			return invalid(field+".output", "must not contain an empty entry")
-		case filepath.IsAbs(output):
-			return invalid(field+".output", "%q is not relative to the build tree", output)
-		}
-	}
-
-	for _, name := range sortedKeys(build.Variables) {
-		if !cmakeVariableRe.MatchString(name) {
-			return invalid(field+".variables", "%q is not a variable name: letters, "+
-				"digits and _.+-, not - first, then :<TYPE> if it has one", name)
-		}
-
-		if variable, _, _ := strings.Cut(name, ":"); variable == cmakeBuildTypeVariable {
-			return invalid(field+".variables", "%s is set by build_type", cmakeBuildTypeVariable)
-		}
-	}
-
-	for _, target := range build.Targets {
-		if !cmakeNameRe.MatchString(target) {
-			return invalid(field+".targets", "%q is not a target name", target)
-		}
-	}
-
-	if build.BuildType != "" && !cmakeNameRe.MatchString(build.BuildType) {
-		return invalid(field+".build_type", "%q is not a build type", build.BuildType)
-	}
-
-	return nil
-}
-
-func validateGoBuild(field string, build Build) error {
-	if build.Name != "" && !programNameRe.MatchString(build.Name) {
-		return invalid(field+".name", "%q is not a file name", build.Name)
-	}
-
-	for _, tag := range build.Tags {
-		if tag == "" || strings.ContainsAny(tag, ", \t\n") {
-			return invalid(field+".tags", "%q is not a build tag", tag)
-		}
-	}
-
-	if slices.Contains(build.Ldflags, "") {
-		return invalid(field+".ldflags", "must not contain an empty entry")
-	}
-
-	return nil
-}
-
-func validateCargoBuild(field string, build Build) error {
-	if build.Bin != "" && !programNameRe.MatchString(build.Bin) {
-		return invalid(field+".bin", "%q is not a file name", build.Bin)
-	}
-
-	if build.Module != "" && !cargoModuleRe.MatchString(build.Module) {
-		return invalid(field+".module", "%q is not a module name: a letter or _, "+
-			"then letters, digits and _", build.Module)
-	}
-
-	for _, feature := range build.Features {
-		if feature == "" || strings.ContainsAny(feature, ", \t\n") {
-			return invalid(field+".features", "%q is not a feature name", feature)
-		}
-	}
-
-	if build.Profile != "" && !cargoProfileRe.MatchString(build.Profile) {
-		return invalid(field+".profile", "%q is not a profile name", build.Profile)
-	}
-
-	return nil
-}
-
-// backendField is a field of a build block one or more backends own.
-type backendField struct {
-	name   string
-	set    bool
-	owners []string
-}
-
-// backendFields lists the fields of build that belong to some backends only,
-// with whether each is set. static is not one: the build of any component
-// checks what it made (Build.Static), and a hook, which makes nothing it
-// checks, is refused one by validateHooks.
-func backendFields(build Build) []backendField {
-	ccDriver := []string{backendC, backendLuaC}
-	linkers := []string{backendGo, backendC, backendLuaC}
-
-	return []backendField{
-		{"make_target", build.MakeTarget != "", []string{backendMake}},
-		{"entrypoint", build.Entrypoint != "", []string{backendMake}},
-		{"flags", build.Flags != nil, []string{backendMake}},
-		{"command", build.Command != "", []string{backendShell}},
-		{"args", build.Args != nil, []string{backendShell}},
-		{"module", build.Module != "", []string{backendC, backendLuaC, backendCargo}},
-		{"sources", build.Sources != nil, ccDriver},
-		{"include_dirs", build.IncludeDirs != nil, ccDriver},
-		{"libraries", build.Libraries != nil, ccDriver},
-		{"library_dirs", build.LibraryDirs != nil, ccDriver},
-		{"defines", build.Defines != nil, ccDriver},
-		{"cflags", build.Cflags != nil, ccDriver},
-		{"platforms", build.Platforms != nil, ccDriver},
-		// Flags of the linker of each: go build's -ldflags, the link of cc.
-		{"ldflags", build.Ldflags != nil, linkers},
-		// The backends that copy the files it lists: go and cargo name their
-		// program themselves, c and lua-c write their module.
-		{"output", build.Output != nil, []string{backendMake, backendShell, backendCMake}},
-		{"incremental", build.Incremental != nil, []string{backendMake, backendShell}},
-		{"package", build.Package != "", []string{backendGo, backendCargo}},
-		{"name", build.Name != "", []string{backendGo}},
-		{"tags", build.Tags != nil, []string{backendGo}},
-		{"cgo", build.Cgo != nil, []string{backendGo}},
-		{"bin", build.Bin != "", []string{backendCargo}},
-		{"features", build.Features != nil, []string{backendCargo}},
-		{"profile", build.Profile != "", []string{backendCargo}},
-		{"variables", build.Variables != nil, []string{backendCMake}},
-		{"targets", build.Targets != nil, []string{backendCMake}},
-		{"build_type", build.BuildType != "", []string{backendCMake}},
-	}
-}
-
-// validateBackendFields rejects a field of another backend, on the build of
-// every backend and of a hook: a go build with make_target, a make build
-// with cgo or cflags, a shell build with make_target. Such a field does
-// nothing, and a user who wrote cflags on a make build expects a build with
-// those flags he would not get.
-func validateBackendFields(field string, build Build) error {
-	for _, key := range backendFields(build) {
-		if !key.set || slices.Contains(key.owners, build.Backend) {
-			continue
-		}
-
-		return invalid(field+"."+key.name, "is a field of backend %s, not of %q",
-			orList(key.owners), build.Backend)
-	}
-
-	return nil
-}
-
-// orList joins names as a sentence lists them: "a", "a or b", "a, b or c".
-func orList(names []string) string {
-	last := len(names) - 1
-	if last <= 0 {
-		return strings.Join(names, "")
-	}
-
-	return strings.Join(names[:last], ", ") + " or " + names[last]
 }
 
 func (m *Manifest) validateProducts() error {
@@ -754,7 +494,11 @@ func (m *Manifest) validateProductRocks() error {
 	return nil
 }
 
-func (m *Manifest) validateHooks() ([]string, error) {
+// validateHooks checks the hooks: the backend of each is one hooks run with,
+// and checker, when there is one, checks the block for it as it checks the
+// build block of a component. The backends of hooks are a closed set, so one
+// checker does not know is an error.
+func (m *Manifest) validateHooks(checker BuildChecker) ([]string, error) {
 	var warnings []string
 
 	for _, name := range sortedKeys(m.Hooks) {
@@ -767,15 +511,29 @@ func (m *Manifest) validateHooks() ([]string, error) {
 
 		// A hook naming no backend was given shell when it was parsed
 		// (applyHookDefaults), the backend the build runs it with.
+		field := "hooks." + name
+
 		hook := m.Hooks[name]
 		if !isHookBackend(hook.Backend) {
-			return warnings, invalid("hooks."+name,
+			return warnings, invalid(field,
 				"backend %q is not supported (want make or shell)", hook.Backend)
 		}
 
-		err := validateBuild("hooks."+name, hook)
-		if err != nil {
-			return warnings, err
+		if checker != nil {
+			known, hookWarnings, err := m.checkBuild(checker, field, BuildTarget{
+				Component: "", Kind: "", Path: "", Namespace: "", Package: m.Package.Name,
+				Hook: true,
+			}, hook)
+
+			warnings = append(warnings, hookWarnings...)
+
+			if err == nil && !known {
+				err = invalid(field, "no module of this tt provides backend %q", hook.Backend)
+			}
+
+			if err != nil {
+				return warnings, err
+			}
 		}
 
 		// A hook has no TT_OUTPUT_DIR, so the build knows nothing it made to

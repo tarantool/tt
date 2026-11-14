@@ -6,8 +6,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/tarantool/tt/v3/cli/manifest"
 )
 
 // on returns a pointer to true, for the *bool fields of a build.
@@ -24,23 +22,23 @@ func TestGoArgs(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		build manifest.Build
+		build Spec
 		want  []string
 	}{
 		{
 			name:  "defaults",
-			build: manifest.Build{Backend: BackendGo},
+			build: Spec{Backend: BackendGo},
 			want:  []string{"build", "-trimpath", "-o", "/proj/.rocks/bin/gw", "."},
 		},
 		{
 			name:  "name and package",
-			build: manifest.Build{Backend: BackendGo, Name: "gateway", Package: "./cmd/gw"},
+			build: Spec{Backend: BackendGo, Name: "gateway", Package: "./cmd/gw"},
 			want:  []string{"build", "-trimpath", "-o", "/proj/.rocks/bin/gateway", "./cmd/gw"},
 		},
 		{
 			// Every entry is one argument of the linker.
 			name: "tags and ldflags",
-			build: manifest.Build{
+			build: Spec{
 				Backend: BackendGo,
 				Tags:    []string{"prod", "fast"},
 				Ldflags: []string{"-s", "-X", "main.greeting=hello world"},
@@ -53,12 +51,12 @@ func TestGoArgs(t *testing.T) {
 		{
 			// Without cgo a Go program is static already.
 			name:  "static without cgo",
-			build: manifest.Build{Backend: BackendGo, Static: on()},
+			build: Spec{Backend: BackendGo, Static: on()},
 			want:  []string{"build", "-trimpath", "-o", "/proj/.rocks/bin/gw", "."},
 		},
 		{
 			name: "static with cgo",
-			build: manifest.Build{
+			build: Spec{
 				Backend: BackendGo, Static: on(), Cgo: on(),
 				Tags: []string{"prod"}, Ldflags: []string{"-s"},
 			},
@@ -103,13 +101,13 @@ func TestGoEnvironSelectsTheTarget(t *testing.T) {
 		Extra: map[string]string{"GOOS": "darwin", "CGO_ENABLED": "1", "CC": "musl-gcc"},
 	}
 
-	got := goEnviron(manifest.Build{Backend: BackendGo}, env)
+	got := goEnviron(Spec{Backend: BackendGo}, env)
 	assert.Equal(t, "linux", lastEnvValue(got, "GOOS"))
 	assert.Equal(t, "arm64", lastEnvValue(got, "GOARCH"))
 	assert.Equal(t, "0", lastEnvValue(got, "CGO_ENABLED"))
 	assert.Equal(t, "musl-gcc", lastEnvValue(got, "CC"))
 
-	got = goEnviron(manifest.Build{Backend: BackendGo, Cgo: on()}, env)
+	got = goEnviron(Spec{Backend: BackendGo, Cgo: on()}, env)
 	assert.Equal(t, "1", lastEnvValue(got, "CGO_ENABLED"))
 }
 
@@ -121,7 +119,7 @@ func TestCargoArgs(t *testing.T) {
 			"build", "--profile", "release", "--bin", "agent",
 			"--message-format=json-render-diagnostics",
 		},
-		cargoArgs(manifest.Build{Backend: BackendCargo}, "agent", ""))
+		cargoArgs(Spec{Backend: BackendCargo}, "agent", ""))
 
 	assert.Equal(t,
 		[]string{
@@ -130,7 +128,7 @@ func TestCargoArgs(t *testing.T) {
 			"--package", "agent-crate", "--features", "tls,serde/derive",
 			"--target", "x86_64-unknown-linux-musl",
 		},
-		cargoArgs(manifest.Build{
+		cargoArgs(Spec{
 			Backend: BackendCargo, Profile: "dist", Package: "agent-crate",
 			Features: []string{"tls", "serde/derive"},
 		}, "agent", "x86_64-unknown-linux-musl"))
@@ -144,12 +142,12 @@ func TestCargoTarget(t *testing.T) {
 		foreignArch = "amd64"
 	}
 
-	plain := manifest.Build{Backend: BackendCargo}
-	static := manifest.Build{Backend: BackendCargo, Static: on()}
+	plain := Spec{Backend: BackendCargo}
+	static := Spec{Backend: BackendCargo, Static: on()}
 
 	tests := []struct {
 		name  string
-		build manifest.Build
+		build Spec
 		env   Env
 		want  string
 	}{
@@ -230,7 +228,7 @@ build script says hi
 func TestCargoModuleArgs(t *testing.T) {
 	t.Parallel()
 
-	build := manifest.Build{Backend: BackendCargo, Package: "fast", Features: []string{"simd"}}
+	build := Spec{Backend: BackendCargo, Package: "fast", Features: []string{"simd"}}
 
 	assert.Equal(t, []string{
 		"rustc", "--lib", "--crate-type", "cdylib", "--profile", "release",
@@ -243,7 +241,7 @@ func TestCargoModuleArgs(t *testing.T) {
 		"rustc", "--lib", "--crate-type", "cdylib", "--profile", "dev",
 		"--message-format=json-render-diagnostics", "--target", "aarch64-apple-darwin",
 		"--", "-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup",
-	}, cargoModuleArgs(manifest.Build{Backend: BackendCargo, Profile: "dev"},
+	}, cargoModuleArgs(Spec{Backend: BackendCargo, Profile: "dev"},
 		"aarch64-apple-darwin", darwinOS))
 }
 
@@ -281,7 +279,7 @@ func TestPreflight(t *testing.T) {
 		t.Parallel()
 
 		for _, backend := range []string{BackendGo, BackendCargo} {
-			err := Preflight(manifest.Build{Backend: backend, Static: on()},
+			err := Preflight(Spec{Backend: backend, Static: on()},
 				Env{OS: darwinOS, Arch: "arm64"})
 			require.ErrorIs(t, err, ErrStaticDarwin, backend)
 		}
@@ -295,27 +293,27 @@ func TestPreflight(t *testing.T) {
 		darwin := Env{OS: darwinOS, Arch: "arm64", Module: true}
 
 		for _, backend := range []string{BackendCargo, BackendCMake} {
-			err := Preflight(manifest.Build{Backend: backend, Static: on()}, darwin)
+			err := Preflight(Spec{Backend: backend, Static: on()}, darwin)
 			require.NotErrorIs(t, err, ErrStaticDarwin, backend)
 		}
 
 		darwin.Module = false
 
-		err := Preflight(manifest.Build{Backend: BackendCMake, Static: on()}, darwin)
+		err := Preflight(Spec{Backend: BackendCMake, Static: on()}, darwin)
 		require.NotErrorIs(t, err, ErrStaticDarwin)
 	})
 
 	t.Run("a platform cargo has no target for", func(t *testing.T) {
 		t.Parallel()
 
-		err := Preflight(manifest.Build{Backend: BackendCargo}, Env{OS: "linux", Arch: "s390x"})
+		err := Preflight(Spec{Backend: BackendCargo}, Env{OS: "linux", Arch: "s390x"})
 		require.ErrorIs(t, err, errUnsupportedTarget)
 	})
 
 	t.Run("other backends pass", func(t *testing.T) {
 		t.Parallel()
 
-		err := Preflight(manifest.Build{Backend: BackendMake, Static: on()},
+		err := Preflight(Spec{Backend: BackendMake, Static: on()},
 			Env{OS: darwinOS, Arch: "arm64"})
 		require.NoError(t, err)
 	})
@@ -328,7 +326,7 @@ func TestPreflightNamesTheMissingTool(t *testing.T) {
 	for backend, tool := range map[string]string{
 		BackendGo: "go", BackendCargo: "cargo", BackendCMake: "cmake",
 	} {
-		err := Preflight(manifest.Build{Backend: backend}, Env{})
+		err := Preflight(Spec{Backend: backend}, Env{})
 		require.ErrorIs(t, err, ErrNoTool, backend)
 		assert.Contains(t, err.Error(), `runs "`+tool+`", which is not in PATH`)
 	}

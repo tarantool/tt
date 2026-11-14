@@ -192,6 +192,19 @@ A field of a backend other than the one of the build is an error, since it
 would do nothing: `cflags` on a `make` build, `make_target` on a `shell`
 build or hook, `output` on a `c` one.
 
+The backends above are those of tt itself; a module tt is built with may
+provide more. A build block of a backend no module of the tt provides is
+a warning, `no module of this tt provides backend "<name>"; its fields are
+not checked`, for a command that builds nothing, such as `tt package add`
+or `tt package pack --format rock-src`. It is an error once tt is to build
+the component - by `tt package build` and `pack`, and by `tt package fetch`
+for a path dependency or a source rock it builds - before anything is
+built, and the error names the dependency. The fields of a build block are
+checked when the manifest is
+checked, not when it is read: by the rules of the format version above for
+a field no backend has, and with the path of the field for a value of a
+wrong type, `components.a.build.cflags: must be an array, not a string`.
+
 A build gets its contract in the environment: `TT_OUTPUT_DIR`, where it
 puts what it makes, `TT_PROJECT_ROOT`, `TT_PACKAGE`, `TT_COMPONENT_NAME`,
 `TT_VERSION`, `TT_PLATFORM_OS` and `TT_PLATFORM_ARCH`. When tt knows the
