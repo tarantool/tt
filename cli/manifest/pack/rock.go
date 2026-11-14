@@ -54,6 +54,10 @@ const (
 	tarantoolRock = "tarantool"
 )
 
+// nativeModuleExts end the names of the native modules Tarantool loads: .so,
+// and .dylib on darwin.
+var nativeModuleExts = []string{".so", ".dylib"} //nolint:gochecknoglobals // A constant list.
+
 var (
 	// errFormat reports a --format tt package pack does not know.
 	errFormat = errors.New("unknown format")
@@ -354,8 +358,11 @@ func rockFiles(temp, stage, projectDir string, licenseFiles []string) (string, f
 }
 
 // rockArch is the LuaRocks arch of the rock of stage: the host's when it holds
-// a native file, which has to be one of the host (checkNativeFiles), or any
-// file in lib/; all otherwise.
+// a native file, ELF or Mach-O, which has to be one of the host
+// (checkNativeFiles), or a file in lib/ named as a native module is
+// (holdsModules); all otherwise, whatever else lib/ holds - a .wasm that a
+// build put among the modules runs anywhere, as the .tt archive of the same
+// files says (native.Files).
 func rockArch(stage string) (string, error) {
 	natives, err := native.Files(stage)
 	if err != nil {
@@ -371,29 +378,35 @@ func rockArch(stage string) (string, error) {
 		return remote.HostArch(), nil
 	}
 
-	hasLib, err := holdsFiles(filepath.Join(stage, stageLib))
+	hasModules, err := holdsModules(filepath.Join(stage, stageLib))
 	if err != nil {
 		return "", err
 	}
 
-	if hasLib {
+	if hasModules {
 		return remote.HostArch(), nil
 	}
 
 	return rockArchAll, nil
 }
 
-// holdsFiles reports whether the directory dir holds a file, at any depth. A
-// missing directory holds none.
-func holdsFiles(dir string) (bool, error) {
+// holdsModules reports whether the directory dir holds a file named as a
+// native module Tarantool loads is named, a .so or a .dylib, at any depth,
+// whatever its content: a build put it among the modules of the package for
+// the host, which tt cannot tell of a file that is neither ELF nor Mach-O.
+// Any other file there - a .wasm, Lua - runs anywhere and makes no rock of
+// the host. A missing directory holds none.
+func holdsModules(dir string) (bool, error) {
 	found := false
 
-	err := filepath.WalkDir(dir, func(_ string, entry fs.DirEntry, err error) error {
+	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if !entry.IsDir() {
+		if !entry.IsDir() && slices.ContainsFunc(nativeModuleExts, func(ext string) bool {
+			return strings.HasSuffix(path, ext)
+		}) {
 			found = true
 
 			return fs.SkipAll

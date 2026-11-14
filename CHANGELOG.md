@@ -564,6 +564,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt package pack --format rock` packs a package whose build puts only
+  files that run anywhere among its modules - a `.wasm` or Lua in
+  `TT_OUTPUT_DIR`, `lib/` of the rock - as an `.all` rock, as its archive
+  packed `--without-deps` is one of `any` platform. Any file in `lib/` made
+  the rock the one of the host, `.linux-x86_64.rock` say. A rock is of the
+  host when it holds a native file, ELF or Mach-O, or a file of `lib/` named
+  as a native module is, a `.so` or a `.dylib`.
 - The output directory of a build, `TT_OUTPUT_DIR`, exists before the build
   runs, whatever its backend: a `make` or `shell` build of a module
   component that copied its file straight into it, `cp x.so
