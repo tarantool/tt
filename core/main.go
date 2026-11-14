@@ -1,11 +1,13 @@
 // Package core builds tt from a table of modules and runs it.
 //
 // A module is an sdk.Constructor: given the Services the core offers, it
-// returns the commands it contributes and where they go. Main calls every
-// constructor, hangs the commands on tt's root, configures tt, hangs the
-// external modules - the executables TT_CLI_MODULES_PATH lists - and runs
-// the command line. A distribution of tt is a main package that calls Main
-// with its table:
+// returns the commands it contributes and where they go. A module that
+// contributes build backends or checks of the files a build lays out as well
+// is an sdk.ModuleConstructor, which returns them in an sdk.Module. Main
+// calls every constructor, hangs the commands on tt's root, registers the
+// backends and the file checks, configures tt, hangs the external modules -
+// the executables TT_CLI_MODULES_PATH lists - and runs the command line. A
+// distribution of tt is a main package that calls Main with its table:
 //
 //	func main() {
 //		os.Exit(core.Main(core.Modules{"builtin": core.Builtin}))
@@ -40,6 +42,7 @@ import (
 	"github.com/tarantool/tt/sdk/output"
 	"github.com/tarantool/tt/v3/cli/cmd"
 	"github.com/tarantool/tt/v3/cli/exitcode"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/core/internal/extmod"
@@ -50,8 +53,15 @@ import (
 )
 
 // Modules are the modules tt is built from, by name. The name is the one
-// errors and logs refer to the module by.
-type Modules map[string]sdk.Constructor
+// errors and logs refer to the module by. The value is the constructor of
+// the module: an sdk.Constructor, func(sdk.Services) []sdk.Mount, or an
+// sdk.ModuleConstructor, func(sdk.Services) sdk.Module. Main refuses any
+// other value before a command runs, as it refuses a module without one.
+//
+// The table takes either kind of constructor so that the main package of a
+// distribution, which lists the constructors as they are, is the same for
+// both.
+type Modules map[string]any
 
 // Option configures Main.
 type Option func(*options)
@@ -259,10 +269,12 @@ func build(
 		return nil, err
 	}
 
-	entries, err := construct(modules, ready, config.flavour.GetVersion)
+	entries, backends, err := construct(modules, ready, config.flavour.GetVersion)
 	if err != nil {
 		return nil, err
 	}
+
+	buildreg.SetProcess(backends)
 
 	registry, err := mount.Hang(root, entries, reserved())
 	if err != nil {
@@ -319,20 +331,24 @@ func mountExternalModules(
 }
 
 // construct calls the constructor of every module, in the order of their
-// names, and returns their mounts. A constructor that panics is an internal
-// error naming its module and the version getVersion reports; the other
-// constructors are still called, so that every such error is reported at
-// once.
+// names, and returns their mounts and the registry of their build backends
+// and file checks. A constructor that panics is an internal error naming its
+// module and the version getVersion reports, and so is one of a type the
+// core does not call; a backend or a file check the registry refuses is an
+// error naming its module. The other constructors are still called, so that
+// every such error is reported at once.
 func construct(
 	modules Modules, ready *atomic.Bool, getVersion util.VersionFunc,
-) ([]mount.Entry, error) {
+) ([]mount.Entry, *buildreg.Registry, error) {
 	var (
 		entries []mount.Entry
 		errs    []error
 	)
 
+	backends := buildreg.New()
+
 	for _, name := range slices.Sorted(maps.Keys(modules)) {
-		mounts, err := callConstructor(name, modules[name], newServices(name, ready),
+		module, err := callConstructor(name, modules[name], newServices(name, ready),
 			getVersion)
 		if err != nil {
 			errs = append(errs, err)
@@ -340,7 +356,7 @@ func construct(
 			continue
 		}
 
-		for _, m := range mounts {
+		for _, m := range module.Commands {
 			entries = append(entries, mount.Entry{
 				Module: name,
 				Path:   m.Path,
@@ -348,9 +364,14 @@ func construct(
 				Legacy: m.Cmd != nil && m.Cmd.Annotations[cmd.LegacyAnnotation] == "true",
 			})
 		}
+
+		err = backends.Add(name, module.Backends, module.FileChecks)
+		if err != nil {
+			errs = append(errs, err)
+		}
 	}
 
-	return entries, errors.Join(errs...)
+	return entries, backends, errors.Join(errs...)
 }
 
 // moduleTable returns modules in the order of their names, each with the
@@ -372,12 +393,13 @@ func moduleTable(modules Modules) []version.Module {
 // names a function by its package path and its name - path/to/pkg.New, or
 // path/to/pkg.New.func1 for a closure - and the path may have dots in its
 // last element only before the name.
-func constructorPackage(ctor sdk.Constructor) string {
-	if ctor == nil {
+func constructorPackage(ctor any) string {
+	value := reflect.ValueOf(ctor)
+	if value.Kind() != reflect.Func || value.IsNil() {
 		return ""
 	}
 
-	fn := runtime.FuncForPC(reflect.ValueOf(ctor).Pointer())
+	fn := runtime.FuncForPC(value.Pointer())
 	if fn == nil {
 		return ""
 	}
@@ -394,17 +416,25 @@ func constructorPackage(ctor sdk.Constructor) string {
 	return name[:slash+1+dot]
 }
 
-// errNoConstructor reports a module listed without a constructor.
-var errNoConstructor = errors.New("no constructor")
+var (
+	// errNoConstructor reports a module listed without a constructor.
+	errNoConstructor = errors.New("no constructor")
+	// errConstructorType reports a module listed with a value the core does
+	// not call.
+	errConstructorType = errors.New("the constructor is not a func(sdk.Services) " +
+		"[]sdk.Mount or a func(sdk.Services) sdk.Module")
+)
 
-// callConstructor calls ctor, the constructor of the module name, turning a
-// panic into an internal error naming the module and the version getVersion
-// reports.
+// callConstructor calls ctor, the constructor of the module name, and
+// returns what the module contributes: the commands of an sdk.Constructor,
+// everything an sdk.ModuleConstructor returns. A panic is an internal error
+// naming the module and the version getVersion reports.
 func callConstructor(
-	name string, ctor sdk.Constructor, services sdk.Services, getVersion util.VersionFunc,
-) (_ []sdk.Mount, err error) {
-	if ctor == nil {
-		return nil, fmt.Errorf("module %q: %w", name, errNoConstructor)
+	name string, ctor any, services sdk.Services, getVersion util.VersionFunc,
+) (_ sdk.Module, err error) {
+	construct, err := moduleConstructor(name, ctor)
+	if err != nil {
+		return sdk.Module{}, err
 	}
 
 	defer func() {
@@ -414,7 +444,40 @@ func callConstructor(
 		}
 	}()
 
-	return ctor(services), nil
+	return construct(services), nil
+}
+
+// moduleConstructor returns ctor, the constructor of the module name, as an
+// sdk.ModuleConstructor: an sdk.Constructor contributes its commands alone.
+// A nil constructor and a value of another type are errors naming the
+// module.
+func moduleConstructor(name string, ctor any) (func(sdk.Services) sdk.Module, error) {
+	if value := reflect.ValueOf(ctor); !value.IsValid() ||
+		value.Kind() == reflect.Func && value.IsNil() {
+		return nil, fmt.Errorf("module %q: %w", name, errNoConstructor)
+	}
+
+	// A function in the table keeps its own type: the named one of the SDK,
+	// or the bare func type of a function declared with that signature.
+	switch ctor := ctor.(type) {
+	case sdk.Constructor:
+		return commandsOnly(ctor), nil
+	case func(sdk.Services) []sdk.Mount:
+		return commandsOnly(ctor), nil
+	case sdk.ModuleConstructor:
+		return ctor, nil
+	case func(sdk.Services) sdk.Module:
+		return ctor, nil
+	default:
+		return nil, fmt.Errorf("module %q: %w: it is a %T", name, errConstructorType, ctor)
+	}
+}
+
+// commandsOnly is the module of the sdk.Constructor ctor: its commands.
+func commandsOnly(ctor func(sdk.Services) []sdk.Mount) func(sdk.Services) sdk.Module {
+	return func(services sdk.Services) sdk.Module {
+		return sdk.Module{Commands: ctor(services), Backends: nil, FileChecks: nil}
+	}
 }
 
 // reserved returns what no module may take: the command names cobra uses at

@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/tarantool/tt/sdk/build"
 	"github.com/tarantool/tt/sdk/output"
 )
 
@@ -30,7 +31,33 @@ type Mount struct {
 // it runs; the other services are for the commands' hooks, which run after.
 // A constructor must not change process state: it declares commands and
 // their flags and nothing else.
+//
+// A module that contributes more than commands has a [ModuleConstructor]
+// instead; the core takes either.
 type Constructor func(Services) []Mount
+
+// Module is what a module contributes to tt: commands, build backends and
+// checks of the files a build lays out.
+type Module struct {
+	// Commands are the module's commands, as a [Constructor] returns them.
+	Commands []Mount
+	// Backends are the build backends the module provides: a component
+	// whose build block names one is built by it. No two backends of a tt
+	// have one name, whichever module provides them, and the core's own
+	// backends keep theirs.
+	Backends []build.Backend
+	// FileChecks check the files the build of any component lays out, by
+	// their suffix.
+	FileChecks []build.FileCheck
+}
+
+// ModuleConstructor builds what a module contributes. The core calls it as
+// it calls a [Constructor]: once per process, before tt is configured, so
+// that only [Services.Log] may be used while it runs. It declares the
+// module's commands, backends and file checks and changes nothing; the
+// functions of a backend run when a manifest is checked or a component is
+// built, once tt is configured.
+type ModuleConstructor func(Services) Module
 
 // ErrNotFound reports a thing tt looked for and did not find, such as a
 // Tarantool executable. Services wrap it; test for it with errors.Is.

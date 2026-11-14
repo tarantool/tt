@@ -108,6 +108,13 @@ panic, naming the module and the method. The commands use the services in
 their hooks, which run after. A constructor declares commands and their
 flags and nothing else: it reads no files and no environment.
 
+A module that provides build backends as well, for the `backend` of a
+component's build block, has an `sdk.ModuleConstructor` instead,
+`func(sdk.Services) sdk.Module`: the `sdk.Module` it returns holds its
+`Commands`, its `Backends` and the `FileChecks` of the files a build lays
+out, of `github.com/tarantool/tt/sdk/build`. tt calls it as it calls an
+`sdk.Constructor`, and a distribution lists either kind the same way.
+
 A `Mount` is a command and the path of its parent: `""` is the root,
 `"replicaset"` puts the command under `tt replicaset`. A group on the path
 that no module provides is created, with no description. Each command is

@@ -7,7 +7,9 @@
 //
 //   - a module is a [Constructor]: given the core's [Services], it returns
 //     cobra commands as [Mount]s, each with the path of the group it goes
-//     under;
+//     under; a module that contributes build backends or checks of the
+//     files a build lays out as well is a [ModuleConstructor], which returns
+//     all of them in a [Module];
 //   - [Services] give a module's commands a logger, the [Tarantool] to run
 //     and its [TarantoolVersion], files read through the [Integrity] checks,
 //     the [Project] - its directory, a [Dependency] declared in its manifest
@@ -35,6 +37,9 @@
 //
 // The subpackages hold the rest:
 //
+//   - [github.com/tarantool/tt/sdk/build] is the contract of a build backend
+//     and of a check of the files a build lays out, a module of its own
+//     that depends on the standard library only;
 //   - [github.com/tarantool/tt/sdk/bundle] is the contract of a source of
 //     the prebuilt archives tt binary installs, which a distribution
 //     chooses;
