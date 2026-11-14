@@ -55,7 +55,7 @@ constructor is `New` in the root package of the module unless `package` and
 `symbol` say otherwise. A module of the core's repository, such as `aeon`,
 is built at the commit of the core; any other module without a version at
 its latest. The standard modules need no entry here: the distribution above
-has `aeon`, `build` and `emmylua` with its two modules of its own.
+has `aeon`, `build`, `emmylua` and `wasm` with its two modules of its own.
 
 ```sh
 tt binary build tt                  # build ./tt from ./tt.manifest.toml
@@ -103,22 +103,26 @@ $ ./tt version --modules
 Tarantool CLI EE version 3.0.0, linux/amd64. commit: 1a2b3c4
 Tarantool CLI core version 3.0.0. commit: 9031d7ad96d9 (v3.0.1-0.20261028190206-9031d7ad96d9)
   aeon        v0.0.0-20261028190206-9031d7ad96d9    github.com/tarantool/tt/modules/aeon
+  build       v0.0.0-20261028190206-9031d7ad96d9    github.com/tarantool/tt/modules/build
   builtin     v3.0.1-0.20261028190206-9031d7ad96d9  github.com/tarantool/tt/v3
   emmylua     v0.0.0-20261028190206-9031d7ad96d9    github.com/tarantool/tt/modules/emmylua
   foo         v1.2.0                                github.com/acme/tt-foo
   migrations  (devel)                               example.com/tt-ee/plugins/migrations
+  wasm        v0.0.0-20261028190206-9031d7ad96d9    github.com/tarantool/tt/modules/wasm
 ```
 
 ## Standard modules
 
 The standard modules are the modules of the core's repository that the
-official tt is built with, `aeon`, `build` and `emmylua` now. The core lists
-them in its package `standard`, and a distribution takes them all by
-default, at the commit of the core, so it gets the ones a newer core adds
+official tt is built with, `aeon`, `build`, `emmylua` and `wasm` now. The
+core lists them in its package `standard`, and a distribution takes them all
+by default, at the commit of the core, so it gets the ones a newer core adds
 without an edit of its manifest. `build` has the build backends of tt, from
 `make` and `shell` to `cargo` and `go`: the core has none of its own, and a
 distribution without `build` lays out the Lua of a package but builds no
-component with a build block and runs no hook. `[distribution].exclude`
+component with a build block and runs no hook. `wasm` has `tt wasm` and the
+check of the `.wasm` files of a package; the components `tt wasm new` adds
+are built by the `shell` backend of `build`. `[distribution].exclude`
 leaves some out, by name:
 
 ```toml
@@ -132,11 +136,11 @@ name = "tt-lite"
 path = "../tt"
 
 [distribution]
-exclude = ["emmylua"]
+exclude = ["emmylua", "wasm"]
 ```
 
 With a checkout of tt in `../tt`, the build takes `aeon` and `build`, and
-not `emmylua`:
+not `emmylua` and `wasm`:
 
 ```sh
 $ tt binary build tt
@@ -183,7 +187,7 @@ is an error that names the ones it does:
 $ tt binary build tt
    • Resolving the core github.com/tarantool/tt/v3
    •   core github.com/tarantool/tt/v3 (path ../tt)
-   ⨯ distribution.exclude: "tcm" is not a standard module of the core ../tt: they are aeon, build, emmylua, builtin
+   ⨯ distribution.exclude: "tcm" is not a standard module of the core ../tt: they are aeon, build, emmylua, wasm, builtin
 ```
 
 A module of `[dependencies]` with the name of a standard module takes its
@@ -197,7 +201,7 @@ $ tt binary build tt
    • Resolving the core github.com/tarantool/tt/v3
    •   core github.com/tarantool/tt/v3 (path ../tt)
    ⚠ dependencies.aeon takes the place of the standard module aeon of the core: add "aeon" to distribution.exclude to say so, or drop the dependency to take the core's
-   •   standard build, emmylua (with the core)
+   •   standard build (with the core)
    •   aeon github.com/tarantool/tt/modules/aeon (with the core)
    • Building tt-lite
 ```

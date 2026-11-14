@@ -203,9 +203,10 @@ build makes programs`. A build that makes it anyway fails with exit code 2:
 `kind = "module", but the build made programs: <files>`.
 `manifest_version = "0.2"` has no `kind`.
 
-A `.wasm` file a component lays out has to be a WebAssembly binary: a
-file of another kind fails the build, and a core module, which tarantool-wasm
-does not load, is laid out with a warning. `tt wasm new` declares the
+A `.wasm` file a component lays out, or its build writes into `share/`, has
+to be a WebAssembly binary: a file of another kind fails the build, and a
+core module, which tarantool-wasm does not load, is laid out with a warning.
+The check is that of the standard module `wasm`. `tt wasm new` declares the
 components tarawasm builds; see
 [Run WebAssembly components](../how-to/wasm-components.md).
 

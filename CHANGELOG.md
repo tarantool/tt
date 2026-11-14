@@ -275,6 +275,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `Install()` work on `Root()`, where they worked on the directory of the
   command and failed below the root of a project; `tt emmylua prepare`,
   which runs in the root, is as it was. `sdk/sdktest` fakes all of it.
+  `OnDeclared` of the component `AddComponent` declares is called once the
+  manifest is written and before the lock is resolved again, for a command
+  that reports its steps.
 - A component makes what its build makes, any of a module, a data file and
   a program at once, where a component was of one kind: one `cargo`
   component of a package with a library and a binary builds both,
@@ -303,7 +306,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   is the user's to install.
 - `[distribution] standard` and `exclude` in `tt.manifest.toml`: a
   distribution of tt takes the standard modules of its core - the ones the
-  official tt is built with, `aeon`, `build` and `emmylua` now, which the
+  official tt is built with, `aeon`, `build`, `emmylua` and `wasm` now, which the
   package `github.com/tarantool/tt/v3/standard` lists - at the commit of the core,
   without listing them in `[dependencies]`, and gets the ones a newer core
   adds. `standard` is on by default; `exclude = ["aeon"]` leaves modules
@@ -311,7 +314,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `[dependencies]` named as a standard one takes its place, and the build
   warns of it unless `exclude` names it too. `tt.manifest.lock` names the
   standard modules the binary has, `standard = ['aeon', 'build',
-  'emmylua']` in `[core]`. A core before 3.0.0-alpha.3 has no such package: a distribution
+  'emmylua', 'wasm']` in `[core]`. A core before 3.0.0-alpha.3 has no such package: a distribution
   built on it needs `standard = false`.
 
 ### Changed
@@ -322,6 +325,24 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   by name: `components.a.build.ldflags: is a field of backend c, go or
   lua-c, not of "cargo"` (it was `go, c or lua-c`), and `module` of `c,
   cargo, lua-c or zig` (it was `c, lua-c or cargo`).
+- `tt wasm` is a standard module, `wasm`
+  (`github.com/tarantool/tt/modules/wasm`), written against the SDK alone,
+  which `tt version --modules` lists; its flags, help and output are as they
+  were. The module checks the `.wasm` files of a package too, so a
+  distribution that excludes it has neither `tt wasm` nor the check. The
+  check takes the data files a build writes into `share/` as well as the
+  files the components lay out: a `.wasm` a build of `make`, `shell` or
+  `cmake` puts there with `output = [{ path = "x.wasm", to = "share" }]` that
+  is no WebAssembly binary fails the build, as one laid out does.
+- `tt package build`, `fetch` and `pack` no longer warn of a component
+  tarawasm builds on the SDK of another tarantool-wasm release than the
+  `wasm` rock the package declares (`component "<name>" is built with the
+  tarantool-wasm <version> SDK, the package declares wasm <version>`):
+  `tt wasm prepare` refuses such a component and `tt wasm status` lists it,
+  as before.
+- `tt wasm new` writes `app.manifest.toml` with the mode it had, where it
+  wrote it `0644`, and keeps its line endings, where the lines it added
+  ended with `\n`.
 - `kind` of a component is deprecated, with a warning,
   `components.<name>.kind is deprecated: a component makes what its build
   makes; remove it`, and `manifest_version = "0.2"` is to have none. In

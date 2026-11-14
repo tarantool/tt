@@ -563,7 +563,7 @@ presents itself (`title`, `edition`), the integrity provider (`none` or
 `rsa`), and whether it has the standard modules of the core (`standard`),
 tt's own commands (`builtin`) and external modules (`external_modules`), all
 on by default. The standard modules are the ones the official tt is built
-with, `aeon`, `build` (the build backends of tt) and `emmylua` now, which
+with, `aeon`, `build` (the build backends of tt), `emmylua` and `wasm` now, which
 the core's package `standard` lists; `exclude = ["emmylua"]` leaves some
 out, and a core before v3.0.0-alpha.3,
 which has no such package, needs `standard = false`. `[build]` sets the TLS

@@ -691,7 +691,10 @@ and resolves `app.manifest.lock` again, as `tt package resolve` does.
   written: a name declared already, a component the check refuses, a project
   with no manifest and a tt with no Tarantool write nothing. A resolution of
   the lock that fails leaves the component declared: `Declared` is set with
-  the error.
+  the error. `OnDeclared` of the component, when set, is called between the
+  write and the resolution, and not at all when nothing is written: a
+  command that reports each of its steps, as `tt wasm new` does, says there
+  that the component is declared, ahead of what the resolution warns of.
 - `AddDependency` declares a rock in `[dependencies]`, or with `Dev` in
   `[dev_dependencies]`, as `tt package add` does, and `Install` fills
   `.rocks/` from the lock, as `tt package fetch` does. They, and
@@ -970,7 +973,9 @@ name ends with it - the files the components lay out and the data files
 their builds make in `Share`, an up-to-date incremental build's included.
 Modules and programs are not given to it: tt checks those itself. A warning
 the check returns is shown and the build goes on; an error fails the build
-with exit code 1. tt shows both as they are, so they name the file.
+with exit code 1. tt shows both as they are, so they name the file. The
+standard module `wasm` checks the `.wasm` files so, in `modules/wasm` of the
+repository of tt.
 
 ## Test it
 

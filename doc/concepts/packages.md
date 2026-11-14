@@ -147,9 +147,11 @@ manifest.
   without `.env/activate.sh`.
 - A `make` or `shell` build with `incremental = true` is skipped while
   nothing it depends on changed; see [Incremental builds](#incremental-builds).
-- A `.wasm` file a component lays out has to be a WebAssembly binary: any
-  other fails the build, and a core module, which tarantool-wasm does not
-  load, is laid out with a warning.
+- A `.wasm` file a component lays out, or its build writes into `share/`,
+  has to be a WebAssembly binary: any other fails the build, and a core
+  module, which tarantool-wasm does not load, is laid out with a warning.
+  The check is that of the standard module `wasm`, and a distribution
+  without it makes none.
 - `tt package build`, `fetch` and `pack` need no Tarantool: where tt finds
   none, neither in `.tarantool/bin` nor in `PATH`, a package of Lua builds
   and packs all the same. What is compiled against the headers of Tarantool
