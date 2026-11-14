@@ -58,8 +58,8 @@
 //     that neither catches, ignores nor blocks that signal does not get it,
 //     and the event reports ErrReloadNotHandled: a child that has only just
 //     been started dies of a signal it has not set up its handler for yet.
-//     Only Linux tells how another process handles a signal; elsewhere the
-//     signal is sent regardless.
+//     Only Linux and macOS tell how another process handles a signal;
+//     elsewhere the signal is sent regardless.
 //   - An ignored signal (Options.IgnoreSignals) is reported and dropped, with
 //     a child or without.
 //   - Any other signal is forwarded to the child.

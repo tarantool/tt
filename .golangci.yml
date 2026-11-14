@@ -1003,13 +1003,15 @@ linters:
             - "github.com/tarantool/tt/v3/internal/instances"
             - "gopkg.in/yaml.v3"
         # The process supervisor sits under the commands that run it and
-        # depends on none of them.
+        # depends on none of them. x/sys/unix asks macOS how a child handles
+        # a signal.
         dir-internal-supervisor:
           files:
             - "**/internal/supervisor/**"
           allow:
             - $gostd
             - "github.com/stretchr/testify"
+            - "golang.org/x/sys/unix"
             - "github.com/tarantool/tt/v3/internal/pidfile"
             - "github.com/tarantool/tt/v3/internal/supervisor"
         # The systemd units of an application and the mark of what they
