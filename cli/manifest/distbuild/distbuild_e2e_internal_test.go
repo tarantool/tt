@@ -239,6 +239,60 @@ hello = "./hello"
 	assert.NoFileExists(t, filepath.Join(dir, "tt.manifest.lock"))
 }
 
+// TestBuildWithoutBuiltin builds a distribution without tt's own commands,
+// version among them: the check of the built binary runs without them, and
+// still fails a module that cannot be mounted.
+func TestBuildWithoutBuiltin(t *testing.T) {
+	_, err := exec.LookPath(goTool)
+	if err != nil {
+		t.Skip("go is not in PATH")
+	}
+
+	coreDir, err := filepath.Abs(filepath.Join("..", "..", ".."))
+	require.NoError(t, err)
+
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "hello", "go.mod"), helloGoMod)
+	writeFile(t, filepath.Join(dir, "hello", "hello.go"), helloModule)
+
+	manifestPath := filepath.Join(dir, "tt.manifest.toml")
+	writeFile(t, manifestPath, `manifest_version = "0.1"
+manifest_kind = "tt-distribution"
+
+[core]
+path = "`+coreDir+`"
+
+[distribution]
+exclude = ["builtin", "emmylua"]
+
+[dependencies]
+hello = "./hello"
+`)
+
+	result, err := Run(t.Context(), Options{Manifest: manifestPath, GeneratedBy: "tt test"})
+	require.NoError(t, err)
+
+	out, err := exec.CommandContext(t.Context(), result.Output, "hello").CombinedOutput()
+	require.NoError(t, err, string(out))
+	assert.Equal(t, "hello from a module\n", string(out))
+
+	out, err = exec.CommandContext(t.Context(), result.Output, "version").CombinedOutput()
+	require.Error(t, err, "version is a command of builtin")
+	assert.Contains(t, string(out), `unknown command version`)
+
+	// A module that takes the name of a standard one fails the check.
+	writeFile(t, filepath.Join(dir, "hello", "hello.go"),
+		strings.Replace(helloModule, `Use:   "hello"`, `Use:   "aeon"`, 1))
+
+	_, err = Run(t.Context(), Options{
+		Manifest: manifestPath, Output: filepath.Join(dir, "conflict"),
+	})
+	require.ErrorContains(t, err, "the built binary does not start")
+	require.ErrorContains(t, err, " --help: ")
+	require.ErrorContains(t, err, `duplicate command "aeon"`)
+	assert.NoFileExists(t, filepath.Join(dir, "conflict"))
+}
+
 // TestBundleOffline makes a bundle of the core of this checkout and a local
 // module, copies it away from everything it was made of and builds it with
 // an empty module cache and no network, as build.sh does.

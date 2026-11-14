@@ -65,8 +65,9 @@ tt binary build tt --locked -o tt   # build exactly what the lock pins
 
 The Go toolchain must be in `PATH`. The build generates a main module that
 requires the core and the modules, compiles it with the build tags tt itself
-is built with, runs `tt version` of the result and writes `tt.manifest.lock`
-and `tt.manifest.sum` next to the manifest. Commit both: while the manifest
+is built with, runs `tt version` of the result - `tt --help` of one without
+`builtin`, which has `version` - and writes `tt.manifest.lock` and
+`tt.manifest.sum` next to the manifest. Commit both: while the manifest
 says the same, the next build takes its versions from the lock, and
 `--locked` fails when the lock or the Go modules differ. The lock names the
 manifest by a hash of its tables, keys and values, as the lock of a package
