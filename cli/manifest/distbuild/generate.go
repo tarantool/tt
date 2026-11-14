@@ -183,11 +183,9 @@ func (v versionInfo) known() bool {
 type mainSpec struct {
 	// CoreModule is the module of the core.
 	CoreModule string
-	// Modules are the tt modules, in the order of their names.
+	// Modules are the tt modules, in the order of their names: the
+	// standard modules the distribution takes and those of [dependencies].
 	Modules []module
-	// Standard is what the distribution takes of the standard modules of
-	// the core.
-	Standard standardSet
 	// Options are the options of the distribution.
 	Options manifest.DistributionOptions
 	// Version is the version of the distribution.
@@ -208,13 +206,9 @@ type mainEntry struct {
 
 // mainData is what the template of the main package is filled with.
 type mainData struct {
-	Header  string
-	Imports []mainImport
-	Entries []mainEntry
-	// Standard builds the table from the core's list of the standard
-	// modules, without Excluded, the entries added to it.
-	Standard   bool
-	Excluded   []string
+	Header     string
+	Imports    []mainImport
+	Entries    []mainEntry
 	Flavour    bool
 	Title      string
 	Edition    string
@@ -239,25 +233,12 @@ import (
 )
 
 func main() {
-{{- if .Standard}}
-	modules := standard.Modules()
-{{range .Excluded}}
-	delete(modules, {{printf "%q" .}})
-{{- end}}
-{{range .Entries}}
-	modules[{{printf "%q" .Name}}] = {{.Ctor}}
-{{- end}}
-
-	os.Exit(core.Main(
-		modules,
-{{- else}}
 	os.Exit(core.Main(
 		core.Modules{
 {{- range .Entries}}
 			{{printf "%q" .Name}}: {{.Ctor}},
 {{- end}}
 		},
-{{- end}}
 {{- if .Flavour}}
 		core.WithFlavour(core.Flavour{
 			Title:   {{printf "%q" .Title}},
@@ -333,23 +314,12 @@ func generateMain(spec mainSpec) ([]byte, error) {
 		data.Imports = append(data.Imports, mainImport{Alias: "", Path: integrityPackage})
 	}
 
-	// The table of a distribution that takes no standard modules is the
-	// one main has always had, which every core builds.
-	if spec.Standard.Enabled {
-		data.Standard = true
-		data.Excluded = spec.Standard.Excluded
-		data.Imports = append(data.Imports,
-			mainImport{Alias: "", Path: spec.CoreModule + "/" + standardPackage})
-	}
-
 	if spec.Options.BuiltinValue() {
 		data.Entries = append(data.Entries,
 			mainEntry{Name: manifest.BuiltinModule, Ctor: "core.Builtin"})
 	}
 
-	taken := map[string]bool{
-		"os": true, "core": true, "integrity": true, "main": true, standardPackage: true,
-	}
+	taken := map[string]bool{"os": true, "core": true, "integrity": true, "main": true}
 
 	for _, mod := range spec.Modules {
 		alias := importAlias(mod.Name, taken)

@@ -267,13 +267,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `github.com/tarantool/tt/v3/standard` lists - at the commit of the core,
   without listing them in `[dependencies]`, and gets the ones a newer core
   adds. `standard` is on by default; `exclude = ["aeon"]` leaves modules
-  out, and `"builtin"` in it is `builtin = false`. A module of
+  out, their code too, and `"builtin"` in it is `builtin = false`. A module of
   `[dependencies]` named as a standard one takes its place, and the build
   warns of it unless `exclude` names it too. `tt.manifest.lock` names the
   standard modules the binary has, `standard = ['aeon', 'emmylua']` in
   `[core]`. A core before 3.0.0-alpha.3 has no such package: a distribution
-  built on it needs `standard = false`, and then the generated `main` is what
-  it was.
+  built on it needs `standard = false`.
 
 ### Changed
 

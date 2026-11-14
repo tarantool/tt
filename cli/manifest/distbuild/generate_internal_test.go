@@ -220,24 +220,22 @@ func TestGenerateMainWithoutBuiltin(t *testing.T) {
 func TestGenerateMainStandard(t *testing.T) {
 	t.Parallel()
 
+	// The standard modules but the excluded emmylua are imported as the
+	// modules of [dependencies] are: main does not call standard.Modules,
+	// so the excluded one is not compiled in.
+	set := standardSet{Enabled: true, Modules: []standardModule{
+		{Name: "aeon", Package: "github.com/tarantool/tt/modules/aeon", Symbol: "New"},
+		{Name: "wasm", Package: "example.com/tt-wasm/wasm/v2", Symbol: "Commands"},
+	}}
+
 	got, err := generateMain(mainSpec{
 		CoreModule: "github.com/tarantool/tt/v3",
-		Modules:    testModules(),
-		Standard:   standardSet{Enabled: true, Modules: nil, Excluded: []string{"emmylua"}},
-		Options: manifest.DistributionOptions{
-			Title: "Tarantool CLI EE", Exclude: []string{"emmylua"},
-		},
+		Modules:    set.withModules(testModules()[1:]),
+		Options:    manifest.DistributionOptions{Exclude: []string{"emmylua", "builtin"}},
 	})
 	require.NoError(t, err)
 	golden(t, "standard.main.go.golden", got)
-
-	got, err = generateMain(mainSpec{
-		CoreModule: "github.com/acme/tt/v3",
-		Standard:   standardSet{Enabled: true, Modules: []string{"aeon"}},
-		Options:    manifest.DistributionOptions{Exclude: []string{"builtin"}},
-	})
-	require.NoError(t, err)
-	golden(t, "standard-minimal.main.go.golden", got)
+	assert.NotContains(t, string(got), "standard")
 }
 
 func TestPlaceholderVersion(t *testing.T) {
