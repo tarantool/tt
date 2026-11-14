@@ -21,6 +21,14 @@ from utils import (
 )
 
 
+def old_tarantool_build_env():
+    """Return the environment of tt that builds a tarantool commit of 2024
+    or older from source: its CMakeLists.txt, and those of the libraries it
+    bundles, require CMake 2.8, and CMake 4 configures no project that old
+    unless told the policy version to assume. CMake 3 ignores the variable."""
+    return dict(os.environ, CMAKE_POLICY_VERSION_MINIMUM="3.5")
+
+
 @pytest.mark.slow
 def test_install_tt_noexist_commit(tt_cmd, tmp_path):
     tmp_dir = tempfile.mkdtemp(dir=tmp_path)
@@ -264,6 +272,7 @@ def test_install_tarantool_commit(tt_cmd, tmp_path):
     instance_process = subprocess.Popen(
         install_cmd,
         cwd=project_dir,
+        env=old_tarantool_build_env(),
         stderr=subprocess.STDOUT,
         # Do not use pipe for stdout, if you are not going to read from it.
         # In case of build failure, logs are printed to stdout. It fills pipe buffer and
@@ -474,6 +483,7 @@ def test_install_tarantool_fetch_latest_version(
     instance_process_rc, _ = run_command_and_get_output(
         install_cmd,
         cwd=project_dir,
+        env=old_tarantool_build_env(),
         stdout=subprocess.DEVNULL,
     )
     assert instance_process_rc == 0
