@@ -1,6 +1,7 @@
 // Package buildtest runs a build backend in tests as the core runs it: it
-// checks a build block for it ([Validate]) and runs its build in a
-// [Context] on temporary directories ([New], [Harness.Run]).
+// checks a build block for it ([Validate], [ValidateHook]) and runs its
+// build in a [build.Context] on temporary directories ([New], [NewHook],
+// [Harness.Run]).
 //
 // The checks are those the core makes of a block in a manifest, but for a
 // tt that has no other backend: a field the configuration of the backend has
@@ -47,6 +48,34 @@ type Block struct {
 // build, or the first error: a [*build.FieldError] for a field, with its
 // path from the block.
 func Validate(backend build.Backend, component build.Component, block Block) (build.Build, error) {
+	bld, err := validate(backend, component, block)
+	if err != nil {
+		return nil, err
+	}
+
+	if !slices.Contains(backend.Kinds, component.Kind) {
+		return nil, build.FieldErrorf("", "backend %q does not build a component of kind %q",
+			backend.Name, component.Kind)
+	}
+
+	return bld, nil
+}
+
+// ValidateHook checks block, the block of a lifecycle hook, for backend as
+// the core checks one: as Validate does, New being given the zero
+// component, and the backend must run hooks ([build.Backend.Hook]) rather
+// than build a kind of component.
+func ValidateHook(backend build.Backend, block Block) (build.Build, error) {
+	if !backend.Hook {
+		return nil, build.FieldErrorf("", "backend %q runs no hook", backend.Name)
+	}
+
+	return validate(backend, build.Component{Name: "", Kind: "", Path: "", Namespace: "",
+		Package: ""}, block)
+}
+
+// validate is what Validate and ValidateHook check alike.
+func validate(backend build.Backend, component build.Component, block Block) (build.Build, error) {
 	cfg, unknown, err := backend.Decode(block.Rest)
 	if err != nil {
 		return nil, err
@@ -71,9 +100,6 @@ func Validate(backend build.Backend, component build.Component, block Block) (bu
 	case block.Incremental && !backend.Incremental:
 		return nil, build.FieldErrorf("incremental", "is not a field of backend %q",
 			backend.Name)
-	case !slices.Contains(backend.Kinds, component.Kind):
-		return nil, build.FieldErrorf("", "backend %q does not build a component of kind %q",
-			backend.Name, component.Kind)
 	}
 
 	return bld, nil
@@ -142,15 +168,7 @@ func New(tb testing.TB, component build.Component) *Harness {
 
 	target := build.Target{OS: runtime.GOOS, Arch: runtime.GOARCH}
 
-	harness := &Harness{
-		Context:  nil,
-		Locked:   map[string]string{},
-		mu:       sync.Mutex{},
-		printed:  bytes.Buffer{},
-		warnings: nil,
-	}
-
-	harness.Context = build.NewContext(build.Context{
+	return newHarness(build.Context{
 		Component: component,
 		Target:    target,
 		Dirs:      dirs,
@@ -168,9 +186,81 @@ func New(tb testing.TB, component build.Component) *Harness {
 		Fresh:  false,
 		Locked: false,
 		Static: false,
-		Log:    slog.New(slog.DiscardHandler),
-		Warn:   harness.warn,
-	}, host{h: harness})
+		Hook:   false,
+		Log:    nil,
+		Warn:   nil,
+	})
+}
+
+// NewHook returns a Harness for the build of a lifecycle hook of the
+// package demo, in a Context whose Hook is set ([build.Context.Hook]): in
+// directories of tb.TempDir(), <tmp>/project is the project, the working
+// directory of the hook, with its .tarantool/bin and .rocks, and
+// <tmp>/state the state of its build; there is no component, no work
+// directory and no output, and the environment has no TT_OUTPUT_DIR,
+// TT_COMPONENT_NAME and TT_BUILD_DIR.
+func NewHook(tb testing.TB) *Harness {
+	tb.Helper()
+
+	root := tb.TempDir()
+	project := filepath.Join(root, "project")
+
+	dirs := build.Dirs{
+		Project:   project,
+		Component: "",
+		Cwd:       project,
+		Work:      "",
+		Output:    "",
+		Share:     "",
+		State:     filepath.Join(root, "state"),
+		Bin:       filepath.Join(project, ".tarantool", "bin"),
+		Tree:      filepath.Join(project, ".rocks"),
+	}
+
+	for _, dir := range []string{dirs.Project, dirs.State, dirs.Bin} {
+		err := os.MkdirAll(dir, dirPerm)
+		if err != nil {
+			tb.Fatalf("buildtest: %v", err)
+		}
+	}
+
+	target := build.Target{OS: runtime.GOOS, Arch: runtime.GOARCH}
+
+	return newHarness(build.Context{
+		Component: build.Component{Name: "", Kind: "", Path: "", Namespace: "", Package: ""},
+		Target:    target,
+		Dirs:      dirs,
+		Tarantool: build.Tarantool{Prefix: "", IncludeDir: "", Version: ""},
+		Toolchain: toolchain(target),
+		Env: map[string]string{
+			"TT_PROJECT_ROOT":  dirs.Project,
+			"TT_PACKAGE":       "demo",
+			"TT_PLATFORM_OS":   target.OS,
+			"TT_PLATFORM_ARCH": target.Arch,
+		},
+		Fresh:  false,
+		Locked: false,
+		Static: false,
+		Hook:   true,
+		Log:    nil,
+		Warn:   nil,
+	})
+}
+
+// newHarness returns a Harness whose Context has the facts of facts, its
+// log discarded and its warnings recorded.
+func newHarness(facts build.Context) *Harness {
+	harness := &Harness{
+		Context:  nil,
+		Locked:   map[string]string{},
+		mu:       sync.Mutex{},
+		printed:  bytes.Buffer{},
+		warnings: nil,
+	}
+
+	facts.Log = slog.New(slog.DiscardHandler)
+	facts.Warn = harness.warn
+	harness.Context = build.NewContext(facts, host{h: harness})
 
 	return harness
 }

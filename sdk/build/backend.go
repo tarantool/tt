@@ -2,6 +2,7 @@ package build
 
 import (
 	"context"
+	"errors"
 	"fmt"
 )
 
@@ -77,7 +78,17 @@ type Backend struct {
 	// never takes, whatever its include says: what the backend's tool
 	// leaves in the component's directory, such as target/ of cargo.
 	Exclude []string
+	// Hook lets a lifecycle hook ([hooks.pre_build], [hooks.post_build])
+	// name the backend; a hook may name no other. New checks the block of a
+	// hook too, given the zero Component, and the build runs in a Context
+	// whose Hook is set ([Context.Hook]).
+	Hook bool
 }
+
+// ErrNoTool reports a program a build runs that is not in its PATH. A
+// [Preflighter] wraps it, so that a missing tool is told from a build that
+// failed.
+var ErrNoTool = errors.New("build tool not found")
 
 // Component is the component a build block builds.
 type Component struct {

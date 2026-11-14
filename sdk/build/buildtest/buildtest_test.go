@@ -130,6 +130,53 @@ func TestValidateErrors(t *testing.T) {
 	}
 }
 
+func TestValidateHook(t *testing.T) {
+	t.Parallel()
+
+	_, err := buildtest.ValidateHook(touch(), buildtest.Block{Rest: map[string]any{"file": "a"}})
+
+	var fieldErr *build.FieldError
+
+	require.ErrorAs(t, err, &fieldErr)
+	assert.Equal(t, `backend "touch" runs no hook`, fieldErr.Msg)
+
+	hook := touch()
+
+	hook.Hook = true
+
+	bld, err := buildtest.ValidateHook(hook, buildtest.Block{Rest: map[string]any{"file": "a"}})
+	require.NoError(t, err)
+	assert.Equal(t, touchBuild{file: "a"}, bld)
+
+	_, err = buildtest.ValidateHook(hook, buildtest.Block{})
+	require.ErrorAs(t, err, &fieldErr)
+	assert.Equal(t, `file is required for backend "touch"`, fieldErr.Msg)
+}
+
+func TestNewHook(t *testing.T) {
+	t.Parallel()
+
+	harness := buildtest.NewHook(t)
+	facts := harness.Context
+
+	assert.True(t, facts.Hook)
+	assert.Empty(t, facts.Component.Name)
+	assert.Empty(t, facts.Dirs.Output)
+	assert.Empty(t, facts.Dirs.Work)
+	assert.Empty(t, facts.Dirs.Component)
+	assert.Equal(t, facts.Dirs.Project, facts.Dirs.Cwd)
+	assert.DirExists(t, facts.Dirs.Bin)
+
+	out, err := facts.Output(facts.Command(t.Context(), "sh", "-c",
+		`echo "${TT_PACKAGE}:${TT_OUTPUT_DIR-unset}:${TT_COMPONENT_NAME-unset}:`+
+			`${TT_BUILD_DIR-unset}"; pwd`))
+	require.NoError(t, err)
+
+	cwd, err := filepath.EvalSymlinks(facts.Dirs.Project)
+	require.NoError(t, err)
+	assert.Equal(t, "demo:unset:unset:unset\n"+cwd+"\n", string(out))
+}
+
 func TestHarness(t *testing.T) {
 	t.Parallel()
 
