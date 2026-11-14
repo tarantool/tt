@@ -3,13 +3,14 @@ package main
 import (
 	"os"
 
-	"github.com/tarantool/tt/modules/aeon"
-	"github.com/tarantool/tt/modules/emmylua"
 	"github.com/tarantool/tt/v3/core"
+	"github.com/tarantool/tt/v3/standard"
 )
 
 func main() {
-	os.Exit(core.Main(core.Modules{
-		"builtin": core.Builtin, "aeon": aeon.New, "emmylua": emmylua.New,
-	}))
+	modules := standard.Modules()
+
+	modules["builtin"] = core.Builtin
+
+	os.Exit(core.Main(modules))
 }

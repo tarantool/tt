@@ -383,9 +383,21 @@ linters:
             - "**/cli/*.go"
           allow:
             - $gostd
+            - "github.com/tarantool/tt/v3/core"
+            # The standard modules tt is built with, listed once.
+            - "github.com/tarantool/tt/v3/standard"
+        # The standard modules of tt: the modules of its repository, and
+        # nothing of the core, which the core's internal tests import it
+        # into.
+        dir-standard:
+          files:
+            - "**/standard/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/modules/aeon"
             - "github.com/tarantool/tt/modules/emmylua"
-            - "github.com/tarantool/tt/v3/core"
+            - "github.com/tarantool/tt/v3/standard"
         dir-internal-binary:
           files:
             - "**/internal/binary/**"
@@ -910,8 +922,6 @@ linters:
             - "github.com/stretchr/testify"
             - "github.com/tarantool/go-config/v2"
             - "github.com/tarantool/go-storage/v2"
-            - "github.com/tarantool/tt/modules/aeon"
-            - "github.com/tarantool/tt/modules/emmylua"
             - "github.com/tarantool/tt/sdk"
             # The cluster config of an application comes from its pair.
             - "github.com/tarantool/tt/v3/cli/app"
@@ -933,6 +943,9 @@ linters:
             - "github.com/tarantool/tt/v3/internal/binary/rws"
             # Tests write the modules tt runs while parallel tests fork.
             - "github.com/tarantool/tt/v3/internal/execfile"
+            # The help golden and the command reference are of tt as its
+            # main package builds it, from the standard modules.
+            - "github.com/tarantool/tt/v3/standard"
             - "gopkg.in/yaml.v3"
         # The write of a file a process may run with no fork of the process in
         # between: a leaf, under everything that writes programs.
