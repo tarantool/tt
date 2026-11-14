@@ -507,6 +507,7 @@ func routerComponent() sdk.Component {
 			{Key: "command", Value: "tarawasm"}, {Key: "cwd", Value: "router/src"},
 		}},
 		Registries: []string{"mirror"},
+		OnDeclared: nil,
 	}
 }
 
@@ -558,9 +559,19 @@ func TestServicesProjectAddComponent(t *testing.T) {
 	failing := sdktest.New(t, sdktest.WithResolveError(failure))
 	failing.Start()
 
-	change, err = failing.Project().AddComponent(t.Context(), router)
+	declared := 0
+	told := router
+
+	told.OnDeclared = func() { declared++ }
+
+	change, err = failing.Project().AddComponent(t.Context(), told)
 	require.ErrorIs(t, err, failure)
 	assert.True(t, change.Declared)
+	assert.Equal(t, 1, declared, "OnDeclared is called once the component is declared")
+
+	_, err = failing.Project().AddComponent(t.Context(), told)
+	require.Error(t, err)
+	assert.Equal(t, 1, declared, "and not for a component it refuses")
 
 	manifest, err = failing.Project().Manifest()
 	require.NoError(t, err)

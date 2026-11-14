@@ -173,7 +173,8 @@ type Project interface {
 	// lock already chose. The tables of the component are appended to the
 	// manifest, every other line and comment kept, and the manifest that
 	// makes is parsed and checked as tt package build checks it, the
-	// backends of this tt included, before it is written. A name the
+	// backends of this tt included, before it is written;
+	// [Component.OnDeclared] is called once it is. A name the
 	// manifest declares already, a component that fails the check, a
 	// project without a manifest and a tt with no Tarantool, whose error
 	// wraps ErrNotFound, are errors, and nothing is written. When the

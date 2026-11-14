@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -166,6 +167,7 @@ func routerOfServices() sdk.Component {
 			{Key: "incremental", Value: true},
 		}},
 		Registries: nil,
+		OnDeclared: nil,
 	}
 }
 
@@ -185,15 +187,30 @@ incremental = true
 
 // TestProjectAddComponent checks that a module declares a component as tt
 // wasm new does: appended to the manifest, every line of it kept, and the
-// lock resolved again against it; and what it refuses, writing nothing.
+// lock resolved again against it, OnDeclared called in between; and what it
+// refuses, writing nothing and calling nothing.
 //
 //nolint:paralleltest // Changes the directory, the environment and the CmdCtx.
 func TestProjectAddComponent(t *testing.T) {
 	dir, project := packageProject(t, projectManifest)
 
-	change, err := project.AddComponent(t.Context(), routerOfServices())
+	declared := 0
+	router := routerOfServices()
+
+	router.OnDeclared = func() {
+		declared++
+
+		written, err := os.ReadFile(filepath.Join(dir, "app.manifest.toml"))
+		require.NoError(t, err)
+		assert.Equal(t, projectManifest+routerBlock, string(written), "the manifest is written")
+		assert.NoFileExists(t, filepath.Join(dir, "app.manifest.lock"),
+			"the lock is not resolved yet")
+	}
+
+	change, err := project.AddComponent(t.Context(), router)
 	require.NoError(t, err)
 	assert.Equal(t, sdk.ComponentChange{Declared: true, Moves: []sdk.DependencyMove{}}, change)
+	assert.Equal(t, 1, declared)
 
 	source, man, lock := readProject(t, dir)
 	assert.Equal(t, projectManifest+routerBlock, string(source))
@@ -201,20 +218,24 @@ func TestProjectAddComponent(t *testing.T) {
 	assert.Equal(t, man.Hash(), lock.ManifestHash, "the lock is of the manifest with it")
 
 	// A name declared already.
-	change, err = project.AddComponent(t.Context(), routerOfServices())
+	change, err = project.AddComponent(t.Context(), router)
 	require.ErrorIs(t, err, cmd.ErrComponentDeclared)
 	assert.False(t, change.Declared)
 
 	// A component the manifest cannot carry.
-	broken := routerOfServices()
+	broken := router
 
 	broken.Name = "broken"
-	broken.Build.Fields = append(broken.Build.Fields,
-		sdk.BuildField{Key: "static", Value: "yes"})
+	broken.Build = &sdk.ComponentBuild{
+		Backend: "shell",
+		Fields: append(slices.Clone(router.Build.Fields),
+			sdk.BuildField{Key: "static", Value: "yes"}),
+	}
 
 	change, err = project.AddComponent(t.Context(), broken)
 	require.ErrorContains(t, err, "the manifest with component broken")
 	assert.False(t, change.Declared)
+	assert.Equal(t, 1, declared, "OnDeclared is not called when nothing is written")
 
 	unchanged, _, _ := readProject(t, dir)
 	assert.Equal(t, string(source), string(unchanged), "nothing is written")
@@ -230,10 +251,16 @@ func TestProjectAddComponentErrors(t *testing.T) {
 	content := projectManifest + "\n[dependencies]\nmissing = '>=1.0.0'\n"
 	dir, project := packageProject(t, content)
 
-	change, err := project.AddComponent(t.Context(), routerOfServices())
+	declared := 0
+	router := routerOfServices()
+
+	router.OnDeclared = func() { declared++ }
+
+	change, err := project.AddComponent(t.Context(), router)
 	require.ErrorContains(t, err, "re-resolving the lock")
 	require.ErrorContains(t, err, "rock not found on any server")
 	assert.True(t, change.Declared)
+	assert.Equal(t, 1, declared, "the component is declared before the resolution fails")
 
 	source, err := os.ReadFile(filepath.Join(dir, "app.manifest.toml"))
 	require.NoError(t, err)
@@ -242,13 +269,14 @@ func TestProjectAddComponentErrors(t *testing.T) {
 	// A tt with no Tarantool, whose rockspecs cannot be evaluated.
 	cmd.GetCmdCtxPtr().Cli.TarantoolCli = cmdcontext.TarantoolCli{Executable: ""}
 
-	other := routerOfServices()
+	other := router
 
 	other.Name = "other"
 
 	change, err = project.AddComponent(t.Context(), other)
 	require.ErrorIs(t, err, sdk.ErrNotFound)
 	assert.False(t, change.Declared)
+	assert.Equal(t, 1, declared)
 
 	unchanged, err := os.ReadFile(filepath.Join(dir, "app.manifest.toml"))
 	require.NoError(t, err)
