@@ -16,8 +16,8 @@ import (
 	"github.com/tarantool/go-luarocks/rockspec"
 	"github.com/tarantool/go-luarocks/tree"
 
+	"github.com/tarantool/tt/sdk/execfile"
 	"github.com/tarantool/tt/v3/cli/manifest"
-	"github.com/tarantool/tt/v3/internal/execfile"
 )
 
 // The directories of a stage laid out as an unpacked binary rock, and where

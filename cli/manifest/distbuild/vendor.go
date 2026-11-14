@@ -13,9 +13,9 @@ import (
 	"strings"
 
 	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/execfile"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/internal/buildflags"
-	"github.com/tarantool/tt/v3/internal/execfile"
 )
 
 // The files of a bundle besides the main module.

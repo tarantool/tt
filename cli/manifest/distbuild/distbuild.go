@@ -24,10 +24,10 @@ import (
 	"time"
 
 	"github.com/tarantool/tt/sdk"
+	"github.com/tarantool/tt/sdk/execfile"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/internal/buildflags"
-	"github.com/tarantool/tt/v3/internal/execfile"
 )
 
 const (

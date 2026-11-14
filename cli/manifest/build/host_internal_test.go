@@ -16,10 +16,10 @@ import (
 	lrbuild "github.com/tarantool/go-luarocks/build"
 
 	sdkbuild "github.com/tarantool/tt/sdk/build"
+	"github.com/tarantool/tt/sdk/execfile"
 	"github.com/tarantool/tt/sdk/log/logtest"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
-	"github.com/tarantool/tt/v3/internal/execfile"
 )
 
 // lastEnvValue returns the value of the last KEY=VALUE entry for key, as

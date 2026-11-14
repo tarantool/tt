@@ -22,12 +22,12 @@ import (
 
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/bundle"
+	"github.com/tarantool/tt/sdk/execfile"
 	"github.com/tarantool/tt/sdk/integrity"
 	"github.com/tarantool/tt/sdk/output"
 	"github.com/tarantool/tt/v3/cli/printing"
 	"github.com/tarantool/tt/v3/cli/version"
 	"github.com/tarantool/tt/v3/core"
-	"github.com/tarantool/tt/v3/internal/execfile"
 )
 
 // mainCaseEnv selects, in a process the tests start, the program TestMain

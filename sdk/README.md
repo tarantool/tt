@@ -160,6 +160,13 @@ core uses, and the core never requires older ones.
   process through the `Exit` function its options must carry when the
   handler's connection closes, since the prompt library it runs on has no
   caller to return to.
+- `sdk/execfile` writes a file a process may run - a program, a script, a
+  tool unpacked from an archive - with no fork of the process in between
+  (`Write`, `WriteFile`): Linux refuses to run a file another process holds
+  open for writing (`ETXTBSY`), and a process forked while the file is open
+  holds it until it calls exec. The core and the modules run in one
+  process, so they all write such files through it. It depends on the
+  standard library only.
 - `sdk/formatter` renders the YAML document a Tarantool console answers
   with: `MakeOutput` prints it as YAML, as a Lua expression or as tables
   (`Format`, parsed from its name by `ParseFormat`), and `Opts` sets the
