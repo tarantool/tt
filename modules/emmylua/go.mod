@@ -40,6 +40,7 @@ require (
 	github.com/tarantool/go-config/v2 v2.0.2-0.20261102222747-4c7c90ea0ec7 // indirect
 	github.com/tarantool/go-option v1.1.0 // indirect
 	github.com/tarantool/go-storage/v2 v2.0.1-0.20261030080914-3d28af2e7c8c // indirect
+	github.com/tarantool/tt/sdk/build v0.0.0 // indirect
 	github.com/tarantool/tt/sdk/connect v0.0.0-0 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
@@ -55,6 +56,7 @@ require (
 
 replace (
 	github.com/tarantool/tt/sdk => ../../sdk
+	github.com/tarantool/tt/sdk/build => ../../sdk/build
 	github.com/tarantool/tt/sdk/connect => ../../sdk/connect
 	github.com/tarantool/tt/sdk/fetch => ../../sdk/fetch
 )

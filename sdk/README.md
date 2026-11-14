@@ -17,6 +17,7 @@ Each directory is a separate Go module:
 | `sdk/backup`     | `github.com/tarantool/tt/sdk/backup`     |
 | `sdk/tuple`      | `github.com/tarantool/tt/sdk/tuple`      |
 | `sdk/fetch`      | `github.com/tarantool/tt/sdk/fetch`      |
+| `sdk/build`      | `github.com/tarantool/tt/sdk/build`      |
 
 - `connect` parses connection strings and URIs and resolves credentials.
 - `dial` builds Tarantool dialers for the plain and SSL transports.
@@ -51,16 +52,26 @@ Each directory is a separate Go module:
   `UnpackFile`, which takes one file out of a `.tar.gz` release archive in
   memory. `tt binary install` downloads the prebuilt Tarantool and tt
   through it, `tt wasm` and `tt emmylua` their release assets.
+- `build` is the contract of a build backend, with the standard library
+  only: a `Backend` - its name, the kinds of components it builds, the
+  configuration its fields of a build block decode into and the `New` that
+  checks them and returns the `Build` - the `Context` a build runs in, with
+  the directories, the target and the commands of the build, and a
+  `FileCheck` of the files a build lays out. `buildtest` checks a build
+  block for a backend and runs its build on temporary directories, as the
+  core does. A module provides backends and file checks through the
+  `Module` its `ModuleConstructor` returns.
 
 ## Contract module
 
 `github.com/tarantool/tt/sdk`, rooted at `sdk/` itself, is the contract
 between tt and its modules. The nested `connect`, `dial`, `cluster`,
-`integrity`, `backup`, `tuple` and `fetch` are not part of it: each has its
-own `go.mod`. It depends on the standard library, `github.com/spf13/cobra`,
-`github.com/spf13/pflag`, the core package of
-`github.com/tarantool/go-config/v2` (not its Tarantool builder) and
-`github.com/tarantool/tt/sdk/connect` (testify for its tests);
+`integrity`, `backup`, `tuple`, `fetch` and `build` are not part of it:
+each has its own `go.mod`. It depends on the standard library,
+`github.com/spf13/cobra`, `github.com/spf13/pflag`, the core package of
+`github.com/tarantool/go-config/v2` (not its Tarantool builder),
+`github.com/tarantool/tt/sdk/connect` and `github.com/tarantool/tt/sdk/build`,
+whose types appear in it (testify for its tests);
 `sdk/formatter` adds `github.com/jedib0t/go-pretty` and `gopkg.in/yaml.v2`,
 `sdk/console` adds `github.com/tarantool/go-prompt` and `golang.org/x/term`.
 Cobra, pflag and go-config types are part of the contract, so the module
@@ -70,7 +81,10 @@ core uses, and the core never requires older ones.
 - `sdk` (the root package) defines the module contract. A module is a
   `Constructor`: a function that takes the core's `Services` and returns
   `Mount`s - a fresh cobra command and the path of the group it goes under,
-  groups nobody provides being created. `Services`, and the `Project` it
+  groups nobody provides being created. A module that provides build
+  backends or file checks as well is a `ModuleConstructor`, which returns
+  a `Module` of its `Commands`, `Backends` and `FileChecks`; the core takes
+  either kind of constructor. `Services`, and the `Project` it
   returns, are implemented by the core and by `sdk/sdktest` only, so methods
   may be added to them: `Log` (the module's logger, valid at any time),
   and, once tt is configured, `Tarantool` (the `Tarantool` to run, with its
