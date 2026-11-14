@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -19,6 +17,7 @@ import (
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg/buildregtest"
 	"github.com/tarantool/tt/v3/cli/manifest/internal/treetest"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
 )
@@ -79,6 +78,7 @@ func dryOptions(dir string) Options {
 		ProjectDir: dir,
 		TtVersion:  "tt test",
 		Tarantool:  rocks.TarantoolInfo{Prefix: "/nonexistent", Version: "3.0.0"},
+		Backends:   buildregtest.Registry(),
 	}
 }
 
@@ -486,139 +486,86 @@ func TestRun_fetchWithoutLockFails(t *testing.T) {
 	assert.Equal(t, sdk.ExitFailure, exitcode.Code(err))
 }
 
-// requireCargo skips the test without cargo in PATH. It clears the target
-// directory the environment of tt may name, so that the test cannot run in
-// parallel.
-func requireCargo(t *testing.T) {
-	t.Helper()
-
-	_, err := exec.LookPath("cargo")
-	if err != nil {
-		t.Skip("cargo is not in PATH")
-	}
-
-	for _, key := range []string{"CARGO_TARGET_DIR", "CARGO_BUILD_TARGET_DIR"} {
-		t.Setenv(key, "")
-		require.NoError(t, os.Unsetenv(key))
-	}
-}
-
-// TestRun_cargoModule builds a module component with cargo: its library is a
-// native module of the namespace of the package, built in _build/cargo/ and
-// not in the component, and a target/ a cargo build of the developer leaves
-// in the component is not laid out.
-func TestRun_cargoModule(t *testing.T) {
-	requireCargo(t)
-
-	const cargoManifest = `manifest_version = '0.1'
-
-[package]
-name = 'my-app'
-
-[platform]
-tarantool = '>=3.0.0'
-tt = '>=3.0.0'
-
-[components.fast]
-path = 'fast'
-
-[components.fast.build]
-backend = 'cargo'
-profile = 'dev'
-`
-
-	dir := setupProject(t, cargoManifest, map[string]string{
-		"fast/Cargo.toml": "[package]\nname = \"fast\"\nversion = \"0.1.0\"\n" +
-			"edition = \"2021\"\n\n[dependencies]\n",
-		"fast/src/lib.rs": "#[no_mangle]\npub extern \"C\" fn fast_answer() -> i32 { 42 }\n",
-		"fast/init.lua":   "return require('my-app.fast')",
-		// What cargo run in the component by hand leaves.
-		"fast/target/debug/stray.lua": "return 'stray'",
-	})
-
-	ext := ".so"
-	if runtime.GOOS == "darwin" {
-		ext = ".dylib"
-	}
-
-	tree := filepath.Join(dir, ".rocks")
-
-	// The second build finds what cargo, with nothing to do, reports again.
-	for range 2 {
-		require.NoError(t, Run(context.Background(), dryOptions(dir)))
-		assert.FileExists(t, filepath.Join(tree, "lib", "tarantool", "my-app", "fast"+ext))
-	}
-
-	assert.FileExists(t, filepath.Join(tree, "share", "tarantool", "my-app", "init.lua"))
-	assert.DirExists(t, filepath.Join(dir, buildDirName, "cargo", "debug"))
-	assert.NoDirExists(t, filepath.Join(dir, "fast", "target", "debug", "deps"))
-	assert.NoDirExists(t, filepath.Join(tree, "lib", "tarantool", "my-app", "target"))
-	assert.NoDirExists(t, filepath.Join(tree, "share", "tarantool", "my-app", "target"))
-}
-
-// TestRun_cargoModuleAndProgram builds one cargo component of a crate with a
-// library and a binary, whose block names module and bin: the module goes
-// into the namespace of the package, the program into .rocks/bin/, both
-// recorded, and the Lua of the component is laid out.
-func TestRun_cargoModuleAndProgram(t *testing.T) {
-	requireCargo(t)
+// TestRun_excludeOfTheBackend builds a module component of a backend that
+// leaves its tool's target/ out of the layout (buildregtest both): its module
+// goes into the namespace of the package, the Lua of the component is laid
+// out, and a target/ a build of the developer leaves in the component is
+// not.
+func TestRun_excludeOfTheBackend(t *testing.T) {
+	t.Parallel()
 
 	dir := setupProject(t, manifestHead+`
 [components.fast]
 path = 'fast'
 
 [components.fast.build]
-backend = 'cargo'
-profile = 'dev'
-module = 'fast'
-bin = 'fastctl'
+backend = 'both'
 `, map[string]string{
-		"fast/Cargo.toml": "[package]\nname = \"fast\"\nversion = \"0.1.0\"\n" +
-			"edition = \"2021\"\n\n[[bin]]\nname = \"fastctl\"\npath = \"src/main.rs\"\n\n" +
-			"[dependencies]\n",
-		"fast/src/lib.rs":  "#[no_mangle]\npub extern \"C\" fn fast_answer() -> i32 { 42 }\n",
-		"fast/src/main.rs": "fn main() { println!(\"fastctl\"); }\n",
-		"fast/init.lua":    "return require('my-app.fast')",
+		"fast/src/lib.rs": "pub fn answer() -> i32 { 42 }\n",
+		"fast/init.lua":   "return require('my-app.fast')",
+		// What the tool run in the component by hand leaves.
+		"fast/target/debug/stray.lua": "return 'stray'",
 	})
 
-	ext := ".so"
-	if runtime.GOOS == "darwin" {
-		ext = ".dylib"
+	tree := filepath.Join(dir, ".rocks")
+
+	for range 2 {
+		require.NoError(t, Run(context.Background(), dryOptions(dir)))
+		assert.FileExists(t, filepath.Join(tree, "lib", "tarantool", "my-app", "fast.so"))
 	}
+
+	assert.FileExists(t, filepath.Join(tree, "share", "tarantool", "my-app", "init.lua"))
+	assert.NoDirExists(t, filepath.Join(tree, "lib", "tarantool", "my-app", "target"))
+	assert.NoDirExists(t, filepath.Join(tree, "share", "tarantool", "my-app", "target"))
+}
+
+// TestRun_moduleAndProgramOfOneComponent builds one component whose block
+// names a module and a program: the module goes into the namespace of the
+// package, the program into .rocks/bin/, both recorded, and the Lua of the
+// component is laid out.
+func TestRun_moduleAndProgramOfOneComponent(t *testing.T) {
+	t.Parallel()
+
+	dir := setupProject(t, manifestHead+`
+[components.fast]
+path = 'fast'
+
+[components.fast.build]
+backend = 'both'
+module = 'fast'
+bin = 'fastctl'
+`, map[string]string{"fast/init.lua": "return require('my-app.fast')"})
 
 	tree := filepath.Join(dir, ".rocks")
 
 	result, err := RunResult(context.Background(), dryOptions(dir))
 	require.NoError(t, err)
 
-	assert.FileExists(t, filepath.Join(tree, "lib", "tarantool", "my-app", "fast"+ext))
+	assert.FileExists(t, filepath.Join(tree, "lib", "tarantool", "my-app", "fast.so"))
 	assert.FileExists(t, filepath.Join(tree, "share", "tarantool", "my-app", "init.lua"))
 	assert.NoFileExists(t, filepath.Join(tree, "lib", "tarantool", "my-app", "fastctl"))
-
-	program := filepath.Join(tree, "bin", "fastctl")
-	out, err := exec.CommandContext(context.Background(), program).Output()
-	require.NoError(t, err)
-	assert.Equal(t, "fastctl\n", string(out))
+	assert.FileExists(t, filepath.Join(tree, "bin", "fastctl"))
 
 	assert.Equal(t, map[string][]string{"fast": {"fastctl"}}, result.Programs)
 	assert.Equal(t, madeFiles{
-		Modules: []string{"fast" + ext}, Data: nil, Programs: []string{"fastctl"},
+		Modules: []string{"fast.so"}, Data: nil, Programs: []string{"fastctl"},
 	}, recordOf(t, dir)["fast"])
 }
 
-// TestRun_cargoPathDependency builds a path dependency whose component cargo
-// builds: in the consumer's _build/path/<name>/cargo/, leaving no target/ in
-// the directory of the dependency, another checkout.
-func TestRun_cargoPathDependency(t *testing.T) {
-	requireCargo(t)
+// TestRun_workDirOfAPathDependency builds a path dependency: the work
+// directory of the build of its component (TT_BUILD_DIR) is in the
+// consumer's _build/path/<name>/, and nothing is written into the directory
+// of the dependency, another checkout.
+func TestRun_workDirOfAPathDependency(t *testing.T) {
+	t.Parallel()
 
 	app, _ := setupNeighbours(t)
-	rsdep := filepath.Join(filepath.Dir(app), "rsdep")
+	shdep := filepath.Join(filepath.Dir(app), "shdep")
 
-	writeFile(t, filepath.Join(rsdep, manifestFileName), `manifest_version = '0.1'
+	writeFile(t, filepath.Join(shdep, manifestFileName), `manifest_version = '0.1'
 
 [package]
-name = 'rsdep'
+name = 'shdep'
 
 [platform]
 tarantool = '>=3.0.0'
@@ -628,28 +575,20 @@ tt = '>=3.0.0'
 path = 'fast'
 
 [components.fast.build]
-backend = 'cargo'
-profile = 'dev'
+backend = 'shell'
+command = 'sh'
+args = ['-c', 'echo work > "$TT_BUILD_DIR/x.o" && cp "$TT_BUILD_DIR/x.o" "$TT_OUTPUT_DIR/fast.so"']
 `)
-	writeFile(t, filepath.Join(rsdep, "VERSION"), "0.1.0\n")
-	writeFile(t, filepath.Join(rsdep, "fast", "Cargo.toml"),
-		"[package]\nname = \"fast\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\n")
-	writeFile(t, filepath.Join(rsdep, "fast", "src", "lib.rs"),
-		"#[no_mangle]\npub extern \"C\" fn fast_answer() -> i32 { 42 }\n")
+	writeFile(t, filepath.Join(shdep, "VERSION"), "0.1.0\n")
+	writeFile(t, filepath.Join(shdep, "fast", "fast.c"), "int answer;\n")
 	writeFile(t, filepath.Join(app, manifestFileName), strings.Replace(consumerManifest,
-		"[dependencies]\n", "[dependencies]\nrsdep = { source = 'path', path = '../rsdep' }\n", 1))
+		"[dependencies]\n", "[dependencies]\nshdep = { source = 'path', path = '../shdep' }\n", 1))
 
 	require.NoError(t, Run(context.Background(), dryOptions(app)))
 
-	ext := ".so"
-	if runtime.GOOS == "darwin" {
-		ext = ".dylib"
-	}
-
-	assert.FileExists(t, filepath.Join(app, rocksDirName, "lib", "tarantool", "rsdep", "fast"+ext))
-	assert.DirExists(t, filepath.Join(pathState(app, "rsdep"), "cargo", "debug"))
-	assert.NoDirExists(t, filepath.Join(rsdep, "fast", "target"))
-	assert.NoDirExists(t, filepath.Join(rsdep, buildDirName))
+	assert.FileExists(t, filepath.Join(app, rocksDirName, "lib", "tarantool", "shdep", "fast.so"))
+	assert.FileExists(t, filepath.Join(pathState(app, "shdep"), componentDirName, "fast", "x.o"))
+	assert.NoDirExists(t, filepath.Join(shdep, buildDirName))
 }
 
 // TestRun_buildDirOfAShellBuild pins that a build gets TT_BUILD_DIR, the

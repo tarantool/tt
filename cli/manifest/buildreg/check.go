@@ -43,11 +43,7 @@ func (r *Registry) CheckBuild(
 	check := manifest.BuildCheck{Known: ok, Unknown: nil, Programs: nil}
 
 	if target.Hook && (!ok || !found.backend.Hook) {
-		return check, &manifest.ValidationError{
-			Field: field,
-			Msg: fmt.Sprintf("backend %q is not supported (want %s)", block.Backend,
-				orList(r.hookNames())),
-		}
+		return check, &manifest.ValidationError{Field: field, Msg: r.notHookMessage(block.Backend)}
 	}
 
 	if !ok {
@@ -188,7 +184,7 @@ func OutputType(entry manifest.OutputEntry, kind string) build.Result {
 func (r *Registry) owners(key string) []string {
 	var names []string
 
-	for _, e := range r.ordered() {
+	for _, e := range r.entries {
 		if e.has(key) {
 			names = append(names, e.backend.Name)
 		}
@@ -202,13 +198,28 @@ func (r *Registry) owners(key string) []string {
 func (r *Registry) hookNames() []string {
 	var names []string
 
-	for _, e := range r.ordered() {
+	for _, e := range r.entries {
 		if e.backend.Hook {
 			names = append(names, e.backend.Name)
 		}
 	}
 
 	return names
+}
+
+// notHookMessage says that a hook cannot run with the backend name: which
+// backends it can run with, or that no module of this tt provides one, as a
+// distribution of tt that leaves the module of the standard backends out
+// has none. A hook that names no backend names shell
+// (manifest.DefaultHookBackend).
+func (r *Registry) notHookMessage(name string) string {
+	hooks := r.hookNames()
+	if len(hooks) == 0 {
+		return fmt.Sprintf("backend %q is not supported: no module of this tt provides a "+
+			"backend that runs hooks", name)
+	}
+
+	return fmt.Sprintf("backend %q is not supported (want %s)", name, orList(hooks))
 }
 
 // has reports whether the backend of e has the field key: one of its

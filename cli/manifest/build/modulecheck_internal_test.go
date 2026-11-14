@@ -117,10 +117,11 @@ func TestRun_staticModuleNeedsALibrary(t *testing.T) {
 		"linked.so"), "a module that fails the check is not installed")
 }
 
-// staticCMakeManifest builds two modules of one CMake project, each a
-// component with static = true: plain, and linked, which needs a library the
-// project builds.
-const staticCMakeManifest = `manifest_version = '0.1'
+// staticTreeManifest copies two modules of one directory with a backend
+// that copies them itself (buildregtest tree), each a component with
+// static = true: plain, and linked, which needs a library of the directory.
+// Neither lays out the modules of the directory as its sources.
+const staticTreeManifest = `manifest_version = '0.1'
 
 [package]
 name = 'my-app'
@@ -131,49 +132,46 @@ tt = '>=3.1.0'
 
 [components.plain]
 path = 'native'
+include = ['*.lua']
 
 [components.plain.build]
-backend = 'cmake'
-targets = ['plain']
+backend = 'tree'
 output = ['plain.so']
 static = true
 
 [components.linked]
 path = 'native'
+include = ['*.lua']
 
 [components.linked.build]
-backend = 'cmake'
-targets = ['linked']
+backend = 'tree'
 output = ['linked.so']
 static = true
 `
 
-// staticCMakeLists builds plain.so, which needs libc and libm, and
-// linked.so, which needs libextra.so of the same project.
-const staticCMakeLists = `cmake_minimum_required(VERSION 3.15)
-project(static C)
-
-add_library(extra SHARED extra.c)
-add_library(plain MODULE plain.c)
-target_link_libraries(plain PRIVATE m)
-add_library(linked MODULE linked.c)
-target_link_libraries(linked PRIVATE extra)
-set_target_properties(plain linked PROPERTIES PREFIX "" SUFFIX ".so")
-`
-
-// TestRun_staticCMakeModules checks the static modules of cmake builds: the
-// module that needs libc only builds, the one that needs a library of its
-// project fails the build, naming it.
-func TestRun_staticCMakeModules(t *testing.T) {
+// TestRun_staticModulesOfABackend checks the static modules a backend
+// copies itself: the module that needs libc only builds, the one that needs a
+// library of its project fails the build, naming it.
+func TestRun_staticModulesOfABackend(t *testing.T) {
 	t.Parallel()
 
-	requireCMake(t)
 	requireModuleCC(t)
 
-	files := map[string]string{"native/CMakeLists.txt": staticCMakeLists}
-	maps.Copy(files, staticModuleFiles)
+	dir := setupProject(t, staticTreeManifest, maps.Clone(staticModuleFiles))
+	native := filepath.Join(dir, "native")
 
-	dir := setupProject(t, staticCMakeManifest, files)
+	for _, args := range [][]string{
+		{"-shared", "-fPIC", "-o", "libextra.so", "extra.c"},
+		{"-shared", "-fPIC", "-o", "plain.so", "plain.c", "-lm"},
+		{"-shared", "-fPIC", "-o", "linked.so", "linked.c", "-L.", "-l:libextra.so"},
+	} {
+		cmd := exec.CommandContext(context.Background(), "cc", args...)
+
+		cmd.Dir = native
+
+		out, err := cmd.CombinedOutput()
+		require.NoError(t, err, string(out))
+	}
 
 	opts := dryOptions(dir)
 

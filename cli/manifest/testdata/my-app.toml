@@ -26,7 +26,7 @@ path = 'native/'
 namespace = ''
 
 [components.native.build]
-backend = 'lua-c'
+backend = 'lib'
 module = 'fast_hash'
 sources = ['fast_hash.c']
 

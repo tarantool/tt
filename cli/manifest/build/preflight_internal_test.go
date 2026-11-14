@@ -14,6 +14,7 @@ import (
 	sdkbuild "github.com/tarantool/tt/sdk/build"
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg/buildregtest"
 )
 
 // zigBuild is the build of the zig backend of a module, whose tool is
@@ -96,7 +97,7 @@ func TestRun_preflightOfAModuleBackend(t *testing.T) {
 		Steps []string `toml:"steps"`
 	}
 
-	backends := buildreg.Core()
+	backends := buildregtest.Registry()
 	require.NoError(t, backends.Add("zig", []sdkbuild.Backend{{
 		Name:     "zig",
 		Produces: []sdkbuild.Result{sdkbuild.Module},

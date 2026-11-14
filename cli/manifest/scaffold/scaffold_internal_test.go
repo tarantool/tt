@@ -14,7 +14,7 @@ import (
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/v3/cli/exitcode"
 	"github.com/tarantool/tt/v3/cli/manifest"
-	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg/buildregtest"
 	"github.com/tarantool/tt/v3/cli/manifest/resolve"
 )
 
@@ -58,7 +58,7 @@ func TestCreate_writesAValidManifest(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, warnings)
 
-	validationWarnings, err := man.Validate(buildreg.Core())
+	validationWarnings, err := man.Validate(buildregtest.Registry())
 	require.NoError(t, err)
 	assert.Empty(t, validationWarnings)
 
@@ -111,7 +111,7 @@ func TestCreate_takesThePackageNameFromTheDirectory(t *testing.T) {
 			man, _, err := manifest.ParseManifest([]byte(readManifest(t, dir)))
 			require.NoError(t, err)
 
-			_, err = man.Validate(buildreg.Core())
+			_, err = man.Validate(buildregtest.Registry())
 			require.NoError(t, err)
 		})
 	}
@@ -223,7 +223,7 @@ func TestSkeleton_commentedExamplesAreValid(t *testing.T) {
 	require.NoError(t, err, uncommented)
 	require.Empty(t, warnings)
 
-	_, err = man.Validate(buildreg.Core())
+	_, err = man.Validate(buildregtest.Registry())
 	require.NoError(t, err)
 
 	require.Contains(t, man.Components, "app")

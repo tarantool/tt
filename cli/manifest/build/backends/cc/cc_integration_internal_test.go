@@ -4,7 +4,9 @@ package cc
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -121,4 +123,49 @@ func TestCcCompilesAgainstTarantoolHeaders(t *testing.T) {
 	hostBuild(t, harness, LuaC(),
 		map[string]any{"module": "headercheck", "sources": []any{"headercheck.c"}},
 		"headercheck")
+}
+
+// fastHashC is a minimal Lua C extension exporting luaopen_fast_hash.
+const fastHashC = `#include <lua.h>
+
+static int l_hash(lua_State *L) {
+	lua_pushinteger(L, 42);
+	return 1;
+}
+
+int luaopen_fast_hash(lua_State *L) {
+	lua_pushcfunction(L, l_hash);
+	return 1;
+}
+`
+
+// TestLuaCModuleLoadsInTarantool builds a Lua C module with lua-c, static
+// and not, against the headers of the Tarantool in PATH, and loads it in
+// that Tarantool.
+func TestLuaCModuleLoadsInTarantool(t *testing.T) {
+	t.Parallel()
+
+	includeDir := requireHostHeaders(t)
+
+	tarantool, err := exec.LookPath("tarantool")
+	require.NoError(t, err)
+
+	for _, static := range []bool{false, true} {
+		harness := hostHarness(t, includeDir, map[string]string{
+			"fast_hash.c": fastHashC,
+			"check.lua": "package.cpath = arg[1] .. '/?.so;' .. arg[1] .. '/?.dylib;' .. " +
+				"package.cpath\nprint(require('fast_hash')())\nos.exit(0)\n",
+		})
+
+		harness.Context.Static = static
+
+		hostBuild(t, harness, LuaC(),
+			map[string]any{"module": "fast_hash", "sources": []any{"fast_hash.c"}}, "fast_hash")
+
+		printed, err := exec.CommandContext(t.Context(), tarantool,
+			filepath.Join(harness.Context.Dirs.Cwd, "check.lua"),
+			harness.Context.Dirs.Output).CombinedOutput()
+		require.NoError(t, err, string(printed))
+		assert.Equal(t, "42", strings.TrimSpace(string(printed)), "static = %t", static)
+	}
 }

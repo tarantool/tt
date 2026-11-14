@@ -15,13 +15,13 @@ import (
 // executableManifest is the manifest of the fixtures with a component of the
 // deprecated kind = "executable" that builds the program gw.
 const executableManifest = fixtureManifest + "\n[components.gw]\npath = \"gw\"\n" +
-	"kind = \"executable\"\n\n[components.gw.build]\nbackend = \"go\"\n"
+	"kind = \"executable\"\n\n[components.gw.build]\nbackend = \"exe\"\n"
 
 // programManifest is the manifest of the fixtures with components of no
-// kind: gw, whose go build makes the program gateway, and tools, whose shell
-// build makes what it makes.
+// kind: gw, whose build by exe, a backend of programs (buildregtest), makes
+// the program gateway, and tools, whose shell build makes what it makes.
 const programManifest = fixtureManifest + "\n[components.gw]\npath = \"gw\"\n" +
-	"\n[components.gw.build]\nbackend = \"go\"\nname = \"gateway\"\n" +
+	"\n[components.gw.build]\nbackend = \"exe\"\nname = \"gateway\"\n" +
 	"\n[components.tools]\npath = \"tools\"\n" +
 	"\n[components.tools.build]\nbackend = \"shell\"\ncommand = \"./build.sh\"\n"
 

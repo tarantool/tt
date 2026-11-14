@@ -8,7 +8,18 @@ import (
 
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg/buildregtest"
 )
+
+// The build blocks of these tests are checked with the backends of the
+// tests (buildregtest): make and shell, and the fakes exe, lib, both and
+// tree. What the backends of tt check of their own fields their tests in
+// modules/build check.
+
+// backends returns the registry of the backends of the tests.
+func backends() *buildreg.Registry {
+	return buildregtest.Registry()
+}
 
 // parseBody parses a manifest made of the required header and body.
 func parseBody(t *testing.T, body string) *manifest.Manifest {
@@ -24,23 +35,23 @@ func parseBody(t *testing.T, body string) *manifest.Manifest {
 }
 
 // programsOf returns the programs the build block of the component name of
-// mfst names to the checker of the backends of tt.
+// mfst names to the checker of the backends of the tests.
 func programsOf(t *testing.T, mfst *manifest.Manifest, name string) []string {
 	t.Helper()
 
 	require.NotNil(t, mfst.Components[name].Build)
 
-	check, err := buildreg.Core().CheckBuild("components."+name+".build",
+	check, err := backends().CheckBuild("components."+name+".build",
 		mfst.ComponentTarget(name), *mfst.Components[name].Build)
 	require.NoError(t, err)
 
 	return check.Programs
 }
 
-// TestExecutableComponentFields checks that every field of the go and cargo
-// backends decodes into the build, of a component of no kind and of one of
-// the deprecated kind = "executable".
-func TestExecutableComponentFields(t *testing.T) {
+// TestBackendFieldsDecode checks that every field of a backend decodes into
+// the Rest of the build, of a component of no kind and of one of the
+// deprecated kind = "executable", and the common fields into theirs.
+func TestBackendFieldsDecode(t *testing.T) {
 	t.Parallel()
 
 	mfst := parseBody(t, `
@@ -48,8 +59,7 @@ func TestExecutableComponentFields(t *testing.T) {
 path = "gw"
 kind = "executable"
 [components.gw.build]
-backend = "go"
-package = "./cmd/gw"
+backend = "exe"
 name = "gateway"
 tags = ["prod"]
 ldflags = ["-s", "-X", "main.version=1.0"]
@@ -60,15 +70,14 @@ env = { CC = "musl-gcc" }
 [components.agent]
 path = "agent"
 [components.agent.build]
-backend = "cargo"
+backend = "both"
 bin = "agent-bin"
-package = "agent-crate"
 features = ["tls", "serde/derive"]
 profile = "dist"
 static = true
 `)
 
-	warnings, err := mfst.Validate(buildreg.Core())
+	warnings, err := mfst.Validate(backends())
 	require.NoError(t, err)
 	assert.Equal(t, []string{"components.gw.kind is deprecated: a component makes what its " +
 		"build makes; remove it"}, warnings)
@@ -79,7 +88,6 @@ static = true
 
 	gateway := mfst.Components["gw"].Build
 	assert.Equal(t, map[string]any{
-		"package": "./cmd/gw",
 		"name":    "gateway",
 		"tags":    []any{"prod"},
 		"ldflags": []any{"-s", "-X", "main.version=1.0"},
@@ -93,7 +101,6 @@ static = true
 	agent := mfst.Components["agent"].Build
 	assert.Equal(t, map[string]any{
 		"bin":      "agent-bin",
-		"package":  "agent-crate",
 		"features": []any{"tls", "serde/derive"},
 		"profile":  "dist",
 	}, agent.Rest)
@@ -101,8 +108,7 @@ static = true
 }
 
 // TestBuildPrograms checks the programs the build of a component names to
-// the checker of the backends of tt, of no kind and of the deprecated
-// kind = "executable".
+// the checker, of no kind and of the deprecated kind = "executable".
 func TestBuildPrograms(t *testing.T) {
 	t.Parallel()
 
@@ -117,24 +123,24 @@ func TestBuildPrograms(t *testing.T) {
 		build  manifest.Build
 		want   []string
 	}{
-		{"go defaults to the component", target, manifest.Build{Backend: "go"}, []string{"gw"}},
+		{"exe defaults to the component", target, manifest.Build{Backend: "exe"}, []string{"gw"}},
 		{
-			"go name", target,
-			manifest.Build{Backend: "go", Rest: map[string]any{"name": "gateway"}},
+			"exe name", target,
+			manifest.Build{Backend: "exe", Rest: map[string]any{"name": "gateway"}},
 			[]string{"gateway"},
 		},
 		{
-			"cargo of kind = executable defaults to the component", executable,
-			manifest.Build{Backend: "cargo"}, []string{"gw"},
+			"both of kind = executable defaults to the component", executable,
+			manifest.Build{Backend: "both"}, []string{"gw"},
 		},
 		{
-			"cargo bin", target,
-			manifest.Build{Backend: "cargo", Rest: map[string]any{"bin": "gwd"}},
+			"both bin", target,
+			manifest.Build{Backend: "both", Rest: map[string]any{"bin": "gwd"}},
 			[]string{"gwd"},
 		},
 		{
-			"cargo bin and module", target,
-			manifest.Build{Backend: "cargo", Rest: map[string]any{"bin": "gwd", "module": "gw"}},
+			"both bin and module", target,
+			manifest.Build{Backend: "both", Rest: map[string]any{"bin": "gwd", "module": "gw"}},
 			[]string{"gwd"},
 		},
 		{
@@ -169,15 +175,15 @@ func TestBuildPrograms(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			check, err := buildreg.Core().CheckBuild("components.gw.build", tt.target, tt.build)
+			check, err := backends().CheckBuild("components.gw.build", tt.target, tt.build)
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, check.Programs)
 		})
 	}
 
-	// A cargo build that names neither builds the library, no program.
-	check, err := buildreg.Core().CheckBuild("components.gw.build", target,
-		manifest.Build{Backend: "cargo"})
+	// A build of both that names neither builds a module, no program.
+	check, err := backends().CheckBuild("components.gw.build", target,
+		manifest.Build{Backend: "both"})
 	require.NoError(t, err)
 	assert.Nil(t, check.Programs)
 }
@@ -192,7 +198,7 @@ path = "src"
 [components.gw]
 path = "gw"
 [components.gw.build]
-backend = "go"
+backend = "exe"
 name = "gateway"
 
 [components.tools]
@@ -236,7 +242,7 @@ command = "./build.sh"
 		{"lua", "", false},
 		{"python3", "", false},
 	} {
-		component, found := mfst.ProgramComponent(buildreg.Core(), tt.binary, recorded)
+		component, found := mfst.ProgramComponent(backends(), tt.binary, recorded)
 		assert.Equal(t, tt.found, found, tt.binary)
 		assert.Equal(t, tt.component, component, tt.binary)
 	}
@@ -280,7 +286,7 @@ path = "gen/other"
 to = "bin"
 `)
 
-	_, err := mfst.Validate(buildreg.Core())
+	_, err := mfst.Validate(backends())
 	require.NoError(t, err)
 
 	assert.Equal(t, []manifest.OutputEntry{
@@ -342,9 +348,11 @@ func TestOutputEntryErrors(t *testing.T) {
 	}
 }
 
-// TestValidateExecutableComponents covers what an executable component and
-// the go and cargo backends rule out.
-func TestValidateExecutableComponents(t *testing.T) {
+// TestValidateComponentBuilds covers what an executable component, the kind
+// of a component against what its build makes, the fields of one backend on
+// the block of another and the errors a backend reports of its fields rule
+// out.
+func TestValidateComponentBuilds(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -362,21 +370,21 @@ func TestValidateExecutableComponents(t *testing.T) {
 		{
 			name: "include",
 			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\ninclude = [\"*.go\"]\n" +
-				"[components.a.build]\nbackend = \"go\"\n",
+				"[components.a.build]\nbackend = \"exe\"\n",
 			field: "components.a.include",
 			msg:   "is not allowed for kind",
 		},
 		{
 			name: "exclude",
 			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\nexclude = []\n" +
-				"[components.a.build]\nbackend = \"go\"\n",
+				"[components.a.build]\nbackend = \"exe\"\n",
 			field: "components.a.exclude",
 			msg:   "is not allowed for kind",
 		},
 		{
 			name: "namespace",
 			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\nnamespace = \"\"\n" +
-				"[components.a.build]\nbackend = \"go\"\n",
+				"[components.a.build]\nbackend = \"exe\"\n",
 			field: "components.a.namespace",
 			msg:   "is not allowed for kind",
 		},
@@ -389,28 +397,28 @@ func TestValidateExecutableComponents(t *testing.T) {
 		{
 			name: "a module backend",
 			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
-				"[components.a.build]\nbackend = \"c\"\nmodule = \"m\"\nsources = [\"m.c\"]\n",
+				"[components.a.build]\nbackend = \"lib\"\nmodule = \"m\"\nsources = [\"m.c\"]\n",
 			field: "components.a.kind",
-			msg:   `is "executable", but backend "c" makes no programs`,
+			msg:   `is "executable", but backend "lib" makes no programs`,
 		},
 		{
-			name: "go for kind = module",
+			name: "a backend of programs for kind = module",
 			body: "[components.a]\npath = \"a\"\nkind = \"module\"\n" +
-				"[components.a.build]\nbackend = \"go\"\n",
+				"[components.a.build]\nbackend = \"exe\"\n",
 			field: "components.a.kind",
-			msg:   `is "module", but backend "go" makes programs only`,
+			msg:   `is "module", but backend "exe" makes programs only`,
 		},
 		{
-			name: "bin on a cargo build of kind = module",
+			name: "a build of a program of kind = module",
 			body: "[components.a]\npath = \"a\"\nkind = \"module\"\n" +
-				"[components.a.build]\nbackend = \"cargo\"\nbin = \"a\"\n",
+				"[components.a.build]\nbackend = \"both\"\nbin = \"a\"\n",
 			field: "components.a.kind",
 			msg:   `is "module", but the build makes programs`,
 		},
 		{
-			name: "module on a cargo build of kind = executable",
+			name: "a build of a module of kind = executable",
 			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
-				"[components.a.build]\nbackend = \"cargo\"\nmodule = \"a\"\n",
+				"[components.a.build]\nbackend = \"both\"\nmodule = \"a\"\n",
 			field: "components.a.kind",
 			msg:   `is "executable", but the build makes modules`,
 		},
@@ -431,72 +439,76 @@ func TestValidateExecutableComponents(t *testing.T) {
 			msg:   `is "module", but the build makes programs`,
 		},
 		{
-			name: "a program of make clashes with a go program",
+			name: "a program of make clashes with a program of exe",
 			body: "[components.a]\npath = \"a\"\n" +
 				"[components.a.build]\nbackend = \"make\"\nmake_target = \"all\"\n" +
 				"output = [\"a.so\", { path = \"out/b\", to = \"bin\" }]\n" +
-				"[components.b]\npath = \"b\"\n[components.b.build]\nbackend = \"go\"\n",
+				"[components.b]\npath = \"b\"\n[components.b.build]\nbackend = \"exe\"\n",
 			field: "components.b.build",
 			msg:   `program "b" is built by component "a" too`,
 		},
 		{
-			name: "a dotted cargo module",
-			body: "[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"cargo\"\n" +
+			name: "an error of a field of the backend",
+			body: "[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"both\"\n" +
 				"module = \"a.b\"\n",
 			field: "components.a.build.module",
 			msg:   "is not a module name",
 		},
 		{
-			name: "module on go",
+			name:  "an error of the block of the backend",
+			body:  "[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"tree\"\n",
+			field: "components.a.build",
+			msg:   `output is required for backend "tree"`,
+		},
+		{
+			name: "module on exe",
 			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
-				"[components.a.build]\nbackend = \"go\"\nmodule = \"a\"\n",
+				"[components.a.build]\nbackend = \"exe\"\nmodule = \"a\"\n",
 			field: "components.a.build.module",
-			msg:   `not of "go"`,
+			msg:   `not of "exe"`,
 		},
 		{
-			name: "a field of make on go",
+			name: "a field of make on exe",
 			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
-				"[components.a.build]\nbackend = \"go\"\nmake_target = \"all\"\n",
+				"[components.a.build]\nbackend = \"exe\"\nmake_target = \"all\"\n",
 			field: "components.a.build.make_target",
-			msg:   `is a field of backend make, not of "go"`,
+			msg:   `is a field of backend make, not of "exe"`,
 		},
 		{
-			name: "output on cargo",
+			name: "output on both",
 			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
-				"[components.a.build]\nbackend = \"cargo\"\noutput = [\"target/a\"]\n",
+				"[components.a.build]\nbackend = \"both\"\noutput = [\"target/a\"]\n",
 			field: "components.a.build.output",
-			msg:   `not of "cargo"`,
+			msg:   `not of "both"`,
 		},
 		{
-			name: "a field of cargo on go",
+			name: "a field of both on exe",
 			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
-				"[components.a.build]\nbackend = \"go\"\nfeatures = [\"x\"]\n",
+				"[components.a.build]\nbackend = \"exe\"\nfeatures = [\"x\"]\n",
 			field: "components.a.build.features",
-			msg:   `is a field of backend cargo, not of "go"`,
+			msg:   `is a field of backend both, not of "exe"`,
 		},
 		{
-			name: "a field of go on cargo",
+			name: "a field of exe on both",
 			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
-				"[components.a.build]\nbackend = \"cargo\"\ncgo = true\n",
+				"[components.a.build]\nbackend = \"both\"\ncgo = true\n",
 			field: "components.a.build.cgo",
-			msg:   `is a field of backend go, not of "cargo"`,
+			msg:   `is a field of backend exe, not of "both"`,
 		},
 		{
-			name: "a field of go on make",
+			name: "a field of exe on make",
 			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
 				"[components.a.build]\nbackend = \"make\"\nmake_target = \"all\"\ncgo = true\n",
 			field: "components.a.build.cgo",
-			msg:   `is a field of backend go, not of "make"`,
+			msg:   `is a field of backend exe, not of "make"`,
 		},
-		// A field of make, shell, c or lua-c on a build of another of the four
-		// is refused as any other.
 		{
 			name: "module on make",
 			body: "[components.lua]\npath = \"src\"\n" +
 				"[components.lua.build]\nbackend = \"make\"\nmake_target = \"all\"\n" +
 				"module = \"x\"\n",
 			field: "components.lua.build.module",
-			msg:   `is a field of backend c, cargo or lua-c, not of "make"`,
+			msg:   `is a field of backend both or lib, not of "make"`,
 		},
 		{
 			name: "a field of make on shell",
@@ -515,28 +527,42 @@ func TestValidateExecutableComponents(t *testing.T) {
 			msg:   `is a field of backend shell, not of "make"`,
 		},
 		{
-			name: "a field of c on shell",
+			name: "a field of lib on shell",
 			body: "[components.lua]\npath = \"src\"\n" +
 				"[components.lua.build]\nbackend = \"shell\"\ncommand = \"./b.sh\"\n" +
 				"sources = [\"a.c\"]\n",
 			field: "components.lua.build.sources",
-			msg:   `is a field of backend c or lua-c, not of "shell"`,
+			msg:   `is a field of backend lib, not of "shell"`,
 		},
 		{
-			name: "a field of make on lua-c",
+			name: "a field of make on lib",
 			body: "[components.lua]\npath = \"src\"\n" +
-				"[components.lua.build]\nbackend = \"lua-c\"\nmodule = \"m\"\n" +
+				"[components.lua.build]\nbackend = \"lib\"\nmodule = \"m\"\n" +
 				"sources = [\"m.c\"]\nflags = [\"-j4\"]\n",
 			field: "components.lua.build.flags",
-			msg:   `is a field of backend make, not of "lua-c"`,
+			msg:   `is a field of backend make, not of "lib"`,
 		},
 		{
-			name: "output on c",
+			name: "output on lib",
 			body: "[components.lua]\npath = \"src\"\n" +
-				"[components.lua.build]\nbackend = \"c\"\nmodule = \"m\"\n" +
+				"[components.lua.build]\nbackend = \"lib\"\nmodule = \"m\"\n" +
 				"sources = [\"m.c\"]\noutput = [\"m.so\"]\n",
 			field: "components.lua.build.output",
-			msg:   `is a field of backend make, shell or cmake, not of "c"`,
+			msg:   `is a field of backend make, shell or tree, not of "lib"`,
+		},
+		{
+			name: "incremental on tree",
+			body: "[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"tree\"\n" +
+				"output = [\"a.so\"]\nincremental = true\n",
+			field: "components.a.build.incremental",
+			msg:   `is a field of backend make or shell, not of "tree"`,
+		},
+		{
+			name: "a field of tree on make",
+			body: "[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"make\"\n" +
+				"make_target = \"all\"\nvariables = { A = \"1\" }\n",
+			field: "components.a.build.variables",
+			msg:   `is a field of backend tree, not of "make"`,
 		},
 		{
 			name:  "a field of make on a shell hook",
@@ -545,92 +571,58 @@ func TestValidateExecutableComponents(t *testing.T) {
 			msg:   `is a field of backend make, not of "shell"`,
 		},
 		{
-			name: "a field of go on a module build",
-			body: "[components.a]\npath = \"a\"\n" +
-				"[components.a.build]\nbackend = \"lua-c\"\nmodule = \"m\"\nsources = [\"m.c\"]\n" +
-				"tags = [\"netgo\"]\n",
-			field: "components.a.build.tags",
-			msg:   `not of "lua-c"`,
-		},
-		{
-			name: "ldflags on cargo",
+			name: "ldflags on both",
 			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
-				"[components.a.build]\nbackend = \"cargo\"\nldflags = [\"-s\"]\n",
+				"[components.a.build]\nbackend = \"both\"\nldflags = [\"-s\"]\n",
 			field: "components.a.build.ldflags",
-			msg:   `is a field of backend c, go or lua-c, not of "cargo"`,
+			msg:   `is a field of backend exe or lib, not of "both"`,
 		},
 		// A field of another backend is the block's by its key, whatever
 		// its value: an empty one is as much a mistake.
 		{
-			name: "an empty field of make on go",
+			name: "an empty field of make on exe",
 			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
-				"[components.a.build]\nbackend = \"go\"\nmake_target = \"\"\n",
+				"[components.a.build]\nbackend = \"exe\"\nmake_target = \"\"\n",
 			field: "components.a.build.make_target",
-			msg:   `is a field of backend make, not of "go"`,
+			msg:   `is a field of backend make, not of "exe"`,
 		},
 		{
-			name: "an empty field of go on shell",
+			name: "an empty field of exe on shell",
 			body: "[components.a]\npath = \"a\"\n" +
 				"[components.a.build]\nbackend = \"shell\"\ncommand = \"./b.sh\"\nname = \"\"\n",
 			field: "components.a.build.name",
-			msg:   `is a field of backend go, not of "shell"`,
-		},
-		{
-			name: "go name with a slash",
-			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
-				"[components.a.build]\nbackend = \"go\"\nname = \"bin/gw\"\n",
-			field: "components.a.build.name",
-			msg:   "is not a file name",
-		},
-		{
-			name: "cargo bin of a dot",
-			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
-				"[components.a.build]\nbackend = \"cargo\"\nbin = \"..\"\n",
-			field: "components.a.build.bin",
-			msg:   "is not a file name",
-		},
-		{
-			name: "two go tags in one",
-			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
-				"[components.a.build]\nbackend = \"go\"\ntags = [\"netgo,osusergo\"]\n",
-			field: "components.a.build.tags",
-			msg:   "is not a build tag",
-		},
-		{
-			name: "an empty ldflag",
-			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
-				"[components.a.build]\nbackend = \"go\"\nldflags = [\"-s\", \"\"]\n",
-			field: "components.a.build.ldflags",
-			msg:   "empty entry",
-		},
-		{
-			name: "a cargo profile with a space",
-			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
-				"[components.a.build]\nbackend = \"cargo\"\nprofile = \"my profile\"\n",
-			field: "components.a.build.profile",
-			msg:   "is not a profile name",
+			msg:   `is a field of backend exe, not of "shell"`,
 		},
 		{
 			name: "two components build one program",
 			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
-				"[components.a.build]\nbackend = \"go\"\nname = \"gw\"\n" +
+				"[components.a.build]\nbackend = \"exe\"\nname = \"gw\"\n" +
 				"[components.gw]\npath = \"gw\"\nkind = \"executable\"\n" +
-				"[components.gw.build]\nbackend = \"cargo\"\n",
+				"[components.gw.build]\nbackend = \"both\"\n",
 			field: "components.gw.build",
 			msg:   `program "gw" is built by component "a" too`,
 		},
 		{
-			name: "a make output clashes with a go program",
+			name: "a make output clashes with a program of exe",
 			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
 				"[components.a.build]\nbackend = \"make\"\nmake_target = \"all\"\n" +
 				"output = [\"out/b\"]\n" +
 				"[components.b]\npath = \"b\"\nkind = \"executable\"\n" +
-				"[components.b.build]\nbackend = \"go\"\n",
+				"[components.b.build]\nbackend = \"exe\"\n",
 			field: "components.b.build",
 			msg:   `program "b" is built by component "a" too`,
 		},
 		{
-			name:  "a go field on a hook",
+			name: "a tree program clashes with a program of exe",
+			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
+				"[components.a.build]\nbackend = \"tree\"\noutput = [\"bin/b\"]\n" +
+				"[components.b]\npath = \"b\"\nkind = \"executable\"\n" +
+				"[components.b.build]\nbackend = \"exe\"\n",
+			field: "components.b.build",
+			msg:   `program "b" is built by component "a" too`,
+		},
+		{
+			name:  "a field of exe on a hook",
 			body:  "[hooks.pre_build]\ncommand = \"./gen.sh\"\ncgo = true\n",
 			field: "hooks.pre_build.cgo",
 			msg:   `not of "shell"`,
@@ -649,10 +641,16 @@ func TestValidateExecutableComponents(t *testing.T) {
 			msg:   "is for the build of a component",
 		},
 		{
-			name:  "go for a hook",
-			body:  "[hooks.pre_build]\nbackend = \"go\"\n",
+			name:  "a backend of components for a hook",
+			body:  "[hooks.pre_build]\nbackend = \"exe\"\n",
 			field: "hooks.pre_build",
-			msg:   `backend "go" is not supported`,
+			msg:   `backend "exe" is not supported (want make or shell)`,
+		},
+		{
+			name:  "tree for a hook",
+			body:  "[hooks.pre_build]\nbackend = \"tree\"\noutput = [\"a\"]\n",
+			field: "hooks.pre_build",
+			msg:   `backend "tree" is not supported`,
 		},
 	}
 
@@ -660,7 +658,7 @@ func TestValidateExecutableComponents(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := parseBody(t, tt.body).Validate(buildreg.Core())
+			_, err := parseBody(t, tt.body).Validate(backends())
 			require.Error(t, err)
 
 			var verr *manifest.ValidationError
@@ -672,56 +670,55 @@ func TestValidateExecutableComponents(t *testing.T) {
 	}
 }
 
-// TestValidateExecutableComponentsAccepted covers the executable components
+// TestValidateComponentBuildsAccepted covers the builds of components
 // validation lets through.
-func TestValidateExecutableComponentsAccepted(t *testing.T) {
+func TestValidateComponentBuildsAccepted(t *testing.T) {
 	t.Parallel()
 
 	for name, body := range map[string]string{
-		"go with defaults": "[components.gw]\npath = \"gw\"\nkind = \"executable\"\n" +
-			"[components.gw.build]\nbackend = \"go\"\n",
-		"cargo with defaults": "[components.gw]\npath = \"gw\"\nkind = \"executable\"\n" +
-			"[components.gw.build]\nbackend = \"cargo\"\n",
+		"exe with defaults": "[components.gw]\npath = \"gw\"\nkind = \"executable\"\n" +
+			"[components.gw.build]\nbackend = \"exe\"\n",
+		"both with defaults": "[components.gw]\npath = \"gw\"\nkind = \"executable\"\n" +
+			"[components.gw.build]\nbackend = \"both\"\n",
 		"make writing TT_OUTPUT_DIR": "[components.gw]\npath = \"gw\"\nkind = \"executable\"\n" +
 			"[components.gw.build]\nbackend = \"make\"\nmake_target = \"gw\"\n",
 		"shell with output": "[components.gw]\npath = \"gw\"\nkind = \"executable\"\n" +
 			"[components.gw.build]\nbackend = \"shell\"\ncommand = \"./build.sh\"\n" +
 			"output = [\"out/gw\"]\n",
 		"the module kind spelled out": "[components.lua]\npath = \"src\"\nkind = \"module\"\n",
-		"cargo for a module": "[components.fast]\npath = \"fast\"\n" +
-			"[components.fast.build]\nbackend = \"cargo\"\n",
-		"cargo for a module with its name": "[components.fast]\npath = \"fast\"\n" +
-			"[components.fast.build]\nbackend = \"cargo\"\nmodule = \"fast_rs\"\n" +
-			"package = \"fast\"\nfeatures = [\"simd\"]\nprofile = \"dev\"\n",
-		// make reads CFLAGS of its environment, unlike the cc of c and lua-c.
-		"CFLAGS in env of make": "[components.lua]\npath = \"src\"\n" +
+		"both for a module": "[components.fast]\npath = \"fast\"\n" +
+			"[components.fast.build]\nbackend = \"both\"\n",
+		"both for a module with its name": "[components.fast]\npath = \"fast\"\n" +
+			"[components.fast.build]\nbackend = \"both\"\nmodule = \"fast_rs\"\n" +
+			"features = [\"simd\"]\nprofile = \"dev\"\n",
+		"the environment of make": "[components.lua]\npath = \"src\"\n" +
 			"[components.lua.build]\nbackend = \"make\"\nmake_target = \"all\"\n" +
 			"env = { CC = \"clang\", CFLAGS = \"-O3\", CPPFLAGS = \"-DX\", LDFLAGS = \"-s\", " +
 			"LIBS = \"-lm\", LDLIBS = \"-lz\" }\n",
-		"a go program and a module of one name": "[components.gw]\npath = \"gw\"\n" +
-			"kind = \"executable\"\n[components.gw.build]\nbackend = \"go\"\n" +
+		"a program and a module of one name": "[components.gw]\npath = \"gw\"\n" +
+			"kind = \"executable\"\n[components.gw.build]\nbackend = \"exe\"\n" +
 			"[components.lua]\npath = \"src\"\n[components.lua.build]\nbackend = \"make\"\n" +
 			"make_target = \"all\"\noutput = [\"gw\"]\n",
-		// The program of a build of one's own is checked as one of go is.
+		// The program of a build of one's own is checked as any is.
 		"static on make": "[components.gw]\npath = \"gw\"\nkind = \"executable\"\n" +
 			"[components.gw.build]\nbackend = \"make\"\nmake_target = \"gw\"\nstatic = true\n",
 		"static on shell": "[components.gw]\npath = \"gw\"\nkind = \"executable\"\n" +
 			"[components.gw.build]\nbackend = \"shell\"\ncommand = \"./b.sh\"\nstatic = false\n",
-		"static on cmake": "[components.gw]\npath = \"gw\"\nkind = \"executable\"\n" +
-			"[components.gw.build]\nbackend = \"cmake\"\noutput = [\"gw\"]\nstatic = true\n",
+		"static on tree": "[components.gw]\npath = \"gw\"\nkind = \"executable\"\n" +
+			"[components.gw.build]\nbackend = \"tree\"\noutput = [\"gw\"]\nstatic = true\n",
 		// A component of no kind makes what its build makes.
-		"go of no kind": "[components.gw]\npath = \"gw\"\n" +
-			"[components.gw.build]\nbackend = \"go\"\n",
-		"go with an include": "[components.gw]\npath = \"gw\"\ninclude = [\"lua/*.lua\"]\n" +
-			"namespace = \"gw\"\n[components.gw.build]\nbackend = \"go\"\n",
-		"cargo of a module and a program": "[components.fast]\npath = \"fast\"\n" +
-			"[components.fast.build]\nbackend = \"cargo\"\nmodule = \"fast\"\nbin = \"fastctl\"\n",
+		"exe of no kind": "[components.gw]\npath = \"gw\"\n" +
+			"[components.gw.build]\nbackend = \"exe\"\n",
+		"exe with an include": "[components.gw]\npath = \"gw\"\ninclude = [\"lua/*.lua\"]\n" +
+			"namespace = \"gw\"\n[components.gw.build]\nbackend = \"exe\"\n",
+		"both of a module and a program": "[components.fast]\npath = \"fast\"\n" +
+			"[components.fast.build]\nbackend = \"both\"\nmodule = \"fast\"\nbin = \"fastctl\"\n",
 		"shell of the three": "[components.tool]\npath = \"tool\"\n" +
 			"[components.tool.build]\nbackend = \"shell\"\ncommand = \"./b.sh\"\n" +
 			"output = [\"t.so\", { path = \"t\", to = \"bin\" }, { path = \"t.wasm\", " +
 			"to = \"share\" }]\n",
-		"cmake of the three": "[components.tool]\npath = \"tool\"\n" +
-			"[components.tool.build]\nbackend = \"cmake\"\n" +
+		"tree of the three": "[components.tool]\npath = \"tool\"\n" +
+			"[components.tool.build]\nbackend = \"tree\"\n" +
 			"output = [{ path = \"t.so\", to = \"lib\" }, { path = \"bin/t\", to = \"bin\" }, " +
 			"{ path = \"t.wasm\", to = \"share\" }]\n",
 		"an output to share of kind = module": "[components.tool]\npath = \"tool\"\n" +
@@ -731,25 +728,24 @@ func TestValidateExecutableComponentsAccepted(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := parseBody(t, body).Validate(buildreg.Core())
+			_, err := parseBody(t, body).Validate(backends())
 			require.NoError(t, err)
 		})
 	}
 }
 
 // TestValidateStaticModules covers static on the build of a module
-// component, of every backend that builds one: the build checks the native
-// files it made.
+// component, of every sort of backend that builds one: the build checks the
+// native files it made.
 func TestValidateStaticModules(t *testing.T) {
 	t.Parallel()
 
 	for backend, fields := range map[string]string{
-		"c":     "module = \"m\"\nsources = [\"m.c\"]\n",
-		"lua-c": "module = \"m\"\nsources = [\"m.c\"]\n",
-		"cmake": "output = [\"m.so\"]\n",
+		"lib":   "module = \"m\"\nsources = [\"m.c\"]\n",
+		"tree":  "output = [\"m.so\"]\n",
 		"make":  "make_target = \"all\"\n",
 		"shell": "command = \"./build.sh\"\n",
-		"cargo": "module = \"m\"\n",
+		"both":  "module = \"m\"\n",
 	} {
 		t.Run(backend, func(t *testing.T) {
 			t.Parallel()
@@ -757,7 +753,7 @@ func TestValidateStaticModules(t *testing.T) {
 			mfst := parseBody(t, "[components.m]\npath = \"m\"\n[components.m.build]\n"+
 				"backend = \""+backend+"\"\n"+fields+"static = true\n")
 
-			_, err := mfst.Validate(buildreg.Core())
+			_, err := mfst.Validate(backends())
 			require.NoError(t, err)
 			assert.True(t, mfst.Components["m"].Build.StaticValue())
 		})
@@ -773,15 +769,24 @@ func TestHookBackendDefaultsToShell(t *testing.T) {
 	mfst := parseBody(t, "[hooks.pre_build]\ncommand = \"./gen.sh\"\n"+
 		"[hooks.post_build]\nbackend = \"make\"\nmake_target = \"post\"\n")
 
-	_, err := mfst.Validate(buildreg.Core())
+	_, err := mfst.Validate(backends())
 	require.NoError(t, err)
 	assert.Equal(t, "shell", mfst.Hooks["pre_build"].Backend)
 	assert.Equal(t, "make", mfst.Hooks["post_build"].Backend)
+
+	// A tt with no backend that runs hooks, as a distribution without the
+	// module of the standard backends, says so of a hook that names none.
+	_, err = parseBody(t, "[hooks.pre_build]\ncommand = \"./gen.sh\"\n").
+		Validate(buildreg.New())
+	require.EqualError(t, err, `hooks.pre_build: backend "shell" is not supported: `+
+		"no module of this tt provides a backend that runs hooks")
 }
 
-// TestCMakeComponentFields checks that every field of the cmake backend
-// decodes into the build, of a module and of an executable component.
-func TestCMakeComponentFields(t *testing.T) {
+// TestBackendOfItsOutput checks the build of a backend that copies the
+// files of output itself, of a module and of an executable component: its
+// fields decode into Rest, output stays the block's, and the programs of an
+// executable one are the files of its output.
+func TestBackendOfItsOutput(t *testing.T) {
 	t.Parallel()
 
 	mfst := parseBody(t, `
@@ -789,9 +794,9 @@ func TestCMakeComponentFields(t *testing.T) {
 path = "."
 include = ["memcached/init.lua"]
 [components.mc.build]
-backend = "cmake"
+backend = "tree"
 cwd = "."
-variables = { ENABLE_BUNDLED_SMALL = "ON", "WITH_SASL:BOOL" = "OFF", CMAKE_PREFIX_PATH = "/deps" }
+variables = { ENABLE_BUNDLED_SMALL = "ON", "WITH_SASL:BOOL" = "OFF" }
 targets = ["internalso"]
 build_type = "Release"
 output = ["memcached/internal.so"]
@@ -801,18 +806,16 @@ env = { CMAKE_GENERATOR = "Ninja" }
 path = "tools"
 kind = "executable"
 [components.tools.build]
-backend = "cmake"
+backend = "tree"
 output = ["bin/mc-bench", "mc-cli"]
 `)
 
-	_, err := mfst.Validate(buildreg.Core())
+	_, err := mfst.Validate(backends())
 	require.NoError(t, err)
 
 	memcached := mfst.Components["mc"].Build
 	assert.Equal(t, map[string]any{
-		"variables": map[string]any{
-			"ENABLE_BUNDLED_SMALL": "ON", "WITH_SASL:BOOL": "OFF", "CMAKE_PREFIX_PATH": "/deps",
-		},
+		"variables":  map[string]any{"ENABLE_BUNDLED_SMALL": "ON", "WITH_SASL:BOOL": "OFF"},
 		"targets":    []any{"internalso"},
 		"build_type": "Release",
 	}, memcached.Rest)
@@ -822,151 +825,24 @@ output = ["bin/mc-bench", "mc-cli"]
 	assert.True(t, tools.ProgramsOnly())
 	assert.Equal(t, []string{"mc-bench", "mc-cli"}, programsOf(t, mfst, "tools"))
 
-	component, found := mfst.ProgramComponent(buildreg.Core(), "mc-bench", nil)
+	component, found := mfst.ProgramComponent(backends(), "mc-bench", nil)
 	assert.True(t, found)
 	assert.Equal(t, "tools", component)
 }
 
-// TestValidateCMakeBuild covers what the cmake backend rules out, and the
-// fields of cmake on the builds of other backends.
-func TestValidateCMakeBuild(t *testing.T) {
-	t.Parallel()
-
-	module := "[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"cmake\"\n"
-	cmake := module + "output = [\"a.so\"]\n"
-
-	tests := []struct {
-		name  string
-		body  string
-		field string
-		msg   string
-	}{
-		{"no output", module, "components.a.build", `output is required for backend "cmake"`},
-		{
-			"an empty output", module + "output = [\"a.so\", \"\"]\n",
-			"components.a.build.output", "must not contain an empty entry",
-		},
-		{
-			"an absolute output", module + "output = [\"/usr/lib/a.so\"]\n",
-			"components.a.build.output", `"/usr/lib/a.so" is not relative to the build tree`,
-		},
-		{
-			"a variable with =", cmake + "variables = { \"A=B\" = \"1\" }\n",
-			"components.a.build.variables", `"A=B" is not a variable name`,
-		},
-		{
-			"a variable with a space", cmake + "variables = { \"A B\" = \"1\" }\n",
-			"components.a.build.variables", `"A B" is not a variable name`,
-		},
-		{
-			"a variable with a lowercase type", cmake + "variables = { \"A:bool\" = \"1\" }\n",
-			"components.a.build.variables", `"A:bool" is not a variable name`,
-		},
-		{
-			"the build type as a variable",
-			cmake + "variables = { CMAKE_BUILD_TYPE = \"Debug\" }\n",
-			"components.a.build.variables", "CMAKE_BUILD_TYPE is set by build_type",
-		},
-		{
-			"the build type as a typed variable",
-			cmake + "variables = { \"CMAKE_BUILD_TYPE:STRING\" = \"Debug\" }\n",
-			"components.a.build.variables", "CMAKE_BUILD_TYPE is set by build_type",
-		},
-		{
-			"a target with a space", cmake + "targets = [\"a b\"]\n",
-			"components.a.build.targets", `"a b" is not a target name`,
-		},
-		{
-			"a target like an option", cmake + "targets = [\"--clean-first\"]\n",
-			"components.a.build.targets", `"--clean-first" is not a target name`,
-		},
-		{
-			"an empty target", cmake + "targets = [\"\"]\n",
-			"components.a.build.targets", `"" is not a target name`,
-		},
-		{
-			"a build type with a space", cmake + "build_type = \"Rel With\"\n",
-			"components.a.build.build_type", `"Rel With" is not a build type`,
-		},
-		{
-			"a field of make on cmake", cmake + "make_target = \"all\"\n",
-			"components.a.build.make_target", `is a field of backend make, not of "cmake"`,
-		},
-		{
-			"incremental on cmake", cmake + "incremental = true\n",
-			"components.a.build.incremental",
-			`is a field of backend make or shell, not of "cmake"`,
-		},
-		{
-			"module on cmake", cmake + "module = \"a\"\n",
-			"components.a.build.module", `not of "cmake"`,
-		},
-		{
-			"defines on cmake", cmake + "defines = [\"A=1\"]\n",
-			"components.a.build.defines", `is a field of backend c or lua-c, not of "cmake"`,
-		},
-		{
-			"variables on make",
-			"[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"make\"\n" +
-				"make_target = \"all\"\nvariables = { A = \"1\" }\n",
-			"components.a.build.variables", `is a field of backend cmake, not of "make"`,
-		},
-		{
-			"targets on lua-c",
-			"[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"lua-c\"\n" +
-				"module = \"m\"\nsources = [\"m.c\"]\ntargets = [\"m\"]\n",
-			"components.a.build.targets", `is a field of backend cmake, not of "lua-c"`,
-		},
-		{
-			"build_type on cargo",
-			"[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"cargo\"\n" +
-				"build_type = \"Release\"\n",
-			"components.a.build.build_type", `is a field of backend cmake, not of "cargo"`,
-		},
-		{
-			"a cmake program clashes with a go program",
-			"[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
-				"[components.a.build]\nbackend = \"cmake\"\noutput = [\"bin/b\"]\n" +
-				"[components.b]\npath = \"b\"\nkind = \"executable\"\n" +
-				"[components.b.build]\nbackend = \"go\"\n",
-			"components.b.build", `program "b" is built by component "a" too`,
-		},
-		{
-			"cmake for a hook", "[hooks.pre_build]\nbackend = \"cmake\"\noutput = [\"a\"]\n",
-			"hooks.pre_build", `backend "cmake" is not supported`,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			_, err := parseBody(t, tt.body).Validate(buildreg.Core())
-			require.Error(t, err)
-
-			var verr *manifest.ValidationError
-
-			require.ErrorAs(t, err, &verr)
-			assert.Equal(t, tt.field, verr.Field, err.Error())
-			assert.Contains(t, verr.Msg, tt.msg)
-		})
-	}
-}
-
-// TestCcComponentFields checks that the flags of the compiler and of the
-// linker of a c or lua-c build decode into the build and into its overlays
-// of platforms.
-func TestCcComponentFields(t *testing.T) {
+// TestNestedBackendFields checks that the tables of the fields of a backend
+// decode into Rest as they are, those of its platforms too.
+func TestNestedBackendFields(t *testing.T) {
 	t.Parallel()
 
 	mfst := parseBody(t, `
 [components.memcached]
 path = "memcached"
 [components.memcached.build]
-backend = "lua-c"
+backend = "lib"
 module = "datapath"
 sources = ["datapath.c"]
-cflags = ["-std=gnu99", "-Wall", "-Wextra", "-Werror"]
+cflags = ["-std=gnu99", "-Wall"]
 ldflags = ["-Wl,-z,defs"]
 env = { CPATH = "/opt/include" }
 [components.memcached.build.platforms.linux]
@@ -976,11 +852,11 @@ cflags = ["-Wno-deprecated-declarations"]
 ldflags = ["-Wl,-dead_strip"]
 `)
 
-	_, err := mfst.Validate(buildreg.Core())
+	_, err := mfst.Validate(backends())
 	require.NoError(t, err)
 
 	build := mfst.Components["memcached"].Build
-	assert.Equal(t, []any{"-std=gnu99", "-Wall", "-Wextra", "-Werror"}, build.Rest["cflags"])
+	assert.Equal(t, []any{"-std=gnu99", "-Wall"}, build.Rest["cflags"])
 	assert.Equal(t, []any{"-Wl,-z,defs"}, build.Rest["ldflags"])
 	assert.Equal(t, map[string]any{
 		"linux": map[string]any{"ldflags": []any{"-Wl,--as-needed"}},
@@ -990,116 +866,10 @@ ldflags = ["-Wl,-dead_strip"]
 		},
 	}, build.Rest["platforms"])
 	assert.Equal(t, map[string]string{"CPATH": "/opt/include"}, build.Env)
-}
 
-// TestValidateCcFlags covers what validation rules out of the flags of a c
-// or lua-c build, and cflags on the build of another backend.
-func TestValidateCcFlags(t *testing.T) {
-	t.Parallel()
-
-	module := "[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"c\"\n" +
-		"module = \"m\"\nsources = [\"m.c\"]\n"
-
-	tests := []struct {
-		name  string
-		body  string
-		field string
-		msg   string
-	}{
-		{
-			"an empty cflag", module + "cflags = [\"-Wall\", \"\"]\n",
-			"components.a.build.cflags", "must not contain an empty entry",
-		},
-		{
-			"an empty ldflag", module + "ldflags = [\"\"]\n",
-			"components.a.build.ldflags", "must not contain an empty entry",
-		},
-		{
-			"an empty cflag of an overlay",
-			module + "[components.a.build.platforms.linux]\ncflags = [\"\"]\n",
-			"components.a.build.platforms.linux.cflags", "must not contain an empty entry",
-		},
-		{
-			"an empty ldflag of an overlay",
-			module + "[components.a.build.platforms.darwin]\nldflags = [\"-Wl,-x\", \"\"]\n",
-			"components.a.build.platforms.darwin.ldflags", "must not contain an empty entry",
-		},
-		{
-			"cflags on cmake",
-			"[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"cmake\"\n" +
-				"output = [\"a.so\"]\ncflags = [\"-O3\"]\n",
-			"components.a.build.cflags", `is a field of backend c or lua-c, not of "cmake"`,
-		},
-		{
-			"cflags on go",
-			"[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
-				"[components.a.build]\nbackend = \"go\"\ncflags = [\"-O3\"]\n",
-			"components.a.build.cflags", `is a field of backend c or lua-c, not of "go"`,
-		},
-		{
-			"cflags on make",
-			"[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"make\"\n" +
-				"make_target = \"all\"\ncflags = [\"-O3\"]\n",
-			"components.a.build.cflags", `is a field of backend c or lua-c, not of "make"`,
-		},
-		{
-			"ldflags on shell",
-			"[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"shell\"\n" +
-				"command = \"./b.sh\"\nldflags = [\"-s\"]\n",
-			"components.a.build.ldflags", `is a field of backend c, go or lua-c, not of "shell"`,
-		},
-		{
-			"CC in env", module + "env = { CC = \"clang\" }\n",
-			"components.a.build.env.CC", "the compiler is CC of the environment tt runs in",
-		},
-		{
-			"CFLAGS in env", module + "env = { CFLAGS = \"-O0 -g\" }\n",
-			"components.a.build.env.CFLAGS", "put the flags of the compiler into cflags",
-		},
-		{
-			"LDFLAGS in env of lua-c",
-			"[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"lua-c\"\n" +
-				"module = \"m\"\nsources = [\"m.c\"]\n" +
-				"env = { LDFLAGS = \"-s\", PATH = \"/bin\" }\n",
-			"components.a.build.env.LDFLAGS", "put the flags of the link into ldflags",
-		},
-		{
-			"CPPFLAGS in env", module + "env = { CPPFLAGS = \"-DNDEBUG -I/opt/inc\" }\n",
-			"components.a.build.env.CPPFLAGS", "put the macros into defines",
-		},
-		{
-			"LIBS in env", module + "env = { LIBS = \"-lsasl2\" }\n",
-			"components.a.build.env.LIBS", "put the libraries into libraries",
-		},
-		{
-			"LDLIBS in env", module + "env = { LDLIBS = \"-lm\" }\n",
-			"components.a.build.env.LDLIBS", "put the libraries into libraries",
-		},
-		{
-			"an overlay of an OS tt does not build for",
-			module + "[components.a.build.platforms.macos]\ncflags = [\"-O3\"]\n",
-			"components.a.build.platforms.macos",
-			`"macos" is not an OS tt builds for (want linux or darwin)`,
-		},
-		{
-			"an overlay of a platform, not an OS",
-			module + "[components.a.build.platforms.linux-amd64]\ndefines = [\"X\"]\n",
-			"components.a.build.platforms.linux-amd64", "is not an OS tt builds for",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			_, err := parseBody(t, tt.body).Validate(buildreg.Core())
-			require.Error(t, err)
-
-			var verr *manifest.ValidationError
-
-			require.ErrorAs(t, err, &verr)
-			assert.Equal(t, tt.field, verr.Field, err.Error())
-			assert.Contains(t, verr.Msg, tt.msg)
-		})
-	}
+	// both has no platforms: a field a backend has no place for, and no
+	// other backend has, is an unknown one.
+	_, err = parseBody(t, "[components.a]\npath = \"a\"\n[components.a.build]\n"+
+		"backend = \"both\"\nzz = 1\n").Validate(backends())
+	require.EqualError(t, err, `components.a.build.zz: unknown field in manifest version "0.1"`)
 }

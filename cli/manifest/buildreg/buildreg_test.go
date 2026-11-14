@@ -47,7 +47,8 @@ func TestAdd(t *testing.T) {
 	require.NoError(t, registry.Add("wasm", []build.Backend{backend("wasm"), backend("cwasm")},
 		[]build.FileCheck{fileCheck(".wasm")}))
 
-	assert.Equal(t, []string{"cwasm", "wasm", "zig"}, registry.Names())
+	// In the order they were added: the core adds the modules by name.
+	assert.Equal(t, []string{"zig", "wasm", "cwasm"}, registry.Names())
 
 	got, module, ok := registry.Backend("wasm")
 	require.True(t, ok)

@@ -17,7 +17,7 @@ import (
 	"github.com/tarantool/tt/sdk"
 	sdkbuild "github.com/tarantool/tt/sdk/build"
 	"github.com/tarantool/tt/v3/cli/exitcode"
-	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
+	"github.com/tarantool/tt/v3/cli/manifest/buildreg/buildregtest"
 )
 
 // This file builds components and hooks with backends a module provides,
@@ -257,7 +257,7 @@ func TestRun_moduleBackend(t *testing.T) {
 
 	recorder := &touchRecorder{mu: sync.Mutex{}, contexts: map[string]sdkbuild.Context{}}
 
-	backends := buildreg.Core()
+	backends := buildregtest.Registry()
 	require.NoError(t, backends.Add("touch", []sdkbuild.Backend{touchBackend(recorder)}, nil))
 
 	opts := dryOptions(dir)
@@ -411,7 +411,7 @@ func TestRun_kindChecksTheBuild(t *testing.T) {
 
 	recorder := &touchRecorder{mu: sync.Mutex{}, contexts: map[string]sdkbuild.Context{}}
 
-	backends := buildreg.Core()
+	backends := buildregtest.Registry()
 	require.NoError(t, backends.Add("touch", []sdkbuild.Backend{touchBackend(recorder)}, nil))
 
 	for _, test := range []struct {
@@ -482,7 +482,7 @@ func TestRun_moduleBackendFieldErrors(t *testing.T) {
 
 	recorder := &touchRecorder{mu: sync.Mutex{}, contexts: map[string]sdkbuild.Context{}}
 
-	backends := buildreg.Core()
+	backends := buildregtest.Registry()
 	require.NoError(t, backends.Add("touch", []sdkbuild.Backend{touchBackend(recorder)}, nil))
 
 	for _, test := range []struct {
@@ -593,7 +593,7 @@ cwd = 'gen'
 
 	recorder := &hookRecorder{mu: sync.Mutex{}, contexts: nil, printed: nil}
 
-	backends := buildreg.Core()
+	backends := buildregtest.Registry()
 	require.NoError(t, backends.Add("hooks", []sdkbuild.Backend{hookBackend(recorder)}, nil))
 
 	opts := dryOptions(dir)
@@ -640,7 +640,7 @@ func TestRun_hookOfABackendOfComponents(t *testing.T) {
 
 		recorder := &touchRecorder{mu: sync.Mutex{}, contexts: map[string]sdkbuild.Context{}}
 
-		backends := buildreg.Core()
+		backends := buildregtest.Registry()
 		require.NoError(t, backends.Add("touch", []sdkbuild.Backend{touchBackend(recorder)},
 			nil))
 
