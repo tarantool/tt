@@ -1,0 +1,124 @@
+//go:build integration
+
+package cc
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/tarantool/tt/sdk/build"
+	"github.com/tarantool/tt/sdk/build/buildtest"
+)
+
+// hostHarness is a harness of a module component whose toolchain has the
+// headers of the host's Tarantool, includeDir, with the sources of sources
+// in its working directory.
+func hostHarness(t *testing.T, includeDir string, sources map[string]string) *buildtest.Harness {
+	t.Helper()
+
+	harness := buildtest.New(t, component(build.KindModule))
+
+	harness.Context.Toolchain.IncludeDir = includeDir
+
+	for name, body := range sources {
+		require.NoError(t, os.WriteFile(filepath.Join(harness.Context.Dirs.Cwd, name),
+			[]byte(body), 0o600))
+	}
+
+	return harness
+}
+
+// hostBuild runs the build of the block rest of backend in harness and
+// checks that it made the module module.
+func hostBuild(
+	t *testing.T, harness *buildtest.Harness, backend build.Backend, rest map[string]any,
+	module string,
+) {
+	t.Helper()
+
+	bld, err := buildtest.Validate(backend, component(build.KindModule), block(rest, nil))
+	require.NoError(t, err)
+
+	require.NoError(t, harness.Run(t.Context(), bld), harness.Printed())
+	assert.FileExists(t, filepath.Join(harness.Context.Dirs.Output,
+		module+harness.Context.Target.ModuleExt()))
+}
+
+func TestCcCompilesSingleSource(t *testing.T) {
+	t.Parallel()
+
+	includeDir := requireHostHeaders(t)
+
+	harness := hostHarness(t, includeDir, map[string]string{
+		"answer.c": "int answer(void) { return 42; }\n",
+	})
+
+	hostBuild(t, harness, C(),
+		map[string]any{"module": "answer", "sources": []any{"answer.c"}}, "answer")
+}
+
+func TestCcCompilesMultiSource(t *testing.T) {
+	t.Parallel()
+
+	includeDir := requireHostHeaders(t)
+
+	// part_b references a from part_a, so a passing link proves both objects
+	// end up in one module; the prototype avoids an implicit-declaration
+	// error.
+	harness := hostHarness(t, includeDir, map[string]string{
+		"part_a.c": "int a(void) { return 1; }\n",
+		"part_b.c": "int a(void);\nint b(void) { return a() + 1; }\n",
+	})
+
+	hostBuild(t, harness, LuaC(),
+		map[string]any{"module": "parts", "sources": []any{"part_a.c", "part_b.c"}}, "parts")
+}
+
+// TestCcTakesTheProjectFlagsThenTheUsers proves the order of the flags with
+// a real compiler: the project's -Werror fails a source with a warning, and
+// -Wno-error of CFLAGS of the environment, which comes after it, builds it.
+// t.Setenv keeps the test out of parallel runs.
+func TestCcTakesTheProjectFlagsThenTheUsers(t *testing.T) {
+	includeDir := requireHostHeaders(t)
+
+	sources := map[string]string{"warn.c": "int warn(void) { int unused; return 0; }\n"}
+	rest := map[string]any{
+		"module": "warn", "sources": []any{"warn.c"}, "cflags": []any{"-Wall", "-Werror"},
+	}
+
+	bld, err := buildtest.Validate(C(), component(build.KindModule), block(rest, nil))
+	require.NoError(t, err)
+
+	t.Setenv("CFLAGS", "")
+
+	failed := hostHarness(t, includeDir, sources)
+	require.Error(t, failed.Run(t.Context(), bld), "-Werror of cflags fails the build")
+
+	t.Setenv("CFLAGS", "-O0 -Wno-error")
+
+	hostBuild(t, hostHarness(t, includeDir, sources), C(), rest, "warn")
+}
+
+// TestCcCompilesAgainstTarantoolHeaders proves the include-dir wiring works
+// against the real Tarantool C module API: the source includes <module.h> and
+// exports a luaopen_ entry point, so it compiles only when the include
+// directory of the toolchain actually resolves the headers
+// requireHostHeaders found.
+func TestCcCompilesAgainstTarantoolHeaders(t *testing.T) {
+	t.Parallel()
+
+	includeDir := requireHostHeaders(t)
+
+	harness := hostHarness(t, includeDir, map[string]string{
+		"headercheck.c": "#include <module.h>\n" +
+			"int luaopen_headercheck(lua_State *L) { (void)L; return 0; }\n",
+	})
+
+	hostBuild(t, harness, LuaC(),
+		map[string]any{"module": "headercheck", "sources": []any{"headercheck.c"}},
+		"headercheck")
+}
