@@ -1,4 +1,5 @@
 import os
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from subprocess import run
@@ -23,6 +24,9 @@ class Completion:
 @pytest.fixture(scope="session", params=SUPPORTED_SHELLS)
 def completion(tt_cmd: Path, tmp_path_factory: pytest.TempPathFactory, request) -> Completion:
     shell = request.param
+    # The tests load the script into the shell itself; CI installs them all.
+    if shutil.which(shell) is None:
+        pytest.skip(f"{shell} is not installed")
 
     cmd = [tt_cmd, "completion", shell]
     process = run(cmd, text=True, capture_output=True)
