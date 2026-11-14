@@ -107,8 +107,9 @@ core uses, and the core never requires older ones.
   locked versions moved; `AddComponent`, which appends a `Component` - a
   comment, its path and include and a `ComponentBuild` of fields in their
   order - to the manifest, every other line kept, checks it with the
-  backends of the tt and re-resolves the lock, a `ComponentChange` saying
-  whether it was declared, with the error of a resolution that failed too;
+  backends of the tt and re-resolves the lock, calling its `OnDeclared` in
+  between, a `ComponentChange` saying whether it was declared, with the
+  error of a resolution that failed too;
   `Install`, which fills `.rocks/` from the lock as `tt package fetch`
   does; the three take the rock servers `--registry` would give;
   `StateDir`, its `.tarantool`; and `PrepareEnvironment`, which writes
@@ -246,7 +247,8 @@ core uses, and the core never requires older ones.
   `AddedComponents`, `Installs`, `PreparedEnvironments`, and `Indexed` for
   `Rocks().Index`), `AddDependency` and `AddComponent` report the moves
   `WithMoves` gives, `AddDependency` fails with `WithAddDependencyError`,
-  `AddComponent` with `WithResolveError` once it declared the component,
+  `AddComponent` with `WithResolveError` once it declared the component
+  and called its `OnDeclared`,
   and `Install` and `Index` run the functions `WithInstall` (in the root)
   and `WithIndex` give, to write what the rocks would.
   `Stdout`, `Stderr` and `Records` return what the

@@ -7,7 +7,9 @@ from Lua with `require('wasm')`. The components are built by
 [tarawasm](https://github.com/mandesero/tarawasm).
 
 `tt wasm prepare` sets a project up for both until tt builds the components
-itself, and `tt wasm new` adds a component to the package. They need Linux
+itself, and `tt wasm new` adds a component to the package. `tt wasm` is
+`wasm`, one of the [standard modules](../concepts/distributions.md) of tt,
+which checks the `.wasm` files of a package too. They need Linux
 x86-64 or macOS arm64, Tarantool 3.6 or newer, and Python 3.10 or newer for
 tarawasm. Linux arm64 is not supported: tarantool-wasm has no build for it, so
 no rock server has a `wasm` rock to install there unless one packs a local
@@ -147,8 +149,9 @@ every `*.so` below it by default: give it `exclude = ["calc/"]`.
 The SDK of a component is the one its `tarawasm.tarantool.lock.json` pins,
 and has to be of the release the package declares: a component builds
 against the WIT of its SDK, and the module serves the WIT of its own.
-`tt package build` warns of a component on another SDK, and
-`tt wasm prepare` refuses it.
+`tt wasm prepare` refuses a component on another SDK, and `tt wasm status`
+lists it among what keeps the project from building; `tt package build`
+says nothing of it.
 
 ## Write it
 
@@ -201,9 +204,10 @@ $ find .rocks -name wasm.so -o -name '*.wasm'
 .rocks/share/tarantool/myapp/dist/calc.wasm
 ```
 
-A `.wasm` a component lays out has to be a WebAssembly binary: anything
-else fails the build, and a core module, which `require('wasm')` does not
-load, is laid out with a warning.
+A `.wasm` file of the package - one a component lays out, or one its build
+writes into `share/` - has to be a WebAssembly binary: anything else fails
+the build, and a core module, which `require('wasm')` does not load, is laid
+out with a warning.
 
 The component is a file of the package, under the namespace of the package.
 Load it by its path from the application directory, which is the working
