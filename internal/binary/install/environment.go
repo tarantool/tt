@@ -39,6 +39,15 @@ func prepareProjectEnvironment(scope binary.Scope) error {
 		return err
 	}
 
+	return PrepareProjectEnvironmentIn(projectDir)
+}
+
+// PrepareProjectEnvironmentIn writes .env/activate.sh and deactivate.sh of
+// the project in projectDir when they are missing, as the first tt binary
+// install in project scope does in the project it finds: for a command that
+// knows its project and puts programs into its .tarantool/bin by other
+// means. Scripts that are there are the user's, and are kept.
+func PrepareProjectEnvironmentIn(projectDir string) error {
 	directory := filepath.Join(projectDir, projectEnvDirName)
 
 	activatePath := filepath.Join(directory, projectActivateName)
@@ -48,7 +57,7 @@ func prepareProjectEnvironment(scope binary.Scope) error {
 		return nil
 	}
 
-	err = os.MkdirAll(directory, defaultDirPermissions)
+	err := os.MkdirAll(directory, defaultDirPermissions)
 	if err != nil {
 		return fmt.Errorf("failed to create project environment directory: %w", err)
 	}

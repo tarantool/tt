@@ -17,6 +17,7 @@ import (
 	"github.com/tarantool/tt/sdk/output"
 	"github.com/tarantool/tt/v3/cli/cmd"
 	"github.com/tarantool/tt/v3/cli/exitcode"
+	"github.com/tarantool/tt/v3/cli/manifest/deps"
 	"github.com/tarantool/tt/v3/cli/manifest/pack"
 	"github.com/tarantool/tt/v3/cli/manifest/run"
 	"github.com/tarantool/tt/v3/cli/printing"
@@ -140,6 +141,14 @@ func (s *services) Streams() sdk.Streams {
 	s.mustBeReady("Streams")
 
 	return streams{io: s.streams}
+}
+
+// Rocks returns the rock servers tt writes, which log what LuaRocks warns of
+// as the module's debug records.
+func (s *services) Rocks() sdk.Rocks {
+	s.mustBeReady("Rocks")
+
+	return rockServers{log: s.Log()}
 }
 
 // Exit reports err and ends the process with the code tt returns for it,
@@ -281,9 +290,9 @@ func (project) Dir() (string, error) {
 	return cmd.ProjectDir()
 }
 
-// AddDependency declares dep in the manifest of the project and re-resolves
-// the lock, as tt package add does: cmd.AddDependency, its result told in
-// the SDK's terms.
+// AddDependency declares dep in the manifest of Root and re-resolves the
+// lock, as tt package add does: cmd.AddDependency, its result told in the
+// SDK's terms.
 func (project) AddDependency(
 	ctx context.Context, dep sdk.Dependency,
 ) (sdk.DependencyChange, error) {
@@ -292,20 +301,25 @@ func (project) AddDependency(
 		return sdk.DependencyChange{}, packageError(err)
 	}
 
-	moves := make([]sdk.DependencyMove, 0, len(result.Moves))
-	for _, move := range result.Moves {
-		moves = append(moves, sdk.DependencyMove{Name: move.Name, From: move.From, To: move.To})
-	}
-
 	return sdk.DependencyChange{
 		Existed:  result.Change.Existed,
 		Previous: result.Change.Previous,
-		Moves:    moves,
+		Moves:    movesOf(result.Moves),
 	}, nil
 }
 
-// Install materializes .rocks/ of the project from its lock, as tt package
-// fetch does: cmd.FetchRocks.
+// movesOf is moves in the SDK's terms.
+func movesOf(moves []deps.Move) []sdk.DependencyMove {
+	out := make([]sdk.DependencyMove, 0, len(moves))
+	for _, move := range moves {
+		out = append(out, sdk.DependencyMove{Name: move.Name, From: move.From, To: move.To})
+	}
+
+	return out
+}
+
+// Install materializes .rocks/ of Root from its lock, as tt package fetch
+// does: cmd.FetchRocks.
 func (project) Install(ctx context.Context, opts sdk.InstallOptions) error {
 	return packageError(cmd.FetchRocks(ctx, opts.Registries))
 }

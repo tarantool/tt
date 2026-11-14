@@ -64,6 +64,7 @@ func TestServicesReadiness(t *testing.T) {
 		"Tarantool": func() { _, _ = svc.Tarantool() },
 		"Integrity": func() { svc.Integrity() },
 		"Project":   func() { svc.Project() },
+		"Rocks":     func() { svc.Rocks() },
 		"Confirm":   func() { _, _ = svc.Confirm("?", true) },
 		"Streams":   func() { svc.Streams() },
 		"ClusterConfig": func() {
