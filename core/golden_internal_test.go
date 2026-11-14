@@ -10,9 +10,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/modules/aeon"
-	"github.com/tarantool/tt/modules/emmylua"
 	"github.com/tarantool/tt/v3/cli/cmd/helpgolden"
+	"github.com/tarantool/tt/v3/standard"
 )
 
 // update rewrites the golden files of this package instead of comparing
@@ -45,16 +44,24 @@ func TestHelpGoldenThroughModules(t *testing.T) {
 	t.Setenv("TT_CLI_CFG", "")
 	require.NoError(t, os.Unsetenv("TT_CLI_CFG"))
 
-	modules := Modules{"builtin": Builtin, "aeon": aeon.New, "emmylua": emmylua.New}
-
 	newRoot := func(t *testing.T) *cobra.Command {
 		t.Helper()
 
-		root, err := build(nil, modules, &atomic.Bool{}, options{})
+		root, err := build(nil, mainModules(), &atomic.Bool{}, options{})
 		require.NoError(t, err)
 
 		return root
 	}
 
 	helpgolden.Compare(t, golden, helpgolden.Render(t, newRoot), *update)
+}
+
+// mainModules are the modules tt's main package builds tt from: the
+// standard ones and builtin.
+func mainModules() Modules {
+	modules := Modules(standard.Modules())
+
+	modules["builtin"] = Builtin
+
+	return modules
 }
