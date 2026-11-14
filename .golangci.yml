@@ -180,6 +180,9 @@ linters:
         - tb
       ignore-decls:
         - t T
+        # The Context of a build, which every method of a build backend
+        # takes (sdk/build).
+        - c *build.Context
     revive:
       rules:
         - name: var-naming
@@ -353,6 +356,18 @@ linters:
             - "github.com/tarantool/tt/v3/internal/binary"
             # Tests write the scripts they run while parallel tests fork.
             - "github.com/tarantool/tt/v3/internal/execfile"
+        # The build backends of tt are written against the contract of a
+        # build backend alone, as a module's are, so that they move into a
+        # module as they are: the standard library and sdk/build only, and
+        # testify for the tests. Every file here is checked against the
+        # manifest rules above too, which allow more.
+        manifest-build-backends:
+          files:
+            - "**/cli/manifest/build/backends/**"
+          allow:
+            - $gostd
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/sdk/build"
         # One allow-list per top-level directory, tests included; their file
         # globs do not overlap, so each file is checked against exactly one
         # of them (plus the deny-only rules above). An import from another
