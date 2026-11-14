@@ -225,6 +225,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   the environment wins over the project's flags, and `-O2` is left out when
   `CFLAGS` is set, even to nothing. `ldflags` is the field of `go` it was,
   shared by the three backends.
+- `--auth-type auto|chap-sha1|pap-sha256` and the `auth_type` parameter of
+  the query of a URI choose the authentication method of a binary
+  connection, as `security.auth_type` of Tarantool names it, for
+  `tt connect`, `tt data play`, `tt replicaset`, `tt cluster topology` and
+  the `tt backup` commands that dial an instance (#1434). `auto`, the
+  default, is what tt did: over TLS the method the server names, over a
+  plain connection chap-sha1. pap-sha256 sends the password as it is, so it
+  needs TLS (`transport=ssl` or the `--ssl*` flags) and Tarantool Enterprise
+  or Community 3.9 and newer; asked for over a plain connection it is refused
+  before anything is dialed, as `net.box` refuses it. A flag and the query
+  both setting it is an error, as for the TLS settings. Over a plain
+  connection to a server whose `auth_type` is pap-sha256, a refusal of the
+  credentials says that the user's method needs the ssl transport: a user
+  whose password was set before the `auth_type` changed still logs in with
+  chap-sha1, and over TLS with `--auth-type chap-sha1`. `sdk/dial` takes the
+  method on the plain transport too and has `ParseAuth`.
 
 ### Changed
 

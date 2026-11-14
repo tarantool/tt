@@ -74,6 +74,7 @@ var (
 	backupSslCiphers      string
 	backupSslPassword     string
 	backupSslPasswordFile string
+	backupAuthType        dial.Auth
 	backupConnectTimeout  = connector.DefaultConnectTimeout
 
 	backupStorageConfig string
@@ -1418,6 +1419,7 @@ func addBackupConnectFlags(cmd *cobra.Command) {
 		"password for decrypting the private SSL key file")
 	cmd.Flags().StringVar(&backupSslPasswordFile, "sslpasswordfile", "",
 		"path to a file containing the password for decrypting the private SSL key file")
+	addAuthTypeFlag(cmd, &backupAuthType)
 	cmd.Flags().DurationVar(&backupConnectTimeout, "connect-timeout",
 		connector.DefaultConnectTimeout, "timeout for establishing a binary connection")
 }
@@ -1443,6 +1445,7 @@ func backupConnectCtx() connect.ConnectCtx {
 		SslPassword:     backupSslPassword,
 		SslPasswordFile: backupSslPasswordFile,
 		Transport:       dial.TransportDefault,
+		Auth:            backupAuthType,
 	}
 }
 
@@ -1625,6 +1628,7 @@ func discoverLiveTopology(configPath, workDir string) (backup.LiveTopology, erro
 		SslPassword:     replicasetSslPassword,
 		SslPasswordFile: replicasetSslPasswordFile,
 		Transport:       dial.TransportDefault,
+		Auth:            replicasetAuthType,
 	}
 
 	merged, hostnames, reachable, err := discoverClusterTopology(&cmdCtx, configPath, workDir,

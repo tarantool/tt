@@ -156,6 +156,9 @@ USAGE
   tt backup finalize (<APP:INSTANCE>|<URI>) [flags]
 
 FLAGS
+      --auth-type string           authentication method: auto, chap-sha1 or
+                                   pap-sha256; pap-sha256 needs TLS and
+                                   Tarantool EE or CE 3.9+ (default "auto")
       --backup-id string           backup identifier; local artifacts of the
                                    target replicaset are removed
       --connect-timeout duration   timeout for establishing a binary connection
@@ -528,6 +531,9 @@ USAGE
   [flags]
 
 FLAGS
+      --auth-type string           authentication method: auto, chap-sha1 or
+                                   pap-sha256; pap-sha256 needs TLS and
+                                   Tarantool EE or CE 3.9+ (default "auto")
       --backup-storage string      storage URI or @path to a storage
                                    configuration file
       --cluster-name string        cluster name; used as a storage path
@@ -609,6 +615,9 @@ USAGE
   tt backup start (<APP:INSTANCE>|<URI>) [flags]
 
 FLAGS
+      --auth-type string           authentication method: auto, chap-sha1 or
+                                   pap-sha256; pap-sha256 needs TLS and
+                                   Tarantool EE or CE 3.9+ (default "auto")
       --backup-id string           backup identifier (required); 'tt backup id'
                                    prints a new one
       --connect-timeout duration   timeout for establishing a binary connection
@@ -2356,6 +2365,9 @@ USAGE
   tt cluster topology (<APP> | -c <CLUSTER_CONFIG|URI>) [flags]
 
 FLAGS
+      --auth-type string           authentication method: auto, chap-sha1 or
+                                   pap-sha256; pap-sha256 needs TLS and
+                                   Tarantool EE or CE 3.9+ (default "auto")
   -c, --config string              path or URI of the cluster configuration
       --connect-timeout duration   timeout for establishing a binary connection
                                    (default 1s)
@@ -2573,6 +2585,10 @@ USAGE
   * [tcp://][username:password@][host:port]
   * [unix://][username:password@]socketpath
   To specify relative path without `unix://` use `./`.
+  The query of a URI, `?transport=ssl&auth_type=pap-sha256`, takes
+  transport (ssl or plain), auth_type (auto, chap-sha1 or pap-sha256)
+  and the TLS settings ssl_key_file, ssl_cert_file, ssl_ca_file,
+  ssl_ciphers, ssl_password and ssl_password_file.
 
   Available commands:
   * \shortcuts - get the full list of available shortcuts
@@ -2583,6 +2599,9 @@ USAGE
   * \quit - quit interactive console
 
 FLAGS
+      --auth-type string           authentication method: auto, chap-sha1 or
+                                   pap-sha256; pap-sha256 needs TLS and
+                                   Tarantool EE or CE 3.9+ (default "auto")
       --binary                     connect to instance using binary port
       --connect-timeout duration   timeout for establishing a binary connection
                                    (default 1s)
@@ -2910,7 +2929,8 @@ its binary port, transaction by transaction, in their order. No local
 Tarantool is needed. The target is an instance of an application, reached at
 its binary port, or a URI: [tcp://][username:password@]host:port or
 [unix://][username:password@]socketpath, with the TLS settings in the flags or
-in the query: ?ssl_key_file=...&ssl_cert_file=...&ssl_ca_file=...
+in the query: ?ssl_key_file=...&ssl_cert_file=...&ssl_ca_file=..., and the
+authentication method in --auth-type or ?auth_type=auto|chap-sha1|pap-sha256.
 
 The files are read the way Tarantool recovers: the newest snapshot, then the
 write-ahead logs in the order of their vclocks, without the transactions of
@@ -2983,6 +3003,9 @@ USAGE
   tt data play (<APP>:<INSTANCE> | <URI>) <FILE|DIR>... [flags]
 
 FLAGS
+      --auth-type string           authentication method: auto, chap-sha1 or
+                                   pap-sha256; pap-sha256 needs TLS and
+                                   Tarantool EE or CE 3.9+ (default "auto")
       --batch int                  how many requests are in flight at most; 1
                                    waits for each (default 128)
       --connect-timeout duration   timeout for establishing the connection
@@ -3517,6 +3540,10 @@ USAGE
   * [tcp://][username:password@][host:port]
   * [unix://][username:password@]socketpath
   To specify relative path without `unix://` use `./`.
+  The query of a URI, `?transport=ssl&auth_type=pap-sha256`, takes
+  transport (ssl or plain), auth_type (auto, chap-sha1 or pap-sha256)
+  and the TLS settings ssl_key_file, ssl_cert_file, ssl_ca_file,
+  ssl_ciphers, ssl_password and ssl_password_file.
 
   Available commands:
   * \shortcuts - get the full list of available shortcuts
@@ -3527,6 +3554,9 @@ USAGE
   * \quit - quit interactive console
 
 FLAGS
+      --auth-type string           authentication method: auto, chap-sha1 or
+                                   pap-sha256; pap-sha256 needs TLS and
+                                   Tarantool EE or CE 3.9+ (default "auto")
       --binary                     connect to instance using binary port
       --connect-timeout duration   timeout for establishing a binary connection
                                    (default 1s)
@@ -4323,6 +4353,9 @@ USAGE
   To specify relative path without `unix://` use `./`.
 
 FLAGS
+      --auth-type string           authentication method: auto, chap-sha1 or
+                                   pap-sha256; pap-sha256 needs TLS and
+                                   Tarantool EE or CE 3.9+ (default "auto")
       --config                     to force the centralized config orchestrator
       --connect-timeout duration   timeout for establishing a binary connection
                                    (default 1s)
@@ -4385,6 +4418,9 @@ USAGE
   To specify relative path without `unix://` use `./`.
 
 FLAGS
+      --auth-type string           authentication method: auto, chap-sha1 or
+                                   pap-sha256; pap-sha256 needs TLS and
+                                   Tarantool EE or CE 3.9+ (default "auto")
       --config                     to force the centralized config orchestrator
       --connect-timeout duration   timeout for establishing a binary connection
                                    (default 1s)
@@ -4449,6 +4485,9 @@ USAGE
   <APP>:<INSTANCE> <ROLE_NAME> [flags]
 
 FLAGS
+      --auth-type string           authentication method: auto, chap-sha1 or
+                                   pap-sha256; pap-sha256 needs TLS and
+                                   Tarantool EE or CE 3.9+ (default "auto")
       --config                     to force the centralized config orchestrator
       --connect-timeout duration   timeout for establishing a binary connection
                                    (default 1s)
@@ -4488,6 +4527,9 @@ USAGE
   <APP>:<INSTANCE> <ROLE_NAME> [flags]
 
 FLAGS
+      --auth-type string           authentication method: auto, chap-sha1 or
+                                   pap-sha256; pap-sha256 needs TLS and
+                                   Tarantool EE or CE 3.9+ (default "auto")
       --config                     to force the centralized config orchestrator
       --connect-timeout duration   timeout for establishing a binary connection
                                    (default 1s)
@@ -4536,6 +4578,9 @@ USAGE
   To specify relative path without `unix://` use `./`.
 
 FLAGS
+      --auth-type string           authentication method: auto, chap-sha1 or
+                                   pap-sha256; pap-sha256 needs TLS and
+                                   Tarantool EE or CE 3.9+ (default "auto")
       --config                     to force the centralized config orchestrator
       --connect-timeout duration   timeout for establishing a binary connection
                                    (default 1s)
@@ -4576,6 +4621,9 @@ USAGE
   To specify relative path without `unix://` use `./`.
 
 FLAGS
+      --auth-type string           authentication method: auto, chap-sha1 or
+                                   pap-sha256; pap-sha256 needs TLS and
+                                   Tarantool EE or CE 3.9+ (default "auto")
       --config                     to force the centralized config orchestrator
       --connect-timeout duration   timeout for establishing a binary connection
                                    (default 1s)
@@ -4638,6 +4686,9 @@ USAGE
   To specify relative path without `unix://` use `./`.
 
 FLAGS
+      --auth-type string           authentication method: auto, chap-sha1 or
+                                   pap-sha256; pap-sha256 needs TLS and
+                                   Tarantool EE or CE 3.9+ (default "auto")
       --config                     to force the centralized config orchestrator
       --connect-timeout duration   timeout for establishing a binary connection
                                    (default 1s)

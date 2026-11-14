@@ -86,6 +86,7 @@ var (
 	replicasetSslCiphers          string
 	replicasetSslPassword         string
 	replicasetSslPasswordFile     string
+	replicasetAuthType            dial.Auth
 	replicasetConnectTimeout      = connector.DefaultConnectTimeout
 	replicasetForce               bool
 	replicasetTimeout             int
@@ -472,6 +473,7 @@ func addTarantoolConnectFlags(cmd *cobra.Command) {
 		`password for decrypting the private SSL key file for a cluster connection`)
 	cmd.Flags().StringVar(&replicasetSslPasswordFile, "sslpasswordfile", "",
 		`path to a file containing the private SSL key password for a cluster connection`)
+	addAuthTypeFlag(cmd, &replicasetAuthType)
 	cmd.Flags().DurationVar(&replicasetConnectTimeout, "connect-timeout",
 		connector.DefaultConnectTimeout, `timeout for establishing a binary connection`)
 }
@@ -509,6 +511,7 @@ func newReplicasetConnectCtx() connect.ConnectCtx {
 		SslPassword:     replicasetSslPassword,
 		SslPasswordFile: replicasetSslPasswordFile,
 		Transport:       dial.TransportDefault,
+		Auth:            replicasetAuthType,
 		ConnectTarget:   "",
 		Binary:          false,
 		Evaler:          "",

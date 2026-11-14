@@ -13,7 +13,12 @@ from backup_helpers import (
     start_backup,
 )
 
-from utils import get_tarantool_version, is_tarantool_ee, is_tarantool_less
+from utils import (
+    TARANTOOL_SSL_REQUIRED,
+    get_tarantool_version,
+    is_tarantool_less,
+    is_tarantool_ssl_supported,
+)
 
 STORAGE_1_A = "storage-001-a"
 
@@ -38,13 +43,13 @@ BACKUP_SUPPORTED = not is_tarantool_less(3, 8)
 
 skip_reason = f"backup requires Tarantool 3.8.0+ (running {tarantool_major}.{tarantool_minor})"
 
-# The Enterprise check is a marker rather than a skip_if_tarantool_ce() call in
-# the test body: the tt_app fixture starts the application before the body runs,
-# and a Community instance refuses a listener with transport 'ssl'.
+# The SSL check is a marker rather than a skip_if_tarantool_ssl_unsupported()
+# call in the test body: the tt_app fixture starts the application before the
+# body runs, and a Tarantool without SSL refuses a listener with transport 'ssl'.
 pytestmark = [
     pytest.mark.tls,
     pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason),
-    pytest.mark.skipif(not is_tarantool_ee(), reason="iproto TLS requires Tarantool Enterprise"),
+    pytest.mark.skipif(not is_tarantool_ssl_supported(), reason=TARANTOOL_SSL_REQUIRED),
 ]
 
 
