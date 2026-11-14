@@ -255,6 +255,26 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `building component "<name>": no module of this tt provides backend
   "<backend>"`, and runs no hook, `hooks.pre_build: backend "shell" is not
   supported: no module of this tt provides a backend that runs hooks`.
+  A module may provide checks of the files of a package by their suffix as
+  well, which every build runs on the files the components lay out and the
+  data files their builds make, whatever backend made them.
+- The SDK gives a module the project it works on as tt package works on it,
+  where only the core could: `Project().Root()`, the project the directory
+  of the command is in, as the project commands of tt find it;
+  `Project().Manifest()`, what its manifest declares, the dependencies and
+  the components; `Project().AddComponent()`, which appends a component to
+  the manifest, every other line kept, checks it with the backends of the
+  tt and resolves the lock again; `Project().StateDir()`, its
+  `.tarantool`; `Project().PrepareEnvironment()`, which writes
+  `.env/activate.sh` as the first `tt binary install` into the project
+  does; and `Rocks().Index()`, which makes a directory a rock server with
+  the rock index of tt, as `tt package index` does. `sdk/execfile` writes a
+  program with no fork of the process in between, so that it does not fail
+  to start with `text file busy` while tt starts another process; the
+  core writes its programs through it. `Project().AddDependency()` and
+  `Install()` work on `Root()`, where they worked on the directory of the
+  command and failed below the root of a project; `tt emmylua prepare`,
+  which runs in the root, is as it was. `sdk/sdktest` fakes all of it.
 - A component makes what its build makes, any of a module, a data file and
   a program at once, where a component was of one kind: one `cargo`
   component of a package with a library and a binary builds both,

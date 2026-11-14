@@ -111,8 +111,8 @@ flags and nothing else: it reads no files and no environment.
 A module that provides build backends as well, for the `backend` of a
 component's build block, has an `sdk.ModuleConstructor` instead,
 `func(sdk.Services) sdk.Module`: the `sdk.Module` it returns holds its
-`Commands`, its `Backends` and the `FileChecks` of the files a build lays
-out, of `github.com/tarantool/tt/sdk/build`. tt calls it as it calls an
+`Commands`, its `Backends` and the `FileChecks` of the files of a package,
+of `github.com/tarantool/tt/sdk/build`. tt calls it as it calls an
 `sdk.Constructor`, and a distribution lists either kind the same way.
 
 A `Mount` is a command and the path of its parent: `""` is the root,
@@ -608,6 +608,138 @@ so the fallback is the answer that is safe to assume. A flag such as
 cannot return an error, such as a callback of a library. A command that can
 return its error must.
 
+## Work on the project
+
+`Services.Project` is the project a command works on, managed as
+`tt package` manages it. `Dir` is the directory of the command, and `Root`
+the project it is in, as the project commands of tt find it: the nearest
+directory from `Dir` up with an `app.manifest.toml` or an instance
+template, `Dir` itself when there is none. When it is above `Dir`, tt says
+once on stderr which project the command works on. The other methods work
+on `Root`.
+
+`scaffold.go` declares a component of probes in the manifest:
+
+```go
+package probe
+
+import (
+	"fmt"
+
+	"github.com/spf13/cobra"
+
+	"github.com/tarantool/tt/sdk"
+)
+
+func newScaffoldCmd(services sdk.Services) *cobra.Command {
+	return &cobra.Command{
+		Use:   "scaffold NAME",
+		Short: "Declare a component of probes in the package",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			project := services.Project()
+
+			manifest, err := project.Manifest()
+			if err != nil {
+				return err
+			}
+
+			if _, ok := manifest.Components[args[0]]; ok {
+				return sdk.Usagef("component %q is declared already", args[0])
+			}
+
+			change, err := project.AddComponent(cmd.Context(), sdk.Component{
+				Name:    args[0],
+				Comment: "Probes, declared by tt probe scaffold.",
+				Path:    args[0],
+				Include: []string{"*.lua"},
+			})
+			if change.Declared {
+				_, _ = fmt.Fprintf(services.Streams().IO().Out,
+					"declared component %s\n", args[0])
+			}
+
+			return err
+		},
+	}
+}
+```
+
+and `New` adds `newScaffoldCmd(services)` to the commands of `tt probe`.
+`tt probe scaffold checks` in a project appends to its `app.manifest.toml`,
+after a blank line,
+
+```toml
+# Probes, declared by tt probe scaffold.
+[components.checks]
+path = "checks"
+include = ["*.lua"]
+```
+
+and resolves `app.manifest.lock` again, as `tt package resolve` does.
+
+- `Manifest` returns what the manifest declares, as written: the
+  dependencies and the development dependencies, each with its version,
+  registry and path, and the components, each with its path and the backend
+  and `cwd` of its build block. It is parsed and not checked; a project with
+  no manifest is an error that wraps `sdk.ErrNotFound`.
+- `AddComponent` appends the component - its comment, `path`, `include` and
+  a build block, `sdk.ComponentBuild`, whose `Backend` and `Fields` are
+  written in their order - after the rest of the manifest, every line and
+  comment of which stays. The manifest it makes is checked as
+  `tt package build` checks it, with the backends of the tt, before it is
+  written: a name declared already, a component the check refuses, a project
+  with no manifest and a tt with no Tarantool write nothing. A resolution of
+  the lock that fails leaves the component declared: `Declared` is set with
+  the error.
+- `AddDependency` declares a rock in `[dependencies]`, or with `Dev` in
+  `[dev_dependencies]`, as `tt package add` does, and `Install` fills
+  `.rocks/` from the lock, as `tt package fetch` does. They, and
+  `AddComponent`, take the rock servers a `--registry` of the command would
+  give in `Registries`: a module declares the flag itself.
+- `StateDir` is the `.tarantool` of the project, where `tt binary` installs
+  into the project scope, and whose `bin/` is first in the `PATH` of a build.
+  `PrepareEnvironment` writes `.env/activate.sh` and `deactivate.sh` when
+  they are missing, as the first `tt binary install` into the project does,
+  for a module that installs a tool there.
+
+`Services.Rocks().Index` makes a directory a rock server of the rocks in
+it: the LuaRocks manifests and `tt-rocks-index.json`, as
+`tt package index` writes them. A module that packs rocks for others serves
+them so. A program or a tool a module writes, unpacked from an archive say,
+goes through `github.com/tarantool/tt/sdk/execfile`, which writes it with no
+fork of tt in between, so that it can be started at once while tt starts
+other processes.
+
+In a test the project of `sdktest` touches no file: its manifest is the one
+`sdktest.WithManifest` gives, `AddComponent` declares into it, and
+`AddedComponents` returns what it was given:
+
+```go
+func TestScaffold(t *testing.T) {
+	services := sdktest.New(t, sdktest.WithManifest(sdk.Manifest{
+		Components: map[string]sdk.ManifestComponent{"lua": {Path: "."}},
+	}))
+
+	got := services.Run(probe.New, "probe", "scaffold", "checks")
+
+	require.NoError(t, got.Err)
+	assert.Equal(t, "declared component checks\n", got.Stdout)
+	require.Len(t, services.AddedComponents(), 1)
+	assert.Equal(t, "checks", services.AddedComponents()[0].Path)
+
+	again := sdktest.New(t, sdktest.WithManifest(sdk.Manifest{
+		Components: map[string]sdk.ManifestComponent{"checks": {Path: "checks"}},
+	}))
+
+	got = again.Run(probe.New, "probe", "scaffold", "checks")
+
+	var usage *sdk.UsageError
+	require.ErrorAs(t, got.Err, &usage)
+	assert.Empty(t, again.AddedComponents())
+}
+```
+
 ## Provide a build backend
 
 A module may build the components of a tt package as well: a component
@@ -831,6 +963,15 @@ func TestTemplate(t *testing.T) {
 }
 ```
 
+A module may check the files of a package too, whatever backend made them:
+a `build.FileCheck` among the `FileChecks` of its `sdk.Module` names a
+suffix, and every build gives its `Check` each file of the package whose
+name ends with it - the files the components lay out and the data files
+their builds make in `Share`, an up-to-date incremental build's included.
+Modules and programs are not given to it: tt checks those itself. A warning
+the check returns is shown and the build goes on; an error fails the build
+with exit code 1. tt shows both as they are, so they name the file.
+
 ## Test it
 
 `probe_test.go`:
@@ -950,7 +1091,9 @@ does, and runs a command line; `sdktest.New` takes options first:
 `WithClusterConfig` gives a source a cluster configuration (any other is
 not found), `WithAnswers` the answers of `Confirm`, `WithNoPrompt` makes
 `Confirm` answer its fallback, and `WithTarantool`, `WithProject`,
-`WithStdin` and `WithIntegrity` set the other services. The `Result` holds
+`WithStdin` and `WithIntegrity` set the other services, and `WithRoot`,
+`WithManifest` and `WithNoManifest` the project
+([Work on the project](#work-on-the-project)). The `Result` holds
 the error, stdout, stderr and the log records; `ExitCode` is the code the
 SDK gives the error, without the network and permission rules of the core.
 The printers of sdktest encode `json` but not `yaml`, which the core
@@ -1042,4 +1185,4 @@ How the commands run:
   `E` return nothing to report.
 - `Services.Project().Dir()` is the working directory tt runs in. A module
   cannot declare `-C`; only a command mounted under `tt package` inherits
-  its `-C`, and gets that directory.
+  its `-C`, and gets that directory, which is its `Root` too.

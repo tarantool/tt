@@ -57,8 +57,11 @@ Each directory is a separate Go module:
   configuration its fields of a build block decode into and the `New` that
   checks them and returns the `Build`, and whether lifecycle hooks may name
   it - the `Context` a build or a hook runs in, with the directories, the
-  target and the commands of the build, and a `FileCheck` of the files a
-  build lays out. The build backends of tt are written against it
+  target and the commands of the build, and a `FileCheck` of the files of
+  a package by their suffix - those the components lay out and the data
+  files their builds make, whatever backend made them; a warning of it is
+  shown and an error fails the build. The build backends of tt are written
+  against it
   alone: they are the standard module `build` (`modules/build`), and the
   core has no backend of its own. `buildtest` checks a build block for a
   backend and runs its build on temporary directories, as the core does. A
@@ -92,14 +95,28 @@ core uses, and the core never requires older ones.
   may be added to them: `Log` (the module's logger, valid at any time),
   and, once tt is configured, `Tarantool` (the `Tarantool` to run, with its
   `Path` and structured `TarantoolVersion`), `Integrity` (`Open` a file
-  through the integrity checks), `Project` (the project `Dir`;
-  `AddDependency`, which declares a `Dependency` in its manifest - in the
+  through the integrity checks), `Project` (the directory of the command,
+  `Dir`, and the project it is in, `Root`, as the project commands of tt
+  find it, which the other methods work on: `Manifest`, what its manifest
+  declares - the dependencies with their version, registry and path, the
+  components with their path, backend and cwd - parsed and not checked;
+  `AddDependency`, which declares a `Dependency` in the manifest - in the
   long form with a `Registry`, in `[dev_dependencies]` with `Dev` - and
   re-resolves its lock as `tt package add` does, reporting in a
   `DependencyChange` whether the name was declared already and how the
-  locked versions moved; and `Install`, which fills `.rocks/` from the lock
-  as `tt package fetch` does; both take the rock servers `--registry` would
-  give), `Confirm` (a yes/no prompt on stderr that answers the given fallback
+  locked versions moved; `AddComponent`, which appends a `Component` - a
+  comment, its path and include and a `ComponentBuild` of fields in their
+  order - to the manifest, every other line kept, checks it with the
+  backends of the tt and re-resolves the lock, a `ComponentChange` saying
+  whether it was declared, with the error of a resolution that failed too;
+  `Install`, which fills `.rocks/` from the lock as `tt package fetch`
+  does; the three take the rock servers `--registry` would give;
+  `StateDir`, its `.tarantool`; and `PrepareEnvironment`, which writes
+  `.env/activate.sh` and `deactivate.sh` as the first `tt binary install`
+  into the project does), `Rocks` (`Index` makes a directory a rock server:
+  the LuaRocks manifests and `tt-rocks-index.json`, as `tt package index`
+  writes them, or with `IfIndexed` the index only where there is one),
+  `Confirm` (a yes/no prompt on stderr that answers the given fallback
   under `--no-prompt`), `Streams` (the standard streams and a `Printer` with
   the core's formats), `ClusterConfig` (the cluster configuration of a
   `ClusterSource` as Tarantool 3 sees it, an immutable go-config snapshot,
@@ -209,9 +226,8 @@ core uses, and the core never requires older ones.
   the last two moved by `TT_USER_ROOT` and `TT_SYSTEM_ROOT`, with the names
   of the directories under them, and `VarLinks`, `LinkVar` and
   `CheckVarLinks` the links of an installed version to the runtime data of
-  its instances. A module that works on the project finds it with
-  `FindProject` from `Project().Dir()`. It depends on the standard library
-  only.
+  its instances. `Project().Root()` is the project `FindProject` finds from
+  `Project().Dir()`. It depends on the standard library only.
 
 - `sdk/sdktest` fakes the core for a module's tests. `New` returns
   `Services` that, like the core's, panic on everything but `Log` until
@@ -222,12 +238,18 @@ core uses, and the core never requires older ones.
   (`WithIntegrity`) and the cluster configuration a source returns, from
   YAML built with the Tarantool hierarchy (`WithClusterConfig`, with the
   directory it reports set by `WithClusterConfigDir`; any other source is not
-  found). The project edits no manifest and installs nothing: what it is
-  asked is recorded (`AddedDependencies`, `Installs`), a name can be declared
-  already (`WithDeclared`), `AddDependency` reports the moves `WithMoves`
-  gives or fails with `WithAddDependencyError`, and `Install` runs the
-  function `WithInstall` gives in the project directory, to write what the
-  rocks would. `Stdout`, `Stderr` and `Records` return what the
+  found). The project reads, edits and installs nothing: its root is the
+  project directory or the one `WithRoot` sets, its manifest the one
+  `WithManifest` gives - empty by default, none with `WithNoManifest` - with
+  the names `WithDeclared` declares, and `AddDependency` and `AddComponent`
+  declare into it; what it is asked is recorded (`AddedDependencies`,
+  `AddedComponents`, `Installs`, `PreparedEnvironments`, and `Indexed` for
+  `Rocks().Index`), `AddDependency` and `AddComponent` report the moves
+  `WithMoves` gives, `AddDependency` fails with `WithAddDependencyError`,
+  `AddComponent` with `WithResolveError` once it declared the component,
+  and `Install` and `Index` run the functions `WithInstall` (in the root)
+  and `WithIndex` give, to write what the rocks would.
+  `Stdout`, `Stderr` and `Records` return what the
   module wrote and logged. `Run` hangs a constructor's mounts on a root,
   creating the groups on their paths, starts the services and executes a
   command line. `Exit` ends the command, not the test binary: `Run` reports
