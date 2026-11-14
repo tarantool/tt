@@ -16,6 +16,7 @@ import (
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
 	"github.com/tarantool/tt/v3/cli/util"
+	"github.com/tarantool/tt/v3/internal/cmakepolicy"
 )
 
 var (
@@ -189,6 +190,12 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, servers, args []string) error {
 	_ = os.Setenv("TT_CLI_TARANTOOL_INCLUDE", tarantoolIncludeDir)
 	_ = os.Setenv("TARANTOOL_DIR", filepath.Dir(tarantoolIncludeDir))
 	_ = os.Setenv("TT_CLI_TARANTOOL_PATH", filepath.Dir(cmdCtx.Cli.TarantoolCli.Executable))
+
+	// A cmake rock may ask for a CMake older than CMake 4 configures.
+	err = cmakepolicy.Setenv()
+	if err != nil {
+		return err
+	}
 
 	cfg := luarocks.Config{
 		Tree:       filepath.Join(workingDir, ".rocks"),

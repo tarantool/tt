@@ -8,7 +8,7 @@ import threading
 
 import pytest
 
-from utils import create_lua_config, run_command_and_get_output
+from utils import create_lua_config, no_cmake_policy_env, run_command_and_get_output
 
 # A manifest whose [platform].registries names the rock repository in the
 # repo directory next to it.
@@ -261,12 +261,12 @@ def test_rocks_admin_module(tt_cmd, tmp_path):
 
 
 def test_rocks_install_remote(tt_cmd, tmp_path):
-    # The CMakeLists.txt of stat asks for a CMake older than 3.5, with which
-    # CMake 4 has dropped compatibility unless told the policy version.
+    # The CMakeLists.txt of stat asks for a CMake older than 3.5, which tt
+    # makes CMake 4 configure (no_cmake_policy_env).
     rc, output = run_command_and_get_output(
         [tt_cmd, "rocks", "install", "stat"],
         cwd=tmp_path,
-        env=dict(os.environ, PWD=tmp_path, CMAKE_POLICY_VERSION_MINIMUM="3.5"),
+        env=no_cmake_policy_env(dict(os.environ, PWD=tmp_path)),
     )
     assert rc == 0
     assert "Installing http://rocks.tarantool.org/stat" in output

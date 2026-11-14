@@ -604,6 +604,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt binary install tarantool` builds a Tarantool commit of 2024 or older
+  from source with CMake 4, and `tt rocks`, `tt package` and `tt test` build
+  the rocks that ask for an old CMake, `crud` and `stat` say: CMake 4 refused
+  a `cmake_minimum_required` older than 3.5 with `Compatibility with CMake <
+  3.5 has been removed from CMake`. tt sets `CMAKE_POLICY_VERSION_MINIMUM=3.5`
+  for these builds, unless the variable is set, which CMake 3 ignores. The
+  components of a project, the user's code, are not given it.
 - `tt package pack --format rock` packs a package whose build puts only
   files that run anywhere among its modules - a `.wasm` or Lua in
   `TT_OUTPUT_DIR`, `lib/` of the rock - as an `.all` rock, as its archive

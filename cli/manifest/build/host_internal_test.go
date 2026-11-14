@@ -14,12 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	lrbuild "github.com/tarantool/go-luarocks/build"
+	"github.com/tarantool/go-luarocks/client"
 
 	sdkbuild "github.com/tarantool/tt/sdk/build"
 	"github.com/tarantool/tt/sdk/execfile"
 	"github.com/tarantool/tt/sdk/log/logtest"
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/manifest/rocks"
+	"github.com/tarantool/tt/v3/internal/cmakepolicy"
 )
 
 // lastEnvValue returns the value of the last KEY=VALUE entry for key, as
@@ -67,10 +69,15 @@ func TestEnvironContract(t *testing.T) {
 	assert.Equal(t, "/proj/_build/component/comp", lastEnvValue(got, "TT_BUILD_DIR"))
 
 	// The env of the block is merged in, after the environment of tt, in key
-	// order, and the contract comes last.
+	// order, and the contract comes last. The environment of tt is not counted
+	// here: a parallel test may make a rocks client, which sets the CMake policy
+	// version in it, but not in the environment of a build.
 	assert.Equal(t, "bar", lastEnvValue(got, "FOO"))
 	assert.Equal(t, "qux", lastEnvValue(got, "BAZ"))
-	assert.Equal(t, []string{"BAZ=qux", "FOO=bar"}, got[len(os.Environ()):len(os.Environ())+2])
+
+	block := slices.Index(got, "BAZ=qux")
+	require.GreaterOrEqual(t, block, 0)
+	assert.Equal(t, []string{"BAZ=qux", "FOO=bar"}, got[block:block+2])
 	assert.Equal(t, testContract().environ(), got[len(got)-len(testContract().environ()):])
 
 	// Context.Env has the variables of the build: the block's and the
@@ -155,6 +162,35 @@ func TestContractTarantoolUnknown(t *testing.T) {
 			assert.False(t, ok, "%s is set for an unknown Tarantool", key)
 		}
 	}
+}
+
+// TestEnvironLeavesOutCMakePolicyOfRocks: the CMake policy version tt sets
+// for the rocks it builds does not reach the build of a component, the user's
+// code, while one the user sets, in the environment or in the env of the
+// block, does.
+func TestEnvironLeavesOutCMakePolicyOfRocks(t *testing.T) {
+	t.Setenv(cmakepolicy.Variable, "")
+	require.NoError(t, os.Unsetenv(cmakepolicy.Variable))
+
+	env := environment{block: nil, projectRoot: "", contract: testContract().environ()}
+
+	_, err := rocks.New(rocks.BuildConfig(rocks.TarantoolInfo{}, rocks.ConfigOptions{
+		Tree: t.TempDir(), WorkingDir: t.TempDir(), Servers: []string{}, Logger: nil,
+	})).Client(client.BackendNative)
+	require.NoError(t, err)
+	require.Equal(t, cmakepolicy.Version, os.Getenv(cmakepolicy.Variable),
+		"a rocks client builds with the policy version")
+
+	_, ok := sdkbuild.LookupEnv(env.environ(), cmakepolicy.Variable)
+	assert.False(t, ok, "a component builds with the policy version of tt")
+
+	env.block = map[string]string{cmakepolicy.Variable: "3.10"}
+	assert.Equal(t, "3.10", lastEnvValue(env.environ(), cmakepolicy.Variable))
+
+	env.block = nil
+
+	t.Setenv(cmakepolicy.Variable, "3.10")
+	assert.Equal(t, "3.10", lastEnvValue(env.environ(), cmakepolicy.Variable))
 }
 
 // writeProjectProgram puts an executable shell script named name into the

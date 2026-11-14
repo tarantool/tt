@@ -8,6 +8,7 @@ import (
 
 	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/go-luarocks/client"
+	"github.com/tarantool/tt/v3/internal/cmakepolicy"
 )
 
 // TarantoolInfo carries the Tarantool facts the adapter needs to build a
@@ -90,7 +91,17 @@ func BuildConfig(info TarantoolInfo, opts ConfigOptions) luarocks.Config {
 
 // Client builds a go-luarocks client for the bound config. backend selects the
 // engine. Callers choose it according to the operation's compatibility needs.
+//
+// The client builds rocks with the environment of tt, which gets the policy
+// version CMake 4 needs to configure a cmake rock of an old CMake, unless the
+// user has set one (cmakepolicy.Setenv): go-luarocks takes no environment of
+// its own for the tools it runs.
 func (a *Adapter) Client(backend client.Backend) (*client.Rocks, error) {
+	err := cmakepolicy.Setenv()
+	if err != nil {
+		return nil, fmt.Errorf("rocks: %w", err)
+	}
+
 	rocksClient, err := client.New(a.cfg, client.WithBackend(backend))
 	if err != nil {
 		return nil, fmt.Errorf("rocks: new client: %w", err)

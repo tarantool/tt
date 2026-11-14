@@ -374,7 +374,10 @@ project that was moved. `CMAKE_BUILD_PARALLEL_LEVEL`, if set, is the number
 of jobs, and `CMAKE_GENERATOR` in `env` picks another generator. On macOS a
 `.so` module is copied as `.dylib`, which Tarantool loads there. A program
 of the build is an entry of `output` with `to = "bin"`. CMake 3.15 or newer
-must be on `PATH`.
+must be on `PATH`. The component is configured with the policy version its
+`cmake_minimum_required` asks for: CMake 4 refuses one older than 3.5, and
+the `CMAKE_POLICY_VERSION_MINIMUM` tt sets for the rocks it builds is not
+passed on, while one set in `env`, or in the environment tt runs in, is.
 
 ```toml
 [components.memcached]

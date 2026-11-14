@@ -20,6 +20,7 @@ import (
 	"github.com/tarantool/tt/v3/cli/manifest"
 	"github.com/tarantool/tt/v3/cli/util"
 	"github.com/tarantool/tt/v3/internal/binary"
+	"github.com/tarantool/tt/v3/internal/cmakepolicy"
 )
 
 // This file is what a build backend runs its commands with: the Host of the
@@ -60,8 +61,12 @@ type environment struct {
 // directory in front of it, when the project has one, and the TT_* contract
 // variables last, so that exec.Cmd's last-wins resolution keeps them
 // authoritative.
+//
+// The CMake policy version tt sets for the rocks it builds is left out of
+// os.Environ(): a component is the user's code, configured with the policy
+// version the user sets, if any (cmakepolicy.Strip).
 func (e environment) environ() []string {
-	out := os.Environ()
+	out := cmakepolicy.Strip(os.Environ())
 
 	for _, key := range slices.Sorted(maps.Keys(e.block)) {
 		out = append(out, key+"="+e.block[key])

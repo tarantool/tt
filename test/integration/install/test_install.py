@@ -17,16 +17,9 @@ from utils import (
     get_tarantool_commit,
     is_tarantool_ee,
     is_valid_tarantool_installed,
+    no_cmake_policy_env,
     run_command_and_get_output,
 )
-
-
-def old_tarantool_build_env():
-    """Return the environment of tt that builds a tarantool commit of 2024
-    or older from source: its CMakeLists.txt, and those of the libraries it
-    bundles, require CMake 2.8, and CMake 4 configures no project that old
-    unless told the policy version to assume. CMake 3 ignores the variable."""
-    return dict(os.environ, CMAKE_POLICY_VERSION_MINIMUM="3.5")
 
 
 @pytest.mark.slow
@@ -256,7 +249,8 @@ def test_install_tarantool_commit(tt_cmd, tmp_path):
     # instead of building OpenSSL, ICU, readline and the rest from source, which
     # is most of the time a static build takes; the static build is
     # test_install_tarantool_in_docker's, and resolving a commit is covered
-    # offline by test_install_tarantool_remote_revision.
+    # offline by test_install_tarantool_remote_revision. The commit asks for
+    # CMake 2.8, which tt makes CMake 4 configure (no_cmake_policy_env).
     install_cmd = [
         tt_cmd,
         "binary",
@@ -272,7 +266,7 @@ def test_install_tarantool_commit(tt_cmd, tmp_path):
     instance_process = subprocess.Popen(
         install_cmd,
         cwd=project_dir,
-        env=old_tarantool_build_env(),
+        env=no_cmake_policy_env(),
         stderr=subprocess.STDOUT,
         # Do not use pipe for stdout, if you are not going to read from it.
         # In case of build failure, logs are printed to stdout. It fills pipe buffer and
@@ -483,7 +477,7 @@ def test_install_tarantool_fetch_latest_version(
     instance_process_rc, _ = run_command_and_get_output(
         install_cmd,
         cwd=project_dir,
-        env=old_tarantool_build_env(),
+        env=no_cmake_policy_env(),
         stdout=subprocess.DEVNULL,
     )
     assert instance_process_rc == 0
