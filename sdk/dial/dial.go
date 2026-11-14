@@ -18,6 +18,11 @@ func New(opts Opts) (tarantool.Dialer, error) {
 		return nil, err
 	}
 
+	err = checkAuth(opts.Auth)
+	if err != nil {
+		return nil, err
+	}
+
 	if transport == TransportDefault {
 		if opts.SslKeyFile != "" || opts.SslCaFile != "" || opts.SslCertFile != "" ||
 			opts.SslCiphers != "" || opts.SslPassword != "" || opts.SslPasswordFile != "" {
@@ -29,10 +34,14 @@ func New(opts Opts) (tarantool.Dialer, error) {
 
 	switch transport {
 	case TransportPlain:
-		return tarantool.NetDialer{
-			Address:  opts.Address,
-			User:     opts.User,
-			Password: opts.Password,
+		if opts.Auth == AuthPapSha256 {
+			return nil, ErrPapSha256Unencrypted
+		}
+
+		return plainDialer{
+			address:  opts.Address,
+			user:     opts.User,
+			password: opts.Password,
 		}, nil
 	case TransportSsl:
 		return ssl(opts)
