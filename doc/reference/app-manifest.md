@@ -190,10 +190,18 @@ components tarawasm builds; see
 
 A field of a backend other than the one of the build is an error, since it
 would do nothing: `cflags` on a `make` build, `make_target` on a `shell`
-build or hook, `output` on a `c` one.
+build or hook, `output` on a `c` one. The field is the block's whatever its
+value, `make_target = ""` too. The error names the backends that have the
+field, those of tt first - `make` and `shell`, then the others by name -
+and those of modules after them, by name: `components.a.build.ldflags: is
+a field of backend c, go or lua-c, not of "cargo"`.
 
 The backends above are those of tt itself; a module tt is built with may
-provide more. A build block of a backend no module of the tt provides is
+provide more (see [Provide a build backend](../how-to/write-a-module.md#provide-a-build-backend)),
+with fields of their own, which are checked as those of tt are, and builds
+that run through the same steps: before anything is built, in the
+environment below, and laid out, recorded and skipped by `incremental` as
+those of tt. A build block of a backend no module of the tt provides is
 a warning, `no module of this tt provides backend "<name>"; its fields are
 not checked`, for a command that builds nothing, such as `tt package add`
 or `tt package pack --format rock-src`. It is an error once tt is to build
@@ -206,7 +214,8 @@ a field no backend has, and with the path of the field for a value of a
 wrong type, `components.a.build.cflags: must be an array, not a string`.
 
 A build gets its contract in the environment: `TT_OUTPUT_DIR`, where it
-puts what it makes, `TT_PROJECT_ROOT`, `TT_PACKAGE`, `TT_COMPONENT_NAME`,
+puts what it makes, which exists when the build starts, `TT_PROJECT_ROOT`,
+`TT_PACKAGE`, `TT_COMPONENT_NAME`,
 `TT_VERSION`, `TT_PLATFORM_OS` and `TT_PLATFORM_ARCH`. When tt knows the
 Tarantool it builds for, a build also gets `TT_TARANTOOL_PREFIX`, the
 install prefix of that Tarantool, and `TT_TARANTOOL_INCLUDE_DIR`, the
@@ -380,7 +389,10 @@ the default one by the package name, another by its rock.
 A command run before or after the components are built, with the `shell`
 backend, the default, or `make` and the fields of a build. A hook gets the
 environment of a build without `TT_OUTPUT_DIR`, `TT_COMPONENT_NAME` and
-`TT_BUILD_DIR`.
+`TT_BUILD_DIR`, and the files of its `output` are not copied. A hook names
+a backend that runs hooks: `make` or `shell` of those of tt, or one of a
+module that says it runs them; another is an error, `hooks.pre_build:
+backend "cmake" is not supported (want make or shell)`.
 
 <!-- TODO(writers): app.manifest.lock - what it records, such as
 bundled_tarantool_version - is not described yet. -->
