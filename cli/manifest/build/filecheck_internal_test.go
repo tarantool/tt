@@ -89,8 +89,8 @@ include = ['*.chk']
 	require.NoError(t, backends.Add("touch", []sdkbuild.Backend{touchBackend(recorder)}, nil))
 	require.NoError(t, backends.Add("check", nil, []sdkbuild.FileCheck{
 		{Suffix: ".chk", Check: checker.check},
-		// The data file touch makes; the core checks the .wasm files laid
-		// out itself, and its check would refuse what touch writes.
+		// The data file touch makes, which the checks are given as the
+		// files laid out are.
 		{Suffix: ".wasm", Check: checker.check},
 	}))
 

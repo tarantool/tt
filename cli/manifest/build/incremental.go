@@ -60,9 +60,9 @@ type incrementalState struct {
 
 // componentInputs hashes what the build of a component depends on: its build
 // block and the files of dir, the component's directory. The files are the
-// regular files and the symbolic links, but hidden ones (.git, .tarawasm, the
-// .gitignore files themselves), those of _build and _runtime, and those the
-// .gitignore files ignore - each for its subtree, from projectDir down, as
+// regular files and the symbolic links, but hidden ones (.git, the state of a
+// tool, the .gitignore files themselves), those of _build and _runtime, and
+// those the .gitignore files ignore - each for its subtree, from projectDir down, as
 // git reads them. What a build generates and git does not keep is so left
 // out, and the hash stays the same from one build to the next. extra are the
 // inputs the build names besides (sdkbuild.InputHasher), in their order.
@@ -116,7 +116,7 @@ func componentInputs(projectDir, dir string, build manifest.Build, extra []strin
 }
 
 // skipInput leaves out of the inputs of a component the hidden files (.git,
-// .tarawasm, the .gitignore files themselves) and what is in _build and
+// the state of a tool, the .gitignore files themselves) and what is in _build and
 // _runtime.
 func skipInput(path []string, _ fs.DirEntry) bool {
 	name := path[len(path)-1]

@@ -10,12 +10,10 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 
+	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/scope"
-	"github.com/tarantool/tt/v3/cli/manifest"
-	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 )
 
 var (
@@ -47,11 +45,18 @@ type NewOptions struct {
 	Fetcher Fetcher
 	// Tarawasm runs the tarawasm of the project.
 	Tarawasm Tarawasm
-	// Resolve re-resolves the lock after the manifest changed.
-	Resolve func(ctx context.Context) error
+	// Manifest reads the manifest of the project.
+	Manifest ReadManifest
+	// AddComponent declares the component in the manifest and re-resolves
+	// the lock, as the project of the SDK does ([sdk.Project.AddComponent]).
+	AddComponent func(ctx context.Context, component sdk.Component) (sdk.ComponentChange, error)
 	// Progress receives one line per step.
 	Progress io.Writer
 }
+
+// componentComment is the comment above the tables of a component
+// NewComponent declares.
+const componentComment = "A WebAssembly component, made by tt wasm new and built by tarawasm."
 
 // NewReport is what NewComponent did.
 type NewReport struct {
@@ -71,7 +76,7 @@ type NewReport struct {
 //     wasm release the package declares, leaving the module to the rock;
 //  3. writes its .gitignore, of what tarawasm generates;
 //  4. declares it in the manifest, built by tarawasm all, and re-resolves the
-//     lock.
+//     lock (opts.AddComponent).
 //
 // The project has to have been prepared: tarawasm comes from tt wasm prepare.
 func NewComponent(ctx context.Context, opts NewOptions) (*NewReport, error) {
@@ -93,7 +98,7 @@ func NewComponent(ctx context.Context, opts NewOptions) (*NewReport, error) {
 			opts.Language, strings.Join(Templates(opts.Language), ", "))
 	}
 
-	man, err := readManifest(opts.ProjectDir)
+	man, err := opts.Manifest()
 	if err != nil {
 		return nil, err
 	}
@@ -102,11 +107,7 @@ func NewComponent(ctx context.Context, opts NewOptions) (*NewReport, error) {
 		return nil, fmt.Errorf("%w: %s", ErrComponentExists, opts.Name)
 	}
 
-	version, err := DeclaredVersion(opts.ProjectDir)
-	if err != nil {
-		return nil, err
-	}
-
+	version := DeclaredVersion(man)
 	if version == "" {
 		return nil, fmt.Errorf("%w: the package declares no exact %s version; "+
 			"run tt wasm prepare", ErrNoTarawasm, RockName)
@@ -123,7 +124,8 @@ func NewComponent(ctx context.Context, opts NewOptions) (*NewReport, error) {
 	prepare := Options{
 		ProjectDir: opts.ProjectDir, Version: version, Fetcher: opts.Fetcher,
 		Tarawasm: opts.Tarawasm, SkipTarawasm: false, Language: opts.Language, From: "",
-		RockServer: "", Declare: nil, PrepareEnv: nil, Progress: opts.Progress,
+		RockServer: "", Manifest: opts.Manifest, Rocks: nil, Declare: nil, PrepareEnv: nil,
+		Progress: opts.Progress,
 	}
 
 	unlinked, err := ensureLanguage(ctx, prepare, root, layout, opts.Language)
@@ -159,21 +161,40 @@ func NewComponent(ctx context.Context, opts NewOptions) (*NewReport, error) {
 		}
 	}
 
-	err = declareComponent(opts.ProjectDir, opts.Name, dir, report.Output)
+	// The line on the declaration goes between the write and the
+	// resolution, ahead of what the resolution warns of; an error of the
+	// resolution says itself that the lock was not resolved again.
+	declared := componentOf(opts.Name, dir, report.Output)
+
+	declared.OnDeclared = func() {
+		progressf(prepare, "declared component %s in %s", opts.Name, manifestFileName)
+	}
+
+	_, err = opts.AddComponent(ctx, declared)
 	if err != nil {
 		return nil, err
 	}
 
-	progressf(prepare, "declared component %s in %s", opts.Name, manifestFileName)
-
-	if opts.Resolve != nil {
-		err = opts.Resolve(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("re-resolving the lock: %w", err)
-		}
-	}
-
 	return report, nil
+}
+
+// componentOf is the component NewComponent declares: the directory dir,
+// relative to the project, laying out output, which tarawasm all builds
+// with the shell backend, skipped while the sources have not changed.
+func componentOf(name, dir, output string) sdk.Component {
+	return sdk.Component{
+		Name:    name,
+		Comment: componentComment,
+		Path:    filepath.ToSlash(dir),
+		Include: []string{output},
+		Build: &sdk.ComponentBuild{Backend: "shell", Fields: []sdk.BuildField{
+			{Key: "command", Value: tarawasmProgram},
+			{Key: "args", Value: []string{"all"}},
+			{Key: "incremental", Value: true},
+		}},
+		Registries: nil,
+		OnDeclared: nil,
+	}
 }
 
 // initComponent has tarawasm create the project of the component in dir and
@@ -217,46 +238,4 @@ func initComponent(
 	}
 
 	return &NewReport{Dir: dir, Output: component.Output, Module: ""}, nil
-}
-
-// declareComponent appends the component to the manifest, after checking that
-// the manifest it makes still parses and validates.
-func declareComponent(projectDir, name, dir, output string) error {
-	path := filepath.Join(projectDir, manifestFileName)
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("reading %s: %w", path, err)
-	}
-
-	block := fmt.Sprintf(`
-# A WebAssembly component, made by tt wasm new and built by tarawasm.
-[components.%[1]s]
-path = %[2]s
-include = [%[3]s]
-
-[components.%[1]s.build]
-backend = "shell"
-command = "tarawasm"
-args = ["all"]
-incremental = true
-`, name, strconv.Quote(filepath.ToSlash(dir)), strconv.Quote(output))
-
-	if len(data) > 0 && data[len(data)-1] != '\n' {
-		data = append(data, '\n')
-	}
-
-	edited := slices.Concat(data, []byte(block))
-
-	man, _, err := manifest.ParseManifest(edited)
-	if err != nil {
-		return fmt.Errorf("the manifest with component %s does not parse: %w", name, err)
-	}
-
-	_, err = man.Validate(buildreg.Process())
-	if err != nil {
-		return fmt.Errorf("the manifest with component %s is invalid: %w", name, err)
-	}
-
-	return writeFileAtomic(path, edited)
 }

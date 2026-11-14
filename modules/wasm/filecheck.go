@@ -1,4 +1,4 @@
-package build
+package wasm
 
 import (
 	"bytes"
@@ -6,10 +6,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 )
 
-// wasmSuffix ends the name of a WebAssembly file a component lays out.
+// wasmSuffix ends the name of a WebAssembly file a package lays out.
 const wasmSuffix = ".wasm"
 
 // wasmHeaderSize is the size of the preamble of a WebAssembly binary: the
@@ -30,36 +29,29 @@ var (
 	errNotWasm = errors.New("not a WebAssembly binary")
 )
 
-// checkWasmFiles checks the .wasm files among the files the components laid
-// out, as the build checks the programs a component makes: a file
-// that is no WebAssembly binary, an output a build mistook for one, fails the
-// build. A core module is laid out with a warning: tarantool-wasm loads
-// components only, but another loader may well want a module.
-func checkWasmFiles(paths []string) ([]string, error) {
-	var warnings []string
-
-	for _, path := range paths {
-		if !strings.HasSuffix(path, wasmSuffix) {
-			continue
-		}
-
-		header, err := readWasmHeader(path)
-		if err != nil {
-			return nil, err
-		}
-
-		switch {
-		case bytes.Equal(header[len(wasmMagic):], wasmComponent):
-		case bytes.Equal(header[len(wasmMagic):], wasmCoreModule):
-			warnings = append(warnings, fmt.Sprintf("%s is a core WebAssembly module, "+
-				"not a component: require('wasm') loads components only", path))
-		default:
-			return nil, fmt.Errorf("%s: %w of a known version (preamble % x)",
-				path, errNotWasm, header[len(wasmMagic):])
-		}
+// checkWasmFile is the file check of the module (sdk/build.FileCheck) for
+// the .wasm files of a package, whatever component made them - laid out from
+// its sources or written by its build - as the build checks the programs a
+// component makes: a file that is no WebAssembly binary, an output a build
+// mistook for one, fails the build. A core module is laid out with a
+// warning: tarantool-wasm loads components only, but another loader may well
+// want a module.
+func checkWasmFile(path string) (string, error) {
+	header, err := readWasmHeader(path)
+	if err != nil {
+		return "", err
 	}
 
-	return warnings, nil
+	switch {
+	case bytes.Equal(header[len(wasmMagic):], wasmComponent):
+		return "", nil
+	case bytes.Equal(header[len(wasmMagic):], wasmCoreModule):
+		return fmt.Sprintf("%s is a core WebAssembly module, not a component: "+
+			"require('wasm') loads components only", path), nil
+	default:
+		return "", fmt.Errorf("%s: %w of a known version (preamble % x)",
+			path, errNotWasm, header[len(wasmMagic):])
+	}
 }
 
 // readWasmHeader reads the preamble of the WebAssembly binary at path.

@@ -14,7 +14,7 @@ import (
 	"github.com/tarantool/go-luarocks/client"
 	"github.com/tarantool/go-luarocks/rockspec"
 
-	"github.com/tarantool/tt/v3/cli/manifest/rockindex"
+	"github.com/tarantool/tt/sdk"
 )
 
 const (
@@ -129,22 +129,20 @@ func BuildRock(dir string, release Release, platform Platform, module []byte) (s
 	return path, nil
 }
 
-// IndexRegistry writes the manifests of the rock server dir from the rocks
-// it holds, as `luarocks-admin make_manifest` writes them (remote.MakeManifest),
-// and the tt-rocks-index.json beside them, so that a dependency declaring dir
-// as its registry resolves and installs from it, and the lock pins the
-// sha256 of the rock of every platform. Files that are neither rocks nor
-// rockspecs are left out.
-func IndexRegistry(ctx context.Context, dir string) error {
-	return indexRegistry(ctx, dir, false)
+// IndexRegistry has rocks write the manifests of the rock server dir from
+// the rocks it holds, as `luarocks-admin make_manifest` writes them, and the
+// tt-rocks-index.json beside them, as tt package index does
+// ([sdk.Rocks.Index]), so that a dependency declaring dir as its registry
+// resolves and installs from it, and the lock pins the sha256 of the rock of
+// every platform. Files that are neither rocks nor rockspecs are left out.
+func IndexRegistry(ctx context.Context, rocks sdk.Rocks, dir string) error {
+	return indexRegistry(ctx, rocks, dir, false)
 }
 
 // indexRegistry is IndexRegistry; ifIndexed writes the index only into a
-// directory that has one already (rockindex.ServerOptions.IfIndexed).
-func indexRegistry(ctx context.Context, dir string, ifIndexed bool) error {
-	_, err := rockindex.MakeServer(ctx, dir, rockindex.ServerOptions{
-		HTML: false, IfIndexed: ifIndexed, Warn: nil,
-	})
+// directory that has one already (sdk.IndexOptions.IfIndexed).
+func indexRegistry(ctx context.Context, rocks sdk.Rocks, dir string, ifIndexed bool) error {
+	err := rocks.Index(ctx, dir, sdk.IndexOptions{IfIndexed: ifIndexed})
 	if err != nil {
 		return fmt.Errorf("indexing the registry: %w", err)
 	}
@@ -204,6 +202,8 @@ type PackOptions struct {
 	Version string
 	// Fetcher downloads the assets.
 	Fetcher Fetcher
+	// Rocks index Dir.
+	Rocks sdk.Rocks
 	// Progress receives one line per rock.
 	Progress io.Writer
 	// From is a local build of the module, packed as the rock of Arch instead
@@ -297,7 +297,7 @@ func PackRocks(ctx context.Context, opts PackOptions) ([]string, error) {
 			return nil, err
 		}
 
-		err = IndexRegistry(ctx, opts.Dir)
+		err = IndexRegistry(ctx, opts.Rocks, opts.Dir)
 		if err != nil {
 			return nil, err
 		}
@@ -330,7 +330,7 @@ func PackRocks(ctx context.Context, opts PackOptions) ([]string, error) {
 		rocks = append(rocks, rock)
 	}
 
-	err = IndexRegistry(ctx, opts.Dir)
+	err = IndexRegistry(ctx, opts.Rocks, opts.Dir)
 	if err != nil {
 		return nil, err
 	}

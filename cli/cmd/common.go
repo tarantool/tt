@@ -11,14 +11,9 @@ import (
 	"github.com/tarantool/tt/v3/cli/util"
 )
 
-const (
-	// listCmdName is the name of the subcommands that list what their parent
-	// command manages.
-	listCmdName = "list"
-	// statusCmdName is the name of the subcommands that report the state of
-	// what their parent command manages.
-	statusCmdName = "status"
-)
+// listCmdName is the name of the subcommands that list what their parent
+// command manages.
+const listCmdName = "list"
 
 // internalFunc is the implementation of a command: it works on the
 // process's CmdCtx with the command's arguments.

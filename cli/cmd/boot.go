@@ -102,7 +102,6 @@ func BuiltinCommands() []*cobra.Command {
 		NewTcmCmd(),
 		NewBackupCmd(),
 		NewRestoreCmd(),
-		NewWasmCmd(),
 	}
 
 	for _, command := range commands {

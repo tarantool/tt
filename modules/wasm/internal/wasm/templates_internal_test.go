@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/tarantool/tt/sdk"
 )
 
 // writeTarawasmComponent writes what tarawasm init leaves for a component of
@@ -83,9 +85,9 @@ func TestWitName(t *testing.T) {
 }
 
 func TestStatusOfAnUnpreparedProject(t *testing.T) {
-	project := writeProject(t, "0.1.0")
+	project, man := writeProject(t, "0.1.0")
 
-	report, err := Status(context.Background(), project)
+	report, err := Status(context.Background(), project, man)
 	require.NoError(t, err)
 
 	assert.Equal(t, "0.1.0", report.Declared)
@@ -103,21 +105,11 @@ func TestStatusOfAnUnpreparedProject(t *testing.T) {
 	assert.Contains(t, joined, "the python toolchain is not ready")
 }
 
-// declareFrom rewrites the wasm declaration of the project writeProject
-// writes to name registry and version.
-func declareFrom(t *testing.T, project, registry, version string) {
-	t.Helper()
-
-	path := filepath.Join(project, manifestFileName)
-
-	data, err := os.ReadFile(path)
-	require.NoError(t, err)
-
-	text := strings.Replace(string(data), `registry = ".tarantool/registry"`,
-		`registry = "`+registry+`"`, 1)
-
-	text = strings.Replace(text, `version = "0.1.0"`, `version = "`+version+`"`, 1)
-	require.NoError(t, os.WriteFile(path, []byte(text), filePerm))
+// declareFrom has the wasm declaration of man name registry and version.
+func declareFrom(man sdk.Manifest, registry, version string) {
+	man.Dependencies[RockName] = sdk.ManifestDependency{
+		Version: version, Registry: registry, Path: "",
+	}
 }
 
 // TestStatusOfARockServer checks that a rock server - a URL, or a directory
@@ -125,10 +117,10 @@ func declareFrom(t *testing.T, project, registry, version string) {
 // at: a build fetches the rock from it.
 func TestStatusOfARockServer(t *testing.T) {
 	for _, version := range []string{"0.1.0", "9.9.9"} {
-		project := writeProject(t, version)
-		declareFrom(t, project, "https://rocks.example.test/v0.1.0/", version)
+		project, man := writeProject(t, version)
+		declareFrom(man, "https://rocks.example.test/v0.1.0/", version)
 
-		report, err := Status(context.Background(), project)
+		report, err := Status(context.Background(), project, man)
 		require.NoError(t, err)
 
 		assert.Equal(t, version, report.Declared)
@@ -141,13 +133,13 @@ func TestStatusOfARockServer(t *testing.T) {
 		}
 	}
 
-	project := writeProject(t, "0.1.0")
+	project, man := writeProject(t, "0.1.0")
 	index := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(index, "tt-rocks-index.json"),
 		[]byte(`{"format": 1, "repository": {}}`), filePerm))
-	declareFrom(t, project, index, "0.1.0")
+	declareFrom(man, index, "0.1.0")
 
-	report, err := Status(context.Background(), project)
+	report, err := Status(context.Background(), project, man)
 	require.NoError(t, err)
 	assert.True(t, report.FromServer)
 }
@@ -155,9 +147,9 @@ func TestStatusOfARockServer(t *testing.T) {
 // TestStatusFindsTheRockOfTheRegistry checks that a directory with rocks of
 // its own must hold one of the declared version for this host.
 func TestStatusFindsTheRockOfTheRegistry(t *testing.T) {
-	project := writeProject(t, "0.1.0")
+	project, man := writeProject(t, "0.1.0")
 
-	report, err := Status(context.Background(), project)
+	report, err := Status(context.Background(), project, man)
 	require.NoError(t, err)
 	assert.Empty(t, report.Rock)
 	assert.Contains(t, strings.Join(report.Problems, "\n"),
@@ -168,7 +160,7 @@ func TestStatusFindsTheRockOfTheRegistry(t *testing.T) {
 	require.NoError(t, os.MkdirAll(registry, dirPerm))
 	require.NoError(t, os.WriteFile(rock, nil, filePerm))
 
-	report, err = Status(context.Background(), project)
+	report, err = Status(context.Background(), project, man)
 	require.NoError(t, err)
 	assert.Equal(t, rock, report.Rock)
 	assert.False(t, report.FromServer)
