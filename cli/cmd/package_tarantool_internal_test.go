@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/v3/cli/cmdcontext"
-	"github.com/tarantool/tt/v3/cli/manifest/build/backend"
 	"github.com/tarantool/tt/v3/cli/manifest/pack"
 )
 
@@ -139,12 +138,10 @@ func TestPackagePackLuaCWithoutTarantool(t *testing.T) {
 		"tarantool installs one"
 
 	err := runPackagePack()
-	require.ErrorIs(t, err, backend.ErrMissingHeaders)
 	require.EqualError(t, err, message)
 	assert.NoDirExists(t, out)
 
 	err = runPackage(nil, false)
-	require.ErrorIs(t, err, backend.ErrMissingHeaders)
 	require.EqualError(t, err, message)
 	assert.NoDirExists(t, filepath.Join(dir, ".rocks"), "nothing was built")
 }

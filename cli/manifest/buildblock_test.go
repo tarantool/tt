@@ -166,7 +166,13 @@ func TestValidateStructureOnly(t *testing.T) {
 	_, err = parseBody(t, "[components.a]\npath = \"a\"\n[components.a.build]\n").Validate(nil)
 	require.EqualError(t, err, "components.a.build: backend is required")
 
-	_, err = parseBody(t, "[hooks.pre_build]\nbackend = \"go\"\n").Validate(nil)
+	// Which backends run hooks is the checker's to say.
+	hook := parseBody(t, "[hooks.pre_build]\nbackend = \"go\"\n")
+
+	_, err = hook.Validate(nil)
+	require.NoError(t, err)
+
+	_, err = hook.Validate(buildreg.Core())
 	require.EqualError(t, err,
 		`hooks.pre_build: backend "go" is not supported (want make or shell)`)
 

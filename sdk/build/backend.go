@@ -161,7 +161,9 @@ type Build interface {
 
 // Preflighter is a Build that checks what it needs before any component is
 // built: a tool in PATH, a target the platform has. The core asks every
-// component it is about to build before it builds the first one.
+// component it is about to build before it builds the first one, and
+// before the version of the package is known: the directories of the
+// Context may not exist yet, and TT_VERSION is empty.
 type Preflighter interface {
 	Preflight(c *Context) error
 }

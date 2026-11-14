@@ -32,15 +32,6 @@ func isPlatformToken(token string) bool {
 	})
 }
 
-func isHookBackend(backend string) bool {
-	switch backend {
-	case backendMake, backendShell:
-		return true
-	default:
-		return false
-	}
-}
-
 func isHookName(name string) bool {
 	switch name {
 	case "pre_build", "post_build":
@@ -283,21 +274,19 @@ func (m *Manifest) validateComponents(checker BuildChecker) ([]string, error) {
 			return nil, err
 		}
 
-		if comp.Build != nil {
-			buildWarnings, err := m.validateComponentBuild(checker, name, comp)
-
-			warnings = append(warnings, buildWarnings...)
-
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		if !comp.IsExecutable() {
+		if comp.Build == nil {
 			continue
 		}
 
-		for _, program := range comp.Build.Executables(name) {
+		check, buildWarnings, err := m.validateComponentBuild(checker, name, comp)
+
+		warnings = append(warnings, buildWarnings...)
+
+		if err != nil {
+			return nil, err
+		}
+
+		for _, program := range check.Programs {
 			if other, taken := programs[program]; taken {
 				return nil, invalid(field+".build",
 					"program %q is built by component %q too", program, other)
@@ -315,59 +304,46 @@ func (m *Manifest) validateComponents(checker BuildChecker) ([]string, error) {
 // A backend checker does not know is a warning.
 func (m *Manifest) validateComponentBuild(
 	checker BuildChecker, name string, comp Component,
-) ([]string, error) {
+) (BuildCheck, []string, error) {
 	field := "components." + name + ".build"
 	if comp.Build.Backend == "" {
-		return nil, invalid(field, "backend is required")
+		return BuildCheck{}, nil, invalid(field, "backend is required")
 	}
 
 	if checker == nil {
-		return nil, nil
+		return BuildCheck{}, nil, nil
 	}
 
-	namespace := comp.EffectiveNamespace(m.Package.Name)
-	if comp.IsExecutable() {
-		namespace = ""
+	check, warnings, err := m.checkBuild(checker, field, m.ComponentTarget(name), *comp.Build)
+	if err != nil || check.Known {
+		return check, warnings, err
 	}
 
-	kind := comp.Kind
-	if kind == "" {
-		kind = KindModule
-	}
-
-	known, warnings, err := m.checkBuild(checker, field, BuildTarget{
-		Component: name, Kind: kind, Path: comp.Path, Namespace: namespace,
-		Package: m.Package.Name, Hook: false,
-	}, *comp.Build)
-	if err != nil || known {
-		return warnings, err
-	}
-
-	return []string{fmt.Sprintf("%s: no module of this tt provides backend %q; "+
+	return check, []string{fmt.Sprintf("%s: no module of this tt provides backend %q; "+
 		"its fields are not checked", field, comp.Build.Backend)}, nil
 }
 
 // checkBuild has checker check build, the build block at field of target,
-// and reports whether checker knows its backend. The fields checker finds
-// no backend has are reported by the format-version rules of the fields of
-// the rest of the manifest: an error for a manifest of this minor version or
-// an older one, before any error of the backend, and a warning for one of a
-// newer minor version.
+// and returns what it found. The fields checker finds no backend has are
+// reported by the format-version rules of the fields of the rest of the
+// manifest: an error for a manifest of this minor version or an older one,
+// before any error of the backend, and a warning for one of a newer minor
+// version.
 func (m *Manifest) checkBuild(
 	checker BuildChecker, field string, target BuildTarget, build Build,
-) (bool, []string, error) {
+) (BuildCheck, []string, error) {
 	check, err := checker.CheckBuild(field, target, build)
 	if len(check.Unknown) == 0 {
-		return check.Known, nil, err
+		return check, nil, err
 	}
 
 	declared, versionErr := parseFormatVersion(m.ManifestVersion)
 	if versionErr != nil {
-		return check.Known, nil, versionErr
+		return check, nil, versionErr
 	}
 
 	if !declared.minorNewerThan(ourManifestVersion) {
-		return check.Known, nil, invalid(field+"."+check.Unknown[0],
+		return check, nil, invalid(field+"."+check.Unknown[0],
 			"unknown field in manifest version %q", declared)
 	}
 
@@ -377,7 +353,7 @@ func (m *Manifest) checkBuild(
 			"field %q appeared in a newer manifest version; trying to ignore it", field+"."+key))
 	}
 
-	return check.Known, warnings, err
+	return check, warnings, err
 }
 
 // validateKind checks the kind of a component and what the kind rules out.
@@ -494,10 +470,10 @@ func (m *Manifest) validateProductRocks() error {
 	return nil
 }
 
-// validateHooks checks the hooks: the backend of each is one hooks run with,
-// and checker, when there is one, checks the block for it as it checks the
-// build block of a component. The backends of hooks are a closed set, so one
-// checker does not know is an error.
+// validateHooks checks the hooks: checker, when there is one, checks the
+// block of each as it checks the build block of a component, and refuses a
+// backend that runs no hook. A hook may name only a backend that runs
+// hooks, so one checker does not know is an error.
 func (m *Manifest) validateHooks(checker BuildChecker) ([]string, error) {
 	var warnings []string
 
@@ -510,24 +486,16 @@ func (m *Manifest) validateHooks(checker BuildChecker) ([]string, error) {
 		}
 
 		// A hook naming no backend was given shell when it was parsed
-		// (applyHookDefaults), the backend the build runs it with.
+		// (applyHookDefaults).
 		field := "hooks." + name
-
 		hook := m.Hooks[name]
-		if !isHookBackend(hook.Backend) {
-			return warnings, invalid(field,
-				"backend %q is not supported (want make or shell)", hook.Backend)
-		}
 
 		if checker != nil {
-			known, hookWarnings, err := m.checkBuild(checker, field, BuildTarget{
-				Component: "", Kind: "", Path: "", Namespace: "", Package: m.Package.Name,
-				Hook: true,
-			}, hook)
+			check, hookWarnings, err := m.checkBuild(checker, field, m.HookTarget(), hook)
 
 			warnings = append(warnings, hookWarnings...)
 
-			if err == nil && !known {
+			if err == nil && !check.Known {
 				err = invalid(field, "no module of this tt provides backend %q", hook.Backend)
 			}
 

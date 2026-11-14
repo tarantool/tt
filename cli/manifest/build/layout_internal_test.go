@@ -65,7 +65,7 @@ func TestLayoutComponent_defaultNamespaceSplitsByExt(t *testing.T) {
 	stage := filepath.Join(project, "_build", "rock", "default")
 	seedComponentTree(t, project)
 
-	written, err := layoutComponent(stage, "my-app", manifest.Component{Path: "."}, project)
+	written, err := layoutComponent(stage, "my-app", manifest.Component{Path: "."}, project, nil)
 	require.NoError(t, err)
 
 	// .lua goes to lua, .so to lib, both under the my-app namespace; the
@@ -89,7 +89,7 @@ func TestLayoutComponent_dylibGoesToLib(t *testing.T) {
 	writeFile(t, filepath.Join(project, "native", "fast_hash.dylib"), "dylib")
 
 	component := manifest.Component{Path: "native/", Include: []string{"*.dylib"}}
-	_, err := layoutComponent(stage, "my-app", component, filepath.Join(project, "native"))
+	_, err := layoutComponent(stage, "my-app", component, filepath.Join(project, "native"), nil)
 	require.NoError(t, err)
 
 	// A module of macOS is a module all the same: Tarantool loads it from lib.
@@ -107,7 +107,7 @@ func TestLayoutComponent_emptyNamespaceIsFlat(t *testing.T) {
 
 	empty := ""
 	component := manifest.Component{Path: ".", Namespace: &empty}
-	_, err := layoutComponent(stage, "my-app", component, project)
+	_, err := layoutComponent(stage, "my-app", component, project, nil)
 	require.NoError(t, err)
 
 	// No namespace segment: artifacts land directly under lib/ and lua/.
@@ -127,7 +127,7 @@ func TestLayoutComponent_subdirComponentPath(t *testing.T) {
 	writeFile(t, filepath.Join(project, "native", "fast_hash.c"), "int main(){}")
 
 	compPath := filepath.Join(project, "native")
-	_, err := layoutComponent(stage, "my-app", manifest.Component{Path: "native/"}, compPath)
+	_, err := layoutComponent(stage, "my-app", manifest.Component{Path: "native/"}, compPath, nil)
 	require.NoError(t, err)
 
 	// Paths are relative to the component root, not the project root.

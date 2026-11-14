@@ -278,8 +278,8 @@ linters:
             # before it, so a sub-package listed here would shadow this entry
             # for every sibling sorted after it. Never list them one by one.
             - "github.com/tarantool/tt/v3/cli/manifest"
-            # cli/manifest/build/backend runs subprocesses through tt's shared
-            # helper rather than reinventing exec plumbing.
+            # cli/manifest/build runs the commands of the build backends
+            # through tt's shared helper rather than reinventing exec plumbing.
             - "github.com/tarantool/tt/v3/cli/util"
             # cli/manifest/build filters component files with gitignore-syntax
             # include/exclude patterns via go-git's matcher; cli/manifest/distbuild
@@ -341,10 +341,6 @@ linters:
             # and the one tt exits with for it (cli/exitcode).
             - "github.com/tarantool/tt/sdk"
             - "github.com/tarantool/tt/v3/cli/exitcode"
-            # The build/backend integration tests resolve the host Tarantool
-            # and check its version the way tt itself does.
-            - "github.com/tarantool/tt/v3/cli/cmdcontext"
-            - "github.com/tarantool/tt/v3/cli/version"
             # cli/manifest/pack tests match the parser's error for a broken
             # instance description, and the resolver's for one that does not
             # fit its topology.

@@ -9,6 +9,7 @@
 package buildreg
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"regexp"
@@ -19,7 +20,11 @@ import (
 
 	"github.com/tarantool/tt/sdk/build"
 	"github.com/tarantool/tt/v3/cli/manifest"
-	corebackend "github.com/tarantool/tt/v3/cli/manifest/build/backend"
+	"github.com/tarantool/tt/v3/cli/manifest/build/backends/basic"
+	"github.com/tarantool/tt/v3/cli/manifest/build/backends/cargo"
+	"github.com/tarantool/tt/v3/cli/manifest/build/backends/cc"
+	"github.com/tarantool/tt/v3/cli/manifest/build/backends/cmake"
+	"github.com/tarantool/tt/v3/cli/manifest/build/backends/gobuild"
 )
 
 // Registry holds the build backends and the file checks of a tt. It is
@@ -40,10 +45,6 @@ type entry struct {
 	module string
 	// fields are the keys of its configuration (build.Backend.Fields).
 	fields []string
-	// owns reports whether the backend has the field key, when its fields
-	// do not tell: the backends of the core share one configuration
-	// (corebackend.Owns). Nil for the others.
-	owns func(key string) bool
 }
 
 // New returns an empty registry.
@@ -51,22 +52,28 @@ func New() *Registry {
 	return &Registry{entries: nil, checks: nil}
 }
 
-// Core returns a registry of the backends of the core (corebackend.Core),
-// in their order: make and shell, then the others by name.
+// CoreBackends returns the backends of the core in their order, the one the
+// messages that list backends list them in: make and shell, which run the
+// hooks, then the others by name.
+func CoreBackends() []build.Backend {
+	others := append(cc.Backends(), cargo.Backend(), cmake.Backend(), gobuild.Backend())
+
+	slices.SortFunc(others, func(a, b build.Backend) int { return cmp.Compare(a.Name, b.Name) })
+
+	return append(basic.Backends(), others...)
+}
+
+// Core returns a registry of the backends of the core (CoreBackends).
 func Core() *Registry {
 	registry := New()
 
-	for _, provided := range corebackend.Core() {
+	for _, provided := range CoreBackends() {
 		added, err := registry.check("", provided)
 		if err != nil {
 			// The backends of the core are this package's to keep well
 			// formed: TestCore checks them.
 			panic(fmt.Sprintf("buildreg: %v", err))
 		}
-
-		name := provided.Name
-
-		added.owns = func(key string) bool { return corebackend.Owns(name, key) }
 
 		registry.entries = append(registry.entries, added)
 	}

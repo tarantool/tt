@@ -26,7 +26,6 @@ import (
 	"github.com/tarantool/tt/sdk"
 	"github.com/tarantool/tt/sdk/log"
 	"github.com/tarantool/tt/v3/cli/manifest"
-	"github.com/tarantool/tt/v3/cli/manifest/build/backend"
 	"github.com/tarantool/tt/v3/internal/buildflags"
 	"github.com/tarantool/tt/v3/internal/execfile"
 )
@@ -439,7 +438,7 @@ func (b builder) flags(ssl buildflags.SSL, goos string) (string, string, error) 
 	ldflags := slices.Concat([]string{"-s", "-w"}, b.coreLdflags, ssl.Ldflags(goos),
 		b.dist.Build.Ldflags)
 
-	quoted, err := backend.QuoteFlags(ldflags)
+	quoted, err := quoteFlags(ldflags)
 	if err != nil {
 		return "", "", sdk.WithCode(sdk.ExitFailure, fmt.Errorf("build.ldflags: %w", err))
 	}

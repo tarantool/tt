@@ -14,7 +14,8 @@ type BuildChecker interface {
 	// checked - and the fields of the block no backend has, by their path
 	// from the block, which Validate reports by the format-version rules.
 	// An error is a *ValidationError naming the field, by its path from the
-	// root of the manifest.
+	// root of the manifest. The block of a hook names a backend that runs
+	// hooks, or is refused.
 	CheckBuild(field string, target BuildTarget, build Build) (BuildCheck, error)
 }
 
@@ -44,4 +45,39 @@ type BuildCheck struct {
 	// Unknown are the fields of the block no backend has, by their path
 	// from the block, in the order they are reported in.
 	Unknown []string
+	// Programs are the names of the programs the build of an executable
+	// component puts into .rocks/bin/, as far as its block tells them; a
+	// build may make others its block does not name. Nil for a module
+	// component and a hook.
+	Programs []string
+}
+
+// ComponentTarget returns what the build block of the component name builds,
+// as a BuildChecker is told it: the kind is KindModule for a component that
+// names none, and an executable component has no namespace.
+func (m *Manifest) ComponentTarget(name string) BuildTarget {
+	comp := m.Components[name]
+
+	kind := comp.Kind
+	if kind == "" {
+		kind = KindModule
+	}
+
+	namespace := comp.EffectiveNamespace(m.Package.Name)
+	if comp.IsExecutable() {
+		namespace = ""
+	}
+
+	return BuildTarget{
+		Component: name, Kind: kind, Path: comp.Path, Namespace: namespace,
+		Package: m.Package.Name, Hook: false,
+	}
+}
+
+// HookTarget returns what the block of a hook builds, as a BuildChecker is
+// told it.
+func (m *Manifest) HookTarget() BuildTarget {
+	return BuildTarget{
+		Component: "", Kind: "", Path: "", Namespace: "", Package: m.Package.Name, Hook: true,
+	}
 }

@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/v3/cli/manifest"
-	"github.com/tarantool/tt/v3/cli/manifest/build/backend"
 	"github.com/tarantool/tt/v3/cli/manifest/buildreg"
 )
 
@@ -24,17 +23,18 @@ func parseBody(t *testing.T, body string) *manifest.Manifest {
 	return mfst
 }
 
-// specOf decodes the build block of the component name of mfst as the
-// backends of the core read it.
-func specOf(t *testing.T, mfst *manifest.Manifest, name string) backend.Spec {
+// programsOf returns the programs the build block of the component name of
+// mfst names to the checker of the backends of tt.
+func programsOf(t *testing.T, mfst *manifest.Manifest, name string) []string {
 	t.Helper()
 
 	require.NotNil(t, mfst.Components[name].Build)
 
-	spec, err := backend.Decode(*mfst.Components[name].Build)
+	check, err := buildreg.Core().CheckBuild("components."+name+".build",
+		mfst.ComponentTarget(name), *mfst.Components[name].Build)
 	require.NoError(t, err)
 
-	return spec
+	return check.Programs
 }
 
 // TestExecutableComponentFields checks that every field of the go and cargo
@@ -72,31 +72,39 @@ static = true
 	require.NoError(t, err)
 
 	assert.True(t, mfst.Components["gw"].IsExecutable())
-	assert.Equal(t, []string{"gateway"}, mfst.Components["gw"].Build.Executables("gw"))
+	assert.Equal(t, []string{"gateway"}, programsOf(t, mfst, "gw"))
 
-	gateway := specOf(t, mfst, "gw")
-	assert.Equal(t, "./cmd/gw", gateway.Package)
-	assert.Equal(t, "gateway", gateway.Name)
-	assert.Equal(t, []string{"prod"}, gateway.Tags)
-	assert.Equal(t, []string{"-s", "-X", "main.version=1.0"}, gateway.Ldflags)
-	assert.True(t, gateway.CgoValue())
+	gateway := mfst.Components["gw"].Build
+	assert.Equal(t, map[string]any{
+		"package": "./cmd/gw",
+		"name":    "gateway",
+		"tags":    []any{"prod"},
+		"ldflags": []any{"-s", "-X", "main.version=1.0"},
+		"cgo":     true,
+	}, gateway.Rest)
 	assert.True(t, gateway.StaticValue())
 	assert.Equal(t, map[string]string{"CC": "musl-gcc"}, gateway.Env)
-	assert.Equal(t, []string{"gateway"}, gateway.Executables("gw"))
 
-	assert.Equal(t, []string{"agent-bin"}, mfst.Components["agent"].Build.Executables("agent"))
+	assert.Equal(t, []string{"agent-bin"}, programsOf(t, mfst, "agent"))
 
-	agent := specOf(t, mfst, "agent")
-	assert.Equal(t, "agent-bin", agent.Bin)
-	assert.Equal(t, "agent-crate", agent.Package)
-	assert.Equal(t, []string{"tls", "serde/derive"}, agent.Features)
-	assert.Equal(t, "dist", agent.Profile)
+	agent := mfst.Components["agent"].Build
+	assert.Equal(t, map[string]any{
+		"bin":      "agent-bin",
+		"package":  "agent-crate",
+		"features": []any{"tls", "serde/derive"},
+		"profile":  "dist",
+	}, agent.Rest)
 	assert.True(t, agent.StaticValue())
-	assert.Equal(t, []string{"agent-bin"}, agent.Executables("agent"))
 }
 
-func TestBuildExecutables(t *testing.T) {
+// TestBuildPrograms checks the programs the build of an executable
+// component names to the checker of the backends of tt.
+func TestBuildPrograms(t *testing.T) {
 	t.Parallel()
+
+	target := manifest.BuildTarget{
+		Component: "gw", Kind: manifest.KindExecutable, Path: "gw", Package: "demo",
+	}
 
 	tests := []struct {
 		name  string
@@ -115,19 +123,35 @@ func TestBuildExecutables(t *testing.T) {
 		},
 		{
 			"make lists its output by base name",
-			manifest.Build{Backend: "make", Output: []string{"out/gw", "out/gw-cli", "gw"}},
+			manifest.Build{
+				Backend: "make", Output: []string{"out/gw", "out/gw-cli", "gw"},
+				Rest: map[string]any{"make_target": "all"},
+			},
 			[]string{"gw", "gw-cli"},
 		},
-		{"shell writing TT_OUTPUT_DIR names none", manifest.Build{Backend: "shell"}, []string{}},
+		{
+			"shell writing TT_OUTPUT_DIR names none",
+			manifest.Build{Backend: "shell", Rest: map[string]any{"command": "./b.sh"}},
+			[]string{},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.want, tt.build.Executables("gw"))
+			check, err := buildreg.Core().CheckBuild("components.gw.build", target, tt.build)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, check.Programs)
 		})
 	}
+
+	// A module component makes no program.
+	check, err := buildreg.Core().CheckBuild("components.gw.build", manifest.BuildTarget{
+		Component: "gw", Kind: manifest.KindModule, Path: "gw", Package: "demo",
+	}, manifest.Build{Backend: "cargo"})
+	require.NoError(t, err)
+	assert.Nil(t, check.Programs)
 }
 
 func TestExecutableComponent(t *testing.T) {
@@ -165,10 +189,18 @@ output = ["build/gw-cli"]
 		{"lua", "", false},
 		{"python3", "", false},
 	} {
-		component, found := mfst.ExecutableComponent(tt.binary)
+		component, found := mfst.ExecutableComponent(buildreg.Core(), tt.binary)
 		assert.Equal(t, tt.found, found, tt.binary)
 		assert.Equal(t, tt.component, component, tt.binary)
 	}
+
+	// With no checker, a program is found by the name of its component only.
+	component, found := mfst.ExecutableComponent(nil, "gw")
+	assert.True(t, found)
+	assert.Equal(t, "gw", component)
+
+	_, found = mfst.ExecutableComponent(nil, "gateway")
+	assert.False(t, found)
 }
 
 // TestValidateExecutableComponents covers what an executable component and
@@ -299,7 +331,7 @@ func TestValidateExecutableComponents(t *testing.T) {
 				"[components.lua.build]\nbackend = \"make\"\nmake_target = \"all\"\n" +
 				"module = \"x\"\n",
 			field: "components.lua.build.module",
-			msg:   `is a field of backend c, lua-c or cargo, not of "make"`,
+			msg:   `is a field of backend c, cargo or lua-c, not of "make"`,
 		},
 		{
 			name: "a field of make on shell",
@@ -360,7 +392,23 @@ func TestValidateExecutableComponents(t *testing.T) {
 			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
 				"[components.a.build]\nbackend = \"cargo\"\nldflags = [\"-s\"]\n",
 			field: "components.a.build.ldflags",
-			msg:   `is a field of backend go, c or lua-c, not of "cargo"`,
+			msg:   `is a field of backend c, go or lua-c, not of "cargo"`,
+		},
+		// A field of another backend is the block's by its key, whatever
+		// its value: an empty one is as much a mistake.
+		{
+			name: "an empty field of make on go",
+			body: "[components.a]\npath = \"a\"\nkind = \"executable\"\n" +
+				"[components.a.build]\nbackend = \"go\"\nmake_target = \"\"\n",
+			field: "components.a.build.make_target",
+			msg:   `is a field of backend make, not of "go"`,
+		},
+		{
+			name: "an empty field of go on shell",
+			body: "[components.a]\npath = \"a\"\n" +
+				"[components.a.build]\nbackend = \"shell\"\ncommand = \"./b.sh\"\nname = \"\"\n",
+			field: "components.a.build.name",
+			msg:   `is a field of backend go, not of "shell"`,
 		},
 		{
 			name: "go name with a slash",
@@ -577,19 +625,21 @@ output = ["bin/mc-bench", "mc-cli"]
 	_, err := mfst.Validate(buildreg.Core())
 	require.NoError(t, err)
 
-	memcached := specOf(t, mfst, "mc")
-	assert.Equal(t, map[string]string{
-		"ENABLE_BUNDLED_SMALL": "ON", "WITH_SASL:BOOL": "OFF", "CMAKE_PREFIX_PATH": "/deps",
-	}, memcached.Variables)
-	assert.Equal(t, []string{"internalso"}, memcached.Targets)
-	assert.Equal(t, "Release", memcached.BuildType)
+	memcached := mfst.Components["mc"].Build
+	assert.Equal(t, map[string]any{
+		"variables": map[string]any{
+			"ENABLE_BUNDLED_SMALL": "ON", "WITH_SASL:BOOL": "OFF", "CMAKE_PREFIX_PATH": "/deps",
+		},
+		"targets":    []any{"internalso"},
+		"build_type": "Release",
+	}, memcached.Rest)
 	assert.Equal(t, []string{"memcached/internal.so"}, memcached.Output)
 
 	tools := mfst.Components["tools"]
 	assert.True(t, tools.IsExecutable())
-	assert.Equal(t, []string{"mc-bench", "mc-cli"}, tools.Build.Executables("tools"))
+	assert.Equal(t, []string{"mc-bench", "mc-cli"}, programsOf(t, mfst, "tools"))
 
-	component, found := mfst.ExecutableComponent("mc-bench")
+	component, found := mfst.ExecutableComponent(buildreg.Core(), "mc-bench")
 	assert.True(t, found)
 	assert.Equal(t, "tools", component)
 }
@@ -746,12 +796,17 @@ ldflags = ["-Wl,-dead_strip"]
 	_, err := mfst.Validate(buildreg.Core())
 	require.NoError(t, err)
 
-	build := specOf(t, mfst, "memcached")
-	assert.Equal(t, []string{"-std=gnu99", "-Wall", "-Wextra", "-Werror"}, build.Cflags)
-	assert.Equal(t, []string{"-Wl,-z,defs"}, build.Ldflags)
-	assert.Equal(t, []string{"-Wl,--as-needed"}, build.Platforms["linux"].Ldflags)
-	assert.Equal(t, []string{"-Wno-deprecated-declarations"}, build.Platforms["darwin"].Cflags)
-	assert.Equal(t, []string{"-Wl,-dead_strip"}, build.Platforms["darwin"].Ldflags)
+	build := mfst.Components["memcached"].Build
+	assert.Equal(t, []any{"-std=gnu99", "-Wall", "-Wextra", "-Werror"}, build.Rest["cflags"])
+	assert.Equal(t, []any{"-Wl,-z,defs"}, build.Rest["ldflags"])
+	assert.Equal(t, map[string]any{
+		"linux": map[string]any{"ldflags": []any{"-Wl,--as-needed"}},
+		"darwin": map[string]any{
+			"cflags":  []any{"-Wno-deprecated-declarations"},
+			"ldflags": []any{"-Wl,-dead_strip"},
+		},
+	}, build.Rest["platforms"])
+	assert.Equal(t, map[string]string{"CPATH": "/opt/include"}, build.Env)
 }
 
 // TestValidateCcFlags covers what validation rules out of the flags of a c
@@ -808,7 +863,7 @@ func TestValidateCcFlags(t *testing.T) {
 			"ldflags on shell",
 			"[components.a]\npath = \"a\"\n[components.a.build]\nbackend = \"shell\"\n" +
 				"command = \"./b.sh\"\nldflags = [\"-s\"]\n",
-			"components.a.build.ldflags", `is a field of backend go, c or lua-c, not of "shell"`,
+			"components.a.build.ldflags", `is a field of backend c, go or lua-c, not of "shell"`,
 		},
 		{
 			"CC in env", module + "env = { CC = \"clang\" }\n",

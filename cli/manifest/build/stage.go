@@ -168,7 +168,7 @@ type stageBuild struct {
 // component of the product owns by the new record nor the build generated,
 // and the directories that leaves empty. A component the build did not build
 // (--component) owns what last records of it; one whose incremental build was
-// skipped, what its last build wrote (runModuleBackend).
+// skipped, what its last build wrote (builder.runModule).
 func settleStage(stage string, proj project, last stageRecord, build stageBuild) error {
 	record := stageRecord{Components: map[string]stageFiles{}}
 	keep := map[string]bool{}

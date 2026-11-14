@@ -27,10 +27,13 @@ func TestComponentInputs(t *testing.T) {
 	build := manifest.Build{
 		Backend: "shell", Rest: map[string]any{"command": "tarawasm", "args": []any{"all"}},
 	}
+
+	var extra []string
+
 	hash := func() string {
 		t.Helper()
 
-		got, err := componentInputs(project, comp, build)
+		got, err := componentInputs(project, comp, build, extra)
 		require.NoError(t, err)
 
 		return got
@@ -58,7 +61,19 @@ func TestComponentInputs(t *testing.T) {
 
 	build.Cwd = "comp"
 
-	assert.NotEqual(t, third, hash(), "a changed field of the block is a changed input")
+	fourth := hash()
+	assert.NotEqual(t, third, fourth, "a changed field of the block is a changed input")
+
+	// The inputs a build names besides (sdkbuild.InputHasher) are inputs,
+	// apart from one another.
+	extra = []string{"zig 0.16.0"}
+
+	fifth := hash()
+	assert.NotEqual(t, fourth, fifth, "an input of the build is an input")
+
+	extra = []string{"zig", " 0.16.0"}
+
+	assert.NotEqual(t, fifth, hash(), "two inputs are not their concatenation")
 }
 
 func TestIncrementalRecord(t *testing.T) {
@@ -72,6 +87,7 @@ func TestIncrementalRecord(t *testing.T) {
 	record := incrementalRecord{
 		Inputs:  "abc",
 		Written: []string{"sub/x.so"},
+		Shared:  []string{"x.wasm"},
 		LaidOut: []string{"init.lua"},
 	}
 	require.NoError(t, writeIncremental(project, "comp", record))

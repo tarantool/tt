@@ -11,7 +11,7 @@ import (
 func TestFileFilter_defaultsKeepLuaAndSo(t *testing.T) {
 	t.Parallel()
 
-	pathFilter := newFileFilter(manifest.Component{})
+	pathFilter := newFileFilter(manifest.Component{}, nil)
 
 	assert.True(t, pathFilter.keepFile([]string{"init.lua"}))
 	assert.True(t, pathFilter.keepFile([]string{"lib", "foo.lua"}))
@@ -25,7 +25,7 @@ func TestFileFilter_defaultExcludesAlwaysApply(t *testing.T) {
 
 	// A component whose include list would otherwise match everything still
 	// cannot ship the hazardous defaults.
-	pathFilter := newFileFilter(manifest.Component{Include: []string{"*"}})
+	pathFilter := newFileFilter(manifest.Component{Include: []string{"*"}}, nil)
 
 	assert.False(t, pathFilter.keepFile([]string{".hidden"}))
 	assert.False(t, pathFilter.keepFile([]string{manifestFileName}))
@@ -44,7 +44,7 @@ func TestFileFilter_customIncludeReplacesDefault(t *testing.T) {
 	// A component narrowing to these two patterns no longer picks up a *.so at
 	// the root. An unanchored *.lua matches .lua files at any depth (gitignore
 	// basename matching).
-	pathFilter := newFileFilter(manifest.Component{Include: []string{"*.lua", "lib/*.lua"}})
+	pathFilter := newFileFilter(manifest.Component{Include: []string{"*.lua", "lib/*.lua"}}, nil)
 
 	assert.True(t, pathFilter.keepFile([]string{"init.lua"}))
 	assert.True(t, pathFilter.keepFile([]string{"lib", "helper.lua"}))
@@ -57,7 +57,7 @@ func TestFileFilter_anchoredIncludeIsDepthLimited(t *testing.T) {
 
 	// A slashed pattern is anchored to the component root: lib/*.lua matches
 	// files directly under lib/, not deeper and not at the root.
-	pathFilter := newFileFilter(manifest.Component{Include: []string{"lib/*.lua"}})
+	pathFilter := newFileFilter(manifest.Component{Include: []string{"lib/*.lua"}}, nil)
 
 	assert.True(t, pathFilter.keepFile([]string{"lib", "helper.lua"}))
 	assert.False(t, pathFilter.keepFile([]string{"lib", "inner", "deep.lua"}))
@@ -67,10 +67,23 @@ func TestFileFilter_anchoredIncludeIsDepthLimited(t *testing.T) {
 func TestFileFilter_customExcludeExtendsDefault(t *testing.T) {
 	t.Parallel()
 
-	pathFilter := newFileFilter(manifest.Component{Exclude: []string{"*.bak"}})
+	pathFilter := newFileFilter(manifest.Component{Exclude: []string{"*.bak"}}, nil)
 
 	assert.False(t, pathFilter.keepFile([]string{"old.lua.bak"}))
 	// The defaults are still in force alongside the custom pattern.
 	assert.False(t, pathFilter.keepFile([]string{".hidden.lua"}))
+	assert.True(t, pathFilter.keepFile([]string{"init.lua"}))
+}
+
+func TestFileFilter_backendExcludeExtendsDefault(t *testing.T) {
+	t.Parallel()
+
+	// What the tool of a backend leaves in the component, as cargo leaves
+	// target/, is no file of the package, whatever include says.
+	pathFilter := newFileFilter(manifest.Component{Include: []string{"*.so", "*.lua"}},
+		[]string{"/zig-out/"})
+
+	assert.True(t, pathFilter.pruneDir([]string{"zig-out"}))
+	assert.True(t, pathFilter.keepFile([]string{"lib", "zig-out", "x.so"}))
 	assert.True(t, pathFilter.keepFile([]string{"init.lua"}))
 }
