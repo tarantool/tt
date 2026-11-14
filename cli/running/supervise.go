@@ -272,7 +272,8 @@ func updateLogger(logger ttlog.Logger, instanceCtx *InstanceCtx) (ttlog.Logger, 
 
 // watchdogOptions are the options of the watchdog of an instance: the pid file
 // names the watchdog, the stop signals reach tarantool as they were sent, a
-// SIGHUP rotates the log of the watchdog and reaches tarantool as well, and
+// SIGHUP rotates the log of the watchdog and reaches tarantool as well, once
+// tarantool handles it, and
 // the periodic integrity check, when there is one, is a hard stop. The
 // sockets removed at the end are those of the context tarantool last ran
 // with, whatever the configuration says by then.
